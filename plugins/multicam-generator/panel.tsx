@@ -821,6 +821,68 @@ export function clipSourceStartFrames(c) {
   throw new Error("This Selects version's timeline can't be read yet. Update the plugin.");
 }
 
+// sdk-selected-media:start
+// Match host Resource ids to run_script's project-scoped ids through the SDK.
+// Return only the selected files so large Projects stay below the script result limit.
+async function sdkSelectedMedia(sdk, projectId, picks) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw Error('Could not read the Project resources.');
+  const indices = picks.map(pick => before.findIndex(row => row.resourceId === pick.resourceId));
+  if (indices.includes(-1)) throw Error('A picked file is missing from this Project.');
+  const response = await sdk.runScript({
+    summary: 'Read selected Project files', allowCommit: false,
+    script: `const p=selects.project(${JSON.stringify(projectId)});
+const resources=await p.resources(),indices=${JSON.stringify(indices)};
+const selected=indices.map(i=>resources[i]),ids=new Set(selected.filter(Boolean).map(r=>r.resourceId));
+const files=[];
+const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else if(ids.has(n.resourceId))files.push(n);};
+const top=await p.sourceFiles();
+if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);
+else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});walk(detail.fileTree);}
+return {count:resources.length,rows:selected.map(r=>r?{name:r.name,type:r.type,files:files.filter(f=>f.resourceId===r.resourceId).map(f=>({resourceId:f.resourceId,path:f.path}))}:null)};`
+  });
+  if (response.isError || !response.result || !Array.isArray(response.result.rows))
+    throw Error(response.output || 'Could not read the selected Project files.');
+  const result = response.result, after = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(after) || before.length !== result.count || after.length !== before.length ||
+      after.some((row, i) => row.resourceId !== before[i].resourceId || row.name !== before[i].name || row.type !== before[i].type) ||
+      result.rows.length !== picks.length || indices.some((index, i) =>
+        result.rows[i]?.name !== before[index].name || result.rows[i]?.type !== before[index].type))
+    throw Error('The selected Project files changed. Refresh your media and try again.');
+  return result.rows.map((row, i) => {
+    const expected = { image: 'Image', video: 'Video', audio: 'Audio' }[picks[i].kind];
+    if (expected && row.type !== expected) throw Error('A picked file has the wrong media type.');
+    if (row.files.length !== 1 || !row.files[0].path)
+      throw Error((picks[i].name || 'A picked file') + ' is missing from this Project or matches more than one file.');
+    return { ...row.files[0], resourceType: row.type };
+  });
+}
+// sdk-selected-media:end
+
+// sdk-media-path:start
+// A bounded path lookup returning host ids for services that do not accept SDK aliases.
+async function sdkMediaByPath(sdk, projectId, path, basename = false) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw Error('Could not read the Project resources.');
+  const response = await sdk.runScript({summary:'Find Project media by path',allowCommit:false,
+    script:`const p=selects.project(${JSON.stringify(projectId)}),resources=await p.resources();
+const wanted=${JSON.stringify(path)},basename=${JSON.stringify(basename)};
+const key=value=>{const v=String(value||'').normalize('NFC').replace(/\\\\/g,'/');return /^[A-Za-z]:/.test(v)||v.startsWith('//')?v.toLowerCase():v;};
+const matches=[],walk=nodes=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.path&&(basename?key(n.path).split('/').pop()===key(wanted):key(n.path)===key(wanted))){const index=resources.findIndex(r=>r.resourceId===n.resourceId);if(index>=0)matches.push({index,name:resources[index].name,type:resources[index].type,path:n.path});}}};
+const top=await p.sourceFiles();if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);else for(const folder of top.folders||[])walk((await p.sourceFiles({folder:folder.name})).fileTree);
+if(matches.length>1)throw Error('More than one Project file matches this path.');
+return {count:resources.length,matches};`});
+  if(response.isError||!response.result||!Array.isArray(response.result.matches))throw Error(response.output||'Could not find Project media.');
+  const result=response.result,after=await sdk.call('listProjectResources',projectId);
+  if(!Array.isArray(after)||result.count!==before.length||after.length!==before.length||after.some((r,i)=>r.resourceId!==before[i].resourceId||r.name!==before[i].name||r.type!==before[i].type))throw Error('The Project files changed. Try again.');
+  return result.matches.map(row=>{
+    const resource=before[row.index];
+    if(!resource||resource.name!==row.name||resource.type!==row.type)throw Error('The Project files changed. Try again.');
+    return {resourceId:resource.resourceId,path:row.path,type:row.type};
+  });
+}
+// sdk-media-path:end
+
 export async function readPlan(context, settings, fixedFrame) {
   const app = window.parent as any,
     di = app.__DI__,
@@ -1296,33 +1358,13 @@ function Session({ sdk, context }) {
       throw new Error("draft_changed");
   }
   async function resolveResource(j, id) {
-    const di = (window.parent as any).__DI__;
-    const project = await di.ProjectRepository.findById(
-      j.plan.libraryId,
-      j.plan.projectId,
-    );
-    // Never trust an AI-reported path: match returned identity against actual project resources.
-    if (!project?.getResources?.().includes(id))
-      throw new Error("operation_failed");
-    const resource = await di.ResourceRepository.findById(j.plan.libraryId, id);
-    if (resource?.getType?.() !== "Video" || !resource.getMedia?.()?.path)
-      throw new Error("operation_failed");
-    return resource.getMedia();
+    const rows = await sdkSelectedMedia(sdk, j.plan.projectId, [{resourceId:id,kind:'video'}]);
+    return rows[0];
   }
   async function importPath(j, path) {
-    const di = (window.parent as any).__DI__;
     async function find() {
-      const project = await di.ProjectRepository.findById(
-        j.plan.libraryId,
-        j.plan.projectId,
-      );
-      const matches = [];
-      for (const id of project.getResources()) {
-        const r = await di.ResourceRepository.findById(j.plan.libraryId, id);
-        if (r?.getMedia?.()?.path === path) matches.push(id);
-      }
-      if (matches.length > 1) throw new Error("operation_failed");
-      return matches[0];
+      const matches = await sdkMediaByPath(sdk, j.plan.projectId, path);
+      return matches[0]?.resourceId;
     }
     let id = await find();
     if (!id) {
@@ -1580,22 +1622,9 @@ function Session({ sdk, context }) {
             );
             if (resolved.matches?.length !== 1)
               throw new Error("operation_failed");
-            const di = (window.parent as any).__DI__,
-              p = await di.ProjectRepository.findById(
-                j.plan.libraryId,
-                j.plan.projectId,
-              );
-            const matches = [];
-            for (const rid of p.getResources()) {
-              const r = await di.ResourceRepository.findById(
-                j.plan.libraryId,
-                rid,
-              );
-              if (r?.getMedia?.()?.path?.split(/[\\/]/).pop() === outputName + ".mp4")
-                matches.push(rid);
-            }
+            const matches = await sdkMediaByPath(sdk, j.plan.projectId, outputName + ".mp4", true);
             if (matches.length !== 1) throw new Error("operation_failed");
-            id = matches[0];
+            id = matches[0].resourceId;
           }
           await resolveResource(j, id);
           j = { ...j, generatedResourceId: id, phase: j.task === "lipsync" ? "ready" : "angle_ready" };
@@ -1666,36 +1695,8 @@ function Session({ sdk, context }) {
         save(j);
       } else if (j.phase === "conformed") {
         await assertSource(j);
-        // Match by file path, never by name: the generation service has already imported the raw file.
-        const di = (window.parent as any).__DI__,
-          p = await di.ProjectRepository.findById(
-            j.plan.libraryId,
-            j.plan.projectId,
-          );
-        let actualId;
-        for (const rid of p.getResources()) {
-          const r = await di.ResourceRepository.findById(j.plan.libraryId, rid);
-          if (r?.getMedia?.()?.path === j.outputPath) actualId = rid;
-        }
-        if (!actualId) {
-          await script(
-            `return await selects.project(${JSON.stringify(j.plan.projectId)}).importFiles({paths:[${JSON.stringify(j.outputPath)}]});`,
-            "Import prepared angle",
-            true,
-          );
-          const refreshed = await di.ProjectRepository.findById(
-            j.plan.libraryId,
-            j.plan.projectId,
-          );
-          for (const rid of refreshed.getResources()) {
-            const r = await di.ResourceRepository.findById(
-              j.plan.libraryId,
-              rid,
-            );
-            if (r?.getMedia?.()?.path === j.outputPath) actualId = rid;
-          }
-        }
-        if (!actualId) throw new Error("operation_failed");
+        // Reuse the exact imported file, or import and resolve it through the SDK.
+        const actualId = await importPath(j, j.outputPath);
         j = { ...j, actualResourceId: actualId, phase: "imported" };
         save(j);
       } else if (["imported", "review"].includes(j.phase)) {

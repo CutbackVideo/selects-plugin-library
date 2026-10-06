@@ -1159,31 +1159,58 @@ function templateLibrary(app, projectId, template) {
 // The app hands over its own Resource ids; the Panel works from the inspected
 // media rows, so each pick is joined to its row by its file, the same file the
 // native placement later checks the Project's Resource against.
+// sdk-selected-media:start
+// Match host Resource ids to run_script's project-scoped ids through the SDK.
+// Return only the selected files so large Projects stay below the script result limit.
+async function sdkSelectedMedia(sdk, projectId, picks) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw Error('Could not read the Project resources.');
+  const indices = picks.map(pick => before.findIndex(row => row.resourceId === pick.resourceId));
+  if (indices.includes(-1)) throw Error('A picked file is missing from this Project.');
+  const response = await sdk.runScript({
+    summary: 'Read selected Project files', allowCommit: false,
+    script: `const p=selects.project(${JSON.stringify(projectId)});
+const resources=await p.resources(),indices=${JSON.stringify(indices)};
+const selected=indices.map(i=>resources[i]),ids=new Set(selected.filter(Boolean).map(r=>r.resourceId));
+const files=[];
+const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else if(ids.has(n.resourceId))files.push(n);};
+const top=await p.sourceFiles();
+if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);
+else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});walk(detail.fileTree);}
+return {count:resources.length,rows:selected.map(r=>r?{name:r.name,type:r.type,files:files.filter(f=>f.resourceId===r.resourceId).map(f=>({resourceId:f.resourceId,path:f.path}))}:null)};`
+  });
+  if (response.isError || !response.result || !Array.isArray(response.result.rows))
+    throw Error(response.output || 'Could not read the selected Project files.');
+  const result = response.result, after = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(after) || before.length !== result.count || after.length !== before.length ||
+      after.some((row, i) => row.resourceId !== before[i].resourceId || row.name !== before[i].name || row.type !== before[i].type) ||
+      result.rows.length !== picks.length || indices.some((index, i) =>
+        result.rows[i]?.name !== before[index].name || result.rows[i]?.type !== before[index].type))
+    throw Error('The selected Project files changed. Refresh your media and try again.');
+  return result.rows.map((row, i) => {
+    const expected = { image: 'Image', video: 'Video', audio: 'Audio' }[picks[i].kind];
+    if (expected && row.type !== expected) throw Error('A picked file has the wrong media type.');
+    if (row.files.length !== 1 || !row.files[0].path)
+      throw Error((picks[i].name || 'A picked file') + ' is missing from this Project or matches more than one file.');
+    return { ...row.files[0], resourceType: row.type };
+  });
+}
+// sdk-selected-media:end
+
 async function templateTiles(sdk, app, projectId, libraryId, inputs) {
   const photos = Array.isArray(inputs?.photos) ? inputs.photos : [];
   const clips = Array.isArray(inputs?.clips) ? inputs.clips : [];
   if (photos.length !== 15 || photos.some(x => x?.kind !== 'image' || !x.resourceId)) throw templateIssue('Pick exactly 15 photos, then try again.');
   if (clips.length !== 6 || clips.some(x => x?.kind !== 'video' || !x.resourceId)) throw templateIssue('Pick exactly 6 videos, then try again.');
-  const di = app?.__DI__;
-  if (typeof di?.ProjectRepository?.findById !== 'function' || typeof di?.ResourceRepository?.findById !== 'function') {
-    throw templateIssue('This version of Selects cannot place photos for Photo Grid Reveal; update Selects, then try again.');
-  }
-  const project = libraryId ? await di.ProjectRepository.findById(libraryId, projectId) : null;
-  if (!project) throw templateIssue('Could not find this Project; open it, then try again.');
-  const members = new Set(project.getResources() || []);
-  const paths = [];
-  for (const pick of [...photos, ...clips]) {
-    const resource = members.has(pick.resourceId) ? await di.ResourceRepository.findById(libraryId, pick.resourceId) : null;
-    const path = resource?.getMedia()?.path;
-    if (!path) throw templateIssue((pick.name || 'A picked file') + ' is missing from this Project.');
-    paths.push(path);
-  }
+  const picks = [...photos, ...clips];
+  const selected = await sdkSelectedMedia(sdk, projectId, picks);
+  const paths = selected.map(row => row.path);
+  const pathById = new Map(picks.map((pick, i) => [pick.resourceId, paths[i]]));
   const inspected = await readMediaPages(sdk, { script: buildScript({ operation: 'inspect', projectId, paths }), summary: 'Inspect Photo Gallery project', allowCommit: false });
   if (inspected.isError || inspected.result?.status !== 'inspected' || !Array.isArray(inspected.result.media)) throw new Error(inspected.result?.message || inspected.output || 'Could not read the Project media.');
   const rowFor = async pick => {
     const label = pick.name || (pick.kind === 'video' ? 'A picked video' : 'A picked photo');
-    const resource = members.has(pick.resourceId) ? await di.ResourceRepository.findById(libraryId, pick.resourceId) : null;
-    const path = resource?.getMedia()?.path;
+    const path = pathById.get(pick.resourceId);
     const rows = path ? inspected.result.media.filter(row => row.path === path && row.kind === pick.kind) : [];
     if (rows.length !== 1) throw templateIssue(label + ' is missing from this Project or matches more than one file.');
     return rows[0];

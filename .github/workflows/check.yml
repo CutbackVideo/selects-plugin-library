@@ -152,6 +152,7 @@ jobs:
           node plugins/selfie-aesthetic/tests/still.test.cjs
       - name: Test template panels on Windows paths
         run: |
+          node --test tests/selected_template_media.test.mjs
           node --test tests/cinema_vlog_studio.test.mjs
           node --test tests/cutout_beat_gallery.test.mjs
           node --test tests/daily_vlog_8.test.mjs

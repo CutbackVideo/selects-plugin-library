@@ -139,10 +139,23 @@ function planStory(story) {
 async function fullProjectInventory(sdk,projectId){
  const scaffold=await sdk.call('getProjectDraftScaffold',projectId);const owner=scaffold?.owner;
  if(!owner?.libraryId||owner.projectId!==projectId)throw issue('The source project could not be verified.','PROJECT_SCOPE');
- const api=window.parent.__DI__?.ProjectFileTree;
- if(typeof api?.listEnrichedFileTree!=='function')throw issue('Update Selects to use full-path footage lookup.','FULL_INVENTORY_UNAVAILABLE');
- const tree=await api.listEnrichedFileTree(owner.libraryId,projectId);if(!Array.isArray(tree))throw issue('The project source tree is unavailable.');
- const files=[];function walk(nodes){for(const n of nodes){if(n.type==='dir')walk(n.children||[]);else if(n.resourceId&&n.path)files.push({path:n.path,resourceId:n.resourceId,type:n.type,durationSeconds:n.durationSeconds||0,frameRate:n.frameRate||30,frameSize:n.frameSize||null});}}walk(tree);return files;
+ const before=await sdk.call('listProjectResources',projectId);
+ if(!Array.isArray(before))throw issue('The project resources are unavailable.');
+ const response=await readMediaPages(sdk,{summary:'Read full Project source paths',allowCommit:false,script:`
+const p=selects.project(${JSON.stringify(projectId)}),resources=await p.resources();
+const byId=new Map(resources.map((r,index)=>[r.resourceId,{index,name:r.name,type:r.type}]));
+const files=[];
+const walk=nodes=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.resourceId&&n.path){const r=byId.get(n.resourceId);if(!r)throw Error('The Project files changed. Try again.');files.push({path:n.path,resourceIndex:r.index,resourceName:r.name,resourceType:r.type,type:n.type,durationSeconds:n.durationSeconds||0,frameRate:n.frameRate||30,frameSize:n.frameSize||null});}}};
+const top=await p.sourceFiles();if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);else for(const folder of top.folders||[])walk((await p.sourceFiles({folder:folder.name})).fileTree);
+return {files,count:resources.length};`});
+ if(response.isError||!Array.isArray(response.result?.files))throw issue(response.output||'The project source tree is unavailable.');
+ const after=await sdk.call('listProjectResources',projectId),result=response.result;
+ if(!Array.isArray(after)||result.count!==before.length||after.length!==before.length||after.some((r,i)=>r.resourceId!==before[i].resourceId||r.name!==before[i].name||r.type!==before[i].type))throw issue('The Project files changed. Try again.');
+ return result.files.map(({resourceIndex,resourceName,resourceType,...file})=>{
+  const resource=before[resourceIndex];
+  if(!resource||resource.name!==resourceName||resource.type!==resourceType)throw issue('The Project files changed. Try again.');
+  return {...file,resourceId:resource.resourceId};
+ });
 }
 function validateFootageFolder(folder){
  const fs=getFS(),isDirectory=stat=>!!stat&&(stat.mode&0o170000)===0o040000;

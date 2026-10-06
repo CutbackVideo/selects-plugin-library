@@ -126,7 +126,8 @@ class PostcardCutoutStudioWindowsTest(unittest.TestCase):
         for old in ('item.path===', 'v.path===path', 'x.path===paths[', 'x.path===prepared', 'x.path===s.path', 'x.path===path'):
             with self.subTest(old=old):
                 self.assertNotIn(old, self.text)
-        self.assertEqual(self.text.count('samePath('), 9, 'the helper and its eight uses')
+        self.assertEqual(self.text.count('samePath('), 8, 'the helper and its seven local uses')
+        self.assertIn('sdkMediaByPath(sdk,scope.projectId,path)', self.text)
 
     def test_template_run_checks_the_host_before_anything(self):
         body = self.body('async function runTemplate(')

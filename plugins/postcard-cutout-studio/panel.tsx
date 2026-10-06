@@ -582,16 +582,37 @@ function generationScope(pid){
 }
 // The app's services speak in its own resource ids, which share nothing with
 // the run_script aliases the rest of this panel uses; the file path joins them.
-async function appResourceIdForPath(di,scope,path){
-  const ids=(await di.ProjectRepository.findById(scope.libraryId,scope.projectId)).getResources();
-  for(const id of ids){const res=await di.ResourceRepository.findById(scope.libraryId,id);if(res?.getVideoSources?.()?.some(v=>samePath(v.path,path)))return id;}
-  throw Error('Could not find the subject clip in this project.');
+// sdk-media-path:start
+// A bounded path lookup returning host ids for services that do not accept SDK aliases.
+async function sdkMediaByPath(sdk, projectId, path, basename = false) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw Error('Could not read the Project resources.');
+  const response = await sdk.runScript({summary:'Find Project media by path',allowCommit:false,
+    script:`const p=selects.project(${JSON.stringify(projectId)}),resources=await p.resources();
+const wanted=${JSON.stringify(path)},basename=${JSON.stringify(basename)};
+const key=value=>{const v=String(value||'').normalize('NFC').replace(/\\\\/g,'/');return /^[A-Za-z]:/.test(v)||v.startsWith('//')?v.toLowerCase():v;};
+const matches=[],walk=nodes=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.path&&(basename?key(n.path).split('/').pop()===key(wanted):key(n.path)===key(wanted))){const index=resources.findIndex(r=>r.resourceId===n.resourceId);if(index>=0)matches.push({index,name:resources[index].name,type:resources[index].type,path:n.path});}}};
+const top=await p.sourceFiles();if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);else for(const folder of top.folders||[])walk((await p.sourceFiles({folder:folder.name})).fileTree);
+if(matches.length>1)throw Error('More than one Project file matches this path.');
+return {count:resources.length,matches};`});
+  if(response.isError||!response.result||!Array.isArray(response.result.matches))throw Error(response.output||'Could not find Project media.');
+  const result=response.result,after=await sdk.call('listProjectResources',projectId);
+  if(!Array.isArray(after)||result.count!==before.length||after.length!==before.length||after.some((r,i)=>r.resourceId!==before[i].resourceId||r.name!==before[i].name||r.type!==before[i].type))throw Error('The Project files changed. Try again.');
+  return result.matches.map(row=>{
+    const resource=before[row.index];
+    if(!resource||resource.name!==row.name||resource.type!==row.type)throw Error('The Project files changed. Try again.');
+    return {resourceId:resource.resourceId,path:row.path,type:row.type};
+  });
 }
-async function appResourcePath(di,scope,id){
-  const res=await di.ResourceRepository.findById(scope.libraryId,id);
-  const path=res?.getVideoSources?.()?.find(v=>v.path)?.path;
-  if(!path)throw Error('The background-removed clip was imported, but its file could not be found.');
-  return path;
+// sdk-media-path:end
+
+async function appResourceIdForPath(sdk,scope,path){
+  const rows=await sdkMediaByPath(sdk,scope.projectId,path);
+  return rows[0]?.resourceId || null;
+}
+async function appResourcePath(sdk,scope,id){
+  const rows=await sdkSelectedMedia(sdk,scope.projectId,[{resourceId:id}]);
+  return rows[0].path;
 }
 // The steps of a run, shared by the Panel and a template run. `guard` stops the
 // work once whoever started it has moved on; `setRun` and `setStatus` report
@@ -609,10 +630,10 @@ if(!collect){
   // The exact stretch goes up as its own file: given a whole clip and a range,
   // the app re-encodes the range on one thread first (about 8s).
   const cut=r.cutoutInput?.path?r.cutoutInput:await helper(sdk,'cutout-input',{path:r.source.path,start:Number(r.settings.subjectStartSec)||0,seconds:CUTOUT_SECONDS});
-  let resourceId=await appResourceIdForPath(di,scope,cut.path).catch(()=>null);
+  let resourceId=await appResourceIdForPath(sdk,scope,cut.path);
   if(!resourceId){
     await runScript(sdk,'return await selects.project('+json(r.projectId)+').importFiles({paths:'+json([cut.path])+'});','Register postcard cutout input',true);
-    for(let i=0;!resourceId&&i<10;i++){resourceId=await appResourceIdForPath(di,scope,cut.path).catch(()=>null);if(!resourceId)await sleep(300);}
+    for(let i=0;!resourceId&&i<10;i++){resourceId=await appResourceIdForPath(sdk,scope,cut.path);if(!resourceId)await sleep(300);}
     if(!resourceId)throw Error('Could not find the subject clip in this project.');
   }
   // The key is fixed per run, so submitting again after a crash returns the
@@ -642,7 +663,7 @@ const out=(job.outputs||[]).find(o=>o.resourceId),file=hostIsWindows()&&job.deli
 if(!out&&!file&&job.status!=='succeeded')return r;
 // Background removal finishes with no delivered outputs (the app lists none
 // for this model), so take the clip straight from the app's job journal.
-const cutoutPath=out?await appResourcePath(di,scope,out.resourceId):file||(await helper(sdk,'fetch-result',{jobId:gen.jobId,dest:hostJoin(r.logDir,'cutout.webm')}).catch(()=>null))?.path;
+const cutoutPath=out?await appResourcePath(sdk,scope,out.resourceId):file||(await helper(sdk,'fetch-result',{jobId:gen.jobId,dest:hostJoin(r.logDir,'cutout.webm')}).catch(()=>null))?.path;
 if(!cutoutPath)return r;
 // Recorded by the next step ('prepare') in the same call that starts it; if
 // that never runs, the next check finds the job done and the clip on disk.
@@ -812,14 +833,44 @@ function templatePicks(inputs){
   if(!ending.length)throw Error('Pick at least one clip or photo for the ending, then try again.');
   return {subject,panels,ending};
 }
-// The app hands over its own Resource ids; the rest of this Panel works from
-// files, so each pick is found by its file, as appResourceIdForPath does.
-async function templateSourcePath(di,scope,pick){
-  const res=await di.ResourceRepository.findById(scope.libraryId,pick.resourceId).catch(()=>null);
-  const path=res?.getMedia?.()?.path||res?.getVideoSources?.()?.find(v=>v?.path)?.path;
-  if(!path)throw Error('Could not find the file for '+(pick.name||'a picked clip')+'. Check that it is still in the project, then try again.');
-  return path;
+// sdk-selected-media:start
+// Match host Resource ids to run_script's project-scoped ids through the SDK.
+// Return only the selected files so large Projects stay below the script result limit.
+async function sdkSelectedMedia(sdk, projectId, picks) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw Error('Could not read the Project resources.');
+  const indices = picks.map(pick => before.findIndex(row => row.resourceId === pick.resourceId));
+  if (indices.includes(-1)) throw Error('A picked file is missing from this Project.');
+  const response = await sdk.runScript({
+    summary: 'Read selected Project files', allowCommit: false,
+    script: `const p=selects.project(${JSON.stringify(projectId)});
+const resources=await p.resources(),indices=${JSON.stringify(indices)};
+const selected=indices.map(i=>resources[i]),ids=new Set(selected.filter(Boolean).map(r=>r.resourceId));
+const files=[];
+const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else if(ids.has(n.resourceId))files.push(n);};
+const top=await p.sourceFiles();
+if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);
+else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});walk(detail.fileTree);}
+return {count:resources.length,rows:selected.map(r=>r?{name:r.name,type:r.type,files:files.filter(f=>f.resourceId===r.resourceId).map(f=>({resourceId:f.resourceId,path:f.path}))}:null)};`
+  });
+  if (response.isError || !response.result || !Array.isArray(response.result.rows))
+    throw Error(response.output || 'Could not read the selected Project files.');
+  const result = response.result, after = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(after) || before.length !== result.count || after.length !== before.length ||
+      after.some((row, i) => row.resourceId !== before[i].resourceId || row.name !== before[i].name || row.type !== before[i].type) ||
+      result.rows.length !== picks.length || indices.some((index, i) =>
+        result.rows[i]?.name !== before[index].name || result.rows[i]?.type !== before[index].type))
+    throw Error('The selected Project files changed. Refresh your media and try again.');
+  return result.rows.map((row, i) => {
+    const expected = { image: 'Image', video: 'Video', audio: 'Audio' }[picks[i].kind];
+    if (expected && row.type !== expected) throw Error('A picked file has the wrong media type.');
+    if (row.files.length !== 1 || !row.files[0].path)
+      throw Error((picks[i].name || 'A picked file') + ' is missing from this Project or matches more than one file.');
+    return { ...row.files[0], resourceType: row.type };
+  });
 }
+// sdk-selected-media:end
+
 // The timeline open when the run started sets the shape, as the nearest format
 // this Panel makes; with none open, or none readable, the postcard matches the subject.
 async function templateAspect(sdk,sequenceId){
@@ -845,12 +896,10 @@ async function runTemplate({sdk,pid,template,sequenceId,guard,setStatus}){
   guard(pid);
   if(template.libraryId)handedLibrary.set(pid,template.libraryId);
   const {subject,panels,ending}=templatePicks(template.inputs);
-  const di=window.parent?.__DI__;
-  if(typeof di?.ResourceRepository?.findById!=='function')throw Error('This version of Selects cannot hand clips to this template. Update Selects.');
-  const scope=generationScope(pid);
   setStatus('Finding your clips…');
   const picks=[subject,...panels,...ending];
-  const [paths,inventory,aspect]=await Promise.all([Promise.all(picks.map(pick=>templateSourcePath(di,scope,pick))),readInventory(sdk,pid),templateAspect(sdk,sequenceId)]);
+  const [selected,inventory,aspect]=await Promise.all([sdkSelectedMedia(sdk,pid,picks),readInventory(sdk,pid),templateAspect(sdk,sequenceId)]);
+  const paths=selected.map(row=>row.path);
   guard(pid);
   // The helper reads a file's kind from its extension, as the folder picker
   // offers only these; anything else would be taken for a still.

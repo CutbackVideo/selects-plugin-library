@@ -45,6 +45,8 @@ export function posixHits(source, allowed = []) {
 // host block, into a fresh context whose window.parent.__DI__ is `di`.
 export function loadPanelFunctions(source, names, globals = {}) {
   const parts = [hostBlock(source) || ''];
+  if (source.includes('// sdk-selected-media:start') && !names.includes('sdkSelectedMedia')) parts.push(topLevel(source, 'sdkSelectedMedia'));
+  if (source.includes('// sdk-media-path:start') && !names.includes('sdkMediaByPath')) parts.push(topLevel(source, 'sdkMediaByPath'));
   for (const name of names) parts.push(topLevel(source, name));
   const context = vm.createContext({ console, TextDecoder, TextEncoder, Uint8Array, setTimeout, clearTimeout, ...globals });
   vm.runInContext(parts.join('\n') + '\nthis.__exports={' + [...hostNames(parts[0]), ...names].join(',') + '};', context);

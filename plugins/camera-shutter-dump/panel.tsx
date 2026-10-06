@@ -521,23 +521,49 @@ function templateLibrary(app,projectId,template){
 // The app hands over its own Resource ids; the Panel works from the run_script
 // Image rows, so each pick is joined to its row by its original file, the same
 // file prepareNativeImages later checks the Project's Image against.
+// sdk-selected-media:start
+// Match host Resource ids to run_script's project-scoped ids through the SDK.
+// Return only the selected files so large Projects stay below the script result limit.
+async function sdkSelectedMedia(sdk, projectId, picks) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw Error('Could not read the Project resources.');
+  const indices = picks.map(pick => before.findIndex(row => row.resourceId === pick.resourceId));
+  if (indices.includes(-1)) throw Error('A picked file is missing from this Project.');
+  const response = await sdk.runScript({
+    summary: 'Read selected Project files', allowCommit: false,
+    script: `const p=selects.project(${JSON.stringify(projectId)});
+const resources=await p.resources(),indices=${JSON.stringify(indices)};
+const selected=indices.map(i=>resources[i]),ids=new Set(selected.filter(Boolean).map(r=>r.resourceId));
+const files=[];
+const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else if(ids.has(n.resourceId))files.push(n);};
+const top=await p.sourceFiles();
+if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);
+else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});walk(detail.fileTree);}
+return {count:resources.length,rows:selected.map(r=>r?{name:r.name,type:r.type,files:files.filter(f=>f.resourceId===r.resourceId).map(f=>({resourceId:f.resourceId,path:f.path}))}:null)};`
+  });
+  if (response.isError || !response.result || !Array.isArray(response.result.rows))
+    throw Error(response.output || 'Could not read the selected Project files.');
+  const result = response.result, after = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(after) || before.length !== result.count || after.length !== before.length ||
+      after.some((row, i) => row.resourceId !== before[i].resourceId || row.name !== before[i].name || row.type !== before[i].type) ||
+      result.rows.length !== picks.length || indices.some((index, i) =>
+        result.rows[i]?.name !== before[index].name || result.rows[i]?.type !== before[index].type))
+    throw Error('The selected Project files changed. Refresh your media and try again.');
+  return result.rows.map((row, i) => {
+    const expected = { image: 'Image', video: 'Video', audio: 'Audio' }[picks[i].kind];
+    if (expected && row.type !== expected) throw Error('A picked file has the wrong media type.');
+    if (row.files.length !== 1 || !row.files[0].path)
+      throw Error((picks[i].name || 'A picked file') + ' is missing from this Project or matches more than one file.');
+    return { ...row.files[0], resourceType: row.type };
+  });
+}
+// sdk-selected-media:end
+
 async function templateSelection(sdk,app,projectId,libraryId,inputs){
  const picks=Array.isArray(inputs?.photos)?inputs.photos:[];
  if(picks.length!==SLOTS||picks.some(x=>x?.kind!=='image'||!x.resourceId))throw templateIssue('Pick exactly 12 photos, then try again.');
- const di=app?.__DI__;
- if(typeof di?.ProjectRepository?.findById!=='function'||typeof di?.ResourceRepository?.findById!=='function')throw templateIssue(TEMPLATE_UNSUPPORTED);
- const project=libraryId?await di.ProjectRepository.findById(libraryId,projectId):null;
- if(!project)throw templateIssue('Could not find this Project; open it, then try again.');
- const members=new Set(project.getResources()||[]);
- const paths=[];
- for(const pick of picks){
-  const label=pick.name||'A picked photo';
-  const resource=members.has(pick.resourceId)?await di.ResourceRepository.findById(libraryId,pick.resourceId):null;
-  if(!resource)throw templateIssue(label+' is missing from this Project.');
-  if(resource.getType()!=='Image')throw templateIssue(label+' is not a photo Camera Shutter Dump can use.');
-  const media=resource.getMedia();
-  paths.push(media?.originalPath??media?.path);
- }
+ const pickedFiles=await sdkSelectedMedia(sdk,projectId,picks);
+ const paths=pickedFiles.map(row=>row.path);
  const rows=await inventory(sdk,projectId,'List project photos',{type:'Image',paths});
  const selected=paths.map((path,i)=>{
   const matches=path?rows.filter(row=>row.path===path):[];
