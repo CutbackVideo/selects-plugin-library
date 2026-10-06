@@ -1,3 +1,5 @@
+// Run Tang's portability regressions in the existing Windows/macOS/Linux CI matrix.
+import './tang_poetry_windows.test.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
