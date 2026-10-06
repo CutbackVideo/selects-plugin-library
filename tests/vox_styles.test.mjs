@@ -1,4 +1,5 @@
-// Run Tang's portability regressions in the existing Windows/macOS/Linux CI matrix.
+// Run the Windows regressions of the Vox-family apps in the existing Node 22 three-OS CI matrix.
+import './jared_vox_editorial_windows.test.mjs';
 import './tang_poetry_windows.test.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
