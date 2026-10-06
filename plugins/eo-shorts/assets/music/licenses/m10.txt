@@ -1,0 +1,24 @@
+EO Shorts bundled music - licence evidence for m10
+
+Track: Static Shoes
+Artist: Loyalty Freak Music
+Album: MINIMAL AMBIENT BOUNCE
+Source page: https://freemusicarchive.org/music/Loyalty_Freak_Music/MINIMAL_AMBIENT_BOUNCE/Loyalty_Freak_Music_-_MINIMAL_AMBIENT_BOUNCE_-_04_Static_Shoes/
+Retrieved: 2026-10-05T01:09:57.790Z
+Source page SHA-256 (HTML as fetched): 41f49c84a46772f2cc8383db35c582c404ec8c2d02c97ba466ccf8eb2f42fc1a
+
+Licence: CC0 1.0 Universal (CC0-1.0)
+Licence deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+Licence statement on the source page (tags removed):
+  Static Shoes by Loyalty Freak Music is licensed under a CC0 1.0 Universal License.
+Licence links on the source page (rel="license"):
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+Audio file listed in the page's track data: https://files.freemusicarchive.org/storage-freemusicarchive-org/music/Music_for_Video/Loyalty_Freak_Music/MINIMAL_AMBIENT_BOUNCE/Loyalty_Freak_Music_-_04_-_Static_Shoes.mp3
+Audio file downloaded: 2026-10-05T00:59:46.559Z
+Audio file SHA-256 as downloaded: a3e6b08a02d80171762662c1185e5c58347c24dd35542e98aeee65fc7fe98e82 (9401478 bytes)
+
+CC0 waives copyright and related rights; attribution is not required. The artist and source
+are recorded for traceability. The bundled file is an excerpt of this recording with gain,
+an end fade and AAC encoding applied (see provenance.json).

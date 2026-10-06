@@ -1,0 +1,24 @@
+EO Shorts bundled music - licence evidence for m08
+
+Track: Coins
+Artist: HoliznaCC0
+Album: Gamer Beats!
+Source page: https://freemusicarchive.org/music/holiznacc0/gamer-beats/coins/
+Retrieved: 2026-10-05T01:09:43.339Z
+Source page SHA-256 (HTML as fetched): 151e98115ca470bf566f92cc28db698616fee51888abb7c84cde6350b22df251
+
+Licence: CC0 1.0 Universal (CC0-1.0)
+Licence deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+Licence statement on the source page (tags removed):
+  Coins by HoliznaCC0 is licensed under a CC0 1.0 Universal License.
+Licence links on the source page (rel="license"):
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+Audio file listed in the page's track data: https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/KOgtsN5Jgr4xKq7UPz3l0XJOYvV9yZYptq3N18bx.mp3
+Audio file downloaded: 2026-10-05T00:59:32.215Z
+Audio file SHA-256 as downloaded: 276a4854073c6cc176998d68e345dd93815013df78ff609168904fd4c2b6d3ed (10200205 bytes)
+
+CC0 waives copyright and related rights; attribution is not required. The artist and source
+are recorded for traceability. The bundled file is an excerpt of this recording with gain,
+an end fade and AAC encoding applied (see provenance.json).

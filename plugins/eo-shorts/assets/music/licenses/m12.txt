@@ -1,0 +1,24 @@
+EO Shorts bundled music - licence evidence for m12
+
+Track: Projector Screen ( LoFi , Happy ).mp3
+Artist: HoliznaCC0
+Album: Public Domain Lofi
+Source page: https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/projector-screen-lofi-happy-mp3/
+Retrieved: 2026-10-05T01:10:10.580Z
+Source page SHA-256 (HTML as fetched): e28ba632c315d3e1d4f9439bee703f1a174f1286b651ea61ace9268dd1913175
+
+Licence: CC0 1.0 Universal (CC0-1.0)
+Licence deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+Licence statement on the source page (tags removed):
+  Projector Screen ( LoFi, Happy ).mp3 by HoliznaCC0 is licensed under a CC0 1.0 Universal License.
+Licence links on the source page (rel="license"):
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+Audio file listed in the page's track data: https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/SrYI6LJrSooBuV1Vz7XocwyKdkoXRFyNpgzn0lI4.mp3
+Audio file downloaded: 2026-10-05T00:59:59.867Z
+Audio file SHA-256 as downloaded: b757435f375fc9290483e6ffabf763598664b1bb37fcd4644712529ba3dd5e04 (5692003 bytes)
+
+CC0 waives copyright and related rights; attribution is not required. The artist and source
+are recorded for traceability. The bundled file is an excerpt of this recording with gain,
+an end fade and AAC encoding applied (see provenance.json).

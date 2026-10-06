@@ -1,0 +1,917 @@
+{
+  "schema": "eo-music-provenance/1",
+  "tracks": [
+    {
+      "id": "m01",
+      "page": {
+        "url": "https://freemusicarchive.org/music/holiznacc0/power-pop/drama/",
+        "retrievedAt": "2026-10-05T01:08:52.081Z",
+        "sha256": "c2bef2083fea7391559cff00119e11a003b56bdee39a79108383aee27d87da03",
+        "fmaTrackId": 212617,
+        "licenseHrefs": [
+          "https://creativecommons.org/publicdomain/zero/1.0/"
+        ],
+        "licenseStatement": "Drama by HoliznaCC0 is licensed under a CC0 1.0 Universal License."
+      },
+      "source": {
+        "url": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/FlryAAAFEblQ2Vmd9eIJN3FtlTyrElVoahvfmoOb.mp3",
+        "downloadedAt": "2026-10-05T00:58:37.393Z",
+        "cacheKey": "fma-212617-422e1ec00cd8b75f",
+        "bytes": 8431885,
+        "sha256": "bacdf4eae1d6031a357837389b86f5b114997629be60ca9cb3d2e14284fee34b",
+        "codec": "mp3",
+        "sampleRate": 48000,
+        "channels": 2,
+        "bitRate": 320000,
+        "durationSeconds": 210.768
+      },
+      "sourceAnalysis": {
+        "analysedSeconds": 110,
+        "bpmHint": 115,
+        "bpm": 114.99,
+        "freeBpm": 114.91,
+        "leadingSilenceSeconds": 0,
+        "downbeat": "estimated",
+        "downbeatCues": {
+          "pattern": 3,
+          "firstOnset": null
+        }
+      },
+      "excerptLoudnessBeforeGain": {
+        "integratedLufs": -13.3,
+        "truePeak": 0.3,
+        "lra": 6.2
+      },
+      "processing": {
+        "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+        "args": [
+          "-hide_banner",
+          "-nostdin",
+          "-nostats",
+          "-v",
+          "error",
+          "-y",
+          "-i",
+          "SOURCE",
+          "-map",
+          "0:a:0",
+          "-af",
+          "atrim=start=0.000000:end=104.353452,asetpts=PTS-STARTPTS,volume=-4.70dB,afade=t=out:st=102.353452:d=2.000000:curve=tri",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-map_metadata",
+          "-1",
+          "-map_chapters",
+          "-1",
+          "-fflags",
+          "+bitexact",
+          "-flags:a",
+          "+bitexact",
+          "-movflags",
+          "+faststart",
+          "OUTPUT"
+        ]
+      }
+    },
+    {
+      "id": "m02",
+      "page": {
+        "url": "https://freemusicarchive.org/music/holiznacc0/power-pop/dear-mr-super-computer/",
+        "retrievedAt": "2026-10-05T01:09:01.562Z",
+        "sha256": "4065c7849f799f497233e53b6c58513c9a14a50e968dfe527d038229e2c6d180",
+        "fmaTrackId": 205188,
+        "licenseHrefs": [
+          "https://creativecommons.org/publicdomain/zero/1.0/"
+        ],
+        "licenseStatement": "Dear Mr Super Computer by HoliznaCC0 is licensed under a CC0 1.0 Universal License."
+      },
+      "source": {
+        "url": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/6mRjlU0gvJgHShEyDHlHSmlctyrROaF8dHy7qRC5.mp3",
+        "downloadedAt": "2026-10-05T00:58:47.990Z",
+        "cacheKey": "fma-205188-9d0903c424776bd2",
+        "bytes": 5612365,
+        "sha256": "ea56caa66bd6c7ae35e07da2ee3912588e4934970d887f6cc1427716c30ef66b",
+        "codec": "mp3",
+        "sampleRate": 48000,
+        "channels": 2,
+        "bitRate": 320000,
+        "durationSeconds": 140.28
+      },
+      "sourceAnalysis": {
+        "analysedSeconds": 110,
+        "bpmHint": 130,
+        "bpm": 130,
+        "freeBpm": 129.67,
+        "leadingSilenceSeconds": 0,
+        "downbeat": "estimated",
+        "downbeatCues": {
+          "pattern": 1,
+          "firstOnset": null
+        }
+      },
+      "excerptLoudnessBeforeGain": {
+        "integratedLufs": -10.5,
+        "truePeak": 0.5,
+        "lra": 1.6
+      },
+      "processing": {
+        "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+        "args": [
+          "-hide_banner",
+          "-nostdin",
+          "-nostats",
+          "-v",
+          "error",
+          "-y",
+          "-i",
+          "SOURCE",
+          "-map",
+          "0:a:0",
+          "-af",
+          "atrim=start=0.000000:end=104.304128,asetpts=PTS-STARTPTS,volume=-7.50dB,afade=t=out:st=102.304128:d=2.000000:curve=tri",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-map_metadata",
+          "-1",
+          "-map_chapters",
+          "-1",
+          "-fflags",
+          "+bitexact",
+          "-flags:a",
+          "+bitexact",
+          "-movflags",
+          "+faststart",
+          "OUTPUT"
+        ]
+      }
+    },
+    {
+      "id": "m03",
+      "page": {
+        "url": "https://freemusicarchive.org/music/holiznacc0/bassic/make-money/",
+        "retrievedAt": "2026-10-05T01:09:08.176Z",
+        "sha256": "3443f0ceca82b2d1ae521f73df8ecfb5c7dcb34a2d18798275e7f4ba295f82e6",
+        "fmaTrackId": 201276,
+        "licenseHrefs": [
+          "https://creativecommons.org/publicdomain/zero/1.0/"
+        ],
+        "licenseStatement": "Make Money by HoliznaCC0 is licensed under a CC0 1.0 Universal License."
+      },
+      "source": {
+        "url": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/4rHAGwpxfZXDye4JNMh9EQs6MsDoQgPyCrxC4pzR.mp3",
+        "downloadedAt": "2026-10-05T00:58:57.319Z",
+        "cacheKey": "fma-201276-4500a6e97c6b50d5",
+        "bytes": 8957760,
+        "sha256": "3f10f346e5ab4c4c63977bd0157926075e0bba768bc48e89515669b1a9c8fe90",
+        "codec": "mp3",
+        "sampleRate": 48000,
+        "channels": 2,
+        "bitRate": 320000,
+        "durationSeconds": 223.944
+      },
+      "sourceAnalysis": {
+        "analysedSeconds": 110,
+        "bpmHint": 129,
+        "bpm": 129.33,
+        "freeBpm": 129.25,
+        "leadingSilenceSeconds": 0.637,
+        "downbeat": "estimated",
+        "downbeatCues": {
+          "pattern": 3,
+          "firstOnset": null
+        }
+      },
+      "excerptLoudnessBeforeGain": {
+        "integratedLufs": -10.4,
+        "truePeak": 0.5,
+        "lra": 3.6
+      },
+      "processing": {
+        "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+        "args": [
+          "-hide_banner",
+          "-nostdin",
+          "-nostats",
+          "-v",
+          "error",
+          "-y",
+          "-i",
+          "SOURCE",
+          "-map",
+          "0:a:0",
+          "-af",
+          "atrim=start=0.587125:end=105.347688,asetpts=PTS-STARTPTS,volume=-7.60dB,afade=t=out:st=102.760563:d=2.000000:curve=tri",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-map_metadata",
+          "-1",
+          "-map_chapters",
+          "-1",
+          "-fflags",
+          "+bitexact",
+          "-flags:a",
+          "+bitexact",
+          "-movflags",
+          "+faststart",
+          "OUTPUT"
+        ]
+      }
+    },
+    {
+      "id": "m04",
+      "page": {
+        "url": "https://freemusicarchive.org/music/holiznacc0/power-pop/funky-pop/",
+        "retrievedAt": "2026-10-05T01:09:15.589Z",
+        "sha256": "238553e9e45dde8a6a8ee817f7e889a1fc965915b81d36d2b054c734014ea8c7",
+        "fmaTrackId": 243306,
+        "licenseHrefs": [
+          "https://creativecommons.org/publicdomain/zero/1.0/"
+        ],
+        "licenseStatement": "Funky Pop by HoliznaCC0 is licensed under a CC0 1.0 Universal License."
+      },
+      "source": {
+        "url": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/c3qtEJjVKXI87BexJ5Ra4Sxy2iY9DAphxzqyrhg6.mp3",
+        "downloadedAt": "2026-10-05T00:59:04.830Z",
+        "cacheKey": "fma-243306-ab68e7dde565d84b",
+        "bytes": 5712163,
+        "sha256": "f4ece98b361ba68fdfa5c94c8856e639c64459f10b10c5294e523e3c00d9bbcf",
+        "codec": "mp3",
+        "sampleRate": 48000,
+        "channels": 2,
+        "bitRate": 320000,
+        "durationSeconds": 142.776
+      },
+      "sourceAnalysis": {
+        "analysedSeconds": 110,
+        "bpmHint": 121,
+        "bpm": 120.98,
+        "freeBpm": 120.94,
+        "leadingSilenceSeconds": 0,
+        "downbeat": "estimated",
+        "downbeatCues": {
+          "pattern": 3,
+          "firstOnset": null
+        }
+      },
+      "excerptLoudnessBeforeGain": {
+        "integratedLufs": -10.8,
+        "truePeak": 0.2,
+        "lra": 2.1
+      },
+      "processing": {
+        "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+        "args": [
+          "-hide_banner",
+          "-nostdin",
+          "-nostats",
+          "-v",
+          "error",
+          "-y",
+          "-i",
+          "SOURCE",
+          "-map",
+          "0:a:0",
+          "-af",
+          "atrim=start=0.000000:end=104.880346,asetpts=PTS-STARTPTS,volume=-7.20dB,afade=t=out:st=102.880346:d=2.000000:curve=tri",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-map_metadata",
+          "-1",
+          "-map_chapters",
+          "-1",
+          "-fflags",
+          "+bitexact",
+          "-flags:a",
+          "+bitexact",
+          "-movflags",
+          "+faststart",
+          "OUTPUT"
+        ]
+      }
+    },
+    {
+      "id": "m05",
+      "page": {
+        "url": "https://freemusicarchive.org/music/holiznacc0/bassic/make-funk/",
+        "retrievedAt": "2026-10-05T01:09:22.707Z",
+        "sha256": "ae907623022ed7a183e880cc1a5362bb8efad6dec51e1912f97ee9ba43e1c773",
+        "fmaTrackId": 205360,
+        "licenseHrefs": [
+          "https://creativecommons.org/publicdomain/zero/1.0/"
+        ],
+        "licenseStatement": "Make Funk by HoliznaCC0 is licensed under a CC0 1.0 Universal License."
+      },
+      "source": {
+        "url": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/gvipQswrNI4uF5PNymw5d1cWq9gqqdTIsgHDMKCJ.mp3",
+        "downloadedAt": "2026-10-05T00:59:11.963Z",
+        "cacheKey": "fma-205360-0cf6c9ffb71be429",
+        "bytes": 6522445,
+        "sha256": "4631f55b7fc2a021f24b22f60ec87735cf9163638b3a79ac1719ea3515949f9c",
+        "codec": "mp3",
+        "sampleRate": 48000,
+        "channels": 2,
+        "bitRate": 320000,
+        "durationSeconds": 163.032
+      },
+      "sourceAnalysis": {
+        "analysedSeconds": 110,
+        "bpmHint": 99,
+        "bpm": 99,
+        "freeBpm": 99.06,
+        "leadingSilenceSeconds": 0,
+        "downbeat": "estimated",
+        "downbeatCues": {
+          "pattern": 2,
+          "firstOnset": 0
+        }
+      },
+      "excerptLoudnessBeforeGain": {
+        "integratedLufs": -8.8,
+        "truePeak": 0.4,
+        "lra": 1
+      },
+      "processing": {
+        "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+        "args": [
+          "-hide_banner",
+          "-nostdin",
+          "-nostats",
+          "-v",
+          "error",
+          "-y",
+          "-i",
+          "SOURCE",
+          "-map",
+          "0:a:0",
+          "-af",
+          "atrim=start=0.000000:end=103.623968,asetpts=PTS-STARTPTS,volume=-9.20dB,afade=t=out:st=101.623968:d=2.000000:curve=tri",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-map_metadata",
+          "-1",
+          "-map_chapters",
+          "-1",
+          "-fflags",
+          "+bitexact",
+          "-flags:a",
+          "+bitexact",
+          "-movflags",
+          "+faststart",
+          "OUTPUT"
+        ]
+      }
+    },
+    {
+      "id": "m06",
+      "page": {
+        "url": "https://freemusicarchive.org/music/Loyalty_Freak_Music/MINIMAL_AMBIENT_BOUNCE/Loyalty_Freak_Music_-_MINIMAL_AMBIENT_BOUNCE_-_02_One_Cool_Minute/",
+        "retrievedAt": "2026-10-05T01:09:30.119Z",
+        "sha256": "a30c60b91b6bf8021f6b6e430c596fdd61407975f3fef1affc027ebcc32b9a1d",
+        "fmaTrackId": 167151,
+        "licenseHrefs": [
+          "https://creativecommons.org/publicdomain/zero/1.0/"
+        ],
+        "licenseStatement": "One Cool Minute by Loyalty Freak Music is licensed under a CC0 1.0 Universal License."
+      },
+      "source": {
+        "url": "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/Music_for_Video/Loyalty_Freak_Music/MINIMAL_AMBIENT_BOUNCE/Loyalty_Freak_Music_-_02_-_One_Cool_Minute.mp3",
+        "downloadedAt": "2026-10-05T00:59:18.827Z",
+        "cacheKey": "fma-167151-452bc29804e3cb5e",
+        "bytes": 7799650,
+        "sha256": "8778d1e095ab7c6793d10ce9bbe1d9783c9ec6d558f11302ced2202b2c039a0c",
+        "codec": "mp3",
+        "sampleRate": 44100,
+        "channels": 2,
+        "bitRate": 320000,
+        "durationSeconds": 193.045
+      },
+      "sourceAnalysis": {
+        "analysedSeconds": 110,
+        "bpmHint": 120,
+        "bpm": 119.99,
+        "freeBpm": 120.11,
+        "leadingSilenceSeconds": 0,
+        "downbeat": "estimated",
+        "downbeatCues": {
+          "pattern": 3,
+          "firstOnset": null
+        }
+      },
+      "excerptLoudnessBeforeGain": {
+        "integratedLufs": -15.9,
+        "truePeak": -0.5,
+        "lra": 2
+      },
+      "processing": {
+        "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+        "args": [
+          "-hide_banner",
+          "-nostdin",
+          "-nostats",
+          "-v",
+          "error",
+          "-y",
+          "-i",
+          "SOURCE",
+          "-map",
+          "0:a:0",
+          "-af",
+          "atrim=start=0.000000:end=103.994195,asetpts=PTS-STARTPTS,volume=-2.10dB,afade=t=out:st=101.994195:d=2.000000:curve=tri",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-map_metadata",
+          "-1",
+          "-map_chapters",
+          "-1",
+          "-fflags",
+          "+bitexact",
+          "-flags:a",
+          "+bitexact",
+          "-movflags",
+          "+faststart",
+          "OUTPUT"
+        ]
+      }
+    },
+    {
+      "id": "m07",
+      "page": {
+        "url": "https://freemusicarchive.org/music/Loyalty_Freak_Music/INSTRUMENTAL_RB_BEATS_TO_SING_OR_RAP_ON/Loyalty_Freak_Music_-_INSTRUMENTAL_RB_BEATS_TO_SING_OR_RAP_ON_-_11_Lets_be_serious_a_second/",
+        "retrievedAt": "2026-10-05T01:09:36.502Z",
+        "sha256": "8bac314df18493db770faf9d7cb117964bdd59586e37516828c4500aaf36556e",
+        "fmaTrackId": 175566,
+        "licenseHrefs": [
+          "https://creativecommons.org/publicdomain/zero/1.0/"
+        ],
+        "licenseStatement": "Let's be serious a second by Loyalty Freak Music is licensed under a CC0 1.0 Universal License."
+      },
+      "source": {
+        "url": "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/Music_for_Video/Loyalty_Freak_Music/INSTRUMENTAL_RB_BEATS_TO_SING_OR_RAP_ON/Loyalty_Freak_Music_-_11_-_Lets_be_serious_a_second.mp3",
+        "downloadedAt": "2026-10-05T00:59:25.254Z",
+        "cacheKey": "fma-175566-378d834290b94f4e",
+        "bytes": 6877611,
+        "sha256": "b6e2dbc33bb25ceb376995ec6b2662471311a6b68194ba7de0216a4f982fb9c2",
+        "codec": "mp3",
+        "sampleRate": 44100,
+        "channels": 2,
+        "bitRate": 320000,
+        "durationSeconds": 169.456
+      },
+      "sourceAnalysis": {
+        "analysedSeconds": 110,
+        "bpmHint": 75,
+        "bpm": 74.99,
+        "freeBpm": 74.94,
+        "leadingSilenceSeconds": 0.395,
+        "downbeat": "estimated",
+        "downbeatCues": {
+          "pattern": 0,
+          "firstOnset": null
+        }
+      },
+      "excerptLoudnessBeforeGain": {
+        "integratedLufs": -12.8,
+        "truePeak": -1,
+        "lra": 5.7
+      },
+      "processing": {
+        "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+        "args": [
+          "-hide_banner",
+          "-nostdin",
+          "-nostats",
+          "-v",
+          "error",
+          "-y",
+          "-i",
+          "SOURCE",
+          "-map",
+          "0:a:0",
+          "-af",
+          "atrim=start=0.344807:end=102.793407,asetpts=PTS-STARTPTS,volume=-5.20dB,afade=t=out:st=100.448600:d=2.000000:curve=tri",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-map_metadata",
+          "-1",
+          "-map_chapters",
+          "-1",
+          "-fflags",
+          "+bitexact",
+          "-flags:a",
+          "+bitexact",
+          "-movflags",
+          "+faststart",
+          "OUTPUT"
+        ]
+      }
+    },
+    {
+      "id": "m08",
+      "page": {
+        "url": "https://freemusicarchive.org/music/holiznacc0/gamer-beats/coins/",
+        "retrievedAt": "2026-10-05T01:09:43.339Z",
+        "sha256": "151e98115ca470bf566f92cc28db698616fee51888abb7c84cde6350b22df251",
+        "fmaTrackId": 203699,
+        "licenseHrefs": [
+          "https://creativecommons.org/publicdomain/zero/1.0/"
+        ],
+        "licenseStatement": "Coins by HoliznaCC0 is licensed under a CC0 1.0 Universal License."
+      },
+      "source": {
+        "url": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/KOgtsN5Jgr4xKq7UPz3l0XJOYvV9yZYptq3N18bx.mp3",
+        "downloadedAt": "2026-10-05T00:59:32.215Z",
+        "cacheKey": "fma-203699-547bdc1d8c2aaf9c",
+        "bytes": 10200205,
+        "sha256": "276a4854073c6cc176998d68e345dd93815013df78ff609168904fd4c2b6d3ed",
+        "codec": "mp3",
+        "sampleRate": 48000,
+        "channels": 2,
+        "bitRate": 320000,
+        "durationSeconds": 254.976
+      },
+      "sourceAnalysis": {
+        "analysedSeconds": 110,
+        "bpmHint": 80,
+        "bpm": 80,
+        "freeBpm": 79.84,
+        "leadingSilenceSeconds": 0,
+        "downbeat": "agreed",
+        "downbeatCues": {
+          "pattern": 3,
+          "firstOnset": 3
+        }
+      },
+      "excerptLoudnessBeforeGain": {
+        "integratedLufs": -12,
+        "truePeak": 0.3,
+        "lra": 2.8
+      },
+      "processing": {
+        "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+        "args": [
+          "-hide_banner",
+          "-nostdin",
+          "-nostats",
+          "-v",
+          "error",
+          "-y",
+          "-i",
+          "SOURCE",
+          "-map",
+          "0:a:0",
+          "-af",
+          "atrim=start=0.000000:end=104.994093,asetpts=PTS-STARTPTS,volume=-6.00dB,afade=t=out:st=102.994093:d=2.000000:curve=tri",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-map_metadata",
+          "-1",
+          "-map_chapters",
+          "-1",
+          "-fflags",
+          "+bitexact",
+          "-flags:a",
+          "+bitexact",
+          "-movflags",
+          "+faststart",
+          "OUTPUT"
+        ]
+      }
+    },
+    {
+      "id": "m09",
+      "page": {
+        "url": "https://freemusicarchive.org/music/holiznacc0/spring-woke-me-up/hope-on-repeat/",
+        "retrievedAt": "2026-10-05T01:09:51.235Z",
+        "sha256": "f2113ca97ef7183252491b66862d7bef55546797bb97945365ffa81aaa736234",
+        "fmaTrackId": 269088,
+        "licenseHrefs": [
+          "https://creativecommons.org/publicdomain/zero/1.0/"
+        ],
+        "licenseStatement": "Hope On Repeat by HoliznaCC0 is licensed under a CC0 1.0 Universal License."
+      },
+      "source": {
+        "url": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/MvP2fPRhrWkQwsrgVB7U9rqSgLBtOfbD0vssM4LP.mp3",
+        "downloadedAt": "2026-10-05T00:59:39.777Z",
+        "cacheKey": "fma-269088-a6e18e48811712f3",
+        "bytes": 6884136,
+        "sha256": "e781cf3926ea5b769f3b5667011234f4524cbcb06e539ba563c7f15fd805477a",
+        "codec": "mp3",
+        "sampleRate": 48000,
+        "channels": 2,
+        "bitRate": 320000,
+        "durationSeconds": 163.728
+      },
+      "sourceAnalysis": {
+        "analysedSeconds": 110,
+        "bpmHint": 85,
+        "bpm": 85,
+        "freeBpm": 84.9,
+        "leadingSilenceSeconds": 0,
+        "downbeat": "estimated",
+        "downbeatCues": {
+          "pattern": 3,
+          "firstOnset": null
+        }
+      },
+      "excerptLoudnessBeforeGain": {
+        "integratedLufs": -15.3,
+        "truePeak": 0.1,
+        "lra": 3.6
+      },
+      "processing": {
+        "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+        "args": [
+          "-hide_banner",
+          "-nostdin",
+          "-nostats",
+          "-v",
+          "error",
+          "-y",
+          "-i",
+          "SOURCE",
+          "-map",
+          "0:a:0",
+          "-af",
+          "atrim=start=0.000000:end=104.467835,asetpts=PTS-STARTPTS,volume=-2.70dB,afade=t=out:st=102.467835:d=2.000000:curve=tri",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-map_metadata",
+          "-1",
+          "-map_chapters",
+          "-1",
+          "-fflags",
+          "+bitexact",
+          "-flags:a",
+          "+bitexact",
+          "-movflags",
+          "+faststart",
+          "OUTPUT"
+        ]
+      }
+    },
+    {
+      "id": "m10",
+      "page": {
+        "url": "https://freemusicarchive.org/music/Loyalty_Freak_Music/MINIMAL_AMBIENT_BOUNCE/Loyalty_Freak_Music_-_MINIMAL_AMBIENT_BOUNCE_-_04_Static_Shoes/",
+        "retrievedAt": "2026-10-05T01:09:57.790Z",
+        "sha256": "41f49c84a46772f2cc8383db35c582c404ec8c2d02c97ba466ccf8eb2f42fc1a",
+        "fmaTrackId": 167153,
+        "licenseHrefs": [
+          "https://creativecommons.org/publicdomain/zero/1.0/"
+        ],
+        "licenseStatement": "Static Shoes by Loyalty Freak Music is licensed under a CC0 1.0 Universal License."
+      },
+      "source": {
+        "url": "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/Music_for_Video/Loyalty_Freak_Music/MINIMAL_AMBIENT_BOUNCE/Loyalty_Freak_Music_-_04_-_Static_Shoes.mp3",
+        "downloadedAt": "2026-10-05T00:59:46.559Z",
+        "cacheKey": "fma-167153-0800674aee6c6c4e",
+        "bytes": 9401478,
+        "sha256": "a3e6b08a02d80171762662c1185e5c58347c24dd35542e98aeee65fc7fe98e82",
+        "codec": "mp3",
+        "sampleRate": 44100,
+        "channels": 2,
+        "bitRate": 320000,
+        "durationSeconds": 233.091
+      },
+      "sourceAnalysis": {
+        "analysedSeconds": 110,
+        "bpmHint": 120,
+        "bpm": 119.98,
+        "freeBpm": 120.1,
+        "leadingSilenceSeconds": 0,
+        "downbeat": "estimated",
+        "downbeatCues": {
+          "pattern": 3,
+          "firstOnset": null
+        }
+      },
+      "excerptLoudnessBeforeGain": {
+        "integratedLufs": -15.8,
+        "truePeak": -2.3,
+        "lra": 4.2
+      },
+      "processing": {
+        "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+        "args": [
+          "-hide_banner",
+          "-nostdin",
+          "-nostats",
+          "-v",
+          "error",
+          "-y",
+          "-i",
+          "SOURCE",
+          "-map",
+          "0:a:0",
+          "-af",
+          "atrim=start=0.000000:end=104.016503,asetpts=PTS-STARTPTS,volume=-2.20dB,afade=t=out:st=102.016503:d=2.000000:curve=tri",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-map_metadata",
+          "-1",
+          "-map_chapters",
+          "-1",
+          "-fflags",
+          "+bitexact",
+          "-flags:a",
+          "+bitexact",
+          "-movflags",
+          "+faststart",
+          "OUTPUT"
+        ]
+      }
+    },
+    {
+      "id": "m11",
+      "page": {
+        "url": "https://freemusicarchive.org/music/holiznacc0/spring-woke-me-up/toy-box/",
+        "retrievedAt": "2026-10-05T01:10:03.857Z",
+        "sha256": "bcad1406ecc3ba2228c0148fdad629d33c694e53377ed1cc809899563cca7b27",
+        "fmaTrackId": 269091,
+        "licenseHrefs": [
+          "https://creativecommons.org/publicdomain/zero/1.0/"
+        ],
+        "licenseStatement": "Toy Box by HoliznaCC0 is licensed under a CC0 1.0 Universal License."
+      },
+      "source": {
+        "url": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/04mkhAeFGClmKwwsdfUfLZX1wrROoSQl2A6GsW28.mp3",
+        "downloadedAt": "2026-10-05T00:59:53.235Z",
+        "cacheKey": "fma-269091-9bf79361eace6f83",
+        "bytes": 6568296,
+        "sha256": "98ab5546dfbb10d4c31f6c7d29c1bc70407fdb405d9b49d206ee89a4ccb1dee0",
+        "codec": "mp3",
+        "sampleRate": 48000,
+        "channels": 2,
+        "bitRate": 320000,
+        "durationSeconds": 155.832
+      },
+      "sourceAnalysis": {
+        "analysedSeconds": 110,
+        "bpmHint": 80,
+        "bpm": 80,
+        "freeBpm": 79.8,
+        "leadingSilenceSeconds": 0.375,
+        "downbeat": "estimated",
+        "downbeatCues": {
+          "pattern": 3,
+          "firstOnset": null
+        }
+      },
+      "excerptLoudnessBeforeGain": {
+        "integratedLufs": -16.3,
+        "truePeak": 0,
+        "lra": 3
+      },
+      "processing": {
+        "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+        "args": [
+          "-hide_banner",
+          "-nostdin",
+          "-nostats",
+          "-v",
+          "error",
+          "-y",
+          "-i",
+          "SOURCE",
+          "-map",
+          "0:a:0",
+          "-af",
+          "atrim=start=0.324688:end=105.013945,asetpts=PTS-STARTPTS,volume=-1.70dB,afade=t=out:st=102.689257:d=2.000000:curve=tri",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-map_metadata",
+          "-1",
+          "-map_chapters",
+          "-1",
+          "-fflags",
+          "+bitexact",
+          "-flags:a",
+          "+bitexact",
+          "-movflags",
+          "+faststart",
+          "OUTPUT"
+        ]
+      }
+    },
+    {
+      "id": "m12",
+      "page": {
+        "url": "https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/projector-screen-lofi-happy-mp3/",
+        "retrievedAt": "2026-10-05T01:10:10.580Z",
+        "sha256": "e28ba632c315d3e1d4f9439bee703f1a174f1286b651ea61ace9268dd1913175",
+        "fmaTrackId": 275839,
+        "licenseHrefs": [
+          "https://creativecommons.org/publicdomain/zero/1.0/"
+        ],
+        "licenseStatement": "Projector Screen ( LoFi, Happy ).mp3 by HoliznaCC0 is licensed under a CC0 1.0 Universal License."
+      },
+      "source": {
+        "url": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/SrYI6LJrSooBuV1Vz7XocwyKdkoXRFyNpgzn0lI4.mp3",
+        "downloadedAt": "2026-10-05T00:59:59.867Z",
+        "cacheKey": "fma-275839-c8981c6f5193475b",
+        "bytes": 5692003,
+        "sha256": "b757435f375fc9290483e6ffabf763598664b1bb37fcd4644712529ba3dd5e04",
+        "codec": "mp3",
+        "sampleRate": 48000,
+        "channels": 2,
+        "bitRate": 320000,
+        "durationSeconds": 142.272
+      },
+      "sourceAnalysis": {
+        "analysedSeconds": 110,
+        "bpmHint": 70,
+        "bpm": 70,
+        "freeBpm": 69.95,
+        "leadingSilenceSeconds": 0,
+        "downbeat": "estimated",
+        "downbeatCues": {
+          "pattern": 1,
+          "firstOnset": null
+        }
+      },
+      "excerptLoudnessBeforeGain": {
+        "integratedLufs": -11,
+        "truePeak": -0.1,
+        "lra": 3.1
+      },
+      "processing": {
+        "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+        "args": [
+          "-hide_banner",
+          "-nostdin",
+          "-nostats",
+          "-v",
+          "error",
+          "-y",
+          "-i",
+          "SOURCE",
+          "-map",
+          "0:a:0",
+          "-af",
+          "atrim=start=0.000000:end=104.583482,asetpts=PTS-STARTPTS,volume=-7.00dB,afade=t=out:st=102.583482:d=2.000000:curve=tri",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "160k",
+          "-ac",
+          "2",
+          "-map_metadata",
+          "-1",
+          "-map_chapters",
+          "-1",
+          "-fflags",
+          "+bitexact",
+          "-flags:a",
+          "+bitexact",
+          "-movflags",
+          "+faststart",
+          "OUTPUT"
+        ]
+      }
+    }
+  ]
+}

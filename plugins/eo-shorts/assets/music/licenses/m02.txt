@@ -1,0 +1,24 @@
+EO Shorts bundled music - licence evidence for m02
+
+Track: Dear Mr Super Computer
+Artist: HoliznaCC0
+Album: Power Pop!
+Source page: https://freemusicarchive.org/music/holiznacc0/power-pop/dear-mr-super-computer/
+Retrieved: 2026-10-05T01:09:01.562Z
+Source page SHA-256 (HTML as fetched): 4065c7849f799f497233e53b6c58513c9a14a50e968dfe527d038229e2c6d180
+
+Licence: CC0 1.0 Universal (CC0-1.0)
+Licence deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+Licence statement on the source page (tags removed):
+  Dear Mr Super Computer by HoliznaCC0 is licensed under a CC0 1.0 Universal License.
+Licence links on the source page (rel="license"):
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+Audio file listed in the page's track data: https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/6mRjlU0gvJgHShEyDHlHSmlctyrROaF8dHy7qRC5.mp3
+Audio file downloaded: 2026-10-05T00:58:47.990Z
+Audio file SHA-256 as downloaded: ea56caa66bd6c7ae35e07da2ee3912588e4934970d887f6cc1427716c30ef66b (5612365 bytes)
+
+CC0 waives copyright and related rights; attribution is not required. The artist and source
+are recorded for traceability. The bundled file is an excerpt of this recording with gain,
+an end fade and AAC encoding applied (see provenance.json).

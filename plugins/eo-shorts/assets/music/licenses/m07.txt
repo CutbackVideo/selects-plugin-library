@@ -1,0 +1,24 @@
+EO Shorts bundled music - licence evidence for m07
+
+Track: Let's be serious a second
+Artist: Loyalty Freak Music
+Album: INSTRUMENTAL R&B BEATS TO SING OR RAP ON
+Source page: https://freemusicarchive.org/music/Loyalty_Freak_Music/INSTRUMENTAL_RB_BEATS_TO_SING_OR_RAP_ON/Loyalty_Freak_Music_-_INSTRUMENTAL_RB_BEATS_TO_SING_OR_RAP_ON_-_11_Lets_be_serious_a_second/
+Retrieved: 2026-10-05T01:09:36.502Z
+Source page SHA-256 (HTML as fetched): 8bac314df18493db770faf9d7cb117964bdd59586e37516828c4500aaf36556e
+
+Licence: CC0 1.0 Universal (CC0-1.0)
+Licence deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+Licence statement on the source page (tags removed):
+  Let's be serious a second by Loyalty Freak Music is licensed under a CC0 1.0 Universal License.
+Licence links on the source page (rel="license"):
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+Audio file listed in the page's track data: https://files.freemusicarchive.org/storage-freemusicarchive-org/music/Music_for_Video/Loyalty_Freak_Music/INSTRUMENTAL_RB_BEATS_TO_SING_OR_RAP_ON/Loyalty_Freak_Music_-_11_-_Lets_be_serious_a_second.mp3
+Audio file downloaded: 2026-10-05T00:59:25.254Z
+Audio file SHA-256 as downloaded: b6e2dbc33bb25ceb376995ec6b2662471311a6b68194ba7de0216a4f982fb9c2 (6877611 bytes)
+
+CC0 waives copyright and related rights; attribution is not required. The artist and source
+are recorded for traceability. The bundled file is an excerpt of this recording with gain,
+an end fade and AAC encoding applied (see provenance.json).

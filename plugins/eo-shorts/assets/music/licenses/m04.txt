@@ -1,0 +1,24 @@
+EO Shorts bundled music - licence evidence for m04
+
+Track: Funky Pop
+Artist: HoliznaCC0
+Album: Power Pop!
+Source page: https://freemusicarchive.org/music/holiznacc0/power-pop/funky-pop/
+Retrieved: 2026-10-05T01:09:15.589Z
+Source page SHA-256 (HTML as fetched): 238553e9e45dde8a6a8ee817f7e889a1fc965915b81d36d2b054c734014ea8c7
+
+Licence: CC0 1.0 Universal (CC0-1.0)
+Licence deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+Licence statement on the source page (tags removed):
+  Funky Pop by HoliznaCC0 is licensed under a CC0 1.0 Universal License.
+Licence links on the source page (rel="license"):
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+Audio file listed in the page's track data: https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/c3qtEJjVKXI87BexJ5Ra4Sxy2iY9DAphxzqyrhg6.mp3
+Audio file downloaded: 2026-10-05T00:59:04.830Z
+Audio file SHA-256 as downloaded: f4ece98b361ba68fdfa5c94c8856e639c64459f10b10c5294e523e3c00d9bbcf (5712163 bytes)
+
+CC0 waives copyright and related rights; attribution is not required. The artist and source
+are recorded for traceability. The bundled file is an excerpt of this recording with gain,
+an end fade and AAC encoding applied (see provenance.json).

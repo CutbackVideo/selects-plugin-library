@@ -1,0 +1,414 @@
+{
+  "id": "A",
+  "fps": 23.976,
+  "fpsRational": "2997/125",
+  "colors": {
+    "paper": "#F7F7F7",
+    "flood": "#C33F0A",
+    "ink": "#000000",
+    "reversed": "#FDFEFB",
+    "accent": "#DB5331",
+    "accentOnFlood": "#FDFEFB",
+    "money": "#1C9B42",
+    "rim": "#F8F8F3",
+    "rimLine": "#BDBDB5",
+    "caption": "#FFFFFF",
+    "floodAlt": "#ED4409"
+  },
+  "screen": {
+    "period": 6.36,
+    "angle": 51.6,
+    "axes": [
+      {
+        "angle": 51.6,
+        "period": 6.5
+      },
+      {
+        "angle": 148.4,
+        "period": 6.22
+      }
+    ],
+    "amplitude": 24,
+    "blend": "overlay",
+    "checker": true,
+    "blur": 0.5,
+    "lightRatio": 1,
+    "highlights": {
+      "from": 160,
+      "to": 220,
+      "keep": 0.6
+    }
+  },
+  "cadence": {
+    "fps": 15,
+    "captions": "ones",
+    "text": "ticks",
+    "footage": {
+      "phase": 0.5
+    }
+  },
+  "footage": {
+    "grade": {
+      "brightness": 1,
+      "gamma": 1.6,
+      "saturation": 1
+    },
+    "slowRate": 0.625,
+    "screen": {
+      "amplitude": 95,
+      "lightRatio": 0.35,
+      "highlights": null
+    }
+  },
+  "fonts": {
+    "sans": {
+      "family": "Urbanist",
+      "path": "fonts/urbanist-complete.woff2",
+      "style": "normal",
+      "variable": true,
+      "leadWeight": 500,
+      "heavyWeight": 800,
+      "wordSpacingEm": 0.06
+    },
+    "sansHeavy": {
+      "family": "Poppins",
+      "style": "normal",
+      "weight": 700,
+      "files": {
+        "300": "fonts/Poppins-Light.ttf",
+        "400": "fonts/Poppins-Regular.ttf",
+        "500": "fonts/Poppins-Medium.ttf",
+        "600": "fonts/Poppins-SemiBold.ttf",
+        "700": "fonts/Poppins-Bold.ttf"
+      },
+      "heavyWeight": 700,
+      "boldWeight": 600,
+      "regularWeight": 500,
+      "lightWeight": 300
+    },
+    "serifItalic": {
+      "family": "Playfair Display",
+      "path": "fonts/playfair-italic-wght.ttf",
+      "style": "italic",
+      "variable": true,
+      "weight": 800,
+      "regularWeight": 500,
+      "boldWeight": 800
+    },
+    "serifItalicLight": {
+      "family": "Playfair",
+      "path": "fonts/Playfair-Italic-opsz-wdth-wght.ttf",
+      "style": "italic",
+      "variable": true,
+      "weight": 300,
+      "opticalSize": 1200,
+      "trackingEm": 0,
+      "forWeights": [
+        "light",
+        "regular"
+      ]
+    },
+    "caption": {
+      "family": "Poppins",
+      "style": "normal",
+      "weight": 500,
+      "files": {
+        "400": "fonts/Poppins-Regular.ttf",
+        "500": "fonts/Poppins-Medium.ttf",
+        "600": "fonts/Poppins-SemiBold.ttf",
+        "700": "fonts/Poppins-Bold.ttf"
+      }
+    }
+  },
+  "type": {
+    "leadXHeightPx": 44,
+    "keyXHeightRatio": 2.1,
+    "keyMaxWidth": 0.8,
+    "leadPitchXH": 2.35,
+    "leadToKeyGapXH": 0.35,
+    "keyFace": "serifItalic",
+    "keyXHeightPx": 96,
+    "keyTrackingEm": -0.015,
+    "sansKeyTrackingEm": 0,
+    "leadMaxWidth": 0.72,
+    "flankLeadXHeightPx": 34,
+    "flankKeyMaxWidth": 0.56,
+    "figures": "lining",
+    "keyLeadingXH": 2.15,
+    "sizeHalfStep": 1.14,
+    "wordSpaceStepEm": 0.13
+  },
+  "timing": {
+    "lead": {
+      "entrance": "pop",
+      "offsetFrames": 3
+    },
+    "key": {
+      "entrance": "blur-rise",
+      "offsetFrames": -1
+    },
+    "number": {
+      "entrance": "pop",
+      "offsetFrames": 0
+    },
+    "stagger": {
+      "floor": 3,
+      "even": 3,
+      "tight": 2.33
+    },
+    "nudgeFrames": 2,
+    "groundFlipOffsetFrames": -2,
+    "typewriter": {
+      "offsetFrames": 0,
+      "charsPerSecond": 37,
+      "settleFrames": 0,
+      "opacityFrom": 1,
+      "blur": 0
+    },
+    "caption": {
+      "entrance": "pop",
+      "offsetFrames": 1,
+      "firstOnPageStart": true
+    },
+    "pageOverlapFrames": 2,
+    "minHoldFrames": 6
+  },
+  "entrance": {
+    "tickLeadFrames": 0.8,
+    "presets": {
+      "fade": {
+        "fadeFrames": 2
+      },
+      "blur-rise": {
+        "distanceXH": 0.7,
+        "moveFrames": 6,
+        "fadeFrames": 6,
+        "blur": 9,
+        "opacityFrom": 0.05,
+        "curve": "expo"
+      },
+      "blur-rise-short": {
+        "distanceXH": 0.13,
+        "moveFrames": 4,
+        "fadeFrames": 4,
+        "blur": 3,
+        "opacityFrom": 0.78
+      },
+      "rise": {
+        "distanceXH": 0.4,
+        "moveFrames": 4.8,
+        "fadeFrames": 2
+      },
+      "slide-up": {
+        "distanceXH": 0.4,
+        "moveFrames": 3
+      },
+      "blur-in": {
+        "fadeFrames": 4,
+        "blur": 8,
+        "opacityFrom": 0.3
+      },
+      "rack-focus": {
+        "fadeFrames": 5,
+        "blur": 15
+      }
+    },
+    "steps": {
+      "distance": {
+        "none": 0,
+        "short": 0.3,
+        "medium": 0.6,
+        "long": 1
+      },
+      "fade": {
+        "cut": 0,
+        "quick": 3,
+        "medium": 5,
+        "slow": 8,
+        "slower": 11
+      },
+      "move": {
+        "quick": 3,
+        "medium": 5,
+        "slow": 8
+      },
+      "blur": {
+        "none": 0,
+        "soft": 4,
+        "medium": 9,
+        "heavy": 15
+      }
+    }
+  },
+  "count": {
+    "durationFrames": 8,
+    "endHoldFrames": 1,
+    "countdownFrom": 200
+  },
+  "layout": {
+    "bandCentre": 0.5,
+    "bandUpper": 0.43,
+    "leftMargin": 0.11,
+    "heroHeight": 0.23,
+    "heroWidthMax": 0.42,
+    "standoffXH": 0.9,
+    "stackAnchor": "first-line",
+    "flankStandoffXH": 0.3,
+    "inset": {
+      "x": 108,
+      "y": 753,
+      "w": 874,
+      "h": 492,
+      "r": 36
+    },
+    "gaps": {
+      "tight": 0.01,
+      "normal": 0.05,
+      "airy": 0.1
+    },
+    "bandWidth": 0.98,
+    "split": {
+      "text": 0.144,
+      "picture": [
+        0.31,
+        0.94
+      ]
+    },
+    "slots": {
+      "top": 0.179,
+      "upper": 0.252,
+      "centre": 0.479,
+      "lower": 0.686
+    }
+  },
+  "camera": {
+    "pullOutLarge": 0.81,
+    "pullOutSmall": 0.92,
+    "panFraction": 0.08,
+    "settleFrom": 1.15,
+    "settleFrames": 7,
+    "panEnterFraction": 0.105
+  },
+  "motion": {
+    "distance": {
+      "short": 0.04,
+      "medium": 0.12,
+      "long": 0.3
+    },
+    "acrossMargin": 0.035,
+    "preRollFrames": 2,
+    "push": {
+      "small": 1.1,
+      "large": 1.25
+    },
+    "types": {
+      "glide": {
+        "frames": 3,
+        "ease": "linear"
+      },
+      "truck": {
+        "ease": "in-out"
+      },
+      "exit": {
+        "frames": 8,
+        "ease": "in2"
+      },
+      "push": {
+        "ease": "in2"
+      },
+      "pull": {
+        "ease": "out2"
+      }
+    }
+  },
+  "image": {
+    "tone": "natural",
+    "rim": {
+      "size": 9,
+      "wobble": 2.9,
+      "wobbleFrequency": 0.08,
+      "line": {
+        "size": 1,
+        "opacity": 0.35
+      },
+      "offsetEdge": {
+        "size": 1,
+        "x": -27,
+        "y": -7,
+        "colour": "rim"
+      }
+    },
+    "greyscaleRange": [
+      16,
+      242
+    ],
+    "natural": {
+      "saturation": 0.85,
+      "range": [
+        2,
+        240
+      ],
+      "soften": 0
+    },
+    "hues": {
+      "blue": [
+        "#000103",
+        "#19212B",
+        "#354252",
+        "#516279",
+        "#6C83A2",
+        "#8AA3C4",
+        "#ABC3E2",
+        "#D4E1F3",
+        "#F8FBFF"
+      ]
+    },
+    "duotone": {
+      "hue": "blue",
+      "range": [
+        0,
+        245
+      ]
+    },
+    "faded": {
+      "saturation": 0.55,
+      "range": [
+        76,
+        252
+      ],
+      "soften": 1.2
+    },
+    "pieces": {
+      "stepFrames": 5
+    },
+    "sequence": {
+      "fps": 15
+    }
+  },
+  "caption": {
+    "face": "caption",
+    "weight": 500,
+    "boldWeight": 600,
+    "sizePx": 128,
+    "xHeightCentre": {
+      "upper": 0.1944,
+      "centre": 0.5286,
+      "chest": 0.6781,
+      "lower": 0.7865
+    },
+    "offsetXPx": 15,
+    "maxWidth": 0.87,
+    "emphasisScale": 1.2,
+    "leadingXH": 2,
+    "bottomLimit": 0.855,
+    "stroke": {
+      "fill": "#FFFFFF",
+      "color": "rgba(0,0,0,0.82)",
+      "width": 5
+    }
+  },
+  "printScale": {
+    "fine": 1,
+    "coarse": 1.546
+  }
+}

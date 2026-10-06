@@ -1,0 +1,24 @@
+EO Shorts bundled music - licence evidence for m03
+
+Track: Make Money
+Artist: HoliznaCC0
+Album: BASSIC
+Source page: https://freemusicarchive.org/music/holiznacc0/bassic/make-money/
+Retrieved: 2026-10-05T01:09:08.176Z
+Source page SHA-256 (HTML as fetched): 3443f0ceca82b2d1ae521f73df8ecfb5c7dcb34a2d18798275e7f4ba295f82e6
+
+Licence: CC0 1.0 Universal (CC0-1.0)
+Licence deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+Licence statement on the source page (tags removed):
+  Make Money by HoliznaCC0 is licensed under a CC0 1.0 Universal License.
+Licence links on the source page (rel="license"):
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+Audio file listed in the page's track data: https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/4rHAGwpxfZXDye4JNMh9EQs6MsDoQgPyCrxC4pzR.mp3
+Audio file downloaded: 2026-10-05T00:58:57.319Z
+Audio file SHA-256 as downloaded: 3f10f346e5ab4c4c63977bd0157926075e0bba768bc48e89515669b1a9c8fe90 (8957760 bytes)
+
+CC0 waives copyright and related rights; attribution is not required. The artist and source
+are recorded for traceability. The bundled file is an excerpt of this recording with gain,
+an end fade and AAC encoding applied (see provenance.json).
