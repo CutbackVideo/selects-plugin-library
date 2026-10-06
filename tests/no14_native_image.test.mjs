@@ -95,6 +95,15 @@ test('native finish rejects missing, duplicate, or changed Image placements',()=
  assert.ok(buildNativeFinishScript({...input,mode:'native-finish'}).includes('authorNativeFinish'));
 });
 
+test('native finish accepts absolute Windows paths and still rejects relative ones',()=>{
+ const input=finishInput();
+ const withPaths=paths=>normalizeNativeFinish({...input,mode:'native-finish',photos:input.photos.map((p,i)=>({...p,path:paths[i]}))});
+ const windows=['C:\\Users\\starr\\Downloads\\a.jpg','D:/photos/b.jpg','\\\\server\\share\\c.jpg','C:\\Users\\\uD64D\uAE38\uB3D9\\d.jpg'];
+ assert.deepEqual(withPaths(windows).photos.map(p=>p.path),windows);
+ assert.throws(()=>withPaths(['photos\\a.jpg',...windows.slice(1)]),/Invalid Image dimensions or path/);
+ assert.throws(()=>withPaths(['C:relative.jpg',...windows.slice(1)]),/Invalid Image dimensions or path/);
+});
+
 test('native finish verifies all eight Image resources before adding effects',async()=>{
  const input=finishInput(),plan=nativeScenePlan(),rows=input.placements.map(p=>({...p,trackKind:'video',resourceId:input.photos['ABCD'.indexOf(p.slot)].resourceId}));
  let effects=0,transitions=0,graphics=0,commits=0,revision=0;const effectParameters=[];
