@@ -116,7 +116,8 @@ export function normalizeNativeFinish(raw){
  const photos=raw.photos.map(photo=>{
   if(!photo||typeof photo!=='object'||Array.isArray(photo)||Object.keys(photo).some(k=>!['resourceId','path','width','height'].includes(k)))throw Error('Invalid Image Resource');
   const resourceId=clean(photo.resourceId,'Image Resource ID'),path=clean(photo.path,'Image source path',8192);
-  if(!path.startsWith('/')||!Number.isSafeInteger(photo.width)||photo.width<1||!Number.isSafeInteger(photo.height)||photo.height<1)throw Error('Invalid Image dimensions or path');
+  // An absolute path on either OS: /Users/… on macOS, C:\… or \\server\… on Windows.
+  if(!/^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(path)||!Number.isSafeInteger(photo.width)||photo.width<1||!Number.isSafeInteger(photo.height)||photo.height<1)throw Error('Invalid Image dimensions or path');
   return {resourceId,path,width:photo.width,height:photo.height};
  });
  const decoration=raw.decoration??{shape:'heart',color:'#ffffff'};
