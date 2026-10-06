@@ -404,7 +404,7 @@ async function galleryStyleExisting(selects, project, input, inventory, onCommit
   });
   const music = input.music == null ? null : galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');
   const plan = planGallery({ media: chosen, music: music ? { ...music, startFrame: input.music.startFrame ?? 0 } : null, manualBpm: input.manualBpm,
-    estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames });
+    estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames, fps: input.fps });
   const selectedTiles = galleryBatchTiles(plan.tiles, input.slotKeys, 3);
   const selectedKeys = new Set(selectedTiles.map(tile => tile.slotKey));
   if (input.placeMusic !== undefined && typeof input.placeMusic !== 'boolean') galleryFail('placeMusic must be a boolean');
