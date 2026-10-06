@@ -21,6 +21,7 @@ const pickFor=f=>{const length=Math.min(5,Math.max(0,f.duration-.08)),start=Math
 const storeKey=p=>'place-count:v1:'+p;
 const legacyStoreKey=p=>'place-stories:v1:'+p;
 let localSdk=null;
+function bindLocalSdk(sdk){localSdk=panelLocalClient(sdk);}
 function getFS(){const f=localSdk?.files;if(!f||!['homedir','join','dirname','readFile','writeFile','mkdir','exists','rename','pathToLocalURL','readdir','stat'].every(k=>typeof f[k]==='function'))throw issue('Update Selects to use local media.','HOST_ADAPTER');return f;}
 async function readText(path){const v=await getFS().readFile(path);return typeof v==='string'?v:new TextDecoder().decode(v);}
 async function writeJSON(path,data){const f=getFS();(await f.mkdir(f.dirname(path),{recursive:true}));const tmp=path+'.'+uid()+'.tmp';await f.writeFile(tmp,new TextEncoder().encode(JSON.stringify(data)));(await f.rename(tmp,path));}
@@ -393,7 +394,7 @@ function locationsFromEstimate(files,folder,estimate){
 // in how to read and replace it: `get`/`update`, `check` (throws once a task no
 // longer belongs where it started), `live` (whether it still does), `progress`
 // and `stopped`. `assets` caches the companion scripts by file name.
-function storySteps({sdk,assets,get,update,check,progress,stopped,live}){localSdk=sdk;
+function storySteps({sdk,assets,get,update,check,progress,stopped,live}){bindLocalSdk(sdk);
  const patch=v=>update(s=>({...s,...v})),changePlace=(id,fn)=>update(s=>({...s,places:s.places.map(p=>p.id===id?fn(p):p)}));
  const run=async(summary,script,allowCommit=false)=>{let r=await sdk.runScript({summary,script,allowCommit});
   // Selects restarts its script server when access changes, and a call already
@@ -473,7 +474,7 @@ async function openFrameSize(steps,sequenceId){
  try{const size=await steps.run('Read the open timeline size',`return (await selects.draft(${JSON.stringify(sequenceId)}).meta()).frameSize;`);const width=Math.round(Number(size?.width)),height=Math.round(Number(size?.height));return width>0&&height>0?{width,height}:null;}catch{return null;}
 }
 // Resolves to the new Draft's sequence id; rejects with a public message.
-async function runTemplate({sdk,context,live,progress}){localSdk=sdk;
+async function runTemplate({sdk,context,live,progress}){bindLocalSdk(sdk);
  const t={pid:context.projectId};
  const check=()=>{if(!live())throw issue('A newer run replaced this one.','CONTEXT_CHANGED');};
  if(!t.pid)throw issue('Open a project, then try again.');
@@ -690,7 +691,7 @@ function PlaceCountTemplate({sdk,context}){
 }
 // A template run gets its own component, so it never loads or saves this
 // project's Place Count workspace.
-function PlaceCount(props){localSdk=props.sdk;return props.context?.template?<PlaceCountTemplate {...props}/>:<PlaceCountWorkspace {...props}/>;}
+function PlaceCount(props){bindLocalSdk(props.sdk);return props.context?.template?<PlaceCountTemplate {...props}/>:<PlaceCountWorkspace {...props}/>;}
 
 // local-sdk:start
 /** Pure host-platform path operations; no filesystem or renderer globals. */

@@ -18,7 +18,7 @@ function ledger(store,opts={}){
   readFile:async p=>other.bytes(Buffer.from(fs.readFileSync(p)).toString('latin1')),writeFile:async(p,d)=>fs.writeFileSync(p,d),rename:async(a,b)=>fs.renameSync(a,b),
   readdir:async p=>fs.readdirSync(p),stat:async p=>fs.statSync(p)};
  const sdk={files:FileSystem,environment:{platform:'win32',version:'2.0.520'}};
- const ctx={sdk,window:{parent:{get __DI__(){throw Error('Migrated operations must not use DI');}}},navigator:{},TextDecoder,crypto:globalThis.crypto,Date,JSON,Promise,Error,Object,Number,String,Math};
+ const ctx={sdk,panelLocalClient:s=>s,window:{parent:{get __DI__(){throw Error('Migrated operations must not use DI');}}},navigator:{},TextDecoder,crypto:globalThis.crypto,Date,JSON,Promise,Error,Object,Number,String,Math};
  vm.createContext(ctx);
  vm.runInContext(block('av-host')+'\n'+block('pc-ledger')+'\nbindLocalSdk(sdk);this.pcLedger=pcLedger;',ctx);
  return ctx.pcLedger(store,opts);
