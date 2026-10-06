@@ -1,3 +1,5 @@
+// Run Jared's Windows regressions in the existing Node 22 three-OS CI matrix.
+import './jared_vox_editorial_windows.test.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
