@@ -1323,9 +1323,20 @@ for (const b of INS) {
 }
 const g = await d.addMotionGraphic({ label: ${J(GRAPHIC_LABEL)}, tsxCode: ${J(graphicCode)}, parameters: ${J(data)}, editableParameters: [], within: await d.rangeAtFrames(0, ${endFrame}) });
 const music: any = ${J(music)};
-let bed: any = null;
+let musicInserted = 0;
 if (music && music.id) {
-  bed = await d.overlayResource({ resource: p.resource(music.id), over: await d.rangeAtFrames(0, ${endFrame}) });
+  const resource = (await p.resources()).find((r) => r.resourceId === music.id);
+  const draftFps = (await d.meta()).fps;
+  // A generated or cached bed can be shorter than the Short (generation is capped at 150s).
+  // Floor to whole Draft frames so no repetition asks past the available source.
+  const musicFrames = Math.floor(Number(resource?.durationSeconds) * draftFps);
+  if (!Number.isSafeInteger(musicFrames) || musicFrames < 1) throw new Error("The music resource has no usable duration. Reimport the music before rebuilding.");
+  for (let start = 0; start < ${endFrame}; start += musicFrames) {
+    const end = Math.min(${endFrame}, start + musicFrames);
+    // Explicit 1x keeps the exact target length when the source and Draft frame grids differ.
+    const bed = await d.overlayResource({ resource: p.resource(music.id), over: await d.rangeAtFrames(start, end), sourceStartSeconds: 0, playbackSpeed: { numerator: 1, denominator: 1 } });
+    musicInserted += bed.inserted;
+  }
   const clips = (await d.clips({ trackScope: "all" })).filter((c: any) => c.resourceId === music.id);
   for (const c of clips) { const cur: any = (await d.clips({ trackScope: "all" })).find((x: any) => x.clipId === c.clipId); if (cur) await d.setClipAudio({ clip: cur, volumeDb: music.db }); }
 }
@@ -1335,7 +1346,7 @@ if (voice) for (const id of (await d.clips({ trackScope: "main" })).filter((c: a
   if (clip) await d.setClipAudio({ clip, volumeDb: voice });
 }
 const saved = await d.commitAll("a16z Style Captions: B-roll, captions, graphics and music");
-return { commitId: saved.commitId, graphic: g.clipId, music: bed ? bed.inserted : 0, placed, skipped };`,
+return { commitId: saved.commitId, graphic: g.clipId, music: musicInserted, placed, skipped };`,
     true
   );
 }
