@@ -94,9 +94,10 @@
       "name": "Vlog Opening \u00b7 Motion graphics",
       "summary": "Place labels, title cards and an iris close.",
       "preview": {
+        "video": "preview-motion-graphics.mp4",
         "poster": "poster-motion-graphics.webp",
-        "width": 386,
-        "height": 216
+        "width": 960,
+        "height": 540
       }
     },
     {
