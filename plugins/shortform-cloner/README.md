@@ -26,7 +26,13 @@ Three built-in templates are included: News band, Full screen and Center box.
 3. Press **Make shorts**. Each short becomes a Draft where the video, both
    headlines and every caption stay editable. Export with Handoff → Export.
 
-Transcription and the AI steps use Selects credits.
+Transcription and the AI steps use Selects credits. When transcription starts,
+Selects asks you to confirm the credits: approve it as soon as it appears, because
+the request closes by itself after about 30 seconds. If it closes, press
+**Resume** and approve it then.
+
+Captions follow the speech: a caption ends where a sentence ends or another
+speaker starts, and a long sentence is divided where the speaker pauses.
 
 ## Updating from 0.2
 

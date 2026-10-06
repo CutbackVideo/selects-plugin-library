@@ -154,6 +154,7 @@ jobs:
       - name: Test template panels on Windows paths
         run: |
           node --test tests/selected_template_media.test.mjs
+          node --test tests/shortform_cloner_captions.test.mjs
           node --test tests/common_async_sdk.test.mjs tests/bespoke_sdk.test.mjs tests/multicam_local_sdk.test.mjs tests/canonical_local_client.test.mjs tests/di_sdk_boundary.test.mjs tests/multicam_di_migration.test.mjs tests/native_image_sdk_migration.test.mjs tests/generation_sdk.test.mjs tests/chris_legacy_cleanup.test.mjs
           node --test tests/cinema_vlog_studio.test.mjs
           node --test tests/cutout_beat_gallery.test.mjs
