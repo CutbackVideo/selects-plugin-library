@@ -1625,8 +1625,7 @@ function Panel({ sdk, context, ui, saved }) {
     }
     audioRef.current = null;
     try {
-      const doc = (window.parent as any)?.document;
-      if (!doc?.querySelectorAll) return;
+      const doc = document;
       const strays = doc.querySelectorAll(
         'audio[data-es-preview], audio[src*="audiocdn.epidemicsound.com"]',
       );
@@ -1713,9 +1712,7 @@ function Panel({ sdk, context, ui, saved }) {
       stopAllPreviews();
       setProgress(0);
       void loadWave(key, wf, localPath);
-      // The panel frame's CSP does not admit remote or local media; the
-      // parent document does, so the element is built there.
-      const doc = (window.parent as any)?.document ?? document;
+      const doc = document;
       const start = (url: string, next: string) => {
         const el = doc.createElement("audio");
         el.setAttribute("data-es-preview", "1");
