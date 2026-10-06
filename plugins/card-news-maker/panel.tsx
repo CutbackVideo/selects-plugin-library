@@ -2279,7 +2279,7 @@ function libraryId(): string | null {
   }
 }
 
-// ---- Files: Selects' own file service (same on macOS and Windows); localStorage when it is missing ----
+// ---- Media files and durable host-owned metadata storage ----
 function hostFs(): any {
   try {
     const fs = hostSdk.files;
@@ -2289,8 +2289,22 @@ function hostFs(): any {
     return null;
   }
 }
+// Project switches mount a new store, but its metadata shares the same backend.
+const metadataWrites = new WeakMap<object, Map<string, Promise<void>>>();
+function metadataQueue(backend: object) {
+  let queue = metadataWrites.get(backend);
+  if (!queue) { queue = new Map(); metadataWrites.set(backend, queue); }
+  return queue;
+}
+function writeMetadata(backend: object, key: string, write: () => Promise<void>) {
+  const queue = metadataQueue(backend);
+  const pending = (queue.get(key) || Promise.resolve()).catch(() => {}).then(write);
+  queue.set(key, pending);
+  return pending;
+}
 function makeStore() {
   const fs = hostFs();
+  const storeSdk = hostSdk;
   if (fs) {
     const root = fs.join(fs.homedir(), ".selects", "plugin-data", APP_ID);
     const dir = (n: string) => fs.join(root, n);
@@ -2310,6 +2324,7 @@ function makeStore() {
         }
       },
       async list(kind: string) {
+        await metadataQueue(fs).get(dir(kind));
         const d = dir(kind);
         if (!(await fs.exists(d))) return [];
         const out: any[] = [];
@@ -2322,23 +2337,35 @@ function makeStore() {
         return out;
       },
       async put(kind: string, id: string, v: any) {
-        const d = dir(kind);
-        (await ensure(d));
-        await fs.writeFile(fs.join(d, id + ".json"), enc(JSON.stringify(v)));
+        const snapshot = enc(JSON.stringify(v));
+        await writeMetadata(fs, dir(kind), async () => {
+          const d = dir(kind);
+          await ensure(d);
+          await fs.writeFile(fs.join(d, id + ".json"), snapshot);
+        });
       },
       async del(kind: string, id: string) {
-        const p = fs.join(dir(kind), id + ".json");
-        if ((await fs.exists(p))) (await fs.rm(p));
+        await writeMetadata(fs, dir(kind), async () => {
+          const p = fs.join(dir(kind), id + ".json");
+          if (await fs.exists(p)) await fs.rm(p);
+        });
       },
     };
   }
   const key = (kind: string) => `${APP_ID}:${kind}`;
-  const read = (kind: string) => {
-    try {
-      return JSON.parse(localStorage.getItem(key(kind)) || "{}") || {};
-    } catch (e) {
-      return {};
-    }
+  const storage = () => {
+    if (!storeSdk.storage?.getItem || !storeSdk.storage?.setItem)
+      throw new Error("Update Selects to use persistent plugin storage, then reopen this panel.");
+    return storeSdk.storage;
+  };
+  const read = async (kind: string) => JSON.parse(await storage().getItem(key(kind)) || "{}") || {};
+  const change = (kind: string, edit: (all: any) => void) => {
+    const backend = storage();
+    return writeMetadata(backend, key(kind), async () => {
+      const all = JSON.parse(await backend.getItem(key(kind)) || "{}") || {};
+      edit(all);
+      await backend.setItem(key(kind), JSON.stringify(all));
+    });
   };
   return {
     fs: null,
@@ -2347,17 +2374,15 @@ function makeStore() {
     ensure: (_: string) => {},
     size: (_: string) => 0,
     async list(kind: string) {
-      return Object.values(read(kind));
+      await metadataQueue(storage()).get(key(kind));
+      return Object.values(await read(kind));
     },
     async put(kind: string, id: string, v: any) {
-      const all = read(kind);
-      all[id] = v;
-      localStorage.setItem(key(kind), JSON.stringify(all));
+      const snapshot = JSON.parse(JSON.stringify(v));
+      await change(kind, all => { all[id] = snapshot; });
     },
     async del(kind: string, id: string) {
-      const all = read(kind);
-      delete all[id];
-      localStorage.setItem(key(kind), JSON.stringify(all));
+      await change(kind, all => { delete all[id]; });
     },
   };
 }
@@ -2953,7 +2978,10 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
   );
 }
 
-function Panel({ sdk, context, ui }: any) {
+function Panel(props: any) {
+  return <ProjectPanel key={String(props.context.projectId)} {...props} />;
+}
+function ProjectPanel({ sdk, context, ui }: any) {
   hostUseSdk(sdk);
   const lang = langOf(context);
   const S = STRINGS[lang] ?? STRINGS.en;
@@ -2986,6 +3014,7 @@ function Panel({ sdk, context, ui }: any) {
   const [tplRole, setTplRole] = React.useState<string>("cover");
 
   const script = async (code: string, summary: string, allowCommit = false) => {
+    if (activeProject.current !== projectId) throw new Error("The project changed. Reopen the saved job in its original project.");
     const r: any = await sdk.runScript({ script: code, summary, allowCommit });
     if (r.isError) throw new Error(String(r.output || "run_script failed").slice(0, 1200));
     return r.result;
@@ -3024,27 +3053,31 @@ function Panel({ sdk, context, ui }: any) {
 
   const saveJob = async (j: any) => {
     const next = { ...j, updated: new Date().toISOString() };
-    setJob(next);
+    if (activeProject.current === j.projectId) setJob(next);
     await store.put("jobs", next.id, next);
+    if (activeProject.current !== j.projectId) throw new Error("The project changed. Reopen this job in its original project.");
     return next;
   };
+  const activeProject = React.useRef(projectId);
+  activeProject.current = projectId;
+  React.useEffect(() => { activeProject.current = projectId; return () => { activeProject.current = null; }; }, []);
   const loadJobs = React.useCallback(async () => {
     if (!projectId) return;
     const since = Date.now() - 14 * 24 * 3600 * 1000;
     const list = (await store.list("jobs"))
       .filter((j: any) => j && j.projectId === projectId && !j.done && !j.dismissed && Date.parse(j.updated || j.created || "") > since)
       .sort((a: any, b: any) => String(b.updated).localeCompare(String(a.updated)));
-    setJobs(list);
+    if (activeProject.current === projectId) setJobs(list);
   }, [projectId, store]);
   React.useEffect(() => {
-    loadJobs().catch(() => {});
+    loadJobs().catch(e => setError(String(e?.message || e)));
   }, [loadJobs]);
 
   const loadResources = React.useCallback(async () => {
     if (!projectId) return;
     try {
       const rows = (await readMediaPages(sdk, {script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).filter((r: any) => r.type === "Video").map((r: any) => ({ id: r.resourceId, name: r.name, analyzed: r.hasAnalysis, sec: Math.round(r.durationSeconds ?? 0) }));`, summary: "List project videos"})).result;
-      setResources(rows || []);
+      if (activeProject.current === projectId) setResources(rows || []);
     } catch (e: any) {
       setError(String(e?.message || e));
     }
@@ -3303,7 +3336,8 @@ function Panel({ sdk, context, ui }: any) {
       `const m = await selects.project(${JSON.stringify(projectId)}).meta(); for (const id of m.draftIds) { const dm = await selects.draft(id).meta(); if (dm.name === ${JSON.stringify(name)}) return id; } return null;`,
       "Check for an existing draft"
     );
-    if (found) return await saveJob({ ...j, draftId: found });
+    if (found) return await saveJob({ ...j, draftId: found, draftPending: false });
+    if (j.draftPending) throw new Error("This Draft may already exist. Inspect the project and retry recovery; creation has not been repeated.");
     let b = 0;
     const cards = j.plan.cards.map((c: any, i: number) => {
       if (c.role === "body") b++;
@@ -3319,8 +3353,9 @@ function Panel({ sdk, context, ui }: any) {
     });
     setStatus(S.buildingDraft);
     const P = { projectId, name, cardSeconds: t.cardSeconds || 3, cards };
+    j = await saveJob({ ...j, draftPending: true });
     const r = await script(SCRIPT_BUILD.replace("const P: any = __P__;", "const P: any = " + JSON.stringify(P) + ";"), `Build ${name}`, true);
-    return await saveJob({ ...j, draftId: r?.draftId, fps: r?.fps, bounds: r?.bounds });
+    return await saveJob({ ...j, draftPending: false, draftId: r?.draftId, fps: r?.fps, bounds: r?.bounds });
   }
 
   // Put this set's pictures and Drafts in their own folder in the project, so the file list stays tidy.
@@ -3365,7 +3400,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     setBusy(true);
     try {
       setPhase(2);
-      let j = await pictures(job);
+      let j = await pictures(await saveJob(job));
       setPhase(3);
       j = await buildDraft(j);
       j = await organize(j);
@@ -3488,7 +3523,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     setJob({ ...job, plan: { ...job.plan, cards }, pictures: pics });
   };
   React.useEffect(() => {
-    if (job?.plan && !busy) store.put("jobs", job.id, job).catch(() => {});
+    if (job?.plan && !busy) store.put("jobs", job.id, job).catch(e => setError(String(e?.message || e)));
   }, [job]);
   React.useEffect(() => {
     if (job?.draftId && !job.folder?.done && !busy) organize(job).catch(() => {});

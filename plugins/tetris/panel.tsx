@@ -10,6 +10,50 @@
 
 import React from "react";
 
+// panel-storage:start
+// Keep writes ordered even across a panel remount; failed writes remain visible to callers.
+const panelStorageClients = new WeakMap();
+function panelStorage(sdk) {
+  const storage = sdk?.storage;
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function" || typeof storage.removeItem !== "function") {
+    throw new Error("Update Selects to use this plugin: sdk.storage is required.");
+  }
+  if (!panelStorageClients.has(storage)) {
+    let tail = Promise.resolve();
+    const enqueue = (operation) => {
+      const pending = tail.then(operation);
+      tail = pending.catch(() => {});
+      return pending;
+    };
+    panelStorageClients.set(storage, {
+      getItem: (key) => enqueue(() => storage.getItem(key)),
+      setItem: (key, value) => enqueue(() => storage.setItem(key, value)),
+      removeItem: (key) => enqueue(() => storage.removeItem(key)),
+    });
+  }
+  return panelStorageClients.get(storage);
+}
+function withStoredPanel(Component, load) {
+  return function StoredPanel(props) {
+    const [state, setState] = React.useState(null);
+    const [attempt, retry] = React.useState(0);
+    React.useEffect(() => {
+      let current = true;
+      setState(null);
+      Promise.resolve().then(() => load(panelStorage(props.sdk))).then(
+        (saved) => { if (current) setState({sdk: props.sdk, saved}); },
+        (error) => { if (current) setState({sdk: props.sdk, error: String(error?.message || error)}); },
+      );
+      return () => { current = false; };
+    }, [props.sdk, attempt]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error, React.createElement("button", {onClick: () => retry(n => n + 1)}, "Retry loading saved settings"));
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Loading saved settings…");
+    return React.createElement(Component, {...props, saved: state.saved});
+  };
+}
+// panel-storage:end
+
+
 // Windows runs sdk.runShell in cmd.exe, where the relay helper's POSIX commands and python3 are not
 // available, so two-player stays off there; single player needs no shell.
 let IS_WINDOWS = false;
@@ -366,23 +410,11 @@ function pixelText(
 
 // ------------------------------------------------------------------- records
 
-function loadRecords(): GameRecord[] {
-  try {
-    const raw = window.localStorage.getItem(RECORDS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as GameRecord[]).slice(0, MAX_RECORDS) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveRecords(records: GameRecord[]) {
-  try {
-    window.localStorage.setItem(RECORDS_KEY, JSON.stringify(records.slice(0, MAX_RECORDS)));
-  } catch {
-    /* storage unavailable — records just will not persist */
-  }
+async function loadTetrisState(storage) {
+  const records = JSON.parse((await storage.getItem(RECORDS_KEY)) || "[]");
+  const room = (await storage.getItem(ROOM_KEY)) || "";
+  const prefs = JSON.parse((await storage.getItem(PREFS_KEY)) || "{}");
+  return {records: Array.isArray(records) ? records.slice(0, MAX_RECORDS) : [], room, prefs: prefs || {}};
 }
 
 function bestFor(records: GameRecord[], id: DifficultyId): GameRecord | null {
@@ -706,7 +738,7 @@ function makeRoom(): string {
 
 // -------------------------------------------------------------------- panel
 
-function Panel({ sdk, ui }: any) {
+function Panel({ sdk, ui, saved }: any) {
   hostUseSdk(sdk);
   IS_WINDOWS = /^win/i.test(panelLocalClient(sdk).environment.platform);
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -733,13 +765,13 @@ function Panel({ sdk, ui }: any) {
   });
 
   const [phase, setPhase] = React.useState<"menu" | "playing">("menu");
-  const [difficulty, setDifficulty] = React.useState<DifficultyId>("normal");
+  const [difficulty, setDifficulty] = React.useState<DifficultyId>(DIFFICULTIES[saved.prefs.difficulty] ? saved.prefs.difficulty : "normal");
   const [stats, setStats] = React.useState({ score: 0, lines: 0, level: 1, over: false, paused: false });
-  const [records, setRecords] = React.useState<GameRecord[]>([]);
-  const [soundOn, setSoundOn] = React.useState(true);
-  const [volume, setVolume] = React.useState(70);
-  const [room, setRoom] = React.useState("");
-  const [name, setName] = React.useState("Player");
+  const [records, setRecords] = React.useState<GameRecord[]>(saved.records);
+  const [soundOn, setSoundOn] = React.useState(saved.prefs.soundOn !== false);
+  const [volume, setVolume] = React.useState(typeof saved.prefs.volume === "number" ? Math.min(100, Math.max(0, saved.prefs.volume)) : 70);
+  const [room, setRoom] = React.useState(saved.room);
+  const [name, setName] = React.useState(typeof saved.prefs.name === "string" && saved.prefs.name ? saved.prefs.name.slice(0, 24) : "Player");
   const [broker, setBroker] = React.useState("emqx");
   const [conn, setConn] = React.useState<"off" | "starting" | "on">("off");
   const [status, setStatus] = React.useState<{ tone: "muted" | "error" | "success"; text: string } | null>(null);
@@ -766,34 +798,13 @@ function Panel({ sdk, ui }: any) {
     soundRef.current.play(sound);
   }, []);
 
-  // Load saved preferences and records once.
+  const storageError = (error) => setStatus({tone: "error", text: "Could not save Tetris settings: " + String(error?.message || error)});
   React.useEffect(() => {
-    setRecords(loadRecords());
-    try {
-      const savedRoom = window.localStorage.getItem(ROOM_KEY);
-      if (savedRoom) setRoom(savedRoom);
-      const raw = window.localStorage.getItem(PREFS_KEY);
-      if (raw) {
-        const p = JSON.parse(raw);
-        if (p && typeof p === "object") {
-          if (DIFFICULTIES[p.difficulty as DifficultyId]) setDifficulty(p.difficulty);
-          if (typeof p.soundOn === "boolean") setSoundOn(p.soundOn);
-          if (typeof p.volume === "number") setVolume(Math.min(100, Math.max(0, p.volume)));
-          if (typeof p.name === "string" && p.name) setName(p.name.slice(0, 24));
-        }
-      }
-    } catch {
-      /* storage unavailable — defaults are fine */
-    }
-  }, []);
-
+    void panelStorage(sdk).setItem(PREFS_KEY, JSON.stringify({difficulty, soundOn, volume, name})).catch(storageError);
+  }, [sdk, difficulty, soundOn, volume, name]);
   React.useEffect(() => {
-    try {
-      window.localStorage.setItem(PREFS_KEY, JSON.stringify({ difficulty, soundOn, volume, name }));
-    } catch {
-      /* ignore */
-    }
-  }, [difficulty, soundOn, volume, name]);
+    void panelStorage(sdk).setItem(RECORDS_KEY, JSON.stringify(records.slice(0, MAX_RECORDS))).catch(storageError);
+  }, [sdk, records]);
 
   React.useEffect(() => {
     if (conn !== "on") return;
@@ -804,7 +815,6 @@ function Panel({ sdk, ui }: any) {
   const addRecord = React.useCallback((entry: GameRecord) => {
     setRecords((prev) => {
       const next = [entry, ...prev].slice(0, MAX_RECORDS);
-      saveRecords(next);
       return next;
     });
   }, []);
@@ -1013,12 +1023,7 @@ function Panel({ sdk, ui }: any) {
 
   const clearRecords = React.useCallback(() => {
     setRecords([]);
-    saveRecords([]);
-    try {
-      window.localStorage.removeItem(HIGH_KEY);
-    } catch {
-      /* ignore */
-    }
+    void panelStorage(sdk).removeItem(HIGH_KEY).catch(storageError);
   }, []);
 
   const recordWin = React.useCallback(() => {
@@ -1558,6 +1563,7 @@ function Panel({ sdk, ui }: any) {
     const b = BROKERS[broker] || BROKERS.emqx;
     const cid = "selects-tetris-" + net.playerId;
     try {
+      await panelStorage(sdk).setItem(ROOM_KEY, clean);
       const cmd = [
         "command -v python3 >/dev/null 2>&1 || { echo NOPYTHON; exit 3; }",
         "mkdir -p " + JSON.stringify(dir),
@@ -1596,11 +1602,6 @@ function Panel({ sdk, ui }: any) {
       net.lastDaemon = Date.now();
       net.connected = true;
       setRoom(clean);
-      try {
-        window.localStorage.setItem(ROOM_KEY, clean);
-      } catch {
-        /* ignore */
-      }
       setConn("on");
       setStatus({ tone: "muted", text: "Joining room " + clean + "…" });
       send({ t: "hello", name: netRef.current.name });
@@ -2291,5 +2292,5 @@ function withPanelLocalClient(Component: any) {
   };
 }
 
-export default withPanelLocalClient(Panel);
+export default withPanelLocalClient(withStoredPanel(Panel, loadTetrisState));
 // local-sdk:end

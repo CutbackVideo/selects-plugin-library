@@ -69,3 +69,38 @@ canonical SDK extension with its owning validation and lifecycle.
 `shared/local-client.ts` and `shared/generation-client.js` are private panel
 implementation helpers over these existing transports. They do not define a
 new public SDK surface. Rebuild modular panels after changing shared helpers.
+
+## Persistent settings and recovery
+
+Panels must use the host's asynchronous storage API. The iframe remains
+`sandbox="allow-scripts"`; its own `localStorage` can throw `SecurityError`.
+
+```tsx
+if (!sdk.storage) throw new Error("Update Selects to use persistent plugin storage.");
+const key = `progress:${context.projectId}`;
+const raw = await sdk.storage.getItem(key);
+const progress = raw === null ? null : JSON.parse(raw);
+await sdk.storage.setItem(key, JSON.stringify({ requestKey, phase: "submitting" }));
+await sdk.storage.removeItem(key);
+```
+
+`getItem` returns `null` only for absence. Every storage failure rejects; writes
+resolve only after the host accepts them. JSON belongs to the caller. There is
+no `clear`, key enumeration, or namespace selector. The host prefixes every
+key with `plugin:{mounted-folder-name}:`, including keys beginning `plugin:`.
+This isolates this API's keys; it does not isolate the existing shell/file SDK.
+
+Restore before autosave or important actions. Discard stale project/draft reads
+and serialize writes. Await a single recovery record before generation or
+editing; several keys are not a transaction. Preserve request IDs and uncertain
+execution state after an acknowledged operation whose save fails. Stop and
+retry saving/reconcile the existing request rather than generate again.
+
+Limits count UTF-16 key and value bytes: 4 MiB per item, 8 MiB per plugin, and
+1024 UTF-16 characters per caller key. Browser origin quota is shared and can
+fail earlier. Save media/large artifacts in files. The host migrates an audited
+legacy-key allowlist before first access, always prefers existing new values,
+and retains originals. A quota/access/migration failure is visible and retries
+safely. Migration can remain blocked until storage space is freed; no automatic
+deletion of original work occurs. Never fall back to iframe storage, script
+execution, parent-window internals or IPC for persistence.

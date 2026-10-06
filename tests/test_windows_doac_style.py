@@ -76,7 +76,7 @@ class DoacStyleWindowsTest(unittest.TestCase):
                 assert_no_shell_token(self, token, self.text)
         run = between(self.text, 'function TemplateRun(', 'function Panel')
         self.assertNotIn('hostIsWindows', run)
-        self.assertIn('disabled={busy||!context.sequenceId||!!job?.uncertain}', self.text)
+        self.assertIn('disabled={storageLoading||busy||!context.sequenceId||!!job?.uncertain}', self.text)
 
     def test_panel_engine_runs_in_a_worker_from_the_package(self):
         files = between(self.text, 'function panelEngineFiles(', '\n}\n')

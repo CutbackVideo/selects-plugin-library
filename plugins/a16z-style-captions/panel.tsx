@@ -75,10 +75,10 @@ function panelLocalPaths(platform) {
   };
 }
 async function createPanelLocalClient(sdk) {
-  const run2 = async (method, args, write2 = false) => {
+  const run2 = async (method, args, write = false) => {
     const response = await sdk.runScript({
       summary: "Use local media workspace",
-      allowCommit: write2,
+      allowCommit: write,
       script: "return await selects." + method + "(..." + JSON.stringify(args) + ");"
     });
     if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
@@ -3301,7 +3301,7 @@ async function readFonts(sdk) {
     root = (await hostRoots(sdk, PANEL_ID, "fonts")).plugin;
   } catch {
   }
-  const read2 = async (file) => {
+  const read = async (file) => {
     if (!root) return "";
     try {
       return String(await fs().readFile(fs().join(root, "fonts", file), "utf8")).trim();
@@ -3309,26 +3309,58 @@ async function readFonts(sdk) {
       return "";
     }
   };
-  const [sans, serif, roman, light] = await Promise.all([read2("InterDisplay-Medium.woff2.b64"), read2("EditorialSerif-Italic.woff2.b64"), read2("EditorialSerif-Regular.woff2.b64"), read2("EditorialSerif-Light.woff2.b64")]);
+  const [sans, serif, roman, light] = await Promise.all([read("InterDisplay-Medium.woff2.b64"), read("EditorialSerif-Italic.woff2.b64"), read("EditorialSerif-Regular.woff2.b64"), read("EditorialSerif-Light.woff2.b64")]);
   return { sans, serif, roman, light };
 }
 
 // plugins/a16z-style-captions/src/Panel.tsx
+var panelStorageClients = /* @__PURE__ */ new WeakMap();
+function panelStorage(sdk) {
+  const storage = sdk?.storage;
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function" || typeof storage.removeItem !== "function") {
+    throw new Error("Update Selects to use this plugin: sdk.storage is required.");
+  }
+  if (!panelStorageClients.has(storage)) {
+    let tail2 = Promise.resolve();
+    const enqueue = (operation) => {
+      const pending = tail2.then(operation);
+      tail2 = pending.catch(() => {
+      });
+      return pending;
+    };
+    panelStorageClients.set(storage, {
+      getItem: (key) => enqueue(() => storage.getItem(key)),
+      setItem: (key, value) => enqueue(() => storage.setItem(key, value)),
+      removeItem: (key) => enqueue(() => storage.removeItem(key))
+    });
+  }
+  return panelStorageClients.get(storage);
+}
+function withStoredPanel(Component, load) {
+  return function StoredPanel(props) {
+    const [state, setState] = React2.useState(null);
+    const [attempt, retry] = React2.useState(0);
+    React2.useEffect(() => {
+      let current = true;
+      setState(null);
+      Promise.resolve().then(() => load(panelStorage(props.sdk))).then(
+        (saved) => {
+          if (current) setState({ sdk: props.sdk, saved });
+        },
+        (error) => {
+          if (current) setState({ sdk: props.sdk, error: String(error?.message || error) });
+        }
+      );
+      return () => {
+        current = false;
+      };
+    }, [props.sdk, attempt]);
+    if (state?.error) return React2.createElement("div", { role: "alert" }, state.error, React2.createElement("button", { onClick: () => retry((n) => n + 1) }, "Retry loading saved settings"));
+    if (state?.sdk !== props.sdk) return React2.createElement("div", { role: "status" }, "Loading saved settings\u2026");
+    return React2.createElement(Component, { ...props, saved: state.saved });
+  };
+}
 var STORE = "a16z-style-captions:v2:";
-var read = (k) => {
-  try {
-    return localStorage.getItem(STORE + k) || "";
-  } catch {
-    return "";
-  }
-};
-var write = (k, v) => {
-  try {
-    if (v) localStorage.setItem(STORE + k, v);
-    else localStorage.removeItem(STORE + k);
-  } catch {
-  }
-};
 var fresh = () => STEPS.map(([id, label]) => ({ id, label, state: "wait" }));
 var run = { busy: false, steps: fresh(), error: "", result: null, startedAt: 0 };
 var listeners = /* @__PURE__ */ new Set();
@@ -3336,7 +3368,7 @@ var setRun = (patch) => {
   run = { ...run, ...patch };
   listeners.forEach((l) => l());
 };
-function A16zShort({ sdk, context }) {
+function A16zShort({ sdk, context, saved }) {
   hostUseSdk(sdk);
   const [, force] = useState(0);
   useEffect(() => {
@@ -3344,21 +3376,25 @@ function A16zShort({ sdk, context }) {
     listeners.add(l);
     return () => void listeners.delete(l);
   }, []);
-  const [name, setName] = useState(() => read("name"));
-  const [role, setRole] = useState(() => read("role"));
-  const [logo, setLogo] = useState(() => read("logo"));
+  const [name, setName] = useState(saved.name || "");
+  const [role, setRole] = useState(saved.role || "");
+  const [logo, setLogo] = useState(saved.logo || "");
   const [hint, setHint] = useState("");
-  const [music, setMusic] = useState(() => read("music") !== "0");
-  const [cards, setCards] = useState(() => read("cards") !== "0");
-  const [broll, setBroll] = useState(() => read("broll") !== "0");
+  const [music, setMusic] = useState(saved.music !== "0");
+  const [cards, setCards] = useState(saved.cards !== "0");
+  const [broll, setBroll] = useState(saved.broll !== "0");
   const [isShort, setIsShort] = useState(false);
   const [clock, setClock] = useState(0);
   const alive = useRef(true);
   useEffect(() => () => void (alive.current = false), []);
   useEffect(() => {
+    let current = true;
     setIsShort(false);
-    if (context?.sequenceId) loadJob(context.sequenceId).then((j) => alive.current && setIsShort(!!j)).catch(() => {
+    if (context?.sequenceId) loadJob(context.sequenceId).then((j) => current && setIsShort(!!j)).catch(() => {
     });
+    return () => {
+      current = false;
+    };
   }, [context?.sequenceId, run.result?.shortId]);
   useEffect(() => {
     if (!run.busy) return;
@@ -3373,14 +3409,12 @@ function A16zShort({ sdk, context }) {
       return;
     }
     const opts = { name: name.trim(), role: role.trim(), logo: logo.trim(), music, cards, broll, hint: hint.trim() };
-    write("name", opts.name);
-    write("role", opts.role);
-    write("logo", opts.logo);
-    write("music", music ? "" : "0");
-    write("cards", cards ? "" : "0");
-    write("broll", broll ? "" : "0");
     setRun({ busy: true, error: "", result: null, steps: fresh(), startedAt: Date.now() });
     try {
+      const storage = panelStorage(sdk);
+      for (const [key, value] of Object.entries({ name: opts.name, role: opts.role, logo: opts.logo, music: music ? "" : "0", cards: cards ? "" : "0", broll: broll ? "" : "0" })) {
+        await storage.setItem(STORE + key, value);
+      }
       const r = rebuild ? await rebuildShort(sdk, context.sequenceId, opts, onStep) : await makeShort(sdk, { projectId: context.projectId, sequenceId: context.sequenceId }, opts, onStep);
       setRun({ result: r });
     } catch (e) {
@@ -3399,7 +3433,10 @@ function A16zShort({ sdk, context }) {
   const muted = { color: "var(--panel-muted-fg)" };
   return /* @__PURE__ */ React2.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React2.createElement("div", null, /* @__PURE__ */ React2.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "a16z-style Short, one click"), /* @__PURE__ */ React2.createElement("div", { style: muted }, "Turns this talking-head Draft into a new 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, B-roll, a name tag and a music bed.")), /* @__PURE__ */ React2.createElement("label", { style: field }, /* @__PURE__ */ React2.createElement("span", null, "Speaker name (optional, for the name tag)"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: name, disabled: busy, placeholder: "e.g. Jane Doe", onChange: (e) => setName(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: field }, /* @__PURE__ */ React2.createElement("span", null, "Role line"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: role, disabled: busy, placeholder: "e.g. Founder, Example Labs", onChange: (e) => setRole(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: field }, /* @__PURE__ */ React2.createElement("span", null, "Your logo (optional): path to a small PNG or SVG, shown top right"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: logo, disabled: busy, placeholder: "~/Pictures/logo.png", onChange: (e) => setLogo(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: field }, /* @__PURE__ */ React2.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. the key idea is 'taste'", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React2.createElement("input", { type: "checkbox", checked: music, disabled: busy, onChange: (e) => setMusic(e.target.checked) }), /* @__PURE__ */ React2.createElement("span", null, "Music bed (AI-generated, uses generation credits)")), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React2.createElement("input", { type: "checkbox", checked: cards, disabled: busy, onChange: (e) => setCards(e.target.checked) }), /* @__PURE__ */ React2.createElement("span", null, "Keyword cards")), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React2.createElement("input", { type: "checkbox", checked: broll, disabled: busy, onChange: (e) => setBroll(e.target.checked) }), /* @__PURE__ */ React2.createElement("span", null, "B-roll from stock footage (Pexels and Pixabay)")), isShort && /* @__PURE__ */ React2.createElement("button", { onClick: () => go(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild captions and graphics"), /* @__PURE__ */ React2.createElement("button", { onClick: () => go(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the Short\u2026 " + clock + " s" : isShort ? "Make a new Short from this Draft" : "Make the Short"), (busy || run.steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React2.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, run.steps.map((s) => /* @__PURE__ */ React2.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React2.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React2.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React2.createElement("span", { style: muted }, " \u2014 ", s.note) : null)))), run.error && /* @__PURE__ */ React2.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, run.error), run.result && !busy && /* @__PURE__ */ React2.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React2.createElement("div", null, "Made \u201C", run.result.name, "\u201D in ", Math.round(run.result.seconds), " s."), run.result.notes.length ? /* @__PURE__ */ React2.createElement("ul", { style: { margin: 0, paddingLeft: 18, ...muted } }, run.result.notes.map((n, i) => /* @__PURE__ */ React2.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React2.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the Short")), /* @__PURE__ */ React2.createElement("div", { style: { ...muted, fontSize: 11 } }, "A style study, not affiliated with a16z. Use your own name, role and logo."));
 }
-var Panel_default = withPanelLocalClient(A16zShort);
+var Panel_default = withPanelLocalClient(withStoredPanel(A16zShort, async (storage) => {
+  const entries = await Promise.all(["name", "role", "logo", "music", "cards", "broll"].map(async (key) => [key, await storage.getItem(STORE + key)]));
+  return Object.fromEntries(entries);
+}));
 export {
   Panel_default as default
 };

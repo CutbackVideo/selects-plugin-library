@@ -17,6 +17,50 @@
 
 import React from "react";
 
+// panel-storage:start
+// Keep writes ordered even across a panel remount; failed writes remain visible to callers.
+const panelStorageClients = new WeakMap();
+function panelStorage(sdk) {
+  const storage = sdk?.storage;
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function" || typeof storage.removeItem !== "function") {
+    throw new Error("Update Selects to use this plugin: sdk.storage is required.");
+  }
+  if (!panelStorageClients.has(storage)) {
+    let tail = Promise.resolve();
+    const enqueue = (operation) => {
+      const pending = tail.then(operation);
+      tail = pending.catch(() => {});
+      return pending;
+    };
+    panelStorageClients.set(storage, {
+      getItem: (key) => enqueue(() => storage.getItem(key)),
+      setItem: (key, value) => enqueue(() => storage.setItem(key, value)),
+      removeItem: (key) => enqueue(() => storage.removeItem(key)),
+    });
+  }
+  return panelStorageClients.get(storage);
+}
+function withStoredPanel(Component, load) {
+  return function StoredPanel(props) {
+    const [state, setState] = React.useState(null);
+    const [attempt, retry] = React.useState(0);
+    React.useEffect(() => {
+      let current = true;
+      setState(null);
+      Promise.resolve().then(() => load(panelStorage(props.sdk))).then(
+        (saved) => { if (current) setState({sdk: props.sdk, saved}); },
+        (error) => { if (current) setState({sdk: props.sdk, error: String(error?.message || error)}); },
+      );
+      return () => { current = false; };
+    }, [props.sdk, attempt]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error, React.createElement("button", {onClick: () => retry(n => n + 1)}, "Retry loading saved settings"));
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Loading saved settings…");
+    return React.createElement(Component, {...props, saved: state.saved});
+  };
+}
+// panel-storage:end
+
+
 type Hit = {
   id: number;
   title: string;
@@ -629,20 +673,29 @@ const parseResults = (text: string) => {
 };
 
 // Everything the panel should still be showing when you come back to it.
-const loadState = () => {
-  try {
-    const v4 = window.localStorage.getItem(STATE_KEY);
+const loadState = async (storage) => {
+    const v4 = await storage.getItem(STATE_KEY);
     if (v4) return JSON.parse(v4) || {};
-    const v3 = JSON.parse(window.localStorage.getItem(OLD_STATE_KEY) || "null") || {};
+    const v3 = JSON.parse((await storage.getItem(OLD_STATE_KEY)) || "null") || {};
     // v3's "added" map pointed into whichever project imported a track; it
     // is rebuilt from the project itself now, so it is not carried over.
     delete v3.added;
     delete v3.log;
     return v3;
-  } catch {
-    return {};
-  }
 };
+
+// Cover art is a disposable cache; bound it separately from the user's shortlist.
+function savedThumbnails(thumbs) {
+  const kept = {};
+  let characters = 0;
+  for (const [key, value] of Object.entries(thumbs).slice(-60).reverse()) {
+    const size = key.length + String(value).length;
+    if (characters + size > 512 * 1024) continue;
+    kept[key] = value;
+    characters += size;
+  }
+  return kept;
+}
 
 // A local file URL the host can stream, or "" when this build has none.
 const localUrl = async (path: string) => {
@@ -788,9 +841,8 @@ const titleStyle = {
 };
 const muted = { color: "var(--panel-muted-fg)" };
 
-function Panel({ sdk, context, ui }) {
+function Panel({ sdk, context, ui, saved }) {
   hostUseSdk(sdk);
-  const saved = React.useRef<any>(loadState()).current;
 
   // ---- settings (one file, always written whole) ---------------------------
   const [settings, setSettings] = React.useState<Settings>({
@@ -910,8 +962,7 @@ function Panel({ sdk, context, ui }) {
 
   // Keep the panel exactly as the user left it across tab switches.
   React.useEffect(() => {
-    try {
-      window.localStorage.setItem(
+    void panelStorage(sdk).setItem(
         STATE_KEY,
         JSON.stringify({
           kind,
@@ -932,13 +983,10 @@ function Panel({ sdk, context, ui }) {
           lastSave,
           placeAt,
           seqInfo,
-          thumbs: Object.fromEntries(Object.entries(thumbs).slice(-60)),
+          thumbs: savedThumbnails(thumbs),
           peaks: Object.fromEntries(Object.entries(peaks).slice(-30)),
         }),
-      );
-    } catch {
-      /* storage unavailable: the session still works, it just will not restore */
-    }
+      ).catch(e => setErr("Could not save panel settings: " + String(e?.message || e)));
   }, [
     kind,
     term,
@@ -3303,5 +3351,5 @@ function withPanelLocalClient(Component: any) {
   };
 }
 
-export default withPanelLocalClient(Panel);
+export default withPanelLocalClient(withStoredPanel(Panel, loadState));
 // local-sdk:end

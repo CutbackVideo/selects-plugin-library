@@ -13,6 +13,50 @@
 // Build a beat-timed, editable recap Draft from footage in the current project.
 import React from "react";
 
+// panel-storage:start
+// Keep writes ordered even across a panel remount; failed writes remain visible to callers.
+const panelStorageClients = new WeakMap();
+function panelStorage(sdk) {
+  const storage = sdk?.storage;
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function" || typeof storage.removeItem !== "function") {
+    throw new Error("Update Selects to use this plugin: sdk.storage is required.");
+  }
+  if (!panelStorageClients.has(storage)) {
+    let tail = Promise.resolve();
+    const enqueue = (operation) => {
+      const pending = tail.then(operation);
+      tail = pending.catch(() => {});
+      return pending;
+    };
+    panelStorageClients.set(storage, {
+      getItem: (key) => enqueue(() => storage.getItem(key)),
+      setItem: (key, value) => enqueue(() => storage.setItem(key, value)),
+      removeItem: (key) => enqueue(() => storage.removeItem(key)),
+    });
+  }
+  return panelStorageClients.get(storage);
+}
+function withStoredPanel(Component, load) {
+  return function StoredPanel(props) {
+    const [state, setState] = React.useState(null);
+    const [attempt, retry] = React.useState(0);
+    React.useEffect(() => {
+      let current = true;
+      setState(null);
+      Promise.resolve().then(() => load(panelStorage(props.sdk))).then(
+        (saved) => { if (current) setState({sdk: props.sdk, saved}); },
+        (error) => { if (current) setState({sdk: props.sdk, error: String(error?.message || error)}); },
+      );
+      return () => { current = false; };
+    }, [props.sdk, attempt]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error, React.createElement("button", {onClick: () => retry(n => n + 1)}, "Retry loading saved settings"));
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Loading saved settings…");
+    return React.createElement(Component, {...props, saved: state.saved});
+  };
+}
+// panel-storage:end
+
+
 const SLUG = "recap-2026";
 const AUDIO_NAME = "recap-2026-fixed-soundtrack.wav";
 const AUDIO_SOURCE_NAME = "recap-preview-v3-beatmatched-61s.wav";
@@ -476,7 +520,7 @@ function TemplateRun({ sdk, context }) {
 
 function Panel(props) {
   hostUseSdk(props.sdk);
-  return props.context?.template ? <TemplateRun {...props} /> : <RecapPanel {...props} />;
+  return props.context?.template ? <TemplateRun {...props} /> : <RecapPanel key={props.context?.projectId} {...props} />;
 }
 
 function RecapPanel({ sdk, context, ui }) {
@@ -506,15 +550,14 @@ function RecapPanel({ sdk, context, ui }) {
     setGalleryPage(0);setThumbnails({});thumbnailCache.current={};
     const script = core({projectId}) +
       "const r=await p.sourceFiles();if(!('fileTree' in r))return r.folders.map(x=>({name:x.name,count:x.videoCount}));const out=[];const rootCount=r.fileTree.filter(x=>x.type==='video').length;if(rootCount)out.push({name:'(root)',count:rootCount});for(const x of r.fileTree){if(x.type==='dir')out.push({name:x.name,count:x.children.filter(y=>y.type==='video').length});}return out;";
-    sdk.runScript({script,summary:"List footage folders"}).then((r) => {
+    sdk.runScript({script,summary:"List footage folders"}).then(async (r) => {
       if (!live) return;
       const found = scriptResult(r).filter((x) => x.count > 0);
       found.sort((a,b) => b.count-a.count);
       let initial=found[0]?[found[0].name]:[];
-      try {
-        const saved=JSON.parse(localStorage.getItem(SLUG+":"+projectId+":folders")||"null");
-        if(Array.isArray(saved))initial=found.map((x)=>x.name).filter((name)=>saved.includes(name));
-      }catch(_){}
+      const saved=JSON.parse((await panelStorage(sdk).getItem(SLUG+":"+projectId+":folders"))||"null");
+      if (!live) return;
+      if(Array.isArray(saved))initial=found.map((x)=>x.name).filter((name)=>saved.includes(name));
       setFolders(found);setSelectedFolders(initial);setMessage("");
     }).catch((e) => {if(live){setError(String(e.message || e));setMessage("");}});
     return () => {live = false;};
@@ -528,20 +571,25 @@ function RecapPanel({ sdk, context, ui }) {
     setThumbnails({});thumbnailCache.current={};
     const script = core({projectId,folders:folders.map((x)=>x.name)}) + RESOURCE_SECONDS +
       "const out=[];for(const name of cfg.folders){const r=await p.sourceFiles({folder:name});if(!('fileTree' in r))throw Error('Footage folder returned a summary');for(const x of r.fileTree){if(x.type!=='video')continue;const d=dur[x.resourceId]||x.durationSeconds;if(d>=1.7||!(d>0))out.push({resourceId:x.resourceId,name:x.name,path:x.path,durationSeconds:d,frameSize:x.frameSize,folderName:name});}}return out;";
-    readMediaPages(sdk,{script,summary:"Read footage folders"}).then((r) => withDurations(scriptResult(r))).then((list) => {
+    readMediaPages(sdk,{script,summary:"Read footage folders"}).then((r) => withDurations(scriptResult(r))).then(async (list) => {
       if (!live) return;
       const found = [...new Map(list.filter((v)=>v.durationSeconds>=1.7).map((v)=>[v.resourceId,v])).values()].sort((a,b) => a.name.localeCompare(b.name));
-      setVideos(found);
       const key=SLUG+":"+projectId+":"+selectedFolders.join("|");
       let intro=null;
       let excluded=[];
       let next=[];
-      try {
-        const saved = JSON.parse(localStorage.getItem(key) || "null");
-        const savedIntro=JSON.parse(localStorage.getItem(SLUG+":"+projectId+":intro")||"null")||JSON.parse(localStorage.getItem(key+":intro")||"null")||(Array.isArray(saved)?saved[0]:null);
+      const storage = panelStorage(sdk);
+      const [savedText, introText, oldIntroText, excludedText] = await Promise.all([
+        storage.getItem(key), storage.getItem(SLUG+":"+projectId+":intro"),
+        storage.getItem(key+":intro"), storage.getItem(SLUG+":"+projectId+":excluded"),
+      ]);
+      if (!live) return;
+      {
+        const saved = JSON.parse(savedText || "null");
+        const savedIntro=JSON.parse(introText||"null")||JSON.parse(oldIntroText||"null")||(Array.isArray(saved)?saved[0]:null);
         const introMedia=found.find((v)=>v.resourceId===savedIntro?.resourceId&&v.durationSeconds>=5);
         if(introMedia)intro={resourceId:introMedia.resourceId,startSeconds:Math.max(0,Math.min(introMedia.durationSeconds-5,savedIntro.startSeconds||0))};
-        const storedExcluded=JSON.parse(localStorage.getItem(SLUG+":"+projectId+":excluded")||"[]");
+        const storedExcluded=JSON.parse(excludedText||"[]");
         if(Array.isArray(storedExcluded))excluded=storedExcluded.filter((id)=>found.some((v)=>v.resourceId===id));
         const available=found.filter((v)=>selectedFolders.includes(v.folderName)&&!excluded.includes(v.resourceId));
         if (Array.isArray(saved) && saved.length === 160 && saved.every((x,index) => index===0?x.resourceId===intro?.resourceId:available.some((v)=>v.resourceId===x.resourceId))) next = saved.map((slot,index)=>{
@@ -549,23 +597,33 @@ function RecapPanel({ sdk, context, ui }) {
           const max=Math.max(0,(media?.durationSeconds||0)-(index===0?5:1.7));
           return {...slot,startSeconds:Math.max(0,Math.min(max,slot.startSeconds||0))};
         });
-      } catch (_) {}
+      }
       if(!intro){const first=found.find((v)=>v.durationSeconds>=5);intro=first?{resourceId:first.resourceId,startSeconds:0}:null;}
       if(!next.length)next=buildSlots(found.filter((v)=>selectedFolders.includes(v.folderName)&&!excluded.includes(v.resourceId)),intro);
+      setVideos(found);
       setExcludedIds(excluded);
       setIntroChoice(intro);setSlots(next);setLoadedKey(projectId);setMessage(found.length ? t.ready : t.noVideo);
     }).catch((e) => {if(live){setError(String(e.message || e));setMessage("");}});
     return () => {live = false;};
   }, [projectId, folders.map((x)=>x.name).join("|")]);
 
+  // Capture each complete selection before queueing writes, including the final edit.
+  const saveSelection = () => {
+    const storage = panelStorage(sdk);
+    const key=SLUG+":"+projectId+":"+selectedFolders.join("|");
+    const writes = [
+      storage.setItem(SLUG+":"+projectId+":folders", JSON.stringify(selectedFolders)),
+      storage.setItem(SLUG+":"+projectId+":excluded", JSON.stringify(excludedIds)),
+      storage.setItem(SLUG+":"+projectId+":intro", JSON.stringify(introChoice)),
+    ];
+    if(slots.length===160) writes.push(storage.setItem(key, JSON.stringify(slots)));
+    return Promise.all(writes);
+  };
   React.useEffect(() => {
     if (!projectId || loadedKey!==projectId) return;
-    const key=SLUG+":"+projectId+":"+selectedFolders.join("|");
-    try {
-      localStorage.setItem(SLUG+":"+projectId+":excluded",JSON.stringify(excludedIds));
-      localStorage.setItem(SLUG+":"+projectId+":intro",JSON.stringify(introChoice));
-      if(slots.length===160)localStorage.setItem(key,JSON.stringify(slots));
-    } catch (_) {}
+    let current = true;
+    saveSelection().catch(e => { if(current) setError("Could not save recap selections: " + String(e?.message || e)); });
+    return () => { current = false; };
   }, [projectId, selectedFolders.join("|"), loadedKey, introChoice, excludedIds, slots]);
 
   const current = slots[editSlot-1];
@@ -581,7 +639,6 @@ function RecapPanel({ sdk, context, ui }) {
   };
   const toggleFolder=(name)=>{
     const next=selectedFolders.includes(name)?selectedFolders.filter((x)=>x!==name):folders.map((x)=>x.name).filter((x)=>selectedFolders.includes(x)||x===name);
-    try{localStorage.setItem(SLUG+":"+projectId+":folders",JSON.stringify(next));}catch(_){}
     setSelectedFolders(next);
     setGalleryPage(0);
     setSlots(buildSlots(videos.filter((v)=>next.includes(v.folderName)&&!excludedIds.includes(v.resourceId)),introChoice));
@@ -640,6 +697,7 @@ function RecapPanel({ sdk, context, ui }) {
     if (!projectId || slots.length !== 160 || busy || loadedKey!==projectId) return;
     setBusy(true);setError("");setMessage(t.progress);
     try {
+      await saveSelection();
       if (!introVideo || !selectedVideos.length) throw new Error(t.noVideo);
       const byId = Object.fromEntries(videos.map((v) => [v.resourceId,v]));
       const intro = {...slots[0],frameSize:byId[slots[0].resourceId]?.frameSize};
@@ -662,15 +720,15 @@ function RecapPanel({ sdk, context, ui }) {
     <FinishedExample sdk={sdk} t={t} ui={ui}/>
     {videos.length>0 && <ui.Section title={t.ready}>
       <ui.Stack>
-        <ui.Select label={t.intro} value={introChoice?.resourceId||null} onChange={(resourceId)=>changeIntro({resourceId,startSeconds:0})} options={videos.filter((x)=>x.durationSeconds>=5).map((x)=>({value:x.resourceId,label:x.name}))} disabled={busy}/>
-        {introVideo&&<SourceWindowPicker sdk={sdk} ui={ui} video={introVideo} startSeconds={introChoice?.startSeconds||0} windowSeconds={4.7} sourceMargin={0.3} onChange={(startSeconds)=>changeIntro({startSeconds})} disabled={busy} label={t.preview} hint={t.previewHint} loading={t.loading} compact/>}
+        <ui.Select label={t.intro} value={introChoice?.resourceId||null} onChange={(resourceId)=>changeIntro({resourceId,startSeconds:0})} options={videos.filter((x)=>x.durationSeconds>=5).map((x)=>({value:x.resourceId,label:x.name}))} disabled={busy || loadedKey!==projectId}/>
+        {introVideo&&<SourceWindowPicker sdk={sdk} ui={ui} video={introVideo} startSeconds={introChoice?.startSeconds||0} windowSeconds={4.7} sourceMargin={0.3} onChange={(startSeconds)=>changeIntro({startSeconds})} disabled={busy || loadedKey!==projectId} label={t.preview} hint={t.previewHint} loading={t.loading} compact/>}
       </ui.Stack>
     </ui.Section>}
     <ui.Section title={t.folderPick}>
       <ui.Stack>
         <small>{t.folderGuide}</small>
         {folders.map((item)=><label key={item.name} style={{display:"flex",alignItems:"center",gap:8}}>
-          <input type="checkbox" checked={selectedFolders.includes(item.name)} disabled={busy} onChange={()=>toggleFolder(item.name)}/>
+          <input type="checkbox" checked={selectedFolders.includes(item.name)} disabled={busy || loadedKey!==projectId} onChange={()=>toggleFolder(item.name)}/>
           <span>{item.name} ({item.count})</span>
         </label>)}
         <small>{t.footageCount}: {selectedVideos.length} · {t.quickRule}</small>
@@ -683,14 +741,14 @@ function RecapPanel({ sdk, context, ui }) {
       <ui.Section title={t.gallery}>
       <small>{t.galleryHint}</small>
       <small>{t.rebuildHint}</small>
-      {excludedIds.length>0&&<ui.Actions><ui.Button variant="secondary" disabled={busy} onClick={clearExclusions}>{t.selectAll}</ui.Button></ui.Actions>}
+      {excludedIds.length>0&&<ui.Actions><ui.Button variant="secondary" disabled={busy || loadedKey!==projectId} onClick={clearExclusions}>{t.selectAll}</ui.Button></ui.Actions>}
       <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:8}}>
         {folderVideos.slice(galleryPage*gallerySize,(galleryPage+1)*gallerySize).map((video) => {
           const at=Math.min(video.durationSeconds*0.35,video.durationSeconds-0.1);
           const url=thumbnails[thumbnailKey(video,at)];
           const active=excludedIds.includes(video.resourceId);
           return <label key={video.resourceId} style={{display:"flex",alignItems:"center",gap:8,padding:4,border:active?"2px solid var(--panel-accent)":"1px solid var(--panel-border)",borderRadius:6,minWidth:0}}>
-              <input type="checkbox" checked={excludedIds.includes(video.resourceId)} disabled={busy} onChange={()=>toggleExclusion(video.resourceId)}/>
+              <input type="checkbox" checked={excludedIds.includes(video.resourceId)} disabled={busy || loadedKey!==projectId} onChange={()=>toggleExclusion(video.resourceId)}/>
               {url?<img src={url} alt="" style={{width:84,height:52,objectFit:"contain",background:"#111",display:"block",flexShrink:0}}/>:<div style={{width:84,height:52,background:"#111",flexShrink:0}}/>}
               <span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{video.name}</span>
           </label>;
@@ -708,12 +766,12 @@ function RecapPanel({ sdk, context, ui }) {
       {advancedOpen&&slots.length===160&&<ui.Section title={t.advanced}>
         <ui.Stack>
           <small>{t.advancedHint}</small>
-          <ui.NumberField label={t.slot} value={editSlot-1} onChange={(v)=>setEditSlot(Math.max(2,Math.min(160,Math.round(v)+1)))} min={1} max={159} step={1} disabled={busy}/>
+          <ui.NumberField label={t.slot} value={editSlot-1} onChange={(v)=>setEditSlot(Math.max(2,Math.min(160,Math.round(v)+1)))} min={1} max={159} step={1} disabled={busy || loadedKey!==projectId}/>
           {slotTiming[editSlot]&&<small>{t.outputAt}: {slotTiming[editSlot].firstStart.toFixed(2)}s · {slotTiming[editSlot].maxDuration.toFixed(2)}s</small>}
           {editSlot>=61&&editSlot<=143&&<small>{t.repeatsLater}</small>}
-          <ui.Select label={t.video} value={current?.resourceId||null} onChange={(resourceId)=>changeSlot({resourceId,startSeconds:0})} options={selectedVideos.map((x)=>({value:x.resourceId,label:x.name}))} disabled={busy}/>
+          <ui.Select label={t.video} value={current?.resourceId||null} onChange={(resourceId)=>changeSlot({resourceId,startSeconds:0})} options={selectedVideos.map((x)=>({value:x.resourceId,label:x.name}))} disabled={busy || loadedKey!==projectId}/>
           {timingError&&<ui.Message tone="error">{timingError}</ui.Message>}
-          {currentVideo&&slotTiming[editSlot]&&<SourceWindowPicker sdk={sdk} ui={ui} video={currentVideo} startSeconds={current?.startSeconds||0} windowSeconds={slotTiming[editSlot].maxDuration} sourceMargin={0.15} onChange={(startSeconds)=>changeSlot({startSeconds})} disabled={busy} label={t.sourceWindow} hint={t.advancedSourceHint} loading={t.loading}/>}
+          {currentVideo&&slotTiming[editSlot]&&<SourceWindowPicker sdk={sdk} ui={ui} video={currentVideo} startSeconds={current?.startSeconds||0} windowSeconds={slotTiming[editSlot].maxDuration} sourceMargin={0.15} onChange={(startSeconds)=>changeSlot({startSeconds})} disabled={busy || loadedKey!==projectId} label={t.sourceWindow} hint={t.advancedSourceHint} loading={t.loading}/>}
         </ui.Stack>
       </ui.Section>}
     </details>
@@ -1103,5 +1161,5 @@ function withPanelLocalClient(Component: any) {
   };
 }
 
-export default withPanelLocalClient(Panel);
+export default withPanelLocalClient(withStoredPanel(Panel, async () => ({})));
 // local-sdk:end

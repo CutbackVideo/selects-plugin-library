@@ -4583,22 +4583,54 @@ function FaceStage({ sdk, context, ui: U }) {
 }
 
 // plugins/podcast-hook-captions/src/Panel.tsx
-var readStore = (k) => {
-  try {
-    return localStorage.getItem(k) || "";
-  } catch {
-    return "";
+var panelStorageClients = /* @__PURE__ */ new WeakMap();
+function panelStorage(sdk) {
+  const storage = sdk?.storage;
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function" || typeof storage.removeItem !== "function") {
+    throw new Error("Update Selects to use this plugin: sdk.storage is required.");
   }
-};
-var writeStore = (k, v) => {
-  try {
-    if (v) localStorage.setItem(k, v);
-    else localStorage.removeItem(k);
-  } catch {
+  if (!panelStorageClients.has(storage)) {
+    let tail = Promise.resolve();
+    const enqueue = (operation) => {
+      const pending = tail.then(operation);
+      tail = pending.catch(() => {
+      });
+      return pending;
+    };
+    panelStorageClients.set(storage, {
+      getItem: (key) => enqueue(() => storage.getItem(key)),
+      setItem: (key, value) => enqueue(() => storage.setItem(key, value)),
+      removeItem: (key) => enqueue(() => storage.removeItem(key))
+    });
   }
-};
+  return panelStorageClients.get(storage);
+}
+function withStoredPanel(Component, load) {
+  return function StoredPanel(props) {
+    const [state, setState] = React4.useState(null);
+    const [attempt, retry] = React4.useState(0);
+    React4.useEffect(() => {
+      let current = true;
+      setState(null);
+      Promise.resolve().then(() => load(panelStorage(props.sdk))).then(
+        (saved) => {
+          if (current) setState({ sdk: props.sdk, saved });
+        },
+        (error) => {
+          if (current) setState({ sdk: props.sdk, error: String(error?.message || error) });
+        }
+      );
+      return () => {
+        current = false;
+      };
+    }, [props.sdk, attempt]);
+    if (state?.error) return React4.createElement("div", { role: "alert" }, state.error, React4.createElement("button", { onClick: () => retry((n) => n + 1) }, "Retry loading saved settings"));
+    if (state?.sdk !== props.sdk) return React4.createElement("div", { role: "status" }, "Loading saved settings\u2026");
+    return React4.createElement(Component, { ...props, saved: state.saved });
+  };
+}
 var STORE = "podcast-hook-captions:v2:";
-function PodcastHookReel({ sdk, context, ui }) {
+function PodcastHookReel({ sdk, context, ui, saved }) {
   hostUseSdk(sdk);
   const [seconds, setSeconds] = useState2(25);
   const [hint, setHint] = useState2("");
@@ -4608,20 +4640,36 @@ function PodcastHookReel({ sdk, context, ui }) {
   const [result, setResult] = useState2(null);
   const [clock, setClock] = useState2(0);
   const [isReel, setIsReel] = useState2(false);
-  const [genBroll, setGenBroll] = useState2(() => readStore(STORE + "genBroll") === "1");
+  const [genBroll, setGenBroll] = useState2(saved.genBroll === "1");
   const alive = useRef2(true);
   useEffect2(() => () => void (alive.current = false), []);
+  const [restoredSequence, setRestoredSequence] = useState2(null);
+  const resultReady = restoredSequence === context?.sequenceId;
+  const sequenceRef = useRef2(context?.sequenceId);
+  sequenceRef.current = context?.sequenceId;
   useEffect2(() => {
-    try {
-      setResult(JSON.parse(localStorage.getItem(STORE + context?.sequenceId) || "null"));
-    } catch {
-      setResult(null);
-    }
-    if (!busy) setSteps(STEPS.map(([id, label]) => ({ id, label, state: "wait" })));
+    let current = true;
+    setResult(null);
+    setRestoredSequence(null);
     setIsReel(false);
-    if (context?.sequenceId) loadJob(context.sequenceId).then((j) => alive.current && setIsReel(!!j)).catch(() => {
+    if (!busy) setSteps(STEPS.map(([id, label]) => ({ id, label, state: "wait" })));
+    (async () => {
+      const value = context?.sequenceId ? await panelStorage(sdk).getItem(STORE + context.sequenceId) : null;
+      const restored = JSON.parse(value || "null");
+      if (!current) return;
+      setResult(restored);
+      setRestoredSequence(context?.sequenceId ?? null);
+      if (context?.sequenceId) {
+        const job = await loadJob(context.sequenceId);
+        if (current) setIsReel(!!job);
+      }
+    })().catch((e) => {
+      if (current) setError(String(e?.message || e));
     });
-  }, [context?.sequenceId]);
+    return () => {
+      current = false;
+    };
+  }, [sdk, context?.sequenceId]);
   useEffect2(() => {
     if (!busy) return;
     const t0 = Date.now();
@@ -4633,7 +4681,7 @@ function PodcastHookReel({ sdk, context, ui }) {
     setSteps((cur) => cur.map((s) => s.id === id ? { ...s, state, note: note ?? s.note } : s));
   };
   const make = async (rebuild = false) => {
-    if (busy) return;
+    if (busy || !resultReady) return;
     if (!context?.sequenceId || !context?.projectId) {
       setError("Open the podcast Draft first.");
       return;
@@ -4649,15 +4697,14 @@ function PodcastHookReel({ sdk, context, ui }) {
     setError("");
     setResult(null);
     setSteps(STEPS.map(([id, label]) => ({ id, label, state: "wait" })));
+    const sequenceId = context.sequenceId;
     try {
+      await panelStorage(sdk).setItem(STORE + "genBroll", genBroll ? "1" : "");
       const broll = { generate: genBroll };
       const r = rebuild ? await rebuildReel(sdk, context.sequenceId, onStep, broll) : await makeReel(sdk, { projectId: context.projectId, sequenceId: context.sequenceId }, { seconds, hint: hint.trim(), ...broll }, onStep);
       const keep = { ...r, plan: void 0 };
-      try {
-        localStorage.setItem(STORE + context.sequenceId, JSON.stringify(keep));
-      } catch {
-      }
-      if (alive.current) setResult(keep);
+      if (alive.current && sequenceRef.current === sequenceId) setResult(keep);
+      await panelStorage(sdk).setItem(STORE + sequenceId, JSON.stringify(keep));
     } catch (e) {
       if (alive.current) {
         setError(String(e?.message || e));
@@ -4673,20 +4720,20 @@ function PodcastHookReel({ sdk, context, ui }) {
     await sdk.runScript({ summary: "Open the reel", script: "return await selects.editor.openDraft(" + JSON.stringify(result.reelId) + ");" });
   };
   const icon = (s) => s === "done" ? "\u2713" : s === "run" ? "\u2026" : s === "fail" ? "!" : s === "skip" ? "\u2013" : "\xB7";
-  return /* @__PURE__ */ React4.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React4.createElement(FaceStage, { sdk, context, ui }), /* @__PURE__ */ React4.createElement("div", null, /* @__PURE__ */ React4.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Podcast reel, one click"), /* @__PURE__ */ React4.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "Turns this podcast Draft into a new 9:16 reel: the strongest moment, face-tracked reframe, camera moves, the speaker cut out onto a grid set, kinetic titles, word captions, B-roll cards, music and sound effects.")), /* @__PURE__ */ React4.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React4.createElement("span", null, "Reel length: ", seconds, " s"), /* @__PURE__ */ React4.createElement("input", { type: "range", min: 18, max: 40, step: 1, value: seconds, disabled: busy, onChange: (e) => setSeconds(Number(e.target.value)) })), /* @__PURE__ */ React4.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React4.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React4.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. use the part about dopamine", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React4.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start" } }, /* @__PURE__ */ React4.createElement(
+  return /* @__PURE__ */ React4.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React4.createElement(FaceStage, { sdk, context, ui }), /* @__PURE__ */ React4.createElement("div", null, /* @__PURE__ */ React4.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Podcast reel, one click"), /* @__PURE__ */ React4.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "Turns this podcast Draft into a new 9:16 reel: the strongest moment, face-tracked reframe, camera moves, the speaker cut out onto a grid set, kinetic titles, word captions, B-roll cards, music and sound effects.")), /* @__PURE__ */ React4.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React4.createElement("span", null, "Reel length: ", seconds, " s"), /* @__PURE__ */ React4.createElement("input", { type: "range", min: 18, max: 40, step: 1, value: seconds, disabled: busy || !resultReady, onChange: (e) => setSeconds(Number(e.target.value)) })), /* @__PURE__ */ React4.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React4.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React4.createElement("input", { type: "text", value: hint, disabled: busy || !resultReady, placeholder: "e.g. use the part about dopamine", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React4.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start" } }, /* @__PURE__ */ React4.createElement(
     "input",
     {
       type: "checkbox",
       checked: genBroll,
-      disabled: busy,
+      disabled: busy || !resultReady,
       onChange: (e) => {
         setGenBroll(e.target.checked);
-        writeStore(STORE + "genBroll", e.target.checked ? "1" : "");
+        void panelStorage(sdk).setItem(STORE + "genBroll", e.target.checked ? "1" : "").catch((e2) => setError(String(e2?.message || e2)));
       }
     }
-  ), /* @__PURE__ */ React4.createElement("span", null, "B-roll comes from stock footage. If this Selects version has no stock search, generate it with AI instead (4-12 minutes and about $2 per reel).")), isReel && /* @__PURE__ */ React4.createElement("button", { onClick: () => make(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild this reel"), /* @__PURE__ */ React4.createElement("button", { onClick: () => make(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the reel\u2026 " + clock + " s" : result ? "Make another reel" : "Make reel"), (busy || steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React4.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, steps.map((s) => /* @__PURE__ */ React4.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React4.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React4.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React4.createElement("span", { style: { color: "var(--panel-muted-fg)" } }, " \u2014 ", s.note) : null)))), error && /* @__PURE__ */ React4.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, error), result && !busy && /* @__PURE__ */ React4.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React4.createElement("div", null, "Made \u201C", result.name, "\u201D in ", Math.round(result.seconds), " s."), result.credits?.length ? /* @__PURE__ */ React4.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "B-roll:", " ", result.credits.map((c, i) => /* @__PURE__ */ React4.createElement(React4.Fragment, { key: i }, i ? ", " : "", /* @__PURE__ */ React4.createElement("a", { href: c.url, target: "_blank", rel: "noreferrer" }, c.credit), c.service ? " (" + c.service + ")" : ""))) : null, result.notes?.length ? /* @__PURE__ */ React4.createElement("ul", { style: { margin: 0, paddingLeft: 18, color: "var(--panel-muted-fg)" } }, result.notes.map((n, i) => /* @__PURE__ */ React4.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React4.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the reel")));
+  ), /* @__PURE__ */ React4.createElement("span", null, "B-roll comes from stock footage. If this Selects version has no stock search, generate it with AI instead (4-12 minutes and about $2 per reel).")), isReel && /* @__PURE__ */ React4.createElement("button", { onClick: () => make(true), disabled: busy || !resultReady, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild this reel"), /* @__PURE__ */ React4.createElement("button", { onClick: () => make(false), disabled: busy || !resultReady, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the reel\u2026 " + clock + " s" : result ? "Make another reel" : "Make reel"), (busy || steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React4.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, steps.map((s) => /* @__PURE__ */ React4.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React4.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React4.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React4.createElement("span", { style: { color: "var(--panel-muted-fg)" } }, " \u2014 ", s.note) : null)))), error && /* @__PURE__ */ React4.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, error), result && !busy && /* @__PURE__ */ React4.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React4.createElement("div", null, "Made \u201C", result.name, "\u201D in ", Math.round(result.seconds), " s."), result.credits?.length ? /* @__PURE__ */ React4.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "B-roll:", " ", result.credits.map((c, i) => /* @__PURE__ */ React4.createElement(React4.Fragment, { key: i }, i ? ", " : "", /* @__PURE__ */ React4.createElement("a", { href: c.url, target: "_blank", rel: "noreferrer" }, c.credit), c.service ? " (" + c.service + ")" : ""))) : null, result.notes?.length ? /* @__PURE__ */ React4.createElement("ul", { style: { margin: 0, paddingLeft: 18, color: "var(--panel-muted-fg)" } }, result.notes.map((n, i) => /* @__PURE__ */ React4.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React4.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the reel")));
 }
-var Panel_default = withPanelLocalClient(PodcastHookReel);
+var Panel_default = withPanelLocalClient(withStoredPanel(PodcastHookReel, async (storage) => ({ genBroll: await storage.getItem(STORE + "genBroll") })));
 export {
   Panel_default as default
 };

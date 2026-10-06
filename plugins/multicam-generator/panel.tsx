@@ -1030,16 +1030,10 @@ function Session({ sdk, context }) {
   const language = React.useContext(UILanguage);
   const scope = JSON.stringify([context.projectId, context.sequenceId]);
   const storage = "selects-multicam-v3:" + scope;
-  const [job, setJob] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem(storage) || "null");
-    } catch {
-      return null;
-    }
-  });
-  const [savedRequest, setSavedRequest] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(storage + ":saved-request") || "null"); } catch { return null; }
-  });
+  const [job, setJob] = useState(null);
+  const [savedRequest, setSavedRequest] = useState(null);
+  const [restored, setRestored] = useState(false);
+  const storageReady = useRef(false), pendingSave = useRef(false), saved = useRef(null);
   const initial = job?.plan?.settings || {};
   const [angle, setAngle] = useState(ANGLE_OPTIONS.some(([id]) => id === initial.angle) ? initial.angle : "right");
   const [modelKey, setModelKey] = useState(initial.model || (job && !["placed","failed"].includes(job.phase) ? "legacy-kling" : "seedance25"));
@@ -1067,12 +1061,51 @@ function Session({ sdk, context }) {
       mounted.current = false;
     };
   }, []);
-  function save(j) {
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      if (typeof sdk.storage?.getItem !== "function" || typeof sdk.storage?.setItem !== "function")
+        throw new Error("Update Selects to restore and save Multicam requests.");
+      const record = JSON.parse(await sdk.storage.getItem(storage) || "null");
+      const envelope = record?.storageVersion === 1;
+      const restoredJob = envelope ? record.job : record;
+      const previous = envelope ? record.savedRequest : JSON.parse(await sdk.storage.getItem(storage + ":saved-request") || "null");
+      if (!live) return;
+      latest.current = restoredJob; saved.current = previous;
+      setJob(restoredJob); setSavedRequest(previous);
+      const settings = restoredJob?.plan?.settings || {};
+      setAngle(ANGLE_OPTIONS.some(([id]) => id === settings.angle) ? settings.angle : "right");
+      setModelKey(settings.model || (restoredJob && !["placed", "failed"].includes(restoredJob.phase) ? "legacy-kling" : "seedance25"));
+      setDuration(settings.duration || 5); setNotes(settings.notes || ""); setCustomAngle(settings.customAngle || "");
+      setError(restoredJob?.phase === "placed" ? "" : restoredJob?.lastError?.message || "");
+      setDetail(restoredJob?.lastError || null);
+      storageReady.current = true; setRestored(true);
+    })().catch(e => { if (live) setError(e.message || "Could not restore saved requests. Reopen this panel to retry."); });
+    return () => { live = false; storageReady.current = false; };
+  }, [storage, sdk]);
+  async function save(j, previous = saved.current, beforeEffect = false) {
+    const previousJob = latest.current, previousSaved = saved.current;
+    if (!storageReady.current || !mounted.current) throw new Error("Saved requests are not ready. Reopen this panel to retry.");
     if (j && (j.phase === "placed" || j.phase !== latest.current?.phase))
       j = { ...j, lastError: undefined };
-    localStorage.setItem(storage, JSON.stringify(j));
-    latest.current = j;
-    if (mounted.current) setJob(j);
+    // Keep acknowledgements in memory even if the durable checkpoint fails.
+    latest.current = j; saved.current = previous; pendingSave.current = true;
+    if (mounted.current) { setJob(j); setSavedRequest(previous); }
+    try { await sdk.storage.setItem(storage, JSON.stringify({storageVersion:1, job:j, savedRequest:previous})); }
+    catch {
+      // A rejected intent checkpoint ran no side effect; the prior stage is safe to retry.
+      if (beforeEffect) { latest.current = previousJob; saved.current = previousSaved; pendingSave.current = false; if (mounted.current) {setJob(previousJob);setSavedRequest(previousSaved);} }
+      throw new Error("Could not save progress. Keep this panel open and continue to retry saving before the next step.");
+    }
+    if (!mounted.current) throw new Error("context_changed");
+    pendingSave.current = false;
+  }
+  async function changeRequest(fn) {
+    if (!storageReady.current || lock.current) return;
+    lock.current = true; setBusy(true);
+    try { if (pendingSave.current) await save(latest.current); await fn(); }
+    catch (e) { setError(e.message || String(e)); }
+    finally { lock.current = false; if (mounted.current) setBusy(false); }
   }
   async function current() {
     const state = await sdk.call("getEditorState");
@@ -1183,9 +1216,9 @@ function Session({ sdk, context }) {
           prompt: promptFor(j.plan.settings.angle, j.plan.settings.notes, o, jobModel(j).key, j.plan.settings.customAngle || ""),
           phase: "analyzed",
         };
-        save(j);
+        await save(j);
       } else if (j.phase === "analyzed") {
-        if (j.identityVersion !== 1) { j = {...j, phase:"new"}; save(j); continue; }
+        if (j.identityVersion !== 1) { j = {...j, phase:"new"}; await save(j); continue; }
         await assertSource(j);
         let model;
         const native = sdkGeneration(sdk);
@@ -1197,12 +1230,12 @@ function Session({ sdk, context }) {
         const nativeId = CATALOG_MODEL_IDS[jobModel(j).catalogName];
         const goNative = nativeId && MODEL_ID.test(nativeId) && (j.transport === "native" || native?.isAvailable?.());
         if (goNative && jobModel(j).key === "omni11") {
-          j = {...j,transport:"native",lipModelId:NATIVE_SYNC_MODEL}; save(j);
+          j = {...j,transport:"native",lipModelId:NATIVE_SYNC_MODEL}; await save(j);
           model = {modelId:nativeId};
         } else if (goNative) {
           // Native transport, but still validate the input contract against the
           // real schema — skipping it hid an invalid aspect_ratio/field mismatch.
-          j = {...j,transport:"native",lipModelId:NATIVE_SYNC_MODEL}; save(j);
+          j = {...j,transport:"native",lipModelId:NATIVE_SYNC_MODEL}; await save(j);
           model = {modelId:nativeId};
           // Schema discovery still rides the AI relay, which is not reliable enough
           // to gate a job on. Validate when the schema arrives; when the relay
@@ -1269,7 +1302,7 @@ function Session({ sdk, context }) {
           const lipProps = lipSchema?.inputSchema?.properties;
           if (!lipProps?.audio_url || !lipProps?.video_url || !lipProps?.sync_mode?.enum?.includes("cut_off"))
             throw new Error("lipsync_unavailable");
-          j = {...j, lipModelId:lipModel.modelId}; save(j);
+          j = {...j, lipModelId:lipModel.modelId}; await save(j);
         }
         }
         if (!j.audioResourceId) {
@@ -1279,7 +1312,7 @@ function Session({ sdk, context }) {
           report("Prepare source speech…");
           await prepareSpeech(sdk, j.plan, audioPath);
           const audioResourceId = await importPath(j, audioPath);
-          j = {...j, audioResourceId, audioPath}; save(j);
+          j = {...j, audioResourceId, audioPath}; await save(j);
         }
         if (!j.inputResourceId) {
           const fs = panelLocalClient(sdk).files;
@@ -1305,7 +1338,7 @@ function Session({ sdk, context }) {
           report("Import prepared source…");
           const id = await importPath(j, inputPath);
           j = { ...j, inputResourceId: id };
-          save(j);
+          await save(j);
         }
         for (let n = 0; n < (jobModel(j).key === "omni11" ? 0 : 3); n++) {
           if (!j.referenceResourceIds?.[n]) {
@@ -1315,13 +1348,13 @@ function Session({ sdk, context }) {
             await prepareReference(sdk, j.plan, j.referenceIndexes[n], path);
             const id = await importPath(j, path);
             const ids = [...(j.referenceResourceIds || [])]; ids[n] = id;
-            j = {...j, referenceResourceIds:ids}; save(j);
+            j = {...j, referenceResourceIds:ids}; await save(j);
           }
           if (!j.referenceUrls?.[n]) {
             const upload = await api(j, {method:"storage.upload",params:{file:{resourceId:j.referenceResourceIds[n]}}});
             if (typeof upload?.result !== "string" || !upload.result) throw new Error("operation_failed");
             const urls = [...(j.referenceUrls || [])]; urls[n] = upload.result;
-            j = {...j, referenceUrls:urls}; save(j);
+            j = {...j, referenceUrls:urls}; await save(j);
           }
         }
         const uploaded = await api(j, {
@@ -1334,7 +1367,7 @@ function Session({ sdk, context }) {
         const requestedInput = generationInput(j, uploaded.result);
         // Save intent BEFORE the paid call. An absent acknowledgement never starts another job.
         j = { ...j, modelId: model.modelId, phase: "submitting" };
-        save(j);
+        await save(j, saved.current, true);
         const response = await api(j, {
           method: "queue.submit",
           modelId: j.modelId,
@@ -1346,8 +1379,8 @@ function Session({ sdk, context }) {
         if (!JOB_ID.test(response?.selects?.jobId || ""))
           throw new Error("submission_unknown");
         j = { ...j, generationId: response.selects.jobId, phase: "queued" };
-        save(j);
-      } else if (["submitting", "lip_submitting"].includes(j.phase)) {
+        await save(j);
+      } else if (["submitting", "lip_submitting", "placing"].includes(j.phase)) {
         throw new Error("submission_unknown");
       } else if (["queued", "lip_queued"].includes(j.phase)) {
         if (!JOB_ID.test(j.generationId || ""))
@@ -1360,7 +1393,7 @@ function Session({ sdk, context }) {
         if (!s || s.jobId !== j.generationId)
           throw new Error("operation_failed");
         j = { ...j, lastStatus: { status: safeDetail(s.status), delivery: safeDetail(s.deliveryStatus || "pending"), checkedAt: Date.now() } };
-        save(j);
+        await save(j);
         report(`Generation: ${safeDetail(s.status)} · Delivery: ${safeDetail(s.deliveryStatus || "pending")}`);
         if (s.status === "submission_unknown")
           throw new Error("submission_unknown");
@@ -1383,7 +1416,7 @@ function Session({ sdk, context }) {
           else if (issues && typeof issues === "object") parts.push(JSON.stringify(issues));
           const providerReason = parts.length ? safeDetail(parts.join(" — ")).slice(0, 400) : null;
           j = { ...j, phase: j.task === "lipsync" ? "lip_failed" : "failed", providerReason };
-          save(j);
+          await save(j);
           throw new Error(j.task === "lipsync" ? "lipsync_failed" : "generation_failed");
         }
         if (s.deliveryStatus === "imported") {
@@ -1407,7 +1440,7 @@ function Session({ sdk, context }) {
           }
           await resolveResource(j, id);
           j = { ...j, generatedResourceId: id, phase: j.task === "lipsync" ? "ready" : "angle_ready" };
-          save(j);
+          await save(j);
         } else {
           if (
             ["import_failed", "result_collection_failed"].includes(
@@ -1424,7 +1457,7 @@ function Session({ sdk, context }) {
         }
       } else if (j.phase === "lip_failed") {
         // Only an explicit Continue after a confirmed terminal failure retries this stage.
-        j = {...j, phase:"angle_ready", generatedResourceId:j.angleResourceId, generationId:j.angleGenerationId, task:"angle"}; save(j);
+        j = {...j, phase:"angle_ready", generatedResourceId:j.angleResourceId, generationId:j.angleGenerationId, task:"angle"}; await save(j);
       } else if (j.phase === "angle_ready") {
         await assertSource(j);
         if (!j.lipModelId || !j.audioResourceId) throw new Error("lipsync_unavailable");
@@ -1434,20 +1467,20 @@ function Session({ sdk, context }) {
           const path = fs.join(fs.homedir(), ".selects", "plugin-data", "multicam-generator", "jobs", j.id, "angle.mp4");
           await prepareMedia(sdk, {path:media.path, output:path, fps:j.plan.fps, frames:j.plan.endFrame-j.plan.startFrame,allowTailHold:jobModel(j).key.startsWith("seedance")});
           const lipVideoResourceId = await importPath(j, path);
-          j = {...j, lipVideoResourceId, angleResourceId:j.generatedResourceId}; save(j);
+          j = {...j, lipVideoResourceId, angleResourceId:j.generatedResourceId}; await save(j);
         }
         for (const [field, resourceId] of [["lipVideoUrl",j.lipVideoResourceId],["lipAudioUrl",j.audioResourceId]]) {
           if (!j[field]) {
             const uploaded = await api(j, {method:"storage.upload",params:{file:{resourceId}}});
             if (typeof uploaded?.result !== "string" || !uploaded.result) throw new Error("operation_failed");
-            j = {...j,[field]:uploaded.result}; save(j);
+            j = {...j,[field]:uploaded.result}; await save(j);
           }
         }
         await assertSource(j);
-        j = {...j, angleGenerationId:j.generationId, generationId:null, task:"lipsync", phase:"lip_submitting"}; save(j);
+        j = {...j, angleGenerationId:j.generationId, generationId:null, task:"lipsync", phase:"lip_submitting"}; await save(j, saved.current, true);
         const response = await api(j, {method:"queue.submit",modelId:j.lipModelId,params:{outputName:j.id+"-synced",input:{video_url:j.lipVideoUrl,audio_url:j.lipAudioUrl,sync_mode:"cut_off"}}});
         if (!JOB_ID.test(response?.selects?.jobId || "")) throw new Error("submission_unknown");
-        j = {...j,generationId:response.selects.jobId,phase:"lip_queued"}; save(j);
+        j = {...j,generationId:response.selects.jobId,phase:"lip_queued"}; await save(j);
       } else if (j.phase === "ready") {
         await assertSource(j);
         const media = await resolveResource(j, j.generatedResourceId);
@@ -1471,20 +1504,21 @@ function Session({ sdk, context }) {
         };
         await prepareMedia(sdk, args);
         j = { ...j, outputPath, phase: "conformed" };
-        save(j);
+        await save(j);
       } else if (j.phase === "conformed") {
         await assertSource(j);
         // Reuse the exact imported file, or import and resolve it through the SDK.
         const actualId = await importPath(j, j.outputPath);
         j = { ...j, actualResourceId: actualId, phase: "imported" };
-        save(j);
+        await save(j);
       } else if (["imported", "review"].includes(j.phase)) {
         if (j.task !== "lipsync") throw new Error("lipsync_unavailable");
         await assertSource(j);
         await resolveResource(j, j.actualResourceId);
+        j = {...j, phase:"placing"}; await save(j, saved.current, true);
         const placement = await placeDirect(j.plan, j.actualResourceId, sdk);
         j = { ...j, placement, phase: "placed" };
-        save(j);
+        await save(j);
       } else if (j.phase === "placed") {
         setStage(LABELS.placed);
         return;
@@ -1492,6 +1526,7 @@ function Session({ sdk, context }) {
     }
   }
   async function generate(regenerate = false) {
+    if (!storageReady.current) return;
     const app = window as any;
     const locks =
       app.__selectsMulticamRunning ||
@@ -1502,17 +1537,18 @@ function Session({ sdk, context }) {
     setBusy(true);
     if (latest.current?.lastError) {
       try { await writeLocalDiagnostic(sdk, latest.current.lastError); }
-      catch { console.warn("Multicam Generator: previous error remains in local storage."); }
+      catch { console.warn("Multicam Generator: previous error remains in SDK storage."); }
     }
     setError("");
     setDetail(null);
     report("Read source…");
     try {
+      if (pendingSave.current) await save(latest.current);
       let j = latest.current;
       if (!j || ["placed", "failed"].includes(j.phase)) {
         const previous = JSON.parse(
-          localStorage.getItem("selects-multicam-v2:" + scope) ||
-            localStorage.getItem("selects-multicam-generator-v1:" + scope) ||
+          (await sdk.storage.getItem("selects-multicam-v2:" + scope)) ||
+            (await sdk.storage.getItem("selects-multicam-generator-v1:" + scope)) ||
             "null",
         );
         if (
@@ -1538,15 +1574,16 @@ function Session({ sdk, context }) {
           };
         if (!mounted.current) return;
         j = { id: "mc4-" + crypto.randomUUID(), phase: "new", plan };
-        save(j);
+        await save(j);
       }
       await pipeline(j);
     } catch (e) {
       const raw = safeDetail(e instanceof Error ? e.message : e);
       const phase = latest.current?.phase || "validation";
-      const uncertain = ["submitting", "lip_submitting"].includes(phase);
+      const uncertain = ["submitting", "lip_submitting", "placing"].includes(phase);
       const timedOut = /timeout|timed out|deadline/i.test(raw);
-      const message = uncertain ? ERRORS.submission_unknown
+      const message = phase === "placing" ? "The last timeline save was not confirmed. Check your draft before starting over."
+        : uncertain ? ERRORS.submission_unknown
         : timedOut ? "The AI call timed out. This does not mean a submitted generation failed."
         : /disk_space|disk space|ENOSPC/i.test(raw) ? "Not enough storage. Free up space, then continue."
         : /permission|unauthorized|forbidden|403/i.test(raw) ? "Access was denied. Check your account permissions."
@@ -1562,11 +1599,11 @@ function Session({ sdk, context }) {
         at:new Date().toISOString(), jobId:latest.current?.id || null,
         generationId:latest.current?.generationId || null};
       if (latest.current) {
-        try { save({...latest.current, lastError:diagnostic}); } catch {}
+        try { await save({...latest.current, lastError:diagnostic}); } catch {}
       }
-      // Preserve the localStorage record even if disk logging is unavailable.
+      // Preserve the SDK storage record even if disk logging is unavailable.
       try { await writeLocalDiagnostic(sdk, diagnostic); }
-      catch { console.warn("Multicam Generator: local log unavailable; diagnostic retained in local storage."); }
+      catch { console.warn("Multicam Generator: local log unavailable; diagnostic retained in SDK storage."); }
       if (mounted.current) {
         setError(message);
         setDetail(diagnostic);
@@ -1578,9 +1615,9 @@ function Session({ sdk, context }) {
     }
   }
   const active = job && !["placed", "failed"].includes(job.phase);
-  const disabled = busy || !!active;
+  const disabled = !restored || busy || !!active;
   const lengthError = !active ? durationError(modelKey,duration) : "";
-  const unknown = ["submitting", "lip_submitting"].includes(job?.phase);
+  const unknown = ["submitting", "lip_submitting", "placing"].includes(job?.phase);
   const stepIndex = PHASE_STEP[job?.phase] ?? 0;
   return localizeUI(((
     <div
@@ -1642,7 +1679,7 @@ function Session({ sdk, context }) {
         </p>
       ) : null}
       {<button
-        disabled={busy || unknown || !!lengthError || !context.sequenceId || !context.projectId}
+        disabled={!restored || busy || unknown || !!lengthError || !context.sequenceId || !context.projectId}
         onClick={() => generate()}
       >
         {busy
@@ -1658,12 +1695,12 @@ function Session({ sdk, context }) {
       {!busy && ["new", "analyzed"].includes(job?.phase) && (
         <button
           data-variant="ghost"
-          onClick={() => {
-            save(null);
+          onClick={() => changeRequest(async () => {
+            await save(null);
             setError("");
             setStage("");
             setDetail(null);
-          }}
+          })}
         >
           Edit request
         </button>
@@ -1681,9 +1718,10 @@ function Session({ sdk, context }) {
           </span>
         </div>
       )}
+      {!busy && error && pendingSave.current && <button onClick={() => changeRequest(async () => {})}>Retry saving progress</button>}
       {!busy && error && (
         <p role="alert" style={{ margin: "4px 0", fontSize: 12, color: "var(--panel-danger)" }}>
-          {unknown ? "The request status is unknown. No additional generation will be sent." : error}
+          {job?.phase === "placing" ? "The last timeline save was not confirmed. Check your draft before starting over." : unknown ? "The request status is unknown. No additional generation will be sent." : error}
         </p>
       )}
       {!busy && error && job?.providerReason && (
@@ -1693,7 +1731,7 @@ function Session({ sdk, context }) {
       )}
       {!busy && unknown && !error && (
         <p role="status" style={{ margin: "4px 0", fontSize: 12, color: "var(--panel-muted-fg)" }}>
-          The request status is unknown. Check the generation in Selects before starting another.
+          {job?.phase === "placing" ? "The last timeline save was not confirmed. Check your draft before starting over." : "The request status is unknown. Check the generation in Selects before starting another."}
         </p>
       )}
       {!busy && !error && job?.phase === "placed" && (
@@ -1721,28 +1759,21 @@ function Session({ sdk, context }) {
       <hr />
       {!busy && !job && savedRequest && <div>
         <small>Your previous request is saved and may still be running. A new generation is billed separately.</small>
-        <button type="button" data-variant="ghost" onClick={() => {
+        <button type="button" data-variant="ghost" onClick={() => changeRequest(async () => {
           const settings = savedRequest.plan?.settings || {};
-          save(savedRequest); setModelKey(settings.model || "legacy-kling");
+          await save(savedRequest); setModelKey(settings.model || "legacy-kling");
           setAngle(settings.angle || "right"); setDuration(settings.duration || 5);
           setNotes(settings.notes || ""); setCustomAngle(settings.customAngle || "");
           setError(savedRequest.lastError?.message || ""); setDetail(savedRequest.lastError || null); setStage("");
-        }}>Return to saved request</button>
+        })}>Return to saved request</button>
       </div>}
-      <button type="button" data-variant="secondary" disabled={busy} onClick={() => {
-        if (busy) return;
-        try {
-          const prior = latest.current;
-          if (prior) {
-            localStorage.setItem(storage + ":saved-request", JSON.stringify(prior));
-            localStorage.setItem(storage + ":archive:" + prior.id, JSON.stringify(prior));
-            setSavedRequest(prior);
-          }
-          save(null); setModelKey("seedance25"); setDuration(5); setAngle("right");
-          setCustomAngle(""); setNotes("");
-          setError(""); setDetail(null); setStage("");
-        } catch { setError("Could not save the previous request. Check your available storage."); }
-      }}>Start over</button>
+      <button type="button" data-variant="secondary" disabled={!restored || busy} onClick={() => changeRequest(async () => {
+        const prior = latest.current;
+        if (prior) await sdk.storage.setItem(storage + ":archive:" + prior.id, JSON.stringify(prior));
+        await save(null, prior || saved.current);
+        setModelKey("seedance25"); setDuration(5); setAngle("right");
+        setCustomAngle(""); setNotes(""); setError(""); setDetail(null); setStage("");
+      })}>Start over</button>
     </div>
   )), language);
 }
