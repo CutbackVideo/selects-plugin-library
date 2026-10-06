@@ -73,7 +73,7 @@ async function runScript(sdk,script,summary,allowCommit=false){const t0=performa
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
 // A host service when it has every named method, else null.
 let localSdk = null;
-function bindLocalSdk(sdk) { localSdk = sdk?.files ? sdk : panelLocalClient(sdk); }
+function bindLocalSdk(sdk) { localSdk = panelLocalClient(sdk); }
 function hostApi(name, ...methods) {
   const s = name === "FileSystem" ? localSdk?.files : name === "Runtime" ? localSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;

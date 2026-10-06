@@ -21,7 +21,7 @@ const pickFor=f=>{const length=Math.min(5,Math.max(0,f.duration-.08)),start=Math
 const storeKey=p=>'place-count:v1:'+p;
 const legacyStoreKey=p=>'place-stories:v1:'+p;
 let localSdk=null;
-function bindLocalSdk(sdk){localSdk=sdk?.files?sdk:panelLocalClient(sdk);}
+function bindLocalSdk(sdk){localSdk=panelLocalClient(sdk);}
 function getFS(){const f=localSdk?.files;if(!f||!['homedir','join','dirname','readFile','writeFile','mkdir','exists','rename','pathToLocalURL','readdir','stat'].every(k=>typeof f[k]==='function'))throw issue('Update Selects to use local media.','HOST_ADAPTER');return f;}
 async function readText(path){const v=await getFS().readFile(path);return typeof v==='string'?v:new TextDecoder().decode(v);}
 async function writeJSON(path,data){const f=getFS();(await f.mkdir(f.dirname(path),{recursive:true}));const tmp=path+'.'+uid()+'.tmp';await f.writeFile(tmp,new TextEncoder().encode(JSON.stringify(data)));(await f.rename(tmp,path));}

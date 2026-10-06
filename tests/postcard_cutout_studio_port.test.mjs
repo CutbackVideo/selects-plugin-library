@@ -55,7 +55,7 @@ function host({ platform = 'darwin', home, calls = [], stderrInResult = true, do
   return { files: FileSystem, media: { runFFmpeg: run('ffmpeg'), runFFprobe: run('ffprobe') }, dialogs: {}, environment: {platform, version:'2.0.520'} };
 }
 function load(di) {
-  const ctx = vm.createContext({ sdk: di, window: { parent: { get __DI__(){throw Error('Migrated operations must not use DI');} } }, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
+  const ctx = vm.createContext({ sdk: di, panelLocalClient: s => s, window: { parent: { get __DI__(){throw Error('Migrated operations must not use DI');} } }, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
     AbortController, setTimeout, clearTimeout, atob, btoa, console, performance });
   vm.runInContext(block('av-host') + '\n' + block('pc-ledger') + '\n' + block('pc-port') + '\nbindLocalSdk(sdk);this.pcLedger=pcLedger;this.pcPort=pcPort;this.pcToolError=pcToolError;', ctx);
   return ctx;
@@ -312,7 +312,7 @@ test('on Windows helper() runs the port, never the shell; an old Selects gets on
     const home = tmp(), skills = path.join(home, '.selects', 'skills', 'postcard-cutout-studio');
     fs.mkdirSync(path.dirname(skills), { recursive: true }); fs.symlinkSync(PKG, skills);
     const di = host({ home, platform }); di.environment.version = version;
-    const ctx = vm.createContext({ sdk: di, window: { parent: { get __DI__(){throw Error('Migrated operations must not use DI');} } }, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
+    const ctx = vm.createContext({ sdk: di, panelLocalClient: s => s, window: { parent: { get __DI__(){throw Error('Migrated operations must not use DI');} } }, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
       AbortController, setTimeout, clearTimeout, atob, btoa, console, performance });
     const shell = name => 'function ' + name + '(){throw Error("shell reached")}';
     vm.runInContext([block('av-host'), trace, wiring, block('pc-ledger'), block('pc-port'), ...['macHelper', 'macProbeSubject', 'macRangePreview', 'macDecodeCheck'].map(shell),
