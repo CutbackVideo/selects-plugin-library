@@ -46,7 +46,7 @@ export function planFps(value){
 export function nativeScenePlan(fpsInput){
  const fps=planFps(fpsInput);
  const plan=scenePlan();
- if(fps===30)return {...plan,occurrences:plan.occurrences.map(o=>o.appearance==='fullscreen'&&o.slot!=='C'?{...o,endFrame:o.endFrame+10}:o)};
+ if(fps===30)return {...plan,overlapFrames:10,occurrences:plan.occurrences.map(o=>o.appearance==='fullscreen'&&o.slot!=='C'?{...o,endFrame:o.endFrame+10}:o)};
  const at=frame=>Math.round(frame*fps/30),seconds=value=>Math.round(value*30);
  const overlapFrames=at(10),durationFrames=at(plan.durationFrames);
  const occurrences=plan.occurrences.map(o=>{

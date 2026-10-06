@@ -40,6 +40,21 @@ test('the finish request sends the shared placement result in the shape native f
  assert.equal(normalizeNativeFinish({...finishInput(),mode:'native-finish',placements}).placements.length,8);
 });
 
+test('serialized finish plans expose the overlap used by every fullscreen crossfade',()=>{
+ const frameRates=[undefined,null,'30',10,23.976,24000/1001,24,25,29.97,30000/1001,30,50,59.94,60,120,240];
+ for(const fps of frameRates){
+  const plan=nativeScenePlan(fps);
+  const placements=plan.occurrences.map((o,i)=>({slot:o.slot,appearance:o.appearance,clipId:20+i,trackId:`image-${i}`,startFrame:o.startFrame,endFrame:o.endFrame}));
+  const script=buildNativeFinishScript({...finishInput(),mode:'native-finish',fps,placements});
+  const serialized=JSON.parse(script.match(/;const plan=(.*?);const EFFECT_CODE=/)[1]);
+  assert.equal(serialized.overlapFrames,Math.round(10*serialized.fps/30),`explicit overlap at ${fps} fps`);
+  const fullscreen=serialized.occurrences.filter(o=>o.appearance==='fullscreen');
+  for(let i=1;i<fullscreen.length;i++){
+   assert.equal(fullscreen[i-1].endFrame-fullscreen[i].startFrame,serialized.overlapFrames);
+  }
+ }
+});
+
 test('native finish rejects missing, duplicate, or changed Image placements',()=>{
  const input=finishInput();
  assert.equal(input.framing['grid-A'].x,.25);
