@@ -1,0 +1,24 @@
+EO Shorts bundled music - licence evidence for m09
+
+Track: Hope On Repeat
+Artist: HoliznaCC0
+Album: Spring Woke Me Up
+Source page: https://freemusicarchive.org/music/holiznacc0/spring-woke-me-up/hope-on-repeat/
+Retrieved: 2026-10-05T01:09:51.235Z
+Source page SHA-256 (HTML as fetched): f2113ca97ef7183252491b66862d7bef55546797bb97945365ffa81aaa736234
+
+Licence: CC0 1.0 Universal (CC0-1.0)
+Licence deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+Licence statement on the source page (tags removed):
+  Hope On Repeat by HoliznaCC0 is licensed under a CC0 1.0 Universal License.
+Licence links on the source page (rel="license"):
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+Audio file listed in the page's track data: https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/MvP2fPRhrWkQwsrgVB7U9rqSgLBtOfbD0vssM4LP.mp3
+Audio file downloaded: 2026-10-05T00:59:39.777Z
+Audio file SHA-256 as downloaded: e781cf3926ea5b769f3b5667011234f4524cbcb06e539ba563c7f15fd805477a (6884136 bytes)
+
+CC0 waives copyright and related rights; attribution is not required. The artist and source
+are recorded for traceability. The bundled file is an excerpt of this recording with gain,
+an end fade and AAC encoding applied (see provenance.json).

@@ -1,0 +1,21 @@
+{
+  "schema": "eo-models/1",
+  "roles": {
+    "edit.keep": { "provider": "app", "timeoutMs": 600000, "timeoutRetries": 1, "reask": 1, "fallback": [] },
+    "plan": { "provider": "app", "timeoutMs": 600000, "timeoutRetries": 0, "reask": 1, "fallback": [] },
+    "broll.judge": { "provider": "app", "timeoutMs": 600000, "timeoutRetries": 1, "reask": 1, "maxImagesPerCall": 4, "fallback": [] },
+    "image": {
+      "kind": "media",
+      "provider": "app",
+      "model": "model_v1_b3BlbmFpL2dwdC1pbWFnZS0yLjUvZmxhcmUvdGV4dC10by1pbWFnZQ",
+      "label": "GPT Image 2.5 Flare (text to image)",
+      "input": { "quality": "medium", "background": "transparent", "output_format": "png", "num_images": 1 }
+    }
+  },
+  "providers": {
+    "app": { "label": "account-default" },
+    "openai": { "model": "gpt-6.1-sol", "baseUrl": "https://api.openai.com/v1" },
+    "anthropic": { "model": "claude-opus-5-5", "baseUrl": "https://api.anthropic.com/v1" },
+    "gemini": { "baseUrl": "https://generativelanguage.googleapis.com/v1beta" }
+  }
+}

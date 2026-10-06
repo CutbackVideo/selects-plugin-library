@@ -1,0 +1,11 @@
+{
+  "schema": "eo-config/1",
+  "commons": {
+    "contact": "https://cutback.video",
+    "apiUrl": "https://commons.wikimedia.org/w/api.php",
+    "searchLimit": 20,
+    "thumbWidth": 1600,
+    "minWidth": 600,
+    "maxJudged": 4
+  }
+}

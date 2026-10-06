@@ -1,0 +1,24 @@
+EO Shorts bundled music - licence evidence for m11
+
+Track: Toy Box
+Artist: HoliznaCC0
+Album: Spring Woke Me Up
+Source page: https://freemusicarchive.org/music/holiznacc0/spring-woke-me-up/toy-box/
+Retrieved: 2026-10-05T01:10:03.857Z
+Source page SHA-256 (HTML as fetched): bcad1406ecc3ba2228c0148fdad629d33c694e53377ed1cc809899563cca7b27
+
+Licence: CC0 1.0 Universal (CC0-1.0)
+Licence deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+Licence statement on the source page (tags removed):
+  Toy Box by HoliznaCC0 is licensed under a CC0 1.0 Universal License.
+Licence links on the source page (rel="license"):
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+Audio file listed in the page's track data: https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/04mkhAeFGClmKwwsdfUfLZX1wrROoSQl2A6GsW28.mp3
+Audio file downloaded: 2026-10-05T00:59:53.235Z
+Audio file SHA-256 as downloaded: 98ab5546dfbb10d4c31f6c7d29c1bc70407fdb405d9b49d206ee89a4ccb1dee0 (6568296 bytes)
+
+CC0 waives copyright and related rights; attribution is not required. The artist and source
+are recorded for traceability. The bundled file is an excerpt of this recording with gain,
+an end fade and AAC encoding applied (see provenance.json).

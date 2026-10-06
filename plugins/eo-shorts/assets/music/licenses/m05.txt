@@ -1,0 +1,24 @@
+EO Shorts bundled music - licence evidence for m05
+
+Track: Make Funk
+Artist: HoliznaCC0
+Album: BASSIC
+Source page: https://freemusicarchive.org/music/holiznacc0/bassic/make-funk/
+Retrieved: 2026-10-05T01:09:22.707Z
+Source page SHA-256 (HTML as fetched): ae907623022ed7a183e880cc1a5362bb8efad6dec51e1912f97ee9ba43e1c773
+
+Licence: CC0 1.0 Universal (CC0-1.0)
+Licence deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+Licence statement on the source page (tags removed):
+  Make Funk by HoliznaCC0 is licensed under a CC0 1.0 Universal License.
+Licence links on the source page (rel="license"):
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+Audio file listed in the page's track data: https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/gvipQswrNI4uF5PNymw5d1cWq9gqqdTIsgHDMKCJ.mp3
+Audio file downloaded: 2026-10-05T00:59:11.963Z
+Audio file SHA-256 as downloaded: 4631f55b7fc2a021f24b22f60ec87735cf9163638b3a79ac1719ea3515949f9c (6522445 bytes)
+
+CC0 waives copyright and related rights; attribution is not required. The artist and source
+are recorded for traceability. The bundled file is an excerpt of this recording with gain,
+an end fade and AAC encoding applied (see provenance.json).
