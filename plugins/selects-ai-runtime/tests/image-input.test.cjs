@@ -33,6 +33,38 @@ function animatedWebp() {
   const chunk = Buffer.alloc(14); chunk.write('ANIM'); chunk.writeUInt32LE(6, 4);
   const out = Buffer.concat([bytes('webp'), chunk]); out.writeUInt32LE(out.length - 8, 4); return out;
 }
+function extendedWebp(canvasWidth, canvasHeight, payload = bytes('webp'), duplicate = false) {
+  const chunk = Buffer.alloc(18); chunk.write('VP8X'); chunk.writeUInt32LE(10, 4);
+  chunk.writeUIntLE(canvasWidth - 1, 12, 3); chunk.writeUIntLE(canvasHeight - 1, 15, 3);
+  const out = Buffer.concat([payload.subarray(0, 12), chunk, ...(duplicate ? [chunk] : []), payload.subarray(12)]);
+  out.writeUInt32LE(out.length - 8, 4); return out;
+}
+test('WebP canvas cannot hide an oversized or differently sized coded raster', () => {
+  assert.deepEqual(readImageHeader(extendedWebp(6, 4)), { format: 'webp', width: 6, height: 4, orientation: 1 });
+  assert.throws(() => readImageHeader(extendedWebp(1, 1)), /canvas dimensions differ/);
+  assert.throws(() => readImageHeader(extendedWebp(6, 4, bytes('webp'), true)), /Multiple WebP canvas/);
+  assert.throws(() => readImageHeader(extendedWebp(100000, 100000)), /IMAGE_TOO_LARGE/);
+  // VP8L itself declares 50 MP, even though VP8X claims only one pixel.
+  const oversized = bytes('webp'); assert.equal(oversized.toString('ascii', 12, 16), 'VP8L');
+  const bits = oversized.readUInt32LE(21), dimensionBits = (9999 | (4999 << 14)) >>> 0;
+  oversized.writeUInt32LE(((bits & 0xf0000000) | dimensionBits) >>> 0, 21);
+  assert.throws(() => readImageHeader(extendedWebp(1, 1, oversized)), /IMAGE_TOO_LARGE/);
+  // Independently construct the lossy frame header so both VP8 and VP8L paths
+  // enforce coded dimensions before FFmpeg allocates a decode buffer.
+  const lossy = Buffer.alloc(30); lossy.write('RIFF'); lossy.writeUInt32LE(22, 4); lossy.write('WEBPVP8 ', 8);
+  lossy.writeUInt32LE(10, 16); Buffer.from([0x9d, 1, 0x2a]).copy(lossy, 23);
+  lossy.writeUInt16LE(10000, 26); lossy.writeUInt16LE(5000, 28);
+  assert.throws(() => readImageHeader(extendedWebp(1, 1, lossy)), /IMAGE_TOO_LARGE/);
+});
+test('JPEG cannot replace a large first frame declaration with a smaller second SOF', () => {
+  const duplicate = Buffer.from([255, 0xc0, 0, 8, 8, 0, 1, 0, 1, 0]);
+  const jpeg = bytes('jpeg'), marker = jpeg.indexOf(Buffer.from([255, 0xc0])); assert.ok(marker > 0);
+  const firstEnd = marker + 2 + jpeg.readUInt16BE(marker + 2);
+  const doubled = Buffer.concat([jpeg.subarray(0, firstEnd), duplicate, jpeg.subarray(firstEnd)]);
+  assert.throws(() => readImageHeader(doubled), /Multiple JPEG frame headers/);
+  jpeg.writeUInt16BE(10000, marker + 5); jpeg.writeUInt16BE(5000, marker + 7);
+  assert.throws(() => readImageHeader(Buffer.concat([jpeg.subarray(0, firstEnd), duplicate, jpeg.subarray(firstEnd)])), /IMAGE_TOO_LARGE/);
+});
 test('image requests have no video range or sampling, while omitted kind remains video', () => {
   const input = request(path.resolve('photo.jpg'));
   assert.equal(validateRequest(input), input);

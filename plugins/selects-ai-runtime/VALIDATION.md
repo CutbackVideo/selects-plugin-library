@@ -19,7 +19,7 @@ encoded JPEG, PNG and WebP fixtures, exact pixel comparisons for all eight
 EXIF rotations/reflections, corrupt pixel data and cancellation. Request and
 output tests require a single still raster without a video range or frame
 rate. Independent RVM jobs are tested to begin from zero recurrent state.
-The current prepared-runtime run passes **200 tests**, with four optional
+The current prepared-runtime run passes **202 tests**, with four optional
 dependency skips and no failures. Real application and Windows image checks
 are recorded separately below.
 
@@ -62,7 +62,7 @@ samples and 48 matte frames, with the previous video result shape. Local
 evidence is in `/tmp/ai-runtime-poc-01a0fc14/image-input/verification-report.json`
 and its Windows subdirectory. This checkpoint has not been published.
 
-The source-only suite on Node 22.18.0 and 24.15.0 passes **177 tests**, with **19 explicit
+The earlier source-only suite on Node 22.18.0 and 24.15.0 passed **177 tests**, with **19 explicit
 skips** for optional local media/model/Panel dependencies and no failures.
 These checks cover request/output bounds, timestamps, frame buffer ownership,
 PNG/AVIF contracts, provider fallback, recurrent state, process cancellation,

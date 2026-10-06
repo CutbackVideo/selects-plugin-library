@@ -1,6 +1,11 @@
 'use strict';
 
 function invalid() { throw new Error('IMAGE_INVALID: Corrupt or incomplete image header'); }
+function dimensions(width, height) {
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) invalid();
+  if (width * height > 32_000_000) throw new Error('IMAGE_TOO_LARGE: Image exceeds the 32 megapixel raster limit');
+  return { width, height };
+}
 function exifOrientation(bytes, start, end) {
   if (bytes.toString('latin1', start, start + 6) === 'Exif\0\0') start += 6;
   if (start + 8 > end) invalid();
@@ -55,7 +60,9 @@ function jpegHeader(bytes) {
     if (marker === 0xe2 && bytes.toString('latin1', body, body + 4) === 'MPF\0') throw new Error('IMAGE_MULTIPLE: Multi-picture JPEG is unsupported');
     if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
       if (length < 8) invalid();
+      if (width !== undefined) throw new Error('IMAGE_MULTIPLE: Multiple JPEG frame headers are unsupported');
       width = bytes.readUInt16BE(body + 3); height = bytes.readUInt16BE(body + 1);
+      dimensions(width, height);
     }
     offset = end;
   }
@@ -64,7 +71,7 @@ function jpegHeader(bytes) {
 }
 function webpHeader(bytes) {
   if (bytes.readUInt32LE(4) + 8 !== bytes.length) invalid();
-  let width, height, orientation = 1, encoded = false, offset = 12;
+  let canvas, coded, orientation = 1, offset = 12;
   for (; offset + 8 <= bytes.length;) {
     const type = bytes.toString('ascii', offset, offset + 4), length = bytes.readUInt32LE(offset + 4);
     const body = offset + 8, end = body + length;
@@ -72,26 +79,27 @@ function webpHeader(bytes) {
     if (type === 'ANIM' || type === 'ANMF' || (type === 'VP8X' && length >= 10 && (bytes[body] & 2))) throw new Error('IMAGE_ANIMATED: Animated WebP is unsupported');
     if (type === 'VP8X') {
       if (length !== 10) invalid();
-      width = bytes.readUIntLE(body + 4, 3) + 1; height = bytes.readUIntLE(body + 7, 3) + 1;
+      if (canvas) throw new Error('IMAGE_MULTIPLE: Multiple WebP canvas headers are unsupported');
+      canvas = dimensions(bytes.readUIntLE(body + 4, 3) + 1, bytes.readUIntLE(body + 7, 3) + 1);
     }
     if (type === 'VP8 ' || type === 'VP8L') {
-      if (encoded) throw new Error('IMAGE_MULTIPLE: Multiple WebP images are unsupported');
-      encoded = true;
+      if (coded) throw new Error('IMAGE_MULTIPLE: Multiple WebP images are unsupported');
       if (type === 'VP8 ') {
         if (length < 10 || !bytes.subarray(body + 3, body + 6).equals(Buffer.from([0x9d, 1, 0x2a]))) invalid();
-        width ??= bytes.readUInt16LE(body + 6) & 0x3fff; height ??= bytes.readUInt16LE(body + 8) & 0x3fff;
+        coded = dimensions(bytes.readUInt16LE(body + 6) & 0x3fff, bytes.readUInt16LE(body + 8) & 0x3fff);
       } else {
         if (length < 5 || bytes[body] !== 0x2f) invalid();
         const bits = bytes.readUInt32LE(body + 1);
-        width ??= (bits & 0x3fff) + 1; height ??= ((bits >>> 14) & 0x3fff) + 1;
+        coded = dimensions((bits & 0x3fff) + 1, ((bits >>> 14) & 0x3fff) + 1);
       }
     }
     if (type === 'EXIF') orientation = exifOrientation(bytes, body, end);
     offset = end + (length % 2);
     if (offset > bytes.length) invalid();
   }
-  if (!encoded || offset !== bytes.length) invalid();
-  return { format: 'webp', width, height, orientation };
+  if (!coded || offset !== bytes.length) invalid();
+  if (canvas && (canvas.width !== coded.width || canvas.height !== coded.height)) throw new Error('IMAGE_INVALID: WebP canvas dimensions differ from the coded raster');
+  return { format: 'webp', ...coded, orientation };
 }
 function readImageHeader(bytes) {
   let header;
@@ -99,8 +107,7 @@ function readImageHeader(bytes) {
   else if (bytes.length >= 4 && bytes[0] === 255 && bytes[1] === 0xd8) header = jpegHeader(bytes);
   else if (bytes.length >= 20 && bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP') header = webpHeader(bytes);
   else throw new Error('IMAGE_FORMAT_UNSUPPORTED: Choose a static JPEG, PNG or WebP image');
-  if (!Number.isInteger(header.width) || !Number.isInteger(header.height) || header.width < 1 || header.height < 1) invalid();
-  if (header.width * header.height > 32_000_000) throw new Error('IMAGE_TOO_LARGE: Image exceeds the 32 megapixel raster limit');
+  dimensions(header.width, header.height);
   return header;
 }
 module.exports = { readImageHeader };

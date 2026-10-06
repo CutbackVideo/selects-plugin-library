@@ -39,9 +39,6 @@ const MASK_EFFECT_TSX = `const React = require('react');
 const {AbsoluteFill,useCurrentFrame,useVideoConfig} = require('remotion');
 export default function PersonMask({Source,data}) {
   const frame=useCurrentFrame(), {fps}=useVideoConfig();
-  let mask;
-  if(data.maskUrl) mask={url:data.maskUrl};
-  else {
   const seconds=data.sourceStartSeconds+frame/fps;
   if(seconds<data.sourceStartSeconds || seconds>=data.sourceEndSeconds) return null;
   const frames=data.frames;
@@ -51,10 +48,16 @@ export default function PersonMask({Source,data}) {
     if(frames[middle].sourceTimeSeconds<=seconds+1e-7) low=middle+1;
     else high=middle;
   }
-  mask=frames[Math.max(0,low-1)];
-  }
+  const mask=frames[Math.max(0,low-1)];
   if(!mask) return null;
   return <AbsoluteFill style={{maskImage:'url('+JSON.stringify(mask.url)+')',
+    maskMode:'luminance',maskSize:'100% 100%',maskRepeat:'no-repeat'}}><Source/></AbsoluteFill>;
+}`;
+
+const PHOTO_MASK_EFFECT_TSX = `const React = require('react');
+const {AbsoluteFill} = require('remotion');
+export default function PersonMask({Source,data}) {
+  return <AbsoluteFill style={{maskImage:'url('+JSON.stringify(data.maskUrl)+')',
     maskMode:'luminance',maskSize:'100% 100%',maskRepeat:'no-repeat'}}><Source/></AbsoluteFill>;
 }`;
 
@@ -326,9 +329,10 @@ function TaskPane({ sdk, context, U, task, active }) {
         const prepared = await run(`
           const r=await selects.ai.job(${JSON.stringify(job.workflowId)}, ${JSON.stringify(projectId)}).result();
           if(!r.files.manifest) throw new Error('This job has no matte manifest.');
-          const m=await selects.ai.prepareMatte(r.files.manifest,${JSON.stringify(projectId)});
-          return m.sourceKind==='image'?{sourceKind:m.sourceKind,sourceResourceId:m.sourceResourceId,frameSize:m.frameSize,alphaEncoding:m.alphaEncoding,maskUrl:m.maskUrl}:
-            {sourceResourceId:m.sourceResourceId,sourceRange:m.sourceRange,frameSize:m.frameSize,alphaEncoding:m.alphaEncoding,frameCount:m.frames.length};`, true);
+          ${input.sourceRange === undefined ? `const m=await selects.ai.prepareMatte(r.files.manifest,${JSON.stringify(projectId)},{sourceKind:'image'});
+            return {sourceKind:m.sourceKind,sourceResourceId:m.sourceResourceId,frameSize:m.frameSize,alphaEncoding:m.alphaEncoding,maskUrl:m.maskUrl};` :
+            `const m=await selects.ai.prepareMatte(r.files.manifest,${JSON.stringify(projectId)});
+            return {sourceResourceId:m.sourceResourceId,sourceRange:m.sourceRange,frameSize:m.frameSize,alphaEncoding:m.alphaEncoding,frameCount:m.frames.length};`}`, true);
         if (!current(token)) return;
         if ((prepared.sourceKind === 'image') !== (input.sourceRange === undefined) || prepared.sourceResourceId !== input.resourceId || !['grayscale-png-8bit', 'grayscale-avif-8bit'].includes(prepared.alphaEncoding) ||
             (prepared.sourceKind==='image' ? typeof prepared.maskUrl!=='string' : (!Number.isSafeInteger(prepared.frameCount) || prepared.frameCount < 1 ||
@@ -344,21 +348,18 @@ function TaskPane({ sdk, context, U, task, active }) {
           if(matches.length===1) return {draftId:matches[0].sequenceId,recovered:true};
           const r=await selects.ai.job(${JSON.stringify(job.workflowId)},${JSON.stringify(projectId)}).result();
           if(!r.files.manifest) throw new Error('This job has no matte manifest.');
-          const matte=await selects.ai.prepareMatte(r.files.manifest,${JSON.stringify(projectId)});
+          const matte=await selects.ai.prepareMatte(r.files.manifest,${JSON.stringify(projectId)}${input.sourceRange === undefined ? ",{sourceKind:'image'}" : ''});
           if(matte.sourceResourceId!==${JSON.stringify(input.resourceId)}) throw new Error('The mask belongs to another source.');
           const d=await p.createDraft({name});
-          if(matte.sourceKind==='image') await d.insertGap({seconds:5});
-          else await d.insertResource({resourceId:matte.sourceResourceId,sourceRange:matte.sourceRange});
+          ${input.sourceRange === undefined ? 'await d.insertGap({seconds:5});' : 'await d.insertResource({resourceId:matte.sourceResourceId,sourceRange:matte.sourceRange});'}
           const m=await d.meta();
           if(m.durationFrames<=0) throw new Error('The source window produced an empty Draft.');
           await d.overlayResource({resource:p.resource(${JSON.stringify(backgroundId)}),over:await d.rangeAtFrames(0,m.durationFrames)});
           const before=new Set((await d.clips({trackScope:'all'})).map(c=>c.clipId));
-          await d.overlayResource({resource:p.resource(matte.sourceResourceId),over:await d.rangeAtFrames(0,m.durationFrames),...(matte.sourceKind==='image'?{}:{sourceStartSeconds:matte.sourceRange.startSeconds})});
+          await d.overlayResource({resource:p.resource(matte.sourceResourceId),over:await d.rangeAtFrames(0,m.durationFrames),${input.sourceRange === undefined ? '' : 'sourceStartSeconds:matte.sourceRange.startSeconds'}});
           const added=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId)&&c.trackKind==='video');
           if(added.length!==1) throw new Error('The source overlay did not produce exactly one video clip.');
-          await d.addVideoEffect({clip:added[0],label:'Person mask',tsxCode:${JSON.stringify(MASK_EFFECT_TSX)},parameters:matte.sourceKind==='image'?{maskUrl:matte.maskUrl}:{
-            sourceStartSeconds:matte.sourceRange.startSeconds,sourceEndSeconds:matte.sourceRange.endSeconds,
-            frames:matte.frames.map(f=>({sourceTimeSeconds:f.sourceTimeSeconds,url:f.url}))}});
+          await d.addVideoEffect({clip:added[0],label:'Person mask',tsxCode:${JSON.stringify(input.sourceRange === undefined ? PHOTO_MASK_EFFECT_TSX : MASK_EFFECT_TSX)},parameters:${input.sourceRange === undefined ? '{maskUrl:matte.maskUrl}' : `{sourceStartSeconds:matte.sourceRange.startSeconds,sourceEndSeconds:matte.sourceRange.endSeconds,frames:matte.frames.map(f=>({sourceTimeSeconds:f.sourceTimeSeconds,url:f.url}))}`}});
           const c=await d.commitAll('Layer saved person masks over a background while preserving original Main audio');
           if(!c.createdDraftId) throw new Error('The created Draft acknowledgment has no identity.');
           return {draftId:c.createdDraftId};`, true);

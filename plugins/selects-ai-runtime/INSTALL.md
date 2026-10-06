@@ -44,8 +44,10 @@ const job = await selects.ai.submit({
 return { workflowId: job.workflowId };
 ```
 
-The image result has one raster. `prepareMatte` returns its durable mask URL
-for use throughout the Image clip rather than a frame-rate-driven sequence.
+The image result has one raster.
+`prepareMatte(result.files.manifest, projectId, { sourceKind: "image" })`
+returns its durable mask URL for use throughout the Image clip rather than a
+frame-rate-driven sequence. The existing two-argument form remains video-only.
 
 Use the same key and identical input to recover an uncertain acknowledgment;
 choose a new key for an intentional new run. Reconnect with

@@ -17,17 +17,39 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
   const source = await fs.readFile(path.join(__dirname, '..', 'panel.tsx'), 'utf8');
   const esbuild = dependency('esbuild');
   const appRoot = path.dirname(path.resolve(modulesRoot));
-  const typecheckerModule = { exports: {} };
-  const typecheckerBuild = await esbuild.build({
-    entryPoints: [path.join(appRoot, 'electron/mcp/script-runtime/typecheck.ts')],
-    bundle: true, write: false, platform: 'node', format: 'cjs', external: ['typescript'],
-    plugins: [{ name: 'sdk-raw-declarations', setup(build) {
-      build.onResolve({ filter: /\?raw$/ }, args => ({ path: path.resolve(args.resolveDir, args.path.slice(0, -4)), namespace: 'sdk-raw' }));
-      build.onLoad({ filter: /.*/, namespace: 'sdk-raw' }, async args => ({ contents: await fs.readFile(args.path, 'utf8'), loader: 'text' }));
-    } }],
-  });
-  new Function('require', 'module', 'exports', typecheckerBuild.outputFiles[0].text)(dependency, typecheckerModule, typecheckerModule.exports);
-  const typecheckQueryScript = typecheckerModule.exports.typecheckQueryScript;
+  // Video-only AiService/prepareMatte contract extracted from Selects host base
+  // 5e562956cf. Panels and the installed SDK update independently.
+  const videoOnlyAiService = `interface LegacyPreparedVideoMatte {
+    sourceResourceId:ProjectResourceId; sourceRange:{startSeconds:number;endSeconds:number};
+    frameSize:{width:number;height:number}; alphaEncoding:AiMatteAlphaEncoding;
+    frames:Array<{index:number;sourceTimeSeconds:number;url:string}>;
+  }
+  interface AiService {
+    readonly supportedMatteEncodings:readonly AiMatteAlphaEncoding[];
+    submit(input:AiSubmitInput):Promise<AiJobHandle>;
+    job(workflowId:string,projectId:string):AiJobHandle;
+    readJSON(file:AiArtifact,projectId:string):Promise<unknown>;
+    prepareMatte(file:AiArtifact,projectId:string):Promise<LegacyPreparedVideoMatte>;
+  }`;
+  async function loadTypechecker(videoOnly = false) {
+    const module = { exports: {} };
+    const built = await esbuild.build({
+      entryPoints: [path.join(appRoot, 'electron/mcp/script-runtime/typecheck.ts')],
+      bundle: true, write: false, platform: 'node', format: 'cjs', external: ['typescript'],
+      plugins: [{ name: 'sdk-raw-declarations', setup(build) {
+        build.onResolve({ filter: /\?raw$/ }, args => ({ path: path.resolve(args.resolveDir, args.path.slice(0, -4)), namespace: 'sdk-raw' }));
+        build.onLoad({ filter: /.*/, namespace: 'sdk-raw' }, async args => {
+          let contents = await fs.readFile(args.path, 'utf8');
+          if(videoOnly && path.basename(args.path)==='ai.d.ts') contents = contents.slice(0,contents.indexOf('interface AiService {'))+videoOnlyAiService;
+          return { contents, loader: 'text' };
+        });
+      } }],
+    });
+    new Function('require', 'module', 'exports', built.outputFiles[0].text)(dependency, module, module.exports);
+    return module.exports.typecheckQueryScript;
+  }
+  const typecheckQueryScript = await loadTypechecker();
+  const typecheckVideoOnlyScript = await loadTypechecker(true);
   const scriptChecks = [];
   const compiled = await esbuild.transform(source, { loader: 'tsx', format: 'cjs', jsx: 'transform', target: 'es2022' });
   const loaded = { exports: {} };
@@ -859,7 +881,8 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
             base.scripts.push(request);
             const code = esbuild.transformSync(`async function apply(selects) {${request.script}}`,{loader:'ts',format:'cjs'}).code;
             const selects = {project:()=>({readFootage:async()=>({drafts:[]}),createDraft:async()=>draft,resource:id=>({id})}),
-              ai:{job:()=>({result:async()=>({files:{manifest:MANIFEST}})}),prepareMatte:async()=>prepared}};
+              ai:{job:()=>({result:async()=>({files:{manifest:MANIFEST}})}),prepareMatte:async(_file,_project,options)=>{
+                assert.deepEqual(options,{sourceKind:'image'},'Photo preparation explicitly opts into the image result shape');return prepared;}}};
             return answer(await new Function('selects',`${code}\nreturn apply(selects);`)(selects));
           }
           if(request.script.includes('job.result()')) {
@@ -885,6 +908,17 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.equal(commits,1);assert.equal(gaps,1);
       assert.equal(base.scripts.filter(request=>request.script.includes('selects.ai.submit')).length,1);
       assert.ok(base.scripts.at(-1).script.includes('selects.editor.openDraft("photo-draft")'));
+    });
+    await t.test('updated video prepare and commit scripts still compile with the independently installed video-only SDK', () => {
+      const videoScripts=scriptChecks.filter(row=>row.script.includes('selects.ai.prepareMatte')&&!row.script.includes("sourceKind:'image'"));
+      assert.ok(videoScripts.some(row=>!row.script.includes('createDraft')));
+      assert.ok(videoScripts.some(row=>row.script.includes('createDraft')));
+      for(const {script} of videoScripts) {
+        assert.ok(!script.includes('sourceKind')&&!script.includes('maskUrl'),'Video scripts contain no image-only members, including the effect');
+        assert.deepEqual(typecheckVideoOnlyScript(script,{generatedMediaAuthoring:true}),{ok:true},script);
+      }
+      const photoScript=scriptChecks.find(row=>row.script.includes('createDraft')&&row.script.includes("sourceKind:'image'")).script;
+      assert.equal(typecheckVideoOnlyScript(photoScript,{generatedMediaAuthoring:true}).ok,false,'The old SDK rejects the new photo overload');
     });
     await t.test('checks the actual consumer script literals against the shipped SDK, including unknown JSON', () => {
       const invalid = typecheckQueryScript(`const r=await selects.ai.job('ai:job','A').result();

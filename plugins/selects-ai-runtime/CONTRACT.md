@@ -29,6 +29,13 @@ confidence threshold, with no video sampling parameters. Image matte output
 is one ordinary grayscale PNG or AVIF. Inference, GPU selection, file
 confinement, output validation and cancellation use the existing task paths.
 
+Editor consumers explicitly prepare an image result with
+`selects.ai.prepareMatte(result.files.manifest, projectId, { sourceKind: "image" })`.
+It returns one durable `maskUrl` under the same verification and retry policy.
+The existing two-argument form retains its video result type and rejects image
+manifests; the image form rejects video manifests. This keeps independently
+installed video consumers compatible with newer hosts.
+
 `faces.detect` accepts positive `sampleEverySeconds` (default 0.5) and `scoreThreshold` in [0,1] (default 0.8). For each sampling boundary, it chooses the first available decoded frame at or after that boundary and reports the actual source timestamp. Missing VFR intervals do not produce invented frames. An empty `faces` array is a valid observation.
 
 `person.matte` accepts `downsampleRatio` in (0,1] (default 0.25). It processes every displayed frame in order. Recurrent state starts with zeros at the requested interval start and remains private to the job. No spatial resize is applied to the source raster; the model's internal downsample ratio controls its inference work.
