@@ -11,6 +11,8 @@ from pathlib import Path
 import re
 import unittest
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = Path(__file__).resolve().parents[1]
 PANEL = Path(os.environ.get('JUDE_PANEL') or ROOT / 'plugins/jude-kinetic-style/panel.tsx')
 REFERENCE = ROOT / 'plugins/archive-vlog/panel.tsx'
@@ -54,11 +56,11 @@ class JudeWindowsTest(unittest.TestCase):
     def test_no_posix_shell_outside_mac_only(self):
         for needle in FORBIDDEN:
             with self.subTest(needle=needle):
-                self.assertFalse(needle in self.own, needle)
+                assert_no_shell_token(self, needle, self.own, needle)
         self.assertIsNone(SPAWN.search(self.own), 'no node/python spawn')
         for needle in ['env.node()', 'engine.mjs', 'osascript', 'FFMPEG_PROBE']:
             with self.subTest(needle=needle):
-                self.assertFalse(needle in self.own, needle)
+                assert_no_shell_token(self, needle, self.own, needle)
         # The POSIX single-quote helper is macOS-only, and nothing else quotes for a shell.
         self.assertFalse("'\\\\''" in self.own, 'POSIX quoting helper')
         self.assertIsNone(re.search(r'\bq\(', self.own), 'q() quoting outside mac-only')
@@ -71,7 +73,7 @@ class JudeWindowsTest(unittest.TestCase):
     def test_folders_and_ffprobe_come_from_the_host(self):
         self.assertIn('hostRoots(sdk, PANEL_ID,', self.runtime)
         self.assertIn("runFFprobe([", self.runtime)
-        self.assertIn("mkdirSync(jobDir,{recursive:true})", self.runtime)
+        self.assertIn("mkdir(jobDir,{recursive:true})", self.runtime)
         self.assertFalse('instanceof Uint8Array' in self.own, 'instanceof on host bytes')
         self.assertFalse("+'/" in self.own, "'/' path joins")
 

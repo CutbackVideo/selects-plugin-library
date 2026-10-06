@@ -1,3 +1,4 @@
+import { asyncSdk } from './windows_host.mjs';
 // Parity of the panel's port of pipeline.py (the `// @operation-start` section of portrait-beat-montage/panel.tsx)
 // with pipeline.py itself: the timeline and every ffmpeg argv. pipeline.py runs on a dev Mac's python3 with numpy
 // and Pillow, its subprocess calls captured instead of run; without them the pipeline half is skipped.
@@ -99,7 +100,7 @@ test('the port section stays free of shell and host calls',()=>{
  assert.equal(op.pyStr(3),'3.0');assert.equal(op.pyStr(0.375),'0.375');
 });
 
-test('macOS: the shell steps export the running Selects app\'s bundled ffmpeg',()=>{
+test('macOS: the shell steps export the running Selects app\'s bundled ffmpeg',async()=>{
  const src=fs.readFileSync(path.join(plugin,'panel.tsx'),'utf8');
  const host=src.slice(src.indexOf('// av-host:start'),src.indexOf('// av-host:end'));
  const i=src.indexOf('const quote = '),mac=src.slice(i,src.indexOf('// mac-only:end',i));
@@ -109,12 +110,12 @@ test('macOS: the shell steps export the running Selects app\'s bundled ffmpeg',(
   const versions={'Selects':'2.0.495','Selects Staging':'2.0.535','Selects Alpha':'2.0.340'};
   const FileSystem={join:(...p)=>p.join('/'),existsSync:p=>installed.includes(apps(p)),readFileSync:p=>Buffer.from(plist(versions[apps(p)]))};
   const Runtime={getHostingVersion:()=>version,getAppName:()=>name,getPlatform:()=>'darwin'};
-  const ctx=vm.createContext({window:{parent:{__DI__:{FileSystem,Runtime}}},navigator:{},TextDecoder});
-  return vm.runInContext(host+mac+';macTools()',ctx);
+  const ctx=vm.createContext({panelLocalClient:sdk=>sdk,sdk:asyncSdk({FileSystem,Runtime}),window:{parent:{__DI__:{FileSystem,Runtime}}},navigator:{},TextDecoder});
+  return vm.runInContext(host+mac+';hostUseSdk(sdk);macTools()',ctx);
  };
  const all=['Selects','Selects Staging','Selects Alpha'];
- assert.equal(run({installed:all,version:'2.0.535',name:'Selects'}),"export POSTCARD_CUTOUT_RVM_FFMPEG='/Applications/Selects Staging.app/Contents/Resources/app.asar.unpacked/dist/bin/ffmpeg' POSTCARD_CUTOUT_RVM_FFPROBE='/Applications/Selects Staging.app/Contents/Resources/app.asar.unpacked/dist/bin/ffprobe'; ");
- assert.match(run({installed:all,version:'9.9.9',name:'Selects Alpha'}),/Selects Alpha\.app/);
- assert.match(run({installed:['Selects Staging'],version:'',name:''}),/Selects Staging\.app/);
- assert.equal(run({installed:[],version:'2.0.535',name:'Selects'}),'');
+ assert.equal(await run({installed:all,version:'2.0.535',name:'Selects'}),"export POSTCARD_CUTOUT_RVM_FFMPEG='/Applications/Selects Staging.app/Contents/Resources/app.asar.unpacked/dist/bin/ffmpeg' POSTCARD_CUTOUT_RVM_FFPROBE='/Applications/Selects Staging.app/Contents/Resources/app.asar.unpacked/dist/bin/ffprobe'; ");
+ assert.match(await run({installed:all,version:'9.9.9',name:'Selects Alpha'}),/Selects\.app/);
+ assert.match(await run({installed:['Selects Staging'],version:'',name:''}),/Selects Staging\.app/);
+ assert.equal(await run({installed:[],version:'2.0.535',name:'Selects'}),'');
 });

@@ -133,8 +133,8 @@ export function jobFile(fs: HostFs, dir: string): string {
 
 export async function createJob(fs: HostFs, jobsRoot: string, job: Job): Promise<string> {
   const dir = jobDir(fs, jobsRoot, job.projectId, job.jobId);
-  ensureDir(fs, dir);
-  for (const f of JOB_FOLDERS) ensureDir(fs, fs.join(dir, f));
+  await ensureDir(fs, dir);
+  for (const f of JOB_FOLDERS) (await ensureDir(fs, fs.join(dir, f)));
   const created = await createExclusive(fs, jobFile(fs, dir), JSON.stringify(job, null, 2) + "\n");
   if (!created) throw new Error("A job named " + job.jobId + " already exists.");
   return dir;
@@ -168,11 +168,11 @@ export type JobEntry = { jobId: string; dir: string; job: Job };
 export async function listJobs(fs: HostFs, jobsRoot: string, projectId: string): Promise<JobEntry[]> {
   if (!SAFE_ID.test(projectId)) return [];
   const root = fs.join(jobsRoot, projectId);
-  const names = fs.readdirSync(root).filter((n) => SAFE_ID.test(n)).sort().reverse();
+  const names = (await fs.readdir(root)).filter((n) => SAFE_ID.test(n)).sort().reverse();
   const out: JobEntry[] = [];
   for (const name of names) {
     const dir = fs.join(root, name);
-    if (!fs.existsSync(jobFile(fs, dir))) continue;
+    if (!(await fs.exists(jobFile(fs, dir)))) continue;
     try {
       out.push({ jobId: name, dir, job: await loadJob(fs, dir) });
     } catch {

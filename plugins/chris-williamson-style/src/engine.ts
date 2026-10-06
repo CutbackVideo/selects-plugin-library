@@ -34,9 +34,9 @@ async function cwTool(kind, args, timeoutMs) {
 }
 const cwFfmpeg = (args, timeoutMs) => cwTool("runFFmpeg", args, timeoutMs);
 const cwFfprobe = (args, timeoutMs) => cwTool("runFFprobe", args, timeoutMs);
-function cwMkdir(dir) { hostNeed("FileSystem", "mkdirSync").mkdirSync(dir, { recursive: true }); }
-function cwSize(file) {
-  try { const fs = hostApi("FileSystem", "existsSync", "statSync"); return fs && fs.existsSync(file) ? Number(fs.statSync(file)?.size || 0) : 0; } catch { return 0; }
+async function cwMkdir(dir) { (await hostNeed("FileSystem", "mkdir").mkdir(dir, { recursive: true })); }
+async function cwSize(file) {
+  try { const fs = hostApi("FileSystem", "exists", "stat"); return fs && (await fs.exists(file)) ? Number((await fs.stat(file))?.size || 0) : 0; } catch { return 0; }
 }
 const cwDir = (file) => String(file).replace(/[\\/][^\\/]*$/, "");
 
@@ -67,7 +67,7 @@ async function cwFaces(env, job, dir) {
   if (hostIsWindows()) return { detected: {}, sampled: samples.length, readable: 0 };
   // mac-only:start
   const work = hostJoin(dir, "faces");
-  cwMkdir(work);
+  (await cwMkdir(work));
   const files = await cwPool(samples, 4, async (s, i) => {
     const file = hostJoin(work, "f" + String(i).padStart(3, "0") + ".jpg");
     const r = await cwFfmpeg(["-v", "error", "-y", "-ss", String(Math.max(0, s.seconds)), "-i", s.path, "-frames:v", "1", "-vf", "scale='min(960,iw)':-2", file], 60000);
@@ -161,7 +161,7 @@ async function cwFfmpegFetch(url, dest) {
     ? ["-v", "error", "-y", ...net, "-i", url, "-frames:v", "1", "-f", "image2", "-c:v", "png", dest]
     : ["-v", "error", "-y", ...net, "-i", url, "-t", String(CW_CLIP_SECONDS), "-map", "0:v:0", "-c", "copy", "-an", "-fs", String(CW_MAX_BYTES), "-f", "matroska", dest];
   const r = await cwFfmpeg(args, 90000);
-  const size = cwSize(dest);
+  const size = (await cwSize(dest));
   return r.ok && size > 2000 && size <= CW_MAX_BYTES;
 }
 // mac-only:start
@@ -173,7 +173,7 @@ async function cwCurlDownload(env, url, dest) {
     const code = Number(String(out).trim().slice(-3));
     if (code === 429 || code === 503) { await cwSleep(4000 * (attempt + 1)); continue; }
     if (code < 200 || code >= 300) return false;
-    return cwSize(dest) > 2000;
+    return (await cwSize(dest)) > 2000;
   }
   return false;
 }
@@ -276,7 +276,7 @@ async function cwPreview(file, out, t = 0) {
 }
 async function cwCandidates(env, job, dir) {
   const spec = job.candidates, result = [], work = hostJoin(dir, "candidates");
-  cwMkdir(work);
+  (await cwMkdir(work));
   // Sequential download protects public source rate limits and bounds working-set memory.
   for (const item of spec.items) {
     const choices = (item.candidates || []).filter((c) => c.path || c.url).slice(0, 3);
@@ -331,7 +331,7 @@ function cwEncoders() {
 // the first). One video stream only (-write_tmcd 0: no timecode track from a camera original).
 async function cwAssets(job, dir) {
   const spec = job.assets, media = hostJoin(dir, spec.mediaFolder);
-  cwMkdir(media);
+  (await cwMkdir(media));
   const encoder = cwPickEncoder(await cwEncoders());
   const rows = [];
   for (const item of spec.items) {

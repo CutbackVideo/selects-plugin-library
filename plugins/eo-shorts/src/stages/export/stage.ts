@@ -56,13 +56,13 @@ export const exportStage: StageImpl = createExportStage();
 
 const EXPORT_MP4 = /^(final(-[0-9a-fx]+)?|render-[0-9a-fx]+)\.mp4$/;
 
-function removeOtherExports(ctx: StageContext, keepRel: string): void {
+async function removeOtherExports(ctx: StageContext, keepRel: string): Promise<void> {
   const fs = ctx.host.fs;
-  for (const name of fs.readdirSync(ctx.path("export"))) if (EXPORT_MP4.test(name) && "export/" + name !== keepRel) removeFile(fs, ctx.path("export/" + name));
+  for (const name of (await fs.readdir(ctx.path("export")))) if (EXPORT_MP4.test(name) && "export/" + name !== keepRel) (await removeFile(fs, ctx.path("export/" + name)));
 }
 
-export function writtenSince(fs: HostFs, path: string, since: number | null): boolean {
-  const st = statFile(fs, path);
+export async function writtenSince(fs: HostFs, path: string, since: number | null): Promise<boolean> {
+  const st = (await statFile(fs, path));
   return !!st && st.size > 0 && since != null && st.mtimeMs >= since - MTIME_SLACK_MS;
 }
 
@@ -110,7 +110,7 @@ async function runExport(ctx: StageContext, o: ExportStageOptions): Promise<Stag
   const d = check.draft;
   const seconds = d.mainEnd / d.fps;
 
-  ensureDir(fs, ctx.path("export"));
+  await ensureDir(fs, ctx.path("export"));
   const inputSha = job.stages.export?.inputSha ?? null;
   const rel = finalRel(inputSha);
   const outPath = ctx.path(rel);
@@ -121,12 +121,12 @@ async function runExport(ctx: StageContext, o: ExportStageOptions): Promise<Stag
   const pendingId = job.pending.exportWorkflowId;
   if (pendingId && inputSha && job.pending.exportFor === inputSha) {
     const since = msOf(job.pending.exportStartedAt);
-    if (fs.existsSync(outPath) && !writtenSince(fs, outPath, since)) {
-      removeFile(fs, outPath);
-      await ctx.event("export-stale-file", { workflowId: pendingId, file: rel, removed: !fs.existsSync(outPath) });
+    if ((await fs.exists(outPath)) && !(await writtenSince(fs, outPath, since))) {
+      await removeFile(fs, outPath);
+      await ctx.event("export-stale-file", { workflowId: pendingId, file: rel, removed: !(await fs.exists(outPath)) });
     }
     const snap = since != null ? await readWorkflow(host.sdk, job.projectId, pendingId, rs).catch(() => null) : null;
-    if (snap && resumable(snap, fs.existsSync(outPath))) {
+    if (snap && resumable(snap, (await fs.exists(outPath)))) {
       workflowId = pendingId;
       startedAt = since;
       resumed = true;
@@ -139,8 +139,8 @@ async function runExport(ctx: StageContext, o: ExportStageOptions): Promise<Stag
     await ctx.event("export-abandon", { workflowId: pendingId, status: "superseded", exportFor: job.pending.exportFor ?? null });
   }
   if (!workflowId) {
-    removeFile(fs, outPath);
-    if (fs.existsSync(outPath)) throw new Error("Cannot remove the earlier file at " + outPath + " to export again (is it open in another app?).");
+    await removeFile(fs, outPath);
+    if ((await fs.exists(outPath))) throw new Error("Cannot remove the earlier file at " + outPath + " to export again (is it open in another app?).");
     ctx.note("Starting the export…");
     const started = await startExport(host.sdk, "video", { projectId: job.projectId, draftId: job.draftId, outPath, resolution }, { ...rs, fs });
     workflowId = started.workflowId;
@@ -177,14 +177,14 @@ async function runExport(ctx: StageContext, o: ExportStageOptions): Promise<Stag
     }
     throw e instanceof Error ? e : new Error(errorMessage(e));
   }
-  if (!writtenSince(fs, outPath, startedAt)) {
-    removeFile(fs, outPath);
+  if (!(await writtenSince(fs, outPath, startedAt))) {
+    await removeFile(fs, outPath);
     clearPending(ctx);
     await ctx.saveJob();
     await ctx.event("export-stale-file", { workflowId, file: rel, via: done.via, lastStatus: done.lastStatus });
     throw new Error("The app reported the export finished, but " + rel + " is older than the export, so the app did not write it. Resume exports again.");
   }
-  removeOtherExports(ctx, rel);
+  await removeOtherExports(ctx, rel);
 
   const receipt: ExportReceipt = {
     schema: "eo-export/1",

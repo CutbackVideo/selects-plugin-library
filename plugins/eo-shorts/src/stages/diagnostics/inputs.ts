@@ -48,7 +48,7 @@ export type JobFiles = {
 export async function readJobFiles(fs: HostFs, path: (rel: string) => string): Promise<JobFiles> {
   const j = <T>(rel: string) => readJsonIfExists<T | null>(fs, path(rel), null).catch(() => null);
   const calls: Record<string, unknown>[] = [];
-  if (fs.existsSync(path("calls.jsonl"))) {
+  if ((await fs.exists(path("calls.jsonl")))) {
     for (const line of (await readText(fs, path("calls.jsonl"))).split(/\r?\n/)) {
       if (!line.trim()) continue;
       try {

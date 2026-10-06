@@ -33,7 +33,7 @@ export async function renderVoice(
   input: { projectId: string; draftId: string; outPath: string; mainEndFrame: number; fps: number; tmpDir: string; signal?: AbortSignal | null; onProgress?: (text: string) => void },
 ): Promise<VoiceRender> {
   const fs = host.fs;
-  removeFile(fs, input.outPath);
+  await removeFile(fs, input.outPath);
   const seconds = input.mainEndFrame / input.fps;
   const started = await startExport(host.sdk, "audio", { projectId: input.projectId, draftId: input.draftId, outPath: input.outPath }, { signal: input.signal, fs });
   const done = await waitForExport(host.sdk, {

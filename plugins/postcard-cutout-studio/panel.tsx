@@ -66,37 +66,29 @@ function layout(s,size){const w=Number(size?.width),h=Number(size?.height);if(!(
 const MASK=`import React from 'react';import{AbsoluteFill,Img,useCurrentFrame,useVideoConfig}from'remotion';export default function Mask({Source,data}){const f=useCurrentFrame(),{fps}=useVideoConfig(),t=f/fps+Number(data.sourceStartSeconds||0),i=Math.round(t*data.maskFps);if(i<0||i>=data.count)return null;const url=data.baseUrl+'/mask_'+String(i+1).padStart(6,'0')+'.png',white=!!data.white;return <AbsoluteFill style={{filter:white?'brightness(0) invert(1)':'none'}}><Img src={url} style={{position:'absolute',width:'100%',height:'100%',opacity:0}}/><AbsoluteFill style={{maskImage:'url("'+url+'")',maskMode:'luminance',maskSize:'100% 100%',maskRepeat:'no-repeat'}}><Source/></AbsoluteFill></AbsoluteFill>}`;
 async function runScript(sdk,script,summary,allowCommit=false){const t0=performance.now(),r=await sdk.runScript({script,summary,allowCommit});traceStep('script: '+summary,t0);if(r.isError)throw Error(r.output||'Could not complete this action.');if(r.result==null)throw Error('The response was too large. Refresh your media and try again.');return r.result}
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files, media tools and platform facts come from the public panel SDK.
+// These plain-JavaScript helpers also run in node:vm tests with an async SDK fixture.
+// File I/O is asynchronous; pure path helpers use the initialized host environment.
+// Missing capabilities raise host-missing so the panel can ask the user to update Selects.
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
+let localSdk = null;
+function bindLocalSdk(sdk) { localSdk = sdk; }
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? localSdk?.files : name === "Runtime" ? localSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use local media (" + name + "." + method + ").", name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
+// The SDK environment is initialized by the host before the panel mounts.
 function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
+  const platform = localSdk?.environment?.platform;
+  if (!platform) throw hostError("host-missing", "Update Selects to use local media.", "local SDK environment");
+  return /^win/i.test(platform);
 }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
@@ -128,33 +120,26 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Best-effort cleanup through the public SDK.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  const fs = hostNeed("FileSystem", "removeFile");
+  try { await fs.removeFile({ filePath: path }); } catch { /* Cleanup is best effort. */ }
 }
 // The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
 // joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
+// holds `marker` (a file every install has). The SDK supplies the local-media service. The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
 // null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
+  bindLocalSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const holds = async (dir) => { try { return !!dir && (!fs || !!(await fs.exists(fs.join(dir, marker)))); } catch { return false; } };
   let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
+  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if ((await holds(dir))) plugin = dir; } } catch { plugin = null; }
   if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
   let data = null;
   try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdir");
+    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); (await dfs.mkdir(data, { recursive: true })); }
   } catch { data = null; }
   return { plugin, data };
 }
@@ -204,18 +189,18 @@ function traceStep(label,t0){(window.__postcardTrace??=[]).push([label,Math.roun
 const PC_MIN_HOST='2.0.508';
 const UPDATE_SELECTS='Postcard Cutout Studio needs Selects '+PC_MIN_HOST+' or later on Windows. Update Selects, then try again.';
 function pcVersionBelow(version,minimum){const a=String(version||'0').split('.').map(n=>parseInt(n,10)||0),b=minimum.split('.').map(n=>parseInt(n,10)||0);for(let i=0;i<3;i++)if((a[i]||0)!==(b[i]||0))return (a[i]||0)<(b[i]||0);return false}
-function pcHostIssue(){if(!hostIsWindows())return '';let version='';try{version=String(hostDI()?.Runtime?.getHostingVersion?.()||'')}catch{version=''}
- const needs=[['Runtime','runFFmpeg','runFFprobe'],['FileSystem','join','homedir','dirname','existsSync','mkdirSync','readFile','writeFile','readdirSync','statSync','renameSync','pathToLocalURL','downloadFile']];
+function pcHostIssue(){if(!localSdk?.files||!localSdk?.media||!localSdk?.dialogs||!localSdk?.environment?.platform)return 'Update Selects to use local media.';if(!hostIsWindows())return '';const version=String(localSdk.environment.version||'')
+ const needs=[['Runtime','runFFmpeg','runFFprobe'],['FileSystem','join','homedir','dirname','exists','mkdir','readFile','writeFile','readdir','stat','rename','pathToLocalURL','downloadFile']];
  return !version||pcVersionBelow(version,PC_MIN_HOST)||needs.some(([name,...methods])=>!hostApi(name,...methods))?UPDATE_SELECTS:''}
 const preparing={say:null};
 let pcWin=null;
-function pcWindows(sdk){if(!pcWin)pcWin=(async()=>{const roots=await hostRoots(sdk,'postcard-cutout-studio',hostJoin('sfx','manifest.json'));if(!roots.data)throw Error(UPDATE_SELECTS);let port=null;const ledger=pcLedger(roots.data,{sfx:()=>port.sfx()});port=pcPort(roots,{ledger});return{...port,...ledger}})().catch(e=>{pcWin=null;throw e});return pcWin}
+function pcWindows(sdk){bindLocalSdk(sdk);if(!pcWin)pcWin=(async()=>{const roots=await hostRoots(sdk,'postcard-cutout-studio',hostJoin('sfx','manifest.json'));if(!roots.data)throw Error(UPDATE_SELECTS);let port=null;const ledger=pcLedger(roots.data,{sfx:()=>port.sfx()});port=pcPort(roots,{ledger});return{...port,...ledger}})().catch(e=>{pcWin=null;throw e});return pcWin}
 const PC_OPS=['load','init','update','event','claim','reuse','ensure','folder-media','tile','strip','sizes','hold','silent','cutout-input','fetch-result','prepare','foreground','subject-box','settings-load','settings-save','job-record'];
-async function helper(sdk,op,args={}){if(!hostIsWindows())return macHelper(sdk,op,args);const issue=pcHostIssue();if(issue)throw Error(issue);if(!PC_OPS.includes(op))throw Error('Unknown operation');const ops=await pcWindows(sdk),t0=performance.now();try{return await ops[op](args)}finally{traceStep('host: '+op,t0)}}
+async function helper(sdk,op,args={}){bindLocalSdk(sdk);if(!hostIsWindows())return macHelper(sdk,op,args);const issue=pcHostIssue();if(issue)throw Error(issue);if(!PC_OPS.includes(op))throw Error('Unknown operation');const ops=await pcWindows(sdk),t0=performance.now();try{return await ops[op](args)}finally{traceStep('host: '+op,t0)}}
 // The editor's subject probe and range preview and the export check, in the shape the shell gives them on macOS.
-async function probeSubject(sdk,path){if(!hostIsWindows())return macProbeSubject(sdk,path);const issue=pcHostIssue();if(issue)throw Error(issue);return{exitCode:0,stdout:(await (await pcWindows(sdk)).probeText(path))||'{}'}}
-async function rangePreview(sdk,path,start,end){if(!hostIsWindows())return macRangePreview(sdk,path,start,end);return{exitCode:0,stdout:JSON.stringify(await (await pcWindows(sdk)).rangePreview(path,start,end,4))}}
-async function decodeCheck(sdk,path){if(!hostIsWindows())return macDecodeCheck(sdk,path);return (await pcWindows(sdk)).decodeCheck(path)}
+async function probeSubject(sdk,path){bindLocalSdk(sdk);if(!hostIsWindows())return macProbeSubject(sdk,path);const issue=pcHostIssue();if(issue)throw Error(issue);return{exitCode:0,stdout:(await (await pcWindows(sdk)).probeText(path))||'{}'}}
+async function rangePreview(sdk,path,start,end){bindLocalSdk(sdk);if(!hostIsWindows())return macRangePreview(sdk,path,start,end);return{exitCode:0,stdout:JSON.stringify(await (await pcWindows(sdk)).rangePreview(path,start,end,4))}}
+async function decodeCheck(sdk,path){bindLocalSdk(sdk);if(!hostIsWindows())return macDecodeCheck(sdk,path);return (await pcWindows(sdk)).decodeCheck(path)}
 // Two host paths name the same file: exactly, off Windows; on Windows also across case, separators and Unicode form.
 function samePath(a,b){if(a===b)return true;if(!hostIsWindows()||a==null||b==null)return false;const n=p=>String(p).normalize('NFC').replace(/\\/g,'/').toLowerCase();return n(a)===n(b)}
 // mac-only:start
@@ -249,31 +234,33 @@ async function macRangePreview(sdk,path,start,end){const python=await runtimePyt
 // promise chain does it. helper() uses it on Windows; macOS keeps pipeline.py. `store` is the data folder (hostRoots(...).data); `sfx` gives a new run its decoded sounds.
 const LEDGER_SETTLED=['draftReady','exportFailed','generationFailed','complete','abandoned'];
 function pcLedger(store,{sfx=async()=>({}),now=()=>Date.now(),newId=()=>crypto.randomUUID()}={}){
- const fs=()=>hostNeed('FileSystem','existsSync'),J=(...p)=>hostJoin(...p);let chain=Promise.resolve();
+ const fs=()=>hostNeed('FileSystem','exists'),J=(...p)=>hostJoin(...p);let chain=Promise.resolve();
  const locked=f=>{const r=chain.then(f,f);chain=r.catch(()=>{});return r};
- const exists=p=>{try{return !!fs().existsSync(p)}catch{return false}};
- const read=async(p,fallback=null)=>exists(p)?JSON.parse(await hostReadText(p)):fallback;
- const write=async(p,d)=>{const f=hostNeed('FileSystem','mkdirSync');f.mkdirSync(hostNeed('FileSystem','dirname').dirname(p),{recursive:true});const text=JSON.stringify(d,null,2),move=hostApi('FileSystem','renameSync');if(!move)return void await hostNeed('FileSystem','writeFile').writeFile(p,text);const tmp=p+'.tmp-'+now();await hostNeed('FileSystem','writeFile').writeFile(tmp,text);move.renameSync(tmp,p)};
+ const exists=async p=>{try{return !!(await fs().exists(p))}catch{return false}};
+ const read=async(p,fallback=null)=>(await exists(p))?JSON.parse(await hostReadText(p)):fallback;
+ const write=async(p,d)=>{const f=hostNeed('FileSystem','mkdir');(await f.mkdir(hostNeed('FileSystem','dirname').dirname(p),{recursive:true}));const text=JSON.stringify(d,null,2),move=hostApi('FileSystem','rename');if(!move)return void await hostNeed('FileSystem','writeFile').writeFile(p,text);const tmp=p+'.tmp-'+now();await hostNeed('FileSystem','writeFile').writeFile(tmp,text);(await move.rename(tmp,p))};
  const pad=n=>String(n).padStart(2,'0'),stamp=()=>{const t=new Date(now()),o=-t.getTimezoneOffset();return{at:t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate())+'T'+pad(t.getHours())+':'+pad(t.getMinutes())+':'+pad(t.getSeconds())+(o<0?'-':'+')+pad(Math.floor(Math.abs(o)/60))+pad(Math.abs(o)%60),epochMs:t.getTime()}};
  const runpath=rid=>{if(!/^[a-f0-9-]{36}$/.test(String(rid)))throw Error('Invalid run id');return J(store,'runs',String(rid))};
  const load=async rid=>{const d=await read(J(runpath(rid),'run.json'));if(!d)throw Error('Run not found');return d};
  const save=async d=>{await write(J(runpath(d.runId),'run.json'),d);await write(J(d.logDir,'run.json'),d)};
- const event=async(d,stage,status,details)=>{const s=stamp(),e={...s,runId:d.runId,projectId:d.projectId,stage,status,...(details||{})};e.wallClockMs=e.epochMs-d.startedMs;const log=J(d.logDir,'events.jsonl');hostNeed('FileSystem','mkdirSync').mkdirSync(d.logDir,{recursive:true});const old=exists(log)?await hostReadText(log):'';await hostNeed('FileSystem','writeFile').writeFile(log,old+JSON.stringify(e)+'\n');return e};
+ const event=async(d,stage,status,details)=>{const s=stamp(),e={...s,runId:d.runId,projectId:d.projectId,stage,status,...(details||{})};e.wallClockMs=e.epochMs-d.startedMs;const log=J(d.logDir,'events.jsonl');(await hostNeed('FileSystem','mkdir').mkdir(d.logDir,{recursive:true}));const old=(await exists(log))?await hostReadText(log):'';await hostNeed('FileSystem','writeFile').writeFile(log,old+JSON.stringify(e)+'\n');return e};
  // The source file as pipeline.py's source_identity sees it (path, size, mtime in ns, inode). pipeline.py resolves
  // symlinks and reads whole-ns mtimes, so a run it wrote may not match here: that cutout is then made once more.
- const identity=path=>{const s=hostNeed('FileSystem','statSync').statSync(path);return{path:String(path),size:Number(s.size),mtimeNs:Math.round(Number(s.mtimeMs)*1e6),inode:Number(s.ino)}};
+ const identity=async path=>{const s=(await hostNeed('FileSystem','stat').stat(path));return{path:String(path),size:Number(s.size),mtimeNs:Math.round(Number(s.mtimeMs)*1e6),inode:Number(s.ino)}};
  const same=(a,b)=>!!a&&!!b&&a.path===b.path&&a.size===b.size&&a.mtimeNs===b.mtimeNs&&a.inode===b.inode;
  // The latest finished cutout of this very stretch in this project, if any (pipeline.py find_reusable).
- const reusable=async(pid,id,start,exclude)=>{const root=J(store,'runs');let names=[];try{names=hostNeed('FileSystem','readdirSync').readdirSync(root)}catch{return null}
-  const records=names.map(n=>J(root,n,'run.json')).filter(exists).map(p=>{try{return[p,Number(hostNeed('FileSystem','statSync').statSync(p).mtimeMs)]}catch{return[p,0]}}).sort((a,b)=>b[1]-a[1]);
+ const reusable=async(pid,id,start,exclude)=>{const root=J(store,'runs');let names=[];try{names=(await hostNeed('FileSystem','readdir').readdir(root))}catch{return null}
+  const records=[];
+  for(const name of names){const p=J(root,name,'run.json');if(!await exists(p))continue;let modified=0;try{modified=Number((await hostNeed('FileSystem','stat').stat(p)).mtimeMs)}catch{}records.push([p,modified]);}
+  records.sort((a,b)=>b[1]-a[1]);
   for(const [p] of records){try{const old=await read(p,{}),mask=old.mask||{};
    if(old.runId===exclude||old.projectId!==pid||!same(old.sourceIdentity,id)||Number(old.settings?.subjectStartSec??-1)!==start)continue;
    if(!(mask.provenanceOk||(mask.provenanceSsim||0)>=.97)||!mask.count)continue;
-   let all=true;for(let i=1;i<=mask.count&&all;i++)all=exists(J(mask.path,'mask_'+String(i).padStart(6,'0')+'.png'));
+   let all=true;for(let i=1;i<=mask.count&&all;i++)all=(await exists(J(mask.path,'mask_'+String(i).padStart(6,'0')+'.png')));
    if(all)return old}catch{/* the next one */}}
   return null};
- const reuse=async d=>{const id=identity(d.source.path),start=Number(d.settings.subjectStartSec),old=await reusable(d.projectId,id,start,d.runId);
-  if(old){const patch={phase:'maskReady',mask:old.mask,sourceIdentity:id,cutoutMode:'reused',reusedFromRunId:old.runId};if(old.foregroundPath&&exists(old.foregroundPath)&&old.foregroundVersion===2)Object.assign(patch,{foregroundPath:old.foregroundPath,foregroundVersion:2});Object.assign(d,patch);await save(d);await event(d,'cutout','reused',{previousRunId:old.runId});return d}
+ const reuse=async d=>{const id=(await identity(d.source.path)),start=Number(d.settings.subjectStartSec),old=await reusable(d.projectId,id,start,d.runId);
+  if(old){const patch={phase:'maskReady',mask:old.mask,sourceIdentity:id,cutoutMode:'reused',reusedFromRunId:old.runId};if(old.foregroundPath&&(await exists(old.foregroundPath))&&old.foregroundVersion===2)Object.assign(patch,{foregroundPath:old.foregroundPath,foregroundVersion:2});Object.assign(d,patch);await save(d);await event(d,'cutout','reused',{previousRunId:old.runId});return d}
   d.sourceIdentity=id;await save(d);return d};
  const ops={
   load:a=>locked(async()=>{if(a.runId)return load(a.runId);const rid=(await read(J(store,'active-runs.json'),{}))[a.projectId];return rid?load(rid):null}),
@@ -288,9 +275,9 @@ function pcLedger(store,{sfx=async()=>({}),now=()=>Date.now(),newId=()=>crypto.r
     if(old.phase==='exportFailed'&&!['failed','canceled','cancelled'].includes(a.verifiedExportTerminalStatus))throw Error('Confirm the previous Export is terminal before starting a new run.');
     if(old.phase==='generationFailed'&&!['failed','canceled','cancelled'].includes(old.generation?.status))throw Error('Generation status remains uncertain; do not submit again.');
    }else if(old&&!['complete','abandoned'].includes(old.phase))return old;
-   const rid=newId(),dir=runpath(rid);if(exists(dir))throw Error('Run folder already exists');
+   const rid=newId(),dir=runpath(rid);if((await exists(dir)))throw Error('Run folder already exists');
    const d={...a,runId:rid,startedMs:now(),phase:'ready',logDir:J(a.logRoot||J(store,'logs'),rid),draftName:'Postcard Cutout Studio — '+rid,sfx:await sfx()};
-   hostNeed('FileSystem','mkdirSync').mkdirSync(dir,{recursive:true});await save(d);active[a.projectId]=rid;await write(path,active);await event(d,'run','start',{settings:a.settings});return reuse(d)}),
+   (await hostNeed('FileSystem','mkdir').mkdir(dir,{recursive:true}));await save(d);active[a.projectId]=rid;await write(path,active);await event(d,'run','start',{settings:a.settings});return reuse(d)}),
  };
  // The steps the other ports share (pc-port): unlocked, as pipeline.py's prepare uses them.
  ops._internal={load,save,event,identity,same,reusable,runpath};
@@ -305,21 +292,21 @@ function pcLedger(store,{sfx=async()=>({}),now=()=>Date.now(),newId=()=>crypto.r
 // temporary file instead of a pipe (runFFmpeg returns text); the cutout check reads each SSIM from ffmpeg's log, not a
 // stats_file (a C:\ path inside a filter string needs filter escaping); mp4 outputs pass -write_tmcd 0 (one stream);
 // there is no 48 KiB reply cap, so previews are not shrunk to fit one; there is no mask service: the MASK effect reads
-// the mask folder through FileSystem.pathToLocalURL; a folder's symlinks are not told apart (statSync follows them;
+// the mask folder through FileSystem.pathToLocalURL; a folder's symlinks are not told apart (stat follows them;
 // the 10,000-file cap still bounds the walk). `roots` is hostRoots(...) ({plugin, data}); `ledger` is pcLedger(data).
 const PC_MOVING=['.mp4','.mov','.mkv','.webm','.m4v'],PC_MEDIA=[...PC_MOVING,'.png','.jpg','.jpeg','.webp'];
 // What a failed host tool call says: the host rejects with a JSON string carrying ffmpeg's stderr.
 function pcToolError(e,log=''){let said=String(e?.message??e??'');try{const j=JSON.parse(said);said=String(j?.stderr||j?.message||said)}catch{/* plain text */}return (said.trim()||String(log).trim()).slice(-2000)||'ffmpeg failed'}
 function pcPort(roots,{ledger}){
  const store=roots.data,J=(...p)=>hostJoin(...p),fsx=m=>hostNeed('FileSystem',m);
- const exists=p=>{try{return !!fsx('existsSync').existsSync(p)}catch{return false}};
- const stat=p=>{try{return fsx('statSync').statSync(p)||null}catch{return null}};
- const isDir=s=>!!s&&(typeof s.isDirectory==='function'?!!s.isDirectory():(Number(s.mode)&0o170000)===0o040000);
- const mkdir=p=>fsx('mkdirSync').mkdirSync(p,{recursive:true});
- const rename=(a,b)=>fsx('renameSync').renameSync(a,b);
- const write=(p,d)=>fsx('writeFile').writeFile(p,d);
- const rmTree=p=>{try{fsx('rmSync').rmSync(p,{recursive:true,force:true})}catch{/* left behind */}};
- const size=p=>Number(stat(p)?.size)||0;
+ const exists=async p=>{try{return !!(await fsx('exists').exists(p))}catch{return false}};
+ const stat=async p=>{try{return (await fsx('stat').stat(p))||null}catch{return null}};
+ const isDir=s=>!!s&&s.isDirectory===true;
+ const mkdir=async p=>(await fsx('mkdir').mkdir(p,{recursive:true}));
+ const rename=async (a,b)=>(await fsx('rename').rename(a,b));
+ const write=async (p,d)=>(await fsx('writeFile').writeFile(p,d));
+ const rmTree=async p=>{try{(await fsx('rm').rm(p,{recursive:true,force:true}))}catch{/* left behind */}};
+ const size=async p=>Number((await stat(p))?.size)||0;
  const base=p=>String(p).split(/[\\/]/).pop()||'';
  const suffix=p=>{const n=base(p),i=n.lastIndexOf('.');return i>0?n.slice(i).toLowerCase():''};
  const stem=p=>{const n=base(p),i=n.lastIndexOf('.');return i>0?n.slice(0,i):n};
@@ -330,15 +317,15 @@ function pcPort(roots,{ledger}){
  const sha256=async v=>{const d=await subtle().digest('SHA-256',typeof v==='string'?new TextEncoder().encode(v):v);return Array.from(new Uint8Array(d),b=>b.toString(16).padStart(2,'0')).join('')};
  const b64=bytes=>{let s='';for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));return btoa(s)};
  const head=async(p,n)=>{const r=hostApi('FileSystem','readRange');if(r){try{return hostBytes(await r.readRange(p,0,n))}catch{/* whole file */}}return (await hostReadBytes(p)).subarray(0,n)};
- const scratch=(e,dir=J(store,'tmp'))=>{mkdir(dir);return J(dir,'pc-'+uuid()+e)};
- const drop=async p=>{if(exists(p))await hostRemove(p)};
+ const scratch=async (e,dir=J(store,'tmp'))=>{(await mkdir(dir));return J(dir,'pc-'+uuid()+e)};
+ const drop=async p=>{if((await exists(p)))await hostRemove(p)};
  // ffmpeg's log (stderr) of one run; throws its tail when it fails.
  const ffmpeg=async(args,timeoutMs=180000)=>{const rt=hostNeed('Runtime','runFFmpeg'),c=new AbortController(),t=setTimeout(()=>c.abort(),timeoutMs);let log='';
   try{const r=await rt.runFFmpeg(args,true,c.signal,undefined,x=>{log+=String(x)});return String(r?.stderr||'')||log}catch(e){throw Error(pcToolError(e,log))}finally{clearTimeout(t)}};
  const ffprobe=async args=>String((await hostNeed('Runtime','runFFprobe').runFFprobe(args,true))?.stdout||'');
  const quietProbe=args=>ffprobe(args).catch(()=>'');
  // ffmpeg output into a temporary file, read back as bytes (the file is removed).
- const grab=async(args,e='.jpg',timeoutMs)=>{const out=scratch(e);try{await ffmpeg([...args,out],timeoutMs);const b=await hostReadBytes(out);if(!b.length)throw Error('ffmpeg wrote nothing');return b}finally{await drop(out)}};
+ const grab=async(args,e='.jpg',timeoutMs)=>{const out=(await scratch(e));try{await ffmpeg([...args,out],timeoutMs);const b=await hostReadBytes(out);if(!b.length)throw Error('ffmpeg wrote nothing');return b}finally{await drop(out)}};
  const pool=async(items,n,f)=>{const out=new Array(items.length);let next=0;await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{while(next<items.length){const i=next++;out[i]=await f(items[i],i)}}));return out};
  const locks=new Map(),lock=(key,f)=>{const prev=locks.get(key)||Promise.resolve(),r=prev.then(f,f);locks.set(key,r.catch(()=>{}));return r};
  const seconds=v=>{const n=Number.parseFloat(v);return n>0?n:null};
@@ -347,23 +334,23 @@ function pcPort(roots,{ledger}){
  const L=ledger._internal;
  const sfxDir=J(store,'sfx'),HOLD_ROOT=J(store,'held'),INPUT_ROOT=J(store,'cutout-inputs');
  // --- sounds (unpack_sound / sfx_manifest) ---
- const unpack=async(v,dest)=>{const src=J(roots.plugin,'sfx',v.file+'.b64');if(exists(dest)||!exists(src))return;
+ const unpack=async(v,dest)=>{const src=J(roots.plugin,'sfx',v.file+'.b64');if((await exists(dest))||!(await exists(src)))return;
   const bin=atob((await hostReadText(src)).replace(/\s+/g,'')),data=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)data[i]=bin.charCodeAt(i);
   if(await sha256(data)!==v.sha256)throw Error('Bundled sound does not match its manifest: '+v.file);
-  mkdir(sfxDir);const t=dest+'.tmp-'+Date.now();await write(t,data);rename(t,dest)};
- const sfx=async()=>{const path=J(roots.plugin,'sfx','manifest.json'),manifest=exists(path)?JSON.parse(await hostReadText(path)):{},out={};
+  (await mkdir(sfxDir));const t=dest+'.tmp-'+Date.now();await write(t,data);(await rename(t,dest))};
+ const sfx=async()=>{const path=J(roots.plugin,'sfx','manifest.json'),manifest=(await exists(path))?JSON.parse(await hostReadText(path)):{},out={};
   for(const [key,v] of Object.entries(manifest)){const f=J(sfxDir,v.file);await unpack(v,f);
-   if(exists(f)){out[key]={path:f,duration:v.duration,soundSeconds:'soundSeconds' in v?v.soundSeconds:v.duration};for(const k of ['sixteenth','ticks'])if(k in v)out[key][k]=v[k]}}
+   if((await exists(f))){out[key]={path:f,duration:v.duration,soundSeconds:'soundSeconds' in v?v.soundSeconds:v.duration};for(const k of ['sixteenth','ticks'])if(k in v)out[key][k]=v[k]}}
   return out};
  // --- folder listing (folder_media) ---
- const folderMedia=async a=>{const root=String(a.path);if(!isDir(stat(root)))throw Error(stat(root)?'Choose a folder, not an individual file.':'That folder could not be found.');
-  const files=[],list=fsx('readdirSync');let unreadable=0,limited=false,visited=0;
-  const walk=(folder,rel)=>{let names;try{names=list.readdirSync(folder).map(String).sort()}catch{unreadable++;return}
-   const dirs=[];for(const name of names){const p=J(folder,name),s=stat(p);if(isDir(s)){if(!name.startsWith('.'))dirs.push(name);continue}
+ const folderMedia=async a=>{const root=String(a.path);if(!isDir((await stat(root))))throw Error((await stat(root))?'Choose a folder, not an individual file.':'That folder could not be found.');
+  const files=[],list=fsx('readdir');let unreadable=0,limited=false,visited=0;
+  const walk=async (folder,rel)=>{let names;try{names=(await list.readdir(folder)).map(String).sort()}catch{unreadable++;return}
+   const dirs=[];for(const name of names){const p=J(folder,name),s=(await stat(p));if(isDir(s)){if(!name.startsWith('.'))dirs.push(name);continue}
     if(++visited>10000){limited=true;return}
     if(!name.startsWith('.')&&PC_MEDIA.includes(suffix(name)))files.push([p,rel?J(rel,name):name])}
-   for(const d of dirs){if(limited)return;walk(J(folder,d),rel?J(rel,d):d)}};
-  walk(root,'');
+   for(const d of dirs){if(limited)return;(await walk(J(folder,d),rel?J(rel,d):d))}};
+  (await walk(root,''));
   const offset=Math.max(0,Math.trunc(Number(a.offset)||0)),query=String(a.query??'').toLowerCase(),hits=files.filter(([,rel])=>rel.toLowerCase().includes(query));
   return {path:root,name:base(root.replace(/[\\/]+$/,'')),total:hits.length,limited,unreadable,rows:hits.slice(offset,offset+24).map(([p,rel])=>({path:p,name:base(p),relativePath:rel,resourceId:'local:'+p}))}};
  // --- previews and sizes (probe / tile_preview / strip_preview / shown_size / sizes) ---
@@ -375,14 +362,14 @@ function pcPort(roots,{ledger}){
   return {...meta,thumb:b64(bytes)}};
  const strip=async a=>{const path=a.path,count=Math.min(10,Math.max(2,Math.trunc(Number(a.count??10))||0)),d=(await probe(path)).durationSeconds||0;
   if(d<=0)throw Error('Could not read the video duration.');
-  const key=await sha256(JSON.stringify([L.identity(path),count,'square-strip-v2'])),cache=J(store,'preview-cache',key+'.json');
-  if(exists(cache)){try{return JSON.parse(await hostReadText(cache))}catch{/* made again */}}
+  const key=await sha256(JSON.stringify([(await L.identity(path)),count,'square-strip-v2'])),cache=J(store,'preview-cache',key+'.json');
+  if((await exists(cache))){try{return JSON.parse(await hostReadText(cache))}catch{/* made again */}}
   const times=Array.from({length:count},(_,i)=>d*(i+.5)/count);
   const frames=await pool(times,2,async t=>{try{return await grab(['-v','error','-y','-threads','1','-ss',String(t),'-i',path,'-an','-vf','scale=144:144:force_original_aspect_ratio=increase,crop=144:144','-frames:v','1','-q:v','5','-f','image2pipe','-vcodec','mjpeg'],'.jpg',12000)}catch{throw Error('Could not decode a preview frame. Hover again to retry.')}});
   const joined=new Uint8Array(frames.reduce((n,f)=>n+f.length,0));let at=0;for(const f of frames){joined.set(f,at);at+=f.length}
-  const input=scratch('.mjpeg');await write(input,joined);
+  const input=(await scratch('.mjpeg'));await write(input,joined);
   try{const sheet=await grab(['-v','error','-y','-f','image2pipe','-vcodec','mjpeg','-i',input,'-vf','scale=144:144,tile='+count+'x1','-frames:v','1','-q:v','16','-f','image2pipe','-vcodec','mjpeg'],'.jpg',12000);
-   const result={strip:b64(sheet),count,times};mkdir(J(store,'preview-cache'));await write(cache,JSON.stringify(result));return result}
+   const result={strip:b64(sheet),count,times};(await mkdir(J(store,'preview-cache')));await write(cache,JSON.stringify(result));return result}
   catch{throw Error('Could not make the preview. Hover again to retry.')}finally{await drop(input)}};
  // Whether a JPEG's EXIF orientation shows it turned a quarter (tags 5-8), from its first 256 KiB.
  const exifTurned=async path=>{try{const b=await head(path,262144),u16=(o,le)=>le?b[o]|b[o+1]<<8:b[o]<<8|b[o+1],u32=(o,le)=>le?(b[o]|b[o+1]<<8|b[o+2]<<16|b[o+3]<<24)>>>0:(b[o]<<24|b[o+1]<<16|b[o+2]<<8|b[o+3])>>>0;
@@ -398,57 +385,57 @@ function pcPort(roots,{ledger}){
  // --- holds, silent copies, the cutout input (hold_clip / silent_copy / cutout_input) ---
  const mp4=p=>['.mp4','.mov','.m4v'].includes(suffix(p))?['-write_tmcd','0']:[];
  const keyOf=async(parts)=>(await sha256(JSON.stringify(parts))).slice(0,24);
- const silent=async path=>{if(!exists(path))throw Error('That file could not be found.');const streams=(await quietProbe(['-v','error','-select_streams','a','-show_entries','stream=index','-of','csv=p=0',path])).trim();if(!streams)return path;
-  const s=stat(path),key=await keyOf([path,Number(s.size),Math.floor(Number(s.mtimeMs)/1000),'silent-v1']);mkdir(HOLD_ROOT);
+ const silent=async path=>{if(!(await exists(path)))throw Error('That file could not be found.');const streams=(await quietProbe(['-v','error','-select_streams','a','-show_entries','stream=index','-of','csv=p=0',path])).trim();if(!streams)return path;
+  const s=(await stat(path)),key=await keyOf([path,Number(s.size),Math.floor(Number(s.mtimeMs)/1000),'silent-v1']);(await mkdir(HOLD_ROOT));
   const dest=J(HOLD_ROOT,ascii(stem(path),'Clip')+' - silent - '+key+suffix(path));
-  if(!exists(dest)){const tmp=J(HOLD_ROOT,'silent-'+uuid()+suffix(path));
+  if(!(await exists(dest))){const tmp=J(HOLD_ROOT,'silent-'+uuid()+suffix(path));
    try{await ffmpeg(['-v','error','-y','-i',path,'-map','0:v:0','-c','copy','-an','-map_metadata','-1',...mp4(tmp),tmp],120000)}catch(e){await drop(tmp);throw Error('Could not make a silent copy of this clip: '+String(e.message).slice(0,400))}
-   if(!exists(tmp))throw Error('Could not make a silent copy of this clip.');rename(tmp,dest)}
+   if(!(await exists(tmp)))throw Error('Could not make a silent copy of this clip.');(await rename(tmp,dest))}
   return dest};
- const hold=async a=>{const path=String(a.path);if(!exists(path))throw Error('That file could not be found.');const target=Number(a.target??8.5),start=Math.max(0,Number(a.start||0)),info=await probe(path),duration=info.durationSeconds||0;
+ const hold=async a=>{const path=String(a.path);if(!(await exists(path)))throw Error('That file could not be found.');const target=Number(a.target??8.5),start=Math.max(0,Number(a.start||0)),info=await probe(path),duration=info.durationSeconds||0;
   const plays=moving(path)?Math.max(0,Math.min(target,duration-start)):0,r3=x=>Math.round(x*1000)/1000;
   if(moving(path)&&plays>=target-.02){if(a.silent){const quiet=await silent(path);if(quiet!==path)return{path:quiet,name:base(quiet),held:false,silenced:true,playedSeconds:r3(plays),durationSeconds:duration,width:info.width,height:info.height,start}}
    return{path,held:false,playedSeconds:r3(plays),durationSeconds:duration,width:info.width,height:info.height,start}}
-  const s=stat(path),key=await keyOf([path,Number(s.size),Math.floor(Number(s.mtimeMs)/1000),r3(start),r3(target),'hold-v1']);mkdir(HOLD_ROOT);
+  const s=(await stat(path)),key=await keyOf([path,Number(s.size),Math.floor(Number(s.mtimeMs)/1000),r3(start),r3(target),'hold-v1']);(await mkdir(HOLD_ROOT));
   const dest=J(HOLD_ROOT,ascii(stem(path),'Subject')+' - held '+target.toFixed(2)+'s - '+key+'.mp4');
-  if(!exists(dest)){const even='scale=trunc(iw/2)*2:trunc(ih/2)*2',enc=['-c:v','libx264','-preset','ultrafast','-crf','18','-pix_fmt','yuv420p','-write_tmcd','0'];let cmd;
+  if(!(await exists(dest))){const even='scale=trunc(iw/2)*2:trunc(ih/2)*2',enc=['-c:v','libx264','-preset','ultrafast','-crf','18','-pix_fmt','yuv420p','-write_tmcd','0'];let cmd;
    if(moving(path)){if(plays<=0)throw Error('The chosen start is past the end of this video.');cmd=['-v','error','-y','-ss',String(start),'-t',String(plays),'-i',path,'-an','-vf','tpad=stop_mode=clone:stop_duration='+Math.max(0,target-plays).toFixed(3)+',fps=30,'+even,...enc]}
    else cmd=['-v','error','-y','-loop','1','-i',path,'-t',String(target),'-an','-vf','fps=30,'+even,...enc];
    const tmp=J(HOLD_ROOT,'hold-'+uuid()+'.mp4');
    try{await ffmpeg([...cmd,tmp],180000)}catch(e){await drop(tmp);throw Error('Could not extend this clip to fill the postcard: '+String(e.message).slice(0,400))}
-   if(!exists(tmp))throw Error('Could not extend this clip to fill the postcard.');rename(tmp,dest)}
+   if(!(await exists(tmp)))throw Error('Could not extend this clip to fill the postcard.');(await rename(tmp,dest))}
   const out=await probe(dest);return{path:dest,name:base(dest),held:true,playedSeconds:r3(plays),durationSeconds:out.durationSeconds,width:out.width,height:out.height,start:0}};
- const cutoutInput=async a=>{const path=String(a.path);if(!exists(path))throw Error('That file could not be found.');const start=Math.max(0,Number(a.start||0)),secs=Number(a.seconds);
-  if(a.projectId&&await L.reusable(a.projectId,L.identity(path),start))return{reusable:true};
-  const s=stat(path),key=await keyOf([path,Number(s.size),Math.floor(Number(s.mtimeMs)/1000),Math.round(start*1000)/1000,Math.round(secs*1000)/1000,'cutout-input-v2']);mkdir(INPUT_ROOT);
+ const cutoutInput=async a=>{const path=String(a.path);if(!(await exists(path)))throw Error('That file could not be found.');const start=Math.max(0,Number(a.start||0)),secs=Number(a.seconds);
+  if(a.projectId&&await L.reusable(a.projectId,(await L.identity(path)),start))return{reusable:true};
+  const s=(await stat(path)),key=await keyOf([path,Number(s.size),Math.floor(Number(s.mtimeMs)/1000),Math.round(start*1000)/1000,Math.round(secs*1000)/1000,'cutout-input-v2']);(await mkdir(INPUT_ROOT));
   const dest=J(INPUT_ROOT,ascii(stem(path).replace(/ - held .*$/,''),'Subject')+' - cutout input '+start.toFixed(2)+'-'+(start+secs).toFixed(2)+'s - '+key+'.mp4');
-  if(!exists(dest)){const [num,den]=(await quietProbe(['-v','error','-select_streams','v:0','-show_entries','stream=avg_frame_rate','-of','csv=p=0',path])).trim().split('/'),fast=(Number(num)||0)/(Number(den)||1)>30.5;
+  if(!(await exists(dest))){const [num,den]=(await quietProbe(['-v','error','-select_streams','v:0','-show_entries','stream=avg_frame_rate','-of','csv=p=0',path])).trim().split('/'),fast=(Number(num)||0)/(Number(den)||1)>30.5;
    const tmp=J(INPUT_ROOT,'input-'+uuid()+'.mp4');
    try{await ffmpeg(['-v','error','-y','-ss',String(start),'-i',path,'-t',String(secs),'-map','0:v:0','-an','-map_metadata','-1','-vf',(fast?'fps=30,':'')+'scale=trunc(iw/2)*2:trunc(ih/2)*2','-c:v','libx264','-preset','veryfast','-crf','18','-pix_fmt','yuv420p','-movflags','+faststart','-write_tmcd','0',tmp],180000)}
    catch(e){await drop(tmp);throw Error('Could not prepare the subject for background removal: '+String(e.message).slice(0,400))}
-   if(!exists(tmp))throw Error('Could not prepare the subject for background removal.');rename(tmp,dest)}
+   if(!(await exists(tmp)))throw Error('Could not prepare the subject for background removal.');(await rename(tmp,dest))}
   return{path:dest,name:base(dest)}};
  // --- the finished cutout (fetch_result): the app's job journal names its URL; the host downloads it ---
- const journals=()=>{const home=fsx('homedir').homedir(),roots=hostIsWindows()?[J(home,'AppData','Roaming')]:[J(home,'Library','Application Support')],out=[],ls=p=>{try{return fsx('readdirSync').readdirSync(p).map(String).sort()}catch{return[]}};
-  const json=dir=>ls(dir).filter(n=>/\.json$/i.test(n)).map(n=>J(dir,n));
-  for(const r of roots){const apps=ls(r).filter(n=>n.startsWith('Cutback')).map(n=>J(r,n));for(const a of apps)out.push(...json(J(a,'generation')));for(const a of apps)for(const sub of ls(a))out.push(...json(J(a,sub,'generation')))}
+ const journals=async ()=>{const home=fsx('homedir').homedir(),roots=hostIsWindows()?[J(home,'AppData','Roaming')]:[J(home,'Library','Application Support')],out=[],ls=async p=>{try{return (await fsx('readdir').readdir(p)).map(String).sort()}catch{return[]}};
+  const json=async dir=>(await ls(dir)).filter(n=>/\.json$/i.test(n)).map(n=>J(dir,n));
+  for(const r of roots){const apps=(await ls(r)).filter(n=>n.startsWith('Cutback')).map(n=>J(r,n));for(const a of apps)out.push(...(await json(J(a,'generation'))));for(const a of apps)for(const sub of (await ls(a)))out.push(...(await json(J(a,sub,'generation'))))}
   return out};
- const fetchResult=async a=>{const job=String(a.jobId).replace(/^selects-/,''),dest=String(a.dest);if(exists(dest)&&size(dest)>0)return{path:dest,cached:true};
-  let url=null;for(const journal of journals()){try{const text=await hostReadText(journal);if(!text.includes(job))continue;const jobs=JSON.parse(text).jobs||{};
+ const fetchResult=async a=>{const job=String(a.jobId).replace(/^selects-/,''),dest=String(a.dest);if((await exists(dest))&&(await size(dest))>0)return{path:dest,cached:true};
+  let url=null;for(const journal of (await journals())){try{const text=await hostReadText(journal);if(!text.includes(job))continue;const jobs=JSON.parse(text).jobs||{};
    for(const entry of Array.isArray(jobs)?jobs:Object.values(jobs)){if(entry?.operationId!==job)continue;const m=/"url"\s*:\s*"(https?:\/\/[^"]+)"/.exec(JSON.stringify(((entry.snapshot||entry).provider_data||{}).result||{}));if(m){url=m[1];break}}}catch{/* the next journal */}
    if(url)break}
   if(!url)throw Error('The finished clip is not in the app journal yet.');
-  const tmp=dest.replace(/\.[^.\\/]*$/,'')+'.part';mkdir(fsx('dirname').dirname(dest));await fsx('downloadFile').downloadFile(url,tmp);
-  if(!size(tmp)){await drop(tmp);throw Error('The finished clip downloaded empty.')}rename(tmp,dest);return{path:dest,cached:false}};
+  const tmp=dest.replace(/\.[^.\\/]*$/,'')+'.part';(await mkdir(fsx('dirname').dirname(dest)));await fsx('downloadFile').downloadFile(url,tmp);
+  if(!(await size(tmp))){await drop(tmp);throw Error('The finished clip downloaded empty.')}(await rename(tmp,dest));return{path:dest,cached:false}};
  // --- the cutout check, the masks and the foreground (prepare / check_and_extract / encode_foreground) ---
  const execute=async(args,d,stage,timeoutMs=180000)=>{const t=Date.now();await L.event(d,stage,'start',{command:args});let log='',failed=null;
   try{log=await ffmpeg(args,timeoutMs)}catch(e){failed=e;log=e.message}
-  try{mkdir(d.logDir);await write(J(d.logDir,stage+'.stderr.log'),log)}catch{/* log only */}
+  try{(await mkdir(d.logDir));await write(J(d.logDir,stage+'.stderr.log'),log)}catch{/* log only */}
   await L.event(d,stage,failed?'failed':'end',{durationMs:Date.now()-t,exitCode:failed?1:0});if(failed)throw Error(stage+': '+String(log).slice(-2000));return log};
  const fgSeconds=d=>Number(d.foregroundSeconds||6.45);
  const fgDest=d=>{const s=Number(d.settings.subjectStartSec);return J(L.runpath(d.runId),'Cutout Foreground - '+ascii(stem(d.source.name),'Subject')+' - '+s.toFixed(3)+'-'+(s+fgSeconds(d)).toFixed(3)+'s - Alpha.webm')};
  const encodeForeground=async(d,alphaInput,alphaChain,fps)=>{const w=Math.trunc(Number(d.source.frameSize.width)),h=Math.trunc(Number(d.source.frameSize.height));
-  if(w%2||h%2)throw Error('Foreground encoding requires even source dimensions');if(exists(fgDest(d)))throw Error('Uncommitted foreground file preserved; inspect before retrying');
+  if(w%2||h%2)throw Error('Foreground encoding requires even source dimensions');if((await exists(fgDest(d))))throw Error('Uncommitted foreground file preserved; inspect before retrying');
   const tmp=J(L.runpath(d.runId),'foreground-'+uuid()+'.webm');
   const fc='[0:v]fps='+fps+',format=gbrp[rgb];'+alphaChain+',scale='+w+':'+h+",format=gray,split[a][m0];[m0]lut=y='if(gt(val,0),255,0)',format=gbrp[m];color=black:s="+w+'x'+h+':r='+fps+',format=gbrp[k];[k][rgb][m]maskedmerge[z];[z][a]alphamerge,format=yuva420p[out]';
   await execute(['-v','error','-ss',String(Number(d.settings.subjectStartSec)),'-i',d.source.path,...alphaInput,'-filter_complex',fc,'-map','[out]','-t',String(fgSeconds(d)),'-an','-c:v','libvpx-vp9','-crf','18','-b:v','0','-deadline','realtime','-cpu-used','8','-row-mt','1','-auto-alt-ref','0',tmp],d,'foreground-encode');
@@ -456,7 +443,7 @@ function pcPort(roots,{ledger}){
   if(String(tags.alpha_mode??tags.ALPHA_MODE??'0')!=='1')throw Error('The foreground was written without alpha.');
   await execute(['-v','error','-c:v','libvpx-vp9','-i',tmp,'-frames:v','1','-vf','alphaextract','-f','null','-'],d,'foreground-alpha-verify');
   return tmp};
- const commitForeground=(d,tmp)=>{const dest=fgDest(d);rename(tmp,dest);d.foregroundPath=dest;d.foregroundVersion=2;return dest};
+ const commitForeground=async (d,tmp)=>{const dest=fgDest(d);(await rename(tmp,dest));d.foregroundPath=dest;d.foregroundVersion=2;return dest};
  // One decode of each file does the whole check and writes the masks. Each window's SSIM is the summary ffmpeg logs at
  // the end (the mean over frames, as pipeline.py averages its stats file); the ssim filters are numbered in the order
  // they are added, so the Nth one logged belongs to the Nth offset.
@@ -466,41 +453,41 @@ function pcPort(roots,{ledger}){
   const log=await execute(['-hide_banner','-nostats','-v','info','-y','-ss',String(s0),'-t',String(span),'-i',src,'-t',String(dur),...decoder,'-i',cut,'-filter_complex',g.join(';'),'-map','[png]','-vsync','0',J(masks,'mask_%06d.png')],d,'cutout-check');
   const found=[...String(log).matchAll(/\[Parsed_ssim_(\d+) @ [^\]]*\] SSIM [^\n]*?All:([0-9.]+)/g)].map(m=>[Number(m[1]),Number(m[2])]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
   return offsets.map((_,i)=>found[i]??0)};
- const masksIn=dir=>{try{return fsx('readdirSync').readdirSync(dir).map(String).filter(x=>/^mask_\d+\.png$/.test(x)).sort().map(x=>J(dir,x))}catch{return[]}};
+ const masksIn=async dir=>{try{return (await fsx('readdir').readdir(dir)).map(String).filter(x=>/^mask_\d+\.png$/.test(x)).sort().map(x=>J(dir,x))}catch{return[]}};
  const coverage=async img=>{const b=await grab(['-v','error','-y','-i',img,'-vf','scale=64:64','-pix_fmt','gray','-f','rawvideo'],'.raw',60000);let sum=0;for(const v of b)sum+=v;return sum/(255*b.length)};
- const localUrl=dir=>String(fsx('pathToLocalURL').pathToLocalURL(dir)).replace(/\/+$/,'');
+ const localUrl=async dir=>String((await fsx('pathToLocalURL').pathToLocalURL(dir))).replace(/\/+$/,'');
  const prepare=async a=>{let d=await L.load(a.runId);const dest=J(L.runpath(d.runId),'masks');
   if(a.patch){Object.assign(d,a.patch);await L.save(d);if(a.details!=null)await L.event(d,'generation','end',a.details)}
-  if(d.sourceIdentity&&!L.same(d.sourceIdentity,L.identity(a.sourcePath)))throw Error('The source file changed during creation. The existing job is preserved; no new generation was submitted.');
-  if(d.mask&&isDir(stat(dest)))return d;
-  if(exists(dest))throw Error('Existing mask folder preserved; inspect interrupted run rather than overwrite it.');
+  if(d.sourceIdentity&&!L.same(d.sourceIdentity,(await L.identity(a.sourcePath))))throw Error('The source file changed during creation. The existing job is preserved; no new generation was submitted.');
+  if(d.mask&&isDir((await stat(dest))))return d;
+  if((await exists(dest)))throw Error('Existing mask folder preserved; inspect interrupted run rather than overwrite it.');
   const src=a.sourcePath,cut=a.cutoutPath,start=Number(a.startSeconds);if(a.seconds)d.foregroundSeconds=Number(a.seconds);const dur=fgSeconds(d);
   await L.event(d,'mask-prepare','start');const t=Date.now();
   await L.event(d,'cutout-probe','start',{command:['ffprobe',cut]});const p=(JSON.parse(await ffprobe(['-v','error','-select_streams','v:0','-show_entries','stream=codec_name,pix_fmt,width,height,avg_frame_rate:stream_tags','-of','json',cut])).streams||[])[0]||{};await L.event(d,'cutout-probe','end');
   const pf=String(p.pix_fmt||''),alphaTag=String(p.tags?.alpha_mode??p.tags?.ALPHA_MODE??'0'),decoder=p.codec_name==='vp9'&&alphaTag==='1'?['-c:v','libvpx-vp9']:[];
   if(!decoder.length&&!['yuva','rgba','argb','bgra','gbrap'].some(x=>pf.includes(x)))throw Error('Generated output has no decoded alpha: '+pf+'. Preserve the same job; do not regenerate.');
-  const [num,den]=String(p.avg_frame_rate).split('/').map(Number),fps=num/den,tmp=J(L.runpath(d.runId),'mask-preparing-'+uuid());mkdir(tmp);
+  const [num,den]=String(p.avg_frame_rate).split('/').map(Number),fps=num/den,tmp=J(L.runpath(d.runId),'mask-preparing-'+uuid());(await mkdir(tmp));
   const offsets=[start,...[start-.5,start-.1,start+.1,start+.5].filter(s=>s>=0)];
-  const check=(async()=>{const scores=await checkAndExtract(d,src,cut,decoder,offsets,dur,tmp,[Math.trunc(Number(p.width)),Math.trunc(Number(p.height))],fps),frames=masksIn(tmp),cover=[];
+  const check=(async()=>{const scores=await checkAndExtract(d,src,cut,decoder,offsets,dur,tmp,[Math.trunc(Number(p.width)),Math.trunc(Number(p.height))],fps),frames=(await masksIn(tmp)),cover=[];
    for(const img of frames.length?[frames[0],frames[Math.floor(frames.length/2)],frames[frames.length-1]]:[])cover.push(await coverage(img));return{scores,frames,cover}})();
   const encoded=d.foregroundPath?null:encodeForeground(d,['-t',String(dur),...decoder,'-i',cut],'[1:v]alphaextract',fps).catch(async e=>{await L.event(d,'foreground','deferred',{error:String(e?.message||e).slice(-400)});return null});
   let checked,fg=null;try{checked=await check}finally{fg=encoded?await encoded:null}
   const {scores,frames,cover}=checked,ssim=scores[0],near=scores.slice(1);
-  if(ssim<.9||near.some(x=>x>ssim+.0005)){rmTree(tmp);if(fg)await drop(fg);throw Error('Cutout does not line up with the source (SSIM '+ssim.toFixed(4)+' here; '+near.map(x=>x.toFixed(4)).join(', ')+' nearby). No Draft was created.')}
+  if(ssim<.9||near.some(x=>x>ssim+.0005)){(await rmTree(tmp));if(fg)await drop(fg);throw Error('Cutout does not line up with the source (SSIM '+ssim.toFixed(4)+' here; '+near.map(x=>x.toFixed(4)).join(', ')+' nearby). No Draft was created.')}
   if(frames.length<Math.trunc(dur*fps)-1)throw Error('Mask does not cover the foreground duration');
   if(cover.every(x=>x<.0001||x>.9999))throw Error('Mask is blank or entirely opaque; preserved output for inspection, no regeneration.');
   await L.event(d,'mask-coverage','end',{samples:cover});
-  rename(tmp,dest);
+  (await rename(tmp,dest));
   const first=J(dest,'mask_000001.png'),sig=await head(first,8).catch(()=>new Uint8Array());
   if(![0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A].every((v,i)=>sig[i]===v))throw Error('Mask file validation failed');
-  d.mask={baseUrl:localUrl(dest),fps,count:frames.length,path:dest,sourcePath:src,sourceStartSeconds:start,cutoutPath:cut,provenanceSsim:ssim,provenanceNeighbourSsim:near,provenanceOk:true};d.phase='maskReady';
-  if(fg)commitForeground(d,fg);
+  d.mask={baseUrl:(await localUrl(dest)),fps,count:frames.length,path:dest,sourcePath:src,sourceStartSeconds:start,cutoutPath:cut,provenanceSsim:ssim,provenanceNeighbourSsim:near,provenanceOk:true};d.phase='maskReady';
+  if(fg)(await commitForeground(d,fg));
   await L.save(d);await L.event(d,'mask-prepare','end',{durationMs:Date.now()-t,mask:d.mask});return d};
  const foreground=a=>lock('fg:'+a.runId,async()=>{const d=await L.load(a.runId);
-  if(d.foregroundPath&&d.foregroundVersion===2){if(!exists(d.foregroundPath))throw Error('Saved foreground file missing; inspect before retrying');return d}
-  const mask=d.mask;if(!mask||!isDir(stat(mask.path)))throw Error('Validated alpha masks required');const t=Date.now();
+  if(d.foregroundPath&&d.foregroundVersion===2){if(!(await exists(d.foregroundPath)))throw Error('Saved foreground file missing; inspect before retrying');return d}
+  const mask=d.mask;if(!mask||!isDir((await stat(mask.path))))throw Error('Validated alpha masks required');const t=Date.now();
   const tmp=await encodeForeground(d,['-framerate',String(mask.fps),'-i',J(mask.path,'mask_%06d.png')],'[1:v]format=gray',mask.fps);
-  const dest=commitForeground(d,tmp);await L.save(d);await L.event(d,'foreground','end',{durationMs:Date.now()-t,path:dest});return d});
+  const dest=(await commitForeground(d,tmp));await L.save(d);await L.event(d,'foreground','end',{durationMs:Date.now()-t,path:dest});return d});
  // Where the subject sits in its frame, 0-1 from the top left: the 2nd-98th percentile of mask coverage on each axis.
  const subjectBox=a=>lock('box:'+a.runId,async()=>{const d=await L.load(a.runId),m=d.mask||{};if('box' in m)return m.box;
   const W=160,raw=await grab(['-v','error','-y','-i',J(m.path,'mask_%06d.png'),'-vf','scale='+W+':-2,format=gray','-f','rawvideo'],'.raw',60000).catch(()=>new Uint8Array());
@@ -510,9 +497,9 @@ function pcPort(roots,{ledger}){
   let box=null;if(total){const [x0,x1]=span(cols),[y0,y1]=span(rows);box={x0:r4(x0),x1:r4(x1),y0:r4(y0),y1:r4(y1)}}
   d.mask={...m,box};await L.save(d);return box});
  // --- panel settings and the job record (settings-load / settings-save / job-record) ---
- const settingsPath=J(store,'panel-state.json'),readJson=async(p,f)=>exists(p)?JSON.parse(await hostReadText(p)):f;
+ const settingsPath=J(store,'panel-state.json'),readJson=async(p,f)=>(await exists(p))?JSON.parse(await hostReadText(p)):f;
  const settingsLoad=async a=>(await readJson(settingsPath,{}))[a.projectId]||{};
- const settingsSave=a=>lock('settings',async()=>{const all=await readJson(settingsPath,{});all[a.projectId]={...(all[a.projectId]||{}),...a.settings};mkdir(store);await write(settingsPath,JSON.stringify(all,null,2));return{saved:true}});
+ const settingsSave=a=>lock('settings',async()=>{const all=await readJson(settingsPath,{});all[a.projectId]={...(all[a.projectId]||{}),...a.settings};(await mkdir(store));await write(settingsPath,JSON.stringify(all,null,2));return{saved:true}});
  const jobRecord=async a=>{const d=await L.load(a.runId),j=await readJson(J(d.logDir,'generation-job.json'),{});if(j.jobId){d.generation={...(d.generation||{}),...j};await L.save(d)}return d};
  return {sfx,'folder-media':folderMedia,tile,strip,sizes,hold,silent:async a=>{const q=await silent(String(a.path));return{path:q,name:base(q)}},'cutout-input':cutoutInput,'fetch-result':fetchResult,
   prepare,foreground,'subject-box':subjectBox,'settings-load':settingsLoad,'settings-save':settingsSave,'job-record':jobRecord,ensure:async()=>({}),
@@ -569,29 +556,44 @@ const CUTOUT_SECONDS=1.6;
 const CREDITS_NOTICE='This sends a '+CUTOUT_SECONDS+' s clip of your subject to Selects background removal, which uses generation credits. A rebuild with the same subject and range reuses the cutout.';
 const CREDITS_DECLINED='Background removal was not started, so no credits were used. Press Resume when you are ready.';
 const TEMPLATE_CREDITS='This uses Selects generation credits. Open Postcard Cutout Studio and press Create to confirm.';
-function appServices(){const di=window.parent?.__DI__;if(!di?.MediaGeneration?.isAvailable?.())throw Error('This version of Selects cannot remove backgrounds from a panel. Update Selects.');return di;}
+
 // The library a template run was handed for its project (`context.template.libraryId`):
 // the run goes on out of sight, after the app may have moved to another page.
 const handedLibrary=new Map();
-function generationScope(pid){
-  if(handedLibrary.has(pid))return {libraryId:handedLibrary.get(pid),projectId:pid};
-  const m=String(window.parent?.location?.pathname||'').match(/\/libraries\/([^/]+)\/projects\/([^/]+)/);
-  const libraryId=(m&&decodeURIComponent(m[2])===pid?decodeURIComponent(m[1]):null)||window.parent?.__DI__?.SequenceState?.getOnScreenTab?.()?.libraryId;
-  if(!libraryId)throw Error('Could not tell which library this project is in. Reopen the project and try again.');
-  return {libraryId,projectId:pid};
-}
+function generationScope(pid){return {projectId:pid};}
 // The app's services speak in its own resource ids, which share nothing with
 // the run_script aliases the rest of this panel uses; the file path joins them.
-async function appResourceIdForPath(di,scope,path){
-  const ids=(await di.ProjectRepository.findById(scope.libraryId,scope.projectId)).getResources();
-  for(const id of ids){const res=await di.ResourceRepository.findById(scope.libraryId,id);if(res?.getVideoSources?.()?.some(v=>samePath(v.path,path)))return id;}
-  throw Error('Could not find the subject clip in this project.');
+// sdk-media-path:start
+// A bounded path lookup returning host ids for services that do not accept SDK aliases.
+async function sdkMediaByPath(sdk, projectId, path, basename = false) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw Error('Could not read the Project resources.');
+  const response = await sdk.runScript({summary:'Find Project media by path',allowCommit:false,
+    script:`const p=selects.project(${JSON.stringify(projectId)}),resources=await p.resources();
+const wanted=${JSON.stringify(path)},basename=${JSON.stringify(basename)};
+const key=value=>{const v=String(value||'').normalize('NFC').replace(/\\\\/g,'/');return /^[A-Za-z]:/.test(v)||v.startsWith('//')?v.toLowerCase():v;};
+const matches=[],walk=nodes=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.path&&(basename?key(n.path).split('/').pop()===key(wanted):key(n.path)===key(wanted))){const index=resources.findIndex(r=>r.resourceId===n.resourceId);if(index>=0)matches.push({index,name:resources[index].name,type:resources[index].type,path:n.path});}}};
+const top=await p.sourceFiles();if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);else for(const folder of top.folders||[])walk((await p.sourceFiles({folder:folder.name})).fileTree);
+if(matches.length>1)throw Error('More than one Project file matches this path.');
+return {count:resources.length,matches};`});
+  if(response.isError||!response.result||!Array.isArray(response.result.matches))throw Error(response.output||'Could not find Project media.');
+  const result=response.result,after=await sdk.call('listProjectResources',projectId);
+  if(!Array.isArray(after)||result.count!==before.length||after.length!==before.length||after.some((r,i)=>r.resourceId!==before[i].resourceId||r.name!==before[i].name||r.type!==before[i].type))throw Error('The Project files changed. Try again.');
+  return result.matches.map(row=>{
+    const resource=before[row.index];
+    if(!resource||resource.name!==row.name||resource.type!==row.type)throw Error('The Project files changed. Try again.');
+    return {resourceId:resource.resourceId,path:row.path,type:row.type};
+  });
 }
-async function appResourcePath(di,scope,id){
-  const res=await di.ResourceRepository.findById(scope.libraryId,id);
-  const path=res?.getVideoSources?.()?.find(v=>v.path)?.path;
-  if(!path)throw Error('The background-removed clip was imported, but its file could not be found.');
-  return path;
+// sdk-media-path:end
+
+async function appResourceIdForPath(sdk,scope,path){
+  const rows=await sdkMediaByPath(sdk,scope.projectId,path);
+  return rows[0]?.resourceId || null;
+}
+async function appResourcePath(sdk,scope,id){
+  const rows=await sdkSelectedMedia(sdk,scope.projectId,[{resourceId:id}]);
+  return rows[0].path;
 }
 // The steps of a run, shared by the Panel and a template run. `guard` stops the
 // work once whoever started it has moved on; `setRun` and `setStatus` report
@@ -599,7 +601,7 @@ async function appResourcePath(di,scope,id){
 function createRunner({sdk,guard,setRun=_=>{},setStatus=_=>{},confirmCredits=async _run=>{throw Error(TEMPLATE_CREDITS)}}){
 async function persist(r,patch,stage,status='end',details={}){const next=await helper(sdk,'update',{runId:r.runId,patch,stage,status,details});setRun(next);return next}
 async function claim(r,expected,patch,stage,details){const x=await helper(sdk,'claim',{runId:r.runId,expected,patch,stage,details});if(!x.claimed)throw Error('Another run already started this step. Resume that run without starting a new generation.');setRun(x.run);return x.run}
-async function generation(r,collect=false){guard(r.projectId);const di=appServices(),mg=di.MediaGeneration;
+async function generation(r,collect=false){guard(r.projectId);const mg=sdkGeneration(sdk);
 if(!collect){
   // A run already past this point ('generationSubmitting') was confirmed and resubmits under the same key.
   if(r.phase==='ready'&&!(await confirmCredits(r)))throw Object.assign(Error(CREDITS_DECLINED),{creditsDeclined:true});
@@ -609,10 +611,10 @@ if(!collect){
   // The exact stretch goes up as its own file: given a whole clip and a range,
   // the app re-encodes the range on one thread first (about 8s).
   const cut=r.cutoutInput?.path?r.cutoutInput:await helper(sdk,'cutout-input',{path:r.source.path,start:Number(r.settings.subjectStartSec)||0,seconds:CUTOUT_SECONDS});
-  let resourceId=await appResourceIdForPath(di,scope,cut.path).catch(()=>null);
+  let resourceId=await appResourceIdForPath(sdk,scope,cut.path);
   if(!resourceId){
     await runScript(sdk,'return await selects.project('+json(r.projectId)+').importFiles({paths:'+json([cut.path])+'});','Register postcard cutout input',true);
-    for(let i=0;!resourceId&&i<10;i++){resourceId=await appResourceIdForPath(di,scope,cut.path).catch(()=>null);if(!resourceId)await sleep(300);}
+    for(let i=0;!resourceId&&i<10;i++){resourceId=await appResourceIdForPath(sdk,scope,cut.path);if(!resourceId)await sleep(300);}
     if(!resourceId)throw Error('Could not find the subject clip in this project.');
   }
   // The key is fixed per run, so submitting again after a crash returns the
@@ -642,7 +644,7 @@ const out=(job.outputs||[]).find(o=>o.resourceId),file=hostIsWindows()&&job.deli
 if(!out&&!file&&job.status!=='succeeded')return r;
 // Background removal finishes with no delivered outputs (the app lists none
 // for this model), so take the clip straight from the app's job journal.
-const cutoutPath=out?await appResourcePath(di,scope,out.resourceId):file||(await helper(sdk,'fetch-result',{jobId:gen.jobId,dest:hostJoin(r.logDir,'cutout.webm')}).catch(()=>null))?.path;
+const cutoutPath=out?await appResourcePath(sdk,scope,out.resourceId):file||(await helper(sdk,'fetch-result',{jobId:gen.jobId,dest:hostJoin(r.logDir,'cutout.webm')}).catch(()=>null))?.path;
 if(!cutoutPath)return r;
 // Recorded by the next step ('prepare') in the same call that starts it; if
 // that never runs, the next check finds the job done and the clip on disk.
@@ -812,14 +814,44 @@ function templatePicks(inputs){
   if(!ending.length)throw Error('Pick at least one clip or photo for the ending, then try again.');
   return {subject,panels,ending};
 }
-// The app hands over its own Resource ids; the rest of this Panel works from
-// files, so each pick is found by its file, as appResourceIdForPath does.
-async function templateSourcePath(di,scope,pick){
-  const res=await di.ResourceRepository.findById(scope.libraryId,pick.resourceId).catch(()=>null);
-  const path=res?.getMedia?.()?.path||res?.getVideoSources?.()?.find(v=>v?.path)?.path;
-  if(!path)throw Error('Could not find the file for '+(pick.name||'a picked clip')+'. Check that it is still in the project, then try again.');
-  return path;
+// sdk-selected-media:start
+// Match host Resource ids to run_script's project-scoped ids through the SDK.
+// Return only the selected files so large Projects stay below the script result limit.
+async function sdkSelectedMedia(sdk, projectId, picks) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw Error('Could not read the Project resources.');
+  const indices = picks.map(pick => before.findIndex(row => row.resourceId === pick.resourceId));
+  if (indices.includes(-1)) throw Error('A picked file is missing from this Project.');
+  const response = await sdk.runScript({
+    summary: 'Read selected Project files', allowCommit: false,
+    script: `const p=selects.project(${JSON.stringify(projectId)});
+const resources=await p.resources(),indices=${JSON.stringify(indices)};
+const selected=indices.map(i=>resources[i]),ids=new Set(selected.filter(Boolean).map(r=>r.resourceId));
+const files=[];
+const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else if(ids.has(n.resourceId))files.push(n);};
+const top=await p.sourceFiles();
+if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);
+else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});walk(detail.fileTree);}
+return {count:resources.length,rows:selected.map(r=>r?{name:r.name,type:r.type,files:files.filter(f=>f.resourceId===r.resourceId).map(f=>({resourceId:f.resourceId,path:f.path}))}:null)};`
+  });
+  if (response.isError || !response.result || !Array.isArray(response.result.rows))
+    throw Error(response.output || 'Could not read the selected Project files.');
+  const result = response.result, after = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(after) || before.length !== result.count || after.length !== before.length ||
+      after.some((row, i) => row.resourceId !== before[i].resourceId || row.name !== before[i].name || row.type !== before[i].type) ||
+      result.rows.length !== picks.length || indices.some((index, i) =>
+        result.rows[i]?.name !== before[index].name || result.rows[i]?.type !== before[index].type))
+    throw Error('The selected Project files changed. Refresh your media and try again.');
+  return result.rows.map((row, i) => {
+    const expected = { image: 'Image', video: 'Video', audio: 'Audio' }[picks[i].kind];
+    if (expected && row.type !== expected) throw Error('A picked file has the wrong media type.');
+    if (row.files.length !== 1 || !row.files[0].path)
+      throw Error((picks[i].name || 'A picked file') + ' is missing from this Project or matches more than one file.');
+    return { ...row.files[0], resourceType: row.type };
+  });
 }
+// sdk-selected-media:end
+
 // The timeline open when the run started sets the shape, as the nearest format
 // this Panel makes; with none open, or none readable, the postcard matches the subject.
 async function templateAspect(sdk,sequenceId){
@@ -845,12 +877,10 @@ async function runTemplate({sdk,pid,template,sequenceId,guard,setStatus}){
   guard(pid);
   if(template.libraryId)handedLibrary.set(pid,template.libraryId);
   const {subject,panels,ending}=templatePicks(template.inputs);
-  const di=window.parent?.__DI__;
-  if(typeof di?.ResourceRepository?.findById!=='function')throw Error('This version of Selects cannot hand clips to this template. Update Selects.');
-  const scope=generationScope(pid);
   setStatus('Finding your clips…');
   const picks=[subject,...panels,...ending];
-  const [paths,inventory,aspect]=await Promise.all([Promise.all(picks.map(pick=>templateSourcePath(di,scope,pick))),readInventory(sdk,pid),templateAspect(sdk,sequenceId)]);
+  const [selected,inventory,aspect]=await Promise.all([sdkSelectedMedia(sdk,pid,picks),readInventory(sdk,pid),templateAspect(sdk,sequenceId)]);
+  const paths=selected.map(row=>row.path);
   guard(pid);
   // The helper reads a file's kind from its extension, as the folder picker
   // offers only these; anything else would be taken for a still.
@@ -921,7 +951,7 @@ function PostcardTemplateRun({sdk,context}){
   },[runId]);
   return <p aria-live="polite" style={{margin:0,fontSize:12,color:'var(--panel-muted-fg)'}}>{status}</p>;
 }
-export default function PostcardPanel(props){return props.context.template?<PostcardTemplateRun key={props.context.template.runId} {...props}/>:<PostcardEditor key={props.context.projectId || 'none'} {...props}/>}
+function PostcardPanel(props){bindLocalSdk(props.sdk);return props.context.template?<PostcardTemplateRun key={props.context.template.runId} {...props}/>:<PostcardEditor key={props.context.projectId || 'none'} {...props}/>}
 function PostcardEditor({sdk,context,ui}){
 const [s,setS]=useState({...DEFAULTS,bgIds:[],photoIds:[],aspect:'original',title:'MY POSTCARD'}),[rows,setRows]=useState([]),[loading,setLoading]=useState(false),[hydrated,setHydrated]=useState(true),[busy,setBusy]=useState(false),[status,setStatus]=useState(''),[run,setRun]=useState(null),[duration,setDuration]=useState(0),[sourceError,setSourceError]=useState(false),[preview,setPreview]=useState([]);
 const busyRef=useRef(false),projectRef=useRef(context.projectId);projectRef.current=context.projectId;
@@ -974,8 +1004,8 @@ async function chooseFolder(){
   if(folderBusy.current||busyRef.current||locked)return;
   folderBusy.current=true;setPicking(true);setError('');
   try{
-    const picker=window.parent?.__DI__?.CutbackMediaPicker;
-    if(typeof picker?.pickDirectoryPath!=='function'||(typeof picker.isAvailablePickDirectoryPath==='function'&&!picker.isAvailablePickDirectoryPath()))throw Error('This app version does not support choosing folders. Drop a folder here, or update Selects.');
+    const picker=panelLocalClient(sdk).dialogs;
+    if(typeof picker?.pickDirectoryPath!=='function')throw Error('This app version does not support choosing folders. Drop a folder here, or update Selects.');
     const path=await picker.pickDirectoryPath();guard(context.projectId);
     if(path){setQuery('');await readFolder(path);}
   }catch(e){setError('Could not choose a folder.');setStatus(String(e.message||e));}
@@ -1327,3 +1357,302 @@ function requestKey(s){return JSON.stringify(['subjectId','subjectStartSec','bgI
 function primaryAction(run,settings){if(!run||['complete','abandoned'].includes(run.phase))return{kind:'draft',label:settings?.forceNew?'Create Draft with a new cutout':run?'Create new Draft':'Create Draft'};const settled=['draftReady','exportFailed'].includes(run.phase)||(run.phase==='generationFailed'&&['failed','canceled','cancelled'].includes(run.generation?.status));// A postcard built by an earlier version can be built again with this one.
 const changed=requestKey(settings)!==requestKey(run.settings)||(!!run.version&&run.version!==VERSION);if(settled&&(changed||(run.phase!=='draftReady'&&settings?.forceNew)))return{kind:'new',label:settings?.forceNew?'Create Draft with a new cutout':'Create Draft with changed settings'};if(run.phase==='draftReady')return{kind:'export',label:'Export'};return{kind:'resume',label:/Failed$/.test(run.phase)?'Review status':'Resume'};}
 function phaseLabel(phase){return({ready:'Ready',generationSubmitting:'Submitting cutout generation',generationPending:'Generating cutout',cutoutReady:'Cutout ready',maskReady:'Draft assembly ready',assemblySubmitting:'Confirming Draft save',draftReady:'Draft saved',exportSubmitting:'Starting Export',exportPending:'Export running',exportRendered:'Verifying output file',complete:'Complete',generationFailed:'Generation needs review',exportFailed:'Export needs review'})[phase]||'Review run status';}
+
+// generation-sdk:start
+// Paid jobs always cross the canonical run_script boundary. This panel-local
+// adapter preserves old saved job IDs while the host owns scope and delivery.
+function sdkGeneration(sdk) {
+  if (typeof sdk?.runScript !== "function") return null;
+  const run = async (script, summary, allowCommit = false) => {
+    const response = await sdk.runScript({ script, summary, allowCommit });
+    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
+    return response?.result;
+  };
+  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
+  return {
+    isAvailable: () => true,
+    supportsPluginFiles: () => true,
+    async submit(request) {
+      if (request.batch != null && request.batch !== 1) throw new Error("Submit one generation at a time.");
+      const input = {
+        projectId: request.scope.projectId, requestKey: request.key,
+        modelId: request.modelId, input: request.input, uploads: request.uploads || {},
+        outputName: request.outputName, mediaType: request.origin?.tool || "video",
+        ...(request.inputMediaSeconds ? { inputMediaSeconds: request.inputMediaSeconds } : {}),
+        ...(request.delivery ? { delivery: { folder: request.delivery.pluginFolder } } : {}),
+      };
+      const result = await run(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
+      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
+      return { jobIds: [result.jobId] };
+    },
+    list: scope => run(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
+    cancel: (scope, id) => run(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
+    retryDelivery: (scope, id) => run(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true),
+  };
+}
+// generation-sdk:end
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(PostcardPanel);
+// local-sdk:end

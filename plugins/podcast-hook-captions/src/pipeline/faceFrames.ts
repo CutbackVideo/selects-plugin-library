@@ -1,5 +1,6 @@
+import { media } from "./host";
 // The frames face tracking reads, decoded by the ffmpeg bundled with Selects through the app's own runner
-// (di().Runtime.runFFmpeg / runFFprobe: an argument list spawned without a shell, the same on macOS and Windows).
+// (media().runFFmpeg / runFFprobe: an argument list spawned without a shell, the same on macOS and Windows).
 //
 // face_track.py read its frames through cv2.VideoCapture: it seeks to frame f0, decodes every frame and keeps every
 // step-th one, converted to BGR by swscale (bicubic, BT.601 limited range) at full size and then shrunk with
@@ -15,7 +16,7 @@
 // so the chunks see the frames one continuous decode would, as cv2 counted them, on constant- and
 // variable-frame-rate video alike.
 import { assertConstantFrameClock } from "./sharedAiFaces.cjs";
-import { di, fs } from "./host";
+import { fs } from "./host";
 
 /** Bytes of frames per ffmpeg run (two runs' worth on disk while the next is prefetched). */
 export const CHUNK_BYTES = 128 * 1024 * 1024;
@@ -35,7 +36,7 @@ export type SamplePlan = { f0: number; f1: number; step: number; w: number; h: n
 
 // ---------------------------------------------------------------- the app's ffmpeg / ffprobe runner
 function runtime(): any {
-  const rt = di().Runtime;
+  const rt = media();
   if (typeof rt?.runFFmpeg !== "function" || typeof rt?.runFFprobe !== "function") throw new Error("This Selects version cannot run ffmpeg for plug-ins. Update Selects.");
   return rt;
 }
@@ -154,14 +155,14 @@ export async function cvFrameSeek(path: string, info: VideoInfo, plan: SamplePla
   for (let tries = 0; tries < 8; tries += 1) {
     const ft = Math.max(plan.f0 - delta, 0);
     const probe: Start = { seek: Math.max(0, info.offset + ft / info.fps), keyframe: true, skip: 0 };
-    removeQuiet(stats);
+    (await removeQuiet(stats));
     await run(["-nostdin", "-hide_banner", "-v", "error", "-y", ...seekArgs(probe), "-i", path, "-map", "0:V:0", "-an", "-sn", "-dn",
       "-fps_mode", "passthrough", "-frames:v", "1", "-stats_enc_pre", stats, ...STATS_FMT, "-f", "null", "-"]);
     let t: number | null = null;
     try {
       t = sampleTime(String(await fs().readFile(stats, "utf8")), 0);
     } catch {}
-    removeQuiet(stats);
+    (await removeQuiet(stats));
     if (t == null) return null;
     const n = Math.floor(info.fps * (probe.seek + t - info.offset) + 0.5); // dts_to_frame_number
     if (n >= 0 && n <= plan.f0 - 1) return { seek: probe.seek, keyframe: true, skip: plan.f0 - n };
@@ -210,15 +211,15 @@ export function toBytes(v: any): Uint8Array {
   return new Uint8Array(0);
 }
 
-export function removeQuiet(path: string) {
+export async function removeQuiet(path: string) {
   try {
-    if (fs().existsSync(path)) fs().unlinkSync(path);
+    if ((await fs().exists(path))) (await fs().rm(path));
   } catch {}
 }
 
-function fileSize(path: string): number | null {
+async function fileSize(path: string): Promise<number | null> {
   try {
-    const st = fs().statSync(path);
+    const st = (await fs().stat(path));
     return st && typeof st.size === "number" ? st.size : null;
   } catch {
     return null;
@@ -241,14 +242,14 @@ export async function* sampleFrames(path: string, info: VideoInfo, plan: SampleP
     chunks.push({ first: s, n: Math.min(per, plan.count - s), file: base + ".bgr", stats: s + per < plan.count ? base + ".txt" : null });
   }
   if (!chunks.length) return;
-  fs().mkdirSync(workDir, { recursive: true });
+  (await fs().mkdir(workDir, { recursive: true }));
   const ac = new AbortController(); // stops a prefetch when the reader stops early
   const stop = () => ac.abort();
   if (signal) signal.addEventListener("abort", stop);
   const ffmpeg = (args: string[]) => withTimeout((s) => runtime().runFFmpeg(args, true, s), CHUNK_TIMEOUT_MS, ac.signal);
   const extract = (c: Chunk, from: Start | null): Promise<Extracted> => {
     const p = (async () => {
-      removeQuiet(c.file);
+      (await removeQuiet(c.file));
       let start = from;
       if (!start) {
         // the first chunk: where cv2's frame seek lands (by time if that cannot be worked out)
@@ -258,14 +259,14 @@ export async function* sampleFrames(path: string, info: VideoInfo, plan: SampleP
           return null;
         })) || timeStart(info, plan);
       }
-      if (c.stats) removeQuiet(c.stats);
+      if (c.stats) (await removeQuiet(c.stats));
       try {
         await ffmpeg(frameArgs(path, plan, start, c.n, c.file, c.stats));
       } catch (e) {
         if (ac.signal.aborted || !c.stats) throw e;
         // an ffmpeg without the timestamp report: decode without it, the next chunk then seeks by time
         c.stats = null;
-        removeQuiet(c.file);
+        (await removeQuiet(c.file));
         await ffmpeg(frameArgs(path, plan, start, c.n, c.file, null));
       }
       let next: Start | null = null;
@@ -275,7 +276,7 @@ export async function* sampleFrames(path: string, info: VideoInfo, plan: SampleP
           const t = sampleTime(String(await fs().readFile(c.stats, "utf8")), c.n);
           if (t != null) next = { seek: Math.max(0, start.seek + t - info.frameS / 2), keyframe: false, skip: 0 };
         } catch {}
-        removeQuiet(c.stats);
+        (await removeQuiet(c.stats));
       }
       return { c, next };
     })().catch((e) => {
@@ -290,11 +291,11 @@ export async function* sampleFrames(path: string, info: VideoInfo, plan: SampleP
     for (let k = 0; k < chunks.length; k += 1) {
       const { c, next } = await pending!;
       pending = null;
-      const size = fileSize(c.file);
+      const size = (await fileSize(c.file));
       const full = size == null || size >= c.n * fb;
       if (full && k + 1 < chunks.length) pending = extract(chunks[k + 1], next || timeStart(info, plan, chunks[k + 1].first));
       let got = 0;
-      if (fs().existsSync(c.file)) {
+      if ((await fs().exists(c.file))) {
         for (let i = 0; i < c.n; i += 1) {
           if (signal && signal.aborted) throw new Error("Face tracking was cancelled.");
           const bytes = toBytes(await fs().readRange(c.file, i * fb, fb));
@@ -303,7 +304,7 @@ export async function* sampleFrames(path: string, info: VideoInfo, plan: SampleP
           yield bytes;
         }
       }
-      removeQuiet(c.file);
+      (await removeQuiet(c.file));
       if (got < c.n) break;
     }
   } finally {
@@ -313,9 +314,9 @@ export async function* sampleFrames(path: string, info: VideoInfo, plan: SampleP
     }
     if (signal) signal.removeEventListener("abort", stop);
     for (const c of chunks) {
-      removeQuiet(c.file);
-      if (c.stats) removeQuiet(c.stats);
+      (await removeQuiet(c.file));
+      if (c.stats) (await removeQuiet(c.stats));
     }
-    removeQuiet(fs().join(workDir, "frames-" + tag + "-seek.txt"));
+    (await removeQuiet(fs().join(workDir, "frames-" + tag + "-seek.txt")));
   }
 }

@@ -100,7 +100,7 @@ export async function encode(
     child.dispose();
   }
   if (opts.outPath && opts.fs) {
-    const s = opts.fs.statSync(opts.outPath);
+    const s = (await opts.fs.stat(opts.outPath));
     if (!s || !Number(s.size)) {
       throw new FfmpegError("no-output", "ffmpeg finished but wrote no output to " + opts.outPath + ".", { args, stderrTail: tail(String(r?.stderr ?? "")) });
     }
@@ -168,7 +168,7 @@ export async function probeJson(
       return parseFfprobeJson(decodeText(await opts.fs.readFile(tmp)));
     } finally {
       try {
-        if (opts.fs.existsSync(tmp)) opts.fs.unlinkSync(tmp);
+        if ((await opts.fs.exists(tmp))) (await opts.fs.unlink(tmp));
       } catch {
       }
     }

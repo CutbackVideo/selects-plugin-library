@@ -1,99 +1,36 @@
-// Panel-only adapter to the editor's own timeline mutation service. The
-// public plugin SDK currently refuses Image Resources in overlayResource.
-// A template run passes the library it was handed (`context.template.libraryId`),
-// since it keeps running while the person moves to another page; the Panel reads
-// the open Project from the app's address.
-async function galleryNativeContext(projectId, knownLibraryId = null) {
-  const app = window.parent;
-  let libraryId = knownLibraryId;
-  if (!libraryId) {
-    const match = app.location.pathname.match(/libraries\/([^/]+)\/projects\/([^/]+)/);
-    if (!match || match[2] !== projectId) throw new Error('The open Project changed; reload its media');
-    libraryId = match[1];
-  }
-  const di = app.__DI__;
-  if (typeof di?.TimelineMutation?.run !== 'function' ||
-      typeof di?.ProjectRepository?.findById !== 'function' ||
-      typeof di?.ResourceRepository?.findById !== 'function' ||
-      typeof di?.SequenceRepository?.findById !== 'function') {
-    throw new Error('This Selects build does not expose native Image placement to plugins');
-  }
-  const project = await di.ProjectRepository.findById(libraryId, projectId);
-  if (!project) throw new Error('The open Project was not found');
-  return { di, libraryId, project };
-}
-
-async function galleryNativeResources(projectId, media, libraryId = null) {
-  const ctx = await galleryNativeContext(projectId, libraryId);
-  const members = await Promise.all(ctx.project.getResources().map(id =>
-    ctx.di.ResourceRepository.findById(ctx.libraryId, id)));
-  const selected = media.map((item, index) => {
-    const matches = members.filter(resource => resource?.getMedia()?.path === item.path &&
-      resource.getType().toLowerCase() === item.kind);
-    if (matches.length !== 1) throw new Error(`Tile ${index + 1} has no unique Project Resource at its selected path`);
-    const resource = matches[0], source = resource.getMedia();
-    if (!Number.isSafeInteger(source.width) || source.width < 1 ||
-        !Number.isSafeInteger(source.height) || source.height < 1) {
-      throw new Error(`Tile ${index + 1} has no verified image dimensions`);
-    }
-    return { ...item, width: source.width, height: source.height, nativeResource: resource };
+// Domain reads and editable Image placement use the public Project/Draft SDK.
+async function galleryNativeResources(sdk, projectId, media, libraryId = null) {
+  const result = await sdk.runScript({
+    script: `const p=selects.project(${JSON.stringify(projectId)}),resources=await p.resources(),nodes=[];
+      const visit=items=>{for(const node of items||[])node.type==='dir'?visit(node.children):nodes.push(node);};
+      const view=await p.sourceFiles();if(view.fileTree)visit(view.fileTree);else for(const folder of view.folders||[])visit((await p.sourceFiles({folder:folder.name})).fileTree);
+      return ${JSON.stringify(media)}.map((item,index)=>{const matches=nodes.filter(node=>node.path===item.path&&resources.some(r=>r.resourceId===node.resourceId&&r.type.toLowerCase()===item.kind));
+        if(matches.length!==1)throw Error('Tile '+(index+1)+' has no unique Project Resource at its selected path');
+        const row=matches[0],size=row.frameSize;
+        if(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1)throw Error('Tile '+(index+1)+' has no verified image dimensions');
+        return {...item,resourceId:row.resourceId,width:size.width,height:size.height};});`,
+    summary: 'Verify Gallery Project media', allowCommit: false,
   });
-  return { ...ctx, selected };
+  if (result.isError || !Array.isArray(result.result)) throw new Error(result.output || 'Project media could not be verified');
+  return { selected: result.result };
 }
 
-async function galleryNativeDraft(ctx, draftId) {
-  if (!ctx.project.getEditedSequences().includes(draftId)) throw new Error('Target Draft does not belong to this Project');
-  const sequence = await ctx.di.SequenceRepository.findById(ctx.libraryId, draftId);
-  if (!sequence) throw new Error('Target Draft was not found');
-  return sequence;
-}
-
-async function galleryNativeSetFps(projectId, draftId, libraryId = null) {
-  const ctx = await galleryNativeContext(projectId, libraryId);
-  const sequence = await galleryNativeDraft(ctx, draftId);
-  const outcome = await ctx.di.TimelineMutation.run(sequence, 'photoGallery:set60Fps', current => {
-    if (!current.isEmpty() || current.getDuration('resolved') !== 0) throw new Error('The new Draft is no longer empty');
-    const candidate = current.clone();
-    candidate.setMediaProperties({ frameRateRatio: { numerator: 60, denominator: 1 },
-      frameSize: { width: 1080, height: 1920 }, sampleRate: current.getSampleRate() });
-    if (candidate.getFrameRate() !== 60) throw new Error('Could not set 60 fps');
-    return candidate;
+async function galleryNativePlace(sdk, projectId, draftId, media, plan, libraryId = null) {
+  const selected = (await galleryNativeResources(sdk, projectId, media, libraryId)).selected;
+  const result = await sdk.runScript({
+    script: `const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(draftId)}),plan=${JSON.stringify(plan)},media=${JSON.stringify(selected)};
+      if(!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)}))throw Error('Target Draft does not belong to this Project');
+      const meta=await d.meta();if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames)throw Error('Gallery Draft clock or duration changed');
+      const placements=[];for(let index=0;index<plan.tiles.length;index++){const tile=plan.tiles[index];if(tile.kind!=='image')continue;
+        const before=new Set((await d.clips({trackScope:'all'})).map(c=>c.clipId));
+        await d.overlayResource({resource:p.resource(media[index].resourceId),over:await d.rangeAtFrames(tile.revealFrame,tile.endFrame)});
+        const added=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId));
+        if(added.length!==1||added[0].resourceId!==media[index].resourceId||added[0].startFrame!==tile.revealFrame||added[0].endFrame!==tile.endFrame)throw Error('Gallery Image interval changed');
+        placements.push(added[0]);}
+      if((await d.meta()).durationFrames!==plan.durationFrames)throw Error('Gallery duration changed');
+      if(placements.length)await d.commitAll('Place original Gallery Images');return {placements};`,
+    summary: 'Place original Gallery Images', allowCommit: true, timeoutSeconds:120,
   });
-  if (outcome.status !== 'committed') throw new Error(`60 fps change ${outcome.status}; inspect the Draft before retrying`);
-}
-
-async function galleryNativePlace(projectId, draftId, media, plan, libraryId = null) {
-  const imageTiles = plan.tiles.map((tile, i) => ({ tile, media: media[i], index: i })).filter(item => item.tile.kind === 'image');
-  if (!imageTiles.length) return;
-  const ctx = await galleryNativeResources(projectId, imageTiles.map(item => item.media), libraryId);
-  const prepared = await Promise.all(ctx.selected.map(async (item, i) => {
-    const analyzed = await item.nativeResource.getAnalyzedSequence();
-    const main = analyzed?.getMainTrack();
-    const primary = main?.getClips().find(clip => !clip.isGap());
-    if (!analyzed || !main || !primary) throw new Error(`Tile ${imageTiles[i].index + 1} has no native placement source`);
-    return { analyzed, main, primary, resource: item.nativeResource };
-  }));
-  const sequence = await galleryNativeDraft(ctx, draftId);
-  const outcome = await ctx.di.TimelineMutation.run(sequence, 'photoGallery:place21Resources', current => {
-    if (current.getFrameRate() !== 60 || current.getDuration('resolved') !== plan.durationFrames) {
-      throw new Error('Gallery Draft clock or duration changed');
-    }
-    const candidate = current.clone();
-    for (let i = 0; i < imageTiles.length; i++) {
-      const tile = imageTiles[i].tile, item = prepared[i], slot = imageTiles[i].index + 1;
-      const ids = candidate.place({ working: item.analyzed, primaryTrack: item.main,
-        primaryOffset: 0, primaryClipId: item.primary.getId() }, tile.revealFrame, { kind: 'overlay' });
-      if (ids.length !== 1) throw new Error(`Tile ${slot} did not create one independent clip`);
-      const position = candidate.getClipPositionById(ids[0]);
-      const wanted = plan.durationFrames - tile.revealFrame;
-      if (!position || wanted < 1) throw new Error(`Tile ${slot} has no valid source range`);
-      const result = candidate.trimClipBoundary({ trackId: position.trackId, clipId: ids[0],
-        position: 'end', delta: wanted - position.clip.getDuration(), sourceDuration: wanted });
-      if (result.trimmedClipPosition?.clip.getDuration() !== wanted) {
-        throw new Error(`Tile ${slot} did not reach the output end`);
-      }
-    }
-    return candidate;
-  });
-  if (outcome.status !== 'committed') throw new Error(`Image placement ${outcome.status}; inspect the Draft before retrying`);
+  if (result.isError || !result.result) throw new Error(result.output || 'Image placement could not be confirmed; inspect the Draft before retrying');
+  return result.result;
 }

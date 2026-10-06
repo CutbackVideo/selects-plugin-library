@@ -13,142 +13,64 @@
 // @icon image
 // Build a native, editable 3×7 photo/video gallery in the current Selects project.
 import React from 'react';
-const SCRIPT_PREFIX = "// Pure Photo Gallery contract. All frame values use the 60 fps output clock.\nconst REFERENCE = Object.freeze({\n  width: 1080,\n  height: 1920,\n  fps: 60,\n  durationFrames: 853,\n  nominalBpm: 113,\n  colorFrame: 270,\n  revealFrames: Object.freeze([0, 12, 23, 36, 45, 52, 62, 73, 81, 90, 100, 113, 122, 133, 143, 151, 161, 172, 182, 192, 205]),\n});\n\nfunction assertPositiveInteger(value, label) {\n  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a positive integer`);\n}\n\nfunction validateMedia(media) {\n  if (!Array.isArray(media) || media.length !== 21) throw new Error('Exactly 21 visual media slots are required');\n  return media.map((item, index) => {\n    if (!item || !['image', 'video'].includes(item.kind)) throw new Error(`Slot ${index + 1} needs an Image or Video Resource`);\n    if (typeof item.resourceId !== 'string' || !item.resourceId.trim()) throw new Error(`Slot ${index + 1} needs a resource ID`);\n    assertPositiveInteger(item.width, `Slot ${index + 1} width`);\n    assertPositiveInteger(item.height, `Slot ${index + 1} height`);\n    const focusX = item.focusX ?? 0.5;\n    const focusY = item.focusY ?? 0.5;\n    if (![focusX, focusY].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)) {\n      throw new Error(`Slot ${index + 1} focus must be between 0 and 1`);\n    }\n    if (item.kind === 'video') assertPositiveInteger(item.durationFrames, `Slot ${index + 1} durationFrames`);\n    return { ...item, focusX, focusY };\n  });\n}\n\nfunction tileRect(row, column) {\n  return {\n    left: column * 360 + 2,\n    right: (column + 1) * 360 - 2,\n    top: Math.round(row * REFERENCE.height / 7) + 2,\n    bottom: Math.round((row + 1) * REFERENCE.height / 7) - 2,\n  };\n}\n\nfunction planGallery(input) {\n  if (!input || typeof input !== 'object') throw new Error('Gallery input is required');\n  const media = validateMedia(input.media);\n  const durationFrames = input.durationFrames ?? REFERENCE.durationFrames;\n  assertPositiveInteger(durationFrames, 'durationFrames');\n  if (media.some((item) => item.kind === 'video' && item.durationFrames < durationFrames)) {\n    throw new Error('A selected video is too short; hold its last frame (the panel does this) before planning');\n  }\n  const hasManualBpm = input.manualBpm !== undefined && input.manualBpm !== null;\n  const bpm = hasManualBpm ? Number(input.manualBpm) : Number(input.estimatedBpm);\n  if (!Number.isFinite(bpm) || bpm <= 0 || (!input.music && !hasManualBpm)) {\n    throw new Error('BPM is required; provide a manual BPM when there is no music or no reliable estimate');\n  }\n  const ratio = REFERENCE.nominalBpm / bpm;\n  const revealFrames = REFERENCE.revealFrames.map((frame) => Math.round(frame * ratio));\n  if (revealFrames.some((frame, i) => i > 0 && frame <= revealFrames[i - 1])) {\n    throw new Error('BPM is too high to show all 21 tiles in distinct output frames');\n  }\n  const colorFrame = Math.round(REFERENCE.colorFrame * ratio);\n  if (colorFrame >= durationFrames) throw new Error('Color transition would occur after the output end');\n  if (input.music) {\n    if (typeof input.music.resourceId !== 'string' || !input.music.resourceId.trim()) throw new Error('Music needs a resource ID');\n    assertPositiveInteger(input.music.durationFrames, 'Music durationFrames');\n    const musicStartFrame = input.music.startFrame ?? 0;\n    if (!Number.isSafeInteger(musicStartFrame) || musicStartFrame < 0) throw new Error('Music startFrame must be nonnegative');\n    if (input.music.durationFrames - musicStartFrame < durationFrames) throw new Error('Selected music is too short for the output');\n  }\n  const tiles = media.map((item, i) => ({\n    slotKey: `tile-${String(i + 1).padStart(2, '0')}`,\n    resourceId: item.resourceId,\n    kind: item.kind,\n    row: Math.floor(i / 3),\n    column: i % 3,\n    rect: tileRect(Math.floor(i / 3), i % 3),\n    revealFrame: revealFrames[i],\n    endFrame: durationFrames,\n    focusX: item.focusX,\n    focusY: item.focusY,\n  }));\n  return {\n    frameSize: { width: REFERENCE.width, height: REFERENCE.height },\n    fps: REFERENCE.fps,\n    durationFrames,\n    bpm,\n    bpmSource: hasManualBpm ? 'manual' : 'estimated',\n    colorFrame,\n    music: input.music ?? null,\n    tiles,\n  };\n}\n\n// Executed inside Selects run_script by both the panel and the chat skill.\nconst TILE_EFFECT = `import {useCurrentFrame} from 'remotion';\nexport default function PhotoGalleryTile({Source,data}) {\n  const frame = useCurrentFrame();\n  const sourceW = data.sourceWidth, sourceH = data.sourceHeight;\n  const frameW = data.frameWidth, frameH = data.frameHeight;\n  const x = Math.max(frameW - sourceW, Math.min(0, frameW / 2 - data.focusX * sourceW));\n  const y = Math.max(frameH - sourceH, Math.min(0, frameH / 2 - data.focusY * sourceH));\n  return <div style={{position:'absolute',inset:0}}>\n    <div style={{position:'absolute',left:data.cropLeft,top:data.cropTop,width:frameW,height:frameH,overflow:'hidden',filter:frame < data.colorAfterLocalFrame ? 'grayscale(1)' : 'none'}}>\n      <div style={{position:'absolute',left:x,top:y,width:sourceW,height:sourceH}}><Source/></div>\n    </div>\n  </div>;\n}`;\n\nfunction galleryFail(message) { throw new Error(message); }\n\n// Host paths: POSIX (/…) on macOS; a drive (C:\\… or C:/…) or UNC (\\\\server\\…) path on Windows.\nfunction galleryAbsolute(path) {\n  return typeof path === 'string' && !path.includes('\\0') && /^(?:\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)./.test(path);\n}\n// One comparison key per host path: NFC; a Windows path (drive letter or backslash) also gets / separators and is\n// case-folded, as Windows paths are case-insensitive. POSIX paths stay case-sensitive.\nfunction galleryPathKey(path) {\n  const text = String(path ?? '').normalize('NFC');\n  return /^[A-Za-z]:(?:[\\\\/]|$)/.test(text) || text.includes('\\\\') ? text.replace(/\\\\/g, '/').toLowerCase() : text;\n}\nfunction gallerySamePath(a, b) { return typeof a === 'string' && typeof b === 'string' && galleryPathKey(a) === galleryPathKey(b); }\n\nfunction galleryResolveResource(items, resourceId, path, label) {\n  const byId = items.find((item) => item.resourceId === resourceId);\n  if (!galleryAbsolute(path)) galleryFail(`${label} path is required`);\n  if (gallerySamePath(byId?.path, path)) return byId;\n  const matches = items.filter((item) => gallerySamePath(item.path, path));\n  if (matches.length !== 1) galleryFail(`${label} path is missing or ambiguous in this Project`);\n  return matches[0];\n}\n\nasync function galleryInventory(project, paths = null) {\n  const resources = await project.resources();\n  const byId = new Map();\n  for (const row of resources) byId.set(row.resourceId, row);\n  const overview = await project.sourceFiles();\n  const nodes = [];\n  const visit = (items) => {\n    for (const item of items || []) {\n      if (item.type === 'dir') visit(item.children);\n      else nodes.push(item);\n    }\n  };\n  if (Array.isArray(overview.fileTree)) visit(overview.fileTree);\n  else if (overview.mode === 'summary' && Array.isArray(overview.folders)) {\n    for (const folder of overview.folders) {\n      const part = await project.sourceFiles({ folder: folder.name });\n      if (!Array.isArray(part.fileTree)) galleryFail('Media inventory is incomplete');\n      visit(part.fileTree);\n    }\n  } else galleryFail('Media inventory is unavailable');\n  const media = [], audio = [];\n  const seen = new Set();\n  for (const node of nodes) {\n    const resource = byId.get(node.resourceId);\n    if (!resource || seen.has(node.resourceId) || typeof node.path !== 'string' || (paths && !paths.includes(node.path))) continue;\n    const type = String(resource.type).toLowerCase();\n    const kind = type === 'image' ? 'image' : type === 'video' ? 'video' : type === 'audio' ? 'audio' : null;\n    if (!kind) continue;\n    const durationSeconds = Number.isFinite(node.durationSeconds) ? node.durationSeconds : resource.durationSeconds;\n    const durationFrames = Number.isFinite(durationSeconds) ? Math.round(durationSeconds * 60) : null;\n    const common = { resourceId: node.resourceId, name: node.name, path: node.path, durationFrames };\n    if (kind === 'audio') audio.push(common);\n    else if (kind === 'image' || (node.frameSize?.width > 0 && node.frameSize?.height > 0)) {\n      media.push({ ...common, kind, width: node.frameSize?.width ?? null, height: node.frameSize?.height ?? null });\n    }\n    seen.add(node.resourceId);\n  }\n  const unavailable = resources.filter((resource) =>\n    (!paths || nodes.some(n => n.resourceId === resource.resourceId && paths.includes(n.path))) &&\n    ['image', 'video', 'audio'].includes(String(resource.type).toLowerCase()) &&\n    !media.some((item) => item.resourceId === resource.resourceId) &&\n    !audio.some((item) => item.resourceId === resource.resourceId));\n  return { media, audio, unavailable: unavailable.map((item) => ({ resourceId: item.resourceId, name: item.name })) };\n}\n\nfunction galleryGeometry(tile, source, colorFrame) {\n  const { left, right, top, bottom } = tile.rect;\n  const width = right - left, height = bottom - top;\n  const q = Math.min(source.width / width, source.height / height);\n  const frameWidth = width * q, frameHeight = height * q;\n  const conform = Math.min(1080 / source.width, 1920 / source.height);\n  return {\n    effect: {\n      sourceWidth: source.width, sourceHeight: source.height,\n      frameWidth, frameHeight,\n      cropLeft: (source.width - frameWidth) / 2,\n      cropTop: (source.height - frameHeight) / 2,\n      focusX: tile.focusX, focusY: tile.focusY,\n      colorAfterLocalFrame: colorFrame - tile.revealFrame,\n    },\n    transform: {\n      position: { x: (((left + right) / 2) - 540) / 1920 * 100, y: (960 - (top + bottom) / 2) / 1920 * 100 },\n      scale: { x: 1 / (q * conform), y: 1 / (q * conform) },\n    },\n  };\n}\n\nfunction assertGalleryInput(input) {\n  if (!input || typeof input !== 'object' || Array.isArray(input)) galleryFail('Gallery input is required');\n  if (typeof input.projectId !== 'string' || !input.projectId) galleryFail('Select a Project');\n  if (!['inspect', 'importBundledMusic', 'importConverted', 'create', 'preflight', 'createBase', 'fillBase', 'placeVideosExisting', 'styleExisting', 'verifyCreated'].includes(input.operation)) galleryFail('Unknown gallery action');\n  if (['create', 'preflight', 'createBase', 'placeVideosExisting', 'styleExisting'].includes(input.operation) && (!Array.isArray(input.media) || input.media.length !== 21)) galleryFail('Select exactly 21 visual slots');\n  return input;\n}\n\nasync function galleryImportConverted(selects, project, input, inventory, onImportStarted) {\n  const requiredFrames = input.durationFrames ?? 853;\n  if (!Number.isSafeInteger(requiredFrames) || requiredFrames < 1 || requiredFrames > 36000) {\n    galleryFail('Held video duration must be an integer from 1 to 36000 frames');\n  }\n  if (!Array.isArray(input.converted) || input.converted.length < 1 || input.converted.length > 21) {\n    galleryFail('Provide one to 21 held video files');\n  }\n  const seenSources = new Set();\n  for (const item of input.converted) {\n    const source = galleryResolveResource(inventory.media, item?.sourceResourceId, item?.sourcePath, 'Selected source');\n    if (source.kind !== 'video' || seenSources.has(source.resourceId) ||\n        !galleryAbsolute(item.path) || !/\\.mp4$/i.test(item.path)) {\n      galleryFail('A held clip must match one distinct Project video and absolute MP4 path');\n    }\n    seenSources.add(source.resourceId);\n  }\n  const paths = [...new Map(input.converted.map((item) => [galleryPathKey(item.path), item.path])).values()];\n  const probe = await selects.media.probe({ filePaths: paths });\n  const probed = new Set((probe.files || []).filter((file) => !file.type || /video/i.test(file.type)).map((file) => galleryPathKey(file.path)));\n  if (probe.error || probe.errors?.length || probe.summary?.failed || paths.some((path) => !probed.has(galleryPathKey(path)))) {\n    galleryFail('A held video file is missing or unreadable; no Project media was imported');\n  }\n  const currentByPath = new Map();\n  for (const item of inventory.media) if (item.kind === 'video') currentByPath.set(galleryPathKey(item.path), item);\n  const missing = paths.filter((path) => !currentByPath.has(galleryPathKey(path)));\n  if (missing.length) {\n    if (typeof project.importFiles !== 'function') galleryFail('This Selects version cannot import held videos');\n    onImportStarted();\n    await project.importFiles({ paths: missing });\n  }\n  const fresh = missing.length ? await galleryInventory(project) : inventory;\n  const importedByPath = new Map();\n  for (const item of fresh.media) if (item.kind === 'video') importedByPath.set(galleryPathKey(item.path), item);\n  const converted = input.converted.map((item) => {\n    const video = importedByPath.get(galleryPathKey(item.path));\n    if (!video || video.durationFrames == null || video.durationFrames < requiredFrames) {\n      galleryFail('Held video import or length could not be verified; inspect Project files before retrying');\n    }\n    const source = galleryResolveResource(fresh.media, item.sourceResourceId, item.sourcePath, 'Selected source');\n    return { sourceResourceId: item.sourceResourceId, resolvedSourceResourceId: source?.resourceId,\n      resourceId: video.resourceId,\n      // The Project's own spelling of the path, which native placement later compares exactly.\n      path: video.path, width: video.width, height: video.height, durationFrames: video.durationFrames };\n  });\n  return { status: 'prepared', converted };\n}\n\nasync function galleryImportBundledMusic(selects, project, input, inventory, onImportStarted) {\n  const frames = input.durationFrames ?? 853;\n  if (!Number.isSafeInteger(frames) || frames < 1 || frames > 36000) galleryFail('Music length must be an integer from 1 to 36000 frames');\n  if (!galleryAbsolute(input.path) || !/\\.mp3$/i.test(input.path)) galleryFail('Bundled music requires an absolute MP3 path');\n  const probe = await selects.media.probe({ filePaths: [input.path] });\n  if (probe.error || probe.errors?.length || probe.summary?.failed ||\n      !(probe.files || []).some(file => gallerySamePath(file.path, input.path) && (!file.type || /audio/i.test(file.type)))) {\n    galleryFail('Bundled music is missing or corrupt; reinstall the plugin');\n  }\n  const matches = inventory.audio.filter(item => gallerySamePath(item.path, input.path));\n  if (matches.length > 1 || inventory.media.some(item => gallerySamePath(item.path, input.path))) galleryFail('Bundled music path is ambiguous or is not Audio');\n  if (!matches.length) {\n    onImportStarted();\n    await project.importFiles({ paths: [input.path] });\n    inventory = await galleryInventory(project);\n  }\n  const audio = inventory.audio.filter(item => gallerySamePath(item.path, input.path));\n  if (audio.length !== 1 || !Number.isSafeInteger(audio[0].durationFrames)) galleryFail('Bundled music import is not ready; inspect Project media before retrying');\n  if (audio[0].durationFrames < frames) galleryFail('Music is too short for this result length; shorten the result or choose a longer track');\n  return { status: 'musicReady', music: { ...audio[0], startFrame: 0 } };\n}\n\nasync function galleryPreflight(selects, project, input, inventory) {\n  const chosen = input.media.map((item, i) => {\n    const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);\n    const width = fresh.width ?? item.width, height = fresh.height ?? item.height;\n    if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {\n      galleryFail(`Slot ${i + 1} photo dimensions are unavailable through the plugin SDK; no Draft was saved`);\n    }\n    if ((item.width != null && fresh.width != null && fresh.width !== item.width) ||\n        (item.height != null && fresh.height != null && fresh.height !== item.height)) {\n      galleryFail(`Slot ${i + 1} dimensions changed`);\n    }\n    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY };\n  });\n  const music = input.music == null ? null :\n    galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');\n  if (input.music != null && !music) galleryFail('Selected music is missing or moved');\n  const selectedMusic = music && { ...music, startFrame: input.music.startFrame ?? 0 };\n  const plan = planGallery({ media: chosen, music: selectedMusic, manualBpm: input.manualBpm, estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames });\n  const paths = [...new Set([...chosen.map((item) => item.path), ...(music ? [music.path] : [])])];\n  const probe = await selects.media.probe({ filePaths: paths });\n  const confirmed = new Set((probe.files || []).map((file) => galleryPathKey(file.path)));\n  if (probe.error || (probe.errors || []).length || (probe.summary?.failed || 0) || paths.some((path) => !confirmed.has(galleryPathKey(path)))) {\n    galleryFail('A selected media file is missing, unreadable, or corrupt; no Draft was saved');\n  }\n  const meta = await project.meta();\n  if (!Array.isArray(meta.draftIds)) galleryFail('Project Draft list is unavailable');\n  return { plan, chosen, music: selectedMusic };\n}\n\nasync function galleryCreate(selects, project, input, inventory, onCommitStarted) {\n  const { plan, chosen, music } = await galleryPreflight(selects, project, input, inventory);\n  const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Photo Gallery';\n  const draft = await project.createDraft({ name });\n  if ((await draft.meta()).fps !== 60) galleryFail('This Project is not 60 fps; no Draft was saved');\n  await draft.insertGap({ seconds: plan.durationFrames / plan.fps });\n  await draft.setFrameSize(plan.frameSize);\n  const prepared = await draft.meta();\n  if (prepared.fps !== plan.fps || prepared.durationFrames !== plan.durationFrames ||\n      prepared.frameSize?.width !== plan.frameSize.width || prepared.frameSize?.height !== plan.frameSize.height) {\n    galleryFail('The working Draft does not match the requested 60 fps, canvas, and duration; no Draft was saved');\n  }\n  let knownClipIds = new Set((await draft.clips({ trackScope: 'all' })).map((row) => row.clipId));\n  for (let i = 0; i < plan.tiles.length; i++) {\n    const tile = plan.tiles[i], source = chosen[i];\n    try {\n      await draft.overlayResource({ resource: project.resource(tile.resourceId), over: await draft.rangeAtFrames(tile.revealFrame, tile.endFrame) });\n    } catch (error) {\n      if (source.kind === 'image' && /not a Video\\/Audio asset/i.test(String(error?.message || error))) {\n        galleryFail('The plugin SDK cannot place original Image Resources on video tracks, although the editor can; no Draft was saved');\n      }\n      throw error;\n    }\n    const after = await draft.clips({ trackScope: 'all' });\n    const added = after.filter((row) => !knownClipIds.has(row.clipId) && row.resourceId === tile.resourceId && row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame);\n    if (added.length !== 1) galleryFail(`Could not identify tile ${i + 1} after placement; no Draft was saved`);\n    const clip = added[0];\n    const geometry = galleryGeometry(tile, source, plan.colorFrame);\n    await draft.addVideoEffect({\n      clip, label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,\n      tsxCode: TILE_EFFECT,\n      parameters: geometry.effect,\n      editableParameters: [\n        { key: 'focusX', label: 'Horizontal focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n        { key: 'focusY', label: 'Vertical focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n      ],\n    });\n    const freshClip = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);\n    if (!freshClip) galleryFail(`Tile ${i + 1} disappeared before placement was complete`);\n    await draft.setClipTransform({ clip: freshClip, position: geometry.transform.position, scale: geometry.transform.scale });\n    const finalRows = await draft.clips({ trackScope: 'all' });\n    const finalClip = finalRows.find((row) => row.clipId === clip.clipId);\n    if (!finalClip) galleryFail(`Tile ${i + 1} disappeared after transform`);\n    knownClipIds = new Set(finalRows.map((row) => row.clipId));\n  }\n  if (music) await draft.overlayResource({ resource: project.resource(music.resourceId), over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: music.startFrame / plan.fps });\n  const rows = await draft.clips({ trackScope: 'all' });\n  if (rows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('The working Draft has an unexpected Main Resource');\n  if (rows.filter((row) => row.trackKind === 'video' && row.resourceId != null).length !== 21) galleryFail('The working Draft does not contain all 21 editable tiles');\n  onCommitStarted();\n  const saved = await draft.commitAll('Create editable 21-tile Photo Gallery');\n  if (!saved?.createdDraftId) galleryFail('Save outcome is unknown; inspect Project Drafts before retrying');\n  return { status: 'saved', draftId: saved.createdDraftId, tileCount: 21, durationFrames: plan.durationFrames, colorFrame: plan.colorFrame };\n}\n\nasync function galleryCreateBase(project, input, onCommitStarted) {\n  const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Photo Gallery';\n  const draft = await project.createDraft({ name });\n  await draft.setFrameSize({ width: 1080, height: 1920 });\n  onCommitStarted();\n  const saved = await draft.commitAll('Create empty Photo Gallery Draft');\n  if (!saved?.createdDraftId) galleryFail('Empty Draft save outcome is unknown');\n  return { status: 'baseCreated', draftId: saved.createdDraftId };\n}\n\nasync function galleryFillBase(selects, project, input, onCommitStarted) {\n  if (typeof input.draftId !== 'string' || !(await project.meta()).draftIds?.includes(input.draftId)) {\n    galleryFail('Target Draft does not belong to this Project');\n  }\n  if (!Number.isSafeInteger(input.durationFrames) || input.durationFrames < 1) galleryFail('Invalid Gallery duration');\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== 60 || meta.durationFrames !== 0 || meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {\n    galleryFail('Target Draft must be an empty 60 fps portrait Draft');\n  }\n  await draft.insertGap({ seconds: input.durationFrames / 60 });\n  if ((await draft.meta()).durationFrames !== input.durationFrames) galleryFail('Could not author exact Gallery duration');\n  onCommitStarted();\n  const saved = await draft.commitAll('Set Photo Gallery duration');\n  if (!saved?.commitId) galleryFail('Duration save outcome is unknown');\n  return { status: 'baseFilled', draftId: input.draftId, durationFrames: input.durationFrames };\n}\n\nfunction galleryBatchTiles(tiles, slotKeys, limit) {\n  if (slotKeys === undefined) return tiles;\n  if (!Array.isArray(slotKeys) || slotKeys.length < 1 || slotKeys.length > limit ||\n      new Set(slotKeys).size !== slotKeys.length ||\n      slotKeys.some(key => !tiles.some(tile => tile.slotKey === key))) {\n    galleryFail(`Provide one to ${limit} distinct eligible slot keys`);\n  }\n  const selected = new Set(slotKeys);\n  return tiles.filter(tile => selected.has(tile.slotKey));\n}\n\nasync function galleryPlaceVideosExisting(selects, project, input, inventory, onCommitStarted) {\n  if (typeof input.draftId !== 'string' || !(await project.meta()).draftIds?.includes(input.draftId)) {\n    galleryFail('Target Draft does not belong to this Project');\n  }\n  const { plan } = await galleryPreflight(selects, project, input, inventory);\n  const videos = galleryBatchTiles(plan.tiles.filter(tile => tile.kind === 'video'), input.slotKeys, 1);\n  if (!videos.length) return { status: 'videosPlaced', draftId: input.draftId, tileCount: 0 };\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== 60 || meta.durationFrames !== plan.durationFrames ||\n      meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {\n    galleryFail('Target Draft clock, canvas, or duration changed');\n  }\n  const rows = await draft.clips({ trackScope: 'all' });\n  const existing = rows.filter(row => row.trackKind === 'video' && row.resourceId);\n  const imageTiles = plan.tiles.filter(tile => tile.kind === 'image');\n  if (new Set(existing.map(row => row.clipId)).size !== existing.length ||\n      new Set(existing.map(row => row.trackId)).size !== existing.length ||\n      rows.some(row => row.trackKind === 'audio' && row.resourceId) ||\n      rows.some(row => row.trackKind === 'main' && row.resourceId)) galleryFail('Target Draft has unexpected media');\n  const used = new Set();\n  for (const tile of imageTiles) {\n    const matches = existing.filter(row => row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !used.has(row.clipId));\n    if (matches.length !== 1) galleryFail(`Image ${tile.slotKey} changed before video placement`);\n    used.add(matches[0].clipId);\n  }\n  // Earlier bounded calls may have saved Videos already. Validate all of them\n  // against this frozen plan, but never replace or duplicate an existing target.\n  const placedVideoKeys = new Set();\n  for (const row of existing.filter(row => !used.has(row.clipId))) {\n    const matches = plan.tiles.filter(tile => tile.kind === 'video' &&\n      tile.resourceId === row.resourceId && tile.revealFrame === row.startFrame && tile.endFrame === row.endFrame);\n    if (matches.length !== 1 || placedVideoKeys.has(matches[0].slotKey)) galleryFail('Target Draft has unexpected or duplicate video media');\n    placedVideoKeys.add(matches[0].slotKey);\n  }\n  if (videos.some(tile => placedVideoKeys.has(tile.slotKey))) galleryFail('A selected Video is already present; inspect the Draft before retrying');\n  for (const tile of videos) {\n    const resource = project.resource(tile.resourceId);\n    const overlay = async (startFrame) => {\n      const before = new Set((await draft.clips({ trackScope: 'all' })).map(row => row.clipId));\n      await draft.overlayResource({ resource, over: await draft.rangeAtFrames(startFrame, tile.endFrame) });\n      const rows = (await draft.clips({ trackScope: 'all' })).filter(row => !before.has(row.clipId));\n      const visual = rows.filter(row => row.trackKind === 'video' && row.resourceId === tile.resourceId);\n      if (visual.length !== 1 || visual[0].startFrame !== startFrame) galleryFail(`Video ${tile.slotKey} did not create one independent clip`);\n      const sourceAudio = rows.filter(row => row.trackKind === 'audio' && row.resourceId);\n      if (sourceAudio.length) await draft.removeClips(sourceAudio);\n      return visual[0];\n    };\n    let clip = await overlay(tile.revealFrame);\n    if (clip.endFrame < tile.endFrame) {\n      // The SDK may quantize a seconds-based overlay one frame short at some\n      // 60 fps start positions. Re-place with enough source time, then use the\n      // public clip move and trim operations to get exact frame boundaries.\n      await draft.removeClips([clip]);\n      if (tile.revealFrame < 1) galleryFail(`Video ${tile.slotKey} cannot cover the output end`);\n      clip = await overlay(tile.revealFrame - 1);\n      const moved = await draft.moveOverlayClip({ clip, startFrame: tile.revealFrame });\n      const matches = (await draft.clips({ trackScope: 'all' })).filter(row => row.clipId === moved.clipId);\n      if (matches.length !== 1) galleryFail(`Video ${tile.slotKey} moved clip could not be read back`);\n      clip = matches[0];\n    }\n    if (clip.endFrame > tile.endFrame) {\n      await draft.remove(await draft.rangeAtFrames(tile.endFrame, clip.endFrame), { tracks: [clip.trackId] });\n    }\n    const exact = (await draft.clips({ trackScope: 'all' })).filter(row => row.clipId === clip.clipId &&\n      row.trackKind === 'video' && row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame);\n    if (exact.length !== 1) galleryFail(`Video ${tile.slotKey} could not reach its exact reveal and end frames`);\n    if ((await draft.clips({ trackScope: 'all' })).some(row => row.trackKind === 'audio' && row.resourceId)) {\n      galleryFail(`Video ${tile.slotKey} retained source audio`);\n    }\n  }\n  onCommitStarted();\n  const saved = await draft.commitAll('Place Photo Gallery video tiles');\n  if (!saved?.commitId) galleryFail('Video placement save outcome is unknown');\n  return { status: 'videosPlaced', draftId: input.draftId, tileCount: videos.length };\n}\n\nasync function galleryStyleExisting(selects, project, input, inventory, onCommitStarted) {\n  if (typeof input.draftId !== 'string' || !input.draftId) galleryFail('An explicit target Draft is required');\n  const projectMeta = await project.meta();\n  if (!projectMeta.draftIds?.includes(input.draftId)) galleryFail('Target Draft does not belong to this Project');\n  const chosen = input.media.map((item, i) => {\n    const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);\n    if (fresh.kind !== item.kind) galleryFail(`Slot ${i + 1} Resource type changed`);\n    const width = fresh.width ?? item.width, height = fresh.height ?? item.height;\n    if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {\n      galleryFail(`Slot ${i + 1} photo dimensions are unavailable`);\n    }\n    if (fresh.width != null && fresh.width !== item.width || fresh.height != null && fresh.height !== item.height) {\n      galleryFail(`Slot ${i + 1} photo dimensions changed`);\n    }\n    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY };\n  });\n  const music = input.music == null ? null : galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');\n  const plan = planGallery({ media: chosen, music: music ? { ...music, startFrame: input.music.startFrame ?? 0 } : null, manualBpm: input.manualBpm,\n    estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames });\n  const selectedTiles = galleryBatchTiles(plan.tiles, input.slotKeys, 3);\n  const selectedKeys = new Set(selectedTiles.map(tile => tile.slotKey));\n  if (input.placeMusic !== undefined && typeof input.placeMusic !== 'boolean') galleryFail('placeMusic must be a boolean');\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== plan.fps || meta.durationFrames !== plan.durationFrames ||\n      meta.frameSize?.width !== plan.frameSize.width || meta.frameSize?.height !== plan.frameSize.height) {\n    galleryFail('Target Draft clock, canvas, or duration does not match the Gallery plan');\n  }\n  const allRows = await draft.clips({ trackScope: 'all' });\n  if (allRows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('Target Draft Main track is not blank');\n  if (allRows.some((row) => row.trackKind === 'audio' && row.resourceId)) galleryFail('Target Draft has unexpected source audio');\n  const rows = allRows.filter((row) => row.trackKind === 'video' && row.resourceId);\n  if (rows.length !== 21 || new Set(rows.map((row) => row.trackId)).size !== 21) {\n    galleryFail('Target Draft must contain exactly 21 independent visual tracks');\n  }\n  const used = new Set(), targets = [];\n  for (let i = 0; i < 21; i++) {\n    const tile = plan.tiles[i];\n    const matches = rows.filter((row) => row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !used.has(row.clipId));\n    if (matches.length !== 1) galleryFail(`Target tile ${tile.slotKey} does not match the selected Resource and frames`);\n    const clip = matches[0];\n    used.add(clip.clipId);\n    if (!selectedKeys.has(tile.slotKey)) continue;\n    if ((await draft.videoEffects(clip)).length) galleryFail(`Target tile ${tile.slotKey} already has effects; inspect it before retrying`);\n    const transform = await draft.clipTransform(clip);\n    const identity = !transform || !transform.enabled ||\n      (transform.position?.x === 0 && transform.position?.y === 0 &&\n       transform.scale?.x === 1 && transform.scale?.y === 1 &&\n       transform.rotation === 0 && transform.anchor?.x === 0 && transform.anchor?.y === 0);\n    if (!identity) galleryFail(`Target tile ${tile.slotKey} already has a manual transform; inspect it before retrying`);\n    targets.push({ clip, tile, source: chosen[i] });\n  }\n  for (const { clip, tile, source } of targets) {\n    const geometry = galleryGeometry(tile, source, plan.colorFrame);\n    const current = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);\n    if (!current) galleryFail(`Target tile ${tile.slotKey} disappeared before styling`);\n    await draft.addVideoEffect({ clip: current, label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,\n      tsxCode: TILE_EFFECT, parameters: geometry.effect,\n      editableParameters: [\n        { key: 'focusX', label: 'Horizontal focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n        { key: 'focusY', label: 'Vertical focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n      ] });\n    const fresh = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);\n    if (!fresh) galleryFail(`Target tile ${tile.slotKey} disappeared during styling`);\n    await draft.setClipTransform({ clip: fresh, position: geometry.transform.position, scale: geometry.transform.scale });\n  }\n  if (plan.music && input.placeMusic !== false) await draft.overlayResource({ resource: project.resource(plan.music.resourceId),\n    over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: plan.music.startFrame / plan.fps });\n  onCommitStarted();\n  const saved = await draft.commitAll('Style Photo Gallery tiles');\n  if (!saved?.commitId) galleryFail('Style save outcome is unknown; inspect the Draft before retrying');\n  return { status: 'styled', draftId: input.draftId, tileCount: targets.length, durationFrames: plan.durationFrames,\n    colorFrame: plan.colorFrame };\n}\n\nasync function galleryVerifyCreated(selects, project, input, inventory) {\n  if (typeof input.draftId !== 'string' || !input.draftId) galleryFail('The saved Draft ID is required for readback');\n  const { plan, chosen } = await galleryPreflight(selects, project, input, inventory);\n  const projectMeta = await project.meta();\n  if (!projectMeta.draftIds?.includes(input.draftId)) galleryFail('The saved Draft does not belong to this Project');\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== 60 || meta.durationFrames !== plan.durationFrames ||\n      meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {\n    galleryFail('Saved Draft canvas, frame rate, or duration does not match the request');\n  }\n  const allRows = await draft.clips({ trackScope: 'all' });\n  if (allRows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('Saved Draft has an unexpected Main Resource');\n  const rows = allRows.filter((row) => row.trackKind === 'video' && row.resourceId);\n  if (rows.length !== 21) galleryFail('Saved Draft does not contain exactly 21 independent visual clips');\n  const audioRows = allRows.filter((row) => row.trackKind === 'audio' && row.resourceId);\n  if (plan.music) {\n    if (audioRows.length !== 1 || audioRows[0].resourceId !== plan.music.resourceId ||\n        audioRows[0].startFrame !== 0 || audioRows[0].endFrame !== plan.durationFrames) {\n      galleryFail('Saved Draft music does not match the requested Resource and duration');\n    }\n  } else if (audioRows.length) galleryFail('Saved Draft has unexpected music');\n  const usedClipIds = new Set();\n  for (let tileIndex = 0; tileIndex < plan.tiles.length; tileIndex++) {\n    const tile = plan.tiles[tileIndex];\n    const matches = rows.filter((row) => row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !usedClipIds.has(row.clipId));\n    if (matches.length !== 1) galleryFail(`Saved tile ${tile.slotKey} does not match its requested Resource and frames`);\n    const clip = matches[0];\n    const effects = await draft.videoEffects(clip);\n    if (effects.filter((effect) => effect.name === `Gallery ${tile.slotKey} color-${plan.colorFrame}` && effect.enabled !== false).length !== 1) {\n      galleryFail(`Saved tile ${tile.slotKey} has no matching color-transition effect`);\n    }\n    const actual = await draft.clipTransform(clip);\n    const expected = galleryGeometry(tile, chosen[tileIndex], plan.colorFrame).transform;\n    const close = (left, right) => typeof left === 'number' && Number.isFinite(left) && Math.abs(left - right) <= 1e-5;\n    if (!actual?.enabled || !close(actual.position?.x, expected.position.x) ||\n        !close(actual.position?.y, expected.position.y) ||\n        !close(actual.scale?.x, expected.scale.x) || !close(actual.scale?.y, expected.scale.y)) {\n      galleryFail(`Saved tile ${tile.slotKey} position or crop transform does not match the requested grid`);\n    }\n    usedClipIds.add(clip.clipId);\n  }\n  return { status: 'verified', draftId: input.draftId, tileCount: 21, durationFrames: plan.durationFrames,\n    colorFrame: plan.colorFrame, structuralOnly: true };\n}\n\nasync function galleryOperation(selects, raw) {\n  let commitStarted = false;\n  try {\n    const input = assertGalleryInput(raw);\n    const project = selects.project(input.projectId);\n    const inventory = await galleryInventory(project, input.operation === 'inspect' ? input.paths : null);\n    if (input.operation === 'inspect') return { status: 'inspected', projectId: input.projectId, ...inventory };\n    if (input.operation === 'importBundledMusic') return await galleryImportBundledMusic(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'importConverted') return await galleryImportConverted(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'create') return await galleryCreate(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'preflight') {\n      const { plan } = await galleryPreflight(selects, project, input, inventory);\n      return { status: 'ready', plan };\n    }\n    if (input.operation === 'createBase') return await galleryCreateBase(project, input, () => { commitStarted = true; });\n    if (input.operation === 'fillBase') return await galleryFillBase(selects, project, input, () => { commitStarted = true; });\n    if (input.operation === 'placeVideosExisting') return await galleryPlaceVideosExisting(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'styleExisting') return await galleryStyleExisting(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'verifyCreated') return await galleryVerifyCreated(selects, project, input, inventory);\n    galleryFail('Unknown gallery action');\n  } catch (error) {\n    return { status: commitStarted ? 'outcomeUnknown' : 'notSaved', message: String(error?.message || error) };\n  }\n}\n\nreturn await galleryOperation(selects, ";
+const SCRIPT_PREFIX = "// Inputs use the 60 fps reference clock; the result uses the Project frame grid.\nconst REFERENCE = Object.freeze({\n  width: 1080,\n  height: 1920,\n  fps: 60,\n  durationFrames: 853,\n  nominalBpm: 113,\n  colorFrame: 270,\n  revealFrames: Object.freeze([0, 12, 23, 36, 45, 52, 62, 73, 81, 90, 100, 113, 122, 133, 143, 151, 161, 172, 182, 192, 205]),\n});\n\nfunction assertPositiveInteger(value, label) {\n  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} must be a positive integer`);\n}\n\nfunction validateMedia(media) {\n  if (!Array.isArray(media) || media.length !== 21) throw new Error('Exactly 21 visual media slots are required');\n  return media.map((item, index) => {\n    if (!item || !['image', 'video'].includes(item.kind)) throw new Error(`Slot ${index + 1} needs an Image or Video Resource`);\n    if (typeof item.resourceId !== 'string' || !item.resourceId.trim()) throw new Error(`Slot ${index + 1} needs a resource ID`);\n    assertPositiveInteger(item.width, `Slot ${index + 1} width`);\n    assertPositiveInteger(item.height, `Slot ${index + 1} height`);\n    const focusX = item.focusX ?? 0.5;\n    const focusY = item.focusY ?? 0.5;\n    if (![focusX, focusY].every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)) {\n      throw new Error(`Slot ${index + 1} focus must be between 0 and 1`);\n    }\n    if (item.kind === 'video') assertPositiveInteger(item.durationFrames, `Slot ${index + 1} durationFrames`);\n    return { ...item, focusX, focusY };\n  });\n}\n\nfunction tileRect(row, column) {\n  return {\n    left: column * 360 + 2,\n    right: (column + 1) * 360 - 2,\n    top: Math.round(row * REFERENCE.height / 7) + 2,\n    bottom: Math.round((row + 1) * REFERENCE.height / 7) - 2,\n  };\n}\n\nfunction planGallery(input) {\n  if (!input || typeof input !== 'object') throw new Error('Gallery input is required');\n  const media = validateMedia(input.media);\n  const durationFrames = input.durationFrames ?? REFERENCE.durationFrames;\n  assertPositiveInteger(durationFrames, 'durationFrames');\n  if (media.some((item) => item.kind === 'video' && item.durationFrames < durationFrames)) {\n    throw new Error('A selected video is too short; hold its last frame (the panel does this) before planning');\n  }\n  const hasManualBpm = input.manualBpm !== undefined && input.manualBpm !== null;\n  const bpm = hasManualBpm ? Number(input.manualBpm) : Number(input.estimatedBpm);\n  if (!Number.isFinite(bpm) || bpm <= 0 || (!input.music && !hasManualBpm)) {\n    throw new Error('BPM is required; provide a manual BPM when there is no music or no reliable estimate');\n  }\n  const fps = input.fps ?? REFERENCE.fps;\n  if (!Number.isFinite(fps) || fps <= 0) throw new Error(\"Invalid Project frame rate\");\n  const toDraftFrame = frame => Math.round(frame * fps / REFERENCE.fps);\n  const outputDurationFrames = toDraftFrame(durationFrames);\n  const ratio = REFERENCE.nominalBpm / bpm;\n  const revealFrames = REFERENCE.revealFrames.map((frame) => toDraftFrame(frame * ratio));\n  if (revealFrames.some((frame, i) => i > 0 && frame <= revealFrames[i - 1])) {\n    throw new Error('BPM is too high to show all 21 tiles in distinct output frames');\n  }\n  const colorFrame = toDraftFrame(REFERENCE.colorFrame * ratio);\n  if (colorFrame >= outputDurationFrames) throw new Error('Color transition would occur after the output end');\n  if (input.music) {\n    if (typeof input.music.resourceId !== 'string' || !input.music.resourceId.trim()) throw new Error('Music needs a resource ID');\n    assertPositiveInteger(input.music.durationFrames, 'Music durationFrames');\n    const musicStartFrame = input.music.startFrame ?? 0;\n    if (!Number.isSafeInteger(musicStartFrame) || musicStartFrame < 0) throw new Error('Music startFrame must be nonnegative');\n    if (input.music.durationFrames - musicStartFrame < durationFrames) throw new Error('Selected music is too short for the output');\n  }\n  const tiles = media.map((item, i) => ({\n    slotKey: `tile-${String(i + 1).padStart(2, '0')}`,\n    resourceId: item.resourceId,\n    kind: item.kind,\n    row: Math.floor(i / 3),\n    column: i % 3,\n    rect: tileRect(Math.floor(i / 3), i % 3),\n    revealFrame: revealFrames[i],\n    endFrame: outputDurationFrames,\n    focusX: item.focusX,\n    focusY: item.focusY,\n  }));\n  return {\n    frameSize: { width: REFERENCE.width, height: REFERENCE.height },\n    fps,\n    durationFrames: outputDurationFrames,\n    bpm,\n    bpmSource: hasManualBpm ? 'manual' : 'estimated',\n    colorFrame,\n    music: input.music ? { ...input.music, startSeconds: (input.music.startFrame ?? 0) / REFERENCE.fps } : null,\n    tiles,\n  };\n}\n\n// Executed inside Selects run_script by both the panel and the chat skill.\nconst TILE_EFFECT = `import {useCurrentFrame} from 'remotion';\nexport default function PhotoGalleryTile({Source,data}) {\n  const frame = useCurrentFrame();\n  const sourceW = data.sourceWidth, sourceH = data.sourceHeight;\n  const frameW = data.frameWidth, frameH = data.frameHeight;\n  const x = Math.max(frameW - sourceW, Math.min(0, frameW / 2 - data.focusX * sourceW));\n  const y = Math.max(frameH - sourceH, Math.min(0, frameH / 2 - data.focusY * sourceH));\n  return <div style={{position:'absolute',inset:0}}>\n    <div style={{position:'absolute',left:data.cropLeft,top:data.cropTop,width:frameW,height:frameH,overflow:'hidden',filter:frame < data.colorAfterLocalFrame ? 'grayscale(1)' : 'none'}}>\n      <div style={{position:'absolute',left:x,top:y,width:sourceW,height:sourceH}}><Source/></div>\n    </div>\n  </div>;\n}`;\n\nfunction galleryFail(message) { throw new Error(message); }\n\n// Host paths: POSIX (/…) on macOS; a drive (C:\\… or C:/…) or UNC (\\\\server\\…) path on Windows.\nfunction galleryAbsolute(path) {\n  return typeof path === 'string' && !path.includes('\\0') && /^(?:\\/|[A-Za-z]:[\\\\/]|\\\\\\\\)./.test(path);\n}\n// One comparison key per host path: NFC; a Windows path (drive letter or backslash) also gets / separators and is\n// case-folded, as Windows paths are case-insensitive. POSIX paths stay case-sensitive.\nfunction galleryPathKey(path) {\n  const text = String(path ?? '').normalize('NFC');\n  return /^[A-Za-z]:(?:[\\\\/]|$)/.test(text) || text.includes('\\\\') ? text.replace(/\\\\/g, '/').toLowerCase() : text;\n}\nfunction gallerySamePath(a, b) { return typeof a === 'string' && typeof b === 'string' && galleryPathKey(a) === galleryPathKey(b); }\n\nfunction galleryResolveResource(items, resourceId, path, label) {\n  const byId = items.find((item) => item.resourceId === resourceId);\n  if (!galleryAbsolute(path)) galleryFail(`${label} path is required`);\n  if (gallerySamePath(byId?.path, path)) return byId;\n  const matches = items.filter((item) => gallerySamePath(item.path, path));\n  if (matches.length !== 1) galleryFail(`${label} path is missing or ambiguous in this Project`);\n  return matches[0];\n}\n\nasync function galleryInventory(project, paths = null) {\n  const resources = await project.resources();\n  const byId = new Map();\n  for (const row of resources) byId.set(row.resourceId, row);\n  const overview = await project.sourceFiles();\n  const nodes = [];\n  const visit = (items) => {\n    for (const item of items || []) {\n      if (item.type === 'dir') visit(item.children);\n      else nodes.push(item);\n    }\n  };\n  if (Array.isArray(overview.fileTree)) visit(overview.fileTree);\n  else if (overview.mode === 'summary' && Array.isArray(overview.folders)) {\n    for (const folder of overview.folders) {\n      const part = await project.sourceFiles({ folder: folder.name });\n      if (!Array.isArray(part.fileTree)) galleryFail('Media inventory is incomplete');\n      visit(part.fileTree);\n    }\n  } else galleryFail('Media inventory is unavailable');\n  const media = [], audio = [];\n  const seen = new Set();\n  for (const node of nodes) {\n    const resource = byId.get(node.resourceId);\n    if (!resource || seen.has(node.resourceId) || typeof node.path !== 'string' || (paths && !paths.includes(node.path))) continue;\n    const type = String(resource.type).toLowerCase();\n    const kind = type === 'image' ? 'image' : type === 'video' ? 'video' : type === 'audio' ? 'audio' : null;\n    if (!kind) continue;\n    const durationSeconds = Number.isFinite(node.durationSeconds) ? node.durationSeconds : resource.durationSeconds;\n    const durationFrames = Number.isFinite(durationSeconds) ? Math.round(durationSeconds * 60) : null;\n    const common = { resourceId: node.resourceId, name: node.name, path: node.path, durationFrames };\n    if (kind === 'audio') audio.push(common);\n    else if (kind === 'image' || (node.frameSize?.width > 0 && node.frameSize?.height > 0)) {\n      media.push({ ...common, kind, width: node.frameSize?.width ?? null, height: node.frameSize?.height ?? null });\n    }\n    seen.add(node.resourceId);\n  }\n  const unavailable = resources.filter((resource) =>\n    (!paths || nodes.some(n => n.resourceId === resource.resourceId && paths.includes(n.path))) &&\n    ['image', 'video', 'audio'].includes(String(resource.type).toLowerCase()) &&\n    !media.some((item) => item.resourceId === resource.resourceId) &&\n    !audio.some((item) => item.resourceId === resource.resourceId));\n  return { media, audio, unavailable: unavailable.map((item) => ({ resourceId: item.resourceId, name: item.name })) };\n}\n\nfunction galleryGeometry(tile, source, colorFrame) {\n  const { left, right, top, bottom } = tile.rect;\n  const width = right - left, height = bottom - top;\n  const q = Math.min(source.width / width, source.height / height);\n  const frameWidth = width * q, frameHeight = height * q;\n  const conform = Math.min(1080 / source.width, 1920 / source.height);\n  return {\n    effect: {\n      sourceWidth: source.width, sourceHeight: source.height,\n      frameWidth, frameHeight,\n      cropLeft: (source.width - frameWidth) / 2,\n      cropTop: (source.height - frameHeight) / 2,\n      focusX: tile.focusX, focusY: tile.focusY,\n      colorAfterLocalFrame: colorFrame - tile.revealFrame,\n    },\n    transform: {\n      position: { x: (((left + right) / 2) - 540) / 1920 * 100, y: (960 - (top + bottom) / 2) / 1920 * 100 },\n      scale: { x: 1 / (q * conform), y: 1 / (q * conform) },\n    },\n  };\n}\n\nfunction assertGalleryInput(input) {\n  if (!input || typeof input !== 'object' || Array.isArray(input)) galleryFail('Gallery input is required');\n  if (typeof input.projectId !== 'string' || !input.projectId) galleryFail('Select a Project');\n  if (!['inspect', 'importBundledMusic', 'importConverted', 'create', 'preflight', 'createBase', 'fillBase', 'placeVideosExisting', 'styleExisting', 'verifyCreated'].includes(input.operation)) galleryFail('Unknown gallery action');\n  if (['create', 'preflight', 'createBase', 'placeVideosExisting', 'styleExisting'].includes(input.operation) && (!Array.isArray(input.media) || input.media.length !== 21)) galleryFail('Select exactly 21 visual slots');\n  return input;\n}\n\nasync function galleryImportConverted(selects, project, input, inventory, onImportStarted) {\n  const requiredFrames = input.durationFrames ?? 853;\n  if (!Number.isSafeInteger(requiredFrames) || requiredFrames < 1 || requiredFrames > 36000) {\n    galleryFail('Held video duration must be an integer from 1 to 36000 frames');\n  }\n  if (!Array.isArray(input.converted) || input.converted.length < 1 || input.converted.length > 21) {\n    galleryFail('Provide one to 21 held video files');\n  }\n  const seenSources = new Set();\n  for (const item of input.converted) {\n    const source = galleryResolveResource(inventory.media, item?.sourceResourceId, item?.sourcePath, 'Selected source');\n    if (source.kind !== 'video' || seenSources.has(source.resourceId) ||\n        !galleryAbsolute(item.path) || !/\\.mp4$/i.test(item.path)) {\n      galleryFail('A held clip must match one distinct Project video and absolute MP4 path');\n    }\n    seenSources.add(source.resourceId);\n  }\n  const paths = [...new Map(input.converted.map((item) => [galleryPathKey(item.path), item.path])).values()];\n  const probe = await selects.media.probe({ filePaths: paths });\n  const probed = new Set((probe.files || []).filter((file) => !file.type || /video/i.test(file.type)).map((file) => galleryPathKey(file.path)));\n  if (probe.error || probe.errors?.length || probe.summary?.failed || paths.some((path) => !probed.has(galleryPathKey(path)))) {\n    galleryFail('A held video file is missing or unreadable; no Project media was imported');\n  }\n  const currentByPath = new Map();\n  for (const item of inventory.media) if (item.kind === 'video') currentByPath.set(galleryPathKey(item.path), item);\n  const missing = paths.filter((path) => !currentByPath.has(galleryPathKey(path)));\n  if (missing.length) {\n    if (typeof project.importFiles !== 'function') galleryFail('This Selects version cannot import held videos');\n    onImportStarted();\n    await project.importFiles({ paths: missing });\n  }\n  const fresh = missing.length ? await galleryInventory(project) : inventory;\n  const importedByPath = new Map();\n  for (const item of fresh.media) if (item.kind === 'video') importedByPath.set(galleryPathKey(item.path), item);\n  const converted = input.converted.map((item) => {\n    const video = importedByPath.get(galleryPathKey(item.path));\n    if (!video || video.durationFrames == null || video.durationFrames < requiredFrames) {\n      galleryFail('Held video import or length could not be verified; inspect Project files before retrying');\n    }\n    const source = galleryResolveResource(fresh.media, item.sourceResourceId, item.sourcePath, 'Selected source');\n    return { sourceResourceId: item.sourceResourceId, resolvedSourceResourceId: source?.resourceId,\n      resourceId: video.resourceId,\n      // The Project's own spelling of the path, which native placement later compares exactly.\n      path: video.path, width: video.width, height: video.height, durationFrames: video.durationFrames };\n  });\n  return { status: 'prepared', converted };\n}\n\nasync function galleryImportBundledMusic(selects, project, input, inventory, onImportStarted) {\n  const frames = input.durationFrames ?? 853;\n  if (!Number.isSafeInteger(frames) || frames < 1 || frames > 36000) galleryFail('Music length must be an integer from 1 to 36000 frames');\n  if (!galleryAbsolute(input.path) || !/\\.mp3$/i.test(input.path)) galleryFail('Bundled music requires an absolute MP3 path');\n  const probe = await selects.media.probe({ filePaths: [input.path] });\n  if (probe.error || probe.errors?.length || probe.summary?.failed ||\n      !(probe.files || []).some(file => gallerySamePath(file.path, input.path) && (!file.type || /audio/i.test(file.type)))) {\n    galleryFail('Bundled music is missing or corrupt; reinstall the plugin');\n  }\n  const matches = inventory.audio.filter(item => gallerySamePath(item.path, input.path));\n  if (matches.length > 1 || inventory.media.some(item => gallerySamePath(item.path, input.path))) galleryFail('Bundled music path is ambiguous or is not Audio');\n  if (!matches.length) {\n    onImportStarted();\n    await project.importFiles({ paths: [input.path] });\n    inventory = await galleryInventory(project);\n  }\n  const audio = inventory.audio.filter(item => gallerySamePath(item.path, input.path));\n  if (audio.length !== 1 || !Number.isSafeInteger(audio[0].durationFrames)) galleryFail('Bundled music import is not ready; inspect Project media before retrying');\n  if (audio[0].durationFrames < frames) galleryFail('Music is too short for this result length; shorten the result or choose a longer track');\n  return { status: 'musicReady', music: { ...audio[0], startFrame: 0 } };\n}\n\nasync function galleryPreflight(selects, project, input, inventory) {\n  const chosen = input.media.map((item, i) => {\n    const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);\n    const width = fresh.width ?? item.width, height = fresh.height ?? item.height;\n    if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {\n      galleryFail(`Slot ${i + 1} photo dimensions are unavailable through the plugin SDK; no Draft was saved`);\n    }\n    if ((item.width != null && fresh.width != null && fresh.width !== item.width) ||\n        (item.height != null && fresh.height != null && fresh.height !== item.height)) {\n      galleryFail(`Slot ${i + 1} dimensions changed`);\n    }\n    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY };\n  });\n  const music = input.music == null ? null :\n    galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');\n  if (input.music != null && !music) galleryFail('Selected music is missing or moved');\n  const selectedMusic = music && { ...music, startFrame: input.music.startFrame ?? 0 };\n  const plan = planGallery({ media: chosen, music: selectedMusic, manualBpm: input.manualBpm, estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames, fps: input.fps });\n  const paths = [...new Set([...chosen.map((item) => item.path), ...(music ? [music.path] : [])])];\n  const probe = await selects.media.probe({ filePaths: paths });\n  const confirmed = new Set((probe.files || []).map((file) => galleryPathKey(file.path)));\n  if (probe.error || (probe.errors || []).length || (probe.summary?.failed || 0) || paths.some((path) => !confirmed.has(galleryPathKey(path)))) {\n    galleryFail('A selected media file is missing, unreadable, or corrupt; no Draft was saved');\n  }\n  const meta = await project.meta();\n  if (!Array.isArray(meta.draftIds)) galleryFail('Project Draft list is unavailable');\n  return { plan, chosen, music: selectedMusic };\n}\n\nasync function galleryCreate(selects, project, input, inventory, onCommitStarted) {\n  const { plan, chosen, music } = await galleryPreflight(selects, project, input, inventory);\n  const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Photo Gallery';\n  const draft = await project.createDraft({ name });\n  if ((await draft.meta()).fps !== plan.fps) galleryFail('The Project frame rate changed; no Draft was saved');\n  await draft.insertGap({ seconds: plan.durationFrames / plan.fps });\n  await draft.setFrameSize(plan.frameSize);\n  const prepared = await draft.meta();\n  if (prepared.fps !== plan.fps || prepared.durationFrames !== plan.durationFrames ||\n      prepared.frameSize?.width !== plan.frameSize.width || prepared.frameSize?.height !== plan.frameSize.height) {\n    galleryFail('The working Draft does not match the requested frame grid, canvas, and duration; no Draft was saved');\n  }\n  let knownClipIds = new Set((await draft.clips({ trackScope: 'all' })).map((row) => row.clipId));\n  for (let i = 0; i < plan.tiles.length; i++) {\n    const tile = plan.tiles[i], source = chosen[i];\n    try {\n      await draft.overlayResource({ resource: project.resource(tile.resourceId), over: await draft.rangeAtFrames(tile.revealFrame, tile.endFrame) });\n    } catch (error) {\n      if (source.kind === 'image' && /not a Video\\/Audio asset/i.test(String(error?.message || error))) {\n        galleryFail('The plugin SDK cannot place original Image Resources on video tracks, although the editor can; no Draft was saved');\n      }\n      throw error;\n    }\n    const after = await draft.clips({ trackScope: 'all' });\n    const added = after.filter((row) => !knownClipIds.has(row.clipId) && row.resourceId === tile.resourceId && row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame);\n    if (added.length !== 1) galleryFail(`Could not identify tile ${i + 1} after placement; no Draft was saved`);\n    const clip = added[0];\n    const geometry = galleryGeometry(tile, source, plan.colorFrame);\n    await draft.addVideoEffect({\n      clip, label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,\n      tsxCode: TILE_EFFECT,\n      parameters: geometry.effect,\n      editableParameters: [\n        { key: 'focusX', label: 'Horizontal focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n        { key: 'focusY', label: 'Vertical focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n      ],\n    });\n    const freshClip = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);\n    if (!freshClip) galleryFail(`Tile ${i + 1} disappeared before placement was complete`);\n    await draft.setClipTransform({ clip: freshClip, position: geometry.transform.position, scale: geometry.transform.scale });\n    const finalRows = await draft.clips({ trackScope: 'all' });\n    const finalClip = finalRows.find((row) => row.clipId === clip.clipId);\n    if (!finalClip) galleryFail(`Tile ${i + 1} disappeared after transform`);\n    knownClipIds = new Set(finalRows.map((row) => row.clipId));\n  }\n  if (music) await draft.overlayResource({ resource: project.resource(music.resourceId), over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: (music.startSeconds ?? music.startFrame / 60) });\n  const rows = await draft.clips({ trackScope: 'all' });\n  if (rows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('The working Draft has an unexpected Main Resource');\n  if (rows.filter((row) => row.trackKind === 'video' && row.resourceId != null).length !== 21) galleryFail('The working Draft does not contain all 21 editable tiles');\n  onCommitStarted();\n  const saved = await draft.commitAll('Create editable 21-tile Photo Gallery');\n  if (!saved?.createdDraftId) galleryFail('Save outcome is unknown; inspect Project Drafts before retrying');\n  return { status: 'saved', draftId: saved.createdDraftId, tileCount: 21, durationFrames: plan.durationFrames, colorFrame: plan.colorFrame };\n}\n\nasync function galleryCreateBase(project, input, onCommitStarted) {\n  const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Photo Gallery';\n  const draft = await project.createDraft({ name });\n  await draft.setFrameSize({ width: 1080, height: 1920 });\n  const fps=(await draft.meta()).fps;\n  if(fps!==(input.fps??60))galleryFail('Project frame rate changed');\n  await draft.insertGap({seconds:input.durationFrames/fps});\n  onCommitStarted();\n  const saved = await draft.commitAll('Create Photo Gallery Draft');\n  if (!saved?.createdDraftId) galleryFail('Empty Draft save outcome is unknown');\n  return { status: 'baseCreated', draftId: saved.createdDraftId };\n}\n\nasync function galleryFillBase(selects, project, input, onCommitStarted) {\n  if (typeof input.draftId !== 'string' || !(await project.meta()).draftIds?.includes(input.draftId)) {\n    galleryFail('Target Draft does not belong to this Project');\n  }\n  if (!Number.isSafeInteger(input.durationFrames) || input.durationFrames < 1) galleryFail('Invalid Gallery duration');\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== (input.fps ?? 60) || meta.durationFrames !== 0 || meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {\n    galleryFail('Target Draft must be an empty portrait Draft');\n  }\n  await draft.insertGap({ seconds: input.durationFrames / meta.fps });\n  if ((await draft.meta()).durationFrames !== input.durationFrames) galleryFail('Could not author exact Gallery duration');\n  onCommitStarted();\n  const saved = await draft.commitAll('Set Photo Gallery duration');\n  if (!saved?.commitId) galleryFail('Duration save outcome is unknown');\n  return { status: 'baseFilled', draftId: input.draftId, durationFrames: input.durationFrames };\n}\n\nfunction galleryBatchTiles(tiles, slotKeys, limit) {\n  if (slotKeys === undefined) return tiles;\n  if (!Array.isArray(slotKeys) || slotKeys.length < 1 || slotKeys.length > limit ||\n      new Set(slotKeys).size !== slotKeys.length ||\n      slotKeys.some(key => !tiles.some(tile => tile.slotKey === key))) {\n    galleryFail(`Provide one to ${limit} distinct eligible slot keys`);\n  }\n  const selected = new Set(slotKeys);\n  return tiles.filter(tile => selected.has(tile.slotKey));\n}\n\nasync function galleryPlaceVideosExisting(selects, project, input, inventory, onCommitStarted) {\n  if (typeof input.draftId !== 'string' || !(await project.meta()).draftIds?.includes(input.draftId)) {\n    galleryFail('Target Draft does not belong to this Project');\n  }\n  const { plan } = await galleryPreflight(selects, project, input, inventory);\n  const videos = galleryBatchTiles(plan.tiles.filter(tile => tile.kind === 'video'), input.slotKeys, 1);\n  if (!videos.length) return { status: 'videosPlaced', draftId: input.draftId, tileCount: 0 };\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== (input.fps ?? 60) || meta.durationFrames !== plan.durationFrames ||\n      meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {\n    galleryFail('Target Draft clock, canvas, or duration changed');\n  }\n  const rows = await draft.clips({ trackScope: 'all' });\n  const existing = rows.filter(row => row.trackKind === 'video' && row.resourceId);\n  const imageTiles = plan.tiles.filter(tile => tile.kind === 'image');\n  if (new Set(existing.map(row => row.clipId)).size !== existing.length ||\n      new Set(existing.map(row => row.trackId)).size !== existing.length ||\n      rows.some(row => row.trackKind === 'audio' && row.resourceId) ||\n      rows.some(row => row.trackKind === 'main' && row.resourceId)) galleryFail('Target Draft has unexpected media');\n  const used = new Set();\n  for (const tile of imageTiles) {\n    const matches = existing.filter(row => row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !used.has(row.clipId));\n    if (matches.length !== 1) galleryFail(`Image ${tile.slotKey} changed before video placement`);\n    used.add(matches[0].clipId);\n  }\n  // Earlier bounded calls may have saved Videos already. Validate all of them\n  // against this frozen plan, but never replace or duplicate an existing target.\n  const placedVideoKeys = new Set();\n  for (const row of existing.filter(row => !used.has(row.clipId))) {\n    const matches = plan.tiles.filter(tile => tile.kind === 'video' &&\n      tile.resourceId === row.resourceId && tile.revealFrame === row.startFrame && tile.endFrame === row.endFrame);\n    if (matches.length !== 1 || placedVideoKeys.has(matches[0].slotKey)) galleryFail('Target Draft has unexpected or duplicate video media');\n    placedVideoKeys.add(matches[0].slotKey);\n  }\n  if (videos.some(tile => placedVideoKeys.has(tile.slotKey))) galleryFail('A selected Video is already present; inspect the Draft before retrying');\n  for (const tile of videos) {\n    const resource = project.resource(tile.resourceId);\n    const overlay = async (startFrame) => {\n      const before = new Set((await draft.clips({ trackScope: 'all' })).map(row => row.clipId));\n      await draft.overlayResource({ resource, over: await draft.rangeAtFrames(startFrame, tile.endFrame) });\n      const rows = (await draft.clips({ trackScope: 'all' })).filter(row => !before.has(row.clipId));\n      const visual = rows.filter(row => row.trackKind === 'video' && row.resourceId === tile.resourceId);\n      if (visual.length !== 1 || visual[0].startFrame !== startFrame) galleryFail(`Video ${tile.slotKey} did not create one independent clip`);\n      const sourceAudio = rows.filter(row => row.trackKind === 'audio' && row.resourceId);\n      if (sourceAudio.length) await draft.removeClips(sourceAudio);\n      return visual[0];\n    };\n    let clip = await overlay(tile.revealFrame);\n    if (clip.endFrame < tile.endFrame) {\n      // The SDK may quantize a seconds-based overlay one frame short at some\n      // 60 fps start positions. Re-place with enough source time, then use the\n      // public clip move and trim operations to get exact frame boundaries.\n      await draft.removeClips([clip]);\n      if (tile.revealFrame < 1) galleryFail(`Video ${tile.slotKey} cannot cover the output end`);\n      clip = await overlay(tile.revealFrame - 1);\n      const moved = await draft.moveOverlayClip({ clip, startFrame: tile.revealFrame });\n      const matches = (await draft.clips({ trackScope: 'all' })).filter(row => row.clipId === moved.clipId);\n      if (matches.length !== 1) galleryFail(`Video ${tile.slotKey} moved clip could not be read back`);\n      clip = matches[0];\n    }\n    if (clip.endFrame > tile.endFrame) {\n      await draft.remove(await draft.rangeAtFrames(tile.endFrame, clip.endFrame), { tracks: [clip.trackId] });\n    }\n    const exact = (await draft.clips({ trackScope: 'all' })).filter(row => row.clipId === clip.clipId &&\n      row.trackKind === 'video' && row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame);\n    if (exact.length !== 1) galleryFail(`Video ${tile.slotKey} could not reach its exact reveal and end frames`);\n    if ((await draft.clips({ trackScope: 'all' })).some(row => row.trackKind === 'audio' && row.resourceId)) {\n      galleryFail(`Video ${tile.slotKey} retained source audio`);\n    }\n  }\n  onCommitStarted();\n  const saved = await draft.commitAll('Place Photo Gallery video tiles');\n  if (!saved?.commitId) galleryFail('Video placement save outcome is unknown');\n  return { status: 'videosPlaced', draftId: input.draftId, tileCount: videos.length };\n}\n\nasync function galleryStyleExisting(selects, project, input, inventory, onCommitStarted) {\n  if (typeof input.draftId !== 'string' || !input.draftId) galleryFail('An explicit target Draft is required');\n  const projectMeta = await project.meta();\n  if (!projectMeta.draftIds?.includes(input.draftId)) galleryFail('Target Draft does not belong to this Project');\n  const chosen = input.media.map((item, i) => {\n    const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);\n    if (fresh.kind !== item.kind) galleryFail(`Slot ${i + 1} Resource type changed`);\n    const width = fresh.width ?? item.width, height = fresh.height ?? item.height;\n    if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {\n      galleryFail(`Slot ${i + 1} photo dimensions are unavailable`);\n    }\n    if (fresh.width != null && fresh.width !== item.width || fresh.height != null && fresh.height !== item.height) {\n      galleryFail(`Slot ${i + 1} photo dimensions changed`);\n    }\n    return { ...fresh, width, height, focusX: item.focusX, focusY: item.focusY };\n  });\n  const music = input.music == null ? null : galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');\n  const plan = planGallery({ media: chosen, music: music ? { ...music, startFrame: input.music.startFrame ?? 0 } : null, manualBpm: input.manualBpm,\n    estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames });\n  const selectedTiles = galleryBatchTiles(plan.tiles, input.slotKeys, 3);\n  const selectedKeys = new Set(selectedTiles.map(tile => tile.slotKey));\n  if (input.placeMusic !== undefined && typeof input.placeMusic !== 'boolean') galleryFail('placeMusic must be a boolean');\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== plan.fps || meta.durationFrames !== plan.durationFrames ||\n      meta.frameSize?.width !== plan.frameSize.width || meta.frameSize?.height !== plan.frameSize.height) {\n    galleryFail('Target Draft clock, canvas, or duration does not match the Gallery plan');\n  }\n  const allRows = await draft.clips({ trackScope: 'all' });\n  if (allRows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('Target Draft Main track is not blank');\n  if (allRows.some((row) => row.trackKind === 'audio' && row.resourceId)) galleryFail('Target Draft has unexpected source audio');\n  const rows = allRows.filter((row) => row.trackKind === 'video' && row.resourceId);\n  if (rows.length !== 21 || new Set(rows.map((row) => row.trackId)).size !== 21) {\n    galleryFail('Target Draft must contain exactly 21 independent visual tracks');\n  }\n  const used = new Set(), targets = [];\n  for (let i = 0; i < 21; i++) {\n    const tile = plan.tiles[i];\n    const matches = rows.filter((row) => row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !used.has(row.clipId));\n    if (matches.length !== 1) galleryFail(`Target tile ${tile.slotKey} does not match the selected Resource and frames`);\n    const clip = matches[0];\n    used.add(clip.clipId);\n    if (!selectedKeys.has(tile.slotKey)) continue;\n    if ((await draft.videoEffects(clip)).length) galleryFail(`Target tile ${tile.slotKey} already has effects; inspect it before retrying`);\n    const transform = await draft.clipTransform(clip);\n    const identity = !transform || !transform.enabled ||\n      (transform.position?.x === 0 && transform.position?.y === 0 &&\n       transform.scale?.x === 1 && transform.scale?.y === 1 &&\n       transform.rotation === 0 && transform.anchor?.x === 0 && transform.anchor?.y === 0);\n    if (!identity) galleryFail(`Target tile ${tile.slotKey} already has a manual transform; inspect it before retrying`);\n    targets.push({ clip, tile, source: chosen[i] });\n  }\n  for (const { clip, tile, source } of targets) {\n    const geometry = galleryGeometry(tile, source, plan.colorFrame);\n    const current = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);\n    if (!current) galleryFail(`Target tile ${tile.slotKey} disappeared before styling`);\n    await draft.addVideoEffect({ clip: current, label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,\n      tsxCode: TILE_EFFECT, parameters: geometry.effect,\n      editableParameters: [\n        { key: 'focusX', label: 'Horizontal focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n        { key: 'focusY', label: 'Vertical focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },\n      ] });\n    const fresh = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);\n    if (!fresh) galleryFail(`Target tile ${tile.slotKey} disappeared during styling`);\n    await draft.setClipTransform({ clip: fresh, position: geometry.transform.position, scale: geometry.transform.scale });\n  }\n  if (plan.music && input.placeMusic !== false) await draft.overlayResource({ resource: project.resource(plan.music.resourceId),\n    over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: (plan.music.startSeconds ?? plan.music.startFrame / 60) });\n  onCommitStarted();\n  const saved = await draft.commitAll('Style Photo Gallery tiles');\n  if (!saved?.commitId) galleryFail('Style save outcome is unknown; inspect the Draft before retrying');\n  return { status: 'styled', draftId: input.draftId, tileCount: targets.length, durationFrames: plan.durationFrames,\n    colorFrame: plan.colorFrame };\n}\n\nasync function galleryVerifyCreated(selects, project, input, inventory) {\n  if (typeof input.draftId !== 'string' || !input.draftId) galleryFail('The saved Draft ID is required for readback');\n  const { plan, chosen } = await galleryPreflight(selects, project, input, inventory);\n  const projectMeta = await project.meta();\n  if (!projectMeta.draftIds?.includes(input.draftId)) galleryFail('The saved Draft does not belong to this Project');\n  const draft = selects.draft(input.draftId);\n  const meta = await draft.meta();\n  if (meta.fps !== (input.fps ?? 60) || meta.durationFrames !== plan.durationFrames ||\n      meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {\n    galleryFail('Saved Draft canvas, frame rate, or duration does not match the request');\n  }\n  const allRows = await draft.clips({ trackScope: 'all' });\n  if (allRows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('Saved Draft has an unexpected Main Resource');\n  const rows = allRows.filter((row) => row.trackKind === 'video' && row.resourceId);\n  if (rows.length !== 21) galleryFail('Saved Draft does not contain exactly 21 independent visual clips');\n  const audioRows = allRows.filter((row) => row.trackKind === 'audio' && row.resourceId);\n  if (plan.music) {\n    if (audioRows.length !== 1 || audioRows[0].resourceId !== plan.music.resourceId ||\n        audioRows[0].startFrame !== 0 || audioRows[0].endFrame !== plan.durationFrames) {\n      galleryFail('Saved Draft music does not match the requested Resource and duration');\n    }\n  } else if (audioRows.length) galleryFail('Saved Draft has unexpected music');\n  const usedClipIds = new Set();\n  for (let tileIndex = 0; tileIndex < plan.tiles.length; tileIndex++) {\n    const tile = plan.tiles[tileIndex];\n    const matches = rows.filter((row) => row.resourceId === tile.resourceId &&\n      row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame && !usedClipIds.has(row.clipId));\n    if (matches.length !== 1) galleryFail(`Saved tile ${tile.slotKey} does not match its requested Resource and frames`);\n    const clip = matches[0];\n    const effects = await draft.videoEffects(clip);\n    if (effects.filter((effect) => effect.name === `Gallery ${tile.slotKey} color-${plan.colorFrame}` && effect.enabled !== false).length !== 1) {\n      galleryFail(`Saved tile ${tile.slotKey} has no matching color-transition effect`);\n    }\n    const actual = await draft.clipTransform(clip);\n    const expected = galleryGeometry(tile, chosen[tileIndex], plan.colorFrame).transform;\n    const close = (left, right) => typeof left === 'number' && Number.isFinite(left) && Math.abs(left - right) <= 1e-5;\n    if (!actual?.enabled || !close(actual.position?.x, expected.position.x) ||\n        !close(actual.position?.y, expected.position.y) ||\n        !close(actual.scale?.x, expected.scale.x) || !close(actual.scale?.y, expected.scale.y)) {\n      galleryFail(`Saved tile ${tile.slotKey} position or crop transform does not match the requested grid`);\n    }\n    usedClipIds.add(clip.clipId);\n  }\n  return { status: 'verified', draftId: input.draftId, tileCount: 21, durationFrames: plan.durationFrames,\n    colorFrame: plan.colorFrame, structuralOnly: true };\n}\n\nasync function galleryOperation(selects, raw) {\n  let commitStarted = false;\n  try {\n    const input = assertGalleryInput(raw);\n    const project = selects.project(input.projectId);\n    const inventory = await galleryInventory(project, input.operation === 'inspect' ? input.paths : null);\n    if (input.operation === 'inspect') return { status: 'inspected', projectId: input.projectId, ...inventory };\n    if (input.operation === 'importBundledMusic') return await galleryImportBundledMusic(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'importConverted') return await galleryImportConverted(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'create') return await galleryCreate(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'preflight') {\n      const { plan } = await galleryPreflight(selects, project, input, inventory);\n      return { status: 'ready', plan };\n    }\n    if (input.operation === 'createBase') return await galleryCreateBase(project, input, () => { commitStarted = true; });\n    if (input.operation === 'fillBase') return await galleryFillBase(selects, project, input, () => { commitStarted = true; });\n    if (input.operation === 'placeVideosExisting') return await galleryPlaceVideosExisting(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'styleExisting') return await galleryStyleExisting(selects, project, input, inventory, () => { commitStarted = true; });\n    if (input.operation === 'verifyCreated') return await galleryVerifyCreated(selects, project, input, inventory);\n    galleryFail('Unknown gallery action');\n  } catch (error) {\n    return { status: commitStarted ? 'outcomeUnknown' : 'notSaved', message: String(error?.message || error) };\n  }\n}\n\nreturn await galleryOperation(selects, ";
 const buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';
-// Panel-only adapter to the editor's own timeline mutation service. The
-// public plugin SDK currently refuses Image Resources in overlayResource.
-// A template run passes the library it was handed (`context.template.libraryId`),
-// since it keeps running while the person moves to another page; the Panel reads
-// the open Project from the app's address.
-async function galleryNativeContext(projectId, knownLibraryId = null) {
-  const app = window.parent;
-  let libraryId = knownLibraryId;
-  if (!libraryId) {
-    const match = app.location.pathname.match(/libraries\/([^/]+)\/projects\/([^/]+)/);
-    if (!match || match[2] !== projectId) throw new Error('The open Project changed; reload its media');
-    libraryId = match[1];
-  }
-  const di = app.__DI__;
-  if (typeof di?.TimelineMutation?.run !== 'function' ||
-      typeof di?.ProjectRepository?.findById !== 'function' ||
-      typeof di?.ResourceRepository?.findById !== 'function' ||
-      typeof di?.SequenceRepository?.findById !== 'function') {
-    throw new Error('This Selects build does not expose native Image placement to plugins');
-  }
-  const project = await di.ProjectRepository.findById(libraryId, projectId);
-  if (!project) throw new Error('The open Project was not found');
-  return { di, libraryId, project };
-}
-
-async function galleryNativeResources(projectId, media, libraryId = null) {
-  const ctx = await galleryNativeContext(projectId, libraryId);
-  const members = await Promise.all(ctx.project.getResources().map(id =>
-    ctx.di.ResourceRepository.findById(ctx.libraryId, id)));
-  const selected = media.map((item, index) => {
-    const matches = members.filter(resource => resource?.getMedia()?.path === item.path &&
-      resource.getType().toLowerCase() === item.kind);
-    if (matches.length !== 1) throw new Error(`Tile ${index + 1} has no unique Project Resource at its selected path`);
-    const resource = matches[0], source = resource.getMedia();
-    if (!Number.isSafeInteger(source.width) || source.width < 1 ||
-        !Number.isSafeInteger(source.height) || source.height < 1) {
-      throw new Error(`Tile ${index + 1} has no verified image dimensions`);
-    }
-    return { ...item, width: source.width, height: source.height, nativeResource: resource };
+// Domain reads and editable Image placement use the public Project/Draft SDK.
+async function galleryNativeResources(sdk, projectId, media, libraryId = null) {
+  const result = await sdk.runScript({
+    script: `const p=selects.project(${JSON.stringify(projectId)}),resources=await p.resources(),nodes=[];
+      const visit=items=>{for(const node of items||[])node.type==='dir'?visit(node.children):nodes.push(node);};
+      const view=await p.sourceFiles();if(view.fileTree)visit(view.fileTree);else for(const folder of view.folders||[])visit((await p.sourceFiles({folder:folder.name})).fileTree);
+      return ${JSON.stringify(media)}.map((item,index)=>{const matches=nodes.filter(node=>node.path===item.path&&resources.some(r=>r.resourceId===node.resourceId&&r.type.toLowerCase()===item.kind));
+        if(matches.length!==1)throw Error('Tile '+(index+1)+' has no unique Project Resource at its selected path');
+        const row=matches[0],size=row.frameSize;
+        if(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1)throw Error('Tile '+(index+1)+' has no verified image dimensions');
+        return {...item,resourceId:row.resourceId,width:size.width,height:size.height};});`,
+    summary: 'Verify Gallery Project media', allowCommit: false,
   });
-  return { ...ctx, selected };
+  if (result.isError || !Array.isArray(result.result)) throw new Error(result.output || 'Project media could not be verified');
+  return { selected: result.result };
 }
 
-async function galleryNativeDraft(ctx, draftId) {
-  if (!ctx.project.getEditedSequences().includes(draftId)) throw new Error('Target Draft does not belong to this Project');
-  const sequence = await ctx.di.SequenceRepository.findById(ctx.libraryId, draftId);
-  if (!sequence) throw new Error('Target Draft was not found');
-  return sequence;
-}
-
-async function galleryNativeSetFps(projectId, draftId, libraryId = null) {
-  const ctx = await galleryNativeContext(projectId, libraryId);
-  const sequence = await galleryNativeDraft(ctx, draftId);
-  const outcome = await ctx.di.TimelineMutation.run(sequence, 'photoGallery:set60Fps', current => {
-    if (!current.isEmpty() || current.getDuration('resolved') !== 0) throw new Error('The new Draft is no longer empty');
-    const candidate = current.clone();
-    candidate.setMediaProperties({ frameRateRatio: { numerator: 60, denominator: 1 },
-      frameSize: { width: 1080, height: 1920 }, sampleRate: current.getSampleRate() });
-    if (candidate.getFrameRate() !== 60) throw new Error('Could not set 60 fps');
-    return candidate;
+async function galleryNativePlace(sdk, projectId, draftId, media, plan, libraryId = null) {
+  const selected = (await galleryNativeResources(sdk, projectId, media, libraryId)).selected;
+  const result = await sdk.runScript({
+    script: `const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(draftId)}),plan=${JSON.stringify(plan)},media=${JSON.stringify(selected)};
+      if(!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)}))throw Error('Target Draft does not belong to this Project');
+      const meta=await d.meta();if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames)throw Error('Gallery Draft clock or duration changed');
+      const placements=[];for(let index=0;index<plan.tiles.length;index++){const tile=plan.tiles[index];if(tile.kind!=='image')continue;
+        const before=new Set((await d.clips({trackScope:'all'})).map(c=>c.clipId));
+        await d.overlayResource({resource:p.resource(media[index].resourceId),over:await d.rangeAtFrames(tile.revealFrame,tile.endFrame)});
+        const added=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId));
+        if(added.length!==1||added[0].resourceId!==media[index].resourceId||added[0].startFrame!==tile.revealFrame||added[0].endFrame!==tile.endFrame)throw Error('Gallery Image interval changed');
+        placements.push(added[0]);}
+      if((await d.meta()).durationFrames!==plan.durationFrames)throw Error('Gallery duration changed');
+      if(placements.length)await d.commitAll('Place original Gallery Images');return {placements};`,
+    summary: 'Place original Gallery Images', allowCommit: true, timeoutSeconds:120,
   });
-  if (outcome.status !== 'committed') throw new Error(`60 fps change ${outcome.status}; inspect the Draft before retrying`);
-}
-
-async function galleryNativePlace(projectId, draftId, media, plan, libraryId = null) {
-  const imageTiles = plan.tiles.map((tile, i) => ({ tile, media: media[i], index: i })).filter(item => item.tile.kind === 'image');
-  if (!imageTiles.length) return;
-  const ctx = await galleryNativeResources(projectId, imageTiles.map(item => item.media), libraryId);
-  const prepared = await Promise.all(ctx.selected.map(async (item, i) => {
-    const analyzed = await item.nativeResource.getAnalyzedSequence();
-    const main = analyzed?.getMainTrack();
-    const primary = main?.getClips().find(clip => !clip.isGap());
-    if (!analyzed || !main || !primary) throw new Error(`Tile ${imageTiles[i].index + 1} has no native placement source`);
-    return { analyzed, main, primary, resource: item.nativeResource };
-  }));
-  const sequence = await galleryNativeDraft(ctx, draftId);
-  const outcome = await ctx.di.TimelineMutation.run(sequence, 'photoGallery:place21Resources', current => {
-    if (current.getFrameRate() !== 60 || current.getDuration('resolved') !== plan.durationFrames) {
-      throw new Error('Gallery Draft clock or duration changed');
-    }
-    const candidate = current.clone();
-    for (let i = 0; i < imageTiles.length; i++) {
-      const tile = imageTiles[i].tile, item = prepared[i], slot = imageTiles[i].index + 1;
-      const ids = candidate.place({ working: item.analyzed, primaryTrack: item.main,
-        primaryOffset: 0, primaryClipId: item.primary.getId() }, tile.revealFrame, { kind: 'overlay' });
-      if (ids.length !== 1) throw new Error(`Tile ${slot} did not create one independent clip`);
-      const position = candidate.getClipPositionById(ids[0]);
-      const wanted = plan.durationFrames - tile.revealFrame;
-      if (!position || wanted < 1) throw new Error(`Tile ${slot} has no valid source range`);
-      const result = candidate.trimClipBoundary({ trackId: position.trackId, clipId: ids[0],
-        position: 'end', delta: wanted - position.clip.getDuration(), sourceDuration: wanted });
-      if (result.trimmedClipPosition?.clip.getDuration() !== wanted) {
-        throw new Error(`Tile ${slot} did not reach the output end`);
-      }
-    }
-    return candidate;
-  });
-  if (outcome.status !== 'committed') throw new Error(`Image placement ${outcome.status}; inspect the Draft before retrying`);
+  if (result.isError || !result.result) throw new Error(result.output || 'Image placement could not be confirmed; inspect the Draft before retrying');
+  return result.result;
 }
 
 
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -179,34 +101,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -320,10 +225,10 @@ async function holdValidate(path, frames, dimensions, decode = false) {
   }
   return video;
 }
-// { size, mtimeMs } of a file (FileSystem.statSync crosses IPC, so only its plain fields are used), or null.
-function holdStat(path) {
+// { size, mtimeMs } of a file (FileSystem.stat crosses IPC, so only its plain fields are used), or null.
+async function holdStat(path) {
   try {
-    const stat = hostNeed('FileSystem', 'statSync').statSync(path);
+    const stat = (await hostNeed('FileSystem', 'stat').stat(path));
     return stat && Number.isFinite(stat.size) ? { size: stat.size, mtimeMs: Number(stat.mtimeMs) || 0 } : null;
   } catch (error) { if (error?.code === 'host-missing') throw error; return null; }
 }
@@ -343,11 +248,11 @@ async function holdEncode(source, target, frames) {
   } catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('ffmpeg could not extend the short video'); }
 }
 async function holdCached(videoPath, metaPath, identity, frames, dimensions) {
-  const fs = hostNeed('FileSystem', 'existsSync');
+  const fs = hostNeed('FileSystem', 'exists');
   try {
-    if (!fs.existsSync(videoPath) || !fs.existsSync(metaPath)) return false;
+    if (!(await fs.exists(videoPath)) || !(await fs.exists(metaPath))) return false;
     const data = JSON.parse(await hostReadText(metaPath));
-    const stat = holdStat(videoPath);
+    const stat = (await holdStat(videoPath));
     if (data?.algorithm !== HOLD_ALGORITHM || data.sourceSize !== identity.size || data.sourceMtimeMs !== identity.mtimeMs ||
         data.durationFrames !== frames || JSON.stringify(data.outputDimensions) !== JSON.stringify(dimensions) ||
         !stat || data.outputSize !== stat.size) return false;
@@ -360,22 +265,22 @@ async function holdConvertOne(source, identity, sourceDimensions, frames, cacheR
   const videoPath = hostJoin(cacheRoot, key + '.mp4'), metaPath = hostJoin(cacheRoot, key + '.json');
   const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
   if (await holdCached(videoPath, metaPath, identity, frames, dimensions)) return { videoPath, dimensions, reused: true };
-  const fs = hostNeed('FileSystem', 'renameSync');
+  const fs = hostNeed('FileSystem', 'rename');
   const writer = hostNeed('FileSystem', 'writeFile');
   const stamp = Date.now() + '-' + Math.floor(Math.random() * 1e6);
   const temporary = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.mp4.tmp');
   const temporaryMeta = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.json.tmp');
-  const unchanged = () => { const now = holdStat(source); return !!now && now.size === identity.size && now.mtimeMs === identity.mtimeMs; };
+  const unchanged = async () => { const now = (await holdStat(source)); return !!now && now.size === identity.size && now.mtimeMs === identity.mtimeMs; };
   try {
     await holdEncode(source, temporary, frames);
-    if (!unchanged()) throw holdError('A video changed during extension');
+    if (!(await unchanged())) throw holdError('A video changed during extension');
     await holdValidate(temporary, frames, dimensions, true);
-    const output = holdStat(temporary);
+    const output = (await holdStat(temporary));
     if (!output) throw holdError('ffmpeg could not extend the short video');
     await writer.writeFile(temporaryMeta, JSON.stringify({ algorithm: HOLD_ALGORITHM, sourceSize: identity.size,
       sourceMtimeMs: identity.mtimeMs, durationFrames: frames, outputDimensions: dimensions, outputSize: output.size }));
-    fs.renameSync(temporary, videoPath);
-    fs.renameSync(temporaryMeta, metaPath);
+    (await fs.rename(temporary, videoPath));
+    (await fs.rename(temporaryMeta, metaPath));
   } finally {
     await hostRemove(temporary);
     await hostRemove(temporaryMeta);
@@ -390,15 +295,15 @@ async function holdVideos(request, dataDir) {
   if (!dataDir) throw holdError('The plugin data folder is unavailable');
   hostNeed('Runtime', 'runFFmpeg'); hostNeed('Runtime', 'runFFprobe');
   const cacheRoot = hostJoin(dataDir, 'held-v2');
-  hostNeed('FileSystem', 'mkdirSync').mkdirSync(cacheRoot, { recursive: true });
-  const exists = hostNeed('FileSystem', 'existsSync');
+  (await hostNeed('FileSystem', 'mkdir').mkdir(cacheRoot, { recursive: true }));
+  const exists = hostNeed('FileSystem', 'exists');
   const completed = new Map(), output = [];
   for (let index = 0; index < videos.length; index++) {
     const raw = videos[index]?.path;
     if (typeof raw !== 'string') throw holdError('Video ' + (index + 1) + ' needs a file path');
     if (!raw || raw.includes('\0') || raw.length > 8192) throw holdError('Video ' + (index + 1) + ' has an invalid path');
     try {
-      const identity = exists.existsSync(raw) ? holdStat(raw) : null;
+      const identity = (await exists.exists(raw)) ? (await holdStat(raw)) : null;
       if (!identity) throw holdError('Video is missing');
       const id = holdPathKey(raw) + '\0' + identity.size + '\0' + identity.mtimeMs;
       if (!completed.has(id)) {
@@ -507,7 +412,7 @@ const STRINGS = {
     "estimated": "\ucd94\uc815 BPM",
     "uncertain": "BPM\uc744 \ud655\uc2e4\ud788 \ucd94\uc815\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc9c1\uc811 \uc785\ub825\ud574 \uc8fc\uc138\uc694.",
     "duration": "\uc601\uc0c1 \uae38\uc774",
-    "durationNote": "\uae30\ubcf8 14.217\ucd08 \u00b7 60fps. \uc74c\uc545\uc744 \uace0\ub974\uba74 \uc774 \uae38\uc774\ub97c \ucc44\uc6b8 \uc218 \uc788\uc5b4\uc57c \ud569\ub2c8\ub2e4.",
+    "durationNote": "\uae30\ubcf8 14.217\ucd08 \u00b7 \ud504\ub85c\uc81d\ud2b8 \ud504\ub808\uc784\ub808\uc774\ud2b8\ub97c \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \uc74c\uc545\uc774 \uc774 \uae38\uc774\ub97c \ucc44\uc6b8 \uc218 \uc788\uc5b4\uc57c \ud569\ub2c8\ub2e4.",
     "name": "\ud3b8\uc9d1\ubcf8 \uc774\ub984",
     "create": "\uc0c8 \ud3b8\uc9d1\ubcf8 \ub9cc\ub4e4\uae30",
     "busy": "\ucc98\ub9ac \uc911\u2026",
@@ -549,7 +454,7 @@ const STRINGS = {
     "estimated": "Estimated BPM",
     "uncertain": "Could not estimate BPM reliably. Enter it manually.",
     "duration": "Video length",
-    "durationNote": "Default 14.217 seconds at 60 fps. Music must cover this length.",
+    "durationNote": "Default 14.217 seconds, using the Project frame rate. Music must cover this length.",
     "name": "Draft name",
     "create": "Create Draft",
     "busy": "Working\u2026",
@@ -591,7 +496,7 @@ const STRINGS = {
     "estimated": "Gesch\u00e4tzte BPM",
     "uncertain": "BPM nicht zuverl\u00e4ssig ermittelt. Bitte manuell eingeben.",
     "duration": "Videol\u00e4nge",
-    "durationNote": "Standard: 14,217 Sekunden bei 60 fps. Die Musik muss diese L\u00e4nge abdecken.",
+    "durationNote": "Standard: 14,217 Sekunden bei der Projekt-Bildrate. Die Musik muss diese L\u00e4nge abdecken.",
     "name": "Entwurfsname",
     "create": "Entwurf erstellen",
     "busy": "In Bearbeitung\u2026",
@@ -633,7 +538,7 @@ const STRINGS = {
     "estimated": "BPM estimados",
     "uncertain": "No se pudo estimar el BPM con fiabilidad. Introd\u00facelo manualmente.",
     "duration": "Duraci\u00f3n del v\u00eddeo",
-    "durationNote": "Predeterminado: 14,217 segundos a 60 fps. La m\u00fasica debe cubrir esta duraci\u00f3n.",
+    "durationNote": "Predeterminado: 14,217 segundos con la tasa de fotogramas del proyecto. La m\u00fasica debe cubrir esta duraci\u00f3n.",
     "name": "Nombre del borrador",
     "create": "Crear borrador",
     "busy": "Procesando\u2026",
@@ -675,7 +580,7 @@ const STRINGS = {
     "estimated": "BPM estim\u00e9",
     "uncertain": "Estimation du BPM incertaine. Saisissez-le manuellement.",
     "duration": "Dur\u00e9e de la vid\u00e9o",
-    "durationNote": "Par d\u00e9faut : 14,217 secondes \u00e0 60 fps. La musique doit couvrir cette dur\u00e9e.",
+    "durationNote": "Par d\u00e9faut : 14,217 secondes \u00e0 la fr\u00e9quence du projet. La musique doit couvrir cette dur\u00e9e.",
     "name": "Nom du brouillon",
     "create": "Cr\u00e9er le brouillon",
     "busy": "En cours\u2026",
@@ -717,7 +622,7 @@ const STRINGS = {
     "estimated": "BPM stimati",
     "uncertain": "Impossibile stimare i BPM in modo affidabile. Inseriscili manualmente.",
     "duration": "Durata del video",
-    "durationNote": "Predefinita: 14,217 secondi a 60 fps. La musica deve coprire questa durata.",
+    "durationNote": "Predefinita: 14,217 secondi alla frequenza del progetto. La musica deve coprire questa durata.",
     "name": "Nome della bozza",
     "create": "Crea bozza",
     "busy": "Elaborazione\u2026",
@@ -759,7 +664,7 @@ const STRINGS = {
     "estimated": "\u63a8\u5b9aBPM",
     "uncertain": "BPM\u3092\u78ba\u5b9f\u306b\u63a8\u5b9a\u3067\u304d\u307e\u305b\u3093\u3002\u624b\u52d5\u3067\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     "duration": "\u52d5\u753b\u306e\u9577\u3055",
-    "durationNote": "\u521d\u671f\u5024\u306f60fps\u306714.217\u79d2\u3002\u97f3\u697d\u306f\u3053\u306e\u9577\u3055\u3092\u6e80\u305f\u3059\u5fc5\u8981\u304c\u3042\u308a\u307e\u3059\u3002",
+    "durationNote": "\u521d\u671f\u5024\u306f14.217\u79d2\u3002\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u30d5\u30ec\u30fc\u30e0\u30ec\u30fc\u30c8\u3092\u4f7f\u7528\u3057\u307e\u3059\u3002\u97f3\u697d\u306f\u3053\u306e\u9577\u3055\u3092\u6e80\u305f\u3059\u5fc5\u8981\u304c\u3042\u308a\u307e\u3059\u3002",
     "name": "\u4e0b\u66f8\u304d\u540d",
     "create": "\u4e0b\u66f8\u304d\u3092\u4f5c\u6210",
     "busy": "\u51e6\u7406\u4e2d\u2026",
@@ -801,7 +706,7 @@ const STRINGS = {
     "estimated": "BPM estimados",
     "uncertain": "N\u00e3o foi poss\u00edvel estimar os BPM com confian\u00e7a. Introduza-os manualmente.",
     "duration": "Dura\u00e7\u00e3o do v\u00eddeo",
-    "durationNote": "Predefini\u00e7\u00e3o: 14,217 segundos a 60 fps. A m\u00fasica tem de cobrir esta dura\u00e7\u00e3o.",
+    "durationNote": "Predefini\u00e7\u00e3o: 14,217 segundos \u00e0 taxa de fotogramas do projeto. A m\u00fasica deve cobrir esta dura\u00e7\u00e3o.",
     "name": "Nome do rascunho",
     "create": "Criar rascunho",
     "busy": "A processar\u2026",
@@ -843,7 +748,7 @@ const STRINGS = {
     "estimated": "Tahmini BPM",
     "uncertain": "BPM g\u00fcvenilir \u015fekilde tahmin edilemedi. Elle girin.",
     "duration": "Video uzunlu\u011fu",
-    "durationNote": "Varsay\u0131lan: 60 fps ile 14,217 saniye. M\u00fczik bu uzunlu\u011fu kar\u015f\u0131lamal\u0131d\u0131r.",
+    "durationNote": "Varsay\u0131lan: proje kare h\u0131z\u0131nda 14,217 saniye. M\u00fczik bu uzunlu\u011fu kar\u015f\u0131lamal\u0131d\u0131r.",
     "name": "Taslak ad\u0131",
     "create": "Taslak olu\u015ftur",
     "busy": "\u0130\u015fleniyor\u2026",
@@ -885,7 +790,7 @@ const STRINGS = {
     "estimated": "\u4f30\u8ba1BPM",
     "uncertain": "\u65e0\u6cd5\u53ef\u9760\u5730\u4f30\u8ba1BPM\u3002\u8bf7\u624b\u52a8\u8f93\u5165\u3002",
     "duration": "\u89c6\u9891\u957f\u5ea6",
-    "durationNote": "\u9ed8\u8ba460fps\u300114.217\u79d2\u3002\u97f3\u4e50\u987b\u8986\u76d6\u6574\u4e2a\u65f6\u957f\u3002",
+    "durationNote": "\u9ed8\u8ba414.217\u79d2\uff0c\u4f7f\u7528\u9879\u76ee\u5e27\u7387\u3002\u97f3\u4e50\u987b\u8986\u76d6\u6574\u4e2a\u65f6\u957f\u3002",
     "name": "\u8349\u7a3f\u540d\u79f0",
     "create": "\u521b\u5efa\u8349\u7a3f",
     "busy": "\u5904\u7406\u4e2d\u2026",
@@ -910,8 +815,8 @@ async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurren
   try {
     const { plugin } = await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md');
     const path = hostJoin(plugin, 'assets', 'music.mp3');
-    if (hostNeed('FileSystem', 'existsSync').existsSync(path)) musicPath = path;
-  } catch { musicPath = null; }
+    if ((await hostNeed('FileSystem', 'exists').exists(path))) musicPath = path;
+  } catch (error) { if (error?.code === 'host-missing') throw error; musicPath = null; }
   if (!musicPath) throw new Error('Bundled music could not be located. Reinstall Photo Grid Reveal.');
   if (!isCurrent()) throw new Error(t.changed);
   onImportStarted();
@@ -990,9 +895,12 @@ function scriptFailure(t, response, phase, draftId) {
 // anything is created throws with `contextChanged`.
 async function buildGalleryDraft(sdk, t, { input, isCurrent, onDispatched, onDraft, libraryId = null }) {
   const projectId = input.projectId;
+  const clock=await sdk.runScript({script:`const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:'Gallery frame grid'});return {fps:(await d.meta()).fps};`,summary:'Read Project frame grid',allowCommit:false});
+  if(clock.isError||!Number.isFinite(clock.result?.fps)||clock.result.fps<=0)throw new Error('Project frame rate is unavailable');
+  input.fps=clock.result.fps;
   input.media = await prepareVisuals(sdk, t, input.media, input.durationFrames, projectId, onDispatched, isCurrent);
   if (!isCurrent()) throw Object.assign(new Error(t.changed), { contextChanged: true });
-  input.media = (await galleryNativeResources(projectId, input.media, libraryId)).selected.map(({ nativeResource, ...item }) => item);
+  input.media = (await galleryNativeResources(sdk, projectId, input.media, libraryId)).selected.map(({ nativeResource, ...item }) => item);
   const preflight = await sdk.runScript({ script: buildScript({ ...input, operation: 'preflight' }),
     summary: 'Check Photo Gallery media and timing', allowCommit: false });
   if (preflight.isError || preflight.result?.status !== 'ready') throw Object.assign(
@@ -1000,16 +908,12 @@ async function buildGalleryDraft(sdk, t, { input, isCurrent, onDispatched, onDra
   const plan = preflight.result.plan;
   if (!isCurrent()) throw Object.assign(new Error(t.changed), { safeNotSaved: true });
   onDispatched();
-  const base = await sdk.runScript({ script: buildScript({ ...input, operation: 'createBase' }),
+  const base = await sdk.runScript({ script: buildScript({ ...input, operation: 'createBase', durationFrames: plan.durationFrames }),
     summary: 'Create Photo Gallery Draft', allowCommit: true });
   if (base.isError || base.result?.status !== 'baseCreated' || !base.result.draftId) throw scriptFailure(t, base, 'Create Photo Gallery Draft');
   const draftId = base.result.draftId;
   onDraft(draftId);
-  await galleryNativeSetFps(projectId, draftId, libraryId);
-  const fill = await sdk.runScript({ script: buildScript({ operation: 'fillBase', projectId,
-    draftId, durationFrames: plan.durationFrames }), summary: 'Set Photo Gallery duration', allowCommit: true });
-  if (fill.isError || fill.result?.status !== 'baseFilled') throw scriptFailure(t, fill, 'Set Photo Gallery duration', draftId);
-  await galleryNativePlace(projectId, draftId, input.media, plan, libraryId);
+  await galleryNativePlace(sdk, projectId, draftId, input.media, plan, libraryId);
   // Each panel script has a fixed 30-second deadline. Cold video analysis
   // and effect compilation must not accumulate across all 21 tiles.
   for (const tile of plan.tiles.filter(item => item.kind === 'video')) {
@@ -1036,7 +940,8 @@ async function buildGalleryDraft(sdk, t, { input, isCurrent, onDispatched, onDra
 }
 
 // A template run gets its own component, so it never touches the Panel's state.
-export default function Panel(props) {
+function Panel(props) {
+  hostUseSdk(props.sdk);
   return props.context?.template ? <GalleryTemplateRun {...props}/> : <GalleryPanel {...props}/>;
 }
 
@@ -1104,7 +1009,7 @@ function GalleryPanel({ sdk, context, ui }) {
       if (response.isError || response.result?.status !== 'inspected' || !Array.isArray(response.result.media) || !Array.isArray(response.result.audio)) {
         throw new Error(response.result?.message || response.output || t.failed);
       }
-      const native = await galleryNativeResources(projectId, response.result.media);
+      const native = await galleryNativeResources(sdk, projectId, response.result.media);
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
       setInventory({ ...response.result, media: native.selected.map(({ nativeResource, ...item }) => item) }); setLoadedKey(requestedKey);
       setSlots(emptySlots()); setName('Photo Grid Reveal'); setDurationFrames(853);
@@ -1254,37 +1159,64 @@ function templateLibrary(app, projectId, template) {
   if (template?.libraryId) return template.libraryId;
   const match = String(app?.location?.pathname || '').match(/libraries\/([^/]+)\/projects\/([^/]+)/);
   if (match && match[2] === projectId) return match[1];
-  return app?.__DI__?.SequenceState?.getOnScreenTab?.()?.libraryId || null;
+  return null;
 }
 
 // The app hands over its own Resource ids; the Panel works from the inspected
 // media rows, so each pick is joined to its row by its file, the same file the
 // native placement later checks the Project's Resource against.
+// sdk-selected-media:start
+// Match host Resource ids to run_script's project-scoped ids through the SDK.
+// Return only the selected files so large Projects stay below the script result limit.
+async function sdkSelectedMedia(sdk, projectId, picks) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw Error('Could not read the Project resources.');
+  const indices = picks.map(pick => before.findIndex(row => row.resourceId === pick.resourceId));
+  if (indices.includes(-1)) throw Error('A picked file is missing from this Project.');
+  const response = await sdk.runScript({
+    summary: 'Read selected Project files', allowCommit: false,
+    script: `const p=selects.project(${JSON.stringify(projectId)});
+const resources=await p.resources(),indices=${JSON.stringify(indices)};
+const selected=indices.map(i=>resources[i]),ids=new Set(selected.filter(Boolean).map(r=>r.resourceId));
+const files=[];
+const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else if(ids.has(n.resourceId))files.push(n);};
+const top=await p.sourceFiles();
+if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);
+else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});walk(detail.fileTree);}
+return {count:resources.length,rows:selected.map(r=>r?{name:r.name,type:r.type,files:files.filter(f=>f.resourceId===r.resourceId).map(f=>({resourceId:f.resourceId,path:f.path}))}:null)};`
+  });
+  if (response.isError || !response.result || !Array.isArray(response.result.rows))
+    throw Error(response.output || 'Could not read the selected Project files.');
+  const result = response.result, after = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(after) || before.length !== result.count || after.length !== before.length ||
+      after.some((row, i) => row.resourceId !== before[i].resourceId || row.name !== before[i].name || row.type !== before[i].type) ||
+      result.rows.length !== picks.length || indices.some((index, i) =>
+        result.rows[i]?.name !== before[index].name || result.rows[i]?.type !== before[index].type))
+    throw Error('The selected Project files changed. Refresh your media and try again.');
+  return result.rows.map((row, i) => {
+    const expected = { image: 'Image', video: 'Video', audio: 'Audio' }[picks[i].kind];
+    if (expected && row.type !== expected) throw Error('A picked file has the wrong media type.');
+    if (row.files.length !== 1 || !row.files[0].path)
+      throw Error((picks[i].name || 'A picked file') + ' is missing from this Project or matches more than one file.');
+    return { ...row.files[0], resourceType: row.type };
+  });
+}
+// sdk-selected-media:end
+
 async function templateTiles(sdk, app, projectId, libraryId, inputs) {
   const photos = Array.isArray(inputs?.photos) ? inputs.photos : [];
   const clips = Array.isArray(inputs?.clips) ? inputs.clips : [];
   if (photos.length !== 15 || photos.some(x => x?.kind !== 'image' || !x.resourceId)) throw templateIssue('Pick exactly 15 photos, then try again.');
   if (clips.length !== 6 || clips.some(x => x?.kind !== 'video' || !x.resourceId)) throw templateIssue('Pick exactly 6 videos, then try again.');
-  const di = app?.__DI__;
-  if (typeof di?.ProjectRepository?.findById !== 'function' || typeof di?.ResourceRepository?.findById !== 'function') {
-    throw templateIssue('This version of Selects cannot place photos for Photo Grid Reveal; update Selects, then try again.');
-  }
-  const project = libraryId ? await di.ProjectRepository.findById(libraryId, projectId) : null;
-  if (!project) throw templateIssue('Could not find this Project; open it, then try again.');
-  const members = new Set(project.getResources() || []);
-  const paths = [];
-  for (const pick of [...photos, ...clips]) {
-    const resource = members.has(pick.resourceId) ? await di.ResourceRepository.findById(libraryId, pick.resourceId) : null;
-    const path = resource?.getMedia()?.path;
-    if (!path) throw templateIssue((pick.name || 'A picked file') + ' is missing from this Project.');
-    paths.push(path);
-  }
+  const picks = [...photos, ...clips];
+  const selected = await sdkSelectedMedia(sdk, projectId, picks);
+  const paths = selected.map(row => row.path);
+  const pathById = new Map(picks.map((pick, i) => [pick.resourceId, paths[i]]));
   const inspected = await readMediaPages(sdk, { script: buildScript({ operation: 'inspect', projectId, paths }), summary: 'Inspect Photo Gallery project', allowCommit: false });
   if (inspected.isError || inspected.result?.status !== 'inspected' || !Array.isArray(inspected.result.media)) throw new Error(inspected.result?.message || inspected.output || 'Could not read the Project media.');
   const rowFor = async pick => {
     const label = pick.name || (pick.kind === 'video' ? 'A picked video' : 'A picked photo');
-    const resource = members.has(pick.resourceId) ? await di.ResourceRepository.findById(libraryId, pick.resourceId) : null;
-    const path = resource?.getMedia()?.path;
+    const path = pathById.get(pick.resourceId);
     const rows = path ? inspected.result.media.filter(row => row.path === path && row.kind === pick.kind) : [];
     if (rows.length !== 1) throw templateIssue(label + ' is missing from this Project or matches more than one file.');
     return rows[0];
@@ -1294,7 +1226,7 @@ async function templateTiles(sdk, app, projectId, libraryId, inputs) {
   for (const pick of clips) clipRows.push(await rowFor(pick));
   let p = 0, c = 0;
   const media = SLOT_KEYS.map((_, i) => REFERENCE_VIDEO_SLOTS.has(i + 1) ? clipRows[c++] : photoRows[p++]);
-  const native = await galleryNativeResources(projectId, media, libraryId);
+  const native = await galleryNativeResources(sdk, projectId, media, libraryId);
   return native.selected.map(({ nativeResource, ...item }) => ({ ...item, focusX: 0.5, focusY: 0.5 }));
 }
 
@@ -1377,3 +1309,268 @@ async function readMediaPages(sdk, args) {
     if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
   }
 }
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(Panel);
+// local-sdk:end

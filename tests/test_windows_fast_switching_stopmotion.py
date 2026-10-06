@@ -12,6 +12,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins" / "fast-switching-stopmotion"
 PANEL = Path(os.environ.get("FSS_PANEL") or PLUGIN / "panel.tsx")
@@ -63,7 +65,7 @@ class FastSwitchingStopMotionWindowsTest(unittest.TestCase):
     def test_runtime_has_no_posix_shell(self):
         code = without_comments(without_regions(self.runtime, AV_START, AV_END))
         for token in FORBIDDEN:
-            self.assertNotIn(token, code, token)
+            assert_no_shell_token(self, token, code, token)
         self.assertNotRegex(code, r"""runShell\([^)]*\b(node|python3?)\s""", "node/python spawn")
         self.assertNotRegex(code, r"""replace\(/'/g""", "POSIX single-quote helper")
         self.assertNotRegex(code, r"""\|\s*(grep|cut|tr|wc)\b""", "shell pipeline")

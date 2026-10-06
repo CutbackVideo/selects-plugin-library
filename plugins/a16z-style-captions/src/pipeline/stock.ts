@@ -1,7 +1,7 @@
 // Stock B-roll through the app's StockMediaSearch service: Cutback's server searches Pexels and Pixabay
 // with its own keys, so nothing is asked of the user. Searches return candidates with a preview image;
 // the chosen candidate's needed seconds are cut straight from the provider's URL.
-import { di, fs, hostFF, type Sdk } from "./host";
+import { getSdk, fs, hostFF, type Sdk } from "./host";
 
 export type StockClip = { path: string; width: number; height: number; credit: string; url: string; service: string; id: string; dur?: number };
 
@@ -22,7 +22,7 @@ export type Candidate = { id: string; url: string; width: number; height: number
 
 export function stockSearchAvailable(): boolean {
   try {
-    return typeof di()?.StockMediaSearch?.searchVideos === "function";
+    return typeof getSdk()?.runScript === "function";
   } catch {
     return false;
   }
@@ -39,7 +39,11 @@ const clean = (raw: string) =>
 
 // Candidates for one moment, portrait first, at most `max`, skipping ids in `avoid`.
 export async function searchCandidates(queries: string[], max: number, avoid: Set<string>): Promise<Candidate[]> {
-  const service = di().StockMediaSearch;
+  const service = { searchVideos: async (query: any) => {
+    const reply = await getSdk().runScript({ script: `return await selects.stock.searchVideos(${JSON.stringify(query)});`, summary: "Find stock footage" });
+    if (reply.isError) throw new Error(reply.output);
+    return reply.result;
+  } };
   const out: Candidate[] = [];
   const seen = new Set<string>();
   for (const orientation of ["portrait", "landscape"] as const) {
@@ -78,16 +82,16 @@ export async function searchCandidates(queries: string[], max: number, avoid: Se
 
 // Cut `seconds` of a candidate (from `offset`) into `dir`, scaled to cover a 9:16 frame.
 export async function cutCandidate(sdk: Sdk, c: Candidate, dir: string, seconds: number, offset = 0.4): Promise<StockClip> {
-  fs().mkdirSync(dir, { recursive: true });
+  (await fs().mkdir(dir, { recursive: true }));
   const start = Math.min(Math.max(0, c.duration - seconds - 0.2), offset);
   const length = Math.max(1.5, Math.min(12, seconds));
   const out = fs().join(dir, "stock-" + Math.abs(hash(c.id + "@" + start.toFixed(2) + "+" + length.toFixed(2))) + ".mp4");
-  if (!fs().existsSync(out)) {
+  if (!(await fs().exists(out))) {
     const portrait = c.height > c.width;
     const box = portrait ? "1080:1920" : "1920:1080";
     // ffmpeg writes a .part file that is renamed once complete, so a failed cut never looks cached
     // (straight to the final name on a host build without renameSync).
-    const part = typeof fs().renameSync === "function" ? out + ".part.mp4" : out;
+    const part = typeof fs().rename === "function" ? out + ".part.mp4" : out;
     await hostFF(
       "runFFmpeg",
       ["-v", "error", "-y", "-ss", start.toFixed(2), "-t", length.toFixed(2), "-i", c.url,
@@ -95,7 +99,7 @@ export async function cutCandidate(sdk: Sdk, c: Candidate, dir: string, seconds:
         "-vf", "scale=" + box + ":force_original_aspect_ratio=increase:force_divisible_by=2", part],
       150000
     );
-    if (part !== out) fs().renameSync(part, out);
+    if (part !== out) (await fs().rename(part, out));
   }
   const probe = (await hostFF("runFFprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:format=duration", "-of", "csv=p=0", out], 30000)).stdout
     .trim()

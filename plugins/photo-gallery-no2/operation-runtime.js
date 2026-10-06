@@ -198,7 +198,7 @@ async function galleryPreflight(selects, project, input, inventory) {
     galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');
   if (input.music != null && !music) galleryFail('Selected music is missing or moved');
   const selectedMusic = music && { ...music, startFrame: input.music.startFrame ?? 0 };
-  const plan = planGallery({ media: chosen, music: selectedMusic, manualBpm: input.manualBpm, estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames });
+  const plan = planGallery({ media: chosen, music: selectedMusic, manualBpm: input.manualBpm, estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames, fps: input.fps });
   const paths = [...new Set([...chosen.map((item) => item.path), ...(music ? [music.path] : [])])];
   const probe = await selects.media.probe({ filePaths: paths });
   const confirmed = new Set((probe.files || []).map((file) => galleryPathKey(file.path)));
@@ -214,13 +214,13 @@ async function galleryCreate(selects, project, input, inventory, onCommitStarted
   const { plan, chosen, music } = await galleryPreflight(selects, project, input, inventory);
   const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Photo Gallery';
   const draft = await project.createDraft({ name });
-  if ((await draft.meta()).fps !== 60) galleryFail('This Project is not 60 fps; no Draft was saved');
+  if ((await draft.meta()).fps !== plan.fps) galleryFail('The Project frame rate changed; no Draft was saved');
   await draft.insertGap({ seconds: plan.durationFrames / plan.fps });
   await draft.setFrameSize(plan.frameSize);
   const prepared = await draft.meta();
   if (prepared.fps !== plan.fps || prepared.durationFrames !== plan.durationFrames ||
       prepared.frameSize?.width !== plan.frameSize.width || prepared.frameSize?.height !== plan.frameSize.height) {
-    galleryFail('The working Draft does not match the requested 60 fps, canvas, and duration; no Draft was saved');
+    galleryFail('The working Draft does not match the requested frame grid, canvas, and duration; no Draft was saved');
   }
   let knownClipIds = new Set((await draft.clips({ trackScope: 'all' })).map((row) => row.clipId));
   for (let i = 0; i < plan.tiles.length; i++) {
@@ -255,7 +255,7 @@ async function galleryCreate(selects, project, input, inventory, onCommitStarted
     if (!finalClip) galleryFail(`Tile ${i + 1} disappeared after transform`);
     knownClipIds = new Set(finalRows.map((row) => row.clipId));
   }
-  if (music) await draft.overlayResource({ resource: project.resource(music.resourceId), over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: music.startFrame / plan.fps });
+  if (music) await draft.overlayResource({ resource: project.resource(music.resourceId), over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: (music.startSeconds ?? music.startFrame / 60) });
   const rows = await draft.clips({ trackScope: 'all' });
   if (rows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('The working Draft has an unexpected Main Resource');
   if (rows.filter((row) => row.trackKind === 'video' && row.resourceId != null).length !== 21) galleryFail('The working Draft does not contain all 21 editable tiles');
@@ -269,8 +269,11 @@ async function galleryCreateBase(project, input, onCommitStarted) {
   const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Photo Gallery';
   const draft = await project.createDraft({ name });
   await draft.setFrameSize({ width: 1080, height: 1920 });
+  const fps=(await draft.meta()).fps;
+  if(fps!==(input.fps??60))galleryFail('Project frame rate changed');
+  await draft.insertGap({seconds:input.durationFrames/fps});
   onCommitStarted();
-  const saved = await draft.commitAll('Create empty Photo Gallery Draft');
+  const saved = await draft.commitAll('Create Photo Gallery Draft');
   if (!saved?.createdDraftId) galleryFail('Empty Draft save outcome is unknown');
   return { status: 'baseCreated', draftId: saved.createdDraftId };
 }
@@ -282,10 +285,10 @@ async function galleryFillBase(selects, project, input, onCommitStarted) {
   if (!Number.isSafeInteger(input.durationFrames) || input.durationFrames < 1) galleryFail('Invalid Gallery duration');
   const draft = selects.draft(input.draftId);
   const meta = await draft.meta();
-  if (meta.fps !== 60 || meta.durationFrames !== 0 || meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {
-    galleryFail('Target Draft must be an empty 60 fps portrait Draft');
+  if (meta.fps !== (input.fps ?? 60) || meta.durationFrames !== 0 || meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {
+    galleryFail('Target Draft must be an empty portrait Draft');
   }
-  await draft.insertGap({ seconds: input.durationFrames / 60 });
+  await draft.insertGap({ seconds: input.durationFrames / meta.fps });
   if ((await draft.meta()).durationFrames !== input.durationFrames) galleryFail('Could not author exact Gallery duration');
   onCommitStarted();
   const saved = await draft.commitAll('Set Photo Gallery duration');
@@ -313,7 +316,7 @@ async function galleryPlaceVideosExisting(selects, project, input, inventory, on
   if (!videos.length) return { status: 'videosPlaced', draftId: input.draftId, tileCount: 0 };
   const draft = selects.draft(input.draftId);
   const meta = await draft.meta();
-  if (meta.fps !== 60 || meta.durationFrames !== plan.durationFrames ||
+  if (meta.fps !== (input.fps ?? 60) || meta.durationFrames !== plan.durationFrames ||
       meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {
     galleryFail('Target Draft clock, canvas, or duration changed');
   }
@@ -451,7 +454,7 @@ async function galleryStyleExisting(selects, project, input, inventory, onCommit
     await draft.setClipTransform({ clip: fresh, position: geometry.transform.position, scale: geometry.transform.scale });
   }
   if (plan.music && input.placeMusic !== false) await draft.overlayResource({ resource: project.resource(plan.music.resourceId),
-    over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: plan.music.startFrame / plan.fps });
+    over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: (plan.music.startSeconds ?? plan.music.startFrame / 60) });
   onCommitStarted();
   const saved = await draft.commitAll('Style Photo Gallery tiles');
   if (!saved?.commitId) galleryFail('Style save outcome is unknown; inspect the Draft before retrying');
@@ -466,7 +469,7 @@ async function galleryVerifyCreated(selects, project, input, inventory) {
   if (!projectMeta.draftIds?.includes(input.draftId)) galleryFail('The saved Draft does not belong to this Project');
   const draft = selects.draft(input.draftId);
   const meta = await draft.meta();
-  if (meta.fps !== 60 || meta.durationFrames !== plan.durationFrames ||
+  if (meta.fps !== (input.fps ?? 60) || meta.durationFrames !== plan.durationFrames ||
       meta.frameSize?.width !== 1080 || meta.frameSize?.height !== 1920) {
     galleryFail('Saved Draft canvas, frame rate, or duration does not match the request');
   }

@@ -49,7 +49,7 @@ async function runSound(ctx: StageContext, o: SoundStageOptions): Promise<StageR
   const scenes = await soundScenes(ctx);
   const edited = await readJsonIfExists<{ mainEnd?: number } | null>(fs, ctx.path("edit/words.json"), null);
   const dirs = { sound: ctx.path("sound"), footage: ctx.path("media/footage"), tmp: ctx.path("sound/tmp") };
-  for (const d of Object.values(dirs)) ensureDir(fs, d);
+  for (const d of Object.values(dirs)) (await ensureDir(fs, d));
   const report: SoundReport = await soundFilm({
     host,
     projectId: job.projectId,
