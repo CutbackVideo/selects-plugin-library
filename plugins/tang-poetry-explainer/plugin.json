@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "tang-poetry-explainer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "Tang Poetry Explainer",
   "summary": "Turn a link or text into a narrated historical collage film with ink-wash scenery, woodblock figures and editable titles.",
   "status": "experimental",
