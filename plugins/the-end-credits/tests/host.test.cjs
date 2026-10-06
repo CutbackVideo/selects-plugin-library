@@ -68,7 +68,7 @@ function sandbox(di, opts) {
   vm.createContext(box);
   box.sdk = di ? asyncSdk(di) : undefined;
   if (box.sdk) box.sdk.environment.platform = di.Runtime?.getPlatform?.() || '';
-  vm.runInContext(block + ';hostUseSdk(sdk);globalThis.H={' + API.join(',') + '};', box);
+  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + block + ';hostUseSdk(sdk);globalThis.H={' + API.join(',') + '};', box);
   return { H: box.H, box, blobs };
 }
 async function rejectsCode(p, code) {

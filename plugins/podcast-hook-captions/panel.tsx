@@ -12,22 +12,256 @@
 // @icon captions
 // One click turns a podcast Draft into a vertical reel: face-tracked reframe, camera moves, the speaker cut out onto a grid set, kinetic titles, word captions, B-roll cards, music and sound effects.
 
+// shared/local-client.ts
+import React from "react";
+function panelLocalPaths(platform) {
+  const windows = platform === "win32";
+  const slash = (path) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value) => windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value) => {
+    const path = slash(value), root = rootOf(path), absolute = root.endsWith("/");
+    const segments = [];
+    for (const segment of path.slice(Math.min(root.length, path.length)).split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || windows && /^[a-z]:$/i.test(result)) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value, extension) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension) ? name.slice(0, -extension.length) : name;
+  };
+  return {
+    normalize,
+    join: (...paths) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value) {
+      const path = slash(value), root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value) {
+      const name = basename(value), dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value) => rootOf(slash(value)).endsWith("/")
+  };
+}
+async function createPanelLocalClient(sdk) {
+  const run = async (method, args, write = false) => {
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");"
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES2 = 48 * 1024;
+  const readRange = async (path, offset, length) => {
+    const parts = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES2, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes);
+      total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES2, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) {
+      output.set(bytes, position);
+      position += bytes.length;
+    }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path) => run("files.exists", [path]),
+    stat: (path) => run("files.stat", [path]),
+    readdir: (path) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path, encoding) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== void 0 && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path, data, encoding) {
+      if (encoding !== void 0 && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES2) {
+        const chunk = bytes.subarray(offset, offset + CHUNK_BYTES2);
+        let binary = "";
+        for (const byte of chunk) binary += String.fromCharCode(byte);
+        const result = await run("files.writeChunk", [{ path, offset, base64: btoa(binary) }], true);
+        if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+      }
+    },
+    mkdir: (path, options) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path, options) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from, to) => run("files.rename", [from, to], true),
+    copyFile: (from, to) => run("files.copy", [from, to], true),
+    downloadFile: (url, path) => run("files.download", [url, path], true),
+    pathToLocalURL: (path) => run("files.localUrl", [path]),
+    localURLToPath: (url) => run("files.pathFromLocalUrl", [url])
+  };
+  const activeJobs = /* @__PURE__ */ new Set();
+  let disposed = false;
+  const cancel = async (jobId) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation = null;
+    const abort = () => {
+      cancellation ??= cancel(jobId);
+      void cancellation.catch(() => {
+      });
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") {
+            stdout += event.text;
+            onStdout?.(event.text);
+          } else {
+            stderr += event.text;
+            onStderr?.(event.text);
+          }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve2) => setTimeout(resolve2, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {
+      });
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args, quiet, signal, stdout, stderr) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args, quiet, signal) => process("FFprobe", args, quiet, signal)
+    },
+    dialogs: {
+      pickFilePath: (filters) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath) => run("editor.pickSavePath", [{ defaultPath }])
+    },
+    dispose() {
+      disposed = true;
+      for (const jobId of activeJobs) void cancel(jobId).catch(() => {
+      });
+    }
+  };
+}
+var panelLocalClients = /* @__PURE__ */ new WeakMap();
+function panelLocalClient(sdk) {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component) {
+  return function LocalSdkPanel(props) {
+    const [state, setState] = React.useState(null);
+    React.useEffect(() => {
+      let active = true;
+      let client;
+      createPanelLocalClient(props.sdk).then((value) => {
+        client = { ...props.sdk, ...value };
+        if (!active) {
+          value.dispose();
+          return;
+        }
+        panelLocalClients.set(props.sdk, client);
+        setState({ sdk: props.sdk });
+      }).catch((error) => {
+        if (active) setState({ error: String(error?.message || error) });
+      });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", { role: "alert" }, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", { role: "status" }, "Connecting to Selects\u2026");
+    return React.createElement(Component, props);
+  };
+}
+
 // plugins/podcast-hook-captions/src/pipeline/host.ts
 var PANEL_ID = "podcast-hook-captions";
 function app() {
   const parent = window.parent;
-  if (parent?.__DI__) return parent;
-  const opener = parent?.opener || window.opener;
-  if (opener?.__DI__) return opener;
-  throw new Error("This Selects version does not expose native panel services.");
+  return parent?.opener || window.opener || parent;
 }
-function di() {
-  return app().__DI__;
-}
-function libraryId() {
-  const id = app().location.pathname.match(/libraries\/([^/]+)/)?.[1];
-  if (!id) throw new Error("Open a Draft in Selects first.");
-  return id;
+function getSdk() {
+  return hostSdk;
 }
 function fs() {
   return hostSdk.files;
@@ -150,15 +384,15 @@ function lastJsonObject(text) {
 }
 var hostSdk;
 function hostUseSdk(sdk) {
-  hostSdk = sdk;
-  if (!sdk?.files || !sdk?.media || !sdk?.environment) throw new Error("Update Selects to use this plugin.");
+  hostSdk = panelLocalClient(sdk);
+  if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin.");
 }
 function media() {
   return hostSdk.media;
 }
 
 // plugins/podcast-hook-captions/src/Panel.tsx
-import React2, { useEffect, useRef, useState } from "react";
+import React3, { useEffect, useRef, useState } from "react";
 
 // plugins/podcast-hook-captions/src/pipeline/select.ts
 var norm = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
@@ -1706,6 +1940,41 @@ function reelShots(W, H, fps, clips, faces) {
   return out.sort((a, b) => a.from - b.from);
 }
 
+// shared/generation-client.js
+function sdkGeneration(sdk) {
+  if (typeof sdk?.runScript !== "function") return null;
+  const run = async (script2, summary, allowCommit = false) => {
+    const response = await sdk.runScript({ script: script2, summary, allowCommit });
+    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
+    return response?.result;
+  };
+  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
+  return {
+    isAvailable: () => true,
+    supportsPluginFiles: () => true,
+    async submit(request) {
+      if (request.batch != null && request.batch !== 1) throw new Error("Submit one generation at a time.");
+      const input = {
+        projectId: request.scope.projectId,
+        requestKey: request.key,
+        modelId: request.modelId,
+        input: request.input,
+        uploads: request.uploads || {},
+        outputName: request.outputName,
+        mediaType: request.origin?.tool || "video",
+        ...request.inputMediaSeconds ? { inputMediaSeconds: request.inputMediaSeconds } : {},
+        ...request.delivery ? { delivery: { folder: request.delivery.pluginFolder } } : {}
+      };
+      const result = await run(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
+      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
+      return { jobIds: [result.jobId] };
+    },
+    list: (scope) => run(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
+    cancel: (scope, id) => run(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
+    retryDelivery: (scope, id) => run(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true)
+  };
+}
+
 // plugins/podcast-hook-captions/src/pipeline/media.ts
 var b64url = (s) => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 var model = (endpoint) => "model_v1_" + b64url(endpoint);
@@ -1728,16 +1997,16 @@ async function generate(pid, r, label, onTick, timeoutMs, tries = 3) {
   throw last;
 }
 function mediaGeneration() {
-  const mg = di().MediaGeneration;
+  const mg = sdkGeneration(getSdk());
   if (!mg?.isAvailable?.()) throw new Error("Selects generation is not available for this account.");
-  if (!mg.supportsPluginFiles?.()) throw new Error("This needs Selects 2.0.512 or later (plug-in generation files). Update Selects.");
+  if (!mg.supportsPluginFiles?.()) throw new Error("Update Selects to use generation files in this plugin.");
   return mg;
 }
 async function submit(pid, r) {
   const mg = mediaGeneration();
   await fs().mkdir(r.folder, { recursive: true });
   const res = await mg.submit({
-    scope: { libraryId: libraryId(), projectId: pid },
+    scope: { projectId: pid },
     key: r.key.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64),
     modelId: model(r.endpoint),
     input: r.input,
@@ -1754,7 +2023,7 @@ async function submit(pid, r) {
 }
 async function waitFor(pid, jobId, label, onTick, timeoutMs = 15 * 6e4) {
   const mg = mediaGeneration();
-  const scope = { libraryId: libraryId(), projectId: pid };
+  const scope = { projectId: pid };
   const t0 = Date.now();
   let redeliveries = 0;
   for (; ; ) {
@@ -1782,12 +2051,12 @@ async function waitFor(pid, jobId, label, onTick, timeoutMs = 15 * 6e4) {
       if (j.status === "submission_unknown" && j.errorCode && Date.now() - t0 > 45e3) {
         mg.cancel(scope, jobId).catch(() => {
         });
-        throw new StuckError(label + " was not accepted (" + j.errorCode + ").");
+        throw new Error(label + " has an unknown submission outcome (" + j.errorCode + "). Resume the same request.");
       }
       if (["preparing", "uploading", "submitting"].includes(j.status) && j.errorCode && Date.now() - t0 > 9e4) {
         mg.cancel(scope, jobId).catch(() => {
         });
-        throw new StuckError(label + " stalled (" + j.errorCode + ").");
+        throw new Error(label + " is still unresolved (" + j.errorCode + "). Resume the same request.");
       }
     }
     if (onTick) onTick(label + " \xB7 " + Math.round((Date.now() - t0) / 1e3) + " s");
@@ -1860,73 +2129,15 @@ function fsDataRoot() {
 }
 
 // plugins/podcast-hook-captions/src/pipeline/render.ts
-async function sourceRevision(sequenceId, resourceIds) {
-  const lib = libraryId();
-  const sequence = await di().SequenceRepository.findById(lib, sequenceId);
-  if (!sequence) throw new Error("The render copy could not be reloaded.");
-  const resources = await Promise.all(resourceIds.map((id) => di().ResourceRepository.findById(lib, id)));
-  const json = JSON.stringify({ sequence: sequence.toJSON(), resources: resources.map((r) => r?.toJSON() ?? null) });
-  const digest = await app().crypto.subtle.digest("SHA-256", new (app()).TextEncoder().encode(json));
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-}
 async function renderDraft(pid, sid, outputPath, progress) {
-  const d = di();
-  const lib = libraryId();
-  const project = await d.ProjectRepository.findById(lib, pid);
-  const source = await d.SequenceRepository.findById(lib, sid);
-  if (!project || !source) throw new Error("The reel Draft could not be read for rendering.");
-  const copyId = app().crypto.randomUUID();
-  const name = "Reel matte render " + copyId;
-  const copy = source.clone({ id: copyId, name });
-  copy.setTracks(copy.getTracks().filter((t) => !t.isChapterTrack() && !t.isSubChapterTrack() && !t.isWordTrack()));
-  if (typeof copy.authorFrameSize === "function") copy.authorFrameSize({ width: 1080, height: 1920 });
-  let saved = false;
-  try {
-    await d.SequenceRepository.save(copy, "podcast-hook-captions-render");
-    saved = true;
-    const overlaySnapshot = await d.RemotionOverlay.getSnapshotForExport(copyId, copy, project);
-    const resourceIds = [...project.getResources()];
-    const rev = await sourceRevision(copyId, resourceIds);
-    const job = await d.WorkflowClient.start({
-      type: "export:video",
-      input: {
-        resolution: "FHD",
-        title: "Reel matte render",
-        internal: true,
-        outputPath,
-        projectId: pid,
-        libraryId: lib,
-        sequenceId: copyId,
-        resourceIds,
-        audioOnly: false,
-        overwriteOutput: false,
-        overlaySnapshot,
-        sourceRevision: rev
-      }
-    });
-    await new Promise((resolve2, reject) => {
-      let done = false;
-      let off = () => {
-      };
-      const read = (v) => {
-        if (done || !v) return;
-        if (["succeeded", "failed", "canceled"].includes(v.status)) {
-          done = true;
-          off();
-          v.status === "succeeded" ? resolve2() : reject(new Error("Render " + v.status + (v.lastError?.message ? ": " + v.lastError.message : "")));
-        } else progress("Rendering the reel for speaker mattes \xB7 " + (v.progressDescription || v.status));
-      };
-      off = d.WorkflowClient.subscribe((e) => {
-        if (e.type === "UPSERT" && e.workflow.workflowId === job.workflowId) read(e.workflow);
-      });
-      read(d.WorkflowClient.list().find((x) => x.workflowId === job.workflowId));
-      if (done) off();
-    });
-  } finally {
-    if (saved) {
-      const temp = await d.SequenceRepository.findById(lib, copyId);
-      if (temp?.getName() === name) await d.SequenceRepository.delete(lib, copyId);
-    }
+  const sdk = getSdk();
+  const job = await script(sdk, "Render speaker matte source", `const job=await selects.export.video(${JSON.stringify({ projectId: pid, draftSequenceId: sid, outPath: outputPath, resolution: "FHD", composition: { includeCaptions: false, frameSize: { width: 1080, height: 1920 } } })});return {workflowId:job.workflowId};`, true);
+  for (; ; ) {
+    const state = await script(sdk, "Read matte render progress", `return await selects.workflow(${JSON.stringify(job.workflowId)}).status();`);
+    if (state.status === "succeeded") return;
+    if (["failed", "canceled", "unknown"].includes(state.status)) throw new Error("Render " + state.status + (state.lastErrorMessage ? ": " + state.lastErrorMessage : ""));
+    progress("Rendering the reel for speaker mattes \xB7 " + (state.step || state.status));
+    await sleep(750);
   }
 }
 var VEED = "veed/video-background-removal/fast";
@@ -1966,13 +2177,17 @@ async function makeMattes(sdk, pid, render, seconds, dir, key, progress) {
 // plugins/podcast-hook-captions/src/pipeline/stock.ts
 function stockSearchAvailable() {
   try {
-    return typeof di()?.StockMediaSearch?.searchVideos === "function";
+    return typeof getSdk()?.runScript === "function";
   } catch {
     return false;
   }
 }
 async function stockClip(sdk, queries, orientation, dir, seconds, avoid = []) {
-  const service = di().StockMediaSearch;
+  const service = { searchVideos: async (query) => {
+    const reply = await getSdk().runScript({ script: `return await selects.stock.searchVideos(${JSON.stringify(query)});`, summary: "Find stock footage" });
+    if (reply.isError) throw new Error(reply.output);
+    return reply.result;
+  } };
   await fs().mkdir(dir, { recursive: true });
   const tried = /* @__PURE__ */ new Set();
   let lastErr = null;
@@ -3651,7 +3866,7 @@ export {
 `;
 
 // plugins/podcast-hook-captions/src/motion/grade.tsx
-import React from "react";
+import React2 from "react";
 var SPEAKER_GRADE = { sat: 1.6, r: 1.07, g: 1, b: 0.89, slope: 1.1, off: -0.035 };
 var BROLL_GRADE = { sat: 1.2, r: 1.06, g: 1, b: 0.9, slope: 1.08, off: -0.02 };
 
@@ -4545,7 +4760,7 @@ function PodcastHookReel({ sdk, context }) {
     await sdk.runScript({ summary: "Open the reel", script: "return await selects.editor.openDraft(" + JSON.stringify(result.reelId) + ");" });
   };
   const icon = (s) => s === "done" ? "\u2713" : s === "run" ? "\u2026" : s === "fail" ? "!" : s === "skip" ? "\u2013" : "\xB7";
-  return /* @__PURE__ */ React2.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React2.createElement("div", null, /* @__PURE__ */ React2.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Podcast reel, one click"), /* @__PURE__ */ React2.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "Turns this podcast Draft into a new 9:16 reel: the strongest moment, face-tracked reframe, camera moves, the speaker cut out onto a grid set, kinetic titles, word captions, B-roll cards, music and sound effects.")), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React2.createElement("span", null, "Reel length: ", seconds, " s"), /* @__PURE__ */ React2.createElement("input", { type: "range", min: 18, max: 40, step: 1, value: seconds, disabled: busy, onChange: (e) => setSeconds(Number(e.target.value)) })), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React2.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. use the part about dopamine", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start" } }, /* @__PURE__ */ React2.createElement(
+  return /* @__PURE__ */ React3.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React3.createElement("div", null, /* @__PURE__ */ React3.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Podcast reel, one click"), /* @__PURE__ */ React3.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "Turns this podcast Draft into a new 9:16 reel: the strongest moment, face-tracked reframe, camera moves, the speaker cut out onto a grid set, kinetic titles, word captions, B-roll cards, music and sound effects.")), /* @__PURE__ */ React3.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React3.createElement("span", null, "Reel length: ", seconds, " s"), /* @__PURE__ */ React3.createElement("input", { type: "range", min: 18, max: 40, step: 1, value: seconds, disabled: busy, onChange: (e) => setSeconds(Number(e.target.value)) })), /* @__PURE__ */ React3.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React3.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React3.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. use the part about dopamine", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React3.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start" } }, /* @__PURE__ */ React3.createElement(
     "input",
     {
       type: "checkbox",
@@ -4556,8 +4771,9 @@ function PodcastHookReel({ sdk, context }) {
         writeStore(STORE + "genBroll", e.target.checked ? "1" : "");
       }
     }
-  ), /* @__PURE__ */ React2.createElement("span", null, "B-roll comes from stock footage. If this Selects version has no stock search, generate it with AI instead (4-12 minutes and about $2 per reel).")), isReel && /* @__PURE__ */ React2.createElement("button", { onClick: () => make(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild this reel"), /* @__PURE__ */ React2.createElement("button", { onClick: () => make(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the reel\u2026 " + clock + " s" : result ? "Make another reel" : "Make reel"), (busy || steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React2.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, steps.map((s) => /* @__PURE__ */ React2.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React2.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React2.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React2.createElement("span", { style: { color: "var(--panel-muted-fg)" } }, " \u2014 ", s.note) : null)))), error && /* @__PURE__ */ React2.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, error), result && !busy && /* @__PURE__ */ React2.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React2.createElement("div", null, "Made \u201C", result.name, "\u201D in ", Math.round(result.seconds), " s."), result.credits?.length ? /* @__PURE__ */ React2.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "B-roll:", " ", result.credits.map((c, i) => /* @__PURE__ */ React2.createElement(React2.Fragment, { key: i }, i ? ", " : "", /* @__PURE__ */ React2.createElement("a", { href: c.url, target: "_blank", rel: "noreferrer" }, c.credit), c.service ? " (" + c.service + ")" : ""))) : null, result.notes?.length ? /* @__PURE__ */ React2.createElement("ul", { style: { margin: 0, paddingLeft: 18, color: "var(--panel-muted-fg)" } }, result.notes.map((n, i) => /* @__PURE__ */ React2.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React2.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the reel")));
+  ), /* @__PURE__ */ React3.createElement("span", null, "B-roll comes from stock footage. If this Selects version has no stock search, generate it with AI instead (4-12 minutes and about $2 per reel).")), isReel && /* @__PURE__ */ React3.createElement("button", { onClick: () => make(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild this reel"), /* @__PURE__ */ React3.createElement("button", { onClick: () => make(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the reel\u2026 " + clock + " s" : result ? "Make another reel" : "Make reel"), (busy || steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React3.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, steps.map((s) => /* @__PURE__ */ React3.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React3.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React3.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React3.createElement("span", { style: { color: "var(--panel-muted-fg)" } }, " \u2014 ", s.note) : null)))), error && /* @__PURE__ */ React3.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, error), result && !busy && /* @__PURE__ */ React3.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React3.createElement("div", null, "Made \u201C", result.name, "\u201D in ", Math.round(result.seconds), " s."), result.credits?.length ? /* @__PURE__ */ React3.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "B-roll:", " ", result.credits.map((c, i) => /* @__PURE__ */ React3.createElement(React3.Fragment, { key: i }, i ? ", " : "", /* @__PURE__ */ React3.createElement("a", { href: c.url, target: "_blank", rel: "noreferrer" }, c.credit), c.service ? " (" + c.service + ")" : ""))) : null, result.notes?.length ? /* @__PURE__ */ React3.createElement("ul", { style: { margin: 0, paddingLeft: 18, color: "var(--panel-muted-fg)" } }, result.notes.map((n, i) => /* @__PURE__ */ React3.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React3.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the reel")));
 }
+var Panel_default = withPanelLocalClient(PodcastHookReel);
 export {
-  PodcastHookReel as default
+  Panel_default as default
 };

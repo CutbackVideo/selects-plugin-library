@@ -18,7 +18,7 @@ import React from 'react';
 // av-host:start
 // Local files and media tools use the public async SDK. Paths remain host-native.
 let hostSdk = null;
-function hostUseSdk(sdk) { hostSdk = sdk; }
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
@@ -374,7 +374,7 @@ const STRINGS = {
     "estimated": "\ucd94\uc815 BPM",
     "uncertain": "BPM\uc744 \ud655\uc2e4\ud788 \ucd94\uc815\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc9c1\uc811 \uc785\ub825\ud574 \uc8fc\uc138\uc694.",
     "duration": "\uc601\uc0c1 \uae38\uc774",
-    "durationNote": "\uae30\ubcf8 14.217\ucd08 \u00b7 60fps. \uc74c\uc545\uc744 \uace0\ub974\uba74 \uc774 \uae38\uc774\ub97c \ucc44\uc6b8 \uc218 \uc788\uc5b4\uc57c \ud569\ub2c8\ub2e4.",
+    "durationNote": "\uae30\ubcf8 14.217\ucd08 \u00b7 \ud504\ub85c\uc81d\ud2b8 \ud504\ub808\uc784\ub808\uc774\ud2b8\ub97c \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \uc74c\uc545\uc774 \uc774 \uae38\uc774\ub97c \ucc44\uc6b8 \uc218 \uc788\uc5b4\uc57c \ud569\ub2c8\ub2e4.",
     "name": "\ud3b8\uc9d1\ubcf8 \uc774\ub984",
     "create": "\uc0c8 \ud3b8\uc9d1\ubcf8 \ub9cc\ub4e4\uae30",
     "busy": "\ucc98\ub9ac \uc911\u2026",
@@ -416,7 +416,7 @@ const STRINGS = {
     "estimated": "Estimated BPM",
     "uncertain": "Could not estimate BPM reliably. Enter it manually.",
     "duration": "Video length",
-    "durationNote": "Default 14.217 seconds at 60 fps. Music must cover this length.",
+    "durationNote": "Default 14.217 seconds, using the Project frame rate. Music must cover this length.",
     "name": "Draft name",
     "create": "Create Draft",
     "busy": "Working\u2026",
@@ -458,7 +458,7 @@ const STRINGS = {
     "estimated": "Gesch\u00e4tzte BPM",
     "uncertain": "BPM nicht zuverl\u00e4ssig ermittelt. Bitte manuell eingeben.",
     "duration": "Videol\u00e4nge",
-    "durationNote": "Standard: 14,217 Sekunden bei 60 fps. Die Musik muss diese L\u00e4nge abdecken.",
+    "durationNote": "Standard: 14,217 Sekunden bei der Projekt-Bildrate. Die Musik muss diese L\u00e4nge abdecken.",
     "name": "Entwurfsname",
     "create": "Entwurf erstellen",
     "busy": "In Bearbeitung\u2026",
@@ -500,7 +500,7 @@ const STRINGS = {
     "estimated": "BPM estimados",
     "uncertain": "No se pudo estimar el BPM con fiabilidad. Introd\u00facelo manualmente.",
     "duration": "Duraci\u00f3n del v\u00eddeo",
-    "durationNote": "Predeterminado: 14,217 segundos a 60 fps. La m\u00fasica debe cubrir esta duraci\u00f3n.",
+    "durationNote": "Predeterminado: 14,217 segundos con la tasa de fotogramas del proyecto. La m\u00fasica debe cubrir esta duraci\u00f3n.",
     "name": "Nombre del borrador",
     "create": "Crear borrador",
     "busy": "Procesando\u2026",
@@ -542,7 +542,7 @@ const STRINGS = {
     "estimated": "BPM estim\u00e9",
     "uncertain": "Estimation du BPM incertaine. Saisissez-le manuellement.",
     "duration": "Dur\u00e9e de la vid\u00e9o",
-    "durationNote": "Par d\u00e9faut : 14,217 secondes \u00e0 60 fps. La musique doit couvrir cette dur\u00e9e.",
+    "durationNote": "Par d\u00e9faut : 14,217 secondes \u00e0 la fr\u00e9quence du projet. La musique doit couvrir cette dur\u00e9e.",
     "name": "Nom du brouillon",
     "create": "Cr\u00e9er le brouillon",
     "busy": "En cours\u2026",
@@ -584,7 +584,7 @@ const STRINGS = {
     "estimated": "BPM stimati",
     "uncertain": "Impossibile stimare i BPM in modo affidabile. Inseriscili manualmente.",
     "duration": "Durata del video",
-    "durationNote": "Predefinita: 14,217 secondi a 60 fps. La musica deve coprire questa durata.",
+    "durationNote": "Predefinita: 14,217 secondi alla frequenza del progetto. La musica deve coprire questa durata.",
     "name": "Nome della bozza",
     "create": "Crea bozza",
     "busy": "Elaborazione\u2026",
@@ -626,7 +626,7 @@ const STRINGS = {
     "estimated": "\u63a8\u5b9aBPM",
     "uncertain": "BPM\u3092\u78ba\u5b9f\u306b\u63a8\u5b9a\u3067\u304d\u307e\u305b\u3093\u3002\u624b\u52d5\u3067\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
     "duration": "\u52d5\u753b\u306e\u9577\u3055",
-    "durationNote": "\u521d\u671f\u5024\u306f60fps\u306714.217\u79d2\u3002\u97f3\u697d\u306f\u3053\u306e\u9577\u3055\u3092\u6e80\u305f\u3059\u5fc5\u8981\u304c\u3042\u308a\u307e\u3059\u3002",
+    "durationNote": "\u521d\u671f\u5024\u306f14.217\u79d2\u3002\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u30d5\u30ec\u30fc\u30e0\u30ec\u30fc\u30c8\u3092\u4f7f\u7528\u3057\u307e\u3059\u3002\u97f3\u697d\u306f\u3053\u306e\u9577\u3055\u3092\u6e80\u305f\u3059\u5fc5\u8981\u304c\u3042\u308a\u307e\u3059\u3002",
     "name": "\u4e0b\u66f8\u304d\u540d",
     "create": "\u4e0b\u66f8\u304d\u3092\u4f5c\u6210",
     "busy": "\u51e6\u7406\u4e2d\u2026",
@@ -668,7 +668,7 @@ const STRINGS = {
     "estimated": "BPM estimados",
     "uncertain": "N\u00e3o foi poss\u00edvel estimar os BPM com confian\u00e7a. Introduza-os manualmente.",
     "duration": "Dura\u00e7\u00e3o do v\u00eddeo",
-    "durationNote": "Predefini\u00e7\u00e3o: 14,217 segundos a 60 fps. A m\u00fasica tem de cobrir esta dura\u00e7\u00e3o.",
+    "durationNote": "Predefini\u00e7\u00e3o: 14,217 segundos \u00e0 taxa de fotogramas do projeto. A m\u00fasica deve cobrir esta dura\u00e7\u00e3o.",
     "name": "Nome do rascunho",
     "create": "Criar rascunho",
     "busy": "A processar\u2026",
@@ -710,7 +710,7 @@ const STRINGS = {
     "estimated": "Tahmini BPM",
     "uncertain": "BPM g\u00fcvenilir \u015fekilde tahmin edilemedi. Elle girin.",
     "duration": "Video uzunlu\u011fu",
-    "durationNote": "Varsay\u0131lan: 60 fps ile 14,217 saniye. M\u00fczik bu uzunlu\u011fu kar\u015f\u0131lamal\u0131d\u0131r.",
+    "durationNote": "Varsay\u0131lan: proje kare h\u0131z\u0131nda 14,217 saniye. M\u00fczik bu uzunlu\u011fu kar\u015f\u0131lamal\u0131d\u0131r.",
     "name": "Taslak ad\u0131",
     "create": "Taslak olu\u015ftur",
     "busy": "\u0130\u015fleniyor\u2026",
@@ -752,7 +752,7 @@ const STRINGS = {
     "estimated": "\u4f30\u8ba1BPM",
     "uncertain": "\u65e0\u6cd5\u53ef\u9760\u5730\u4f30\u8ba1BPM\u3002\u8bf7\u624b\u52a8\u8f93\u5165\u3002",
     "duration": "\u89c6\u9891\u957f\u5ea6",
-    "durationNote": "\u9ed8\u8ba460fps\u300114.217\u79d2\u3002\u97f3\u4e50\u987b\u8986\u76d6\u6574\u4e2a\u65f6\u957f\u3002",
+    "durationNote": "\u9ed8\u8ba414.217\u79d2\uff0c\u4f7f\u7528\u9879\u76ee\u5e27\u7387\u3002\u97f3\u4e50\u987b\u8986\u76d6\u6574\u4e2a\u65f6\u957f\u3002",
     "name": "\u8349\u7a3f\u540d\u79f0",
     "create": "\u521b\u5efa\u8349\u7a3f",
     "busy": "\u5904\u7406\u4e2d\u2026",
@@ -857,9 +857,12 @@ function scriptFailure(t, response, phase, draftId) {
 // anything is created throws with `contextChanged`.
 async function buildGalleryDraft(sdk, t, { input, isCurrent, onDispatched, onDraft, libraryId = null }) {
   const projectId = input.projectId;
+  const clock=await sdk.runScript({script:`const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:'Gallery frame grid'});return {fps:(await d.meta()).fps};`,summary:'Read Project frame grid',allowCommit:false});
+  if(clock.isError||!Number.isFinite(clock.result?.fps)||clock.result.fps<=0)throw new Error('Project frame rate is unavailable');
+  input.fps=clock.result.fps;
   input.media = await prepareVisuals(sdk, t, input.media, input.durationFrames, projectId, onDispatched, isCurrent);
   if (!isCurrent()) throw Object.assign(new Error(t.changed), { contextChanged: true });
-  input.media = (await galleryNativeResources(projectId, input.media, libraryId)).selected.map(({ nativeResource, ...item }) => item);
+  input.media = (await galleryNativeResources(sdk, projectId, input.media, libraryId)).selected.map(({ nativeResource, ...item }) => item);
   const preflight = await sdk.runScript({ script: buildScript({ ...input, operation: 'preflight' }),
     summary: 'Check Photo Gallery media and timing', allowCommit: false });
   if (preflight.isError || preflight.result?.status !== 'ready') throw Object.assign(
@@ -867,16 +870,12 @@ async function buildGalleryDraft(sdk, t, { input, isCurrent, onDispatched, onDra
   const plan = preflight.result.plan;
   if (!isCurrent()) throw Object.assign(new Error(t.changed), { safeNotSaved: true });
   onDispatched();
-  const base = await sdk.runScript({ script: buildScript({ ...input, operation: 'createBase' }),
+  const base = await sdk.runScript({ script: buildScript({ ...input, operation: 'createBase', durationFrames: plan.durationFrames }),
     summary: 'Create Photo Gallery Draft', allowCommit: true });
   if (base.isError || base.result?.status !== 'baseCreated' || !base.result.draftId) throw scriptFailure(t, base, 'Create Photo Gallery Draft');
   const draftId = base.result.draftId;
   onDraft(draftId);
-  await galleryNativeSetFps(projectId, draftId, libraryId);
-  const fill = await sdk.runScript({ script: buildScript({ operation: 'fillBase', projectId,
-    draftId, durationFrames: plan.durationFrames }), summary: 'Set Photo Gallery duration', allowCommit: true });
-  if (fill.isError || fill.result?.status !== 'baseFilled') throw scriptFailure(t, fill, 'Set Photo Gallery duration', draftId);
-  await galleryNativePlace(projectId, draftId, input.media, plan, libraryId);
+  await galleryNativePlace(sdk, projectId, draftId, input.media, plan, libraryId);
   // Each panel script has a fixed 30-second deadline. Cold video analysis
   // and effect compilation must not accumulate across all 21 tiles.
   for (const tile of plan.tiles.filter(item => item.kind === 'video')) {
@@ -903,7 +902,7 @@ async function buildGalleryDraft(sdk, t, { input, isCurrent, onDispatched, onDra
 }
 
 // A template run gets its own component, so it never touches the Panel's state.
-export default function Panel(props) {
+function Panel(props) {
   hostUseSdk(props.sdk);
   return props.context?.template ? <GalleryTemplateRun {...props}/> : <GalleryPanel {...props}/>;
 }
@@ -972,7 +971,7 @@ function GalleryPanel({ sdk, context, ui }) {
       if (response.isError || response.result?.status !== 'inspected' || !Array.isArray(response.result.media) || !Array.isArray(response.result.audio)) {
         throw new Error(response.result?.message || response.output || t.failed);
       }
-      const native = await galleryNativeResources(projectId, response.result.media);
+      const native = await galleryNativeResources(sdk, projectId, response.result.media);
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
       setInventory({ ...response.result, media: native.selected.map(({ nativeResource, ...item }) => item) }); setLoadedKey(requestedKey);
       setSlots(emptySlots()); setName('Photo Grid Reveal'); setDurationFrames(853);
@@ -1122,7 +1121,7 @@ function templateLibrary(app, projectId, template) {
   if (template?.libraryId) return template.libraryId;
   const match = String(app?.location?.pathname || '').match(/libraries\/([^/]+)\/projects\/([^/]+)/);
   if (match && match[2] === projectId) return match[1];
-  return app?.__DI__?.SequenceState?.getOnScreenTab?.()?.libraryId || null;
+  return null;
 }
 
 // The app hands over its own Resource ids; the Panel works from the inspected
@@ -1189,7 +1188,7 @@ async function templateTiles(sdk, app, projectId, libraryId, inputs) {
   for (const pick of clips) clipRows.push(await rowFor(pick));
   let p = 0, c = 0;
   const media = SLOT_KEYS.map((_, i) => REFERENCE_VIDEO_SLOTS.has(i + 1) ? clipRows[c++] : photoRows[p++]);
-  const native = await galleryNativeResources(projectId, media, libraryId);
+  const native = await galleryNativeResources(sdk, projectId, media, libraryId);
   return native.selected.map(({ nativeResource, ...item }) => ({ ...item, focusX: 0.5, focusY: 0.5 }));
 }
 
@@ -1272,3 +1271,240 @@ async function readMediaPages(sdk, args) {
     if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
   }
 }
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, encoding?: string) {
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+        const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+        let binary = "";
+        for (const byte of chunk) binary += String.fromCharCode(byte);
+        const result = await run("files.writeChunk", [{ path, offset, base64: btoa(binary) }], true);
+        if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+      }
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(Panel);
+// local-sdk:end

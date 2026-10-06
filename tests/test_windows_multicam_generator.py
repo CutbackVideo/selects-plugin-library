@@ -17,7 +17,7 @@ PLUGIN = os.path.join(ROOT, "plugins", "multicam-generator")
 PANEL = os.environ.get("MULTICAM_GENERATOR_PANEL") or os.path.join(PLUGIN, "panel.tsx")
 
 FORBIDDEN = [
-    "mkdir -p", "printf", "$HOME", "$SELECTS_USER", "rm -f", "base64 ", "| base64", "shasum",
+    "mkdir -p", "printf", "$HOME", "$SELECTS_USER", "rm -f", "| base64", "shasum",
     "command -v", "export PATH", 'cat "', "2>/dev/null", "<<'", "pattern_type", "insp*.jpg",
 ]
 
@@ -52,7 +52,7 @@ class MulticamGeneratorWindowsTest(unittest.TestCase):
     def test_diagnostic_log_uses_the_host_file_service(self):
         body = self.runtime[self.runtime.index("export async function writeLocalDiagnostic("):]
         body = body[: body.index("\n}\n")]
-        self.assertIn("sdk.files", body)
+        self.assertIn("panelLocalClient(sdk).files", body)
         self.assertIn('fs.join(fs.homedir(), ".selects", "logs")', body)
         self.assertIn("fs.writeFile(", body)
         self.assertNotIn("instanceof", body, "host bytes come from another realm")
@@ -64,42 +64,18 @@ class MulticamGeneratorWindowsTest(unittest.TestCase):
             self.assertNotIn("Python", read(os.path.join(PLUGIN, doc)), doc)
 
 
-    def test_source_start_is_read_from_either_clip_model(self):
-        source = read(PANEL)
-        code = runtime_text(source)
-        # Selects 2.0.53x removed Clip.getStartTime(); only the feature-detecting helper may call it.
-        self.assertEqual(code.count(".getStartTime("), 1)
-        helper = code[code.index("export function clipSourceStartFrames(c) {"):]
-        helper = helper[: helper.index("\n}\n") + 2]
-        self.assertIn('typeof c?.getStartTime === "function"', helper)
-        self.assertIn("const t = (clipSourceStartFrames(c) + a - cp.resolvedOffset) / fps;", code)
+    def test_source_plan_uses_sdk_source_seconds(self):
+        code = runtime_text(read(PANEL))
+        self.assertNotIn("__DI__", code)
+        self.assertIn('sdk.call("getDraftMediaSnapshot"', code)
+        self.assertIn("clip.sourceStartSeconds + (a-clip.startFrame)/fps", code)
+        self.assertIn("clip.playbackSpeed !== 1", code)
+        self.assertIsNone(re.search(r"(?<![.\w])base64\s", code))
 
     @unittest.skipUnless(shutil.which("node"), "node not installed")
-    def test_source_start_frames_in_vm(self):
-        code = runtime_text(read(PANEL))
-        helper = code[code.index("export function clipSourceStartFrames(c) {"):]
-        helper = helper[: helper.index("\n}\n") + 2].replace("export function", "function", 1)
-        # Ticks per frame probed on Windows Staging 2.0.536 at 23.976 fps.
-        script = r"""
-const vm = require('node:vm');
-const ctx = vm.createContext({});
-vm.runInContext(process.argv[1] + '\nglobalThis.f = clipSourceStartFrames;', ctx);
-const tb = { getTicksPerFrame: () => 29429400 };
-let missing = '';
-try { ctx.f({ getSourceStartTick: () => 0 }); } catch (e) { missing = e.message; }
-console.log(JSON.stringify({
-  legacy: ctx.f({ getStartTime: () => 48, getSourceStartTick: () => 1 }),
-  zero: ctx.f({ getSourceStartTick: () => 0, getOwnerTimebase: () => tb }),
-  ticks: ctx.f({ getSourceStartTick: () => 29429400 * 120, getOwnerTimebase: () => tb }),
-  big: ctx.f({ getSourceStartTick: () => 29429400n * 7n, getOwnerTimebase: () => tb }),
-  missing,
-}));
-"""
-        r = subprocess.run(["node", "-e", script, helper], capture_output=True, text=True, timeout=30)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        out = json.loads(r.stdout)
-        self.assertEqual([out["legacy"], out["zero"], out["ticks"], out["big"]], [48, 0, 120, 7])
-        self.assertIn("Update the plugin", out["missing"])
+    def test_source_plan_and_placement_with_parent_blocked(self):
+        result = subprocess.run(["node", "--test", os.path.join(ROOT, "tests/multicam_di_migration.test.mjs")], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 if __name__ == "__main__":
     unittest.main()

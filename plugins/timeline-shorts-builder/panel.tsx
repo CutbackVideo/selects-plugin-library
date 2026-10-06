@@ -27,18 +27,10 @@ function nativePlacement(media:{width:number;height:number},top:number,rotation=
 const CACHE_VERSION=3;
 const sampleCount=(frames:number,total:number,fps:number)=>Math.min(6,Math.max(1,Math.ceil(frames/Math.max(1,total)*(1080*.91*1.55)/256)),Math.max(1,Math.ceil(frames/Math.max(1,fps)/2)));
 const sampleFrames=(duration:number,count:number)=>Array.from({length:count},(_,i)=>Math.min(Math.max(0,duration-1),Math.floor((i+.5)/count*duration)));
-// Host clip model: Selects 2.0.53x replaced Clip.getStartTime() with tick timing (getSourceStartTick) and
-// getThumbnail({frame,fps}) with getThumbnail({presentationFrame}). Both shapes are feature-detected.
-const legacyClip=(c:any)=>typeof c?.getStartTime==='function';
-const jsonSafe=(v:any)=>v==null?null:JSON.parse(JSON.stringify(v,(_k,x)=>typeof x==='bigint'?String(x):x));
-const clipStart=(c:any)=>jsonSafe(legacyClip(c)?c.getStartTime():typeof c?.getSourceStartTick==='function'?c.getSourceStartTick():null);
-const clipThumbnail=(c:any,libraryId:string,frame:number,fps:number,camera:any)=>legacyClip(c)?c.getThumbnail({libraryId,frame,fps,quality:'low',immediate:false}):c.getThumbnail({libraryId,presentationFrame:frame,...(typeof camera==='number'?{assignedVideoIndex:camera}:{}),quality:'low',immediate:false});
-// Fallback when the host returns no thumbnail (seen on Staging 2.0.536): one frame from the clip's own file
-// through the app's bundled ffmpeg (argv, no shell). Source seconds = source start tick / ticks per second
-// + clip-local frame / fps * playback speed. Images are read whole.
-function clipSourceSeconds(c:any,frame:number,fps:number){let start=0,speed=1;try{const tpf=Number(c.getOwnerTimebase?.().getTicksPerFrame?.()),tick=Number(c.getSourceStartTick?.());if(tpf>0&&Number.isFinite(tick))start=tick/(tpf*fps);const r=c.getTiming?.().toJSON?.().playbackSpeed;if(r&&Number(r.numerator)>0&&Number(r.denominator)>0)speed=Number(r.numerator)/Number(r.denominator);}catch{}return Math.max(0,start+frame/fps*speed);}
-async function ffmpegThumbnail(di:any,fs:any,dir:string,file:string,seconds:number):Promise<Blob|null>{const rt=hostSdk.media;if(!file||typeof rt?.runFFmpeg!=='function')return null;const out=fs.join(dir,'frame-'+Date.now()+'-'+Math.random().toString(36).slice(2,8)+'.jpg'),still=/\.(png|jpe?g|webp|bmp|tiff?|heic)$/i.test(file);try{await rt.runFFmpeg(['-nostdin','-v','error','-y',...(still?[]:['-ss',seconds.toFixed(3)]),'-i',file,'-frames:v','1','-vf','scale=384:-2','-q:v','4',out],true);if(!await fs.exists(out))return null;const bytes=new Uint8Array(await fs.readFile(out));return bytes.length?new Blob([bytes],{type:'image/jpeg'}):null;}catch{return null}finally{try{if(typeof fs.removeFile==='function')await fs.removeFile({filePath:out});}catch{}}}
-async function digest(value:unknown){const hash=await (window.parent as any).crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value)));return Array.from(new Uint8Array(hash)).map(x=>x.toString(16).padStart(2,'0')).join('');}
+const jsonSafe=(v:any)=>v==null?null:JSON.parse(JSON.stringify(v));
+function clipSourceSeconds(c:any,frame:number,fps:number){return Math.max(0,c.sourceStartSeconds+frame/fps*c.playbackSpeed);}
+async function ffmpegThumbnail(fs:any,dir:string,file:string,seconds:number):Promise<Blob|null>{const rt=hostSdk.media;if(!file||typeof rt?.runFFmpeg!=='function')return null;const out=fs.join(dir,'frame-'+Date.now()+'-'+Math.random().toString(36).slice(2,8)+'.jpg'),still=/\.(png|jpe?g|webp|bmp|tiff?|heic)$/i.test(file);try{await rt.runFFmpeg(['-nostdin','-v','error','-y',...(still?[]:['-ss',seconds.toFixed(3)]),'-i',file,'-frames:v','1','-vf','scale=384:-2','-q:v','4',out],true);if(!await fs.exists(out))return null;const bytes=new Uint8Array(await fs.readFile(out));return bytes.length?new Blob([bytes],{type:'image/jpeg'}):null;}catch{return null}finally{try{if(typeof fs.removeFile==='function')await fs.removeFile({filePath:out});}catch{}}}
+async function digest(value:unknown){const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value)));return Array.from(new Uint8Array(hash)).map(x=>x.toString(16).padStart(2,'0')).join('');}
 function uniqueAssets(tiles:any[]){const assets:string[]=[],index=new Map<string,number>();return {tiles:tiles.map(({src,...tile})=>{let i=index.get(src);if(i===undefined){i=assets.length;index.set(src,i);assets.push(src)}return {...tile,asset:i}}),assets};}
 function planParts(t:any,tiles:any[]){const all=uniqueAssets(tiles);if(byteSize(JSON.stringify({timeline:t,...all}))<160000)return [{role:'full',timeline:t,...all}];const small={name:t.name,fps:t.fps,durationFrames:t.durationFrames,topRatio:t.topRatio,laneCount:t.laneCount},parts:any[]=[{role:'base',timeline:t,tiles:[],assets:[]}];let group:any[]=[],bytes=0;for(const tile of tiles){const n=byteSize(JSON.stringify(tile));if(n>140000)throw new Error('An individual thumbnail is too large.');if(bytes+n>140000&&group.length){parts.push({role:'images',timeline:small,...uniqueAssets(group)});group=[];bytes=0}group.push(tile);bytes+=n}if(group.length)parts.push({role:'images',timeline:small,...uniqueAssets(group)});parts.push({role:'front',timeline:t,tiles:[],assets:[]});return parts;}
 function groupParts(parts:any[]){const batches:any[][]=[];let batch:any[]=[],bytes=0;for(const p of parts){const n=byteSize(JSON.stringify(p));if(n>185000)throw new Error('The timeline structure is too large.');if(bytes+n>185000&&batch.length){batches.push(batch);batch=[];bytes=0}batch.push(p);bytes+=n}if(batch.length)batches.push(batch);return batches;}
@@ -81,29 +73,40 @@ class ImageWorker {
 }
 function Layout({ratio,setRatio,disabled,aspect}:{ratio:number;setRatio:(n:number)=>void;disabled:boolean;aspect:number}){const ref=useRef<HTMLDivElement|null>(null),drag=useRef(false),update=(y:number)=>{const r=ref.current?.getBoundingClientRect();if(r&&!disabled)setRatio(Math.max(30,Math.min(80,Math.round((y-r.top)/r.height*100))))};const fit=Math.min(1080/(aspect*1000),1920*ratio/100/1000),iw=aspect*1000*fit/1080*100,ih=1000*fit/1920*100;
 return <div style={{display:'grid',gap:6,justifyItems:'center'}}><div ref={ref} role="slider" aria-label="Video area ratio" aria-valuemin={30} aria-valuemax={80} aria-valuenow={ratio} tabIndex={disabled?-1:0} onPointerDown={e=>{if(disabled)return;drag.current=true;e.currentTarget.setPointerCapture(e.pointerId);update(e.clientY)}} onPointerMove={e=>{if(drag.current)update(e.clientY)}} onPointerUp={()=>{drag.current=false}} onPointerCancel={()=>{drag.current=false}} onDoubleClick={()=>{if(!disabled)setRatio(50)}} onKeyDown={e=>{if(!disabled&&(e.key==='ArrowUp'||e.key==='ArrowDown')){e.preventDefault();setRatio(Math.max(30,Math.min(80,ratio+(e.key==='ArrowUp'?-1:1))))}}} style={{position:'relative',width:'min(156px,100%)',aspectRatio:'9/16',background:'#000',overflow:'hidden',border:'1px solid var(--panel-border)',touchAction:'none',cursor:'row-resize'}}><div style={{position:'absolute',left:`${(100-iw)/2}%`,top:`${ratio-ih}%`,width:`${iw}%`,height:`${ih}%`,background:'linear-gradient(160deg,#f59e0b,#2563eb,#0f766e)'}}/><span style={{position:'absolute',left:6,top:6,fontSize:9,color:'white'}}>Fit entire source · {ratio}%</span><div style={{position:'absolute',left:0,right:0,top:`${ratio}%`,bottom:0,background:'#171717',paddingTop:20}}>{[0,1,2].map(i=><div key={i} style={{margin:'4px 8px 4px 20px',height:15,background:i===0?'#5520a3':'#164e63',border:'1px solid #36c5d4'}}/>)}<div style={{position:'absolute',left:'42%',top:8,bottom:0,width:1,background:'#8ac926'}}/></div><div style={{position:'absolute',left:0,right:0,top:`calc(${ratio}% - 2px)`,height:4,background:'#38bdf8'}}/></div><small>Drag to split · Double-click for 50:50</small></div>}
-export default function Panel({sdk,context}:any){
+function Panel({sdk,context}:any){
   hostUseSdk(sdk);
  const [rows,setRows]=useState<Row[]>([]),[id,setId]=useState(''),[name,setName]=useState('Timeline Shorts'),[ratio,setRatio]=useState(50),[bg,setBg]=useState('#151515'),[head,setHead]=useState('#8ac926'),[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[status,setStatus]=useState(''),[last,setLast]=useState(''),[pendingRead,setPendingRead]=useState(0);const job=useRef<AbortController|null>(null),pendingReads=useRef(0);const lock=useRef(false),seqRef=useRef(''),load=useRef(0),projectRef=useRef(context.projectId);projectRef.current=context.projectId;const target=rows.find(x=>x.sequenceId===id);const [prepared,setPrepared]=useState<any>(null),[metrics,setMetrics]=useState<any>(null);const preparedRef=useRef<any>(null),converter=useRef(new ImageWorker()),metricRef=useRef<any>(null),sessionNonce=useRef(String(Date.now()));
  async function checkpoint(){await yieldUI();if(job.current?.signal.aborted)throw new StopWork('Stopped. Any Draft already saved is preserved.');}
  async function readStep<T>(label:string,task:()=>Promise<T>|T):Promise<T>{const signal=job.current?.signal;if(!signal)throw new StopWork('There is no active operation.');await checkpoint();return boundedRead(task,signal,label,delta=>{pendingReads.current+=delta;setPendingRead(pendingReads.current);});}
  function requestStop(){job.current?.abort();converter.current.terminate();setStatus('Stop requested. Active saves and reads are not force-terminated; no further step will start after they finish.');}
  async function run(script:string,summary:string,write=false){if(byteSize(script)>220000)throw new Error('The edit request must be split into smaller parts. Do not create a duplicate Draft.');const started=performance.now();const r=await sdk.runScript({script,summary,allowCommit:write});if(metricRef.current){const m=metricRef.current;m.scriptMs+=performance.now()-started;if(write)m.writes++;m.maxScriptBytes=Math.max(m.maxScriptBytes,byteSize(script));setMetrics({...m,worker:converter.current.mode});}if(r.isError)throw new Error(r.output||'Operation failed');if(r.result==null)throw new Error('The save result could not be confirmed. Check the Draft list instead of creating another Draft.');return r.result;}
- function host(pid:string){const app=window.parent as any,m=app.location.pathname.match(/libraries\/([^/]+)\/projects\/([^/]+)/);if(projectRef.current!==pid||!m||decodeURIComponent(m[2])!==pid)throw new Error('The project changed.');const di=app.__DI__;if(!di?.SequenceRepository||!di?.SequenceEdit?.describeEditableParameters||!hostSdk.files)throw new Error('Timeline-reading capabilities are unavailable.');return {di,lib:decodeURIComponent(m[1])};}
+ function assertProject(pid:string){if(projectRef.current!==pid)throw new Error('The project changed.');}
  async function ownership(pid:string,did:string){await run(`const m=await selects.project(${JSON.stringify(pid)}).meta();if(!m.draftIds.includes(${JSON.stringify(did)}))throw new Error('The selected Draft does not belong to the current project.');return{ok:true};`,'Verify Draft ownership');}
  function choose(did:string,list=rows){if(seqRef.current!==did){preparedRef.current=null;setPrepared(null)}seqRef.current=did;setId(did);const r=list.find(x=>x.sequenceId===did);if(r)setName(r.name+' — Timeline Shorts');}
  async function refresh(initial=false){if(!context.projectId||lock.current)return;const stamp=++load.current;setLoading(true);try{const out=await run(`const p=selects.project(${JSON.stringify(context.projectId)}),m=await p.meta(),rows=[];for(const sequenceId of m.draftIds){const d=selects.draft(sequenceId),meta=await d.meta(),c=await d.clips({trackScope:'all'}),endFrame=c.filter(c=>['main','video','audio'].includes(c.trackKind)).reduce((a,c)=>Math.max(a,c.endFrame),0);rows.push({sequenceId,name:meta.name??'Draft',fps:meta.fps,endFrame,durationSeconds:endFrame/meta.fps,frameSize:meta.frameSize})}return{rows};`,'Read Draft list');if(stamp!==load.current)return;setRows(out.rows);choose(initial&&out.rows.some((r:any)=>r.sequenceId===context.sequenceId)?context.sequenceId:out.rows.some((r:any)=>r.sequenceId===seqRef.current)?seqRef.current:out.rows[0]?.sequenceId||'',out.rows);}catch(e:any){setStatus(e.message)}finally{if(stamp===load.current)setLoading(false)}}
  useEffect(()=>{seqRef.current='';setId('');setRows([]);setLast('');void refresh(true);return()=>{load.current++;job.current?.abort();converter.current.terminate()}},[context.projectId]);
- async function entries(pid:string,did:string){await ownership(pid,did);const {di,lib}=host(pid),s=await di.SequenceRepository.findById(lib,did);return di.SequenceEdit.describeEditableParameters(s).generators;}
- async function sourceSnapshot(pid:string,did:string,layout:any){const {di,lib}=host(pid),seq=await di.SequenceRepository.findById(lib,did);if(!seq?.getTracksInNleStackOrder)throw new Error('The real track order is unavailable.');const rows:any[]=[],nativeSizes:Record<string,{width:number;height:number}>={},media=new Map<string,any>(),byId=new Map<string,any>(),order:Record<string,number>={};seq.getTracksInNleStackOrder().forEach((t:any,i:number)=>order[String(t.getId())]=i);for(const t of seq.getTracks())for(const c of t.getClips())byId.set(String(c.getId()),c);const revision=typeof di.SequenceRepository.findStoredAt==='function'?await di.SequenceRepository.findStoredAt(lib,did):null;
- for(const row of layout.clips){await checkpoint();const c=byId.get(String(row.clipId));if(!c)throw new Error('The source clip changed. Run preparation again.');let stamp:any=null;if(row.resourceId){const mediaKey=String(row.resourceId)+':'+String(c.getAssignedVideoIndex()??0);if(!media.has(mediaKey)){const file=await c.getMedia(lib);if(file?.path){const modified=(await hostSdk.files.stat(file.path))?.mtimeMs;media.set(mediaKey,{path:file.path,width:file.width,height:file.height,modified:modified?(typeof modified.toISOString==='function'?modified.toISOString():String(modified)):sessionNonce.current});}else media.set(mediaKey,{revision,session:sessionNonce.current});}stamp=media.get(mediaKey);if(stamp?.width>0&&stamp?.height>0)nativeSizes[String(row.clipId)]={width:stamp.width,height:stamp.height};}
- rows.push({id:row.clipId,track:row.trackId,s:row.startFrame,e:row.endFrame,reference:jsonSafe(c.getMediaReference()),start:clipStart(c),duration:Math.max(1,row.endFrame-row.startFrame),camera:c.getAssignedVideoIndex(),adjustments:c.getResolvedIntrinsicVideoAdjustments(),effects:c.getEffects(),stamp});}
- const fingerprint=await digest({version:CACHE_VERSION,project:pid,draft:did,meta:layout.meta,order,revision,rows});return {fingerprint,byId,order,rows,nativeSizes};}
+ async function entries(pid:string,did:string){await ownership(pid,did);assertProject(pid);return run(`const d=selects.draft(${JSON.stringify(did)}),rows=[];for(const graphic of await d.motionGraphics()){const program=await d.motionGraphicProgram(graphic.clip);if(program)rows.push({ownerClipId:graphic.clip.clipId,label:graphic.name,values:program.parameters});}return rows;`,'Read editable graphics');}
+ async function sourceSnapshot(pid:string,did:string,layout:any){
+  assertProject(pid);
+  const snapshot=await sdk.call('getDraftMediaSnapshot',pid,did),rows:any[]=[],nativeSizes:Record<string,{width:number;height:number}>={},byId=new Map<string,any>();
+  for(const row of layout.clips){
+   await checkpoint();
+   const clip=snapshot.clips.find(c=>c.clipId===row.clipId&&c.trackId===row.trackId);
+   if(!clip||clip.startFrame!==row.startFrame||clip.endFrame!==row.endFrame||clip.resourceId!==row.resourceId)throw new Error('The source clip changed. Run preparation again.');
+   byId.set(String(row.clipId),clip);
+   const media=clip.media,stamp=media?{path:media.path,width:media.width,height:media.height,modified:media.modified??sessionNonce.current,checksum:media.checksum}:null;
+   if(stamp?.width>0&&stamp?.height>0)nativeSizes[String(row.clipId)]={width:stamp.width,height:stamp.height};
+   rows.push({id:row.clipId,track:row.trackId,s:row.startFrame,e:row.endFrame,start:clip.sourceStartSeconds,duration:row.endFrame-row.startFrame,camera:clip.camera,effects:clip.hasEffects?[true]:[],stamp});
+  }
+  const fingerprint=await digest({version:CACHE_VERSION,project:pid,draft:did,meta:layout.meta,order:snapshot.order,revision:snapshot.revision,rows});
+  return {fingerprint,byId,order:snapshot.order,rows,nativeSizes,revision:snapshot.revision};
+ }
  async function readLayout(pid:string,did:string){await ownership(pid,did);return run(`const d=selects.draft(${JSON.stringify(did)}),m=await d.meta(),c=await d.clips({trackScope:'all'}),r=await selects.project(${JSON.stringify(pid)}).resources(),names=new Map(r.map(x=>[x.resourceId,x.name]));return{meta:m,clips:c.filter(c=>['main','video','audio'].includes(c.trackKind)).map(c=>({...c,name:c.resourceId?(names.get(c.resourceId)??'Media'):(c.text??'Motion Graphic')}))};`,'Read source layout');}
- async function collect(pid:string,did:string,layout:any,snapshot:any){const {di,lib}=host(pid),fs=hostSdk.files,clips=layout.clips,fps=layout.meta.fps,total=clips.reduce((a:number,c:any)=>Math.max(a,c.endFrame),0),images:Record<string,string[]>={},warnings:string[]=[],safe=(s:string)=>s.replace(/[^A-Za-z0-9_-]/g,'_');const root=fs.join(fs.homedir(),'.selects','generated','timeline-shorts','cache-v3',safe(pid));(await fs.mkdir(root,{recursive:true}));const m=metricRef.current,start=performance.now();let completed=0;const memory=new Map<string,string>();
+ async function collect(pid:string,did:string,layout:any,snapshot:any){assertProject(pid);const fs=hostSdk.files,clips=layout.clips,fps=layout.meta.fps,total=clips.reduce((a:number,c:any)=>Math.max(a,c.endFrame),0),images:Record<string,string[]>={},warnings:string[]=[],safe=(s:string)=>s.replace(/[^A-Za-z0-9_-]/g,'_');const root=fs.join(fs.homedir(),'.selects','generated','timeline-shorts','cache-v3',safe(pid));(await fs.mkdir(root,{recursive:true}));const m=metricRef.current,start=performance.now();let completed=0;const memory=new Map<string,string>();
  const plans=clips.filter((r:any)=>r.trackKind!=='audio').map((row:any)=>{const c=snapshot.byId.get(String(row.clipId)),dur=Math.max(1,row.endFrame-row.startFrame),count=sampleCount(Math.max(1,row.endFrame-row.startFrame),total,fps);const fingerprintRow=snapshot.rows?.find((x:any)=>x.id===row.clipId);const still=fingerprintRow?.stamp?.path&&/\.(png|jpe?g|webp|bmp|tiff?)$/i.test(fingerprintRow.stamp.path)&&!(fingerprintRow.effects?.length);return{row,c,frames:sampleFrames(dur,count),stillKey:still?{stamp:fingerprintRow.stamp,camera:fingerprintRow.camera,adjustments:fingerprintRow.adjustments}:null}});m.planned=plans.reduce((n:number,p:any)=>n+p.frames.length,0);m.oldPlanned=plans.reduce((n:number,p:any)=>n+Math.min(6,Math.max(1,Math.ceil(Math.max(1,p.row.endFrame-p.row.startFrame)/fps/2))),0);
- for(const p of plans){const a:string[]=[];for(const frame of p.frames){await checkpoint();host(pid);const key=await digest({version:CACHE_VERSION,fingerprint:snapshot.fingerprint,sample:p.stillKey??{clip:p.row.clipId,frame},fps,size:[192,108],quality:.78}),path=fs.join(root,key+'.json');let src=memory.get(key);
+ for(const p of plans){const a:string[]=[];for(const frame of p.frames){await checkpoint();assertProject(pid);const key=await digest({version:CACHE_VERSION,fingerprint:snapshot.fingerprint,sample:p.stillKey??{clip:p.row.clipId,frame},fps,size:[192,108],quality:.78}),path=fs.join(root,key+'.json');let src=memory.get(key);
  if(!src&&await fs.exists(path)){try{const v=JSON.parse(new TextDecoder().decode(new Uint8Array(await fs.readFile(path))));if(v.key===key&&v.version===CACHE_VERSION&&typeof v.src==='string'&&v.src.startsWith('data:image/jpeg;base64,')&&v.src.length<140000&&v.checksum===await digest(v.src))src=v.src;}catch{warnings.push('Recomputed one cache entry');}}
- if(src){m.hits++;}else{m.misses++;setStatus(`Preparing thumbnail ${completed+1}/${m.planned} · cache ${m.hits}`);try{const stampRow=snapshot.rows?.find((x:any)=>x.id===p.row.clipId);let raw=await readStep('Thumbnail request',()=>clipThumbnail(p.c,lib,frame,fps,stampRow?.camera));if(!raw&&stampRow?.stamp?.path)raw=await readStep('Thumbnail from file',()=>ffmpegThumbnail(di,fs,root,stampRow.stamp.path,clipSourceSeconds(p.c,frame,fps)));if(!raw)throw new Error('The thumbnail response was empty.');src=await readStep('Worker image conversion',()=>converter.current.convert(raw,fs));if(!src?.startsWith('data:image/jpeg;base64,'))throw new Error('The converted image is invalid.');await fs.writeFile(path,new TextEncoder().encode(JSON.stringify({version:CACHE_VERSION,key,src,checksum:await digest(src)})));}catch(e:any){if(e instanceof StopWork)throw e;warnings.push(e.message);}}
+ if(src){m.hits++;}else{m.misses++;setStatus(`Preparing thumbnail ${completed+1}/${m.planned} · cache ${m.hits}`);try{const stampRow=snapshot.rows?.find((x:any)=>x.id===p.row.clipId);let raw=await readStep('Thumbnail request',()=>sdk.call('getDraftClipThumbnail',{projectId:pid,sequenceId:did,trackId:p.row.trackId,clipId:p.row.clipId,presentationFrame:frame,revision:snapshot.revision}));if(!raw&&stampRow?.stamp?.path)raw=await readStep('Thumbnail from file',()=>ffmpegThumbnail(fs,root,stampRow.stamp.path,clipSourceSeconds(p.c,frame,fps)));if(!raw)throw new Error('The thumbnail response was empty.');src=await readStep('Worker image conversion',()=>converter.current.convert(raw,fs));if(!src?.startsWith('data:image/jpeg;base64,'))throw new Error('The converted image is invalid.');await fs.writeFile(path,new TextEncoder().encode(JSON.stringify({version:CACHE_VERSION,key,src,checksum:await digest(src)})));}catch(e:any){if(e instanceof StopWork)throw e;warnings.push(e.message);}}
  if(src){a.push(src);memory.set(key,src);m.imageBytes+=byteSize(src);}completed++;m.completed=completed;m.prepareMs=performance.now()-start;if(completed%4===0||completed===m.planned){setMetrics({...m,worker:converter.current.mode});await new Promise(r=>setTimeout(r,100));}}
  if(a.length)images[String(p.row.clipId)]=a;}
  if(!Object.keys(images).length)throw new Error('No thumbnails could be prepared. No Draft was created.');return{images,order:snapshot.order,warnings};}
@@ -118,7 +121,7 @@ export default function Panel({sdk,context}:any){
  for(const s of scripts)if(byteSize(s)>220000)throw new Error('The timeline exceeds the request limit. The existing Draft was not changed.');
  const added:number[]=[];let swapStarted=false;
  try{
-  for(let i=0;i<scripts.length;i++){await checkpoint();host(pid);setStatus(`Saving embedded graphic ${i+1}/${scripts.length}`);const r=await run(scripts[i],'Save embedded timeline layer',true);added.push(...r.added);}
+  for(let i=0;i<scripts.length;i++){await checkpoint();assertProject(pid);setStatus(`Saving embedded graphic ${i+1}/${scripts.length}`);const r=await run(scripts[i],'Save embedded timeline layer',true);added.push(...r.added);}
   const saved=(await entries(pid,did)).filter((e:any)=>e.values?.bundle===group);if(saved.length!==parts.length)throw new Error('The number of saved graphics does not match the plan.');let verified=0;for(const e of saved){for(const q of e.values.tiles??[]){if(!(q.src??e.values.assets?.[q.asset])?.startsWith('data:image/'))throw new Error('Embedded thumbnail verification failed');verified++}if(JSON.stringify(e.values).includes('local://'))throw new Error('A local URL remains.');}if(verified!==tiles.length)throw new Error('The number of saved thumbnails does not match the plan.');
   if(oldIds.length){await checkpoint();swapStarted=true;await run(`const d=selects.draft(${JSON.stringify(did)}),ids=new Set(${JSON.stringify(oldIds)}),all=await d.clips({trackScope:'all'}),c=all.filter(c=>ids.has(c.clipId));if(c.length!==ids.size)throw new Error('The existing graphic changed, so replacement was stopped.');if(c.some(c=>c.trackKind!=='video'||c.resourceId!=null))throw new Error('The target is not a timeline graphic.');await d.removeClips(c);await d.commitAll('Replace timeline with embedded images');return{removed:c.length};`,'Replace legacy timeline',true);}
   return {count:verified,parts:saved.length,transactions:scripts.length};
@@ -126,11 +129,11 @@ export default function Panel({sdk,context}:any){
  }
  async function repair(){if(lock.current||pendingReads.current>0||!id)return;job.current=new AbortController();lock.current=true;setBusy(true);const pid=context.projectId;try{const es=await entries(pid,id),bases=es.filter((e:any)=>((e.values?.version>=2&&['base','full'].includes(e.values?.role))||(!e.values?.version&&/^(Selects Timeline|Actual Timeline)/.test(e.label)))&&Array.isArray(e.values?.timeline?.lanes));if(!bases.length)throw new Error('Select a generated timeline-shorts Draft.');let count=0;
  for(const base of bases){await checkpoint();const t=JSON.parse(JSON.stringify(base.values.timeline)),old=base.values.version>=2?es.filter((e:any)=>e.values?.bundle===base.values.bundle):[base],oldIds=old.map((e:any)=>e.ownerClipId);const timing=await run(`const d=selects.draft(${JSON.stringify(id)}),ids=new Set(${JSON.stringify(oldIds)});return{clips:(await d.clips({trackScope:'all'})).filter(c=>ids.has(c.clipId)).map(c=>({s:c.startFrame,e:c.endFrame}))};`,'Check repair scope');if(timing.clips.some((c:any)=>c.s!==0||Math.abs(c.e-t.durationFrames)>1))throw new Error('A timeline graphic with changed timing or position is not replaced automatically.');if(base.values.version>=2){count+=old.reduce((n:number,e:any)=>n+(e.values.tiles?.length||0),0);continue;}
- const images:Record<string,string[]>={},cache=new Map<string,string>(),{di}=host(pid);let missing=0;for(const lane of t.lanes)for(const c of lane.clips){const srcs=c.thumbnails??[];if(!srcs.length&&c.kind!=='audio')missing++;const a=[];for(const src of srcs){host(pid);setStatus(`Reading existing thumbnail · ${cache.size+1}`);let data=cache.get(src);if(!data){data=await readStep('Read existing thumbnail',()=>imageData(src,hostSdk.files));cache.set(src,data)}a.push(data)}images[String(c.id)]=a;}
+ const images:Record<string,string[]>={},cache=new Map<string,string>();assertProject(pid);let missing=0;for(const lane of t.lanes)for(const c of lane.clips){const srcs=c.thumbnails??[];if(!srcs.length&&c.kind!=='audio')missing++;const a=[];for(const src of srcs){assertProject(pid);setStatus(`Reading existing thumbnail · ${cache.size+1}`);let data=cache.get(src);if(!data){data=await readStep('Read existing thumbnail',()=>imageData(src,hostSdk.files));cache.set(src,data)}a.push(data)}images[String(c.id)]=a;}
  if(!Object.values(images).some(a=>a.length))throw new Error('No recoverable image data was found. Create again from the source Draft.');const r=await install(pid,id,t,images,oldIds,base.values.background||'#151515',base.values.playhead||'#8ac926');count+=r.count;if(missing)setStatus(`Warning: clips without source thumbnails ${missing}`);}
  setStatus(`Repair saved and embedded images verified · ${count} images. The existing video layout was preserved. Final export verification remains separate.`);
  }catch(e:any){setStatus('Repair failed: '+e.message)}finally{job.current=null;lock.current=false;setBusy(false)}}
- async function build(){if(lock.current||pendingReads.current>0||!target)return;const ready=preparedRef.current;if(!ready||ready.pid!==context.projectId||ready.did!==id){setStatus('Complete step 1, thumbnail preparation, first.');return;}job.current=new AbortController();lock.current=true;setBusy(true);const pid=context.projectId,sourceId=id;let did='';try{const latest=await readLayout(pid,sourceId),snapshot=await sourceSnapshot(pid,sourceId,latest);if(snapshot.fingerprint!==ready.fingerprint){preparedRef.current=null;setPrepared(null);throw new Error('The source changed, so the prepared data cannot be used. Prepare again.');}const layout=ready.layout,duration=layout.clips.reduce((a:number,c:any)=>Math.max(a,c.endFrame),0),assets=ready.assets,map=new Map<string,any>();for(const c of layout.clips){if(!map.has(c.trackId))map.set(c.trackId,{id:c.trackId,kind:c.trackKind,clips:[]});map.get(c.trackId).clips.push({id:String(c.clipId),kind:c.trackKind==='video'&&c.resourceId==null?'generator':c.trackKind,startFrame:c.startFrame,endFrame:c.endFrame,name:c.name,color:c.color})}const lanes=[...map.values()].sort((a,b)=>(assets.order[a.id]??999999)-(assets.order[b.id]??999999));let v=0,a=0;for(const l of lanes)l.label=l.kind==='main'?'MAIN':l.kind==='audio'?'A'+(++a):'V'+(++v);const t={name:layout.meta.name,durationFrames:duration,fps:layout.meta.fps,topRatio:ratio,lanes};host(pid);
+ async function build(){if(lock.current||pendingReads.current>0||!target)return;const ready=preparedRef.current;if(!ready||ready.pid!==context.projectId||ready.did!==id){setStatus('Complete step 1, thumbnail preparation, first.');return;}job.current=new AbortController();lock.current=true;setBusy(true);const pid=context.projectId,sourceId=id;let did='';try{const latest=await readLayout(pid,sourceId),snapshot=await sourceSnapshot(pid,sourceId,latest);if(snapshot.fingerprint!==ready.fingerprint){preparedRef.current=null;setPrepared(null);throw new Error('The source changed, so the prepared data cannot be used. Prepare again.');}const layout=ready.layout,duration=layout.clips.reduce((a:number,c:any)=>Math.max(a,c.endFrame),0),assets=ready.assets,map=new Map<string,any>();for(const c of layout.clips){if(!map.has(c.trackId))map.set(c.trackId,{id:c.trackId,kind:c.trackKind,clips:[]});map.get(c.trackId).clips.push({id:String(c.clipId),kind:c.trackKind==='video'&&c.resourceId==null?'generator':c.trackKind,startFrame:c.startFrame,endFrame:c.endFrame,name:c.name,color:c.color})}const lanes=[...map.values()].sort((a,b)=>(assets.order[a.id]??999999)-(assets.order[b.id]??999999));let v=0,a=0;for(const l of lanes)l.label=l.kind==='main'?'MAIN':l.kind==='audio'?'A'+(++a):'V'+(++v);const t={name:layout.meta.name,durationFrames:duration,fps:layout.meta.fps,topRatio:ratio,lanes};assertProject(pid);
  await checkpoint();const create=(copy:'duplicate'|'insert')=>run(`const p=selects.project(${JSON.stringify(pid)}),s=selects.draft(${JSON.stringify(sourceId)}),nativeSizes=${JSON.stringify(ready.nativeSizes)},reference=${JSON.stringify(ready.sourceSize)},fit=${nativePlacement.toString()};
 const sourceClips=await s.clips({trackScope:'all'});const unresolved=sourceClips.filter(c=>['main','video'].includes(c.trackKind)&&c.resourceId&&!nativeSizes[String(c.clipId)]);if(unresolved.length)throw new Error('A clip without native dimensions is not placed.');
 const draftName=${JSON.stringify(name.trim()||'Timeline Shorts')};const useDuplicate:boolean=${copy==='duplicate'};let d;if(useDuplicate)d=await p.duplicateDraft({sourceDraftId:${JSON.stringify(sourceId)},name:draftName});else{d=await p.createDraft({name:draftName});const total=sourceClips.reduce((a,c)=>Math.max(a,c.endFrame),0);if(total<1)throw new Error('The source Draft is empty.');await d.insert({source:await s.rangeAtFrames(0,total),tracks:'all'});}
@@ -146,4 +149,241 @@ const out=await d.commitAll('Create uncropped timeline shorts layout');return {i
 }
 
 let hostSdk: any = null;
-function hostUseSdk(sdk: any) { hostSdk = sdk; if (!sdk?.files || !sdk?.media || !sdk?.environment) throw new Error("Update Selects to use this plugin."); }
+function hostUseSdk(sdk: any) { hostSdk = panelLocalClient(sdk); if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin."); }
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, encoding?: string) {
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+        const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+        let binary = "";
+        for (const byte of chunk) binary += String.fromCharCode(byte);
+        const result = await run("files.writeChunk", [{ path, offset, base64: btoa(binary) }], true);
+        if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+      }
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(Panel);
+// local-sdk:end

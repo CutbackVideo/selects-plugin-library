@@ -1,3 +1,4 @@
+import {withPanelLocalClient} from "../../../shared/local-client";
 import { hostUseSdk } from "./pipeline/host";
 import React, { useEffect, useRef, useState } from "react";
 import { makeReel, rebuildReel, loadJob, STEPS, type Step, type MakeResult } from "./pipeline/make";
@@ -19,7 +20,7 @@ const writeStore = (k: string, v: string) => {
 
 const STORE = "podcast-hook-captions:v2:";
 
-export default function PodcastHookReel({ sdk, context }: any) {
+function PodcastHookReel({ sdk, context }: any) {
   hostUseSdk(sdk);
   const [seconds, setSeconds] = useState(25);
   const [hint, setHint] = useState("");
@@ -185,3 +186,5 @@ export default function PodcastHookReel({ sdk, context }: any) {
     </div>
   );
 }
+
+export default withPanelLocalClient(PodcastHookReel);

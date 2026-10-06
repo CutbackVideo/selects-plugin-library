@@ -2,7 +2,7 @@
 // Local files, media tools and environment use the public SDK.
 // Missing capabilities report the existing host-tools error to the panel UI.
 let hostSdk = null;
-function hostUseSdk(sdk) { hostSdk = sdk; }
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
 function saeDI() { return { fs: hostSdk?.files, rt: hostSdk?.media }; }
 
 // names: ['fs.join', 'rt.runFFmpeg', ...]. Returns { ok, missing }.

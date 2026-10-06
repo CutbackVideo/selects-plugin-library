@@ -1,7 +1,7 @@
 // Stock B-roll through the app's StockMediaSearch service: Cutback's server searches Pexels and Pixabay
 // with its own keys, so nothing is asked of the user. Searches return candidates with a preview image;
 // the chosen candidate's needed seconds are cut straight from the provider's URL.
-import { di, fs, hostFF, type Sdk } from "./host";
+import { getSdk, fs, hostFF, type Sdk } from "./host";
 
 export type StockClip = { path: string; width: number; height: number; credit: string; url: string; service: string; id: string; dur?: number };
 
@@ -22,7 +22,7 @@ export type Candidate = { id: string; url: string; width: number; height: number
 
 export function stockSearchAvailable(): boolean {
   try {
-    return typeof di()?.StockMediaSearch?.searchVideos === "function";
+    return typeof getSdk()?.runScript === "function";
   } catch {
     return false;
   }
@@ -39,7 +39,11 @@ const clean = (raw: string) =>
 
 // Candidates for one moment, portrait first, at most `max`, skipping ids in `avoid`.
 export async function searchCandidates(queries: string[], max: number, avoid: Set<string>): Promise<Candidate[]> {
-  const service = di().StockMediaSearch;
+  const service = { searchVideos: async (query: any) => {
+    const reply = await getSdk().runScript({ script: `return await selects.stock.searchVideos(${JSON.stringify(query)});`, summary: "Find stock footage" });
+    if (reply.isError) throw new Error(reply.output);
+    return reply.result;
+  } };
   const out: Candidate[] = [];
   const seen = new Set<string>();
   for (const orientation of ["portrait", "landscape"] as const) {

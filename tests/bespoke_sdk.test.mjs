@@ -38,7 +38,7 @@ for (const name of ['shortform-cloner', 'card-news-maker']) {
     const source = panelSource(name);
     const start = source.indexOf('function hostFs()');
     const end = source.indexOf(name === 'shortform-cloner' ? 'function useWidth(' : 'async function imageSize(', start);
-    const context = vm.createContext({hostSdk: sdk, APP_ID: name, IS_WIN: true,
+    const context = vm.createContext({panelLocalClient: sdk => sdk, hostSdk: sdk, APP_ID: name, IS_WIN: true,
       window: {parent: {__DI__: forbiddenDI}},
       enc: text => new TextEncoder().encode(text), dec: bytes => new TextDecoder().decode(bytes)});
     const store = vm.runInContext(stripTypeScriptTypes(source.slice(start, end)) + '\nmakeStore();', context);
@@ -57,7 +57,7 @@ for (const name of ['shortform-cloner', 'card-news-maker']) {
 test('iMessage workspace binds its supplied SDK and waits for directory creation', async () => {
   const {sdk, files} = memorySdk(), source = panelSource('imessage-generator');
   const names = ['wsNorm', 'wsInside', 'workspaceIO'];
-  const context = vm.createContext({window: {parent: {__DI__: forbiddenDI}}, TextDecoder, TextEncoder, Uint8Array});
+  const context = vm.createContext({panelLocalClient: sdk => sdk, window: {parent: {__DI__: forbiddenDI}}, TextDecoder, TextEncoder, Uint8Array});
   vm.runInContext(hostBlock(source) + '\n' + names.map(name => topLevel(source, name)).join('\n') + '\nthis.run = workspaceIO;', context);
   const roots = await context.run(sdk, '', {action: 'home'});
   const file = sdk.files.join(roots.base, 'job', 'voice.json');
@@ -157,7 +157,7 @@ test('Recap timing entry keeps the real SDK through first and cached root lookup
   const {sdk, files} = memorySdk();
   const timingPath = sdk.files.join(sdk.files.homedir(), '.selects', 'skills', 'recap-2026', 'timing.json');
   files.set(timingPath, new TextEncoder().encode(JSON.stringify({placements: [{startSeconds: 0}]})));
-  const context = vm.createContext({TextDecoder, TextEncoder, Uint8Array,
+  const context = vm.createContext({panelLocalClient: sdk => sdk, TextDecoder, TextEncoder, Uint8Array,
     window: {parent: Object.defineProperty({}, '__DI__', {get() { throw Error('Unexpected DI'); }})}});
   vm.runInContext(hostBlock(source) + '\nconst SLUG="recap-2026"; let recapRootsPromise=null;\n' +
     topLevel(source, 'recapRoots') + '\n' + topLevel(source, 'readTiming') +

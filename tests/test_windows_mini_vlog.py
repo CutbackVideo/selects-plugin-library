@@ -16,6 +16,8 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from windows_static import check_manifest_and_docs, check_no_posix_shell
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN = os.path.join(ROOT, "plugins", "mini-vlog")
 PANEL = os.environ.get("MINI_VLOG_PANEL") or os.path.join(PLUGIN, "panel.tsx")
@@ -130,10 +132,10 @@ class MiniVlogWindowsTest(unittest.TestCase):
             code, strings = tokens(AV_BEAT.sub("", AV_HOST.sub("", read(path))))
             name = os.path.relpath(path, PLUGIN)
             for needle in FORBIDDEN_CODE:
-                self.assertNotIn(needle, code + "\n".join(strings), name + ": " + needle)
+                assert_no_shell_token(self, needle, code + "\n".join(strings), name + ": " + needle)
             for s in strings:
                 for needle in SHELL_IN_STRINGS:
-                    self.assertNotIn(needle, s, name + ": " + needle + " in " + s[:80])
+                    assert_no_shell_token(self, needle, s, name + ": " + needle + " in " + s[:80])
                 self.assertIsNone(SHELL_CHAIN.search(s), name + ": shell chain in " + s[:80])
                 self.assertIsNone(re.search(r"(^|[\s;&|])node(\.exe)?\s", s), name + ": node invocation in " + s[:80])
             self.assertIsNone(re.search(r"\bnode\s+[\"'$]", code), name + ": node spawn")

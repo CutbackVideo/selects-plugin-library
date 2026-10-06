@@ -14,6 +14,8 @@ from pathlib import Path
 import re
 import unittest
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins/postcard-cutout-studio'
 PANEL = Path(os.environ.get('POSTCARD_PANEL') or PLUGIN / 'panel.tsx')
@@ -68,7 +70,7 @@ class PostcardCutoutStudioWindowsTest(unittest.TestCase):
         runtime = strip_comments(HOST_BLOCK.sub('', self.portable))
         for token in FORBIDDEN:
             with self.subTest(token=token):
-                self.assertNotIn(token, runtime)
+                assert_no_shell_token(self, token, runtime)
         self.assertIsNone(SPAWN.search(runtime), 'no node/python spawn outside mac-only regions')
 
     def test_windows_runs_every_helper_op_in_the_panel(self):

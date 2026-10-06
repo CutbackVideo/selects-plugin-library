@@ -110,7 +110,7 @@ test('macOS: the shell steps export the running Selects app\'s bundled ffmpeg',a
   const versions={'Selects':'2.0.495','Selects Staging':'2.0.535','Selects Alpha':'2.0.340'};
   const FileSystem={join:(...p)=>p.join('/'),existsSync:p=>installed.includes(apps(p)),readFileSync:p=>Buffer.from(plist(versions[apps(p)]))};
   const Runtime={getHostingVersion:()=>version,getAppName:()=>name,getPlatform:()=>'darwin'};
-  const ctx=vm.createContext({sdk:asyncSdk({FileSystem,Runtime}),window:{parent:{__DI__:{FileSystem,Runtime}}},navigator:{},TextDecoder});
+  const ctx=vm.createContext({panelLocalClient:sdk=>sdk,sdk:asyncSdk({FileSystem,Runtime}),window:{parent:{__DI__:{FileSystem,Runtime}}},navigator:{},TextDecoder});
   return vm.runInContext(host+mac+';hostUseSdk(sdk);macTools()',ctx);
  };
  const all=['Selects','Selects Staging','Selects Alpha'];

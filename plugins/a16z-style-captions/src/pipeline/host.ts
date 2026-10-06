@@ -1,3 +1,4 @@
+import {panelLocalClient} from "../../../../shared/local-client";
 // Local files, media and environment use the public SDK; timeline services retain their host adapters.
 // Shell quoting and small
 // wrappers around the panel SDK's runScript / runShell (runShell is cmd.exe on Windows: only the macOS-only
@@ -6,7 +7,6 @@
 export const PANEL_ID = "a16z-style-captions";
 
 export type Sdk = {
-  files: any; media: any; environment: {platform: string; version: string};
   runScript: (o: { script: string; summary: string; allowCommit?: boolean }) => Promise<{ isError: boolean; output: string; result?: any }>;
   runShell: (o: { command: string; summary: string; timeoutMs?: number; maxOutputBytes?: number; cwd?: string }) => Promise<any>;
   askAI: (o: { prompt: string; timeoutMs?: number }) => Promise<{ text: string }>;
@@ -14,12 +14,9 @@ export type Sdk = {
 
 export function app(): any {
   const parent: any = window.parent;
-  if (!parent?.__DI__) throw new Error("This Selects version does not expose native panel services.");
-  return parent;
+  return parent?.opener || (window as any).opener || parent;
 }
-export function di(): any {
-  return app().__DI__;
-}
+export function getSdk(): Sdk { return hostSdk; }
 export function libraryId(): string {
   const id = app().location.pathname.match(/libraries\/([^/]+)/)?.[1];
   if (!id) throw new Error("Open a Draft in Selects first.");
@@ -154,6 +151,6 @@ export function lastJsonObject(text: string): any {
   throw new Error("The assistant's JSON could not be read.");
 }
 
-let hostSdk: Sdk;
-export function hostUseSdk(sdk: Sdk) { hostSdk = sdk; if (!sdk?.files || !sdk?.media || !sdk?.environment) throw new Error("Update Selects to use this plugin."); }
+let hostSdk: ReturnType<typeof panelLocalClient>;
+export function hostUseSdk(sdk: Sdk) { hostSdk = panelLocalClient(sdk); if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin."); }
 export function media(): any { return hostSdk.media; }

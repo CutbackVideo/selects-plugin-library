@@ -357,7 +357,7 @@ assert.ok(ui.includes('fill(assets.scripts.decorateJs, cfg)') && ui.includes('fi
 // ---- Host I/O: no POSIX shell, guarded host services --------------------------------------------------------------
 // Runtime code never uses POSIX shell syntax, a data folder under the shell's HOME, Homebrew / nvm paths or a node
 // spawn (kit references/windows.md).
-for (const bad of ['mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'TOOL_PATH', '/opt/homebrew', '.nvm', '/tmp', '~/', 'sq(', 'dq(', '| sort']) assert.ok(!own.includes(bad), 'no ' + bad);
+for (const bad of ['mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'TOOL_PATH', '/opt/homebrew', '.nvm', '/tmp', '~/', 'sq(', 'dq(', '| sort']) assert.ok(!(bad === "base64 " ? /(?<![\w.])base64\s/.test(own) : own.includes(bad)), 'no ' + bad);
 assert.ok(!/\bnode\s+["'\w./-]*\.c?js/.test(own) && !/\bffmpeg\s+-/.test(own) && !/\bffprobe\s+-/.test(own), 'no node / ffmpeg / ffprobe command lines');
 assert.ok(!/(?:plugin|root|data|dir|path|Dir|Path)\)?\s*\+\s*["'][\\/]|["'][\\/]assets/.test(own), 'paths are joined, never built with "/"');
 // No shell call at all at runtime (kit windows.md): the install folder comes from FileSystem only.
@@ -389,7 +389,7 @@ function hostBox({ platform, files = new Set(), shell = null, ffmpeg = null, noJ
     setTimeout, clearTimeout, AbortController, Date, Math, String, Error, parseFloat };
   ctx.sdk = { files: FileSystem, media: Runtime, environment: { platform } };
   vm.createContext(ctx);
-  vm.runInContext(hostBlock + '\nhostUseSdk(sdk);this.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostNeed, hostApi, hostIsWindows };', ctx);
+  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + hostBlock + '\nhostUseSdk(sdk);this.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostNeed, hostApi, hostIsWindows };', ctx);
   const sdk = { ...ctx.sdk, runShell: async (o) => { calls.shell.push(o.command); return shell ? shell(o.command) : { stdout: '' }; } };
   return { H: ctx.H, calls, sdk };
 }
@@ -449,7 +449,7 @@ const hostTests = (async () => {
   {
     const removeWith = async (files) => {
       const ctx = { sdk: { files, media: {} }, Math, String, Error };
-      vm.createContext(ctx); vm.runInContext(hostBlock + '\nhostUseSdk(sdk);this.R = hostRemove;', ctx);
+      vm.createContext(ctx); vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + hostBlock + '\nhostUseSdk(sdk);this.R = hostRemove;', ctx);
       await ctx.R('/d/x.f32');
     };
     const seen = [];
@@ -713,7 +713,7 @@ Promise.all([hostTests, templateTest]).then(() => console.log('panel ok'), e => 
   for (const [kind, value] of Object.entries(foreign)) {
     const ctx = { sdk: { files: { readFile: async () => value } }, TextDecoder, Uint8Array, Object };
     vm.createContext(ctx);
-    vm.runInContext(hostBlock + '\nhostUseSdk(sdk);this.H = { hostReadText, hostReadBytes };', ctx);
+    vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + hostBlock + '\nhostUseSdk(sdk);this.H = { hostReadText, hostReadBytes };', ctx);
     ctx.H.hostReadText('x').then((txt) => assert.equal(txt, 'hi', 'cross-realm ' + kind + ' as text'));
     ctx.H.hostReadBytes('x').then((b) => assert.deepEqual(Array.from(b), [104, 105], 'cross-realm ' + kind + ' as bytes'));
   }

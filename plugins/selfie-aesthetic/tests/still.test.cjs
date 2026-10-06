@@ -198,7 +198,7 @@ function hostBlock(di) {
   const block = src.slice(src.indexOf('// sae-host:start'), src.indexOf('// sae-host:end'));
   const box = { sdk: asyncSdk(di), setTimeout, clearTimeout, AbortController, navigator: {}, window: { parent: { __DI__: di } } };
   vm.createContext(box);
-  vm.runInContext(block + ';hostUseSdk(sdk);globalThis.H={saeMotionCurve,saeMotionArgs,saeMotionValues,SAE_MOTION_FPS};', box);
+  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + block + ';hostUseSdk(sdk);globalThis.H={saeMotionCurve,saeMotionArgs,saeMotionValues,SAE_MOTION_FPS};', box);
   return box.H;
 }
 const runFF = (args, signal) => new Promise((resolve, reject) => execFile(tool('ffmpeg'), args, { signal, encoding: 'utf8' }, (err, stdout, stderr) => (err ? (err.stderr = stderr, reject(err)) : resolve({ stdout, stderr }))));

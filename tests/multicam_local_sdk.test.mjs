@@ -10,6 +10,7 @@ const names = ['safeDetail', 'referenceTimes', 'writeLocalDiagnostic', 'prepareM
 const ctx = vm.createContext({
   window: {parent: {get __DI__() {throw Error('Local operations must not access DI');}}},
   TextEncoder, Uint8Array, AbortController, setTimeout, clearTimeout, btoa,
+  panelLocalClient: (sdk) => sdk,
 });
 vm.runInContext(names.map(name => topLevel(source, name)).join('\n'), ctx);
 const delayed = async value => {await new Promise(resolve => setImmediate(resolve)); return value;};

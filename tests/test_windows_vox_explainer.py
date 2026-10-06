@@ -10,6 +10,8 @@ from pathlib import Path
 import re
 import unittest
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins' / 'vox-explainer'
 PANEL = Path(os.environ.get('VOX_PANEL') or PLUGIN / 'panel.tsx')
@@ -80,7 +82,7 @@ class VoxExplainerWindowsTest(unittest.TestCase):
         self.assertNotIn('runShell', self.panel)
         self.assertNotIn('mac-only:', self.panel)
         for needle in FORBIDDEN:
-            self.assertNotIn(needle, self.runtime, needle)
+            assert_no_shell_token(self, needle, self.runtime, needle)
         for pattern, what in FORBIDDEN_RE:
             self.assertIsNone(pattern.search(self.runtime), what)
 

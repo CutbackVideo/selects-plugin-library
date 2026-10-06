@@ -52,7 +52,7 @@ for (const [id, marker, prefix] of [['selfie-aesthetic', 'sae-host', 'sae'], ['s
     const sdk = asyncSdk(host.di);
     const dir = sdk.files.join(sdk.files.homedir(), '.selects', 'skills', id);
     host.store.set(sdk.files.join(dir, 'planner.js'), host.RealmBytes.from([65]));
-    const context = vm.createContext({ sdk, TextDecoder, TextEncoder, Uint8Array, AbortController, setTimeout, clearTimeout,
+    const context = vm.createContext({panelLocalClient: sdk => sdk,  sdk, TextDecoder, TextEncoder, Uint8Array, AbortController, setTimeout, clearTimeout,
       window: { get parent() { throw Error('No legacy host services'); } } });
     vm.runInContext(source.slice(start, end) + `\nhostUseSdk(sdk); this.api = { skills: ${prefix}SkillsDir, data: ${prefix}DataDir };`, context);
     assert.equal(await context.api.skills(id, 'planner.js'), dir);

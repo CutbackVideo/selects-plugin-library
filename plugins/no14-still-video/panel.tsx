@@ -211,72 +211,65 @@ export function buildNativeFinishScript(raw){
 
 const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const ids=new Set(resources.filter(r=>r.type==='Image').map(r=>r.resourceId));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>ids.has(n.resourceId)&&n.path&&(!scope.paths||scope.paths.includes(n.path))).map(n=>({resourceId:n.resourceId,name:n.name,path:n.path}));`;
 
-// The editor's existing Image placement path is not exposed by the public panel SDK.
-// Keep this bridge narrow, validate every selected path, and reject unknown hosts.
-// A template run passes the library it resolved when it started, because it keeps
-// running while the person moves to another page; the Panel reads the open Project.
-export async function prepareNativeImages(app,projectId,photos,knownLibraryId=null){
- let libraryId=knownLibraryId;
- if(!libraryId){
-  const match=app.location.pathname.match(/libraries\/([^/]+)\/projects\/([^/]+)/);
-  if(!match||match[2]!==projectId)throw Error('Open the selected Project before creating the Draft.');
-  libraryId=match[1];
- }
- const di=app.__DI__;
- if(typeof di?.ProjectRepository?.findById!=='function'||typeof di?.ResourceRepository?.findById!=='function'||typeof di?.SequenceRepository?.findById!=='function'||typeof di?.TimelineMutation?.run!=='function')throw Error('This Selects version does not support original Image placement from this plugin.');
- const project=await di.ProjectRepository.findById(libraryId,projectId);
- if(!project)throw Error('The selected Project was not found.');
- const members=await Promise.all(project.getResources().map(id=>di.ResourceRepository.findById(libraryId,id)));
- const sources=[];
- for(const photo of photos){
-  const matches=members.filter(r=>r?.getType()==='Image'&&r.getMedia()?.path===photo.path);
+// native-sdk:start
+// Read verified Project resources and place editable images through the Draft working copy.
+async function nativeImageSources(selects, projectId, photos) {
+ const project=selects.project(projectId), resources=await project.resources(), nodes=[];
+ const visit=items=>{for(const item of items||[])item.type==='dir'?visit(item.children):nodes.push(item);};
+ const overview=await project.sourceFiles();
+ if(Array.isArray(overview.fileTree))visit(overview.fileTree);
+ else for(const folder of overview.folders||[])visit((await project.sourceFiles({folder:folder.name})).fileTree);
+ return photos.map(photo=>{
+  const matches=nodes.filter(node=>node.path===photo.path&&resources.some(resource=>resource.resourceId===node.resourceId&&resource.type==='Image'));
   if(matches.length!==1)throw Error('A selected Image is missing or ambiguous in the Project: '+photo.name);
-  const resource=matches[0],media=resource.getMedia(),analyzed=await resource.getAnalyzedSequence();
-  const main=analyzed?.getMainTrack(),primary=main?.getClips().find(clip=>!clip.isGap());
-  if(!analyzed||!main||!primary||!Number.isSafeInteger(media?.width)||!Number.isSafeInteger(media?.height))throw Error('A selected Image is not ready for editing: '+photo.name);
-  sources.push({resource,analyzed,main,primary,width:media.width,height:media.height});
- }
- return {di,libraryId,projectId,sources};
-}
-
-export async function placeNativeImages(prepared,draftId,plan){
- const {di,libraryId,projectId,sources}=prepared;
- const project=await di.ProjectRepository.findById(libraryId,projectId);
- if(!project)throw Error('The selected Project is unavailable.');
- if(!project.getEditedSequences().includes(draftId))throw Error('The new Draft is not owned by the selected Project.');
- const sequence=await di.SequenceRepository.findById(libraryId,draftId);
- if(!sequence||sequence.getFrameRate()!==plan.fps||sequence.getDuration('resolved')!==plan.durationFrames||JSON.stringify(sequence.getFrameSize())!==JSON.stringify(plan.canvas))throw Error('The Draft frame grid differs from the reference.');
- const placements=[];
- const outcome=await di.TimelineMutation.run(sequence,'no14:placeOriginalImages',current=>{
-  const candidate=current.clone();
-  for(const occurrence of plan.occurrences){
-   const source=sources['ABCD'.indexOf(occurrence.slot)];
-   const ids=candidate.place({working:source.analyzed,primaryTrack:source.main,primaryOffset:0,primaryClipId:source.primary.getId()},occurrence.startFrame,{kind:'overlay'});
-   if(ids.length!==1)throw Error('Image placement did not create one independent clip.');
-   const position=candidate.getClipPositionById(ids[0]),length=occurrence.endFrame-occurrence.startFrame;
-   if(!position||position.resolvedOffset!==occurrence.startFrame)throw Error('Image placement moved from the planned frame.');
-   const delta=length-position.clip.getDuration();
-   if(delta!==0){
-    const result=candidate.trimClipBoundary({trackId:position.trackId,clipId:ids[0],position:'end',delta});
-    if(result.effectiveDelta!==delta)throw Error('Image could not be held for the planned interval.');
-   }
-   const final=candidate.getClipPositionById(ids[0]);
-   if(!final||final.resolvedOffset!==occurrence.startFrame||final.clip.getDuration()!==length)throw Error('Image interval changed during placement.');
-   placements.push({slot:occurrence.slot,appearance:occurrence.appearance,clipId:ids[0],trackId:final.trackId,startFrame:occurrence.startFrame,endFrame:occurrence.endFrame});
-  }
-  const overflow=candidate.getDuration('resolved')-plan.durationFrames;
-  if(overflow>0)candidate.slice([{startFrame:plan.durationFrames,endFrame:plan.durationFrames+overflow}],{coordinate:'resolved'});
-  if(candidate.getDuration('resolved')!==plan.durationFrames)throw Error('Image placement changed the Draft duration.');
-  return candidate;
+  const row=matches[0],size=row.frameSize;
+  if(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1)throw Error('A selected Image has no verified native dimensions: '+photo.name);
+  return {resourceId:row.resourceId,path:row.path,name:photo.name,width:size.width,height:size.height};
  });
- if(outcome.status!=='committed'||placements.length!==8)throw Error('Original Image placement was not confirmed.');
- if(outcome.sequence?.getDuration('resolved')!==plan.durationFrames)throw Error('Saved Image Draft duration differs from the reference.');
- for(const placement of placements){const row=outcome.sequence?.getClipPositionById(placement.clipId);if(!row||row.trackId!==placement.trackId||row.resolvedOffset!==placement.startFrame||row.clip.getDuration()!==placement.endFrame-placement.startFrame)throw Error('Saved Image placement could not be read back.');}
- return {placements,photos:sources.map(s=>({width:s.width,height:s.height})),status:outcome.status};
 }
+async function nativeImageRun(sdk,script,summary,allowCommit=false) {
+ const response=await sdk.runScript({script,summary,allowCommit,timeoutSeconds:120});
+ if(response.isError||response.result==null)throw Error(response.output||'Image placement could not be confirmed. Inspect the Draft before retrying.');
+ return response.result;
+}
+export async function prepareNativeImages(sdk,projectId,photos,knownLibraryId=null) {
+ const sources=await nativeImageRun(sdk,`return await (${nativeImageSources.toString()})(selects,${JSON.stringify(projectId)},${JSON.stringify(photos)});`,'Verify original Project Images');
+ return {sdk,projectId,sources};
+}
+async function nativeImagePlacement(selects,input) {
+ const {projectId,draftId,plan,items,sources}=input,project=selects.project(projectId),draft=selects.draft(draftId);
+ if(!(await project.meta()).draftIds.includes(draftId))throw Error('The Draft is not owned by the selected Project.');
+ const meta=await draft.meta();
+ if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames||(plan.canvas&&(meta.frameSize.width!==plan.canvas.width||meta.frameSize.height!==plan.canvas.height)))throw Error('The Draft frame grid differs from the plan.');
+ const fresh=await nativeImageSources(selects,projectId,sources);
+ if(fresh.some((source,index)=>source.resourceId!==sources[index].resourceId||source.width!==sources[index].width||source.height!==sources[index].height))throw Error('A selected Image changed. Prepare the Images again.');
+ const placements=[];
+ for(const item of items){
+  const source=fresh[item.source];
+  if(!source)throw Error('An Image occurrence has no source.');
+  const before=new Set((await draft.clips({trackScope:'all'})).map(clip=>clip.clipId));
+  await draft.overlayResource({resource:project.resource(source.resourceId),over:await draft.rangeAtFrames(item.startFrame,item.endFrame)});
+  const added=(await draft.clips({trackScope:'all'})).filter(clip=>!before.has(clip.clipId));
+  if(added.length!==1||added[0].resourceId!==source.resourceId||added[0].startFrame!==item.startFrame||added[0].endFrame!==item.endFrame)throw Error('The Image interval changed during placement.');
+  placements.push({...item,clipId:added[0].clipId,trackId:added[0].trackId});
+ }
+ if((await draft.meta()).durationFrames!==plan.durationFrames)throw Error('Image placement changed the Draft duration.');
+ await draft.commitAll('Place original editable Images');
+ return {placements,photos:fresh.map(source=>({width:source.width,height:source.height})),status:'committed'};
+}
+export async function placeNativeImages(prepared,draftId,plan,items,label) {
+ const {sdk,projectId,sources}=prepared;
+ items=plan.occurrences.map(item=>({...item,source:'ABCD'.indexOf(item.slot)}));
+ const input={projectId,draftId,plan,items,sources};
+ const result=await nativeImageRun(sdk,`const nativeImageSources=${nativeImageSources.toString()};return await (${nativeImagePlacement.toString()})(selects,${JSON.stringify(input)});`,'Place original editable Images',true);
+ // A separate script reads persisted state, rather than verifying the same working copy.
+ await nativeImageRun(sdk,`const d=selects.draft(${JSON.stringify(draftId)}),clips=await d.clips({trackScope:'all'});for(const expected of ${JSON.stringify(result.placements)}){const actual=clips.find(c=>c.clipId===expected.clipId);if(!actual||actual.trackId!==expected.trackId||actual.startFrame!==expected.startFrame||actual.endFrame!==expected.endFrame)throw Error('Saved Image placement could not be read back.');}if((await d.meta()).durationFrames!==${JSON.stringify(plan.durationFrames)})throw Error('Saved Image Draft duration changed.');return {ok:true};`,'Verify saved Image placement');
+ return result;
+}
+// native-sdk:end
 
 // A template run gets its own component, so it never touches the Panel's state.
-export default function Panel(props){
+function Panel(props){
   hostUseSdk(props.sdk);return props.context?.template?<No14TemplateRun {...props}/>:<No14Panel {...props}/>;}
 
 // A new Draft takes its Project's frame rate and the SDK cannot change it, so the
@@ -293,7 +286,7 @@ export const DEFAULT_DECORATION={shape:'heart',color:'#ffffff'},DEFAULT_DRAFT_NA
 // av-host:start
 // Local files and media tools use the public async SDK. Paths remain host-native.
 let hostSdk = null;
-function hostUseSdk(sdk) { hostSdk = sdk; }
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
@@ -392,7 +385,7 @@ async function hostProbeSeconds(path) {
 export async function createNo14Draft(sdk,{projectId,selected,decoration,framing,music=DEFAULT_MUSIC,name,partialDraftId=null,libraryId=null,stillCurrent,say,onSeed=()=>{},onDraft=_id=>{}}){
  const fresh=await readMediaPages(sdk, {script:"const scope=JSON.parse('{}');"+INVENTORY.replace('PROJECT_ID',JSON.stringify(projectId)),summary:'Confirm selected Image sources',allowCommit:false});
  if(fresh.isError||!Array.isArray(fresh.result)||selected.some(p=>fresh.result.filter(r=>r.resourceId===p.resourceId&&r.path===p.path).length!==1))throw Error('The selected photos changed. Reload the Project photos.');
- const prepared=await prepareNativeImages(window.parent,projectId,selected,libraryId);
+ const prepared=await prepareNativeImages(sdk,projectId,selected,libraryId);
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
  const fps=await readProjectFps(sdk,projectId);
  const plan=nativeScenePlan(fps);
@@ -648,3 +641,240 @@ async function readMediaPages(sdk, args) {
     if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
   }
 }
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, encoding?: string) {
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+        const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+        let binary = "";
+        for (const byte of chunk) binary += String.fromCharCode(byte);
+        const result = await run("files.writeChunk", [{ path, offset, base64: btoa(binary) }], true);
+        if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+      }
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(Panel);
+// local-sdk:end

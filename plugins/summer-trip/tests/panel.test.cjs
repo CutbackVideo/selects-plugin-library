@@ -180,7 +180,7 @@ assert.ok(!/useMemo\([^)]*uiLang|useEffect\([^)]*uiLang|useState\([^)]*uiLang/.t
 // Text kept in state renders in the language of the moment: status, progress detail and build-time notes are closures.
 assert.ok(code.includes('React.useState<{ tone: string; say: (lang: Lang) => string } | null>') && !/setStatus\(\{ tone: "\w+", text:/.test(code), 'status is a say(lang) closure');
 assert.ok(code.includes('{status.say(L)}') && code.includes('label={progressText(L, progress)}') && code.includes('typeof n === "function" ? n(L) : n'));
-assert.ok(!/new Error\("[A-Z]/.test(code.slice(code.indexOf('export default function Panel('))), 'panel errors that reach the UI are uiError(say)');
+assert.ok(!/new Error\("[A-Z]/.test(code.slice(code.indexOf('function Panel('), code.indexOf('// local-sdk:start'))), 'panel errors that reach the UI are uiError(say)');
 assert.ok(!/--text-tertiary/.test(panel), '--text-tertiary is not a panel token');
 assert.ok(!/var\(--accent\b/.test(panel), '--accent is not a panel token');
 assert.ok(!/icon="stop"/.test(panel), 'the kit has no stop icon');

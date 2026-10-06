@@ -12,7 +12,7 @@ const REFERENCE_QA = {"testedOn": "2026-09-10", "bitwiseIdentical": false, "near
 // av-host:start
 // Local files and media tools use the public async SDK. Paths remain host-native.
 let hostSdk = null;
-function hostUseSdk(sdk) { hostSdk = sdk; }
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
@@ -415,21 +415,15 @@ async function elevenRequest(path,key,options={}){
 function bytesOf(data){if(data instanceof Uint8Array)return new Uint8Array(data);if(data?.data&&Array.isArray(data.data))return new Uint8Array(data.data);if(Array.isArray(data))return new Uint8Array(data);return new Uint8Array(data);}
 
 
-/** Optional renderer service. __DI__ is internal app wiring, not a published
- *  contract, so every member is checked at runtime and absence is not an error. */
-function diService(name){try{return window.parent?.__DI__?.[name]||null;}catch{return null;}}
-function readPlayheadFrame(sid){
-  const state=diService('SequenceState');
-  if(typeof state?.getPlayhead!=='function')return null;
-  try{const value=state.getPlayhead(sid)?.resolvedOffset;return Number.isFinite(value)&&value>=0?value:null;}catch{return null;}
+/** The editor SDK reports the on-screen Draft playhead in resolved frames. */
+async function readPlayheadFrame(sdk,sid){
+  try{const state=await sdk.call('getEditorState');const value=state?.playhead;
+    return state?.onScreenTab?.kind==='draft'&&value?.sequenceId===sid&&Number.isFinite(value.resolvedFrame)&&value.resolvedFrame>=0?value.resolvedFrame:null;
+  }catch{return null;}
 }
-/** resolvedOffset is documented without a unit. Accept it only when it lands
- *  inside this Draft; otherwise fall back to the Draft start rather than
- *  silently pinning the conversation to the last frame. */
-function playheadToFrame(raw,endFrame,fps){
+function playheadToFrame(raw,endFrame){
   if(!Number.isFinite(raw)||raw<0||!(endFrame>0))return {frame:0,used:false,raw};
-  const candidates=[['frames',raw],['seconds',raw*(fps||60)],['milliseconds',raw*(fps||60)/1000]];
-  for(const [unit,frame] of candidates)if(frame<=endFrame)return {frame:Math.floor(frame),used:true,unit,raw};
+  if(raw<=endFrame)return {frame:Math.floor(raw),used:true,unit:'frames',raw};
   return {frame:0,used:false,outOfRange:true,raw};
 }
 function clampStartFrame(frame,endFrame){return Math.max(0,Math.min(Number.isFinite(frame)?frame:0,Math.max(0,(endFrame||0)-2)));}
@@ -449,7 +443,7 @@ function StudioPreview({markup,full,frameWidth,frameHeight,panelWidth,maxHeightP
   return h('div',{'data-fixed-stage':true,style:{width:'100%',display:'flex',justifyContent:'center',padding:2}},h('div',{'data-output-frame':true,'data-output-size':frameWidth+'x'+frameHeight,style:{width,height,flexShrink:0,overflow:'hidden',boxShadow:'0 0 0 1px var(--panel-border)',borderRadius:2,background:'color-mix(in srgb,var(--panel-fg) 5%,transparent)'},dangerouslySetInnerHTML:{__html:html}}));
 }
 
-export default function IMessageGenerator({sdk,context}) {
+function IMessageGenerator({sdk,context}) {
   hostUseSdk(sdk);
   const [settings,setSettings]=useState(()=>({...DEFAULTS,voiceProvider:kokoroAvailable()?DEFAULTS.voiceProvider:'elevenlabs'}));
   const [info,setInfo]=useState(null);
@@ -530,11 +524,11 @@ export default function IMessageGenerator({sdk,context}) {
   useEffect(()=>{setInfo(null);setReadyKey('');setLastCommit(null);setLink(null);setInputUndo(null);setNotice('');setPane(null);setPlaying(false);attempted.current='';load();},[pid,sid]);
   useEffect(()=>{if(!busy&&!lock.current&&attempted.current!==key)load();},[busy,key]);
   useEffect(()=>{
-    setPlayhead(readPlayheadFrame(sid));
-    const state=diService('SequenceState');
-    if(typeof state?.subscribePlayhead!=='function')return;
-    try{return state.subscribePlayhead(sid,(id,value)=>{if(id===sid)setPlayhead(Number.isFinite(value?.resolvedOffset)?Math.floor(value.resolvedOffset):null);});}catch{}
-  },[sid]);
+    let stopped=false,timer;
+    const refresh=async()=>{const frame=await readPlayheadFrame(sdk,sid);if(!stopped){setPlayhead(frame);timer=setTimeout(refresh,350);}};
+    void refresh();
+    return()=>{stopped=true;clearTimeout(timer);};
+  },[sdk,sid]);
   useEffect(()=>{loadLocalVoices();return()=>{voiceEpoch.current++;playEpoch.current++;voiceAbort.current?.abort();stopPreviewSound();stopAudition();audioContext.current?.close?.();};},[]);
   useEffect(()=>{voiceEpoch.current++;playEpoch.current++;connectionEpoch.current++;voiceAbort.current?.abort();setVoiceBusy(false);setAudioLoading(false);setCloudConsent(false);voiceRoot.current=null;cloudCache.current.clear();audioBuffers.current.clear();stopPreviewSound();stopAudition();},[pid,sid]);
   useEffect(()=>{setApiKey('');setCloudConnected(false);setCloudVoices([]);},[pid]);
@@ -674,7 +668,7 @@ export default function IMessageGenerator({sdk,context}) {
       if(!(await sdk.call('canAuthorGeneratedMedia')))throw new Error('Motion graphics are not available in this app version.');
       const input=JSON.parse(JSON.stringify(settings));for(const [k]of numericChecks)input[k]=Number(input[k]);
       const fresh=await readDraft(sdk,pid,sid);if(!same())throw new Error('The Draft changed. Apply was canceled.');
-      const startFrames=clampStartFrame(playheadToFrame(readPlayheadFrame(sid)??playhead,fresh.endFrame,fresh.fps).frame,fresh.endFrame);
+      const startFrames=clampStartFrame(playheadToFrame(await readPlayheadFrame(sdk,sid),fresh.endFrame).frame,fresh.endFrame);
       const startSeconds=startFrames/fresh.fps;
       input.startSeconds=startSeconds;
       const measuredPlan=scheduleStory(input,fresh.endFrame/fresh.fps-startSeconds);
@@ -936,3 +930,240 @@ export default function IMessageGenerator({sdk,context}) {
     )
   );
 }
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, encoding?: string) {
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+        const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+        let binary = "";
+        for (const byte of chunk) binary += String.fromCharCode(byte);
+        const result = await run("files.writeChunk", [{ path, offset, base64: btoa(binary) }], true);
+        if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+      }
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(IMessageGenerator);
+// local-sdk:end

@@ -10,6 +10,8 @@ import os
 import re
 import unittest
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN = os.path.join(ROOT, "plugins", "gongju-gallery")
 PANEL = os.environ.get("GONGJU_GALLERY_PANEL") or os.path.join(PLUGIN, "panel.tsx")
@@ -61,7 +63,7 @@ class GongjuGalleryWindowsTest(unittest.TestCase):
     def test_no_shell_python_or_posix_at_runtime(self):
         self.assertEqual(self.source.count("runShell("), 0)
         for needle in FORBIDDEN:
-            self.assertNotIn(needle, self.runtime, needle)
+            assert_no_shell_token(self, needle, self.runtime, needle)
         self.assertIsNone(re.search(r"\bpython3?\b", self.runtime, re.I), "python")
         self.assertIsNone(re.search(r"\bnode\s+[\"'$]", self.runtime), "node spawn")
 
@@ -103,7 +105,7 @@ class GongjuGalleryWindowsTest(unittest.TestCase):
         for doc in ("INSTALL.md", "SKILL.md"):
             text = read(os.path.join(PLUGIN, doc))
             for needle in ("crop.py", "runtime.sh", "Homebrew", "/opt/homebrew", "brew "):
-                self.assertNotIn(needle, text, doc + ": " + needle)
+                assert_no_shell_token(self, needle, text, doc + ": " + needle)
 
 
 if __name__ == "__main__":

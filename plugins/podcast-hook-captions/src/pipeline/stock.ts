@@ -1,7 +1,7 @@
 // Stock B-roll through the app's StockMediaSearch service: Cutback's server searches Pexels and Pixabay
 // with its own keys, so nothing is asked of the user. The reference edit uses stock clips too; a search
 // and a cut take seconds, where generating a clip takes minutes and costs.
-import { di, ffmpeg, ffprobe, fs, removeFile, sleep, type Sdk } from "./host";
+import { getSdk, ffmpeg, ffprobe, fs, removeFile, sleep, type Sdk } from "./host";
 
 export type StockClip = { path: string; width: number; height: number; credit: string; url: string; service: string; id: string };
 
@@ -19,7 +19,7 @@ type StockVideo = {
 
 export function stockSearchAvailable(): boolean {
   try {
-    return typeof di()?.StockMediaSearch?.searchVideos === "function";
+    return typeof getSdk()?.runScript === "function";
   } catch {
     return false;
   }
@@ -29,7 +29,11 @@ export function stockSearchAvailable(): boolean {
 // card's size) into `dir`. `avoid` skips clips already used. When every candidate fails, the last error
 // is thrown so the panel can say why.
 export async function stockClip(sdk: Sdk, queries: string[], orientation: "portrait" | "landscape", dir: string, seconds: number, avoid: string[] = []): Promise<StockClip | null> {
-  const service = di().StockMediaSearch;
+  const service = { searchVideos: async (query: any) => {
+    const reply = await getSdk().runScript({ script: `return await selects.stock.searchVideos(${JSON.stringify(query)});`, summary: "Find stock footage" });
+    if (reply.isError) throw new Error(reply.output);
+    return reply.result;
+  } };
   (await fs().mkdir(dir, { recursive: true }));
   const tried = new Set<string>();
   let lastErr: any = null;

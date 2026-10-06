@@ -26,7 +26,7 @@ export const REFERENCE_BLOCK = hostBlock(panelSource('archive-vlog'));
 // (it is checked against Archive Vlog's byte for byte instead).
 export const POSIX = [
   /\bprintf\b/, /\$HOME\b/, /\$\{?SELECTS_USER/, /\bcommand -v\b/, /\bmkdir -p\b/, /\brm -f\b/,
-  /\bbase64 /, /\bexport PATH\b/, /\bshasum\b/, /\bcat "/, /\bpwd -P\b/, /\bmv -f\b/, /\|\s*grep\b/,
+  /(?<![.\w])base64 /, /\bexport PATH\b/, /\bshasum\b/, /\bcat "/, /\bpwd -P\b/, /\bmv -f\b/, /\|\s*grep\b/,
   /["'`]\s*(?:node|python3?)\s/,
 ];
 
@@ -56,7 +56,10 @@ export function loadPanelFunctions(source, names, globals = {}) {
   if (source.includes('// sdk-media-path:start') && !names.includes('sdkMediaByPath')) parts.push(topLevel(source, 'sdkMediaByPath'));
   for (const name of ['generationApi', 'generationNeed']) if (source.includes('function ' + name + '(') && !names.includes(name)) parts.push(topLevel(source, name));
   for (const name of names) parts.push(topLevel(source, name));
-  const context = vm.createContext({ console, TextDecoder, TextEncoder, Uint8Array, setTimeout, clearTimeout, ...globals });
+  const context = vm.createContext({ console, TextDecoder, TextEncoder, Uint8Array, setTimeout, clearTimeout,
+    // These scenarios supply an already initialized plugin-private host fixture.
+    // The real canonical transport and async wrapper are tested separately.
+    panelLocalClient: (sdk) => sdk, ...globals });
   vm.runInContext(parts.join('\n') + '\nthis.__exports={' + [...hostNames(parts[0]), ...names].join(',') + '};', context);
   const exports = context.__exports;
   if (typeof exports.hostUseSdk === 'function') exports.hostUseSdk(globals.__sdk);

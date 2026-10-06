@@ -87,7 +87,7 @@ function hostNeed(name, method) {
 // The SDK environment is initialized by the host before the panel mounts.
 function hostIsWindows() {
   const platform = localSdk?.environment?.platform;
-  if (!platform) throw hostError("host-missing", "Update Selects to use local media.", "sdk.environment");
+  if (!platform) throw hostError("host-missing", "Update Selects to use local media.", "local SDK environment");
   return /^win/i.test(platform);
 }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
@@ -556,17 +556,11 @@ const CUTOUT_SECONDS=1.6;
 const CREDITS_NOTICE='This sends a '+CUTOUT_SECONDS+' s clip of your subject to Selects background removal, which uses generation credits. A rebuild with the same subject and range reuses the cutout.';
 const CREDITS_DECLINED='Background removal was not started, so no credits were used. Press Resume when you are ready.';
 const TEMPLATE_CREDITS='This uses Selects generation credits. Open Postcard Cutout Studio and press Create to confirm.';
-function appServices(){const di=window.parent?.__DI__;if(!di?.MediaGeneration?.isAvailable?.())throw Error('This version of Selects cannot remove backgrounds from a panel. Update Selects.');return di;}
+
 // The library a template run was handed for its project (`context.template.libraryId`):
 // the run goes on out of sight, after the app may have moved to another page.
 const handedLibrary=new Map();
-function generationScope(pid){
-  if(handedLibrary.has(pid))return {libraryId:handedLibrary.get(pid),projectId:pid};
-  const m=String(window.parent?.location?.pathname||'').match(/\/libraries\/([^/]+)\/projects\/([^/]+)/);
-  const libraryId=(m&&decodeURIComponent(m[2])===pid?decodeURIComponent(m[1]):null)||window.parent?.__DI__?.SequenceState?.getOnScreenTab?.()?.libraryId;
-  if(!libraryId)throw Error('Could not tell which library this project is in. Reopen the project and try again.');
-  return {libraryId,projectId:pid};
-}
+function generationScope(pid){return {projectId:pid};}
 // The app's services speak in its own resource ids, which share nothing with
 // the run_script aliases the rest of this panel uses; the file path joins them.
 // sdk-media-path:start
@@ -607,7 +601,7 @@ async function appResourcePath(sdk,scope,id){
 function createRunner({sdk,guard,setRun=_=>{},setStatus=_=>{},confirmCredits=async _run=>{throw Error(TEMPLATE_CREDITS)}}){
 async function persist(r,patch,stage,status='end',details={}){const next=await helper(sdk,'update',{runId:r.runId,patch,stage,status,details});setRun(next);return next}
 async function claim(r,expected,patch,stage,details){const x=await helper(sdk,'claim',{runId:r.runId,expected,patch,stage,details});if(!x.claimed)throw Error('Another run already started this step. Resume that run without starting a new generation.');setRun(x.run);return x.run}
-async function generation(r,collect=false){guard(r.projectId);const di=appServices(),mg=di.MediaGeneration;
+async function generation(r,collect=false){guard(r.projectId);const mg=sdkGeneration(sdk);
 if(!collect){
   // A run already past this point ('generationSubmitting') was confirmed and resubmits under the same key.
   if(r.phase==='ready'&&!(await confirmCredits(r)))throw Object.assign(Error(CREDITS_DECLINED),{creditsDeclined:true});
@@ -957,7 +951,7 @@ function PostcardTemplateRun({sdk,context}){
   },[runId]);
   return <p aria-live="polite" style={{margin:0,fontSize:12,color:'var(--panel-muted-fg)'}}>{status}</p>;
 }
-export default function PostcardPanel(props){bindLocalSdk(props.sdk);return props.context.template?<PostcardTemplateRun key={props.context.template.runId} {...props}/>:<PostcardEditor key={props.context.projectId || 'none'} {...props}/>}
+function PostcardPanel(props){bindLocalSdk(props.sdk);return props.context.template?<PostcardTemplateRun key={props.context.template.runId} {...props}/>:<PostcardEditor key={props.context.projectId || 'none'} {...props}/>}
 function PostcardEditor({sdk,context,ui}){
 const [s,setS]=useState({...DEFAULTS,bgIds:[],photoIds:[],aspect:'original',title:'MY POSTCARD'}),[rows,setRows]=useState([]),[loading,setLoading]=useState(false),[hydrated,setHydrated]=useState(true),[busy,setBusy]=useState(false),[status,setStatus]=useState(''),[run,setRun]=useState(null),[duration,setDuration]=useState(0),[sourceError,setSourceError]=useState(false),[preview,setPreview]=useState([]);
 const busyRef=useRef(false),projectRef=useRef(context.projectId);projectRef.current=context.projectId;
@@ -1010,7 +1004,7 @@ async function chooseFolder(){
   if(folderBusy.current||busyRef.current||locked)return;
   folderBusy.current=true;setPicking(true);setError('');
   try{
-    const picker=sdk.dialogs;
+    const picker=panelLocalClient(sdk).dialogs;
     if(typeof picker?.pickDirectoryPath!=='function')throw Error('This app version does not support choosing folders. Drop a folder here, or update Selects.');
     const path=await picker.pickDirectoryPath();guard(context.projectId);
     if(path){setQuery('');await readFolder(path);}
@@ -1363,3 +1357,274 @@ function requestKey(s){return JSON.stringify(['subjectId','subjectStartSec','bgI
 function primaryAction(run,settings){if(!run||['complete','abandoned'].includes(run.phase))return{kind:'draft',label:settings?.forceNew?'Create Draft with a new cutout':run?'Create new Draft':'Create Draft'};const settled=['draftReady','exportFailed'].includes(run.phase)||(run.phase==='generationFailed'&&['failed','canceled','cancelled'].includes(run.generation?.status));// A postcard built by an earlier version can be built again with this one.
 const changed=requestKey(settings)!==requestKey(run.settings)||(!!run.version&&run.version!==VERSION);if(settled&&(changed||(run.phase!=='draftReady'&&settings?.forceNew)))return{kind:'new',label:settings?.forceNew?'Create Draft with a new cutout':'Create Draft with changed settings'};if(run.phase==='draftReady')return{kind:'export',label:'Export'};return{kind:'resume',label:/Failed$/.test(run.phase)?'Review status':'Resume'};}
 function phaseLabel(phase){return({ready:'Ready',generationSubmitting:'Submitting cutout generation',generationPending:'Generating cutout',cutoutReady:'Cutout ready',maskReady:'Draft assembly ready',assemblySubmitting:'Confirming Draft save',draftReady:'Draft saved',exportSubmitting:'Starting Export',exportPending:'Export running',exportRendered:'Verifying output file',complete:'Complete',generationFailed:'Generation needs review',exportFailed:'Export needs review'})[phase]||'Review run status';}
+
+// generation-sdk:start
+// Paid jobs always cross the canonical run_script boundary. This panel-local
+// adapter preserves old saved job IDs while the host owns scope and delivery.
+function sdkGeneration(sdk) {
+  if (typeof sdk?.runScript !== "function") return null;
+  const run = async (script, summary, allowCommit = false) => {
+    const response = await sdk.runScript({ script, summary, allowCommit });
+    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
+    return response?.result;
+  };
+  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
+  return {
+    isAvailable: () => true,
+    supportsPluginFiles: () => true,
+    async submit(request) {
+      if (request.batch != null && request.batch !== 1) throw new Error("Submit one generation at a time.");
+      const input = {
+        projectId: request.scope.projectId, requestKey: request.key,
+        modelId: request.modelId, input: request.input, uploads: request.uploads || {},
+        outputName: request.outputName, mediaType: request.origin?.tool || "video",
+        ...(request.inputMediaSeconds ? { inputMediaSeconds: request.inputMediaSeconds } : {}),
+        ...(request.delivery ? { delivery: { folder: request.delivery.pluginFolder } } : {}),
+      };
+      const result = await run(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
+      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
+      return { jobIds: [result.jobId] };
+    },
+    list: scope => run(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
+    cancel: (scope, id) => run(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
+    retryDelivery: (scope, id) => run(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true),
+  };
+}
+// generation-sdk:end
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, encoding?: string) {
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+        const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+        let binary = "";
+        for (const byte of chunk) binary += String.fromCharCode(byte);
+        const result = await run("files.writeChunk", [{ path, offset, base64: btoa(binary) }], true);
+        if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+      }
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(PostcardPanel);
+// local-sdk:end

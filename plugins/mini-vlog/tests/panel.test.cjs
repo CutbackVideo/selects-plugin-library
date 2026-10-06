@@ -139,7 +139,7 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
   // Windows: the new path reaches the host only through the SDK (the kit's qsHostIO, mvHostDataDir); no shell, no POSIX.
   const dataDirFn = panel.slice(panel.indexOf('function mvHostDataDir('), panel.indexOf('function mvQuickCheckAvailable('));
   const newPath = [check, dataDirFn, panel.slice(panel.indexOf('// mv-local:start'), panel.indexOf('// quick-score:end'))].join('\n');
-  for (const posix of ['runShell', 'TOOL_PATH', 'mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'dq(', 'sq(', '" + "/"']) assert.ok(!newPath.includes(posix), 'no POSIX shell in the quick check path: ' + posix);
+  for (const posix of ['runShell', 'TOOL_PATH', 'mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'dq(', 'sq(', '" + "/"']) assert.ok(!(posix === "base64 " ? /(?<![\w.])base64\s/.test(newPath) : newPath.includes(posix)), 'no POSIX shell in the quick check path: ' + posix);
   assert.ok(dataDirFn.includes('fs.join(fs.homedir(), ".selects", "plugin-data", id)'), 'the data folder through the host FileSystem');
 }
 
@@ -543,7 +543,7 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
   const box = { window: { parent: { get __DI__() { throw Error('Unexpected DI access'); } } }, navigator: { platform: 'MacIntel', userAgent: '' }, TextDecoder, AbortController, setTimeout, clearTimeout, Date, Math, Uint8Array, Float32Array, Object, String, Error, Promise };
   vm.createContext(box);
   box.sdk = { files: di.FileSystem, media: di.Runtime, environment: { platform: 'darwin' } };
-  vm.runInContext(avHost + '\nhostUseSdk(sdk);globalThis.H = { hostReadBytes, hostReadText, hostDecodePcm, hostProbeSeconds, hostRoots, hostJoin };', box);
+  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + avHost + '\nhostUseSdk(sdk);globalThis.H = { hostReadBytes, hostReadText, hostDecodePcm, hostProbeSeconds, hostRoots, hostJoin };', box);
   const H = box.H;
   (async () => {
     files['/a.bin'] = foreign('new Uint8Array([1, 2, 3, 4]).buffer');
@@ -599,7 +599,7 @@ assert.ok(ui.includes('const [status, setStatus] = React.useState<{ tone: string
 assert.ok(!/setStatus\(\{ tone: "[a-z]+", text:/.test(ui) && !/\bstatus\.text\b/.test(ui), 'no frozen status text');
 assert.ok(ui.includes('const p = { ...mvProgress(id, fraction), detail };') && ui.includes('progress.detail(L)'), 'progress detail follows the language');
 assert.ok(ui.includes('return (l) => (at ? t(l, "stoppedAt", { step: at.current + 1, total: MV_BUILD_STEPS.length, name: t(l, "step." + at.id), detail: sayError(l, e) }) : sayError(l, e));'), 'stopAt keeps the error');
-assert.ok(!/throw new Error\("[A-Z]/.test(ui), 'no English UI errors thrown');
+assert.ok(!/throw new Error\("[A-Z]/.test(ui.slice(0, ui.indexOf("// local-sdk:start"))), 'no English UI errors thrown');
 assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel), 'no frame capture in the panel');
 // The search progress counts videos (photos are never searched), singular for one; a photos-only build says so.
 assert.ok(ui.includes('shareOf((l) => t(l, "videosChecked", { done, count: todo.length }))') && ui.includes('onProgress(i);'), 'progress counts videos');

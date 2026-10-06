@@ -14,6 +14,8 @@ from pathlib import Path
 import re
 import unittest
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins/portrait-beat-montage'
 PANEL = Path(os.environ.get('PORTRAIT_BEAT_MONTAGE_PANEL') or PLUGIN / 'panel.tsx')
@@ -56,7 +58,7 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
         runtime = strip_comments(HOST_BLOCK.sub('', self.portable))
         for token in FORBIDDEN:
             with self.subTest(token=token):
-                self.assertNotIn(token, runtime)
+                assert_no_shell_token(self, token, runtime)
         self.assertIsNone(SPAWN.search(runtime), 'no node/python spawn outside mac-only regions')
 
     def test_no_shell_call_outside_mac_only_regions(self):
@@ -107,7 +109,7 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
         cloud = body(self.text, 'async function pbmCloudMattes(', '\n}\n')
         submit = cloud.index('mg.submit(')
         # Host checks, then the (free, local) joined clip, then the notice, then the request.
-        for earlier in ('mg.supportsPluginFiles()', 'pbmVersionBelow(version, PBM_CLOUD_MIN_HOST)', 'pbmMatteSource(', 'confirm({ seconds: source.seconds, shots: units.length })',
+        for earlier in ('mg.supportsPluginFiles()', 'if (!projectId)', 'pbmMatteSource(', 'confirm({ seconds: source.seconds, shots: units.length })',
                         'if (!yes || signal?.aborted) throw pbmCancelled();'):
             with self.subTest(earlier=earlier):
                 self.assertLess(cloud.index(earlier), submit)
@@ -125,7 +127,7 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
 
     def test_template_run_builds_on_windows_and_counts_as_consent(self):
         # Product decision 2026-10-06: starting the template is the consent to the Windows mattes' credits.
-        run = body(self.text, 'function TemplateRun(', 'export default function Panel')
+        run = body(self.text, 'function TemplateRun(', 'function Panel')
         self.assertNotIn(WINDOWS_GUARD, run)
         self.assertIn('let doctor = hostIsWindows() ? { ready: true } : await pipeline(sdk, "doctor"', run)
         confirm = run.index('confirm: () => true,')
@@ -157,7 +159,8 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['collection'], 'visual-highlights')
         self.assertEqual([i['id'] for i in manifest['inputs']], ['clips'])
-        self.assertIn('export default function Panel(props)', self.text)
+        self.assertIn('function Panel(props)', self.text)
+        self.assertIn('export default withPanelLocalClient(Panel)', self.text)
 
     def test_macos_uses_the_selects_bundled_ffmpeg(self):
         regions = '\n'.join(m.group(0) for m in MAC_ONLY.finditer(self.text))

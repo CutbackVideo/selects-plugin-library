@@ -8,7 +8,8 @@ const source=fs.readFileSync(new URL('../plugins/jared-vox-editorial/panel.tsx',
 function panel(extra={}) {
  const ctx={TextDecoder,TextEncoder,Uint8Array,AbortController,setTimeout,clearTimeout,
   window:{parent:{__DI__:{Runtime:{getPlatform:()=> 'win32'},FileSystem:{join:(...p)=>p.join('\\'),writeFile:async()=>{},downloadFile:()=>{throw Error('unexpected host download');}}}}},...extra};
- const prefix=source.slice(0,source.indexOf('export default function Panel')).replace(/^import React from "react";\s*/m,'').replace(/^export /gm,'');
+ const prefix=source.slice(0,source.indexOf('function Panel(')).replace(/^import React from "react";\s*/m,'').replace(/^export /gm,'');
+ ctx.panelLocalClient = sdk => sdk;
  ctx.__sdk = asyncSdk(ctx.window.parent.__DI__);
  ctx.files = ctx.__sdk.files;
  ctx.window.parent.__DI__ = new Proxy({}, {get() { throw Error('Migrated DI access'); }});

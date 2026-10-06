@@ -2,77 +2,19 @@
 // cloud masks: render the reel (look, camera and B-roll, no graphic) through the app's own exporter,
 // send it to VEED background removal, and turn the alpha into one full-size PNG per Draft frame
 // (white = background, so the grid shows there and the speaker stays in front).
-import { app, di, ffmpeg, filesIn, fs, libraryId, removeFile, type Sdk } from "./host";
+import { getSdk, script, sleep, ffmpeg, filesIn, fs, removeFile, type Sdk } from "./host";
 import { generate } from "./media";
 
-async function sourceRevision(sequenceId: string, resourceIds: string[]) {
-  const lib = libraryId();
-  const sequence = await di().SequenceRepository.findById(lib, sequenceId);
-  if (!sequence) throw new Error("The render copy could not be reloaded.");
-  const resources = await Promise.all(resourceIds.map((id) => di().ResourceRepository.findById(lib, id)));
-  const json = JSON.stringify({ sequence: sequence.toJSON(), resources: resources.map((r: any) => r?.toJSON() ?? null) });
-  const digest = await app().crypto.subtle.digest("SHA-256", new (app().TextEncoder)().encode(json));
-  return Array.from(new Uint8Array(digest), (b: number) => b.toString(16).padStart(2, "0")).join("");
-}
-
-// Render a copy of the reel Draft to `outputPath` (FHD vertical) and wait for it.
+// The host owns the temporary render composition and removes it after the job ends.
 export async function renderDraft(pid: string, sid: string, outputPath: string, progress: (s: string) => void): Promise<void> {
-  const d = di();
-  const lib = libraryId();
-  const project = await d.ProjectRepository.findById(lib, pid);
-  const source = await d.SequenceRepository.findById(lib, sid);
-  if (!project || !source) throw new Error("The reel Draft could not be read for rendering.");
-  const copyId = app().crypto.randomUUID();
-  const name = "Reel matte render " + copyId;
-  const copy = source.clone({ id: copyId, name });
-  copy.setTracks(copy.getTracks().filter((t: any) => !t.isChapterTrack() && !t.isSubChapterTrack() && !t.isWordTrack()));
-  if (typeof copy.authorFrameSize === "function") copy.authorFrameSize({ width: 1080, height: 1920 });
-  let saved = false;
-  try {
-    await d.SequenceRepository.save(copy, "podcast-hook-captions-render");
-    saved = true;
-    const overlaySnapshot = await d.RemotionOverlay.getSnapshotForExport(copyId, copy, project);
-    const resourceIds = [...project.getResources()];
-    const rev = await sourceRevision(copyId, resourceIds);
-    const job = await d.WorkflowClient.start({
-      type: "export:video",
-      input: {
-        resolution: "FHD",
-        title: "Reel matte render",
-        internal: true,
-        outputPath,
-        projectId: pid,
-        libraryId: lib,
-        sequenceId: copyId,
-        resourceIds,
-        audioOnly: false,
-        overwriteOutput: false,
-        overlaySnapshot,
-        sourceRevision: rev,
-      },
-    });
-    await new Promise<void>((resolve, reject) => {
-      let done = false;
-      let off = () => {};
-      const read = (v: any) => {
-        if (done || !v) return;
-        if (["succeeded", "failed", "canceled"].includes(v.status)) {
-          done = true;
-          off();
-          v.status === "succeeded" ? resolve() : reject(new Error("Render " + v.status + (v.lastError?.message ? ": " + v.lastError.message : "")));
-        } else progress("Rendering the reel for speaker mattes · " + (v.progressDescription || v.status));
-      };
-      off = d.WorkflowClient.subscribe((e: any) => {
-        if (e.type === "UPSERT" && e.workflow.workflowId === job.workflowId) read(e.workflow);
-      });
-      read(d.WorkflowClient.list().find((x: any) => x.workflowId === job.workflowId));
-      if (done) off();
-    });
-  } finally {
-    if (saved) {
-      const temp = await d.SequenceRepository.findById(lib, copyId);
-      if (temp?.getName() === name) await d.SequenceRepository.delete(lib, copyId);
-    }
+  const sdk = getSdk();
+  const job = await script(sdk, "Render speaker matte source", `const job=await selects.export.video(${JSON.stringify({projectId:pid,draftSequenceId:sid,outPath:outputPath,resolution:"FHD",composition:{includeCaptions:false,frameSize:{width:1080,height:1920}}})});return {workflowId:job.workflowId};`, true);
+  for (;;) {
+    const state = await script(sdk, "Read matte render progress", `return await selects.workflow(${JSON.stringify(job.workflowId)}).status();`);
+    if (state.status === "succeeded") return;
+    if (["failed", "canceled", "unknown"].includes(state.status)) throw new Error("Render " + state.status + (state.lastErrorMessage ? ": " + state.lastErrorMessage : ""));
+    progress("Rendering the reel for speaker mattes · " + (state.step || state.status));
+    await sleep(750);
   }
 }
 

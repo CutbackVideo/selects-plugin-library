@@ -1,40 +1,71 @@
-# Panel local capabilities
+# Panel host operations
 
-Panels receive `sdk` from Cutback Client. Local file and media operations use
-its public message bridge, including in detached windows. Do not read
-`window.parent.__DI__.FileSystem`, `Runtime` media tools, or `CutbackMediaPicker`.
+Panels use the existing `sdk.runScript` transport with the canonical `selects`
+SDK. Use `sdk.call` only for reads explicitly listed in the installed panel SDK
+reference, such as `getEditorState` and `getLocalMediaJobStatus`. A type appearing
+in that reference does not make every method callable.
 
 ```tsx
-const source = await sdk.dialogs.pickFilePath([
-  { name: 'Video', extensions: ['mp4', 'mov'] },
-]);
-if (!source) return;
-const directory = sdk.files.join(sdk.files.homedir(), '.selects', 'plugin-data', PLUGIN_ID);
-await sdk.files.mkdir(directory, { recursive: true });
-const output = sdk.files.join(directory, 'audio.wav');
-const controller = new AbortController();
-await sdk.media.runFFmpeg(['-nostdin', '-y', '-i', source, '-vn', output], true, controller.signal);
-const bytes = await sdk.files.readFile(output);
+const response = await sdk.runScript({
+  summary: "Choose an output folder",
+  script: "return await selects.editor.pickDirectory();",
+});
+if (response.isError) throw Error(response.output);
+if (response.result === null) return; // User canceled the picker.
+const outputFolder = response.result;
 ```
 
-- `sdk.files`: asynchronous disk operations (`exists`, `readFile`, `readRange`,
-  `writeFile`, `mkdir`, `readdir`, `stat`, `rename`, `removeFile`, `rm`,
-  `copyFile`, `downloadFile`, `pathToLocalURL`, `localURLToPath`,
-  `getOrCreateTmpDirPath`). Await every operation, including URL conversion.
-- Path helpers (`join`, `dirname`, `basename`, `extname`, `normalize`,
-  `isAbsolute`) and `homedir()` are synchronous.
-- Reads return `Uint8Array`, or text for `readFile(path, 'utf8')`; writes accept
-  text or `Uint8Array`. `stat` returns plain fields or null, not a Node class.
-- `sdk.dialogs`: `pickFilePath`, `pickDirectoryPath`, `pickSavePath`; cancellation
-  returns null.
-- `sdk.media`: bundled `runFFmpeg` and `runFFprobe`, with argument arrays and an
-  optional AbortSignal. FFmpeg accepts stdout/stderr callbacks as its fourth
-  and fifth arguments. Closing or replacing the panel cancels its media jobs.
-- `sdk.environment`: host `platform` and `version`, initialized before mount.
+## Local files and media
 
-The migration requires the Cutback Client build that introduces these Panel
-SDK capabilities. Deploy that client support before publishing these panels.
-An older SDK must produce an update message rather than falling back to DI.
-Project queries and edits continue to use `sdk.call` and `sdk.runScript`.
-Timeline and generation operations without equivalent SDK capabilities still
-retain their existing internal service dependencies.
+Read platform and paths with `selects.files.environment()`. Files use absolute
+paths. `selects.files.readRange({path, offset, length})` returns bounded base64
+chunks; `writeChunk({path, offset, base64})` writes them. The maximum decoded
+chunk is 49152 bytes. Reject missing or truncated results and preserve binary
+bytes. Other operations include `stat`, `exists`, `readdir`, `mkdir`, `remove`,
+`copy`, `rename`, and `download`.
+
+Start bundled FFmpeg/FFprobe with `selects.media.startFFmpeg({args})` or
+`startFFprobe({args})`. Pass argument arrays, with each path in its own entry.
+Save the returned `jobId`, poll `selects.media.job(jobId).status({cursor})` (or
+`sdk.call("getLocalMediaJobStatus", jobId, {cursor})`), and drain output pages
+until terminal. A truncated stream cannot be parsed as complete JSON. Cancel
+through `selects.media.job(jobId).cancel()` and observe the resulting status.
+Cancel active local jobs when the panel closes; inspect or clean partial files.
+
+File mutations, starting/canceling media jobs, and persisted Project edits
+require `allowCommit: true` on `sdk.runScript`. Reads do not. A browser
+`AbortSignal` stays in the panel; its handler makes a separate cancellation
+script call. Long work must return a job identifier and be observed in later
+calls rather than holding one script open.
+
+## Generation and exports
+
+`selects.generation.submit(...)` starts one paid job. Preserve its `requestKey`
+and identical input across transport retries, save `jobId`, and reconnect with
+`selects.generation.job(jobId, projectId)`. Read `status()` or `result()`;
+`selects.generation.jobs(projectId)` supports recovery after reopening a panel.
+Unknown submission is unresolved work, not permission to submit under a new
+key. Provider completion and output delivery are separate states. `cancel()`
+requests cancellation and may not prevent a charge; `retryDelivery()` retries
+retrieval of accepted output without another paid generation. These mutations
+require `allowCommit: true`. Explain credit use before the user's action.
+
+`selects.stock.searchVideos(...)` discovers footage without importing it.
+`selects.export.video(...)` starts an export workflow; save its id and observe
+`selects.workflow(id).status()`, with `cancel()` for user cancellation.
+`selects.export.still(...)` renders one Draft frame to a new PNG path.
+Video composition options can exclude clips/captions or set duration/frame
+size while the host owns the temporary snapshot and cleanup. Export accepts a
+persisted Project-owned Draft; commit intended working-copy edits first.
+
+## Compatibility and ownership
+
+The installed host must provide the canonical capabilities used by a panel.
+Report unsupported operations as an actionable update error. Do not access
+renderer containers, repositories, or editor registries through parent windows,
+and do not add internal-service fallbacks. A missing operation needs a narrow
+canonical SDK extension with its owning validation and lifecycle.
+
+`shared/local-client.ts` and `shared/generation-client.js` are private panel
+implementation helpers over these existing transports. They do not define a
+new public SDK surface. Rebuild modular panels after changing shared helpers.

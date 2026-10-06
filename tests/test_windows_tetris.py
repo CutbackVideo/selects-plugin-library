@@ -30,7 +30,7 @@ class TetrisWindowsTest(unittest.TestCase):
         self.source = read(PANEL)
 
     def test_platform_comes_from_initialized_sdk(self):
-        self.assertIn('IS_WINDOWS = /^win/i.test(sdk.environment.platform)', self.source)
+        self.assertIn('IS_WINDOWS = /^win/i.test(panelLocalClient(sdk).environment.platform)', self.source)
         self.assertNotIn('getPlatform', self.source)
         self.assertNotIn('__DI__', self.source)
 

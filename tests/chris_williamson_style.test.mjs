@@ -96,7 +96,7 @@ function loadEngine(platform, {downloads, fetch, encoders} = {}) {
   const code = [region('// av-host:start', '// av-host:end'), line('const q = ').replace('(v: string)', '(v)'), region('// cw-engine:start', '// cw-engine:end'),
     'hostUseSdk(__sdk); ({cwEngine, cwPickEncoder, cwCommonsRows: typeof cwCommonsRows === "function" ? cwCommonsRows : null, cwFetchCapped, cwFfmpegFetch, CW_MAX_BYTES})'].join('\n');
   const context = vm.createContext({window: {parent: {__DI__: host(platform, downloads, encoders)}}, navigator: {platform: platform === 'win32' ? 'Win32' : 'MacIntel', userAgent: ''},
-    setTimeout, clearTimeout, AbortController, TextEncoder, TextDecoder, console, fetch});
+    setTimeout, clearTimeout, AbortController, TextEncoder, TextDecoder, console, fetch, panelLocalClient: sdk => sdk});
   context.__sdk = asyncSdk(context.window.parent.__DI__);
   context.window.parent.__DI__ = new Proxy({}, { get() { throw Error('Migrated DI access'); } });
   return vm.runInContext(code, context);

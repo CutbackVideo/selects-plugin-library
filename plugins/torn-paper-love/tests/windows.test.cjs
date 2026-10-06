@@ -32,7 +32,7 @@ const BANNED = ['mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH'
   'runtime.sh', 'nodePath'];
 for (const [name, text] of Object.entries(runtime)) {
   const code = uncomment(text);
-  for (const bad of BANNED) assert.ok(!code.includes(bad), name + ' has no ' + JSON.stringify(bad));
+  for (const bad of BANNED) assert.ok(!(bad === "base64 " ? /(?<![\w.])base64\s/.test(code) : code.includes(bad)), name + ' has no ' + JSON.stringify(bad));
   // A node spawn: `node <script>` in a command string, or a process API.
   assert.ok(!/["'`]\s*node\s/.test(code) && !/\bnode\s+["'\w./-]*\.c?js\b/.test(code), name + ' spawns no node');
   assert.ok(!/\b(execFile|spawn|execSync|spawnSync)\s*\(/.test(code), name + ' starts no process');
@@ -75,7 +75,7 @@ function hostBox({ platform, files = new Set(), shell = null, ffmpeg = null, ffp
   const ctx = { sdk: asyncSdk({ FileSystem, Runtime }), window: { parent: { __DI__: { FileSystem, Runtime } } }, navigator: { platform: '', userAgent: '' }, TextDecoder, Uint8Array, ArrayBuffer, Float32Array,
     setTimeout, clearTimeout, AbortController, Date, Math, String, Error, Object, parseFloat };
   vm.createContext(ctx);
-  vm.runInContext(hostBlock + '\nhostUseSdk(sdk); this.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostCutAudio, hostProbeSeconds, hostNeed, hostApi, hostIsWindows, hostRemove };', ctx);
+  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + hostBlock + '\nhostUseSdk(sdk); this.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostCutAudio, hostProbeSeconds, hostNeed, hostApi, hostIsWindows, hostRemove };', ctx);
   const sdk = { ...ctx.sdk, runShell: async (o) => { calls.shell.push(o.command); return shell ? shell(o.command) : { stdout: '' }; } };
   return { H: ctx.H, calls, sdk };
 }

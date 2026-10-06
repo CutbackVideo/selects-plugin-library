@@ -73,7 +73,7 @@ function loadEngine(home, {MediaGeneration = null, version = '2.0.535', panelSou
     terminate() { this.w.terminate(); }
   }
   const sdk = asyncSdk({FileSystem, Runtime});
-  const ctx = vm.createContext({sdk, window: {parent: {__DI__: {FileSystem, Runtime, ...(MediaGeneration ? {MediaGeneration} : {})}, location: {pathname: '/libraries/lib-1/projects/p-1'}}}, navigator: {platform: 'Win32'}, crypto: globalThis.crypto,
+  const ctx = vm.createContext({sdk, panelLocalClient: sdk => sdk, sdkGeneration: () => MediaGeneration, window: {parent: {__DI__: {FileSystem, Runtime, ...(MediaGeneration ? {MediaGeneration} : {})}, location: {pathname: '/libraries/lib-1/projects/p-1'}}}, navigator: {platform: 'Win32'}, crypto: globalThis.crypto,
     TextEncoder, TextDecoder, AbortController, setTimeout, clearTimeout, atob, Blob, URL, Worker, console});
   vm.runInContext(code + (src.includes('function hostUseSdk(') ? '\nhostUseSdk(sdk);' : ''), ctx);
   const montage = ctx.engine.pbmWindowsMontage;
@@ -243,7 +243,7 @@ test('Windows mattes: credits notice first, one generation request, cached for r
   await assert.rejects(build(() => { throw Object.assign(new Error('needs a click'), {code: 'needs-confirm'}); }), /needs a click/);
   assert.equal(submitted.length, 0);
   // An old Selects: refused before the notice.
-  await assert.rejects(build(async () => { throw Error('asked'); }, {}, loadEngine(home, {MediaGeneration, version: '2.0.511'}).engine), /2\.0\.512 or later/);
+  await assert.rejects(build(async () => { throw Error('asked'); }, {}, loadEngine(home, {MediaGeneration: null}).engine), /Update Selects/);
   const runs = fs.readdirSync(path.join(data, 'runs'));
   assert.equal(runs.length, 1, 'one resumable run');
   assert.ok(!fs.existsSync(path.join(data, 'runs', runs[0], 'manifest.json')));
@@ -253,7 +253,7 @@ test('Windows mattes: credits notice first, one generation request, cached for r
   assert.equal(submitted.length, 1);
   const req = submitted[0];
   assert.equal(req.modelId, 'model_v1_dmVlZC92aWRlby1iYWNrZ3JvdW5kLXJlbW92YWwvZmFzdA');
-  assert.deepEqual(plain(req.scope), {libraryId: 'lib-1', projectId: 'p-1'});
+  assert.deepEqual(plain(req.scope), {projectId: 'p-1'});
   assert.deepEqual(plain(req.inputMediaSeconds), {video: 4 * 36 / 60});
   assert.match(req.key, /^pbm-[0-9a-f]{24}$/);
   assert.ok(req.uploads.source.pluginFile.startsWith(path.join(data, 'runs')));

@@ -7,9 +7,10 @@ import vm from 'node:vm';
 import {stripTypeScriptTypes} from 'node:module';
 
 const source = fs.readFileSync(process.env.TANG_PANEL || new URL('../plugins/tang-poetry-explainer/panel.tsx', import.meta.url), 'utf8');
-const prefix = source.slice(0, source.indexOf('export default function Panel')).replace(/^import React from "react";\s*/m, '').replace(/^export /gm, '');
+const prefix = source.slice(0, source.indexOf('function Panel(')).replace(/^import React from "react";\s*/m, '').replace(/^export /gm, '');
 function load(extra = {}) {
   const ctx = {TextDecoder, TextEncoder, Uint8Array, AbortController, setTimeout, clearTimeout, ...extra};
+  ctx.panelLocalClient = sdk => sdk;
   ctx.__sdk = asyncSdk(ctx.window?.parent?.__DI__);
   if (ctx.window?.parent) ctx.window.parent.__DI__ = new Proxy({}, {get() { throw Error('Migrated DI access'); }});
   vm.runInNewContext(stripTypeScriptTypes(prefix) + '\nhostUseSdk(__sdk); globalThis.api={voxHostIO,voxImportScript,voxReadyScript,voxKenBurnsArgs,voxSheetJobs,voxFontOption,hostBytes,draftScript};', ctx);

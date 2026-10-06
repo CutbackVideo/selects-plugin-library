@@ -81,7 +81,7 @@ function runner(confirmCredits){
  const calls=[],ctx=vm.createContext({calls,console,Date,setTimeout,
   helper:async(_sdk,op,args)=>{calls.push(op);return op==='claim'?{claimed:true,run:{runId:'r',projectId:'p',phase:'generationSubmitting',settings:{subjectStartSec:0},source:{path:'/s.mp4'},logDir:'/logs/r'}}:op==='cutout-input'?{path:'/c.mp4'}:{phase:'generationPending'}},
   runScript:async(_sdk,script)=>{calls.push(/importFiles/.test(script)?'importFiles':'script')},
-  appServices:()=>({MediaGeneration:{submit:async()=>{calls.push('submit');return{jobIds:['selects-'+'a'.repeat(64)]}},supportsPluginFiles:()=>false}}),
+  sdkGeneration:()=>({submit:async()=>{calls.push('submit');return{jobIds:['selects-'+'a'.repeat(64)]}},supportsPluginFiles:()=>false}),
   generationScope:()=>({libraryId:'l',projectId:'p'}),appResourceIdForPath:async()=>calls.includes('importFiles')?'res':null,hostIsWindows:()=>true,hostJoin:(...p)=>p.join('/')});
  const consts=['CUTOUT_SECONDS','CREDITS_NOTICE','CREDITS_DECLINED','TEMPLATE_CREDITS','BRIA_MODEL_ID','json'].map(n=>topLevel(panel,n)).join('\n');
  vm.runInContext(consts+'\n'+topLevel(panel,'createRunner')+'\nthis.make=createRunner;',ctx);

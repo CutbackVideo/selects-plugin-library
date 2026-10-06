@@ -176,6 +176,7 @@ function workerGlobals() {
 async function load(host) {
   const w = workerGlobals();
   const fns = loadPanelFunctions(source, NAMES, {
+    sdkGeneration: () => host.di.MediaGeneration,
     window: { parent: { __DI__: host.di, location: { pathname: '/libraries/lib-1/projects/proj-1' } } },
     navigator: { platform: 'Win32', userAgent: 'Windows NT 10.0' },
     Worker: w.Worker, URL: w.URL, Blob, AbortController,
@@ -242,7 +243,7 @@ test('Windows analysis in a mock host equals prepare.py (lossless masks, 30 fps)
   const [req] = env.host.submits;
   assert.equal(req.modelId, 'model_v1_dmVlZC92aWRlby1iYWNrZ3JvdW5kLXJlbW92YWwvZmFzdA');
   assert.deepEqual(req.input, { video_url: 'selects-input:source', output_codec: 'h264', refine_foreground_edges: false, subject_is_person: true });
-  assert.deepEqual(req.scope, { libraryId: 'lib-1', projectId: 'proj-1' });
+  assert.deepEqual(req.scope, { projectId: 'proj-1' });
   assert.equal(req.key, 'cbg-beat-cutout-test');
   assert.ok(req.uploads.source.pluginFile.startsWith(env.data + path.sep));
   assert.ok(req.delivery.pluginFolder.startsWith(env.data + path.sep));
