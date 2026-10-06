@@ -1621,7 +1621,7 @@ function DepthVideo({ preview, time, playing, onTime, onEnded, onError }) {
   callbacks.current = { onTime, onEnded, onError };
   useEffect(() => {
     if(!preview?.url||!mount.current)return;
-    const doc=window.parent.document,v=doc.createElement('video'),canvas=doc.createElement('canvas'),ctx=canvas.getContext('2d');let raf;
+    const doc=document,v=doc.createElement('video'),canvas=doc.createElement('canvas'),ctx=canvas.getContext('2d');let raf;
     v.src=preview.url;v.muted=true;v.playsInline=true;v.preload='auto';
     canvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;display:block';
     mount.current.appendChild(canvas);video.current=v;
