@@ -12,7 +12,7 @@ PLUGIN = ROOT / 'plugins/jared-vox-editorial'
 class JaredWindowsTest(unittest.TestCase):
     def test_runtime_contract(self):
         panel = (PLUGIN / 'panel.tsx').read_text()
-        for forbidden in ['sdk.runShell', '.downloadFile(', '-pattern_type', 'getStartTime(', 'metaKey']:
+        for forbidden in ['sdk.runShell', 'voxFetchLimited', '-pattern_type', 'getStartTime(', 'metaKey']:
             self.assertNotIn(forbidden, panel)
         self.assertIsNone(re.search(r'instanceof\s+(?:ArrayBuffer|Uint8Array)',
                                     re.sub(r'//[^\n]*', '', panel)))

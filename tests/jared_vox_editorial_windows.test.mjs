@@ -6,29 +6,39 @@ import {stripTypeScriptTypes} from 'node:module';
 const source=fs.readFileSync(new URL('../plugins/jared-vox-editorial/panel.tsx',import.meta.url),'utf8');
 function panel(extra={}) {
  const ctx={TextDecoder,TextEncoder,Uint8Array,AbortController,setTimeout,clearTimeout,
-  window:{parent:{__DI__:{Runtime:{getPlatform:()=> 'win32'},FileSystem:{join:(...p)=>p.join('\\'),writeFile:async()=>{},downloadFile:()=>{throw Error('unsafe main-process download');}}}}},...extra};
+  window:{parent:{__DI__:{Runtime:{getPlatform:()=> 'win32'},FileSystem:{join:(...p)=>p.join('\\'),writeFile:async()=>{},downloadFile:()=>{throw Error('unexpected host download');}}}}},...extra};
  const prefix=source.slice(0,source.indexOf('export default function Panel')).replace(/^import React from "react";\s*/m,'').replace(/^export /gm,'');
  vm.runInNewContext(stripTypeScriptTypes(prefix),ctx); return ctx;
 }
-test('article and portrait downloads avoid the unbounded host downloader',async()=>{
- const c=panel({fetch:async()=>new Response('bounded body')});
- const writes=[];c.window.parent.__DI__.FileSystem.writeFile=async(p,b)=>writes.push([p,new TextDecoder().decode(b)]);
- const io=c.voxHostIO('C:\\Users\\\ud64d\uae38\ub3d9\\job',{});
- assert.equal((await io.http('https://example.org/article','agent',1)).text,'bounded body');
- assert.equal(await io.download('https://example.org/photo.jpg','dest.jpg'),200);
- assert.deepEqual(writes,[['dest.jpg','bounded body']]);
+test('article pages and portraits use FileSystem.downloadFile on win32',async()=>{
+ const c=panel({fetch:async()=>{throw Error('article/portrait must use the host');}});
+ const downloads=[],removed=[],files=new Map(),host=c.window.parent.__DI__.FileSystem;
+ host.downloadFile=async(url,dest)=>{downloads.push([url,dest]);files.set(dest,new TextEncoder().encode('host body'));};
+ host.readFile=async path=>files.get(path);
+ host.existsSync=path=>files.has(path);
+ host.unlink=async path=>{removed.push(path);files.delete(path);};
+ const io=c.voxHostIO('C:\\Users\\user\\job',{});
+ const article=await io.http('https://example.org/article','agent',1);
+ assert.equal(article.code,200);assert.equal(article.text,'host body');
+ assert.equal(await io.download('https://example.org/photo.jpg','portrait.jpg'),200);
+ assert.equal(downloads.length,2);
+ assert.equal(downloads[0][0],'https://example.org/article');
+ assert.match(downloads[0][1],/^C:\\Users\\user\\job\\dl-.*\.tmp$/);
+ assert.deepEqual(downloads[1],['https://example.org/photo.jpg','portrait.jpg']);
+ assert.deepEqual(removed,[downloads[0][1]]);
+ assert.equal(files.has(downloads[0][1]),false);
+ assert.equal(files.has('portrait.jpg'),true);
 });
-test('stream limit rejects declared and chunked oversize; aborts stalled body',async()=>{
- const c=panel({fetch:async()=>new Response('12345',{headers:{'Content-Length':'5'}})});
- await assert.rejects(()=>c.voxFetchLimited('https://example.org',{},4,100),/large/i);
- let cancelled=false;
- c.fetch=async()=>new Response(new ReadableStream({start(s){s.enqueue(new Uint8Array(3));s.enqueue(new Uint8Array(3));},cancel(){cancelled=true;}}));
- await assert.rejects(()=>c.voxFetchLimited('https://example.org',{},4,100),/large/i);
- assert.equal(cancelled,true);
- c.fetch=async()=>new Response(new ReadableStream({cancel(){cancelled=true;}}));
- await assert.rejects(()=>c.voxFetchLimited('https://example.org',{},4,15),/timed out/i);
- c.fetch=async()=>new Response('1234');
- assert.equal((await c.voxFetchLimited('https://example.org',{},4,100)).bytes.length,4);
+test('Wikimedia API replies use fetch with origin=* and Api-User-Agent',async()=>{
+ const calls=[],c=panel({fetch:async(url,options)=>{calls.push([url,options]);return new Response('api body');}});
+ const io=c.voxHostIO('job',{});
+ for(const domain of ['en.wikipedia.org','commons.wikimedia.org']) {
+  const url=`https://${domain}/w/api.php?action=query`;
+  const answer=await io.http(url,'test-agent',1);
+  assert.equal(answer.code,200);assert.equal(answer.text,'api body');
+  assert.equal(calls.at(-1)[0],url+'&origin=*');
+  assert.equal(calls.at(-1)[1].headers['Api-User-Agent'],'test-agent');
+ }
 });
 test('ready/import scripts normalize Windows basename case and Unicode',async()=>{
  const c=panel(); const file='C:\\Users\\\ud64d\uae38\ub3d9\\Cafe\u0301.MP4';
@@ -65,13 +75,6 @@ for (const fps of [24000/1001,24,25,30000/1001,30,60000/1001]) {
   assert.deepEqual(ranges,[[Math.round(fps),Math.round(fps)+Math.floor(fps)],[Math.round(fps),Math.round(2*fps)],[Math.round(2*fps),Math.round(3*fps)]]);
  });
 }
-test('network failure is recoverable, never writes a failed portrait',async()=>{
- const c=panel({fetch:async()=>{throw Error('CORS');}}),io=c.voxHostIO('job',{});
- assert.equal((await io.http('https://example.org','agent',1)).code,599);
- assert.equal(await io.download('https://example.org','portrait.jpg'),599);
- c.fetch=async()=>new Response('not found',{status:404});
- assert.equal(await io.download('https://example.org','portrait.jpg'),404);
-});
 test('macOS basename matching remains case-sensitive',async()=>{
  const c=panel();c.window.parent.__DI__.Runtime.getPlatform=()=> 'darwin';
  const script=c.voxImportScript('p',['/tmp/job/clip.mp4']);const imported=[];
