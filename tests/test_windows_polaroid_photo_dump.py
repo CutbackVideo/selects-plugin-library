@@ -10,8 +10,6 @@ import os
 import re
 import unittest
 
-from windows_static import assert_no_shell_token, shell_token_present
-
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN = os.path.join(ROOT, "plugins", "polaroid-photo-dump")
 PANEL = os.environ.get("POLAROID_PHOTO_DUMP_PANEL") or os.path.join(PLUGIN, "panel.tsx")
@@ -57,7 +55,7 @@ class PolaroidPhotoDumpWindowsTest(unittest.TestCase):
 
     def test_no_posix_shell_or_node_at_runtime(self):
         for needle in FORBIDDEN:
-            assert_no_shell_token(self, needle, self.runtime, needle)
+            self.assertNotIn(needle, self.runtime, needle)
         self.assertIsNone(re.search(r"\bnode\s+[\"'$]", self.runtime), "node spawn")
         self.assertIsNone(re.search(r"\bpython3?\b", self.runtime), "python spawn")
 
@@ -104,7 +102,7 @@ class PolaroidPhotoDumpWindowsTest(unittest.TestCase):
         for doc in ("INSTALL.md", "SKILL.md", "VALIDATION.md", "THIRD_PARTY.md"):
             text = read(os.path.join(PLUGIN, doc))
             for needle in ("shasum", "system `base64`", "/bin/sh", "brew "):
-                assert_no_shell_token(self, needle, text, doc + ": " + needle)
+                self.assertNotIn(needle, text, doc + ": " + needle)
 
 
 if __name__ == "__main__":

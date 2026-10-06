@@ -23,7 +23,7 @@ export default function FaceStage({sdk,context,ui:U}:any) {
     setBusy(true);setError("");
     try {
       requireSharedAiHost();
-      const folder=dir();await fs().mkdir(folder,{recursive:true});
+      const folder=dir();fs().mkdirSync(folder,{recursive:true});
       if(fresh)await newFacePass(folder,ac.signal);
       const reel=await readReel(sdk,projectId,sequenceId);
       if(!reel.clips.some(c=>c.path&&c.srcStart>=0))throw new Error("This Draft has no direct video Main clip with a known source in-point. Analyze its transcript first.");

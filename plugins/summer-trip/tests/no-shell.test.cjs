@@ -28,7 +28,7 @@ const PATTERNS = [
 ];
 function violations(text) {
   const c = code(text);
-  return [...TOKENS.filter((t) => (t === "base64 " ? /(?<![\w.])base64\s/.test(c) : c.includes(t))), ...PATTERNS.filter(([re]) => re.test(c)).map(([, name]) => name)];
+  return [...TOKENS.filter((t) => c.includes(t)), ...PATTERNS.filter(([re]) => re.test(c)).map(([, name]) => name)];
 }
 
 // The check itself sees the old shell steps (the shapes panel.tsx had before), and leaves plain panel code alone.
@@ -36,7 +36,7 @@ for (const sample of ['sdk.runShell({ command })', 'TOOL_PATH + "mkdir -p " + sq
   "'\\''", '"[ -s " + out + " ] || x"', '"; s=$?; rm -f " + sq(pcm) + "; exit $s"', 'command: "node " + q', 'sq(node) + " " + sq(f)',
   'const SKILLS_DIR = "$SELECTS_USER_SKILLS_ROOT/" + id', 'export PATH="$PATH:/opt/homebrew/bin"', 'require("node:child_process")'])
   assert.ok(violations(sample).length, 'the check sees: ' + sample);
-for (const sample of ['for (const node of nodes) x(node);', 'typeof result.base64 !== "string"', 'await hostFFmpeg(stMuffleArgs(path, part), { timeoutMs: 180000 });', 'const k = a && b ? c : d;',
+for (const sample of ['for (const node of nodes) x(node);', 'await hostFFmpeg(stMuffleArgs(path, part), { timeoutMs: 180000 });', 'const k = a && b ? c : d;',
   '// shasum -a 256 printed the same name', 'url("data:font/woff2;base64," + b64)', 'hostJoin(dataDir, "pcm-" + hostToken() + ".f32")'])
   assert.deepEqual(violations(sample), [], 'no false alarm: ' + sample);
 

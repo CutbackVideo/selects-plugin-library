@@ -1,54 +1,6 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
-const assert = require('node:assert/strict');
-
-const pluginRoot = path.resolve(__dirname, '..');
-const source = fs.readFileSync(path.join(pluginRoot, 'panel.tsx'), 'utf8');
-const file = (folder, resourceId) => ({
-  type: 'video', name: 'same.mp4', path: folder + '/01_Downtown/same.mp4',
-  resourceId, durationSeconds: 5, frameRate: 30, frameSize: {width: 1920, height: 1080},
-});
-
-(async () => {
-  const {loadPanelFunctions} = await import('../../../tests/windows_host.mjs');
-  const panel = loadPanelFunctions(source,
-    ['fullProjectInventory', 'readMediaPages', 'locationsFromPaths', 'norm', 'issue', 'VIDEO'],
-    {window: {parent: new Proxy({}, {get() {throw Error('Host access is forbidden');}})}});
-  const seoul = file('/media/seoul/selected-200', 'r0');
-  const la = file('/media/la/selected-200', 'r1');
-  const resources = ['native-seoul', 'native-la'].map(resourceId => ({resourceId, name: 'same.mp4', type: 'Video'}));
-  let reads = 0;
-  const sdk = {
-    async call(method, projectId) {
-      assert.equal(projectId, 'project');
-      if (method === 'getProjectDraftScaffold') return {owner: {libraryId: 'library', projectId}};
-      assert.equal(method, 'listProjectResources');
-      return resources;
-    },
-    async runScript({script, allowCommit}) {
-      assert.equal(allowCommit, false);
-      reads++;
-      const project = {
-        resources: async () => resources.map((r, i) => ({...r, resourceId: 'r' + i})),
-        sourceFiles: async () => ({fileTree: [
-          {type: 'dir', name: 'selected-200', children: [seoul]},
-          {type: 'dir', name: 'selected-200', children: [la]},
-        ]}),
-      };
-      return {result: await vm.runInNewContext('(async()=>{' + script + '})()', {selects: {project: () => project}})};
-    },
-  };
-  const inventory = await panel.fullProjectInventory(sdk, 'project');
-  assert.deepEqual(Array.from(inventory, row => row.resourceId), ['native-seoul', 'native-la']);
-  const result = panel.locationsFromPaths(inventory, '/media/la/selected-200/');
-  assert.equal(result.places.length, 1);
-  assert.equal(result.places[0].files[0].path, la.path);
-  assert.ok(!JSON.stringify(result).includes('/seoul/'));
-  assert.equal(panel.locationsFromPaths(inventory, '/media/la/selected-20').places.length, 0);
-  const windows = panel.locationsFromPaths([file('C:/media/la/selected-200', 'native-win')], 'C:\\media\\la\\selected-200');
-  assert.equal(windows.places.length, 1);
-  await assert.rejects(panel.fullProjectInventory({call: async () => ({owner: {libraryId: 'library', projectId: 'foreign'}})}, 'project'), /verified/);
-  assert.equal(reads, 1);
-  console.log('Full-path collisions, host resource identity, Windows paths, and Project ownership: passed');
-})().catch(error => {console.error(error); process.exit(1);});
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'..');const src=fs.readFileSync(path.join(root,'panel.tsx'),'utf8');const head=src.slice(src.indexOf('const VERSION='),src.indexOf('function Poster('));const helpers=src.slice(src.indexOf('async function fullProjectInventory('),src.indexOf('async function contactPacket('));
+const file=(root,id)=>({type:'video',name:'same.mp4',path:root+'/01_Downtown/same.mp4',resourceId:id,durationSeconds:5,frameRate:30,frameSize:{width:1920,height:1080}});
+const seoul=file('/media/seoul/selected-200','native-seoul'),la=file('/media/la/selected-200','native-la');let calls=0;
+const ctx={console,URL,Date,Math,JSON,Map,Set,Number,Object,Array,String,Promise,window:{parent:{__DI__:{ProjectFileTree:{async listEnrichedFileTree(lib,pid){assert.equal(lib,'library');assert.equal(pid,'project');calls++;return [{type:'dir',name:'selected-200',children:[seoul]},{type:'dir',name:'selected-200',children:[la]}];}}}}}};vm.createContext(ctx);vm.runInContext(head+'\n'+helpers+'\nglobalThis.api={fullProjectInventory,locationsFromPaths};',ctx);
+(async()=>{const sdk={async call(name,pid){assert.equal(name,'getProjectDraftScaffold');assert.equal(pid,'project');return {owner:{libraryId:'library',projectId:'project'}};}};const inventory=await ctx.api.fullProjectInventory(sdk,'project');const result=ctx.api.locationsFromPaths(inventory,'/media/la/selected-200/');assert.equal(result.places.length,1);assert.equal(result.places[0].files[0].path,la.path);assert(!JSON.stringify(result).includes('/seoul/'));assert.equal(ctx.api.locationsFromPaths(inventory,'/media/la/selected-20').places.length,0);const win=ctx.api.locationsFromPaths([file('C:/media/la/selected-200','native-win')],'C:\\media\\la\\selected-200');assert.equal(win.places.length,1);let rejected=false;try{await ctx.api.fullProjectInventory({call:async()=>({owner:{libraryId:'library',projectId:'foreign'}})},'project');}catch{rejected=true;}assert(rejected);assert.equal(calls,1);console.log(JSON.stringify({sameBasenameSeparated:true,identicalChildAndFileNamesSeparated:true,fullPathBoundaryChecked:true,windowsSeparatorsSupported:true,foreignProjectRejected:true}));})().catch(e=>{console.error(e);process.exit(1)});

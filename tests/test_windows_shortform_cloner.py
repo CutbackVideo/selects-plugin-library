@@ -50,7 +50,7 @@ class ShortformClonerWindowsTest(unittest.TestCase):
         body = function(self.source, "findTools")
         win = body[body.index("if (IS_WIN) {"): body.index("} else {")]
         first_shell = win.index("await shell(")
-        self.assertLess(win.index("await store.exists(file)"), first_shell)
+        self.assertLess(win.index("known.find((f) => store.exists(f))"), first_shell)
         for part in ('"Selects Delta"', '"C:\\\\Program Files"', '"C:\\\\Program Files (x86)"', '"AppData", "Local", "Programs"'):
             self.assertIn(part, win[:first_shell], part)
 

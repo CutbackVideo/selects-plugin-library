@@ -21,7 +21,7 @@ assert.ok(!/runShell|child_process|require\(|\bwindow(\.parent|\[)|__DI__/.test(
 // including) its end marker must hash to the recorded copy of selects-app-kit tools/panel/quick-score.js. To take a kit
 // update, paste the new block over this one and record the kit commit and the new hash here.
 const QS_KIT_COMMIT = '753eb81';
-const QS_KIT_SHA256 = 'b99a7847f21a07b8848ce138f722e59c1119b8d34ce785b13e83cfbeec009218';
+const QS_KIT_SHA256 = 'a53045662182b210f69199c220f9b2be5b56fdae0cd987708385cf533cc3b240';
 assert.equal(require('node:crypto').createHash('sha256').update(qs).digest('hex'), QS_KIT_SHA256,
   'panel.tsx quick-score block equals selects-app-kit ' + QS_KIT_COMMIT + ' tools/panel/quick-score.js');
 assert.ok(/var QS_VERSION = (\d+);/.test(qs) && Number(/var QS_VERSION = (\d+);/.exec(qs)[1]) >= 2, 'QS_VERSION >= 2 (duration in the cache key)');

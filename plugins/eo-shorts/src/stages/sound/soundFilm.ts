@@ -45,7 +45,7 @@ export async function soundFilm(c: SoundInput): Promise<SoundReport> {
   const warn = (m: string) => void (warnings.includes(m) || warnings.push(m));
   const rs = { signal: c.signal, backoffMs: c.backoffMs };
   const path = (...p: string[]) => fs.join(c.dirs.sound, ...p);
-  await ensureDir(fs, path("passes"));
+  ensureDir(fs, path("passes"));
   const t0 = Date.now();
 
   say("Reading the draft…");
@@ -107,7 +107,7 @@ export async function soundFilm(c: SoundInput): Promise<SoundReport> {
   };
   const renderTo = async (name: string): Promise<{ path: string; loud: Loudness }> => {
     const out = path("passes", name);
-    await removeFile(fs, out);
+    removeFile(fs, out);
     if (c.render) await c.render(out, seconds);
     else await renderVoice(c.host as Host, { projectId: c.projectId, draftId: c.draftId, outPath: out, mainEndFrame: mainEnd, fps, tmpDir: c.dirs.tmp, signal: c.signal, onProgress: (t) => say(t.replace("Rendering the voice", "Rendering " + name)) });
     return { path: out, loud: await measure(c, out) };
@@ -173,8 +173,8 @@ export async function soundFilm(c: SoundInput): Promise<SoundReport> {
   }
   plan.problems.forEach(warn);
   const last = passes[passes.length - 1];
-  for (const p of passes.slice(0, -1)) (await removeFile(fs, p.path));
-  if (mix) (await removeFile(fs, mix.path));
+  for (const p of passes.slice(0, -1)) removeFile(fs, p.path);
+  if (mix) removeFile(fs, mix.path);
 
   const report: SoundReport = {
     schema: "eo-sound/1",
@@ -211,13 +211,13 @@ async function measure(c: SoundInput, file: string, part?: { startSeconds: numbe
 
 async function copyInto(host: Pick<Host, "fs">, from: string, to: string): Promise<string> {
   const fs = host.fs;
-  const a = (await fs.stat(from)), b = (await fs.stat(to));
+  const a = fs.statSync(from), b = fs.statSync(to);
   if (!a) throw new Error("The packaged file " + from + " is missing; reinstall the plugin.");
   if (b && b.size === a.size) return to;
-  await ensureDir(fs, fs.dirname(to));
+  ensureDir(fs, fs.dirname(to));
   if (fs.copyFile) {
     const tmp = to + ".part";
-    await removeFile(fs, tmp);
+    removeFile(fs, tmp);
     await fs.copyFile(from, tmp);
     await renameWithRetry(fs, tmp, to);
   } else await writeFileAtomic(fs, to, await readBytes(fs, from));

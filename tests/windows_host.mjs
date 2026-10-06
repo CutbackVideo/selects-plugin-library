@@ -26,7 +26,7 @@ export const REFERENCE_BLOCK = hostBlock(panelSource('archive-vlog'));
 // (it is checked against Archive Vlog's byte for byte instead).
 export const POSIX = [
   /\bprintf\b/, /\$HOME\b/, /\$\{?SELECTS_USER/, /\bcommand -v\b/, /\bmkdir -p\b/, /\brm -f\b/,
-  /(?<![.\w])base64 /, /\bexport PATH\b/, /\bshasum\b/, /\bcat "/, /\bpwd -P\b/, /\bmv -f\b/, /\|\s*grep\b/,
+  /\bbase64 /, /\bexport PATH\b/, /\bshasum\b/, /\bcat "/, /\bpwd -P\b/, /\bmv -f\b/, /\|\s*grep\b/,
   /["'`]\s*(?:node|python3?)\s/,
 ];
 
@@ -44,35 +44,11 @@ export function posixHits(source, allowed = []) {
 // Compiles named top-level functions (and consts) of a panel, together with its
 // host block, into a fresh context whose window.parent.__DI__ is `di`.
 export function loadPanelFunctions(source, names, globals = {}) {
-  if (!globals.__sdk && hostBlock(source)) {
-    let di = {};
-    try { di = globals.window?.parent?.__DI__ || {}; } catch { /* pure helpers need no host */ }
-    globals = { ...globals, ...hostGlobals({ di }), window: {
-      ...globals.window, parent: { ...globals.window?.parent, ...hostGlobals({ di }).window.parent },
-    } };
-  }
   const parts = [hostBlock(source) || ''];
-  if (source.includes('// sdk-selected-media:start') && !names.includes('sdkSelectedMedia')) parts.push(topLevel(source, 'sdkSelectedMedia'));
-  if (source.includes('// sdk-media-path:start') && !names.includes('sdkMediaByPath')) parts.push(topLevel(source, 'sdkMediaByPath'));
-  for (const name of ['generationApi', 'generationNeed']) if (source.includes('function ' + name + '(') && !names.includes(name)) parts.push(topLevel(source, name));
   for (const name of names) parts.push(topLevel(source, name));
-  const context = vm.createContext({ console, TextDecoder, TextEncoder, Uint8Array, setTimeout, clearTimeout,
-    // These scenarios supply an already initialized plugin-private host fixture.
-    // The real canonical transport and async wrapper are tested separately.
-    panelLocalClient: (sdk) => sdk, ...globals });
+  const context = vm.createContext({ console, TextDecoder, TextEncoder, Uint8Array, setTimeout, clearTimeout, ...globals });
   vm.runInContext(parts.join('\n') + '\nthis.__exports={' + [...hostNames(parts[0]), ...names].join(',') + '};', context);
-  const exports = context.__exports;
-  if (typeof exports.hostUseSdk === 'function') exports.hostUseSdk(globals.__sdk);
-  if (typeof exports.bindLocalSdk === 'function') exports.bindLocalSdk(globals.__sdk);
-  // Existing scenarios pass a scripting-only SDK; attach the explicitly supplied
-  // async bridge fixture when their helper takes an SDK as its first argument.
-  for (const name of Object.keys(exports)) {
-    if (['hostUseSdk', 'bindLocalSdk'].includes(name)) continue;
-    if (!/^(?:async )?function \w+\(sdk\b/.test(String(exports[name]))) continue;
-    const helper = exports[name];
-    exports[name] = (sdk, ...args) => helper({ ...globals.__sdk, ...sdk }, ...args);
-  }
-  return exports;
+  return context.__exports;
 }
 
 function hostNames(block) {
@@ -127,13 +103,7 @@ export function fakeHost({ platform = 'win32', home = 'C:\\Users\\\uD64D\uAE38\u
 // the test when anything reaches the shell.
 export function hostGlobals(host, { shell = null } = {}) {
   return {
-    __sdk: host.sdk || asyncSdk(host.di),
-    window: { parent: { __DI__: new Proxy(host.di, {
-      get(target, key) {
-        if (['FileSystem', 'Runtime', 'CutbackMediaPicker'].includes(key)) throw Error('Migrated service accessed through DI: ' + key);
-        return target[key];
-      },
-    }) } },
+    window: { parent: { __DI__: host.di } },
     navigator: { platform: 'Win32', userAgent: 'Windows NT 10.0' },
     shell,
   };
@@ -141,26 +111,4 @@ export function hostGlobals(host, { shell = null } = {}) {
 
 // The message every copied panel shows when this Selects build's FileSystem
 // lacks what hostRoots needs, before any lookup that would say "Reinstall".
-export const NEWER_SELECTS="if(!hostApi('FileSystem','join','homedir','exists'))throw Error('This Selects build cannot read the plugin files. Update Selects, then try again.');";
-
-// Adapts legacy test fixture services to the public asynchronous SDK contract.
-// Production panels must never perform this adaptation or access these services.
-export function asyncSdk(di = {}) {
-  const legacy = di.FileSystem || {}, runtime = di.Runtime || {};
-  const files = {};
-  for (const name of ['join', 'dirname', 'basename', 'extname', 'normalize', 'isAbsolute', 'homedir']) {
-    if (typeof legacy[name] === 'function') files[name] = (...args) => legacy[name](...args);
-  }
-  const aliases = { exists: 'existsSync', mkdir: 'mkdirSync', stat: 'statSync', rename: 'renameSync', readdir: 'readdirSync', readFile: 'readFileSync', writeFile: 'writeFileSync', rm: 'rmSync' };
-  for (const name of ['exists', 'mkdir', 'stat', 'rename', 'readdir', 'readFile', 'readRange', 'writeFile', 'removeFile', 'rm', 'copyFile', 'downloadFile', 'pathToLocalURL', 'getOrCreateTmpDirPath']) {
-    const method = typeof legacy[name] === 'function' ? name : aliases[name];
-    if (method && typeof legacy[method] === 'function') files[name] = async (...args) => legacy[method](...args);
-  }
-  if (!files.removeFile) {
-    const remove = ['remove', 'rm', 'unlink', 'unlinkSync', 'rmSync'].find(name => typeof legacy[name] === 'function');
-    if (remove) files.removeFile = async ({ filePath }) => legacy[remove](filePath);
-  }
-  const media = {};
-  for (const name of ['runFFmpeg', 'runFFprobe']) if (typeof runtime[name] === 'function') media[name] = async (...args) => runtime[name](...args);
-  return { files, media, dialogs: di.CutbackMediaPicker || {}, environment: { platform: runtime.getPlatform?.() || 'win32', version: runtime.getHostingVersion?.() || '' } };
-}
+export const NEWER_SELECTS="if(!hostApi('FileSystem','join','homedir','existsSync'))throw Error('This Selects build cannot read the plugin files. Update Selects, then try again.');";

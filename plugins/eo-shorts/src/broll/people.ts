@@ -135,8 +135,8 @@ async function one(s: PersonShotState, d: PeopleDeps, o: Parameters<typeof runPe
   const dir = peopleDir(d.fs, o.media);
   const file = d.fs.join(dir, safeName(s.req.id) + "." + (EXT[got.mime] ?? "jpg"));
   const recordPath = photoRecordPath(d.fs, o.media, s.req.id);
-  await removeFile(d.fs, recordPath);
-  if ((await d.fs.exists(recordPath))) throw new Error("could not remove the old photo record " + recordPath);
+  removeFile(d.fs, recordPath);
+  if (d.fs.existsSync(recordPath)) throw new Error("could not remove the old photo record " + recordPath);
   await writeFileAtomic(d.fs, file, got.bytes);
   let size: { width: number; height: number } | null = null;
   try {

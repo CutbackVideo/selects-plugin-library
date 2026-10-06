@@ -24,7 +24,7 @@ const DOWNLOAD_TIMEOUT_MS = 3 * 60 * 1000;
 const errText = (e: unknown) => String((e && (e as { message?: unknown }).message) || e || "unknown error").slice(0, 300);
 
 async function verified(fs: HostFs, path: string): Promise<Uint8Array | null> {
-  if (!(await fs.exists(path))) return null;
+  if (!fs.existsSync(path)) return null;
   try {
     const bytes = await readBytes(fs, path);
     if (bytes.length === HB_SUBSET_WASM.bytes && (await sha256Hex(bytes)) === HB_SUBSET_WASM.sha256) return bytes;
@@ -33,9 +33,9 @@ async function verified(fs: HostFs, path: string): Promise<Uint8Array | null> {
   return null;
 }
 
-async function quietRemove(fs: HostFs, path: string) {
+function quietRemove(fs: HostFs, path: string) {
   try {
-    if ((await fs.exists(path))) (await fs.unlink(path));
+    if (fs.existsSync(path)) fs.unlinkSync(path);
   } catch {
   }
 }
@@ -44,26 +44,26 @@ export async function hbSubsetWasm(fs: HostFs, runtimeDir: string, o: { reuse?: 
   const dest = hbWasmPath(fs, runtimeDir);
   const own = await verified(fs, dest);
   if (own) return { bytes: own, path: dest, downloaded: false };
-  await quietRemove(fs, dest);
+  quietRemove(fs, dest);
   for (const p of o.reuse ?? []) {
     const b = await verified(fs, p);
     if (b) return { bytes: b, path: p, downloaded: false };
   }
   if (typeof fs.downloadFile !== "function") throw new Error("This Selects build cannot download files (FileSystem.downloadFile); update Selects.");
   o.progress?.("Downloading the font subsetter (one time, 0.7 MB)…");
-  if (!(await fs.exists(fs.dirname(dest)))) (await fs.mkdir(fs.dirname(dest), { recursive: true }));
+  if (!fs.existsSync(fs.dirname(dest))) fs.mkdirSync(fs.dirname(dest), { recursive: true });
   const reasons: string[] = [];
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const url = HB_SUBSET_WASM.urls[Math.min(attempt, HB_SUBSET_WASM.urls.length - 1)];
     const part = dest + ".part" + attempt;
-    await quietRemove(fs, part);
+    quietRemove(fs, part);
     try {
       let timer: ReturnType<typeof setTimeout> | null = null;
       await Promise.race([
         fs.downloadFile(url, part),
         new Promise((_, reject) => (timer = setTimeout(() => reject(new Error("no answer after " + DOWNLOAD_TIMEOUT_MS / 1000 + " s")), DOWNLOAD_TIMEOUT_MS))),
       ]).finally(() => timer && clearTimeout(timer));
-      if (!(await fs.exists(part))) throw new Error("nothing was saved");
+      if (!fs.existsSync(part)) throw new Error("nothing was saved");
       const bytes = await readBytes(fs, part);
       if (bytes.length !== HB_SUBSET_WASM.bytes) throw new Error("the server sent " + bytes.length + " bytes, not " + HB_SUBSET_WASM.bytes);
       const got = await sha256Hex(bytes);
@@ -72,7 +72,7 @@ export async function hbSubsetWasm(fs: HostFs, runtimeDir: string, o: { reuse?: 
       return { bytes, path: dest, downloaded: true };
     } catch (e) {
       reasons.push(url.replace(/^https:\/\/([^/]+)\/.*$/, "$1") + ": " + errText(e));
-      await quietRemove(fs, part);
+      quietRemove(fs, part);
     }
   }
   throw new Error("Could not download the " + HB_SUBSET_WASM.label + ". " + reasons.join("; ") + ". Check the internet connection and try again.");

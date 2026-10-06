@@ -24,18 +24,18 @@ async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-export function packagedFontSource(fs: Pick<HostFs, "join" | "exists" | "readFile">, root: string): FontBytes {
+export function packagedFontSource(fs: Pick<HostFs, "join" | "existsSync" | "readFile">, root: string): FontBytes {
   const cache = new Map<string, Promise<Uint8Array>>();
   const at = (rel: string) => fs.join(root, ...rel.split("/").filter(Boolean));
   const read = async (rel: string): Promise<Uint8Array> => {
     const b64 = at(packagedFontName(rel));
     const gz = b64.replace(/\.b64$/, ".gz.b64");
-    if ((await fs.exists(gz))) return gunzip(fromBase64(await readText(fs as HostFs, gz)));
-    if ((await fs.exists(b64))) return fromBase64(await readText(fs as HostFs, b64));
+    if (fs.existsSync(gz)) return gunzip(fromBase64(await readText(fs as HostFs, gz)));
+    if (fs.existsSync(b64)) return fromBase64(await readText(fs as HostFs, b64));
     const ttf = at(packagedFontName(rel).replace(/\.b64$/, ""));
-    if ((await fs.exists(ttf))) return readBytes(fs as HostFs, ttf);
-    if ((await fs.exists(at(rel)))) return readBytes(fs as HostFs, at(rel));
-    if ((await fs.exists(at(rel) + ".b64"))) return fromBase64(await readText(fs as HostFs, at(rel) + ".b64"));
+    if (fs.existsSync(ttf)) return readBytes(fs as HostFs, ttf);
+    if (fs.existsSync(at(rel))) return readBytes(fs as HostFs, at(rel));
+    if (fs.existsSync(at(rel) + ".b64")) return fromBase64(await readText(fs as HostFs, at(rel) + ".b64"));
     throw new Error("Font file missing from the package: " + rel);
   };
   return (rel) => {

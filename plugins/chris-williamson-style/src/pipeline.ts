@@ -11,8 +11,8 @@ async function probeFrameSizes(env:Env,files:Record<string,any>){
 // failed host download is tried once more with curl and a browser user agent, as before.
 async function fetchMusic(env:Env,dir:string,musicPath:string){
   const fs=hostNeed("FileSystem","downloadFile");
-  (await mkdirs(dir));
-  let size=0;try{size=(await fs.exists?.(musicPath))?Number((await fs.stat?.(musicPath))?.size||0):0;}catch{size=0;}
+  mkdirs(dir);
+  let size=0;try{size=fs.existsSync?.(musicPath)?Number(fs.statSync?.(musicPath)?.size||0):0;}catch{size=0;}
   if(!size)try{await fs.downloadFile(MUSIC.url,musicPath);}catch{/* reported below */}
   // mac-only:start
   if(!hostIsWindows()&&!await hostProbeSeconds(musicPath)){await hostRemove(musicPath);try{await env.runShell('curl -L -sS --max-time 240 -A "Mozilla/5.0" -o '+q(musicPath)+' '+q(MUSIC.url),'Fetch the background music',300000);}catch{/* reported below */}}
@@ -64,7 +64,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   }
   const legacy=existing.graphics.some((g:any)=>g.name===PREFIX+"Captions");
   if(legacy&&!state&&(scope==='preserve'||scope==='broll'))throw new Error("This is a legacy Chris Draft. Choose Replace captions or Rebuild all, preferably on a copy. The old combined caption cannot be separated while preserving unknown manual parameter edits.");
-  (await mkdirs(hostJoin(env.dataDir,"states")));
+  mkdirs(hostJoin(env.dataDir,"states"));
   let draftId=sequenceId;
   if(options.copy && !state?.pending) {
     const name=String(src.name||"Draft").replace(SUFFIX,"")+SUFFIX;
@@ -91,7 +91,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   const job=String(draftId).slice(0,8)+"-"+Date.now().toString(36);
   const jobDir=newRun?hostJoin(env.dataDir,"runs",job):state.jobDir;
   const mediaFolder=newRun?"Chris Williamson Style "+job:state.mediaFolder;
-  (await mkdirs(hostJoin(jobDir,mediaFolder)));
+  mkdirs(hostJoin(jobDir,mediaFolder));
   state=state||{version:2,items:{},keys:null};
   if(!newRun)scope=state.scope;
   state={...state,draftId,projectId,signature,jobDir,mediaFolder,pending:true,scope};

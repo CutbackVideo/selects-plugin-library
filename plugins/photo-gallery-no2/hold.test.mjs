@@ -1,4 +1,3 @@
-import { asyncSdk } from '../../tests/windows_host.mjs';
 // The panel's short-video hold (the `// hold:start` block of panel.template.tsx) run in node:vm on the av-host
 // helpers, with window.parent.__DI__ backed by node fs and the local ffmpeg/ffprobe (the host's bundled tools in
 // Selects). It replaces hold_video.py; dev/hold_video.py stays as the parity reference on a dev Mac.
@@ -39,10 +38,10 @@ function host({ calls = [] } = {}) {
   return { FileSystem, Runtime };
 }
 function load(di) {
-  const window = { parent: { __DI__: new Proxy(di, { get() { throw Error("Unexpected DI access"); } }) } };
-  const context = vm.createContext({ sdk: asyncSdk(di), window, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
+  const window = { parent: { __DI__: di } };
+  const context = vm.createContext({ window, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
     AbortController, setTimeout, clearTimeout, console });
-  vm.runInContext(blocks + '\nhostUseSdk(sdk); this.holdVideos = holdVideos; this.holdDimensions = holdDimensions;', context);
+  vm.runInContext(blocks + '\nthis.holdVideos = holdVideos; this.holdDimensions = holdDimensions;', context);
   return context;
 }
 function sourceVideo(file, duration = 0.1) {

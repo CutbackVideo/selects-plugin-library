@@ -13,8 +13,6 @@ from pathlib import Path
 import re
 import unittest
 
-from windows_static import assert_no_shell_token, shell_token_present
-
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins/doac-style'
 PANEL = Path(os.environ.get('DOAC_PANEL') or PLUGIN / 'panel.tsx')
@@ -54,7 +52,7 @@ class DoacStyleWindowsTest(unittest.TestCase):
         runtime = strip_comments(HOST_BLOCK.sub('', self.portable))
         for token in FORBIDDEN:
             with self.subTest(token=token):
-                assert_no_shell_token(self, token, runtime)
+                self.assertNotIn(token, runtime)
         self.assertIsNone(SPAWN.search(runtime), 'no node/python spawn outside mac-only regions')
 
     def test_no_shell_call_outside_mac_only_regions(self):
@@ -73,8 +71,8 @@ class DoacStyleWindowsTest(unittest.TestCase):
     def test_build_entries_no_longer_refuse_windows(self):
         for token in ('MAC_ONLY', 'macOnly', "'mac-only'", 'Available on macOS for now'):
             with self.subTest(token=token):
-                assert_no_shell_token(self, token, self.text)
-        run = between(self.text, 'function TemplateRun(', 'function Panel')
+                self.assertNotIn(token, self.text)
+        run = between(self.text, 'function TemplateRun(', 'export default function Panel')
         self.assertNotIn('hostIsWindows', run)
         self.assertIn('disabled={busy||!context.sequenceId||!!job?.uncertain}', self.text)
 

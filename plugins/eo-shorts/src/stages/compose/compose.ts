@@ -99,7 +99,7 @@ export async function composeFilm(c: ComposeInput): Promise<ComposeReport> {
       say("Laying out scene " + s.sceneId + "…");
       const pictures: Record<string, Picture> = {};
       for (const [id, path] of Object.entries(s.pictures ?? {})) pictures[id] = { bytes: await readBytes(fs, path), semanticParts: null };
-      const dir = (await ensureDir(fs, sceneDir(s.sceneId)));
+      const dir = ensureDir(fs, sceneDir(s.sceneId));
       const r = await (c.compile ?? compileScene)({ plan: s.plan, style: c.style, pictures, sceneDir: dir, footageRoot: "" }, { readFont: c.readFont, doc: c.doc, join: (...p) => fs.join(...p) });
       await writeFileAtomic(fs, fs.join(dir, "execution.json"), r.text);
       await writeFileAtomic(fs, fs.join(dir, "compile-report.json"), reportText(r.report));
@@ -118,7 +118,7 @@ export async function composeFilm(c: ComposeInput): Promise<ComposeReport> {
 
   const bakes: ComposeReport["bakes"] = [];
   await lap("bake", async () => {
-    await ensureDir(fs, c.dirs.footage);
+    ensureDir(fs, c.dirs.footage);
     const probed = new Map<string, { size: { width: number; height: number }; durationSeconds: number | null }>();
     for (const o of plan.overlays) {
       const sf = footage.find((x) => x.sceneId === o.sceneId)!;

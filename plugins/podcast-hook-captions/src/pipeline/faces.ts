@@ -90,7 +90,7 @@ export async function trackFaces(
     }
   } finally {
     try {
-      (await fs().rm(workDir, { recursive: true, force: true }));
+      fs().rmSync(workDir, { recursive: true, force: true });
     } catch {}
   }
   const frames = done;

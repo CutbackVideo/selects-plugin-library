@@ -43,7 +43,7 @@ async function runSpeaker(ctx: StageContext, o: SpeakerStageOptions): Promise<St
   const draftId = job.draftId;
   if (!draftId) throw new Error("The job has no EO draft yet (the edit stage makes it).");
   const rs = { signal: ctx.signal, ...(o.backoffMs ? { backoffMs: o.backoffMs } : {}) };
-  await ensureDir(fs, ctx.path("speaker"));
+  ensureDir(fs, ctx.path("speaker"));
 
   ctx.note("Reading the EO draft…");
   const read = await readScript<SpeakerDraftRead>(host.sdk, "EO Shorts: read Main for the speaker framing", readSpeakerDraftScript(job.projectId, draftId), rs);
@@ -66,7 +66,7 @@ async function runSpeaker(ctx: StageContext, o: SpeakerStageOptions): Promise<St
   };
 
   const detector = o.detector ? () => o.detector!(ctx) : () => sharedFaceDetector(fs, ctx.roots.runtime, (s) => ctx.note(s));
-  const sh = o.host ? o.host(ctx) : (await panelSpeakerHost(host, { scratchDir: ctx.path("speaker/tmp"), detector, signal: ctx.signal, progress: (s) => ctx.note(s) }));
+  const sh = o.host ? o.host(ctx) : panelSpeakerHost(host, { scratchDir: ctx.path("speaker/tmp"), detector, signal: ctx.signal, progress: (s) => ctx.note(s) });
   const result = await analyzeSpeaker(input, sh, { signal: ctx.signal });
   await writeJsonAtomic(fs, ctx.path(SPEAKER_REL.faces), result.faces);
   await writeJsonAtomic(fs, ctx.path(SPEAKER_REL.framing), result.framing);

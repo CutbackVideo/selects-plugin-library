@@ -27,7 +27,7 @@ export function storeFromHostFs(fs: HostFs): ModelStore {
   return {
     join: (...parts) => fs.join(...parts),
     async readText(path) {
-      if (!(await fs.exists(path))) return null;
+      if (!fs.existsSync(path)) return null;
       return decodeText(await fs.readFile(path));
     },
     writeText: (path, text) => queue(path, () => writeFileAtomic(fs, path, text)),

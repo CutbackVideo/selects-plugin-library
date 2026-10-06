@@ -183,9 +183,9 @@ assert.ok(code.includes('<div lang={L} style={L === "ko" ? { wordBreak: "keep-al
 assert.ok(/setInterval\(\(\) => setTick\(\(n\) => n \+ 1\), 350\)/.test(panel), 'letters re-style every 350 ms in the preview');
 {
   // The 350 ms clock lives in LettersPreview, so only the preview re-renders on each tick.
-  const lp = panel.slice(panel.indexOf('function LettersPreview('), panel.indexOf('function Panel('));
+  const lp = panel.slice(panel.indexOf('function LettersPreview('), panel.indexOf('export default function Panel('));
   assert.ok(lp.includes('setInterval(() => setTick'), 'the preview tick is local to LettersPreview');
-  assert.ok(!panel.slice(panel.indexOf('function Panel(')).includes('setTick'), 'the panel has no tick state');
+  assert.ok(!panel.slice(panel.indexOf('export default function Panel(')).includes('setTick'), 'the panel has no tick state');
 }
 assert.ok(!panel.includes('(dev)') && !panel.includes('DEV_CUES'), 'the bundled cues are not marked as development cues');
 // Frozen defaults (spec 15.7).
@@ -211,7 +211,7 @@ assert.ok(!/\.(captureFrames|captureVisualFrames)\(/.test(panel), 'no frame capt
   const quickLogic = between(panel, 'tpl-panel-logic', true).slice(panel.indexOf('async function tplQuickMoments(') - panel.indexOf('// tpl-panel-logic:start'));
   for (const [name, text] of [['quick-score block', block], ['tplQuickDataDir', helper], ['tplQuickMoments', quickLogic]]) {
     assert.ok(text.length > 100, name);
-    for (const re of [/runShell/, /mkdir -p/, /\$HOME/, /printf/, /rm -f/, /(?<![\w.])base64\s/, /export PATH/, /child_process/]) assert.ok(!re.test(text), name + ' has no ' + re);
+    for (const re of [/runShell/, /mkdir -p/, /\$HOME/, /printf/, /rm -f/, /base64 /, /export PATH/, /child_process/]) assert.ok(!re.test(text), name + ' has no ' + re);
   }
   assert.ok(helper.includes('fs.join(fs.homedir(), ".selects", "plugin-data", PLUGIN_ID)'), 'the data folder through the host FileSystem');
 }

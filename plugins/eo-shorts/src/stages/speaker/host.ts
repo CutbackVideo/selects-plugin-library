@@ -25,10 +25,10 @@ export function rangeReader(host: Pick<Host, "fs">): { read(path: string, offset
   };
 }
 
-export async function panelSpeakerHost(host: Host, o: { scratchDir: string; detector: () => Promise<FaceDetector>; signal?: AbortSignal | null; progress?: (s: string) => void }): Promise<SpeakerHost> {
+export function panelSpeakerHost(host: Host, o: { scratchDir: string; detector: () => Promise<FaceDetector>; signal?: AbortSignal | null; progress?: (s: string) => void }): SpeakerHost {
   const fs = host.fs;
   const ranges = rangeReader(host);
-  await ensureDir(fs, o.scratchDir);
+  ensureDir(fs, o.scratchDir);
   return {
     async probe(path) {
       const rt = host.runtime;
@@ -40,9 +40,9 @@ export async function panelSpeakerHost(host: Host, o: { scratchDir: string; dete
       return (await analyze(host.runtime, args, { signal: signal ?? o.signal, timeoutMs: 15 * 60_000 })).stderr;
     },
     readRange: (path, offset, length) => ranges.read(path, offset, length),
-    async remove(path) {
+    remove(path) {
       ranges.forget(path);
-      await removeFile(fs, path);
+      removeFile(fs, path);
     },
     scratchPath: (name) => fs.join(o.scratchDir, name),
     detect: async (bgr, w, h) => (await o.detector()).detect(bgr, w, h),

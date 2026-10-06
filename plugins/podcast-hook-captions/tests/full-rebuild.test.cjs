@@ -3,16 +3,15 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const path=require('node:path');
 const {createRequire}=require('node:module');
-const {sdkFixturePlugin,initializedSdk,asyncMemoryFiles}=require('./sdk-fixture.cjs');
 const modules=process.env.AI_PANEL_TEST_MODULES;
 const plugin=path.resolve(__dirname,'..');
 function memory() {
  const files=new Map();
- const storage={...asyncMemoryFiles(files),join:path.join,normalize:path.normalize,homedir:()=>'/owned',mkdir:async ()=>{},rm:async ()=>{},exists:async p=>files.has(p)||[...files.keys()].some(n=>n.startsWith(p+'/')),readdir:async p=>[...files.keys()].filter(n=>n.startsWith(p+'/')).map(n=>n.slice(p.length+1)),readFile:async p=>{if(!files.has(p))throw Error('ENOENT');return files.get(p);},writeFile:async(p,v)=>files.set(p,v),rename:async (a,b)=>{assert.ok(files.has(a));files.set(b,files.get(a));files.delete(a);}};
+ const storage={join:path.join,normalize:path.normalize,homedir:()=>'/owned',mkdirSync:()=>{},rmSync:()=>{},existsSync:p=>files.has(p)||[...files.keys()].some(n=>n.startsWith(p+'/')),readdirSync:p=>[...files.keys()].filter(n=>n.startsWith(p+'/')).map(n=>n.slice(p.length+1)),readFile:async p=>{if(!files.has(p))throw Error('ENOENT');return files.get(p);},readFileSync:p=>files.get(p),writeFileSync:(p,v)=>files.set(p,v),writeFile:async(p,v)=>files.set(p,v),renameSync:(a,b)=>{assert.ok(files.has(a));files.set(b,files.get(a));files.delete(a);}};
  return {files,storage};
 }
 function load(source,dependency) {
- const target={exports:{}};new Function('require','module','exports',source)(dependency,target,target.exports);globalThis.__initializePodcastHost(globalThis.__podcastSdkFixture);return target.exports;
+ const target={exports:{}};new Function('require','module','exports',source)(dependency,target,target.exports);return target.exports;
 }
 test('actual make/rebuild face integration, with all paid generation and Draft edits stubbed',{skip:!modules&&'Set AI_PANEL_TEST_MODULES to existing Selects node_modules'},async t=>{
  const dependency=createRequire(path.join(path.resolve(modules),'..','package.json')),esbuild=dependency('esbuild');
@@ -26,13 +25,13 @@ test('actual make/rebuild face integration, with all paid generation and Draft e
   '../plan':'export const buildPlan=()=>({notes:[],broll:[],flashes:[]});',
   './faceFrames':'export const probeVideo=async()=>({W:64,H:32,fps:24,timeBase:"1/12288",offset:0,frameS:1/24});export const verifyConstantSourceClock=async()=>{};export const sampleFrames=async function*(path,info,plan){for(let i=0;i<plan.count;i++)yield new Uint8Array(plan.w*plan.h*3).fill(80);};'
  };
- const built=await esbuild.build({entryPoints:[path.join(plugin,'src/pipeline/make.ts')],bundle:true,write:false,platform:'node',format:'cjs',plugins:[sdkFixturePlugin(),{name:'unpaid-disposable-fixtures',setup(b){
+ const built=await esbuild.build({entryPoints:[path.join(plugin,'src/pipeline/make.ts')],bundle:true,write:false,platform:'node',format:'cjs',plugins:[{name:'unpaid-disposable-fixtures',setup(b){
   b.onResolve({filter:/^\.\.?\//},a=>mocks[a.path]?{path:a.path,namespace:'fixture'}:undefined);
   b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:mocks[a.path],loader:'ts'}));
  }}]});
  await t.test('make and Rebuild reject a 559 host before native preparation, storage or Draft edits',async()=>{
   const {files,storage}=memory();const oldWindow=Object.getOwnPropertyDescriptor(globalThis,'window'),oldFixture=Object.getOwnPropertyDescriptor(globalThis,'__rebuildFixture');
-  globalThis.window={parent:{}};globalThis.__podcastSdkFixture=initializedSdk(storage,'2.0.559');globalThis.__rebuildFixture={prepared:0};
+  globalThis.window={parent:{__DI__:{FileSystem:storage,Runtime:{getHostingVersion:()=> '2.0.559'}}}};globalThis.__rebuildFixture={prepared:0};
   try{
    const make=load(built.outputFiles[0].text,dependency);
    await assert.rejects(make.makeReel({}, {projectId:'project',sequenceId:'source'}, {seconds:30,hint:''}, ()=>{}),/Selects 2\.0\.560 or later/);
@@ -43,7 +42,7 @@ test('actual make/rebuild face integration, with all paid generation and Draft e
  for(const terminal of ['failed','canceled'])await t.test('explicit Rebuild retries only the '+terminal+' clip and reuses successful clips',async()=>{
   const {files,storage}=memory(),dir='/owned/.selects/plugin-data/podcast-hook-captions/reels/reel';
   const oldWindow=Object.getOwnPropertyDescriptor(globalThis,'window'),oldFixture=Object.getOwnPropertyDescriptor(globalThis,'__rebuildFixture');
-  globalThis.window={parent:{}};globalThis.__podcastSdkFixture=initializedSdk(storage);
+  globalThis.window={parent:{__DI__:{FileSystem:storage,Runtime:{getHostingVersion:()=> '2.0.560'}}}};
   const clips=[0,1].map(i=>({clipId:i+7,rid:`11111111-1111-4111-8111-11111111111${i}`,s:i*24,e:(i+1)*24,path:'/owned/source.mp4',srcStart:i,sw:64,sh:32}));
   globalThis.__rebuildFixture={reel:{fps:24,endFrame:48,words:[],clips},shots:[]};
   files.set(dir+'/job.json',JSON.stringify({version:2,projectId:'project',sourceId:'source',reelId:'reel',name:'Reel',picks:{}}));
@@ -68,13 +67,13 @@ test('actual make/rebuild face integration, with all paid generation and Draft e
   } finally {for(const [name,previous]of [['window',oldWindow],['__rebuildFixture',oldFixture]]){if(previous)Object.defineProperty(globalThis,name,previous);else delete globalThis[name];}}
  });
  await t.test('actual cancel bridge ignores a superseded unknown receipt and cancels the current retry',async()=>{
-  const compiled=await esbuild.build({entryPoints:[path.join(plugin,'src/pipeline/sharedFaceJobs.ts')],bundle:true,write:false,platform:'node',format:'cjs',plugins:[sdkFixturePlugin()]});
+  const compiled=await esbuild.build({entryPoints:[path.join(plugin,'src/pipeline/sharedFaceJobs.ts')],bundle:true,write:false,platform:'node',format:'cjs'});
   const {files,storage}=memory(),dir='/owned/retry-cancel',c=require('../src/pipeline/sharedAiFaces.cjs');
   const old={input:c.faceInput('project','raw-video',{f0:0,f1:24,step:4},24,'old-key'),workflowId:'ai:old',status:'failed'};
   const retry=await c.faceRequestRecord([old],old.input,'legacy',dir,true);retry.status='running';retry.workflowId='ai:retry';
   files.set(dir+'/face-ai-input-legacy-old-key.json',JSON.stringify({version:1,input:old.input}));
   files.set(dir+'/face-ai-jobs.json',JSON.stringify({version:1,records:[retry]}));
-  const previous=Object.getOwnPropertyDescriptor(globalThis,'window');globalThis.window={parent:{}};globalThis.__podcastSdkFixture=initializedSdk(storage);
+  const previous=Object.getOwnPropertyDescriptor(globalThis,'window');globalThis.window={parent:{__DI__:{FileSystem:storage}}};
   const calls=[];
   try {
    const api=load(compiled.outputFiles[0].text,dependency);

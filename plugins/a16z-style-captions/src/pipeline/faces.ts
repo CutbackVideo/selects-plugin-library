@@ -43,7 +43,7 @@ export type FaceJob = { id: string; path: string; start: number; end: number };
 export async function trackFaces(sdk: Sdk, rt: { python: string; model: string }, dir: string, jobs: FaceJob[]): Promise<Record<string, SourceFaces>> {
   const out: Record<string, SourceFaces> = {};
   if (!jobs.length) return out;
-  (await fs().mkdir(dir, { recursive: true }));
+  fs().mkdirSync(dir, { recursive: true });
   const jobsPath = fs().join(dir, "face-jobs.json");
   const outPath = fs().join(dir, "faces.json");
   await fs().writeFile(jobsPath, J(jobs));

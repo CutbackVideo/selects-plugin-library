@@ -1,4 +1,3 @@
-const { asyncSdk } = require('../../../tests/windows_host.mjs');
 // plugins/selfie-aesthetic/tests/still.test.cjs (run: node plugins/selfie-aesthetic/tests/still.test.cjs)
 // Stillness picker: holds come from the stillest moments of a clip when the still weight is > 0.
 //   1. Regression: with weight 0 (the default) saePlanBuild returns byte-for-byte the plans the planner returned
@@ -196,9 +195,9 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sae-still-'));
 function hostBlock(di) {
   const src = fs.readFileSync(path.join(root, 'dev', 'host-block.ts'), 'utf8');
   const block = src.slice(src.indexOf('// sae-host:start'), src.indexOf('// sae-host:end'));
-  const box = { sdk: asyncSdk(di), setTimeout, clearTimeout, AbortController, navigator: {}, window: { parent: { __DI__: di } } };
+  const box = { setTimeout, clearTimeout, AbortController, navigator: {}, window: { parent: { __DI__: di } } };
   vm.createContext(box);
-  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + block + ';hostUseSdk(sdk);globalThis.H={saeMotionCurve,saeMotionArgs,saeMotionValues,SAE_MOTION_FPS};', box);
+  vm.runInContext(block + ';globalThis.H={saeMotionCurve,saeMotionArgs,saeMotionValues,SAE_MOTION_FPS};', box);
   return box.H;
 }
 const runFF = (args, signal) => new Promise((resolve, reject) => execFile(tool('ffmpeg'), args, { signal, encoding: 'utf8' }, (err, stdout, stderr) => (err ? (err.stderr = stderr, reject(err)) : resolve({ stdout, stderr }))));

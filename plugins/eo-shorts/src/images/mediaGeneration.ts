@@ -68,8 +68,9 @@ export class GenerationError extends Error {
   }
 }
 
-export function mediaGenerationService(mg: MediaGenerationLike | null | undefined): MediaGenerationLike {
-  const methods = ["isAvailable", "submit", "list", "cancel", "retryDelivery"] as const;
+export function mediaGenerationService(di: Record<string, any> | null | undefined): MediaGenerationLike {
+  const mg = di?.MediaGeneration;
+  const methods = ["isAvailable", "submit", "list", "cancel", "retryDelivery"];
   if (!mg || methods.some((m) => typeof mg[m] !== "function")) {
     throw new GenerationError("unavailable", "generation_update_required", "This Selects build cannot generate pictures for plug-ins. Update Selects.");
   }
@@ -87,9 +88,17 @@ export function mediaGenerationService(mg: MediaGenerationLike | null | undefine
     pluginFiles = false;
   }
   if (!pluginFiles) {
-    throw new GenerationError("unavailable", "plugin_files_unsupported", "This Selects build cannot deliver generated pictures to plugin files. Update Selects.");
+    throw new GenerationError("unavailable", "plugin_files_unsupported", "Generating pictures into plug-in files needs Selects 2.0.512 or later. Update Selects.");
   }
   return mg as MediaGenerationLike;
+}
+
+export function scopeFromPath(pathname: string | null | undefined, projectId: string): GenScope | null {
+  const m = /\/libraries\/([^/?#]+)\/(?:projects|prep-project)\/([^/?#]+)(?:[/?#]|$)/.exec(String(pathname || ""));
+  if (!m) return null;
+  const lib = decodeURIComponent(m[1]);
+  const pid = decodeURIComponent(m[2]);
+  return pid === projectId ? { libraryId: lib, projectId } : null;
 }
 
 export type RowVerdict =
@@ -145,7 +154,7 @@ export type WaitOptions = {
   pollMs?: number;
   now?: () => number;
   sleep?: (ms: number, signal?: AbortSignal | null) => Promise<void>;
-  fileExists?: (path: string) => boolean | Promise<boolean>;
+  fileExists?: (path: string) => boolean;
   onTick?: (verdict: RowVerdict, row: GenJobRow | null) => void;
 };
 
@@ -181,7 +190,7 @@ export async function waitForDraw(mg: MediaGenerationLike, scope: GenScope, jobI
     const v = judgeRow(row, { sinceMs, redeliveries });
     o.onTick?.(v, row);
     if (v.kind === "delivered") {
-      if (!o.fileExists || await o.fileExists(v.path)) return { path: v.path, row: row! };
+      if (!o.fileExists || o.fileExists(v.path)) return { path: v.path, row: row! };
       if (redeliveries >= MAX_REDELIVERIES) throw new GenerationError("failed", "delivered_file_missing", "The generated picture was delivered but its file is missing.", jobId);
       redeliveries += 1;
       await mg.retryDelivery(scope, jobId).catch(() => undefined);

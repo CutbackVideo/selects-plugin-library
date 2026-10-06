@@ -137,11 +137,11 @@ async function packAt(h: PictureHost, id: string, stem: string, sizeOf: (w: numb
   const srcBytes = await readBytes(h.fs, source);
   const size = imageSize(srcBytes);
   const d = sizeOf(size.w, size.h);
-  if (!(await h.fs.exists(dir))) (await h.fs.mkdir(dir, { recursive: true }));
+  if (!h.fs.existsSync(dir)) h.fs.mkdirSync(dir, { recursive: true });
   const file = h.fs.join(dir, webpName(stem, d.w, d.h, mode));
   const sourceSha256 = await sha256Hex(srcBytes);
   const stamp = file + ".source-sha256";
-  const fresh = (await h.fs.exists(file)) && (await h.fs.exists(stamp)) && new TextDecoder().decode(await readBytes(h.fs, stamp)).trim() === sourceSha256;
+  const fresh = h.fs.existsSync(file) && h.fs.existsSync(stamp) && new TextDecoder().decode(await readBytes(h.fs, stamp)).trim() === sourceSha256;
   if (!fresh) {
     const tmp = file + ".part.webp";
     await encode(h.runtime, webpArgs(source, tmp, d.w, d.h, mode, srcBytes), { fs: h.fs, outPath: tmp, signal: h.signal, timeoutMs: 60_000 });
@@ -155,7 +155,7 @@ async function packAt(h: PictureHost, id: string, stem: string, sizeOf: (w: numb
   if (inline) url = dataUri("image/webp", bytes);
   else {
     if (typeof h.fs.pathToLocalURL !== "function") throw new Error("This Selects build cannot name plugin-data files for a Motion Graphic (FileSystem.pathToLocalURL); update Selects.");
-    url = await h.fs.pathToLocalURL(file);
+    url = h.fs.pathToLocalURL(file);
   }
   return {
     id,

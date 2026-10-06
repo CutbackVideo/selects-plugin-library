@@ -158,8 +158,26 @@ test('finish refuses a Draft whose clips moved and does not save',async()=>{
  assert.equal(result.status,'notSaved');assert.equal(log.commits,0);
 });
 
-// Native placement behavior is exercised through runScript in native_image_sdk_migration.test.mjs.
+// The panel's Image placement bridge on a fake timeline: 21 sequential clips from 4 photos.
 const panelSource=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
+const bridge=panelSource.slice(panelSource.indexOf('export async function placeNativeImages'),panelSource.indexOf('// Registers the bundled music'));
+const {placeNativeImages}=vm.runInThisContext('(function(){const LETTERS=["A","B","C","D"];'+bridge.replaceAll('export async function','async function')+';return {placeNativeImages};})()');
+
+test('bridge places 21 clips from 4 photos, shortening each 120-frame still',async()=>{
+ const trims=[];let next=1;const clips=new Map(),placedFrom=[];
+ const candidate={
+  place:(src,start)=>{const id=next++;placedFrom.push(src.working.slot);clips.set(id,{start,dur:120});return [id];},
+  getClipPositionById:id=>{const c=clips.get(id);return c&&{trackId:'t'+id,resolvedOffset:c.start,clip:{getDuration:()=>c.dur}};},
+  trimClipBoundary:({clipId,delta,sourceDuration})=>{const c=clips.get(clipId);trims.push({before:c.dur,delta,sourceDuration});if(sourceDuration<c.dur)throw Error('Source range exceeded');c.dur+=delta;return {trimmedClipPosition:candidate.getClipPositionById(clipId)};},
+  getDuration:()=>plan.durationFrames,slice:()=>{}};
+ const di={ProjectRepository:{findById:async()=>({getEditedSequences:()=>['d']})},SequenceRepository:{findById:async()=>({getFrameRate:()=>30,getDuration:()=>347,getFrameSize:()=>plan.canvas})},
+  TimelineMutation:{run:async(_s,_l,fn)=>({status:'committed',sequence:fn({clone:()=>candidate})})}};
+ const sources=['A','B','C','D'].map(slot=>({analyzed:{slot},main:{},primary:{getId:()=>1},width:1086,height:1448}));
+ const out=await placeNativeImages({di,libraryId:'l',projectId:'p',sources},'d',plan);
+ assert.equal(out.placements.length,21);
+ assert.equal(placedFrom.join(''),'ABCDABCDABCDABCDABCDA');
+ assert.ok(trims.every(t=>t.delta<0&&t.sourceDuration===t.before));
+});
 
 test('an old Selects build gets the update message, not "Reinstall"',()=>{
  assert.ok(panelSource.includes(NEWER_SELECTS));

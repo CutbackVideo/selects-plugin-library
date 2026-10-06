@@ -2,11 +2,10 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {createPassJournal}=require('../src/pipeline/facePassJournal.cjs');
-const {asyncMemoryFiles}=require('./sdk-fixture.cjs');
 const {faceInput,runRecord}=require('../src/pipeline/sharedAiFaces.cjs');
 const input=key=>faceInput('project','raw-video',{f0:0,f1:24,step:4},24,key);
 function memory() {
- const files=new Map();const storage={...asyncMemoryFiles(files),join:(...p)=>p.join('/'),exists:async p=>files.has(p)||[...files.keys()].some(name=>name.startsWith(p+'/')),readdir:async p=>[...files.keys()].filter(name=>name.startsWith(p+'/')).map(name=>name.slice(p.length+1)),readFile:async p=>files.get(p),writeFile:async(p,v)=>files.set(p,v),rename:async (a,b)=>{assert.ok(files.has(a));files.set(b,files.get(a));files.delete(a);}};
+ const files=new Map();const storage={join:(...p)=>p.join('/'),existsSync:p=>files.has(p)||[...files.keys()].some(name=>name.startsWith(p+'/')),readdirSync:p=>[...files.keys()].filter(name=>name.startsWith(p+'/')).map(name=>name.slice(p.length+1)),readFile:async p=>files.get(p),readFileSync:p=>files.get(p),writeFileSync:(p,v)=>files.set(p,v),writeFile:async(p,v)=>files.set(p,v),renameSync:(a,b)=>{assert.ok(files.has(a));files.set(b,files.get(a));files.delete(a);}};
  return {files,storage};
 }
 for(const oldStatus of ['succeeded','canceled'])test('independent realm late '+oldStatus+' history write cannot restore an old active generation',async()=>{
@@ -81,24 +80,4 @@ test('closing during a new-pass data write leaves the active pass untouched',asy
  const owner=createPassJournal(storage,'owned',()=> 'detached-pass');
  const pending=owner.newPass(ac.signal),rejected=assert.rejects(pending,/detached/);await waiting;ac.abort();release();await rejected;
  assert.equal(files.has('owned/face-ai-current.json'),false);assert.equal((await owner.read()).generation,'legacy');
-});
-
-test('a delayed compare-and-replace cannot publish over a newer panel realm',async()=>{
- const {files,storage}=memory();let release,started;const entered=new Promise(resolve=>started=resolve),replace=storage.compareAndReplace;
- storage.compareAndReplace=async(path,expected,text)=>{
-  if(JSON.parse(text).generation==='first'){started();await new Promise(resolve=>release=resolve);}
-  return replace(path,expected,text);
- };
- const first=createPassJournal(storage,'owned',()=> 'first'),second=createPassJournal(storage,'owned',()=> 'second');
- const publishing=first.newPass(),rejected=assert.rejects(publishing,/newer face pass/);await entered;
- await second.newPass();release();await rejected;
- assert.equal(JSON.parse(files.get('owned/face-ai-current.json')).generation,'second');
-});
-test('dispatched publication may finish after detachment and is recovered without a new pass',async()=>{
- const {files,storage}=memory(),controller=new AbortController();let release,started;const entered=new Promise(resolve=>started=resolve),replace=storage.compareAndReplace;
- storage.compareAndReplace=async(...args)=>{started();await new Promise(resolve=>release=resolve);return replace(...args);};
- const owner=createPassJournal(storage,'owned',()=> 'committed');
- const pending=owner.newPass(controller.signal);await entered;controller.abort();release();await pending;
- assert.equal((await createPassJournal(storage,'owned').read()).generation,'committed');
- assert.equal(JSON.parse(files.get('owned/face-ai-current.json')).generation,'committed');
 });

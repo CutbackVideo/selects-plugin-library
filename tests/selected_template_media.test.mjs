@@ -32,7 +32,7 @@ function projectFixture(detail=false){
  const app={__DI__:{ProjectRepository:{findById:async()=>({getResources:()=>appRows.map(r=>r.resourceId)})},ResourceRepository:{findById:async(_lib,id)=>{
   const i=appRows.findIndex(r=>r.resourceId===id);return i<0?null:{getType:()=>rows[i].type,getMedia:()=>({originalPath:files[i]?.path})};
  }}}};
- return {rows,files,sdk,app,appRows,calls};
+ return {rows,files,sdk,app,calls};
 }
 
 for(const detail of [false,true])test(`Recap returns only picked videos through a bounded response (${detail?'tree':'folder summary'})`,async()=>{
@@ -76,120 +76,4 @@ test('Camera finds only its bundled audio and reuses imports with Windows path s
  assert.ok(calls[0].bytes<1000);
  const empty=await camera.inventory(sdk,'p','No selected photos',{type:'Image',paths:[]});
  assert.equal(empty.length,0);
-});
-
-test('Camera resolves template picks when host DI access is forbidden',async()=>{
- const {sdk,calls}=projectFixture();
- const app=new Proxy({}, {get(){throw Error('Host access is forbidden');}});
- const photos=Array.from({length:12},(_,i)=>({resourceId:'app-r'+(2000+i),kind:'image'}));
- const selected=await camera.templateSelection(sdk,app,'p','lib',{photos});
- assert.deepEqual(Array.from(selected,r=>r.resourceId),photos.map(r=>r.resourceId.slice(4)));
- assert.ok(calls.every(c=>c.bytes<10000));
-});
-
-const migrated=['camera-shutter-dump','four-photo-stop-motion','polaroid-photo-dump','no14-still-video','photo-gallery-no2','postcard-cutout-studio','multicam-generator'];
-for(const id of migrated){
- const selected=loadPanelFunctions(source(id),['sdkSelectedMedia']).sdkSelectedMedia;
- test(`${id}: SDK lookup keeps order, duplicate picks, and mixed media`,async()=>{
-  const {sdk,calls}=projectFixture();
-  const picks=[{resourceId:'app-r2001',kind:'image'},{resourceId:'app-r0',kind:'video'},{resourceId:'app-r2001',kind:'image'}];
-  const rows=await selected(sdk,'p',picks);
-  assert.deepEqual(Array.from(rows,r=>r.resourceId),['r2001','r0','r2001']);
-  assert.ok(calls.every(c=>c.bytes<2000));
- });
- test(`${id}: SDK lookup refuses removed, wrong-type, and changed selections`,async()=>{
-  const {sdk}=projectFixture();
-  await assert.rejects(selected(sdk,'p',[{resourceId:'missing',kind:'image'}]),/missing/);
-  await assert.rejects(selected(sdk,'p',[{resourceId:'app-r0',kind:'image'}]),/wrong media type/);
-  const original=sdk.call;let reads=0;
-  sdk.call=async()=>{const rows=(await original()).map(r=>({...r}));if(++reads===2)[rows[0],rows[1]]=[rows[1],rows[0]];return rows;};
-  await assert.rejects(selected(sdk,'p',[{resourceId:'app-r0',kind:'video'}]),/changed/);
- });
- test(`${id}: SDK failures and clipped output cannot become file selections`,async()=>{
-  const {sdk}=projectFixture();
-  sdk.runScript=async()=>({isError:true,output:'denied'});
-  await assert.rejects(selected(sdk,'p',[{resourceId:'app-r0'}]),/denied/);
-  sdk.runScript=async()=>({isError:false,output:'Result clipped'});
-  await assert.rejects(selected(sdk,'p',[{resourceId:'app-r0'}]),/clipped/);
- });
-}
-
-test('Postcard reads generated resource paths through the SDK',async()=>{
- const postcard=loadPanelFunctions(source('postcard-cutout-studio'),['appResourcePath']);
- const {sdk,files}=projectFixture();
- assert.equal(await postcard.appResourcePath(sdk,{projectId:'p'},'app-r0'),files[0].path);
-});
-
-test('Postcard resolves a file to its host resource id through the SDK',async()=>{
- const postcard=loadPanelFunctions(source('postcard-cutout-studio'),['appResourceIdForPath','samePath']);
- const {sdk,files}=projectFixture();
- assert.equal(await postcard.appResourceIdForPath(sdk,{projectId:'p'},files[0].path),'app-r0');
- assert.equal(await postcard.appResourceIdForPath(sdk,{projectId:'p'},'/missing.mp4'),null);
-});
-
-test('Multicam resolves generated videos with DI access forbidden',async()=>{
- const {sdk,files}=projectFixture();
- const panel=loadPanelFunctions(source('multicam-generator').replace(/^ {2}/gm,'').replace(/ as any/g,''),['resolveResource'],{
-  sdk,window:{parent:new Proxy({}, {get(){throw Error('Host access is forbidden');}})}
- });
- const media=await panel.resolveResource({plan:{projectId:'p'}},'app-r0');
- assert.equal(media.path,files[0].path);
- await assert.rejects(panel.resolveResource({plan:{projectId:'p'}},'app-r2000'),/type/);
-});
-
-for(const id of ['postcard-cutout-studio','multicam-generator']){
- const lookup=loadPanelFunctions(source(id),['sdkMediaByPath']).sdkMediaByPath;
- test(`${id}: path lookup preserves Windows spellings and rejects duplicate imports`,async()=>{
-  const {sdk,files,calls}=projectFixture();
-  files[0].path='C:\\Footage\\\uD55C\uAE00\\VIDEO.mp4';
-  assert.equal((await lookup(sdk,'p','c:/footage/\uD55C\uAE00/video.mp4'))[0].resourceId,'app-r0');
-  assert.equal((await lookup(sdk,'p','video.mp4',true))[0].resourceId,'app-r0');
-  assert.equal((await lookup(sdk,'p','/missing')).length,0);
-  assert.ok(calls.every(c=>c.bytes<500));
-  files[1].path=files[0].path;
-  await assert.rejects(lookup(sdk,'p',files[0].path),/More than one/);
- });
-}
-
-test('standalone copies of the SDK helpers remain identical, including the build template',()=>{
- for(const marker of ['sdk-selected-media','sdk-media-path']){
-  const copies=[...migrated.map(source),fs.readFileSync(path.join(root,'photo-gallery-no2','panel.template.tsx'),'utf8')]
-    .filter(s=>s.includes('// '+marker+':start'))
-    .map(s=>s.slice(s.indexOf('// '+marker+':start'),s.indexOf('// '+marker+':end')));
-  assert.ok(copies.length>=2);
-  assert.ok(copies.every(s=>s===copies[0]),marker+' helpers differ');
- }
-});
-
-test('Multicam reuses prepared imports and resolves a newly registered file through the SDK',async()=>{
- const {sdk,files,rows,appRows}=projectFixture();
- const writes=[];
- const panel=loadPanelFunctions(source('multicam-generator').replace(/^ {2}/gm,'').replace(/ as any/g,''),['importPath'],{
-  sdk,script:async(code,summary,allowCommit)=>{
-   assert.equal(allowCommit,true);writes.push(summary);
-   const resource={resourceId:'new-video',name:'prepared.mp4',type:'Video'};
-   rows.push(resource);
-   appRows.push({...resource,resourceId:'app-new-video'});
-   files.push({...resource,type:'video',path:'/prepared.mp4'});
-  }
- });
- const context={plan:{projectId:'p'}};
- assert.equal(await panel.importPath(context,files[0].path),'app-r0');
- assert.deepEqual(writes,[]);
- assert.equal(await panel.importPath(context,'/prepared.mp4'),'app-new-video');
- assert.deepEqual(writes,['Import prepared media']);
-});
-
-test('Place Count reads the full paged tree without DI and keeps host resource identities',async()=>{
- const {sdk,files,calls}=projectFixture();
- const call=sdk.call;
- sdk.call=async method=>method==='getProjectDraftScaffold'?{owner:{libraryId:'lib',projectId:'p'}}:call();
- const panel=loadPanelFunctions(source('place-count'),['fullProjectInventory','readMediaPages'],{
-  issue:message=>Error(message),window:{parent:new Proxy({}, {get(){throw Error('Host access is forbidden');}})}
- });
- const inventory=await panel.fullProjectInventory(sdk,'p');
- assert.equal(inventory.length,files.length);
- assert.equal(inventory[0].resourceId,'app-r0');
- assert.equal(inventory[0].path,files[0].path);
- assert.ok(calls.every(c=>c.bytes<16000));
 });

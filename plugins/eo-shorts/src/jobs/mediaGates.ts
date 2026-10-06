@@ -21,6 +21,15 @@ export async function mediaGates(ctx: Pick<StageContext, "host" | "job" | "path"
   return { stockSearch, pictures, why };
 }
 
+export function withoutPluginPictures(di: Record<string, any> | null | undefined): Record<string, any> | null {
+  if (!di) return di ?? null;
+  const mg = di.MediaGeneration;
+  if (!mg) return di;
+  const view: Record<string, unknown> = {};
+  for (const k of ["isAvailable", "submit", "list", "cancel", "retryDelivery"]) if (typeof mg[k] === "function") view[k] = mg[k].bind(mg);
+  return { ...di, MediaGeneration: view };
+}
+
 export function createGatedMediaStage(base: MediaStageOptions = {}): StageImpl {
   const plain = createMediaStage(base);
   return {
@@ -34,7 +43,7 @@ export function createGatedMediaStage(base: MediaStageOptions = {}): StageImpl {
       const stage = createMediaStage({
         ...base,
         ...(g.stockSearch ? {} : { search: () => null }),
-        ...(g.pictures ? {} : { images: (o: JobImagesOptions) => images({ ...o, mg: null, host: { ...o.host, generation: null } }) }),
+        ...(g.pictures ? {} : { images: (o: JobImagesOptions) => images({ ...o, mg: null, host: { ...o.host, di: withoutPluginPictures(o.host.di) } }) }),
       });
       return stage.run(ctx);
     },

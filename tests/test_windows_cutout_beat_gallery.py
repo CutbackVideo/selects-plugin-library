@@ -13,8 +13,6 @@ from pathlib import Path
 import re
 import unittest
 
-from windows_static import assert_no_shell_token, shell_token_present
-
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins/cutout-beat-gallery'
 PANEL = Path(os.environ.get('CUTOUT_PANEL') or PLUGIN / 'panel.tsx')
@@ -66,7 +64,7 @@ class CutoutBeatGalleryWindowsTest(unittest.TestCase):
         runtime = strip_comments(HOST_BLOCK.sub('', self.portable))
         for token in FORBIDDEN:
             with self.subTest(token=token):
-                assert_no_shell_token(self, token, runtime)
+                self.assertNotIn(token, runtime)
         self.assertIsNone(SPAWN.search(runtime), 'no node/python spawn outside mac-only regions')
 
     def test_no_shell_call_outside_mac_only_regions(self):

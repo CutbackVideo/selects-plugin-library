@@ -34,14 +34,14 @@ export function requestSha(r: ShotRequest): Promise<string> {
 }
 
 async function pickIntact(fs: HostFs, media: string, shotId: string, pick: ShotPick): Promise<boolean> {
-  if (!(await fs.exists(pick.localPath))) return false;
+  if (!fs.existsSync(pick.localPath)) return false;
   if (pick.kind === "video") {
     if (!pick.interval) return false;
     const [s, e] = pick.interval;
     return clipHolds(fs, pick.localPath, pick.fileUrl, s, e - s);
   }
   const rec = await readJsonIfExists<{ fileUrl?: string; localFile?: string; bytes?: number } | null>(fs, photoRecordPath(fs, media, shotId), null);
-  return !!rec && rec.fileUrl === pick.fileUrl && rec.localFile === fs.basename(pick.localPath) && rec.bytes === (await statFile(fs, pick.localPath))?.size;
+  return !!rec && rec.fileUrl === pick.fileUrl && rec.localFile === fs.basename(pick.localPath) && rec.bytes === statFile(fs, pick.localPath)?.size;
 }
 
 export async function resumableResult(fs: HostFs, media: string, r: ShotRequest, sha: string, o: { judging?: boolean } = {}): Promise<ShotResult | null> {

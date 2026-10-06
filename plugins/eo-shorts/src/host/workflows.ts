@@ -93,7 +93,7 @@ export async function startExport(
       verify: async (failed) => {
         lastReport = failed;
         if (startedExport(failed, kind, input.outPath)) return "done";
-        if (failed.kind === "transport" && opts.fs && (await opts.fs.exists(input.outPath))) return "fail";
+        if (failed.kind === "transport" && opts.fs && opts.fs.existsSync(input.outPath)) return "fail";
         return failed.kind === "transport" ? "retry" : "fail";
       },
     });
@@ -140,7 +140,7 @@ export async function waitForExport(sdk: PanelSdk, o: WaitOptions): Promise<Expo
   let last: WorkflowSnapshot = { status: "unknown", step: null, progress: null, lastErrorMessage: null, listed: false };
 
   const checkFile = async (requireStable: boolean): Promise<ExportDone | null> => {
-    const st = (await statFile(o.fs, o.outPath));
+    const st = statFile(o.fs, o.outPath);
     if (!st || st.size <= 0) {
       lastSize = -1;
       return null;
