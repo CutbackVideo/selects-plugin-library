@@ -1237,40 +1237,11 @@ return { map, missing };`;
 export const VOX_READY_TRIES = 40;
 export const VOX_READY_PAUSE_MS = 3000;
 // @operation-end
-// Windows downloads stay in the renderer: the host downloader buffers without bounds in the main process.
-// Abort covers headers AND streaming the body; decoded bytes are capped even without Content-Length.
-async function voxFetchBytes(url: string, maxBytes: number, timeoutMs: number, headers = {}) {
-  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs);
-  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-  try {
-    const r = await fetch(url, { headers, signal: controller.signal });
-    if (!r.ok) return { code: r.status, bytes: new Uint8Array() };
-    if (Number(r.headers.get("content-length")) > maxBytes || !r.body) throw new Error("download too large or not streamable");
-    reader = r.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let length = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      length += value.byteLength;
-      if (length > maxBytes) throw new Error("download too large");
-      chunks.push(value);
-    }
-    const bytes = new Uint8Array(length);
-    let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    return { code: r.status, bytes };
-  } finally {
-    clearTimeout(timer);
-    controller.abort();
-    if (reader) void reader.cancel().catch(() => {});
-  }
-}
 // The engine's I/O on the host (see voxEngine): job files through FileSystem, ffmpeg and ffprobe through the host's
 // bundled copies, and the network two ways. Wikipedia/Commons API answers come through fetch (they allow any origin
 // with origin=*, and take Api-User-Agent for the agent engine.py sends). Article pages and portrait images are
-// downloaded by the host on macOS. Windows uses bounded renderer fetch; a CORS-blocked, oversized or stalled
-// page counts as HTTP 599 (FETCH_FAILED: "paste the text instead"); optional portraits are skipped on failure.
+// downloaded by the host's FileSystem.downloadFile, outside the panel's origin rules, into the job folder; a page that
+// will not download counts as HTTP 599 (FETCH_FAILED: "paste the text instead").
 function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; writeJson: (p: string, v: any) => Promise<void> }) {
   const fs = hostNeed("FileSystem", "join");
   const tmp = () => hostJoin(dir, "dl-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".tmp");
@@ -1294,14 +1265,6 @@ function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; 
       } finally { clearTimeout(timer); }
     },
     http: async (url: string, ua: string, timeout: number) => {
-      if (hostIsWindows()) {
-        try {
-          const wiki = /^https:\/\/(en\.wikipedia\.org|commons\.wikimedia\.org)\/w\/api\.php\?/.test(url);
-          const r = await voxFetchBytes(wiki ? url + "&origin=*" : url, 4 * 1024 * 1024,
-            Math.min(25000, timeout * 1000), wiki ? { "Api-User-Agent": ua } : {});
-          return { code: r.code, text: new TextDecoder().decode(r.bytes) };
-        } catch { return { code: 599, text: "" }; }
-      }
       if (/^https:\/\/(en\.wikipedia\.org|commons\.wikimedia\.org)\/w\/api\.php\?/.test(url)) {
         const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeout * 1000);
         try {
@@ -1317,16 +1280,8 @@ function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; 
         return { code: 599, text: "" };
       } finally { await hostRemove(dest); }
     },
-    // Portrait requests are sequential in voxCmdPortraits. Windows writes only a complete, bounded response.
+    // A portrait: the host's download first; if that fails, the panel's fetch (Wikimedia's files allow any origin).
     download: async (url: string, dest: string) => {
-      if (hostIsWindows()) {
-        try {
-          const r = await voxFetchBytes(url, 8 * 1024 * 1024, 25000);
-          if (r.code !== 200 || !r.bytes.length) return r.code >= 300 ? r.code : 599;
-          await hostNeed("FileSystem", "writeFile").writeFile(dest, r.bytes);
-          return 200;
-        } catch { return 599; }
-      }
       try {
         await hostNeed("FileSystem", "downloadFile").downloadFile(url, dest);
         if (fs.existsSync(dest)) return 200;
@@ -1562,7 +1517,7 @@ export default function Panel({ sdk, context, ui }: any) {
   // downloads) and its bundled ffmpeg/ffprobe; a Selects build without them gets one "update Selects" message.
   async function ensureEnv() {
     if (env.current) return env.current;
-    if (!fs || (!hostApi("FileSystem", "join") || (!hostIsWindows() && !hostApi("FileSystem", "downloadFile"))) || !hostApi("Runtime", "runFFmpeg", "runFFprobe")) throw new Error(S.noHost);
+    if (!fs || !hostApi("FileSystem", "join", "downloadFile") || !hostApi("Runtime", "runFFmpeg", "runFFprobe")) throw new Error(S.noHost);
     env.current = { root: hostJoin(fs.homedir(), ".selects", "plugin-data", APP_ID) };
     return env.current;
   }
@@ -1896,7 +1851,7 @@ export default function Panel({ sdk, context, ui }: any) {
 
   const secs = busy && t0 ? Math.round((Date.now() - t0) / 1000) : 0;
   // A Selects build without the host file and ffmpeg services cannot run the engine; say so and keep the buttons off.
-  const noHost = !fs || (!hostApi("FileSystem", "join") || (!hostIsWindows() && !hostApi("FileSystem", "downloadFile"))) || !hostApi("Runtime", "runFFmpeg", "runFFprobe");
+  const noHost = !fs || !hostApi("FileSystem", "join", "downloadFile") || !hostApi("Runtime", "runFFmpeg", "runFFprobe");
 
   return (
     <ui.Stack gap={16}>

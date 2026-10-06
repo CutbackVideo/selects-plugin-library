@@ -13,32 +13,34 @@ function load(extra = {}) {
   return ctx.api;
 }
 const execute = (script, selects) => vm.runInNewContext(stripTypeScriptTypes(`(async function(selects){${script}})`))(selects);
-const response = (chunks, length = null) => ({ok:true,status:200,headers:{get:()=>length},body:new ReadableStream({start(c){for(const chunk of chunks)c.enqueue(Uint8Array.from(chunk));c.close();}})});
 function network(fetcher, windows = true) {
   const writes = [], hostCalls = [];
   const api = load({fetch:fetcher, window:{parent:{__DI__:{Runtime:{getPlatform:()=>windows?'win32':'darwin'},FileSystem:{join:path.win32.join,existsSync:()=>true,mkdirSync(){},writeFile:async(p,b)=>writes.push([p,[...b]]),downloadFile:async(...args)=>hostCalls.push(args),readFile:async()=>new TextEncoder().encode('host article'),removeFile:async()=>{}}}}}});
   return {io:api.voxHostIO('C:\\Users\\\ud64d\uae38\ub3d9\\job', {}),writes,hostCalls};
 }
-test('Windows article and portrait reads bypass the unbounded host downloader',async()=>{
-  const n=network(async()=>response([[65,66]]));
-  assert.deepEqual({...await n.io.http('https://example.org/page','agent',1)},{code:200,text:'AB'});
-  assert.equal(await n.io.download('https://example.org/image','C:\\Users\\\ud64d\uae38\ub3d9\\portrait.jpg'),200);
-  assert.equal(n.hostCalls.length,0);assert.deepEqual(n.writes[0][1],[65,66]);
-});
-test('Windows rejects oversized headers and chunked bodies before a file write',async()=>{
-  for(const fetcher of [async()=>response([],String(100*1024*1024)),async()=>response([new Uint8Array(9*1024*1024)])]){
-    const n=network(fetcher);assert.equal(await n.io.download('https://example.org/big','dest'),599);assert.equal(n.writes.length,0);assert.equal(n.hostCalls.length,0);
-  }
-});
-test('Windows aborts stalled requests at the requested article timeout',async()=>{
-  let aborted=false;
-  const n=network((_url,{signal})=>new Promise((_,reject)=>signal.addEventListener('abort',()=>{aborted=true;reject(new Error('aborted'));})));
-  assert.equal((await n.io.http('https://example.org/stall','agent',0.01)).code,599);assert.equal(aborted,true);
-});
-test('Windows CORS failure returns the paste-text/optional-portrait fallback',async()=>{
+test('win32 article pages and portraits use FileSystem.downloadFile even when renderer CORS blocks fetch',async()=>{
   const n=network(async()=>{throw new TypeError('CORS');});
-  assert.equal((await n.io.http('https://example.org/page','agent',1)).code,599);
-  assert.equal(await n.io.download('https://example.org/image','dest'),599);assert.equal(n.hostCalls.length,0);
+  const article='https://example.org/page', portrait='https://example.org/image';
+  const dest=path.win32.join('C:', 'Users', 'portrait.jpg');
+  assert.deepEqual({...await n.io.http(article,'agent',1)},{code:200,text:'host article'});
+  assert.equal(await n.io.download(portrait,dest),200);
+  assert.equal(n.hostCalls.length,2);
+  assert.equal(n.hostCalls[0][0],article);
+  assert.match(n.hostCalls[0][1],/dl-.*\.tmp$/);
+  assert.deepEqual(n.hostCalls[1],[portrait,dest]);
+  assert.equal(n.writes.length,0);
+});
+test('win32 Wikimedia API answers use fetch with origin=* and Api-User-Agent',async()=>{
+  const calls=[];
+  const n=network(async(url,options)=>{calls.push([url,options]);return {status:200,text:async()=>'{"query":{}}'};});
+  for(const domain of ['en.wikipedia.org','commons.wikimedia.org']) {
+    const url=`https://${domain}/w/api.php?action=query`;
+    assert.deepEqual({...await n.io.http(url,'test-agent',1)},{code:200,text:'{"query":{}}'});
+    const [actual,options]=calls.at(-1);
+    assert.equal(actual,url+'&origin=*');
+    assert.equal(options.headers['Api-User-Agent'],'test-agent');
+  }
+  assert.equal(n.hostCalls.length,0);
 });
 test('macOS keeps the host article download path',async()=>{
   const n=network(async()=>{throw Error('unexpected fetch');},false);
@@ -70,17 +72,6 @@ for(const fps of [24000/1001,24,25,30000/1001,30,60000/1001])test(`Draft overlay
   assert.equal(out.seconds,end/fps);assert.deepEqual(ranges[0],[Math.round(fps),Math.round(fps)+Math.floor(2*fps)]);assert.deepEqual(ranges[1],[Math.round(fps),Math.round(3*fps)]);
 });
 
-test('the deadline aborts a real response whose body stalls after headers',async()=>{
-  const {createServer}=await import('node:http');
-  const server=createServer((_req,res)=>{res.writeHead(200,{'Content-Type':'text/plain'});res.write('partial');});
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-  try {
-    const n=network(fetch);const begin=Date.now();
-    const r=await n.io.http(`http://127.0.0.1:${server.address().port}/stall`,'agent',0.1);
-    assert.equal(r.code,599);assert.ok(Date.now()-begin<2000);assert.equal(n.writes.length,0);
-  } finally {server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
-});
-
 test('macOS resource names remain case-sensitive',async()=>{
   const api=load();const files=['/tmp/Clip.mp4'];const rows=[{name:'clip.mp4',resourceId:'other',durationSeconds:5}];
   const selects={project:()=>({resources:async()=>rows,importFiles:async()=>{}})};
@@ -105,12 +96,4 @@ test('real ffmpeg accepts mixed SAR sheets, drive-letter fonts and the Ken Burns
     const probe=spawnSync('ffprobe',['-v','error','-select_streams','v:0','-show_entries','stream=width,height,sample_aspect_ratio','-of','json',out],{encoding:'utf8'});
     assert.equal(probe.status,0,probe.stderr);const stream=JSON.parse(probe.stdout).streams[0];assert.deepEqual(stream,{width:1920,height:1080,sample_aspect_ratio:'1:1'});
   } finally {fs.rmSync(dir,{recursive:true,force:true});}
-});
-
-test('an empty or partial portrait response is skipped rather than reported as a saved file',async()=>{
-  for(const status of [200,204,206]){
-    const n=network(async()=>({...response([]),status}));
-    assert.equal(await n.io.download('https://example.org/empty','dest'),599);
-    assert.equal(n.writes.length,0);
-  }
 });
