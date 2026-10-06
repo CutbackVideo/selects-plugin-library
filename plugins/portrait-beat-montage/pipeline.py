@@ -206,14 +206,33 @@ def op_doctor(_args):
             "python": sys.version.split()[0]}
 
 
+class PersonMatteUnavailable(RuntimeError):
+    """A shot-local matte quality failure; setup and media errors stay fatal."""
+
+
+def fallback_count(root, plan):
+    # Count montage appearances, including repeated windows, rather than cache entries.
+    return sum((root / key / "plain.json").exists() for key in plan["slots"])
+
+
 def mattes(video, folder):
     rvm = rvm_launcher()
     if not rvm:
         raise RuntimeError("RVM runtime is not set up. See INSTALL.md.")
-    out = run(["sh", str(rvm / "run.sh"), "cutout", json.dumps({
-        "input": str(video), "startSeconds": 0, "durationSeconds": MATTE_FRAMES / FPS,
-        "ratio": RVM_RATIO, "provider": "cpu", "outputRoot": str(folder / "rvm")})],
-        stdout=subprocess.PIPE, text=True).stdout
+    try:
+        out = run(["sh", str(rvm / "run.sh"), "cutout", json.dumps({
+            "input": str(video), "startSeconds": 0, "durationSeconds": MATTE_FRAMES / FPS,
+            "ratio": RVM_RATIO, "provider": "cpu", "outputRoot": str(folder / "rvm")})],
+            stdout=subprocess.PIPE, text=True).stdout
+    except subprocess.CalledProcessError as error:
+        # RVM writes inference diagnostics to this unit's launcher log, not stdout.
+        # Only its explicit quality failures are recoverable; decoder/setup failures are not.
+        out = error.stdout or ""
+        logs = "\n".join(p.read_text() for p in (folder / "rvm").glob("*.launcher.log"))
+        unit_failed = ("benchmark.py" in out and "returned non-zero exit status" in out) or "An incomplete job was preserved." in out
+        if unit_failed and ("No foreground was detected;" in logs or "Matte is entirely opaque;" in logs):
+            raise PersonMatteUnavailable("No usable person matte in this shot.") from error
+        raise
     result = json.loads(out.strip().splitlines()[-1])
     if not result.get("result"):
         raise RuntimeError("RVM failed: " + out[-400:])
@@ -224,7 +243,7 @@ def mattes(video, folder):
     alpha = np.stack([np.asarray(Image.open(masks / f"{k + 1:03d}.png").convert("L"), np.float32) / 255
                       for k in range(MATTE_FRAMES)])
     if alpha.shape != (MATTE_FRAMES, H, W) or not .03 < alpha[0].mean() < .95:
-        raise RuntimeError("No person was found in this shot.")
+        raise PersonMatteUnavailable("No person was found in this shot.")
     return alpha
 
 
@@ -370,8 +389,9 @@ def op_unit(args):
     cache = DATA / "cache" / hashlib.sha1(
         f"{unit['path']}|{stat.st_size}|{stat.st_mtime_ns}|{unit['start']:.4f}|v3".encode()).hexdigest()[:16]
     if (cache / "post-held.npy").exists() and (cache / "source.mp4").exists():
-        for name in ("source.mp4", "post-held.npy"):
-            share(cache / name, folder / name)
+        for name in ("source.mp4", "plain.json", "post-held.npy"):
+            if (cache / name).exists():
+                share(cache / name, folder / name)
         return {"key": key, "cached": True}
     source = folder / "source.mp4"
     # setsar=1: non-square-pixel footage (e.g. SAR 853:854) gets square pixels, as the panel's unitSourceArgs does.
@@ -379,14 +399,20 @@ def op_unit(args):
     run([FFMPEG, "-y", "-v", "error", "-ss", str(unit["start"]), "-i", unit["path"], "-vf", vf,
          "-frames:v", str(SRC_FRAMES), "-an", "-c:v", "libx264", "-crf", "15", "-pix_fmt", "yuv420p", "-write_tmcd", "0", str(source)])
     frames = decode(source, SRC_FRAMES)
-    alpha = mattes(source, folder)
-    plate = background_plate(frames[0], alpha[0])
-    post = transition_frames(frames[:MATTE_FRAMES], alpha, plate)
+    try:
+        alpha = mattes(source, folder)
+        plate = background_plate(frames[0], alpha[0])
+        post = transition_frames(frames[:MATTE_FRAMES], alpha, plate)
+    except PersonMatteUnavailable:
+        # Keep the original window and speed curve; omit only the person cutout.
+        post = np.stack([np.uint8(interp_frame(frames, positions[i])) for i in range(POST)])
+        (folder / "plain.json").write_text('{"reason":"person-matte-unavailable"}')
     np.save(folder / "post-held.partial.npy", post)
     os.replace(folder / "post-held.partial.npy", done)
     cache.mkdir(parents=True, exist_ok=True)
-    for name in ("source.mp4", "post-held.npy"):
-        share(folder / name, cache / name)
+    for name in ("source.mp4", "plain.json", "post-held.npy"):
+        if (folder / name).exists():
+            share(folder / name, cache / name)
     return {"key": key, "cached": False}
 
 
@@ -547,6 +573,9 @@ def op_assemble(args):
                 "gapFrames": segs[0]["start"],
                 "clips": [{**s, "frames": s["end"] - s["start"], "path": str(out / f"{s['name']}.mp4")} for s in segs],
                 "audio": audio, "master": str(out / "master-60fps.mp4") if master else None}
+    plain_shots = fallback_count(root, plan)
+    if plain_shots:
+        manifest["plainShots"] = plain_shots
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2))
     return manifest
 
@@ -589,8 +618,12 @@ def op_work(args):
             p.wait()
         errors = [k for k in keys if not (root / k / "post-held.npy").exists()]
     finally:
-        (root / "units.exit").write_text(json.dumps({"failed": errors}))
-    return {"failed": errors}
+        status = {"failed": errors}
+        plain_shots = fallback_count(root, plan)
+        if plain_shots:
+            status["plainShots"] = plain_shots
+        (root / "units.exit").write_text(json.dumps(status))
+    return status
 
 OPS = {"doctor": op_doctor, "plan": op_plan, "unit": op_unit, "assemble": op_assemble, "spawn": op_spawn, "work": op_work}
 

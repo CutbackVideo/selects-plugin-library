@@ -158,6 +158,8 @@ const macOnlyError = (language) => Object.assign(new Error(macOnlyText(language)
 // Windows person mattes spend Selects generation credits, so the panel asks first (no cost estimate API exists: the
 // notice says what is sent). A Clip highlights run has no panel to ask in: starting the template counts as consent
 // (product decision 2026-10-06), and plugin.json declares usesCredits.
+const PLAIN_TEXT = {en: "{n} shots could not use a person cutout, so they use the plain footage.", de: "Bei {n} Einstellungen war kein Personen-Freisteller möglich. Sie verwenden das Originalvideo.", es: "En {n} planos no se pudo recortar a una persona, por lo que se usa el vídeo original.", fr: "Le détourage d’une personne était impossible dans {n} plans. Ils utilisent la vidéo d’origine.", it: "In {n} inquadrature non è stato possibile ritagliare una persona, quindi viene usato il video originale.", ja: "{n}ショットで人物を切り抜けなかったため、元の映像を使用しています。", ko: "{n}\uac1c \uc0f7\uc5d0\uc11c \uc778\ubb3c\uc744 \ubd84\ub9ac\ud560 \uc218 \uc5c6\uc5b4 \uc6d0\ubcf8 \uc601\uc0c1\uc744 \uc0ac\uc6a9\ud588\uc2b5\ub2c8\ub2e4.", pt: "Não foi possível recortar uma pessoa em {n} planos, por isso usam o vídeo original.", tr: "{n} çekimde kişi ayrıştırılamadığı için orijinal görüntü kullanıldı.", zh: "{n} 个镜头无法进行人物抠像，因此使用原始画面。"};
+const plainText = (language, count) => count ? pick(PLAIN_TEXT, language).replace("{n}", String(count)) : "";
 const COST_TEXT = {en: "This sends about {s} s of video ({n} shots) to Selects background removal, which uses generation credits. A rebuild reuses the result.", de: "Dabei werden etwa {s} s Video ({n} Einstellungen) an die Hintergrundentfernung von Selects gesendet, die Generierungs-Credits verbraucht. Ein erneuter Aufbau verwendet das Ergebnis wieder.", es: "Se envían unos {s} s de vídeo ({n} planos) a la eliminación de fondo de Selects, que usa créditos de generación. Al volver a crearlo se reutiliza el resultado.", fr: "Environ {s} s de vidéo ({n} plans) seront envoyées à la suppression d’arrière-plan de Selects, qui utilise des crédits de génération. Une nouvelle création réutilise le résultat.", it: "Vengono inviati circa {s} s di video ({n} inquadrature) alla rimozione dello sfondo di Selects, che usa crediti di generazione. Ricreando il montaggio il risultato viene riutilizzato.", ja: "約{s}秒の動画（{n}ショット）をSelectsの背景除去に送信します。生成クレジットを使用します。作り直す場合は結果を再利用します。", ko: "\uc57d {s}\ucd08 \ubd84\ub7c9\uc758 \uc601\uc0c1({n}\uac1c \uc0f7)\uc744 Selects \ubc30\uacbd \uc81c\uac70\ub85c \ubcf4\ub0c5\ub2c8\ub2e4. \uc0dd\uc131 \ud06c\ub808\ub527\uc774 \uc0ac\uc6a9\ub429\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4 \ub54c\ub294 \uacb0\uacfc\ub97c \uc7ac\uc0ac\uc6a9\ud569\ub2c8\ub2e4.", pt: "Isto envia cerca de {s} s de vídeo ({n} planos) para a remoção de fundo do Selects, que usa créditos de geração. Ao recriar, o resultado é reutilizado.", tr: "Bu işlem yaklaşık {s} sn videoyu ({n} çekim) Selects arka plan kaldırmaya gönderir ve üretim kredisi kullanır. Yeniden oluşturmada sonuç tekrar kullanılır.", zh: "这会将约 {s} 秒视频（{n} 个镜头）发送到 Selects 背景移除，并消耗生成额度。重新生成时会复用结果。"};
 const COST_GO = {en: "Use credits and continue", de: "Credits verwenden und fortfahren", es: "Usar créditos y continuar", fr: "Utiliser des crédits et continuer", it: "Usa i crediti e continua", ja: "クレジットを使って続行", ko: "\ud06c\ub808\ub527 \uc0ac\uc6a9\ud558\uace0 \uacc4\uc18d", pt: "Usar créditos e continuar", tr: "Kredi kullan ve devam et", zh: "使用额度并继续"};
 const COST_STOP = {en: "Cancel", de: "Abbrechen", es: "Cancelar", fr: "Annuler", it: "Annulla", ja: "キャンセル", ko: "\ucde8\uc18c", pt: "Cancelar", tr: "İptal", zh: "取消"};
@@ -676,6 +678,11 @@ export function pbmKernels() {
   function handle(state, op, data, progress) {
     const N = W * H;
     if (op === "unit") {
+      if (data.plain) {
+        const size = N * 3, post = new Uint8Array(POST * size), scratch = new Float32Array(size);
+        for (let i = 0; i < POST; i++) post.set(Uint8Array.from(interpFrame(data.frames, Math.floor(data.frames.length / size), size, positions[i], scratch), u8), i * size);
+        return post;
+      }
       const alpha = new Float32Array(data.mattes.length);
       for (let p = 0; p < alpha.length; p++) alpha[p] = f(data.mattes[p] / 255);
       const plate = backgroundPlate(data.frames.subarray(0, N * 3), alpha.subarray(0, N));
@@ -965,6 +972,14 @@ async function pbmDecodeSource(io, folder, count, signal) {
 }
 // pipeline.py op_unit for every shot window still missing: sources, then one matte request for all of them, then the
 // transitions. Windows with the same cache folder are rendered once.
+async function pbmCopyUnit(io, from, to) {
+  for (const name of ["source.mp4", "plain.json", "post.rgb"]) {
+    if (io.fs.existsSync(hostJoin(from, name))) await io.fs.copyFile(hostJoin(from, name), hostJoin(to, name));
+  }
+}
+function pbmPlainCount(io, run) {
+  return run.plan.slots.filter((key) => io.fs.existsSync(hostJoin(run.root, key, "plain.json"))).length;
+}
 async function pbmUnits(io, kernels, run, mattes, signal, progress) {
   const keys = Object.keys(run.plan.units).sort(), N = W * H, todo = [], copies = [];
   const done = (folder) => io.fs.existsSync(hostJoin(folder, "post.rgb")) && io.fs.existsSync(hostJoin(folder, "source.mp4"));
@@ -974,7 +989,7 @@ async function pbmUnits(io, kernels, run, mattes, signal, progress) {
     if (done(folder)) continue;
     io.fs.mkdirSync(folder, { recursive: true });
     const cache = await pbmCacheDir(io, unit);
-    if (done(cache)) { for (const name of ["source.mp4", "post.rgb"]) await io.fs.copyFile(hostJoin(cache, name), hostJoin(folder, name)); continue; }
+    if (done(cache)) { await pbmCopyUnit(io, cache, folder); continue; }
     if (byCache.has(cache)) { copies.push({ from: byCache.get(cache), folder }); continue; }
     // Mattes paid for in an earlier run of this window are reused (a rebuild never asks twice).
     if (io.fs.existsSync(hostJoin(cache, "matte.gray")) && !io.fs.existsSync(hostJoin(folder, "matte.gray"))) await io.fs.copyFile(hostJoin(cache, "matte.gray"), hostJoin(folder, "matte.gray"));
@@ -1000,18 +1015,19 @@ async function pbmUnits(io, kernels, run, mattes, signal, progress) {
   for (const t of todo) {
     const frames = (await pbmDecodeSource(io, t.folder, SRC_FRAMES, signal)).slice(0, MATTE_FRAMES * N * 3);
     const matte = await hostReadBytes(hostJoin(t.folder, "matte.gray"));
-    if (matte.byteLength !== MATTE_FRAMES * N) throw new Error("The person mattes for " + io.fs.basename(t.unit.path) + " are incomplete.");
+    const incomplete = matte.byteLength !== MATTE_FRAMES * N;
     let cover = 0;
     for (let p = 0; p < N; p++) cover += Math.fround(matte[p] / 255);
-    if (!(cover / N > .03 && cover / N < .95)) throw new Error("No person was found in " + io.fs.basename(t.unit.path) + ".");
+    const plain = incomplete || !(cover / N > .03 && cover / N < .95);
     const base = step;
-    const post = await kernels("unit", { frames, mattes: matte.slice() }, (p) => progress?.((base + p) / steps), signal);
+    const post = await kernels("unit", { frames, mattes: matte.slice(), ...(plain ? { plain: true } : {}) }, (p) => progress?.((base + p) / steps), signal);
+    if (plain) await pbmWriteWhole(io, hostJoin(t.folder, "plain.json"), JSON.stringify({ reason: "person-matte-unavailable" }));
     await pbmWriteWhole(io, hostJoin(t.folder, "post.rgb"), post);
     io.fs.mkdirSync(t.cache, { recursive: true });
-    for (const name of ["source.mp4", "post.rgb"]) await io.fs.copyFile(hostJoin(t.folder, name), hostJoin(t.cache, name));
+    await pbmCopyUnit(io, t.folder, t.cache);
     progress?.(++step / steps);
   }
-  for (const c of copies) for (const name of ["source.mp4", "post.rgb"]) await io.fs.copyFile(hostJoin(c.from, name), hostJoin(c.folder, name));
+  for (const c of copies) await pbmCopyUnit(io, c.from, c.folder);
 }
 // pipeline.py op_assemble (without the 60 fps master): every Draft frame of every piece from its master frame, each
 // piece written raw and encoded by ffmpeg into render/<piece>.mp4; returns pipeline.py's manifest.
@@ -1050,6 +1066,8 @@ async function pbmAssemble(io, kernels, run, signal, progress) {
     audio: [{ name: "music-bed.wav", path: asset("music-bed.wav"), start: 0, end: total },
       { name: "shutter.wav", path: asset("shutter.wav"), start: draftFrame(STROBE_START), end: draftFrame(BLACK) },
       { name: "riser.wav", path: asset("riser.wav"), start: draftFrame(RISER_START), end: draftFrame(BLACK) }], master: null };
+  const plainShots = pbmPlainCount(io, run);
+  if (plainShots) manifest.plainShots = plainShots;
   await pbmWriteWhole(io, hostJoin(run.root, "manifest.json"), JSON.stringify(manifest, null, 2));
   return manifest;
 }
@@ -1190,7 +1208,7 @@ async function pbmWindowsMontage(sdk, { projectId, files, setStep, setProgress, 
 // Each bundled sound's length in seconds (ffprobe), used when its Resource reports none: no overlay may run past it.
 const ASSET_SECONDS = { "music-bed.wav": 16.333333, "shutter.wav": 2, "riser.wav": 1.166667 };
 
-async function buildMontage(sdk, { projectId, language, files, audios, setStep, setProgress, signal, confirm }) {
+async function buildMontage(sdk, { projectId, language, files, audios, setStep, setProgress, signal, confirm, onNote }) {
   // Windows renders in the panel (person mattes from Selects generation, after `confirm`); macOS runs pipeline.py.
   const manifest = hostIsWindows() ? await pbmWindowsMontage(sdk, { projectId, files, setStep, setProgress, signal, confirm }) : await macMontage(sdk, files, setStep, setProgress);
   setStep(3);
@@ -1242,6 +1260,7 @@ const saved=await d.commitAll("Create portrait beat montage"); return {draftId:s
   const built = await sdk.runScript({ summary: "Build portrait montage draft", script, allowCommit: true });
   if (built.isError || !built.result?.draftId) throw new Error(built.output || "Draft creation failed");
   try { await sdk.runScript({ summary: "Open montage draft", script: `await selects.editor.openDraft(${json(built.result.draftId)}); return true;` }); } catch {}
+  onNote?.(plainText(language, manifest.plainShots));
   return built.result.draftId;
 }
 
@@ -1299,12 +1318,14 @@ function TemplateRun({ sdk, context }) {
       const files = picks.map((pick) => byId.get(ids.get(pick.resourceId) ?? pick.resourceId));
       const missing = picks.find((pick, i) => !files[i]?.path);
       if (missing) throw new Error(`Couldn't find ${missing.name || "a picked video"} in this project.`);
+      let note = "";
       const draftId = await buildMontage(sdk, {
         projectId, language: context.language, files, audios: reply.result.audios || [],
         setStep: (n) => setStatus(T.steps[n] + "…"), setProgress: () => {},
         // No panel to click in: starting the template is the consent to the Windows mattes' credits.
-        confirm: () => true,
+        confirm: () => true, onNote: (text) => { note = text; },
       });
+      if (note) setStatus(note);
       finish({ sequenceId: draftId });
     })().catch((error) => {
       const said = String(error?.message || "");
@@ -1401,8 +1422,9 @@ function MontagePanel({ sdk, context, ui }) {
     setProgress(0);
     try {
       cancel.current = new AbortController();
-      await buildMontage(sdk, { projectId: context.projectId, language: context.language, files: chosen, audios, setStep, setProgress, signal: cancel.current.signal, confirm: confirmCost });
-      setStatus({ type: "success", message: T.done });
+      let note = "";
+      await buildMontage(sdk, { onNote: (text) => { note = text; }, projectId: context.projectId, language: context.language, files: chosen, audios, setStep, setProgress, signal: cancel.current.signal, confirm: confirmCost });
+      setStatus({ type: "success", message: note ? T.done + " " + note : T.done });
     } catch (error) {
       setStatus(error?.code === "cancelled" ? { type: "muted", message: String(error.message) } : { type: "error", message: String(error.message || error) });
     } finally {
