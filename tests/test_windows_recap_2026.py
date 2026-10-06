@@ -80,9 +80,12 @@ class Recap2026WindowsTest(unittest.TestCase):
         for part in ('.normalize("NFC")', 'replace(/\\\\/g, "/")', "lastIndexOf(\"/\")", "hostIsWindows()", "toLowerCase()"):
             self.assertIn(part, norm, part)
 
-    def test_example_and_thumbnails_use_the_host(self):
-        self.assertIn('hostJoin(plugin,"assets","preview.mp4")', self.runtime)
-        self.assertIn('hostJoin(plugin,"assets","preview.jpg")', self.runtime)
+    def test_example_uses_the_sdk_and_thumbnails_use_the_host(self):
+        example = body(self.runtime, "async function loadExampleMedia(")
+        for part in ("files.downloadFile(", "files.stat(", "files.pathToLocalURL("):
+            self.assertIn(part, example)
+        self.assertNotIn("window.parent", self.runtime)
+        self.assertNotIn(".document", self.runtime)
         thumb = body(self.runtime, "async function captureThumbnail(")
         for part in ('hostApi("Runtime", "runFFmpeg")', "rt.runFFmpeg([", "hostReadBytes(out)", "hostRemove(out)", "data:image/jpeg;base64,"):
             self.assertIn(part, thumb, part)

@@ -67,5 +67,6 @@ or change the template deliberately.
   nothing else to install.
 - A new Project may need the bundled soundtrack analysed before overlay
   placement.
-- The panel's "finished example" player is empty after a fresh install; the
-  gallery preview is not shipped as an installed file. See `SKILL.md`.
+- The panel downloads its finished example (about 6.4 MiB) and optional poster
+  on first opening. They are cached for later playback without a network
+  connection. An unavailable example does not prevent building a Draft.
