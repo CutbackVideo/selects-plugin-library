@@ -468,7 +468,7 @@ const ids = Array.from(new Set(mains.map((m: any) => m.resourceId)));
 const files: Record<string, any> = {};
 const walk = (list: any[]) => { for (const n of list || []) { if (n.type === 'dir') walk(n.children); else if (ids.includes(n.resourceId)) files[n.resourceId] = { path: n.path, frameSize: n.frameSize || null }; } };
 const tree: any = await project.sourceFiles();
-if (tree.fileTree) walk(tree.fileTree); else for (const f of tree.folders || []) walk((await project.sourceFiles({ folder: f.name })).fileTree);
+if (tree.fileTree) walk(tree.fileTree); else for (const f of tree.folders || []) { const detail = await project.sourceFiles({ folder: f.name }); if ('fileTree' in detail) walk(detail.fileTree); }
 const sourceFps: Record<string, number> = {};
 for (const id of ids as string[]) sourceFps[id] = (await project.resource(id).meta()).fps;
 for (const m of mains) {

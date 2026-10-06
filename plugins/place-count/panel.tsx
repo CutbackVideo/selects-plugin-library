@@ -147,7 +147,7 @@ const p=selects.project(${JSON.stringify(projectId)}),resources=await p.resource
 const byId=new Map(resources.map((r,index)=>[r.resourceId,{index,name:r.name,type:r.type}]));
 const files=[];
 const walk=nodes=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.resourceId&&n.path){const r=byId.get(n.resourceId);if(!r)throw Error('The Project files changed. Try again.');files.push({path:n.path,resourceIndex:r.index,resourceName:r.name,resourceType:r.type,type:n.type,durationSeconds:n.durationSeconds||0,frameRate:n.frameRate||30,frameSize:n.frameSize||null});}}};
-const top=await p.sourceFiles();if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);else for(const folder of top.folders||[])walk((await p.sourceFiles({folder:folder.name})).fileTree);
+const top=await p.sourceFiles();if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree);}
 return {files,count:resources.length};`});
  if(response.isError||!Array.isArray(response.result?.files))throw issue(response.output||'The project source tree is unavailable.');
  const after=await sdk.call('listProjectResources',projectId),result=response.result;

@@ -573,7 +573,7 @@ async function sdkMediaByPath(sdk, projectId, path, basename = false) {
 const wanted=${JSON.stringify(path)},basename=${JSON.stringify(basename)};
 const key=value=>{const v=String(value||'').normalize('NFC').replace(/\\\\/g,'/');return /^[A-Za-z]:/.test(v)||v.startsWith('//')?v.toLowerCase():v;};
 const matches=[],walk=nodes=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.path&&(basename?key(n.path).split('/').pop()===key(wanted):key(n.path)===key(wanted))){const index=resources.findIndex(r=>r.resourceId===n.resourceId);if(index>=0)matches.push({index,name:resources[index].name,type:resources[index].type,path:n.path});}}};
-const top=await p.sourceFiles();if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);else for(const folder of top.folders||[])walk((await p.sourceFiles({folder:folder.name})).fileTree);
+const top=await p.sourceFiles();if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree);}
 if(matches.length>1)throw Error('More than one Project file matches this path.');
 return {count:resources.length,matches};`});
   if(response.isError||!response.result||!Array.isArray(response.result.matches))throw Error(response.output||'Could not find Project media.');
@@ -831,7 +831,7 @@ const files=[];
 const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else if(ids.has(n.resourceId))files.push(n);};
 const top=await p.sourceFiles();
 if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);
-else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});walk(detail.fileTree);}
+else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree);}
 return {count:resources.length,rows:selected.map(r=>r?{name:r.name,type:r.type,files:files.filter(f=>f.resourceId===r.resourceId).map(f=>({resourceId:f.resourceId,path:f.path}))}:null)};`
   });
   if (response.isError || !response.result || !Array.isArray(response.result.rows))

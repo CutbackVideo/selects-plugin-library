@@ -1144,7 +1144,7 @@ const files=[];
 const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else if(ids.has(n.resourceId))files.push(n);};
 const top=await p.sourceFiles();
 if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);
-else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});walk(detail.fileTree);}
+else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree);}
 return {count:resources.length,rows:selected.map(r=>r?{name:r.name,type:r.type,files:files.filter(f=>f.resourceId===r.resourceId).map(f=>({resourceId:f.resourceId,path:f.path}))}:null)};`
   });
   if (response.isError || !response.result || !Array.isArray(response.result.rows))

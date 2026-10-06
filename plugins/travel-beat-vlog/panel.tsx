@@ -655,8 +655,8 @@ async function nativeImageSources(selects, projectId, photos) {
  const project=selects.project(projectId), resources=await project.resources(), nodes=[];
  const visit=items=>{for(const item of items||[])item.type==='dir'?visit(item.children):nodes.push(item);};
  const overview=await project.sourceFiles();
- if(Array.isArray(overview.fileTree))visit(overview.fileTree);
- else for(const folder of overview.folders||[])visit((await project.sourceFiles({folder:folder.name})).fileTree);
+ if('fileTree' in overview)visit(overview.fileTree);
+ else for(const folder of overview.folders||[]){const detail=await project.sourceFiles({folder:folder.name});if('fileTree' in detail)visit(detail.fileTree);}
  return photos.map(photo=>{
   const matches=nodes.filter(node=>node.path===photo.path&&resources.some(resource=>resource.resourceId===node.resourceId&&resource.type==='Image'));
   if(matches.length!==1)throw Error('A selected Image is missing or ambiguous in the Project: '+photo.name);
