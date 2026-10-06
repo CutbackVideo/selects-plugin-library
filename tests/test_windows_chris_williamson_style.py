@@ -11,6 +11,8 @@ import os
 from pathlib import Path
 import re
 import unittest
+import shutil
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins' / 'chris-williamson-style'
@@ -73,6 +75,23 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
         if os.environ.get('CW_PANEL'):
             self.skipTest('another panel file')
         self.assertEqual(build(PLUGIN / 'src'), self.panel, 'panel.tsx is out of date: run python3 build.py')
+
+    def test_preview_normalizes_both_scaled_branches(self):
+        graphs = []
+        for file in [PLUGIN / 'src/engine.ts', PANEL, PLUGIN / 'media.mjs']:
+            graph = re.search(r'const vf\s*=\s*"(split\[a\]\[b\].*?)";', file.read_text()).group(1)
+            for label in ('a1', 'b1'):
+                self.assertIn(',setsar=1[' + label + ']', graph)
+            graphs.append(graph)
+        self.assertEqual(len(set(graphs)), 1)
+
+    @unittest.skipUnless(shutil.which('ffmpeg'), 'ffmpeg is unavailable')
+    def test_preview_accepts_non_square_pixels(self):
+        graph = re.search(r'const vf\s*=\s*"(split\[a\]\[b\].*?)";', self.sources['engine.ts']).group(1)
+        result = subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
+            'testsrc2=size=320x240:rate=1,setsar=853/854', '-filter_complex', graph,
+            '-frames:v', '1', '-f', 'null', '-'], capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_collection_header(self):
         self.assertIn('// @collection visual-highlights', self.panel.split('\n')[:24])
@@ -167,7 +186,7 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
     def test_manifest_lists_windows(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
-        self.assertEqual(manifest['version'], '0.2.13')
+        self.assertEqual(manifest['version'], '0.2.14')
         self.assertIn('centre-cropped', manifest['compatibility']['selects'])
         self.assertNotIn('Available on macOS for now', (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8'))
 

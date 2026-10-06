@@ -448,7 +448,7 @@ export function voxSheetJobs(ids, fileOf, font, destOf) {
     chunk.forEach((sid, i) => {
       args.push("-i", fileOf(sid));
       const label = font ? `drawtext=fontfile=${voxFontOption(font)}:text='${sid}':x=8:y=8:fontsize=34:fontcolor=white:box=1:boxcolor=black@0.8:boxborderw=6,` : "";
-      filt += `[${i}:v]scale=270:480,${label}pad=276:486:3:3:white[v${i}];`;
+      filt += `[${i}:v]scale=270:480,setsar=1,${label}pad=276:486:3:3:white[v${i}];`;
     });
     const layout = chunk.map((_, i) => `${(i % cols) * 276}_${Math.floor(i / cols) * 486}`).join("|");
     const stack = chunk.map((_, i) => `[v${i}]`).join("") + (chunk.length > 1 ? `xstack=inputs=${chunk.length}:layout=${layout}:fill=white` : "null");
@@ -461,8 +461,8 @@ export function voxSheetJobs(ids, fileOf, font, destOf) {
 export function voxKenBurnsArgs(img, dest, dur, zoomIn = true) {
   const W = VOX_W, H = VOX_H, FPS = VOX_FPS, frames = Math.ceil(dur * FPS);
   const z = zoomIn ? "min(zoom+0.0009,1.18)" : "if(eq(on,1),1.18,max(zoom-0.0009,1.0))";
-  const vf = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=26:2[bg];` +
-    `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg];` +
+  const vf = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,boxblur=26:2[bg];` +
+    `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,setsar=1[fg];` +
     `[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,scale=${W * 2}:${H * 2},` +
     `zoompan=z='${z}':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${W}x${H}:fps=${FPS}[v]`;
   return ["-y", "-loglevel", "error", "-loop", "1", "-i", img, "-filter_complex", vf, "-map", "[v]", "-t", dur.toFixed(3), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-write_tmcd", "0", dest];

@@ -1,4 +1,4 @@
-// vox-explainer: the panel's ports of engine.py's ffmpeg-only steps build exactly the argv engine.py runs, and parse
+// vox-explainer: the panel's ports of engine.py's ffmpeg-only steps match engine.py's argv apart from SAR normalization/timecode suppression, and parse
 // ffmpeg's output the same way. engine.py is loaded with subprocess.run stubbed (a dev check; skipped without python3).
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -73,13 +73,18 @@ test('media_duration and silences match engine.py', {skip}, () => {
 });
 
 // The panel adds -write_tmcd 0 before the output, so the mp4 holds its one video stream only.
+// The shipped panel additionally normalizes every combining input; engine.py is a non-shipped legacy oracle.
+const squarePixelInputs = argv => argv.map(arg => arg
+  .replaceAll('scale=270:480,', 'scale=270:480,setsar=1,')
+  .replaceAll('crop=1080:1920,boxblur', 'crop=1080:1920,setsar=1,boxblur')
+  .replaceAll('force_original_aspect_ratio=decrease[fg]', 'force_original_aspect_ratio=decrease,setsar=1[fg]'));
 const withTmcd = (argv) => [...argv.slice(0, -1), '-write_tmcd', '0', argv[argv.length - 1]];
-test('ken_burns argv matches engine.py, plus -write_tmcd 0', {skip}, () => {
-  assert.deepEqual(['ffmpeg', ...op.voxKenBurnsArgs('/k/kf 1a.png', '/k/out.mp4', 3.417, true)], withTmcd(ref.calls[2]));
-  assert.deepEqual(['ffmpeg', ...op.voxKenBurnsArgs('/k/kf 1a.png', '/k/out.mp4', 3.417, false)], withTmcd(ref.calls[3]));
+test('ken_burns argv matches engine.py plus square pixels and -write_tmcd 0', {skip}, () => {
+  assert.deepEqual(['ffmpeg', ...op.voxKenBurnsArgs('/k/kf 1a.png', '/k/out.mp4', 3.417, true)], withTmcd(squarePixelInputs(ref.calls[2])));
+  assert.deepEqual(['ffmpeg', ...op.voxKenBurnsArgs('/k/kf 1a.png', '/k/out.mp4', 3.417, false)], withTmcd(squarePixelInputs(ref.calls[3])));
 });
 
-test('sheet argv and sheet list match engine.py', {skip}, () => {
+test('sheet argv and sheet list match engine.py plus square pixels', {skip}, () => {
   const fileOf = (s) => path.join(ref.dir, `kf_${s}.png`);
   const destOf = (n) => path.join(ref.dir, 'check', `sheet_1700000000_${n}.jpg`);
   const sheets = ref.calls.slice(4);
@@ -90,7 +95,7 @@ test('sheet argv and sheet list match engine.py', {skip}, () => {
     ...op.voxSheetJobs(SHOTS, fileOf, null, destOf), ...op.voxSheetJobs([SHOTS[3]], fileOf, null, destOf),
   ];
   assert.equal(mine.length, 6);
-  assert.deepEqual(mine.map((j) => ['ffmpeg', ...j.args]), sheets);
+  assert.deepEqual(mine.map((j) => ['ffmpeg', ...j.args]), sheets.map(squarePixelInputs));
   assert.deepEqual(mine.slice(0, 3).map(({dest, shots}) => ({path: dest, shots})), [...ref.outs[0].sheets, ...ref.outs[1].sheets]);
   fs.rmSync(ref.dir, {recursive: true, force: true});
 });
@@ -199,4 +204,30 @@ test('the Draft step waits about two minutes, then names what is missing', () =>
   assert.ok(!panel.includes('imported media did not become ready') && !panel.includes('.split("/").pop()'));
   assert.equal((panel.match(/\bnotReady: \(n\) => `/g) || []).length, (panel.match(/^  (\w\w): \{$/gm) || []).length);
   assert.ok(!/status/.test(op.voxReadyScript('p', WIN).replace('the status', '')), 'readiness never reads the status');
+});
+
+
+test('every sheet and Ken Burns combining input has square pixels after scaling', () => {
+  for (const font of [null, FONT]) {
+    for (const job of op.voxSheetJobs(SHOTS, s => s + '.png', font, n => n + '.jpg')) {
+      const graph = job.args[job.args.indexOf('-filter_complex') + 1];
+      for (let i = 0; i < job.shots.length; i++) {
+        assert.ok(graph.includes(`[${i}:v]scale=270:480,setsar=1,`));
+      }
+    }
+  }
+  const args = op.voxKenBurnsArgs('in.png', 'out.mp4', 0.1);
+  const graph = args[args.indexOf('-filter_complex') + 1];
+  assert.ok(graph.includes('crop=1080:1920,setsar=1,boxblur=26:2[bg]'));
+  assert.ok(graph.includes('force_original_aspect_ratio=decrease,setsar=1[fg]'));
+});
+
+test('real sheet builder combines SAR 853:854 and 1:1 sources', {skip: !ffmpeg && 'ffmpeg is unavailable'}, () => {
+  const job = op.voxSheetJobs(['a', 'b'], s => s, null, () => 'unused.jpg')[0];
+  const graph = job.args[job.args.indexOf('-filter_complex') + 1];
+  const r = spawnSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i',
+    'testsrc2=size=320x240:rate=1,setsar=853/854', '-f', 'lavfi', '-i',
+    'testsrc2=size=640x360:rate=1,setsar=1', '-filter_complex', graph,
+    '-frames:v', '1', '-f', 'null', '-'], {encoding: 'utf8', timeout: 30000});
+  assert.equal(r.status, 0, r.stderr);
 });

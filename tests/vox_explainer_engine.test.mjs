@@ -248,6 +248,11 @@ UNITS.lang.push(LONG_EN, ko(30, 1), 'der die und das ist nicht mit den von zu', 
 UNITS.head.push('Budget', ko(4, 2), 'A very long English headline here', '\u4e2d\u6587 mixed', '', 'x'.repeat(80));
 for (let i = 0; i < 50; i++) UNITS.kling.push(rnd() * 16);
 for (let i = 0; i < 400; i++) UNITS.round.push(Math.floor(rnd() * 64000) / 16000 - 2);
+// The shipped panel additionally normalizes every combining input; engine.py is a non-shipped legacy oracle.
+const squarePixelInputs = argv => argv.map(arg => arg
+  .replaceAll('scale=270:480,', 'scale=270:480,setsar=1,')
+  .replaceAll('crop=1080:1920,boxblur', 'crop=1080:1920,setsar=1,boxblur')
+  .replaceAll('force_original_aspect_ratio=decrease[fg]', 'force_original_aspect_ratio=decrease,setsar=1[fg]'));
 const CFG = {jobs: JOBS, wiki: WIKI, pages: PAGES, font: FONT, now: NOW, units: UNITS};
 function python() {
   const r = spawnSync('python3', ['-c', HARNESS, ENGINE], {encoding: 'utf8', input: JSON.stringify(CFG), maxBuffer: 64 << 20});
@@ -333,9 +338,9 @@ test('the JS engine answers every command as engine.py does', {skip}, async () =
     for (const f of Object.keys(p.files)) assert.deepEqual(js.jobs[i].files[f], p.files[f], `${id} ${f}`);
   });
   assert.deepEqual(js.urls, py.urls);
-  // ffmpeg: the same argv, except that the JS Ken Burns clip adds -write_tmcd 0 (one video stream only).
+  // ffmpeg: same argv apart from per-input square pixels and -write_tmcd 0 (one video stream only).
   const strip = (argv) => { const i = argv.indexOf('-write_tmcd'); return i < 0 ? argv : [...argv.slice(0, i), ...argv.slice(i + 2)]; };
-  assert.deepEqual(js.calls.map(strip), py.calls);
+  assert.deepEqual(js.calls.map(strip), py.calls.map(squarePixelInputs));
 });
 
 test('the scripted jobs reach every command and the interesting branches', {skip}, () => {
