@@ -1,49 +1,65 @@
 # Install Podcast Hook Captions
 
-Experimental. Runs on macOS and Windows with Selects 2.0.512 or later (Panel
-`runScript`/`askAI`, Draft authoring, Selects generation with plug-in files).
-Nothing else needs installing:
-
-- FFmpeg and FFprobe are the copies bundled with Selects; the panel runs them
-  directly, without a shell.
-- Face tracking runs in the panel: on first use it downloads ONNX Runtime Web
-  1.30.0 (`ort.wasm.bundle.min.mjs`, `ort-wasm-simd-threaded.wasm`) and the YuNet
-  face model (`face_detection_yunet_2023mar.onnx`), checks each against a pinned
-  SHA-256, and keeps them in the plugin's data folder. This needs network access
-  once (about 15 MB).
-
-Tested on macOS. The Windows path uses the same code (no shell commands, no
-platform-specific tools) but has not been run on a Windows PC yet.
+Supports macOS arm64 and Windows x64. Requires Selects 2.0.560 or later with the public shared AI SDK. Install both
+`podcast-hook-captions` and `selects-ai-runtime` from the **same full library
+commit**. The installer does not automatically install another source plugin
+from a manifest dependency field. Installing the source packages is distinct
+from preparing native dependencies and models, which happens on first use.
 
 ## Setup
 
-1. Place the files as in the library's
-   [installation layout](../../PUBLISHING.md#installation-layout): `panel.tsx`
-   in `podcast-hook-captions` beneath `SELECTS_USER_PANELS_ROOT`, everything else
-   in `podcast-hook-captions` beneath `SELECTS_USER_SKILLS_ROOT`.
-2. Open a Draft, then open **Podcast Hook Captions** from the Plugin list.
+1. Follow the library [installation instructions](../../INSTALLING.md)
+   for each of the two packages: its `panel.tsx` goes under the matching ID in
+   `SELECTS_USER_PANELS_ROOT`; remaining listed files go under the matching ID in
+   `SELECTS_USER_SKILLS_ROOT`. Preserve existing plugin data and settings.
+2. Verify the shared runtime package is complete, including its source entry,
+   task implementations and pinned manifest. Do not copy an author's cache or
+   machine-specific configuration. Its bundled-Selects Node/runtime and model
+   preparation is automatic when a supported host receives the first request.
+3. Open a transcribed direct-video Draft and **Podcast Hook Captions**.
+4. Use **Run or recover face pass** to check only the shared face stage. This
+   action performs no paid generation and commits no Draft edits. Making the
+   complete reel retains the original generation/billing behavior.
 
-## Building the panel from source
+FFmpeg and FFprobe remain the copies bundled with Selects. The plugin uses them
+for source cut/color sampling and media rendering, without a shell. Face
+inference and model/runtime installation now belong to the shared runtime,
+using CPU on both macOS and Windows. No Python or panel WASM runtime is needed.
 
-`panel.tsx` is generated from `src/` (the panel, the planner and the two
-Remotion components):
+## Updating and recovery
+
+Replace package files and generated panel. Keep existing reel folders, recovery
+journals and sound-effect data. Legacy panel face-runtime downloads are no longer
+used; do not delete a folder containing a Draft's rendered media. A failed,
+canceled or completed request keeps its identity: ordinary recovery never mints
+a new key. Use **Start new face pass** only for an intentional new isolated pass.
+New-pass publication uses the host SDK's atomic file comparison and replacement.
+Once dispatched, that file operation can finish after the panel closes; reopening
+recovers the saved active pass.
+**Rebuild this reel** retries the latest failed or canceled face requests in
+that reel with new keys, while retaining successful requests and recovering
+pending or uncertain ones. The isolated face pass has its own history.
+
+The source package was migrated from committed revision
+`9326fad00db19a64b8e80b26b2266c54b9566d49`; production installed copies were not
+modified during authoring. Full paid reel generation is outside this migration's
+Mac/Windows face-stage verification.
+
+## Build and tests
+
+`panel.tsx` is already generated and runnable. To rebuild with an existing
+esbuild installation:
 
 ```sh
-cd "$SELECTS_USER_SKILLS_ROOT/podcast-hook-captions"
-npm install --no-save esbuild   # once, or pass the path of an existing esbuild
-node build.cjs esbuild
+PANEL_OUT=panel.tsx node build.cjs /path/to/esbuild/lib/main.js
+node --test tests/*.test.cjs
 ```
 
-Outside the app the folder is `~/.selects/skills/podcast-hook-captions` on macOS
-and `%USERPROFILE%\.selects\skills\podcast-hook-captions` on Windows.
-
-`build.cjs` writes `src/renderers.ts` and `panel.tsx` beside the panels root
-(`../../panels/podcast-hook-captions/panel.tsx`); set `PANEL_OUT` to write it
-elsewhere.
-
-## Updating
-
-Replace the package files and `panel.tsx`. The face-tracking runtime, the
-sound-effect library and every reel's folder are kept. Earlier versions created
-a Python environment in `.selects/python-envs/podcast-hook-captions`; it is no
-longer used and can be deleted.
+On Windows PowerShell, set `$env:PANEL_OUT = "panel.tsx"` before running the
+same Node build command. By default the build writes to the installed Panels
+layout (`../../panels/podcast-hook-captions/panel.tsx`). No build tool or tests
+are needed in the user's runtime path. Optional authoring checks use
+`AI_PANEL_TEST_MODULES` pointing at an existing Selects `node_modules`; they
+verify the literal scripts against the real public SDK, a delayed Project
+switch and the retained shot/color reducer. The pure contract/lifecycle tests
+always run without third-party dependencies.

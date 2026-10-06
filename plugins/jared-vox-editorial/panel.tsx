@@ -17,7 +17,7 @@ import React from "react";
 
 const APP_ID = "jared-vox-editorial";
 // The engine (voxEngine, in the operation section below) runs inside the panel on macOS and
-// Windows: files through sdk.files, ffmpeg through the host's bundled copy, no shell and no Python.
+// Windows: files through the canonical file SDK, ffmpeg through the host's bundled copy, no shell and no Python.
 const TPL: Record<string, string> = {"headline": "import React from 'react';\nimport {useCurrentFrame,useVideoConfig,interpolate,spring} from 'remotion';\nexport default function Headline({data}) {\n const frame=useCurrentFrame(),{width,height,fps}=useVideoConfig(),k=width/1920;\n const tang=data?.style==='tang';\n const text=String(data?.text||'');\n const family=String(data?.fontFamily||'').trim()||\"'Arial Black','Arial','Malgun Gothic','Noto Sans CJK KR','Microsoft YaHei','Yu Gothic',sans-serif\";\n const progress=spring({frame,fps,config:{damping:20,stiffness:150}});\n const size=Math.min(Number(data?.fontSize||88),text.length>28?64:88)*k;\n const accent=String(data?.accentColor||(tang?'#A92D25':'#E04329'));\n return <div style={{position:'absolute',left:width*.045,top:height*.045,maxWidth:width*.89,pointerEvents:'none',opacity:interpolate(frame,[0,7],[0,1],{extrapolateRight:'clamp'}),transform:`translateY(${(1-progress)*-35*k}px)`}}>\n  <div style={{background:String(data?.barColor||(tang?'#F1E7CC':'#DAD9D5')),padding:`${12*k}px ${24*k}px`,borderLeft:`${8*k}px solid ${accent}`,boxShadow:tang?`${5*k}px ${6*k}px 0 #34251b55`:`${8*k}px ${9*k}px 0 ${accent}`,transform:tang?'rotate(-.4deg)':'rotate(-.8deg)'}}>\n   <div style={{fontFamily:family,fontWeight:900,fontSize:size,lineHeight:1.1,letterSpacing:-1*k,color:String(data?.textColor||'#1A1A1A'),overflowWrap:'anywhere'}}>{text}</div>\n  </div>\n  {!tang&&<div style={{height:5*k,marginTop:10*k,background:accent,transformOrigin:'left',transform:`scaleX(${Math.min(1,frame/18)})`}}/>}\n </div>;\n}\n", "caption": "import React from 'react';\nimport {useVideoConfig} from 'remotion';\nexport default function Caption({data}) {\n const {width,height}=useVideoConfig(),k=width/1920;\n const fontFamily=String(data?.fontFamily||'').trim()||\"Arial,'Malgun Gothic','Noto Sans CJK KR','Microsoft YaHei','Yu Gothic',sans-serif\";\n return <div style={{position:'absolute',left:width*.06,right:width*.06,bottom:height*.045,display:'flex',justifyContent:'center',pointerEvents:'none'}}>\n  <div style={{fontFamily,fontSize:Number(data?.fontSize||44)*k,fontWeight:700,lineHeight:1.35,color:'#FFF9ED',background:'rgba(19,18,15,.88)',padding:`${10*k}px ${22*k}px`,textAlign:'center',maxWidth:'100%',whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{String(data?.text||'')}</div>\n </div>;\n}\n", "credit": "import React from 'react';\nimport {useVideoConfig,useCurrentFrame,interpolate} from 'remotion';\nexport default function Credit({data}) {\n const {width,height}=useVideoConfig(),frame=useCurrentFrame(),k=width/1920;\n return <div style={{position:'absolute',left:width*.06,right:width*.06,bottom:height*.17,padding:`${18*k}px ${24*k}px`,background:'#F1EBDD',color:'#1A1A1A',borderLeft:`${7*k}px solid #E04329`,opacity:interpolate(frame,[0,8],[0,1],{extrapolateRight:'clamp'}),fontFamily:\"Arial,'Malgun Gothic','Microsoft YaHei','Yu Gothic',sans-serif\",overflowWrap:'anywhere'}}>\n <div style={{fontSize:30*k,fontWeight:700}}>{String(data?.source||'')}</div><div style={{fontSize:21*k,lineHeight:1.4}}>{String(data?.photos||'')}</div></div>;\n}\n", "editorial": "import React from 'react';\nimport {useCurrentFrame,useVideoConfig,interpolate,spring} from 'remotion';\n// Source-backed labels remain native editable graphics, never text painted by an image model.\nexport default function Editorial({data}) {\n const frame=useCurrentFrame(),{width,height,fps,durationInFrames}=useVideoConfig(),k=width/1920;\n const items=String(data?.text||'').split('\\n').filter(Boolean).slice(0,3);\n const kind=String(data?.kind||'document'),accent=String(data?.accentColor||'#E04329');\n const fontFamily=String(data?.fontFamily||'').trim()||\"Arial,'Noto Sans CJK KR','Malgun Gothic','Microsoft YaHei','Yu Gothic',sans-serif\";\n const end=Math.max(1,durationInFrames-1),stagger=Math.min(Math.round(fps*.3),Math.floor(end/8));\n return <div style={{position:'absolute',left:width*.18,right:width*.18,top:height*.32,bottom:height*.22,display:'flex',flexDirection:kind==='comparison'?'row':'column',justifyContent:'center',alignItems:kind==='comparison'?'center':'stretch',gap:22*k,pointerEvents:'none'}}>\n  {items.map((text,i)=>{const start=i*stagger,p=spring({frame:frame-start,fps,config:{damping:19,stiffness:120}}),reveal=interpolate(frame,[start,start+Math.max(1,stagger*2)],[0,1],{extrapolateLeft:'clamp',extrapolateRight:'clamp'});return <div key={i} style={{position:'relative',flex:kind==='comparison'?1:undefined,minWidth:0,background:'#EFECE2',padding:`${20*k}px ${28*k}px`,boxShadow:`${9*k}px ${10*k}px 0 ${accent}`,border:'1px solid #332b2130',opacity:reveal,transform:`translateY(${(1-p)*45*k}px) rotate(${i%2?.7:-.6}deg)`}}>\n   {kind==='timeline'&&<div style={{position:'absolute',left:-18*k,top:0,bottom:0,width:4*k,background:accent}}/>}\n   <div style={{fontFamily,fontSize:(kind==='stat'&&text.length<=18?80:kind==='comparison'?(text.length>40?30:43):(text.length>50?34:48))*k,fontWeight:kind==='stat'?900:600,lineHeight:1.25,color:'#16110D',whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{text}</div>\n   <div style={{height:4*k,marginTop:12*k,background:accent,transformOrigin:'left',transform:`scaleX(${reveal})`}}/>\n  </div>})}\n </div>;\n}\n"};
 const CAPTION_BOTTOM = 1030;
 const MUSIC_DB = -19;
@@ -1205,7 +1205,7 @@ export const VOX_READY_PAUSE_MS = 3000;
 // The engine's I/O on the host (see voxEngine): job files through FileSystem, ffmpeg and ffprobe through the host's
 // bundled copies, and the network two ways. Wikipedia/Commons API answers come through fetch (they allow any origin
 // with origin=*, and take Api-User-Agent for the agent engine.py sends). Article pages and portrait images are
-// downloaded by sdk.files.downloadFile, outside the panel's origin rules, into the job folder; a page that
+// downloaded by selects.files.download, outside the panel's origin rules, into the job folder; a page that
 // will not download counts as HTTP 599 (FETCH_FAILED: "paste the text instead").
 function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; writeJson: (p: string, v: any) => Promise<void> }) {
   const fs = hostNeed("FileSystem", "join");
@@ -1452,7 +1452,7 @@ function Panel({ sdk, context, ui }: any) {
     return S.errors[m] || m;
   };
 
-  // ---- Host helpers: files through sdk.files, no shell ----
+  // ---- Host helpers: files through the canonical file SDK, no shell ----
   async function readText(path: string): Promise<string | null> {
     try {
       return fs && (await fs.exists(path)) ? dec(await fs.readFile(path)) : null;
@@ -2103,16 +2103,44 @@ async function createPanelLocalClient(sdk: any) {
       if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
       return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
     },
-    async writeFile(path: string, data: string | Uint8Array, encoding?: string) {
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
       if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
       const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
-      for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
-        const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
-        let binary = "";
-        for (const byte of chunk) binary += String.fromCharCode(byte);
-        const result = await run("files.writeChunk", [{ path, offset, base64: btoa(binary) }], true);
-        if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
       }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
     },
     mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
     rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),

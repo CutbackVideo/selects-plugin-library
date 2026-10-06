@@ -1,10 +1,10 @@
 // One click: podcast Draft -> finished vertical reel Draft in a fast podcast-clip style.
 // The work is kept in a job folder (~/.selects/plugin-data/podcast-hook-captions/reels/<reel id>) with a
 // job.json record, so a reel can be rebuilt in place (same words and footage, fresh plan and layers).
-import { dataRoot, fs, hostVersion, versionBelow, script, skillRoot, J, type Sdk } from "./host";
+import { dataRoot, fs, requireSharedAiHost, script, skillRoot, J, type Sdk } from "./host";
 import { chooseAll, mapPicks } from "./select";
 import { readSource, createReel, readReel, type ReelInfo } from "./reel";
-import { ensureFaceRuntime, trackFaces, reelShots, adaptiveGrade, type ClipFaces } from "./faces";
+import { trackFaces, reelShots, adaptiveGrade, type ClipFaces } from "./faces";
 import { generate, ensureSfxLibrary, mediaGeneration } from "./media";
 import { renderDraft, makeMattes } from "./render";
 import { stockClip, stockSearchAvailable } from "./stock";
@@ -58,8 +58,7 @@ export async function loadJob(reelId: string): Promise<Job | null> {
 }
 
 function preflight() {
-  const v = hostVersion();
-  if (v && versionBelow(v, "2.0.512")) throw new Error("This needs Selects 2.0.512 or later (this is " + v + ").");
+  requireSharedAiHost();
   mediaGeneration();
 }
 
@@ -113,11 +112,11 @@ export async function rebuildReel(sdk: Sdk, reelId: string, onStep: OnStep, opts
   await stripReel(sdk, reelId, job.projectId, jobDir(reelId));
   const reel = await readReel(sdk, job.projectId, reelId);
   onStep("draft", "done", (reel.endFrame / reel.fps).toFixed(1) + " s");
-  const notes = await build(sdk, job, reel, onStep, opts);
+  const notes = await build(sdk, job, reel, onStep, opts, true);
   return { reelId, name: job.name, notes, seconds: (Date.now() - t0) / 1000, credits: job.brollCredits };
 }
 
-async function build(sdk: Sdk, job: Job, reel: ReelInfo, onStep: OnStep, opts: BrollOptions): Promise<string[]> {
+async function build(sdk: Sdk, job: Job, reel: ReelInfo, onStep: OnStep, opts: BrollOptions, retryTerminalFaces = false): Promise<string[]> {
   const pid = job.projectId;
   const dir = jobDir(job.reelId);
   const notes: string[] = [];
@@ -192,14 +191,13 @@ async function build(sdk: Sdk, job: Job, reel: ReelInfo, onStep: OnStep, opts: B
   let faces = job.faces;
   if (!faces || !Object.keys(faces).length || Object.values(faces).some((f) => f.color === undefined)) {
     try {
-      const rt = await ensureFaceRuntime(say("faces"));
       onStep("faces", "run", "Finding the speaker…");
-      faces = await trackFaces(rt, dir, reel.clips, reel.fps, say("faces"));
+      faces = await trackFaces(sdk, pid, dir, reel.clips, reel.fps, say("faces"), undefined, {retryTerminal:retryTerminalFaces});
       job.faces = faces;
       await saveJob(job);
     } catch (e: any) {
       // Without the face tracker (e.g. no network for its one-time download) the reel is framed on the
-      // centre; the next build tries again.
+      // centre; an explicit Rebuild may retry completed failed/canceled requests.
       notes.push("Face tracking unavailable (" + String(e?.message || e) + "); shots are centred.");
       faces = {};
     }

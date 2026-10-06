@@ -1,0 +1,994 @@
+{
+  "schema": "eo-music-catalog/1",
+  "referenceLufs": -18,
+  "truePeakCeiling": -1.5,
+  "moods": [
+    "driving",
+    "curious",
+    "uplifting",
+    "reflective",
+    "tense",
+    "playful"
+  ],
+  "energies": [
+    "low",
+    "mid",
+    "high"
+  ],
+  "measuredWith": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+  "notes": [
+    "Paths are relative to this folder. Every track is CC0 1.0; licenses/<id>.txt holds the licence statement read on its source page; licenses/CC0-1.0.txt is the legal code.",
+    "Each file is a 100-105 s excerpt from the recording's first sound (excerpt.fromSeconds; leading silence over 0.25 s is skipped), ending on a bar start with a 2 s fade, AAC-LC 160 kb/s, linear gain toward referenceLufs (never past truePeakCeiling).",
+    "Length: every track covers the longest video from start point 0 (durationSeconds - startPoint >= video + 2 s): sources are at most 95 s and the edit only shortens them. No loop or fallback is needed for coverage.",
+    "integratedLufs/truePeak/lra: ffmpeg ebur128 on the bundled .m4a. loudestSection: the 10 s span with the highest mean short-term loudness.",
+    "bpm/beatSeconds/barSeconds/firstDownbeatSeconds: beat-grid estimate (onset autocorrelation, grid fit on full-band + kick-band flux, 4/4 assumed; beats land up to ~20 ms early). The metrical level comes from the curator's tempo: bpm is the best grid within 15% of it, so it cannot flip to double, half or 2/3 tempo (provenance.json keeps the unconstrained estimate as freeBpm).",
+    "downbeat: which beat starts the bar. agreed = two cues pick the same beat: the whole-track kick-and-harmony pattern, and a kick-like first strong onset on the grid. estimated = the pattern alone; bar starts, phrase start points and the excerpt end may then be one to three beats off. Start point 0 is exact either way.",
+    "startPoints: 0 (the recording's start) and the estimated 4-bar phrase starts (on or up to ~20 ms before the beat) that leave at least 20 s. introSeconds: first start point where the full arrangement is playing (within 3 LU of the median short-term loudness).",
+    "loops (informational; not used to pick a track): [fromSeconds, toSeconds) spans whose next 2 bars match the 2 bars after fromSeconds; jumping from toSeconds back to fromSeconds continues the music.",
+    "moods/energy/character are the curator's tags. A track is picked by the plan's mood, then its energy, then length, then deterministically by job."
+  ],
+  "tracks": [
+    {
+      "id": "m01",
+      "file": "EO Music - Drama (HoliznaCC0, CC0).m4a",
+      "title": "Drama",
+      "artist": "HoliznaCC0",
+      "album": "Power Pop!",
+      "source": "https://freemusicarchive.org/music/holiznacc0/power-pop/drama/",
+      "sourceFile": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/FlryAAAFEblQ2Vmd9eIJN3FtlTyrElVoahvfmoOb.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "licenses/m01.txt",
+      "retrievedOn": "2026-10-05",
+      "sourceSha256": "bacdf4eae1d6031a357837389b86f5b114997629be60ca9cb3d2e14284fee34b",
+      "excerpt": {
+        "fromSeconds": 0,
+        "toSeconds": 104.353,
+        "endsOn": "bar",
+        "fadeOutSeconds": 2,
+        "gainDb": -4.7
+      },
+      "sha256": "534b0d897161785da4ac9cc5812a50acc4f035cf31f3984840d956e20bd76f72",
+      "bytes": 2226928,
+      "durationSeconds": 104.353,
+      "codec": "aac",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bitRate": 169125,
+      "bpm": 115,
+      "beatSeconds": 0.522,
+      "barSeconds": 2.087,
+      "firstDownbeatSeconds": 0.001,
+      "beatClarity": 3.29,
+      "downbeat": "estimated",
+      "startPoints": [
+        0,
+        8.349,
+        16.697,
+        25.045,
+        33.393,
+        41.742,
+        50.09,
+        58.438,
+        66.786,
+        75.134,
+        83.483
+      ],
+      "introSeconds": 0,
+      "loops": [
+        {
+          "fromSeconds": 60.525,
+          "toSeconds": 77.221,
+          "bars": 8,
+          "similarity": 0.974
+        },
+        {
+          "fromSeconds": 25.045,
+          "toSeconds": 33.393,
+          "bars": 4,
+          "similarity": 0.918
+        }
+      ],
+      "integratedLufs": -18,
+      "truePeak": -3.7,
+      "lra": 6.2,
+      "loudestSection": [
+        10.2,
+        20.1
+      ],
+      "silences": [],
+      "moods": [
+        "driving",
+        "uplifting"
+      ],
+      "energy": "high",
+      "character": "Drum-led electro-pop at 115 BPM: claps and a steady kick with small chiptune-style synth figures; lighter top end for the first ~17 s, then even.",
+      "genres": [
+        "Pop",
+        "Disco",
+        "Electronic",
+        "Power-Pop",
+        "Techno",
+        "House",
+        "Minimal Electronic",
+        "Synth Pop",
+        "Bigbeat",
+        "Instrumental",
+        "vaporwave",
+        "Lo-fi-Electronic"
+      ]
+    },
+    {
+      "id": "m02",
+      "file": "EO Music - Dear Mr Super Computer (HoliznaCC0, CC0).m4a",
+      "title": "Dear Mr Super Computer",
+      "artist": "HoliznaCC0",
+      "album": "Power Pop!",
+      "source": "https://freemusicarchive.org/music/holiznacc0/power-pop/dear-mr-super-computer/",
+      "sourceFile": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/6mRjlU0gvJgHShEyDHlHSmlctyrROaF8dHy7qRC5.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "licenses/m02.txt",
+      "retrievedOn": "2026-10-05",
+      "sourceSha256": "ea56caa66bd6c7ae35e07da2ee3912588e4934970d887f6cc1427716c30ef66b",
+      "excerpt": {
+        "fromSeconds": 0,
+        "toSeconds": 104.304,
+        "endsOn": "bar",
+        "fadeOutSeconds": 2,
+        "gainDb": -7.5
+      },
+      "sha256": "22ca49ec28cec63f5502fb85122d48f48f9934cb4512e85bbf05cb817b71de18",
+      "bytes": 2202714,
+      "durationSeconds": 104.304,
+      "codec": "aac",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bitRate": 167349,
+      "bpm": 130.01,
+      "beatSeconds": 0.462,
+      "barSeconds": 1.846,
+      "firstDownbeatSeconds": 0.923,
+      "beatClarity": 2.22,
+      "downbeat": "estimated",
+      "startPoints": [
+        0,
+        8.307,
+        15.691,
+        23.076,
+        30.46,
+        37.844,
+        45.228,
+        52.613,
+        59.997,
+        67.381,
+        74.765,
+        82.15
+      ],
+      "introSeconds": 8.307,
+      "loops": [],
+      "integratedLufs": -18.1,
+      "truePeak": -6.5,
+      "lra": 1.5,
+      "loudestSection": [
+        56.7,
+        66.6
+      ],
+      "silences": [],
+      "moods": [
+        "driving"
+      ],
+      "energy": "high",
+      "character": "Fast (130 BPM) drum-heavy electronic beat with plucked, techy synth blips and almost no melody; ~8 s intro, short breakdown near 1:02.",
+      "genres": [
+        "Pop",
+        "Disco",
+        "Electronic",
+        "Ambient Electronic",
+        "Experimental Pop",
+        "Power-Pop",
+        "Techno",
+        "House",
+        "Minimal Electronic",
+        "New Age",
+        "Chip Music",
+        "Chill-out",
+        "Instrumental",
+        "Lo-fi-Electronic"
+      ]
+    },
+    {
+      "id": "m03",
+      "file": "EO Music - Make Money (HoliznaCC0, CC0).m4a",
+      "title": "Make Money",
+      "artist": "HoliznaCC0",
+      "album": "BASSIC",
+      "source": "https://freemusicarchive.org/music/holiznacc0/bassic/make-money/",
+      "sourceFile": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/4rHAGwpxfZXDye4JNMh9EQs6MsDoQgPyCrxC4pzR.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "licenses/m03.txt",
+      "retrievedOn": "2026-10-05",
+      "sourceSha256": "3f10f346e5ab4c4c63977bd0157926075e0bba768bc48e89515669b1a9c8fe90",
+      "excerpt": {
+        "fromSeconds": 0.587,
+        "toSeconds": 105.348,
+        "endsOn": "bar",
+        "fadeOutSeconds": 2,
+        "gainDb": -7.6
+      },
+      "sha256": "a0d891f3253517db524d320c01ccbcdeab810b4003cbd14c5aa471fe386f7ba4",
+      "bytes": 2231786,
+      "durationSeconds": 104.76,
+      "codec": "aac",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bitRate": 168833,
+      "bpm": 129.33,
+      "beatSeconds": 0.464,
+      "barSeconds": 1.856,
+      "firstDownbeatSeconds": 1.305,
+      "beatClarity": 1.81,
+      "downbeat": "estimated",
+      "startPoints": [
+        0,
+        1.305,
+        8.728,
+        16.151,
+        23.573,
+        30.996,
+        38.419,
+        45.841,
+        53.264,
+        60.687,
+        68.11,
+        75.532,
+        82.955
+      ],
+      "introSeconds": 8.728,
+      "loops": [],
+      "integratedLufs": -18,
+      "truePeak": -6.9,
+      "lra": 3.5,
+      "loudestSection": [
+        85.7,
+        95.7
+      ],
+      "silences": [],
+      "moods": [
+        "driving",
+        "curious"
+      ],
+      "energy": "high",
+      "character": "Bouncy jazz-funk hip-hop at 129 BPM: boom-bap drums, funky bass and guitar; confident, busy-office energy.",
+      "genres": [
+        "Jazz",
+        "Funk",
+        "Hip-Hop",
+        "Alternative Hip-Hop",
+        "hiphop",
+        "Hip-Hop Beats",
+        "Instrumental"
+      ]
+    },
+    {
+      "id": "m04",
+      "file": "EO Music - Funky Pop (HoliznaCC0, CC0).m4a",
+      "title": "Funky Pop",
+      "artist": "HoliznaCC0",
+      "album": "Power Pop!",
+      "source": "https://freemusicarchive.org/music/holiznacc0/power-pop/funky-pop/",
+      "sourceFile": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/c3qtEJjVKXI87BexJ5Ra4Sxy2iY9DAphxzqyrhg6.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "licenses/m04.txt",
+      "retrievedOn": "2026-10-05",
+      "sourceSha256": "f4ece98b361ba68fdfa5c94c8856e639c64459f10b10c5294e523e3c00d9bbcf",
+      "excerpt": {
+        "fromSeconds": 0,
+        "toSeconds": 104.88,
+        "endsOn": "bar",
+        "fadeOutSeconds": 2,
+        "gainDb": -7.2
+      },
+      "sha256": "d3fdd9025998d08591ba582109d1291dcfafb7b397b3d7f8a9db920dc5fdd903",
+      "bytes": 2234075,
+      "durationSeconds": 104.88,
+      "codec": "aac",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bitRate": 168813,
+      "bpm": 120.99,
+      "beatSeconds": 0.496,
+      "barSeconds": 1.984,
+      "firstDownbeatSeconds": 1.729,
+      "beatClarity": 2.56,
+      "downbeat": "estimated",
+      "startPoints": [
+        0,
+        1.729,
+        9.663,
+        17.598,
+        25.533,
+        33.467,
+        41.402,
+        49.336,
+        57.271,
+        65.206,
+        73.14,
+        81.075
+      ],
+      "introSeconds": 0,
+      "loops": [
+        {
+          "fromSeconds": 25.533,
+          "toSeconds": 57.271,
+          "bars": 16,
+          "similarity": 0.985
+        },
+        {
+          "fromSeconds": 77.108,
+          "toSeconds": 85.042,
+          "bars": 4,
+          "similarity": 0.971
+        }
+      ],
+      "integratedLufs": -18.1,
+      "truePeak": -6,
+      "lra": 2.1,
+      "loudestSection": [
+        93.2,
+        103.2
+      ],
+      "silences": [],
+      "moods": [
+        "playful",
+        "uplifting"
+      ],
+      "energy": "high",
+      "character": "Upbeat 121 BPM synth-funk pop with a whistle-like lead and funky bass; cheeky and playful, short break near 1:14.",
+      "genres": [
+        "Pop",
+        "Synth Pop",
+        "Instrumental"
+      ]
+    },
+    {
+      "id": "m05",
+      "file": "EO Music - Make Funk (HoliznaCC0, CC0).m4a",
+      "title": "Make Funk",
+      "artist": "HoliznaCC0",
+      "album": "BASSIC",
+      "source": "https://freemusicarchive.org/music/holiznacc0/bassic/make-funk/",
+      "sourceFile": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/gvipQswrNI4uF5PNymw5d1cWq9gqqdTIsgHDMKCJ.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "licenses/m05.txt",
+      "retrievedOn": "2026-10-05",
+      "sourceSha256": "4631f55b7fc2a021f24b22f60ec87735cf9163638b3a79ac1719ea3515949f9c",
+      "excerpt": {
+        "fromSeconds": 0,
+        "toSeconds": 103.624,
+        "endsOn": "bar",
+        "fadeOutSeconds": 2,
+        "gainDb": -9.2
+      },
+      "sha256": "90b110a94af2ab9cfb6ec05d04bd8082d67baff0a0cd349e81df1800d71c8749",
+      "bytes": 2181292,
+      "durationSeconds": 103.624,
+      "codec": "aac",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bitRate": 166803,
+      "bpm": 99,
+      "beatSeconds": 0.606,
+      "barSeconds": 2.424,
+      "firstDownbeatSeconds": 1.807,
+      "beatClarity": 2.93,
+      "downbeat": "estimated",
+      "startPoints": [
+        0,
+        1.807,
+        11.505,
+        21.202,
+        30.899,
+        40.597,
+        50.294,
+        59.992,
+        69.689,
+        79.386
+      ],
+      "introSeconds": 0,
+      "loops": [
+        {
+          "fromSeconds": 57.567,
+          "toSeconds": 96.357,
+          "bars": 16,
+          "similarity": 0.999
+        },
+        {
+          "fromSeconds": 4.232,
+          "toSeconds": 13.929,
+          "bars": 4,
+          "similarity": 0.974
+        }
+      ],
+      "integratedLufs": -18,
+      "truePeak": -7.7,
+      "lra": 1,
+      "loudestSection": [
+        33.4,
+        43.4
+      ],
+      "silences": [],
+      "moods": [
+        "driving",
+        "playful"
+      ],
+      "energy": "mid",
+      "character": "Tight 99 BPM funk loop (slap-style bass, rhythm guitar, boom-bap drums) with very even loudness; light on melody.",
+      "genres": [
+        "Blues",
+        "Jazz",
+        "Pop",
+        "Disco",
+        "Rock",
+        "Easy Listening",
+        "Funk",
+        "Hip-Hop",
+        "Alternative Hip-Hop",
+        "Lounge",
+        "Drum amp Bass",
+        "Deep Funk",
+        "hiphop",
+        "Hip-Hop Beats",
+        "Instrumental",
+        "Lo-fi-Hip-Hop",
+        "Lo-fi-Instrumental"
+      ]
+    },
+    {
+      "id": "m06",
+      "file": "EO Music - One Cool Minute (Loyalty Freak Music, CC0).m4a",
+      "title": "One Cool Minute",
+      "artist": "Loyalty Freak Music",
+      "album": "MINIMAL AMBIENT BOUNCE",
+      "source": "https://freemusicarchive.org/music/Loyalty_Freak_Music/MINIMAL_AMBIENT_BOUNCE/Loyalty_Freak_Music_-_MINIMAL_AMBIENT_BOUNCE_-_02_One_Cool_Minute/",
+      "sourceFile": "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/Music_for_Video/Loyalty_Freak_Music/MINIMAL_AMBIENT_BOUNCE/Loyalty_Freak_Music_-_02_-_One_Cool_Minute.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "licenses/m06.txt",
+      "retrievedOn": "2026-10-05",
+      "sourceSha256": "8778d1e095ab7c6793d10ce9bbe1d9783c9ec6d558f11302ced2202b2c039a0c",
+      "excerpt": {
+        "fromSeconds": 0,
+        "toSeconds": 103.994,
+        "endsOn": "bar",
+        "fadeOutSeconds": 2,
+        "gainDb": -2.1
+      },
+      "sha256": "c6855b2ac25d433c6e4e02879c918f8e883b992b5ab7c8669781d263548175fc",
+      "bytes": 2160716,
+      "durationSeconds": 103.994,
+      "codec": "aac",
+      "sampleRate": 44100,
+      "channels": 2,
+      "bitRate": 164741,
+      "bpm": 119.98,
+      "beatSeconds": 0.5,
+      "barSeconds": 2,
+      "firstDownbeatSeconds": 0,
+      "beatClarity": 3.37,
+      "downbeat": "estimated",
+      "startPoints": [
+        0,
+        7.983,
+        15.984,
+        23.985,
+        31.986,
+        39.987,
+        47.988,
+        55.989,
+        63.99,
+        71.991,
+        79.993
+      ],
+      "introSeconds": 0,
+      "loops": [
+        {
+          "fromSeconds": 53.989,
+          "toSeconds": 69.991,
+          "bars": 8,
+          "similarity": 0.997
+        },
+        {
+          "fromSeconds": 1.982,
+          "toSeconds": 9.983,
+          "bars": 4,
+          "similarity": 0.999
+        }
+      ],
+      "integratedLufs": -18,
+      "truePeak": -2.6,
+      "lra": 2,
+      "loudestSection": [
+        26.2,
+        36.1
+      ],
+      "silences": [],
+      "moods": [
+        "tense",
+        "driving"
+      ],
+      "energy": "mid",
+      "character": "Minimal techno pulse at 120 BPM: deep sub bass, soft kick and a cool pad; slightly tense, fuller section from ~0:17 to ~0:52.",
+      "genres": [
+        "Electronic",
+        "Soundtrack",
+        "Techno",
+        "Instrumental"
+      ]
+    },
+    {
+      "id": "m07",
+      "file": "EO Music - Let's be serious a second (Loyalty Freak Music, CC0).m4a",
+      "title": "Let's be serious a second",
+      "artist": "Loyalty Freak Music",
+      "album": "INSTRUMENTAL R&B BEATS TO SING OR RAP ON",
+      "source": "https://freemusicarchive.org/music/Loyalty_Freak_Music/INSTRUMENTAL_RB_BEATS_TO_SING_OR_RAP_ON/Loyalty_Freak_Music_-_INSTRUMENTAL_RB_BEATS_TO_SING_OR_RAP_ON_-_11_Lets_be_serious_a_second/",
+      "sourceFile": "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/Music_for_Video/Loyalty_Freak_Music/INSTRUMENTAL_RB_BEATS_TO_SING_OR_RAP_ON/Loyalty_Freak_Music_-_11_-_Lets_be_serious_a_second.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "licenses/m07.txt",
+      "retrievedOn": "2026-10-05",
+      "sourceSha256": "b6e2dbc33bb25ceb376995ec6b2662471311a6b68194ba7de0216a4f982fb9c2",
+      "excerpt": {
+        "fromSeconds": 0.345,
+        "toSeconds": 102.793,
+        "endsOn": "bar",
+        "fadeOutSeconds": 2,
+        "gainDb": -5.2
+      },
+      "sha256": "d31d8ca863663935128056b0050e6a9e0ca1932d090c242c2c5fd923a0c03229",
+      "bytes": 2149189,
+      "durationSeconds": 102.448,
+      "codec": "aac",
+      "sampleRate": 44100,
+      "channels": 2,
+      "bitRate": 166346,
+      "bpm": 75,
+      "beatSeconds": 0.8,
+      "barSeconds": 3.2,
+      "firstDownbeatSeconds": 0.044,
+      "beatClarity": 2.88,
+      "downbeat": "estimated",
+      "startPoints": [
+        0,
+        12.844,
+        25.645,
+        38.445,
+        51.246,
+        64.047,
+        76.847
+      ],
+      "introSeconds": 12.844,
+      "loops": [
+        {
+          "fromSeconds": 70.447,
+          "toSeconds": 83.247,
+          "bars": 4,
+          "similarity": 0.981
+        }
+      ],
+      "integratedLufs": -18,
+      "truePeak": -6.1,
+      "lra": 5.7,
+      "loudestSection": [
+        85.9,
+        95.9
+      ],
+      "silences": [],
+      "moods": [
+        "tense"
+      ],
+      "energy": "mid",
+      "character": "Slow (75 BPM) serious R&B/hip-hop beat with a heavy kick and a sustained low synth; spare, adds layers every ~25 s.",
+      "genres": [
+        "Hip-Hop"
+      ]
+    },
+    {
+      "id": "m08",
+      "file": "EO Music - Coins (HoliznaCC0, CC0).m4a",
+      "title": "Coins",
+      "artist": "HoliznaCC0",
+      "album": "Gamer Beats!",
+      "source": "https://freemusicarchive.org/music/holiznacc0/gamer-beats/coins/",
+      "sourceFile": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/KOgtsN5Jgr4xKq7UPz3l0XJOYvV9yZYptq3N18bx.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "licenses/m08.txt",
+      "retrievedOn": "2026-10-05",
+      "sourceSha256": "276a4854073c6cc176998d68e345dd93815013df78ff609168904fd4c2b6d3ed",
+      "excerpt": {
+        "fromSeconds": 0,
+        "toSeconds": 104.994,
+        "endsOn": "bar",
+        "fadeOutSeconds": 2,
+        "gainDb": -6
+      },
+      "sha256": "6f225f0515ec79a4d232ab78b81d06a96f53d5e7237c6479fa8044f4f0dbe057",
+      "bytes": 2328563,
+      "durationSeconds": 104.994,
+      "codec": "aac",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bitRate": 175827,
+      "bpm": 80.01,
+      "beatSeconds": 0.75,
+      "barSeconds": 3,
+      "firstDownbeatSeconds": 0,
+      "beatClarity": 5.35,
+      "downbeat": "agreed",
+      "startPoints": [
+        0,
+        11.995,
+        23.994,
+        35.994,
+        47.993,
+        59.992,
+        71.991,
+        83.991
+      ],
+      "introSeconds": 0,
+      "loops": [
+        {
+          "fromSeconds": 62.992,
+          "toSeconds": 74.991,
+          "bars": 4,
+          "similarity": 0.999
+        }
+      ],
+      "integratedLufs": -18.1,
+      "truePeak": -4.8,
+      "lra": 2.8,
+      "loudestSection": [
+        51.8,
+        61.8
+      ],
+      "silences": [],
+      "moods": [
+        "curious",
+        "playful"
+      ],
+      "energy": "mid",
+      "character": "Laid-back 80 BPM boom-bap beat with chiptune and music-box blips; curious and a bit playful; stop-start intro (first ~6 s).",
+      "genres": [
+        "novelty",
+        "Pop",
+        "Hip-Hop",
+        "Experimental Pop",
+        "Alternative Hip-Hop",
+        "Unclassifiable",
+        "Glitch",
+        "Trip-Hop",
+        "Chip Music",
+        "Synth Pop",
+        "Sound Art",
+        "hiphop",
+        "Hip-Hop Beats",
+        "Instrumental"
+      ]
+    },
+    {
+      "id": "m09",
+      "file": "EO Music - Hope On Repeat (HoliznaCC0, CC0).m4a",
+      "title": "Hope On Repeat",
+      "artist": "HoliznaCC0",
+      "album": "Spring Woke Me Up",
+      "source": "https://freemusicarchive.org/music/holiznacc0/spring-woke-me-up/hope-on-repeat/",
+      "sourceFile": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/MvP2fPRhrWkQwsrgVB7U9rqSgLBtOfbD0vssM4LP.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "licenses/m09.txt",
+      "retrievedOn": "2026-10-05",
+      "sourceSha256": "e781cf3926ea5b769f3b5667011234f4524cbcb06e539ba563c7f15fd805477a",
+      "excerpt": {
+        "fromSeconds": 0,
+        "toSeconds": 104.468,
+        "endsOn": "bar",
+        "fadeOutSeconds": 2,
+        "gainDb": -2.7
+      },
+      "sha256": "1ee0c3e10a9b82c2bd0c15dc9d0ec57c3a79a2dc225cc471cbadd26cad3f056f",
+      "bytes": 2146561,
+      "durationSeconds": 104.468,
+      "codec": "aac",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bitRate": 162785,
+      "bpm": 84.99,
+      "beatSeconds": 0.706,
+      "barSeconds": 2.824,
+      "firstDownbeatSeconds": 0,
+      "beatClarity": 2.82,
+      "downbeat": "estimated",
+      "startPoints": [
+        0,
+        11.287,
+        22.582,
+        33.878,
+        45.174,
+        56.47,
+        67.766,
+        79.062
+      ],
+      "introSeconds": 11.287,
+      "loops": [
+        {
+          "fromSeconds": 42.35,
+          "toSeconds": 87.534,
+          "bars": 16,
+          "similarity": 0.93
+        },
+        {
+          "fromSeconds": 70.59,
+          "toSeconds": 93.182,
+          "bars": 8,
+          "similarity": 0.997
+        },
+        {
+          "fromSeconds": 56.47,
+          "toSeconds": 67.766,
+          "bars": 4,
+          "similarity": 0.997
+        }
+      ],
+      "integratedLufs": -18.1,
+      "truePeak": -2,
+      "lra": 3.6,
+      "loudestSection": [
+        89.2,
+        99.2
+      ],
+      "silences": [],
+      "moods": [
+        "uplifting",
+        "reflective"
+      ],
+      "energy": "mid",
+      "character": "Warm 85 BPM lo-fi hip-hop with plucks and bell-like keys; gently optimistic; filtered intro for the first ~12 s.",
+      "genres": [
+        "Easy Listening",
+        "Chill-out",
+        "Lo-fi-Hip-Hop"
+      ]
+    },
+    {
+      "id": "m10",
+      "file": "EO Music - Static Shoes (Loyalty Freak Music, CC0).m4a",
+      "title": "Static Shoes",
+      "artist": "Loyalty Freak Music",
+      "album": "MINIMAL AMBIENT BOUNCE",
+      "source": "https://freemusicarchive.org/music/Loyalty_Freak_Music/MINIMAL_AMBIENT_BOUNCE/Loyalty_Freak_Music_-_MINIMAL_AMBIENT_BOUNCE_-_04_Static_Shoes/",
+      "sourceFile": "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/Music_for_Video/Loyalty_Freak_Music/MINIMAL_AMBIENT_BOUNCE/Loyalty_Freak_Music_-_04_-_Static_Shoes.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "licenses/m10.txt",
+      "retrievedOn": "2026-10-05",
+      "sourceSha256": "a3e6b08a02d80171762662c1185e5c58347c24dd35542e98aeee65fc7fe98e82",
+      "excerpt": {
+        "fromSeconds": 0,
+        "toSeconds": 104.017,
+        "endsOn": "bar",
+        "fadeOutSeconds": 2,
+        "gainDb": -2.2
+      },
+      "sha256": "9eb92b7936ae54257e413a78c379d7323343f35b0421b86aaa7cfa940bc331b4",
+      "bytes": 2118504,
+      "durationSeconds": 104.016,
+      "codec": "aac",
+      "sampleRate": 44100,
+      "channels": 2,
+      "bitRate": 161459,
+      "bpm": 119.97,
+      "beatSeconds": 0.5,
+      "barSeconds": 2,
+      "firstDownbeatSeconds": 0,
+      "beatClarity": 2.49,
+      "downbeat": "estimated",
+      "startPoints": [
+        0,
+        7.998,
+        16,
+        24.001,
+        32.003,
+        40.005,
+        48.007,
+        56.008,
+        64.01,
+        72.012,
+        80.013
+      ],
+      "introSeconds": 0,
+      "loops": [
+        {
+          "fromSeconds": 1.997,
+          "toSeconds": 9.998,
+          "bars": 4,
+          "similarity": 0.91
+        }
+      ],
+      "integratedLufs": -18,
+      "truePeak": -4.7,
+      "lra": 4.2,
+      "loudestSection": [
+        85.8,
+        95.8
+      ],
+      "silences": [],
+      "moods": [
+        "tense",
+        "reflective"
+      ],
+      "energy": "low",
+      "character": "Quiet, slowly evolving 120 BPM minimal electronica: pads and plucks over sub bass; cool, a little uneasy, very unobtrusive.",
+      "genres": [
+        "Electronic",
+        "Soundtrack",
+        "Techno",
+        "Instrumental"
+      ]
+    },
+    {
+      "id": "m11",
+      "file": "EO Music - Toy Box (HoliznaCC0, CC0).m4a",
+      "title": "Toy Box",
+      "artist": "HoliznaCC0",
+      "album": "Spring Woke Me Up",
+      "source": "https://freemusicarchive.org/music/holiznacc0/spring-woke-me-up/toy-box/",
+      "sourceFile": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/04mkhAeFGClmKwwsdfUfLZX1wrROoSQl2A6GsW28.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "licenses/m11.txt",
+      "retrievedOn": "2026-10-05",
+      "sourceSha256": "98ab5546dfbb10d4c31f6c7d29c1bc70407fdb405d9b49d206ee89a4ccb1dee0",
+      "excerpt": {
+        "fromSeconds": 0.325,
+        "toSeconds": 105.014,
+        "endsOn": "bar",
+        "fadeOutSeconds": 2,
+        "gainDb": -1.7
+      },
+      "sha256": "4d53ffa131dba033d877ed9eee616b55e71ff4859df8e5cc2adc935179545755",
+      "bytes": 2210957,
+      "durationSeconds": 104.689,
+      "codec": "aac",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bitRate": 167357,
+      "bpm": 80,
+      "beatSeconds": 0.75,
+      "barSeconds": 3,
+      "firstDownbeatSeconds": 2.685,
+      "beatClarity": 3.18,
+      "downbeat": "estimated",
+      "startPoints": [
+        0,
+        2.685,
+        14.686,
+        26.686,
+        38.686,
+        50.686,
+        62.687,
+        74.687
+      ],
+      "introSeconds": 2.685,
+      "loops": [
+        {
+          "fromSeconds": 38.686,
+          "toSeconds": 86.687,
+          "bars": 16,
+          "similarity": 0.993
+        },
+        {
+          "fromSeconds": 38.686,
+          "toSeconds": 50.686,
+          "bars": 4,
+          "similarity": 0.989
+        }
+      ],
+      "integratedLufs": -18.1,
+      "truePeak": -1.5,
+      "lra": 3,
+      "loudestSection": [
+        35.4,
+        45.4
+      ],
+      "silences": [],
+      "moods": [
+        "reflective",
+        "curious"
+      ],
+      "energy": "low",
+      "character": "Soft 80 BPM lo-fi beat with music-box keys and a light pad; reflective and curious, never pushy.",
+      "genres": [
+        "Easy Listening",
+        "Chill-out",
+        "Lo-fi-Hip-Hop"
+      ]
+    },
+    {
+      "id": "m12",
+      "file": "EO Music - Projector Screen (HoliznaCC0, CC0).m4a",
+      "title": "Projector Screen",
+      "artist": "HoliznaCC0",
+      "album": "Public Domain Lofi",
+      "source": "https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/projector-screen-lofi-happy-mp3/",
+      "sourceFile": "https://files.freemusicarchive.org/storage-freemusicarchive-org/tracks/SrYI6LJrSooBuV1Vz7XocwyKdkoXRFyNpgzn0lI4.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "licenseEvidence": "licenses/m12.txt",
+      "retrievedOn": "2026-10-05",
+      "sourceSha256": "b757435f375fc9290483e6ffabf763598664b1bb37fcd4644712529ba3dd5e04",
+      "excerpt": {
+        "fromSeconds": 0,
+        "toSeconds": 104.583,
+        "endsOn": "bar",
+        "fadeOutSeconds": 2,
+        "gainDb": -7
+      },
+      "sha256": "2eae04e202044d33b5f49d29f5841c92e25a13f6127e66b31873c6071cf9e195",
+      "bytes": 2190792,
+      "durationSeconds": 104.583,
+      "codec": "aac",
+      "sampleRate": 48000,
+      "channels": 2,
+      "bitRate": 165986,
+      "bpm": 70,
+      "beatSeconds": 0.857,
+      "barSeconds": 3.429,
+      "firstDownbeatSeconds": 1.719,
+      "beatClarity": 3.13,
+      "downbeat": "estimated",
+      "startPoints": [
+        0,
+        1.719,
+        15.434,
+        29.149,
+        42.863,
+        56.578,
+        70.293,
+        84.008
+      ],
+      "introSeconds": 0,
+      "loops": [
+        {
+          "fromSeconds": 73.722,
+          "toSeconds": 87.436,
+          "bars": 4,
+          "similarity": 0.999
+        }
+      ],
+      "integratedLufs": -18,
+      "truePeak": -6.3,
+      "lra": 3.1,
+      "loudestSection": [
+        45.7,
+        55.7
+      ],
+      "silences": [],
+      "moods": [
+        "uplifting",
+        "curious"
+      ],
+      "energy": "low",
+      "character": "Slow, hazy 70 BPM lo-fi groove with bell-like keys and clean guitar; calm and hopeful, very even.",
+      "genres": [
+        "Ambient",
+        "Chill-out",
+        "Lo-fi-Hip-Hop"
+      ]
+    }
+  ]
+}

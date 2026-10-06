@@ -1,24 +1,16 @@
-// Reframing with YuNet: find the speaker's face in every shot of every Main clip, then place the source so the
-// face lands where the reference puts it. Face tracking runs in the panel itself (YuNet on onnxruntime-web, frames
-// from the ffmpeg bundled with Selects), so it needs no Python and no shell and works the same on macOS and Windows:
-// faceRuntime.ts (the detector), faceFrames.ts (frames), faceTrack.ts (face_track.py's shots, tracks and colour).
-import { fs, J } from "./host";
+// Face inference uses the public shared AI runtime. Shot tracking, cut/color sampling, and framing stay here.
+import { fs, J, type Sdk } from "./host";
 import type { ReelClip } from "./reel";
 import type { ShotFrame } from "../plan";
-import { type FaceDetector, loadFaceDetector } from "./faceRuntime";
-import { type FaceJob, type JobResult, scanJob } from "./faceTrack";
-
-export type { FaceDetector } from "./faceRuntime";
+import { type FaceJob, type JobResult, scanProbed, samplePlan } from "./faceTrack";
+import { probeVideo, verifyConstantSourceClock } from "./faceFrames";
+import { faceInput, adaptSamples } from "./sharedAiFaces.cjs";
+import { detectShared } from "./sharedFaceJobs";
 
 // Reference framing (YuNet box on the finished reel): face box 40% of the height, centre 46% across, eye
 // line 22-24% down. The source is never enlarged more than 2.8x its own pixels (the reference itself
 // runs a 1080p source at about 2.8x), so a small 1080p speaker lands a little under 40%.
 const TARGET = { faceH: 0.36, cx: 0.51, eyes: 0.21, maxUpscale: 2.8 };
-
-/** The face detector, ready to use: downloads the runtime and model on first use (about 15 MB, once), then cached. */
-export async function ensureFaceRuntime(progress: (s: string) => void): Promise<FaceDetector> {
-  return loadFaceDetector(progress);
-}
 
 export type FaceShot = { start: number; end: number; face: { cx: number; eyes: number; h: number; w: number; top: number } | null };
 
@@ -50,15 +42,18 @@ export function adaptiveGrade(faces: Record<number, ClipFaces>) {
 
 /**
  * The speaker's face in every shot of each clip that has a source file (face_track.py's results, same shape).
- * Writes face-jobs.json and faces.json into `dir` as before; frames are decoded into dir/face-frames and removed.
+ * The shared face journal records stable requests/workflow IDs before submission.
+ * face-jobs.json and faces.json retain the plugin's tracked shots/color; temporary BGR frames are removed.
  */
 export async function trackFaces(
-  rt: FaceDetector,
+  sdk: Sdk,
+  projectId: string,
   dir: string,
   clips: ReelClip[],
   fps: number,
   progress: (s: string) => void = () => {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options: {retryTerminal?:boolean} = {}
 ): Promise<Record<number, ClipFaces>> {
   const jobs: FaceJob[] = clips
     .filter((c) => c.path && c.srcStart >= 0)
@@ -75,20 +70,20 @@ export async function trackFaces(
   try {
     for (const job of jobs) {
       let mine = 0;
-      const r = await scanJob(job, (bgr, w, h) => rt.detect(bgr, w, h), {
-        workDir,
-        signal,
+      const clip = clips.find(c=>c.clipId===job.id)!;
+      const info=await probeVideo(job.path,signal);
+      const plan=samplePlan(info,job.start,job.end);
+      await verifyConstantSourceClock(job.path,info,plan,signal);
+      const input=faceInput(projectId,clip.rid,plan,info.fps,"podcast-faces-"+crypto.randomUUID());
+      const shared=await detectShared(sdk,dir,input,info,progress,signal,options);
+      const observed=adaptSamples(shared.samples,input,info,plan);
+      const r = await scanProbed(job,info,plan,{
+        workDir,signal,sharedSamples:observed,
         onFrame: (n) => {
-          mine = n;
-          const pct = Math.min(99, Math.floor(((done + n) / total) * 100));
-          if (pct !== shown) {
-            shown = pct;
-            progress("Finding the speaker… " + pct + "%");
-          }
+          mine=n;
+          const pct=Math.min(99,Math.floor(((done+n)/total)*100));
+          if(pct!==shown){shown=pct;progress("Tracking shots and source color… "+pct+"%");}
         },
-      }).catch((e) => {
-        if (signal && signal.aborted) throw e;
-        return { id: job.id, error: String((e && e.message) || e) } as JobResult;
       });
       done += mine;
       results.push(r);
@@ -99,7 +94,7 @@ export async function trackFaces(
     } catch {}
   }
   const frames = done;
-  await fs().writeFile(fs().join(dir, "faces.json"), J({ jobs: results, engine: "yunet-onnxruntime-web " + rt.info.ort, frames, ms: Date.now() - t0 }));
+  await fs().writeFile(fs().join(dir, "faces.json"), J({ jobs: results, engine: "selects.ai/selects-ai-runtime faces.detect", frames, ms: Date.now() - t0 }));
   for (const j of results) if ("width" in j) out[Number(j.id)] = { W: j.width, H: j.height, shots: j.shots, color: j.color || null };
   const failed = results.filter((j) => j.error && j.error !== "cannot open source");
   if (failed.length === results.length) throw new Error("Face tracking failed: " + failed[0].error);

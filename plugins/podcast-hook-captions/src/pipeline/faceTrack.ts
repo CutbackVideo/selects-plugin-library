@@ -1,5 +1,6 @@
 // face_track.py in the panel: every step of scripts/face_track.py (the Python/OpenCV face tracker it replaces),
-// ported line by line so the same source range gives the same shots, faces and colour figures.
+// The reducers retain their original behavior. Common-runtime YuNet rows use a different preprocessing/model
+// execution path; they are adapted explicitly and do not promise identical detections to the old panel WASM.
 //
 // Per job {id, path, start, end} (source seconds):
 // 1. Size and sampling: f0 = round(start * fps), f1 = max(f0 + 1, round(end * fps)), step = round(fps / 6), the
@@ -13,9 +14,9 @@
 // 5. Shots shorter than half a second fold into their neighbour; colour is the median of the colour samples.
 // Arithmetic follows the Python: float32 where NumPy computed in float32 (the detector's rows), NumPy's median /
 // mean / percentile, and Python's round() for every figure written out.
-import { type VideoInfo, type SamplePlan, probeVideo, sampleFrames } from "./faceFrames";
+import { type VideoInfo, type SamplePlan, sampleFrames } from "./faceFrames";
 import { type ColorRow, chiSquareAlt, frameStats, npMean, npMedian, pyRound } from "./cvstats";
-import type { YuNetFace } from "./yunetDecode";
+import type { YuNetFace } from "./faceRows";
 
 /** face_track.py's options as faces.ts ran it (--fps 6, defaults otherwise). */
 export const TRACK = { fps: 6, score: 0.8, minFace: 0.05, cut: 0.35, longSide: 640, colorSamples: 40, minShot: 0.5 };
@@ -27,9 +28,6 @@ export type TrackedColor = { r: number; g: number; b: number; sat: number; p5: n
 export type JobResult =
   | { id: any; width: number; height: number; fps: number; shots: TrackedShot[]; color: TrackedColor | null; error?: undefined }
   | { id: any; error: string };
-
-/** The detector: faces in a packed BGR24 image, in that image's pixels (faceRuntime.ts). */
-export type Detect = (bgr: Uint8Array, width: number, height: number) => Promise<YuNetFace[]>;
 
 type Box = [number, number, number, number];
 type Face = { b: Box; ex: number; ey: number; s: number };
@@ -148,30 +146,32 @@ export type ScanOptions = {
   workDir: string; // chunk files go here (created and emptied by the scan)
   signal?: AbortSignal;
   onFrame?: (done: number) => void; // after every sample
-  onSample?: (f: number, faces: YuNetFace[]) => void; // the detector's rows per sample (tests)
+  sharedSamples: { f: number; faces: YuNetFace[] }[]; // required observations from the common runtime
   frames?: (info: VideoInfo, plan: SamplePlan) => AsyncIterable<Uint8Array>; // another frame source (tests)
 };
 
-/** One job, as face_track.py's scan(job) computes it. A source that cannot be read gives {id, error}. */
-export async function scanJob(job: FaceJob, detect: Detect, o: ScanOptions): Promise<JobResult> {
-  let info: VideoInfo;
-  try {
-    info = await probeVideo(job.path, o.signal);
-  } catch (e) {
-    if (o.signal && o.signal.aborted) throw e;
-    return { id: job.id, error: "cannot open source" };
-  }
-  return scanProbed(job, info, samplePlan(info, job.start, job.end), detect, o);
-}
-
-export async function scanProbed(job: FaceJob, info: VideoInfo, plan: SamplePlan, detect: Detect, o: ScanOptions): Promise<JobResult> {
-  const samples: Sample[] = [];
+/** Combine shared face observations with this plugin's cut and color analysis on the same sample grid. */
+export async function scanProbed(job: FaceJob, info: VideoInfo, plan: SamplePlan, o: ScanOptions): Promise<JobResult> {
+  const checkAbort = () => { if (o.signal?.aborted) throw o.signal.reason || new Error("Face tracking canceled"); };
+  checkAbort();
+  if (!Array.isArray(o.sharedSamples) || o.sharedSamples.length !== plan.count) throw new Error("Shared face sample count does not match the tracking plan");
+  const observed = o.sharedSamples.map((s, i) => {
+    // The adapter retains actual source timestamps, including fractional-fps PTS rounding.
+    if (!Number.isFinite(s.f) || Math.abs(s.f - (plan.f0 + i * plan.step)) > 0.51 || (i > 0 && s.f <= o.sharedSamples[i - 1].f))
+      throw new Error("Shared face sample frame does not match the tracking plan");
+    // Cuts use verified source-frame ordinals. Rounded PTS must not move a boundary
+    // observation into the previous shot; actual timestamps remain in the shared result.
+    return { f: plan.f0 + i * plan.step, faces: keepFaces(s.faces, plan, info) };
+  });
   const cuts = [plan.f0];
   const colors: ColorRow[] = [];
   let prev: Float32Array | null = null;
   let i = 0;
   const frames = o.frames ? o.frames(info, plan) : sampleFrames(job.path, info, plan, o.workDir, String(job.id).replace(/[^\w-]/g, "_"), o.signal);
   for await (const img of frames) {
+    checkAbort();
+    if (i >= plan.count) throw new Error("Color sample count exceeds the tracking plan");
+    if (img.byteLength !== plan.w * plan.h * 3) throw new Error("Color sample is not a complete packed BGR frame");
     const f = plan.f0 + i * plan.step;
     i += 1;
     const wantColor = colors.length < TRACK.colorSamples && (f - plan.f0) % (plan.step * 3) === 0;
@@ -179,10 +179,9 @@ export async function scanProbed(job: FaceJob, info: VideoInfo, plan: SamplePlan
     if (st.color) colors.push(st.color);
     if (prev !== null && chiSquareAlt(prev, st.hist) > TRACK.cut) cuts.push(f);
     prev = st.hist;
-    const rows = await detect(img, plan.w, plan.h);
-    if (o.onSample) o.onSample(f, rows);
-    samples.push({ f, faces: keepFaces(rows, plan, info) });
     if (o.onFrame) o.onFrame(i);
   }
-  return { id: job.id, width: info.W, height: info.H, fps: info.fps, shots: buildShots(samples, cuts, plan.f1, info.fps), color: colorSummary(colors) };
+  checkAbort();
+  if (i !== plan.count) throw new Error("Color sample count does not match the tracking plan");
+  return { id: job.id, width: info.W, height: info.H, fps: info.fps, shots: buildShots(observed, cuts, plan.f1, info.fps), color: colorSummary(colors) };
 }

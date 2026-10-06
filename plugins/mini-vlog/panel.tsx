@@ -3554,7 +3554,7 @@ const MV_FAIL: Record<string, string> = {
 };
 
 // The host I/O block below is Archive Vlog's av-host block (plugins/archive-vlog/panel.tsx), pasted verbatim: no shell,
-// no node; the host's FileSystem, Runtime.runFFmpeg / runFFprobe (argv arrays) and window.parent.__DI__, every member
+// no node; the canonical SDK's file and FFmpeg / FFprobe operations (argv arrays), every member
 // checked first (kit windows.md). tests/panel.test.cjs and tests/test_windows_mini_vlog.py compare it with a recorded
 // hash, not with the sibling plugin. Errors with code 'host-missing' say STRINGS `newerSelects` (sayError).
 // av-host:start
@@ -5484,16 +5484,44 @@ async function createPanelLocalClient(sdk: any) {
       if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
       return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
     },
-    async writeFile(path: string, data: string | Uint8Array, encoding?: string) {
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
       if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
       const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
-      for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
-        const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
-        let binary = "";
-        for (const byte of chunk) binary += String.fromCharCode(byte);
-        const result = await run("files.writeChunk", [{ path, offset, base64: btoa(binary) }], true);
-        if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
       }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
     },
     mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
     rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),

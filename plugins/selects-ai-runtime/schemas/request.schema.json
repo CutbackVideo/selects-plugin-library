@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Host-resolved PoC AI request",
+  "type": "object",
+  "required": [
+    "contractVersion",
+    "task",
+    "input"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": 1
+    },
+    "task": {
+      "enum": [
+        "faces.detect",
+        "person.matte"
+      ]
+    },
+    "requestKey": {
+      "type": "string"
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "source",
+        "sourceRange"
+      ],
+      "properties": {
+        "source": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Absolute host-resolved local path; internal PoC only."
+            }
+          }
+        },
+        "sourceRange": {
+          "type": "object",
+          "required": [
+            "startSeconds",
+            "endSeconds"
+          ],
+          "properties": {
+            "startSeconds": {
+              "type": "number",
+              "minimum": 0
+            },
+            "endSeconds": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "description": "Half-open interval; runtime also checks end > start."
+        },
+        "sampleEverySeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.5
+        },
+        "scoreThreshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.8
+        },
+        "downsampleRatio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "default": 0.25
+        },
+        "alphaEncoding": {
+          "enum": ["grayscale-png-8bit", "grayscale-avif-8bit"],
+          "default": "grayscale-png-8bit",
+          "description": "person.matte only; omitted retains lossless PNG compatibility. AVIF is independent full-size 8-bit monochrome still images encoded with libaom CRF 24."
+        },
+        "outputMode": {
+          "enum": [
+            "alpha-frames",
+            "foreground-video"
+          ],
+          "default": "alpha-frames",
+          "description": "person.matte only; foreground-video requires verified CFR and also writes a full-size ProRes 4444 alpha movie."
+        }
+      }
+    }
+  }
+}

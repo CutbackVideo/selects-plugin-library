@@ -18,7 +18,7 @@ import React from "react";
 
 const APP_ID = "vox-explainer";
 // The engine (voxEngine, in the operation section below) runs inside the panel on macOS and
-// Windows: files through sdk.files, ffmpeg through the host's bundled copy, no shell and no Python.
+// Windows: files through the canonical file SDK, ffmpeg through the host's bundled copy, no shell and no Python.
 const TPL: Record<string, string> = { headline: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Malgun Gothic','Pretendard','Noto Sans KR',sans-serif\";\n\n// Constructivist headline: a slanted black bar with cream type and a red offset block.\nexport default function Headline({ data }) {\n  const frame = useCurrentFrame();\n  const { fps, width } = useVideoConfig();\n  const k = width / 1080;\n  const text = String(data?.text ?? '');\n  const size = Number(data?.fontSize ?? 92);\n  const top = Number(data?.top ?? 110);\n  const bar = String(data?.barColor ?? '#141414');\n  const fg = String(data?.textColor ?? '#F4ECDD');\n  const accent = String(data?.accentColor ?? '#D7261E');\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  const p = spring({ frame, fps, config: { damping: 16, stiffness: 170 } });\n  const x = interpolate(p, [0, 1], [-1200, 0]);\n  const ax = interpolate(p, [0, 1], [900, 0]);\n  return (\n    <div style={{ position: 'absolute', left: 0, top: top * k, width: '100%', height: 320 * k, pointerEvents: 'none' }}>\n      <div style={{ position: 'absolute', left: 70 * k, top: 8 * k, width: 300 * k, height: 34 * k, background: accent, transform: `translateX(${ax * k}px) rotate(-7deg)` }} />\n      <div style={{ position: 'absolute', left: 24 * k, right: 24 * k, top: 58 * k, display: 'flex', justifyContent: 'center', transform: `translateX(${x * k}px) rotate(-4deg)` }}>\n        <div style={{ background: bar, color: fg, fontFamily, fontWeight: 900, fontSize: size * k, letterSpacing: `${-2 * k}px`, lineHeight: 1.12, padding: `${16 * k}px ${34 * k}px ${22 * k}px`, boxShadow: `${12 * k}px ${12 * k}px 0 ${accent}`, whiteSpace: 'nowrap' }}>{text}</div>\n      </div>\n    </div>\n  );\n}\n", caption: "import React from 'react';\nimport { useVideoConfig } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Malgun Gothic','Pretendard','Noto Sans KR',sans-serif\";\n\n// Spoken-line caption: cream type on a black box, low third of a 9:16 frame.\nexport default function Caption({ data }) {\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const lines = String(data?.text ?? '').split('\\n');\n  const size = Number(data?.fontSize ?? 56);\n  const bottom = Number(data?.bottom ?? 1560);\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  return (\n    <div style={{ position: 'absolute', left: 40 * k, width: 1000 * k, top: 0, height: bottom * k, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', pointerEvents: 'none' }}>\n      <div style={{ background: String(data?.boxColor ?? 'rgba(20,20,20,0.86)'), padding: `${10 * k}px ${26 * k}px ${14 * k}px`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n        {lines.map((line, i) => (\n          <div key={i} style={{ fontFamily, fontSize: size * k, fontWeight: 700, color: String(data?.textColor ?? '#F4ECDD'), lineHeight: 1.3, letterSpacing: `${-1 * k}px`, whiteSpace: 'nowrap' }}>{line}</div>\n        ))}\n      </div>\n    </div>\n  );\n}\n", credit: "import React from 'react';\nimport { useCurrentFrame, useVideoConfig, interpolate } from 'remotion';\n\nconst FALLBACK = \"'Apple SD Gothic Neo','Malgun Gothic','Pretendard','Noto Sans KR',sans-serif\";\n\n// Closing source and photo credit strip.\nexport default function Credit({ data }) {\n  const frame = useCurrentFrame();\n  const { width } = useVideoConfig();\n  const k = width / 1080;\n  const o = interpolate(frame, [0, 8], [0, 1], { extrapolateRight: 'clamp' });\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\n  const fontFamily = family === '' ? FALLBACK : `\"${family}\", ${FALLBACK}`;\n  return (\n    <div style={{ position: 'absolute', left: 50 * k, right: 50 * k, top: Number(data?.top ?? 1600) * k, opacity: o, pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\n      <div style={{ background: '#F4ECDD', color: '#141414', fontFamily, padding: `${14 * k}px ${24 * k}px`, borderLeft: `${10 * k}px solid #D7261E`, display: 'flex', flexDirection: 'column', gap: 6 * k }}>\n        <div style={{ fontSize: Number(data?.sourceSize ?? 34) * k, fontWeight: 800 }}>{String(data?.source ?? '')}</div>\n        <div style={{ fontSize: Number(data?.photoSize ?? 21) * k, fontWeight: 500, lineHeight: 1.3 }}>{String(data?.photos ?? '')}</div>\n      </div>\n    </div>\n  );\n}\n" };
 const CAPTION_BOTTOM = 1790;
 const MUSIC_DB = -19;
@@ -1200,7 +1200,7 @@ export const VOX_READY_PAUSE_MS = 3000;
 // The engine's I/O on the host (see voxEngine): job files through FileSystem, ffmpeg and ffprobe through the host's
 // bundled copies, and the network two ways. Wikipedia/Commons API answers come through fetch (they allow any origin
 // with origin=*, and take Api-User-Agent for the agent engine.py sends). Article pages and portrait images are
-// downloaded by sdk.files.downloadFile, outside the panel's origin rules, into the job folder; a page that
+// downloaded by selects.files.download, outside the panel's origin rules, into the job folder; a page that
 // will not download counts as HTTP 599 (FETCH_FAILED: "paste the text instead").
 function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; writeJson: (p: string, v: any) => Promise<void> }) {
   const fs = hostNeed("FileSystem", "join");
@@ -1425,7 +1425,7 @@ function Panel({ sdk, context, ui }: any) {
     return S.errors[m] || m;
   };
 
-  // ---- Host helpers: files through sdk.files, no shell ----
+  // ---- Host helpers: files through the canonical file SDK, no shell ----
   async function readText(path: string): Promise<string | null> {
     try {
       return fs && (await fs.exists(path)) ? dec(await fs.readFile(path)) : null;
@@ -2055,16 +2055,44 @@ async function createPanelLocalClient(sdk: any) {
       if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
       return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
     },
-    async writeFile(path: string, data: string | Uint8Array, encoding?: string) {
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
       if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
       const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
-      for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
-        const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
-        let binary = "";
-        for (const byte of chunk) binary += String.fromCharCode(byte);
-        const result = await run("files.writeChunk", [{ path, offset, base64: btoa(binary) }], true);
-        if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
       }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
     },
     mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
     rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),

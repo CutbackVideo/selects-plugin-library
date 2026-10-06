@@ -1,0 +1,50 @@
+{
+  "descriptorVersion": 1,
+  "kind": "external-runtime",
+  "protocol": {
+    "version": 1,
+    "request": "schemas/request.schema.json",
+    "result": "schemas/result.schema.json",
+    "progressTransport": "fd4-jsonl"
+  },
+  "entrypoint": "runtime.cjs",
+  "validatedEmbeddedRuntime": {
+    "electron": "43.2.0",
+    "node": "24.18.0",
+    "napi": 10
+  },
+  "nativeDependency": {
+    "package": "onnxruntime-node",
+    "version": "1.30.0"
+  },
+  "tasks": {
+    "faces.detect": {
+      "model": "yunet-2023mar",
+      "sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+      "providers": [
+        "cpu"
+      ],
+      "output": "schemas/faces.schema.json"
+    },
+    "person.matte": {
+      "model": "rvm-mobilenetv3-fp32",
+      "sha256": "88d4531297118f595bf2fd60f6f566aec2e559393802d1f436c380f0cbbd2828",
+      "providers": [
+        "auto",
+        "cpu",
+        "dml-windows",
+        "webgpu-macos",
+        "coreml-macos-experimental"
+      ],
+      "output": "schemas/matte.schema.json",
+      "defaultProvider": "auto"
+    }
+  },
+  "platforms": [
+    "darwin-arm64",
+    "win32-x64"
+  ],
+  "registrationImplemented": true,
+  "dependencyProvisioningImplemented": true,
+  "prepare": "prepare.cjs"
+}

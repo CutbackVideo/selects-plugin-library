@@ -4,6 +4,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 
 | Plugin | Status |
 | --- | --- |
+| [Selects AI Runtime](plugins/selects-ai-runtime) — shared local face detection and person masks for plugin developers; requires Selects 2.0.560 or later | Experimental |
 | [Selects Clips](plugins/shortform-cloner) — shorts from long videos, using templates made from a channel's best shorts | Experimental |
 | [Multicam Generator](plugins/multicam-generator) | Experimental |
 | [Place Count](plugins/place-count) | Experimental |
@@ -43,6 +44,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Cinema Vlog Studio](plugins/cinema-vlog-studio) — 21-second cinematic street vlog with marker-driven cuts, a scramble title and inset cards | Experimental |
 | [Portrait Beat Montage](plugins/portrait-beat-montage) — 16.3-second 3:4 portrait montage from 10 person clips, with a monochrome strobe intro, person-only zigzag smear cuts on the beat and a white glow ending | Experimental |
 | [Beat Cutout Gallery](plugins/cutout-beat-gallery) — 15.9-second 3:4 beat-cut photo gallery where cut-out people with paper outlines slide in, stack over the photo on screen and lead into the next cut, on a bundled soundtrack | Experimental |
+| [EO Shorts](plugins/eo-shorts) — a talking-head Draft becomes a 9:16 EO-style short: tightened talk, speaker framing, typographic scenes with pictures and stock B-roll, and a music bed | Experimental |
 
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 

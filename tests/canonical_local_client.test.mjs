@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { webcrypto } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { stripTypeScriptTypes } from 'node:module';
 
 const source = fs.readFileSync(new URL('../shared/local-client.ts', import.meta.url), 'utf8');
 function load(React = {}) {
   const plain = stripTypeScriptTypes(source.replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, ''), {mode:'strip'});
-  const context = vm.createContext({React, console, Uint8Array, TextEncoder, TextDecoder, AbortController, DOMException, atob, btoa, setTimeout, clearTimeout});
+  const context = vm.createContext({React, console, crypto:webcrypto, Uint8Array, TextEncoder, TextDecoder, AbortController, DOMException, atob, btoa, setTimeout, clearTimeout});
   vm.runInContext(plain + '\nthis.api={createPanelLocalClient,panelLocalClient,withPanelLocalClient};', context);
   return context.api;
 }
@@ -22,13 +25,15 @@ function host({platform='darwin', clipRead=false, onStart}={}) {
       const bytes=files.get(path).subarray(offset,offset+length);
       return {base64:Buffer.from(bytes).toString('base64'),bytesRead:bytes.length};
     },
-    writeChunk:async({path,offset,base64})=>{
+    writeChunk:async({path,offset,base64,mode})=>{
       const bytes=Buffer.from(base64,'base64');assert(bytes.length<=49152);
       if(offset)assert.equal(files.get(path)?.length,offset);
-      files.set(path,offset?Buffer.concat([files.get(path),bytes]):bytes);
+      if(mode==='exclusive'&&files.has(path))throw new Error('EEXIST');
+      files.set(path,offset||mode==='append'?Buffer.concat([files.get(path)||Buffer.alloc(0),bytes]):bytes);
       return {bytesWritten:bytes.length};
     },
     remove:async path=>files.delete(path),
+    rename:async (from,to)=>{assert(files.has(from));files.set(to,files.get(from));files.delete(from);},
     localUrl:async path=>'local:'+path,
   };
   const start=async()=>{const jobId='job-'+jobs.size;jobs.set(jobId,{state:'succeeded',cancelled:0,events:[{cursor:1,stream:'stdout',text:'first'},{cursor:2,stream:'stderr',text:'progress'},{cursor:3,stream:'stdout',text:'second'}]});onStart?.();return {jobId};};
@@ -117,4 +122,101 @@ test('all plugins embedding the local helper wrap their component before use',()
     count++;assert.match(panel,/(?:export default|=)\s*withPanelLocalClient\(/,directory);
   }
   assert(count>=38,`expected migrated local panels, found ${count}`);
+});
+
+test('exclusive creation and bounded append preserve lease and journal contents',async()=>{
+  const h=host(),client=await load().createPanelLocalClient(h.sdk);
+  await client.files.writeFile('/lease','owner',{flag:'wx'});
+  await assert.rejects(client.files.writeFile('/lease','loser',{flag:'wx'}),/EEXIST/);
+  await client.files.writeFile('/lease','\nnext',{flag:'a',encoding:'utf8'});
+  assert.equal(await client.files.readFile('/lease','utf8'),'owner\nnext');
+  const calls=h.calls.length;
+  await assert.rejects(client.files.writeFile('/lease','x'.repeat(49153),{flag:'a'}),/48 KiB/);
+  assert.equal(h.calls.length,calls);
+  assert.equal(await client.files.readFile('/lease','utf8'),'owner\nnext');
+  const beforeExclusive=h.calls.length;
+  await assert.rejects(client.files.writeFile('/large',new Uint8Array(100000),{flag:'wx'}),/48 KiB/);
+  assert.equal(h.calls.length,beforeExclusive);
+  assert.equal(h.files.has('/large'),false);
+});
+
+
+test('concurrent complete writes publish one intact file instead of mixing chunks',async()=>{
+  const h=host(),client=await load().createPanelLocalClient(h.sdk);
+  const first=new Uint8Array(100000).fill(65),second=new Uint8Array(100000).fill(66);
+  await Promise.all([client.files.writeFile('/shared',first),client.files.writeFile('/shared',second)]);
+  const result=await client.files.readFile('/shared');
+  assert.equal(result.length,100000);
+  assert(result.every(byte=>byte===65)||result.every(byte=>byte===66));
+  assert.deepEqual([...h.files.keys()],['/shared']);
+});
+
+test('a failed replacement preserves the original and removes its temporary file',async()=>{
+  for(const failure of ['chunk','rename']){
+    const h=host(),client=await load().createPanelLocalClient(h.sdk);
+    h.files.set('/existing',Buffer.from('original'));
+    const original=h.sdk.runScript;
+    h.sdk.runScript=async input=>{
+      if(failure==='chunk'&&input.script.includes('writeChunk')&&input.script.includes('"offset":49152')||failure==='rename'&&input.script.includes('files.rename'))return {isError:true,output:'native write blocked'};
+      return original(input);
+    };
+    await assert.rejects(client.files.writeFile('/existing',new Uint8Array(100000)),/native write blocked/);
+    assert.equal(h.files.get('/existing').toString(),'original');
+    assert.deepEqual([...h.files.keys()],['/existing']);
+  }
+});
+
+
+test('concurrent 100 KiB writes publish intact bytes through native file operations',async()=>{
+  const directory=await fs.promises.mkdtemp(path.join(tmpdir(),'canonical-write-'));
+  const destination=path.join(directory,'media.bin');
+  const nativeFiles={
+    environment:async()=>({platform:'darwin',homedir:directory,tempDirectory:directory}),
+    async writeChunk({path:file,offset,base64,mode}){
+      const bytes=Buffer.from(base64,'base64');
+      assert(bytes.length<=49152);
+      if(offset)assert.equal((await fs.promises.stat(file)).size,offset);
+      await fs.promises.writeFile(file,bytes,{flag:mode==='exclusive'?'wx':offset||mode==='append'?'a':'w'});
+      return{bytesWritten:bytes.length};
+    },
+    rename:(from,to)=>fs.promises.rename(from,to),
+    remove:(file,options)=>fs.promises.rm(file,options),
+  };
+  const sdk={runScript:async({script})=>({isError:false,result:await new Function('selects',`return(async()=>{${script}})()`)({files:nativeFiles})})};
+  try{
+    const first=await load().createPanelLocalClient(sdk),second=await load().createPanelLocalClient(sdk);
+    await Promise.all([first.files.writeFile(destination,new Uint8Array(100*1024).fill(65)),second.files.writeFile(destination,new Uint8Array(100*1024).fill(66))]);
+    const bytes=await fs.promises.readFile(destination);
+    assert.equal(bytes.length,100*1024);
+    assert(bytes.every(byte=>byte===65)||bytes.every(byte=>byte===66));
+    assert.deepEqual(await fs.promises.readdir(directory),['media.bin']);
+  }finally{await fs.promises.rm(directory,{recursive:true,force:true});}
+});
+
+test('atomic text comparison uses the bounded committed SDK verb and rejects unknown outcomes',async()=>{
+  const files=new Map(),calls=[];
+  const sdk={runScript:async input=>{
+    calls.push(input);
+    const result=await new Function('selects',`return (async()=>{${input.script}})()` )({files:{
+      environment:async()=>({platform:'darwin',homedir:'/user',tempDirectory:'/tmp'}),
+      compareAndReplace:async({path,expectedBase64,base64})=>{
+        assert.equal(input.allowCommit,true);
+        const expected=expectedBase64===null?null:Buffer.from(expectedBase64,'base64').toString('utf8');
+        const current=files.has(path)?files.get(path):null;
+        if(current!==expected)return {replaced:false};
+        files.set(path,Buffer.from(base64,'base64').toString('utf8'));return {replaced:true};
+      },
+    }});
+    return {isError:false,result};
+  }};
+  const client=await load().createPanelLocalClient(sdk),path='/pointer"name';
+  assert.equal(await client.files.compareAndReplace(path,null,'🌊'),true);
+  assert.equal(await client.files.compareAndReplace(path,null,'wrong'),false);
+  assert.equal(await client.files.compareAndReplace(path,'🌊','next'),true);
+  assert.equal(files.get(path),'next');
+  const count=calls.length;
+  await assert.rejects(client.files.compareAndReplace(path,'next','🌊'.repeat(12289)),/48 KiB/);
+  assert.equal(calls.length,count);
+  sdk.runScript=async()=>({isError:false});
+  await assert.rejects(client.files.compareAndReplace(path,'next','unknown'),/incomplete result/);
 });

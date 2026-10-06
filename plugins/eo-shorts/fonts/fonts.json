@@ -1,0 +1,124 @@
+{
+  "schema": "eo-fonts/1",
+  "note": "Every font the film styles name, as its TrueType file gzip-compressed and stored as base64 text; Urbanist is the TrueType decoded from the project's WOFF2 release.",
+  "fonts": [
+    {
+      "stylePath": "fonts/urbanist-complete.woff2",
+      "packaged": "fonts/urbanist-complete.ttf.gz.b64",
+      "sourceBytes": 27752,
+      "sourceSha256": "7981ef90c246352c7c217081b8d9337b9c95e9d17ae126bf56b0d3753d1e5ffb",
+      "ttfBytes": 54916,
+      "ttfSha256": "a571d071c247dde70bf8eccbc5d47b011fb46c720feb58e812da7e28e931a4ef",
+      "decodedFrom": "woff2"
+    },
+    {
+      "stylePath": "fonts/Poppins-Light.ttf",
+      "packaged": "fonts/Poppins-Light.ttf.gz.b64",
+      "sourceBytes": 161936,
+      "sourceSha256": "650ba57fa99d12ec40c31ccfb680be656be4497fbe14164617d67e32ffe9cd46",
+      "ttfBytes": 161936,
+      "ttfSha256": "650ba57fa99d12ec40c31ccfb680be656be4497fbe14164617d67e32ffe9cd46",
+      "decodedFrom": null
+    },
+    {
+      "stylePath": "fonts/Poppins-Regular.ttf",
+      "packaged": "fonts/Poppins-Regular.ttf.gz.b64",
+      "sourceBytes": 160316,
+      "sourceSha256": "7e65201e9b79159e2300267cc885e16c8dcef2424cdfa09a29bfb0980a94a7ba",
+      "ttfBytes": 160316,
+      "ttfSha256": "7e65201e9b79159e2300267cc885e16c8dcef2424cdfa09a29bfb0980a94a7ba",
+      "decodedFrom": null
+    },
+    {
+      "stylePath": "fonts/Poppins-Medium.ttf",
+      "packaged": "fonts/Poppins-Medium.ttf.gz.b64",
+      "sourceBytes": 158576,
+      "sourceSha256": "90373e7d838d32468438fc3e152dca0bdb12edcab99ea639f158790b1ba1fd05",
+      "ttfBytes": 158576,
+      "ttfSha256": "90373e7d838d32468438fc3e152dca0bdb12edcab99ea639f158790b1ba1fd05",
+      "decodedFrom": null
+    },
+    {
+      "stylePath": "fonts/Poppins-SemiBold.ttf",
+      "packaged": "fonts/Poppins-SemiBold.ttf.gz.b64",
+      "sourceBytes": 157312,
+      "sourceSha256": "d3bf1bdaf0550e83da9ac0b1d1d9fe6db086835a83aa28578e609a394b9a0286",
+      "ttfBytes": 157312,
+      "ttfSha256": "d3bf1bdaf0550e83da9ac0b1d1d9fe6db086835a83aa28578e609a394b9a0286",
+      "decodedFrom": null
+    },
+    {
+      "stylePath": "fonts/Poppins-Bold.ttf",
+      "packaged": "fonts/Poppins-Bold.ttf.gz.b64",
+      "sourceBytes": 155996,
+      "sourceSha256": "983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c",
+      "ttfBytes": 155996,
+      "ttfSha256": "983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c",
+      "decodedFrom": null
+    },
+    {
+      "stylePath": "fonts/playfair-italic-wght.ttf",
+      "packaged": "fonts/playfair-italic-wght.ttf.gz.b64",
+      "sourceBytes": 278688,
+      "sourceSha256": "a5e26dc5e2e77fb2803a0bf02fd4f81ee136ec8dea863ccdb0c59a263b21378b",
+      "ttfBytes": 278688,
+      "ttfSha256": "a5e26dc5e2e77fb2803a0bf02fd4f81ee136ec8dea863ccdb0c59a263b21378b",
+      "decodedFrom": null
+    },
+    {
+      "stylePath": "fonts/Playfair-Italic-opsz-wdth-wght.ttf",
+      "packaged": "fonts/Playfair-Italic-opsz-wdth-wght.ttf.gz.b64",
+      "sourceBytes": 1783732,
+      "sourceSha256": "ae0d7a72a93804925040c277b4cd7e0607f48bb68dbbce70e3da6b5949f911ca",
+      "ttfBytes": 1783732,
+      "ttfSha256": "ae0d7a72a93804925040c277b4cd7e0607f48bb68dbbce70e3da6b5949f911ca",
+      "decodedFrom": null
+    },
+    {
+      "stylePath": "fonts/dmsans-wght.ttf",
+      "packaged": "fonts/dmsans-wght.ttf.gz.b64",
+      "sourceBytes": 240164,
+      "sourceSha256": "8cd08d97e89c24d0aa92edd2f0f4c8ee6195eee9b7c9f154865a58b02f0c1c0d",
+      "ttfBytes": 240164,
+      "ttfSha256": "8cd08d97e89c24d0aa92edd2f0f4c8ee6195eee9b7c9f154865a58b02f0c1c0d",
+      "decodedFrom": null
+    },
+    {
+      "stylePath": "fonts/besley-italic-wght.ttf",
+      "packaged": "fonts/besley-italic-wght.ttf.gz.b64",
+      "sourceBytes": 112792,
+      "sourceSha256": "de502a1ab6b06a63982dce8c9e58b3eee8aada175e78d5a4dc0a7b3721f26562",
+      "ttfBytes": 112792,
+      "ttfSha256": "de502a1ab6b06a63982dce8c9e58b3eee8aada175e78d5a4dc0a7b3721f26562",
+      "decodedFrom": null
+    },
+    {
+      "stylePath": "fonts/Newsreader-Italic-opsz-wght.ttf",
+      "packaged": "fonts/Newsreader-Italic-opsz-wght.ttf.gz.b64",
+      "sourceBytes": 495684,
+      "sourceSha256": "796668611f80b64d5adf182fde3b6f29ed83b4e7cbec7b96937e84ac01364792",
+      "ttfBytes": 495684,
+      "ttfSha256": "796668611f80b64d5adf182fde3b6f29ed83b4e7cbec7b96937e84ac01364792",
+      "decodedFrom": null
+    },
+    {
+      "stylePath": "fonts/Gloock-Regular.ttf",
+      "packaged": "fonts/Gloock-Regular.ttf.gz.b64",
+      "sourceBytes": 98096,
+      "sourceSha256": "c3a67e0212f7da01764796ae721cb9bab3e122d142354f97cf9c63fb763e6d77",
+      "ttfBytes": 98096,
+      "ttfSha256": "c3a67e0212f7da01764796ae721cb9bab3e122d142354f97cf9c63fb763e6d77",
+      "decodedFrom": null
+    }
+  ],
+  "licences": [
+    "fonts/OFL-besley.txt",
+    "fonts/OFL-dmsans.txt",
+    "fonts/OFL-gloock.txt",
+    "fonts/OFL-newsreader.txt",
+    "fonts/OFL-playfair.txt",
+    "fonts/OFL-playfair2.txt",
+    "fonts/OFL-poppins.txt",
+    "fonts/OFL-urbanist.txt"
+  ]
+}

@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "id": "eo-shorts",
+  "version": "0.1.0",
+  "name": "EO Shorts",
+  "summary": "One click turns a talking-head Draft of up to 95 seconds into a new 9:16 EO-style Short: tightened talk, speaker framing, typographic scenes with pictures and stock B-roll, music and loudness, exported and checked.",
+  "status": "experimental",
+  "entrypoint": "SKILL.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "SKILL.md",
+    "INSTALL.md",
+    "THIRD_PARTY.md",
+    "panel.tsx",
+    "assets/music/EO Music - Coins (HoliznaCC0, CC0).m4a",
+    "assets/music/EO Music - Dear Mr Super Computer (HoliznaCC0, CC0).m4a",
+    "assets/music/EO Music - Drama (HoliznaCC0, CC0).m4a",
+    "assets/music/EO Music - Funky Pop (HoliznaCC0, CC0).m4a",
+    "assets/music/EO Music - Hope On Repeat (HoliznaCC0, CC0).m4a",
+    "assets/music/EO Music - Let's be serious a second (Loyalty Freak Music, CC0).m4a",
+    "assets/music/EO Music - Make Funk (HoliznaCC0, CC0).m4a",
+    "assets/music/EO Music - Make Money (HoliznaCC0, CC0).m4a",
+    "assets/music/EO Music - One Cool Minute (Loyalty Freak Music, CC0).m4a",
+    "assets/music/EO Music - Projector Screen (HoliznaCC0, CC0).m4a",
+    "assets/music/EO Music - Static Shoes (Loyalty Freak Music, CC0).m4a",
+    "assets/music/EO Music - Toy Box (HoliznaCC0, CC0).m4a",
+    "assets/music/catalog.json",
+    "assets/music/licenses/CC0-1.0.txt",
+    "assets/music/licenses/m01.txt",
+    "assets/music/licenses/m02.txt",
+    "assets/music/licenses/m03.txt",
+    "assets/music/licenses/m04.txt",
+    "assets/music/licenses/m05.txt",
+    "assets/music/licenses/m06.txt",
+    "assets/music/licenses/m07.txt",
+    "assets/music/licenses/m08.txt",
+    "assets/music/licenses/m09.txt",
+    "assets/music/licenses/m10.txt",
+    "assets/music/licenses/m11.txt",
+    "assets/music/licenses/m12.txt",
+    "assets/music/provenance.json",
+    "assets/sfx/EO SFX - card-fan (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - card-pack-draw (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - card-pack-open (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - card-place-soft-01 (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - card-place-soft-02 (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - card-shove (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - card-slide-soft-01 (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - card-slide-soft-02 (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - click-soft (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - impact-damped (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - object-chip-stack (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - object-chip-tap (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - tick-soft (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - wood-tap-soft-01 (Kenney, CC0).wav",
+    "assets/sfx/EO SFX - wood-tap-soft-02 (Kenney, CC0).wav",
+    "assets/sfx/catalog.json",
+    "assets/sfx/licenses/Kenney-Casino-Audio-CC0.txt",
+    "assets/sfx/licenses/Kenney-Impact-Sounds-CC0.txt",
+    "assets/sfx/licenses/Kenney-Interface-Sounds-CC0.txt",
+    "assets/sfx/provenance.json",
+    "fonts/Gloock-Regular.ttf.gz.b64",
+    "fonts/Newsreader-Italic-opsz-wght.ttf.gz.b64",
+    "fonts/OFL-besley.txt",
+    "fonts/OFL-dmsans.txt",
+    "fonts/OFL-gloock.txt",
+    "fonts/OFL-newsreader.txt",
+    "fonts/OFL-playfair.txt",
+    "fonts/OFL-playfair2.txt",
+    "fonts/OFL-poppins.txt",
+    "fonts/OFL-urbanist.txt",
+    "fonts/Playfair-Italic-opsz-wdth-wght.ttf.gz.b64",
+    "fonts/Poppins-Bold.ttf.gz.b64",
+    "fonts/Poppins-Light.ttf.gz.b64",
+    "fonts/Poppins-Medium.ttf.gz.b64",
+    "fonts/Poppins-Regular.ttf.gz.b64",
+    "fonts/Poppins-SemiBold.ttf.gz.b64",
+    "fonts/besley-italic-wght.ttf.gz.b64",
+    "fonts/dmsans-wght.ttf.gz.b64",
+    "fonts/fonts.json",
+    "fonts/playfair-italic-wght.ttf.gz.b64",
+    "fonts/urbanist-complete.ttf.gz.b64"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS arm64",
+      "Windows x64"
+    ],
+    "selects": "Needs Panel runScript and askAI, Draft motion graphics with generated-media authoring, and the bundled ffmpeg. Picture generation needs Selects 2.0.512 or later; stock B-roll needs stock footage search. Tested on a development build; released versions are unverified."
+  },
+  "usesCredits": true,
+  "localized": {
+    "de": {
+      "name": "EO Shorts",
+      "summary": "Macht mit einem Klick aus einem Talking-Head-Draft von bis zu 95 Sekunden einen neuen 9:16-Short im EO-Stil: gestraffte Rede, Sprecher-Framing, typografische Szenen mit Bildern und Stock-B-Roll, Musik und Lautheit, exportiert und gepr\u00fcft."
+    },
+    "en": {
+      "name": "EO Shorts",
+      "summary": "One click turns a talking-head Draft of up to 95 seconds into a new 9:16 EO-style Short: tightened talk, speaker framing, typographic scenes with pictures and stock B-roll, music and loudness, exported and checked."
+    },
+    "es": {
+      "name": "EO Shorts",
+      "summary": "Con un clic convierte un Draft de persona hablando de hasta 95 segundos en un nuevo Short 9:16 al estilo EO: habla m\u00e1s \u00e1gil, encuadre del orador, escenas tipogr\u00e1ficas con im\u00e1genes y B-roll de stock, m\u00fasica y sonoridad, exportado y revisado."
+    },
+    "fr": {
+      "name": "EO Shorts",
+      "summary": "En un clic, transforme un Draft face cam\u00e9ra de 95 secondes maximum en un nouveau Short 9:16 dans le style EO : discours resserr\u00e9, cadrage de l\u2019intervenant, sc\u00e8nes typographiques avec images et B-roll de stock, musique et loudness, export\u00e9 et v\u00e9rifi\u00e9."
+    },
+    "it": {
+      "name": "EO Shorts",
+      "summary": "Con un clic trasforma un Draft con una persona che parla, fino a 95 secondi, in un nuovo Short 9:16 in stile EO: parlato pi\u00f9 serrato, inquadratura di chi parla, scene tipografiche con immagini e B-roll di stock, musica e loudness, esportato e controllato."
+    },
+    "ja": {
+      "name": "EO Shorts",
+      "summary": "\u30ef\u30f3\u30af\u30ea\u30c3\u30af\u3067\u3001\u6700\u957795\u79d2\u306e\u8a71\u3057\u624b\u3092\u6620\u3057\u305fDraft\u3092EO\u30b9\u30bf\u30a4\u30eb\u306e\u65b0\u3057\u30449:16\u30b7\u30e7\u30fc\u30c8\u306b\u3057\u307e\u3059\u3002\u9593\u3092\u8a70\u3081\u305f\u8a71\u3001\u8a71\u3057\u624b\u306e\u30d5\u30ec\u30fc\u30df\u30f3\u30b0\u3001\u753b\u50cf\u3068\u30b9\u30c8\u30c3\u30afB\u30ed\u30fc\u30eb\u3092\u4f7f\u3063\u305f\u30bf\u30a4\u30dd\u30b0\u30e9\u30d5\u30a3\u306e\u30b7\u30fc\u30f3\u3001\u97f3\u697d\u3068\u30e9\u30a6\u30c9\u30cd\u30b9\u8abf\u6574\u3092\u52a0\u3048\u3001\u66f8\u304d\u51fa\u3057\u3068\u30c1\u30a7\u30c3\u30af\u307e\u3067\u884c\u3044\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "EO Shorts",
+      "summary": "\ud074\ub9ad \ud55c \ubc88\uc73c\ub85c \ucd5c\ub300 95\ucd08 \uae38\uc774\uc758 \ud1a0\ud0b9\ud5e4\ub4dc Draft\ub97c EO \uc2a4\ud0c0\uc77c\uc758 \uc0c8 9:16 \uc1fc\uce20\ub85c \ub9cc\ub4ed\ub2c8\ub2e4. \ub9d0\uc758 \uac04\uaca9\uc744 \uc904\uc774\uace0 \ud654\uc790\ub97c \ud504\ub808\uc774\ubc0d\ud558\uba70, \uc774\ubbf8\uc9c0\uc640 \uc2a4\ud1a1 B\ub864\uc774 \ub4e4\uc5b4\uac04 \ud0c0\uc774\ud3ec\uadf8\ub798\ud53c \uc7a5\uba74\uacfc \uc74c\uc545, \ub77c\uc6b0\ub4dc\ub2c8\uc2a4\uae4c\uc9c0 \ub9de\ucd98 \ub4a4 \ub0b4\ubcf4\ub0b4\uace0 \uac80\uc0ac\ud569\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "EO Shorts",
+      "summary": "Com um clique, transforma um Draft de pessoa falando de at\u00e9 95 segundos em um novo Short 9:16 no estilo EO: fala mais enxuta, enquadramento de quem fala, cenas tipogr\u00e1ficas com imagens e B-roll de banco de imagens, m\u00fasica e loudness, exportado e verificado."
+    },
+    "tr": {
+      "name": "EO Shorts",
+      "summary": "Tek t\u0131kla en fazla 95 saniyelik, konu\u015fan ki\u015finin oldu\u011fu bir Draft\u2019\u0131 EO tarz\u0131nda yeni bir 9:16 Short\u2019a d\u00f6n\u00fc\u015ft\u00fcr\u00fcr: s\u0131k\u0131la\u015ft\u0131r\u0131lm\u0131\u015f konu\u015fma, konu\u015fmac\u0131 \u00e7er\u00e7eveleme, g\u00f6rseller ve stok B-roll i\u00e7eren tipografik sahneler, m\u00fczik ve ses y\u00fcksekli\u011fi; d\u0131\u015fa aktar\u0131l\u0131r ve kontrol edilir."
+    },
+    "zh": {
+      "name": "EO Shorts",
+      "summary": "\u4e00\u952e\u628a\u6700\u957f 95 \u79d2\u7684\u53e3\u64ad Draft \u505a\u6210\u5168\u65b0\u7684 EO \u98ce\u683c 9:16 \u77ed\u89c6\u9891\uff1a\u7d27\u51d1\u7684\u526a\u8f91\u3001\u4eba\u7269\u6784\u56fe\u3001\u914d\u6709\u56fe\u7247\u548c\u7d20\u6750 B-roll \u7684\u6587\u5b57\u6392\u7248\u573a\u666f\u3001\u97f3\u4e50\u4e0e\u54cd\u5ea6\uff0c\u5e76\u5b8c\u6210\u5bfc\u51fa\u548c\u68c0\u67e5\u3002"
+    }
+  }
+}
