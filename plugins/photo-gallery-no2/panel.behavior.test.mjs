@@ -1,3 +1,4 @@
+import { asyncSdk } from '../../tests/windows_host.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import Module, { createRequire } from 'node:module';
@@ -23,7 +24,8 @@ const nativeMock = `
 const galleryNativeResources = (...args) => globalThis.__native.resources(...args);
 const galleryNativeSetFps = (...args) => globalThis.__native.setFps(...args);
 const galleryNativePlace = (...args) => globalThis.__native.place(...args);`;
-const source = template.replace('/*__SHARED_SCRIPT_BUILDER__*/',
+// These tests own Gallery interactions; the shared local SDK initializer has its own suite.
+const source = template.replace(/\/\/ local-sdk:start[\s\S]*?\/\/ local-sdk:end/, 'function panelLocalClient(sdk) { return sdk; }\nexport default Panel;').replace('/*__SHARED_SCRIPT_BUILDER__*/',
   'const buildScript = input => JSON.stringify(input);' + nativeMock);
 assert.notEqual(source, template);
 const compiled = esbuild.transformSync(source, { loader: 'tsx', format: 'cjs', jsx: 'automatic' }).code;
@@ -62,13 +64,13 @@ const photos = Array.from({ length: 21 }, (_, i) => ({ resourceId: `r${i}`, name
 function harness(media = photos, options = {}) {
   const calls = [], nativeCalls = [];
   globalThis.__native = {
-    resources: async (_projectId, rows) => {
+    resources: async (_sdk, _projectId, rows) => {
       nativeCalls.push('resources');
       if (options.missingDimension && rows.some(row => row.resourceId === 'r4')) throw new Error('Tile 5 has no verified image dimensions');
       return { selected: rows.map(row => ({ ...row, nativeResource: {} })) };
     },
     setFps: async () => { nativeCalls.push('fps'); },
-    place: async (_projectId, _draftId, rows, plan) => {
+    place: async (_sdk, _projectId, _draftId, rows, plan) => {
       nativeCalls.push('place');
       assert.equal(rows.length, 21);
       assert.equal(plan.tiles.length, 21);
@@ -95,11 +97,13 @@ function harness(media = photos, options = {}) {
       runFFmpeg: async args => { tools.push(['ffmpeg', ...args]); return { stdout: '', stderr: '' }; } },
   };
   const sdk = {
+    ...asyncSdk(dom.window.__DI__),
     runShell: async request => {
       if (options.runShell) return options.runShell(request);
       throw new Error('Unexpected media conversion');
     },
     runScript: async request => {
+      if(request.script.includes("name:'Gallery frame grid'"))return {result:{fps:options.fps??60}};
       const paged = request.script.startsWith('const value=await(async()=>{');
       const input = JSON.parse(paged ? request.script.slice('const value=await(async()=>{'.length, request.script.indexOf('\n})();const array')) : request.script);
       calls.push({ input, allowCommit: request.allowCommit });
@@ -140,8 +144,8 @@ test('21 original photos follow one panel action through preflight, native place
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
   assert.match(h.view.container.textContent, /reference moves in these tiles.*4, 6, 11, 17, 19, 21/);
   assert.deepEqual(h.calls.map(call => call.input.operation),
-    ['inspect', 'preflight', 'createBase', 'fillBase', ...Array(7).fill('styleExisting'), 'verifyCreated']);
-  assert.deepEqual(h.nativeCalls, ['resources', 'resources', 'fps', 'place']);
+    ['inspect', 'preflight', 'createBase', ...Array(7).fill('styleExisting'), 'verifyCreated']);
+  assert.deepEqual(h.nativeCalls, ['resources', 'resources', 'place']);
   assert.equal(h.calls.find(call => call.input.operation === 'createBase').allowCommit, true);
   assert.deepEqual(h.calls.find(call => call.input.operation === 'styleExisting').input.media.map(item => item.path), photos.map(item => item.path));
 });
@@ -264,7 +268,7 @@ test('an ambiguous save after native placement blocks blind duplicate creation',
   await assignAndCreate(h.view);
   await waitFor(() => assert.match(h.view.container.textContent, /Save outcome is unknown/));
   assert.equal(h.view.getByRole('button', { name: 'Create Draft' }).disabled, true);
-  assert.ok(h.calls.some(call => call.input.operation === 'fillBase'));
+  assert.ok(h.calls.some(call => call.input.operation === 'createBase'));
   assert.ok(!h.calls.some(call => call.input.operation === 'styleExisting'));
 });
 
@@ -338,4 +342,16 @@ test('unknown music import outcome blocks another Create and no Draft starts', a
   await waitFor(() => assert.match(h.view.container.textContent, /Save outcome is unknown/));
   assert.equal(h.view.getByRole('button', { name: 'Create Draft' }).disabled, true);
   assert.ok(!h.calls.some(c => c.input.operation === 'createBase'));
+});
+
+test('a 30 fps Project keeps reference seconds while creating and styling on its own grid',async()=>{
+  const h=harness(photos,{fps:30});
+  await assignAndCreate(h.view);
+  await waitFor(()=>assert.ok(h.calls.some(call=>call.input.operation==='verifyCreated')));
+  const creation=h.calls.find(call=>call.input.operation==='createBase').input;
+  assert.equal(creation.fps,30);
+  assert.equal(creation.durationFrames,427);
+  const style=h.calls.find(call=>call.input.operation==='styleExisting').input;
+  assert.equal(style.fps,30);
+  assert.equal(planGallery(style).durationFrames,427);
 });

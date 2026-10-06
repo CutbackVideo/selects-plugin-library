@@ -11,6 +11,8 @@ import os
 import re
 import unittest
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN = os.path.join(ROOT, "plugins", "thank-you-recap")
 PANEL = os.environ.get("THANK_YOU_RECAP_PANEL") or os.path.join(PLUGIN, "panel.tsx")
@@ -57,7 +59,7 @@ class ThankYouRecapWindowsTest(unittest.TestCase):
 
     def test_no_posix_shell_or_node_at_runtime(self):
         for needle in FORBIDDEN:
-            self.assertNotIn(needle, self.runtime, needle)
+            assert_no_shell_token(self, needle, self.runtime, needle)
         self.assertIsNone(re.search(r"\bnode\s+[\"'$]", self.runtime), "node spawn")
         self.assertIsNone(re.search(r"\bpython3?\b", self.runtime), "python spawn")
         self.assertEqual(self.source.count("runShell("), 0)
@@ -65,7 +67,7 @@ class ThankYouRecapWindowsTest(unittest.TestCase):
     def test_assets_are_staged_through_the_host_before_the_draft(self):
         stage = function_body(self.runtime, "async function stageAssets(")
         for part in ("hostRoots(sdk, PLUGIN_ID, YEAR_FONTS_FILE)", "hostReadBytes(", 'digest("SHA-256"',
-                     "writeFile(", "renameSync(", "hostReadText(", "JSON.parse("):
+                     "writeFile(", "rename(", "hostReadText(", "JSON.parse("):
             self.assertIn(part, stage, part)
         build = self.runtime[self.runtime.index("async function buildRecap("): self.runtime.index("const TEMPLATE_FAILED")]
         self.assertLess(build.index("stageAssets(sdk)"), build.index("createDraft("), "assets before the Draft")

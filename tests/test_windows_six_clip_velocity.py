@@ -10,6 +10,8 @@ import os
 import re
 import unittest
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN = os.path.join(ROOT, "plugins", "six-clip-velocity")
 PANEL = os.environ.get("SIX_CLIP_VELOCITY_PANEL") or os.path.join(PLUGIN, "panel.tsx")
@@ -50,7 +52,7 @@ class SixClipVelocityWindowsTest(unittest.TestCase):
 
     def test_no_posix_shell_or_node_at_runtime(self):
         for needle in FORBIDDEN:
-            self.assertNotIn(needle, self.runtime, needle)
+            assert_no_shell_token(self, needle, self.runtime, needle)
         self.assertIsNone(re.search(r"\bnode\s+[\"'$]", self.runtime), "node spawn")
         self.assertIsNone(re.search(r"\bpython3?\b", self.runtime), "python spawn")
         self.assertIsNone(re.search(r"\bBUILDER\b|\bbuilder\(", self.runtime), "Node build step")

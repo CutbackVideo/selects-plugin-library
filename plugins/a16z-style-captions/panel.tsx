@@ -12,26 +12,282 @@
 // @icon captions
 // One click turns a talking-head Draft into a 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, a name tag and a music bed.
 
-// plugins/a16z-style-captions/src/Panel.tsx
-import React, { useEffect, useRef, useState } from "react";
+// shared/local-client.ts
+import React from "react";
+function panelLocalPaths(platform) {
+  const windows = platform === "win32";
+  const slash = (path) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value) => windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value) => {
+    const path = slash(value), root = rootOf(path), absolute = root.endsWith("/");
+    const segments = [];
+    for (const segment2 of path.slice(Math.min(root.length, path.length)).split("/")) {
+      if (!segment2 || segment2 === ".") continue;
+      if (segment2 === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment2 !== ".." || !absolute) segments.push(segment2);
+    }
+    let result = root + segments.join("/");
+    if (!result || windows && /^[a-z]:$/i.test(result)) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value, extension) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension) ? name.slice(0, -extension.length) : name;
+  };
+  return {
+    normalize,
+    join: (...paths) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value) {
+      const path = slash(value), root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value) {
+      const name = basename(value), dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value) => rootOf(slash(value)).endsWith("/")
+  };
+}
+async function createPanelLocalClient(sdk) {
+  const run2 = async (method, args, write2 = false) => {
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write2,
+      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");"
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    return response.result;
+  };
+  const environment = await run2("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path, offset, length) => {
+    const parts = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run2("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes);
+      total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) {
+      output.set(bytes, position);
+      position += bytes.length;
+    }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path) => run2("files.exists", [path]),
+    stat: (path) => run2("files.stat", [path]),
+    readdir: (path) => run2("files.readdir", [path]),
+    readRange,
+    async readFile(path, encoding) {
+      const stat = await run2("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== void 0 && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path, data, options) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : void 0;
+      if (flag !== void 0 && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== void 0 && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? flag === "a" ? "append" : "exclusive" : void 0;
+          const result = await run2("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...mode ? { mode } : {} }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run2("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run2("files.remove", [destination, { force: true }], true).catch(() => {
+        });
+      }
+    },
+    async compareAndReplace(path, expectedText, text) {
+      const encode = (value) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run2("files.compareAndReplace", [{ path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text) }], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path, options) => run2("files.mkdir", [path, options ?? {}], true),
+    rm: (path, options) => run2("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }) => run2("files.remove", [filePath, { force: true }], true),
+    rename: (from, to) => run2("files.rename", [from, to], true),
+    copyFile: (from, to) => run2("files.copy", [from, to], true),
+    downloadFile: (url, path) => run2("files.download", [url, path], true),
+    pathToLocalURL: (path) => run2("files.localUrl", [path]),
+    localURLToPath: (url) => run2("files.pathFromLocalUrl", [url])
+  };
+  const activeJobs = /* @__PURE__ */ new Set();
+  let disposed = false;
+  const cancel = async (jobId) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run2("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation = null;
+    const abort = () => {
+      cancellation ??= cancel(jobId);
+      void cancellation.catch(() => {
+      });
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") {
+            stdout += event.text;
+            onStdout?.(event.text);
+          } else {
+            stderr += event.text;
+            onStderr?.(event.text);
+          }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {
+      });
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args, quiet, signal, stdout, stderr) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args, quiet, signal) => process("FFprobe", args, quiet, signal)
+    },
+    dialogs: {
+      pickFilePath: (filters) => run2("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run2("editor.pickDirectory", []),
+      pickSavePath: (defaultPath) => run2("editor.pickSavePath", [{ defaultPath }])
+    },
+    dispose() {
+      disposed = true;
+      for (const jobId of activeJobs) void cancel(jobId).catch(() => {
+      });
+    }
+  };
+}
+var panelLocalClients = /* @__PURE__ */ new WeakMap();
+function panelLocalClient(sdk) {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component) {
+  return function LocalSdkPanel(props) {
+    const [state, setState] = React.useState(null);
+    React.useEffect(() => {
+      let active = true;
+      let client;
+      createPanelLocalClient(props.sdk).then((value) => {
+        client = { ...props.sdk, ...value };
+        if (!active) {
+          value.dispose();
+          return;
+        }
+        panelLocalClients.set(props.sdk, client);
+        setState({ sdk: props.sdk });
+      }).catch((error) => {
+        if (active) setState({ error: String(error?.message || error) });
+      });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", { role: "alert" }, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", { role: "status" }, "Connecting to Selects\u2026");
+    return React.createElement(Component, props);
+  };
+}
 
 // plugins/a16z-style-captions/src/pipeline/host.ts
 var PANEL_ID = "a16z-style-captions";
-function app() {
-  const parent = window.parent;
-  if (!parent?.__DI__) throw new Error("This Selects version does not expose native panel services.");
-  return parent;
-}
-function di() {
-  return app().__DI__;
-}
-function libraryId() {
-  const id = app().location.pathname.match(/libraries\/([^/]+)/)?.[1];
-  if (!id) throw new Error("Open a Draft in Selects first.");
-  return id;
+function getSdk() {
+  return hostSdk;
 }
 function fs() {
-  return di().FileSystem;
+  return hostSdk.files;
 }
 function dataRoot() {
   const f = fs();
@@ -43,7 +299,7 @@ function envRoot() {
 }
 function hostVersion() {
   try {
-    return String(di().Runtime?.getHostingVersion?.() || "");
+    return String(hostSdk?.environment?.version || "");
   } catch {
     return "";
   }
@@ -91,36 +347,19 @@ async function shell(sdk, summary, command, timeoutMs = 12e4, maxOutputBytes = 1
 function hostError(code, message, member = "") {
   return Object.assign(new Error(message), { code, member });
 }
-function hostDI() {
-  try {
-    return window.parent && window.parent["__DI__"] || null;
-  } catch {
-    return null;
-  }
-}
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch {
-  }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch {
-    return false;
-  }
+  return /^win/i.test(hostSdk?.environment?.platform || "");
 }
 async function hostRoots(sdk, id, marker) {
-  const fs2 = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => {
+  hostUseSdk(sdk);
+  const fs2 = hostApi("FileSystem", "join", "homedir", "exists");
+  const holds = async (dir) => {
     try {
-      return !!dir && (!fs2 || !!fs2.existsSync(fs2.join(dir, marker)));
+      return !!dir && (!fs2 || !!await fs2.exists(fs2.join(dir, marker)));
     } catch {
       return false;
     }
@@ -129,7 +368,7 @@ async function hostRoots(sdk, id, marker) {
   try {
     if (fs2) {
       const dir = String(fs2.join(fs2.homedir(), ".selects", "skills", id));
-      if (holds(dir)) plugin = dir;
+      if (await holds(dir)) plugin = dir;
     }
   } catch {
     plugin = null;
@@ -137,10 +376,10 @@ async function hostRoots(sdk, id, marker) {
   if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
   let data = null;
   try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdir");
     if (dfs) {
       data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id));
-      dfs.mkdirSync(data, { recursive: true });
+      await dfs.mkdir(data, { recursive: true });
     }
   } catch {
     data = null;
@@ -177,6 +416,14 @@ function lastJsonObject(text) {
   }
   throw new Error("The assistant's JSON could not be read.");
 }
+var hostSdk;
+function hostUseSdk(sdk) {
+  hostSdk = panelLocalClient(sdk);
+  if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin.");
+}
+
+// plugins/a16z-style-captions/src/Panel.tsx
+import React2, { useEffect, useRef, useState } from "react";
 
 // plugins/a16z-style-captions/src/pipeline/source.ts
 var READ = (id, pid) => `const p = selects.project(${J(pid)});
@@ -538,7 +785,7 @@ async function ensureFaceRuntime(sdk, progress) {
 async function trackFaces(sdk, rt, dir, jobs) {
   const out = {};
   if (!jobs.length) return out;
-  fs().mkdirSync(dir, { recursive: true });
+  await fs().mkdir(dir, { recursive: true });
   const jobsPath = fs().join(dir, "face-jobs.json");
   const outPath = fs().join(dir, "faces.json");
   await fs().writeFile(jobsPath, J(jobs));
@@ -803,6 +1050,41 @@ function addFramingChanges(plan, covered, starts, fps, duration) {
   return { ...plan, clips, shots, cuts: cuts.sort((a, b) => a - b) };
 }
 
+// shared/generation-client.js
+function sdkGeneration(sdk) {
+  if (typeof sdk?.runScript !== "function") return null;
+  const run2 = async (script2, summary, allowCommit = false) => {
+    const response = await sdk.runScript({ script: script2, summary, allowCommit });
+    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
+    return response?.result;
+  };
+  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
+  return {
+    isAvailable: () => true,
+    supportsPluginFiles: () => true,
+    async submit(request) {
+      if (request.batch != null && request.batch !== 1) throw new Error("Submit one generation at a time.");
+      const input = {
+        projectId: request.scope.projectId,
+        requestKey: request.key,
+        modelId: request.modelId,
+        input: request.input,
+        uploads: request.uploads || {},
+        outputName: request.outputName,
+        mediaType: request.origin?.tool || "video",
+        ...request.inputMediaSeconds ? { inputMediaSeconds: request.inputMediaSeconds } : {},
+        ...request.delivery ? { delivery: { folder: request.delivery.pluginFolder } } : {}
+      };
+      const result = await run2(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
+      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
+      return { jobIds: [result.jobId] };
+    },
+    list: (scope) => run2(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
+    cancel: (scope, id) => run2(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
+    retryDelivery: (scope, id) => run2(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true)
+  };
+}
+
 // plugins/a16z-style-captions/src/pipeline/media.ts
 var b64url = (s) => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 var model = (endpoint) => "model_v1_" + b64url(endpoint);
@@ -824,16 +1106,16 @@ async function generate(pid, r, label, onTick, timeoutMs, tries = 3) {
   throw last;
 }
 function mediaGeneration() {
-  const mg = di().MediaGeneration;
+  const mg = sdkGeneration(getSdk());
   if (!mg?.isAvailable?.()) throw new Error("Selects generation is not available for this account.");
-  if (!mg.supportsPluginFiles?.()) throw new Error("This needs Selects 2.0.512 or later (plug-in generation files). Update Selects.");
+  if (!mg.supportsPluginFiles?.()) throw new Error("Update Selects to use generation files in this plugin.");
   return mg;
 }
 async function submit(pid, r) {
   const mg = mediaGeneration();
-  fs().mkdirSync(r.folder, { recursive: true });
+  await fs().mkdir(r.folder, { recursive: true });
   const res = await mg.submit({
-    scope: { libraryId: libraryId(), projectId: pid },
+    scope: { projectId: pid },
     key: r.key.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64),
     modelId: model(r.endpoint),
     input: r.input,
@@ -850,7 +1132,7 @@ async function submit(pid, r) {
 }
 async function waitFor(pid, jobId, label, onTick, timeoutMs = 15 * 6e4) {
   const mg = mediaGeneration();
-  const scope = { libraryId: libraryId(), projectId: pid };
+  const scope = { projectId: pid };
   const t0 = Date.now();
   let redeliveries = 0;
   for (; ; ) {
@@ -878,12 +1160,12 @@ async function waitFor(pid, jobId, label, onTick, timeoutMs = 15 * 6e4) {
       if (j.status === "submission_unknown" && j.errorCode && Date.now() - t0 > 45e3) {
         mg.cancel(scope, jobId).catch(() => {
         });
-        throw new StuckError(label + " was not accepted (" + j.errorCode + ").");
+        throw new Error(label + " has an unknown submission outcome (" + j.errorCode + "). Resume the same request.");
       }
       if (["preparing", "uploading", "submitting"].includes(j.status) && j.errorCode && Date.now() - t0 > 9e4) {
         mg.cancel(scope, jobId).catch(() => {
         });
-        throw new StuckError(label + " stalled (" + j.errorCode + ").");
+        throw new Error(label + " is still unresolved (" + j.errorCode + "). Resume the same request.");
       }
     }
     if (onTick) onTick(label + " \xB7 " + Math.round((Date.now() - t0) / 1e3) + " s");
@@ -2538,14 +2820,18 @@ function properNoun(w, words2) {
 // plugins/a16z-style-captions/src/pipeline/stock.ts
 function stockSearchAvailable() {
   try {
-    return typeof di()?.StockMediaSearch?.searchVideos === "function";
+    return typeof getSdk()?.runScript === "function";
   } catch {
     return false;
   }
 }
 var clean = (raw) => String(raw || "").replace(/[^\p{L}\p{N}\s'-]+/gu, " ").replace(/\s+/g, " ").trim().split(" ").slice(0, 5).join(" ");
 async function searchCandidates(queries, max, avoid) {
-  const service = di().StockMediaSearch;
+  const service = { searchVideos: async (query) => {
+    const reply = await getSdk().runScript({ script: `return await selects.stock.searchVideos(${JSON.stringify(query)});`, summary: "Find stock footage" });
+    if (reply.isError) throw new Error(reply.output);
+    return reply.result;
+  } };
   const out = [];
   const seen = /* @__PURE__ */ new Set();
   for (const orientation of ["portrait", "landscape"]) {
@@ -2582,14 +2868,14 @@ async function searchCandidates(queries, max, avoid) {
   return out;
 }
 async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
-  fs().mkdirSync(dir, { recursive: true });
+  await fs().mkdir(dir, { recursive: true });
   const start = Math.min(Math.max(0, c.duration - seconds - 0.2), offset);
   const length = Math.max(1.5, Math.min(12, seconds));
   const out = fs().join(dir, "stock-" + Math.abs(hash2(c.id + "@" + start.toFixed(2) + "+" + length.toFixed(2))) + ".mp4");
-  if (!fs().existsSync(out)) {
+  if (!await fs().exists(out)) {
     const portrait = c.height > c.width;
     const box = portrait ? "1080:1920" : "1920:1080";
-    const part = typeof fs().renameSync === "function" ? out + ".part.mp4" : out;
+    const part = typeof fs().rename === "function" ? out + ".part.mp4" : out;
     await hostFF(
       "runFFmpeg",
       [
@@ -2617,7 +2903,7 @@ async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
       ],
       15e4
     );
-    if (part !== out) fs().renameSync(part, out);
+    if (part !== out) await fs().rename(part, out);
   }
   const probe = (await hostFF("runFFprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:format=duration", "-of", "csv=p=0", out], 3e4)).stdout.trim().split(/[\r\n,]+/).map(Number);
   return { id: c.id, path: out, width: probe[0] || c.width, height: probe[1] || c.height, dur: probe[2] || 0, credit: c.credit, url: c.authorUrl, service: c.service };
@@ -2725,7 +3011,7 @@ async function fetchInserts(sdk, runs, dir, onTick, cache = {}) {
   const todo = [];
   for (const r of runs) {
     const hits = r.shots.map((s) => cache[cacheKey(s)]);
-    if (hits.every((h) => h && (!h.clip || fs().existsSync(h.clip.path)))) {
+    if ((await Promise.all(hits.map(async (h) => h && (!h.clip || await fs().exists(h.clip.path))))).every(Boolean)) {
       for (let k = 0; k < hits.length; k += 1) {
         const h = hits[k];
         if (!h.clip) continue;
@@ -2814,7 +3100,7 @@ var STEPS = [
 ];
 var jobDir = (id) => fs().join(dataRoot(), "shorts", id);
 async function saveJob(job) {
-  fs().mkdirSync(jobDir(job.shortId), { recursive: true });
+  await fs().mkdir(jobDir(job.shortId), { recursive: true });
   await fs().writeFile(fs().join(jobDir(job.shortId), "job.json"), J(job));
 }
 async function loadJob(id) {
@@ -2910,7 +3196,7 @@ async function build(sdk, job, onStep) {
   const end = short.endFrame;
   const key = job.shortId.replace(/-/g, "").slice(0, 12);
   onStep("music", job.opts.music ? "run" : "skip", job.opts.music ? "Composing\u2026" : "off");
-  const musicJob = !job.opts.music ? Promise.resolve(null) : job.musicPath && fs().existsSync(job.musicPath) ? Promise.resolve(job.musicPath) : (async () => {
+  const musicJob = !job.opts.music ? Promise.resolve(null) : job.musicPath && await fs().exists(job.musicPath) ? Promise.resolve(job.musicPath) : (async () => {
     mediaGeneration();
     return makeMusic(pid, end / fps, dir, key, (s) => onStep("music", "run", s));
   })().catch((e) => {
@@ -3051,6 +3337,7 @@ var setRun = (patch) => {
   listeners.forEach((l) => l());
 };
 function A16zShort({ sdk, context }) {
+  hostUseSdk(sdk);
   const [, force] = useState(0);
   useEffect(() => {
     const l = () => force((n) => n + 1);
@@ -3110,8 +3397,9 @@ function A16zShort({ sdk, context }) {
   const icon = (s) => s === "done" ? "\u2713" : s === "run" ? "\u2026" : s === "fail" ? "!" : s === "skip" ? "\u2013" : "\xB7";
   const field = { display: "flex", flexDirection: "column", gap: 4 };
   const muted = { color: "var(--panel-muted-fg)" };
-  return /* @__PURE__ */ React.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "a16z-style Short, one click"), /* @__PURE__ */ React.createElement("div", { style: muted }, "Turns this talking-head Draft into a new 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, B-roll, a name tag and a music bed.")), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Speaker name (optional, for the name tag)"), /* @__PURE__ */ React.createElement("input", { type: "text", value: name, disabled: busy, placeholder: "e.g. Jane Doe", onChange: (e) => setName(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Role line"), /* @__PURE__ */ React.createElement("input", { type: "text", value: role, disabled: busy, placeholder: "e.g. Founder, Example Labs", onChange: (e) => setRole(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Your logo (optional): path to a small PNG or SVG, shown top right"), /* @__PURE__ */ React.createElement("input", { type: "text", value: logo, disabled: busy, placeholder: "~/Pictures/logo.png", onChange: (e) => setLogo(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. the key idea is 'taste'", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: music, disabled: busy, onChange: (e) => setMusic(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "Music bed (AI-generated, uses generation credits)")), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: cards, disabled: busy, onChange: (e) => setCards(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "Keyword cards")), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: broll, disabled: busy, onChange: (e) => setBroll(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "B-roll from stock footage (Pexels and Pixabay)")), isShort && /* @__PURE__ */ React.createElement("button", { onClick: () => go(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild captions and graphics"), /* @__PURE__ */ React.createElement("button", { onClick: () => go(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the Short\u2026 " + clock + " s" : isShort ? "Make a new Short from this Draft" : "Make the Short"), (busy || run.steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, run.steps.map((s) => /* @__PURE__ */ React.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React.createElement("span", { style: muted }, " \u2014 ", s.note) : null)))), run.error && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, run.error), run.result && !busy && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", null, "Made \u201C", run.result.name, "\u201D in ", Math.round(run.result.seconds), " s."), run.result.notes.length ? /* @__PURE__ */ React.createElement("ul", { style: { margin: 0, paddingLeft: 18, ...muted } }, run.result.notes.map((n, i) => /* @__PURE__ */ React.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the Short")), /* @__PURE__ */ React.createElement("div", { style: { ...muted, fontSize: 11 } }, "A style study, not affiliated with a16z. Use your own name, role and logo."));
+  return /* @__PURE__ */ React2.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React2.createElement("div", null, /* @__PURE__ */ React2.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "a16z-style Short, one click"), /* @__PURE__ */ React2.createElement("div", { style: muted }, "Turns this talking-head Draft into a new 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, B-roll, a name tag and a music bed.")), /* @__PURE__ */ React2.createElement("label", { style: field }, /* @__PURE__ */ React2.createElement("span", null, "Speaker name (optional, for the name tag)"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: name, disabled: busy, placeholder: "e.g. Jane Doe", onChange: (e) => setName(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: field }, /* @__PURE__ */ React2.createElement("span", null, "Role line"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: role, disabled: busy, placeholder: "e.g. Founder, Example Labs", onChange: (e) => setRole(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: field }, /* @__PURE__ */ React2.createElement("span", null, "Your logo (optional): path to a small PNG or SVG, shown top right"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: logo, disabled: busy, placeholder: "~/Pictures/logo.png", onChange: (e) => setLogo(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: field }, /* @__PURE__ */ React2.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. the key idea is 'taste'", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React2.createElement("input", { type: "checkbox", checked: music, disabled: busy, onChange: (e) => setMusic(e.target.checked) }), /* @__PURE__ */ React2.createElement("span", null, "Music bed (AI-generated, uses generation credits)")), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React2.createElement("input", { type: "checkbox", checked: cards, disabled: busy, onChange: (e) => setCards(e.target.checked) }), /* @__PURE__ */ React2.createElement("span", null, "Keyword cards")), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React2.createElement("input", { type: "checkbox", checked: broll, disabled: busy, onChange: (e) => setBroll(e.target.checked) }), /* @__PURE__ */ React2.createElement("span", null, "B-roll from stock footage (Pexels and Pixabay)")), isShort && /* @__PURE__ */ React2.createElement("button", { onClick: () => go(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild captions and graphics"), /* @__PURE__ */ React2.createElement("button", { onClick: () => go(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the Short\u2026 " + clock + " s" : isShort ? "Make a new Short from this Draft" : "Make the Short"), (busy || run.steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React2.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, run.steps.map((s) => /* @__PURE__ */ React2.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React2.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React2.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React2.createElement("span", { style: muted }, " \u2014 ", s.note) : null)))), run.error && /* @__PURE__ */ React2.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, run.error), run.result && !busy && /* @__PURE__ */ React2.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React2.createElement("div", null, "Made \u201C", run.result.name, "\u201D in ", Math.round(run.result.seconds), " s."), run.result.notes.length ? /* @__PURE__ */ React2.createElement("ul", { style: { margin: 0, paddingLeft: 18, ...muted } }, run.result.notes.map((n, i) => /* @__PURE__ */ React2.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React2.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the Short")), /* @__PURE__ */ React2.createElement("div", { style: { ...muted, fontSize: 11 } }, "A style study, not affiliated with a16z. Use your own name, role and logo."));
 }
+var Panel_default = withPanelLocalClient(A16zShort);
 export {
-  A16zShort as default
+  Panel_default as default
 };

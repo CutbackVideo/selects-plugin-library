@@ -45,19 +45,19 @@ function host({ platform = 'darwin', home, calls = [], stderrInResult = true, do
   });
   const FileSystem = {
     join: (...p) => path.join(...p), dirname: p => path.dirname(p), basename: p => path.basename(p), homedir: () => home,
-    existsSync: p => fs.existsSync(p), mkdirSync: (p, o) => fs.mkdirSync(p, o), readdirSync: p => fs.readdirSync(p),
-    statSync: p => ({ ...fs.statSync(p) }), renameSync: (a, b) => fs.renameSync(a, b), rmSync: (p, o) => fs.rmSync(p, o),
+    exists: async p => fs.existsSync(p), mkdir: async (p, o) => fs.mkdirSync(p, o), readdir: async p => fs.readdirSync(p),
+    stat: async p => ({ ...fs.statSync(p), isDirectory: fs.statSync(p).isDirectory() }), rename: async (a, b) => fs.renameSync(a, b), rm: async (p, o) => fs.rmSync(p, o),
     readFile: async p => other.bytes(fs.readFileSync(p)), readRange: async (p, start, n) => { const fd = fs.openSync(p, 'r'); try { const b = Buffer.alloc(n); const got = fs.readSync(fd, b, 0, n, start); return other.bytes(b.subarray(0, got)); } finally { fs.closeSync(fd); } },
     writeFile: async (p, d) => fs.writeFileSync(p, typeof d === 'string' ? d : Buffer.from(d)), removeFile: async ({ filePath }) => fs.rmSync(filePath, { force: true }),
-    pathToLocalURL: p => 'selects-file://' + encodeURI(p.split(path.sep).join('/')) + '/',
+    pathToLocalURL: async p => 'selects-file://' + encodeURI(p.split(path.sep).join('/')) + '/',
     downloadFile: async (url, dest) => { calls.push(['download', url, dest]); fs.writeFileSync(dest, downloads[url] ?? Buffer.alloc(0)); },
   };
-  return { FileSystem, Runtime: { getPlatform: () => platform, getHostingVersion: () => '2.0.520', runFFmpeg: run('ffmpeg'), runFFprobe: run('ffprobe') } };
+  return { files: FileSystem, media: { runFFmpeg: run('ffmpeg'), runFFprobe: run('ffprobe') }, dialogs: {}, environment: {platform, version:'2.0.520'} };
 }
 function load(di) {
-  const ctx = vm.createContext({ window: { parent: { __DI__: di } }, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
+  const ctx = vm.createContext({ sdk: di, window: { parent: { get __DI__(){throw Error('Migrated operations must not use DI');} } }, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
     AbortController, setTimeout, clearTimeout, atob, btoa, console, performance });
-  vm.runInContext(block('av-host') + '\n' + block('pc-ledger') + '\n' + block('pc-port') + '\nthis.pcLedger=pcLedger;this.pcPort=pcPort;this.pcToolError=pcToolError;', ctx);
+  vm.runInContext(block('av-host') + '\n' + block('pc-ledger') + '\n' + block('pc-port') + '\nbindLocalSdk(sdk);this.pcLedger=pcLedger;this.pcPort=pcPort;this.pcToolError=pcToolError;', ctx);
   return ctx;
 }
 // The port with its ledger, storing under `home` the way pipeline.py does (<home>/.selects/plugin-data/<id>).
@@ -311,29 +311,29 @@ test('on Windows helper() runs the port, never the shell; an old Selects gets on
   const make = (platform, version) => {
     const home = tmp(), skills = path.join(home, '.selects', 'skills', 'postcard-cutout-studio');
     fs.mkdirSync(path.dirname(skills), { recursive: true }); fs.symlinkSync(PKG, skills);
-    const di = host({ home, platform }); di.Runtime.getHostingVersion = () => version;
-    const ctx = vm.createContext({ window: { parent: { __DI__: di } }, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
+    const di = host({ home, platform }); di.environment.version = version;
+    const ctx = vm.createContext({ sdk: di, window: { parent: { get __DI__(){throw Error('Migrated operations must not use DI');} } }, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
       AbortController, setTimeout, clearTimeout, atob, btoa, console, performance });
     const shell = name => 'function ' + name + '(){throw Error("shell reached")}';
     vm.runInContext([block('av-host'), trace, wiring, block('pc-ledger'), block('pc-port'), ...['macHelper', 'macProbeSubject', 'macRangePreview', 'macDecodeCheck'].map(shell),
-      'this.helper=helper;this.pcHostIssue=pcHostIssue;this.samePath=samePath;this.probeSubject=probeSubject;'].join('\n'), ctx);
-    return { ctx, home };
+      'bindLocalSdk(sdk);this.helper=helper;this.pcHostIssue=pcHostIssue;this.samePath=samePath;this.probeSubject=probeSubject;'].join('\n'), ctx);
+    return { ctx, home, sdk: di };
   };
   const sdk = { runShell: () => { throw Error('runShell reached'); } };
   const win = make('win32', '2.0.520'), folder = tmp(); fs.writeFileSync(path.join(folder, 'a.mp4'), 'x');
   assert.equal(win.ctx.pcHostIssue(), '');
-  assert.equal((await win.ctx.helper(sdk, 'folder-media', { path: folder })).total, 1);
-  assert.equal(await win.ctx.helper(sdk, 'load', { projectId: 'p1' }), null);
-  assert.equal(JSON.stringify(await win.ctx.helper(sdk, 'ensure')), '{}');
-  await assert.rejects(win.ctx.helper(sdk, 'rvm-preview', {}), /Unknown operation/);
+  assert.equal((await win.ctx.helper(win.sdk, 'folder-media', { path: folder })).total, 1);
+  assert.equal(await win.ctx.helper(win.sdk, 'load', { projectId: 'p1' }), null);
+  assert.equal(JSON.stringify(await win.ctx.helper(win.sdk, 'ensure')), '{}');
+  await assert.rejects(win.ctx.helper(win.sdk, 'rvm-preview', {}), /Unknown operation/);
   assert.ok(fs.existsSync(path.join(win.home, '.selects', 'plugin-data', 'postcard-cutout-studio')));
-  if (tools) { const { f } = media(); assert.equal(JSON.parse((await win.ctx.probeSubject(sdk, f('Clip one.mp4'))).stdout).streams[0].width, 320); }
+  if (tools) { const { f } = media(); assert.equal(JSON.parse((await win.ctx.probeSubject(win.sdk, f('Clip one.mp4'))).stdout).streams[0].width, 320); }
   const old = make('win32', '2.0.507');
   assert.match(old.ctx.pcHostIssue(), /needs Selects 2\.0\.508 or later on Windows\. Update Selects/);
-  await assert.rejects(old.ctx.helper(sdk, 'load', { projectId: 'p1' }), /Update Selects/);
+  await assert.rejects(old.ctx.helper(old.sdk, 'load', { projectId: 'p1' }), /Update Selects/);
   const mac = make('darwin', '2.0.400');
   assert.equal(mac.ctx.pcHostIssue(), '');
-  await assert.rejects(mac.ctx.helper(sdk, 'load', {}), /shell reached/, 'macOS keeps pipeline.py');
+  await assert.rejects(mac.ctx.helper(mac.sdk, 'load', {}), /shell reached/, 'macOS keeps pipeline.py');
   assert.equal(win.ctx.samePath('C:\\Users\\A\\Clip.MP4', 'c:/users/a/clip.mp4'), true);
   assert.equal(mac.ctx.samePath('/Volumes/A/Clip.MP4', '/Volumes/a/clip.mp4'), false);
 });

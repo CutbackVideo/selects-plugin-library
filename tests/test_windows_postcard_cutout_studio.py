@@ -14,6 +14,8 @@ from pathlib import Path
 import re
 import unittest
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / 'plugins/postcard-cutout-studio'
 PANEL = Path(os.environ.get('POSTCARD_PANEL') or PLUGIN / 'panel.tsx')
@@ -21,7 +23,7 @@ HOST_BLOCK = re.compile(r'// av-host:start\n.*?// av-host:end', re.S)
 PORT_BLOCK = re.compile(r'// pc-port:start\n.*?// pc-port:end', re.S)
 LEDGER_BLOCK = re.compile(r'// pc-ledger:start\n.*?// pc-ledger:end', re.S)
 MAC_ONLY = re.compile(r'^[ \t]*// mac-only:start[ \t]*\n.*?^[ \t]*// mac-only:end[ \t]*$', re.S | re.M)
-HOST_NAMES = ['hostError', 'hostDI', 'hostApi', 'hostNeed', 'hostIsWindows', 'hostJoin', 'hostBytes', 'hostReadBytes',
+HOST_NAMES = ['hostError', 'bindLocalSdk', 'hostApi', 'hostNeed', 'hostIsWindows', 'hostJoin', 'hostBytes', 'hostReadBytes',
               'hostReadText', 'hostRemove', 'hostRoots', 'hostDecodePcm', 'hostProbeSeconds']
 FORBIDDEN = ['mkdir -p', 'printf', '$HOME', '$SELECTS_USER', 'rm -f', 'base64 ', '| base64', 'shasum',
              'command -v', 'export PATH', 'cat "', '2>/dev/null', '/usr/bin/', 'sh "', "sh '", 'runtime.sh',
@@ -68,7 +70,7 @@ class PostcardCutoutStudioWindowsTest(unittest.TestCase):
         runtime = strip_comments(HOST_BLOCK.sub('', self.portable))
         for token in FORBIDDEN:
             with self.subTest(token=token):
-                self.assertNotIn(token, runtime)
+                assert_no_shell_token(self, token, runtime)
         self.assertIsNone(SPAWN.search(runtime), 'no node/python spawn outside mac-only regions')
 
     def test_windows_runs_every_helper_op_in_the_panel(self):
@@ -105,8 +107,8 @@ class PostcardCutoutStudioWindowsTest(unittest.TestCase):
 
     def test_masks_come_from_local_files_on_windows(self):
         port = PORT_BLOCK.search(self.text).group(0)
-        self.assertIn("pathToLocalURL(dir)).replace(/\\/+$/,'')", port)
-        self.assertIn('d.mask={baseUrl:localUrl(dest),', port)
+        self.assertIn("pathToLocalURL(dir))).replace(/\\/+$/,'')", port)
+        self.assertIn('d.mask={baseUrl:(await localUrl(dest)),', port)
         self.assertIn("ensure:async()=>({})", port, 'no mask service on Windows')
         self.assertIn("const PC_MIN_HOST='2.0.508';", self.text)
 
@@ -126,7 +128,8 @@ class PostcardCutoutStudioWindowsTest(unittest.TestCase):
         for old in ('item.path===', 'v.path===path', 'x.path===paths[', 'x.path===prepared', 'x.path===s.path', 'x.path===path'):
             with self.subTest(old=old):
                 self.assertNotIn(old, self.text)
-        self.assertEqual(self.text.count('samePath('), 9, 'the helper and its eight uses')
+        self.assertEqual(self.text.count('samePath('), 8, 'the helper and its seven local uses')
+        self.assertIn('sdkMediaByPath(sdk,scope.projectId,path)', self.text)
 
     def test_template_run_checks_the_host_before_anything(self):
         body = self.body('async function runTemplate(')

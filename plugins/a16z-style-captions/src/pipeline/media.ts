@@ -1,6 +1,7 @@
+import { sdkGeneration } from "../../../../shared/generation-client.js";
 // Selects generation (models through the app's MediaGeneration service). Every result is delivered into
 // this plugin's data folder so it can be measured before it goes into the Project.
-import { di, fs, libraryId, sleep } from "./host";
+import { getSdk, fs, sleep } from "./host";
 
 const b64url = (s: string) => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 export const model = (endpoint: string) => "model_v1_" + b64url(endpoint);
@@ -9,7 +10,7 @@ const FAILED = new Set(["failed", "cancelled", "canceled", "input_failed", "subm
 
 export class StuckError extends Error {}
 
-// Submit and wait, resubmitting (with a fresh key) when a job never gets going.
+// Submit and observe. Only a confirmed pre-admission failure permits a new key.
 export async function generate(pid: string, r: GenRequest, label: string, onTick?: (s: string) => void, timeoutMs?: number, tries = 3): Promise<string> {
   let last: any = null;
   for (let k = 0; k < tries; k += 1) {
@@ -26,9 +27,9 @@ export async function generate(pid: string, r: GenRequest, label: string, onTick
 }
 
 export function mediaGeneration() {
-  const mg = di().MediaGeneration;
+  const mg = sdkGeneration(getSdk());
   if (!mg?.isAvailable?.()) throw new Error("Selects generation is not available for this account.");
-  if (!mg.supportsPluginFiles?.()) throw new Error("This needs Selects 2.0.512 or later (plug-in generation files). Update Selects.");
+  if (!mg.supportsPluginFiles?.()) throw new Error("Update Selects to use generation files in this plugin.");
   return mg;
 }
 
@@ -46,9 +47,9 @@ export type GenRequest = {
 
 export async function submit(pid: string, r: GenRequest): Promise<string> {
   const mg = mediaGeneration();
-  fs().mkdirSync(r.folder, { recursive: true });
+  (await fs().mkdir(r.folder, { recursive: true }));
   const res = await mg.submit({
-    scope: { libraryId: libraryId(), projectId: pid },
+    scope: { projectId: pid },
     key: r.key.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64),
     modelId: model(r.endpoint),
     input: r.input,
@@ -67,7 +68,7 @@ export async function submit(pid: string, r: GenRequest): Promise<string> {
 // Wait for one job; resolves with the delivered file path.
 export async function waitFor(pid: string, jobId: string, label: string, onTick?: (s: string) => void, timeoutMs = 15 * 60000): Promise<string> {
   const mg = mediaGeneration();
-  const scope = { libraryId: libraryId(), projectId: pid };
+  const scope = { projectId: pid };
   const t0 = Date.now();
   let redeliveries = 0;
   for (;;) {
@@ -93,15 +94,15 @@ export async function waitFor(pid: string, jobId: string, label: string, onTick?
         if (/upload|handoff|submission_rejected|input_failed/.test(code + " " + j.status)) throw new StuckError(label + " failed (" + code + ").");
         throw new Error(label + " failed (" + code + ").");
       }
-      // A request whose admission reply was lost and that the server cannot find was never accepted, and one
-      // still preparing with an error after a minute and a half (e.g. the upload could not be verified) is stuck.
+      // An unknown or unresolved admission may already have been accepted. Stop
+      // automatic resubmission and preserve the same request key for recovery.
       if (j.status === "submission_unknown" && j.errorCode && Date.now() - t0 > 45000) {
         mg.cancel(scope, jobId).catch(() => {});
-        throw new StuckError(label + " was not accepted (" + j.errorCode + ").");
+        throw new Error(label + " has an unknown submission outcome (" + j.errorCode + "). Resume the same request.");
       }
       if (["preparing", "uploading", "submitting"].includes(j.status) && j.errorCode && Date.now() - t0 > 90000) {
         mg.cancel(scope, jobId).catch(() => {});
-        throw new StuckError(label + " stalled (" + j.errorCode + ").");
+        throw new Error(label + " is still unresolved (" + j.errorCode + "). Resume the same request.");
       }
     }
     if (onTick) onTick(label + " · " + Math.round((Date.now() - t0) / 1000) + " s");

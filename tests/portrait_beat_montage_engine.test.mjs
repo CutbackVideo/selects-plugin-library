@@ -1,3 +1,4 @@
+import { asyncSdk, topLevel } from './windows_host.mjs';
 // The Windows engine of portrait-beat-montage (panel.tsx `// pbm-engine` + the `@operation` section) end to end on a
 // fake Windows host: FileSystem on node:fs (bytes from another realm), Runtime.runFFmpeg/runFFprobe on a real ffmpeg,
 // the pixel kernels in a Web Worker (a worker_threads stand-in for the blob: Worker), and the person mattes from one
@@ -41,6 +42,7 @@ function loadEngine(home, {MediaGeneration = null, version = '2.0.535', panelSou
   const cut = (a, b) => src.slice(src.indexOf(a), src.indexOf(b));
   const code = ['const PLUGIN = "portrait-beat-montage";', cut('// av-host:start', '// av-host:end'), cut('const MAC_ONLY_TEXT', '// @operation-start'),
     cut('// @operation-start', '// @operation-end').replace(/^export /gm, ''), cut('// pbm-engine:start', '// pbm-engine:end'),
+    ...(src.includes('function generationApi(') ? [topLevel(src, 'generationApi')] : []),
     'globalThis.engine = { pbmWindowsMontage, pbmMatteSource, pbmMattesFromAlpha, pbmWorkerKernels, pbmKernels, pbmUnits, pbmAssemble, plainText: typeof plainText === "function" ? plainText : null };'].join('\n');
   const removeFile = async ({filePath}) => fs.rmSync(filePath, {force: true});
   const FileSystem = {
@@ -70,10 +72,13 @@ function loadEngine(home, {MediaGeneration = null, version = '2.0.535', panelSou
     postMessage(m, t) { this.w.postMessage(m, t); }
     terminate() { this.w.terminate(); }
   }
-  const ctx = vm.createContext({window: {parent: {__DI__: {FileSystem, Runtime, ...(MediaGeneration ? {MediaGeneration} : {})}, location: {pathname: '/libraries/lib-1/projects/p-1'}}}, navigator: {platform: 'Win32'}, crypto: globalThis.crypto,
+  const sdk = asyncSdk({FileSystem, Runtime});
+  const ctx = vm.createContext({sdk, panelLocalClient: sdk => sdk, sdkGeneration: () => MediaGeneration, window: {parent: {__DI__: {FileSystem, Runtime, ...(MediaGeneration ? {MediaGeneration} : {})}, location: {pathname: '/libraries/lib-1/projects/p-1'}}}, navigator: {platform: 'Win32'}, crypto: globalThis.crypto,
     TextEncoder, TextDecoder, AbortController, setTimeout, clearTimeout, atob, Blob, URL, Worker, console});
-  vm.runInContext(code, ctx);
-  return {engine: ctx.engine, calls, FileSystem};
+  vm.runInContext(code + (src.includes('function hostUseSdk(') ? '\nhostUseSdk(sdk);' : ''), ctx);
+  const montage = ctx.engine.pbmWindowsMontage;
+  ctx.engine.pbmWindowsMontage = (provided, options) => montage({ ...sdk, ...provided }, options);
+  return {engine: ctx.engine, calls, FileSystem: panelSource ? FileSystem : sdk.files};
 }
 
 // Two synthetic "person" clips (a bright figure moving over a darker room): one portrait, one landscape.
@@ -238,7 +243,7 @@ test('Windows mattes: credits notice first, one generation request, cached for r
   await assert.rejects(build(() => { throw Object.assign(new Error('needs a click'), {code: 'needs-confirm'}); }), /needs a click/);
   assert.equal(submitted.length, 0);
   // An old Selects: refused before the notice.
-  await assert.rejects(build(async () => { throw Error('asked'); }, {}, loadEngine(home, {MediaGeneration, version: '2.0.511'}).engine), /2\.0\.512 or later/);
+  await assert.rejects(build(async () => { throw Error('asked'); }, {}, loadEngine(home, {MediaGeneration: null}).engine), /Update Selects/);
   const runs = fs.readdirSync(path.join(data, 'runs'));
   assert.equal(runs.length, 1, 'one resumable run');
   assert.ok(!fs.existsSync(path.join(data, 'runs', runs[0], 'manifest.json')));
@@ -248,7 +253,7 @@ test('Windows mattes: credits notice first, one generation request, cached for r
   assert.equal(submitted.length, 1);
   const req = submitted[0];
   assert.equal(req.modelId, 'model_v1_dmVlZC92aWRlby1iYWNrZ3JvdW5kLXJlbW92YWwvZmFzdA');
-  assert.deepEqual(plain(req.scope), {libraryId: 'lib-1', projectId: 'p-1'});
+  assert.deepEqual(plain(req.scope), {projectId: 'p-1'});
   assert.deepEqual(plain(req.inputMediaSeconds), {video: 4 * 36 / 60});
   assert.match(req.key, /^pbm-[0-9a-f]{24}$/);
   assert.ok(req.uploads.source.pluginFile.startsWith(path.join(data, 'runs')));

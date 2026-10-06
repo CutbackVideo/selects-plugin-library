@@ -1,3 +1,4 @@
+const { asyncSdk } = require('../../../tests/windows_host.mjs');
 // plugins/selfie-aesthetic/tests/host.test.cjs (run: node plugins/selfie-aesthetic/tests/host.test.cjs)
 // The panel's host block (dev/host-block.ts) evaluated as plain JS in node:vm with a fake window.parent.__DI__ built
 // on node:fs/node:path and a fake Runtime that runs the real ffmpeg/ffprobe (SAE_FFMPEG_DIR, else PATH; the ffmpeg
@@ -71,7 +72,9 @@ function sandbox(di, opts) {
   };
   box.window = opts.where === 'self' ? { parent: {}, __DI__: di } : { parent: { __DI__: di } };
   vm.createContext(box);
-  vm.runInContext(block + ';globalThis.H={' + API.join(',') + '};', box);
+  box.sdk = di ? asyncSdk(di) : undefined;
+  if (box.sdk) box.sdk.environment.platform = di.Runtime?.getPlatform?.() || '';
+  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + block + ';hostUseSdk(sdk);globalThis.H={' + API.join(',') + '};', box);
   return { H: box.H, box, blobs };
 }
 
@@ -165,12 +168,12 @@ test('bytes from another realm (window.parent FileSystem results) decode', () =>
 
 test('missing __DI__ or members -> host_tools', async () => {
   const { H } = sandbox(undefined);
-  assert.deepEqual(JSON.parse(JSON.stringify(H.saeDI())), { fs: null, rt: null });
+  assert.deepEqual(JSON.parse(JSON.stringify(H.saeDI())), {});
   const has = H.saeHas(['fs.join', 'rt.runFFmpeg']);
   assert.equal(has.ok, false);
   assert.deepEqual(Array.from(has.missing), ['fs.join', 'rt.runFFmpeg']);
-  throwsCode(() => H.saeDataDir('x'), 'host_tools');
-  throwsCode(() => H.saeSkillsDir('x'), 'host_tools');
+  await rejectsCode(H.saeDataDir('x'), 'host_tools');
+  await rejectsCode(H.saeSkillsDir('x'), 'host_tools');
   await rejectsCode(H.saeFFmpeg(['-version']), 'host_tools');
   await rejectsCode(H.saeFFprobe(['-version']), 'host_tools');
   await rejectsCode(H.saeProbeDuration(media), 'host_tools');
@@ -182,8 +185,8 @@ test('missing __DI__ or members -> host_tools', async () => {
   let ran = 0;
   const partial = sandbox({ FileSystem: realFS({ mkdirSync: undefined, readFileSync: undefined, readFile: undefined }),
     Runtime: { runFFmpeg: async () => { ran++; return { stdout: '', stderr: '' }; } } }).H;
-  const err = throwsCode(() => partial.saeDataDir('x'), 'host_tools');
-  assert.deepEqual(Array.from(err.missing), ['fs.mkdirSync']);
+  const err = await rejectsCode(partial.saeDataDir('x'), 'host_tools');
+  assert.deepEqual(Array.from(err.missing), ['fs.mkdir']);
   await rejectsCode(partial.saeFFprobe(['-version']), 'host_tools');
   await rejectsCode(partial.saeDecodePcm(media, tmp), 'host_tools');
   await rejectsCode(partial.saePreviewUrl(media, 0, 1, tmp), 'host_tools');
@@ -197,7 +200,7 @@ test('missing __DI__ or members -> host_tools', async () => {
   Object.defineProperty(box.window, 'parent', { get() { throw new Error('SecurityError'); } });
   vm.createContext(box);
   vm.runInContext(block + ';globalThis.D=saeDI();', box);
-  assert.equal(box.D.fs, null);
+  assert.equal(box.D.fs, undefined);
 });
 
 test('timeouts and tool failures map to timeout / media_failed', async () => {
@@ -222,7 +225,7 @@ test('ffmpeg that succeeds without writing its output maps to media_failed', asy
       if (write) fs.writeFileSync(args[args.length - 1], '');
       return { stdout: '', stderr: '' };
     } } });
-    const dir = s.H.saeDataDir('no-output-' + write);
+    const dir = (await s.H.saeDataDir('no-output-' + write));
     const pcm = await rejectsCode(s.H.saeDecodePcm(path.join(tmp, 'in.wav'), dir), 'media_failed');
     assert.ok(pcm.detail && pcm.detail.length, 'pcm detail');
     const prev = await rejectsCode(s.H.saePreviewUrl(path.join(tmp, 'in.wav'), 0, 1, dir), 'media_failed');
@@ -233,52 +236,28 @@ test('ffmpeg that succeeds without writing its output maps to media_failed', asy
 });
 
 // ---- paths ----
-test('platform, skills dir, data dir', () => {
+test('platform, skills dir, data dir', async () => {
   assert.equal(sandbox({ Runtime: { getPlatform: () => 'win32' } }).H.saePlatform(), 'win32');
   assert.equal(sandbox({ Runtime: { getPlatform: () => 'darwin' } }).H.saePlatform(), 'darwin');
-  assert.equal(sandbox({}, { ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Selects' }).H.saePlatform(), 'win32');
-  assert.equal(sandbox({}, { ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' }).H.saePlatform(), 'darwin');
-  assert.equal(sandbox(undefined, { ua: 'Mozilla/5.0 (X11; Linux x86_64)' }).H.saePlatform(), 'linux');
 
   const { H } = sandbox({ FileSystem: realFS(), Runtime: realRT() });
   const skill = path.join(HOME, '.selects', 'skills', 'selfie-aesthetic');
-  assert.equal(H.saeSkillsDir('selfie-aesthetic'), null, 'no folder yet');
+  assert.equal((await H.saeSkillsDir('selfie-aesthetic')), null, 'no folder yet');
   fs.mkdirSync(skill, { recursive: true });
-  assert.equal(H.saeSkillsDir('selfie-aesthetic'), null, 'folder without planner.js');
+  assert.equal((await H.saeSkillsDir('selfie-aesthetic')), null, 'folder without planner.js');
   fs.writeFileSync(path.join(skill, 'planner.js'), '');
-  assert.equal(H.saeSkillsDir('selfie-aesthetic'), skill);
+  assert.equal((await H.saeSkillsDir('selfie-aesthetic')), skill);
 
-  // Skills root fallbacks (no shell): home first, then SELECTS_USER_SKILLS_ROOT from Runtime.getHostEnvironment(),
-  // the renderer's process.env, and Runtime.getOS().homedir(); each must hold planner.js.
-  const alt = path.join(tmp, 'alt root'), altSkill = path.join(alt, 'selfie-aesthetic');
-  fs.mkdirSync(altSkill, { recursive: true });
-  fs.writeFileSync(path.join(altSkill, 'planner.js'), '');
   const emptyHome = path.join(tmp, 'empty home');
-  fs.mkdirSync(emptyHome, { recursive: true });
-  const fsEmpty = realFS({ homedir: () => emptyHome });
-  const envRT = realRT({ getHostEnvironment: () => ({ appUILocale: 'en', appLocale: 'en', SELECTS_USER_SKILLS_ROOT: alt }) });
-  assert.equal(sandbox({ FileSystem: realFS(), Runtime: envRT }).H.saeSkillsDir('selfie-aesthetic'), skill, 'the home folder wins when it holds the plugin');
-  assert.equal(sandbox({ FileSystem: fsEmpty, Runtime: envRT }).H.saeSkillsDir('selfie-aesthetic'), altSkill, 'host environment root when home lacks the plugin');
-  const pe = sandbox({ FileSystem: fsEmpty, Runtime: realRT() });
-  pe.box.window.parent.process = { env: { SELECTS_USER_SKILLS_ROOT: alt } };
-  assert.equal(pe.H.saeSkillsDir('selfie-aesthetic'), altSkill, 'renderer process.env root');
-  assert.equal(sandbox({ FileSystem: fsEmpty, Runtime: realRT({ getOS: () => ({ homedir: () => HOME }) }) }).H.saeSkillsDir('selfie-aesthetic'), skill, 'Runtime.getOS().homedir()');
-  assert.equal(sandbox({ FileSystem: fsEmpty, Runtime: realRT({ getHostEnvironment: () => ({ SELECTS_USER_SKILLS_ROOT: path.join(tmp, 'nowhere') }) }) }).H.saeSkillsDir('selfie-aesthetic'), null, 'neither holds the plugin -> null');
-  // Missing or throwing members never crash: no homedir, getHostEnvironment / getOS / process.env throwing, no Runtime.
-  const { homedir: _h, ...noHome } = realFS();
-  const boom = () => { throw new Error('boom'); };
-  const bad = sandbox({ FileSystem: noHome, Runtime: { getHostEnvironment: boom, getOS: boom } });
-  Object.defineProperty(bad.box.window.parent, 'process', { get: boom });
-  assert.equal(bad.H.saeSkillsDir('selfie-aesthetic'), null);
-  assert.equal(sandbox({ FileSystem: { ...noHome } }).H.saeSkillsDir('selfie-aesthetic'), null, 'no Runtime at all');
-  assert.equal(sandbox({ FileSystem: { ...noHome, homedir: boom }, Runtime: envRT }).H.saeSkillsDir('selfie-aesthetic'), altSkill, 'a throwing homedir is skipped');
-  throwsCode(() => sandbox({ FileSystem: { join: path.join, homedir: () => HOME } }).H.saeSkillsDir('selfie-aesthetic'), 'host_tools');
+  const noHomeFiles = realFS({ homedir: () => emptyHome });
+  assert.equal(await sandbox({ FileSystem: noHomeFiles, Runtime: realRT() }).H.saeSkillsDir('selfie-aesthetic'), null);
+  await rejectsCode(sandbox({ FileSystem: { join: path.join, homedir: () => HOME } }).H.saeSkillsDir('selfie-aesthetic'), 'host_tools');
 
   const data = path.join(HOME, '.selects', 'plugin-data', 'selfie-aesthetic');
   assert.ok(!fs.existsSync(data));
-  assert.equal(H.saeDataDir('selfie-aesthetic'), data);
+  assert.equal((await H.saeDataDir('selfie-aesthetic')), data);
   assert.ok(fs.statSync(data).isDirectory());
-  assert.equal(H.saeDataDir('selfie-aesthetic'), data, 'idempotent');
+  assert.equal((await H.saeDataDir('selfie-aesthetic')), data, 'idempotent');
 });
 
 test('samePath / baseName', () => {
@@ -352,7 +331,7 @@ ffTest('decode PCM (Buffer and ArrayBuffer readers) leaves no file', async () =>
   };
   for (const [name, FileSystem] of Object.entries(readers)) {
     const { H } = sandbox({ FileSystem, Runtime: realRT() });
-    const dir = H.saeDataDir('pcm-' + name);
+    const dir = (await H.saeDataDir('pcm-' + name));
     const pcm = await H.saeDecodePcm(media, dir);
     assert.equal(Object.prototype.toString.call(pcm), '[object Float32Array]', name);
     assert.ok(Math.abs(pcm.length - 44100) <= 64, name + ' length ' + pcm.length);
@@ -363,14 +342,14 @@ ffTest('decode PCM (Buffer and ArrayBuffer readers) leaves no file', async () =>
     assert.ok(Math.abs(short.length - 22050) <= 64, name + ' maxSeconds ' + short.length);
   }
   const { H } = sandbox({ FileSystem: realFS(), Runtime: realRT() });
-  const dir = H.saeDataDir('pcm-missing');
+  const dir = (await H.saeDataDir('pcm-missing'));
   await rejectsCode(H.saeDecodePcm(path.join(tmp, 'missing.wav'), dir), 'media_failed');
   assert.deepEqual(lsData(dir), []);
 });
 
 ffTest('decoded PCM feeds the vm detector (end to end)', async () => {
   const { H } = sandbox({ FileSystem: realFS(), Runtime: realRT() });
-  const pcm = await H.saeDecodePcm(clicks, H.saeDataDir('e2e'));
+  const pcm = await H.saeDecodePcm(clicks, (await H.saeDataDir('e2e')));
   const a = evalBeat(true).analyze(pcm, 22050);
   assert.ok(Math.abs(a.bpm - 120) <= 1, 'bpm ' + a.bpm);
   assert.ok(Math.abs(a.firstBeat - 0.5) <= 0.03, 'firstBeat ' + a.firstBeat);
@@ -378,7 +357,7 @@ ffTest('decoded PCM feeds the vm detector (end to end)', async () => {
 
 ffTest('preview blob URL, mp3 with WAV fallback, no file left', async () => {
   const s = sandbox({ FileSystem: realFS(), Runtime: realRT() });
-  const dir = s.H.saeDataDir('preview');
+  const dir = (await s.H.saeDataDir('preview'));
   const url = await s.H.saePreviewUrl(media, 0.5, 1, dir);
   assert.equal(url, 'blob:sae/1');
   assert.equal(s.blobs.length, 1);

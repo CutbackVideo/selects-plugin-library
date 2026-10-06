@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import type { PanelSdk } from "../host/types.ts";
 import type { Job } from "../jobs/store.ts";
 import type { Kit } from "./kit.ts";
-import { makeHost } from "../host/di.ts";
+import { makeHost } from "../host/sdk.ts";
 import { readBytes } from "../host/fs.ts";
 import { lit, readScript } from "../host/runScript.ts";
 import { errorMessage } from "../host/util.ts";

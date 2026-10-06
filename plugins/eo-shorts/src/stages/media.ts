@@ -123,7 +123,7 @@ async function runMedia(ctx: StageContext, o: MediaStageOptions): Promise<StageR
   const { host, job } = ctx;
   const fs = host.fs;
   forgetEarlierPasses(job, "media", await readReceipt(fs, ctx.dir, "media").catch(() => null));
-  ensureDir(fs, ctx.path("media"));
+  await ensureDir(fs, ctx.path("media"));
   const plan = await readPlanInput(fs, ctx.dir, { film: job.film });
   const style = filmStyle(job.film);
   const fps = await draftFps(ctx, style.fps);
@@ -157,7 +157,7 @@ async function runMedia(ctx: StageContext, o: MediaStageOptions): Promise<StageR
   }
   const brollDeps = film.requests.length
     ? {
-        search: o.search ? o.search(ctx) : hostStockSearch(host.di),
+        search: o.search ? o.search(ctx) : hostStockSearch(host.sdk),
         painter: (o.painter ?? canvasPainter)(),
         fetch: (o.fetch !== undefined ? o.fetch : typeof fetch === "function" ? (u, i) => fetch(u, i as RequestInit) as never : null) as FetchLike | null,
       }
@@ -257,7 +257,7 @@ async function runMedia(ctx: StageContext, o: MediaStageOptions): Promise<StageR
       });
     const eff = effectivePlan(scene.plan, style, { missingShots, missingPictures });
     const planRel = MEDIA_REL.plan(scene.sceneId);
-    ensureDir(fs, ctx.path("media/plans"));
+    await ensureDir(fs, ctx.path("media/plans"));
     await writeJsonAtomic(fs, ctx.path(planRel), eff.plan);
     const fallbacks = [...eff.fallbacks, ...madeAs(scene.sceneId, eff.plan)];
     scenes.push({ sceneId: scene.sceneId, start: scene.start, end: scene.end, plan: planRel, kind: eff.kind, ...sceneFiles(ctx, scene, eff.plan, shots, results, stillOf, pictureEntries), fallbacks });

@@ -1,5 +1,5 @@
 import type { PanelSdk } from "../host/types.ts";
-import { makeHost } from "../host/di.ts";
+import { makeHost } from "../host/sdk.ts";
 import { ensureDataRoots, pluginRoots, type PluginRoots } from "../host/roots.ts";
 import { errorMessage } from "../host/util.ts";
 import { createJob, eoOutputRefusal, findJobByDraft, listJobs, loadJob, newJob, newJobId, type Job } from "../jobs/store.ts";
@@ -69,15 +69,14 @@ function set(patch: Partial<PanelState>): void {
 
 export type Deps = {
   sdk: PanelSdk;
-  di?: Record<string, any> | null;
   stages?: StageRegistry;
   roots?: PluginRoots;
   rebuild?: RebuildRequest;
 };
 
-function hostAndRoots(deps: Deps): { host: ReturnType<typeof makeHost>; roots: PluginRoots } {
-  const host = makeHost(deps.sdk, deps.di);
-  const roots = ensureDataRoots(host.fs, deps.roots ?? pluginRoots(host.fs));
+async function hostAndRoots(deps: Deps): Promise<{ host: ReturnType<typeof makeHost>; roots: PluginRoots }> {
+  const host = makeHost(deps.sdk);
+  const roots = (await ensureDataRoots(host.fs, deps.roots ?? pluginRoots(host.fs)));
   return { host, roots };
 }
 
@@ -92,7 +91,7 @@ export async function loadLatest(deps: Deps, projectId: string | null): Promise<
     return;
   }
   try {
-    const { host, roots } = hostAndRoots(deps);
+    const { host, roots } = (await hostAndRoots(deps));
     const jobs = await listJobs(host.fs, roots.jobs, projectId);
     const latest = jobs[0] ?? null;
     const lease = latest ? await leaseStatus(host.fs, latest.dir, host.now()) : null;
@@ -107,7 +106,7 @@ export async function refreshShown(deps: Deps): Promise<void> {
   if (state.busy || !state.dir) return;
   const dir = state.dir;
   try {
-    const { host } = hostAndRoots(deps);
+    const { host } = (await hostAndRoots(deps));
     const lease = await leaseStatus(host.fs, dir, host.now());
     let job = state.job;
     try {
@@ -128,7 +127,7 @@ function outcomeMessage(outcome: RunOutcome, action: RunAction, job: Job): strin
 }
 
 async function run(deps: Deps, job: Job, dir: string, action: RunAction): Promise<RunOutcome | null> {
-  const { host, roots } = hostAndRoots(deps);
+  const { host, roots } = (await hostAndRoots(deps));
   controller = new AbortController();
   set({ busy: true, action, canceling: false, job, dir, projectId: job.projectId, lease: "free", leaseFreeAt: null, error: "", errorDraftId: null, message: "", startedAt: Date.now(), outcome: null });
   try {
@@ -163,7 +162,7 @@ export async function create(deps: Deps, context: PanelContextLite): Promise<Run
     return null;
   }
   try {
-    const { host, roots } = hostAndRoots(deps);
+    const { host, roots } = (await hostAndRoots(deps));
     const refusal = eoOutputRefusal(await findJobByDraft(host.fs, roots.jobs, context.projectId, context.sequenceId), null);
     if (refusal) {
       set({ error: refusal, errorDraftId: context.sequenceId });
@@ -188,7 +187,7 @@ export async function create(deps: Deps, context: PanelContextLite): Promise<Run
 export async function resume(deps: Deps): Promise<RunOutcome | null> {
   if (state.busy || !state.dir) return null;
   try {
-    const { host } = hostAndRoots(deps);
+    const { host } = (await hostAndRoots(deps));
     const job = await loadJob(host.fs, state.dir);
     await appendEvent(host.fs, state.dir, { type: "resume" }, host.now());
     return await run(deps, job, state.dir, "resume");
@@ -201,7 +200,7 @@ export async function resume(deps: Deps): Promise<RunOutcome | null> {
 export async function rebuild(deps: Deps): Promise<RunOutcome | null> {
   if (state.busy || !state.dir) return null;
   try {
-    const { host } = hostAndRoots(deps);
+    const { host } = (await hostAndRoots(deps));
     const job = await loadJob(host.fs, state.dir);
     const blocked = rebuildBlocker(job);
     if (blocked) {

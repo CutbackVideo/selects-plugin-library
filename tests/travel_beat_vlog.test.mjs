@@ -153,18 +153,8 @@ test('cutout runs through osascript with only stock macOS tools',{skip:process.p
  assert.notEqual(none.status,0);assert.match(none.stderr,/^No person found\./);
 });
 
-// The panel's Image bridge: stills are held past their 5 s source (hero 47 frames is shorter; cutout 40).
+// Native placement behavior is exercised through runScript in native_image_sdk_migration.test.mjs.
 const panelSource=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
-const bridge=panelSource.slice(panelSource.indexOf('export async function placeNativeImages'),panelSource.indexOf('// Registers a file the plugin wrote'));
-const {placeNativeImages}=vm.runInThisContext('(function(){'+bridge.replaceAll('export async function','async function')+';return {placeNativeImages};})()');
-test('bridge places each item at its frames with a safe sourceDuration',async()=>{
- const trims=[];let n=1;const clips=new Map();
- const cand={place:(_s,start)=>{const id=n++;clips.set(id,{start,dur:150});return [id];},getClipPositionById:id=>{const c=clips.get(id);return c&&{trackId:'t'+id,resolvedOffset:c.start,clip:{getDuration:()=>c.dur}};},
-  trimClipBoundary:({clipId,delta,sourceDuration})=>{const c=clips.get(clipId);trims.push(sourceDuration);if(sourceDuration<c.dur)throw Error('Source range exceeded');c.dur+=delta;return {trimmedClipPosition:cand.getClipPositionById(clipId)};},getDuration:()=>468,slice:()=>{}};
- const di={ProjectRepository:{findById:async()=>({getEditedSequences:()=>['d']})},SequenceRepository:{findById:async()=>({getFrameRate:()=>30,getDuration:()=>468})},TimelineMutation:{run:async(_s,_l,fn)=>({status:'committed',sequence:fn({clone:()=>cand})})}};
- const out=await placeNativeImages({di,libraryId:'l',projectId:'p',sources:[{analyzed:{},main:{},primary:{getId:()=>1},width:3000,height:4000}]},'d',plan,[{source:0,startFrame:55,endFrame:102}],'hero');
- assert.deepEqual(out.placements.map(p=>[p.startFrame,p.endFrame]),[[55,102]]);assert.deepEqual(trims,[150]);
-});
 
 // --- song fitting (analyze.mjs) ---
 const SR=22050;

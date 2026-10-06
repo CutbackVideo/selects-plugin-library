@@ -1,7 +1,7 @@
 // Stock B-roll through the app's StockMediaSearch service: Cutback's server searches Pexels and Pixabay
 // with its own keys, so nothing is asked of the user. The reference edit uses stock clips too; a search
 // and a cut take seconds, where generating a clip takes minutes and costs.
-import { di, ffmpeg, ffprobe, fs, removeFile, sleep, type Sdk } from "./host";
+import { getSdk, ffmpeg, ffprobe, fs, removeFile, sleep, type Sdk } from "./host";
 
 export type StockClip = { path: string; width: number; height: number; credit: string; url: string; service: string; id: string };
 
@@ -19,7 +19,7 @@ type StockVideo = {
 
 export function stockSearchAvailable(): boolean {
   try {
-    return typeof di()?.StockMediaSearch?.searchVideos === "function";
+    return typeof getSdk()?.runScript === "function";
   } catch {
     return false;
   }
@@ -29,8 +29,12 @@ export function stockSearchAvailable(): boolean {
 // card's size) into `dir`. `avoid` skips clips already used. When every candidate fails, the last error
 // is thrown so the panel can say why.
 export async function stockClip(sdk: Sdk, queries: string[], orientation: "portrait" | "landscape", dir: string, seconds: number, avoid: string[] = []): Promise<StockClip | null> {
-  const service = di().StockMediaSearch;
-  fs().mkdirSync(dir, { recursive: true });
+  const service = { searchVideos: async (query: any) => {
+    const reply = await getSdk().runScript({ script: `return await selects.stock.searchVideos(${JSON.stringify(query)});`, summary: "Find stock footage" });
+    if (reply.isError) throw new Error(reply.output);
+    return reply.result;
+  } };
+  (await fs().mkdir(dir, { recursive: true }));
   const tried = new Set<string>();
   let lastErr: any = null;
   for (const raw of queries) {
@@ -46,7 +50,7 @@ export async function stockClip(sdk: Sdk, queries: string[], orientation: "portr
     const pick = chooseStock(rows.filter((v) => !avoid.includes(v.originalUrl)), orientation);
     if (!pick) continue;
     const out = fs().join(dir, "stock-" + Math.abs(hash(pick.video.originalUrl)) + ".mp4");
-    if (!fs().existsSync(out)) {
+    if (!(await fs().exists(out))) {
       const box = orientation === "portrait" ? "1080:1920" : "1920:1080";
       // The app downloads the rendition (no shell, no TLS dependence on ffmpeg's build), then ffmpeg keeps
       // only what the cards use and scales big renditions down.
@@ -63,7 +67,7 @@ export async function stockClip(sdk: Sdk, queries: string[], orientation: "portr
         // A virus scanner can hold a fresh file for a moment (Windows): try the rename a few times.
         for (let k = 0; ; k += 1) {
           try {
-            fs().renameSync(part, out);
+            (await fs().rename(part, out));
             break;
           } catch (e) {
             if (k >= 5) throw e;
@@ -71,11 +75,11 @@ export async function stockClip(sdk: Sdk, queries: string[], orientation: "portr
           }
         }
       } catch (e) {
-        removeFile(part);
+        (await removeFile(part));
         lastErr = e;
         continue;
       } finally {
-        removeFile(src);
+        (await removeFile(src));
       }
     }
     const probe = (await ffprobe("Probe stock B-roll", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", out]).catch(() => ""))

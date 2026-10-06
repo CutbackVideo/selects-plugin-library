@@ -45,17 +45,19 @@ class CardNewsMakerWindowsTest(unittest.TestCase):
 
     def test_windows_commands_have_no_posix_syntax(self):
         commands = re.findall(r"IS_WIN \? `([^`]*)`", self.source)
-        self.assertGreaterEqual(len(commands), 2)
+        self.assertGreaterEqual(len(commands), 1)
         for cmd in commands:
             text = re.sub(r"\$\{(wq|qa)\([^}]*\)\}", "", cmd)
             for needle in POSIX:
                 self.assertNotIn(needle, text, cmd)
             self.assertRegex(cmd, r'^"%SystemRoot%\\\\', "tool not named by full path: " + cmd)
 
-    def test_open_folder_uses_the_host_reveal_first(self):
+    def test_open_folder_uses_the_canonical_editor_reveal(self):
         fn = body(self.source, "async function openFolder(")
-        self.assertLess(fn.index("showItemInFolder"), fn.index("await shell("))
-        self.assertIn('typeof rt?.showItemInFolder === "function"', fn)
+        self.assertIn("selects.editor.revealFile", fn)
+        self.assertIn("JSON.stringify(dir)", fn)
+        self.assertNotIn("await shell(", fn)
+        self.assertNotIn("__DI__", fn)
 
     def test_manifest_and_docs(self):
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))

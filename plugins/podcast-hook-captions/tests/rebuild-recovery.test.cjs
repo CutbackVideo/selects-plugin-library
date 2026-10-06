@@ -1,12 +1,13 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
+const {asyncMemoryFiles}=require('./sdk-fixture.cjs');
 const {createPassJournal}=require('../src/pipeline/facePassJournal.cjs');
 const {faceInput,faceRequestRecord,latestFaceRecords,runRecord}=require('../src/pipeline/sharedAiFaces.cjs');
 const input=key=>faceInput('project','raw-video',{f0:0,f1:24,step:4},24,key);
 function fixture() {
  const files=new Map(),dir='owned/reels/reel';
- const storage={join:(...p)=>p.join('/'),existsSync:p=>files.has(p)||[...files.keys()].some(n=>n.startsWith(p+'/')),readdirSync:p=>[...files.keys()].filter(n=>n.startsWith(p+'/')).map(n=>n.slice(p.length+1)),readFile:async p=>files.get(p),readFileSync:p=>files.get(p),writeFileSync:(p,v)=>files.set(p,v),writeFile:async(p,v)=>files.set(p,v),renameSync:(a,b)=>{assert.ok(files.has(a));files.set(b,files.get(a));files.delete(a);}};
+ const storage={...asyncMemoryFiles(files),join:(...p)=>p.join('/'),exists:async p=>files.has(p)||[...files.keys()].some(n=>n.startsWith(p+'/')),readdir:async p=>[...files.keys()].filter(n=>n.startsWith(p+'/')).map(n=>n.slice(p.length+1)),readFile:async p=>files.get(p),writeFile:async(p,v)=>files.set(p,v),rename:async (a,b)=>{assert.ok(files.has(a));files.set(b,files.get(a));files.delete(a);}};
  const owner=createPassJournal(storage,dir);
  return {files,dir,storage,owner};
 }

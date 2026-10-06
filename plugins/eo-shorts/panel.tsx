@@ -3,6 +3,275 @@
 // One click turns a talking-head draft into a new 9:16 EO-style short: tightened talk, speaker framing,
 // typographic scenes, pictures and B-roll, music and loudness, exported and checked.
 
+// ../../shared/local-client.ts
+import React from "react";
+function panelLocalPaths(platform) {
+  const windows = platform === "win32";
+  const slash = (path) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value) => windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value) => {
+    const path = slash(value), root = rootOf(path), absolute = root.endsWith("/");
+    const segments = [];
+    for (const segment of path.slice(Math.min(root.length, path.length)).split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || windows && /^[a-z]:$/i.test(result)) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value, extension) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension) ? name.slice(0, -extension.length) : name;
+  };
+  return {
+    normalize,
+    join: (...paths) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value) {
+      const path = slash(value), root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value) {
+      const name = basename(value), dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value) => rootOf(slash(value)).endsWith("/")
+  };
+}
+async function createPanelLocalClient(sdk) {
+  const run2 = async (method, args, write = false) => {
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");"
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    return response.result;
+  };
+  const environment = await run2("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path, offset, length) => {
+    const parts = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run2("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes);
+      total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position2 = 0;
+    for (const bytes of parts) {
+      output.set(bytes, position2);
+      position2 += bytes.length;
+    }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path) => run2("files.exists", [path]),
+    stat: (path) => run2("files.stat", [path]),
+    readdir: (path) => run2("files.readdir", [path]),
+    readRange,
+    async readFile(path, encoding) {
+      const stat = await run2("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== void 0 && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path, data, options) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : void 0;
+      if (flag !== void 0 && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== void 0 && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk2 = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk2) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? flag === "a" ? "append" : "exclusive" : void 0;
+          const result = await run2("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...mode ? { mode } : {} }], true);
+          if (result?.bytesWritten !== chunk2.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run2("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run2("files.remove", [destination, { force: true }], true).catch(() => {
+        });
+      }
+    },
+    async compareAndReplace(path, expectedText, text) {
+      const encode2 = (value) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run2("files.compareAndReplace", [{ path, expectedBase64: expectedText === null ? null : encode2(expectedText), base64: encode2(text) }], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path, options) => run2("files.mkdir", [path, options ?? {}], true),
+    rm: (path, options) => run2("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }) => run2("files.remove", [filePath, { force: true }], true),
+    rename: (from, to) => run2("files.rename", [from, to], true),
+    copyFile: (from, to) => run2("files.copy", [from, to], true),
+    downloadFile: (url, path) => run2("files.download", [url, path], true),
+    pathToLocalURL: (path) => run2("files.localUrl", [path]),
+    localURLToPath: (url) => run2("files.pathFromLocalUrl", [url])
+  };
+  const activeJobs = /* @__PURE__ */ new Set();
+  let disposed = false;
+  const cancel2 = async (jobId) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run2("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation = null;
+    const abort = () => {
+      cancellation ??= cancel2(jobId);
+      void cancellation.catch(() => {
+      });
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") {
+            stdout += event.text;
+            onStdout?.(event.text);
+          } else {
+            stderr += event.text;
+            onStderr?.(event.text);
+          }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel2(jobId).catch(() => {
+      });
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args, quiet, signal, stdout, stderr) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args, quiet, signal) => process("FFprobe", args, quiet, signal)
+    },
+    dialogs: {
+      pickFilePath: (filters) => run2("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run2("editor.pickDirectory", []),
+      pickSavePath: (defaultPath) => run2("editor.pickSavePath", [{ defaultPath }])
+    },
+    dispose() {
+      disposed = true;
+      for (const jobId of activeJobs) void cancel2(jobId).catch(() => {
+      });
+    }
+  };
+}
+var panelLocalClients = /* @__PURE__ */ new WeakMap();
+function panelLocalClient(sdk) {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component) {
+  return function LocalSdkPanel(props) {
+    const [state2, setState] = React.useState(null);
+    React.useEffect(() => {
+      let active = true;
+      let client;
+      createPanelLocalClient(props.sdk).then((value) => {
+        client = { ...props.sdk, ...value };
+        if (!active) {
+          value.dispose();
+          return;
+        }
+        panelLocalClients.set(props.sdk, client);
+        setState({ sdk: props.sdk });
+      }).catch((error) => {
+        if (active) setState({ error: String(error?.message || error) });
+      });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state2?.error) return React.createElement("div", { role: "alert" }, state2.error);
+    if (state2?.sdk !== props.sdk) return React.createElement("div", { role: "status" }, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
 // src/Panel.tsx
 import { useEffect as useEffect2, useState as useState2 } from "react";
 
@@ -152,28 +421,28 @@ async function readJson(fs, path) {
   }
 }
 async function readJsonIfExists(fs, path, fallback) {
-  if (!fs.existsSync(path)) return fallback;
+  if (!await fs.exists(path)) return fallback;
   return readJson(fs, path);
 }
-function ensureDir(fs, path) {
-  if (!fs.existsSync(path)) fs.mkdirSync(path, { recursive: true });
+async function ensureDir(fs, path) {
+  if (!await fs.exists(path)) await fs.mkdir(path, { recursive: true });
   return path;
 }
 var RENAME_RETRY_MS = [10, 25, 50, 100, 200, 400, 800];
 async function writeFileAtomic(fs, path, data, o = {}) {
-  ensureDir(fs, fs.dirname(path));
+  await ensureDir(fs, fs.dirname(path));
   const tmp = path + ".tmp-" + randomHex(8);
   await fs.writeFile(tmp, data);
   const waits = o.renameRetryMs ?? RENAME_RETRY_MS;
   for (let attempt2 = 0; ; attempt2 += 1) {
     try {
-      fs.renameSync(tmp, path);
+      await fs.rename(tmp, path);
       return;
     } catch (e) {
-      if (attempt2 > 0 && !fs.existsSync(tmp)) return;
+      if (attempt2 > 0 && !await fs.exists(tmp)) return;
       if (attempt2 >= waits.length) {
         try {
-          fs.unlinkSync(tmp);
+          await fs.unlink(tmp);
         } catch {
         }
         throw e;
@@ -186,10 +455,10 @@ async function renameWithRetry(fs, from, to, o = {}) {
   const waits = o.renameRetryMs ?? RENAME_RETRY_MS;
   for (let attempt2 = 0; ; attempt2 += 1) {
     try {
-      fs.renameSync(from, to);
+      await fs.rename(from, to);
       return;
     } catch (e) {
-      if (attempt2 > 0 && !fs.existsSync(from) && fs.existsSync(to)) return;
+      if (attempt2 > 0 && !await fs.exists(from) && await fs.exists(to)) return;
       if (attempt2 >= waits.length) throw e;
       await sleep(waits[attempt2]);
     }
@@ -199,27 +468,27 @@ function writeJsonAtomic(fs, path, value, o = {}) {
   return writeFileAtomic(fs, path, JSON.stringify(value, null, 2) + "\n", o);
 }
 async function appendText(fs, path, text) {
-  ensureDir(fs, fs.dirname(path));
+  await ensureDir(fs, fs.dirname(path));
   await fs.writeFile(path, text, { flag: "a" });
 }
 async function createExclusive(fs, path, text) {
-  ensureDir(fs, fs.dirname(path));
+  await ensureDir(fs, fs.dirname(path));
   try {
     await fs.writeFile(path, text, { flag: "wx" });
     return true;
   } catch (e) {
-    if (fs.existsSync(path)) return false;
+    if (await fs.exists(path)) return false;
     throw e;
   }
 }
-function statFile(fs, path) {
-  const s = fs.statSync(path);
+async function statFile(fs, path) {
+  const s = await fs.stat(path);
   if (!s) return null;
   return { size: Number(s.size ?? 0), mtimeMs: Number(s.mtimeMs ?? 0) };
 }
-function removeFile(fs, path) {
+async function removeFile(fs, path) {
   try {
-    if (fs.existsSync(path)) fs.unlinkSync(path);
+    if (await fs.exists(path)) await fs.unlink(path);
   } catch {
   }
 }
@@ -281,8 +550,8 @@ function jobFile(fs, dir) {
 }
 async function createJob(fs, jobsRoot, job) {
   const dir = jobDir(fs, jobsRoot, job.projectId, job.jobId);
-  ensureDir(fs, dir);
-  for (const f of JOB_FOLDERS) ensureDir(fs, fs.join(dir, f));
+  await ensureDir(fs, dir);
+  for (const f of JOB_FOLDERS) await ensureDir(fs, fs.join(dir, f));
   const created = await createExclusive(fs, jobFile(fs, dir), JSON.stringify(job, null, 2) + "\n");
   if (!created) throw new Error("A job named " + job.jobId + " already exists.");
   return dir;
@@ -310,11 +579,11 @@ async function saveJob(fs, dir, job, now = Date.now()) {
 async function listJobs(fs, jobsRoot, projectId) {
   if (!SAFE_ID.test(projectId)) return [];
   const root = fs.join(jobsRoot, projectId);
-  const names = fs.readdirSync(root).filter((n2) => SAFE_ID.test(n2)).sort().reverse();
+  const names = (await fs.readdir(root)).filter((n2) => SAFE_ID.test(n2)).sort().reverse();
   const out = [];
   for (const name of names) {
     const dir = fs.join(root, name);
-    if (!fs.existsSync(jobFile(fs, dir))) continue;
+    if (!await fs.exists(jobFile(fs, dir))) continue;
     try {
       out.push({ jobId: name, dir, job: await loadJob(fs, dir) });
     } catch {
@@ -400,7 +669,7 @@ function leasePath(fs, jobDir2) {
 async function readLeaseFile(fs, path) {
   let text;
   try {
-    if (!fs.existsSync(path)) return { rec: null, readError: null };
+    if (!await fs.exists(path)) return { rec: null, readError: null };
     text = await readText(fs, path);
   } catch (e) {
     return { rec: null, readError: e ?? new Error("read failed") };
@@ -419,18 +688,18 @@ function isLive(rec, now, staleMs = LEASE_STALE_MS) {
   if (!rec || rec.until <= now) return false;
   return typeof rec.renewedAt !== "number" || now - rec.renewedAt <= staleMs;
 }
-function unreadableIsLive(fs, path, now, staleMs) {
-  const st = statFile(fs, path);
+async function unreadableIsLive(fs, path, now, staleMs) {
+  const st = await statFile(fs, path);
   if (!st) return { live: false, freeAt: null };
   return now - st.mtimeMs < staleMs ? { live: true, freeAt: st.mtimeMs + staleMs } : { live: false, freeAt: null };
 }
 async function leaseStatus(fs, jobDir2, now = Date.now(), staleMs = LEASE_STALE_MS) {
   const path = leasePath(fs, jobDir2);
-  if (!fs.existsSync(path)) return { state: "free", holder: null, freeAt: null };
+  if (!await fs.exists(path)) return { state: "free", holder: null, freeAt: null };
   const rec = await readLease(fs, path);
   if (!rec) {
-    const u = unreadableIsLive(fs, path, now, staleMs);
-    return { state: u.live ? "live" : fs.existsSync(path) ? "stale" : "free", holder: null, freeAt: u.freeAt };
+    const u = await unreadableIsLive(fs, path, now, staleMs);
+    return { state: u.live ? "live" : await fs.exists(path) ? "stale" : "free", holder: null, freeAt: u.freeAt };
   }
   if (!isLive(rec, now, staleMs)) return { state: "stale", holder: rec, freeAt: null };
   const staleAt = typeof rec.renewedAt === "number" ? rec.renewedAt + staleMs : rec.until;
@@ -452,7 +721,7 @@ async function acquireLease(fs, jobDir2, o) {
     } else if (held && isLive(held, now(), staleMs)) {
       throw new LeaseBusyError(held, now(), staleMs);
     } else {
-      if (!held && unreadableIsLive(fs, path, now(), staleMs).live) throw new LeaseBusyError(null, now());
+      if (!held && (await unreadableIsLive(fs, path, now(), staleMs)).live) throw new LeaseBusyError(null, now());
       await writeJsonAtomic(fs, path, fresh(held));
       await (o.sleepFn ?? sleep)(o.confirmDelayMs ?? 200);
       const check2 = await readLease(fs, path);
@@ -482,7 +751,7 @@ async function acquireLease(fs, jobDir2, o) {
       }
       try {
         const held = await readLease(fs, path);
-        if (held && held.owner === o.owner) removeFile(fs, path);
+        if (held && held.owner === o.owner) await removeFile(fs, path);
       } catch {
       }
     },
@@ -549,7 +818,7 @@ async function describeOutputs(fs, jobDir2, relPaths) {
   const out = [];
   for (const rel4 of relPaths) {
     const abs = fs.join(jobDir2, ...rel4.split("/"));
-    const st = statFile(fs, abs);
+    const st = await statFile(fs, abs);
     if (!st) throw new Error("The stage reported an output that does not exist: " + rel4);
     if (st.size <= HASH_LIMIT_BYTES) out.push({ path: rel4, bytes: st.size, sha256: await sha256Hex(await readBytes(fs, abs)) });
     else out.push({ path: rel4, bytes: st.size, mtimeMs: st.mtimeMs });
@@ -1850,68 +2119,56 @@ function panelActions(s, context) {
   };
 }
 
-// src/host/di.ts
-var FS_METHODS = [
-  "join",
-  "dirname",
-  "basename",
-  "homedir",
-  "existsSync",
-  "mkdirSync",
-  "readdirSync",
-  "statSync",
-  "renameSync",
-  "unlinkSync",
-  "rmSync",
-  "readFile",
-  "writeFile"
-];
-var RUNTIME_METHODS = ["runFFmpeg", "runFFprobe"];
-var HostMissingError = class extends Error {
-  member;
-  constructor(member, message) {
-    super(message ?? "This Selects version does not provide " + member + ". Update Selects.");
-    this.name = "HostMissingError";
-    this.member = member;
-  }
-};
-function hostDI() {
-  try {
-    const w = globalThis.window;
-    return w?.parent && w.parent["__DI__"] || null;
-  } catch {
-    return null;
-  }
+// ../../shared/generation-client.js
+function sdkGeneration(sdk) {
+  if (typeof sdk?.runScript !== "function") return null;
+  const run2 = async (script, summary, allowCommit = false) => {
+    const response = await sdk.runScript({ script, summary, allowCommit });
+    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
+    return response?.result;
+  };
+  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
+  return {
+    isAvailable: () => true,
+    supportsPluginFiles: () => true,
+    async submit(request2) {
+      if (request2.batch != null && request2.batch !== 1) throw new Error("Submit one generation at a time.");
+      const input = {
+        projectId: request2.scope.projectId,
+        requestKey: request2.key,
+        modelId: request2.modelId,
+        input: request2.input,
+        uploads: request2.uploads || {},
+        outputName: request2.outputName,
+        mediaType: request2.origin?.tool || "video",
+        ...request2.inputMediaSeconds ? { inputMediaSeconds: request2.inputMediaSeconds } : {},
+        ...request2.delivery ? { delivery: { folder: request2.delivery.pluginFolder } } : {}
+      };
+      const result = await run2(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
+      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
+      return { jobIds: [result.jobId] };
+    },
+    list: (scope) => run2(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
+    cancel: (scope, id) => run2(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
+    retryDelivery: (scope, id) => run2(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true)
+  };
 }
-function hostApi(name, methods, di = hostDI()) {
-  const s = di?.[name];
-  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
-}
-function missingMethods(name, methods, di = hostDI()) {
-  const s = di?.[name];
-  if (!s) return methods.map((m) => name + "." + m);
-  return methods.filter((m) => typeof s[m] !== "function").map((m) => name + "." + m);
-}
-function hostPlatform(di = hostDI()) {
-  try {
-    return String(di?.Runtime?.getPlatform?.() || "");
-  } catch {
-    return "";
-  }
-}
-function hostVersion(di = hostDI()) {
-  try {
-    return String(di?.Runtime?.getHostingVersion?.() || "");
-  } catch {
-    return "";
-  }
-}
-function makeHost(sdk, di = hostDI()) {
-  const missing = missingMethods("FileSystem", FS_METHODS, di);
-  if (missing.length) throw new HostMissingError(missing.join(", "));
-  const fs = di.FileSystem;
-  const runtime = hostApi("Runtime", RUNTIME_METHODS, di);
-  return { sdk, fs, runtime, di, now: () => Date.now() };
+
+// src/host/sdk.ts
+function makeHost(sdk) {
+  const client = panelLocalClient(sdk);
+  const fs = {
+    ...client.files,
+    unlink: (path) => client.files.rm(path, { force: true })
+  };
+  return {
+    sdk,
+    fs,
+    runtime: client.media,
+    environment: client.environment,
+    generation: sdkGeneration(sdk),
+    now: () => Date.now()
+  };
 }
 
 // src/identity.ts
@@ -1934,51 +2191,34 @@ function pluginRoots(fs, id = PLUGIN_ID) {
     jobs: fs.join(data, "jobs")
   };
 }
-function ensureDataRoots(fs, roots) {
-  for (const dir of [roots.data, roots.config, roots.cache, roots.runtime, roots.jobs]) ensureDir(fs, dir);
+async function ensureDataRoots(fs, roots) {
+  for (const dir of [roots.data, roots.config, roots.cache, roots.runtime, roots.jobs]) await ensureDir(fs, dir);
   return roots;
 }
 
 // src/host/gates.ts
-var MIN_APP_VERSION = "2.0.511";
-var PLUGIN_FILES_VERSION = "2.0.512";
-function versionBelow(version, minimum) {
-  const a = String(version || "0").split(".").map((x) => parseInt(x, 10) || 0);
-  const b2 = String(minimum).split(".").map((x) => parseInt(x, 10) || 0);
-  for (let i = 0; i < Math.max(a.length, b2.length, 3); i += 1) {
-    if ((a[i] || 0) !== (b2[i] || 0)) return (a[i] || 0) < (b2[i] || 0);
+async function readCapabilities(host2, versionOverride) {
+  const sdk = host2.sdk;
+  const version = versionOverride ?? host2.environment?.version ?? "";
+  let generation = false;
+  try {
+    const response = await sdk.runScript({ summary: "Check generation support", script: 'return typeof selects.generation.submit === "function";' });
+    generation = !response.isError && response.result === true;
+  } catch {
   }
-  return false;
-}
-async function readCapabilities(sdk, di, versionOverride) {
-  const version = versionOverride ?? hostVersion(di);
-  const mg = di?.MediaGeneration;
-  let pluginFiles = null;
-  if (mg && typeof mg.supportsPluginFiles === "function") {
-    try {
-      pluginFiles = !!await mg.supportsPluginFiles();
-    } catch {
-      pluginFiles = null;
-    }
-  } else if (mg) pluginFiles = false;
-  if (pluginFiles && version && versionBelow(version, PLUGIN_FILES_VERSION)) pluginFiles = false;
   let canAuthor = null;
-  if (typeof sdk.call === "function") {
-    try {
-      canAuthor = !!await sdk.call("canAuthorGeneratedMedia");
-    } catch {
-      canAuthor = null;
-    }
+  try {
+    if (sdk.call) canAuthor = !!await sdk.call("canAuthorGeneratedMedia");
+  } catch {
   }
-  const stock = di?.StockMediaSearch;
   return {
     version,
-    platform: hostPlatform(di),
-    versionOk: !version || !versionBelow(version, MIN_APP_VERSION),
-    fsMissing: missingMethods("FileSystem", FS_METHODS, di),
-    runtimeMissing: missingMethods("Runtime", RUNTIME_METHODS, di),
-    mediaGeneration: { present: !!(mg && typeof mg.submit === "function"), pluginFiles },
-    stockSearch: !!(stock && typeof stock.searchVideos === "function"),
+    platform: host2.environment?.platform ?? "",
+    versionOk: true,
+    fsMissing: [],
+    runtimeMissing: host2.runtime ? [] : ["media.startFFmpeg"],
+    mediaGeneration: { present: generation, pluginFiles: generation },
+    stockSearch: typeof sdk.runScript === "function",
     canAuthorGeneratedMedia: canAuthor,
     askAI: typeof sdk.askAI === "function"
   };
@@ -2226,7 +2466,7 @@ async function encode(rt, args, opts = {}) {
     child.dispose();
   }
   if (opts.outPath && opts.fs) {
-    const s = opts.fs.statSync(opts.outPath);
+    const s = await opts.fs.stat(opts.outPath);
     if (!s || !Number(s.size)) {
       throw new FfmpegError("no-output", "ffmpeg finished but wrote no output to " + opts.outPath + ".", { args, stderrTail: tail(String(r5?.stderr ?? "")) });
     }
@@ -2281,7 +2521,7 @@ async function probeJson(rt, args, opts = {}) {
       return parseFfprobeJson(decodeText(await opts.fs.readFile(tmp)));
     } finally {
       try {
-        if (opts.fs.existsSync(tmp)) opts.fs.unlinkSync(tmp);
+        if (await opts.fs.exists(tmp)) await opts.fs.unlink(tmp);
       } catch {
       }
     }
@@ -2418,8 +2658,7 @@ function judgeSource(s, madeBy = null) {
 }
 async function runPreflight(host2, input) {
   const t0 = host2.now();
-  const di = input.di !== void 0 ? input.di : host2.di !== void 0 ? host2.di : hostDI();
-  const capabilities = await readCapabilities(host2.sdk, di, input.versionOverride);
+  const capabilities = await readCapabilities(host2, input.versionOverride);
   const errors = [];
   const warnings = [];
   if (!capabilities.versionOk) errors.push({ code: "app-version", message: "Selects " + capabilities.version + " is too old; update Selects." });
@@ -2428,7 +2667,7 @@ async function runPreflight(host2, input) {
   if (capabilities.canAuthorGeneratedMedia === false) {
     errors.push({ code: "generated-media", message: "Generated-media authoring is off for this account, so motion graphics would export broken." });
   }
-  if (capabilities.mediaGeneration.pluginFiles === false) warnings.push({ code: "image-generation", message: "Image generation for plugins needs Selects 2.0.512 or later; picture scenes become type scenes." });
+  if (capabilities.mediaGeneration.pluginFiles === false) warnings.push({ code: "image-generation", message: "This Selects build cannot generate pictures for plugins; picture scenes become type scenes." });
   if (!capabilities.stockSearch) warnings.push({ code: "stock-search", message: "This Selects build has no stock footage search; B-roll shots stay on the speaker." });
   let smoke = null;
   if (!input.skipSmoke && !capabilities.runtimeMissing.length) {
@@ -2708,9 +2947,9 @@ function clipKeyPath(out) {
 var sameCut = (k, url, start, seconds) => !!k && k.schema === "broll-clip/1" && k.recipe === CUT_RECIPE && k.url === url && round3(k.start) === round3(start) && round3(k.seconds) === round3(seconds);
 async function clipHolds(fs, out, url, start, seconds) {
   try {
-    if (!fs.existsSync(out)) return false;
+    if (!await fs.exists(out)) return false;
     const k = await readJsonIfExists(fs, clipKeyPath(out), null);
-    return sameCut(k, url, start, seconds) && (k.bytes == null || k.bytes === statFile(fs, out)?.size);
+    return sameCut(k, url, start, seconds) && (k.bytes == null || k.bytes === (await statFile(fs, out))?.size);
   } catch {
     return false;
   }
@@ -2722,23 +2961,23 @@ async function cutClip(d, url, start, seconds, out) {
   if (await clipHolds(d.fs, out, url, start, seconds)) {
     try {
       const p = await probeMedia(d.runtime, out, { fs: d.fs, tmpDir: d.tmpDir, signal: d.signal });
-      if (ok(p)) return { path: out, probe: p, bytes: statFile(d.fs, out)?.size ?? 0, ms: Date.now() - t0, reused: true };
+      if (ok(p)) return { path: out, probe: p, bytes: (await statFile(d.fs, out))?.size ?? 0, ms: Date.now() - t0, reused: true };
     } catch {
     }
   }
-  removeFile(d.fs, keyPath);
-  if (d.fs.existsSync(keyPath)) throw new Error("could not remove the old clip record " + keyPath);
+  await removeFile(d.fs, keyPath);
+  if (await d.fs.exists(keyPath)) throw new Error("could not remove the old clip record " + keyPath);
   const part = out.replace(/\.mp4$/i, "") + ".part.mp4";
-  removeFile(d.fs, part);
+  await removeFile(d.fs, part);
   await encode(d.runtime, cutArgs(url, start, seconds, part), { fs: d.fs, outPath: part, signal: d.signal, timeoutMs: 18e4 });
   const probe = await probeMedia(d.runtime, part, { fs: d.fs, tmpDir: d.tmpDir, signal: d.signal });
   if (!ok(probe)) {
-    removeFile(d.fs, part);
+    await removeFile(d.fs, part);
     throw new Error("the cut is " + probe.durationSec + " s long, not " + seconds.toFixed(3) + " s");
   }
-  removeFile(d.fs, out);
+  await removeFile(d.fs, out);
   await renameWithRetry(d.fs, part, out);
-  const bytes = statFile(d.fs, out)?.size ?? 0;
+  const bytes = (await statFile(d.fs, out))?.size ?? 0;
   const key = { schema: "broll-clip/1", recipe: CUT_RECIPE, url, start: round3(start), seconds: round3(seconds), bytes };
   await writeJsonAtomic(d.fs, keyPath, key);
   return { path: out, probe, bytes, ms: Date.now() - t0, reused: false };
@@ -2768,14 +3007,14 @@ function requestSha(r5) {
   return hashJson(r5);
 }
 async function pickIntact(fs, media, shotId, pick) {
-  if (!fs.existsSync(pick.localPath)) return false;
+  if (!await fs.exists(pick.localPath)) return false;
   if (pick.kind === "video") {
     if (!pick.interval) return false;
     const [s, e] = pick.interval;
     return clipHolds(fs, pick.localPath, pick.fileUrl, s, e - s);
   }
   const rec = await readJsonIfExists(fs, photoRecordPath(fs, media, shotId), null);
-  return !!rec && rec.fileUrl === pick.fileUrl && rec.localFile === fs.basename(pick.localPath) && rec.bytes === statFile(fs, pick.localPath)?.size;
+  return !!rec && rec.fileUrl === pick.fileUrl && rec.localFile === fs.basename(pick.localPath) && rec.bytes === (await statFile(fs, pick.localPath))?.size;
 }
 async function resumableResult(fs, media, r5, sha, o = {}) {
   try {
@@ -3125,10 +3364,15 @@ function requestText(r5) {
 }
 
 // src/broll/search.ts
-function hostStockSearch(di) {
-  const s = di?.StockMediaSearch;
-  if (!s || typeof s.searchVideos !== "function") return null;
-  return (q) => s.searchVideos(q);
+function hostStockSearch(sdk) {
+  if (typeof sdk.runScript !== "function") return null;
+  return async ({ signal, ...input }) => {
+    signal?.throwIfAborted();
+    const response = await sdk.runScript({ summary: "Find stock footage", script: "return await selects.stock.searchVideos(" + JSON.stringify(input) + ");" });
+    signal?.throwIfAborted();
+    if (response.isError || !Array.isArray(response.result)) throw new Error(response.output || "Stock search returned no result.");
+    return response.result;
+  };
 }
 var STOCK_PER = 3;
 var MAX_SOURCE_SECONDS2 = 30;
@@ -3437,7 +3681,7 @@ async function cached(fs, dir, key, url) {
   try {
     const m = await readJsonIfExists(fs, manifestPath(fs, dir), null);
     if (!m || m.version !== EVIDENCE_VERSION || m.sourceKey !== key || m.rendition?.url !== url || m.status === "error") return null;
-    if (m.status === "ready" && !m.sheets.every((p) => fs.existsSync(p))) return null;
+    if (m.status === "ready" && !(await Promise.all(m.sheets.map((p) => fs.exists(p)))).every(Boolean)) return null;
     return m;
   } catch {
     return null;
@@ -3454,7 +3698,7 @@ async function prepareVideoEvidence(key, rendition, dir, d) {
     await writeJsonAtomic(fs, manifestPath(fs, dir), { version: EVIDENCE_VERSION, ...out });
     return out;
   };
-  ensureDir(fs, dir);
+  await ensureDir(fs, dir);
   let probe;
   try {
     probe = readProbe(await probeJson(d.runtime, probeArgs(rendition.url), { fs, tmpDir: dir, signal: d.signal, timeoutMs: 45e3 }));
@@ -3464,7 +3708,7 @@ async function prepareVideoEvidence(key, rendition, dir, d) {
   }
   if (probe.duration > MAX_SOURCE_SECONDS2) return finish2({ ...base, status: "skipped", code: "duration_limit", reason: "whole source is " + probe.duration.toFixed(2) + " s", durationSeconds: probe.duration });
   const framesDir = fs.join(dir, "frames");
-  ensureDir(fs, framesDir);
+  await ensureDir(fs, framesDir);
   let stderr = "";
   try {
     stderr = (await analyze(d.runtime, sampleArgs(rendition.url, probe, imagePattern(fs, framesDir, "f%03d.jpg")), { signal: d.signal, timeoutMs: 12e4 })).stderr;
@@ -3476,7 +3720,7 @@ async function prepareVideoEvidence(key, rendition, dir, d) {
   const { indexes, timestamps } = pickSamples(frames);
   const framePath = (i) => fs.join(framesDir, "f" + String(i).padStart(3, "0") + ".jpg");
   try {
-    if (!indexes.length || !indexes.every((i) => fs.existsSync(framePath(i)))) return finish2({ ...base, code: "decode_error", reason: "the decode wrote " + frames.length + " frames, not every sample", durationSeconds: probe.duration });
+    if (!indexes.length || !(await Promise.all(indexes.map((i) => fs.exists(framePath(i))))).every(Boolean)) return finish2({ ...base, code: "decode_error", reason: "the decode wrote " + frames.length + " frames, not every sample", durationSeconds: probe.duration });
     if (indexes.length > MAX_SAMPLES) return finish2({ ...base, status: "skipped", code: "size_limit", reason: indexes.length + " samples exceed " + MAX_SAMPLES, durationSeconds: probe.duration });
     const duration = Math.max(probe.duration, timestamps[timestamps.length - 1]);
     const sampleBytes = [];
@@ -3505,16 +3749,16 @@ async function prepareVideoEvidence(key, rendition, dir, d) {
     }
     return finish2({ ...base, status: "ready", code: "ready", reason: "full-source samples", durationSeconds: Math.round(duration * 1e6) / 1e6, timestamps, sheets, sheetChars, fingerprint });
   } finally {
-    for (const name of fs.readdirSync(framesDir)) removeFile(fs, fs.join(framesDir, name));
+    for (const name of await fs.readdir(framesDir)) await removeFile(fs, fs.join(framesDir, name));
     try {
-      fs.rmSync(framesDir, { recursive: true, force: true });
+      await fs.rm(framesDir, { recursive: true, force: true });
     } catch {
     }
   }
 }
 async function prepareStillEvidence(key, bytes, mime, dir, d) {
   const { fs } = d;
-  ensureDir(fs, dir);
+  await ensureDir(fs, dir);
   const p = fs.join(dir, "still.jpg");
   try {
     const still = await d.painter.resizeStill(bytes, mime, 960, 0.85);
@@ -3974,8 +4218,8 @@ async function one(s, d, o) {
   const dir = peopleDir(d.fs, o.media);
   const file = d.fs.join(dir, safeName(s.req.id) + "." + (EXT[got.mime] ?? "jpg"));
   const recordPath = photoRecordPath(d.fs, o.media, s.req.id);
-  removeFile(d.fs, recordPath);
-  if (d.fs.existsSync(recordPath)) throw new Error("could not remove the old photo record " + recordPath);
+  await removeFile(d.fs, recordPath);
+  if (await d.fs.exists(recordPath)) throw new Error("could not remove the old photo record " + recordPath);
   await writeFileAtomic(d.fs, file, got.bytes);
   let size = null;
   try {
@@ -4439,7 +4683,7 @@ async function runBroll(requests, d, opts) {
   const deadline = t0 + o.budgetMs;
   const ids = requests.map((r5) => r5.id);
   if (new Set(ids).size !== ids.length) throw new Error("Shot ids must be unique.");
-  ensureDir(fs, o.media);
+  await ensureDir(fs, o.media);
   const shas = /* @__PURE__ */ new Map();
   const done = /* @__PURE__ */ new Map();
   const taken = /* @__PURE__ */ new Map();
@@ -4447,7 +4691,7 @@ async function runBroll(requests, d, opts) {
     const sha = await requestSha(r5);
     shas.set(r5.id, sha);
     const dir = shotDir(fs, o.media, r5.id);
-    ensureDir(fs, dir);
+    await ensureDir(fs, dir);
     await writeJsonAtomic(fs, fs.join(dir, "request.json"), r5);
     const prev = await resumableResult(fs, o.media, r5, sha, { judging: !!d.callModel });
     if (prev) {
@@ -4954,8 +5198,7 @@ var GenerationError = class extends Error {
     this.jobId = jobId;
   }
 };
-function mediaGenerationService(di) {
-  const mg = di?.MediaGeneration;
+function mediaGenerationService(mg) {
   const methods = ["isAvailable", "submit", "list", "cancel", "retryDelivery"];
   if (!mg || methods.some((m) => typeof mg[m] !== "function")) {
     throw new GenerationError("unavailable", "generation_update_required", "This Selects build cannot generate pictures for plug-ins. Update Selects.");
@@ -4974,16 +5217,9 @@ function mediaGenerationService(di) {
     pluginFiles = false;
   }
   if (!pluginFiles) {
-    throw new GenerationError("unavailable", "plugin_files_unsupported", "Generating pictures into plug-in files needs Selects 2.0.512 or later. Update Selects.");
+    throw new GenerationError("unavailable", "plugin_files_unsupported", "This Selects build cannot deliver generated pictures to plugin files. Update Selects.");
   }
   return mg;
-}
-function scopeFromPath(pathname, projectId) {
-  const m = /\/libraries\/([^/?#]+)\/(?:projects|prep-project)\/([^/?#]+)(?:[/?#]|$)/.exec(String(pathname || ""));
-  if (!m) return null;
-  const lib = decodeURIComponent(m[1]);
-  const pid = decodeURIComponent(m[2]);
-  return pid === projectId ? { libraryId: lib, projectId } : null;
 }
 function judgeRow(row, o) {
   if (!row) return { kind: "wait", why: "not listed yet" };
@@ -5053,7 +5289,7 @@ async function waitForDraw(mg, scope, jobId, o) {
     const v = judgeRow(row, { sinceMs, redeliveries });
     o.onTick?.(v, row);
     if (v.kind === "delivered") {
-      if (!o.fileExists || o.fileExists(v.path)) return { path: v.path, row };
+      if (!o.fileExists || await o.fileExists(v.path)) return { path: v.path, row };
       if (redeliveries >= MAX_REDELIVERIES) throw new GenerationError("failed", "delivered_file_missing", "The generated picture was delivered but its file is missing.", jobId);
       redeliveries += 1;
       await mg.retryDelivery(scope, jobId).catch(() => void 0);
@@ -5358,7 +5594,7 @@ async function readPicture(fs, path, o = {}) {
     }
   }
   if (!o.runtime || !o.tmpDir) throw new Error("Cannot read " + path + " without ffmpeg (not a plain PNG).");
-  ensureDir(fs, o.tmpDir);
+  await ensureDir(fs, o.tmpDir);
   const inputFormat = pictureInputFormat(path, bytes);
   const probe = await probeJson(o.runtime, [...inputFormat, "-select_streams", "v:0", "-show_entries", "stream=width,height,pix_fmt", path], { fs, tmpDir: o.tmpDir, signal: o.signal });
   const s = probe.streams?.[0] ?? {};
@@ -5373,7 +5609,7 @@ async function readPicture(fs, path, o = {}) {
     const pixFmt = String(s.pix_fmt || "");
     return { width, height, data, hasAlpha: pixFmtHasAlpha(pixFmt), pixFmt, bytes: bytes.length, decoder: "ffmpeg" };
   } finally {
-    removeFile(fs, raw);
+    await removeFile(fs, raw);
   }
 }
 
@@ -5398,7 +5634,7 @@ function deliveryFolder(fs, p, draw) {
 }
 async function readCached(fs, p, sha) {
   const sha24 = sha.slice(0, 24);
-  if (!fs.existsSync(imageFile(fs, p, sha24))) return null;
+  if (!await fs.exists(imageFile(fs, p, sha24))) return null;
   let rec = null;
   try {
     rec = await readJsonIfExists(fs, recordFile(fs, p, sha24), null);
@@ -5416,7 +5652,7 @@ async function readDraw(fs, p, draw) {
   }
 }
 async function writeDraw(fs, p, rec) {
-  ensureDir(fs, p.draws);
+  await ensureDir(fs, p.draws);
   await writeJsonAtomic(fs, drawFile(fs, p, rec.draw), rec);
 }
 function drawKey(sha, suffix) {
@@ -5697,7 +5933,7 @@ async function dispatch(req, spec, d, p, draws) {
   if (rec) {
     summary.jobId = rec.jobId;
     summary.status = rec.status;
-    if (rec.status === "delivered" && rec.deliveredPath && fs.existsSync(rec.deliveredPath)) {
+    if (rec.status === "delivered" && rec.deliveredPath && await fs.exists(rec.deliveredPath)) {
       return { draw, key, jobId: rec.jobId, path: rec.deliveredPath };
     }
     if (drawSpent(rec)) {
@@ -5730,7 +5966,7 @@ async function dispatch(req, spec, d, p, draws) {
   const cur = () => rec;
   if (!cur().jobId) {
     const folder = deliveryFolder(fs, p, draw);
-    ensureDir(fs, folder);
+    await ensureDir(fs, folder);
     const request2 = {
       scope: d.scope,
       key,
@@ -5768,7 +6004,7 @@ async function dispatch(req, spec, d, p, draws) {
       pollMs: d.pollMs ?? POLL_MS,
       now,
       sleep: d.sleep,
-      fileExists: (path) => fs.existsSync(path)
+      fileExists: async (path) => await fs.exists(path)
     });
     await save({ ...cur(), status: "delivered", deliveredPath: got.path, finishedAt: now() });
     return { draw, key, jobId: cur().jobId, path: got.path };
@@ -5801,18 +6037,7 @@ var IMAGES_DIR = "media/images";
 function defaultImageRole() {
   return DEFAULT_MODELS.roles.image;
 }
-async function resolveGenerationScope(sdk, projectId, pathname) {
-  let path = pathname;
-  if (path == null) {
-    try {
-      const w = globalThis.window;
-      path = w?.parent?.location?.pathname ?? null;
-    } catch {
-      path = null;
-    }
-  }
-  const fromPath = scopeFromPath(path, projectId);
-  if (fromPath) return fromPath;
+async function resolveGenerationScope(sdk, projectId) {
   if (!sdk) return null;
   try {
     const st = await readScript(
@@ -5828,7 +6053,7 @@ async function resolveGenerationScope(sdk, projectId, pathname) {
 }
 var rel2 = (...parts) => parts.join("/");
 async function copyFile(fs, from, to) {
-  ensureDir(fs, fs.dirname(to));
+  await ensureDir(fs, fs.dirname(to));
   await writeFileAtomic(fs, to, await readBytes(fs, from));
 }
 async function generateJobImages(o) {
@@ -5853,7 +6078,7 @@ async function generateJobImages(o) {
     let mg = o.mg ?? null;
     let unavailable = null;
     try {
-      mg = mg ?? mediaGenerationService(o.host.di);
+      mg = mg ?? mediaGenerationService(o.host.generation);
       scope = scope ?? await resolveGenerationScope(o.host.sdk, o.projectId);
       if (!scope) throw new GenerationError("unavailable", "scope_unknown", "Open the Project in Selects to generate its pictures.");
     } catch (e) {
@@ -7252,7 +7477,7 @@ function storeFromHostFs(fs) {
   return {
     join: (...parts) => fs.join(...parts),
     async readText(path) {
-      if (!fs.existsSync(path)) return null;
+      if (!await fs.exists(path)) return null;
       return decodeText(await fs.readFile(path));
     },
     writeText: (path, text) => queue(path, () => writeFileAtomic(fs, path, text)),
@@ -7772,25 +7997,25 @@ async function startThreadEngine(ortJs, wasm, model) {
 var DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1e3;
 var errText2 = (e) => String(e && e.message || e || "unknown error").slice(0, 300);
 async function readVerified(files, path, file, own) {
-  if (!files.exists(path)) return null;
+  if (!await files.exists(path)) return null;
   try {
     const bytes = await files.readBytes(path);
     if (bytes.length === file.bytes && await sha256(bytes) === file.sha256) return bytes;
   } catch {
   }
-  if (own) quietRemove(files, path);
+  if (own) await quietRemove(files, path);
   return null;
 }
-function quietRemove(files, path) {
+async function quietRemove(files, path) {
   try {
-    if (files.exists(path)) files.remove(path);
+    if (await files.exists(path)) await files.remove(path);
   } catch {
   }
 }
 async function renameWithRetry2(files, from, to) {
   for (let k = 0; ; k += 1) {
     try {
-      files.rename(from, to);
+      await files.rename(from, to);
       return;
     } catch (e) {
       if (k >= 4) throw e;
@@ -7803,14 +8028,14 @@ async function download(files, file, dest) {
   for (let attempt2 = 0; attempt2 < 2; attempt2 += 1) {
     const url = file.urls[Math.min(attempt2, file.urls.length - 1)];
     const part = dest + ".part" + attempt2;
-    quietRemove(files, part);
+    await quietRemove(files, part);
     try {
       let timer = null;
       await Promise.race([
         files.downloadFile(url, part),
         new Promise((_, reject) => timer = setTimeout(() => reject(new Error("no answer after " + DOWNLOAD_TIMEOUT_MS / 1e3 + " s")), DOWNLOAD_TIMEOUT_MS))
       ]).finally(() => clearTimeout(timer));
-      if (!files.exists(part)) throw new Error("nothing was saved");
+      if (!await files.exists(part)) throw new Error("nothing was saved");
       const bytes = await files.readBytes(part);
       if (bytes.length !== file.bytes) throw new Error("the server sent " + bytes.length + " bytes, not " + file.bytes);
       const got = await sha256(bytes);
@@ -7819,7 +8044,7 @@ async function download(files, file, dest) {
       return bytes;
     } catch (e) {
       reasons.push(url.replace(/^https:\/\/([^/]+)\/.*$/, "$1") + ": " + errText2(e));
-      quietRemove(files, part);
+      await quietRemove(files, part);
     }
   }
   throw new Error("Could not download the " + file.label + " (" + file.name + "). " + reasons.join("; ") + ". Check the internet connection and try again.");
@@ -7853,7 +8078,7 @@ async function pinnedRuntimeFiles(files, runtimeDir, progress = () => {
     progress("Downloading face tracking (one time, " + (mb < 1 ? mb.toFixed(1) : Math.round(mb)) + " MB)…");
   }
   for (const w of missing) {
-    files.mkdirp(files.dirname(w.dest));
+    await files.mkdirp(files.dirname(w.dest));
     got[w.key] = { bytes: await download(files, w.file, w.dest), path: w.dest };
   }
   return { model: got.model, ortJs: got.ortJs, ortWasm: got.ortWasm };
@@ -7904,15 +8129,15 @@ function hostRuntimeFiles(fs) {
   return {
     join: (...p) => fs.join(...p),
     dirname: (p) => fs.dirname(p),
-    exists: (p) => fs.existsSync(p),
+    exists: async (p) => await fs.exists(p),
     readBytes: (p) => readBytes(fs, p),
     downloadFile: (url, dest) => {
       if (typeof fs.downloadFile !== "function") throw new Error("This Selects build cannot download files (FileSystem.downloadFile).");
       return fs.downloadFile(url, dest);
     },
-    mkdirp: (p) => void ensureDir(fs, p),
-    rename: (a, b2) => fs.renameSync(a, b2),
-    remove: (p) => fs.unlinkSync(p)
+    mkdirp: async (p) => void await ensureDir(fs, p),
+    rename: async (a, b2) => await fs.rename(a, b2),
+    remove: async (p) => await fs.unlink(p)
   };
 }
 var loaded = /* @__PURE__ */ new Map();
@@ -8768,7 +8993,7 @@ function checkScenes(scenes, film) {
 }
 async function readPlanInput(fs, jobDir2, o = {}) {
   const at = (rel4) => fs.join(jobDir2, ...rel4.split("/"));
-  if (!fs.existsSync(at(PLAN_SCENES_REL))) throw new Error("The plan has no scenes yet (" + PLAN_SCENES_REL + " is missing).");
+  if (!await fs.exists(at(PLAN_SCENES_REL))) throw new Error("The plan has no scenes yet (" + PLAN_SCENES_REL + " is missing).");
   const rows = rowsOf(await readJson(fs, at(PLAN_SCENES_REL)));
   const scenes = [];
   for (const r5 of rows) {
@@ -8776,7 +9001,7 @@ async function readPlanInput(fs, jobDir2, o = {}) {
     let plan = r5.plan ?? null;
     if (!plan) {
       const rel4 = scenePlanRel(sceneId);
-      if (!fs.existsSync(at(rel4))) throw new Error("Scene " + sceneId + " has no plan (" + rel4 + ").");
+      if (!await fs.exists(at(rel4))) throw new Error("Scene " + sceneId + " has no plan (" + rel4 + ").");
       plan = await readJson(fs, at(rel4));
     }
     scenes.push({ sceneId, start: Number(r5.start), end: Number(r5.end), type: String(r5.type ?? ""), plan });
@@ -11129,7 +11354,7 @@ function hostFaceFinder(host2, o) {
   const fs = host2.fs;
   return {
     async find(path, atSeconds = null) {
-      ensureDir(fs, o.tmpDir);
+      await ensureDir(fs, o.tmpDir);
       const inputFormat = pictureNeedsFormat(path) ? pictureInputFormat(path, await readBytes(fs, path)) : [];
       const m = await probeMedia(host2.runtime, path, { fs, tmpDir: o.tmpDir, signal: o.signal, inputFormat });
       if (!m.video || !(m.video.width > 0 && m.video.height > 0)) return null;
@@ -11149,7 +11374,7 @@ function hostFaceFinder(host2, o) {
         const rows = await (await o.detector()).detect(bgr, a.width, a.height);
         return largestFace(plausibleFaces(toSourceFaces(rows, a.width, a.height, size.width, size.height), size.width, size.height), size);
       } finally {
-        removeFile(fs, out);
+        await removeFile(fs, out);
       }
     }
   };
@@ -11180,11 +11405,11 @@ async function faceCrop(host2, finder, photo, aspect, o = {}) {
   if (!crop) return { path: photo, crop: null, face, reused: false };
   const out = photo.replace(/\.[A-Za-z0-9]+$/, "") + ".still.jpg";
   const side = out + ".json";
-  const st = statFile(fs, photo);
+  const st = await statFile(fs, photo);
   const key = { schema: "eo-still-crop/1", photo: fs.basename(photo), bytes: st?.size ?? null, crop };
   const had = await readJsonIfExists(fs, side, null);
-  if (had && JSON.stringify(had) === JSON.stringify(key) && fs.existsSync(out)) return { path: out, crop, face, reused: true };
-  removeFile(fs, side);
+  if (had && JSON.stringify(had) === JSON.stringify(key) && await fs.exists(out)) return { path: out, crop, face, reused: true };
+  await removeFile(fs, side);
   const part = out.replace(/\.jpg$/, ".part.jpg");
   const inputFormat = pictureNeedsFormat(photo) ? pictureInputFormat(photo, await readBytes(fs, photo)) : [];
   await encode(
@@ -11192,7 +11417,7 @@ async function faceCrop(host2, finder, photo, aspect, o = {}) {
     ["-hide_banner", "-nostdin", "-v", "error", "-y", ...inputFormat, "-i", photo, "-frames:v", "1", "-vf", "crop=" + crop.w + ":" + crop.h + ":" + crop.x + ":" + crop.y, "-q:v", "2", ...pictureOutputFormat(part), part],
     { outPath: part, fs, signal: o.signal, timeoutMs: 6e4 }
   );
-  removeFile(fs, out);
+  await removeFile(fs, out);
   await renameWithRetry(fs, part, out);
   await writeJsonAtomic(fs, side, key);
   return { path: out, crop, face, reused: false };
@@ -11272,7 +11497,7 @@ async function runMedia(ctx, o) {
   const { host: host2, job } = ctx;
   const fs = host2.fs;
   forgetEarlierPasses(job, "media", await readReceipt(fs, ctx.dir, "media").catch(() => null));
-  ensureDir(fs, ctx.path("media"));
+  await ensureDir(fs, ctx.path("media"));
   const plan = await readPlanInput(fs, ctx.dir, { film: job.film });
   const style = filmStyle(job.film);
   const fps = await draftFps(ctx, style.fps);
@@ -11298,7 +11523,7 @@ async function runMedia(ctx, o) {
     }
   }
   const brollDeps = film.requests.length ? {
-    search: o.search ? o.search(ctx) : hostStockSearch(host2.di),
+    search: o.search ? o.search(ctx) : hostStockSearch(host2.sdk),
     painter: (o.painter ?? canvasPainter)(),
     fetch: o.fetch !== void 0 ? o.fetch : typeof fetch === "function" ? (u, i) => fetch(u, i) : null
   } : null;
@@ -11390,7 +11615,7 @@ async function runMedia(ctx, o) {
     });
     const eff = effectivePlan(scene.plan, style, { missingShots, missingPictures });
     const planRel = MEDIA_REL.plan(scene.sceneId);
-    ensureDir(fs, ctx.path("media/plans"));
+    await ensureDir(fs, ctx.path("media/plans"));
     await writeJsonAtomic(fs, ctx.path(planRel), eff.plan);
     const fallbacks = [...eff.fallbacks, ...madeAs(scene.sceneId, eff.plan)];
     scenes.push({ sceneId: scene.sceneId, start: scene.start, end: scene.end, plan: planRel, kind: eff.kind, ...sceneFiles(ctx, scene, eff.plan, shots, results, stillOf, pictureEntries), fallbacks });
@@ -11479,14 +11704,6 @@ async function mediaGates(ctx) {
   if (caps?.mediaGeneration?.pluginFiles === false || caps?.mediaGeneration?.present === false) pictures = false, why.push("this Selects cannot generate pictures for plug-ins");
   return { stockSearch, pictures, why };
 }
-function withoutPluginPictures(di) {
-  if (!di) return di ?? null;
-  const mg = di.MediaGeneration;
-  if (!mg) return di;
-  const view3 = {};
-  for (const k of ["isAvailable", "submit", "list", "cancel", "retryDelivery"]) if (typeof mg[k] === "function") view3[k] = mg[k].bind(mg);
-  return { ...di, MediaGeneration: view3 };
-}
 function createGatedMediaStage(base = {}) {
   const plain = createMediaStage(base);
   return {
@@ -11500,7 +11717,7 @@ function createGatedMediaStage(base = {}) {
       const stage = createMediaStage({
         ...base,
         ...g.stockSearch ? {} : { search: () => null },
-        ...g.pictures ? {} : { images: (o) => images({ ...o, mg: null, host: { ...o.host, di: withoutPluginPictures(o.host.di) } }) }
+        ...g.pictures ? {} : { images: (o) => images({ ...o, mg: null, host: { ...o.host, generation: null } }) }
       });
       return stage.run(ctx);
     }
@@ -12018,7 +12235,7 @@ async function startExport(sdk, kind, input, opts = {}) {
       verify: async (failed) => {
         lastReport = failed;
         if (startedExport(failed, kind, input.outPath)) return "done";
-        if (failed.kind === "transport" && opts.fs && opts.fs.existsSync(input.outPath)) return "fail";
+        if (failed.kind === "transport" && opts.fs && await opts.fs.exists(input.outPath)) return "fail";
         return failed.kind === "transport" ? "retry" : "fail";
       }
     });
@@ -12043,7 +12260,7 @@ async function waitForExport(sdk, o) {
   let readFailures = 0;
   let last2 = { status: "unknown", step: null, progress: null, lastErrorMessage: null, listed: false };
   const checkFile = async (requireStable) => {
-    const st = statFile(o.fs, o.outPath);
+    const st = await statFile(o.fs, o.outPath);
     if (!st || st.size <= 0) {
       lastSize = -1;
       return null;
@@ -12126,7 +12343,7 @@ async function detectSilences(host2, path, noiseDb, minSeconds, fileSeconds, sig
 }
 async function renderVoice(host2, input) {
   const fs = host2.fs;
-  removeFile(fs, input.outPath);
+  await removeFile(fs, input.outPath);
   const seconds = input.mainEndFrame / input.fps;
   const started = await startExport(host2.sdk, "audio", { projectId: input.projectId, draftId: input.draftId, outPath: input.outPath }, { signal: input.signal, fs });
   const done = await waitForExport(host2.sdk, {
@@ -12388,7 +12605,7 @@ function createEditStage(opts = {}) {
     inputSha: async (ctx) => {
       const fs = ctx.host.fs;
       const path = ctx.path("source/source.json");
-      const source = fs.existsSync(path) ? await readJson(fs, path) : null;
+      const source = await fs.exists(path) ? await readJson(fs, path) : null;
       const progress = await readJsonIfExists(fs, ctx.path(REL.progress), null).catch(() => null);
       return editInputSha(await sourceSha(source), jobRules(progress, ctx.job.draftId, current));
     },
@@ -12401,8 +12618,8 @@ async function runEdit(ctx, buildRules, opts) {
   const fs = host2.fs;
   const sdk = host2.sdk;
   const so = { signal: ctx.signal, ...opts.script ?? {} };
-  ensureDir(fs, ctx.path("edit/audio"));
-  ensureDir(fs, ctx.path("sound"));
+  await ensureDir(fs, ctx.path("edit/audio"));
+  await ensureDir(fs, ctx.path("sound"));
   const source = await readJson(fs, ctx.path("source/source.json"));
   const srcSha = await sourceSha(source);
   const prog = await readJsonIfExists(fs, ctx.path(REL.progress), null);
@@ -12430,7 +12647,7 @@ async function runEdit(ctx, buildRules, opts) {
   }
   const draftId = job.draftId;
   let before;
-  if (p.before && fs.existsSync(ctx.path(REL.before))) {
+  if (p.before && await fs.exists(ctx.path(REL.before))) {
     before = await readJson(fs, ctx.path(REL.before));
   } else {
     ctx.note("Reading the EO draft…");
@@ -12452,7 +12669,7 @@ async function runEdit(ctx, buildRules, opts) {
   const clauses = buildClauses(before.words, before.segments, policy.maxClauseWords);
   await writeJsonAtomic(fs, ctx.path(REL.clauses), { fps, from: before.segments?.length ? "semanticCutSegments" : "sentences", clauses });
   let keep;
-  if (p.keep && fs.existsSync(ctx.path(REL.keepResponse))) {
+  if (p.keep && await fs.exists(ctx.path(REL.keepResponse))) {
     keep = await readJson(fs, ctx.path(REL.keepResponse));
   } else {
     ctx.note("Choosing what to keep…");
@@ -12506,13 +12723,13 @@ async function runEdit(ctx, buildRules, opts) {
   let state2 = p.silence.after;
   for (const a of p.audio) if (a.status === "applied" && a.after) state2 = a.after;
   let final = p.audio.find((a) => a.status === "final") ?? null;
-  if (final && !fs.existsSync(voicePath)) {
+  if (final && !await fs.exists(voicePath)) {
     p.audio = p.audio.filter((a) => a !== final);
     final = null;
   }
   let current = null;
   if (!final) {
-    for (const f of fs.readdirSync(ctx.path("edit/audio"))) if (/^pass-.*\.wav$/.test(f) && !p.audio.some((a) => a.wav.endsWith("/" + f))) removeFile(fs, ctx.path("edit/audio/" + f));
+    for (const f of await fs.readdir(ctx.path("edit/audio"))) if (/^pass-.*\.wav$/.test(f) && !p.audio.some((a) => a.wav.endsWith("/" + f))) await removeFile(fs, ctx.path("edit/audio/" + f));
   }
   while (!final) {
     const pending2 = p.audio.find((a) => a.status === "pending");
@@ -12521,7 +12738,7 @@ async function runEdit(ctx, buildRules, opts) {
       pending2.status = "applied";
       pending2.after = r6.after;
       pending2.commitId = r6.commitId ?? null;
-      removeFile(fs, ctx.path(pending2.wav));
+      await removeFile(fs, ctx.path(pending2.wav));
       state2 = r6.after;
       await save();
       continue;
@@ -12586,7 +12803,7 @@ async function runEdit(ctx, buildRules, opts) {
     if (!cutPlan.cuts.length || cutPlan.capped || noMorePasses) {
       if (cutPlan.capped) ctx.warn("The audio pause cut would remove " + cutPlan.frames + " frames, over the " + cutPlan.capFrames + "-frame cap; it was skipped.");
       else if (cutPlan.cuts.length) ctx.warn(cutPlan.cuts.length + " short pause(s) remain after " + policy.audioCutMaxPasses + " audio cut passes.");
-      removeFile(fs, voicePath);
+      await removeFile(fs, voicePath);
       await renameWithRetry(fs, render.path, voicePath);
       pass.wav = REL.voice;
       pass.status = "final";
@@ -12604,7 +12821,7 @@ async function runEdit(ctx, buildRules, opts) {
     pass.status = "applied";
     pass.after = r5.after;
     pass.commitId = r5.commitId ?? null;
-    removeFile(fs, render.path);
+    await removeFile(fs, render.path);
     state2 = r5.after;
     await save();
   }
@@ -13241,10 +13458,10 @@ function rangeReader(host2) {
     forget: (path) => void whole.delete(path)
   };
 }
-function panelSpeakerHost(host2, o) {
+async function panelSpeakerHost(host2, o) {
   const fs = host2.fs;
   const ranges = rangeReader(host2);
-  ensureDir(fs, o.scratchDir);
+  await ensureDir(fs, o.scratchDir);
   return {
     async probe(path) {
       const rt = host2.runtime;
@@ -13256,9 +13473,9 @@ function panelSpeakerHost(host2, o) {
       return (await analyze(host2.runtime, args, { signal: signal ?? o.signal, timeoutMs: 15 * 6e4 })).stderr;
     },
     readRange: (path, offset, length) => ranges.read(path, offset, length),
-    remove(path) {
+    async remove(path) {
       ranges.forget(path);
-      removeFile(fs, path);
+      await removeFile(fs, path);
     },
     scratchPath: (name) => fs.join(o.scratchDir, name),
     detect: async (bgr, w, h) => (await o.detector()).detect(bgr, w, h),
@@ -13312,7 +13529,7 @@ async function runSpeaker(ctx, o) {
   const draftId = job.draftId;
   if (!draftId) throw new Error("The job has no EO draft yet (the edit stage makes it).");
   const rs = { signal: ctx.signal, ...o.backoffMs ? { backoffMs: o.backoffMs } : {} };
-  ensureDir(fs, ctx.path("speaker"));
+  await ensureDir(fs, ctx.path("speaker"));
   ctx.note("Reading the EO draft…");
   const read = await readScript(host2.sdk, "EO Shorts: read Main for the speaker framing", readSpeakerDraftScript(job.projectId, draftId), rs);
   const edited = await readJsonIfExists(fs, ctx.path("edit/words.json"), null);
@@ -13333,7 +13550,7 @@ async function runSpeaker(ctx, o) {
     resources
   };
   const detector = o.detector ? () => o.detector(ctx) : () => sharedFaceDetector(fs, ctx.roots.runtime, (s) => ctx.note(s));
-  const sh = o.host ? o.host(ctx) : panelSpeakerHost(host2, { scratchDir: ctx.path("speaker/tmp"), detector, signal: ctx.signal, progress: (s) => ctx.note(s) });
+  const sh = o.host ? o.host(ctx) : await panelSpeakerHost(host2, { scratchDir: ctx.path("speaker/tmp"), detector, signal: ctx.signal, progress: (s) => ctx.note(s) });
   const result = await analyzeSpeaker(input, sh, { signal: ctx.signal });
   await writeJsonAtomic(fs, ctx.path(SPEAKER_REL.faces), result.faces);
   await writeJsonAtomic(fs, ctx.path(SPEAKER_REL.framing), result.framing);
@@ -14306,7 +14523,7 @@ var REL2 = {
 };
 async function readText2(ctx, rel4) {
   const path = ctx.path(rel4);
-  if (!ctx.host.fs.existsSync(path)) return null;
+  if (!await ctx.host.fs.exists(path)) return null;
   return decodeText(await ctx.host.fs.readFile(path));
 }
 async function readInputs(ctx) {
@@ -14328,7 +14545,7 @@ async function readCatalog(ctx) {
   const fs = ctx.host.fs;
   const path = fs.join(ctx.roots.skills, "assets", "music", "catalog.json");
   try {
-    if (!fs.existsSync(path)) return null;
+    if (!await fs.exists(path)) return null;
     return JSON.parse(decodeText(await fs.readFile(path)));
   } catch {
     return null;
@@ -14345,13 +14562,13 @@ async function recordNoPlan(ctx, a) {
   await writeJsonAtomic(ctx.host.fs, ctx.path(REL2.attempts), cur);
 }
 var RUN_FILES = [REL2.source, REL2.request, REL2.provenance, REL2.response, REL2.bundleRaw, REL2.anchorFix, REL2.repairRequest, REL2.repairResponse, REL2.bundle, REL2.scenes, REL2.music, REL2.summary];
-function clearPlan(ctx) {
+async function clearPlan(ctx) {
   const fs = ctx.host.fs;
-  for (const rel4 of RUN_FILES) fs.rmSync(ctx.path(rel4), { force: true });
-  for (const name of fs.readdirSync(ctx.path("plan"))) if (/^film-.+\.json$|^direction-.+\.md$/.test(name)) fs.rmSync(ctx.path("plan/" + name), { force: true });
+  for (const rel4 of RUN_FILES) await fs.rm(ctx.path(rel4), { force: true });
+  for (const name of await fs.readdir(ctx.path("plan"))) if (/^film-.+\.json$|^direction-.+\.md$/.test(name)) await fs.rm(ctx.path("plan/" + name), { force: true });
   for (const dir of ["plan/scenes", "plan/lint"]) {
-    fs.rmSync(ctx.path(dir), { recursive: true, force: true });
-    ensureDir(fs, ctx.path(dir));
+    await fs.rm(ctx.path(dir), { recursive: true, force: true });
+    await ensureDir(fs, ctx.path(dir));
   }
 }
 function forgetPreviousRun(job, last2) {
@@ -14401,11 +14618,11 @@ async function runPlan(ctx, opts) {
   const { job } = ctx;
   const fs = ctx.host.fs;
   const t0 = ctx.host.now();
-  for (const dir of ["plan", "plan/scenes", "plan/lint"]) ensureDir(fs, ctx.path(dir));
+  for (const dir of ["plan", "plan/scenes", "plan/lint"]) await ensureDir(fs, ctx.path(dir));
   const styles = opts.styles ?? FILM_STYLES;
   const film = job.film;
   forgetPreviousRun(job, await readReceipt(fs, ctx.dir, "plan"));
-  clearPlan(ctx);
+  await clearPlan(ctx);
   delete job.models[PLAN_ROLE];
   const inputs = await readInputs(ctx);
   if (inputs.from === "source") ctx.warn("The plan uses the source draft's words: there is no edit to plan from.");
@@ -14512,7 +14729,7 @@ async function runPlan(ctx, opts) {
   await writeFileAtomic(fs, ctx.path(REL2.direction(film)), r5.bundle.direction + "\n");
   outputs.push(REL2.bundle, REL2.scenes, REL2.film(film), REL2.direction(film));
   for (const s of r5.scenes) {
-    ensureDir(fs, ctx.path("plan/scenes/" + s.id));
+    await ensureDir(fs, ctx.path("plan/scenes/" + s.id));
     await writeFileAtomic(fs, ctx.path(REL2.scenePlan(s.id)), pyJsonFile(ex.plans[s.id], PLAN_FLOATS));
     outputs.push(REL2.scenePlan(s.id));
     const raw = r5.rawPlans[s.id];
@@ -14808,7 +15025,7 @@ function hbWasmPath(fs, runtimeDir) {
 var DOWNLOAD_TIMEOUT_MS2 = 3 * 60 * 1e3;
 var errText3 = (e) => String(e && e.message || e || "unknown error").slice(0, 300);
 async function verified(fs, path) {
-  if (!fs.existsSync(path)) return null;
+  if (!await fs.exists(path)) return null;
   try {
     const bytes = await readBytes(fs, path);
     if (bytes.length === HB_SUBSET_WASM.bytes && await sha256Hex(bytes) === HB_SUBSET_WASM.sha256) return bytes;
@@ -14816,9 +15033,9 @@ async function verified(fs, path) {
   }
   return null;
 }
-function quietRemove2(fs, path) {
+async function quietRemove2(fs, path) {
   try {
-    if (fs.existsSync(path)) fs.unlinkSync(path);
+    if (await fs.exists(path)) await fs.unlink(path);
   } catch {
   }
 }
@@ -14826,26 +15043,26 @@ async function hbSubsetWasm(fs, runtimeDir, o = {}) {
   const dest = hbWasmPath(fs, runtimeDir);
   const own = await verified(fs, dest);
   if (own) return { bytes: own, path: dest, downloaded: false };
-  quietRemove2(fs, dest);
+  await quietRemove2(fs, dest);
   for (const p of o.reuse ?? []) {
     const b2 = await verified(fs, p);
     if (b2) return { bytes: b2, path: p, downloaded: false };
   }
   if (typeof fs.downloadFile !== "function") throw new Error("This Selects build cannot download files (FileSystem.downloadFile); update Selects.");
   o.progress?.("Downloading the font subsetter (one time, 0.7 MB)…");
-  if (!fs.existsSync(fs.dirname(dest))) fs.mkdirSync(fs.dirname(dest), { recursive: true });
+  if (!await fs.exists(fs.dirname(dest))) await fs.mkdir(fs.dirname(dest), { recursive: true });
   const reasons = [];
   for (let attempt2 = 0; attempt2 < 2; attempt2 += 1) {
     const url = HB_SUBSET_WASM.urls[Math.min(attempt2, HB_SUBSET_WASM.urls.length - 1)];
     const part = dest + ".part" + attempt2;
-    quietRemove2(fs, part);
+    await quietRemove2(fs, part);
     try {
       let timer = null;
       await Promise.race([
         fs.downloadFile(url, part),
         new Promise((_, reject) => timer = setTimeout(() => reject(new Error("no answer after " + DOWNLOAD_TIMEOUT_MS2 / 1e3 + " s")), DOWNLOAD_TIMEOUT_MS2))
       ]).finally(() => timer && clearTimeout(timer));
-      if (!fs.existsSync(part)) throw new Error("nothing was saved");
+      if (!await fs.exists(part)) throw new Error("nothing was saved");
       const bytes = await readBytes(fs, part);
       if (bytes.length !== HB_SUBSET_WASM.bytes) throw new Error("the server sent " + bytes.length + " bytes, not " + HB_SUBSET_WASM.bytes);
       const got = await sha256Hex(bytes);
@@ -14854,7 +15071,7 @@ async function hbSubsetWasm(fs, runtimeDir, o = {}) {
       return { bytes, path: dest, downloaded: true };
     } catch (e) {
       reasons.push(url.replace(/^https:\/\/([^/]+)\/.*$/, "$1") + ": " + errText3(e));
-      quietRemove2(fs, part);
+      await quietRemove2(fs, part);
     }
   }
   throw new Error("Could not download the " + HB_SUBSET_WASM.label + ". " + reasons.join("; ") + ". Check the internet connection and try again.");
@@ -14905,12 +15122,12 @@ function packagedFontSource(fs, root) {
   const read = async (rel4) => {
     const b64 = at(packagedFontName(rel4));
     const gz = b64.replace(/\.b64$/, ".gz.b64");
-    if (fs.existsSync(gz)) return gunzip(fromBase64(await readText(fs, gz)));
-    if (fs.existsSync(b64)) return fromBase64(await readText(fs, b64));
+    if (await fs.exists(gz)) return gunzip(fromBase64(await readText(fs, gz)));
+    if (await fs.exists(b64)) return fromBase64(await readText(fs, b64));
     const ttf = at(packagedFontName(rel4).replace(/\.b64$/, ""));
-    if (fs.existsSync(ttf)) return readBytes(fs, ttf);
-    if (fs.existsSync(at(rel4))) return readBytes(fs, at(rel4));
-    if (fs.existsSync(at(rel4) + ".b64")) return fromBase64(await readText(fs, at(rel4) + ".b64"));
+    if (await fs.exists(ttf)) return readBytes(fs, ttf);
+    if (await fs.exists(at(rel4))) return readBytes(fs, at(rel4));
+    if (await fs.exists(at(rel4) + ".b64")) return fromBase64(await readText(fs, at(rel4) + ".b64"));
     throw new Error("Font file missing from the package: " + rel4);
   };
   return (rel4) => {
@@ -17886,11 +18103,11 @@ async function packAt(h, id, stem, sizeOf, source, dir, mode, inline) {
   const srcBytes = await readBytes(h.fs, source);
   const size = imageSize(srcBytes);
   const d = sizeOf(size.w, size.h);
-  if (!h.fs.existsSync(dir)) h.fs.mkdirSync(dir, { recursive: true });
+  if (!await h.fs.exists(dir)) await h.fs.mkdir(dir, { recursive: true });
   const file = h.fs.join(dir, webpName(stem, d.w, d.h, mode));
   const sourceSha256 = await sha256Hex(srcBytes);
   const stamp = file + ".source-sha256";
-  const fresh = h.fs.existsSync(file) && h.fs.existsSync(stamp) && new TextDecoder().decode(await readBytes(h.fs, stamp)).trim() === sourceSha256;
+  const fresh = await h.fs.exists(file) && await h.fs.exists(stamp) && new TextDecoder().decode(await readBytes(h.fs, stamp)).trim() === sourceSha256;
   if (!fresh) {
     const tmp = file + ".part.webp";
     await encode(h.runtime, webpArgs(source, tmp, d.w, d.h, mode, srcBytes), { fs: h.fs, outPath: tmp, signal: h.signal, timeoutMs: 6e4 });
@@ -17904,7 +18121,7 @@ async function packAt(h, id, stem, sizeOf, source, dir, mode, inline) {
   if (inline) url = dataUri("image/webp", bytes);
   else {
     if (typeof h.fs.pathToLocalURL !== "function") throw new Error("This Selects build cannot name plugin-data files for a Motion Graphic (FileSystem.pathToLocalURL); update Selects.");
-    url = h.fs.pathToLocalURL(file);
+    url = await h.fs.pathToLocalURL(file);
   }
   return {
     id,
@@ -18612,15 +18829,15 @@ function bakeArgs(plan, outPath) {
 }
 var clipRecordPath = (out) => out.replace(/\.mp4$/i, "") + ".json";
 async function bakeKey(fs, plan) {
-  const files = plan.shots.map((s) => {
-    const st = statFile(fs, s.source.path);
+  const files = await Promise.all(plan.shots.map(async (s) => {
+    const st = await statFile(fs, s.source.path);
     return [s.source.path, st?.size ?? null, st ? Math.round(st.mtimeMs) : null];
-  });
+  }));
   return sha256Hex(JSON.stringify([BAKE_RECIPE, plan, files]));
 }
 async function bakeStockRun(h, plan, out) {
   const t0 = Date.now();
-  for (const s of plan.shots) if (!h.fs.existsSync(s.source.path)) throw new Error("Stock source missing: " + s.source.path);
+  for (const s of plan.shots) if (!await h.fs.exists(s.source.path)) throw new Error("Stock source missing: " + s.source.path);
   const key = await bakeKey(h.fs, plan);
   const recPath = clipRecordPath(out);
   const counted = async (path, decode2 = true) => {
@@ -18628,24 +18845,24 @@ async function bakeStockRun(h, plan, out) {
     return p.video && p.video.width === plan.out.width && p.video.height === plan.out.height ? p.video.nbFrames : null;
   };
   const rec = await readJsonIfExists(h.fs, recPath, null);
-  if (rec && rec.schema === "eo-footage-clip/1" && rec.key === key && h.fs.existsSync(out) && (rec.bytes == null || rec.bytes === statFile(h.fs, out)?.size)) {
+  if (rec && rec.schema === "eo-footage-clip/1" && rec.key === key && await h.fs.exists(out) && (rec.bytes == null || rec.bytes === (await statFile(h.fs, out))?.size)) {
     try {
-      if (await counted(out, false) === plan.frames) return { path: out, frames: plan.frames, bytes: statFile(h.fs, out)?.size ?? 0, ms: Date.now() - t0, reused: true, key };
+      if (await counted(out, false) === plan.frames) return { path: out, frames: plan.frames, bytes: (await statFile(h.fs, out))?.size ?? 0, ms: Date.now() - t0, reused: true, key };
     } catch {
     }
   }
-  removeFile(h.fs, recPath);
+  await removeFile(h.fs, recPath);
   const part = out.replace(/\.mp4$/i, "") + ".part.mp4";
-  removeFile(h.fs, part);
+  await removeFile(h.fs, part);
   await encode(h.runtime, bakeArgs(plan, part), { fs: h.fs, outPath: part, signal: h.signal, timeoutMs: 3e5 });
   const frames = await counted(part);
   if (frames !== plan.frames) {
-    removeFile(h.fs, part);
+    await removeFile(h.fs, part);
     throw new Error("The baked clip of scene " + plan.sceneId + " has " + frames + " frames, not " + plan.frames + ".");
   }
-  removeFile(h.fs, out);
+  await removeFile(h.fs, out);
   await renameWithRetry(h.fs, part, out);
-  const bytes = statFile(h.fs, out)?.size ?? 0;
+  const bytes = (await statFile(h.fs, out))?.size ?? 0;
   await writeJsonAtomic(h.fs, recPath, { schema: "eo-footage-clip/1", recipe: BAKE_RECIPE, key, frames, bytes });
   return { path: out, frames, bytes, ms: Date.now() - t0, reused: false, key };
 }
@@ -18832,7 +19049,7 @@ async function composeFilm(c) {
       say("Laying out scene " + s.sceneId + "…");
       const pictures = {};
       for (const [id, path] of Object.entries(s.pictures ?? {})) pictures[id] = { bytes: await readBytes(fs, path), semanticParts: null };
-      const dir = ensureDir(fs, sceneDir(s.sceneId));
+      const dir = await ensureDir(fs, sceneDir(s.sceneId));
       const r5 = await (c.compile ?? compileScene)({ plan: s.plan, style: c.style, pictures, sceneDir: dir, footageRoot: "" }, { readFont: c.readFont, doc: c.doc, join: (...p) => fs.join(...p) });
       await writeFileAtomic(fs, fs.join(dir, "execution.json"), r5.text);
       await writeFileAtomic(fs, fs.join(dir, "compile-report.json"), reportText(r5.report));
@@ -18849,7 +19066,7 @@ async function composeFilm(c) {
   }
   const bakes = [];
   await lap("bake", async () => {
-    ensureDir(fs, c.dirs.footage);
+    await ensureDir(fs, c.dirs.footage);
     const probed = /* @__PURE__ */ new Map();
     for (const o of plan.overlays) {
       const sf = footage.find((x) => x.sceneId === o.sceneId);
@@ -19042,14 +19259,14 @@ async function runCompose(ctx, o) {
   }
   const doc = o.doc ? o.doc(ctx) : globalThis.document;
   if (!doc) throw new Error("Compose needs the panel's document to lay out the scenes.");
-  if (!o.readFont && !fs.existsSync(fs.join(ctx.roots.skills, "fonts", "fonts.json"))) {
+  if (!o.readFont && !await fs.exists(fs.join(ctx.roots.skills, "fonts", "fonts.json"))) {
     throw new Error("The installed EO Shorts package has no fonts (" + fs.join(ctx.roots.skills, "fonts") + "). Install the plugin again, then Resume.");
   }
   ctx.note("Loading the font subsetter…");
   const subsetter = await (o.subsetter ? o.subsetter(ctx) : loadSubsetter(fs, ctx.roots.runtime, { progress: (s) => ctx.note(s) }));
   const readFont = o.readFont ? o.readFont(ctx) : packagedFontSource(fs, ctx.roots.skills);
   const dirs = { compose: ctx.path("compose"), footage: ctx.path("media/footage"), sound: ctx.path("sound"), tmp: ctx.path("compose/tmp") };
-  for (const d of Object.values(dirs)) ensureDir(fs, d);
+  for (const d of Object.values(dirs)) await ensureDir(fs, d);
   const report = await composeFilm({
     host: host2,
     doc,
@@ -20120,7 +20337,7 @@ async function soundFilm(c) {
   const warn = (m) => void (warnings.includes(m) || warnings.push(m));
   const rs = { signal: c.signal, backoffMs: c.backoffMs };
   const path = (...p) => fs.join(c.dirs.sound, ...p);
-  ensureDir(fs, path("passes"));
+  await ensureDir(fs, path("passes"));
   const t0 = Date.now();
   say("Reading the draft…");
   const st = await readScript(c.host.sdk, "EO Shorts: read the draft for the sound", soundStateScript(c.projectId, c.draftId, { sound: c.dirs.sound, footage: c.dirs.footage }), rs);
@@ -20178,7 +20395,7 @@ async function soundFilm(c) {
   };
   const renderTo = async (name) => {
     const out = path("passes", name);
-    removeFile(fs, out);
+    await removeFile(fs, out);
     if (c.render) await c.render(out, seconds);
     else await renderVoice(c.host, { projectId: c.projectId, draftId: c.draftId, outPath: out, mainEndFrame: mainEnd, fps, tmpDir: c.dirs.tmp, signal: c.signal, onProgress: (t2) => say(t2.replace("Rendering the voice", "Rendering " + name)) });
     return { path: out, loud: await measure(c, out) };
@@ -20241,8 +20458,8 @@ async function soundFilm(c) {
   }
   plan.problems.forEach(warn);
   const last2 = passes[passes.length - 1];
-  for (const p of passes.slice(0, -1)) removeFile(fs, p.path);
-  if (mix) removeFile(fs, mix.path);
+  for (const p of passes.slice(0, -1)) await removeFile(fs, p.path);
+  if (mix) await removeFile(fs, mix.path);
   const report = {
     schema: "eo-sound/1",
     guard,
@@ -20292,13 +20509,13 @@ async function measure(c, file, part) {
 }
 async function copyInto(host2, from, to) {
   const fs = host2.fs;
-  const a = fs.statSync(from), b2 = fs.statSync(to);
+  const a = await fs.stat(from), b2 = await fs.stat(to);
   if (!a) throw new Error("The packaged file " + from + " is missing; reinstall the plugin.");
   if (b2 && b2.size === a.size) return to;
-  ensureDir(fs, fs.dirname(to));
+  await ensureDir(fs, fs.dirname(to));
   if (fs.copyFile) {
     const tmp = to + ".part";
-    removeFile(fs, tmp);
+    await removeFile(fs, tmp);
     await fs.copyFile(from, tmp);
     await renameWithRetry(fs, tmp, to);
   } else await writeFileAtomic(fs, to, await readBytes(fs, from));
@@ -20340,7 +20557,7 @@ async function runSound(ctx, o) {
   const scenes = await soundScenes(ctx);
   const edited = await readJsonIfExists(fs, ctx.path("edit/words.json"), null);
   const dirs = { sound: ctx.path("sound"), footage: ctx.path("media/footage"), tmp: ctx.path("sound/tmp") };
-  for (const d of Object.values(dirs)) ensureDir(fs, d);
+  for (const d of Object.values(dirs)) await ensureDir(fs, d);
   const report = await soundFilm({
     host: host2,
     projectId: job.projectId,
@@ -20410,7 +20627,7 @@ async function pictureRefs(fs, composeDir, scenes, toPath) {
     const dir = fs.join(composeDir, s.sceneId);
     for (const [i, part] of s.parts.entries()) {
       const file = fs.join(dir, partScriptName(i, s.parts.length));
-      if (!fs.existsSync(file)) {
+      if (!await fs.exists(file)) {
         unreadable.push(s.sceneId + " " + partScriptName(i, s.parts.length));
         continue;
       }
@@ -20433,13 +20650,13 @@ function localUrlMapper(fs) {
   const f = fs.localURLToPath;
   return typeof f === "function" ? (url) => f.call(fs, url) : null;
 }
-function checkPictureFiles(fs, refs, unreadable = []) {
+async function checkPictureFiles(fs, refs, unreadable = []) {
   const missing = [];
   const unresolved = [];
   const files = /* @__PURE__ */ new Set();
   for (const r5 of refs) {
     if (r5.path == null) unresolved.push(r5);
-    else if (!fs.existsSync(r5.path)) missing.push(r5);
+    else if (!await fs.exists(r5.path)) missing.push(r5);
     else files.add(r5.path);
   }
   return { checked: refs.length, files: files.size, missing, unresolved, unreadable };
@@ -20471,7 +20688,7 @@ async function precheckExport(sdk, fs, input) {
   const read = await readScript(sdk, "EO Shorts: check the draft before export", exportCheckScript(input.projectId, input.draftId), { signal: input.signal, backoffMs: input.backoffMs });
   const draft = { ...EMPTY_DRAFT, ...read, inProject: read.inProject === true };
   const { refs, unreadable } = await pictureRefs(fs, input.composeDir, input.scenes, localUrlMapper(fs));
-  const pictures = checkPictureFiles(fs, refs, unreadable);
+  const pictures = await checkPictureFiles(fs, refs, unreadable);
   return judgeExportCheck(draft, pictures, { mainEnd: input.expectMainEnd });
 }
 
@@ -20489,12 +20706,12 @@ function createExportStage(o = {}) {
 }
 var exportStage = createExportStage();
 var EXPORT_MP4 = /^(final(-[0-9a-fx]+)?|render-[0-9a-fx]+)\.mp4$/;
-function removeOtherExports(ctx, keepRel) {
+async function removeOtherExports(ctx, keepRel) {
   const fs = ctx.host.fs;
-  for (const name of fs.readdirSync(ctx.path("export"))) if (EXPORT_MP4.test(name) && "export/" + name !== keepRel) removeFile(fs, ctx.path("export/" + name));
+  for (const name of await fs.readdir(ctx.path("export"))) if (EXPORT_MP4.test(name) && "export/" + name !== keepRel) await removeFile(fs, ctx.path("export/" + name));
 }
-function writtenSince(fs, path, since) {
-  const st = statFile(fs, path);
+async function writtenSince(fs, path, since) {
+  const st = await statFile(fs, path);
   return !!st && st.size > 0 && since != null && st.mtimeMs >= since - MTIME_SLACK_MS;
 }
 var msOf = (v) => {
@@ -20534,7 +20751,7 @@ async function runExport(ctx, o) {
   if (!check2.ok) throw new Error(check2.problems.join(" "));
   const d = check2.draft;
   const seconds = d.mainEnd / d.fps;
-  ensureDir(fs, ctx.path("export"));
+  await ensureDir(fs, ctx.path("export"));
   const inputSha = job.stages.export?.inputSha ?? null;
   const rel4 = finalRel(inputSha);
   const outPath = ctx.path(rel4);
@@ -20545,12 +20762,12 @@ async function runExport(ctx, o) {
   const pendingId = job.pending.exportWorkflowId;
   if (pendingId && inputSha && job.pending.exportFor === inputSha) {
     const since = msOf(job.pending.exportStartedAt);
-    if (fs.existsSync(outPath) && !writtenSince(fs, outPath, since)) {
-      removeFile(fs, outPath);
-      await ctx.event("export-stale-file", { workflowId: pendingId, file: rel4, removed: !fs.existsSync(outPath) });
+    if (await fs.exists(outPath) && !await writtenSince(fs, outPath, since)) {
+      await removeFile(fs, outPath);
+      await ctx.event("export-stale-file", { workflowId: pendingId, file: rel4, removed: !await fs.exists(outPath) });
     }
     const snap = since != null ? await readWorkflow(host2.sdk, job.projectId, pendingId, rs).catch(() => null) : null;
-    if (snap && resumable(snap, fs.existsSync(outPath))) {
+    if (snap && resumable(snap, await fs.exists(outPath))) {
       workflowId = pendingId;
       startedAt = since;
       resumed = true;
@@ -20563,8 +20780,8 @@ async function runExport(ctx, o) {
     await ctx.event("export-abandon", { workflowId: pendingId, status: "superseded", exportFor: job.pending.exportFor ?? null });
   }
   if (!workflowId) {
-    removeFile(fs, outPath);
-    if (fs.existsSync(outPath)) throw new Error("Cannot remove the earlier file at " + outPath + " to export again (is it open in another app?).");
+    await removeFile(fs, outPath);
+    if (await fs.exists(outPath)) throw new Error("Cannot remove the earlier file at " + outPath + " to export again (is it open in another app?).");
     ctx.note("Starting the export…");
     const started = await startExport(host2.sdk, "video", { projectId: job.projectId, draftId: job.draftId, outPath, resolution }, { ...rs, fs });
     workflowId = started.workflowId;
@@ -20600,14 +20817,14 @@ async function runExport(ctx, o) {
     }
     throw e instanceof Error ? e : new Error(errorMessage(e));
   }
-  if (!writtenSince(fs, outPath, startedAt)) {
-    removeFile(fs, outPath);
+  if (!await writtenSince(fs, outPath, startedAt)) {
+    await removeFile(fs, outPath);
     clearPending(ctx);
     await ctx.saveJob();
     await ctx.event("export-stale-file", { workflowId, file: rel4, via: done.via, lastStatus: done.lastStatus });
     throw new Error("The app reported the export finished, but " + rel4 + " is older than the export, so the app did not write it. Resume exports again.");
   }
-  removeOtherExports(ctx, rel4);
+  await removeOtherExports(ctx, rel4);
   const receipt = {
     schema: "eo-export/1",
     jobId: job.jobId,
@@ -20870,12 +21087,12 @@ function decodeArgs(mp4, wav, sampleRate) {
   return ["-hide_banner", "-nostdin", "-nostats", "-y", "-i", mp4, "-map", "0:a:0", "-vn", "-ac", "2", "-ar", String(sampleRate), "-c:a", "pcm_f32le", wav];
 }
 async function decodeAudio(h, mp4, tmpWav, sampleRate, signal) {
-  removeFile(h.fs, tmpWav);
+  await removeFile(h.fs, tmpWav);
   try {
     await encode(h.runtime, decodeArgs(mp4, tmpWav, sampleRate), { fs: h.fs, outPath: tmpWav, signal, timeoutMs: 12e4 });
     return decodeWav(await readBytes(h.fs, tmpWav));
   } finally {
-    removeFile(h.fs, tmpWav);
+    await removeFile(h.fs, tmpWav);
   }
 }
 async function blackdetect(h, mp4, signal) {
@@ -20883,20 +21100,20 @@ async function blackdetect(h, mp4, signal) {
 }
 async function pullFrames(h, mp4, samples, dir, signal) {
   const fs = h.fs;
-  ensureDir(fs, dir);
-  for (const name of fs.readdirSync(dir)) if (/^(f\d+|tmp-\d+)\.jpg$|^gray\.raw$/.test(name)) removeFile(fs, fs.join(dir, name));
+  await ensureDir(fs, dir);
+  for (const name of await fs.readdir(dir)) if (/^(f\d+|tmp-\d+)\.jpg$|^gray\.raw$/.test(name)) await removeFile(fs, fs.join(dir, name));
   const frames = samples.map((s) => s.frame);
   const raw = fs.join(dir, "gray.raw");
   await encode(h.runtime, extractArgs(mp4, frames, imagePattern(fs, dir, "tmp-%03d.jpg"), raw), { fs, outPath: raw, signal, timeoutMs: 3e5 });
   const bytes = await readBytes(fs, raw);
-  removeFile(fs, raw);
+  await removeFile(fs, raw);
   const size = TILE.width * TILE.height;
   const got = Math.floor(bytes.length / size);
   const jpg = /* @__PURE__ */ new Map();
   const gray = /* @__PURE__ */ new Map();
   for (const [i, f] of frames.entries()) {
     const tmp = fs.join(dir, "tmp-" + String(i).padStart(3, "0") + ".jpg");
-    if (fs.existsSync(tmp)) {
+    if (await fs.exists(tmp)) {
       const out = fs.join(dir, "f" + String(f).padStart(4, "0") + ".jpg");
       await renameWithRetry(fs, tmp, out);
       jpg.set(f, out);
@@ -20910,7 +21127,7 @@ async function pullFrames(h, mp4, samples, dir, signal) {
 var SHEET = { columns: 6, perSheet: 24, maxSide: 1700, frameMaxSide: TILE.width, label: 22, quality: 0.86 };
 async function paintSheets(h, painter, samples, pulled, dir) {
   const fs = h.fs;
-  for (const name of fs.readdirSync(dir)) if (/^contact-\d+\.jpg$/.test(name)) removeFile(fs, fs.join(dir, name));
+  for (const name of await fs.readdir(dir)) if (/^contact-\d+\.jpg$/.test(name)) await removeFile(fs, fs.join(dir, name));
   const out = [];
   const shown = samples.filter((s) => pulled.jpg.has(s.frame));
   for (const [n2, chunk2] of sheetChunks(shown.length, SHEET.perSheet).entries()) {
@@ -20976,7 +21193,7 @@ function foreignOverlays(overlays, footageRoot) {
 async function readJobFiles(fs, path) {
   const j = (rel4) => readJsonIfExists(fs, path(rel4), null).catch(() => null);
   const calls = [];
-  if (fs.existsSync(path("calls.jsonl"))) {
+  if (await fs.exists(path("calls.jsonl"))) {
     for (const line of (await readText(fs, path("calls.jsonl"))).split(/\r?\n/)) {
       if (!line.trim()) continue;
       try {
@@ -21272,10 +21489,10 @@ async function runDiagnostics(ctx, o) {
   const rs = { signal: ctx.signal, backoffMs: o.backoffMs };
   const files = await readJobFiles(fs, ctx.path);
   const receipt = files.exportReceipt;
-  if (!receipt || !fs.existsSync(receipt.outPath)) throw new Error("There is no exported MP4 to check (export/receipt.json).");
+  if (!receipt || !await fs.exists(receipt.outPath)) throw new Error("There is no exported MP4 to check (export/receipt.json).");
   if (!job.draftId) throw new Error("The job has no EO draft.");
   const mp4 = receipt.outPath;
-  ensureDir(fs, ctx.path(DIAG_REL.dir));
+  await ensureDir(fs, ctx.path(DIAG_REL.dir));
   job.warnings = job.warnings.filter((w) => !w.startsWith(WARNING_PREFIX));
   const errors = {};
   const ms = {};
@@ -21375,7 +21592,7 @@ async function runDiagnostics(ctx, o) {
     frames: { samples, sheets: sheets.map((s) => rel3(ctx, s)) },
     info: {
       versions: job.versions,
-      ffmpeg: ffmpeg ? { line: ffmpeg.line, version: ffmpeg.version, platform: hostPlatform(host2.di ?? null) } : null,
+      ffmpeg: ffmpeg ? { line: ffmpeg.line, version: ffmpeg.version, platform: host2.environment?.platform ?? "" } : null,
       stages: stageTimes(job.stages),
       models: job.models,
       calls: callsSummary(files.calls),
@@ -21417,7 +21634,7 @@ async function sceneList(ctx, files) {
   for (const s of rows) {
     let execution = null;
     const file = ctx.path("compose/" + s.sceneId + "/execution.json");
-    if (ctx.host.fs.existsSync(file)) execution = JSON.parse(new TextDecoder().decode(await readBytes(ctx.host.fs, file)));
+    if (await ctx.host.fs.exists(file)) execution = JSON.parse(new TextDecoder().decode(await readBytes(ctx.host.fs, file)));
     out.push({ sceneId: s.sceneId, start: s.start, end: s.end, execution });
   }
   return out.sort((a, b2) => a.start - b2.start);
@@ -21440,13 +21657,13 @@ async function referenceVoice(ctx, files, fps) {
   const r5 = files.sound?.report;
   if (r5?.voice) {
     const rel22 = r5.voice.passGainDb ? "sound/passes/voice-2.wav" : "sound/passes/voice-1.wav";
-    if (fs.existsSync(ctx.path(rel22))) {
+    if (await fs.exists(ctx.path(rel22))) {
       const pcm2 = decodeWav(await readBytes(fs, ctx.path(rel22)));
       return { path: ctx.path(rel22), rel: rel22, from: "sound-pass", pcm: pcm2, shaped: shapeVoice(pcm2, r5.voice, fps), integrated: r5.voice.render.integrated };
     }
   }
   const rel1 = "sound/voice-only.wav";
-  if (!fs.existsSync(ctx.path(rel1))) throw new Error("no voice render (sound/passes/voice-*.wav or sound/voice-only.wav)");
+  if (!await fs.exists(ctx.path(rel1))) throw new Error("no voice render (sound/passes/voice-*.wav or sound/voice-only.wav)");
   const pcm = decodeWav(await readBytes(fs, ctx.path(rel1)));
   const integrated = files.edit?.voice?.integrated ?? (await measureFile(ctx.host, ctx.path(rel1), { signal: ctx.signal })).integrated;
   return { path: ctx.path(rel1), rel: rel1, from: "edit", pcm, shaped: pcm, integrated };
@@ -21458,7 +21675,9 @@ async function planLint(ctx, files) {
   const ids = planSceneIds(files);
   for (const sid of ids) {
     const media = files.media?.scenes?.find((s) => s.sceneId === sid)?.plan;
-    const file = [media, "plan/scenes/" + sid + "/plan.json"].filter((x) => !!x).map((x) => ctx.path(x)).find((p) => fs.existsSync(p));
+    const candidates = [media, "plan/scenes/" + sid + "/plan.json"].filter((x) => !!x).map((x) => ctx.path(x));
+    const existing = await Promise.all(candidates.map((p) => fs.exists(p)));
+    const file = candidates.find((_, i) => existing[i]);
     if (!file) {
       out.push({ sceneId: sid, errors: ["no plan file"] });
       continue;
@@ -21558,9 +21777,9 @@ function set(patch) {
   state = { ...state, ...patch };
   listeners.forEach((l) => l());
 }
-function hostAndRoots(deps) {
-  const host2 = makeHost(deps.sdk, deps.di);
-  const roots = ensureDataRoots(host2.fs, deps.roots ?? pluginRoots(host2.fs));
+async function hostAndRoots(deps) {
+  const host2 = makeHost(deps.sdk);
+  const roots = await ensureDataRoots(host2.fs, deps.roots ?? pluginRoots(host2.fs));
   return { host: host2, roots };
 }
 function setFilm(film) {
@@ -21573,7 +21792,7 @@ async function loadLatest(deps, projectId) {
     return;
   }
   try {
-    const { host: host2, roots } = hostAndRoots(deps);
+    const { host: host2, roots } = await hostAndRoots(deps);
     const jobs = await listJobs(host2.fs, roots.jobs, projectId);
     const latest = jobs[0] ?? null;
     const lease = latest ? await leaseStatus(host2.fs, latest.dir, host2.now()) : null;
@@ -21587,7 +21806,7 @@ async function refreshShown(deps) {
   if (state.busy || !state.dir) return;
   const dir = state.dir;
   try {
-    const { host: host2 } = hostAndRoots(deps);
+    const { host: host2 } = await hostAndRoots(deps);
     const lease = await leaseStatus(host2.fs, dir, host2.now());
     let job = state.job;
     try {
@@ -21606,7 +21825,7 @@ function outcomeMessage(outcome, action, job) {
   return "";
 }
 async function run(deps, job, dir, action) {
-  const { host: host2, roots } = hostAndRoots(deps);
+  const { host: host2, roots } = await hostAndRoots(deps);
   controller = new AbortController();
   set({ busy: true, action, canceling: false, job, dir, projectId: job.projectId, lease: "free", leaseFreeAt: null, error: "", errorDraftId: null, message: "", startedAt: Date.now(), outcome: null });
   try {
@@ -21640,7 +21859,7 @@ async function create(deps, context) {
     return null;
   }
   try {
-    const { host: host2, roots } = hostAndRoots(deps);
+    const { host: host2, roots } = await hostAndRoots(deps);
     const refusal = eoOutputRefusal(await findJobByDraft(host2.fs, roots.jobs, context.projectId, context.sequenceId), null);
     if (refusal) {
       set({ error: refusal, errorDraftId: context.sequenceId });
@@ -21664,7 +21883,7 @@ async function create(deps, context) {
 async function resume(deps) {
   if (state.busy || !state.dir) return null;
   try {
-    const { host: host2 } = hostAndRoots(deps);
+    const { host: host2 } = await hostAndRoots(deps);
     const job = await loadJob(host2.fs, state.dir);
     await appendEvent(host2.fs, state.dir, { type: "resume" }, host2.now());
     return await run(deps, job, state.dir, "resume");
@@ -21676,7 +21895,7 @@ async function resume(deps) {
 async function rebuild(deps) {
   if (state.busy || !state.dir) return null;
   try {
-    const { host: host2 } = hostAndRoots(deps);
+    const { host: host2 } = await hostAndRoots(deps);
     const job = await loadJob(host2.fs, state.dir);
     const blocked = rebuildBlocker(job);
     if (blocked) {
@@ -22053,6 +22272,7 @@ function EoShortsPanel({ sdk, context, ui }) {
     error && !rowErrors.has(error) ? /* @__PURE__ */ jsx3(kit.Message, { tone: "error", children: error }) : null
   ] }) });
 }
+var Panel_default = withPanelLocalClient(EoShortsPanel);
 export {
-  EoShortsPanel as default
+  Panel_default as default
 };

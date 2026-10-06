@@ -20,6 +20,7 @@ jobs:
         run: |
           node plugins/place-count/tests/core.test.cjs
           node plugins/place-count/tests/path-collision.test.cjs
+          node plugins/place-count/tests/local-sdk.test.cjs
           node plugins/place-count/tests/places.test.cjs
       - name: Test City Weekend Vlog
         run: |
@@ -152,6 +153,8 @@ jobs:
           node plugins/selfie-aesthetic/tests/still.test.cjs
       - name: Test template panels on Windows paths
         run: |
+          node --test tests/selected_template_media.test.mjs
+          node --test tests/common_async_sdk.test.mjs tests/bespoke_sdk.test.mjs tests/multicam_local_sdk.test.mjs tests/canonical_local_client.test.mjs tests/di_sdk_boundary.test.mjs tests/multicam_di_migration.test.mjs tests/native_image_sdk_migration.test.mjs tests/generation_sdk.test.mjs tests/chris_legacy_cleanup.test.mjs
           node --test tests/cinema_vlog_studio.test.mjs
           node --test tests/cutout_beat_gallery.test.mjs
           node --test tests/daily_vlog_8.test.mjs

@@ -62,7 +62,7 @@ const jsx = code.slice(code.indexOf('if (!projectId) return <ui'));
 assert.ok(!/<(ui\.\w+|small|span|a|button)\b[^>]*>[A-Za-z][a-z]+[^<{]*</.test(jsx), 'no literal JSX text');
 assert.ok(!/\b(label|title|busyLabel|placeholder|unit|aria-label|aria-valuetext)="[A-Za-z]/.test(code), 'no literal label props');
 assert.ok(!/text: "/.test(code) && !/setStatus\(\{ tone: "\w+", text:/.test(code), 'status messages are t() closures (say), not text');
-assert.ok(!/throw new Error\("[A-Z]/.test(code.slice(code.indexOf('// tec-planner:end'))), 'panel errors that reach the UI are uiError closures');
+assert.ok(!/throw new Error\("[A-Z]/.test(code.slice(code.indexOf('// tec-planner:end'), code.indexOf('// local-sdk:start'))), 'panel errors that reach the UI are uiError closures');
 // The language is read on every render, and messages kept in state follow a language switch.
 assert.ok(code.includes('const L = uiLang(context);') && code.indexOf('const L = uiLang(context);') < early, 'uiLang(context) in the component body');
 assert.ok(code.includes('{status.say(L)}') && code.includes('invError.say(L)') && code.includes('progress.detail(L)'), 'state messages are rendered with the current language');
@@ -112,7 +112,7 @@ for (const hook of ['addEventListener("visibilitychange"', '[cueId, ownMusic?.pa
   const at = panel.indexOf(hook);
   assert.ok(at > 0 && at < early, 'hook before the early return: ' + hook);
 }
-const tail = panel.slice(early);
+const tail = panel.slice(early, panel.indexOf("// local-sdk:start"));
 assert.ok(!/React\.use(State|Effect|Memo|Ref|Callback)\(/.test(tail), 'no hook after the early return');
 
 // Build: stops the preview, progress over the 5 UI steps (never backwards), one call per script, commits only where allowed.
@@ -200,7 +200,7 @@ for (const [key, text] of [['rolePlaceholder', 'Role (e.g. Director)'], ['namePl
   ['rowsHint', 'Rows with both fields empty are left out'], ['placeholdersLeft', 'still have placeholders'], ['systemFont', 'Some characters use a system font'], ['creditN', 'Credit {n}'],
   ['preset.filmCrew', 'Film crew'], ['preset.personal', 'Personal'], ['preset.travel', 'Travel']]) says(key, text);
 for (const key of ['up', 'down', 'remove', 'addRow']) assert.equal(en[key], undefined, 'the Up / Down / Remove / old Add row strings are gone: ' + key);
-const guard = panel.slice(panel.indexOf('function guardKeys('), panel.indexOf('export default function Panel('));
+const guard = panel.slice(panel.indexOf('function guardKeys('), panel.indexOf('function Panel('));
 assert.ok(guard.includes('e.stopPropagation()') && guard.includes('"Delete"') && guard.includes('"Backspace"') && guard.includes('" "') && guard.includes('e.preventDefault()'), 'Delete/Space never reach the app');
 // Edits survive music, inventory and length changes; unedited auto values follow; No music drops the Music credit.
 assert.ok(panel.includes('const rows: EditRow[] = customRows ?? presetRows;') && panel.includes('r.name === prev[k]') && panel.includes('if (next[kind] !== "") out.push'), 'auto values follow only while unedited');
@@ -365,7 +365,7 @@ for (const phrase of ['scoreAll: quickScoreAll, candidatesOf: qsCandidates', 't(
   assert.ok(secBody.includes('canReset={!!customRows}') && secBody.includes('setCustomRows(null)') && secBody.includes('newRowId()'), 'Add and Reset keep their behaviour');
   assert.ok(!/ArrowUp|"up"|"down"/.test(secBody) && !/<ui\.Button[^>]*>\{t\(L, "(up|down|remove)"\)\}/.test(code), 'no Up / Down buttons');
   const at = code.indexOf('function CreditRows(');
-  assert.ok(at > 0 && at < code.indexOf('export default function Panel('), 'CreditRows is a module-level component');
+  assert.ok(at > 0 && at < code.indexOf('function Panel('), 'CreditRows is a module-level component');
   const comp = code.slice(at, code.indexOf('\n}\n', at));
   // The handle: a focusable <button> with the reorder label, an inline SVG grip, >= 24 px, grab / grabbing cursors,
   // and the host <button> defaults (fill, width 100%, fixed height) overridden inline.

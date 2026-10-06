@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { planGallery } from './format.mjs';
+import { planGallery, REFERENCE } from './format.mjs';
 
 const oracle = JSON.parse(readFileSync(new URL('./reference-oracle.json', import.meta.url)));
 const media = Array.from({ length: 21 }, (_, i) => ({
@@ -96,4 +96,17 @@ test('music shortage and invalid inputs fail before creation', () => {
   assert.throws(() => planGallery({ media, manualBpm: oracle.nominalBpm, durationFrames: 270 }), /color.*end/i);
   assert.throws(() => planGallery({ media: media.map((item, i) => i === 0 ? { ...item, kind: 'audio' } : item), manualBpm: oracle.nominalBpm }), /video/i);
   assert.throws(() => planGallery({ media: media.map((item, i) => i === 0 ? { ...item, focusX: 1.5 } : item), manualBpm: oracle.nominalBpm }), /focus/i);
+});
+
+test('reference timings conform to the Project grid, including fractional rates and music', () => {
+  const media = Array.from({length:21},(_,i)=>({resourceId:`r${i}`,kind:'image',width:640,height:960}));
+  for (const fps of [30,60,30000/1001]) {
+    const plan = planGallery({media,manualBpm:113,fps,music:{resourceId:'music',durationFrames:1800,startFrame:60}});
+    assert.equal(plan.fps,fps);
+    assert.equal(plan.durationFrames,Math.round(853*fps/60));
+    assert.equal(plan.colorFrame,Math.round(270*fps/60));
+    assert.deepEqual(plan.tiles.map(tile=>tile.revealFrame),REFERENCE.revealFrames.map(frame=>Math.round(frame*fps/60)));
+    assert.equal(plan.music.startSeconds,1);
+    assert.ok(plan.tiles.every(tile=>tile.endFrame===plan.durationFrames));
+  }
 });

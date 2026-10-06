@@ -67,7 +67,7 @@ export async function pictureRefs(fs: HostFs, composeDir: string, scenes: Compos
     const dir = fs.join(composeDir, s.sceneId);
     for (const [i, part] of s.parts.entries()) {
       const file = fs.join(dir, partScriptName(i, s.parts.length));
-      if (!fs.existsSync(file)) {
+      if (!(await fs.exists(file))) {
         unreadable.push(s.sceneId + " " + partScriptName(i, s.parts.length));
         continue;
       }
@@ -94,13 +94,13 @@ export function localUrlMapper(fs: HostFs): ((url: string) => string | null) | n
 
 export type PictureCheck = { checked: number; files: number; missing: PictureRef[]; unresolved: PictureRef[]; unreadable: string[] };
 
-export function checkPictureFiles(fs: HostFs, refs: PictureRef[], unreadable: string[] = []): PictureCheck {
+export async function checkPictureFiles(fs: HostFs, refs: PictureRef[], unreadable: string[] = []): Promise<PictureCheck> {
   const missing: PictureRef[] = [];
   const unresolved: PictureRef[] = [];
   const files = new Set<string>();
   for (const r of refs) {
     if (r.path == null) unresolved.push(r);
-    else if (!fs.existsSync(r.path)) missing.push(r);
+    else if (!(await fs.exists(r.path))) missing.push(r);
     else files.add(r.path);
   }
   return { checked: refs.length, files: files.size, missing, unresolved, unreadable };
@@ -141,6 +141,6 @@ export async function precheckExport(
   const read = await readScript<Partial<ExportDraftState>>(sdk, "EO Shorts: check the draft before export", exportCheckScript(input.projectId, input.draftId), { signal: input.signal, backoffMs: input.backoffMs });
   const draft: ExportDraftState = { ...EMPTY_DRAFT, ...read, inProject: read.inProject === true };
   const { refs, unreadable } = await pictureRefs(fs, input.composeDir, input.scenes, localUrlMapper(fs));
-  const pictures = checkPictureFiles(fs, refs, unreadable);
+  const pictures = (await checkPictureFiles(fs, refs, unreadable));
   return judgeExportCheck(draft, pictures, { mainEnd: input.expectMainEnd });
 }
