@@ -102,9 +102,8 @@ function PodcastHookReel({ sdk, context, ui, saved }: any) {
       setError("Open the podcast Draft first.");
       return;
     }
-    // One reel at a time per app window: the lock lives on the app window, so reopening a Draft (which
-    // remounts the panel) cannot start a second build over a running one. A lock older than 40 minutes is
-    // taken to be left over from a panel that was closed mid-run.
+    // One reel at a time per panel frame. A lock older than 40 minutes is taken to be left over from a
+    // run that never cleared it.
     const host: any = app();
     const held = host.__phcRunning;
     if (held && Date.now() - held < 40 * 60000) {

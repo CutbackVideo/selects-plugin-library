@@ -3227,7 +3227,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
   async function generate(j: any, need: number[]) {
     const mg = sdkGeneration(sdk);
     const lib = libraryId();
-    if (!mg?.isAvailable?.() || typeof mg.submit !== "function" || !lib) throw new Error(S.noGeneration);
+    if (!mg?.isAvailable?.() || typeof mg.submit !== "function") throw new Error(S.noGeneration);
     const t = tplOf(j.templateId)!;
     const scope = { libraryId: lib, projectId };
     const pics = j.pictures.slice();

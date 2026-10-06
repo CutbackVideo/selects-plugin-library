@@ -649,8 +649,7 @@ function withPanelLocalClient(Component) {
 // plugins/podcast-hook-captions/src/pipeline/host.ts
 var PANEL_ID = "podcast-hook-captions";
 function app() {
-  const parent = window.parent;
-  return parent?.opener || window.opener || parent;
+  return window;
 }
 function getSdk() {
   return hostSdk;

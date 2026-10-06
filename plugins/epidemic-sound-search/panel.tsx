@@ -1311,7 +1311,7 @@ function Panel({ sdk, context, ui, saved }) {
 
   const copyText = async (key: string, text: string) => {
     try {
-      const nav: any = (window.parent as any)?.navigator ?? navigator;
+      const nav: any = navigator;
       await nav.clipboard.writeText(text);
       flash(key, "success", "Link copied.");
     } catch {
