@@ -421,7 +421,7 @@ export async function createNo14Draft(sdk,{projectId,selected,decoration,framing
  }
  onDraft(draftId);
  const native=await placeNativeImages(prepared,draftId,plan);
- const request={mode:'native-finish',projectId,draftId,photos:selected.map((p,i)=>({resourceId:p.resourceId,path:p.path,width:native.photos[i].width,height:native.photos[i].height})),placements:native.placements,decoration,framing,music:musicResource,fps:plan.fps};
+ const request={mode:'native-finish',projectId,draftId,photos:selected.map((p,i)=>({resourceId:p.resourceId,path:p.path,width:native.photos[i].width,height:native.photos[i].height})),placements:native.placements.map(({slot,appearance,clipId,trackId,startFrame,endFrame})=>({slot,appearance,clipId,trackId,startFrame,endFrame})),decoration,framing,music:musicResource,fps:plan.fps};
  const script=buildNativeFinishScript(request);
  const result=await sdk.runScript({script,summary:'Finish No.14 Image Draft',allowCommit:true,timeoutSeconds:120});
  if(result.isError||!result.result)throw Error(result.output||'Could not confirm the save. Check the Project before retrying.');
