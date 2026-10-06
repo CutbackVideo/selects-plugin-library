@@ -271,3 +271,18 @@ test('atomic text comparison uses the bounded committed SDK verb and rejects unk
   sdk.runScript=async()=>({isError:false});
   await assert.rejects(client.files.compareAndReplace(path,'next','unknown'),/incomplete result/);
 });
+
+test('panels that keep a module-level client bind the one the wrapper registered, not the bare panel sdk', () => {
+  const methods=['homedir','join','dirname','readFile','writeFile','mkdir','exists','rename','pathToLocalURL','readdir','stat'];
+  for(const [id,start,end,accessor] of [
+    ['place-count','let localSdk=null;','\nasync function readText','getFS()'],
+    ['postcard-cutout-studio','let localSdk = null;','\n// A host service that must have','hostApi("FileSystem", "exists")'],
+  ]){
+    const panel=fs.readFileSync(new URL(`../plugins/${id}/panel.tsx`,import.meta.url),'utf8');
+    const from=panel.indexOf(start),binding=panel.slice(from,panel.indexOf(end,from));
+    const sdk={runScript:async()=>({})},client={...sdk,files:Object.fromEntries(methods.map(name=>[name,()=>{}]))};
+    const registered=value=>{assert.equal(value,sdk);return client;};
+    const bindAndRead=new Function('panelLocalClient','issue',`${binding}\nreturn value=>{bindLocalSdk(value);return ${accessor};};`)(registered,message=>new Error(message));
+    assert.equal(bindAndRead(sdk),client.files,id);
+  }
+});
