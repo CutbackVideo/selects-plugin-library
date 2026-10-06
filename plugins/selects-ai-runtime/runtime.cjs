@@ -7,6 +7,7 @@ const { readJson, writeJson, ensureEmptyDirectory } = require('./lib/files.cjs')
 const { validateRequest } = require('./lib/request.cjs');
 const { verifyModel } = require('./lib/models.cjs');
 const { probeVideo, decodeFrames } = require('./lib/video.cjs');
+const { probeImage, decodeImage } = require('./lib/image.cjs');
 const { verifyOutputs } = require('./lib/outputs.cjs');
 const { throwIfAborted } = require('./lib/errors.cjs');
 const { collectTool } = require('./lib/process.cjs');
@@ -67,7 +68,8 @@ async function main() {
   }));
   const prepareMs = performance.now() - began;
   const probeBegan = performance.now();
-  const video = await probeVideo(config, request, controller.signal);
+  const isImage = request.input.source.kind === 'image';
+  const video = await (isImage ? probeImage : probeVideo)(config, request, controller.signal);
   const probeMs = performance.now() - probeBegan;
   const decoderMetrics = { decoderWaitMs: 0, decodedFrames: 0 };
   const memorySampler = setInterval(() => { observedPeakRssBytes = Math.max(observedPeakRssBytes, process.memoryUsage().rss); }, 50);
@@ -76,7 +78,7 @@ async function main() {
   try {
     const context = {
       request, config, outputDir, ort, video, emitProgress, signal: controller.signal,
-      frames: () => decodeFrames(config, request, video, controller.signal, emitProgress, decoderMetrics,
+      frames: () => (isImage ? decodeImage : decodeFrames)(config, request, video, controller.signal, emitProgress, decoderMetrics,
         { reuseFrameBuffer: request.task === 'person.matte' }),
     };
     const run = request.task === 'faces.detect' ? require('./tasks/faces-detect.cjs').runFaces : require('./tasks/person-matte.cjs').runMatte;
@@ -100,6 +102,8 @@ async function main() {
       modelSha256: model.sha256, timestampOriginSeconds: video.timestampOriginSeconds,
       tools: Object.fromEntries(toolVersions), decoderPixelFormat: 'rgb24', colorConversion: 'ffmpeg-default',
       sourceSampleAspectRatio: video.sourceSampleAspectRatio, pixelAspectRatioPolicy: video.pixelAspectRatioPolicy,
+      ...(isImage ? { sourceKind: 'image', imageFormat: video.imageFormat, exifOrientation: video.exifOrientation,
+        orientationPolicy: 'exif-display-orientation', encodedFrameSize: { width: video.encodedWidth, height: video.encodedHeight } } : {}),
       source: { byteSize: sourceStat.size, modificationTimeMs: sourceStat.mtimeMs },
     },
   };

@@ -26,6 +26,7 @@ async function runMatte(context, dependencies = {}) {
     throw new Error('RVM requires positive integer display-frame dimensions.');
   }
   if (!Array.isArray(frameTimes) || frameTimes.length === 0) throw new Error('RVM requires at least one frame timestamp.');
+  if (request.input.source?.kind === 'image' && (frameTimes.length !== 1 || frameTimes[0] !== 0)) throw new Error('Image inference requires exactly one independent raster');
   const downsampleRatio = request.input.downsampleRatio ?? 0.25;
   if (!Number.isFinite(downsampleRatio) || downsampleRatio <= 0 || downsampleRatio > 1) {
     throw new Error('downsampleRatio must be greater than zero and at most one.');
@@ -209,6 +210,7 @@ async function runMatte(context, dependencies = {}) {
     const manifest = {
       schemaVersion: 1,
       task: 'person.matte',
+      ...(request.input.source?.kind === 'image' ? { sourceKind: 'image' } : {}),
       frameSize: { width, height },
       alphaEncoding,
       ...(video.constantFrameRate && video.sourceRange ? {

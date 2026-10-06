@@ -88,6 +88,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
     root ??= createRoot(dom.window.document.getElementById('root'));
     const checkedSdk = { ...sdk, runScript: async input => {
       scriptChecks.push({ script: input.script, checked: typecheckQueryScript(input.script, { generatedMediaAuthoring: true }) });
+      if (input.script.includes('imageSourceSupported')) return answer(sdk.imageSourceSupported === true);
       return sdk.runScript(input);
     } };
     await act(async () => root.render(h(Panel, { sdk: checkedSdk, context: { projectId, language }, ui: U }))); await flush();
@@ -504,7 +505,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
         assert.equal(field('Source video').value, sourceExists ? UUID_B : '');
         assert.ok(text().includes('48 frames processed'));
         if (!sourceExists) {
-          assert.ok(dom.window.document.body.textContent.includes('Saved source video is no longer available'));
+          assert.ok(dom.window.document.body.textContent.includes('Saved source is no longer available'));
           assert.equal(button('Run task').disabled, true);
         }
         assert.ok(!scripts.some(script => script.includes('selects.ai.submit')));
@@ -813,6 +814,77 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.equal(dom.window.localStorage.getItem(recoveryKey('A')), null);
       assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte'))), newer);
       assert.equal(dom.window.localStorage.getItem('selects-ai-runtime:lab:A'), original);
+    });
+    await t.test('hides image inputs when an older host has no advertisement', async () => {
+      await reset(); const sdk = consumerSdk(); await mount(sdk, 'A');
+      assert.equal(field('Video or photo'), null);
+      assert.equal(field('Source video').options.length, 2);
+      assert.ok(![...field('Source video').options].some(option => option.value === BG));
+    });
+    await t.test('a photo request omits all video timing and recovers the same key after reopening', async () => {
+      await reset(); const submitted = []; let interrupted = true;
+      const sdk = { imageSourceSupported: true, call: async () => [{ resourceId: UUID_A, name: 'Portrait photo', type: 'Image' }],
+        runScript: async input => {
+          if(input.script.includes('selects.ai.submit')) {
+            submitted.push(JSON.parse(input.script.match(/selects\.ai\.submit\((\{.*\})\)/s)[1]));
+            return interrupted ? error('AI_SUBMIT_OUTCOME_UNKNOWN','Retry the same image') : answer({workflowId:'ai:photo'});
+          }
+          return answer(status('ai:photo'));
+        } };
+      await mount(sdk, 'A'); assert.equal(field('Video or photo').value, UUID_A);
+      assert.equal(durationField(), null, 'Inference does not invent a display duration for the photo');
+      await click('Run task'); assert.equal(submitted.length, 1);
+      assert.equal(submitted[0].sourceRange, undefined); assert.equal(submitted[0].options, undefined);
+      await unmount(); interrupted = false; await mount(sdk, 'A'); await click('Recover same request');
+      assert.deepEqual(submitted[1], submitted[0]); assert.ok(text().includes('ai:photo'));
+    });
+    await t.test('the emitted photo Draft shows one static mask for five seconds and reopens without another inference or creation', async () => {
+      await reset(); const prepared = { sourceKind: 'image', sourceResourceId: UUID_A,
+        frameSize: {width:1920,height:1080},alphaEncoding:'grayscale-avif-8bit',maskUrl:'local:///mattes/photo.avif' };
+      const base = consumerSdk(), overlays = [], effects = []; let gaps = 0, commits = 0, durationFrames = 0;
+      const draft = {
+        insertGap: async opts => { assert.deepEqual(opts,{seconds:5}); gaps++; durationFrames = 150; return {}; },
+        insertResource: async () => { throw new Error('A photo must not fabricate a video source range'); },
+        meta: async () => ({ fps:30,durationFrames,durationSeconds:durationFrames/30 }),
+        rangeAtFrames: async (startFrame,endFrame) => { assert.equal(startFrame,0);assert.equal(endFrame,150);return {startFrame,endFrame}; },
+        overlayResource: async opts => { overlays.push(opts);return {}; },
+        clips: async () => overlays.map((_row,index)=>({clipId:index+1,trackKind:'video'})),
+        addVideoEffect: async opts => { effects.push(opts);return {}; },
+        commitAll: async () => { commits++;return {createdDraftId:'photo-draft'}; },
+      };
+      const sdk = { ...base,imageSourceSupported:true,call: async () => [
+        {resourceId:UUID_A,name:'Portrait photo',type:'Image'},{resourceId:BG,name:'Blue background',type:'Image'}],
+        runScript: async request => {
+          if(request.script.includes('selects.ai.prepareMatte')) {
+            base.scripts.push(request);
+            const code = esbuild.transformSync(`async function apply(selects) {${request.script}}`,{loader:'ts',format:'cjs'}).code;
+            const selects = {project:()=>({readFootage:async()=>({drafts:[]}),createDraft:async()=>draft,resource:id=>({id})}),
+              ai:{job:()=>({result:async()=>({files:{manifest:MANIFEST}})}),prepareMatte:async()=>prepared}};
+            return answer(await new Function('selects',`${code}\nreturn apply(selects);`)(selects));
+          }
+          if(request.script.includes('job.result()')) {
+            base.scripts.push(request); return answer({...matteResult,data:{frameCount:1,frames:[{index:0,sourceTimeSeconds:0}]}});
+          }
+          return base.runScript(request);
+        } };
+      await mount(sdk,'A');await click('Remove background');await click('Run task');await select('Background image',BG);
+      const input=JSON.parse(base.scripts.find(request=>request.script.includes('selects.ai.submit')).script.match(/selects\.ai\.submit\((\{.*\})\)/s)[1]);
+      assert.equal(input.sourceRange,undefined);assert.deepEqual(input.options,{outputMode:'alpha-frames'});
+      await click('Open in editor'); assert.equal(gaps,1,text());assert.equal(commits,1,text());
+      assert.deepEqual(overlays.map(row=>row.resource.id),[BG,UUID_A]);assert.equal(overlays[1].sourceStartSeconds,undefined);
+      assert.equal(effects.length,1);assert.deepEqual(effects[0].parameters,{maskUrl:prepared.maskUrl});
+      const effect = {exports:{}}; let currentFrame=0;
+      const compiledEffect = esbuild.transformSync(effects[0].tsxCode,{loader:'tsx',format:'cjs',jsx:'transform'}).code;
+      new Function('require','module','exports',compiledEffect)(name=>name==='react'?React:{
+        AbsoluteFill:'static-mask',useCurrentFrame:()=>currentFrame,useVideoConfig:()=>({fps:30})},effect,effect.exports);
+      const Source=()=>h('img');
+      for(const frame of [0,75,149]) { currentFrame=frame;const output=effect.exports.default({Source,data:effects[0].parameters});
+        assert.equal(output.props.style.maskImage,'url("local:///mattes/photo.avif")');
+        assert.equal(output.props.style.maskMode,'luminance');assert.equal(output.props.children.type,Source); }
+      await unmount();await mount(sdk,'A');await click('Remove background');await click('Open in editor');
+      assert.equal(commits,1);assert.equal(gaps,1);
+      assert.equal(base.scripts.filter(request=>request.script.includes('selects.ai.submit')).length,1);
+      assert.ok(base.scripts.at(-1).script.includes('selects.editor.openDraft("photo-draft")'));
     });
     await t.test('checks the actual consumer script literals against the shipped SDK, including unknown JSON', () => {
       const invalid = typecheckQueryScript(`const r=await selects.ai.job('ai:job','A').result();

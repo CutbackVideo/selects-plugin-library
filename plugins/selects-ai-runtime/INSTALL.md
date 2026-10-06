@@ -11,6 +11,12 @@ installer. The host resolves the installed Skills root; development sessions
 can instead set `SELECTS_AI_RUNTIME_SOURCE_ROOT` to the parent plugins folder.
 The included AI Runtime Lab panel submits jobs with the existing Panel SDK.
 
+The original 2.0.560 host supports video AI requests. Image requests require
+the host's additional image-input SDK capability; installing this runtime
+alone does not add that host feature. Supported photos are static JPEG, PNG
+and WebP (up to 64 MiB / 32 megapixels). Animated images, GIF and HEIC are
+rejected. The host derives image/video kind from the imported Resource.
+
 From a `run_script` call with `allowCommit:true`, submit a direct Video Resource:
 
 ```ts
@@ -24,6 +30,22 @@ const job = await selects.ai.submit({
 });
 return { workflowId: job.workflowId };
 ```
+
+For a supported Image Resource, use the same task without a time range:
+
+```ts
+const job = await selects.ai.submit({
+  runtimeId: "selects-ai-runtime",
+  requestKey: "my-plugin:stable-photo-request-id",
+  projectId,
+  resourceId: imageResourceId,
+  task: "person.matte", // or "faces.detect"
+});
+return { workflowId: job.workflowId };
+```
+
+The image result has one raster. `prepareMatte` returns its durable mask URL
+for use throughout the Image clip rather than a frame-rate-driven sequence.
 
 Use the same key and identical input to recover an uncertain acknowledgment;
 choose a new key for an intentional new run. Reconnect with

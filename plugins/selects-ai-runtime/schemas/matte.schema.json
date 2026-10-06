@@ -3,8 +3,12 @@
   "title": "RVM continuous alpha frame manifest",
   "type": "object",
   "dependentRequired": {
-    "sourceFrameRate": ["sourceRange"],
-    "sourceRange": ["sourceFrameRate"]
+    "sourceFrameRate": [
+      "sourceRange"
+    ],
+    "sourceRange": [
+      "sourceFrameRate"
+    ]
   },
   "required": [
     "schemaVersion",
@@ -41,24 +45,45 @@
       }
     },
     "alphaEncoding": {
-      "enum": ["grayscale-png-8bit", "grayscale-avif-8bit"]
+      "enum": [
+        "grayscale-png-8bit",
+        "grayscale-avif-8bit"
+      ]
     },
     "sourceFrameRate": {
       "description": "Present with sourceRange only when actual source PTS verifies a constant frame rate.",
       "type": "object",
-      "required": ["numerator", "denominator"],
+      "required": [
+        "numerator",
+        "denominator"
+      ],
       "properties": {
-        "numerator": { "type": "integer", "minimum": 1 },
-        "denominator": { "type": "integer", "minimum": 1 }
+        "numerator": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "denominator": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "sourceRange": {
       "description": "Complete selected display-frame interval, closed on exact frame-index/fps quotients; not the requested decimal interval.",
       "type": "object",
-      "required": ["startSeconds", "endSeconds"],
+      "required": [
+        "startSeconds",
+        "endSeconds"
+      ],
       "properties": {
-        "startSeconds": { "type": "number", "minimum": 0 },
-        "endSeconds": { "type": "number", "exclusiveMinimum": 0 }
+        "startSeconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "endSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
       }
     },
     "frames": {
@@ -156,6 +181,65 @@
           "minimum": 0
         }
       }
+    },
+    "sourceKind": {
+      "const": "image",
+      "description": "Present only for a static image; video results retain their original shape."
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "sourceKind": {
+            "const": "image"
+          }
+        },
+        "required": [
+          "sourceKind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "frames": {
+            "maxItems": 1,
+            "items": {
+              "properties": {
+                "index": {
+                  "const": 0
+                },
+                "sourceTimeSeconds": {
+                  "const": 0
+                }
+              }
+            }
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "sourceRange"
+              ]
+            },
+            {
+              "required": [
+                "sourceFrameRate"
+              ]
+            },
+            {
+              "required": [
+                "fps"
+              ]
+            },
+            {
+              "required": [
+                "foregroundVideo"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
 }

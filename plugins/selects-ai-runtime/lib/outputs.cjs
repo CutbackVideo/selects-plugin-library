@@ -19,7 +19,9 @@ function verifyFaceMetadata(document, request, video) {
   if (!sameArray(document.landmarkOrder, LANDMARK_ORDER)) throw new Error('Output landmark order differs from the face contract');
   const parameters = document.parameters;
   const range = request.input.sourceRange;
-  if (!object(parameters) || parameters.sourceRange?.startSeconds !== range.startSeconds || parameters.sourceRange?.endSeconds !== range.endSeconds
+  if (request.input.source?.kind === 'image') {
+    if (!object(parameters) || parameters.sourceRange !== undefined || parameters.sampleEverySeconds !== undefined || parameters.scoreThreshold !== (request.input.scoreThreshold ?? 0.8)) throw new Error('Output image face parameters differ from the request');
+  } else if (!object(parameters) || parameters.sourceRange?.startSeconds !== range.startSeconds || parameters.sourceRange?.endSeconds !== range.endSeconds
     || parameters.sampleEverySeconds !== (request.input.sampleEverySeconds ?? 0.5) || parameters.scoreThreshold !== (request.input.scoreThreshold ?? 0.8)) {
     throw new Error('Output face parameters differ from the request');
   }
@@ -49,6 +51,10 @@ function verifyFrameSize(document, video) {
 
 function verifyTimestamp(frame, video, range) {
   const time = frame.sourceTimeSeconds;
+  if (video.sourceKind === 'image') {
+    if (frame.index !== 0 || time !== 0 || video.frameTimes.length !== 1 || video.frameTimes[0] !== 0) throw new Error('Output image must have exactly one raster at index/time zero');
+    return;
+  }
   if (!Number.isInteger(frame.index) || frame.index < 0 || frame.index >= video.frameTimes.length || !Number.isFinite(time) || time < range.startSeconds || time >= range.endSeconds || Math.abs(time - video.frameTimes[frame.index]) > 1e-6) throw new Error('Output timestamp differs from source frame');
 }
 
@@ -67,6 +73,7 @@ async function verifyOutputs(root, request, result, video) {
   for (const file of Object.values(result.files)) await verifyOutputFile(root, file);
   if (request.task === 'person.matte') {
     const manifest = await readJson(await verifyOutputFile(root, result.files.manifest));
+    verifySourceKind(manifest, request);
     const alphaEncoding = request.input.alphaEncoding ?? 'grayscale-png-8bit';
     if (manifest.schemaVersion !== 1 || manifest.task !== request.task || !Array.isArray(manifest.frames) || manifest.frames.length !== video.frameTimes.length || manifest.alphaEncoding !== alphaEncoding) throw new Error('Invalid matte manifest');
     verifyModelMetadata(manifest.model, request.task, 'name');
@@ -102,6 +109,7 @@ async function verifyOutputs(root, request, result, video) {
     }
   } else {
     const detections = await readJson(await verifyOutputFile(root, result.files.detections));
+    verifySourceKind(detections, request);
     if (detections.contractVersion !== 1 || detections.task !== request.task || detections.coordinateSpace !== 'display-pixels' || detections.boxFormat !== 'xyxy' || !Array.isArray(detections.samples) || !detections.samples.length) throw new Error('Invalid face detections');
     verifyFaceMetadata(detections, request, video);
     verifyFrameSize(detections, video);
@@ -116,5 +124,12 @@ async function verifyOutputs(root, request, result, video) {
       }
     }
   }
+}
+function verifySourceKind(document, request) {
+  if (request.input.source?.kind === 'image') {
+    const frames = document.frames ?? document.samples;
+    if (document.sourceKind !== 'image' || !Array.isArray(frames) || frames.length !== 1 || frames[0].index !== 0 || frames[0].sourceTimeSeconds !== 0
+      || ['sourceRange', 'sourceFrameRate', 'fps', 'foregroundVideo'].some(key => document[key] !== undefined)) throw new Error('Invalid still-image result contract');
+  } else if (document.sourceKind !== undefined) throw new Error('Video result cannot claim an image source kind');
 }
 module.exports = { verifyOutputs, verifyOutputFile };
