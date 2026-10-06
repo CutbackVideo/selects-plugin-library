@@ -22,7 +22,7 @@ async function fetchMusic(env:Env,dir:string,musicPath:string){
 const stateFile =(env:Env,id:string) => hostJoin(env.dataDir,"states",id.replace(/[^a-zA-Z0-9_-]/g,"")+".json");
 async function readState(env:Env,id:string) {
   let text:string;
-  try{text=await env.readText(stateFile(env,id));}catch(e:any){if(/ENOENT|not found|does not exist/i.test(String(e?.message||e)))return null;throw e;}
+  try{text=await env.readText(stateFile(env,id));}catch(e:any){if(/ENOENT|not found|does not exist|file is unavailable/i.test(String(e?.message||e)))return null;throw e;}
   const data=JSON.parse(text);if(data.version!==2 || !data.items)throw new Error("Unrecognised run record; refusing to overwrite existing edits.");return data;
 }
 // Mean luma (0-255) and saturation of the caption band of a cutaway over the keyword's own seconds, read with
