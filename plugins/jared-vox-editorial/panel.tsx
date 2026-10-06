@@ -448,7 +448,7 @@ export function voxSheetJobs(ids, fileOf, font, destOf) {
     chunk.forEach((sid, i) => {
       args.push("-i", fileOf(sid));
       const label = font ? `drawtext=fontfile=${voxFontOption(font)}:text='${sid}':x=8:y=8:fontsize=34:fontcolor=white:box=1:boxcolor=black@0.8:boxborderw=6,` : "";
-      filt += `[${i}:v]scale=480:270,${label}pad=486:276:3:3:white[v${i}];`;
+      filt += `[${i}:v]scale=480:270,setsar=1,${label}pad=486:276:3:3:white[v${i}];`;
     });
     const layout = chunk.map((_, i) => `${(i % cols) * 486}_${Math.floor(i / cols) * 276}`).join("|");
     const stack = chunk.map((_, i) => `[v${i}]`).join("") + (chunk.length > 1 ? `xstack=inputs=${chunk.length}:layout=${layout}:fill=white` : "null");
@@ -461,8 +461,8 @@ export function voxSheetJobs(ids, fileOf, font, destOf) {
 export function voxKenBurnsArgs(img, dest, dur, zoomIn = true) {
   const W = VOX_W, H = VOX_H, FPS = VOX_FPS, frames = Math.ceil(dur * FPS);
   const z = zoomIn ? "min(zoom+0.0009,1.18)" : "if(eq(on,1),1.18,max(zoom-0.0009,1.0))";
-  const vf = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=26:2[bg];` +
-    `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg];` +
+  const vf = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,boxblur=26:2[bg];` +
+    `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,setsar=1[fg];` +
     `[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,scale=${W * 2}:${H * 2},` +
     `zoompan=z='${z}':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${W}x${H}:fps=${FPS}[v]`;
   return ["-y", "-loglevel", "error", "-loop", "1", "-i", img, "-filter_complex", vf, "-map", "[v]", "-t", dur.toFixed(3), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-write_tmcd", "0", dest];
@@ -1209,24 +1209,28 @@ export async function voxEngine(cmd, dir, args, io) {
 export function voxBaseName(path) { return String(path).split(/[\\/]/).pop(); }
 // run_script source: imports the files the Project does not have yet (by file name).
 export function voxImportScript(projectId, files) {
+  const windows = hostIsWindows();
   const want = files.map((f) => ({ file: f, name: voxBaseName(f) }));
   return `const p = selects.project(${JSON.stringify(projectId)});
 const want: { file: string; name: string }[] = ${JSON.stringify(want)};
-const have = new Set((await p.resources()).map((r: any) => String(r.name)));
-const need = want.filter((w) => !have.has(w.name)).map((w) => w.file);
+const key = (name: string) => { const n = String(name).normalize("NFC"); return ${windows} ? n.toLowerCase() : n; };
+const have = new Set((await p.resources()).map((r: any) => key(r.name)));
+const need = want.filter((w) => !have.has(key(w.name))).map((w) => w.file);
 if (need.length) await p.importFiles({ paths: need });
 return { imported: need.length };`;
 }
 // run_script source: each file's Resource id once it can be placed. Usable means a length is known
 // (durationSeconds > 0); the status is not read, because an import that is never analysed stays "pending".
 export function voxReadyScript(projectId, files) {
+  const windows = hostIsWindows();
   const want = files.map((f) => ({ file: f, name: voxBaseName(f) }));
   return `const rows = await selects.project(${JSON.stringify(projectId)}).resources();
 const want: { file: string; name: string }[] = ${JSON.stringify(want)};
+const key = (name: string) => { const n = String(name).normalize("NFC"); return ${windows} ? n.toLowerCase() : n; };
 const map: Record<string, string> = {};
 const missing: string[] = [];
 for (const w of want) {
-  const r = rows.find((x: any) => String(x.name) === w.name && typeof x.durationSeconds === "number" && x.durationSeconds > 0);
+  const r = rows.find((x: any) => key(x.name) === key(w.name) && typeof x.durationSeconds === "number" && x.durationSeconds > 0);
   if (r) map[w.file] = String(r.resourceId);
   else missing.push(w.name);
 }
@@ -1235,14 +1239,43 @@ return { map, missing };`;
 export const VOX_READY_TRIES = 40;
 export const VOX_READY_PAUSE_MS = 3000;
 // @operation-end
-// The engine's I/O on the host (see voxEngine): job files through FileSystem, ffmpeg and ffprobe through the host's
-// bundled copies, and the network two ways. Wikipedia/Commons API answers come through fetch (they allow any origin
-// with origin=*, and take Api-User-Agent for the agent engine.py sends). Article pages and portrait images are
-// downloaded by the host's FileSystem.downloadFile, outside the panel's origin rules, into the job folder; a page that
-// will not download counts as HTTP 599 (FETCH_FAILED: "paste the text instead").
+// Network bodies stay in the panel, capped before any host write. The host downloader buffers
+// unbounded bodies in the main process (#155); a timeout around it cannot cancel that work.
+// CORS-blocked articles use the existing paste-text recovery; optional portraits become silhouettes.
+async function voxFetchLimited(url, options = {}, maxBytes = 2 * 1024 * 1024, timeoutMs = 25000) {
+  const controller = new AbortController();
+  let reader, timer;
+  const expired = new Promise((_, reject) => {
+    timer = setTimeout(() => { reject(new Error("Download timed out")); controller.abort(); }, timeoutMs);
+  });
+  const wait = (p) => Promise.race([p, expired]);
+  try {
+    const response = await wait(fetch(url, { ...options, signal: controller.signal }));
+    if (!response.body || typeof response.body.getReader !== "function") throw new Error("Streaming download unavailable");
+    reader = response.body.getReader();
+    if (!response.ok) return { code: response.status, bytes: new Uint8Array() };
+    if (Number(response.headers.get("content-length")) > maxBytes) throw new Error("Download too large");
+    const chunks = [];
+    let size = 0;
+    for (;;) {
+      const { done, value } = await wait(reader.read());
+      if (done) break;
+      if (value.byteLength > maxBytes - size) throw new Error("Download too large");
+      chunks.push(value); size += value.byteLength;
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return { code: response.status, bytes };
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+    if (reader) { try { void reader.cancel().catch(() => {}); } catch {} }
+  }
+}
+// File and bundled media access are guarded host APIs; network requests are sequential in voxCmdPortraits.
 function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; writeJson: (p: string, v: any) => Promise<void> }) {
   const fs = hostNeed("FileSystem", "join");
-  const tmp = () => hostJoin(dir, "dl-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".tmp");
   return {
     join: (...p: string[]) => hostJoin(...p),
     exists: (p: string) => { try { return !!p && !!fs.existsSync(p); } catch (e) { return false; } },
@@ -1263,33 +1296,20 @@ function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; 
       } finally { clearTimeout(timer); }
     },
     http: async (url: string, ua: string, timeout: number) => {
-      if (/^https:\/\/(en\.wikipedia\.org|commons\.wikimedia\.org)\/w\/api\.php\?/.test(url)) {
-        const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeout * 1000);
-        try {
-          const r = await fetch(url + "&origin=*", { headers: { "Api-User-Agent": ua }, signal: controller.signal });
-          return { code: r.status, text: await r.text() };
-        } finally { clearTimeout(timer); }
-      }
-      const dest = tmp();
+      const api = /^https:\/\/(en\.wikipedia\.org|commons\.wikimedia\.org)\/w\/api\.php\?/.test(url);
       try {
-        await hostNeed("FileSystem", "downloadFile").downloadFile(url, dest);
-        return { code: 200, text: new TextDecoder().decode(await hostReadBytes(dest)) };
-      } catch (e) {
-        return { code: 599, text: "" };
-      } finally { await hostRemove(dest); }
+        const r = await voxFetchLimited(api ? url + "&origin=*" : url,
+          api ? { headers: { "Api-User-Agent": ua } } : {}, 2 * 1024 * 1024, Math.min(timeout * 1000, 25000));
+        return { code: r.code, text: new TextDecoder().decode(r.bytes) };
+      } catch { return { code: 599, text: "" }; }
     },
-    // A portrait: the host's download first; if that fails, the panel's fetch (Wikimedia's files allow any origin).
     download: async (url: string, dest: string) => {
       try {
-        await hostNeed("FileSystem", "downloadFile").downloadFile(url, dest);
-        if (fs.existsSync(dest)) return 200;
-      } catch (e) { /* the panel's fetch */ }
-      try {
-        const r = await fetch(url);
-        if (!r.ok) return r.status;
-        await hostNeed("FileSystem", "writeFile").writeFile(dest, new Uint8Array(await r.arrayBuffer()));
+        const r = await voxFetchLimited(url, {}, 8 * 1024 * 1024, 25000);
+        if (r.code < 200 || r.code >= 300) return r.code;
+        await hostNeed("FileSystem", "writeFile").writeFile(dest, r.bytes);
         return 200;
-      } catch (e) { return 599; }
+      } catch { return 599; }
     },
   };
 }
@@ -1515,7 +1535,7 @@ export default function Panel({ sdk, context, ui }: any) {
   // downloads) and its bundled ffmpeg/ffprobe; a Selects build without them gets one "update Selects" message.
   async function ensureEnv() {
     if (env.current) return env.current;
-    if (!fs || !hostApi("FileSystem", "join", "downloadFile") || !hostApi("Runtime", "runFFmpeg", "runFFprobe")) throw new Error(S.noHost);
+    if (!fs || !hostApi("FileSystem", "join") || !hostApi("Runtime", "runFFmpeg", "runFFprobe")) throw new Error(S.noHost);
     env.current = { root: hostJoin(fs.homedir(), ".selects", "plugin-data", APP_ID) };
     return env.current;
   }
@@ -1849,10 +1869,11 @@ export default function Panel({ sdk, context, ui }: any) {
 
   const secs = busy && t0 ? Math.round((Date.now() - t0) / 1000) : 0;
   // A Selects build without the host file and ffmpeg services cannot run the engine; say so and keep the buttons off.
-  const noHost = !fs || !hostApi("FileSystem", "join", "downloadFile") || !hostApi("Runtime", "runFFmpeg", "runFFprobe");
+  const noHost = !fs || !hostApi("FileSystem", "join") || !hostApi("Runtime", "runFFmpeg", "runFFprobe");
 
   return (
-    <ui.Stack gap={16}>
+    <ui.Stack gap={16} style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+      <style>{`html { scrollbar-gutter: stable; } body { min-width: 0; }`}</style>
       {noHost && <ui.Message>{S.noHost}</ui.Message>}
       <ui.Section title={S.sourceTitle}>
         <ui.Tabs
@@ -1880,7 +1901,7 @@ export default function Panel({ sdk, context, ui }: any) {
               {check.people?.length ? ` · ${S.people}: ${check.people.join(", ")}` : ""}
             </p>
           )}
-          <div style={{ overflowX: "auto" }}>
+          <div style={{ overflowX: "auto", scrollbarGutter: "stable" }}>
             <table>
               <tbody>
                 {plan.beats.map((b: any) => (
@@ -1963,7 +1984,7 @@ export default function Panel({ sdk, context, ui }: any) {
       {jobs.length > 0 && !busy && (
         <ui.Section title={S.recent}>
           {jobs.map((j) => (
-            <ui.Row key={j.id} align="center">
+            <ui.Row key={j.id} align="center" style={{ flexWrap: "wrap" }}>
               <small style={{ minWidth: 0, flex: 1 }}>{j.title}</small>
               <ui.Button variant="ghost" disabled={noHost} onClick={() => produce(j)}>
                 {S.resume}
