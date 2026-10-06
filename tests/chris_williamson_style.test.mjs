@@ -9,6 +9,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import os from 'node:os';
 import {spawn, spawnSync} from 'node:child_process';
+import {stripTypeScriptTypes} from 'node:module';
 
 const PLUGIN = path.resolve(import.meta.dirname, '../plugins/chris-williamson-style');
 const PANEL = fs.readFileSync(path.join(PLUGIN, 'panel.tsx'), 'utf8');
@@ -44,6 +45,22 @@ test('treePaths finds every path in a Project file tree', () => {
   const found = keys.treePaths(tree);
   assert.deepEqual(found, ['C:\\r\\Chris Williamson Style x', 'C:\\r\\Chris Williamson Style x\\b001.mp4']);
   assert.ok(found.some((p) => keys.pathKey(p).startsWith(keys.pathKey('c:/R/chris williamson style x'))));
+});
+
+test('a Draft without a run record starts fresh when the SDK file client reports the file missing', async () => {
+  const client = fs.readFileSync(path.resolve(import.meta.dirname, '../shared/local-client.ts'), 'utf8')
+    .replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, '');
+  const start = PANEL.indexOf('\nconst stateFile =');
+  const end = PANEL.indexOf('\n}\n', PANEL.indexOf('async function readState(', start)) + 3;
+  const context = vm.createContext({React: {}, atob, btoa, Uint8Array, TextDecoder, hostJoin: (...parts) => parts.join('/')});
+  vm.runInContext(stripTypeScriptTypes(client + PANEL.slice(start, end), {mode: 'strip'}) + '\nthis.api={createPanelLocalClient,readState};', context);
+  const selects = {files: {environment: async () => ({platform: 'darwin', homedir: '/user', tempDirectory: '/tmp'}), stat: async () => null}};
+  const sdk = {runScript: async ({script}) => ({isError: false, result: await new Function('selects', `return (async()=>{${script}})()`)(selects)})};
+  const {files} = await context.api.createPanelLocalClient(sdk);
+  const env = {dataDir: '/data', readText: (file) => files.readFile(file, 'utf8')};
+  assert.equal(await context.api.readState(env, 'draft-1'), null);
+  env.readText = async () => { throw new Error('The file changed while it was being read.'); };
+  await assert.rejects(context.api.readState(env, 'draft-1'), /changed while it was being read/);
 });
 
 // ---------------------------------------------------------------------------------------------------------
