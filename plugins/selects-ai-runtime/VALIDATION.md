@@ -14,7 +14,7 @@ WebGPU uses the hash-verified plugin-owned Node 24.18.0 described in INSTALL.md.
 
 ## Portable verification
 
-The source-only suite on Node 22.18.0 and 24.15.0 passes **176 tests**, with **19 explicit
+The source-only suite on Node 22.18.0 and 24.15.0 passes **177 tests**, with **19 explicit
 skips** for optional local media/model/Panel dependencies and no failures.
 These checks cover request/output bounds, timestamps, frame buffer ownership,
 PNG/AVIF contracts, provider fallback, recurrent state, process cancellation,
@@ -26,7 +26,27 @@ Private native/model/reference fixtures remain outside this package. Existing
 Python environments were used only for independent reference comparisons;
 Python is not part of the production runtime.
 
-## Actual app checks
+## Published app check
+
+The anonymous library download was installed on the official signed macOS
+2.0.560 staging app in a disposable Library. Public SDK jobs detected four
+faces at four sample points in two seconds and produced 48 FHD gray8 AVIF
+masks. Auto selected the Apple M3 Max hardware WebGPU adapter; measured matte
+inference was 2.927 seconds and worker total was 5.273 seconds. Repeated
+submission and an app restart recovered the same workflow identities. Repeated
+durable preparation returned the same mask URLs; an editable original-video
+mask Draft was committed. The installed Lab's face action completed and its
+result reappeared after reopening. A 60-second matte job was canceled after
+443 frames; terminal cancellation took 111 ms and result adoption rejected.
+
+The same 119 manifest-listed Runtime/consumer files were installed and
+SHA256-verified on Windows. Its installed app was 2.0.536 and the public
+Windows staging manifest was 2.0.557 at this checkpoint. Neither has the
+required 2.0.560 host; this publication checkpoint does not claim a successful
+Windows release-app inference run. Historical Windows development evidence
+below remains separate.
+
+## Historical development app checks
 
 Both tasks ran through public `selects.ai` in task-owned macOS arm64 and Windows
 x64 development apps using Electron 43.2.0 / embedded Node 24.18.0 and ONNX
