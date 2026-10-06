@@ -68,8 +68,9 @@ test('lines fit the template, captions keep their order, every word is shown onc
     for (const line of text.split('\n')) assert.ok(line.length <= MAX, line);
   }
   cues.forEach((c, k) => k && assert.ok(c[0] >= cues[k - 1][1]));
-  assert.equal(shownText(cues).join(' '), words.map(w => w[0].replace(/\./g, '')).join(' '));
-  assert.ok(!cues.some(c => /\uc721,$/.test(c[2].split('\n')[0]) || /\uc721,$/.test(c[2])), shownText(cues).join(' | '));
+  // The one number said in words is shown in digits, and the pair stays on one line.
+  assert.equal(shownText(cues).join(' '), words.map(w => w[0].replace(/\./g, '')).join(' ').replace('\ud55c \uc721, \uce60\uc5b5\uc774', '\ud55c 6, 7\uc5b5\uc774'));
+  assert.ok(cues.some(c => c[2].split('\n').some(l => l.includes('6, 7\uc5b5\uc774'))), shownText(cues).join(' | '));
 });
 
 test('English: sentences stay apart and lines do not end on a function word', () => {
@@ -77,6 +78,18 @@ test('English: sentences stay apart and lines do not end on a function word', ()
   const cues = makeCues(words, 30, 26, words.at(-1)[2], []).map(c => c[2]);
   assert.ok(!cues.some(t => /expected\s+They/.test(t.replace(/\n/g, ' '))), cues.join(' | '));
   assert.ok(!cues.some(t => t.split('\n').some(l => /\b(the|a|to|of|and|we|they)$/i.test(l))), cues.join(' | '));
+});
+
+test('Korean numbers with a unit are shown in digits; look-alike words are not', () => {
+  const shown = text => { const words = talk([[1, text]]); return shownText(makeCues(words, 30, 40, words.at(-1)[2], [])).join(' '); };
+  assert.equal(shown('\ub458\uc774 \uac04 \uac74 \uc774\ucc9c\uc0bc\ub144\ub3c4\uc600\uc5b4\uc694.'), '\ub458\uc774 \uac04 \uac74 2003\ub144\ub3c4\uc600\uc5b4\uc694');
+  assert.equal(shown('\uadf8\ub7f0\ub370 \uc2ed\uc77c\uac1c\uc6d4\uc9f8 \ube4c\ubcf4\ub4dc \ud0d1\ud150 \uc568\ubc94\uc5d0'), '\uadf8\ub7f0\ub370 11\uac1c\uc6d4\uc9f8 \ube4c\ubcf4\ub4dc \ud0d1\ud150 \uc568\ubc94\uc5d0');
+  assert.equal(shown('\uc774\ucc9c\ub144\ub300 \uc74c\uc545\uc774 \uc77c\ucc28 \ud55c\uacc4\uc5d0'), '2000\ub144\ub300 \uc74c\uc545\uc774 1\ucc28 \ud55c\uacc4\uc5d0');
+  assert.equal(shown('\ud574\uc678\ub294 \ucd5c\uc18c\ud55c \ud55c \uc721, \uce60\uc5b5\uc774 \ub4e4\uc5b4\uc694.'), '\ud574\uc678\ub294 \ucd5c\uc18c\ud55c \ud55c 6, 7\uc5b5\uc774 \ub4e4\uc5b4\uc694');
+  assert.equal(shown('\uc624\ub9cc \uc6d0\uc774\ub791 \uc0bc\ucc9c\uc624\ubc31\ub9cc \uc6d0'), '5\ub9cc \uc6d0\uc774\ub791 3500\ub9cc \uc6d0');
+  assert.equal(shown('\uc774\uc2ed \uba85\uc774 \uc0bc\uc2ed \ubd84 \ub3d9\uc548'), '20 \uba85\uc774 30 \ubd84 \ub3d9\uc548');
+  const stay = '\uc774\ubc88 \uc0ac\ud68c \uc624\ucc28 \uc77c\uba85 \uc774\ubd84\uc774 \uc774\ucc9c\uc2dc \uc0bc\uc131 \uc624\ub298 \uc774\uc0ac \uc77c\uc77c\uc774 \ub9cc\uc57d \ucc9c\ub9cc\uc5d0\uc694 \uc774\ub9cc \uc624\ub9cc \uc2ed\ubd84 \uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \uc0bc \uc138\ub300\uc8fc\uac00 \uc774\ub144 \uad6c\ud638 \uc0ac\uc704 \uc2ed\uc77c\uc870 \uc624\uc2ed\uacac \ubc31\uc77c \ub458\uc774 \ud55c \ubc88';
+  assert.equal(shown(stay), stay);
 });
 
 test('edge cases', () => {

@@ -33,6 +33,7 @@ the request closes by itself after about 30 seconds. If it closes, press
 
 Captions follow the speech: a caption ends where a sentence ends or another
 speaker starts, and a long sentence is divided where the speaker pauses.
+Numbers said in Korean are shown in digits when a unit follows them.
 
 ## Updating from 0.2
 
