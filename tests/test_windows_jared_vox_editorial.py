@@ -21,6 +21,11 @@ class JaredWindowsTest(unittest.TestCase):
         self.assertIn('Windows x64', manifest['compatibility']['platforms'])
 
     def test_host_network_paths_filters_and_draft_rates(self):
+        capability = subprocess.run(
+            ['node', '-e', "process.exit(typeof require('node:module').stripTypeScriptTypes === 'function' ? 0 : 1)"],
+            cwd=ROOT, capture_output=True, timeout=10)
+        if capability.returncode:
+            self.skipTest('Node 22+ required; the Vox style CI matrix runs these cases after setup-node')
         result = subprocess.run(['node', '--test', 'tests/jared_vox_editorial_windows.test.mjs'],
                                 cwd=ROOT, text=True, capture_output=True, timeout=60)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
