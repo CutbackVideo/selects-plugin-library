@@ -271,3 +271,11 @@ test('atomic text comparison uses the bounded committed SDK verb and rejects unk
   sdk.runScript=async()=>({isError:false});
   await assert.rejects(client.files.compareAndReplace(path,'next','unknown'),/incomplete result/);
 });
+
+test('panels call removeFile with the { filePath } object the local client reads', () => {
+  for(const id of fs.readdirSync(new URL('../plugins/',import.meta.url))){
+    const file=new URL(`../plugins/${id}/panel.tsx`,import.meta.url);
+    if(!fs.existsSync(file))continue;
+    for(const call of fs.readFileSync(file,'utf8').matchAll(/\.removeFile\(([^)]*)/g))assert.match(call[1],/^\s*\{/,`${id}: removeFile(${call[1]})`);
+  }
+});

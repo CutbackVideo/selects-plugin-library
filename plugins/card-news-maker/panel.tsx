@@ -3480,7 +3480,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         const role = job.plan.cards[i]?.role || "body";
         const pic = job.pictures?.[i];
         const png = await finishCard(rawPng, t || BUILTIN_TEMPLATES[0], role, pic);
-        await store.fs.removeFile(rawPath);
+        await store.fs.removeFile({ filePath: rawPath });
         const out = store.join(dir, `card-${String(i + 1).padStart(2, "0")}.png`);
         await store.fs.writeFile(out, png);
         files.push(out);
