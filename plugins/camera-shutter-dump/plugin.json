@@ -31,8 +31,8 @@
   "preview": {
     "video": "preview.mp4",
     "poster": "poster.webp",
-    "width": 540,
-    "height": 960
+    "width": 720,
+    "height": 1280
   },
   "localized": {
     "de": {
