@@ -33,9 +33,6 @@ journals and sound-effect data. Legacy panel face-runtime downloads are no longe
 used; do not delete a folder containing a Draft's rendered media. A failed,
 canceled or completed request keeps its identity: ordinary recovery never mints
 a new key. Use **Start new face pass** only for an intentional new isolated pass.
-New-pass publication uses the host SDK's atomic file comparison and replacement.
-Once dispatched, that file operation can finish after the panel closes; reopening
-recovers the saved active pass.
 **Rebuild this reel** retries the latest failed or canceled face requests in
 that reel with new keys, while retaining successful requests and recovering
 pending or uncertain ones. The isolated face pass has its own history.

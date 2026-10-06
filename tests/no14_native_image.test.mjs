@@ -9,6 +9,10 @@ const {buildNativeFinishScript,normalizeNativeFinish,authorNativeFinish,nativeSc
 
 const panelPath=path.resolve(import.meta.dirname,'../plugins/no14-still-video/panel.tsx');
 const panelSource=fs.readFileSync(panelPath,'utf8');
+const bridgeSource=panelSource.slice(panelSource.indexOf('export async function prepareNativeImages'),panelSource.indexOf('export default function Panel'));
+assert.ok(bridgeSource.startsWith('export async function prepareNativeImages')&&bridgeSource.includes('export async function placeNativeImages'));
+const {prepareNativeImages,placeNativeImages}=vm.runInThisContext('(function(){'+bridgeSource.replaceAll('export async function','async function')+';return {prepareNativeImages,placeNativeImages};})()');
+
 test('the Panel builds the plan and finishing step itself, with no Node.js, and rejects the obsolete still-video route',()=>{
  assert.doesNotMatch(panelSource,/\bnode ["$]|build-script/);
  assert.throws(()=>buildNativeFinishScript({projectId:'project',videos:[]}),/Unsupported original Image/);
@@ -24,7 +28,58 @@ test('native plan preserves the reference windows with independently editable ov
 });
 
 const selected=['A','B','C','D'].map((slot,i)=>({resourceId:`r${i}`,name:`Photo ${slot}`,path:`/photos/${slot}.jpg`}));
-// Native selection and placement are tested through runScript in native_image_sdk_migration.test.mjs.
+const nativeResources=selected.map((photo,i)=>({getId:()=>`uuid-${i}`,getType:()=> 'Image',getMedia:()=>({path:photo.path,width:i%2?960:640,height:i%2?640:960}),getAnalyzedSequence:async()=>({getMainTrack:()=>({getClips:()=>[{isGap:()=>false,getId:()=>i+1}]})})}));
+function nativeApp(resources=nativeResources){
+ const project={getResources:()=>resources.map((_,i)=>`uuid-${i}`),getEditedSequences:()=>['draft']};
+ const di={ProjectRepository:{findById:async()=>project},ResourceRepository:{findById:async(_library,id)=>resources[Number(id.split('-')[1])]},SequenceRepository:{findById:async()=>null},TimelineMutation:{run:async()=>null}};
+ return {app:{location:{pathname:'/libraries/library/projects/project'},__DI__:di},di};
+}
+
+test('original Image selection requires one exact registered source path per slot',async()=>{
+ const {app}=nativeApp();
+ const ready=await prepareNativeImages(app,'project',selected);
+ assert.equal(ready.sources.length,4);
+ assert.deepEqual(ready.sources.map(s=>[s.width,s.height]),[[640,960],[960,640],[640,960],[960,640]]);
+ const repeated=await prepareNativeImages(app,'project',[selected[0],selected[1],selected[0],selected[3]]);
+ assert.equal(repeated.sources[0].resource,repeated.sources[2].resource,'one registered photo may intentionally fill two slots');
+ await assert.rejects(()=>prepareNativeImages(app,'other',selected),/selected Project/);
+ await assert.rejects(()=>prepareNativeImages(app,'project',[{...selected[0],path:'/photos/missing.jpg'},...selected.slice(1)]),/missing or ambiguous/);
+ const duplicate=nativeResources.concat(nativeResources[0]);
+ await assert.rejects(()=>prepareNativeImages(nativeApp(duplicate).app,'project',selected),/missing or ambiguous/);
+});
+
+test('eight original Image occurrences are placed and trimmed in one mutation',async()=>{
+ const {app,di}=nativeApp();
+ const ready=await prepareNativeImages(app,'project',selected);
+ const positions=new Map();let nextId=20,mutations=0,duration=266,slices=0;
+ const sequence={getFrameRate:()=>30,getDuration:()=>duration,getFrameSize:()=>({width:720,height:1280}),clone(){return this;},
+  place(_source,at){const id=nextId++,row={trackId:at>=130?`fullscreen-${id}`:`grid-${id}`,resolvedOffset:at,clip:{getDuration:()=>150}};positions.set(id,row);duration=Math.max(duration,at+150);return[id];},
+  getClipPositionById:id=>positions.get(id),trimClipBoundary({clipId,delta}){const row=positions.get(clipId),length=row.clip.getDuration()+delta;row.clip={getDuration:()=>length};return{effectiveDelta:delta};}};
+ sequence.slice=([{startFrame,endFrame}],{coordinate})=>{assert.equal(coordinate,'resolved');assert.equal(startFrame,266);assert.equal(endFrame,370);slices++;duration=266;};
+ di.SequenceRepository.findById=async()=>sequence;
+ di.TimelineMutation.run=async(_sequence,_label,callback)=>{mutations++;return{status:'committed',sequence:callback(sequence)};};
+ const result=await placeNativeImages(ready,'draft',nativeScenePlan());
+ assert.equal(mutations,1);
+ assert.equal(slices,1,'the domain slice must remove the vacant tail created by Image trim');
+ assert.equal(result.placements.length,8);
+ assert.deepEqual(result.placements.filter(p=>p.appearance==='fullscreen').map(p=>[p.slot,p.startFrame,p.endFrame]),[['A',130,170],['B',160,201],['D',191,230],['C',220,266]]);
+ assert.deepEqual(result.placements.filter(p=>p.appearance==='grid').map(p=>p.endFrame),[140,135,135,135]);
+});
+
+test('placement refreshes Project ownership after an empty Draft is saved',async()=>{
+ const {app,di}=nativeApp();let reads=0;
+ di.ProjectRepository.findById=async()=>{reads++;return {getResources:()=>nativeResources.map((_,i)=>`uuid-${i}`),getEditedSequences:()=>reads===1?[]:['draft']};};
+ const ready=await prepareNativeImages(app,'project',selected);
+ const positions=new Map();let nextId=1;
+ const sequence={getFrameRate:()=>30,getDuration:()=>266,getFrameSize:()=>({width:720,height:1280}),clone(){return this;},
+  place(_source,at){const id=nextId++;positions.set(id,{trackId:at>=130?'fullscreen':`grid-${id}`,resolvedOffset:at,clip:{getDuration:()=>150}});return[id];},
+  getClipPositionById:id=>positions.get(id),trimClipBoundary({clipId,delta}){const row=positions.get(clipId),length=row.clip.getDuration()+delta;row.clip={getDuration:()=>length};return{effectiveDelta:delta};}};
+ di.SequenceRepository.findById=async()=>sequence;
+ di.TimelineMutation.run=async(_seq,_label,callback)=>({status:'committed',sequence:callback(sequence)});
+ const result=await placeNativeImages(ready,'draft',nativeScenePlan());
+ assert.equal(result.placements.length,8);
+ assert.equal(reads,2,'ownership must be checked from a fresh Project object');
+});
 
 function finishInput(){
  const plan=nativeScenePlan();

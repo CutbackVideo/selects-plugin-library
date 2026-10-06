@@ -10,15 +10,13 @@ import os
 import re
 import unittest
 
-from windows_static import assert_no_shell_token, shell_token_present
-
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN = os.path.join(ROOT, "plugins", "imessage-generator")
 PANEL = os.environ.get("IMESSAGE_GENERATOR_PANEL") or os.path.join(PLUGIN, "panel.tsx")
 
 AV_HOST = re.compile(r"// av-host:start\n.*?// av-host:end\n", re.S)
 MAC_ONLY = re.compile(r"// mac-only:start\n.*?// mac-only:end\n", re.S)
-HOST_NAMES = ["hostError", "hostUseSdk", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostBytes", "hostReadBytes",
+HOST_NAMES = ["hostError", "hostDI", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostBytes", "hostReadBytes",
               "hostReadText", "hostRemove", "hostRoots", "hostDecodePcm", "hostProbeSeconds"]
 
 
@@ -81,12 +79,12 @@ class IMessageGeneratorWindowsTest(unittest.TestCase):
         self.assertIsNone(re.search(r"\bpython3?\b", self.runtime), "python spawn")
         for needle in ("IO_PY", "AUDIO_PROCESS_PY", "runIO(", "runSpeechJob(", "shellQuote(", "mkdir -p", "printf",
                        "$HOME", "rm -f", "base64 ", "shasum", "command -v", "export PATH", "2>/dev/null"):
-            assert_no_shell_token(self, needle, self.runtime, needle)
+            self.assertNotIn(needle, self.runtime, needle)
 
     def test_workspace_uses_host_filesystem_with_a_normalized_guard(self):
         io = self.runtime[self.runtime.index("async function workspaceIO("):]
         io = io[: io.index("\n}\n")]
-        for part in ("hostNeed('FileSystem','homedir')", "mkdir(", "writeFile(", "hostReadText(", "hostReadBytes(",
+        for part in ("hostNeed('FileSystem','homedir')", "mkdirSync(", "writeFile(", "hostReadText(", "hostReadBytes(",
                      "wsInside(p,r)"):
             self.assertIn(part, io, part)
         norm = self.runtime[self.runtime.index("function wsNorm("):]

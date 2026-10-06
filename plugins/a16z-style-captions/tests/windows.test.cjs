@@ -23,7 +23,7 @@ const runtime = withoutModule(withoutModule(panel, 'pipeline/faces.ts'), 'pipeli
 
 const POSIX = [
   ['printf', /\bprintf\b/], ['$HOME', /\$HOME\b/], ['$SELECTS_USER', /\$SELECTS_USER/], ['command -v', /command -v/],
-  ['mkdir -p', /mkdir -p/], ['rm -f', /rm -f/], ['base64 ', /(?<![\w.])base64\s/], ['export PATH', /export PATH/], ['| grep', /\| grep/],
+  ['mkdir -p', /mkdir -p/], ['rm -f', /rm -f/], ['base64 ', /base64 /], ['export PATH', /export PATH/], ['| grep', /\| grep/],
   ['shasum', /shasum/], ['cat "', /cat "/], ['node " spawn', /["'`]node ["']/], ['$FF / $FP', /"\$F[FP]"/],
 ];
 

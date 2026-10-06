@@ -375,7 +375,7 @@ async function dispatch(req: ImageRequest, spec: DispatchSpec, d: ImageDeps, p: 
   if (rec) {
     summary.jobId = rec.jobId;
     summary.status = rec.status;
-    if (rec.status === "delivered" && rec.deliveredPath && (await fs.exists(rec.deliveredPath))) {
+    if (rec.status === "delivered" && rec.deliveredPath && fs.existsSync(rec.deliveredPath)) {
       return { draw, key, jobId: rec.jobId!, path: rec.deliveredPath };
     }
     if (drawSpent(rec)) {
@@ -408,7 +408,7 @@ async function dispatch(req: ImageRequest, spec: DispatchSpec, d: ImageDeps, p: 
   const cur = () => rec as DrawRecord;
   if (!cur().jobId) {
     const folder = deliveryFolder(fs, p, draw);
-    await ensureDir(fs, folder);
+    ensureDir(fs, folder);
     const request = {
       scope: d.scope,
       key,
@@ -446,7 +446,7 @@ async function dispatch(req: ImageRequest, spec: DispatchSpec, d: ImageDeps, p: 
       pollMs: d.pollMs ?? POLL_MS,
       now,
       sleep: d.sleep,
-      fileExists: async (path) => (await fs.exists(path)),
+      fileExists: (path) => fs.existsSync(path),
     });
     await save({ ...cur(), status: "delivered", deliveredPath: got.path, finishedAt: now() });
     return { draw, key, jobId: cur().jobId!, path: got.path };

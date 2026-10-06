@@ -18,31 +18,28 @@ function createPassJournal(storage,dir,randomUUID=()=>crypto.randomUUID()) {
   function assertAttached(signal) {
     if(signal?.aborted){const e=new Error('New face pass detached before publication.');e.code='AI_OBSERVATION_DETACHED';throw e;}
   }
-  async function activeSnapshot() {
-    const text=await storage.exists(activeFile)?String(await storage.readFile(activeFile,'utf8')):null;
-    return {text,generation:text===null?'legacy':parseActive(text)};
-  }
-  async function publishActive(previous,generation,signal) {
+  function publishActive(previous,generation,signal) {
     assertAttached(signal);
-    const current=await activeSnapshot();
-    if(current.generation!==previous){const e=new Error('A newer face pass is already active. Recover that saved pass.');e.code='AI_PASS_REPLACED';throw e;}
-    assertAttached(signal);
-    // Comparison and replacement execute together in the host, including across panel realms.
-    // Once dispatched, this committed file operation may finish after observation detaches.
-    const replaced=await storage.compareAndReplace(activeFile,current.text,JSON.stringify({version:1,generation}));
-    if(!replaced){const e=new Error('A newer face pass is already active. Recover that saved pass.');e.code='AI_PASS_REPLACED';throw e;}
+    const current=storage.existsSync(activeFile)?parseActive(storage.readFileSync(activeFile,'utf8')):'legacy';
+    if(current!==previous){const e=new Error('A newer face pass is already active. Recover that saved pass.');e.code='AI_PASS_REPLACED';throw e;}
+    // Only this tiny publication is synchronous: no awaited IO can admit a stale fresh-command rename.
+    const temporary=activeFile+'.tmp-'+randomUUID();
+    storage.writeFileSync(temporary,JSON.stringify({version:1,generation}));storage.renameSync(temporary,activeFile);
   }
-  async function active() {return (await activeSnapshot()).generation;}
+  async function active() {
+    if(!storage.existsSync(activeFile))return 'legacy';
+    return parseActive(await storage.readFile(activeFile,'utf8'));
+  }
   async function readGeneration(generation) {
     const filename=dataFile(generation);
     let value={version:1,generation,records:[]};
-    if(await storage.exists(filename)){
+    if(storage.existsSync(filename)){
       const text=String(await storage.readFile(filename,'utf8'));
       if(text.length>256*1024)throw new Error('Face recovery journal exceeds the bounded transaction limit.');
       value=JSON.parse(text);
       if(value?.version!==1||!Array.isArray(value.records)||value.records.length>256)throw new Error('Invalid face recovery journal.');
     }
-    const names=await storage.exists(dir)?(await storage.readdir(dir)).filter(name=>name.startsWith(inputPrefix(generation))&&name.endsWith('.json')):[];
+    const names=storage.existsSync(dir)?storage.readdirSync(dir).filter(name=>name.startsWith(inputPrefix(generation))&&name.endsWith('.json')):[];
     if(names.length>256)throw new Error('Too many durable face requests in this pass.');
     // Immutable input receipts recover request keys even if another observer's stale registry write lost a row.
     for(const name of names){
@@ -53,10 +50,10 @@ function createPassJournal(storage,dir,randomUUID=()=>crypto.randomUUID()) {
       if(saved)Object.assign(saved,retry);
       else value.records.push({input:receipt.input,...retry});
     }
-    for(const record of value.records){
+    value.records.forEach(record=>{
       assertInput(record.input);assertRetryMetadata(record);
-      if(await storage.exists(cancelFile(generation,record.input.requestKey)))record.cancelRequested=true;
-    }
+      if(storage.existsSync(cancelFile(generation,record.input.requestKey)))record.cancelRequested=true;
+    });
     return {...value,generation};
   }
 
@@ -67,7 +64,7 @@ function createPassJournal(storage,dir,randomUUID=()=>crypto.randomUUID()) {
     const text=JSON.stringify(value);
     if(text.length>256*1024)throw new Error('Face recovery journal exceeds the bounded transaction limit.');
     const temporary=filename+'.tmp-'+randomUUID();
-    await storage.writeFile(temporary,text);await storage.rename(temporary,filename);
+    await storage.writeFile(temporary,text);storage.renameSync(temporary,filename);
   }
   async function read() {return readGeneration(await active());}
   async function saveRecord(generation,record) {
@@ -75,8 +72,8 @@ function createPassJournal(storage,dir,randomUUID=()=>crypto.randomUUID()) {
       await assertActive(generation);
       const receipt=inputFile(generation,record.input.requestKey);
       assertRetryMetadata(record);
-      if(!(await storage.exists(receipt)))await atomicWrite(receipt,{version:1,input:record.input,...(record.retryAttempt===undefined?{}:{retryAttempt:record.retryAttempt,retryOf:record.retryOf})});
-      if(record.cancelRequested&&!(await storage.exists(cancelFile(generation,record.input.requestKey))))
+      if(!storage.existsSync(receipt))await atomicWrite(receipt,{version:1,input:record.input,...(record.retryAttempt===undefined?{}:{retryAttempt:record.retryAttempt,retryOf:record.retryOf})});
+      if(record.cancelRequested&&!storage.existsSync(cancelFile(generation,record.input.requestKey)))
         await atomicWrite(cancelFile(generation,record.input.requestKey),{version:1,requested:true});
       const book=await readGeneration(generation);
       const old=book.records.find(r=>r.input.requestKey===record.input.requestKey);
@@ -108,7 +105,7 @@ function createPassJournal(storage,dir,randomUUID=()=>crypto.randomUUID()) {
       if(!validGeneration(generation)||generation==='legacy')throw new Error('Invalid new face pass identity.');
       await atomicWrite(dataFile(generation),{version:1,generation,records:[]});
       // This is the only writer of the active pointer. Observers/cancellation never publish it.
-      await publishActive(book.generation,generation,signal);
+      publishActive(book.generation,generation,signal);
       return generation;
     });
   }

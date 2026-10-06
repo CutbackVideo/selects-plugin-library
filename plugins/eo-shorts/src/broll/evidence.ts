@@ -100,7 +100,7 @@ async function cached(fs: HostFs, dir: string, key: string, url: string): Promis
   try {
     const m = await readJsonIfExists<(Evidence & { version?: string }) | null>(fs, manifestPath(fs, dir), null);
     if (!m || m.version !== EVIDENCE_VERSION || m.sourceKey !== key || m.rendition?.url !== url || m.status === "error") return null;
-    if (m.status === "ready" && !(await Promise.all(m.sheets.map((p) => fs.exists(p)))).every(Boolean)) return null;
+    if (m.status === "ready" && !m.sheets.every((p) => fs.existsSync(p))) return null;
     return m;
   } catch {
     return null;
@@ -118,7 +118,7 @@ export async function prepareVideoEvidence(key: string, rendition: StockVideoFil
     await writeJsonAtomic(fs, manifestPath(fs, dir), { version: EVIDENCE_VERSION, ...out });
     return out;
   };
-  await ensureDir(fs, dir);
+  ensureDir(fs, dir);
   let probe: ProbedRendition;
   try {
     probe = readProbe(await probeJson(d.runtime, probeArgs(rendition.url), { fs, tmpDir: dir, signal: d.signal, timeoutMs: 45_000 }));
@@ -128,7 +128,7 @@ export async function prepareVideoEvidence(key: string, rendition: StockVideoFil
   }
   if (probe.duration > MAX_SOURCE_SECONDS) return finish({ ...base, status: "skipped", code: "duration_limit", reason: "whole source is " + probe.duration.toFixed(2) + " s", durationSeconds: probe.duration });
   const framesDir = fs.join(dir, "frames");
-  await ensureDir(fs, framesDir);
+  ensureDir(fs, framesDir);
   let stderr = "";
   try {
     stderr = (await analyze(d.runtime, sampleArgs(rendition.url, probe, imagePattern(fs, framesDir, "f%03d.jpg")), { signal: d.signal, timeoutMs: 120_000 })).stderr;
@@ -140,7 +140,7 @@ export async function prepareVideoEvidence(key: string, rendition: StockVideoFil
   const { indexes, timestamps } = pickSamples(frames);
   const framePath = (i: number) => fs.join(framesDir, "f" + String(i).padStart(3, "0") + ".jpg");
   try {
-    if (!indexes.length || !(await Promise.all(indexes.map((i) => fs.exists(framePath(i))))).every(Boolean)) return finish({ ...base, code: "decode_error", reason: "the decode wrote " + frames.length + " frames, not every sample", durationSeconds: probe.duration });
+    if (!indexes.length || !indexes.every((i) => fs.existsSync(framePath(i)))) return finish({ ...base, code: "decode_error", reason: "the decode wrote " + frames.length + " frames, not every sample", durationSeconds: probe.duration });
     if (indexes.length > MAX_SAMPLES) return finish({ ...base, status: "skipped", code: "size_limit", reason: indexes.length + " samples exceed " + MAX_SAMPLES, durationSeconds: probe.duration });
     const duration = Math.max(probe.duration, timestamps[timestamps.length - 1]);
     const sampleBytes: Uint8Array[] = [];
@@ -169,9 +169,9 @@ export async function prepareVideoEvidence(key: string, rendition: StockVideoFil
     }
     return finish({ ...base, status: "ready", code: "ready", reason: "full-source samples", durationSeconds: Math.round(duration * 1e6) / 1e6, timestamps, sheets, sheetChars, fingerprint });
   } finally {
-    for (const name of (await fs.readdir(framesDir))) (await removeFile(fs, fs.join(framesDir, name)));
+    for (const name of fs.readdirSync(framesDir)) removeFile(fs, fs.join(framesDir, name));
     try {
-      await fs.rm(framesDir, { recursive: true, force: true });
+      fs.rmSync(framesDir, { recursive: true, force: true });
     } catch {
     }
   }
@@ -179,7 +179,7 @@ export async function prepareVideoEvidence(key: string, rendition: StockVideoFil
 
 export async function prepareStillEvidence(key: string, bytes: Uint8Array, mime: string, dir: string, d: EvidenceDeps): Promise<Evidence> {
   const { fs } = d;
-  await ensureDir(fs, dir);
+  ensureDir(fs, dir);
   const p = fs.join(dir, "still.jpg");
   try {
     const still = await d.painter.resizeStill(bytes, mime, 960, 0.85);

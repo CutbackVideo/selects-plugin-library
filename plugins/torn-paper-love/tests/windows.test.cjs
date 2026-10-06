@@ -1,4 +1,3 @@
-const { asyncSdk } = require('../../../tests/windows_host.mjs');
 // plugins/torn-paper-love/tests/windows.test.cjs
 // Windows safety of the runtime (selects-app-kit references/windows.md): no POSIX shell, no node spawn and no paths
 // built with "/" in the code users run; the host I/O block (tpl-host) against fake macOS and Windows hosts, including
@@ -32,7 +31,7 @@ const BANNED = ['mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH'
   'runtime.sh', 'nodePath'];
 for (const [name, text] of Object.entries(runtime)) {
   const code = uncomment(text);
-  for (const bad of BANNED) assert.ok(!(bad === "base64 " ? /(?<![\w.])base64\s/.test(code) : code.includes(bad)), name + ' has no ' + JSON.stringify(bad));
+  for (const bad of BANNED) assert.ok(!code.includes(bad), name + ' has no ' + JSON.stringify(bad));
   // A node spawn: `node <script>` in a command string, or a process API.
   assert.ok(!/["'`]\s*node\s/.test(code) && !/\bnode\s+["'\w./-]*\.c?js\b/.test(code), name + ' spawns no node');
   assert.ok(!/\b(execFile|spawn|execSync|spawnSync)\s*\(/.test(code), name + ' starts no process');
@@ -41,7 +40,16 @@ for (const [name, text] of Object.entries(runtime)) {
   // The one shell call is hostSkillsRoot's (checked below); nothing else reaches the shell.
   if (name !== 'panel.tsx') assert.ok(!/runShell/.test(code), name + ' never calls runShell');
 }
-assert.equal((uncomment(panel).match(/runShell\(/g) || []).length, 0, 'local files use the SDK without a shell');
+// panel.tsx: exactly one sdk.runShell call, in hostSkillsRoot inside the tpl-host block, with a cmd.exe branch for
+// Windows; only an environment variable's value comes back, nothing goes in.
+{
+  const code = uncomment(panel);
+  assert.equal((code.match(/runShell\(/g) || []).length, 1, 'one runShell call');
+  const fn = hostBlock.slice(hostBlock.indexOf('async function hostSkillsRoot('), hostBlock.indexOf('async function hostRoots('));
+  assert.ok(fn.includes('await sdk.runShell({ summary: "Locate the plugin folder", command, timeoutMs: 10000 })'), 'runShell lives in hostSkillsRoot');
+  assert.ok(fn.includes(`const command = hostIsWindows() ? "echo(%SELECTS_USER_SKILLS_ROOT%" : 'echo "$SELECTS_USER_SKILLS_ROOT"';`), 'per-platform one-liner (cmd.exe on Windows)');
+  assert.ok(!uncomment(panel.replace(hostBlock, '')).includes('runShell'), 'no runShell outside the host block');
+}
 // The host's services only through the guarded blocks (tpl-host, the kit quick score and its data folder helper).
 {
   const helper = panel.slice(panel.indexOf('function tplQuickDataDir('), panel.indexOf('// tpl-host:start'));
@@ -72,11 +80,11 @@ function hostBox({ platform, files = new Set(), shell = null, ffmpeg = null, ffp
   const Runtime = { getPlatform: () => platform,
     ...(ffmpeg ? { runFFmpeg: async (argv, quiet, signal) => { calls.ffmpeg.push(argv); return ffmpeg(argv); } } : {}),
     ...(ffprobe ? { runFFprobe: async (argv) => { calls.ffprobe.push(argv); return ffprobe(argv); } } : {}) };
-  const ctx = { sdk: asyncSdk({ FileSystem, Runtime }), window: { parent: { __DI__: { FileSystem, Runtime } } }, navigator: { platform: '', userAgent: '' }, TextDecoder, Uint8Array, ArrayBuffer, Float32Array,
+  const ctx = { window: { parent: { __DI__: { FileSystem, Runtime } } }, navigator: { platform: '', userAgent: '' }, TextDecoder, Uint8Array, ArrayBuffer, Float32Array,
     setTimeout, clearTimeout, AbortController, Date, Math, String, Error, Object, parseFloat };
   vm.createContext(ctx);
-  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + hostBlock + '\nhostUseSdk(sdk); this.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostCutAudio, hostProbeSeconds, hostNeed, hostApi, hostIsWindows, hostRemove };', ctx);
-  const sdk = { ...ctx.sdk, runShell: async (o) => { calls.shell.push(o.command); return shell ? shell(o.command) : { stdout: '' }; } };
+  vm.runInContext(hostBlock + '\nthis.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostCutAudio, hostProbeSeconds, hostNeed, hostApi, hostIsWindows, hostSkillsRoot, hostRemove };', ctx);
+  const sdk = { runShell: async (o) => { calls.shell.push(o.command); return shell ? shell(o.command) : { stdout: '' }; } };
   return { H: ctx.H, calls, sdk };
 }
 const ID = 'torn-paper-love';
@@ -95,11 +103,21 @@ const hostTests = (async () => {
     assert.deepEqual(j(await H.hostRoots(sdk, ID, 'planner.js')), { plugin: home + '\\.selects\\skills\\' + ID, data: home + '\\.selects\\plugin-data\\' + ID });
     assert.deepEqual(calls.shell, []);
   }
-  // Missing assets are reported without consulting process environment or shell output.
-  for (const platform of ['win32', 'darwin']) {
-    const { H, calls, sdk } = hostBox({ platform, shell: () => { throw Error('No shell access'); } });
-    await assert.rejects(H.hostRoots(sdk, ID, 'planner.js'), error => error.code === 'not-found');
-    assert.deepEqual(calls.shell, []);
+  // Windows: SELECTS_USER_SKILLS_ROOT through cmd.exe when the default folder is not the install.
+  {
+    const { H, calls, sdk } = hostBox({ platform: 'win32', files: new Set(['D:\\Skills\\' + ID + '\\planner.js']), shell: () => ({ stdout: 'D:\\Skills\r\n' }) });
+    assert.equal((await H.hostRoots(sdk, ID, 'planner.js')).plugin, 'D:\\Skills\\' + ID);
+    assert.deepEqual(calls.shell, ['echo(%SELECTS_USER_SKILLS_ROOT%']);
+  }
+  // An unset variable (cmd prints an empty line, the literal or "ECHO is on.") is no folder.
+  for (const stdout of ['\r\n', '%SELECTS_USER_SKILLS_ROOT%\r\n', 'ECHO is on.\r\n']) {
+    const { H, sdk } = hostBox({ platform: 'win32', shell: () => ({ stdout }) });
+    await assert.rejects(H.hostRoots(sdk, ID, 'planner.js'), e => e.code === 'not-found', JSON.stringify(stdout));
+  }
+  {
+    const { H, calls, sdk } = hostBox({ platform: 'darwin', files: new Set(['/opt/skills/' + ID + '/planner.js']), shell: () => ({ stdout: '/opt/skills\n' }) });
+    assert.equal((await H.hostRoots(sdk, ID, 'planner.js')).plugin, '/opt/skills/' + ID);
+    assert.deepEqual(calls.shell, ['echo "$SELECTS_USER_SKILLS_ROOT"']);
   }
   // A host that cannot make the data folder: data is null (own music and the preview then stay off).
   {

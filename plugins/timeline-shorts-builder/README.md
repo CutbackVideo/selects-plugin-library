@@ -49,7 +49,7 @@ Static-image placements with the same media state can reuse one cached image. Pr
 ## Requirements and limits
 
 - Requires a Selects build with Panel support and generated-media authoring.
-- Requires SDK `files` and `media` services, plus host `SequenceRepository` and `SequenceEdit` adapters.
+- Requires host `FileSystem`, `SequenceRepository`, and `SequenceEdit` adapters.
 - If native dimensions are unavailable for a regular video or image, preparation stops instead of falling back to Draft-canvas dimensions.
 - A source Motion Graphic that already references invalid or unavailable media can still fail independently of this plugin's sizing logic.
 - The plugin creates an editable Draft and does not directly export the final MP4.

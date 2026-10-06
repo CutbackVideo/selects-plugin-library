@@ -3056,7 +3056,7 @@ function stMuffleArgs(inPath, outPath) {
 
 // quick-score:start
 // Quick local shot score for clips Selects has not analysed (no scene search). Plain JS and self-contained: it reaches
-// the host through the public SDK files and media namespaces, or through
+// the host only through window.parent.__DI__ (Runtime.runFFmpeg and FileSystem, every member checked first), or through
 // `opts.io` (tests, other hosts), so it can be pasted into any style-app panel and kept as one kit file
 // (tools/panel/quick-score.ts). No shell, no node: the host's bundled ffmpeg decodes a small grey preview
 // (QS_FPS frames a second, QS_W x QS_H pixels) of the part of the clip the planner could use into a temporary file in
@@ -3110,21 +3110,23 @@ function qsBytes(v) {
 // The host's services for this module: runFFmpeg(args, signal), readBytes(path), remove(path), join(...parts),
 // mkdir(dir), mtimeMs(path), readText(path), writeText(path, text). Members the host lacks are null.
 function qsHostIO() {
-  var rt = hostSdk?.media, fs = hostSdk?.files;
+  var di = null;
+  try { di = (window.parent && window.parent["__DI__"]) || null; } catch (e) { di = null; }
+  var rt = di && di.Runtime, fs = di && di.FileSystem;
   var fn = function (o, m) { return !!o && typeof o[m] === "function"; };
   return {
     runFFmpeg: fn(rt, "runFFmpeg") ? function (args, signal) { return rt.runFFmpeg(args, true, signal); } : null,
     readBytes: fn(fs, "readFile") ? async function (p) { return qsBytes(await fs.readFile(p)); } : null,
     remove: fs ? async function (p) {
-      var tries = ["removeFile"];
+      var tries = ["removeFile", "remove", "rm", "unlink", "unlinkSync"];
       for (var i = 0; i < tries.length; i++) {
         if (!fn(fs, tries[i])) continue;
         try { await (tries[i] === "removeFile" ? fs.removeFile({ filePath: p }) : fs[tries[i]](p)); return; } catch (e) { /* the next one */ }
       }
     } : null,
     join: fn(fs, "join") ? function () { return String(fs.join.apply(fs, arguments)); } : null,
-    mkdir: fn(fs, "mkdir") ? async function (d) { (await fs.mkdir(d, { recursive: true })); } : null,
-    mtimeMs: fn(fs, "stat") ? async function (p) { var s = (await fs.stat(p)); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
+    mkdir: fn(fs, "mkdirSync") ? function (d) { fs.mkdirSync(d, { recursive: true }); } : null,
+    mtimeMs: fn(fs, "statSync") ? function (p) { var s = fs.statSync(p); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
     readText: fn(fs, "readFile") ? async function (p) { var v = await fs.readFile(p, "utf8"); return typeof v === "string" ? v : new TextDecoder().decode(qsBytes(v)); } : null,
     writeText: fn(fs, "writeFile") ? async function (p, t) { await fs.writeFile(p, t); } : null,
   };
@@ -3237,8 +3239,8 @@ async function quickScore(resource, opts) {
   var dir = io.join(dataDir, "quick-score");
   var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
   var mtime = 0;
-  try { mtime = io.mtimeMs ? Math.round((await io.mtimeMs(resource.path)) || 0) : 0; } catch (e) { mtime = 0; }
-  // mtime is 0 when the host lacks FileSystem.stat, so the duration also keys the cache (a file replaced at the same
+  try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
+  // mtime is 0 when the host lacks FileSystem.statSync, so the duration also keys the cache (a file replaced at the same
   // path with different media is not served stale scores; Mini Vlog review).
   var durKey = Number(resource.durationSeconds || 0).toFixed(3);
   var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
@@ -3250,7 +3252,7 @@ async function quickScore(resource, opts) {
     } catch (e) { /* no cache yet */ }
   }
   if (Date.now() > deadline) return qsFallback(resource, Date.now() - t0, opts.windows);
-  try { if (io.mkdir) await io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
+  try { if (io.mkdir) io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
   var tmp = io.join(dir, safe + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".gray");
   var controller = typeof AbortController === "undefined" ? null : new AbortController();
   var relay = function () { if (controller) controller.abort(); };
@@ -3356,11 +3358,22 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
 // quick-score:end
 
 // st-host:start
-// Local files, media tools and environment use the public SDK.
-// Missing capabilities report the existing host-tools error to the panel UI.
-let hostSdk = null;
-function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
-function hostDI() { return { fs: hostSdk?.files, rt: hostSdk?.media }; }
+// Host I/O through the renderer's own services, the same on macOS and Windows: no host shell, no node, nothing for the
+// user to install. ffmpeg/ffprobe are the host's bundled binaries (Runtime.runFFmpeg/runFFprobe take an argument
+// array, so paths need no quoting and never pass through a console), and every path is built by FileSystem.join.
+// __DI__ is internal host wiring that a newer or older Selects may lack, so each member is checked at call time.
+// Errors carry `code`: 'host_tools' (a needed __DI__ member is missing, listed in err.missing: the panel says "needs a
+// newer Selects"; bundled cues keep working), 'timeout' (ffmpeg/ffprobe ran past timeoutMs), 'cancelled' (the
+// caller's signal aborted it) or 'media_failed' (ffmpeg/ffprobe failed or wrote nothing usable; err.detail holds the
+// host's message, truncated).
+function hostDI() {
+  let di = null;
+  try { di = window.parent && window.parent.__DI__; } catch (e) { di = null; }
+  if (!di) { try { di = window.__DI__; } catch (e) { di = null; } }
+  const fs = di && di.FileSystem ? di.FileSystem : null;
+  const rt = di && di.Runtime ? di.Runtime : null;
+  return { fs, rt };
+}
 
 // names: ['fs.join', 'rt.runFFmpeg', ...]. Returns { ok, missing }.
 function hostHas(names) {
@@ -3384,7 +3397,18 @@ function hostNeed(names) {
   return hostDI();
 }
 
-function hostPlatform() { return hostSdk?.environment?.platform || ""; }
+function hostPlatform() {
+  let p = '';
+  try { const rt = hostDI().rt; if (rt && typeof rt.getPlatform === 'function') p = String(rt.getPlatform() || ''); } catch (e) { p = ''; }
+  if (/^win/i.test(p)) return 'win32';
+  if (/darwin|mac/i.test(p)) return 'darwin';
+  if (/linux/i.test(p)) return 'linux';
+  let ua = '';
+  try { ua = String(navigator.userAgent || ''); } catch (e) { ua = ''; }
+  if (/Windows NT/i.test(ua)) return 'win32';
+  if (/Mac/i.test(ua)) return 'darwin';
+  return 'linux';
+}
 
 // Joins path parts with the host's join (the OS separator).
 function hostJoin(...parts) {
@@ -3394,24 +3418,24 @@ function hostJoin(...parts) {
 
 // The installed plugin folder (the host's SELECTS_USER_SKILLS_ROOT is the user's .selects/skills), or null when the
 // folder lacks `marker` (a file every install has).
-async function hostSkillsDir(id, marker) {
-  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.exists']);
+function hostSkillsDir(id, marker) {
+  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.existsSync']);
   const dir = String(fs.join(fs.homedir(), '.selects', 'skills', id));
-  try { return (await fs.exists(fs.join(dir, marker))) ? dir : null; } catch (e) { return null; }
+  try { return fs.existsSync(fs.join(dir, marker)) ? dir : null; } catch (e) { return null; }
 }
 
 // The plugin's persistent data folder, created when missing.
-async function hostDataDir(id) {
-  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.mkdir']);
+function hostDataDir(id) {
+  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.mkdirSync']);
   const dir = String(fs.join(fs.homedir(), '.selects', 'plugin-data', id));
-  (await fs.mkdir(dir, { recursive: true }));
+  fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
 // A folder, created with its parents when missing.
-async function hostMkdir(dir) {
-  const { fs } = hostNeed(['fs.mkdir']);
-  (await fs.mkdir(dir, { recursive: true }));
+function hostMkdir(dir) {
+  const { fs } = hostNeed(['fs.mkdirSync']);
+  fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
@@ -3457,7 +3481,7 @@ async function hostProbeDuration(file, opts) {
 
 // Bytes as a fresh, 0-offset Uint8Array, whatever the host returned (a Buffer from another realm, Uint8Array,
 // ArrayBuffer, an IPC-serialized { type: 'Buffer', data: [...] } or a plain array). FileSystem results come from
-// the bridge, possibly another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them, so only realm-free checks are
+// window.parent, another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them, so only realm-free checks are
 // used (ArrayBuffer.isView and the toString tag read internal slots, Array.isArray works across realms), with an
 // array-like fallback for objects a bridge serialised by index.
 function hostBytes(raw) {
@@ -3479,10 +3503,10 @@ function hostBytes(raw) {
   return new Uint8Array(0);
 }
 
-// Require the asynchronous SDK reader.
+// FileSystem with a reader (readFile or readFileSync), else a host_tools error.
 function hostNeedReader() {
   const { fs } = hostDI();
-  if (!fs || typeof fs.readFile !== 'function') {
+  if (!fs || (typeof fs.readFile !== 'function' && typeof fs.readFileSync !== 'function')) {
     throw hostError('host_tools', 'this Selects build has no FileSystem.readFile', { missing: ['fs.readFile'] });
   }
   return fs;
@@ -3490,10 +3514,10 @@ function hostNeedReader() {
 
 async function hostReadRaw(file) {
   const fs = hostNeedReader();
-  return await fs.readFile(file);
+  return typeof fs.readFile === 'function' ? await fs.readFile(file) : fs.readFileSync(file);
 }
 
-// Read a file's bytes through the SDK.
+// A file's bytes (FileSystem.readFile, else readFileSync).
 async function hostReadBytes(file) {
   const raw = await hostReadRaw(file);
   if (typeof raw === 'string') throw hostError('media_failed', 'the file came back as text');
@@ -3519,33 +3543,34 @@ async function hostReadOutput(file, what) {
   return bytes;
 }
 
-// Write bytes through the SDK.
+// Writes bytes to a file (FileSystem.writeFile, else writeFileSync).
 async function hostWriteBytes(file, bytes) {
   const { fs } = hostDI();
   if (fs && typeof fs.writeFile === 'function') return await fs.writeFile(file, bytes);
+  if (fs && typeof fs.writeFileSync === 'function') return fs.writeFileSync(file, bytes);
   throw hostError('host_tools', 'this Selects build has no FileSystem.writeFile', { missing: ['fs.writeFile'] });
 }
 
-// A file's size in bytes, 0 when it is missing (stat; without it, exists says 1 for "there").
-async function hostFileSize(file) {
+// A file's size in bytes, 0 when it is missing (statSync; without it, existsSync says 1 for "there").
+function hostFileSize(file) {
   const { fs } = hostDI();
   try {
-    if (fs && typeof fs.stat === 'function') { const s = (await fs.stat(file)); return s && s.size > 0 ? Number(s.size) : 0; }
-    if (fs && typeof fs.exists === 'function') return (await fs.exists(file)) ? 1 : 0;
+    if (fs && typeof fs.statSync === 'function') { const s = fs.statSync(file); return s && s.size > 0 ? Number(s.size) : 0; }
+    if (fs && typeof fs.existsSync === 'function') return fs.existsSync(file) ? 1 : 0;
   } catch (e) { return 0; }
   return 0;
 }
 
-// Moves a finished file into place (FileSystem.rename).
-async function hostRename(from, to) {
-  const { fs } = hostNeed(['fs.rename']);
-  (await fs.rename(from, to));
+// Moves a finished file into place (FileSystem.renameSync).
+function hostRename(from, to) {
+  const { fs } = hostNeed(['fs.renameSync']);
+  fs.renameSync(from, to);
 }
 
 // The names in a folder, [] when it cannot be listed.
-async function hostList(dir) {
+function hostList(dir) {
   const { fs } = hostDI();
-  try { return fs && typeof fs.readdir === 'function' ? Array.from((await fs.readdir(dir)) || [], String) : []; } catch (e) { return []; }
+  try { return fs && typeof fs.readdirSync === 'function' ? Array.from(fs.readdirSync(dir) || [], String) : []; } catch (e) { return []; }
 }
 
 // Best effort; a leftover file in the data folder is harmless.
@@ -3553,7 +3578,9 @@ async function hostRemove(file) {
   const { fs } = hostDI();
   if (!fs) return;
   try {
+    if (typeof fs.unlinkSync === 'function') return fs.unlinkSync(file);
     if (typeof fs.removeFile === 'function') return await fs.removeFile({ filePath: file });
+    if (typeof fs.rmSync === 'function') return fs.rmSync(file, { force: true });
   } catch (e) { /* ignored */ }
 }
 
@@ -3587,7 +3614,7 @@ async function hostDecodePcm(file, dataDir, rate, maxSeconds, opts) {
 async function hostPreviewUrl(file, start, seconds, dataDir, fade) {
   hostNeed(['rt.runFFmpeg', 'fs.join']);
   hostNeedReader();
-  for (const name of (await hostList(dataDir))) if (/^preview-.*\.(mp3|wav|b64)$/.test(name)) await hostRemove(hostJoin(dataDir, name));
+  for (const name of hostList(dataDir)) if (/^preview-.*\.(mp3|wav|b64)$/.test(name)) await hostRemove(hostJoin(dataDir, name));
   const token = hostToken();
   const f = fade > 0 ? fade : 0;
   const cut = ['-nostdin', '-v', 'error', '-y', '-ss', Number(start || 0).toFixed(2), '-t', Number(seconds).toFixed(2), '-i', file, '-ac', '1', '-ar', '22050'];
@@ -3853,7 +3880,7 @@ const ST_QUICK_CONCURRENCY = 3;
 const ST_QUICK_BUDGET_MS = 20000;
 // quickScore's resources for inventory videos. Resource ids are per-Project aliases (r0, r1, ...) and the block caches
 // one file per id in <dataDir>/quick-score/, so the id it sees is qualified with the Project (ASCII; the block keys the
-// cache on that id, the file's modification time (stat; 0 when the host has none) and the decoded span, which ends
+// cache on that id, the file's modification time (statSync; 0 when the host has none) and the decoded span, which ends
 // at the clip's length for clips up to 2 minutes, so a missing modification time falls back to id + length).
 function stQuickId(projectId, rid) { return String(projectId || 'project').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40) + '_' + rid; }
 function stQuickResources(projectId, resources) {
@@ -4084,7 +4111,7 @@ function stDecorateConfig(o) {
 }
 // st-panel:end
 
-// A host error (st-host block) for the person: a missing SDK capability says which host service this Selects build
+// A host error (st-host block) for the person: a missing __DI__ member says which host service this Selects build
 // lacks; anything else keeps its message.
 function hostUiError(e: any) {
   if (e?.code === "host_tools") {
@@ -4452,17 +4479,15 @@ function TitlePreview({ presets, presetId, line1, season, topMain, topItalic, cr
 // The install folder (scripts, cues, fonts) and the data folder for temporary audio, created when missing. Shared by
 // the panel and a template run.
 async function locateRoots(sdk: any) {
-  hostUseSdk(sdk);
   let plugin: string | null = null, data: string | null = null;
-  try { plugin = (await hostSkillsDir(PLUGIN_ID, "planner.js")); data = (await hostDataDir(PLUGIN_ID)); } catch (e: any) { throw hostUiError(e); }
+  try { plugin = hostSkillsDir(PLUGIN_ID, "planner.js"); data = hostDataDir(PLUGIN_ID); } catch (e: any) { throw hostUiError(e); }
   if (!plugin || !data) throw uiError((l) => t(l, "foldersNotFound"));
   return { plugin, data };
 }
 
 // A template run (Clip highlights hands the footage over in `context.template`) builds out of sight; anything else is
 // the panel.
-function Panel(props: any) {
-  hostUseSdk(props.sdk);
+export default function Panel(props: any) {
   return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <SummerTripPanel {...props} />;
 }
 
@@ -4633,7 +4658,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
         setRoots({ plugin, data });
         // Previews and own music need the host's bundled ffmpeg (Runtime.runFFmpeg) and file access; bundled cues work
         // without them. Nothing for the person to install: a host without them needs a newer Selects.
-        setTools({ ffmpeg: hostHas(["rt.runFFmpeg", "fs.join", "fs.readFile", "fs.mkdir"]).ok });
+        setTools({ ffmpeg: hostHas(["rt.runFFmpeg", "fs.join", "fs.readFile", "fs.mkdirSync"]).ok });
         const read = (rel: string) => readText(plugin, rel);
         const [manifest, presets, sfxManifest, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, titleTsx, labelsTsx, lookTsx, gridTsx, filmTsx, motionTsx, videoMotionTsx, beatDetect] = await Promise.all([
           read("assets/cues/manifest.json"), read("assets/fonts/presets.json"), read("sfx/manifest.json"), read("scripts/inventory.js"), read("scripts/search.js"),
@@ -4833,7 +4858,7 @@ function SummerTripPanel({ sdk, context, ui }: any) {
     return { list, failed };
   }
 
-  // Local candidates for clips without analysis: the quick-score block (host ffmpeg through the canonical media SDK
+  // Local candidates for clips without analysis: the quick-score block (host ffmpeg through __DI__.Runtime.runFFmpeg
   // with an argument array, no shell; its cache in <data>/quick-score/) at ST_QUICK_CONCURRENCY at a time within
   // ST_QUICK_BUDGET_MS, then stQuickCandidates. `onDone()` after each clip. Throws only when `signal` aborts.
   async function scoreLocal(res: any[], pid: string, signal: AbortSignal | undefined, onDone: () => void) {
@@ -4859,16 +4884,16 @@ function SummerTripPanel({ sdk, context, ui }: any) {
     const out = pjoin(roots!.data, stOwnMuffledName(name, hash)), part = out + ".part.wav";
     // A partial copy left by an earlier run that stopped mid-bake goes first (the old step always removed it).
     await hostRemove(part);
-    if (!((await hostFileSize(out)) > 0)) {
+    if (!(hostFileSize(out) > 0)) {
       try {
         await hostFFmpeg(stMuffleArgs(path, part), { timeoutMs: 180000 });
-        if (!((await hostFileSize(part)) > 0)) throw uiError((l) => t(l, "musicNotRead"));
-        (await hostRename(part, out));
+        if (!(hostFileSize(part) > 0)) throw uiError((l) => t(l, "musicNotRead"));
+        hostRename(part, out);
       } catch (e: any) { throw hostUiError(e); }
       finally { await hostRemove(part); }
     }
     check();
-    if (!((await hostFileSize(out)) > 0)) throw uiError((l) => t(l, "musicNotRead"));
+    if (!(hostFileSize(out) > 0)) throw uiError((l) => t(l, "musicNotRead"));
     return out;
   }
 
@@ -4878,14 +4903,14 @@ function SummerTripPanel({ sdk, context, ui }: any) {
     const dir = pjoin(roots!.data, "sfx");
     const files = stSfxFiles(assets.sfx, dir, hostJoin);
     try {
-      (await hostMkdir(dir));
+      hostMkdir(dir);
       for (const f of files) {
-        if ((await hostFileSize(f.path)) > 0) continue;
+        if (hostFileSize(f.path) > 0) continue;
         const b64 = (await readText(roots!.plugin, f.b64)).replace(/\s+/g, "");
         const bin = atob(b64), bytes = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         await hostWriteBytes(f.path, bytes);
-        if (!((await hostFileSize(f.path)) > 0)) throw new Error("the sound effect " + f.key + " could not be written");
+        if (!(hostFileSize(f.path) > 0)) throw new Error("the sound effect " + f.key + " could not be written");
       }
     } catch (e: any) { throw hostUiError(e); }
     check();
@@ -5400,7 +5425,6 @@ function templateFootage(context: any) {
 // The whole template build. Returns the new Draft; throws templateIssue(...) for the person, or STALE when a newer run
 // (or the frame closing) replaced this one. `say` names the current step for the status line.
 async function runSummerTripTemplate(sdk: any, context: any, check: () => void, say: (step: string, detail?: string) => void): Promise<{ sequenceId: string }> {
-  hostUseSdk(sdk);
   const pid: string | null = context?.projectId ?? null;
   // The UI language when the run starts: its messages and the Adjust labels written into the Draft use it.
   const bl = uiLang(context);
@@ -5597,268 +5621,3 @@ async function readInventoryPages(run, script, config, fill, wanted = () => true
     if (offset + 32 >= total) return result;
   }
 }
-
-// local-sdk:start
-/** Pure host-platform path operations; no filesystem or renderer globals. */
-function panelLocalPaths(platform: string) {
-  const windows = platform === "win32";
-  const slash = (path: string) => {
-    if (typeof path !== "string")
-      throw new TypeError("A path must be a string.");
-    return windows ? path.replace(/\\/g, "/") : path;
-  };
-  const rootOf = (path: string) => {
-    if (windows) {
-      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
-      if (unc) return unc[0].replace(/\/?$/, "/");
-      const drive = path.match(/^[a-z]:\/?/i);
-      if (drive) return drive[0];
-    }
-    return path.startsWith("/") ? "/" : "";
-  };
-  const native = (value: string) =>
-    windows ? value.replace(/\//g, "\\") : value;
-  const normalize = (value: string) => {
-    const path = slash(value),
-      root = rootOf(path),
-      absolute = root.endsWith("/");
-    const segments: string[] = [];
-    for (const segment of path
-      .slice(Math.min(root.length, path.length))
-      .split("/")) {
-      if (!segment || segment === ".") continue;
-      if (segment === ".." && segments.length && segments.at(-1) !== "..")
-        segments.pop();
-      else if (segment !== ".." || !absolute) segments.push(segment);
-    }
-    let result = root + segments.join("/");
-    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
-    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
-    return native(result);
-  };
-  const basename = (value: string, extension?: string) => {
-    const path = slash(value).replace(/\/+$/, "");
-    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
-    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
-    return extension && name.endsWith(extension)
-      ? name.slice(0, -extension.length)
-      : name;
-  };
-  return {
-    normalize,
-    join: (...paths: string[]) => {
-      const parts = paths.map(slash).filter(Boolean);
-      let joined = parts.join("/");
-      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
-        joined = joined.replace(/^\/{2,}/, "/");
-      return normalize(joined);
-    },
-    dirname(value: string) {
-      const path = slash(value),
-        root = rootOf(path);
-      const end = path.replace(/\/+$/, "").lastIndexOf("/");
-      if (end < root.length) return value.slice(0, root.length) || ".";
-      return value.slice(0, end);
-    },
-    basename,
-    extname(value: string) {
-      const name = basename(value),
-        dot = name.lastIndexOf(".");
-      return dot <= 0 || name === ".." ? "" : name.slice(dot);
-    },
-    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
-  };
-}
-
-
-/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
-async function createPanelLocalClient(sdk: any) {
-  const run = async (method: string, args: unknown[], write = false) => {
-    // method names below are fixed implementation constants; values always use JSON encoding.
-    const response = await sdk.runScript({
-      summary: "Use local media workspace",
-      allowCommit: write,
-      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
-    });
-    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
-    // A clipped report has no result. Every read returning data rejects that case below.
-    return response.result;
-  };
-  const environment = await run("files.environment", []);
-  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
-    throw new Error("Update Selects to use this plugin's local media workspace.");
-  const paths = panelLocalPaths(environment.platform);
-  const CHUNK_BYTES = 48 * 1024;
-  const readRange = async (path: string, offset: number, length: number) => {
-    const parts: Uint8Array[] = [];
-    let total = 0;
-    while (total < length) {
-      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
-      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
-      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
-      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
-      parts.push(bytes); total += bytes.length;
-      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
-    }
-    const output = new Uint8Array(total);
-    let position = 0;
-    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
-    return output;
-  };
-  const files = {
-    ...paths,
-    homedir: () => environment.homedir,
-    getOrCreateTmpDirPath: async () => environment.tempDirectory,
-    exists: (path: string) => run("files.exists", [path]),
-    stat: (path: string) => run("files.stat", [path]),
-    readdir: (path: string) => run("files.readdir", [path]),
-    readRange,
-    async readFile(path: string, encoding?: string) {
-      const stat = await run("files.stat", [path]);
-      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
-      const bytes = await readRange(path, 0, stat.size);
-      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
-      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
-      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
-    },
-    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
-      const encoding = typeof options === "string" ? options : options?.encoding;
-      const flag = typeof options === "object" ? options.flag : undefined;
-      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
-      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
-      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
-      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
-      // Each complete replacement has its own sibling file. Other panels cannot
-      // overwrite one of its chunks before the final atomic rename publishes it.
-      const replacement = flag !== "a" && flag !== "wx";
-      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
-      let published = false;
-      try {
-        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
-          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
-          let binary = "";
-          for (const byte of chunk) binary += String.fromCharCode(byte);
-          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
-          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
-          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
-        }
-        if (replacement) await run("files.rename", [destination, path], true);
-        published = true;
-      } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
-      }
-    },
-    async compareAndReplace(path: string, expectedText: string | null, text: string) {
-      const encode = (value: string) => {
-        const bytes = new TextEncoder().encode(value);
-        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
-        let binary = "";
-        for (const byte of bytes) binary += String.fromCharCode(byte);
-        return btoa(binary);
-      };
-      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
-      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
-      return result.replaced;
-    },
-    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
-    rename: (from: string, to: string) => run("files.rename", [from, to], true),
-    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
-    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
-    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
-    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
-  };
-  const activeJobs = new Set<string>();
-  let disposed = false;
-  const cancel = async (jobId: string) => {
-    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
-    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
-  };
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
-    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const started = await run("media.start" + executable, [{ args }], true);
-    if (!started?.jobId) throw new Error("The media process did not return a job id.");
-    const jobId = started.jobId;
-    activeJobs.add(jobId);
-    let cancellation: Promise<void> | null = null;
-    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
-    signal?.addEventListener("abort", abort, { once: true });
-    if (disposed || signal?.aborted) abort();
-    let cursor = 0, stdout = "", stderr = "";
-    try {
-      while (true) {
-        if (cancellation) await cancellation;
-        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
-        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
-        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
-        for (const event of status.events) {
-          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
-          else { stderr += event.text; onStderr?.(event.text); }
-        }
-        cursor = status.nextCursor;
-        if (status.state !== "running" && status.events.length === 0) {
-          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
-          return { stdout, stderr };
-        }
-        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
-      }
-    } catch (error) {
-      await cancel(jobId).catch(() => {});
-      throw error;
-    } finally {
-      signal?.removeEventListener("abort", abort);
-      activeJobs.delete(jobId);
-    }
-  };
-  return {
-    files,
-    environment,
-    media: {
-      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
-      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
-    },
-    dialogs: {
-      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
-      pickDirectoryPath: () => run("editor.pickDirectory", []),
-      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
-    },
-    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
-  };
-}
-
-const panelLocalClients = new WeakMap<object, any>();
-function panelLocalClient(sdk: any): any {
-  const client = panelLocalClients.get(sdk);
-  if (!client) throw new Error("Local SDK has not initialized.");
-  return client;
-}
-function withPanelLocalClient(Component: any) {
-  return function LocalSdkPanel(props: any) {
-    const [state, setState] = React.useState<any>(null);
-    React.useEffect(() => {
-      let active = true;
-      let client: any;
-      createPanelLocalClient(props.sdk).then(value => {
-        client = {...props.sdk, ...value};
-        if (!active) { value.dispose(); return; }
-        panelLocalClients.set(props.sdk, client);
-        setState({sdk: props.sdk});
-      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
-      return () => {
-        active = false;
-        if (client) {
-          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
-          client.dispose();
-        }
-      };
-    }, [props.sdk]);
-    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
-    return React.createElement(Component, props);
-  };
-}
-
-export default withPanelLocalClient(Panel);
-// local-sdk:end

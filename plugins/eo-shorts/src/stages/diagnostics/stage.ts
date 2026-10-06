@@ -3,6 +3,7 @@ import { inputShaFrom } from "../../jobs/receipts.ts";
 import { ensureDir, readBytes, writeJsonAtomic } from "../../host/fs.ts";
 import { errorMessage } from "../../host/util.ts";
 import { ffmpegVersion, probeMedia, type MediaProbe } from "../../host/ffmpeg.ts";
+import { hostPlatform } from "../../host/di.ts";
 import { readScript } from "../../host/runScript.ts";
 import { canvasPainter, type SheetPainter } from "../../broll/sheet.ts";
 import { lintPlan } from "../../lint/lint.ts";
@@ -64,10 +65,10 @@ async function runDiagnostics(ctx: StageContext, o: DiagnosticsOptions): Promise
   const rs = { signal: ctx.signal, backoffMs: o.backoffMs };
   const files: JobFiles = await readJobFiles(fs, ctx.path);
   const receipt = files.exportReceipt;
-  if (!receipt || !(await fs.exists(receipt.outPath))) throw new Error("There is no exported MP4 to check (export/receipt.json).");
+  if (!receipt || !fs.existsSync(receipt.outPath)) throw new Error("There is no exported MP4 to check (export/receipt.json).");
   if (!job.draftId) throw new Error("The job has no EO draft.");
   const mp4 = receipt.outPath;
-  await ensureDir(fs, ctx.path(DIAG_REL.dir));
+  ensureDir(fs, ctx.path(DIAG_REL.dir));
   job.warnings = job.warnings.filter((w) => !w.startsWith(WARNING_PREFIX));
   const errors: Record<string, string> = {};
   const ms: Record<string, number> = {};
@@ -175,7 +176,7 @@ async function runDiagnostics(ctx: StageContext, o: DiagnosticsOptions): Promise
     frames: { samples, sheets: sheets.map((s) => rel(ctx, s)) },
     info: {
       versions: job.versions,
-      ffmpeg: ffmpeg ? { line: ffmpeg.line, version: ffmpeg.version, platform: host.environment?.platform ?? "" } : null,
+      ffmpeg: ffmpeg ? { line: ffmpeg.line, version: ffmpeg.version, platform: hostPlatform(host.di ?? null) } : null,
       stages: stageTimes(job.stages),
       models: job.models,
       calls: callsSummary(files.calls),
@@ -220,7 +221,7 @@ async function sceneList(ctx: StageContext, files: JobFiles): Promise<DiagScene[
   for (const s of rows) {
     let execution: SceneExecution | null = null;
     const file = ctx.path("compose/" + s.sceneId + "/execution.json");
-    if ((await ctx.host.fs.exists(file))) execution = JSON.parse(new TextDecoder().decode(await readBytes(ctx.host.fs, file)));
+    if (ctx.host.fs.existsSync(file)) execution = JSON.parse(new TextDecoder().decode(await readBytes(ctx.host.fs, file)));
     out.push({ sceneId: s.sceneId, start: s.start, end: s.end, execution });
   }
   return out.sort((a, b) => a.start - b.start);
@@ -248,13 +249,13 @@ async function referenceVoice(ctx: StageContext, files: JobFiles, fps: number): 
   const r = files.sound?.report;
   if (r?.voice) {
     const rel2 = r.voice.passGainDb ? "sound/passes/voice-2.wav" : "sound/passes/voice-1.wav";
-    if ((await fs.exists(ctx.path(rel2)))) {
+    if (fs.existsSync(ctx.path(rel2))) {
       const pcm = decodeWav(await readBytes(fs, ctx.path(rel2)));
       return { path: ctx.path(rel2), rel: rel2, from: "sound-pass", pcm, shaped: shapeVoice(pcm, r.voice, fps), integrated: r.voice.render.integrated };
     }
   }
   const rel1 = "sound/voice-only.wav";
-  if (!(await fs.exists(ctx.path(rel1)))) throw new Error("no voice render (sound/passes/voice-*.wav or sound/voice-only.wav)");
+  if (!fs.existsSync(ctx.path(rel1))) throw new Error("no voice render (sound/passes/voice-*.wav or sound/voice-only.wav)");
   const pcm = decodeWav(await readBytes(fs, ctx.path(rel1)));
   const integrated = files.edit?.voice?.integrated ?? (await measureFile(ctx.host, ctx.path(rel1), { signal: ctx.signal })).integrated;
   return { path: ctx.path(rel1), rel: rel1, from: "edit", pcm, shaped: pcm, integrated };
@@ -267,9 +268,7 @@ async function planLint(ctx: StageContext, files: JobFiles): Promise<{ sceneId: 
   const ids = planSceneIds(files);
   for (const sid of ids) {
     const media = files.media?.scenes?.find((s) => s.sceneId === sid)?.plan;
-    const candidates = [media, "plan/scenes/" + sid + "/plan.json"].filter((x): x is string => !!x).map((x) => ctx.path(x));
-    const existing = await Promise.all(candidates.map((p) => fs.exists(p)));
-    const file = candidates.find((_, i) => existing[i]);
+    const file = [media, "plan/scenes/" + sid + "/plan.json"].filter((x): x is string => !!x).map((x) => ctx.path(x)).find((p) => fs.existsSync(p));
     if (!file) {
       out.push({ sceneId: sid, errors: ["no plan file"] });
       continue;

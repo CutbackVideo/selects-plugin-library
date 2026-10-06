@@ -1,8 +1,7 @@
-import { sdkGeneration } from "../../../../shared/generation-client.js";
 // Selects generation (fal models through the app's MediaGeneration service): B-roll clips, the music
 // bed, the one-time sound-effect library, and the speaker mattes. Every result is delivered into this
 // plugin's data folder so it can be measured, mixed or converted before it goes into the Project.
-import { getSdk, fs, sleep } from "./host";
+import { di, fs, libraryId, sleep } from "./host";
 
 const b64url = (s: string) => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 export const model = (endpoint: string) => "model_v1_" + b64url(endpoint);
@@ -11,7 +10,7 @@ const FAILED = new Set(["failed", "cancelled", "canceled", "input_failed", "subm
 
 export class StuckError extends Error {}
 
-// Submit and observe. Only a confirmed pre-admission failure permits a new key.
+// Submit and wait, resubmitting (with a fresh key) when a job never gets going.
 export async function generate(pid: string, r: GenRequest, label: string, onTick?: (s: string) => void, timeoutMs?: number, tries = 3): Promise<string> {
   let last: any = null;
   for (let k = 0; k < tries; k += 1) {
@@ -30,9 +29,9 @@ export async function generate(pid: string, r: GenRequest, label: string, onTick
 }
 
 export function mediaGeneration() {
-  const mg = sdkGeneration(getSdk());
+  const mg = di().MediaGeneration;
   if (!mg?.isAvailable?.()) throw new Error("Selects generation is not available for this account.");
-  if (!mg.supportsPluginFiles?.()) throw new Error("Update Selects to use generation files in this plugin.");
+  if (!mg.supportsPluginFiles?.()) throw new Error("This needs Selects 2.0.512 or later (plug-in generation files). Update Selects.");
   return mg;
 }
 
@@ -50,9 +49,9 @@ export type GenRequest = {
 
 export async function submit(pid: string, r: GenRequest): Promise<string> {
   const mg = mediaGeneration();
-  (await fs().mkdir(r.folder, { recursive: true }));
+  fs().mkdirSync(r.folder, { recursive: true });
   const res = await mg.submit({
-    scope: { projectId: pid },
+    scope: { libraryId: libraryId(), projectId: pid },
     key: r.key.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64),
     modelId: model(r.endpoint),
     input: r.input,
@@ -71,7 +70,7 @@ export async function submit(pid: string, r: GenRequest): Promise<string> {
 // Wait for one job; resolves with the delivered file path.
 export async function waitFor(pid: string, jobId: string, label: string, onTick?: (s: string) => void, timeoutMs = 15 * 60000): Promise<string> {
   const mg = mediaGeneration();
-  const scope = { projectId: pid };
+  const scope = { libraryId: libraryId(), projectId: pid };
   const t0 = Date.now();
   let redeliveries = 0;
   for (;;) {
@@ -97,15 +96,15 @@ export async function waitFor(pid: string, jobId: string, label: string, onTick?
         if (/upload|handoff|submission_rejected|input_failed/.test(code + " " + j.status)) throw new StuckError(label + " failed (" + code + ").");
         throw new Error(label + " failed (" + code + ").");
       }
-      // An unknown or unresolved admission may already have been accepted. Stop
-      // automatic resubmission and preserve the same request key for recovery.
+      // A request whose admission reply was lost and that the server cannot find was never accepted, and one
+      // still preparing with an error after a minute and a half (e.g. the upload could not be verified) is stuck.
       if (j.status === "submission_unknown" && j.errorCode && Date.now() - t0 > 45000) {
         mg.cancel(scope, jobId).catch(() => {});
-        throw new Error(label + " has an unknown submission outcome (" + j.errorCode + "). Resume the same request.");
+        throw new StuckError(label + " was not accepted (" + j.errorCode + ").");
       }
       if (["preparing", "uploading", "submitting"].includes(j.status) && j.errorCode && Date.now() - t0 > 90000) {
         mg.cancel(scope, jobId).catch(() => {});
-        throw new Error(label + " is still unresolved (" + j.errorCode + "). Resume the same request.");
+        throw new StuckError(label + " stalled (" + j.errorCode + ").");
       }
     }
     if (onTick) onTick(label + " · " + Math.round((Date.now() - t0) / 1000) + " s");
@@ -144,12 +143,12 @@ export const SFX_ANCHOR: Record<string, number> = {
 
 export async function ensureSfxLibrary(pid: string, onTick: (s: string) => void): Promise<Record<string, string>> {
   const dir = fs().join(fsDataRoot(), "sfx-lib");
-  (await fs().mkdir(dir, { recursive: true }));
+  fs().mkdirSync(dir, { recursive: true });
   const have: Record<string, string> = {};
   const want: string[] = [];
   for (const k of Object.keys(SFX_PROMPTS)) {
     const p = fs().join(dir, k + "-" + SFX_VERSION + ".mp3");
-    if ((await fs().exists(p))) have[k] = p;
+    if (fs().existsSync(p)) have[k] = p;
     else want.push(k);
   }
   if (!want.length) return have;

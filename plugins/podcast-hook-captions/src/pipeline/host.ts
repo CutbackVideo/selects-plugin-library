@@ -1,5 +1,4 @@
-import {panelLocalClient} from "../../../../shared/local-client";
-// Timeline services retain host adapters; local files and ffmpeg/ffprobe use the public SDK and the
+// Host access for the panel: the app's native services (window.parent.__DI__), ffmpeg/ffprobe through the
 // app's own runner, file helpers, and a wrapper around the panel SDK's runScript. Nothing here goes through a
 // shell, so the same code runs on macOS and Windows.
 
@@ -12,17 +11,23 @@ export type Sdk = {
 };
 
 export function app(): any {
+  // A docked panel's parent is the app window; an undocked panel's popup reaches it through its opener.
   const parent: any = window.parent;
-  return parent?.opener || (window as any).opener || parent;
+  if (parent?.__DI__) return parent;
+  const opener: any = parent?.opener || (window as any).opener;
+  if (opener?.__DI__) return opener;
+  throw new Error("This Selects version does not expose native panel services.");
 }
-export function getSdk(): Sdk { return hostSdk; }
+export function di(): any {
+  return app().__DI__;
+}
 export function libraryId(): string {
   const id = app().location.pathname.match(/libraries\/([^/]+)/)?.[1];
   if (!id) throw new Error("Open a Draft in Selects first.");
   return id;
 }
 export function fs(): any {
-  return hostSdk.files;
+  return di().FileSystem;
 }
 export function dataRoot(): string {
   const f = fs();
@@ -35,14 +40,14 @@ export function skillRoot(): string {
 }
 export function platform(): string {
   try {
-    return String(hostSdk?.environment?.platform || "");
+    return String(di().Runtime?.getPlatform?.() || "");
   } catch {
     return "";
   }
 }
 export function hostVersion(): string {
   try {
-    return String(hostSdk?.environment?.version || "");
+    return String(di().Runtime?.getHostingVersion?.() || "");
   } catch {
     return "";
   }
@@ -82,7 +87,7 @@ export async function script(sdk: Sdk, summary: string, body: string, allowCommi
 // Output arrives in chunks; they are joined exactly as written (the runner's own result inserts newlines
 // between chunks, which can split a number). `timeoutMs` cancels the process.
 export async function ffmpeg(label: string, args: string[], timeoutMs = 300000, captureLog = false): Promise<{ stdout: string; stderr: string }> {
-  const rt = hostSdk.media;
+  const rt = di().Runtime;
   if (typeof rt?.runFFmpeg !== "function") throw new Error("This Selects version cannot run ffmpeg for plug-ins. Update Selects.");
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
@@ -105,7 +110,7 @@ export async function ffmpeg(label: string, args: string[], timeoutMs = 300000, 
   }
 }
 export async function ffprobe(label: string, args: string[], timeoutMs = 60000): Promise<string> {
-  const rt = hostSdk.media;
+  const rt = di().Runtime;
   if (typeof rt?.runFFprobe !== "function") throw new Error("This Selects version cannot run ffprobe for plug-ins. Update Selects.");
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
@@ -138,14 +143,14 @@ function toolError(e: any, streamed: string): string {
 }
 
 // File helpers on the app's FileSystem (never a shell).
-export async function removeFile(path: string) {
+export function removeFile(path: string) {
   try {
-    if ((await fs().exists(path))) (await fs().rm(path));
+    if (fs().existsSync(path)) fs().unlinkSync(path);
   } catch {}
 }
-export async function filesIn(dir: string, pattern: RegExp): Promise<string[]> {
+export function filesIn(dir: string, pattern: RegExp): string[] {
   try {
-    return (await fs().readdir(dir)).map(String).filter((n: string) => pattern.test(n));
+    return fs().readdirSync(dir).map(String).filter((n: string) => pattern.test(n));
   } catch {
     return [];
   }
@@ -166,7 +171,3 @@ export function lastJsonObject(text: string): any {
   }
   throw new Error("The assistant's JSON could not be read.");
 }
-
-let hostSdk: ReturnType<typeof panelLocalClient>;
-export function hostUseSdk(sdk: Sdk) { hostSdk = panelLocalClient(sdk); if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin."); }
-export function media(): any { return hostSdk.media; }

@@ -1,12 +1,12 @@
 // Builds the panel from src/: each Remotion component (the Look effect and the Reel graphic) is bundled
-// into a string constant in src/renderers.ts, then src/Panel.tsx is bundled into panel.tsx.
+// into a string constant in src/renderers.ts, then src/Panel.tsx is bundled into ../../panels/<id>/panel.tsx.
 // usage: node build.cjs [path/to/esbuild]
 const path = require("path");
 const fs = require("fs");
 const root = __dirname;
 const esbuild = require(process.argv[2] || process.env.ESBUILD || "esbuild");
 const id = "podcast-hook-captions";
-const panelOut = process.env.PANEL_OUT || path.join(root, "panel.tsx");
+const panelOut = process.env.PANEL_OUT || path.join(root, "..", "..", "panels", id, "panel.tsx");
 const name = process.env.PANEL_NAME || "Podcast Hook Captions";
 
 const motion = { lookCode: "Look", reelCode: "Reel" };

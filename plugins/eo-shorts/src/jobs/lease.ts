@@ -51,7 +51,7 @@ export function leasePath(fs: HostFs, jobDir: string): string {
 async function readLeaseFile(fs: HostFs, path: string): Promise<{ rec: LeaseRecord | null; readError: unknown }> {
   let text: string;
   try {
-    if (!(await fs.exists(path))) return { rec: null, readError: null };
+    if (!fs.existsSync(path)) return { rec: null, readError: null };
     text = await readText(fs, path);
   } catch (e) {
     return { rec: null, readError: e ?? new Error("read failed") };
@@ -73,8 +73,8 @@ export function isLive(rec: LeaseRecord | null, now: number, staleMs = LEASE_STA
   return typeof rec.renewedAt !== "number" || now - rec.renewedAt <= staleMs;
 }
 
-async function unreadableIsLive(fs: HostFs, path: string, now: number, staleMs: number): Promise<{ live: boolean; freeAt: number | null }> {
-  const st = (await statFile(fs, path));
+function unreadableIsLive(fs: HostFs, path: string, now: number, staleMs: number): { live: boolean; freeAt: number | null } {
+  const st = statFile(fs, path);
   if (!st) return { live: false, freeAt: null };
   return now - st.mtimeMs < staleMs ? { live: true, freeAt: st.mtimeMs + staleMs } : { live: false, freeAt: null };
 }
@@ -89,11 +89,11 @@ export type LeaseStatus = {
 
 export async function leaseStatus(fs: HostFs, jobDir: string, now = Date.now(), staleMs = LEASE_STALE_MS): Promise<LeaseStatus> {
   const path = leasePath(fs, jobDir);
-  if (!(await fs.exists(path))) return { state: "free", holder: null, freeAt: null };
+  if (!fs.existsSync(path)) return { state: "free", holder: null, freeAt: null };
   const rec = await readLease(fs, path);
   if (!rec) {
-    const u = (await unreadableIsLive(fs, path, now, staleMs));
-    return { state: u.live ? "live" : (await fs.exists(path)) ? "stale" : "free", holder: null, freeAt: u.freeAt };
+    const u = unreadableIsLive(fs, path, now, staleMs);
+    return { state: u.live ? "live" : fs.existsSync(path) ? "stale" : "free", holder: null, freeAt: u.freeAt };
   }
   if (!isLive(rec, now, staleMs)) return { state: "stale", holder: rec, freeAt: null };
   const staleAt = typeof rec.renewedAt === "number" ? rec.renewedAt + staleMs : rec.until;
@@ -139,7 +139,7 @@ export async function acquireLease(fs: HostFs, jobDir: string, o: LeaseOptions):
     } else if (held && isLive(held, now(), staleMs)) {
       throw new LeaseBusyError(held, now(), staleMs);
     } else {
-      if (!held && (await unreadableIsLive(fs, path, now(), staleMs)).live) throw new LeaseBusyError(null, now());
+      if (!held && unreadableIsLive(fs, path, now(), staleMs).live) throw new LeaseBusyError(null, now());
       await writeJsonAtomic(fs, path, fresh(held));
       await (o.sleepFn ?? sleep)(o.confirmDelayMs ?? 200);
       const check = await readLease(fs, path);
@@ -170,7 +170,7 @@ export async function acquireLease(fs: HostFs, jobDir: string, o: LeaseOptions):
       }
       try {
         const held = await readLease(fs, path);
-        if (held && held.owner === o.owner) (await removeFile(fs, path));
+        if (held && held.owner === o.owner) removeFile(fs, path);
       } catch {
       }
     },
@@ -227,10 +227,10 @@ export async function acquireLease(fs: HostFs, jobDir: string, o: LeaseOptions):
 
 export async function liveLeases(fs: HostFs, jobsRoot: string, now = Date.now()): Promise<{ path: string; lease: LeaseRecord }[]> {
   const out: { path: string; lease: LeaseRecord }[] = [];
-  for (const project of (await fs.readdir(jobsRoot))) {
-    for (const job of (await fs.readdir(fs.join(jobsRoot, project)))) {
+  for (const project of fs.readdirSync(jobsRoot)) {
+    for (const job of fs.readdirSync(fs.join(jobsRoot, project))) {
       const path = fs.join(jobsRoot, project, job, "lease.json");
-      if (!(await fs.exists(path))) continue;
+      if (!fs.existsSync(path)) continue;
       const rec = await readLease(fs, path);
       if (isLive(rec, now)) out.push({ path, lease: rec! });
     }

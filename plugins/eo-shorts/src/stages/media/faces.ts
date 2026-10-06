@@ -22,7 +22,7 @@ export function hostFaceFinder(host: Pick<Host, "fs" | "runtime">, o: { tmpDir: 
   const fs = host.fs;
   return {
     async find(path, atSeconds = null) {
-      await ensureDir(fs, o.tmpDir);
+      ensureDir(fs, o.tmpDir);
       const inputFormat = pictureNeedsFormat(path) ? pictureInputFormat(path, await readBytes(fs, path)) : [];
       const m = await probeMedia(host.runtime, path, { fs, tmpDir: o.tmpDir, signal: o.signal, inputFormat });
       if (!m.video || !(m.video.width > 0 && m.video.height > 0)) return null;
@@ -42,7 +42,7 @@ export function hostFaceFinder(host: Pick<Host, "fs" | "runtime">, o: { tmpDir: 
         const rows = await (await o.detector()).detect(bgr, a.width, a.height);
         return largestFace(plausibleFaces(toSourceFaces(rows, a.width, a.height, size.width, size.height), size.width, size.height), size);
       } finally {
-        await removeFile(fs, out);
+        removeFile(fs, out);
       }
     },
   };
@@ -81,11 +81,11 @@ export async function faceCrop(host: Pick<Host, "fs" | "runtime">, finder: FaceF
   if (!crop) return { path: photo, crop: null, face, reused: false };
   const out = photo.replace(/\.[A-Za-z0-9]+$/, "") + ".still.jpg";
   const side = out + ".json";
-  const st = (await statFile(fs, photo));
+  const st = statFile(fs, photo);
   const key = { schema: "eo-still-crop/1", photo: fs.basename(photo), bytes: st?.size ?? null, crop };
   const had = await readJsonIfExists<typeof key | null>(fs, side, null);
-  if (had && JSON.stringify(had) === JSON.stringify(key) && (await fs.exists(out))) return { path: out, crop, face, reused: true };
-  await removeFile(fs, side);
+  if (had && JSON.stringify(had) === JSON.stringify(key) && fs.existsSync(out)) return { path: out, crop, face, reused: true };
+  removeFile(fs, side);
   const part = out.replace(/\.jpg$/, ".part.jpg");
   const inputFormat = pictureNeedsFormat(photo) ? pictureInputFormat(photo, await readBytes(fs, photo)) : [];
   await encode(
@@ -93,7 +93,7 @@ export async function faceCrop(host: Pick<Host, "fs" | "runtime">, finder: FaceF
     ["-hide_banner", "-nostdin", "-v", "error", "-y", ...inputFormat, "-i", photo, "-frames:v", "1", "-vf", "crop=" + crop.w + ":" + crop.h + ":" + crop.x + ":" + crop.y, "-q:v", "2", ...pictureOutputFormat(part), part],
     { outPath: part, fs, signal: o.signal, timeoutMs: 60_000 },
   );
-  await removeFile(fs, out);
+  removeFile(fs, out);
   await renameWithRetry(fs, part, out);
   await writeJsonAtomic(fs, side, key);
   return { path: out, crop, face, reused: false };

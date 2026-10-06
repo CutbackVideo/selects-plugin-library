@@ -477,16 +477,16 @@ export async function writeLocalDiagnostic(sdk, event) {
     jobId: event.jobId || null, generationId: event.generationId || null,
   };
   // Host FileSystem, no shell or Python, so it works on Windows too: <home>/.selects/logs, beside the panels root.
-  const fs = panelLocalClient(sdk).files;
-  if (!fs?.join || !fs?.homedir || !fs?.mkdir || !fs?.exists || !fs?.readFile || !fs?.writeFile || !fs?.rename)
-    throw new Error("Update Selects to use local media.");
+  const fs = (window.parent as any).__DI__?.FileSystem;
+  if (!fs?.join || !fs?.homedir || !fs?.mkdirSync || !fs?.existsSync || !fs?.readFileSync || !fs?.writeFile || !fs?.renameSync)
+    throw new Error("Local diagnostic write failed");
   const dir = fs.join(fs.homedir(), ".selects", "logs"), p = fs.join(dir, "multicam-generator.jsonl");
-  (await fs.mkdir(dir, {recursive:true}));
+  fs.mkdirSync(dir, {recursive:true});
   let prior = new Uint8Array(0);
-  if ((await fs.exists(p))) {
-    const raw = (await fs.readFile(p));
+  if (fs.existsSync(p)) {
+    const raw = fs.readFileSync(p);
     prior = typeof raw === "string" ? new TextEncoder().encode(raw) : new Uint8Array(raw);
-    if (prior.length > 1048576) { (await fs.rename(p, fs.join(dir, "multicam-generator.previous.jsonl"))); prior = new Uint8Array(0); }
+    if (prior.length > 1048576) { fs.renameSync(p, fs.join(dir, "multicam-generator.previous.jsonl")); prior = new Uint8Array(0); }
   }
   const line = new TextEncoder().encode(JSON.stringify(entry) + "\n"), out = new Uint8Array(prior.length + line.length);
   out.set(prior); out.set(line, prior.length);
@@ -572,14 +572,16 @@ const LABELS = {
   review: "Ready to add to your draft.",
   placed: "Added above the original clip.",
 };
-export async function prepareMedia(sdk, args) {
-  const runtime = panelLocalClient(sdk).media, fs = panelLocalClient(sdk).files;
+export async function prepareMedia(args) {
+  const di = (window.parent as any).__DI__,
+    runtime = di?.Runtime,
+    fs = di?.FileSystem;
   if (
     typeof runtime?.runFFmpeg !== "function" ||
     typeof runtime?.runFFprobe !== "function" ||
-    typeof fs?.mkdir !== "function"
+    typeof fs?.mkdirSync !== "function"
   )
-    throw new Error("Update Selects to use local media.");
+    throw new Error("media_tools");
   if (
     !fs.isAbsolute(args.path) ||
     !fs.isAbsolute(args.output) ||
@@ -602,7 +604,7 @@ export async function prepareMedia(sdk, args) {
     if (!video) throw new Error("media_processing");
     const duration = Number(video.duration || meta.format?.duration);
     const temporary = args.output + ".partial.mp4";
-    (await fs.mkdir(fs.dirname(args.output), { recursive: true }));
+    fs.mkdirSync(fs.dirname(args.output), { recursive: true });
     let command;
     if (args.action === "prepare") {
       if (
@@ -697,7 +699,7 @@ export async function prepareMedia(sdk, args) {
         throw new Error("media_processing");
     } else if (Number(v.nb_frames) !== args.frames)
       throw new Error("result_timing");
-    (await fs.rename(temporary, args.output));
+    fs.renameSync(temporary, args.output);
     return { path: args.output };
   } finally {
     clearTimeout(timer);
@@ -705,10 +707,10 @@ export async function prepareMedia(sdk, args) {
 }
 
 // Extract the same source interval; do not stretch speech or infer it from text.
-export async function prepareSpeech(sdk, plan, output) {
-  const runtime = panelLocalClient(sdk).media, fs = panelLocalClient(sdk).files;
-  if (!runtime?.runFFmpeg || !runtime?.runFFprobe || !fs?.mkdir)
-    throw new Error("Update Selects to use local media.");
+export async function prepareSpeech(plan, output) {
+  const di = (window.parent as any).__DI__, runtime = di?.Runtime, fs = di?.FileSystem;
+  if (!runtime?.runFFmpeg || !runtime?.runFFprobe || !fs?.mkdirSync)
+    throw new Error("media_tools");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
   try {
@@ -718,7 +720,7 @@ export async function prepareSpeech(sdk, plan, output) {
     const source = await probe(plan.path);
     if (!source.streams?.some((x) => x.codec_type === "audio"))
       throw new Error("source_audio_missing");
-    (await fs.mkdir(fs.dirname(output), { recursive: true }));
+    fs.mkdirSync(fs.dirname(output), { recursive: true });
     const tmp = output + ".partial.wav";
     await runtime.runFFmpeg([
       "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
@@ -730,7 +732,7 @@ export async function prepareSpeech(sdk, plan, output) {
     const meta = await probe(tmp), audio = meta.streams?.find((x) => x.codec_type === "audio");
     if (!audio || Math.abs(Number(audio.duration || meta.format?.duration) - plan.durationSeconds) > 0.02)
       throw new Error("source_audio_missing");
-    (await fs.rename(tmp, output));
+    fs.renameSync(tmp, output);
     return output;
   } finally { clearTimeout(timer); }
 }
@@ -754,12 +756,12 @@ export function analysisPrompt(plan) {
 // Build the inspection contact sheet from ORIGINAL pixels. No analysis, no credits:
 // the same ffmpeg extraction that prepareReference() uses, tiled into one image so
 // the AI inspects exactly the frames the generation model will receive.
-export async function buildInspectionSheet(sdk, plan, jobId) {
-  const fs = panelLocalClient(sdk).files, runtime = panelLocalClient(sdk).media;
-  if (!runtime?.runFFmpeg || !fs?.mkdir || !fs?.readFile || !fs?.join || !fs?.homedir)
-    throw new Error("Update Selects to use local media.");
+export async function buildInspectionSheet(plan, jobId) {
+  const di = (window.parent as any).__DI__, fs = di?.FileSystem, runtime = di?.Runtime;
+  if (!runtime?.runFFmpeg || !fs?.mkdirSync || !fs?.readFileSync || !fs?.join || !fs?.homedir)
+    throw new Error("media_tools");
   const dir = fs.join(fs.homedir(), ".selects", "plugin-data", "multicam-generator", "jobs", String(jobId), "inspect");
-  (await fs.mkdir(dir, {recursive:true}));
+  fs.mkdirSync(dir, {recursive:true});
   const times = referenceTimes(plan);
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 120000);
   try {
@@ -772,7 +774,7 @@ export async function buildInspectionSheet(sdk, plan, jobId) {
     await runtime.runFFmpeg(["-hide_banner","-loglevel","error","-nostdin","-y",
       "-start_number","0","-i", fs.join(dir, "insp%d.jpg"),
       "-vf","tile=4x2:padding=6:color=black","-frames:v","1","-q:v","4", sheet], true, controller.signal);
-    const raw = (await fs.readFile(sheet));
+    const raw = fs.readFileSync(sheet);
     const u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
     if (!u8.length) throw new Error("analysis_failed");
     let bin = "";
@@ -784,15 +786,15 @@ export async function buildInspectionSheet(sdk, plan, jobId) {
 }
 
 // Extract only original pixels. No generated face reference or assumed crop.
-export async function prepareReference(sdk, plan, index, output) {
-  const fs = panelLocalClient(sdk).files, runtime = panelLocalClient(sdk).media;
-  if (!runtime?.runFFmpeg || !runtime?.runFFprobe || !fs?.rename || !fs?.mkdir)
-    throw new Error("Update Selects to use local media.");
+export async function prepareReference(plan, index, output) {
+  const di = (window.parent as any).__DI__, fs = di?.FileSystem, runtime = di?.Runtime;
+  if (!runtime?.runFFmpeg || !runtime?.runFFprobe || !fs?.renameSync || !fs?.mkdirSync)
+    throw new Error("media_tools");
   if (!Number.isInteger(index) || index < 0 || index > 6 || !fs.isAbsolute(output))
     throw new Error("identity_reference_missing");
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 60000);
   try {
-    (await fs.mkdir(fs.dirname(output), {recursive:true}));
+    fs.mkdirSync(fs.dirname(output), {recursive:true});
     const tmp = output + ".partial.jpg";
     await runtime.runFFmpeg(["-hide_banner","-loglevel","error","-nostdin","-y",
       "-ss",String(referenceTimes(plan)[index]),"-i",plan.path,"-map","0:v:0",
@@ -803,7 +805,7 @@ export async function prepareReference(sdk, plan, index, output) {
     const v = meta.streams?.find(x => x.codec_type === "video");
     if (!v || v.width < 300 || v.height < 300 || v.width / v.height > 2.5 || v.width / v.height < .4 || Number(meta.format?.size) > 10485760)
       throw new Error("identity_reference_missing");
-    (await fs.rename(tmp,output));
+    fs.renameSync(tmp,output);
     return output;
   } finally { clearTimeout(timer); }
 }
@@ -811,140 +813,295 @@ export async function prepareReference(sdk, plan, index, output) {
 // Where a clip starts in its source, in Draft frames. Selects 2.0.53x replaced Clip.getStartTime() (Draft frames)
 // with getSourceStartTick(); ticks divided by the clip's ticks per frame give the same frames. The public SDK's
 // clip rows carry no source in-point, so the host model is read either way.
-
-// sdk-selected-media:start
-// Match host Resource ids to run_script's project-scoped ids through the SDK.
-// Return only the selected files so large Projects stay below the script result limit.
-async function sdkSelectedMedia(sdk, projectId, picks) {
-  const before = await sdk.call('listProjectResources', projectId);
-  if (!Array.isArray(before)) throw Error('Could not read the Project resources.');
-  const indices = picks.map(pick => before.findIndex(row => row.resourceId === pick.resourceId));
-  if (indices.includes(-1)) throw Error('A picked file is missing from this Project.');
-  const response = await sdk.runScript({
-    summary: 'Read selected Project files', allowCommit: false,
-    script: `const p=selects.project(${JSON.stringify(projectId)});
-const resources=await p.resources(),indices=${JSON.stringify(indices)};
-const selected=indices.map(i=>resources[i]),ids=new Set(selected.filter(Boolean).map(r=>r.resourceId));
-const files=[];
-const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else if(ids.has(n.resourceId))files.push(n);};
-const top=await p.sourceFiles();
-if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);
-else for(const folder of top.folders||[]){const detail=await p.sourceFiles({folder:folder.name});walk(detail.fileTree);}
-return {count:resources.length,rows:selected.map(r=>r?{name:r.name,type:r.type,files:files.filter(f=>f.resourceId===r.resourceId).map(f=>({resourceId:f.resourceId,path:f.path}))}:null)};`
-  });
-  if (response.isError || !response.result || !Array.isArray(response.result.rows))
-    throw Error(response.output || 'Could not read the selected Project files.');
-  const result = response.result, after = await sdk.call('listProjectResources', projectId);
-  if (!Array.isArray(after) || before.length !== result.count || after.length !== before.length ||
-      after.some((row, i) => row.resourceId !== before[i].resourceId || row.name !== before[i].name || row.type !== before[i].type) ||
-      result.rows.length !== picks.length || indices.some((index, i) =>
-        result.rows[i]?.name !== before[index].name || result.rows[i]?.type !== before[index].type))
-    throw Error('The selected Project files changed. Refresh your media and try again.');
-  return result.rows.map((row, i) => {
-    const expected = { image: 'Image', video: 'Video', audio: 'Audio' }[picks[i].kind];
-    if (expected && row.type !== expected) throw Error('A picked file has the wrong media type.');
-    if (row.files.length !== 1 || !row.files[0].path)
-      throw Error((picks[i].name || 'A picked file') + ' is missing from this Project or matches more than one file.');
-    return { ...row.files[0], resourceType: row.type };
-  });
+export function clipSourceStartFrames(c) {
+  if (typeof c?.getStartTime === "function") return c.getStartTime();
+  const tick = Number(c?.getSourceStartTick?.()),
+    perFrame = Number(c?.getOwnerTimebase?.()?.getTicksPerFrame?.());
+  if (Number.isFinite(tick) && perFrame > 0) return tick / perFrame;
+  throw new Error("This Selects version's timeline can't be read yet. Update the plugin.");
 }
-// sdk-selected-media:end
 
-// sdk-media-path:start
-// A bounded path lookup returning host ids for services that do not accept SDK aliases.
-async function sdkMediaByPath(sdk, projectId, path, basename = false) {
-  const before = await sdk.call('listProjectResources', projectId);
-  if (!Array.isArray(before)) throw Error('Could not read the Project resources.');
-  const response = await sdk.runScript({summary:'Find Project media by path',allowCommit:false,
-    script:`const p=selects.project(${JSON.stringify(projectId)}),resources=await p.resources();
-const wanted=${JSON.stringify(path)},basename=${JSON.stringify(basename)};
-const key=value=>{const v=String(value||'').normalize('NFC').replace(/\\\\/g,'/');return /^[A-Za-z]:/.test(v)||v.startsWith('//')?v.toLowerCase():v;};
-const matches=[],walk=nodes=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.path&&(basename?key(n.path).split('/').pop()===key(wanted):key(n.path)===key(wanted))){const index=resources.findIndex(r=>r.resourceId===n.resourceId);if(index>=0)matches.push({index,name:resources[index].name,type:resources[index].type,path:n.path});}}};
-const top=await p.sourceFiles();if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);else for(const folder of top.folders||[])walk((await p.sourceFiles({folder:folder.name})).fileTree);
-if(matches.length>1)throw Error('More than one Project file matches this path.');
-return {count:resources.length,matches};`});
-  if(response.isError||!response.result||!Array.isArray(response.result.matches))throw Error(response.output||'Could not find Project media.');
-  const result=response.result,after=await sdk.call('listProjectResources',projectId);
-  if(!Array.isArray(after)||result.count!==before.length||after.length!==before.length||after.some((r,i)=>r.resourceId!==before[i].resourceId||r.name!==before[i].name||r.type!==before[i].type))throw Error('The Project files changed. Try again.');
-  return result.matches.map(row=>{
-    const resource=before[row.index];
-    if(!resource||resource.name!==row.name||resource.type!==row.type)throw Error('The Project files changed. Try again.');
-    return {resourceId:resource.resourceId,path:row.path,type:row.type};
+export async function readPlan(context, settings, fixedFrame) {
+  const app = window.parent as any,
+    di = app.__DI__,
+    state = di?.SequenceState;
+  if (!context.projectId || !context.sequenceId)
+    throw new Error("Open a draft first.");
+  if (
+    typeof state?.getOnScreenTab !== "function" ||
+    typeof di?.SequenceRepository?.findById !== "function" ||
+    typeof di?.ProjectRepository?.findById !== "function"
+  )
+    throw new Error("This Selects version cannot read the timeline.");
+  const tab = state.getOnScreenTab();
+  if (!tab || tab.kind !== "draft" || tab.sequenceId !== context.sequenceId)
+    throw new Error("Click the draft timeline, then generate.");
+  const project = await di.ProjectRepository.findById(
+    tab.libraryId,
+    context.projectId,
+  );
+  if (
+    typeof project?.getEditedSequences !== "function" ||
+    !project.getEditedSequences().includes(context.sequenceId)
+  )
+    throw new Error("Open a draft in this project first.");
+  const seq = await di.SequenceRepository.findById(
+    tab.libraryId,
+    context.sequenceId,
+  );
+  if (
+    typeof seq?.getMainTrack !== "function" ||
+    typeof seq?.getFrameRate !== "function"
+  )
+    throw new Error("Could not read this draft.");
+  const fps = seq.getFrameRate();
+  const frame =
+    fixedFrame ?? state.getPlayhead(context.sequenceId)?.resolvedOffset;
+  if (
+    !Number.isInteger(frame) ||
+    frame < 0 ||
+    !Number.isFinite(fps) ||
+    fps <= 0
+  )
+    throw new Error("Click a position in the timeline first.");
+  const count = Math.round(settings.duration * fps),
+    end = frame + count;
+  if (end > seq.getDuration("resolved"))
+    throw new Error(
+      "There isn’t enough footage here. Move the playhead earlier.",
+    );
+  const track = seq.getMainTrack();
+  if (typeof track?.getClipPositions !== "function")
+    throw new Error("This draft has no source video.");
+  const cps = track.getClipPositions({
+    coordinate: "resolved",
+    startFrame: frame,
+    endFrame: end,
+    matchMode: "intersect",
   });
-}
-// sdk-media-path:end
-
-async function multicamScript(sdk, script, summary, allowCommit = false) {
-  const response = await sdk.runScript({script, summary, allowCommit});
-  if (response.isError) throw new Error(response.output || "Operation failed");
-  return response.result;
-}
-export async function readPlan(context, settings, fixedFrame, sdk) {
-  if (!context.projectId || !context.sequenceId) throw new Error("Open a draft first.");
-  const state = await sdk.call("getEditorState");
-  if (state.projectId !== context.projectId || state.onScreenTab?.kind !== "draft" || state.onScreenTab.sequenceId !== context.sequenceId) throw new Error("Click the draft timeline, then generate.");
-  const snapshot = await sdk.call("getDraftMediaSnapshot", context.projectId, context.sequenceId);
-  const fps = snapshot.fps, frame = fixedFrame ?? state.playhead?.resolvedFrame;
-  if (!Number.isInteger(frame) || frame < 0 || !(fps > 0)) throw new Error("Click a position in the timeline first.");
-  const count = Math.round(settings.duration * fps), end = frame + count;
-  if (end > snapshot.durationFrames) throw new Error("There isn’t enough footage here. Move the playhead earlier.");
-  const clips = snapshot.clips.filter(c => c.trackKind === "main" && c.startFrame < end && c.endFrame > frame).sort((a,b)=>a.startFrame-b.startFrame);
-  let source = null, sourceStart = 0, covered = frame;
+  if (!cps.length) throw new Error("Choose a position with source video.");
+  let source = null,
+    sourceStart = 0,
+    covered = frame;
   const mapping = [];
-  for (const clip of clips) {
-    const media = clip.media;
-    if (!media || media.type !== "video" || !media.path) throw new Error("Choose a shot backed by a video file. Nested multicam sequences are not supported yet.");
-    // This workflow extracts one continuous real-time source range for generation.
-    if (clip.playbackSpeed !== 1) throw new Error("Choose a normal-speed shot for generated angles.");
-    const a = Math.max(frame,clip.startFrame), b = Math.min(end,clip.endFrame);
-    if (a !== covered) throw new Error("Choose a continuous shot without gaps.");
-    const t = clip.sourceStartSeconds + (a-clip.startFrame)/fps;
-    if (!source) {source=media;sourceStart=t;}
-    else if (source.id !== media.id || Math.abs(t-sourceStart-(a-frame)/fps)>0.5/fps) throw new Error("This interval crosses a cut. Choose a shorter clip.");
-    mapping.push({clipId:clip.clipId,resourceId:media.id,startFrame:a,endFrame:b,sourceStartSeconds:t});
-    covered=b;
+  for (const cp of cps) {
+    const c = cp.clip;
+    if (typeof c?.getMedia !== "function" || c.isGap())
+      throw new Error(
+        "This interval contains a gap. Choose a continuous shot.",
+      );
+    const media = await c.getMedia(tab.libraryId);
+    if (!media || media.type !== "video" || !media.path)
+      throw new Error(
+        "Choose a shot backed by a video file. Nested multicam sequences are not supported yet.",
+      );
+    const a = Math.max(frame, cp.resolvedOffset),
+      b = Math.min(end, cp.resolvedOffset + c.getDuration());
+    if (a !== covered)
+      throw new Error("Choose a continuous shot without gaps.");
+    const t = (clipSourceStartFrames(c) + a - cp.resolvedOffset) / fps;
+    if (!source) {
+      source = media;
+      sourceStart = t;
+    } else if (
+      source.id !== media.id ||
+      Math.abs(t - sourceStart - (a - frame) / fps) > 0.5 / fps
+    )
+      throw new Error("This interval crosses a cut. Choose a shorter clip.");
+    mapping.push({
+      clipId: c.getId(),
+      resourceId: media.id,
+      startFrame: a,
+      endFrame: b,
+      sourceStartSeconds: t,
+    });
+    covered = b;
   }
-  if (!source || covered !== end) throw new Error("Choose a continuous shot.");
-  return {projectId:context.projectId,draftId:context.sequenceId,libraryId:state.libraryId,sourceId:source.id,path:source.path,sourceStartSeconds:sourceStart,startFrame:frame,endFrame:end,fps,durationSeconds:count/fps,settings,fingerprint:JSON.stringify({fps,mapping,path:source.path,checksum:source.checksum}),mapping};
+  if (covered !== end) throw new Error("Choose a continuous shot.");
+  const plan = {
+    projectId: context.projectId,
+    draftId: context.sequenceId,
+    libraryId: tab.libraryId,
+    sourceId: source.id,
+    path: source.path,
+    sourceStartSeconds: sourceStart,
+    startFrame: frame,
+    endFrame: end,
+    fps,
+    durationSeconds: count / fps,
+    settings,
+    fingerprint: JSON.stringify({
+      fps,
+      mapping,
+      path: source.path,
+      checksum: source.checksum,
+    }),
+    mapping,
+  };
+  return plan;
 }
-export async function placeDirect(plan, resourceId, sdk) {
-  const input = {plan,resourceId};
-  const result = await multicamScript(sdk, `
-    const {plan,resourceId}=${JSON.stringify(input)};
-    const project=selects.project(plan.projectId), meta=await project.meta();
-    if(!meta.draftIds.includes(plan.draftId))throw new Error("draft_changed");
-    const d=selects.draft(plan.draftId), rows=await d.clips({trackScope:"all"});
-    const prior=rows.filter(c=>c.trackKind==="video"&&c.resourceId===resourceId&&c.startFrame===plan.startFrame&&c.endFrame===plan.endFrame);
-    if(prior.length===1)return {alreadyAdded:true,clipId:prior[0].clipId,trackId:prior[0].trackId};
-    if(prior.length)throw new Error("placement_check_3");
-    if(plan.replaces){
-      const r=plan.replaces;
-      const candidates=rows.filter(c=>c.trackKind==="video"&&c.resourceId===r.resourceId&&c.startFrame===r.startFrame&&c.endFrame===r.endFrame&&rows.filter(x=>x.trackId===c.trackId).length===1);
-      if(candidates.length!==1)throw new Error("draft_changed");
-      await d.removeClips(candidates);
-    }
-    await d.overlayResource({resource:project.resource(resourceId),over:await d.rangeAtFrames(plan.startFrame,plan.endFrame),sourceStartSeconds:0});
-    const placed=(await d.clips({trackScope:"all"})).filter(c=>c.trackKind==="video"&&c.resourceId===resourceId&&c.startFrame===plan.startFrame&&c.endFrame===plan.endFrame);
-    if(placed.length!==1)throw new Error("placement_check_7");
-    await d.commitAll("Place generated camera angle");
-    return {saved:true,clipId:placed[0].clipId,trackId:placed[0].trackId};
-  `, "Place generated camera angle", true);
-  const saved=await sdk.call("getDraftMediaSnapshot",plan.projectId,plan.draftId);
-  if(saved.clips.filter(c=>c.trackKind==="video"&&c.resourceId===resourceId&&c.startFrame===plan.startFrame&&c.endFrame===plan.endFrame).length!==1)throw new Error("operation_failed");
-  await multicamScript(sdk,`return await selects.editor.seekDraftFrame(${JSON.stringify({projectId:plan.projectId,draftSequenceId:plan.draftId,resolvedFrame:plan.startFrame})});`,"Show generated angle");
-  return result;
+export async function placeDirect(plan, resourceId) {
+  const di = (window.parent as any).__DI__;
+  if (
+    typeof di?.Storyboard?.insertResourceClip !== "function" ||
+    typeof di?.SequenceRepository?.save !== "function"
+  )
+    throw new Error("placement_check_1");
+  const seq = await di.SequenceRepository.findById(
+    plan.libraryId,
+    plan.draftId,
+  );
+  const resource = await di.ResourceRepository.findById(
+    plan.libraryId,
+    resourceId,
+  );
+  if (!seq || !resource || resource.getType() !== "Video")
+    throw new Error("placement_check_2");
+  const prior = seq
+    .getTracks()
+    .filter((t) => t.isVideoTrack())
+    .flatMap((t) =>
+      t.getClipPositions({
+        coordinate: "resolved",
+        startFrame: plan.startFrame,
+        endFrame: plan.endFrame,
+        matchMode: "intersect",
+      }),
+    )
+    .filter(
+      (p) =>
+        p.clip.getDefaultMediaId() === resourceId &&
+        p.resolvedOffset === plan.startFrame &&
+        p.clip.getDuration() === plan.endFrame - plan.startFrame,
+    );
+  if (prior.length === 1)
+    return {
+      alreadyAdded: true,
+      clipId: prior[0].clip.getId(),
+      trackId: prior[0].trackId,
+    };
+  if (prior.length) throw new Error("placement_check_3");
+  const original = JSON.stringify(seq.toJSON()),
+    target = seq.clone(),
+    Track = target.getMainTrack().constructor;
+  const replacement = plan.replaces;
+  let replacedTrackId = null;
+  if (replacement) {
+    const candidates = target
+      .getTracks()
+      .filter((t) => t.isVideoTrack())
+      .filter((t) => {
+        const c = t.getClips().filter((c) => !c.isGap());
+        return (
+          c.length === 1 &&
+          c[0].getDefaultMediaId() === replacement.resourceId &&
+          c[0].getDuration() === replacement.endFrame - replacement.startFrame
+        );
+      });
+    if (candidates.length !== 1) throw new Error("draft_changed");
+    replacedTrackId = candidates[0].getId();
+    target.setTracks(
+      target.getTracks().filter((t) => t.getId() !== replacedTrackId),
+    );
+  }
+  if (
+    typeof Track.of !== "function" ||
+    typeof target.stackOrderInsertionIndex !== "function" ||
+    typeof target.getTimebase !== "function"
+  )
+    throw new Error("placement_check_4");
+  const lane = Track.of({
+    kind: "Video",
+    name: "Generated angle",
+    timebase: target.getTimebase(),
+  });
+  const tracks = target.getTracks(),
+    mainIndex = tracks.findIndex(
+      (t) => t.getId() === target.getMainTrack().getId(),
+    ),
+    firstVideo = tracks.findIndex((t) => t.isVideoTrack());
+  if (mainIndex < 0) throw new Error("placement_check_5");
+  target.insertTrack(
+    firstVideo >= 0 ? Math.min(mainIndex, firstVideo) : mainIndex,
+    lane,
+  );
+  const result = await di.Storyboard.insertResourceClip({
+    resource,
+    targetSequence: target,
+    insertionResolvedOffset: plan.startFrame,
+    sourceStart: 0,
+    sourceDuration: plan.endFrame - plan.startFrame,
+  });
+  const added = result.addedClipPositions;
+  if (
+    result.sequence.getTracks().findIndex((t) => t.getId() === lane.getId()) >=
+    result.sequence
+      .getTracks()
+      .findIndex((t) => t.getId() === result.sequence.getMainTrack().getId())
+  )
+    throw new Error("placement_check_6");
+  if (
+    added.length !== 1 ||
+    added[0].trackId !== lane.getId() ||
+    added[0].resolvedOffset !== plan.startFrame ||
+    added[0].clip.getDuration() !== plan.endFrame - plan.startFrame ||
+    added[0].clip.getDefaultMediaId() !== resourceId
+  )
+    throw new Error("placement_check_7");
+  // Selects assigns audioOrder when a structural edit freezes legacy row order.
+  // Compare all authored track content and verify surviving audio rows separately.
+  const trackContent = (t) => {
+    if (!t) return null;
+    const { audioOrder, ...content } = t.toJSON();
+    return content;
+  };
+  for (const t of seq.getTracks().filter((t) => t.getId() !== replacedTrackId)) {
+    const after = result.sequence.getTracks().find((x) => x.getId() === t.getId());
+    if (JSON.stringify(trackContent(t)) !== JSON.stringify(trackContent(after)))
+      throw new Error("placement_original_changed");
+  }
+  const originalAudioIds = seq.getAudioOutputTracksInNleOrder()
+    .map((t) => t.getId()).filter((id) => id !== replacedTrackId);
+  const survivingAudioIds = result.sequence.getAudioOutputTracksInNleOrder()
+    .map((t) => t.getId()).filter((id) => originalAudioIds.includes(id));
+  if (JSON.stringify(originalAudioIds) !== JSON.stringify(survivingAudioIds))
+    throw new Error("placement_audio_order_changed");
+  const checked = di.Storyboard.applyEditBatch({
+    sequence: result.sequence,
+    commands: [],
+  });
+  if (checked.status === "rejected") throw new Error("placement_check_9");
+  const latest = await di.SequenceRepository.findById(
+    plan.libraryId,
+    plan.draftId,
+  );
+  if (JSON.stringify(latest.toJSON()) !== original)
+    throw new Error("draft_changed");
+  await di.SequenceRepository.save(result.sequence, "multicam-generator");
+  di.SequenceState.setActiveSequenceId({
+    libraryId: plan.libraryId,
+    sequenceId: plan.draftId,
+  });
+  di.SequenceState.setPlayhead(
+    plan.draftId,
+    plan.startFrame,
+    null,
+    { mode: "force", position: "center" },
+    "multicam-generator",
+  );
+  return { clipId: added[0].clip.getId(), trackId: lane.getId(), saved: true };
 }
 
 // Media elements stay in the host document so local-media URLs obey its CSP.
 // Only decoded pixels are drawn into the panel; no remote preview upload.
-function Comparison({sdk,job,onReady}) {
+function Comparison({job,onReady}) {
   const language = React.useContext(UILanguage);
   const left = useRef(null), right = useRef(null), control = useRef(null);
   const [loaded,setLoaded] = useState(false), [playing,setPlaying] = useState(false);
   const [time,setTime] = useState(0), [error,setError] = useState("");
   useEffect(() => {
     let dead = false, raf = 0;
-    const app = window.parent as any, fs = panelLocalClient(sdk).files;
+    const app = window.parent as any, fs = app.__DI__?.FileSystem;
     const original = app.document.createElement("video"), result = app.document.createElement("video"), speech = app.document.createElement("audio");
     const nodes = [original,result,speech];
     const duration = job.plan.durationSeconds;
@@ -982,22 +1139,18 @@ function Comparison({sdk,job,onReady}) {
         } catch {pause(); if (!dead) setError("Playback could not start. Use the frame slider to inspect the comparison.");}
       }
     };
-    const load = async (node,path) => {
-      const url = await fs.pathToLocalURL(path);
-      if (dead) return;
-      return new Promise((resolve,reject) => {
+    const load = (node,path) => new Promise((resolve,reject) => {
       node.crossOrigin = "anonymous"; node.preload = "auto";
       const timer = setTimeout(() => reject(new Error("Preview timed out.")),20000);
       node.onloadeddata = () => {clearTimeout(timer);resolve(true);};
       node.onerror = () => {clearTimeout(timer);reject(new Error("Could not load the local comparison."));};
       node.onseeked = paint;
-      node.src = url; node.load();
-      });
-    };
+      node.src = fs.pathToLocalURL(path); node.load();
+    });
     original.muted = true; result.muted = true;
     original.onended = pause;
     const sourcePath = fs?.join(fs.homedir(),".selects","plugin-data","multicam-generator","jobs",job.id,"source.mp4");
-    if (!fs?.pathToLocalURL) setError("Update Selects to use local media.");
+    if (!fs?.pathToLocalURL) setError("Review is available in the editor panel. Close this detached window and reopen Multicam Generator in the editor.");
     else if (!job.outputPath || !job.audioPath) setError("Comparison files are unavailable. Do not add without inspecting the generated resource.");
     else Promise.all([load(original,sourcePath),load(result,job.outputPath),load(speech,job.audioPath)])
       .then(() => {if (!dead) {paint();setLoaded(true);onReady(true);}})
@@ -1017,7 +1170,7 @@ function Comparison({sdk,job,onReady}) {
   </div>), language);
 }
 
-function Multicam({ sdk, context }) {
+export default function Multicam({ sdk, context }) {
   return (
     <UILanguage.Provider value={uiLanguage(context?.language)}><Session
       key={JSON.stringify([context?.projectId, context?.sequenceId])}
@@ -1074,9 +1227,15 @@ function Session({ sdk, context }) {
     latest.current = j;
     if (mounted.current) setJob(j);
   }
-  async function current() {
-    const state = await sdk.call("getEditorState");
-    return mounted.current && state.projectId === context.projectId && state.onScreenTab?.kind === "draft" && state.onScreenTab.sequenceId === context.sequenceId;
+  function current() {
+    const tab = (
+      window.parent as any
+    ).__DI__?.SequenceState?.getOnScreenTab?.();
+    return (
+      mounted.current &&
+      tab?.sequenceId === context.sequenceId &&
+      tab?.libraryId === latest.current?.plan?.libraryId
+    );
   }
   async function ai(prompt, images?) {
     if (typeof sdk?.askAI !== "function") throw new Error("unavailable");
@@ -1087,12 +1246,12 @@ function Session({ sdk, context }) {
     return parseReply(response.text);
   }
   async function api(j, command) {
-    if (!(await current())) throw new Error("context_changed");
+    if (!current()) throw new Error("context_changed");
     const names = {"models.list":"Find generation model…", "models.schema":"Check model requirements…", "storage.upload":"Upload source video…", "queue.submit":"Submit generation — awaiting acknowledgement…", "queue.result":"Check existing generation…"};
     report(names[command.method] || command.method);
     const execute = async () => {
       if (j.transport === "native") {
-        const service = sdkGeneration(sdk);
+        const service = (window.parent as any).__DI__?.MediaGeneration;
         if (!service?.isAvailable?.() || typeof service.submit !== "function" || typeof service.list !== "function") throw new Error("unavailable");
         if (command.method === "storage.upload") {
           // Upload is performed atomically by the host at native submission.
@@ -1131,19 +1290,39 @@ function Session({ sdk, context }) {
     return r.result;
   }
   async function assertSource(j) {
-    if (!(await current())) throw new Error("context_changed");
-    const now = await readPlan(context, j.plan.settings, j.plan.startFrame, sdk);
+    if (!current()) throw new Error("context_changed");
+    const now = await readPlan(context, j.plan.settings, j.plan.startFrame);
     if (now.fingerprint !== j.plan.fingerprint)
       throw new Error("draft_changed");
   }
   async function resolveResource(j, id) {
-    const rows = await sdkSelectedMedia(sdk, j.plan.projectId, [{resourceId:id,kind:'video'}]);
-    return rows[0];
+    const di = (window.parent as any).__DI__;
+    const project = await di.ProjectRepository.findById(
+      j.plan.libraryId,
+      j.plan.projectId,
+    );
+    // Never trust an AI-reported path: match returned identity against actual project resources.
+    if (!project?.getResources?.().includes(id))
+      throw new Error("operation_failed");
+    const resource = await di.ResourceRepository.findById(j.plan.libraryId, id);
+    if (resource?.getType?.() !== "Video" || !resource.getMedia?.()?.path)
+      throw new Error("operation_failed");
+    return resource.getMedia();
   }
   async function importPath(j, path) {
+    const di = (window.parent as any).__DI__;
     async function find() {
-      const matches = await sdkMediaByPath(sdk, j.plan.projectId, path);
-      return matches[0]?.resourceId;
+      const project = await di.ProjectRepository.findById(
+        j.plan.libraryId,
+        j.plan.projectId,
+      );
+      const matches = [];
+      for (const id of project.getResources()) {
+        const r = await di.ResourceRepository.findById(j.plan.libraryId, id);
+        if (r?.getMedia?.()?.path === path) matches.push(id);
+      }
+      if (matches.length > 1) throw new Error("operation_failed");
+      return matches[0];
     }
     let id = await find();
     if (!id) {
@@ -1160,10 +1339,10 @@ function Session({ sdk, context }) {
   async function pipeline(start) {
     let j = start;
     while (mounted.current) {
-      if (!(await current())) throw new Error("context_changed");
+      if (!current()) throw new Error("context_changed");
       report(LABELS[j.phase] || "Checking your generation…");
       if (j.phase === "new") {
-        const sheet = await buildInspectionSheet(sdk, j.plan, j.id);
+        const sheet = await buildInspectionSheet(j.plan, j.id);
         const result = await retryRead(() => ai(analysisPrompt(j.plan), [sheet]), current);
         if (result?.error) throw new Error(["identity_reference_missing","single_person_required"].includes(result.error) ? result.error : "analysis_failed");
         const o = result?.observation;
@@ -1188,7 +1367,7 @@ function Session({ sdk, context }) {
         if (j.identityVersion !== 1) { j = {...j, phase:"new"}; save(j); continue; }
         await assertSource(j);
         let model;
-        const native = sdkGeneration(sdk);
+        const native = (window.parent as any).__DI__?.MediaGeneration;
         // Prefer the native host service for EVERY model whose modelId is verified.
         // The AI relay repeatedly corrupted tool arguments (invalid_generate_media_arguments)
         // and transcribed opaque ids wrongly (invalid_model_id); native submits the request
@@ -1273,16 +1452,16 @@ function Session({ sdk, context }) {
         }
         }
         if (!j.audioResourceId) {
-          const fs = panelLocalClient(sdk).files;
+          const fs = (window.parent as any).__DI__?.FileSystem;
           if (!fs?.join || !fs?.homedir) throw new Error("unavailable");
           const audioPath = fs.join(fs.homedir(), ".selects", "plugin-data", "multicam-generator", "jobs", j.id, "speech.wav");
           report("Prepare source speech…");
-          await prepareSpeech(sdk, j.plan, audioPath);
+          await prepareSpeech(j.plan, audioPath);
           const audioResourceId = await importPath(j, audioPath);
           j = {...j, audioResourceId, audioPath}; save(j);
         }
         if (!j.inputResourceId) {
-          const fs = panelLocalClient(sdk).files;
+          const fs = (window.parent as any).__DI__?.FileSystem;
           if (!fs?.homedir || !fs?.join) throw new Error("unavailable");
           const inputPath = fs.join(
             fs.homedir(),
@@ -1294,7 +1473,7 @@ function Session({ sdk, context }) {
             "source.mp4",
           );
           report("Prepare source video…");
-          await prepareMedia(sdk, {
+          await prepareMedia({
             action: "prepare",
             path: j.plan.path,
             output: inputPath,
@@ -1309,10 +1488,10 @@ function Session({ sdk, context }) {
         }
         for (let n = 0; n < (jobModel(j).key === "omni11" ? 0 : 3); n++) {
           if (!j.referenceResourceIds?.[n]) {
-            const fs = panelLocalClient(sdk).files;
+            const fs = (window.parent as any).__DI__?.FileSystem;
             const path = fs.join(fs.homedir(), ".selects", "plugin-data", "multicam-generator", "jobs", j.id, `identity-${n}.jpg`);
             report(`Prepare person reference ${n + 1}/3…`);
-            await prepareReference(sdk, j.plan, j.referenceIndexes[n], path);
+            await prepareReference(j.plan, j.referenceIndexes[n], path);
             const id = await importPath(j, path);
             const ids = [...(j.referenceResourceIds || [])]; ids[n] = id;
             j = {...j, referenceResourceIds:ids}; save(j);
@@ -1401,9 +1580,22 @@ function Session({ sdk, context }) {
             );
             if (resolved.matches?.length !== 1)
               throw new Error("operation_failed");
-            const matches = await sdkMediaByPath(sdk, j.plan.projectId, outputName + ".mp4", true);
+            const di = (window.parent as any).__DI__,
+              p = await di.ProjectRepository.findById(
+                j.plan.libraryId,
+                j.plan.projectId,
+              );
+            const matches = [];
+            for (const rid of p.getResources()) {
+              const r = await di.ResourceRepository.findById(
+                j.plan.libraryId,
+                rid,
+              );
+              if (r?.getMedia?.()?.path?.split(/[\\/]/).pop() === outputName + ".mp4")
+                matches.push(rid);
+            }
             if (matches.length !== 1) throw new Error("operation_failed");
-            id = matches[0].resourceId;
+            id = matches[0];
           }
           await resolveResource(j, id);
           j = { ...j, generatedResourceId: id, phase: j.task === "lipsync" ? "ready" : "angle_ready" };
@@ -1430,9 +1622,9 @@ function Session({ sdk, context }) {
         if (!j.lipModelId || !j.audioResourceId) throw new Error("lipsync_unavailable");
         if (!j.lipVideoResourceId) {
           const media = await resolveResource(j, j.generatedResourceId);
-          const fs = panelLocalClient(sdk).files;
+          const fs = (window.parent as any).__DI__?.FileSystem;
           const path = fs.join(fs.homedir(), ".selects", "plugin-data", "multicam-generator", "jobs", j.id, "angle.mp4");
-          await prepareMedia(sdk, {path:media.path, output:path, fps:j.plan.fps, frames:j.plan.endFrame-j.plan.startFrame,allowTailHold:jobModel(j).key.startsWith("seedance")});
+          await prepareMedia({path:media.path, output:path, fps:j.plan.fps, frames:j.plan.endFrame-j.plan.startFrame,allowTailHold:jobModel(j).key.startsWith("seedance")});
           const lipVideoResourceId = await importPath(j, path);
           j = {...j, lipVideoResourceId, angleResourceId:j.generatedResourceId}; save(j);
         }
@@ -1451,7 +1643,7 @@ function Session({ sdk, context }) {
       } else if (j.phase === "ready") {
         await assertSource(j);
         const media = await resolveResource(j, j.generatedResourceId);
-        const fs = panelLocalClient(sdk).files;
+        const fs = (window.parent as any).__DI__?.FileSystem;
         if (typeof fs?.getOrCreateTmpDirPath !== "function")
           throw new Error("unavailable");
         const outputPath = fs.join(
@@ -1469,20 +1661,71 @@ function Session({ sdk, context }) {
           fps: j.plan.fps,
           frames: j.plan.endFrame - j.plan.startFrame,
         };
-        await prepareMedia(sdk, args);
+        await prepareMedia(args);
         j = { ...j, outputPath, phase: "conformed" };
         save(j);
       } else if (j.phase === "conformed") {
         await assertSource(j);
-        // Reuse the exact imported file, or import and resolve it through the SDK.
-        const actualId = await importPath(j, j.outputPath);
+        // Match by file path, never by name: the generation service has already imported the raw file.
+        const di = (window.parent as any).__DI__,
+          p = await di.ProjectRepository.findById(
+            j.plan.libraryId,
+            j.plan.projectId,
+          );
+        let actualId;
+        for (const rid of p.getResources()) {
+          const r = await di.ResourceRepository.findById(j.plan.libraryId, rid);
+          if (r?.getMedia?.()?.path === j.outputPath) actualId = rid;
+        }
+        if (!actualId) {
+          await script(
+            `return await selects.project(${JSON.stringify(j.plan.projectId)}).importFiles({paths:[${JSON.stringify(j.outputPath)}]});`,
+            "Import prepared angle",
+            true,
+          );
+          const refreshed = await di.ProjectRepository.findById(
+            j.plan.libraryId,
+            j.plan.projectId,
+          );
+          for (const rid of refreshed.getResources()) {
+            const r = await di.ResourceRepository.findById(
+              j.plan.libraryId,
+              rid,
+            );
+            if (r?.getMedia?.()?.path === j.outputPath) actualId = rid;
+          }
+        }
+        if (!actualId) throw new Error("operation_failed");
         j = { ...j, actualResourceId: actualId, phase: "imported" };
         save(j);
       } else if (["imported", "review"].includes(j.phase)) {
         if (j.task !== "lipsync") throw new Error("lipsync_unavailable");
         await assertSource(j);
         await resolveResource(j, j.actualResourceId);
-        const placement = await placeDirect(j.plan, j.actualResourceId, sdk);
+        const placement = await placeDirect(j.plan, j.actualResourceId);
+        const di = (window.parent as any).__DI__,
+          saved = await di.SequenceRepository.findById(
+            j.plan.libraryId,
+            j.plan.draftId,
+          );
+        const matching = saved
+          .getTracks()
+          .filter((t) => t.isVideoTrack())
+          .flatMap((t) =>
+            t.getClipPositions({
+              coordinate: "resolved",
+              startFrame: j.plan.startFrame,
+              endFrame: j.plan.endFrame,
+              matchMode: "intersect",
+            }),
+          )
+          .filter(
+            (p) =>
+              p.clip.getDefaultMediaId() === j.actualResourceId &&
+              p.resolvedOffset === j.plan.startFrame &&
+              p.clip.getDuration() === j.plan.endFrame - j.plan.startFrame,
+          );
+        if (matching.length !== 1) throw new Error("operation_failed");
         j = { ...j, placement, phase: "placed" };
         save(j);
       } else if (j.phase === "placed") {
@@ -1492,7 +1735,7 @@ function Session({ sdk, context }) {
     }
   }
   async function generate(regenerate = false) {
-    const app = window as any;
+    const app = window.parent as any;
     const locks =
       app.__selectsMulticamRunning ||
       (app.__selectsMulticamRunning = new Set());
@@ -1528,7 +1771,6 @@ function Session({ sdk, context }) {
           context,
           { duration, angle, notes, model:modelKey, customAngle:angle === "custom" ? customAngle.trim() : "" },
           regenerate ? j?.plan?.startFrame : undefined,
-          sdk,
         );
         if (regenerate && j?.phase === "placed")
           plan.replaces = {
@@ -1703,8 +1945,15 @@ function Session({ sdk, context }) {
         <>
           <button
             data-variant="secondary"
-            onClick={async () => {
-              if (await current()) await multicamScript(sdk,`return await selects.editor.seekDraftFrame(${JSON.stringify({projectId:context.projectId,draftSequenceId:context.sequenceId,resolvedFrame:job.plan.startFrame})});`,"Show generated angle");
+            onClick={() => {
+              if (current())
+                (window.parent as any).__DI__.SequenceState.setPlayhead(
+                  context.sequenceId,
+                  job.plan.startFrame,
+                  null,
+                  { mode: "force", position: "center" },
+                  "multicam-generator",
+                );
             }}
           >
             Show result
@@ -1746,302 +1995,3 @@ function Session({ sdk, context }) {
     </div>
   )), language);
 }
-
-// generation-sdk:start
-// Paid jobs always cross the canonical run_script boundary. This panel-local
-// adapter preserves old saved job IDs while the host owns scope and delivery.
-function sdkGeneration(sdk) {
-  if (typeof sdk?.runScript !== "function") return null;
-  const run = async (script, summary, allowCommit = false) => {
-    const response = await sdk.runScript({ script, summary, allowCommit });
-    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
-    return response?.result;
-  };
-  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
-  return {
-    isAvailable: () => true,
-    supportsPluginFiles: () => true,
-    async submit(request) {
-      if (request.batch != null && request.batch !== 1) throw new Error("Submit one generation at a time.");
-      const input = {
-        projectId: request.scope.projectId, requestKey: request.key,
-        modelId: request.modelId, input: request.input, uploads: request.uploads || {},
-        outputName: request.outputName, mediaType: request.origin?.tool || "video",
-        ...(request.inputMediaSeconds ? { inputMediaSeconds: request.inputMediaSeconds } : {}),
-        ...(request.delivery ? { delivery: { folder: request.delivery.pluginFolder } } : {}),
-      };
-      const result = await run(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
-      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
-      return { jobIds: [result.jobId] };
-    },
-    list: scope => run(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
-    cancel: (scope, id) => run(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
-    retryDelivery: (scope, id) => run(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true),
-  };
-}
-// generation-sdk:end
-
-// local-sdk:start
-/** Pure host-platform path operations; no filesystem or renderer globals. */
-function panelLocalPaths(platform: string) {
-  const windows = platform === "win32";
-  const slash = (path: string) => {
-    if (typeof path !== "string")
-      throw new TypeError("A path must be a string.");
-    return windows ? path.replace(/\\/g, "/") : path;
-  };
-  const rootOf = (path: string) => {
-    if (windows) {
-      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
-      if (unc) return unc[0].replace(/\/?$/, "/");
-      const drive = path.match(/^[a-z]:\/?/i);
-      if (drive) return drive[0];
-    }
-    return path.startsWith("/") ? "/" : "";
-  };
-  const native = (value: string) =>
-    windows ? value.replace(/\//g, "\\") : value;
-  const normalize = (value: string) => {
-    const path = slash(value),
-      root = rootOf(path),
-      absolute = root.endsWith("/");
-    const segments: string[] = [];
-    for (const segment of path
-      .slice(Math.min(root.length, path.length))
-      .split("/")) {
-      if (!segment || segment === ".") continue;
-      if (segment === ".." && segments.length && segments.at(-1) !== "..")
-        segments.pop();
-      else if (segment !== ".." || !absolute) segments.push(segment);
-    }
-    let result = root + segments.join("/");
-    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
-    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
-    return native(result);
-  };
-  const basename = (value: string, extension?: string) => {
-    const path = slash(value).replace(/\/+$/, "");
-    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
-    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
-    return extension && name.endsWith(extension)
-      ? name.slice(0, -extension.length)
-      : name;
-  };
-  return {
-    normalize,
-    join: (...paths: string[]) => {
-      const parts = paths.map(slash).filter(Boolean);
-      let joined = parts.join("/");
-      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
-        joined = joined.replace(/^\/{2,}/, "/");
-      return normalize(joined);
-    },
-    dirname(value: string) {
-      const path = slash(value),
-        root = rootOf(path);
-      const end = path.replace(/\/+$/, "").lastIndexOf("/");
-      if (end < root.length) return value.slice(0, root.length) || ".";
-      return value.slice(0, end);
-    },
-    basename,
-    extname(value: string) {
-      const name = basename(value),
-        dot = name.lastIndexOf(".");
-      return dot <= 0 || name === ".." ? "" : name.slice(dot);
-    },
-    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
-  };
-}
-
-
-/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
-async function createPanelLocalClient(sdk: any) {
-  const run = async (method: string, args: unknown[], write = false) => {
-    // method names below are fixed implementation constants; values always use JSON encoding.
-    const response = await sdk.runScript({
-      summary: "Use local media workspace",
-      allowCommit: write,
-      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
-    });
-    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
-    // A clipped report has no result. Every read returning data rejects that case below.
-    return response.result;
-  };
-  const environment = await run("files.environment", []);
-  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
-    throw new Error("Update Selects to use this plugin's local media workspace.");
-  const paths = panelLocalPaths(environment.platform);
-  const CHUNK_BYTES = 48 * 1024;
-  const readRange = async (path: string, offset: number, length: number) => {
-    const parts: Uint8Array[] = [];
-    let total = 0;
-    while (total < length) {
-      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
-      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
-      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
-      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
-      parts.push(bytes); total += bytes.length;
-      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
-    }
-    const output = new Uint8Array(total);
-    let position = 0;
-    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
-    return output;
-  };
-  const files = {
-    ...paths,
-    homedir: () => environment.homedir,
-    getOrCreateTmpDirPath: async () => environment.tempDirectory,
-    exists: (path: string) => run("files.exists", [path]),
-    stat: (path: string) => run("files.stat", [path]),
-    readdir: (path: string) => run("files.readdir", [path]),
-    readRange,
-    async readFile(path: string, encoding?: string) {
-      const stat = await run("files.stat", [path]);
-      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
-      const bytes = await readRange(path, 0, stat.size);
-      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
-      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
-      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
-    },
-    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
-      const encoding = typeof options === "string" ? options : options?.encoding;
-      const flag = typeof options === "object" ? options.flag : undefined;
-      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
-      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
-      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
-      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
-      // Each complete replacement has its own sibling file. Other panels cannot
-      // overwrite one of its chunks before the final atomic rename publishes it.
-      const replacement = flag !== "a" && flag !== "wx";
-      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
-      let published = false;
-      try {
-        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
-          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
-          let binary = "";
-          for (const byte of chunk) binary += String.fromCharCode(byte);
-          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
-          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
-          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
-        }
-        if (replacement) await run("files.rename", [destination, path], true);
-        published = true;
-      } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
-      }
-    },
-    async compareAndReplace(path: string, expectedText: string | null, text: string) {
-      const encode = (value: string) => {
-        const bytes = new TextEncoder().encode(value);
-        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
-        let binary = "";
-        for (const byte of bytes) binary += String.fromCharCode(byte);
-        return btoa(binary);
-      };
-      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
-      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
-      return result.replaced;
-    },
-    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
-    rename: (from: string, to: string) => run("files.rename", [from, to], true),
-    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
-    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
-    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
-    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
-  };
-  const activeJobs = new Set<string>();
-  let disposed = false;
-  const cancel = async (jobId: string) => {
-    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
-    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
-  };
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
-    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const started = await run("media.start" + executable, [{ args }], true);
-    if (!started?.jobId) throw new Error("The media process did not return a job id.");
-    const jobId = started.jobId;
-    activeJobs.add(jobId);
-    let cancellation: Promise<void> | null = null;
-    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
-    signal?.addEventListener("abort", abort, { once: true });
-    if (disposed || signal?.aborted) abort();
-    let cursor = 0, stdout = "", stderr = "";
-    try {
-      while (true) {
-        if (cancellation) await cancellation;
-        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
-        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
-        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
-        for (const event of status.events) {
-          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
-          else { stderr += event.text; onStderr?.(event.text); }
-        }
-        cursor = status.nextCursor;
-        if (status.state !== "running" && status.events.length === 0) {
-          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
-          return { stdout, stderr };
-        }
-        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
-      }
-    } catch (error) {
-      await cancel(jobId).catch(() => {});
-      throw error;
-    } finally {
-      signal?.removeEventListener("abort", abort);
-      activeJobs.delete(jobId);
-    }
-  };
-  return {
-    files,
-    environment,
-    media: {
-      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
-      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
-    },
-    dialogs: {
-      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
-      pickDirectoryPath: () => run("editor.pickDirectory", []),
-      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
-    },
-    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
-  };
-}
-
-const panelLocalClients = new WeakMap<object, any>();
-function panelLocalClient(sdk: any): any {
-  const client = panelLocalClients.get(sdk);
-  if (!client) throw new Error("Local SDK has not initialized.");
-  return client;
-}
-function withPanelLocalClient(Component: any) {
-  return function LocalSdkPanel(props: any) {
-    const [state, setState] = React.useState<any>(null);
-    React.useEffect(() => {
-      let active = true;
-      let client: any;
-      createPanelLocalClient(props.sdk).then(value => {
-        client = {...props.sdk, ...value};
-        if (!active) { value.dispose(); return; }
-        panelLocalClients.set(props.sdk, client);
-        setState({sdk: props.sdk});
-      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
-      return () => {
-        active = false;
-        if (client) {
-          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
-          client.dispose();
-        }
-      };
-    }, [props.sdk]);
-    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
-    return React.createElement(Component, props);
-  };
-}
-
-export default withPanelLocalClient(Multicam);
-// local-sdk:end

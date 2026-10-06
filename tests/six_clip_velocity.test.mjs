@@ -182,5 +182,21 @@ test('finish refuses a Draft whose pieces moved and does not save',async()=>{
  assert.equal(result.status,'notSaved');assert.equal(log.commits,0);assert.match(result.message,/piece 41/);
 });
 
-// Native placement behavior is exercised through runScript in native_image_sdk_migration.test.mjs.
+// The panel's placement bridge on a fake timeline.
 const panelSource=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
+const bridge=panelSource.slice(panelSource.indexOf('export function placePiece'),panelSource.indexOf('export async function placeVideos'));
+const {placePiece}=vm.runInThisContext('(function(){'+bridge.replace('export function','function')+';return {placePiece};})()');
+
+test('placePiece retimes, trims to the source point and lands at its frame',()=>{
+ const log=[];let clip;
+ class Rate{static from(r){return r;}}
+ const c={
+  place:(_src,at)=>{clip={start:at,dur:360,rate:1,in:0,clip:null};return [7];},
+  getClipPositionById:()=>({trackId:'t',resolvedOffset:clip.start,clip:{getDuration:()=>clip.dur,requireTiming:()=>({getPlaybackSpeed:()=>new Rate()}),retimeByRequestedRate:({requestedRate})=>{clip.rate=requestedRate.numerator/requestedRate.denominator;clip.dur=Math.round(360/clip.rate);log.push('retime '+clip.rate);}}}),
+  trimClipBoundary:({position,delta})=>{if(position==='start'){clip.start+=delta;clip.dur-=delta;clip.in+=delta*clip.rate;log.push('start '+delta);return {effectiveDelta:-delta};}clip.dur+=delta;log.push('end '+delta);return {};},
+  shiftClipsInPlace:(_m,delta)=>{clip.start+=delta;log.push('shift '+delta);}};
+ const out=placePiece(c,{analyzed:{},main:{},primary:{getId:()=>1}},30,264,1.9,4,3);
+ assert.deepEqual(out,{clipId:7,trackId:'t'});
+ assert.deepEqual([clip.start,clip.dur,clip.rate,clip.in],[264,3,4,56]); // 1.9 s * 30 snaps to 14 frames * 4
+ assert.deepEqual(log,['retime 4','start 14','end -73','shift -14']);
+});

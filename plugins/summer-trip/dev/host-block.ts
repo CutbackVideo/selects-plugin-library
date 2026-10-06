@@ -1,9 +1,24 @@
+// Source of the panel's host block (adapted from plugins/selfie-aesthetic/dev/host-block.ts). panel.tsx carries the
+// text between the markers verbatim (tests/host.test.cjs evaluates it as plain JS in node:vm with a mocked
+// window.parent.__DI__; tests/panel.test.cjs checks that the copy is identical). Keep it plain JS: no imports, no type
+// annotations.
 // st-host:start
-// Local files, media tools and environment use the public SDK.
-// Missing capabilities report the existing host-tools error to the panel UI.
-let hostSdk = null;
-function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
-function hostDI() { return { fs: hostSdk?.files, rt: hostSdk?.media }; }
+// Host I/O through the renderer's own services, the same on macOS and Windows: no host shell, no node, nothing for the
+// user to install. ffmpeg/ffprobe are the host's bundled binaries (Runtime.runFFmpeg/runFFprobe take an argument
+// array, so paths need no quoting and never pass through a console), and every path is built by FileSystem.join.
+// __DI__ is internal host wiring that a newer or older Selects may lack, so each member is checked at call time.
+// Errors carry `code`: 'host_tools' (a needed __DI__ member is missing, listed in err.missing: the panel says "needs a
+// newer Selects"; bundled cues keep working), 'timeout' (ffmpeg/ffprobe ran past timeoutMs), 'cancelled' (the
+// caller's signal aborted it) or 'media_failed' (ffmpeg/ffprobe failed or wrote nothing usable; err.detail holds the
+// host's message, truncated).
+function hostDI() {
+  let di = null;
+  try { di = window.parent && window.parent.__DI__; } catch (e) { di = null; }
+  if (!di) { try { di = window.__DI__; } catch (e) { di = null; } }
+  const fs = di && di.FileSystem ? di.FileSystem : null;
+  const rt = di && di.Runtime ? di.Runtime : null;
+  return { fs, rt };
+}
 
 // names: ['fs.join', 'rt.runFFmpeg', ...]. Returns { ok, missing }.
 function hostHas(names) {
@@ -27,7 +42,18 @@ function hostNeed(names) {
   return hostDI();
 }
 
-function hostPlatform() { return hostSdk?.environment?.platform || ""; }
+function hostPlatform() {
+  let p = '';
+  try { const rt = hostDI().rt; if (rt && typeof rt.getPlatform === 'function') p = String(rt.getPlatform() || ''); } catch (e) { p = ''; }
+  if (/^win/i.test(p)) return 'win32';
+  if (/darwin|mac/i.test(p)) return 'darwin';
+  if (/linux/i.test(p)) return 'linux';
+  let ua = '';
+  try { ua = String(navigator.userAgent || ''); } catch (e) { ua = ''; }
+  if (/Windows NT/i.test(ua)) return 'win32';
+  if (/Mac/i.test(ua)) return 'darwin';
+  return 'linux';
+}
 
 // Joins path parts with the host's join (the OS separator).
 function hostJoin(...parts) {
@@ -37,24 +63,24 @@ function hostJoin(...parts) {
 
 // The installed plugin folder (the host's SELECTS_USER_SKILLS_ROOT is the user's .selects/skills), or null when the
 // folder lacks `marker` (a file every install has).
-async function hostSkillsDir(id, marker) {
-  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.exists']);
+function hostSkillsDir(id, marker) {
+  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.existsSync']);
   const dir = String(fs.join(fs.homedir(), '.selects', 'skills', id));
-  try { return (await fs.exists(fs.join(dir, marker))) ? dir : null; } catch (e) { return null; }
+  try { return fs.existsSync(fs.join(dir, marker)) ? dir : null; } catch (e) { return null; }
 }
 
 // The plugin's persistent data folder, created when missing.
-async function hostDataDir(id) {
-  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.mkdir']);
+function hostDataDir(id) {
+  const { fs } = hostNeed(['fs.join', 'fs.homedir', 'fs.mkdirSync']);
   const dir = String(fs.join(fs.homedir(), '.selects', 'plugin-data', id));
-  (await fs.mkdir(dir, { recursive: true }));
+  fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
 // A folder, created with its parents when missing.
-async function hostMkdir(dir) {
-  const { fs } = hostNeed(['fs.mkdir']);
-  (await fs.mkdir(dir, { recursive: true }));
+function hostMkdir(dir) {
+  const { fs } = hostNeed(['fs.mkdirSync']);
+  fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
@@ -100,7 +126,7 @@ async function hostProbeDuration(file, opts) {
 
 // Bytes as a fresh, 0-offset Uint8Array, whatever the host returned (a Buffer from another realm, Uint8Array,
 // ArrayBuffer, an IPC-serialized { type: 'Buffer', data: [...] } or a plain array). FileSystem results come from
-// the bridge, possibly another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them, so only realm-free checks are
+// window.parent, another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them, so only realm-free checks are
 // used (ArrayBuffer.isView and the toString tag read internal slots, Array.isArray works across realms), with an
 // array-like fallback for objects a bridge serialised by index.
 function hostBytes(raw) {
@@ -122,10 +148,10 @@ function hostBytes(raw) {
   return new Uint8Array(0);
 }
 
-// Require the asynchronous SDK reader.
+// FileSystem with a reader (readFile or readFileSync), else a host_tools error.
 function hostNeedReader() {
   const { fs } = hostDI();
-  if (!fs || typeof fs.readFile !== 'function') {
+  if (!fs || (typeof fs.readFile !== 'function' && typeof fs.readFileSync !== 'function')) {
     throw hostError('host_tools', 'this Selects build has no FileSystem.readFile', { missing: ['fs.readFile'] });
   }
   return fs;
@@ -133,10 +159,10 @@ function hostNeedReader() {
 
 async function hostReadRaw(file) {
   const fs = hostNeedReader();
-  return await fs.readFile(file);
+  return typeof fs.readFile === 'function' ? await fs.readFile(file) : fs.readFileSync(file);
 }
 
-// Read a file's bytes through the SDK.
+// A file's bytes (FileSystem.readFile, else readFileSync).
 async function hostReadBytes(file) {
   const raw = await hostReadRaw(file);
   if (typeof raw === 'string') throw hostError('media_failed', 'the file came back as text');
@@ -162,33 +188,34 @@ async function hostReadOutput(file, what) {
   return bytes;
 }
 
-// Write bytes through the SDK.
+// Writes bytes to a file (FileSystem.writeFile, else writeFileSync).
 async function hostWriteBytes(file, bytes) {
   const { fs } = hostDI();
   if (fs && typeof fs.writeFile === 'function') return await fs.writeFile(file, bytes);
+  if (fs && typeof fs.writeFileSync === 'function') return fs.writeFileSync(file, bytes);
   throw hostError('host_tools', 'this Selects build has no FileSystem.writeFile', { missing: ['fs.writeFile'] });
 }
 
-// A file's size in bytes, 0 when it is missing (stat; without it, exists says 1 for "there").
-async function hostFileSize(file) {
+// A file's size in bytes, 0 when it is missing (statSync; without it, existsSync says 1 for "there").
+function hostFileSize(file) {
   const { fs } = hostDI();
   try {
-    if (fs && typeof fs.stat === 'function') { const s = (await fs.stat(file)); return s && s.size > 0 ? Number(s.size) : 0; }
-    if (fs && typeof fs.exists === 'function') return (await fs.exists(file)) ? 1 : 0;
+    if (fs && typeof fs.statSync === 'function') { const s = fs.statSync(file); return s && s.size > 0 ? Number(s.size) : 0; }
+    if (fs && typeof fs.existsSync === 'function') return fs.existsSync(file) ? 1 : 0;
   } catch (e) { return 0; }
   return 0;
 }
 
-// Moves a finished file into place (FileSystem.rename).
-async function hostRename(from, to) {
-  const { fs } = hostNeed(['fs.rename']);
-  (await fs.rename(from, to));
+// Moves a finished file into place (FileSystem.renameSync).
+function hostRename(from, to) {
+  const { fs } = hostNeed(['fs.renameSync']);
+  fs.renameSync(from, to);
 }
 
 // The names in a folder, [] when it cannot be listed.
-async function hostList(dir) {
+function hostList(dir) {
   const { fs } = hostDI();
-  try { return fs && typeof fs.readdir === 'function' ? Array.from((await fs.readdir(dir)) || [], String) : []; } catch (e) { return []; }
+  try { return fs && typeof fs.readdirSync === 'function' ? Array.from(fs.readdirSync(dir) || [], String) : []; } catch (e) { return []; }
 }
 
 // Best effort; a leftover file in the data folder is harmless.
@@ -196,7 +223,9 @@ async function hostRemove(file) {
   const { fs } = hostDI();
   if (!fs) return;
   try {
+    if (typeof fs.unlinkSync === 'function') return fs.unlinkSync(file);
     if (typeof fs.removeFile === 'function') return await fs.removeFile({ filePath: file });
+    if (typeof fs.rmSync === 'function') return fs.rmSync(file, { force: true });
   } catch (e) { /* ignored */ }
 }
 
@@ -230,7 +259,7 @@ async function hostDecodePcm(file, dataDir, rate, maxSeconds, opts) {
 async function hostPreviewUrl(file, start, seconds, dataDir, fade) {
   hostNeed(['rt.runFFmpeg', 'fs.join']);
   hostNeedReader();
-  for (const name of (await hostList(dataDir))) if (/^preview-.*\.(mp3|wav|b64)$/.test(name)) await hostRemove(hostJoin(dataDir, name));
+  for (const name of hostList(dataDir)) if (/^preview-.*\.(mp3|wav|b64)$/.test(name)) await hostRemove(hostJoin(dataDir, name));
   const token = hostToken();
   const f = fade > 0 ? fade : 0;
   const cut = ['-nostdin', '-v', 'error', '-y', '-ss', Number(start || 0).toFixed(2), '-t', Number(seconds).toFixed(2), '-i', file, '-ac', '1', '-ar', '22050'];

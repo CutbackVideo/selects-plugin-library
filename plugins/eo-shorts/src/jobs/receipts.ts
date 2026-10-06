@@ -37,7 +37,7 @@ export async function describeOutputs(fs: HostFs, jobDir: string, relPaths: stri
   const out: OutputFile[] = [];
   for (const rel of relPaths) {
     const abs = fs.join(jobDir, ...rel.split("/"));
-    const st = (await statFile(fs, abs));
+    const st = statFile(fs, abs);
     if (!st) throw new Error("The stage reported an output that does not exist: " + rel);
     if (st.size <= HASH_LIMIT_BYTES) out.push({ path: rel, bytes: st.size, sha256: await sha256Hex(await readBytes(fs, abs)) });
     else out.push({ path: rel, bytes: st.size, mtimeMs: st.mtimeMs });

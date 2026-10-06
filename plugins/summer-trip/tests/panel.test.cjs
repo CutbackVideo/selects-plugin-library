@@ -103,7 +103,7 @@ assert.ok(code.includes('t(l, "checkingClipsCount", { done: d, count: total })')
   const local = code.slice(code.indexOf('async function scoreLocal('), code.indexOf('// The muffled copy of the user'));
   assert.ok(local && !/runShell|shell\(|\bsq\(|dq\(/.test(local), 'the quick score path uses no shell');
   // The quick-score cache sits in the data folder locateRoots got from the host FileSystem (st-host hostDataDir).
-  assert.ok(code.includes('dataDir: roots ? roots.data : null, onProgress: () => onDone() });') && code.includes('data = (await hostDataDir(PLUGIN_ID));'), 'the quick-score data folder comes from the host FileSystem');
+  assert.ok(code.includes('dataDir: roots ? roots.data : null, onProgress: () => onDone() });') && code.includes('data = hostDataDir(PLUGIN_ID);'), 'the quick-score data folder comes from the host FileSystem');
 }
 
 // Hangul audit across the plugin, as place-count does (check_public rejects it too).
@@ -180,7 +180,7 @@ assert.ok(!/useMemo\([^)]*uiLang|useEffect\([^)]*uiLang|useState\([^)]*uiLang/.t
 // Text kept in state renders in the language of the moment: status, progress detail and build-time notes are closures.
 assert.ok(code.includes('React.useState<{ tone: string; say: (lang: Lang) => string } | null>') && !/setStatus\(\{ tone: "\w+", text:/.test(code), 'status is a say(lang) closure');
 assert.ok(code.includes('{status.say(L)}') && code.includes('label={progressText(L, progress)}') && code.includes('typeof n === "function" ? n(L) : n'));
-assert.ok(!/new Error\("[A-Z]/.test(code.slice(code.indexOf('function Panel('), code.indexOf('// local-sdk:start'))), 'panel errors that reach the UI are uiError(say)');
+assert.ok(!/new Error\("[A-Z]/.test(code.slice(code.indexOf('export default function Panel('))), 'panel errors that reach the UI are uiError(say)');
 assert.ok(!/--text-tertiary/.test(panel), '--text-tertiary is not a panel token');
 assert.ok(!/var\(--accent\b/.test(panel), '--accent is not a panel token');
 assert.ok(!/icon="stop"/.test(panel), 'the kit has no stop icon');
@@ -199,8 +199,8 @@ assert.ok(!/["'`]\s*node\s/.test(panel.replace(/\/\/.*$/gm, '')) && !panel.inclu
 // runtime.sh stays the library copy (tests/test_runtime_copies.py); the panel no longer runs it.
 assert.equal(read('runtime.sh'), fs.readFileSync(path.join(__dirname, '..', '..', '..', 'tools', 'runtime.sh'), 'utf8'), 'runtime.sh is the library copy');
 // Folders: the install folder and the data folder from FileSystem (homedir/.selects/skills|plugin-data/<id>).
-assert.ok(code.includes('plugin = (await hostSkillsDir(PLUGIN_ID, "planner.js")); data = (await hostDataDir(PLUGIN_ID));'), 'locateRoots uses the host FileSystem');
-assert.ok(code.includes('setTools({ ffmpeg: hostHas(["rt.runFFmpeg", "fs.join", "fs.readFile", "fs.mkdir"]).ok });'), 'own music and previews need the host ffmpeg, not an installed one');
+assert.ok(code.includes('plugin = hostSkillsDir(PLUGIN_ID, "planner.js"); data = hostDataDir(PLUGIN_ID);'), 'locateRoots uses the host FileSystem');
+assert.ok(code.includes('setTools({ ffmpeg: hostHas(["rt.runFFmpeg", "fs.join", "fs.readFile", "fs.mkdirSync"]).ok });'), 'own music and previews need the host ffmpeg, not an installed one');
 // Paths under the install folder are joined part by part with FileSystem.join, never with "/".
 assert.ok(code.includes('function pjoin(root: string, rel: string) { return hostJoin(root, ...rel.split("/").filter(Boolean)); }') && code.includes('return await hostReadText(pjoin(root, rel));'));
 assert.ok(!/roots!?\.(plugin|data) \+/.test(code) && !/\+ ?["']\/["']/.test(code.replace(between(panel, '// quick-score:start', '// quick-score:end'), '').replace('i + "/" + todo.length', '')), 'no "/" path building (the one "/" is a progress count)');
@@ -212,10 +212,10 @@ assert.ok(code.includes('const samples = await hostDecodePcm(file.path, roots.da
 assert.ok(code.includes("const ST_PCM_RATE = 22050;") && code.includes("const ST_PCM_SECONDS = 360;"), 'the CLI path\'s rate and span');
 // The muffled copy: SHA-256 (first 8 hex, as shasum gave) over the bytes read cross-realm, ffmpeg argv, rename into place.
 assert.ok(code.includes('const hash = bytes && bytes.byteLength ? hostSha256Hex(bytes).slice(0, 8) : "";') && code.includes('await hostFFmpeg(stMuffleArgs(path, part), { timeoutMs: 180000 });')
-  && code.includes('(await hostRename(part, out));') && code.includes('const out = pjoin(roots!.data, stOwnMuffledName(name, hash)), part = out + ".part.wav";'), 'own music muffled as a cached .wav');
+  && code.includes('hostRename(part, out);') && code.includes('const out = pjoin(roots!.data, stOwnMuffledName(name, hash)), part = out + ".part.wav";'), 'own music muffled as a cached .wav');
 // SFX: base64 decoded in JS (whitespace stripped first) and written with FileSystem, skipped when already there.
 assert.ok(code.includes('const b64 = (await readText(roots!.plugin, f.b64)).replace(/\\s+/g, "");') && code.includes('await hostWriteBytes(f.path, bytes);')
-  && code.includes('if ((await hostFileSize(f.path)) > 0) continue;') && code.includes('const files = stSfxFiles(assets.sfx, dir, hostJoin);'), 'SFX decoded in JS');
+  && code.includes('if (hostFileSize(f.path) > 0) continue;') && code.includes('const files = stSfxFiles(assets.sfx, dir, hostJoin);'), 'SFX decoded in JS');
 // ensure-audio gets each bundled file's length for the file-name fallback.
 assert.ok(code.includes('const cueSeconds = m.kind === "cue" && m.cue.duration > 0 ? { duration: m.cue.duration } : {};') && code.includes('({ key: f.key, path: f.path, duration: f.seconds })'), 'durations for ensure-audio');
 assert.ok(panel.includes('{ key: "dry", path: dry, matchByName: false }'), 'own music matches an existing resource by path only');

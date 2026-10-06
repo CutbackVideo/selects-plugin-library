@@ -98,16 +98,16 @@ for(const [id,count] of [['four-photo-stop-motion',4],['polaroid-photo-dump',17]
  await assert.rejects(templateSelection(f.sdk,app,'p','lib',{photos:picks}),/more than one photo/);
 });
 for(const id of ['four-photo-stop-motion','polaroid-photo-dump','no14-still-video'])test(`${id}: native preparation resolves converted HEIC and JPG photos by their working paths`,async()=>{
- const {prepareNativeImages}=loadPanelFunctions(panelSource(id),['nativeImageSources','nativeImageRun','prepareNativeImages']);
- const nodes=[{resourceId:'a',path:'/derived/a.jpg',originalPath:'/imports/a.heic',frameSize:{width:1920,height:1080}},{resourceId:'b',path:'/imports/b.jpg',frameSize:{width:1920,height:1080}}];
- const project={resources:async()=>nodes.map(n=>({resourceId:n.resourceId,type:'Image'})),sourceFiles:async()=>({fileTree:nodes})};
- const sdk={runScript:async({script})=>({result:await new Function('selects',`return (async()=>{${script}})()`)({project:()=>project})})};
- const photos=[0,1,0].map(i=>({name:`Photo ${i}`,path:nodes[i].path}));
- const ready=await prepareNativeImages(sdk,'p',photos);
- assert.deepEqual(Array.from(ready.sources,s=>s.resourceId),['a','b','a']);
- await assert.rejects(prepareNativeImages(sdk,'p',[{name:'Missing',path:'/missing.jpg'}]),/missing or ambiguous/);
- nodes.push({...nodes[0],resourceId:'duplicate'});
- await assert.rejects(prepareNativeImages(sdk,'p',photos),/missing or ambiguous/);
+ const {prepareNativeImages}=loadPanelFunctions(panelSource(id),['prepareNativeImages']);
+ const media=[{path:'/derived/a.jpg',originalPath:'/imports/a.heic'},{path:'/imports/b.jpg'}];
+ const resources=media.map(m=>({getType:()=>'Image',getMedia:()=>({...m,width:1920,height:1080}),getAnalyzedSequence:async()=>({getMainTrack:()=>({getClips:()=>[{isGap:()=>false}]})})}));
+ const app={__DI__:{ProjectRepository:{findById:async()=>({getResources:()=>resources.map((_,i)=>i)})},ResourceRepository:{findById:async(_lib,i)=>resources[i]},SequenceRepository:{findById:async()=>null},TimelineMutation:{run:async()=>null}}};
+ const photos=[0,1,0].map(i=>({name:`Photo ${i}`,path:media[i].path}));
+ const ready=await prepareNativeImages(app,'p',photos,'lib');
+ assert.deepEqual(Array.from(ready.sources,s=>resources.indexOf(s.resource)),[0,1,0]);
+ await assert.rejects(prepareNativeImages(app,'p',[{name:'Missing',path:'/missing.jpg'}],'lib'),/missing or ambiguous/);
+ resources.push(resources[0]);
+ await assert.rejects(prepareNativeImages(app,'p',photos,'lib'),/missing or ambiguous/);
 });
 test('paging keeps one photo-measurement budget and measures no photo twice',async()=>{
  for(const id of inventories){

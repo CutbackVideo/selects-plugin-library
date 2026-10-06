@@ -37,9 +37,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// plugins/podcast-hook-captions/src/pipeline/sharedAiFaces.cjs
+// src/pipeline/sharedAiFaces.cjs
 var require_sharedAiFaces = __commonJS({
-  "plugins/podcast-hook-captions/src/pipeline/sharedAiFaces.cjs"(exports, module) {
+  "src/pipeline/sharedAiFaces.cjs"(exports, module) {
     var json = JSON.stringify;
     var PAGE_SAMPLES = 16;
     var terminal = (status) => ["succeeded", "failed", "canceled"].includes(status);
@@ -233,9 +233,9 @@ return {contractVersion:d.contractVersion,task:d.task,frameSize:d.frameSize,coor
   }
 });
 
-// plugins/podcast-hook-captions/src/pipeline/facePassJournal.cjs
+// src/pipeline/facePassJournal.cjs
 var require_facePassJournal = __commonJS({
-  "plugins/podcast-hook-captions/src/pipeline/facePassJournal.cjs"(exports, module) {
+  "src/pipeline/facePassJournal.cjs"(exports, module) {
     var { assertInput, assertRetryMetadata, latestFaceRecords: latestFaceRecords2 } = require_sharedAiFaces();
     var terminal = (s) => ["succeeded", "failed", "canceled"].includes(s);
     function createPassJournal2(storage, dir, randomUUID = () => crypto.randomUUID()) {
@@ -264,39 +264,32 @@ var require_facePassJournal = __commonJS({
           throw e;
         }
       }
-      async function activeSnapshot() {
-        const text = await storage.exists(activeFile) ? String(await storage.readFile(activeFile, "utf8")) : null;
-        return { text, generation: text === null ? "legacy" : parseActive(text) };
-      }
-      async function publishActive(previous, generation, signal) {
+      function publishActive(previous, generation, signal) {
         assertAttached(signal);
-        const current = await activeSnapshot();
-        if (current.generation !== previous) {
+        const current = storage.existsSync(activeFile) ? parseActive(storage.readFileSync(activeFile, "utf8")) : "legacy";
+        if (current !== previous) {
           const e = new Error("A newer face pass is already active. Recover that saved pass.");
           e.code = "AI_PASS_REPLACED";
           throw e;
         }
-        assertAttached(signal);
-        const replaced = await storage.compareAndReplace(activeFile, current.text, JSON.stringify({ version: 1, generation }));
-        if (!replaced) {
-          const e = new Error("A newer face pass is already active. Recover that saved pass.");
-          e.code = "AI_PASS_REPLACED";
-          throw e;
-        }
+        const temporary = activeFile + ".tmp-" + randomUUID();
+        storage.writeFileSync(temporary, JSON.stringify({ version: 1, generation }));
+        storage.renameSync(temporary, activeFile);
       }
       async function active() {
-        return (await activeSnapshot()).generation;
+        if (!storage.existsSync(activeFile)) return "legacy";
+        return parseActive(await storage.readFile(activeFile, "utf8"));
       }
       async function readGeneration(generation) {
         const filename = dataFile(generation);
         let value = { version: 1, generation, records: [] };
-        if (await storage.exists(filename)) {
+        if (storage.existsSync(filename)) {
           const text = String(await storage.readFile(filename, "utf8"));
           if (text.length > 256 * 1024) throw new Error("Face recovery journal exceeds the bounded transaction limit.");
           value = JSON.parse(text);
           if (value?.version !== 1 || !Array.isArray(value.records) || value.records.length > 256) throw new Error("Invalid face recovery journal.");
         }
-        const names = await storage.exists(dir) ? (await storage.readdir(dir)).filter((name) => name.startsWith(inputPrefix(generation)) && name.endsWith(".json")) : [];
+        const names = storage.existsSync(dir) ? storage.readdirSync(dir).filter((name) => name.startsWith(inputPrefix(generation)) && name.endsWith(".json")) : [];
         if (names.length > 256) throw new Error("Too many durable face requests in this pass.");
         for (const name of names) {
           const receipt = JSON.parse(String(await storage.readFile(storage.join(dir, name), "utf8")));
@@ -307,11 +300,11 @@ var require_facePassJournal = __commonJS({
           if (saved) Object.assign(saved, retry);
           else value.records.push({ input: receipt.input, ...retry });
         }
-        for (const record of value.records) {
+        value.records.forEach((record) => {
           assertInput(record.input);
           assertRetryMetadata(record);
-          if (await storage.exists(cancelFile(generation, record.input.requestKey))) record.cancelRequested = true;
-        }
+          if (storage.existsSync(cancelFile(generation, record.input.requestKey))) record.cancelRequested = true;
+        });
         return { ...value, generation };
       }
       async function assertActive(generation) {
@@ -326,7 +319,7 @@ var require_facePassJournal = __commonJS({
         if (text.length > 256 * 1024) throw new Error("Face recovery journal exceeds the bounded transaction limit.");
         const temporary = filename + ".tmp-" + randomUUID();
         await storage.writeFile(temporary, text);
-        await storage.rename(temporary, filename);
+        storage.renameSync(temporary, filename);
       }
       async function read() {
         return readGeneration(await active());
@@ -336,8 +329,8 @@ var require_facePassJournal = __commonJS({
           await assertActive(generation);
           const receipt = inputFile(generation, record.input.requestKey);
           assertRetryMetadata(record);
-          if (!await storage.exists(receipt)) await atomicWrite(receipt, { version: 1, input: record.input, ...record.retryAttempt === void 0 ? {} : { retryAttempt: record.retryAttempt, retryOf: record.retryOf } });
-          if (record.cancelRequested && !await storage.exists(cancelFile(generation, record.input.requestKey)))
+          if (!storage.existsSync(receipt)) await atomicWrite(receipt, { version: 1, input: record.input, ...record.retryAttempt === void 0 ? {} : { retryAttempt: record.retryAttempt, retryOf: record.retryOf } });
+          if (record.cancelRequested && !storage.existsSync(cancelFile(generation, record.input.requestKey)))
             await atomicWrite(cancelFile(generation, record.input.requestKey), { version: 1, requested: true });
           const book = await readGeneration(generation);
           const old = book.records.find((r) => r.input.requestKey === record.input.requestKey);
@@ -367,7 +360,7 @@ var require_facePassJournal = __commonJS({
           const generation = randomUUID();
           if (!validGeneration(generation) || generation === "legacy") throw new Error("Invalid new face pass identity.");
           await atomicWrite(dataFile(generation), { version: 1, generation, records: [] });
-          await publishActive(book.generation, generation, signal);
+          publishActive(book.generation, generation, signal);
           return generation;
         });
       }
@@ -377,286 +370,28 @@ var require_facePassJournal = __commonJS({
   }
 });
 
-// shared/local-client.ts
-import React from "react";
-function panelLocalPaths(platform) {
-  const windows = platform === "win32";
-  const slash = (path) => {
-    if (typeof path !== "string")
-      throw new TypeError("A path must be a string.");
-    return windows ? path.replace(/\\/g, "/") : path;
-  };
-  const rootOf = (path) => {
-    if (windows) {
-      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
-      if (unc) return unc[0].replace(/\/?$/, "/");
-      const drive = path.match(/^[a-z]:\/?/i);
-      if (drive) return drive[0];
-    }
-    return path.startsWith("/") ? "/" : "";
-  };
-  const native = (value) => windows ? value.replace(/\//g, "\\") : value;
-  const normalize = (value) => {
-    const path = slash(value), root = rootOf(path), absolute = root.endsWith("/");
-    const segments = [];
-    for (const segment of path.slice(Math.min(root.length, path.length)).split("/")) {
-      if (!segment || segment === ".") continue;
-      if (segment === ".." && segments.length && segments.at(-1) !== "..")
-        segments.pop();
-      else if (segment !== ".." || !absolute) segments.push(segment);
-    }
-    let result = root + segments.join("/");
-    if (!result || windows && /^[a-z]:$/i.test(result)) result += ".";
-    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
-    return native(result);
-  };
-  const basename = (value, extension) => {
-    const path = slash(value).replace(/\/+$/, "");
-    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
-    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
-    return extension && name.endsWith(extension) ? name.slice(0, -extension.length) : name;
-  };
-  return {
-    normalize,
-    join: (...paths) => {
-      const parts = paths.map(slash).filter(Boolean);
-      let joined = parts.join("/");
-      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
-        joined = joined.replace(/^\/{2,}/, "/");
-      return normalize(joined);
-    },
-    dirname(value) {
-      const path = slash(value), root = rootOf(path);
-      const end = path.replace(/\/+$/, "").lastIndexOf("/");
-      if (end < root.length) return value.slice(0, root.length) || ".";
-      return value.slice(0, end);
-    },
-    basename,
-    extname(value) {
-      const name = basename(value), dot = name.lastIndexOf(".");
-      return dot <= 0 || name === ".." ? "" : name.slice(dot);
-    },
-    isAbsolute: (value) => rootOf(slash(value)).endsWith("/")
-  };
-}
-async function createPanelLocalClient(sdk) {
-  const run = async (method, args, write = false) => {
-    const response = await sdk.runScript({
-      summary: "Use local media workspace",
-      allowCommit: write,
-      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");"
-    });
-    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
-    return response.result;
-  };
-  const environment = await run("files.environment", []);
-  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
-    throw new Error("Update Selects to use this plugin's local media workspace.");
-  const paths = panelLocalPaths(environment.platform);
-  const CHUNK_BYTES2 = 48 * 1024;
-  const readRange = async (path, offset, length) => {
-    const parts = [];
-    let total = 0;
-    while (total < length) {
-      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES2, length - total) }]);
-      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
-      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
-      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
-      parts.push(bytes);
-      total += bytes.length;
-      if (bytes.length < Math.min(CHUNK_BYTES2, length - (total - bytes.length))) break;
-    }
-    const output = new Uint8Array(total);
-    let position = 0;
-    for (const bytes of parts) {
-      output.set(bytes, position);
-      position += bytes.length;
-    }
-    return output;
-  };
-  const files = {
-    ...paths,
-    homedir: () => environment.homedir,
-    getOrCreateTmpDirPath: async () => environment.tempDirectory,
-    exists: (path) => run("files.exists", [path]),
-    stat: (path) => run("files.stat", [path]),
-    readdir: (path) => run("files.readdir", [path]),
-    readRange,
-    async readFile(path, encoding) {
-      const stat = await run("files.stat", [path]);
-      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
-      const bytes = await readRange(path, 0, stat.size);
-      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
-      if (encoding !== void 0 && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
-      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
-    },
-    async writeFile(path, data, options) {
-      const encoding = typeof options === "string" ? options : options?.encoding;
-      const flag = typeof options === "object" ? options.flag : void 0;
-      if (flag !== void 0 && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
-      if (encoding !== void 0 && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
-      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
-      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES2) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
-      const replacement = flag !== "a" && flag !== "wx";
-      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
-      let published = false;
-      try {
-        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES2) {
-          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES2);
-          let binary = "";
-          for (const byte of chunk) binary += String.fromCharCode(byte);
-          const mode = offset === 0 ? flag === "a" ? "append" : "exclusive" : void 0;
-          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...mode ? { mode } : {} }], true);
-          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
-        }
-        if (replacement) await run("files.rename", [destination, path], true);
-        published = true;
-      } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {
-        });
-      }
-    },
-    async compareAndReplace(path, expectedText, text) {
-      const encode = (value) => {
-        const bytes = new TextEncoder().encode(value);
-        if (bytes.length > CHUNK_BYTES2) throw new Error("Atomic file values are limited to 48 KiB.");
-        let binary = "";
-        for (const byte of bytes) binary += String.fromCharCode(byte);
-        return btoa(binary);
-      };
-      const result = await run("files.compareAndReplace", [{ path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text) }], true);
-      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
-      return result.replaced;
-    },
-    mkdir: (path, options) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path, options) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }) => run("files.remove", [filePath, { force: true }], true),
-    rename: (from, to) => run("files.rename", [from, to], true),
-    copyFile: (from, to) => run("files.copy", [from, to], true),
-    downloadFile: (url, path) => run("files.download", [url, path], true),
-    pathToLocalURL: (path) => run("files.localUrl", [path]),
-    localURLToPath: (url) => run("files.pathFromLocalUrl", [url])
-  };
-  const activeJobs = /* @__PURE__ */ new Set();
-  let disposed = false;
-  const cancel = async (jobId) => {
-    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
-    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
-  };
-  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr) => {
-    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const started = await run("media.start" + executable, [{ args }], true);
-    if (!started?.jobId) throw new Error("The media process did not return a job id.");
-    const jobId = started.jobId;
-    activeJobs.add(jobId);
-    let cancellation = null;
-    const abort = () => {
-      cancellation ??= cancel(jobId);
-      void cancellation.catch(() => {
-      });
-    };
-    signal?.addEventListener("abort", abort, { once: true });
-    if (disposed || signal?.aborted) abort();
-    let cursor = 0, stdout = "", stderr = "";
-    try {
-      while (true) {
-        if (cancellation) await cancellation;
-        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
-        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
-        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
-        for (const event of status.events) {
-          if (event.stream === "stdout") {
-            stdout += event.text;
-            onStdout?.(event.text);
-          } else {
-            stderr += event.text;
-            onStderr?.(event.text);
-          }
-        }
-        cursor = status.nextCursor;
-        if (status.state !== "running" && status.events.length === 0) {
-          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
-          return { stdout, stderr };
-        }
-        if (status.state === "running") await new Promise((resolve2) => setTimeout(resolve2, 150));
-      }
-    } catch (error) {
-      await cancel(jobId).catch(() => {
-      });
-      throw error;
-    } finally {
-      signal?.removeEventListener("abort", abort);
-      activeJobs.delete(jobId);
-    }
-  };
-  return {
-    files,
-    environment,
-    media: {
-      runFFmpeg: (args, quiet, signal, stdout, stderr) => process("FFmpeg", args, quiet, signal, stdout, stderr),
-      runFFprobe: (args, quiet, signal) => process("FFprobe", args, quiet, signal)
-    },
-    dialogs: {
-      pickFilePath: (filters) => run("editor.pickFile", [{ filters }]),
-      pickDirectoryPath: () => run("editor.pickDirectory", []),
-      pickSavePath: (defaultPath) => run("editor.pickSavePath", [{ defaultPath }])
-    },
-    dispose() {
-      disposed = true;
-      for (const jobId of activeJobs) void cancel(jobId).catch(() => {
-      });
-    }
-  };
-}
-var panelLocalClients = /* @__PURE__ */ new WeakMap();
-function panelLocalClient(sdk) {
-  const client = panelLocalClients.get(sdk);
-  if (!client) throw new Error("Local SDK has not initialized.");
-  return client;
-}
-function withPanelLocalClient(Component) {
-  return function LocalSdkPanel(props) {
-    const [state, setState] = React.useState(null);
-    React.useEffect(() => {
-      let active = true;
-      let client;
-      createPanelLocalClient(props.sdk).then((value) => {
-        client = { ...props.sdk, ...value };
-        if (!active) {
-          value.dispose();
-          return;
-        }
-        panelLocalClients.set(props.sdk, client);
-        setState({ sdk: props.sdk });
-      }).catch((error) => {
-        if (active) setState({ error: String(error?.message || error) });
-      });
-      return () => {
-        active = false;
-        if (client) {
-          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
-          client.dispose();
-        }
-      };
-    }, [props.sdk]);
-    if (state?.error) return React.createElement("div", { role: "alert" }, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", { role: "status" }, "Connecting to Selects\u2026");
-    return React.createElement(Component, props);
-  };
-}
+// src/Panel.tsx
+import React3, { useEffect as useEffect2, useRef as useRef2, useState as useState2 } from "react";
 
-// plugins/podcast-hook-captions/src/pipeline/host.ts
+// src/pipeline/host.ts
 var PANEL_ID = "podcast-hook-captions";
 function app() {
   const parent = window.parent;
-  return parent?.opener || window.opener || parent;
+  if (parent?.__DI__) return parent;
+  const opener = parent?.opener || window.opener;
+  if (opener?.__DI__) return opener;
+  throw new Error("This Selects version does not expose native panel services.");
 }
-function getSdk() {
-  return hostSdk;
+function di() {
+  return app().__DI__;
+}
+function libraryId() {
+  const id = app().location.pathname.match(/libraries\/([^/]+)/)?.[1];
+  if (!id) throw new Error("Open a Draft in Selects first.");
+  return id;
 }
 function fs() {
-  return hostSdk.files;
+  return di().FileSystem;
 }
 function dataRoot() {
   const f = fs();
@@ -668,7 +403,7 @@ function skillRoot() {
 }
 function hostVersion() {
   try {
-    return String(hostSdk?.environment?.version || "");
+    return String(di().Runtime?.getHostingVersion?.() || "");
   } catch {
     return "";
   }
@@ -701,7 +436,7 @@ async function script(sdk, summary, body, allowCommit = false) {
   return r.result;
 }
 async function ffmpeg(label, args, timeoutMs = 3e5, captureLog = false) {
-  const rt = hostSdk.media;
+  const rt = di().Runtime;
   if (typeof rt?.runFFmpeg !== "function") throw new Error("This Selects version cannot run ffmpeg for plug-ins. Update Selects.");
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
@@ -722,7 +457,7 @@ async function ffmpeg(label, args, timeoutMs = 3e5, captureLog = false) {
   }
 }
 async function ffprobe(label, args, timeoutMs = 6e4) {
-  const rt = hostSdk.media;
+  const rt = di().Runtime;
   if (typeof rt?.runFFprobe !== "function") throw new Error("This Selects version cannot run ffprobe for plug-ins. Update Selects.");
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
@@ -753,15 +488,15 @@ function toolError(e, streamed) {
   text = text.trim();
   return text ? ": " + text.slice(-600) : ".";
 }
-async function removeFile(path) {
+function removeFile(path) {
   try {
-    if (await fs().exists(path)) await fs().rm(path);
+    if (fs().existsSync(path)) fs().unlinkSync(path);
   } catch {
   }
 }
-async function filesIn(dir, pattern) {
+function filesIn(dir, pattern) {
   try {
-    return (await fs().readdir(dir)).map(String).filter((n) => pattern.test(n));
+    return fs().readdirSync(dir).map(String).filter((n) => pattern.test(n));
   } catch {
     return [];
   }
@@ -780,19 +515,8 @@ function lastJsonObject(text) {
   }
   throw new Error("The assistant's JSON could not be read.");
 }
-var hostSdk;
-function hostUseSdk(sdk) {
-  hostSdk = panelLocalClient(sdk);
-  if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin.");
-}
-function media() {
-  return hostSdk.media;
-}
 
-// plugins/podcast-hook-captions/src/Panel.tsx
-import React4, { useEffect as useEffect2, useRef as useRef2, useState as useState2 } from "react";
-
-// plugins/podcast-hook-captions/src/pipeline/select.ts
+// src/pipeline/select.ts
 var norm = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 var toks = (s) => String(s || "").split(/\s+/).map(norm).filter(Boolean);
 function sentences(words, fps) {
@@ -1017,7 +741,7 @@ function mapPicks(picks, map) {
   return out;
 }
 
-// plugins/podcast-hook-captions/src/pipeline/reel.ts
+// src/pipeline/reel.ts
 var import_sharedAiFaces = __toESM(require_sharedAiFaces());
 async function readSource(sdk, sid) {
   return script(
@@ -1090,13 +814,13 @@ return { fps: m.fps, endFrame: main.reduce((a: number, c: any) => Math.max(a, c.
   return r;
 }
 
-// plugins/podcast-hook-captions/src/pipeline/faceFrames.ts
+// src/pipeline/faceFrames.ts
 var import_sharedAiFaces2 = __toESM(require_sharedAiFaces());
 var CHUNK_BYTES = 128 * 1024 * 1024;
 var chunkSamples = (plan) => Math.max(30, Math.floor(CHUNK_BYTES / (plan.w * plan.h * 3)));
 var CHUNK_TIMEOUT_MS = 10 * 60 * 1e3;
 function runtime() {
-  const rt = media();
+  const rt = di().Runtime;
   if (typeof rt?.runFFmpeg !== "function" || typeof rt?.runFFprobe !== "function") throw new Error("This Selects version cannot run ffmpeg for plug-ins. Update Selects.");
   return rt;
 }
@@ -1192,7 +916,7 @@ async function cvFrameSeek(path, info, plan, stats, run) {
   for (let tries = 0; tries < 8; tries += 1) {
     const ft = Math.max(plan.f0 - delta, 0);
     const probe = { seek: Math.max(0, info.offset + ft / info.fps), keyframe: true, skip: 0 };
-    await removeQuiet(stats);
+    removeQuiet(stats);
     await run([
       "-nostdin",
       "-hide_banner",
@@ -1223,7 +947,7 @@ async function cvFrameSeek(path, info, plan, stats, run) {
       t = sampleTime(String(await fs().readFile(stats, "utf8")), 0);
     } catch {
     }
-    await removeQuiet(stats);
+    removeQuiet(stats);
     if (t == null) return null;
     const n = Math.floor(info.fps * (probe.seek + t - info.offset) + 0.5);
     if (n >= 0 && n <= plan.f0 - 1) return { seek: probe.seek, keyframe: true, skip: plan.f0 - n };
@@ -1276,15 +1000,15 @@ function toBytes(v) {
   if (v && v.type === "Buffer" && Array.isArray(v.data)) return Uint8Array.from(v.data);
   return new Uint8Array(0);
 }
-async function removeQuiet(path) {
+function removeQuiet(path) {
   try {
-    if (await fs().exists(path)) await fs().rm(path);
+    if (fs().existsSync(path)) fs().unlinkSync(path);
   } catch {
   }
 }
-async function fileSize(path) {
+function fileSize(path) {
   try {
-    const st = await fs().stat(path);
+    const st = fs().statSync(path);
     return st && typeof st.size === "number" ? st.size : null;
   } catch {
     return null;
@@ -1299,14 +1023,14 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
     chunks.push({ first: s, n: Math.min(per, plan.count - s), file: base + ".bgr", stats: s + per < plan.count ? base + ".txt" : null });
   }
   if (!chunks.length) return;
-  await fs().mkdir(workDir, { recursive: true });
+  fs().mkdirSync(workDir, { recursive: true });
   const ac = new AbortController();
   const stop = () => ac.abort();
   if (signal) signal.addEventListener("abort", stop);
   const ffmpeg2 = (args) => withTimeout((s) => runtime().runFFmpeg(args, true, s), CHUNK_TIMEOUT_MS, ac.signal);
   const extract = (c, from) => {
     const p = (async () => {
-      await removeQuiet(c.file);
+      removeQuiet(c.file);
       let start = from;
       if (!start) {
         const probeStats = fs().join(workDir, "frames-" + tag + "-seek.txt");
@@ -1315,13 +1039,13 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
           return null;
         }) || timeStart(info, plan);
       }
-      if (c.stats) await removeQuiet(c.stats);
+      if (c.stats) removeQuiet(c.stats);
       try {
         await ffmpeg2(frameArgs(path, plan, start, c.n, c.file, c.stats));
       } catch (e) {
         if (ac.signal.aborted || !c.stats) throw e;
         c.stats = null;
-        await removeQuiet(c.file);
+        removeQuiet(c.file);
         await ffmpeg2(frameArgs(path, plan, start, c.n, c.file, null));
       }
       let next = null;
@@ -1331,7 +1055,7 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
           if (t != null) next = { seek: Math.max(0, start.seek + t - info.frameS / 2), keyframe: false, skip: 0 };
         } catch {
         }
-        await removeQuiet(c.stats);
+        removeQuiet(c.stats);
       }
       return { c, next };
     })().catch((e) => {
@@ -1347,11 +1071,11 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
     for (let k = 0; k < chunks.length; k += 1) {
       const { c, next } = await pending;
       pending = null;
-      const size = await fileSize(c.file);
+      const size = fileSize(c.file);
       const full = size == null || size >= c.n * fb;
       if (full && k + 1 < chunks.length) pending = extract(chunks[k + 1], next || timeStart(info, plan, chunks[k + 1].first));
       let got = 0;
-      if (await fs().exists(c.file)) {
+      if (fs().existsSync(c.file)) {
         for (let i = 0; i < c.n; i += 1) {
           if (signal && signal.aborted) throw new Error("Face tracking was cancelled.");
           const bytes = toBytes(await fs().readRange(c.file, i * fb, fb));
@@ -1360,7 +1084,7 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
           yield bytes;
         }
       }
-      await removeQuiet(c.file);
+      removeQuiet(c.file);
       if (got < c.n) break;
     }
   } finally {
@@ -1370,14 +1094,14 @@ async function* sampleFrames(path, info, plan, workDir, tag, signal) {
     }
     if (signal) signal.removeEventListener("abort", stop);
     for (const c of chunks) {
-      await removeQuiet(c.file);
-      if (c.stats) await removeQuiet(c.stats);
+      removeQuiet(c.file);
+      if (c.stats) removeQuiet(c.stats);
     }
-    await removeQuiet(fs().join(workDir, "frames-" + tag + "-seek.txt"));
+    removeQuiet(fs().join(workDir, "frames-" + tag + "-seek.txt"));
   }
 }
 
-// plugins/podcast-hook-captions/src/pipeline/cvstats.ts
+// src/pipeline/cvstats.ts
 var HSV_SHIFT = 12;
 var HSV_HALF = 1 << HSV_SHIFT - 1;
 var SDIV = new Int32Array(256);
@@ -1507,7 +1231,7 @@ function pyRound(x, nd = 0) {
   return out === 0 ? 0 : out;
 }
 
-// plugins/podcast-hook-captions/src/pipeline/faceTrack.ts
+// src/pipeline/faceTrack.ts
 var TRACK = { fps: 6, score: 0.8, minFace: 0.05, cut: 0.35, longSide: 640, colorSamples: 40, minShot: 0.5 };
 var F = Math.fround;
 var SCORE = F(TRACK.score);
@@ -1639,10 +1363,10 @@ async function scanProbed(job, info, plan, o) {
   return { id: job.id, width: info.W, height: info.H, fps: info.fps, shots: buildShots(observed, cuts, plan.f1, info.fps), color: colorSummary(colors) };
 }
 
-// plugins/podcast-hook-captions/src/pipeline/faces.ts
+// src/pipeline/faces.ts
 var import_sharedAiFaces4 = __toESM(require_sharedAiFaces());
 
-// plugins/podcast-hook-captions/src/pipeline/sharedFaceJobs.ts
+// src/pipeline/sharedFaceJobs.ts
 var import_sharedAiFaces3 = __toESM(require_sharedAiFaces());
 var import_facePassJournal = __toESM(require_facePassJournal());
 var journals = /* @__PURE__ */ new Map();
@@ -1684,7 +1408,7 @@ async function newFacePass(dir, signal) {
   await pass(dir).newPass(signal);
 }
 
-// plugins/podcast-hook-captions/src/pipeline/faces.ts
+// src/pipeline/faces.ts
 var TARGET = { faceH: 0.36, cx: 0.51, eyes: 0.21, maxUpscale: 2.8 };
 function adaptiveGrade(faces) {
   const cs = Object.values(faces).map((f2) => f2.color).filter(Boolean);
@@ -1746,7 +1470,7 @@ async function trackFaces(sdk, projectId, dir, clips, fps, progress = () => {
     }
   } finally {
     try {
-      await fs().rm(workDir, { recursive: true, force: true });
+      fs().rmSync(workDir, { recursive: true, force: true });
     } catch {
     }
   }
@@ -1794,42 +1518,7 @@ function reelShots(W, H, fps, clips, faces) {
   return out.sort((a, b) => a.from - b.from);
 }
 
-// shared/generation-client.js
-function sdkGeneration(sdk) {
-  if (typeof sdk?.runScript !== "function") return null;
-  const run = async (script2, summary, allowCommit = false) => {
-    const response = await sdk.runScript({ script: script2, summary, allowCommit });
-    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
-    return response?.result;
-  };
-  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
-  return {
-    isAvailable: () => true,
-    supportsPluginFiles: () => true,
-    async submit(request) {
-      if (request.batch != null && request.batch !== 1) throw new Error("Submit one generation at a time.");
-      const input = {
-        projectId: request.scope.projectId,
-        requestKey: request.key,
-        modelId: request.modelId,
-        input: request.input,
-        uploads: request.uploads || {},
-        outputName: request.outputName,
-        mediaType: request.origin?.tool || "video",
-        ...request.inputMediaSeconds ? { inputMediaSeconds: request.inputMediaSeconds } : {},
-        ...request.delivery ? { delivery: { folder: request.delivery.pluginFolder } } : {}
-      };
-      const result = await run(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
-      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
-      return { jobIds: [result.jobId] };
-    },
-    list: (scope) => run(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
-    cancel: (scope, id) => run(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
-    retryDelivery: (scope, id) => run(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true)
-  };
-}
-
-// plugins/podcast-hook-captions/src/pipeline/media.ts
+// src/pipeline/media.ts
 var b64url = (s) => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 var model = (endpoint) => "model_v1_" + b64url(endpoint);
 var FAILED = /* @__PURE__ */ new Set(["failed", "cancelled", "canceled", "input_failed", "submission_rejected", "upload_failed", "handoff_failed"]);
@@ -1851,16 +1540,16 @@ async function generate(pid, r, label, onTick, timeoutMs, tries = 3) {
   throw last;
 }
 function mediaGeneration() {
-  const mg = sdkGeneration(getSdk());
+  const mg = di().MediaGeneration;
   if (!mg?.isAvailable?.()) throw new Error("Selects generation is not available for this account.");
-  if (!mg.supportsPluginFiles?.()) throw new Error("Update Selects to use generation files in this plugin.");
+  if (!mg.supportsPluginFiles?.()) throw new Error("This needs Selects 2.0.512 or later (plug-in generation files). Update Selects.");
   return mg;
 }
 async function submit(pid, r) {
   const mg = mediaGeneration();
-  await fs().mkdir(r.folder, { recursive: true });
+  fs().mkdirSync(r.folder, { recursive: true });
   const res = await mg.submit({
-    scope: { projectId: pid },
+    scope: { libraryId: libraryId(), projectId: pid },
     key: r.key.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64),
     modelId: model(r.endpoint),
     input: r.input,
@@ -1877,7 +1566,7 @@ async function submit(pid, r) {
 }
 async function waitFor(pid, jobId, label, onTick, timeoutMs = 15 * 6e4) {
   const mg = mediaGeneration();
-  const scope = { projectId: pid };
+  const scope = { libraryId: libraryId(), projectId: pid };
   const t0 = Date.now();
   let redeliveries = 0;
   for (; ; ) {
@@ -1905,12 +1594,12 @@ async function waitFor(pid, jobId, label, onTick, timeoutMs = 15 * 6e4) {
       if (j.status === "submission_unknown" && j.errorCode && Date.now() - t0 > 45e3) {
         mg.cancel(scope, jobId).catch(() => {
         });
-        throw new Error(label + " has an unknown submission outcome (" + j.errorCode + "). Resume the same request.");
+        throw new StuckError(label + " was not accepted (" + j.errorCode + ").");
       }
       if (["preparing", "uploading", "submitting"].includes(j.status) && j.errorCode && Date.now() - t0 > 9e4) {
         mg.cancel(scope, jobId).catch(() => {
         });
-        throw new Error(label + " is still unresolved (" + j.errorCode + "). Resume the same request.");
+        throw new StuckError(label + " stalled (" + j.errorCode + ").");
       }
     }
     if (onTick) onTick(label + " \xB7 " + Math.round((Date.now() - t0) / 1e3) + " s");
@@ -1944,12 +1633,12 @@ var SFX_ANCHOR = {
 };
 async function ensureSfxLibrary(pid, onTick) {
   const dir = fs().join(fsDataRoot(), "sfx-lib");
-  await fs().mkdir(dir, { recursive: true });
+  fs().mkdirSync(dir, { recursive: true });
   const have = {};
   const want = [];
   for (const k of Object.keys(SFX_PROMPTS)) {
     const p = fs().join(dir, k + "-" + SFX_VERSION + ".mp3");
-    if (await fs().exists(p)) have[k] = p;
+    if (fs().existsSync(p)) have[k] = p;
     else want.push(k);
   }
   if (!want.length) return have;
@@ -1982,16 +1671,74 @@ function fsDataRoot() {
   return f.join(f.homedir(), ".selects", "plugin-data", "podcast-hook-captions");
 }
 
-// plugins/podcast-hook-captions/src/pipeline/render.ts
+// src/pipeline/render.ts
+async function sourceRevision(sequenceId, resourceIds) {
+  const lib = libraryId();
+  const sequence = await di().SequenceRepository.findById(lib, sequenceId);
+  if (!sequence) throw new Error("The render copy could not be reloaded.");
+  const resources = await Promise.all(resourceIds.map((id) => di().ResourceRepository.findById(lib, id)));
+  const json = JSON.stringify({ sequence: sequence.toJSON(), resources: resources.map((r) => r?.toJSON() ?? null) });
+  const digest = await app().crypto.subtle.digest("SHA-256", new (app()).TextEncoder().encode(json));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
 async function renderDraft(pid, sid, outputPath, progress) {
-  const sdk = getSdk();
-  const job = await script(sdk, "Render speaker matte source", `const job=await selects.export.video(${JSON.stringify({ projectId: pid, draftSequenceId: sid, outPath: outputPath, resolution: "FHD", composition: { includeCaptions: false, frameSize: { width: 1080, height: 1920 } } })});return {workflowId:job.workflowId};`, true);
-  for (; ; ) {
-    const state = await script(sdk, "Read matte render progress", `return await selects.workflow(${JSON.stringify(job.workflowId)}).status();`);
-    if (state.status === "succeeded") return;
-    if (["failed", "canceled", "unknown"].includes(state.status)) throw new Error("Render " + state.status + (state.lastErrorMessage ? ": " + state.lastErrorMessage : ""));
-    progress("Rendering the reel for speaker mattes \xB7 " + (state.step || state.status));
-    await sleep(750);
+  const d = di();
+  const lib = libraryId();
+  const project = await d.ProjectRepository.findById(lib, pid);
+  const source = await d.SequenceRepository.findById(lib, sid);
+  if (!project || !source) throw new Error("The reel Draft could not be read for rendering.");
+  const copyId = app().crypto.randomUUID();
+  const name = "Reel matte render " + copyId;
+  const copy = source.clone({ id: copyId, name });
+  copy.setTracks(copy.getTracks().filter((t) => !t.isChapterTrack() && !t.isSubChapterTrack() && !t.isWordTrack()));
+  if (typeof copy.authorFrameSize === "function") copy.authorFrameSize({ width: 1080, height: 1920 });
+  let saved = false;
+  try {
+    await d.SequenceRepository.save(copy, "podcast-hook-captions-render");
+    saved = true;
+    const overlaySnapshot = await d.RemotionOverlay.getSnapshotForExport(copyId, copy, project);
+    const resourceIds = [...project.getResources()];
+    const rev = await sourceRevision(copyId, resourceIds);
+    const job = await d.WorkflowClient.start({
+      type: "export:video",
+      input: {
+        resolution: "FHD",
+        title: "Reel matte render",
+        internal: true,
+        outputPath,
+        projectId: pid,
+        libraryId: lib,
+        sequenceId: copyId,
+        resourceIds,
+        audioOnly: false,
+        overwriteOutput: false,
+        overlaySnapshot,
+        sourceRevision: rev
+      }
+    });
+    await new Promise((resolve2, reject) => {
+      let done = false;
+      let off = () => {
+      };
+      const read = (v) => {
+        if (done || !v) return;
+        if (["succeeded", "failed", "canceled"].includes(v.status)) {
+          done = true;
+          off();
+          v.status === "succeeded" ? resolve2() : reject(new Error("Render " + v.status + (v.lastError?.message ? ": " + v.lastError.message : "")));
+        } else progress("Rendering the reel for speaker mattes \xB7 " + (v.progressDescription || v.status));
+      };
+      off = d.WorkflowClient.subscribe((e) => {
+        if (e.type === "UPSERT" && e.workflow.workflowId === job.workflowId) read(e.workflow);
+      });
+      read(d.WorkflowClient.list().find((x) => x.workflowId === job.workflowId));
+      if (done) off();
+    });
+  } finally {
+    if (saved) {
+      const temp = await d.SequenceRepository.findById(lib, copyId);
+      if (temp?.getName() === name) await d.SequenceRepository.delete(lib, copyId);
+    }
   }
 }
 var VEED = "veed/video-background-removal/fast";
@@ -2016,33 +1763,29 @@ async function makeMattes(sdk, pid, render, seconds, dir, key, progress) {
   );
   progress("Writing speaker matte frames\u2026");
   const MATTE = /^matte_\d{6}\.png$/;
-  for (const n of await filesIn(dir, MATTE)) await removeFile(fs().join(dir, n));
+  for (const n of filesIn(dir, MATTE)) removeFile(fs().join(dir, n));
   await ffmpeg(
     "Write matte frames",
     ["-v", "error", "-y", "-i", alpha, "-vf", "format=gray,negate,scale=1080:1920:flags=bicubic,dilation,dilation,lut=y=clip((val-24)*1.2\\,0\\,255)", "-start_number", "1", fs().join(dir.replace(/%/g, "%%"), "matte_%06d.png")],
     6e5
   );
-  const count = (await filesIn(dir, MATTE)).length;
+  const count = filesIn(dir, MATTE).length;
   if (!count) throw new Error("No matte frames were written.");
-  const base = String(await fs().pathToLocalURL(dir)).replace(/\/$/, "");
+  const base = String(fs().pathToLocalURL(dir)).replace(/\/$/, "");
   return { base, count };
 }
 
-// plugins/podcast-hook-captions/src/pipeline/stock.ts
+// src/pipeline/stock.ts
 function stockSearchAvailable() {
   try {
-    return typeof getSdk()?.runScript === "function";
+    return typeof di()?.StockMediaSearch?.searchVideos === "function";
   } catch {
     return false;
   }
 }
 async function stockClip(sdk, queries, orientation, dir, seconds, avoid = []) {
-  const service = { searchVideos: async (query) => {
-    const reply = await getSdk().runScript({ script: `return await selects.stock.searchVideos(${JSON.stringify(query)});`, summary: "Find stock footage" });
-    if (reply.isError) throw new Error(reply.output);
-    return reply.result;
-  } };
-  await fs().mkdir(dir, { recursive: true });
+  const service = di().StockMediaSearch;
+  fs().mkdirSync(dir, { recursive: true });
   const tried = /* @__PURE__ */ new Set();
   let lastErr = null;
   for (const raw of queries) {
@@ -2058,7 +1801,7 @@ async function stockClip(sdk, queries, orientation, dir, seconds, avoid = []) {
     const pick = chooseStock(rows.filter((v) => !avoid.includes(v.originalUrl)), orientation);
     if (!pick) continue;
     const out = fs().join(dir, "stock-" + Math.abs(hash(pick.video.originalUrl)) + ".mp4");
-    if (!await fs().exists(out)) {
+    if (!fs().existsSync(out)) {
       const box = orientation === "portrait" ? "1080:1920" : "1920:1080";
       const src = out + ".src";
       const part = out + ".part.mp4";
@@ -2071,7 +1814,7 @@ async function stockClip(sdk, queries, orientation, dir, seconds, avoid = []) {
         );
         for (let k = 0; ; k += 1) {
           try {
-            await fs().rename(part, out);
+            fs().renameSync(part, out);
             break;
           } catch (e) {
             if (k >= 5) throw e;
@@ -2079,11 +1822,11 @@ async function stockClip(sdk, queries, orientation, dir, seconds, avoid = []) {
           }
         }
       } catch (e) {
-        await removeFile(part);
+        removeFile(part);
         lastErr = e;
         continue;
       } finally {
-        await removeFile(src);
+        removeFile(src);
       }
     }
     const probe = (await ffprobe("Probe stock B-roll", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", out]).catch(() => "")).trim().split(",").map(Number);
@@ -2127,7 +1870,7 @@ function hash(s) {
   return h;
 }
 
-// plugins/podcast-hook-captions/src/pipeline/sound.ts
+// src/pipeline/sound.ts
 var MUSIC_PROMPT = "Instrumental drift phonk, 123 BPM, punchy trap drums, heavy distorted 808 bass, cowbell melody, dark and energetic, steady groove from the first second, no vocals, no intro fade";
 async function makeMusic(pid, seconds, dir, key, onTick) {
   return generate(
@@ -2180,7 +1923,7 @@ async function peakInfo(path, scratch) {
   } catch {
     return null;
   } finally {
-    await removeFile(raw);
+    removeFile(raw);
   }
 }
 var VOICE_CHAIN = "highpass=f=80,acompressor=threshold=-22dB:ratio=3:attack=5:release=90:makeup=3,equalizer=f=250:t=q:w=1:g=-2,equalizer=f=3200:t=q:w=1:g=2.5,equalizer=f=9000:t=h:w=0.7:g=1.5";
@@ -2260,17 +2003,17 @@ async function mixSound(plan, voiceFrom, music, lib, outPath, dir) {
     await master(gain);
     out = await loudnessInfo(outPath);
   }
-  await removeFile(voicePath);
-  await removeFile(pre);
+  removeFile(voicePath);
+  removeFile(pre);
   return { lufs: out ? out.i : LOUD_TARGET, truePeak: out ? out.tp : null };
 }
 
-// plugins/podcast-hook-captions/src/renderers.ts
-var lookCode = `// plugins/podcast-hook-captions/src/motion/Look.tsx
+// src/renderers.ts
+var lookCode = `// src/motion/Look.tsx
 import React3 from "react";
 import { useCurrentFrame } from "remotion";
 
-// plugins/podcast-hook-captions/src/motion/camera.ts
+// src/motion/camera.ts
 function ease(kind, p) {
   switch (kind) {
     case "lin":
@@ -2342,7 +2085,7 @@ function scalarAt(keys, frame, fallback) {
   return ks[ks.length - 1][1];
 }
 
-// plugins/podcast-hook-captions/src/motion/grid.tsx
+// src/motion/grid.tsx
 import React from "react";
 var GRID = {
   // Unshaded cell colour as seen (texture mean included).
@@ -2688,7 +2431,7 @@ function GridSet(props) {
   )), showTex ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { ...full, isolation: "isolate", mixBlendMode: "plus-lighter", maskImage: fadeMask, WebkitMaskImage: fadeMask } }, /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: grating(135, (bx + by) / Math.SQRT2, P / Math.SQRT2, amp) } }), /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: grating(45, (bx - by + H) / Math.SQRT2, P / Math.SQRT2, amp), mixBlendMode: "plus-lighter" } })), /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: fadeFill, mixBlendMode: "plus-lighter" } })) : null, /* @__PURE__ */ React.createElement("svg", { width: W, height: H, style: { position: "absolute", left: 0, top: 0 } }, /* @__PURE__ */ React.createElement("defs", null, /* @__PURE__ */ React.createElement("radialGradient", { id: "dd" + uid }, [[0, 1], [0.1, 0.981], [0.2, 0.857], [0.28, 0.655], [0.36, 0.407], [0.44, 0.193], [0.52, 0.066], [0.6, 0.016], [0.7, 1e-3], [1, 0]].map(([o, a]) => /* @__PURE__ */ React.createElement("stop", { key: o, offset: o, stopColor: "#fff", stopOpacity: a }))), /* @__PURE__ */ React.createElement("radialGradient", { id: "ds" + uid }, [[0, 1], [0.4, 0.75], [0.75, 0.3], [1, 0]].map(([o, a]) => /* @__PURE__ */ React.createElement("stop", { key: o, offset: o, stopColor: "#fff", stopOpacity: a }))), /* @__PURE__ */ React.createElement("radialGradient", { id: "dk" + uid }, /* @__PURE__ */ React.createElement("stop", { offset: "0", stopColor: "#000", stopOpacity: 1 }), /* @__PURE__ */ React.createElement("stop", { offset: "1", stopColor: "#000", stopOpacity: 0 })), /* @__PURE__ */ React.createElement("filter", { id: "fb" + uid, x: "-50%", y: "-50%", width: "200%", height: "200%" }, /* @__PURE__ */ React.createElement("feGaussianBlur", { stdDeviation: (1.5 * k).toFixed(3) }))), exposures("d", /* @__PURE__ */ React.createElement(Dust, { W, H, frame, fps, uid }))), /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: shade } }));
 }
 
-// plugins/podcast-hook-captions/src/motion/grade.tsx
+// src/motion/grade.tsx
 import React2 from "react";
 var SPEAKER_GRADE = { sat: 1.6, r: 1.07, g: 1, b: 0.89, slope: 1.1, off: -0.035 };
 var BROLL_GRADE = { sat: 1.2, r: 1.06, g: 1, b: 0.9, slope: 1.08, off: -0.02 };
@@ -2709,7 +2452,7 @@ function GradeFilter({ id, grade }) {
   return /* @__PURE__ */ React2.createElement("filter", { id, x: "0%", y: "0%", width: "100%", height: "100%", colorInterpolationFilters: "sRGB" }, /* @__PURE__ */ React2.createElement("feColorMatrix", { type: "matrix", values: matrix(grade) }), /* @__PURE__ */ React2.createElement("feComponentTransfer", null, /* @__PURE__ */ React2.createElement("feFuncR", { type: "linear", slope: grade.slope, intercept: grade.off }), /* @__PURE__ */ React2.createElement("feFuncG", { type: "linear", slope: grade.slope, intercept: grade.off }), /* @__PURE__ */ React2.createElement("feFuncB", { type: "linear", slope: grade.slope, intercept: grade.off })));
 }
 
-// plugins/podcast-hook-captions/src/motion/Look.tsx
+// src/motion/Look.tsx
 var n = (v, f) => typeof v === "number" && Number.isFinite(v) ? v : f;
 function ReelLook({ Source, data = {} }) {
   const local = useCurrentFrame();
@@ -2823,11 +2566,11 @@ export {
   ReelLook as default
 };
 `;
-var reelCode = `// plugins/podcast-hook-captions/src/motion/Reel.tsx
+var reelCode = `// src/motion/Reel.tsx
 import React2, { useEffect, useState } from "react";
 import { useCurrentFrame, delayRender, continueRender } from "remotion";
 
-// plugins/podcast-hook-captions/src/motion/camera.ts
+// src/motion/camera.ts
 function ease(kind, p) {
   switch (kind) {
     case "lin":
@@ -2894,7 +2637,7 @@ function scalarAt(keys, frame, fallback) {
   return ks[ks.length - 1][1];
 }
 
-// plugins/podcast-hook-captions/src/motion/grid.tsx
+// src/motion/grid.tsx
 import React from "react";
 var GRID = {
   // Unshaded cell colour as seen (texture mean included).
@@ -3240,7 +2983,7 @@ function GridSet(props) {
   )), showTex ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { ...full, isolation: "isolate", mixBlendMode: "plus-lighter", maskImage: fadeMask, WebkitMaskImage: fadeMask } }, /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: grating(135, (bx + by) / Math.SQRT2, P / Math.SQRT2, amp) } }), /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: grating(45, (bx - by + H) / Math.SQRT2, P / Math.SQRT2, amp), mixBlendMode: "plus-lighter" } })), /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: fadeFill, mixBlendMode: "plus-lighter" } })) : null, /* @__PURE__ */ React.createElement("svg", { width: W, height: H, style: { position: "absolute", left: 0, top: 0 } }, /* @__PURE__ */ React.createElement("defs", null, /* @__PURE__ */ React.createElement("radialGradient", { id: "dd" + uid }, [[0, 1], [0.1, 0.981], [0.2, 0.857], [0.28, 0.655], [0.36, 0.407], [0.44, 0.193], [0.52, 0.066], [0.6, 0.016], [0.7, 1e-3], [1, 0]].map(([o, a]) => /* @__PURE__ */ React.createElement("stop", { key: o, offset: o, stopColor: "#fff", stopOpacity: a }))), /* @__PURE__ */ React.createElement("radialGradient", { id: "ds" + uid }, [[0, 1], [0.4, 0.75], [0.75, 0.3], [1, 0]].map(([o, a]) => /* @__PURE__ */ React.createElement("stop", { key: o, offset: o, stopColor: "#fff", stopOpacity: a }))), /* @__PURE__ */ React.createElement("radialGradient", { id: "dk" + uid }, /* @__PURE__ */ React.createElement("stop", { offset: "0", stopColor: "#000", stopOpacity: 1 }), /* @__PURE__ */ React.createElement("stop", { offset: "1", stopColor: "#000", stopOpacity: 0 })), /* @__PURE__ */ React.createElement("filter", { id: "fb" + uid, x: "-50%", y: "-50%", width: "200%", height: "200%" }, /* @__PURE__ */ React.createElement("feGaussianBlur", { stdDeviation: (1.5 * k).toFixed(3) }))), exposures("d", /* @__PURE__ */ React.createElement(Dust, { W, H, frame, fps, uid }))), /* @__PURE__ */ React.createElement("div", { style: { ...full, backgroundImage: shade } }));
 }
 
-// plugins/podcast-hook-captions/src/motion/text.ts
+// src/motion/text.ts
 var widthCache = {};
 var metricCache = {};
 function clearTextCache() {
@@ -3288,7 +3031,7 @@ function capMetrics(family, weight, capEstimate) {
   return out;
 }
 
-// plugins/podcast-hook-captions/src/motion/Reel.tsx
+// src/motion/Reel.tsx
 var n = (v, f) => typeof v === "number" && Number.isFinite(v) ? v : f;
 var clamp012 = (v) => Math.max(0, Math.min(1, v));
 var easeOut = (p) => 1 - Math.pow(1 - clamp012(p), 3);
@@ -3719,12 +3462,12 @@ export {
 };
 `;
 
-// plugins/podcast-hook-captions/src/motion/grade.tsx
-import React2 from "react";
+// src/motion/grade.tsx
+import React from "react";
 var SPEAKER_GRADE = { sat: 1.6, r: 1.07, g: 1, b: 0.89, slope: 1.1, off: -0.035 };
 var BROLL_GRADE = { sat: 1.2, r: 1.06, g: 1, b: 0.9, slope: 1.08, off: -0.02 };
 
-// plugins/podcast-hook-captions/src/pipeline/apply.ts
+// src/pipeline/apply.ts
 var LOOK_LABEL = "Reel Look";
 var GRAPHIC_LABEL = "Reel Titles";
 var PLACE_BROLL = `const placed: any[] = [];
@@ -3889,7 +3632,7 @@ return { removedEffects, graphics: graphics.length, clips: extra.length, commitI
   );
 }
 
-// plugins/podcast-hook-captions/src/motion/camera.ts
+// src/motion/camera.ts
 function ease(kind, p) {
   switch (kind) {
     case "lin":
@@ -3936,7 +3679,7 @@ function camAt(keys, frame) {
   return { z, x, y, vz, vx, vy };
 }
 
-// plugins/podcast-hook-captions/src/plan.ts
+// src/plan.ts
 function buildPlan(input) {
   const { fps, W, H, endFrame, words, shots } = input;
   const picks = input.picks || {};
@@ -4277,7 +4020,7 @@ function buildPlan(input) {
   return { fps, W, H, endFrame, camera, titles, setOpacity, gridZoom, gridTexture, capHide: merge(capHide), capY, free, flashes, broll, sfx, notes };
 }
 
-// plugins/podcast-hook-captions/src/pipeline/make.ts
+// src/pipeline/make.ts
 var FILLER = /^(uh+|um+|uhm|erm|er|ah+|hmm+|mm+)[.,!?]*$/i;
 var STEPS = [
   ["pick", "Pick the moment and write the titles"],
@@ -4322,7 +4065,7 @@ async function makeReel(sdk, ctx, opts, onStep) {
   onStep("pick", "done", choice.why || "");
   onStep("draft", "run", "Creating the Draft\u2026");
   const reelId = await createReel(sdk, pid, ctx.sequenceId, src.name + " \xB7 Reel", ranges);
-  await fs().mkdir(jobDir(reelId), { recursive: true });
+  fs().mkdirSync(jobDir(reelId), { recursive: true });
   const reel = await readReel(sdk, pid, reelId);
   const byKey = /* @__PURE__ */ new Map();
   reel.words.forEach((w, i) => byKey.set(w.ss + "|" + w.t, i));
@@ -4361,14 +4104,13 @@ async function build(sdk, job, reel, onStep, opts, retryTerminalFaces = false) {
   const H = 1920;
   const key = job.reelId.replace(/-/g, "").slice(0, 16) + "-" + Date.now().toString(36);
   const picks = job.picks;
-  const savedBroll = await Promise.all((job.brollPaths || []).map(async (path) => path && await fs().exists(path) ? path : null));
   const style = ". Realistic cinematic stock footage, natural warm light, shallow depth of field, smooth slow camera move, no text, no logos, no captions.";
-  const gen = async (slot, prompt, aspect, dur, label) => {
+  const gen = (slot, prompt, aspect, dur, label) => {
     const have = job.brollPaths?.[slot];
-    if (have && await fs().exists(have)) return Promise.resolve(have);
+    if (have && fs().existsSync(have)) return Promise.resolve(have);
     try {
       const folder = fs().join(dir, "broll-" + slot);
-      const late = await fs().exists(folder) ? (await fs().readdir(folder)).map(String).find((n) => /\.mp4$/i.test(n)) : null;
+      const late = fs().existsSync(folder) ? fs().readdirSync(folder).map(String).find((n) => /\.mp4$/i.test(n)) : null;
       if (late) return Promise.resolve(fs().join(folder, late));
     } catch {
     }
@@ -4389,7 +4131,7 @@ async function build(sdk, job, reel, onStep, opts, retryTerminalFaces = false) {
     ).catch((e) => (notes.push(String(e.message || e)), null));
   };
   const stock = async () => {
-    if (job.brollPaths && savedBroll.every(Boolean)) return job.brollPaths;
+    if (job.brollPaths && job.brollPaths.every((p) => p && fs().existsSync(p))) return job.brollPaths;
     const b = picks.broll;
     const words = (t) => String(t || "").split(/\s+/).filter((w) => w.length > 3).slice(0, 3).join(" ");
     const search = Array.isArray(b.search) ? b.search : [];
@@ -4409,10 +4151,10 @@ async function build(sdk, job, reel, onStep, opts, retryTerminalFaces = false) {
       const both = stock();
       brollJobs = [both.then((r) => r[0]), both.then((r) => r[1])];
     } else if (opts.generate) brollJobs = [gen(0, picks.broll.portrait, "9:16", "5", "B-roll 1"), gen(1, picks.broll.landscape, "16:9", "4", "B-roll 2")];
-    else if (savedBroll.some(Boolean)) brollJobs = savedBroll.map((path) => Promise.resolve(path));
+    else if (job.brollPaths && job.brollPaths.some((p) => p && fs().existsSync(p))) brollJobs = job.brollPaths.map((p) => Promise.resolve(p && fs().existsSync(p) ? p : null));
     else notes.push("No B-roll: this Selects version has no stock search. Update Selects, or allow AI-generated B-roll in the panel.");
   }
-  const musicJob = job.musicPath && await fs().exists(job.musicPath) ? Promise.resolve(job.musicPath) : makeMusic(pid, reel.endFrame / reel.fps, dir, key, () => {
+  const musicJob = job.musicPath && fs().existsSync(job.musicPath) ? Promise.resolve(job.musicPath) : makeMusic(pid, reel.endFrame / reel.fps, dir, key, () => {
   }).catch((e) => (notes.push("Music: " + String(e.message || e)), null));
   const sfxJob = ensureSfxLibrary(pid, () => {
   }).catch((e) => (notes.push("Sound effects: " + String(e.message || e)), {}));
@@ -4443,7 +4185,7 @@ async function build(sdk, job, reel, onStep, opts, retryTerminalFaces = false) {
   let masks = null;
   try {
     const matteDir = fs().join(dir, "mattes-" + Date.now().toString(36));
-    await fs().mkdir(matteDir, { recursive: true });
+    fs().mkdirSync(matteDir, { recursive: true });
     masks = await makeMattes(sdk, pid, render, reel.endFrame / reel.fps, matteDir, key, say("mattes"));
     onStep("mattes", "done", masks.count + " frames");
   } catch (e) {
@@ -4521,8 +4263,8 @@ async function build(sdk, job, reel, onStep, opts, retryTerminalFaces = false) {
   return notes;
 }
 
-// plugins/podcast-hook-captions/src/FaceStage.tsx
-import React3, { useEffect, useRef, useState } from "react";
+// src/FaceStage.tsx
+import React2, { useEffect, useRef, useState } from "react";
 function FaceStage({ sdk, context, ui: U }) {
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(""), [error, setError] = useState("");
   const scope = useRef(null), active = useRef(null), running = useRef(false);
@@ -4551,7 +4293,7 @@ function FaceStage({ sdk, context, ui: U }) {
     try {
       requireSharedAiHost();
       const folder = dir();
-      await fs().mkdir(folder, { recursive: true });
+      fs().mkdirSync(folder, { recursive: true });
       if (fresh) await newFacePass(folder, ac.signal);
       const reel = await readReel(sdk, projectId, sequenceId);
       if (!reel.clips.some((c) => c.path && c.srcStart >= 0)) throw new Error("This Draft has no direct video Main clip with a known source in-point. Analyze its transcript first.");
@@ -4579,10 +4321,10 @@ function FaceStage({ sdk, context, ui: U }) {
     }
   };
   if (!U) return null;
-  return /* @__PURE__ */ React3.createElement(U.Section, { title: "Shared face tracking" }, /* @__PURE__ */ React3.createElement(U.Stack, { gap: 8 }, /* @__PURE__ */ React3.createElement(U.Message, null, "Run only the existing face, shot and source-color stage on this Draft. It uses the installed shared AI runtime and does not generate paid media. Closing the panel detaches observation; recover the same saved pass when reopening."), /* @__PURE__ */ React3.createElement(U.Actions, null, /* @__PURE__ */ React3.createElement(U.Button, { disabled: busy || !projectId || !sequenceId, busy, onClick: () => run(false) }, "Run or recover face pass"), /* @__PURE__ */ React3.createElement(U.Button, { variant: "secondary", disabled: busy || !projectId || !sequenceId, onClick: () => run(true) }, "Start new face pass"), /* @__PURE__ */ React3.createElement(U.Button, { variant: "secondary", disabled: !projectId || !sequenceId, onClick: cancel }, "Cancel saved face jobs")), message && /* @__PURE__ */ React3.createElement(U.Message, null, message), error && /* @__PURE__ */ React3.createElement(U.Message, { tone: "destructive" }, error)));
+  return /* @__PURE__ */ React2.createElement(U.Section, { title: "Shared face tracking" }, /* @__PURE__ */ React2.createElement(U.Stack, { gap: 8 }, /* @__PURE__ */ React2.createElement(U.Message, null, "Run only the existing face, shot and source-color stage on this Draft. It uses the installed shared AI runtime and does not generate paid media. Closing the panel detaches observation; recover the same saved pass when reopening."), /* @__PURE__ */ React2.createElement(U.Actions, null, /* @__PURE__ */ React2.createElement(U.Button, { disabled: busy || !projectId || !sequenceId, busy, onClick: () => run(false) }, "Run or recover face pass"), /* @__PURE__ */ React2.createElement(U.Button, { variant: "secondary", disabled: busy || !projectId || !sequenceId, onClick: () => run(true) }, "Start new face pass"), /* @__PURE__ */ React2.createElement(U.Button, { variant: "secondary", disabled: !projectId || !sequenceId, onClick: cancel }, "Cancel saved face jobs")), message && /* @__PURE__ */ React2.createElement(U.Message, null, message), error && /* @__PURE__ */ React2.createElement(U.Message, { tone: "destructive" }, error)));
 }
 
-// plugins/podcast-hook-captions/src/Panel.tsx
+// src/Panel.tsx
 var readStore = (k) => {
   try {
     return localStorage.getItem(k) || "";
@@ -4599,7 +4341,6 @@ var writeStore = (k, v) => {
 };
 var STORE = "podcast-hook-captions:v2:";
 function PodcastHookReel({ sdk, context, ui }) {
-  hostUseSdk(sdk);
   const [seconds, setSeconds] = useState2(25);
   const [hint, setHint] = useState2("");
   const [busy, setBusy] = useState2(false);
@@ -4673,7 +4414,7 @@ function PodcastHookReel({ sdk, context, ui }) {
     await sdk.runScript({ summary: "Open the reel", script: "return await selects.editor.openDraft(" + JSON.stringify(result.reelId) + ");" });
   };
   const icon = (s) => s === "done" ? "\u2713" : s === "run" ? "\u2026" : s === "fail" ? "!" : s === "skip" ? "\u2013" : "\xB7";
-  return /* @__PURE__ */ React4.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React4.createElement(FaceStage, { sdk, context, ui }), /* @__PURE__ */ React4.createElement("div", null, /* @__PURE__ */ React4.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Podcast reel, one click"), /* @__PURE__ */ React4.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "Turns this podcast Draft into a new 9:16 reel: the strongest moment, face-tracked reframe, camera moves, the speaker cut out onto a grid set, kinetic titles, word captions, B-roll cards, music and sound effects.")), /* @__PURE__ */ React4.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React4.createElement("span", null, "Reel length: ", seconds, " s"), /* @__PURE__ */ React4.createElement("input", { type: "range", min: 18, max: 40, step: 1, value: seconds, disabled: busy, onChange: (e) => setSeconds(Number(e.target.value)) })), /* @__PURE__ */ React4.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React4.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React4.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. use the part about dopamine", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React4.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start" } }, /* @__PURE__ */ React4.createElement(
+  return /* @__PURE__ */ React3.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React3.createElement(FaceStage, { sdk, context, ui }), /* @__PURE__ */ React3.createElement("div", null, /* @__PURE__ */ React3.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "Podcast reel, one click"), /* @__PURE__ */ React3.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "Turns this podcast Draft into a new 9:16 reel: the strongest moment, face-tracked reframe, camera moves, the speaker cut out onto a grid set, kinetic titles, word captions, B-roll cards, music and sound effects.")), /* @__PURE__ */ React3.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React3.createElement("span", null, "Reel length: ", seconds, " s"), /* @__PURE__ */ React3.createElement("input", { type: "range", min: 18, max: 40, step: 1, value: seconds, disabled: busy, onChange: (e) => setSeconds(Number(e.target.value)) })), /* @__PURE__ */ React3.createElement("label", { style: { display: "flex", flexDirection: "column", gap: 4 } }, /* @__PURE__ */ React3.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React3.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. use the part about dopamine", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React3.createElement("label", { style: { display: "flex", gap: 8, alignItems: "flex-start" } }, /* @__PURE__ */ React3.createElement(
     "input",
     {
       type: "checkbox",
@@ -4684,9 +4425,8 @@ function PodcastHookReel({ sdk, context, ui }) {
         writeStore(STORE + "genBroll", e.target.checked ? "1" : "");
       }
     }
-  ), /* @__PURE__ */ React4.createElement("span", null, "B-roll comes from stock footage. If this Selects version has no stock search, generate it with AI instead (4-12 minutes and about $2 per reel).")), isReel && /* @__PURE__ */ React4.createElement("button", { onClick: () => make(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild this reel"), /* @__PURE__ */ React4.createElement("button", { onClick: () => make(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the reel\u2026 " + clock + " s" : result ? "Make another reel" : "Make reel"), (busy || steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React4.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, steps.map((s) => /* @__PURE__ */ React4.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React4.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React4.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React4.createElement("span", { style: { color: "var(--panel-muted-fg)" } }, " \u2014 ", s.note) : null)))), error && /* @__PURE__ */ React4.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, error), result && !busy && /* @__PURE__ */ React4.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React4.createElement("div", null, "Made \u201C", result.name, "\u201D in ", Math.round(result.seconds), " s."), result.credits?.length ? /* @__PURE__ */ React4.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "B-roll:", " ", result.credits.map((c, i) => /* @__PURE__ */ React4.createElement(React4.Fragment, { key: i }, i ? ", " : "", /* @__PURE__ */ React4.createElement("a", { href: c.url, target: "_blank", rel: "noreferrer" }, c.credit), c.service ? " (" + c.service + ")" : ""))) : null, result.notes?.length ? /* @__PURE__ */ React4.createElement("ul", { style: { margin: 0, paddingLeft: 18, color: "var(--panel-muted-fg)" } }, result.notes.map((n, i) => /* @__PURE__ */ React4.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React4.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the reel")));
+  ), /* @__PURE__ */ React3.createElement("span", null, "B-roll comes from stock footage. If this Selects version has no stock search, generate it with AI instead (4-12 minutes and about $2 per reel).")), isReel && /* @__PURE__ */ React3.createElement("button", { onClick: () => make(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild this reel"), /* @__PURE__ */ React3.createElement("button", { onClick: () => make(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the reel\u2026 " + clock + " s" : result ? "Make another reel" : "Make reel"), (busy || steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React3.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, steps.map((s) => /* @__PURE__ */ React3.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React3.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React3.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React3.createElement("span", { style: { color: "var(--panel-muted-fg)" } }, " \u2014 ", s.note) : null)))), error && /* @__PURE__ */ React3.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, error), result && !busy && /* @__PURE__ */ React3.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React3.createElement("div", null, "Made \u201C", result.name, "\u201D in ", Math.round(result.seconds), " s."), result.credits?.length ? /* @__PURE__ */ React3.createElement("div", { style: { color: "var(--panel-muted-fg)" } }, "B-roll:", " ", result.credits.map((c, i) => /* @__PURE__ */ React3.createElement(React3.Fragment, { key: i }, i ? ", " : "", /* @__PURE__ */ React3.createElement("a", { href: c.url, target: "_blank", rel: "noreferrer" }, c.credit), c.service ? " (" + c.service + ")" : ""))) : null, result.notes?.length ? /* @__PURE__ */ React3.createElement("ul", { style: { margin: 0, paddingLeft: 18, color: "var(--panel-muted-fg)" } }, result.notes.map((n, i) => /* @__PURE__ */ React3.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React3.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the reel")));
 }
-var Panel_default = withPanelLocalClient(PodcastHookReel);
 export {
-  Panel_default as default
+  PodcastHookReel as default
 };

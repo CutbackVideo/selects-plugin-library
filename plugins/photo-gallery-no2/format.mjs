@@ -1,4 +1,4 @@
-// Inputs use the 60 fps reference clock; the result uses the Project frame grid.
+// Pure Photo Gallery contract. All frame values use the 60 fps output clock.
 export const REFERENCE = Object.freeze({
   width: 1080,
   height: 1920,
@@ -52,17 +52,13 @@ export function planGallery(input) {
   if (!Number.isFinite(bpm) || bpm <= 0 || (!input.music && !hasManualBpm)) {
     throw new Error('BPM is required; provide a manual BPM when there is no music or no reliable estimate');
   }
-  const fps = input.fps ?? REFERENCE.fps;
-  if (!Number.isFinite(fps) || fps <= 0) throw new Error("Invalid Project frame rate");
-  const toDraftFrame = frame => Math.round(frame * fps / REFERENCE.fps);
-  const outputDurationFrames = toDraftFrame(durationFrames);
   const ratio = REFERENCE.nominalBpm / bpm;
-  const revealFrames = REFERENCE.revealFrames.map((frame) => toDraftFrame(frame * ratio));
+  const revealFrames = REFERENCE.revealFrames.map((frame) => Math.round(frame * ratio));
   if (revealFrames.some((frame, i) => i > 0 && frame <= revealFrames[i - 1])) {
     throw new Error('BPM is too high to show all 21 tiles in distinct output frames');
   }
-  const colorFrame = toDraftFrame(REFERENCE.colorFrame * ratio);
-  if (colorFrame >= outputDurationFrames) throw new Error('Color transition would occur after the output end');
+  const colorFrame = Math.round(REFERENCE.colorFrame * ratio);
+  if (colorFrame >= durationFrames) throw new Error('Color transition would occur after the output end');
   if (input.music) {
     if (typeof input.music.resourceId !== 'string' || !input.music.resourceId.trim()) throw new Error('Music needs a resource ID');
     assertPositiveInteger(input.music.durationFrames, 'Music durationFrames');
@@ -78,18 +74,18 @@ export function planGallery(input) {
     column: i % 3,
     rect: tileRect(Math.floor(i / 3), i % 3),
     revealFrame: revealFrames[i],
-    endFrame: outputDurationFrames,
+    endFrame: durationFrames,
     focusX: item.focusX,
     focusY: item.focusY,
   }));
   return {
     frameSize: { width: REFERENCE.width, height: REFERENCE.height },
-    fps,
-    durationFrames: outputDurationFrames,
+    fps: REFERENCE.fps,
+    durationFrames,
     bpm,
     bpmSource: hasManualBpm ? 'manual' : 'estimated',
     colorFrame,
-    music: input.music ? { ...input.music, startSeconds: (input.music.startFrame ?? 0) / REFERENCE.fps } : null,
+    music: input.music ?? null,
     tiles,
   };
 }

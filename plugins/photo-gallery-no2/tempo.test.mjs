@@ -1,4 +1,3 @@
-import { asyncSdk } from '../../tests/windows_host.mjs';
 // The panel's BPM estimate (the `// tempo:start` block of panel.template.tsx) run in node:vm on the av-host helpers,
 // with window.parent.__DI__ backed by node fs and the local ffmpeg (the host's bundled ffmpeg in Selects). It replaces
 // tempo.py; dev/tempo.py stays as the parity reference on a dev Mac, on the fixtures of dev/tempo_test.py.
@@ -31,9 +30,9 @@ function load({ calls = [], withFFmpeg = true } = {}) {
       error ? reject(JSON.stringify({ type: 'FFmpegExecutionError', stderr })) : resolve({ stdout, stderr }));
     signal?.addEventListener('abort', () => child.kill());
   });
-  const context = vm.createContext({ sdk: asyncSdk({ FileSystem, Runtime }), window: { parent: { __DI__: { FileSystem, Runtime } } }, navigator: {},
+  const context = vm.createContext({ window: { parent: { __DI__: { FileSystem, Runtime } } }, navigator: {},
     AbortController, setTimeout, clearTimeout, TextDecoder, Int16Array, Float32Array, Uint8Array, Math });
-  vm.runInContext(blocks + '\nhostUseSdk(sdk); this.tempoEstimate = tempoEstimate; this.tempoOfFile = tempoOfFile;', context);
+  vm.runInContext(blocks + '\nthis.tempoEstimate = tempoEstimate; this.tempoOfFile = tempoOfFile;', context);
   return context;
 }
 // A 16-bit mono WAV, as dev/tempo_test.py writes them.

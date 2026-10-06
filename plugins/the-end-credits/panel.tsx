@@ -1746,7 +1746,7 @@ type Say = (lang: Lang) => string;
 // An error whose text follows the UI language; `message` keeps the English text.
 function uiError(say: Say) { const e: any = new Error(say("en")); e.say = say; return e; }
 function sayError(lang: Lang, e: any): string {
-  // An SDK capability this Selects build lacks (the host block's 'host_tools'): one "needs a newer Selects" message.
+  // A __DI__ member this Selects build lacks (the host block's 'host_tools'): one "needs a newer Selects" message.
   if (String(e?.message) === "host_tools") return t(lang, "needsNewerSelects");
   return typeof e?.say === "function" ? e.say(lang) : String(e?.message || e);
 }
@@ -2748,7 +2748,7 @@ function tecProgress(stepId, fraction) {
 
 // quick-score:start
 // Quick local shot score for clips Selects has not analysed (no scene search). Plain JS and self-contained: it reaches
-// the host through the public SDK files and media namespaces, or through
+// the host only through window.parent.__DI__ (Runtime.runFFmpeg and FileSystem, every member checked first), or through
 // `opts.io` (tests, other hosts), so it can be pasted into any style-app panel and kept as one kit file
 // (tools/panel/quick-score.ts). No shell, no node: the host's bundled ffmpeg decodes a small grey preview
 // (QS_FPS frames a second, QS_W x QS_H pixels) of the part of the clip the planner could use into a temporary file in
@@ -2802,21 +2802,23 @@ function qsBytes(v) {
 // The host's services for this module: runFFmpeg(args, signal), readBytes(path), remove(path), join(...parts),
 // mkdir(dir), mtimeMs(path), readText(path), writeText(path, text). Members the host lacks are null.
 function qsHostIO() {
-  var rt = hostSdk?.media, fs = hostSdk?.files;
+  var di = null;
+  try { di = (window.parent && window.parent["__DI__"]) || null; } catch (e) { di = null; }
+  var rt = di && di.Runtime, fs = di && di.FileSystem;
   var fn = function (o, m) { return !!o && typeof o[m] === "function"; };
   return {
     runFFmpeg: fn(rt, "runFFmpeg") ? function (args, signal) { return rt.runFFmpeg(args, true, signal); } : null,
     readBytes: fn(fs, "readFile") ? async function (p) { return qsBytes(await fs.readFile(p)); } : null,
     remove: fs ? async function (p) {
-      var tries = ["removeFile"];
+      var tries = ["removeFile", "remove", "rm", "unlink", "unlinkSync"];
       for (var i = 0; i < tries.length; i++) {
         if (!fn(fs, tries[i])) continue;
         try { await (tries[i] === "removeFile" ? fs.removeFile({ filePath: p }) : fs[tries[i]](p)); return; } catch (e) { /* the next one */ }
       }
     } : null,
     join: fn(fs, "join") ? function () { return String(fs.join.apply(fs, arguments)); } : null,
-    mkdir: fn(fs, "mkdir") ? async function (d) { (await fs.mkdir(d, { recursive: true })); } : null,
-    mtimeMs: fn(fs, "stat") ? async function (p) { var s = (await fs.stat(p)); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
+    mkdir: fn(fs, "mkdirSync") ? function (d) { fs.mkdirSync(d, { recursive: true }); } : null,
+    mtimeMs: fn(fs, "statSync") ? function (p) { var s = fs.statSync(p); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
     readText: fn(fs, "readFile") ? async function (p) { var v = await fs.readFile(p, "utf8"); return typeof v === "string" ? v : new TextDecoder().decode(qsBytes(v)); } : null,
     writeText: fn(fs, "writeFile") ? async function (p, t) { await fs.writeFile(p, t); } : null,
   };
@@ -2929,8 +2931,8 @@ async function quickScore(resource, opts) {
   var dir = io.join(dataDir, "quick-score");
   var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
   var mtime = 0;
-  try { mtime = io.mtimeMs ? Math.round((await io.mtimeMs(resource.path)) || 0) : 0; } catch (e) { mtime = 0; }
-  // mtime is 0 when the host lacks FileSystem.stat, so the duration also keys the cache (a file replaced at the same
+  try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
+  // mtime is 0 when the host lacks FileSystem.statSync, so the duration also keys the cache (a file replaced at the same
   // path with different media is not served stale scores; Mini Vlog review).
   var durKey = Number(resource.durationSeconds || 0).toFixed(3);
   var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
@@ -2942,7 +2944,7 @@ async function quickScore(resource, opts) {
     } catch (e) { /* no cache yet */ }
   }
   if (Date.now() > deadline) return qsFallback(resource, Date.now() - t0, opts.windows);
-  try { if (io.mkdir) await io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
+  try { if (io.mkdir) io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
   var tmp = io.join(dir, safe + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".gray");
   var controller = typeof AbortController === "undefined" ? null : new AbortController();
   var relay = function () { if (controller) controller.abort(); };
@@ -3048,11 +3050,23 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
 // quick-score:end
 
 // tec-host:start
-// Local files, media tools and environment use the public SDK.
-// Missing capabilities report the existing host-tools error to the panel UI.
-let hostSdk = null;
-function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
-function tecHostDI() { return { fs: hostSdk?.files, rt: hostSdk?.media }; }
+// Host I/O through the renderer's own services, the same on macOS and Windows: no host shell, no node, nothing for the
+// user to install. Copied from Selfie Aesthetic's sae-host block (dev/host-block.ts; the Archive Vlog av-host pattern)
+// and renamed. ffmpeg/ffprobe are the host's bundled binaries (Runtime.runFFmpeg/runFFprobe take an argv array, so
+// paths need no quoting and never pass through a console), every path is built by FileSystem.join, and temporary
+// files in the data folder get ASCII names. __DI__ (window.parent) is internal host wiring that a newer or older
+// Selects may lack, so each member is checked at call time. Plain JS: tests/host.test.cjs runs it in node:vm.
+// Error codes (Error.message): 'host_tools' = a needed __DI__ member is missing (err.missing; the panel shows
+// "needs a newer Selects"; the bundled tracks still build), 'timeout' = ffmpeg/ffprobe ran past timeoutMs,
+// 'media_failed' = ffmpeg/ffprobe failed or wrote nothing usable (err.detail holds the host's message, truncated).
+function tecHostDI() {
+  let di = null;
+  try { di = window.parent && window.parent.__DI__; } catch (e) { di = null; }
+  if (!di) { try { di = window.__DI__; } catch (e) { di = null; } }
+  const fs = di && di.FileSystem ? di.FileSystem : null;
+  const rt = di && di.Runtime ? di.Runtime : null;
+  return { fs, rt };
+}
 // names: ['fs.join', 'rt.runFFmpeg', ...]. Returns { ok, missing }.
 function tecHostHas(names) {
   const di = tecHostDI();
@@ -3073,10 +3087,10 @@ function tecHostNeed(names) {
   }
   return tecHostDI();
 }
-// A file reader (readFile or readFile) is needed too.
+// A file reader (readFileSync or readFile) is needed too.
 function tecHostCanRead() {
   const di = tecHostDI();
-  return !!di.fs && typeof di.fs.readFile === 'function';
+  return !!di.fs && (typeof di.fs.readFileSync === 'function' || typeof di.fs.readFile === 'function');
 }
 function tecHostNeedReader() {
   if (!tecHostCanRead()) {
@@ -3092,16 +3106,16 @@ function tecHostJoin(...parts) {
 }
 // The installed skill folder (the home folder joined with .selects, skills and <id>: the host's
 // SELECTS_USER_SKILLS_ROOT), or null when the plugin's `marker` file is not there.
-async function tecHostSkillsDir(id, marker) {
-  const { fs } = tecHostNeed(['fs.join', 'fs.homedir', 'fs.exists']);
+function tecHostSkillsDir(id, marker) {
+  const { fs } = tecHostNeed(['fs.join', 'fs.homedir', 'fs.existsSync']);
   const dir = String(fs.join(fs.homedir(), '.selects', 'skills', id));
-  try { return (await fs.exists(fs.join(dir, marker))) ? dir : null; } catch (e) { return null; }
+  try { return fs.existsSync(fs.join(dir, marker)) ? dir : null; } catch (e) { return null; }
 }
 // The plugin's data folder (<home>/.selects/plugin-data/<id>), created when missing.
-async function tecHostDataDir(id) {
-  const { fs } = tecHostNeed(['fs.join', 'fs.homedir', 'fs.mkdir']);
+function tecHostDataDir(id) {
+  const { fs } = tecHostNeed(['fs.join', 'fs.homedir', 'fs.mkdirSync']);
   const dir = String(fs.join(fs.homedir(), '.selects', 'plugin-data', id));
-  (await fs.mkdir(dir, { recursive: true }));
+  fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 function tecHostFail(code, cause) {
@@ -3136,7 +3150,7 @@ async function tecHostProbeSeconds(file, opts) {
 }
 // Bytes as a fresh, 0-offset Uint8Array, whatever the host returned (a Buffer, Uint8Array or ArrayBuffer from another
 // realm, an IPC-serialized { type: 'Buffer', data: [...] } or a plain array). FileSystem results come from
-// the bridge, possibly another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them, so only realm-free checks
+// window.parent, another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them, so only realm-free checks
 // are used (ArrayBuffer.isView and the toString tag read internal slots, Array.isArray works across realms), with an
 // array-like fallback for objects a bridge serialised by index.
 function tecHostBytes(raw) {
@@ -3160,7 +3174,7 @@ function tecHostBytes(raw) {
 async function tecHostReadRaw(file) {
   tecHostNeedReader();
   const { fs } = tecHostDI();
-  return await fs.readFile(file);
+  return typeof fs.readFileSync === 'function' ? fs.readFileSync(file) : await fs.readFile(file);
 }
 async function tecHostReadBytes(file) { return tecHostBytes(await tecHostReadRaw(file)); }
 // A text file (some host builds return text directly, others bytes).
@@ -3170,7 +3184,14 @@ async function tecHostReadText(file) {
 }
 // Best effort; a leftover file in the data folder is harmless. Host builds differ in which remover they have.
 async function tecHostRemove(file) {
-  try { await tecHostDI().fs.removeFile({ filePath: file }); } catch { /* best effort */ }
+  const { fs } = tecHostDI();
+  if (!fs || !file) return;
+  const tries = [{ name: 'unlinkSync', call: () => fs.unlinkSync(file) }, { name: 'removeFile', call: () => fs.removeFile({ filePath: file }) },
+    { name: 'remove', call: () => fs.remove(file) }, { name: 'rmSync', call: () => fs.rmSync(file, { force: true }) }, { name: 'unlink', call: () => fs.unlink(file) }];
+  for (const t of tries) {
+    if (typeof fs[t.name] !== 'function') continue;
+    try { await t.call(); return; } catch (e) { /* the next one */ }
+  }
 }
 function tecHostToken() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -3180,7 +3201,7 @@ function tecHostToken() {
 async function tecHostFFmpegBytes(argsFor, dataDir, ext, opts) {
   tecHostNeed(['rt.runFFmpeg', 'fs.join']);
   tecHostNeedReader();
-  if (!dataDir) { const err = new Error('host_tools'); err.missing = ['fs.mkdir']; throw err; }
+  if (!dataDir) { const err = new Error('host_tools'); err.missing = ['fs.mkdirSync']; throw err; }
   const out = tecHostJoin(dataDir, 'tmp-' + tecHostToken() + '.' + ext);
   try {
     await tecHostFFmpeg(argsFor(out), opts);
@@ -4050,7 +4071,6 @@ async function loadCreditFaces(fontsB64: Record<string, string>) {
 // The whole template build. Returns the new Draft; throws templateIssue(...) for the person, or STALE when a newer run
 // (or the frame closing) replaced this one. `say` names the current step for the status line.
 async function runEndCreditsTemplate(sdk: any, context: any, check: () => void, say: (step: string, detail?: string) => void): Promise<{ sequenceId: string }> {
-  hostUseSdk(sdk);
   // The UI language when the run starts: its messages and the Inspector labels written into the Draft use it.
   const bl = uiLang(context);
   const pid: string | null = context?.projectId ?? null;
@@ -4269,21 +4289,19 @@ function TemplateRun({ sdk, context }: any) {
 
 // A template run (Clip highlights hands the footage over in `context.template`) builds out of sight; anything else is
 // the panel.
-function Panel(props: any) {
-  hostUseSdk(props.sdk);
+export default function Panel(props: any) {
   return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <EndCreditsPanel {...props} />;
 }
 
 // The install folder (scripts, cues, fonts) and the data folder for temporary files, through the host's FileSystem
 // (tecHostSkillsDir / tecHostDataDir: join + homedir, no shell). Shared by the panel and a template run (same name and
-// result as before). A host without FileSystem.join/homedir/exists throws 'host_tools' ("needs a newer Selects");
+// result as before). A host without FileSystem.join/homedir/existsSync throws 'host_tools' ("needs a newer Selects");
 // data is null when the folder cannot be made (music previews and own music are then off). `sdk` is unused now.
 async function locateRoots(_sdk: any): Promise<{ plugin: string; data: string | null }> {
-  hostUseSdk(_sdk);
-  const plugin = (await tecHostSkillsDir(PLUGIN_ID, "planner.js"));
+  const plugin = tecHostSkillsDir(PLUGIN_ID, "planner.js");
   if (!plugin) throw uiError((l) => t(l, "foldersNotFound"));
   let data: string | null = null;
-  try { data = (await tecHostDataDir(PLUGIN_ID)); } catch { data = null; }
+  try { data = tecHostDataDir(PLUGIN_ID); } catch { data = null; }
   return { plugin, data };
 }
 
@@ -4692,7 +4710,7 @@ function EndCreditsPanel({ sdk, context, ui }: any) {
     return { list, failed };
   }
 
-  // Clips without analysis: the quick local score (the kit block above: host ffmpeg through the canonical media SDK, bounded concurrency,
+  // Clips without analysis: the quick local score (the kit block above: host ffmpeg through __DI__, bounded concurrency,
   // cached per clip in the data folder) and the planner's tecLocalShots turn them into candidates and motion curves.
   // "Checking clips N/M" inside Prepare; a Project switch or closing the panel aborts it (buildAbortRef). Any failure
   // short of a cancel falls back to evenly spaced windows, so the build goes ahead.
@@ -5160,268 +5178,3 @@ async function readInventoryPages(run, script, config, fill, wanted = () => true
     if (offset + 32 >= total) return result;
   }
 }
-
-// local-sdk:start
-/** Pure host-platform path operations; no filesystem or renderer globals. */
-function panelLocalPaths(platform: string) {
-  const windows = platform === "win32";
-  const slash = (path: string) => {
-    if (typeof path !== "string")
-      throw new TypeError("A path must be a string.");
-    return windows ? path.replace(/\\/g, "/") : path;
-  };
-  const rootOf = (path: string) => {
-    if (windows) {
-      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
-      if (unc) return unc[0].replace(/\/?$/, "/");
-      const drive = path.match(/^[a-z]:\/?/i);
-      if (drive) return drive[0];
-    }
-    return path.startsWith("/") ? "/" : "";
-  };
-  const native = (value: string) =>
-    windows ? value.replace(/\//g, "\\") : value;
-  const normalize = (value: string) => {
-    const path = slash(value),
-      root = rootOf(path),
-      absolute = root.endsWith("/");
-    const segments: string[] = [];
-    for (const segment of path
-      .slice(Math.min(root.length, path.length))
-      .split("/")) {
-      if (!segment || segment === ".") continue;
-      if (segment === ".." && segments.length && segments.at(-1) !== "..")
-        segments.pop();
-      else if (segment !== ".." || !absolute) segments.push(segment);
-    }
-    let result = root + segments.join("/");
-    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
-    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
-    return native(result);
-  };
-  const basename = (value: string, extension?: string) => {
-    const path = slash(value).replace(/\/+$/, "");
-    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
-    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
-    return extension && name.endsWith(extension)
-      ? name.slice(0, -extension.length)
-      : name;
-  };
-  return {
-    normalize,
-    join: (...paths: string[]) => {
-      const parts = paths.map(slash).filter(Boolean);
-      let joined = parts.join("/");
-      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
-        joined = joined.replace(/^\/{2,}/, "/");
-      return normalize(joined);
-    },
-    dirname(value: string) {
-      const path = slash(value),
-        root = rootOf(path);
-      const end = path.replace(/\/+$/, "").lastIndexOf("/");
-      if (end < root.length) return value.slice(0, root.length) || ".";
-      return value.slice(0, end);
-    },
-    basename,
-    extname(value: string) {
-      const name = basename(value),
-        dot = name.lastIndexOf(".");
-      return dot <= 0 || name === ".." ? "" : name.slice(dot);
-    },
-    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
-  };
-}
-
-
-/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
-async function createPanelLocalClient(sdk: any) {
-  const run = async (method: string, args: unknown[], write = false) => {
-    // method names below are fixed implementation constants; values always use JSON encoding.
-    const response = await sdk.runScript({
-      summary: "Use local media workspace",
-      allowCommit: write,
-      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
-    });
-    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
-    // A clipped report has no result. Every read returning data rejects that case below.
-    return response.result;
-  };
-  const environment = await run("files.environment", []);
-  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
-    throw new Error("Update Selects to use this plugin's local media workspace.");
-  const paths = panelLocalPaths(environment.platform);
-  const CHUNK_BYTES = 48 * 1024;
-  const readRange = async (path: string, offset: number, length: number) => {
-    const parts: Uint8Array[] = [];
-    let total = 0;
-    while (total < length) {
-      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
-      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
-      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
-      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
-      parts.push(bytes); total += bytes.length;
-      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
-    }
-    const output = new Uint8Array(total);
-    let position = 0;
-    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
-    return output;
-  };
-  const files = {
-    ...paths,
-    homedir: () => environment.homedir,
-    getOrCreateTmpDirPath: async () => environment.tempDirectory,
-    exists: (path: string) => run("files.exists", [path]),
-    stat: (path: string) => run("files.stat", [path]),
-    readdir: (path: string) => run("files.readdir", [path]),
-    readRange,
-    async readFile(path: string, encoding?: string) {
-      const stat = await run("files.stat", [path]);
-      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
-      const bytes = await readRange(path, 0, stat.size);
-      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
-      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
-      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
-    },
-    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
-      const encoding = typeof options === "string" ? options : options?.encoding;
-      const flag = typeof options === "object" ? options.flag : undefined;
-      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
-      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
-      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
-      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
-      // Each complete replacement has its own sibling file. Other panels cannot
-      // overwrite one of its chunks before the final atomic rename publishes it.
-      const replacement = flag !== "a" && flag !== "wx";
-      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
-      let published = false;
-      try {
-        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
-          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
-          let binary = "";
-          for (const byte of chunk) binary += String.fromCharCode(byte);
-          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
-          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
-          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
-        }
-        if (replacement) await run("files.rename", [destination, path], true);
-        published = true;
-      } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
-      }
-    },
-    async compareAndReplace(path: string, expectedText: string | null, text: string) {
-      const encode = (value: string) => {
-        const bytes = new TextEncoder().encode(value);
-        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
-        let binary = "";
-        for (const byte of bytes) binary += String.fromCharCode(byte);
-        return btoa(binary);
-      };
-      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
-      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
-      return result.replaced;
-    },
-    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
-    rename: (from: string, to: string) => run("files.rename", [from, to], true),
-    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
-    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
-    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
-    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
-  };
-  const activeJobs = new Set<string>();
-  let disposed = false;
-  const cancel = async (jobId: string) => {
-    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
-    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
-  };
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
-    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const started = await run("media.start" + executable, [{ args }], true);
-    if (!started?.jobId) throw new Error("The media process did not return a job id.");
-    const jobId = started.jobId;
-    activeJobs.add(jobId);
-    let cancellation: Promise<void> | null = null;
-    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
-    signal?.addEventListener("abort", abort, { once: true });
-    if (disposed || signal?.aborted) abort();
-    let cursor = 0, stdout = "", stderr = "";
-    try {
-      while (true) {
-        if (cancellation) await cancellation;
-        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
-        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
-        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
-        for (const event of status.events) {
-          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
-          else { stderr += event.text; onStderr?.(event.text); }
-        }
-        cursor = status.nextCursor;
-        if (status.state !== "running" && status.events.length === 0) {
-          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
-          return { stdout, stderr };
-        }
-        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
-      }
-    } catch (error) {
-      await cancel(jobId).catch(() => {});
-      throw error;
-    } finally {
-      signal?.removeEventListener("abort", abort);
-      activeJobs.delete(jobId);
-    }
-  };
-  return {
-    files,
-    environment,
-    media: {
-      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
-      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
-    },
-    dialogs: {
-      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
-      pickDirectoryPath: () => run("editor.pickDirectory", []),
-      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
-    },
-    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
-  };
-}
-
-const panelLocalClients = new WeakMap<object, any>();
-function panelLocalClient(sdk: any): any {
-  const client = panelLocalClients.get(sdk);
-  if (!client) throw new Error("Local SDK has not initialized.");
-  return client;
-}
-function withPanelLocalClient(Component: any) {
-  return function LocalSdkPanel(props: any) {
-    const [state, setState] = React.useState<any>(null);
-    React.useEffect(() => {
-      let active = true;
-      let client: any;
-      createPanelLocalClient(props.sdk).then(value => {
-        client = {...props.sdk, ...value};
-        if (!active) { value.dispose(); return; }
-        panelLocalClients.set(props.sdk, client);
-        setState({sdk: props.sdk});
-      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
-      return () => {
-        active = false;
-        if (client) {
-          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
-          client.dispose();
-        }
-      };
-    }, [props.sdk]);
-    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
-    return React.createElement(Component, props);
-  };
-}
-
-export default withPanelLocalClient(Panel);
-// local-sdk:end

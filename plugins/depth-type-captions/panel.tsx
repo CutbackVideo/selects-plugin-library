@@ -545,30 +545,68 @@ function depthReadScript(pid, sid) {
 // feed the speaker render, and placing or moving them does not make the masks stale.
 // Caption clips are also recognised by label, so a lost link cannot put old captions
 // into the render the speaker is found in.
-async function depthSdkScript(script, summary, allowCommit = false) {
-  const reply = await hostSdk.runScript({script, summary, allowCommit});
-  if (reply?.isError) throw new Error(reply.output || summary);
-  return reply?.result;
+function depthIsCaptionClip(clip) {
+  try {
+    const j = clip.toJSON?.();
+    return j?.name === "Depth Type Captions" || j?.mediaReferences?.defaultMedia?.name === "Depth Type Captions";
+  } catch {
+    return false;
+  }
 }
-async function depthInspectComposition(pid, sid, excluded) {
-  return depthSdkScript(`
-    const d = selects.draft(${JSON.stringify(sid)});
-    const meta = await d.meta();
-    const clips = await d.clips({trackScope:"all"});
-    const named = (await d.motionGraphics()).filter(x => x.name === "Depth Type Captions").map(x => ({trackId:x.clip.trackId,clipId:x.clip.clipId}));
-    const requested = [...${JSON.stringify(excluded || [])}, ...named].filter(Boolean);
-    const excludeClips = clips.filter(c => requested.some(r => String(r.trackId) === String(c.trackId) && Number(r.clipId) === c.clipId)).map(c => ({trackId:c.trackId,clipId:c.clipId}));
-    const main = clips.filter(c => c.trackKind === "main");
-    const endFrame = main.length ? Math.max(...main.map(c => c.endFrame)) : meta.durationFrames;
-    const composition = {includeCaptions:false,excludeClips,endFrame,frameSize:meta.frameSize};
-    const inspected = await selects.export.inspectComposition({projectId:${JSON.stringify(pid)},draftSequenceId:${JSON.stringify(sid)},composition});
-    return {...inspected,composition};`, "Inspect speaker render composition");
+function depthBase(sequence, excluded) {
+  const skip = new Set((excluded || []).filter(Boolean).map((r) => r.trackId + ":" + r.clipId));
+  const tracks = sequence
+    .getTracks()
+    .filter((t) => !t.isCaptionTrack())
+    .map((t) => {
+      const v = t.clone();
+      const ids = new Set(v.getClips().filter((c) => skip.has(t.getId() + ":" + c.getId()) || depthIsCaptionClip(c)).map((c) => c.getId()));
+      if (ids.size) v.removeClipsByIds(ids);
+      return v;
+    })
+    .filter((t) => t.getClips().some(c=>!c.isGap()));
+  return {
+    tracks,
+    key: JSON.stringify({
+      fps: sequence.getFrameRate(),
+      size: sequence.getFrameSize(),
+      tracks: tracks.filter(t=>t.isMainTrack()||t.isVideoTrack()).map(t=>{
+        const j=t.toJSON();
+        return {kind:j.kind,visible:j.visible,solo:j.solo,children:j.children.map(c=>{
+          if(c.schema!=="Cutback.Clip.1"&&c.schema!=="Cutback.Gap.1")return c;
+          return {schema:c.schema,sourceRange:c.sourceRange,mediaReferences:c.mediaReferences,cut:c.cut,enabled:c.enabled,intrinsicVideoAdjustments:c.intrinsicVideoAdjustments,effects:c.effects,videoIndex:c.metadata?.assignedVideoIndex};
+        })};
+      }),
+    }),
+  };
 }
-async function depthCurrentKey(pid, sid, excluded) {
-  return (await depthInspectComposition(pid, sid, excluded)).key;
+// A template run pins the library it started in: it goes on while the person
+// moves to another page, whose address may no longer name the library.
+let depthPinnedLibraryId = null;
+function depthDI() {
+  const app = window.parent,
+    di = app.__DI__,
+    libraryId = depthPinnedLibraryId || app.location.pathname.match(/libraries\/([^/]+)/)?.[1];
+  if (!di || !libraryId) throw new Error("Open a draft in Selects.");
+  return { app, di, libraryId };
 }
-async function depthCancelWorkflow(workflowId) {
-  return depthSdkScript(`await selects.workflow(${JSON.stringify(workflowId)}).cancel();return {requested:true};`, "Cancel speaker render", true);
+// Selects rejects an export overlay snapshot without a source revision: the SHA-256 hex of
+// the saved sequence plus its ordered resources, which the render task recomputes and checks.
+async function depthSourceRevision(app, di, libraryId, sequenceId, resourceIds) {
+  const sequence = await di.SequenceRepository.findById(libraryId, sequenceId);
+  if (!sequence) throw new Error("The preview draft could not be reloaded.");
+  const resources = await Promise.all(resourceIds.map((id) => di.ResourceRepository.findById(libraryId, id)));
+  const json = JSON.stringify({ sequence: sequence.toJSON(), resources: resources.map((r) => r?.toJSON() ?? null) });
+  const digest = await app.crypto.subtle.digest("SHA-256", new app.TextEncoder().encode(json));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function depthCurrentKey(sid, excluded) {
+  const { di, libraryId } = depthDI();
+  if (typeof di.SequenceRepository?.findById !== "function")
+    throw new Error("Sequence service unavailable.");
+  const s = await di.SequenceRepository.findById(libraryId, sid);
+  if (!s) throw new Error("Draft unavailable.");
+  return depthBase(s, excluded).key;
 }
 // Selects 2.0.508 lets procedural renders read plug-in mask files; older hosts
 // would silently drop every behind-speaker word.
@@ -582,7 +620,7 @@ const DEPTH_CLOUD_MIN_HOST = "2.0.512";
 const depthSubject = (settings) => (DEPTH_CLOUD_MASKS || settings.subject === "person" ? "person" : "foreground");
 function depthHostVersion() {
   try {
-    return String(hostSdk?.environment?.version || "") || null;
+    return String(window.parent.__DI__?.Runtime?.getHostingVersion?.() || "") || null;
   } catch {
     return null;
   }
@@ -612,38 +650,135 @@ function depthRenderPreset(geometry) {
   return "4K";
 }
 function depthPluginRoot() {
-  const fs = hostSdk.files;
+  const fs = depthDI().di.FileSystem;
   return fs.join(fs.homedir(), ".selects", "plugin-data", "depth-type-captions");
 }
 function depthMaskDraftDir(pid, sid) {
-  const fs = hostSdk.files;
+  const fs = depthDI().di.FileSystem;
   return fs.join(depthPluginRoot(), "masks", String(pid), String(sid));
 }
 async function depthPrepareVideo(pid, sid, excluded, control, progress, geometry, outputPath) {
-  const base = await depthInspectComposition(pid, sid, excluded);
-  if (base.durationFrames / base.fps > 90) throw new Error("Depth preview currently supports drafts up to 90 seconds.");
-  if (control.canceled) throw new Error("Canceled.");
-  progress("Rendering the draft at full size…");
-  const request = {projectId:pid,draftSequenceId:sid,outPath:outputPath,resolution:depthRenderPreset(geometry),composition:base.composition};
-  const accepted = await depthSdkScript(`const job=await selects.export.video(${JSON.stringify(request)});return {workflowId:job.workflowId};`, "Render the speaker composition", true);
-  control.workflowId = accepted.workflowId;
+  const { app, di, libraryId } = depthDI();
+  for (const [service, member] of [
+    ["SequenceRepository", "findById"],
+    ["SequenceRepository", "save"],
+    ["SequenceRepository", "delete"],
+    ["ProjectRepository", "findById"],
+    ["ResourceRepository", "findById"],
+    ["RemotionOverlay", "getSnapshotForExport"],
+    ["WorkflowClient", "start"],
+    ["WorkflowClient", "subscribe"],
+    ["WorkflowClient", "list"],
+    ["WorkflowClient", "cancel"],
+    ["FileSystem", "join"],
+    ["FileSystem", "pathToLocalURL"],
+    ["FileSystem", "getOrCreateTmpDirPath"],
+  ])
+    if (typeof di[service]?.[member] !== "function")
+      throw new Error("Unavailable host capability: " + service + "." + member);
+  const project = await di.ProjectRepository.findById(libraryId, pid);
+  if (!project?.getEditedSequences().includes(sid))
+    throw new Error("The active Draft changed.");
+  const source = await di.SequenceRepository.findById(libraryId, sid);
+  const base = depthBase(source, excluded),
+    copyId = app.crypto.randomUUID(),
+    name = "Depth Type preview " + copyId,
+    copy = source.clone({ id: copyId, name });
+  copy.setTracks(base.tracks.filter(t=>!t.isChapterTrack()&&!t.isSubChapterTrack()&&!t.isWordTrack()));
+  if (!geometry || ![geometry.width, geometry.height].every(v => Number.isInteger(v) && v > 0)) throw new Error('The draft canvas could not be resolved.');
+  if (typeof copy.authorFrameSize !== 'function') throw new Error('Exact preview canvas is unavailable in this Selects version.');
+  // Resolve Original/custom canvas intent instead of inheriting the project default.
+  copy.authorFrameSize({width:geometry.width,height:geometry.height});
+  const end =
+    copy.getMainTrack()?.getDuration("resolved") ||
+    copy.getDuration("resolved");
+  if (end / copy.getFrameRate() > 90)
+    throw new Error(
+      "Depth preview currently supports drafts up to 90 seconds.",
+    );
+  if (copy.getDuration("resolved") > end)
+    copy.removePlaybackRanges(
+      [{ startFrame: end, endFrame: copy.getDuration("resolved") }],
+      copy.getTracks().filter(t=>!t.isMainTrack()).map(t=>t.getId()),
+    );
+  const path = outputPath;
+  let saved = false;
   try {
-    for (;;) {
-      if (control.canceled) { await depthCancelWorkflow(accepted.workflowId); throw new Error("Canceled."); }
-      const status = await depthSdkScript(`return await selects.workflow(${JSON.stringify(accepted.workflowId)}).status();`, "Read speaker render progress");
-      if (status.status === "succeeded") break;
-      if (["failed","canceled"].includes(status.status)) throw new Error(status.lastErrorMessage || status.status);
-      progress("Preparing video · " + (status.step || status.status));
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    if (control.canceled) throw new Error("Canceled.");
+    await di.SequenceRepository.save(copy, "depth-type-preview");
+    saved = true;
+    progress("Rendering the draft at full size…");
+    // The host snapshot carries clip transforms/effects into the export compositor.
+    // Omitting it renders untransformed footage even when the native timeline is cropped.
+    const overlaySnapshot = await di.RemotionOverlay.getSnapshotForExport(copyId, copy, project);
+    const resourceIds = [...project.getResources()];
+    const sourceRevision = await depthSourceRevision(app, di, libraryId, copyId, resourceIds);
+    const job = await di.WorkflowClient.start({
+      type: "export:video",
+      input: {
+        resolution: depthRenderPreset(geometry),
+        title: "Depth Type preview",
+        // The speaker is found in this render; it is not a video for the user, so
+        // hosts that know the flag raise no "Video is ready" dialog for it.
+        internal: true,
+        outputPath: path,
+        projectId: pid,
+        libraryId,
+        sequenceId: copyId,
+        resourceIds,
+        audioOnly: false,
+        overwriteOutput: false,
+        overlaySnapshot,
+        sourceRevision,
+      },
+    });
+    control.workflowId = job.workflowId;
+    await new Promise((resolve, reject) => {
+      let done = false,
+        off = () => {};
+      const read = (v) => {
+        if (done || !v) return;
+        if (["succeeded", "failed", "canceled"].includes(v.status)) {
+          done = true;
+          off();
+          v.status === "succeeded"
+            ? resolve()
+            : reject(new Error(v.lastError?.message || v.status));
+        } else
+          progress("Preparing video · " + (v.progressDescription || v.status));
+      };
+      off = di.WorkflowClient.subscribe((e) => {
+        if (e.type === "UPSERT" && e.workflow.workflowId === job.workflowId)
+          read(e.workflow);
+      });
+      read(
+        di.WorkflowClient.list().find((x) => x.workflowId === job.workflowId),
+      );
+      if (done) off();
+      if (control.canceled)
+        di.WorkflowClient.cancel(job.workflowId).catch(reject);
+    });
+    return {
+      path,
+      url: di.FileSystem.pathToLocalURL(path),
+      sourceKey: base.key,
+      duration: end / copy.getFrameRate(),
+      fps: copy.getFrameRate(),
+      width: geometry.width,
+      height: geometry.height,
+    };
+  } finally {
+    control.workflowId = null;
+    if (saved) {
+      const temp = await di.SequenceRepository.findById(libraryId, copyId);
+      if (temp?.getName() === name)
+        await di.SequenceRepository.delete(libraryId, copyId);
     }
-    if ((await depthCurrentKey(pid, sid, excluded)) !== base.key) throw new Error("The draft changed during rendering. Try again with its current edit.");
-    return {path:outputPath,url:await hostSdk.files.pathToLocalURL(outputPath),sourceKey:base.key,duration:base.durationFrames/base.fps,fps:base.fps,width:geometry.width,height:geometry.height};
-  } finally { control.workflowId = null; }
+  }
 }
-
 const depthQuote = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 async function depthReadText(fs, path) {
-  return (await fs.exists(path)) ? String(await fs.readFile(path, "utf8")) : "";
+  return fs.existsSync(path) ? String(await fs.readFile(path, "utf8")) : "";
 }
 // Full-resolution speaker masks, one PNG per draft frame, made on this Mac. The
 // job runs in its own session: the host ends each shell call's process group,
@@ -654,8 +789,7 @@ const DEPTH_MATTE_GROW = 0;
 // Masks from an older tool are made again (v4 restores objects the detector drops for a few frames).
 const DEPTH_MATTE_VERSION = 4;
 async function depthPrepareMasks(sdk, preview, settings, job, progress, control) {
-  hostUseSdk(sdk);
-  const fs = hostSdk.files;
+  const fs = depthDI().di.FileSystem;
   const binDir = fs.join(job.root, "bin"),
     source = fs.join(binDir, "depth-type-mattes-v4.js"),
     at = (name) => fs.join(job.dir, name);
@@ -728,7 +862,7 @@ async function depthMaskResult(fs, preview, job) {
   const mask = { width: layout.width, height: layout.height, fps: layout.fps, frames: layout.frames, misses: layout.misses || 0, canvasWidth: preview.width, canvasHeight: preview.height, sourceKey: preview.sourceKey };
   const files = {
     dir: job.dir,
-    base: (await fs.pathToLocalURL(job.dir)).replace(/\/+$/, ""),
+    base: fs.pathToLocalURL(job.dir).replace(/\/+$/, ""),
     count: layout.count,
     width: layout.matteWidth,
     height: layout.matteHeight,
@@ -783,10 +917,9 @@ async function depthBlackPng(width, height) {
   return new Uint8Array(await (await canvas.convertToBlob({ type: "image/png" })).arrayBuffer());
 }
 async function depthPrepareCloudMasks(sdk, preview, pid, job, progress, control) {
-  hostUseSdk(sdk);
-  const fs = hostSdk.files, mg = sdkGeneration(hostSdk);
+  const { di, libraryId } = depthDI(), fs = di.FileSystem, mg = di.MediaGeneration;
   if (!mg?.supportsPluginFiles?.()) throw new Error(depthCloudMessage("generation_update_required"));
-  const scope = { projectId: pid };
+  const scope = { libraryId, projectId: pid };
   progress("Sending the draft for speaker masks…");
   let jobId;
   try {
@@ -841,8 +974,8 @@ async function depthPrepareCloudMasks(sdk, preview, pid, job, progress, control)
   // quoting, and cmd.exe never expands the %06d patterns.
   progress("Writing speaker mask files…");
   const lw = 384, lh = Math.max(1, Math.round((lw * preview.height) / preview.width)), small = fs.join(job.dir, "layout");
-  (await fs.mkdir(small, { recursive: true }));
-  const runtime = hostSdk.media;
+  fs.mkdirSync(small, { recursive: true });
+  const runtime = di.Runtime;
   if (typeof runtime?.runFFmpeg !== "function") throw new Error("This Selects build cannot write speaker mask files. Update Selects, then try again.");
   const writing = new AbortController(), timer = setTimeout(() => writing.abort(), 600000);
   control.stop = () => writing.abort();
@@ -860,7 +993,7 @@ async function depthPrepareCloudMasks(sdk, preview, pid, job, progress, control)
     clearTimeout(timer);
     control.stop = null;
   }
-  const names = (await fs.readdir(small)).map(String).filter((n) => /^l_\d{6}\.png$/.test(n)).sort();
+  const names = fs.readdirSync(small).map(String).filter((n) => /^l_\d{6}\.png$/.test(n)).sort();
   if (!names.length) throw new Error("No speaker masks came back. Try again.");
   const black = depthBase64(await depthBlackPng(lw, lh));
   let blackMatte = null, misses = 0;
@@ -879,13 +1012,13 @@ async function depthPrepareCloudMasks(sdk, preview, pid, job, progress, control)
         frames[index] = { t: index / preview.fps, png: black };
       }),
     );
-  (await fs.rm(small, { recursive: true, force: true }));
+  fs.rmSync(small, { recursive: true, force: true });
   const layout = { version: DEPTH_MATTE_VERSION, width: lw, height: lh, fps: preview.fps, frames, misses, filled: 0, matteWidth: preview.width, matteHeight: preview.height, count: frames.length, mode: "person", grow: 0, source: "cloud" };
   await fs.writeFile(fs.join(job.dir, "layout.json"), JSON.stringify(layout));
   return depthMaskResult(fs, preview, job);
 }
 async function depthLoadLayoutMask(files) {
-  const fs = hostSdk.files;
+  const fs = depthDI().di.FileSystem;
   const layout = JSON.parse(await depthReadText(fs, fs.join(files.dir, "layout.json")));
   if (!layout.frames?.length) throw new Error("The speaker mask files are gone. Choose Redo.");
   return { width: layout.width, height: layout.height, fps: layout.fps, frames: layout.frames, misses: layout.misses || 0, canvasWidth: files.canvasWidth, canvasHeight: files.canvasHeight, sourceKey: files.sourceKey };
@@ -893,16 +1026,15 @@ async function depthLoadLayoutMask(files) {
 // Mask folders take ~3 MB per second of 1080p video. Keep the saved one and the
 // one before it (for Undo); drop the rest of this draft's folders.
 async function depthPruneMasks(sdk, pid, sid, keep) {
-  hostUseSdk(sdk);
-  const fs = hostSdk.files, dir = depthMaskDraftDir(pid, sid);
+  const fs = depthDI().di.FileSystem, dir = depthMaskDraftDir(pid, sid);
   let names = [];
   try {
-    names = (await fs.readdir(dir)).map(String);
+    names = fs.readdirSync(dir).map(String);
   } catch {
     return;
   }
   const kept = new Set(keep.filter(Boolean).map((d) => fs.basename(d)));
-  for (const n of names.filter((n) => !kept.has(n))) (await fs.rm(fs.join(dir, n), { recursive: true, force: true }));
+  for (const n of names.filter((n) => !kept.has(n))) fs.rmSync(fs.join(dir, n), { recursive: true, force: true });
 }
 // Clip refs of b-roll and cards placed by earlier versions of this panel; captions
 // keep stepping aside for them.
@@ -1335,13 +1467,12 @@ function depthComposeFromWords(words, meta, settings, fallbackWidth, fallbackHei
   return depthReferenceComposition(depthRestoreTypography(next, w, hh, settings), w, hh, settings);
 }
 async function depthNewMaskJob(sdk, pid, sid) {
-  hostUseSdk(sdk);
-  const fs = hostSdk.files,
+  const fs = depthDI().di.FileSystem,
     root = depthPluginRoot(),
     dir = fs.join(depthMaskDraftDir(pid, sid), Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
   try {
-    (await fs.mkdir(dir, { recursive: true }));
-    (await fs.mkdir(fs.join(root, "bin"), { recursive: true }));
+    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(fs.join(root, "bin"), { recursive: true });
   } catch (e) {
     throw new Error("Could not create the mask folder: " + (e?.message || e));
   }
@@ -1350,9 +1481,8 @@ async function depthNewMaskJob(sdk, pid, sid) {
 // Full-size render of the draft, then speaker masks from it. `onRender` gets the
 // render as soon as it exists.
 async function depthMakeSpeakerMasks(sdk, pid, sid, meta, settings, excluded, control, progress, onRender) {
-  hostUseSdk(sdk);
   depthRequireHost();
-  const fs = hostSdk.files, maskJob = await depthNewMaskJob(sdk, pid, sid);
+  const fs = depthDI().di.FileSystem, maskJob = await depthNewMaskJob(sdk, pid, sid);
   const p = await depthPrepareVideo(pid, sid, excluded, control, progress, meta, fs.join(maskJob.dir, "render.mp4"));
   if (control.canceled) throw new Error("Canceled.");
   onRender?.(p);
@@ -1361,13 +1491,13 @@ async function depthMakeSpeakerMasks(sdk, pid, sid, meta, settings, excluded, co
     : await depthPrepareMasks(sdk, p, settings, maskJob, progress, control);
 }
 // Masks are reused while the footage, canvas and speaker setting are what they were made from.
-async function depthMaskIsCurrent(files, meta, settings, pid, sid, excluded) {
+async function depthMaskIsCurrent(files, meta, settings, sid, excluded) {
   if (!files || files.canvasWidth !== meta.width || files.canvasHeight !== meta.height) return false;
   if ((files.subject || "foreground") !== depthSubject(settings) || (files.grow || 0) !== DEPTH_MATTE_GROW || (files.version || 0) !== DEPTH_MATTE_VERSION) return false;
   try {
-    const fs = hostSdk.files;
-    if (!(await fs.exists(fs.join(files.dir, "matte_" + String(files.count).padStart(6, "0") + ".png")))) return false;
-    return (await depthCurrentKey(pid, sid, excluded)) === files.sourceKey;
+    const fs = depthDI().di.FileSystem;
+    if (!fs.existsSync(fs.join(files.dir, "matte_" + String(files.count).padStart(6, "0") + ".png"))) return false;
+    return (await depthCurrentKey(sid, excluded)) === files.sourceKey;
   } catch {
     return false;
   }
@@ -1388,7 +1518,7 @@ async function depthMakeCaptions({ sdk, pid, sid, settings, owned = null, reuse 
   if (settings.depth) {
     depthRequireHost();
     let layoutMask;
-    if (reuse?.files && (await depthMaskIsCurrent(reuse.files, meta, settings, pid, sid, excluded))) {
+    if (reuse?.files && (await depthMaskIsCurrent(reuse.files, meta, settings, sid, excluded))) {
       files = reuse.files;
       layoutMask = reuse.mask || (await depthLoadLayoutMask(files));
       if (!reuse.mask) hooks.onMaskLoaded?.(layoutMask);
@@ -1456,7 +1586,6 @@ function depthClipBaseName(name) {
 // Speaker masks run on the Mac's own frameworks through osascript (Vision person segmentation,
 // macOS 12 or later); nothing is installed.
 async function depthHasMaskSupport(sdk) {
-  hostUseSdk(sdk);
   const r = await sdk.runShell({
     summary: "Check the speaker mask support",
     timeoutMs: 20000,
@@ -1526,7 +1655,8 @@ function DepthTemplateRun({ sdk, context }) {
         if (!speaker) throw depthTemplateError(given.some((x) => x?.kind === "video") ? "no-video" : "no-draft");
         // The app hands over the library: the person may move to another page while this runs.
         const libraryId = template.libraryId;
-        if (!libraryId || !sdk?.runScript) throw depthTemplateError("host");
+        if (!libraryId || !window.parent.__DI__) throw depthTemplateError("host");
+        depthPinnedLibraryId = libraryId;
         if (depthHostProblem()) throw depthTemplateError("host");
         // Only the Mac makes masks on the machine; Windows masks come from Selects generation.
         if (!DEPTH_CLOUD_MASKS) {
@@ -1580,7 +1710,7 @@ function DepthTemplateRun({ sdk, context }) {
     return () => {
       control.canceled = true;
       try {
-        if (control.workflowId) depthCancelWorkflow(control.workflowId).catch(() => {});
+        if (control.workflowId) window.parent.__DI__?.WorkflowClient?.cancel(control.workflowId)?.catch?.(() => {});
       } catch {}
       try {
         control.stop?.()?.catch?.(() => {});
@@ -1609,8 +1739,7 @@ function DepthVideo({ preview, time, playing, onTime, onEnded, onError }) {
   useEffect(()=>{const v=video.current;if(v&&!playing&&Math.abs(v.currentTime-time)>1e-3)v.currentTime=time;},[time,playing]);
   return h('div',{ref:mount,style:{position:'absolute',inset:0}});
 }
-function DepthTypePanel({ sdk, context }) {
-  hostUseSdk(sdk);
+export default function DepthTypePanel({ sdk, context }) {
   if (context.template) return h(DepthTemplateRun, { sdk, context });
   return h(DepthEditor, {
     key: String(context.projectId) + ":" + String(context.sequenceId),
@@ -1663,7 +1792,7 @@ function DepthEditor({ sdk, context }) {
       window.removeEventListener("resize", resize);
       if (job.current) {
         job.current.canceled = true;
-        if (job.current.workflowId) depthCancelWorkflow(job.current.workflowId).catch(() => {});
+        if (job.current.workflowId) window.parent.__DI__?.WorkflowClient?.cancel(job.current.workflowId);
       }
     };
   }, []);
@@ -1676,19 +1805,13 @@ function DepthEditor({ sdk, context }) {
   }, [settings, plan, owned, summary, maskFiles, savedMasks]);
   // Reopening the panel keeps the last full-size render as the preview video.
   useEffect(() => {
-    let live = true;
     if (!maskFiles?.render) return;
-    (async () => {
     try {
-      const fs = hostSdk.files;
-      if (!(await fs.exists(maskFiles.render))) return;
-      const url = await fs.pathToLocalURL(maskFiles.render);
-      if (!live) return;
-      setPreview({ path: maskFiles.render, url, sourceKey: maskFiles.sourceKey, duration: maskFiles.duration, fps: maskFiles.fps, width: maskFiles.canvasWidth, height: maskFiles.canvasHeight });
+      const fs = depthDI().di.FileSystem;
+      if (!fs.existsSync(maskFiles.render)) return;
+      setPreview({ path: maskFiles.render, url: fs.pathToLocalURL(maskFiles.render), sourceKey: maskFiles.sourceKey, duration: maskFiles.duration, fps: maskFiles.fps, width: maskFiles.canvasWidth, height: maskFiles.canvasHeight });
       depthLoadLayoutMask(maskFiles).then((m) => alive.current && setMask((current) => current || m)).catch(() => {});
     } catch {}
-    })();
-    return () => { live = false; };
   }, []);
   useEffect(() => {
     if (!pid || !sid) return;
@@ -1775,7 +1898,7 @@ function DepthEditor({ sdk, context }) {
   const cleanPlan = depthCleanPlan;
   // Everything this panel placed: never part of the speaker render or its key.
   const excludedRefs = (ownedRef = owned) => [ownedRef, ...depthCutawayRefs(pid, sid)];
-  const maskIsCurrent = (meta) => depthMaskIsCurrent(maskFiles, meta, settings, pid, sid, excludedRefs());
+  const maskIsCurrent = (meta) => depthMaskIsCurrent(maskFiles, meta, settings, sid, excludedRefs());
   const verifyMask = async () => {
     if (!maskFiles) throw new Error("Choose Make depth captions first, or turn off Behind speaker.");
     const fresh = await sdk.runScript({ script: depthReadScript(pid, sid), summary: "Verify speaker mask canvas", allowCommit: false });
@@ -1794,7 +1917,7 @@ function DepthEditor({ sdk, context }) {
   const cancel = () => {
     if (!job.current) return;
     job.current.canceled = true;
-    if (job.current.workflowId) depthCancelWorkflow(job.current.workflowId).catch(() => {});
+    if (job.current.workflowId) window.parent.__DI__?.WorkflowClient?.cancel(job.current.workflowId);
     setStatus("Cancel requested. The current step stops within a few seconds.");
   };
   // Make and Redo: dialogue → speaker masks (reused while the footage is unchanged) →
@@ -2200,305 +2323,3 @@ function DepthEditor({ sdk, context }) {
     fineTune,
   );
 }
-
-let hostSdk: any = null;
-function hostUseSdk(sdk: any) { hostSdk = panelLocalClient(sdk); if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin."); }
-
-// generation-sdk:start
-// Paid jobs always cross the canonical run_script boundary. This panel-local
-// adapter preserves old saved job IDs while the host owns scope and delivery.
-function sdkGeneration(sdk) {
-  if (typeof sdk?.runScript !== "function") return null;
-  const run = async (script, summary, allowCommit = false) => {
-    const response = await sdk.runScript({ script, summary, allowCommit });
-    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
-    return response?.result;
-  };
-  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
-  return {
-    isAvailable: () => true,
-    supportsPluginFiles: () => true,
-    async submit(request) {
-      if (request.batch != null && request.batch !== 1) throw new Error("Submit one generation at a time.");
-      const input = {
-        projectId: request.scope.projectId, requestKey: request.key,
-        modelId: request.modelId, input: request.input, uploads: request.uploads || {},
-        outputName: request.outputName, mediaType: request.origin?.tool || "video",
-        ...(request.inputMediaSeconds ? { inputMediaSeconds: request.inputMediaSeconds } : {}),
-        ...(request.delivery ? { delivery: { folder: request.delivery.pluginFolder } } : {}),
-      };
-      const result = await run(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
-      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
-      return { jobIds: [result.jobId] };
-    },
-    list: scope => run(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
-    cancel: (scope, id) => run(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
-    retryDelivery: (scope, id) => run(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true),
-  };
-}
-// generation-sdk:end
-
-// local-sdk:start
-/** Pure host-platform path operations; no filesystem or renderer globals. */
-function panelLocalPaths(platform: string) {
-  const windows = platform === "win32";
-  const slash = (path: string) => {
-    if (typeof path !== "string")
-      throw new TypeError("A path must be a string.");
-    return windows ? path.replace(/\\/g, "/") : path;
-  };
-  const rootOf = (path: string) => {
-    if (windows) {
-      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
-      if (unc) return unc[0].replace(/\/?$/, "/");
-      const drive = path.match(/^[a-z]:\/?/i);
-      if (drive) return drive[0];
-    }
-    return path.startsWith("/") ? "/" : "";
-  };
-  const native = (value: string) =>
-    windows ? value.replace(/\//g, "\\") : value;
-  const normalize = (value: string) => {
-    const path = slash(value),
-      root = rootOf(path),
-      absolute = root.endsWith("/");
-    const segments: string[] = [];
-    for (const segment of path
-      .slice(Math.min(root.length, path.length))
-      .split("/")) {
-      if (!segment || segment === ".") continue;
-      if (segment === ".." && segments.length && segments.at(-1) !== "..")
-        segments.pop();
-      else if (segment !== ".." || !absolute) segments.push(segment);
-    }
-    let result = root + segments.join("/");
-    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
-    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
-    return native(result);
-  };
-  const basename = (value: string, extension?: string) => {
-    const path = slash(value).replace(/\/+$/, "");
-    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
-    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
-    return extension && name.endsWith(extension)
-      ? name.slice(0, -extension.length)
-      : name;
-  };
-  return {
-    normalize,
-    join: (...paths: string[]) => {
-      const parts = paths.map(slash).filter(Boolean);
-      let joined = parts.join("/");
-      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
-        joined = joined.replace(/^\/{2,}/, "/");
-      return normalize(joined);
-    },
-    dirname(value: string) {
-      const path = slash(value),
-        root = rootOf(path);
-      const end = path.replace(/\/+$/, "").lastIndexOf("/");
-      if (end < root.length) return value.slice(0, root.length) || ".";
-      return value.slice(0, end);
-    },
-    basename,
-    extname(value: string) {
-      const name = basename(value),
-        dot = name.lastIndexOf(".");
-      return dot <= 0 || name === ".." ? "" : name.slice(dot);
-    },
-    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
-  };
-}
-
-
-/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
-async function createPanelLocalClient(sdk: any) {
-  const run = async (method: string, args: unknown[], write = false) => {
-    // method names below are fixed implementation constants; values always use JSON encoding.
-    const response = await sdk.runScript({
-      summary: "Use local media workspace",
-      allowCommit: write,
-      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
-    });
-    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
-    // A clipped report has no result. Every read returning data rejects that case below.
-    return response.result;
-  };
-  const environment = await run("files.environment", []);
-  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
-    throw new Error("Update Selects to use this plugin's local media workspace.");
-  const paths = panelLocalPaths(environment.platform);
-  const CHUNK_BYTES = 48 * 1024;
-  const readRange = async (path: string, offset: number, length: number) => {
-    const parts: Uint8Array[] = [];
-    let total = 0;
-    while (total < length) {
-      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
-      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
-      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
-      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
-      parts.push(bytes); total += bytes.length;
-      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
-    }
-    const output = new Uint8Array(total);
-    let position = 0;
-    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
-    return output;
-  };
-  const files = {
-    ...paths,
-    homedir: () => environment.homedir,
-    getOrCreateTmpDirPath: async () => environment.tempDirectory,
-    exists: (path: string) => run("files.exists", [path]),
-    stat: (path: string) => run("files.stat", [path]),
-    readdir: (path: string) => run("files.readdir", [path]),
-    readRange,
-    async readFile(path: string, encoding?: string) {
-      const stat = await run("files.stat", [path]);
-      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
-      const bytes = await readRange(path, 0, stat.size);
-      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
-      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
-      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
-    },
-    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
-      const encoding = typeof options === "string" ? options : options?.encoding;
-      const flag = typeof options === "object" ? options.flag : undefined;
-      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
-      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
-      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
-      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
-      // Each complete replacement has its own sibling file. Other panels cannot
-      // overwrite one of its chunks before the final atomic rename publishes it.
-      const replacement = flag !== "a" && flag !== "wx";
-      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
-      let published = false;
-      try {
-        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
-          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
-          let binary = "";
-          for (const byte of chunk) binary += String.fromCharCode(byte);
-          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
-          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
-          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
-        }
-        if (replacement) await run("files.rename", [destination, path], true);
-        published = true;
-      } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
-      }
-    },
-    async compareAndReplace(path: string, expectedText: string | null, text: string) {
-      const encode = (value: string) => {
-        const bytes = new TextEncoder().encode(value);
-        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
-        let binary = "";
-        for (const byte of bytes) binary += String.fromCharCode(byte);
-        return btoa(binary);
-      };
-      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
-      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
-      return result.replaced;
-    },
-    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
-    rename: (from: string, to: string) => run("files.rename", [from, to], true),
-    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
-    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
-    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
-    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
-  };
-  const activeJobs = new Set<string>();
-  let disposed = false;
-  const cancel = async (jobId: string) => {
-    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
-    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
-  };
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
-    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const started = await run("media.start" + executable, [{ args }], true);
-    if (!started?.jobId) throw new Error("The media process did not return a job id.");
-    const jobId = started.jobId;
-    activeJobs.add(jobId);
-    let cancellation: Promise<void> | null = null;
-    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
-    signal?.addEventListener("abort", abort, { once: true });
-    if (disposed || signal?.aborted) abort();
-    let cursor = 0, stdout = "", stderr = "";
-    try {
-      while (true) {
-        if (cancellation) await cancellation;
-        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
-        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
-        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
-        for (const event of status.events) {
-          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
-          else { stderr += event.text; onStderr?.(event.text); }
-        }
-        cursor = status.nextCursor;
-        if (status.state !== "running" && status.events.length === 0) {
-          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
-          return { stdout, stderr };
-        }
-        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
-      }
-    } catch (error) {
-      await cancel(jobId).catch(() => {});
-      throw error;
-    } finally {
-      signal?.removeEventListener("abort", abort);
-      activeJobs.delete(jobId);
-    }
-  };
-  return {
-    files,
-    environment,
-    media: {
-      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
-      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
-    },
-    dialogs: {
-      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
-      pickDirectoryPath: () => run("editor.pickDirectory", []),
-      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
-    },
-    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
-  };
-}
-
-const panelLocalClients = new WeakMap<object, any>();
-function panelLocalClient(sdk: any): any {
-  const client = panelLocalClients.get(sdk);
-  if (!client) throw new Error("Local SDK has not initialized.");
-  return client;
-}
-function withPanelLocalClient(Component: any) {
-  return function LocalSdkPanel(props: any) {
-    const [state, setState] = React.useState<any>(null);
-    React.useEffect(() => {
-      let active = true;
-      let client: any;
-      createPanelLocalClient(props.sdk).then(value => {
-        client = {...props.sdk, ...value};
-        if (!active) { value.dispose(); return; }
-        panelLocalClients.set(props.sdk, client);
-        setState({sdk: props.sdk});
-      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
-      return () => {
-        active = false;
-        if (client) {
-          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
-          client.dispose();
-        }
-      };
-    }, [props.sdk]);
-    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
-    return React.createElement(Component, props);
-  };
-}
-
-export default withPanelLocalClient(DepthTypePanel);
-// local-sdk:end

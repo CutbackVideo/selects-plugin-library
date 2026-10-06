@@ -136,13 +136,13 @@ test('the actual consumer rejects a quantized source clock before any shared AI 
   const executable = async name => stripTypeScriptTypes(await fs.readFile(path.join(__dirname, '../src/pipeline', name), 'utf8'))
     .replace(/^import[^\n]+\n/gm, '').replace(/^export /gm, '');
   let aiRequests = 0, colorDecodes = 0;
-  const storage = { join: path.join, writeFile: async () => {}, rm: async () => {} };
+  const storage = { join: path.join, writeFile: async () => {}, rmSync: () => {} };
   const runtime = { runFFmpeg: async () => { colorDecodes++; }, runFFprobe: async args => ({ stdout: JSON.stringify(
     args.includes('-show_frames') ? { frames: Array.from({ length: 21 }, (_, i) => ({ best_effort_timestamp: Math.round(i * 1000 / 30) })) }
       : { streams: [{ width: 64, height: 32, avg_frame_rate: '30/1', r_frame_rate: '30/1', time_base: '1/1000', start_time: '0' }], format: { start_time: '0' } },
   ) }) };
-  const frameCode = new Function('assertConstantFrameClock', 'media', 'fs', await executable('faceFrames.ts') + '\nreturn {probeVideo,verifyConstantSourceClock};')(
-    c.assertConstantFrameClock, () => runtime, () => storage);
+  const frameCode = new Function('assertConstantFrameClock', 'di', 'fs', await executable('faceFrames.ts') + '\nreturn {probeVideo,verifyConstantSourceClock};')(
+    c.assertConstantFrameClock, () => ({ Runtime: runtime }), () => storage);
   const reducer = await tracker;
   const imports = { fs: () => storage, J: JSON.stringify, ...frameCode,
     samplePlan: reducer.samplePlan, scanProbed: reducer.scanProbed,

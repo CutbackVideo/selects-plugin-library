@@ -80,7 +80,7 @@ export async function appendCall(fs: HostFs, jobDir: string, call: CallRecord, n
 }
 
 export async function readJsonl<T = Record<string, unknown>>(fs: HostFs, path: string): Promise<{ records: T[]; badLines: number }> {
-  if (!(await fs.exists(path))) return { records: [], badLines: 0 };
+  if (!fs.existsSync(path)) return { records: [], badLines: 0 };
   const text = decodeText(await fs.readFile(path));
   const records: T[] = [];
   let badLines = 0;

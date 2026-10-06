@@ -6,15 +6,15 @@ export function hostRuntimeFiles(fs: HostFs): RuntimeFiles {
   return {
     join: (...p) => fs.join(...p),
     dirname: (p) => fs.dirname(p),
-    exists: async (p) => (await fs.exists(p)),
+    exists: (p) => fs.existsSync(p),
     readBytes: (p) => readBytes(fs, p),
     downloadFile: (url, dest) => {
       if (typeof fs.downloadFile !== "function") throw new Error("This Selects build cannot download files (FileSystem.downloadFile).");
       return fs.downloadFile(url, dest);
     },
-    mkdirp: async (p) => void (await ensureDir(fs, p)),
-    rename: async (a, b) => (await fs.rename(a, b)),
-    remove: async (p) => (await fs.unlink(p)),
+    mkdirp: (p) => void ensureDir(fs, p),
+    rename: (a, b) => fs.renameSync(a, b),
+    remove: (p) => fs.unlinkSync(p),
   };
 }
 

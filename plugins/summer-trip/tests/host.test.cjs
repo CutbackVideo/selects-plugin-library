@@ -1,4 +1,3 @@
-const { asyncSdk } = require('../../../tests/windows_host.mjs');
 // plugins/summer-trip/tests/host.test.cjs (run: node plugins/summer-trip/tests/host.test.cjs; adapted from
 // plugins/selfie-aesthetic/tests/host.test.cjs). The panel's host block (dev/host-block.ts, embedded verbatim in
 // panel.tsx between // st-host:start and // st-host:end) evaluated as plain JS in node:vm with a fake
@@ -68,9 +67,7 @@ function sandbox(di, opts) {
   };
   box.window = opts.where === 'self' ? { parent: {}, __DI__: di } : { parent: { __DI__: di } };
   vm.createContext(box);
-  box.sdk = di ? asyncSdk(di) : undefined;
-  if (box.sdk) box.sdk.environment.platform = di.Runtime?.getPlatform?.() || '';
-  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + block + ';hostUseSdk(sdk);globalThis.H={' + API.join(',') + '};', box);
+  vm.runInContext(block + ';globalThis.H={' + API.join(',') + '};', box);
   return { H: box.H, box, blobs };
 }
 
@@ -165,14 +162,14 @@ test('bytes from another realm (window.parent FileSystem results) decode', async
 // ---- missing host ----
 test('missing __DI__ or members -> host_tools', async () => {
   const { H } = sandbox(undefined);
-  assert.deepEqual(JSON.parse(JSON.stringify(H.hostDI())), {});
+  assert.deepEqual(JSON.parse(JSON.stringify(H.hostDI())), { fs: null, rt: null });
   const has = H.hostHas(['fs.join', 'rt.runFFmpeg']);
   assert.equal(has.ok, false);
   assert.deepEqual(Array.from(has.missing), ['fs.join', 'rt.runFFmpeg']);
-  await rejectsCode(H.hostDataDir('x'), 'host_tools');
-  await rejectsCode(H.hostSkillsDir('x', 'planner.js'), 'host_tools');
+  throwsCode(() => H.hostDataDir('x'), 'host_tools');
+  throwsCode(() => H.hostSkillsDir('x', 'planner.js'), 'host_tools');
   throwsCode(() => H.hostJoin('a', 'b'), 'host_tools');
-  await rejectsCode(H.hostRename('a', 'b'), 'host_tools');
+  throwsCode(() => H.hostRename('a', 'b'), 'host_tools');
   await rejectsCode(H.hostFFmpeg(['-version']), 'host_tools');
   await rejectsCode(H.hostFFprobe(['-version']), 'host_tools');
   await rejectsCode(H.hostProbeDuration(media), 'host_tools');
@@ -180,8 +177,8 @@ test('missing __DI__ or members -> host_tools', async () => {
   await rejectsCode(H.hostPreviewUrl(media, 0, 1, tmp, 0.4), 'host_tools');
   await rejectsCode(H.hostReadText(media), 'host_tools');
   await rejectsCode(H.hostWriteBytes(path.join(tmp, 'x'), new Uint8Array(1)), 'host_tools');
-  assert.equal((await H.hostFileSize(media)), 0, 'no FileSystem: nothing is there');
-  assert.deepEqual(Array.from((await H.hostList(tmp))), []);
+  assert.equal(H.hostFileSize(media), 0, 'no FileSystem: nothing is there');
+  assert.deepEqual(Array.from(H.hostList(tmp)), []);
   await H.hostRemove(media);
   assert.ok(fs.existsSync(media), 'no remover: nothing removed');
 
@@ -190,8 +187,8 @@ test('missing __DI__ or members -> host_tools', async () => {
   let ran = 0;
   const partial = sandbox({ FileSystem: realFS({ mkdirSync: undefined, readFileSync: undefined, readFile: undefined }),
     Runtime: { runFFmpeg: async () => { ran++; return { stdout: '', stderr: '' }; } } }).H;
-  const err = await rejectsCode(partial.hostDataDir('x'), 'host_tools');
-  assert.deepEqual(Array.from(err.missing), ['fs.mkdir']);
+  const err = throwsCode(() => partial.hostDataDir('x'), 'host_tools');
+  assert.deepEqual(Array.from(err.missing), ['fs.mkdirSync']);
   await rejectsCode(partial.hostFFprobe(['-version']), 'host_tools');
   await rejectsCode(partial.hostDecodePcm(media, tmp, 22050, 360), 'host_tools');
   await rejectsCode(partial.hostPreviewUrl(media, 0, 1, tmp, 0.4), 'host_tools');
@@ -204,7 +201,7 @@ test('missing __DI__ or members -> host_tools', async () => {
   Object.defineProperty(box.window, 'parent', { get() { throw new Error('SecurityError'); } });
   vm.createContext(box);
   vm.runInContext(block + ';globalThis.D=hostDI();', box);
-  assert.equal(box.D.fs, undefined);
+  assert.equal(box.D.fs, null);
 });
 
 test('timeouts, cancels and tool failures map to timeout / cancelled / media_failed', async () => {
@@ -240,7 +237,7 @@ test('ffmpeg that succeeds without writing its output maps to media_failed', asy
       if (write) fs.writeFileSync(args[args.length - 1], '');
       return { stdout: '', stderr: '' };
     } } });
-    const dir = (await s.H.hostDataDir('no-output-' + write));
+    const dir = s.H.hostDataDir('no-output-' + write);
     const pcm = await rejectsCode(s.H.hostDecodePcm(path.join(tmp, 'in.wav'), dir, 22050, 360), 'media_failed');
     assert.ok(pcm.detail && pcm.detail.length, 'pcm detail');
     const prev = await rejectsCode(s.H.hostPreviewUrl(path.join(tmp, 'in.wav'), 0, 1, dir, 0.4), 'media_failed');
@@ -251,54 +248,57 @@ test('ffmpeg that succeeds without writing its output maps to media_failed', asy
 });
 
 // ---- paths and files ----
-test('platform, skills dir, data dir, join', async () => {
+test('platform, skills dir, data dir, join', () => {
   assert.equal(sandbox({ Runtime: { getPlatform: () => 'win32' } }).H.hostPlatform(), 'win32');
   assert.equal(sandbox({ Runtime: { getPlatform: () => 'darwin' } }).H.hostPlatform(), 'darwin');
+  assert.equal(sandbox({}, { ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Selects' }).H.hostPlatform(), 'win32');
+  assert.equal(sandbox({}, { ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' }).H.hostPlatform(), 'darwin');
+  assert.equal(sandbox(undefined, { ua: 'Mozilla/5.0 (X11; Linux x86_64)' }).H.hostPlatform(), 'linux');
 
   const { H } = sandbox({ FileSystem: realFS(), Runtime: realRT() });
   const skill = path.join(HOME, '.selects', 'skills', 'summer-trip');
-  assert.equal((await H.hostSkillsDir('summer-trip', 'planner.js')), null, 'no folder yet');
+  assert.equal(H.hostSkillsDir('summer-trip', 'planner.js'), null, 'no folder yet');
   fs.mkdirSync(skill, { recursive: true });
-  assert.equal((await H.hostSkillsDir('summer-trip', 'planner.js')), null, 'folder without planner.js');
+  assert.equal(H.hostSkillsDir('summer-trip', 'planner.js'), null, 'folder without planner.js');
   fs.writeFileSync(path.join(skill, 'planner.js'), '');
-  assert.equal((await H.hostSkillsDir('summer-trip', 'planner.js')), skill);
+  assert.equal(H.hostSkillsDir('summer-trip', 'planner.js'), skill);
 
   const data = path.join(HOME, '.selects', 'plugin-data', 'summer-trip');
   assert.ok(!fs.existsSync(data));
-  assert.equal((await H.hostDataDir('summer-trip')), data);
+  assert.equal(H.hostDataDir('summer-trip'), data);
   assert.ok(fs.statSync(data).isDirectory());
-  assert.equal((await H.hostDataDir('summer-trip')), data, 'idempotent');
+  assert.equal(H.hostDataDir('summer-trip'), data, 'idempotent');
 
   // A Windows host: every path comes from its join (backslashes), with a Korean user name.
   const winHome = 'C:\\Users\\' + KO;
   const made = [];
   const win = sandbox({ FileSystem: { join: path.win32.join, homedir: () => winHome, existsSync: (p) => p === path.win32.join(winHome, '.selects', 'skills', 'summer-trip', 'planner.js'),
     mkdirSync: (p) => made.push(p) } }).H;
-  assert.equal((await win.hostSkillsDir('summer-trip', 'planner.js')), winHome + '\\.selects\\skills\\summer-trip');
-  assert.equal((await win.hostDataDir('summer-trip')), winHome + '\\.selects\\plugin-data\\summer-trip');
+  assert.equal(win.hostSkillsDir('summer-trip', 'planner.js'), winHome + '\\.selects\\skills\\summer-trip');
+  assert.equal(win.hostDataDir('summer-trip'), winHome + '\\.selects\\plugin-data\\summer-trip');
   assert.deepEqual(made, [winHome + '\\.selects\\plugin-data\\summer-trip']);
   assert.equal(win.hostJoin(winHome, 'sfx', 'shutter-1.wav'), winHome + '\\sfx\\shutter-1.wav');
 });
 
 test('write, size, rename, list, remove (the SFX and muffle steps)', async () => {
   const { H } = sandbox({ FileSystem: realFS() });
-  const dir = (await H.hostMkdir(path.join(tmp, 'files ' + KO, 'sfx')));
+  const dir = H.hostMkdir(path.join(tmp, 'files ' + KO, 'sfx'));
   assert.ok(fs.statSync(dir).isDirectory());
   const f = path.join(dir, 'a.wav');
-  assert.equal((await H.hostFileSize(f)), 0, 'missing');
+  assert.equal(H.hostFileSize(f), 0, 'missing');
   await H.hostWriteBytes(f, new Uint8Array([1, 2, 3]));
-  assert.equal((await H.hostFileSize(f)), 3);
+  assert.equal(H.hostFileSize(f), 3);
   assert.deepEqual(Array.from(fs.readFileSync(f)), [1, 2, 3]);
-  (await H.hostRename(f, path.join(dir, 'b.wav')));
-  assert.deepEqual(Array.from((await H.hostList(dir))), ['b.wav']);
+  H.hostRename(f, path.join(dir, 'b.wav'));
+  assert.deepEqual(Array.from(H.hostList(dir)), ['b.wav']);
   await H.hostRemove(path.join(dir, 'b.wav'));
-  assert.deepEqual(Array.from((await H.hostList(dir))), []);
-  assert.deepEqual(Array.from((await H.hostList(path.join(dir, 'nope')))), [], 'an unreadable folder lists nothing');
+  assert.deepEqual(Array.from(H.hostList(dir)), []);
+  assert.deepEqual(Array.from(H.hostList(path.join(dir, 'nope'))), [], 'an unreadable folder lists nothing');
   // writeFileSync / existsSync-only hosts.
   const sync = sandbox({ FileSystem: realFS({ writeFile: undefined, statSync: undefined }) }).H;
   await sync.hostWriteBytes(f, new Uint8Array([9]));
-  assert.equal((await sync.hostFileSize(f)), 1, 'existsSync: 1 for there');
-  assert.equal((await sync.hostFileSize(f + '.x')), 0);
+  assert.equal(sync.hostFileSize(f), 1, 'existsSync: 1 for there');
+  assert.equal(sync.hostFileSize(f + '.x'), 0);
   // removeFile-only host.
   const rmOnly = sandbox({ FileSystem: realFS({ unlinkSync: undefined }) }).H;
   await rmOnly.hostRemove(f);
@@ -361,7 +361,7 @@ ffTest('decode PCM (Buffer, ArrayBuffer and foreign readers) leaves no file', as
   };
   for (const [name, FileSystem] of Object.entries(readers)) {
     const { H } = sandbox({ FileSystem, Runtime: realRT() });
-    const dir = (await H.hostDataDir('pcm-' + name));
+    const dir = H.hostDataDir('pcm-' + name);
     const pcm = await H.hostDecodePcm(media, dir, 22050, 360);
     assert.equal(Object.prototype.toString.call(pcm), '[object Float32Array]', name);
     assert.ok(Math.abs(pcm.length - 44100) <= 64, name + ' length ' + pcm.length);
@@ -372,14 +372,14 @@ ffTest('decode PCM (Buffer, ArrayBuffer and foreign readers) leaves no file', as
     assert.ok(Math.abs(short.length - 22050) <= 64, name + ' maxSeconds ' + short.length);
   }
   const { H } = sandbox({ FileSystem: realFS(), Runtime: realRT() });
-  const dir = (await H.hostDataDir('pcm-missing'));
+  const dir = H.hostDataDir('pcm-missing');
   await rejectsCode(H.hostDecodePcm(path.join(tmp, 'missing.wav'), dir, 22050, 360), 'media_failed');
   assert.deepEqual(lsData(dir), []);
 });
 
 ffTest('decoded PCM equals the CLI decode (the arguments beat-detect always used)', async () => {
   const { H } = sandbox({ FileSystem: realFS(), Runtime: realRT() });
-  const pcm = await H.hostDecodePcm(media, (await H.hostDataDir('cli')), 22050, 360);
+  const pcm = await H.hostDecodePcm(media, H.hostDataDir('cli'), 22050, 360);
   const out = path.join(tmp, 'cli.f32');
   spawnSync(tool('ffmpeg'), ['-nostdin', '-v', 'error', '-y', '-t', '360', '-i', media, '-ac', '1', '-ar', '22050', '-f', 'f32le', out]);
   const cli = fs.readFileSync(out);
@@ -388,7 +388,7 @@ ffTest('decoded PCM equals the CLI decode (the arguments beat-detect always used
 
 ffTest('preview blob URL, mp3 with WAV fallback, leftovers cleared, no file left', async () => {
   const s = sandbox({ FileSystem: realFS(), Runtime: realRT() });
-  const dir = (await s.H.hostDataDir('preview'));
+  const dir = s.H.hostDataDir('preview');
   fs.writeFileSync(path.join(dir, 'preview-old.b64'), 'x');
   fs.writeFileSync(path.join(dir, 'preview-old.mp3'), 'x');
   fs.writeFileSync(path.join(dir, 'keep.json'), '{}');

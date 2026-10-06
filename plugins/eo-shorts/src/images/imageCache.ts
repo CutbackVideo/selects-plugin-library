@@ -76,7 +76,7 @@ export function deliveryFolder(fs: HostFs, p: CachePaths, draw: string): string 
 
 export async function readCached(fs: HostFs, p: CachePaths, sha: string): Promise<ImageRecord | null> {
   const sha24 = sha.slice(0, 24);
-  if (!(await fs.exists(imageFile(fs, p, sha24)))) return null;
+  if (!fs.existsSync(imageFile(fs, p, sha24))) return null;
   let rec: ImageRecord | null = null;
   try {
     rec = await readJsonIfExists<ImageRecord | null>(fs, recordFile(fs, p, sha24), null);
@@ -96,7 +96,7 @@ export async function readDraw(fs: HostFs, p: CachePaths, draw: string): Promise
 }
 
 export async function writeDraw(fs: HostFs, p: CachePaths, rec: DrawRecord): Promise<void> {
-  await ensureDir(fs, p.draws);
+  ensureDir(fs, p.draws);
   await writeJsonAtomic(fs, drawFile(fs, p, rec.draw), rec);
 }
 

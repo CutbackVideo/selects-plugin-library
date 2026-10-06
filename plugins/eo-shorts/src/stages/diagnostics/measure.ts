@@ -12,12 +12,12 @@ export function decodeArgs(mp4: string, wav: string, sampleRate: number): string
 }
 
 export async function decodeAudio(h: H, mp4: string, tmpWav: string, sampleRate: number, signal?: AbortSignal | null): Promise<Pcm> {
-  await removeFile(h.fs, tmpWav);
+  removeFile(h.fs, tmpWav);
   try {
     await encode(h.runtime, decodeArgs(mp4, tmpWav, sampleRate), { fs: h.fs, outPath: tmpWav, signal, timeoutMs: 120_000 });
     return decodeWav(await readBytes(h.fs, tmpWav));
   } finally {
-    await removeFile(h.fs, tmpWav);
+    removeFile(h.fs, tmpWav);
   }
 }
 
@@ -29,20 +29,20 @@ export type Pulled = { jpg: Map<number, string>; gray: Map<number, Uint8Array>; 
 
 export async function pullFrames(h: H, mp4: string, samples: Sample[], dir: string, signal?: AbortSignal | null): Promise<Pulled> {
   const fs = h.fs;
-  await ensureDir(fs, dir);
-  for (const name of (await fs.readdir(dir))) if (/^(f\d+|tmp-\d+)\.jpg$|^gray\.raw$/.test(name)) (await removeFile(fs, fs.join(dir, name)));
+  ensureDir(fs, dir);
+  for (const name of fs.readdirSync(dir)) if (/^(f\d+|tmp-\d+)\.jpg$|^gray\.raw$/.test(name)) removeFile(fs, fs.join(dir, name));
   const frames = samples.map((s) => s.frame);
   const raw = fs.join(dir, "gray.raw");
   await encode(h.runtime, extractArgs(mp4, frames, imagePattern(fs, dir, "tmp-%03d.jpg"), raw), { fs, outPath: raw, signal, timeoutMs: 300_000 });
   const bytes = await readBytes(fs, raw);
-  await removeFile(fs, raw);
+  removeFile(fs, raw);
   const size = TILE.width * TILE.height;
   const got = Math.floor(bytes.length / size);
   const jpg = new Map<number, string>();
   const gray = new Map<number, Uint8Array>();
   for (const [i, f] of frames.entries()) {
     const tmp = fs.join(dir, "tmp-" + String(i).padStart(3, "0") + ".jpg");
-    if ((await fs.exists(tmp))) {
+    if (fs.existsSync(tmp)) {
       const out = fs.join(dir, "f" + String(f).padStart(4, "0") + ".jpg");
       await renameWithRetry(fs, tmp, out);
       jpg.set(f, out);
@@ -58,7 +58,7 @@ export const SHEET = { columns: 6, perSheet: 24, maxSide: 1700, frameMaxSide: TI
 
 export async function paintSheets(h: Pick<Host, "fs">, painter: SheetPainter, samples: Sample[], pulled: Pulled, dir: string): Promise<string[]> {
   const fs = h.fs;
-  for (const name of (await fs.readdir(dir))) if (/^contact-\d+\.jpg$/.test(name)) (await removeFile(fs, fs.join(dir, name)));
+  for (const name of fs.readdirSync(dir)) if (/^contact-\d+\.jpg$/.test(name)) removeFile(fs, fs.join(dir, name));
   const out: string[] = [];
   const shown = samples.filter((s) => pulled.jpg.has(s.frame));
   for (const [n, chunk] of sheetChunks(shown.length, SHEET.perSheet).entries()) {

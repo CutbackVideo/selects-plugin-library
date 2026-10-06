@@ -1,4 +1,3 @@
-import {asyncSdk} from './windows_host.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -8,20 +7,16 @@ const source=fs.readFileSync(new URL('../plugins/jared-vox-editorial/panel.tsx',
 function panel(extra={}) {
  const ctx={TextDecoder,TextEncoder,Uint8Array,AbortController,setTimeout,clearTimeout,
   window:{parent:{__DI__:{Runtime:{getPlatform:()=> 'win32'},FileSystem:{join:(...p)=>p.join('\\'),writeFile:async()=>{},downloadFile:()=>{throw Error('unexpected host download');}}}}},...extra};
- const prefix=source.slice(0,source.indexOf('function Panel(')).replace(/^import React from "react";\s*/m,'').replace(/^export /gm,'');
- ctx.panelLocalClient = sdk => sdk;
- ctx.__sdk = asyncSdk(ctx.window.parent.__DI__);
- ctx.files = ctx.__sdk.files;
- ctx.window.parent.__DI__ = new Proxy({}, {get() { throw Error('Migrated DI access'); }});
- vm.runInNewContext(stripTypeScriptTypes(prefix) + '\nhostUseSdk(__sdk);',ctx); return ctx;
+ const prefix=source.slice(0,source.indexOf('export default function Panel')).replace(/^import React from "react";\s*/m,'').replace(/^export /gm,'');
+ vm.runInNewContext(stripTypeScriptTypes(prefix),ctx); return ctx;
 }
 test('article pages and portraits use FileSystem.downloadFile on win32',async()=>{
  const c=panel({fetch:async()=>{throw Error('article/portrait must use the host');}});
- const downloads=[],removed=[],files=new Map(),host=c.files;
+ const downloads=[],removed=[],files=new Map(),host=c.window.parent.__DI__.FileSystem;
  host.downloadFile=async(url,dest)=>{downloads.push([url,dest]);files.set(dest,new TextEncoder().encode('host body'));};
  host.readFile=async path=>files.get(path);
- host.exists=async path=>files.has(path);
- host.removeFile=async ({filePath:path})=>{removed.push(path);files.delete(path);};
+ host.existsSync=path=>files.has(path);
+ host.unlink=async path=>{removed.push(path);files.delete(path);};
  const io=c.voxHostIO('C:\\Users\\user\\job',{});
  const article=await io.http('https://example.org/article','agent',1);
  assert.equal(article.code,200);assert.equal(article.text,'host body');
@@ -81,7 +76,7 @@ for (const fps of [24000/1001,24,25,30000/1001,30,60000/1001]) {
  });
 }
 test('macOS basename matching remains case-sensitive',async()=>{
- const c=panel();c.__sdk.environment.platform = 'darwin';
+ const c=panel();c.window.parent.__DI__.Runtime.getPlatform=()=> 'darwin';
  const script=c.voxImportScript('p',['/tmp/job/clip.mp4']);const imported=[];
  await vm.runInNewContext(stripTypeScriptTypes('(async()=>{'+script+'})()'),{
   selects:{project:()=>({resources:async()=>[{name:'CLIP.mp4'}],importFiles:async x=>imported.push(...x.paths)})}});

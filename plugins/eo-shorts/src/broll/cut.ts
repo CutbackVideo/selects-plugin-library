@@ -56,9 +56,9 @@ const sameCut = (k: ClipKey | null, url: string, start: number, seconds: number)
 
 export async function clipHolds(fs: HostFs, out: string, url: string, start: number, seconds: number): Promise<boolean> {
   try {
-    if (!(await fs.exists(out))) return false;
+    if (!fs.existsSync(out)) return false;
     const k = await readJsonIfExists<ClipKey | null>(fs, clipKeyPath(out), null);
-    return sameCut(k, url, start, seconds) && (k!.bytes == null || k!.bytes === (await statFile(fs, out))?.size);
+    return sameCut(k, url, start, seconds) && (k!.bytes == null || k!.bytes === statFile(fs, out)?.size);
   } catch {
     return false;
   }
@@ -77,23 +77,23 @@ export async function cutClip(
   if (await clipHolds(d.fs, out, url, start, seconds)) {
     try {
       const p = await probeMedia(d.runtime, out, { fs: d.fs, tmpDir: d.tmpDir, signal: d.signal });
-      if (ok(p)) return { path: out, probe: p, bytes: (await statFile(d.fs, out))?.size ?? 0, ms: Date.now() - t0, reused: true };
+      if (ok(p)) return { path: out, probe: p, bytes: statFile(d.fs, out)?.size ?? 0, ms: Date.now() - t0, reused: true };
     } catch {
     }
   }
-  await removeFile(d.fs, keyPath);
-  if ((await d.fs.exists(keyPath))) throw new Error("could not remove the old clip record " + keyPath);
+  removeFile(d.fs, keyPath);
+  if (d.fs.existsSync(keyPath)) throw new Error("could not remove the old clip record " + keyPath);
   const part = out.replace(/\.mp4$/i, "") + ".part.mp4";
-  await removeFile(d.fs, part);
+  removeFile(d.fs, part);
   await encode(d.runtime, cutArgs(url, start, seconds, part), { fs: d.fs, outPath: part, signal: d.signal, timeoutMs: 180_000 });
   const probe = await probeMedia(d.runtime, part, { fs: d.fs, tmpDir: d.tmpDir, signal: d.signal });
   if (!ok(probe)) {
-    await removeFile(d.fs, part);
+    removeFile(d.fs, part);
     throw new Error("the cut is " + probe.durationSec + " s long, not " + seconds.toFixed(3) + " s");
   }
-  await removeFile(d.fs, out);
+  removeFile(d.fs, out);
   await renameWithRetry(d.fs, part, out);
-  const bytes = (await statFile(d.fs, out))?.size ?? 0;
+  const bytes = statFile(d.fs, out)?.size ?? 0;
   const key: ClipKey = { schema: "broll-clip/1", recipe: CUT_RECIPE, url, start: round3(start), seconds: round3(seconds), bytes };
   await writeJsonAtomic(d.fs, keyPath, key);
   return { path: out, probe, bytes, ms: Date.now() - t0, reused: false };

@@ -12,18 +12,19 @@ export type HostFs = {
   dirname(path: string): string;
   basename(path: string, ext?: string): string;
   homedir(): string;
-  exists(path: string): Promise<boolean>;
-  mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
-  readdir(path: string): Promise<string[]>;
-  stat(path: string): Promise<{ size?: number; mtimeMs?: number; [k: string]: unknown } | null>;
-  rename(from: string, to: string): Promise<void>;
-  unlink(path: string): Promise<void>;
-  rm(path: string, options?: { recursive?: boolean; force?: boolean }): Promise<void>;
+  existsSync(path: string): boolean;
+  mkdirSync(path: string, options?: { recursive?: boolean }): void;
+  readdirSync(path: string): string[];
+  statSync(path: string): { size?: number; mtimeMs?: number; [k: string]: unknown } | null;
+  renameSync(from: string, to: string): void;
+  unlinkSync(path: string): void;
+  rmSync(path: string, options?: { recursive?: boolean; force?: boolean }): void;
   readFile(path: string, options?: unknown): Promise<unknown>;
   writeFile(path: string, data: string | Uint8Array, options?: { flag?: string; encoding?: string }): Promise<void>;
+  exists?(path: string): Promise<boolean>;
   copyFile?(from: string, to: string): Promise<void>;
   downloadFile?(url: string, path: string): Promise<void>;
-  pathToLocalURL?(path: string): Promise<string>;
+  pathToLocalURL?(path: string): string;
 };
 
 export type FfResult = { stdout: string; stderr: string };
@@ -45,7 +46,6 @@ export type Host = {
   sdk: PanelSdk;
   fs: HostFs;
   runtime: HostRuntime | null;
-  environment?: { platform: string; version: string };
-  generation?: import("../images/mediaGeneration.ts").MediaGenerationLike | null;
+  di?: Record<string, any> | null;
   now(): number;
 };

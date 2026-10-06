@@ -37,12 +37,12 @@ export async function readJson<T = unknown>(fs: HostFs, path: string): Promise<T
 }
 
 export async function readJsonIfExists<T>(fs: HostFs, path: string, fallback: T): Promise<T> {
-  if (!(await fs.exists(path))) return fallback;
+  if (!fs.existsSync(path)) return fallback;
   return readJson<T>(fs, path);
 }
 
-export async function ensureDir(fs: HostFs, path: string): Promise<string> {
-  if (!(await fs.exists(path))) (await fs.mkdir(path, { recursive: true }));
+export function ensureDir(fs: HostFs, path: string): string {
+  if (!fs.existsSync(path)) fs.mkdirSync(path, { recursive: true });
   return path;
 }
 
@@ -51,19 +51,19 @@ export const RENAME_RETRY_MS = [10, 25, 50, 100, 200, 400, 800];
 export type AtomicWriteOptions = { renameRetryMs?: number[] };
 
 export async function writeFileAtomic(fs: HostFs, path: string, data: string | Uint8Array, o: AtomicWriteOptions = {}): Promise<void> {
-  await ensureDir(fs, fs.dirname(path));
+  ensureDir(fs, fs.dirname(path));
   const tmp = path + ".tmp-" + randomHex(8);
   await fs.writeFile(tmp, data);
   const waits = o.renameRetryMs ?? RENAME_RETRY_MS;
   for (let attempt = 0; ; attempt += 1) {
     try {
-      await fs.rename(tmp, path);
+      fs.renameSync(tmp, path);
       return;
     } catch (e) {
-      if (attempt > 0 && !(await fs.exists(tmp))) return;
+      if (attempt > 0 && !fs.existsSync(tmp)) return;
       if (attempt >= waits.length) {
         try {
-          await fs.unlink(tmp);
+          fs.unlinkSync(tmp);
         } catch {
         }
         throw e;
@@ -77,10 +77,10 @@ export async function renameWithRetry(fs: HostFs, from: string, to: string, o: A
   const waits = o.renameRetryMs ?? RENAME_RETRY_MS;
   for (let attempt = 0; ; attempt += 1) {
     try {
-      await fs.rename(from, to);
+      fs.renameSync(from, to);
       return;
     } catch (e) {
-      if (attempt > 0 && !(await fs.exists(from)) && (await fs.exists(to))) return;
+      if (attempt > 0 && !fs.existsSync(from) && fs.existsSync(to)) return;
       if (attempt >= waits.length) throw e;
       await sleep(waits[attempt]);
     }
@@ -92,32 +92,32 @@ export function writeJsonAtomic(fs: HostFs, path: string, value: unknown, o: Ato
 }
 
 export async function appendText(fs: HostFs, path: string, text: string): Promise<void> {
-  await ensureDir(fs, fs.dirname(path));
+  ensureDir(fs, fs.dirname(path));
   await fs.writeFile(path, text, { flag: "a" });
 }
 
 export async function createExclusive(fs: HostFs, path: string, text: string): Promise<boolean> {
-  await ensureDir(fs, fs.dirname(path));
+  ensureDir(fs, fs.dirname(path));
   try {
     await fs.writeFile(path, text, { flag: "wx" });
     return true;
   } catch (e) {
-    if ((await fs.exists(path))) return false;
+    if (fs.existsSync(path)) return false;
     throw e;
   }
 }
 
 export type FileStat = { size: number; mtimeMs: number };
 
-export async function statFile(fs: HostFs, path: string): Promise<FileStat | null> {
-  const s = (await fs.stat(path));
+export function statFile(fs: HostFs, path: string): FileStat | null {
+  const s = fs.statSync(path);
   if (!s) return null;
   return { size: Number(s.size ?? 0), mtimeMs: Number(s.mtimeMs ?? 0) };
 }
 
-export async function removeFile(fs: HostFs, path: string): Promise<void> {
+export function removeFile(fs: HostFs, path: string): void {
   try {
-    if ((await fs.exists(path))) (await fs.unlink(path));
+    if (fs.existsSync(path)) fs.unlinkSync(path);
   } catch {
   }
 }

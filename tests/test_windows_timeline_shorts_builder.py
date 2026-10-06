@@ -44,22 +44,52 @@ class TimelineShortsBuilderWindowsTest(unittest.TestCase):
         self.assertEqual(out.strip(), "[[1,2,3],[4,5]]")
 
 
-    def test_clip_reads_use_sdk_data_instead_of_host_models(self):
+    def test_clip_model_calls_are_feature_detected(self):
+        panel = "\n".join(l for l in read(os.path.join(plugin_dir(PLUGIN), "panel.tsx")).split("\n")
+                          if not l.lstrip().startswith("//"))
+        # Selects 2.0.53x removed Clip.getStartTime() and changed getThumbnail's input; only the helpers touch them.
+        self.assertEqual(panel.count(".getStartTime("), 1, "getStartTime only inside clipStart")
+        self.assertEqual(panel.count(".getThumbnail("), 2, "getThumbnail only inside clipThumbnail")
+        self.assertNotIn(".getDuration(", panel, "durations come from the SDK clip rows")
+        self.assertIn("start:clipStart(c)", panel)
+        self.assertIn("()=>clipThumbnail(p.c,lib,frame,fps,", panel)
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_clip_helpers_with_old_and_new_clip_models(self):
         panel = read(os.path.join(plugin_dir(PLUGIN), "panel.tsx"))
-        self.assertNotIn("__DI__", panel)
-        self.assertNotIn(".getThumbnail(", panel)
-        self.assertNotIn(".getStartTime(", panel)
-        self.assertIn("sdk.call('getDraftMediaSnapshot'", panel)
-        self.assertIn("sdk.call('getDraftClipThumbnail'", panel)
-        # Build and repair share the Project guard; no removed host() accessor remains.
-        self.assertNotIn("host(pid)", panel)
-        self.assertIn("assertProject(pid)", panel)
+        helpers = "\n".join(l for l in panel.split("\n") if l.startswith(("const legacyClip=", "const jsonSafe=", "const clipStart=", "const clipThumbnail=")))
+        helpers = (helpers.replace("(c:any)", "(c)").replace("(v:any)", "(v)")
+                   .replace("(c:any,libraryId:string,frame:number,fps:number,camera:any)", "(c,libraryId,frame,fps,camera)"))
+        script = r"""
+const vm = require('node:vm');
+const ctx = vm.createContext({});
+vm.runInContext(process.argv[1] + '\nglobalThis.api = { clipStart, clipThumbnail };', ctx);
+const calls = [];
+const legacy = { getStartTime: () => 48, getThumbnail: (i) => (calls.push(i), 'old') };
+const current = { getSourceStartTick: () => 1411200n, getThumbnail: (i) => (calls.push(i), 'new') };
+const bare = { getThumbnail: (i) => (calls.push(i), 'bare') };
+console.log(JSON.stringify({
+  starts: [ctx.api.clipStart(legacy), ctx.api.clipStart(current), ctx.api.clipStart(bare)],
+  thumbs: [ctx.api.clipThumbnail(legacy, 'L', 12, 30, 1), ctx.api.clipThumbnail(current, 'L', 12, 30, 1), ctx.api.clipThumbnail(bare, 'L', 5, 24, undefined)],
+  calls,
+}));
+"""
+        r = subprocess.run(["node", "-e", script, helpers], capture_output=True, text=True, timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        out = json.loads(r.stdout)
+        self.assertEqual(out["starts"], [48, "1411200", None])
+        self.assertEqual(out["thumbs"], ["old", "new", "bare"])
+        self.assertEqual(out["calls"], [
+            {"libraryId": "L", "frame": 12, "fps": 30, "quality": "low", "immediate": False},
+            {"libraryId": "L", "presentationFrame": 12, "assignedVideoIndex": 1, "quality": "low", "immediate": False},
+            {"libraryId": "L", "presentationFrame": 5, "quality": "low", "immediate": False},
+        ])
 
     def test_empty_host_thumbnail_falls_back_to_the_bundled_ffmpeg(self):
         panel = read(os.path.join(plugin_dir(PLUGIN), "panel.tsx"))
         request = panel[panel.index("let raw=await readStep('Thumbnail request'"):]
         request = request[: request.index("if(!raw)throw new Error('The thumbnail response was empty.');")]
-        self.assertIn("if(!raw&&stampRow?.stamp?.path)raw=await readStep('Thumbnail from file',()=>ffmpegThumbnail(fs,root,stampRow.stamp.path,clipSourceSeconds(p.c,frame,fps)));", request)
+        self.assertIn("if(!raw&&stampRow?.stamp?.path)raw=await readStep('Thumbnail from file',()=>ffmpegThumbnail(di,fs,root,stampRow.stamp.path,clipSourceSeconds(p.c,frame,fps)));", request)
         fallback = panel[panel.index("async function ffmpegThumbnail("):]
         fallback = fallback[: fallback.index("\nasync function digest(")]
         self.assertIn("rt.runFFmpeg(['-nostdin','-v','error','-y',...(still?[]:['-ss',seconds.toFixed(3)]),'-i',file,", fallback)
@@ -76,9 +106,10 @@ class TimelineShortsBuilderWindowsTest(unittest.TestCase):
 const vm = require('node:vm');
 const ctx = vm.createContext({});
 vm.runInContext(process.argv[1] + '\nglobalThis.f = clipSourceSeconds;', ctx);
-const clip = (seconds, speed) => ({ sourceStartSeconds: seconds, playbackSpeed: speed });
+const clip = (tick, num, den) => ({ getOwnerTimebase: () => ({ getTicksPerFrame: () => 29429400 }), getSourceStartTick: () => tick,
+  getTiming: () => ({ toJSON: () => ({ playbackSpeed: { numerator: num, denominator: den } }) }) });
 const fps = 24000 / 1001;
-console.log(JSON.stringify([ctx.f(clip(0, 1), 0, fps), ctx.f(clip(0, 1), 899, fps), ctx.f(clip(1, 2), 24, fps), ctx.f(clip(0, 1), 48, 24)]));
+console.log(JSON.stringify([ctx.f(clip(0, 1, 1), 0, fps), ctx.f(clip(0, 1, 1), 899, fps), ctx.f(clip(705600000, 2, 1), 24, fps), ctx.f({}, 48, 24)]));
 """
         r = subprocess.run(["node", "-e", script, fn], capture_output=True, text=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)

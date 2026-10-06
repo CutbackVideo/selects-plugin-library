@@ -88,7 +88,7 @@ export function checkScenes(scenes: PlannedScene[], film: string | null): string
 
 export async function readPlanInput(fs: HostFs, jobDir: string, o: { film?: string | null } = {}): Promise<PlanInput> {
   const at = (rel: string) => fs.join(jobDir, ...rel.split("/"));
-  if (!(await fs.exists(at(PLAN_SCENES_REL)))) throw new Error("The plan has no scenes yet (" + PLAN_SCENES_REL + " is missing).");
+  if (!fs.existsSync(at(PLAN_SCENES_REL))) throw new Error("The plan has no scenes yet (" + PLAN_SCENES_REL + " is missing).");
   const rows = rowsOf(await readJson(fs, at(PLAN_SCENES_REL)));
   const scenes: PlannedScene[] = [];
   for (const r of rows) {
@@ -96,7 +96,7 @@ export async function readPlanInput(fs: HostFs, jobDir: string, o: { film?: stri
     let plan = r.plan ?? null;
     if (!plan) {
       const rel = scenePlanRel(sceneId);
-      if (!(await fs.exists(at(rel)))) throw new Error("Scene " + sceneId + " has no plan (" + rel + ").");
+      if (!fs.existsSync(at(rel))) throw new Error("Scene " + sceneId + " has no plan (" + rel + ").");
       plan = await readJson<PlanJson>(fs, at(rel));
     }
     scenes.push({ sceneId, start: Number(r.start), end: Number(r.end), type: String(r.type ?? ""), plan });
