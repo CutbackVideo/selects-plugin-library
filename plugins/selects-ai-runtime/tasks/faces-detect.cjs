@@ -15,6 +15,11 @@ function faceParameters(request) {
   const range = input?.sourceRange;
   const sampleEverySeconds = input?.sampleEverySeconds ?? 0.5;
   const scoreThreshold = input?.scoreThreshold ?? 0.8;
+  if (input?.source?.kind === 'image') {
+    if (range !== undefined || input.sampleEverySeconds !== undefined) throw new Error('Image input cannot have sourceRange or video sampling options');
+    if (!Number.isFinite(scoreThreshold) || scoreThreshold < 0 || scoreThreshold > 1) throw new Error('scoreThreshold must be in [0, 1]');
+    return { scoreThreshold };
+  }
   if (!range || !Number.isFinite(range.startSeconds) || !Number.isFinite(range.endSeconds)
     || range.startSeconds < 0 || range.endSeconds <= range.startSeconds) {
     throw new Error('Expected nonempty sourceRange [startSeconds, endSeconds)');
@@ -28,6 +33,7 @@ function faceParameters(request) {
 // boundary. Advance directly over missing intervals; never invent VFR times.
 function sampleSelector(parameters) {
   const { sourceRange, sampleEverySeconds } = parameters;
+  if (!sourceRange) return time => time === 0;
   let next = sourceRange.startSeconds;
   return (time) => {
     if (!Number.isFinite(time)) throw new Error('Frame sourceTimeSeconds must be finite');
@@ -103,6 +109,7 @@ async function runFaces(context) {
     };
     await writeJson(path.join(outputDir, 'faces.json'), {
       contractVersion: 1, task: 'faces.detect',
+      ...(request.input.source?.kind === 'image' ? { sourceKind: 'image' } : {}),
       model: { id: 'yunet-2023mar', sha256: modelSha256 },
       coordinateSpace: 'display-pixels', frameSize: { width: video.width, height: video.height },
       boxFormat: 'xyxy', landmarkOrder: ['rightEye', 'leftEye', 'nose', 'rightMouth', 'leftMouth'],

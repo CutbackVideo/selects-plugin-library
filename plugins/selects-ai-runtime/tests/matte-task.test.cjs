@@ -24,9 +24,9 @@ async function rig(t, behavior = {}) {
     outputDir, signal: controller.signal,
     request: { input: { sourceRange: { startSeconds: 0, endSeconds: 2 } } },
     config: { provider: 'auto', enableCoreMlAuto: true, models: { rvm: { path: modelPath, sha256: crypto.createHash('sha256').update(bytes).digest('hex') } } },
-    video: { width: 2, height: 1, frameTimes: [0, 1] },
+    video: { width: 2, height: 1, frameTimes: behavior.image ? [0] : [0, 1] },
     frames: async function* () {
-      try { for (let index = 0; index < 2; index++) yield { index, sourceTimeSeconds: index, rgb: Buffer.from([10, 20, 30, 40, 50, 60]) }; }
+      try { for (let index = 0; index < (behavior.image ? 1 : 2); index++) yield { index, sourceTimeSeconds: index, rgb: Buffer.from([10, 20, 30, 40, 50, 60]) }; }
       finally { closed = true; }
     },
     ort: {
@@ -54,6 +54,7 @@ async function rig(t, behavior = {}) {
     },
     emitProgress: event => { if (behavior.cancelAfterFirst && event.step === 'inference') controller.abort(); },
   };
+  if (behavior.image) { context.request.input = { source: { kind: 'image' } }; context.video.sourceKind = 'image'; }
   return { context, tensors, sessions, feeds, closed: () => closed, run: () => runMatte(context, { platform }) };
 }
 
@@ -64,6 +65,17 @@ test('auto accepts the first result exactly once and preserves recurrent state a
   assert.ok(r.closed()); assert.ok(r.tensors.every(tensor => tensor.disposed === 1));
   const manifest = JSON.parse(await fs.readFile(path.join(r.context.outputDir, 'matte.json')));
   assert.deepEqual(manifest.frames.map(frame => frame.sourceTimeSeconds), [0, 1]);
+});
+
+test('independent photos start with zero recurrent state and publish one still mask without a playback clock', async t => {
+  for (let index = 0; index < 2; index++) {
+    const r = await rig(t, { image: true }), result = await r.run();
+    assert.equal(result.metrics.frames, 1); assert.deepEqual(r.feeds.map(f => f.rec), [0]);
+    const manifest = JSON.parse(await fs.readFile(path.join(r.context.outputDir, 'matte.json')));
+    assert.equal(manifest.sourceKind, 'image'); assert.equal(manifest.frames.length, 1);
+    assert.equal(manifest.sourceRange, undefined); assert.equal(manifest.sourceFrameRate, undefined);
+    assert.ok(r.tensors.every(tensor => tensor.disposed === 1)); assert.ok(r.closed());
+  }
 });
 
 test('a failed first GPU output restarts CPU from zero recurrent state with the same RGB frame', async t => {

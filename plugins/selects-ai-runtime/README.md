@@ -2,6 +2,13 @@
 
 A shared external runtime for `faces.detect` (YuNet) and `person.matte` (RVM), exercised on macOS arm64 and Windows x64. Windows DirectML and CPU execution use Selects' embedded Node; Mac WebGPU uses a pinned plugin-owned standalone Node to avoid Electron/Dawn mapped-buffer incompatibility. The task and job contracts are shared. Python and a globally installed Node are not runtime requirements.
 
+Both tasks also accept a static JPEG, PNG or WebP Image Resource on hosts that
+support image AI requests. One image produces one set of face detections or
+one person mask; it needs no video conversion, frame rate or time range.
+EXIF display orientation is applied before inference. Animated images and
+HEIC are outside this initial scope. The shared person model does not remove
+arbitrary objects; photo edge quality must be evaluated for each consumer.
+
 The source package registers an external runtime with Selects host 2.0.560 or newer, the first shipping AI host. Its preparation entrypoint provisions pinned native dependencies and original models without global Node or Python. The AI Test Lab panel consumes the public `selects.ai` SDK; it contains no inference engine or shell launcher. The app integration is developed separately from this package. `scripts/job-host.cjs` remains a standalone verification harness. See [VALIDATION.md](VALIDATION.md) for measured scope and [INSTALL.md](INSTALL.md) for setup and platform requirements.
 
 ```mermaid

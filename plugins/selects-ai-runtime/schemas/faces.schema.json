@@ -144,6 +144,65 @@
           }
         }
       }
+    },
+    "sourceKind": {
+      "const": "image",
+      "description": "Present only for a static image; video results retain their original shape."
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "sourceKind": {
+            "const": "image"
+          }
+        },
+        "required": [
+          "sourceKind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "samples": {
+            "maxItems": 1,
+            "items": {
+              "properties": {
+                "index": {
+                  "const": 0
+                },
+                "sourceTimeSeconds": {
+                  "const": 0
+                }
+              }
+            }
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "sourceRange"
+              ]
+            },
+            {
+              "required": [
+                "sourceFrameRate"
+              ]
+            },
+            {
+              "required": [
+                "fps"
+              ]
+            },
+            {
+              "required": [
+                "foregroundVideo"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
 }

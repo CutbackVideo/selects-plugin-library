@@ -23,8 +23,7 @@
     "input": {
       "type": "object",
       "required": [
-        "source",
-        "sourceRange"
+        "source"
       ],
       "properties": {
         "source": {
@@ -37,6 +36,14 @@
               "type": "string",
               "minLength": 1,
               "description": "Absolute host-resolved local path; internal PoC only."
+            },
+            "kind": {
+              "enum": [
+                "video",
+                "image"
+              ],
+              "default": "video",
+              "description": "Host-resolved Resource kind; omission preserves video requests."
             }
           }
         },
@@ -76,7 +83,10 @@
           "default": 0.25
         },
         "alphaEncoding": {
-          "enum": ["grayscale-png-8bit", "grayscale-avif-8bit"],
+          "enum": [
+            "grayscale-png-8bit",
+            "grayscale-avif-8bit"
+          ],
           "default": "grayscale-png-8bit",
           "description": "person.matte only; omitted retains lossless PNG compatibility. AVIF is independent full-size 8-bit monochrome still images encoded with libaom CRF 24."
         },
@@ -88,7 +98,56 @@
           "default": "alpha-frames",
           "description": "person.matte only; foreground-video requires verified CFR and also writes a full-size ProRes 4444 alpha movie."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "properties": {
+                  "kind": {
+                    "const": "image"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "sourceRange"
+                  ]
+                },
+                {
+                  "required": [
+                    "sampleEverySeconds"
+                  ]
+                },
+                {
+                  "properties": {
+                    "outputMode": {
+                      "const": "foreground-video"
+                    }
+                  },
+                  "required": [
+                    "outputMode"
+                  ]
+                }
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "sourceRange"
+            ]
+          }
+        }
+      ]
     }
   }
 }
