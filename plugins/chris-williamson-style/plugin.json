@@ -47,17 +47,18 @@
   "inputs": [
     {
       "id": "speaker",
-      "label": "This draft",
-      "kind": "timeline",
+      "label": "Video",
+      "accepts": [
+        "video"
+      ],
       "requires": [
-        "transcript"
+        "cutting"
       ]
     }
   ],
   "prepare": [
-    "A draft of one person talking to camera",
-    "Only video and audio on it, no captions or effects yet",
-    "Analyzed, so it has a transcript",
+    "A video file of one person talking to camera",
+    "No captions or effects already on the video",
     "English speech"
   ]
 }
