@@ -182,12 +182,12 @@ class PostcardCutoutStudioWindowsTest(unittest.TestCase):
         self.assertIn('onClick={()=>answerCredits(false)}>Cancel</ui.Button>', self.text)
         self.assertIn('if(e?.creditsDeclined){setError(CREDITS_DECLINED);', self.text, 'a cancel leaves an error, so the run is not resumed by itself')
 
-    def test_a_template_run_never_starts_a_paid_cutout(self):
-        self.assertIn('confirmCredits=async _run=>{throw Error(TEMPLATE_CREDITS)}}){', self.body('function createRunner('))
-        self.assertIn("const TEMPLATE_CREDITS='This uses Selects generation credits. Open Postcard Cutout Studio and press Create to confirm.';", self.text)
+    def test_a_template_run_counts_as_consent_to_the_paid_cutout(self):
+        # Product decision 2026-10-06: starting a credit-using template is the consent; the Panel still asks.
+        self.assertIn('confirmCredits=async _run=>{throw Error(TEMPLATE_CREDITS)}}){', self.body('function createRunner('),
+                      'a caller that hands no confirm over still refuses')
         body = self.body('async function runTemplate(', '\nasync function releaseTemplateRun(')
-        self.assertIn('createRunner({sdk,guard,setStatus})', body, 'no confirm handed over: the default refuses')
-        self.assertNotIn('confirmCredits', body)
+        self.assertIn('createRunner({sdk,guard,setStatus,confirmCredits:async()=>true})', body)
 
     def test_manifest_lists_windows(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))

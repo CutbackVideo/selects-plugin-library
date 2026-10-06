@@ -563,8 +563,9 @@ const BRIA_MODEL_ID='model_v1_YnJpYS92aWRlby9iYWNrZ3JvdW5kLXJlbW92YWwvdjM';
 // The cutout is only on screen until the flash (TIMING.subjectEnd), so a little
 // more than that is all that is sent; the provider bills and works by the second.
 const CUTOUT_SECONDS=1.6;
-// Every paid background removal waits for an explicit yes (both OSes). The Panel asks with a card; a template run
-// has no one to ask, so it stops before the paid step and a cutout it can reuse still builds.
+// Every paid background removal in the Panel waits for an explicit yes (both OSes), asked with a card. A template
+// run has no one to ask: starting a credit-using template counts as consent (product decision 2026-10-06), so it
+// passes its own confirmCredits. The default below still refuses, for any caller that hands none over.
 const CREDITS_NOTICE='This sends a '+CUTOUT_SECONDS+' s clip of your subject to Selects background removal, which uses generation credits. A rebuild with the same subject and range reuses the cutout.';
 const CREDITS_DECLINED='Background removal was not started, so no credits were used. Press Resume when you are ready.';
 const TEMPLATE_CREDITS='This uses Selects generation credits. Open Postcard Cutout Studio and press Create to confirm.';
@@ -863,7 +864,8 @@ async function runTemplate({sdk,pid,template,sequenceId,guard,setStatus}){
     photoIds:[...new Set(ending.map(idOf))].filter(id=>id!==subjectRow.resourceId)};
   if(!settings.bgIds.length||!settings.photoIds.length)throw Error('Pick clips other than the subject for the panels and the ending, then try again.');
   setStatus('Building your postcard…');
-  const runner=createRunner({sdk,guard,setStatus});
+  // Starting this template is the consent to its background removal (see CREDITS_NOTICE above).
+  const runner=createRunner({sdk,guard,setStatus,confirmCredits:async()=>true});
   // A run left unfinished — the frame running it went away mid-way — is settled
   // first through the Panel's own resume, which finds a save that landed and
   // pays for no cutout twice; only then does this one start.

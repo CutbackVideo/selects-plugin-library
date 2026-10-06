@@ -74,7 +74,8 @@ test('a finished cutout of the same stretch is reused',async()=>{
 });
 
 // The paid step: createRunner's generation() runs in node:vm with stubbed host calls. A confirm that answers no
-// (the Panel's Cancel) or the template default (no confirm handed over) stops before claim, import and submit.
+// (the Panel's Cancel) or the default (no confirm handed over) stops before claim, import and submit. A template run
+// hands over a confirm that answers yes: starting the template is the consent (2026-10-06).
 function runner(confirmCredits){
  const calls=[],ctx=vm.createContext({calls,console,Date,setTimeout,
   helper:async(_sdk,op,args)=>{calls.push(op);return op==='claim'?{claimed:true,run:{runId:'r',projectId:'p',phase:'generationSubmitting',settings:{subjectStartSec:0},source:{path:'/s.mp4'},logDir:'/logs/r'}}:op==='cutout-input'?{path:'/c.mp4'}:{phase:'generationPending'}},
@@ -92,7 +93,7 @@ test('Cancel on the credit card stops before claim, import and submit',async()=>
  await assert.rejects(r.generation({...ready}),e=>e.creditsDeclined===true&&/no credits were used/.test(e.message));
  assert.deepEqual(asked,['r']);assert.deepEqual(calls,[]);
 });
-test('a template run (no confirm) refuses the paid step before anything',async()=>{
+test('a runner with no confirm handed over still refuses the paid step before anything',async()=>{
  const {r,calls}=runner(null);
  await assert.rejects(r.generation({...ready}),/Open Postcard Cutout Studio and press Create to confirm/);
  assert.deepEqual(calls,[]);
