@@ -94,6 +94,15 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
                 self.assertRegex(cost, r'\b' + lang + r': "[^"]*\{s\}[^"]*\{n\}[^"]*"')
         self.assertIn('en: "Use credits and continue"', body(self.text, 'const COST_GO = ', '\n'))
 
+    def test_plain_footage_note_is_localized_and_reaches_both_panels(self):
+        table = body(self.text, 'const PLAIN_TEXT = ', '\n')
+        for lang in LANGUAGES:
+            self.assertRegex(table, r'\b' + lang + r': "[^"]*\{n\}[^"]*"')
+        self.assertIn('onNote?.(plainText(language, manifest.plainShots))', self.text)
+        self.assertIn('if (note) setStatus(note);', self.text)
+        self.assertIn('finish({ sequenceId: draftId });', self.text)
+        self.assertIn('message: note ? T.done + " " + note : T.done', self.text)
+
     def test_nothing_is_paid_before_the_click(self):
         cloud = body(self.text, 'async function pbmCloudMattes(', '\n}\n')
         submit = cloud.index('mg.submit(')
@@ -183,7 +192,7 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
     def test_manifest_and_docs(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
-        self.assertEqual(manifest['version'], '0.1.10')
+        self.assertEqual(manifest['version'], '0.1.11')
         # The template's "What you need" is one list for both OSes: each platform's requirement is named, and no
         # line asks for an ffmpeg install (both use the ffmpeg Selects bundles).
         prepare = ' / '.join(manifest['prepare'])
