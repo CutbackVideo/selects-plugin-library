@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { makeReel, rebuildReel, loadJob, STEPS, type Step, type MakeResult } from "./pipeline/make";
+import FaceStage from "./FaceStage";
 import { app } from "./pipeline/host";
 
 const readStore = (k: string) => {
@@ -18,7 +19,7 @@ const writeStore = (k: string, v: string) => {
 
 const STORE = "podcast-hook-captions:v2:";
 
-export default function PodcastHookReel({ sdk, context }: any) {
+export default function PodcastHookReel({ sdk, context, ui }: any) {
   const [seconds, setSeconds] = useState(25);
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);
@@ -101,6 +102,7 @@ export default function PodcastHookReel({ sdk, context }: any) {
   const icon = (s: Step["state"]) => (s === "done" ? "✓" : s === "run" ? "…" : s === "fail" ? "!" : s === "skip" ? "–" : "·");
   return (
     <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 }}>
+      <FaceStage sdk={sdk} context={context} ui={ui} />
       <div>
         <div style={{ fontSize: 15, fontWeight: 600 }}>Podcast reel, one click</div>
         <div style={{ color: "var(--panel-muted-fg)" }}>

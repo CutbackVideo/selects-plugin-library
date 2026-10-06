@@ -173,3 +173,7 @@ jobs:
       - name: Test A16z Style Captions
         run: |
           node plugins/a16z-style-captions/tests/windows.test.cjs
+      - name: Test shared AI runtime
+        run: node --test plugins/selects-ai-runtime/tests/*.test.cjs
+      - name: Test Podcast Hook Captions shared AI consumer
+        run: node --test plugins/podcast-hook-captions/tests/*.test.cjs

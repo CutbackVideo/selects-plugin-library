@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Durable successful runtime result",
+  "type": "object",
+  "required": [
+    "contractVersion",
+    "task",
+    "status",
+    "files",
+    "metrics",
+    "diagnostics"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": 1
+    },
+    "task": {
+      "enum": [
+        "faces.detect",
+        "person.matte"
+      ]
+    },
+    "status": {
+      "const": "succeeded"
+    },
+    "files": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Slash-separated relative path; runtime additionally verifies realpath confinement."
+      }
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "diagnostics": {
+      "type": "object"
+    }
+  }
+}

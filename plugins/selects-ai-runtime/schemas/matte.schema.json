@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RVM continuous alpha frame manifest",
+  "type": "object",
+  "dependentRequired": {
+    "sourceFrameRate": ["sourceRange"],
+    "sourceRange": ["sourceFrameRate"]
+  },
+  "required": [
+    "schemaVersion",
+    "task",
+    "frameSize",
+    "alphaEncoding",
+    "frames",
+    "downsampleRatio",
+    "model",
+    "diagnostics"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "task": {
+      "const": "person.matte"
+    },
+    "frameSize": {
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "alphaEncoding": {
+      "enum": ["grayscale-png-8bit", "grayscale-avif-8bit"]
+    },
+    "sourceFrameRate": {
+      "description": "Present with sourceRange only when actual source PTS verifies a constant frame rate.",
+      "type": "object",
+      "required": ["numerator", "denominator"],
+      "properties": {
+        "numerator": { "type": "integer", "minimum": 1 },
+        "denominator": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "sourceRange": {
+      "description": "Complete selected display-frame interval, closed on exact frame-index/fps quotients; not the requested decimal interval.",
+      "type": "object",
+      "required": ["startSeconds", "endSeconds"],
+      "properties": {
+        "startSeconds": { "type": "number", "minimum": 0 },
+        "endSeconds": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "frames": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "index",
+          "sourceTimeSeconds",
+          "file"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sourceTimeSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Slash-separated relative path; runtime additionally verifies realpath confinement."
+          }
+        }
+      }
+    },
+    "downsampleRatio": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    },
+    "model": {
+      "type": "object"
+    },
+    "diagnostics": {
+      "type": "object"
+    },
+    "foregroundVideo": {
+      "type": "object",
+      "required": [
+        "file",
+        "encoding",
+        "frameRate",
+        "frameCount",
+        "width",
+        "height",
+        "durationSeconds",
+        "sourceStartSeconds"
+      ],
+      "properties": {
+        "file": {
+          "const": "foreground.mov"
+        },
+        "encoding": {
+          "const": "prores-4444"
+        },
+        "frameRate": {
+          "type": "object",
+          "required": [
+            "numerator",
+            "denominator"
+          ],
+          "properties": {
+            "numerator": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "denominator": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "frameCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "durationSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "sourceStartSeconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

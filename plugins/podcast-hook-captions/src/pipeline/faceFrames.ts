@@ -14,6 +14,7 @@
 // first sample of the next one and records its timestamp (-stats_enc_pre); the next chunk seeks to exactly that frame,
 // so the chunks see the frames one continuous decode would, as cv2 counted them, on constant- and
 // variable-frame-rate video alike.
+import { assertConstantFrameClock } from "./sharedAiFaces.cjs";
 import { di, fs } from "./host";
 
 /** Bytes of frames per ffmpeg run (two runs' worth on disk while the next is prefetched). */
@@ -27,7 +28,7 @@ const CHUNK_TIMEOUT_MS = 10 * 60 * 1000;
  * The video stream as cv2.VideoCapture reports it (upright size, frame rate), plus what seeking needs: the stream's
  * start relative to the file's, and its shortest frame duration (1 / r_frame_rate).
  */
-export type VideoInfo = { W: number; H: number; fps: number; offset: number; frameS: number };
+export type VideoInfo = { W: number; H: number; fps: number; offset: number; frameS: number; timeBase?:string };
 
 /** Which frames a job samples: face_track.py's f0, f1, step, analysis size and number of samples. */
 export type SamplePlan = { f0: number; f1: number; step: number; w: number; h: number; count: number };
@@ -88,7 +89,7 @@ const rate = (s: any) => {
 export async function probeVideo(path: string, signal?: AbortSignal): Promise<VideoInfo> {
   const args = [
     "-v", "error", "-hide_banner", "-select_streams", "V:0",
-    "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate,start_time:stream_tags=rotate:stream_side_data=rotation:format=start_time",
+    "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate,time_base,start_time:stream_tags=rotate:stream_side_data=rotation:format=start_time",
     "-of", "json", path,
   ];
   const r: any = await withTimeout<any>((s) => runtime().runFFprobe(args, true, s), 60000, signal);
@@ -106,7 +107,22 @@ export async function probeVideo(path: string, signal?: AbortSignal): Promise<Vi
   const fps = rate(s.avg_frame_rate) || rate(s.r_frame_rate) || 30;
   const st = Number(s.start_time), ft = Number(j.format && j.format.start_time);
   const offset = Number.isFinite(st) ? st - (Number.isFinite(ft) ? ft : 0) : 0;
-  return { W, H, fps, offset, frameS: 1 / Math.max(fps, rate(s.r_frame_rate)) };
+  return { W, H, fps, offset, timeBase:s.time_base, frameS: 1 / Math.max(fps, rate(s.r_frame_rate)) };
+}
+
+/** Prove the source's actual integer PTS clock before combining independent face and color decoders. */
+export async function verifyConstantSourceClock(path:string,info:VideoInfo,plan:SamplePlan,signal?:AbortSignal):Promise<void> {
+  // Scan a bounded segment around this pass, including seek preroll; never the whole long source.
+  const start=Math.max(0,info.offset+plan.f0/info.fps-2);
+  const maximum=Math.min(20000,Math.ceil((plan.f1-plan.f0)+8*info.fps));
+  const args=["-v","error","-select_streams","v:0","-read_intervals",start.toFixed(6)+"%+#"+maximum,"-show_frames","-show_entries","frame=best_effort_timestamp","-of","json",path];
+  const r:any=await withTimeout<any>(s=>runtime().runFFprobe(args,true,s),60000,signal);
+  const value=JSON.parse(String(r?.stdout||"").replace(/[\r\n]/g,""));
+  const timestamps=(value.frames||[]).map((f:any)=>f.best_effort_timestamp);
+  assertConstantFrameClock(timestamps,info.timeBase,info.fps);
+  const [n,d]=String(info.timeBase).split("/").map(Number);
+  if(timestamps[timestamps.length-1]*n/d < info.offset+(plan.f1-1)/info.fps-1e-6)
+    throw new Error("Bounded frame-clock scan could not verify the requested source interval. Long keyframe preroll is unsupported.");
 }
 
 // ---------------------------------------------------------------- extraction

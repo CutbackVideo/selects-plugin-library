@@ -12,13 +12,12 @@
   Inc., licensed under the SIL Open Font License 1.1 (`fonts/OFL-RedditSans.txt`).
   A static instance (weight 840) subset to Latin-1 and common punctuation,
   stored as base64 text of the WOFF2 file and embedded into the titles graphic.
-- YuNet face detector (`face_detection_yunet_2023mar.onnx`) from the OpenCV Zoo,
-  MIT licence. Downloaded on first use; not shipped in this package.
-- ONNX Runtime Web 1.30.0 (`onnxruntime-web`, MIT licence, Microsoft), which runs
-  the face detector in the panel. Downloaded on first use from the npm CDN; not
-  shipped in this package.
-- `src/pipeline/yunetDecode.ts` follows the YuNet post-processing of OpenCV's
-  `FaceDetectorYN` (Apache 2.0).
+- Face inference is supplied by the separate `selects-ai-runtime` package.
+  Its model/native-runtime licenses and hashes are documented there; this
+  consumer ships no YuNet model, ONNX runtime, decoder or inference worker.
+- Shot/color/framing reducers preserve the source plugin's existing algorithm.
+  The source package was copied from committed plugin-library revision
+  `9326fad00db19a64b8e80b26b2266c54b9566d49` before this migration.
 - B-roll clips come from Pexels and Pixabay through Selects' stock search, under
   the Pexels and Pixabay content licences. The panel lists each clip's creator
   with a link.

@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "YuNet display-pixel detections",
+  "type": "object",
+  "required": [
+    "contractVersion",
+    "task",
+    "model",
+    "coordinateSpace",
+    "frameSize",
+    "boxFormat",
+    "landmarkOrder",
+    "parameters",
+    "preprocessing",
+    "samples"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": 1
+    },
+    "task": {
+      "const": "faces.detect"
+    },
+    "model": {
+      "type": "object"
+    },
+    "coordinateSpace": {
+      "const": "display-pixels"
+    },
+    "frameSize": {
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "boxFormat": {
+      "const": "xyxy"
+    },
+    "landmarkOrder": {
+      "const": [
+        "rightEye",
+        "leftEye",
+        "nose",
+        "rightMouth",
+        "leftMouth"
+      ]
+    },
+    "parameters": {
+      "type": "object"
+    },
+    "preprocessing": {
+      "type": "object"
+    },
+    "samples": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "index",
+          "sourceTimeSeconds",
+          "faces"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sourceTimeSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "faces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "box",
+                "landmarks",
+                "score"
+              ],
+              "properties": {
+                "box": {
+                  "type": "object",
+                  "required": [
+                    "xmin",
+                    "ymin",
+                    "xmax",
+                    "ymax"
+                  ],
+                  "properties": {
+                    "xmin": {
+                      "type": "number"
+                    },
+                    "ymin": {
+                      "type": "number"
+                    },
+                    "xmax": {
+                      "type": "number"
+                    },
+                    "ymax": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "landmarks": {
+                  "type": "array",
+                  "minItems": 5,
+                  "maxItems": 5,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "x",
+                      "y"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                },
+                "score": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
