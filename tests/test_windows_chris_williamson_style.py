@@ -20,12 +20,14 @@ PANEL = Path(os.environ.get('CW_PANEL') or PLUGIN / 'panel.tsx')
 AV_START, AV_END = '// av-host:start', '// av-host:end'
 
 FORBIDDEN = [
-    'mkdir -p', 'printf', '$HOME', '$SELECTS_USER', 'rm -f', 'base64 ', '| base64', 'shasum', 'command -v',
+    'mkdir -p', 'printf', '$HOME', '$SELECTS_USER', 'rm -f', '| base64', 'shasum', 'command -v',
     'export PATH', 'cat "', '2>/dev/null', '/Applications/', '/usr/bin/', 'curl ', 'runtime.sh', 'osascript',
     # The POSIX single-quote shell quoting helper ('...' with '\'' escapes), as written in the JS source.
     r"'\\''",
 ]
 FORBIDDEN_RE = [
+    # Match executable shell text, not the SDK JSON field `result.base64 !== ...`.
+    (re.compile(r'''(?:["'`]|[|;&])\s*base64(?:\s|["'`])'''), 'a base64 shell command'),
     (re.compile(r'''["'`]\s*node\s'''), 'a node spawn'),
     (re.compile(r'\bpython3?\b'), 'a python spawn'),
     (re.compile(r'''\bsh\s+["']'''), 'an sh invocation'),
@@ -129,10 +131,16 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
         self.assertFalse('Available on macOS for now' in p, 'an entry still stops on Windows')
         self.assertFalse('MAC_ONLY' in p, 'an entry still stops on Windows')
         for entry, until in [('useEffect(() => {\n    resolvePaths(sdk)', None), ('async function create()', 'const actionLabel'),
-                             ('function TemplateRun(', 'export default function Panel')]:
+                             ('function TemplateRun(', 'function Panel(')]:
             at = p.index(entry)
             body = p[at:p.index(until, at)] if until else p[at:p.index('}, []);', at)]
             self.assertNotIn('hostIsWindows()', body, entry)
+
+    def test_shell_scanner_distinguishes_base64_data_from_commands(self):
+        pattern = FORBIDDEN_RE[0][0]
+        self.assertIsNone(pattern.search('typeof result.base64 !== "string"'))
+        for command in ['"base64 input.txt"', '"cat input.txt | base64"']:
+            self.assertIsNotNone(pattern.search(command), command)
 
     def test_windows_engine_steps_reach_cw_engine_and_never_run_shell(self):
         s = self.sources

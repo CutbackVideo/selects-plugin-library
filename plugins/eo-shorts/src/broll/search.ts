@@ -4,10 +4,15 @@ import type { Orientation, PoolCandidate, SearchAttempt, ShotRequest, StockVideo
 
 export type StockSearchFn = (q: { query: string; per?: number; page?: number; orientation?: Orientation; signal?: AbortSignal }) => Promise<StockVideo[]>;
 
-export function hostStockSearch(di: Record<string, any> | null | undefined): StockSearchFn | null {
-  const s = di?.StockMediaSearch;
-  if (!s || typeof s.searchVideos !== "function") return null;
-  return (q) => s.searchVideos(q);
+export function hostStockSearch(sdk: import("../host/types.ts").PanelSdk): StockSearchFn | null {
+  if (typeof sdk.runScript !== "function") return null;
+  return async ({ signal, ...input }) => {
+    signal?.throwIfAborted();
+    const response = await sdk.runScript({ summary: "Find stock footage", script: "return await selects.stock.searchVideos(" + JSON.stringify(input) + ");" });
+    signal?.throwIfAborted();
+    if (response.isError || !Array.isArray(response.result)) throw new Error(response.output || "Stock search returned no result.");
+    return response.result as StockVideo[];
+  };
 }
 
 export const STOCK_PER = 3;

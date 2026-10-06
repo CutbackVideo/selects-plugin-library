@@ -105,7 +105,7 @@ export async function fetchInserts(
   const todo: InsertRun[] = [];
   for (const r of runs) {
     const hits = r.shots.map((s) => cache[cacheKey(s)]);
-    if (hits.every((h) => h && (!h.clip || fs().existsSync(h.clip.path)))) {
+    if ((await Promise.all(hits.map(async (h) => h && (!h.clip || await fs().exists(h.clip.path))))).every(Boolean)) {
       for (let k = 0; k < hits.length; k += 1) {
         const h = hits[k]!;
         if (!h.clip) continue;

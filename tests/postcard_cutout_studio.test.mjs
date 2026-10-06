@@ -14,12 +14,13 @@ const block=name=>{const m=panel.match(new RegExp('// '+name+':start\\n[\\s\\S]*
 
 function ledger(store,opts={}){
  const other=vm.runInNewContext('({bytes:s=>new Uint8Array([...s].map(c=>c.charCodeAt(0)))})');
- const FileSystem={join:(...p)=>path.join(...p),dirname:p=>path.dirname(p),homedir:()=>store,existsSync:p=>fs.existsSync(p),mkdirSync:(p,o)=>fs.mkdirSync(p,o),
-  readFile:async p=>other.bytes(Buffer.from(fs.readFileSync(p)).toString('latin1')),writeFile:async(p,d)=>fs.writeFileSync(p,d),renameSync:(a,b)=>fs.renameSync(a,b),
-  readdirSync:p=>fs.readdirSync(p),statSync:p=>fs.statSync(p)};
- const ctx={window:{parent:{__DI__:{FileSystem,Runtime:{getPlatform:()=>'win32'}}}},navigator:{},TextDecoder,crypto:globalThis.crypto,Date,JSON,Promise,Error,Object,Number,String,Math};
+ const FileSystem={join:(...p)=>path.join(...p),dirname:p=>path.dirname(p),homedir:()=>store,exists:async p=>fs.existsSync(p),mkdir:async(p,o)=>fs.mkdirSync(p,o),
+  readFile:async p=>other.bytes(Buffer.from(fs.readFileSync(p)).toString('latin1')),writeFile:async(p,d)=>fs.writeFileSync(p,d),rename:async(a,b)=>fs.renameSync(a,b),
+  readdir:async p=>fs.readdirSync(p),stat:async p=>fs.statSync(p)};
+ const sdk={files:FileSystem,environment:{platform:'win32',version:'2.0.520'}};
+ const ctx={sdk,window:{parent:{get __DI__(){throw Error('Migrated operations must not use DI');}}},navigator:{},TextDecoder,crypto:globalThis.crypto,Date,JSON,Promise,Error,Object,Number,String,Math};
  vm.createContext(ctx);
- vm.runInContext(block('av-host')+'\n'+block('pc-ledger')+'\nthis.pcLedger=pcLedger;',ctx);
+ vm.runInContext(block('av-host')+'\n'+block('pc-ledger')+'\nbindLocalSdk(sdk);this.pcLedger=pcLedger;',ctx);
  return ctx.pcLedger(store,opts);
 }
 const tmp=()=>fs.mkdtempSync(path.join(os.tmpdir(),'pc-ledger-'));
@@ -80,7 +81,7 @@ function runner(confirmCredits){
  const calls=[],ctx=vm.createContext({calls,console,Date,setTimeout,
   helper:async(_sdk,op,args)=>{calls.push(op);return op==='claim'?{claimed:true,run:{runId:'r',projectId:'p',phase:'generationSubmitting',settings:{subjectStartSec:0},source:{path:'/s.mp4'},logDir:'/logs/r'}}:op==='cutout-input'?{path:'/c.mp4'}:{phase:'generationPending'}},
   runScript:async(_sdk,script)=>{calls.push(/importFiles/.test(script)?'importFiles':'script')},
-  appServices:()=>({MediaGeneration:{submit:async()=>{calls.push('submit');return{jobIds:['selects-'+'a'.repeat(64)]}},supportsPluginFiles:()=>false}}),
+  sdkGeneration:()=>({submit:async()=>{calls.push('submit');return{jobIds:['selects-'+'a'.repeat(64)]}},supportsPluginFiles:()=>false}),
   generationScope:()=>({libraryId:'l',projectId:'p'}),appResourceIdForPath:async()=>calls.includes('importFiles')?'res':null,hostIsWindows:()=>true,hostJoin:(...p)=>p.join('/')});
  const consts=['CUTOUT_SECONDS','CREDITS_NOTICE','CREDITS_DECLINED','TEMPLATE_CREDITS','BRIA_MODEL_ID','json'].map(n=>topLevel(panel,n)).join('\n');
  vm.runInContext(consts+'\n'+topLevel(panel,'createRunner')+'\nthis.make=createRunner;',ctx);

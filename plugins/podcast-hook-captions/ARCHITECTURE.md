@@ -18,7 +18,11 @@ framing, stock, generation, motion, captions and audio behavior.
   acknowledgement in generation-specific files. `face-ai-current.json` is an
   atomic active-pass pointer changed only by an explicit new pass. Late old
   writes can update only their old history file, including across independent
-  reopened renderer modules. No global filesystem lock is needed. Immutable per-request input receipts retain pending request keys after a stale
+  reopened renderer modules. Publication uses the bounded canonical
+  `selects.files.compareAndReplace` operation to compare and atomically replace
+  the pointer in the host, independently of iframe lifetime or browser locks.
+  Immutable
+  per-request input receipts retain pending request keys after a stale
   registry write; a sticky per-request cancellation marker cannot be erased by
   an older status response. New request keys hash pass generation, canonical
   private pass directory (Project/Draft scope) and input; existing keys remain

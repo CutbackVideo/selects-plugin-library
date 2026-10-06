@@ -1,22 +1,9 @@
-// Source of the panel's host block. panel.tsx carries the text between the markers verbatim
-// (tests/host.test.cjs evaluates it as plain JS in node:vm with a mocked window.parent.__DI__; the panel test checks
-// that the copy is identical). Keep it plain JS: no imports, no type annotations.
 // sae-host:start
-// Host I/O through the renderer's own services, the same on macOS and Windows: no host shell, no node, no user
-// installed tools. ffmpeg/ffprobe are the host's bundled binaries (Runtime.runFFmpeg/runFFprobe take an argv array,
-// so paths need no quoting), and every path is built by FileSystem.join. __DI__ is internal host wiring that a newer
-// or older Selects may lack, so each member is checked at call time.
-// Error codes (Error.message): 'host_tools' = a needed __DI__ member is missing (show "needs a newer Selects";
-// bundled cues keep working), 'timeout' = ffmpeg/ffprobe ran past timeoutMs, 'media_failed' = ffmpeg/ffprobe failed
-// or produced no usable output (err.detail holds the host's message, truncated).
-function saeDI() {
-  let di = null;
-  try { di = window.parent && window.parent.__DI__; } catch (e) { di = null; }
-  if (!di) { try { di = window.__DI__; } catch (e) { di = null; } }
-  const fs = di && di.FileSystem ? di.FileSystem : null;
-  const rt = di && di.Runtime ? di.Runtime : null;
-  return { fs, rt };
-}
+// Local files, media tools and environment use the public SDK.
+// Missing capabilities report the existing host-tools error to the panel UI.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
+function saeDI() { return { fs: hostSdk?.files, rt: hostSdk?.media }; }
 
 // names: ['fs.join', 'rt.runFFmpeg', ...]. Returns { ok, missing }.
 function saeHas(names) {
@@ -40,66 +27,26 @@ function saeNeed(names) {
   return saeDI();
 }
 
-function saePlatform() {
-  let p = '';
-  try { const rt = saeDI().rt; if (rt && typeof rt.getPlatform === 'function') p = String(rt.getPlatform() || ''); } catch (e) { p = ''; }
-  if (/^win/i.test(p)) return 'win32';
-  if (/darwin|mac/i.test(p)) return 'darwin';
-  if (/linux/i.test(p)) return 'linux';
-  let ua = '';
-  try { ua = String(navigator.userAgent || ''); } catch (e) { ua = ''; }
-  if (/Windows NT/i.test(ua)) return 'win32';
-  if (/Mac/i.test(ua)) return 'darwin';
-  return 'linux';
-}
+function saePlatform() { return hostSdk?.environment?.platform || ""; }
 
-// The installed skill folder, or null when no candidate holds the plugin's planner.js. The host's skills root
-// (SELECTS_USER_SKILLS_ROOT) is the home folder joined with .selects and skills (cutback-client electron/user-skills.ts resolveUserSkillsRoot),
-// so that comes first. Archive Vlog falls back to the variable through the host shell; this panel uses no shell, so
-// the fallbacks are shell-free host values, each guarded and tried in order:
-//   1. FileSystem.homedir() joined with .selects, skills and the plugin id
-//   2. SELECTS_USER_SKILLS_ROOT in Runtime.getHostEnvironment(), joined with the plugin id
-//   3. SELECTS_USER_SKILLS_ROOT in the renderer's process environment (window.parent.process, then window.process), joined with the plugin id
-//   4. Runtime.getOS().homedir() joined the same way (a second view of the home folder)
-// A missing member or a throwing call only skips that candidate. FileSystem.join and existsSync are required
-// (host_tools without them); every candidate is verified by existsSync(join(dir, 'planner.js')).
-const SAE_SKILLS_ENV = 'SELECTS_USER_SKILLS_ROOT';
+// The SDK home directory locates the installed plugin; verify its marker asynchronously.
 function saeSkillsCandidates(id) {
-  const { fs, rt } = saeDI();
-  const out = [];
-  const add = (fn) => { try { const v = fn(); if (typeof v === 'string' && v) out.push(v); } catch (e) { /* skip this candidate */ } };
-  const envOf = (w) => { try { const p = w && w.process; const v = p && p.env && p.env[SAE_SKILLS_ENV]; return typeof v === 'string' ? v.trim() : ''; } catch (e) { return ''; } };
-  add(() => (typeof fs.homedir === 'function' ? String(fs.join(fs.homedir(), '.selects', 'skills', id)) : ''));
-  add(() => {
-    const env = rt && typeof rt.getHostEnvironment === 'function' ? rt.getHostEnvironment() : null;
-    const v = env && typeof env[SAE_SKILLS_ENV] === 'string' ? env[SAE_SKILLS_ENV].trim() : '';
-    return v ? String(fs.join(v, id)) : '';
-  });
-  add(() => {
-    let w = null;
-    try { w = window.parent; } catch (e) { w = null; }
-    const v = envOf(w) || envOf(typeof window === 'undefined' ? null : window);
-    return v ? String(fs.join(v, id)) : '';
-  });
-  add(() => {
-    const os = rt && typeof rt.getOS === 'function' ? rt.getOS() : null;
-    return os && typeof os.homedir === 'function' ? String(fs.join(os.homedir(), '.selects', 'skills', id)) : '';
-  });
-  return out.filter((d, i) => out.indexOf(d) === i);
+  const { fs } = saeNeed(["fs.join", "fs.homedir"]);
+  return [fs.join(fs.homedir(), ".selects", "skills", id)];
 }
-function saeSkillsDir(id) {
-  const { fs } = saeNeed(['fs.join', 'fs.existsSync']);
+async function saeSkillsDir(id) {
+  const { fs } = saeNeed(['fs.join', 'fs.exists']);
   for (const dir of saeSkillsCandidates(id)) {
-    try { if (fs.existsSync(fs.join(dir, 'planner.js'))) return dir; } catch (e) { /* the next candidate */ }
+    try { if ((await fs.exists(fs.join(dir, 'planner.js')))) return dir; } catch (e) { /* the next candidate */ }
   }
   return null;
 }
 
 // The plugin's persistent data folder, created when missing.
-function saeDataDir(id) {
-  const { fs } = saeNeed(['fs.join', 'fs.homedir', 'fs.mkdirSync']);
+async function saeDataDir(id) {
+  const { fs } = saeNeed(['fs.join', 'fs.homedir', 'fs.mkdir']);
   const dir = fs.join(fs.homedir(), '.selects', 'plugin-data', id);
-  fs.mkdirSync(dir, { recursive: true });
+  (await fs.mkdir(dir, { recursive: true }));
   return dir;
 }
 
@@ -138,7 +85,7 @@ async function saeProbeDuration(file, opts) {
 
 // Bytes as a fresh, 0-offset Uint8Array, whatever the host returned (Buffer from another realm, Uint8Array,
 // ArrayBuffer, an IPC-serialized { type: 'Buffer', data: [...] } or a plain array).
-// FileSystem results come from window.parent, another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them,
+// FileSystem results come from the bridge, possibly another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them,
 // so only realm-free checks are used here (ArrayBuffer.isView and the toString tag read internal slots, Array.isArray
 // works across realms), with an array-like fallback for objects a bridge serialised by index.
 function saeBytes(raw) {
@@ -161,7 +108,6 @@ function saeBytes(raw) {
 }
 
 async function saeReadBytes(fs, file) {
-  if (typeof fs.readFileSync === 'function') return saeBytes(fs.readFileSync(file));
   return saeBytes(await fs.readFile(file));
 }
 
@@ -180,9 +126,7 @@ async function saeReadOutput(fs, file, what) {
 // Best effort; a leftover file in the data folder is harmless.
 async function saeRemove(fs, file) {
   try {
-    if (typeof fs.unlinkSync === 'function') return fs.unlinkSync(file);
     if (typeof fs.removeFile === 'function') return await fs.removeFile({ filePath: file });
-    if (typeof fs.rmSync === 'function') return fs.rmSync(file, { force: true });
   } catch (e) { /* ignored */ }
 }
 
@@ -192,9 +136,9 @@ function saeToken() {
 
 function saeNeedReader() {
   const di = saeDI();
-  if (!di.fs || (typeof di.fs.readFileSync !== 'function' && typeof di.fs.readFile !== 'function')) {
+  if (!di.fs || typeof di.fs.readFile !== 'function') {
     const err = new Error('host_tools');
-    err.missing = ['fs.readFileSync'];
+    err.missing = ['fs.readFile'];
     throw err;
   }
 }

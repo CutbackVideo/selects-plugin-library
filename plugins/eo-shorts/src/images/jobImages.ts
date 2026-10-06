@@ -6,7 +6,7 @@ import { readScript } from "../host/runScript.ts";
 import { DEFAULT_MODELS } from "../models/config.ts";
 import type { MediaRoleConfig } from "../models/types.ts";
 import { imageRequests, type ImageTarget, type ScenePlan } from "./requests.ts";
-import { GenerationError, mediaGenerationService, scopeFromPath, type GenScope, type MediaGenerationLike } from "./mediaGeneration.ts";
+import { GenerationError, mediaGenerationService, type GenScope, type MediaGenerationLike } from "./mediaGeneration.ts";
 import { PIECES_FALLBACK, cachedImage, ensureImages, type ImageDeps, type ImageOutcome } from "./generateImages.ts";
 
 export const IMAGES_MANIFEST_SCHEMA = "eo-images/1";
@@ -47,18 +47,7 @@ export function defaultImageRole(): MediaRoleConfig {
   return DEFAULT_MODELS.roles.image as MediaRoleConfig;
 }
 
-export async function resolveGenerationScope(sdk: PanelSdk | null, projectId: string, pathname?: string | null): Promise<GenScope | null> {
-  let path = pathname;
-  if (path == null) {
-    try {
-      const w = (globalThis as { window?: { parent?: { location?: { pathname?: string } } } }).window;
-      path = w?.parent?.location?.pathname ?? null;
-    } catch {
-      path = null;
-    }
-  }
-  const fromPath = scopeFromPath(path, projectId);
-  if (fromPath) return fromPath;
+export async function resolveGenerationScope(sdk: PanelSdk | null, projectId: string): Promise<GenScope | null> {
   if (!sdk) return null;
   try {
     const st = await readScript<{ libraryId: string | null; projectId: string | null }>(
@@ -95,7 +84,7 @@ export type JobImagesResult = { manifest: ImagesManifest; outputs: string[]; fai
 const rel = (...parts: string[]) => parts.join("/");
 
 async function copyFile(fs: HostFs, from: string, to: string): Promise<void> {
-  ensureDir(fs, fs.dirname(to));
+  await ensureDir(fs, fs.dirname(to));
   await writeFileAtomic(fs, to, await readBytes(fs, from));
 }
 
@@ -121,7 +110,7 @@ export async function generateJobImages(o: JobImagesOptions): Promise<JobImagesR
     let mg: MediaGenerationLike | null = o.mg ?? null;
     let unavailable: GenerationError | null = null;
     try {
-      mg = mg ?? mediaGenerationService(o.host.di);
+      mg = mg ?? mediaGenerationService(o.host.generation);
       scope = scope ?? (await resolveGenerationScope(o.host.sdk, o.projectId));
       if (!scope) throw new GenerationError("unavailable", "scope_unknown", "Open the Project in Selects to generate its pictures.");
     } catch (e) {

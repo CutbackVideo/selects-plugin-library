@@ -1,3 +1,5 @@
+import {withPanelLocalClient} from "../../../shared/local-client";
+import { hostUseSdk } from "./pipeline/host";
 import React, { useEffect, useRef, useState } from "react";
 import { makeShort, rebuildShort, loadJob, STEPS, type Step, type MakeResult, type Options } from "./pipeline/make";
 
@@ -27,7 +29,8 @@ const setRun = (patch: Partial<RunState>) => {
   listeners.forEach((l) => l());
 };
 
-export default function A16zShort({ sdk, context }: any) {
+function A16zShort({ sdk, context }: any) {
+  hostUseSdk(sdk);
   const [, force] = useState(0);
   useEffect(() => {
     const l = () => force((n) => n + 1);
@@ -172,3 +175,5 @@ export default function A16zShort({ sdk, context }: any) {
     </div>
   );
 }
+
+export default withPanelLocalClient(A16zShort);

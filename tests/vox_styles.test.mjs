@@ -67,7 +67,7 @@ for (const id of ids) {
   const {stripTypeScriptTypes} = await import('node:module');
   const {runInNewContext} = await import('node:vm');
   const source=fs.readFileSync(new URL(`../plugins/${id}/panel.tsx`,import.meta.url),'utf8');
-  const prefix=source.slice(0,source.indexOf('export default function Panel'))
+  const prefix=source.slice(0,source.search(/^(?:export default )?function Panel\(/m))
    .replace(/^import React from "react";\s*/m,'').replace(/^export /gm,'');
   const ctx={};
   runInNewContext(stripTypeScriptTypes(prefix)+'\nglobalThis.emitDraft=draftScript;',ctx);

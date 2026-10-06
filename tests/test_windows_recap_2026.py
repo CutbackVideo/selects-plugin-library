@@ -10,6 +10,8 @@ import os
 import re
 import unittest
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN = os.path.join(ROOT, "plugins", "recap-2026")
 PANEL = os.environ.get("RECAP_2026_PANEL") or os.path.join(PLUGIN, "panel.tsx")
@@ -53,19 +55,19 @@ class Recap2026WindowsTest(unittest.TestCase):
 
     def test_no_posix_shell_at_runtime(self):
         for needle in FORBIDDEN:
-            self.assertNotIn(needle, self.runtime, needle)
+            assert_no_shell_token(self, needle, self.runtime, needle)
         self.assertIsNone(re.search(r"\bnode\s+[\"'$]", self.runtime), "node spawn")
         self.assertIsNone(re.search(r"\bpython3?\b", self.runtime), "python spawn")
         self.assertNotIn("shellQuote", self.runtime)
         self.assertEqual(self.source.count("runShell("), 0)
 
     def test_timing_is_read_through_the_host_before_the_draft(self):
-        self.assertIn('hostRoots(null, SLUG, "timing.json")', self.runtime)
-        self.assertIn('hostReadText(hostJoin((await recapRoots()).plugin, "timing.json"))', self.runtime)
+        self.assertIn('hostRoots(sdk, SLUG, "timing.json")', self.runtime)
+        self.assertIn('hostReadText(hostJoin((await recapRoots(sdk)).plugin, "timing.json"))', self.runtime)
         build = body(self.runtime, "async function buildRecap(")
-        self.assertLess(build.index("readTiming()"), build.index("createScript("), "timing before the Draft")
+        self.assertLess(build.index("readTiming(sdk)"), build.index("createScript("), "timing before the Draft")
         self.assertLess(build.index("ensureAudio("), build.index("createScript("), "soundtrack before the Draft")
-        self.assertIn("readTiming()", body(self.runtime, "function RecapPanel("), "Advanced timing view")
+        self.assertIn("readTiming(sdk)", body(self.runtime, "function RecapPanel("), "Advanced timing view")
 
     def test_soundtrack_path_and_dedup(self):
         audio = body(self.runtime, "async function ensureAudio(")

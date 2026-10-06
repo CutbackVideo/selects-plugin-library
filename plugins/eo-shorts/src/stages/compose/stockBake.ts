@@ -141,10 +141,10 @@ export type ClipRecord = { schema: "eo-footage-clip/1"; recipe: string; key: str
 export const clipRecordPath = (out: string) => out.replace(/\.mp4$/i, "") + ".json";
 
 export async function bakeKey(fs: HostFs, plan: BakePlan): Promise<string> {
-  const files = plan.shots.map((s) => {
-    const st = statFile(fs, s.source.path);
+  const files = await Promise.all(plan.shots.map(async (s) => {
+    const st = (await statFile(fs, s.source.path));
     return [s.source.path, st?.size ?? null, st ? Math.round(st.mtimeMs) : null];
-  });
+  }));
   return sha256Hex(JSON.stringify([BAKE_RECIPE, plan, files]));
 }
 
@@ -152,7 +152,7 @@ export type BakeResult = { path: string; frames: number; bytes: number; ms: numb
 
 export async function bakeStockRun(h: { fs: HostFs; runtime: HostRuntime | null; signal?: AbortSignal | null; tmpDir?: string }, plan: BakePlan, out: string): Promise<BakeResult> {
   const t0 = Date.now();
-  for (const s of plan.shots) if (!h.fs.existsSync(s.source.path)) throw new Error("Stock source missing: " + s.source.path);
+  for (const s of plan.shots) if (!(await h.fs.exists(s.source.path))) throw new Error("Stock source missing: " + s.source.path);
   const key = await bakeKey(h.fs, plan);
   const recPath = clipRecordPath(out);
   const counted = async (path: string, decode = true) => {
@@ -160,24 +160,24 @@ export async function bakeStockRun(h: { fs: HostFs; runtime: HostRuntime | null;
     return p.video && p.video.width === plan.out.width && p.video.height === plan.out.height ? p.video.nbFrames : null;
   };
   const rec = await readJsonIfExists<ClipRecord | null>(h.fs, recPath, null);
-  if (rec && rec.schema === "eo-footage-clip/1" && rec.key === key && h.fs.existsSync(out) && (rec.bytes == null || rec.bytes === statFile(h.fs, out)?.size)) {
+  if (rec && rec.schema === "eo-footage-clip/1" && rec.key === key && (await h.fs.exists(out)) && (rec.bytes == null || rec.bytes === (await statFile(h.fs, out))?.size)) {
     try {
-      if ((await counted(out, false)) === plan.frames) return { path: out, frames: plan.frames, bytes: statFile(h.fs, out)?.size ?? 0, ms: Date.now() - t0, reused: true, key };
+      if ((await counted(out, false)) === plan.frames) return { path: out, frames: plan.frames, bytes: (await statFile(h.fs, out))?.size ?? 0, ms: Date.now() - t0, reused: true, key };
     } catch {
     }
   }
-  removeFile(h.fs, recPath);
+  await removeFile(h.fs, recPath);
   const part = out.replace(/\.mp4$/i, "") + ".part.mp4";
-  removeFile(h.fs, part);
+  await removeFile(h.fs, part);
   await encode(h.runtime, bakeArgs(plan, part), { fs: h.fs, outPath: part, signal: h.signal, timeoutMs: 300_000 });
   const frames = await counted(part);
   if (frames !== plan.frames) {
-    removeFile(h.fs, part);
+    await removeFile(h.fs, part);
     throw new Error("The baked clip of scene " + plan.sceneId + " has " + frames + " frames, not " + plan.frames + ".");
   }
-  removeFile(h.fs, out);
+  await removeFile(h.fs, out);
   await renameWithRetry(h.fs, part, out);
-  const bytes = statFile(h.fs, out)?.size ?? 0;
+  const bytes = (await statFile(h.fs, out))?.size ?? 0;
   await writeJsonAtomic(h.fs, recPath, { schema: "eo-footage-clip/1", recipe: BAKE_RECIPE, key, frames, bytes } satisfies ClipRecord);
   return { path: out, frames, bytes, ms: Date.now() - t0, reused: false, key };
 }

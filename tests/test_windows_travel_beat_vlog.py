@@ -11,6 +11,8 @@ from pathlib import Path
 import re
 import unittest
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = Path(__file__).resolve().parents[1]
 PANEL = ROOT / 'plugins' / 'travel-beat-vlog' / 'panel.tsx'
 REFERENCE = ROOT / 'plugins' / 'archive-vlog' / 'panel.tsx'
@@ -53,7 +55,7 @@ def problems(text):
     if shell_calls != 0:
         found.append('runShell( appears %d times outside mac-only regions' % shell_calls)
     outside = portable(BLOCK.sub('', text))
-    found += ['%r outside mac-only regions' % word for word in FORBIDDEN if word in outside]
+    found += ['%r outside mac-only regions' % word for word in FORBIDDEN if shell_token_present(word, outside)]
     found += ['%s outside mac-only regions' % rx.pattern for rx in SPAWN if rx.search(outside)]
     build = re.search(r'async function buildTravelVlog\(.*?\n\}\n', text, re.S)
     body = build.group(0) if build else ''

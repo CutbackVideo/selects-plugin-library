@@ -83,7 +83,7 @@ export async function makeReel(sdk: Sdk, ctx: { projectId: string; sequenceId: s
 
   onStep("draft", "run", "Creating the Draft…");
   const reelId = await createReel(sdk, pid, ctx.sequenceId, src.name + " · Reel", ranges);
-  fs().mkdirSync(jobDir(reelId), { recursive: true });
+  (await fs().mkdir(jobDir(reelId), { recursive: true }));
   const reel = await readReel(sdk, pid, reelId);
   const byKey = new Map<string, number>();
   reel.words.forEach((w, i) => byKey.set(w.ss + "|" + w.t, i));
@@ -125,16 +125,17 @@ async function build(sdk: Sdk, job: Job, reel: ReelInfo, onStep: OnStep, opts: B
   const H = 1920;
   const key = job.reelId.replace(/-/g, "").slice(0, 16) + "-" + Date.now().toString(36);
   const picks = job.picks;
+  const savedBroll = await Promise.all((job.brollPaths || []).map(async (path) => path && await fs().exists(path) ? path : null));
 
   // Generation runs in the background while the Draft is prepared (reused when already made).
   const style = ". Realistic cinematic stock footage, natural warm light, shallow depth of field, smooth slow camera move, no text, no logos, no captions.";
-  const gen = (slot: number, prompt: string, aspect: string, dur: string, label: string) => {
+  const gen = async (slot: number, prompt: string, aspect: string, dur: string, label: string) => {
     const have = job.brollPaths?.[slot];
-    if (have && fs().existsSync(have)) return Promise.resolve(have);
+    if (have && (await fs().exists(have))) return Promise.resolve(have);
     // A clip that was delivered after an earlier run gave up on it is still usable.
     try {
       const folder = fs().join(dir, "broll-" + slot);
-      const late = fs().existsSync(folder) ? fs().readdirSync(folder).map(String).find((n: string) => /\.mp4$/i.test(n)) : null;
+      const late = (await fs().exists(folder)) ? (await fs().readdir(folder)).map(String).find((n: string) => /\.mp4$/i.test(n)) : null;
       if (late) return Promise.resolve(fs().join(folder, late));
     } catch {}
     return generate(
@@ -156,7 +157,7 @@ async function build(sdk: Sdk, job: Job, reel: ReelInfo, onStep: OnStep, opts: B
   };
   // Stock footage first (seconds, no cost, what the reference uses); generated clips only when asked for.
   const stock = async (): Promise<(string | null)[]> => {
-    if (job.brollPaths && job.brollPaths.every((p) => p && fs().existsSync(p))) return job.brollPaths;
+    if (job.brollPaths && savedBroll.every(Boolean)) return job.brollPaths;
     const b = picks.broll;
     const words = (t: string) => String(t || "").split(/\s+/).filter((w) => w.length > 3).slice(0, 3).join(" ");
     const search: string[] = Array.isArray(b.search) ? b.search : [];
@@ -176,11 +177,11 @@ async function build(sdk: Sdk, job: Job, reel: ReelInfo, onStep: OnStep, opts: B
       const both = stock();
       brollJobs = [both.then((r) => r[0]), both.then((r) => r[1])];
     } else if (opts.generate) brollJobs = [gen(0, picks.broll.portrait, "9:16", "5", "B-roll 1"), gen(1, picks.broll.landscape, "16:9", "4", "B-roll 2")];
-    else if (job.brollPaths && job.brollPaths.some((p) => p && fs().existsSync(p))) brollJobs = job.brollPaths.map((p) => Promise.resolve(p && fs().existsSync(p) ? p : null));
+    else if (savedBroll.some(Boolean)) brollJobs = savedBroll.map((path) => Promise.resolve(path));
     else notes.push("No B-roll: this Selects version has no stock search. Update Selects, or allow AI-generated B-roll in the panel.");
   }
   const musicJob =
-    job.musicPath && fs().existsSync(job.musicPath)
+    job.musicPath && (await fs().exists(job.musicPath))
       ? Promise.resolve(job.musicPath)
       : makeMusic(pid, reel.endFrame / reel.fps, dir, key, () => {}).catch((e) => (notes.push("Music: " + String(e.message || e)), null));
   const sfxJob = ensureSfxLibrary(pid, () => {}).catch((e) => (notes.push("Sound effects: " + String(e.message || e)), {} as Record<string, string>));
@@ -220,7 +221,7 @@ async function build(sdk: Sdk, job: Job, reel: ReelInfo, onStep: OnStep, opts: B
   let masks: { base: string; count: number } | null = null;
   try {
     const matteDir = fs().join(dir, "mattes-" + Date.now().toString(36));
-    fs().mkdirSync(matteDir, { recursive: true });
+    (await fs().mkdir(matteDir, { recursive: true }));
     masks = await makeMattes(sdk, pid, render, reel.endFrame / reel.fps, matteDir, key, say("mattes"));
     onStep("mattes", "done", masks.count + " frames");
   } catch (e: any) {

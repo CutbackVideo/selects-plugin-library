@@ -94,7 +94,7 @@ export async function runBroll(requests: ShotRequest[], d: BrollDeps, opts: Brol
   const deadline = t0 + o.budgetMs;
   const ids = requests.map((r) => r.id);
   if (new Set(ids).size !== ids.length) throw new Error("Shot ids must be unique.");
-  ensureDir(fs, o.media);
+  await ensureDir(fs, o.media);
   const shas = new Map<string, string>();
   const done = new Map<string, ShotResult>();
   const taken = new Map<string, string>();
@@ -102,7 +102,7 @@ export async function runBroll(requests: ShotRequest[], d: BrollDeps, opts: Brol
     const sha = await requestSha(r);
     shas.set(r.id, sha);
     const dir = shotDir(fs, o.media, r.id);
-    ensureDir(fs, dir);
+    await ensureDir(fs, dir);
     await writeJsonAtomic(fs, fs.join(dir, "request.json"), r);
     const prev = await resumableResult(fs, o.media, r, sha, { judging: !!d.callModel });
     if (prev) {

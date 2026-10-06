@@ -20,9 +20,10 @@ const LEGACY_TITLE='Places worth finding',LEGACY_SUBTITLE='A collection of momen
 const pickFor=f=>{const length=Math.min(5,Math.max(0,f.duration-.08)),start=Math.max(0,(f.duration-length)/2);return {path:f.path,start,end:start+length,cropX:.5,cropY:.5};};
 const storeKey=p=>'place-count:v1:'+p;
 const legacyStoreKey=p=>'place-stories:v1:'+p;
-function getFS(){const f=window.parent.__DI__?.FileSystem;if(!f||!['homedir','join','dirname','readFile','writeFile','mkdirSync','exists','renameSync','pathToLocalURL','readdirSync','statSync'].every(k=>typeof f[k]==='function'))throw issue('This Selects build needs an updated local-media adapter.','HOST_ADAPTER');return f;}
+let localSdk=null;
+function getFS(){const f=localSdk?.files;if(!f||!['homedir','join','dirname','readFile','writeFile','mkdir','exists','rename','pathToLocalURL','readdir','stat'].every(k=>typeof f[k]==='function'))throw issue('Update Selects to use local media.','HOST_ADAPTER');return f;}
 async function readText(path){const v=await getFS().readFile(path);return typeof v==='string'?v:new TextDecoder().decode(v);}
-async function writeJSON(path,data){const f=getFS();f.mkdirSync(f.dirname(path),{recursive:true});const tmp=path+'.'+uid()+'.tmp';await f.writeFile(tmp,new TextEncoder().encode(JSON.stringify(data)));f.renameSync(tmp,path);}
+async function writeJSON(path,data){const f=getFS();(await f.mkdir(f.dirname(path),{recursive:true}));const tmp=path+'.'+uid()+'.tmp';await f.writeFile(tmp,new TextEncoder().encode(JSON.stringify(data)));(await f.rename(tmp,path));}
 function dataRoot(pid){const f=getFS();return f.join(f.homedir(),'.selects','plugin-data','place-count',pid);}
 // The bundled theme (see README) runs at 92 BPM with a downbeat at 0 s. Its
 // start is shifted so the first place's cut lands on a downbeat; every later
@@ -33,7 +34,7 @@ function encodeWav(buffer){const ch=buffer.numberOfChannels,rate=buffer.sampleRa
 // Cut the theme to the story, fade its end, and save it as a WAV the project
 // can import. Returns the file path, reusing one already rendered.
 async function renderTheme(pid,seconds,firstCut){// A first cut a frame past a downbeat is on it; only a real gap moves the start.
- const f=getFS(),late=firstCut%THEME_BAR,offset=late<0.1?0:THEME_BAR-late,path=f.join(dataRoot(pid),'music',THEME_VERSION+'-'+Math.round(seconds*1000)+'-'+Math.round(offset*1000)+'.wav');if(await f.exists(path))return path;const bytes=await f.readFile(f.join(f.homedir(),'.selects','skills','place-count',THEME_FILE));const raw=bytes.buffer?bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength):bytes,app=window.parent,rate=48000,ctx=new app.OfflineAudioContext(2,Math.ceil(seconds*rate),rate),audio=await ctx.decodeAudioData(raw),length=Math.min(seconds,audio.duration-offset),source=ctx.createBufferSource(),gain=ctx.createGain(),fade=Math.min(THEME_FADE,length/4);source.buffer=audio;gain.gain.setValueAtTime(1,Math.max(0,length-fade));gain.gain.linearRampToValueAtTime(0,length);source.connect(gain).connect(ctx.destination);source.start(0,offset);const wav=encodeWav(await ctx.startRendering());f.mkdirSync(f.dirname(path),{recursive:true});const tmp=path+'.'+uid()+'.tmp';await f.writeFile(tmp,wav);f.renameSync(tmp,path);return path;}
+ const f=getFS(),late=firstCut%THEME_BAR,offset=late<0.1?0:THEME_BAR-late,path=f.join(dataRoot(pid),'music',THEME_VERSION+'-'+Math.round(seconds*1000)+'-'+Math.round(offset*1000)+'.wav');if(await f.exists(path))return path;const bytes=await f.readFile(f.join(f.homedir(),'.selects','skills','place-count',THEME_FILE));const raw=bytes.buffer?bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength):bytes,app=window.parent,rate=48000,ctx=new app.OfflineAudioContext(2,Math.ceil(seconds*rate),rate),audio=await ctx.decodeAudioData(raw),length=Math.min(seconds,audio.duration-offset),source=ctx.createBufferSource(),gain=ctx.createGain(),fade=Math.min(THEME_FADE,length/4);source.buffer=audio;gain.gain.setValueAtTime(1,Math.max(0,length-fade));gain.gain.linearRampToValueAtTime(0,length);source.connect(gain).connect(ctx.destination);source.start(0,offset);const wav=encodeWav(await ctx.startRendering());(await f.mkdir(f.dirname(path),{recursive:true}));const tmp=path+'.'+uid()+'.tmp';await f.writeFile(tmp,wav);(await f.rename(tmp,path));return path;}
 async function assetSource(name){if(!ASSETS.includes(name))throw issue('The story template is unavailable.');const f=getFS();try{return await readText(f.join(f.homedir(),'.selects','skills','place-count',name));}catch{throw issue('Place Count assets are missing. Reinstall the plugin to continue.','MISSING_ASSETS');}}
 async function digest(value){if(!window.crypto?.subtle)throw issue('Secure local caching is unavailable in this build.');const b=await window.crypto.subtle.digest('SHA-256',new TextEncoder().encode(value));return Array.from(new Uint8Array(b)).map(v=>v.toString(16).padStart(2,'0')).join('');}
 async function pool(items,limit,fn,stopped=()=>false){let next=0;const result=new Array(items.length);await Promise.all(Array.from({length:Math.min(limit,items.length)},async()=>{while(!stopped()){const i=next++;if(i>=items.length)return;result[i]=await fn(items[i],i);}}));return result;}
@@ -41,7 +42,7 @@ let readers=0;const readerQueue=[];
 function mediaTask(fn){return new Promise((resolve,reject)=>{readerQueue.push({fn,resolve,reject});pump();});}
 function pump(){while(readers<4&&readerQueue.length){const task=readerQueue.shift();readers++;Promise.resolve().then(task.fn).then(task.resolve,task.reject).finally(()=>{readers--;pump();});}}
 async function waitMedia(v,event,trigger,timeout=15000){return new Promise((resolve,reject)=>{let timer;const done=e=>{clearTimeout(timer);v.removeEventListener(event,success);v.removeEventListener('error',failure);e?reject(e):resolve();};const success=()=>done(),failure=()=>done(issue('A clip could not be decoded for preview.','DECODE'));v.addEventListener(event,success,{once:true});v.addEventListener('error',failure,{once:true});timer=setTimeout(()=>done(issue('A clip took too long to load.','DECODE_TIMEOUT')),timeout);try{trigger();}catch(e){done(e);}});}
-async function readFrames(file,times,size=360){return mediaTask(async()=>{const app=window.parent,v=app.document.createElement('video');v.crossOrigin='anonymous';v.muted=true;v.playsInline=true;v.preload='auto';v.style.display='none';app.document.body.appendChild(v);try{await waitMedia(v,'loadedmetadata',()=>{v.src=getFS().pathToLocalURL(file.path);});const out=[];for(const raw of times){const t=Math.max(.02,Math.min(Number(raw)||.02,v.duration-.04));if(Math.abs(v.currentTime-t)>.002||v.readyState<2)await waitMedia(v,'seeked',()=>{v.currentTime=t;});const c=app.document.createElement('canvas');c.width=size;c.height=size;const g=c.getContext('2d');g.fillStyle='#101417';g.fillRect(0,0,size,size);const k=Math.min(size/v.videoWidth,size/v.videoHeight);g.drawImage(v,(size-v.videoWidth*k)/2,(size-v.videoHeight*k)/2,v.videoWidth*k,v.videoHeight*k);c.dataset.sourceWidth=String(v.videoWidth);c.dataset.sourceHeight=String(v.videoHeight);out.push(c);}return out;}finally{v.pause();v.removeAttribute('src');v.load();v.remove();}});}
+async function readFrames(file,times,size=360){return mediaTask(async()=>{const app=window.parent,v=app.document.createElement('video');v.crossOrigin='anonymous';v.muted=true;v.playsInline=true;v.preload='auto';v.style.display='none';app.document.body.appendChild(v);try{const url=await getFS().pathToLocalURL(file.path);await waitMedia(v,'loadedmetadata',()=>{v.src=url;});const out=[];for(const raw of times){const t=Math.max(.02,Math.min(Number(raw)||.02,v.duration-.04));if(Math.abs(v.currentTime-t)>.002||v.readyState<2)await waitMedia(v,'seeked',()=>{v.currentTime=t;});const c=app.document.createElement('canvas');c.width=size;c.height=size;const g=c.getContext('2d');g.fillStyle='#101417';g.fillRect(0,0,size,size);const k=Math.min(size/v.videoWidth,size/v.videoHeight);g.drawImage(v,(size-v.videoWidth*k)/2,(size-v.videoHeight*k)/2,v.videoWidth*k,v.videoHeight*k);c.dataset.sourceWidth=String(v.videoWidth);c.dataset.sourceHeight=String(v.videoHeight);out.push(c);}return out;}finally{v.pause();v.removeAttribute('src');v.load();v.remove();}});}
 const posters=new Map();
 // Only read-only media queries use this: keep every row without exceeding run_script's response limit.
 async function readMediaPages(sdk, args) {
@@ -60,7 +61,7 @@ async function readMediaPages(sdk, args) {
 }
 
 function Poster({file,start}){const [image,setImage]=useState(null);useEffect(()=>{let alive=true;setImage(null);if(!file)return;const key=file.path+':'+start;if(posters.has(key)){setImage(posters.get(key));return;}readFrames(file,[start],480).then(([c])=>{const w=Number(c.dataset.sourceWidth)||480,h=Number(c.dataset.sourceHeight)||480,k=Math.min(480/w,480/h),photo=window.parent.document.createElement('canvas');photo.width=Math.max(1,Math.round(w*k));photo.height=Math.max(1,Math.round(h*k));photo.getContext('2d').drawImage(c,(480-photo.width)/2,(480-photo.height)/2,photo.width,photo.height,0,0,photo.width,photo.height);const value=photo.toDataURL('image/jpeg',.76);posters.set(key,value);if(posters.size>80)posters.delete(posters.keys().next().value);if(alive)setImage(value);}).catch(()=>{});return()=>{alive=false;};},[file?.path,start]);return image?<img src={image} alt="Selected footage" style={{width:'100%',height:'100%',display:'block',objectFit:'cover'}}/>:<div style={{height:'100%',display:'grid',placeItems:'center',color:'var(--panel-muted-fg)',fontSize:12}}>Preview unavailable</div>;}
-function Player({file,pick,onClose}){const canvas=useRef(null),controls=useRef(null);const [paused,setPaused]=useState(true),[ready,setReady]=useState(false),[message,setMessage]=useState('Loading preview...'),[position,setPosition]=useState(pick.start);useEffect(()=>{let alive=true,v=null,raf=0;const paint=()=>{if(alive&&v?.readyState>=2&&canvas.current)canvas.current.getContext('2d').drawImage(v,0,0,canvas.current.width,canvas.current.height);};const tick=()=>{if(!alive||v.paused)return;if(v.currentTime>=pick.end){v.pause();return;}paint();raf=requestAnimationFrame(tick);};try{v=window.parent.document.createElement('video');v.crossOrigin='anonymous';v.playsInline=true;v.muted=true;v.preload='auto';v.style.display='none';window.parent.document.body.appendChild(v);v.onloadedmetadata=()=>{if(!alive)return;if(!Number.isFinite(v.duration)||pick.end>v.duration+.05){setMessage('This selection is outside the clip.');return;}const k=Math.min(1,960/Math.max(v.videoWidth,v.videoHeight));canvas.current.width=Math.round(v.videoWidth*k);canvas.current.height=Math.round(v.videoHeight*k);v.currentTime=pick.start;setReady(true);setMessage('');v.play().catch(()=>{if(alive)setMessage('Press play to preview.');});};v.onloadeddata=paint;v.onseeked=paint;v.onplay=()=>{if(alive){setPaused(false);cancelAnimationFrame(raf);raf=requestAnimationFrame(tick);}};v.onpause=()=>{if(alive){setPaused(true);cancelAnimationFrame(raf);paint();}};v.ontimeupdate=()=>{if(alive){if(v.currentTime>=pick.end&&!v.paused)v.pause();setPosition(Math.min(pick.end,v.currentTime));}};v.onerror=()=>{if(alive)setMessage('This clip cannot be previewed in the browser.');};controls.current={toggle:()=>{if(v.paused){setMessage('');if(v.currentTime>=pick.end-.03)v.currentTime=pick.start;v.play().catch(()=>setMessage('Press play to preview.'));}else v.pause();},seek:t=>{v.currentTime=Math.max(pick.start,Math.min(pick.end,t));}};v.src=getFS().pathToLocalURL(file.path);}catch{setMessage('Local preview is unavailable.');}return()=>{alive=false;cancelAnimationFrame(raf);controls.current=null;if(v){v.onloadedmetadata=null;v.onloadeddata=null;v.onseeked=null;v.onplay=null;v.onpause=null;v.ontimeupdate=null;v.onerror=null;v.pause();v.removeAttribute('src');v.load();v.remove();}};},[file.path,pick.start,pick.end]);return <div style={{position:'relative',background:'#101417',aspectRatio:'16/10',overflow:'hidden',borderRadius:8}}><canvas ref={canvas} style={{display:'block',width:'100%',height:'100%',objectFit:'contain'}} aria-label="Clip preview"/>{message&&<div role="status" style={{position:'absolute',inset:0,display:'grid',placeItems:'center',fontSize:12,color:'white',background:'rgba(0,0,0,.3)'}}>{message}</div>}<button data-variant="ghost" aria-label="Close preview" onClick={onClose} style={{position:'absolute',top:6,right:6,width:28,height:28,padding:0,color:'white',background:'rgba(0,0,0,.55)'}}>x</button><div style={{position:'absolute',left:8,right:8,bottom:8,display:'flex',alignItems:'center',gap:8,background:'rgba(0,0,0,.65)',borderRadius:6,padding:5}}><button data-variant="ghost" disabled={!ready} onClick={()=>controls.current?.toggle()} style={{width:50,height:26,padding:0,color:'white',fontSize:11}}>{paused?'Play':'Pause'}</button><input type="range" aria-label="Preview position" min={pick.start} max={pick.end} step=".01" value={position} disabled={!ready} onChange={e=>controls.current?.seek(Number(e.target.value))} style={{flex:1,minWidth:0,width:0,padding:0,height:20}}/></div></div>;}
+function Player({file,pick,onClose}){const canvas=useRef(null),controls=useRef(null);const [paused,setPaused]=useState(true),[ready,setReady]=useState(false),[message,setMessage]=useState('Loading preview...'),[position,setPosition]=useState(pick.start);useEffect(()=>{let alive=true,v=null,raf=0;const paint=()=>{if(alive&&v?.readyState>=2&&canvas.current)canvas.current.getContext('2d').drawImage(v,0,0,canvas.current.width,canvas.current.height);};const tick=()=>{if(!alive||v.paused)return;if(v.currentTime>=pick.end){v.pause();return;}paint();raf=requestAnimationFrame(tick);};try{v=window.parent.document.createElement('video');v.crossOrigin='anonymous';v.playsInline=true;v.muted=true;v.preload='auto';v.style.display='none';window.parent.document.body.appendChild(v);v.onloadedmetadata=()=>{if(!alive)return;if(!Number.isFinite(v.duration)||pick.end>v.duration+.05){setMessage('This selection is outside the clip.');return;}const k=Math.min(1,960/Math.max(v.videoWidth,v.videoHeight));canvas.current.width=Math.round(v.videoWidth*k);canvas.current.height=Math.round(v.videoHeight*k);v.currentTime=pick.start;setReady(true);setMessage('');v.play().catch(()=>{if(alive)setMessage('Press play to preview.');});};v.onloadeddata=paint;v.onseeked=paint;v.onplay=()=>{if(alive){setPaused(false);cancelAnimationFrame(raf);raf=requestAnimationFrame(tick);}};v.onpause=()=>{if(alive){setPaused(true);cancelAnimationFrame(raf);paint();}};v.ontimeupdate=()=>{if(alive){if(v.currentTime>=pick.end&&!v.paused)v.pause();setPosition(Math.min(pick.end,v.currentTime));}};v.onerror=()=>{if(alive)setMessage('This clip cannot be previewed in the browser.');};controls.current={toggle:()=>{if(v.paused){setMessage('');if(v.currentTime>=pick.end-.03)v.currentTime=pick.start;v.play().catch(()=>setMessage('Press play to preview.'));}else v.pause();},seek:t=>{v.currentTime=Math.max(pick.start,Math.min(pick.end,t));}};getFS().pathToLocalURL(file.path).then(url=>{if(alive)v.src=url;}).catch(()=>{if(alive)setMessage('Local preview is unavailable.');});}catch{setMessage('Local preview is unavailable.');}return()=>{alive=false;cancelAnimationFrame(raf);controls.current=null;if(v){v.onloadedmetadata=null;v.onloadeddata=null;v.onseeked=null;v.onplay=null;v.onpause=null;v.ontimeupdate=null;v.onerror=null;v.pause();v.removeAttribute('src');v.load();v.remove();}};},[file.path,pick.start,pick.end]);return <div style={{position:'relative',background:'#101417',aspectRatio:'16/10',overflow:'hidden',borderRadius:8}}><canvas ref={canvas} style={{display:'block',width:'100%',height:'100%',objectFit:'contain'}} aria-label="Clip preview"/>{message&&<div role="status" style={{position:'absolute',inset:0,display:'grid',placeItems:'center',fontSize:12,color:'white',background:'rgba(0,0,0,.3)'}}>{message}</div>}<button data-variant="ghost" aria-label="Close preview" onClick={onClose} style={{position:'absolute',top:6,right:6,width:28,height:28,padding:0,color:'white',background:'rgba(0,0,0,.55)'}}>x</button><div style={{position:'absolute',left:8,right:8,bottom:8,display:'flex',alignItems:'center',gap:8,background:'rgba(0,0,0,.65)',borderRadius:6,padding:5}}><button data-variant="ghost" disabled={!ready} onClick={()=>controls.current?.toggle()} style={{width:50,height:26,padding:0,color:'white',fontSize:11}}>{paused?'Play':'Pause'}</button><input type="range" aria-label="Preview position" min={pick.start} max={pick.end} step=".01" value={position} disabled={!ready} onChange={e=>controls.current?.seek(Number(e.target.value))} style={{flex:1,minWidth:0,width:0,padding:0,height:20}}/></div></div>;}
 function initialPickFiles(files){return files.filter(f=>f.duration>=.5).slice(0,4).map(pickFor);}
 // Pure planning: source paths remain canonical across SDK sessions.
 // Every length is a whole number of beats of the theme music (92 BPM), so
@@ -139,15 +140,28 @@ function planStory(story) {
 async function fullProjectInventory(sdk,projectId){
  const scaffold=await sdk.call('getProjectDraftScaffold',projectId);const owner=scaffold?.owner;
  if(!owner?.libraryId||owner.projectId!==projectId)throw issue('The source project could not be verified.','PROJECT_SCOPE');
- const api=window.parent.__DI__?.ProjectFileTree;
- if(typeof api?.listEnrichedFileTree!=='function')throw issue('Update Selects to use full-path footage lookup.','FULL_INVENTORY_UNAVAILABLE');
- const tree=await api.listEnrichedFileTree(owner.libraryId,projectId);if(!Array.isArray(tree))throw issue('The project source tree is unavailable.');
- const files=[];function walk(nodes){for(const n of nodes){if(n.type==='dir')walk(n.children||[]);else if(n.resourceId&&n.path)files.push({path:n.path,resourceId:n.resourceId,type:n.type,durationSeconds:n.durationSeconds||0,frameRate:n.frameRate||30,frameSize:n.frameSize||null});}}walk(tree);return files;
+ const before=await sdk.call('listProjectResources',projectId);
+ if(!Array.isArray(before))throw issue('The project resources are unavailable.');
+ const response=await readMediaPages(sdk,{summary:'Read full Project source paths',allowCommit:false,script:`
+const p=selects.project(${JSON.stringify(projectId)}),resources=await p.resources();
+const byId=new Map(resources.map((r,index)=>[r.resourceId,{index,name:r.name,type:r.type}]));
+const files=[];
+const walk=nodes=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.resourceId&&n.path){const r=byId.get(n.resourceId);if(!r)throw Error('The Project files changed. Try again.');files.push({path:n.path,resourceIndex:r.index,resourceName:r.name,resourceType:r.type,type:n.type,durationSeconds:n.durationSeconds||0,frameRate:n.frameRate||30,frameSize:n.frameSize||null});}}};
+const top=await p.sourceFiles();if(Array.isArray(top))walk(top);else if('fileTree' in top)walk(top.fileTree);else for(const folder of top.folders||[])walk((await p.sourceFiles({folder:folder.name})).fileTree);
+return {files,count:resources.length};`});
+ if(response.isError||!Array.isArray(response.result?.files))throw issue(response.output||'The project source tree is unavailable.');
+ const after=await sdk.call('listProjectResources',projectId),result=response.result;
+ if(!Array.isArray(after)||result.count!==before.length||after.length!==before.length||after.some((r,i)=>r.resourceId!==before[i].resourceId||r.name!==before[i].name||r.type!==before[i].type))throw issue('The Project files changed. Try again.');
+ return result.files.map(({resourceIndex,resourceName,resourceType,...file})=>{
+  const resource=before[resourceIndex];
+  if(!resource||resource.name!==resourceName||resource.type!==resourceType)throw issue('The Project files changed. Try again.');
+  return {...file,resourceId:resource.resourceId};
+ });
 }
-function validateFootageFolder(folder){
- const fs=getFS(),isDirectory=stat=>!!stat&&(stat.mode&0o170000)===0o040000;
- if(!isDirectory(fs.statSync(folder)))throw issue('Choose a folder of footage.','FOLDER_STRUCTURE');
- const entries=fs.readdirSync(folder).filter(name=>!name.startsWith('.')).map(name=>({name,stat:fs.statSync(fs.join(folder,name))}));
+async function validateFootageFolder(folder){
+ const fs=getFS(),isDirectory=stat=>!!stat&&stat.isDirectory===true;
+ if(!isDirectory((await fs.stat(folder))))throw issue('Choose a folder of footage.','FOLDER_STRUCTURE');
+ const entries=[];for(const name of await fs.readdir(folder)){if(!name.startsWith('.'))entries.push({name,stat:await fs.stat(fs.join(folder,name))});}
  if(entries.some(entry=>!entry.stat))throw issue('Some files could not be read. Check folder access and try again.','FOLDER_ACCESS');
  // One subfolder per place is no longer required. A flat folder is read back
  // through capture time and any embedded GPS instead, so footage straight off
@@ -379,7 +393,7 @@ function locationsFromEstimate(files,folder,estimate){
 // in how to read and replace it: `get`/`update`, `check` (throws once a task no
 // longer belongs where it started), `live` (whether it still does), `progress`
 // and `stopped`. `assets` caches the companion scripts by file name.
-function storySteps({sdk,assets,get,update,check,progress,stopped,live}){
+function storySteps({sdk,assets,get,update,check,progress,stopped,live}){localSdk=sdk;
  const patch=v=>update(s=>({...s,...v})),changePlace=(id,fn)=>update(s=>({...s,places:s.places.map(p=>p.id===id?fn(p):p)}));
  const run=async(summary,script,allowCommit=false)=>{let r=await sdk.runScript({summary,script,allowCommit});
   // Selects restarts its script server when access changes, and a call already
@@ -424,7 +438,7 @@ function storySteps({sdk,assets,get,update,check,progress,stopped,live}){
 // its first clips, named from its folder label until analysis names it.
 function storyPlace(p,i){const picks=initialPickFiles(p.files);const rawName=p.sourceLabel.replace(/^\d+[_ .-]*/,'').replace(/_/g,' ');return {id:'place-'+String(i+1).padStart(2,'0'),sourceLabel:p.sourceLabel,center:p.center||null,confidence:p.confidence||null,name:english(rawName,'Location '+String(i+1).padStart(2,'0')),description:'',included:true,files:p.files,picks,phase:'idle',manualName:false,manualDescription:false,issue:''};}
 // Whether any clip an included place uses is missing on disk.
-async function offlineSources(story){const paths=[...new Set(story.places.filter(p=>p.included).flatMap(p=>p.picks.map(q=>q.path)))],present=await pool(paths,4,path=>getFS().exists(path));return present.some(v=>!v);}
+async function offlineSources(story){const paths=[...new Set(story.places.filter(p=>p.included).flatMap(p=>p.picks.map(q=>q.path)))],present=await pool(paths,4,async path=>(await getFS().exists(path)));return present.some(v=>!v);}
 // ---- Template run ----------------------------------------------------------
 // A built-in app can run Place Count as a template: the person picks the trip
 // videos in the app, and the panel runs out of sight with them in
@@ -459,7 +473,7 @@ async function openFrameSize(steps,sequenceId){
  try{const size=await steps.run('Read the open timeline size',`return (await selects.draft(${JSON.stringify(sequenceId)}).meta()).frameSize;`);const width=Math.round(Number(size?.width)),height=Math.round(Number(size?.height));return width>0&&height>0?{width,height}:null;}catch{return null;}
 }
 // Resolves to the new Draft's sequence id; rejects with a public message.
-async function runTemplate({sdk,context,live,progress}){
+async function runTemplate({sdk,context,live,progress}){localSdk=sdk;
  const t={pid:context.projectId};
  const check=()=>{if(!live())throw issue('A newer run replaced this one.','CONTEXT_CHANGED');};
  if(!t.pid)throw issue('Open a project, then try again.');
@@ -496,7 +510,7 @@ async function runTemplate({sdk,context,live,progress}){
  if(!job?.sequenceId)throw issue(TEMPLATE_ERROR);
  return job.sequenceId;
 }
-async function contactPacket(pid,place){const fs=getFS(),signature=[];for(const f of place.files){let modified=null;try{modified=await fs.getModifyDate?.(f.path);}catch{}signature.push([f.path,f.duration,f.frameRate,modified?String(modified):uid()]);}const key=await digest(JSON.stringify(['contacts-v4',pid,place.sourceLabel,signature])),root=fs.join(dataRoot(pid),'contacts',key);fs.mkdirSync(root,{recursive:true});const manifest=fs.join(root,'packet.json');if(await fs.exists(manifest)){try{const p=JSON.parse(await readText(manifest));if(p.key===key&&p.pages.every(path=>norm(path).startsWith(norm(root)+'/'))&&(await Promise.all(p.pages.map(path=>fs.exists(path)))).every(Boolean))return p;}catch{}}
+async function contactPacket(pid,place){const fs=getFS(),signature=[];for(const f of place.files){let modified=null;try{modified=(await fs.stat(f.path)).mtimeMs;}catch{}signature.push([f.path,f.duration,f.frameRate,modified?String(modified):uid()]);}const key=await digest(JSON.stringify(['contacts-v4',pid,place.sourceLabel,signature])),root=fs.join(dataRoot(pid),'contacts',key);(await fs.mkdir(root,{recursive:true}));const manifest=fs.join(root,'packet.json');if(await fs.exists(manifest)){try{const p=JSON.parse(await readText(manifest));if(p.key===key&&p.pages.every(path=>norm(path).startsWith(norm(root)+'/'))&&(await Promise.all(p.pages.map(async path=>(await fs.exists(path))))).every(Boolean))return p;}catch{}}
  const results=await pool(place.files,4,async(file,index)=>{if(file.duration<.5)return {error:true};try{const length=Math.min(5,file.duration-.08),ratios=file.duration>=16?[.28,.72]:[.5],windows=[];for(const r of ratios){const start=Math.max(0,Math.min(file.duration-length,file.duration*r-length/2)),end=start+length,frames=await readFrames(file,[start+.025,(start+end)/2,end-.04],360);windows.push({path:file.path,start,end,frames,sourceIndex:index+1});}return {windows};}catch{return {error:true};}});
  const windows=results.flatMap(r=>r?.windows||[]);if(!windows.length)throw issue('The selected clips could not be previewed. Current selections are still available.','PREVIEW_UNAVAILABLE');
  // One turn carries MAX_SHEETS images, so a place with more windows puts more
@@ -600,7 +614,7 @@ function PlaceCountWorkspace({sdk,context}){
  const goHome=()=>action(async()=>{const fresh=newStory(pid.current);fresh.settings={...ref.current.settings};patch(fresh);setPlaying(null);setSettingsOpen(false);},{showBusy:false});
  const analyze=(force=false)=>action(async t=>{if(!ref.current.places.some(p=>p.included))throw issue('Include at least one place.');setRunning('analyze');await assist(t,{force});check(t);if(stop.current)patch({notices:['Analysis stopped. Finished places keep their details.']});});
  const newWork=()=>action(async t=>{const fresh=newStory(t.pid);fresh.settings={...ref.current.settings};fresh.folder=ref.current.folder;fresh.title=ref.current.title;fresh.subtitle=ref.current.subtitle;fresh.places=JSON.parse(JSON.stringify(ref.current.places)).map(p=>({...p,phase:p.phase==='working'?'interrupted':p.phase==='queued'?'idle':p.phase}));patch(fresh);setPlaying(null);setSettingsOpen(false);});
- const loadFolder=async(folder,t)=>{if(!folder||!norm(folder))throw issue('Choose a footage folder.');validateFootageFolder(folder);setBusy(true);setProgress({label:'Loading your places',done:0,total:0});let inventory=await fullProjectInventory(sdk,t.pid);check(t);
+ const loadFolder=async(folder,t)=>{if(!folder||!norm(folder))throw issue('Choose a footage folder.');await validateFootageFolder(folder);setBusy(true);setProgress({label:'Loading your places',done:0,total:0});let inventory=await fullProjectInventory(sdk,t.pid);check(t);
   // Folders the person made are their own statement of where things belong, so
   // they still win. Only when the footage is not filed by place does the app's
   // own reading of capture time and GPS take over.
@@ -612,8 +626,8 @@ function PlaceCountWorkspace({sdk,context}){
   const root=norm(folder),held=inventory.some(f=>f.type==='video'&&norm(f.path).startsWith(root+'/'));
   if(!r.places.length&&held)throw issue('The places in this footage could not be read. Try choosing the folder again.');
   if(!r.places.length){let importError=null;try{await run('Import selected footage folder',`const p=selects.project(${JSON.stringify(t.pid)});await p.meta();return p.importFiles({paths:[${JSON.stringify(folder)}]});`,true);}catch(e){importError=e;}check(t);inventory=await fullProjectInventory(sdk,t.pid);check(t);r=await placesFrom();check(t);if(!r.places.length&&importError)throw importError;}if(!r.places?.length)throw issue('No places could be read from this footage. Add videos, or file them into one folder per place.');const fresh=newStory(t.pid);fresh.settings={...ref.current.settings};fresh.folder=folder;fresh.places=r.places.map(storyPlace);patch(fresh);setPlaying(null);};
- const chooseFolder=()=>action(async t=>{const picker=window.parent.__DI__?.CutbackMediaPicker;if(typeof picker?.pickDirectoryPath!=='function')throw issue('The folder picker is unavailable. Reopen Selects and try again.');const folder=await picker.pickDirectoryPath();check(t);if(folder)await loadFolder(folder,t);},{showBusy:false});
- const music=()=>action(async t=>{const picker=window.parent.__DI__?.CutbackMediaPicker;if(typeof picker?.pickFilePath!=='function')throw issue('The media picker is unavailable.');const path=await picker.pickFilePath([{name:'Audio',extensions:['mp3','wav','m4a','aac']}]);check(t);if(!path)return;const r=await importAudio(t,path,'Add music track');check(t);update(s=>({...s,settings:{...s.settings,music:r}}));});
+ const chooseFolder=()=>action(async t=>{const picker=panelLocalClient(sdk).dialogs;if(typeof picker?.pickDirectoryPath!=='function')throw issue('Update Selects to choose a local folder.');const folder=await picker.pickDirectoryPath();check(t);if(folder)await loadFolder(folder,t);},{showBusy:false});
+ const music=()=>action(async t=>{const picker=panelLocalClient(sdk).dialogs;if(typeof picker?.pickFilePath!=='function')throw issue('Update Selects to choose local media.');const path=await picker.pickFilePath([{name:'Audio',extensions:['mp3','wav','m4a','aac']}]);check(t);if(!path)return;const r=await importAudio(t,path,'Add music track');check(t);update(s=>({...s,settings:{...s.settings,music:r}}));});
  const create=()=>action(async t=>{if(ref.current.job?.status==='ready'){await openDraft(ref.current.job.sequenceId,t);return;}if(!support.ready)throw issue(support.message||'Story templates are not available.');const before=ref.current;if(!before.places.some(p=>p.included))throw issue('Include at least one place.');if(before.job&&before.job.status!=='interrupted')throw issue('A build is already in progress.');const offline=await offlineSources(before);check(t);if(offline)throw issue('Some selected source files are offline. Relink them in Selects and try again.');setRunning('create');await buildDraft(t);});
  const openDraft=async(id,t)=>{await run('Open story draft',`const p=selects.project(${JSON.stringify(t.pid)});const id=${JSON.stringify(id)};if(!(await p.meta()).draftIds.includes(id))throw Error('Draft outside project');return selects.editor.openDraft(id);`);check(t);};
  const open=()=>action(async t=>{if(ref.current.job?.sequenceId)await openDraft(ref.current.job.sequenceId,t);});
@@ -665,4 +679,269 @@ function PlaceCountTemplate({sdk,context}){
 }
 // A template run gets its own component, so it never loads or saves this
 // project's Place Count workspace.
-export default function PlaceCount(props){return props.context?.template?<PlaceCountTemplate {...props}/>:<PlaceCountWorkspace {...props}/>;}
+function PlaceCount(props){localSdk=props.sdk;return props.context?.template?<PlaceCountTemplate {...props}/>:<PlaceCountWorkspace {...props}/>;}
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(PlaceCount);
+// local-sdk:end

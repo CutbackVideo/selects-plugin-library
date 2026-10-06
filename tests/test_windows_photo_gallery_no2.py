@@ -14,13 +14,15 @@ import shutil
 import subprocess
 import unittest
 
+from windows_static import assert_no_shell_token, shell_token_present
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN = os.path.join(ROOT, "plugins", "photo-gallery-no2")
 PANEL = os.environ.get("PHOTO_GALLERY_NO2_PANEL") or os.path.join(PLUGIN, "panel.tsx")
 
 AV_HOST = re.compile(r"// av-host:start\n.*?// av-host:end\n", re.S)
 MAC_ONLY = re.compile(r"^[ \t]*// mac-only:start[ \t]*\n.*?^[ \t]*// mac-only:end[ \t]*\n", re.S | re.M)
-HOST_FUNCTIONS = ["hostError", "hostDI", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostBytes",
+HOST_FUNCTIONS = ["hostError", "hostUseSdk", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostBytes",
                   "hostReadBytes", "hostReadText", "hostRemove", "hostRoots", "hostDecodePcm", "hostProbeSeconds"]
 FORBIDDEN = [
     "mkdir -p", "printf", "$HOME", "$SELECTS_USER", "SELECTS_USER_SKILLS_ROOT", "rm -f", "base64 ", "| base64",
@@ -64,7 +66,7 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
 
     def test_no_posix_shell_outside_mac_only_regions(self):
         for needle in FORBIDDEN:
-            self.assertNotIn(needle, self.runtime, needle)
+            assert_no_shell_token(self, needle, self.runtime, needle)
         self.assertIsNone(SPAWN.search(self.runtime), "node/python spawn outside mac-only regions")
         self.assertEqual(self.runtime.count("runShell("), 0, "runShell outside mac-only regions")
 
@@ -77,8 +79,8 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         music = body(self.runtime, "async function prepareBundledMusic(")
         self.assertIn("hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')", music)
         self.assertIn("hostJoin(plugin, 'assets', 'music.mp3')", music)
-        self.assertIn("existsSync(", music)
-        self.assertLess(music.index("existsSync("), music.index("onImportStarted()"))
+        self.assertIn("exists(", music)
+        self.assertLess(music.index("exists("), music.index("onImportStarted()"))
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
         self.assertIn("SKILL.md", manifest["files"])
         self.assertIn("assets/music.mp3", manifest["files"])
@@ -141,7 +143,7 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         install = read(os.path.join(PLUGIN, "INSTALL.md"))
         self.assertIn("Windows", install)
         for needle in ("brew ", "Homebrew", "nvm ", "CPython", "runtime.sh", "tempo.py"):
-            self.assertNotIn(needle, install, needle)
+            assert_no_shell_token(self, needle, install, needle)
 
     def test_chat_skill_needs_no_node_or_shell(self):
         skill = read(os.path.join(PLUGIN, "SKILL.md"))
