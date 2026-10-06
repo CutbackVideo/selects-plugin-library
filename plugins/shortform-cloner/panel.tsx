@@ -1989,7 +1989,7 @@ function extractJson(text: string, S: any): any {
   return JSON.parse(body.slice(a, b + 1));
 }
 
-// ---- Files: Selects' own file service (same on macOS and Windows); localStorage when it is missing ----
+// ---- Media files and durable host-owned metadata storage ----
 function hostFs(): any {
   try {
     const fs = hostSdk.files;
@@ -2000,8 +2000,22 @@ function hostFs(): any {
   }
 }
 
+// Project switches mount a new store, but its metadata shares the same backend.
+const metadataWrites = new WeakMap<object, Map<string, Promise<void>>>();
+function metadataQueue(backend: object) {
+  let queue = metadataWrites.get(backend);
+  if (!queue) { queue = new Map(); metadataWrites.set(backend, queue); }
+  return queue;
+}
+function writeMetadata(backend: object, key: string, write: () => Promise<void>) {
+  const queue = metadataQueue(backend);
+  const pending = (queue.get(key) || Promise.resolve()).catch(() => {}).then(write);
+  queue.set(key, pending);
+  return pending;
+}
 function makeStore() {
   const fs = hostFs();
+  const storeSdk = hostSdk;
   if (fs) {
     const root = fs.join(fs.homedir(), ".selects", "plugin-data", APP_ID);
     const dir = (n: string) => fs.join(root, n);
@@ -2024,6 +2038,7 @@ function makeStore() {
         }
       },
       async list(kind: string) {
+        await metadataQueue(fs).get(dir(kind));
         const d = dir(kind);
         if (!(await fs.exists(d))) return [];
         const out: any[] = [];
@@ -2036,23 +2051,35 @@ function makeStore() {
         return out;
       },
       async put(kind: string, id: string, v: any) {
-        const d = dir(kind);
-        (await ensure(d));
-        await fs.writeFile(fs.join(d, id + ".json"), enc(JSON.stringify(v)));
+        const snapshot = enc(JSON.stringify(v));
+        await writeMetadata(fs, dir(kind), async () => {
+          const d = dir(kind);
+          await ensure(d);
+          await fs.writeFile(fs.join(d, id + ".json"), snapshot);
+        });
       },
       async del(kind: string, id: string) {
-        const p = fs.join(dir(kind), id + ".json");
-        if ((await fs.exists(p))) (await fs.rm(p));
+        await writeMetadata(fs, dir(kind), async () => {
+          const p = fs.join(dir(kind), id + ".json");
+          if (await fs.exists(p)) await fs.rm(p);
+        });
       },
     };
   }
   const key = (kind: string) => `${APP_ID}:${kind}`;
-  const read = (kind: string) => {
-    try {
-      return JSON.parse(localStorage.getItem(key(kind)) || "{}") || {};
-    } catch (e) {
-      return {};
-    }
+  const storage = () => {
+    if (!storeSdk.storage?.getItem || !storeSdk.storage?.setItem)
+      throw new Error("Update Selects to use persistent plugin storage, then reopen this panel.");
+    return storeSdk.storage;
+  };
+  const read = async (kind: string) => JSON.parse(await storage().getItem(key(kind)) || "{}") || {};
+  const change = (kind: string, edit: (all: any) => void) => {
+    const backend = storage();
+    return writeMetadata(backend, key(kind), async () => {
+      const all = JSON.parse(await backend.getItem(key(kind)) || "{}") || {};
+      edit(all);
+      await backend.setItem(key(kind), JSON.stringify(all));
+    });
   };
   return {
     fs: null,
@@ -2064,17 +2091,15 @@ function makeStore() {
     ensure: (_: string) => {},
     exists: (_: string) => false,
     async list(kind: string) {
-      return Object.values(read(kind));
+      await metadataQueue(storage()).get(key(kind));
+      return Object.values(await read(kind));
     },
     async put(kind: string, id: string, v: any) {
-      const all = read(kind);
-      all[id] = v;
-      localStorage.setItem(key(kind), JSON.stringify(all));
+      const snapshot = JSON.parse(JSON.stringify(v));
+      await change(kind, all => { all[id] = snapshot; });
     },
     async del(kind: string, id: string) {
-      const all = read(kind);
-      delete all[id];
-      localStorage.setItem(key(kind), JSON.stringify(all));
+      await change(kind, all => { delete all[id]; });
     },
   };
 }
@@ -3168,7 +3193,10 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, onAnalyze, s
 }
 
 
-function Panel({ sdk, context, ui }: any) {
+function Panel(props: any) {
+  return <ProjectPanel key={String(props.context.projectId)} {...props} />;
+}
+function ProjectPanel({ sdk, context, ui }: any) {
   hostUseSdk(sdk);
   const lang = langOf(context);
   const S = STRINGS[lang] ?? STRINGS.en;
@@ -3208,6 +3236,7 @@ function Panel({ sdk, context, ui }: any) {
     `const project = selects.project(${JSON.stringify(projectId)}); const rows = await project.resources(); ` +
     `const res = rows.find((r: any) => r.resourceId === ${JSON.stringify(resourceId)} && (${JSON.stringify(!resourceName)} || r.name === ${JSON.stringify(resourceName)})) || rows.find((r: any) => r.name === ${JSON.stringify(resourceName)}) || rows.find((r: any) => r.resourceId === ${JSON.stringify(resourceId)}) || null; `;
   const script = async (code: string, summary: string, allowCommit = false) => {
+    if (activeProject.current !== projectId) throw new Error("The project changed. Reopen the saved job in its original project.");
     const r: any = await sdk.runScript({ script: code, summary, allowCommit });
     if (r.isError) throw new Error(String(r.output || "run_script failed").slice(0, 1200));
     return r.result;
@@ -3250,6 +3279,9 @@ function Panel({ sdk, context, ui }: any) {
 
   // ---- Saved progress ----
   const saveJob = async (job: any) => store.put("jobs", job.id, job);
+  const activeProject = React.useRef(projectId);
+  activeProject.current = projectId;
+  React.useEffect(() => { activeProject.current = projectId; return () => { activeProject.current = null; }; }, []);
   const loadJobs = React.useCallback(async () => {
     if (!projectId) return;
     try {
@@ -3257,8 +3289,8 @@ function Panel({ sdk, context, ui }: any) {
       const list = (await store.list("jobs"))
         .filter((j: any) => j && j.version === 3 && j.projectId === projectId && !j.done && !j.dismissed && Date.parse(j.updated || j.created || "") > since)
         .sort((a: any, b: any) => String(b.updated).localeCompare(String(a.updated)));
-      setJobs(list);
-    } catch (e) {}
+      if (activeProject.current === projectId) setJobs(list);
+    } catch (e: any) { if (activeProject.current === projectId) setError(String(e?.message || e)); }
   }, [projectId, store]);
   React.useEffect(() => {
     loadJobs();
@@ -3268,7 +3300,7 @@ function Panel({ sdk, context, ui }: any) {
     if (!projectId) return;
     try {
       const rows = (await readMediaPages(sdk, {script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).filter((r: any) => r.type === "Video").map((r: any) => ({ id: r.resourceId, name: r.name, analyzed: r.hasAnalysis, sec: Math.round(r.durationSeconds ?? 0) }));`, summary: "List project videos"})).result;
-      setResources(rows || []);
+      if (activeProject.current === projectId) setResources(rows || []);
     } catch (e: any) {
       setError(String(e?.message || e));
     }
@@ -3488,6 +3520,7 @@ function Panel({ sdk, context, ui }: any) {
     const persist = async (patch: any) => {
       job = { ...job, ...patch, updated: new Date().toISOString() };
       await saveJob(job);
+      if (activeProject.current !== job.projectId) throw new Error("The project changed. Reopen this job in its original project.");
     };
     try {
       const list = (await loadTemplates()) || templates;
@@ -3536,6 +3569,7 @@ function Panel({ sdk, context, ui }: any) {
         if (found?.draftId) {
           made[i] = { ...c, draftId: found.draftId, seconds: found.seconds };
         } else {
+          if (job.pendingDraft === c.name) throw new Error("This Draft may already exist. Inspect the project and retry recovery; creation has not been repeated.");
           const P = {
             projectId,
             resourceId: job.resourceId,
@@ -3557,14 +3591,15 @@ function Panel({ sdk, context, ui }: any) {
           try {
             const code = SCRIPT_BUILD.replace("const P: any = __P__;", "const P: any = " + JSON.stringify(P) + ";");
             if (code.length > SCRIPT_LIMIT) throw new Error(S.imagesTooLarge);
+            await persist({ pendingDraft: c.name });
             const r = await script(code, `Build ${c.name}`, true);
             made[i] = { ...c, draftId: r?.draftId, seconds: r?.seconds };
           } catch (e: any) {
-            made[i] = { ...c, error: String(e?.message || e).slice(0, 300) };
+            throw e;
           }
         }
         setDrafts(made.filter(Boolean));
-        await persist({ built: made });
+        await persist({ built: made, pendingDraft: null });
       }
       const allBuilt = made.length === picked.clips.length && made.every((m) => m && m.draftId);
       await persist({ done: allBuilt });

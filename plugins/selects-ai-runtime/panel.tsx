@@ -64,12 +64,22 @@ const savedInputIsValid = (input, projectId) => input?.runtimeId === 'selects-ai
   (input.options?.alphaEncoding == null || ['grayscale-png-8bit', 'grayscale-avif-8bit'].includes(input.options.alphaEncoding));
 
 const recoveryKey = (projectId, task) => `selects-ai-runtime:lab:${projectId}:${task}`;
-function readSaved(projectId, task) {
-  const stored = localStorage.getItem(recoveryKey(projectId, task));
+function recoveryStorage(sdk) {
+  if (!sdk.storage?.getItem || !sdk.storage?.setItem) throw new Error("Update Selects to use persistent plugin storage, then reopen this panel.");
+  return sdk.storage;
+}
+const recoveryWrites = new Map();
+function orderedRecovery(key, write) {
+  const pending = (recoveryWrites.get(key) || Promise.resolve()).catch(() => {}).then(write);
+  recoveryWrites.set(key, pending);
+  return pending;
+}
+async function readSaved(sdk, projectId, task) {
+  const stored = await recoveryStorage(sdk).getItem(recoveryKey(projectId, task));
   if (stored !== null) return JSON.parse(stored);
   // Read the previous single-task record without deleting or rewriting it.
   // An explicit action publishes to the matching task's new key only.
-  const legacy = JSON.parse(localStorage.getItem(`selects-ai-runtime:lab:${projectId}`) || 'null');
+  const legacy = JSON.parse(await recoveryStorage(sdk).getItem(`selects-ai-runtime:lab:${projectId}`) || 'null');
   return legacy?.input?.task === task ? legacy : null;
 }
 
@@ -95,6 +105,7 @@ function TaskPane({ sdk, context, U, task, active }) {
   const [backgroundId, setBackgroundId] = useState(null);
   const [draftAttempt, setDraftAttempt] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [restored, setRestored] = useState(false);
   const [seconds, setSeconds] = useState(2);
   const [job, setJob] = useState(null);
   const [result, setResult] = useState(null);
@@ -154,9 +165,12 @@ function TaskPane({ sdk, context, U, task, active }) {
     setJob(null); setResult(null); setError(''); setStorageError(''); setSourceNotice('');
     setSeconds(2);
     setBusy(false); busyRef.current = false; setRecoverable(false); request.current = null;
+    setRestored(false);
     if (projectId) {
-      try {
-        const saved = readSaved(projectId, task);
+      (async () => { try {
+        await recoveryWrites.get(recoveryKey(projectId, task))?.catch(() => {});
+        const saved = await readSaved(sdk, projectId, task);
+        if (!current(token)) return;
         if (saved?.version === 1 && savedInputIsValid(saved.input, projectId) && saved.input.task === task) {
           request.current = saved.input;
           selection.current.source = saved.input.resourceId;
@@ -170,8 +184,10 @@ function TaskPane({ sdk, context, U, task, active }) {
           if (typeof saved.workflowId === 'string' && saved.workflowId) setJob({ workflowId: saved.workflowId, status: 'queued' });
           else setRecoverable(true);
         } else if (saved) setStorageError(S.savedInvalid);
-      } catch { setStorageError(S.storage); }
-      loadInventory(token);
+        setRestored(true);
+      } catch (cause) { if (current(token)) setStorageError(`${S.storage} ${cause.message}`); }
+      if (current(token)) await loadInventory(token);
+      })();
     }
     const unsubscribe = projectId && sdk.on?.('resourcesChanged', event => {
       if (event.projectId === projectId) loadInventory(token);
@@ -223,22 +239,25 @@ function TaskPane({ sdk, context, U, task, active }) {
     return () => { alive = false; clearTimeout(timer); };
   }, [job?.workflowId, projectId, refresh]);
 
-  function save(input, workflowId, token) {
+  async function save(input, workflowId, token) {
     const storageKey = recoveryKey(input.projectId, input.task);
-    try {
-      const old = readSaved(input.projectId, input.task);
-      const same = old?.input?.requestKey === input.requestKey;
-      // Only a fresh request may replace the record. A late acknowledgment
-      // from a detached panel must not roll back a newer request's identity.
-      if (workflowId && !same) return;
-      localStorage.setItem(storageKey, JSON.stringify({ version: 1, input, workflowId, ...(same && old.draftAttempt ? { draftAttempt: old.draftAttempt } : {}) }));
-    }
-    catch { if (current(token)) setStorageError(S.storage); }
+    return orderedRecovery(storageKey, async () => {
+      try {
+        const old = await readSaved(sdk, input.projectId, input.task);
+        const same = old?.input?.requestKey === input.requestKey;
+        if (workflowId && !same) return;
+        await recoveryStorage(sdk).setItem(storageKey, JSON.stringify({ version: 1, input, workflowId, ...(same && old.draftAttempt ? { draftAttempt: old.draftAttempt } : {}) }));
+        if (current(token)) setStorageError('');
+      } catch (cause) {
+        if (current(token)) setStorageError(`${S.storage} ${cause.message}`);
+        throw cause;
+      }
+    });
   }
 
   async function submit(recover = false) {
     const token = scope.current;
-    if (!token || token.projectId !== projectId || busyRef.current) return;
+    if (!token || token.projectId !== projectId || !restored || busyRef.current) return;
     busyRef.current = true; setBusy(true); setError(''); setResult(null);
     if (!recover) {
       request.current = null; setJob(null); setDraftAttempt(null); setRecoverable(false);
@@ -258,14 +277,17 @@ function TaskPane({ sdk, context, U, task, active }) {
       };
       if (!input || input.projectId !== projectId) throw new Error(S.noRequest);
       if (!recover && (!resourceId || !Number.isFinite(seconds) || seconds <= 0)) throw new Error(S.invalidSource);
-      request.current = input; save(input, undefined, token); setRecoverable(true); setJob(null);
+      request.current = input; setRecoverable(true); setJob(null);
+      await save(input, undefined, token);
+      if (!current(token)) return;
       // Obtain only the submission acknowledgment. A later status transport
       // failure must not discard an already known workflow identity.
       const value = await run(`const job=await selects.ai.submit(${JSON.stringify(input)}); return {workflowId:job.workflowId};`, true);
       // Preserve an A-project acknowledgment in A's storage after a switch,
       // without replacing B's visible job or error state.
-      save(input, value.workflowId, token);
-      if (current(token)) { setJob({ workflowId: value.workflowId, status: 'queued' }); setRecoverable(false); }
+      if (current(token)) { setJob({ workflowId: value.workflowId, status: 'queued' }); }
+      await save(input, value.workflowId, token);
+      if (current(token)) setRecoverable(false);
     } catch (cause) { if (current(token)) setError(cause.message); }
     finally { if (current(token)) { busyRef.current = false; setBusy(false); } }
   }
@@ -282,18 +304,20 @@ function TaskPane({ sdk, context, U, task, active }) {
     finally { if (current(token)) { busyRef.current = false; setBusy(false); } }
   }
 
-  function saveDraftAttempt(input, attempt, token) {
-    try {
-      const storageKey = recoveryKey(input.projectId, input.task);
-      const old = readSaved(input.projectId, input.task);
-      if (old?.input?.requestKey !== input.requestKey || old.workflowId !== attempt.workflowId)
-        throw new Error('The original job recovery record is unavailable.');
-      localStorage.setItem(storageKey, JSON.stringify({ ...old, draftAttempt: attempt }));
-      return true;
-    } catch {
-      if (current(token)) setStorageError(S.draftStorage);
-      return false;
-    }
+  async function saveDraftAttempt(input, attempt, token) {
+    const storageKey = recoveryKey(input.projectId, input.task);
+    return orderedRecovery(storageKey, async () => {
+      try {
+        const old = await readSaved(sdk, input.projectId, input.task);
+        if (old?.input?.requestKey !== input.requestKey || old.workflowId !== attempt.workflowId)
+          throw new Error('The original job recovery record is unavailable.');
+        await recoveryStorage(sdk).setItem(storageKey, JSON.stringify({ ...old, draftAttempt: attempt }));
+        return true;
+      } catch (cause) {
+        if (current(token)) setStorageError(`${S.draftStorage} ${cause.message}`);
+        return false;
+      }
+    });
   }
 
   async function openInEditor() {
@@ -327,7 +351,7 @@ function TaskPane({ sdk, context, U, task, active }) {
             !Number.isFinite(prepared.sourceRange?.startSeconds) || prepared.sourceRange.startSeconds < 0 ||
             !Number.isFinite(prepared.sourceRange?.endSeconds) || prepared.sourceRange.endSeconds <= prepared.sourceRange.startSeconds) throw new Error(S.invalidTiming);
         attempt = { workflowId: job.workflowId, name: `AI Runtime layered · ${job.workflowId}`, backgroundId, status: 'unknown' };
-        if (!saveDraftAttempt(input, attempt, token)) return;
+        if (!await saveDraftAttempt(input, attempt, token) || !current(token)) return;
         setDraftAttempt(attempt);
         const value = await run(`const p=selects.project(${JSON.stringify(projectId)});
           const name=${JSON.stringify(attempt.name)};
@@ -357,9 +381,8 @@ function TaskPane({ sdk, context, U, task, active }) {
       }
       if (!draftId) throw new Error(S.missingDraft);
       const saved = { ...attempt, status: 'saved', draftId };
-      saveDraftAttempt(input, saved, token);
-      if (!current(token)) return;
-      setDraftAttempt(saved);
+      if (current(token)) setDraftAttempt(saved);
+      if (!await saveDraftAttempt(input, saved, token) || !current(token)) return;
       if (visible.current) await run(`return await selects.editor.openDraft(${JSON.stringify(draftId)});`);
     } catch (cause) {
       if (current(token)) setError(attempt?.status === 'unknown' ? `${cause.message} ${S.draftUnknown}` : cause.message);
@@ -390,12 +413,12 @@ function TaskPane({ sdk, context, U, task, active }) {
   return <U.Stack gap={8}>
     <U.Message>{task === 'faces.detect' ? S.facesIntro : S.matteIntro}</U.Message>
     {!projectId && <U.Message>{S.openProject}</U.Message>}
-    <U.Select label={S.source} value={sameProject ? resourceId : null} placeholder={sourceNotice ? S.unavailable : S.chooseSource} onChange={selectResource} options={(sameProject ? resources : []).map(row => ({ value: row.resourceId, label: row.name }))} disabled={loading || busy || Boolean(pending)} />
+    <U.Select label={S.source} value={sameProject ? resourceId : null} placeholder={sourceNotice ? S.unavailable : S.chooseSource} onChange={selectResource} options={(sameProject ? resources : []).map(row => ({ value: row.resourceId, label: row.name }))} disabled={!restored || loading || busy || Boolean(pending)} />
     {sourceNotice && sameProject && <U.Message>{sourceNotice}</U.Message>}
     <U.NumberField label={S.duration} value={seconds} onChange={setSeconds} min={0.01} max={selected?.durationSeconds ?? 10} step={0.1} unit="s" disabled={busy || Boolean(pending)} />
     <U.Actions>
       {pending && <U.Button variant="secondary" disabled={busy} onClick={cancel}>{S.cancel}</U.Button>}
-      <U.Button busy={busy} disabled={!sameProject || !projectId || !resourceId || loading || Boolean(pending) || recoverable || draftAttempt?.status === 'unknown' || !Number.isFinite(seconds) || seconds <= 0} onClick={() => submit()}>{S.run}</U.Button>
+      <U.Button busy={busy} disabled={!restored || !sameProject || !projectId || !resourceId || loading || Boolean(pending) || recoverable || draftAttempt?.status === 'unknown' || !Number.isFinite(seconds) || seconds <= 0} onClick={() => submit()}>{S.run}</U.Button>
     </U.Actions>
     {visibleJob && <U.Progress value={visibleJob.progress} label={S.states[visibleJob.status] ?? visibleJob.status} />}
     {visibleJob?.lastErrorMessage && <U.Message tone="error">{visibleJob.lastErrorMessage}</U.Message>}

@@ -906,13 +906,20 @@ async function depthPruneMasks(sdk, pid, sid, keep) {
 }
 // Clip refs of b-roll and cards placed by earlier versions of this panel; captions
 // keep stepping aside for them.
-function depthCutawayRefs(pid, sid) {
-  try {
-    const placed = JSON.parse(localStorage.getItem(DEPTH_TAG + ":broll:" + pid + ":" + sid) || "{}")?.placed;
-    return Array.isArray(placed) ? placed.map(({ clipId, trackId }) => ({ clipId, trackId })) : [];
-  } catch {
-    return [];
-  }
+function depthStorage() {
+  if (!hostSdk.storage?.getItem || !hostSdk.storage?.setItem) throw new Error("Update Selects to restore and save captions, then reopen this panel.");
+  return hostSdk.storage;
+}
+const depthWrites = new Map();
+function depthSave(key, value) {
+  const snapshot = JSON.stringify(value);
+  const pending = (depthWrites.get(key) || Promise.resolve()).catch(() => {}).then(() => depthStorage().setItem(key, snapshot));
+  depthWrites.set(key, pending);
+  return pending;
+}
+async function depthCutawayRefs(pid, sid) {
+  const placed = JSON.parse(await depthStorage().getItem(DEPTH_TAG + ":broll:" + pid + ":" + sid) || "{}")?.placed;
+  return Array.isArray(placed) ? placed.map(({ clipId, trackId }) => ({ clipId, trackId })) : [];
 }
 const DEPTH_SCRIPT_LIMIT = 262144, DEPTH_SCRIPT_MARGIN = 2048;
 function depthScriptBytes(script) {
@@ -951,7 +958,8 @@ const all=await d.clips({trackScope:"all"});
 const same=(a,b)=>a.clipId===b.clipId&&a.trackId===b.trackId;
 // Replace this panel's caption clip wherever the edit left it: the saved link, and any
 // other clip it made (a lost link, a copy), found by label. Older hosts cannot list graphics.
-const listed=typeof (d as any).motionGraphics==="function"?(await (d as any).motionGraphics()).filter((g:any)=>g.name==="Depth Type Captions").map((g:any)=>g.clip):[];
+if(typeof (d as any).motionGraphics!=="function")throw new Error("Update Selects to safely recover and replace Depth Type captions.");
+const listed=(await (d as any).motionGraphics()).filter((g:any)=>g.name==="Depth Type Captions").map((g:any)=>g.clip);
 const old=[...(oldRef?all.filter(c=>same(c,oldRef)):[]),...listed.map((g:any)=>all.find(c=>same(c,g))).filter(Boolean)].filter((c,i,a)=>a.findIndex(x=>same(x,c))===i);
 const recovered=!!oldRef&&!old.length;
 const m=await d.meta();
@@ -1376,6 +1384,10 @@ async function depthMaskIsCurrent(files, meta, settings, pid, sid, excluded) {
 // lines placed around the speaker → one caption clip on the timeline, replacing `owned`.
 // The hooks let the panel show each stage; the template run passes none.
 async function depthMakeCaptions({ sdk, pid, sid, settings, owned = null, reuse = null, control, progress, fallbackSize = {}, hooks = {} }) {
+  const recoveryKey = DEPTH_TAG + ":" + pid + ":" + sid;
+  const previous = JSON.parse(await depthStorage().getItem(recoveryKey) || "null");
+  await depthSave(recoveryKey, { ...previous, settings, owned });
+  if (control.canceled) throw new Error("Canceled.");
   const r = await sdk.runScript({ script: depthReadScript(pid, sid), summary: "Read dialogue for Depth Type captions", allowCommit: false });
   if (r.isError || !r.result) throw new Error(r.output || "No draft data returned.");
   const meta = r.result;
@@ -1383,7 +1395,8 @@ async function depthMakeCaptions({ sdk, pid, sid, settings, owned = null, reuse 
   if (!next.length) throw new Error("No dialogue found in this draft.");
   hooks.onRead?.(meta, next);
   // Everything this panel placed: never part of the speaker render or its key.
-  const excluded = [owned, ...depthCutawayRefs(pid, sid)];
+  const excluded = [owned, ...await depthCutawayRefs(pid, sid)];
+  if (control.canceled) throw new Error("Canceled.");
   let files = null, around = 0;
   if (settings.depth) {
     depthRequireHost();
@@ -1425,7 +1438,11 @@ async function depthMakeCaptions({ sdk, pid, sid, settings, owned = null, reuse 
   if (control.canceled) throw new Error("Canceled.");
   progress("Saving captions…");
   const savePlan = depthCleanPlan(next);
-  const ar = await sdk.runScript({ summary: "Apply Depth Type captions", allowCommit: true, script: depthApplyScript(pid, sid, savePlan, settings, files, owned, depthCutawayRefs(pid, sid)).script });
+  await depthSave(recoveryKey, { ...previous, settings, owned, plan: savePlan, masks: files, savedMasks: files?.dir || null });
+  if (control.canceled) throw new Error("Canceled.");
+  const cutawayRefs = await depthCutawayRefs(pid, sid);
+  if (control.canceled) throw new Error("Canceled.");
+  const ar = await sdk.runScript({ summary: "Apply Depth Type captions", allowCommit: true, script: depthApplyScript(pid, sid, savePlan, settings, files, owned, cutawayRefs).script });
   if (ar.isError || !ar.result?.owned) throw new Error(ar.output || "Captions were not confirmed on the timeline.");
   return { meta, savePlan, files, around, result: ar.result };
 }
@@ -1519,6 +1536,10 @@ function DepthTemplateRun({ sdk, context }) {
       try {
         const pid = context.projectId;
         if (!pid) throw depthTemplateError("no-project");
+        const runKey = DEPTH_TAG + ":template:" + pid + ":" + runId;
+        const previousRun = JSON.parse(await depthStorage().getItem(runKey) || "null");
+        await depthSave(runKey, previousRun || { status: "ready" });
+        if (control.canceled || superseded()) throw new Error("Canceled.");
         const given = template.inputs?.speaker || [];
         // The open draft (a timeline) is captioned in place; a picked video, from older apps, gets a new Draft.
         const timeline = given.find((x) => x?.kind === "timeline" && x.sequenceId);
@@ -1541,7 +1562,12 @@ function DepthTemplateRun({ sdk, context }) {
           if (m.isError || !m.result) throw new Error(m.output || "The draft could not be read.");
           if (!(m.result.seconds <= DEPTH_TEMPLATE_SECONDS)) throw depthTemplateError("too-long");
           sid = String(timeline.sequenceId);
+        } else if (previousRun?.sequenceId) {
+          sid = previousRun.sequenceId;
         } else {
+          if (previousRun?.status === "pending") throw new Error("A Draft may already exist. Inspect the project before starting a new template run.");
+          await depthSave(runKey, { status: "pending" });
+          if (control.canceled || superseded()) throw new Error("Canceled.");
           progress("Placing your video…");
           const r = await sdk.runScript({ script: depthClipDraftScript(pid, speaker.resourceId, depthClipBaseName(speaker.name)), summary: "Create Depth Type draft from a video", allowCommit: true });
           if (r.isError || !r.result) throw new Error(r.output || "The Draft was not created.");
@@ -1549,9 +1575,11 @@ function DepthTemplateRun({ sdk, context }) {
           if (r.result.noSpeechInLimit) throw depthTemplateError("no-speech-in-limit");
           if (!r.result.id) throw new Error("The Draft was not created.");
           sid = String(r.result.id);
+          await depthSave(runKey, { status: "saved", sequenceId: sid });
           if (r.result.endSeconds != null)
             console.info("[depth-type] template run: clip of " + r.result.sourceSeconds + " s placed up to " + r.result.endSeconds + " s (Behind speaker handles " + DEPTH_TEMPLATE_SECONDS + " s).");
         }
+        if (control.canceled || superseded()) throw new Error("Canceled.");
         const settings = { ...DEPTH_DEFAULTS };
         let made;
         try {
@@ -1566,14 +1594,12 @@ function DepthTemplateRun({ sdk, context }) {
         // shows these captions for Fine-tune, Redo (reusing the masks) and Remove.
         const plan = result.trimmed ? depthBoundPlan(savePlan, result.duration).plan : savePlan;
         const summary = { phrases: savePlan.length, around, masks: files?.count || 0, width: files?.width || 0, height: files?.height || 0 };
-        try {
-          localStorage.setItem(DEPTH_TAG + ":" + pid + ":" + sid, JSON.stringify({ settings, plan, owned: result.owned, summary, masks: files, savedMasks: files?.dir || null }));
-        } catch {}
+        await depthSave(DEPTH_TAG + ":" + pid + ":" + sid, { settings, plan, owned: result.owned, summary, masks: files, savedMasks: files?.dir || null });
         finish({ sequenceId: sid });
       } catch (e) {
         if (superseded() || control.canceled) return finish({ error: DEPTH_TEMPLATE_FAILED });
         console.warn("[depth-type] template run failed:", e?.code || "", e?.message || e);
-        finish({ error: e?.code && DEPTH_TEMPLATE_ERRORS[e.code] ? DEPTH_TEMPLATE_ERRORS[e.code] : DEPTH_TEMPLATE_FAILED });
+        finish({ error: /^Update Selects/.test(String(e?.message || "")) ? e.message : e?.code && DEPTH_TEMPLATE_ERRORS[e.code] ? DEPTH_TEMPLATE_ERRORS[e.code] : DEPTH_TEMPLATE_FAILED });
       }
     })().catch(() => finish({ error: DEPTH_TEMPLATE_FAILED }));
     // A newer run, or the app taking the frame down, stops this one's render and masks.
@@ -1619,18 +1645,25 @@ function DepthTypePanel({ sdk, context }) {
   });
 }
 function DepthEditor({ sdk, context }) {
-  const pid = context.projectId,
-    sid = context.sequenceId,
-    key = DEPTH_TAG + ":" + pid + ":" + sid;
-  const initial = useRef(
-    (() => {
+  const key = DEPTH_TAG + ":" + context.projectId + ":" + context.sequenceId;
+  const [restored, setRestored] = useState(null), [failure, setFailure] = useState("");
+  useEffect(() => {
+    let live = true;
+    (async () => {
       try {
-        return JSON.parse(localStorage.getItem(key) || "null");
-      } catch {
-        return null;
-      }
-    })(),
-  );
+        await depthWrites.get(key)?.catch(() => {});
+        const value = JSON.parse(await depthStorage().getItem(key) || "null");
+        if (live) setRestored({ value });
+      } catch (error) { if (live) setFailure(String(error.message || error)); }
+    })();
+    return () => { live = false; };
+  }, [key]);
+  if (!restored) return h("p", { role: failure ? "alert" : "status" }, failure || "Restoring saved captions…");
+  return h(DepthEditorReady, { sdk, context, saved: restored.value });
+}
+function DepthEditorReady({ sdk, context, saved }) {
+  const pid = context.projectId, sid = context.sequenceId, key = DEPTH_TAG + ":" + pid + ":" + sid;
+  const initial = useRef(saved);
   const [settings, setSettings] = useState({ ...DEPTH_DEFAULTS, ...initial.current?.settings }),
     [plan, setPlan] = useState(() => (initial.current?.plan || []).map((p) => ({ ...p, layers: p.layers.map(({ front, ...l }) => l) }))),
     [owned, setOwned] = useState(initial.current?.owned || null),
@@ -1667,12 +1700,12 @@ function DepthEditor({ sdk, context }) {
       }
     };
   }, []);
+  const recovery = useRef(null);
+  recovery.current = { settings, plan, owned, summary, masks: maskFiles, savedMasks };
   useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify({ settings, plan, owned, summary, masks: maskFiles, savedMasks }));
-    } catch {
-      setStatus("Local storage is full; this panel cannot remember the captions between sessions.");
-    }
+    depthSave(key, recovery.current).catch(error => {
+      if (alive.current) setStatus("Captions could not be saved. Keep this panel open and retry. " + error.message);
+    });
   }, [settings, plan, owned, summary, maskFiles, savedMasks]);
   // Reopening the panel keeps the last full-size render as the preview video.
   useEffect(() => {
@@ -1714,7 +1747,10 @@ function DepthEditor({ sdk, context }) {
     setPlaying(false);
     setStatus(label);
     try {
+      await depthSave(key, recovery.current);
+      if (!alive.current) return;
       await fn();
+      await depthWrites.get(key);
     } catch (e) {
       if (alive.current) {
         let message = String(e.message || e);
@@ -1774,8 +1810,8 @@ function DepthEditor({ sdk, context }) {
   };
   const cleanPlan = depthCleanPlan;
   // Everything this panel placed: never part of the speaker render or its key.
-  const excludedRefs = (ownedRef = owned) => [ownedRef, ...depthCutawayRefs(pid, sid)];
-  const maskIsCurrent = (meta) => depthMaskIsCurrent(maskFiles, meta, settings, pid, sid, excludedRefs());
+  const excludedRefs = async (ownedRef = owned) => [ownedRef, ...await depthCutawayRefs(pid, sid)];
+  const maskIsCurrent = async (meta) => depthMaskIsCurrent(maskFiles, meta, settings, pid, sid, await excludedRefs());
   const verifyMask = async () => {
     if (!maskFiles) throw new Error("Choose Make depth captions first, or turn off Behind speaker.");
     const fresh = await sdk.runScript({ script: depthReadScript(pid, sid), summary: "Verify speaker mask canvas", allowCommit: false });
@@ -1861,6 +1897,7 @@ function DepthEditor({ sdk, context }) {
               saveNote(result),
           );
         }
+        await depthSave(key, { settings, plan: result.trimmed ? depthBoundPlan(savePlan, result.duration).plan : savePlan, owned: result.owned, summary: done, masks: files, savedMasks: files?.dir || null });
         await pruneMasks(files?.dir, before.savedMasks);
       } finally {
         job.current = null;
@@ -1876,7 +1913,9 @@ function DepthEditor({ sdk, context }) {
         await verifyMask();
       }
       const before = { owned, savedMasks, summary, plan: lastSaved.current }, files = settings.depth ? maskFiles : null;
-      const built = depthApplyScript(pid, sid, savePlan, settings, files, owned, depthCutawayRefs(pid, sid));
+      const built = depthApplyScript(pid, sid, savePlan, settings, files, owned, await depthCutawayRefs(pid, sid));
+      await depthSave(key, { settings, plan: savePlan, owned, summary, masks: files, savedMasks });
+      if (!alive.current) return;
       const r = await sdk.runScript({ summary: "Apply Depth Type captions", allowCommit: true, script: built.script });
       if (r.isError || !r.result?.owned) throw new Error(r.output || "No save confirmation. Check the timeline before retrying.");
       if (alive.current) {
@@ -1893,6 +1932,7 @@ function DepthEditor({ sdk, context }) {
         setUndo({ id: r.result.commitId, ...before, owned: r.result.recovered ? null : before.owned });
         setStatus("Saved. " + describe(done) + "." + saveNote(r.result));
       }
+      await depthSave(key, { settings, plan: r.result.trimmed ? depthBoundPlan(savePlan, r.result.duration).plan : savePlan, owned: r.result.owned, summary, masks: files, savedMasks: files?.dir || null });
       await pruneMasks(files?.dir, before.savedMasks);
     });
   const remove = () =>
@@ -1911,6 +1951,7 @@ function DepthEditor({ sdk, context }) {
       setUndo({ id: r.result.commitId, owned, savedMasks, summary });
       setOwned(null);
       setSummary(null);
+      await depthSave(key, { settings, plan, owned: null, summary: null, masks: maskFiles, savedMasks });
       setStatus("Removed the captions from the timeline.");
     });
   const undoApply = () =>
@@ -1928,6 +1969,7 @@ function DepthEditor({ sdk, context }) {
       }
       setUndo(null);
       setEdited(false);
+      await depthSave(key, { settings, plan: undo.plan || plan, owned: undo.owned, summary: undo.summary, masks: maskFiles, savedMasks: undo.savedMasks });
       setStatus("Undone.");
     });
   const button = (text, onClick, disabled = false, variant = "secondary") =>

@@ -37,8 +37,11 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
   const Panel = loaded.exports.default;
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://selects-test.invalid' });
   const previous = new Map();
+  const stored = new Map();
+  const storage = { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value), clear: () => stored.clear() };
+  Object.defineProperty(dom.window, 'localStorage', { get() { throw new Error('Iframe storage is denied'); } });
   for (const [name, value] of Object.entries({ window: dom.window, document: dom.window.document,
-    navigator: dom.window.navigator, localStorage: dom.window.localStorage, IS_REACT_ACT_ENVIRONMENT: true })) {
+    navigator: dom.window.navigator, localStorage: { getItem() { throw Error("Iframe storage is denied"); }, setItem() { throw Error("Iframe storage is denied"); } }, IS_REACT_ACT_ENVIRONMENT: true })) {
     previous.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
     Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
   }
@@ -86,15 +89,54 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
   let root;
   const mount = async (sdk, projectId, language = 'en') => {
     root ??= createRoot(dom.window.document.getElementById('root'));
-    const checkedSdk = { ...sdk, runScript: async input => {
+    const checkedSdk = { storage: { getItem: async key => storage.getItem(key), setItem: async (key, value) => { storage.setItem(key, value); } }, ...sdk, runScript: async input => {
       scriptChecks.push({ script: input.script, checked: typecheckQueryScript(input.script, { generatedMediaAuthoring: true }) });
       return sdk.runScript(input);
     } };
     await act(async () => root.render(h(Panel, { sdk: checkedSdk, context: { projectId, language }, ui: U }))); await flush();
   };
   const unmount = async () => { if (root) { await act(async () => root.unmount()); root = null; } };
-  const reset = async () => { await unmount(); dom.window.localStorage.clear(); };
+  const reset = async () => { await unmount(); storage.clear(); };
   try {
+    await t.test('waits for host recovery before accepting actions and ignores a late project restore', async () => {
+      await reset(); let finishA; let submissions = 0;
+      const sdk = { storage: {
+        getItem: async key => key === recoveryKey('A') ? new Promise(resolve => { finishA = resolve; }) : null,
+        setItem: async (key, value) => storage.setItem(key, value),
+      }, call: async (_method, project) => [row(project === 'A' ? UUID_A : UUID_B, project)],
+        runScript: async () => { submissions++; return answer({}); } };
+      await mount(sdk, 'A');
+      assert.equal(button('Run task').disabled, true);
+      await mount(sdk, 'B');
+      finishA(JSON.stringify({ version: 1, input: { runtimeId: 'selects-ai-runtime', projectId: 'A', resourceId: UUID_A,
+        task: 'faces.detect', requestKey: 'old', sourceRange: { startSeconds: 0, endSeconds: 3 } } }));
+      await flush();
+      assert.equal(field('Source video').value, UUID_B);
+      assert.equal(submissions, 0);
+      assert.equal(storage.getItem(recoveryKey('B')), null);
+    });
+    await t.test('a rejected checkpoint stops submission and can retry the same request', async () => {
+      await reset(); let fail = true; let submissions = 0;
+      const sdk = { storage: {
+        getItem: async key => storage.getItem(key),
+        setItem: async (key, value) => { if (fail) throw Error('Host storage offline'); storage.setItem(key, value); },
+      }, call: async () => [row(UUID_A, 'A video')], runScript: async input => {
+        if (input.script.includes('selects.ai.submit')) { submissions++; return answer({ workflowId: 'ai:retry' }); }
+        return answer(status('ai:retry'));
+      } };
+      await mount(sdk, 'A'); await click('Run task');
+      assert.equal(submissions, 0);
+      assert.match(text(), /Host storage offline/);
+      fail = false; await click('Recover same request');
+      assert.equal(submissions, 1);
+      assert.equal(JSON.parse(storage.getItem(recoveryKey('A'))).workflowId, 'ai:retry');
+    });
+    await t.test('an older host reports an actionable update message and cannot submit', async () => {
+      await reset();
+      await mount({ storage: undefined, call: async () => [row(UUID_A, 'A video')], runScript: async () => { throw Error('Unexpected submit'); } }, 'A');
+      assert.match(text(), /Update Selects/);
+      assert.equal(button('Run task').disabled, true);
+    });
     await t.test('uses persistent Resource ids and prevents a late inventory from replacing another Project', async () => {
       await reset(); const finishA = [];
       const sdk = { call: async (method, project) => {
@@ -119,9 +161,9 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       complete(answer({ workflowId: 'ai:old-project-job' })); await flush();
       assert.ok(!dom.window.document.body.textContent.includes('ai:old-project-job'));
       assert.equal(button('Run task').disabled, false);
-      const saved = JSON.parse(dom.window.localStorage.getItem(recoveryKey('A')));
+      const saved = JSON.parse(storage.getItem(recoveryKey('A')));
       assert.equal(saved.workflowId, 'ai:old-project-job'); assert.equal(saved.input.resourceId, UUID_A);
-      assert.equal(dom.window.localStorage.getItem(recoveryKey('B')), null);
+      assert.equal(storage.getItem(recoveryKey('B')), null);
     });
     await t.test('does not replace a newer same-Project recovery record with a detached old submission acknowledgment', async () => {
       await reset(); let finishOld; const submitted = [];
@@ -140,7 +182,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.equal(submitted.length, 3); assert.equal(submitted[0].requestKey, submitted[1].requestKey);
       assert.notEqual(submitted[2].requestKey, submitted[0].requestKey);
       finishOld(answer({ workflowId: 'ai:first' })); await flush();
-      const saved = JSON.parse(dom.window.localStorage.getItem(recoveryKey('A')));
+      const saved = JSON.parse(storage.getItem(recoveryKey('A')));
       assert.equal(saved.workflowId, 'ai:newer'); assert.equal(saved.input.requestKey, submitted[2].requestKey);
       await unmount(); await mount(sdk, 'A');
       assert.ok(dom.window.document.body.textContent.includes('ai:newer'));
@@ -184,8 +226,8 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.ok(dom.window.document.body.textContent.includes('ai:recovered-job'));
     });
     await t.test('warns when a known acknowledgment cannot be saved without losing its visible identity', async () => {
-      await reset(); const original = dom.window.Storage.prototype.setItem; let writes = 0;
-      dom.window.Storage.prototype.setItem = function (...args) {
+      await reset(); const original = storage.setItem; let writes = 0;
+      storage.setItem = function (...args) {
         if (++writes === 2) throw new Error('Storage quota exceeded');
         return original.apply(this, args);
       };
@@ -197,11 +239,11 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
         assert.ok(dom.window.document.body.textContent.includes('ai:unsaved-job'));
         assert.ok(dom.window.document.querySelector('pre').textContent.includes('ai:unsaved-job'));
         assert.equal(button('Run task').disabled, true);
-      } finally { dom.window.Storage.prototype.setItem = original; }
+      } finally { storage.setItem = original; }
     });
     await t.test('refreshes a known job after status transport failure without resubmitting', async () => {
       await reset(); let failed = true, submits = 0;
-      dom.window.localStorage.setItem('selects-ai-runtime:lab:A', JSON.stringify({ version: 1, input: {
+      storage.setItem('selects-ai-runtime:lab:A', JSON.stringify({ version: 1, input: {
         runtimeId: 'selects-ai-runtime', projectId: 'A', resourceId: UUID_A, requestKey: 'old-key',
         task: 'faces.detect', sourceRange: { startSeconds: 0, endSeconds: 2 } }, workflowId: 'ai:known-job' }));
       const sdk = { call: async () => [row(UUID_A, 'A video')], runScript: async input => {
@@ -282,7 +324,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
         assert.equal(input.options.outputMode, 'alpha-frames');
         assert.equal(input.options.alphaEncoding, avif ? 'grayscale-avif-8bit' : undefined);
         if (!avif) assert.deepEqual(Object.keys(input.options), ['outputMode'], 'Older validators must receive no newly added option');
-        assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte'))).input, input);
+        assert.deepEqual(JSON.parse(storage.getItem(recoveryKey('A', 'person.matte'))).input, input);
         assert.equal(field('Mask format'), null, 'Encoding selection adds no setting to the simple two-task UI');
         assert.equal(base.scripts.filter(input => input.script.includes('supportedMatteEncodings')).length, 1);
       }
@@ -309,8 +351,8 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       await mount(sdk, 'A'); await click('Remove background'); await click('Run task'); await mount(sdk, 'B');
       finish(answer('grayscale-avif-8bit')); await flush();
       assert.ok(!base.scripts.some(input => input.script.includes('selects.ai.submit')));
-      assert.equal(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte')), null);
-      assert.equal(dom.window.localStorage.getItem(recoveryKey('B', 'person.matte')), null);
+      assert.equal(storage.getItem(recoveryKey('A', 'person.matte')), null);
+      assert.equal(storage.getItem(recoveryKey('B', 'person.matte')), null);
     });
     await t.test('an old completed job cannot repaint the new task while format negotiation is pending', async () => {
       await reset(); const base = consumerSdk(); let inspections = 0, submissions = 0, refreshOld = false, finishOld, finishEncoding;
@@ -362,7 +404,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
         assert.equal(button('Refresh job'), null); assert.equal(button('Open in editor'), null);
         assert.ok(!text().includes('48 frames processed')); assert.ok(!text().includes('ai:matte-job'));
         assert.ok(button('Recover same request'));
-        const saved = JSON.parse(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte')));
+        const saved = JSON.parse(storage.getItem(recoveryKey('A', 'person.matte')));
         assert.deepEqual(saved.input, submissions[1]); assert.equal(saved.workflowId, undefined);
         assert.ok(!base.scripts.some(input => input.script.includes('selects.ai.prepareMatte') || input.script.includes('createDraft')));
       }
@@ -400,8 +442,8 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.ok(text().includes('12 samples')); assert.ok(text().includes('18 faces')); assert.equal(field('Source video').value, UUID_A);
       await click('Remove background'); assert.ok(text().includes('48 frames processed')); assert.equal(field('Source video').value, UUID_B);
       assert.ok(!calls.some(script => script.includes('.cancel()'))); assert.equal(submissions.length, 2);
-      assert.equal(JSON.parse(dom.window.localStorage.getItem(recoveryKey('A'))).workflowId, 'ai:faces-independent');
-      assert.equal(JSON.parse(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte'))).workflowId, 'ai:matte-independent');
+      assert.equal(JSON.parse(storage.getItem(recoveryKey('A'))).workflowId, 'ai:faces-independent');
+      assert.equal(JSON.parse(storage.getItem(recoveryKey('A', 'person.matte'))).workflowId, 'ai:matte-independent');
     });
     await t.test('reopens both unknown submissions with each task own saved key and does not mix recovery channels', async () => {
       await reset(); let lost = true; const submissions = [];
@@ -426,14 +468,14 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
         call: async () => [row(UUID_A, 'A video'), ...(hasBackground ? [{ resourceId: BG, name: 'Added background', type: 'Image' }] : [])] };
       await prepareMatte(sdk);
       assert.equal(button('Open in editor').disabled, true);
-      const saved = dom.window.localStorage.getItem(recoveryKey('A', 'person.matte'));
+      const saved = storage.getItem(recoveryKey('A', 'person.matte'));
       hasBackground = true; await act(async () => changed.forEach(listener => listener({ projectId: 'A' }))); await flush();
       assert.equal(button('Open in editor').disabled, false);
       assert.equal(pane().getAttribute('data-task'), 'person.matte');
       assert.equal(field('Source video').value, UUID_A);
       assert.equal(durationField().value, '2');
       assert.ok(text().includes('48 frames processed'));
-      assert.equal(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte')), saved);
+      assert.equal(storage.getItem(recoveryKey('A', 'person.matte')), saved);
       assert.equal(base.scripts.filter(input => input.script.includes('selects.ai.submit')).length, 1);
       assert.ok(!base.scripts.some(input => input.script.includes('selects.ai.prepareMatte') || input.script.includes('createDraft')));
     });
@@ -489,7 +531,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
     await t.test('restores the saved RVM form after delayed inventory and keeps results readable if its source disappeared', async () => {
       for (const sourceExists of [true, false]) {
         await reset(); const finishInventory = [], scripts = [];
-        dom.window.localStorage.setItem('selects-ai-runtime:lab:A', JSON.stringify({ version: 1,
+        storage.setItem('selects-ai-runtime:lab:A', JSON.stringify({ version: 1,
           input: { runtimeId: 'selects-ai-runtime', projectId: 'A', resourceId: UUID_B, requestKey: 'saved-rvm-key',
             task: 'person.matte', sourceRange: { startSeconds: 0, endSeconds: 3.5 }, options: { outputMode: 'alpha-frames' } },
           workflowId: 'ai:saved-rvm' }));
@@ -532,7 +574,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.ok(create.script.includes('addVideoEffect'));
       assert.ok(!create.script.includes('importArtifact'));
       assert.ok(create.script.includes('commitAll')); assert.ok(!create.script.includes('openDraft'));
-      const saved = JSON.parse(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte')));
+      const saved = JSON.parse(storage.getItem(recoveryKey('A', 'person.matte')));
       assert.equal(saved.draftAttempt.status, 'saved'); assert.equal(saved.draftAttempt.draftId, 'draft-persistent-id');
       assert.ok(!JSON.stringify(saved).includes('r9'), 'App-lifetime Resource aliases must not be persisted');
       assert.equal(sdk.scripts.filter(input => input.script.includes('openDraft')).length, 1);
@@ -552,7 +594,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       const input = { runtimeId: 'selects-ai-runtime', projectId: 'A', resourceId: UUID_A, requestKey: 'long-matte-existing',
         task: 'person.matte', sourceRange: { startSeconds: 0, endSeconds: 120 }, options: { outputMode: 'foreground-video',
           ...(alphaEncoding === 'grayscale-avif-8bit' ? { alphaEncoding } : {}) } };
-      dom.window.localStorage.setItem(recoveryKey('A', 'person.matte'), JSON.stringify({ version: 1, input, workflowId: 'ai:matte-job' }));
+      storage.setItem(recoveryKey('A', 'person.matte'), JSON.stringify({ version: 1, input, workflowId: 'ai:matte-job' }));
       let insertedFrames = 0, insertions = 0, commits = 0; const overlays = [], effects = [];
       const extension = alphaEncoding === 'grayscale-avif-8bit' ? 'avif' : 'png';
       const masks = Array.from({ length: count }, (_, index) => ({ index, sourceTimeSeconds: index / fps, url: `local://mask/${index}.${extension}` }));
@@ -623,7 +665,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.equal(effects[0].parameters.sourceEndSeconds, sourceEnd);
       assert.ok(!base.scripts.some(request => request.script.includes('importArtifact')), 'No foreground MOV Resource is adopted');
       assert.ok(base.scripts.at(-1).script.includes('selects.editor.openDraft("long-fractional-draft")'));
-      assert.equal(JSON.parse(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte'))).draftAttempt.draftId, 'long-fractional-draft');
+      assert.equal(JSON.parse(storage.getItem(recoveryKey('A', 'person.matte'))).draftAttempt.draftId, 'long-fractional-draft');
       // Execute the exact RawTSX effect emitted by the real Panel. Its clock
       // is source-relative, so a trim/seek does not replay mask frame zero.
       const effectModule = { exports: {} }; let effectFrame = 0, effectFps = fps;
@@ -661,7 +703,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
         }};
         await prepareMatte(sdk); await click('Open in editor');
         assert.ok(!base.scripts.some(request=>request.script.includes('createDraft')||request.script.includes('importArtifact')));
-        assert.equal(JSON.parse(dom.window.localStorage.getItem(recoveryKey('A','person.matte'))).draftAttempt,undefined);
+        assert.equal(JSON.parse(storage.getItem(recoveryKey('A','person.matte'))).draftAttempt,undefined);
         assert.equal(button('Run task').disabled,false,'A pre-commit preparation failure must not invent an unknown commit');
         assert.equal(button('Open in editor').disabled,false,'The same artifact can be prepared again explicitly');
       }
@@ -678,7 +720,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       await prepareMatte(sdk); await click('Open in editor'); await mount(sdk, 'B');
       finishImport(answer({ resourceId: IMPORTED })); await flush();
       assert.ok(!dom.window.document.body.textContent.includes(`Foreground Resource: ${IMPORTED}`));
-      assert.equal(dom.window.localStorage.getItem(recoveryKey('B', 'person.matte')), null);
+      assert.equal(storage.getItem(recoveryKey('B', 'person.matte')), null);
       assert.ok(!base.scripts.some(input => input.script.includes('createDraft') || input.script.includes('openDraft')),
         'A detached import must not continue into a Draft edit or editor navigation');
     });
@@ -699,7 +741,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.equal(creates, 1); assert.equal(button('Run task').disabled, true);
       visible = true; await click('Open in editor');
       assert.equal(creates, 1);
-      assert.equal(JSON.parse(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte'))).draftAttempt.draftId, 'recovered-draft-id');
+      assert.equal(JSON.parse(storage.getItem(recoveryKey('A', 'person.matte'))).draftAttempt.draftId, 'recovered-draft-id');
       assert.equal(base.scripts.filter(input => input.script.includes('selects.ai.prepareMatte') && !input.script.includes('createDraft')).length, 1);
       assert.ok(base.scripts.at(-1).script.includes('openDraft'));
     });
@@ -709,19 +751,19 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       await prepareMatte(sdk); await click('Open in editor'); await mount(sdk, 'B');
       completeDraft(answer({ draftId: 'A-draft-id' })); await flush();
       assert.ok(!dom.window.document.body.textContent.includes('A-draft-id'));
-      assert.equal(JSON.parse(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte'))).draftAttempt.draftId, 'A-draft-id');
-      assert.equal(dom.window.localStorage.getItem(recoveryKey('B', 'person.matte')), null);
+      assert.equal(JSON.parse(storage.getItem(recoveryKey('A', 'person.matte'))).draftAttempt.draftId, 'A-draft-id');
+      assert.equal(storage.getItem(recoveryKey('B', 'person.matte')), null);
       assert.ok(!base.scripts.some(input => input.script.includes('openDraft')), 'A late A-project commit must not navigate B');
     });
     await t.test('requires recovery storage before dispatching a new Draft', async () => {
       await reset(); const sdk = consumerSdk(); await prepareMatte(sdk);
-      const original = dom.window.Storage.prototype.setItem;
-      dom.window.Storage.prototype.setItem = () => { throw new Error('Storage unavailable'); };
+      const original = storage.setItem;
+      storage.setItem = () => { throw new Error('Storage unavailable'); };
       try {
         await click('Open in editor');
         assert.ok(dom.window.document.body.textContent.includes('Draft creation is blocked'));
         assert.ok(!sdk.scripts.some(input => input.script.includes('createDraft')));
-      } finally { dom.window.Storage.prototype.setItem = original; }
+      } finally { storage.setItem = original; }
     });
     const legacyInput = () => ({ runtimeId: 'selects-ai-runtime', projectId: 'A', resourceId: UUID_A,
       requestKey: 'legacy-matte-key', task: 'person.matte', sourceRange: { startSeconds: 0, endSeconds: 2 }, options: { outputMode: 'foreground-video' } });
@@ -731,7 +773,7 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       for (const attemptStatus of ['saved', 'unknown']) for (const failure of ['missing-job', 'status-outage', 'missing-result']) {
         await reset(); const draftId = 'durable-legacy-draft';
         const original = JSON.stringify(legacyRecord({ status: attemptStatus, ...(attemptStatus === 'saved' ? { draftId } : {}) }));
-        dom.window.localStorage.setItem('selects-ai-runtime:lab:A', original);
+        storage.setItem('selects-ai-runtime:lab:A', original);
         const scripts = [], footageReads = [];
         const sdk = { call: async (method, project) => {
           if (method !== 'readFootage') return [];
@@ -752,26 +794,26 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
         assert.equal(scripts.filter(script => script.includes('openDraft')).length, 1);
         assert.ok(scripts.at(-1).includes(draftId));
         assert.ok(!scripts.some(script => script.includes('selects.ai.prepareMatte') || script.includes('createDraft') || script.includes('selects.ai.submit')));
-        const saved = JSON.parse(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte')));
+        const saved = JSON.parse(storage.getItem(recoveryKey('A', 'person.matte')));
         assert.equal(saved.draftAttempt.status, 'saved'); assert.equal(saved.draftAttempt.draftId, draftId);
         assert.equal(saved.workflowId, 'ai:legacy-matte'); assert.deepEqual(saved.input, legacyInput());
-        assert.equal(dom.window.localStorage.getItem('selects-ai-runtime:lab:A'), original);
+        assert.equal(storage.getItem('selects-ai-runtime:lab:A'), original);
       }
     });
     await t.test('opens a legacy saved matte Draft without importing or creating again and keeps legacy storage unchanged', async () => {
       await reset(); const original = JSON.stringify(legacyRecord({ status: 'saved', draftId: 'legacy-persistent-draft' }));
-      dom.window.localStorage.setItem('selects-ai-runtime:lab:A', original);
+      storage.setItem('selects-ai-runtime:lab:A', original);
       const base = consumerSdk(), sdk = { ...base, runScript: input => input.script.includes('.status()')
         ? answer(status('ai:legacy-matte', 'succeeded')) : base.runScript(input) };
       await mount(sdk, 'A'); await click('Remove background'); await click('Open in editor');
       assert.equal(base.scripts.filter(input => input.script.includes('openDraft')).length, 1);
       assert.ok(base.scripts.at(-1).script.includes('legacy-persistent-draft'));
       assert.ok(!base.scripts.some(input => input.script.includes('selects.ai.prepareMatte') || input.script.includes('createDraft') || input.script.includes('selects.ai.submit')));
-      assert.equal(dom.window.localStorage.getItem('selects-ai-runtime:lab:A'), original);
+      assert.equal(storage.getItem('selects-ai-runtime:lab:A'), original);
     });
     await t.test('inspects a legacy unknown Draft once and writes its recovered persistent identity to the matching task key before opening', async () => {
       await reset(); const original = JSON.stringify(legacyRecord({ status: 'unknown' }));
-      dom.window.localStorage.setItem('selects-ai-runtime:lab:A', original);
+      storage.setItem('selects-ai-runtime:lab:A', original);
       const base = consumerSdk(), reads = [];
       const sdk = { ...base, call: async (method, project) => {
         reads.push({ method, project });
@@ -779,16 +821,16 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       }, runScript: input => input.script.includes('.status()') ? answer(status('ai:legacy-matte', 'succeeded')) : base.runScript(input) };
       await mount(sdk, 'A'); await click('Remove background'); await click('Open in editor');
       assert.equal(reads.filter(read => read.method === 'readFootage').length, 1);
-      const saved = JSON.parse(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte')));
+      const saved = JSON.parse(storage.getItem(recoveryKey('A', 'person.matte')));
       assert.equal(saved.workflowId, 'ai:legacy-matte'); assert.deepEqual(saved.input, legacyInput());
       assert.equal(saved.draftAttempt.status, 'saved'); assert.equal(saved.draftAttempt.draftId, 'legacy-recovered-draft');
-      assert.equal(dom.window.localStorage.getItem('selects-ai-runtime:lab:A'), original);
+      assert.equal(storage.getItem('selects-ai-runtime:lab:A'), original);
       assert.ok(base.scripts.at(-1).script.includes('legacy-recovered-draft'));
       assert.ok(!base.scripts.some(input => input.script.includes('selects.ai.prepareMatte') || input.script.includes('createDraft') || input.script.includes('selects.ai.submit')));
     });
     for (const count of [0, 2]) await t.test(`a legacy unknown Draft with ${count} matching saved Drafts remains pending without another creation`, async () => {
       await reset(); const original = JSON.stringify(legacyRecord({ status: 'unknown' }));
-      dom.window.localStorage.setItem('selects-ai-runtime:lab:A', original);
+      storage.setItem('selects-ai-runtime:lab:A', original);
       const base = consumerSdk(), sdk = { ...base, call: async (method, project) => method === 'readFootage'
         ? { drafts: Array.from({ length: count }, (_, index) => ({ sequenceId: `ambiguous-${index}`, name: legacyRecord({}).draftAttempt.name })) }
         : base.call(method, project),
@@ -797,22 +839,22 @@ test('real Panel consumer lifecycle', { skip: !modulesRoot && 'Set AI_PANEL_TEST
       assert.equal(button('Run task').disabled, true);
       assert.ok(text().includes(count ? 'Multiple matching Drafts' : 'No saved Draft is visible yet'));
       assert.ok(!base.scripts.some(input => input.script.includes('selects.ai.prepareMatte') || input.script.includes('createDraft') || input.script.includes('openDraft')));
-      assert.equal(dom.window.localStorage.getItem('selects-ai-runtime:lab:A'), original);
+      assert.equal(storage.getItem('selects-ai-runtime:lab:A'), original);
     });
     await t.test('prefers an existing task recovery record over legacy data without changing the legacy record or the other task', async () => {
       await reset(); const original = JSON.stringify(legacyRecord({ status: 'saved', draftId: 'stale-legacy-draft' }));
-      dom.window.localStorage.setItem('selects-ai-runtime:lab:A', original);
+      storage.setItem('selects-ai-runtime:lab:A', original);
       const newer = { version: 1, input: { ...legacyInput(), requestKey: 'newer-matte-key', resourceId: UUID_B }, workflowId: 'ai:newer-matte' };
-      dom.window.localStorage.setItem(recoveryKey('A', 'person.matte'), JSON.stringify(newer));
+      storage.setItem(recoveryKey('A', 'person.matte'), JSON.stringify(newer));
       const scripts = [], sdk = consumerSdk({ call: async () => [row(UUID_A, 'A'), row(UUID_B, 'B')], runScript: async input => {
         scripts.push(input.script); return answer(input.script.includes('job.result()') ? matteResult : status('ai:newer-matte', 'succeeded'));
       } });
       await mount(sdk, 'A'); assert.equal(button('Run task').disabled, false, 'A legacy matte job cannot lock the face channel');
       await click('Remove background'); assert.equal(field('Source video').value, UUID_B);
       assert.ok(scripts.every(script => script.includes('ai:newer-matte'))); assert.ok(!scripts.some(script => script.includes('selects.ai.submit')));
-      assert.equal(dom.window.localStorage.getItem(recoveryKey('A')), null);
-      assert.deepEqual(JSON.parse(dom.window.localStorage.getItem(recoveryKey('A', 'person.matte'))), newer);
-      assert.equal(dom.window.localStorage.getItem('selects-ai-runtime:lab:A'), original);
+      assert.equal(storage.getItem(recoveryKey('A')), null);
+      assert.deepEqual(JSON.parse(storage.getItem(recoveryKey('A', 'person.matte'))), newer);
+      assert.equal(storage.getItem('selects-ai-runtime:lab:A'), original);
     });
     await t.test('checks the actual consumer script literals against the shipped SDK, including unknown JSON', () => {
       const invalid = typecheckQueryScript(`const r=await selects.ai.job('ai:job','A').result();
