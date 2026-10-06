@@ -31,6 +31,15 @@ function finishInput(){
  return normalizeNativeFinish({mode:'native-finish',projectId:'project',draftId:'draft',photos:selected.map((p,i)=>({resourceId:p.resourceId,path:p.path,width:i%2?960:640,height:i%2?640:960})),placements:plan.occurrences.map((o,i)=>({slot:o.slot,appearance:o.appearance,clipId:20+i,trackId:o.appearance==='fullscreen'?`fullscreen-${i}`:`grid-${i}`,startFrame:o.startFrame,endFrame:o.endFrame})),decoration:{shape:'heart',color:'#ffffff'},framing:{'grid-A':{x:.25,y:.75}}});
 }
 
+test('the finish request sends the shared placement result in the shape native finish accepts',()=>{
+ const placed=nativeScenePlan().occurrences.map((o,i)=>({...o,source:'ABCD'.indexOf(o.slot),clipId:20+i,trackId:`image-${i}`}));
+ const expression=panelSource.match(/placements:(native\.placements[^\n]*?),decoration,/)?.[1];
+ assert.ok(expression,'createNo14Draft builds its finish request from native.placements');
+ const placements=new Function('native','return '+expression)({placements:placed});
+ assert.throws(()=>normalizeNativeFinish({...finishInput(),mode:'native-finish',placements:placed}),/Invalid Image placement/);
+ assert.equal(normalizeNativeFinish({...finishInput(),mode:'native-finish',placements}).placements.length,8);
+});
+
 test('native finish rejects missing, duplicate, or changed Image placements',()=>{
  const input=finishInput();
  assert.equal(input.framing['grid-A'].x,.25);
