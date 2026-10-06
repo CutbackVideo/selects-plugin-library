@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { stripTypeScriptTypes } from 'node:module';
+import { createRequire, stripTypeScriptTypes } from 'node:module';
 
 const source = fs.readFileSync(new URL('../shared/local-client.ts', import.meta.url), 'utf8');
-function load(React = {}) {
-  const plain = stripTypeScriptTypes(source.replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, ''), {mode:'strip'});
+function load(React = {}, clientSource = source) {
+  const plain = stripTypeScriptTypes(clientSource.replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, ''), {mode:'strip'});
   const context = vm.createContext({React, console, crypto:webcrypto, Uint8Array, TextEncoder, TextDecoder, AbortController, DOMException, atob, btoa, setTimeout, clearTimeout});
   vm.runInContext(plain + '\nthis.api={createPanelLocalClient,panelLocalClient,withPanelLocalClient};', context);
   return context.api;
@@ -54,6 +54,57 @@ function host({platform='darwin', clipRead=false, onStart}={}) {
   };
   return {sdk,files,calls,jobs};
 }
+
+// Match the host's pre-execution check, which JavaScript-only tests cannot catch.
+const sdkTypes = [process.env.SELECTS_SDK_TYPES,
+  path.join(homedir(), '.selects-staging/resources/sdk'),
+  path.join(homedir(), '.selects/resources/sdk')]
+  .find(directory => directory && fs.existsSync(path.join(directory, 'local-files.d.ts')));
+const require = createRequire(import.meta.url);
+let typescript;
+for (const directory of [process.cwd(), process.env.SELECTS_DEV_REPO,
+  path.join(homedir(), 'cutback-workspace/cutback-client')].filter(Boolean)) {
+  try { typescript = require(require.resolve('typescript', {paths: [directory]})); break; }
+  catch { /* Try the next local installation. */ }
+}
+
+test('shared, Card News Maker and a16z file scripts pass the host SDK TypeScript check', {
+  skip: !typescript || !sdkTypes ? 'requires local TypeScript and Selects SDK declarations' : false,
+}, async () => {
+  const panel = fs.readFileSync(new URL('../plugins/card-news-maker/panel.tsx', import.meta.url), 'utf8');
+  const embedded = panel.split('// local-sdk:start\n')[1].split('// local-sdk:end')[0]
+    .replace(/^export default withPanelLocalClient\(\w+\);\s*$/m, '');
+  const a16zPanel = fs.readFileSync(process.env.A16Z_STYLE_CAPTIONS_PANEL ||
+    new URL('../plugins/a16z-style-captions/panel.tsx', import.meta.url), 'utf8');
+  const a16zClient = a16zPanel.split('// shared/local-client.ts\n')[1]
+    .split('// plugins/a16z-style-captions/')[0];
+  const directory = fs.mkdtempSync(path.join(tmpdir(), 'local-client-types-'));
+  try {
+    const scripts = [];
+    for (const clientSource of [source, embedded, a16zClient]) {
+      const h = host(), client = await load({}, clientSource).createPanelLocalClient(h.sdk);
+      const file = '/tmp/\ud55c\uae00 "quoted"\\file.bin';
+      await client.files.writeFile(file, new Uint8Array(100000));
+      await client.files.writeFile(file, '', 'utf8');
+      await client.files.writeFile('/lease', 'owner', {flag:'wx'});
+      await client.files.writeFile('/lease', '\nnext', {flag:'a'});
+      assert.equal(await client.files.readFile('/lease', 'utf8'), 'owner\nnext');
+      scripts.push(...h.calls.map(call => call.script));
+    }
+    const file = path.join(directory, 'scripts.ts');
+    fs.writeFileSync(file, 'declare const selects: {files: LocalFilesService};\n' +
+      scripts.map((script, index) => `async function run${index}() { ${script} }`).join('\n'));
+    const program = typescript.createProgram([path.join(sdkTypes, 'local-files.d.ts'), file], {
+      noEmit: true, strict: true, skipLibCheck: true, target: typescript.ScriptTarget.ES2022,
+    });
+    const diagnostics = typescript.getPreEmitDiagnostics(program);
+    assert.equal(diagnostics.length, 0, typescript.formatDiagnostics(diagnostics, {
+      getCanonicalFileName: file => file, getCurrentDirectory: () => directory, getNewLine: () => '\n',
+    }));
+  } finally {
+    fs.rmSync(directory, {recursive:true, force:true});
+  }
+});
 
 test('binary files exceeding script/result limits round-trip as bounded base64 chunks',async()=>{
   const h=host(),client=await load().createPanelLocalClient(h.sdk);

@@ -79,7 +79,7 @@ async function createPanelLocalClient(sdk) {
     const response = await sdk.runScript({
       summary: "Use local media workspace",
       allowCommit: write,
-      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");"
+      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");"
     });
     if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
     return response.result;

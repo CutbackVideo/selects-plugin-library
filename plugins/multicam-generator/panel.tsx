@@ -1889,10 +1889,11 @@ function panelLocalPaths(platform: string) {
 async function createPanelLocalClient(sdk: any) {
   const run = async (method: string, args: unknown[], write = false) => {
     // method names below are fixed implementation constants; values always use JSON encoding.
+    // Direct arguments keep object literals contextually typed by the SDK signature.
     const response = await sdk.runScript({
       summary: "Use local media workspace",
       allowCommit: write,
-      script: "return await selects." + method + "(..." + JSON.stringify(args) + ");",
+      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
     });
     if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
     // A clipped report has no result. Every read returning data rejects that case below.
