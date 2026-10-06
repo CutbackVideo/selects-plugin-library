@@ -12,8 +12,7 @@ export type Sdk = {
 };
 
 export function app(): any {
-  const parent: any = window.parent;
-  return parent?.opener || (window as any).opener || parent;
+  return window;
 }
 export function getSdk(): Sdk { return hostSdk; }
 export function libraryId(): string {
