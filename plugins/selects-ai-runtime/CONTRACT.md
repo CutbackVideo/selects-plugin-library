@@ -8,6 +8,34 @@ The preparation entrypoint receives `--output <config-json> --cache <host-owned-
 
 Both tasks use `contractVersion: 1`, a task name and `input.source.path` (host-resolved absolute file path). `input.sourceRange` is a nonempty half-open interval `[startSeconds, endSeconds)` in source playback seconds, with the first displayed video frame defined as zero. No timeline-placement seconds or synthetic constant-frame-rate timestamps are used.
 
+`input.source.kind` may be `video` or `image`; omission retains the existing
+video contract and result shape. The host derives this value from the Project
+Resource, not the filename. An image request has no `sourceRange` or
+`sampleEverySeconds`, and cannot request `foreground-video`. Initial image
+support is limited to static JPEG, PNG and WebP; animated PNG/WebP,
+multi-picture JPEG, GIF and HEIC are rejected explicitly. Files are limited
+to 64 MiB and 32 megapixels. The decoder validates the byte container, applies
+EXIF orientation including mirrored cases, and produces exactly one display
+RGB raster with FFmpeg autorotation disabled. Color conversion remains the
+installed FFmpeg default; ICC/HDR normalization is not implemented. Each
+independent photo is its own job with fresh RVM recurrent state. RVM models
+people; this extension does not add arbitrary foreground/object segmentation.
+
+Image primary JSON results carry `sourceKind: "image"`, one `frames` or
+`samples` entry at index 0 and `sourceTimeSeconds: 0`, and no `sourceRange`,
+`sourceFrameRate`, `fps` or `foregroundVideo`. Zero identifies the only raster,
+not a fabricated playback rate. Image face parameters contain only the
+confidence threshold, with no video sampling parameters. Image matte output
+is one ordinary grayscale PNG or AVIF. Inference, GPU selection, file
+confinement, output validation and cancellation use the existing task paths.
+
+Editor consumers explicitly prepare an image result with
+`selects.ai.prepareMatte(result.files.manifest, projectId, { sourceKind: "image" })`.
+It returns one durable `maskUrl` under the same verification and retry policy.
+The existing two-argument form retains its video result type and rejects image
+manifests; the image form rejects video manifests. This keeps independently
+installed video consumers compatible with newer hosts.
+
 `faces.detect` accepts positive `sampleEverySeconds` (default 0.5) and `scoreThreshold` in [0,1] (default 0.8). For each sampling boundary, it chooses the first available decoded frame at or after that boundary and reports the actual source timestamp. Missing VFR intervals do not produce invented frames. An empty `faces` array is a valid observation.
 
 `person.matte` accepts `downsampleRatio` in (0,1] (default 0.25). It processes every displayed frame in order. Recurrent state starts with zeros at the requested interval start and remains private to the job. No spatial resize is applied to the source raster; the model's internal downsample ratio controls its inference work.

@@ -4,32 +4,32 @@ import React, { useEffect, useRef, useState } from 'react';
 
 const STRINGS = {
   en: {
-    title: 'AI Test Lab', faces: 'Find faces', matte: 'Remove background', source: 'Source video', chooseSource: 'Choose a source video', unavailable: 'Saved source unavailable', duration: 'Source duration',
-    facesIntro: 'Choose a video to find faces.', matteIntro: 'Separate the person, then open the result as editable clips.', openProject: 'Open a project first.',
+    title: 'AI Test Lab', faces: 'Find faces', matte: 'Remove background', source: 'Source video', imageSource: 'Video or photo', chooseSource: 'Choose a source video', chooseImageSource: 'Choose a video or photo', unavailable: 'Saved source unavailable', duration: 'Source duration',
+    facesIntro: 'Choose a source to find faces.', matteIntro: 'Separate the person, then open the result as editable clips.', openProject: 'Open a project first.',
     run: 'Run task', cancel: 'Cancel job', open: 'Open in editor', background: 'Background image', chooseBackground: 'Choose a background image',
     details: 'Details', reload: 'Refresh media list', refresh: 'Refresh job', recover: 'Recover same request', workflow: 'Workflow', preparing: 'preparing',
     storage: 'Recovery storage is unavailable. Keep the recovery details before closing this panel.', savedInvalid: 'Saved recovery data is not valid for this project.',
-    missing: 'Saved source video is no longer available. Saved results remain readable; choose an available source for a new task.', noRequest: 'No request to recover for this project.', invalidSource: 'Choose a source and positive duration.', failed: 'AI request failed.',
+    missing: 'Saved source is no longer available. Saved results remain readable; choose an available source for a new task.', noRequest: 'No request to recover for this project.', invalidSource: 'Choose a source and positive video duration.', failed: 'AI request failed.',
     files: 'Add videos or images with this Project’s Add button. The list updates automatically.', diagram: 'Face coordinates, not the source image.', time: 'Source time', confidence: 'Confidence', noFaces: 'No faces in this sample',
     faceCount: (samples, faces) => `${samples} samples · ${faces} faces`, matteCount: frames => `${frames} frames processed`,
-    addBackground: 'Add an image to this Project to use as the background.', invalidTiming: 'The prepared mask has no valid source timing.',
+    addBackground: 'Add an image to this Project to use as the background.', invalidTiming: 'The prepared mask metadata is invalid.',
     draftStorage: 'Draft recovery storage is unavailable. Draft creation is blocked until recovery details can be saved.', draftUnknown: 'The Draft may already be saved. Click Open in editor to inspect its outcome before proceeding.',
     missingDraft: 'No saved Draft is visible yet. Inspect again; a missing acknowledgment does not establish that creation failed.', multipleDrafts: 'Multiple matching Drafts need manual inspection.',
-    retention: 'The editor combines the original video with saved masks. Removing Draft clips keeps the source and masks available.', states: { queued: 'queued', running: 'running', canceling: 'canceling', succeeded: 'succeeded', failed: 'failed', canceled: 'canceled', interrupted: 'interrupted' },
+    retention: 'The editor combines the original source with saved masks. Removing Draft clips keeps the source and masks available.', states: { queued: 'queued', running: 'running', canceling: 'canceling', succeeded: 'succeeded', failed: 'failed', canceled: 'canceled', interrupted: 'interrupted' },
   },
   ko: {
-    title: 'AI \ud14c\uc2a4\ud2b8 \ub7a9', faces: '\uc5bc\uad74 \ucc3e\uae30', matte: '\ubc30\uacbd \uc81c\uac70', source: '\uc6d0\ubcf8 \uc601\uc0c1', chooseSource: '\uc6d0\ubcf8 \uc601\uc0c1\uc744 \uc120\ud0dd\ud558\uc138\uc694', unavailable: '\uc800\uc7a5\ub41c \uc6d0\ubcf8 \uc5c6\uc74c', duration: '\ucc98\ub9ac\ud560 \uae38\uc774',
-    facesIntro: '\uc601\uc0c1\uc744 \uace8\ub77c \uc5bc\uad74\uc744 \ucc3e\uc544\ubcf4\uc138\uc694.', matteIntro: '\uc778\ubb3c\uc744 \ubd84\ub9ac\ud55c \ub4a4 \ud3b8\uc9d1\uae30\uc5d0\uc11c \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc138\uc694.', openProject: '\uba3c\uc800 \ud504\ub85c\uc81d\ud2b8\ub97c \uc5ec\uc138\uc694.',
+    title: 'AI \ud14c\uc2a4\ud2b8 \ub7a9', faces: '\uc5bc\uad74 \ucc3e\uae30', matte: '\ubc30\uacbd \uc81c\uac70', source: '\uc6d0\ubcf8 \uc601\uc0c1', imageSource: '\uc601\uc0c1 \ub610\ub294 \uc0ac\uc9c4', chooseImageSource: '\uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc744 \uc120\ud0dd\ud558\uc138\uc694', chooseSource: '\uc6d0\ubcf8 \uc601\uc0c1\uc744 \uc120\ud0dd\ud558\uc138\uc694', unavailable: '\uc800\uc7a5\ub41c \uc6d0\ubcf8 \uc5c6\uc74c', duration: '\ucc98\ub9ac\ud560 \uae38\uc774',
+    facesIntro: '\uc6d0\ubcf8\uc744 \uace8\ub77c \uc5bc\uad74\uc744 \ucc3e\uc544\ubcf4\uc138\uc694.', matteIntro: '\uc778\ubb3c\uc744 \ubd84\ub9ac\ud55c \ub4a4 \ud3b8\uc9d1\uae30\uc5d0\uc11c \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc138\uc694.', openProject: '\uba3c\uc800 \ud504\ub85c\uc81d\ud2b8\ub97c \uc5ec\uc138\uc694.',
     run: '\uc2e4\ud589', cancel: '\uc791\uc5c5 \ucde8\uc18c', open: '\ud3b8\uc9d1\uae30\uc5d0\uc11c \uc5f4\uae30', background: '\ubc30\uacbd \uc774\ubbf8\uc9c0', chooseBackground: '\ubc30\uacbd \uc774\ubbf8\uc9c0\ub97c \uc120\ud0dd\ud558\uc138\uc694',
     details: '\uc790\uc138\ud788', reload: '\ubbf8\ub514\uc5b4 \ubaa9\ub85d \uc0c8\ub85c\uace0\uce68', refresh: '\uc791\uc5c5 \uc0c1\ud0dc \uc0c8\ub85c\uace0\uce68', recover: '\uac19\uc740 \uc694\uccad \ubcf5\uad6c', workflow: '\uc791\uc5c5 ID', preparing: '\uc900\ube44 \uc911',
     storage: '\ubcf5\uad6c \uc815\ubcf4\ub97c \uc800\uc7a5\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \ud328\ub110\uc744 \ub2eb\uae30 \uc804\uc5d0 \uc790\uc138\ud788\uc5d0\uc11c \uc815\ubcf4\ub97c \ubcf4\uad00\ud558\uc138\uc694.', savedInvalid: '\uc800\uc7a5\ub41c \ubcf5\uad6c \uc815\ubcf4\uac00 \uc774 \ud504\ub85c\uc81d\ud2b8\uc640 \ub9de\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.',
-    missing: '\uc800\uc7a5\ub41c \uc6d0\ubcf8 \uc601\uc0c1\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc644\ub8cc\ub41c \uacb0\uacfc\ub294 \ubcfc \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uc0c8 \uc791\uc5c5\uc5d0\ub294 \ub2e4\ub978 \uc6d0\ubcf8\uc744 \uc120\ud0dd\ud558\uc138\uc694.', noRequest: '\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\uc11c \ubcf5\uad6c\ud560 \uc694\uccad\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.', invalidSource: '\uc6d0\ubcf8 \uc601\uc0c1\uacfc 0\ubcf4\ub2e4 \ud070 \ucc98\ub9ac \uae38\uc774\ub97c \uc120\ud0dd\ud558\uc138\uc694.', failed: 'AI \uc694\uccad\uc774 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.',
+    missing: '\uc800\uc7a5\ub41c \uc6d0\ubcf8\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \uc644\ub8cc\ub41c \uacb0\uacfc\ub294 \ubcfc \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uc0c8 \uc791\uc5c5\uc5d0\ub294 \ub2e4\ub978 \uc6d0\ubcf8\uc744 \uc120\ud0dd\ud558\uc138\uc694.', noRequest: '\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\uc11c \ubcf5\uad6c\ud560 \uc694\uccad\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.', invalidSource: '\uc6d0\ubcf8 \uc601\uc0c1\uacfc 0\ubcf4\ub2e4 \ud070 \ucc98\ub9ac \uae38\uc774\ub97c \uc120\ud0dd\ud558\uc138\uc694.', failed: 'AI \uc694\uccad\uc774 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.',
     files: '\ud504\ub85c\uc81d\ud2b8\uc758 \ucd94\uac00 \ubc84\ud2bc\uc73c\ub85c \uc601\uc0c1\uc774\ub098 \uc774\ubbf8\uc9c0\ub97c \ub123\uc73c\uc138\uc694. \ubaa9\ub85d\uc774 \uc790\ub3d9\uc73c\ub85c \uac31\uc2e0\ub429\ub2c8\ub2e4.', diagram: '\uc6d0\ubcf8 \uc774\ubbf8\uc9c0\uac00 \uc544\ub2cc \uc5bc\uad74 \uc88c\ud45c \ub3c4\uc2dd\uc785\ub2c8\ub2e4.', time: '\uc6d0\ubcf8 \uc2dc\uac01', confidence: '\uac80\ucd9c \uc2e0\ub8b0\ub3c4', noFaces: '\uc774 \uc0d8\ud50c\uc5d0\ub294 \uac80\ucd9c\ub41c \uc5bc\uad74\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.',
     faceCount: (samples, faces) => `${samples}\uac1c \uc0d8\ud50c · \uc5bc\uad74 \uac80\ucd9c ${faces}\uac1c`, matteCount: frames => `${frames}\uac1c \ud504\ub808\uc784 \ucc98\ub9ac \uc644\ub8cc`,
-    addBackground: '\ud504\ub85c\uc81d\ud2b8\uc5d0 \ubc30\uacbd\uc73c\ub85c \uc4f8 \uc774\ubbf8\uc9c0\ub97c \ucd94\uac00\ud558\uc138\uc694.', invalidTiming: '\uc900\ube44\ub41c \ub9c8\uc2a4\ud06c\uc758 \uc6d0\ubcf8 \uad6c\uac04 \uc815\ubcf4\uac00 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.',
+    addBackground: '\ud504\ub85c\uc81d\ud2b8\uc5d0 \ubc30\uacbd\uc73c\ub85c \uc4f8 \uc774\ubbf8\uc9c0\ub97c \ucd94\uac00\ud558\uc138\uc694.', invalidTiming: '\uc900\ube44\ub41c \ub9c8\uc2a4\ud06c \uc815\ubcf4\uac00 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.',
     draftStorage: '\ud3b8\uc9d1 \ubcf5\uad6c \uc815\ubcf4\ub97c \uc800\uc7a5\ud560 \uc218 \uc5c6\uc5b4 \ud3b8\uc9d1 \uc0dd\uc131\uc744 \uc911\ub2e8\ud588\uc2b5\ub2c8\ub2e4.', draftUnknown: '\ud3b8\uc9d1\uc774 \uc774\ubbf8 \uc800\uc7a5\ub418\uc5c8\uc744 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ud3b8\uc9d1\uae30\uc5d0\uc11c \uc5f4\uae30\ub97c \ub20c\ub7ec \uc800\uc7a5 \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc138\uc694.',
     missingDraft: '\uc800\uc7a5\ub41c \ud3b8\uc9d1\uc774 \uc544\uc9c1 \ubcf4\uc774\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ud655\uc778\ud558\uc138\uc694. \uc751\ub2f5\uc774 \uc5c6\ub2e4\ub294 \uc774\uc720\ub85c \uc0dd\uc131 \uc2e4\ud328\ub97c \ub2e8\uc815\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.', multipleDrafts: '\uac19\uc740 \uc774\ub984\uc758 \ud3b8\uc9d1\uc774 \uc5ec\ub7ec \uac1c \uc788\uc5b4 \uc9c1\uc811 \ud655\uc778\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.',
-    retention: '\ud3b8\uc9d1\uae30\ub294 \uc6d0\ubcf8 \uc601\uc0c1\uacfc \uc800\uc7a5\ub41c \ub9c8\uc2a4\ud06c\ub97c \ud569\uc131\ud569\ub2c8\ub2e4. \ud074\ub9bd\uc744 \uc0ad\uc81c\ud574\ub3c4 \uc6d0\ubcf8\uacfc \ub9c8\uc2a4\ud06c\ub294 \uc720\uc9c0\ub429\ub2c8\ub2e4.', states: { queued: '\ub300\uae30 \uc911', running: '\uc2e4\ud589 \uc911', canceling: '\ucde8\uc18c \uc911', succeeded: '\uc644\ub8cc', failed: '\uc2e4\ud328', canceled: '\ucde8\uc18c\ub428', interrupted: '\uc911\ub2e8\ub428' },
+    retention: '\ud3b8\uc9d1\uae30\ub294 \uc6d0\ubcf8\uacfc \uc800\uc7a5\ub41c \ub9c8\uc2a4\ud06c\ub97c \ud569\uc131\ud569\ub2c8\ub2e4. \ud074\ub9bd\uc744 \uc0ad\uc81c\ud574\ub3c4 \uc6d0\ubcf8\uacfc \ub9c8\uc2a4\ud06c\ub294 \uc720\uc9c0\ub429\ub2c8\ub2e4.', states: { queued: '\ub300\uae30 \uc911', running: '\uc2e4\ud589 \uc911', canceling: '\ucde8\uc18c \uc911', succeeded: '\uc644\ub8cc', failed: '\uc2e4\ud328', canceled: '\ucde8\uc18c\ub428', interrupted: '\uc911\ub2e8\ub428' },
   },
 };
 
@@ -54,12 +54,20 @@ export default function PersonMask({Source,data}) {
     maskMode:'luminance',maskSize:'100% 100%',maskRepeat:'no-repeat'}}><Source/></AbsoluteFill>;
 }`;
 
+const PHOTO_MASK_EFFECT_TSX = `const React = require('react');
+const {AbsoluteFill} = require('remotion');
+export default function PersonMask({Source,data}) {
+  return <AbsoluteFill style={{maskImage:'url('+JSON.stringify(data.maskUrl)+')',
+    maskMode:'luminance',maskSize:'100% 100%',maskRepeat:'no-repeat'}}><Source/></AbsoluteFill>;
+}`;
+
 const terminal = status => ['succeeded', 'failed', 'canceled'].includes(status);
 const savedInputIsValid = (input, projectId) => input?.runtimeId === 'selects-ai-runtime' &&
   input.projectId === projectId && typeof input.requestKey === 'string' && input.requestKey &&
   typeof input.resourceId === 'string' && input.resourceId && !/^r\d+$/.test(input.resourceId) &&
-  ['faces.detect', 'person.matte'].includes(input.task) && input.sourceRange?.startSeconds === 0 &&
-  Number.isFinite(input.sourceRange?.endSeconds) && input.sourceRange.endSeconds > 0 &&
+  ['faces.detect', 'person.matte'].includes(input.task) &&
+  (input.sourceRange === undefined ? input.options?.sampleEverySeconds === undefined && input.options?.outputMode !== 'foreground-video' : (input.sourceRange?.startSeconds === 0 &&
+    Number.isFinite(input.sourceRange?.endSeconds) && input.sourceRange.endSeconds > 0)) &&
   (input.options?.outputMode == null || ['foreground-video', 'alpha-frames'].includes(input.options.outputMode)) &&
   (input.options?.alphaEncoding == null || ['grayscale-png-8bit', 'grayscale-avif-8bit'].includes(input.options.alphaEncoding));
 
@@ -100,6 +108,7 @@ function TaskPane({ sdk, context, U, task, active }) {
   const projectId = context.projectId;
   const S = STRINGS[context.language?.toLowerCase().startsWith('ko') ? 'ko' : 'en'];
   const [resources, setResources] = useState([]);
+  const [imageSupported, setImageSupported] = useState(false);
   const [resourceId, setResourceId] = useState(null);
   const [backgrounds, setBackgrounds] = useState([]);
   const [backgroundId, setBackgroundId] = useState(null);
@@ -139,13 +148,15 @@ function TaskPane({ sdk, context, U, task, active }) {
     if (!current(token) || !token.projectId) return;
     const serial = ++inventorySerial.current; setLoading(true);
     try {
-      const rows = await sdk.call('listProjectResources', token.projectId);
+      const [rows, supportsImages] = await Promise.all([sdk.call('listProjectResources', token.projectId),
+        run(`return (selects.ai as unknown as {imageSourceSupported?:boolean}).imageSourceSupported===true;`)]);
       if (!current(token) || serial !== inventorySerial.current) return;
-      const videos = rows.filter(row => row.type === 'Video' && typeof row.resourceId === 'string');
+      const sources = rows.filter(row => (row.type === 'Video' || (supportsImages && row.type === 'Image')) && typeof row.resourceId === 'string');
+      setImageSupported(supportsImages === true);
       const images = rows.filter(row => row.type === 'Image' && typeof row.resourceId === 'string');
-      const source = selection.current.source ? videos.find(row => row.resourceId === selection.current.source) : videos[0];
+      const source = selection.current.source ? sources.find(row => row.resourceId === selection.current.source) : sources[0];
       if (source) selection.current.source = source.resourceId;
-      setResources(videos); setResourceId(source?.resourceId ?? null);
+      setResources(sources); setResourceId(source?.resourceId ?? null);
       setSourceNotice(selection.current.source && !source ? S.missing : '');
       setBackgrounds(images);
       const background = selection.current.background ? images.find(row => row.resourceId === selection.current.background) : images[0];
@@ -160,7 +171,7 @@ function TaskPane({ sdk, context, U, task, active }) {
     const token = { projectId, task };
     scope.current = token;
     selection.current = { source: null, background: null }; inventorySerial.current++;
-    setResources([]); setResourceId(null); setBackgrounds([]); setBackgroundId(null); setLoading(Boolean(projectId));
+    setResources([]); setResourceId(null); setImageSupported(false); setBackgrounds([]); setBackgroundId(null); setLoading(Boolean(projectId));
     setDraftAttempt(null);
     setJob(null); setResult(null); setError(''); setStorageError(''); setSourceNotice('');
     setSeconds(2);
@@ -174,7 +185,7 @@ function TaskPane({ sdk, context, U, task, active }) {
         if (saved?.version === 1 && savedInputIsValid(saved.input, projectId) && saved.input.task === task) {
           request.current = saved.input;
           selection.current.source = saved.input.resourceId;
-          setSeconds(saved.input.sourceRange.endSeconds);
+          setSeconds(saved.input.sourceRange?.endSeconds ?? 2);
           setResourceId(saved.input.resourceId);
           if (saved.draftAttempt && saved.draftAttempt.workflowId === saved.workflowId && typeof saved.draftAttempt.name === 'string' &&
               typeof saved.draftAttempt.backgroundId === 'string' && ['unknown', 'saved'].includes(saved.draftAttempt.status)) {
@@ -271,12 +282,12 @@ function TaskPane({ sdk, context, U, task, active }) {
       if (!current(token)) return;
       const input = recover ? request.current : {
         runtimeId: 'selects-ai-runtime', requestKey: `lab:${crypto.randomUUID()}`,
-        projectId, resourceId, task, sourceRange: { startSeconds: 0, endSeconds: seconds },
+        projectId, resourceId, task, ...(resources.find(row => row.resourceId === resourceId)?.type === 'Image' ? {} : { sourceRange: { startSeconds: 0, endSeconds: seconds } }),
         ...(task === 'person.matte' ? { options: { outputMode: 'alpha-frames',
           ...(alphaEncoding === 'grayscale-avif-8bit' ? { alphaEncoding } : {}) } } : {}),
       };
       if (!input || input.projectId !== projectId) throw new Error(S.noRequest);
-      if (!recover && (!resourceId || !Number.isFinite(seconds) || seconds <= 0)) throw new Error(S.invalidSource);
+      if (!recover && (!resourceId || (input.sourceRange && (!Number.isFinite(seconds) || seconds <= 0)))) throw new Error(S.invalidSource);
       request.current = input; setRecoverable(true); setJob(null);
       await save(input, undefined, token);
       if (!current(token)) return;
@@ -342,14 +353,15 @@ function TaskPane({ sdk, context, U, task, active }) {
         const prepared = await run(`
           const r=await selects.ai.job(${JSON.stringify(job.workflowId)}, ${JSON.stringify(projectId)}).result();
           if(!r.files.manifest) throw new Error('This job has no matte manifest.');
-          const m=await selects.ai.prepareMatte(r.files.manifest,${JSON.stringify(projectId)});
-          return {sourceResourceId:m.sourceResourceId,sourceRange:m.sourceRange,frameSize:m.frameSize,
-            alphaEncoding:m.alphaEncoding,frameCount:m.frames.length};`, true);
+          ${input.sourceRange === undefined ? `const m=await selects.ai.prepareMatte(r.files.manifest,${JSON.stringify(projectId)},{sourceKind:'image'});
+            return {sourceKind:m.sourceKind,sourceResourceId:m.sourceResourceId,frameSize:m.frameSize,alphaEncoding:m.alphaEncoding,maskUrl:m.maskUrl};` :
+            `const m=await selects.ai.prepareMatte(r.files.manifest,${JSON.stringify(projectId)});
+            return {sourceResourceId:m.sourceResourceId,sourceRange:m.sourceRange,frameSize:m.frameSize,alphaEncoding:m.alphaEncoding,frameCount:m.frames.length};`}`, true);
         if (!current(token)) return;
-        if (prepared.sourceResourceId !== input.resourceId || !['grayscale-png-8bit', 'grayscale-avif-8bit'].includes(prepared.alphaEncoding) ||
-            !Number.isSafeInteger(prepared.frameCount) || prepared.frameCount < 1 ||
+        if ((prepared.sourceKind === 'image') !== (input.sourceRange === undefined) || prepared.sourceResourceId !== input.resourceId || !['grayscale-png-8bit', 'grayscale-avif-8bit'].includes(prepared.alphaEncoding) ||
+            (prepared.sourceKind==='image' ? typeof prepared.maskUrl!=='string' : (!Number.isSafeInteger(prepared.frameCount) || prepared.frameCount < 1 ||
             !Number.isFinite(prepared.sourceRange?.startSeconds) || prepared.sourceRange.startSeconds < 0 ||
-            !Number.isFinite(prepared.sourceRange?.endSeconds) || prepared.sourceRange.endSeconds <= prepared.sourceRange.startSeconds) throw new Error(S.invalidTiming);
+            !Number.isFinite(prepared.sourceRange?.endSeconds) || prepared.sourceRange.endSeconds <= prepared.sourceRange.startSeconds))) throw new Error(S.invalidTiming);
         attempt = { workflowId: job.workflowId, name: `AI Runtime layered · ${job.workflowId}`, backgroundId, status: 'unknown' };
         if (!await saveDraftAttempt(input, attempt, token) || !current(token)) return;
         setDraftAttempt(attempt);
@@ -360,20 +372,18 @@ function TaskPane({ sdk, context, U, task, active }) {
           if(matches.length===1) return {draftId:matches[0].sequenceId,recovered:true};
           const r=await selects.ai.job(${JSON.stringify(job.workflowId)},${JSON.stringify(projectId)}).result();
           if(!r.files.manifest) throw new Error('This job has no matte manifest.');
-          const matte=await selects.ai.prepareMatte(r.files.manifest,${JSON.stringify(projectId)});
+          const matte=await selects.ai.prepareMatte(r.files.manifest,${JSON.stringify(projectId)}${input.sourceRange === undefined ? ",{sourceKind:'image'}" : ''});
           if(matte.sourceResourceId!==${JSON.stringify(input.resourceId)}) throw new Error('The mask belongs to another source.');
           const d=await p.createDraft({name});
-          await d.insertResource({resourceId:matte.sourceResourceId,sourceRange:matte.sourceRange});
+          ${input.sourceRange === undefined ? 'await d.insertGap({seconds:5});' : 'await d.insertResource({resourceId:matte.sourceResourceId,sourceRange:matte.sourceRange});'}
           const m=await d.meta();
           if(m.durationFrames<=0) throw new Error('The source window produced an empty Draft.');
           await d.overlayResource({resource:p.resource(${JSON.stringify(backgroundId)}),over:await d.rangeAtFrames(0,m.durationFrames)});
           const before=new Set((await d.clips({trackScope:'all'})).map(c=>c.clipId));
-          await d.overlayResource({resource:p.resource(matte.sourceResourceId),over:await d.rangeAtFrames(0,m.durationFrames),sourceStartSeconds:matte.sourceRange.startSeconds});
+          await d.overlayResource({resource:p.resource(matte.sourceResourceId),over:await d.rangeAtFrames(0,m.durationFrames),${input.sourceRange === undefined ? '' : 'sourceStartSeconds:matte.sourceRange.startSeconds'}});
           const added=(await d.clips({trackScope:'all'})).filter(c=>!before.has(c.clipId)&&c.trackKind==='video');
           if(added.length!==1) throw new Error('The source overlay did not produce exactly one video clip.');
-          await d.addVideoEffect({clip:added[0],label:'Person mask',tsxCode:${JSON.stringify(MASK_EFFECT_TSX)},parameters:{
-            sourceStartSeconds:matte.sourceRange.startSeconds,sourceEndSeconds:matte.sourceRange.endSeconds,
-            frames:matte.frames.map(f=>({sourceTimeSeconds:f.sourceTimeSeconds,url:f.url}))}});
+          await d.addVideoEffect({clip:added[0],label:'Person mask',tsxCode:${JSON.stringify(input.sourceRange === undefined ? PHOTO_MASK_EFFECT_TSX : MASK_EFFECT_TSX)},parameters:${input.sourceRange === undefined ? '{maskUrl:matte.maskUrl}' : `{sourceStartSeconds:matte.sourceRange.startSeconds,sourceEndSeconds:matte.sourceRange.endSeconds,frames:matte.frames.map(f=>({sourceTimeSeconds:f.sourceTimeSeconds,url:f.url}))}`}});
           const c=await d.commitAll('Layer saved person masks over a background while preserving original Main audio');
           if(!c.createdDraftId) throw new Error('The created Draft acknowledgment has no identity.');
           return {draftId:c.createdDraftId};`, true);
@@ -413,12 +423,12 @@ function TaskPane({ sdk, context, U, task, active }) {
   return <U.Stack gap={8}>
     <U.Message>{task === 'faces.detect' ? S.facesIntro : S.matteIntro}</U.Message>
     {!projectId && <U.Message>{S.openProject}</U.Message>}
-    <U.Select label={S.source} value={sameProject ? resourceId : null} placeholder={sourceNotice ? S.unavailable : S.chooseSource} onChange={selectResource} options={(sameProject ? resources : []).map(row => ({ value: row.resourceId, label: row.name }))} disabled={!restored || loading || busy || Boolean(pending)} />
+    <U.Select label={imageSupported ? S.imageSource : S.source} value={sameProject ? resourceId : null} placeholder={sourceNotice ? S.unavailable : imageSupported ? S.chooseImageSource : S.chooseSource} onChange={selectResource} options={(sameProject ? resources : []).map(row => ({ value: row.resourceId, label: row.name }))} disabled={!restored || loading || busy || Boolean(pending)} />
     {sourceNotice && sameProject && <U.Message>{sourceNotice}</U.Message>}
-    <U.NumberField label={S.duration} value={seconds} onChange={setSeconds} min={0.01} max={selected?.durationSeconds ?? 10} step={0.1} unit="s" disabled={busy || Boolean(pending)} />
+    {selected?.type !== 'Image' && <U.NumberField label={S.duration} value={seconds} onChange={setSeconds} min={0.01} max={selected?.durationSeconds ?? 10} step={0.1} unit="s" disabled={busy || Boolean(pending)} />}
     <U.Actions>
       {pending && <U.Button variant="secondary" disabled={busy} onClick={cancel}>{S.cancel}</U.Button>}
-      <U.Button busy={busy} disabled={!restored || !sameProject || !projectId || !resourceId || loading || Boolean(pending) || recoverable || draftAttempt?.status === 'unknown' || !Number.isFinite(seconds) || seconds <= 0} onClick={() => submit()}>{S.run}</U.Button>
+      <U.Button busy={busy} disabled={!restored || !sameProject || !projectId || !resourceId || loading || Boolean(pending) || recoverable || draftAttempt?.status === 'unknown' || (selected?.type !== 'Image' && (!Number.isFinite(seconds) || seconds <= 0))} onClick={() => submit()}>{S.run}</U.Button>
     </U.Actions>
     {visibleJob && <U.Progress value={visibleJob.progress} label={S.states[visibleJob.status] ?? visibleJob.status} />}
     {visibleJob?.lastErrorMessage && <U.Message tone="error">{visibleJob.lastErrorMessage}</U.Message>}

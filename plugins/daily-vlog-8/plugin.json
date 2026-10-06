@@ -23,8 +23,8 @@
   "preview": {
     "video": "preview.mp4",
     "poster": "poster.webp",
-    "width": 720,
-    "height": 406
+    "width": 1280,
+    "height": 720
   },
   "compatibility": {
     "platforms": [

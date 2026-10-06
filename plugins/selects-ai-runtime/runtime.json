@@ -46,5 +46,9 @@
   ],
   "registrationImplemented": true,
   "dependencyProvisioningImplemented": true,
-  "prepare": "prepare.cjs"
+  "prepare": "prepare.cjs",
+  "inputKinds": [
+    "video",
+    "image"
+  ]
 }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "selects-ai-runtime",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "Selects AI Runtime PoC",
   "summary": "Shared external YuNet and RVM runtime with verified native dependency provisioning.",
   "status": "experimental",
@@ -84,7 +84,11 @@
     "tests/webgpu-worker-launch.test.cjs",
     "tests/webgpu-environment.test.cjs",
     "tests/node-runtime-archive.test.cjs",
-    "tests/video-frame-buffer.test.cjs"
+    "tests/video-frame-buffer.test.cjs",
+    "lib/image-header.cjs",
+    "lib/image.cjs",
+    "tests/image-fixtures.cjs",
+    "tests/image-input.test.cjs"
   ],
   "runtime": "runtime.json"
 }
