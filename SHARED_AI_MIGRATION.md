@@ -123,8 +123,17 @@ reduced calls from 65 to 23 in each direction. Write time was 1.55 to 1.02 secon
 read time was 1.09 to 0.55 seconds, with identical SHA-256 hashes. This measures
 file transfers only; per-chunk file IPC, total bytes, whole-file memory usage
 and plugin pixel processing remain. It is not a Windows or full-template
-speedup measurement. The full-run checks above describe the merged migration
-before this follow-up, rather than a rerun of every template with batching.
+speedup measurement. The seven-consumer checks above describe the merged
+migration before this follow-up, rather than a rerun of every template with
+batching.
+
+Gallery 0.1.5 subsequently completed the same 40-photo production pipeline on
+Mac 2.0.573 with the new adapter: 61 clips, all 15 cumulative scene edges and a
+382-frame native export passed, followed by actual editor preview. The pipeline
+took 7 minutes 24 seconds and 7,764 SDK calls; it reused 39 model results and
+submitted one new Metal job, so it is not a controlled comparison with the
+earlier cold 40-job run. Postprocessing assets still occupied 870 MB. The same
+photo-harness limits above apply, and the existing baseline Draft was unchanged.
 
 RVM selected hardware WebGPU/Metal on Mac and DirectML on Windows; previous
 Windows profiling confirmed GPU kernels. YuNet's lightweight CPU provider is
