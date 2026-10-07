@@ -112,6 +112,7 @@
     "height": 540
   },
   "collection": "visual-highlights",
+  "galleryOrder": 5,
   "usesCredits": false,
   "inputs": [
     {

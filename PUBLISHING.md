@@ -98,3 +98,8 @@ clone:
 ```sh
 git config core.hooksPath .githooks
 ```
+
+A template may set `galleryOrder`, a non-negative number: the gallery lists
+templates with one first, lower first, then the rest by name. A style in
+`variants` may set its own, which overrides its package's, so one package's
+styles can sit apart. Apps without support ignore it and list by name.

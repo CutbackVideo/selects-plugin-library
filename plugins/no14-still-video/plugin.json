@@ -71,6 +71,7 @@
     }
   },
   "collection": "visual-highlights",
+  "galleryOrder": 8,
   "usesCredits": false,
   "inputs": [
     {
