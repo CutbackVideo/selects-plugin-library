@@ -339,7 +339,9 @@ def cutout_input(a):
  if not dest.exists():
   # No more than 30fps: drafts play at 30 or less, and a 60fps cutout only
   # doubles every later step (masks, foreground encode, download).
-  rate=subprocess.run(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=avg_frame_rate','-of','csv=p=0',path],capture_output=True,text=True).stdout.strip()
+  # Side data can append fields to CSV (for example, "306400/5107,").
+  # Read the named JSON field so those fields never become part of the rate.
+  rate=json.loads(subprocess.run(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=avg_frame_rate','-of','json',path],capture_output=True,text=True,check=True).stdout)['streams'][0]['avg_frame_rate']
   num,_,den=rate.partition('/');fast=float(num or 0)/float(den or 1)>30.5
   tmp=INPUT_ROOT/('input-'+str(uuid.uuid4())+'.mp4')
   r=subprocess.run(['ffmpeg','-v','error','-y','-ss',str(start),'-i',path,'-t',str(seconds),'-map','0:v:0','-an','-map_metadata','-1',
