@@ -4,7 +4,7 @@ description: Create expressive, speech-timed captions on a separate editable ver
 ---
 # DOAC Style
 
-Experimental. Open a vertical English talking-head Draft and choose **Create
+Experimental. Open a vertical English or Korean talking-head Draft and choose **Create
 captions**. The panel reads the transcript, plans emphasis, validates approved
 typography, and creates a separate editable caption Draft. **Edit captions**
 updates wording while preserving caption intervals; **Create another version**

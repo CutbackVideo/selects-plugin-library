@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "doac-style",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "name": "DOAC Style",
   "summary": "Create expressive, speech-timed captions on a separate editable vertical timeline.",
   "status": "experimental",
@@ -38,6 +38,7 @@
     "approved/rhythm.py",
     "approved/style.json",
     "approved/template-energy.json",
+    "approved/textfont.py",
     "approved/web/engine.js",
     "approved/web/licenses/FreeType-FTL.txt",
     "approved/web/licenses/NumPy-LICENSE.txt",
@@ -78,6 +79,6 @@
     "A draft of one person talking to camera",
     "Only video and audio on it, no captions or effects yet",
     "Analyzed, so it has a transcript",
-    "English speech"
+    "English or Korean speech"
   ]
 }

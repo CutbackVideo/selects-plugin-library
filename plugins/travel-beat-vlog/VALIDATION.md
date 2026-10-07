@@ -98,7 +98,7 @@ The song analysis, song section, colour measurement and finishing step moved fro
 - The panel with the song engine inside it, in Selects (macOS) and on a Windows machine.
 
 
-## Shared image runtime migration (2026-10-07, version 0.2.5)
+## Shared image runtime migration (2026-10-07, version 0.2.6)
 
 The photo path now uses shared local RVM on macOS and Windows. Previous Vision-specific measurements above describe the old implementation, not guarantees about the RVM model. The People/Main subject choices remain and object/animal inputs are not rejected by a class check.
 

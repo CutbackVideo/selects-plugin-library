@@ -136,8 +136,6 @@ class DoacStyleWindowsTest(unittest.TestCase):
         required = json.loads((PLUGIN / 'approved/font-requirements.json').read_text())
         for path in required:
             name = Path(path).name
-            if name == 'AppleSDGothicNeo.ttc':
-                continue  # only the engine's debug view uses it
             with self.subTest(font=name):
                 self.assertTrue(name == 'PermanentMarker-Regular.ttf' or "'" + name + '#' in worker, name)
         for name in re.findall(r"'([a-z]+\.ttf)'", between(self.text, 'const WINDOWS_FONTS=', '\n')):

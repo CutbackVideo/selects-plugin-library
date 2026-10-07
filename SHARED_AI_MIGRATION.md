@@ -11,7 +11,7 @@ renderer, preload and MCP bundle.
 | --- | --- | --- | --- |
 | EO Shorts | 0.1.1 | YuNet faces | Camera grouping, speaker selection, scene cuts |
 | A16Z Style Captions | 0.20.2 | YuNet faces | HSV shot boundaries, face tracking, reframing |
-| Travel Beat Vlog | 0.2.5 | RVM image alpha | Original RGB, hero/title layers, song and colour editing |
+| Travel Beat Vlog | 0.2.6 | RVM image alpha | Original RGB, hero/title layers, song and colour editing |
 | Beat Cutout Gallery | 0.1.4 | RVM image alpha | Cover crop, mask quality filter, outlines, scenes and music |
 | Jude Kinetic Style | 0.4.8 | YuNet faces and RVM video alpha | Crop policy, inverted matte sprites and coverage |
 | Depth Type Captions | 0.3.6 | RVM video alpha | Rendered source clock, inverted masks and caption composition |

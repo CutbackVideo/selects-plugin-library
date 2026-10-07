@@ -3,6 +3,7 @@ import copy,io,json,math,hashlib,threading,importlib.util,types
 from pathlib import Path
 from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from PIL import Image,ImageFont,ImageDraw,ImageChops
+import textfont
 P=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('approved',P/'renderer.py');modern=importlib.util.module_from_spec(spec);spec.loader.exec_module(modern)
 legacy=types.ModuleType('approved_legacy');legacy.__file__=str(P/'0YVdjmU13E4/renderer.py');source=(P/'0YVdjmU13E4/renderer.py').read_text();exec(source.split('for idx,e in enumerate(plans,1):')[0].replace("if r['text'] in ['2','3']:","if r['text'] in ['2','3'] and not r.get('_staticNumber'):"),legacy.__dict__)
@@ -15,7 +16,7 @@ original_glyph=modern.glyph
 def replacement_mask(r,text):
  font=ImageFont.truetype(r['font'],140,index=r.get('index',0));stroke=r.get('stroke',round(r.get('strokeAt200',0)*.7))
  def raster(s):
-  im=Image.new('L',(5000,500));ImageDraw.Draw(im).text((20,20),s,font=font,fill=255,stroke_width=stroke);box=im.getbbox();return im.crop(box) if box else Image.new('L',(1,1))
+  im=Image.new('L',(5000,500));textfont.text(im,(20,20),s,font,stroke_width=stroke);box=im.getbbox();return im.crop(box) if box else Image.new('L',(1,1))
  old=raster(r['text']);new=raster(text)
  w=r.get('w',r.get('width'));h=r.get('h',r.get('height'))
  # Keep the approved font's existing aspect correction, then uniformly fit the slot.
