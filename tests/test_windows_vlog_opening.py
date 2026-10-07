@@ -64,13 +64,15 @@ class VlogOpeningWindowsTest(unittest.TestCase):
     def test_no_shell_call(self):
         self.assertEqual(self.runtime.count("runShell"), 0)
 
-    def test_bundled_cue_is_found_through_the_host(self):
-        body = function_body(self.runtime, "async function resolveMusic(")
-        self.assertIn('hostRoots(sdk, PLUGIN_DIR, "assets/" + CUES[0].file)', body)
-        self.assertIn('hostJoin(plugin, "assets", cue.file)', body)
-        self.assertIn('".selects", "panels", PLUGIN_DIR, "assets", cue.file', body)
-        self.assertIn("exists", body)
-        self.assertIn("NEEDS_NEWER_SELECTS", body)
+    def test_bundled_cue_is_found_through_the_sdk(self):
+        # resolveMusic and the cue measurement share cuePath, which asks selects.files, not window.parent:
+        # a Selects build that runs panels in an isolated frame gives them no host services.
+        self.assertIn("await cuePath(sdk, cue)", function_body(self.runtime, "async function resolveMusic("))
+        body = function_body(self.runtime, "async function cuePath(")
+        self.assertIn("selects.files.environment()", body)
+        self.assertIn("selects.files.exists(f)", body)
+        self.assertIn("'.selects','skills','vlog-opening','assets'", body)
+        self.assertNotIn("hostApi(", body)
 
     def test_palette_and_preview_use_host_ffmpeg(self):
         palette = function_body(self.runtime, "async function samplePalette(")
