@@ -207,7 +207,8 @@ print(json.dumps({"plan": plan, "sourceChecks": source_checks, "normalizedSource
   assert.deepEqual(Object.fromEntries(Object.entries(plan.units).map(([k, u]) => [k, [u.start, u.width, u.height, u.duration]])),
     Object.fromEntries(Object.entries(pyPlan.units).map(([k, u]) => [k, [u.start, u.width, u.height, u.duration]])));
   assert.deepEqual(plan.slots, pyPlan.slots);
-  assert.equal(out.plan.runId.slice(-6), plan.runId.slice(-6), 'same run digest');
+  assert.notEqual(out.plan.runId.slice(-6), plan.runId.slice(-6),
+    'the Windows CFR recipe must not resume the legacy source recipe');
   const exact = NUMPY[0] === '1.26.4' && NUMPY[1] === '11.3.0';
   assert.ok(out.normalizedSources > 0, 'reference consumes the supplied normalization instead of re-encoding it');
   assert.ok(out.sourceChecks.every(Boolean), 'each source decodes to byte-identical RGB before compositing');
