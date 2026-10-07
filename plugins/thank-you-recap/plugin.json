@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "thank-you-recap",
-  "version": "0.1.0-alpha.6",
+  "version": "0.1.0-alpha.7",
   "name": "Thank You Recap",
   "summary": "Turn your year's videos into a 16:9 \"Thank you\" recap Draft: a beat-cut intro, a held hero shot under a flickering year, and a salsa finale on bundled music.",
   "status": "experimental",

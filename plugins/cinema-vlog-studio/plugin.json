@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "cinema-vlog-studio",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "name": "Cinema Vlog Studio",
   "summary": "Rebuild a fixed 21-second cinematic street-vlog edit as an editable 1920x1080 Draft: 22 marker-driven cuts, a scramble title behind a closing black curtain, three inset cards that snap to full frame, and a bundled score.",
   "status": "experimental",

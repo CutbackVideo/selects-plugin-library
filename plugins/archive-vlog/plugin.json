@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "archive-vlog",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "name": "Archive Vlog",
   "summary": "Turn city and travel clips and photos into a 16:9 cinematic vlog: a letterbox opening with a decoding title, an archived-by credit, a montage cut on the beat and a fade to black, as a new editable Draft.",
   "status": "experimental",

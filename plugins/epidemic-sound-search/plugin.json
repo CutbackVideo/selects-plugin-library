@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "epidemic-sound-search",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "name": "Epidemic Sound search",
   "summary": "Search Epidemic Sound inside a panel with genre, mood, tempo and vocal filters, audition hits, then save a whole download list to your own library folder in one assistant run and place saved tracks on the open Draft.",
   "status": "experimental",

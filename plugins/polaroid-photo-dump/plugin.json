@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "polaroid-photo-dump",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "name": "Polaroid Photo Dump",
   "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption.",
   "status": "experimental",

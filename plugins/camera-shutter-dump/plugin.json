@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "camera-shutter-dump",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "name": "Camera Shutter Dump",
   "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects.",
   "status": "experimental",

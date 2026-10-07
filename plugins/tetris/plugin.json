@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "tetris",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "name": "Tetris",
   "summary": "A playable Tetris panel with a Game Boy-style title screen, four difficulty modes, local records, synthesised sound effects, and head-to-head play against another Selects user over a public relay.",
   "status": "experimental",

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "selfie-aesthetic",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "name": "Selfie Aesthetic Edit",
   "summary": "Turn close-up selfie clips into a beat-locked aesthetic edit with stutter holds and blur whips, as a new editable Draft.",
   "status": "experimental",
