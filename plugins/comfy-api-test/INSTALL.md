@@ -1,7 +1,7 @@
 # Setup
 
 Install the existing `comfy-api-test` panel and its manifest-listed skill files.
-Requires Selects with Panel UI kit v2, `runScript`, and `comfy.managed.v1`.
+Requires Selects with Panel UI kit, `runScript`, and `comfy.managed.v1`.
 Older binaries show an update error and cannot call the managed host.
 
 Company credentials are stored in the backend Secret Manager. Neither the panel

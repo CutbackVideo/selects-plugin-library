@@ -204,7 +204,7 @@ const PANEL_COPY = {
     editor_extract_failed: 'Could not prepare the workflow editor.',
     inputs: 'Inputs', results: 'Results', emptyResults: 'No results yet',
     importWorkflow: 'Load workflow', savedWorkflows: 'Saved workflows', chooseWorkflow: 'Choose a workflow', json: 'JSON', apply: 'Apply', saved: 'Saved',
-    refresh: 'Retry', held: 'Run disabled',
+    refresh: 'Retry', held: 'Run disabled', loading: 'Loading workflows\u2026',
     not_connected: 'The execution server is not connected.',
     invalid_key: 'The execution server could not authenticate.',
     destination: 'Saved to project',
@@ -213,7 +213,7 @@ const PANEL_COPY = {
     editor: '\ud3b8\uc9d1', newWorkflow: '\uc0c8 Workflow', emptyWorkflows: '\uc800\uc7a5\ub41c Workflow\uac00 \uc5c6\uc5b4\uc694.', editorUnavailable: '\ud3b8\uc9d1\uae30\ub97c \uc5f4\ub824\uba74 Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.',
     inputs: '\uc785\ub825', results: '\uacb0\uacfc', emptyResults: '\uc544\uc9c1 \uacb0\uacfc \uc5c6\uc74c',
     importWorkflow: '\ubd88\ub7ec\uc624\uae30', savedWorkflows: '\uc800\uc7a5\ub41c Workflow', chooseWorkflow: 'Workflow \uc120\ud0dd', json: 'JSON', apply: '\uc801\uc6a9', saved: '\uc800\uc7a5\ub428',
-    refresh: '\ub2e4\uc2dc \uc2dc\ub3c4', held: '\uc2e4\ud589 \ube44\ud65c\uc131',
+    refresh: '\ub2e4\uc2dc \uc2dc\ub3c4', held: '\uc2e4\ud589 \ube44\ud65c\uc131', loading: 'Workflow \ubd88\ub7ec\uc624\ub294 \uc911\u2026',
     not_connected: '\uc2e4\ud589 \uc11c\ubc84\uac00 \uc5f0\uacb0\ub418\uc9c0 \uc54a\uc558\uc5b4\uc694.',
     invalid_key: '\uc2e4\ud589 \uc11c\ubc84 \uc778\uc99d\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.',
     destination: '\ud504\ub85c\uc81d\ud2b8\uc5d0 \uc800\uc7a5',
@@ -227,7 +227,7 @@ export default function Panel({ sdk, context, ui }) {
   const scope = { projectId: context.projectId };
   const scopeKey = JSON.stringify(scope);
   const current = React.useRef({ scopeKey, epoch: 0, account: null, mounted: true });
-  if (current.current.scopeKey !== scopeKey) current.current = { ...current.current, scopeKey, epoch: current.current.epoch + 1 };
+  if (current.current.scopeKey !== scopeKey) current.current = { scopeKey, epoch: current.current.epoch + 1, account: null, mounted: true };
   const [connection, setConnection] = React.useState(null);
   const [connectionError, setConnectionError] = React.useState('');
   const [workflows, setWorkflows] = React.useState([]);
@@ -240,60 +240,92 @@ export default function Panel({ sdk, context, ui }) {
   const [status, setStatus] = React.useState('');
   const [failed, setFailed] = React.useState(false);
   const [completed, setCompleted] = React.useState([]);
-  const actionLock = React.useRef(false);
+  const [loaded, setLoaded] = React.useState(null);
+  const ready = loaded === current.current;
+  const actionLock = React.useRef(null);
+  const actionVersion = React.useRef(0);
+  const refreshing = React.useRef(null);
   async function command(action, input = {}, captured = current.current) {
     const result = await sdk.runScript({ summary: 'ComfyUI ' + action, allowCommit: !READS.has(action),
       script: 'return await selects.comfy.execute(' + JSON.stringify({ action, scope, ...input }) + ');' });
     if (!current.current.mounted || current.current !== captured) throw new Error('comfy_context_changed');
     if (result.isError) {
       const output = String(result.output || '');
-      const code = ['generation_disabled','unsupported_node','unsupported_model','revision_conflict','owned_asset_required','submission_unknown','comfy_update_required','comfy_not_configured','comfy_auth_required'].find(code => output.includes(code));
+      const code = ['generation_disabled','unsupported_node','unsupported_model','revision_conflict','owned_asset_required','submission_unknown','comfy_update_required','comfy_not_configured','comfy_auth_required','comfy_context_changed','comfy_account_changed'].find(code => output.includes(code));
       throw new Error(code || 'connection_failed');
     }
     return result.result;
   }
-  async function refresh(captured = current.current) {
-    const next = await command('status', {}, captured);
+  function reset() {
+    setLoaded(null); setWorkflows([]); setSelected(null); setPending(null); setCompleted([]); setConnection(null); setStatus(''); setText(''); setFile(null); setChoosing(false); setBusy(false); actionLock.current = null;
+  }
+  function account(next, captured) {
     if (captured.account && captured.account !== next.accountSession) {
       current.current = { ...captured, epoch: captured.epoch + 1, account: next.accountSession };
-      setWorkflows([]); setSelected(null); setPending(null); setCompleted([]); setStatus(''); setText(''); setBusy(false); actionLock.current = false;
-      return refresh(current.current);
+      reset();
+      return false;
     }
     captured.account = next.accountSession;
-    setConnection(next);
-    const result = await command('list', {}, captured);
-    setWorkflows(result.workflows); setSelected(result.workflow);
-    const jobs = await command('jobs', {}, captured);
-    setPending(jobs.items.find(job => !['failed', 'canceled'].includes(job.state) && (job.state !== 'succeeded' || !job.delivered)) || null);
-    setCompleted(jobs.items.filter(job => job.state === 'succeeded' && job.delivered).flatMap(job => job.outputs || []));
-    setConnectionError('');
+    return true;
+  }
+  function readError(error, captured) {
+    if (current.current !== captured || !captured.mounted) return;
+    if (['comfy_auth_required', 'comfy_context_changed', 'comfy_account_changed'].includes(error.message)) {
+      current.current = { ...captured, epoch: captured.epoch + 1, account: null };
+      reset();
+    }
+    setConnectionError(T[error.message] || T.connection_failed);
+  }
+  async function refresh(captured = current.current) {
+    const version = actionVersion.current;
+    if (refreshing.current?.captured === captured && refreshing.current.version === version) return refreshing.current.promise;
+    const read = { captured, version };
+    read.promise = (async () => {
+      const identity = command('status', {}, captured).then(next => {
+        if (!account(next, captured)) {
+          const owner = current.current;
+          void refresh(owner).catch(error => readError(error, owner));
+          throw new Error('comfy_context_changed');
+        }
+        return next;
+      });
+      const [next, result, jobs] = await Promise.all([identity, command('list', {}, captured), command('jobs', {}, captured)]);
+      if (version !== actionVersion.current) return;
+      setConnection(next); setWorkflows(result.workflows); setSelected(result.workflow);
+      setPending(jobs.items.find(job => !['failed', 'canceled'].includes(job.state) && (job.state !== 'succeeded' || !job.delivered)) || null);
+      setCompleted(jobs.items.filter(job => job.state === 'succeeded' && job.delivered).flatMap(job => job.outputs || []));
+      setLoaded(captured); setConnectionError('');
+    })();
+    refreshing.current = read;
+    try { return await read.promise; }
+    finally { if (refreshing.current === read) refreshing.current = null; }
   }
   React.useEffect(() => {
     const captured = current.current;
     captured.mounted = true;
-    setWorkflows([]); setSelected(null); setPending(null); setCompleted([]); setConnection(null); setConnectionError(''); setStatus('');
-    if (scope.projectId) refresh(captured).catch(error => { if (current.current === captured) setConnectionError(T[error.message] || T.connection_failed); });
+    reset(); setConnectionError('');
+    if (scope.projectId) refresh(captured).catch(error => readError(error, captured));
     const timer = setInterval(() => {
       if (!scope.projectId) return;
-      command('status').then(next => {
-        if (current.current.account !== next.accountSession) return refresh();
-        setConnection(next);
-        if (!actionLock.current) return refresh();
-      }).catch(error => {
-        current.current = { ...current.current, epoch: current.current.epoch + 1, account: null };
-        setConnection(null); setSelected(null); setWorkflows([]); setPending(null); setCompleted([]); setText(''); setFile(null); setBusy(false); actionLock.current = false;
-        setConnectionError(T[error.message] || T.connection_failed);
-      });
+      const owner = current.current;
+      const read = actionLock.current ? command('status', {}, owner).then(next => {
+        if (!account(next, owner)) {
+          const nextOwner = current.current;
+          return refresh(nextOwner).catch(error => readError(error, nextOwner));
+        }
+      }) : refresh(owner);
+      read.catch(error => readError(error, owner));
     }, 2000);
-    return () => { clearInterval(timer); captured.mounted = false; };
+    return () => { clearInterval(timer); current.current.mounted = false; };
   }, [scopeKey]);
   async function action(callback) {
     if (actionLock.current) return;
     const captured = current.current;
-    actionLock.current = true; setBusy(true); setFailed(false); setStatus('');
+    const token = {};
+    actionLock.current = token; actionVersion.current++; setBusy(true); setFailed(false); setStatus('');
     try { await callback(captured); }
     catch (error) { if (current.current === captured && captured.mounted) { setFailed(true); setStatus(T[error.message] || T.comfyError); } }
-    finally { if (current.current === captured) { actionLock.current = false; setBusy(false); } }
+    finally { if (current.current === captured && actionLock.current === token) { actionLock.current = null; setBusy(false); } }
   }
   async function openEditor(newWorkflow, captured) {
     await command('openEditor', { newWorkflow }, captured);
@@ -332,17 +364,18 @@ export default function Panel({ sdk, context, ui }) {
       <ui.Message tone="error">{connectionError}</ui.Message>
     </ui.Section>}
     <ui.Section title="Workflow">
-      {workflows.length > 0 ? <ui.Select label={T.savedWorkflows} value={selected?.id || ''} disabled={busy || !!pending} placeholder={T.chooseWorkflow}
+      {scope.projectId && !ready && !connectionError && <ui.Progress label={T.loading} />}
+      {ready && (workflows.length > 0 ? <ui.Select label={T.savedWorkflows} value={selected?.id || ''} disabled={busy || !!pending} placeholder={T.chooseWorkflow}
         options={workflows.map(item => ({ value: item.id, label: item.name }))}
-        onChange={id => action(async captured => { setSelected(await command('select', { id }, captured)); })} /> : scope.projectId && <ui.Message>{T.emptyWorkflows}</ui.Message>}
-      {selected && <small>{selected.nodeCount} {T.nodes}</small>}
-      <ui.Actions>
+        onChange={id => action(async captured => { setSelected(await command('select', { id }, captured)); })} /> : <ui.Message>{T.emptyWorkflows}</ui.Message>)}
+      {ready && selected && <small>{selected.nodeCount} {T.nodes}</small>}
+      {ready && <ui.Actions>
         {selected && <ui.Button variant="secondary" disabled={busy || !!pending} onClick={() => action(captured => openEditor(false, captured))}>{T.editor}</ui.Button>}
         <ui.Button variant="secondary" disabled={busy || !connection || !scope.projectId || !!pending} onClick={() => action(captured => openEditor(true, captured))}>{T.newWorkflow}</ui.Button>
         <ui.Button variant="ghost" disabled={busy || !connection || !!pending} onClick={() => setChoosing(!choosing)}>{T.importWorkflow}</ui.Button>
         {selected && <ui.Button variant="primary" busy={busy && !!pending} disabled={busy || !!pending || !connection?.generationEnabled || !selected.document?.workflow} onClick={() => action(run)}>{T.run}</ui.Button>}
-      </ui.Actions>
-      {choosing && <ui.Stack>
+      </ui.Actions>}
+      {ready && choosing && <ui.Stack>
         <ui.FileDrop accept={['json']} value={file} disabled={busy} labels={{ choose: T.choose, drop: T.guide, clear: T.clear }} onChange={setFile} />
         <ui.TextField label={T.json} multiline placeholder={T.jsonPlaceholder} value={text} disabled={busy} onChange={setText} />
         <ui.Actions><ui.Button variant="secondary" disabled={busy || (!file && !text.trim())} onClick={() => action(save)}>{T.apply}</ui.Button></ui.Actions>
@@ -350,7 +383,7 @@ export default function Panel({ sdk, context, ui }) {
       {!scope.projectId && <ui.Message>{T.project}</ui.Message>}
       {status && <ui.Message tone={failed ? 'error' : 'success'}>{status}</ui.Message>}
     </ui.Section>
-    {(pending || completed.length > 0) && <ui.Section title={T.results}>
+    {ready && (pending || completed.length > 0) && <ui.Section title={T.results}>
       {pending && <ui.Stack><ui.Progress value={pending.progress} label={T[pending.state] || T.running} />
         <ui.Actions><ui.Button variant="secondary" disabled={busy} onClick={() => action(captured => follow(pending, captured))}>{T.resume}</ui.Button></ui.Actions></ui.Stack>}
       {completed.map(output => <div key={output.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ui.Icon name="file" size={14} /><span>{output.name}</span></div>)}

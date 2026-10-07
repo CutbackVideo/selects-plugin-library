@@ -17,7 +17,7 @@
     "platforms": [
       "macOS"
     ],
-    "selects": "Panel UI kit v2, runScript and comfy.managed.v1 host capability. Selects login and a configured managed backend required. No local inference runtime or user Comfy credentials."
+    "selects": "Panel UI kit, runScript and comfy.managed.v1 host capability. Selects login and a configured managed backend required. No local inference runtime or user Comfy credentials."
   },
   "localized": {
     "en": {
