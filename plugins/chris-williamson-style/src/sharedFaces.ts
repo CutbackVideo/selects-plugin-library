@@ -76,7 +76,8 @@ async function cwReadFaceJournal(env: CwFaceEnvironment, path: string, projectId
   let text: string;
   try { text = await env.readText(path); }
   catch (error: any) {
-    if (/ENOENT|not found|does not exist/i.test(String(error?.message || error))) return { version: 1, projectId, records: [] };
+    const message = String(error?.message || error).trim();
+    if (message === "The file is unavailable." || /ENOENT|not found|does not exist/i.test(message)) return { version: 1, projectId, records: [] };
     throw error;
   }
   let journal: CwFaceJournal;

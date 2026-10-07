@@ -5,6 +5,7 @@ import {stripTypeScriptTypes, createRequire} from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
 import {cwSharedFaces, cwCancelSharedFaces} from '../plugins/chris-williamson-style/src/sharedFaces.ts';
 
 const pid = 'project', rid = '430133ea-6ef6-4bb9-bfea-94d77b8a2004', journalPath = '/scratch/shared-faces.json';
@@ -132,6 +133,49 @@ test('an empty face list is a valid measured frame, including replay of the succ
   assert.deepEqual(second, first); assert.equal(h.jobs.size, 1);
   assert.equal(h.calls.filter(c => c.script.includes('ai.submit(')).length, 1);
 });
+
+test('first-run face analysis creates its journal through the canonical file reader and reuses it on reopen', async () => {
+  const h = host(), fileCalls = [];
+  h.sdk.files = {
+    async environment() { return {platform: 'darwin', homedir: '/user', tempDirectory: '/tmp'}; },
+    async stat(filename) {
+      fileCalls.push(['stat', filename]);
+      return h.files.has(filename) ? {size: Buffer.byteLength(h.files.get(filename))} : null;
+    },
+    async readRange({path: filename, offset, length}) {
+      fileCalls.push(['readRange', filename]);
+      const bytes = Buffer.from(h.files.get(filename)).subarray(offset, offset + length);
+      return {base64: bytes.toString('base64'), bytesRead: bytes.length};
+    },
+  };
+  const source = fs.readFileSync(new URL('../shared/local-client.ts', import.meta.url), 'utf8')
+    .replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, '');
+  const context = vm.createContext({React: {}, atob, btoa, Uint8Array, TextDecoder});
+  vm.runInContext(stripTypeScriptTypes(source, {mode: 'strip'}) + '\nthis.createClient=createPanelLocalClient;', context);
+  const client = await context.createClient({runScript: async ({script, summary, allowCommit}) =>
+    ({isError: false, result: await h.env.runScript(script, summary, allowCommit)})});
+  const env = {...h.env, readText: filename => client.files.readFile(filename, 'utf8')};
+  await assert.rejects(env.readText(journalPath), {message: 'The file is unavailable.'});
+  const first = await cwSharedFaces(env, pid, journalPath, samples(), waitOptions);
+  const second = await cwSharedFaces(env, pid, journalPath, samples(), waitOptions);
+  assert.deepEqual(second, first);
+  assert.equal(h.jobs.size, 1);
+  assert.equal(h.calls.filter(c => c.script.includes('ai.submit(')).length, 1);
+  assert.equal(h.journal().records[0].status, 'succeeded');
+  assert.ok(fileCalls.some(([method]) => method === 'readRange'), 'the saved journal is reread through the canonical client');
+});
+
+for (const message of ['EACCES: permission denied', 'The file changed while it was being read.', 'The file could not be fully read.']) {
+  test('a journal read failure preserves the existing record: ' + message, async () => {
+    const h = host();
+    h.files.set(journalPath, 'existing journal');
+    const env = {...h.env, readText: async () => { throw new Error(message); }};
+    await assert.rejects(cwSharedFaces(env, pid, journalPath, samples(), waitOptions), {message});
+    assert.equal(h.files.get(journalPath), 'existing journal');
+    assert.equal(h.calls.length, 0);
+    assert.equal(h.writes.length, 0);
+  });
+}
 
 test('very short sample spacing uses separate one-frame requests instead of fabricating three observations', async () => {
   const h = host();
