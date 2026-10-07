@@ -702,6 +702,9 @@ function mediaScript(projectId, resourceIds = null) {
 // mattes come from `mattes(units, signal, progress)`, which writes <unit>/matte.gray (MATTE_FRAMES grey W x H frames).
 // Every failure throws before the panel imports anything or makes a Draft.
 const PBM_CACHE = "cache-shared-ai-v2";
+// Fractional-seek sources from the previous Windows recipe can have sparse PTS.
+// Isolate both unfinished runs and prepared units; Mac's source recipe is unchanged.
+const PBM_WINDOWS_CACHE = "cache-shared-ai-v3-cfr";
 const pbmSourceName=()=>hostIsWindows()?"source.avi":"source.mp4";
 const pbmCancelled = () => Object.assign(new Error("Cancelled."), { code: "cancelled" });
 const pbmUpdate = "This Selects build can't make this montage. Update Selects, then try again.";
@@ -766,7 +769,7 @@ const pbmStamp = (d) => d.getFullYear() + [d.getMonth() + 1, d.getDate()].map((n
 // pipeline.py op_plan: probe the 10 clips, choose each shot window, write plan.json (or resume an unfinished run).
 async function pbmPlan(io, K, clips, signal, progress) {
   if (clips.length !== 10) throw new Error("Exactly 10 clips are required.");
-  const digest = (await pbmSha1(clips.join("|") + "{}")).slice(0, 6), runs = hostJoin(io.data, "runs");
+  const digest = (await pbmSha1(clips.join("|") + "{}" + (hostIsWindows() ? "|" + PBM_WINDOWS_CACHE : ""))).slice(0, 6), runs = hostJoin(io.data, "runs");
   (await io.fs.mkdir(runs, { recursive: true }));
   for (const name of (await io.fs.readdir(runs)).map(String).filter((n) => n.endsWith("-" + digest)).sort().reverse()) {
     const root = hostJoin(runs, name);
@@ -796,7 +799,7 @@ async function pbmPlan(io, K, clips, signal, progress) {
 // The cache folder of a shot window (same clip file, size, modification time and start = same shot).
 async function pbmCacheDir(io, unit) {
   const st = (await io.fs.stat(unit.path));
-  return hostJoin(io.data, PBM_CACHE, (await pbmSha1(unit.path + "|" + Number(st?.size) + "|" + Number(st?.mtimeMs) + "|" + unit.start.toFixed(4) + "|w1")).slice(0, 16));
+  return hostJoin(io.data, hostIsWindows() ? PBM_WINDOWS_CACHE : PBM_CACHE, (await pbmSha1(unit.path + "|" + Number(st?.size) + "|" + Number(st?.mtimeMs) + "|" + unit.start.toFixed(4) + "|w1")).slice(0, 16));
 }
 async function pbmDecodeSource(io, folder, count, signal) {
   const bytes = await pbmFFmpegBytes(decodeArgs(hostJoin(folder, pbmSourceName()), count, hostJoin(folder, "frames.rgb")), hostJoin(folder, "frames.rgb"), signal);
