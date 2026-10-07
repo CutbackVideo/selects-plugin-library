@@ -15,12 +15,6 @@ import React from 'react';
 
 const COPY = {
   "en": {
-    "refresh": "Refresh connection",
-    "nodes": "nodes",
-    "choose": "Choose file",
-    "clear": "Remove",
-    "guide": "JSON exported from Comfy in API format",
-    "jsonPlaceholder": "Paste API-format JSON",
     "run": "Run",
     "project": "Open a project.",
     "queued": "Queued\u2026",
@@ -33,12 +27,6 @@ const COPY = {
     "comfyError": "Comfy request failed"
   },
   "ko": {
-    "refresh": "\uc5f0\uacb0 \uc0c8\ub85c\uace0\uce68",
-    "nodes": "\ub178\ub4dc",
-    "choose": "\ud30c\uc77c \uc120\ud0dd",
-    "clear": "\uc81c\uac70",
-    "guide": "Comfy\uc5d0\uc11c \ub0b4\ubcf4\ub0b8 API \ud615\uc2dd JSON",
-    "jsonPlaceholder": "API \ud615\uc2dd JSON \ubd99\uc5ec\ub123\uae30",
     "run": "\uc2e4\ud589",
     "project": "\ud504\ub85c\uc81d\ud2b8\ub97c \uc5f4\uc5b4 \uc8fc\uc138\uc694.",
     "queued": "\ub300\uae30 \uc911\u2026",
@@ -51,12 +39,6 @@ const COPY = {
     "comfyError": "Comfy \uc694\uccad \uc2e4\ud328"
   },
   "de": {
-    "refresh": "Verbindung aktualisieren",
-    "nodes": "Knoten",
-    "choose": "Datei w\u00e4hlen",
-    "clear": "Entfernen",
-    "guide": "Aus Comfy im API-Format exportiertes JSON",
-    "jsonPlaceholder": "JSON im API-Format einf\u00fcgen",
     "run": "Ausf\u00fchren",
     "project": "\u00d6ffnen Sie ein Projekt.",
     "queued": "In Warteschlange\u2026",
@@ -69,12 +51,6 @@ const COPY = {
     "comfyError": "Comfy-Anfrage fehlgeschlagen"
   },
   "es": {
-    "refresh": "Actualizar conexi\u00f3n",
-    "nodes": "nodos",
-    "choose": "Elegir archivo",
-    "clear": "Quitar",
-    "guide": "JSON exportado desde Comfy en formato API",
-    "jsonPlaceholder": "Pega JSON en formato API",
     "run": "Ejecutar",
     "project": "Abre un proyecto.",
     "queued": "En cola\u2026",
@@ -87,12 +63,6 @@ const COPY = {
     "comfyError": "Solicitud Comfy fallida"
   },
   "fr": {
-    "refresh": "Actualiser la connexion",
-    "nodes": "n\u0153uds",
-    "choose": "Choisir un fichier",
-    "clear": "Retirer",
-    "guide": "JSON export\u00e9 de Comfy au format API",
-    "jsonPlaceholder": "Collez le JSON au format API",
     "run": "Ex\u00e9cuter",
     "project": "Ouvrez un projet.",
     "queued": "En attente\u2026",
@@ -105,12 +75,6 @@ const COPY = {
     "comfyError": "\u00c9chec de la requ\u00eate Comfy"
   },
   "it": {
-    "refresh": "Aggiorna connessione",
-    "nodes": "nodi",
-    "choose": "Scegli file",
-    "clear": "Rimuovi",
-    "guide": "JSON esportato da Comfy in formato API",
-    "jsonPlaceholder": "Incolla JSON in formato API",
     "run": "Esegui",
     "project": "Apri un progetto.",
     "queued": "In coda\u2026",
@@ -123,12 +87,6 @@ const COPY = {
     "comfyError": "Richiesta Comfy non riuscita"
   },
   "ja": {
-    "refresh": "\u63a5\u7d9a\u3092\u66f4\u65b0",
-    "nodes": "\u30ce\u30fc\u30c9",
-    "choose": "\u30d5\u30a1\u30a4\u30eb\u3092\u9078\u629e",
-    "clear": "\u524a\u9664",
-    "guide": "Comfy\u304b\u3089API\u5f62\u5f0f\u3067\u66f8\u304d\u51fa\u3057\u305fJSON",
-    "jsonPlaceholder": "API\u5f62\u5f0f\u306eJSON\u3092\u8cbc\u308a\u4ed8\u3051",
     "run": "\u5b9f\u884c",
     "project": "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u3092\u958b\u3044\u3066\u304f\u3060\u3055\u3044\u3002",
     "queued": "\u5f85\u6a5f\u4e2d\u2026",
@@ -141,12 +99,6 @@ const COPY = {
     "comfyError": "Comfy\u30ea\u30af\u30a8\u30b9\u30c8\u5931\u6557"
   },
   "pt": {
-    "refresh": "Atualizar liga\u00e7\u00e3o",
-    "nodes": "n\u00f3s",
-    "choose": "Escolher ficheiro",
-    "clear": "Remover",
-    "guide": "JSON exportado do Comfy em formato API",
-    "jsonPlaceholder": "Colar JSON em formato API",
     "run": "Executar",
     "project": "Abra um projeto.",
     "queued": "Em fila\u2026",
@@ -159,12 +111,6 @@ const COPY = {
     "comfyError": "Pedido Comfy falhou"
   },
   "tr": {
-    "refresh": "Ba\u011flant\u0131y\u0131 yenile",
-    "nodes": "d\u00fc\u011f\u00fcm",
-    "choose": "Dosya se\u00e7",
-    "clear": "Kald\u0131r",
-    "guide": "Comfy'den API bi\u00e7iminde d\u0131\u015fa aktar\u0131lan JSON",
-    "jsonPlaceholder": "API bi\u00e7imli JSON yap\u0131\u015ft\u0131r\u0131n",
     "run": "\u00c7al\u0131\u015ft\u0131r",
     "project": "Bir proje a\u00e7\u0131n.",
     "queued": "S\u0131rada\u2026",
@@ -177,12 +123,6 @@ const COPY = {
     "comfyError": "Comfy iste\u011fi ba\u015far\u0131s\u0131z"
   },
   "zh": {
-    "refresh": "\u5237\u65b0\u8fde\u63a5",
-    "nodes": "\u8282\u70b9",
-    "choose": "\u9009\u62e9\u6587\u4ef6",
-    "clear": "\u79fb\u9664",
-    "guide": "\u4eceComfy\u5bfc\u51fa\u7684API\u683c\u5f0fJSON",
-    "jsonPlaceholder": "\u7c98\u8d34API\u683c\u5f0fJSON",
     "run": "\u8fd0\u884c",
     "project": "\u8bf7\u6253\u5f00\u9879\u76ee\u3002",
     "queued": "\u6b63\u5728\u6392\u961f\u2026",
@@ -197,23 +137,23 @@ const COPY = {
 };
 const PANEL_COPY = {
   en: {
-    editor: 'Edit', newWorkflow: 'New Workflow', emptyWorkflows: 'No saved workflows', editorUnavailable: 'Update Selects to open the workflow editor.',
+    editor: 'Open editor', newWorkflow: 'New workflow', createWorkflow: 'Create workflow', returnToEditor: 'Return to editor', workflowTitle: 'Workflow', selection: 'Select', editing: 'Editing in ComfyUI', emptyWorkflows: 'No workflows yet', editorUnavailable: 'Update Selects to open the workflow editor.',
     editor_not_installed: 'The workflow editor is not installed.',
     editor_download_failed: 'Could not download the workflow editor.',
     editor_checksum_failed: 'The workflow editor download could not be verified.',
     editor_extract_failed: 'Could not prepare the workflow editor.',
-    inputs: 'Inputs', results: 'Results', emptyResults: 'No results yet',
-    importWorkflow: 'Load workflow', savedWorkflows: 'Saved workflows', chooseWorkflow: 'Choose a workflow', json: 'JSON', apply: 'Apply', saved: 'Saved',
+    inputs: 'Inputs and nodes', results: 'Results', emptyResults: 'No results yet',
+    chooseWorkflow: 'Choose a workflow',
     refresh: 'Retry', held: 'Run disabled', loading: 'Loading workflows\u2026',
     not_connected: 'The execution server is not connected.',
     invalid_key: 'The execution server could not authenticate.',
     destination: 'Saved to project',
   },
   ko: {
-    editor: '\ud3b8\uc9d1', newWorkflow: '\uc0c8 Workflow', emptyWorkflows: '\uc800\uc7a5\ub41c Workflow\uac00 \uc5c6\uc5b4\uc694.', editorUnavailable: '\ud3b8\uc9d1\uae30\ub97c \uc5f4\ub824\uba74 Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.',
-    inputs: '\uc785\ub825', results: '\uacb0\uacfc', emptyResults: '\uc544\uc9c1 \uacb0\uacfc \uc5c6\uc74c',
-    importWorkflow: '\ubd88\ub7ec\uc624\uae30', savedWorkflows: '\uc800\uc7a5\ub41c Workflow', chooseWorkflow: 'Workflow \uc120\ud0dd', json: 'JSON', apply: '\uc801\uc6a9', saved: '\uc800\uc7a5\ub428',
-    refresh: '\ub2e4\uc2dc \uc2dc\ub3c4', held: '\uc2e4\ud589 \ube44\ud65c\uc131', loading: 'Workflow \ubd88\ub7ec\uc624\ub294 \uc911\u2026',
+    editor: '\ud3b8\uc9d1\uae30 \uc5f4\uae30', newWorkflow: '\uc0c8 \uc6cc\ud06c\ud50c\ub85c\uc6b0', createWorkflow: '\uc6cc\ud06c\ud50c\ub85c\uc6b0 \ub9cc\ub4e4\uae30', returnToEditor: '\ud3b8\uc9d1\uae30\ub85c \ub3cc\uc544\uac00\uae30', workflowTitle: '\uc6cc\ud06c\ud50c\ub85c\uc6b0', selection: '\uc120\ud0dd', editing: 'ComfyUI\uc5d0\uc11c \ud3b8\uc9d1 \uc911', emptyWorkflows: '\uc544\uc9c1 \uc6cc\ud06c\ud50c\ub85c\uc6b0\uac00 \uc5c6\uc5b4\uc694.', editorUnavailable: '\ud3b8\uc9d1\uae30\ub97c \uc5f4\ub824\uba74 Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.',
+    inputs: '\uc785\ub825 \ubc0f \ub178\ub4dc', results: '\uacb0\uacfc', emptyResults: '\uc544\uc9c1 \uacb0\uacfc \uc5c6\uc74c',
+    chooseWorkflow: '\uc6cc\ud06c\ud50c\ub85c\uc6b0 \uc120\ud0dd',
+    refresh: '\ub2e4\uc2dc \uc2dc\ub3c4', held: '\uc2e4\ud589 \ube44\ud65c\uc131', loading: '\uc6cc\ud06c\ud50c\ub85c\uc6b0 \ubd88\ub7ec\uc624\ub294 \uc911\u2026',
     not_connected: '\uc2e4\ud589 \uc11c\ubc84\uac00 \uc5f0\uacb0\ub418\uc9c0 \uc54a\uc558\uc5b4\uc694.',
     invalid_key: '\uc2e4\ud589 \uc11c\ubc84 \uc778\uc99d\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.',
     destination: '\ud504\ub85c\uc81d\ud2b8\uc5d0 \uc800\uc7a5',
@@ -233,9 +173,6 @@ export default function Panel({ sdk, context, ui }) {
   const [workflows, setWorkflows] = React.useState([]);
   const [selected, setSelected] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
-  const [choosing, setChoosing] = React.useState(false);
-  const [text, setText] = React.useState('');
-  const [file, setFile] = React.useState(null);
   const [pending, setPending] = React.useState(null);
   const [status, setStatus] = React.useState('');
   const [failed, setFailed] = React.useState(false);
@@ -257,7 +194,7 @@ export default function Panel({ sdk, context, ui }) {
     return result.result;
   }
   function reset() {
-    setLoaded(null); setWorkflows([]); setSelected(null); setPending(null); setCompleted([]); setConnection(null); setStatus(''); setText(''); setFile(null); setChoosing(false); setBusy(false); actionLock.current = null;
+    setLoaded(null); setWorkflows([]); setSelected(null); setPending(null); setCompleted([]); setConnection(null); setStatus(''); setBusy(false); actionLock.current = null;
   }
   function account(next, captured) {
     if (captured.account && captured.account !== next.accountSession) {
@@ -331,16 +268,6 @@ export default function Panel({ sdk, context, ui }) {
     await command('openEditor', { newWorkflow }, captured);
     await refresh(captured);
   }
-  async function save(captured) {
-    if (file) await command('loadFile', { path: file.path, name: file.name.replace(/\.json$/i, '') }, captured);
-    else {
-      let input;
-      try { input = JSON.parse(text); } catch { throw new Error('invalidJson'); }
-      const document = Array.isArray(input.nodes) ? { editorWorkflow: input, workflow: null } : { workflow: input };
-      await command('save', { name: 'Workflow', document }, captured);
-    }
-    setChoosing(false); setText(''); setFile(null); await refresh(captured);
-  }
   async function deliver(job, captured) {
     const result = await command('deliver', { id: job.id }, captured);
     setStatus(T.added + ' (' + result.resourceIds.length + ')');
@@ -363,30 +290,29 @@ export default function Panel({ sdk, context, ui }) {
     {connectionError && <ui.Section title="ComfyUI" actions={<ui.Button variant="ghost" disabled={busy || !scope.projectId} onClick={() => action(refresh)}>{T.refresh}</ui.Button>}>
       <ui.Message tone="error">{connectionError}</ui.Message>
     </ui.Section>}
-    <ui.Section title="Workflow">
+    <ui.Section title={T.workflowTitle} actions={ready && workflows.length > 0 && <ui.IconButton icon="plus" label={T.newWorkflow} disabled={busy || !!pending || !!connection?.editorOpen} onClick={() => action(captured => openEditor(true, captured))} />}>
       {scope.projectId && !ready && !connectionError && <ui.Progress label={T.loading} />}
-      {ready && (workflows.length > 0 ? <ui.Select label={T.savedWorkflows} value={selected?.id || ''} disabled={busy || !!pending} placeholder={T.chooseWorkflow}
-        options={workflows.map(item => ({ value: item.id, label: item.name }))}
-        onChange={id => action(async captured => { setSelected(await command('select', { id }, captured)); })} /> : <ui.Message>{T.emptyWorkflows}</ui.Message>)}
-      {ready && selected && <small>{selected.nodeCount} {T.nodes}</small>}
-      {ready && <ui.Actions>
-        {selected && <ui.Button variant="secondary" disabled={busy || !!pending} onClick={() => action(captured => openEditor(false, captured))}>{T.editor}</ui.Button>}
-        <ui.Button variant="secondary" disabled={busy || !connection || !scope.projectId || !!pending} onClick={() => action(captured => openEditor(true, captured))}>{T.newWorkflow}</ui.Button>
-        <ui.Button variant="ghost" disabled={busy || !connection || !!pending} onClick={() => setChoosing(!choosing)}>{T.importWorkflow}</ui.Button>
-        {selected && <ui.Button variant="primary" busy={busy && !!pending} disabled={busy || !!pending || !connection?.generationEnabled || !selected.document?.workflow} onClick={() => action(run)}>{T.run}</ui.Button>}
-      </ui.Actions>}
-      {ready && choosing && <ui.Stack>
-        <ui.FileDrop accept={['json']} value={file} disabled={busy} labels={{ choose: T.choose, drop: T.guide, clear: T.clear }} onChange={setFile} />
-        <ui.TextField label={T.json} multiline placeholder={T.jsonPlaceholder} value={text} disabled={busy} onChange={setText} />
-        <ui.Actions><ui.Button variant="secondary" disabled={busy || (!file && !text.trim())} onClick={() => action(save)}>{T.apply}</ui.Button></ui.Actions>
-      </ui.Stack>}
+      {ready && (workflows.length > 0 ? <ui.Stack>
+        <ui.Select label={T.selection} value={selected?.id || null} disabled={busy || !!pending || !!connection?.editorOpen} placeholder={T.chooseWorkflow}
+          options={workflows.map(item => ({ value: item.id, label: item.name }))}
+          onChange={id => action(async captured => { setSelected(await command('select', { id }, captured)); })} />
+        {selected && <>
+          <ui.Message>{T.inputs}</ui.Message>
+          <ui.Actions><ui.Button variant="secondary" disabled={busy || !!pending} onClick={() => action(captured => openEditor(false, captured))}>{T.editor}</ui.Button></ui.Actions>
+          {connection?.editorOpen && <ui.Message>{T.editing}</ui.Message>}
+          <ui.Actions><ui.Button variant="primary" busy={busy && !!pending} disabled={busy || !!pending || !!connection?.editorOpen || !connection?.generationEnabled || !selected.document?.workflow} onClick={() => action(run)}>{T.run}</ui.Button></ui.Actions>
+        </>}
+      </ui.Stack> : <ui.Stack>
+        <ui.Message>{T.emptyWorkflows}</ui.Message>
+        <ui.Actions><ui.Button variant="primary" disabled={busy || !connection || !!pending} onClick={() => action(captured => openEditor(!connection?.editorOpen, captured))}>{connection?.editorOpen ? T.returnToEditor : T.createWorkflow}</ui.Button></ui.Actions>
+      </ui.Stack>)}
       {!scope.projectId && <ui.Message>{T.project}</ui.Message>}
       {status && <ui.Message tone={failed ? 'error' : 'success'}>{status}</ui.Message>}
     </ui.Section>
     {ready && (pending || completed.length > 0) && <ui.Section title={T.results}>
       {pending && <ui.Stack><ui.Progress value={pending.progress} label={T[pending.state] || T.running} />
         <ui.Actions><ui.Button variant="secondary" disabled={busy} onClick={() => action(captured => follow(pending, captured))}>{T.resume}</ui.Button></ui.Actions></ui.Stack>}
-      {completed.map(output => <div key={output.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ui.Icon name="file" size={14} /><span>{output.name}</span></div>)}
+      {completed.map(output => <div key={output.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ flexShrink: 0 }}><ui.Icon name="file" size={14} /></span><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{output.name}</span></div>)}
     </ui.Section>}
   </>;
 }

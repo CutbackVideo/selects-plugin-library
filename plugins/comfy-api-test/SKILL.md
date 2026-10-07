@@ -23,13 +23,17 @@ return await selects.comfy.execute({ action: 'list', scope });
 
 `list` returns `{workflows, workflow}` with the selected full document.
 `load` accepts an optional workflow `id`. `select` chooses an owned workflow.
-`openEditor` with `newWorkflow:true` opens a blank unsaved draft; otherwise it
+`openEditor` focuses an already-open editor without replacing its graph. When
+no editor is open, `newWorkflow:true` starts a blank unsaved draft; otherwise it
 opens the selected graph. `loadFile` loads an explicitly selected absolute JSON
 path as a new workflow. `save` takes `name`, `document:{workflow,editorWorkflow?}`,
 and for updates `id` plus `expectedRevision`. Do not overwrite after a
 `revision_conflict`; reload and let the user resolve their edit.
 `openEditor` resolves when its window opens. Refresh the saved workflow list
 after editing; opening the window does not mean the user has saved a graph.
+`status.editorOpen` indicates the active editor window. Finish and close the
+editor before running from the panel. Use the editor's native Open or drag and
+drop for JSON imports; these remain unsaved drafts until the user saves.
 
 Before an authorized execution, call `status` and require `generationEnabled`.
 Do not enable paid generation or bypass a no-payment instruction.

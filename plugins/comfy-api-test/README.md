@@ -1,9 +1,10 @@
 # ComfyUI
 
 Reuses the existing Apps panel and official ComfyUI frontend. Select a saved
-workflow, then **Edit**, or choose **New Workflow** to start an unsaved graph.
-**Load workflow** accepts editor JSON or API-format JSON. Edit node inputs in
-the editor; **Save and return** or Cmd/Ctrl+S saves the visual graph and compiled
+workflow, then **Open editor**, or use **+** to start an unsaved graph. The empty
+state offers **Create workflow**. Import editor JSON or API-format JSON through
+the editor's native Open command or drag and drop. Imports remain drafts until
+saved. Edit node inputs in the editor; **Save and return** or Cmd/Ctrl+S saves the visual graph and compiled
 API graph. Run the saved graph from the Selects panel. Results are added to the
 original project's resources; importing a completed job again reuses its IDs.
 
@@ -12,7 +13,9 @@ and dispatches through the company Cloud key. Customers do not need a Comfy
 account or workspace invitation. Users see only their own workflows, images,
 jobs and outputs. Names are display labels; workflow UUIDs and revisions control
 identity and save conflicts. Duplicate names never overwrite a different graph.
-Closing an unsaved new graph leaves the previous selection unchanged.
+Selecting a saved workflow in the editor also selects it in the panel. Closing
+an unsaved new graph leaves the previous selection unchanged. Selects keeps one
+editor window per active context; panel execution waits until it closes.
 
 The editor uses live Cloud node metadata filtered by our execution policy,
 plus only the signed-in user's image choices. Image upload/view routes go through
