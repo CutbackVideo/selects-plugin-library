@@ -1,0 +1,24 @@
+2026 Moments bundled music - licence evidence (copied from the EO Shorts plugin, track m06)
+
+Track: One Cool Minute
+Artist: Loyalty Freak Music
+Album: MINIMAL AMBIENT BOUNCE
+Source page: https://freemusicarchive.org/music/Loyalty_Freak_Music/MINIMAL_AMBIENT_BOUNCE/Loyalty_Freak_Music_-_MINIMAL_AMBIENT_BOUNCE_-_02_One_Cool_Minute/
+Retrieved: 2026-10-05T01:09:30.119Z
+Source page SHA-256 (HTML as fetched): a30c60b91b6bf8021f6b6e430c596fdd61407975f3fef1affc027ebcc32b9a1d
+
+Licence: CC0 1.0 Universal (CC0-1.0)
+Licence deed: https://creativecommons.org/publicdomain/zero/1.0/
+
+Licence statement on the source page (tags removed):
+  One Cool Minute by Loyalty Freak Music is licensed under a CC0 1.0 Universal License.
+Licence links on the source page (rel="license"):
+  https://creativecommons.org/publicdomain/zero/1.0/
+
+Audio file listed in the page's track data: https://files.freemusicarchive.org/storage-freemusicarchive-org/music/Music_for_Video/Loyalty_Freak_Music/MINIMAL_AMBIENT_BOUNCE/Loyalty_Freak_Music_-_02_-_One_Cool_Minute.mp3
+Audio file downloaded: 2026-10-05T00:59:18.827Z
+Audio file SHA-256 as downloaded: 8778d1e095ab7c6793d10ce9bbe1d9783c9ec6d558f11302ced2202b2c039a0c (7799650 bytes)
+
+CC0 waives copyright and related rights; attribution is not required. The artist and source
+are recorded for traceability. The bundled file is an excerpt of this recording with gain,
+an end fade and AAC encoding applied (see THIRD_PARTY.md).
