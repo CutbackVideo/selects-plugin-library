@@ -220,7 +220,7 @@ const CAPTION_PARAMS = [
 // ---------------------------------------------------------------------------------------------------------
 // Pure helpers (exported so a harness can test them).
 export type W = { i: number; text: string; startFrame: number; endFrame: number; sourceStartFrame: number | null; nonSpeech?: boolean };
-export type MainClip = { clipId: number; startFrame: number; endFrame: number; resourceId: string; sourceStartSeconds: number | null };
+export type MainClip = { clipId: number; startFrame: number; endFrame: number; resourceId: string; sourceStartSeconds: number | null; sourceFps: number; sourceDurationSeconds: number; playbackRate: number };
 export type Key = { text: string; start: number; end: number; query: string; alt?: string; until?: number; inEffect?: boolean; size?: number };
 
 // Approximate advance widths of Inter ExtraBold in em. Only the fallback: a panel run measures the real widths
@@ -376,6 +376,8 @@ Transcript: ${JSON.stringify(rows)}`;
 // ---------------------------------------------------------------------------------------------------------
 // The pipeline. `env` supplies host access so the same code runs from the panel or a test harness.
 export type Env = {
+  signal?: AbortSignal;
+  onFaceStage?: (active: boolean, journalPath: string) => void;
   runScript: (script: string, summary: string, allowCommit?: boolean) => Promise<any>;
   runShell: (command: string, summary: string, timeoutMs?: number) => Promise<string>;
   askAI: (prompt: string, timeoutMs?: number, images?: {dataUrl:string;name?:string}[]) => Promise<string>;
@@ -393,7 +395,7 @@ export type Env = {
   pluginDir: string;
   ffmpeg: string;
 };
-export type Options = { scope?: UpdateScope; copy: boolean; music?: boolean; musicDb?: number; instructions?: string; fontFamily?: string; planOverride?: any; searchOverride?: Record<string, any[]>; onDraft?: (id: string) => void };
+export type Options = { scope?: UpdateScope; copy: boolean; retryFaceFailures?: boolean; music?: boolean; musicDb?: number; instructions?: string; fontFamily?: string; planOverride?: any; searchOverride?: Record<string, any[]>; onDraft?: (id: string) => void };
 
 // mac-only:start
 const q = (v: string) => "'" + String(v).replace(/'/g, "'\\''") + "'";
@@ -415,18 +417,37 @@ const idByPath: Record<string, string> = {};
 }`;
 
 export async function readDraft(env: Env, projectId: string, sequenceId: string) {
-  return await env.runScript(`
+  if (!env.readCore) throw new Error("This Selects host cannot resolve persistent source Resources.");
+  const bindings = (core: any) => {
+    if (core?.owner?.projectId !== projectId || core.sequenceJson?.id !== sequenceId) throw new Error("The Draft belongs to another Project.");
+    const sources = new Map<number, string>();
+    const visit = (rows: any[]) => { for (const row of rows || []) {
+      const id = row.mediaReferences?.defaultMedia?.id;
+      if (Number.isSafeInteger(row.id) && typeof id === 'string' && !/^r\d+$/.test(id)) sources.set(row.id, id);
+      if (Array.isArray(row.children)) visit(row.children);
+    } };
+    for (const track of core.sequenceJson?.tracks?.children || []) if (track.kind === 'Main') visit(track.children);
+    return sources;
+  };
+  const sources = bindings(await env.readCore(sequenceId));
+  const result = await env.runScript(`
 const S: any = selects;
 const project: any = S.project(${JSON.stringify(projectId)});
 const d: any = S.draft(${JSON.stringify(sequenceId)});
 const meta: any = await d.meta();
 const all: any[] = await d.words();
-const words = all.map((w: any, i: number) => ({ i, text: String(w.text || ''), startFrame: w.startFrame, endFrame: w.endFrame, sourceStartFrame: w.sourceStartFrame ?? null, nonSpeech: !!w.nonSpeech }));
+const words = all.map((w: any, i: number) => ({ i, text: String(w.text || ''), startFrame: w.startFrame, endFrame: w.endFrame, sourceStartFrame: w.sourceStartFrame ?? null, sourceResourceId: w.sourceResourceId ?? null, nonSpeech: !!w.nonSpeech }));
 const clips: any[] = (await d.clips({ trackScope: 'main' })).filter((c: any) => c.resourceId);
+const sourceMeta: Record<string, any> = {};
+for (const id of Array.from(new Set(clips.map((c: any) => c.resourceId)))) sourceMeta[String(id)] = await project.resource(String(id)).meta();
 const mains = clips.map((c: any) => {
-  const inside = words.filter((w: any) => w.sourceStartFrame != null && w.startFrame >= c.startFrame && w.startFrame < c.endFrame);
-  const src = inside.length ? (inside[0].sourceStartFrame - (inside[0].startFrame - c.startFrame)) / meta.fps : null;
-  return { clipId: c.clipId, startFrame: c.startFrame, endFrame: c.endFrame, resourceId: c.resourceId, sourceStartSeconds: src };
+  const sm = sourceMeta[c.resourceId], sourceFps = Number(sm.fps), sourceDurationSeconds = Number(sm.durationSeconds);
+  const playbackRate = c.playbackSpeed ? Number(c.playbackSpeed.numerator) / Number(c.playbackSpeed.denominator) : 1;
+  if (!(sourceFps > 0) || !(sourceDurationSeconds > 0) || !(playbackRate > 0)) throw new Error('Invalid source frame clock.');
+  const inside = words.filter((w: any) => w.sourceStartFrame != null && w.sourceResourceId === c.resourceId && w.startFrame >= c.startFrame && w.startFrame < c.endFrame);
+  const src = inside.length ? inside[0].sourceStartFrame / sourceFps - (inside[0].startFrame - c.startFrame) / meta.fps * playbackRate : null;
+  if (src != null && (src < -1 / sourceFps || src >= sourceDurationSeconds)) throw new Error('The source interval is outside the Resource.');
+  return { clipId: c.clipId, startFrame: c.startFrame, endFrame: c.endFrame, resourceId: c.resourceId, sourceStartSeconds: src == null ? null : Math.max(0, src), sourceFps, sourceDurationSeconds, playbackRate };
 });
 const ids = Array.from(new Set(mains.map((m: any) => m.resourceId)));
 const files: Record<string, any> = {};
@@ -434,13 +455,28 @@ const walk = (list: any[]) => { for (const n of list || []) { if (n.type === 'di
 const tree: any = await project.sourceFiles();
 if (tree.fileTree) walk(tree.fileTree); else for (const f of tree.folders || []) walk((await project.sourceFiles({ folder: f.name })).fileTree);
 const endFrame = mains.reduce((a: number, m: any) => Math.max(a, m.endFrame), 0);
-return { name: meta.name, fps: meta.fps, frameSize: meta.frameSize, endFrame, words, mains, files };`, "Read the talking-head Draft");
+return { name: meta.name, fps: meta.fps, frameSize: meta.frameSize, endFrame, words: words.map(({sourceResourceId, ...word}: any) => word), mains, files };`, "Read the talking-head Draft");
+  // The raw core and SDK observation are separate reads. Refuse a clip-to-source
+  // join if a camera was replaced (or a Main clip changed) between those reads.
+  const observedSources = bindings(await env.readCore(sequenceId));
+  const fingerprint = (map: Map<number, string>) => JSON.stringify([...map].sort((a,b)=>a[0]-b[0]));
+  if (fingerprint(sources) !== fingerprint(observedSources)) throw new Error("The Main sources changed while reading this Draft. Try again.");
+  const files: Record<string, any> = {};
+  for (const main of result.mains) {
+    const id = sources.get(main.clipId);
+    if (!id) throw new Error("The persistent source of clip " + main.clipId + " is unavailable.");
+    files[id] = result.files[main.resourceId];
+    main.resourceId = id;
+  }
+  result.files = files;
+  return result;
 }
 
 
 /*SECTION_planning*/
 /*SECTION_assets*/
 /*SECTION_verification*/
+/*SECTION_sharedFaces*/
 /*SECTION_pipeline*/
 /*SECTION_engine*/
 
@@ -549,9 +585,10 @@ async function removeLegacyFlashes(sdk:any,env:Env,projectId:string,id:string) {
 }
 
 // Host access for the pipeline, shared by the panel and a template run.
-function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: string }, status: (message: string) => void): Env {
+function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: string }, status: (message: string) => void, signal?: AbortSignal, onFaceStage?: Env['onFaceStage']): Env {
   let node: Promise<string> | null = null;
   const env: Env = {
+    signal, onFaceStage,
     runScript: async (script, summary, allowCommit = false) => {
       const r = await sdk.runScript({ script, summary, allowCommit, timeoutSeconds: 120 });
       if (r.isError || r.result === undefined) throw new Error((r.output || "Selects could not run " + summary).slice(0, 600));
@@ -603,6 +640,20 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
 
 type AnalysisState = "checking" | "ready" | "analyzing" | "needs-analysis";
 
+const FACE_UI: Record<string, string[]> = {
+  en: ['Resume styling','Cancel AI job','AI job canceled. Resume styling to try again.','Canceling AI job…'],
+  de: ['Gestaltung fortsetzen','KI-Auftrag abbrechen','KI-Auftrag abgebrochen. Zum erneuten Versuch die Gestaltung fortsetzen.','KI-Auftrag wird abgebrochen…'],
+  es: ['Reanudar estilo','Cancelar tarea de IA','Tarea de IA cancelada. Reanuda el estilo para intentarlo de nuevo.','Cancelando tarea de IA…'],
+  fr: ['Reprendre le style','Annuler la tâche IA','Tâche IA annulée. Reprenez le style pour réessayer.','Annulation de la tâche IA…'],
+  it: ['Riprendi lo stile','Annulla attività IA','Attività IA annullata. Riprendi lo stile per riprovare.','Annullamento attività IA…'],
+  ko: ['\uc2a4\ud0c0\uc77c \uc791\uc5c5 \uc7ac\uac1c','AI \uc791\uc5c5 \ucde8\uc18c','AI \uc791\uc5c5\uc744 \ucde8\uc18c\ud588\uc2b5\ub2c8\ub2e4. \uc2a4\ud0c0\uc77c \uc791\uc5c5\uc744 \uc7ac\uac1c\ud558\uba74 \ub2e4\uc2dc \uc2dc\ub3c4\ud569\ub2c8\ub2e4.','AI \uc791\uc5c5 \ucde8\uc18c \uc911\u2026'],
+  ja: ['\u30b9\u30bf\u30a4\u30eb\u4f5c\u696d\u3092\u518d\u958b','AI\u30b8\u30e7\u30d6\u3092\u30ad\u30e3\u30f3\u30bb\u30eb','AI\u30b8\u30e7\u30d6\u3092\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002\u518d\u8a66\u884c\u3059\u308b\u306b\u306f\u4f5c\u696d\u3092\u518d\u958b\u3057\u3066\u304f\u3060\u3055\u3044\u3002','AI\u30b8\u30e7\u30d6\u3092\u30ad\u30e3\u30f3\u30bb\u30eb\u4e2d\u2026'],
+  pt: ['Retomar estilo','Cancelar tarefa de IA','Tarefa de IA cancelada. Retome o estilo para tentar novamente.','A cancelar tarefa de IA…'],
+  tr: ['Stili devam ettir','Yapay zekâ görevini iptal et','Yapay zekâ görevi iptal edildi. Yeniden denemek için stili devam ettirin.','Yapay zekâ görevi iptal ediliyor…'],
+  zh: ['\u7ee7\u7eed\u6837\u5f0f\u5904\u7406','\u53d6\u6d88 AI \u4efb\u52a1','AI \u4efb\u52a1\u5df2\u53d6\u6d88\u3002\u7ee7\u7eed\u6837\u5f0f\u5904\u7406\u53ef\u91cd\u8bd5\u3002','\u6b63\u5728\u53d6\u6d88 AI \u4efb\u52a1\u2026'],
+};
+function faceUI(context: any) { return FACE_UI[String(context?.language || 'en').toLowerCase().split('-')[0]] || FACE_UI.en; }
+
 // The open Draft's name and transcript, the Resource its Main footage comes from, and any analysis under way for it.
 async function readOpenDraft(sdk: any, projectId: string, sequenceId: string, summary: string) {
   const r = await sdk.runScript({ summary, script: `const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(sequenceId)});const meta=await d.meta();const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).length;const sourceClip=(await d.clips({trackScope:'main'})).find(c=>c.resourceId);const resource=(await project.resources()).find(r=>r.resourceId===sourceClip?.resourceId)||null;const workflow=(await project.workflows({type:'project:analyze-resource'})).find(w=>w.resourceId===sourceClip?.resourceId&&['queued','running','canceling'].includes(w.status))||null;return {name:meta.name,words,sourceResourceId:sourceClip?.resourceId||null,resource,workflow};` });
@@ -616,6 +667,9 @@ function StylePanel({ sdk, context, ui }: any) {
   const sequenceId = context?.sequenceId || "";
   const mounted = useRef(true);
   const locked = useRef(false);
+  const observer = useRef<AbortController | null>(null);
+  const faceJournal = useRef('');
+  const S = faceUI(context);
   // The Draft on screen now; a finished run only switches the view if the person is still on the Draft it started from.
   const onScreen = useRef(sequenceId); onScreen.current = sequenceId;
   const [paths, setPaths] = useState<{ data: string; plugin: string; ffmpeg: string } | null>(null);
@@ -627,6 +681,9 @@ function StylePanel({ sdk, context, ui }: any) {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ id: string } | null>(null);
+  const [pending, setPending] = useState(false);
+  const [faceActive, setFaceActive] = useState(false);
+  const [canceling, setCanceling] = useState(false);
 
   useEffect(() => {
     resolvePaths(sdk)
@@ -638,39 +695,48 @@ function StylePanel({ sdk, context, ui }: any) {
   }, []);
 
   useEffect(() => {
+    let alive = true;
     mounted.current = true;
+    locked.current = false; setBusy(false); setFaceActive(false); setCanceling(false); setPending(false); faceJournal.current = '';
     setResult(null); setError(""); setStatus(""); setSourceName(""); setAlreadyStyled(false); setAnalysisState("checking");
     if (!sequenceId) return () => { mounted.current = false; };
-    readOpenDraft(sdk, projectId, sequenceId, "Check draft transcript").then((d: any) => {
-      if (!mounted.current) return;
+    readOpenDraft(sdk, projectId, sequenceId, "Check draft transcript").then(async (d: any) => {
+      const saved = paths ? await readState({readText, dataDir:paths.data} as Env, sequenceId) : null;
+      if (!alive) return;
       const name = d.name || "Current draft";
       const status = d.resource?.status;
       setSourceName(name);
-      setAlreadyStyled(name.endsWith(SUFFIX));
+      setPending(!!saved?.pending); faceJournal.current = saved?.faceJournal || '';
+      setAlreadyStyled(name.endsWith(SUFFIX) && !saved?.pending);
       setAnalysisState(d.words ? "ready" : status === "sampling" || status === "analyzing" ? "analyzing" : "needs-analysis");
-    }).catch(() => { if (mounted.current) setAnalysisState("needs-analysis"); });
-    return () => { mounted.current = false; };
-  }, [projectId, sequenceId]);
+    }).catch(() => { if (alive) setAnalysisState("needs-analysis"); });
+    return () => { alive = false; mounted.current = false; observer.current?.abort(); observer.current = null; };
+  }, [projectId, sequenceId, paths]);
 
   // Without a transcript there is nothing to style: start analysis of the Draft's footage and wait for its words.
-  async function ensureTranscript(draftId: string) {
+  async function ensureTranscript(draftId: string, signal: AbortSignal) {
+    const check=()=>{if(signal.aborted||observer.current?.signal!==signal)throw Object.assign(new Error('Observation detached.'),{code:'CW_FACE_DETACHED'});};
+    const current=()=>mounted.current&&!signal.aborted&&observer.current?.signal===signal;
     let d = await readOpenDraft(sdk, projectId, draftId, "Read draft transcript");
+    check();
     if (d.words) return;
     if (!d.sourceResourceId || !d.resource) throw new Error("Selects could not find analyzable source footage for this draft.");
     const state = d.resource.status;
     if (state !== "sampling" && state !== "analyzing" && !d.resource.hasAnalysis) {
-      setStatus("Starting transcript analysis…");
-      const r = await sdk.runScript({ summary: "Start transcript analysis", allowCommit: true, script: `return await selects.project(${JSON.stringify(projectId)}).startAnalysis({resourceIds:[${JSON.stringify(d.sourceResourceId)}]});` });
+      if(current())setStatus("Starting transcript analysis…");
+      const r = await sdk.runScript({ summary: "Start transcript analysis", allowCommit: true, script: `const c=(await selects.draft(${JSON.stringify(draftId)}).clips({trackScope:'main'})).find(c=>c.resourceId);if(!c?.resourceId)throw Error('The source video is unavailable.');return await selects.project(${JSON.stringify(projectId)}).startAnalysis({resourceIds:[c.resourceId]});` });
       if (r.isError) throw new Error(r.output || "Selects could not start transcript analysis.");
     }
     for (let attempt = 0; attempt < 180; attempt += 1) {
+      check();
       d = await readOpenDraft(sdk, projectId, draftId, "Check transcript analysis");
-      if (d.words) { if (mounted.current) setAnalysisState("ready"); return; }
+      check();
+      if (d.words) { if (current()) setAnalysisState("ready"); return; }
       const s = d.resource?.status;
       if (s === "samplingFailed" || s === "analyzingFailed") throw new Error("Transcript analysis failed. Open the Project workflows to see the reason, then try again.");
       if (s === "analysisNotApplicable") throw new Error("This source cannot be transcribed by Selects.");
       const percent = typeof d.workflow?.progress === "number" ? ` ${Math.round(d.workflow.progress * 100)}%` : "";
-      if (mounted.current) { setAnalysisState("analyzing"); setStatus(`Analyzing the transcript${percent}…`); }
+      if (current()) { setAnalysisState("analyzing"); setStatus(`Analyzing the transcript${percent}…`); }
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     throw new Error("Transcript analysis is still running. Wait for it to finish, then run the style again.");
@@ -679,20 +745,35 @@ function StylePanel({ sdk, context, ui }: any) {
   async function create() {
     if (locked.current || !projectId || !sequenceId || !paths || setupIssue) return;
     const from = sequenceId;
+    const controller = new AbortController(); observer.current = controller;
     locked.current = true; setBusy(true); setError(""); setResult(null);
     try {
       setStatus("Checking the transcript…");
-      await ensureTranscript(from);
-      const env = panelEnv(sdk, paths, (m) => { if (mounted.current) setStatus(m); });
-      const report = await runPipeline(env, projectId, from, { copy: false, music: true, musicDb: MUSIC.levelDb, scope: "all" });
-      if (mounted.current) { setResult({ id: report.draftId }); setStatus("Your Chris Williamson Style draft is ready."); }
-      if (!onScreen.current || onScreen.current === from) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Chris Williamson Style draft" });
+      await ensureTranscript(from,controller.signal);
+      const current = () => mounted.current && !controller.signal.aborted && observer.current===controller;
+      const env = panelEnv(sdk, paths, (m) => { if (current()) setStatus(m); },controller.signal,(active,journal)=>{if(current()){faceJournal.current=journal;setFaceActive(active);}});
+      const report = await runPipeline(env, projectId, from, { copy: false, retryFaceFailures:true, music: true, musicDb: MUSIC.levelDb, scope: "all" });
+      if (mounted.current && !controller.signal.aborted) { setPending(false); setResult({ id: report.draftId }); setStatus("Your Chris Williamson Style draft is ready."); }
+      if (!controller.signal.aborted && (!onScreen.current || onScreen.current === from)) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Chris Williamson Style draft" });
     } catch (e: any) {
-      if (mounted.current) { setError(String(e?.message || e)); setStatus(""); }
-    } finally { locked.current = false; if (mounted.current) setBusy(false); }
+      if (mounted.current && observer.current===controller && e?.code!=='CW_FACE_DETACHED') { setPending(true); setError(e?.code==='CW_FACE_CANCELED'?S[2]:String(e?.message || e)); setStatus(""); }
+    } finally { if(observer.current===controller){locked.current = false;if(mounted.current){setBusy(false);setFaceActive(false);}} }
   }
 
-  const actionLabel = alreadyStyled
+  async function cancelFaces() {
+    if(!paths||!faceJournal.current||canceling)return;
+    const controller=observer.current,journal=faceJournal.current;
+    const current=()=>mounted.current&&observer.current===controller&&faceJournal.current===journal;
+    setCanceling(true);
+    try {
+      await cwCancelSharedFaces(panelEnv(sdk,paths,()=>{}),projectId,journal);
+      controller?.abort();
+      if(current()){setPending(true);setStatus(S[2]);setError('');setFaceActive(false);}
+    } catch(e:any){if(current())setError(String(e?.message||e));}
+    finally {if(current())setCanceling(false);}
+  }
+
+  const actionLabel = pending ? S[0] : alreadyStyled
     ? "Already styled"
     : analysisState === "needs-analysis"
       ? "Analyze transcript & apply"
@@ -711,6 +792,7 @@ function StylePanel({ sdk, context, ui }: any) {
     <ui.Button onClick={() => void create()} disabled={busy || !sequenceId || !paths || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
     <small>{helperText}</small>
     {busy && <ui.Progress />}
+    {faceActive && <ui.Button variant="secondary" busy={canceling} busyLabel={S[3]} disabled={canceling} onClick={()=>void cancelFaces()}>{S[1]}</ui.Button>}
     {status && <ui.Message>{status}</ui.Message>}
     {error && <ui.Message tone="error">{error}</ui.Message>}
     {result && <ui.Button variant="secondary" disabled={busy} onClick={() => void sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(result.id) + ");", summary: "Open the Chris Williamson Style draft" })}>Open result</ui.Button>}
@@ -748,13 +830,11 @@ function TemplateRun({ sdk, context }: any) {
   const runId: string = context.template.runId;
   const currentRunId = useRef(runId);
   currentRunId.current = runId;
-  const startedRunId = useRef<string | null>(null);
   const [status, setStatus] = useState("Getting ready…");
   useEffect(() => {
-    if (startedRunId.current === runId) return;
-    startedRunId.current = runId;
+    const controller = new AbortController();
     // A newer run from the app reports instead of this one.
-    const superseded = () => currentRunId.current !== runId;
+    const superseded = () => controller.signal.aborted || currentRunId.current !== runId;
     const report = (text: string) => { if (!superseded()) setStatus(text); };
     let finished = false;
     const finish = (result: { sequenceId: string } | { error: string }) => {
@@ -769,7 +849,7 @@ function TemplateRun({ sdk, context }: any) {
         const speaker = templateSpeaker(context.template);
         if (!projectId) throw new Error("Open a project, then try again.");
         if (!speaker) throw new Error("Pick a talking-head video, then try again.");
-        const env = panelEnv(sdk, await templatePaths(sdk), report);
+        const env = panelEnv(sdk, await templatePaths(sdk), report,controller.signal);
         if (superseded()) return;
         // A picked video becomes a new Draft; a timeline is styled in place.
         const draftId = speaker.kind === "video" ? await templateDraftFromVideo(env, projectId, speaker) : String(speaker.sequenceId);
@@ -782,6 +862,7 @@ function TemplateRun({ sdk, context }: any) {
         finish({ error: TEMPLATE_FAILED });
       }
     })();
+    return () => controller.abort();
   }, [runId]);
   return <small>{status}</small>;
 }

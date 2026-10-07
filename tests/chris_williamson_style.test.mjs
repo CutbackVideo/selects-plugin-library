@@ -1,4 +1,4 @@
-// Chris Williamson Style: host path keys, and the panel's port of engine.mjs (shots, faces, candidates, assets on
+// Chris Williamson Style: host path keys, and the panel's port of engine.mjs (shots, candidates, assets on
 // the host's ffmpeg) checked against engine.mjs itself on the same inputs. The panel code runs in node:vm with a
 // stand-in host (window.parent.__DI__) whose ffmpeg is the local one, so values cross realms as they do in Selects.
 import test from 'node:test';
@@ -295,42 +295,7 @@ for (const platform of ['darwin', 'win32']) {
   });
 }
 
-test('faces (macOS): the same frames as engine.mjs go to vision-helper.js, and its answer is read back', {skip: !HAVE_FFMPEG && 'no ffmpeg'}, async () => {
-  const m = fixtures();
-  const samples = Array.from({length: 23}, (_, i) => ({key: Math.floor(i / 3) + ':' + [0.25, 0.5, 0.75][i % 3], path: i % 2 ? m.moving : m.cuts, seconds: 0.2 * i}));
-  samples.push({key: 'bad', path: path.join(m.dir, 'missing.mp4'), seconds: 1});
-  const job = {ffmpeg: 'ffmpeg', faces: {samples}};
-  // engine.mjs grabs its frames before it calls Apple Vision (osascript may be unavailable where tests run).
-  const eDir = path.join(m.dir, 'e-faces');
-  fs.mkdirSync(eDir, {recursive: true});
-  fs.writeFileSync(path.join(eDir, 'faces.json'), JSON.stringify(job));
-  spawnSync(process.execPath, [path.join(PLUGIN, 'engine.mjs'), 'faces', path.join(eDir, 'faces.json')], {encoding: 'utf8'});
-  // The helper's answer for each image it is given (one call per 20 images).
-  const calls = [];
-  const env = {pluginDir: PLUGIN, runShell: async (command) => {
-    calls.push(command);
-    const files = [...command.matchAll(/'([^']+\.jpg)'/g)].map((x) => x[1]);
-    assert.ok(command.startsWith("/usr/bin/osascript -l JavaScript '" + path.join(PLUGIN, 'vision-helper.js') + "' faces "));
-    return files.map((f, i) => JSON.stringify({file: f, w: 640, h: 360, faces: i % 2 ? [] : [[0.4, 0.2, 0.2, 0.3]]})).join('\n') + '\n';
-  }};
-  const pDir = path.join(m.dir, 'p-faces');
-  const got = await ported('darwin', 'faces', job, pDir, {env});
-  assert.equal(got.sampled, 24);
-  assert.equal(got.readable, 23);
-  assert.deepEqual(calls.map((c) => (c.match(/\.jpg'/g) || []).length), [20, 3]);
-  assert.equal(Object.keys(got.detected).length, 23);
-  assert.deepEqual(got.detected['0:0.25'], {w: 640, h: 360, faces: [[0.4, 0.2, 0.2, 0.3]]});
-  const grabbed = fs.readdirSync(path.join(pDir, 'faces')).sort();
-  assert.deepEqual(grabbed, fs.readdirSync(path.join(eDir, 'faces')).sort());
-  for (const f of grabbed) assert.ok(fs.readFileSync(path.join(pDir, 'faces', f)).equals(fs.readFileSync(path.join(eDir, 'faces', f))), f);
-});
-
-test('faces (Windows): nothing is detected and nothing is run; the pipeline centre-crops', async () => {
-  const m = fixtures();
-  const env = {pluginDir: PLUGIN, runShell: async () => assert.fail('no shell on Windows')};
-  const got = await ported('win32', 'faces', {faces: {samples: [{key: '0:0.5', path: m.cuts, seconds: 1}]}}, path.join(m.dir, 'p-faces-win'), {env});
-  assert.deepEqual(got, {detected: {}, sampled: 1, readable: 0});
-  assert.ok(!fs.existsSync(path.join(m.dir, 'p-faces-win', 'faces')));
+test('framing keeps the three-sample median and empty-face default after shared detection', () => {
   assert.match(PANEL, /const face=ff\.length\?\[0,1,2,3\]\.map\(k=>median\(ff\.map\(r=>r\.faces\[0\]\[k\]\)\)\):\[0\.25,0\.2,0\.5,0\.3\];/);
 });
 

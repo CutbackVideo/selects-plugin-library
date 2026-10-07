@@ -220,7 +220,7 @@ const CAPTION_PARAMS = [
 // ---------------------------------------------------------------------------------------------------------
 // Pure helpers (exported so a harness can test them).
 export type W = { i: number; text: string; startFrame: number; endFrame: number; sourceStartFrame: number | null; nonSpeech?: boolean };
-export type MainClip = { clipId: number; startFrame: number; endFrame: number; resourceId: string; sourceStartSeconds: number | null };
+export type MainClip = { clipId: number; startFrame: number; endFrame: number; resourceId: string; sourceStartSeconds: number | null; sourceFps: number; sourceDurationSeconds: number; playbackRate: number };
 export type Key = { text: string; start: number; end: number; query: string; alt?: string; until?: number; inEffect?: boolean; size?: number };
 
 // Approximate advance widths of Inter ExtraBold in em. Only the fallback: a panel run measures the real widths
@@ -376,6 +376,8 @@ Transcript: ${JSON.stringify(rows)}`;
 // ---------------------------------------------------------------------------------------------------------
 // The pipeline. `env` supplies host access so the same code runs from the panel or a test harness.
 export type Env = {
+  signal?: AbortSignal;
+  onFaceStage?: (active: boolean, journalPath: string) => void;
   runScript: (script: string, summary: string, allowCommit?: boolean) => Promise<any>;
   runShell: (command: string, summary: string, timeoutMs?: number) => Promise<string>;
   askAI: (prompt: string, timeoutMs?: number, images?: {dataUrl:string;name?:string}[]) => Promise<string>;
@@ -393,7 +395,7 @@ export type Env = {
   pluginDir: string;
   ffmpeg: string;
 };
-export type Options = { scope?: UpdateScope; copy: boolean; music?: boolean; musicDb?: number; instructions?: string; fontFamily?: string; planOverride?: any; searchOverride?: Record<string, any[]>; onDraft?: (id: string) => void };
+export type Options = { scope?: UpdateScope; copy: boolean; retryFaceFailures?: boolean; music?: boolean; musicDb?: number; instructions?: string; fontFamily?: string; planOverride?: any; searchOverride?: Record<string, any[]>; onDraft?: (id: string) => void };
 
 // mac-only:start
 const q = (v: string) => "'" + String(v).replace(/'/g, "'\\''") + "'";
@@ -415,18 +417,37 @@ const idByPath: Record<string, string> = {};
 }`;
 
 export async function readDraft(env: Env, projectId: string, sequenceId: string) {
-  return await env.runScript(`
+  if (!env.readCore) throw new Error("This Selects host cannot resolve persistent source Resources.");
+  const bindings = (core: any) => {
+    if (core?.owner?.projectId !== projectId || core.sequenceJson?.id !== sequenceId) throw new Error("The Draft belongs to another Project.");
+    const sources = new Map<number, string>();
+    const visit = (rows: any[]) => { for (const row of rows || []) {
+      const id = row.mediaReferences?.defaultMedia?.id;
+      if (Number.isSafeInteger(row.id) && typeof id === 'string' && !/^r\d+$/.test(id)) sources.set(row.id, id);
+      if (Array.isArray(row.children)) visit(row.children);
+    } };
+    for (const track of core.sequenceJson?.tracks?.children || []) if (track.kind === 'Main') visit(track.children);
+    return sources;
+  };
+  const sources = bindings(await env.readCore(sequenceId));
+  const result = await env.runScript(`
 const S: any = selects;
 const project: any = S.project(${JSON.stringify(projectId)});
 const d: any = S.draft(${JSON.stringify(sequenceId)});
 const meta: any = await d.meta();
 const all: any[] = await d.words();
-const words = all.map((w: any, i: number) => ({ i, text: String(w.text || ''), startFrame: w.startFrame, endFrame: w.endFrame, sourceStartFrame: w.sourceStartFrame ?? null, nonSpeech: !!w.nonSpeech }));
+const words = all.map((w: any, i: number) => ({ i, text: String(w.text || ''), startFrame: w.startFrame, endFrame: w.endFrame, sourceStartFrame: w.sourceStartFrame ?? null, sourceResourceId: w.sourceResourceId ?? null, nonSpeech: !!w.nonSpeech }));
 const clips: any[] = (await d.clips({ trackScope: 'main' })).filter((c: any) => c.resourceId);
+const sourceMeta: Record<string, any> = {};
+for (const id of Array.from(new Set(clips.map((c: any) => c.resourceId)))) sourceMeta[String(id)] = await project.resource(String(id)).meta();
 const mains = clips.map((c: any) => {
-  const inside = words.filter((w: any) => w.sourceStartFrame != null && w.startFrame >= c.startFrame && w.startFrame < c.endFrame);
-  const src = inside.length ? (inside[0].sourceStartFrame - (inside[0].startFrame - c.startFrame)) / meta.fps : null;
-  return { clipId: c.clipId, startFrame: c.startFrame, endFrame: c.endFrame, resourceId: c.resourceId, sourceStartSeconds: src };
+  const sm = sourceMeta[c.resourceId], sourceFps = Number(sm.fps), sourceDurationSeconds = Number(sm.durationSeconds);
+  const playbackRate = c.playbackSpeed ? Number(c.playbackSpeed.numerator) / Number(c.playbackSpeed.denominator) : 1;
+  if (!(sourceFps > 0) || !(sourceDurationSeconds > 0) || !(playbackRate > 0)) throw new Error('Invalid source frame clock.');
+  const inside = words.filter((w: any) => w.sourceStartFrame != null && w.sourceResourceId === c.resourceId && w.startFrame >= c.startFrame && w.startFrame < c.endFrame);
+  const src = inside.length ? inside[0].sourceStartFrame / sourceFps - (inside[0].startFrame - c.startFrame) / meta.fps * playbackRate : null;
+  if (src != null && (src < -1 / sourceFps || src >= sourceDurationSeconds)) throw new Error('The source interval is outside the Resource.');
+  return { clipId: c.clipId, startFrame: c.startFrame, endFrame: c.endFrame, resourceId: c.resourceId, sourceStartSeconds: src == null ? null : Math.max(0, src), sourceFps, sourceDurationSeconds, playbackRate };
 });
 const ids = Array.from(new Set(mains.map((m: any) => m.resourceId)));
 const files: Record<string, any> = {};
@@ -434,7 +455,21 @@ const walk = (list: any[]) => { for (const n of list || []) { if (n.type === 'di
 const tree: any = await project.sourceFiles();
 if (tree.fileTree) walk(tree.fileTree); else for (const f of tree.folders || []) walk((await project.sourceFiles({ folder: f.name })).fileTree);
 const endFrame = mains.reduce((a: number, m: any) => Math.max(a, m.endFrame), 0);
-return { name: meta.name, fps: meta.fps, frameSize: meta.frameSize, endFrame, words, mains, files };`, "Read the talking-head Draft");
+return { name: meta.name, fps: meta.fps, frameSize: meta.frameSize, endFrame, words: words.map(({sourceResourceId, ...word}: any) => word), mains, files };`, "Read the talking-head Draft");
+  // The raw core and SDK observation are separate reads. Refuse a clip-to-source
+  // join if a camera was replaced (or a Main clip changed) between those reads.
+  const observedSources = bindings(await env.readCore(sequenceId));
+  const fingerprint = (map: Map<number, string>) => JSON.stringify([...map].sort((a,b)=>a[0]-b[0]));
+  if (fingerprint(sources) !== fingerprint(observedSources)) throw new Error("The Main sources changed while reading this Draft. Try again.");
+  const files: Record<string, any> = {};
+  for (const main of result.mains) {
+    const id = sources.get(main.clipId);
+    if (!id) throw new Error("The persistent source of clip " + main.clipId + " is unavailable.");
+    files[id] = result.files[main.resourceId];
+    main.resourceId = id;
+  }
+  result.files = files;
+  return result;
 }
 
 
@@ -649,6 +684,281 @@ export async function verifyDraft(env: Env, projectId: string, draftId: string, 
   return {structure:"passed",render:"passed",visual,frames:points,deletedByUser:missing.length,export:"not_checked",inspector:"not_checked"};
 }
 
+// Shared inference only. The pipeline keeps its three-point median and style-specific framing.
+export type CwFaceSample = {
+  key: string; groupKey?: string; resourceId: string; seconds: number;
+  sourceFps: number; sourceDurationSeconds: number;
+  frameSize?: { width: number; height: number };
+};
+export type CwFaceEnvironment = {
+  runScript(script: string, summary: string, allowCommit?: boolean): Promise<any>;
+  readText(path: string): Promise<string>;
+  writeText(path: string, text: string): Promise<void>;
+};
+type CwFaceInput = {
+  runtimeId: "selects-ai-runtime"; task: "faces.detect"; projectId: string; resourceId: string;
+  requestKey: string; sourceRange: { startSeconds: number; endSeconds: number };
+  options: { sampleEverySeconds: number; scoreThreshold: 0.8; provider: "cpu" };
+};
+type CwFaceRecord = {
+  samples: CwFaceSample[]; input: CwFaceInput; attempt: number;
+  workflowId?: string; status?: string; cancelRequested?: boolean;
+};
+type CwFaceJournal = { version: 1; projectId: string; records: CwFaceRecord[] };
+export type CwFaceObservation = { w: number; h: number; faces: number[][] };
+const CW_FACE_STATUSES = ["queued", "running", "canceling", "succeeded", "failed", "canceled"];
+const cwFaceTerminal = (status?: string) => ["succeeded", "failed", "canceled"].includes(status || "");
+const cwFaceWrites = new Map<string, Promise<CwFaceJournal>>();
+const cwFaceError = (code: string, message: string) => Object.assign(new Error(message), { code });
+const cwFaceInvalid = () => cwFaceError("CW_FACE_CONTRACT_INVALID", "The saved face analysis or its result does not match this source. Make a new run.");
+function cwFaceAttached(signal?: AbortSignal) {
+  if (signal?.aborted) throw cwFaceError("CW_FACE_DETACHED", "Face observation stopped. Reopen the panel to recover the saved analysis.");
+}
+function cwValidateFaceSample(sample: CwFaceSample): void {
+  if (!sample || typeof sample.key !== "string" || !sample.key || ["__proto__", "constructor", "prototype"].includes(sample.key) ||
+      (sample.groupKey !== undefined && (typeof sample.groupKey !== "string" || !sample.groupKey)) ||
+      !/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(sample.resourceId) ||
+      !Number.isFinite(sample.seconds) || sample.seconds < 0 ||
+      !Number.isFinite(sample.sourceFps) || sample.sourceFps <= 0 ||
+      !Number.isFinite(sample.sourceDurationSeconds) || sample.seconds >= sample.sourceDurationSeconds ||
+      (sample.frameSize !== undefined && (!sample.frameSize || !Number.isSafeInteger(sample.frameSize.width) || sample.frameSize.width <= 0 ||
+        !Number.isSafeInteger(sample.frameSize.height) || sample.frameSize.height <= 0))) throw cwFaceInvalid();
+}
+function cwFaceInput(projectId: string, samples: CwFaceSample[]): CwFaceInput {
+  if (!projectId || !Array.isArray(samples) || ![1, 3].includes(samples.length)) throw cwFaceInvalid();
+  samples.forEach(cwValidateFaceSample);
+  const first = samples[0], last = samples[samples.length - 1];
+  const step = samples.length === 3 ? samples[1].seconds - first.seconds : 0;
+  if (samples.some(s => s.resourceId !== first.resourceId || s.sourceFps !== first.sourceFps ||
+      s.sourceDurationSeconds !== first.sourceDurationSeconds || JSON.stringify(s.frameSize) !== JSON.stringify(first.frameSize)) ||
+      (samples.length === 3 && (step < 2 / first.sourceFps || Math.abs(last.seconds - samples[1].seconds - step) > 1e-8))) throw cwFaceInvalid();
+  const endSeconds = Math.min(first.sourceDurationSeconds, last.seconds + (samples.length === 3 ? 1.5 : 2) / first.sourceFps);
+  if (!Number.isFinite(endSeconds) || endSeconds <= last.seconds) throw cwFaceInvalid();
+  return { runtimeId: "selects-ai-runtime", task: "faces.detect", projectId, resourceId: first.resourceId, requestKey: "",
+    sourceRange: { startSeconds: first.seconds, endSeconds },
+    options: { sampleEverySeconds: step || endSeconds - first.seconds + 1 / first.sourceFps, scoreThreshold: 0.8, provider: "cpu" } };
+}
+function cwFaceGroups(projectId: string, samples: CwFaceSample[]): CwFaceSample[][] {
+  if (samples.length > 3000 || new Set(samples.map(s => s.key)).size !== samples.length) throw cwFaceInvalid();
+  samples.forEach(cwValidateFaceSample);
+  const groups = new Map<string, CwFaceSample[]>();
+  for (const sample of samples) {
+    const key = sample.groupKey || sample.key;
+    groups.set(key, [...(groups.get(key) || []), sample]);
+  }
+  return [...groups.values()].flatMap(group => {
+    if (group.length === 3) {
+      try { cwFaceInput(projectId, group); return [group]; } catch { /* Very short/nonuniform clips use separate observations. */ }
+    }
+    return group.map(sample => [sample]);
+  });
+}
+async function cwFaceRequestKey(path: string, projectId: string, samples: CwFaceSample[], attempt: number): Promise<string> {
+  const identity = JSON.stringify({ path, projectId, samples, attempt, input: cwFaceInput(projectId, samples) });
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity));
+  return "cw-faces-" + Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, "0")).join("");
+}
+async function cwReadFaceJournal(env: CwFaceEnvironment, path: string, projectId: string): Promise<CwFaceJournal> {
+  let text: string;
+  try { text = await env.readText(path); }
+  catch (error: any) {
+    if (/ENOENT|not found|does not exist/i.test(String(error?.message || error))) return { version: 1, projectId, records: [] };
+    throw error;
+  }
+  let journal: CwFaceJournal;
+  try { journal = JSON.parse(text); } catch { throw cwFaceInvalid(); }
+  if (journal?.version !== 1 || journal.projectId !== projectId || !Array.isArray(journal.records) || journal.records.length > 6000) throw cwFaceInvalid();
+  const keys = new Set<string>();
+  for (const record of journal.records) {
+    if (!record || !Number.isSafeInteger(record.attempt) || record.attempt < 0 || record.attempt > 255 ||
+        !/^cw-faces-[\da-f]{64}$/.test(record.input?.requestKey) || keys.has(record.input.requestKey) ||
+        (record.workflowId !== undefined && (typeof record.workflowId !== "string" || !record.workflowId)) ||
+        (record.status !== undefined && !CW_FACE_STATUSES.includes(record.status)) ||
+        (record.cancelRequested !== undefined && typeof record.cancelRequested !== "boolean")) throw cwFaceInvalid();
+    const expected = cwFaceInput(projectId, record.samples);
+    if (JSON.stringify({ ...record.input, requestKey: "" }) !== JSON.stringify(expected)) throw cwFaceInvalid();
+    keys.add(record.input.requestKey);
+  }
+  return journal;
+}
+// Serialize the panel's observer/cancel writes; reread before each write so cancel intent cannot be overwritten.
+async function cwWriteFaceJournal(env: CwFaceEnvironment, path: string, projectId: string, update: (j: CwFaceJournal) => void): Promise<CwFaceJournal> {
+  const previous = cwFaceWrites.get(path) || Promise.resolve();
+  const write = previous.catch(() => {}).then(async () => {
+    const journal = await cwReadFaceJournal(env, path, projectId);
+    update(journal);
+    await env.writeText(path, JSON.stringify(journal));
+    return journal;
+  });
+  cwFaceWrites.set(path, write);
+  try { return await write; } finally { if (cwFaceWrites.get(path) === write) cwFaceWrites.delete(path); }
+}
+async function cwSaveFaceRecord(env: CwFaceEnvironment, path: string, record: CwFaceRecord): Promise<void> {
+  const journal = await cwWriteFaceJournal(env, path, record.input.projectId, j => {
+    const index = j.records.findIndex(r => r.input.requestKey === record.input.requestKey), old = j.records[index];
+    if (old?.workflowId && record.workflowId && old.workflowId !== record.workflowId) throw cwFaceInvalid();
+    const saved = { ...old, ...record, cancelRequested: old?.cancelRequested || record.cancelRequested || false };
+    if (old?.workflowId && !saved.workflowId) saved.workflowId = old.workflowId;
+    if (old && cwFaceTerminal(old.status)) saved.status = old.status;
+    if (index < 0) j.records.push(saved); else j.records[index] = saved;
+  });
+  Object.assign(record, journal.records.find(r => r.input.requestKey === record.input.requestKey));
+}
+async function cwFaceCall(env: CwFaceEnvironment, script: string, summary: string, effect = false): Promise<any> {
+  try { return await env.runScript(script, summary, effect); }
+  catch (error: any) {
+    if (error?.code === "CW_AI_UNAVAILABLE" || /\b(?:AI_UNAVAILABLE|AI_UPDATE_REQUIRED|CW_AI_UNAVAILABLE)\b/.test(String(error?.message || error)))
+      throw cwFaceError("CW_AI_UNAVAILABLE", "Update Selects to use shared face analysis.");
+    if (error?.code === "CW_FACE_CONTRACT_INVALID" || /\bCW_FACE_CONTRACT_INVALID\b/.test(String(error?.message || error))) throw cwFaceInvalid();
+    throw error;
+  }
+}
+function cwFaceSubmitScript(input: CwFaceInput): string {
+  return `if (typeof selects.ai?.submit !== "function") throw new Error("CW_AI_UNAVAILABLE");
+const job = await selects.ai.submit(${JSON.stringify(input)}); return { workflowId: job.workflowId };`;
+}
+function cwFaceJobScript(record: CwFaceRecord, method: "status" | "cancel"): string {
+  return `return await selects.ai.job(${JSON.stringify(record.workflowId)}, ${JSON.stringify(record.input.projectId)}).${method}();`;
+}
+function cwCheckFaceStatus(value: any, record: CwFaceRecord): string {
+  // status.resourceId is shortened by the SDK; the canonical input and job ownership remain Main's responsibility.
+  if (value?.workflowId !== record.workflowId || value.projectId !== record.input.projectId || value.runtimeId !== record.input.runtimeId ||
+      value.task !== "faces.detect" || !CW_FACE_STATUSES.includes(value.status)) throw cwFaceInvalid();
+  return value.status;
+}
+async function cwFaceAck(env: CwFaceEnvironment, path: string, record: CwFaceRecord, signal?: AbortSignal): Promise<void> {
+  if (record.workflowId) return;
+  cwFaceAttached(signal);
+  const ack = await cwFaceCall(env, cwFaceSubmitScript(record.input), "Measure speaker framing", true);
+  cwFaceAttached(signal);
+  if (typeof ack?.workflowId !== "string" || !ack.workflowId) throw cwFaceInvalid();
+  record.workflowId = ack.workflowId;
+  await cwSaveFaceRecord(env, path, record);
+}
+async function cwWaitFaceCancellation(env: CwFaceEnvironment, path: string, record: CwFaceRecord, signal?: AbortSignal): Promise<void> {
+  const deadline = Date.now() + 60_000;
+  while (!cwFaceTerminal(record.status)) {
+    cwFaceAttached(signal);
+    const current = await cwFaceCall(env, cwFaceJobScript(record, "status"), "Wait for face analysis to stop");
+    cwFaceAttached(signal);
+    record.status = cwCheckFaceStatus(current, record);
+    await cwSaveFaceRecord(env, path, record);
+    if (cwFaceTerminal(record.status)) return;
+    if (Date.now() >= deadline) throw cwFaceError("CW_FACE_CANCEL_PENDING", "Face analysis is still stopping. Its cancellation is saved; reopen the panel to recover it.");
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+}
+function cwFaceResultScript(record: CwFaceRecord): string {
+  return `const r = await selects.ai.job(${JSON.stringify(record.workflowId)}, ${JSON.stringify(record.input.projectId)}).result();
+if (r.task !== "faces.detect" || !r.files.detections) throw new Error("CW_FACE_CONTRACT_INVALID");
+const raw = await selects.ai.readJSON(r.files.detections, ${JSON.stringify(record.input.projectId)});
+const d = raw as {contractVersion?:number;task?:string;sourceKind?:string;coordinateSpace?:string;boxFormat?:string;frameSize?:{width:number;height:number};parameters?:unknown;samples?:Array<{index:number;sourceTimeSeconds:number;faces:Array<{box:unknown;score:number}>}>};
+if (!Array.isArray(d.samples) || d.samples.length !== ${record.samples.length} || d.samples.some(s => !Array.isArray(s.faces) || s.faces.length > 64)) throw new Error("CW_FACE_CONTRACT_INVALID");
+return { contractVersion:d.contractVersion,task:d.task,sourceKind:d.sourceKind,coordinateSpace:d.coordinateSpace,boxFormat:d.boxFormat,frameSize:d.frameSize,parameters:d.parameters,
+ samples:d.samples.map(s => ({index:s.index,sourceTimeSeconds:s.sourceTimeSeconds,faces:s.faces.map(f => ({box:f.box,score:f.score}))})) };`;
+}
+export function cwAdaptFaceResult(value: any, input: CwFaceInput, samples: CwFaceSample[]): Record<string, CwFaceObservation> {
+  const w = value?.frameSize?.width, h = value?.frameSize?.height, expected = samples[0].frameSize;
+  if (value?.contractVersion !== 1 || value.task !== "faces.detect" || (value.sourceKind !== undefined && value.sourceKind !== "video") ||
+      value.coordinateSpace !== "display-pixels" || value.boxFormat !== "xyxy" || !Number.isSafeInteger(w) || !Number.isSafeInteger(h) || w <= 0 || h <= 0 ||
+      (expected && (expected.width !== w || expected.height !== h)) || !Array.isArray(value.samples) || value.samples.length !== samples.length ||
+      value.parameters?.sourceRange?.startSeconds !== input.sourceRange.startSeconds || value.parameters?.sourceRange?.endSeconds !== input.sourceRange.endSeconds ||
+      value.parameters?.scoreThreshold !== input.options.scoreThreshold || value.parameters?.sampleEverySeconds !== input.options.sampleEverySeconds) throw cwFaceInvalid();
+  const out: Record<string, CwFaceObservation> = {};
+  let previous = -Infinity, previousIndex = -1;
+  for (let i = 0; i < samples.length; i++) {
+    const row = value.samples[i], t = row?.sourceTimeSeconds;
+    if (!Number.isSafeInteger(row?.index) || row.index <= previousIndex || !Number.isFinite(t) || t <= previous ||
+        t < samples[i].seconds - 1e-6 || t >= input.sourceRange.endSeconds ||
+        t >= samples[i].seconds + 2 / samples[i].sourceFps + 1e-6 || !Array.isArray(row.faces) || row.faces.length > 64) throw cwFaceInvalid();
+    previous = t; previousIndex = row.index;
+    const faces = row.faces.map((face: any) => {
+      const b = face?.box;
+      if (!b || ![b.xmin, b.ymin, b.xmax, b.ymax, face.score].every(Number.isFinite) || b.xmin < 0 || b.ymin < 0 ||
+          b.xmax > w || b.ymax > h || b.xmax <= b.xmin || b.ymax <= b.ymin || face.score < input.options.scoreThreshold || face.score > 1) throw cwFaceInvalid();
+      return [b.xmin / w, b.ymin / h, (b.xmax - b.xmin) / w, (b.ymax - b.ymin) / h];
+    });
+    faces.sort((a: number[], b: number[]) => b[2] * b[3] - a[2] * a[3]);
+    out[samples[i].key] = { w, h, faces };
+  }
+  return out;
+}
+async function cwObserveFaceRecord(env: CwFaceEnvironment, path: string, record: CwFaceRecord,
+  options: { signal?: AbortSignal; pollMs?: number; onProgress?: (message: string) => void }): Promise<Record<string, CwFaceObservation>> {
+  await cwFaceAck(env, path, record, options.signal);
+  while (true) {
+    cwFaceAttached(options.signal);
+    const latest = (await cwReadFaceJournal(env, path, record.input.projectId)).records.find(r => r.input.requestKey === record.input.requestKey);
+    if (!latest) throw cwFaceInvalid();
+    Object.assign(record, latest);
+    const value = await cwFaceCall(env, cwFaceJobScript(record, record.cancelRequested && !cwFaceTerminal(record.status) ? "cancel" : "status"), "Read shared face analysis", !!record.cancelRequested);
+    cwFaceAttached(options.signal);
+    record.status = cwCheckFaceStatus(value, record);
+    await cwSaveFaceRecord(env, path, record);
+    if (record.cancelRequested || record.status === "canceled") throw cwFaceError("CW_FACE_CANCELED", "Face analysis was canceled. Start again to request a new analysis.");
+    if (record.status === "failed") throw cwFaceError("CW_FACE_FAILED", "Face analysis failed. Start again to retry. " + String(value.lastErrorMessage || "").slice(0, 300));
+    if (record.status === "succeeded") {
+      const result = await cwFaceCall(env, cwFaceResultScript(record), "Read measured speaker faces");
+      cwFaceAttached(options.signal);
+      return cwAdaptFaceResult(result, record.input, record.samples);
+    }
+    options.onProgress?.("Measuring speaker framing" + (value.progress != null ? " · " + Math.round(value.progress * 100) + "%" : ""));
+    await new Promise(resolve => setTimeout(resolve, options.pollMs ?? 500));
+  }
+}
+export async function cwSharedFaces(env: CwFaceEnvironment, projectId: string, journalPath: string, samples: CwFaceSample[],
+  options: { signal?: AbortSignal; retryTerminal?: boolean; pollMs?: number; onProgress?: (message: string) => void } = {}
+): Promise<{ detected: Record<string, CwFaceObservation>; sampled: number; readable: number }> {
+  if (!journalPath || typeof journalPath !== "string" || !projectId || typeof projectId !== "string") throw cwFaceInvalid();
+  const detected: Record<string, CwFaceObservation> = {};
+  for (const group of cwFaceGroups(projectId, samples)) {
+    cwFaceAttached(options.signal);
+    const journal = await cwReadFaceJournal(env, journalPath, projectId);
+    let record = journal.records.filter(r => JSON.stringify(r.samples) === JSON.stringify(group)).sort((a, b) => b.attempt - a.attempt)[0];
+    if (record && record.input.requestKey !== await cwFaceRequestKey(journalPath, projectId, group, record.attempt)) throw cwFaceInvalid();
+    if (record && options.retryTerminal && record.cancelRequested && !cwFaceTerminal(record.status)) {
+      // Intent can have been saved before cancel() reached Main. Replay it on
+      // the same workflow (recovering a missing ACK with its original key).
+      await cwFaceAck(env, journalPath, record, options.signal);
+      const stopped = await cwFaceCall(env, cwFaceJobScript(record, "cancel"), "Resume cancellation of face analysis", true);
+      cwFaceAttached(options.signal);
+      record.status = cwCheckFaceStatus(stopped, record);
+      await cwSaveFaceRecord(env, journalPath, record);
+      await cwWaitFaceCancellation(env, journalPath, record, options.signal);
+    }
+    // A retry is only an explicit new attempt after a terminal failure/cancel, never an ACK-loss recovery.
+    if (record && options.retryTerminal && (["failed", "canceled"].includes(record.status || "") || (record.cancelRequested && cwFaceTerminal(record.status)))) {
+      record = { samples: group, attempt: record.attempt + 1, input: cwFaceInput(projectId, group) };
+    } else if (!record) record = { samples: group, attempt: 0, input: cwFaceInput(projectId, group) };
+    if (record.attempt > 255) throw cwFaceInvalid();
+    const key = await cwFaceRequestKey(journalPath, projectId, group, record.attempt);
+    if (record.input.requestKey && record.input.requestKey !== key) throw cwFaceInvalid();
+    record.input.requestKey = key;
+    cwFaceAttached(options.signal);
+    await cwSaveFaceRecord(env, journalPath, record); // Stable input/key precede the first possible submission.
+    Object.assign(detected, await cwObserveFaceRecord(env, journalPath, record, options));
+  }
+  return { detected, sampled: samples.length, readable: Object.keys(detected).length };
+}
+export async function cwCancelSharedFaces(env: CwFaceEnvironment, projectId: string, journalPath: string): Promise<{ canceled: number }> {
+  if (!journalPath || typeof journalPath !== "string" || !projectId || typeof projectId !== "string") throw cwFaceInvalid();
+  const journal = await cwWriteFaceJournal(env, journalPath, projectId, j => {
+    for (const record of j.records) if (!cwFaceTerminal(record.status)) record.cancelRequested = true;
+  });
+  let canceled = 0;
+  for (const record of journal.records.filter(r => r.cancelRequested && !cwFaceTerminal(r.status))) {
+    if (record.input.requestKey !== await cwFaceRequestKey(journalPath, projectId, record.samples, record.attempt)) throw cwFaceInvalid();
+    // Missing ACK has one safe recovery: replay the saved key, then cancel that same accepted job.
+    await cwFaceAck(env, journalPath, record);
+    const value = await cwFaceCall(env, cwFaceJobScript(record, "cancel"), "Cancel shared face analysis", true);
+    record.status = cwCheckFaceStatus(value, record);
+    await cwSaveFaceRecord(env, journalPath, record);
+    await cwWaitFaceCancellation(env, journalPath, record);
+    canceled++;
+  }
+  return { canceled };
+}
+
 // Every Main file needs its real picture size to be reframed to 9:16; Selects does not always report one.
 async function probeFrameSizes(env:Env,files:Record<string,any>){
   for(const f of Object.values(files||{}) as any[]){
@@ -691,7 +1001,32 @@ async function measureBand(env:Env,jobDir:string,path:string,seconds:number,tag:
 async function inventory(env:Env,id:string) {
   return await env.runScript(`const d=selects.draft(${JSON.stringify(id)});const clips=await d.clips({trackScope:'all'});const graphics=await d.motionGraphics();const effects=[];for(const c of clips)if(c.resourceId&&(c.trackKind==='main'||c.trackKind==='video'))for(const e of await d.videoEffects(c))effects.push({clipId:c.clipId,name:e.name});return {clips,graphics,effects};`,"Inspect existing edits");
 }
+// Closing a panel detaches observation. It never cancels the host's AI workflow.
+export function attachedPipelineEnv(env: Env): Env {
+  const check = () => { if (env.signal?.aborted) throw Object.assign(new Error('Face observation detached; reopen this Draft to resume.'), {code:'CW_FACE_DETACHED'}); };
+  const next = {...env};
+  for (const name of ['runScript','runShell','askAI','imageData','cleanLegacy','readCore','capture','textMeasure','readText','writeText','node'] as const) {
+    const call = env[name];
+    if (call) (next as any)[name] = async (...args: any[]) => { check(); const value = await (call as any)(...args); check(); return value; };
+  }
+  next.status = message => { if (!env.signal?.aborted) env.status(message); };
+  return next;
+}
+export function sourceClipSeconds(m: MainClip, fps: number) {
+  return m.sourceStartSeconds == null ? 0 : Math.min((m.endFrame-m.startFrame)/fps*m.playbackRate,m.sourceDurationSeconds-m.sourceStartSeconds);
+}
+export function framingSamples(mains: MainClip[], files: Record<string, any>, fps: number) {
+  return mains.flatMap((m,i)=>m.sourceStartSeconds==null?[]:[0.25,0.5,0.75].map(f=>({
+    key:i+':'+f,groupKey:'clip:'+m.clipId,resourceId:m.resourceId,seconds:m.sourceStartSeconds!+sourceClipSeconds(m,fps)*f,
+    sourceFps:m.sourceFps,sourceDurationSeconds:m.sourceDurationSeconds,frameSize:files[m.resourceId]?.frameSize,
+  })));
+}
+export function cameraCutFrames(mains: MainClip[], cuts: Record<string, number[]>, fps: number, total: number) {
+  return mains.flatMap((m,i)=>(cuts[String(i)]||[]).map(t=>m.startFrame+Math.round(t/m.playbackRate*fps))
+    .filter(f=>f>m.startFrame&&f<m.endFrame)).filter(f=>f>0&&f<total);
+}
 export async function runPipeline(env: Env, projectId: string, sequenceId: string, options: Options) {
+  env = attachedPipelineEnv(env);
   const t0=Date.now(), report:any={warnings:[]};
   if(!env.imageData)throw new Error("Image inspection is unavailable in this Selects host.");
   env.status("Checking the Draft and previous edits…");
@@ -833,19 +1168,21 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     const hasOverlays=existing.clips.some((c:any)=>c.trackKind==='video'||c.trackKind==='audio')||existing.graphics.length>0;
     if(!hasOverlays && !state.completed.includes('shots')) {
       const shotsFile=hostJoin(jobDir,'shots.json');
-      await env.writeText(shotsFile,JSON.stringify({shots:{ffmpeg:env.ffmpeg,threshold:0.3,ranges:mains.filter(m=>m.sourceStartSeconds!=null).map((m,i)=>({key:String(i),path:src.files[m.resourceId].path,startSeconds:m.sourceStartSeconds,seconds:(m.endFrame-m.startFrame)/fps}))}}));
+      await env.writeText(shotsFile,JSON.stringify({shots:{ffmpeg:env.ffmpeg,threshold:0.3,ranges:mains.flatMap((m,i)=>m.sourceStartSeconds==null?[]:[{key:String(i),path:src.files[m.resourceId].path,startSeconds:m.sourceStartSeconds,seconds:sourceClipSeconds(m,fps)}])}}));
       await engine('shots',shotsFile,'Find source camera changes',240000);
       const cuts=JSON.parse(await env.readText(hostJoin(jobDir,'shots-result.json'))).cuts;
-      const splitFrames=mains.flatMap((m,i)=>(cuts[String(i)]||[]).map((t:number)=>m.startFrame+Math.round(t*fps))).filter((f:number)=>f>0&&f<total);
+      const splitFrames=cameraCutFrames(mains,cuts,fps,total);
       if(splitFrames.length)await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const starts=new Set((await d.clips({trackScope:'main'})).map(c=>c.startFrame));for(const f of ${JSON.stringify(splitFrames)})if(!starts.has(f))await d.splitAt({frame:f});await d.commitAll('Chris Williamson Style: measured camera cuts')${COMMIT_OK};return true;`,"Split measured camera changes",true);
       state.completed.push('shots');await save();
     }
-    const freshDraft=await readDraft(env,projectId,draftId);mains.splice(0,mains.length,...freshDraft.mains);
-    const faceFile=hostJoin(jobDir,'faces.json');
-    const samples=mains.flatMap((m,i)=>m.sourceStartSeconds==null?[]:[0.25,0.5,0.75].map(f=>({key:i+':'+f,path:src.files[m.resourceId].path,seconds:m.sourceStartSeconds!+(m.endFrame-m.startFrame)/fps*f})));
-    await env.writeText(faceFile,JSON.stringify({ffmpeg:env.ffmpeg,faces:{samples}}));
-    await engine('faces',faceFile,'Measure framing',240000);
-    const faces=JSON.parse(await env.readText(hostJoin(jobDir,'faces-result.json'))).detected||{};
+    const freshDraft=await readDraft(env,projectId,draftId);mains.splice(0,mains.length,...freshDraft.mains);src.files=freshDraft.files;
+    state.faceJournal=state.faceJournal||hostJoin(jobDir,'shared-faces.json');await save();
+    const samples=framingSamples(mains,src.files,fps);
+    env.onFaceStage?.(true,state.faceJournal);
+    let faces:any;
+    try {
+      faces=(await cwSharedFaces(env,projectId,state.faceJournal,samples,{signal:env.signal,retryTerminal:options.retryFaceFailures,onProgress:env.status})).detected;
+    } finally { env.onFaceStage?.(false,state.faceJournal); }
     // Every Main clip is reframed to 9:16; a clip with no measured face is covered from a centred default.
     const framed=mains.map((m,i)=>{const ff=[0.25,0.5,0.75].map(f=>faces[i+':'+f]).filter(r=>r?.faces?.length);const face=ff.length?[0,1,2,3].map(k=>median(ff.map(r=>r.faces[0][k]))):[0.25,0.2,0.5,0.3];const probe=Object.keys(faces).filter(k=>k.startsWith(i+':')).map(k=>faces[k]).find(r=>r?.w);const size=src.files[m.resourceId].frameSize||(probe?{width:probe.w,height:probe.h}:null);if(!size)return null;return {start:m.startFrame,t:headFraming(face,size.width,size.height,ff.length&&i%2?STYLE.head.tight:1),zoomIn:i%2===0};}).filter(Boolean);
     if(framed.length<mains.length)report.warnings.push(`${mains.length-framed.length} clip(s) were not reframed: their source size could not be read.`);
@@ -1025,38 +1362,6 @@ async function cwShots(job) {
     out[range.key] = kept;
   });
   return { cuts: out };
-}
-
-// ---------------------------------------------------------------------------------------------------------
-// faces: job.faces = { samples: [{ key, path, seconds }] } -> { detected: { [key]: { w, h, faces: [[x,y,w,h]...] } } }
-// Apple Vision through vision-helper.js on macOS. Windows has no face detector here: nothing is detected, and the
-// pipeline covers every clip from its centred default (and says so).
-async function cwFaces(env, job, dir) {
-  const samples = job.faces.samples || [];
-  if (hostIsWindows()) return { detected: {}, sampled: samples.length, readable: 0 };
-  // mac-only:start
-  const work = hostJoin(dir, "faces");
-  cwMkdir(work);
-  const files = await cwPool(samples, 4, async (s, i) => {
-    const file = hostJoin(work, "f" + String(i).padStart(3, "0") + ".jpg");
-    const r = await cwFfmpeg(["-v", "error", "-y", "-ss", String(Math.max(0, s.seconds)), "-i", s.path, "-frames:v", "1", "-vf", "scale='min(960,iw)':-2", file], 60000);
-    return r.ok ? file : null;
-  });
-  const ok = files.filter(Boolean);
-  const out = {};
-  // A few images per call, so each answer stays well inside the shell's output limit.
-  for (let k = 0; k < ok.length; k += 20) {
-    let text = "";
-    try { text = await env.runShell("/usr/bin/osascript -l JavaScript " + q(hostJoin(env.pluginDir, "vision-helper.js")) + " faces " + ok.slice(k, k + 20).map(q).join(" "), "Measure framing", 120000); }
-    catch (e) { throw new Error("Face detection failed: " + String(e?.message || e).trim()); }
-    const rows = String(text).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
-    for (const row of rows) {
-      const i = files.indexOf(row.file);
-      if (i >= 0) out[samples[i].key] = { w: row.w, h: row.h, faces: row.faces };
-    }
-  }
-  return { detected: out, sampled: samples.length, readable: ok.length };
-  // mac-only:end
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -1332,7 +1637,7 @@ async function cwAssets(job, dir) {
 
 // Runs one engine.mjs command from its job file and writes its result file beside it, as engine.mjs does.
 async function cwEngine(env, cmd, file) {
-  const handlers = { shots: (job) => cwShots(job), faces: (job, dir, env) => cwFaces(env, job, dir), assets: (job, dir) => cwAssets(job, dir), candidates: (job, dir, env) => cwCandidates(env, job, dir) };
+  const handlers = { shots: (job) => cwShots(job), assets: (job, dir) => cwAssets(job, dir), candidates: (job, dir, env) => cwCandidates(env, job, dir) };
   if (!handlers[cmd]) throw new Error("This step needs macOS for now (" + cmd + ").");
   const dir = cwDir(file);
   const result = await handlers[cmd](JSON.parse(await hostReadText(file)), dir, env);
@@ -1447,9 +1752,10 @@ async function removeLegacyFlashes(sdk:any,env:Env,projectId:string,id:string) {
 }
 
 // Host access for the pipeline, shared by the panel and a template run.
-function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: string }, status: (message: string) => void): Env {
+function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: string }, status: (message: string) => void, signal?: AbortSignal, onFaceStage?: Env['onFaceStage']): Env {
   let node: Promise<string> | null = null;
   const env: Env = {
+    signal, onFaceStage,
     runScript: async (script, summary, allowCommit = false) => {
       const r = await sdk.runScript({ script, summary, allowCommit, timeoutSeconds: 120 });
       if (r.isError || r.result === undefined) throw new Error((r.output || "Selects could not run " + summary).slice(0, 600));
@@ -1501,6 +1807,20 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
 
 type AnalysisState = "checking" | "ready" | "analyzing" | "needs-analysis";
 
+const FACE_UI: Record<string, string[]> = {
+  en: ['Resume styling','Cancel AI job','AI job canceled. Resume styling to try again.','Canceling AI job…'],
+  de: ['Gestaltung fortsetzen','KI-Auftrag abbrechen','KI-Auftrag abgebrochen. Zum erneuten Versuch die Gestaltung fortsetzen.','KI-Auftrag wird abgebrochen…'],
+  es: ['Reanudar estilo','Cancelar tarea de IA','Tarea de IA cancelada. Reanuda el estilo para intentarlo de nuevo.','Cancelando tarea de IA…'],
+  fr: ['Reprendre le style','Annuler la tâche IA','Tâche IA annulée. Reprenez le style pour réessayer.','Annulation de la tâche IA…'],
+  it: ['Riprendi lo stile','Annulla attività IA','Attività IA annullata. Riprendi lo stile per riprovare.','Annullamento attività IA…'],
+  ko: ['\uc2a4\ud0c0\uc77c \uc791\uc5c5 \uc7ac\uac1c','AI \uc791\uc5c5 \ucde8\uc18c','AI \uc791\uc5c5\uc744 \ucde8\uc18c\ud588\uc2b5\ub2c8\ub2e4. \uc2a4\ud0c0\uc77c \uc791\uc5c5\uc744 \uc7ac\uac1c\ud558\uba74 \ub2e4\uc2dc \uc2dc\ub3c4\ud569\ub2c8\ub2e4.','AI \uc791\uc5c5 \ucde8\uc18c \uc911\u2026'],
+  ja: ['\u30b9\u30bf\u30a4\u30eb\u4f5c\u696d\u3092\u518d\u958b','AI\u30b8\u30e7\u30d6\u3092\u30ad\u30e3\u30f3\u30bb\u30eb','AI\u30b8\u30e7\u30d6\u3092\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002\u518d\u8a66\u884c\u3059\u308b\u306b\u306f\u4f5c\u696d\u3092\u518d\u958b\u3057\u3066\u304f\u3060\u3055\u3044\u3002','AI\u30b8\u30e7\u30d6\u3092\u30ad\u30e3\u30f3\u30bb\u30eb\u4e2d\u2026'],
+  pt: ['Retomar estilo','Cancelar tarefa de IA','Tarefa de IA cancelada. Retome o estilo para tentar novamente.','A cancelar tarefa de IA…'],
+  tr: ['Stili devam ettir','Yapay zekâ görevini iptal et','Yapay zekâ görevi iptal edildi. Yeniden denemek için stili devam ettirin.','Yapay zekâ görevi iptal ediliyor…'],
+  zh: ['\u7ee7\u7eed\u6837\u5f0f\u5904\u7406','\u53d6\u6d88 AI \u4efb\u52a1','AI \u4efb\u52a1\u5df2\u53d6\u6d88\u3002\u7ee7\u7eed\u6837\u5f0f\u5904\u7406\u53ef\u91cd\u8bd5\u3002','\u6b63\u5728\u53d6\u6d88 AI \u4efb\u52a1\u2026'],
+};
+function faceUI(context: any) { return FACE_UI[String(context?.language || 'en').toLowerCase().split('-')[0]] || FACE_UI.en; }
+
 // The open Draft's name and transcript, the Resource its Main footage comes from, and any analysis under way for it.
 async function readOpenDraft(sdk: any, projectId: string, sequenceId: string, summary: string) {
   const r = await sdk.runScript({ summary, script: `const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(sequenceId)});const meta=await d.meta();const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).length;const sourceClip=(await d.clips({trackScope:'main'})).find(c=>c.resourceId);const resource=(await project.resources()).find(r=>r.resourceId===sourceClip?.resourceId)||null;const workflow=(await project.workflows({type:'project:analyze-resource'})).find(w=>w.resourceId===sourceClip?.resourceId&&['queued','running','canceling'].includes(w.status))||null;return {name:meta.name,words,sourceResourceId:sourceClip?.resourceId||null,resource,workflow};` });
@@ -1514,6 +1834,9 @@ function StylePanel({ sdk, context, ui }: any) {
   const sequenceId = context?.sequenceId || "";
   const mounted = useRef(true);
   const locked = useRef(false);
+  const observer = useRef<AbortController | null>(null);
+  const faceJournal = useRef('');
+  const S = faceUI(context);
   // The Draft on screen now; a finished run only switches the view if the person is still on the Draft it started from.
   const onScreen = useRef(sequenceId); onScreen.current = sequenceId;
   const [paths, setPaths] = useState<{ data: string; plugin: string; ffmpeg: string } | null>(null);
@@ -1525,6 +1848,9 @@ function StylePanel({ sdk, context, ui }: any) {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ id: string } | null>(null);
+  const [pending, setPending] = useState(false);
+  const [faceActive, setFaceActive] = useState(false);
+  const [canceling, setCanceling] = useState(false);
 
   useEffect(() => {
     resolvePaths(sdk)
@@ -1536,39 +1862,48 @@ function StylePanel({ sdk, context, ui }: any) {
   }, []);
 
   useEffect(() => {
+    let alive = true;
     mounted.current = true;
+    locked.current = false; setBusy(false); setFaceActive(false); setCanceling(false); setPending(false); faceJournal.current = '';
     setResult(null); setError(""); setStatus(""); setSourceName(""); setAlreadyStyled(false); setAnalysisState("checking");
     if (!sequenceId) return () => { mounted.current = false; };
-    readOpenDraft(sdk, projectId, sequenceId, "Check draft transcript").then((d: any) => {
-      if (!mounted.current) return;
+    readOpenDraft(sdk, projectId, sequenceId, "Check draft transcript").then(async (d: any) => {
+      const saved = paths ? await readState({readText, dataDir:paths.data} as Env, sequenceId) : null;
+      if (!alive) return;
       const name = d.name || "Current draft";
       const status = d.resource?.status;
       setSourceName(name);
-      setAlreadyStyled(name.endsWith(SUFFIX));
+      setPending(!!saved?.pending); faceJournal.current = saved?.faceJournal || '';
+      setAlreadyStyled(name.endsWith(SUFFIX) && !saved?.pending);
       setAnalysisState(d.words ? "ready" : status === "sampling" || status === "analyzing" ? "analyzing" : "needs-analysis");
-    }).catch(() => { if (mounted.current) setAnalysisState("needs-analysis"); });
-    return () => { mounted.current = false; };
-  }, [projectId, sequenceId]);
+    }).catch(() => { if (alive) setAnalysisState("needs-analysis"); });
+    return () => { alive = false; mounted.current = false; observer.current?.abort(); observer.current = null; };
+  }, [projectId, sequenceId, paths]);
 
   // Without a transcript there is nothing to style: start analysis of the Draft's footage and wait for its words.
-  async function ensureTranscript(draftId: string) {
+  async function ensureTranscript(draftId: string, signal: AbortSignal) {
+    const check=()=>{if(signal.aborted||observer.current?.signal!==signal)throw Object.assign(new Error('Observation detached.'),{code:'CW_FACE_DETACHED'});};
+    const current=()=>mounted.current&&!signal.aborted&&observer.current?.signal===signal;
     let d = await readOpenDraft(sdk, projectId, draftId, "Read draft transcript");
+    check();
     if (d.words) return;
     if (!d.sourceResourceId || !d.resource) throw new Error("Selects could not find analyzable source footage for this draft.");
     const state = d.resource.status;
     if (state !== "sampling" && state !== "analyzing" && !d.resource.hasAnalysis) {
-      setStatus("Starting transcript analysis…");
-      const r = await sdk.runScript({ summary: "Start transcript analysis", allowCommit: true, script: `return await selects.project(${JSON.stringify(projectId)}).startAnalysis({resourceIds:[${JSON.stringify(d.sourceResourceId)}]});` });
+      if(current())setStatus("Starting transcript analysis…");
+      const r = await sdk.runScript({ summary: "Start transcript analysis", allowCommit: true, script: `const c=(await selects.draft(${JSON.stringify(draftId)}).clips({trackScope:'main'})).find(c=>c.resourceId);if(!c?.resourceId)throw Error('The source video is unavailable.');return await selects.project(${JSON.stringify(projectId)}).startAnalysis({resourceIds:[c.resourceId]});` });
       if (r.isError) throw new Error(r.output || "Selects could not start transcript analysis.");
     }
     for (let attempt = 0; attempt < 180; attempt += 1) {
+      check();
       d = await readOpenDraft(sdk, projectId, draftId, "Check transcript analysis");
-      if (d.words) { if (mounted.current) setAnalysisState("ready"); return; }
+      check();
+      if (d.words) { if (current()) setAnalysisState("ready"); return; }
       const s = d.resource?.status;
       if (s === "samplingFailed" || s === "analyzingFailed") throw new Error("Transcript analysis failed. Open the Project workflows to see the reason, then try again.");
       if (s === "analysisNotApplicable") throw new Error("This source cannot be transcribed by Selects.");
       const percent = typeof d.workflow?.progress === "number" ? ` ${Math.round(d.workflow.progress * 100)}%` : "";
-      if (mounted.current) { setAnalysisState("analyzing"); setStatus(`Analyzing the transcript${percent}…`); }
+      if (current()) { setAnalysisState("analyzing"); setStatus(`Analyzing the transcript${percent}…`); }
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     throw new Error("Transcript analysis is still running. Wait for it to finish, then run the style again.");
@@ -1577,20 +1912,35 @@ function StylePanel({ sdk, context, ui }: any) {
   async function create() {
     if (locked.current || !projectId || !sequenceId || !paths || setupIssue) return;
     const from = sequenceId;
+    const controller = new AbortController(); observer.current = controller;
     locked.current = true; setBusy(true); setError(""); setResult(null);
     try {
       setStatus("Checking the transcript…");
-      await ensureTranscript(from);
-      const env = panelEnv(sdk, paths, (m) => { if (mounted.current) setStatus(m); });
-      const report = await runPipeline(env, projectId, from, { copy: false, music: true, musicDb: MUSIC.levelDb, scope: "all" });
-      if (mounted.current) { setResult({ id: report.draftId }); setStatus("Your Chris Williamson Style draft is ready."); }
-      if (!onScreen.current || onScreen.current === from) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Chris Williamson Style draft" });
+      await ensureTranscript(from,controller.signal);
+      const current = () => mounted.current && !controller.signal.aborted && observer.current===controller;
+      const env = panelEnv(sdk, paths, (m) => { if (current()) setStatus(m); },controller.signal,(active,journal)=>{if(current()){faceJournal.current=journal;setFaceActive(active);}});
+      const report = await runPipeline(env, projectId, from, { copy: false, retryFaceFailures:true, music: true, musicDb: MUSIC.levelDb, scope: "all" });
+      if (mounted.current && !controller.signal.aborted) { setPending(false); setResult({ id: report.draftId }); setStatus("Your Chris Williamson Style draft is ready."); }
+      if (!controller.signal.aborted && (!onScreen.current || onScreen.current === from)) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Chris Williamson Style draft" });
     } catch (e: any) {
-      if (mounted.current) { setError(String(e?.message || e)); setStatus(""); }
-    } finally { locked.current = false; if (mounted.current) setBusy(false); }
+      if (mounted.current && observer.current===controller && e?.code!=='CW_FACE_DETACHED') { setPending(true); setError(e?.code==='CW_FACE_CANCELED'?S[2]:String(e?.message || e)); setStatus(""); }
+    } finally { if(observer.current===controller){locked.current = false;if(mounted.current){setBusy(false);setFaceActive(false);}} }
   }
 
-  const actionLabel = alreadyStyled
+  async function cancelFaces() {
+    if(!paths||!faceJournal.current||canceling)return;
+    const controller=observer.current,journal=faceJournal.current;
+    const current=()=>mounted.current&&observer.current===controller&&faceJournal.current===journal;
+    setCanceling(true);
+    try {
+      await cwCancelSharedFaces(panelEnv(sdk,paths,()=>{}),projectId,journal);
+      controller?.abort();
+      if(current()){setPending(true);setStatus(S[2]);setError('');setFaceActive(false);}
+    } catch(e:any){if(current())setError(String(e?.message||e));}
+    finally {if(current())setCanceling(false);}
+  }
+
+  const actionLabel = pending ? S[0] : alreadyStyled
     ? "Already styled"
     : analysisState === "needs-analysis"
       ? "Analyze transcript & apply"
@@ -1609,6 +1959,7 @@ function StylePanel({ sdk, context, ui }: any) {
     <ui.Button onClick={() => void create()} disabled={busy || !sequenceId || !paths || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
     <small>{helperText}</small>
     {busy && <ui.Progress />}
+    {faceActive && <ui.Button variant="secondary" busy={canceling} busyLabel={S[3]} disabled={canceling} onClick={()=>void cancelFaces()}>{S[1]}</ui.Button>}
     {status && <ui.Message>{status}</ui.Message>}
     {error && <ui.Message tone="error">{error}</ui.Message>}
     {result && <ui.Button variant="secondary" disabled={busy} onClick={() => void sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(result.id) + ");", summary: "Open the Chris Williamson Style draft" })}>Open result</ui.Button>}
@@ -1646,13 +1997,11 @@ function TemplateRun({ sdk, context }: any) {
   const runId: string = context.template.runId;
   const currentRunId = useRef(runId);
   currentRunId.current = runId;
-  const startedRunId = useRef<string | null>(null);
   const [status, setStatus] = useState("Getting ready…");
   useEffect(() => {
-    if (startedRunId.current === runId) return;
-    startedRunId.current = runId;
+    const controller = new AbortController();
     // A newer run from the app reports instead of this one.
-    const superseded = () => currentRunId.current !== runId;
+    const superseded = () => controller.signal.aborted || currentRunId.current !== runId;
     const report = (text: string) => { if (!superseded()) setStatus(text); };
     let finished = false;
     const finish = (result: { sequenceId: string } | { error: string }) => {
@@ -1667,7 +2016,7 @@ function TemplateRun({ sdk, context }: any) {
         const speaker = templateSpeaker(context.template);
         if (!projectId) throw new Error("Open a project, then try again.");
         if (!speaker) throw new Error("Pick a talking-head video, then try again.");
-        const env = panelEnv(sdk, await templatePaths(sdk), report);
+        const env = panelEnv(sdk, await templatePaths(sdk), report,controller.signal);
         if (superseded()) return;
         // A picked video becomes a new Draft; a timeline is styled in place.
         const draftId = speaker.kind === "video" ? await templateDraftFromVideo(env, projectId, speaker) : String(speaker.sequenceId);
@@ -1680,6 +2029,7 @@ function TemplateRun({ sdk, context }: any) {
         finish({ error: TEMPLATE_FAILED });
       }
     })();
+    return () => controller.abort();
   }, [runId]);
   return <small>{status}</small>;
 }
