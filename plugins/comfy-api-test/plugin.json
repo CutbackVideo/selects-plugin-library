@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "comfy-api-test",
-  "version": "0.1.0",
-  "name": "Comfy Cloud",
-  "summary": "Run your Comfy Cloud workflows and save the results to a Selects project.",
+  "version": "0.3.0",
+  "name": "ComfyUI",
+  "summary": "Create and edit Comfy workflows in the editor, then run and save results to your Selects project.",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
@@ -11,58 +11,53 @@
     "SKILL.md",
     "INSTALL.md",
     "README.md",
-    "panel.tsx",
-    "workflow_api.json",
-    "scripts/cloud.mjs",
-    "scripts/bridge.mjs",
-    "scripts/comfy.mjs",
-    "scripts/import-result.mjs"
+    "panel.tsx"
   ],
   "compatibility": {
     "platforms": [
       "macOS"
     ],
-    "selects": "Requires the Panel UI kit v2, runShell, runScript and Node.js 22+ on PATH. Uses your own Comfy Cloud subscription and credits. macOS app integration tested with simulated Cloud responses; paid Cloud execution is not yet verified. No local ComfyUI runtime is needed."
+    "selects": "Panel UI kit v2, runScript and comfy.managed.v1 host capability. Selects login and a configured managed backend required. No local inference runtime or user Comfy credentials."
   },
   "localized": {
     "en": {
-      "name": "Comfy Cloud",
-      "summary": "Run your Comfy Cloud workflows and save the results to a Selects project."
+      "name": "ComfyUI",
+      "summary": "Create and edit Comfy workflows in the editor, then run and save results to your Selects project."
     },
     "ko": {
-      "name": "Comfy Cloud",
-      "summary": "Comfy Cloud workflow\ub97c \uc2e4\ud589\ud558\uace0 \uacb0\uacfc\ub97c Selects \ud504\ub85c\uc81d\ud2b8\uc5d0 \uc800\uc7a5\ud569\ub2c8\ub2e4."
+      "name": "ComfyUI",
+      "summary": "\ud3b8\uc9d1\uae30\uc5d0\uc11c Comfy workflow\ub97c \ub9cc\ub4e4\uace0 \uc218\uc815\ud55c \ub4a4 \uc2e4\ud589 \uacb0\uacfc\ub97c Selects \ud504\ub85c\uc81d\ud2b8\uc5d0 \uc800\uc7a5\ud569\ub2c8\ub2e4."
     },
     "de": {
-      "name": "Comfy Cloud",
+      "name": "ComfyUI",
       "summary": "Comfy-Cloud-Workflows ausf\u00fchren und Ergebnisse im Selects-Projekt speichern."
     },
     "es": {
-      "name": "Comfy Cloud",
+      "name": "ComfyUI",
       "summary": "Ejecuta workflows de Comfy Cloud y guarda los resultados en Selects."
     },
     "fr": {
-      "name": "Comfy Cloud",
+      "name": "ComfyUI",
       "summary": "Ex\u00e9cutez vos workflows Comfy Cloud et enregistrez les r\u00e9sultats dans Selects."
     },
     "it": {
-      "name": "Comfy Cloud",
+      "name": "ComfyUI",
       "summary": "Esegui workflow Comfy Cloud e salva i risultati nel progetto Selects."
     },
     "ja": {
-      "name": "Comfy Cloud",
+      "name": "ComfyUI",
       "summary": "Comfy Cloud\u306eWorkflow\u3092\u5b9f\u884c\u3057\u3001\u7d50\u679c\u3092Selects\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306b\u4fdd\u5b58\u3057\u307e\u3059\u3002"
     },
     "pt": {
-      "name": "Comfy Cloud",
+      "name": "ComfyUI",
       "summary": "Execute workflows Comfy Cloud e guarde os resultados no Selects."
     },
     "tr": {
-      "name": "Comfy Cloud",
+      "name": "ComfyUI",
       "summary": "Comfy Cloud workflow \u00e7al\u0131\u015ft\u0131r\u0131n ve sonu\u00e7lar\u0131 Selects projesine kaydedin."
     },
     "zh": {
-      "name": "Comfy Cloud",
+      "name": "ComfyUI",
       "summary": "\u8fd0\u884cComfy Cloud Workflow\u5e76\u5c06\u7ed3\u679c\u4fdd\u5b58\u5230Selects\u9879\u76ee\u3002"
     }
   }
