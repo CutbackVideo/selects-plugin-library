@@ -68,6 +68,7 @@
     }
   },
   "collection": "visual-highlights",
+  "galleryOrder": 101,
   "usesCredits": true,
   "inputs": [
     {

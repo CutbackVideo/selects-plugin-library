@@ -80,6 +80,7 @@
   "variants": [
     {
       "id": "whip-cut",
+      "galleryOrder": 105,
       "name": "Vlog Opening \u00b7 Whip cut",
       "summary": "Fast whip pans between places, cut on the beat.",
       "preview": {
@@ -91,6 +92,7 @@
     },
     {
       "id": "motion-graphics",
+      "galleryOrder": 9,
       "name": "Vlog Opening \u00b7 Motion graphics",
       "summary": "Place labels, title cards and an iris close.",
       "preview": {

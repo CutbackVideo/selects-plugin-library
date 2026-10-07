@@ -33,6 +33,7 @@
     "height": 960
   },
   "collection": "visual-highlights",
+  "galleryOrder": 6,
   "usesCredits": true,
   "inputs": [
     {
