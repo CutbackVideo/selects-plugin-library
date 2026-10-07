@@ -169,6 +169,7 @@ jobs:
           node --test tests/no14_default_music.test.mjs
           node --test tests/no14_native_image.test.mjs
           node --test tests/no14_script_types.test.mjs
+          node --test tests/no14_song_plan.test.mjs
           node --test tests/depth_type_captions_windows.test.mjs
           node --test tests/depth_type_captions.test.mjs
           node --test tests/camera_shutter_dump.test.mjs
