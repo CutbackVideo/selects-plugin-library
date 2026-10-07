@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {createRequire} from 'node:module';
 import fs from 'node:fs';
+import '../shared/video-ai-frames.test.cjs';
+import '../plugins/portrait-beat-montage/tests/source-clock.test.cjs';
 const require=createRequire(import.meta.url);
 const {prepareSharedAiVideoFrames}=require('../shared/video-ai-frames.cjs');
 const resourceId='01234567-89ab-cdef-0123-456789abcdef';
@@ -66,10 +68,10 @@ test('durable video materialization script typechecks against the real SDK',
   const {default:os}=await import('node:os'),{default:path}=await import('node:path');
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'video-ai-types-'));
   try{
-   let script;
-   const sdk={runScript:async input=>{script=input.script;return {result:{count:3,width:540,height:720}};}};
-   await prepareSharedAiVideoFrames(sdk,'project',{id:'manifest',name:'matte.json',mediaType:'application/json',byteSize:100},'/plugin/masks',expected);
-   const file=path.join(temp,'materialize.ts');fs.writeFileSync(file,'export {};\nasync function run(){\n'+script+'\n}');
+   const scripts=[],f=fixture(),run=f.sdk.runScript;
+   f.sdk.runScript=async input=>{scripts.push(input.script);return run(input);};
+   await prepareSharedAiVideoFrames(f.sdk,'project',{id:'manifest',name:'matte.json',mediaType:'application/json',byteSize:100},'/plugin/masks',expected);
+   const file=path.join(temp,'materialize.ts');fs.writeFileSync(file,'export {};\n'+scripts.map((script,i)=>'async function run'+i+'(){\n'+script+'\n}').join('\n'));
    const files=fs.readdirSync(declarationDirectory).filter(f=>f.endsWith('.d.ts')).map(f=>path.join(declarationDirectory,f));
    const program=ts.createProgram([...files,file],{noEmit:true,strict:true,skipLibCheck:true,target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,lib:['lib.es2022.d.ts','lib.dom.d.ts']});
    const errors=ts.getPreEmitDiagnostics(program);
