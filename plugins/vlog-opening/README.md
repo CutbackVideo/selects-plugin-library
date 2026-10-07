@@ -33,8 +33,8 @@ laid out on it:
 
 | Cue | Tempo | Structure the cut follows |
 |---|---|---|
-| Cinematic score | 110 bpm | The opening shot holds through the swell and cuts on the first hit (2.04s); cuts then land on beats, the burst on half beats; the title card arrives on the final hit, 18 beats later, and holds until the cue has faded. |
-| Playful vlog cue | 148 bpm | Cuts on bar lines; the desk push-in lands on the first bar line, labels drop in on their cut, and the sign-off starts on the last downbeat and ends once the final chord has faded. |
+| Muted Piano Motif (69.7 s, played in full) | 83 bpm, measured when the build starts | The middle (travels, burst, montage, scenics, people) repeats to fill the song; the opening shot holds through the swell and cuts on the first hit (2.04s); cuts then land on beats, the burst on half beats; the title card arrives on the final hit, 18 beats later, and holds until the cue has faded. |
+| Buant Groove (70.8 s, played in full) | 126 bpm, measured when the build starts | Cuts on bar lines, the opening phrase (travel, scenic, scenic, montage) repeating to fill the song; the desk push-in lands on the first bar line, labels drop in on their cut, and the sign-off starts on the last downbeat and ends once the final chord has faded. |
 | Lo-fi cafe bed | 80 bpm | Each quote's cut moves to the nearest half beat after the line, and the cue starts so its groove enters on the first cut. |
 
 Every cut is snapped as an absolute time, and assembly lands each clip on its
