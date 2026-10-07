@@ -5,6 +5,9 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 LOCAL="$ROOT/.local"
 test "$(uname -s)-$(uname -m)" = Darwin-arm64 || { echo 'Supported platform: macOS arm64 only.' >&2; exit 2; }
 mkdir -p "$LOCAL"
+# The panel starts setup in the background from a shell call whose working folder is deleted when the call
+# returns; uv refuses to run from a missing folder, so work from one that stays.
+cd "$LOCAL"
 mkdir "$LOCAL/setup.lock" 2>/dev/null || { echo 'Setup is already running, or its lock needs inspection.' >&2; exit 3; }
 trap 'rmdir "$LOCAL/setup.lock"' EXIT
 exec >>"$LOCAL/setup.log" 2>&1
