@@ -84,6 +84,14 @@ A variant (`variants[]`) may declare its own `preview` the same way, named
 none shows the plugin's.
 Preview-only changes do not change the plugin runtime version.
 
+## Required plugins
+
+A plugin that runs on another library plugin, such as the shared
+`selects-ai-runtime`, lists it in `"requiresPlugins": ["selects-ai-runtime"]`.
+When the app installs a template, it installs each required plugin from the
+same library commit. Keep the INSTALL.md note too: older apps and installs
+outside the template gallery still rely on it.
+
 ## Clip highlights templates
 
 A template (`"collection": "visual-highlights"`) must also say so in its

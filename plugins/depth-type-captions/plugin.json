@@ -2,6 +2,9 @@
   "schemaVersion": 1,
   "id": "depth-type-captions",
   "version": "0.3.7",
+  "requiresPlugins": [
+    "selects-ai-runtime"
+  ],
   "name": "Depth Type Captions",
   "summary": "Editable phrase typography that wraps around the speaker with subject-aware depth.",
   "status": "experimental",

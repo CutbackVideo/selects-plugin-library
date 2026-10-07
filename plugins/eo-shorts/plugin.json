@@ -2,6 +2,9 @@
   "schemaVersion": 1,
   "id": "eo-shorts",
   "version": "0.1.2",
+  "requiresPlugins": [
+    "selects-ai-runtime"
+  ],
   "name": "EO Shorts",
   "summary": "One click turns a talking-head Draft of up to 95 seconds into a new 9:16 EO-style Short: tightened talk, speaker framing, typographic scenes with pictures and stock B-roll, music and loudness, exported and checked.",
   "status": "experimental",

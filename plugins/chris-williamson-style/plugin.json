@@ -2,6 +2,9 @@
   "schemaVersion": 1,
   "id": "chris-williamson-style",
   "version": "0.2.15",
+  "requiresPlugins": [
+    "selects-ai-runtime"
+  ],
   "name": "Chris Williamson Style",
   "summary": "Editable captions and verified B-roll with preserved manual edits, an openly licensed music bed (Kevin MacLeod, CC BY 4.0), no full-screen flashes or shutter sounds.",
   "status": "experimental",
