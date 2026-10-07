@@ -9,13 +9,13 @@ renderer, preload and MCP bundle.
 
 | Consumer | Version | Shared task | Retained plugin work |
 | --- | --- | --- | --- |
-| EO Shorts | 0.1.1 | YuNet faces | Camera grouping, speaker selection, scene cuts |
-| A16Z Style Captions | 0.20.2 | YuNet faces | HSV shot boundaries, face tracking, reframing |
-| Travel Beat Vlog | 0.2.6 | RVM image alpha | Original RGB, hero/title layers, song and colour editing |
-| Beat Cutout Gallery | 0.1.4 | RVM image alpha | Cover crop, mask quality filter, outlines, scenes and music |
-| Jude Kinetic Style | 0.4.8 | YuNet faces and RVM video alpha | Crop policy, inverted matte sprites and coverage |
-| Depth Type Captions | 0.3.6 | RVM video alpha | Rendered source clock, inverted masks and caption composition |
-| Portrait Beat Montage | 0.1.13 | RVM video alpha | Per-shot matte transforms, transitions and music |
+| EO Shorts | 0.1.2 | YuNet faces | Camera grouping, speaker selection, scene cuts |
+| A16Z Style Captions | 0.20.3 | YuNet faces | HSV shot boundaries, face tracking, reframing |
+| Travel Beat Vlog | 0.2.7 | RVM image alpha | Original RGB, hero/title layers, song and colour editing |
+| Beat Cutout Gallery | 0.1.5 | RVM image alpha | Cover crop, mask quality filter, outlines, scenes and music |
+| Jude Kinetic Style | 0.4.9 | YuNet faces and RVM video alpha | Crop policy, inverted matte sprites and coverage |
+| Depth Type Captions | 0.3.7 | RVM video alpha | Rendered source clock, inverted masks and caption composition |
+| Portrait Beat Montage | 0.1.14 | RVM video alpha | Per-shot matte transforms, transitions and music |
 
 ## Resource and job ownership
 
@@ -109,6 +109,22 @@ was ProRes sticker video. Existing small SDK RGB transfers, pixel processing
 and encoding dominate the remaining work; the current logs cannot separate
 their individual durations. Successful migration does not make these complete
 templates fast or compact.
+
+The follow-up private file adapter groups up to three sequential 48 KiB file
+operations into one `runScript` call, keeping both script and result below the
+existing 256 KiB Panel budgets. UTF-8 script size can reduce a batch to two or
+one operation. Reads stop at the first short chunk; replacement writes still
+publish a unique temporary file only after every chunk is acknowledged.
+Append/exclusive creation retain their single-operation 48 KiB limit. No host
+SDK method, timeout or deployment dependency changes.
+
+One warm Mac public-SDK benchmark writing and reading the same 3 MiB binary
+reduced calls from 65 to 23 in each direction. Write time was 1.55 to 1.02 seconds;
+read time was 1.09 to 0.55 seconds, with identical SHA-256 hashes. This measures
+file transfers only; per-chunk file IPC, total bytes, whole-file memory usage
+and plugin pixel processing remain. It is not a Windows or full-template
+speedup measurement. The full-run checks above describe the merged migration
+before this follow-up, rather than a rerun of every template with batching.
 
 RVM selected hardware WebGPU/Metal on Mac and DirectML on Windows; previous
 Windows profiling confirmed GPU kernels. YuNet's lightweight CPU provider is
