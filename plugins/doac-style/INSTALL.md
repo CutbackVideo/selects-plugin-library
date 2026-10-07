@@ -29,7 +29,7 @@ not yet been checked in Selects on a Windows machine.
    checked by SHA-256) into `~/.selects/plugin-data/_runtime/`, shared with other
    plugins; a system `python3` is not used. It needs a network connection that
    once; later runs reuse it.
-3. Reload Selects, open a vertical English talking-head Draft, and choose
+3. Reload Selects, open a vertical English or Korean talking-head Draft, and choose
    **Create captions** in the **DOAC Style** panel.
 
 ## Updating

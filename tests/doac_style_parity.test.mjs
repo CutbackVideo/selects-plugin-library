@@ -131,3 +131,34 @@ for (const { name, job, expect } of golden.jobs) {
     });
   });
 }
+
+// Korean: the approved faces have no Hangul. engine.js draws the characters a face
+// lacks with Malgun Gothic (worker.js); without it (CI, bundled fonts only) they stay
+// .notdef, drawn exactly as unassigned code points are.
+const TOFU = '\u{10FFFD}';
+const koJob = words => ({ input: { fps: 30, frames: 6 + words.length * 14 + 20, words: words.map((text, i) => ({ text, start: 6 + i * 14, end: 18 + i * 14 })) }, editorial: [{ words: [0, words.length - 1], kind: 'plain' }] });
+const KO = ['\uadf8\ub807\uac8c', '\ud574\uc11c', '\ub215\ub294', '\uac70\uc57c', '\ub9de\uc544'], KO_TOFU = KO.map(w => TOFU.repeat(w.length));
+const frameHashes = r => r.scenes.flatMap(s => [...s.uniqueCrops].map(c => crypto.createHash('sha256').update(c).digest('hex')));
+
+test('Korean without a Hangul font draws .notdef as before', async () => {
+  const ko = await engine.compileJob(koJob(KO), { keepFrames: true }), tofu = await engine.compileJob(koJob(KO_TOFU), { keepFrames: true });
+  assert.equal(ko.records[0].slots[0].text, KO.join(' '));
+  assert.deepEqual(frameHashes(ko), frameHashes(tofu));
+});
+
+// A TrueType Hangul face stands in for Malgun Gothic where the machine has one.
+const HANGUL = ['C:\\Windows\\Fonts\\malgun.ttf', '/System/Library/Fonts/Supplemental/AppleGothic.ttf'].find(p => fs.existsSync(p));
+test('Korean falls back to the Hangul face, not .notdef', { skip: !HANGUL && 'no TrueType Hangul font here' }, async () => {
+  const bytes = new Uint8Array(fs.readFileSync(HANGUL));
+  const ko = runBlob(undefined)({ wasm, files, fonts: { ...fonts, 'windows:malgun.ttf': bytes, 'windows:malgunbd.ttf': bytes }, useSystem: true });
+  const r = await ko.compileJob(koJob(KO), { keepFrames: true }), tofu = await ko.compileJob(koJob(KO_TOFU), { keepFrames: true });
+  assert.notDeepEqual(frameHashes(r), frameHashes(tofu));
+  // The line is measured with the fallback's (wider) advances and still centred.
+  const [slot] = r.records[0].slots, [t] = tofu.records[0].slots;
+  assert.ok(slot.w > t.w, slot.w + ' > ' + t.w);
+  assert.ok(Math.abs(slot.x + slot.w / 2 - 540) <= 2, 'centred: ' + slot.x + ' ' + slot.w);
+  // English is untouched by a fallback being present.
+  const en = golden.jobs.find(j => j.name === 'ci-modern2');
+  const er = await ko.compileJob(en.job, { keepFrames: true });
+  assert.deepEqual(frameHashes(er), en.expect.scenes.flatMap(s => s.frameHashes));
+});
