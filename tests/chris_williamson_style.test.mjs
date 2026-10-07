@@ -52,7 +52,7 @@ test('a Draft without a run record starts fresh when the SDK file client reports
     .replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, '');
   const start = PANEL.indexOf('\nconst stateFile =');
   const end = PANEL.indexOf('\n}\n', PANEL.indexOf('async function readState(', start)) + 3;
-  const context = vm.createContext({React: {}, atob, btoa, Uint8Array, TextDecoder, hostJoin: (...parts) => parts.join('/')});
+  const context = vm.createContext({React: {}, atob, btoa, Uint8Array, TextEncoder, TextDecoder, hostJoin: (...parts) => parts.join('/')});
   vm.runInContext(stripTypeScriptTypes(client + PANEL.slice(start, end), {mode: 'strip'}) + '\nthis.api={createPanelLocalClient,readState};', context);
   const selects = {files: {environment: async () => ({platform: 'darwin', homedir: '/user', tempDirectory: '/tmp'}), stat: async () => null}};
   const sdk = {runScript: async ({script}) => ({isError: false, result: await new Function('selects', `return (async()=>{${script}})()`)(selects)})};

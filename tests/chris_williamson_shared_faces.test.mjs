@@ -150,7 +150,7 @@ test('first-run face analysis creates its journal through the canonical file rea
   };
   const source = fs.readFileSync(new URL('../shared/local-client.ts', import.meta.url), 'utf8')
     .replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, '');
-  const context = vm.createContext({React: {}, atob, btoa, Uint8Array, TextDecoder});
+  const context = vm.createContext({React: {}, atob, btoa, Uint8Array, TextEncoder, TextDecoder});
   vm.runInContext(stripTypeScriptTypes(source, {mode: 'strip'}) + '\nthis.createClient=createPanelLocalClient;', context);
   const client = await context.createClient({runScript: async ({script, summary, allowCommit}) =>
     ({isError: false, result: await h.env.runScript(script, summary, allowCommit)})});
