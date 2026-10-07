@@ -402,6 +402,7 @@ export async function readDraft(env: Env, projectId: string, sequenceId: string)
 const S: any = selects;
 const project: any = S.project(${JSON.stringify(projectId)});
 const d: any = S.draft(${JSON.stringify(sequenceId)});
+const persistentSources: Record<number, string> = ${JSON.stringify(Object.fromEntries(sources))};
 const meta: any = await d.meta();
 const all: any[] = await d.words();
 const words = all.map((w: any, i: number) => ({ i, text: String(w.text || ''), startFrame: w.startFrame, endFrame: w.endFrame, sourceStartFrame: w.sourceStartFrame ?? null, sourceResourceId: w.sourceResourceId ?? null, nonSpeech: !!w.nonSpeech }));
@@ -412,7 +413,7 @@ const mains = clips.map((c: any) => {
   const sm = sourceMeta[c.resourceId], sourceFps = Number(sm.fps), sourceDurationSeconds = Number(sm.durationSeconds);
   const playbackRate = c.playbackSpeed ? Number(c.playbackSpeed.numerator) / Number(c.playbackSpeed.denominator) : 1;
   if (!(sourceFps > 0) || !(sourceDurationSeconds > 0) || !(playbackRate > 0)) throw new Error('Invalid source frame clock.');
-  const inside = words.filter((w: any) => w.sourceStartFrame != null && w.sourceResourceId === c.resourceId && w.startFrame >= c.startFrame && w.startFrame < c.endFrame);
+  const inside = words.filter((w: any) => w.sourceStartFrame != null && (w.sourceResourceId === c.resourceId || w.sourceResourceId === persistentSources[c.clipId]) && w.startFrame >= c.startFrame && w.startFrame < c.endFrame);
   const src = inside.length ? inside[0].sourceStartFrame / sourceFps - (inside[0].startFrame - c.startFrame) / meta.fps * playbackRate : null;
   if (src != null && (src < -1 / sourceFps || src >= sourceDurationSeconds)) throw new Error('The source interval is outside the Resource.');
   return { clipId: c.clipId, startFrame: c.startFrame, endFrame: c.endFrame, resourceId: c.resourceId, sourceStartSeconds: src == null ? null : Math.max(0, src), sourceFps, sourceDurationSeconds, playbackRate };

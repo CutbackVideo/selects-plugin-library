@@ -13,7 +13,7 @@ const helpers = pipeline.slice(pipeline.indexOf('export function attachedPipelin
 const functions = vm.runInNewContext(stripTypeScriptTypes(panelRead + helpers) + ';({readDraft,attachedPipelineEnv,sourceClipSeconds,framingSamples,cameraCutFrames})', {AbortController});
 const {readDraft,attachedPipelineEnv,sourceClipSeconds,framingSamples,cameraCutFrames} = functions;
 
-function fixture({sourceFps = 24, draftFps = 30, rate = 1, sourceStartFrame = 720, sourceDuration = 60, summary = false} = {}) {
+function fixture({sourceFps = 24, draftFps = 30, rate = 1, sourceStartFrame = 720, sourceDuration = 60, summary = false, wordResourceId = 'r3'} = {}) {
   const core = {owner:{projectId:'project'}, sequenceJson:{id:'draft',tracks:{children:[{kind:'Main',children:[{id:7,mediaReferences:{defaultMedia:{id:'canonical-source'}}}]}]}}};
   const rows = [{resourceId:'r3',path:'/footage/source.mp4',frameSize:{width:1920,height:1080}}];
   const calls = [];
@@ -21,7 +21,7 @@ function fixture({sourceFps = 24, draftFps = 30, rate = 1, sourceStartFrame = 72
     meta:async()=>({name:'Draft',fps:draftFps,frameSize:{width:1920,height:1080}}),
     words:async()=>[
       {text:'another camera',startFrame:330,endFrame:350,sourceStartFrame:9999,sourceResourceId:'r9'},
-      {text:'spoken word',startFrame:360,endFrame:375,sourceStartFrame,sourceResourceId:'r3'},
+      {text:'spoken word',startFrame:360,endFrame:375,sourceStartFrame,sourceResourceId:wordResourceId},
     ],
     clips:async()=>[{clipId:7,startFrame:300,endFrame:600,resourceId:'r3',playbackSpeed:{numerator:rate,denominator:1}}],
   };
@@ -56,6 +56,18 @@ test('retimed footage keeps source and Draft clocks separate for faces and camer
   assert.equal(sourceClipSeconds(src.mains[0],30),20);
   assert.deepEqual(plain(framingSamples(src.mains,src.files,30)).map(s=>s.seconds),[16,21,26]);
   assert.deepEqual(plain(cameraCutFrames(src.mains,{'0':[0,2,8,20,25]},30,600)),[330,420]);
+});
+
+test('canonical transcript Resource IDs join the clip alias through the saved Main binding',async()=>{
+  const src=await readDraft(fixture({wordResourceId:'canonical-source'}).env,'project','draft');
+  assert.equal(src.mains[0].sourceStartSeconds,28);
+  assert.deepEqual(plain(framingSamples(src.mains,src.files,src.fps)).map(s=>s.seconds),[30.5,33,35.5]);
+});
+
+test('a transcript word from a different persistent Resource cannot supply the Main source clock',async()=>{
+  const src=await readDraft(fixture({wordResourceId:'other-canonical-source'}).env,'project','draft');
+  assert.equal(src.mains[0].sourceStartSeconds,null);
+  assert.deepEqual(plain(framingSamples(src.mains,src.files,src.fps)),[]);
 });
 
 test('source-end clamping keeps all three observations inside the source',async()=>{
