@@ -460,7 +460,7 @@ async function createPanelLocalClient(sdk) {
         if (replacement) await run2("files.rename", [destination, path], true);
         published = true;
       } finally {
-        if (replacement && !published) await run2("files.remove", [destination, { force: true }], true).catch(() => {
+        if (replacement && !published) await run2("files.remove", [destination, { recursive: false, force: true }], true).catch(() => {
         });
       }
     },
@@ -477,8 +477,8 @@ async function createPanelLocalClient(sdk) {
       return result.replaced;
     },
     mkdir: (path, options) => run2("files.mkdir", [path, options ?? {}], true),
-    rm: (path, options) => run2("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }) => run2("files.remove", [filePath, { force: true }], true),
+    rm: (path, options) => run2("files.remove", [path, { recursive: options?.recursive ?? false, force: options?.force ?? false }], true),
+    removeFile: ({ filePath }) => run2("files.remove", [filePath, { recursive: false, force: true }], true),
     rename: (from, to) => run2("files.rename", [from, to], true),
     copyFile: (from, to) => run2("files.copy", [from, to], true),
     downloadFile: (url, path) => run2("files.download", [url, path], true),

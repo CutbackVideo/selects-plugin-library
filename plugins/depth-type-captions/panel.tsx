@@ -2573,7 +2573,7 @@ async function createPanelLocalClient(sdk: any) {
         if (replacement) await run("files.rename", [destination, path], true);
         published = true;
       } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+        if (replacement && !published) await run("files.remove", [destination, { recursive: false, force: true }], true).catch(() => {});
       }
     },
     async compareAndReplace(path: string, expectedText: string | null, text: string) {
@@ -2589,8 +2589,8 @@ async function createPanelLocalClient(sdk: any) {
       return result.replaced;
     },
     mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, { recursive: options?.recursive ?? false, force: options?.force ?? false }], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { recursive: false, force: true }], true),
     rename: (from: string, to: string) => run("files.rename", [from, to], true),
     copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
     downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
