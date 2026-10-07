@@ -178,6 +178,7 @@ const runtimeSetup=python=>[
  '"$PY" -c "import PIL, numpy, scipy"',
 ].join('\n');
 async function macRuntime(sdk,say){
+  hostUseSdk(sdk);
  const check=await sdk.runShell({summary:'Check the DOAC Style caption renderer',command:RUNTIME_CHECK,timeoutMs:60000,maxOutputBytes:4000});
  if(!check.isError&&check.exitCode===0&&/\bready\s*$/.test(check.stdout||''))return;
  say('Preparing (first run only)\u2026');
@@ -194,29 +195,33 @@ const FILE_ACCESS='Update Selects to enable caption file access.';
 // The installed package folder (it holds approved/), found once per panel load.
 let packageRoot=null;
 function doacRoot(sdk){
+  hostUseSdk(sdk);
  packageRoot??=hostRoots(sdk,'doac-style','approved').then(r=>r.plugin).catch(e=>{packageRoot=null;throw e?.code==='host-missing'?stepError('file-access',FILE_ACCESS):stepError('renderer','The caption renderer is missing. Reinstall DOAC Style.');});
  return packageRoot;
 }
 // Renderer code comes from the installed package, not an independently generated effect.
 async function rendererCode(sdk){
+  hostUseSdk(sdk);
  const root=await doacRoot(sdk);
  try{return await hostReadText(hostJoin(root,'approved','caption-scene.tsx.txt'));}
  catch(e){throw e?.code==='host-missing'?stepError('file-access',FILE_ACCESS):stepError('renderer','The caption renderer is missing. Reinstall DOAC Style.');}
 }
 // The bundled font ships base64-encoded; decode it next to the .b64 once.
 async function ensureFont(sdk){
+  hostUseSdk(sdk);
  const font=hostJoin(await doacRoot(sdk),'approved','native','fonts','permanentmarker','PermanentMarker-Regular.ttf');
- const f=hostApi('FileSystem','existsSync','writeFile');if(!f)throw stepError('file-access',FILE_ACCESS);
+ const f=hostApi('FileSystem',"exists",'writeFile');if(!f)throw stepError('file-access',FILE_ACCESS);
  // An empty file (an interrupted write) is decoded again; with renameSync the new file appears whole.
- const st=hostApi('FileSystem','statSync'),mv=hostApi('FileSystem','renameSync');
- if(f.existsSync(font)){let size=1;try{if(st)size=Number(st.statSync(font)?.size);}catch{}if(size>0)return;}
+ const st=hostApi('FileSystem',"stat"),mv=hostApi('FileSystem',"rename");
+ if((await f.exists(font))){let size=1;try{if(st)size=Number((await st.stat(font))?.size);}catch{}if(size>0)return;}
  const b64=(await hostReadText(font+'.b64')).replace(/\s+/g,'');
  const tmp=mv?font+'.part':font;
  await f.writeFile(tmp,Uint8Array.from(atob(b64),c=>c.charCodeAt(0)));
- if(mv)mv.renameSync(tmp,font);
+ if(mv)(await mv.rename(tmp,font));
 }
 let runtimeReady=null;
 function ensureRuntime(sdk,say=()=>{}){
+  hostUseSdk(sdk);
  runtimeReady??=(async()=>{if(hostIsWindows()){await panelEngineFiles(sdk);return;}await ensureFont(sdk);await macRuntime(sdk,say);})().catch(e=>{runtimeReady=null;throw e;});
  return runtimeReady;
 }
@@ -226,12 +231,14 @@ function ensureRuntime(sdk,say=()=>{}){
 // Worker side and the font choice); dev/parity and tests/doac_style_parity.test.mjs
 // show it draws the same frames as the Python engine on the same input. Fonts the
 // plans name that Windows has (Arial, Georgia, Times) come from its Fonts folder;
-// Helvetica and Helvetica Neue use the bundled Arimo. Read once per panel load.
+// Helvetica and Helvetica Neue use the bundled Arimo; Malgun Gothic draws the
+// Hangul they lack. Read once per panel load.
 const ENGINE_DATA=['style.json','template-energy.json','PLANNING.md','native/shortlist.json','native/0YVdjmU13E4/plan.json','native/0YVdjmU13E4/legacy-three-scenes.json','native/NhbCBo1KuU8/plan.json','native/8_dh-IB9jZ8/plan.json'];
-const WINDOWS_FONTS=['arial.ttf','arialbd.ttf','arialbi.ttf','ariblk.ttf','arialnb.ttf','georgiab.ttf','times.ttf'];
+const WINDOWS_FONTS=['arial.ttf','arialbd.ttf','arialbi.ttf','ariblk.ttf','arialnb.ttf','georgiab.ttf','times.ttf','malgun.ttf','malgunbd.ttf'];
 const fromBase64=s=>Uint8Array.from(atob(String(s).replace(/\s+/g,'')),c=>c.charCodeAt(0));
 let engineFiles=null;
 function panelEngineFiles(sdk){
+  hostUseSdk(sdk);
  engineFiles??=(async()=>{
   const root=await doacRoot(sdk),read=p=>hostReadText(hostJoin(root,'approved',...p.split('/')));
   const source=(await Promise.all(['web/pil.js','web/engine.js','web/worker.js'].map(read))).join('\n;\n');
@@ -239,11 +246,11 @@ function panelEngineFiles(sdk){
   const files={};for(const name of ENGINE_DATA)files[name]=await read(name);
   const fonts={'permanent-marker':fromBase64(await read('native/fonts/permanentmarker/PermanentMarker-Regular.ttf.b64'))};
   for(const w of ['Regular','Medium','Bold'])fonts['arimo:'+w]=fromBase64(await read('native/fonts/arimo/Arimo-'+w+'.ttf.b64'));
-  const fsx=hostApi('FileSystem','existsSync','homedir');
+  const fsx=hostApi('FileSystem',"exists",'homedir');
   const drives=['C:'];try{const d=/^([A-Za-z]:)/.exec(String(fsx?.homedir()||''));if(d&&d[1].toUpperCase()!=='C:')drives.unshift(d[1]);}catch{}
   for(const name of WINDOWS_FONTS)for(const drive of drives){
    // A copy, so the bytes belong to this window (the host's buffer is another realm's).
-   try{const p=hostJoin(drive+'\\','Windows','Fonts',name);if(fsx&&!fsx.existsSync(p))continue;fonts['windows:'+name]=(await hostReadBytes(p)).slice();break;}catch{}
+   try{const p=hostJoin(drive+'\\','Windows','Fonts',name);if(fsx&&!(await fsx.exists(p)))continue;fonts['windows:'+name]=(await hostReadBytes(p)).slice();break;}catch{}
   }
   return {source,wasm,files,fonts};
  })().catch(e=>{engineFiles=null;throw e?.code==='host-missing'||e?.code==='file-access'?stepError('file-access',FILE_ACCESS):stepError('renderer','The caption renderer is missing. Reinstall DOAC Style.');});
@@ -254,6 +261,7 @@ function panelEngineFiles(sdk){
 // are marked `refused`; a Worker that fails or runs out of time rejects with
 // RENDER_FAILED instead. `onProgress` gets the Worker's per-frame progress.
 async function panelEngine(sdk,request,onProgress){
+  hostUseSdk(sdk);
  const a=await panelEngineFiles(sdk);
  return await new Promise((resolve,reject)=>{
   let worker=null,url=null,timer=null;
@@ -273,38 +281,23 @@ async function panelEngine(sdk,request,onProgress){
 }
 function stepError(code,message){return Object.assign(Error(message),{code});}
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -335,34 +328,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -413,7 +389,8 @@ export function captionFit(frame){
 // records each job checkpoint (the panel keeps them so an interrupted save can
 // resume; a template run keeps them in memory only).
 function captionSteps({sdk,currentProject,onStatus,persist}){
- function fs(){const host=window.parent.opener||window.parent;const f=host.__DI__?.FileSystem;if(!f?.getOrCreateTmpDirPath||!f?.join||!f?.mkdirSync||!f?.writeFile||!f?.readFile)throw stepError('file-access','Update Selects to enable caption file access.');return f;}
+ hostUseSdk(sdk);
+ function fs(){const f=hostSdk.files;if(!f?.getOrCreateTmpDirPath||!f?.join||!f?.mkdir||!f?.writeFile||!f?.readFile)throw stepError('file-access','Update Selects to enable caption file access.');return f;}
  async function read(path){const b=await fs().readFile(path);return typeof b==='string'?b:new TextDecoder().decode(b);}
  async function run(script,summary,allowCommit=false){const r=await sdk.runScript({script,summary,allowCommit});if(r.isError||r.result==null)throw Error(r.output||'Could not confirm the save. Check the result draft before trying again.');return r.result;}
  // mac-only:start
@@ -422,14 +399,14 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  async function shell(args){await ensureRuntime(sdk);const r=await sdk.runShell({summary:'Compile approved captions',command:'"$SELECTS_USER_SKILLS_ROOT/doac-style/.runtime/bin/python3" "$SELECTS_USER_SKILLS_ROOT/doac-style/approved/compile-captions.py" '+args,timeoutMs:300000,maxOutputBytes:48000});if(r.isError||r.exitCode!==0){const detail=(r.stderr||r.output||'').match(/(?:ValueError|AssertionError): ([^\n]+)/);throw stepError('render',detail?detail[1]:"The caption renderer could not complete this version. Check the DOAC Style installation, then try again.");}return r.stdout;}
  // mac-only:end
  function sameProject(j){if(currentProject()!==j.projectId)throw stepError('project-changed','Project changed. Return to the original project to continue.');}
- async function compile(j,scene){await ensureRuntime(sdk,onStatus);onStatus(scene==null?'Preparing typography and checking timing…':'Updating this caption…');const f=fs(),dir=f.join(j.path.replace(/[\\/][^\\/]+$/,''),'revision-'+Date.now());f.mkdirSync(dir,{recursive:true});const requestPath=f.join(dir,'job.json');await f.writeFile(requestPath,JSON.stringify(j));if(hostIsWindows()){const m=await panelCompile(j,dir,scene);sameProject(j);return m;}const output=await shell('compile '+quote(requestPath)+(scene==null?'':' --scene '+scene));const last=JSON.parse(output.trim().split('\n').pop());const m=JSON.parse(await read(last.manifest));sameProject(j);return m;}
+ async function compile(j,scene){await ensureRuntime(sdk,onStatus);onStatus(scene==null?'Preparing typography and checking timing…':'Updating this caption…');const f=fs(),dir=f.join(j.path.replace(/[\\/][^\\/]+$/,''),'revision-'+Date.now());(await f.mkdir(dir,{recursive:true}));const requestPath=f.join(dir,'job.json');await f.writeFile(requestPath,JSON.stringify(j));if(hostIsWindows()){const m=await panelCompile(j,dir,scene);sameProject(j);return m;}const output=await shell('compile '+quote(requestPath)+(scene==null?'':' --scene '+scene));const last=JSON.parse(output.trim().split('\n').pop());const m=JSON.parse(await read(last.manifest));sameProject(j);return m;}
  // Windows: the panel engine compiles, and its files are written where
  // compile-captions.py writes them (compiled/ next to job.json), so the rest of
  // the flow reads the same manifest and scene payloads.
  async function panelCompile(j,dir,scene){
   let shown=-1;const progress=p=>{if(scene==null&&p?.scene!=null&&p.scene!==shown){shown=p.scene;onStatus(`Preparing typography… scene ${p.scene+1} of ${p.total}`);}};
   const r=await panelEngine(sdk,{cmd:'compile',job:{input:j.input,editorial:j.editorial},only:scene==null?null:scene},progress);
-  const f=fs(),out=f.join(dir,'compiled'),num=i=>String(i).padStart(3,'0');f.mkdirSync(out,{recursive:true});
+  const f=fs(),out=f.join(dir,'compiled'),num=i=>String(i).padStart(3,'0');(await f.mkdir(out,{recursive:true}));
   const scenes=[];
   for(const s of r.scenes){const payload=f.join(out,'scene-'+num(s.scene.index)+'.json'),preview=f.join(out,'scene-'+num(s.scene.index)+'.png');await f.writeFile(payload,JSON.stringify(s.payload));await f.writeFile(preview,s.preview);scenes.push({...s.scene,payload,preview});}
   const m={scenes,records:r.records,placement:r.placement,words:r.words,frames:r.frames,fps:r.fps};
@@ -492,24 +469,33 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  }
  // `cacheKey` names the plan cache (default: the source draft), so a template
  // run from the same video reuses its plan while the words and timing match.
- async function prepare({projectId:pid,sourceId,forceNew=false,anyAspect=false,cacheKey=sourceId}){
+ async function prepare({projectId:pid,sourceId,forceNew=false,anyAspect=false,cacheKey=sourceId,resume=null}){
+ if(resume?.uncertain)throw stepError('uncertain','The previous caption operation was not confirmed. Check the saved request before trying again.');
  onStatus('Reading your transcript…');
  const v=await run(`const d=selects.draft(${JSON.stringify(sourceId)});return {meta:await d.meta(),clips:await d.clips({trackScope:'all'}),words:(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).map(w=>({text:w.text,start:w.startFrame,end:w.endFrame}))};`,'Read approved caption input');
  if(!v.words.length)throw stepError('no-transcript','This draft needs a transcript. Analyze its footage in Selects, then create captions.');
  if(!anyAspect&&v.meta.frameSize.width/v.meta.frameSize.height!==1080/1920)throw stepError('not-vertical','This style needs a vertical 9:16 draft. Change the aspect ratio in Selects first.');
  if(v.clips.some(c=>c.trackKind==='video'&&c.resourceId===null))throw stepError('has-graphics','This draft already contains generated graphics. Open the original draft without captions.');
- await ensureRuntime(sdk,onStatus);const catalogue=hostIsWindows()?await panelEngine(sdk,{cmd:'catalogue'}):JSON.parse(await shell('catalogue'));const f=fs(),dir=f.join(f.getOrCreateTmpDirPath(),'approved-captions-'+Date.now());f.mkdirSync(dir,{recursive:true});
+ await ensureRuntime(sdk,onStatus);const catalogue=hostIsWindows()?await panelEngine(sdk,{cmd:'catalogue'}):JSON.parse(await shell('catalogue'));const f=fs(),dir=f.join((await f.getOrCreateTmpDirPath()),'approved-captions-'+Date.now());(await f.mkdir(dir,{recursive:true}));
  const input={fps:v.meta.fps,frames:Math.max(...v.clips.filter(c=>c.trackKind==='main').map(c=>c.endFrame)),words:v.words};
  onStatus('Designing the full caption edit…');
- const cachePath=f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+pid+'-'+cacheKey+'.json');
- const cacheSignature=PLAN_VERSION+'|'+JSON.stringify(input);let reply,editorial;
+ const cachePath=f.join((await f.getOrCreateTmpDirPath()),'doac-style-plan-'+PLAN_VERSION+'-'+pid+'-'+cacheKey+'.json');
+ const cacheSignature=PLAN_VERSION+'|'+JSON.stringify(input);
+ let j={projectId:pid,sourceId,cacheKey,name:'DOAC Style Captions',input,editorial:[],path:f.join(dir,'job.json'),signature:JSON.stringify(v.words),baseCount:v.clips.filter(c=>c.trackKind==='video').length,frame:v.meta.frameSize,nonce:Date.now(),next:0};
+ let reply= !forceNew&&resume?.projectId===pid&&resume.sourceId===sourceId&&JSON.stringify(resume.input)===JSON.stringify(input)&&typeof resume.planText==='string' ? {text:resume.planText} : null;
  try{
- if(!forceNew){try{const cached=JSON.parse(await read(cachePath));if(cached.signature===cacheSignature)reply={text:cached.text};}catch{}}
- if(!reply){reply=await sdk.askAI({timeoutMs:360000,prompt:planningPrompt(input,catalogue)});await f.writeFile(cachePath,JSON.stringify({signature:cacheSignature,text:reply.text}));}
- await fs().writeFile(f.join(dir,'ai-response.txt'),reply.text);let raw=reply.text.trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'');editorial=completePlan(input.words,JSON.parse(raw),catalogue);
- }catch(e){throw e?.code?e:stepError('plan',e?.message||String(e));}
- const j={projectId:pid,sourceId,cacheKey,name:'DOAC Style Captions',input,editorial,path:f.join(dir,'job.json'),signature:JSON.stringify(v.words),baseCount:v.clips.filter(c=>c.trackKind==='video').length,frame:v.meta.frameSize,nonce:Date.now(),next:0};sameProject(j);persist(j);
- const compiled=await compileWithRecovery(j);const prepared={...compiled.job,manifest:compiled.manifest};persist(prepared);return prepared;
+ if(!reply&&!forceNew){try{const cached=JSON.parse(await read(cachePath));if(cached.signature===cacheSignature)reply={text:cached.text};}catch{}}
+ if(!reply){
+  sameProject(j);await persist({...j,planning:true,uncertain:true});sameProject(j);
+  reply=await sdk.askAI({timeoutMs:360000,prompt:planningPrompt(input,catalogue)});
+ }
+ // Record the acknowledgement before cache writes or compilation can fail.
+ j={...j,planText:reply.text,planning:false,uncertain:false};sameProject(j);await persist(j);
+ await f.writeFile(cachePath,JSON.stringify({signature:cacheSignature,text:reply.text}));
+ await fs().writeFile(f.join(dir,'ai-response.txt'),reply.text);let raw=reply.text.trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'');
+ j={...j,editorial:completePlan(input.words,JSON.parse(raw),catalogue)};await persist(j);
+ }catch(e){throw e?.code||e?.storageFailure?e:stepError('plan',e?.message||String(e));}
+ const compiled=await compileWithRecovery(j);const prepared={...compiled.job,manifest:compiled.manifest};await persist(prepared);return prepared;
  }
  // Duplicate the source into the caption draft (once) and add each compiled scene.
  // `inPlace` adds the scenes to the source draft itself (a draft this run just
@@ -522,23 +508,25 @@ function captionSteps({sdk,currentProject,onStatus,persist}){
  if(inPlace&&!j.targetId){
   const same=await run(`const s=selects.draft(${JSON.stringify(j.sourceId)});const words=(await s.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).map(w=>({text:w.text,start:w.startFrame,end:w.endFrame}));return JSON.stringify(words)===${JSON.stringify(j.signature)};`,'Check the draft is unchanged');
   if(!same)throw stepError('draft-changed','The draft changed while captions were being planned. Try again.');
-  j={...j,targetId:j.sourceId,clipIds:[]};persist(j);
+  j={...j,targetId:j.sourceId,clipIds:[]};await persist(j);
  }
- if(!j.targetId){onStatus('Creating your captioned draft…');persist({...j,uncertain:true});const r=await run(`const s=selects.draft(${JSON.stringify(j.sourceId)});const words=(await s.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).map(w=>({text:w.text,start:w.startFrame,end:w.endFrame}));if(JSON.stringify(words)!==${JSON.stringify(j.signature)})throw Error('The original draft changed. Create a new caption plan.');const d=await selects.project(${JSON.stringify(j.projectId)}).duplicateDraft({sourceDraftId:${JSON.stringify(j.sourceId)},name:${JSON.stringify('DOAC Style Captions')}});const r=await d.commitAll('Create approved caption draft');return {id:r.createdDraftId,link:await selects.editor.linkToDraftFrame(r.createdDraftId,0)};`,'Create approved caption draft',true);j={...j,targetId:r.id,link:r.link,clipIds:[],uncertain:false};persist(j);}
+ if(!j.targetId){onStatus('Creating your captioned draft…');await persist({...j,uncertain:true});const r=await run(`const s=selects.draft(${JSON.stringify(j.sourceId)});const words=(await s.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).map(w=>({text:w.text,start:w.startFrame,end:w.endFrame}));if(JSON.stringify(words)!==${JSON.stringify(j.signature)})throw Error('The original draft changed. Create a new caption plan.');const d=await selects.project(${JSON.stringify(j.projectId)}).duplicateDraft({sourceDraftId:${JSON.stringify(j.sourceId)},name:${JSON.stringify('DOAC Style Captions')}});const r=await d.commitAll('Create approved caption draft');return {id:r.createdDraftId,link:await selects.editor.linkToDraftFrame(r.createdDraftId,0)};`,'Create approved caption draft',true);j={...j,targetId:r.id,link:r.link,clipIds:[],uncertain:false};await persist(j);}
  const tsxCode=await rendererCode(sdk);
  const scale=fit?captionFit(j.frame):null,place=scale?`const added=(await d.clips({trackScope:'all'})).find(c=>c.clipId===r.clipId);await d.setClipTransform({clip:added,scale:${JSON.stringify(scale)}});`:'';
  const failed=[];
  for(let i=j.next;i<j.manifest.scenes.length;i++){
  sameProject(j);onStatus(`Adding captions · ${i+1} / ${j.manifest.scenes.length}`);
+ let committing=false;
  try{
- const scene=j.manifest.scenes[i],data=JSON.parse(await read(scene.payload));persist({...j,uncertain:true});
+ const scene=j.manifest.scenes[i],data=JSON.parse(await read(scene.payload));await persist({...j,uncertain:true});
+ committing=true;
  // Every saved scene adds one video clip, so the expected count is the base plus the scenes saved so far.
  const r=await run(`const d=selects.draft(${JSON.stringify(j.targetId)});const all=await d.clips({trackScope:'all'});if(all.filter(c=>c.trackKind==='video').length!==${j.baseCount+j.clipIds.length})throw Error('The result draft changed. Saving stopped to avoid duplicate captions.');const r=await d.addMotionGraphic({label:${JSON.stringify('DOAC Style '+scene.template+' · '+scene.text)},within:await d.rangeAtFrames(${scene.start},${scene.end}),tsxCode:${JSON.stringify(tsxCode)},parameters:${JSON.stringify(data)}});${place}await d.commitAll('Add approved caption scene');return {clipId:r.clipId};`,'Save approved caption scene',true);
- j={...j,next:i+1,clipIds:[...j.clipIds,r.clipId],uncertain:false};persist(j);
- }catch(e){if(!skipFailedScenes)throw e;failed.push(i);j={...j,next:i+1,uncertain:false};persist(j);}
+ j={...j,next:i+1,clipIds:[...j.clipIds,r.clipId],uncertain:false};await persist(j);
+ }catch(e){if(committing||e.storageFailure||!skipFailedScenes)throw e;failed.push(i);j={...j,next:i+1,uncertain:false};await persist(j);}
  }
  if(!j.clipIds.length&&j.manifest.scenes.length)throw stepError('no-scenes','No captions could be added to the result draft.');
- if(!failed.length){const f=fs(),cachePath=f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+j.projectId+'-'+(j.cacheKey||j.sourceId)+'.json');try{const cache=JSON.parse(await read(cachePath));if(cache.signature===PLAN_VERSION+'|'+JSON.stringify(j.input))await f.writeFile(cachePath,JSON.stringify({...cache,applied:true}));}catch{}}
+ if(!failed.length){const f=fs(),cachePath=f.join((await f.getOrCreateTmpDirPath()),'doac-style-plan-'+PLAN_VERSION+'-'+j.projectId+'-'+(j.cacheKey||j.sourceId)+'.json');try{const cache=JSON.parse(await read(cachePath));if(cache.signature===PLAN_VERSION+'|'+JSON.stringify(j.input))await f.writeFile(cachePath,JSON.stringify({...cache,applied:true}));}catch{}}
  onStatus('Your captioned draft is ready.');if(open)await run(`return await selects.editor.openDraft(${JSON.stringify(j.targetId)});`,'Open DOAC Style draft');
  return {job:j,failed};
  }
@@ -560,12 +548,38 @@ const TEMPLATE_ERRORS={
  'no-scenes':'No captions could be added to the timeline. Try again.',
 };
 const TEMPLATE_FALLBACK='DOAC Style could not make the captioned timeline. Try again.';
-// Headless run for a built-in app, with the plugin's defaults and nobody
-// watching, reported once per run. A Project video is placed whole on a new
-// draft and captioned in place; a timeline (the open draft) is captioned in place.
+// Each template invocation restores the same project/run journal before it can
+// create a source draft, ask AI, or add a scene. Unknown effects stay blocked.
+async function runCaptionTemplate({sdk,context,currentProject,onStatus,onJob=()=>{},isCurrent=()=>true}){
+ const pid=context.projectId,template=context.template,runId=template?.runId;
+ if(!pid)throw stepError('no-project','No project is open.');
+ if(typeof sdk.storage?.getItem!=='function'||typeof sdk.storage?.setItem!=='function')throw stepError('storage','Update Selects to restore and save caption progress.');
+ const key='doac-style-template:'+JSON.stringify([pid,runId]);
+ let job=JSON.parse(await sdk.storage.getItem(key)||'null');onJob(job);
+ function current(){if(!isCurrent()||currentProject()!==pid)throw stepError('project-changed','Project changed. Return to the original project to continue.');}
+ async function persist(next){current();job=next;onJob(job);try{await sdk.storage.setItem(key,JSON.stringify(job));}catch{const e=stepError('storage','Could not save caption progress. Keep this panel open and retry the saved template run before creating another.');e.storageFailure=true;throw e;}current();}
+ current();
+ if(job?.uncertain)throw stepError('uncertain','The previous caption operation was not confirmed. Check the saved request and result draft before trying again.');
+ const speaker=template.inputs?.speaker||[];
+ const source=speaker.find(x=>(x?.kind==='video'&&x.resourceId)||(x?.kind==='timeline'&&x.sequenceId));
+ if(!source)throw speaker.some(x=>x?.kind==='video')?stepError('no-video','No video was given.'):stepError('no-timeline','No timeline was given.');
+ const steps=captionSteps({sdk,currentProject,onStatus,persist});
+ if(!job?.sourceId){
+  if(source.kind==='video'){
+   await persist({projectId:pid,resourceId:source.resourceId,creatingSource:true,uncertain:true});
+   const made=await steps.createFromClip({projectId:pid,resourceId:source.resourceId});
+   if(made.noWords){await persist(null);throw stepError('no-transcript','The video has no transcript.');}
+   await persist({projectId:pid,sourceId:made.id,resourceId:source.resourceId,uncertain:false});
+  }else await persist({projectId:pid,sourceId:source.sequenceId,uncertain:false});
+ }
+ const prepared=job.manifest?job:await steps.prepare({projectId:pid,sourceId:job.sourceId,anyAspect:true,resume:job,
+  cacheKey:source.kind==='video'?'video-'+String(source.resourceId).replace(/[^\w-]/g,'_'):job.sourceId});
+ return await steps.create(prepared,{open:false,fit:true,skipFailedScenes:true,inPlace:true});
+}
 function TemplateRun({sdk,context}){
  const [status,setStatus]=useState('Starting DOAC Style…');
- const started=useRef(new Set()),live=useRef(null),project=useRef(context.projectId);
+ const started=useRef(new Set()),live=useRef(null),project=useRef(context.projectId),mounted=useRef(true);
+ useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
  project.current=context.projectId;
  const template=context.template,runId=template?.runId;live.current=runId;
  useEffect(()=>{
@@ -576,71 +590,336 @@ function TemplateRun({sdk,context}){
   const finish=result=>{if(done)return;done=true;if(live.current===runId)sdk.finishTemplate(result);};
   (async()=>{
    try{
-    const pid=context.projectId;if(!pid)throw stepError('no-project','No project is open.');
-    const speaker=template.inputs?.speaker||[];
-    const source=speaker.find(x=>(x?.kind==='video'&&x.resourceId)||(x?.kind==='timeline'&&x.sequenceId));
-    if(!source)throw speaker.some(x=>x?.kind==='video')?stepError('no-video','No video was given.'):stepError('no-timeline','No timeline was given.');
-    const steps=captionSteps({sdk,currentProject:()=>project.current,onStatus:setStatus,persist:j=>{job=j;}});
-    let result;
-    if(source.kind==='video'){
-     // The new draft is the output: plan against it and add the scenes to it.
-     const made=await steps.createFromClip({projectId:pid,resourceId:source.resourceId});
-     if(made.noWords)throw stepError('no-transcript','The video has no transcript.');
-     const prepared=await steps.prepare({projectId:pid,sourceId:made.id,anyAspect:true,cacheKey:'video-'+String(source.resourceId).replace(/[^\w-]/g,'_')});
-     result=await steps.create(prepared,{open:false,fit:true,skipFailedScenes:true,inPlace:true});
-    }else{
-     const prepared=await steps.prepare({projectId:pid,sourceId:source.sequenceId,anyAspect:true});
-     result=await steps.create(prepared,{open:false,fit:true,skipFailedScenes:true,inPlace:true});
-    }
+    const result=await runCaptionTemplate({sdk,context,currentProject:()=>project.current,onStatus:setStatus,onJob:j=>{job=j;},isCurrent:()=>mounted.current&&live.current===runId});
     finish({sequenceId:result.job.targetId});
    }catch(e){
     // Keep a caption draft that already holds some captions rather than discarding the work.
-    if(job?.targetId&&job.clipIds?.length)finish({sequenceId:job.targetId});
-    else{console.warn('[doac-style] template run failed:',e?.code||'',e?.message||e);finish({error:TEMPLATE_ERRORS[e?.code]||TEMPLATE_FALLBACK});}
+    if(!e.storageFailure&&!job?.uncertain&&job?.targetId&&job.clipIds?.length)finish({sequenceId:job.targetId});
+    else{console.warn('[doac-style] template run failed:',e?.code||'',e?.message||e);finish({error:['storage','uncertain'].includes(e?.code)?e.message:TEMPLATE_ERRORS[e?.code]||TEMPLATE_FALLBACK});}
    }
   })().catch(()=>finish({error:TEMPLATE_FALLBACK}));
  },[runId]);
  return <small>{status}</small>;
 }
-export default function Panel(props){return props.context.template?<TemplateRun {...props}/>:<CaptionPanel {...props}/>;}
+function Panel(props){
+  hostUseSdk(props.sdk);return props.context.template?<TemplateRun {...props}/>:<CaptionPanel {...props}/>;}
 function CaptionPanel({sdk,context,ui}) {
  const [busy,setBusy]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState(''),[job,setJob]=useState(null),[index,setIndex]=useState(0),[text,setText]=useState(''),[preview,setPreview]=useState(''),[editing,setEditing]=useState(false),[sourceName,setSourceName]=useState(''),[pendingPlan,setPendingPlan]=useState(false);
  useEffect(()=>{let live=true;if(!context.sequenceId){setSourceName('');return;}sdk.runScript({script:`return await selects.draft(${JSON.stringify(context.sequenceId)}).meta();`,summary:'Read current draft'}).then(r=>{if(live)setSourceName(r.result?.name||'');}).catch(()=>{});return()=>{live=false;};},[context.sequenceId]);
  const lock=useRef(false),project=useRef(context.projectId);project.current=context.projectId;
  const key='doac-style-'+PLAN_VERSION+'-'+context.projectId;
- useEffect(()=>{try{setJob(JSON.parse(localStorage.getItem(key)||'null'));}catch{setJob(null);}setIndex(0);setError('');},[key]);
- function save(j){setJob(j);localStorage.setItem(key,JSON.stringify(j));}
+ const [restoredKey,setRestoredKey]=useState(null),readyKey=useRef(null),pendingSave=useRef(null),latestJob=useRef(null),activeKey=useRef(key);activeKey.current=key;
+ useEffect(()=>{let live=true;readyKey.current=null;pendingSave.current=null;latestJob.current=null;setJob(null);setIndex(0);setError('');
+  (async()=>{if(typeof sdk.storage?.getItem!=='function'||typeof sdk.storage?.setItem!=='function')throw Error('Update Selects to restore and save caption progress.');
+   const saved=JSON.parse(await sdk.storage.getItem(key)||'null');if(!live||activeKey.current!==key)return;latestJob.current=saved;setJob(saved);if(saved?.uncertain)setError('The last save was not confirmed. Check the result draft before retrying.');readyKey.current=key;setRestoredKey(key);
+  })().catch(e=>{if(live)setError(e.message||'Could not restore captions. Reopen this panel to retry.');});return()=>{live=false;};},[key,sdk]);
+ async function save(j){if(activeKey.current!==key||readyKey.current!==key)throw Error('Project changed or captions are still loading. Return to the original project to continue.');
+  const previous=latestJob.current;latestJob.current=j;pendingSave.current={key,job:j};setJob(j);
+  try{await sdk.storage.setItem(key,JSON.stringify(j));}catch{if(j?.uncertain&&activeKey.current===key){latestJob.current=previous;pendingSave.current=null;setJob(previous);}const e=Error('Could not save caption progress. Keep this panel open and retry saving before continuing.');e.storageFailure=true;throw e;}
+  if(activeKey.current!==key)throw Error('Project changed. Return to the original project to continue.');
+  pendingSave.current=null;
+ }
+ const storageLoading=restoredKey!==key;
+
  const steps=captionSteps({sdk,currentProject:()=>project.current,onStatus:setStatus,persist:save}),{fs,read,run,sameProject,compile}=steps;
- useEffect(()=>{let live=true;const id=job?.sourceId||context.sequenceId;if(!id)return;let f;try{f=fs();}catch{setPendingPlan(false);return;}read(f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+context.projectId+'-'+id+'.json')).then(JSON.parse).then(c=>{if(live)setPendingPlan(!c.applied);}).catch(()=>{if(live)setPendingPlan(false);});return()=>{live=false;};},[job?.sourceId,context.sequenceId,busy]);
- async function action(fn){if(lock.current)return;lock.current=true;setBusy(true);setError('');try{await fn();}catch(e){setError(e.message||String(e));}finally{lock.current=false;setBusy(false);}}
+ useEffect(()=>{let live=true;const id=job?.sourceId||context.sequenceId;if(!id)return;let f;try{f=fs();}catch{setPendingPlan(false);return;}(async()=>read(f.join(await f.getOrCreateTmpDirPath(),'doac-style-plan-'+PLAN_VERSION+'-'+context.projectId+'-'+id+'.json')))().then(JSON.parse).then(c=>{if(live)setPendingPlan(!c.applied);}).catch(()=>{if(live)setPendingPlan(false);});return()=>{live=false;};},[job?.sourceId,context.sequenceId,busy]);
+ async function action(fn){if(lock.current||readyKey.current!==key||activeKey.current!==key)return;lock.current=true;setBusy(true);setError('');try{if(pendingSave.current){await save(pendingSave.current.job);return;}await fn();}catch(e){setError(e.message||String(e));}finally{lock.current=false;setBusy(false);}}
  async function load(sourceOverride,forceNew=false){await action(async()=>{
+ if(job?.uncertain)throw Error('The last save was not confirmed. Check the result draft before retrying.');
  if(!context.projectId||!context.sequenceId)throw Error('Open a draft to add captions.');
- const prepared=await steps.prepare({projectId:context.projectId,sourceId:sourceOverride||context.sequenceId,forceNew});await create(prepared);
+ const prepared=await steps.prepare({projectId:context.projectId,sourceId:sourceOverride||context.sequenceId,forceNew,resume:forceNew?null:latestJob.current});await create(prepared);
  });}
  async function create(task){await steps.create(task);setPendingPlan(false);}
  async function edit(){await action(async()=>{const j=replaceWording(job,index,text);sameProject(j);
  const m=await compile(j,index),s=m.scenes[0];j.manifest.scenes[index]=s;j.manifest.records=m.records;
- if(j.targetId){if(j.next!==j.editorial.length||j.uncertain)throw Error('Finish creating the draft before editing captions.');const data=JSON.parse(await read(s.payload));const tsxCode=await rendererCode(sdk);save({...job,uncertain:true});
+ if(j.targetId){if(j.next!==j.editorial.length||j.uncertain)throw Error('Finish creating the draft before editing captions.');const data=JSON.parse(await read(s.payload));const tsxCode=await rendererCode(sdk);await save({...job,uncertain:true});
  const r=await run(`const d=selects.draft(${JSON.stringify(j.targetId)});const old=(await d.clips({trackScope:'all'})).find(c=>c.clipId===${j.clipIds[index]});if(!old)throw Error('This caption clip changed. Reopen the result draft.');if(old.startFrame!==${s.start}||old.endFrame!==${s.end})throw Error('This caption was trimmed on the timeline. Restore its original timing before changing the wording.');const tr=await d.clipTransform(old);await d.removeClips(old);const r=await d.addMotionGraphic({label:${JSON.stringify('DOAC Style '+s.template+' · '+s.text)},within:await d.rangeAtFrames(${s.start},${s.end}),tsxCode:${JSON.stringify(tsxCode)},parameters:${JSON.stringify(data)}});const added=(await d.clips({trackScope:'all'})).find(c=>c.clipId===r.clipId);await d.setClipTransform({clip:added,position:tr.position,scale:tr.scale,rotation:tr.rotation});await d.commitAll('Edit approved caption wording');return {clipId:r.clipId};`,'Edit approved caption wording',true);j.clipIds[index]=r.clipId;j.uncertain=false;}
- save(j);setStatus('Caption updated.');});}
+ await save(j);setStatus('Caption updated.');});}
  useEffect(()=>{let live=true;if(!job?.editorial?.[index])return;const [a,z]=job.editorial[index].words;setText(job.input.words.slice(a,z+1).map(w=>w.text).join(' '));setPreview('');const s=job.manifest?.scenes?.[index];if(s)read(s.payload).then(JSON.parse).then(d=>{if(live)setPreview(d);}).catch(()=>{});return()=>{live=false};},[job,index]);
  const complete=job?.targetId&&job.next===job.editorial.length;
  return <ui.Section title="DOAC Style"><ui.Stack>
- {!complete&&<><p>Make every word count.</p><small>Expressive captions, timed to your voice. Made for English talking-head videos.</small>
- <ui.Button onClick={()=>load()} disabled={busy||!context.sequenceId||!!job?.uncertain} busy={busy} busyLabel="Creating captions…">Create captions</ui.Button>
+ {!complete&&<><p>Make every word count.</p><small>Expressive captions, timed to your voice. Made for English and Korean talking-head videos.</small>
+ <ui.Button onClick={()=>load()} disabled={storageLoading||busy||!context.sequenceId||!!job?.uncertain} busy={busy} busyLabel="Creating captions…">Create captions</ui.Button>
  <small>Use an analyzed, vertical 9:16 draft. Your original stays intact.</small></>}
  {complete&&<><ui.Message>Your captioned draft is ready.</ui.Message>{pendingPlan&&!busy&&<ui.Button variant="secondary" onClick={()=>load(job.sourceId)}>Finish prepared version</ui.Button>}
- <ui.Button disabled={busy} onClick={()=>action(async()=>{await run(`return await selects.editor.openDraft(${JSON.stringify(job.targetId)});`,'Open captioned draft');})}>Open preview</ui.Button>
- <ui.Button variant="secondary" disabled={busy} onClick={()=>setEditing(!editing)}>{editing?'Close editor':'Edit captions'}</ui.Button>
- {editing&&<><ui.Select label="Caption" value={String(index)} onChange={v=>setIndex(Number(v))} disabled={busy} options={job.editorial.map((s,i)=>({value:String(i),label:`${i+1}. ${job.input.words.slice(s.words[0],s.words[1]+1).map(w=>w.text).join(' ')}`}))}/>
+ <ui.Button disabled={storageLoading||busy} onClick={()=>action(async()=>{await run(`return await selects.editor.openDraft(${JSON.stringify(job.targetId)});`,'Open captioned draft');})}>Open preview</ui.Button>
+ <ui.Button variant="secondary" disabled={storageLoading||busy} onClick={()=>setEditing(!editing)}>{editing?'Close editor':'Edit captions'}</ui.Button>
+ {editing&&<><ui.Select label="Caption" value={String(index)} onChange={v=>setIndex(Number(v))} disabled={storageLoading||busy} options={job.editorial.map((s,i)=>({value:String(i),label:`${i+1}. ${job.input.words.slice(s.words[0],s.words[1]+1).map(w=>w.text).join(' ')}`}))}/>
  {preview&&<div style={{width:'100%',aspectRatio:'540 / 320',overflow:'hidden',background:'var(--panel-border)',borderRadius:'var(--panel-radius)'}}><svg viewBox="0 540 540 320" style={{width:'100%',height:'100%'}}><svg x={preview.x} y={preview.y} width={preview.w} height={preview.h} viewBox={`0 0 ${preview.w} ${preview.h}`} overflow="hidden"><image href={preview.atlas} x={-(preview.frameMap[Math.max(0,preview.frameMap.length-4)]%preview.cols)*preview.w} y={-Math.floor(preview.frameMap[Math.max(0,preview.frameMap.length-4)]/preview.cols)*preview.h} width={preview.cols*preview.w} height={preview.rows*preview.h}/></svg></svg></div>}
- <ui.TextField label="Wording" multiline value={text} onChange={setText} disabled={busy}/>
- <ui.Button variant="secondary" disabled={busy||!!job.uncertain} onClick={edit}>Save caption</ui.Button><small>Wording changes stay within the same caption timing. Change position and size on the timeline.</small></>}
- <ui.Button variant="ghost" disabled={busy} onClick={()=>load(job.sourceId,true)}>Create another version</ui.Button>
- {context.sequenceId!==job.targetId&&context.sequenceId!==job.sourceId&&<ui.Button variant="secondary" disabled={busy} onClick={()=>{save(null);setEditing(false);setStatus('');}}>Use current draft</ui.Button>}
+ <ui.TextField label="Wording" multiline value={text} onChange={setText} disabled={storageLoading||busy}/>
+ <ui.Button variant="secondary" disabled={storageLoading||busy||!!job.uncertain} onClick={edit}>Save caption</ui.Button><small>Wording changes stay within the same caption timing. Change position and size on the timeline.</small></>}
+ <ui.Button variant="ghost" disabled={storageLoading||busy} onClick={()=>load(job.sourceId,true)}>Create another version</ui.Button>
+ {context.sequenceId!==job.targetId&&context.sequenceId!==job.sourceId&&<ui.Button variant="secondary" disabled={storageLoading||busy} onClick={()=>action(async()=>{await save(null);setEditing(false);setStatus('');})}>Use current draft</ui.Button>}
  </>}
  {busy&&<ui.Progress/>}{status&&busy&&<ui.Message>{status}</ui.Message>}
  {!busy&&job?.manifest&&!complete&&!job.uncertain&&<ui.Button variant="secondary" onClick={()=>action(()=>create(job))}>Continue creating captions</ui.Button>}
+ {error&&pendingSave.current&&<ui.Button disabled={storageLoading||busy} onClick={()=>action(async()=>{})}>Retry saving progress</ui.Button>}
  {error&&<><ui.Message tone="error">{error}</ui.Message>{!busy&&!job?.uncertain&&<ui.Button variant="secondary" onClick={()=>load(job?.sourceId)}>Try again</ui.Button>}</>}
  </ui.Stack></ui.Section>;
 }
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    // Direct arguments keep object literals contextually typed by the SDK signature.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(Panel);
+// local-sdk:end

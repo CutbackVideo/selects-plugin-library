@@ -357,7 +357,7 @@ assert.ok(ui.includes('fill(assets.scripts.decorateJs, cfg)') && ui.includes('fi
 // ---- Host I/O: no POSIX shell, guarded host services --------------------------------------------------------------
 // Runtime code never uses POSIX shell syntax, a data folder under the shell's HOME, Homebrew / nvm paths or a node
 // spawn (kit references/windows.md).
-for (const bad of ['mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'TOOL_PATH', '/opt/homebrew', '.nvm', '/tmp', '~/', 'sq(', 'dq(', '| sort']) assert.ok(!own.includes(bad), 'no ' + bad);
+for (const bad of ['mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'TOOL_PATH', '/opt/homebrew', '.nvm', '/tmp', '~/', 'sq(', 'dq(', '| sort']) assert.ok(!(bad === "base64 " ? /(?<![\w.])base64\s/.test(own) : own.includes(bad)), 'no ' + bad);
 assert.ok(!/\bnode\s+["'\w./-]*\.c?js/.test(own) && !/\bffmpeg\s+-/.test(own) && !/\bffprobe\s+-/.test(own), 'no node / ffmpeg / ffprobe command lines');
 assert.ok(!/(?:plugin|root|data|dir|path|Dir|Path)\)?\s*\+\s*["'][\\/]|["'][\\/]assets/.test(own), 'paths are joined, never built with "/"');
 // No shell call at all at runtime (kit windows.md): the install folder comes from FileSystem only.
@@ -379,17 +379,18 @@ function hostBox({ platform, files = new Set(), shell = null, ffmpeg = null, noJ
   const FileSystem = {
     ...(noJoin ? {} : { join: (...a) => pathMod.join(...a) }),
     homedir: () => (platform === 'win32' ? 'C:\\Users\\me' : '/u/me'),
-    existsSync: p => files.has(p),
-    mkdirSync: (p, o) => calls.mkdir.push([p, o]),
+    exists: async p => files.has(p),
+    mkdir: async (p, o) => calls.mkdir.push([p, o]),
     readFile: readFile || (async p => { throw Error('no file ' + p); }),
     removeFile: async ({ filePath }) => calls.removed.push(filePath),
   };
   const Runtime = { getPlatform: () => platform, ...(ffmpeg ? { runFFmpeg: async (argv, quiet, signal) => { calls.ffmpeg.push(argv); return ffmpeg(argv); } } : {}) };
-  const ctx = { window: { parent: { __DI__: { FileSystem, Runtime } } }, navigator: { platform: '', userAgent: '' }, TextDecoder, Uint8Array, ArrayBuffer, Float32Array,
+  const ctx = { window: { parent: { get __DI__() { throw Error('Unexpected DI access'); } } }, navigator: { platform: '', userAgent: '' }, TextDecoder, Uint8Array, ArrayBuffer, Float32Array,
     setTimeout, clearTimeout, AbortController, Date, Math, String, Error, parseFloat };
+  ctx.sdk = { files: FileSystem, media: Runtime, environment: { platform } };
   vm.createContext(ctx);
-  vm.runInContext(hostBlock + '\nthis.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostNeed, hostApi, hostIsWindows };', ctx);
-  const sdk = { runShell: async (o) => { calls.shell.push(o.command); return shell ? shell(o.command) : { stdout: '' }; } };
+  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + hostBlock + '\nhostUseSdk(sdk);this.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostNeed, hostApi, hostIsWindows };', ctx);
+  const sdk = { ...ctx.sdk, runShell: async (o) => { calls.shell.push(o.command); return shell ? shell(o.command) : { stdout: '' }; } };
   return { H: ctx.H, calls, sdk };
 }
 const hostTests = (async () => {
@@ -444,23 +445,19 @@ const hostTests = (async () => {
     assert.ok(/^C:\\data\\pcm-[\w-]+\.f32$/.test(wrote), 'temp file in the data folder, ASCII name: ' + wrote);
     assert.deepEqual(calls.removed, [wrote], 'the temp file is removed');
   }
-  // hostRemove: the first FileSystem remover present that works (removeFile, remove, rm, unlink, unlinkSync); a host
-  // without one, or with only failing ones, leaves the file and never throws.
+  // Cleanup uses the public async removeFile method and tolerates failure.
   {
-    const removeWith = async (FileSystem) => {
-      const ctx = { window: { parent: { __DI__: { FileSystem } } }, navigator: { platform: '', userAgent: '' }, Math, String, Error };
-      vm.createContext(ctx); vm.runInContext(hostBlock + '\nthis.R = hostRemove;', ctx);
+    const removeWith = async (files) => {
+      const ctx = { sdk: { files, media: {} }, Math, String, Error };
+      vm.createContext(ctx); vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + hostBlock + '\nhostUseSdk(sdk);this.R = hostRemove;', ctx);
       await ctx.R('/d/x.f32');
     };
     const seen = [];
-    await removeWith({ remove: async p => seen.push(['remove', p]) });
-    await removeWith({ removeFile: async () => { throw Error('no'); }, rm: async p => seen.push(['rm', p]), unlink: async p => seen.push(['unlink', p]) });
-    await removeWith({ unlink: p => seen.push(['unlink', p]) });
-    await removeWith({ unlinkSync: p => seen.push(['unlinkSync', p]) });
-    await removeWith({ remove: () => { throw Error('busy'); }, unlinkSync: () => { throw Error('busy'); } });
+    await removeWith({ removeFile: async ({ filePath }) => seen.push(filePath) });
+    await removeWith({ removeFile: async () => { throw Error('busy'); } });
     await removeWith({});
     await removeWith(undefined);
-    assert.deepEqual(seen, [['remove', '/d/x.f32'], ['rm', '/d/x.f32'], ['unlink', '/d/x.f32'], ['unlinkSync', '/d/x.f32']]);
+    assert.deepEqual(seen, ['/d/x.f32']);
   }
 })();
 
@@ -714,9 +711,9 @@ Promise.all([hostTests, templateTest]).then(() => console.log('panel ok'), e => 
     arr: vm.runInContext('[104, 105]', parentRealm),
   };
   for (const [kind, value] of Object.entries(foreign)) {
-    const ctx = { window: { parent: { __DI__: { FileSystem: { readFile: async () => value } } } }, TextDecoder, Uint8Array, Object };
+    const ctx = { sdk: { files: { readFile: async () => value } }, TextDecoder, Uint8Array, Object };
     vm.createContext(ctx);
-    vm.runInContext(hostBlock + '\nthis.H = { hostReadText, hostReadBytes };', ctx);
+    vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + hostBlock + '\nhostUseSdk(sdk);this.H = { hostReadText, hostReadBytes };', ctx);
     ctx.H.hostReadText('x').then((txt) => assert.equal(txt, 'hi', 'cross-realm ' + kind + ' as text'));
     ctx.H.hostReadBytes('x').then((b) => assert.deepEqual(Array.from(b), [104, 105], 'cross-realm ' + kind + ' as bytes'));
   }

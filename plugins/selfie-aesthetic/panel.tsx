@@ -2209,21 +2209,11 @@ if (typeof module !== 'undefined' && module && module.exports) {
 // sae-planner:end
 
 // sae-host:start
-// Host I/O through the renderer's own services, the same on macOS and Windows: no host shell, no node, no user
-// installed tools. ffmpeg/ffprobe are the host's bundled binaries (Runtime.runFFmpeg/runFFprobe take an argv array,
-// so paths need no quoting), and every path is built by FileSystem.join. __DI__ is internal host wiring that a newer
-// or older Selects may lack, so each member is checked at call time.
-// Error codes (Error.message): 'host_tools' = a needed __DI__ member is missing (show "needs a newer Selects";
-// bundled cues keep working), 'timeout' = ffmpeg/ffprobe ran past timeoutMs, 'media_failed' = ffmpeg/ffprobe failed
-// or produced no usable output (err.detail holds the host's message, truncated).
-function saeDI() {
-  let di = null;
-  try { di = window.parent && window.parent.__DI__; } catch (e) { di = null; }
-  if (!di) { try { di = window.__DI__; } catch (e) { di = null; } }
-  const fs = di && di.FileSystem ? di.FileSystem : null;
-  const rt = di && di.Runtime ? di.Runtime : null;
-  return { fs, rt };
-}
+// Local files, media tools and environment use the public SDK.
+// Missing capabilities report the existing host-tools error to the panel UI.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
+function saeDI() { return { fs: hostSdk?.files, rt: hostSdk?.media }; }
 
 // names: ['fs.join', 'rt.runFFmpeg', ...]. Returns { ok, missing }.
 function saeHas(names) {
@@ -2247,66 +2237,26 @@ function saeNeed(names) {
   return saeDI();
 }
 
-function saePlatform() {
-  let p = '';
-  try { const rt = saeDI().rt; if (rt && typeof rt.getPlatform === 'function') p = String(rt.getPlatform() || ''); } catch (e) { p = ''; }
-  if (/^win/i.test(p)) return 'win32';
-  if (/darwin|mac/i.test(p)) return 'darwin';
-  if (/linux/i.test(p)) return 'linux';
-  let ua = '';
-  try { ua = String(navigator.userAgent || ''); } catch (e) { ua = ''; }
-  if (/Windows NT/i.test(ua)) return 'win32';
-  if (/Mac/i.test(ua)) return 'darwin';
-  return 'linux';
-}
+function saePlatform() { return hostSdk?.environment?.platform || ""; }
 
-// The installed skill folder, or null when no candidate holds the plugin's planner.js. The host's skills root
-// (SELECTS_USER_SKILLS_ROOT) is the home folder joined with .selects and skills (cutback-client electron/user-skills.ts resolveUserSkillsRoot),
-// so that comes first. Archive Vlog falls back to the variable through the host shell; this panel uses no shell, so
-// the fallbacks are shell-free host values, each guarded and tried in order:
-//   1. FileSystem.homedir() joined with .selects, skills and the plugin id
-//   2. SELECTS_USER_SKILLS_ROOT in Runtime.getHostEnvironment(), joined with the plugin id
-//   3. SELECTS_USER_SKILLS_ROOT in the renderer's process environment (window.parent.process, then window.process), joined with the plugin id
-//   4. Runtime.getOS().homedir() joined the same way (a second view of the home folder)
-// A missing member or a throwing call only skips that candidate. FileSystem.join and existsSync are required
-// (host_tools without them); every candidate is verified by existsSync(join(dir, 'planner.js')).
-const SAE_SKILLS_ENV = 'SELECTS_USER_SKILLS_ROOT';
+// The SDK home directory locates the installed plugin; verify its marker asynchronously.
 function saeSkillsCandidates(id) {
-  const { fs, rt } = saeDI();
-  const out = [];
-  const add = (fn) => { try { const v = fn(); if (typeof v === 'string' && v) out.push(v); } catch (e) { /* skip this candidate */ } };
-  const envOf = (w) => { try { const p = w && w.process; const v = p && p.env && p.env[SAE_SKILLS_ENV]; return typeof v === 'string' ? v.trim() : ''; } catch (e) { return ''; } };
-  add(() => (typeof fs.homedir === 'function' ? String(fs.join(fs.homedir(), '.selects', 'skills', id)) : ''));
-  add(() => {
-    const env = rt && typeof rt.getHostEnvironment === 'function' ? rt.getHostEnvironment() : null;
-    const v = env && typeof env[SAE_SKILLS_ENV] === 'string' ? env[SAE_SKILLS_ENV].trim() : '';
-    return v ? String(fs.join(v, id)) : '';
-  });
-  add(() => {
-    let w = null;
-    try { w = window.parent; } catch (e) { w = null; }
-    const v = envOf(w) || envOf(typeof window === 'undefined' ? null : window);
-    return v ? String(fs.join(v, id)) : '';
-  });
-  add(() => {
-    const os = rt && typeof rt.getOS === 'function' ? rt.getOS() : null;
-    return os && typeof os.homedir === 'function' ? String(fs.join(os.homedir(), '.selects', 'skills', id)) : '';
-  });
-  return out.filter((d, i) => out.indexOf(d) === i);
+  const { fs } = saeNeed(["fs.join", "fs.homedir"]);
+  return [fs.join(fs.homedir(), ".selects", "skills", id)];
 }
-function saeSkillsDir(id) {
-  const { fs } = saeNeed(['fs.join', 'fs.existsSync']);
+async function saeSkillsDir(id) {
+  const { fs } = saeNeed(['fs.join', 'fs.exists']);
   for (const dir of saeSkillsCandidates(id)) {
-    try { if (fs.existsSync(fs.join(dir, 'planner.js'))) return dir; } catch (e) { /* the next candidate */ }
+    try { if ((await fs.exists(fs.join(dir, 'planner.js')))) return dir; } catch (e) { /* the next candidate */ }
   }
   return null;
 }
 
 // The plugin's persistent data folder, created when missing.
-function saeDataDir(id) {
-  const { fs } = saeNeed(['fs.join', 'fs.homedir', 'fs.mkdirSync']);
+async function saeDataDir(id) {
+  const { fs } = saeNeed(['fs.join', 'fs.homedir', 'fs.mkdir']);
   const dir = fs.join(fs.homedir(), '.selects', 'plugin-data', id);
-  fs.mkdirSync(dir, { recursive: true });
+  (await fs.mkdir(dir, { recursive: true }));
   return dir;
 }
 
@@ -2345,7 +2295,7 @@ async function saeProbeDuration(file, opts) {
 
 // Bytes as a fresh, 0-offset Uint8Array, whatever the host returned (Buffer from another realm, Uint8Array,
 // ArrayBuffer, an IPC-serialized { type: 'Buffer', data: [...] } or a plain array).
-// FileSystem results come from window.parent, another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them,
+// FileSystem results come from the bridge, possibly another JS realm: `instanceof ArrayBuffer/Uint8Array` is false for them,
 // so only realm-free checks are used here (ArrayBuffer.isView and the toString tag read internal slots, Array.isArray
 // works across realms), with an array-like fallback for objects a bridge serialised by index.
 function saeBytes(raw) {
@@ -2368,7 +2318,6 @@ function saeBytes(raw) {
 }
 
 async function saeReadBytes(fs, file) {
-  if (typeof fs.readFileSync === 'function') return saeBytes(fs.readFileSync(file));
   return saeBytes(await fs.readFile(file));
 }
 
@@ -2387,9 +2336,7 @@ async function saeReadOutput(fs, file, what) {
 // Best effort; a leftover file in the data folder is harmless.
 async function saeRemove(fs, file) {
   try {
-    if (typeof fs.unlinkSync === 'function') return fs.unlinkSync(file);
     if (typeof fs.removeFile === 'function') return await fs.removeFile({ filePath: file });
-    if (typeof fs.rmSync === 'function') return fs.rmSync(file, { force: true });
   } catch (e) { /* ignored */ }
 }
 
@@ -2399,9 +2346,9 @@ function saeToken() {
 
 function saeNeedReader() {
   const di = saeDI();
-  if (!di.fs || (typeof di.fs.readFileSync !== 'function' && typeof di.fs.readFile !== 'function')) {
+  if (!di.fs || typeof di.fs.readFile !== 'function') {
     const err = new Error('host_tools');
-    err.missing = ['fs.readFileSync'];
+    err.missing = ['fs.readFile'];
     throw err;
   }
 }
@@ -2524,11 +2471,11 @@ function saeYield() {
 // sae-host:end
 
 // Quick local shot score for clips Selects has not analysed: the kit's tools/panel/quick-score.js, verbatim (pasted by
-// dev/sync-blocks.cjs from dev/quick-score-block.ts). It reaches the host __DI__ services itself, never throws
+// dev/sync-blocks.cjs from dev/quick-score-block.ts). It reaches the host through the canonical SDK, never throws
 // except on abort, and caches per clip in <data dir>/quick-score/.
 // quick-score:start
 // Quick local shot score for clips Selects has not analysed (no scene search). Plain JS and self-contained: it reaches
-// the host only through window.parent.__DI__ (Runtime.runFFmpeg and FileSystem, every member checked first), or through
+// the host through the public SDK files and media namespaces, or through
 // `opts.io` (tests, other hosts), so it can be pasted into any style-app panel and kept as one kit file
 // (tools/panel/quick-score.ts). No shell, no node: the host's bundled ffmpeg decodes a small grey preview
 // (QS_FPS frames a second, QS_W x QS_H pixels) of the part of the clip the planner could use into a temporary file in
@@ -2582,23 +2529,21 @@ function qsBytes(v) {
 // The host's services for this module: runFFmpeg(args, signal), readBytes(path), remove(path), join(...parts),
 // mkdir(dir), mtimeMs(path), readText(path), writeText(path, text). Members the host lacks are null.
 function qsHostIO() {
-  var di = null;
-  try { di = (window.parent && window.parent["__DI__"]) || null; } catch (e) { di = null; }
-  var rt = di && di.Runtime, fs = di && di.FileSystem;
+  var rt = hostSdk?.media, fs = hostSdk?.files;
   var fn = function (o, m) { return !!o && typeof o[m] === "function"; };
   return {
     runFFmpeg: fn(rt, "runFFmpeg") ? function (args, signal) { return rt.runFFmpeg(args, true, signal); } : null,
     readBytes: fn(fs, "readFile") ? async function (p) { return qsBytes(await fs.readFile(p)); } : null,
     remove: fs ? async function (p) {
-      var tries = ["removeFile", "remove", "rm", "unlink", "unlinkSync"];
+      var tries = ["removeFile"];
       for (var i = 0; i < tries.length; i++) {
         if (!fn(fs, tries[i])) continue;
         try { await (tries[i] === "removeFile" ? fs.removeFile({ filePath: p }) : fs[tries[i]](p)); return; } catch (e) { /* the next one */ }
       }
     } : null,
     join: fn(fs, "join") ? function () { return String(fs.join.apply(fs, arguments)); } : null,
-    mkdir: fn(fs, "mkdirSync") ? function (d) { fs.mkdirSync(d, { recursive: true }); } : null,
-    mtimeMs: fn(fs, "statSync") ? function (p) { var s = fs.statSync(p); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
+    mkdir: fn(fs, "mkdir") ? async function (d) { (await fs.mkdir(d, { recursive: true })); } : null,
+    mtimeMs: fn(fs, "stat") ? async function (p) { var s = (await fs.stat(p)); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
     readText: fn(fs, "readFile") ? async function (p) { var v = await fs.readFile(p, "utf8"); return typeof v === "string" ? v : new TextDecoder().decode(qsBytes(v)); } : null,
     writeText: fn(fs, "writeFile") ? async function (p, t) { await fs.writeFile(p, t); } : null,
   };
@@ -2711,8 +2656,8 @@ async function quickScore(resource, opts) {
   var dir = io.join(dataDir, "quick-score");
   var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
   var mtime = 0;
-  try { mtime = io.mtimeMs ? Math.round(io.mtimeMs(resource.path) || 0) : 0; } catch (e) { mtime = 0; }
-  // mtime is 0 when the host lacks FileSystem.statSync, so the duration also keys the cache (a file replaced at the same
+  try { mtime = io.mtimeMs ? Math.round((await io.mtimeMs(resource.path)) || 0) : 0; } catch (e) { mtime = 0; }
+  // mtime is 0 when the host lacks FileSystem.stat, so the duration also keys the cache (a file replaced at the same
   // path with different media is not served stale scores; Mini Vlog review).
   var durKey = Number(resource.durationSeconds || 0).toFixed(3);
   var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
@@ -2724,7 +2669,7 @@ async function quickScore(resource, opts) {
     } catch (e) { /* no cache yet */ }
   }
   if (Date.now() > deadline) return qsFallback(resource, Date.now() - t0, opts.windows);
-  try { if (io.mkdir) io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
+  try { if (io.mkdir) await io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
   var tmp = io.join(dir, safe + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".gray");
   var controller = typeof AbortController === "undefined" ? null : new AbortController();
   var relay = function () { if (controller) controller.abort(); };
@@ -3452,13 +3397,13 @@ function hostErrorSay(e: any, kind: "music" | "preview"): Say {
 function decodeText(raw: any): string { return typeof raw === "string" ? raw : new TextDecoder().decode(saeBytes(raw)); }
 async function readPluginText(dir: string, parts: string[]): Promise<string> {
   const { fs } = saeDI();
-  if (!fs || typeof fs.join !== "function" || (typeof fs.readFileSync !== "function" && typeof fs.readFile !== "function")) {
+  if (!fs || typeof fs.join !== "function" || (typeof fs.readFile !== "function" && typeof fs.readFile !== "function")) {
     const err: any = new Error("host_tools");
-    err.missing = ["fs.readFileSync"];
+    err.missing = ["fs.readFile"];
     throw err;
   }
   const file = fs.join(dir, ...parts);
-  return decodeText(typeof fs.readFileSync === "function" ? fs.readFileSync(file) : await fs.readFile(file));
+  return decodeText(typeof fs.readFile === "function" ? (await fs.readFile(file)) : await fs.readFile(file));
 }
 // The bundled music manifest, build scripts, the effect / transition sources and the beat detector's text.
 async function loadAssets(dir: string) {
@@ -3758,7 +3703,7 @@ async function readLocalScores(pid: string, inv: any, rids: string[], check: () 
   onProgress(stats.cached, todo.length);
   if (!need.length) return { local, stats };
   let dataDir: string | null = null;
-  try { dataDir = saeDataDir(PLUGIN_ID); } catch { dataDir = null; }
+  try { dataDir = (await saeDataDir(PLUGIN_ID)); } catch { dataDir = null; }
   const controller = new AbortController();
   const relay = () => controller.abort();
   if (signal) { if (signal.aborted) controller.abort(); else signal.addEventListener("abort", relay); }
@@ -3802,7 +3747,7 @@ async function readMotionCurves(pid: string, inv: any, rids: string[], motionCac
   const pathOf: Record<string, string> = {};
   for (const r of inv.resources) if (r.path) pathOf[r.rid] = r.path;
   let dataDir: string | null = null;
-  try { dataDir = saeDataDir(PLUGIN_ID); } catch { dataDir = null; }
+  try { dataDir = (await saeDataDir(PLUGIN_ID)); } catch { dataDir = null; }
   for (let i = 0; dataDir && i < curveRids.length; i++) {
     onProgress(i, rids.length);
     const rid = curveRids[i], key = pid + "|" + rid;
@@ -3935,7 +3880,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
   const [assets, setAssets] = React.useState<any>(null);
   const [fatal, setFatal] = React.useState<{ say: Say } | null>(null);
   // Own music and the section preview need the host's ffmpeg; bundled cues do not.
-  const canOwn = React.useMemo(() => saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"]).ok, []);
+  const canOwn = React.useMemo(() => saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdir"]).ok, []);
   const [inventory, setInventory] = React.useState<any>(null);
   const [invError, setInvError] = React.useState<{ say: Say } | null>(null);
   const [invLoading, setInvLoading] = React.useState(false);
@@ -4015,7 +3960,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
     let alive = true;
     (async () => {
       try {
-        const dir = saeSkillsDir(PLUGIN_ID);
+        const dir = (await saeSkillsDir(PLUGIN_ID));
         if (!dir) { if (alive) setFatal({ say: (l) => t(l, "pluginMissing") }); return; }
         const loaded = await loadAssets(dir);
         if (!alive) return;
@@ -4175,7 +4120,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
     setOwnFile(file); setOwnCue(null); setOwnState("listening"); setOwnStatus(null); setStatus(null);
     let pcm: Float32Array | null = null, head: Float32Array | null = null;
     try {
-      const dataDir = saeDataDir(PLUGIN_ID);
+      const dataDir = (await saeDataDir(PLUGIN_ID));
       pcm = await saeDecodePcm(file.path, dataDir, SAE_PCM_SECONDS);
       if (!live()) return;
       // The fallback's input is copied before the transfer detaches the decoded buffer; the worker gets a buffer of
@@ -4240,7 +4185,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
     const live = () => previewTokenRef.current === token && mountedRef.current;
     setPlayState("loading");
     try {
-      const dataDir = saeDataDir(PLUGIN_ID);
+      const dataDir = (await saeDataDir(PLUGIN_ID));
       const file = musicId === "own" ? ownFile!.path : saeDI().fs.join(skillsDir, "assets", "cues", cueEntry.file);
       // Exactly what the Draft plays: from `lead` before beat 1 of the section to the end of the edit.
       const start = Math.max(0, section - SAE_LEAD), seconds = SAE_LEAD + saeVideoSeconds(wantedBars, editBpm);
@@ -4385,7 +4330,7 @@ function SelfieAestheticPanel({ sdk, context, ui }: any) {
       advance("check", 0.2);
       // Shares of the step: spans and motion as before when every clip is analysed; with unanalysed clips the quick
       // scores take the second half ("Checking clips N/M").
-      const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"]).ok;
+      const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdir"]).ok;
       const localShare = localRids.length ? 0.5 : 0;
       const spanShare = (stillOn ? 0.4 : 0.8) * (1 - localShare / 0.8);
       const motionAt = 0.2 + spanShare, motionShare = stillOn ? 0.4 * (1 - localShare / 0.8) : 0;
@@ -4723,6 +4668,7 @@ return { resolved };`;
 // The whole template build. Returns the new Draft; throws a uiError for the person, or STALE when a newer run (or the
 // frame closing) replaced this one. `advance` names the current build step for the status line and the error.
 async function runSelfieTemplate(sdk: any, context: any, check: () => void, advance: Advance): Promise<{ sequenceId: string }> {
+  hostUseSdk(sdk);
   const pid: string | null = context?.projectId ?? null;
   if (!pid) throw uiError((l) => t(l, "openProject"));
   // Each handed video or photo once, in the order it was picked.
@@ -4737,7 +4683,7 @@ async function runSelfieTemplate(sdk: any, context: any, check: () => void, adva
 
   advance("check", 0);
   // The installed plugin folder through the host FileSystem, as the panel finds it (no shell, so Windows works too).
-  const skillsDir = saeSkillsDir(PLUGIN_ID);
+  const skillsDir = (await saeSkillsDir(PLUGIN_ID));
   if (!skillsDir) throw uiError((l) => t(l, "pluginMissing"));
   let assets: any;
   try { assets = await loadAssets(skillsDir); }
@@ -4779,7 +4725,7 @@ async function runSelfieTemplate(sdk: any, context: any, check: () => void, adva
   if (!rids.length && !photos.length) throw uiError((l) => t(l, "noSources"));
   advance("check", 0.2);
   // Bad-shot spans and, with the stillness picker on, motion curves, as Build reads them.
-  const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"]).ok;
+  const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdir"]).ok;
   const spanShare = stillOn ? 0.4 : 0.8;
   const badSpans = await readSpans(sdk, pid, inv, rids, new Map(), check, (done, total) => advance("check", 0.2 + spanShare * (total ? done / total : 1)), realIds);
   check();
@@ -4866,6 +4812,273 @@ function TemplateRun({ sdk, context }: any) {
   return <div role="status" style={{ fontSize: 11, color: "var(--panel-muted-fg)" }}>{status(L)}</div>;
 }
 
-export default function Panel(props: any) {
+function Panel(props: any) {
+  hostUseSdk(props.sdk);
   return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <SelfieAestheticPanel {...props} />;
 }
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    // Direct arguments keep object literals contextually typed by the SDK signature.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(Panel);
+// local-sdk:end

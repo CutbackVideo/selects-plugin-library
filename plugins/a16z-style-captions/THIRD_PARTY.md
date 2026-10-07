@@ -12,10 +12,9 @@
   punctuation) and renamed "Editorial Serif Subset", as the licence's Reserved
   Font Name requires. Stored as base64 text of the WOFF2 files and embedded into
   the captions graphic.
-- YuNet face detector (`face_detection_yunet_2023mar.onnx`) from the OpenCV Zoo,
-  MIT licence. Downloaded on first use; not shipped in this package.
-- OpenCV (`opencv-python-headless`, Apache 2.0) and NumPy (BSD) are installed
-  from PyPI into the plugin's own Python environment on first use.
+- YuNet and native ONNX Runtime are supplied by the separately installed
+  `selects-ai-runtime`; see that package's third-party notices. This package
+  creates no private Python/OpenCV environment.
 - B-roll clips come from Pexels and Pixabay through Selects' stock search, under
   the Pexels and Pixabay content licences. The panel lists each clip's creator.
 - The music bed is generated per Short through Selects' generation service.

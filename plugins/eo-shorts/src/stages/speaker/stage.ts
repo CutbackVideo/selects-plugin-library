@@ -1,16 +1,15 @@
+import { canonicalResourceBindings } from "../../../../../shared/ai-resources.cjs";
 import type { StageContext, StageImpl, StageResult } from "../../jobs/runner.ts";
 import { inputShaFrom } from "../../jobs/receipts.ts";
 import { ensureDir, readJsonIfExists, writeJsonAtomic } from "../../host/fs.ts";
 import { readScript, runScript } from "../../host/runScript.ts";
 import { analyzeSpeaker, type SpeakerHost, type SpeakerInput } from "../../speaker/analyze.ts";
 import { buildApplyScript } from "../../speaker/applyScript.ts";
-import type { FaceDetector } from "../../speaker/yunet/runtime.ts";
-import { sharedFaceDetector } from "./detector.ts";
 import { panelSpeakerHost } from "./host.ts";
 import { readSpeakerDraftScript, type SpeakerDraftRead } from "./scripts.ts";
 import { guardWordsSig, type SignedWord } from "../compose/wordsGuard.ts";
 
-export const SPEAKER_STAGE_VERSION = "eo-speaker-stage/1";
+export const SPEAKER_STAGE_VERSION = "eo-speaker-stage/2";
 
 export const SPEAKER_REL = {
   faces: "speaker/faces.json",
@@ -21,7 +20,6 @@ export const SPEAKER_REL = {
 
 export type SpeakerStageOptions = {
   host?: (ctx: StageContext) => SpeakerHost;
-  detector?: (ctx: StageContext) => Promise<FaceDetector>;
   backoffMs?: number[];
 };
 
@@ -43,10 +41,16 @@ async function runSpeaker(ctx: StageContext, o: SpeakerStageOptions): Promise<St
   const draftId = job.draftId;
   if (!draftId) throw new Error("The job has no EO draft yet (the edit stage makes it).");
   const rs = { signal: ctx.signal, ...(o.backoffMs ? { backoffMs: o.backoffMs } : {}) };
-  ensureDir(fs, ctx.path("speaker"));
+  await ensureDir(fs, ctx.path("speaker"));
 
   ctx.note("Reading the EO draft…");
-  const read = await readScript<SpeakerDraftRead>(host.sdk, "EO Shorts: read Main for the speaker framing", readSpeakerDraftScript(job.projectId, draftId), rs);
+  if (!host.sdk.call) throw new Error("Update Selects to resolve source Resources.");
+  const bindings = canonicalResourceBindings(await host.sdk.call("getDraftCore", draftId), { projectId: job.projectId, draftId });
+  const read = await readScript<SpeakerDraftRead>(host.sdk, "EO Shorts: read Main for the speaker framing", readSpeakerDraftScript(job.projectId, draftId, Object.fromEntries(bindings)), rs);
+  const after = canonicalResourceBindings(await host.sdk.call("getDraftCore", draftId), { projectId: job.projectId, draftId });
+  const fingerprint = (map: Map<number, string>) => JSON.stringify([...map].sort((a, b) => a[0] - b[0]));
+  if (fingerprint(bindings) !== fingerprint(after)) throw new Error("Main sources changed while reading the Draft. Try again.");
+  if (Object.values(read.resources).some(r => !r.canonicalResourceId)) throw new Error("The persistent source Resource is unavailable.");
   const edited = await readJsonIfExists<{ mainEnd?: number; words?: SignedWord[] } | null>(fs, ctx.path("edit/words.json"), null);
   if (edited && (edited.mainEnd !== read.mainEnd || (Array.isArray(edited.words) && guardWordsSig(edited.words) !== read.wordsSig))) {
     throw new Error("The EO draft changed after the edit (Main ends at frame " + read.mainEnd + ", the edit left " + edited.mainEnd + "). Make a new short from the source.");
@@ -65,8 +69,7 @@ async function runSpeaker(ctx: StageContext, o: SpeakerStageOptions): Promise<St
     resources,
   };
 
-  const detector = o.detector ? () => o.detector!(ctx) : () => sharedFaceDetector(fs, ctx.roots.runtime, (s) => ctx.note(s));
-  const sh = o.host ? o.host(ctx) : panelSpeakerHost(host, { scratchDir: ctx.path("speaker/tmp"), detector, signal: ctx.signal, progress: (s) => ctx.note(s) });
+  const sh = o.host ? o.host(ctx) : (await panelSpeakerHost(host, { scratchDir: ctx.path("speaker/tmp"), projectId: job.projectId, scope: job.jobId + ":speaker", resources: Object.fromEntries(Object.entries(read.resources).filter(([, r]) => r.path).map(([rid, r]) => [r.path!, { resourceId: r.canonicalResourceId || rid, duration: r.durationSeconds }])), signal: ctx.signal, progress: (s) => ctx.note(s) }));
   const result = await analyzeSpeaker(input, sh, { signal: ctx.signal });
   await writeJsonAtomic(fs, ctx.path(SPEAKER_REL.faces), result.faces);
   await writeJsonAtomic(fs, ctx.path(SPEAKER_REL.framing), result.framing);

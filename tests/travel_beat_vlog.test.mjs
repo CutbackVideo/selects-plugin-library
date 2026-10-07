@@ -5,11 +5,15 @@ import path from 'node:path';
 import vm from 'node:vm';
 import os from 'node:os';
 import zlib from 'node:zlib';
-import {loadPanelOperation,runPanelShell} from './panel_operation.mjs';
+import {createRequire} from 'node:module';
+import {webcrypto} from 'node:crypto';
+import {loadPanelFunctions} from './windows_host.mjs';
+import {loadPanelOperation} from './panel_operation.mjs';
+import {spawnSync,execFileSync} from 'node:child_process';
 
 const {scenePlan,slotNeeds,colorTransfer,normalizeFinish,buildFinishScript,buildCutoutScript,VIDEO_SLOTS,REFERENCE_TIMING,validateTiming,withinLimits,LIMITS,
- songAnalysis,songWorkerSource,songDecodeArgs,songArrangeArgs,measureArgs,rgbStats,cutoutKey,cutoutCommand}=loadPanelOperation('travel-beat-vlog');
-const {analyseSamples,timingFrom,hits,rolls}=songAnalysis();
+ songAnalysis,songWorkerSource,songDecodeArgs,songArrangeArgs,measureArgs,rgbStats,cutoutKey,heroAlphaArgs}=loadPanelOperation('travel-beat-vlog');
+const {analyseSamples,timingFrom,opening,hits,rolls}=songAnalysis();
 
 const dir=path.resolve(import.meta.dirname,'../plugins/travel-beat-vlog');
 // Independent reference measurements (30 fps, 468 frames), typed from the frame analysis.
@@ -105,7 +109,10 @@ test('the panel needs no Node.js, runtime.sh or Xcode tools',()=>{
  const panel=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
  assert.doesNotMatch(panel,/['"`]node\s|runtime\.sh|build-script|swiftc|xcrun|python3/);
  const files=JSON.parse(fs.readFileSync(path.join(dir,'plugin.json'),'utf8')).files;
- assert.ok(files.includes('tools/cutout.js')&&files.includes('color-targets.json')&&!files.some(f=>/\.(mjs|sh|swift)$/.test(f)));
+ assert.ok(files.includes('color-targets.json')&&!files.some(f=>/\.(mjs|sh|swift)$/.test(f)));
+ assert.ok(!files.includes('tools/cutout.js'));
+ assert.match(panel,/photoAiMatte\(sdk,projectId,photo/);
+ assert.doesNotMatch(panel,/osascript|SUBJECT_MAC_ONLY/);
  for(const f of files)assert.ok(fs.existsSync(path.join(dir,f)),f);
 });
 
@@ -128,6 +135,7 @@ test('the song worker answers with the same fit and timing as the analysis',asyn
  const got=await new Promise((resolve,reject)=>{const ctx={postMessage:m=>m.error?reject(Error(m.error)):resolve(m.ok)};vm.createContext(ctx);vm.runInContext(songWorkerSource(),ctx);ctx.onmessage({data:{samples:x,cuts:'hits'}});});
  const fit=analyseSamples(x);
  assert.equal(JSON.stringify(got.fit),JSON.stringify(fit));assert.equal(JSON.stringify(got.timing),JSON.stringify(timingFrom(fit,'hits')));
+ assert.equal(got.start,opening(fit,'hits'));assert.equal(got.start,fit.window.m1[0]);
  const short=await new Promise(resolve=>{const ctx={postMessage:resolve};vm.createContext(ctx);vm.runInContext(songWorkerSource(),ctx);ctx.onmessage({data:{samples:new Float32Array(SR),cuts:'hits'}});});
  assert.match(short.error,/too short/);
 });
@@ -141,29 +149,98 @@ function boxPng(file,w,h,box){
  const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(w,0);ihdr.writeUInt32BE(h,4);ihdr.set([8,2,0,0,0],8);
  fs.writeFileSync(file,Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',zlib.deflateSync(Buffer.concat(rows))),chunk('IEND',Buffer.alloc(0))]));
 }
-test('cutout runs through osascript with only stock macOS tools',{skip:process.platform!=='darwin'},()=>{
- const home=fs.mkdtempSync(path.join(os.tmpdir(),'travel cutout-'));
- const run=(photo,out,mode)=>runPanelShell(cutoutCommand(path.join(dir,'tools','cutout.js'),photo,out,mode),{home});
- const box=path.join(home,"box's.png"),plain=path.join(home,'plain.png'),out=path.join(home,'hero.png');
- boxPng(box,64,48,{x:22,y:14,w:20,h:20});boxPng(plain,64,48,null);
- const fg=run(box,out,'foreground');
- assert.equal(fg.status,0,fg.stderr);
- assert.equal(fs.readFileSync(out).subarray(1,4).toString(),'PNG');
- const none=run(plain,path.join(home,'none.png'),'person');
- assert.notEqual(none.status,0);assert.match(none.stderr,/^No person found\./);
+test('shared grayscale alpha preserves the original RGB pixels and transparent subject edges', {skip:spawnSync('ffmpeg',['-version']).status!==0},t=>{
+ const home=fs.mkdtempSync(path.join(os.tmpdir(),'travel-alpha-'));t.after(()=>fs.rmSync(home,{recursive:true,force:true}));
+ const source=path.join(home,'original.png'),mask=path.join(home,'mask.png'),out=path.join(home,'subject.png');
+ boxPng(source,16,24,{x:5,y:3,w:7,h:18});
+ const raw=Buffer.alloc(16*24);for(let y=0;y<24;y++)for(let x=0;x<16;x++)raw[y*16+x]=x<5?0:x<12?192:255;
+ const rawFile=path.join(home,'mask.gray');fs.writeFileSync(rawFile,raw);
+ execFileSync('ffmpeg',['-v','error','-y','-f','rawvideo','-pix_fmt','gray','-s','16x24','-i',rawFile,'-frames:v','1',mask]);
+ execFileSync('ffmpeg',heroAlphaArgs(source,mask,out));
+ const rgba=execFileSync('ffmpeg',['-v','error','-i',out,'-frames:v','1','-f','rawvideo','-pix_fmt','rgba','-']);
+ const rgb=execFileSync('ffmpeg',['-v','error','-i',source,'-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','-']);
+ for(let i=0;i<raw.length;i++){assert.deepEqual(rgba.subarray(i*4,i*4+3),rgb.subarray(i*3,i*3+3));assert.equal(rgba[i*4+3],raw[i]);}
+ assert.equal(heroAlphaArgs('C:\\photo.png','C:\\mask.png','C:\\out.png').at(-1),'C:\\out.png');
 });
 
-// The panel's Image bridge: stills are held past their 5 s source (hero 47 frames is shorter; cutout 40).
+// Native placement behavior is exercised through runScript in native_image_sdk_migration.test.mjs.
 const panelSource=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
-const bridge=panelSource.slice(panelSource.indexOf('export async function placeNativeImages'),panelSource.indexOf('// Registers a file the plugin wrote'));
-const {placeNativeImages}=vm.runInThisContext('(function(){'+bridge.replaceAll('export async function','async function')+';return {placeNativeImages};})()');
-test('bridge places each item at its frames with a safe sourceDuration',async()=>{
- const trims=[];let n=1;const clips=new Map();
- const cand={place:(_s,start)=>{const id=n++;clips.set(id,{start,dur:150});return [id];},getClipPositionById:id=>{const c=clips.get(id);return c&&{trackId:'t'+id,resolvedOffset:c.start,clip:{getDuration:()=>c.dur}};},
-  trimClipBoundary:({clipId,delta,sourceDuration})=>{const c=clips.get(clipId);trims.push(sourceDuration);if(sourceDuration<c.dur)throw Error('Source range exceeded');c.dur+=delta;return {trimmedClipPosition:cand.getClipPositionById(clipId)};},getDuration:()=>468,slice:()=>{}};
- const di={ProjectRepository:{findById:async()=>({getEditedSequences:()=>['d']})},SequenceRepository:{findById:async()=>({getFrameRate:()=>30,getDuration:()=>468})},TimelineMutation:{run:async(_s,_l,fn)=>({status:'committed',sequence:fn({clone:()=>cand})})}};
- const out=await placeNativeImages({di,libraryId:'l',projectId:'p',sources:[{analyzed:{},main:{},primary:{getId:()=>1},width:3000,height:4000}]},'d',plan,[{source:0,startFrame:55,endFrame:102}],'hero');
- assert.deepEqual(out.placements.map(p=>[p.startFrame,p.endFrame]),[[55,102]]);assert.deepEqual(trims,[150]);
+
+test('both photo panels bundle the current shared journal and canonical resource helpers',()=>{
+ for(const id of ['travel-beat-vlog','cutout-beat-gallery']){
+  const source=fs.readFileSync(path.resolve(dir,'..',id,'panel.tsx'),'utf8');
+  for(const [marker,binding,file]of [['jobs','sharedAiJobs','ai-job-client.cjs'],['resources','sharedAiResources','ai-resources.cjs']]){
+   const start='//shared-ai-'+marker+':start',end='//shared-ai-'+marker+':end';
+   const expected=start+'\nconst '+binding+' = (()=>{const module={exports:{}};\n'+fs.readFileSync(path.resolve(dir,'../../shared',file),'utf8')+'\nreturn module.exports;})();\n'+end;
+   assert.equal(source.slice(source.indexOf(start),source.indexOf(end)+end.length),expected,id+' '+marker);
+  }
+ }
+});
+
+// Exercise the actual template entry and photo adapter, while unrelated beat/timeline work is stubbed.
+function recoveryFixture(initialStatus='succeeded'){
+ const require=createRequire(import.meta.url),stored=new Map(),jobs=new Map(),keys=new Map(),submits=[];
+ const resourceId='ee44b47f-3537-41be-a64f-92262c58a3a3';
+ let nextStatus=initialStatus;
+ const ai={submit:async input=>{
+  if(keys.has(input.requestKey))return {workflowId:keys.get(input.requestKey)};
+  const workflowId='ai:'+String(jobs.size+1);keys.set(input.requestKey,workflowId);
+  jobs.set(workflowId,{input,status:nextStatus});submits.push(input);return {workflowId};
+ },job:(id,pid)=>({
+  status:async()=>({workflowId:id,projectId:pid,runtimeId:'selects-ai-runtime',task:'person.matte',status:jobs.get(id).status}),
+  result:async()=>({workflowId:id,task:'person.matte',files:{manifest:{id}}}),
+  cancel:async()=>{throw Error('Closing a template must not cancel its job');}
+ }),prepareMatte:async()=>({sourceKind:'image',sourceResourceId:resourceId,frameSize:{width:2,height:2},maskUrl:'local:mask'})};
+ const sdk={storage:{getItem:async key=>stored.get(key)??null,setItem:async(key,value)=>stored.set(key,value)},
+  runScript:async({script})=>{try{return {result:await vm.runInNewContext('(async()=>{'+script+'})()',{selects:{ai,files:{pathFromLocalUrl:()=>'/mask.png'}}})}}catch(e){return {isError:true,output:e.message}}}};
+ const photo=loadPanelFunctions(panelSource,['photoAiScript','photoAiClient','photoAiMatte'],{
+  crypto:webcrypto,sharedAiJobs:require('../shared/ai-job-client.cjs'),
+  photoAiCanonicalId:async()=>resourceId,
+ });
+ const raw=panelSource.slice(panelSource.indexOf('function TravelTemplateRun('),panelSource.indexOf('\nfunction Panel('));
+ // The final status element is unrelated to recovery; keep the entire effect body executable as JS.
+ const compiled=raw.replace(/^\s*return <p role="status".*$/m,' return null;');
+ function mount(runId){
+  const effects=[],cleanups=[];let finish;
+  const finished=new Promise(resolve=>{finish=resolve});
+  const context={projectId:'project',template:{runId,inputs:{},options:{}}};
+  const React={useState:value=>[value,()=>{}],useRef:value=>({current:value}),useEffect:effect=>effects.push(effect),createElement:()=>null};
+  const host=vm.createContext({React,AbortController,console:{warn:()=>{}},TEMPLATE_DEFAULTS:{cutoutMode:'person'},TEMPLATE_FAILED:'Failed',
+   templateMedia:async()=>({heroPhoto:{resourceId},chosen:{},song:{}}),templateIssue:message=>Error(message),templateMessage:error=>error.message,
+   buildTravelVlog:async(sdk,args)=>{await photo.photoAiMatte(sdk,args.projectId,args.heroPhoto,{scope:args.aiScope,retryTerminal:args.aiRetryTerminal,control:{observer:{signal:args.aiSignal}}});return {draftId:'draft'}},
+  });
+  vm.runInContext(compiled,host);host.TravelTemplateRun({sdk:{...sdk,finishTemplate:finish},context});
+  for(const effect of effects){const cleanup=effect();if(cleanup)cleanups.push(cleanup)}
+  return {finished,unmount:()=>cleanups.forEach(f=>f())};
+ }
+ return {mount,sdk,photo,resourceId,stored,jobs,submits,setStatus:status=>{nextStatus=status;for(const job of jobs.values())job.status=status}};
+}
+
+for(const state of ['failed','canceled'])test(`same Travel template run recovers ${state} without silently retrying; a new Apply starts a new run`,async()=>{
+ const f=recoveryFixture(state);
+ const first=f.mount('run-a');assert.match((await first.finished).error,/AI analysis/);first.unmount();
+ f.setStatus(state);
+ const reopened=f.mount('run-a');assert.match((await reopened.finished).error,/AI analysis/);reopened.unmount();
+ assert.equal(f.submits.length,1);
+ f.setStatus('succeeded');const applied=f.mount('run-b');assert.equal((await applied.finished).sequenceId,'draft');applied.unmount();
+ assert.equal(f.submits.length,2);
+ const journals=[...f.stored.values()].map(value=>JSON.parse(value));
+ assert.deepEqual(journals.map(j=>j.scope).sort(),['travel-beat-vlog:template:run-a','travel-beat-vlog:template:run-b']);
+});
+
+test('closing a running Travel template detaches; reopening the same run adopts its original job',async()=>{
+ const f=recoveryFixture('running'),first=f.mount('running');
+ for(let i=0;i<100&&f.submits.length===0;i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(f.submits.length,1);first.unmount();f.setStatus('succeeded');
+ const reopened=f.mount('running');assert.equal((await reopened.finished).sequenceId,'draft');reopened.unmount();
+ assert.equal(f.submits.length,1);
+});
+
+test('manual Travel Apply explicitly retries a prior terminal image job',async()=>{
+ const f=recoveryFixture('failed');
+ await assert.rejects(f.photo.photoAiMatte(f.sdk,'project',{resourceId:f.resourceId},{scope:'travel-beat-vlog'}),/AI analysis failed/);
+ f.setStatus('succeeded');await f.photo.photoAiMatte(f.sdk,'project',{resourceId:f.resourceId},{scope:'travel-beat-vlog'});
+ assert.equal(f.submits.length,2);
 });
 
 // --- song fitting (analyze.mjs) ---
@@ -200,13 +277,32 @@ test('every timing a song can produce stays within the lengths the template prom
   const P=60/bpm,K=(2*bpm/89.4)>=2.5?1.5:1,D=20,T=f=>D+K*b(f)*P;
   for(let trial=0;trial<25;trial++){
    const some=(a,c,n)=>Array.from({length:n},()=>a+rnd()*(c-a)).sort((u,v)=>u-v).filter((v,i,arr)=>!i||v-arr[i-1]>=2/30);
-   const m1=[T(12),...some(T(12)+0.07,T(55)-P/8,Math.floor(rnd()*14))];
+   const first=trial%2?T(12):T(12)-P/2+rnd()*(T(55)-P/8-T(12)+P/2);   // the strongest hit can open anywhere in the window
+   const m1=[first,...some(first+0.07,T(55)-P/8,Math.floor(rnd()*14))];
    const fit={P,K,bpm,window:{D,m1,m2:some(T(364)-P/4,T(424)-P/8,Math.floor(rnd()*14)),g1:some(T(147),T(182)-P/8,Math.floor(rnd()*6)),g2:some(T(227),T(263)-P/8,Math.floor(rnd()*6))}};
    for(const mode of ['hits','reference']){
     const t=withinLimits(validateTiming(timingFrom(fit,mode)));
     for(const [s,v] of Object.entries(slotNeeds(t)))assert.ok(v<=(['V12','V17','V22'].includes(s)?LIMITS.long:LIMITS.clip)+1e-9,`${bpm} BPM ${mode}: ${s} needs ${v.toFixed(2)} s`);
    }
   }
+ }
+});
+// QA: a song with few hits fell back to the reference rhythm but opened on its first hit, ~1.17 s after the grid's
+// first cut, so m1[1] came out at -19. The opening must keep the grid in order, and the song starts at that opening.
+test('a song with few or no montage hits still yields a valid timing that starts the song on its opening',()=>{
+ const bpm=89.4,P=60/bpm,K=1,D=20,b=f=>(f-102)/(30*60/89.4),T=f=>D+K*b(f)*P;
+ const fit=m1=>({P,K,bpm,window:{D,m1,m2:[],g1:[],g2:[]}});
+ const late=fit([T(12)+7/6,T(12)+1.25,T(12)+1.3]);
+ const t=withinLimits(validateTiming(timingFrom(late,'hits')));
+ assert.deepEqual(t.m1.slice(0,2),[12,16]);assert.ok(Math.abs(opening(late,'hits')-T(12))<1e-9);
+ const early=fit([T(12)+0.05,T(12)+0.5]);
+ assert.ok(Math.abs(opening(early,'hits')-early.window.m1[0])<1e-9);   // an early first hit still opens the vlog
+ assert.ok(Math.abs(opening(early,'reference')-T(12))<1e-9);
+ const crowded=fit(Array.from({length:6},(_,i)=>T(12)+0.9+i*0.07));   // 6 hits, too late to fill 11 cuts
+ assert.ok(Math.abs(opening(crowded,'hits')-T(12))<1e-9);
+ for(const f of [late,early,crowded,fit([])])for(const mode of ['hits','reference']){
+  const t=withinLimits(validateTiming(timingFrom(f,mode))),o=opening(f,mode);
+  assert.equal(t.m1[0],12);assert.equal(t.v12,Math.round((T(102)-o+0.4)*30));   // the cuts sit on the song from its opening
  }
 });
 

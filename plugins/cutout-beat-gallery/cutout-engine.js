@@ -1,5 +1,4 @@
-// Beat Cutout Gallery: the image work of prepare.py in plain JavaScript, for hosts where Python and Pillow are not
-// there (Windows). Each Pillow step it uses is ported from Pillow 12's C code (Resample.c, BoxBlur.c, RankFilter,
+// Beat Cutout Gallery: shared image postprocessing on macOS and Windows. Each Pillow step it uses is ported from Pillow 12's C code (Resample.c, BoxBlur.c, RankFilter,
 // Paste.c, AlphaComposite.c, Offset.c, Convert.c) and Python's Mersenne Twister, so that on the same frame and mask
 // the outputs equal prepare.py's; tests/cutout_beat_gallery.test.mjs checks them against prepare.py's own results.
 // Images are {w, h, c, d}: c = 1 (L), 3 (RGB) or 4 (RGBA) bytes per pixel, rows top to bottom.
@@ -533,8 +532,9 @@
     return { frame: frame.d, bits: fp.bits.toString(16), tiny: fp.tiny.d };
   }
   // A mask of any size as prepare.py reads it: L, resized to 1080x1920 (bicubic), then checked.
-  function maskOf(gray, w, h) {
-    const mask = resize(image(w, h, 1, gray), W, H, "bicubic");
+  function maskOf(gray, w, h, cover = false) {
+    const src = image(w, h, 1, gray);
+    const mask = cover ? fit(src, W, H, "lanczos") : resize(src, W, H, "bicubic");
     const [ok, metrics] = quality(mask);
     return { mask: mask.d, ok, metrics };
   }
@@ -550,7 +550,7 @@
       catch (e) { return { digest, reason: String(e && e.message || e || "unreadable photo").slice(0, 120) }; }
       return { digest, ...framePhoto(src, (previous || []).map((p) => ({ bits: BigInt("0x" + p.bits), tiny: p.tiny }))) };
     },
-    mask: ({ gray, w, h }) => maskOf(new Uint8Array(gray), w, h),
+    mask: ({ gray, w, h, cover }) => maskOf(new Uint8Array(gray), w, h, cover),
     plan: ({ rows, good, photoCount, rejected }) => plan(rows, good, photoCount, rejected),
     layer({ frame, mask, style, outline }) {
       const f = image(W, H, 3, new Uint8Array(frame)), m = image(W, H, 1, new Uint8Array(mask));

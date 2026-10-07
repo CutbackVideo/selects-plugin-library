@@ -2,6 +2,629 @@
 // @icon wand
 // One click turns a talking-head draft into a new 9:16 EO-style short: tightened talk, speaker framing,
 // typographic scenes, pictures and B-roll, music and loudness, exported and checked.
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+
+// ../../shared/ai-job-client.cjs
+var require_ai_job_client = __commonJS({
+  "../../shared/ai-job-client.cjs"(exports, module) {
+    var STATUS2 = /* @__PURE__ */ new Set(["queued", "running", "canceling", "succeeded", "failed", "canceled"]);
+    var terminal = (status) => ["succeeded", "failed", "canceled"].includes(status);
+    var UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+    var writes = /* @__PURE__ */ new Map();
+    var error = (code, message) => Object.assign(new Error(message), { code });
+    var invalid = () => error("SHARED_AI_INVALID", "Saved AI analysis does not match this source or task.");
+    var clone = (value) => JSON.parse(JSON.stringify(value));
+    function stable(value) {
+      if (Array.isArray(value)) return "[" + value.map(stable).join(",") + "]";
+      if (value && typeof value === "object") return "{" + Object.keys(value).sort().map((k) => JSON.stringify(k) + ":" + stable(value[k])).join(",") + "}";
+      if (value === void 0 || typeof value === "function" || typeof value === "symbol" || typeof value === "bigint" || typeof value === "number" && !Number.isFinite(value)) throw invalid();
+      return JSON.stringify(value);
+    }
+    function attached(signal) {
+      if (signal?.aborted) throw error("SHARED_AI_DETACHED", "AI observation stopped. Reopen to recover the saved job.");
+    }
+    function inputFor(projectId, request2) {
+      if (!request2 || !["faces.detect", "person.matte"].includes(request2.task) || !UUID.test(request2.resourceId)) throw invalid();
+      const input = { runtimeId: "selects-ai-runtime", projectId, resourceId: request2.resourceId, task: request2.task };
+      if (request2.sourceRange !== void 0) {
+        const { startSeconds, endSeconds } = request2.sourceRange || {};
+        if (!Number.isFinite(startSeconds) || startSeconds < 0 || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) throw invalid();
+        input.sourceRange = { startSeconds, endSeconds };
+      }
+      if (request2.options !== void 0) {
+        if (!request2.options || Array.isArray(request2.options) || typeof request2.options !== "object") throw invalid();
+        stable(request2.options);
+        input.options = clone(request2.options);
+      }
+      return input;
+    }
+    async function requestKey(scope, identity, input, attempt2) {
+      const withoutKey = { ...input };
+      delete withoutKey.requestKey;
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stable({ scope, identity, input: withoutKey, attempt: attempt2 })));
+      return "shared-ai-" + Array.from(new Uint8Array(digest), (n2) => n2.toString(16).padStart(2, "0")).join("");
+    }
+    function createSharedAiJobClient2(env) {
+      const { projectId, scope, runScript: runScript2, load, save } = env || {};
+      if (typeof projectId !== "string" || !projectId || typeof scope !== "string" || !scope || ![runScript2, load, save].every((f) => typeof f === "function")) throw invalid();
+      const storageKey = stable({ projectId, scope });
+      const fresh = () => ({ version: 1, projectId, scope, records: [] });
+      async function read() {
+        let journal;
+        try {
+          journal = await load();
+        } catch (cause) {
+          if (String(cause?.message || cause).trim() === "The file is unavailable." || /ENOENT|not found|does not exist/i.test(String(cause?.message || cause))) journal = null;
+          else throw cause;
+        }
+        if (journal == null) return fresh();
+        if (typeof journal === "string") {
+          try {
+            journal = JSON.parse(journal);
+          } catch {
+            throw invalid();
+          }
+        }
+        if (journal.version !== 1 || journal.projectId !== projectId || journal.scope !== scope || !Array.isArray(journal.records) || journal.records.length > 1e4) throw invalid();
+        const keys2 = /* @__PURE__ */ new Set();
+        for (const r5 of journal.records) {
+          if (!r5 || typeof r5.identity !== "string" || !Number.isSafeInteger(r5.attempt) || r5.attempt < 0 || r5.attempt > 255 || !/^shared-ai-[\da-f]{64}$/.test(r5.input?.requestKey) || keys2.has(r5.input.requestKey) || r5.workflowId !== void 0 && (typeof r5.workflowId !== "string" || !r5.workflowId) || r5.status !== void 0 && !STATUS2.has(r5.status) || r5.cancelRequested !== void 0 && typeof r5.cancelRequested !== "boolean") throw invalid();
+          const input = inputFor(projectId, r5.input);
+          if (stable({ ...input, requestKey: r5.input.requestKey }) !== stable(r5.input)) throw invalid();
+          keys2.add(r5.input.requestKey);
+        }
+        return clone(journal);
+      }
+      async function update(record2) {
+        const prior = writes.get(storageKey) || Promise.resolve();
+        const pending2 = prior.catch(() => {
+        }).then(async () => {
+          const journal = await read(), i = journal.records.findIndex((r5) => r5.input.requestKey === record2.input.requestKey), old = journal.records[i];
+          if (old?.workflowId && record2.workflowId && old.workflowId !== record2.workflowId) throw invalid();
+          const next = { ...old, ...record2, cancelRequested: Boolean(old?.cancelRequested || record2.cancelRequested) };
+          if (old?.workflowId) next.workflowId = old.workflowId;
+          if (old && terminal(old.status)) next.status = old.status;
+          if (i < 0) journal.records.push(next);
+          else journal.records[i] = next;
+          await save(clone(journal));
+          Object.assign(record2, next);
+        });
+        writes.set(storageKey, pending2);
+        try {
+          await pending2;
+        } finally {
+          if (writes.get(storageKey) === pending2) writes.delete(storageKey);
+        }
+      }
+      async function ack(record2, signal) {
+        if (record2.workflowId) return;
+        attached(signal);
+        const value = await runScript2(`if(typeof selects.ai?.submit!=='function')throw new Error('AI_UPDATE_REQUIRED');const j=await selects.ai.submit(${JSON.stringify(record2.input)});return {workflowId:j.workflowId};`, "Start shared AI analysis", true);
+        if (typeof value?.workflowId !== "string" || !value.workflowId) throw invalid();
+        record2.workflowId = value.workflowId;
+        await update(record2);
+        attached(signal);
+      }
+      async function status(record2, cancel3 = false) {
+        const value = await runScript2(`return await selects.ai.job(${JSON.stringify(record2.workflowId)},${JSON.stringify(projectId)}).${cancel3 ? "cancel" : "status"}();`, cancel3 ? "Cancel shared AI analysis" : "Read shared AI progress", cancel3);
+        if (value?.workflowId !== record2.workflowId || value.projectId !== projectId || value.runtimeId !== "selects-ai-runtime" || value.task !== record2.input.task || !STATUS2.has(value.status)) throw invalid();
+        record2.status = value.status;
+        await update(record2);
+        return value;
+      }
+      async function stop(record2, options = {}) {
+        record2.cancelRequested = true;
+        await update(record2);
+        await ack(record2, options.signal);
+        if (!terminal(record2.status)) await status(record2, true);
+        const deadline = Date.now() + (options.maxWaitMs ?? 6e4);
+        while (!terminal(record2.status)) {
+          attached(options.signal);
+          if (Date.now() >= deadline) throw error("SHARED_AI_CANCEL_PENDING", "AI is still stopping. Cancellation is saved; reopen to recover it.");
+          await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+          await status(record2);
+        }
+      }
+      async function run2(request2, options = {}) {
+        attached(options.signal);
+        const input = inputFor(projectId, request2), identity = options.identity ?? "";
+        if (typeof identity !== "string") throw invalid();
+        const journal = await read();
+        let record2 = journal.records.filter((r5) => r5.identity === identity && stable(inputFor(projectId, r5.input)) === stable(input)).sort((a, b2) => b2.attempt - a.attempt)[0];
+        if (record2 && record2.input.requestKey !== await requestKey(scope, identity, input, record2.attempt)) throw invalid();
+        if (record2?.workflowId && options.retryTerminal) {
+          attached(options.signal);
+          await status(record2);
+          attached(options.signal);
+        }
+        if (record2 && options.retryTerminal && record2.cancelRequested && !terminal(record2.status)) await stop(record2, options);
+        if (!record2 || options.retryTerminal && (["failed", "canceled"].includes(record2.status) || record2.cancelRequested && terminal(record2.status))) {
+          const attempt2 = record2 ? record2.attempt + 1 : 0;
+          if (attempt2 > 255) throw invalid();
+          record2 = { identity, attempt: attempt2, input: { ...input, requestKey: await requestKey(scope, identity, input, attempt2) } };
+          await update(record2);
+        }
+        await ack(record2, options.signal);
+        for (; ; ) {
+          attached(options.signal);
+          const latest = (await read()).records.find((r5) => r5.input.requestKey === record2.input.requestKey);
+          if (!latest) throw invalid();
+          Object.assign(record2, latest);
+          const value = await status(record2, record2.cancelRequested && !terminal(record2.status));
+          attached(options.signal);
+          if (record2.cancelRequested || record2.status === "canceled") throw error("SHARED_AI_CANCELED", "AI analysis was canceled. Start again to retry.");
+          if (record2.status === "failed") throw error("SHARED_AI_FAILED", "AI analysis failed. " + String(value.lastErrorMessage || "").slice(0, 300));
+          if (record2.status === "succeeded") {
+            const result = await runScript2(`return await selects.ai.job(${JSON.stringify(record2.workflowId)},${JSON.stringify(projectId)}).result();`, "Read shared AI result");
+            attached(options.signal);
+            if (result?.workflowId !== record2.workflowId || result.task !== record2.input.task || !result.files || typeof result.files !== "object") throw invalid();
+            return { workflowId: record2.workflowId, input: clone(record2.input), result };
+          }
+          options.onProgress?.(value);
+          await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+        }
+      }
+      async function cancel2(options = {}) {
+        const journal = await read();
+        for (const record2 of journal.records) {
+          if (options.identity !== void 0 && record2.identity !== options.identity || terminal(record2.status)) continue;
+          if (record2.input.requestKey !== await requestKey(scope, record2.identity, record2.input, record2.attempt)) throw invalid();
+          await stop(record2, options);
+        }
+      }
+      return { run: run2, cancel: cancel2 };
+    }
+    module.exports = { createSharedAiJobClient: createSharedAiJobClient2 };
+  }
+});
+
+// ../../shared/ai-resources.cjs
+var require_ai_resources = __commonJS({
+  "../../shared/ai-resources.cjs"(exports, module) {
+    var UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+    var fingerprint = (rows) => JSON.stringify(rows.map((r5) => [r5.resourceId, r5.name, r5.type]));
+    function canonicalResourceBindings2(core, { projectId, draftId, trackKinds = ["Main"] } = {}) {
+      if (!core?.owner?.projectId || projectId && core.owner.projectId !== projectId || draftId && core.sequenceJson?.id !== draftId) throw new Error("The Draft belongs to another Project.");
+      const bindings = /* @__PURE__ */ new Map();
+      function walk(rows) {
+        for (const row of rows || []) {
+          const id = row.mediaReferences?.defaultMedia?.id;
+          if (Number.isSafeInteger(row.id) && UUID.test(id)) {
+            if (bindings.has(row.id) && bindings.get(row.id) !== id) throw new Error("Ambiguous clip source binding.");
+            bindings.set(row.id, id);
+          }
+          if (Array.isArray(row.children)) walk(row.children);
+        }
+      }
+      for (const track of core.sequenceJson?.tracks?.children || []) if (trackKinds.includes(track.kind)) walk(track.children);
+      return bindings;
+    }
+    function pathKey(value) {
+      const path = String(value).normalize("NFC"), windows = /^[a-z]:[\\/]|^\\\\/i.test(path);
+      const normalized = path.replace(/\\/g, "/");
+      return windows ? normalized.toLowerCase() : normalized;
+    }
+    function runner(sdk, runScript2) {
+      return runScript2 || (async (script, summary, allowCommit = false) => {
+        const value = await sdk.runScript({ script, summary, allowCommit });
+        if (value?.isError || value?.result === void 0) throw new Error(value?.output || "The Project read returned an incomplete result.");
+        return value.result;
+      });
+    }
+    async function joinRows(sdk, projectId, runScript2, script) {
+      const before = await sdk.call("listProjectResources", projectId);
+      if (!Array.isArray(before)) throw new Error("Could not read Project Resources.");
+      const observed = await runner(sdk, runScript2)(script, "Resolve persistent AI source");
+      const after = await sdk.call("listProjectResources", projectId);
+      if (!Array.isArray(after) || fingerprint(before) !== fingerprint(after) || observed?.count !== before.length || !Array.isArray(observed.rows)) throw new Error("Project Resources changed while resolving the AI source.");
+      const out = /* @__PURE__ */ new Map();
+      for (const row of observed.rows) {
+        const raw = before[row?.index];
+        if (!Number.isSafeInteger(row?.index) || !raw || raw.name !== row.name || raw.type !== row.type || !UUID.test(raw.resourceId) || typeof row.id !== "string") throw new Error("The persistent AI source could not be matched.");
+        out.set(row.id, raw.resourceId);
+      }
+      return out;
+    }
+    async function resolveSharedAiResources(sdk, projectId, aliases, runScript2) {
+      if (!Array.isArray(aliases) || aliases.some((id) => typeof id !== "string" || !id)) throw new Error("Invalid AI source ids.");
+      const wanted = [...new Set(aliases)];
+      const mappings = await joinRows(sdk, projectId, runScript2, `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const wanted=${JSON.stringify(wanted)};return {count:all.length,rows:all.flatMap((r,index)=>wanted.includes(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`);
+      for (const id of wanted) if (UUID.test(id)) {
+        const raw = await sdk.call("listProjectResources", projectId);
+        if (!raw.some((r5) => r5.resourceId === id)) throw new Error("The AI source is no longer in this Project.");
+        mappings.set(id, id);
+      }
+      if (wanted.some((id) => !mappings.has(id))) throw new Error("The AI source id is unavailable.");
+      return mappings;
+    }
+    async function importSharedAiResource2(sdk, projectId, path, runScript2) {
+      if (typeof path !== "string" || !path || !/^(?:[a-z]:[\\/]|\\\\|\/)/i.test(path)) throw new Error("An absolute AI source path is required.");
+      const run2 = runner(sdk, runScript2);
+      const script = `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const key=${pathKey.toString()};const aliases=new Set<string>();const visit=(rows:any[])=>{for(const n of rows||[]){if(n.type==='dir')visit(n.children);else if(n.path&&key(n.path)===key(${JSON.stringify(path)}))aliases.add(n.resourceId);}};const tree=await p.sourceFiles();if('fileTree' in tree)visit(tree.fileTree);else for(const f of tree.folders||[]){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)visit(part.fileTree);}return {count:all.length,rows:all.flatMap((r,index)=>aliases.has(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`;
+      let map = await joinRows(sdk, projectId, run2, script);
+      if (!map.size) {
+        await run2(`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:[${JSON.stringify(path)}]});`, "Register AI source media", true);
+        map = await joinRows(sdk, projectId, run2, script);
+      }
+      const ids = [...new Set(map.values())];
+      if (ids.length !== 1) throw new Error("The imported AI source path is missing or ambiguous.");
+      return ids[0];
+    }
+    module.exports = { canonicalResourceBindings: canonicalResourceBindings2, resolveSharedAiResources, importSharedAiResource: importSharedAiResource2, importSharedAiVideo: importSharedAiResource2 };
+  }
+});
+
+// ../../shared/face-request-windows.cjs
+var require_face_request_windows = __commonJS({
+  "../../shared/face-request-windows.cjs"(exports, module) {
+    var FACE_DECODE_BUDGET = 19e3;
+    function faceRequestWindows2({ startSeconds, endSeconds, sourceFps, sampleEverySeconds, maxDecodedFrames = FACE_DECODE_BUDGET }) {
+      if (![startSeconds, endSeconds, sourceFps, sampleEverySeconds].every(Number.isFinite) || startSeconds < 0 || endSeconds <= startSeconds || sourceFps <= 0 || sampleEverySeconds <= 0 || !Number.isSafeInteger(maxDecodedFrames) || maxDecodedFrames < 4) throw new Error("Invalid source face window clock.");
+      const count3 = Math.ceil((endSeconds - startSeconds) / sampleEverySeconds - 1e-7);
+      if (!Number.isSafeInteger(count3) || count3 < 1 || count3 > 1e6) throw new Error("Face sample grid exceeds the supported range.");
+      const perWindow = Math.max(1, Math.floor((maxDecodedFrames - 2) / (sourceFps * sampleEverySeconds)) - 1);
+      const windows = [];
+      for (let first = 0; first < count3; first += perWindow) {
+        const after = Math.min(count3, first + perWindow), boundary = startSeconds + first * sampleEverySeconds;
+        const sparse = sourceFps * sampleEverySeconds > (maxDecodedFrames - 2) / 2;
+        const start = first && !sparse ? startSeconds + (first - 1) * sampleEverySeconds : boundary;
+        const end = sparse ? Math.min(endSeconds, start + 2 / sourceFps) : after < count3 ? startSeconds + after * sampleEverySeconds : endSeconds;
+        windows.push({ startSeconds: start, endSeconds: end, ...first ? { acceptFromSeconds: boundary - 1e-7 } : {} });
+      }
+      return windows;
+    }
+    function appendFaceSamples2(target, incoming, acceptFromSeconds = -Infinity) {
+      let time = -Infinity, localIndex = -1;
+      const last2 = target.at(-1)?.sourceTimeSeconds ?? -Infinity;
+      const rows = incoming.flatMap((row) => {
+        if (!Number.isSafeInteger(row.index) || row.index <= localIndex || !Number.isFinite(row.sourceTimeSeconds) || row.sourceTimeSeconds <= time)
+          throw new Error("Invalid shared face sample order across windows.");
+        localIndex = row.index;
+        time = row.sourceTimeSeconds;
+        if (row.sourceTimeSeconds < acceptFromSeconds || row.sourceTimeSeconds === last2) return [];
+        if (row.sourceTimeSeconds < last2) throw new Error("Invalid shared face sample order across windows.");
+        return [{ ...row }];
+      });
+      for (let i = 0; i < rows.length; i++) rows[i].index = target.length + i;
+      target.push(...rows);
+    }
+    module.exports = { FACE_DECODE_BUDGET, faceRequestWindows: faceRequestWindows2, appendFaceSamples: appendFaceSamples2 };
+  }
+});
+
+// ../../shared/local-client.ts
+import React from "react";
+function panelLocalPaths(platform) {
+  const windows = platform === "win32";
+  const slash = (path) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value) => windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value) => {
+    const path = slash(value), root = rootOf(path), absolute = root.endsWith("/");
+    const segments = [];
+    for (const segment of path.slice(Math.min(root.length, path.length)).split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || windows && /^[a-z]:$/i.test(result)) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value, extension) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension) ? name.slice(0, -extension.length) : name;
+  };
+  return {
+    normalize,
+    join: (...paths) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value) {
+      const path = slash(value), root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value) {
+      const name = basename(value), dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value) => rootOf(slash(value)).endsWith("/")
+  };
+}
+async function createPanelLocalClient(sdk) {
+  const SCRIPT_BYTES = 256 * 1024;
+  const runSource = async (script, write = false) => {
+    if (new TextEncoder().encode(script).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    return response.result;
+  };
+  const run2 = (method, args, write = false) => runSource("return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");", write);
+  const environment = await run2("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const fileBatch = async (method, inputs, lengths) => {
+    let count3 = Math.min(3, inputs.length), script = "";
+    while (count3 > 0) {
+      script = "const rows=[];" + inputs.slice(0, count3).map((input, index) => {
+        const call = "{const result=await selects.files." + method + "(" + JSON.stringify(input) + ");";
+        if (method === "writeChunk")
+          return call + "if(result?.bytesWritten!==" + lengths[index] + ")throw Error('The file write returned an incomplete result. Check the file before retrying.');rows.push(result);}";
+        return call + "if(!result||typeof result.base64!=='string'||!Number.isSafeInteger(result.bytesRead)||result.bytesRead<0||result.bytesRead>" + lengths[index] + ")throw Error('The file read returned an incomplete result.');rows.push(result);if(result.bytesRead<" + lengths[index] + ")return rows;}";
+      }).join("") + "return rows;";
+      if (new TextEncoder().encode(script).byteLength <= SCRIPT_BYTES) break;
+      count3--;
+    }
+    if (!count3) throw new Error("The local file script exceeds the 256 KiB limit.");
+    return { count: count3, rows: await runSource(script, method === "writeChunk") };
+  };
+  const readRange = async (path, offset, length) => {
+    const parts = [];
+    let total = 0;
+    while (total < length) {
+      const inputs = Array.from({ length: Math.min(3, Math.ceil((length - total) / CHUNK_BYTES)) }, (_, index) => ({ path, offset: offset + total + index * CHUNK_BYTES, length: Math.min(CHUNK_BYTES, length - total - index * CHUNK_BYTES) }));
+      const lengths = inputs.map((input) => input.length);
+      const { rows, count: count3 } = await fileBatch("readRange", inputs, lengths);
+      if (!Array.isArray(rows) || rows.length < 1 || rows.length > count3) throw new Error("The file read returned an incomplete result.");
+      let short = false;
+      for (let index = 0; index < rows.length; index++) {
+        const result = rows[index];
+        if (!result || typeof result.base64 !== "string" || !Number.isSafeInteger(result.bytesRead) || result.bytesRead < 0 || result.bytesRead > lengths[index]) throw new Error("The file read returned an incomplete result.");
+        const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+        if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+        short = bytes.length < lengths[index];
+        if (short && index !== rows.length - 1) throw new Error("The file read returned invalid bytes.");
+        parts.push(bytes);
+        total += bytes.length;
+      }
+      if (rows.length !== count3 && !short) throw new Error("The file read returned an incomplete result.");
+      if (short) break;
+    }
+    const output = new Uint8Array(total);
+    let position2 = 0;
+    for (const bytes of parts) {
+      output.set(bytes, position2);
+      position2 += bytes.length;
+    }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path) => run2("files.exists", [path]),
+    stat: (path) => run2("files.stat", [path]),
+    readdir: (path) => run2("files.readdir", [path]),
+    readRange,
+    async readFile(path, encoding) {
+      const stat = await run2("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== void 0 && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path, data, options) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : void 0;
+      if (flag !== void 0 && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== void 0 && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        let offset = 0;
+        do {
+          const inputs = [], lengths = [];
+          for (let index = 0; index < (replacement ? 3 : 1) && (offset + index * CHUNK_BYTES < bytes.length || index === 0); index++) {
+            const position2 = offset + index * CHUNK_BYTES, chunk2 = bytes.subarray(position2, position2 + CHUNK_BYTES);
+            let binary = "";
+            for (const byte of chunk2) binary += String.fromCharCode(byte);
+            const mode = position2 === 0 ? flag === "a" ? "append" : "exclusive" : void 0;
+            inputs.push({ path: destination, offset: position2, base64: btoa(binary), ...mode ? { mode } : {} });
+            lengths.push(chunk2.length);
+          }
+          if (!replacement) {
+            const result = await run2("files.writeChunk", [inputs[0]], true);
+            if (result?.bytesWritten !== lengths[0]) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+          } else {
+            const { rows, count: count3 } = await fileBatch("writeChunk", inputs, lengths);
+            if (!Array.isArray(rows) || rows.length !== count3 || rows.some((row, index) => row?.bytesWritten !== lengths[index])) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+            lengths.length = count3;
+          }
+          offset += lengths.reduce((sum, size) => sum + size, 0);
+        } while (offset < bytes.length);
+        if (replacement) await run2("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run2("files.remove", [destination, { recursive: false, force: true }], true).catch(() => {
+        });
+      }
+    },
+    async compareAndReplace(path, expectedText, text) {
+      const encode2 = (value) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run2("files.compareAndReplace", [{ path, expectedBase64: expectedText === null ? null : encode2(expectedText), base64: encode2(text) }], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path, options) => run2("files.mkdir", [path, options ?? {}], true),
+    rm: (path, options) => run2("files.remove", [path, { recursive: options?.recursive ?? false, force: options?.force ?? false }], true),
+    removeFile: ({ filePath }) => run2("files.remove", [filePath, { recursive: false, force: true }], true),
+    rename: (from, to) => run2("files.rename", [from, to], true),
+    copyFile: (from, to) => run2("files.copy", [from, to], true),
+    downloadFile: (url, path) => run2("files.download", [url, path], true),
+    pathToLocalURL: (path) => run2("files.localUrl", [path]),
+    localURLToPath: (url) => run2("files.pathFromLocalUrl", [url])
+  };
+  const activeJobs = /* @__PURE__ */ new Set();
+  let disposed = false;
+  const cancel2 = async (jobId) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run2("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation = null;
+    const abort = () => {
+      cancellation ??= cancel2(jobId);
+      void cancellation.catch(() => {
+      });
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") {
+            stdout += event.text;
+            onStdout?.(event.text);
+          } else {
+            stderr += event.text;
+            onStderr?.(event.text);
+          }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel2(jobId).catch(() => {
+      });
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args, quiet, signal, stdout, stderr) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args, quiet, signal) => process("FFprobe", args, quiet, signal)
+    },
+    dialogs: {
+      pickFilePath: (filters) => run2("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run2("editor.pickDirectory", []),
+      pickSavePath: (defaultPath) => run2("editor.pickSavePath", [{ defaultPath }])
+    },
+    dispose() {
+      disposed = true;
+      for (const jobId of activeJobs) void cancel2(jobId).catch(() => {
+      });
+    }
+  };
+}
+var panelLocalClients = /* @__PURE__ */ new WeakMap();
+function panelLocalClient(sdk) {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component) {
+  return function LocalSdkPanel(props) {
+    const [state2, setState] = React.useState(null);
+    React.useEffect(() => {
+      let active = true;
+      let client;
+      createPanelLocalClient(props.sdk).then((value) => {
+        client = { ...props.sdk, ...value };
+        if (!active) {
+          value.dispose();
+          return;
+        }
+        panelLocalClients.set(props.sdk, client);
+        setState({ sdk: props.sdk });
+      }).catch((error) => {
+        if (active) setState({ error: String(error?.message || error) });
+      });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state2?.error) return React.createElement("div", { role: "alert" }, state2.error);
+    if (state2?.sdk !== props.sdk) return React.createElement("div", { role: "status" }, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
 
 // src/Panel.tsx
 import { useEffect as useEffect2, useState as useState2 } from "react";
@@ -152,28 +775,28 @@ async function readJson(fs, path) {
   }
 }
 async function readJsonIfExists(fs, path, fallback) {
-  if (!fs.existsSync(path)) return fallback;
+  if (!await fs.exists(path)) return fallback;
   return readJson(fs, path);
 }
-function ensureDir(fs, path) {
-  if (!fs.existsSync(path)) fs.mkdirSync(path, { recursive: true });
+async function ensureDir(fs, path) {
+  if (!await fs.exists(path)) await fs.mkdir(path, { recursive: true });
   return path;
 }
 var RENAME_RETRY_MS = [10, 25, 50, 100, 200, 400, 800];
 async function writeFileAtomic(fs, path, data, o = {}) {
-  ensureDir(fs, fs.dirname(path));
+  await ensureDir(fs, fs.dirname(path));
   const tmp = path + ".tmp-" + randomHex(8);
   await fs.writeFile(tmp, data);
   const waits = o.renameRetryMs ?? RENAME_RETRY_MS;
   for (let attempt2 = 0; ; attempt2 += 1) {
     try {
-      fs.renameSync(tmp, path);
+      await fs.rename(tmp, path);
       return;
     } catch (e) {
-      if (attempt2 > 0 && !fs.existsSync(tmp)) return;
+      if (attempt2 > 0 && !await fs.exists(tmp)) return;
       if (attempt2 >= waits.length) {
         try {
-          fs.unlinkSync(tmp);
+          await fs.unlink(tmp);
         } catch {
         }
         throw e;
@@ -186,10 +809,10 @@ async function renameWithRetry(fs, from, to, o = {}) {
   const waits = o.renameRetryMs ?? RENAME_RETRY_MS;
   for (let attempt2 = 0; ; attempt2 += 1) {
     try {
-      fs.renameSync(from, to);
+      await fs.rename(from, to);
       return;
     } catch (e) {
-      if (attempt2 > 0 && !fs.existsSync(from) && fs.existsSync(to)) return;
+      if (attempt2 > 0 && !await fs.exists(from) && await fs.exists(to)) return;
       if (attempt2 >= waits.length) throw e;
       await sleep(waits[attempt2]);
     }
@@ -199,27 +822,27 @@ function writeJsonAtomic(fs, path, value, o = {}) {
   return writeFileAtomic(fs, path, JSON.stringify(value, null, 2) + "\n", o);
 }
 async function appendText(fs, path, text) {
-  ensureDir(fs, fs.dirname(path));
+  await ensureDir(fs, fs.dirname(path));
   await fs.writeFile(path, text, { flag: "a" });
 }
 async function createExclusive(fs, path, text) {
-  ensureDir(fs, fs.dirname(path));
+  await ensureDir(fs, fs.dirname(path));
   try {
     await fs.writeFile(path, text, { flag: "wx" });
     return true;
   } catch (e) {
-    if (fs.existsSync(path)) return false;
+    if (await fs.exists(path)) return false;
     throw e;
   }
 }
-function statFile(fs, path) {
-  const s = fs.statSync(path);
+async function statFile(fs, path) {
+  const s = await fs.stat(path);
   if (!s) return null;
   return { size: Number(s.size ?? 0), mtimeMs: Number(s.mtimeMs ?? 0) };
 }
-function removeFile(fs, path) {
+async function removeFile(fs, path) {
   try {
-    if (fs.existsSync(path)) fs.unlinkSync(path);
+    if (await fs.exists(path)) await fs.unlink(path);
   } catch {
   }
 }
@@ -281,8 +904,8 @@ function jobFile(fs, dir) {
 }
 async function createJob(fs, jobsRoot, job) {
   const dir = jobDir(fs, jobsRoot, job.projectId, job.jobId);
-  ensureDir(fs, dir);
-  for (const f of JOB_FOLDERS) ensureDir(fs, fs.join(dir, f));
+  await ensureDir(fs, dir);
+  for (const f of JOB_FOLDERS) await ensureDir(fs, fs.join(dir, f));
   const created = await createExclusive(fs, jobFile(fs, dir), JSON.stringify(job, null, 2) + "\n");
   if (!created) throw new Error("A job named " + job.jobId + " already exists.");
   return dir;
@@ -310,11 +933,11 @@ async function saveJob(fs, dir, job, now = Date.now()) {
 async function listJobs(fs, jobsRoot, projectId) {
   if (!SAFE_ID.test(projectId)) return [];
   const root = fs.join(jobsRoot, projectId);
-  const names = fs.readdirSync(root).filter((n2) => SAFE_ID.test(n2)).sort().reverse();
+  const names = (await fs.readdir(root)).filter((n2) => SAFE_ID.test(n2)).sort().reverse();
   const out = [];
   for (const name of names) {
     const dir = fs.join(root, name);
-    if (!fs.existsSync(jobFile(fs, dir))) continue;
+    if (!await fs.exists(jobFile(fs, dir))) continue;
     try {
       out.push({ jobId: name, dir, job: await loadJob(fs, dir) });
     } catch {
@@ -400,7 +1023,7 @@ function leasePath(fs, jobDir2) {
 async function readLeaseFile(fs, path) {
   let text;
   try {
-    if (!fs.existsSync(path)) return { rec: null, readError: null };
+    if (!await fs.exists(path)) return { rec: null, readError: null };
     text = await readText(fs, path);
   } catch (e) {
     return { rec: null, readError: e ?? new Error("read failed") };
@@ -419,18 +1042,18 @@ function isLive(rec, now, staleMs = LEASE_STALE_MS) {
   if (!rec || rec.until <= now) return false;
   return typeof rec.renewedAt !== "number" || now - rec.renewedAt <= staleMs;
 }
-function unreadableIsLive(fs, path, now, staleMs) {
-  const st = statFile(fs, path);
+async function unreadableIsLive(fs, path, now, staleMs) {
+  const st = await statFile(fs, path);
   if (!st) return { live: false, freeAt: null };
   return now - st.mtimeMs < staleMs ? { live: true, freeAt: st.mtimeMs + staleMs } : { live: false, freeAt: null };
 }
 async function leaseStatus(fs, jobDir2, now = Date.now(), staleMs = LEASE_STALE_MS) {
   const path = leasePath(fs, jobDir2);
-  if (!fs.existsSync(path)) return { state: "free", holder: null, freeAt: null };
+  if (!await fs.exists(path)) return { state: "free", holder: null, freeAt: null };
   const rec = await readLease(fs, path);
   if (!rec) {
-    const u = unreadableIsLive(fs, path, now, staleMs);
-    return { state: u.live ? "live" : fs.existsSync(path) ? "stale" : "free", holder: null, freeAt: u.freeAt };
+    const u = await unreadableIsLive(fs, path, now, staleMs);
+    return { state: u.live ? "live" : await fs.exists(path) ? "stale" : "free", holder: null, freeAt: u.freeAt };
   }
   if (!isLive(rec, now, staleMs)) return { state: "stale", holder: rec, freeAt: null };
   const staleAt = typeof rec.renewedAt === "number" ? rec.renewedAt + staleMs : rec.until;
@@ -452,7 +1075,7 @@ async function acquireLease(fs, jobDir2, o) {
     } else if (held && isLive(held, now(), staleMs)) {
       throw new LeaseBusyError(held, now(), staleMs);
     } else {
-      if (!held && unreadableIsLive(fs, path, now(), staleMs).live) throw new LeaseBusyError(null, now());
+      if (!held && (await unreadableIsLive(fs, path, now(), staleMs)).live) throw new LeaseBusyError(null, now());
       await writeJsonAtomic(fs, path, fresh(held));
       await (o.sleepFn ?? sleep)(o.confirmDelayMs ?? 200);
       const check2 = await readLease(fs, path);
@@ -482,7 +1105,7 @@ async function acquireLease(fs, jobDir2, o) {
       }
       try {
         const held = await readLease(fs, path);
-        if (held && held.owner === o.owner) removeFile(fs, path);
+        if (held && held.owner === o.owner) await removeFile(fs, path);
       } catch {
       }
     },
@@ -549,7 +1172,7 @@ async function describeOutputs(fs, jobDir2, relPaths) {
   const out = [];
   for (const rel4 of relPaths) {
     const abs = fs.join(jobDir2, ...rel4.split("/"));
-    const st = statFile(fs, abs);
+    const st = await statFile(fs, abs);
     if (!st) throw new Error("The stage reported an output that does not exist: " + rel4);
     if (st.size <= HASH_LIMIT_BYTES) out.push({ path: rel4, bytes: st.size, sha256: await sha256Hex(await readBytes(fs, abs)) });
     else out.push({ path: rel4, bytes: st.size, mtimeMs: st.mtimeMs });
@@ -1850,73 +2473,61 @@ function panelActions(s, context) {
   };
 }
 
-// src/host/di.ts
-var FS_METHODS = [
-  "join",
-  "dirname",
-  "basename",
-  "homedir",
-  "existsSync",
-  "mkdirSync",
-  "readdirSync",
-  "statSync",
-  "renameSync",
-  "unlinkSync",
-  "rmSync",
-  "readFile",
-  "writeFile"
-];
-var RUNTIME_METHODS = ["runFFmpeg", "runFFprobe"];
-var HostMissingError = class extends Error {
-  member;
-  constructor(member, message) {
-    super(message ?? "This Selects version does not provide " + member + ". Update Selects.");
-    this.name = "HostMissingError";
-    this.member = member;
-  }
-};
-function hostDI() {
-  try {
-    const w = globalThis.window;
-    return w?.parent && w.parent["__DI__"] || null;
-  } catch {
-    return null;
-  }
+// ../../shared/generation-client.js
+function sdkGeneration(sdk) {
+  if (typeof sdk?.runScript !== "function") return null;
+  const run2 = async (script, summary, allowCommit = false) => {
+    const response = await sdk.runScript({ script, summary, allowCommit });
+    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
+    return response?.result;
+  };
+  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
+  return {
+    isAvailable: () => true,
+    supportsPluginFiles: () => true,
+    async submit(request2) {
+      if (request2.batch != null && request2.batch !== 1) throw new Error("Submit one generation at a time.");
+      const input = {
+        projectId: request2.scope.projectId,
+        requestKey: request2.key,
+        modelId: request2.modelId,
+        input: request2.input,
+        uploads: request2.uploads || {},
+        outputName: request2.outputName,
+        mediaType: request2.origin?.tool || "video",
+        ...request2.inputMediaSeconds ? { inputMediaSeconds: request2.inputMediaSeconds } : {},
+        ...request2.delivery ? { delivery: { folder: request2.delivery.pluginFolder } } : {}
+      };
+      const result = await run2(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
+      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
+      return { jobIds: [result.jobId] };
+    },
+    list: (scope) => run2(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
+    cancel: (scope, id) => run2(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
+    retryDelivery: (scope, id) => run2(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true)
+  };
 }
-function hostApi(name, methods, di = hostDI()) {
-  const s = di?.[name];
-  return s && methods.every((m) => typeof s[m] === "function") ? s : null;
-}
-function missingMethods(name, methods, di = hostDI()) {
-  const s = di?.[name];
-  if (!s) return methods.map((m) => name + "." + m);
-  return methods.filter((m) => typeof s[m] !== "function").map((m) => name + "." + m);
-}
-function hostPlatform(di = hostDI()) {
-  try {
-    return String(di?.Runtime?.getPlatform?.() || "");
-  } catch {
-    return "";
-  }
-}
-function hostVersion(di = hostDI()) {
-  try {
-    return String(di?.Runtime?.getHostingVersion?.() || "");
-  } catch {
-    return "";
-  }
-}
-function makeHost(sdk, di = hostDI()) {
-  const missing = missingMethods("FileSystem", FS_METHODS, di);
-  if (missing.length) throw new HostMissingError(missing.join(", "));
-  const fs = di.FileSystem;
-  const runtime = hostApi("Runtime", RUNTIME_METHODS, di);
-  return { sdk, fs, runtime, di, now: () => Date.now() };
+
+// src/host/sdk.ts
+function makeHost(sdk) {
+  const client = panelLocalClient(sdk);
+  const fs = {
+    ...client.files,
+    unlink: (path) => client.files.rm(path, { force: true })
+  };
+  return {
+    sdk,
+    fs,
+    runtime: client.media,
+    environment: client.environment,
+    generation: sdkGeneration(sdk),
+    now: () => Date.now()
+  };
 }
 
 // src/identity.ts
 var PLUGIN_ID = "eo-shorts";
-var PLUGIN_VERSION = true ? "0.1.0" : "0.0.0";
+var PLUGIN_VERSION = true ? "0.1.2" : "0.0.0";
 
 // src/host/roots.ts
 function pluginRoots(fs, id = PLUGIN_ID) {
@@ -1934,51 +2545,34 @@ function pluginRoots(fs, id = PLUGIN_ID) {
     jobs: fs.join(data, "jobs")
   };
 }
-function ensureDataRoots(fs, roots) {
-  for (const dir of [roots.data, roots.config, roots.cache, roots.runtime, roots.jobs]) ensureDir(fs, dir);
+async function ensureDataRoots(fs, roots) {
+  for (const dir of [roots.data, roots.config, roots.cache, roots.runtime, roots.jobs]) await ensureDir(fs, dir);
   return roots;
 }
 
 // src/host/gates.ts
-var MIN_APP_VERSION = "2.0.511";
-var PLUGIN_FILES_VERSION = "2.0.512";
-function versionBelow(version, minimum) {
-  const a = String(version || "0").split(".").map((x) => parseInt(x, 10) || 0);
-  const b2 = String(minimum).split(".").map((x) => parseInt(x, 10) || 0);
-  for (let i = 0; i < Math.max(a.length, b2.length, 3); i += 1) {
-    if ((a[i] || 0) !== (b2[i] || 0)) return (a[i] || 0) < (b2[i] || 0);
+async function readCapabilities(host2, versionOverride) {
+  const sdk = host2.sdk;
+  const version = versionOverride ?? host2.environment?.version ?? "";
+  let generation = false;
+  try {
+    const response = await sdk.runScript({ summary: "Check generation support", script: 'return typeof selects.generation.submit === "function";' });
+    generation = !response.isError && response.result === true;
+  } catch {
   }
-  return false;
-}
-async function readCapabilities(sdk, di, versionOverride) {
-  const version = versionOverride ?? hostVersion(di);
-  const mg = di?.MediaGeneration;
-  let pluginFiles = null;
-  if (mg && typeof mg.supportsPluginFiles === "function") {
-    try {
-      pluginFiles = !!await mg.supportsPluginFiles();
-    } catch {
-      pluginFiles = null;
-    }
-  } else if (mg) pluginFiles = false;
-  if (pluginFiles && version && versionBelow(version, PLUGIN_FILES_VERSION)) pluginFiles = false;
   let canAuthor = null;
-  if (typeof sdk.call === "function") {
-    try {
-      canAuthor = !!await sdk.call("canAuthorGeneratedMedia");
-    } catch {
-      canAuthor = null;
-    }
+  try {
+    if (sdk.call) canAuthor = !!await sdk.call("canAuthorGeneratedMedia");
+  } catch {
   }
-  const stock = di?.StockMediaSearch;
   return {
     version,
-    platform: hostPlatform(di),
-    versionOk: !version || !versionBelow(version, MIN_APP_VERSION),
-    fsMissing: missingMethods("FileSystem", FS_METHODS, di),
-    runtimeMissing: missingMethods("Runtime", RUNTIME_METHODS, di),
-    mediaGeneration: { present: !!(mg && typeof mg.submit === "function"), pluginFiles },
-    stockSearch: !!(stock && typeof stock.searchVideos === "function"),
+    platform: host2.environment?.platform ?? "",
+    versionOk: true,
+    fsMissing: [],
+    runtimeMissing: host2.runtime ? [] : ["media.startFFmpeg"],
+    mediaGeneration: { present: generation, pluginFiles: generation },
+    stockSearch: typeof sdk.runScript === "function",
     canAuthorGeneratedMedia: canAuthor,
     askAI: typeof sdk.askAI === "function"
   };
@@ -2226,7 +2820,7 @@ async function encode(rt, args, opts = {}) {
     child.dispose();
   }
   if (opts.outPath && opts.fs) {
-    const s = opts.fs.statSync(opts.outPath);
+    const s = await opts.fs.stat(opts.outPath);
     if (!s || !Number(s.size)) {
       throw new FfmpegError("no-output", "ffmpeg finished but wrote no output to " + opts.outPath + ".", { args, stderrTail: tail(String(r5?.stderr ?? "")) });
     }
@@ -2281,7 +2875,7 @@ async function probeJson(rt, args, opts = {}) {
       return parseFfprobeJson(decodeText(await opts.fs.readFile(tmp)));
     } finally {
       try {
-        if (opts.fs.existsSync(tmp)) opts.fs.unlinkSync(tmp);
+        if (await opts.fs.exists(tmp)) await opts.fs.unlink(tmp);
       } catch {
       }
     }
@@ -2418,8 +3012,7 @@ function judgeSource(s, madeBy = null) {
 }
 async function runPreflight(host2, input) {
   const t0 = host2.now();
-  const di = input.di !== void 0 ? input.di : host2.di !== void 0 ? host2.di : hostDI();
-  const capabilities = await readCapabilities(host2.sdk, di, input.versionOverride);
+  const capabilities = await readCapabilities(host2, input.versionOverride);
   const errors = [];
   const warnings = [];
   if (!capabilities.versionOk) errors.push({ code: "app-version", message: "Selects " + capabilities.version + " is too old; update Selects." });
@@ -2428,7 +3021,7 @@ async function runPreflight(host2, input) {
   if (capabilities.canAuthorGeneratedMedia === false) {
     errors.push({ code: "generated-media", message: "Generated-media authoring is off for this account, so motion graphics would export broken." });
   }
-  if (capabilities.mediaGeneration.pluginFiles === false) warnings.push({ code: "image-generation", message: "Image generation for plugins needs Selects 2.0.512 or later; picture scenes become type scenes." });
+  if (capabilities.mediaGeneration.pluginFiles === false) warnings.push({ code: "image-generation", message: "This Selects build cannot generate pictures for plugins; picture scenes become type scenes." });
   if (!capabilities.stockSearch) warnings.push({ code: "stock-search", message: "This Selects build has no stock footage search; B-roll shots stay on the speaker." });
   let smoke = null;
   if (!input.skipSmoke && !capabilities.runtimeMissing.length) {
@@ -2708,9 +3301,9 @@ function clipKeyPath(out) {
 var sameCut = (k, url, start, seconds) => !!k && k.schema === "broll-clip/1" && k.recipe === CUT_RECIPE && k.url === url && round3(k.start) === round3(start) && round3(k.seconds) === round3(seconds);
 async function clipHolds(fs, out, url, start, seconds) {
   try {
-    if (!fs.existsSync(out)) return false;
+    if (!await fs.exists(out)) return false;
     const k = await readJsonIfExists(fs, clipKeyPath(out), null);
-    return sameCut(k, url, start, seconds) && (k.bytes == null || k.bytes === statFile(fs, out)?.size);
+    return sameCut(k, url, start, seconds) && (k.bytes == null || k.bytes === (await statFile(fs, out))?.size);
   } catch {
     return false;
   }
@@ -2722,23 +3315,23 @@ async function cutClip(d, url, start, seconds, out) {
   if (await clipHolds(d.fs, out, url, start, seconds)) {
     try {
       const p = await probeMedia(d.runtime, out, { fs: d.fs, tmpDir: d.tmpDir, signal: d.signal });
-      if (ok(p)) return { path: out, probe: p, bytes: statFile(d.fs, out)?.size ?? 0, ms: Date.now() - t0, reused: true };
+      if (ok(p)) return { path: out, probe: p, bytes: (await statFile(d.fs, out))?.size ?? 0, ms: Date.now() - t0, reused: true };
     } catch {
     }
   }
-  removeFile(d.fs, keyPath);
-  if (d.fs.existsSync(keyPath)) throw new Error("could not remove the old clip record " + keyPath);
+  await removeFile(d.fs, keyPath);
+  if (await d.fs.exists(keyPath)) throw new Error("could not remove the old clip record " + keyPath);
   const part = out.replace(/\.mp4$/i, "") + ".part.mp4";
-  removeFile(d.fs, part);
+  await removeFile(d.fs, part);
   await encode(d.runtime, cutArgs(url, start, seconds, part), { fs: d.fs, outPath: part, signal: d.signal, timeoutMs: 18e4 });
   const probe = await probeMedia(d.runtime, part, { fs: d.fs, tmpDir: d.tmpDir, signal: d.signal });
   if (!ok(probe)) {
-    removeFile(d.fs, part);
+    await removeFile(d.fs, part);
     throw new Error("the cut is " + probe.durationSec + " s long, not " + seconds.toFixed(3) + " s");
   }
-  removeFile(d.fs, out);
+  await removeFile(d.fs, out);
   await renameWithRetry(d.fs, part, out);
-  const bytes = statFile(d.fs, out)?.size ?? 0;
+  const bytes = (await statFile(d.fs, out))?.size ?? 0;
   const key = { schema: "broll-clip/1", recipe: CUT_RECIPE, url, start: round3(start), seconds: round3(seconds), bytes };
   await writeJsonAtomic(d.fs, keyPath, key);
   return { path: out, probe, bytes, ms: Date.now() - t0, reused: false };
@@ -2768,14 +3361,14 @@ function requestSha(r5) {
   return hashJson(r5);
 }
 async function pickIntact(fs, media, shotId, pick) {
-  if (!fs.existsSync(pick.localPath)) return false;
+  if (!await fs.exists(pick.localPath)) return false;
   if (pick.kind === "video") {
     if (!pick.interval) return false;
     const [s, e] = pick.interval;
     return clipHolds(fs, pick.localPath, pick.fileUrl, s, e - s);
   }
   const rec = await readJsonIfExists(fs, photoRecordPath(fs, media, shotId), null);
-  return !!rec && rec.fileUrl === pick.fileUrl && rec.localFile === fs.basename(pick.localPath) && rec.bytes === statFile(fs, pick.localPath)?.size;
+  return !!rec && rec.fileUrl === pick.fileUrl && rec.localFile === fs.basename(pick.localPath) && rec.bytes === (await statFile(fs, pick.localPath))?.size;
 }
 async function resumableResult(fs, media, r5, sha, o = {}) {
   try {
@@ -3125,10 +3718,15 @@ function requestText(r5) {
 }
 
 // src/broll/search.ts
-function hostStockSearch(di) {
-  const s = di?.StockMediaSearch;
-  if (!s || typeof s.searchVideos !== "function") return null;
-  return (q) => s.searchVideos(q);
+function hostStockSearch(sdk) {
+  if (typeof sdk.runScript !== "function") return null;
+  return async ({ signal, ...input }) => {
+    signal?.throwIfAborted();
+    const response = await sdk.runScript({ summary: "Find stock footage", script: "return await selects.stock.searchVideos(" + JSON.stringify(input) + ");" });
+    signal?.throwIfAborted();
+    if (response.isError || !Array.isArray(response.result)) throw new Error(response.output || "Stock search returned no result.");
+    return response.result;
+  };
 }
 var STOCK_PER = 3;
 var MAX_SOURCE_SECONDS2 = 30;
@@ -3437,7 +4035,7 @@ async function cached(fs, dir, key, url) {
   try {
     const m = await readJsonIfExists(fs, manifestPath(fs, dir), null);
     if (!m || m.version !== EVIDENCE_VERSION || m.sourceKey !== key || m.rendition?.url !== url || m.status === "error") return null;
-    if (m.status === "ready" && !m.sheets.every((p) => fs.existsSync(p))) return null;
+    if (m.status === "ready" && !(await Promise.all(m.sheets.map((p) => fs.exists(p)))).every(Boolean)) return null;
     return m;
   } catch {
     return null;
@@ -3454,7 +4052,7 @@ async function prepareVideoEvidence(key, rendition, dir, d) {
     await writeJsonAtomic(fs, manifestPath(fs, dir), { version: EVIDENCE_VERSION, ...out });
     return out;
   };
-  ensureDir(fs, dir);
+  await ensureDir(fs, dir);
   let probe;
   try {
     probe = readProbe(await probeJson(d.runtime, probeArgs(rendition.url), { fs, tmpDir: dir, signal: d.signal, timeoutMs: 45e3 }));
@@ -3464,7 +4062,7 @@ async function prepareVideoEvidence(key, rendition, dir, d) {
   }
   if (probe.duration > MAX_SOURCE_SECONDS2) return finish2({ ...base, status: "skipped", code: "duration_limit", reason: "whole source is " + probe.duration.toFixed(2) + " s", durationSeconds: probe.duration });
   const framesDir = fs.join(dir, "frames");
-  ensureDir(fs, framesDir);
+  await ensureDir(fs, framesDir);
   let stderr = "";
   try {
     stderr = (await analyze(d.runtime, sampleArgs(rendition.url, probe, imagePattern(fs, framesDir, "f%03d.jpg")), { signal: d.signal, timeoutMs: 12e4 })).stderr;
@@ -3476,7 +4074,7 @@ async function prepareVideoEvidence(key, rendition, dir, d) {
   const { indexes, timestamps } = pickSamples(frames);
   const framePath = (i) => fs.join(framesDir, "f" + String(i).padStart(3, "0") + ".jpg");
   try {
-    if (!indexes.length || !indexes.every((i) => fs.existsSync(framePath(i)))) return finish2({ ...base, code: "decode_error", reason: "the decode wrote " + frames.length + " frames, not every sample", durationSeconds: probe.duration });
+    if (!indexes.length || !(await Promise.all(indexes.map((i) => fs.exists(framePath(i))))).every(Boolean)) return finish2({ ...base, code: "decode_error", reason: "the decode wrote " + frames.length + " frames, not every sample", durationSeconds: probe.duration });
     if (indexes.length > MAX_SAMPLES) return finish2({ ...base, status: "skipped", code: "size_limit", reason: indexes.length + " samples exceed " + MAX_SAMPLES, durationSeconds: probe.duration });
     const duration = Math.max(probe.duration, timestamps[timestamps.length - 1]);
     const sampleBytes = [];
@@ -3505,16 +4103,16 @@ async function prepareVideoEvidence(key, rendition, dir, d) {
     }
     return finish2({ ...base, status: "ready", code: "ready", reason: "full-source samples", durationSeconds: Math.round(duration * 1e6) / 1e6, timestamps, sheets, sheetChars, fingerprint });
   } finally {
-    for (const name of fs.readdirSync(framesDir)) removeFile(fs, fs.join(framesDir, name));
+    for (const name of await fs.readdir(framesDir)) await removeFile(fs, fs.join(framesDir, name));
     try {
-      fs.rmSync(framesDir, { recursive: true, force: true });
+      await fs.rm(framesDir, { recursive: true, force: true });
     } catch {
     }
   }
 }
 async function prepareStillEvidence(key, bytes, mime, dir, d) {
   const { fs } = d;
-  ensureDir(fs, dir);
+  await ensureDir(fs, dir);
   const p = fs.join(dir, "still.jpg");
   try {
     const still = await d.painter.resizeStill(bytes, mime, 960, 0.85);
@@ -3974,8 +4572,8 @@ async function one(s, d, o) {
   const dir = peopleDir(d.fs, o.media);
   const file = d.fs.join(dir, safeName(s.req.id) + "." + (EXT[got.mime] ?? "jpg"));
   const recordPath = photoRecordPath(d.fs, o.media, s.req.id);
-  removeFile(d.fs, recordPath);
-  if (d.fs.existsSync(recordPath)) throw new Error("could not remove the old photo record " + recordPath);
+  await removeFile(d.fs, recordPath);
+  if (await d.fs.exists(recordPath)) throw new Error("could not remove the old photo record " + recordPath);
   await writeFileAtomic(d.fs, file, got.bytes);
   let size = null;
   try {
@@ -4439,7 +5037,7 @@ async function runBroll(requests, d, opts) {
   const deadline = t0 + o.budgetMs;
   const ids = requests.map((r5) => r5.id);
   if (new Set(ids).size !== ids.length) throw new Error("Shot ids must be unique.");
-  ensureDir(fs, o.media);
+  await ensureDir(fs, o.media);
   const shas = /* @__PURE__ */ new Map();
   const done = /* @__PURE__ */ new Map();
   const taken = /* @__PURE__ */ new Map();
@@ -4447,7 +5045,7 @@ async function runBroll(requests, d, opts) {
     const sha = await requestSha(r5);
     shas.set(r5.id, sha);
     const dir = shotDir(fs, o.media, r5.id);
-    ensureDir(fs, dir);
+    await ensureDir(fs, dir);
     await writeJsonAtomic(fs, fs.join(dir, "request.json"), r5);
     const prev = await resumableResult(fs, o.media, r5, sha, { judging: !!d.callModel });
     if (prev) {
@@ -4954,8 +5552,7 @@ var GenerationError = class extends Error {
     this.jobId = jobId;
   }
 };
-function mediaGenerationService(di) {
-  const mg = di?.MediaGeneration;
+function mediaGenerationService(mg) {
   const methods = ["isAvailable", "submit", "list", "cancel", "retryDelivery"];
   if (!mg || methods.some((m) => typeof mg[m] !== "function")) {
     throw new GenerationError("unavailable", "generation_update_required", "This Selects build cannot generate pictures for plug-ins. Update Selects.");
@@ -4974,16 +5571,9 @@ function mediaGenerationService(di) {
     pluginFiles = false;
   }
   if (!pluginFiles) {
-    throw new GenerationError("unavailable", "plugin_files_unsupported", "Generating pictures into plug-in files needs Selects 2.0.512 or later. Update Selects.");
+    throw new GenerationError("unavailable", "plugin_files_unsupported", "This Selects build cannot deliver generated pictures to plugin files. Update Selects.");
   }
   return mg;
-}
-function scopeFromPath(pathname, projectId) {
-  const m = /\/libraries\/([^/?#]+)\/(?:projects|prep-project)\/([^/?#]+)(?:[/?#]|$)/.exec(String(pathname || ""));
-  if (!m) return null;
-  const lib = decodeURIComponent(m[1]);
-  const pid = decodeURIComponent(m[2]);
-  return pid === projectId ? { libraryId: lib, projectId } : null;
 }
 function judgeRow(row, o) {
   if (!row) return { kind: "wait", why: "not listed yet" };
@@ -5053,7 +5643,7 @@ async function waitForDraw(mg, scope, jobId, o) {
     const v = judgeRow(row, { sinceMs, redeliveries });
     o.onTick?.(v, row);
     if (v.kind === "delivered") {
-      if (!o.fileExists || o.fileExists(v.path)) return { path: v.path, row };
+      if (!o.fileExists || await o.fileExists(v.path)) return { path: v.path, row };
       if (redeliveries >= MAX_REDELIVERIES) throw new GenerationError("failed", "delivered_file_missing", "The generated picture was delivered but its file is missing.", jobId);
       redeliveries += 1;
       await mg.retryDelivery(scope, jobId).catch(() => void 0);
@@ -5358,7 +5948,7 @@ async function readPicture(fs, path, o = {}) {
     }
   }
   if (!o.runtime || !o.tmpDir) throw new Error("Cannot read " + path + " without ffmpeg (not a plain PNG).");
-  ensureDir(fs, o.tmpDir);
+  await ensureDir(fs, o.tmpDir);
   const inputFormat = pictureInputFormat(path, bytes);
   const probe = await probeJson(o.runtime, [...inputFormat, "-select_streams", "v:0", "-show_entries", "stream=width,height,pix_fmt", path], { fs, tmpDir: o.tmpDir, signal: o.signal });
   const s = probe.streams?.[0] ?? {};
@@ -5373,7 +5963,7 @@ async function readPicture(fs, path, o = {}) {
     const pixFmt = String(s.pix_fmt || "");
     return { width, height, data, hasAlpha: pixFmtHasAlpha(pixFmt), pixFmt, bytes: bytes.length, decoder: "ffmpeg" };
   } finally {
-    removeFile(fs, raw);
+    await removeFile(fs, raw);
   }
 }
 
@@ -5398,7 +5988,7 @@ function deliveryFolder(fs, p, draw) {
 }
 async function readCached(fs, p, sha) {
   const sha24 = sha.slice(0, 24);
-  if (!fs.existsSync(imageFile(fs, p, sha24))) return null;
+  if (!await fs.exists(imageFile(fs, p, sha24))) return null;
   let rec = null;
   try {
     rec = await readJsonIfExists(fs, recordFile(fs, p, sha24), null);
@@ -5416,7 +6006,7 @@ async function readDraw(fs, p, draw) {
   }
 }
 async function writeDraw(fs, p, rec) {
-  ensureDir(fs, p.draws);
+  await ensureDir(fs, p.draws);
   await writeJsonAtomic(fs, drawFile(fs, p, rec.draw), rec);
 }
 function drawKey(sha, suffix) {
@@ -5697,7 +6287,7 @@ async function dispatch(req, spec, d, p, draws) {
   if (rec) {
     summary.jobId = rec.jobId;
     summary.status = rec.status;
-    if (rec.status === "delivered" && rec.deliveredPath && fs.existsSync(rec.deliveredPath)) {
+    if (rec.status === "delivered" && rec.deliveredPath && await fs.exists(rec.deliveredPath)) {
       return { draw, key, jobId: rec.jobId, path: rec.deliveredPath };
     }
     if (drawSpent(rec)) {
@@ -5730,7 +6320,7 @@ async function dispatch(req, spec, d, p, draws) {
   const cur = () => rec;
   if (!cur().jobId) {
     const folder = deliveryFolder(fs, p, draw);
-    ensureDir(fs, folder);
+    await ensureDir(fs, folder);
     const request2 = {
       scope: d.scope,
       key,
@@ -5768,7 +6358,7 @@ async function dispatch(req, spec, d, p, draws) {
       pollMs: d.pollMs ?? POLL_MS,
       now,
       sleep: d.sleep,
-      fileExists: (path) => fs.existsSync(path)
+      fileExists: async (path) => await fs.exists(path)
     });
     await save({ ...cur(), status: "delivered", deliveredPath: got.path, finishedAt: now() });
     return { draw, key, jobId: cur().jobId, path: got.path };
@@ -5801,18 +6391,7 @@ var IMAGES_DIR = "media/images";
 function defaultImageRole() {
   return DEFAULT_MODELS.roles.image;
 }
-async function resolveGenerationScope(sdk, projectId, pathname) {
-  let path = pathname;
-  if (path == null) {
-    try {
-      const w = globalThis.window;
-      path = w?.parent?.location?.pathname ?? null;
-    } catch {
-      path = null;
-    }
-  }
-  const fromPath = scopeFromPath(path, projectId);
-  if (fromPath) return fromPath;
+async function resolveGenerationScope(sdk, projectId) {
   if (!sdk) return null;
   try {
     const st = await readScript(
@@ -5828,7 +6407,7 @@ async function resolveGenerationScope(sdk, projectId, pathname) {
 }
 var rel2 = (...parts) => parts.join("/");
 async function copyFile(fs, from, to) {
-  ensureDir(fs, fs.dirname(to));
+  await ensureDir(fs, fs.dirname(to));
   await writeFileAtomic(fs, to, await readBytes(fs, from));
 }
 async function generateJobImages(o) {
@@ -5853,7 +6432,7 @@ async function generateJobImages(o) {
     let mg = o.mg ?? null;
     let unavailable = null;
     try {
-      mg = mg ?? mediaGenerationService(o.host.di);
+      mg = mg ?? mediaGenerationService(o.host.generation);
       scope = scope ?? await resolveGenerationScope(o.host.sdk, o.projectId);
       if (!scope) throw new GenerationError("unavailable", "scope_unknown", "Open the Project in Selects to generate its pictures.");
     } catch (e) {
@@ -7252,7 +7831,7 @@ function storeFromHostFs(fs) {
   return {
     join: (...parts) => fs.join(...parts),
     async readText(path) {
-      if (!fs.existsSync(path)) return null;
+      if (!await fs.exists(path)) return null;
       return decodeText(await fs.readFile(path));
     },
     writeText: (path, text) => queue(path, () => writeFileAtomic(fs, path, text)),
@@ -7274,656 +7853,6 @@ function stageModelClient(ctx) {
     jobOverride: jobModelsOverride(ctx.job),
     log: jsonlCallLog(store, () => ctx.path("calls.jsonl"))
   });
-}
-
-// src/speaker/yunet/model.ts
-var ORT_VERSION = "1.30.0";
-var ORT_DIST = (host2) => host2 + "/onnxruntime-web@" + ORT_VERSION + "/dist/";
-var ORT_JS = {
-  name: "ort.wasm.bundle.min.mjs",
-  label: "face tracker runtime",
-  urls: [ORT_DIST("https://cdn.jsdelivr.net/npm") + "ort.wasm.bundle.min.mjs", ORT_DIST("https://unpkg.com") + "ort.wasm.bundle.min.mjs"],
-  sha256: "11e64bd8ffe11bd1a2a2f0d6275fdfbbba7262f0b76b99b53d228a8a22ef3d90",
-  bytes: 73054
-};
-var ORT_WASM = {
-  name: "ort-wasm-simd-threaded.wasm",
-  label: "face tracker engine",
-  urls: [ORT_DIST("https://cdn.jsdelivr.net/npm") + "ort-wasm-simd-threaded.wasm", ORT_DIST("https://unpkg.com") + "ort-wasm-simd-threaded.wasm"],
-  sha256: "3398c10d07d229bd91b364548e130e0e51a8e5704b88c7c083ebbeb78842dee2",
-  bytes: 14239897
-};
-var YUNET_MODEL = {
-  name: "face_detection_yunet_2023mar.onnx",
-  label: "face model",
-  urls: [
-    "https://media.githubusercontent.com/media/opencv/opencv_zoo/f12e12798e8314f7c074a6656816c048dcc95b7a/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
-  ],
-  sha256: "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
-  bytes: 232589
-};
-var YUNET_STRIDES = [8, 16, 32];
-var YUNET_DIVISOR = 32;
-var YUNET_OUTPUTS = ["cls", "obj", "bbox", "kps"];
-async function sha256(bytes) {
-  const subtle = webCrypto();
-  if (subtle) {
-    try {
-      const d = new Uint8Array(await subtle.digest("SHA-256", bytes));
-      return Array.from(d, (x) => x.toString(16).padStart(2, "0")).join("");
-    } catch {
-    }
-  }
-  return sha256Hex2(bytes);
-}
-function webCrypto() {
-  const g = globalThis;
-  if (g.crypto?.subtle) return g.crypto.subtle;
-  try {
-    if (typeof window !== "undefined" && window.parent?.crypto?.subtle) return window.parent.crypto.subtle;
-  } catch {
-  }
-  return null;
-}
-var K = Uint32Array.from([
-  1116352408,
-  1899447441,
-  3049323471,
-  3921009573,
-  961987163,
-  1508970993,
-  2453635748,
-  2870763221,
-  3624381080,
-  310598401,
-  607225278,
-  1426881987,
-  1925078388,
-  2162078206,
-  2614888103,
-  3248222580,
-  3835390401,
-  4022224774,
-  264347078,
-  604807628,
-  770255983,
-  1249150122,
-  1555081692,
-  1996064986,
-  2554220882,
-  2821834349,
-  2952996808,
-  3210313671,
-  3336571891,
-  3584528711,
-  113926993,
-  338241895,
-  666307205,
-  773529912,
-  1294757372,
-  1396182291,
-  1695183700,
-  1986661051,
-  2177026350,
-  2456956037,
-  2730485921,
-  2820302411,
-  3259730800,
-  3345764771,
-  3516065817,
-  3600352804,
-  4094571909,
-  275423344,
-  430227734,
-  506948616,
-  659060556,
-  883997877,
-  958139571,
-  1322822218,
-  1537002063,
-  1747873779,
-  1955562222,
-  2024104815,
-  2227730452,
-  2361852424,
-  2428436474,
-  2756734187,
-  3204031479,
-  3329325298
-]);
-function sha256Hex2(bytes) {
-  const n2 = bytes.length;
-  const total = Math.ceil((n2 + 9) / 64) * 64;
-  const msg = new Uint8Array(total);
-  msg.set(bytes);
-  msg[n2] = 128;
-  const view3 = new DataView(msg.buffer);
-  view3.setUint32(total - 8, Math.floor(n2 / 536870912));
-  view3.setUint32(total - 4, n2 * 8 >>> 0);
-  const h = Uint32Array.from([1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]);
-  const w = new Uint32Array(64);
-  const rotr = (x, r5) => x >>> r5 | x << 32 - r5;
-  for (let off = 0; off < total; off += 64) {
-    for (let i = 0; i < 16; i += 1) w[i] = view3.getUint32(off + 4 * i);
-    for (let i = 16; i < 64; i += 1) {
-      const a2 = w[i - 15], b3 = w[i - 2];
-      w[i] = w[i - 16] + (rotr(a2, 7) ^ rotr(a2, 18) ^ a2 >>> 3) + w[i - 7] + (rotr(b3, 17) ^ rotr(b3, 19) ^ b3 >>> 10) >>> 0;
-    }
-    let a = h[0], b2 = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
-    for (let i = 0; i < 64; i += 1) {
-      const t1 = hh + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + (e & f ^ ~e & g) + K[i] + w[i] >>> 0;
-      const t2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + (a & b2 ^ a & c ^ b2 & c) >>> 0;
-      hh = g;
-      g = f;
-      f = e;
-      e = d + t1 >>> 0;
-      d = c;
-      c = b2;
-      b2 = a;
-      a = t1 + t2 >>> 0;
-    }
-    h[0] += a;
-    h[1] += b2;
-    h[2] += c;
-    h[3] += d;
-    h[4] += e;
-    h[5] += f;
-    h[6] += g;
-    h[7] += hh;
-  }
-  return Array.from(h, (x) => x.toString(16).padStart(8, "0")).join("");
-}
-function varint(b2, p) {
-  let v = 0, mul2 = 1;
-  for (let i = 0; i < 10; i += 1) {
-    const x = b2[p + i];
-    if (x === void 0) throw new Error("The face model file is truncated.");
-    v += (x & 127) * mul2;
-    if (x < 128) return [v, p + i + 1];
-    mul2 *= 128;
-  }
-  throw new Error("The face model file is not a valid ONNX model.");
-}
-function fields(b2, from = 0, to = b2.length) {
-  const out = [];
-  for (let p = from; p < to; ) {
-    const start = p;
-    const [key, q] = varint(b2, p);
-    const no = Math.floor(key / 8), wire = key % 8;
-    let value = 0, len = 0;
-    if (wire === 0) [value, p] = varint(b2, q);
-    else if (wire === 1) p = q + 8;
-    else if (wire === 5) p = q + 4;
-    else if (wire === 2) {
-      [len, value] = varint(b2, q);
-      p = value + len;
-    } else throw new Error("The face model file has an unsupported protobuf field (wire type " + wire + ").");
-    if (p > to) throw new Error("The face model file is truncated.");
-    out.push({ no, wire, start, end: p, value, len });
-  }
-  return out;
-}
-function encodeVarint(v) {
-  const out = [];
-  while (v >= 128) {
-    out.push(v % 128 | 128);
-    v = Math.floor(v / 128);
-  }
-  out.push(v);
-  return out;
-}
-function concat(parts) {
-  const out = new Uint8Array(parts.reduce((n2, p) => n2 + p.length, 0));
-  let o = 0;
-  for (const p of parts) {
-    out.set(p, o);
-    o += p.length;
-  }
-  return out;
-}
-var lenField = (no, payload2) => concat([Uint8Array.from(encodeVarint(no * 8 + 2).concat(encodeVarint(payload2.length))), payload2]);
-var varintField = (no, v) => Uint8Array.from(encodeVarint(no * 8).concat(encodeVarint(v)));
-var textField = (no, s) => lenField(no, new TextEncoder().encode(s));
-var payload = (b2, f) => b2.subarray(f.value, f.value + f.len);
-var one2 = (fs, no) => fs.find((f) => f.no === no && f.wire === 2);
-function readTensorInfo(b2) {
-  const vi = fields(b2);
-  const name = new TextDecoder().decode(payload(b2, one2(vi, 1)));
-  const type = one2(vi, 2);
-  const tensor = type && one2(fields(b2, type.value, type.value + type.len), 1);
-  if (!tensor) throw new Error("The face model's " + name + " is not a tensor.");
-  const tf = fields(b2, tensor.value, tensor.value + tensor.len);
-  const et = tf.find((f) => f.no === 1 && f.wire === 0);
-  const shape = one2(tf, 2);
-  const dims = shape ? fields(b2, shape.value, shape.value + shape.len).filter((f) => f.no === 1 && f.wire === 2).map((d) => {
-    const df = fields(b2, d.value, d.value + d.len);
-    const v = df.find((f) => f.no === 1 && f.wire === 0);
-    const p = one2(df, 2);
-    return v ? v.value : p ? new TextDecoder().decode(payload(b2, p)) : "?";
-  }) : [];
-  return { name, elemType: et ? et.value : 0, dims };
-}
-function writeTensorInfo(t2) {
-  const dims = t2.dims.map((d) => lenField(1, typeof d === "number" ? varintField(1, d) : textField(2, d)));
-  const tensor = concat([varintField(1, t2.elemType), lenField(2, concat(dims))]);
-  return concat([textField(1, t2.name), lenField(2, lenField(1, tensor))]);
-}
-function withSymbolicInputSize(model) {
-  const top = fields(model);
-  const graph = top.find((f) => f.no === 7 && f.wire === 2);
-  if (!graph) throw new Error("The face model file has no graph.");
-  const parts = [];
-  let inputs = 0, outputs = 0;
-  for (const f of fields(model, graph.value, graph.value + graph.len)) {
-    if (f.no === 13) continue;
-    if ((f.no === 11 || f.no === 12) && f.wire === 2) {
-      const t2 = readTensorInfo(payload(model, f));
-      if (f.no === 11) {
-        if (t2.elemType !== 1 || t2.dims.length !== 4 || t2.dims[0] !== 1 || t2.dims[1] !== 3) throw new Error("Unexpected face model input " + t2.name + ".");
-        t2.dims = [1, 3, "H", "W"];
-        inputs += 1;
-      } else {
-        if (t2.elemType !== 1 || t2.dims.length !== 3 || t2.dims[0] !== 1) throw new Error("Unexpected face model output " + t2.name + ".");
-        t2.dims = [1, "N_" + t2.name, t2.dims[2]];
-        outputs += 1;
-      }
-      parts.push(lenField(f.no, writeTensorInfo(t2)));
-      continue;
-    }
-    parts.push(model.subarray(f.start, f.end));
-  }
-  if (inputs !== 1 || outputs !== YUNET_STRIDES.length * YUNET_OUTPUTS.length) throw new Error("Unexpected face model: " + inputs + " inputs, " + outputs + " outputs.");
-  const newGraph = lenField(7, concat(parts));
-  return concat(top.map((f) => f === graph ? newGraph : model.subarray(f.start, f.end)));
-}
-
-// src/speaker/yunet/decode.ts
-var YUNET_SCORE_THRESHOLD = 0.85;
-var YUNET_NMS_THRESHOLD = 0.3;
-var YUNET_TOP_K = 5e3;
-function paddedSize(width, height) {
-  const up = (x) => Math.floor((x - 1) / YUNET_DIVISOR + 1) * YUNET_DIVISOR;
-  return { width: up(width), height: up(height) };
-}
-function bgrToBlob(bgr, width, height, out) {
-  const pad = paddedSize(width, height);
-  const plane = pad.width * pad.height;
-  if (bgr.length < width * height * 3) throw new Error("A face frame has " + bgr.length + " bytes, not " + width * height * 3 + ".");
-  const data = out && out.length === 3 * plane ? out : new Float32Array(3 * plane);
-  if (out === data) data.fill(0);
-  for (let y = 0; y < height; y += 1) {
-    let p = y * width * 3;
-    let o = y * pad.width;
-    for (let x = 0; x < width; x += 1, p += 3, o += 1) {
-      data[o] = bgr[p];
-      data[plane + o] = bgr[p + 1];
-      data[2 * plane + o] = bgr[p + 2];
-    }
-  }
-  return { data, width: pad.width, height: pad.height };
-}
-var clamp01 = (v) => Math.min(1, Math.max(0, v));
-var f32 = Math.fround;
-function decodeYuNet(outputs, padWidth, padHeight, o = {}) {
-  const threshold = f32(o.score == null ? YUNET_SCORE_THRESHOLD : o.score);
-  const faces = [];
-  for (const stride of YUNET_STRIDES) {
-    const cols = Math.floor(padWidth / stride), rows = Math.floor(padHeight / stride);
-    const cls = outputs["cls_" + stride], obj = outputs["obj_" + stride], bbox = outputs["bbox_" + stride], kps = outputs["kps_" + stride];
-    if (!cls || !obj || !bbox || !kps) throw new Error("The face model gave no output for stride " + stride + ".");
-    if (cls.length !== rows * cols || bbox.length !== rows * cols * 4 || kps.length !== rows * cols * 10) throw new Error("The face model's stride-" + stride + " output does not fit a " + padWidth + "x" + padHeight + " input.");
-    for (let r5 = 0; r5 < rows; r5 += 1) {
-      for (let c = 0; c < cols; c += 1) {
-        const idx = r5 * cols + c;
-        const score = f32(Math.sqrt(f32(clamp01(cls[idx]) * clamp01(obj[idx]))));
-        if (score < threshold) continue;
-        const cx = f32((c + bbox[idx * 4]) * stride), cy = f32((r5 + bbox[idx * 4 + 1]) * stride);
-        const w = f32(f32(Math.exp(bbox[idx * 4 + 2])) * stride), h = f32(f32(Math.exp(bbox[idx * 4 + 3])) * stride);
-        const landmarks = [];
-        for (let n2 = 0; n2 < 5; n2 += 1) landmarks.push([f32((kps[idx * 10 + 2 * n2] + c) * stride), f32((kps[idx * 10 + 2 * n2 + 1] + r5) * stride)]);
-        faces.push({ box: [f32(cx - w / 2), f32(cy - h / 2), w, h], landmarks, score });
-      }
-    }
-  }
-  if (faces.length <= 1) return faces;
-  return nmsBoxes(faces, threshold, f32(o.nms == null ? YUNET_NMS_THRESHOLD : o.nms), o.topK == null ? YUNET_TOP_K : o.topK).map((i) => faces[i]);
-}
-var intRect = (b2) => [Math.trunc(b2[0]), Math.trunc(b2[1]), Math.trunc(b2[2]), Math.trunc(b2[3])];
-function rectOverlap(a, b2) {
-  const aa = a[2] * a[3], ab = b2[2] * b2[3];
-  if (aa + ab <= 0) return 1;
-  const x1 = Math.max(a[0], b2[0]), y1 = Math.max(a[1], b2[1]);
-  const x2 = Math.min(a[0] + a[2], b2[0] + b2[2]), y2 = Math.min(a[1] + a[3], b2[1] + b2[3]);
-  const inter = x2 > x1 && y2 > y1 ? (x2 - x1) * (y2 - y1) : 0;
-  return f32(1 - f32(1 - inter / (aa + ab - inter)));
-}
-function nmsBoxes(faces, scoreThreshold, nmsThreshold, topK) {
-  const order = faces.map((f, i) => ({ s: f.score, i })).filter((p) => p.s > scoreThreshold);
-  order.sort((a, b2) => b2.s - a.s || a.i - b2.i);
-  if (topK > 0 && order.length > topK) order.length = topK;
-  const rects = faces.map((f) => intRect(f.box));
-  const kept = [];
-  for (const { i } of order) if (kept.every((k) => rectOverlap(rects[i], rects[k]) <= nmsThreshold)) kept.push(i);
-  return kept;
-}
-
-// src/speaker/yunet/engine.ts
-var WORKER_SOURCE = `
-let ort = null, session = null, input = "input";
-self.onmessage = async (e) => {
-  const m = e.data;
-  try {
-    if (m.type === "init") {
-      ort = await import(m.ortUrl);
-      ort.env.logLevel = "error";
-      ort.env.wasm.wasmBinary = m.wasm;
-      ort.env.wasm.numThreads = 1;
-      ort.env.wasm.proxy = false;
-      session = await ort.InferenceSession.create(m.model, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
-      input = session.inputNames[0] || "input";
-      self.postMessage({ id: m.id, ok: true, ort: String((ort.env.versions && ort.env.versions.web) || "") });
-    } else if (m.type === "run") {
-      const out = await session.run({ [input]: new ort.Tensor("float32", m.data, m.dims) });
-      const res = {};
-      const moved = [m.data.buffer];
-      for (const k of Object.keys(out)) {
-        const copy = new Float32Array(out[k].data);
-        res[k] = copy;
-        moved.push(copy.buffer);
-      }
-      self.postMessage({ id: m.id, ok: true, res, input: m.data }, moved);
-    }
-  } catch (err) {
-    self.postMessage({ id: m.id, ok: false, error: String((err && err.message) || err) });
-  }
-};
-`;
-var INIT_TIMEOUT_MS = 6e4;
-var RUN_TIMEOUT_MS = 3e4;
-var errText = (e) => String(e && e.message || e || "unknown error").slice(0, 300);
-async function startWorkerEngine(ortJs, wasm, model) {
-  const g = globalThis;
-  if (typeof g.Worker !== "function" || typeof g.Blob !== "function" || !g.URL || typeof g.URL.createObjectURL !== "function") throw new Error("no Worker here");
-  const ortUrl = g.URL.createObjectURL(new g.Blob([ortJs], { type: "text/javascript" }));
-  const workerUrl = g.URL.createObjectURL(new g.Blob([WORKER_SOURCE], { type: "text/javascript" }));
-  let worker;
-  try {
-    worker = new g.Worker(workerUrl, { type: "module", name: "eo-shorts faces" });
-  } catch (e) {
-    g.URL.revokeObjectURL(ortUrl);
-    g.URL.revokeObjectURL(workerUrl);
-    throw e;
-  }
-  const pending2 = /* @__PURE__ */ new Map();
-  let seq = 0;
-  let dead = null;
-  const fail = (e) => {
-    dead = e;
-    for (const p of pending2.values()) {
-      clearTimeout(p.timer);
-      p.reject(e);
-    }
-    pending2.clear();
-  };
-  worker.onmessage = (e) => {
-    const m = e.data;
-    const p = pending2.get(m.id);
-    if (!p) return;
-    pending2.delete(m.id);
-    clearTimeout(p.timer);
-    if (m.ok) p.resolve(m);
-    else p.reject(new Error(m.error));
-  };
-  worker.onerror = (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    fail(new Error("The face tracker worker stopped: " + (e && e.message || "error")));
-  };
-  const call = (msg, transfer, ms) => new Promise((resolve, reject) => {
-    if (dead) return reject(dead);
-    const id = seq += 1;
-    const timer = setTimeout(() => {
-      pending2.delete(id);
-      reject(new Error("The face tracker worker did not answer in " + ms / 1e3 + " s."));
-    }, ms);
-    pending2.set(id, { resolve, reject, timer });
-    worker.postMessage(Object.assign({ id }, msg), transfer);
-  });
-  let ort = "";
-  try {
-    ort = (await call({ type: "init", ortUrl, wasm, model }, [], INIT_TIMEOUT_MS)).ort;
-  } catch (e) {
-    worker.terminate();
-    throw e;
-  } finally {
-    g.URL.revokeObjectURL(ortUrl);
-    g.URL.revokeObjectURL(workerUrl);
-  }
-  return {
-    kind: "worker",
-    via: "blob",
-    ort,
-    async run(data, width, height) {
-      const r5 = await call({ type: "run", data, dims: [1, 3, height, width] }, [data.buffer], RUN_TIMEOUT_MS);
-      return { outputs: r5.res, input: r5.input };
-    },
-    close() {
-      fail(new Error("The face tracker was closed."));
-      worker.terminate();
-    }
-  };
-}
-var importUrl = new Function("u", "return import(u)");
-function base64(bytes) {
-  let s = "";
-  for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + 32768)));
-  return btoa(s);
-}
-async function importOrtBytes(js) {
-  const g = globalThis;
-  let first = "";
-  if (typeof g.Blob === "function" && g.URL && typeof g.URL.createObjectURL === "function") {
-    const url = g.URL.createObjectURL(new g.Blob([js], { type: "text/javascript" }));
-    try {
-      return { ort: await importUrl(url), via: "blob" };
-    } catch (e) {
-      first = errText(e);
-    } finally {
-      g.URL.revokeObjectURL(url);
-    }
-  }
-  try {
-    return { ort: await importUrl("data:text/javascript;base64," + base64(js)), via: "data" };
-  } catch (e) {
-    throw new Error("The face tracker runtime could not be started: " + (first ? first + "; " : "") + errText(e));
-  }
-}
-async function startThreadEngine(ortJs, wasm, model) {
-  const loaded2 = typeof ortJs === "string" ? { ort: await importUrl(ortJs), via: "url" } : await importOrtBytes(ortJs);
-  const ort = loaded2.ort;
-  if (!ort || !ort.env || !ort.InferenceSession) throw new Error("The face tracker runtime did not load (no onnxruntime API).");
-  ort.env.logLevel = "error";
-  ort.env.wasm.wasmBinary = wasm;
-  ort.env.wasm.numThreads = 1;
-  ort.env.wasm.proxy = false;
-  let session;
-  try {
-    session = await ort.InferenceSession.create(model, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
-  } catch (e) {
-    throw new Error("The face model could not be loaded: " + errText(e));
-  }
-  const input = session.inputNames[0] || "input";
-  return {
-    kind: "thread",
-    via: loaded2.via,
-    ort: String(ort.env.versions && ort.env.versions.web || ""),
-    async run(data, width, height) {
-      const out = await session.run({ [input]: new ort.Tensor("float32", data, [1, 3, height, width]) });
-      const outputs = {};
-      for (const k of Object.keys(out)) outputs[k] = out[k].data;
-      return { outputs, input: data };
-    },
-    close() {
-      if (session.release) session.release().catch(() => void 0);
-    }
-  };
-}
-
-// src/speaker/yunet/runtime.ts
-var DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1e3;
-var errText2 = (e) => String(e && e.message || e || "unknown error").slice(0, 300);
-async function readVerified(files, path, file, own) {
-  if (!files.exists(path)) return null;
-  try {
-    const bytes = await files.readBytes(path);
-    if (bytes.length === file.bytes && await sha256(bytes) === file.sha256) return bytes;
-  } catch {
-  }
-  if (own) quietRemove(files, path);
-  return null;
-}
-function quietRemove(files, path) {
-  try {
-    if (files.exists(path)) files.remove(path);
-  } catch {
-  }
-}
-async function renameWithRetry2(files, from, to) {
-  for (let k = 0; ; k += 1) {
-    try {
-      files.rename(from, to);
-      return;
-    } catch (e) {
-      if (k >= 4) throw e;
-      await new Promise((r5) => setTimeout(r5, 200 * (k + 1)));
-    }
-  }
-}
-async function download(files, file, dest) {
-  const reasons = [];
-  for (let attempt2 = 0; attempt2 < 2; attempt2 += 1) {
-    const url = file.urls[Math.min(attempt2, file.urls.length - 1)];
-    const part = dest + ".part" + attempt2;
-    quietRemove(files, part);
-    try {
-      let timer = null;
-      await Promise.race([
-        files.downloadFile(url, part),
-        new Promise((_, reject) => timer = setTimeout(() => reject(new Error("no answer after " + DOWNLOAD_TIMEOUT_MS / 1e3 + " s")), DOWNLOAD_TIMEOUT_MS))
-      ]).finally(() => clearTimeout(timer));
-      if (!files.exists(part)) throw new Error("nothing was saved");
-      const bytes = await files.readBytes(part);
-      if (bytes.length !== file.bytes) throw new Error("the server sent " + bytes.length + " bytes, not " + file.bytes);
-      const got = await sha256(bytes);
-      if (got !== file.sha256) throw new Error("the file's checksum is wrong (sha256 " + got.slice(0, 12) + "…)");
-      await renameWithRetry2(files, part, dest);
-      return bytes;
-    } catch (e) {
-      reasons.push(url.replace(/^https:\/\/([^/]+)\/.*$/, "$1") + ": " + errText2(e));
-      quietRemove(files, part);
-    }
-  }
-  throw new Error("Could not download the " + file.label + " (" + file.name + "). " + reasons.join("; ") + ". Check the internet connection and try again.");
-}
-async function pinnedRuntimeFiles(files, runtimeDir, progress = () => {
-}, reuse = {}) {
-  const ortDir = files.join(runtimeDir, "ort", "onnxruntime-web-" + ORT_VERSION);
-  const want = [
-    { key: "model", file: YUNET_MODEL, dest: files.join(runtimeDir, "yunet", YUNET_MODEL.name) },
-    { key: "ortJs", file: ORT_JS, dest: files.join(ortDir, ORT_JS.name) },
-    { key: "ortWasm", file: ORT_WASM, dest: files.join(ortDir, ORT_WASM.name) }
-  ];
-  const got = {};
-  for (const w of want) {
-    const own = await readVerified(files, w.dest, w.file, true);
-    if (own) {
-      got[w.key] = { bytes: own, path: w.dest };
-      continue;
-    }
-    for (const p of reuse[w.key] || []) {
-      const bytes = await readVerified(files, p, w.file, false);
-      if (bytes) {
-        got[w.key] = { bytes, path: p };
-        break;
-      }
-    }
-  }
-  const missing = want.filter((w) => !got[w.key]);
-  if (missing.length) {
-    const mb = missing.reduce((n2, w) => n2 + w.file.bytes, 0) / 1e6;
-    progress("Downloading face tracking (one time, " + (mb < 1 ? mb.toFixed(1) : Math.round(mb)) + " MB)…");
-  }
-  for (const w of missing) {
-    files.mkdirp(files.dirname(w.dest));
-    got[w.key] = { bytes: await download(files, w.file, w.dest), path: w.dest };
-  }
-  return { model: got.model, ortJs: got.ortJs, ortWasm: got.ortWasm };
-}
-function detectorOnEngine(engine, info, decode2 = {}) {
-  let scratch;
-  let queue = Promise.resolve();
-  const detectOne = async (bgr, width, height) => {
-    const blob = bgrToBlob(bgr, width, height, scratch);
-    const r5 = await engine.run(blob.data, blob.width, blob.height);
-    scratch = r5.input;
-    return decodeYuNet(r5.outputs, blob.width, blob.height, decode2);
-  };
-  return {
-    info: { ...info, ort: engine.ort || ORT_VERSION, engine: engine.kind, loadedVia: engine.via },
-    detect(bgr, width, height) {
-      const run2 = queue.then(() => detectOne(bgr, width, height));
-      queue = run2.catch(() => void 0);
-      return run2;
-    },
-    close() {
-      engine.close();
-    }
-  };
-}
-async function loadFaceDetector(o) {
-  const t0 = Date.now();
-  const progress = o.progress || (() => {
-  });
-  const { model, ortJs, ortWasm } = await pinnedRuntimeFiles(o.files, o.runtimeDir, progress, o.reuse);
-  progress("Starting face tracking…");
-  const symbolic = withSymbolicInputSize(model.bytes);
-  let engine = null;
-  let workerError = "";
-  if (o.worker !== false) {
-    try {
-      engine = await startWorkerEngine(ortJs.bytes, ortWasm.bytes, symbolic);
-    } catch (e) {
-      workerError = errText2(e);
-    }
-  }
-  if (!engine) engine = await startThreadEngine(ortJs.bytes, ortWasm.bytes, symbolic);
-  return detectorOnEngine(engine, { workerError, loadMs: Date.now() - t0, modelSha256: YUNET_MODEL.sha256, files: [model.path, ortJs.path, ortWasm.path] }, o.decode);
-}
-
-// src/stages/speaker/detector.ts
-function hostRuntimeFiles(fs) {
-  return {
-    join: (...p) => fs.join(...p),
-    dirname: (p) => fs.dirname(p),
-    exists: (p) => fs.existsSync(p),
-    readBytes: (p) => readBytes(fs, p),
-    downloadFile: (url, dest) => {
-      if (typeof fs.downloadFile !== "function") throw new Error("This Selects build cannot download files (FileSystem.downloadFile).");
-      return fs.downloadFile(url, dest);
-    },
-    mkdirp: (p) => void ensureDir(fs, p),
-    rename: (a, b2) => fs.renameSync(a, b2),
-    remove: (p) => fs.unlinkSync(p)
-  };
-}
-var loaded = /* @__PURE__ */ new Map();
-function sharedFaceDetector(fs, runtimeDir, progress) {
-  let p = loaded.get(runtimeDir);
-  if (!p) {
-    p = loadFaceDetector({ files: hostRuntimeFiles(fs), runtimeDir, progress });
-    loaded.set(runtimeDir, p);
-    p.catch(() => loaded.delete(runtimeDir));
-  }
-  return p;
 }
 
 // engine/styles/A.json
@@ -8768,7 +8697,7 @@ function checkScenes(scenes, film) {
 }
 async function readPlanInput(fs, jobDir2, o = {}) {
   const at = (rel4) => fs.join(jobDir2, ...rel4.split("/"));
-  if (!fs.existsSync(at(PLAN_SCENES_REL))) throw new Error("The plan has no scenes yet (" + PLAN_SCENES_REL + " is missing).");
+  if (!await fs.exists(at(PLAN_SCENES_REL))) throw new Error("The plan has no scenes yet (" + PLAN_SCENES_REL + " is missing).");
   const rows = rowsOf(await readJson(fs, at(PLAN_SCENES_REL)));
   const scenes = [];
   for (const r5 of rows) {
@@ -8776,7 +8705,7 @@ async function readPlanInput(fs, jobDir2, o = {}) {
     let plan = r5.plan ?? null;
     if (!plan) {
       const rel4 = scenePlanRel(sceneId);
-      if (!fs.existsSync(at(rel4))) throw new Error("Scene " + sceneId + " has no plan (" + rel4 + ").");
+      if (!await fs.exists(at(rel4))) throw new Error("Scene " + sceneId + " has no plan (" + rel4 + ").");
       plan = await readJson(fs, at(rel4));
     }
     scenes.push({ sceneId, start: Number(r5.start), end: Number(r5.end), type: String(r5.type ?? ""), plan });
@@ -10185,10 +10114,10 @@ function objectErrors(plan) {
   const errs = [];
   const copy = iter(or(get(plan, "copy"), [])), assets = iter(or(get(plan, "assets"), []));
   const pages = iter(or(get(plan, "pages"), []));
-  for (const [kind, items, fields2, need2] of [["copy", copy, COPY, ["id", "role", "lines"]], ["assets", assets, ASSET, ["id", "role", "prompt"]]]) {
+  for (const [kind, items, fields, need2] of [["copy", copy, COPY, ["id", "role", "lines"]], ["assets", assets, ASSET, ["id", "role", "prompt"]]]) {
     items.forEach((x, k) => {
       const at = `${kind}.${str(get(x, "id", `[${k}]`))}`;
-      for (const f of sortedStr(keys(x).filter((f2) => !fields2.has(f2)))) errs.push(`${at}: unknown field '${f}' (one of ${reprSorted(fields2)})`);
+      for (const f of sortedStr(keys(x).filter((f2) => !fields.has(f2)))) errs.push(`${at}: unknown field '${f}' (one of ${reprSorted(fields)})`);
       for (const f of need2) if (!has(x, f)) errs.push(`${at}: missing ${f}`);
     });
   }
@@ -10304,7 +10233,7 @@ function blockFieldErrors(p, pictures = /* @__PURE__ */ new Set()) {
   }
   const all = new Set([...BLOCK_FIELDS.values()].flatMap((s) => [...s])), own = BLOCK_FIELDS.get(block);
   for (const f of sortedStr(keys(p).filter((f2) => all.has(f2) && !own.has(f2)))) {
-    const readers = sortedStr([...BLOCK_FIELDS].filter(([, fields2]) => fields2.has(f)).map(([b2]) => b2));
+    const readers = sortedStr([...BLOCK_FIELDS].filter(([, fields]) => fields.has(f)).map(([b2]) => b2));
     errs.push(readers.length === 1 ? `${f}: only a ${readers[0]} page reads it` : `${f}: a ${block} page does not read it (${BLOCK_HINTS.get(block) ?? "see SCHEMA section 3"})`);
   }
   const align = get(p, "align");
@@ -10888,140 +10817,6 @@ function effectivePlan(plan, style, o) {
   return { plan: cap.plan, changed: true, kind: "caption-scene", fallbacks: notes, lint: cap.lint };
 }
 
-// src/speaker/ffmpegPass.ts
-function probeArgs2(path) {
-  return [
-    "-v",
-    "error",
-    "-hide_banner",
-    "-select_streams",
-    "V:0",
-    "-show_entries",
-    "stream=width,height,avg_frame_rate,r_frame_rate,start_time:stream_tags=rotate:stream_side_data=rotation:format=start_time",
-    "-of",
-    "json",
-    path
-  ];
-}
-var rate = (s) => {
-  const m = String(s || "").match(/^(\d+(?:\.\d+)?)(?:\/(\d+(?:\.\d+)?))?$/);
-  if (!m) return 0;
-  const v = m[2] != null ? Number(m[1]) / Number(m[2]) : Number(m[1]);
-  return Number.isFinite(v) && v > 0 ? v : 0;
-};
-function parseProbe(stdout) {
-  const j = JSON.parse(String(stdout || "").replace(/[\r\n]/g, ""));
-  const s = j && j.streams && j.streams[0];
-  if (!s || !(Number(s.width) > 0) || !(Number(s.height) > 0)) throw new Error("The source has no video stream.");
-  let rot = 0;
-  for (const sd of s.side_data_list || []) if (sd && sd.rotation != null) rot = Number(sd.rotation) || 0;
-  if (!rot && s.tags && s.tags.rotate != null) rot = Number(s.tags.rotate) || 0;
-  const turned = Math.abs(Math.round(rot / 90)) % 2 === 1;
-  const fps = rate(s.avg_frame_rate) || rate(s.r_frame_rate);
-  if (!(fps > 0)) throw new Error("The source's frame rate is unknown.");
-  const st = Number(s.start_time), ft = Number(j.format && j.format.start_time);
-  return {
-    width: turned ? Number(s.height) : Number(s.width),
-    height: turned ? Number(s.width) : Number(s.height),
-    fps,
-    startOffset: Number.isFinite(st) ? st - (Number.isFinite(ft) ? ft : 0) : 0
-  };
-}
-var PASS_DEFAULTS = { threshold: 8, sampleFps: 2, longSide: 640 };
-var DECODE_PAD_S = 1;
-function analysisSize(width, height, longSide = PASS_DEFAULTS.longSide) {
-  const k = Math.min(1, longSide / Math.max(width, height));
-  return { width: Math.max(1, Math.round(width * k)), height: Math.max(1, Math.round(height * k)) };
-}
-function sampleStep(fileFps, sampleFps = PASS_DEFAULTS.sampleFps) {
-  return Math.max(1, Math.round(fileFps / sampleFps));
-}
-function planDecodeSpans(ranges, mergeGapS = 3, padS = DECODE_PAD_S) {
-  const byFile = /* @__PURE__ */ new Map();
-  for (const r5 of ranges) {
-    if (!(r5.end > r5.start)) continue;
-    if (!byFile.has(r5.path)) byFile.set(r5.path, []);
-    byFile.get(r5.path).push(r5);
-  }
-  const spans2 = [];
-  for (const list of byFile.values()) {
-    list.sort((a, b2) => a.start - b2.start);
-    let cur = null;
-    for (const r5 of list) {
-      if (cur && r5.start - cur.end <= mergeGapS) cur.end = Math.max(cur.end, r5.end);
-      else {
-        cur = { path: r5.path, resourceIds: [], start: r5.start, end: r5.end };
-        spans2.push(cur);
-      }
-      if (r5.resourceId != null && !cur.resourceIds.includes(r5.resourceId)) cur.resourceIds.push(r5.resourceId);
-    }
-  }
-  for (const s of spans2) {
-    s.start = Math.max(0, s.start - padS);
-    s.end += padS;
-    s.resourceIds.sort();
-  }
-  return spans2.sort((a, b2) => a.path < b2.path ? -1 : a.path > b2.path ? 1 : a.start - b2.start);
-}
-var secs = (x) => String(Math.max(0, Math.round(x * 1e6) / 1e6));
-function analysisPassArgs(span, probe, out, o = {}) {
-  const threshold = o.threshold ?? PASS_DEFAULTS.threshold;
-  const size = analysisSize(probe.width, probe.height, o.longSide ?? PASS_DEFAULTS.longSide);
-  const step = sampleStep(probe.fps, o.sampleFps ?? PASS_DEFAULTS.sampleFps);
-  const vf = "scdet=threshold=" + threshold + ",framestep=" + step + ",showinfo,scale=" + size.width + ":" + size.height + ":flags=area,format=bgr24";
-  return [
-    "-nostdin",
-    "-hide_banner",
-    "-loglevel",
-    "info",
-    "-y",
-    "-ss",
-    secs(span.start),
-    "-t",
-    secs(span.end - span.start),
-    "-i",
-    span.path,
-    "-map",
-    "0:V:0",
-    "-an",
-    "-sn",
-    "-dn",
-    "-vf",
-    vf,
-    "-fps_mode",
-    "passthrough",
-    "-f",
-    "rawvideo",
-    out
-  ];
-}
-function parseScdet2(stderr) {
-  const out = [];
-  for (const line of String(stderr || "").split(/\r?\n/)) {
-    const m = line.match(/lavfi\.scd\.score:\s*(-?[\d.]+(?:e[-+]?\d+)?),\s*lavfi\.scd\.time:\s*(-?[\d.]+(?:e[-+]?\d+)?)/i);
-    if (m) out.push({ score: Number(m[1]), time: Number(m[2]) });
-  }
-  return out;
-}
-function parseShowinfo2(stderr) {
-  const out = [];
-  for (const line of String(stderr || "").split(/\r?\n/)) {
-    if (!/showinfo/i.test(line)) continue;
-    const m = line.match(/\bn:\s*(\d+)\s+pts:\s*(-?\d+)\s+pts_time:\s*(-?[\d.]+(?:e[-+]?\d+)?)/i);
-    if (m) out.push({ n: Number(m[1]), pts: Number(m[2]), ptsTime: Number(m[3]) });
-  }
-  return out;
-}
-function passTimeToFileFrame(span, probe, passTime) {
-  const frame = Math.round((span.start + passTime - probe.startOffset) * probe.fps);
-  return { frame, time: frame / probe.fps };
-}
-function readPass(span, probe, stderr) {
-  const cuts = parseScdet2(stderr).map((h) => ({ ...passTimeToFileFrame(span, probe, h.time), score: h.score }));
-  const samples = parseShowinfo2(stderr).map((f) => ({ index: f.n, ...passTimeToFileFrame(span, probe, f.ptsTime) }));
-  return { cuts, samples };
-}
-
 // src/speaker/faces.ts
 var FACE_RULES = { score: 0.85, minHeight: 0.05, minRatio: 0.5, maxRatio: 1.6, maxMove: 1.25, maxResize: 1.8, ambiguousShare: 0.6 };
 function toSourceFaces(rows, aw, ah, sw, sh) {
@@ -11119,6 +10914,84 @@ function segmentFaces(samples) {
   };
 }
 
+// src/stages/speaker/sharedFaces.ts
+var import_ai_job_client = __toESM(require_ai_job_client());
+var import_ai_resources = __toESM(require_ai_resources());
+var import_face_request_windows = __toESM(require_face_request_windows());
+function adaptSharedFaces(page, times, fps) {
+  if (times.some((t2) => !Number.isFinite(t2) || t2 < 0) || !(fps > 0)) throw new Error("Invalid source frame clock.");
+  if (!(page.frameSize?.width > 0 && page.frameSize?.height > 0) || !Array.isArray(page.samples)) throw new Error("Invalid shared face observations.");
+  let previous = -Infinity, previousIndex = -1;
+  for (const row of page.samples) {
+    if (!Number.isSafeInteger(row.index) || row.index <= previousIndex || !Number.isFinite(row.sourceTimeSeconds) || row.sourceTimeSeconds <= previous || !Array.isArray(row.faces) || row.faces.length > 64) throw new Error("Invalid shared face sample order.");
+    previous = row.sourceTimeSeconds;
+    previousIndex = row.index;
+  }
+  return times.map((t2) => {
+    const row = page.samples.find((s) => s.sourceTimeSeconds >= t2 - 1e-6 && s.sourceTimeSeconds < t2 + 2 / fps + 1e-6);
+    if (!row || !Array.isArray(row.faces)) throw new Error("Shared face observations do not match the source clock.");
+    return row.faces.map((f) => {
+      const b2 = f.box;
+      if (!b2 || ![b2.xmin, b2.ymin, b2.xmax, b2.ymax, f.score].every(Number.isFinite) || f.score < 0 || f.score > 1 || b2.xmax <= b2.xmin || b2.ymax <= b2.ymin || b2.xmin < 0 || b2.ymin < 0 || b2.xmax > page.frameSize.width || b2.ymax > page.frameSize.height || !Array.isArray(f.landmarks) || f.landmarks.length !== 5 || f.landmarks.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) throw new Error("Invalid shared face geometry.");
+      return { x: b2.xmin, y: b2.ymin, w: b2.xmax - b2.xmin, h: b2.ymax - b2.ymin, score: f.score, landmarks: f.landmarks.map((p) => [p.x, p.y]) };
+    });
+  });
+}
+function sharedFaces(host2, options) {
+  const call = (body, summary, effect = false) => runScript(host2.sdk, { summary, script: body, allowCommit: effect }).then((r5) => r5.result);
+  const client = (0, import_ai_job_client.createSharedAiJobClient)({
+    projectId: options.projectId,
+    scope: options.scope,
+    runScript: call,
+    load: () => readJsonIfExists(host2.fs, options.journalPath, null),
+    save: (journal) => writeJsonAtomic(host2.fs, options.journalPath, journal)
+  });
+  return async (path, times, fps, image = false) => {
+    if (!times.length || times.some((t2) => !Number.isFinite(t2) || t2 < 0) || !(fps > 0)) throw new Error("Invalid source frame clock.");
+    const known = options.resources?.[path];
+    const resourceId = known?.resourceId || await (0, import_ai_resources.importSharedAiResource)(host2.sdk, options.projectId, path, call);
+    const step = times.length > 1 ? Math.max(1 / fps, times[1] - times[0]) : 1 / fps;
+    const start = Math.max(0, times[0]), end = Math.min(known?.duration ?? Infinity, times.at(-1) + 1 / fps);
+    const windows = image ? [{ startSeconds: 0, endSeconds: 0 }] : (0, import_face_request_windows.faceRequestWindows)({ startSeconds: start, endSeconds: end, sourceFps: fps, sampleEverySeconds: step });
+    const samples = [];
+    let frameSize2;
+    for (const window2 of windows) {
+      const identity = path + ":" + (image ? "image" : JSON.stringify(windows.length === 1 ? [start, end, step] : [start, end, step, window2.startSeconds, window2.endSeconds]));
+      const onAbort = () => {
+        if (/^Canceled\./.test(String(options.signal?.reason?.message || options.signal?.reason || ""))) void client.cancel({ identity }).catch(() => {
+        });
+      };
+      options.signal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        const run2 = await client.run(
+          {
+            task: "faces.detect",
+            resourceId,
+            ...image ? {} : { sourceRange: { startSeconds: window2.startSeconds, endSeconds: window2.endSeconds } },
+            options: { ...image ? {} : { sampleEverySeconds: step }, scoreThreshold: 0.8, provider: "cpu" }
+          },
+          { identity, retryTerminal: true, signal: options.signal ?? void 0, onProgress: (s) => options.progress?.(s.step || "Finding the speaker's face…") }
+        );
+        const incoming = [];
+        for (let offset = 0; ; offset += 10) {
+          const page = await call(`const d:any=await selects.ai.readJSON(${JSON.stringify(run2.result.files.detections)},${JSON.stringify(options.projectId)});
+if(d.contractVersion!==1||d.task!=="faces.detect"||d.coordinateSpace!=="display-pixels"||d.boxFormat!=="xyxy"||!Array.isArray(d.samples)||d.samples.length<1||d.samples.length>${image ? 1 : Math.ceil((window2.endSeconds - window2.startSeconds) / step) + 3})throw Error("Invalid shared face result");
+if(d.parameters?.scoreThreshold!==0.8||${image ? 'd.sourceKind!=="image"||d.samples.length!==1||d.samples[0].sourceTimeSeconds!==0' : "d.parameters?.sourceRange?.startSeconds!==" + window2.startSeconds + "||d.parameters?.sourceRange?.endSeconds!==" + window2.endSeconds + "||d.parameters?.sampleEverySeconds!==" + step})throw Error("Shared face parameters changed");
+return {frameSize:d.frameSize,total:d.samples.length,samples:d.samples.slice(${offset},${offset + 10})};`, "Read speaker observations");
+          if (frameSize2 && (frameSize2.width !== page.frameSize?.width || frameSize2.height !== page.frameSize?.height)) throw new Error("Shared face dimensions changed across windows.");
+          frameSize2 = page.frameSize;
+          incoming.push(...page.samples);
+          if (offset + 10 >= page.total) break;
+        }
+        (0, import_face_request_windows.appendFaceSamples)(samples, incoming, window2.acceptFromSeconds);
+      } finally {
+        options.signal?.removeEventListener("abort", onAbort);
+      }
+    }
+    return { frameSize: frameSize2, samples };
+  };
+}
+
 // src/stages/media/faces.ts
 function largestFace(faces, size) {
   const best = [...faces].sort((a, b2) => b2.w * b2.h * b2.score - a.w * a.h * a.score)[0];
@@ -11127,30 +11000,21 @@ function largestFace(faces, size) {
 }
 function hostFaceFinder(host2, o) {
   const fs = host2.fs;
+  const infer = sharedFaces(host2, { ...o, journalPath: fs.join(o.tmpDir, "ai-jobs.json") });
   return {
     async find(path, atSeconds = null) {
-      ensureDir(fs, o.tmpDir);
+      await ensureDir(fs, o.tmpDir);
       const inputFormat = pictureNeedsFormat(path) ? pictureInputFormat(path, await readBytes(fs, path)) : [];
       const m = await probeMedia(host2.runtime, path, { fs, tmpDir: o.tmpDir, signal: o.signal, inputFormat });
       if (!m.video || !(m.video.width > 0 && m.video.height > 0)) return null;
       const size = { width: m.video.width, height: m.video.height };
-      const a = analysisSize(size.width, size.height);
+      const image = /\.(?:jpe?g|png|webp|avif|heic|heif|bmp|tiff?)$/i.test(path);
       const duration = m.video.durationSec ?? m.durationSec;
-      const at = atSeconds ?? (duration && duration > 0.2 ? duration / 2 : null);
-      const out = fs.join(o.tmpDir, "face-" + randomHex(6) + ".bgr");
-      try {
-        await encode(
-          host2.runtime,
-          ["-hide_banner", "-nostdin", "-v", "error", "-y", ...at != null ? ["-ss", at.toFixed(3)] : [], ...inputFormat, "-i", path, "-frames:v", "1", "-vf", "scale=" + a.width + ":" + a.height + ":flags=area", "-pix_fmt", "bgr24", "-f", "rawvideo", out],
-          { outPath: out, fs, signal: o.signal, timeoutMs: 6e4 }
-        );
-        const bgr = await readBytes(fs, out);
-        if (bgr.length < a.width * a.height * 3) return null;
-        const rows = await (await o.detector()).detect(bgr, a.width, a.height);
-        return largestFace(plausibleFaces(toSourceFaces(rows, a.width, a.height, size.width, size.height), size.width, size.height), size);
-      } finally {
-        removeFile(fs, out);
-      }
+      const at = image ? 0 : atSeconds ?? (duration && duration > 0.2 ? duration / 2 : 0);
+      const fps = m.video.fps || 30;
+      const result = await infer(path, [at], fps, image);
+      if (result.frameSize.width !== size.width || result.frameSize.height !== size.height) throw new Error("Shared face dimensions differ from the media.");
+      return largestFace(plausibleFaces(adaptSharedFaces(result, [at], fps)[0], size.width, size.height), size);
     }
   };
 }
@@ -11180,11 +11044,11 @@ async function faceCrop(host2, finder, photo, aspect, o = {}) {
   if (!crop) return { path: photo, crop: null, face, reused: false };
   const out = photo.replace(/\.[A-Za-z0-9]+$/, "") + ".still.jpg";
   const side = out + ".json";
-  const st = statFile(fs, photo);
+  const st = await statFile(fs, photo);
   const key = { schema: "eo-still-crop/1", photo: fs.basename(photo), bytes: st?.size ?? null, crop };
   const had = await readJsonIfExists(fs, side, null);
-  if (had && JSON.stringify(had) === JSON.stringify(key) && fs.existsSync(out)) return { path: out, crop, face, reused: true };
-  removeFile(fs, side);
+  if (had && JSON.stringify(had) === JSON.stringify(key) && await fs.exists(out)) return { path: out, crop, face, reused: true };
+  await removeFile(fs, side);
   const part = out.replace(/\.jpg$/, ".part.jpg");
   const inputFormat = pictureNeedsFormat(photo) ? pictureInputFormat(photo, await readBytes(fs, photo)) : [];
   await encode(
@@ -11192,7 +11056,7 @@ async function faceCrop(host2, finder, photo, aspect, o = {}) {
     ["-hide_banner", "-nostdin", "-v", "error", "-y", ...inputFormat, "-i", photo, "-frames:v", "1", "-vf", "crop=" + crop.w + ":" + crop.h + ":" + crop.x + ":" + crop.y, "-q:v", "2", ...pictureOutputFormat(part), part],
     { outPath: part, fs, signal: o.signal, timeoutMs: 6e4 }
   );
-  removeFile(fs, out);
+  await removeFile(fs, out);
   await renameWithRetry(fs, part, out);
   await writeJsonAtomic(fs, side, key);
   return { path: out, crop, face, reused: false };
@@ -11272,7 +11136,7 @@ async function runMedia(ctx, o) {
   const { host: host2, job } = ctx;
   const fs = host2.fs;
   forgetEarlierPasses(job, "media", await readReceipt(fs, ctx.dir, "media").catch(() => null));
-  ensureDir(fs, ctx.path("media"));
+  await ensureDir(fs, ctx.path("media"));
   const plan = await readPlanInput(fs, ctx.dir, { film: job.film });
   const style = filmStyle(job.film);
   const fps = await draftFps(ctx, style.fps);
@@ -11287,7 +11151,7 @@ async function runMedia(ctx, o) {
   } catch {
     imageRole = null;
   }
-  const finder = o.faces === null ? null : o.faces ? o.faces(ctx) : hostFaceFinder(host2, { tmpDir: ctx.path("media/tmp"), detector: () => sharedFaceDetector(fs, ctx.roots.runtime, (s) => ctx.note(s)), signal: ctx.signal });
+  const finder = o.faces === null ? null : o.faces ? o.faces(ctx) : hostFaceFinder(host2, { tmpDir: ctx.path("media/tmp"), projectId: job.projectId, scope: job.jobId + ":media", signal: ctx.signal });
   const people = film.requests.some((r5) => r5.kind === "person");
   let commons = commonsConfig();
   if (people) {
@@ -11298,7 +11162,7 @@ async function runMedia(ctx, o) {
     }
   }
   const brollDeps = film.requests.length ? {
-    search: o.search ? o.search(ctx) : hostStockSearch(host2.di),
+    search: o.search ? o.search(ctx) : hostStockSearch(host2.sdk),
     painter: (o.painter ?? canvasPainter)(),
     fetch: o.fetch !== void 0 ? o.fetch : typeof fetch === "function" ? (u, i) => fetch(u, i) : null
   } : null;
@@ -11390,7 +11254,7 @@ async function runMedia(ctx, o) {
     });
     const eff = effectivePlan(scene.plan, style, { missingShots, missingPictures });
     const planRel = MEDIA_REL.plan(scene.sceneId);
-    ensureDir(fs, ctx.path("media/plans"));
+    await ensureDir(fs, ctx.path("media/plans"));
     await writeJsonAtomic(fs, ctx.path(planRel), eff.plan);
     const fallbacks = [...eff.fallbacks, ...madeAs(scene.sceneId, eff.plan)];
     scenes.push({ sceneId: scene.sceneId, start: scene.start, end: scene.end, plan: planRel, kind: eff.kind, ...sceneFiles(ctx, scene, eff.plan, shots, results, stillOf, pictureEntries), fallbacks });
@@ -11479,14 +11343,6 @@ async function mediaGates(ctx) {
   if (caps?.mediaGeneration?.pluginFiles === false || caps?.mediaGeneration?.present === false) pictures = false, why.push("this Selects cannot generate pictures for plug-ins");
   return { stockSearch, pictures, why };
 }
-function withoutPluginPictures(di) {
-  if (!di) return di ?? null;
-  const mg = di.MediaGeneration;
-  if (!mg) return di;
-  const view3 = {};
-  for (const k of ["isAvailable", "submit", "list", "cancel", "retryDelivery"]) if (typeof mg[k] === "function") view3[k] = mg[k].bind(mg);
-  return { ...di, MediaGeneration: view3 };
-}
 function createGatedMediaStage(base = {}) {
   const plain = createMediaStage(base);
   return {
@@ -11500,7 +11356,7 @@ function createGatedMediaStage(base = {}) {
       const stage = createMediaStage({
         ...base,
         ...g.stockSearch ? {} : { search: () => null },
-        ...g.pictures ? {} : { images: (o) => images({ ...o, mg: null, host: { ...o.host, di: withoutPluginPictures(o.host.di) } }) }
+        ...g.pictures ? {} : { images: (o) => images({ ...o, mg: null, host: { ...o.host, generation: null } }) }
       });
       return stage.run(ctx);
     }
@@ -12018,7 +11874,7 @@ async function startExport(sdk, kind, input, opts = {}) {
       verify: async (failed) => {
         lastReport = failed;
         if (startedExport(failed, kind, input.outPath)) return "done";
-        if (failed.kind === "transport" && opts.fs && opts.fs.existsSync(input.outPath)) return "fail";
+        if (failed.kind === "transport" && opts.fs && await opts.fs.exists(input.outPath)) return "fail";
         return failed.kind === "transport" ? "retry" : "fail";
       }
     });
@@ -12043,7 +11899,7 @@ async function waitForExport(sdk, o) {
   let readFailures = 0;
   let last2 = { status: "unknown", step: null, progress: null, lastErrorMessage: null, listed: false };
   const checkFile = async (requireStable) => {
-    const st = statFile(o.fs, o.outPath);
+    const st = await statFile(o.fs, o.outPath);
     if (!st || st.size <= 0) {
       lastSize = -1;
       return null;
@@ -12126,7 +11982,7 @@ async function detectSilences(host2, path, noiseDb, minSeconds, fileSeconds, sig
 }
 async function renderVoice(host2, input) {
   const fs = host2.fs;
-  removeFile(fs, input.outPath);
+  await removeFile(fs, input.outPath);
   const seconds = input.mainEndFrame / input.fps;
   const started = await startExport(host2.sdk, "audio", { projectId: input.projectId, draftId: input.draftId, outPath: input.outPath }, { signal: input.signal, fs });
   const done = await waitForExport(host2.sdk, {
@@ -12388,7 +12244,7 @@ function createEditStage(opts = {}) {
     inputSha: async (ctx) => {
       const fs = ctx.host.fs;
       const path = ctx.path("source/source.json");
-      const source = fs.existsSync(path) ? await readJson(fs, path) : null;
+      const source = await fs.exists(path) ? await readJson(fs, path) : null;
       const progress = await readJsonIfExists(fs, ctx.path(REL.progress), null).catch(() => null);
       return editInputSha(await sourceSha(source), jobRules(progress, ctx.job.draftId, current));
     },
@@ -12401,8 +12257,8 @@ async function runEdit(ctx, buildRules, opts) {
   const fs = host2.fs;
   const sdk = host2.sdk;
   const so = { signal: ctx.signal, ...opts.script ?? {} };
-  ensureDir(fs, ctx.path("edit/audio"));
-  ensureDir(fs, ctx.path("sound"));
+  await ensureDir(fs, ctx.path("edit/audio"));
+  await ensureDir(fs, ctx.path("sound"));
   const source = await readJson(fs, ctx.path("source/source.json"));
   const srcSha = await sourceSha(source);
   const prog = await readJsonIfExists(fs, ctx.path(REL.progress), null);
@@ -12430,7 +12286,7 @@ async function runEdit(ctx, buildRules, opts) {
   }
   const draftId = job.draftId;
   let before;
-  if (p.before && fs.existsSync(ctx.path(REL.before))) {
+  if (p.before && await fs.exists(ctx.path(REL.before))) {
     before = await readJson(fs, ctx.path(REL.before));
   } else {
     ctx.note("Reading the EO draft…");
@@ -12452,7 +12308,7 @@ async function runEdit(ctx, buildRules, opts) {
   const clauses = buildClauses(before.words, before.segments, policy.maxClauseWords);
   await writeJsonAtomic(fs, ctx.path(REL.clauses), { fps, from: before.segments?.length ? "semanticCutSegments" : "sentences", clauses });
   let keep;
-  if (p.keep && fs.existsSync(ctx.path(REL.keepResponse))) {
+  if (p.keep && await fs.exists(ctx.path(REL.keepResponse))) {
     keep = await readJson(fs, ctx.path(REL.keepResponse));
   } else {
     ctx.note("Choosing what to keep…");
@@ -12506,13 +12362,13 @@ async function runEdit(ctx, buildRules, opts) {
   let state2 = p.silence.after;
   for (const a of p.audio) if (a.status === "applied" && a.after) state2 = a.after;
   let final = p.audio.find((a) => a.status === "final") ?? null;
-  if (final && !fs.existsSync(voicePath)) {
+  if (final && !await fs.exists(voicePath)) {
     p.audio = p.audio.filter((a) => a !== final);
     final = null;
   }
   let current = null;
   if (!final) {
-    for (const f of fs.readdirSync(ctx.path("edit/audio"))) if (/^pass-.*\.wav$/.test(f) && !p.audio.some((a) => a.wav.endsWith("/" + f))) removeFile(fs, ctx.path("edit/audio/" + f));
+    for (const f of await fs.readdir(ctx.path("edit/audio"))) if (/^pass-.*\.wav$/.test(f) && !p.audio.some((a) => a.wav.endsWith("/" + f))) await removeFile(fs, ctx.path("edit/audio/" + f));
   }
   while (!final) {
     const pending2 = p.audio.find((a) => a.status === "pending");
@@ -12521,7 +12377,7 @@ async function runEdit(ctx, buildRules, opts) {
       pending2.status = "applied";
       pending2.after = r6.after;
       pending2.commitId = r6.commitId ?? null;
-      removeFile(fs, ctx.path(pending2.wav));
+      await removeFile(fs, ctx.path(pending2.wav));
       state2 = r6.after;
       await save();
       continue;
@@ -12586,7 +12442,7 @@ async function runEdit(ctx, buildRules, opts) {
     if (!cutPlan.cuts.length || cutPlan.capped || noMorePasses) {
       if (cutPlan.capped) ctx.warn("The audio pause cut would remove " + cutPlan.frames + " frames, over the " + cutPlan.capFrames + "-frame cap; it was skipped.");
       else if (cutPlan.cuts.length) ctx.warn(cutPlan.cuts.length + " short pause(s) remain after " + policy.audioCutMaxPasses + " audio cut passes.");
-      removeFile(fs, voicePath);
+      await removeFile(fs, voicePath);
       await renameWithRetry(fs, render.path, voicePath);
       pass.wav = REL.voice;
       pass.status = "final";
@@ -12604,7 +12460,7 @@ async function runEdit(ctx, buildRules, opts) {
     pass.status = "applied";
     pass.after = r5.after;
     pass.commitId = r5.commitId ?? null;
-    removeFile(fs, render.path);
+    await removeFile(fs, render.path);
     state2 = r5.after;
     await save();
   }
@@ -12672,6 +12528,143 @@ function pickAudioPolicy(p) {
     gateNoiseOffsetDb: p.pauseGateNoiseOffsetDb,
     gateSeconds: p.pauseGateSeconds
   };
+}
+
+// src/stages/speaker/stage.ts
+var import_ai_resources2 = __toESM(require_ai_resources());
+
+// src/speaker/ffmpegPass.ts
+function probeArgs2(path) {
+  return [
+    "-v",
+    "error",
+    "-hide_banner",
+    "-select_streams",
+    "V:0",
+    "-show_entries",
+    "stream=width,height,avg_frame_rate,r_frame_rate,start_time:stream_tags=rotate:stream_side_data=rotation:format=start_time",
+    "-of",
+    "json",
+    path
+  ];
+}
+var rate = (s) => {
+  const m = String(s || "").match(/^(\d+(?:\.\d+)?)(?:\/(\d+(?:\.\d+)?))?$/);
+  if (!m) return 0;
+  const v = m[2] != null ? Number(m[1]) / Number(m[2]) : Number(m[1]);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+};
+function parseProbe(stdout) {
+  const j = JSON.parse(String(stdout || "").replace(/[\r\n]/g, ""));
+  const s = j && j.streams && j.streams[0];
+  if (!s || !(Number(s.width) > 0) || !(Number(s.height) > 0)) throw new Error("The source has no video stream.");
+  let rot = 0;
+  for (const sd of s.side_data_list || []) if (sd && sd.rotation != null) rot = Number(sd.rotation) || 0;
+  if (!rot && s.tags && s.tags.rotate != null) rot = Number(s.tags.rotate) || 0;
+  const turned = Math.abs(Math.round(rot / 90)) % 2 === 1;
+  const fps = rate(s.avg_frame_rate) || rate(s.r_frame_rate);
+  if (!(fps > 0)) throw new Error("The source's frame rate is unknown.");
+  const st = Number(s.start_time), ft = Number(j.format && j.format.start_time);
+  return {
+    width: turned ? Number(s.height) : Number(s.width),
+    height: turned ? Number(s.width) : Number(s.height),
+    fps,
+    startOffset: Number.isFinite(st) ? st - (Number.isFinite(ft) ? ft : 0) : 0
+  };
+}
+var PASS_DEFAULTS = { threshold: 8, sampleFps: 2, longSide: 640 };
+var DECODE_PAD_S = 1;
+function analysisSize(width, height, longSide = PASS_DEFAULTS.longSide) {
+  const k = Math.min(1, longSide / Math.max(width, height));
+  return { width: Math.max(1, Math.round(width * k)), height: Math.max(1, Math.round(height * k)) };
+}
+function sampleStep(fileFps, sampleFps = PASS_DEFAULTS.sampleFps) {
+  return Math.max(1, Math.round(fileFps / sampleFps));
+}
+function planDecodeSpans(ranges, mergeGapS = 3, padS = DECODE_PAD_S) {
+  const byFile = /* @__PURE__ */ new Map();
+  for (const r5 of ranges) {
+    if (!(r5.end > r5.start)) continue;
+    if (!byFile.has(r5.path)) byFile.set(r5.path, []);
+    byFile.get(r5.path).push(r5);
+  }
+  const spans2 = [];
+  for (const list of byFile.values()) {
+    list.sort((a, b2) => a.start - b2.start);
+    let cur = null;
+    for (const r5 of list) {
+      if (cur && r5.start - cur.end <= mergeGapS) cur.end = Math.max(cur.end, r5.end);
+      else {
+        cur = { path: r5.path, resourceIds: [], start: r5.start, end: r5.end };
+        spans2.push(cur);
+      }
+      if (r5.resourceId != null && !cur.resourceIds.includes(r5.resourceId)) cur.resourceIds.push(r5.resourceId);
+    }
+  }
+  for (const s of spans2) {
+    s.start = Math.max(0, s.start - padS);
+    s.end += padS;
+    s.resourceIds.sort();
+  }
+  return spans2.sort((a, b2) => a.path < b2.path ? -1 : a.path > b2.path ? 1 : a.start - b2.start);
+}
+var secs = (x) => String(Math.max(0, Math.round(x * 1e6) / 1e6));
+function analysisPassArgs(span, probe, out, o = {}) {
+  const threshold = o.threshold ?? PASS_DEFAULTS.threshold;
+  const size = analysisSize(probe.width, probe.height, o.longSide ?? PASS_DEFAULTS.longSide);
+  const step = sampleStep(probe.fps, o.sampleFps ?? PASS_DEFAULTS.sampleFps);
+  const vf = "scdet=threshold=" + threshold + ",framestep=" + step + ",showinfo,scale=" + size.width + ":" + size.height + ":flags=area,format=bgr24";
+  return [
+    "-nostdin",
+    "-hide_banner",
+    "-loglevel",
+    "info",
+    "-y",
+    "-ss",
+    secs(span.start),
+    "-t",
+    secs(span.end - span.start),
+    "-i",
+    span.path,
+    "-map",
+    "0:V:0",
+    "-an",
+    "-sn",
+    "-dn",
+    "-vf",
+    vf,
+    "-fps_mode",
+    "passthrough",
+    "-f",
+    "rawvideo",
+    out
+  ];
+}
+function parseScdet2(stderr) {
+  const out = [];
+  for (const line of String(stderr || "").split(/\r?\n/)) {
+    const m = line.match(/lavfi\.scd\.score:\s*(-?[\d.]+(?:e[-+]?\d+)?),\s*lavfi\.scd\.time:\s*(-?[\d.]+(?:e[-+]?\d+)?)/i);
+    if (m) out.push({ score: Number(m[1]), time: Number(m[2]) });
+  }
+  return out;
+}
+function parseShowinfo2(stderr) {
+  const out = [];
+  for (const line of String(stderr || "").split(/\r?\n/)) {
+    if (!/showinfo/i.test(line)) continue;
+    const m = line.match(/\bn:\s*(\d+)\s+pts:\s*(-?\d+)\s+pts_time:\s*(-?[\d.]+(?:e[-+]?\d+)?)/i);
+    if (m) out.push({ n: Number(m[1]), pts: Number(m[2]), ptsTime: Number(m[3]) });
+  }
+  return out;
+}
+function passTimeToFileFrame(span, probe, passTime) {
+  const frame = Math.round((span.start + passTime - probe.startOffset) * probe.fps);
+  return { frame, time: frame / probe.fps };
+}
+function readPass(span, probe, stderr) {
+  const cuts = parseScdet2(stderr).map((h) => ({ ...passTimeToFileFrame(span, probe, h.time), score: h.score }));
+  const samples = parseShowinfo2(stderr).map((f) => ({ index: f.n, ...passTimeToFileFrame(span, probe, f.ptsTime) }));
+  return { cuts, samples };
 }
 
 // src/speaker/cameraCuts.ts
@@ -12770,7 +12763,7 @@ function pieceSourceOffsets(pieces, words2, seams, draftFps2, resourceFps) {
   const sorted = pieces.slice().sort((a, b2) => a.startFrame - b2.startFrame);
   const out = sorted.map((p) => {
     const fps = resourceFps(p.resourceId);
-    const inside = words2.filter((w) => !w.cut && w.sourceStartFrame != null && w.startFrame >= p.startFrame && w.startFrame < p.endFrame);
+    const inside = words2.filter((w) => (!w.sourceResourceId || w.sourceResourceId === p.resourceId) && !w.cut && w.sourceStartFrame != null && w.startFrame >= p.startFrame && w.startFrame < p.endFrame);
     if (!inside.length || !(fps > 0)) return { ...p, t0: null, via: null, words: 0, spreadS: 0 };
     const offs = inside.map((w) => w.sourceStartFrame / fps - w.startFrame / draftFps2);
     return { ...p, t0: median2(offs), via: "words", words: inside.length, spreadS: Math.max(...offs) - Math.min(...offs) };
@@ -13049,7 +13042,9 @@ async function analyzeSpeaker(input, host2, o = {}) {
     progress("Finding camera cuts and the speaker's face (" + (i + 1) + "/" + spans2.length + ")…");
     let stderr;
     try {
-      stderr = await host2.ffmpeg(analysisPassArgs(span, pr, out, o), o.signal);
+      const args = analysisPassArgs(span, pr, out, o);
+      if (host2.detectSamples) args.splice(args.length - 3, 3, "-f", "null", "-");
+      stderr = await host2.ffmpeg(args, o.signal);
     } catch (e) {
       host2.remove(out);
       throw e;
@@ -13065,9 +13060,15 @@ async function analyzeSpeaker(input, host2, o = {}) {
     const samples = pass.samples.map((s) => ({ ...s, visible: visibleAt(s.time), detected: false, faces: [] }));
     const stills = [];
     const facesOf = async (bytes) => plausibleFaces(toSourceFaces(await host2.detect(bytes, size.width, size.height), size.width, size.height, pr.width, pr.height), pr.width, pr.height);
+    const shared = host2.detectSamples && samples.length ? await host2.detectSamples(span.path, samples.map((s) => s.time), pr.fps, src) : null;
     const detect = async (s) => {
       if (s.detected) return;
       cancelled();
+      if (shared) {
+        s.faces = plausibleFaces(shared[samples.indexOf(s)] || [], pr.width, pr.height);
+        s.detected = true;
+        return;
+      }
       const bytes = await host2.readRange(out, s.index * fb, fb);
       s.detected = true;
       if (bytes.length < fb) return;
@@ -13086,14 +13087,18 @@ async function analyzeSpeaker(input, host2, o = {}) {
       if (c1 <= c0) return null;
       const c = Math.floor((c0 + c1 - 1) / 2);
       const at = (c - 0.25) / pr.fps + pr.startOffset;
-      const one3 = { path: span.path, resourceIds: span.resourceIds, start: at, end: at + 1.5 / pr.fps };
+      const one2 = { path: span.path, resourceIds: span.resourceIds, start: at, end: at + 1.5 / pr.fps };
       const file = host2.scratchPath("speaker-span-" + (i + 1) + "-" + seg.id + ".bgr");
       try {
         cancelled();
-        const got = readPass(one3, pr, await host2.ffmpeg(analysisPassArgs(one3, pr, file, o), o.signal)).samples[0];
+        const args = analysisPassArgs(one2, pr, file, o);
+        if (host2.detectSamples) args.splice(args.length - 3, 3, "-f", "null", "-");
+        const got = readPass(one2, pr, await host2.ffmpeg(args, o.signal)).samples[0];
         if (!got || got.time < seg.start || got.time >= seg.end) return null;
-        const bytes = await host2.readRange(file, 0, fb);
-        const faces = bytes.length < fb ? [] : await facesOf(bytes);
+        const faces = host2.detectSamples ? plausibleFaces((await host2.detectSamples(span.path, [got.time], pr.fps, src))[0], pr.width, pr.height) : await (async () => {
+          const bytes = await host2.readRange(file, 0, fb);
+          return bytes.length < fb ? [] : await facesOf(bytes);
+        })();
         stills.push({ segmentId: seg.id, t: got.time, frame: got.frame, visible: visibleAt(got.time), detected: true, faces });
         return { t: got.time, frame: got.frame, faces };
       } finally {
@@ -13113,9 +13118,9 @@ async function analyzeSpeaker(input, host2, o = {}) {
         }
         let faceSamples = use.map((s) => ({ t: s.time, frame: s.frame, faces: s.faces }));
         if (!faceSamples.length) {
-          const one3 = await still(seg);
-          if (one3) {
-            faceSamples = [one3];
+          const one2 = await still(seg);
+          if (one2) {
+            faceSamples = [one2];
             from = "still";
           }
         }
@@ -13241,10 +13246,11 @@ function rangeReader(host2) {
     forget: (path) => void whole.delete(path)
   };
 }
-function panelSpeakerHost(host2, o) {
+async function panelSpeakerHost(host2, o) {
   const fs = host2.fs;
   const ranges = rangeReader(host2);
-  ensureDir(fs, o.scratchDir);
+  await ensureDir(fs, o.scratchDir);
+  const faces = sharedFaces(host2, { ...o, journalPath: fs.join(o.scratchDir, "ai-jobs.json") });
   return {
     async probe(path) {
       const rt = host2.runtime;
@@ -13256,18 +13262,22 @@ function panelSpeakerHost(host2, o) {
       return (await analyze(host2.runtime, args, { signal: signal ?? o.signal, timeoutMs: 15 * 6e4 })).stderr;
     },
     readRange: (path, offset, length) => ranges.read(path, offset, length),
-    remove(path) {
+    async remove(path) {
       ranges.forget(path);
-      removeFile(fs, path);
+      await removeFile(fs, path);
     },
     scratchPath: (name) => fs.join(o.scratchDir, name),
-    detect: async (bgr, w, h) => (await o.detector()).detect(bgr, w, h),
+    detectSamples: async (path, times, fps, size) => {
+      const result = await faces(path, times, fps);
+      if (size && (result.frameSize?.width !== size.width || result.frameSize?.height !== size.height)) throw new Error("Shared face dimensions differ from the source.");
+      return adaptSharedFaces(result, times, fps);
+    },
     progress: o.progress
   };
 }
 
 // src/stages/speaker/scripts.ts
-function readSpeakerDraftScript(projectId, draftId) {
+function readSpeakerDraftScript(projectId, draftId, bindings = {}) {
   return `const p = selects.project(${lit(projectId)});
 const d = selects.draft(${lit(draftId)});
 ${GUARD_WORDS_JS}
@@ -13282,16 +13292,19 @@ const words = all.map((w) => ({ startFrame: w.startFrame, endFrame: w.endFrame, 
 const seams = (await d.seams()).map((s) => ({ playbackFrame: s.playbackFrame, hiddenDraftFrames: s.hiddenDraftFrames, sourceJump: s.sourceJump ?? null, sourceGap: s.sourceGap ?? null }));
 const files = await sourceFiles(p);
 const resources = {};
+const persistent:Record<number,string> = ${lit(bindings)};
 for (const rid of new Set(main.map((c) => c.resourceId).filter(Boolean))) {
   const rm = await p.resource(rid).meta();
   const f = files.find((x) => x.resourceId === rid);
-  resources[rid] = { fps: rm.fps, path: f ? f.path : null, frameSize: f && f.frameSize ? f.frameSize : null, name: rm.name ?? null };
+  resources[rid] = { fps: rm.fps, path: f ? f.path : null, frameSize: f && f.frameSize ? f.frameSize : null, name: rm.name ?? null, canonicalResourceId:persistent[main.find(c=>c.resourceId===rid)?.clipId], durationSeconds:rm.durationSeconds };
 }
+for(const w of words){if(w.sourceResourceId)for(const [rid,r]of Object.entries(resources) as [string,any][]){if(w.sourceResourceId===r.canonicalResourceId)w.sourceResourceId=rid;}}
+for(const seam of seams){if(seam.sourceGap)for(const [rid,r]of Object.entries(resources) as [string,any][]){if(seam.sourceGap.resourceId===r.canonicalResourceId)seam.sourceGap.resourceId=rid;}}
 return { fps: meta.fps, frameSize: meta.frameSize, mainEnd: main.reduce((m, c) => Math.max(m, c.endFrame), 0), wordsSig: guardWordsSig(all), main, words, seams, resources };`;
 }
 
 // src/stages/speaker/stage.ts
-var SPEAKER_STAGE_VERSION = "eo-speaker-stage/1";
+var SPEAKER_STAGE_VERSION = "eo-speaker-stage/2";
 var SPEAKER_REL = {
   faces: "speaker/faces.json",
   framing: "speaker/framing.json",
@@ -13312,9 +13325,15 @@ async function runSpeaker(ctx, o) {
   const draftId = job.draftId;
   if (!draftId) throw new Error("The job has no EO draft yet (the edit stage makes it).");
   const rs = { signal: ctx.signal, ...o.backoffMs ? { backoffMs: o.backoffMs } : {} };
-  ensureDir(fs, ctx.path("speaker"));
+  await ensureDir(fs, ctx.path("speaker"));
   ctx.note("Reading the EO draft…");
-  const read = await readScript(host2.sdk, "EO Shorts: read Main for the speaker framing", readSpeakerDraftScript(job.projectId, draftId), rs);
+  if (!host2.sdk.call) throw new Error("Update Selects to resolve source Resources.");
+  const bindings = (0, import_ai_resources2.canonicalResourceBindings)(await host2.sdk.call("getDraftCore", draftId), { projectId: job.projectId, draftId });
+  const read = await readScript(host2.sdk, "EO Shorts: read Main for the speaker framing", readSpeakerDraftScript(job.projectId, draftId, Object.fromEntries(bindings)), rs);
+  const after = (0, import_ai_resources2.canonicalResourceBindings)(await host2.sdk.call("getDraftCore", draftId), { projectId: job.projectId, draftId });
+  const fingerprint = (map) => JSON.stringify([...map].sort((a, b2) => a[0] - b2[0]));
+  if (fingerprint(bindings) !== fingerprint(after)) throw new Error("Main sources changed while reading the Draft. Try again.");
+  if (Object.values(read.resources).some((r5) => !r5.canonicalResourceId)) throw new Error("The persistent source Resource is unavailable.");
   const edited = await readJsonIfExists(fs, ctx.path("edit/words.json"), null);
   if (edited && (edited.mainEnd !== read.mainEnd || Array.isArray(edited.words) && guardWordsSig(edited.words) !== read.wordsSig)) {
     throw new Error("The EO draft changed after the edit (Main ends at frame " + read.mainEnd + ", the edit left " + edited.mainEnd + "). Make a new short from the source.");
@@ -13332,8 +13351,7 @@ async function runSpeaker(ctx, o) {
     seams: read.seams,
     resources
   };
-  const detector = o.detector ? () => o.detector(ctx) : () => sharedFaceDetector(fs, ctx.roots.runtime, (s) => ctx.note(s));
-  const sh = o.host ? o.host(ctx) : panelSpeakerHost(host2, { scratchDir: ctx.path("speaker/tmp"), detector, signal: ctx.signal, progress: (s) => ctx.note(s) });
+  const sh = o.host ? o.host(ctx) : await panelSpeakerHost(host2, { scratchDir: ctx.path("speaker/tmp"), projectId: job.projectId, scope: job.jobId + ":speaker", resources: Object.fromEntries(Object.entries(read.resources).filter(([, r5]) => r5.path).map(([rid, r5]) => [r5.path, { resourceId: r5.canonicalResourceId || rid, duration: r5.durationSeconds }])), signal: ctx.signal, progress: (s) => ctx.note(s) });
   const result = await analyzeSpeaker(input, sh, { signal: ctx.signal });
   await writeJsonAtomic(fs, ctx.path(SPEAKER_REL.faces), result.faces);
   await writeJsonAtomic(fs, ctx.path(SPEAKER_REL.framing), result.framing);
@@ -14198,10 +14216,10 @@ async function planFilm(input) {
       const answered = Array.isArray(r5.json?.scenes) ? r5.json.scenes : [];
       for (const s of asked) {
         const got = answered.filter((x) => x && x.id === s.id);
-        const one3 = got.length === 1 ? got[0] : null;
-        if (!one3 || repairProblems({ schema: "eo-film-plan/1", film, scenes: [one3] }, [s], film).length) continue;
+        const one2 = got.length === 1 ? got[0] : null;
+        if (!one2 || repairProblems({ schema: "eo-film-plan/1", film, scenes: [one2] }, [s], film).length) continue;
         const i = bundle.scenes.findIndex((x) => x.id === s.id);
-        bundle.scenes[i] = { ...s, type: one3.type, plan: one3.plan };
+        bundle.scenes[i] = { ...s, type: one2.type, plan: one2.plan };
         repair.accepted.push(s.id);
       }
     } catch (e) {
@@ -14306,7 +14324,7 @@ var REL2 = {
 };
 async function readText2(ctx, rel4) {
   const path = ctx.path(rel4);
-  if (!ctx.host.fs.existsSync(path)) return null;
+  if (!await ctx.host.fs.exists(path)) return null;
   return decodeText(await ctx.host.fs.readFile(path));
 }
 async function readInputs(ctx) {
@@ -14328,7 +14346,7 @@ async function readCatalog(ctx) {
   const fs = ctx.host.fs;
   const path = fs.join(ctx.roots.skills, "assets", "music", "catalog.json");
   try {
-    if (!fs.existsSync(path)) return null;
+    if (!await fs.exists(path)) return null;
     return JSON.parse(decodeText(await fs.readFile(path)));
   } catch {
     return null;
@@ -14345,13 +14363,13 @@ async function recordNoPlan(ctx, a) {
   await writeJsonAtomic(ctx.host.fs, ctx.path(REL2.attempts), cur);
 }
 var RUN_FILES = [REL2.source, REL2.request, REL2.provenance, REL2.response, REL2.bundleRaw, REL2.anchorFix, REL2.repairRequest, REL2.repairResponse, REL2.bundle, REL2.scenes, REL2.music, REL2.summary];
-function clearPlan(ctx) {
+async function clearPlan(ctx) {
   const fs = ctx.host.fs;
-  for (const rel4 of RUN_FILES) fs.rmSync(ctx.path(rel4), { force: true });
-  for (const name of fs.readdirSync(ctx.path("plan"))) if (/^film-.+\.json$|^direction-.+\.md$/.test(name)) fs.rmSync(ctx.path("plan/" + name), { force: true });
+  for (const rel4 of RUN_FILES) await fs.rm(ctx.path(rel4), { force: true });
+  for (const name of await fs.readdir(ctx.path("plan"))) if (/^film-.+\.json$|^direction-.+\.md$/.test(name)) await fs.rm(ctx.path("plan/" + name), { force: true });
   for (const dir of ["plan/scenes", "plan/lint"]) {
-    fs.rmSync(ctx.path(dir), { recursive: true, force: true });
-    ensureDir(fs, ctx.path(dir));
+    await fs.rm(ctx.path(dir), { recursive: true, force: true });
+    await ensureDir(fs, ctx.path(dir));
   }
 }
 function forgetPreviousRun(job, last2) {
@@ -14401,11 +14419,11 @@ async function runPlan(ctx, opts) {
   const { job } = ctx;
   const fs = ctx.host.fs;
   const t0 = ctx.host.now();
-  for (const dir of ["plan", "plan/scenes", "plan/lint"]) ensureDir(fs, ctx.path(dir));
+  for (const dir of ["plan", "plan/scenes", "plan/lint"]) await ensureDir(fs, ctx.path(dir));
   const styles = opts.styles ?? FILM_STYLES;
   const film = job.film;
   forgetPreviousRun(job, await readReceipt(fs, ctx.dir, "plan"));
-  clearPlan(ctx);
+  await clearPlan(ctx);
   delete job.models[PLAN_ROLE];
   const inputs = await readInputs(ctx);
   if (inputs.from === "source") ctx.warn("The plan uses the source draft's words: there is no edit to plan from.");
@@ -14512,7 +14530,7 @@ async function runPlan(ctx, opts) {
   await writeFileAtomic(fs, ctx.path(REL2.direction(film)), r5.bundle.direction + "\n");
   outputs.push(REL2.bundle, REL2.scenes, REL2.film(film), REL2.direction(film));
   for (const s of r5.scenes) {
-    ensureDir(fs, ctx.path("plan/scenes/" + s.id));
+    await ensureDir(fs, ctx.path("plan/scenes/" + s.id));
     await writeFileAtomic(fs, ctx.path(REL2.scenePlan(s.id)), pyJsonFile(ex.plans[s.id], PLAN_FLOATS));
     outputs.push(REL2.scenePlan(s.id));
     const raw = r5.rawPlans[s.id];
@@ -14805,10 +14823,10 @@ var HB_SUBSET_WASM = Object.freeze({
 function hbWasmPath(fs, runtimeDir) {
   return fs.join(runtimeDir, "harfbuzz", "harfbuzzjs-" + HB_VERSION, HB_SUBSET_WASM.name);
 }
-var DOWNLOAD_TIMEOUT_MS2 = 3 * 60 * 1e3;
-var errText3 = (e) => String(e && e.message || e || "unknown error").slice(0, 300);
+var DOWNLOAD_TIMEOUT_MS = 3 * 60 * 1e3;
+var errText = (e) => String(e && e.message || e || "unknown error").slice(0, 300);
 async function verified(fs, path) {
-  if (!fs.existsSync(path)) return null;
+  if (!await fs.exists(path)) return null;
   try {
     const bytes = await readBytes(fs, path);
     if (bytes.length === HB_SUBSET_WASM.bytes && await sha256Hex(bytes) === HB_SUBSET_WASM.sha256) return bytes;
@@ -14816,9 +14834,9 @@ async function verified(fs, path) {
   }
   return null;
 }
-function quietRemove2(fs, path) {
+async function quietRemove(fs, path) {
   try {
-    if (fs.existsSync(path)) fs.unlinkSync(path);
+    if (await fs.exists(path)) await fs.unlink(path);
   } catch {
   }
 }
@@ -14826,26 +14844,26 @@ async function hbSubsetWasm(fs, runtimeDir, o = {}) {
   const dest = hbWasmPath(fs, runtimeDir);
   const own = await verified(fs, dest);
   if (own) return { bytes: own, path: dest, downloaded: false };
-  quietRemove2(fs, dest);
+  await quietRemove(fs, dest);
   for (const p of o.reuse ?? []) {
     const b2 = await verified(fs, p);
     if (b2) return { bytes: b2, path: p, downloaded: false };
   }
   if (typeof fs.downloadFile !== "function") throw new Error("This Selects build cannot download files (FileSystem.downloadFile); update Selects.");
   o.progress?.("Downloading the font subsetter (one time, 0.7 MB)…");
-  if (!fs.existsSync(fs.dirname(dest))) fs.mkdirSync(fs.dirname(dest), { recursive: true });
+  if (!await fs.exists(fs.dirname(dest))) await fs.mkdir(fs.dirname(dest), { recursive: true });
   const reasons = [];
   for (let attempt2 = 0; attempt2 < 2; attempt2 += 1) {
     const url = HB_SUBSET_WASM.urls[Math.min(attempt2, HB_SUBSET_WASM.urls.length - 1)];
     const part = dest + ".part" + attempt2;
-    quietRemove2(fs, part);
+    await quietRemove(fs, part);
     try {
       let timer = null;
       await Promise.race([
         fs.downloadFile(url, part),
-        new Promise((_, reject) => timer = setTimeout(() => reject(new Error("no answer after " + DOWNLOAD_TIMEOUT_MS2 / 1e3 + " s")), DOWNLOAD_TIMEOUT_MS2))
+        new Promise((_, reject) => timer = setTimeout(() => reject(new Error("no answer after " + DOWNLOAD_TIMEOUT_MS / 1e3 + " s")), DOWNLOAD_TIMEOUT_MS))
       ]).finally(() => timer && clearTimeout(timer));
-      if (!fs.existsSync(part)) throw new Error("nothing was saved");
+      if (!await fs.exists(part)) throw new Error("nothing was saved");
       const bytes = await readBytes(fs, part);
       if (bytes.length !== HB_SUBSET_WASM.bytes) throw new Error("the server sent " + bytes.length + " bytes, not " + HB_SUBSET_WASM.bytes);
       const got = await sha256Hex(bytes);
@@ -14853,8 +14871,8 @@ async function hbSubsetWasm(fs, runtimeDir, o = {}) {
       await renameWithRetry(fs, part, dest);
       return { bytes, path: dest, downloaded: true };
     } catch (e) {
-      reasons.push(url.replace(/^https:\/\/([^/]+)\/.*$/, "$1") + ": " + errText3(e));
-      quietRemove2(fs, part);
+      reasons.push(url.replace(/^https:\/\/([^/]+)\/.*$/, "$1") + ": " + errText(e));
+      await quietRemove(fs, part);
     }
   }
   throw new Error("Could not download the " + HB_SUBSET_WASM.label + ". " + reasons.join("; ") + ". Check the internet connection and try again.");
@@ -14905,12 +14923,12 @@ function packagedFontSource(fs, root) {
   const read = async (rel4) => {
     const b64 = at(packagedFontName(rel4));
     const gz = b64.replace(/\.b64$/, ".gz.b64");
-    if (fs.existsSync(gz)) return gunzip(fromBase64(await readText(fs, gz)));
-    if (fs.existsSync(b64)) return fromBase64(await readText(fs, b64));
+    if (await fs.exists(gz)) return gunzip(fromBase64(await readText(fs, gz)));
+    if (await fs.exists(b64)) return fromBase64(await readText(fs, b64));
     const ttf = at(packagedFontName(rel4).replace(/\.b64$/, ""));
-    if (fs.existsSync(ttf)) return readBytes(fs, ttf);
-    if (fs.existsSync(at(rel4))) return readBytes(fs, at(rel4));
-    if (fs.existsSync(at(rel4) + ".b64")) return fromBase64(await readText(fs, at(rel4) + ".b64"));
+    if (await fs.exists(ttf)) return readBytes(fs, ttf);
+    if (await fs.exists(at(rel4))) return readBytes(fs, at(rel4));
+    if (await fs.exists(at(rel4) + ".b64")) return fromBase64(await readText(fs, at(rel4) + ".b64"));
     throw new Error("Font file missing from the package: " + rel4);
   };
   return (rel4) => {
@@ -17458,14 +17476,14 @@ async function declareFonts(doc, fonts, read) {
     let ready = map.get(alias);
     if (!ready) {
       ready = (async () => {
-        const loaded2 = await Promise.all(
+        const loaded = await Promise.all(
           faces2.map(async (x) => {
             const face = new Ctor(alias, x.bytes.slice(), x.descriptors);
             await face.load();
             return face;
           })
         );
-        for (const face of loaded2) doc.fonts.add(face);
+        for (const face of loaded) doc.fonts.add(face);
       })();
       ready.catch(() => map.delete(alias));
       map.set(alias, ready);
@@ -17886,11 +17904,11 @@ async function packAt(h, id, stem, sizeOf, source, dir, mode, inline) {
   const srcBytes = await readBytes(h.fs, source);
   const size = imageSize(srcBytes);
   const d = sizeOf(size.w, size.h);
-  if (!h.fs.existsSync(dir)) h.fs.mkdirSync(dir, { recursive: true });
+  if (!await h.fs.exists(dir)) await h.fs.mkdir(dir, { recursive: true });
   const file = h.fs.join(dir, webpName(stem, d.w, d.h, mode));
   const sourceSha256 = await sha256Hex(srcBytes);
   const stamp = file + ".source-sha256";
-  const fresh = h.fs.existsSync(file) && h.fs.existsSync(stamp) && new TextDecoder().decode(await readBytes(h.fs, stamp)).trim() === sourceSha256;
+  const fresh = await h.fs.exists(file) && await h.fs.exists(stamp) && new TextDecoder().decode(await readBytes(h.fs, stamp)).trim() === sourceSha256;
   if (!fresh) {
     const tmp = file + ".part.webp";
     await encode(h.runtime, webpArgs(source, tmp, d.w, d.h, mode, srcBytes), { fs: h.fs, outPath: tmp, signal: h.signal, timeoutMs: 6e4 });
@@ -17904,7 +17922,7 @@ async function packAt(h, id, stem, sizeOf, source, dir, mode, inline) {
   if (inline) url = dataUri("image/webp", bytes);
   else {
     if (typeof h.fs.pathToLocalURL !== "function") throw new Error("This Selects build cannot name plugin-data files for a Motion Graphic (FileSystem.pathToLocalURL); update Selects.");
-    url = h.fs.pathToLocalURL(file);
+    url = await h.fs.pathToLocalURL(file);
   }
   return {
     id,
@@ -18612,15 +18630,15 @@ function bakeArgs(plan, outPath) {
 }
 var clipRecordPath = (out) => out.replace(/\.mp4$/i, "") + ".json";
 async function bakeKey(fs, plan) {
-  const files = plan.shots.map((s) => {
-    const st = statFile(fs, s.source.path);
+  const files = await Promise.all(plan.shots.map(async (s) => {
+    const st = await statFile(fs, s.source.path);
     return [s.source.path, st?.size ?? null, st ? Math.round(st.mtimeMs) : null];
-  });
+  }));
   return sha256Hex(JSON.stringify([BAKE_RECIPE, plan, files]));
 }
 async function bakeStockRun(h, plan, out) {
   const t0 = Date.now();
-  for (const s of plan.shots) if (!h.fs.existsSync(s.source.path)) throw new Error("Stock source missing: " + s.source.path);
+  for (const s of plan.shots) if (!await h.fs.exists(s.source.path)) throw new Error("Stock source missing: " + s.source.path);
   const key = await bakeKey(h.fs, plan);
   const recPath = clipRecordPath(out);
   const counted = async (path, decode2 = true) => {
@@ -18628,24 +18646,24 @@ async function bakeStockRun(h, plan, out) {
     return p.video && p.video.width === plan.out.width && p.video.height === plan.out.height ? p.video.nbFrames : null;
   };
   const rec = await readJsonIfExists(h.fs, recPath, null);
-  if (rec && rec.schema === "eo-footage-clip/1" && rec.key === key && h.fs.existsSync(out) && (rec.bytes == null || rec.bytes === statFile(h.fs, out)?.size)) {
+  if (rec && rec.schema === "eo-footage-clip/1" && rec.key === key && await h.fs.exists(out) && (rec.bytes == null || rec.bytes === (await statFile(h.fs, out))?.size)) {
     try {
-      if (await counted(out, false) === plan.frames) return { path: out, frames: plan.frames, bytes: statFile(h.fs, out)?.size ?? 0, ms: Date.now() - t0, reused: true, key };
+      if (await counted(out, false) === plan.frames) return { path: out, frames: plan.frames, bytes: (await statFile(h.fs, out))?.size ?? 0, ms: Date.now() - t0, reused: true, key };
     } catch {
     }
   }
-  removeFile(h.fs, recPath);
+  await removeFile(h.fs, recPath);
   const part = out.replace(/\.mp4$/i, "") + ".part.mp4";
-  removeFile(h.fs, part);
+  await removeFile(h.fs, part);
   await encode(h.runtime, bakeArgs(plan, part), { fs: h.fs, outPath: part, signal: h.signal, timeoutMs: 3e5 });
   const frames = await counted(part);
   if (frames !== plan.frames) {
-    removeFile(h.fs, part);
+    await removeFile(h.fs, part);
     throw new Error("The baked clip of scene " + plan.sceneId + " has " + frames + " frames, not " + plan.frames + ".");
   }
-  removeFile(h.fs, out);
+  await removeFile(h.fs, out);
   await renameWithRetry(h.fs, part, out);
-  const bytes = statFile(h.fs, out)?.size ?? 0;
+  const bytes = (await statFile(h.fs, out))?.size ?? 0;
   await writeJsonAtomic(h.fs, recPath, { schema: "eo-footage-clip/1", recipe: BAKE_RECIPE, key, frames, bytes });
   return { path: out, frames, bytes, ms: Date.now() - t0, reused: false, key };
 }
@@ -18832,7 +18850,7 @@ async function composeFilm(c) {
       say("Laying out scene " + s.sceneId + "…");
       const pictures = {};
       for (const [id, path] of Object.entries(s.pictures ?? {})) pictures[id] = { bytes: await readBytes(fs, path), semanticParts: null };
-      const dir = ensureDir(fs, sceneDir(s.sceneId));
+      const dir = await ensureDir(fs, sceneDir(s.sceneId));
       const r5 = await (c.compile ?? compileScene)({ plan: s.plan, style: c.style, pictures, sceneDir: dir, footageRoot: "" }, { readFont: c.readFont, doc: c.doc, join: (...p) => fs.join(...p) });
       await writeFileAtomic(fs, fs.join(dir, "execution.json"), r5.text);
       await writeFileAtomic(fs, fs.join(dir, "compile-report.json"), reportText(r5.report));
@@ -18849,7 +18867,7 @@ async function composeFilm(c) {
   }
   const bakes = [];
   await lap("bake", async () => {
-    ensureDir(fs, c.dirs.footage);
+    await ensureDir(fs, c.dirs.footage);
     const probed = /* @__PURE__ */ new Map();
     for (const o of plan.overlays) {
       const sf = footage.find((x) => x.sceneId === o.sceneId);
@@ -19042,14 +19060,14 @@ async function runCompose(ctx, o) {
   }
   const doc = o.doc ? o.doc(ctx) : globalThis.document;
   if (!doc) throw new Error("Compose needs the panel's document to lay out the scenes.");
-  if (!o.readFont && !fs.existsSync(fs.join(ctx.roots.skills, "fonts", "fonts.json"))) {
+  if (!o.readFont && !await fs.exists(fs.join(ctx.roots.skills, "fonts", "fonts.json"))) {
     throw new Error("The installed EO Shorts package has no fonts (" + fs.join(ctx.roots.skills, "fonts") + "). Install the plugin again, then Resume.");
   }
   ctx.note("Loading the font subsetter…");
   const subsetter = await (o.subsetter ? o.subsetter(ctx) : loadSubsetter(fs, ctx.roots.runtime, { progress: (s) => ctx.note(s) }));
   const readFont = o.readFont ? o.readFont(ctx) : packagedFontSource(fs, ctx.roots.skills);
   const dirs = { compose: ctx.path("compose"), footage: ctx.path("media/footage"), sound: ctx.path("sound"), tmp: ctx.path("compose/tmp") };
-  for (const d of Object.values(dirs)) ensureDir(fs, d);
+  for (const d of Object.values(dirs)) await ensureDir(fs, d);
   const report = await composeFilm({
     host: host2,
     doc,
@@ -19525,22 +19543,22 @@ function kWeightingBiquads(sampleRate) {
   let f0 = 1681.974450955533;
   const G = 3.999843853973347;
   let Q = 0.7071752369554196;
-  let K2 = Math.tan(Math.PI * f0 / sampleRate);
+  let K = Math.tan(Math.PI * f0 / sampleRate);
   const Vh = Math.pow(10, G / 20);
   const Vb = Math.pow(Vh, 0.4996667741545416);
-  const a0 = 1 + K2 / Q + K2 * K2;
+  const a0 = 1 + K / Q + K * K;
   const shelf = {
-    b0: (Vh + Vb * K2 / Q + K2 * K2) / a0,
-    b1: 2 * (K2 * K2 - Vh) / a0,
-    b2: (Vh - Vb * K2 / Q + K2 * K2) / a0,
-    a1: 2 * (K2 * K2 - 1) / a0,
-    a2: (1 - K2 / Q + K2 * K2) / a0
+    b0: (Vh + Vb * K / Q + K * K) / a0,
+    b1: 2 * (K * K - Vh) / a0,
+    b2: (Vh - Vb * K / Q + K * K) / a0,
+    a1: 2 * (K * K - 1) / a0,
+    a2: (1 - K / Q + K * K) / a0
   };
   f0 = 38.13547087602444;
   Q = 0.5003270373238773;
-  K2 = Math.tan(Math.PI * f0 / sampleRate);
-  const d = 1 + K2 / Q + K2 * K2;
-  const highPass = { b0: 1, b1: -2, b2: 1, a1: 2 * (K2 * K2 - 1) / d, a2: (1 - K2 / Q + K2 * K2) / d };
+  K = Math.tan(Math.PI * f0 / sampleRate);
+  const d = 1 + K / Q + K * K;
+  const highPass = { b0: 1, b1: -2, b2: 1, a1: 2 * (K * K - 1) / d, a2: (1 - K / Q + K * K) / d };
   return [shelf, highPass];
 }
 function kWeight(x, sampleRate) {
@@ -20120,7 +20138,7 @@ async function soundFilm(c) {
   const warn = (m) => void (warnings.includes(m) || warnings.push(m));
   const rs = { signal: c.signal, backoffMs: c.backoffMs };
   const path = (...p) => fs.join(c.dirs.sound, ...p);
-  ensureDir(fs, path("passes"));
+  await ensureDir(fs, path("passes"));
   const t0 = Date.now();
   say("Reading the draft…");
   const st = await readScript(c.host.sdk, "EO Shorts: read the draft for the sound", soundStateScript(c.projectId, c.draftId, { sound: c.dirs.sound, footage: c.dirs.footage }), rs);
@@ -20178,7 +20196,7 @@ async function soundFilm(c) {
   };
   const renderTo = async (name) => {
     const out = path("passes", name);
-    removeFile(fs, out);
+    await removeFile(fs, out);
     if (c.render) await c.render(out, seconds);
     else await renderVoice(c.host, { projectId: c.projectId, draftId: c.draftId, outPath: out, mainEndFrame: mainEnd, fps, tmpDir: c.dirs.tmp, signal: c.signal, onProgress: (t2) => say(t2.replace("Rendering the voice", "Rendering " + name)) });
     return { path: out, loud: await measure(c, out) };
@@ -20241,8 +20259,8 @@ async function soundFilm(c) {
   }
   plan.problems.forEach(warn);
   const last2 = passes[passes.length - 1];
-  for (const p of passes.slice(0, -1)) removeFile(fs, p.path);
-  if (mix) removeFile(fs, mix.path);
+  for (const p of passes.slice(0, -1)) await removeFile(fs, p.path);
+  if (mix) await removeFile(fs, mix.path);
   const report = {
     schema: "eo-sound/1",
     guard,
@@ -20292,13 +20310,13 @@ async function measure(c, file, part) {
 }
 async function copyInto(host2, from, to) {
   const fs = host2.fs;
-  const a = fs.statSync(from), b2 = fs.statSync(to);
+  const a = await fs.stat(from), b2 = await fs.stat(to);
   if (!a) throw new Error("The packaged file " + from + " is missing; reinstall the plugin.");
   if (b2 && b2.size === a.size) return to;
-  ensureDir(fs, fs.dirname(to));
+  await ensureDir(fs, fs.dirname(to));
   if (fs.copyFile) {
     const tmp = to + ".part";
-    removeFile(fs, tmp);
+    await removeFile(fs, tmp);
     await fs.copyFile(from, tmp);
     await renameWithRetry(fs, tmp, to);
   } else await writeFileAtomic(fs, to, await readBytes(fs, from));
@@ -20340,7 +20358,7 @@ async function runSound(ctx, o) {
   const scenes = await soundScenes(ctx);
   const edited = await readJsonIfExists(fs, ctx.path("edit/words.json"), null);
   const dirs = { sound: ctx.path("sound"), footage: ctx.path("media/footage"), tmp: ctx.path("sound/tmp") };
-  for (const d of Object.values(dirs)) ensureDir(fs, d);
+  for (const d of Object.values(dirs)) await ensureDir(fs, d);
   const report = await soundFilm({
     host: host2,
     projectId: job.projectId,
@@ -20410,7 +20428,7 @@ async function pictureRefs(fs, composeDir, scenes, toPath) {
     const dir = fs.join(composeDir, s.sceneId);
     for (const [i, part] of s.parts.entries()) {
       const file = fs.join(dir, partScriptName(i, s.parts.length));
-      if (!fs.existsSync(file)) {
+      if (!await fs.exists(file)) {
         unreadable.push(s.sceneId + " " + partScriptName(i, s.parts.length));
         continue;
       }
@@ -20433,13 +20451,13 @@ function localUrlMapper(fs) {
   const f = fs.localURLToPath;
   return typeof f === "function" ? (url) => f.call(fs, url) : null;
 }
-function checkPictureFiles(fs, refs, unreadable = []) {
+async function checkPictureFiles(fs, refs, unreadable = []) {
   const missing = [];
   const unresolved = [];
   const files = /* @__PURE__ */ new Set();
   for (const r5 of refs) {
     if (r5.path == null) unresolved.push(r5);
-    else if (!fs.existsSync(r5.path)) missing.push(r5);
+    else if (!await fs.exists(r5.path)) missing.push(r5);
     else files.add(r5.path);
   }
   return { checked: refs.length, files: files.size, missing, unresolved, unreadable };
@@ -20471,7 +20489,7 @@ async function precheckExport(sdk, fs, input) {
   const read = await readScript(sdk, "EO Shorts: check the draft before export", exportCheckScript(input.projectId, input.draftId), { signal: input.signal, backoffMs: input.backoffMs });
   const draft = { ...EMPTY_DRAFT, ...read, inProject: read.inProject === true };
   const { refs, unreadable } = await pictureRefs(fs, input.composeDir, input.scenes, localUrlMapper(fs));
-  const pictures = checkPictureFiles(fs, refs, unreadable);
+  const pictures = await checkPictureFiles(fs, refs, unreadable);
   return judgeExportCheck(draft, pictures, { mainEnd: input.expectMainEnd });
 }
 
@@ -20489,12 +20507,12 @@ function createExportStage(o = {}) {
 }
 var exportStage = createExportStage();
 var EXPORT_MP4 = /^(final(-[0-9a-fx]+)?|render-[0-9a-fx]+)\.mp4$/;
-function removeOtherExports(ctx, keepRel) {
+async function removeOtherExports(ctx, keepRel) {
   const fs = ctx.host.fs;
-  for (const name of fs.readdirSync(ctx.path("export"))) if (EXPORT_MP4.test(name) && "export/" + name !== keepRel) removeFile(fs, ctx.path("export/" + name));
+  for (const name of await fs.readdir(ctx.path("export"))) if (EXPORT_MP4.test(name) && "export/" + name !== keepRel) await removeFile(fs, ctx.path("export/" + name));
 }
-function writtenSince(fs, path, since) {
-  const st = statFile(fs, path);
+async function writtenSince(fs, path, since) {
+  const st = await statFile(fs, path);
   return !!st && st.size > 0 && since != null && st.mtimeMs >= since - MTIME_SLACK_MS;
 }
 var msOf = (v) => {
@@ -20534,7 +20552,7 @@ async function runExport(ctx, o) {
   if (!check2.ok) throw new Error(check2.problems.join(" "));
   const d = check2.draft;
   const seconds = d.mainEnd / d.fps;
-  ensureDir(fs, ctx.path("export"));
+  await ensureDir(fs, ctx.path("export"));
   const inputSha = job.stages.export?.inputSha ?? null;
   const rel4 = finalRel(inputSha);
   const outPath = ctx.path(rel4);
@@ -20545,12 +20563,12 @@ async function runExport(ctx, o) {
   const pendingId = job.pending.exportWorkflowId;
   if (pendingId && inputSha && job.pending.exportFor === inputSha) {
     const since = msOf(job.pending.exportStartedAt);
-    if (fs.existsSync(outPath) && !writtenSince(fs, outPath, since)) {
-      removeFile(fs, outPath);
-      await ctx.event("export-stale-file", { workflowId: pendingId, file: rel4, removed: !fs.existsSync(outPath) });
+    if (await fs.exists(outPath) && !await writtenSince(fs, outPath, since)) {
+      await removeFile(fs, outPath);
+      await ctx.event("export-stale-file", { workflowId: pendingId, file: rel4, removed: !await fs.exists(outPath) });
     }
     const snap = since != null ? await readWorkflow(host2.sdk, job.projectId, pendingId, rs).catch(() => null) : null;
-    if (snap && resumable(snap, fs.existsSync(outPath))) {
+    if (snap && resumable(snap, await fs.exists(outPath))) {
       workflowId = pendingId;
       startedAt = since;
       resumed = true;
@@ -20563,8 +20581,8 @@ async function runExport(ctx, o) {
     await ctx.event("export-abandon", { workflowId: pendingId, status: "superseded", exportFor: job.pending.exportFor ?? null });
   }
   if (!workflowId) {
-    removeFile(fs, outPath);
-    if (fs.existsSync(outPath)) throw new Error("Cannot remove the earlier file at " + outPath + " to export again (is it open in another app?).");
+    await removeFile(fs, outPath);
+    if (await fs.exists(outPath)) throw new Error("Cannot remove the earlier file at " + outPath + " to export again (is it open in another app?).");
     ctx.note("Starting the export…");
     const started = await startExport(host2.sdk, "video", { projectId: job.projectId, draftId: job.draftId, outPath, resolution }, { ...rs, fs });
     workflowId = started.workflowId;
@@ -20600,14 +20618,14 @@ async function runExport(ctx, o) {
     }
     throw e instanceof Error ? e : new Error(errorMessage(e));
   }
-  if (!writtenSince(fs, outPath, startedAt)) {
-    removeFile(fs, outPath);
+  if (!await writtenSince(fs, outPath, startedAt)) {
+    await removeFile(fs, outPath);
     clearPending(ctx);
     await ctx.saveJob();
     await ctx.event("export-stale-file", { workflowId, file: rel4, via: done.via, lastStatus: done.lastStatus });
     throw new Error("The app reported the export finished, but " + rel4 + " is older than the export, so the app did not write it. Resume exports again.");
   }
-  removeOtherExports(ctx, rel4);
+  await removeOtherExports(ctx, rel4);
   const receipt = {
     schema: "eo-export/1",
     jobId: job.jobId,
@@ -20870,12 +20888,12 @@ function decodeArgs(mp4, wav, sampleRate) {
   return ["-hide_banner", "-nostdin", "-nostats", "-y", "-i", mp4, "-map", "0:a:0", "-vn", "-ac", "2", "-ar", String(sampleRate), "-c:a", "pcm_f32le", wav];
 }
 async function decodeAudio(h, mp4, tmpWav, sampleRate, signal) {
-  removeFile(h.fs, tmpWav);
+  await removeFile(h.fs, tmpWav);
   try {
     await encode(h.runtime, decodeArgs(mp4, tmpWav, sampleRate), { fs: h.fs, outPath: tmpWav, signal, timeoutMs: 12e4 });
     return decodeWav(await readBytes(h.fs, tmpWav));
   } finally {
-    removeFile(h.fs, tmpWav);
+    await removeFile(h.fs, tmpWav);
   }
 }
 async function blackdetect(h, mp4, signal) {
@@ -20883,20 +20901,20 @@ async function blackdetect(h, mp4, signal) {
 }
 async function pullFrames(h, mp4, samples, dir, signal) {
   const fs = h.fs;
-  ensureDir(fs, dir);
-  for (const name of fs.readdirSync(dir)) if (/^(f\d+|tmp-\d+)\.jpg$|^gray\.raw$/.test(name)) removeFile(fs, fs.join(dir, name));
+  await ensureDir(fs, dir);
+  for (const name of await fs.readdir(dir)) if (/^(f\d+|tmp-\d+)\.jpg$|^gray\.raw$/.test(name)) await removeFile(fs, fs.join(dir, name));
   const frames = samples.map((s) => s.frame);
   const raw = fs.join(dir, "gray.raw");
   await encode(h.runtime, extractArgs(mp4, frames, imagePattern(fs, dir, "tmp-%03d.jpg"), raw), { fs, outPath: raw, signal, timeoutMs: 3e5 });
   const bytes = await readBytes(fs, raw);
-  removeFile(fs, raw);
+  await removeFile(fs, raw);
   const size = TILE.width * TILE.height;
   const got = Math.floor(bytes.length / size);
   const jpg = /* @__PURE__ */ new Map();
   const gray = /* @__PURE__ */ new Map();
   for (const [i, f] of frames.entries()) {
     const tmp = fs.join(dir, "tmp-" + String(i).padStart(3, "0") + ".jpg");
-    if (fs.existsSync(tmp)) {
+    if (await fs.exists(tmp)) {
       const out = fs.join(dir, "f" + String(f).padStart(4, "0") + ".jpg");
       await renameWithRetry(fs, tmp, out);
       jpg.set(f, out);
@@ -20910,7 +20928,7 @@ async function pullFrames(h, mp4, samples, dir, signal) {
 var SHEET = { columns: 6, perSheet: 24, maxSide: 1700, frameMaxSide: TILE.width, label: 22, quality: 0.86 };
 async function paintSheets(h, painter, samples, pulled, dir) {
   const fs = h.fs;
-  for (const name of fs.readdirSync(dir)) if (/^contact-\d+\.jpg$/.test(name)) removeFile(fs, fs.join(dir, name));
+  for (const name of await fs.readdir(dir)) if (/^contact-\d+\.jpg$/.test(name)) await removeFile(fs, fs.join(dir, name));
   const out = [];
   const shown = samples.filter((s) => pulled.jpg.has(s.frame));
   for (const [n2, chunk2] of sheetChunks(shown.length, SHEET.perSheet).entries()) {
@@ -20976,7 +20994,7 @@ function foreignOverlays(overlays, footageRoot) {
 async function readJobFiles(fs, path) {
   const j = (rel4) => readJsonIfExists(fs, path(rel4), null).catch(() => null);
   const calls = [];
-  if (fs.existsSync(path("calls.jsonl"))) {
+  if (await fs.exists(path("calls.jsonl"))) {
     for (const line of (await readText(fs, path("calls.jsonl"))).split(/\r?\n/)) {
       if (!line.trim()) continue;
       try {
@@ -21272,10 +21290,10 @@ async function runDiagnostics(ctx, o) {
   const rs = { signal: ctx.signal, backoffMs: o.backoffMs };
   const files = await readJobFiles(fs, ctx.path);
   const receipt = files.exportReceipt;
-  if (!receipt || !fs.existsSync(receipt.outPath)) throw new Error("There is no exported MP4 to check (export/receipt.json).");
+  if (!receipt || !await fs.exists(receipt.outPath)) throw new Error("There is no exported MP4 to check (export/receipt.json).");
   if (!job.draftId) throw new Error("The job has no EO draft.");
   const mp4 = receipt.outPath;
-  ensureDir(fs, ctx.path(DIAG_REL.dir));
+  await ensureDir(fs, ctx.path(DIAG_REL.dir));
   job.warnings = job.warnings.filter((w) => !w.startsWith(WARNING_PREFIX));
   const errors = {};
   const ms = {};
@@ -21375,7 +21393,7 @@ async function runDiagnostics(ctx, o) {
     frames: { samples, sheets: sheets.map((s) => rel3(ctx, s)) },
     info: {
       versions: job.versions,
-      ffmpeg: ffmpeg ? { line: ffmpeg.line, version: ffmpeg.version, platform: hostPlatform(host2.di ?? null) } : null,
+      ffmpeg: ffmpeg ? { line: ffmpeg.line, version: ffmpeg.version, platform: host2.environment?.platform ?? "" } : null,
       stages: stageTimes(job.stages),
       models: job.models,
       calls: callsSummary(files.calls),
@@ -21417,7 +21435,7 @@ async function sceneList(ctx, files) {
   for (const s of rows) {
     let execution = null;
     const file = ctx.path("compose/" + s.sceneId + "/execution.json");
-    if (ctx.host.fs.existsSync(file)) execution = JSON.parse(new TextDecoder().decode(await readBytes(ctx.host.fs, file)));
+    if (await ctx.host.fs.exists(file)) execution = JSON.parse(new TextDecoder().decode(await readBytes(ctx.host.fs, file)));
     out.push({ sceneId: s.sceneId, start: s.start, end: s.end, execution });
   }
   return out.sort((a, b2) => a.start - b2.start);
@@ -21440,13 +21458,13 @@ async function referenceVoice(ctx, files, fps) {
   const r5 = files.sound?.report;
   if (r5?.voice) {
     const rel22 = r5.voice.passGainDb ? "sound/passes/voice-2.wav" : "sound/passes/voice-1.wav";
-    if (fs.existsSync(ctx.path(rel22))) {
+    if (await fs.exists(ctx.path(rel22))) {
       const pcm2 = decodeWav(await readBytes(fs, ctx.path(rel22)));
       return { path: ctx.path(rel22), rel: rel22, from: "sound-pass", pcm: pcm2, shaped: shapeVoice(pcm2, r5.voice, fps), integrated: r5.voice.render.integrated };
     }
   }
   const rel1 = "sound/voice-only.wav";
-  if (!fs.existsSync(ctx.path(rel1))) throw new Error("no voice render (sound/passes/voice-*.wav or sound/voice-only.wav)");
+  if (!await fs.exists(ctx.path(rel1))) throw new Error("no voice render (sound/passes/voice-*.wav or sound/voice-only.wav)");
   const pcm = decodeWav(await readBytes(fs, ctx.path(rel1)));
   const integrated = files.edit?.voice?.integrated ?? (await measureFile(ctx.host, ctx.path(rel1), { signal: ctx.signal })).integrated;
   return { path: ctx.path(rel1), rel: rel1, from: "edit", pcm, shaped: pcm, integrated };
@@ -21458,7 +21476,9 @@ async function planLint(ctx, files) {
   const ids = planSceneIds(files);
   for (const sid of ids) {
     const media = files.media?.scenes?.find((s) => s.sceneId === sid)?.plan;
-    const file = [media, "plan/scenes/" + sid + "/plan.json"].filter((x) => !!x).map((x) => ctx.path(x)).find((p) => fs.existsSync(p));
+    const candidates = [media, "plan/scenes/" + sid + "/plan.json"].filter((x) => !!x).map((x) => ctx.path(x));
+    const existing = await Promise.all(candidates.map((p) => fs.exists(p)));
+    const file = candidates.find((_, i) => existing[i]);
     if (!file) {
       out.push({ sceneId: sid, errors: ["no plan file"] });
       continue;
@@ -21558,9 +21578,9 @@ function set(patch) {
   state = { ...state, ...patch };
   listeners.forEach((l) => l());
 }
-function hostAndRoots(deps) {
-  const host2 = makeHost(deps.sdk, deps.di);
-  const roots = ensureDataRoots(host2.fs, deps.roots ?? pluginRoots(host2.fs));
+async function hostAndRoots(deps) {
+  const host2 = makeHost(deps.sdk);
+  const roots = await ensureDataRoots(host2.fs, deps.roots ?? pluginRoots(host2.fs));
   return { host: host2, roots };
 }
 function setFilm(film) {
@@ -21573,7 +21593,7 @@ async function loadLatest(deps, projectId) {
     return;
   }
   try {
-    const { host: host2, roots } = hostAndRoots(deps);
+    const { host: host2, roots } = await hostAndRoots(deps);
     const jobs = await listJobs(host2.fs, roots.jobs, projectId);
     const latest = jobs[0] ?? null;
     const lease = latest ? await leaseStatus(host2.fs, latest.dir, host2.now()) : null;
@@ -21587,7 +21607,7 @@ async function refreshShown(deps) {
   if (state.busy || !state.dir) return;
   const dir = state.dir;
   try {
-    const { host: host2 } = hostAndRoots(deps);
+    const { host: host2 } = await hostAndRoots(deps);
     const lease = await leaseStatus(host2.fs, dir, host2.now());
     let job = state.job;
     try {
@@ -21606,7 +21626,7 @@ function outcomeMessage(outcome, action, job) {
   return "";
 }
 async function run(deps, job, dir, action) {
-  const { host: host2, roots } = hostAndRoots(deps);
+  const { host: host2, roots } = await hostAndRoots(deps);
   controller = new AbortController();
   set({ busy: true, action, canceling: false, job, dir, projectId: job.projectId, lease: "free", leaseFreeAt: null, error: "", errorDraftId: null, message: "", startedAt: Date.now(), outcome: null });
   try {
@@ -21640,7 +21660,7 @@ async function create(deps, context) {
     return null;
   }
   try {
-    const { host: host2, roots } = hostAndRoots(deps);
+    const { host: host2, roots } = await hostAndRoots(deps);
     const refusal = eoOutputRefusal(await findJobByDraft(host2.fs, roots.jobs, context.projectId, context.sequenceId), null);
     if (refusal) {
       set({ error: refusal, errorDraftId: context.sequenceId });
@@ -21664,7 +21684,7 @@ async function create(deps, context) {
 async function resume(deps) {
   if (state.busy || !state.dir) return null;
   try {
-    const { host: host2 } = hostAndRoots(deps);
+    const { host: host2 } = await hostAndRoots(deps);
     const job = await loadJob(host2.fs, state.dir);
     await appendEvent(host2.fs, state.dir, { type: "resume" }, host2.now());
     return await run(deps, job, state.dir, "resume");
@@ -21676,7 +21696,7 @@ async function resume(deps) {
 async function rebuild(deps) {
   if (state.busy || !state.dir) return null;
   try {
-    const { host: host2 } = hostAndRoots(deps);
+    const { host: host2 } = await hostAndRoots(deps);
     const job = await loadJob(host2.fs, state.dir);
     const blocked = rebuildBlocker(job);
     if (blocked) {
@@ -22053,6 +22073,7 @@ function EoShortsPanel({ sdk, context, ui }) {
     error && !rowErrors.has(error) ? /* @__PURE__ */ jsx3(kit.Message, { tone: "error", children: error }) : null
   ] }) });
 }
+var Panel_default = withPanelLocalClient(EoShortsPanel);
 export {
-  EoShortsPanel as default
+  Panel_default as default
 };

@@ -20,6 +20,7 @@ jobs:
         run: |
           node plugins/place-count/tests/core.test.cjs
           node plugins/place-count/tests/path-collision.test.cjs
+          node plugins/place-count/tests/local-sdk.test.cjs
           node plugins/place-count/tests/places.test.cjs
       - name: Test City Weekend Vlog
         run: |
@@ -150,8 +151,14 @@ jobs:
           node plugins/selfie-aesthetic/tests/scripts-edit.test.cjs
           node plugins/selfie-aesthetic/tests/scripts-read.test.cjs
           node plugins/selfie-aesthetic/tests/still.test.cjs
+      - name: Test Recap example preview
+        run: |
+          npm install --prefix "$RUNNER_TEMP/recap-preview-test" --no-package-lock --ignore-scripts typescript@5.8.3
+          SELECTS_DEV_REPO="$RUNNER_TEMP/recap-preview-test" node --test tests/recap_2026_preview.test.mjs
       - name: Test template panels on Windows paths
         run: |
+          node --test tests/selected_template_media.test.mjs
+          node --test tests/common_async_sdk.test.mjs tests/bespoke_sdk.test.mjs tests/multicam_local_sdk.test.mjs tests/canonical_local_client.test.mjs tests/di_sdk_boundary.test.mjs tests/multicam_di_migration.test.mjs tests/native_image_sdk_migration.test.mjs tests/generation_sdk.test.mjs tests/chris_legacy_cleanup.test.mjs
           node --test tests/cinema_vlog_studio.test.mjs
           node --test tests/cutout_beat_gallery.test.mjs
           node --test tests/daily_vlog_8.test.mjs
@@ -161,6 +168,7 @@ jobs:
           node --test tests/no14_windows.test.mjs
           node --test tests/no14_default_music.test.mjs
           node --test tests/no14_native_image.test.mjs
+          node --test tests/no14_script_types.test.mjs
           node --test tests/depth_type_captions_windows.test.mjs
           node --test tests/depth_type_captions.test.mjs
           node --test tests/camera_shutter_dump.test.mjs
@@ -172,10 +180,18 @@ jobs:
           node --test tests/vox_explainer_engine.test.mjs
       - name: Test A16z Style Captions
         run: |
-          node plugins/a16z-style-captions/tests/windows.test.cjs
+          node --test plugins/a16z-style-captions/tests/*.test.cjs
       - name: Test shared AI runtime
         run: node --test plugins/selects-ai-runtime/tests/*.test.cjs
+      - name: Test shared AI consumer adapters
+        run: |
+          node --test tests/shared_ai*.test.cjs
+          node --test tests/video_ai_frames.test.mjs
+          node --test tests/travel_beat_vlog.test.mjs tests/cutout_beat_gallery_windows.test.mjs
+          node --test tests/portrait_beat_montage*.test.mjs
       - name: Test Podcast Hook Captions shared AI consumer
         run: node --test plugins/podcast-hook-captions/tests/*.test.cjs
+      - name: Test Chris Williamson shared AI consumer
+        run: node --test tests/chris_williamson*.test.mjs
       - name: Test EO Shorts
-        run: node --experimental-strip-types --test tests/eo_shorts.test.mjs
+        run: node --experimental-strip-types --test tests/eo_shorts*.test.mjs

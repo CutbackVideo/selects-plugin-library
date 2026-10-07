@@ -1,21 +1,53 @@
+import {withPanelLocalClient} from "../../../shared/local-client";
+import { hostUseSdk } from "./pipeline/host";
 import React, { useEffect, useRef, useState } from "react";
+
+// panel-storage:start
+// Keep writes ordered even across a panel remount; failed writes remain visible to callers.
+const panelStorageClients = new WeakMap();
+function panelStorage(sdk) {
+  const storage = sdk?.storage;
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function" || typeof storage.removeItem !== "function") {
+    throw new Error("Update Selects to use this plugin: sdk.storage is required.");
+  }
+  if (!panelStorageClients.has(storage)) {
+    let tail = Promise.resolve();
+    const enqueue = (operation) => {
+      const pending = tail.then(operation);
+      tail = pending.catch(() => {});
+      return pending;
+    };
+    panelStorageClients.set(storage, {
+      getItem: (key) => enqueue(() => storage.getItem(key)),
+      setItem: (key, value) => enqueue(() => storage.setItem(key, value)),
+      removeItem: (key) => enqueue(() => storage.removeItem(key)),
+    });
+  }
+  return panelStorageClients.get(storage);
+}
+function withStoredPanel(Component, load) {
+  return function StoredPanel(props) {
+    const [state, setState] = React.useState(null);
+    const [attempt, retry] = React.useState(0);
+    React.useEffect(() => {
+      let current = true;
+      setState(null);
+      Promise.resolve().then(() => load(panelStorage(props.sdk))).then(
+        (saved) => { if (current) setState({sdk: props.sdk, saved}); },
+        (error) => { if (current) setState({sdk: props.sdk, error: String(error?.message || error)}); },
+      );
+      return () => { current = false; };
+    }, [props.sdk, attempt]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error, React.createElement("button", {onClick: () => retry(n => n + 1)}, "Retry loading saved settings"));
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Loading saved settings…");
+    return React.createElement(Component, {...props, saved: state.saved});
+  };
+}
+// panel-storage:end
+
 import { makeShort, rebuildShort, loadJob, STEPS, type Step, type MakeResult, type Options } from "./pipeline/make";
 
 const STORE = "a16z-style-captions:v2:";
-const read = (k: string) => {
-  try {
-    return localStorage.getItem(STORE + k) || "";
-  } catch {
-    return "";
-  }
-};
-const write = (k: string, v: string) => {
-  try {
-    if (v) localStorage.setItem(STORE + k, v);
-    else localStorage.removeItem(STORE + k);
-  } catch {}
-};
-
 // A run outlives a change of the open Draft (the app opens the new Short while the run goes on), so its
 // progress lives here rather than in component state.
 type RunState = { busy: boolean; steps: Step[]; error: string; result: MakeResult | null; startedAt: number };
@@ -27,27 +59,30 @@ const setRun = (patch: Partial<RunState>) => {
   listeners.forEach((l) => l());
 };
 
-export default function A16zShort({ sdk, context }: any) {
+function A16zShort({ sdk, context, saved }: any) {
+  hostUseSdk(sdk);
   const [, force] = useState(0);
   useEffect(() => {
     const l = () => force((n) => n + 1);
     listeners.add(l);
     return () => void listeners.delete(l);
   }, []);
-  const [name, setName] = useState(() => read("name"));
-  const [role, setRole] = useState(() => read("role"));
-  const [logo, setLogo] = useState(() => read("logo"));
+  const [name, setName] = useState(saved.name || "");
+  const [role, setRole] = useState(saved.role || "");
+  const [logo, setLogo] = useState(saved.logo || "");
   const [hint, setHint] = useState("");
-  const [music, setMusic] = useState(() => read("music") !== "0");
-  const [cards, setCards] = useState(() => read("cards") !== "0");
-  const [broll, setBroll] = useState(() => read("broll") !== "0");
+  const [music, setMusic] = useState(saved.music !== "0");
+  const [cards, setCards] = useState(saved.cards !== "0");
+  const [broll, setBroll] = useState(saved.broll !== "0");
   const [isShort, setIsShort] = useState(false);
   const [clock, setClock] = useState(0);
   const alive = useRef(true);
   useEffect(() => () => void (alive.current = false), []);
   useEffect(() => {
+    let current = true;
     setIsShort(false);
-    if (context?.sequenceId) loadJob(context.sequenceId).then((j) => alive.current && setIsShort(!!j)).catch(() => {});
+    if (context?.sequenceId) loadJob(context.sequenceId).then((j) => current && setIsShort(!!j)).catch(() => {});
+    return () => { current = false; };
   }, [context?.sequenceId, run.result?.shortId]);
   useEffect(() => {
     if (!run.busy) return;
@@ -64,14 +99,12 @@ export default function A16zShort({ sdk, context }: any) {
       return;
     }
     const opts: Options = { name: name.trim(), role: role.trim(), logo: logo.trim(), music, cards, broll, hint: hint.trim() };
-    write("name", opts.name);
-    write("role", opts.role);
-    write("logo", opts.logo);
-    write("music", music ? "" : "0");
-    write("cards", cards ? "" : "0");
-    write("broll", broll ? "" : "0");
     setRun({ busy: true, error: "", result: null, steps: fresh(), startedAt: Date.now() });
     try {
+      const storage = panelStorage(sdk);
+      for (const [key, value] of Object.entries({name: opts.name, role: opts.role, logo: opts.logo, music: music ? "" : "0", cards: cards ? "" : "0", broll: broll ? "" : "0"})) {
+        await storage.setItem(STORE + key, value);
+      }
       const r = rebuild ? await rebuildShort(sdk, context.sequenceId, opts, onStep) : await makeShort(sdk, { projectId: context.projectId, sequenceId: context.sequenceId }, opts, onStep);
       setRun({ result: r });
     } catch (e: any) {
@@ -172,3 +205,8 @@ export default function A16zShort({ sdk, context }: any) {
     </div>
   );
 }
+
+export default withPanelLocalClient(withStoredPanel(A16zShort, async (storage) => {
+  const entries = await Promise.all(["name", "role", "logo", "music", "cards", "broll"].map(async key => [key, await storage.getItem(STORE + key)]));
+  return Object.fromEntries(entries);
+}));

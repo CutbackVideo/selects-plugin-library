@@ -1,13 +1,23 @@
 # Install Depth Type Captions
 
-Experimental: macOS arm64 with Selects 2.0.508 or later, or Windows x64 with
-Selects 2.0.512 or later (development builds).
+Experimental: macOS arm64 or Windows x64. Install this plugin and
+`selects-ai-runtime` from the same library commit. Use a current Selects build
+that exposes `selects.ai`, the canonical files/media SDK and panel storage.
 
-1. Place this package in `depth-type-captions` under `SELECTS_USER_SKILLS_ROOT`.
-2. Copy `panel.tsx` byte-for-byte to `SELECTS_USER_PANELS_ROOT/depth-type-captions/panel.tsx`.
-3. Nothing else to install. On macOS 12 or later the speaker masks are made
-   with the system's Vision framework through `osascript`; on Windows they come
-   from Selects generation and use credits.
-4. Reload Selects and open the **Depth Type Captions** panel on an edited Draft.
+Inference uses the shared YuNet/RVM runtime. No plugin-specific Python, Node,
+Apple Vision setup or paid background-removal request is needed. The runtime
+selects its available GPU provider for RVM; YuNet uses its CPU provider.
 
-No models, credentials or media files are included.
+Foreground, object and animal inputs are allowed through the existing RVM
+model. Results depend on the footage; the migration adds no separate model or
+input restriction. Existing layout/coverage safeguards still apply.
+
+Runs and final media stay under `~/.selects/plugin-data/depth-type-captions/`.
+Keep files referenced by saved Drafts. Shared jobs persist their identity and
+result; closing a panel detaches observation, and reopening the same operation
+can recover the job. Explicit Cancel requests cancellation.
+
+The migrated paths have automated regression coverage. Full final-template
+preview/export on both operating systems remains to be verified at this checkpoint.
+
+A new Apply/Redo or template run can retry failed/canceled AI jobs. Reopening the same template run observes its saved job and preserves cancellation. Closing or replacing a headless template detaches observation before later timeline edits.

@@ -6,7 +6,7 @@ root=Path(__file__).resolve().parent
 s=(root/'src/panel.template.tsx').read_text()
 for name in ['LOOK','BROLL','CAPTIONS']:
  s=s.replace('/*EMBED_'+name+'*/',json.dumps((root/('src/'+name.lower()+'.tsx')).read_text()))
-for name in ['planning','assets','verification','pipeline','engine']:
+for name in ['planning','assets','verification','sharedFaces','pipeline','engine']:
  s=s.replace('/*SECTION_'+name+'*/',(root/('src/'+name+'.ts')).read_text())
 # fonts/font.css embeds Inter; it is rebuilt from fonts/inter.woff2 when that file is present (the public package ships only the CSS).
 if (root/'fonts/inter.woff2').exists():

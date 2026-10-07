@@ -6,7 +6,9 @@ what compare.js checks.
 The font modes match run_js.js: `bundled` maps every face to the bundled fonts
 the way approved/web/worker.js does without system fonts; `winsim` keeps
 Arial, Arial Black, Georgia and Times (as on Windows) and maps Helvetica,
-Helvetica Neue and Arial Narrow to Arimo. Needs Pillow, NumPy and SciPy.
+Helvetica Neue and Arial Narrow to Arimo, and the Hangul fallback to AppleGothic.
+Korean jobs (ko-*) compare in winsim only: in mac mode Python falls back to Apple
+SD Gothic Neo, which raster.wasm (no CFF) cannot read. Needs Pillow, NumPy and SciPy.
 Writes <job dir>/py/{result.json,frames.bin}."""
 import sys, os, json, base64, io, importlib.util, traceback, contextlib
 from PIL import Image, ImageFont
@@ -30,6 +32,9 @@ MAP = {
 
 def truetype(font=None, size=10, index=0, encoding='', layout_engine=None):
     key = (str(font), index)
+    if mode == 'winsim' and str(font) == SYS + 'AppleSDGothicNeo.ttc':
+        # The Hangul fallback (approved/textfont.py): AppleGothic stands in for Malgun Gothic, as in run_js.js.
+        return orig_truetype(SUP + 'AppleGothic.ttf', size, index=0, encoding=encoding, layout_engine=layout_engine)
     if mode != 'mac' and not str(font).endswith('PermanentMarker-Regular.ttf'):
         system, weight = MAP.get(key, (None, 'Regular'))
         if not (mode == 'winsim' and system):

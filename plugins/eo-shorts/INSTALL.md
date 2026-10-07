@@ -10,13 +10,17 @@ Nothing else needs installing:
 
 - FFmpeg and FFprobe are the copies bundled with Selects; the panel runs them
   directly, without a shell.
-- On first use the panel downloads its runtimes into
-  `.selects/plugin-data/eo-shorts/runtime` in your home folder, checks each
-  against a pinned SHA-256 and keeps it: the YuNet face model
-  (`face_detection_yunet_2023mar.onnx`), ONNX Runtime Web 1.30.0
-  (`ort.wasm.bundle.min.mjs`, `ort-wasm-simd-threaded.wasm`) and the HarfBuzz
-  font subsetter 1.6.2 (`harfbuzz-subset.wasm`). This needs network access once
-  (about 15 MB).
+- Install `selects-ai-runtime` from the same library revision. Shared YuNet face
+  jobs run outside the panel on macOS and Windows and require Selects 2.0.570
+  or later. Their durable identities stay in each job's `ai-jobs.json`; closing
+  the panel detaches observation, Resume reattaches, and Cancel stops active AI.
+  Long ranges are split below the decoded source-frame limit; original sample
+  times are merged before tracking, including fractional-fps window boundaries.
+- The panel still downloads the pinned HarfBuzz font subsetter 1.6.2
+  (`harfbuzz-subset.wasm`) into `.selects/plugin-data/eo-shorts/runtime` once.
+  It no longer downloads or runs its own YuNet or ONNX Runtime Web.
+- Camera-cut detection, face tracking, crop rules, original speech, and music
+  remain plugin-owned. Full Windows styled preview/export remains unverified.
 
 ## Setup
 

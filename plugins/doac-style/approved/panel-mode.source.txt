@@ -53,18 +53,30 @@ export default function Panel({sdk,context,ui}) {
  useEffect(()=>{let live=true;if(!context.sequenceId){setSourceName('');return;}sdk.runScript({script:`return await selects.draft(${JSON.stringify(context.sequenceId)}).meta();`,summary:'Read current draft'}).then(r=>{if(live)setSourceName(r.result?.name||'');}).catch(()=>{});return()=>{live=false;};},[context.sequenceId]);
  const lock=useRef(false),project=useRef(context.projectId);project.current=context.projectId;
  const key='doac-style-v1-'+context.projectId;
- useEffect(()=>{try{setJob(JSON.parse(localStorage.getItem(key)||'null'));}catch{setJob(null);}setIndex(0);setError('');},[key]);
- function save(j){setJob(j);localStorage.setItem(key,JSON.stringify(j));}
+ const [restoredKey,setRestoredKey]=useState(null),readyKey=useRef(null),pendingSave=useRef(null),latestJob=useRef(null),activeKey=useRef(key);activeKey.current=key;
+ useEffect(()=>{let live=true;readyKey.current=null;pendingSave.current=null;latestJob.current=null;setJob(null);setIndex(0);setError('');
+  (async()=>{if(typeof sdk.storage?.getItem!=='function'||typeof sdk.storage?.setItem!=='function')throw Error('Update Selects to restore and save caption progress.');
+   const saved=JSON.parse(await sdk.storage.getItem(key)||'null');if(!live||activeKey.current!==key)return;latestJob.current=saved;setJob(saved);if(saved?.uncertain)setError('The last save was not confirmed. Check the result draft before retrying.');readyKey.current=key;setRestoredKey(key);
+  })().catch(e=>{if(live)setError(e.message||'Could not restore captions. Reopen this panel to retry.');});return()=>{live=false;};},[key,sdk]);
+ async function save(j){if(activeKey.current!==key||readyKey.current!==key)throw Error('Project changed or captions are still loading. Return to the original project to continue.');
+  const previous=latestJob.current;latestJob.current=j;pendingSave.current={key,job:j};setJob(j);
+  try{await sdk.storage.setItem(key,JSON.stringify(j));}catch{if(j?.uncertain&&activeKey.current===key){latestJob.current=previous;pendingSave.current=null;setJob(previous);}const e=Error('Could not save caption progress. Keep this panel open and retry saving before continuing.');e.storageFailure=true;throw e;}
+  if(activeKey.current!==key)throw Error('Project changed. Return to the original project to continue.');
+  pendingSave.current=null;
+ }
+ const storageLoading=restoredKey!==key;
+
  useEffect(()=>{let live=true;const id=job?.sourceId||context.sequenceId;if(!id)return;const f=fs();read(f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+context.projectId+'-'+id+'.json')).then(JSON.parse).then(c=>{if(live)setPendingPlan(!c.applied);}).catch(()=>{if(live)setPendingPlan(false);});return()=>{live=false;};},[job?.sourceId,context.sequenceId,busy]);
  function fs(){const host=window.parent.opener||window.parent;const f=host.__DI__?.FileSystem;if(!f?.getOrCreateTmpDirPath||!f?.join||!f?.mkdirSync||!f?.writeFile||!f?.readFile)throw Error('Update Selects to enable caption file access.');return f;}
  async function read(path){const b=await fs().readFile(path);return typeof b==='string'?b:new TextDecoder().decode(b);}
  const quote=s=>"'"+String(s).replace(/'/g,"'\\''")+"'";
  async function run(script,summary,allowCommit=false){const r=await sdk.runScript({script,summary,allowCommit});if(r.isError||r.result==null)throw Error(r.output||'Could not confirm the save. Check the result draft before trying again.');return r.result;}
  async function shell(args){const r=await sdk.runShell({summary:'Compile approved captions',command:'python3 "$SELECTS_USER_SKILLS_ROOT/doac-style/approved/compile-captions.py" '+args,timeoutMs:300000,maxOutputBytes:48000});if(r.isError||r.exitCode!==0){const detail=(r.stderr||r.output||'').match(/(?:ValueError|AssertionError): ([^\n]+)/);throw Error(detail?detail[1]:"The caption renderer could not complete this version. Check the DOAC Style installation, then try again.");}return r.stdout;}
- async function action(fn){if(lock.current)return;lock.current=true;setBusy(true);setError('');try{await fn();}catch(e){setError(e.message||String(e));}finally{lock.current=false;setBusy(false);}}
+ async function action(fn){if(lock.current||readyKey.current!==key||activeKey.current!==key)return;lock.current=true;setBusy(true);setError('');try{if(pendingSave.current){await save(pendingSave.current.job);return;}await fn();}catch(e){setError(e.message||String(e));}finally{lock.current=false;setBusy(false);}}
  function sameProject(j){if(project.current!==j.projectId)throw Error('Project changed. Return to the original project to continue.');}
  async function compile(j,scene){setStatus(scene==null?'Preparing typography and checking timing…':'Updating this caption…');const f=fs(),dir=f.join(j.path.replace(/\/[^/]+$/,''),'revision-'+Date.now());f.mkdirSync(dir,{recursive:true});const requestPath=f.join(dir,'job.json');await f.writeFile(requestPath,JSON.stringify(j));const output=await shell('compile '+quote(requestPath)+(scene==null?'':' --scene '+scene));const last=JSON.parse(output.trim().split('\n').pop());const m=JSON.parse(await read(last.manifest));sameProject(j);return m;}
  async function load(sourceOverride,forceNew=false){await action(async()=>{
+ if(job?.uncertain)throw Error('The last save was not confirmed. Check the result draft before retrying.');
  if(!context.projectId||!context.sequenceId)throw Error('Open a draft to add captions.');
  setStatus('Reading your transcript…');const sourceId=sourceOverride||context.sequenceId,pid=context.projectId;
  const v=await run(`const d=selects.draft(${JSON.stringify(sourceId)});return {meta:await d.meta(),clips:await d.clips({trackScope:'all'}),words:(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).map(w=>({text:w.text,start:w.startFrame,end:w.endFrame}))};`,'Read approved caption input');
@@ -75,49 +87,55 @@ export default function Panel({sdk,context,ui}) {
  const input={fps:v.meta.fps,frames:Math.max(...v.clips.filter(c=>c.trackKind==='main').map(c=>c.endFrame)),words:v.words};
  setStatus('Finding the hook and shaping emphasis…');
  const cachePath=f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+pid+'-'+sourceId+'.json');
- const cacheSignature=JSON.stringify(input);let reply;
- if(!forceNew){try{const cached=JSON.parse(await read(cachePath));if(cached.signature===cacheSignature)reply={text:cached.text};}catch{}}
- if(!reply){reply=await sdk.askAI({timeoutMs:180000,prompt:planningPrompt(input,catalogue)});await f.writeFile(cachePath,JSON.stringify({signature:cacheSignature,text:reply.text}));}
- await fs().writeFile(f.join(dir,'ai-response.txt'),reply.text);let raw=reply.text.trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'');const editorial=completePlan(input.words,JSON.parse(raw));
- const j={projectId:pid,sourceId,name:v.meta.name,input,editorial,path:f.join(dir,'job.json'),signature:JSON.stringify(v.words),baseCount:v.clips.filter(c=>c.trackKind==='video').length,nonce:Date.now(),next:0};sameProject(j);save(j);
- const manifest=await compile(j);const prepared={...j,manifest};save(prepared);await create(prepared);
+ const cacheSignature=JSON.stringify(input);
+ let j={projectId:pid,sourceId,name:v.meta.name,input,editorial:[],path:f.join(dir,'job.json'),signature:JSON.stringify(v.words),baseCount:v.clips.filter(c=>c.trackKind==='video').length,nonce:Date.now(),next:0};
+ const previous=latestJob.current;
+ let reply=!forceNew&&previous?.projectId===pid&&previous.sourceId===sourceId&&JSON.stringify(previous.input)===JSON.stringify(input)&&typeof previous.planText==='string'?{text:previous.planText}:null;
+ if(!reply&&!forceNew){try{const cached=JSON.parse(await read(cachePath));if(cached.signature===cacheSignature)reply={text:cached.text};}catch{}}
+ if(!reply){sameProject(j);await save({...j,planning:true,uncertain:true});sameProject(j);reply=await sdk.askAI({timeoutMs:180000,prompt:planningPrompt(input,catalogue)});}
+ j={...j,planText:reply.text,planning:false,uncertain:false};await save(j);
+ await f.writeFile(cachePath,JSON.stringify({signature:cacheSignature,text:reply.text}));
+ await fs().writeFile(f.join(dir,'ai-response.txt'),reply.text);let raw=reply.text.trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'');
+ j={...j,editorial:completePlan(input.words,JSON.parse(raw))};sameProject(j);await save(j);
+ const manifest=await compile(j);const prepared={...j,manifest};await save(prepared);await create(prepared);
  });}
  async function create(task){let j=task;sameProject(j);if(!j.manifest)throw Error('Prepare captions before applying them.');
  if(j.uncertain)throw Error('The last save was not confirmed. Check the result draft before retrying.');
- if(!j.targetId){setStatus('Creating your captioned draft…');save({...j,uncertain:true});const r=await run(`const s=selects.draft(${JSON.stringify(j.sourceId)});const words=(await s.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).map(w=>({text:w.text,start:w.startFrame,end:w.endFrame}));if(JSON.stringify(words)!==${JSON.stringify(j.signature)})throw Error('The original draft changed. Create a new caption plan.');const d=await selects.project(${JSON.stringify(j.projectId)}).duplicateDraft({sourceDraftId:${JSON.stringify(j.sourceId)},name:${JSON.stringify(j.name.slice(0,40)+' · DOAC Style')}});const r=await d.commitAll('Create approved caption draft');return {id:r.createdDraftId,link:await selects.editor.linkToDraftFrame(r.createdDraftId,0)};`,'Create approved caption draft',true);j={...j,targetId:r.id,link:r.link,clipIds:[],uncertain:false};save(j);}
+ if(!j.targetId){setStatus('Creating your captioned draft…');await save({...j,uncertain:true});const r=await run(`const s=selects.draft(${JSON.stringify(j.sourceId)});const words=(await s.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).map(w=>({text:w.text,start:w.startFrame,end:w.endFrame}));if(JSON.stringify(words)!==${JSON.stringify(j.signature)})throw Error('The original draft changed. Create a new caption plan.');const d=await selects.project(${JSON.stringify(j.projectId)}).duplicateDraft({sourceDraftId:${JSON.stringify(j.sourceId)},name:${JSON.stringify(j.name.slice(0,40)+' · DOAC Style')}});const r=await d.commitAll('Create approved caption draft');return {id:r.createdDraftId,link:await selects.editor.linkToDraftFrame(r.createdDraftId,0)};`,'Create approved caption draft',true);j={...j,targetId:r.id,link:r.link,clipIds:[],uncertain:false};await save(j);}
  // Renderer code comes from the installed package, not an independently generated effect.
  const codeResult=await sdk.runShell({summary:'Read caption renderer',command:'cat "$SELECTS_USER_SKILLS_ROOT/doac-style/approved/caption-scene.tsx.txt"',maxOutputBytes:16000});if(codeResult.isError||codeResult.exitCode!==0)throw Error('The caption renderer is missing. Reinstall DOAC Style.');
  for(let i=j.next;i<j.manifest.scenes.length;i++){
- sameProject(j);setStatus(`Adding captions · ${i+1} / ${j.manifest.scenes.length}`);const scene=j.manifest.scenes[i],data=JSON.parse(await read(scene.payload));save({...j,uncertain:true});
+ sameProject(j);setStatus(`Adding captions · ${i+1} / ${j.manifest.scenes.length}`);const scene=j.manifest.scenes[i],data=JSON.parse(await read(scene.payload));await save({...j,uncertain:true});
  const r=await run(`const d=selects.draft(${JSON.stringify(j.targetId)});const all=await d.clips({trackScope:'all'});if(all.filter(c=>c.trackKind==='video').length!==${j.baseCount+i})throw Error('The result draft changed. Saving stopped to avoid duplicate captions.');const r=await d.addMotionGraphic({label:${JSON.stringify('DOAC Style '+scene.template+' · '+scene.text)},within:await d.rangeAtFrames(${scene.start},${scene.end}),tsxCode:${JSON.stringify(codeResult.stdout)},parameters:${JSON.stringify(data)}});await d.commitAll('Add approved caption scene');return {clipId:r.clipId};`,'Save approved caption scene',true);
- j={...j,next:i+1,clipIds:[...j.clipIds,r.clipId],uncertain:false};save(j);
+ j={...j,next:i+1,clipIds:[...j.clipIds,r.clipId],uncertain:false};await save(j);
  }
  const f=fs(),cachePath=f.join(f.getOrCreateTmpDirPath(),'doac-style-plan-'+j.projectId+'-'+j.sourceId+'.json');try{const cache=JSON.parse(await read(cachePath));if(cache.signature===JSON.stringify(j.input))await f.writeFile(cachePath,JSON.stringify({...cache,applied:true}));}catch{}setPendingPlan(false);setStatus('Your captioned draft is ready.');await run(`return await selects.editor.openDraft(${JSON.stringify(j.targetId)});`,'Open DOAC Style draft');
  }
  async function edit(){await action(async()=>{const j=replaceWording(job,index,text);sameProject(j);
  const m=await compile(j,index),s=m.scenes[0];j.manifest.scenes[index]=s;j.manifest.records=m.records;
- if(j.targetId){if(j.next!==j.editorial.length||j.uncertain)throw Error('Finish creating the draft before editing captions.');const data=JSON.parse(await read(s.payload));const c=await sdk.runShell({summary:'Read caption renderer',command:'cat "$SELECTS_USER_SKILLS_ROOT/doac-style/approved/caption-scene.tsx.txt"',maxOutputBytes:16000});if(c.isError||c.exitCode!==0)throw Error('The caption renderer could not be read.');save({...job,uncertain:true});
+ if(j.targetId){if(j.next!==j.editorial.length||j.uncertain)throw Error('Finish creating the draft before editing captions.');const data=JSON.parse(await read(s.payload));const c=await sdk.runShell({summary:'Read caption renderer',command:'cat "$SELECTS_USER_SKILLS_ROOT/doac-style/approved/caption-scene.tsx.txt"',maxOutputBytes:16000});if(c.isError||c.exitCode!==0)throw Error('The caption renderer could not be read.');await save({...job,uncertain:true});
  const r=await run(`const d=selects.draft(${JSON.stringify(j.targetId)});const old=(await d.clips({trackScope:'all'})).find(c=>c.clipId===${j.clipIds[index]});if(!old)throw Error('This caption clip changed. Reopen the result draft.');if(old.startFrame!==${s.start}||old.endFrame!==${s.end})throw Error('This caption was trimmed on the timeline. Restore its original timing before changing the wording.');const tr=await d.clipTransform(old);await d.removeClips(old);const r=await d.addMotionGraphic({label:${JSON.stringify('DOAC Style '+s.template+' · '+s.text)},within:await d.rangeAtFrames(${s.start},${s.end}),tsxCode:${JSON.stringify(c.stdout)},parameters:${JSON.stringify(data)}});const added=(await d.clips({trackScope:'all'})).find(c=>c.clipId===r.clipId);await d.setClipTransform({clip:added,position:tr.position,scale:tr.scale,rotation:tr.rotation});await d.commitAll('Edit approved caption wording');return {clipId:r.clipId};`,'Edit approved caption wording',true);j.clipIds[index]=r.clipId;j.uncertain=false;}
- save(j);setStatus('Caption updated.');});}
+ await save(j);setStatus('Caption updated.');});}
  useEffect(()=>{let live=true;if(!job?.editorial?.[index])return;const [a,z]=job.editorial[index].words;setText(job.input.words.slice(a,z+1).map(w=>w.text).join(' '));setPreview('');const s=job.manifest?.scenes?.[index];if(s)read(s.payload).then(JSON.parse).then(d=>{if(live)setPreview(d);}).catch(()=>{});return()=>{live=false};},[job,index]);
  const complete=job?.targetId&&job.next===job.editorial.length;
  return <ui.Section title="DOAC Style"><ui.Stack>
- {!complete&&<><p>Make every word count.</p><small>Expressive captions, timed to your voice. Made for English talking-head videos.</small>
+ {!complete&&<><p>Make every word count.</p><small>Expressive captions, timed to your voice. Made for English and Korean talking-head videos.</small>
  {sourceName&&<p><strong>{sourceName}</strong></p>}
- <ui.Button onClick={()=>load()} disabled={busy||!context.sequenceId||!!job?.uncertain} busy={busy} busyLabel="Creating captions…">Create captions</ui.Button>
+ <ui.Button onClick={()=>load()} disabled={storageLoading||busy||!context.sequenceId||!!job?.uncertain} busy={busy} busyLabel="Creating captions…">Create captions</ui.Button>
  <small>Use an analyzed, vertical 9:16 draft. Your original stays intact.</small></>}
  {complete&&<><ui.Message>Your captioned draft is ready.</ui.Message>{pendingPlan&&!busy&&<ui.Button variant="secondary" onClick={()=>load(job.sourceId)}>Finish prepared version</ui.Button>}
- <ui.Button disabled={busy} onClick={()=>action(async()=>{await run(`return await selects.editor.openDraft(${JSON.stringify(job.targetId)});`,'Open captioned draft');})}>Open preview</ui.Button>
- <ui.Button variant="secondary" disabled={busy} onClick={()=>setEditing(!editing)}>{editing?'Close editor':'Edit captions'}</ui.Button>
- {editing&&<><ui.Select label="Caption" value={String(index)} onChange={v=>setIndex(Number(v))} disabled={busy} options={job.editorial.map((s,i)=>({value:String(i),label:`${i+1}. ${job.input.words.slice(s.words[0],s.words[1]+1).map(w=>w.text).join(' ')}`}))}/>
+ <ui.Button disabled={storageLoading||busy} onClick={()=>action(async()=>{await run(`return await selects.editor.openDraft(${JSON.stringify(job.targetId)});`,'Open captioned draft');})}>Open preview</ui.Button>
+ <ui.Button variant="secondary" disabled={storageLoading||busy} onClick={()=>setEditing(!editing)}>{editing?'Close editor':'Edit captions'}</ui.Button>
+ {editing&&<><ui.Select label="Caption" value={String(index)} onChange={v=>setIndex(Number(v))} disabled={storageLoading||busy} options={job.editorial.map((s,i)=>({value:String(i),label:`${i+1}. ${job.input.words.slice(s.words[0],s.words[1]+1).map(w=>w.text).join(' ')}`}))}/>
  {preview&&<div style={{width:'100%',aspectRatio:'540 / 320',overflow:'hidden',background:'var(--panel-border)',borderRadius:'var(--panel-radius)'}}><svg viewBox="0 540 540 320" style={{width:'100%',height:'100%'}}><svg x={preview.x} y={preview.y} width={preview.w} height={preview.h} viewBox={`0 0 ${preview.w} ${preview.h}`} overflow="hidden"><image href={preview.atlas} x={-(preview.frameMap[Math.max(0,preview.frameMap.length-4)]%preview.cols)*preview.w} y={-Math.floor(preview.frameMap[Math.max(0,preview.frameMap.length-4)]/preview.cols)*preview.h} width={preview.cols*preview.w} height={preview.rows*preview.h}/></svg></svg></div>}
- <ui.TextField label="Wording" multiline value={text} onChange={setText} disabled={busy}/>
- <ui.Button variant="secondary" disabled={busy||!!job.uncertain} onClick={edit}>Save caption</ui.Button><small>Wording changes stay within the same caption timing. Change position and size on the timeline.</small></>}
- <ui.Button variant="ghost" disabled={busy} onClick={()=>load(job.sourceId,true)}>Create another version</ui.Button>
- {context.sequenceId!==job.targetId&&context.sequenceId!==job.sourceId&&<ui.Button variant="secondary" disabled={busy} onClick={()=>{save(null);setEditing(false);setStatus('');}}>Use current draft</ui.Button>}
+ <ui.TextField label="Wording" multiline value={text} onChange={setText} disabled={storageLoading||busy}/>
+ <ui.Button variant="secondary" disabled={storageLoading||busy||!!job.uncertain} onClick={edit}>Save caption</ui.Button><small>Wording changes stay within the same caption timing. Change position and size on the timeline.</small></>}
+ <ui.Button variant="ghost" disabled={storageLoading||busy} onClick={()=>load(job.sourceId,true)}>Create another version</ui.Button>
+ {context.sequenceId!==job.targetId&&context.sequenceId!==job.sourceId&&<ui.Button variant="secondary" disabled={storageLoading||busy} onClick={()=>action(async()=>{await save(null);setEditing(false);setStatus('');})}>Use current draft</ui.Button>}
  </>}
  {busy&&<ui.Progress/>}{status&&busy&&<ui.Message>{status}</ui.Message>}
  {!busy&&job?.manifest&&!complete&&!job.uncertain&&<ui.Button variant="secondary" onClick={()=>action(()=>create(job))}>Continue creating captions</ui.Button>}
+ {error&&pendingSave.current&&<ui.Button disabled={storageLoading||busy} onClick={()=>action(async()=>{})}>Retry saving progress</ui.Button>}
  {error&&<><ui.Message tone="error">{error}</ui.Message>{!busy&&!job?.uncertain&&<ui.Button variant="secondary" onClick={()=>load(job?.sourceId)}>Try again</ui.Button>}</>}
  </ui.Stack></ui.Section>;
 }

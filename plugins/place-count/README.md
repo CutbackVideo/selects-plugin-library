@@ -23,7 +23,7 @@ A numbered travel-list reel: yellow Times place titles as "1. Name", a short whi
 
 Frame contact images are decoded locally with the host browser and cached per project, then attached to the request; they are not added to your project. Analysis sends those contact sheets, each place's folder label, and the GPS position its clips recorded (when they carry one) to the signed-in Selects AI profile: one request for the trip title and one per place whose selection is not already cached. No separate provider key is required. This is sampled-frame selection, not continuous-motion verification.
 
-Workspaces use project-scoped browser storage. Contact images and recovery data live under `<home>/.selects/plugin-data/place-count/<project-id>`. Keep those files while using recovery. Existing projects, prior plugin data, and source files are not deleted.
+Workspaces use project-scoped host-owned plugin storage. Contact images and recovery data live under `<home>/.selects/plugin-data/place-count/<project-id>`. Keep those files while using recovery. Existing projects, prior plugin data, and source files are not deleted.
 
 ## Limits and verification
 

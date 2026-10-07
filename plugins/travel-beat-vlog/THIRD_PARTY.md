@@ -12,7 +12,7 @@ The preview's song is "Party Party Disco Party" by John Bartmann, from Free Musi
 
 ## Tools
 
-- Apple Vision (`VNGeneratePersonInstanceMaskRequest`, `VNDetectHumanRectanglesRequest`, `VNGenerateForegroundInstanceMaskRequest`) is a macOS system framework, called by `tools/cutout.js` through `osascript`.
+- Hero inference is provided by the separately installed `selects-ai-runtime` RVM task. Model/runtime licensing and provisioning are documented in that plugin; no model is bundled here.
 - FFmpeg reads the song, writes the song section and measures clip colour: the copy Selects ships, through its `Runtime.runFFmpeg`. Nothing is downloaded.
 - The title uses the Impact font when it is installed on the system, otherwise the closest condensed bold fallback. No font file is included.
 - React and Remotion APIs are provided by the Selects panel and effect hosts.

@@ -21,38 +21,23 @@ const MIN_SECONDS = 1.1;
 const json = JSON.stringify;
 
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -83,34 +68,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -149,27 +117,13 @@ async function hostProbeSeconds(path) {
 }
 // av-host:end
 
-// The macOS pipeline (pipeline.py: numpy, Pillow, RVM on onnxruntime) runs on a private Python that rvm/setup.sh
-// installs for macOS arm64 only, through POSIX shell; it sits in mac-only regions whose entries refuse Windows with
-// this line. Windows builds with the in-panel engine (pbm-engine) instead.
-const MAC_ONLY_TEXT = { en: "Available on macOS for now.", de: "Vorerst nur auf macOS verfügbar.", es: "Disponible solo en macOS por ahora.", fr: "Disponible sur macOS pour le moment.", it: "Per ora disponibile solo su macOS.", ja: "現在はmacOSでのみ利用できます。", ko: "\uc9c0\uae08\uc740 macOS\uc5d0\uc11c\ub9cc \uc0ac\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.", pt: "Disponível no macOS por enquanto.", tr: "Şimdilik yalnızca macOS’ta kullanılabilir.", zh: "目前仅在 macOS 上可用。" };
-const macOnlyText = (language) => MAC_ONLY_TEXT[String(language || "").slice(0, 2).toLowerCase()] || MAC_ONLY_TEXT.en;
-const macOnlyError = (language) => Object.assign(new Error(macOnlyText(language)), { code: "mac-only" });
-// Windows person mattes spend Selects generation credits, so the panel asks first (no cost estimate API exists: the
-// notice says what is sent). A Clip highlights run has no panel to ask in: starting the template counts as consent
-// (product decision 2026-10-06), and plugin.json declares usesCredits.
 const PLAIN_TEXT = {en: "{n} shots could not use a person cutout, so they use the plain footage.", de: "Bei {n} Einstellungen war kein Personen-Freisteller möglich. Sie verwenden das Originalvideo.", es: "En {n} planos no se pudo recortar a una persona, por lo que se usa el vídeo original.", fr: "Le détourage d’une personne était impossible dans {n} plans. Ils utilisent la vidéo d’origine.", it: "In {n} inquadrature non è stato possibile ritagliare una persona, quindi viene usato il video originale.", ja: "{n}ショットで人物を切り抜けなかったため、元の映像を使用しています。", ko: "{n}\uac1c \uc0f7\uc5d0\uc11c \uc778\ubb3c\uc744 \ubd84\ub9ac\ud560 \uc218 \uc5c6\uc5b4 \uc6d0\ubcf8 \uc601\uc0c1\uc744 \uc0ac\uc6a9\ud588\uc2b5\ub2c8\ub2e4.", pt: "Não foi possível recortar uma pessoa em {n} planos, por isso usam o vídeo original.", tr: "{n} çekimde kişi ayrıştırılamadığı için orijinal görüntü kullanıldı.", zh: "{n} 个镜头无法进行人物抠像，因此使用原始画面。"};
+const pick = (table, language) => table[String(language||"en").slice(0,2).toLowerCase()] || table.en;
 const plainText = (language, count) => count ? pick(PLAIN_TEXT, language).replace("{n}", String(count)) : "";
-const COST_TEXT = {en: "This sends about {s} s of video ({n} shots) to Selects background removal, which uses generation credits. A rebuild reuses the result.", de: "Dabei werden etwa {s} s Video ({n} Einstellungen) an die Hintergrundentfernung von Selects gesendet, die Generierungs-Credits verbraucht. Ein erneuter Aufbau verwendet das Ergebnis wieder.", es: "Se envían unos {s} s de vídeo ({n} planos) a la eliminación de fondo de Selects, que usa créditos de generación. Al volver a crearlo se reutiliza el resultado.", fr: "Environ {s} s de vidéo ({n} plans) seront envoyées à la suppression d’arrière-plan de Selects, qui utilise des crédits de génération. Une nouvelle création réutilise le résultat.", it: "Vengono inviati circa {s} s di video ({n} inquadrature) alla rimozione dello sfondo di Selects, che usa crediti di generazione. Ricreando il montaggio il risultato viene riutilizzato.", ja: "約{s}秒の動画（{n}ショット）をSelectsの背景除去に送信します。生成クレジットを使用します。作り直す場合は結果を再利用します。", ko: "\uc57d {s}\ucd08 \ubd84\ub7c9\uc758 \uc601\uc0c1({n}\uac1c \uc0f7)\uc744 Selects \ubc30\uacbd \uc81c\uac70\ub85c \ubcf4\ub0c5\ub2c8\ub2e4. \uc0dd\uc131 \ud06c\ub808\ub527\uc774 \uc0ac\uc6a9\ub429\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4 \ub54c\ub294 \uacb0\uacfc\ub97c \uc7ac\uc0ac\uc6a9\ud569\ub2c8\ub2e4.", pt: "Isto envia cerca de {s} s de vídeo ({n} planos) para a remoção de fundo do Selects, que usa créditos de geração. Ao recriar, o resultado é reutilizado.", tr: "Bu işlem yaklaşık {s} sn videoyu ({n} çekim) Selects arka plan kaldırmaya gönderir ve üretim kredisi kullanır. Yeniden oluşturmada sonuç tekrar kullanılır.", zh: "这会将约 {s} 秒视频（{n} 个镜头）发送到 Selects 背景移除，并消耗生成额度。重新生成时会复用结果。"};
-const COST_GO = {en: "Use credits and continue", de: "Credits verwenden und fortfahren", es: "Usar créditos y continuar", fr: "Utiliser des crédits et continuer", it: "Usa i crediti e continua", ja: "クレジットを使って続行", ko: "\ud06c\ub808\ub527 \uc0ac\uc6a9\ud558\uace0 \uacc4\uc18d", pt: "Usar créditos e continuar", tr: "Kredi kullan ve devam et", zh: "使用额度并继续"};
-const COST_STOP = {en: "Cancel", de: "Abbrechen", es: "Cancelar", fr: "Annuler", it: "Annulla", ja: "キャンセル", ko: "\ucde8\uc18c", pt: "Cancelar", tr: "İptal", zh: "取消"};
-const pick = (table, language) => table[String(language || "").slice(0, 2).toLowerCase()] || table.en;
-const costText = (language, seconds, shots) => pick(COST_TEXT, language).replace("{s}", String(Math.round(seconds * 10) / 10)).replace("{n}", String(shots));
-
 // @operation-start
-// The in-panel port of pipeline.py (Windows has no Python): its timeline, the ffmpeg argv it runs, as
+// The cross-platform media/pixel implementation: its timeline, the ffmpeg argv it runs, as
 // Runtime.runFFmpeg argv (no "ffmpeg" argv[0], no shell), and its pixel functions (pbmKernels). The Windows engine
-// (pbm-engine) runs them; macOS keeps pipeline.py with RVM. tests/portrait_beat_montage*.test.mjs check them against
+// (pbm-engine) runs them. tests/portrait_beat_montage*.test.mjs check them against
 // pipeline.py. Where pipeline.py reads ffmpeg's stdout or writes its stdin ("-"), these name a file in the run folder.
 export const W = 540;
 export const H = 720;
@@ -215,6 +169,14 @@ export const motionArgs = (path, info, out) => ["-v", "error", "-t", "30", "-i",
 // One shot window: 1 s of source cropped to 3:4, motion-interpolated to 60 fps. setsar=1: footage with non-square pixels
 // (e.g. SAR 853:854) would otherwise carry its SAR into the clip, and the matte request's concat refuses mixed SARs.
 export const unitSourceArgs = (unit, out) => ["-y", "-v", "error", "-ss", pyStr(unit.start), "-i", unit.path, "-vf", cropFilter(unit.width, unit.height) + `,scale=${W}:${H},setsar=1,minterpolate=fps=${FPS}:mi_mode=mci`, "-frames:v", String(SRC_FRAMES), "-an", "-c:v", "libx264", "-crf", "15", "-pix_fmt", "yuv420p", "-write_tmcd", "0", out];
+// Windows bundles the built-in FFV1 encoder. This derived input preserves RGB and its 60 fps clock.
+export function sharedUnitSourceArgs(unit, out) {
+  const args=unitSourceArgs(unit,out), codec=args.indexOf("-c:v");
+  // Fractional input seeks can leave initial PTS holes after minterpolate.
+  // AVI preserves those holes unless output explicitly fills the 60 fps grid.
+  args.splice(codec,args.length-codec,"-c:v","ffv1","-level","3","-pix_fmt","bgr0","-r",String(FPS),"-fps_mode","cfr",out);
+  return args;
+}
 export const decodeArgs = (path, count, out, vf = "format=rgb24") => ["-v", "error", "-i", path, "-vf", vf, "-frames:v", String(count), "-f", "rawvideo", "-pix_fmt", "rgb24", out];
 // RVM's VP9-with-alpha cutout to one grey PNG per frame (001.png...); `pattern` is hostJoin(masks, "%03d.png").
 export const matteArgs = (webm, pattern) => ["-y", "-v", "error", "-c:v", "libvpx-vp9", "-i", webm, "-vf", "alphaextract", "-frames:v", String(MATTE_FRAMES), pattern];
@@ -706,39 +668,6 @@ export function pbmKernels() {
 }
 // @operation-end
 
-// mac-only:start
-const quote = (value) => "'" + String(value).replace(/'/g, "'\\''") + "'";
-// The pipeline runs on the RVM runtime's Python (it already has numpy and Pillow). Before setup there is no usable
-// Python on a stock Mac (/usr/bin/python3 only offers to install the Xcode tools), so a step reports setup instead.
-const PYTHON = `S="$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage"; P="$S/rvm/.local/venv/bin/python"; [ -x "$P" ] || { echo '{"error":"RVM runtime is not set up"}'; exit 2; };`;
-// The running Selects app's own ffmpeg/ffprobe (app.asar.unpacked/dist/bin), so no PATH or Homebrew ffmpeg is needed:
-// the app whose Info.plist version is Runtime.getHostingVersion(), else the one Runtime.getAppName() names, else the
-// first installed. Exported to pipeline.py, which hands them to rvm/runtime.py and its detached workers; with none
-// found pipeline.py looks in /Applications and then on PATH itself. Found once per panel session, by FileSystem.
-const MAC_APPS = ["Selects", "Selects Staging", "Selects Alpha"];
-let macToolsFound = null;
-function macTools() {
-  if (macToolsFound) return macToolsFound;
-  const fs = hostApi("FileSystem", "join", "existsSync");
-  if (!fs) return "";
-  const app = (name, ...rest) => fs.join("/Applications", name + ".app", "Contents", ...rest);
-  const bin = (name, tool) => app(name, "Resources", "app.asar.unpacked", "dist", "bin", tool);
-  const has = (name) => { try { return !!fs.existsSync(bin(name, "ffmpeg")) && !!fs.existsSync(bin(name, "ffprobe")); } catch { return false; } };
-  const said = (service, method) => { try { return String(hostApi(service, method)?.[method]() || ""); } catch { return ""; } };
-  const plistVersion = (name) => {
-    try {
-      const v = hostApi("FileSystem", "readFileSync").readFileSync(app(name, "Info.plist"), "utf8");
-      const text = typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
-      return (text.match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]*)<\/string>/) || [])[1] || "";
-    } catch { return ""; }
-  };
-  const installed = MAC_APPS.filter(has), version = said("Runtime", "getHostingVersion"), appName = said("Runtime", "getAppName");
-  const pick = installed.find((name) => version && plistVersion(name) === version) || installed.find((name) => name === appName) || installed[0];
-  if (!pick) return "";
-  macToolsFound = `export POSTCARD_CUTOUT_RVM_FFMPEG=${quote(bin(pick, "ffmpeg"))} POSTCARD_CUTOUT_RVM_FFPROBE=${quote(bin(pick, "ffprobe"))}; `;
-  return macToolsFound;
-}
-// mac-only:end
 
 const T = {
   title: "Portrait Beat Montage",
@@ -752,13 +681,8 @@ const T = {
   clips: "Clips, in filename order",
   build: "Create new draft",
   working: "Rendering…",
-  setupTitle: "One-time setup",
-  setupHelp: "Person mattes use RVM on this Mac's CPU. Setup downloads a private Python runtime and the RVM model into the plugin folder (a few hundred MB).",
-  setupButton: "Set up RVM",
-  settingUp: "Setting up…",
   rights: "Use footage of people who agreed to be filmed. The plugin includes its soundtrack (Pixabay Content License).",
   time: "Rendering takes about 3 minutes on Apple silicon (seconds when the same clips are used again).",
-  timeWindows: "Rendering takes a few minutes in this panel; keep it open (seconds when the same clips are used again). Person mattes use Selects generation credits; you confirm first.",
   done: "New draft created. It is open in the editor.",
   steps: ["Choose shot windows", "Mattes and transitions", "Render shots", "Build draft"],
   cancel: "Cancel",
@@ -768,113 +692,6 @@ function mediaScript(projectId, resourceIds = null) {
   return `const selected = ${JSON.stringify(resourceIds)};const p=selects.project(${json(projectId)}); const [meta,overview]=await Promise.all([p.meta(),p.sourceFiles()]); const items=[]; function walk(nodes,parts){ for(const node of nodes){ if(node.type==="dir") walk(node.children,parts.concat(node.name)); else items.push({name:node.name,type:node.type,resourceId:node.resourceId,path:node.path,durationSeconds:node.durationSeconds,folder:parts.join("/")||"(root)"}); }} if("fileTree" in overview) walk(overview.fileTree,[]); else { for(const folder of overview.folders){ const page=await p.sourceFiles({folder:folder.name}); if("fileTree" in page) walk(page.fileTree,folder.name==="(root)"?[]:[folder.name]); }} return {projectTitle:meta.title,videos:items.filter(x=>x.type==="video"&&(!selected||selected.includes(x.resourceId))),audios:items.filter(x=>x.type==="audio")};`;
 }
 
-// mac-only:start
-async function pipeline(sdk, op, args, timeoutMs = 300000) {
-  if (hostIsWindows()) throw macOnlyError();
-  const reply = await sdk.runShell({
-    summary: "Portrait montage: " + op,
-    command: `${macTools()}${PYTHON} "$P" "$S/pipeline.py" ${op} ${quote(json(args))}`,
-    timeoutMs,
-    maxOutputBytes: 49152,
-  });
-  const last = (reply.stdout || "").trim().split("\n").pop() || "{}";
-  let parsed = null;
-  try { parsed = JSON.parse(last); } catch {}
-  if (reply.isError || reply.exitCode !== 0 || !parsed || parsed.error) {
-    throw new Error(parsed?.error || reply.stderr || reply.output || `${op} failed`);
-  }
-  return parsed;
-}
-
-// One-time setup (rvm/setup.sh) downloads a few hundred MB, which can outlast one shell call: Selects ends each call
-// after five minutes and stops the processes it started. So setup runs in a session of its own (perl's setsid, part
-// of stock macOS), records its pid and exit status under plugin-data, and the panel polls. A setup that is already
-// running (its lock is held and it has not exited) is joined instead of started twice.
-const SETUP_DIR = `"$HOME/.selects/plugin-data/${PLUGIN}/setup"`;
-const SETUP_WAIT_MS = 30 * 60 * 1000;
-async function runSetup(sdk) {
-  if (hostIsWindows()) throw macOnlyError();
-  const start = await sdk.runShell({
-    summary: "Portrait montage: start one-time setup",
-    command: `${macTools()}S="$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage"; D=${SETUP_DIR}; mkdir -p "$D" || exit 1; `
-      + `if [ -d "$S/rvm/.local/setup.lock" ] && [ ! -f "$D/exit" ] && kill -0 "$(cat "$D/pid" 2>/dev/null)" 2>/dev/null; then echo joined; exit 0; fi; `
-      + `rm -f "$D/exit" "$D/pid" "$D/stderr.log"; `
-      + `/usr/bin/perl -MPOSIX -e 'POSIX::setsid() or die "setsid: $!"; exec @ARGV or die "exec: $!"' /bin/sh -c 'echo $$ > "$2/pid"; sh "$1/rvm/setup.sh" 2>"$2/stderr.log"; echo $? > "$2/exit"' setup "$S" "$D" </dev/null >/dev/null 2>&1 & `
-      // Return only once setup has its own session (its pid is written after setsid), or this call's end would stop it.
-      + `i=0; while [ ! -s "$D/pid" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done; [ -s "$D/pid" ] && echo started`,
-    timeoutMs: 30000,
-    maxOutputBytes: 4096,
-  });
-  if (start.isError || start.exitCode !== 0) throw new Error(start.stderr || "Could not start the setup.");
-  const until = Date.now() + SETUP_WAIT_MS;
-  for (;;) {
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-    const reply = await sdk.runShell({
-      summary: "Portrait montage: check setup",
-      command: `D=${SETUP_DIR}; if [ -f "$D/exit" ]; then cat "$D/exit"; elif kill -0 "$(cat "$D/pid" 2>/dev/null)" 2>/dev/null; then echo running; else echo stopped; fi`,
-      timeoutMs: 15000,
-      maxOutputBytes: 4096,
-    });
-    const state = (reply.stdout || "").trim().split("\n").pop() || "";
-    if (state === "0") return;
-    if (state === "running" && Date.now() < until) continue;
-    if (state === "running") throw new Error("Setup is still running after 30 minutes. Check the connection, then try again.");
-    // The last line setup wrote (its own log, else its stderr) says why it stopped.
-    const log = await sdk.runShell({
-      summary: "Portrait montage: read setup errors",
-      command: `S="$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage"; D=${SETUP_DIR}; { cat "$D/stderr.log"; tail -n 5 "$S/rvm/.local/setup.log"; } 2>/dev/null | grep -v '^SETUP ' | grep . | tail -n 1`,
-      timeoutMs: 15000,
-      maxOutputBytes: 4096,
-    });
-    const said = (log.stdout || "").trim();
-    throw new Error(said || (state === "stopped" ? "Setup stopped before it finished. Try again." : `Setup failed (exit ${state}). See rvm/.local/setup.log in the plugin folder.`));
-  }
-}
-
-// Mattes and transitions run detached, three shot windows at a time, so they keep
-// going if the panel closes or the project changes. The panel polls for finished
-// units; reopening it resumes the same run (pipeline.py plan reuses it).
-async function renderUnits(sdk, runId, keys, onProgress) {
-  if (hostIsWindows()) throw macOnlyError();
-  const dir = `"$HOME/.selects/plugin-data/${PLUGIN}/runs/${runId}"`;
-  const started = await sdk.runShell({
-    summary: "Portrait montage: start mattes and transitions",
-    command: `${macTools()}${PYTHON} "$P" "$S/pipeline.py" spawn ${quote(json({ runId }))}`,
-    timeoutMs: 30000,
-    maxOutputBytes: 4096,
-  });
-  if (started.isError || started.exitCode !== 0) throw new Error(started.stderr || "Could not start the render");
-  for (;;) {
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-    const reply = await sdk.runShell({
-      summary: "Portrait montage: check progress",
-      command: `cd ${dir} && n=0; for k in ${keys.join(" ")}; do test -f "$k/post-held.npy" && n=$((n+1)); done; f=false; test -f units.exit && f=true; a=false; kill -0 "$(cat units.pid 2>/dev/null)" 2>/dev/null && a=true; printf '{"done":%s,"finished":%s,"alive":%s}\\n' "$n" "$f" "$a"`,
-      timeoutMs: 15000,
-      maxOutputBytes: 4096,
-    });
-    const state = JSON.parse((reply.stdout || "{}").trim().split("\n").pop() || "{}");
-    onProgress((state.done || 0) / keys.length);
-    if (state.done === keys.length) return;
-    if (!state.finished && state.alive === false) throw new Error("The render stopped. Press Create new draft again to continue where it left off.");
-    if (state.finished) {
-      const log = await sdk.runShell({ summary: "Portrait montage: read errors", command: `grep -h '"error"' ${dir}/units.log | tail -1`, timeoutMs: 15000, maxOutputBytes: 4096 });
-      let said = null;
-      try { said = JSON.parse((log.stdout || "").trim()).error; } catch {}
-      throw new Error(said || "Some shots could not be prepared. Is there a person in every clip?");
-    }
-  }
-}
-// The macOS build: pipeline.py plan, the detached units, assemble.
-async function macMontage(sdk, files, setStep, setProgress) {
-  if (hostIsWindows()) throw macOnlyError();
-  setStep(0);
-  const plan = await pipeline(sdk, "plan", { clips: files.map((file) => file.path) });
-  setStep(1);
-  await renderUnits(sdk, plan.runId, plan.units, setProgress);
-  setStep(2);
-  return pipeline(sdk, "assemble", { runId: plan.runId, master: false }, 600000);
-}
-// mac-only:end
 
 // pbm-engine:start
 // The Windows engine: pipeline.py's plan, unit and assemble steps with no Python and no shell. ffmpeg/ffprobe run
@@ -884,16 +701,31 @@ async function macMontage(sdk, files, setStep, setProgress) {
 // running after the panel stops (each step is awaited, and Cancel aborts ffmpeg and terminates the Worker). The person
 // mattes come from `mattes(units, signal, progress)`, which writes <unit>/matte.gray (MATTE_FRAMES grey W x H frames).
 // Every failure throws before the panel imports anything or makes a Draft.
-const PBM_CACHE = "cache-w1";
+const PBM_CACHE = "cache-shared-ai-v2";
+// Fractional-seek sources from the previous Windows recipe can have sparse PTS.
+// Isolate both unfinished runs and prepared units; Mac's source recipe is unchanged.
+const PBM_WINDOWS_CACHE = "cache-shared-ai-v3-cfr";
+const pbmSourceName=()=>hostIsWindows()?"source.avi":"source.mp4";
 const pbmCancelled = () => Object.assign(new Error("Cancelled."), { code: "cancelled" });
 const pbmUpdate = "This Selects build can't make this montage. Update Selects, then try again.";
 // FileSystem with every method the engine uses, the plugin folder and the data folder.
 async function pbmHostIO(sdk) {
-  const fs = hostApi("FileSystem", "join", "existsSync", "mkdirSync", "readdirSync", "readFile", "writeFile", "statSync", "renameSync", "copyFile", "basename");
+  hostUseSdk(sdk);
+  const fs = hostApi("FileSystem", "join", "exists", "mkdir", "readdir", "readFile", "writeFile", "stat", "rename", "copyFile", "basename");
   if (!fs || !hostApi("Runtime", "runFFmpeg", "runFFprobe")) throw hostError("host-missing", pbmUpdate, "FileSystem/Runtime");
   const { plugin, data } = await hostRoots(sdk, PLUGIN, "SKILL.md");
-  if (!data) throw hostError("host-missing", pbmUpdate, "FileSystem.mkdirSync");
+  if (!data) throw hostError("host-missing", pbmUpdate, "FileSystem.mkdir");
   return { fs, plugin, data };
+}
+// Keep MP4 output usable when the packaged Windows build has no GPL x264 encoder.
+function pbmBuiltinOutputArgs(args) {
+  const converted=[];
+  for(let i=0;i<args.length;i++) {
+    const value=args[i];
+    if(["-crf","-preset","-x264-params"].includes(value)){i++;continue;}
+    converted.push(value==="libx264"?"mpeg4":value);
+  }
+  const out=converted.pop();converted.push("-q:v","2",out);return converted;
 }
 // ffmpeg with argv (-nostdin first), aborted by `signal` or after `timeoutMs`; checks `out` exists afterwards.
 async function pbmFFmpeg(args, out, signal, timeoutMs = 600000) {
@@ -901,7 +733,11 @@ async function pbmFFmpeg(args, out, signal, timeoutMs = 600000) {
   const rt = hostNeed("Runtime", "runFFmpeg"), c = new AbortController(), timer = setTimeout(() => c.abort(), timeoutMs), relay = () => c.abort();
   signal?.addEventListener("abort", relay);
   try {
-    await rt.runFFmpeg(["-nostdin", ...args], true, c.signal);
+    try { await rt.runFFmpeg(["-nostdin", ...args], true, c.signal); }
+    catch(error) {
+      if(!hostIsWindows()||!args.includes("libx264")||!/Unknown encoder[^\n]*libx264/i.test(String(error?.message||error))||signal?.aborted||c.signal.aborted)throw error;
+      await rt.runFFmpeg(["-nostdin",...pbmBuiltinOutputArgs(args)],true,c.signal);
+    }
   } catch (e) {
     if (signal?.aborted) throw pbmCancelled();
     throw new Error("ffmpeg: " + (String(e?.message || e || "failed").trim().split("\n").pop() || "failed"));
@@ -909,7 +745,7 @@ async function pbmFFmpeg(args, out, signal, timeoutMs = 600000) {
     clearTimeout(timer);
     signal?.removeEventListener("abort", relay);
   }
-  if (out && !hostNeed("FileSystem", "existsSync").existsSync(out)) throw new Error("ffmpeg wrote no " + hostNeed("FileSystem", "basename").basename(out));
+  if (out && !(await hostNeed("FileSystem", "exists").exists(out))) throw new Error("ffmpeg wrote no " + hostNeed("FileSystem", "basename").basename(out));
 }
 // ffmpeg into a temporary raw file, read back as bytes (the file is removed).
 async function pbmFFmpegBytes(args, tmp, signal, timeoutMs) {
@@ -926,18 +762,18 @@ async function pbmWriteWhole(io, path, data) {
   const tmp = path + ".partial";
   await pbmWrite(io, tmp, data);
   await hostRemove(path);
-  io.fs.renameSync(tmp, path);
+  (await io.fs.rename(tmp, path));
 }
 const pbmStamp = (d) => d.getFullYear() + [d.getMonth() + 1, d.getDate()].map((n) => String(n).padStart(2, "0")).join("") + "-" + [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join("");
 
 // pipeline.py op_plan: probe the 10 clips, choose each shot window, write plan.json (or resume an unfinished run).
 async function pbmPlan(io, K, clips, signal, progress) {
   if (clips.length !== 10) throw new Error("Exactly 10 clips are required.");
-  const digest = (await pbmSha1(clips.join("|") + "{}")).slice(0, 6), runs = hostJoin(io.data, "runs");
-  io.fs.mkdirSync(runs, { recursive: true });
-  for (const name of io.fs.readdirSync(runs).map(String).filter((n) => n.endsWith("-" + digest)).sort().reverse()) {
+  const digest = (await pbmSha1(clips.join("|") + "{}" + (hostIsWindows() ? "|" + PBM_WINDOWS_CACHE : ""))).slice(0, 6), runs = hostJoin(io.data, "runs");
+  (await io.fs.mkdir(runs, { recursive: true }));
+  for (const name of (await io.fs.readdir(runs)).map(String).filter((n) => n.endsWith("-" + digest)).sort().reverse()) {
     const root = hostJoin(runs, name);
-    if (io.fs.existsSync(hostJoin(root, "plan.json")) && !io.fs.existsSync(hostJoin(root, "manifest.json"))) {
+    if ((await io.fs.exists(hostJoin(root, "plan.json"))) && !(await io.fs.exists(hostJoin(root, "manifest.json")))) {
       return { root, plan: JSON.parse(await hostReadText(hostJoin(root, "plan.json"))), resumed: true };
     }
   }
@@ -956,60 +792,63 @@ async function pbmPlan(io, K, clips, signal, progress) {
   }
   const runId = pbmStamp(new Date()) + "-" + digest, root = hostJoin(runs, runId);
   const plan = { runId, units, slots: SLOTS.map((clip, slot) => "c" + String(clip).padStart(2, "0") + (slot >= REPEAT_FROM ? "b" : "a")), created: Date.now() / 1000 };
-  io.fs.mkdirSync(root, { recursive: true });
+  (await io.fs.mkdir(root, { recursive: true }));
   await pbmWriteWhole(io, hostJoin(root, "plan.json"), JSON.stringify(plan, null, 2));
   return { root, plan, resumed: false };
 }
 // The cache folder of a shot window (same clip file, size, modification time and start = same shot).
 async function pbmCacheDir(io, unit) {
-  const st = io.fs.statSync(unit.path);
-  return hostJoin(io.data, PBM_CACHE, (await pbmSha1(unit.path + "|" + Number(st?.size) + "|" + Number(st?.mtimeMs) + "|" + unit.start.toFixed(4) + "|w1")).slice(0, 16));
+  const st = (await io.fs.stat(unit.path));
+  return hostJoin(io.data, hostIsWindows() ? PBM_WINDOWS_CACHE : PBM_CACHE, (await pbmSha1(unit.path + "|" + Number(st?.size) + "|" + Number(st?.mtimeMs) + "|" + unit.start.toFixed(4) + "|w1")).slice(0, 16));
 }
 async function pbmDecodeSource(io, folder, count, signal) {
-  const bytes = await pbmFFmpegBytes(decodeArgs(hostJoin(folder, "source.mp4"), count, hostJoin(folder, "frames.rgb")), hostJoin(folder, "frames.rgb"), signal);
+  const bytes = await pbmFFmpegBytes(decodeArgs(hostJoin(folder, pbmSourceName()), count, hostJoin(folder, "frames.rgb")), hostJoin(folder, "frames.rgb"), signal);
   if (bytes.byteLength < count * W * H * 3) throw new Error(hostNeed("FileSystem", "basename").basename(folder) + ": expected " + count + " frames, got " + Math.floor(bytes.byteLength / (W * H * 3)));
   return bytes;
 }
 // pipeline.py op_unit for every shot window still missing: sources, then one matte request for all of them, then the
 // transitions. Windows with the same cache folder are rendered once.
 async function pbmCopyUnit(io, from, to) {
-  for (const name of ["source.mp4", "plain.json", "post.rgb"]) {
-    if (io.fs.existsSync(hostJoin(from, name))) await io.fs.copyFile(hostJoin(from, name), hostJoin(to, name));
+  for (const name of [pbmSourceName(), "plain.json", "post.rgb"]) {
+    if ((await io.fs.exists(hostJoin(from, name)))) await io.fs.copyFile(hostJoin(from, name), hostJoin(to, name));
   }
 }
-function pbmPlainCount(io, run) {
-  return run.plan.slots.filter((key) => io.fs.existsSync(hostJoin(run.root, key, "plain.json"))).length;
+async function pbmPlainCount(io, run) {
+  let count = 0;
+  for (const key of run.plan.slots) if (await io.fs.exists(hostJoin(run.root, key, "plain.json"))) count++;
+  return count;
 }
 async function pbmUnits(io, kernels, run, mattes, signal, progress) {
   const keys = Object.keys(run.plan.units).sort(), N = W * H, todo = [], copies = [];
-  const done = (folder) => io.fs.existsSync(hostJoin(folder, "post.rgb")) && io.fs.existsSync(hostJoin(folder, "source.mp4"));
+  const done = async (folder) => (await io.fs.exists(hostJoin(folder, "post.rgb"))) && (await io.fs.exists(hostJoin(folder, pbmSourceName())));
   const byCache = new Map();
   for (const key of keys) {
     const unit = run.plan.units[key], folder = hostJoin(run.root, key);
-    if (done(folder)) continue;
-    io.fs.mkdirSync(folder, { recursive: true });
+    if ((await done(folder))) continue;
+    (await io.fs.mkdir(folder, { recursive: true }));
     const cache = await pbmCacheDir(io, unit);
-    if (done(cache)) { await pbmCopyUnit(io, cache, folder); continue; }
+    if ((await done(cache))) { await pbmCopyUnit(io, cache, folder); continue; }
     if (byCache.has(cache)) { copies.push({ from: byCache.get(cache), folder }); continue; }
-    // Mattes paid for in an earlier run of this window are reused (a rebuild never asks twice).
-    if (io.fs.existsSync(hostJoin(cache, "matte.gray")) && !io.fs.existsSync(hostJoin(folder, "matte.gray"))) await io.fs.copyFile(hostJoin(cache, "matte.gray"), hostJoin(folder, "matte.gray"));
+    // Mattes prepared in an earlier run of this window are reused (a rebuild never asks twice).
+    if ((await io.fs.exists(hostJoin(cache, "matte.gray"))) && !(await io.fs.exists(hostJoin(folder, "matte.gray")))) await io.fs.copyFile(hostJoin(cache, "matte.gray"), hostJoin(folder, "matte.gray"));
     byCache.set(cache, folder);
     todo.push({ key, unit, folder, cache });
   }
   const steps = todo.length * 2 + 1;
   let step = 0;
   for (const t of todo) {
-    if (!io.fs.existsSync(hostJoin(t.folder, "source.mp4"))) {
-      const partial = hostJoin(t.folder, "source-partial.mp4");
-      await pbmFFmpeg(unitSourceArgs(t.unit, partial), partial, signal);
-      io.fs.renameSync(partial, hostJoin(t.folder, "source.mp4"));
+    if (!(await io.fs.exists(hostJoin(t.folder, pbmSourceName())))) {
+      const partial = hostJoin(t.folder, hostIsWindows()?"source-partial.avi":"source-partial.mp4");
+      await pbmFFmpeg((hostIsWindows()?sharedUnitSourceArgs:unitSourceArgs)(t.unit, partial), partial, signal);
+      (await io.fs.rename(partial, hostJoin(t.folder, pbmSourceName())));
     }
     progress?.(++step / steps);
   }
-  const need = todo.filter((t) => !io.fs.existsSync(hostJoin(t.folder, "matte.gray")));
+  const need = [];
+  for (const t of todo) if (!await io.fs.exists(hostJoin(t.folder, "matte.gray"))) need.push(t);
   if (need.length) {
-    await mattes(io, need.map((t) => ({ key: t.key, folder: t.folder, source: hostJoin(t.folder, "source.mp4") })), signal, (p) => progress?.((step + p) / steps), run);
-    for (const t of need) { io.fs.mkdirSync(t.cache, { recursive: true }); await io.fs.copyFile(hostJoin(t.folder, "matte.gray"), hostJoin(t.cache, "matte.gray")); }
+    await mattes(io, need.map((t) => ({ key: t.key, folder: t.folder, source: hostJoin(t.folder, pbmSourceName()) })), signal, (p) => progress?.((step + p) / steps), run);
+    for (const t of need) { (await io.fs.mkdir(t.cache, { recursive: true })); await io.fs.copyFile(hostJoin(t.folder, "matte.gray"), hostJoin(t.cache, "matte.gray")); }
   }
   progress?.(++step / steps);
   for (const t of todo) {
@@ -1023,7 +862,7 @@ async function pbmUnits(io, kernels, run, mattes, signal, progress) {
     const post = await kernels("unit", { frames, mattes: matte.slice(), ...(plain ? { plain: true } : {}) }, (p) => progress?.((base + p) / steps), signal);
     if (plain) await pbmWriteWhole(io, hostJoin(t.folder, "plain.json"), JSON.stringify({ reason: "person-matte-unavailable" }));
     await pbmWriteWhole(io, hostJoin(t.folder, "post.rgb"), post);
-    io.fs.mkdirSync(t.cache, { recursive: true });
+    (await io.fs.mkdir(t.cache, { recursive: true }));
     await pbmCopyUnit(io, t.folder, t.cache);
     progress?.(++step / steps);
   }
@@ -1033,7 +872,7 @@ async function pbmUnits(io, kernels, run, mattes, signal, progress) {
 // piece written raw and encoded by ffmpeg into render/<piece>.mp4; returns pipeline.py's manifest.
 async function pbmAssemble(io, kernels, run, signal, progress) {
   const out = hostJoin(run.root, "render"), segs = segments(), N = W * H, size = N * 3;
-  io.fs.mkdirSync(out, { recursive: true });
+  (await io.fs.mkdir(out, { recursive: true }));
   const tl = { BLACK, STROBE_START, STROBE, BOUNDARIES, END: BLACK + BEATS[BEATS.length - 1], GLOW };
   const loaded = new Set();
   for (let s = 0; s < segs.length; s++) {
@@ -1066,7 +905,7 @@ async function pbmAssemble(io, kernels, run, signal, progress) {
     audio: [{ name: "music-bed.wav", path: asset("music-bed.wav"), start: 0, end: total },
       { name: "shutter.wav", path: asset("shutter.wav"), start: draftFrame(STROBE_START), end: draftFrame(BLACK) },
       { name: "riser.wav", path: asset("riser.wav"), start: draftFrame(RISER_START), end: draftFrame(BLACK) }], master: null };
-  const plainShots = pbmPlainCount(io, run);
+  const plainShots = await pbmPlainCount(io, run);
   if (plainShots) manifest.plainShots = plainShots;
   await pbmWriteWhole(io, hostJoin(run.root, "manifest.json"), JSON.stringify(manifest, null, 2));
   return manifest;
@@ -1120,79 +959,31 @@ async function pbmMatteSource(io, units, out, signal) {
   await pbmFFmpeg(matteConcatArgs(units.map((u) => u.source), out), out, signal);
   return { path: out, seconds: units.length * (MATTE_PAD + MATTE_FRAMES) / FPS };
 }
-// Person mattes on Windows: ONE Selects generation request for the whole montage (video background removal, people
-// only, H.264 that carries the alpha alone, as depth-type-captions makes its speaker masks). `confirm({ seconds,
-// shots })` must resolve true before anything is sent: nothing is spent without that click. The request key follows the
-// run and its windows, so sending it again (a reload, a retry) admits nothing new, and the delivered video is recorded
-// in cloud/result.json, so a rebuild or a resumed run reuses it without asking. Cancel cancels the request.
-const PBM_CLOUD_MODEL = "model_v1_dmVlZC92aWRlby1iYWNrZ3JvdW5kLXJlbW92YWwvZmFzdA";
-const PBM_CLOUD_MIN_HOST = "2.0.512";
-const PBM_CLOUD_FAILED = new Set(["failed", "cancelled", "input_failed", "submission_rejected", "upload_failed", "handoff_failed"]);
-function pbmCloudMessage(code) {
-  if (code === "insufficient_credits") return "Not enough Selects credits to make the person mattes.";
-  if (code === "generation_disabled") return "Person mattes on Windows use Selects generation, which this account cannot use yet.";
-  if (code === "generation_update_required") return "Person mattes on Windows need Selects " + PBM_CLOUD_MIN_HOST + " or later. Update Selects, then try again.";
-  return "Person mattes failed" + (code ? " (" + code + ")" : "") + ". Try again.";
-}
-function pbmVersionBelow(version, minimum) {
-  const a = String(version || "0").split(".").map((n) => parseInt(n, 10) || 0), b = minimum.split(".").map((n) => parseInt(n, 10) || 0);
-  for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
-  return false;
-}
-function pbmLibraryId() {
-  try { return window.parent.location.pathname.match(/libraries\/([^/]+)/)?.[1] || null; } catch { return null; }
-}
-async function pbmCloudMattes(io, units, signal, progress, { run, projectId, confirm }) {
-  const dir = hostJoin(run.root, "cloud"), record = hostJoin(dir, "result.json");
-  io.fs.mkdirSync(dir, { recursive: true });
-  const key = "pbm-" + (await pbmSha1(run.plan.runId + "|" + units.map((u) => u.key).join(","))).slice(0, 24);
-  let alpha = null;
-  try { const r = JSON.parse(await hostReadText(record)); if (r.key === key && r.alpha && io.fs.existsSync(r.alpha)) alpha = r.alpha; } catch { alpha = null; }
-  if (!alpha) {
-    const mg = hostApi("MediaGeneration", "submit", "list", "cancel", "supportsPluginFiles");
-    let version = "";
-    try { version = String(hostApi("Runtime", "getHostingVersion")?.getHostingVersion() || ""); } catch { version = ""; }
-    if (!mg || !mg.supportsPluginFiles() || !version || pbmVersionBelow(version, PBM_CLOUD_MIN_HOST)) throw new Error(pbmCloudMessage("generation_update_required"));
-    const libraryId = pbmLibraryId();
-    if (!libraryId || !projectId) throw new Error("Open a project in Selects, then try again.");
-    const source = await pbmMatteSource(io, units, hostJoin(dir, "source.mp4"), signal);
-    // The credits notice: an explicit yes, or the build stops here with nothing sent.
-    const aborted = new Promise((resolve) => { if (signal?.aborted) resolve(false); else signal?.addEventListener("abort", () => resolve(false), { once: true }); });
-    const yes = (await Promise.race([Promise.resolve().then(() => confirm({ seconds: source.seconds, shots: units.length })), aborted])) === true;
-    if (!yes || signal?.aborted) throw pbmCancelled();
-    const scope = { libraryId, projectId };
-    let jobId;
-    try {
-      jobId = (await mg.submit({
-        scope, key, modelId: PBM_CLOUD_MODEL,
-        input: { video_url: "selects-input:source", output_codec: "h264", refine_foreground_edges: false, subject_is_person: true },
-        inputMediaSeconds: { video: source.seconds },
-        uploads: { source: { pluginFile: source.path } },
-        delivery: { pluginFolder: hostJoin(dir, "result") },
-        outputName: "person-mattes", batch: 1,
-        origin: { tool: "video", tab: PLUGIN, recipeId: "person-mattes" },
-      })).jobIds[0];
-    } catch (e) {
-      throw new Error(pbmCloudMessage(e?.code || e?.message));
-    }
-    const started = Date.now();
-    for (;;) {
-      if (signal?.aborted) { await mg.cancel(scope, jobId).catch(() => {}); throw pbmCancelled(); }
-      await new Promise((r) => setTimeout(r, 1000));
-      const j = (await mg.list(scope)).find((x) => x.jobId === jobId);
-      if (j?.deliveryStatus === "delivered") { alpha = (j.outputs || []).find((o) => o.path)?.path || null; break; }
-      if (j && (PBM_CLOUD_FAILED.has(j.status) || ["download_failed", "result_collection_failed"].includes(j.deliveryStatus))) throw new Error(pbmCloudMessage(j.errorCode));
-      progress?.(Math.min(.9, (Date.now() - started) / 180000));
-      if (Date.now() - started > 20 * 60000) { await mg.cancel(scope, jobId).catch(() => {}); throw new Error("The person mattes took too long. Try again."); }
-    }
-    if (!alpha) throw new Error("No person mattes came back. Try again.");
-    await pbmWriteWhole(io, record, JSON.stringify({ key, jobId, alpha }));
+async function pbmSharedMattes(io, units, signal, progress, { run, projectId, retryAi=false }) {
+  if (!projectId) throw new Error("Open a project in Selects, then try again.");
+  const client = videoAiClient(hostSdk,projectId,"portrait-beat-montage:"+run.plan.runId);
+  for (let i=0;i<units.length;i++) {
+    if (signal?.aborted) throw pbmCancelled();
+    const unit=units[i], resourceId=await importSharedAiVideo(hostSdk,projectId,unit.source);
+    let result;
+    try { result=await client.run({task:"person.matte",resourceId,
+      sourceRange:{startSeconds:0,endSeconds:MATTE_FRAMES/FPS},
+      options:{downsampleRatio:0.25,alphaEncoding:"grayscale-png-8bit",outputMode:"alpha-frames"}},
+      {identity:unit.key,signal,retryTerminal:retryAi,onProgress:status=>progress?.((i+Math.min(.95,(Number(status.completed)||0)/Math.max(1,Number(status.total)||MATTE_FRAMES)))/units.length)});
+    } catch(error) { if(signal?.aborted&&signal.reason==='user-cancel'){await client.cancel({identity:unit.key});throw pbmCancelled();}throw error; }
+    const prepared=await prepareSharedAiVideoFrames(hostSdk,projectId,result.result.files.manifest,
+      hostJoin(unit.folder,"alpha"),{resourceId,width:W,height:H,fps:FPS,frames:MATTE_FRAMES});
+    const out=hostJoin(unit.folder,"matte.gray");
+    await pbmFFmpeg(["-v","error","-y","-framerate",String(FPS),"-start_number","1","-i",prepared.pattern,
+      "-frames:v",String(MATTE_FRAMES),"-pix_fmt","gray","-f","rawvideo",out],out,signal);
+    const stat=await io.fs.stat(out);
+    if (stat?.size!==MATTE_FRAMES*W*H) throw new Error("Incomplete shared matte frames.");
+    progress?.((i+1)/units.length);
   }
-  await pbmMattesFromAlpha(io, units, alpha, signal);
 }
 // The whole Windows build up to the manifest buildMontage imports.
-async function pbmWindowsMontage(sdk, { projectId, files, setStep, setProgress, signal, confirm, mattes = null, kernels = null }) {
-  mattes = mattes || ((io, units, s, p, run) => pbmCloudMattes(io, units, s, p, { run, projectId, confirm }));
+async function pbmWindowsMontage(sdk, { projectId, files, setStep, setProgress, signal, confirm, retryAi=false, mattes = null, kernels = null }) {
+  mattes = mattes || ((io, units, s, p, run) => pbmSharedMattes(io, units, s, p, { run, projectId, retryAi }));
   const io = await pbmHostIO(sdk), K = pbmKernels(), worker = kernels ? null : pbmWorkerKernels(), call = kernels || worker.call;
   try {
     setStep(0); setProgress(0);
@@ -1208,9 +999,10 @@ async function pbmWindowsMontage(sdk, { projectId, files, setStep, setProgress, 
 // Each bundled sound's length in seconds (ffprobe), used when its Resource reports none: no overlay may run past it.
 const ASSET_SECONDS = { "music-bed.wav": 16.333333, "shutter.wav": 2, "riser.wav": 1.166667 };
 
-async function buildMontage(sdk, { projectId, language, files, audios, setStep, setProgress, signal, confirm, onNote }) {
-  // Windows renders in the panel (person mattes from Selects generation, after `confirm`); macOS runs pipeline.py.
-  const manifest = hostIsWindows() ? await pbmWindowsMontage(sdk, { projectId, files, setStep, setProgress, signal, confirm }) : await macMontage(sdk, files, setStep, setProgress);
+async function buildMontage(sdk, { projectId, language, files, audios, setStep, setProgress, signal, confirm, retryAi=false, onNote, onDraftCommitted }) {
+  // Both platforms use the same editor-native rendering and shared AI inference.
+  const manifest = await pbmWindowsMontage(sdk, { projectId, files, setStep, setProgress, signal, retryAi });
+  if(signal?.aborted)throw pbmCancelled();
   setStep(3);
 
   // Reuse the bundled sounds when this project already has them.
@@ -1220,11 +1012,13 @@ async function buildMontage(sdk, { projectId, language, files, audios, setStep, 
     if (found) byName.set(audio.name, found.resourceId);
   }
   const toImport = [...manifest.clips.map((clip) => clip.path), ...manifest.audio.filter((a) => !byName.has(a.name)).map((a) => a.path)];
+  if(signal?.aborted)throw pbmCancelled();
   const imported = await sdk.runScript({
     summary: "Import montage shots",
     script: `return await selects.project(${json(projectId)}).importFiles({paths:${json(toImport)}});`,
     allowCommit: true,
   });
+  if(signal?.aborted)throw pbmCancelled();
   const ids = imported.result?.addedResourceIds;
   if (imported.isError || !Array.isArray(ids) || ids.length !== toImport.length) throw new Error(imported.output || "Could not import the rendered shots");
   const clipIds = ids.slice(0, manifest.clips.length);
@@ -1257,8 +1051,13 @@ const at=(f)=>{const i=cfg.clips.findIndex(c=>c.start===f);return i>=0?main[i].s
 const lengths=new Map((await p.resources()).map(x=>[x.resourceId,x.durationSeconds]));
 for(const a of cfg.audio){ const start=at(a.start), s=Math.min(lengths.get(a.id)||Infinity,a.seconds||Infinity); let stop=Math.min(end,at(a.end)); if(s<Infinity) stop=Math.min(stop,start+(fps===projectFps?Math.round(s*fps):Math.floor(s*fps+1e-3))); if(stop>start) await d.overlayResource({resource:p.resource(a.id),over:await d.rangeAtFrames(start,stop)}); }
 const saved=await d.commitAll("Create portrait beat montage"); return {draftId:saved.createdDraftId,end,shots:main.length};`;
+  if(signal?.aborted)throw pbmCancelled();
   const built = await sdk.runScript({ summary: "Build portrait montage draft", script, allowCommit: true });
   if (built.isError || !built.result?.draftId) throw new Error(built.output || "Draft creation failed");
+  // A submitted draft commit may finish after the panel detaches. Save its acknowledged id before
+  // checking attachment so reopening this template can reuse it without creating a second draft.
+  await onDraftCommitted?.(built.result.draftId);
+  if(signal?.aborted)throw pbmCancelled();
   try { await sdk.runScript({ summary: "Open montage draft", script: `await selects.editor.openDraft(${json(built.result.draftId)}); return true;` }); } catch {}
   onNote?.(plainText(language, manifest.plainShots));
   return built.result.draftId;
@@ -1291,28 +1090,32 @@ async function scriptResourceIds(sdk, projectId, resourceIds) {
 function TemplateRun({ sdk, context }) {
   const runId = context.template?.runId;
   const [status, setStatus] = React.useState("Making your montage…");
-  const started = React.useRef(null);
+  const started = React.useRef(null), current = React.useRef(runId);
+  current.current=runId;
   React.useEffect(() => {
     if (!runId || started.current === runId) return;
     started.current = runId;
+    const observer=new AbortController();
+    const superseded=()=>current.current!==runId||observer.signal.aborted;
+    const attached=()=>{if(superseded())throw pbmCancelled();};
+    const report=text=>{if(!superseded())setStatus(text);};
     let ended = false;
-    const finish = (result) => { if (ended) return; ended = true; try { sdk.finishTemplate(result); } catch {} };
+    const finish = (result) => { if (ended||superseded()) return; ended = true; try { sdk.finishTemplate(result); } catch {} };
     (async () => {
       const projectId = context.projectId;
       if (!projectId) throw new Error("Open a project, then try again.");
+      const runKey=PLUGIN+":template:"+projectId+":"+runId;
+      const previous=JSON.parse(await sdk.storage.getItem(runKey)||"null");
+      attached();
+      if(previous?.sequenceId){finish({sequenceId:previous.sequenceId});return;}
+      if(!previous)await sdk.storage.setItem(runKey,JSON.stringify({started:true}));
+      attached();
       const picks = (context.template.inputs?.clips || []).filter((pick) => pick?.resourceId);
       if (picks.length !== SHOTS) throw new Error(`Pick ${SHOTS} videos, then try again.`);
-      // The first run on a Mac sets up RVM itself (a few minutes, once); later runs find it ready. Windows needs no setup.
-      let doctor = hostIsWindows() ? { ready: true } : await pipeline(sdk, "doctor", {}).catch(() => null);
-      if (!doctor?.ready) {
-        setStatus("Setting up person mattes (first run only, a few minutes)…");
-        await runSetup(sdk);
-        doctor = await pipeline(sdk, "doctor", {});
-        if (!doctor.ready) throw new Error(doctor.problems?.[0] || "Setup finished, but the montage tools are not ready.");
-        setStatus("Making your montage…");
-      }
       const ids = await scriptResourceIds(sdk, projectId, picks.map(x => x.resourceId));
+      attached();
       const reply = await readMediaPages(sdk, { summary: "Find montage media", script: mediaScript(projectId, [...ids.values()]) });
+      attached();
       if (reply.isError || !reply.result) throw new Error("Couldn't read this project's files. Try again.");
       const byId = new Map((reply.result.videos || []).map((item) => [item.resourceId, item]));
       const files = picks.map((pick) => byId.get(ids.get(pick.resourceId) ?? pick.resourceId));
@@ -1321,21 +1124,26 @@ function TemplateRun({ sdk, context }) {
       let note = "";
       const draftId = await buildMontage(sdk, {
         projectId, language: context.language, files, audios: reply.result.audios || [],
-        setStep: (n) => setStatus(T.steps[n] + "…"), setProgress: () => {},
-        // No panel to click in: starting the template is the consent to the Windows mattes' credits.
-        confirm: () => true, onNote: (text) => { note = text; },
+        setStep: (n) => report(T.steps[n] + "…"), setProgress: () => {},
+        signal:observer.signal,retryAi:!previous,
+        onNote: (text) => { note = text; },
+        onDraftCommitted:sequenceId=>sdk.storage.setItem(runKey,JSON.stringify({sequenceId})),
       });
-      if (note) setStatus(note);
+      await sdk.storage.setItem(runKey,JSON.stringify({sequenceId:draftId}));
+      attached();
+      if (note) report(note);
       finish({ sequenceId: draftId });
     })().catch((error) => {
       const said = String(error?.message || "");
       finish({ error: said && said.length <= 160 && !/[\n{]/.test(said) ? said : FAILED });
     });
+    return ()=>observer.abort();
   }, [runId]);
   return <small>{status}</small>;
 }
 
-export default function Panel(props) {
+function Panel(props) {
+  hostUseSdk(props.sdk);
   return props.context?.template ? <TemplateRun {...props} /> : <MontagePanel {...props} />;
 }
 
@@ -1345,27 +1153,15 @@ function MontagePanel({ sdk, context, ui }) {
   const [projectTitle, setProjectTitle] = React.useState("");
   const [folder, setFolder] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
-  const [doctor, setDoctor] = React.useState(null);
-  const [settingUp, setSettingUp] = React.useState(false);
+
+
   const [busy, setBusy] = React.useState(false);
   const [step, setStep] = React.useState(-1);
   const [progress, setProgress] = React.useState(0);
   const [status, setStatus] = React.useState(null);
-  const windows = hostIsWindows();
   // Windows renders in this panel (no background job): Cancel, or closing the panel, stops it.
   const cancel = React.useRef(null);
   React.useEffect(() => () => cancel.current?.abort(), []);
-  // The credits notice before the Windows matte request: { text, resolve } while it waits for a click.
-  const [costAsk, setCostAsk] = React.useState(null);
-  const confirmCost = ({ seconds, shots }) => new Promise((resolve) => setCostAsk({ text: costText(context.language, seconds, shots), resolve }));
-  const answerCost = (yes) => { costAsk?.resolve(yes); setCostAsk(null); };
-
-  // Windows: no setup check (RVM setup is shell and Python; Windows needs none).
-  const checkSetup = React.useCallback(() => windows ? Promise.resolve() : pipeline(sdk, "doctor", {}, 60000)
-    .then(setDoctor)
-    .catch((error) => setDoctor({ ready: false, problems: [String(error.message || error)] })), [sdk, windows]);
-  React.useEffect(() => { if (!windows) checkSetup(); }, []);
-
   // Re-read the media list whenever files join or leave the project.
   const [mediaVersion, setMediaVersion] = React.useState(0);
   React.useEffect(() => sdk.on("resourcesChanged", (event) => {
@@ -1394,20 +1190,6 @@ function MontagePanel({ sdk, context, ui }) {
     return () => { cancelled = true; };
   }, [context.projectId, mediaVersion]);
 
-  async function setup() {
-    if (windows) return;
-    setSettingUp(true);
-    setStatus(null);
-    try {
-      await runSetup(sdk);
-      await checkSetup();
-    } catch (error) {
-      setStatus({ type: "error", message: String(error.message || error) });
-    } finally {
-      setSettingUp(false);
-    }
-  }
-
   const folderNames = [...new Set(videos.map((item) => item.folder))];
   const folderOptions = folderNames
     .map((name) => ({ name, usable: eligible(videos, name).length }))
@@ -1423,7 +1205,7 @@ function MontagePanel({ sdk, context, ui }) {
     try {
       cancel.current = new AbortController();
       let note = "";
-      await buildMontage(sdk, { onNote: (text) => { note = text; }, projectId: context.projectId, language: context.language, files: chosen, audios, setStep, setProgress, signal: cancel.current.signal, confirm: confirmCost });
+      await buildMontage(sdk, { onNote: (text) => { note = text; }, projectId: context.projectId, language: context.language, files: chosen, audios, setStep, setProgress, signal: cancel.current.signal, retryAi:true });
       setStatus({ type: "success", message: note ? T.done + " " + note : T.done });
     } catch (error) {
       setStatus(error?.code === "cancelled" ? { type: "muted", message: String(error.message) } : { type: "error", message: String(error.message || error) });
@@ -1431,7 +1213,6 @@ function MontagePanel({ sdk, context, ui }) {
       setBusy(false);
       setStep(-1);
       cancel.current = null;
-      setCostAsk((ask) => { ask?.resolve(false); return null; });
     }
   }
 
@@ -1439,12 +1220,6 @@ function MontagePanel({ sdk, context, ui }) {
   return <ui.Section title={T.title}>
     <ui.Stack>
       <p>{T.intro}</p>
-      {doctor && !doctor.ready ? <ui.Stack>
-        <strong>{T.setupTitle}</strong>
-        <small>{T.setupHelp}</small>
-        {(doctor.problems || []).map((problem) => <ui.Message key={problem} tone="error">{problem}</ui.Message>)}
-        <ui.Actions><ui.Button variant="secondary" busy={settingUp} busyLabel={T.settingUp} onClick={setup}>{T.setupButton}</ui.Button></ui.Actions>
-      </ui.Stack> : null}
       <p>{T.currentProject}: <strong>{projectTitle || "…"}</strong></p>
       {loading ? <ui.Message>{T.loading}</ui.Message> : null}
       <ui.Select label={T.folder} value={folder} onChange={setFolder} options={folderOptions} disabled={busy || loading} />
@@ -1453,15 +1228,11 @@ function MontagePanel({ sdk, context, ui }) {
         : null}
       {chosen.length === SHOTS ? <small>{T.clips}: {chosen.map((file) => file.name).join(", ")}</small> : null}
       {!loading && !folder ? <ui.Message tone="error">{T.pickFolder}</ui.Message> : null}
-      <small>{windows ? T.timeWindows : T.time}</small>
+      <small>{T.time}</small>
       <small>{T.rights}</small>
       {busy ? <ui.Progress steps={T.steps} current={step} value={step === 1 ? progress : undefined} label={T.steps[step] || ""} /> : null}
-      <ui.Actions><ui.Button variant="primary" busy={busy} busyLabel={T.working} disabled={loading || (!windows && !doctor?.ready) || chosen.length < SHOTS} onClick={build}>{T.build}</ui.Button>
-        {busy && windows && !costAsk ? <ui.Button variant="secondary" onClick={() => cancel.current?.abort()}>{T.cancel}</ui.Button> : null}</ui.Actions>
-      {costAsk ? <ui.Stack>
-        <ui.Message tone="muted">{costAsk.text}</ui.Message>
-        <ui.Actions><ui.Button variant="primary" onClick={() => answerCost(true)}>{pick(COST_GO, context.language)}</ui.Button><ui.Button variant="secondary" onClick={() => answerCost(false)}>{pick(COST_STOP, context.language)}</ui.Button></ui.Actions>
-      </ui.Stack> : null}
+      <ui.Actions><ui.Button variant="primary" busy={busy} busyLabel={T.working} disabled={loading || chosen.length < SHOTS} onClick={build}>{T.build}</ui.Button>
+        {busy ? <ui.Button variant="secondary" onClick={() => cancel.current?.abort("user-cancel")}>{T.cancel}</ui.Button> : null}</ui.Actions>
       {status ? <ui.Message tone={status.type}>{status.message}</ui.Message> : null}
     </ui.Stack>
   </ui.Section>;
@@ -1482,3 +1253,658 @@ async function readMediaPages(sdk, args) {
     if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
   }
 }
+
+// Generation uses the canonical SDK; the host owns job scope and delivery.
+
+
+// video-ai:start
+function videoAiClient(sdk, projectId, scope) {
+  const key="shared-ai:"+scope;
+  if (!sdk.storage?.getItem || !sdk.storage?.setItem) throw new Error("Update Selects to save AI job progress.");
+  return createSharedAiJobClient({projectId,scope,
+    runScript:async(script,summary,allowCommit=false)=>{
+      const response=await sdk.runScript({script,summary,allowCommit});
+      if(response?.isError||response?.result===undefined)throw new Error(response?.output||"AI operation returned no result.");
+      return response.result;
+    },
+    load:async()=>JSON.parse(await sdk.storage.getItem(key)||"null"),
+    save:journal=>sdk.storage.setItem(key,JSON.stringify(journal))});
+}
+// video-ai:end
+
+// shared-ai-job-client:start
+const sharedAiJobs=(()=>{const module={exports:{}};
+// Plugin-private durable orchestration of the existing public AI SDK.
+// This module is bundled into panels; it has no Node or renderer-global dependencies.
+const STATUS = new Set(['queued', 'running', 'canceling', 'succeeded', 'failed', 'canceled']);
+const terminal = status => ['succeeded', 'failed', 'canceled'].includes(status);
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const writes = new Map();
+const error = (code, message) => Object.assign(new Error(message), { code });
+const invalid = () => error('SHARED_AI_INVALID', 'Saved AI analysis does not match this source or task.');
+const clone = value => JSON.parse(JSON.stringify(value));
+function stable(value) {
+  if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
+  if (value && typeof value === 'object') return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + stable(value[k])).join(',') + '}';
+  if (value === undefined || typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint' || typeof value === 'number' && !Number.isFinite(value)) throw invalid();
+  return JSON.stringify(value);
+}
+function attached(signal) {
+  if (signal?.aborted) throw error('SHARED_AI_DETACHED', 'AI observation stopped. Reopen to recover the saved job.');
+}
+function inputFor(projectId, request) {
+  if (!request || !['faces.detect', 'person.matte'].includes(request.task) || !UUID.test(request.resourceId)) throw invalid();
+  const input = { runtimeId: 'selects-ai-runtime', projectId, resourceId: request.resourceId, task: request.task };
+  if (request.sourceRange !== undefined) {
+    const { startSeconds, endSeconds } = request.sourceRange || {};
+    if (!Number.isFinite(startSeconds) || startSeconds < 0 || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) throw invalid();
+    input.sourceRange = { startSeconds, endSeconds };
+  }
+  if (request.options !== undefined) {
+    if (!request.options || Array.isArray(request.options) || typeof request.options !== 'object') throw invalid();
+    stable(request.options); input.options = clone(request.options);
+  }
+  return input;
+}
+async function requestKey(scope, identity, input, attempt) {
+  const withoutKey = { ...input }; delete withoutKey.requestKey;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(stable({ scope, identity, input: withoutKey, attempt })));
+  return 'shared-ai-' + Array.from(new Uint8Array(digest), n => n.toString(16).padStart(2, '0')).join('');
+}
+function createSharedAiJobClient(env) {
+  const { projectId, scope, runScript, load, save } = env || {};
+  if (typeof projectId !== 'string' || !projectId || typeof scope !== 'string' || !scope ||
+      ![runScript, load, save].every(f => typeof f === 'function')) throw invalid();
+  const storageKey = stable({ projectId, scope });
+  const fresh = () => ({ version: 1, projectId, scope, records: [] });
+  async function read() {
+    let journal;
+    try { journal = await load(); }
+    catch (cause) {
+      if (String(cause?.message || cause).trim() === 'The file is unavailable.' || /ENOENT|not found|does not exist/i.test(String(cause?.message || cause))) journal = null;
+      else throw cause;
+    }
+    if (journal == null) return fresh();
+    if (typeof journal === 'string') { try { journal = JSON.parse(journal); } catch { throw invalid(); } }
+    if (journal.version !== 1 || journal.projectId !== projectId || journal.scope !== scope || !Array.isArray(journal.records) || journal.records.length > 10000) throw invalid();
+    const keys = new Set();
+    for (const r of journal.records) {
+      if (!r || typeof r.identity !== 'string' || !Number.isSafeInteger(r.attempt) || r.attempt < 0 || r.attempt > 255 ||
+          !/^shared-ai-[\da-f]{64}$/.test(r.input?.requestKey) || keys.has(r.input.requestKey) ||
+          (r.workflowId !== undefined && (typeof r.workflowId !== 'string' || !r.workflowId)) ||
+          (r.status !== undefined && !STATUS.has(r.status)) || (r.cancelRequested !== undefined && typeof r.cancelRequested !== 'boolean')) throw invalid();
+      const input = inputFor(projectId, r.input);
+      if (stable({ ...input, requestKey: r.input.requestKey }) !== stable(r.input)) throw invalid();
+      keys.add(r.input.requestKey);
+    }
+    return clone(journal);
+  }
+  async function update(record) {
+    const prior = writes.get(storageKey) || Promise.resolve();
+    const pending = prior.catch(() => {}).then(async () => {
+      const journal = await read(), i = journal.records.findIndex(r => r.input.requestKey === record.input.requestKey), old = journal.records[i];
+      if (old?.workflowId && record.workflowId && old.workflowId !== record.workflowId) throw invalid();
+      const next = { ...old, ...record, cancelRequested: Boolean(old?.cancelRequested || record.cancelRequested) };
+      if (old?.workflowId) next.workflowId = old.workflowId;
+      if (old && terminal(old.status)) next.status = old.status;
+      if (i < 0) journal.records.push(next); else journal.records[i] = next;
+      await save(clone(journal)); Object.assign(record, next);
+    });
+    writes.set(storageKey, pending);
+    try { await pending; } finally { if (writes.get(storageKey) === pending) writes.delete(storageKey); }
+  }
+  async function ack(record, signal) {
+    if (record.workflowId) return;
+    attached(signal);
+    const value = await runScript(`if(typeof selects.ai?.submit!=='function')throw new Error('AI_UPDATE_REQUIRED');const j=await selects.ai.submit(${JSON.stringify(record.input)});return {workflowId:j.workflowId};`, 'Start shared AI analysis', true);
+    if (typeof value?.workflowId !== 'string' || !value.workflowId) throw invalid();
+    record.workflowId = value.workflowId;
+    // Preserve an acknowledgment even when a panel detached during submit.
+    await update(record); attached(signal);
+  }
+  async function status(record, cancel = false) {
+    const value = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).${cancel ? 'cancel' : 'status'}();`, cancel ? 'Cancel shared AI analysis' : 'Read shared AI progress', cancel);
+    if (value?.workflowId !== record.workflowId || value.projectId !== projectId || value.runtimeId !== 'selects-ai-runtime' || value.task !== record.input.task || !STATUS.has(value.status)) throw invalid();
+    record.status = value.status; await update(record); return value;
+  }
+  async function stop(record, options = {}) {
+    record.cancelRequested = true; await update(record); await ack(record, options.signal);
+    if (!terminal(record.status)) await status(record, true);
+    const deadline = Date.now() + (options.maxWaitMs ?? 60000);
+    while (!terminal(record.status)) {
+      attached(options.signal);
+      if (Date.now() >= deadline) throw error('SHARED_AI_CANCEL_PENDING', 'AI is still stopping. Cancellation is saved; reopen to recover it.');
+      await new Promise(resolve => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+      await status(record);
+    }
+  }
+  async function run(request, options = {}) {
+    attached(options.signal);
+    const input = inputFor(projectId, request), identity = options.identity ?? '';
+    if (typeof identity !== 'string') throw invalid();
+    const journal = await read();
+    let record = journal.records.filter(r => r.identity === identity && stable(inputFor(projectId, r.input)) === stable(input)).sort((a, b) => b.attempt - a.attempt)[0];
+    if (record && record.input.requestKey !== await requestKey(scope, identity, input, record.attempt)) throw invalid();
+    // A detached panel can have saved 'running' while Main has since stopped.
+    // Refresh only during recovery; failure of a newly submitted job is not retried.
+    if (record?.workflowId && options.retryTerminal) {
+      attached(options.signal); await status(record); attached(options.signal);
+    }
+    if (record && options.retryTerminal && record.cancelRequested && !terminal(record.status)) await stop(record, options);
+    if (!record || options.retryTerminal && (['failed', 'canceled'].includes(record.status) || record.cancelRequested && terminal(record.status))) {
+      const attempt = record ? record.attempt + 1 : 0;
+      if (attempt > 255) throw invalid();
+      record = { identity, attempt, input: { ...input, requestKey: await requestKey(scope, identity, input, attempt) } };
+      await update(record);
+    }
+    await ack(record, options.signal);
+    for (;;) {
+      attached(options.signal);
+      const latest = (await read()).records.find(r => r.input.requestKey === record.input.requestKey);
+      if (!latest) throw invalid(); Object.assign(record, latest);
+      const value = await status(record, record.cancelRequested && !terminal(record.status));
+      attached(options.signal);
+      if (record.cancelRequested || record.status === 'canceled') throw error('SHARED_AI_CANCELED', 'AI analysis was canceled. Start again to retry.');
+      if (record.status === 'failed') throw error('SHARED_AI_FAILED', 'AI analysis failed. ' + String(value.lastErrorMessage || '').slice(0, 300));
+      if (record.status === 'succeeded') {
+        const result = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).result();`, 'Read shared AI result');
+        attached(options.signal);
+        if (result?.workflowId !== record.workflowId || result.task !== record.input.task || !result.files || typeof result.files !== 'object') throw invalid();
+        return { workflowId: record.workflowId, input: clone(record.input), result };
+      }
+      options.onProgress?.(value);
+      await new Promise(resolve => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+    }
+  }
+  async function cancel(options = {}) {
+    const journal = await read();
+    for (const record of journal.records) {
+      if (options.identity !== undefined && record.identity !== options.identity || terminal(record.status)) continue;
+      if (record.input.requestKey !== await requestKey(scope, record.identity, record.input, record.attempt)) throw invalid();
+      await stop(record, options);
+    }
+  }
+  return { run, cancel };
+}
+module.exports = { createSharedAiJobClient };
+
+return module.exports;})();
+const {createSharedAiJobClient}=sharedAiJobs;
+// shared-ai-job-client:end
+
+// shared-ai-resources:start
+const sharedAiResources=(()=>{const module={exports:{}};
+// Private joins between short run_script ids and persistent Project Resource ids.
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const fingerprint = rows => JSON.stringify(rows.map(r => [r.resourceId, r.name, r.type]));
+function canonicalResourceBindings(core, { projectId, draftId, trackKinds = ['Main'] } = {}) {
+  if (!core?.owner?.projectId || projectId && core.owner.projectId !== projectId || draftId && core.sequenceJson?.id !== draftId) throw new Error('The Draft belongs to another Project.');
+  const bindings = new Map();
+  function walk(rows) {
+    for (const row of rows || []) {
+      const id = row.mediaReferences?.defaultMedia?.id;
+      if (Number.isSafeInteger(row.id) && UUID.test(id)) {
+        if (bindings.has(row.id) && bindings.get(row.id) !== id) throw new Error('Ambiguous clip source binding.');
+        bindings.set(row.id, id);
+      }
+      if (Array.isArray(row.children)) walk(row.children);
+    }
+  }
+  for (const track of core.sequenceJson?.tracks?.children || []) if (trackKinds.includes(track.kind)) walk(track.children);
+  return bindings;
+}
+function pathKey(value) {
+  const path = String(value).normalize('NFC'), windows = /^[a-z]:[\\/]|^\\\\/i.test(path);
+  const normalized = path.replace(/\\/g, '/'); return windows ? normalized.toLowerCase() : normalized;
+}
+function runner(sdk, runScript) {
+  return runScript || (async (script, summary, allowCommit = false) => {
+    const value = await sdk.runScript({ script, summary, allowCommit });
+    if (value?.isError || value?.result === undefined) throw new Error(value?.output || 'The Project read returned an incomplete result.');
+    return value.result;
+  });
+}
+async function joinRows(sdk, projectId, runScript, script) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw new Error('Could not read Project Resources.');
+  const observed = await runner(sdk, runScript)(script, 'Resolve persistent AI source');
+  const after = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(after) || fingerprint(before) !== fingerprint(after) || observed?.count !== before.length || !Array.isArray(observed.rows)) throw new Error('Project Resources changed while resolving the AI source.');
+  const out = new Map();
+  for (const row of observed.rows) {
+    const raw = before[row?.index];
+    if (!Number.isSafeInteger(row?.index) || !raw || raw.name !== row.name || raw.type !== row.type || !UUID.test(raw.resourceId) || typeof row.id !== 'string') throw new Error('The persistent AI source could not be matched.');
+    out.set(row.id, raw.resourceId);
+  }
+  return out;
+}
+async function resolveSharedAiResources(sdk, projectId, aliases, runScript) {
+  if (!Array.isArray(aliases) || aliases.some(id => typeof id !== 'string' || !id)) throw new Error('Invalid AI source ids.');
+  const wanted = [...new Set(aliases)];
+  const mappings = await joinRows(sdk, projectId, runScript, `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const wanted=${JSON.stringify(wanted)};return {count:all.length,rows:all.flatMap((r,index)=>wanted.includes(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`);
+  for (const id of wanted) if (UUID.test(id)) {
+    const raw = await sdk.call('listProjectResources', projectId);
+    if (!raw.some(r => r.resourceId === id)) throw new Error('The AI source is no longer in this Project.');
+    mappings.set(id, id);
+  }
+  if (wanted.some(id => !mappings.has(id))) throw new Error('The AI source id is unavailable.');
+  return mappings;
+}
+async function importSharedAiResource(sdk, projectId, path, runScript) {
+  if (typeof path !== 'string' || !path || !(/^(?:[a-z]:[\\/]|\\\\|\/)/i.test(path))) throw new Error('An absolute AI source path is required.');
+  const run = runner(sdk, runScript);
+  const script = `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const key=${pathKey.toString()};const aliases=new Set<string>();const visit=(rows:any[])=>{for(const n of rows||[]){if(n.type==='dir')visit(n.children);else if(n.path&&key(n.path)===key(${JSON.stringify(path)}))aliases.add(n.resourceId);}};const tree=await p.sourceFiles();if('fileTree' in tree)visit(tree.fileTree);else for(const f of tree.folders||[]){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)visit(part.fileTree);}return {count:all.length,rows:all.flatMap((r,index)=>aliases.has(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`;
+  let map = await joinRows(sdk, projectId, run, script);
+  if (!map.size) {
+    await run(`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:[${JSON.stringify(path)}]});`, 'Register AI source media', true);
+    map = await joinRows(sdk, projectId, run, script);
+  }
+  const ids = [...new Set(map.values())];
+  if (ids.length !== 1) throw new Error('The imported AI source path is missing or ambiguous.');
+  return ids[0];
+}
+module.exports = { canonicalResourceBindings, resolveSharedAiResources, importSharedAiResource, importSharedAiVideo: importSharedAiResource };
+
+return module.exports;})();
+const {canonicalResourceBindings, resolveSharedAiResources, importSharedAiVideo}=sharedAiResources;
+// shared-ai-resources:end
+
+// shared-video-ai-frames:start
+const sharedVideoAiFrames=(()=>{const module={exports:{}};
+// prepareMatte owns durable URL adoption. Validate the entire sequence first,
+// then copy verified URLs in bounded scripts: a long clip must not keep one
+// script open beyond the host's deadline. Postprocessing never reads job scratch.
+// This helper accepts only newly encoded CFR sources whose source clock starts at zero.
+async function prepareSharedAiVideoFrames(sdk,projectId,manifest,folder,expected) {
+  const response=await sdk.runScript({summary:"Prepare durable shared AI masks",allowCommit:true,script:`
+    const m=await selects.ai.prepareMatte(${JSON.stringify(manifest)},${JSON.stringify(projectId)});
+    const expected=${JSON.stringify(expected)};
+    if(!m.sourceRange || m.sourceRange.startSeconds!==0 ||
+      !Number.isFinite(expected.fps) || expected.fps<=0 ||
+      !Number.isSafeInteger(expected.frames) || expected.frames<1 ||
+      m.sourceResourceId!==expected.resourceId || m.alphaEncoding!=='grayscale-png-8bit' ||
+      m.frameSize.width!==expected.width || m.frameSize.height!==expected.height ||
+      !Array.isArray(m.frames) || Math.abs(m.frames.length-expected.frames)>1 || !m.frames.length)
+      throw new Error('Shared mask geometry or frame count differs from the source.');
+    for(let i=0;i<m.frames.length;i++) {
+      const f=m.frames[i];
+      if(f.index!==i || !Number.isFinite(f.sourceTimeSeconds) ||
+        Math.abs(f.sourceTimeSeconds-i/expected.fps)>1/expected.fps/2+0.0001 ||
+        typeof f.url!=='string' || !f.url || /[\\r\\n]/.test(f.url))
+        throw new Error('Shared mask clock differs from the encoded source.');
+    }
+    let prefix=m.frames[0].url;
+    for(const f of m.frames) {
+      let end=0;
+      while(end<prefix.length && prefix[end]===f.url[end])end++;
+      prefix=prefix.slice(0,end);
+    }
+    const suffixes=m.frames.map(f=>f.url.slice(prefix.length));
+    const match=/^(\\d+)(\\.[a-z0-9]+)$/i.exec(suffixes[0]);
+    const sequence=match && Number.isSafeInteger(Number(match[1])) &&
+      suffixes.every((s,i)=>s===String(Number(match[1])+i).padStart(match[1].length,'0')+match[2])
+      ? {start:Number(match[1]),width:match[1].length,extension:match[2]} : null;
+    // This is lossless compression of every verified URL, never an assumption
+    // that host filenames start at zero or use a particular naming convention.
+    const result={count:m.frames.length,width:m.frameSize.width,height:m.frameSize.height,
+      prefix,sequence,suffixes:sequence?null:suffixes.join('\\n')};
+    if(JSON.stringify(result).length>128*1024)
+      throw new Error('Shared mask URL metadata exceeds the bounded script result.');
+    return result;`});
+  if(response?.isError || !Number.isSafeInteger(response?.result?.count)) throw new Error(response?.output||"The shared mask files could not be prepared.");
+  const prepared=response.result;
+  if(prepared.count<1 || prepared.count>20000 || Math.abs(prepared.count-expected.frames)>1 ||
+    prepared.width!==expected.width || prepared.height!==expected.height || typeof prepared.prefix!=="string")
+    throw new Error("The shared mask preparation returned incomplete metadata.");
+  const sequence=prepared.sequence;
+  if(sequence && (!Number.isSafeInteger(sequence.start) || sequence.start<0 ||
+    !Number.isSafeInteger(sequence.width) || sequence.width<1 || sequence.width>20 ||
+    typeof sequence.extension!=="string" || !/^\.[a-z0-9]+$/i.test(sequence.extension)))
+    throw new Error("The shared mask preparation returned invalid URL metadata.");
+  const suffixes=sequence?null:typeof prepared.suffixes==="string"?prepared.suffixes.split("\n"):null;
+  if(!sequence && suffixes?.length!==prepared.count)
+    throw new Error("The shared mask preparation returned incomplete URL metadata.");
+  const separator=String(folder).includes("\\")?"\\":"/";
+  for(let first=0;first<prepared.count;first+=32) {
+    const urls=Array.from({length:Math.min(32,prepared.count-first)},(_,offset)=>{
+      const index=first+offset;
+      return prepared.prefix+(sequence?String(sequence.start+index).padStart(sequence.width,"0")+sequence.extension:suffixes[index]);
+    });
+    const copied=await sdk.runScript({summary:"Copy durable shared AI masks",allowCommit:true,script:`
+      const urls=${JSON.stringify(urls)}, folder=${JSON.stringify(folder)};
+      await selects.files.mkdir(folder,{recursive:true});
+      let next=0,failed=false;
+      await Promise.all(Array.from({length:Math.min(8,urls.length)},async()=>{
+        for(;;) {
+          const index=next++;
+          if(failed || index>=urls.length)return;
+          try {
+            const path=await selects.files.pathFromLocalUrl(urls[index]);
+            const output=folder+${JSON.stringify(separator)}+'frame_'+String(${first}+index+1).padStart(6,'0')+'.png';
+            await selects.files.copy(path,output);
+          } catch(error) {failed=true;throw error;}
+        }
+      }));
+      return {count:urls.length};`});
+    if(copied?.isError || copied?.result?.count!==urls.length)
+      throw new Error(copied?.output||"The shared mask files could not be copied.");
+  }
+  return {count:prepared.count,width:prepared.width,height:prepared.height,
+    pattern:folder.replace(/[\\/]+$/,"")+separator+"frame_%06d.png"};
+}
+
+module.exports={prepareSharedAiVideoFrames};
+
+return module.exports;})();
+const {prepareSharedAiVideoFrames}=sharedVideoAiFrames;
+// shared-video-ai-frames:end
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const SCRIPT_BYTES = 256 * 1024;
+  const runSource = async (script: string, write = false) => {
+    if (new TextEncoder().encode(script).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script,
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  // Direct arguments keep object literals contextually typed by the SDK signature.
+  const run = (method: string, args: unknown[], write = false) =>
+    runSource("return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");", write);
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  // Three encoded chunks occupy 192 KiB, below the Panel's default 256 KiB result
+  // budget. The same script still awaits each canonical file operation in order.
+  const fileBatch = async (method: "readRange" | "writeChunk", inputs: unknown[], lengths: number[]) => {
+    let count = Math.min(3, inputs.length), script = "";
+    while (count > 0) {
+      script = "const rows=[];" + inputs.slice(0, count).map((input, index) => {
+        const call = "{const result=await selects.files." + method + "(" + JSON.stringify(input) + ");";
+        if (method === "writeChunk")
+          return call + "if(result?.bytesWritten!==" + lengths[index] + ")throw Error('The file write returned an incomplete result. Check the file before retrying.');rows.push(result);}";
+        return call + "if(!result||typeof result.base64!=='string'||!Number.isSafeInteger(result.bytesRead)||result.bytesRead<0||result.bytesRead>" + lengths[index] + ")throw Error('The file read returned an incomplete result.');rows.push(result);if(result.bytesRead<" + lengths[index] + ")return rows;}";
+      }).join("") + "return rows;";
+      if (new TextEncoder().encode(script).byteLength <= SCRIPT_BYTES) break;
+      count--;
+    }
+    if (!count) throw new Error("The local file script exceeds the 256 KiB limit.");
+    return { count, rows: await runSource(script, method === "writeChunk") };
+  };
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const inputs = Array.from({ length: Math.min(3, Math.ceil((length - total) / CHUNK_BYTES)) }, (_, index) =>
+        ({ path, offset: offset + total + index * CHUNK_BYTES, length: Math.min(CHUNK_BYTES, length - total - index * CHUNK_BYTES) }));
+      const lengths = inputs.map(input => input.length);
+      const { rows, count } = await fileBatch("readRange", inputs, lengths);
+      if (!Array.isArray(rows) || rows.length < 1 || rows.length > count) throw new Error("The file read returned an incomplete result.");
+      let short = false;
+      for (let index = 0; index < rows.length; index++) {
+        const result = rows[index];
+        if (!result || typeof result.base64 !== "string" || !Number.isSafeInteger(result.bytesRead) || result.bytesRead < 0 || result.bytesRead > lengths[index]) throw new Error("The file read returned an incomplete result.");
+        const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+        if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+        short = bytes.length < lengths[index];
+        if (short && index !== rows.length - 1) throw new Error("The file read returned invalid bytes.");
+        parts.push(bytes); total += bytes.length;
+      }
+      if (rows.length !== count && !short) throw new Error("The file read returned an incomplete result.");
+      if (short) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        let offset = 0;
+        do {
+          const inputs = [], lengths = [];
+          for (let index = 0; index < (replacement ? 3 : 1) && (offset + index * CHUNK_BYTES < bytes.length || index === 0); index++) {
+            const position = offset + index * CHUNK_BYTES, chunk = bytes.subarray(position, position + CHUNK_BYTES);
+            let binary = "";
+            for (const byte of chunk) binary += String.fromCharCode(byte);
+            const mode = position === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+            inputs.push({ path: destination, offset: position, base64: btoa(binary), ...(mode ? { mode } : {}) });
+            lengths.push(chunk.length);
+          }
+          if (!replacement) {
+            const result = await run("files.writeChunk", [inputs[0]], true);
+            if (result?.bytesWritten !== lengths[0]) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+          } else {
+            const { rows, count } = await fileBatch("writeChunk", inputs, lengths);
+            if (!Array.isArray(rows) || rows.length !== count || rows.some((row, index) => row?.bytesWritten !== lengths[index])) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+            lengths.length = count;
+          }
+          offset += lengths.reduce((sum, size) => sum + size, 0);
+        } while (offset < bytes.length);
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { recursive: false, force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, { recursive: options?.recursive ?? false, force: options?.force ?? false }], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { recursive: false, force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(Panel);
+// local-sdk:end

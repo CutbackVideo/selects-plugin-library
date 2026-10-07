@@ -3,7 +3,6 @@ import { eoOutputRefusal, type JobEntry } from "../jobs/store.ts";
 import { lit, readScript } from "./runScript.ts";
 import { readCapabilities, type Capabilities } from "./gates.ts";
 import { runSmokeGate, type SmokeReport } from "./ffmpeg.ts";
-import { hostDI } from "./di.ts";
 
 export const MAX_SOURCE_SECONDS = 95;
 export const MIN_SHORT_SIDE = 1080;
@@ -121,15 +120,13 @@ export async function runPreflight(
     projectId: string;
     draftId: string;
     signal?: AbortSignal | null;
-    di?: Record<string, any> | null;
-    versionOverride?: string;
+      versionOverride?: string;
     skipSmoke?: boolean;
     madeBy?: JobEntry | null;
   },
 ): Promise<PreflightReport> {
   const t0 = host.now();
-  const di = input.di !== undefined ? input.di : host.di !== undefined ? host.di : hostDI();
-  const capabilities = await readCapabilities(host.sdk, di, input.versionOverride);
+  const capabilities = await readCapabilities(host, input.versionOverride);
   const errors: Problem[] = [];
   const warnings: Problem[] = [];
   if (!capabilities.versionOk) errors.push({ code: "app-version", message: "Selects " + capabilities.version + " is too old; update Selects." });
@@ -138,7 +135,7 @@ export async function runPreflight(
   if (capabilities.canAuthorGeneratedMedia === false) {
     errors.push({ code: "generated-media", message: "Generated-media authoring is off for this account, so motion graphics would export broken." });
   }
-  if (capabilities.mediaGeneration.pluginFiles === false) warnings.push({ code: "image-generation", message: "Image generation for plugins needs Selects 2.0.512 or later; picture scenes become type scenes." });
+  if (capabilities.mediaGeneration.pluginFiles === false) warnings.push({ code: "image-generation", message: "This Selects build cannot generate pictures for plugins; picture scenes become type scenes." });
   if (!capabilities.stockSearch) warnings.push({ code: "stock-search", message: "This Selects build has no stock footage search; B-roll shots stay on the speaker." });
 
   let smoke: SmokeReport | null = null;

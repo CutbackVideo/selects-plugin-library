@@ -1,25 +1,58 @@
+import {withPanelLocalClient} from "../../../shared/local-client";
+import { hostUseSdk } from "./pipeline/host";
 import React, { useEffect, useRef, useState } from "react";
+
+// panel-storage:start
+// Keep writes ordered even across a panel remount; failed writes remain visible to callers.
+const panelStorageClients = new WeakMap();
+function panelStorage(sdk) {
+  const storage = sdk?.storage;
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function" || typeof storage.removeItem !== "function") {
+    throw new Error("Update Selects to use this plugin: sdk.storage is required.");
+  }
+  if (!panelStorageClients.has(storage)) {
+    let tail = Promise.resolve();
+    const enqueue = (operation) => {
+      const pending = tail.then(operation);
+      tail = pending.catch(() => {});
+      return pending;
+    };
+    panelStorageClients.set(storage, {
+      getItem: (key) => enqueue(() => storage.getItem(key)),
+      setItem: (key, value) => enqueue(() => storage.setItem(key, value)),
+      removeItem: (key) => enqueue(() => storage.removeItem(key)),
+    });
+  }
+  return panelStorageClients.get(storage);
+}
+function withStoredPanel(Component, load) {
+  return function StoredPanel(props) {
+    const [state, setState] = React.useState(null);
+    const [attempt, retry] = React.useState(0);
+    React.useEffect(() => {
+      let current = true;
+      setState(null);
+      Promise.resolve().then(() => load(panelStorage(props.sdk))).then(
+        (saved) => { if (current) setState({sdk: props.sdk, saved}); },
+        (error) => { if (current) setState({sdk: props.sdk, error: String(error?.message || error)}); },
+      );
+      return () => { current = false; };
+    }, [props.sdk, attempt]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error, React.createElement("button", {onClick: () => retry(n => n + 1)}, "Retry loading saved settings"));
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Loading saved settings…");
+    return React.createElement(Component, {...props, saved: state.saved});
+  };
+}
+// panel-storage:end
+
 import { makeReel, rebuildReel, loadJob, STEPS, type Step, type MakeResult } from "./pipeline/make";
 import FaceStage from "./FaceStage";
 import { app } from "./pipeline/host";
 
-const readStore = (k: string) => {
-  try {
-    return localStorage.getItem(k) || "";
-  } catch {
-    return "";
-  }
-};
-const writeStore = (k: string, v: string) => {
-  try {
-    if (v) localStorage.setItem(k, v);
-    else localStorage.removeItem(k);
-  } catch {}
-};
-
 const STORE = "podcast-hook-captions:v2:";
 
-export default function PodcastHookReel({ sdk, context, ui }: any) {
+function PodcastHookReel({ sdk, context, ui, saved }: any) {
+  hostUseSdk(sdk);
   const [seconds, setSeconds] = useState(25);
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,19 +61,29 @@ export default function PodcastHookReel({ sdk, context, ui }: any) {
   const [result, setResult] = useState<MakeResult | null>(null);
   const [clock, setClock] = useState(0);
   const [isReel, setIsReel] = useState(false);
-  const [genBroll, setGenBroll] = useState(() => readStore(STORE + "genBroll") === "1");
+  const [genBroll, setGenBroll] = useState(saved.genBroll === "1");
   const alive = useRef(true);
   useEffect(() => () => void (alive.current = false), []);
+  const [restoredSequence, setRestoredSequence] = useState<string | null>(null);
+  const resultReady = restoredSequence === context?.sequenceId;
+  const sequenceRef = useRef(context?.sequenceId);
+  sequenceRef.current = context?.sequenceId;
   useEffect(() => {
-    try {
-      setResult(JSON.parse(localStorage.getItem(STORE + context?.sequenceId) || "null"));
-    } catch {
-      setResult(null);
-    }
+    let current = true;
+    setResult(null); setRestoredSequence(null); setIsReel(false);
     if (!busy) setSteps(STEPS.map(([id, label]) => ({ id, label, state: "wait" as const })));
-    setIsReel(false);
-    if (context?.sequenceId) loadJob(context.sequenceId).then((j) => alive.current && setIsReel(!!j)).catch(() => {});
-  }, [context?.sequenceId]);
+    (async () => {
+      const value = context?.sequenceId ? await panelStorage(sdk).getItem(STORE + context.sequenceId) : null;
+      const restored = JSON.parse(value || "null");
+      if (!current) return;
+      setResult(restored); setRestoredSequence(context?.sequenceId ?? null);
+      if (context?.sequenceId) {
+        const job = await loadJob(context.sequenceId);
+        if (current) setIsReel(!!job);
+      }
+    })().catch(e => { if (current) setError(String(e?.message || e)); });
+    return () => { current = false; };
+  }, [sdk, context?.sequenceId]);
   useEffect(() => {
     if (!busy) return;
     const t0 = Date.now();
@@ -54,14 +97,13 @@ export default function PodcastHookReel({ sdk, context, ui }: any) {
   };
 
   const make = async (rebuild = false) => {
-    if (busy) return;
+    if (busy || !resultReady) return;
     if (!context?.sequenceId || !context?.projectId) {
       setError("Open the podcast Draft first.");
       return;
     }
-    // One reel at a time per app window: the lock lives on the app window, so reopening a Draft (which
-    // remounts the panel) cannot start a second build over a running one. A lock older than 40 minutes is
-    // taken to be left over from a panel that was closed mid-run.
+    // One reel at a time per panel frame. A lock older than 40 minutes is taken to be left over from a
+    // run that never cleared it.
     const host: any = app();
     const held = host.__phcRunning;
     if (held && Date.now() - held < 40 * 60000) {
@@ -73,16 +115,17 @@ export default function PodcastHookReel({ sdk, context, ui }: any) {
     setError("");
     setResult(null);
     setSteps(STEPS.map(([id, label]) => ({ id, label, state: "wait" as const })));
+    const sequenceId = context.sequenceId;
     try {
+      await panelStorage(sdk).setItem(STORE + "genBroll", genBroll ? "1" : "");
       const broll = { generate: genBroll };
       const r = rebuild
         ? await rebuildReel(sdk, context.sequenceId, onStep, broll)
         : await makeReel(sdk, { projectId: context.projectId, sequenceId: context.sequenceId }, { seconds, hint: hint.trim(), ...broll }, onStep);
       const keep = { ...r, plan: undefined as any };
-      try {
-        localStorage.setItem(STORE + context.sequenceId, JSON.stringify(keep));
-      } catch {}
-      if (alive.current) setResult(keep);
+      // Keep the completed reel available even when saving its receipt fails.
+      if (alive.current && sequenceRef.current === sequenceId) setResult(keep);
+      await panelStorage(sdk).setItem(STORE + sequenceId, JSON.stringify(keep));
     } catch (e: any) {
       if (alive.current) {
         setError(String(e?.message || e));
@@ -111,30 +154,30 @@ export default function PodcastHookReel({ sdk, context, ui }: any) {
       </div>
       <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <span>Reel length: {seconds} s</span>
-        <input type="range" min={18} max={40} step={1} value={seconds} disabled={busy} onChange={(e) => setSeconds(Number(e.target.value))} />
+        <input type="range" min={18} max={40} step={1} value={seconds} disabled={busy || !resultReady} onChange={(e) => setSeconds(Number(e.target.value))} />
       </label>
       <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <span>Note for the editor (optional)</span>
-        <input type="text" value={hint} disabled={busy} placeholder="e.g. use the part about dopamine" onChange={(e) => setHint(e.target.value)} />
+        <input type="text" value={hint} disabled={busy || !resultReady} placeholder="e.g. use the part about dopamine" onChange={(e) => setHint(e.target.value)} />
       </label>
       <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
         <input
           type="checkbox"
           checked={genBroll}
-          disabled={busy}
+          disabled={busy || !resultReady}
           onChange={(e) => {
             setGenBroll(e.target.checked);
-            writeStore(STORE + "genBroll", e.target.checked ? "1" : "");
+            void panelStorage(sdk).setItem(STORE + "genBroll", e.target.checked ? "1" : "").catch(e => setError(String(e?.message || e)));
           }}
         />
         <span>B-roll comes from stock footage. If this Selects version has no stock search, generate it with AI instead (4-12 minutes and about $2 per reel).</span>
       </label>
       {isReel && (
-        <button onClick={() => make(true)} disabled={busy} style={{ padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" }}>
+        <button onClick={() => make(true)} disabled={busy || !resultReady} style={{ padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" }}>
           Rebuild this reel
         </button>
       )}
-      <button onClick={() => make(false)} disabled={busy} style={{ padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" }}>
+      <button onClick={() => make(false)} disabled={busy || !resultReady} style={{ padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" }}>
         {busy ? "Making the reel… " + clock + " s" : result ? "Make another reel" : "Make reel"}
       </button>
       {(busy || steps.some((s) => s.state !== "wait")) && (
@@ -185,3 +228,5 @@ export default function PodcastHookReel({ sdk, context, ui }: any) {
     </div>
   );
 }
+
+export default withPanelLocalClient(withStoredPanel(PodcastHookReel, async storage => ({genBroll: await storage.getItem(STORE + "genBroll")})));

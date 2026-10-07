@@ -1,6 +1,6 @@
 from pathlib import Path
 import copy,json,inspect,textwrap,re,importlib.util
-import geometry
+import geometry,textfont
 from PIL import Image,ImageDraw,ImageFont
 K=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('caption_native',K/'native/template-service.py');svc=importlib.util.module_from_spec(spec);spec.loader.exec_module(svc)
@@ -65,15 +65,15 @@ def compile(input_data, editorial):
   a=p['groups'][0][0];z=p['groups'][-1][1];words=[clean(w['text']) for w in W[a:z+1]]
   ft=ImageFont.truetype('/System/Library/Fonts/HelveticaNeue.ttc',52,index=1)
   whole=' '.join(words)
-  if ft.getlength(whole)<=700:tt=[whole]
+  if textfont.getlength(ft,whole)<=700:tt=[whole]
   else:
    opts=[[' '.join(words[:j]),' '.join(words[j:])] for j in range(1,len(words))]
-   tt=min(opts,key=lambda ls:max(ft.getlength(t) for t in ls))
-  assert max(ft.getlength(t) for t in tt)<=730,tt
+   tt=min(opts,key=lambda ls:max(textfont.getlength(ft,t) for t in ls))
+  assert max(textfont.getlength(ft,t) for t in tt)<=730,tt
   orig=copy.deepcopy(svc.base_legacy_plans[47]);e=copy.deepcopy(orig);e['runs']=[]
   for j,t in enumerate(tt):
    baseline=1426+j*62 if len(tt)==2 else 1460
-   full=Image.new('L',(1080,1920));draw=ImageDraw.Draw(full);draw.text((540,baseline),t,font=ft,anchor='ms',fill=255)
+   full=Image.new('L',(1080,1920));textfont.text(full,(540,baseline),t,ft,anchor='ms')
    box=full.getbbox();r=copy.deepcopy(orig['runs'][min(j,1)]);r.update(text=t,x=box[0],y=box[1],w=box[2]-box[0],h=box[3]-box[1],rgb=[255,255,255],at=e['start'],_mask=full.resize((540,960),Image.Resampling.LANCZOS))
    e['runs'].append(r)
   p.update(source=e,event=48,texts=tt,id='REF-E48',name='Ordinary caption · 52px type / 62px baseline spacing')
@@ -106,7 +106,7 @@ def compile(input_data, editorial):
   for r,t in zip(p['source']['runs'],p['texts']):
    ft=ImageFont.truetype(r['font'],140,index=r.get('index',0));stroke=r.get('stroke',round(r.get('strokeAt200',0)*.7))
    def extent(t):
-    box=ft.getbbox(t,stroke_width=stroke);return box[2]-box[0],box[3]-box[1]
+    box=textfont.getbbox(ft,t,stroke_width=stroke);return box[2]-box[0],box[3]-box[1]
    ow,oh=extent(r['text']);nw,nh=extent(t);w=r.get('w',r.get('width'));h=r.get('h',r.get('height'))
    fit=min(1,ow/max(1,nw),oh/max(1,nh));em=140*h/max(1,nh)
    slots.append(dict(text=t,sourceText=r['text'],font=Path(r['font']).name,fontIndex=r.get('index',0),fontPxY=52 if p['id'].startswith('REF') else round(em,1),fit=1 if p['id'].startswith('REF') else round(fit,3),x=r['x'],y=r['y'],w=w,h=h,color=r.get('rgb',[253]*3),atSeconds=round(p['start']/fps+(r['at']-p['source']['start'])/p.get('sourceFps',24),3)))

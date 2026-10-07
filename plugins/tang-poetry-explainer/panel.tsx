@@ -17,7 +17,7 @@ import React from "react";
 
 const APP_ID = "tang-poetry-explainer";
 // The engine (voxEngine, in the operation section below) runs inside the panel on macOS and
-// Windows: files through the host FileSystem, ffmpeg through the host's bundled copy, no shell and no Python.
+// Windows: files through the canonical file SDK, ffmpeg through the host's bundled copy, no shell and no Python.
 const TPL: Record<string, string> = {"headline": "import React from 'react';\nimport {useCurrentFrame,useVideoConfig,interpolate,spring} from 'remotion';\nexport default function Headline({data}) {\n const frame=useCurrentFrame(),{width,height,fps}=useVideoConfig(),k=width/1920;\n const tang=data?.style==='tang';\n const text=String(data?.text||'');\n const family=String(data?.fontFamily||'').trim()||\"'Arial Black','Arial','Malgun Gothic','Noto Sans CJK KR','Microsoft YaHei','Yu Gothic',sans-serif\";\n const progress=spring({frame,fps,config:{damping:20,stiffness:150}});\n const size=Math.min(Number(data?.fontSize||88),text.length>28?64:88)*k;\n const accent=String(data?.accentColor||(tang?'#A92D25':'#E04329'));\n return <div style={{position:'absolute',left:width*.045,top:height*.045,maxWidth:width*.89,pointerEvents:'none',opacity:interpolate(frame,[0,7],[0,1],{extrapolateRight:'clamp'}),transform:`translateY(${(1-progress)*-35*k}px)`}}>\n  <div style={{background:String(data?.barColor||(tang?'#F1E7CC':'#DAD9D5')),padding:`${12*k}px ${24*k}px`,borderLeft:`${8*k}px solid ${accent}`,boxShadow:tang?`${5*k}px ${6*k}px 0 #34251b55`:`${8*k}px ${9*k}px 0 ${accent}`,transform:tang?'rotate(-.4deg)':'rotate(-.8deg)'}}>\n   <div style={{fontFamily:family,fontWeight:900,fontSize:size,lineHeight:1.1,letterSpacing:-1*k,color:String(data?.textColor||'#1A1A1A'),overflowWrap:'anywhere'}}>{text}</div>\n  </div>\n  {!tang&&<div style={{height:5*k,marginTop:10*k,background:accent,transformOrigin:'left',transform:`scaleX(${Math.min(1,frame/18)})`}}/>}\n </div>;\n}\n", "caption": "import React from 'react';\nimport {useVideoConfig} from 'remotion';\nexport default function Caption({data}) {\n const {width,height}=useVideoConfig(),k=width/1920;\n const fontFamily=String(data?.fontFamily||'').trim()||\"Arial,'Malgun Gothic','Noto Sans CJK KR','Microsoft YaHei','Yu Gothic',sans-serif\";\n return <div style={{position:'absolute',left:width*.06,right:width*.06,bottom:height*.045,display:'flex',justifyContent:'center',pointerEvents:'none'}}>\n  <div style={{fontFamily,fontSize:Number(data?.fontSize||44)*k,fontWeight:700,lineHeight:1.35,color:'#FFF9ED',background:'rgba(19,18,15,.88)',padding:`${10*k}px ${22*k}px`,textAlign:'center',maxWidth:'100%',whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{String(data?.text||'')}</div>\n </div>;\n}\n", "credit": "import React from 'react';\nimport {useVideoConfig,useCurrentFrame,interpolate} from 'remotion';\nexport default function Credit({data}) {\n const {width,height}=useVideoConfig(),frame=useCurrentFrame(),k=width/1920;\n return <div style={{position:'absolute',left:width*.06,right:width*.06,bottom:height*.17,padding:`${18*k}px ${24*k}px`,background:'#F1EBDD',color:'#1A1A1A',borderLeft:`${7*k}px solid #E04329`,opacity:interpolate(frame,[0,8],[0,1],{extrapolateRight:'clamp'}),fontFamily:\"Arial,'Malgun Gothic','Microsoft YaHei','Yu Gothic',sans-serif\",overflowWrap:'anywhere'}}>\n <div style={{fontSize:30*k,fontWeight:700}}>{String(data?.source||'')}</div><div style={{fontSize:21*k,lineHeight:1.4}}>{String(data?.photos||'')}</div></div>;\n}\n", "editorial": "import React from 'react';\nimport {useCurrentFrame,useVideoConfig,interpolate,spring} from 'remotion';\n// Source-backed labels remain native editable graphics, never text painted by an image model.\nexport default function Editorial({data}) {\n const frame=useCurrentFrame(),{width,height,fps,durationInFrames}=useVideoConfig(),k=width/1920;\n const items=String(data?.text||'').split('\\n').filter(Boolean).slice(0,3);\n const kind=String(data?.kind||'document'),accent=String(data?.accentColor||'#E04329');\n const fontFamily=String(data?.fontFamily||'').trim()||\"Arial,'Noto Sans CJK KR','Malgun Gothic','Microsoft YaHei','Yu Gothic',sans-serif\";\n const end=Math.max(1,durationInFrames-1),stagger=Math.min(Math.round(fps*.3),Math.floor(end/8));\n return <div style={{position:'absolute',left:width*.18,right:width*.18,top:height*.32,bottom:height*.22,display:'flex',flexDirection:kind==='comparison'?'row':'column',justifyContent:'center',alignItems:kind==='comparison'?'center':'stretch',gap:22*k,pointerEvents:'none'}}>\n  {items.map((text,i)=>{const start=i*stagger,p=spring({frame:frame-start,fps,config:{damping:19,stiffness:120}}),reveal=interpolate(frame,[start,start+Math.max(1,stagger*2)],[0,1],{extrapolateLeft:'clamp',extrapolateRight:'clamp'});return <div key={i} style={{position:'relative',flex:kind==='comparison'?1:undefined,minWidth:0,background:'#EFECE2',padding:`${20*k}px ${28*k}px`,boxShadow:`${9*k}px ${10*k}px 0 ${accent}`,border:'1px solid #332b2130',opacity:reveal,transform:`translateY(${(1-p)*45*k}px) rotate(${i%2?.7:-.6}deg)`}}>\n   {kind==='timeline'&&<div style={{position:'absolute',left:-18*k,top:0,bottom:0,width:4*k,background:accent}}/>}\n   <div style={{fontFamily,fontSize:(kind==='stat'&&text.length<=18?80:kind==='comparison'?(text.length>40?30:43):(text.length>50?34:48))*k,fontWeight:kind==='stat'?900:600,lineHeight:1.25,color:'#16110D',whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{text}</div>\n   <div style={{height:4*k,marginTop:12*k,background:accent,transformOrigin:'left',transform:`scaleX(${reveal})`}}/>\n  </div>})}\n </div>;\n}\n"};
 const CAPTION_BOTTOM = 1030;
 const MUSIC_DB = -19;
@@ -253,51 +253,30 @@ function extractJson(text: string): any {
   if (a < 0 || b <= a) throw new Error("NO_JSON");
   return JSON.parse(body.slice(a, b + 1));
 }
-function host(): any {
-  try {
-    return (window.parent as any)?.__DI__ || null;
-  } catch (e) {
-    return null;
-  }
-}
+
 function hostFs(): any {
-  const fs = host()?.FileSystem;
-  const need = ["readFile", "writeFile", "homedir", "existsSync", "mkdirSync", "readdirSync"];
+  const fs = hostSdk.files;
+  const need = ["readFile", "writeFile", "homedir", "exists", "mkdir", "readdir"];
   return fs && need.every((k) => typeof fs[k] === "function") ? fs : null;
 }
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -328,34 +307,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -663,13 +625,14 @@ async function voxJob(io, dir) {
   const path = io.join(dir, "job.json");
   const data = await io.readJson(path, null);
   if (!pyTrue(data)) throw voxFail("job.json missing in " + dir);
+  for (const parts of [[], ["portraits"], ["check"], ["gen", "kenburns"]]) await io.mkdir(io.join(dir, ...parts));
   const job = {
     dir, path, data, id: data.id,
-    p: (...parts) => { const d = io.join(dir, ...parts.slice(0, -1)); io.mkdir(d); return io.join(d, parts[parts.length - 1]); },
+    p: (...parts) => { const d = io.join(dir, ...parts.slice(0, -1)); return io.join(d, parts[parts.length - 1]); },
     save: async () => { data.updated = new Date(io.now() * 1000).toISOString().slice(0, 19) + "Z"; await io.writeJson(path, data); },
     plan: async () => { const p = await io.readJson(io.join(dir, "plan.json"), null); if (!pyTrue(p)) throw voxFail("plan.json missing"); return p; },
     gen: async () => (await io.readJson(io.join(dir, "gen.json"), {})) || {},
-    file: async (key) => { const g = (await job.gen())[key] || {}; const p = g.path; return pyTrue(p) && io.exists(p) ? p : null; },
+    file: async (key) => { const g = (await job.gen())[key] || {}; const p = g.path; return pyTrue(p) && await io.exists(p) ? p : null; },
   };
   return job;
 }
@@ -1104,7 +1067,7 @@ async function voxCmdSheet(io, job, only) {
     }
     return made;
   };
-  const labelFont = io.exists(font) ? font : null;
+  const labelFont = await io.exists(font) ? font : null;
   let sheets, unlabelled = false;
   try { sheets = await make(labelFont); } catch (e) {
     if (!labelFont) throw voxFail("sheet: " + pySlice(String(e && e.message || e), -300));
@@ -1240,15 +1203,15 @@ export const VOX_READY_PAUSE_MS = 3000;
 // The engine's I/O on the host (see voxEngine): job files through FileSystem, ffmpeg and ffprobe through the host's
 // bundled copies, and the network two ways. Wikipedia/Commons API answers come through fetch (they allow any origin
 // with origin=*, and take Api-User-Agent for the agent engine.py sends). Article pages and portrait images are
-// downloaded by the host's FileSystem.downloadFile, outside the panel's origin rules, into the job folder; a page that
+// downloaded by selects.files.download, outside the panel's origin rules, into the job folder; a page that
 // will not download counts as HTTP 599 (FETCH_FAILED: "paste the text instead").
 function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; writeJson: (p: string, v: any) => Promise<void> }) {
   const fs = hostNeed("FileSystem", "join");
   const tmp = () => hostJoin(dir, "dl-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".tmp");
   return {
     join: (...p: string[]) => hostJoin(...p),
-    exists: (p: string) => { try { return !!p && !!fs.existsSync(p); } catch (e) { return false; } },
-    mkdir: (p: string) => { if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); },
+    exists: async (p: string) => { try { return !!p && !!(await fs.exists(p)); } catch (e) { return false; } },
+    mkdir: async (p: string) => { if (!(await fs.exists(p))) (await fs.mkdir(p, { recursive: true })); },
     readJson: async (p: string, def: any) => { const v = await files.readJson(p); return v === null ? def : v; },
     writeJson: (p: string, v: any) => files.writeJson(p, v),
     now: () => Date.now() / 1000,
@@ -1284,7 +1247,7 @@ function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; 
     download: async (url: string, dest: string) => {
       try {
         await hostNeed("FileSystem", "downloadFile").downloadFile(url, dest);
-        if (fs.existsSync(dest)) return 200;
+        if ((await fs.exists(dest))) return 200;
       } catch (e) { /* the panel's fetch */ }
       try {
         const r = await fetch(url);
@@ -1298,7 +1261,7 @@ function voxHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; 
 // Selects' own media generation for plug-in panels: billed to the user's Selects credits, results
 // saved into a folder under ~/.selects/plugin-data (Selects 2.0.512+).
 function generation(): any {
-  const m = host()?.MediaGeneration;
+  const m = sdkGeneration(hostSdk);
   if (!m || typeof m.submit !== "function" || typeof m.list !== "function") return null;
   if (typeof m.isAvailable === "function" && !m.isAvailable()) return null;
   if (typeof m.supportsPluginFiles === "function" && !m.supportsPluginFiles()) return null;
@@ -1449,7 +1412,8 @@ return { draftId: (out as any).createdDraftId ?? null, seconds: total / fps, cli
 `;
 }
 
-export default function Panel({ sdk, context, ui }: any) {
+function Panel({ sdk, context, ui }: any) {
+  hostUseSdk(sdk);
   const uiLang = String(context?.language || "en").split("-")[0];
   const S: Strings = STRINGS[uiLang] ?? STRINGS.en;
   const creditNotice = {"de": "Kann Credits verbrauchen.", "en": "May use credits.", "es": "Puede usar cr\u00e9ditos.", "fr": "Peut utiliser des cr\u00e9dits.", "it": "Pu\u00f2 usare crediti.", "ja": "\u30af\u30ec\u30b8\u30c3\u30c8\u3092\u4f7f\u7528\u3059\u308b\u5834\u5408\u304c\u3042\u308a\u307e\u3059\u3002", "ko": "\ud06c\ub808\ub527\uc774 \uc0ac\uc6a9\ub420 \uc218 \uc788\uc2b5\ub2c8\ub2e4.", "pt": "Pode usar cr\u00e9ditos.", "tr": "Kredi kullanabilir.", "zh": "\u53ef\u80fd\u6d88\u8017\u79ef\u5206\u3002"}[uiLang] || "May use credits.";
@@ -1486,10 +1450,10 @@ export default function Panel({ sdk, context, ui }: any) {
     return S.errors[m] || m;
   };
 
-  // ---- Host helpers: files through the host FileSystem (window.parent.__DI__), no shell ----
+  // ---- Host helpers: files through the canonical file SDK, no shell ----
   async function readText(path: string): Promise<string | null> {
     try {
-      return fs && fs.existsSync(path) ? dec(await fs.readFile(path)) : null;
+      return fs && (await fs.exists(path)) ? dec(await fs.readFile(path)) : null;
     } catch (e) {
       return null;
     }
@@ -1497,7 +1461,7 @@ export default function Panel({ sdk, context, ui }: any) {
   async function writeBytes(path: string, bytes: Uint8Array) {
     if (!fs) throw new Error(S.noHost);
     const dir = path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!(await fs.exists(dir))) (await fs.mkdir(dir, { recursive: true }));
     await fs.writeFile(path, bytes);
   }
   async function readB64(path: string): Promise<string> {
@@ -1513,8 +1477,8 @@ export default function Panel({ sdk, context, ui }: any) {
   };
   const writeJson = (path: string, v: any) => writeBytes(path, enc(JSON.stringify(v)));
 
-  // Working files live in ~/.selects/plugin-data/vox-explainer. The engine needs the host's FileSystem (files and
-  // downloads) and its bundled ffmpeg/ffprobe; a Selects build without them gets one "update Selects" message.
+  // Working files live in ~/.selects/plugin-data/vox-explainer. The engine uses SDK file and media services (files,
+  // downloads and bundled ffmpeg/ffprobe); a build without them gets one "update Selects" message.
   async function ensureEnv() {
     if (env.current) return env.current;
     if (!fs || !hostApi("FileSystem", "join", "downloadFile") || !hostApi("Runtime", "runFFmpeg", "runFFprobe")) throw new Error(S.noHost);
@@ -1625,9 +1589,9 @@ export default function Panel({ sdk, context, ui }: any) {
     if (!projectId || !fs) return;
     try {
       const root = hostJoin(fs.homedir(), ".selects", "plugin-data", APP_ID, "jobs");
-      if (!fs.existsSync(root)) return setJobs([]);
+      if (!(await fs.exists(root))) return setJobs([]);
       const list: any[] = [];
-      for (const n of fs.readdirSync(root)) {
+      for (const n of (await fs.readdir(root))) {
         const j = await readJson(hostJoin(root, n, "job.json"));
         const pj = (await readJson(hostJoin(root, n, "panel.json"))) || {};
         if (j && j.projectId === projectId && pj.started && !pj.done && !pj.dismissed)
@@ -1979,3 +1943,303 @@ export default function Panel({ sdk, context, ui }: any) {
     </ui.Stack>
   );
 }
+
+// generation-sdk:start
+// Paid jobs always cross the canonical run_script boundary. This panel-local
+// adapter preserves old saved job IDs while the host owns scope and delivery.
+function sdkGeneration(sdk) {
+  if (typeof sdk?.runScript !== "function") return null;
+  const run = async (script, summary, allowCommit = false) => {
+    const response = await sdk.runScript({ script, summary, allowCommit });
+    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
+    return response?.result;
+  };
+  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
+  return {
+    isAvailable: () => true,
+    supportsPluginFiles: () => true,
+    async submit(request) {
+      if (request.batch != null && request.batch !== 1) throw new Error("Submit one generation at a time.");
+      const input = {
+        projectId: request.scope.projectId, requestKey: request.key,
+        modelId: request.modelId, input: request.input, uploads: request.uploads || {},
+        outputName: request.outputName, mediaType: request.origin?.tool || "video",
+        ...(request.inputMediaSeconds ? { inputMediaSeconds: request.inputMediaSeconds } : {}),
+        ...(request.delivery ? { delivery: { folder: request.delivery.pluginFolder } } : {}),
+      };
+      const result = await run(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
+      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
+      return { jobIds: [result.jobId] };
+    },
+    list: scope => run(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
+    cancel: (scope, id) => run(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
+    retryDelivery: (scope, id) => run(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true),
+  };
+}
+// generation-sdk:end
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    // Direct arguments keep object literals contextually typed by the SDK signature.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(Panel);
+// local-sdk:end

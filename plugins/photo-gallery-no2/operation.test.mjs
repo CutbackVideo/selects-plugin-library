@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { buildScript } from './operation-builder.mjs';
+import { planGallery } from './format.mjs';
 
 const effectSha = 'bf1d24dab2ac13a45fcd5a1ce5ff0587de86be31f900ab03976cbbc1fc5eba86';
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -356,6 +357,16 @@ test('style batches bound effect work, preserve prior styles, and add music only
     assert.equal(f.inserted.filter(row => row.trackKind === 'audio').length, start === 18 ? 1 : 0);
   }
   assert.equal((await f.run({ ...f.input, operation: 'verifyCreated' })).status, 'verified');
+});
+
+test('styling plans on the Project frame grid the Draft was created on', async () => {
+  const f = batchFixture();
+  const fps = 30, plan = planGallery({ media: f.input.media, manualBpm: f.input.manualBpm, fps });
+  f.draft.meta = async () => ({ fps, frameSize: { width: 1080, height: 1920 }, durationFrames: plan.durationFrames });
+  f.inserted.splice(0, f.inserted.length, ...plan.tiles.map((tile, i) => ({ clipId: i + 1, trackId: `v${i}`,
+    trackKind: 'video', resourceId: tile.resourceId, startFrame: tile.revealFrame, endFrame: tile.endFrame })));
+  const result = await f.run({ ...f.input, fps, operation: 'styleExisting', slotKeys: ['tile-01', 'tile-02', 'tile-03'], placeMusic: false });
+  assert.equal(result.status, 'styled', result.message);
 });
 
 test('styling leaves non-target manual edits untouched and rejects a styled selected target', async () => {

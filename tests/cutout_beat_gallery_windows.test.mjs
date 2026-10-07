@@ -1,9 +1,6 @@
-// Beat Cutout Gallery on Windows, end to end in a mock host: the panel's own Windows functions (winFrames,
-// winCutouts, the engine Worker) run against a fake window.parent.__DI__ built in another JavaScript realm, with
-// FileSystem over node fs, Runtime.runFFmpeg/runFFprobe over the local ffmpeg, and a MediaGeneration stub that
-// "cuts out" the people by returning the fixture masks as a clip with the same hold layout as the clip it was sent.
-// The photos are the synthetic folder of tests/fixtures/cutout_beat_gallery/parity.json (written as PNG), so the
-// result must equal prepare.py's. Skipped when ffmpeg is not on PATH.
+import { asyncSdk } from './windows_host.mjs';
+// The production photo helpers and worker run against shared-AI SDK job fixtures with real FFmpeg.
+// Lossless fixture masks verify the unchanged sticker/scene transform against the independent Python baseline.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -12,6 +9,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import {webcrypto} from 'node:crypto';
 import { panelSource, loadPanelFunctions } from './windows_host.mjs';
 
 const require = createRequire(import.meta.url);
@@ -21,8 +19,10 @@ const E = require(path.join(PLUGIN, 'cutout-engine.js'));
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/fixtures/cutout_beat_gallery/parity.json'), 'utf8'));
 const HAVE_FFMPEG = spawnSync('ffmpeg', ['-version']).status === 0 && spawnSync('ffprobe', ['-version']).status === 0;
 const source = panelSource('cutout-beat-gallery');
-const NAMES = ['CLOUD_MODEL', 'CLOUD_MIN_HOST', 'CLOUD_FAILED', 'HOLD', 'WIN_MIN_PHOTOS', 'FRAME_SIZE', 'cloudProblem', 'cloudScope', 'startEngine',
-  'hostFFmpeg', 'encoderCache', 'encoders', 'pad2', 'fileName', 'winFrames', 'winCutouts', 'removeWork'];
+const NAMES = ['WIN_MIN_PHOTOS','FRAME_SIZE','startEngine','hostFFmpeg','encoderCache','encoders','pad2','fileName','winFrames','winCutouts','removeWork'];
+const sharedAiJobs=require(path.join(ROOT,'shared/ai-job-client.cjs'));
+const sharedAiResources=require(path.join(ROOT,'shared/ai-resources.cjs'));
+const photoNames=['photoAiScript','photoAiCanonicalId','photoAiClient','photoAiMatte'];
 
 // ---- the synthetic folder (make_parity.py's formulas) -------------------------------------------------------------
 function src(p, sw, sh) {
@@ -69,7 +69,7 @@ function writeFolder(dir) {
       ff(['-f', 'rawvideo', '-pix_fmt', 'rgb24', '-video_size', im.w + 'x' + im.h, '-i', raw, '-frames:v', '1', file]);
       fs.rmSync(raw);
     }
-    return { name: entry[0], path: file };
+    return { name: entry[0], path: file, resourceId: "r"+FIXTURE.photos.indexOf(entry) };
   });
 }
 
@@ -106,33 +106,27 @@ function mockHost({ home, scenario = 'full', delivery = { codec: 'ffv1', fps: 30
     },
     runFFprobe: async (args, quiet, signal) => { calls.push(['runFFprobe', args]); return runTool('ffprobe', args, signal); },
   };
-  const jobs = [];
-  const MediaGeneration = {
-    supportsPluginFiles: () => true, isAvailable: () => true,
-    submit: async (req) => {
-      submits.push(JSON.parse(JSON.stringify(req)));
-      const jobId = 'selects-' + 'a'.repeat(64);
-      // The clip it was sent: HOLD frames per photo at 30 fps, photo k's frame at k*HOLD+6.
-      const clip = req.uploads.source.pluginFile, info = probeJson(clip, 'stream=nb_read_frames,width,height');
-      const frames = Number(info.streams[0].nb_read_frames), count = Math.round(frames / 10);
-      const outDir = req.delivery.pluginFolder;
-      fs.mkdirSync(outDir, { recursive: true });
-      const raw = path.join(outDir, 'masks.gray');
-      const fd = fs.openSync(raw, 'w');
-      for (let k = 0; k < count; k++) fs.writeSync(fd, mask(k + 1, scenario).d);
-      fs.closeSync(fd);
-      const out = path.join(outDir, delivery.codec === 'ffv1' ? 'person-masks.mkv' : 'person-masks.mp4');
-      const codec = delivery.codec === 'ffv1' ? ['-c:v', 'ffv1', '-pix_fmt', 'gray'] : ['-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p'];
-      const seconds = delivery.seconds ?? count * 10 / 30;
-      ff(['-f', 'rawvideo', '-pix_fmt', 'gray', '-video_size', '1080x1920', '-framerate', String(count / seconds), '-i', raw, '-vf', 'fps=' + delivery.fps, ...codec, out]);
-      fs.rmSync(raw);
-      jobs.push({ jobId, status: 'succeeded', deliveryStatus: 'delivered', outputs: [{ outputIndex: 0, status: 'delivered', path: out }], clip, frames, count });
-      return { jobIds: [jobId] };
-    },
-    list: async () => jobs.map((j) => ({ ...j })),
-    cancel: async () => {},
-  };
-  return { di: { FileSystem, Runtime, MediaGeneration }, calls, submits, jobs };
+  const jobs=[],storage=new Map(),files=FIXTURE.photos.map((entry,i)=>({resourceId:'00000000-0000-4000-8000-'+String(i+1).padStart(12,'0'),name:entry[0],type:'Image'}));
+  const photoMasks=path.join(home,'masks');fs.mkdirSync(photoMasks,{recursive:true});
+  const project={resources:async()=>files.map((f,i)=>({...f,resourceId:'r'+i}))};
+  const ai={imageSourceSupported:true,submit:async input=>{
+    submits.push(structuredClone(input));
+    const index=jobs.length+1,workflowId='ai:'+index,maskPath=path.join(photoMasks,index+'.png');
+    const gray=mask(index,scenario),raw=maskPath+'.gray';fs.writeFileSync(raw,gray.d);
+    ff(['-f','rawvideo','-pix_fmt','gray','-s','1080x1920','-i',raw,'-frames:v','1',maskPath]);fs.rmSync(raw);
+    jobs.push({workflowId,resourceId:input.resourceId,input,maskPath});return {workflowId};
+  },job:(id,pid)=>{
+    const j=jobs.find(j=>j.workflowId===id);
+    return {status:async()=>({workflowId:id,projectId:pid,runtimeId:'selects-ai-runtime',task:'person.matte',resourceId:j.resourceId,status:'succeeded'}),
+      result:async()=>({workflowId:id,task:'person.matte',files:{manifest:{id,name:'matte.json',mediaType:'application/json',byteSize:1}}}),cancel:async()=>{}};
+  },prepareMatte:async(file,pid,options)=>{
+    assert.equal(options.sourceKind,'image');const j=jobs.find(j=>j.workflowId===file.id);
+    return {sourceKind:'image',sourceResourceId:j.resourceId,frameSize:{width:1080,height:1920},alphaEncoding:'grayscale-png-8bit',maskUrl:'local://'+j.maskPath};
+  }};
+  const sdk={...asyncSdk({FileSystem,Runtime}),call:async(name,pid)=>{assert.equal(name,'listProjectResources');return files.map(f=>({...f}))},
+    storage:{getItem:async key=>storage.get(key)??null,setItem:async(key,value)=>{storage.set(key,value)}},
+    runScript:async({script})=>{try{return {isError:false,result:await vm.runInNewContext('(async()=>{'+script+'})()',{selects:{project:()=>project,ai,files:{pathFromLocalUrl:url=>decodeURIComponent(new URL(url).pathname)}}})}}catch(e){return {isError:true,output:String(e.message||e)}}}};
+  return {di:{FileSystem,Runtime},sdk,calls,submits,jobs,storage};
 }
 
 // A Web Worker for the panel's blob URL: the engine runs in its own context, with createImageBitmap/OffscreenCanvas
@@ -174,8 +168,9 @@ function workerGlobals() {
 
 async function load(host) {
   const w = workerGlobals();
-  const fns = loadPanelFunctions(source, NAMES, {
-    window: { parent: { __DI__: host.di, location: { pathname: '/libraries/lib-1/projects/proj-1' } } },
+  const fns = loadPanelFunctions(source, [...NAMES,...photoNames], {
+    __sdk:host.sdk,sharedAiJobs,sharedAiResources,crypto:webcrypto,
+        window: { parent: { __DI__: host.di, location: { pathname: '/libraries/lib-1/projects/proj-1' } } },
     navigator: { platform: 'Win32', userAgent: 'Windows NT 10.0' },
     Worker: w.Worker, URL: w.URL, Blob, AbortController,
   });
@@ -198,32 +193,15 @@ async function analyse(env, fns, name = 'beat-cutout-test') {
   fs.mkdirSync(work, { recursive: true });
   try {
     const { frames, rejected } = await fns.winFrames({ engine, work, photos: env.photos, control: { canceled: false } });
-    const result = await fns.winCutouts({ engine, plugin: PLUGIN, data: env.data, work, name, pid: 'proj-1', frames, rejected, control: { canceled: false } });
+    const result = await fns.winCutouts({ sdk:env.host.sdk, engine, plugin: PLUGIN, data: env.data, work, name, pid: 'proj-1', frames, rejected, control: { canceled: false } });
     return { result, frames, rejected, work };
   } finally {
     engine.stop();
-    fns.removeWork(work);
+    await fns.removeWork(work);
   }
 }
 
 const skip = HAVE_FFMPEG ? false : 'ffmpeg is not on PATH';
-
-test('cloudProblem: Windows cutouts need MediaGeneration plug-in files and Selects 2.0.512', { skip }, async () => {
-  const host = mockHost({ home: os.tmpdir() });
-  const { fns } = await load(host);
-  assert.equal(fns.cloudProblem(), '');
-  host.di.Runtime.getHostingVersion = () => '2.0.511';
-  assert.equal(fns.cloudProblem(), 'newer');
-  host.di.Runtime.getHostingVersion = () => '2.1.0';
-  assert.equal(fns.cloudProblem(), '');
-  host.di.MediaGeneration.isAvailable = () => false;
-  assert.equal(fns.cloudProblem(), 'noGeneration');
-  host.di.MediaGeneration.isAvailable = () => true;
-  host.di.MediaGeneration.supportsPluginFiles = () => false;
-  assert.equal(fns.cloudProblem(), 'newer');
-  delete host.di.MediaGeneration;
-  assert.equal(fns.cloudProblem(), 'newer');
-});
 
 test('Windows analysis in a mock host equals prepare.py (lossless masks, 30 fps)', { skip, timeout: 600000 }, async (t) => {
   const env = setup(t);
@@ -237,17 +215,10 @@ test('Windows analysis in a mock host equals prepare.py (lossless masks, 30 fps)
   assert.deepEqual(rest.rows, want.rows);
   assert.deepEqual(rest.cues, want.cues);
   assert.deepEqual(rest, want);
-  // The request: the photos as one clip in the plugin's data folder, delivered back there, no Project import.
-  const [req] = env.host.submits;
-  assert.equal(req.modelId, 'model_v1_dmVlZC92aWRlby1iYWNrZ3JvdW5kLXJlbW92YWwvZmFzdA');
-  assert.deepEqual(req.input, { video_url: 'selects-input:source', output_codec: 'h264', refine_foreground_edges: false, subject_is_person: true });
-  assert.deepEqual(req.scope, { libraryId: 'lib-1', projectId: 'proj-1' });
-  assert.equal(req.key, 'cbg-beat-cutout-test');
-  assert.ok(req.uploads.source.pluginFile.startsWith(env.data + path.sep));
-  assert.ok(req.delivery.pluginFolder.startsWith(env.data + path.sep));
-  assert.equal(req.inputMediaSeconds.video, 26 * 10 / 30);
-  assert.equal(env.host.jobs[0].frames, 260, 'each of the 26 photos held 10 frames');
-  // The run folder holds exactly what the Draft imports, with prepare.py's frame counts and one stream each.
+  assert.equal(env.host.submits.length,26,'each accepted source image is inferred once');
+  for(const req of env.host.submits){assert.equal(req.task,'person.matte');assert.equal(req.runtimeId,'selects-ai-runtime');assert.equal(req.projectId,'proj-1');assert.equal(req.options.provider,'auto');assert.equal(req.options.outputMode,'alpha-frames');assert.equal(req.sourceRange,undefined);assert.match(req.resourceId,/^00000000-0000-4000-8000-/);}
+  assert.equal(env.host.storage.size,1,'one persistent project journal');
+  // Scene files retain two held source frames for fractional-fps boundary trims.
   const files = fs.readdirSync(outputDir).sort();
   const expected = [...Array.from({ length: 15 }, (_, i) => String(i + 1).padStart(2, '0') + '-base.mp4'), ...Array.from({ length: 14 }, (_, i) => String(i + 1).padStart(2, '0') + '-sticker.mov'), 'fixed-bgm.mp3'].sort();
   assert.deepEqual(files, expected);
@@ -256,7 +227,7 @@ test('Windows analysis in a mock host equals prepare.py (lossless masks, 30 fps)
     const info = probeJson(path.join(outputDir, String(i + 1).padStart(2, '0') + '-base.mp4'), 'stream=nb_read_frames,width,height,codec_name');
     assert.equal(info.streams.length, 1);
     assert.deepEqual([info.streams[0].codec_name, info.streams[0].width, info.streams[0].height, Number(info.streams[0].nb_read_frames)],
-      ['h264', 1080, 1920, edges[i + 1] - edges[i] + (i === 14 ? 8 : 0)]);
+      ['h264', 1080, 1920, edges[i + 1] - edges[i] + (i === 14 ? 8 : 0) + 2]);
   }
   for (const f of files.filter((f) => f.endsWith('.mov'))) {
     const info = probeJson(path.join(outputDir, f), 'stream=nb_read_frames,codec_name,pix_fmt,codec_type');
@@ -282,23 +253,19 @@ test('Windows analysis in a mock host equals prepare.py (lossless masks, 30 fps)
   for (const [kind, p] of env.host.calls) if (kind === 'writeFile') assert.ok(p.startsWith(env.data + path.sep), p);
 });
 
-test('an H.264 alpha clip at another frame rate still maps each photo to its mask', { skip, timeout: 600000 }, async (t) => {
-  const env = setup(t, { scenario: 'short', delivery: { codec: 'h264', fps: 25 } });
-  const { fns } = await load(env.host);
-  const { result } = await analyse(env, fns);
-  const want = FIXTURE.scenarios.short.result;
-  assert.equal(result.ready, true);
-  assert.deepEqual(result.rows.map((r) => [r.name, r.stickerReady, r.stickerNumber ?? null, r.baseSlot ?? null]),
-    want.rows.map((r) => [r.name, r.stickerReady, r.stickerNumber ?? null, r.baseSlot ?? null]));
-  for (const [i, r] of result.rows.entries()) assert.ok(Math.abs(r.area - want.rows[i].area) <= 0.005, r.name + ' area ' + r.area + ' vs ' + want.rows[i].area);
-  assert.equal(result.cues.length, want.cues.length);
-});
-
-test('a clip that comes back with another length is refused before any layer is made', { skip, timeout: 600000 }, async (t) => {
-  const env = setup(t, { delivery: { codec: 'ffv1', fps: 30, seconds: 4 } });
-  const { fns } = await load(env.host);
-  await assert.rejects(analyse(env, fns), /came back 4\.00 s long instead of 8\.67 s/);
-  assert.equal(fs.existsSync(path.join(env.data, 'runs', 'beat-cutout-test')), false);
+test('a shared matte with the wrong source is refused before layer rendering', {skip},async t=>{
+ const base=fs.mkdtempSync(path.join(os.tmpdir(),'cbg-wrong-source-'));t.after(()=>fs.rmSync(base,{recursive:true,force:true}));
+ const home=path.join(base,'home'),data=path.join(home,'.selects','plugin-data','cutout-beat-gallery'),work=path.join(data,'work');fs.mkdirSync(work,{recursive:true});
+ const host=mockHost({home}),{fns}=await load(host),old=host.sdk.runScript;
+ host.sdk.runScript=async args=>{
+  const result=await old(args);
+  if(args.script.includes('prepareMatte(')&&result.result)result.result.sourceResourceId='00000000-0000-4000-8000-999999999999';
+  return result;
+ };
+ let rendered=false;
+ const engine={call:()=>{rendered=true;throw Error('Must not render invalid source')}};
+ await assert.rejects(fns.winCutouts({sdk:host.sdk,engine,plugin:PLUGIN,data,work,name:'wrong-source',pid:'proj-1',frames:[{name:FIXTURE.photos[0][0],resourceId:'r0',path:'/source.png'}],rejected:[],control:{canceled:false}}),/does not match the selected photo/);
+ assert.equal(rendered,false);assert.equal(fs.existsSync(path.join(data,'runs','wrong-source')),false);
 });
 
 test('without ProRes and libx264 the stickers use QuickTime Animation and the scenes MPEG-4, same frame counts', { skip, timeout: 600000 }, async (t) => {
@@ -310,5 +277,36 @@ test('without ProRes and libx264 the stickers use QuickTime Animation and the sc
   const sticker = probeJson(path.join(result.outputDir, '01-sticker.mov'), 'stream=nb_read_frames,codec_name,pix_fmt');
   assert.deepEqual([sticker.streams.length, sticker.streams[0].codec_name, sticker.streams[0].pix_fmt, Number(sticker.streams[0].nb_read_frames)], [1, 'qtrle', 'argb', 60]);
   const base = probeJson(path.join(result.outputDir, '15-base.mp4'), 'stream=nb_read_frames,codec_name');
-  assert.deepEqual([base.streams[0].codec_name, Number(base.streams[0].nb_read_frames)], ['mpeg4', 67 + 8]);
+  assert.deepEqual([base.streams[0].codec_name, Number(base.streams[0].nb_read_frames)], ['mpeg4', 67 + 8 + 2]);
+});
+
+
+test('reopening image analysis reuses the successful job without a person-class gate',{skip},async t=>{
+ const home=fs.mkdtempSync(path.join(os.tmpdir(),'cbg-image-reopen-'));t.after(()=>fs.rmSync(home,{recursive:true,force:true}));
+ const host=mockHost({home}),{fns}=await load(host);
+ const first=await fns.photoAiMatte(host.sdk,'proj-1',{resourceId:'r0',subject:'animal'},{scope:'cutout-beat-gallery'});
+ const second=await fns.photoAiMatte(host.sdk,'proj-1',{resourceId:'r0',subject:'object'},{scope:'cutout-beat-gallery'});
+ assert.equal(first.workflowId,second.workflowId);assert.equal(host.submits.length,1);
+ assert.equal(host.submits[0].task,'person.matte');assert.equal(host.submits[0].sourceRange,undefined);
+ assert.equal(host.submits[0].options.provider,'auto');assert.equal('subject' in host.submits[0],false);
+});
+
+
+const clientRepo=process.env.SELECTS_CLIENT_REPO||path.join(os.homedir(),'job/repo/cutback-client');
+const sdkDeclarations=path.join(clientRepo,'electron/mcp/script-runtime/sdk-declarations');
+let ts;
+try{ts=require(path.join(clientRepo,'node_modules/typescript'))}catch{}
+const haveImageSdk=fs.existsSync(path.join(sdkDeclarations,'ai.d.ts'))&&fs.readFileSync(path.join(sdkDeclarations,'ai.d.ts'),'utf8').includes('sourceKind: "image"');
+test('photo submit/prepare/path/source scripts typecheck against current public SDK',{skip:!ts||!haveImageSdk||!HAVE_FFMPEG?'requires image SDK app checkout and TypeScript (SELECTS_CLIENT_REPO)':false},async t=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'photo-ai-sdk-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+ const host=mockHost({home:dir}),{fns}=await load(host),scripts=[],run=host.sdk.runScript;
+ host.sdk.runScript=async args=>{scripts.push(args.script);return run(args)};
+ await fns.photoAiMatte(host.sdk,'proj-1',{resourceId:'r0'},{scope:'cutout-beat-gallery'});
+ const generated=[...new Set(scripts)].map((script,i)=>{
+  const file=path.join(dir,'script-'+i+'.ts');fs.writeFileSync(file,'export {};\nasync function run(){\n'+script+'\n}\n');return file;
+ });
+ const declarations=fs.readdirSync(sdkDeclarations).filter(file=>file.endsWith('.d.ts')).map(file=>path.join(sdkDeclarations,file));
+ const program=ts.createProgram([...declarations,...generated],{noEmit:true,strict:true,skipLibCheck:true,target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,lib:['lib.es2022.d.ts','lib.dom.d.ts']});
+ const diagnostics=ts.getPreEmitDiagnostics(program);
+ assert.equal(diagnostics.length,0,ts.formatDiagnosticsWithColorAndContext(diagnostics,{getCurrentDirectory:()=>dir,getCanonicalFileName:n=>n,getNewLine:()=>"\n"}));
 });

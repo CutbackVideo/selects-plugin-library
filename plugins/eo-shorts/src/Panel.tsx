@@ -1,3 +1,4 @@
+import { withPanelLocalClient } from "../../../shared/local-client.ts";
 import React, { useEffect, useState } from "react";
 import type { PanelSdk } from "./host/types.ts";
 import type { Kit } from "./ui/kit.ts";
@@ -59,7 +60,7 @@ function StepRow(p: { kit: Kit; r: StageRow; open: boolean; onToggle(): void; sh
   );
 }
 
-export default function EoShortsPanel({ sdk, context, ui }: Props) {
+function EoShortsPanel({ sdk, context, ui }: Props) {
   const kit: Kit = ui && typeof ui.Button === "function" ? ui : fallbackKit;
   const [, force] = useState(0);
   const [clock, setClock] = useState(0);
@@ -201,3 +202,5 @@ export default function EoShortsPanel({ sdk, context, ui }: Props) {
     </div>
   );
 }
+
+export default withPanelLocalClient(EoShortsPanel);

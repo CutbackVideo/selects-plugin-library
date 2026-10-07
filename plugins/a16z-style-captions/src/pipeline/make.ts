@@ -1,10 +1,10 @@
 // One click: a talking-head Draft -> a finished 9:16 Short in the a16z house style. The work is kept in
 // a job folder (~/.selects/plugin-data/a16z-style-captions/shorts/<short id>) with a job.json record, so
 // the captions and graphics can be rebuilt in place on the same cut.
-import { dataRoot, fs, hostIsWindows, hostRoots, hostVersion, versionBelow, script, J, PANEL_ID, type Sdk } from "./host";
+import { dataRoot, fs, hostRoots, hostVersion, versionBelow, script, J, PANEL_ID, type Sdk } from "./host";
 import { readDraft, type DraftInfo } from "./source";
 import { semanticPass, type Semantic, type TWord } from "./semantic";
-import { ensureFaceRuntime, trackFaces, type SourceFaces } from "./faces";
+import { trackFaces, type SourceFaces } from "./faces";
 import { planPauses, layoutRanges, type NewClip } from "./edit";
 import { planFraming, addFramingChanges, type FramingPlan } from "./framing";
 import { makeMusic, loudness, gains } from "./sound";
@@ -50,7 +50,7 @@ export type Job = {
 
 const jobDir = (id: string) => fs().join(dataRoot(), "shorts", id);
 async function saveJob(job: Job) {
-  fs().mkdirSync(jobDir(job.shortId), { recursive: true });
+  (await fs().mkdir(jobDir(job.shortId), { recursive: true }));
   await fs().writeFile(fs().join(jobDir(job.shortId), "job.json"), J(job));
 }
 export async function loadJob(id: string): Promise<Job | null> {
@@ -92,19 +92,12 @@ export async function makeShort(sdk: Sdk, ctx: { projectId: string; sequenceId: 
     });
   onStep("faces", "run");
   const facesJob = (async (): Promise<Record<string, SourceFaces>> => {
-    // The face tracker is Python + OpenCV through a POSIX shell (faces.ts), so it runs on macOS only.
-    if (hostIsWindows()) {
-      notes.push("Speaker framing is available on macOS for now, so every shot is centred.");
-      onStep("faces", "skip", "centred");
-      return {};
-    }
     try {
-      const rt = await ensureFaceRuntime(sdk, (s) => onStep("faces", "run", s));
       const jobs = src.clips
         .filter((c) => c.path && c.srcStart >= 0)
-        .map((c) => ({ id: String(c.clipId), path: c.path as string, start: c.srcStart, end: c.srcStart + (c.e - c.s) / fps }));
+        .map((c) => ({ id: String(c.clipId), path: c.path as string, resourceId: c.canonicalResourceId, start: c.srcStart, end: Math.min(c.sourceDuration, c.srcStart + (c.e - c.s) / fps), fps: c.sourceFps, width: c.sw, height: c.sh }));
       const dir = fs().join(dataRoot(), "sources", ctx.sequenceId);
-      const faces = await trackFaces(sdk, rt, dir, jobs);
+      const faces = await trackFaces(sdk, pid, dir, jobs, (s) => onStep("faces", "run", s));
       const n = Object.values(faces).reduce((a, f) => a + f.shots.filter((s) => s.face).length, 0);
       onStep("faces", "done", n + " shot" + (n === 1 ? "" : "s") + " with a face");
       return faces;
@@ -164,7 +157,7 @@ async function build(sdk: Sdk, job: Job, onStep: OnStep): Promise<string[]> {
   onStep("music", job.opts.music ? "run" : "skip", job.opts.music ? "Composing…" : "off");
   const musicJob: Promise<string | null> = !job.opts.music
     ? Promise.resolve(null)
-    : job.musicPath && fs().existsSync(job.musicPath)
+    : job.musicPath && (await fs().exists(job.musicPath))
       ? Promise.resolve(job.musicPath)
       : (async () => {
           mediaGeneration();

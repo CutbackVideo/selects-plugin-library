@@ -26,7 +26,7 @@ its first unfinished step. **Cancel** stops after the current operation.
   ("um", "uh") go, and Selects AI may drop a clause that adds nothing (a
   repeat, a false start or an aside). The speech is never sped up.
 - **Speaker framing.** Every camera angle of the source is framed on the
-  speaker's face (YuNet face detection, run in the panel) as a fixed 9:16 crop.
+  speaker's face (shared YuNet face detection through selects-ai-runtime) as a fixed 9:16 crop.
 - **Scenes.** Selects AI plans the whole film: where the speaker stays on
   screen, and where large typography, generated cut-out pictures, stock B-roll
   or photos of the people it names take over, each scene as one Motion Graphic.
@@ -51,7 +51,7 @@ media. Your cuts and your own clips stay.
 
 Each run is a job folder beneath `.selects/plugin-data/eo-shorts/jobs` in your
 home folder (`job.json`, `events.jsonl`, `calls.jsonl`, `receipts/` and one
-folder per step, including the export). The face tracker and font subsetter
+folder per step, including the export). The shared face runtime and font subsetter
 are kept in `.selects/plugin-data/eo-shorts/runtime`. When asked about a run,
 read its `job.json` and `receipts/`; the Draft the panel made is `draftId` in
 `job.json`. Delete a job folder only after deleting its Draft.

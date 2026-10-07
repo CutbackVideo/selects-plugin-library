@@ -1,7 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "travel-beat-vlog",
-  "version": "0.2.4",
+  "version": "0.2.7",
+  "requiresPlugins": [
+    "selects-ai-runtime"
+  ],
   "name": "Travel Beat Vlog",
   "summary": "Cut a travel beat vlog to your own song: two fast montages on its drum hits, a hero photo with a big title behind the people, two 2x2 grids on the beat, per-slot reference colour and a fade.",
   "status": "experimental",
@@ -13,15 +16,14 @@
     "THIRD_PARTY.md",
     "VALIDATION.md",
     "panel.tsx",
-    "color-targets.json",
-    "tools/cutout.js"
+    "color-targets.json"
   ],
   "compatibility": {
     "platforms": [
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Needs public Video/Audio overlays, clip effects and motion graphics, the editor's existing original Image placement service for the hero photo, the host's bundled FFmpeg (Runtime.runFFmpeg) and FileSystem for the song and colour (nothing to install on either OS), and on macOS Apple Vision person instance masks (macOS 14 or later) through osascript (JavaScript for Automation) for the hero cutout. On Windows the cutout is skipped: the title sits over the hero photo with no subject in front. Verified in Selects Staging 2.0.519 and a local develop build on 2026-10-02 with a user song: saved Draft readback and export (pixel-identical between the two). The song, colour and finishing code now run inside the panel (no Node.js) and give the same results as the earlier Node.js engine on the same inputs; that panel and the osascript cutout have not yet been run inside the app, and the Windows build has not been run on a Windows machine."
+    "selects": "Requires the shared selects-ai-runtime plugin from the same library commit and a Selects host with image AI, durable plugin storage, public local file/media APIs and editable Image overlays. macOS arm64 and Windows x64 use local RVM through selects.ai; no credits or external Python/Node are needed for the ordinary photo workflow. The existing person/main-subject inputs remain accepted without a subject-class precheck; RVM results vary for objects and animals."
   },
   "preview": {
     "video": "preview.mp4",

@@ -26,6 +26,7 @@
     "height": 960
   },
   "collection": "visual-highlights",
+  "galleryOrder": 1,
   "usesCredits": true,
   "inputs": [
     {

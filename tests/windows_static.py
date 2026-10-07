@@ -50,3 +50,14 @@ def check_manifest_and_docs(case, plugin_id):
         text = read(path).lower()
         for needle in ("brew ", "homebrew", "nvm "):
             case.assertNotIn(needle, text, f"{plugin_id}/{doc}: {needle}")
+
+
+def shell_token_present(token, source):
+    """Recognize the base64 command without flagging a JavaScript `.base64` field."""
+    if token == "base64 ":
+        return re.search(r"(?<![.\w])base64 ", source) is not None
+    return token in source
+
+
+def assert_no_shell_token(case, token, source, message=None):
+    case.assertFalse(shell_token_present(token, source), message or token)

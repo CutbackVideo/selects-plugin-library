@@ -10,10 +10,17 @@ Experimental: macOS arm64 or Windows x64, and a compatible Selects development b
 Nothing else to install: music levels and B-roll use the ffmpeg that ships with
 Selects.
 
-Speaker framing is available on macOS for now (on Windows every shot is centred).
-On first use on macOS the panel creates its own Python environment for it
-(`~/.selects/python-envs/a16z-style-captions`, NumPy and OpenCV from PyPI, using
-the system `python3`) and downloads the YuNet face model into
-`~/.selects/plugin-data/a16z-style-captions`.
+Install `selects-ai-runtime` from the same library revision. Speaker framing now
+uses shared `selects.ai` YuNet jobs on macOS and Windows (Selects 2.0.570 or
+later); it no longer creates a Python environment or downloads a private model.
+The source folder's `shared-ai-jobs.json` retains workflow identities for reuse.
+Long ranges are split below the runtime's decoded source-frame limit; samples
+keep one source grid and are merged before speaker tracking. Camera samples use
+the first displayed video frame as zero and retain actual PTS, including VFR,
+so an earlier audio/container start does not move the cuts.
+Camera cuts keep the 32x16 HSV histogram / ChiSquare-alt 0.35 rule, decoded by
+bundled ffmpeg; IoU face tracking, median framing, captions and audio are kept.
+OpenCV and the integer HSV conversion can differ at histogram bin edges. Full Windows styled
+preview/export remains unverified.
 
 `panel.tsx` is built from `src/` with `node build.cjs path/to/esbuild`.

@@ -10,16 +10,53 @@
 
 import React from "react";
 
+// panel-storage:start
+// Keep writes ordered even across a panel remount; failed writes remain visible to callers.
+const panelStorageClients = new WeakMap();
+function panelStorage(sdk) {
+  const storage = sdk?.storage;
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function" || typeof storage.removeItem !== "function") {
+    throw new Error("Update Selects to use this plugin: sdk.storage is required.");
+  }
+  if (!panelStorageClients.has(storage)) {
+    let tail = Promise.resolve();
+    const enqueue = (operation) => {
+      const pending = tail.then(operation);
+      tail = pending.catch(() => {});
+      return pending;
+    };
+    panelStorageClients.set(storage, {
+      getItem: (key) => enqueue(() => storage.getItem(key)),
+      setItem: (key, value) => enqueue(() => storage.setItem(key, value)),
+      removeItem: (key) => enqueue(() => storage.removeItem(key)),
+    });
+  }
+  return panelStorageClients.get(storage);
+}
+function withStoredPanel(Component, load) {
+  return function StoredPanel(props) {
+    const [state, setState] = React.useState(null);
+    const [attempt, retry] = React.useState(0);
+    React.useEffect(() => {
+      let current = true;
+      setState(null);
+      Promise.resolve().then(() => load(panelStorage(props.sdk))).then(
+        (saved) => { if (current) setState({sdk: props.sdk, saved}); },
+        (error) => { if (current) setState({sdk: props.sdk, error: String(error?.message || error)}); },
+      );
+      return () => { current = false; };
+    }, [props.sdk, attempt]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error, React.createElement("button", {onClick: () => retry(n => n + 1)}, "Retry loading saved settings"));
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Loading saved settings…");
+    return React.createElement(Component, {...props, saved: state.saved});
+  };
+}
+// panel-storage:end
+
+
 // Windows runs sdk.runShell in cmd.exe, where the relay helper's POSIX commands and python3 are not
 // available, so two-player stays off there; single player needs no shell.
-const IS_WINDOWS = (() => {
-  try {
-    const rt = (window.parent as any)?.__DI__?.Runtime;
-    const p = typeof rt?.getPlatform === "function" ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try { return /^win/i.test(navigator.platform || "") || /Windows NT/i.test(navigator.userAgent || ""); } catch { return false; }
-})();
+let IS_WINDOWS = false;
 
 const COLS = 10;
 const ROWS = 20;
@@ -373,23 +410,11 @@ function pixelText(
 
 // ------------------------------------------------------------------- records
 
-function loadRecords(): GameRecord[] {
-  try {
-    const raw = window.localStorage.getItem(RECORDS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as GameRecord[]).slice(0, MAX_RECORDS) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveRecords(records: GameRecord[]) {
-  try {
-    window.localStorage.setItem(RECORDS_KEY, JSON.stringify(records.slice(0, MAX_RECORDS)));
-  } catch {
-    /* storage unavailable — records just will not persist */
-  }
+async function loadTetrisState(storage) {
+  const records = JSON.parse((await storage.getItem(RECORDS_KEY)) || "[]");
+  const room = (await storage.getItem(ROOM_KEY)) || "";
+  const prefs = JSON.parse((await storage.getItem(PREFS_KEY)) || "{}");
+  return {records: Array.isArray(records) ? records.slice(0, MAX_RECORDS) : [], room, prefs: prefs || {}};
 }
 
 function bestFor(records: GameRecord[], id: DifficultyId): GameRecord | null {
@@ -713,7 +738,9 @@ function makeRoom(): string {
 
 // -------------------------------------------------------------------- panel
 
-export default function Panel({ sdk, ui }: any) {
+function Panel({ sdk, ui, saved }: any) {
+  hostUseSdk(sdk);
+  IS_WINDOWS = /^win/i.test(panelLocalClient(sdk).environment.platform);
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const nextRef = React.useRef<HTMLCanvasElement | null>(null);
   const oppRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -738,13 +765,13 @@ export default function Panel({ sdk, ui }: any) {
   });
 
   const [phase, setPhase] = React.useState<"menu" | "playing">("menu");
-  const [difficulty, setDifficulty] = React.useState<DifficultyId>("normal");
+  const [difficulty, setDifficulty] = React.useState<DifficultyId>(DIFFICULTIES[saved.prefs.difficulty] ? saved.prefs.difficulty : "normal");
   const [stats, setStats] = React.useState({ score: 0, lines: 0, level: 1, over: false, paused: false });
-  const [records, setRecords] = React.useState<GameRecord[]>([]);
-  const [soundOn, setSoundOn] = React.useState(true);
-  const [volume, setVolume] = React.useState(70);
-  const [room, setRoom] = React.useState("");
-  const [name, setName] = React.useState("Player");
+  const [records, setRecords] = React.useState<GameRecord[]>(saved.records);
+  const [soundOn, setSoundOn] = React.useState(saved.prefs.soundOn !== false);
+  const [volume, setVolume] = React.useState(typeof saved.prefs.volume === "number" ? Math.min(100, Math.max(0, saved.prefs.volume)) : 70);
+  const [room, setRoom] = React.useState(saved.room);
+  const [name, setName] = React.useState(typeof saved.prefs.name === "string" && saved.prefs.name ? saved.prefs.name.slice(0, 24) : "Player");
   const [broker, setBroker] = React.useState("emqx");
   const [conn, setConn] = React.useState<"off" | "starting" | "on">("off");
   const [status, setStatus] = React.useState<{ tone: "muted" | "error" | "success"; text: string } | null>(null);
@@ -771,34 +798,13 @@ export default function Panel({ sdk, ui }: any) {
     soundRef.current.play(sound);
   }, []);
 
-  // Load saved preferences and records once.
+  const storageError = (error) => setStatus({tone: "error", text: "Could not save Tetris settings: " + String(error?.message || error)});
   React.useEffect(() => {
-    setRecords(loadRecords());
-    try {
-      const savedRoom = window.localStorage.getItem(ROOM_KEY);
-      if (savedRoom) setRoom(savedRoom);
-      const raw = window.localStorage.getItem(PREFS_KEY);
-      if (raw) {
-        const p = JSON.parse(raw);
-        if (p && typeof p === "object") {
-          if (DIFFICULTIES[p.difficulty as DifficultyId]) setDifficulty(p.difficulty);
-          if (typeof p.soundOn === "boolean") setSoundOn(p.soundOn);
-          if (typeof p.volume === "number") setVolume(Math.min(100, Math.max(0, p.volume)));
-          if (typeof p.name === "string" && p.name) setName(p.name.slice(0, 24));
-        }
-      }
-    } catch {
-      /* storage unavailable — defaults are fine */
-    }
-  }, []);
-
+    void panelStorage(sdk).setItem(PREFS_KEY, JSON.stringify({difficulty, soundOn, volume, name})).catch(storageError);
+  }, [sdk, difficulty, soundOn, volume, name]);
   React.useEffect(() => {
-    try {
-      window.localStorage.setItem(PREFS_KEY, JSON.stringify({ difficulty, soundOn, volume, name }));
-    } catch {
-      /* ignore */
-    }
-  }, [difficulty, soundOn, volume, name]);
+    void panelStorage(sdk).setItem(RECORDS_KEY, JSON.stringify(records.slice(0, MAX_RECORDS))).catch(storageError);
+  }, [sdk, records]);
 
   React.useEffect(() => {
     if (conn !== "on") return;
@@ -809,7 +815,6 @@ export default function Panel({ sdk, ui }: any) {
   const addRecord = React.useCallback((entry: GameRecord) => {
     setRecords((prev) => {
       const next = [entry, ...prev].slice(0, MAX_RECORDS);
-      saveRecords(next);
       return next;
     });
   }, []);
@@ -1018,12 +1023,7 @@ export default function Panel({ sdk, ui }: any) {
 
   const clearRecords = React.useCallback(() => {
     setRecords([]);
-    saveRecords([]);
-    try {
-      window.localStorage.removeItem(HIGH_KEY);
-    } catch {
-      /* ignore */
-    }
+    void panelStorage(sdk).removeItem(HIGH_KEY).catch(storageError);
   }, []);
 
   const recordWin = React.useCallback(() => {
@@ -1563,6 +1563,7 @@ export default function Panel({ sdk, ui }: any) {
     const b = BROKERS[broker] || BROKERS.emqx;
     const cid = "selects-tetris-" + net.playerId;
     try {
+      await panelStorage(sdk).setItem(ROOM_KEY, clean);
       const cmd = [
         "command -v python3 >/dev/null 2>&1 || { echo NOPYTHON; exit 3; }",
         "mkdir -p " + JSON.stringify(dir),
@@ -1601,11 +1602,6 @@ export default function Panel({ sdk, ui }: any) {
       net.lastDaemon = Date.now();
       net.connected = true;
       setRoom(clean);
-      try {
-        window.localStorage.setItem(ROOM_KEY, clean);
-      } catch {
-        /* ignore */
-      }
       setConn("on");
       setStatus({ tone: "muted", text: "Joining room " + clean + "…" });
       send({ t: "hello", name: netRef.current.name });
@@ -2030,3 +2026,272 @@ export default function Panel({ sdk, ui }: any) {
     </ui.Stack>
   );
 }
+
+let hostSdk: any = null;
+function hostUseSdk(sdk: any) { hostSdk = panelLocalClient(sdk); if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin."); }
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    // Direct arguments keep object literals contextually typed by the SDK signature.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(withStoredPanel(Panel, loadTetrisState));
+// local-sdk:end

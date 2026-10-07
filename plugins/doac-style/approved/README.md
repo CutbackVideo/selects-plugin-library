@@ -1,6 +1,6 @@
 # DOAC Style
 
-Open a vertical English talking-head draft and choose **Create captions**. The panel reads the existing transcript, asks Selects AI to plan emphasis, validates the approved typography, and creates a separate editable draft.
+Open a vertical English or Korean talking-head draft and choose **Create captions**. The panel reads the existing transcript, asks Selects AI to plan emphasis, validates the approved typography, and creates a separate editable draft.
 
 Use **Open preview** to review the result. **Edit captions** updates one caption while preserving its clip interval. **Create another version** returns to the original source.
 

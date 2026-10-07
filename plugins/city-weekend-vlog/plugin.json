@@ -140,6 +140,7 @@
     "height": 960
   },
   "collection": "visual-highlights",
+  "galleryOrder": 7,
   "usesCredits": false,
   "inputs": [
     {

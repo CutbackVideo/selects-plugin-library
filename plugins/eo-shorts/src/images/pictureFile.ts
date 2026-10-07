@@ -25,7 +25,7 @@ export async function readPicture(
     }
   }
   if (!o.runtime || !o.tmpDir) throw new Error("Cannot read " + path + " without ffmpeg (not a plain PNG).");
-  ensureDir(fs, o.tmpDir);
+  await ensureDir(fs, o.tmpDir);
   const inputFormat = pictureInputFormat(path, bytes);
   const probe = await probeJson(o.runtime, [...inputFormat, "-select_streams", "v:0", "-show_entries", "stream=width,height,pix_fmt", path], { fs, tmpDir: o.tmpDir, signal: o.signal });
   const s = (probe.streams?.[0] ?? {}) as { width?: number; height?: number; pix_fmt?: string };
@@ -40,6 +40,6 @@ export async function readPicture(
     const pixFmt = String(s.pix_fmt || "");
     return { width, height, data, hasAlpha: pixFmtHasAlpha(pixFmt), pixFmt, bytes: bytes.length, decoder: "ffmpeg" };
   } finally {
-    removeFile(fs, raw);
+    await removeFile(fs, raw);
   }
 }

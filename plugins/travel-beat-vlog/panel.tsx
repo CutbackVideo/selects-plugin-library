@@ -219,11 +219,11 @@ function analyseSamples(x){
  for(let n=0;n<beats.length;n++){
   const D=beats[n],T=fr=>D+K*b(fr)*P,start=T(12)-P/2,end=T(468);
   if(T(12)<0.1||end>dur-0.2)continue;
-  const first=pickHits(h,start,T(55)-P/8,11)[0],m1=first===undefined?[]:pickHits(h,first,T(55)-P/8,11,true);   // opens where the strongest hits beginif(!m1.length)continue;
+  const first=pickHits(h,start,T(55)-P/8,11)[0],m1=first===undefined?[]:pickHits(h,first,T(55)-P/8,11,true);   // opens where the strongest hits begin
   const m2=pickHits(h,T(364)-P/4,T(424)-P/8,11),g1=pickHits(h,T(147),T(182)-P/8,4),g2=pickHits(h,T(227),T(263)-P/8,4);
   const cuts=Math.min(11,m1.length)+Math.min(11,m2.length)+Math.min(4,g1.length)+Math.min(4,g2.length);
   const roll=Math.max(0,...R.filter(r=>Math.abs(r.start-T(12))<=P/2).map(r=>r.count));
-  const ba=Math.floor(m1[0]/blk),bc=Math.min(tb.length,Math.floor(end/blk));
+  const ba=Math.floor((m1[0]??T(12))/blk),bc=Math.min(tb.length,Math.floor(end/blk));
   const seg=tb.slice(ba,bc),cen=mean(seg.map(v=>v[0])),flat=mean(seg.map(v=>v[1]));
   rows.push({D,roll,cuts,downbeat:(n-phase)%4===0?1:0,timbre:Math.abs(cen-3169)/3169+Math.abs(flat-0.419)/0.419,m1,m2,g1,g2,snap:Object.fromEntries([['hero',55],['v12',102],['v17',182],['v22',263],['v23',343],['v26',424]].map(([k,f])=>[k,onHit(D,T(f))]))});
  }
@@ -241,13 +241,28 @@ function fill(cuts,a,c,n,D,P){
  return cuts.slice(0,n);
 }
 const evenly=(a,c,n)=>Array.from({length:n},(_,i)=>a+(c-a)*i/n);
+// Montage 1 on the song's hits: 6 or more hits filled to 11 cuts from the first; null when they cannot fill it
+// (too few hits, or a first hit too late for 11 cuts 2 frames apart).
+function hitMontage(fit){
+ const {P,K}=fit,w=fit.window,T=f=>w.D+K*b(f)*P;
+ if(w.m1.length<6)return null;
+ const m1=fill(w.m1,w.m1[0],T(55)-P/8,11,w.D,P);return m1.length===11?m1:null;
+}
+// Where the vlog opens in the song (frame 12; the song is cut to start here). 'hits' opens on the first montage hit;
+// without a hit montage the reference cuts stay on the beat, so the first hit opens only while it precedes the second
+// cut by 2 frames, else (or with no hits) the beat's own first cut does, as in 'reference'.
+function opening(fit,cuts='hits'){
+ const {P,K}=fit,w=fit.window,T=f=>w.D+K*b(f)*P,first=w.m1[0];
+ if(cuts==='reference'||first===undefined)return T(12);
+ return hitMontage(fit)||first<=T(16)-2/30?first:T(12);
+}
 // cuts: 'hits' puts montage and grid cuts on the song's hits; 'reference' keeps the reference rhythm on the song's beat.
 function timingFrom(fit,cuts='hits'){
  const {P,K}=fit,w=fit.window,D=w.D,T=f=>D+K*b(f)*P,half=t=>D+Math.round((t-D)/(P/2))*(P/2);
  const fromRef=list=>list.map(T);
- let m1,m2,g1,g2;
- if(cuts==='reference'||w.m1.length<6){m1=fromRef(REF.m1);m2=fromRef(REF.m2);g1=fromRef(REF.g1);g2=fromRef(REF.g2);if(cuts!=='reference')m1[0]=w.m1[0];}
- else{m1=fill(w.m1,w.m1[0],T(55)-P/8,11,D,P);m2=fill(w.m2,T(364)-P/4,T(424)-P/8,11,D,P);g1=fill(w.g1,T(147),T(182)-P/8,4,D,P);g2=fill(w.g2,T(227),T(263)-P/8,4,D,P);}
+ let m1=cuts==='hits'?hitMontage(fit):null,m2,g1,g2;
+ if(!m1){m1=fromRef(REF.m1);m2=fromRef(REF.m2);g1=fromRef(REF.g1);g2=fromRef(REF.g2);m1[0]=opening(fit,cuts);}
+ else{m2=fill(w.m2,T(364)-P/4,T(424)-P/8,11,D,P);g1=fill(w.g1,T(147),T(182)-P/8,4,D,P);g2=fill(w.g2,T(227),T(263)-P/8,4,D,P);}
  const t0=m1[0]-0.4,fr=t=>Math.round((t-t0)*30);
  const t={m1:m1.map(fr),g1:g1.map(fr),g2:g2.map(fr),m2:m2.map(fr)};
  t.hero=Math.max(fr(w.snap?.hero??half(T(55))),t.m1.at(-1)+2);t.m1.push(t.hero);
@@ -258,7 +273,7 @@ function timingFrom(fit,cuts='hits'){
  const timing={durationFrames:t.durationFrames,m1:t.m1,g1:t.g1,g2:t.g2,m2:t.m2,v12:t.v12,v17:t.v17,v22:t.v22,v23:t.v23,fadeStart:t.fadeStart,fadeEnd:t.fadeEnd,clipEnd:t.clipEnd,title:t.title};
  return timing;
 }
-return {SR,analyseSamples,timingFrom,flux,hits,rolls,beatGrid};
+return {SR,analyseSamples,timingFrom,opening,flux,hits,rolls,beatGrid};
 }`;
 // The song as mono 32-bit float samples at the analysis rate (the same ffmpeg arguments analyze.mjs used, written to
 // `out` instead of a pipe; 22050 Hz is songAnalysis's SR).
@@ -279,7 +294,7 @@ export function songKeyText(song,size,mtimeMs,start,timing){return [song,size,mt
 // The Web Worker that runs songAnalysis off the panel's thread: samples and the cuts option in, the fit and its timing out.
 export function songWorkerSource(){
  return '"use strict";\nvar songMath=('+songAnalysisSource+')();\n'
-  +'onmessage=function(e){try{var fit=songMath.analyseSamples(e.data.samples);postMessage({ok:{fit:fit,timing:songMath.timingFrom(fit,e.data.cuts)}});}'
+  +'onmessage=function(e){try{var fit=songMath.analyseSamples(e.data.samples);postMessage({ok:{fit:fit,timing:songMath.timingFrom(fit,e.data.cuts),start:songMath.opening(fit,e.data.cuts)}});}'
   +'catch(err){postMessage({error:String((err&&err.message)||err)});}};\n';
 }
 
@@ -410,12 +425,10 @@ export function cutoutKey(photo,size,mtimeMs,mode){
  for(const b of bytes)binary+=String.fromCharCode(b);
  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'').slice(-40);
 }
-// mac-only:start
-// The hero cutout is Apple Vision (people, or the main subject) through tools/cutout.js, a JavaScript for Automation
-// script that macOS runs with osascript, so nothing is compiled. Windows has no Vision: the build skips the cutout.
-const shellQuote=value=>"'"+String(value).replace(/'/g,"'\\''")+"'";
-export function cutoutCommand(tool,photo,out,mode){return '/usr/bin/osascript -l JavaScript '+[tool,photo,out,mode].map(shellQuote).join(' ');}
-// mac-only:end
+// Merge the shared grayscale raster into the original pixels; there is no inference here.
+export function heroAlphaArgs(photo,mask,out){
+ return ['-nostdin','-v','error','-y','-i',photo,'-i',mask,'-filter_complex','[0:v]format=rgb24[photo];[1:v]format=gray[mask];[photo][mask]alphamerge[out]','-map','[out]','-frames:v','1','-c:v','png',out];
+}
 // @operation-end
 
 const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const types=new Map(resources.map(r=>[r.resourceId,r.type]));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>n.path&&types.has(n.resourceId)&&(!scope.paths||scope.paths.includes(n.path))&&(!scope.ids||scope.ids.includes(n.resourceId))).map(n=>({resourceId:n.resourceId,type:types.get(n.resourceId),name:n.name,path:n.path,width:n.frameSize?.width??null,height:n.frameSize?.height??null,duration:n.durationSeconds??null}));`;
@@ -434,38 +447,23 @@ async function script(sdk,source,summary,allowCommit,timeoutSeconds=30){
 }
 
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -496,34 +494,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -566,22 +547,23 @@ const hostPathKey=p=>{const s=String(p||'').normalize('NFC').replace(/\\/g,'/');
 // Files the plugin wrote itself (the hero cutout, the song section) live under <home>/.selects/plugin-data/.
 const pluginOwned=p=>/[\\/]\.selects[\\/]plugin-data[\\/]/.test(String(p||''));
 
-// ---- Song, colour and cutout on the host's ffmpeg and FileSystem: no Node.js, no shell (but the macOS cutout) ----
+// ---- Song, colour and output composition on the host bundled media SDK ----
 const NEWER='Update Selects to use Travel Beat Vlog.';
 const NOT_INSTALLED='Travel Beat Vlog is not fully installed; install it again from the plugin library.';
-// The install folder (color-targets.json, tools/cutout.js) and the data folder, found once per Panel.
+// The install and data folders, found once per Panel.
 let roots=null;
 async function engineRoots(sdk){
+  hostUseSdk(sdk);
  if(roots)return roots;
- hostNeed('Runtime','runFFmpeg');hostNeed('FileSystem','readFile');hostNeed('FileSystem','renameSync');
+ hostNeed('Runtime','runFFmpeg');hostNeed('FileSystem','readFile');hostNeed('FileSystem','rename');
  const found=await hostRoots(sdk,'travel-beat-vlog','color-targets.json');
- if(!found.data)throw hostError('host-missing','this Selects build cannot make the plugin data folder','FileSystem.mkdirSync');
+ if(!found.data)throw hostError('host-missing','this Selects build cannot make the plugin data folder','FileSystem.mkdir');
  return roots=found;
 }
-function fileExists(path){try{return !!hostNeed('FileSystem','existsSync').existsSync(path);}catch(e){if(e?.code==='host-missing')throw e;return false;}}
+async function fileExists(path){try{return !!(await hostNeed('FileSystem','exists').exists(path));}catch(e){if(e?.code==='host-missing')throw e;return false;}}
 // A file's size and change time (they name a cached song section or cutout); blank when this host cannot say.
-function fileStamp(path){
- try{const st=hostApi('FileSystem','statSync')?.statSync(path);if(st)return {size:st.size,mtimeMs:st.mtimeMs??+new Date(st.mtime)};}catch{}
+async function fileStamp(path){
+ try{const st=(await hostApi('FileSystem','stat')?.stat(path));if(st)return {size:st.size,mtimeMs:st.mtimeMs??+new Date(st.mtime)};}catch{}
  return {size:'',mtimeMs:''};
 }
 async function ffmpeg(args,timeoutMs=240000){
@@ -616,7 +598,7 @@ function analyseInWorker(samples,cuts,timeoutMs=SONG_TIMEOUT_MS){
 async function fitSong(sdk,song,cuts,say){
  if(!['hits','reference'].includes(cuts))throw Error('Unknown cuts option');
  const {data}=await engineRoots(sdk);
- if(typeof song!=='string'||!fileExists(song))throw Error('The song file is missing.');
+ if(typeof song!=='string'||!(await fileExists(song)))throw Error('The song file is missing.');
  const pcm=hostJoin(data,'song-'+Date.now()+'.f32');
  let samples;
  try{
@@ -625,19 +607,19 @@ async function fitSong(sdk,song,cuts,say){
   const bytes=await hostReadBytes(pcm);samples=new Float32Array(bytes.slice(0,Math.floor(bytes.byteLength/4)*4).buffer);
  }finally{await hostRemove(pcm);}
  let start=0,timing=REFERENCE_TIMING;
- try{const fit=await analyseInWorker(samples,cuts);start=fit.fit.window.m1[0];timing=fit.timing;}
+ try{const fit=await analyseInWorker(samples,cuts);start=fit.start;timing=fit.timing;}
  catch(error){
   if(error?.code!=='worker')throw error;
   console.warn('[travel-beat-vlog] song analysis unavailable; the reference rhythm from the song start:',error.message);
   say('Could not find the beat in time; using the reference rhythm…');
  }
- const {size,mtimeMs}=fileStamp(song);
- const dir=hostJoin(data,'songs');hostNeed('FileSystem','mkdirSync').mkdirSync(dir,{recursive:true});
+ const {size,mtimeMs}=(await fileStamp(song));
+ const dir=hostJoin(data,'songs');(await hostNeed('FileSystem','mkdir').mkdir(dir,{recursive:true}));
  const audio=hostJoin(dir,'song-'+(await textKey(songKeyText(song,size,mtimeMs,start,timing))).slice(0,20)+'.wav');
- if(!fileExists(audio)){
+ if(!(await fileExists(audio))){
   const tmp=audio+'.tmp.wav';
   await ffmpeg(songArrangeArgs(song,start,timing,tmp));
-  hostNeed('FileSystem','renameSync').renameSync(tmp,audio);
+  (await hostNeed('FileSystem','rename').rename(tmp,audio));
  }
  return {timing:withinLimits(validateTiming(timing)),audio};
 }
@@ -658,92 +640,80 @@ async function measureClip(data,file,inSeconds,seconds){
  try{await ffmpeg(measureArgs(file,inSeconds,seconds,tmp),60000);return rgbStats(await hostReadBytes(tmp),String(file).split(/[\\/]/).pop());}
  finally{await hostRemove(tmp);}
 }
-// mac-only:start
-// Cuts the hero subject out locally (cutoutCommand) into an RGBA PNG the size of the photo, cached in
-// plugin-data/cutouts. Only reached on macOS: buildTravelVlog skips the cutout on Windows.
-async function heroCutout(sdk,photo,mode){
+// The existing person/main-subject choices share RVM. No subject-class precheck is applied.
+async function heroCutout(sdk,projectId,photo,mode,aiSignal,{scope='travel-beat-vlog',retryTerminal=true}={}){
  if(!['person','foreground'].includes(mode))throw Error('Unknown cutout mode');
- const {plugin,data}=await engineRoots(sdk);
- const {size,mtimeMs}=fileStamp(photo);
- const dir=hostJoin(data,'cutouts');hostNeed('FileSystem','mkdirSync').mkdirSync(dir,{recursive:true});
- const out=hostJoin(dir,'hero-'+cutoutKey(photo,size,mtimeMs,mode)+'.png');
- if(!fileExists(out)){
+ const {data}=await engineRoots(sdk);
+ const matte=await photoAiMatte(sdk,projectId,photo,{scope,retryTerminal,control:{observer:{signal:aiSignal}}});
+ const {size,mtimeMs}=await fileStamp(photo.path);
+ const dir=hostJoin(data,'cutouts');await hostNeed('FileSystem','mkdir').mkdir(dir,{recursive:true});
+ const out=hostJoin(dir,'hero-rvm-'+cutoutKey(photo.path,size,mtimeMs,mode)+'-'+matte.workflowId.replace(/[^a-z0-9-]/gi,'')+'.png');
+ if(!await fileExists(out)){
   const tmp=out+'.tmp.png';
-  const r=await sdk.runShell({summary:'Cut out hero subject',command:cutoutCommand(hostJoin(plugin,'tools','cutout.js'),photo,tmp,mode),timeoutMs:180000,maxOutputBytes:8000});
-  // The login shell may print its own warnings first; the helper's message is the last line.
-  if(r.isError||r.exitCode!==0)throw Error(String(r.stderr||'').trim().split('\n').filter(Boolean).pop()||'Apple Vision found no subject in the hero photo.');
-  hostNeed('FileSystem','renameSync').renameSync(tmp,out);
+  try{
+   await ffmpeg(heroAlphaArgs(photo.path,matte.path,tmp));
+   await hostNeed('FileSystem','rename').rename(tmp,out);
+  }finally{await hostRemove(tmp)}
  }
  return {path:out};
 }
-// mac-only:end
-// The cutout is Apple Vision (osascript): on Windows the title sits over the whole hero photo.
-const SUBJECT_MAC_ONLY='Putting the subject in front of the title is available on macOS for now; here the title sits over the hero photo.';
 
-// The editor's existing Image placement path is not exposed by the public panel SDK
-// (overlayResource rejects Image resources). Same narrow bridge as Four Photo Reveal:
-// validate every selected path and reject unknown hosts. No client code is changed.
-// `knownLibraryId` is the library a template run was handed (context.template.libraryId):
-// that run goes on out of sight, after the app may have moved to another page.
-export async function prepareNativeImages(app,projectId,photos,knownLibraryId=null){
- let libraryId=knownLibraryId;
- if(!libraryId){
-  const match=app.location.pathname.match(/libraries\/([^/]+)\/projects\/([^/]+)/);
-  if(!match||match[2]!==projectId)throw Error('Open the selected Project before creating the Draft.');
-  libraryId=match[1];
- }
- const di=app.__DI__;
- if(typeof di?.ProjectRepository?.findById!=='function'||typeof di?.ResourceRepository?.findById!=='function'||typeof di?.SequenceRepository?.findById!=='function'||typeof di?.TimelineMutation?.run!=='function')throw Error('This Selects version does not support original Image placement from this plugin.');
- const project=await di.ProjectRepository.findById(libraryId,projectId);
- if(!project)throw Error('The selected Project was not found.');
- const members=await Promise.all(project.getResources().map(id=>di.ResourceRepository.findById(libraryId,id)));
- const sources=[];
- for(const photo of photos){
-  const matches=members.filter(r=>r?.getType()==='Image'&&(r.getMedia()?.originalPath??r.getMedia()?.path)===photo.path);
+// native-sdk:start
+// Read verified Project resources and place editable images through the Draft working copy.
+async function nativeImageSources(selects, projectId, photos) {
+ const project=selects.project(projectId), resources=await project.resources(), nodes=[];
+ const visit=items=>{for(const item of items||[])item.type==='dir'?visit(item.children):nodes.push(item);};
+ const overview=await project.sourceFiles();
+ if('fileTree' in overview)visit(overview.fileTree);
+ else for(const folder of overview.folders||[]){const detail=await project.sourceFiles({folder:folder.name});if('fileTree' in detail)visit(detail.fileTree);}
+ return photos.map(photo=>{
+  const matches=nodes.filter(node=>node.path===photo.path&&resources.some(resource=>resource.resourceId===node.resourceId&&resource.type==='Image'));
   if(matches.length!==1)throw Error('A selected Image is missing or ambiguous in the Project: '+photo.name);
-  const resource=matches[0],media=resource.getMedia(),analyzed=await resource.getAnalyzedSequence();
-  const main=analyzed?.getMainTrack(),primary=main?.getClips().find(clip=>!clip.isGap());
-  if(!analyzed||!main||!primary||!Number.isSafeInteger(media?.width)||!Number.isSafeInteger(media?.height))throw Error('A selected Image is not ready for editing: '+photo.name);
-  sources.push({resource,analyzed,main,primary,width:media.width,height:media.height});
- }
- return {di,libraryId,projectId,sources};
-}
-
-
-// Places each item (a prepared Image source over [startFrame, endFrame)) as its own
-// clip, holding stills past their 5 s source with sourceDuration (see Photo Grid Reveal).
-export async function placeNativeImages(prepared,draftId,plan,items,label){
- const {di,libraryId,projectId,sources}=prepared;
- const project=await di.ProjectRepository.findById(libraryId,projectId);
- if(!project)throw Error('The selected Project is unavailable.');
- if(!project.getEditedSequences().includes(draftId))throw Error('The new Draft is not owned by the selected Project.');
- const sequence=await di.SequenceRepository.findById(libraryId,draftId);
- if(!sequence||sequence.getFrameRate()!==plan.fps||sequence.getDuration('resolved')!==plan.durationFrames)throw Error('The Draft frame grid differs from the reference.');
- const placements=[];
- const outcome=await di.TimelineMutation.run(sequence,'travel-beat-vlog:'+label,current=>{
-  const candidate=current.clone();
-  for(const item of items){
-   const source=sources[item.source];
-   const ids=candidate.place({working:source.analyzed,primaryTrack:source.main,primaryOffset:0,primaryClipId:source.primary.getId()},item.startFrame,{kind:'overlay'});
-   if(ids.length!==1)throw Error('Image placement did not create one independent clip.');
-   const position=candidate.getClipPositionById(ids[0]),length=item.endFrame-item.startFrame;
-   if(!position||position.resolvedOffset!==item.startFrame)throw Error('Image placement moved from the planned frame.');
-   const delta=length-position.clip.getDuration();
-   if(delta!==0){
-    const result=candidate.trimClipBoundary({trackId:position.trackId,clipId:ids[0],position:'end',delta,sourceDuration:Math.max(length,position.clip.getDuration())});
-    if(result.trimmedClipPosition?.clip.getDuration()!==length)throw Error('Image could not be held for the planned interval.');
-   }
-   const final=candidate.getClipPositionById(ids[0]);
-   placements.push({clipId:ids[0],trackId:final.trackId,startFrame:item.startFrame,endFrame:item.endFrame});
-  }
-  const overflow=candidate.getDuration('resolved')-plan.durationFrames;
-  if(overflow>0)candidate.slice([{startFrame:plan.durationFrames,endFrame:plan.durationFrames+overflow}],{coordinate:'resolved'});
-  if(candidate.getDuration('resolved')!==plan.durationFrames)throw Error('Image placement changed the Draft duration.');
-  return candidate;
+  const row=matches[0],size=row.frameSize;
+  if(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1)throw Error('A selected Image has no verified native dimensions: '+photo.name);
+  return {resourceId:row.resourceId,path:row.path,name:photo.name,width:size.width,height:size.height};
  });
- if(outcome.status!=='committed'||placements.length!==items.length)throw Error('Original Image placement was not confirmed.');
- return {placements,photos:sources.map(s=>({width:s.width,height:s.height}))};
 }
+async function nativeImageRun(sdk,script,summary,allowCommit=false) {
+ const response=await sdk.runScript({script,summary,allowCommit,timeoutSeconds:120});
+ if(response.isError||response.result==null)throw Error(response.output||'Image placement could not be confirmed. Inspect the Draft before retrying.');
+ return response.result;
+}
+export async function prepareNativeImages(sdk,projectId,photos,knownLibraryId=null) {
+ const sources=await nativeImageRun(sdk,`return await (${nativeImageSources.toString()})(selects,${JSON.stringify(projectId)},${JSON.stringify(photos)});`,'Verify original Project Images');
+ return {sdk,projectId,sources};
+}
+async function nativeImagePlacement(selects,input) {
+ const {projectId,draftId,plan,items,sources}=input,project=selects.project(projectId),draft=selects.draft(draftId);
+ if(!(await project.meta()).draftIds.includes(draftId))throw Error('The Draft is not owned by the selected Project.');
+ const meta=await draft.meta();
+ if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames||(plan.canvas&&(meta.frameSize.width!==plan.canvas.width||meta.frameSize.height!==plan.canvas.height)))throw Error('The Draft frame grid differs from the plan.');
+ const fresh=await nativeImageSources(selects,projectId,sources);
+ if(fresh.some((source,index)=>source.resourceId!==sources[index].resourceId||source.width!==sources[index].width||source.height!==sources[index].height))throw Error('A selected Image changed. Prepare the Images again.');
+ const placements=[];
+ for(const item of items){
+  const source=fresh[item.source];
+  if(!source)throw Error('An Image occurrence has no source.');
+  const before=new Set((await draft.clips({trackScope:'all'})).map(clip=>clip.clipId));
+  await draft.overlayResource({resource:project.resource(source.resourceId),over:await draft.rangeAtFrames(item.startFrame,item.endFrame)});
+  const added=(await draft.clips({trackScope:'all'})).filter(clip=>!before.has(clip.clipId));
+  if(added.length!==1||added[0].resourceId!==source.resourceId||added[0].startFrame!==item.startFrame||added[0].endFrame!==item.endFrame)throw Error('The Image interval changed during placement.');
+  placements.push({...item,clipId:added[0].clipId,trackId:added[0].trackId});
+ }
+ if((await draft.meta()).durationFrames!==plan.durationFrames)throw Error('Image placement changed the Draft duration.');
+ await draft.commitAll('Place original editable Images');
+ return {placements,photos:fresh.map(source=>({width:source.width,height:source.height})),status:'committed'};
+}
+export async function placeNativeImages(prepared,draftId,plan,items,label) {
+ const {sdk,projectId,sources}=prepared;
+ // The caller supplies the hero and cutout occurrences separately.
+ const input={projectId,draftId,plan,items,sources};
+ const result=await nativeImageRun(sdk,`const nativeImageSources=${nativeImageSources.toString()};return await (${nativeImagePlacement.toString()})(selects,${JSON.stringify(input)});`,'Place original editable Images',true);
+ // A separate script reads persisted state, rather than verifying the same working copy.
+ await nativeImageRun(sdk,`const d=selects.draft(${JSON.stringify(draftId)}),clips=await d.clips({trackScope:'all'});for(const expected of ${JSON.stringify(result.placements)}){const actual=clips.find(c=>c.clipId===expected.clipId);if(!actual||actual.trackId!==expected.trackId||actual.startFrame!==expected.startFrame||actual.endFrame!==expected.endFrame)throw Error('Saved Image placement could not be read back.');}if((await d.meta()).durationFrames!==${JSON.stringify(plan.durationFrames)})throw Error('Saved Image Draft duration changed.');return {ok:true};`,'Verify saved Image placement');
+ return result;
+}
+// native-sdk:end
 
 // Registers a file the plugin wrote (hero cutout, song section) in the Project once, reusing an earlier import by path.
 async function ensureImported(sdk,projectId,file,type,summary){
@@ -760,9 +730,9 @@ async function ensureImported(sdk,projectId,file,type,summary){
 
 // Builds the vlog from 26 chosen videos (by slot), a hero photo and the user's song, all inventory rows:
 // the panel's Create Draft and a template run share it. Resolves to the saved Draft.
-async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,title,color,cutoutMode,grade,name,say,stillCurrent,libraryId=null,onDraft=_id=>{}}){
- // Apple Vision cuts the hero subject out (macOS); on Windows the title sits over the whole hero photo.
- const cutout=!hostIsWindows();
+async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,title,color,cutoutMode,grade,name,say,stillCurrent,libraryId=null,aiSignal,aiScope='travel-beat-vlog',aiRetryTerminal=true,onDraft=_id=>{}}){
+ // The same local RVM task supplies the subject overlay on macOS and Windows.
+ const cutout=true;
  say('Finding the beat of your song…');
  const fit=await fitSong(sdk,song.path,cuts,say);
  const timing=fit.timing;
@@ -771,7 +741,7 @@ async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,title,c
  let cutRow=null;
  if(cutout){
   say('Cutting out the hero subject…');
-  const cut=await heroCutout(sdk,heroPhoto.path,cutoutMode);
+  const cut=await heroCutout(sdk,projectId,heroPhoto,cutoutMode,aiSignal,{scope:aiScope,retryTerminal:aiRetryTerminal});
   cutRow=await ensureImported(sdk,projectId,cut.path,'Image','hero cutout');
  }
  const songRow=await ensureImported(sdk,projectId,fit.audio,'Audio','song section');
@@ -781,7 +751,7 @@ async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,title,c
  const clips=ref.clips.filter(c=>!c.image).map(c=>({key:c.slot+'@'+c.index,slot:c.slot,path:chosen[c.slot].path,inSeconds:c.inSeconds,seconds:(c.endFrame-c.startFrame)/30}));
  clips.push({key:'H',slot:'H',path:heroPhoto.path,inSeconds:0,seconds:0.1});
  const grades=await gradeClips(sdk,clips,Number(grade??1));
- const prepared=await prepareNativeImages(window.parent,projectId,cutRow?[{...heroPhoto},{...cutRow,name:'hero cutout'}]:[{...heroPhoto}],libraryId);
+ const prepared=await prepareNativeImages(sdk,projectId,cutRow?[{...heroPhoto},{...cutRow,name:'hero cutout'}]:[{...heroPhoto}],libraryId);
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
  say('Creating the Draft…');
  const seed=await script(sdk,`const p=selects.project(${JSON.stringify(projectId)});const d=await p.createDraft({name:${JSON.stringify(name.trim()||'Travel beat vlog')}});await d.insertGap({seconds:${timing.durationFrames}/30});await d.setFrameSize({width:1080,height:1920});const m=await d.meta();if(m.durationFrames!==Math.round(${timing.durationFrames}*m.fps/30)||m.frameSize?.width!==1080||m.frameSize?.height!==1920)throw Error('Draft frame grid differs from the reference.');const saved=await d.commitAll('Start Travel Beat Vlog Draft');return {draftId:saved.createdDraftId,fps:m.fps};`,'Create travel vlog Draft',true);
@@ -818,7 +788,7 @@ function templateMessage(error){
  if(/song is too short|song file is missing/i.test(said))return said;
  if(/^No person found/.test(said))return 'Travel Beat Vlog found no people in the hero photo; pick a photo with people, then try again.';
  if(/^No subject found/.test(said))return 'Travel Beat Vlog found no main subject in the hero photo; pick another photo, then try again.';
- if(/cutout|Vision|Cannot read the photo/i.test(said))return 'Travel Beat Vlog could not cut out the hero photo; try again.';
+ if(/cutout|matte|Cannot read the photo/i.test(said))return 'Travel Beat Vlog could not cut out the hero photo; try again.';
  return TEMPLATE_FAILED;
 }
 // The app hands a template its own Resource ids, but every run_script read
@@ -868,6 +838,7 @@ function TravelTemplateRun({sdk,context}){
  React.useEffect(()=>{
   if(!runId||started.current===runId)return;started.current=runId;
   const live=()=>alive.current&&latest.current.template?.runId===runId;
+  const observer=new AbortController();
   let ended=false,draftId=null;
   const finish=result=>{if(ended)return;ended=true;if(!live())return;try{sdk.finishTemplate(result);}catch{}};
   const say=text=>{if(live())setStatus(text);};
@@ -879,18 +850,20 @@ function TravelTemplateRun({sdk,context}){
     const {chosen,heroPhoto,song}=await templateMedia(sdk,projectId,template?.inputs);
     const cutoutMode=template?.options?.subject==='foreground'?'foreground':TEMPLATE_DEFAULTS.cutoutMode;
     const cuts=template?.options?.cuts==='reference'?'reference':'hits';
-    const done=await buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,...TEMPLATE_DEFAULTS,cutoutMode,say,stillCurrent:live,libraryId:template?.libraryId||null,onDraft:id=>{draftId=id;}});
+    const done=await buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,...TEMPLATE_DEFAULTS,cutoutMode,say,stillCurrent:live,aiSignal:observer.signal,aiScope:'travel-beat-vlog:template:'+runId,aiRetryTerminal:false,libraryId:template?.libraryId||null,onDraft:id=>{draftId=id;}});
     finish({sequenceId:done.draftId});
    }catch(error){
     console.warn('[travel-beat-vlog] template run failed:',error?.message||String(error),{draftId});
     finish({error:draftId?'Travel Beat Vlog stopped partway; the unfinished timeline "'+TEMPLATE_DEFAULTS.name+'" may need removing.':templateMessage(error)});
    }finally{finish({error:TEMPLATE_FAILED});}
   })();
+  return()=>observer.abort();
  },[runId]);
  return <p role="status" style={{margin:0,fontSize:12}}>{status}</p>;
 }
 
-export default function Panel(props){return props.context.template?<TravelTemplateRun {...props}/>:<TravelPanel {...props}/>;}
+function Panel(props){
+  hostUseSdk(props.sdk);return props.context.template?<TravelTemplateRun {...props}/>:<TravelPanel {...props}/>;}
 // The manual panel asks for the same things, in the same groups, as the template page:
 // hero photo, three long shots, 23 clips, the song, and the template's two choices.
 function TravelPanel({sdk,context,ui}){
@@ -899,7 +872,9 @@ function TravelPanel({sdk,context,ui}){
  const [cutoutMode,setCutoutMode]=React.useState('person'),[cuts,setCuts]=React.useState('hits');
  const [title,setTitle]=React.useState('TRAVEL'),[color,setColor]=React.useState('#F4C711'),[grade,setGrade]=React.useState(0.7),[name,setName]=React.useState('Travel beat vlog');
  const [busy,setBusy]=React.useState(false),[status,setStatus]=React.useState(''),[saved,setSaved]=React.useState(null);
- const running=React.useRef(false),currentProject=React.useRef(context.projectId);currentProject.current=context.projectId;
+ const running=React.useRef(false),currentProject=React.useRef(context.projectId),aiObserver=React.useRef(null);currentProject.current=context.projectId;
+ React.useEffect(()=>()=>{currentProject.current=null;aiObserver.current?.abort()},[]);
+ React.useEffect(()=>{aiObserver.current?.abort()},[context.projectId]);
  React.useEffect(()=>{setMedia([]);setHero('');setLong(['','','']);setClips(Array(23).fill(''));setSong('');setLoadedProject(null);setSaved(null);setStatus('');},[context.projectId]);
  // Files the plugin created itself (the hero cutout, the song section) are not user media.
  const own=m=>pluginOwned(m.path);
@@ -920,17 +895,17 @@ function TravelPanel({sdk,context,ui}){
   const projectId=context.projectId;
   if(running.current||!projectId||loadedProject!==projectId)return;
   running.current=true;setBusy(true);setStatus('Checking media…');
+  const observer=new AbortController();aiObserver.current=observer;
   try{
    const pick=(id,type,what)=>{const m=media.filter(x=>x.resourceId===id);if(m.length!==1)throw Error('Choose '+what+'.');if(m[0].type!==type)throw Error(m[0].name+' is not '+(type==='Video'?'a video':type==='Image'?'a photo':'a song')+'.');return m[0];};
    const chosen={};
    LONG_SLOTS.forEach((s,i)=>{chosen[s]=pick(long[i],'Video','long shot '+(i+1));});
    SHORT_SLOTS.forEach((s,i)=>{chosen[s]=pick(clips[i],'Video','clip '+(i+1));});
    for(const m of Object.values(chosen))if(!m.width||!m.height)throw Error(m.name+' has no frame size yet; wait for the Project to finish reading it.');
-   const {draftId}=await buildTravelVlog(sdk,{projectId,chosen,heroPhoto:pick(hero,'Image','a hero photo'),song:pick(song,'Audio','a song'),cuts,title,color,cutoutMode,grade,name,say:setStatus,stillCurrent:()=>currentProject.current===projectId});
+   const {draftId}=await buildTravelVlog(sdk,{projectId,chosen,heroPhoto:pick(hero,'Image','a hero photo'),song:pick(song,'Audio','a song'),cuts,title,color,cutoutMode,grade,name,say:setStatus,aiSignal:observer.signal,stillCurrent:()=>currentProject.current===projectId});
    setSaved({draftId});setStatus('Saved. Every shot is its own clip with focus controls; the title text and colour are editable.');
   }catch(error){setStatus(error?.code==='host-missing'?NEWER:error?.code==='not-found'?NOT_INSTALLED:String(error?.message||error));}finally{running.current=false;setBusy(false);}
  }
- const windows=hostIsWindows();
  const ready=!busy&&loadedProject===context.projectId;
  const opts=type=>of(type).map(m=>({value:m.resourceId,label:m.name}));
  const vOpts=opts('Video'),setAt=(setter,i)=>v=>setter(old=>old.map((x,j)=>j===i?v:x));
@@ -942,8 +917,7 @@ function TravelPanel({sdk,context,ui}){
   {long.map((v,i)=><ui.Select key={'l'+i} label={'Long shot '+(i+1)} value={v} onChange={setAt(setLong,i)} options={vOpts} placeholder="Choose video" disabled={!ready}/>)}
   {clips.map((v,i)=><ui.Select key={'c'+i} label={'Clip '+(i+1)} value={v} onChange={setAt(setClips,i)} options={vOpts} placeholder="Choose video" disabled={!ready}/>)}
   <ui.Select label="Song" value={song} onChange={setSong} options={opts('Audio')} placeholder="Choose song" disabled={!ready}/>
-  <ui.Select label="In front of the title" value={cutoutMode} onChange={setCutoutMode} options={[{value:'person',label:'People'},{value:'foreground',label:'Main subject'}]} disabled={busy||windows}/>
-  {windows&&<ui.Message>{SUBJECT_MAC_ONLY}</ui.Message>}
+  <ui.Select label="In front of the title" value={cutoutMode} onChange={setCutoutMode} options={[{value:'person',label:'People'},{value:'foreground',label:'Main subject'}]} disabled={busy}/>
   <ui.Select label="Cuts" value={cuts} onChange={setCuts} options={[{value:'hits',label:"Follow the song's hits"},{value:'reference',label:'Keep the original rhythm'}]} disabled={busy}/>
   <ui.TextField label="Title" value={title} onChange={setTitle} disabled={busy}/>
   <ui.TextField label="Title colour (#RRGGBB)" value={color} onChange={setColor} disabled={busy}/>
@@ -970,3 +944,585 @@ async function readMediaPages(sdk, args) {
     if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
   }
 }
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const SCRIPT_BYTES = 256 * 1024;
+  const runSource = async (script: string, write = false) => {
+    if (new TextEncoder().encode(script).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script,
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  // Direct arguments keep object literals contextually typed by the SDK signature.
+  const run = (method: string, args: unknown[], write = false) =>
+    runSource("return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");", write);
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  // Three encoded chunks occupy 192 KiB, below the Panel's default 256 KiB result
+  // budget. The same script still awaits each canonical file operation in order.
+  const fileBatch = async (method: "readRange" | "writeChunk", inputs: unknown[], lengths: number[]) => {
+    let count = Math.min(3, inputs.length), script = "";
+    while (count > 0) {
+      script = "const rows=[];" + inputs.slice(0, count).map((input, index) => {
+        const call = "{const result=await selects.files." + method + "(" + JSON.stringify(input) + ");";
+        if (method === "writeChunk")
+          return call + "if(result?.bytesWritten!==" + lengths[index] + ")throw Error('The file write returned an incomplete result. Check the file before retrying.');rows.push(result);}";
+        return call + "if(!result||typeof result.base64!=='string'||!Number.isSafeInteger(result.bytesRead)||result.bytesRead<0||result.bytesRead>" + lengths[index] + ")throw Error('The file read returned an incomplete result.');rows.push(result);if(result.bytesRead<" + lengths[index] + ")return rows;}";
+      }).join("") + "return rows;";
+      if (new TextEncoder().encode(script).byteLength <= SCRIPT_BYTES) break;
+      count--;
+    }
+    if (!count) throw new Error("The local file script exceeds the 256 KiB limit.");
+    return { count, rows: await runSource(script, method === "writeChunk") };
+  };
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const inputs = Array.from({ length: Math.min(3, Math.ceil((length - total) / CHUNK_BYTES)) }, (_, index) =>
+        ({ path, offset: offset + total + index * CHUNK_BYTES, length: Math.min(CHUNK_BYTES, length - total - index * CHUNK_BYTES) }));
+      const lengths = inputs.map(input => input.length);
+      const { rows, count } = await fileBatch("readRange", inputs, lengths);
+      if (!Array.isArray(rows) || rows.length < 1 || rows.length > count) throw new Error("The file read returned an incomplete result.");
+      let short = false;
+      for (let index = 0; index < rows.length; index++) {
+        const result = rows[index];
+        if (!result || typeof result.base64 !== "string" || !Number.isSafeInteger(result.bytesRead) || result.bytesRead < 0 || result.bytesRead > lengths[index]) throw new Error("The file read returned an incomplete result.");
+        const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+        if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+        short = bytes.length < lengths[index];
+        if (short && index !== rows.length - 1) throw new Error("The file read returned invalid bytes.");
+        parts.push(bytes); total += bytes.length;
+      }
+      if (rows.length !== count && !short) throw new Error("The file read returned an incomplete result.");
+      if (short) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        let offset = 0;
+        do {
+          const inputs = [], lengths = [];
+          for (let index = 0; index < (replacement ? 3 : 1) && (offset + index * CHUNK_BYTES < bytes.length || index === 0); index++) {
+            const position = offset + index * CHUNK_BYTES, chunk = bytes.subarray(position, position + CHUNK_BYTES);
+            let binary = "";
+            for (const byte of chunk) binary += String.fromCharCode(byte);
+            const mode = position === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+            inputs.push({ path: destination, offset: position, base64: btoa(binary), ...(mode ? { mode } : {}) });
+            lengths.push(chunk.length);
+          }
+          if (!replacement) {
+            const result = await run("files.writeChunk", [inputs[0]], true);
+            if (result?.bytesWritten !== lengths[0]) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+          } else {
+            const { rows, count } = await fileBatch("writeChunk", inputs, lengths);
+            if (!Array.isArray(rows) || rows.length !== count || rows.some((row, index) => row?.bytesWritten !== lengths[index])) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+            lengths.length = count;
+          }
+          offset += lengths.reduce((sum, size) => sum + size, 0);
+        } while (offset < bytes.length);
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { recursive: false, force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, { recursive: options?.recursive ?? false, force: options?.force ?? false }], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { recursive: false, force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(Panel);
+// local-sdk:end
+
+// photo-ai:start
+// Inference lives in the installed shared runtime; this adapter retains only photo/output plumbing.
+async function photoAiScript(sdk,code,summary,allowCommit=false){
+ const response=await sdk.runScript({script:code,summary,allowCommit,timeoutSeconds:120});
+ if(response.isError||response.result==null)throw Error(response.output||'Shared photo analysis returned no result.');
+ return response.result;
+}
+async function photoAiCanonicalId(sdk,projectId,resourceId){
+ const ids=await sharedAiResources.resolveSharedAiResources(sdk,projectId,[resourceId],(code,summary,write)=>photoAiScript(sdk,code,summary,write));
+ const id=ids.get(resourceId);
+ if(!id)throw Error('The selected photo changed. Refresh project photos and try again.');
+ return id;
+}
+function photoAiClient(sdk,projectId,scope){
+ if(!sdk.storage?.getItem||!sdk.storage?.setItem)throw Error('Update Selects to use persistent shared AI jobs.');
+ const key='shared-ai:'+scope+':'+projectId;
+ return sharedAiJobs.createSharedAiJobClient({projectId,scope,
+  runScript:(code,summary,write)=>photoAiScript(sdk,code,summary,write),
+  load:async()=>{const value=await sdk.storage.getItem(key);return value===null?null:JSON.parse(value)},
+  save:journal=>sdk.storage.setItem(key,JSON.stringify(journal))});
+}
+async function photoAiMatte(sdk,projectId,photo,{scope,client,control,onStatus,retryTerminal=true}={}){
+ const resourceId=await photoAiCanonicalId(sdk,projectId,photo.resourceId);
+ const jobs=client||photoAiClient(sdk,projectId,scope),identity='image:'+resourceId;
+ if(control){control.ai=jobs;control.aiIdentity=identity;}
+ const observed=await jobs.run({task:'person.matte',resourceId,options:{provider:'auto',outputMode:'alpha-frames',alphaEncoding:'grayscale-png-8bit'}},
+  {identity,retryTerminal,signal:control?.observer?.signal,onProgress:status=>onStatus?.(status)});
+ if(control?.canceled)throw Error('Canceled.');
+ const manifest=observed.result?.files?.manifest;
+ if(!manifest)throw Error('Shared photo analysis returned no mask manifest.');
+ const prepared=await photoAiScript(sdk,`return await selects.ai.prepareMatte(${JSON.stringify(manifest)},${JSON.stringify(projectId)},{sourceKind:'image'});`,'Keep the shared photo mask',true);
+ if(prepared.sourceKind!=='image'||prepared.sourceResourceId!==resourceId||!Number.isSafeInteger(prepared.frameSize?.width)||prepared.frameSize.width<1||!Number.isSafeInteger(prepared.frameSize?.height)||prepared.frameSize.height<1)throw Error('The shared photo mask does not match the selected photo.');
+ const path=await photoAiScript(sdk,`return selects.files.pathFromLocalUrl(${JSON.stringify(prepared.maskUrl)});`,'Read the shared mask path');
+ return {...prepared,path,workflowId:observed.workflowId};
+}
+// photo-ai:end
+
+//shared-ai-jobs:start
+const sharedAiJobs = (()=>{const module={exports:{}};
+// Plugin-private durable orchestration of the existing public AI SDK.
+// This module is bundled into panels; it has no Node or renderer-global dependencies.
+const STATUS = new Set(['queued', 'running', 'canceling', 'succeeded', 'failed', 'canceled']);
+const terminal = status => ['succeeded', 'failed', 'canceled'].includes(status);
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const writes = new Map();
+const error = (code, message) => Object.assign(new Error(message), { code });
+const invalid = () => error('SHARED_AI_INVALID', 'Saved AI analysis does not match this source or task.');
+const clone = value => JSON.parse(JSON.stringify(value));
+function stable(value) {
+  if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
+  if (value && typeof value === 'object') return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + stable(value[k])).join(',') + '}';
+  if (value === undefined || typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint' || typeof value === 'number' && !Number.isFinite(value)) throw invalid();
+  return JSON.stringify(value);
+}
+function attached(signal) {
+  if (signal?.aborted) throw error('SHARED_AI_DETACHED', 'AI observation stopped. Reopen to recover the saved job.');
+}
+function inputFor(projectId, request) {
+  if (!request || !['faces.detect', 'person.matte'].includes(request.task) || !UUID.test(request.resourceId)) throw invalid();
+  const input = { runtimeId: 'selects-ai-runtime', projectId, resourceId: request.resourceId, task: request.task };
+  if (request.sourceRange !== undefined) {
+    const { startSeconds, endSeconds } = request.sourceRange || {};
+    if (!Number.isFinite(startSeconds) || startSeconds < 0 || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) throw invalid();
+    input.sourceRange = { startSeconds, endSeconds };
+  }
+  if (request.options !== undefined) {
+    if (!request.options || Array.isArray(request.options) || typeof request.options !== 'object') throw invalid();
+    stable(request.options); input.options = clone(request.options);
+  }
+  return input;
+}
+async function requestKey(scope, identity, input, attempt) {
+  const withoutKey = { ...input }; delete withoutKey.requestKey;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(stable({ scope, identity, input: withoutKey, attempt })));
+  return 'shared-ai-' + Array.from(new Uint8Array(digest), n => n.toString(16).padStart(2, '0')).join('');
+}
+function createSharedAiJobClient(env) {
+  const { projectId, scope, runScript, load, save } = env || {};
+  if (typeof projectId !== 'string' || !projectId || typeof scope !== 'string' || !scope ||
+      ![runScript, load, save].every(f => typeof f === 'function')) throw invalid();
+  const storageKey = stable({ projectId, scope });
+  const fresh = () => ({ version: 1, projectId, scope, records: [] });
+  async function read() {
+    let journal;
+    try { journal = await load(); }
+    catch (cause) {
+      if (String(cause?.message || cause).trim() === 'The file is unavailable.' || /ENOENT|not found|does not exist/i.test(String(cause?.message || cause))) journal = null;
+      else throw cause;
+    }
+    if (journal == null) return fresh();
+    if (typeof journal === 'string') { try { journal = JSON.parse(journal); } catch { throw invalid(); } }
+    if (journal.version !== 1 || journal.projectId !== projectId || journal.scope !== scope || !Array.isArray(journal.records) || journal.records.length > 10000) throw invalid();
+    const keys = new Set();
+    for (const r of journal.records) {
+      if (!r || typeof r.identity !== 'string' || !Number.isSafeInteger(r.attempt) || r.attempt < 0 || r.attempt > 255 ||
+          !/^shared-ai-[\da-f]{64}$/.test(r.input?.requestKey) || keys.has(r.input.requestKey) ||
+          (r.workflowId !== undefined && (typeof r.workflowId !== 'string' || !r.workflowId)) ||
+          (r.status !== undefined && !STATUS.has(r.status)) || (r.cancelRequested !== undefined && typeof r.cancelRequested !== 'boolean')) throw invalid();
+      const input = inputFor(projectId, r.input);
+      if (stable({ ...input, requestKey: r.input.requestKey }) !== stable(r.input)) throw invalid();
+      keys.add(r.input.requestKey);
+    }
+    return clone(journal);
+  }
+  async function update(record) {
+    const prior = writes.get(storageKey) || Promise.resolve();
+    const pending = prior.catch(() => {}).then(async () => {
+      const journal = await read(), i = journal.records.findIndex(r => r.input.requestKey === record.input.requestKey), old = journal.records[i];
+      if (old?.workflowId && record.workflowId && old.workflowId !== record.workflowId) throw invalid();
+      const next = { ...old, ...record, cancelRequested: Boolean(old?.cancelRequested || record.cancelRequested) };
+      if (old?.workflowId) next.workflowId = old.workflowId;
+      if (old && terminal(old.status)) next.status = old.status;
+      if (i < 0) journal.records.push(next); else journal.records[i] = next;
+      await save(clone(journal)); Object.assign(record, next);
+    });
+    writes.set(storageKey, pending);
+    try { await pending; } finally { if (writes.get(storageKey) === pending) writes.delete(storageKey); }
+  }
+  async function ack(record, signal) {
+    if (record.workflowId) return;
+    attached(signal);
+    const value = await runScript(`if(typeof selects.ai?.submit!=='function')throw new Error('AI_UPDATE_REQUIRED');const j=await selects.ai.submit(${JSON.stringify(record.input)});return {workflowId:j.workflowId};`, 'Start shared AI analysis', true);
+    if (typeof value?.workflowId !== 'string' || !value.workflowId) throw invalid();
+    record.workflowId = value.workflowId;
+    // Preserve an acknowledgment even when a panel detached during submit.
+    await update(record); attached(signal);
+  }
+  async function status(record, cancel = false) {
+    const value = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).${cancel ? 'cancel' : 'status'}();`, cancel ? 'Cancel shared AI analysis' : 'Read shared AI progress', cancel);
+    if (value?.workflowId !== record.workflowId || value.projectId !== projectId || value.runtimeId !== 'selects-ai-runtime' || value.task !== record.input.task || !STATUS.has(value.status)) throw invalid();
+    record.status = value.status; await update(record); return value;
+  }
+  async function stop(record, options = {}) {
+    record.cancelRequested = true; await update(record); await ack(record, options.signal);
+    if (!terminal(record.status)) await status(record, true);
+    const deadline = Date.now() + (options.maxWaitMs ?? 60000);
+    while (!terminal(record.status)) {
+      attached(options.signal);
+      if (Date.now() >= deadline) throw error('SHARED_AI_CANCEL_PENDING', 'AI is still stopping. Cancellation is saved; reopen to recover it.');
+      await new Promise(resolve => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+      await status(record);
+    }
+  }
+  async function run(request, options = {}) {
+    attached(options.signal);
+    const input = inputFor(projectId, request), identity = options.identity ?? '';
+    if (typeof identity !== 'string') throw invalid();
+    const journal = await read();
+    let record = journal.records.filter(r => r.identity === identity && stable(inputFor(projectId, r.input)) === stable(input)).sort((a, b) => b.attempt - a.attempt)[0];
+    if (record && record.input.requestKey !== await requestKey(scope, identity, input, record.attempt)) throw invalid();
+    // A detached panel can have saved 'running' while Main has since stopped.
+    // Refresh only during recovery; failure of a newly submitted job is not retried.
+    if (record?.workflowId && options.retryTerminal) {
+      attached(options.signal); await status(record); attached(options.signal);
+    }
+    if (record && options.retryTerminal && record.cancelRequested && !terminal(record.status)) await stop(record, options);
+    if (!record || options.retryTerminal && (['failed', 'canceled'].includes(record.status) || record.cancelRequested && terminal(record.status))) {
+      const attempt = record ? record.attempt + 1 : 0;
+      if (attempt > 255) throw invalid();
+      record = { identity, attempt, input: { ...input, requestKey: await requestKey(scope, identity, input, attempt) } };
+      await update(record);
+    }
+    await ack(record, options.signal);
+    for (;;) {
+      attached(options.signal);
+      const latest = (await read()).records.find(r => r.input.requestKey === record.input.requestKey);
+      if (!latest) throw invalid(); Object.assign(record, latest);
+      const value = await status(record, record.cancelRequested && !terminal(record.status));
+      attached(options.signal);
+      if (record.cancelRequested || record.status === 'canceled') throw error('SHARED_AI_CANCELED', 'AI analysis was canceled. Start again to retry.');
+      if (record.status === 'failed') throw error('SHARED_AI_FAILED', 'AI analysis failed. ' + String(value.lastErrorMessage || '').slice(0, 300));
+      if (record.status === 'succeeded') {
+        const result = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).result();`, 'Read shared AI result');
+        attached(options.signal);
+        if (result?.workflowId !== record.workflowId || result.task !== record.input.task || !result.files || typeof result.files !== 'object') throw invalid();
+        return { workflowId: record.workflowId, input: clone(record.input), result };
+      }
+      options.onProgress?.(value);
+      await new Promise(resolve => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+    }
+  }
+  async function cancel(options = {}) {
+    const journal = await read();
+    for (const record of journal.records) {
+      if (options.identity !== undefined && record.identity !== options.identity || terminal(record.status)) continue;
+      if (record.input.requestKey !== await requestKey(scope, record.identity, record.input, record.attempt)) throw invalid();
+      await stop(record, options);
+    }
+  }
+  return { run, cancel };
+}
+module.exports = { createSharedAiJobClient };
+
+return module.exports;})();
+//shared-ai-jobs:end
+
+//shared-ai-resources:start
+const sharedAiResources = (()=>{const module={exports:{}};
+// Private joins between short run_script ids and persistent Project Resource ids.
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const fingerprint = rows => JSON.stringify(rows.map(r => [r.resourceId, r.name, r.type]));
+function canonicalResourceBindings(core, { projectId, draftId, trackKinds = ['Main'] } = {}) {
+  if (!core?.owner?.projectId || projectId && core.owner.projectId !== projectId || draftId && core.sequenceJson?.id !== draftId) throw new Error('The Draft belongs to another Project.');
+  const bindings = new Map();
+  function walk(rows) {
+    for (const row of rows || []) {
+      const id = row.mediaReferences?.defaultMedia?.id;
+      if (Number.isSafeInteger(row.id) && UUID.test(id)) {
+        if (bindings.has(row.id) && bindings.get(row.id) !== id) throw new Error('Ambiguous clip source binding.');
+        bindings.set(row.id, id);
+      }
+      if (Array.isArray(row.children)) walk(row.children);
+    }
+  }
+  for (const track of core.sequenceJson?.tracks?.children || []) if (trackKinds.includes(track.kind)) walk(track.children);
+  return bindings;
+}
+function pathKey(value) {
+  const path = String(value).normalize('NFC'), windows = /^[a-z]:[\\/]|^\\\\/i.test(path);
+  const normalized = path.replace(/\\/g, '/'); return windows ? normalized.toLowerCase() : normalized;
+}
+function runner(sdk, runScript) {
+  return runScript || (async (script, summary, allowCommit = false) => {
+    const value = await sdk.runScript({ script, summary, allowCommit });
+    if (value?.isError || value?.result === undefined) throw new Error(value?.output || 'The Project read returned an incomplete result.');
+    return value.result;
+  });
+}
+async function joinRows(sdk, projectId, runScript, script) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw new Error('Could not read Project Resources.');
+  const observed = await runner(sdk, runScript)(script, 'Resolve persistent AI source');
+  const after = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(after) || fingerprint(before) !== fingerprint(after) || observed?.count !== before.length || !Array.isArray(observed.rows)) throw new Error('Project Resources changed while resolving the AI source.');
+  const out = new Map();
+  for (const row of observed.rows) {
+    const raw = before[row?.index];
+    if (!Number.isSafeInteger(row?.index) || !raw || raw.name !== row.name || raw.type !== row.type || !UUID.test(raw.resourceId) || typeof row.id !== 'string') throw new Error('The persistent AI source could not be matched.');
+    out.set(row.id, raw.resourceId);
+  }
+  return out;
+}
+async function resolveSharedAiResources(sdk, projectId, aliases, runScript) {
+  if (!Array.isArray(aliases) || aliases.some(id => typeof id !== 'string' || !id)) throw new Error('Invalid AI source ids.');
+  const wanted = [...new Set(aliases)];
+  const mappings = await joinRows(sdk, projectId, runScript, `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const wanted=${JSON.stringify(wanted)};return {count:all.length,rows:all.flatMap((r,index)=>wanted.includes(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`);
+  for (const id of wanted) if (UUID.test(id)) {
+    const raw = await sdk.call('listProjectResources', projectId);
+    if (!raw.some(r => r.resourceId === id)) throw new Error('The AI source is no longer in this Project.');
+    mappings.set(id, id);
+  }
+  if (wanted.some(id => !mappings.has(id))) throw new Error('The AI source id is unavailable.');
+  return mappings;
+}
+async function importSharedAiResource(sdk, projectId, path, runScript) {
+  if (typeof path !== 'string' || !path || !(/^(?:[a-z]:[\\/]|\\\\|\/)/i.test(path))) throw new Error('An absolute AI source path is required.');
+  const run = runner(sdk, runScript);
+  const script = `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const key=${pathKey.toString()};const aliases=new Set<string>();const visit=(rows:any[])=>{for(const n of rows||[]){if(n.type==='dir')visit(n.children);else if(n.path&&key(n.path)===key(${JSON.stringify(path)}))aliases.add(n.resourceId);}};const tree=await p.sourceFiles();if('fileTree' in tree)visit(tree.fileTree);else for(const f of tree.folders||[]){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)visit(part.fileTree);}return {count:all.length,rows:all.flatMap((r,index)=>aliases.has(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`;
+  let map = await joinRows(sdk, projectId, run, script);
+  if (!map.size) {
+    await run(`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:[${JSON.stringify(path)}]});`, 'Register AI source media', true);
+    map = await joinRows(sdk, projectId, run, script);
+  }
+  const ids = [...new Set(map.values())];
+  if (ids.length !== 1) throw new Error('The imported AI source path is missing or ambiguous.');
+  return ids[0];
+}
+module.exports = { canonicalResourceBindings, resolveSharedAiResources, importSharedAiResource, importSharedAiVideo: importSharedAiResource };
+
+return module.exports;})();
+//shared-ai-resources:end

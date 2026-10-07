@@ -37,7 +37,7 @@ if (busy.length && calm.length) assert.ok(Math.max(...busy.map(c => c.motion)) >
 assert.deepEqual(cands.filter(c => c.rid === 'b').map(c => [c.t, c.score, c.motion]), [[1, 0.2, null], [2, 0.2, null]], 'fallback: whole seconds from 1 s');
 assert.deepEqual(cands.filter(c => c.rid === 'c'), [], 'no scores and no windows: nothing (fillers still cover the clip)');
 // Without the host's FileSystem there is no data folder (the check then falls back).
-assert.equal(X.cwvHostDataDir('x'), null);
+require('node:test')('missing SDK cannot provide the local cache folder', async () => { assert.equal(await X.cwvHostDataDir('x'), null); });
 
 // Planner: quick candidates join the any-role tier; calm ones go to the title opening and hold, moving ones to the
 // montage. Analysed candidates (no motion) are unaffected, so plans of analysed footage do not change.
@@ -60,7 +60,7 @@ assert.equal(plan.picks.filter(Boolean).length, plan.picks.length);
 // between the quick-score markers (the shared kit block replaces the placeholder unchanged).
 const code = panel.slice(0, panel.indexOf('// STRINGS:BEGIN')) + panel.slice(panel.indexOf('// STRINGS:END'));
 for (const phrase of ['local.push(...(r.local || []));', 'await scoreLocalClips(local, list.map((c) => c.score), check,', 'cwvScoreRange(searchedScores)',
-  'controller.abort()', 'budgetMs: CWV_LOCAL_BUDGET_MS', 'concurrency: CWV_LOCAL_CONCURRENCY', 'dataDir: cwvHostDataDir(PLUGIN_ID)', 'onDone(p.done)',
+  'controller.abort()', 'budgetMs: CWV_LOCAL_BUDGET_MS', 'concurrency: CWV_LOCAL_CONCURRENCY', 'dataDir: (await cwvHostDataDir(PLUGIN_ID))', 'onDone(p.done)',
   '// quick-score:start', '// quick-score:end', 'await quickScoreAll(']) assert.ok(code.includes(phrase), phrase);
 // The kit block is pasted unchanged (tests/quick-score.test.cjs tests it; selects-app-kit tools/panel/quick-score.js).
 const kitPath = path.join(require('node:os').homedir(), 'Workspaces', 'selects-app-kit', 'tools', 'panel', 'quick-score.js');

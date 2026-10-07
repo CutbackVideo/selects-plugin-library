@@ -34,9 +34,9 @@ async function cwTool(kind, args, timeoutMs) {
 }
 const cwFfmpeg = (args, timeoutMs) => cwTool("runFFmpeg", args, timeoutMs);
 const cwFfprobe = (args, timeoutMs) => cwTool("runFFprobe", args, timeoutMs);
-function cwMkdir(dir) { hostNeed("FileSystem", "mkdirSync").mkdirSync(dir, { recursive: true }); }
-function cwSize(file) {
-  try { const fs = hostApi("FileSystem", "existsSync", "statSync"); return fs && fs.existsSync(file) ? Number(fs.statSync(file)?.size || 0) : 0; } catch { return 0; }
+async function cwMkdir(dir) { (await hostNeed("FileSystem", "mkdir").mkdir(dir, { recursive: true })); }
+async function cwSize(file) {
+  try { const fs = hostApi("FileSystem", "exists", "stat"); return fs && (await fs.exists(file)) ? Number((await fs.stat(file))?.size || 0) : 0; } catch { return 0; }
 }
 const cwDir = (file) => String(file).replace(/[\\/][^\\/]*$/, "");
 
@@ -56,38 +56,6 @@ async function cwShots(job) {
     out[range.key] = kept;
   });
   return { cuts: out };
-}
-
-// ---------------------------------------------------------------------------------------------------------
-// faces: job.faces = { samples: [{ key, path, seconds }] } -> { detected: { [key]: { w, h, faces: [[x,y,w,h]...] } } }
-// Apple Vision through vision-helper.js on macOS. Windows has no face detector here: nothing is detected, and the
-// pipeline covers every clip from its centred default (and says so).
-async function cwFaces(env, job, dir) {
-  const samples = job.faces.samples || [];
-  if (hostIsWindows()) return { detected: {}, sampled: samples.length, readable: 0 };
-  // mac-only:start
-  const work = hostJoin(dir, "faces");
-  cwMkdir(work);
-  const files = await cwPool(samples, 4, async (s, i) => {
-    const file = hostJoin(work, "f" + String(i).padStart(3, "0") + ".jpg");
-    const r = await cwFfmpeg(["-v", "error", "-y", "-ss", String(Math.max(0, s.seconds)), "-i", s.path, "-frames:v", "1", "-vf", "scale='min(960,iw)':-2", file], 60000);
-    return r.ok ? file : null;
-  });
-  const ok = files.filter(Boolean);
-  const out = {};
-  // A few images per call, so each answer stays well inside the shell's output limit.
-  for (let k = 0; k < ok.length; k += 20) {
-    let text = "";
-    try { text = await env.runShell("/usr/bin/osascript -l JavaScript " + q(hostJoin(env.pluginDir, "vision-helper.js")) + " faces " + ok.slice(k, k + 20).map(q).join(" "), "Measure framing", 120000); }
-    catch (e) { throw new Error("Face detection failed: " + String(e?.message || e).trim()); }
-    const rows = String(text).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
-    for (const row of rows) {
-      const i = files.indexOf(row.file);
-      if (i >= 0) out[samples[i].key] = { w: row.w, h: row.h, faces: row.faces };
-    }
-  }
-  return { detected: out, sampled: samples.length, readable: ok.length };
-  // mac-only:end
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -161,7 +129,7 @@ async function cwFfmpegFetch(url, dest) {
     ? ["-v", "error", "-y", ...net, "-i", url, "-frames:v", "1", "-f", "image2", "-c:v", "png", dest]
     : ["-v", "error", "-y", ...net, "-i", url, "-t", String(CW_CLIP_SECONDS), "-map", "0:v:0", "-c", "copy", "-an", "-fs", String(CW_MAX_BYTES), "-f", "matroska", dest];
   const r = await cwFfmpeg(args, 90000);
-  const size = cwSize(dest);
+  const size = (await cwSize(dest));
   return r.ok && size > 2000 && size <= CW_MAX_BYTES;
 }
 // mac-only:start
@@ -173,7 +141,7 @@ async function cwCurlDownload(env, url, dest) {
     const code = Number(String(out).trim().slice(-3));
     if (code === 429 || code === 503) { await cwSleep(4000 * (attempt + 1)); continue; }
     if (code < 200 || code >= 300) return false;
-    return cwSize(dest) > 2000;
+    return (await cwSize(dest)) > 2000;
   }
   return false;
 }
@@ -276,7 +244,7 @@ async function cwPreview(file, out, t = 0) {
 }
 async function cwCandidates(env, job, dir) {
   const spec = job.candidates, result = [], work = hostJoin(dir, "candidates");
-  cwMkdir(work);
+  (await cwMkdir(work));
   // Sequential download protects public source rate limits and bounds working-set memory.
   for (const item of spec.items) {
     const choices = (item.candidates || []).filter((c) => c.path || c.url).slice(0, 3);
@@ -331,7 +299,7 @@ function cwEncoders() {
 // the first). One video stream only (-write_tmcd 0: no timecode track from a camera original).
 async function cwAssets(job, dir) {
   const spec = job.assets, media = hostJoin(dir, spec.mediaFolder);
-  cwMkdir(media);
+  (await cwMkdir(media));
   const encoder = cwPickEncoder(await cwEncoders());
   const rows = [];
   for (const item of spec.items) {
@@ -363,7 +331,7 @@ async function cwAssets(job, dir) {
 
 // Runs one engine.mjs command from its job file and writes its result file beside it, as engine.mjs does.
 async function cwEngine(env, cmd, file) {
-  const handlers = { shots: (job) => cwShots(job), faces: (job, dir, env) => cwFaces(env, job, dir), assets: (job, dir) => cwAssets(job, dir), candidates: (job, dir, env) => cwCandidates(env, job, dir) };
+  const handlers = { shots: (job) => cwShots(job), assets: (job, dir) => cwAssets(job, dir), candidates: (job, dir, env) => cwCandidates(env, job, dir) };
   if (!handlers[cmd]) throw new Error("This step needs macOS for now (" + cmd + ").");
   const dir = cwDir(file);
   const result = await handlers[cmd](JSON.parse(await hostReadText(file)), dir, env);

@@ -5,7 +5,9 @@
 //
 // mac: the macOS font files the plans name; bundled: every face from the
 // bundled fonts (what the CI test uses); winsim: the Windows mapping, with the
-// macOS copies of Arial, Georgia and Times standing in for C:\Windows\Fonts.
+// macOS copies of Arial, Georgia and Times standing in for C:\Windows\Fonts
+// (and AppleGothic for Malgun Gothic). The JS engine cannot fall back in mac
+// mode: raster.wasm has no CFF, and Apple SD Gothic Neo is CFF.
 // Writes <job dir>/js/{result.json,frames.bin}.
 const fs = require('fs'), path = require('path');
 const [work, jobdir, mode] = process.argv.slice(2);
@@ -23,7 +25,9 @@ if (mode === 'mac') {
   fontSource = (p, index) => p.endsWith('PermanentMarker-Regular.ttf') ? { bytes: fonts['permanent-marker'], index: 0 } : { bytes: fs.readFileSync(p), index };
 } else if (mode === 'winsim') {
   // Windows has Arial, Arial Black, Georgia and Times (not Arial Narrow without Office).
-  for (const [key, [system]] of Object.entries(DOAC_FONT_MAP)) if (system && system !== 'arialnb.ttf') fonts['windows:' + system] = fs.readFileSync(key.split('#')[0]);
+  // macOS AppleGothic (TrueType) stands in for Malgun Gothic, as in run_py.py.
+  for (const [key, [system, arimo]] of Object.entries(DOAC_FONT_MAP)) if (system && arimo && system !== 'arialnb.ttf') fonts['windows:' + system] = fs.readFileSync(key.split('#')[0]);
+  for (const name of ['malgun.ttf', 'malgunbd.ttf']) fonts['windows:' + name] = fs.readFileSync('/System/Library/Fonts/Supplemental/AppleGothic.ttf');
   fontSource = doacFontSource(fonts, { useSystem: true });
 } else fontSource = doacFontSource(fonts, { useSystem: false });
 (async () => {
