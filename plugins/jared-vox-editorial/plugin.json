@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "jared-vox-editorial",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "name": "Jared Vox Editorial",
   "summary": "Turn a link or text into a narrated editorial film with archival paper, red marker accents and editable evidence cards.",
   "status": "experimental",

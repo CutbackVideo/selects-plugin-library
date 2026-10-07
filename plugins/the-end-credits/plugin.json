@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "the-end-credits",
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "name": "THE END Credits",
   "summary": "Turn travel footage into a 16:9 end-credits roll: THE END types in, the credits scroll up while your clips play in a small window, as a new editable Draft.",
   "status": "experimental",

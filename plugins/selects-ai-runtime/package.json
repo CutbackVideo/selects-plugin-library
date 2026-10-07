@@ -1,6 +1,6 @@
 {
   "name": "selects-ai-runtime-poc",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "private": true,
   "license": "UNLICENSED",
   "description": "Source-only shared AI runtime developer PoC",
