@@ -3,7 +3,7 @@
 The panel is generated from src/ by build.py. On Windows `sdk.runShell` is cmd.exe, so the runtime text (panel.tsx and
 the src/ files it is built from) must not reach a POSIX shell outside `// mac-only:start` ... `// mac-only:end` regions.
 Windows runs the main path: every engine step goes to the panel's port (cwEngine), while macOS keeps engine.mjs on
-Node.js (runtime.sh) and Apple Vision inside mac-only regions. Set CW_PANEL to check another panel file (e.g. the one
+Node.js (runtime.sh) inside mac-only regions. Face detection uses the shared AI SDK on both platforms. Set CW_PANEL to check another panel file (e.g. the one
 on main, which must fail).
 """
 import json
@@ -62,7 +62,7 @@ def build(src):
     s = (src / 'panel.template.tsx').read_text(encoding='utf-8')
     for name in ['LOOK', 'BROLL', 'CAPTIONS']:
         s = s.replace('/*EMBED_' + name + '*/', json.dumps((src / (name.lower() + '.tsx')).read_text(encoding='utf-8')))
-    for name in ['planning', 'assets', 'verification', 'pipeline', 'engine']:
+    for name in ['planning', 'assets', 'verification', 'sharedFaces', 'pipeline', 'engine']:
         s = s.replace('/*SECTION_' + name + '*/', (src / (name + '.ts')).read_text(encoding='utf-8'))
     return s
 
@@ -149,19 +149,22 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
         self.assertIn('if(hostIsWindows())await cwEngine(env,cmd,file);', s['assets.ts'])
         for name in ['pipeline.ts', 'assets.ts']:
             self.assertEqual(without_comments(without_mac_only(s[name])).count('engine.mjs'), 0, name)
-        # The port handles all four engine.mjs commands; Windows faces return nothing (centre crop, with a warning).
+        # Face inference is shared; the remaining asset engine commands stay platform-specific.
         engine = s['engine.ts']
-        for cmd in ['shots:', 'faces:', 'assets:', 'candidates:']:
+        for cmd in ['shots:', 'assets:', 'candidates:']:
             self.assertIn(cmd, engine[engine.index('async function cwEngine('):])
-        self.assertIn('if (hostIsWindows()) return { detected: {}, sampled: samples.length, readable: 0 };', engine)
+        self.assertNotIn('cwFaces', engine)
+        self.assertNotIn('vision-helper.js', self.panel)
+        self.assertIn('cwSharedFaces(', s['pipeline.ts'])
         self.assertIn('they are centre-cropped to 9:16', s['pipeline.ts'])
         # Outside mac-only regions the engine makes no shell call at all.
         self.assertEqual(without_comments(without_mac_only(engine)).count('runShell'), 0)
 
     def test_mac_only_regions_keep_the_mac_engine(self):
         regions = '\n'.join(re.findall(r'//\s*mac-only:start(.*?)//\s*mac-only:end', self.panel, flags=re.S))
-        for needle in ['engine.mjs', 'runtime.sh', 'osascript -l JavaScript', 'vision-helper.js', 'curl ']:
+        for needle in ['engine.mjs', 'runtime.sh', 'curl ']:
             self.assertIn(needle, regions, needle)
+        self.assertNotIn('osascript', self.panel)
         self.assertIn('return { data, plugin, ffmpeg: hostIsWindows() ? "ffmpeg" : await macFfmpegPath(sdk) };', self.panel)
 
     def test_cutaways_fall_back_without_libx264(self):
@@ -194,8 +197,8 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
     def test_manifest_lists_windows(self):
         manifest = json.loads((PLUGIN / 'plugin.json').read_text(encoding='utf-8'))
         self.assertEqual(manifest['compatibility']['platforms'], ['macOS arm64', 'Windows x64'])
-        self.assertEqual(manifest['version'], '0.2.14')
-        self.assertIn('centre-cropped', manifest['compatibility']['selects'])
+        self.assertEqual(manifest['version'], '0.2.15')
+        self.assertIn('Shared YuNet', manifest['compatibility']['selects'])
         self.assertNotIn('Available on macOS for now', (PLUGIN / 'INSTALL.md').read_text(encoding='utf-8'))
 
 

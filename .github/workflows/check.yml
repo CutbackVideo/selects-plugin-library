@@ -185,5 +185,7 @@ jobs:
         run: node --test plugins/selects-ai-runtime/tests/*.test.cjs
       - name: Test Podcast Hook Captions shared AI consumer
         run: node --test plugins/podcast-hook-captions/tests/*.test.cjs
+      - name: Test Chris Williamson shared AI consumer
+        run: node --test tests/chris_williamson*.test.mjs
       - name: Test EO Shorts
         run: node --experimental-strip-types --test tests/eo_shorts.test.mjs
