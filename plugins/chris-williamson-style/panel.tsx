@@ -9,38 +9,23 @@
 import React, { useEffect, useRef, useState } from "react";
 
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -71,34 +56,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -220,7 +188,7 @@ const CAPTION_PARAMS = [
 // ---------------------------------------------------------------------------------------------------------
 // Pure helpers (exported so a harness can test them).
 export type W = { i: number; text: string; startFrame: number; endFrame: number; sourceStartFrame: number | null; nonSpeech?: boolean };
-export type MainClip = { clipId: number; startFrame: number; endFrame: number; resourceId: string; sourceStartSeconds: number | null };
+export type MainClip = { clipId: number; startFrame: number; endFrame: number; resourceId: string; sourceStartSeconds: number | null; sourceFps: number; sourceDurationSeconds: number; playbackRate: number };
 export type Key = { text: string; start: number; end: number; query: string; alt?: string; until?: number; inEffect?: boolean; size?: number };
 
 // Approximate advance widths of Inter ExtraBold in em. Only the fallback: a panel run measures the real widths
@@ -376,6 +344,8 @@ Transcript: ${JSON.stringify(rows)}`;
 // ---------------------------------------------------------------------------------------------------------
 // The pipeline. `env` supplies host access so the same code runs from the panel or a test harness.
 export type Env = {
+  signal?: AbortSignal;
+  onFaceStage?: (active: boolean, journalPath: string) => void;
   runScript: (script: string, summary: string, allowCommit?: boolean) => Promise<any>;
   runShell: (command: string, summary: string, timeoutMs?: number) => Promise<string>;
   askAI: (prompt: string, timeoutMs?: number, images?: {dataUrl:string;name?:string}[]) => Promise<string>;
@@ -393,7 +363,7 @@ export type Env = {
   pluginDir: string;
   ffmpeg: string;
 };
-export type Options = { scope?: UpdateScope; copy: boolean; music?: boolean; musicDb?: number; instructions?: string; fontFamily?: string; planOverride?: any; searchOverride?: Record<string, any[]>; onDraft?: (id: string) => void };
+export type Options = { scope?: UpdateScope; copy: boolean; retryFaceFailures?: boolean; music?: boolean; musicDb?: number; instructions?: string; fontFamily?: string; planOverride?: any; searchOverride?: Record<string, any[]>; onDraft?: (id: string) => void };
 
 // mac-only:start
 const q = (v: string) => "'" + String(v).replace(/'/g, "'\\''") + "'";
@@ -415,26 +385,60 @@ const idByPath: Record<string, string> = {};
 }`;
 
 export async function readDraft(env: Env, projectId: string, sequenceId: string) {
-  return await env.runScript(`
+  if (!env.readCore) throw new Error("This Selects host cannot resolve persistent source Resources.");
+  const bindings = (core: any) => {
+    if (core?.owner?.projectId !== projectId || core.sequenceJson?.id !== sequenceId) throw new Error("The Draft belongs to another Project.");
+    const sources = new Map<number, string>();
+    const visit = (rows: any[]) => { for (const row of rows || []) {
+      const id = row.mediaReferences?.defaultMedia?.id;
+      if (Number.isSafeInteger(row.id) && typeof id === 'string' && !/^r\d+$/.test(id)) sources.set(row.id, id);
+      if (Array.isArray(row.children)) visit(row.children);
+    } };
+    for (const track of core.sequenceJson?.tracks?.children || []) if (track.kind === 'Main') visit(track.children);
+    return sources;
+  };
+  const sources = bindings(await env.readCore(sequenceId));
+  const result = await env.runScript(`
 const S: any = selects;
 const project: any = S.project(${JSON.stringify(projectId)});
 const d: any = S.draft(${JSON.stringify(sequenceId)});
+const persistentSources: Record<number, string> = ${JSON.stringify(Object.fromEntries(sources))};
 const meta: any = await d.meta();
 const all: any[] = await d.words();
-const words = all.map((w: any, i: number) => ({ i, text: String(w.text || ''), startFrame: w.startFrame, endFrame: w.endFrame, sourceStartFrame: w.sourceStartFrame ?? null, nonSpeech: !!w.nonSpeech }));
+const words = all.map((w: any, i: number) => ({ i, text: String(w.text || ''), startFrame: w.startFrame, endFrame: w.endFrame, sourceStartFrame: w.sourceStartFrame ?? null, sourceResourceId: w.sourceResourceId ?? null, nonSpeech: !!w.nonSpeech }));
 const clips: any[] = (await d.clips({ trackScope: 'main' })).filter((c: any) => c.resourceId);
+const sourceMeta: Record<string, any> = {};
+for (const id of Array.from(new Set(clips.map((c: any) => c.resourceId)))) sourceMeta[String(id)] = await project.resource(String(id)).meta();
 const mains = clips.map((c: any) => {
-  const inside = words.filter((w: any) => w.sourceStartFrame != null && w.startFrame >= c.startFrame && w.startFrame < c.endFrame);
-  const src = inside.length ? (inside[0].sourceStartFrame - (inside[0].startFrame - c.startFrame)) / meta.fps : null;
-  return { clipId: c.clipId, startFrame: c.startFrame, endFrame: c.endFrame, resourceId: c.resourceId, sourceStartSeconds: src };
+  const sm = sourceMeta[c.resourceId], sourceFps = Number(sm.fps), sourceDurationSeconds = Number(sm.durationSeconds);
+  const playbackRate = c.playbackSpeed ? Number(c.playbackSpeed.numerator) / Number(c.playbackSpeed.denominator) : 1;
+  if (!(sourceFps > 0) || !(sourceDurationSeconds > 0) || !(playbackRate > 0)) throw new Error('Invalid source frame clock.');
+  const inside = words.filter((w: any) => w.sourceStartFrame != null && (w.sourceResourceId === c.resourceId || w.sourceResourceId === persistentSources[c.clipId]) && w.startFrame >= c.startFrame && w.startFrame < c.endFrame);
+  const src = inside.length ? inside[0].sourceStartFrame / sourceFps - (inside[0].startFrame - c.startFrame) / meta.fps * playbackRate : null;
+  if (src != null && (src < -1 / sourceFps || src >= sourceDurationSeconds)) throw new Error('The source interval is outside the Resource.');
+  return { clipId: c.clipId, startFrame: c.startFrame, endFrame: c.endFrame, resourceId: c.resourceId, sourceStartSeconds: src == null ? null : Math.max(0, src), sourceFps, sourceDurationSeconds, playbackRate };
 });
 const ids = Array.from(new Set(mains.map((m: any) => m.resourceId)));
 const files: Record<string, any> = {};
 const walk = (list: any[]) => { for (const n of list || []) { if (n.type === 'dir') walk(n.children); else if (ids.includes(n.resourceId)) files[n.resourceId] = { path: n.path, frameSize: n.frameSize || null }; } };
 const tree: any = await project.sourceFiles();
-if (tree.fileTree) walk(tree.fileTree); else for (const f of tree.folders || []) walk((await project.sourceFiles({ folder: f.name })).fileTree);
+if (tree.fileTree) walk(tree.fileTree); else for (const f of tree.folders || []) { const detail = await project.sourceFiles({ folder: f.name }); if ('fileTree' in detail) walk(detail.fileTree); }
 const endFrame = mains.reduce((a: number, m: any) => Math.max(a, m.endFrame), 0);
-return { name: meta.name, fps: meta.fps, frameSize: meta.frameSize, endFrame, words, mains, files };`, "Read the talking-head Draft");
+return { name: meta.name, fps: meta.fps, frameSize: meta.frameSize, endFrame, words: words.map(({sourceResourceId, ...word}: any) => word), mains, files };`, "Read the talking-head Draft");
+  // The raw core and SDK observation are separate reads. Refuse a clip-to-source
+  // join if a camera was replaced (or a Main clip changed) between those reads.
+  const observedSources = bindings(await env.readCore(sequenceId));
+  const fingerprint = (map: Map<number, string>) => JSON.stringify([...map].sort((a,b)=>a[0]-b[0]));
+  if (fingerprint(sources) !== fingerprint(observedSources)) throw new Error("The Main sources changed while reading this Draft. Try again.");
+  const files: Record<string, any> = {};
+  for (const main of result.mains) {
+    const id = sources.get(main.clipId);
+    if (!id) throw new Error("The persistent source of clip " + main.clipId + " is unavailable.");
+    files[id] = result.files[main.resourceId];
+    main.resourceId = id;
+  }
+  result.files = files;
+  return result;
 }
 
 
@@ -560,7 +564,7 @@ async function chooseAssets(env: Env, jobDir: string, mediaFolder: string, reel:
     // files and read docs first used their whole time before opening a page (2026-10-01: 12 of 12 searches timed out).
     // Each turn also saves its candidates to a file as it finds them, so a turn that runs out of time still counts.
     const media=JSON.stringify(inventory).slice(0,18000);
-    const searchDir=hostJoin(jobDir,"search");mkdirs(searchDir);
+    const searchDir=hostJoin(jobDir,"search");(await mkdirs(searchDir));
     const fileOf=(query:string)=>hostJoin(searchDir,pass+"-"+queries.indexOf(query)+".json");
     const saved=async(query:string)=>{try{const r=parseJsonLoose(await env.readText(fileOf(query)));return Array.isArray(r?.candidates)?r.candidates:[];}catch{return [];}};
     const searchOne=async(query:string)=>{
@@ -649,6 +653,282 @@ export async function verifyDraft(env: Env, projectId: string, draftId: string, 
   return {structure:"passed",render:"passed",visual,frames:points,deletedByUser:missing.length,export:"not_checked",inspector:"not_checked"};
 }
 
+// Shared inference only. The pipeline keeps its three-point median and style-specific framing.
+export type CwFaceSample = {
+  key: string; groupKey?: string; resourceId: string; seconds: number;
+  sourceFps: number; sourceDurationSeconds: number;
+  frameSize?: { width: number; height: number };
+};
+export type CwFaceEnvironment = {
+  runScript(script: string, summary: string, allowCommit?: boolean): Promise<any>;
+  readText(path: string): Promise<string>;
+  writeText(path: string, text: string): Promise<void>;
+};
+type CwFaceInput = {
+  runtimeId: "selects-ai-runtime"; task: "faces.detect"; projectId: string; resourceId: string;
+  requestKey: string; sourceRange: { startSeconds: number; endSeconds: number };
+  options: { sampleEverySeconds: number; scoreThreshold: 0.8; provider: "cpu" };
+};
+type CwFaceRecord = {
+  samples: CwFaceSample[]; input: CwFaceInput; attempt: number;
+  workflowId?: string; status?: string; cancelRequested?: boolean;
+};
+type CwFaceJournal = { version: 1; projectId: string; records: CwFaceRecord[] };
+export type CwFaceObservation = { w: number; h: number; faces: number[][] };
+const CW_FACE_STATUSES = ["queued", "running", "canceling", "succeeded", "failed", "canceled"];
+const cwFaceTerminal = (status?: string) => ["succeeded", "failed", "canceled"].includes(status || "");
+const cwFaceWrites = new Map<string, Promise<CwFaceJournal>>();
+const cwFaceError = (code: string, message: string) => Object.assign(new Error(message), { code });
+const cwFaceInvalid = () => cwFaceError("CW_FACE_CONTRACT_INVALID", "The saved face analysis or its result does not match this source. Make a new run.");
+function cwFaceAttached(signal?: AbortSignal) {
+  if (signal?.aborted) throw cwFaceError("CW_FACE_DETACHED", "Face observation stopped. Reopen the panel to recover the saved analysis.");
+}
+function cwValidateFaceSample(sample: CwFaceSample): void {
+  if (!sample || typeof sample.key !== "string" || !sample.key || ["__proto__", "constructor", "prototype"].includes(sample.key) ||
+      (sample.groupKey !== undefined && (typeof sample.groupKey !== "string" || !sample.groupKey)) ||
+      !/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(sample.resourceId) ||
+      !Number.isFinite(sample.seconds) || sample.seconds < 0 ||
+      !Number.isFinite(sample.sourceFps) || sample.sourceFps <= 0 ||
+      !Number.isFinite(sample.sourceDurationSeconds) || sample.seconds >= sample.sourceDurationSeconds ||
+      (sample.frameSize !== undefined && (!sample.frameSize || !Number.isSafeInteger(sample.frameSize.width) || sample.frameSize.width <= 0 ||
+        !Number.isSafeInteger(sample.frameSize.height) || sample.frameSize.height <= 0))) throw cwFaceInvalid();
+}
+function cwFaceInput(projectId: string, samples: CwFaceSample[]): CwFaceInput {
+  if (!projectId || !Array.isArray(samples) || ![1, 3].includes(samples.length)) throw cwFaceInvalid();
+  samples.forEach(cwValidateFaceSample);
+  const first = samples[0], last = samples[samples.length - 1];
+  const step = samples.length === 3 ? samples[1].seconds - first.seconds : 0;
+  if (samples.some(s => s.resourceId !== first.resourceId || s.sourceFps !== first.sourceFps ||
+      s.sourceDurationSeconds !== first.sourceDurationSeconds || JSON.stringify(s.frameSize) !== JSON.stringify(first.frameSize)) ||
+      (samples.length === 3 && (step < 2 / first.sourceFps || Math.abs(last.seconds - samples[1].seconds - step) > 1e-8))) throw cwFaceInvalid();
+  const endSeconds = Math.min(first.sourceDurationSeconds, last.seconds + (samples.length === 3 ? 1.5 : 2) / first.sourceFps);
+  if (!Number.isFinite(endSeconds) || endSeconds <= last.seconds) throw cwFaceInvalid();
+  return { runtimeId: "selects-ai-runtime", task: "faces.detect", projectId, resourceId: first.resourceId, requestKey: "",
+    sourceRange: { startSeconds: first.seconds, endSeconds },
+    options: { sampleEverySeconds: step || endSeconds - first.seconds + 1 / first.sourceFps, scoreThreshold: 0.8, provider: "cpu" } };
+}
+function cwFaceGroups(projectId: string, samples: CwFaceSample[]): CwFaceSample[][] {
+  if (samples.length > 3000 || new Set(samples.map(s => s.key)).size !== samples.length) throw cwFaceInvalid();
+  samples.forEach(cwValidateFaceSample);
+  const groups = new Map<string, CwFaceSample[]>();
+  for (const sample of samples) {
+    const key = sample.groupKey || sample.key;
+    groups.set(key, [...(groups.get(key) || []), sample]);
+  }
+  return [...groups.values()].flatMap(group => {
+    if (group.length === 3) {
+      try { cwFaceInput(projectId, group); return [group]; } catch { /* Very short/nonuniform clips use separate observations. */ }
+    }
+    return group.map(sample => [sample]);
+  });
+}
+async function cwFaceRequestKey(path: string, projectId: string, samples: CwFaceSample[], attempt: number): Promise<string> {
+  const identity = JSON.stringify({ path, projectId, samples, attempt, input: cwFaceInput(projectId, samples) });
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity));
+  return "cw-faces-" + Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, "0")).join("");
+}
+async function cwReadFaceJournal(env: CwFaceEnvironment, path: string, projectId: string): Promise<CwFaceJournal> {
+  let text: string;
+  try { text = await env.readText(path); }
+  catch (error: any) {
+    const message = String(error?.message || error).trim();
+    if (message === "The file is unavailable." || /ENOENT|not found|does not exist/i.test(message)) return { version: 1, projectId, records: [] };
+    throw error;
+  }
+  let journal: CwFaceJournal;
+  try { journal = JSON.parse(text); } catch { throw cwFaceInvalid(); }
+  if (journal?.version !== 1 || journal.projectId !== projectId || !Array.isArray(journal.records) || journal.records.length > 6000) throw cwFaceInvalid();
+  const keys = new Set<string>();
+  for (const record of journal.records) {
+    if (!record || !Number.isSafeInteger(record.attempt) || record.attempt < 0 || record.attempt > 255 ||
+        !/^cw-faces-[\da-f]{64}$/.test(record.input?.requestKey) || keys.has(record.input.requestKey) ||
+        (record.workflowId !== undefined && (typeof record.workflowId !== "string" || !record.workflowId)) ||
+        (record.status !== undefined && !CW_FACE_STATUSES.includes(record.status)) ||
+        (record.cancelRequested !== undefined && typeof record.cancelRequested !== "boolean")) throw cwFaceInvalid();
+    const expected = cwFaceInput(projectId, record.samples);
+    if (JSON.stringify({ ...record.input, requestKey: "" }) !== JSON.stringify(expected)) throw cwFaceInvalid();
+    keys.add(record.input.requestKey);
+  }
+  return journal;
+}
+// Serialize the panel's observer/cancel writes; reread before each write so cancel intent cannot be overwritten.
+async function cwWriteFaceJournal(env: CwFaceEnvironment, path: string, projectId: string, update: (j: CwFaceJournal) => void): Promise<CwFaceJournal> {
+  const previous = cwFaceWrites.get(path) || Promise.resolve();
+  const write = previous.catch(() => {}).then(async () => {
+    const journal = await cwReadFaceJournal(env, path, projectId);
+    update(journal);
+    await env.writeText(path, JSON.stringify(journal));
+    return journal;
+  });
+  cwFaceWrites.set(path, write);
+  try { return await write; } finally { if (cwFaceWrites.get(path) === write) cwFaceWrites.delete(path); }
+}
+async function cwSaveFaceRecord(env: CwFaceEnvironment, path: string, record: CwFaceRecord): Promise<void> {
+  const journal = await cwWriteFaceJournal(env, path, record.input.projectId, j => {
+    const index = j.records.findIndex(r => r.input.requestKey === record.input.requestKey), old = j.records[index];
+    if (old?.workflowId && record.workflowId && old.workflowId !== record.workflowId) throw cwFaceInvalid();
+    const saved = { ...old, ...record, cancelRequested: old?.cancelRequested || record.cancelRequested || false };
+    if (old?.workflowId && !saved.workflowId) saved.workflowId = old.workflowId;
+    if (old && cwFaceTerminal(old.status)) saved.status = old.status;
+    if (index < 0) j.records.push(saved); else j.records[index] = saved;
+  });
+  Object.assign(record, journal.records.find(r => r.input.requestKey === record.input.requestKey));
+}
+async function cwFaceCall(env: CwFaceEnvironment, script: string, summary: string, effect = false): Promise<any> {
+  try { return await env.runScript(script, summary, effect); }
+  catch (error: any) {
+    if (error?.code === "CW_AI_UNAVAILABLE" || /\b(?:AI_UNAVAILABLE|AI_UPDATE_REQUIRED|CW_AI_UNAVAILABLE)\b/.test(String(error?.message || error)))
+      throw cwFaceError("CW_AI_UNAVAILABLE", "Update Selects to use shared face analysis.");
+    if (error?.code === "CW_FACE_CONTRACT_INVALID" || /\bCW_FACE_CONTRACT_INVALID\b/.test(String(error?.message || error))) throw cwFaceInvalid();
+    throw error;
+  }
+}
+function cwFaceSubmitScript(input: CwFaceInput): string {
+  return `if (typeof selects.ai?.submit !== "function") throw new Error("CW_AI_UNAVAILABLE");
+const job = await selects.ai.submit(${JSON.stringify(input)}); return { workflowId: job.workflowId };`;
+}
+function cwFaceJobScript(record: CwFaceRecord, method: "status" | "cancel"): string {
+  return `return await selects.ai.job(${JSON.stringify(record.workflowId)}, ${JSON.stringify(record.input.projectId)}).${method}();`;
+}
+function cwCheckFaceStatus(value: any, record: CwFaceRecord): string {
+  // status.resourceId is shortened by the SDK; the canonical input and job ownership remain Main's responsibility.
+  if (value?.workflowId !== record.workflowId || value.projectId !== record.input.projectId || value.runtimeId !== record.input.runtimeId ||
+      value.task !== "faces.detect" || !CW_FACE_STATUSES.includes(value.status)) throw cwFaceInvalid();
+  return value.status;
+}
+async function cwFaceAck(env: CwFaceEnvironment, path: string, record: CwFaceRecord, signal?: AbortSignal): Promise<void> {
+  if (record.workflowId) return;
+  cwFaceAttached(signal);
+  const ack = await cwFaceCall(env, cwFaceSubmitScript(record.input), "Measure speaker framing", true);
+  cwFaceAttached(signal);
+  if (typeof ack?.workflowId !== "string" || !ack.workflowId) throw cwFaceInvalid();
+  record.workflowId = ack.workflowId;
+  await cwSaveFaceRecord(env, path, record);
+}
+async function cwWaitFaceCancellation(env: CwFaceEnvironment, path: string, record: CwFaceRecord, signal?: AbortSignal): Promise<void> {
+  const deadline = Date.now() + 60_000;
+  while (!cwFaceTerminal(record.status)) {
+    cwFaceAttached(signal);
+    const current = await cwFaceCall(env, cwFaceJobScript(record, "status"), "Wait for face analysis to stop");
+    cwFaceAttached(signal);
+    record.status = cwCheckFaceStatus(current, record);
+    await cwSaveFaceRecord(env, path, record);
+    if (cwFaceTerminal(record.status)) return;
+    if (Date.now() >= deadline) throw cwFaceError("CW_FACE_CANCEL_PENDING", "Face analysis is still stopping. Its cancellation is saved; reopen the panel to recover it.");
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+}
+function cwFaceResultScript(record: CwFaceRecord): string {
+  return `const r = await selects.ai.job(${JSON.stringify(record.workflowId)}, ${JSON.stringify(record.input.projectId)}).result();
+if (r.task !== "faces.detect" || !r.files.detections) throw new Error("CW_FACE_CONTRACT_INVALID");
+const raw = await selects.ai.readJSON(r.files.detections, ${JSON.stringify(record.input.projectId)});
+const d = raw as {contractVersion?:number;task?:string;sourceKind?:string;coordinateSpace?:string;boxFormat?:string;frameSize?:{width:number;height:number};parameters?:unknown;samples?:Array<{index:number;sourceTimeSeconds:number;faces:Array<{box:unknown;score:number}>}>};
+if (!Array.isArray(d.samples) || d.samples.length !== ${record.samples.length} || d.samples.some(s => !Array.isArray(s.faces) || s.faces.length > 64)) throw new Error("CW_FACE_CONTRACT_INVALID");
+return { contractVersion:d.contractVersion,task:d.task,sourceKind:d.sourceKind,coordinateSpace:d.coordinateSpace,boxFormat:d.boxFormat,frameSize:d.frameSize,parameters:d.parameters,
+ samples:d.samples.map(s => ({index:s.index,sourceTimeSeconds:s.sourceTimeSeconds,faces:s.faces.map(f => ({box:f.box,score:f.score}))})) };`;
+}
+export function cwAdaptFaceResult(value: any, input: CwFaceInput, samples: CwFaceSample[]): Record<string, CwFaceObservation> {
+  const w = value?.frameSize?.width, h = value?.frameSize?.height, expected = samples[0].frameSize;
+  if (value?.contractVersion !== 1 || value.task !== "faces.detect" || (value.sourceKind !== undefined && value.sourceKind !== "video") ||
+      value.coordinateSpace !== "display-pixels" || value.boxFormat !== "xyxy" || !Number.isSafeInteger(w) || !Number.isSafeInteger(h) || w <= 0 || h <= 0 ||
+      (expected && (expected.width !== w || expected.height !== h)) || !Array.isArray(value.samples) || value.samples.length !== samples.length ||
+      value.parameters?.sourceRange?.startSeconds !== input.sourceRange.startSeconds || value.parameters?.sourceRange?.endSeconds !== input.sourceRange.endSeconds ||
+      value.parameters?.scoreThreshold !== input.options.scoreThreshold || value.parameters?.sampleEverySeconds !== input.options.sampleEverySeconds) throw cwFaceInvalid();
+  const out: Record<string, CwFaceObservation> = {};
+  let previous = -Infinity, previousIndex = -1;
+  for (let i = 0; i < samples.length; i++) {
+    const row = value.samples[i], t = row?.sourceTimeSeconds;
+    if (!Number.isSafeInteger(row?.index) || row.index <= previousIndex || !Number.isFinite(t) || t <= previous ||
+        t < samples[i].seconds - 1e-6 || t >= input.sourceRange.endSeconds ||
+        t >= samples[i].seconds + 2 / samples[i].sourceFps + 1e-6 || !Array.isArray(row.faces) || row.faces.length > 64) throw cwFaceInvalid();
+    previous = t; previousIndex = row.index;
+    const faces = row.faces.map((face: any) => {
+      const b = face?.box;
+      if (!b || ![b.xmin, b.ymin, b.xmax, b.ymax, face.score].every(Number.isFinite) || b.xmin < 0 || b.ymin < 0 ||
+          b.xmax > w || b.ymax > h || b.xmax <= b.xmin || b.ymax <= b.ymin || face.score < input.options.scoreThreshold || face.score > 1) throw cwFaceInvalid();
+      return [b.xmin / w, b.ymin / h, (b.xmax - b.xmin) / w, (b.ymax - b.ymin) / h];
+    });
+    faces.sort((a: number[], b: number[]) => b[2] * b[3] - a[2] * a[3]);
+    out[samples[i].key] = { w, h, faces };
+  }
+  return out;
+}
+async function cwObserveFaceRecord(env: CwFaceEnvironment, path: string, record: CwFaceRecord,
+  options: { signal?: AbortSignal; pollMs?: number; onProgress?: (message: string) => void }): Promise<Record<string, CwFaceObservation>> {
+  await cwFaceAck(env, path, record, options.signal);
+  while (true) {
+    cwFaceAttached(options.signal);
+    const latest = (await cwReadFaceJournal(env, path, record.input.projectId)).records.find(r => r.input.requestKey === record.input.requestKey);
+    if (!latest) throw cwFaceInvalid();
+    Object.assign(record, latest);
+    const value = await cwFaceCall(env, cwFaceJobScript(record, record.cancelRequested && !cwFaceTerminal(record.status) ? "cancel" : "status"), "Read shared face analysis", !!record.cancelRequested);
+    cwFaceAttached(options.signal);
+    record.status = cwCheckFaceStatus(value, record);
+    await cwSaveFaceRecord(env, path, record);
+    if (record.cancelRequested || record.status === "canceled") throw cwFaceError("CW_FACE_CANCELED", "Face analysis was canceled. Start again to request a new analysis.");
+    if (record.status === "failed") throw cwFaceError("CW_FACE_FAILED", "Face analysis failed. Start again to retry. " + String(value.lastErrorMessage || "").slice(0, 300));
+    if (record.status === "succeeded") {
+      const result = await cwFaceCall(env, cwFaceResultScript(record), "Read measured speaker faces");
+      cwFaceAttached(options.signal);
+      return cwAdaptFaceResult(result, record.input, record.samples);
+    }
+    options.onProgress?.("Measuring speaker framing" + (value.progress != null ? " · " + Math.round(value.progress * 100) + "%" : ""));
+    await new Promise(resolve => setTimeout(resolve, options.pollMs ?? 500));
+  }
+}
+export async function cwSharedFaces(env: CwFaceEnvironment, projectId: string, journalPath: string, samples: CwFaceSample[],
+  options: { signal?: AbortSignal; retryTerminal?: boolean; pollMs?: number; onProgress?: (message: string) => void } = {}
+): Promise<{ detected: Record<string, CwFaceObservation>; sampled: number; readable: number }> {
+  if (!journalPath || typeof journalPath !== "string" || !projectId || typeof projectId !== "string") throw cwFaceInvalid();
+  const detected: Record<string, CwFaceObservation> = {};
+  for (const group of cwFaceGroups(projectId, samples)) {
+    cwFaceAttached(options.signal);
+    const journal = await cwReadFaceJournal(env, journalPath, projectId);
+    let record = journal.records.filter(r => JSON.stringify(r.samples) === JSON.stringify(group)).sort((a, b) => b.attempt - a.attempt)[0];
+    if (record && record.input.requestKey !== await cwFaceRequestKey(journalPath, projectId, group, record.attempt)) throw cwFaceInvalid();
+    if (record && options.retryTerminal && record.cancelRequested && !cwFaceTerminal(record.status)) {
+      // Intent can have been saved before cancel() reached Main. Replay it on
+      // the same workflow (recovering a missing ACK with its original key).
+      await cwFaceAck(env, journalPath, record, options.signal);
+      const stopped = await cwFaceCall(env, cwFaceJobScript(record, "cancel"), "Resume cancellation of face analysis", true);
+      cwFaceAttached(options.signal);
+      record.status = cwCheckFaceStatus(stopped, record);
+      await cwSaveFaceRecord(env, journalPath, record);
+      await cwWaitFaceCancellation(env, journalPath, record, options.signal);
+    }
+    // A retry is only an explicit new attempt after a terminal failure/cancel, never an ACK-loss recovery.
+    if (record && options.retryTerminal && (["failed", "canceled"].includes(record.status || "") || (record.cancelRequested && cwFaceTerminal(record.status)))) {
+      record = { samples: group, attempt: record.attempt + 1, input: cwFaceInput(projectId, group) };
+    } else if (!record) record = { samples: group, attempt: 0, input: cwFaceInput(projectId, group) };
+    if (record.attempt > 255) throw cwFaceInvalid();
+    const key = await cwFaceRequestKey(journalPath, projectId, group, record.attempt);
+    if (record.input.requestKey && record.input.requestKey !== key) throw cwFaceInvalid();
+    record.input.requestKey = key;
+    cwFaceAttached(options.signal);
+    await cwSaveFaceRecord(env, journalPath, record); // Stable input/key precede the first possible submission.
+    Object.assign(detected, await cwObserveFaceRecord(env, journalPath, record, options));
+  }
+  return { detected, sampled: samples.length, readable: Object.keys(detected).length };
+}
+export async function cwCancelSharedFaces(env: CwFaceEnvironment, projectId: string, journalPath: string): Promise<{ canceled: number }> {
+  if (!journalPath || typeof journalPath !== "string" || !projectId || typeof projectId !== "string") throw cwFaceInvalid();
+  const journal = await cwWriteFaceJournal(env, journalPath, projectId, j => {
+    for (const record of j.records) if (!cwFaceTerminal(record.status)) record.cancelRequested = true;
+  });
+  let canceled = 0;
+  for (const record of journal.records.filter(r => r.cancelRequested && !cwFaceTerminal(r.status))) {
+    if (record.input.requestKey !== await cwFaceRequestKey(journalPath, projectId, record.samples, record.attempt)) throw cwFaceInvalid();
+    // Missing ACK has one safe recovery: replay the saved key, then cancel that same accepted job.
+    await cwFaceAck(env, journalPath, record);
+    const value = await cwFaceCall(env, cwFaceJobScript(record, "cancel"), "Cancel shared face analysis", true);
+    record.status = cwCheckFaceStatus(value, record);
+    await cwSaveFaceRecord(env, journalPath, record);
+    await cwWaitFaceCancellation(env, journalPath, record);
+    canceled++;
+  }
+  return { canceled };
+}
+
 // Every Main file needs its real picture size to be reframed to 9:16; Selects does not always report one.
 async function probeFrameSizes(env:Env,files:Record<string,any>){
   for(const f of Object.values(files||{}) as any[]){
@@ -662,8 +942,8 @@ async function probeFrameSizes(env:Env,files:Record<string,any>){
 // failed host download is tried once more with curl and a browser user agent, as before.
 async function fetchMusic(env:Env,dir:string,musicPath:string){
   const fs=hostNeed("FileSystem","downloadFile");
-  mkdirs(dir);
-  let size=0;try{size=fs.existsSync?.(musicPath)?Number(fs.statSync?.(musicPath)?.size||0):0;}catch{size=0;}
+  (await mkdirs(dir));
+  let size=0;try{size=(await fs.exists?.(musicPath))?Number((await fs.stat?.(musicPath))?.size||0):0;}catch{size=0;}
   if(!size)try{await fs.downloadFile(MUSIC.url,musicPath);}catch{/* reported below */}
   // mac-only:start
   if(!hostIsWindows()&&!await hostProbeSeconds(musicPath)){await hostRemove(musicPath);try{await env.runShell('curl -L -sS --max-time 240 -A "Mozilla/5.0" -o '+q(musicPath)+' '+q(MUSIC.url),'Fetch the background music',300000);}catch{/* reported below */}}
@@ -673,7 +953,7 @@ async function fetchMusic(env:Env,dir:string,musicPath:string){
 const stateFile =(env:Env,id:string) => hostJoin(env.dataDir,"states",id.replace(/[^a-zA-Z0-9_-]/g,"")+".json");
 async function readState(env:Env,id:string) {
   let text:string;
-  try{text=await env.readText(stateFile(env,id));}catch(e:any){if(/ENOENT|not found|does not exist/i.test(String(e?.message||e)))return null;throw e;}
+  try{text=await env.readText(stateFile(env,id));}catch(e:any){if(/ENOENT|not found|does not exist|file is unavailable/i.test(String(e?.message||e)))return null;throw e;}
   const data=JSON.parse(text);if(data.version!==2 || !data.items)throw new Error("Unrecognised run record; refusing to overwrite existing edits.");return data;
 }
 // Mean luma (0-255) and saturation of the caption band of a cutaway over the keyword's own seconds, read with
@@ -691,7 +971,32 @@ async function measureBand(env:Env,jobDir:string,path:string,seconds:number,tag:
 async function inventory(env:Env,id:string) {
   return await env.runScript(`const d=selects.draft(${JSON.stringify(id)});const clips=await d.clips({trackScope:'all'});const graphics=await d.motionGraphics();const effects=[];for(const c of clips)if(c.resourceId&&(c.trackKind==='main'||c.trackKind==='video'))for(const e of await d.videoEffects(c))effects.push({clipId:c.clipId,name:e.name});return {clips,graphics,effects};`,"Inspect existing edits");
 }
+// Closing a panel detaches observation. It never cancels the host's AI workflow.
+export function attachedPipelineEnv(env: Env): Env {
+  const check = () => { if (env.signal?.aborted) throw Object.assign(new Error('Face observation detached; reopen this Draft to resume.'), {code:'CW_FACE_DETACHED'}); };
+  const next = {...env};
+  for (const name of ['runScript','runShell','askAI','imageData','cleanLegacy','readCore','capture','textMeasure','readText','writeText','node'] as const) {
+    const call = env[name];
+    if (call) (next as any)[name] = async (...args: any[]) => { check(); const value = await (call as any)(...args); check(); return value; };
+  }
+  next.status = message => { if (!env.signal?.aborted) env.status(message); };
+  return next;
+}
+export function sourceClipSeconds(m: MainClip, fps: number) {
+  return m.sourceStartSeconds == null ? 0 : Math.min((m.endFrame-m.startFrame)/fps*m.playbackRate,m.sourceDurationSeconds-m.sourceStartSeconds);
+}
+export function framingSamples(mains: MainClip[], files: Record<string, any>, fps: number) {
+  return mains.flatMap((m,i)=>m.sourceStartSeconds==null?[]:[0.25,0.5,0.75].map(f=>({
+    key:i+':'+f,groupKey:'clip:'+m.clipId,resourceId:m.resourceId,seconds:m.sourceStartSeconds!+sourceClipSeconds(m,fps)*f,
+    sourceFps:m.sourceFps,sourceDurationSeconds:m.sourceDurationSeconds,frameSize:files[m.resourceId]?.frameSize,
+  })));
+}
+export function cameraCutFrames(mains: MainClip[], cuts: Record<string, number[]>, fps: number, total: number) {
+  return mains.flatMap((m,i)=>(cuts[String(i)]||[]).map(t=>m.startFrame+Math.round(t/m.playbackRate*fps))
+    .filter(f=>f>m.startFrame&&f<m.endFrame)).filter(f=>f>0&&f<total);
+}
 export async function runPipeline(env: Env, projectId: string, sequenceId: string, options: Options) {
+  env = attachedPipelineEnv(env);
   const t0=Date.now(), report:any={warnings:[]};
   if(!env.imageData)throw new Error("Image inspection is unavailable in this Selects host.");
   env.status("Checking the Draft and previous edits…");
@@ -715,7 +1020,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   }
   const legacy=existing.graphics.some((g:any)=>g.name===PREFIX+"Captions");
   if(legacy&&!state&&(scope==='preserve'||scope==='broll'))throw new Error("This is a legacy Chris Draft. Choose Replace captions or Rebuild all, preferably on a copy. The old combined caption cannot be separated while preserving unknown manual parameter edits.");
-  mkdirs(hostJoin(env.dataDir,"states"));
+  (await mkdirs(hostJoin(env.dataDir,"states")));
   let draftId=sequenceId;
   if(options.copy && !state?.pending) {
     const name=String(src.name||"Draft").replace(SUFFIX,"")+SUFFIX;
@@ -742,7 +1047,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   const job=String(draftId).slice(0,8)+"-"+Date.now().toString(36);
   const jobDir=newRun?hostJoin(env.dataDir,"runs",job):state.jobDir;
   const mediaFolder=newRun?"Chris Williamson Style "+job:state.mediaFolder;
-  mkdirs(hostJoin(jobDir,mediaFolder));
+  (await mkdirs(hostJoin(jobDir,mediaFolder)));
   state=state||{version:2,items:{},keys:null};
   if(!newRun)scope=state.scope;
   state={...state,draftId,projectId,signature,jobDir,mediaFolder,pending:true,scope};
@@ -833,19 +1138,21 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     const hasOverlays=existing.clips.some((c:any)=>c.trackKind==='video'||c.trackKind==='audio')||existing.graphics.length>0;
     if(!hasOverlays && !state.completed.includes('shots')) {
       const shotsFile=hostJoin(jobDir,'shots.json');
-      await env.writeText(shotsFile,JSON.stringify({shots:{ffmpeg:env.ffmpeg,threshold:0.3,ranges:mains.filter(m=>m.sourceStartSeconds!=null).map((m,i)=>({key:String(i),path:src.files[m.resourceId].path,startSeconds:m.sourceStartSeconds,seconds:(m.endFrame-m.startFrame)/fps}))}}));
+      await env.writeText(shotsFile,JSON.stringify({shots:{ffmpeg:env.ffmpeg,threshold:0.3,ranges:mains.flatMap((m,i)=>m.sourceStartSeconds==null?[]:[{key:String(i),path:src.files[m.resourceId].path,startSeconds:m.sourceStartSeconds,seconds:sourceClipSeconds(m,fps)}])}}));
       await engine('shots',shotsFile,'Find source camera changes',240000);
       const cuts=JSON.parse(await env.readText(hostJoin(jobDir,'shots-result.json'))).cuts;
-      const splitFrames=mains.flatMap((m,i)=>(cuts[String(i)]||[]).map((t:number)=>m.startFrame+Math.round(t*fps))).filter((f:number)=>f>0&&f<total);
+      const splitFrames=cameraCutFrames(mains,cuts,fps,total);
       if(splitFrames.length)await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const starts=new Set((await d.clips({trackScope:'main'})).map(c=>c.startFrame));for(const f of ${JSON.stringify(splitFrames)})if(!starts.has(f))await d.splitAt({frame:f});await d.commitAll('Chris Williamson Style: measured camera cuts')${COMMIT_OK};return true;`,"Split measured camera changes",true);
       state.completed.push('shots');await save();
     }
-    const freshDraft=await readDraft(env,projectId,draftId);mains.splice(0,mains.length,...freshDraft.mains);
-    const faceFile=hostJoin(jobDir,'faces.json');
-    const samples=mains.flatMap((m,i)=>m.sourceStartSeconds==null?[]:[0.25,0.5,0.75].map(f=>({key:i+':'+f,path:src.files[m.resourceId].path,seconds:m.sourceStartSeconds!+(m.endFrame-m.startFrame)/fps*f})));
-    await env.writeText(faceFile,JSON.stringify({ffmpeg:env.ffmpeg,faces:{samples}}));
-    await engine('faces',faceFile,'Measure framing',240000);
-    const faces=JSON.parse(await env.readText(hostJoin(jobDir,'faces-result.json'))).detected||{};
+    const freshDraft=await readDraft(env,projectId,draftId);mains.splice(0,mains.length,...freshDraft.mains);src.files=freshDraft.files;
+    state.faceJournal=state.faceJournal||hostJoin(jobDir,'shared-faces.json');await save();
+    const samples=framingSamples(mains,src.files,fps);
+    env.onFaceStage?.(true,state.faceJournal);
+    let faces:any;
+    try {
+      faces=(await cwSharedFaces(env,projectId,state.faceJournal,samples,{signal:env.signal,retryTerminal:options.retryFaceFailures,onProgress:env.status})).detected;
+    } finally { env.onFaceStage?.(false,state.faceJournal); }
     // Every Main clip is reframed to 9:16; a clip with no measured face is covered from a centred default.
     const framed=mains.map((m,i)=>{const ff=[0.25,0.5,0.75].map(f=>faces[i+':'+f]).filter(r=>r?.faces?.length);const face=ff.length?[0,1,2,3].map(k=>median(ff.map(r=>r.faces[0][k]))):[0.25,0.2,0.5,0.3];const probe=Object.keys(faces).filter(k=>k.startsWith(i+':')).map(k=>faces[k]).find(r=>r?.w);const size=src.files[m.resourceId].frameSize||(probe?{width:probe.w,height:probe.h}:null);if(!size)return null;return {start:m.startFrame,t:headFraming(face,size.width,size.height,ff.length&&i%2?STYLE.head.tight:1),zoomIn:i%2===0};}).filter(Boolean);
     if(framed.length<mains.length)report.warnings.push(`${mains.length-framed.length} clip(s) were not reframed: their source size could not be read.`);
@@ -1003,9 +1310,9 @@ async function cwTool(kind, args, timeoutMs) {
 }
 const cwFfmpeg = (args, timeoutMs) => cwTool("runFFmpeg", args, timeoutMs);
 const cwFfprobe = (args, timeoutMs) => cwTool("runFFprobe", args, timeoutMs);
-function cwMkdir(dir) { hostNeed("FileSystem", "mkdirSync").mkdirSync(dir, { recursive: true }); }
-function cwSize(file) {
-  try { const fs = hostApi("FileSystem", "existsSync", "statSync"); return fs && fs.existsSync(file) ? Number(fs.statSync(file)?.size || 0) : 0; } catch { return 0; }
+async function cwMkdir(dir) { (await hostNeed("FileSystem", "mkdir").mkdir(dir, { recursive: true })); }
+async function cwSize(file) {
+  try { const fs = hostApi("FileSystem", "exists", "stat"); return fs && (await fs.exists(file)) ? Number((await fs.stat(file))?.size || 0) : 0; } catch { return 0; }
 }
 const cwDir = (file) => String(file).replace(/[\\/][^\\/]*$/, "");
 
@@ -1025,38 +1332,6 @@ async function cwShots(job) {
     out[range.key] = kept;
   });
   return { cuts: out };
-}
-
-// ---------------------------------------------------------------------------------------------------------
-// faces: job.faces = { samples: [{ key, path, seconds }] } -> { detected: { [key]: { w, h, faces: [[x,y,w,h]...] } } }
-// Apple Vision through vision-helper.js on macOS. Windows has no face detector here: nothing is detected, and the
-// pipeline covers every clip from its centred default (and says so).
-async function cwFaces(env, job, dir) {
-  const samples = job.faces.samples || [];
-  if (hostIsWindows()) return { detected: {}, sampled: samples.length, readable: 0 };
-  // mac-only:start
-  const work = hostJoin(dir, "faces");
-  cwMkdir(work);
-  const files = await cwPool(samples, 4, async (s, i) => {
-    const file = hostJoin(work, "f" + String(i).padStart(3, "0") + ".jpg");
-    const r = await cwFfmpeg(["-v", "error", "-y", "-ss", String(Math.max(0, s.seconds)), "-i", s.path, "-frames:v", "1", "-vf", "scale='min(960,iw)':-2", file], 60000);
-    return r.ok ? file : null;
-  });
-  const ok = files.filter(Boolean);
-  const out = {};
-  // A few images per call, so each answer stays well inside the shell's output limit.
-  for (let k = 0; k < ok.length; k += 20) {
-    let text = "";
-    try { text = await env.runShell("/usr/bin/osascript -l JavaScript " + q(hostJoin(env.pluginDir, "vision-helper.js")) + " faces " + ok.slice(k, k + 20).map(q).join(" "), "Measure framing", 120000); }
-    catch (e) { throw new Error("Face detection failed: " + String(e?.message || e).trim()); }
-    const rows = String(text).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
-    for (const row of rows) {
-      const i = files.indexOf(row.file);
-      if (i >= 0) out[samples[i].key] = { w: row.w, h: row.h, faces: row.faces };
-    }
-  }
-  return { detected: out, sampled: samples.length, readable: ok.length };
-  // mac-only:end
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -1130,7 +1405,7 @@ async function cwFfmpegFetch(url, dest) {
     ? ["-v", "error", "-y", ...net, "-i", url, "-frames:v", "1", "-f", "image2", "-c:v", "png", dest]
     : ["-v", "error", "-y", ...net, "-i", url, "-t", String(CW_CLIP_SECONDS), "-map", "0:v:0", "-c", "copy", "-an", "-fs", String(CW_MAX_BYTES), "-f", "matroska", dest];
   const r = await cwFfmpeg(args, 90000);
-  const size = cwSize(dest);
+  const size = (await cwSize(dest));
   return r.ok && size > 2000 && size <= CW_MAX_BYTES;
 }
 // mac-only:start
@@ -1142,7 +1417,7 @@ async function cwCurlDownload(env, url, dest) {
     const code = Number(String(out).trim().slice(-3));
     if (code === 429 || code === 503) { await cwSleep(4000 * (attempt + 1)); continue; }
     if (code < 200 || code >= 300) return false;
-    return cwSize(dest) > 2000;
+    return (await cwSize(dest)) > 2000;
   }
   return false;
 }
@@ -1245,7 +1520,7 @@ async function cwPreview(file, out, t = 0) {
 }
 async function cwCandidates(env, job, dir) {
   const spec = job.candidates, result = [], work = hostJoin(dir, "candidates");
-  cwMkdir(work);
+  (await cwMkdir(work));
   // Sequential download protects public source rate limits and bounds working-set memory.
   for (const item of spec.items) {
     const choices = (item.candidates || []).filter((c) => c.path || c.url).slice(0, 3);
@@ -1300,7 +1575,7 @@ function cwEncoders() {
 // the first). One video stream only (-write_tmcd 0: no timecode track from a camera original).
 async function cwAssets(job, dir) {
   const spec = job.assets, media = hostJoin(dir, spec.mediaFolder);
-  cwMkdir(media);
+  (await cwMkdir(media));
   const encoder = cwPickEncoder(await cwEncoders());
   const rows = [];
   for (const item of spec.items) {
@@ -1332,7 +1607,7 @@ async function cwAssets(job, dir) {
 
 // Runs one engine.mjs command from its job file and writes its result file beside it, as engine.mjs does.
 async function cwEngine(env, cmd, file) {
-  const handlers = { shots: (job) => cwShots(job), faces: (job, dir, env) => cwFaces(env, job, dir), assets: (job, dir) => cwAssets(job, dir), candidates: (job, dir, env) => cwCandidates(env, job, dir) };
+  const handlers = { shots: (job) => cwShots(job), assets: (job, dir) => cwAssets(job, dir), candidates: (job, dir, env) => cwCandidates(env, job, dir) };
   if (!handlers[cmd]) throw new Error("This step needs macOS for now (" + cmd + ").");
   const dir = cwDir(file);
   const result = await handlers[cmd](JSON.parse(await hostReadText(file)), dir, env);
@@ -1359,10 +1634,11 @@ const nodeCommand = (pluginDir: string) => "sh " + q(hostJoin(pluginDir, "runtim
 // The install and data folders (and, on macOS, the ffmpeg engine.mjs runs). A Selects without the file services
 // gets one "needs a newer Selects" message.
 async function resolvePaths(sdk: any) {
+  hostUseSdk(sdk);
   try {
     const { plugin, data } = await hostRoots(sdk, PANEL_ID, "engine.mjs");
-    if (!data) throw hostError("host-missing", "this Selects build has no FileSystem.mkdirSync", "FileSystem.mkdirSync");
-    hostNeed("FileSystem", "readFile"); hostNeed("FileSystem", "writeFile"); hostNeed("FileSystem", "mkdirSync");
+    if (!data) throw hostError("host-missing", "this Selects build has no SDK files.mkdir", "SDK files.mkdir");
+    hostNeed("FileSystem", "readFile"); hostNeed("FileSystem", "writeFile"); hostNeed("FileSystem", "mkdir");
     hostNeed("Runtime", "runFFmpeg"); hostNeed("Runtime", "runFFprobe");
     return { data, plugin, ffmpeg: hostIsWindows() ? "ffmpeg" : await macFfmpegPath(sdk) };
   } catch (e: any) {
@@ -1380,13 +1656,8 @@ async function ffprobeRun(args: string[]) {
   const r = await hostNeed("Runtime", "runFFprobe").runFFprobe(args, true);
   return String(r?.stdout || "");
 }
-function mkdirs(path: string) { hostNeed("FileSystem", "mkdirSync").mkdirSync(path, { recursive: true }); }
+async function mkdirs(path: string) { (await hostNeed("FileSystem", "mkdir").mkdir(path, { recursive: true })); }
 
-function host() {
-  const parent: any = window.parent;
-  if (!parent?.__DI__) throw new Error("This Selects version does not expose native panel file services.");
-  return parent.__DI__;
-}
 async function smallImage(dataUrl:string) {
   const img = new Image();img.src=dataUrl;await img.decode();const c=document.createElement("canvas");const k=Math.min(1,1600/Math.max(img.width,img.height));c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);const ctx=c.getContext("2d");if(!ctx)throw Error("Image inspection canvas unavailable");ctx.drawImage(img,0,0,c.width,c.height);return c.toDataURL("image/jpeg",0.86);
 }
@@ -1404,52 +1675,64 @@ export function withoutChrisFlashes(values:any) {
   if('flashEnabled' in next)next.flashEnabled=false;
   return next;
 }
+// legacy-cleanup-sdk:start
+export async function cleanLegacyDraft(selects,input) {
+ const {projectId,draftId,prefix}=input,draft=selects.draft(draftId);
+ if(!(await selects.project(projectId).meta()).draftIds.includes(draftId))throw Error('Draft owner changed.');
+ const clean=values=>{
+  const next={...values};
+  for(const key of ['flashFrames','flashes','inversionSeconds','windowsSeconds'])if(key in next)next[key]=[];
+  if('flashEnabled' in next)next.flashEnabled=false;
+  return next;
+ };
+ let changed=0;
+ const ids=(await draft.clips({trackScope:'all'})).filter(clip=>clip.trackKind==='main'||clip.trackKind==='video').map(clip=>clip.clipId);
+ for(const clipId of ids){
+  let clip=(await draft.clips({trackScope:'all'})).find(row=>row.clipId===clipId);
+  const count=(await draft.videoEffects(clip)).length;
+  for(let index=count-1;index>=0;index--){
+   clip=(await draft.clips({trackScope:'all'})).find(row=>row.clipId===clipId);
+   const effect=(await draft.videoEffects(clip))[index];
+   if(effect.name===prefix+'Double inversion'){await draft.removeVideoEffect(effect);changed++;continue;}
+   if(!(effect.name.startsWith(prefix)||effect.name==='Chris · Inverted keywords + cut flashes'))continue;
+   const program=await draft.videoEffectProgram(effect);if(!program)continue;
+   const parameters=clean(program.parameters);
+   if(JSON.stringify(parameters)!==JSON.stringify(program.parameters)){
+    await draft.replaceVideoEffect(effect,{tsxCode:program.tsxCode,parameters});changed++;
+   }
+  }
+ }
+ const graphics=(await draft.motionGraphics()).filter(graphic=>graphic.name.startsWith(prefix)).map(graphic=>graphic.clip.clipId);
+ for(const clipId of graphics){
+  const clip=(await draft.motionGraphics()).find(graphic=>graphic.clip.clipId===clipId)?.clip;
+  const program=await draft.motionGraphicProgram(clip);if(!program)continue;
+  const parameters=clean(program.parameters);
+  if(JSON.stringify(parameters)!==JSON.stringify(program.parameters)){
+   await draft.setMotionGraphicParameters({clip,parameters});changed++;
+  }
+ }
+ if(changed)await draft.commitAll('Chris: remove legacy flash parameters');
+ return {changed};
+}
+// legacy-cleanup-sdk:end
+
 async function removeLegacyFlashes(sdk:any,env:Env,projectId:string,id:string) {
-  const core=await sdk.call('getDraftCore',id),di=host();
+  hostUseSdk(sdk);
+  const core=await sdk.call('getDraftCore',id);
   if(core.owner?.projectId!==projectId)throw Error('Draft owner changed.');
-  if(!di.SequenceRepository?.findById||!di.SequenceEdit?.runSequenceMutation)throw Error('This Selects host cannot update legacy effects safely.');
-  const seq=await di.SequenceRepository.findById(core.owner.libraryId,id);
-  if(!seq?.clone)throw Error('Draft unavailable.');
   await env.writeText(hostJoin(env.dataDir,'cleanup-'+id+'-'+Date.now()+'.json'),JSON.stringify(core));
-  const generators=new Map((core.generatorJsons||[]).map((g:any)=>[g.id,g]));
-  await di.SequenceEdit.runSequenceMutation(seq,'Chris: remove full-screen flashes',(current:any)=>{
-    const next=current.clone();let changed=false;
-    for(const track of next.getTracks()){
-      let rebound=false;
-      const clips=track.getClips().map((clip:any)=>{
-        const effects=clip.getEffects();
-        for(let i=effects.length-1;i>=0;i--){const effect=effects[i];
-          if(effect.name===PREFIX+'Double inversion'){clip.removeEffectAt(i);changed=true;continue;}
-          if(!(effect.name?.startsWith(PREFIX)||effect.name==='Chris · Inverted keywords + cut flashes'))continue;
-          const ep=effect.metadata?.['cutback.editableParameters'];if(!ep)continue;
-          const values=withoutChrisFlashes(ep.values||{});
-          if(JSON.stringify(values)!==JSON.stringify(ep.values)){ep.values=values;clip.replaceEffectAt(i,effect);changed=true;}
-        }
-        const media=clip.toJSON().mediaReferences?.defaultMedia;
-        if(media?.schema==='Cutback.GeneratorReference.2'&&media.name?.startsWith(PREFIX)){
-          const base:any=generators.get(media.generatorId);const values={...(base?.metadata?.['cutback.editableParameters']?.values||{}),...(media.parameters||{})};
-          const clean=withoutChrisFlashes(values);const overrides={...media.parameters};
-          for(const k of Object.keys(clean))if(JSON.stringify(clean[k])!==JSON.stringify(values[k]))overrides[k]=clean[k];
-          if(JSON.stringify(overrides)!==JSON.stringify(media.parameters||{})){
-            if(!clip.withDefaultMediaReference)throw Error('Legacy generator update unsupported.');
-            changed=true;rebound=true;return clip.withDefaultMediaReference({...media,parameters:overrides});
-          }
-        }
-        return clip;
-      });
-      if(rebound)track.setClips(clips);
-    }
-    return changed?next:null;
-  });
+  await env.runScript(`return await (${cleanLegacyDraft.toString()})(selects,${JSON.stringify({projectId,draftId:id,prefix:PREFIX})});`,'Remove legacy Chris flash parameters',true);
   const removed=await env.runScript(`const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(id)});const files:any=await p.sourceFiles();const ids=new Set();function walk(ns){for(const n of ns||[]){if(n.type==='audio'&&n.name==='shutter.wav'&&String(n.path).replace(/\\\\/g,'/').includes('/chris-williamson-style/runs/'))ids.add(n.resourceId);walk(n.children);}}if(files.fileTree)walk(files.fileTree);else for(const f of files.folders||[]){const sub:any=await p.sourceFiles({folder:f.name});walk(sub.fileTree);}const clips=(await d.clips({trackScope:'all'})).filter(c=>c.trackKind==='audio'&&ids.has(c.resourceId));for(const g of await d.motionGraphics())if(g.name.startsWith('Chris Williamson · ')&&g.name.includes('[cws:inversion:'))clips.push(g.clip);if(clips.length){await d.removeClips(clips);await d.commitAll('Chris: remove shutter clicks and old flash clips');}return clips.length;`,'Remove old Chris flashes and shutter clips',true);
   const state=await readState(env,id);if(state){state.pulses=[];state.inversionOwners=[];for(const [k,v] of Object.entries(state.items) as any[])if(v.category==='inversion')delete state.items[k];state.verification=null;await env.writeText(stateFile(env,id),JSON.stringify(state,null,2));}
   return removed;
 }
 
 // Host access for the pipeline, shared by the panel and a template run.
-function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: string }, status: (message: string) => void): Env {
+function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: string }, status: (message: string) => void, signal?: AbortSignal, onFaceStage?: Env['onFaceStage']): Env {
+  hostUseSdk(sdk);
   let node: Promise<string> | null = null;
   const env: Env = {
+    signal, onFaceStage,
     runScript: async (script, summary, allowCommit = false) => {
       const r = await sdk.runScript({ script, summary, allowCommit, timeoutSeconds: 120 });
       if (r.isError || r.result === undefined) throw new Error((r.output || "Selects could not run " + summary).slice(0, 600));
@@ -1501,6 +1784,20 @@ function panelEnv(sdk: any, paths: { data: string; plugin: string; ffmpeg: strin
 
 type AnalysisState = "checking" | "ready" | "analyzing" | "needs-analysis";
 
+const FACE_UI: Record<string, string[]> = {
+  en: ['Resume styling','Cancel AI job','AI job canceled. Resume styling to try again.','Canceling AI job…'],
+  de: ['Gestaltung fortsetzen','KI-Auftrag abbrechen','KI-Auftrag abgebrochen. Zum erneuten Versuch die Gestaltung fortsetzen.','KI-Auftrag wird abgebrochen…'],
+  es: ['Reanudar estilo','Cancelar tarea de IA','Tarea de IA cancelada. Reanuda el estilo para intentarlo de nuevo.','Cancelando tarea de IA…'],
+  fr: ['Reprendre le style','Annuler la tâche IA','Tâche IA annulée. Reprenez le style pour réessayer.','Annulation de la tâche IA…'],
+  it: ['Riprendi lo stile','Annulla attività IA','Attività IA annullata. Riprendi lo stile per riprovare.','Annullamento attività IA…'],
+  ko: ['\uc2a4\ud0c0\uc77c \uc791\uc5c5 \uc7ac\uac1c','AI \uc791\uc5c5 \ucde8\uc18c','AI \uc791\uc5c5\uc744 \ucde8\uc18c\ud588\uc2b5\ub2c8\ub2e4. \uc2a4\ud0c0\uc77c \uc791\uc5c5\uc744 \uc7ac\uac1c\ud558\uba74 \ub2e4\uc2dc \uc2dc\ub3c4\ud569\ub2c8\ub2e4.','AI \uc791\uc5c5 \ucde8\uc18c \uc911\u2026'],
+  ja: ['\u30b9\u30bf\u30a4\u30eb\u4f5c\u696d\u3092\u518d\u958b','AI\u30b8\u30e7\u30d6\u3092\u30ad\u30e3\u30f3\u30bb\u30eb','AI\u30b8\u30e7\u30d6\u3092\u30ad\u30e3\u30f3\u30bb\u30eb\u3057\u307e\u3057\u305f\u3002\u518d\u8a66\u884c\u3059\u308b\u306b\u306f\u4f5c\u696d\u3092\u518d\u958b\u3057\u3066\u304f\u3060\u3055\u3044\u3002','AI\u30b8\u30e7\u30d6\u3092\u30ad\u30e3\u30f3\u30bb\u30eb\u4e2d\u2026'],
+  pt: ['Retomar estilo','Cancelar tarefa de IA','Tarefa de IA cancelada. Retome o estilo para tentar novamente.','A cancelar tarefa de IA…'],
+  tr: ['Stili devam ettir','Yapay zekâ görevini iptal et','Yapay zekâ görevi iptal edildi. Yeniden denemek için stili devam ettirin.','Yapay zekâ görevi iptal ediliyor…'],
+  zh: ['\u7ee7\u7eed\u6837\u5f0f\u5904\u7406','\u53d6\u6d88 AI \u4efb\u52a1','AI \u4efb\u52a1\u5df2\u53d6\u6d88\u3002\u7ee7\u7eed\u6837\u5f0f\u5904\u7406\u53ef\u91cd\u8bd5\u3002','\u6b63\u5728\u53d6\u6d88 AI \u4efb\u52a1\u2026'],
+};
+function faceUI(context: any) { return FACE_UI[String(context?.language || 'en').toLowerCase().split('-')[0]] || FACE_UI.en; }
+
 // The open Draft's name and transcript, the Resource its Main footage comes from, and any analysis under way for it.
 async function readOpenDraft(sdk: any, projectId: string, sequenceId: string, summary: string) {
   const r = await sdk.runScript({ summary, script: `const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(sequenceId)});const meta=await d.meta();const words=(await d.words({view:'playback'})).filter(w=>!w.nonSpeech&&w.text.trim()).length;const sourceClip=(await d.clips({trackScope:'main'})).find(c=>c.resourceId);const resource=(await project.resources()).find(r=>r.resourceId===sourceClip?.resourceId)||null;const workflow=(await project.workflows({type:'project:analyze-resource'})).find(w=>w.resourceId===sourceClip?.resourceId&&['queued','running','canceling'].includes(w.status))||null;return {name:meta.name,words,sourceResourceId:sourceClip?.resourceId||null,resource,workflow};` });
@@ -1514,6 +1811,9 @@ function StylePanel({ sdk, context, ui }: any) {
   const sequenceId = context?.sequenceId || "";
   const mounted = useRef(true);
   const locked = useRef(false);
+  const observer = useRef<AbortController | null>(null);
+  const faceJournal = useRef('');
+  const S = faceUI(context);
   // The Draft on screen now; a finished run only switches the view if the person is still on the Draft it started from.
   const onScreen = useRef(sequenceId); onScreen.current = sequenceId;
   const [paths, setPaths] = useState<{ data: string; plugin: string; ffmpeg: string } | null>(null);
@@ -1525,6 +1825,9 @@ function StylePanel({ sdk, context, ui }: any) {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ id: string } | null>(null);
+  const [pending, setPending] = useState(false);
+  const [faceActive, setFaceActive] = useState(false);
+  const [canceling, setCanceling] = useState(false);
 
   useEffect(() => {
     resolvePaths(sdk)
@@ -1536,39 +1839,48 @@ function StylePanel({ sdk, context, ui }: any) {
   }, []);
 
   useEffect(() => {
+    let alive = true;
     mounted.current = true;
+    locked.current = false; setBusy(false); setFaceActive(false); setCanceling(false); setPending(false); faceJournal.current = '';
     setResult(null); setError(""); setStatus(""); setSourceName(""); setAlreadyStyled(false); setAnalysisState("checking");
     if (!sequenceId) return () => { mounted.current = false; };
-    readOpenDraft(sdk, projectId, sequenceId, "Check draft transcript").then((d: any) => {
-      if (!mounted.current) return;
+    readOpenDraft(sdk, projectId, sequenceId, "Check draft transcript").then(async (d: any) => {
+      const saved = paths ? await readState({readText, dataDir:paths.data} as Env, sequenceId) : null;
+      if (!alive) return;
       const name = d.name || "Current draft";
       const status = d.resource?.status;
       setSourceName(name);
-      setAlreadyStyled(name.endsWith(SUFFIX));
+      setPending(!!saved?.pending); faceJournal.current = saved?.faceJournal || '';
+      setAlreadyStyled(name.endsWith(SUFFIX) && !saved?.pending);
       setAnalysisState(d.words ? "ready" : status === "sampling" || status === "analyzing" ? "analyzing" : "needs-analysis");
-    }).catch(() => { if (mounted.current) setAnalysisState("needs-analysis"); });
-    return () => { mounted.current = false; };
-  }, [projectId, sequenceId]);
+    }).catch(() => { if (alive) setAnalysisState("needs-analysis"); });
+    return () => { alive = false; mounted.current = false; observer.current?.abort(); observer.current = null; };
+  }, [projectId, sequenceId, paths]);
 
   // Without a transcript there is nothing to style: start analysis of the Draft's footage and wait for its words.
-  async function ensureTranscript(draftId: string) {
+  async function ensureTranscript(draftId: string, signal: AbortSignal) {
+    const check=()=>{if(signal.aborted||observer.current?.signal!==signal)throw Object.assign(new Error('Observation detached.'),{code:'CW_FACE_DETACHED'});};
+    const current=()=>mounted.current&&!signal.aborted&&observer.current?.signal===signal;
     let d = await readOpenDraft(sdk, projectId, draftId, "Read draft transcript");
+    check();
     if (d.words) return;
     if (!d.sourceResourceId || !d.resource) throw new Error("Selects could not find analyzable source footage for this draft.");
     const state = d.resource.status;
     if (state !== "sampling" && state !== "analyzing" && !d.resource.hasAnalysis) {
-      setStatus("Starting transcript analysis…");
-      const r = await sdk.runScript({ summary: "Start transcript analysis", allowCommit: true, script: `return await selects.project(${JSON.stringify(projectId)}).startAnalysis({resourceIds:[${JSON.stringify(d.sourceResourceId)}]});` });
+      if(current())setStatus("Starting transcript analysis…");
+      const r = await sdk.runScript({ summary: "Start transcript analysis", allowCommit: true, script: `const c=(await selects.draft(${JSON.stringify(draftId)}).clips({trackScope:'main'})).find(c=>c.resourceId);if(!c?.resourceId)throw Error('The source video is unavailable.');return await selects.project(${JSON.stringify(projectId)}).startAnalysis({resourceIds:[c.resourceId]});` });
       if (r.isError) throw new Error(r.output || "Selects could not start transcript analysis.");
     }
     for (let attempt = 0; attempt < 180; attempt += 1) {
+      check();
       d = await readOpenDraft(sdk, projectId, draftId, "Check transcript analysis");
-      if (d.words) { if (mounted.current) setAnalysisState("ready"); return; }
+      check();
+      if (d.words) { if (current()) setAnalysisState("ready"); return; }
       const s = d.resource?.status;
       if (s === "samplingFailed" || s === "analyzingFailed") throw new Error("Transcript analysis failed. Open the Project workflows to see the reason, then try again.");
       if (s === "analysisNotApplicable") throw new Error("This source cannot be transcribed by Selects.");
       const percent = typeof d.workflow?.progress === "number" ? ` ${Math.round(d.workflow.progress * 100)}%` : "";
-      if (mounted.current) { setAnalysisState("analyzing"); setStatus(`Analyzing the transcript${percent}…`); }
+      if (current()) { setAnalysisState("analyzing"); setStatus(`Analyzing the transcript${percent}…`); }
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     throw new Error("Transcript analysis is still running. Wait for it to finish, then run the style again.");
@@ -1577,20 +1889,35 @@ function StylePanel({ sdk, context, ui }: any) {
   async function create() {
     if (locked.current || !projectId || !sequenceId || !paths || setupIssue) return;
     const from = sequenceId;
+    const controller = new AbortController(); observer.current = controller;
     locked.current = true; setBusy(true); setError(""); setResult(null);
     try {
       setStatus("Checking the transcript…");
-      await ensureTranscript(from);
-      const env = panelEnv(sdk, paths, (m) => { if (mounted.current) setStatus(m); });
-      const report = await runPipeline(env, projectId, from, { copy: false, music: true, musicDb: MUSIC.levelDb, scope: "all" });
-      if (mounted.current) { setResult({ id: report.draftId }); setStatus("Your Chris Williamson Style draft is ready."); }
-      if (!onScreen.current || onScreen.current === from) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Chris Williamson Style draft" });
+      await ensureTranscript(from,controller.signal);
+      const current = () => mounted.current && !controller.signal.aborted && observer.current===controller;
+      const env = panelEnv(sdk, paths, (m) => { if (current()) setStatus(m); },controller.signal,(active,journal)=>{if(current()){faceJournal.current=journal;setFaceActive(active);}});
+      const report = await runPipeline(env, projectId, from, { copy: false, retryFaceFailures:true, music: true, musicDb: MUSIC.levelDb, scope: "all" });
+      if (mounted.current && !controller.signal.aborted) { setPending(false); setResult({ id: report.draftId }); setStatus("Your Chris Williamson Style draft is ready."); }
+      if (!controller.signal.aborted && (!onScreen.current || onScreen.current === from)) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Chris Williamson Style draft" });
     } catch (e: any) {
-      if (mounted.current) { setError(String(e?.message || e)); setStatus(""); }
-    } finally { locked.current = false; if (mounted.current) setBusy(false); }
+      if (mounted.current && observer.current===controller && e?.code!=='CW_FACE_DETACHED') { setPending(true); setError(e?.code==='CW_FACE_CANCELED'?S[2]:String(e?.message || e)); setStatus(""); }
+    } finally { if(observer.current===controller){locked.current = false;if(mounted.current){setBusy(false);setFaceActive(false);}} }
   }
 
-  const actionLabel = alreadyStyled
+  async function cancelFaces() {
+    if(!paths||!faceJournal.current||canceling)return;
+    const controller=observer.current,journal=faceJournal.current;
+    const current=()=>mounted.current&&observer.current===controller&&faceJournal.current===journal;
+    setCanceling(true);
+    try {
+      await cwCancelSharedFaces(panelEnv(sdk,paths,()=>{}),projectId,journal);
+      controller?.abort();
+      if(current()){setPending(true);setStatus(S[2]);setError('');setFaceActive(false);}
+    } catch(e:any){if(current())setError(String(e?.message||e));}
+    finally {if(current())setCanceling(false);}
+  }
+
+  const actionLabel = pending ? S[0] : alreadyStyled
     ? "Already styled"
     : analysisState === "needs-analysis"
       ? "Analyze transcript & apply"
@@ -1609,6 +1936,7 @@ function StylePanel({ sdk, context, ui }: any) {
     <ui.Button onClick={() => void create()} disabled={busy || !sequenceId || !paths || !!setupIssue || alreadyStyled || analysisState === "checking"} busy={busy} busyLabel={busyLabel}>{actionLabel}</ui.Button>
     <small>{helperText}</small>
     {busy && <ui.Progress />}
+    {faceActive && <ui.Button variant="secondary" busy={canceling} busyLabel={S[3]} disabled={canceling} onClick={()=>void cancelFaces()}>{S[1]}</ui.Button>}
     {status && <ui.Message>{status}</ui.Message>}
     {error && <ui.Message tone="error">{error}</ui.Message>}
     {result && <ui.Button variant="secondary" disabled={busy} onClick={() => void sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(result.id) + ");", summary: "Open the Chris Williamson Style draft" })}>Open result</ui.Button>}
@@ -1629,6 +1957,7 @@ function templateSpeaker(template: any): any {
 }
 
 async function templatePaths(sdk: any) {
+  hostUseSdk(sdk);
   return await resolvePaths(sdk);
 }
 
@@ -1646,13 +1975,11 @@ function TemplateRun({ sdk, context }: any) {
   const runId: string = context.template.runId;
   const currentRunId = useRef(runId);
   currentRunId.current = runId;
-  const startedRunId = useRef<string | null>(null);
   const [status, setStatus] = useState("Getting ready…");
   useEffect(() => {
-    if (startedRunId.current === runId) return;
-    startedRunId.current = runId;
+    const controller = new AbortController();
     // A newer run from the app reports instead of this one.
-    const superseded = () => currentRunId.current !== runId;
+    const superseded = () => controller.signal.aborted || currentRunId.current !== runId;
     const report = (text: string) => { if (!superseded()) setStatus(text); };
     let finished = false;
     const finish = (result: { sequenceId: string } | { error: string }) => {
@@ -1667,7 +1994,7 @@ function TemplateRun({ sdk, context }: any) {
         const speaker = templateSpeaker(context.template);
         if (!projectId) throw new Error("Open a project, then try again.");
         if (!speaker) throw new Error("Pick a talking-head video, then try again.");
-        const env = panelEnv(sdk, await templatePaths(sdk), report);
+        const env = panelEnv(sdk, await templatePaths(sdk), report,controller.signal);
         if (superseded()) return;
         // A picked video becomes a new Draft; a timeline is styled in place.
         const draftId = speaker.kind === "video" ? await templateDraftFromVideo(env, projectId, speaker) : String(speaker.sequenceId);
@@ -1680,11 +2007,279 @@ function TemplateRun({ sdk, context }: any) {
         finish({ error: TEMPLATE_FAILED });
       }
     })();
+    return () => controller.abort();
   }, [runId]);
   return <small>{status}</small>;
 }
 
 /** A template run (`context.template`) builds out of sight; otherwise the panel as a person uses it. */
-export default function Panel(props: any) {
+function Panel(props: any) {
+  hostUseSdk(props.sdk);
   return props.context?.template ? <TemplateRun {...props} /> : <StylePanel {...props} />;
 }
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    // Direct arguments keep object literals contextually typed by the SDK signature.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(Panel);
+// local-sdk:end

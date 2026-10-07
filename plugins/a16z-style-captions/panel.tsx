@@ -11,39 +11,645 @@
 // @name:zh a16z 风格字幕
 // @icon captions
 // One click turns a talking-head Draft into a 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, a name tag and a music bed.
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 
-// plugins/a16z-style-captions/src/Panel.tsx
-import React, { useEffect, useRef, useState } from "react";
+// shared/ai-resources.cjs
+var require_ai_resources = __commonJS({
+  "shared/ai-resources.cjs"(exports, module) {
+    var UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+    var fingerprint = (rows2) => JSON.stringify(rows2.map((r) => [r.resourceId, r.name, r.type]));
+    function canonicalResourceBindings2(core, { projectId, draftId, trackKinds = ["Main"] } = {}) {
+      if (!core?.owner?.projectId || projectId && core.owner.projectId !== projectId || draftId && core.sequenceJson?.id !== draftId) throw new Error("The Draft belongs to another Project.");
+      const bindings = /* @__PURE__ */ new Map();
+      function walk(rows2) {
+        for (const row of rows2 || []) {
+          const id = row.mediaReferences?.defaultMedia?.id;
+          if (Number.isSafeInteger(row.id) && UUID.test(id)) {
+            if (bindings.has(row.id) && bindings.get(row.id) !== id) throw new Error("Ambiguous clip source binding.");
+            bindings.set(row.id, id);
+          }
+          if (Array.isArray(row.children)) walk(row.children);
+        }
+      }
+      for (const track of core.sequenceJson?.tracks?.children || []) if (trackKinds.includes(track.kind)) walk(track.children);
+      return bindings;
+    }
+    function pathKey(value) {
+      const path = String(value).normalize("NFC"), windows = /^[a-z]:[\\/]|^\\\\/i.test(path);
+      const normalized = path.replace(/\\/g, "/");
+      return windows ? normalized.toLowerCase() : normalized;
+    }
+    function runner(sdk, runScript) {
+      return runScript || (async (script2, summary, allowCommit = false) => {
+        const value = await sdk.runScript({ script: script2, summary, allowCommit });
+        if (value?.isError || value?.result === void 0) throw new Error(value?.output || "The Project read returned an incomplete result.");
+        return value.result;
+      });
+    }
+    async function joinRows(sdk, projectId, runScript, script2) {
+      const before = await sdk.call("listProjectResources", projectId);
+      if (!Array.isArray(before)) throw new Error("Could not read Project Resources.");
+      const observed = await runner(sdk, runScript)(script2, "Resolve persistent AI source");
+      const after = await sdk.call("listProjectResources", projectId);
+      if (!Array.isArray(after) || fingerprint(before) !== fingerprint(after) || observed?.count !== before.length || !Array.isArray(observed.rows)) throw new Error("Project Resources changed while resolving the AI source.");
+      const out = /* @__PURE__ */ new Map();
+      for (const row of observed.rows) {
+        const raw = before[row?.index];
+        if (!Number.isSafeInteger(row?.index) || !raw || raw.name !== row.name || raw.type !== row.type || !UUID.test(raw.resourceId) || typeof row.id !== "string") throw new Error("The persistent AI source could not be matched.");
+        out.set(row.id, raw.resourceId);
+      }
+      return out;
+    }
+    async function resolveSharedAiResources(sdk, projectId, aliases, runScript) {
+      if (!Array.isArray(aliases) || aliases.some((id) => typeof id !== "string" || !id)) throw new Error("Invalid AI source ids.");
+      const wanted = [...new Set(aliases)];
+      const mappings = await joinRows(sdk, projectId, runScript, `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const wanted=${JSON.stringify(wanted)};return {count:all.length,rows:all.flatMap((r,index)=>wanted.includes(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`);
+      for (const id of wanted) if (UUID.test(id)) {
+        const raw = await sdk.call("listProjectResources", projectId);
+        if (!raw.some((r) => r.resourceId === id)) throw new Error("The AI source is no longer in this Project.");
+        mappings.set(id, id);
+      }
+      if (wanted.some((id) => !mappings.has(id))) throw new Error("The AI source id is unavailable.");
+      return mappings;
+    }
+    async function importSharedAiResource(sdk, projectId, path, runScript) {
+      if (typeof path !== "string" || !path || !/^(?:[a-z]:[\\/]|\\\\|\/)/i.test(path)) throw new Error("An absolute AI source path is required.");
+      const run2 = runner(sdk, runScript);
+      const script2 = `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const key=${pathKey.toString()};const aliases=new Set<string>();const visit=(rows:any[])=>{for(const n of rows||[]){if(n.type==='dir')visit(n.children);else if(n.path&&key(n.path)===key(${JSON.stringify(path)}))aliases.add(n.resourceId);}};const tree=await p.sourceFiles();if('fileTree' in tree)visit(tree.fileTree);else for(const f of tree.folders||[]){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)visit(part.fileTree);}return {count:all.length,rows:all.flatMap((r,index)=>aliases.has(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`;
+      let map = await joinRows(sdk, projectId, run2, script2);
+      if (!map.size) {
+        await run2(`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:[${JSON.stringify(path)}]});`, "Register AI source media", true);
+        map = await joinRows(sdk, projectId, run2, script2);
+      }
+      const ids = [...new Set(map.values())];
+      if (ids.length !== 1) throw new Error("The imported AI source path is missing or ambiguous.");
+      return ids[0];
+    }
+    module.exports = { canonicalResourceBindings: canonicalResourceBindings2, resolveSharedAiResources, importSharedAiResource, importSharedAiVideo: importSharedAiResource };
+  }
+});
+
+// shared/ai-job-client.cjs
+var require_ai_job_client = __commonJS({
+  "shared/ai-job-client.cjs"(exports, module) {
+    var STATUS = /* @__PURE__ */ new Set(["queued", "running", "canceling", "succeeded", "failed", "canceled"]);
+    var terminal = (status) => ["succeeded", "failed", "canceled"].includes(status);
+    var UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+    var writes = /* @__PURE__ */ new Map();
+    var error = (code, message) => Object.assign(new Error(message), { code });
+    var invalid = () => error("SHARED_AI_INVALID", "Saved AI analysis does not match this source or task.");
+    var clone = (value) => JSON.parse(JSON.stringify(value));
+    function stable(value) {
+      if (Array.isArray(value)) return "[" + value.map(stable).join(",") + "]";
+      if (value && typeof value === "object") return "{" + Object.keys(value).sort().map((k) => JSON.stringify(k) + ":" + stable(value[k])).join(",") + "}";
+      if (value === void 0 || typeof value === "function" || typeof value === "symbol" || typeof value === "bigint" || typeof value === "number" && !Number.isFinite(value)) throw invalid();
+      return JSON.stringify(value);
+    }
+    function attached(signal) {
+      if (signal?.aborted) throw error("SHARED_AI_DETACHED", "AI observation stopped. Reopen to recover the saved job.");
+    }
+    function inputFor(projectId, request) {
+      if (!request || !["faces.detect", "person.matte"].includes(request.task) || !UUID.test(request.resourceId)) throw invalid();
+      const input = { runtimeId: "selects-ai-runtime", projectId, resourceId: request.resourceId, task: request.task };
+      if (request.sourceRange !== void 0) {
+        const { startSeconds, endSeconds } = request.sourceRange || {};
+        if (!Number.isFinite(startSeconds) || startSeconds < 0 || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) throw invalid();
+        input.sourceRange = { startSeconds, endSeconds };
+      }
+      if (request.options !== void 0) {
+        if (!request.options || Array.isArray(request.options) || typeof request.options !== "object") throw invalid();
+        stable(request.options);
+        input.options = clone(request.options);
+      }
+      return input;
+    }
+    async function requestKey(scope, identity, input, attempt) {
+      const withoutKey = { ...input };
+      delete withoutKey.requestKey;
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stable({ scope, identity, input: withoutKey, attempt })));
+      return "shared-ai-" + Array.from(new Uint8Array(digest), (n) => n.toString(16).padStart(2, "0")).join("");
+    }
+    function createSharedAiJobClient2(env) {
+      const { projectId, scope, runScript, load, save } = env || {};
+      if (typeof projectId !== "string" || !projectId || typeof scope !== "string" || !scope || ![runScript, load, save].every((f) => typeof f === "function")) throw invalid();
+      const storageKey = stable({ projectId, scope });
+      const fresh2 = () => ({ version: 1, projectId, scope, records: [] });
+      async function read() {
+        let journal;
+        try {
+          journal = await load();
+        } catch (cause) {
+          if (String(cause?.message || cause).trim() === "The file is unavailable." || /ENOENT|not found|does not exist/i.test(String(cause?.message || cause))) journal = null;
+          else throw cause;
+        }
+        if (journal == null) return fresh2();
+        if (typeof journal === "string") {
+          try {
+            journal = JSON.parse(journal);
+          } catch {
+            throw invalid();
+          }
+        }
+        if (journal.version !== 1 || journal.projectId !== projectId || journal.scope !== scope || !Array.isArray(journal.records) || journal.records.length > 1e4) throw invalid();
+        const keys = /* @__PURE__ */ new Set();
+        for (const r of journal.records) {
+          if (!r || typeof r.identity !== "string" || !Number.isSafeInteger(r.attempt) || r.attempt < 0 || r.attempt > 255 || !/^shared-ai-[\da-f]{64}$/.test(r.input?.requestKey) || keys.has(r.input.requestKey) || r.workflowId !== void 0 && (typeof r.workflowId !== "string" || !r.workflowId) || r.status !== void 0 && !STATUS.has(r.status) || r.cancelRequested !== void 0 && typeof r.cancelRequested !== "boolean") throw invalid();
+          const input = inputFor(projectId, r.input);
+          if (stable({ ...input, requestKey: r.input.requestKey }) !== stable(r.input)) throw invalid();
+          keys.add(r.input.requestKey);
+        }
+        return clone(journal);
+      }
+      async function update(record) {
+        const prior = writes.get(storageKey) || Promise.resolve();
+        const pending = prior.catch(() => {
+        }).then(async () => {
+          const journal = await read(), i = journal.records.findIndex((r) => r.input.requestKey === record.input.requestKey), old = journal.records[i];
+          if (old?.workflowId && record.workflowId && old.workflowId !== record.workflowId) throw invalid();
+          const next = { ...old, ...record, cancelRequested: Boolean(old?.cancelRequested || record.cancelRequested) };
+          if (old?.workflowId) next.workflowId = old.workflowId;
+          if (old && terminal(old.status)) next.status = old.status;
+          if (i < 0) journal.records.push(next);
+          else journal.records[i] = next;
+          await save(clone(journal));
+          Object.assign(record, next);
+        });
+        writes.set(storageKey, pending);
+        try {
+          await pending;
+        } finally {
+          if (writes.get(storageKey) === pending) writes.delete(storageKey);
+        }
+      }
+      async function ack(record, signal) {
+        if (record.workflowId) return;
+        attached(signal);
+        const value = await runScript(`if(typeof selects.ai?.submit!=='function')throw new Error('AI_UPDATE_REQUIRED');const j=await selects.ai.submit(${JSON.stringify(record.input)});return {workflowId:j.workflowId};`, "Start shared AI analysis", true);
+        if (typeof value?.workflowId !== "string" || !value.workflowId) throw invalid();
+        record.workflowId = value.workflowId;
+        await update(record);
+        attached(signal);
+      }
+      async function status(record, cancel2 = false) {
+        const value = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).${cancel2 ? "cancel" : "status"}();`, cancel2 ? "Cancel shared AI analysis" : "Read shared AI progress", cancel2);
+        if (value?.workflowId !== record.workflowId || value.projectId !== projectId || value.runtimeId !== "selects-ai-runtime" || value.task !== record.input.task || !STATUS.has(value.status)) throw invalid();
+        record.status = value.status;
+        await update(record);
+        return value;
+      }
+      async function stop(record, options = {}) {
+        record.cancelRequested = true;
+        await update(record);
+        await ack(record, options.signal);
+        if (!terminal(record.status)) await status(record, true);
+        const deadline = Date.now() + (options.maxWaitMs ?? 6e4);
+        while (!terminal(record.status)) {
+          attached(options.signal);
+          if (Date.now() >= deadline) throw error("SHARED_AI_CANCEL_PENDING", "AI is still stopping. Cancellation is saved; reopen to recover it.");
+          await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+          await status(record);
+        }
+      }
+      async function run2(request, options = {}) {
+        attached(options.signal);
+        const input = inputFor(projectId, request), identity = options.identity ?? "";
+        if (typeof identity !== "string") throw invalid();
+        const journal = await read();
+        let record = journal.records.filter((r) => r.identity === identity && stable(inputFor(projectId, r.input)) === stable(input)).sort((a, b) => b.attempt - a.attempt)[0];
+        if (record && record.input.requestKey !== await requestKey(scope, identity, input, record.attempt)) throw invalid();
+        if (record?.workflowId && options.retryTerminal) {
+          attached(options.signal);
+          await status(record);
+          attached(options.signal);
+        }
+        if (record && options.retryTerminal && record.cancelRequested && !terminal(record.status)) await stop(record, options);
+        if (!record || options.retryTerminal && (["failed", "canceled"].includes(record.status) || record.cancelRequested && terminal(record.status))) {
+          const attempt = record ? record.attempt + 1 : 0;
+          if (attempt > 255) throw invalid();
+          record = { identity, attempt, input: { ...input, requestKey: await requestKey(scope, identity, input, attempt) } };
+          await update(record);
+        }
+        await ack(record, options.signal);
+        for (; ; ) {
+          attached(options.signal);
+          const latest = (await read()).records.find((r) => r.input.requestKey === record.input.requestKey);
+          if (!latest) throw invalid();
+          Object.assign(record, latest);
+          const value = await status(record, record.cancelRequested && !terminal(record.status));
+          attached(options.signal);
+          if (record.cancelRequested || record.status === "canceled") throw error("SHARED_AI_CANCELED", "AI analysis was canceled. Start again to retry.");
+          if (record.status === "failed") throw error("SHARED_AI_FAILED", "AI analysis failed. " + String(value.lastErrorMessage || "").slice(0, 300));
+          if (record.status === "succeeded") {
+            const result = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).result();`, "Read shared AI result");
+            attached(options.signal);
+            if (result?.workflowId !== record.workflowId || result.task !== record.input.task || !result.files || typeof result.files !== "object") throw invalid();
+            return { workflowId: record.workflowId, input: clone(record.input), result };
+          }
+          options.onProgress?.(value);
+          await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+        }
+      }
+      async function cancel(options = {}) {
+        const journal = await read();
+        for (const record of journal.records) {
+          if (options.identity !== void 0 && record.identity !== options.identity || terminal(record.status)) continue;
+          if (record.input.requestKey !== await requestKey(scope, record.identity, record.input, record.attempt)) throw invalid();
+          await stop(record, options);
+        }
+      }
+      return { run: run2, cancel };
+    }
+    module.exports = { createSharedAiJobClient: createSharedAiJobClient2 };
+  }
+});
+
+// shared/face-request-windows.cjs
+var require_face_request_windows = __commonJS({
+  "shared/face-request-windows.cjs"(exports, module) {
+    var FACE_DECODE_BUDGET = 19e3;
+    function faceRequestWindows2({ startSeconds, endSeconds, sourceFps, sampleEverySeconds, maxDecodedFrames = FACE_DECODE_BUDGET }) {
+      if (![startSeconds, endSeconds, sourceFps, sampleEverySeconds].every(Number.isFinite) || startSeconds < 0 || endSeconds <= startSeconds || sourceFps <= 0 || sampleEverySeconds <= 0 || !Number.isSafeInteger(maxDecodedFrames) || maxDecodedFrames < 4) throw new Error("Invalid source face window clock.");
+      const count = Math.ceil((endSeconds - startSeconds) / sampleEverySeconds - 1e-7);
+      if (!Number.isSafeInteger(count) || count < 1 || count > 1e6) throw new Error("Face sample grid exceeds the supported range.");
+      const perWindow = Math.max(1, Math.floor((maxDecodedFrames - 2) / (sourceFps * sampleEverySeconds)) - 1);
+      const windows = [];
+      for (let first = 0; first < count; first += perWindow) {
+        const after = Math.min(count, first + perWindow), boundary = startSeconds + first * sampleEverySeconds;
+        const sparse = sourceFps * sampleEverySeconds > (maxDecodedFrames - 2) / 2;
+        const start = first && !sparse ? startSeconds + (first - 1) * sampleEverySeconds : boundary;
+        const end = sparse ? Math.min(endSeconds, start + 2 / sourceFps) : after < count ? startSeconds + after * sampleEverySeconds : endSeconds;
+        windows.push({ startSeconds: start, endSeconds: end, ...first ? { acceptFromSeconds: boundary - 1e-7 } : {} });
+      }
+      return windows;
+    }
+    function appendFaceSamples2(target, incoming, acceptFromSeconds = -Infinity) {
+      let time = -Infinity, localIndex = -1;
+      const last = target.at(-1)?.sourceTimeSeconds ?? -Infinity;
+      const rows2 = incoming.flatMap((row) => {
+        if (!Number.isSafeInteger(row.index) || row.index <= localIndex || !Number.isFinite(row.sourceTimeSeconds) || row.sourceTimeSeconds <= time)
+          throw new Error("Invalid shared face sample order across windows.");
+        localIndex = row.index;
+        time = row.sourceTimeSeconds;
+        if (row.sourceTimeSeconds < acceptFromSeconds || row.sourceTimeSeconds === last) return [];
+        if (row.sourceTimeSeconds < last) throw new Error("Invalid shared face sample order across windows.");
+        return [{ ...row }];
+      });
+      for (let i = 0; i < rows2.length; i++) rows2[i].index = target.length + i;
+      target.push(...rows2);
+    }
+    module.exports = { FACE_DECODE_BUDGET, faceRequestWindows: faceRequestWindows2, appendFaceSamples: appendFaceSamples2 };
+  }
+});
+
+// shared/local-client.ts
+import React from "react";
+function panelLocalPaths(platform) {
+  const windows = platform === "win32";
+  const slash = (path) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value) => windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value) => {
+    const path = slash(value), root = rootOf(path), absolute = root.endsWith("/");
+    const segments = [];
+    for (const segment2 of path.slice(Math.min(root.length, path.length)).split("/")) {
+      if (!segment2 || segment2 === ".") continue;
+      if (segment2 === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment2 !== ".." || !absolute) segments.push(segment2);
+    }
+    let result = root + segments.join("/");
+    if (!result || windows && /^[a-z]:$/i.test(result)) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value, extension) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension) ? name.slice(0, -extension.length) : name;
+  };
+  return {
+    normalize,
+    join: (...paths) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value) {
+      const path = slash(value), root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value) {
+      const name = basename(value), dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value) => rootOf(slash(value)).endsWith("/")
+  };
+}
+async function createPanelLocalClient(sdk) {
+  const SCRIPT_BYTES = 256 * 1024;
+  const runSource = async (script2, write = false) => {
+    if (new TextEncoder().encode(script2).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: script2
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    return response.result;
+  };
+  const run2 = (method, args, write = false) => runSource("return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");", write);
+  const environment = await run2("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const fileBatch = async (method, inputs, lengths) => {
+    let count = Math.min(3, inputs.length), script2 = "";
+    while (count > 0) {
+      script2 = "const rows=[];" + inputs.slice(0, count).map((input, index) => {
+        const call = "{const result=await selects.files." + method + "(" + JSON.stringify(input) + ");";
+        if (method === "writeChunk")
+          return call + "if(result?.bytesWritten!==" + lengths[index] + ")throw Error('The file write returned an incomplete result. Check the file before retrying.');rows.push(result);}";
+        return call + "if(!result||typeof result.base64!=='string'||!Number.isSafeInteger(result.bytesRead)||result.bytesRead<0||result.bytesRead>" + lengths[index] + ")throw Error('The file read returned an incomplete result.');rows.push(result);if(result.bytesRead<" + lengths[index] + ")return rows;}";
+      }).join("") + "return rows;";
+      if (new TextEncoder().encode(script2).byteLength <= SCRIPT_BYTES) break;
+      count--;
+    }
+    if (!count) throw new Error("The local file script exceeds the 256 KiB limit.");
+    return { count, rows: await runSource(script2, method === "writeChunk") };
+  };
+  const readRange = async (path, offset, length) => {
+    const parts = [];
+    let total = 0;
+    while (total < length) {
+      const inputs = Array.from({ length: Math.min(3, Math.ceil((length - total) / CHUNK_BYTES)) }, (_, index) => ({ path, offset: offset + total + index * CHUNK_BYTES, length: Math.min(CHUNK_BYTES, length - total - index * CHUNK_BYTES) }));
+      const lengths = inputs.map((input) => input.length);
+      const { rows: rows2, count } = await fileBatch("readRange", inputs, lengths);
+      if (!Array.isArray(rows2) || rows2.length < 1 || rows2.length > count) throw new Error("The file read returned an incomplete result.");
+      let short = false;
+      for (let index = 0; index < rows2.length; index++) {
+        const result = rows2[index];
+        if (!result || typeof result.base64 !== "string" || !Number.isSafeInteger(result.bytesRead) || result.bytesRead < 0 || result.bytesRead > lengths[index]) throw new Error("The file read returned an incomplete result.");
+        const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+        if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+        short = bytes.length < lengths[index];
+        if (short && index !== rows2.length - 1) throw new Error("The file read returned invalid bytes.");
+        parts.push(bytes);
+        total += bytes.length;
+      }
+      if (rows2.length !== count && !short) throw new Error("The file read returned an incomplete result.");
+      if (short) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) {
+      output.set(bytes, position);
+      position += bytes.length;
+    }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path) => run2("files.exists", [path]),
+    stat: (path) => run2("files.stat", [path]),
+    readdir: (path) => run2("files.readdir", [path]),
+    readRange,
+    async readFile(path, encoding) {
+      const stat = await run2("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== void 0 && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path, data, options) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : void 0;
+      if (flag !== void 0 && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== void 0 && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        let offset = 0;
+        do {
+          const inputs = [], lengths = [];
+          for (let index = 0; index < (replacement ? 3 : 1) && (offset + index * CHUNK_BYTES < bytes.length || index === 0); index++) {
+            const position = offset + index * CHUNK_BYTES, chunk = bytes.subarray(position, position + CHUNK_BYTES);
+            let binary = "";
+            for (const byte of chunk) binary += String.fromCharCode(byte);
+            const mode = position === 0 ? flag === "a" ? "append" : "exclusive" : void 0;
+            inputs.push({ path: destination, offset: position, base64: btoa(binary), ...mode ? { mode } : {} });
+            lengths.push(chunk.length);
+          }
+          if (!replacement) {
+            const result = await run2("files.writeChunk", [inputs[0]], true);
+            if (result?.bytesWritten !== lengths[0]) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+          } else {
+            const { rows: rows2, count } = await fileBatch("writeChunk", inputs, lengths);
+            if (!Array.isArray(rows2) || rows2.length !== count || rows2.some((row, index) => row?.bytesWritten !== lengths[index])) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+            lengths.length = count;
+          }
+          offset += lengths.reduce((sum, size) => sum + size, 0);
+        } while (offset < bytes.length);
+        if (replacement) await run2("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run2("files.remove", [destination, { recursive: false, force: true }], true).catch(() => {
+        });
+      }
+    },
+    async compareAndReplace(path, expectedText, text) {
+      const encode = (value) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run2("files.compareAndReplace", [{ path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text) }], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path, options) => run2("files.mkdir", [path, options ?? {}], true),
+    rm: (path, options) => run2("files.remove", [path, { recursive: options?.recursive ?? false, force: options?.force ?? false }], true),
+    removeFile: ({ filePath }) => run2("files.remove", [filePath, { recursive: false, force: true }], true),
+    rename: (from, to) => run2("files.rename", [from, to], true),
+    copyFile: (from, to) => run2("files.copy", [from, to], true),
+    downloadFile: (url, path) => run2("files.download", [url, path], true),
+    pathToLocalURL: (path) => run2("files.localUrl", [path]),
+    localURLToPath: (url) => run2("files.pathFromLocalUrl", [url])
+  };
+  const activeJobs = /* @__PURE__ */ new Set();
+  let disposed = false;
+  const cancel = async (jobId) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable, args, _withoutLog, signal, onStdout, onStderr) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run2("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation = null;
+    const abort = () => {
+      cancellation ??= cancel(jobId);
+      void cancellation.catch(() => {
+      });
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") {
+            stdout += event.text;
+            onStdout?.(event.text);
+          } else {
+            stderr += event.text;
+            onStderr?.(event.text);
+          }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {
+      });
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args, quiet, signal, stdout, stderr) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args, quiet, signal) => process("FFprobe", args, quiet, signal)
+    },
+    dialogs: {
+      pickFilePath: (filters) => run2("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run2("editor.pickDirectory", []),
+      pickSavePath: (defaultPath) => run2("editor.pickSavePath", [{ defaultPath }])
+    },
+    dispose() {
+      disposed = true;
+      for (const jobId of activeJobs) void cancel(jobId).catch(() => {
+      });
+    }
+  };
+}
+var panelLocalClients = /* @__PURE__ */ new WeakMap();
+function panelLocalClient(sdk) {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component) {
+  return function LocalSdkPanel(props) {
+    const [state, setState] = React.useState(null);
+    React.useEffect(() => {
+      let active = true;
+      let client;
+      createPanelLocalClient(props.sdk).then((value) => {
+        client = { ...props.sdk, ...value };
+        if (!active) {
+          value.dispose();
+          return;
+        }
+        panelLocalClients.set(props.sdk, client);
+        setState({ sdk: props.sdk });
+      }).catch((error) => {
+        if (active) setState({ error: String(error?.message || error) });
+      });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", { role: "alert" }, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", { role: "status" }, "Connecting to Selects\u2026");
+    return React.createElement(Component, props);
+  };
+}
 
 // plugins/a16z-style-captions/src/pipeline/host.ts
 var PANEL_ID = "a16z-style-captions";
-function app() {
-  const parent = window.parent;
-  if (!parent?.__DI__) throw new Error("This Selects version does not expose native panel services.");
-  return parent;
-}
-function di() {
-  return app().__DI__;
-}
-function libraryId() {
-  const id = app().location.pathname.match(/libraries\/([^/]+)/)?.[1];
-  if (!id) throw new Error("Open a Draft in Selects first.");
-  return id;
+function getSdk() {
+  return hostSdk;
 }
 function fs() {
-  return di().FileSystem;
+  return hostSdk.files;
 }
 function dataRoot() {
   const f = fs();
   return f.join(f.homedir(), ".selects", "plugin-data", PANEL_ID);
 }
-function envRoot() {
-  const f = fs();
-  return f.join(f.homedir(), ".selects", "python-envs", PANEL_ID);
-}
 function hostVersion() {
   try {
-    return String(di().Runtime?.getHostingVersion?.() || "");
+    return String(hostSdk?.environment?.version || "");
   } catch {
     return "";
   }
@@ -54,7 +660,6 @@ function versionBelow(version, minimum) {
   for (let i = 0; i < 3; i += 1) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
   return false;
 }
-var q = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 var J = (v) => JSON.stringify(v);
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 var LIST_FILES = `const listFiles = async (p: any): Promise<any[]> => {
@@ -79,48 +684,19 @@ async function script(sdk, summary, body, allowCommit = false) {
   }
   return r.result;
 }
-async function shell(sdk, summary, command, timeoutMs = 12e4, maxOutputBytes = 16e3) {
-  const r = await sdk.runShell({ summary, command, timeoutMs, maxOutputBytes });
-  const code = r?.exitCode ?? (r?.isError ? 1 : 0);
-  if (r?.isError || code !== 0) {
-    const text = String(r?.stderr || r?.output || r?.stdout || "").trim();
-    throw new Error(summary + " failed" + (text ? ": " + text.slice(-700) : "."));
-  }
-  return String(r?.stdout ?? r?.output ?? "");
-}
 function hostError(code, message, member = "") {
   return Object.assign(new Error(message), { code, member });
 }
-function hostDI() {
-  try {
-    return window.parent && window.parent["__DI__"] || null;
-  } catch {
-    return null;
-  }
-}
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch {
-  }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch {
-    return false;
-  }
-}
 async function hostRoots(sdk, id, marker) {
-  const fs2 = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => {
+  hostUseSdk(sdk);
+  const fs2 = hostApi("FileSystem", "join", "homedir", "exists");
+  const holds = async (dir) => {
     try {
-      return !!dir && (!fs2 || !!fs2.existsSync(fs2.join(dir, marker)));
+      return !!dir && (!fs2 || !!await fs2.exists(fs2.join(dir, marker)));
     } catch {
       return false;
     }
@@ -129,7 +705,7 @@ async function hostRoots(sdk, id, marker) {
   try {
     if (fs2) {
       const dir = String(fs2.join(fs2.homedir(), ".selects", "skills", id));
-      if (holds(dir)) plugin = dir;
+      if (await holds(dir)) plugin = dir;
     }
   } catch {
     plugin = null;
@@ -137,10 +713,10 @@ async function hostRoots(sdk, id, marker) {
   if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
   let data = null;
   try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
+    const dfs = hostApi("FileSystem", "join", "homedir", "mkdir");
     if (dfs) {
       data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id));
-      dfs.mkdirSync(data, { recursive: true });
+      await dfs.mkdir(data, { recursive: true });
     }
   } catch {
     data = null;
@@ -177,28 +753,47 @@ function lastJsonObject(text) {
   }
   throw new Error("The assistant's JSON could not be read.");
 }
+var hostSdk;
+function hostUseSdk(sdk) {
+  hostSdk = panelLocalClient(sdk);
+  if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin.");
+}
+
+// plugins/a16z-style-captions/src/Panel.tsx
+import React2, { useEffect, useRef, useState } from "react";
 
 // plugins/a16z-style-captions/src/pipeline/source.ts
-var READ = (id, pid) => `const p = selects.project(${J(pid)});
+var import_ai_resources = __toESM(require_ai_resources());
+var READ = (id, pid, bindings) => `const p = selects.project(${J(pid)});
 const d = selects.draft(${J(id)});
 const m = await d.meta();
 const ws = (await d.words()).filter((w: any) => !w.nonSpeech && !w.cut && w.endFrame > w.startFrame);
 const main = (await d.clips({ trackScope: "main" })).filter((c: any) => c.trackKind === "main" && c.resourceId != null);
 ${LIST_FILES}
 const files = await listFiles(p);
-const clips = main.map((c: any) => {
+const persistent:Record<number,string> = ${J(bindings)};
+const clips = await Promise.all(main.map(async (c: any) => {
+  const rm = await p.resource(c.resourceId).meta();
+  const sourceFps = rm.fps;
   const f = files.find((x: any) => x.resourceId === c.resourceId);
-  const offs = ws.filter((w: any) => w.startFrame >= c.startFrame && w.endFrame <= c.endFrame && w.sourceStartFrame != null).map((w: any) => w.sourceStartFrame - w.startFrame).sort((a: number, b: number) => a - b);
+  const offs = ws.filter((w: any) => w.startFrame >= c.startFrame && w.endFrame <= c.endFrame && w.sourceStartFrame != null && (w.sourceResourceId === c.resourceId || w.sourceResourceId === persistent[c.clipId])).map((w: any) => w.sourceStartFrame / sourceFps - w.startFrame / m.fps).sort((a: number, b: number) => a - b);
   const off = offs.length ? offs[Math.floor(offs.length / 2)] : null;
   return { clipId: c.clipId, rid: c.resourceId, s: c.startFrame, e: c.endFrame, path: f ? f.path : null,
-    sw: f?.frameSize?.width || 0, sh: f?.frameSize?.height || 0, srcStart: off == null ? -1 : (c.startFrame + off) / m.fps };
-});
+    sw: f?.frameSize?.width || rm.frameSize.width, sh: f?.frameSize?.height || rm.frameSize.height, srcStart: off == null ? -1 : c.startFrame / m.fps + off, canonicalResourceId: persistent[c.clipId], sourceFps, sourceDuration: rm.durationSeconds };
+}));
 return { name: m.name, fps: m.fps, width: m.frameSize.width, height: m.frameSize.height,
   endFrame: main.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0),
   words: ws.map((w: any, i: number) => ({ i, t: w.text, s: w.startFrame, e: w.endFrame, ss: w.sourceStartFrame ?? null, rid: w.sourceResourceId ?? null })),
   clips };`;
 async function readDraft(sdk, pid, id, label = "Read the Draft") {
-  return script(sdk, label, READ(id, pid));
+  if (!sdk.call) throw new Error("Update Selects to resolve source Resources.");
+  const before = (0, import_ai_resources.canonicalResourceBindings)(await sdk.call("getDraftCore", id), { projectId: pid, draftId: id });
+  const result = await script(sdk, label, READ(id, pid, Object.fromEntries(before)));
+  const after = (0, import_ai_resources.canonicalResourceBindings)(await sdk.call("getDraftCore", id), { projectId: pid, draftId: id });
+  const fingerprint = (map) => JSON.stringify([...map].sort((a, b) => a[0] - b[0]));
+  if (fingerprint(before) !== fingerprint(after)) throw new Error("Main sources changed while reading the Draft. Try again.");
+  if (result.clips.some((c) => !c.canonicalResourceId || !(c.sourceFps > 0) || !(c.sourceDuration > 0))) throw new Error("The persistent source Resource is unavailable.");
+  return result;
 }
 
 // plugins/a16z-style-captions/src/captions/lexicon.ts
@@ -322,8 +917,8 @@ async function ask(sdk, prompt, images) {
   }
   throw last || new Error("The assistant did not answer.");
 }
-function find(words2, sents, s, q2) {
-  const want = toks(q2);
+function find(words2, sents, s, q) {
+  const want = toks(q);
   if (!want.length) return null;
   const tries = [s - 1, s - 2, s, s - 3].filter((x, i, a) => x >= 0 && x < sents.length && a.indexOf(x) === i);
   for (const si of tries) {
@@ -369,8 +964,8 @@ function parseLoose(text) {
 }
 function resolveSemantic(o, words2, sents, raw = "") {
   let missing = 0;
-  const f = (s, q2) => {
-    const r = find(words2, sents, Number(s) || 0, String(q2 || ""));
+  const f = (s, q) => {
+    const r = find(words2, sents, Number(s) || 0, String(q || ""));
     if (!r) missing += 1;
     return r;
   };
@@ -425,9 +1020,9 @@ function resolveSemantic(o, words2, sents, raw = "") {
 }
 function resolveDesigns(list, words2, sents, f) {
   const out = [];
-  const near = (s, q2, after = -1) => {
+  const near = (s, q, after = -1) => {
     for (let k = 0; k < 4; k += 1) {
-      const sp = find(words2, sents, s + k, q2);
+      const sp = find(words2, sents, s + k, q);
       if (sp && sp[0] > after) return sp;
     }
     return null;
@@ -504,47 +1099,192 @@ function headOf(words2, sp) {
   return sp[1];
 }
 
-// plugins/a16z-style-captions/src/pipeline/face_track.py
-var face_track_default = '# Speaker face tracking for the 9:16 reframe (YuNet through OpenCV). Per job (one source range): split\n# into shots where the picture changes, link faces into tracks, keep the track seen most often, largest and\n# most confidently. Figures are fractions of the source frame.\nimport argparse, json, os\nimport cv2\nimport numpy as np\n\n\ndef iou(a, b):\n    ax2, ay2, bx2, by2 = a[0] + a[2], a[1] + a[3], b[0] + b[2], b[1] + b[3]\n    iw = max(0.0, min(ax2, bx2) - max(a[0], b[0]))\n    ih = max(0.0, min(ay2, by2) - max(a[1], b[1]))\n    inter = iw * ih\n    return inter / (a[2] * a[3] + b[2] * b[3] - inter + 1e-9)\n\n\ndef histogram(img):\n    h = cv2.calcHist([cv2.cvtColor(img, cv2.COLOR_BGR2HSV)], [0, 1], None, [32, 16], [0, 180, 0, 256])\n    return cv2.normalize(h, h)\n\n\ndef scan(job, model, rate=6.0, score=0.8, min_face=0.05, cut=0.35):\n    cap = cv2.VideoCapture(job["path"])\n    if not cap.isOpened():\n        return {"id": job.get("id"), "error": "cannot open source"}\n    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0\n    W, H = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))\n    f0 = max(0, int(round(float(job["start"]) * fps)))\n    f1 = max(f0 + 1, int(round(float(job["end"]) * fps)))\n    step = max(1, int(round(fps / rate)))\n    k = min(1.0, 640.0 / max(W, H))\n    small = (max(1, int(round(W * k))), max(1, int(round(H * k))))\n    det = cv2.FaceDetectorYN.create(model, "", small, score, 0.3, 5000)\n    if f0 > 0:\n        cap.set(cv2.CAP_PROP_POS_FRAMES, f0)\n    samples, cuts, prev = [], [f0], None\n    for f in range(f0, f1):\n        if not cap.grab():\n            break\n        if (f - f0) % step:\n            continue\n        ok, img = cap.retrieve()\n        if not ok:\n            break\n        img = cv2.resize(img, small, interpolation=cv2.INTER_AREA)\n        hist = histogram(img)\n        if prev is not None and cv2.compareHist(prev, hist, cv2.HISTCMP_CHISQR_ALT) > cut:\n            cuts.append(f)\n        prev = hist\n        _, rows = det.detect(img)\n        faces = []\n        for r in ([] if rows is None else rows):\n            x, y, w, h = r[0] / small[0], r[1] / small[1], r[2] / small[0], r[3] / small[1]\n            if r[14] < score or h < min_face or not (0.5 < (w * W) / (h * H) < 1.6):\n                continue\n            faces.append({"b": [float(x), float(y), float(w), float(h)], "ex": float((r[4] + r[6]) / 2 / small[0]),\n                          "ey": float((r[5] + r[7]) / 2 / small[1]), "s": float(r[14])})\n        samples.append({"f": f, "faces": faces})\n    cap.release()\n    bounds = cuts + [f1]\n    shots = []\n    for i in range(len(cuts)):\n        ss = [s for s in samples if bounds[i] <= s["f"] < bounds[i + 1]]\n        shot = {"start": round(bounds[i] / fps, 4), "end": round(bounds[i + 1] / fps, 4), "face": None, "faces": 0}\n        if ss:\n            tracks = []\n            for s in ss:\n                for face in s["faces"]:\n                    best = max(tracks, key=lambda t: iou(t["last"], face["b"]), default=None)\n                    if best is None or iou(best["last"], face["b"]) < 0.3 or best["lastF"] == s["f"]:\n                        best = {"rows": [], "last": None, "lastF": None}\n                        tracks.append(best)\n                    best["rows"].append(face)\n                    best["last"] = face["b"]\n                    best["lastF"] = s["f"]\n\n            def weight(t):\n                return len(t["rows"]) / len(ss) * float(np.median([r["b"][3] for r in t["rows"]])) * float(np.mean([r["s"] for r in t["rows"]]))\n\n            ranked = sorted(tracks, key=weight, reverse=True)\n            shot["faces"] = max(len(s["faces"]) for s in ss)\n            if ranked:\n                m = ranked[0]["rows"]\n                med = lambda key: round(float(np.median([key(r) for r in m])), 4)\n                shot["face"] = {"cx": med(lambda r: r["ex"]), "eyes": med(lambda r: r["ey"]), "h": med(lambda r: r["b"][3]),\n                                "w": med(lambda r: r["b"][2]), "top": med(lambda r: r["b"][1])}\n        shots.append(shot)\n    merged = []\n    for s in shots:\n        if merged and (s["end"] - s["start"] < 0.5 or merged[-1]["end"] - merged[-1]["start"] < 0.5):\n            keep = merged[-1] if (merged[-1]["face"] and (merged[-1]["end"] - merged[-1]["start"]) >= (s["end"] - s["start"])) or not s["face"] else s\n            merged[-1] = dict(keep, start=merged[-1]["start"], end=s["end"])\n        else:\n            merged.append(s)\n    return {"id": job.get("id"), "width": W, "height": H, "fps": fps, "shots": merged}\n\n\ndef main():\n    p = argparse.ArgumentParser()\n    p.add_argument("--model", required=True)\n    p.add_argument("--jobs", required=True)\n    p.add_argument("--out", required=True)\n    a = p.parse_args()\n    cv2.setNumThreads(2)\n    out = [scan(j, a.model) for j in json.load(open(a.jobs))]\n    tmp = a.out + ".tmp"\n    with open(tmp, "w") as fh:\n        json.dump({"jobs": out}, fh, separators=(",", ":"))\n    os.replace(tmp, a.out)\n    shots = [s for j in out for s in j.get("shots", [])]\n    print(json.dumps({"ok": True, "shots": len(shots), "noFace": sum(1 for s in shots if not s["face"]), "errors": [j["error"] for j in out if j.get("error")]}))\n\n\nmain()\n';
+// plugins/a16z-style-captions/src/pipeline/faces.ts
+var import_ai_job_client = __toESM(require_ai_job_client());
+var import_face_request_windows = __toESM(require_face_request_windows());
+
+// plugins/a16z-style-captions/src/pipeline/faceTracks.ts
+var median = (xs) => {
+  const v = xs.slice().sort((a, b) => a - b), m = v.length >> 1;
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+};
+function iou(a, b) {
+  const area = Math.max(0, Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[1] + a[3], b[1] + b[3]) - Math.max(a[1], b[1]));
+  return area / (a[2] * a[3] + b[2] * b[3] - area + 1e-9);
+}
+function rows(sample, W2, H2) {
+  return sample.faces.flatMap((f) => {
+    const b = f.box, w = b.xmax - b.xmin, h = b.ymax - b.ymin;
+    if (f.score < 0.8 || h < H2 * 0.05 || w / h <= 0.5 || w / h >= 1.6) return [];
+    return [{ b: [b.xmin / W2, b.ymin / H2, w / W2, h / H2], ex: (f.landmarks[0].x + f.landmarks[1].x) / 2 / W2, ey: (f.landmarks[0].y + f.landmarks[1].y) / 2 / H2, score: f.score }];
+  });
+}
+function speakerShots(samples, cuts, start, end, W2, H2) {
+  if (![start, end, W2, H2].every(Number.isFinite) || start < 0 || end <= start || W2 <= 0 || H2 <= 0) throw new Error("Invalid source face clock.");
+  let previous = -Infinity;
+  for (const sample of samples) {
+    if (!Number.isFinite(sample.sourceTimeSeconds) || sample.sourceTimeSeconds <= previous || sample.sourceTimeSeconds < start - 1e-6 || sample.sourceTimeSeconds >= end || !Array.isArray(sample.faces) || sample.faces.length > 64) throw new Error("Invalid shared face sample order.");
+    previous = sample.sourceTimeSeconds;
+    for (const face of sample.faces) {
+      const b = face.box;
+      if (!b || ![b.xmin, b.ymin, b.xmax, b.ymax, face.score].every(Number.isFinite) || b.xmin < 0 || b.ymin < 0 || b.xmax > W2 || b.ymax > H2 || b.xmax <= b.xmin || b.ymax <= b.ymin || face.score < 0 || face.score > 1 || !Array.isArray(face.landmarks) || face.landmarks.length !== 5 || face.landmarks.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) throw new Error("Invalid shared face geometry.");
+    }
+  }
+  const bounds = [start, ...cuts.filter((t) => t > start && t < end), end].sort((a, b) => a - b);
+  const shots = [];
+  for (let i = 0; i < bounds.length - 1; i++) {
+    const ss = samples.filter((s) => s.sourceTimeSeconds >= bounds[i] && s.sourceTimeSeconds < bounds[i + 1]);
+    const tracks = [];
+    ss.forEach((s, si) => {
+      for (const face of rows(s, W2, H2)) {
+        const best = tracks.slice().sort((a, b) => iou(b.last, face.b) - iou(a.last, face.b))[0];
+        const track = !best || iou(best.last, face.b) < 0.3 || best.lastSample === si ? { rows: [], last: face.b, lastSample: si } : best;
+        if (track !== best) tracks.push(track);
+        track.rows.push(face);
+        track.last = face.b;
+        track.lastSample = si;
+      }
+    });
+    const weight = (t) => t.rows.length / Math.max(1, ss.length) * median(t.rows.map((r) => r.b[3])) * t.rows.reduce((n, r) => n + r.score, 0) / t.rows.length;
+    tracks.sort((a, b) => weight(b) - weight(a));
+    const selected = tracks[0]?.rows, med = (fn) => Math.round(median(selected.map(fn)) * 1e4) / 1e4;
+    const shot = { start: bounds[i], end: bounds[i + 1], face: selected ? { cx: med((r) => r.ex), eyes: med((r) => r.ey), h: med((r) => r.b[3]), w: med((r) => r.b[2]), top: med((r) => r.b[1]) } : null };
+    const previous2 = shots.at(-1);
+    if (previous2 && (shot.end - shot.start < 0.5 || previous2.end - previous2.start < 0.5)) {
+      const keep = previous2.face && previous2.end - previous2.start >= shot.end - shot.start || !shot.face ? previous2 : shot;
+      shots[shots.length - 1] = { ...keep, start: previous2.start, end: shot.end };
+    } else shots.push(shot);
+  }
+  return { W: W2, H: H2, shots };
+}
+
+// plugins/a16z-style-captions/src/pipeline/shotHistogram.ts
+function hsvHistogram(rgb) {
+  const bins = new Float64Array(32 * 16);
+  for (let i = 0; i + 2 < rgb.length; i += 3) {
+    const r = rgb[i], g = rgb[i + 1], b = rgb[i + 2], max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min;
+    const saturation = max ? delta * Math.round((255 << 12) / max) + 2048 >> 12 : 0;
+    let hue = delta ? (max === r ? g - b : max === g ? b - r + 2 * delta : r - g + 4 * delta) * Math.round((180 << 12) / (6 * delta)) + 2048 >> 12 : 0;
+    if (hue < 0) hue += 180;
+    bins[Math.min(31, Math.floor(hue * 32 / 180)) * 16 + Math.min(15, Math.floor(saturation * 16 / 256))] += 1;
+  }
+  const norm4 = Math.hypot(...bins);
+  if (norm4) for (let i = 0; i < bins.length; i++) bins[i] /= norm4;
+  return bins;
+}
+function histogramDistance(a, b) {
+  let distance = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] + b[i] > 0) distance += 2 * (a[i] - b[i]) ** 2 / (a[i] + b[i]);
+  return distance;
+}
+async function histogramCuts(input) {
+  if (input.times.length !== input.count || input.times.some((t, i) => !Number.isFinite(t) || t < 0 || i > 0 && t <= input.times[i - 1])) throw new Error("Invalid camera sample source clock.");
+  const cuts = [];
+  let previous = null;
+  for (let index = 0; index < input.count; index++) {
+    const current = hsvHistogram(await input.read(index));
+    if (previous && histogramDistance(previous, current) > 0.35) cuts.push(input.times[index]);
+    previous = current;
+  }
+  return cuts;
+}
+
+// plugins/a16z-style-captions/src/pipeline/cameraSamples.ts
+function cameraSampleArgs(input, output, width, height, step) {
+  return [
+    "-hide_banner",
+    "-nostdin",
+    "-loglevel",
+    "info",
+    "-y",
+    "-i",
+    input.path,
+    "-map",
+    "0:V:0",
+    "-an",
+    "-sn",
+    "-dn",
+    "-vf",
+    `setpts=PTS-STARTPTS,trim=start=${input.start}:end=${input.end},framestep=${step},showinfo=checksum=0,scale=${width}:${height}:flags=area`,
+    "-pix_fmt",
+    "rgb24",
+    "-fps_mode",
+    "passthrough",
+    "-f",
+    "rawvideo",
+    output
+  ];
+}
+function cameraSampleTimes(stderr, count, start, end) {
+  const base = stderr.match(/config in time_base:\s*(\d+)\/(\d+)/);
+  if (!base || !(Number(base[1]) > 0 && Number(base[2]) > 0)) throw new Error("Camera sample time base was unavailable.");
+  const unit = Number(base[1]) / Number(base[2]), times = [];
+  for (const line of stderr.split(/\r?\n/)) {
+    if (!/showinfo/i.test(line)) continue;
+    const match = line.match(/\bn:\s*(\d+)\s+pts:\s*(-?\d+)\s+pts_time:/);
+    if (!match) continue;
+    const pts = Number(match[2]), time = pts * unit;
+    if (Number(match[1]) !== times.length || !Number.isSafeInteger(pts) || !Number.isFinite(time) || time < start - 1e-7 || time >= end || times.length && time <= times.at(-1)) throw new Error("Camera sample source timestamps were incomplete or unordered.");
+    times.push(time);
+  }
+  if (times.length !== count) throw new Error("Camera sample timestamps do not match the decoded frames.");
+  return times;
+}
 
 // plugins/a16z-style-captions/src/pipeline/faces.ts
-var MODEL_URL = "https://media.githubusercontent.com/media/opencv/opencv_zoo/f12e12798e8314f7c074a6656816c048dcc95b7a/models/face_detection_yunet/face_detection_yunet_2023mar.onnx";
-var MODEL_SHA = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4";
-async function ensureFaceRuntime(sdk, progress) {
-  const env = envRoot();
-  const model2 = fs().join(dataRoot(), "models", "face_detection_yunet_2023mar.onnx");
-  const py = fs().join(env, "bin", "python");
-  const ok = await shell(sdk, "Check speaker framing", "[ -x " + q(py) + " ] && " + q(py) + " -c 'import cv2; cv2.FaceDetectorYN' 2>/dev/null && echo ENV; [ -f " + q(model2) + " ] && echo MODEL; true", 3e4);
-  if (!/ENV/.test(ok)) {
-    progress("Setting up speaker framing (one time, about a minute)\u2026");
-    await shell(
-      sdk,
-      "Install speaker framing",
-      "set -e; /usr/bin/python3 -m venv " + q(env) + " && " + q(fs().join(env, "bin", "pip")) + " install -q --disable-pip-version-check --only-binary=:all: numpy 'opencv-python-headless>=4.8'",
-      3e5
-    );
-  }
-  if (!/MODEL/.test(ok)) {
-    const dir = fs().join(dataRoot(), "models");
-    await shell(
-      sdk,
-      "Download the face model",
-      "set -e; mkdir -p " + q(dir) + " && curl -sfL --max-time 120 -o " + q(model2 + ".part") + " " + q(MODEL_URL) + ' && [ "$(shasum -a 256 ' + q(model2 + ".part") + ` | cut -d' ' -f1)" = ` + MODEL_SHA + " ] && mv " + q(model2 + ".part") + " " + q(model2),
-      15e4
-    );
-  }
-  return { python: py, model: model2 };
-}
-async function trackFaces(sdk, rt, dir, jobs) {
+async function trackFaces(sdk, projectId, dir, jobs, progress = () => {
+}) {
   const out = {};
   if (!jobs.length) return out;
-  fs().mkdirSync(dir, { recursive: true });
-  const jobsPath = fs().join(dir, "face-jobs.json");
-  const outPath = fs().join(dir, "faces.json");
-  await fs().writeFile(jobsPath, J(jobs));
-  await shell(sdk, "Find the speaker in each shot", q(rt.python) + " -c " + q(face_track_default) + " --model " + q(rt.model) + " --jobs " + q(jobsPath) + " --out " + q(outPath), 3e5);
-  const res = JSON.parse(String(await fs().readFile(outPath, "utf8")));
-  for (const j of res.jobs || []) if (!j.error) out[String(j.id)] = { W: j.width, H: j.height, shots: j.shots };
+  await fs().mkdir(dir, { recursive: true });
+  const journal = fs().join(dir, "shared-ai-jobs.json");
+  const client = (0, import_ai_job_client.createSharedAiJobClient)({
+    projectId,
+    scope: "a16z-faces:" + dir,
+    runScript: (body, summary, effect) => script(sdk, summary, body, effect),
+    load: async () => await fs().exists(journal) ? JSON.parse(String(await fs().readFile(journal, "utf8"))) : null,
+    save: async (value) => fs().writeFile(journal, JSON.stringify(value))
+  });
+  for (const job of jobs) {
+    if (!(job.fps > 0 && job.width > 0 && job.height > 0) || !Number.isFinite(job.start) || !(job.end > job.start)) throw new Error("Invalid source frame clock.");
+    const interval = Math.max(1, Math.round(job.fps / 6)) / job.fps;
+    const samples = [];
+    const windows = (0, import_face_request_windows.faceRequestWindows)({ startSeconds: job.start, endSeconds: job.end, sourceFps: job.fps, sampleEverySeconds: interval });
+    for (const window2 of windows) {
+      const run2 = await client.run(
+        {
+          task: "faces.detect",
+          resourceId: job.resourceId,
+          sourceRange: { startSeconds: window2.startSeconds, endSeconds: window2.endSeconds },
+          options: { sampleEverySeconds: interval, scoreThreshold: 0.8, provider: "cpu" }
+        },
+        { retryTerminal: true, identity: job.id + ":" + job.start + ":" + job.end + (windows.length > 1 ? ":" + window2.startSeconds + ":" + window2.endSeconds : ""), onProgress: (s) => progress(s.step || "Finding the speaker\u2026") }
+      );
+      const artifact = run2.result.files.detections, incoming = [];
+      for (let offset = 0; ; offset += 10) {
+        const page = await script(sdk, "Read speaker observations", `const d:any=await selects.ai.readJSON(${JSON.stringify(artifact)},${JSON.stringify(projectId)});
+if(d.parameters?.sourceRange?.startSeconds!==${window2.startSeconds}||d.parameters?.sourceRange?.endSeconds!==${window2.endSeconds}||d.parameters?.scoreThreshold!==0.8||d.parameters?.sampleEverySeconds!==${interval})throw Error("Shared face parameters changed");
+if(d.contractVersion!==1||d.task!=="faces.detect"||d.coordinateSpace!=="display-pixels"||d.boxFormat!=="xyxy"||d.frameSize?.width!==${job.width}||d.frameSize?.height!==${job.height}||!Array.isArray(d.samples)||!d.samples.length||d.samples.length>${Math.ceil((window2.endSeconds - window2.startSeconds) / interval) + 3})throw Error("Invalid shared face result");
+return {total:d.samples.length,samples:d.samples.slice(${offset},${offset + 10})};`);
+        incoming.push(...page.samples);
+        if (offset + 10 >= page.total) break;
+      }
+      (0, import_face_request_windows.appendFaceSamples)(samples, incoming, window2.acceptFromSeconds);
+    }
+    const scale = Math.min(1, 640 / Math.max(job.width, job.height)), width = Math.max(1, Math.round(job.width * scale)), height = Math.max(1, Math.round(job.height * scale));
+    const bytes = width * height * 3, step = Math.max(1, Math.round(job.fps / 6)), rgb = fs().join(dir, "shot-" + job.id + ".rgb");
+    let cuts;
+    try {
+      const decoded = await hostFF("runFFmpeg", cameraSampleArgs(job, rgb, width, height, step), 3e5);
+      const stat = await fs().stat(rgb);
+      if (!stat || stat.size < bytes || stat.size % bytes) throw new Error("Camera sample decoding was incomplete.");
+      const count = Math.floor(stat.size / bytes), times = cameraSampleTimes(decoded.stderr, count, job.start, job.end);
+      cuts = await histogramCuts({ read: (i) => fs().readRange(rgb, i * bytes, bytes), count, times });
+    } finally {
+      await fs().rm(rgb, { force: true });
+    }
+    out[job.id] = speakerShots(samples, cuts, job.start, job.end, job.width, job.height);
+  }
   return out;
 }
 
@@ -803,6 +1543,41 @@ function addFramingChanges(plan, covered, starts, fps, duration) {
   return { ...plan, clips, shots, cuts: cuts.sort((a, b) => a - b) };
 }
 
+// shared/generation-client.js
+function sdkGeneration(sdk) {
+  if (typeof sdk?.runScript !== "function") return null;
+  const run2 = async (script2, summary, allowCommit = false) => {
+    const response = await sdk.runScript({ script: script2, summary, allowCommit });
+    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
+    return response?.result;
+  };
+  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
+  return {
+    isAvailable: () => true,
+    supportsPluginFiles: () => true,
+    async submit(request) {
+      if (request.batch != null && request.batch !== 1) throw new Error("Submit one generation at a time.");
+      const input = {
+        projectId: request.scope.projectId,
+        requestKey: request.key,
+        modelId: request.modelId,
+        input: request.input,
+        uploads: request.uploads || {},
+        outputName: request.outputName,
+        mediaType: request.origin?.tool || "video",
+        ...request.inputMediaSeconds ? { inputMediaSeconds: request.inputMediaSeconds } : {},
+        ...request.delivery ? { delivery: { folder: request.delivery.pluginFolder } } : {}
+      };
+      const result = await run2(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
+      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
+      return { jobIds: [result.jobId] };
+    },
+    list: (scope) => run2(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
+    cancel: (scope, id) => run2(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
+    retryDelivery: (scope, id) => run2(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true)
+  };
+}
+
 // plugins/a16z-style-captions/src/pipeline/media.ts
 var b64url = (s) => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 var model = (endpoint) => "model_v1_" + b64url(endpoint);
@@ -824,16 +1599,16 @@ async function generate(pid, r, label, onTick, timeoutMs, tries = 3) {
   throw last;
 }
 function mediaGeneration() {
-  const mg = di().MediaGeneration;
+  const mg = sdkGeneration(getSdk());
   if (!mg?.isAvailable?.()) throw new Error("Selects generation is not available for this account.");
-  if (!mg.supportsPluginFiles?.()) throw new Error("This needs Selects 2.0.512 or later (plug-in generation files). Update Selects.");
+  if (!mg.supportsPluginFiles?.()) throw new Error("Update Selects to use generation files in this plugin.");
   return mg;
 }
 async function submit(pid, r) {
   const mg = mediaGeneration();
-  fs().mkdirSync(r.folder, { recursive: true });
+  await fs().mkdir(r.folder, { recursive: true });
   const res = await mg.submit({
-    scope: { libraryId: libraryId(), projectId: pid },
+    scope: { projectId: pid },
     key: r.key.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64),
     modelId: model(r.endpoint),
     input: r.input,
@@ -850,7 +1625,7 @@ async function submit(pid, r) {
 }
 async function waitFor(pid, jobId, label, onTick, timeoutMs = 15 * 6e4) {
   const mg = mediaGeneration();
-  const scope = { libraryId: libraryId(), projectId: pid };
+  const scope = { projectId: pid };
   const t0 = Date.now();
   let redeliveries = 0;
   for (; ; ) {
@@ -878,12 +1653,12 @@ async function waitFor(pid, jobId, label, onTick, timeoutMs = 15 * 6e4) {
       if (j.status === "submission_unknown" && j.errorCode && Date.now() - t0 > 45e3) {
         mg.cancel(scope, jobId).catch(() => {
         });
-        throw new StuckError(label + " was not accepted (" + j.errorCode + ").");
+        throw new Error(label + " has an unknown submission outcome (" + j.errorCode + "). Resume the same request.");
       }
       if (["preparing", "uploading", "submitting"].includes(j.status) && j.errorCode && Date.now() - t0 > 9e4) {
         mg.cancel(scope, jobId).catch(() => {
         });
-        throw new StuckError(label + " stalled (" + j.errorCode + ").");
+        throw new Error(label + " is still unresolved (" + j.errorCode + "). Resume the same request.");
       }
     }
     if (onTick) onTick(label + " \xB7 " + Math.round((Date.now() - t0) / 1e3) + " s");
@@ -1041,9 +1816,20 @@ for (const b of INS) {
 }
 const g = await d.addMotionGraphic({ label: ${J(GRAPHIC_LABEL)}, tsxCode: ${J(graphicCode)}, parameters: ${J(data)}, editableParameters: [], within: await d.rangeAtFrames(0, ${endFrame}) });
 const music: any = ${J(music)};
-let bed: any = null;
+let musicInserted = 0;
 if (music && music.id) {
-  bed = await d.overlayResource({ resource: p.resource(music.id), over: await d.rangeAtFrames(0, ${endFrame}) });
+  const resource = (await p.resources()).find((r) => r.resourceId === music.id);
+  const draftFps = (await d.meta()).fps;
+  // A generated or cached bed can be shorter than the Short (generation is capped at 150s).
+  // Floor to whole Draft frames so no repetition asks past the available source.
+  const musicFrames = Math.floor(Number(resource?.durationSeconds) * draftFps);
+  if (!Number.isSafeInteger(musicFrames) || musicFrames < 1) throw new Error("The music resource has no usable duration. Reimport the music before rebuilding.");
+  for (let start = 0; start < ${endFrame}; start += musicFrames) {
+    const end = Math.min(${endFrame}, start + musicFrames);
+    // Explicit 1x keeps the exact target length when the source and Draft frame grids differ.
+    const bed = await d.overlayResource({ resource: p.resource(music.id), over: await d.rangeAtFrames(start, end), sourceStartSeconds: 0, playbackSpeed: { numerator: 1, denominator: 1 } });
+    musicInserted += bed.inserted;
+  }
   const clips = (await d.clips({ trackScope: "all" })).filter((c: any) => c.resourceId === music.id);
   for (const c of clips) { const cur: any = (await d.clips({ trackScope: "all" })).find((x: any) => x.clipId === c.clipId); if (cur) await d.setClipAudio({ clip: cur, volumeDb: music.db }); }
 }
@@ -1053,7 +1839,7 @@ if (voice) for (const id of (await d.clips({ trackScope: "main" })).filter((c: a
   if (clip) await d.setClipAudio({ clip, volumeDb: voice });
 }
 const saved = await d.commitAll("a16z Style Captions: B-roll, captions, graphics and music");
-return { commitId: saved.commitId, graphic: g.clipId, music: bed ? bed.inserted : 0, placed, skipped };`,
+return { commitId: saved.commitId, graphic: g.clipId, music: musicInserted, placed, skipped };`,
     true
   );
 }
@@ -1300,7 +2086,7 @@ function phrases(all, words2, tags, cuts) {
   const byIndex = /* @__PURE__ */ new Map();
   words2.forEach((w, k) => byIndex.set(w.i, k));
   const openers = new Set(tags.openers || []);
-  const quotativeEnds = new Set((tags.quotatives || []).map((q2) => q2[1]));
+  const quotativeEnds = new Set((tags.quotatives || []).map((q) => q[1]));
   const out = [];
   let cur = [];
   const close = () => {
@@ -1675,7 +2461,7 @@ function candidates(gs, tags, start) {
   };
   for (const k of tags.keyTerms || []) if (["T", "P", "I", "N", "D"].includes(k.kind) && k.priority >= 4) push(at(k.head), k.priority + (k.kind === "P" ? 1 : 0), k.kind);
   for (const e of tags.enumerations || []) push(at(e.count[0]), 5, "count");
-  for (const q2 of tags.quotes || []) if (q2.kind === "famous" || q2.kind === "coined") push(at(q2.span[1]), 4, "quote");
+  for (const q of tags.quotes || []) if (q.kind === "famous" || q.kind === "coined") push(at(q.span[1]), 4, "quote");
   if (!tags.keyTerms) {
     gs.forEach((g, k) => {
       if (k < start) return;
@@ -1771,7 +2557,7 @@ function caseOf(text, sentenceStart, mode, afterComma, seenLower = /* @__PURE__ 
   const innerCaps = /[a-z][A-Z]/.test(core) || /^[a-z]+[A-Z]/.test(core);
   if (mode === "sentence") {
     let t = text;
-    if (sentenceStart || afterComma) t = t.replace(/^([“"‘']?)([a-z])/, (_, q2, c) => q2 + c.toUpperCase());
+    if (sentenceStart || afterComma) t = t.replace(/^([“"‘']?)([a-z])/, (_, q, c) => q + c.toUpperCase());
     return t;
   }
   if (isI) return mode === "lower_keep_I" ? text : text.replace(/^I/, "i");
@@ -1783,7 +2569,7 @@ function caseOf(text, sentenceStart, mode, afterComma, seenLower = /* @__PURE__ 
 }
 function shownText(groups, tags, style) {
   const punchSpans = tags.punchlines || [];
-  const quoteSpans = (tags.quotes || []).filter((q2) => q2.kind === "famous" || q2.kind === "coined").map((q2) => q2.span);
+  const quoteSpans = (tags.quotes || []).filter((q) => q.kind === "famous" || q.kind === "coined").map((q) => q.span);
   let sentenceStart = true;
   let afterComma = false;
   const seenLower = /* @__PURE__ */ new Set();
@@ -1812,8 +2598,8 @@ function shownText(groups, tags, style) {
       } else if (style.punct === "full" && /,/.test(punct) && k === 0 && g.toks.length > 1) keep = ",";
       if (unitFinal && (tags.abandoned || []).some((a) => a[0] === t.src[t.src.length - 1] + 1)) keep = "-";
       text = text.replace(/^[“"]+|[”"]+$/g, "") + keep;
-      if (quoteSpans.some((q2) => t.src[0] === q2[0])) text = "\u201C" + text;
-      if (quoteSpans.some((q2) => t.src.includes(q2[1]))) text = text + "\u201D";
+      if (quoteSpans.some((q) => t.src[0] === q[0])) text = "\u201C" + text;
+      if (quoteSpans.some((q) => t.src.includes(q[1]))) text = text + "\u201D";
       t.t = text;
     });
   });
@@ -1995,7 +2781,7 @@ function compileCaptions(inp) {
     const n = u.toks.length;
     const sp = u.toks[n - 1].s - u.toks[0].s;
     if (n === 1 || n >= 5 || rapid(k) || sp < 0.25) return;
-    const isQuotative = (tags.quotatives || []).some((q2) => u.toks.some((t) => t.src.some((i) => inSpan4(i, q2))));
+    const isQuotative = (tags.quotatives || []).some((q) => u.toks.some((t) => t.src.some((i) => inSpan4(i, q))));
     if (isQuotative) return;
     let score = 0;
     const prev = us[k - 1];
@@ -2477,15 +3263,15 @@ async function buildGraphic(o) {
   const q0 = (x) => x.span[0];
   const quoteBlocks = [];
   const spans = [];
-  const quotativeEnds = (tags.quotatives || []).map((q2) => q2[1]);
-  for (const q2 of (tags.quotes || []).filter((x) => (x.kind === "reported" || x.kind === "imagined") && quotativeEnds.some((e) => q0(x) - e >= 0 && q0(x) - e <= 3)).sort((x, y) => x.span[0] - y.span[0])) {
+  const quotativeEnds = (tags.quotatives || []).map((q) => q[1]);
+  for (const q of (tags.quotes || []).filter((x) => (x.kind === "reported" || x.kind === "imagined") && quotativeEnds.some((e) => q0(x) - e >= 0 && q0(x) - e <= 3)).sort((x, y) => x.span[0] - y.span[0])) {
     const last = spans[spans.length - 1];
-    if (last && q2.span[0] - last[1] <= 4) last[1] = Math.max(last[1], q2.span[1]);
-    else spans.push([q2.span[0], q2.span[1]]);
+    if (last && q.span[0] - last[1] <= 4) last[1] = Math.max(last[1], q.span[1]);
+    else spans.push([q.span[0], q.span[1]]);
   }
   for (const span2 of spans) {
-    const q2 = { span: span2 };
-    const inside = track.units.filter((u) => u.tokens.some((t) => t.src.some((i) => i >= q2.span[0] && i <= q2.span[1])));
+    const q = { span: span2 };
+    const inside = track.units.filter((u) => u.tokens.some((t) => t.src.some((i) => i >= q.span[0] && i <= q.span[1])));
     if (inside.length < 3) continue;
     const a = Math.round(inside[0].start * fps);
     const b = Math.round(inside[inside.length - 1].end * fps);
@@ -2507,9 +3293,9 @@ async function buildGraphic(o) {
     fonts: o.fonts
   };
   try {
-    const rows = track.units.map((u) => u.start.toFixed(2) + "-" + u.end.toFixed(2) + " " + u.role + (u.build ? "*" : "") + (u.emphasis ? ":" + u.emphasis : "") + " " + u.entrance.kind + " y" + u.y.toFixed(3) + "  " + unitText(u));
+    const rows2 = track.units.map((u) => u.start.toFixed(2) + "-" + u.end.toFixed(2) + " " + u.role + (u.build ? "*" : "") + (u.emphasis ? ":" + u.emphasis : "") + " " + u.entrance.kind + " y" + u.y.toFixed(3) + "  " + unitText(u));
     const dir = fs().join(fs().homedir(), ".selects", "plugin-data", "a16z-style-captions", "shorts", job.shortId);
-    await fs().writeFile(fs().join(dir, "captions.txt"), rows.join("\n"));
+    await fs().writeFile(fs().join(dir, "captions.txt"), rows2.join("\n"));
     await fs().writeFile(fs().join(dir, "inputs.json"), JSON.stringify({ words: words2, tags, cuts, shots, duration, suppress, cards, fps, inserts: o.inserts }));
   } catch {
   }
@@ -2538,27 +3324,31 @@ function properNoun(w, words2) {
 // plugins/a16z-style-captions/src/pipeline/stock.ts
 function stockSearchAvailable() {
   try {
-    return typeof di()?.StockMediaSearch?.searchVideos === "function";
+    return typeof getSdk()?.runScript === "function";
   } catch {
     return false;
   }
 }
 var clean = (raw) => String(raw || "").replace(/[^\p{L}\p{N}\s'-]+/gu, " ").replace(/\s+/g, " ").trim().split(" ").slice(0, 5).join(" ");
 async function searchCandidates(queries, max, avoid) {
-  const service = di().StockMediaSearch;
+  const service = { searchVideos: async (query) => {
+    const reply = await getSdk().runScript({ script: `return await selects.stock.searchVideos(${JSON.stringify(query)});`, summary: "Find stock footage" });
+    if (reply.isError) throw new Error(reply.output);
+    return reply.result;
+  } };
   const out = [];
   const seen = /* @__PURE__ */ new Set();
   for (const orientation of ["portrait", "landscape"]) {
     for (const raw of queries) {
       const query = clean(raw);
       if (!query) continue;
-      let rows = [];
+      let rows2 = [];
       try {
-        rows = await service.searchVideos({ query, per: 8, orientation });
+        rows2 = await service.searchVideos({ query, per: 8, orientation });
       } catch {
         continue;
       }
-      for (const v of rows) {
+      for (const v of rows2) {
         if (out.length >= max) return out;
         if (!v.previewUrl || avoid.has(v.originalUrl) || seen.has(v.originalUrl)) continue;
         const pick = chooseStock([v], orientation);
@@ -2582,14 +3372,14 @@ async function searchCandidates(queries, max, avoid) {
   return out;
 }
 async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
-  fs().mkdirSync(dir, { recursive: true });
+  await fs().mkdir(dir, { recursive: true });
   const start = Math.min(Math.max(0, c.duration - seconds - 0.2), offset);
   const length = Math.max(1.5, Math.min(12, seconds));
   const out = fs().join(dir, "stock-" + Math.abs(hash2(c.id + "@" + start.toFixed(2) + "+" + length.toFixed(2))) + ".mp4");
-  if (!fs().existsSync(out)) {
+  if (!await fs().exists(out)) {
     const portrait = c.height > c.width;
     const box = portrait ? "1080:1920" : "1920:1080";
-    const part = typeof fs().renameSync === "function" ? out + ".part.mp4" : out;
+    const part = typeof fs().rename === "function" ? out + ".part.mp4" : out;
     await hostFF(
       "runFFmpeg",
       [
@@ -2617,7 +3407,7 @@ async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
       ],
       15e4
     );
-    if (part !== out) fs().renameSync(part, out);
+    if (part !== out) await fs().rename(part, out);
   }
   const probe = (await hostFF("runFFprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:format=duration", "-of", "csv=p=0", out], 3e4)).stdout.trim().split(/[\r\n,]+/).map(Number);
   return { id: c.id, path: out, width: probe[0] || c.width, height: probe[1] || c.height, dur: probe[2] || 0, credit: c.credit, url: c.authorUrl, service: c.service };
@@ -2625,10 +3415,10 @@ async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
 function serviceLabel(name) {
   return /^pex/i.test(name) ? "Pexels" : name || "stock";
 }
-function chooseStock(rows, orientation) {
+function chooseStock(rows2, orientation) {
   const need = orientation === "portrait" ? 1080 : 720;
   let best = null;
-  rows.forEach((v, rank) => {
+  rows2.forEach((v, rank) => {
     if (!(v.duration >= 3)) return;
     const files = v.files && v.files.length ? v.files : [{ url: v.originalUrl, width: v.width, height: v.height }];
     for (const f of files) {
@@ -2725,7 +3515,7 @@ async function fetchInserts(sdk, runs, dir, onTick, cache = {}) {
   const todo = [];
   for (const r of runs) {
     const hits = r.shots.map((s) => cache[cacheKey(s)]);
-    if (hits.every((h) => h && (!h.clip || fs().existsSync(h.clip.path)))) {
+    if ((await Promise.all(hits.map(async (h) => h && (!h.clip || await fs().exists(h.clip.path))))).every(Boolean)) {
       for (let k = 0; k < hits.length; k += 1) {
         const h = hits[k];
         if (!h.clip) continue;
@@ -2814,7 +3604,7 @@ var STEPS = [
 ];
 var jobDir = (id) => fs().join(dataRoot(), "shorts", id);
 async function saveJob(job) {
-  fs().mkdirSync(jobDir(job.shortId), { recursive: true });
+  await fs().mkdir(jobDir(job.shortId), { recursive: true });
   await fs().writeFile(fs().join(jobDir(job.shortId), "job.json"), J(job));
 }
 async function loadJob(id) {
@@ -2851,16 +3641,10 @@ async function makeShort(sdk, ctx, opts, onStep) {
   });
   onStep("faces", "run");
   const facesJob = (async () => {
-    if (hostIsWindows()) {
-      notes.push("Speaker framing is available on macOS for now, so every shot is centred.");
-      onStep("faces", "skip", "centred");
-      return {};
-    }
     try {
-      const rt = await ensureFaceRuntime(sdk, (s) => onStep("faces", "run", s));
-      const jobs = src.clips.filter((c) => c.path && c.srcStart >= 0).map((c) => ({ id: String(c.clipId), path: c.path, start: c.srcStart, end: c.srcStart + (c.e - c.s) / fps }));
+      const jobs = src.clips.filter((c) => c.path && c.srcStart >= 0).map((c) => ({ id: String(c.clipId), path: c.path, resourceId: c.canonicalResourceId, start: c.srcStart, end: Math.min(c.sourceDuration, c.srcStart + (c.e - c.s) / fps), fps: c.sourceFps, width: c.sw, height: c.sh }));
       const dir = fs().join(dataRoot(), "sources", ctx.sequenceId);
-      const faces2 = await trackFaces(sdk, rt, dir, jobs);
+      const faces2 = await trackFaces(sdk, pid, dir, jobs, (s) => onStep("faces", "run", s));
       const n = Object.values(faces2).reduce((a, f) => a + f.shots.filter((s) => s.face).length, 0);
       onStep("faces", "done", n + " shot" + (n === 1 ? "" : "s") + " with a face");
       return faces2;
@@ -2910,7 +3694,7 @@ async function build(sdk, job, onStep) {
   const end = short.endFrame;
   const key = job.shortId.replace(/-/g, "").slice(0, 12);
   onStep("music", job.opts.music ? "run" : "skip", job.opts.music ? "Composing\u2026" : "off");
-  const musicJob = !job.opts.music ? Promise.resolve(null) : job.musicPath && fs().existsSync(job.musicPath) ? Promise.resolve(job.musicPath) : (async () => {
+  const musicJob = !job.opts.music ? Promise.resolve(null) : job.musicPath && await fs().exists(job.musicPath) ? Promise.resolve(job.musicPath) : (async () => {
     mediaGeneration();
     return makeMusic(pid, end / fps, dir, key, (s) => onStep("music", "run", s));
   })().catch((e) => {
@@ -3015,7 +3799,7 @@ async function readFonts(sdk) {
     root = (await hostRoots(sdk, PANEL_ID, "fonts")).plugin;
   } catch {
   }
-  const read2 = async (file) => {
+  const read = async (file) => {
     if (!root) return "";
     try {
       return String(await fs().readFile(fs().join(root, "fonts", file), "utf8")).trim();
@@ -3023,26 +3807,58 @@ async function readFonts(sdk) {
       return "";
     }
   };
-  const [sans, serif, roman, light] = await Promise.all([read2("InterDisplay-Medium.woff2.b64"), read2("EditorialSerif-Italic.woff2.b64"), read2("EditorialSerif-Regular.woff2.b64"), read2("EditorialSerif-Light.woff2.b64")]);
+  const [sans, serif, roman, light] = await Promise.all([read("InterDisplay-Medium.woff2.b64"), read("EditorialSerif-Italic.woff2.b64"), read("EditorialSerif-Regular.woff2.b64"), read("EditorialSerif-Light.woff2.b64")]);
   return { sans, serif, roman, light };
 }
 
 // plugins/a16z-style-captions/src/Panel.tsx
+var panelStorageClients = /* @__PURE__ */ new WeakMap();
+function panelStorage(sdk) {
+  const storage = sdk?.storage;
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function" || typeof storage.removeItem !== "function") {
+    throw new Error("Update Selects to use this plugin: sdk.storage is required.");
+  }
+  if (!panelStorageClients.has(storage)) {
+    let tail2 = Promise.resolve();
+    const enqueue = (operation) => {
+      const pending = tail2.then(operation);
+      tail2 = pending.catch(() => {
+      });
+      return pending;
+    };
+    panelStorageClients.set(storage, {
+      getItem: (key) => enqueue(() => storage.getItem(key)),
+      setItem: (key, value) => enqueue(() => storage.setItem(key, value)),
+      removeItem: (key) => enqueue(() => storage.removeItem(key))
+    });
+  }
+  return panelStorageClients.get(storage);
+}
+function withStoredPanel(Component, load) {
+  return function StoredPanel(props) {
+    const [state, setState] = React2.useState(null);
+    const [attempt, retry] = React2.useState(0);
+    React2.useEffect(() => {
+      let current = true;
+      setState(null);
+      Promise.resolve().then(() => load(panelStorage(props.sdk))).then(
+        (saved) => {
+          if (current) setState({ sdk: props.sdk, saved });
+        },
+        (error) => {
+          if (current) setState({ sdk: props.sdk, error: String(error?.message || error) });
+        }
+      );
+      return () => {
+        current = false;
+      };
+    }, [props.sdk, attempt]);
+    if (state?.error) return React2.createElement("div", { role: "alert" }, state.error, React2.createElement("button", { onClick: () => retry((n) => n + 1) }, "Retry loading saved settings"));
+    if (state?.sdk !== props.sdk) return React2.createElement("div", { role: "status" }, "Loading saved settings\u2026");
+    return React2.createElement(Component, { ...props, saved: state.saved });
+  };
+}
 var STORE = "a16z-style-captions:v2:";
-var read = (k) => {
-  try {
-    return localStorage.getItem(STORE + k) || "";
-  } catch {
-    return "";
-  }
-};
-var write = (k, v) => {
-  try {
-    if (v) localStorage.setItem(STORE + k, v);
-    else localStorage.removeItem(STORE + k);
-  } catch {
-  }
-};
 var fresh = () => STEPS.map(([id, label]) => ({ id, label, state: "wait" }));
 var run = { busy: false, steps: fresh(), error: "", result: null, startedAt: 0 };
 var listeners = /* @__PURE__ */ new Set();
@@ -3050,28 +3866,33 @@ var setRun = (patch) => {
   run = { ...run, ...patch };
   listeners.forEach((l) => l());
 };
-function A16zShort({ sdk, context }) {
+function A16zShort({ sdk, context, saved }) {
+  hostUseSdk(sdk);
   const [, force] = useState(0);
   useEffect(() => {
     const l = () => force((n) => n + 1);
     listeners.add(l);
     return () => void listeners.delete(l);
   }, []);
-  const [name, setName] = useState(() => read("name"));
-  const [role, setRole] = useState(() => read("role"));
-  const [logo, setLogo] = useState(() => read("logo"));
+  const [name, setName] = useState(saved.name || "");
+  const [role, setRole] = useState(saved.role || "");
+  const [logo, setLogo] = useState(saved.logo || "");
   const [hint, setHint] = useState("");
-  const [music, setMusic] = useState(() => read("music") !== "0");
-  const [cards, setCards] = useState(() => read("cards") !== "0");
-  const [broll, setBroll] = useState(() => read("broll") !== "0");
+  const [music, setMusic] = useState(saved.music !== "0");
+  const [cards, setCards] = useState(saved.cards !== "0");
+  const [broll, setBroll] = useState(saved.broll !== "0");
   const [isShort, setIsShort] = useState(false);
   const [clock, setClock] = useState(0);
   const alive = useRef(true);
   useEffect(() => () => void (alive.current = false), []);
   useEffect(() => {
+    let current = true;
     setIsShort(false);
-    if (context?.sequenceId) loadJob(context.sequenceId).then((j) => alive.current && setIsShort(!!j)).catch(() => {
+    if (context?.sequenceId) loadJob(context.sequenceId).then((j) => current && setIsShort(!!j)).catch(() => {
     });
+    return () => {
+      current = false;
+    };
   }, [context?.sequenceId, run.result?.shortId]);
   useEffect(() => {
     if (!run.busy) return;
@@ -3086,14 +3907,12 @@ function A16zShort({ sdk, context }) {
       return;
     }
     const opts = { name: name.trim(), role: role.trim(), logo: logo.trim(), music, cards, broll, hint: hint.trim() };
-    write("name", opts.name);
-    write("role", opts.role);
-    write("logo", opts.logo);
-    write("music", music ? "" : "0");
-    write("cards", cards ? "" : "0");
-    write("broll", broll ? "" : "0");
     setRun({ busy: true, error: "", result: null, steps: fresh(), startedAt: Date.now() });
     try {
+      const storage = panelStorage(sdk);
+      for (const [key, value] of Object.entries({ name: opts.name, role: opts.role, logo: opts.logo, music: music ? "" : "0", cards: cards ? "" : "0", broll: broll ? "" : "0" })) {
+        await storage.setItem(STORE + key, value);
+      }
       const r = rebuild ? await rebuildShort(sdk, context.sequenceId, opts, onStep) : await makeShort(sdk, { projectId: context.projectId, sequenceId: context.sequenceId }, opts, onStep);
       setRun({ result: r });
     } catch (e) {
@@ -3110,8 +3929,12 @@ function A16zShort({ sdk, context }) {
   const icon = (s) => s === "done" ? "\u2713" : s === "run" ? "\u2026" : s === "fail" ? "!" : s === "skip" ? "\u2013" : "\xB7";
   const field = { display: "flex", flexDirection: "column", gap: 4 };
   const muted = { color: "var(--panel-muted-fg)" };
-  return /* @__PURE__ */ React.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "a16z-style Short, one click"), /* @__PURE__ */ React.createElement("div", { style: muted }, "Turns this talking-head Draft into a new 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, B-roll, a name tag and a music bed.")), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Speaker name (optional, for the name tag)"), /* @__PURE__ */ React.createElement("input", { type: "text", value: name, disabled: busy, placeholder: "e.g. Jane Doe", onChange: (e) => setName(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Role line"), /* @__PURE__ */ React.createElement("input", { type: "text", value: role, disabled: busy, placeholder: "e.g. Founder, Example Labs", onChange: (e) => setRole(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Your logo (optional): path to a small PNG or SVG, shown top right"), /* @__PURE__ */ React.createElement("input", { type: "text", value: logo, disabled: busy, placeholder: "~/Pictures/logo.png", onChange: (e) => setLogo(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: field }, /* @__PURE__ */ React.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. the key idea is 'taste'", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: music, disabled: busy, onChange: (e) => setMusic(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "Music bed (AI-generated, uses generation credits)")), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: cards, disabled: busy, onChange: (e) => setCards(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "Keyword cards")), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: broll, disabled: busy, onChange: (e) => setBroll(e.target.checked) }), /* @__PURE__ */ React.createElement("span", null, "B-roll from stock footage (Pexels and Pixabay)")), isShort && /* @__PURE__ */ React.createElement("button", { onClick: () => go(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild captions and graphics"), /* @__PURE__ */ React.createElement("button", { onClick: () => go(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the Short\u2026 " + clock + " s" : isShort ? "Make a new Short from this Draft" : "Make the Short"), (busy || run.steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, run.steps.map((s) => /* @__PURE__ */ React.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React.createElement("span", { style: muted }, " \u2014 ", s.note) : null)))), run.error && /* @__PURE__ */ React.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, run.error), run.result && !busy && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", null, "Made \u201C", run.result.name, "\u201D in ", Math.round(run.result.seconds), " s."), run.result.notes.length ? /* @__PURE__ */ React.createElement("ul", { style: { margin: 0, paddingLeft: 18, ...muted } }, run.result.notes.map((n, i) => /* @__PURE__ */ React.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the Short")), /* @__PURE__ */ React.createElement("div", { style: { ...muted, fontSize: 11 } }, "A style study, not affiliated with a16z. Use your own name, role and logo."));
+  return /* @__PURE__ */ React2.createElement("div", { style: { padding: 16, display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.45 } }, /* @__PURE__ */ React2.createElement("div", null, /* @__PURE__ */ React2.createElement("div", { style: { fontSize: 15, fontWeight: 600 } }, "a16z-style Short, one click"), /* @__PURE__ */ React2.createElement("div", { style: muted }, "Turns this talking-head Draft into a new 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, B-roll, a name tag and a music bed.")), /* @__PURE__ */ React2.createElement("label", { style: field }, /* @__PURE__ */ React2.createElement("span", null, "Speaker name (optional, for the name tag)"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: name, disabled: busy, placeholder: "e.g. Jane Doe", onChange: (e) => setName(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: field }, /* @__PURE__ */ React2.createElement("span", null, "Role line"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: role, disabled: busy, placeholder: "e.g. Founder, Example Labs", onChange: (e) => setRole(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: field }, /* @__PURE__ */ React2.createElement("span", null, "Your logo (optional): path to a small PNG or SVG, shown top right"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: logo, disabled: busy, placeholder: "~/Pictures/logo.png", onChange: (e) => setLogo(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: field }, /* @__PURE__ */ React2.createElement("span", null, "Note for the editor (optional)"), /* @__PURE__ */ React2.createElement("input", { type: "text", value: hint, disabled: busy, placeholder: "e.g. the key idea is 'taste'", onChange: (e) => setHint(e.target.value) })), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React2.createElement("input", { type: "checkbox", checked: music, disabled: busy, onChange: (e) => setMusic(e.target.checked) }), /* @__PURE__ */ React2.createElement("span", null, "Music bed (AI-generated, uses generation credits)")), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React2.createElement("input", { type: "checkbox", checked: cards, disabled: busy, onChange: (e) => setCards(e.target.checked) }), /* @__PURE__ */ React2.createElement("span", null, "Keyword cards")), /* @__PURE__ */ React2.createElement("label", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React2.createElement("input", { type: "checkbox", checked: broll, disabled: busy, onChange: (e) => setBroll(e.target.checked) }), /* @__PURE__ */ React2.createElement("span", null, "B-roll from stock footage (Pexels and Pixabay)")), isShort && /* @__PURE__ */ React2.createElement("button", { onClick: () => go(true), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, "Rebuild captions and graphics"), /* @__PURE__ */ React2.createElement("button", { onClick: () => go(false), disabled: busy, style: { padding: "10px 12px", fontWeight: 600, cursor: busy ? "default" : "pointer" } }, busy ? "Making the Short\u2026 " + clock + " s" : isShort ? "Make a new Short from this Draft" : "Make the Short"), (busy || run.steps.some((s) => s.state !== "wait")) && /* @__PURE__ */ React2.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, run.steps.map((s) => /* @__PURE__ */ React2.createElement("div", { key: s.id, style: { display: "flex", gap: 8, opacity: s.state === "wait" ? 0.5 : 1 } }, /* @__PURE__ */ React2.createElement("span", { style: { width: 14, textAlign: "center" } }, icon(s.state)), /* @__PURE__ */ React2.createElement("span", { style: { flex: 1 } }, s.label, s.note ? /* @__PURE__ */ React2.createElement("span", { style: muted }, " \u2014 ", s.note) : null)))), run.error && /* @__PURE__ */ React2.createElement("div", { style: { color: "var(--panel-destructive-fg, #e5484d)", whiteSpace: "pre-wrap" } }, run.error), run.result && !busy && /* @__PURE__ */ React2.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React2.createElement("div", null, "Made \u201C", run.result.name, "\u201D in ", Math.round(run.result.seconds), " s."), run.result.notes.length ? /* @__PURE__ */ React2.createElement("ul", { style: { margin: 0, paddingLeft: 18, ...muted } }, run.result.notes.map((n, i) => /* @__PURE__ */ React2.createElement("li", { key: i }, n))) : null, /* @__PURE__ */ React2.createElement("button", { onClick: open, style: { padding: "8px 12px" } }, "Open the Short")), /* @__PURE__ */ React2.createElement("div", { style: { ...muted, fontSize: 11 } }, "A style study, not affiliated with a16z. Use your own name, role and logo."));
 }
+var Panel_default = withPanelLocalClient(withStoredPanel(A16zShort, async (storage) => {
+  const entries = await Promise.all(["name", "role", "logo", "music", "cards", "broll"].map(async (key) => [key, await storage.getItem(STORE + key)]));
+  return Object.fromEntries(entries);
+}));
 export {
-  A16zShort as default
+  Panel_default as default
 };

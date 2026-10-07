@@ -1,4 +1,5 @@
-// Chris Williamson Style: host path keys, and the panel's port of engine.mjs (shots, faces, candidates, assets on
+import {asyncSdk} from './windows_host.mjs';
+// Chris Williamson Style: host path keys, and the panel's port of engine.mjs (shots, candidates, assets on
 // the host's ffmpeg) checked against engine.mjs itself on the same inputs. The panel code runs in node:vm with a
 // stand-in host (window.parent.__DI__) whose ffmpeg is the local one, so values cross realms as they do in Selects.
 import test from 'node:test';
@@ -8,6 +9,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import os from 'node:os';
 import {spawn, spawnSync} from 'node:child_process';
+import {stripTypeScriptTypes} from 'node:module';
 
 const PLUGIN = path.resolve(import.meta.dirname, '../plugins/chris-williamson-style');
 const PANEL = fs.readFileSync(path.join(PLUGIN, 'panel.tsx'), 'utf8');
@@ -43,6 +45,22 @@ test('treePaths finds every path in a Project file tree', () => {
   const found = keys.treePaths(tree);
   assert.deepEqual(found, ['C:\\r\\Chris Williamson Style x', 'C:\\r\\Chris Williamson Style x\\b001.mp4']);
   assert.ok(found.some((p) => keys.pathKey(p).startsWith(keys.pathKey('c:/R/chris williamson style x'))));
+});
+
+test('a Draft without a run record starts fresh when the SDK file client reports the file missing', async () => {
+  const client = fs.readFileSync(path.resolve(import.meta.dirname, '../shared/local-client.ts'), 'utf8')
+    .replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, '');
+  const start = PANEL.indexOf('\nconst stateFile =');
+  const end = PANEL.indexOf('\n}\n', PANEL.indexOf('async function readState(', start)) + 3;
+  const context = vm.createContext({React: {}, atob, btoa, Uint8Array, TextEncoder, TextDecoder, hostJoin: (...parts) => parts.join('/')});
+  vm.runInContext(stripTypeScriptTypes(client + PANEL.slice(start, end), {mode: 'strip'}) + '\nthis.api={createPanelLocalClient,readState};', context);
+  const selects = {files: {environment: async () => ({platform: 'darwin', homedir: '/user', tempDirectory: '/tmp'}), stat: async () => null}};
+  const sdk = {runScript: async ({script}) => ({isError: false, result: await new Function('selects', `return (async()=>{${script}})()`)(selects)})};
+  const {files} = await context.api.createPanelLocalClient(sdk);
+  const env = {dataDir: '/data', readText: (file) => files.readFile(file, 'utf8')};
+  assert.equal(await context.api.readState(env, 'draft-1'), null);
+  env.readText = async () => { throw new Error('The file changed while it was being read.'); };
+  await assert.rejects(context.api.readState(env, 'draft-1'), /changed while it was being read/);
 });
 
 // ---------------------------------------------------------------------------------------------------------
@@ -93,9 +111,11 @@ function host(platform, downloads = {}, encoders = null) {
 }
 function loadEngine(platform, {downloads, fetch, encoders} = {}) {
   const code = [region('// av-host:start', '// av-host:end'), line('const q = ').replace('(v: string)', '(v)'), region('// cw-engine:start', '// cw-engine:end'),
-    '({cwEngine, cwPickEncoder, cwCommonsRows: typeof cwCommonsRows === "function" ? cwCommonsRows : null, cwFetchCapped, cwFfmpegFetch, CW_MAX_BYTES})'].join('\n');
+    'hostUseSdk(__sdk); ({cwEngine, cwPickEncoder, cwCommonsRows: typeof cwCommonsRows === "function" ? cwCommonsRows : null, cwFetchCapped, cwFfmpegFetch, CW_MAX_BYTES})'].join('\n');
   const context = vm.createContext({window: {parent: {__DI__: host(platform, downloads, encoders)}}, navigator: {platform: platform === 'win32' ? 'Win32' : 'MacIntel', userAgent: ''},
-    setTimeout, clearTimeout, AbortController, TextEncoder, TextDecoder, console, fetch});
+    setTimeout, clearTimeout, AbortController, TextEncoder, TextDecoder, console, fetch, panelLocalClient: sdk => sdk});
+  context.__sdk = asyncSdk(context.window.parent.__DI__);
+  context.window.parent.__DI__ = new Proxy({}, { get() { throw Error('Migrated DI access'); } });
   return vm.runInContext(code, context);
 }
 // engine.mjs on the same job, in its own folder.
@@ -295,42 +315,7 @@ for (const platform of ['darwin', 'win32']) {
   });
 }
 
-test('faces (macOS): the same frames as engine.mjs go to vision-helper.js, and its answer is read back', {skip: !HAVE_FFMPEG && 'no ffmpeg'}, async () => {
-  const m = fixtures();
-  const samples = Array.from({length: 23}, (_, i) => ({key: Math.floor(i / 3) + ':' + [0.25, 0.5, 0.75][i % 3], path: i % 2 ? m.moving : m.cuts, seconds: 0.2 * i}));
-  samples.push({key: 'bad', path: path.join(m.dir, 'missing.mp4'), seconds: 1});
-  const job = {ffmpeg: 'ffmpeg', faces: {samples}};
-  // engine.mjs grabs its frames before it calls Apple Vision (osascript may be unavailable where tests run).
-  const eDir = path.join(m.dir, 'e-faces');
-  fs.mkdirSync(eDir, {recursive: true});
-  fs.writeFileSync(path.join(eDir, 'faces.json'), JSON.stringify(job));
-  spawnSync(process.execPath, [path.join(PLUGIN, 'engine.mjs'), 'faces', path.join(eDir, 'faces.json')], {encoding: 'utf8'});
-  // The helper's answer for each image it is given (one call per 20 images).
-  const calls = [];
-  const env = {pluginDir: PLUGIN, runShell: async (command) => {
-    calls.push(command);
-    const files = [...command.matchAll(/'([^']+\.jpg)'/g)].map((x) => x[1]);
-    assert.ok(command.startsWith("/usr/bin/osascript -l JavaScript '" + path.join(PLUGIN, 'vision-helper.js') + "' faces "));
-    return files.map((f, i) => JSON.stringify({file: f, w: 640, h: 360, faces: i % 2 ? [] : [[0.4, 0.2, 0.2, 0.3]]})).join('\n') + '\n';
-  }};
-  const pDir = path.join(m.dir, 'p-faces');
-  const got = await ported('darwin', 'faces', job, pDir, {env});
-  assert.equal(got.sampled, 24);
-  assert.equal(got.readable, 23);
-  assert.deepEqual(calls.map((c) => (c.match(/\.jpg'/g) || []).length), [20, 3]);
-  assert.equal(Object.keys(got.detected).length, 23);
-  assert.deepEqual(got.detected['0:0.25'], {w: 640, h: 360, faces: [[0.4, 0.2, 0.2, 0.3]]});
-  const grabbed = fs.readdirSync(path.join(pDir, 'faces')).sort();
-  assert.deepEqual(grabbed, fs.readdirSync(path.join(eDir, 'faces')).sort());
-  for (const f of grabbed) assert.ok(fs.readFileSync(path.join(pDir, 'faces', f)).equals(fs.readFileSync(path.join(eDir, 'faces', f))), f);
-});
-
-test('faces (Windows): nothing is detected and nothing is run; the pipeline centre-crops', async () => {
-  const m = fixtures();
-  const env = {pluginDir: PLUGIN, runShell: async () => assert.fail('no shell on Windows')};
-  const got = await ported('win32', 'faces', {faces: {samples: [{key: '0:0.5', path: m.cuts, seconds: 1}]}}, path.join(m.dir, 'p-faces-win'), {env});
-  assert.deepEqual(got, {detected: {}, sampled: 1, readable: 0});
-  assert.ok(!fs.existsSync(path.join(m.dir, 'p-faces-win', 'faces')));
+test('framing keeps the three-sample median and empty-face default after shared detection', () => {
   assert.match(PANEL, /const face=ff\.length\?\[0,1,2,3\]\.map\(k=>median\(ff\.map\(r=>r\.faces\[0\]\[k\]\)\)\):\[0\.25,0\.2,0\.5,0\.3\];/);
 });
 

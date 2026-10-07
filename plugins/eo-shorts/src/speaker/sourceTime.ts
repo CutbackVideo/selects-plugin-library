@@ -51,7 +51,7 @@ export function pieceSourceOffsets(
   const sorted = pieces.slice().sort((a, b) => a.startFrame - b.startFrame);
   const out: PieceTime[] = sorted.map((p) => {
     const fps = resourceFps(p.resourceId);
-    const inside = words.filter((w) => !w.cut && w.sourceStartFrame != null && w.startFrame >= p.startFrame && w.startFrame < p.endFrame);
+    const inside = words.filter((w) => (!w.sourceResourceId || w.sourceResourceId === p.resourceId) && !w.cut && w.sourceStartFrame != null && w.startFrame >= p.startFrame && w.startFrame < p.endFrame);
     if (!inside.length || !(fps > 0)) return { ...p, t0: null, via: null, words: 0, spreadS: 0 };
     const offs = inside.map((w) => (w.sourceStartFrame as number) / fps - w.startFrame / draftFps);
     return { ...p, t0: median(offs), via: "words", words: inside.length, spreadS: Math.max(...offs) - Math.min(...offs) };

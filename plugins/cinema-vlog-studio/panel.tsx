@@ -109,38 +109,23 @@ return out;`;
 function assembly(c){return `const c=${clean(c)};const p=selects.project(c.projectId);const d=await p.createDraft({name:c.name});await d.setFrameSize({width:1920,height:1080});/* Cut frames are 30 fps reference frames, converted to the Draft's rate (a reported 29.97 snaps to 30000/1001). The rate is read again after each clip (a Draft can adopt its first clip's rate) and each cut ends on its converted frame measured from where the last clip really ended. */const rate=async()=>{const reported=(await d.meta()).fps,r=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60].find(x=>Math.abs(x-reported)<0.01)||reported;if(!(r>0))throw Error('Unsupported draft frame rate: '+reported);return r};let fps=await rate();const fr=n=>Math.round(n/30*fps);await d.insertGap({seconds:fr(5)/fps});let placed=fr(5);for(let i=0;i<c.cuts.length;i++){if(i===c.gapBeforeIndex){const g=fr(55)-placed;if(g>0){await d.insertGap({seconds:g/fps});placed+=g}}const [slot,a,b]=c.cuts[i],id=c.videoIds[slot-1],len=(fr(b)-placed)/fps,src=c.lengths[id]||0;if(src<len+.03)throw Error('Slot '+slot+' is shorter than '+len.toFixed(2)+' seconds');const starts=c.starts,proposed=starts[i],start=Math.min(Math.max(0,proposed),Math.max(0,src-len-.04));await d.insertResource({resourceId:id,sourceRange:{startSeconds:start,endSeconds:start+len}});fps=await rate();placed=(await d.clips({trackScope:'main'})).reduce((n,x)=>x.resourceId?Math.max(n,x.endFrame):n,0)}const main=await d.clips({trackScope:'main'}),end=main.reduce((n,x)=>Math.max(n,x.endFrame),0),at=n=>Math.min(end,fr(n));for(const original of main){const current=(await d.clips({trackScope:'main'})).find(x=>x.clipId===original.clipId);if(current&&current.resourceId)await d.setClipAudio({clip:current,volumeDb:-60});}for(const {i,widthPct} of c.cards)await d.addVideoEffect({clip:(await d.clips({trackScope:'main'}))[i],label:'Cinema Vlog · inset '+(i-9),tsxCode:${clean(CARD)},parameters:{widthPct}});for(const {i,widthPct} of c.cards){const edge=at(c.cuts[i][2]);await d.addMotionGraphic({label:'Cinema Vlog · inset flash '+(i-9),tsxCode:${clean(CARD_FLASH)},within:await d.rangeAtFrames(edge-fr(1),edge),parameters:{widthPct}})}const glitchFrame=at(c.glitchRefFrame),glitchClip=(await d.clips({trackScope:'main'})).find(x=>x.startFrame<=glitchFrame&&glitchFrame<x.endFrame);if(!glitchClip)throw Error('Glitch marker does not fall on footage');await d.addVideoEffect({clip:glitchClip,label:'Cinema Vlog · marker-triggered monochrome stutter',tsxCode:${clean(GLITCH)},parameters:{triggerLocalFrame:glitchFrame-glitchClip.startFrame}});await d.addMotionGraphic({label:'Cinema Vlog · three-step black curtain',tsxCode:${clean(CURTAIN)},within:await d.rangeAtFrames(at(55),at(210)),parameters:{referenceStartFrame:55}});await d.addMotionGraphic({label:'Cinema Vlog · alphabet swap title',tsxCode:${clean(TITLE)},within:await d.rangeAtFrames(at(132),at(196)),parameters:{referenceStartFrame:132,title:c.title,kicker:c.kicker,subtitle:c.subtitle,fontFamily:c.font,titleColor:'#eed65d',smallColor:'#ffffff'},editableParameters:[{key:'title',label:'Main title',type:'text',defaultValue:c.title},{key:'kicker',label:'Upper line',type:'text',defaultValue:c.kicker},{key:'subtitle',label:'Lower line',type:'text',defaultValue:c.subtitle},{key:'fontFamily',label:'Font',type:'text',defaultValue:c.font},{key:'titleColor',label:'Title color',type:'color',defaultValue:'#eed65d'},{key:'smallColor',label:'Small text color',type:'color',defaultValue:'#ffffff'}]});await d.addMotionGraphic({label:'Cinema Vlog · single-frame white flash',tsxCode:${clean(FLASH)},within:await d.rangeAtFrames(at(54),at(55))});/* A sound overlay may not run past its asset; its length is rounded to Draft frames, as Selects does (the intro runs 0.26 frame past its end at 29.97 and plays). */const lengths=new Map((await p.resources()).map(x=>[x.resourceId,x.durationSeconds])),fit=(id,seconds,from,to)=>Math.min(to,from+Math.round(Math.min(lengths.get(id)||Infinity,seconds)*fps));if(c.introFxId)await d.overlayResource({resource:p.resource(c.introFxId),over:await d.rangeAtFrames(0,fit(c.introFxId,${clean(ASSET_SECONDS[0])},0,at(204))),sourceStartSeconds:0});if(c.musicId){await d.overlayResource({resource:p.resource(c.musicId),over:await d.rangeAtFrames(at(204),fit(c.musicId,${clean(ASSET_SECONDS[1])},at(204),end)),sourceStartSeconds:0});const musicClip=(await d.clips({trackScope:'all'})).find(x=>x.trackKind==='audio'&&x.resourceId===c.musicId&&x.startFrame===at(204));if(!musicClip)throw Error('Music clip was not created');await d.setClipAudio({clip:musicClip,fadeInSeconds:0.18,fadeOutSeconds:0.5})}if(c.effectSoundId)await d.overlayResource({resource:p.resource(c.effectSoundId),over:await d.rangeAtFrames(at(c.glitchRefFrame),fit(c.effectSoundId,${clean(ASSET_SECONDS[2])},at(c.glitchRefFrame),Math.min(end,at(c.glitchRefFrame)+fr(7)))),sourceStartSeconds:0});const saved=await d.commitAll('Cinema Vlog Studio: user marker cuts, Postcard curtain and alphabet swap');if(!saved.createdDraftId)throw Error('Draft save did not return an id');const actual=selects.draft(saved.createdDraftId),clips=await actual.clips({trackScope:'all'});return{draftId:saved.createdDraftId,name:c.name,fps,endFrame:clips.reduce((n,x)=>Math.max(n,x.endFrame),0),mainClips:clips.filter(x=>x.trackKind==='main').length,audioClips:clips.filter(x=>x.trackKind==='audio').length,graphics:clips.filter(x=>x.resourceId===null).length};`}
 
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -171,34 +156,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -238,7 +206,7 @@ async function hostProbeSeconds(path) {
 // av-host:end
 // The bundled sounds, imported into the Project once and found by name after.
 async function cinemaSounds(sdk, projectId) {
-  if(!hostApi('FileSystem','join','homedir','existsSync'))throw Error('This Selects build cannot read the plugin files. Update Selects, then try again.');
+  hostUseSdk(sdk);if(!hostApi('FileSystem','join','homedir','exists'))throw Error('This Selects build cannot read the plugin files. Update Selects, then try again.');
   const roots = await hostRoots(sdk, 'cinema-vlog-studio', 'assets').catch(() => null);
   if (!roots) throw Error('Template assets directory is unavailable.');
   const assetPaths = ASSETS.map(n => hostJoin(roots.plugin, 'assets', n));
@@ -369,7 +337,8 @@ function CinemaTemplateRun({ sdk, context }) {
   return <p role="status" style={{ margin: 0, fontSize: 12 }}>{status}</p>;
 }
 
-export default function CinemaVlogStudio(props) {
+function CinemaVlogStudio(props) {
+  hostUseSdk(props.sdk);
   return props.context.template ? <CinemaTemplateRun {...props} /> : <CinemaVlogPanel {...props} />;
 }
 
@@ -585,3 +554,269 @@ async function readMediaPages(sdk, args) {
     if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
   }
 }
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    // Direct arguments keep object literals contextually typed by the SDK signature.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(CinemaVlogStudio);
+// local-sdk:end

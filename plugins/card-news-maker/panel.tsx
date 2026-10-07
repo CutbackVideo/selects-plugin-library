@@ -2279,41 +2279,56 @@ function libraryId(): string | null {
   }
 }
 
-// ---- Files: Selects' own file service (same on macOS and Windows); localStorage when it is missing ----
+// ---- Media files and durable host-owned metadata storage ----
 function hostFs(): any {
   try {
-    const fs = (window.parent as any)?.__DI__?.FileSystem;
-    const need = ["readFile", "writeFile", "homedir", "join", "existsSync", "mkdirSync", "readdirSync", "unlinkSync"];
+    const fs = hostSdk.files;
+    const need = ["readFile", "writeFile", "homedir", "join", "exists", "mkdir", "readdir", "rm"];
     return fs && need.every((k) => typeof fs[k] === "function") ? fs : null;
   } catch (e) {
     return null;
   }
 }
+// Project switches mount a new store, but its metadata shares the same backend.
+const metadataWrites = new WeakMap<object, Map<string, Promise<void>>>();
+function metadataQueue(backend: object) {
+  let queue = metadataWrites.get(backend);
+  if (!queue) { queue = new Map(); metadataWrites.set(backend, queue); }
+  return queue;
+}
+function writeMetadata(backend: object, key: string, write: () => Promise<void>) {
+  const queue = metadataQueue(backend);
+  const pending = (queue.get(key) || Promise.resolve()).catch(() => {}).then(write);
+  queue.set(key, pending);
+  return pending;
+}
 function makeStore() {
   const fs = hostFs();
+  const storeSdk = hostSdk;
   if (fs) {
     const root = fs.join(fs.homedir(), ".selects", "plugin-data", APP_ID);
     const dir = (n: string) => fs.join(root, n);
-    const ensure = (p: string) => {
-      if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+    const ensure = async (p: string) => {
+      if (!(await fs.exists(p))) (await fs.mkdir(p, { recursive: true }));
     };
     return {
       fs,
       root,
       join: (...p: string[]) => fs.join(...p),
       ensure,
-      size: (p: string) => {
+      size: async (p: string) => {
         try {
-          return fs.existsSync(p) ? (typeof fs.statSync === "function" ? fs.statSync(p).size : 1) : 0;
+          return (await fs.exists(p)) ? (typeof fs.stat === "function" ? (await fs.stat(p)).size : 1) : 0;
         } catch (e) {
           return 0;
         }
       },
       async list(kind: string) {
+        await metadataQueue(fs).get(dir(kind));
         const d = dir(kind);
-        if (!fs.existsSync(d)) return [];
+        if (!(await fs.exists(d))) return [];
         const out: any[] = [];
-        for (const n of fs.readdirSync(d)) {
+        for (const n of (await fs.readdir(d))) {
           if (!/\.json$/.test(n)) continue;
           try {
             out.push(JSON.parse(dec(await fs.readFile(fs.join(d, n)))));
@@ -2322,23 +2337,35 @@ function makeStore() {
         return out;
       },
       async put(kind: string, id: string, v: any) {
-        const d = dir(kind);
-        ensure(d);
-        await fs.writeFile(fs.join(d, id + ".json"), enc(JSON.stringify(v)));
+        const snapshot = enc(JSON.stringify(v));
+        await writeMetadata(fs, dir(kind), async () => {
+          const d = dir(kind);
+          await ensure(d);
+          await fs.writeFile(fs.join(d, id + ".json"), snapshot);
+        });
       },
       async del(kind: string, id: string) {
-        const p = fs.join(dir(kind), id + ".json");
-        if (fs.existsSync(p)) fs.unlinkSync(p);
+        await writeMetadata(fs, dir(kind), async () => {
+          const p = fs.join(dir(kind), id + ".json");
+          if (await fs.exists(p)) await fs.rm(p);
+        });
       },
     };
   }
   const key = (kind: string) => `${APP_ID}:${kind}`;
-  const read = (kind: string) => {
-    try {
-      return JSON.parse(localStorage.getItem(key(kind)) || "{}") || {};
-    } catch (e) {
-      return {};
-    }
+  const storage = () => {
+    if (!storeSdk.storage?.getItem || !storeSdk.storage?.setItem)
+      throw new Error("Update Selects to use persistent plugin storage, then reopen this panel.");
+    return storeSdk.storage;
+  };
+  const read = async (kind: string) => JSON.parse(await storage().getItem(key(kind)) || "{}") || {};
+  const change = (kind: string, edit: (all: any) => void) => {
+    const backend = storage();
+    return writeMetadata(backend, key(kind), async () => {
+      const all = JSON.parse(await backend.getItem(key(kind)) || "{}") || {};
+      edit(all);
+      await backend.setItem(key(kind), JSON.stringify(all));
+    });
   };
   return {
     fs: null,
@@ -2347,17 +2374,15 @@ function makeStore() {
     ensure: (_: string) => {},
     size: (_: string) => 0,
     async list(kind: string) {
-      return Object.values(read(kind));
+      await metadataQueue(storage()).get(key(kind));
+      return Object.values(await read(kind));
     },
     async put(kind: string, id: string, v: any) {
-      const all = read(kind);
-      all[id] = v;
-      localStorage.setItem(key(kind), JSON.stringify(all));
+      const snapshot = JSON.parse(JSON.stringify(v));
+      await change(kind, all => { all[id] = snapshot; });
     },
     async del(kind: string, id: string) {
-      const all = read(kind);
-      delete all[id];
-      localStorage.setItem(key(kind), JSON.stringify(all));
+      await change(kind, all => { delete all[id]; });
     },
   };
 }
@@ -2953,7 +2978,11 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
   );
 }
 
-export default function Panel({ sdk, context, ui }: any) {
+function Panel(props: any) {
+  return <ProjectPanel key={String(props.context.projectId)} {...props} />;
+}
+function ProjectPanel({ sdk, context, ui }: any) {
+  hostUseSdk(sdk);
   const lang = langOf(context);
   const S = STRINGS[lang] ?? STRINGS.en;
   const projectId: string | null = context?.projectId ?? null;
@@ -2985,6 +3014,7 @@ export default function Panel({ sdk, context, ui }: any) {
   const [tplRole, setTplRole] = React.useState<string>("cover");
 
   const script = async (code: string, summary: string, allowCommit = false) => {
+    if (activeProject.current !== projectId) throw new Error("The project changed. Reopen the saved job in its original project.");
     const r: any = await sdk.runScript({ script: code, summary, allowCommit });
     if (r.isError) throw new Error(String(r.output || "run_script failed").slice(0, 1200));
     return r.result;
@@ -3023,27 +3053,31 @@ export default function Panel({ sdk, context, ui }: any) {
 
   const saveJob = async (j: any) => {
     const next = { ...j, updated: new Date().toISOString() };
-    setJob(next);
+    if (activeProject.current === j.projectId) setJob(next);
     await store.put("jobs", next.id, next);
+    if (activeProject.current !== j.projectId) throw new Error("The project changed. Reopen this job in its original project.");
     return next;
   };
+  const activeProject = React.useRef(projectId);
+  activeProject.current = projectId;
+  React.useEffect(() => { activeProject.current = projectId; return () => { activeProject.current = null; }; }, []);
   const loadJobs = React.useCallback(async () => {
     if (!projectId) return;
     const since = Date.now() - 14 * 24 * 3600 * 1000;
     const list = (await store.list("jobs"))
       .filter((j: any) => j && j.projectId === projectId && !j.done && !j.dismissed && Date.parse(j.updated || j.created || "") > since)
       .sort((a: any, b: any) => String(b.updated).localeCompare(String(a.updated)));
-    setJobs(list);
+    if (activeProject.current === projectId) setJobs(list);
   }, [projectId, store]);
   React.useEffect(() => {
-    loadJobs().catch(() => {});
+    loadJobs().catch(e => setError(String(e?.message || e)));
   }, [loadJobs]);
 
   const loadResources = React.useCallback(async () => {
     if (!projectId) return;
     try {
       const rows = (await readMediaPages(sdk, {script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).filter((r: any) => r.type === "Video").map((r: any) => ({ id: r.resourceId, name: r.name, analyzed: r.hasAnalysis, sec: Math.round(r.durationSeconds ?? 0) }));`, summary: "List project videos"})).result;
-      setResources(rows || []);
+      if (activeProject.current === projectId) setResources(rows || []);
     } catch (e: any) {
       setError(String(e?.message || e));
     }
@@ -3053,10 +3087,10 @@ export default function Panel({ sdk, context, ui }: any) {
   }, [loadResources]);
 
   const tplOf = (id: string, list = templates) => list.find((t: any) => t.id === id) || null;
-  const media = (jid: string) => {
+  const media = async (jid: string) => {
     if (!store.fs) throw new Error(S.noFileAccess);
     const d = store.join(store.root, "media", jid);
-    store.ensure(d);
+    await store.ensure(d);
     return d;
   };
 
@@ -3173,11 +3207,11 @@ export default function Panel({ sdk, context, ui }: any) {
     try {
       if (typeof fs.downloadFile === "function") await fs.downloadFile(u, to);
     } catch (e) {}
-    if (store.size(to) > 1000) return true;
+    if (await store.size(to) > 1000) return true;
     const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36";
     const cmd = IS_WIN ? `"%SystemRoot%\\System32\\curl.exe" -fsSL --retry 2 -A ${wq(ua)} -o ${wq(to)} ${wq(u)}` : `curl -fsSL --retry 2 -A ${pq(ua)} -o ${pq(to)} ${pq(u)}`;
     await shell(cmd, "Download an article photo", 120000);
-    return store.size(to) > 1000;
+    return await store.size(to) > 1000;
   }
 
   // A generated image is imported under its output name; scripts address resources by their Project alias
@@ -3191,9 +3225,9 @@ export default function Panel({ sdk, context, ui }: any) {
   }
 
   async function generate(j: any, need: number[]) {
-    const mg = (window.parent as any)?.__DI__?.MediaGeneration;
+    const mg = sdkGeneration(sdk);
     const lib = libraryId();
-    if (!mg?.isAvailable?.() || typeof mg.submit !== "function" || !lib) throw new Error(S.noGeneration);
+    if (!mg?.isAvailable?.() || typeof mg.submit !== "function") throw new Error(S.noGeneration);
     const t = tplOf(j.templateId)!;
     const scope = { libraryId: lib, projectId };
     const pics = j.pictures.slice();
@@ -3261,7 +3295,7 @@ export default function Panel({ sdk, context, ui }: any) {
         setStatus(S.downloading(i + 1));
         const a = j.plan.article.images[c.index];
         const ext = (String(a?.url || "").match(/\.(jpe?g|png|webp)(\?|$)/i) || [, "jpg"])[1].toLowerCase();
-        const to = store.join(media(j.id), `card${String(i + 1).padStart(2, "0")}-${j.id}-article.${ext}`);
+        const to = store.join(await media(j.id), `card${String(i + 1).padStart(2, "0")}-${j.id}-article.${ext}`);
         const full = fullSizeUrl(String(a?.url || ""));
         const got = a && ((full !== a.url && (await download(full, to))) || (await download(a.url, to)));
         if (!got) throw new Error(S.downloadFailed(i + 1));
@@ -3302,7 +3336,8 @@ export default function Panel({ sdk, context, ui }: any) {
       `const m = await selects.project(${JSON.stringify(projectId)}).meta(); for (const id of m.draftIds) { const dm = await selects.draft(id).meta(); if (dm.name === ${JSON.stringify(name)}) return id; } return null;`,
       "Check for an existing draft"
     );
-    if (found) return await saveJob({ ...j, draftId: found });
+    if (found) return await saveJob({ ...j, draftId: found, draftPending: false });
+    if (j.draftPending) throw new Error("This Draft may already exist. Inspect the project and retry recovery; creation has not been repeated.");
     let b = 0;
     const cards = j.plan.cards.map((c: any, i: number) => {
       if (c.role === "body") b++;
@@ -3318,8 +3353,9 @@ export default function Panel({ sdk, context, ui }: any) {
     });
     setStatus(S.buildingDraft);
     const P = { projectId, name, cardSeconds: t.cardSeconds || 3, cards };
+    j = await saveJob({ ...j, draftPending: true });
     const r = await script(SCRIPT_BUILD.replace("const P: any = __P__;", "const P: any = " + JSON.stringify(P) + ";"), `Build ${name}`, true);
-    return await saveJob({ ...j, draftId: r?.draftId, fps: r?.fps, bounds: r?.bounds });
+    return await saveJob({ ...j, draftPending: false, draftId: r?.draftId, fps: r?.fps, bounds: r?.bounds });
   }
 
   // Put this set's pictures and Drafts in their own folder in the project, so the file list stays tidy.
@@ -3364,7 +3400,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     setBusy(true);
     try {
       setPhase(2);
-      let j = await pictures(job);
+      let j = await pictures(await saveJob(job));
       setPhase(3);
       j = await buildDraft(j);
       j = await organize(j);
@@ -3426,31 +3462,25 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     setBusy(true);
     try {
       if (!store.fs) throw new Error(S.noFileAccess);
-      const di = (window.parent as any)?.__DI__;
-      const lib = libraryId();
-      const renderer = di?.RemotionOverlay;
-      if (!lib || typeof renderer?.renderStillForSequenceFrame !== "function" || typeof di?.SequenceRepository?.findById !== "function" || typeof di?.ProjectRepository?.findById !== "function")
-        throw new Error(S.noStill);
       const t = tplOf(job.templateId);
       const dir = store.join(store.root, "exports", `${job.id}-${Date.now().toString(36)}`);
-      store.ensure(dir);
+      await store.ensure(dir);
       // Card ranges come from the Draft as it is now, so edits made in Selects are kept.
       const info = await script(
         `const d = selects.draft(${JSON.stringify(job.draftId)}); const m = await d.meta(); const g = (await d.motionGraphics()).filter((x: any) => /^Card \\d+/.test(x.name)).map((x: any) => [x.name, x.clip.startFrame, x.clip.endFrame]).sort((a: any, b: any) => a[1] - b[1]); return { fps: m.fps, cards: g };`,
         "Read the card ranges"
       );
-      const seq = await di.SequenceRepository.findById(lib, job.draftId);
-      const proj = await di.ProjectRepository.findById(lib, projectId);
-      if (!seq) throw new Error(S.exportFailed + "draft");
       const files: string[] = [];
       for (let i = 0; i < info.cards.length; i++) {
         setStatus(S.rendering(i + 1, info.cards.length));
         const frame = Math.floor((info.cards[i][1] + info.cards[i][2]) / 2);
-        const url = await renderer.renderStillForSequenceFrame(job.draftId, seq, proj, frame, { composeVisualScene: true });
-        if (!url) throw new Error(S.exportFailed + `card ${i + 1}`);
+        const rawPath = store.join(dir, `source-${String(i + 1).padStart(2, "0")}.png`);
+        await script(`return await selects.export.still(${JSON.stringify({projectId, draftSequenceId: job.draftId, resolvedFrame: frame, outPath: rawPath})});`, "Export card composite", true);
+        const rawPng = await store.fs.readFile(rawPath);
         const role = job.plan.cards[i]?.role || "body";
         const pic = job.pictures?.[i];
-        const png = await finishCard(await pngFromDataUrl(url), t || BUILTIN_TEMPLATES[0], role, pic);
+        const png = await finishCard(rawPng, t || BUILTIN_TEMPLATES[0], role, pic);
+        await store.fs.removeFile(rawPath);
         const out = store.join(dir, `card-${String(i + 1).padStart(2, "0")}.png`);
         await store.fs.writeFile(out, png);
         files.push(out);
@@ -3469,16 +3499,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
   }
 
   async function openFolder(dir: string) {
-    // The app's own reveal (Electron shell) when this build has it: explorer.exe is not on the
-    // Windows shell PATH. The shell command is the fallback.
-    try {
-      const rt = (window.parent as any)?.__DI__?.Runtime;
-      if (typeof rt?.showItemInFolder === "function") {
-        rt.showItemInFolder(dir);
-        return;
-      }
-    } catch (e) {}
-    await shell(IS_WIN ? `"%SystemRoot%\\explorer.exe" ${wq(dir)}` : `open ${pq(dir)}`, "Open the export folder", 30000);
+    await script(`await selects.editor.revealFile(${JSON.stringify(dir)}); return {revealed:true};`, "Open the export folder");
   }
   async function openDraft(id: string) {
     try {
@@ -3502,7 +3523,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     setJob({ ...job, plan: { ...job.plan, cards }, pictures: pics });
   };
   React.useEffect(() => {
-    if (job?.plan && !busy) store.put("jobs", job.id, job).catch(() => {});
+    if (job?.plan && !busy) store.put("jobs", job.id, job).catch(e => setError(String(e?.message || e)));
   }, [job]);
   React.useEffect(() => {
     if (job?.draftId && !job.folder?.done && !busy) organize(job).catch(() => {});
@@ -3731,3 +3752,306 @@ async function readMediaPages(sdk, args) {
     if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
   }
 }
+
+let hostSdk: any = null;
+function hostUseSdk(sdk: any) { hostSdk = panelLocalClient(sdk); if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin."); }
+
+// generation-sdk:start
+// Paid jobs always cross the canonical run_script boundary. This panel-local
+// adapter preserves old saved job IDs while the host owns scope and delivery.
+function sdkGeneration(sdk) {
+  if (typeof sdk?.runScript !== "function") return null;
+  const run = async (script, summary, allowCommit = false) => {
+    const response = await sdk.runScript({ script, summary, allowCommit });
+    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
+    return response?.result;
+  };
+  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
+  return {
+    isAvailable: () => true,
+    supportsPluginFiles: () => true,
+    async submit(request) {
+      if (request.batch != null && request.batch !== 1) throw new Error("Submit one generation at a time.");
+      const input = {
+        projectId: request.scope.projectId, requestKey: request.key,
+        modelId: request.modelId, input: request.input, uploads: request.uploads || {},
+        outputName: request.outputName, mediaType: request.origin?.tool || "video",
+        ...(request.inputMediaSeconds ? { inputMediaSeconds: request.inputMediaSeconds } : {}),
+        ...(request.delivery ? { delivery: { folder: request.delivery.pluginFolder } } : {}),
+      };
+      const result = await run(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
+      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
+      return { jobIds: [result.jobId] };
+    },
+    list: scope => run(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
+    cancel: (scope, id) => run(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
+    retryDelivery: (scope, id) => run(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true),
+  };
+}
+// generation-sdk:end
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    // Direct arguments keep object literals contextually typed by the SDK signature.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(Panel);
+// local-sdk:end

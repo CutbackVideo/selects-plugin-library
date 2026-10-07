@@ -165,37 +165,8 @@ test('finish refuses a Draft whose clips moved and does not save',async()=>{
  assert.equal(result.status,'notSaved');assert.equal(log.commits,0);
 });
 
-// The panel's Image placement bridge, extracted as the installed panel runs it.
+// Native placement behavior is exercised through runScript in native_image_sdk_migration.test.mjs.
 const panelSource=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
-const bridge=panelSource.slice(panelSource.indexOf('export async function placeNativeImages'),panelSource.indexOf('// Registers the bundled shutter sounds'));
-const {placeNativeImages}=vm.runInThisContext('(function(){'+bridge.replaceAll('export async function','async function')+';return {placeNativeImages};})()');
-
-function fakeTimeline(fps){
- const plan=scenePlan(fps),trims=[];let next=1;const clips=new Map();
- const candidate={
-  place:(_src,start)=>{const id=next++;clips.set(id,{trackId:'t'+id,start,dur:120});return [id];},
-  getClipPositionById:id=>{const c=clips.get(id);return c&&{trackId:c.trackId,resolvedOffset:c.start,clip:{getDuration:()=>c.dur}};},
-  trimClipBoundary:({clipId,delta,sourceDuration})=>{const c=clips.get(clipId);trims.push({before:c.dur,delta,sourceDuration});
-   // Mirrors the host: the source may not end before the clip's current source end.
-   if(sourceDuration<c.dur)throw Error('Source range exceeded');c.dur+=delta;return {trimmedClipPosition:candidate.getClipPositionById(clipId),effectiveDelta:delta};},
-  getDuration:()=>plan.durationFrames,slice:()=>{}};
- const sequence={getFrameRate:()=>fps,getDuration:()=>plan.durationFrames,getFrameSize:()=>plan.canvas};
- const di={ProjectRepository:{findById:async()=>({getEditedSequences:()=>['d']})},SequenceRepository:{findById:async()=>sequence},
-  TimelineMutation:{run:async(_s,_l,fn)=>({status:'committed',sequence:fn({clone:()=>candidate})})}};
- const sources=plan.occurrences.map(()=>({analyzed:{},main:{},primary:{getId:()=>1},width:1200,height:1600}));
- return {plan,trims,prepared:{di,libraryId:'l',projectId:'p',sources}};
-}
-
-test('stills are held past and trimmed below their 120-frame source without a source-range error',async()=>{
- for(const fps of [24000/1001,30]){
-  const {plan,trims,prepared}=fakeTimeline(fps);
-  const out=await placeNativeImages(prepared,'d',plan);
-  assert.deepEqual(out.placements.map(p=>p.endFrame-p.startFrame),plan.occurrences.map(o=>o.endFrame-o.startFrame));
-  assert.ok(trims.some(t=>t.delta>0)&&trims.some(t=>t.delta<0),'covers both longer and shorter holds');
-  for(const t of trims)assert.equal(t.sourceDuration,Math.max(t.before+t.delta,t.before));
-  assert.equal(new Set(out.placements.map(p=>p.trackId)).size,12);
- }
-});
 
 test('an old Selects build gets the update message, not "Reinstall"',()=>{
  assert.ok(panelText.includes(NEWER_SELECTS));

@@ -43,8 +43,9 @@ reusing the assistant's marks and the music.
 ## Limits
 
 - Needs a transcript. English captions.
-- Speaker framing is available on macOS for now (system `python3`); on Windows
-  shots are centred. Music levels and B-roll use the ffmpeg bundled with Selects.
+- Speaker framing uses shared YuNet jobs on macOS and Windows. Install
+  `selects-ai-runtime` from the same library revision and use Selects 2.0.570
+  or later; no separate Python installation is needed.
 - B-roll needs a Selects version with stock search; check each clip's licence
   before publishing. The panel lists the footage credits.
 - A style study: not affiliated with a16z. Use your own name, role and logo.

@@ -149,19 +149,12 @@ of those sources are ports of the following code, whose notices apply to
   THE SOFTWARE.
   ```
 
-- `src/speaker/yunet/decode.ts` follows the YuNet post-processing of OpenCV's
-  `FaceDetectorYN` (Apache 2.0).
-
 ## Downloaded on first use (not in this package)
 
-- YuNet face detector (`face_detection_yunet_2023mar.onnx`) from the OpenCV
-  Zoo, MIT licence.
-- ONNX Runtime Web 1.30.0 (`onnxruntime-web`, Microsoft, MIT licence), which
-  runs the face detector in the panel, from the npm CDN.
 - harfbuzzjs 1.6.2 (`harfbuzz-subset.wasm`, MIT licence; HarfBuzz itself is
   under its Old MIT licence), the font subsetter, from the npm CDN.
 
-Each is checked against a pinned SHA-256 before use.
+The font subsetter is checked against a pinned SHA-256 before use. YuNet and native ONNX Runtime are supplied by the separately installed `selects-ai-runtime`; see its third-party notices.
 
 ## Media found or made per short
 

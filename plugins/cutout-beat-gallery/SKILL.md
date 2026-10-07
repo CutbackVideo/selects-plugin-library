@@ -15,11 +15,8 @@ Open a project, choose a photo folder in the **Beat Cutout Gallery** panel, pres
 - At least 13 of them must cut out cleanly: the person may not touch the left, right or top
   edge, or a corner. 14 clean cutouts add the closing sticker; with 13 the sticker before it
   stays to the end.
-- On macOS, people are separated with the macOS Vision person-segmentation model on this
-  computer; no photo leaves the computer.
-- On Windows, people are cut out by Selects generation, which uses Selects credits. After the
-  free photo check the panel shows how many photos would be sent (as one short clip) and sends
-  nothing until you press **Send ... and use credits**.
+- macOS and Windows both use local shared RVM with no photo upload or credits. Install `selects-ai-runtime` from the same library commit.
+- Photos of people, objects and animals are accepted without a subject-class precheck. RVM is trained for people; other subjects have model-dependent results. Existing clean-cutout checks still determine which masks can become stickers.
 
 ## What the Draft contains
 

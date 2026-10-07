@@ -97,9 +97,82 @@ function createDoacEngine({ pil, files, fontSource }) {
     const key = path + '\u0000' + index + '\u0000' + size;
     if (!fontCache.has(key)) {
       const src = fontSource(path, index);
-      fontCache.set(key, new pil.Font(src.bytes, size, src.index));
+      const ft = new pil.Font(src.bytes, size, src.index);
+      ft.path = path; ft.face = index;
+      fontCache.set(key, ft);
     }
     return fontCache.get(key);
+  }
+
+  // textfont.py: a character the face lacks (it rasterizes as .notdef) is drawn
+  // with the fallback (Apple SD Gothic Neo; worker.js maps it to Malgun Gothic) at
+  // the same size and a matching weight, when that has it. Text the face covers
+  // takes the plain call, unchanged.
+  const FALLBACK = '/System/Library/Fonts/AppleSDGothicNeo.ttc', PROBE = '\u{10FFFD}';
+  // Apple SD Gothic Neo face: 0 Regular, 2 Medium, 6 Bold, 16 Heavy.
+  const WEIGHT = { 'HelveticaNeue.ttc#1': 6, 'HelveticaNeue.ttc#9': 6, 'HelveticaNeue.ttc#10': 2, 'Helvetica.ttc#1': 6, 'Arial Bold.ttf#0': 6, 'Arial Bold Italic.ttf#0': 6, 'Arial Narrow Bold.ttf#0': 6, 'Georgia Bold.ttf#0': 6, 'Arial Black.ttf#0': 16, 'PermanentMarker-Regular.ttf#0': 6 };
+  function fallbackOf(font) {
+    if (font.fallback === undefined) {
+      const src = fontSource(FALLBACK, get(WEIGHT, basename(font.path) + '#' + font.face, 0));
+      // raster.wasm reads TrueType outlines only (Malgun Gothic), not Apple SD Gothic Neo's CFF.
+      try { font.fallback = src && src.bytes ? new pil.Font(src.bytes, font.size, src.index) : null; } catch { font.fallback = null; }
+    }
+    return font.fallback;
+  }
+  function covers(font, ch) {
+    const cache = font.cover || (font.cover = new Map());
+    if (!cache.has(ch)) {
+      const sig = c => pil.scope(() => { const [m] = font.render(c); return [m.width, m.height, m.data().slice()]; });
+      const a = sig(ch), b = sig(PROBE);
+      cache.set(ch, !(a[0] === b[0] && a[1] === b[1] && a[2].length === b[2].length && a[2].every((v, i) => v === b[2][i])));
+    }
+    return cache.get(ch);
+  }
+  // [[font, text]]: the face's own characters, and the fallback's where the face has none.
+  function textRuns(font, text) {
+    const out = [];
+    let fb;
+    for (const ch of text.normalize('NFC')) {
+      let f = out.length ? out[out.length - 1][0] : font;
+      if (!/^\s$/u.test(ch)) {
+        f = font;
+        if (!covers(font, ch)) {
+          if (fb === undefined) fb = fallbackOf(font);
+          if (fb && covers(fb, ch)) f = fb;
+        }
+      }
+      if (out.length && out[out.length - 1][0] === f) out[out.length - 1][1] += ch;
+      else out.push([f, ch]);
+    }
+    return out.length ? out : [[font, text]];
+  }
+  const ownRun = (font, rs) => rs.length === 1 && rs[0][0] === font;
+  const ascent = font => font.getbbox('H', { anchor: 'la' })[1] - font.getbbox('H', { anchor: 'ls' })[1];
+  function textLength(font, text) {
+    const rs = textRuns(font, text);
+    if (ownRun(font, rs)) return font.getlength(text);
+    return sum(rs.map(([f, t]) => f.getlength(t)));
+  }
+  function textBBox(font, text, stroke_width = 0) {
+    const rs = textRuns(font, text);
+    if (ownRun(font, rs)) return font.getbbox(text, { stroke_width });
+    const y = ascent(font), boxes = [];
+    let x = 0;
+    for (const [f, t] of rs) {
+      const b = f.getbbox(t, { stroke_width, anchor: 'ls' });
+      boxes.push([x + b[0], y + b[1], x + b[2], y + b[3]]);
+      x += f.getlength(t);
+    }
+    return [pyMin(...boxes.map(b => b[0])), pyMin(...boxes.map(b => b[1])), pyMax(...boxes.map(b => b[2])), pyMax(...boxes.map(b => b[3]))];
+  }
+  // pil.drawText with fallback runs; anchor null ('la') or 'ms'.
+  function drawText(im, xy, text, { font, fill = 255, stroke_width = 0, anchor = null }) {
+    const rs = textRuns(font, text);
+    if (ownRun(font, rs)) return pil.drawText(im, xy, text, { font, fill, stroke_width, anchor });
+    let [x, y] = xy;
+    if (anchor === 'ms') x -= sum(rs.map(([f, t]) => f.getlength(t))) / 2;
+    else { assert(anchor == null || anchor === 'la', anchor); y += ascent(font); }
+    for (const [f, t] of rs) { pil.drawText(im, [x, y], t, { font: f, fill, stroke_width, anchor: 'ls' }); x += f.getlength(t); }
   }
 
   // ---------------------------------------------------- scipy gaussian_filter
@@ -233,7 +306,7 @@ function createDoacEngine({ pil, files, fontSource }) {
     const ft = truetype(r.font, 140, get(r, 'index', 0));
     return pil.scope(() => {
       const im = pil.newImage('L', [6000, 450]);
-      pil.drawText(im, [20, 20], t, { font: ft, fill: 255, stroke_width: strokeOf(r, 0.7) });
+      drawText(im, [20, 20], t, { font: ft, fill: 255, stroke_width: strokeOf(r, 0.7) });
       return pil.keep(cropToBBox(im));
     });
   }
@@ -328,7 +401,7 @@ function createDoacEngine({ pil, files, fontSource }) {
       const r = src[i], ft = truetype(r.font, 140, get(r, 'index', 0));
       let m = pil.scope(() => {
         const big = pil.newImage('L', [5000, 400]);
-        pil.drawText(big, [10, 10], text, { font: ft, fill: 255 });
+        drawText(big, [10, 10], text, { font: ft, fill: 255 });
         return pil.keep(cropToBBox(big));
       });
       const scale = pyMin(w / m.width, h / m.height);
@@ -521,23 +594,23 @@ function createDoacEngine({ pil, files, fontSource }) {
       const ft = truetype('/System/Library/Fonts/HelveticaNeue.ttc', 52, 1);
       const whole = words.join(' ');
       let tt;
-      if (ft.getlength(whole) <= 700) tt = [whole];
+      if (textLength(ft, whole) <= 700) tt = [whole];
       else {
         const opts = [];
         for (let j = 1; j < words.length; j++) opts.push([words.slice(0, j).join(' '), words.slice(j).join(' ')]);
         if (!opts.length) throw pyError('ValueError', 'min() arg is an empty sequence');
-        let best = opts[0], bestKey = pyMax(...best.map(t => ft.getlength(t)));
-        for (const o of opts.slice(1)) { const k = pyMax(...o.map(t => ft.getlength(t))); if (k < bestKey) { best = o; bestKey = k; } }
+        let best = opts[0], bestKey = pyMax(...best.map(t => textLength(ft, t)));
+        for (const o of opts.slice(1)) { const k = pyMax(...o.map(t => textLength(ft, t))); if (k < bestKey) { best = o; bestKey = k; } }
         tt = best;
       }
-      assert(pyMax(...tt.map(t => ft.getlength(t))) <= 730, pyRepr(tt));
+      assert(pyMax(...tt.map(t => textLength(ft, t))) <= 730, pyRepr(tt));
       const orig = deepcopy(svc.base_legacy_plans[47]);
       const e = deepcopy(orig);
       e.runs = [];
       tt.forEach((t, j) => pil.scope(() => {
         const baseline = tt.length === 2 ? 1426 + j * 62 : 1460;
         const full = pil.newImage('L', [1080, 1920]);
-        pil.drawText(full, [540, baseline], t, { font: ft, fill: 255, anchor: 'ms' });
+        drawText(full, [540, baseline], t, { font: ft, fill: 255, anchor: 'ms' });
         const box = full.getbbox();
         if (!box) throw pyError('TypeError', "'NoneType' object is not subscriptable");
         const r = deepcopy(orig.runs[Math.min(j, 1)]);
@@ -575,7 +648,7 @@ function createDoacEngine({ pil, files, fontSource }) {
       for (let k = 0; k < n; k++) {
         const r = p.source.runs[k], t = p.texts[k];
         const ft = truetype(r.font, 140, get(r, 'index', 0)), stroke = strokeOf(r, 0.7);
-        const extent = s => { const b = ft.getbbox(s, { stroke_width: stroke }); return [b[2] - b[0], b[3] - b[1]]; };
+        const extent = s => { const b = textBBox(ft, s, stroke); return [b[2] - b[0], b[3] - b[1]]; };
         const [ow, oh] = extent(r.text), [nw, nh] = extent(t), [w, h] = wh(r);
         const fit = pyMin(1, ow / pyMax(1, nw), oh / pyMax(1, nh)), em = 140 * h / pyMax(1, nh);
         const ref = p.id.startsWith('REF');

@@ -1,7 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "cutout-beat-gallery",
-  "version": "0.1.3",
+  "version": "0.1.5",
+  "requiresPlugins": [
+    "selects-ai-runtime"
+  ],
   "name": "Beat Cutout Gallery",
   "summary": "Turns a folder of portrait photos into an editable 15.9-second beat-cut gallery Draft: cut-out people with paper outlines slide in, stack over the photo on screen and lead into the next cut, on a bundled soundtrack.",
   "status": "experimental",
@@ -12,8 +15,6 @@
     "INSTALL.md",
     "panel.tsx",
     "prepare.py",
-    "preview.py",
-    "foreground-mask.swift",
     "cutout-engine.js",
     "reference-manifest.json",
     "fixed-bgm.mp3"
@@ -29,7 +30,7 @@
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified."
+    "selects": "Requires the shared selects-ai-runtime plugin from the same library commit and a Selects host with image AI, durable plugin storage, public local file/media APIs and editable Image overlays. macOS arm64 and Windows x64 use local RVM through selects.ai; no credits or external Python/Node are needed for the ordinary photo workflow. The existing person/main-subject inputs remain accepted without a subject-class precheck; RVM results vary for objects and animals."
   },
   "localized": {
     "de": {

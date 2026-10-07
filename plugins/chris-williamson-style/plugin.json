@@ -1,7 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "chris-williamson-style",
-  "version": "0.2.14",
+  "version": "0.2.15",
+  "requiresPlugins": [
+    "selects-ai-runtime"
+  ],
   "name": "Chris Williamson Style",
   "summary": "Editable captions and verified B-roll with preserved manual edits, an openly licensed music bed (Kevin MacLeod, CC BY 4.0), no full-screen flashes or shutter sounds.",
   "status": "experimental",
@@ -14,12 +17,12 @@
     "engine.mjs",
     "media.mjs",
     "runtime.sh",
-    "vision-helper.js",
     "build.py",
     "src/panel.template.tsx",
     "src/planning.ts",
     "src/assets.ts",
     "src/verification.ts",
+    "src/sharedFaces.ts",
     "src/pipeline.ts",
     "src/look.tsx",
     "src/broll.tsx",
@@ -34,7 +37,7 @@
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Requires current Selects panel runScript/askAI, getDraftCore/captureVisualFrames and the host ffmpeg/FileSystem services (macOS also uses runShell for its Node.js engine and Apple Vision). On Windows the same steps run inside the panel and speaker framing is centre-cropped (no face detection); not yet verified on a real Windows machine. Development build only; released-version compatibility is unverified."
+    "selects": "Requires the public selects.ai SDK and selects-ai-runtime installed from the same full library commit, plus current Selects panel runScript/askAI, getDraftCore/captureVisualFrames and host ffmpeg/FileSystem services. Shared YuNet face detection runs on CPU on macOS and Windows; macOS still uses runShell and its pinned Node.js engine for shot/B-roll preparation. Released-host compatibility must be verified with the installed build."
   },
   "preview": {
     "video": "preview.mp4",

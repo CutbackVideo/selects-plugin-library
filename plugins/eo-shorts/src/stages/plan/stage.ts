@@ -68,7 +68,7 @@ type Inputs = {
 
 async function readText(ctx: StageContext, rel: string): Promise<string | null> {
   const path = ctx.path(rel);
-  if (!ctx.host.fs.existsSync(path)) return null;
+  if (!(await ctx.host.fs.exists(path))) return null;
   return decodeText(await ctx.host.fs.readFile(path));
 }
 
@@ -92,7 +92,7 @@ async function readCatalog(ctx: StageContext): Promise<MusicCatalog | null> {
   const fs = ctx.host.fs;
   const path = fs.join(ctx.roots.skills, "assets", "music", "catalog.json");
   try {
-    if (!fs.existsSync(path)) return null;
+    if (!(await fs.exists(path))) return null;
     return JSON.parse(decodeText(await fs.readFile(path))) as MusicCatalog;
   } catch {
     return null;
@@ -119,13 +119,13 @@ async function recordNoPlan(ctx: StageContext, a: Omit<PlanAttempts["noPlan"][nu
 
 const RUN_FILES = [REL.source, REL.request, REL.provenance, REL.response, REL.bundleRaw, REL.anchorFix, REL.repairRequest, REL.repairResponse, REL.bundle, REL.scenes, REL.music, REL.summary];
 
-function clearPlan(ctx: StageContext): void {
+async function clearPlan(ctx: StageContext): Promise<void> {
   const fs = ctx.host.fs;
-  for (const rel of RUN_FILES) fs.rmSync(ctx.path(rel), { force: true });
-  for (const name of fs.readdirSync(ctx.path("plan"))) if (/^film-.+\.json$|^direction-.+\.md$/.test(name)) fs.rmSync(ctx.path("plan/" + name), { force: true });
+  for (const rel of RUN_FILES) (await fs.rm(ctx.path(rel), { force: true }));
+  for (const name of (await fs.readdir(ctx.path("plan")))) if (/^film-.+\.json$|^direction-.+\.md$/.test(name)) (await fs.rm(ctx.path("plan/" + name), { force: true }));
   for (const dir of ["plan/scenes", "plan/lint"]) {
-    fs.rmSync(ctx.path(dir), { recursive: true, force: true });
-    ensureDir(fs, ctx.path(dir));
+    await fs.rm(ctx.path(dir), { recursive: true, force: true });
+    await ensureDir(fs, ctx.path(dir));
   }
 }
 
@@ -182,12 +182,12 @@ async function runPlan(ctx: StageContext, opts: PlanStageOptions & { policy: Pla
   const { job } = ctx;
   const fs = ctx.host.fs;
   const t0 = ctx.host.now();
-  for (const dir of ["plan", "plan/scenes", "plan/lint"]) ensureDir(fs, ctx.path(dir));
+  for (const dir of ["plan", "plan/scenes", "plan/lint"]) (await ensureDir(fs, ctx.path(dir)));
   const styles = opts.styles ?? FILM_STYLES;
   const film = job.film;
 
   forgetPreviousRun(job, await readReceipt(fs, ctx.dir, "plan"));
-  clearPlan(ctx);
+  await clearPlan(ctx);
   delete job.models[PLAN_ROLE];
 
   const inputs = await readInputs(ctx);
@@ -299,7 +299,7 @@ async function runPlan(ctx: StageContext, opts: PlanStageOptions & { policy: Pla
   await writeFileAtomic(fs, ctx.path(REL.direction(film)), r.bundle.direction + "\n");
   outputs.push(REL.bundle, REL.scenes, REL.film(film), REL.direction(film));
   for (const s of r.scenes) {
-    ensureDir(fs, ctx.path("plan/scenes/" + s.id));
+    await ensureDir(fs, ctx.path("plan/scenes/" + s.id));
     await writeFileAtomic(fs, ctx.path(REL.scenePlan(s.id)), pyJsonFile(ex.plans[s.id], PLAN_FLOATS));
     outputs.push(REL.scenePlan(s.id));
     const raw = r.rawPlans[s.id];

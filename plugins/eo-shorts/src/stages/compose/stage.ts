@@ -62,14 +62,14 @@ async function runCompose(ctx: StageContext, o: ComposeStageOptions): Promise<St
   }
   const doc = o.doc ? o.doc(ctx) : (globalThis as { document?: Document }).document;
   if (!doc) throw new Error("Compose needs the panel's document to lay out the scenes.");
-  if (!o.readFont && !fs.existsSync(fs.join(ctx.roots.skills, "fonts", "fonts.json"))) {
+  if (!o.readFont && !(await fs.exists(fs.join(ctx.roots.skills, "fonts", "fonts.json")))) {
     throw new Error("The installed EO Shorts package has no fonts (" + fs.join(ctx.roots.skills, "fonts") + "). Install the plugin again, then Resume.");
   }
   ctx.note("Loading the font subsetter…");
   const subsetter = await (o.subsetter ? o.subsetter(ctx) : loadSubsetter(fs, ctx.roots.runtime, { progress: (s) => ctx.note(s) }));
   const readFont = o.readFont ? o.readFont(ctx) : packagedFontSource(fs, ctx.roots.skills);
   const dirs = { compose: ctx.path("compose"), footage: ctx.path("media/footage"), sound: ctx.path("sound"), tmp: ctx.path("compose/tmp") };
-  for (const d of Object.values(dirs)) ensureDir(fs, d);
+  for (const d of Object.values(dirs)) (await ensureDir(fs, d));
   const report: ComposeReport = await composeFilm({
     host,
     doc,

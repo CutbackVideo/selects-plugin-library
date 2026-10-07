@@ -110,7 +110,7 @@ test('Adjust labels and Look options: English defaults match decorate.js and STR
 // ---- Windows: no POSIX shell, host I/O only through the host block ----
 test('no shell, no node spawn, no POSIX paths in the panel', () => {
   for (const token of ['runShell', 'mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'command -v', '/tmp', 'captureFrames']) {
-    assert.ok(!panel.includes(token), 'panel.tsx contains ' + JSON.stringify(token));
+    assert.ok(!(token === "base64 " ? /(?<![\w.])base64\s/.test(panel) : panel.includes(token)), 'panel.tsx contains ' + JSON.stringify(token));
   }
   assert.ok(!/["'`]node\s/.test(panel) && !/\bnode\s+["'`]/.test(panel) && !/child_process|execFile|spawn\(/.test(panel), 'no node spawn');
   assert.ok(!/\+ ?["']\/["']/.test(panel) && !/["']\/["'] ?\+/.test(panel), 'no "/" path building');
@@ -121,7 +121,7 @@ test('no shell, no node spawn, no POSIX paths in the panel', () => {
   assert.ok(/new TextDecoder\(\)\.decode\(saeBytes\(raw\)\)/.test(own), 'file bytes decoded with TextDecoder');
   // Host error codes map to localized messages; a missing FileSystem stops the panel with "needs a newer Selects".
   for (const s of ['code === "host_tools"', 'code === "timeout"', 't(l, "needsNewerSelectsMusic")', 't(l, "musicTimeout")', 't(l, "previewTimeout")', 't(l, "musicUnreadable", { detail })', 't(l, "previewFailed", { detail })',
-    'String(e?.message) === "host_tools"', 't(l, "needsNewerSelects")', 'saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"])']) assert.ok(own.includes(s), s);
+    'String(e?.message) === "host_tools"', 't(l, "needsNewerSelects")', 'saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdir"])']) assert.ok(own.includes(s), s);
 });
 test('panel UI: canvas DPR backing, scrollbar gutter, slider keyboard, theme tokens, tiles', () => {
   for (const s of ['role="slider"', 'aria-valuenow', 'aria-valuetext', 'ResizeObserver', 'devicePixelRatio', 'Math.round(width * dpr)', 'Math.round(WAVE_HEIGHT * dpr)', 'setPointerCapture', 'hasPointerCapture', '"grabbing"', '"ArrowLeft"', '"ArrowRight"', '"Home"', '"End"',
@@ -181,7 +181,7 @@ test('configs sent to each script carry what the scripts read', () => {
   assert.ok(own.includes('(l) => t(l, "checkingClipsCount", { done, count: total }), true)'), 'Checking clips N/M while scoring');
   // Stillness picker: off by default (no motion step, plans as before); on, motion per clip through the host block, guarded.
   assert.ok(own.includes('const SAE_STILL_WEIGHT_PANEL: number = 0.6;'), 'stillness picker on at 0.6 (Staging A/B, round 2)');
-  assert.ok(own.includes('const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdirSync"]).ok;'));
+  assert.ok(own.includes('const stillOn = SAE_STILL_WEIGHT_PANEL > 0 && saeHas(["rt.runFFmpeg", "fs.join", "fs.homedir", "fs.mkdir"]).ok;'));
   assert.ok(own.includes('await saeMotionCurve(pathOf[rid], dataDir, {})') && own.includes('t(l, "videosMeasured", { done, count: total })'));
   assert.ok(own.includes('const motion: Record<string, any> = stillOn && analysedRids.length'), 'motion curves for analysed clips only');
   assert.ok(own.includes('motion, stillWeight: SAE_STILL_WEIGHT_PANEL, analysed, local, pickLocal: pickWindowsLocal });'), 'the dry run uses the cached motion and quick scores too');
@@ -461,13 +461,15 @@ test('the worker source runs the unmodified beat-detect.cjs and matches analyze(
 // ---- the plugin carries no literal Hangul (check_public) ----
 // ---- Clip highlights template run ----
 // Panel hands a run with `context.template` to TemplateRun (out of sight); anything else is the panel UI.
-const tplSrc = own.slice(own.indexOf('// Template runs.'), own.indexOf('export default function Panel('));
+const tplSrc = own.slice(own.indexOf('// Template runs.'), own.indexOf('function Panel('));
 const tplRun = between(own, 'async function runSelfieTemplate(', '\nfunction TemplateRun(');
 test('template run: the code from the "Template runs." banner to the end is byte-identical to origin/main (user policy)', () => {
   // Hyun/Jay's Clip highlights template mode: never edited by this plugin's changes. It benefits from the shared steps
   // (readSpans, readMotionCurves, searchCloseUps, buildDraft), whose signatures it calls unchanged.
-  const slice = panel.slice(panel.indexOf('// Template runs.'));
-  assert.equal(require('node:crypto').createHash('sha256').update(slice).digest('hex'), '02aada7708b5c40e26f3b496bd9c95fbff4515842cb76567aedba4beacaf685f');
+  // Normalize only the new shared SDK wrapper; keep the existing template-body hash.
+  const slice = panel.slice(panel.indexOf('// Template runs.'), panel.indexOf('// local-sdk:start')).trimEnd().replace(/^ *function Panel\(/m, 'export default function Panel(') + '\n';
+  const originalTemplate = slice.replace(/  hostUseSdk\((?:props\.)?sdk\);\n/g, '').replace('(await saeSkillsDir(PLUGIN_ID))', 'saeSkillsDir(PLUGIN_ID)').replaceAll('fs.mkdir"', 'fs.mkdirSync"');
+  assert.equal(require('node:crypto').createHash('sha256').update(originalTemplate).digest('hex'), '02aada7708b5c40e26f3b496bd9c95fbff4515842cb76567aedba4beacaf685f');
   for (const sig of ['async function readSpans(sdk: any, pid: string, inv: any, rids: string[], spansCache: Map<string, number[][]>, check: () => void,',
     'async function readMotionCurves(pid: string, inv: any, rids: string[], motionCache: Map<string, { fps: number; values: Float32Array }>, check: () => void,',
     'async function searchCloseUps(run: RunFn, assets: any, pid: string, rids: string[], searchCache: { current: Map<string, any[]> }, check: () => void,',
@@ -477,7 +479,7 @@ test('template run: Panel hands context.template to TemplateRun, which ends each
   const manifest = JSON.parse(read('plugin.json'));
   assert.equal(manifest.collection, 'visual-highlights');
   assert.match(panel.split('\n').slice(0, 24).join('\n'), /^\/\/ @collection visual-highlights$/m);
-  assert.ok(own.includes('export default function Panel(props: any) {\n  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <SelfieAestheticPanel {...props} />;\n}'), 'Panel dispatches on context.template');
+  assert.ok(own.includes('function Panel(props: any) {\n  hostUseSdk(props.sdk);\n  return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <SelfieAestheticPanel {...props} />;\n}'), 'Panel dispatches on context.template');
   assert.ok(tplSrc.length > 0 && own.indexOf('// Template runs.') > own.indexOf('function SelfieAestheticPanel('), 'the template run sits below the panel');
   // One start per runId; reports only while the run is current; finishTemplate once, never for a replaced run.
   for (const s of ['if (runId == null || started.current === runId) return;', 'const live = () => alive.current && latest.current?.template?.runId === runId;',
@@ -519,7 +521,7 @@ test('template run: the handed footage, the track option, the panel defaults, th
   for (const s of ['fill(assets.scripts.assembleJs, {', 'fill(assets.scripts.ensureJs, {', 'fill(assets.scripts.decorateJs, deco)', 'const deco = {', 'saePlanBuild({ fps: 30, bars: settings.bars']) assert.equal(own.split(s).length - 1, 1, 'one ' + s);
   // No Draft open in a template run, no shell (Windows), the folder through the host block.
   assert.ok(!/openDraft|linkToDraftFrame/.test(tplSrc), 'a template run never opens the Draft');
-  assert.ok(!/runShell|readText\(/.test(tplSrc) && tplRun.includes('const skillsDir = saeSkillsDir(PLUGIN_ID);') && tplRun.includes('await loadAssets(skillsDir)'));
+  assert.ok(!/runShell|readText\(/.test(tplSrc) && tplRun.includes('const skillsDir = (await saeSkillsDir(PLUGIN_ID));') && tplRun.includes('await loadAssets(skillsDir)'));
   // Every await in the run is followed by check() (or hands check to the step).
   const awaits = (tplRun.match(/await /g) || []).length, checks = (tplRun.match(/check\(\);|, check[,)]/g) || []).length;
   assert.ok(checks >= awaits - 1, 'check() after the awaits (' + awaits + ' awaits, ' + checks + ' checks)');

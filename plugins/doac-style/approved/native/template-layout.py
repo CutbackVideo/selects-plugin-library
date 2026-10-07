@@ -1,5 +1,6 @@
 """Shared replacement composition for approved templates, lab and film."""
 from PIL import Image,ImageDraw,ImageFont
+import textfont
 ROWS={'11':[[0],[1,2,3],[4],[5]],'22':[[0],[1,2,3,4],[5],[6]],'40':[[0]],'05':[[0],[1],[2],[3],[4],[5]],'06':[[0,1],[2,3],[4,5,6]],'19':[[0],[1,2],[3,4]],'24':[[1,0],[2],[3],[4]],'13':[[0],[1],[2]],'21':[[0],[1],[2]],'34':[[0],[1]],'33':[[0,1,2],[3]],'23':[[0,1],[2],[3]],'09':[[0,1,2],[3,4],[5]],'38':[[0,1],[2]]}
 def apply(item,original,event,texts):
  if item['id'] not in ROWS:return False
@@ -9,7 +10,7 @@ def apply(item,original,event,texts):
   if r['text'].isupper():texts[i]=texts[i].upper()
  def wh(r):return r.get('w',r.get('width')),r.get('h',r.get('height'))
  def raster(r,t):
-  ft=ImageFont.truetype(r['font'],140,index=r.get('index',0));im=Image.new('L',(6000,450));ImageDraw.Draw(im).text((20,20),t,font=ft,fill=255,stroke_width=r.get('stroke',round(r.get('strokeAt200',0)*.7)));return im.crop(im.getbbox())
+  ft=ImageFont.truetype(r['font'],140,index=r.get('index',0));im=Image.new('L',(6000,450));textfont.text(im,(20,20),t,ft,stroke_width=r.get('stroke',round(r.get('strokeAt200',0)*.7)));return im.crop(im.getbbox())
  boxes=[];rowm=[]
  for inds in rows:
   left=min(src[i]['x'] for i in inds);top=min(src[i]['y'] for i in inds);right=max(src[i]['x']+wh(src[i])[0] for i in inds);bottom=max(src[i]['y']+wh(src[i])[1] for i in inds);boxes.append((left,top,right,bottom))
@@ -64,7 +65,7 @@ def number_layout(original,event,texts):
  src=original['runs'];dst=event['runs']
  for i in [1,2,3,5]:texts[i]=texts[i].upper()
  def draw(i,text,x,y,w,h):
-  r=src[i];ft=ImageFont.truetype(r['font'],140,index=r.get('index',0));m=Image.new('L',(5000,400));ImageDraw.Draw(m).text((10,10),text,font=ft,fill=255);m=m.crop(m.getbbox());scale=min(w/m.width,h/m.height);m=m.resize((round(m.width*scale),round(m.height*scale)),Image.Resampling.LANCZOS)
+  r=src[i];ft=ImageFont.truetype(r['font'],140,index=r.get('index',0));m=Image.new('L',(5000,400));textfont.text(m,(10,10),text,ft);m=m.crop(m.getbbox());scale=min(w/m.width,h/m.height);m=m.resize((round(m.width*scale),round(m.height*scale)),Image.Resampling.LANCZOS)
   yy=y+(h-m.height)//2;full=Image.new('L',(540,960));full.paste(m,(x,yy));dst[i].update(x=x*2,y=yy*2,w=m.width*2,h=m.height*2,_mask=full,_customMask=m,glyphs=[]);dst[i].pop('_customRevealTimes',None)
  draw(4,texts[4],116,586,58,79)
  draw(0,texts[0],116,586,58,79)

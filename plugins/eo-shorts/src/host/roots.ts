@@ -29,14 +29,14 @@ export function pluginRoots(fs: HostFs, id = PLUGIN_ID): PluginRoots {
   };
 }
 
-export function ensureDataRoots(fs: HostFs, roots: PluginRoots): PluginRoots {
-  for (const dir of [roots.data, roots.config, roots.cache, roots.runtime, roots.jobs]) ensureDir(fs, dir);
+export async function ensureDataRoots(fs: HostFs, roots: PluginRoots): Promise<PluginRoots> {
+  for (const dir of [roots.data, roots.config, roots.cache, roots.runtime, roots.jobs]) (await ensureDir(fs, dir));
   return roots;
 }
 
-export function installedPackage(fs: HostFs, roots: PluginRoots): string | null {
+export async function installedPackage(fs: HostFs, roots: PluginRoots): Promise<string | null> {
   try {
-    return fs.existsSync(fs.join(roots.skills, "plugin.json")) ? roots.skills : null;
+    return (await fs.exists(fs.join(roots.skills, "plugin.json"))) ? roots.skills : null;
   } catch {
     return null;
   }

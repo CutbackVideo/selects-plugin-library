@@ -78,7 +78,7 @@ export function createEditStage(opts: EditStageOptions = {}): StageImpl {
     inputSha: async (ctx) => {
       const fs = ctx.host.fs;
       const path = ctx.path("source/source.json");
-      const source = fs.existsSync(path) ? await readJson<SourceSnapshot>(fs, path) : null;
+      const source = (await fs.exists(path)) ? await readJson<SourceSnapshot>(fs, path) : null;
       const progress = await readJsonIfExists<ProgressHead | null>(fs, ctx.path(REL.progress), null).catch(() => null);
       return editInputSha(await sourceSha(source), jobRules(progress, ctx.job.draftId, current));
     },
@@ -93,8 +93,8 @@ async function runEdit(ctx: StageContext, buildRules: EditRules, opts: EditStage
   const fs = host.fs;
   const sdk = host.sdk;
   const so: ScriptOpts = { signal: ctx.signal, ...(opts.script ?? {}) };
-  ensureDir(fs, ctx.path("edit/audio"));
-  ensureDir(fs, ctx.path("sound"));
+  await ensureDir(fs, ctx.path("edit/audio"));
+  await ensureDir(fs, ctx.path("sound"));
   const source = await readJson<SourceSnapshot>(fs, ctx.path("source/source.json"));
   const srcSha = await sourceSha(source);
 
@@ -125,7 +125,7 @@ async function runEdit(ctx: StageContext, buildRules: EditRules, opts: EditStage
   const draftId = job.draftId!;
 
   let before: Before;
-  if (p.before && fs.existsSync(ctx.path(REL.before))) {
+  if (p.before && (await fs.exists(ctx.path(REL.before)))) {
     before = await readJson<Before>(fs, ctx.path(REL.before));
   } else {
     ctx.note("Reading the EO draft…");
@@ -148,7 +148,7 @@ async function runEdit(ctx: StageContext, buildRules: EditRules, opts: EditStage
   const clauses = buildClauses(before.words, before.segments, policy.maxClauseWords);
   await writeJsonAtomic(fs, ctx.path(REL.clauses), { fps, from: before.segments?.length ? "semanticCutSegments" : "sentences", clauses });
   let keep: KeepDecision;
-  if (p.keep && fs.existsSync(ctx.path(REL.keepResponse))) {
+  if (p.keep && (await fs.exists(ctx.path(REL.keepResponse)))) {
     keep = await readJson<KeepDecision>(fs, ctx.path(REL.keepResponse));
   } else {
     ctx.note("Choosing what to keep…");
@@ -205,12 +205,12 @@ async function runEdit(ctx: StageContext, buildRules: EditRules, opts: EditStage
   let state: LightState = p.silence.after;
   for (const a of p.audio) if (a.status === "applied" && a.after) state = a.after;
   let final = p.audio.find((a) => a.status === "final") ?? null;
-  if (final && !fs.existsSync(voicePath)) {
+  if (final && !(await fs.exists(voicePath))) {
     p.audio = p.audio.filter((a) => a !== final);
     final = null;
   }
   let current: DraftState | null = null;
-  if (!final) for (const f of fs.readdirSync(ctx.path("edit/audio"))) if (/^pass-.*\.wav$/.test(f) && !p.audio.some((a) => a.wav.endsWith("/" + f))) removeFile(fs, ctx.path("edit/audio/" + f));
+  if (!final) for (const f of (await fs.readdir(ctx.path("edit/audio")))) if (/^pass-.*\.wav$/.test(f) && !p.audio.some((a) => a.wav.endsWith("/" + f))) (await removeFile(fs, ctx.path("edit/audio/" + f)));
   while (!final) {
     const pending = p.audio.find((a) => a.status === "pending");
     if (pending) {
@@ -218,7 +218,7 @@ async function runEdit(ctx: StageContext, buildRules: EditRules, opts: EditStage
       pending.status = "applied";
       pending.after = r.after;
       pending.commitId = r.commitId ?? null;
-      removeFile(fs, ctx.path(pending.wav));
+      await removeFile(fs, ctx.path(pending.wav));
       state = r.after;
       await save();
       continue;
@@ -283,7 +283,7 @@ async function runEdit(ctx: StageContext, buildRules: EditRules, opts: EditStage
     if (!cutPlan.cuts.length || cutPlan.capped || noMorePasses) {
       if (cutPlan.capped) ctx.warn("The audio pause cut would remove " + cutPlan.frames + " frames, over the " + cutPlan.capFrames + "-frame cap; it was skipped.");
       else if (cutPlan.cuts.length) ctx.warn(cutPlan.cuts.length + " short pause(s) remain after " + policy.audioCutMaxPasses + " audio cut passes.");
-      removeFile(fs, voicePath);
+      await removeFile(fs, voicePath);
       await renameWithRetry(fs, render.path, voicePath);
       pass.wav = REL.voice;
       pass.status = "final";
@@ -301,7 +301,7 @@ async function runEdit(ctx: StageContext, buildRules: EditRules, opts: EditStage
     pass.status = "applied";
     pass.after = r.after;
     pass.commitId = r.commitId ?? null;
-    removeFile(fs, render.path);
+    await removeFile(fs, render.path);
     state = r.after;
     await save();
   }

@@ -11,8 +11,8 @@ async function probeFrameSizes(env:Env,files:Record<string,any>){
 // failed host download is tried once more with curl and a browser user agent, as before.
 async function fetchMusic(env:Env,dir:string,musicPath:string){
   const fs=hostNeed("FileSystem","downloadFile");
-  mkdirs(dir);
-  let size=0;try{size=fs.existsSync?.(musicPath)?Number(fs.statSync?.(musicPath)?.size||0):0;}catch{size=0;}
+  (await mkdirs(dir));
+  let size=0;try{size=(await fs.exists?.(musicPath))?Number((await fs.stat?.(musicPath))?.size||0):0;}catch{size=0;}
   if(!size)try{await fs.downloadFile(MUSIC.url,musicPath);}catch{/* reported below */}
   // mac-only:start
   if(!hostIsWindows()&&!await hostProbeSeconds(musicPath)){await hostRemove(musicPath);try{await env.runShell('curl -L -sS --max-time 240 -A "Mozilla/5.0" -o '+q(musicPath)+' '+q(MUSIC.url),'Fetch the background music',300000);}catch{/* reported below */}}
@@ -22,7 +22,7 @@ async function fetchMusic(env:Env,dir:string,musicPath:string){
 const stateFile =(env:Env,id:string) => hostJoin(env.dataDir,"states",id.replace(/[^a-zA-Z0-9_-]/g,"")+".json");
 async function readState(env:Env,id:string) {
   let text:string;
-  try{text=await env.readText(stateFile(env,id));}catch(e:any){if(/ENOENT|not found|does not exist/i.test(String(e?.message||e)))return null;throw e;}
+  try{text=await env.readText(stateFile(env,id));}catch(e:any){if(/ENOENT|not found|does not exist|file is unavailable/i.test(String(e?.message||e)))return null;throw e;}
   const data=JSON.parse(text);if(data.version!==2 || !data.items)throw new Error("Unrecognised run record; refusing to overwrite existing edits.");return data;
 }
 // Mean luma (0-255) and saturation of the caption band of a cutaway over the keyword's own seconds, read with
@@ -40,7 +40,32 @@ async function measureBand(env:Env,jobDir:string,path:string,seconds:number,tag:
 async function inventory(env:Env,id:string) {
   return await env.runScript(`const d=selects.draft(${JSON.stringify(id)});const clips=await d.clips({trackScope:'all'});const graphics=await d.motionGraphics();const effects=[];for(const c of clips)if(c.resourceId&&(c.trackKind==='main'||c.trackKind==='video'))for(const e of await d.videoEffects(c))effects.push({clipId:c.clipId,name:e.name});return {clips,graphics,effects};`,"Inspect existing edits");
 }
+// Closing a panel detaches observation. It never cancels the host's AI workflow.
+export function attachedPipelineEnv(env: Env): Env {
+  const check = () => { if (env.signal?.aborted) throw Object.assign(new Error('Face observation detached; reopen this Draft to resume.'), {code:'CW_FACE_DETACHED'}); };
+  const next = {...env};
+  for (const name of ['runScript','runShell','askAI','imageData','cleanLegacy','readCore','capture','textMeasure','readText','writeText','node'] as const) {
+    const call = env[name];
+    if (call) (next as any)[name] = async (...args: any[]) => { check(); const value = await (call as any)(...args); check(); return value; };
+  }
+  next.status = message => { if (!env.signal?.aborted) env.status(message); };
+  return next;
+}
+export function sourceClipSeconds(m: MainClip, fps: number) {
+  return m.sourceStartSeconds == null ? 0 : Math.min((m.endFrame-m.startFrame)/fps*m.playbackRate,m.sourceDurationSeconds-m.sourceStartSeconds);
+}
+export function framingSamples(mains: MainClip[], files: Record<string, any>, fps: number) {
+  return mains.flatMap((m,i)=>m.sourceStartSeconds==null?[]:[0.25,0.5,0.75].map(f=>({
+    key:i+':'+f,groupKey:'clip:'+m.clipId,resourceId:m.resourceId,seconds:m.sourceStartSeconds!+sourceClipSeconds(m,fps)*f,
+    sourceFps:m.sourceFps,sourceDurationSeconds:m.sourceDurationSeconds,frameSize:files[m.resourceId]?.frameSize,
+  })));
+}
+export function cameraCutFrames(mains: MainClip[], cuts: Record<string, number[]>, fps: number, total: number) {
+  return mains.flatMap((m,i)=>(cuts[String(i)]||[]).map(t=>m.startFrame+Math.round(t/m.playbackRate*fps))
+    .filter(f=>f>m.startFrame&&f<m.endFrame)).filter(f=>f>0&&f<total);
+}
 export async function runPipeline(env: Env, projectId: string, sequenceId: string, options: Options) {
+  env = attachedPipelineEnv(env);
   const t0=Date.now(), report:any={warnings:[]};
   if(!env.imageData)throw new Error("Image inspection is unavailable in this Selects host.");
   env.status("Checking the Draft and previous edits…");
@@ -64,7 +89,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   }
   const legacy=existing.graphics.some((g:any)=>g.name===PREFIX+"Captions");
   if(legacy&&!state&&(scope==='preserve'||scope==='broll'))throw new Error("This is a legacy Chris Draft. Choose Replace captions or Rebuild all, preferably on a copy. The old combined caption cannot be separated while preserving unknown manual parameter edits.");
-  mkdirs(hostJoin(env.dataDir,"states"));
+  (await mkdirs(hostJoin(env.dataDir,"states")));
   let draftId=sequenceId;
   if(options.copy && !state?.pending) {
     const name=String(src.name||"Draft").replace(SUFFIX,"")+SUFFIX;
@@ -91,7 +116,7 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
   const job=String(draftId).slice(0,8)+"-"+Date.now().toString(36);
   const jobDir=newRun?hostJoin(env.dataDir,"runs",job):state.jobDir;
   const mediaFolder=newRun?"Chris Williamson Style "+job:state.mediaFolder;
-  mkdirs(hostJoin(jobDir,mediaFolder));
+  (await mkdirs(hostJoin(jobDir,mediaFolder)));
   state=state||{version:2,items:{},keys:null};
   if(!newRun)scope=state.scope;
   state={...state,draftId,projectId,signature,jobDir,mediaFolder,pending:true,scope};
@@ -182,19 +207,21 @@ export async function runPipeline(env: Env, projectId: string, sequenceId: strin
     const hasOverlays=existing.clips.some((c:any)=>c.trackKind==='video'||c.trackKind==='audio')||existing.graphics.length>0;
     if(!hasOverlays && !state.completed.includes('shots')) {
       const shotsFile=hostJoin(jobDir,'shots.json');
-      await env.writeText(shotsFile,JSON.stringify({shots:{ffmpeg:env.ffmpeg,threshold:0.3,ranges:mains.filter(m=>m.sourceStartSeconds!=null).map((m,i)=>({key:String(i),path:src.files[m.resourceId].path,startSeconds:m.sourceStartSeconds,seconds:(m.endFrame-m.startFrame)/fps}))}}));
+      await env.writeText(shotsFile,JSON.stringify({shots:{ffmpeg:env.ffmpeg,threshold:0.3,ranges:mains.flatMap((m,i)=>m.sourceStartSeconds==null?[]:[{key:String(i),path:src.files[m.resourceId].path,startSeconds:m.sourceStartSeconds,seconds:sourceClipSeconds(m,fps)}])}}));
       await engine('shots',shotsFile,'Find source camera changes',240000);
       const cuts=JSON.parse(await env.readText(hostJoin(jobDir,'shots-result.json'))).cuts;
-      const splitFrames=mains.flatMap((m,i)=>(cuts[String(i)]||[]).map((t:number)=>m.startFrame+Math.round(t*fps))).filter((f:number)=>f>0&&f<total);
+      const splitFrames=cameraCutFrames(mains,cuts,fps,total);
       if(splitFrames.length)await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const starts=new Set((await d.clips({trackScope:'main'})).map(c=>c.startFrame));for(const f of ${JSON.stringify(splitFrames)})if(!starts.has(f))await d.splitAt({frame:f});await d.commitAll('Chris Williamson Style: measured camera cuts')${COMMIT_OK};return true;`,"Split measured camera changes",true);
       state.completed.push('shots');await save();
     }
-    const freshDraft=await readDraft(env,projectId,draftId);mains.splice(0,mains.length,...freshDraft.mains);
-    const faceFile=hostJoin(jobDir,'faces.json');
-    const samples=mains.flatMap((m,i)=>m.sourceStartSeconds==null?[]:[0.25,0.5,0.75].map(f=>({key:i+':'+f,path:src.files[m.resourceId].path,seconds:m.sourceStartSeconds!+(m.endFrame-m.startFrame)/fps*f})));
-    await env.writeText(faceFile,JSON.stringify({ffmpeg:env.ffmpeg,faces:{samples}}));
-    await engine('faces',faceFile,'Measure framing',240000);
-    const faces=JSON.parse(await env.readText(hostJoin(jobDir,'faces-result.json'))).detected||{};
+    const freshDraft=await readDraft(env,projectId,draftId);mains.splice(0,mains.length,...freshDraft.mains);src.files=freshDraft.files;
+    state.faceJournal=state.faceJournal||hostJoin(jobDir,'shared-faces.json');await save();
+    const samples=framingSamples(mains,src.files,fps);
+    env.onFaceStage?.(true,state.faceJournal);
+    let faces:any;
+    try {
+      faces=(await cwSharedFaces(env,projectId,state.faceJournal,samples,{signal:env.signal,retryTerminal:options.retryFaceFailures,onProgress:env.status})).detected;
+    } finally { env.onFaceStage?.(false,state.faceJournal); }
     // Every Main clip is reframed to 9:16; a clip with no measured face is covered from a centred default.
     const framed=mains.map((m,i)=>{const ff=[0.25,0.5,0.75].map(f=>faces[i+':'+f]).filter(r=>r?.faces?.length);const face=ff.length?[0,1,2,3].map(k=>median(ff.map(r=>r.faces[0][k]))):[0.25,0.2,0.5,0.3];const probe=Object.keys(faces).filter(k=>k.startsWith(i+':')).map(k=>faces[k]).find(r=>r?.w);const size=src.files[m.resourceId].frameSize||(probe?{width:probe.w,height:probe.h}:null);if(!size)return null;return {start:m.startFrame,t:headFraming(face,size.width,size.height,ff.length&&i%2?STYLE.head.tight:1),zoomIn:i%2===0};}).filter(Boolean);
     if(framed.length<mains.length)report.warnings.push(`${mains.length-framed.length} clip(s) were not reframed: their source size could not be read.`);

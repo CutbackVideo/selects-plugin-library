@@ -1,3 +1,4 @@
+const { asyncSdk } = require('../../../tests/windows_host.mjs');
 // plugins/the-end-credits/tests/host.test.cjs (run: node plugins/the-end-credits/tests/host.test.cjs)
 // The panel's host block (panel.tsx between // tec-host:start and // tec-host:end) evaluated as plain JS in node:vm
 // with a fake window.parent.__DI__ built on node:fs/node:path and a fake Runtime that runs the real ffmpeg/ffprobe
@@ -65,7 +66,9 @@ function sandbox(di, opts) {
     URL: { createObjectURL: (b) => { blobs.push(b); return 'blob:tec/' + (++urls); }, revokeObjectURL() {} } };
   box.window = opts.where === 'self' ? { parent: {}, __DI__: di } : { parent: { __DI__: di } };
   vm.createContext(box);
-  vm.runInContext(block + ';globalThis.H={' + API.join(',') + '};', box);
+  box.sdk = di ? asyncSdk(di) : undefined;
+  if (box.sdk) box.sdk.environment.platform = di.Runtime?.getPlatform?.() || '';
+  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + block + ';hostUseSdk(sdk);globalThis.H={' + API.join(',') + '};', box);
   return { H: box.H, box, blobs };
 }
 async function rejectsCode(p, code) {
@@ -156,13 +159,13 @@ test('bytes from another realm (window.parent FileSystem results) decode', async
 // ---- missing host ----
 test('missing __DI__ or members -> host_tools, never a crash', async () => {
   const { H } = sandbox(undefined);
-  assert.deepEqual(JSON.parse(JSON.stringify(H.tecHostDI())), { fs: null, rt: null });
+  assert.deepEqual(JSON.parse(JSON.stringify(H.tecHostDI())), {});
   const has = H.tecHostHas(['fs.join', 'rt.runFFmpeg']);
   assert.equal(has.ok, false);
   assert.deepEqual(Array.from(has.missing), ['fs.join', 'rt.runFFmpeg']);
   assert.equal(H.tecHostCanRead(), false);
-  throwsCode(() => H.tecHostDataDir('x'), 'host_tools');
-  throwsCode(() => H.tecHostSkillsDir('x', 'planner.js'), 'host_tools');
+  await rejectsCode(H.tecHostDataDir('x'), 'host_tools');
+  await rejectsCode(H.tecHostSkillsDir('x', 'planner.js'), 'host_tools');
   throwsCode(() => H.tecHostJoin('a', 'b'), 'host_tools');
   await rejectsCode(H.tecHostReadText('x'), 'host_tools');
   await rejectsCode(H.tecHostFFmpeg(['-version']), 'host_tools');
@@ -176,7 +179,7 @@ test('missing __DI__ or members -> host_tools, never a crash', async () => {
   let ran = 0;
   const partial = sandbox({ FileSystem: realFS({ mkdirSync: undefined, readFileSync: undefined, readFile: undefined }),
     Runtime: { runFFmpeg: async () => { ran++; return { stdout: '', stderr: '' }; } } }).H;
-  assert.deepEqual(Array.from(throwsCode(() => partial.tecHostDataDir('x'), 'host_tools').missing), ['fs.mkdirSync']);
+  assert.deepEqual(Array.from((await rejectsCode(partial.tecHostDataDir('x'), 'host_tools')).missing), ['fs.mkdir']);
   await rejectsCode(partial.tecHostFFprobe(['-version']), 'host_tools');
   await rejectsCode(partial.tecHostDecodePcm(media, tmp, 22050, 10), 'host_tools');
   await rejectsCode(partial.tecHostPreviewUrl(media, 0, 1, 0.5, tmp), 'host_tools');
@@ -189,7 +192,7 @@ test('missing __DI__ or members -> host_tools, never a crash', async () => {
   Object.defineProperty(box.window, 'parent', { get() { throw new Error('SecurityError'); } });
   vm.createContext(box);
   vm.runInContext(block + ';globalThis.D=tecHostDI();', box);
-  assert.equal(box.D.fs, null);
+  assert.equal(box.D.fs, undefined);
 });
 
 test('timeouts and tool failures map to timeout / media_failed', async () => {
@@ -207,7 +210,7 @@ test('timeouts and tool failures map to timeout / media_failed', async () => {
 test('ffmpeg that writes nothing maps to media_failed and leaves no file', async () => {
   for (const write of [false, true]) {
     const s = sandbox({ FileSystem: realFS(), Runtime: { runFFmpeg: async (args) => { if (write) fs.writeFileSync(args[args.length - 1], ''); return {}; } } });
-    const dir = s.H.tecHostDataDir('no-output-' + write);
+    const dir = (await s.H.tecHostDataDir('no-output-' + write));
     const e = await rejectsCode(s.H.tecHostDecodePcm(path.join(tmp, 'in.wav'), dir, 22050, 10), 'media_failed');
     assert.ok(e.detail && e.detail.length);
     await rejectsCode(s.H.tecHostPreviewUrl(path.join(tmp, 'in.wav'), 0, 1, 0.5, dir), 'media_failed');
@@ -219,15 +222,15 @@ test('ffmpeg that writes nothing maps to media_failed and leaves no file', async
 test('skills dir (marker file), data dir, joins and ASCII temporary names', async () => {
   const { H } = sandbox({ FileSystem: realFS(), Runtime: realRT() });
   const skill = path.join(HOME, '.selects', 'skills', 'the-end-credits');
-  assert.equal(H.tecHostSkillsDir('the-end-credits', 'planner.js'), null, 'no folder yet');
+  assert.equal((await H.tecHostSkillsDir('the-end-credits', 'planner.js')), null, 'no folder yet');
   fs.mkdirSync(skill, { recursive: true });
-  assert.equal(H.tecHostSkillsDir('the-end-credits', 'planner.js'), null, 'folder without planner.js');
+  assert.equal((await H.tecHostSkillsDir('the-end-credits', 'planner.js')), null, 'folder without planner.js');
   fs.writeFileSync(path.join(skill, 'planner.js'), '');
-  assert.equal(H.tecHostSkillsDir('the-end-credits', 'planner.js'), skill);
+  assert.equal((await H.tecHostSkillsDir('the-end-credits', 'planner.js')), skill);
   const data = path.join(HOME, '.selects', 'plugin-data', 'the-end-credits');
-  assert.equal(H.tecHostDataDir('the-end-credits'), data);
+  assert.equal((await H.tecHostDataDir('the-end-credits')), data);
   assert.ok(fs.statSync(data).isDirectory());
-  assert.equal(H.tecHostDataDir('the-end-credits'), data, 'idempotent');
+  assert.equal((await H.tecHostDataDir('the-end-credits')), data, 'idempotent');
   // A Windows host's join (backslashes) is used as is.
   const win = sandbox({ FileSystem: { join: (...p) => p.join('\\') } }).H;
   assert.equal(win.tecHostJoin('C:\\Users\\' + KO, 'assets', 'cues', 'a.mp3'), 'C:\\Users\\' + KO + '\\assets\\cues\\a.mp3');
@@ -299,7 +302,7 @@ ffTest('decode PCM (sync, async and ArrayBuffer readers) leaves no file; feeds t
   };
   for (const [name, FileSystem] of Object.entries(readers)) {
     const { H } = sandbox({ FileSystem, Runtime: realRT() });
-    const dir = H.tecHostDataDir('pcm-' + name);
+    const dir = (await H.tecHostDataDir('pcm-' + name));
     const pcm = await H.tecHostDecodePcm(media, dir, 22050, 360);
     assert.equal(Object.prototype.toString.call(pcm), '[object Float32Array]', name);
     assert.ok(Math.abs(pcm.length - 44100) <= 64, name + ' length ' + pcm.length);
@@ -310,12 +313,12 @@ ffTest('decode PCM (sync, async and ArrayBuffer readers) leaves no file; feeds t
   const box = {};
   vm.createContext(box);
   vm.runInContext(workerBlock + ';globalThis.S=tecBeatWorkerSource;', box);
-  const reply = runWorker(box.S(kitText), await H.tecHostDecodePcm(clicks, H.tecHostDataDir('e2e'), 22050, 360), 22050);
+  const reply = runWorker(box.S(kitText), await H.tecHostDecodePcm(clicks, (await H.tecHostDataDir('e2e')), 22050, 360), 22050);
   assert.ok(Math.abs(reply.result.bpm - 120) <= 1 && Math.abs(reply.result.firstBeat - 0.5) <= 0.03, JSON.stringify([reply.result.bpm, reply.result.firstBeat]));
 });
 ffTest('waveform peaks and motion frames through the host ffmpeg', async () => {
   const { H } = sandbox({ FileSystem: realFS(), Runtime: realRT() });
-  const dir = H.tecHostDataDir('peaks');
+  const dir = (await H.tecHostDataDir('peaks'));
   const peaks = await H.tecHostPeaks(media, dir, 400);
   assert.equal(peaks.length, 400);
   assert.ok(Math.max(...peaks) > 0.4 && Math.max(...peaks) < 0.6, 'peak ' + Math.max(...peaks));
@@ -334,7 +337,7 @@ ffTest('waveform peaks and motion frames through the host ffmpeg', async () => {
 });
 ffTest('preview blob URL, mp3 with WAV fallback, no file left', async () => {
   const s = sandbox({ FileSystem: realFS(), Runtime: realRT() });
-  const dir = s.H.tecHostDataDir('preview');
+  const dir = (await s.H.tecHostDataDir('preview'));
   assert.equal(await s.H.tecHostPreviewUrl(media, 0.5, 1, 0.5, dir), 'blob:tec/1');
   assert.equal(s.blobs[0].type, 'audio/mpeg');
   assert.ok(s.blobs[0].size > 1000, 'mp3 bytes ' + s.blobs[0].size);

@@ -12,7 +12,7 @@ async function chooseAssets(env: Env, jobDir: string, mediaFolder: string, reel:
     // files and read docs first used their whole time before opening a page (2026-10-01: 12 of 12 searches timed out).
     // Each turn also saves its candidates to a file as it finds them, so a turn that runs out of time still counts.
     const media=JSON.stringify(inventory).slice(0,18000);
-    const searchDir=hostJoin(jobDir,"search");mkdirs(searchDir);
+    const searchDir=hostJoin(jobDir,"search");(await mkdirs(searchDir));
     const fileOf=(query:string)=>hostJoin(searchDir,pass+"-"+queries.indexOf(query)+".json");
     const saved=async(query:string)=>{try{const r=parseJsonLoose(await env.readText(fileOf(query)));return Array.isArray(r?.candidates)?r.candidates:[];}catch{return [];}};
     const searchOne=async(query:string)=>{

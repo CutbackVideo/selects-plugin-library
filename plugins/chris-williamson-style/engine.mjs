@@ -2,7 +2,6 @@
 // Chris Williamson Style — host-side asset engine (macOS; run by the Node.js that runtime.sh provides).
 //
 //   node engine.mjs shots   <job.json>   find camera changes inside each Main clip's source range (ffmpeg scene score)
-//   node engine.mjs faces   <job.json>   sample source frames, detect the speaker's face (Apple Vision)
 //   node engine.mjs images  <job.json>   download B-roll pictures and render each as a 9:16 still MP4
 //
 // Every command reads one JSON job file and writes <job-dir>/<command>-result.json, printing a short summary.
@@ -10,12 +9,8 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { candidates, assets } from "./media.mjs";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-// Apple Vision runs through the system's JavaScript for Automation: no compiled helper, nothing to build.
-const HELPER = path.join(HERE, "vision-helper.js");
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 // Wikimedia asks API and media clients for a descriptive user agent and throttles browser-like ones.
 const WM_UA = "SelectsPluginChrisWilliamsonStyle/0.1 (https://github.com/CutbackVideo/selects-plugin-library)";
@@ -143,31 +138,6 @@ async function cmdShots(job) {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// faces: job.faces = { ffmpeg, samples: [{ key, path, seconds }] } -> { [key]: { w, h, faces: [[x,y,w,h]...] } }
-async function cmdFaces(job, dir) {
-  const work = path.join(dir, "faces");
-  await fs.mkdir(work, { recursive: true });
-  const samples = job.faces.samples || [];
-  const files = await pool(samples, 4, async (s, i) => {
-    const file = path.join(work, "f" + String(i).padStart(3, "0") + ".jpg");
-    const r = await run(job.ffmpeg, ["-v", "error", "-y", "-ss", String(Math.max(0, s.seconds)), "-i", s.path, "-frames:v", "1", "-vf", "scale='min(960,iw)':-2", file], { timeoutMs: 60000 });
-    return r.code === 0 ? file : null;
-  });
-  const ok = files.filter(Boolean);
-  const out = {};
-  if (ok.length) {
-    const r = await run("/usr/bin/osascript", ["-l", "JavaScript", HELPER, "faces", ...ok], { timeoutMs: 120000 });
-    if (r.code !== 0) throw new Error("Face detection failed: " + r.err.trim());
-    const rows = r.out.trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
-    for (const row of rows) {
-      const i = files.indexOf(row.file);
-      if (i >= 0) out[samples[i].key] = { w: row.w, h: row.h, faces: row.faces };
-    }
-  }
-  return { detected: out, sampled: samples.length, readable: ok.length };
-}
-
-// ---------------------------------------------------------------------------------------------------------
 // images: job.images = { ffmpeg, ffprobe, fps, mediaFolder, items: [{ id, seconds, query, occurrence, candidates: [{url, thumb?}] }] }
 // Each picture becomes a full-frame 1080x1920 still MP4 (cover-cropped, like the reference's cutaways), held a
 // second longer than its beat so the clip can be extended in the Draft. Commons is the fallback source.
@@ -226,20 +196,19 @@ async function cmdImages(job, dir) {
 
 const [, , command, jobPath] = process.argv;
 if (!command || !jobPath) {
-  console.error("usage: node engine.mjs shots|faces|images <job.json>");
+  console.error("usage: node engine.mjs shots|images <job.json>");
   process.exit(2);
 }
 try {
   const job = JSON.parse(await fs.readFile(jobPath, "utf8"));
   const dir = path.dirname(jobPath);
   const util = {run, download, commonsUrls};
-  const handlers = { shots: cmdShots, faces: cmdFaces, images: cmdImages, candidates: (j,d) => candidates(j,d,util), assets: (j,d) => assets(j,d,util) };
+  const handlers = { shots: cmdShots, images: cmdImages, candidates: (j,d) => candidates(j,d,util), assets: (j,d) => assets(j,d,util) };
   if (!handlers[command]) throw new Error("unknown command " + command);
   const result = await handlers[command](job, dir);
   await fs.writeFile(path.join(dir, command + "-result.json"), JSON.stringify(result));
   const brief = command === "images"
     ? { ok: result.items.filter((i) => i.ok).length, failed: result.items.filter((i) => !i.ok).map((i) => i.id) }
-    : command === "faces" ? { readable: result.readable, detected: Object.keys(result.detected).length }
     : result.cuts ? { ranges: Object.keys(result.cuts).length } : { items: (result.items || result.frames || []).length };
   console.log(JSON.stringify({ ok: true, command, ...brief }));
 } catch (e) {

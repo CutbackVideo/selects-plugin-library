@@ -9,7 +9,9 @@
 // is read from the system Fonts folder when it is there (the panel sends it as
 // 'windows:<file name>'); Helvetica and Helvetica Neue, which Windows does not
 // have, use the bundled Arimo (metric-compatible, SIL OFL), as does any system
-// font that is missing (Arial Narrow ships with Office only).
+// font that is missing (Arial Narrow ships with Office only). Characters a face
+// lacks (Hangul) fall back to Malgun Gothic (engine.js textRuns); without it they
+// stay .notdef, as nothing bundled has Hangul.
 'use strict';
 
 const DOAC_SYSTEM = '/System/Library/Fonts/';
@@ -28,6 +30,11 @@ const DOAC_FONT_MAP = {
   [DOAC_SUPPLEMENTAL + 'Arial Narrow Bold.ttf#0']: ['arialnb.ttf', 'Bold'],
   [DOAC_SUPPLEMENTAL + 'Georgia Bold.ttf#0']: ['georgiab.ttf', 'Bold'],
   [DOAC_SUPPLEMENTAL + 'Times New Roman.ttf#0']: ['times.ttf', 'Regular'],
+  // The fallback for characters the face lacks (Hangul); no bundled stand-in.
+  [DOAC_SYSTEM + 'AppleSDGothicNeo.ttc#0']: ['malgun.ttf', null],
+  [DOAC_SYSTEM + 'AppleSDGothicNeo.ttc#2']: ['malgun.ttf', null],
+  [DOAC_SYSTEM + 'AppleSDGothicNeo.ttc#6']: ['malgunbd.ttf', null],
+  [DOAC_SYSTEM + 'AppleSDGothicNeo.ttc#16']: ['malgunbd.ttf', null],
 };
 // Windows Fonts folder file names the panel reads (lower case).
 const DOAC_WINDOWS_FONTS = [...new Set(Object.values(DOAC_FONT_MAP).map(v => v[0]).filter(Boolean))];
@@ -39,6 +46,7 @@ function doacFontSource(fonts, { useSystem = true } = {}) {
     if (String(path).endsWith('PermanentMarker-Regular.ttf')) return { bytes: fonts['permanent-marker'], index: 0 };
     const [system, arimo] = DOAC_FONT_MAP[path + '#' + index] || [null, 'Regular'];
     const own = useSystem && system && fonts['windows:' + system];
+    if (!own && !arimo) return null;
     return { bytes: own || fonts['arimo:' + arimo], index: 0 };
   };
 }

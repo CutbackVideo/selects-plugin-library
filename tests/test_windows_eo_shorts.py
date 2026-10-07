@@ -1,6 +1,6 @@
 """EO Shorts: Windows portability, the release build and its package.
 
-The panel reaches files and ffmpeg only through the host (__DI__ FileSystem and runFFmpeg/runFFprobe argv), so no
+The panel reaches files and ffmpeg only through the host (canonical selects.files and selects.media jobs), so no
 file it is built from has a shell call. panel.tsx is the release build of src/ and engine/: no developer hook or
 replay provider, generated sources that match engine/, scene font subsets renamed where the licence reserves a name,
 and a Wikimedia Commons contact that is a site, not an email, kept in config/config.json only.
@@ -15,7 +15,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from windows_static import FORBIDDEN, check_manifest_and_docs, check_no_posix_shell
+from windows_static import assert_no_shell_token, FORBIDDEN, check_manifest_and_docs, check_no_posix_shell
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN_ID = "eo-shorts"
@@ -49,7 +49,7 @@ class EoShortsTest(unittest.TestCase):
         for name in sources:
             text = read(name)
             for needle in FORBIDDEN:
-                self.assertNotIn(needle, text, f"{name}: {needle}")
+                assert_no_shell_token(self, needle, text, f"{name}: {needle}")
             self.assertIsNone(re.search(r"\b(node|python3?)\s+[\"'$]", text), name)
             self.assertNotRegex(text, r"\bprocess\.platform\b|navigator\.platform", name)
 

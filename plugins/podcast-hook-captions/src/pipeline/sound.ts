@@ -63,7 +63,7 @@ async function peakInfo(path: string, scratch: string): Promise<{ db: number; at
   } catch {
     return null;
   } finally {
-    removeFile(raw);
+    (await removeFile(raw));
   }
 }
 
@@ -156,7 +156,7 @@ export async function mixSound(plan: Plan, voiceFrom: string, music: string | nu
     await master(gain);
     out = await loudnessInfo(outPath);
   }
-  removeFile(voicePath);
-  removeFile(pre);
+  (await removeFile(voicePath));
+  (await removeFile(pre));
   return { lufs: out ? out.i : LOUD_TARGET, truePeak: out ? out.tp : null };
 }

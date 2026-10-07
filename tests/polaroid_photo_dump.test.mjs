@@ -140,24 +140,5 @@ test('finish refuses moved clips without saving',async()=>{
  assert.equal((await authorFinish(selects,input,plan,{})).status,'notSaved');assert.equal(log.commits,0);
 });
 
-// The panel's Image placement bridge, extracted as the installed panel runs it.
+// Native placement behavior is exercised through runScript in native_image_sdk_migration.test.mjs.
 const panelSource=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
-const bridge=panelSource.slice(panelSource.indexOf('export async function placeNativeImages'),panelSource.indexOf('// Registers the bundled frame image'));
-const {placeNativeImages}=vm.runInThisContext('(function(){'+bridge.replaceAll('export async function','async function')+';return {placeNativeImages};})()');
-
-test('photos are placed first and the frame last, holding past the still source',async()=>{
- const fps=24000/1001,p=scenePlan(fps),order=[],trims=[];let next=1;const clips=new Map();
- const candidate={
-  place:(src,start)=>{const id=next++;clips.set(id,{trackId:'t'+id,start,dur:120});order.push(src.working.name);return [id];},
-  getClipPositionById:id=>{const c=clips.get(id);return c&&{trackId:c.trackId,resolvedOffset:c.start,clip:{getDuration:()=>c.dur}};},
-  trimClipBoundary:({clipId,delta,sourceDuration})=>{const c=clips.get(clipId);trims.push({before:c.dur,delta,sourceDuration});if(sourceDuration<c.dur)throw Error('Source range exceeded');c.dur+=delta;return {trimmedClipPosition:candidate.getClipPositionById(clipId)};},
-  getDuration:()=>p.durationFrames,slice:()=>{}};
- const sequence={getFrameRate:()=>fps,getDuration:()=>p.durationFrames,getFrameSize:()=>p.canvas};
- const di={ProjectRepository:{findById:async()=>({getEditedSequences:()=>['d']})},SequenceRepository:{findById:async()=>sequence},TimelineMutation:{run:async(_s,_l,fn)=>({status:'committed',sequence:fn({clone:()=>candidate})})}};
- const sources=[...p.occurrences.map((_,i)=>({analyzed:{name:'photo'+i},main:{},primary:{getId:()=>1},width:1086,height:1448})),{analyzed:{name:'frame'},main:{},primary:{getId:()=>1},width:1080,height:1920}];
- const out=await placeNativeImages({di,libraryId:'l',projectId:'p',sources},'d',p);
- assert.equal(order.at(-1),'frame');assert.equal(out.placements.length,17);
- assert.deepEqual([out.frame.startFrame,out.frame.endFrame,out.frame.width],[0,p.durationFrames,1080]);
- for(const t of trims)assert.equal(t.sourceDuration,Math.max(t.before+t.delta,t.before));
- assert.ok(trims.some(t=>t.delta>0),'frame holds past the 120-frame source');
-});

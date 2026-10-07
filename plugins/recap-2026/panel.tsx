@@ -13,6 +13,50 @@
 // Build a beat-timed, editable recap Draft from footage in the current project.
 import React from "react";
 
+// panel-storage:start
+// Keep writes ordered even across a panel remount; failed writes remain visible to callers.
+const panelStorageClients = new WeakMap();
+function panelStorage(sdk) {
+  const storage = sdk?.storage;
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.setItem !== "function" || typeof storage.removeItem !== "function") {
+    throw new Error("Update Selects to use this plugin: sdk.storage is required.");
+  }
+  if (!panelStorageClients.has(storage)) {
+    let tail = Promise.resolve();
+    const enqueue = (operation) => {
+      const pending = tail.then(operation);
+      tail = pending.catch(() => {});
+      return pending;
+    };
+    panelStorageClients.set(storage, {
+      getItem: (key) => enqueue(() => storage.getItem(key)),
+      setItem: (key, value) => enqueue(() => storage.setItem(key, value)),
+      removeItem: (key) => enqueue(() => storage.removeItem(key)),
+    });
+  }
+  return panelStorageClients.get(storage);
+}
+function withStoredPanel(Component, load) {
+  return function StoredPanel(props) {
+    const [state, setState] = React.useState(null);
+    const [attempt, retry] = React.useState(0);
+    React.useEffect(() => {
+      let current = true;
+      setState(null);
+      Promise.resolve().then(() => load(panelStorage(props.sdk))).then(
+        (saved) => { if (current) setState({sdk: props.sdk, saved}); },
+        (error) => { if (current) setState({sdk: props.sdk, error: String(error?.message || error)}); },
+      );
+      return () => { current = false; };
+    }, [props.sdk, attempt]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error, React.createElement("button", {onClick: () => retry(n => n + 1)}, "Retry loading saved settings"));
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Loading saved settings…");
+    return React.createElement(Component, {...props, saved: state.saved});
+  };
+}
+// panel-storage:end
+
+
 const SLUG = "recap-2026";
 const AUDIO_NAME = "recap-2026-fixed-soundtrack.wav";
 const AUDIO_SOURCE_NAME = "recap-preview-v3-beatmatched-61s.wav";
@@ -100,51 +144,72 @@ const scriptResult = (r) => {
 const hostMessage = (e, t) => e?.code === "host-missing" ? t.hostTooOld : String(e?.message || e);
 // The install and data folders (av-host hostRoots), found once and shared by the panel and template runs.
 let recapRootsPromise = null;
-const recapRoots = () => recapRootsPromise || (recapRootsPromise = hostRoots(null, SLUG, "timing.json").catch((e) => { recapRootsPromise = null; throw e; }));
-const readTiming = async () => JSON.parse(await hostReadText(hostJoin((await recapRoots()).plugin, "timing.json")));
+const recapRoots = (sdk) => { hostUseSdk(sdk); return recapRootsPromise || (recapRootsPromise = hostRoots(sdk, SLUG, "timing.json").catch((e) => { recapRootsPromise = null; throw e; })); };
+const readTiming = async (sdk) => JSON.parse(await hostReadText(hostJoin((await recapRoots(sdk)).plugin, "timing.json")));
 // Host file names compare after NFC, \ to / and the basename (and case on Windows).
 const normPath = (s) => { const v = String(s || "").normalize("NFC").replace(/\\/g, "/"); const b = v.slice(v.lastIndexOf("/") + 1); return hostIsWindows() ? b.toLowerCase() : b; };
 const core = (cfg) => "const cfg=JSON.parse(" + embedded(JSON.stringify(cfg)) + ");const p=selects.project(cfg.projectId);";
 const gallerySize = 8;
 const thumbnailKey = (video, seconds) => video.resourceId + ":" + seconds.toFixed(2);
+// Gallery files are not installed. Pin their published revision and cache them through the SDK.
+const EXAMPLE_REVISION = "e8b2230019bad4090d0f6b6cf0c3a69e7a8ecea3";
+const EXAMPLE_ASSETS = [
+  {name: "preview.mp4", bytes: 6706153},
+  {name: "poster.webp", bytes: 21664},
+];
+async function loadExampleMedia(sdk) {
+  const {data} = await recapRoots(sdk);
+  if (!data) throw new Error("The example cache is unavailable.");
+  const files = panelLocalClient(sdk).files;
+  const cachedUrl = async ({name, bytes}) => {
+    const path = files.join(data, "example-" + EXAMPLE_REVISION.slice(0, 12) + "-" + name);
+    if ((await files.stat(path))?.size !== bytes) {
+      const url = "https://raw.githubusercontent.com/CutbackVideo/selects-plugin-library/" + EXAMPLE_REVISION + "/plugins/recap-2026/" + name;
+      // The SDK owns temporary files, so a download survives the panel losing its reply.
+      await files.downloadFile(url, path);
+      if ((await files.stat(path))?.size !== bytes) {
+        await files.removeFile({filePath: path}).catch(() => {});
+        throw new Error("The example download is incomplete.");
+      }
+    }
+    const url = await files.pathToLocalURL(path);
+    if (typeof url !== "string" || !url) throw new Error("The example URL is unavailable.");
+    return url;
+  };
+  const src = await cachedUrl(EXAMPLE_ASSETS[0]);
+  // A missing poster must not prevent the video from playing.
+  const poster = await cachedUrl(EXAMPLE_ASSETS[1]).catch(() => undefined);
+  return {src, poster};
+}
 function FinishedExample({sdk,t,ui}) {
-  const mount=React.useRef<HTMLDivElement | null>(null);
+  const video=React.useRef<HTMLVideoElement | null>(null);
+  const [media,setMedia]=React.useState<{src:string;poster?:string} | null>(null);
   const [error,setError]=React.useState("");
   React.useEffect(()=>{
     let active=true;
-    let player: HTMLVideoElement | null=null;
-    (async()=>{
-      const {plugin}=await recapRoots();
-      const path=hostJoin(plugin,"assets","preview.mp4");
-      const host=window.parent as any;
-      const fileSystem=host?.__DI__?.FileSystem;
-      if(typeof fileSystem?.pathToLocalURL!=="function")throw new Error(t.exampleMissing);
-      const src=fileSystem.pathToLocalURL(path);
-      player=host.document.createElement("video");
-      player.controls=true;
-      player.preload="metadata";
-      player.playsInline=true;
-      player.style.display="block";
-      player.style.width="100%";
-      player.style.maxHeight="420px";
-      player.style.background="#111";
-      player.style.borderRadius="8px";
-      player.style.aspectRatio="9 / 16";
-      player.style.objectFit="contain";
-      player.addEventListener("error",()=>{if(active)setError(t.exampleMissing);});
-      player.poster=fileSystem.pathToLocalURL(hostJoin(plugin,"assets","preview.jpg"));
-      player.src=src;
-      if(active&&mount.current)mount.current.appendChild(player);
-    })().catch((e)=>{if(active)setError(e?.code==="host-missing"?t.hostTooOld:t.exampleMissing);});
-    return ()=>{active=false;if(player){player.pause();player.removeAttribute("src");player.load();player.remove();}};
-  },[]);
-  return <ui.Section title={t.example}><small>{t.exampleHint}</small><div ref={mount} style={{marginTop:8,width:"100%",maxWidth:280}}/>{error&&<ui.Message tone="error">{error}</ui.Message>}</ui.Section>;
+    const player=video.current;
+    setMedia(null);
+    setError("");
+    loadExampleMedia(sdk).then((value)=>{if(active)setMedia(value);})
+      .catch((e)=>{if(active)setError(e?.code==="host-missing"?t.hostTooOld:t.exampleMissing);});
+    return ()=>{active=false;if(player){player.pause();player.removeAttribute("src");player.load();}};
+  },[sdk,t.hostTooOld,t.exampleMissing]);
+  return <ui.Section title={t.example}>
+    <small>{t.exampleHint}</small>
+    <div style={{marginTop:8,width:"100%",maxWidth:280}}>
+      <video ref={video} src={media?.src} poster={media?.poster} controls preload="metadata" playsInline
+        onError={()=>setError(t.exampleMissing)}
+        style={{display:"block",width:"100%",maxHeight:420,background:"#111",borderRadius:8,aspectRatio:"9 / 16",objectFit:"contain"}}/>
+    </div>
+    {error&&<ui.Message tone="error">{error}</ui.Message>}
+  </ui.Section>;
 }
 // One frame as a JPEG data URL: the host's ffmpeg writes an ASCII-named file in the data folder, read back and removed.
 async function captureThumbnail(sdk, video, seconds) {
+  hostUseSdk(sdk);
   if (!video.path) return null;
   const rt = hostApi("Runtime", "runFFmpeg");
-  const {data} = await recapRoots();
+  const {data} = await recapRoots(sdk);
   if (!rt || !data) return null;
   const time = Math.max(0, Math.min(video.durationSeconds - 0.1, seconds));
   const out = hostJoin(data, "thumb-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".jpg");
@@ -309,13 +374,14 @@ function finishScript(cfg) {
 }
 
 async function ensureAudio(sdk, projectId) {
+  hostUseSdk(sdk);
   let r = await sdk.runScript({
     summary:"Find fixed soundtrack",
     script:core({projectId}) + "const r=await p.resources();return r.filter(x=>x.type==='Audio').map(x=>({id:x.resourceId,name:x.name,status:x.status}));"
   });
   let found = scriptResult(r).filter((x) => normPath(x.name) === normPath(AUDIO_NAME) || normPath(x.name) === normPath(AUDIO_SOURCE_NAME));
   if (found.length) return found.find((x) => normPath(x.name) === normPath(AUDIO_NAME))?.id || found[0].id;
-  const {plugin, data} = await recapRoots();
+  const {plugin, data} = await recapRoots(sdk);
   const path = hostJoin(plugin, "assets", AUDIO_NAME);
   r = await sdk.runScript({
     summary:"Import fixed soundtrack",allowCommit:true,
@@ -324,9 +390,9 @@ async function ensureAudio(sdk, projectId) {
   let imported = scriptResult(r).addedResourceIds;
   if (!imported?.length && data) {
     // Retry from a copy in the data folder (written through the host FileSystem, staged then renamed).
-    const alternate = hostJoin(data, AUDIO_NAME), tmp = hostJoin(data, "soundtrack-" + Date.now() + ".part"), move = hostApi("FileSystem", "renameSync");
+    const alternate = hostJoin(data, AUDIO_NAME), tmp = hostJoin(data, "soundtrack-" + Date.now() + ".part"), move = hostApi("FileSystem", "rename");
     await hostNeed("FileSystem", "writeFile").writeFile(move ? tmp : alternate, await hostReadBytes(path));
-    if (move) { await hostRemove(alternate); move.renameSync(tmp, alternate); }
+    if (move) { await hostRemove(alternate); (await move.rename(tmp, alternate)); }
     r = await sdk.runScript({
       summary:"Import fixed soundtrack",allowCommit:true,
       script:core({projectId,path:alternate}) + "return await p.importFiles({paths:[cfg.path]});"
@@ -361,7 +427,8 @@ async function ensureAudio(sdk, projectId) {
 // soundtrack and title. `slots` holds the intro and 159 cut sources; `byId`
 // the videos they name. Resolves the new Draft's id, name and clip count.
 async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_count,_limit)=>{}}) {
-  const manifest = await readTiming();
+  hostUseSdk(sdk);
+  const manifest = await readTiming(sdk);
   if (manifest.placements?.length !== 243) throw new Error("Template timing is incomplete");
   const audioId = await ensureAudio(sdk, projectId);
   const name = "2026 Recap — " + (mode === "sample" ? "12s sample " : "") + new Date().toLocaleString();
@@ -469,8 +536,9 @@ function TemplateRun({ sdk, context }) {
   return <small>{status}</small>;
 }
 
-export default function Panel(props) {
-  return props.context?.template ? <TemplateRun {...props} /> : <RecapPanel {...props} />;
+function Panel(props) {
+  hostUseSdk(props.sdk);
+  return props.context?.template ? <TemplateRun {...props} /> : <RecapPanel key={props.context?.projectId} {...props} />;
 }
 
 function RecapPanel({ sdk, context, ui }) {
@@ -500,15 +568,14 @@ function RecapPanel({ sdk, context, ui }) {
     setGalleryPage(0);setThumbnails({});thumbnailCache.current={};
     const script = core({projectId}) +
       "const r=await p.sourceFiles();if(!('fileTree' in r))return r.folders.map(x=>({name:x.name,count:x.videoCount}));const out=[];const rootCount=r.fileTree.filter(x=>x.type==='video').length;if(rootCount)out.push({name:'(root)',count:rootCount});for(const x of r.fileTree){if(x.type==='dir')out.push({name:x.name,count:x.children.filter(y=>y.type==='video').length});}return out;";
-    sdk.runScript({script,summary:"List footage folders"}).then((r) => {
+    sdk.runScript({script,summary:"List footage folders"}).then(async (r) => {
       if (!live) return;
       const found = scriptResult(r).filter((x) => x.count > 0);
       found.sort((a,b) => b.count-a.count);
       let initial=found[0]?[found[0].name]:[];
-      try {
-        const saved=JSON.parse(localStorage.getItem(SLUG+":"+projectId+":folders")||"null");
-        if(Array.isArray(saved))initial=found.map((x)=>x.name).filter((name)=>saved.includes(name));
-      }catch(_){}
+      const saved=JSON.parse((await panelStorage(sdk).getItem(SLUG+":"+projectId+":folders"))||"null");
+      if (!live) return;
+      if(Array.isArray(saved))initial=found.map((x)=>x.name).filter((name)=>saved.includes(name));
       setFolders(found);setSelectedFolders(initial);setMessage("");
     }).catch((e) => {if(live){setError(String(e.message || e));setMessage("");}});
     return () => {live = false;};
@@ -522,20 +589,25 @@ function RecapPanel({ sdk, context, ui }) {
     setThumbnails({});thumbnailCache.current={};
     const script = core({projectId,folders:folders.map((x)=>x.name)}) + RESOURCE_SECONDS +
       "const out=[];for(const name of cfg.folders){const r=await p.sourceFiles({folder:name});if(!('fileTree' in r))throw Error('Footage folder returned a summary');for(const x of r.fileTree){if(x.type!=='video')continue;const d=dur[x.resourceId]||x.durationSeconds;if(d>=1.7||!(d>0))out.push({resourceId:x.resourceId,name:x.name,path:x.path,durationSeconds:d,frameSize:x.frameSize,folderName:name});}}return out;";
-    readMediaPages(sdk,{script,summary:"Read footage folders"}).then((r) => withDurations(scriptResult(r))).then((list) => {
+    readMediaPages(sdk,{script,summary:"Read footage folders"}).then((r) => withDurations(scriptResult(r))).then(async (list) => {
       if (!live) return;
       const found = [...new Map(list.filter((v)=>v.durationSeconds>=1.7).map((v)=>[v.resourceId,v])).values()].sort((a,b) => a.name.localeCompare(b.name));
-      setVideos(found);
       const key=SLUG+":"+projectId+":"+selectedFolders.join("|");
       let intro=null;
       let excluded=[];
       let next=[];
-      try {
-        const saved = JSON.parse(localStorage.getItem(key) || "null");
-        const savedIntro=JSON.parse(localStorage.getItem(SLUG+":"+projectId+":intro")||"null")||JSON.parse(localStorage.getItem(key+":intro")||"null")||(Array.isArray(saved)?saved[0]:null);
+      const storage = panelStorage(sdk);
+      const [savedText, introText, oldIntroText, excludedText] = await Promise.all([
+        storage.getItem(key), storage.getItem(SLUG+":"+projectId+":intro"),
+        storage.getItem(key+":intro"), storage.getItem(SLUG+":"+projectId+":excluded"),
+      ]);
+      if (!live) return;
+      {
+        const saved = JSON.parse(savedText || "null");
+        const savedIntro=JSON.parse(introText||"null")||JSON.parse(oldIntroText||"null")||(Array.isArray(saved)?saved[0]:null);
         const introMedia=found.find((v)=>v.resourceId===savedIntro?.resourceId&&v.durationSeconds>=5);
         if(introMedia)intro={resourceId:introMedia.resourceId,startSeconds:Math.max(0,Math.min(introMedia.durationSeconds-5,savedIntro.startSeconds||0))};
-        const storedExcluded=JSON.parse(localStorage.getItem(SLUG+":"+projectId+":excluded")||"[]");
+        const storedExcluded=JSON.parse(excludedText||"[]");
         if(Array.isArray(storedExcluded))excluded=storedExcluded.filter((id)=>found.some((v)=>v.resourceId===id));
         const available=found.filter((v)=>selectedFolders.includes(v.folderName)&&!excluded.includes(v.resourceId));
         if (Array.isArray(saved) && saved.length === 160 && saved.every((x,index) => index===0?x.resourceId===intro?.resourceId:available.some((v)=>v.resourceId===x.resourceId))) next = saved.map((slot,index)=>{
@@ -543,23 +615,33 @@ function RecapPanel({ sdk, context, ui }) {
           const max=Math.max(0,(media?.durationSeconds||0)-(index===0?5:1.7));
           return {...slot,startSeconds:Math.max(0,Math.min(max,slot.startSeconds||0))};
         });
-      } catch (_) {}
+      }
       if(!intro){const first=found.find((v)=>v.durationSeconds>=5);intro=first?{resourceId:first.resourceId,startSeconds:0}:null;}
       if(!next.length)next=buildSlots(found.filter((v)=>selectedFolders.includes(v.folderName)&&!excluded.includes(v.resourceId)),intro);
+      setVideos(found);
       setExcludedIds(excluded);
       setIntroChoice(intro);setSlots(next);setLoadedKey(projectId);setMessage(found.length ? t.ready : t.noVideo);
     }).catch((e) => {if(live){setError(String(e.message || e));setMessage("");}});
     return () => {live = false;};
   }, [projectId, folders.map((x)=>x.name).join("|")]);
 
+  // Capture each complete selection before queueing writes, including the final edit.
+  const saveSelection = () => {
+    const storage = panelStorage(sdk);
+    const key=SLUG+":"+projectId+":"+selectedFolders.join("|");
+    const writes = [
+      storage.setItem(SLUG+":"+projectId+":folders", JSON.stringify(selectedFolders)),
+      storage.setItem(SLUG+":"+projectId+":excluded", JSON.stringify(excludedIds)),
+      storage.setItem(SLUG+":"+projectId+":intro", JSON.stringify(introChoice)),
+    ];
+    if(slots.length===160) writes.push(storage.setItem(key, JSON.stringify(slots)));
+    return Promise.all(writes);
+  };
   React.useEffect(() => {
     if (!projectId || loadedKey!==projectId) return;
-    const key=SLUG+":"+projectId+":"+selectedFolders.join("|");
-    try {
-      localStorage.setItem(SLUG+":"+projectId+":excluded",JSON.stringify(excludedIds));
-      localStorage.setItem(SLUG+":"+projectId+":intro",JSON.stringify(introChoice));
-      if(slots.length===160)localStorage.setItem(key,JSON.stringify(slots));
-    } catch (_) {}
+    let current = true;
+    saveSelection().catch(e => { if(current) setError("Could not save recap selections: " + String(e?.message || e)); });
+    return () => { current = false; };
   }, [projectId, selectedFolders.join("|"), loadedKey, introChoice, excludedIds, slots]);
 
   const current = slots[editSlot-1];
@@ -575,7 +657,6 @@ function RecapPanel({ sdk, context, ui }) {
   };
   const toggleFolder=(name)=>{
     const next=selectedFolders.includes(name)?selectedFolders.filter((x)=>x!==name):folders.map((x)=>x.name).filter((x)=>selectedFolders.includes(x)||x===name);
-    try{localStorage.setItem(SLUG+":"+projectId+":folders",JSON.stringify(next));}catch(_){}
     setSelectedFolders(next);
     setGalleryPage(0);
     setSlots(buildSlots(videos.filter((v)=>next.includes(v.folderName)&&!excludedIds.includes(v.resourceId)),introChoice));
@@ -594,7 +675,7 @@ function RecapPanel({ sdk, context, ui }) {
   React.useEffect(()=>{
     if(!advancedOpen||Object.keys(slotTiming).length)return;
     let live=true;
-    readTiming()
+    readTiming(sdk)
       .then((manifest)=>{
         if(!live)return;
         const bySlot={};
@@ -634,6 +715,7 @@ function RecapPanel({ sdk, context, ui }) {
     if (!projectId || slots.length !== 160 || busy || loadedKey!==projectId) return;
     setBusy(true);setError("");setMessage(t.progress);
     try {
+      await saveSelection();
       if (!introVideo || !selectedVideos.length) throw new Error(t.noVideo);
       const byId = Object.fromEntries(videos.map((v) => [v.resourceId,v]));
       const intro = {...slots[0],frameSize:byId[slots[0].resourceId]?.frameSize};
@@ -656,15 +738,15 @@ function RecapPanel({ sdk, context, ui }) {
     <FinishedExample sdk={sdk} t={t} ui={ui}/>
     {videos.length>0 && <ui.Section title={t.ready}>
       <ui.Stack>
-        <ui.Select label={t.intro} value={introChoice?.resourceId||null} onChange={(resourceId)=>changeIntro({resourceId,startSeconds:0})} options={videos.filter((x)=>x.durationSeconds>=5).map((x)=>({value:x.resourceId,label:x.name}))} disabled={busy}/>
-        {introVideo&&<SourceWindowPicker sdk={sdk} ui={ui} video={introVideo} startSeconds={introChoice?.startSeconds||0} windowSeconds={4.7} sourceMargin={0.3} onChange={(startSeconds)=>changeIntro({startSeconds})} disabled={busy} label={t.preview} hint={t.previewHint} loading={t.loading} compact/>}
+        <ui.Select label={t.intro} value={introChoice?.resourceId||null} onChange={(resourceId)=>changeIntro({resourceId,startSeconds:0})} options={videos.filter((x)=>x.durationSeconds>=5).map((x)=>({value:x.resourceId,label:x.name}))} disabled={busy || loadedKey!==projectId}/>
+        {introVideo&&<SourceWindowPicker sdk={sdk} ui={ui} video={introVideo} startSeconds={introChoice?.startSeconds||0} windowSeconds={4.7} sourceMargin={0.3} onChange={(startSeconds)=>changeIntro({startSeconds})} disabled={busy || loadedKey!==projectId} label={t.preview} hint={t.previewHint} loading={t.loading} compact/>}
       </ui.Stack>
     </ui.Section>}
     <ui.Section title={t.folderPick}>
       <ui.Stack>
         <small>{t.folderGuide}</small>
         {folders.map((item)=><label key={item.name} style={{display:"flex",alignItems:"center",gap:8}}>
-          <input type="checkbox" checked={selectedFolders.includes(item.name)} disabled={busy} onChange={()=>toggleFolder(item.name)}/>
+          <input type="checkbox" checked={selectedFolders.includes(item.name)} disabled={busy || loadedKey!==projectId} onChange={()=>toggleFolder(item.name)}/>
           <span>{item.name} ({item.count})</span>
         </label>)}
         <small>{t.footageCount}: {selectedVideos.length} · {t.quickRule}</small>
@@ -677,14 +759,14 @@ function RecapPanel({ sdk, context, ui }) {
       <ui.Section title={t.gallery}>
       <small>{t.galleryHint}</small>
       <small>{t.rebuildHint}</small>
-      {excludedIds.length>0&&<ui.Actions><ui.Button variant="secondary" disabled={busy} onClick={clearExclusions}>{t.selectAll}</ui.Button></ui.Actions>}
+      {excludedIds.length>0&&<ui.Actions><ui.Button variant="secondary" disabled={busy || loadedKey!==projectId} onClick={clearExclusions}>{t.selectAll}</ui.Button></ui.Actions>}
       <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:8}}>
         {folderVideos.slice(galleryPage*gallerySize,(galleryPage+1)*gallerySize).map((video) => {
           const at=Math.min(video.durationSeconds*0.35,video.durationSeconds-0.1);
           const url=thumbnails[thumbnailKey(video,at)];
           const active=excludedIds.includes(video.resourceId);
           return <label key={video.resourceId} style={{display:"flex",alignItems:"center",gap:8,padding:4,border:active?"2px solid var(--panel-accent)":"1px solid var(--panel-border)",borderRadius:6,minWidth:0}}>
-              <input type="checkbox" checked={excludedIds.includes(video.resourceId)} disabled={busy} onChange={()=>toggleExclusion(video.resourceId)}/>
+              <input type="checkbox" checked={excludedIds.includes(video.resourceId)} disabled={busy || loadedKey!==projectId} onChange={()=>toggleExclusion(video.resourceId)}/>
               {url?<img src={url} alt="" style={{width:84,height:52,objectFit:"contain",background:"#111",display:"block",flexShrink:0}}/>:<div style={{width:84,height:52,background:"#111",flexShrink:0}}/>}
               <span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{video.name}</span>
           </label>;
@@ -702,12 +784,12 @@ function RecapPanel({ sdk, context, ui }) {
       {advancedOpen&&slots.length===160&&<ui.Section title={t.advanced}>
         <ui.Stack>
           <small>{t.advancedHint}</small>
-          <ui.NumberField label={t.slot} value={editSlot-1} onChange={(v)=>setEditSlot(Math.max(2,Math.min(160,Math.round(v)+1)))} min={1} max={159} step={1} disabled={busy}/>
+          <ui.NumberField label={t.slot} value={editSlot-1} onChange={(v)=>setEditSlot(Math.max(2,Math.min(160,Math.round(v)+1)))} min={1} max={159} step={1} disabled={busy || loadedKey!==projectId}/>
           {slotTiming[editSlot]&&<small>{t.outputAt}: {slotTiming[editSlot].firstStart.toFixed(2)}s · {slotTiming[editSlot].maxDuration.toFixed(2)}s</small>}
           {editSlot>=61&&editSlot<=143&&<small>{t.repeatsLater}</small>}
-          <ui.Select label={t.video} value={current?.resourceId||null} onChange={(resourceId)=>changeSlot({resourceId,startSeconds:0})} options={selectedVideos.map((x)=>({value:x.resourceId,label:x.name}))} disabled={busy}/>
+          <ui.Select label={t.video} value={current?.resourceId||null} onChange={(resourceId)=>changeSlot({resourceId,startSeconds:0})} options={selectedVideos.map((x)=>({value:x.resourceId,label:x.name}))} disabled={busy || loadedKey!==projectId}/>
           {timingError&&<ui.Message tone="error">{timingError}</ui.Message>}
-          {currentVideo&&slotTiming[editSlot]&&<SourceWindowPicker sdk={sdk} ui={ui} video={currentVideo} startSeconds={current?.startSeconds||0} windowSeconds={slotTiming[editSlot].maxDuration} sourceMargin={0.15} onChange={(startSeconds)=>changeSlot({startSeconds})} disabled={busy} label={t.sourceWindow} hint={t.advancedSourceHint} loading={t.loading}/>}
+          {currentVideo&&slotTiming[editSlot]&&<SourceWindowPicker sdk={sdk} ui={ui} video={currentVideo} startSeconds={current?.startSeconds||0} windowSeconds={slotTiming[editSlot].maxDuration} sourceMargin={0.15} onChange={(startSeconds)=>changeSlot({startSeconds})} disabled={busy || loadedKey!==projectId} label={t.sourceWindow} hint={t.advancedSourceHint} loading={t.loading}/>}
         </ui.Stack>
       </ui.Section>}
     </details>
@@ -723,38 +805,23 @@ function RecapPanel({ sdk, context, ui }) {
 }
 
 // av-host:start
-// Host I/O for a style-app panel: plain JS and self-contained (no app names, no UI text), so it can move to a shared
-// kit file and tests can run it in node:vm. Guarded access to the host's renderer services (window.parent.__DI__,
-// documented as internal, so every member is checked before use), the platform, path joins, file reads and removal,
-// the install and data folders, and the host's bundled ffmpeg (Runtime.runFFmpeg / runFFprobe: argv arrays, no shell,
-// nothing for the user to install). Paths are built with FileSystem.join and never pass through a console; generated
-// file names are ASCII. There is no shell call at all (kit windows.md). Errors carry `code`: 'host-missing' (with `member`, a service method this Selects
-// build lacks: the caller shows one "needs a newer Selects" message) or 'not-found' (no install folder).
+// Local files and media tools use the public async SDK. Paths remain host-native.
+let hostSdk = null;
+function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
 function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
-function hostDI() { try { return (window.parent && window.parent["__DI__"]) || null; } catch { return null; } }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
-  const s = hostDI()?.[name];
+  const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
 }
 // A host service that must have `method`; throws a 'host-missing' error when this build lacks it.
 function hostNeed(name, method) {
   const s = hostApi(name, method);
-  if (!s) throw hostError("host-missing", "this Selects build has no " + name + "." + method, name + "." + method);
+  if (!s) throw hostError("host-missing", "Update Selects to use this plugin: missing SDK " + name + "." + method, name + "." + method);
   return s;
 }
-// Windows or not: the host's own answer (Runtime.getPlatform: "win32", "darwin"), else the browser's.
-function hostIsWindows() {
-  try {
-    const rt = hostApi("Runtime", "getPlatform");
-    const p = rt ? String(rt.getPlatform() || "") : "";
-    if (p) return /^win/i.test(p);
-  } catch { /* the browser decides */ }
-  try {
-    const n = navigator;
-    return /^win/i.test(String(n.platform || "")) || /Windows NT/i.test(String(n.userAgent || ""));
-  } catch { return false; }
-}
+// The host initializes the environment before mounting the panel.
+function hostIsWindows() { return /^win/i.test(String(hostSdk?.environment?.platform || "")); }
 // Joins path parts with the host's join (the OS separator), or by hand with the OS separator.
 function hostJoin(...parts) {
   const fs = hostApi("FileSystem", "join");
@@ -785,34 +852,17 @@ async function hostReadText(path) {
   const v = await hostNeed("FileSystem", "readFile").readFile(path);
   return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
 }
-// Removes a file with the first of the host's FileSystem removers that works (removeFile, remove, rm, unlink,
-// unlinkSync: host builds differ); each is tried only when present, and a failure only leaves the file behind.
+// Cleanup is best effort; all disk operations cross the async SDK bridge.
 async function hostRemove(path) {
-  let fs = null;
-  try { fs = hostDI()?.FileSystem; } catch { fs = null; }
-  if (!fs) return;
-  const tries = [["removeFile", () => fs.removeFile({ filePath: path })], ["remove", () => fs.remove(path)], ["rm", () => fs.rm(path)],
-    ["unlink", () => fs.unlink(path)], ["unlinkSync", () => fs.unlinkSync(path)]];
-  for (const [name, call] of tries) {
-    if (typeof fs[name] !== "function") continue;
-    try { await call(); return; } catch { /* the next one */ }
-  }
+  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
 }
-// The plugin's install folder and its data folder. The install folder is the host's skills folder (the home folder
-// joined with .selects, skills and <id>, the same place SELECTS_USER_SKILLS_ROOT names on macOS and Windows) when it
-// holds `marker` (a file every install has). `sdk` is unused (kept so callers do not change). The data folder (<home>/.selects/plugin-data/<id>) is created when missing;
-// null when this host cannot make it (callers then avoid temporary files). Throws 'not-found' without an install folder.
 async function hostRoots(sdk, id, marker) {
-  const fs = hostApi("FileSystem", "join", "homedir", "existsSync");
-  const holds = (dir) => { try { return !!dir && (!fs || !!fs.existsSync(fs.join(dir, marker))); } catch { return false; } };
-  let plugin = null;
-  try { if (fs) { const dir = String(fs.join(fs.homedir(), ".selects", "skills", id)); if (holds(dir)) plugin = dir; } } catch { plugin = null; }
-  if (!plugin) throw hostError("not-found", "the plugin folder could not be found");
-  let data = null;
-  try {
-    const dfs = hostApi("FileSystem", "join", "homedir", "mkdirSync");
-    if (dfs) { data = String(dfs.join(dfs.homedir(), ".selects", "plugin-data", id)); dfs.mkdirSync(data, { recursive: true }); }
-  } catch { data = null; }
+  hostUseSdk(sdk);
+  const fs = hostNeed("FileSystem", "exists");
+  const plugin = fs.join(fs.homedir(), ".selects", "skills", id);
+  if (!await fs.exists(fs.join(plugin, marker))) throw hostError("not-found", "the plugin folder could not be found");
+  let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
+  try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
 }
 // Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
@@ -866,3 +916,269 @@ async function readMediaPages(sdk, args) {
     if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
   }
 }
+
+// local-sdk:start
+/** Pure host-platform path operations; no filesystem or renderer globals. */
+function panelLocalPaths(platform: string) {
+  const windows = platform === "win32";
+  const slash = (path: string) => {
+    if (typeof path !== "string")
+      throw new TypeError("A path must be a string.");
+    return windows ? path.replace(/\\/g, "/") : path;
+  };
+  const rootOf = (path: string) => {
+    if (windows) {
+      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
+      if (unc) return unc[0].replace(/\/?$/, "/");
+      const drive = path.match(/^[a-z]:\/?/i);
+      if (drive) return drive[0];
+    }
+    return path.startsWith("/") ? "/" : "";
+  };
+  const native = (value: string) =>
+    windows ? value.replace(/\//g, "\\") : value;
+  const normalize = (value: string) => {
+    const path = slash(value),
+      root = rootOf(path),
+      absolute = root.endsWith("/");
+    const segments: string[] = [];
+    for (const segment of path
+      .slice(Math.min(root.length, path.length))
+      .split("/")) {
+      if (!segment || segment === ".") continue;
+      if (segment === ".." && segments.length && segments.at(-1) !== "..")
+        segments.pop();
+      else if (segment !== ".." || !absolute) segments.push(segment);
+    }
+    let result = root + segments.join("/");
+    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
+    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
+    return native(result);
+  };
+  const basename = (value: string, extension?: string) => {
+    const path = slash(value).replace(/\/+$/, "");
+    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
+    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
+    return extension && name.endsWith(extension)
+      ? name.slice(0, -extension.length)
+      : name;
+  };
+  return {
+    normalize,
+    join: (...paths: string[]) => {
+      const parts = paths.map(slash).filter(Boolean);
+      let joined = parts.join("/");
+      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
+        joined = joined.replace(/^\/{2,}/, "/");
+      return normalize(joined);
+    },
+    dirname(value: string) {
+      const path = slash(value),
+        root = rootOf(path);
+      const end = path.replace(/\/+$/, "").lastIndexOf("/");
+      if (end < root.length) return value.slice(0, root.length) || ".";
+      return value.slice(0, end);
+    },
+    basename,
+    extname(value: string) {
+      const name = basename(value),
+        dot = name.lastIndexOf(".");
+      return dot <= 0 || name === ".." ? "" : name.slice(dot);
+    },
+    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
+  };
+}
+
+
+/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
+async function createPanelLocalClient(sdk: any) {
+  const run = async (method: string, args: unknown[], write = false) => {
+    // method names below are fixed implementation constants; values always use JSON encoding.
+    // Direct arguments keep object literals contextually typed by the SDK signature.
+    const response = await sdk.runScript({
+      summary: "Use local media workspace",
+      allowCommit: write,
+      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
+    });
+    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
+    // A clipped report has no result. Every read returning data rejects that case below.
+    return response.result;
+  };
+  const environment = await run("files.environment", []);
+  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
+    throw new Error("Update Selects to use this plugin's local media workspace.");
+  const paths = panelLocalPaths(environment.platform);
+  const CHUNK_BYTES = 48 * 1024;
+  const readRange = async (path: string, offset: number, length: number) => {
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    while (total < length) {
+      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
+      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
+      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+      parts.push(bytes); total += bytes.length;
+      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+    }
+    const output = new Uint8Array(total);
+    let position = 0;
+    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
+    return output;
+  };
+  const files = {
+    ...paths,
+    homedir: () => environment.homedir,
+    getOrCreateTmpDirPath: async () => environment.tempDirectory,
+    exists: (path: string) => run("files.exists", [path]),
+    stat: (path: string) => run("files.stat", [path]),
+    readdir: (path: string) => run("files.readdir", [path]),
+    readRange,
+    async readFile(path: string, encoding?: string) {
+      const stat = await run("files.stat", [path]);
+      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
+      const bytes = await readRange(path, 0, stat.size);
+      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
+    },
+    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
+      const encoding = typeof options === "string" ? options : options?.encoding;
+      const flag = typeof options === "object" ? options.flag : undefined;
+      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
+      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
+      // Each complete replacement has its own sibling file. Other panels cannot
+      // overwrite one of its chunks before the final atomic rename publishes it.
+      const replacement = flag !== "a" && flag !== "wx";
+      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
+      let published = false;
+      try {
+        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
+          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
+          let binary = "";
+          for (const byte of chunk) binary += String.fromCharCode(byte);
+          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
+          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+        }
+        if (replacement) await run("files.rename", [destination, path], true);
+        published = true;
+      } finally {
+        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+      }
+    },
+    async compareAndReplace(path: string, expectedText: string | null, text: string) {
+      const encode = (value: string) => {
+        const bytes = new TextEncoder().encode(value);
+        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary);
+      };
+      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
+      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
+      return result.replaced;
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rename: (from: string, to: string) => run("files.rename", [from, to], true),
+    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
+    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
+    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
+    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
+  };
+  const activeJobs = new Set<string>();
+  let disposed = false;
+  const cancel = async (jobId: string) => {
+    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
+    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
+  };
+  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const started = await run("media.start" + executable, [{ args }], true);
+    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const jobId = started.jobId;
+    activeJobs.add(jobId);
+    let cancellation: Promise<void> | null = null;
+    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (disposed || signal?.aborted) abort();
+    let cursor = 0, stdout = "", stderr = "";
+    try {
+      while (true) {
+        if (cancellation) await cancellation;
+        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
+        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
+        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        for (const event of status.events) {
+          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
+          else { stderr += event.text; onStderr?.(event.text); }
+        }
+        cursor = status.nextCursor;
+        if (status.state !== "running" && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
+          return { stdout, stderr };
+        }
+        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    } catch (error) {
+      await cancel(jobId).catch(() => {});
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      activeJobs.delete(jobId);
+    }
+  };
+  return {
+    files,
+    environment,
+    media: {
+      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
+      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
+    },
+    dialogs: {
+      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
+      pickDirectoryPath: () => run("editor.pickDirectory", []),
+      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
+    },
+    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+  };
+}
+
+const panelLocalClients = new WeakMap<object, any>();
+function panelLocalClient(sdk: any): any {
+  const client = panelLocalClients.get(sdk);
+  if (!client) throw new Error("Local SDK has not initialized.");
+  return client;
+}
+function withPanelLocalClient(Component: any) {
+  return function LocalSdkPanel(props: any) {
+    const [state, setState] = React.useState<any>(null);
+    React.useEffect(() => {
+      let active = true;
+      let client: any;
+      createPanelLocalClient(props.sdk).then(value => {
+        client = {...props.sdk, ...value};
+        if (!active) { value.dispose(); return; }
+        panelLocalClients.set(props.sdk, client);
+        setState({sdk: props.sdk});
+      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+      return () => {
+        active = false;
+        if (client) {
+          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
+          client.dispose();
+        }
+      };
+    }, [props.sdk]);
+    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
+    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
+    return React.createElement(Component, props);
+  };
+}
+
+export default withPanelLocalClient(withStoredPanel(Panel, async () => ({})));
+// local-sdk:end

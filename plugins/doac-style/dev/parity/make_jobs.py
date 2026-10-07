@@ -78,6 +78,18 @@ J.append(job('err-two-lines', 25, [('plain', 'Honestly the most important lesson
 J.append(job('err-hierarchy', 30, [('tpl', '11', ['and', 'would', 'you', 'be', 'dreaming', 'about absolutely everything'])]))
 J.append(job('err-mismatch', 30, [('tpl', '13', ['are', 'watching', 'you'])]))
 J[-1]['editorial'][0]['texts'] = ['are', 'seeing', 'you']
+# Korean: the Hangul fallback face (winsim; bundled has none, so both engines draw .notdef).
+J.append(job('ko-plain', 30, [
+    ('plain', '\uadf8\ub807\uac8c \ud574\uc11c \ub215\ub294 \uac70\uc57c \ub9de\uc544'),
+    ('plain', '\uc624\ub298\uc740 AI \uc2a4\ud0c0\ud2b8\uc5c5 \uc774\uc57c\uae30\ub97c 3.5\ubd84 \ub3d9\uc548 \ud574\ubcfc\uac8c\uc694'),
+    ('plain', '"\uc815\ub9d0?" \uadf8\ub140\uac00 \ubb3c\uc5c8\ub2e4.'),
+]))
+J.append(job('ko-templates', 24, [
+    ('tpl', '19', ['\uc65c', '\uc774\ub7f0', '\uc77c\uc774', '\uc9c0\uae08', '\uc0dd\uae38\uae4c']),
+    ('tpl', '33', ['\uc0ac\ub78c\ub4e4\uc740', '\uadf8\ub97c', '\ucc9c\uc7ac\ub77c\uace0', '\ubd80\ub978\ub2e4']),
+    ('tpl', '11', ['\uadf8\ub9ac\uace0', '\ub108\ub294', '\uc815\ub9d0', '\uacc4\uc18d', '\uafc8\uafb8\uace0', '\uc788\ub2c8']),
+    ('tpl', '40', ['\ub3c8']),
+]))
 # CI: every template that fits, the plain caption and two refusals, at half the speech length.
 CI = {k: v for k, v in ((t[0], t) for t in TPL)}
 J.append(job('ci-legacy', 30, [('plain', 'Listen'), ('tpl',) + CI['19'], ('tpl',) + CI['05'], ('tpl',) + CI['06'], ('tpl',) + CI['21'], ('tpl',) + CI['33']], speed=0.5))

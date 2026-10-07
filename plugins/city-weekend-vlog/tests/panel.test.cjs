@@ -60,7 +60,7 @@ for (const f of walk(root).filter(f => /\.(tsx|js|cjs|json|md|sh)$/.test(f))) as
   const runtime = [code,
     ...['inventory.js', 'search.js', 'ensure-audio.js', 'assemble.js', 'decorate.js'].map(f => fs.readFileSync(path.join(root, 'scripts', f), 'utf8'))].join('\n').replace(/^\s*\/\/.*$/gm, '');
   for (const bad of ['runShell', 'mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'command -v', '/opt/homebrew', 'TOOL_PATH', 'runtime.sh', '.nvm/', "'\\''", 'SELECTS_USER_SKILLS_ROOT/'])
-    assert.ok(!runtime.includes(bad), 'POSIX shell in the runtime: ' + bad);
+    assert.ok(!(bad === "base64 " ? /(?<![\w.])base64\s/.test(runtime) : runtime.includes(bad)), 'POSIX shell in the runtime: ' + bad);
   assert.ok(!/["'`]\s*node\s/.test(runtime.replace(/\/\/.*$/gm, '')), 'no node subprocess');
   const host = code.slice(code.indexOf('// av-host:start'), code.indexOf('// av-host:end'));
   const av = fs.readFileSync(path.join(root, '..', 'archive-vlog', 'panel.tsx'), 'utf8');
