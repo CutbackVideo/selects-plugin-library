@@ -28,7 +28,7 @@ const selected=['A','B','C','D'].map((slot,i)=>({resourceId:`r${i}`,name:`Photo 
 
 function finishInput(){
  const plan=nativeScenePlan();
- return normalizeNativeFinish({mode:'native-finish',projectId:'project',draftId:'draft',photos:selected.map((p,i)=>({resourceId:p.resourceId,path:p.path,width:i%2?960:640,height:i%2?640:960})),placements:plan.occurrences.map((o,i)=>({slot:o.slot,appearance:o.appearance,clipId:20+i,trackId:o.appearance==='fullscreen'?`fullscreen-${i}`:`grid-${i}`,startFrame:o.startFrame,endFrame:o.endFrame})),decoration:{shape:'heart',color:'#ffffff'},framing:{'grid-A':{x:.25,y:.75}}});
+ return normalizeNativeFinish({mode:'native-finish',projectId:'project',draftId:'draft',photos:selected.map((p,i)=>({resourceId:p.resourceId,path:p.path,width:i%2?960:640,height:i%2?640:960})),placements:plan.occurrences.map((o,i)=>({key:o.key,slot:o.slot,appearance:o.appearance,clipId:20+i,trackId:o.appearance==='fullscreen'?`fullscreen-${i}`:`grid-${i}`,startFrame:o.startFrame,endFrame:o.endFrame})),decoration:{shape:'heart',color:'#ffffff'},framing:{'grid-A':{x:.25,y:.75}}});
 }
 
 test('the finish request sends the shared placement result in the shape native finish accepts',()=>{
@@ -58,7 +58,7 @@ test('serialized finish plans expose the overlap used by every fullscreen crossf
 test('native finish rejects missing, duplicate, or changed Image placements',()=>{
  const input=finishInput();
  assert.equal(input.framing['grid-A'].x,.25);
- assert.throws(()=>normalizeNativeFinish({...input,mode:'native-finish',placements:input.placements.slice(1)}),/eight/);
+ assert.throws(()=>normalizeNativeFinish({...input,mode:'native-finish',placements:input.placements.slice(1)}),/Expected 8 original/);
  assert.throws(()=>normalizeNativeFinish({...input,mode:'native-finish',placements:[...input.placements.slice(0,7),input.placements[0]]}),/Duplicate/);
  assert.throws(()=>normalizeNativeFinish({...input,mode:'native-finish',placements:input.placements.map((p,i)=>i===0?{...p,endFrame:161}:p)}),/reference plan/);
  assert.ok(buildNativeFinishScript({...input,mode:'native-finish'}).includes('authorNativeFinish'));

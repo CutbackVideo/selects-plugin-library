@@ -45,7 +45,7 @@ test('music disabled preserves silent native authoring',async()=>{
 
 
 test('music request accepts a resource or explicit silence and rejects malformed choices',()=>{
- const f=fixture();const raw={...f.input,mode:'native-finish',placements:f.input.placements.map(({slot,appearance,clipId,trackId,startFrame,endFrame})=>({slot,appearance,clipId,trackId,startFrame,endFrame}))};
+ const f=fixture();const raw={...f.input,mode:'native-finish',placements:f.input.placements.map(({key,slot,appearance,clipId,trackId,startFrame,endFrame})=>({key,slot,appearance,clipId,trackId,startFrame,endFrame}))};
  assert.deepEqual(normalizeNativeFinish(raw).music,{resourceId:'music'});
  assert.equal(normalizeNativeFinish({...raw,music:null}).music,null);
  for(const music of [true,[],{}, {resourceId:' '}, {resourceId:'music',path:'/music.mp3'}])assert.throws(()=>normalizeNativeFinish({...raw,music}));

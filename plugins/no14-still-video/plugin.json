@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "no14-still-video",
-  "version": "0.3.8",
+  "version": "0.4.0",
   "name": "Four Photo Reveal",
-  "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music.",
+  "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat.",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
@@ -31,43 +31,43 @@
   "localized": {
     "de": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat."
     },
     "en": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat."
     },
     "es": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat."
     },
     "fr": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat."
     },
     "it": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat."
     },
     "ja": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat."
     },
     "ko": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat."
     },
     "pt": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat."
     },
     "tr": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat."
     },
     "zh": {
       "name": "Four Photo Reveal",
-      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and optional CC0 music."
+      "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat."
     }
   },
   "collection": "visual-highlights",

@@ -46,7 +46,7 @@ export function planFps(value){
 export function nativeScenePlan(fpsInput){
  const fps=planFps(fpsInput);
  const plan=scenePlan();
- if(fps===30)return {...plan,overlapFrames:10,occurrences:plan.occurrences.map(o=>o.appearance==='fullscreen'&&o.slot!=='C'?{...o,endFrame:o.endFrame+10}:o)};
+ if(fps===30)return keyedPlan({...plan,overlapFrames:10,occurrences:plan.occurrences.map(o=>o.appearance==='fullscreen'&&o.slot!=='C'?{...o,endFrame:o.endFrame+10}:o)});
  const at=frame=>Math.round(frame*fps/30),seconds=value=>Math.round(value*30);
  const overlapFrames=at(10),durationFrames=at(plan.durationFrames);
  const occurrences=plan.occurrences.map(o=>{
@@ -58,7 +58,98 @@ export function nativeScenePlan(fpsInput){
  const converted={...plan,fps,durationFrames,transitions:plan.transitions.map(t=>({...t,cutFrame:at(t.cutFrame)})),occurrences,overlapFrames,referenceFps:30};
  const full=occurrences.filter(o=>o.appearance==='fullscreen');
  if(overlapFrames<2||occurrences.some(o=>!(o.endFrame>o.startFrame)||o.endFrame>durationFrames||(o.fadeDuration!=null&&!(o.fadeDuration>0)))||full.some((o,i)=>i>0&&(o.startFrame!==converted.transitions[i-1].cutFrame||full[i-1].endFrame!==o.startFrame+overlapFrames||o.endFrame-o.startFrame<=overlapFrames)))throw Error('This project frame rate cannot hold the No.14 timing');
- return converted;
+ return keyedPlan(converted);
+}
+// The song's pulse: subdivision period inside [lo, hi] s and phase, fitted to the onset flux over the
+// whole song; loudness entry/exit (0.5 s windows within 8 dB of the median); onsets for snapping.
+export function songGrid(m, lo, hi) {
+  const a = m.audio;
+  if (!a || a.status !== "measured") throw new Error("The song has no measurable audio.");
+  const h = a.hopSeconds, t0 = a.startSeconds, flux = a.frames.flux, rms = a.frames.rmsDb, n = flux.length, dur = m.durationSeconds;
+  let mean = 0; for (let i = 0; i < n; i++) mean += flux[i]; mean /= n;
+  const ac = (p) => { let s = 0; for (let i = p; i < n; i++) s += (flux[i] - mean) * (flux[i - p] - mean); return s / (n - p); };
+  let p0 = Math.round(lo / h), best = -Infinity;
+  for (let p = Math.round(lo / h); p <= Math.round(hi / h); p++) { const v = ac(p); if (v > best) { best = v; p0 = p; } }
+  // Loudness windows.
+  const win = [], w = Math.round(0.5 / h);
+  for (let i = 0; i + w <= n; i += w) { let s = 0; for (let k = i; k < i + w; k++) s += rms[k]; win.push({ t: t0 + i * h, db: s / w }); }
+  const body = win.map((x) => x.db).sort((x, y) => x - y)[Math.floor(win.length / 2)];
+  const loud = win.filter((x) => x.db >= body - 8);
+  const entry = loud.length ? loud[0].t : 0, exit = loud.length ? loud[loud.length - 1].t + 0.5 : dur;
+  // Fine period and phase: the comb that the most onset flux sits on (within 12 ms) between entry and exit
+  // (2.5 ms phase steps, 0.1 ms period steps). Onset times, not flux peaks, are what cuts snap to.
+  const hits = a.onsets.filter((o) => o.t >= entry && o.t <= exit);
+  let fit = { s: -1, P: p0 * h, phase: 0 };
+  for (let P = p0 * h * 0.985; P <= p0 * h * 1.015; P += 0.0001) {
+    for (let ph = 0; ph < P; ph += 0.0025) {
+      let s = 0;
+      for (const o of hits) { const r = (((o.t - entry - ph) % P) + P) % P; if (Math.min(r, P - r) <= 0.012) s += o.flux; }
+      if (s > fit.s) fit = { s, P, phase: entry + ph };
+    }
+  }
+  const onsets = a.onsets.map((o) => ({ t: o.t, f: o.flux }));
+  // The strongest onset within `tol` of t, else t itself.
+  const snap = (t, tol) => { let b = null; for (const o of onsets) if (Math.abs(o.t - t) <= tol && (!b || o.f > b.f)) b = o; return b ? b.t : t; };
+  const gridAfter = (t) => fit.phase + Math.ceil((t - fit.phase - 1e-6) / fit.P) * fit.P;
+  return { dur, period: fit.P, phase: fit.phase, entry, exit, body, win, onsets, snap, gridAfter };
+}
+
+// Four Photo Reveal (No.14, capcut.nc "4 Photo Template"): one phrase = A, B, C, D appear in the 2x2 grid about
+// 0.9 s apart, the grid holds, then A, B, D, C go fullscreen about 1 s each (8.87 s at the reference). Each reference
+// time (seconds from the phrase start) moves to the song's nearest half beat (beat 0.28-0.60 s), onset-snapped; the
+// phrase repeats while it fits; the rest of the song continues the fullscreen cycle about 1 s a photo, and the last
+// photo holds to the end. Times are seconds; the panel turns them into frames.
+export function planNo14(m) {
+  const g = songGrid(m, 0.28, 0.6), half = g.period / 2, tol = 0.035, dur = g.dur;
+  const near = (t) => Math.max(0, g.snap(g.phase + Math.round((t - g.phase) / half) * half, tol));
+  const REVEAL = [0.856667, 1.793333, 2.673333], FULL = [4.333333, 5.333333, 6.366667, 7.333333], END = 8.866667, STEP = 1.0;
+  const phrases = [];
+  for (let s = 0; ; ) {
+    let e = near(s + END);
+    if (e > dur + 1e-6) { if (phrases.length) break; e = dur; } // a song as short as the reference still gets its one phrase
+    phrases.push({ start: s, reveal: [s, ...REVEAL.map((x) => near(s + x))], full: FULL.map((x) => near(s + x)), end: e });
+    if (e >= dur) break;
+    s = e;
+  }
+  if (!phrases.length) throw new Error("The song is shorter than one phrase.");
+  const tail = [];
+  let at = phrases[phrases.length - 1].end;
+  while (dur - at >= 2 * STEP) { const next = near(at + STEP); tail.push({ start: at, end: next }); at = next; }
+  if (tail.length) tail[tail.length - 1].end = dur; else phrases[phrases.length - 1].end = dur;
+  return { durationSeconds: dur, beatSeconds: g.period, phrases, tail };
+}
+
+// The song plan (planNo14, seconds) at the Draft's rate. Every occurrence has a key (phrase, appearance, slot) and
+// every transition names the clips it joins. Grid A ends one overlap after its phrase's first fullscreen cut and the
+// other grid photos half an overlap after, A fading over the last eight thirtieths, as in the reference (140, 135,
+// 132-140 against the cut at 130). Fullscreen photos overlap the next one in their run by the ten-frame crossfade;
+// a phrase's run starts with the reference's fade-in, and the fullscreen tail continues the last run.
+export function songScenePlan(song,fpsInput){
+ const fps=planFps(fpsInput),base=scenePlan(),at=t=>Math.round(t*fps),overlapFrames=Math.round(10*fps/30),fadeLead=Math.round(2*fps/30);
+ const durationFrames=Math.floor(song.durationSeconds*fps+1e-6),full={x:0,y:0,width:base.canvas.width,height:base.canvas.height};
+ const rect=Object.fromEntries(base.occurrences.filter(o=>o.appearance==='grid').map(o=>[o.slot,o.rect]));
+ const occurrences=[],chain=[];
+ song.phrases.forEach((p,k)=>{
+  const cut=at(p.full[0]);
+  ['A','B','C','D'].forEach((slot,i)=>occurrences.push({key:'p'+k+'-grid-'+slot,slot,appearance:'grid',startFrame:at(p.start),endFrame:cut+(i===0?overlapFrames:Math.round(overlapFrames/2)),rect:rect[slot],revealStart:i===0?p.start-0.026667:p.reveal[i],revealDuration:.5,radius:28,...(i===0?{fadeStart:(cut+fadeLead)/fps,fadeDuration:(overlapFrames-fadeLead)/fps}:{})}));
+  ['A','B','D','C'].forEach((slot,i)=>chain.push({key:'p'+k+'-fullscreen-'+slot,slot,start:at(p.full[i]),end:i<3?at(p.full[i+1]):at(p.end),first:i===0}));
+ });
+ song.tail.forEach((t,i)=>chain.push({key:'t'+i+'-fullscreen-'+'ABDC'[i%4],slot:'ABDC'[i%4],start:at(t.start),end:at(t.end),first:false}));
+ chain[chain.length-1].end=durationFrames;
+ const transitions=[];
+ chain.forEach((c,j)=>{
+  const next=chain[j+1],linked=!!next&&!next.first&&next.start===c.end;
+  if(linked)transitions.push({after:c.slot,from:c.key,to:next.key,cutFrame:next.start});
+  occurrences.push({key:c.key,slot:c.slot,appearance:'fullscreen',startFrame:c.start,endFrame:c.end+(linked?overlapFrames:0),rect:full,revealStart:c.first?c.start/fps:null,revealDuration:.3,lateEase:c.first,radius:0});
+ });
+ if(overlapFrames<2||occurrences.some(o=>!(o.endFrame>o.startFrame)||o.startFrame<0||o.endFrame>durationFrames))throw Error('This project frame rate cannot hold the song plan');
+ return {fps,canvas:base.canvas,durationFrames,fidelity:'song-plan',transitions,occurrences,overlapFrames,referenceFps:30};
+}
+// Keys for the single reference phrase (Music off), in the song plan's shape.
+export function keyedPlan(plan){
+ const occurrences=plan.occurrences.map(o=>({...o,key:o.appearance+'-'+o.slot}));
+ const transitions=plan.transitions.map(t=>({...t,from:'fullscreen-'+t.after,to:occurrences.find(o=>o.appearance==='fullscreen'&&o.startFrame===t.cutFrame).key}));
+ return {...plan,occurrences,transitions};
 }
 // The effect reads time as frame/fps; the 30 fps code is left exactly as measured.
 export function effectCodeFor(fps){
@@ -108,7 +199,7 @@ const DECORATION_CODE=`export default function No14Decoration({data}) {
  return <div style={{position:'absolute',inset:0,display:'flex',justifyContent:'center',alignItems:'center',pointerEvents:'none'}}><svg width={data.size} height={data.size} viewBox="0 0 24 24" fill={data.color} style={{transform:'translate('+data.x+'px,'+data.y+'px)'}}>{paths[data.shape]}</svg></div>;
 }`;
 
-export function normalizeNativeFinish(raw){
+export function normalizeNativeFinish(raw,plan=nativeScenePlan(raw?.fps)){
  if(!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).some(k=>!['mode','projectId','draftId','photos','placements','decoration','framing','music','fps'].includes(k))||raw.mode!=='native-finish')throw Error('Unsupported original Image request');
  const clean=(value,label,max=1000)=>{if(typeof value!=='string'||!value.trim()||value!==value.trim()||value.length>max||/[\u0000-\u001f]/u.test(value))throw Error(label+' is required');return value;};
  const projectId=clean(raw.projectId,'Project ID'),draftId=clean(raw.draftId,'Draft ID',120);
@@ -129,18 +220,18 @@ export function normalizeNativeFinish(raw){
  const music=raw.music??null;
  if(music!==null&&(!music||typeof music!=='object'||Array.isArray(music)||Object.keys(music).some(k=>k!=='resourceId')))throw Error('Invalid music Resource');
  if(music)clean(music.resourceId,'Music Resource ID');
- const plan=nativeScenePlan(raw.fps);
- if(!Array.isArray(raw.placements)||raw.placements.length!==8)throw Error('Expected eight original Image clips');
+ const count=plan.occurrences.length;
+ if(!Array.isArray(raw.placements)||raw.placements.length!==count)throw Error('Expected '+count+' original Image clips');
  const placementByKey=new Map();
  for(const row of raw.placements){
-  if(!row||typeof row!=='object'||Array.isArray(row)||Object.keys(row).some(k=>!['slot','appearance','clipId','trackId','startFrame','endFrame'].includes(k))||!Number.isSafeInteger(row.clipId)||row.clipId<0||typeof row.trackId!=='string'||!row.trackId)throw Error('Invalid Image placement');
-  const key=row.appearance+'-'+row.slot;
-  if(placementByKey.has(key))throw Error('Duplicate Image placement');
+  if(!row||typeof row!=='object'||Array.isArray(row)||Object.keys(row).some(k=>!['key','slot','appearance','clipId','trackId','startFrame','endFrame'].includes(k))||!Number.isSafeInteger(row.clipId)||row.clipId<0||typeof row.trackId!=='string'||!row.trackId)throw Error('Invalid Image placement');
+  const key=row.key??row.appearance+'-'+row.slot; // the single reference phrase keys as appearance-slot (keyedPlan)
+  if(typeof key!=='string'||placementByKey.has(key))throw Error('Duplicate Image placement');
   placementByKey.set(key,row);
  }
- for(const occurrence of plan.occurrences){const row=placementByKey.get(occurrence.appearance+'-'+occurrence.slot);if(!row||row.startFrame!==occurrence.startFrame||row.endFrame!==occurrence.endFrame)throw Error('Image placement differs from the reference plan');}
- if(new Set(raw.placements.map(p=>p.clipId)).size!==8)throw Error('Image clips must be independent');
- return {projectId,draftId,photos,placements:raw.placements,decoration,framing,music};
+ for(const occurrence of plan.occurrences){const row=placementByKey.get(occurrence.key);if(!row||row.startFrame!==occurrence.startFrame||row.endFrame!==occurrence.endFrame)throw Error('Image placement differs from the reference plan');}
+ if(new Set(raw.placements.map(p=>p.clipId)).size!==count)throw Error('Image clips must be independent');
+ return {projectId,draftId,photos,placements:raw.placements.map(row=>({...row,key:row.key??row.appearance+'-'+row.slot})),decoration,framing,music};
 }
 
 export const authorNativeFinishSource=String.raw`async function authorNativeFinish(selects,input,plan){
@@ -151,7 +242,7 @@ export const authorNativeFinishSource=String.raw`async function authorNativeFini
   const meta=await d.meta();
   if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames||meta.frameSize?.width!==plan.canvas.width||meta.frameSize?.height!==plan.canvas.height)throw Error('Draft frame grid changed');
   const rows=await d.clips({trackScope:'all'}),images=rows.filter(c=>c.trackKind==='video'&&c.resourceId);
-  if(images.length!==8)throw Error('Expected exactly eight original Image clips');
+  if(images.length!==plan.occurrences.length)throw Error('Expected exactly '+plan.occurrences.length+' original Image clips');
   const resources=await project.resources(),types=new Map(resources.map(r=>[r.resourceId,r.type]));
   if(input.music){
    stage='music preflight';
@@ -161,15 +252,15 @@ export const authorNativeFinishSource=String.raw`async function authorNativeFini
   }
   const created=[];
   for(const occurrence of plan.occurrences){
-   const placed=input.placements.find(p=>p.slot===occurrence.slot&&p.appearance===occurrence.appearance);
+   const placed=input.placements.find(p=>p.key===occurrence.key);
    const photo=input.photos['ABCD'.indexOf(occurrence.slot)];
    const clip=images.find(c=>c.clipId===placed?.clipId);
    if(!clip||clip.trackId!==placed.trackId||clip.startFrame!==occurrence.startFrame||clip.endFrame!==occurrence.endFrame||clip.resourceId!==photo.resourceId||types.get(clip.resourceId)!=='Image')throw Error('Original Image clip readback differs from the plan');
    created.push({...placed,resourceId:photo.resourceId});
   }
-  if(new Set(created.map(c=>c.clipId)).size!==8)throw Error('Image clips are not independent');
+  if(new Set(created.map(c=>c.clipId)).size!==plan.occurrences.length)throw Error('Image clips are not independent');
   for(const occurrence of plan.occurrences){
-   const placed=input.placements.find(p=>p.slot===occurrence.slot&&p.appearance===occurrence.appearance);
+   const placed=input.placements.find(p=>p.key===occurrence.key);
    const clip=(await d.clips({trackScope:'all'})).find(c=>c.clipId===placed.clipId&&c.trackId===placed.trackId);
    if(!clip)throw Error('Image clip changed during authoring');
    const photo=input.photos['ABCD'.indexOf(occurrence.slot)],r=occurrence.rect,w=photo.width,h=photo.height,q=Math.min(w/r.width,h/r.height),c=Math.min(plan.canvas.width/w,plan.canvas.height/h);
@@ -180,14 +271,14 @@ export const authorNativeFinishSource=String.raw`async function authorNativeFini
    const current=(await d.clips({trackScope:'all'})).find(c=>c.clipId===clip.clipId&&c.trackId===clip.trackId);
    const focus=input.framing[occurrence.appearance+'-'+occurrence.slot];
    stage='effect '+occurrence.appearance+' '+occurrence.slot;
-   const incoming=plan.transitions.find(t=>t.cutFrame===occurrence.startFrame&&occurrence.appearance==='fullscreen');
-   const outgoing=plan.transitions.find(t=>t.after===occurrence.slot&&occurrence.appearance==='fullscreen');
+   const incoming=plan.transitions.find(t=>t.to===occurrence.key);
+   const outgoing=plan.transitions.find(t=>t.from===occurrence.key);
    await d.addVideoEffect({clip:current,label:'No.14 '+occurrence.appearance+' '+occurrence.slot,tsxCode:EFFECT_CODE,parameters:{g,startFrame:occurrence.startFrame,revealStart:occurrence.revealStart,revealDuration:occurrence.revealDuration,lateEase:occurrence.lateEase===true,fadeStart:occurrence.fadeStart??null,fadeDuration:occurrence.fadeDuration??1,radius:occurrence.radius*q,focusX:focus.x,focusY:focus.y,transitionIn:incoming?{startFrame:incoming.cutFrame,durationFrames:plan.overlapFrames??10}:null,transitionOut:outgoing?{startFrame:outgoing.cutFrame,durationFrames:plan.overlapFrames??10}:null},editableParameters:[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:focus.x,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:focus.y,min:0,max:1,step:.01}]});
   }
   for(const transition of plan.transitions){
    stage='verify transition after '+transition.after;
-   const from=created.find(c=>c.appearance==='fullscreen'&&c.slot===transition.after);
-   const to=created.find(c=>c.appearance==='fullscreen'&&c.startFrame===transition.cutFrame);
+   const from=created.find(c=>c.key===transition.from);
+   const to=created.find(c=>c.key===transition.to);
    if(!from||!to||from.trackId===to.trackId||from.endFrame!==to.startFrame+(plan.overlapFrames??10))throw Error('Fullscreen Image clips must overlap for ten frames on separate tracks');
   }
   stage='decoration';
@@ -204,8 +295,8 @@ export const authorNativeFinishSource=String.raw`async function authorNativeFini
  }catch(error){return{status:commitStarted?'outcomeUnknown':'notSaved',stage,message:String(error?.message||error),draftId:input?.draftId};}
 }`;
 
-export function buildNativeFinishScript(raw){
- const input=normalizeNativeFinish(raw),plan=nativeScenePlan(raw.fps);
+export function buildNativeFinishScript(raw,plan=nativeScenePlan(raw?.fps)){
+ const input=normalizeNativeFinish(raw,plan);
  return `const input=${JSON.stringify(input)};const plan=${JSON.stringify(plan)};const EFFECT_CODE=${JSON.stringify(effectCodeFor(plan.fps))};const DECORATION_CODE=${JSON.stringify(DECORATION_CODE)};return await (${authorNativeFinishSource})(selects,input,plan);`;
 }
 // @operation-end
@@ -280,6 +371,14 @@ export async function readProjectFps(sdk,projectId){
  const fps=probe.result?.fps;
  if(probe.isError||typeof fps!=='number'||!(fps>0))throw Error('Could not read the Project frame rate.');
  return fps;
+}
+
+// The bundled song's plan in seconds, measured inside Selects (selects.media.measureBeatSync).
+export async function readSongPlan(sdk,path){
+ const r=await sdk.runScript({summary:'Measure the song\u2019s beat',allowCommit:false,timeoutSeconds:120,script:"if(typeof selects.media?.measureBeatSync!=='function')return {missing:true};"+songGrid.toString()+planNo14.toString()+"const m=(await selects.media.measureBeatSync({sources:[{path:"+JSON.stringify(path)+"}]}))[0];return planNo14(m);"});
+ if(r.isError||!r.result)throw Error(r.output||'Could not measure the song.');
+ if(r.result.missing)throw Error('This Selects build cannot measure the song. Update Selects, then try again.');
+ return r.result;
 }
 
 export const DEFAULT_DECORATION={shape:'heart',color:'#ffffff'},DEFAULT_DRAFT_NAME='No.14 photo format',DEFAULT_MUSIC='on';
@@ -389,7 +488,7 @@ export async function createNo14Draft(sdk,{projectId,selected,decoration,framing
  const prepared=await prepareNativeImages(sdk,projectId,selected,libraryId);
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
  const fps=await readProjectFps(sdk,projectId);
- const plan=nativeScenePlan(fps);
+ let plan=nativeScenePlan(fps);
  if(plan.fps!==fps||!Number.isSafeInteger(plan.durationFrames)||plan.durationFrames<1||(fps===30&&plan.durationFrames!==266)||plan.occurrences?.length!==8)throw Error('The reference plan is incomplete.');
  let musicResource=null;
  if(music==='on'){
@@ -398,6 +497,9 @@ export async function createNo14Draft(sdk,{projectId,selected,decoration,framing
   const roots=await hostRoots(sdk,'no14-still-video',hostJoin('assets','music.mp3')).catch(()=>null);
   if(!roots)throw Error('The installed music asset could not be located. Reinstall the plugin.');
   const musicPath=hostJoin(roots.plugin,'assets','music.mp3');
+  // With the song, the whole song plays and the photos follow its measured beat (planNo14).
+  say('Measuring the song…');
+  plan=songScenePlan(await readSongPlan(sdk,musicPath),fps);
   const imported=await sdk.runScript({summary:'Import bundled music',allowCommit:true,script:`const p=selects.project(${JSON.stringify(projectId)}),path=${JSON.stringify(musicPath)};const nodes=[];const walk=tree=>{for(const n of tree??[]){if(n.path)nodes.push(n);if(n.children)walk(n.children);}};const tree=await p.sourceFiles();if('fileTree' in tree)walk(tree.fileTree);else if('folders' in tree)for(const f of tree.folders){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)walk(part.fileTree);}const key=x=>String(x||'').normalize('NFC').replace(/\\\\/g,'/').toLowerCase();const found=nodes.filter(n=>key(n.path)===key(path));if(found.length>1)throw Error('Bundled music source is ambiguous.');const id=found[0]?.resourceId??(await p.importFiles({paths:[path]})).addedResourceIds[0];if(!id)throw Error('Bundled music is missing. Reinstall the plugin.');return {resourceId:id};`});
   if(imported.isError||!imported.result?.resourceId)throw Error(imported.output||'Could not import bundled music.');
   musicResource=imported.result;
@@ -421,8 +523,8 @@ export async function createNo14Draft(sdk,{projectId,selected,decoration,framing
  }
  onDraft(draftId);
  const native=await placeNativeImages(prepared,draftId,plan);
- const request={mode:'native-finish',projectId,draftId,photos:selected.map((p,i)=>({resourceId:p.resourceId,path:p.path,width:native.photos[i].width,height:native.photos[i].height})),placements:native.placements.map(({slot,appearance,clipId,trackId,startFrame,endFrame})=>({slot,appearance,clipId,trackId,startFrame,endFrame})),decoration,framing,music:musicResource,fps:plan.fps};
- const script=buildNativeFinishScript(request);
+ const request={mode:'native-finish',projectId,draftId,photos:selected.map((p,i)=>({resourceId:p.resourceId,path:p.path,width:native.photos[i].width,height:native.photos[i].height})),placements:native.placements.map(({key,slot,appearance,clipId,trackId,startFrame,endFrame})=>({key,slot,appearance,clipId,trackId,startFrame,endFrame})),decoration,framing,music:musicResource,fps:plan.fps};
+ const script=buildNativeFinishScript(request,plan);
  const result=await sdk.runScript({script,summary:'Finish No.14 Image Draft',allowCommit:true,timeoutSeconds:120});
  if(result.isError||!result.result)throw Error(result.output||'Could not confirm the save. Check the Project before retrying.');
  if(result.result.status==='outcomeUnknown')throw Error('Save outcome is unknown. Check the Project Draft list before retrying.');
@@ -464,7 +566,7 @@ function No14Panel({sdk,context,ui}){
   }catch(error){if(createdDraftId)setPartialDraftId(createdDraftId);setStatus(String(error?.message||error)+(createdDraftId?' The partial Draft is '+createdDraftId+'; it will be checked before continuing.':''));}finally{running.current=false;setBusy(false);}
  }
  return <ui.Stack gap={16}><ui.Section title="No.14 photo format">
-  <ui.Message>Four original photos become eight independently editable Image clips. Timing and transitions are still experimental.</ui.Message>
+  <ui.Message>Four original photos become {music==='off'?'eight':'54'} independently editable Image clips. Timing and transitions are still experimental.</ui.Message>
   {!context.projectId&&<ui.Message>Open a Project first.</ui.Message>}
   <ui.Button variant="secondary" onClick={load} disabled={!context.projectId||busy} busy={busy}>Load Project photos</ui.Button>
   {['A','B','C','D'].map((slot,i)=><ui.Select key={slot} label={'Photo '+slot} value={slots[i]} onChange={value=>setSlots(old=>old.map((x,j)=>j===i?value:x))} options={photos.map(p=>({value:p.resourceId,label:p.name}))} placeholder="Choose photo" disabled={busy||loadedProject!==context.projectId}/>)}
@@ -473,7 +575,7 @@ function No14Panel({sdk,context,ui}){
   </details>
   <ui.Select label="Decoration" value={shape} onChange={setShape} options={[{value:'heart',label:'Heart'},{value:'star',label:'Star'},{value:'circle',label:'Circle'},{value:'none',label:'None'}]} disabled={busy}/>
   <ui.TextField label="Decoration color (#RRGGBB)" value={color} onChange={setColor} disabled={busy}/>
-  <ui.Select label="Music" value={music} onChange={setMusic} options={[{value:'on',label:'Lofi again (CC0)'},{value:'off',label:'Off'}]} disabled={busy}/>
+  <ui.Select label="Music" value={music} onChange={setMusic} options={[{value:'on',label:'Graceful Resolution'},{value:'off',label:'Off'}]} disabled={busy}/>
   <ui.TextField label="Draft name" value={name} onChange={setName} disabled={busy}/>
   <ui.Actions><ui.Button variant="primary" onClick={create} disabled={busy||loadedProject!==context.projectId||slots.some(x=>!x)||!/^#[0-9a-fA-F]{6}$/.test(color)||!name.trim()} busy={busy}>{partialDraftId?'Inspect and continue partial Draft':saved?'Create revised Draft':'Create new Draft'}</ui.Button></ui.Actions>
   {status&&<ui.Message>{status}</ui.Message>}
@@ -606,7 +708,7 @@ function No14TemplateRun({sdk,context}){
     if(!live())throw Error('The template run ended before the Draft was made.');
     const done=await createNo14Draft(sdk,{projectId,selected,decoration:{...DEFAULT_DECORATION},framing:{},music:DEFAULT_MUSIC,name:DEFAULT_DRAFT_NAME,libraryId,stillCurrent:live,say,
      onSeed:()=>{if(!live())throw Error('The template run ended before the Draft was made.');seeding=true;},onDraft:id=>{draftId=id;}});
-    if(done.draftId!==draftId||!Array.isArray(done.clips)||done.clips.length!==8)throw Error('The saved Draft did not report eight photo clips.');
+    if(done.draftId!==draftId||!Array.isArray(done.clips)||done.clips.length<8)throw Error('The saved Draft did not report its photo clips.');
     say('Done.');
     finish({sequenceId:done.draftId});
    }catch(error){
