@@ -412,15 +412,22 @@ export async function placeMusic(env:Env,projectId:string,draftId:string,fps:num
  const path=await unpackMusic(env.dataDir,env.pluginDir);
  const trackSeconds=Number(await hostProbeSeconds(path));
  if(!(trackSeconds>1))throw Error('The music file could not be read.');
- return await env.runScript(`const project=selects.project(${JSON.stringify(projectId)});const d=selects.draft(${JSON.stringify(draftId)});
+ const inventory=`const project=selects.project(${JSON.stringify(projectId)});
 // Host paths compare after NFC and \\ to / (and case on Windows); a file of the same name and length counts when no path matches.
 let rid=undefined as string|undefined,named=undefined as string|undefined;const win=${JSON.stringify(hostIsWindows())};
 const norm=(p:any)=>{const s=String(p||'').normalize('NFC').replace(/\\\\/g,'/');return win?s.toLowerCase():s;},want=norm(${JSON.stringify(path)}),base=(p:string)=>p.slice(p.lastIndexOf('/')+1);
 const find=(ns:any[])=>{for(const n of ns||[]){if(n.type==='dir')find(n.children);else{const p=norm(n.path);if(p===want)rid=n.resourceId;else if(base(p)===base(want)&&Math.abs(Number(n.durationSeconds)-${trackSeconds})<=0.5)named??=n.resourceId;}}};
 const read=async()=>{const tree:any=await project.sourceFiles();if(tree.fileTree)find(tree.fileTree);else for(const f of tree.folders||[])find(((await project.sourceFiles({folder:String(f.name)})) as any).fileTree);rid??=named;};
-await read();
+await read();`;
+ // Importing/grouping media persists Project state. Finish that script before
+ // the separate Draft edit, so the SDK can commit the audio overlay atomically.
+ await env.runScript(`${inventory}
 if(!rid){await project.importFiles({paths:[${JSON.stringify(path)}]});await read();if(rid){const foot=await project.readFootage();const home=foot.folders.find((x:any)=>x.name===${JSON.stringify(FOLDER)}&&!String(x.path).includes('/'));const id=home?home.folderId:(await project.createFolder({name:${JSON.stringify(FOLDER)}})).folderId;await project.moveToFolder({targetFolderId:id,resourceIds:[rid]});}}
 if(!rid)throw Error('The background music could not be imported.');
+return true;`,'Import the background music',true);
+ return await env.runScript(`${inventory}
+if(!rid)throw Error('The background music is missing from this project.');
+const d=selects.draft(${JSON.stringify(draftId)});
 let clips=await d.clips({trackScope:'all'});
 const old=clips.filter((c:any)=>c.trackKind==='audio'&&c.resourceId===rid);if(old.length){await d.removeClips(old);clips=await d.clips({trackScope:'all'});}
 const end=clips.filter((c:any)=>c.trackKind==='main').reduce((a:number,c:any)=>Math.max(a,c.endFrame),0);
