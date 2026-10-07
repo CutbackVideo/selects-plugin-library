@@ -219,11 +219,11 @@ function analyseSamples(x){
  for(let n=0;n<beats.length;n++){
   const D=beats[n],T=fr=>D+K*b(fr)*P,start=T(12)-P/2,end=T(468);
   if(T(12)<0.1||end>dur-0.2)continue;
-  const first=pickHits(h,start,T(55)-P/8,11)[0],m1=first===undefined?[]:pickHits(h,first,T(55)-P/8,11,true);   // opens where the strongest hits beginif(!m1.length)continue;
+  const first=pickHits(h,start,T(55)-P/8,11)[0],m1=first===undefined?[]:pickHits(h,first,T(55)-P/8,11,true);   // opens where the strongest hits begin
   const m2=pickHits(h,T(364)-P/4,T(424)-P/8,11),g1=pickHits(h,T(147),T(182)-P/8,4),g2=pickHits(h,T(227),T(263)-P/8,4);
   const cuts=Math.min(11,m1.length)+Math.min(11,m2.length)+Math.min(4,g1.length)+Math.min(4,g2.length);
   const roll=Math.max(0,...R.filter(r=>Math.abs(r.start-T(12))<=P/2).map(r=>r.count));
-  const ba=Math.floor(m1[0]/blk),bc=Math.min(tb.length,Math.floor(end/blk));
+  const ba=Math.floor((m1[0]??T(12))/blk),bc=Math.min(tb.length,Math.floor(end/blk));
   const seg=tb.slice(ba,bc),cen=mean(seg.map(v=>v[0])),flat=mean(seg.map(v=>v[1]));
   rows.push({D,roll,cuts,downbeat:(n-phase)%4===0?1:0,timbre:Math.abs(cen-3169)/3169+Math.abs(flat-0.419)/0.419,m1,m2,g1,g2,snap:Object.fromEntries([['hero',55],['v12',102],['v17',182],['v22',263],['v23',343],['v26',424]].map(([k,f])=>[k,onHit(D,T(f))]))});
  }
@@ -241,13 +241,28 @@ function fill(cuts,a,c,n,D,P){
  return cuts.slice(0,n);
 }
 const evenly=(a,c,n)=>Array.from({length:n},(_,i)=>a+(c-a)*i/n);
+// Montage 1 on the song's hits: 6 or more hits filled to 11 cuts from the first; null when they cannot fill it
+// (too few hits, or a first hit too late for 11 cuts 2 frames apart).
+function hitMontage(fit){
+ const {P,K}=fit,w=fit.window,T=f=>w.D+K*b(f)*P;
+ if(w.m1.length<6)return null;
+ const m1=fill(w.m1,w.m1[0],T(55)-P/8,11,w.D,P);return m1.length===11?m1:null;
+}
+// Where the vlog opens in the song (frame 12; the song is cut to start here). 'hits' opens on the first montage hit;
+// without a hit montage the reference cuts stay on the beat, so the first hit opens only while it precedes the second
+// cut by 2 frames, else (or with no hits) the beat's own first cut does, as in 'reference'.
+function opening(fit,cuts='hits'){
+ const {P,K}=fit,w=fit.window,T=f=>w.D+K*b(f)*P,first=w.m1[0];
+ if(cuts==='reference'||first===undefined)return T(12);
+ return hitMontage(fit)||first<=T(16)-2/30?first:T(12);
+}
 // cuts: 'hits' puts montage and grid cuts on the song's hits; 'reference' keeps the reference rhythm on the song's beat.
 function timingFrom(fit,cuts='hits'){
  const {P,K}=fit,w=fit.window,D=w.D,T=f=>D+K*b(f)*P,half=t=>D+Math.round((t-D)/(P/2))*(P/2);
  const fromRef=list=>list.map(T);
- let m1,m2,g1,g2;
- if(cuts==='reference'||w.m1.length<6){m1=fromRef(REF.m1);m2=fromRef(REF.m2);g1=fromRef(REF.g1);g2=fromRef(REF.g2);if(cuts!=='reference')m1[0]=w.m1[0];}
- else{m1=fill(w.m1,w.m1[0],T(55)-P/8,11,D,P);m2=fill(w.m2,T(364)-P/4,T(424)-P/8,11,D,P);g1=fill(w.g1,T(147),T(182)-P/8,4,D,P);g2=fill(w.g2,T(227),T(263)-P/8,4,D,P);}
+ let m1=cuts==='hits'?hitMontage(fit):null,m2,g1,g2;
+ if(!m1){m1=fromRef(REF.m1);m2=fromRef(REF.m2);g1=fromRef(REF.g1);g2=fromRef(REF.g2);m1[0]=opening(fit,cuts);}
+ else{m2=fill(w.m2,T(364)-P/4,T(424)-P/8,11,D,P);g1=fill(w.g1,T(147),T(182)-P/8,4,D,P);g2=fill(w.g2,T(227),T(263)-P/8,4,D,P);}
  const t0=m1[0]-0.4,fr=t=>Math.round((t-t0)*30);
  const t={m1:m1.map(fr),g1:g1.map(fr),g2:g2.map(fr),m2:m2.map(fr)};
  t.hero=Math.max(fr(w.snap?.hero??half(T(55))),t.m1.at(-1)+2);t.m1.push(t.hero);
@@ -258,7 +273,7 @@ function timingFrom(fit,cuts='hits'){
  const timing={durationFrames:t.durationFrames,m1:t.m1,g1:t.g1,g2:t.g2,m2:t.m2,v12:t.v12,v17:t.v17,v22:t.v22,v23:t.v23,fadeStart:t.fadeStart,fadeEnd:t.fadeEnd,clipEnd:t.clipEnd,title:t.title};
  return timing;
 }
-return {SR,analyseSamples,timingFrom,flux,hits,rolls,beatGrid};
+return {SR,analyseSamples,timingFrom,opening,flux,hits,rolls,beatGrid};
 }`;
 // The song as mono 32-bit float samples at the analysis rate (the same ffmpeg arguments analyze.mjs used, written to
 // `out` instead of a pipe; 22050 Hz is songAnalysis's SR).
@@ -279,7 +294,7 @@ export function songKeyText(song,size,mtimeMs,start,timing){return [song,size,mt
 // The Web Worker that runs songAnalysis off the panel's thread: samples and the cuts option in, the fit and its timing out.
 export function songWorkerSource(){
  return '"use strict";\nvar songMath=('+songAnalysisSource+')();\n'
-  +'onmessage=function(e){try{var fit=songMath.analyseSamples(e.data.samples);postMessage({ok:{fit:fit,timing:songMath.timingFrom(fit,e.data.cuts)}});}'
+  +'onmessage=function(e){try{var fit=songMath.analyseSamples(e.data.samples);postMessage({ok:{fit:fit,timing:songMath.timingFrom(fit,e.data.cuts),start:songMath.opening(fit,e.data.cuts)}});}'
   +'catch(err){postMessage({error:String((err&&err.message)||err)});}};\n';
 }
 
@@ -594,7 +609,7 @@ async function fitSong(sdk,song,cuts,say){
   const bytes=await hostReadBytes(pcm);samples=new Float32Array(bytes.slice(0,Math.floor(bytes.byteLength/4)*4).buffer);
  }finally{await hostRemove(pcm);}
  let start=0,timing=REFERENCE_TIMING;
- try{const fit=await analyseInWorker(samples,cuts);start=fit.fit.window.m1[0];timing=fit.timing;}
+ try{const fit=await analyseInWorker(samples,cuts);start=fit.start;timing=fit.timing;}
  catch(error){
   if(error?.code!=='worker')throw error;
   console.warn('[travel-beat-vlog] song analysis unavailable; the reference rhythm from the song start:',error.message);

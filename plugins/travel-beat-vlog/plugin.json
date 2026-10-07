@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "travel-beat-vlog",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "name": "Travel Beat Vlog",
   "summary": "Cut a travel beat vlog to your own song: two fast montages on its drum hits, a hero photo with a big title behind the people, two 2x2 grids on the beat, per-slot reference colour and a fade.",
   "status": "experimental",
