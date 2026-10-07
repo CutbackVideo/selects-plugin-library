@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "daily-vlog-8",
-  "version": "0.3.6",
+  "version": "0.4.0",
   "name": "8-Clip Daily Vlog",
-  "summary": "Builds an editable eight-clip daily vlog Draft from one project footage folder, with an animated yellow title, transitions and bundled CC0 audio.",
+  "summary": "Builds an editable eight-clip daily vlog Draft from one project footage folder, with an animated yellow title, transitions and bundled audio.",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
@@ -12,7 +12,7 @@
     "INSTALL.md",
     "panel.tsx",
     "assets/CREDITS.md",
-    "assets/projector-screen-vlog-bed.wav",
+    "assets/relaxed-urban-bed.wav",
     "assets/camera-r2.wav",
     "assets/transition-w2.wav",
     "assets/shutter-s2.wav",
@@ -69,43 +69,43 @@
   "localized": {
     "de": {
       "name": "8-Clip Daily Vlog",
-      "summary": "Erstellt aus einem Materialordner des Projekts einen bearbeitbaren Daily-Vlog-Draft aus acht Clips, mit animiertem gelbem Titel, Uebergaengen und mitgelieferten CC0-Audios."
+      "summary": "Erstellt aus einem Materialordner des Projekts einen bearbeitbaren Daily-Vlog-Draft aus acht Clips, mit animiertem gelbem Titel, Uebergaengen und mitgelieferten Audios."
     },
     "en": {
       "name": "8-Clip Daily Vlog",
-      "summary": "Builds an editable eight-clip daily vlog Draft from one project footage folder, with an animated yellow title, transitions and bundled CC0 audio."
+      "summary": "Builds an editable eight-clip daily vlog Draft from one project footage folder, with an animated yellow title, transitions and bundled audio."
     },
     "es": {
       "name": "Vlog diario de 8 clips",
-      "summary": "Crea un Draft de vlog diario editable de ocho clips a partir de una carpeta de material del proyecto, con titulo amarillo animado, transiciones y audio CC0 incluido."
+      "summary": "Crea un Draft de vlog diario editable de ocho clips a partir de una carpeta de material del proyecto, con titulo amarillo animado, transiciones y audio incluido."
     },
     "fr": {
       "name": "Vlog quotidien en 8 clips",
-      "summary": "Cree un Draft de vlog quotidien modifiable en huit clips a partir d'un dossier de rushes du projet, avec titre jaune anime, transitions et audio CC0 fourni."
+      "summary": "Cree un Draft de vlog quotidien modifiable en huit clips a partir d'un dossier de rushes du projet, avec titre jaune anime, transitions et audio fourni."
     },
     "it": {
       "name": "Vlog quotidiano in 8 clip",
-      "summary": "Crea un Draft di vlog quotidiano modificabile in otto clip da una cartella di materiale del progetto, con titolo giallo animato, transizioni e audio CC0 incluso."
+      "summary": "Crea un Draft di vlog quotidiano modificabile in otto clip da una cartella di materiale del progetto, con titolo giallo animato, transizioni e audio incluso."
     },
     "ja": {
       "name": "8\u30af\u30ea\u30c3\u30d7\u30fb\u30c7\u30a4\u30ea\u30fcVlog",
-      "summary": "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u7d20\u6750\u30d5\u30a9\u30eb\u30c0\u30fc\u304b\u3089\u3001\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u3059\u308b\u9ec4\u8272\u3044\u30bf\u30a4\u30c8\u30eb\u3001\u30c8\u30e9\u30f3\u30b8\u30b7\u30e7\u30f3\u3001\u540c\u68b1\u306eCC0\u97f3\u6e90\u4ed8\u304d\u3067\u3001\u7de8\u96c6\u53ef\u80fd\u306a8\u30af\u30ea\u30c3\u30d7\u306e\u30c7\u30a4\u30ea\u30fcVlog\u30c9\u30e9\u30d5\u30c8\u3092\u4f5c\u6210\u3057\u307e\u3059\u3002"
+      "summary": "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u7d20\u6750\u30d5\u30a9\u30eb\u30c0\u30fc\u304b\u3089\u3001\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u3059\u308b\u9ec4\u8272\u3044\u30bf\u30a4\u30c8\u30eb\u3001\u30c8\u30e9\u30f3\u30b8\u30b7\u30e7\u30f3\u3001\u540c\u68b1\u306e\u97f3\u6e90\u4ed8\u304d\u3067\u3001\u7de8\u96c6\u53ef\u80fd\u306a8\u30af\u30ea\u30c3\u30d7\u306e\u30c7\u30a4\u30ea\u30fcVlog\u30c9\u30e9\u30d5\u30c8\u3092\u4f5c\u6210\u3057\u307e\u3059\u3002"
     },
     "ko": {
       "name": "8-Clip Daily Vlog",
-      "summary": "\ud504\ub85c\uc81d\ud2b8\uc758 \uc601\uc0c1 \ud3f4\ub354 \ud558\ub098\ub85c \uc560\ub2c8\uba54\uc774\uc158 \ub178\ub780 \uc81c\ubaa9\u00b7\uc804\ud658 \ud6a8\uacfc\u00b7\ub0b4\uc7a5 CC0 \uc74c\uc6d0\uc744 \uac16\ucd98 8\ud074\ub9bd \ub370\uc77c\ub9ac \ube0c\uc774\ub85c\uadf8 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4."
+      "summary": "\ud504\ub85c\uc81d\ud2b8\uc758 \uc601\uc0c1 \ud3f4\ub354 \ud558\ub098\ub85c \uc560\ub2c8\uba54\uc774\uc158 \ub178\ub780 \uc81c\ubaa9\u00b7\uc804\ud658 \ud6a8\uacfc\u00b7\ub0b4\uc7a5 \uc74c\uc6d0\uc744 \uac16\ucd98 8\ud074\ub9bd \ub370\uc77c\ub9ac \ube0c\uc774\ub85c\uadf8 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4."
     },
     "pt": {
       "name": "Vlog diario de 8 clipes",
-      "summary": "Cria um Draft de vlog diario editavel com oito clipes a partir de uma pasta de material do projeto, com titulo amarelo animado, transicoes e audio CC0 incluido."
+      "summary": "Cria um Draft de vlog diario editavel com oito clipes a partir de uma pasta de material do projeto, com titulo amarelo animado, transicoes e audio incluido."
     },
     "tr": {
       "name": "8 Klipli Gunluk Vlog",
-      "summary": "Projedeki bir goruntu klasorunden, animasyonlu sari baslik, gecisler ve birlikte gelen CC0 sesle duzenlenebilir sekiz klipli gunluk vlog Draft'i olusturur."
+      "summary": "Projedeki bir goruntu klasorunden, animasyonlu sari baslik, gecisler ve birlikte gelen sesle duzenlenebilir sekiz klipli gunluk vlog Draft'i olusturur."
     },
     "zh": {
       "name": "8 \u6bb5\u65e5\u5e38 Vlog",
-      "summary": "\u4ece\u9879\u76ee\u7684\u4e00\u4e2a\u7d20\u6750\u6587\u4ef6\u5939\u751f\u6210\u53ef\u7f16\u8f91\u7684\u516b\u6bb5\u65e5\u5e38 Vlog \u8349\u7a3f\uff0c\u5305\u542b\u52a8\u6001\u9ec4\u8272\u6807\u9898\u3001\u8f6c\u573a\u4ee5\u53ca\u968f\u9644\u7684 CC0 \u97f3\u9891\u3002"
+      "summary": "\u4ece\u9879\u76ee\u7684\u4e00\u4e2a\u7d20\u6750\u6587\u4ef6\u5939\u751f\u6210\u53ef\u7f16\u8f91\u7684\u516b\u6bb5\u65e5\u5e38 Vlog \u8349\u7a3f\uff0c\u5305\u542b\u52a8\u6001\u9ec4\u8272\u6807\u9898\u3001\u8f6c\u573a\u4ee5\u53ca\u968f\u9644\u7684 \u97f3\u9891\u3002"
     }
   }
 }

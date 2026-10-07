@@ -1,6 +1,6 @@
 ---
 name: daily-vlog-8
-description: Build an editable eight-clip daily vlog Draft from one project footage folder, with an animated yellow title, transitions and bundled audio.
+description: Build an editable daily vlog Draft from one project footage folder, cut to the measured beat of its bundled song for the song's full length, with an animated yellow title, transitions and sound effects.
 ---
 
 # 8-Clip Daily Vlog
@@ -21,22 +21,28 @@ left with nothing that fits, which is why a draw succeeds whenever the folder ca
 plan at all.
 
 Press **Create vlog Draft**. The panel writes a new editable Draft: the animated title over the
-opening clip, then the remaining shots on a fixed cut plan, with transition, shutter and typing
-effects and the bundled music bed. Clips, title text, effects and audio all stay editable.
+opening clip, then the remaining shots on the song's measured cut plan, with transition, shutter and typing
+effects and the bundled song. Clips, title text, effects and audio all stay editable.
 
-## Shot plan
+## Shot plan (measured from the song)
 
-The Draft holds **ten** video positions: the eight you choose plus two short inserts of 31 and
-45 frames that sit after the fourth and sixth positions. The eight chosen slots have target
-lengths of 4.3, 2.6, 1.63, 1.53, 1.5, 1.8, 1.8 and 2.6 seconds.
+The Draft is exactly as long as the bundled song, "Relaxed Urban Bed" (69.84 s), which plays in full. The panel
+measures the song with `selects.media.measureBeatSync` and plans the shots from the reference edit's rules
+(@capcutverse daily vlog):
 
-The two inserts are filled automatically with clips from the same folder that none of the eight
-slots already uses, so no source repeats back to back. A folder therefore contributes **ten
-distinct clips**, not all of its footage: pick a folder with at least ten clips long enough for
-the plan. When a folder cannot supply ten, an insert reuses a clip from elsewhere in the plan
-rather than the one immediately before it.
+- The opening shot under the animated title runs about 4.3 s.
+- Then the reference's phrase of shot lengths — 2.6, 1.63, 1.73, 1.03 (insert), 0.7, 1.5 (insert), 1.8, 1.8 s —
+  repeats until the song's pulse ends. Every cut moves to the song's nearest half beat (the beat period inside
+  0.28–0.60 s), then onto the strongest onset within 35 ms, so each transition lands on the music.
+- The closing shot with "THANKS FOR WATCHING" runs from the last cut to the end of the song.
+- Each cut keeps the reference's transition and sound effect for its place in the phrase (film exposure, amber
+  shutter, film gate, vertical smear, one-frame hold, cyan-magenta flash, optical dissolve; whoosh, shutters, camera
+  beep, typing), and the music ducks under each sound effect as in the reference.
 
-The music bed is a 19.72-second excerpt, so the Draft runs to roughly that length.
+With the bundled song that is 41 shots. The first phrase uses the seven picks in order, with two clips from the
+folder that were not picked as the inserts; later phrases continue through the folder's other clips and then start
+over at new source offsets, so a bigger folder gives more variety. The closing shot uses the closing pick when it is
+long enough, else the folder's longest clip.
 
 The slot labels are a suggestion, not a constraint: opening/travel, everyday place,
 activity/detail, moving scenery, walking/movement, small discovery, rest/portrait, and a
@@ -44,10 +50,10 @@ closing close-up.
 
 ## Audio and credits
 
-The plugin ships its own music bed and sound effects under `assets/`. Sources and licences are
+The plugin ships its own song and sound effects under `assets/`. Sources and licences are
 listed in `assets/CREDITS.md`. One effect, `camera-r2.wav`, is CC BY 4.0 and **requires crediting
 theplax when you publish an export that contains it** — the panel shows this reminder. The music
-bed is CC0. The remaining effects were made for this plugin and carry no third-party rights.
+is the bundled Suno song. The remaining effects were made for this plugin and carry no third-party rights.
 
 You need the right to use any footage you publish.
 
@@ -59,5 +65,5 @@ install folder.
 
 ## Verify after creating a draft
 
-Check the animated yellow title over the opening clip, eight separate video slots on the cut
-plan, the transition and shutter effects, and the music bed running to the end.
+Check the animated yellow title over the opening clip, the shots changing on the song's beat, the
+transition and shutter effects, and the song running in full to the end.

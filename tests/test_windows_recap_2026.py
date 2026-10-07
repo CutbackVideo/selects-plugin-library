@@ -61,13 +61,15 @@ class Recap2026WindowsTest(unittest.TestCase):
         self.assertNotIn("shellQuote", self.runtime)
         self.assertEqual(self.source.count("runShell("), 0)
 
-    def test_timing_is_read_through_the_host_before_the_draft(self):
-        self.assertIn('hostRoots(sdk, SLUG, "timing.json")', self.runtime)
-        self.assertIn('hostReadText(hostJoin((await recapRoots(sdk)).plugin, "timing.json"))', self.runtime)
+    def test_the_cut_plan_is_measured_from_the_song_before_the_draft(self):
+        self.assertIn('hostRoots(sdk, SLUG, "SKILL.md")', self.runtime, "install folder through the SDK host")
+        plan = body(self.runtime, "const readPlan = ")
+        self.assertIn('hostJoin((await recapRoots(sdk)).plugin, "assets", AUDIO_NAME)', plan)
+        self.assertIn("selects.media.measureBeatSync", plan)
         build = body(self.runtime, "async function buildRecap(")
-        self.assertLess(build.index("readTiming(sdk)"), build.index("createScript("), "timing before the Draft")
-        self.assertLess(build.index("ensureAudio("), build.index("createScript("), "soundtrack before the Draft")
-        self.assertIn("readTiming(sdk)", body(self.runtime, "function RecapPanel("), "Advanced timing view")
+        self.assertLess(build.index("readPlan(sdk)"), build.index("createScript("), "plan before the Draft")
+        self.assertLess(build.index("ensureAudio("), build.index("createScript("), "song before the Draft")
+        self.assertIn("readPlan(sdk)", body(self.runtime, "function RecapPanel("), "slot count and Advanced timing view")
 
     def test_soundtrack_path_and_dedup(self):
         audio = body(self.runtime, "async function ensureAudio(")
@@ -99,7 +101,7 @@ class Recap2026WindowsTest(unittest.TestCase):
         self.assertRegex(self.runtime, r"selectedVideosScript = \(projectId, resourceIds\) => core\(\{projectId,resourceIds\}\) \+ RESOURCE_SECONDS")
         self.assertIn("hostProbeSeconds(v.path)", body(self.runtime, "async function withDurations("))
         run = body(self.runtime, "function TemplateRun(")
-        self.assertLess(run.index("withDurations("), run.index("introVideo.durationSeconds >= 5"), "probe before the gate")
+        self.assertLess(run.index("withDurations("), run.index("introVideo.durationSeconds >= introNeed"), "probe before the gate")
         self.assertIn("withDurations(scriptResult(r))", body(self.runtime, "function RecapPanel("))
 
     def test_host_missing_is_one_localized_message(self):
@@ -110,7 +112,7 @@ class Recap2026WindowsTest(unittest.TestCase):
         self.assertIn('e?.code === "host-missing" ? t.hostTooOld', self.runtime)
         self.assertIn("WORDS.en.hostTooOld", self.runtime)
         self.assertIn("setError(hostMessage(e,t))", self.runtime)
-        self.assertIn("setTimingError(hostMessage(error,t))", self.runtime)
+        self.assertIn('code: "host-missing"', body(self.runtime, "const readPlan = "), "a build without measureBeatSync")
 
     def test_year_font_has_a_windows_face(self):
         self.assertIn("Avenir Next,Segoe UI Black,Arial Black,sans-serif", self.source)
@@ -125,17 +127,16 @@ class Recap2026WindowsTest(unittest.TestCase):
     def test_slow_host_scripts_get_a_longer_deadline(self):
         # On Windows Staging "Analyze fixed soundtrack" passed the default 30 s run_script deadline and failed the
         # template run; the full build hit it once on macOS too.
-        for summary in ("Analyze fixed soundtrack", "Create recap intro", "Add recap footage", "Finish recap Draft"):
+        for summary in ("Create recap intro", "Add recap footage", "Finish recap Draft"):
             self.assertRegex(self.source, r'summary:"' + summary + r'",allowCommit:true,timeoutSeconds:120,', summary)
 
-    def test_a_slow_analysis_start_is_not_fatal(self):
+    def test_the_song_is_placed_without_analysis(self):
+        # Starting analysis asks the user to spend credits (Staging: "Analysis canceled by user" when nobody
+        # answers); an Audio overlay needs no analysis.
         body = self.source[self.source.index("async function ensureAudio("):]
         body = body[: body.index("\n}\n")]
-        start = body[body.index("const start = () =>"): body.index("await start();")]
-        self.assertNotIn("scriptResult(", start, "a start error must not throw")
-        self.assertIn('status === "analyzingSucceeded" || status === "analysisMerged"', body)
-        self.assertIn('if (status === "pending" && attempt === 9) await start();', body)
-        self.assertIn("attempt<60", body, "the poll stays bounded")
+        self.assertNotIn("startAnalysis", body)
+        self.assertIn("return imported[0];", body)
 
     def test_manifest_and_docs(self):
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
