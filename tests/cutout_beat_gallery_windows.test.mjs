@@ -218,7 +218,7 @@ test('Windows analysis in a mock host equals prepare.py (lossless masks, 30 fps)
   assert.equal(env.host.submits.length,26,'each accepted source image is inferred once');
   for(const req of env.host.submits){assert.equal(req.task,'person.matte');assert.equal(req.runtimeId,'selects-ai-runtime');assert.equal(req.projectId,'proj-1');assert.equal(req.options.provider,'auto');assert.equal(req.options.outputMode,'alpha-frames');assert.equal(req.sourceRange,undefined);assert.match(req.resourceId,/^00000000-0000-4000-8000-/);}
   assert.equal(env.host.storage.size,1,'one persistent project journal');
-  // The run folder holds exactly what the Draft imports, with prepare.py's frame counts and one stream each.
+  // Scene files retain two held source frames for fractional-fps boundary trims.
   const files = fs.readdirSync(outputDir).sort();
   const expected = [...Array.from({ length: 15 }, (_, i) => String(i + 1).padStart(2, '0') + '-base.mp4'), ...Array.from({ length: 14 }, (_, i) => String(i + 1).padStart(2, '0') + '-sticker.mov'), 'fixed-bgm.mp3'].sort();
   assert.deepEqual(files, expected);
@@ -227,7 +227,7 @@ test('Windows analysis in a mock host equals prepare.py (lossless masks, 30 fps)
     const info = probeJson(path.join(outputDir, String(i + 1).padStart(2, '0') + '-base.mp4'), 'stream=nb_read_frames,width,height,codec_name');
     assert.equal(info.streams.length, 1);
     assert.deepEqual([info.streams[0].codec_name, info.streams[0].width, info.streams[0].height, Number(info.streams[0].nb_read_frames)],
-      ['h264', 1080, 1920, edges[i + 1] - edges[i] + (i === 14 ? 8 : 0)]);
+      ['h264', 1080, 1920, edges[i + 1] - edges[i] + (i === 14 ? 8 : 0) + 2]);
   }
   for (const f of files.filter((f) => f.endsWith('.mov'))) {
     const info = probeJson(path.join(outputDir, f), 'stream=nb_read_frames,codec_name,pix_fmt,codec_type');
@@ -277,7 +277,7 @@ test('without ProRes and libx264 the stickers use QuickTime Animation and the sc
   const sticker = probeJson(path.join(result.outputDir, '01-sticker.mov'), 'stream=nb_read_frames,codec_name,pix_fmt');
   assert.deepEqual([sticker.streams.length, sticker.streams[0].codec_name, sticker.streams[0].pix_fmt, Number(sticker.streams[0].nb_read_frames)], [1, 'qtrle', 'argb', 60]);
   const base = probeJson(path.join(result.outputDir, '15-base.mp4'), 'stream=nb_read_frames,codec_name');
-  assert.deepEqual([base.streams[0].codec_name, Number(base.streams[0].nb_read_frames)], ['mpeg4', 67 + 8]);
+  assert.deepEqual([base.streams[0].codec_name, Number(base.streams[0].nb_read_frames)], ['mpeg4', 67 + 8 + 2]);
 });
 
 
