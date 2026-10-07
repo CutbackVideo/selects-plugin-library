@@ -14,7 +14,6 @@ import { creditsFor, type CreditEntry } from "../broll/credits.ts";
 import type { ShotResult } from "../broll/types.ts";
 import { generateJobImages, type JobImagesOptions, type JobImagesResult } from "../images/jobImages.ts";
 import { stageModelClient } from "./edit/modelClient.ts";
-import { sharedFaceDetector } from "./speaker/detector.ts";
 import { filmStyle } from "./media/filmStyles.ts";
 import { readPlanInput, type PlanJson, type PlannedScene } from "./media/planInput.ts";
 import { filmRequests, shotWindow, type SceneShot } from "./media/requests.ts";
@@ -144,7 +143,7 @@ async function runMedia(ctx: StageContext, o: MediaStageOptions): Promise<StageR
       ? null
       : o.faces
         ? o.faces(ctx)
-        : hostFaceFinder(host, { tmpDir: ctx.path("media/tmp"), detector: () => sharedFaceDetector(fs, ctx.roots.runtime, (s) => ctx.note(s)), signal: ctx.signal });
+        : hostFaceFinder(host, { tmpDir: ctx.path("media/tmp"), projectId: job.projectId, scope: job.jobId + ":media", signal: ctx.signal });
 
   const people = film.requests.some((r) => r.kind === "person");
   let commons: CommonsConfig = commonsConfig();

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "eo-shorts",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "EO Shorts",
   "summary": "One click turns a talking-head Draft of up to 95 seconds into a new 9:16 EO-style Short: tightened talk, speaker framing, typographic scenes with pictures and stock B-roll, music and loudness, exported and checked.",
   "status": "experimental",
@@ -86,7 +86,7 @@
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Needs Panel runScript and askAI, Draft motion graphics with generated-media authoring, and the bundled ffmpeg. Picture generation needs Selects 2.0.512 or later; stock B-roll needs stock footage search. Tested on a development build; released versions are unverified."
+    "selects": "Needs Panel runScript and askAI, Draft motion graphics with generated-media authoring, and the bundled ffmpeg. Picture generation needs Selects 2.0.512 or later; stock B-roll needs stock footage search. Tested on a development build; released versions are unverified. Shared YuNet framing requires selects.ai and selects-ai-runtime installed from the same library revision (Selects 2.0.570 or later)."
   },
   "usesCredits": true,
   "localized": {

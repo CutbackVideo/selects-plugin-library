@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "depth-type-captions",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "name": "Depth Type Captions",
   "summary": "Editable phrase typography that wraps around the speaker with subject-aware depth.",
   "status": "experimental",
@@ -17,7 +17,7 @@
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Selects 2.0.508 or later on macOS 12 or later, 2.0.512 or later on Windows (development builds). On a Mac the speaker masks are made with the system's Vision framework through osascript, with nothing to install; the osascript mask tool has not yet been run inside Selects. On Windows the speaker masks come from Selects generation and use credits. Older builds keep captions but cannot place words behind the speaker."
+    "selects": "Requires the current Selects shared AI SDK and selects-ai-runtime from the same library commit on macOS arm64 or Windows x64."
   },
   "preview": {
     "video": "preview.mp4",

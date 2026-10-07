@@ -183,9 +183,15 @@ jobs:
           node --test plugins/a16z-style-captions/tests/*.test.cjs
       - name: Test shared AI runtime
         run: node --test plugins/selects-ai-runtime/tests/*.test.cjs
+      - name: Test shared AI consumer adapters
+        run: |
+          node --test tests/shared_ai*.test.cjs
+          node --test tests/video_ai_frames.test.mjs
+          node --test tests/travel_beat_vlog.test.mjs tests/cutout_beat_gallery_windows.test.mjs
+          node --test tests/portrait_beat_montage*.test.mjs
       - name: Test Podcast Hook Captions shared AI consumer
         run: node --test plugins/podcast-hook-captions/tests/*.test.cjs
       - name: Test Chris Williamson shared AI consumer
         run: node --test tests/chris_williamson*.test.mjs
       - name: Test EO Shorts
-        run: node --experimental-strip-types --test tests/eo_shorts.test.mjs
+        run: node --experimental-strip-types --test tests/eo_shorts*.test.mjs

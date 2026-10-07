@@ -1,4 +1,4 @@
-import type { YuNetFace } from "./yunet/decode.ts";
+export type YuNetFace = { box: number[]; landmarks: [number, number][]; score: number };
 
 export type FaceBox = {
   x: number;

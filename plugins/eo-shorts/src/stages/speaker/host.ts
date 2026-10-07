@@ -3,7 +3,7 @@ import { analyze } from "../../host/ffmpeg.ts";
 import { ensureDir, readBytes, removeFile, toBytes } from "../../host/fs.ts";
 import { parseProbe, probeArgs } from "../../speaker/ffmpegPass.ts";
 import type { SpeakerHost } from "../../speaker/analyze.ts";
-import type { FaceDetector } from "../../speaker/yunet/runtime.ts";
+import { sharedFaces, adaptSharedFaces } from "./sharedFaces.ts";
 
 type RangeFs = { readRange?(path: string, start: number, length: number): Promise<unknown> };
 
@@ -25,10 +25,11 @@ export function rangeReader(host: Pick<Host, "fs">): { read(path: string, offset
   };
 }
 
-export async function panelSpeakerHost(host: Host, o: { scratchDir: string; detector: () => Promise<FaceDetector>; signal?: AbortSignal | null; progress?: (s: string) => void }): Promise<SpeakerHost> {
+export async function panelSpeakerHost(host: Host, o: { scratchDir: string; projectId: string; scope: string; resources?: Record<string, { resourceId: string; duration?: number }>; signal?: AbortSignal | null; progress?: (s: string) => void }): Promise<SpeakerHost> {
   const fs = host.fs;
   const ranges = rangeReader(host);
   await ensureDir(fs, o.scratchDir);
+  const faces = sharedFaces(host, { ...o, journalPath: fs.join(o.scratchDir, "ai-jobs.json") });
   return {
     async probe(path) {
       const rt = host.runtime;
@@ -45,7 +46,7 @@ export async function panelSpeakerHost(host: Host, o: { scratchDir: string; dete
       await removeFile(fs, path);
     },
     scratchPath: (name) => fs.join(o.scratchDir, name),
-    detect: async (bgr, w, h) => (await o.detector()).detect(bgr, w, h),
+    detectSamples: async (path, times, fps, size) => { const result = await faces(path, times, fps); if (size && (result.frameSize?.width !== size.width || result.frameSize?.height !== size.height)) throw new Error("Shared face dimensions differ from the source."); return adaptSharedFaces(result, times, fps); },
     progress: o.progress,
   };
 }

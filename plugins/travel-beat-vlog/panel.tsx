@@ -410,12 +410,10 @@ export function cutoutKey(photo,size,mtimeMs,mode){
  for(const b of bytes)binary+=String.fromCharCode(b);
  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'').slice(-40);
 }
-// mac-only:start
-// The hero cutout is Apple Vision (people, or the main subject) through tools/cutout.js, a JavaScript for Automation
-// script that macOS runs with osascript, so nothing is compiled. Windows has no Vision: the build skips the cutout.
-const shellQuote=value=>"'"+String(value).replace(/'/g,"'\\''")+"'";
-export function cutoutCommand(tool,photo,out,mode){return '/usr/bin/osascript -l JavaScript '+[tool,photo,out,mode].map(shellQuote).join(' ');}
-// mac-only:end
+// Merge the shared grayscale raster into the original pixels; there is no inference here.
+export function heroAlphaArgs(photo,mask,out){
+ return ['-nostdin','-v','error','-y','-i',photo,'-i',mask,'-filter_complex','[0:v]format=rgb24[photo];[1:v]format=gray[mask];[photo][mask]alphamerge[out]','-map','[out]','-frames:v','1','-c:v','png',out];
+}
 // @operation-end
 
 const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const types=new Map(resources.map(r=>[r.resourceId,r.type]));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>n.path&&types.has(n.resourceId)&&(!scope.paths||scope.paths.includes(n.path))&&(!scope.ids||scope.ids.includes(n.resourceId))).map(n=>({resourceId:n.resourceId,type:types.get(n.resourceId),name:n.name,path:n.path,width:n.frameSize?.width??null,height:n.frameSize?.height??null,duration:n.durationSeconds??null}));`;
@@ -534,10 +532,10 @@ const hostPathKey=p=>{const s=String(p||'').normalize('NFC').replace(/\\/g,'/');
 // Files the plugin wrote itself (the hero cutout, the song section) live under <home>/.selects/plugin-data/.
 const pluginOwned=p=>/[\\/]\.selects[\\/]plugin-data[\\/]/.test(String(p||''));
 
-// ---- Song, colour and cutout on the host's ffmpeg and FileSystem: no Node.js, no shell (but the macOS cutout) ----
+// ---- Song, colour and output composition on the host bundled media SDK ----
 const NEWER='Update Selects to use Travel Beat Vlog.';
 const NOT_INSTALLED='Travel Beat Vlog is not fully installed; install it again from the plugin library.';
-// The install folder (color-targets.json, tools/cutout.js) and the data folder, found once per Panel.
+// The install and data folders, found once per Panel.
 let roots=null;
 async function engineRoots(sdk){
   hostUseSdk(sdk);
@@ -627,27 +625,23 @@ async function measureClip(data,file,inSeconds,seconds){
  try{await ffmpeg(measureArgs(file,inSeconds,seconds,tmp),60000);return rgbStats(await hostReadBytes(tmp),String(file).split(/[\\/]/).pop());}
  finally{await hostRemove(tmp);}
 }
-// mac-only:start
-// Cuts the hero subject out locally (cutoutCommand) into an RGBA PNG the size of the photo, cached in
-// plugin-data/cutouts. Only reached on macOS: buildTravelVlog skips the cutout on Windows.
-async function heroCutout(sdk,photo,mode){
+// The existing person/main-subject choices share RVM. No subject-class precheck is applied.
+async function heroCutout(sdk,projectId,photo,mode,aiSignal,{scope='travel-beat-vlog',retryTerminal=true}={}){
  if(!['person','foreground'].includes(mode))throw Error('Unknown cutout mode');
- const {plugin,data}=await engineRoots(sdk);
- const {size,mtimeMs}=(await fileStamp(photo));
- const dir=hostJoin(data,'cutouts');(await hostNeed('FileSystem','mkdir').mkdir(dir,{recursive:true}));
- const out=hostJoin(dir,'hero-'+cutoutKey(photo,size,mtimeMs,mode)+'.png');
- if(!(await fileExists(out))){
+ const {data}=await engineRoots(sdk);
+ const matte=await photoAiMatte(sdk,projectId,photo,{scope,retryTerminal,control:{observer:{signal:aiSignal}}});
+ const {size,mtimeMs}=await fileStamp(photo.path);
+ const dir=hostJoin(data,'cutouts');await hostNeed('FileSystem','mkdir').mkdir(dir,{recursive:true});
+ const out=hostJoin(dir,'hero-rvm-'+cutoutKey(photo.path,size,mtimeMs,mode)+'-'+matte.workflowId.replace(/[^a-z0-9-]/gi,'')+'.png');
+ if(!await fileExists(out)){
   const tmp=out+'.tmp.png';
-  const r=await sdk.runShell({summary:'Cut out hero subject',command:cutoutCommand(hostJoin(plugin,'tools','cutout.js'),photo,tmp,mode),timeoutMs:180000,maxOutputBytes:8000});
-  // The login shell may print its own warnings first; the helper's message is the last line.
-  if(r.isError||r.exitCode!==0)throw Error(String(r.stderr||'').trim().split('\n').filter(Boolean).pop()||'Apple Vision found no subject in the hero photo.');
-  (await hostNeed('FileSystem','rename').rename(tmp,out));
+  try{
+   await ffmpeg(heroAlphaArgs(photo.path,matte.path,tmp));
+   await hostNeed('FileSystem','rename').rename(tmp,out);
+  }finally{await hostRemove(tmp)}
  }
  return {path:out};
 }
-// mac-only:end
-// The cutout is Apple Vision (osascript): on Windows the title sits over the whole hero photo.
-const SUBJECT_MAC_ONLY='Putting the subject in front of the title is available on macOS for now; here the title sits over the hero photo.';
 
 // native-sdk:start
 // Read verified Project resources and place editable images through the Draft working copy.
@@ -721,9 +715,9 @@ async function ensureImported(sdk,projectId,file,type,summary){
 
 // Builds the vlog from 26 chosen videos (by slot), a hero photo and the user's song, all inventory rows:
 // the panel's Create Draft and a template run share it. Resolves to the saved Draft.
-async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,title,color,cutoutMode,grade,name,say,stillCurrent,libraryId=null,onDraft=_id=>{}}){
- // Apple Vision cuts the hero subject out (macOS); on Windows the title sits over the whole hero photo.
- const cutout=!hostIsWindows();
+async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,title,color,cutoutMode,grade,name,say,stillCurrent,libraryId=null,aiSignal,aiScope='travel-beat-vlog',aiRetryTerminal=true,onDraft=_id=>{}}){
+ // The same local RVM task supplies the subject overlay on macOS and Windows.
+ const cutout=true;
  say('Finding the beat of your song…');
  const fit=await fitSong(sdk,song.path,cuts,say);
  const timing=fit.timing;
@@ -732,7 +726,7 @@ async function buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,title,c
  let cutRow=null;
  if(cutout){
   say('Cutting out the hero subject…');
-  const cut=await heroCutout(sdk,heroPhoto.path,cutoutMode);
+  const cut=await heroCutout(sdk,projectId,heroPhoto,cutoutMode,aiSignal,{scope:aiScope,retryTerminal:aiRetryTerminal});
   cutRow=await ensureImported(sdk,projectId,cut.path,'Image','hero cutout');
  }
  const songRow=await ensureImported(sdk,projectId,fit.audio,'Audio','song section');
@@ -779,7 +773,7 @@ function templateMessage(error){
  if(/song is too short|song file is missing/i.test(said))return said;
  if(/^No person found/.test(said))return 'Travel Beat Vlog found no people in the hero photo; pick a photo with people, then try again.';
  if(/^No subject found/.test(said))return 'Travel Beat Vlog found no main subject in the hero photo; pick another photo, then try again.';
- if(/cutout|Vision|Cannot read the photo/i.test(said))return 'Travel Beat Vlog could not cut out the hero photo; try again.';
+ if(/cutout|matte|Cannot read the photo/i.test(said))return 'Travel Beat Vlog could not cut out the hero photo; try again.';
  return TEMPLATE_FAILED;
 }
 // The app hands a template its own Resource ids, but every run_script read
@@ -829,6 +823,7 @@ function TravelTemplateRun({sdk,context}){
  React.useEffect(()=>{
   if(!runId||started.current===runId)return;started.current=runId;
   const live=()=>alive.current&&latest.current.template?.runId===runId;
+  const observer=new AbortController();
   let ended=false,draftId=null;
   const finish=result=>{if(ended)return;ended=true;if(!live())return;try{sdk.finishTemplate(result);}catch{}};
   const say=text=>{if(live())setStatus(text);};
@@ -840,13 +835,14 @@ function TravelTemplateRun({sdk,context}){
     const {chosen,heroPhoto,song}=await templateMedia(sdk,projectId,template?.inputs);
     const cutoutMode=template?.options?.subject==='foreground'?'foreground':TEMPLATE_DEFAULTS.cutoutMode;
     const cuts=template?.options?.cuts==='reference'?'reference':'hits';
-    const done=await buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,...TEMPLATE_DEFAULTS,cutoutMode,say,stillCurrent:live,libraryId:template?.libraryId||null,onDraft:id=>{draftId=id;}});
+    const done=await buildTravelVlog(sdk,{projectId,chosen,heroPhoto,song,cuts,...TEMPLATE_DEFAULTS,cutoutMode,say,stillCurrent:live,aiSignal:observer.signal,aiScope:'travel-beat-vlog:template:'+runId,aiRetryTerminal:false,libraryId:template?.libraryId||null,onDraft:id=>{draftId=id;}});
     finish({sequenceId:done.draftId});
    }catch(error){
     console.warn('[travel-beat-vlog] template run failed:',error?.message||String(error),{draftId});
     finish({error:draftId?'Travel Beat Vlog stopped partway; the unfinished timeline "'+TEMPLATE_DEFAULTS.name+'" may need removing.':templateMessage(error)});
    }finally{finish({error:TEMPLATE_FAILED});}
   })();
+  return()=>observer.abort();
  },[runId]);
  return <p role="status" style={{margin:0,fontSize:12}}>{status}</p>;
 }
@@ -861,7 +857,9 @@ function TravelPanel({sdk,context,ui}){
  const [cutoutMode,setCutoutMode]=React.useState('person'),[cuts,setCuts]=React.useState('hits');
  const [title,setTitle]=React.useState('TRAVEL'),[color,setColor]=React.useState('#F4C711'),[grade,setGrade]=React.useState(0.7),[name,setName]=React.useState('Travel beat vlog');
  const [busy,setBusy]=React.useState(false),[status,setStatus]=React.useState(''),[saved,setSaved]=React.useState(null);
- const running=React.useRef(false),currentProject=React.useRef(context.projectId);currentProject.current=context.projectId;
+ const running=React.useRef(false),currentProject=React.useRef(context.projectId),aiObserver=React.useRef(null);currentProject.current=context.projectId;
+ React.useEffect(()=>()=>{currentProject.current=null;aiObserver.current?.abort()},[]);
+ React.useEffect(()=>{aiObserver.current?.abort()},[context.projectId]);
  React.useEffect(()=>{setMedia([]);setHero('');setLong(['','','']);setClips(Array(23).fill(''));setSong('');setLoadedProject(null);setSaved(null);setStatus('');},[context.projectId]);
  // Files the plugin created itself (the hero cutout, the song section) are not user media.
  const own=m=>pluginOwned(m.path);
@@ -882,17 +880,17 @@ function TravelPanel({sdk,context,ui}){
   const projectId=context.projectId;
   if(running.current||!projectId||loadedProject!==projectId)return;
   running.current=true;setBusy(true);setStatus('Checking media…');
+  const observer=new AbortController();aiObserver.current=observer;
   try{
    const pick=(id,type,what)=>{const m=media.filter(x=>x.resourceId===id);if(m.length!==1)throw Error('Choose '+what+'.');if(m[0].type!==type)throw Error(m[0].name+' is not '+(type==='Video'?'a video':type==='Image'?'a photo':'a song')+'.');return m[0];};
    const chosen={};
    LONG_SLOTS.forEach((s,i)=>{chosen[s]=pick(long[i],'Video','long shot '+(i+1));});
    SHORT_SLOTS.forEach((s,i)=>{chosen[s]=pick(clips[i],'Video','clip '+(i+1));});
    for(const m of Object.values(chosen))if(!m.width||!m.height)throw Error(m.name+' has no frame size yet; wait for the Project to finish reading it.');
-   const {draftId}=await buildTravelVlog(sdk,{projectId,chosen,heroPhoto:pick(hero,'Image','a hero photo'),song:pick(song,'Audio','a song'),cuts,title,color,cutoutMode,grade,name,say:setStatus,stillCurrent:()=>currentProject.current===projectId});
+   const {draftId}=await buildTravelVlog(sdk,{projectId,chosen,heroPhoto:pick(hero,'Image','a hero photo'),song:pick(song,'Audio','a song'),cuts,title,color,cutoutMode,grade,name,say:setStatus,aiSignal:observer.signal,stillCurrent:()=>currentProject.current===projectId});
    setSaved({draftId});setStatus('Saved. Every shot is its own clip with focus controls; the title text and colour are editable.');
   }catch(error){setStatus(error?.code==='host-missing'?NEWER:error?.code==='not-found'?NOT_INSTALLED:String(error?.message||error));}finally{running.current=false;setBusy(false);}
  }
- const windows=hostIsWindows();
  const ready=!busy&&loadedProject===context.projectId;
  const opts=type=>of(type).map(m=>({value:m.resourceId,label:m.name}));
  const vOpts=opts('Video'),setAt=(setter,i)=>v=>setter(old=>old.map((x,j)=>j===i?v:x));
@@ -904,8 +902,7 @@ function TravelPanel({sdk,context,ui}){
   {long.map((v,i)=><ui.Select key={'l'+i} label={'Long shot '+(i+1)} value={v} onChange={setAt(setLong,i)} options={vOpts} placeholder="Choose video" disabled={!ready}/>)}
   {clips.map((v,i)=><ui.Select key={'c'+i} label={'Clip '+(i+1)} value={v} onChange={setAt(setClips,i)} options={vOpts} placeholder="Choose video" disabled={!ready}/>)}
   <ui.Select label="Song" value={song} onChange={setSong} options={opts('Audio')} placeholder="Choose song" disabled={!ready}/>
-  <ui.Select label="In front of the title" value={cutoutMode} onChange={setCutoutMode} options={[{value:'person',label:'People'},{value:'foreground',label:'Main subject'}]} disabled={busy||windows}/>
-  {windows&&<ui.Message>{SUBJECT_MAC_ONLY}</ui.Message>}
+  <ui.Select label="In front of the title" value={cutoutMode} onChange={setCutoutMode} options={[{value:'person',label:'People'},{value:'foreground',label:'Main subject'}]} disabled={busy}/>
   <ui.Select label="Cuts" value={cuts} onChange={setCuts} options={[{value:'hits',label:"Follow the song's hits"},{value:'reference',label:'Keep the original rhythm'}]} disabled={busy}/>
   <ui.TextField label="Title" value={title} onChange={setTitle} disabled={busy}/>
   <ui.TextField label="Title colour (#RRGGBB)" value={color} onChange={setColor} disabled={busy}/>
@@ -1198,3 +1195,275 @@ function withPanelLocalClient(Component: any) {
 
 export default withPanelLocalClient(Panel);
 // local-sdk:end
+
+// photo-ai:start
+// Inference lives in the installed shared runtime; this adapter retains only photo/output plumbing.
+async function photoAiScript(sdk,code,summary,allowCommit=false){
+ const response=await sdk.runScript({script:code,summary,allowCommit,timeoutSeconds:120});
+ if(response.isError||response.result==null)throw Error(response.output||'Shared photo analysis returned no result.');
+ return response.result;
+}
+async function photoAiCanonicalId(sdk,projectId,resourceId){
+ const ids=await sharedAiResources.resolveSharedAiResources(sdk,projectId,[resourceId],(code,summary,write)=>photoAiScript(sdk,code,summary,write));
+ const id=ids.get(resourceId);
+ if(!id)throw Error('The selected photo changed. Refresh project photos and try again.');
+ return id;
+}
+function photoAiClient(sdk,projectId,scope){
+ if(!sdk.storage?.getItem||!sdk.storage?.setItem)throw Error('Update Selects to use persistent shared AI jobs.');
+ const key='shared-ai:'+scope+':'+projectId;
+ return sharedAiJobs.createSharedAiJobClient({projectId,scope,
+  runScript:(code,summary,write)=>photoAiScript(sdk,code,summary,write),
+  load:async()=>{const value=await sdk.storage.getItem(key);return value===null?null:JSON.parse(value)},
+  save:journal=>sdk.storage.setItem(key,JSON.stringify(journal))});
+}
+async function photoAiMatte(sdk,projectId,photo,{scope,client,control,onStatus,retryTerminal=true}={}){
+ const resourceId=await photoAiCanonicalId(sdk,projectId,photo.resourceId);
+ const jobs=client||photoAiClient(sdk,projectId,scope),identity='image:'+resourceId;
+ if(control){control.ai=jobs;control.aiIdentity=identity;}
+ const observed=await jobs.run({task:'person.matte',resourceId,options:{provider:'auto',outputMode:'alpha-frames',alphaEncoding:'grayscale-png-8bit'}},
+  {identity,retryTerminal,signal:control?.observer?.signal,onProgress:status=>onStatus?.(status)});
+ if(control?.canceled)throw Error('Canceled.');
+ const manifest=observed.result?.files?.manifest;
+ if(!manifest)throw Error('Shared photo analysis returned no mask manifest.');
+ const prepared=await photoAiScript(sdk,`return await selects.ai.prepareMatte(${JSON.stringify(manifest)},${JSON.stringify(projectId)},{sourceKind:'image'});`,'Keep the shared photo mask',true);
+ if(prepared.sourceKind!=='image'||prepared.sourceResourceId!==resourceId||!Number.isSafeInteger(prepared.frameSize?.width)||prepared.frameSize.width<1||!Number.isSafeInteger(prepared.frameSize?.height)||prepared.frameSize.height<1)throw Error('The shared photo mask does not match the selected photo.');
+ const path=await photoAiScript(sdk,`return selects.files.pathFromLocalUrl(${JSON.stringify(prepared.maskUrl)});`,'Read the shared mask path');
+ return {...prepared,path,workflowId:observed.workflowId};
+}
+// photo-ai:end
+
+//shared-ai-jobs:start
+const sharedAiJobs = (()=>{const module={exports:{}};
+// Plugin-private durable orchestration of the existing public AI SDK.
+// This module is bundled into panels; it has no Node or renderer-global dependencies.
+const STATUS = new Set(['queued', 'running', 'canceling', 'succeeded', 'failed', 'canceled']);
+const terminal = status => ['succeeded', 'failed', 'canceled'].includes(status);
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const writes = new Map();
+const error = (code, message) => Object.assign(new Error(message), { code });
+const invalid = () => error('SHARED_AI_INVALID', 'Saved AI analysis does not match this source or task.');
+const clone = value => JSON.parse(JSON.stringify(value));
+function stable(value) {
+  if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
+  if (value && typeof value === 'object') return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + stable(value[k])).join(',') + '}';
+  if (value === undefined || typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint' || typeof value === 'number' && !Number.isFinite(value)) throw invalid();
+  return JSON.stringify(value);
+}
+function attached(signal) {
+  if (signal?.aborted) throw error('SHARED_AI_DETACHED', 'AI observation stopped. Reopen to recover the saved job.');
+}
+function inputFor(projectId, request) {
+  if (!request || !['faces.detect', 'person.matte'].includes(request.task) || !UUID.test(request.resourceId)) throw invalid();
+  const input = { runtimeId: 'selects-ai-runtime', projectId, resourceId: request.resourceId, task: request.task };
+  if (request.sourceRange !== undefined) {
+    const { startSeconds, endSeconds } = request.sourceRange || {};
+    if (!Number.isFinite(startSeconds) || startSeconds < 0 || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) throw invalid();
+    input.sourceRange = { startSeconds, endSeconds };
+  }
+  if (request.options !== undefined) {
+    if (!request.options || Array.isArray(request.options) || typeof request.options !== 'object') throw invalid();
+    stable(request.options); input.options = clone(request.options);
+  }
+  return input;
+}
+async function requestKey(scope, identity, input, attempt) {
+  const withoutKey = { ...input }; delete withoutKey.requestKey;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(stable({ scope, identity, input: withoutKey, attempt })));
+  return 'shared-ai-' + Array.from(new Uint8Array(digest), n => n.toString(16).padStart(2, '0')).join('');
+}
+function createSharedAiJobClient(env) {
+  const { projectId, scope, runScript, load, save } = env || {};
+  if (typeof projectId !== 'string' || !projectId || typeof scope !== 'string' || !scope ||
+      ![runScript, load, save].every(f => typeof f === 'function')) throw invalid();
+  const storageKey = stable({ projectId, scope });
+  const fresh = () => ({ version: 1, projectId, scope, records: [] });
+  async function read() {
+    let journal;
+    try { journal = await load(); }
+    catch (cause) {
+      if (String(cause?.message || cause).trim() === 'The file is unavailable.' || /ENOENT|not found|does not exist/i.test(String(cause?.message || cause))) journal = null;
+      else throw cause;
+    }
+    if (journal == null) return fresh();
+    if (typeof journal === 'string') { try { journal = JSON.parse(journal); } catch { throw invalid(); } }
+    if (journal.version !== 1 || journal.projectId !== projectId || journal.scope !== scope || !Array.isArray(journal.records) || journal.records.length > 10000) throw invalid();
+    const keys = new Set();
+    for (const r of journal.records) {
+      if (!r || typeof r.identity !== 'string' || !Number.isSafeInteger(r.attempt) || r.attempt < 0 || r.attempt > 255 ||
+          !/^shared-ai-[\da-f]{64}$/.test(r.input?.requestKey) || keys.has(r.input.requestKey) ||
+          (r.workflowId !== undefined && (typeof r.workflowId !== 'string' || !r.workflowId)) ||
+          (r.status !== undefined && !STATUS.has(r.status)) || (r.cancelRequested !== undefined && typeof r.cancelRequested !== 'boolean')) throw invalid();
+      const input = inputFor(projectId, r.input);
+      if (stable({ ...input, requestKey: r.input.requestKey }) !== stable(r.input)) throw invalid();
+      keys.add(r.input.requestKey);
+    }
+    return clone(journal);
+  }
+  async function update(record) {
+    const prior = writes.get(storageKey) || Promise.resolve();
+    const pending = prior.catch(() => {}).then(async () => {
+      const journal = await read(), i = journal.records.findIndex(r => r.input.requestKey === record.input.requestKey), old = journal.records[i];
+      if (old?.workflowId && record.workflowId && old.workflowId !== record.workflowId) throw invalid();
+      const next = { ...old, ...record, cancelRequested: Boolean(old?.cancelRequested || record.cancelRequested) };
+      if (old?.workflowId) next.workflowId = old.workflowId;
+      if (old && terminal(old.status)) next.status = old.status;
+      if (i < 0) journal.records.push(next); else journal.records[i] = next;
+      await save(clone(journal)); Object.assign(record, next);
+    });
+    writes.set(storageKey, pending);
+    try { await pending; } finally { if (writes.get(storageKey) === pending) writes.delete(storageKey); }
+  }
+  async function ack(record, signal) {
+    if (record.workflowId) return;
+    attached(signal);
+    const value = await runScript(`if(typeof selects.ai?.submit!=='function')throw new Error('AI_UPDATE_REQUIRED');const j=await selects.ai.submit(${JSON.stringify(record.input)});return {workflowId:j.workflowId};`, 'Start shared AI analysis', true);
+    if (typeof value?.workflowId !== 'string' || !value.workflowId) throw invalid();
+    record.workflowId = value.workflowId;
+    // Preserve an acknowledgment even when a panel detached during submit.
+    await update(record); attached(signal);
+  }
+  async function status(record, cancel = false) {
+    const value = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).${cancel ? 'cancel' : 'status'}();`, cancel ? 'Cancel shared AI analysis' : 'Read shared AI progress', cancel);
+    if (value?.workflowId !== record.workflowId || value.projectId !== projectId || value.runtimeId !== 'selects-ai-runtime' || value.task !== record.input.task || !STATUS.has(value.status)) throw invalid();
+    record.status = value.status; await update(record); return value;
+  }
+  async function stop(record, options = {}) {
+    record.cancelRequested = true; await update(record); await ack(record, options.signal);
+    if (!terminal(record.status)) await status(record, true);
+    const deadline = Date.now() + (options.maxWaitMs ?? 60000);
+    while (!terminal(record.status)) {
+      attached(options.signal);
+      if (Date.now() >= deadline) throw error('SHARED_AI_CANCEL_PENDING', 'AI is still stopping. Cancellation is saved; reopen to recover it.');
+      await new Promise(resolve => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+      await status(record);
+    }
+  }
+  async function run(request, options = {}) {
+    attached(options.signal);
+    const input = inputFor(projectId, request), identity = options.identity ?? '';
+    if (typeof identity !== 'string') throw invalid();
+    const journal = await read();
+    let record = journal.records.filter(r => r.identity === identity && stable(inputFor(projectId, r.input)) === stable(input)).sort((a, b) => b.attempt - a.attempt)[0];
+    if (record && record.input.requestKey !== await requestKey(scope, identity, input, record.attempt)) throw invalid();
+    // A detached panel can have saved 'running' while Main has since stopped.
+    // Refresh only during recovery; failure of a newly submitted job is not retried.
+    if (record?.workflowId && options.retryTerminal) {
+      attached(options.signal); await status(record); attached(options.signal);
+    }
+    if (record && options.retryTerminal && record.cancelRequested && !terminal(record.status)) await stop(record, options);
+    if (!record || options.retryTerminal && (['failed', 'canceled'].includes(record.status) || record.cancelRequested && terminal(record.status))) {
+      const attempt = record ? record.attempt + 1 : 0;
+      if (attempt > 255) throw invalid();
+      record = { identity, attempt, input: { ...input, requestKey: await requestKey(scope, identity, input, attempt) } };
+      await update(record);
+    }
+    await ack(record, options.signal);
+    for (;;) {
+      attached(options.signal);
+      const latest = (await read()).records.find(r => r.input.requestKey === record.input.requestKey);
+      if (!latest) throw invalid(); Object.assign(record, latest);
+      const value = await status(record, record.cancelRequested && !terminal(record.status));
+      attached(options.signal);
+      if (record.cancelRequested || record.status === 'canceled') throw error('SHARED_AI_CANCELED', 'AI analysis was canceled. Start again to retry.');
+      if (record.status === 'failed') throw error('SHARED_AI_FAILED', 'AI analysis failed. ' + String(value.lastErrorMessage || '').slice(0, 300));
+      if (record.status === 'succeeded') {
+        const result = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).result();`, 'Read shared AI result');
+        attached(options.signal);
+        if (result?.workflowId !== record.workflowId || result.task !== record.input.task || !result.files || typeof result.files !== 'object') throw invalid();
+        return { workflowId: record.workflowId, input: clone(record.input), result };
+      }
+      options.onProgress?.(value);
+      await new Promise(resolve => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+    }
+  }
+  async function cancel(options = {}) {
+    const journal = await read();
+    for (const record of journal.records) {
+      if (options.identity !== undefined && record.identity !== options.identity || terminal(record.status)) continue;
+      if (record.input.requestKey !== await requestKey(scope, record.identity, record.input, record.attempt)) throw invalid();
+      await stop(record, options);
+    }
+  }
+  return { run, cancel };
+}
+module.exports = { createSharedAiJobClient };
+
+return module.exports;})();
+//shared-ai-jobs:end
+
+//shared-ai-resources:start
+const sharedAiResources = (()=>{const module={exports:{}};
+// Private joins between short run_script ids and persistent Project Resource ids.
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const fingerprint = rows => JSON.stringify(rows.map(r => [r.resourceId, r.name, r.type]));
+function canonicalResourceBindings(core, { projectId, draftId, trackKinds = ['Main'] } = {}) {
+  if (!core?.owner?.projectId || projectId && core.owner.projectId !== projectId || draftId && core.sequenceJson?.id !== draftId) throw new Error('The Draft belongs to another Project.');
+  const bindings = new Map();
+  function walk(rows) {
+    for (const row of rows || []) {
+      const id = row.mediaReferences?.defaultMedia?.id;
+      if (Number.isSafeInteger(row.id) && UUID.test(id)) {
+        if (bindings.has(row.id) && bindings.get(row.id) !== id) throw new Error('Ambiguous clip source binding.');
+        bindings.set(row.id, id);
+      }
+      if (Array.isArray(row.children)) walk(row.children);
+    }
+  }
+  for (const track of core.sequenceJson?.tracks?.children || []) if (trackKinds.includes(track.kind)) walk(track.children);
+  return bindings;
+}
+function pathKey(value) {
+  const path = String(value).normalize('NFC'), windows = /^[a-z]:[\\/]|^\\\\/i.test(path);
+  const normalized = path.replace(/\\/g, '/'); return windows ? normalized.toLowerCase() : normalized;
+}
+function runner(sdk, runScript) {
+  return runScript || (async (script, summary, allowCommit = false) => {
+    const value = await sdk.runScript({ script, summary, allowCommit });
+    if (value?.isError || value?.result === undefined) throw new Error(value?.output || 'The Project read returned an incomplete result.');
+    return value.result;
+  });
+}
+async function joinRows(sdk, projectId, runScript, script) {
+  const before = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(before)) throw new Error('Could not read Project Resources.');
+  const observed = await runner(sdk, runScript)(script, 'Resolve persistent AI source');
+  const after = await sdk.call('listProjectResources', projectId);
+  if (!Array.isArray(after) || fingerprint(before) !== fingerprint(after) || observed?.count !== before.length || !Array.isArray(observed.rows)) throw new Error('Project Resources changed while resolving the AI source.');
+  const out = new Map();
+  for (const row of observed.rows) {
+    const raw = before[row?.index];
+    if (!Number.isSafeInteger(row?.index) || !raw || raw.name !== row.name || raw.type !== row.type || !UUID.test(raw.resourceId) || typeof row.id !== 'string') throw new Error('The persistent AI source could not be matched.');
+    out.set(row.id, raw.resourceId);
+  }
+  return out;
+}
+async function resolveSharedAiResources(sdk, projectId, aliases, runScript) {
+  if (!Array.isArray(aliases) || aliases.some(id => typeof id !== 'string' || !id)) throw new Error('Invalid AI source ids.');
+  const wanted = [...new Set(aliases)];
+  const mappings = await joinRows(sdk, projectId, runScript, `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const wanted=${JSON.stringify(wanted)};return {count:all.length,rows:all.flatMap((r,index)=>wanted.includes(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`);
+  for (const id of wanted) if (UUID.test(id)) {
+    const raw = await sdk.call('listProjectResources', projectId);
+    if (!raw.some(r => r.resourceId === id)) throw new Error('The AI source is no longer in this Project.');
+    mappings.set(id, id);
+  }
+  if (wanted.some(id => !mappings.has(id))) throw new Error('The AI source id is unavailable.');
+  return mappings;
+}
+async function importSharedAiResource(sdk, projectId, path, runScript) {
+  if (typeof path !== 'string' || !path || !(/^(?:[a-z]:[\\/]|\\\\|\/)/i.test(path))) throw new Error('An absolute AI source path is required.');
+  const run = runner(sdk, runScript);
+  const script = `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const key=${pathKey.toString()};const aliases=new Set<string>();const visit=(rows:any[])=>{for(const n of rows||[]){if(n.type==='dir')visit(n.children);else if(n.path&&key(n.path)===key(${JSON.stringify(path)}))aliases.add(n.resourceId);}};const tree=await p.sourceFiles();if('fileTree' in tree)visit(tree.fileTree);else for(const f of tree.folders||[]){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)visit(part.fileTree);}return {count:all.length,rows:all.flatMap((r,index)=>aliases.has(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`;
+  let map = await joinRows(sdk, projectId, run, script);
+  if (!map.size) {
+    await run(`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:[${JSON.stringify(path)}]});`, 'Register AI source media', true);
+    map = await joinRows(sdk, projectId, run, script);
+  }
+  const ids = [...new Set(map.values())];
+  if (ids.length !== 1) throw new Error('The imported AI source path is missing or ambiguous.');
+  return ids[0];
+}
+module.exports = { canonicalResourceBindings, resolveSharedAiResources, importSharedAiResource, importSharedAiVideo: importSharedAiResource };
+
+return module.exports;})();
+//shared-ai-resources:end

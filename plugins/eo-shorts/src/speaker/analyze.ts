@@ -1,4 +1,4 @@
-import type { YuNetFace } from "./yunet/decode.ts";
+import type { YuNetFace } from "./faces.ts";
 import { type DecodeSpan, type PassOptions, type SourceRange, type VideoProbe, PASS_DEFAULTS, analysisPassArgs, analysisSize, planDecodeSpans, readPass, sampleStep } from "./ffmpegPass.ts";
 import { type CameraSegment, cameraSegments } from "./cameraCuts.ts";
 import { type FaceBox, type FaceSample, type SegmentFaces, plausibleFaces, segmentFaces, toSourceFaces } from "./faces.ts";
@@ -24,7 +24,8 @@ export type SpeakerHost = {
   readRange(path: string, offset: number, length: number): Promise<Uint8Array>;
   remove(path: string): void;
   scratchPath(name: string): string;
-  detect(bgr: Uint8Array, width: number, height: number): Promise<YuNetFace[]>;
+  detect?(bgr: Uint8Array, width: number, height: number): Promise<YuNetFace[]>;
+  detectSamples?(path: string, times: number[], fps: number, size?: Size): Promise<FaceBox[][]>;
   progress?(message: string): void;
 };
 
@@ -113,7 +114,9 @@ export async function analyzeSpeaker(input: SpeakerInput, host: SpeakerHost, o: 
     progress("Finding camera cuts and the speaker's face (" + (i + 1) + "/" + spans.length + ")…");
     let stderr: string;
     try {
-      stderr = await host.ffmpeg(analysisPassArgs(span, pr, out, o), o.signal);
+      const args = analysisPassArgs(span, pr, out, o);
+      if (host.detectSamples) args.splice(args.length - 3, 3, "-f", "null", "-");
+      stderr = await host.ffmpeg(args, o.signal);
     } catch (e) {
       host.remove(out);
       throw e;
@@ -130,10 +133,12 @@ export async function analyzeSpeaker(input: SpeakerInput, host: SpeakerHost, o: 
       .map((seg, j) => ({ ...seg, id: prefix + (j + 1) }));
     const samples = pass.samples.map((s) => ({ ...s, visible: visibleAt(s.time), detected: false, faces: [] as FaceBox[] }));
     const stills: SpanReport["stills"] = [];
-    const facesOf = async (bytes: Uint8Array) => plausibleFaces(toSourceFaces(await host.detect(bytes, size.width, size.height), size.width, size.height, pr.width, pr.height), pr.width, pr.height);
+    const facesOf = async (bytes: Uint8Array) => plausibleFaces(toSourceFaces(await host.detect!(bytes, size.width, size.height), size.width, size.height, pr.width, pr.height), pr.width, pr.height);
+    const shared = host.detectSamples && samples.length ? await host.detectSamples(span.path, samples.map(s => s.time), pr.fps, src) : null;
     const detect = async (s: (typeof samples)[number]) => {
       if (s.detected) return;
       cancelled();
+      if (shared) { s.faces = plausibleFaces(shared[samples.indexOf(s)] || [], pr.width, pr.height); s.detected = true; return; }
       const bytes = await host.readRange(out, s.index * fb, fb);
       s.detected = true;
       if (bytes.length < fb) return;
@@ -156,10 +161,11 @@ export async function analyzeSpeaker(input: SpeakerInput, host: SpeakerHost, o: 
       const file = host.scratchPath("speaker-span-" + (i + 1) + "-" + seg.id + ".bgr");
       try {
         cancelled();
-        const got = readPass(one, pr, await host.ffmpeg(analysisPassArgs(one, pr, file, o), o.signal)).samples[0];
+        const args = analysisPassArgs(one, pr, file, o);
+        if (host.detectSamples) args.splice(args.length - 3, 3, "-f", "null", "-");
+        const got = readPass(one, pr, await host.ffmpeg(args, o.signal)).samples[0];
         if (!got || got.time < seg.start || got.time >= seg.end) return null;
-        const bytes = await host.readRange(file, 0, fb);
-        const faces = bytes.length < fb ? [] : await facesOf(bytes);
+        const faces = host.detectSamples ? plausibleFaces((await host.detectSamples(span.path, [got.time], pr.fps, src))[0], pr.width, pr.height) : await (async () => { const bytes = await host.readRange(file, 0, fb); return bytes.length < fb ? [] : await facesOf(bytes); })();
         stills.push({ segmentId: seg.id, t: got.time, frame: got.frame, visible: visibleAt(got.time), detected: true, faces });
         return { t: got.time, frame: got.frame, faces };
       } finally {

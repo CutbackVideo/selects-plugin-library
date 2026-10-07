@@ -11,6 +11,319 @@
 // @name:zh a16z 风格字幕
 // @icon captions
 // One click turns a talking-head Draft into a 9:16 Short in the a16z house style: tightened pauses, speaker framing, editorial captions with lockups and emphasis, keyword cards, a name tag and a music bed.
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+
+// shared/ai-resources.cjs
+var require_ai_resources = __commonJS({
+  "shared/ai-resources.cjs"(exports, module) {
+    var UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+    var fingerprint = (rows2) => JSON.stringify(rows2.map((r) => [r.resourceId, r.name, r.type]));
+    function canonicalResourceBindings2(core, { projectId, draftId, trackKinds = ["Main"] } = {}) {
+      if (!core?.owner?.projectId || projectId && core.owner.projectId !== projectId || draftId && core.sequenceJson?.id !== draftId) throw new Error("The Draft belongs to another Project.");
+      const bindings = /* @__PURE__ */ new Map();
+      function walk(rows2) {
+        for (const row of rows2 || []) {
+          const id = row.mediaReferences?.defaultMedia?.id;
+          if (Number.isSafeInteger(row.id) && UUID.test(id)) {
+            if (bindings.has(row.id) && bindings.get(row.id) !== id) throw new Error("Ambiguous clip source binding.");
+            bindings.set(row.id, id);
+          }
+          if (Array.isArray(row.children)) walk(row.children);
+        }
+      }
+      for (const track of core.sequenceJson?.tracks?.children || []) if (trackKinds.includes(track.kind)) walk(track.children);
+      return bindings;
+    }
+    function pathKey(value) {
+      const path = String(value).normalize("NFC"), windows = /^[a-z]:[\\/]|^\\\\/i.test(path);
+      const normalized = path.replace(/\\/g, "/");
+      return windows ? normalized.toLowerCase() : normalized;
+    }
+    function runner(sdk, runScript) {
+      return runScript || (async (script2, summary, allowCommit = false) => {
+        const value = await sdk.runScript({ script: script2, summary, allowCommit });
+        if (value?.isError || value?.result === void 0) throw new Error(value?.output || "The Project read returned an incomplete result.");
+        return value.result;
+      });
+    }
+    async function joinRows(sdk, projectId, runScript, script2) {
+      const before = await sdk.call("listProjectResources", projectId);
+      if (!Array.isArray(before)) throw new Error("Could not read Project Resources.");
+      const observed = await runner(sdk, runScript)(script2, "Resolve persistent AI source");
+      const after = await sdk.call("listProjectResources", projectId);
+      if (!Array.isArray(after) || fingerprint(before) !== fingerprint(after) || observed?.count !== before.length || !Array.isArray(observed.rows)) throw new Error("Project Resources changed while resolving the AI source.");
+      const out = /* @__PURE__ */ new Map();
+      for (const row of observed.rows) {
+        const raw = before[row?.index];
+        if (!Number.isSafeInteger(row?.index) || !raw || raw.name !== row.name || raw.type !== row.type || !UUID.test(raw.resourceId) || typeof row.id !== "string") throw new Error("The persistent AI source could not be matched.");
+        out.set(row.id, raw.resourceId);
+      }
+      return out;
+    }
+    async function resolveSharedAiResources(sdk, projectId, aliases, runScript) {
+      if (!Array.isArray(aliases) || aliases.some((id) => typeof id !== "string" || !id)) throw new Error("Invalid AI source ids.");
+      const wanted = [...new Set(aliases)];
+      const mappings = await joinRows(sdk, projectId, runScript, `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const wanted=${JSON.stringify(wanted)};return {count:all.length,rows:all.flatMap((r,index)=>wanted.includes(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`);
+      for (const id of wanted) if (UUID.test(id)) {
+        const raw = await sdk.call("listProjectResources", projectId);
+        if (!raw.some((r) => r.resourceId === id)) throw new Error("The AI source is no longer in this Project.");
+        mappings.set(id, id);
+      }
+      if (wanted.some((id) => !mappings.has(id))) throw new Error("The AI source id is unavailable.");
+      return mappings;
+    }
+    async function importSharedAiResource(sdk, projectId, path, runScript) {
+      if (typeof path !== "string" || !path || !/^(?:[a-z]:[\\/]|\\\\|\/)/i.test(path)) throw new Error("An absolute AI source path is required.");
+      const run2 = runner(sdk, runScript);
+      const script2 = `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const key=${pathKey.toString()};const aliases=new Set<string>();const visit=(rows:any[])=>{for(const n of rows||[]){if(n.type==='dir')visit(n.children);else if(n.path&&key(n.path)===key(${JSON.stringify(path)}))aliases.add(n.resourceId);}};const tree=await p.sourceFiles();if('fileTree' in tree)visit(tree.fileTree);else for(const f of tree.folders||[]){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)visit(part.fileTree);}return {count:all.length,rows:all.flatMap((r,index)=>aliases.has(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`;
+      let map = await joinRows(sdk, projectId, run2, script2);
+      if (!map.size) {
+        await run2(`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:[${JSON.stringify(path)}]});`, "Register AI source media", true);
+        map = await joinRows(sdk, projectId, run2, script2);
+      }
+      const ids = [...new Set(map.values())];
+      if (ids.length !== 1) throw new Error("The imported AI source path is missing or ambiguous.");
+      return ids[0];
+    }
+    module.exports = { canonicalResourceBindings: canonicalResourceBindings2, resolveSharedAiResources, importSharedAiResource, importSharedAiVideo: importSharedAiResource };
+  }
+});
+
+// shared/ai-job-client.cjs
+var require_ai_job_client = __commonJS({
+  "shared/ai-job-client.cjs"(exports, module) {
+    var STATUS = /* @__PURE__ */ new Set(["queued", "running", "canceling", "succeeded", "failed", "canceled"]);
+    var terminal = (status) => ["succeeded", "failed", "canceled"].includes(status);
+    var UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+    var writes = /* @__PURE__ */ new Map();
+    var error = (code, message) => Object.assign(new Error(message), { code });
+    var invalid = () => error("SHARED_AI_INVALID", "Saved AI analysis does not match this source or task.");
+    var clone = (value) => JSON.parse(JSON.stringify(value));
+    function stable(value) {
+      if (Array.isArray(value)) return "[" + value.map(stable).join(",") + "]";
+      if (value && typeof value === "object") return "{" + Object.keys(value).sort().map((k) => JSON.stringify(k) + ":" + stable(value[k])).join(",") + "}";
+      if (value === void 0 || typeof value === "function" || typeof value === "symbol" || typeof value === "bigint" || typeof value === "number" && !Number.isFinite(value)) throw invalid();
+      return JSON.stringify(value);
+    }
+    function attached(signal) {
+      if (signal?.aborted) throw error("SHARED_AI_DETACHED", "AI observation stopped. Reopen to recover the saved job.");
+    }
+    function inputFor(projectId, request) {
+      if (!request || !["faces.detect", "person.matte"].includes(request.task) || !UUID.test(request.resourceId)) throw invalid();
+      const input = { runtimeId: "selects-ai-runtime", projectId, resourceId: request.resourceId, task: request.task };
+      if (request.sourceRange !== void 0) {
+        const { startSeconds, endSeconds } = request.sourceRange || {};
+        if (!Number.isFinite(startSeconds) || startSeconds < 0 || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) throw invalid();
+        input.sourceRange = { startSeconds, endSeconds };
+      }
+      if (request.options !== void 0) {
+        if (!request.options || Array.isArray(request.options) || typeof request.options !== "object") throw invalid();
+        stable(request.options);
+        input.options = clone(request.options);
+      }
+      return input;
+    }
+    async function requestKey(scope, identity, input, attempt) {
+      const withoutKey = { ...input };
+      delete withoutKey.requestKey;
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stable({ scope, identity, input: withoutKey, attempt })));
+      return "shared-ai-" + Array.from(new Uint8Array(digest), (n) => n.toString(16).padStart(2, "0")).join("");
+    }
+    function createSharedAiJobClient2(env) {
+      const { projectId, scope, runScript, load, save } = env || {};
+      if (typeof projectId !== "string" || !projectId || typeof scope !== "string" || !scope || ![runScript, load, save].every((f) => typeof f === "function")) throw invalid();
+      const storageKey = stable({ projectId, scope });
+      const fresh2 = () => ({ version: 1, projectId, scope, records: [] });
+      async function read() {
+        let journal;
+        try {
+          journal = await load();
+        } catch (cause) {
+          if (String(cause?.message || cause).trim() === "The file is unavailable." || /ENOENT|not found|does not exist/i.test(String(cause?.message || cause))) journal = null;
+          else throw cause;
+        }
+        if (journal == null) return fresh2();
+        if (typeof journal === "string") {
+          try {
+            journal = JSON.parse(journal);
+          } catch {
+            throw invalid();
+          }
+        }
+        if (journal.version !== 1 || journal.projectId !== projectId || journal.scope !== scope || !Array.isArray(journal.records) || journal.records.length > 1e4) throw invalid();
+        const keys = /* @__PURE__ */ new Set();
+        for (const r of journal.records) {
+          if (!r || typeof r.identity !== "string" || !Number.isSafeInteger(r.attempt) || r.attempt < 0 || r.attempt > 255 || !/^shared-ai-[\da-f]{64}$/.test(r.input?.requestKey) || keys.has(r.input.requestKey) || r.workflowId !== void 0 && (typeof r.workflowId !== "string" || !r.workflowId) || r.status !== void 0 && !STATUS.has(r.status) || r.cancelRequested !== void 0 && typeof r.cancelRequested !== "boolean") throw invalid();
+          const input = inputFor(projectId, r.input);
+          if (stable({ ...input, requestKey: r.input.requestKey }) !== stable(r.input)) throw invalid();
+          keys.add(r.input.requestKey);
+        }
+        return clone(journal);
+      }
+      async function update(record) {
+        const prior = writes.get(storageKey) || Promise.resolve();
+        const pending = prior.catch(() => {
+        }).then(async () => {
+          const journal = await read(), i = journal.records.findIndex((r) => r.input.requestKey === record.input.requestKey), old = journal.records[i];
+          if (old?.workflowId && record.workflowId && old.workflowId !== record.workflowId) throw invalid();
+          const next = { ...old, ...record, cancelRequested: Boolean(old?.cancelRequested || record.cancelRequested) };
+          if (old?.workflowId) next.workflowId = old.workflowId;
+          if (old && terminal(old.status)) next.status = old.status;
+          if (i < 0) journal.records.push(next);
+          else journal.records[i] = next;
+          await save(clone(journal));
+          Object.assign(record, next);
+        });
+        writes.set(storageKey, pending);
+        try {
+          await pending;
+        } finally {
+          if (writes.get(storageKey) === pending) writes.delete(storageKey);
+        }
+      }
+      async function ack(record, signal) {
+        if (record.workflowId) return;
+        attached(signal);
+        const value = await runScript(`if(typeof selects.ai?.submit!=='function')throw new Error('AI_UPDATE_REQUIRED');const j=await selects.ai.submit(${JSON.stringify(record.input)});return {workflowId:j.workflowId};`, "Start shared AI analysis", true);
+        if (typeof value?.workflowId !== "string" || !value.workflowId) throw invalid();
+        record.workflowId = value.workflowId;
+        await update(record);
+        attached(signal);
+      }
+      async function status(record, cancel2 = false) {
+        const value = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).${cancel2 ? "cancel" : "status"}();`, cancel2 ? "Cancel shared AI analysis" : "Read shared AI progress", cancel2);
+        if (value?.workflowId !== record.workflowId || value.projectId !== projectId || value.runtimeId !== "selects-ai-runtime" || value.task !== record.input.task || !STATUS.has(value.status)) throw invalid();
+        record.status = value.status;
+        await update(record);
+        return value;
+      }
+      async function stop(record, options = {}) {
+        record.cancelRequested = true;
+        await update(record);
+        await ack(record, options.signal);
+        if (!terminal(record.status)) await status(record, true);
+        const deadline = Date.now() + (options.maxWaitMs ?? 6e4);
+        while (!terminal(record.status)) {
+          attached(options.signal);
+          if (Date.now() >= deadline) throw error("SHARED_AI_CANCEL_PENDING", "AI is still stopping. Cancellation is saved; reopen to recover it.");
+          await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+          await status(record);
+        }
+      }
+      async function run2(request, options = {}) {
+        attached(options.signal);
+        const input = inputFor(projectId, request), identity = options.identity ?? "";
+        if (typeof identity !== "string") throw invalid();
+        const journal = await read();
+        let record = journal.records.filter((r) => r.identity === identity && stable(inputFor(projectId, r.input)) === stable(input)).sort((a, b) => b.attempt - a.attempt)[0];
+        if (record && record.input.requestKey !== await requestKey(scope, identity, input, record.attempt)) throw invalid();
+        if (record?.workflowId && options.retryTerminal) {
+          attached(options.signal);
+          await status(record);
+          attached(options.signal);
+        }
+        if (record && options.retryTerminal && record.cancelRequested && !terminal(record.status)) await stop(record, options);
+        if (!record || options.retryTerminal && (["failed", "canceled"].includes(record.status) || record.cancelRequested && terminal(record.status))) {
+          const attempt = record ? record.attempt + 1 : 0;
+          if (attempt > 255) throw invalid();
+          record = { identity, attempt, input: { ...input, requestKey: await requestKey(scope, identity, input, attempt) } };
+          await update(record);
+        }
+        await ack(record, options.signal);
+        for (; ; ) {
+          attached(options.signal);
+          const latest = (await read()).records.find((r) => r.input.requestKey === record.input.requestKey);
+          if (!latest) throw invalid();
+          Object.assign(record, latest);
+          const value = await status(record, record.cancelRequested && !terminal(record.status));
+          attached(options.signal);
+          if (record.cancelRequested || record.status === "canceled") throw error("SHARED_AI_CANCELED", "AI analysis was canceled. Start again to retry.");
+          if (record.status === "failed") throw error("SHARED_AI_FAILED", "AI analysis failed. " + String(value.lastErrorMessage || "").slice(0, 300));
+          if (record.status === "succeeded") {
+            const result = await runScript(`return await selects.ai.job(${JSON.stringify(record.workflowId)},${JSON.stringify(projectId)}).result();`, "Read shared AI result");
+            attached(options.signal);
+            if (result?.workflowId !== record.workflowId || result.task !== record.input.task || !result.files || typeof result.files !== "object") throw invalid();
+            return { workflowId: record.workflowId, input: clone(record.input), result };
+          }
+          options.onProgress?.(value);
+          await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+        }
+      }
+      async function cancel(options = {}) {
+        const journal = await read();
+        for (const record of journal.records) {
+          if (options.identity !== void 0 && record.identity !== options.identity || terminal(record.status)) continue;
+          if (record.input.requestKey !== await requestKey(scope, record.identity, record.input, record.attempt)) throw invalid();
+          await stop(record, options);
+        }
+      }
+      return { run: run2, cancel };
+    }
+    module.exports = { createSharedAiJobClient: createSharedAiJobClient2 };
+  }
+});
+
+// shared/face-request-windows.cjs
+var require_face_request_windows = __commonJS({
+  "shared/face-request-windows.cjs"(exports, module) {
+    var FACE_DECODE_BUDGET = 19e3;
+    function faceRequestWindows2({ startSeconds, endSeconds, sourceFps, sampleEverySeconds, maxDecodedFrames = FACE_DECODE_BUDGET }) {
+      if (![startSeconds, endSeconds, sourceFps, sampleEverySeconds].every(Number.isFinite) || startSeconds < 0 || endSeconds <= startSeconds || sourceFps <= 0 || sampleEverySeconds <= 0 || !Number.isSafeInteger(maxDecodedFrames) || maxDecodedFrames < 4) throw new Error("Invalid source face window clock.");
+      const count = Math.ceil((endSeconds - startSeconds) / sampleEverySeconds - 1e-7);
+      if (!Number.isSafeInteger(count) || count < 1 || count > 1e6) throw new Error("Face sample grid exceeds the supported range.");
+      const perWindow = Math.max(1, Math.floor((maxDecodedFrames - 2) / (sourceFps * sampleEverySeconds)) - 1);
+      const windows = [];
+      for (let first = 0; first < count; first += perWindow) {
+        const after = Math.min(count, first + perWindow), boundary = startSeconds + first * sampleEverySeconds;
+        const sparse = sourceFps * sampleEverySeconds > (maxDecodedFrames - 2) / 2;
+        const start = first && !sparse ? startSeconds + (first - 1) * sampleEverySeconds : boundary;
+        const end = sparse ? Math.min(endSeconds, start + 2 / sourceFps) : after < count ? startSeconds + after * sampleEverySeconds : endSeconds;
+        windows.push({ startSeconds: start, endSeconds: end, ...first ? { acceptFromSeconds: boundary - 1e-7 } : {} });
+      }
+      return windows;
+    }
+    function appendFaceSamples2(target, incoming, acceptFromSeconds = -Infinity) {
+      let time = -Infinity, localIndex = -1;
+      const last = target.at(-1)?.sourceTimeSeconds ?? -Infinity;
+      const rows2 = incoming.flatMap((row) => {
+        if (!Number.isSafeInteger(row.index) || row.index <= localIndex || !Number.isFinite(row.sourceTimeSeconds) || row.sourceTimeSeconds <= time)
+          throw new Error("Invalid shared face sample order across windows.");
+        localIndex = row.index;
+        time = row.sourceTimeSeconds;
+        if (row.sourceTimeSeconds < acceptFromSeconds || row.sourceTimeSeconds === last) return [];
+        if (row.sourceTimeSeconds < last) throw new Error("Invalid shared face sample order across windows.");
+        return [{ ...row }];
+      });
+      for (let i = 0; i < rows2.length; i++) rows2[i].index = target.length + i;
+      target.push(...rows2);
+    }
+    module.exports = { FACE_DECODE_BUDGET, faceRequestWindows: faceRequestWindows2, appendFaceSamples: appendFaceSamples2 };
+  }
+});
 
 // shared/local-client.ts
 import React from "react";
@@ -293,10 +606,6 @@ function dataRoot() {
   const f = fs();
   return f.join(f.homedir(), ".selects", "plugin-data", PANEL_ID);
 }
-function envRoot() {
-  const f = fs();
-  return f.join(f.homedir(), ".selects", "python-envs", PANEL_ID);
-}
 function hostVersion() {
   try {
     return String(hostSdk?.environment?.version || "");
@@ -310,7 +619,6 @@ function versionBelow(version, minimum) {
   for (let i = 0; i < 3; i += 1) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
   return false;
 }
-var q = (v) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 var J = (v) => JSON.stringify(v);
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 var LIST_FILES = `const listFiles = async (p: any): Promise<any[]> => {
@@ -335,24 +643,12 @@ async function script(sdk, summary, body, allowCommit = false) {
   }
   return r.result;
 }
-async function shell(sdk, summary, command, timeoutMs = 12e4, maxOutputBytes = 16e3) {
-  const r = await sdk.runShell({ summary, command, timeoutMs, maxOutputBytes });
-  const code = r?.exitCode ?? (r?.isError ? 1 : 0);
-  if (r?.isError || code !== 0) {
-    const text = String(r?.stderr || r?.output || r?.stdout || "").trim();
-    throw new Error(summary + " failed" + (text ? ": " + text.slice(-700) : "."));
-  }
-  return String(r?.stdout ?? r?.output ?? "");
-}
 function hostError(code, message, member = "") {
   return Object.assign(new Error(message), { code, member });
 }
 function hostApi(name, ...methods) {
   const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
   return s && methods.every((m) => typeof s[m] === "function") ? s : null;
-}
-function hostIsWindows() {
-  return /^win/i.test(hostSdk?.environment?.platform || "");
 }
 async function hostRoots(sdk, id, marker) {
   hostUseSdk(sdk);
@@ -426,26 +722,37 @@ function hostUseSdk(sdk) {
 import React2, { useEffect, useRef, useState } from "react";
 
 // plugins/a16z-style-captions/src/pipeline/source.ts
-var READ = (id, pid) => `const p = selects.project(${J(pid)});
+var import_ai_resources = __toESM(require_ai_resources());
+var READ = (id, pid, bindings) => `const p = selects.project(${J(pid)});
 const d = selects.draft(${J(id)});
 const m = await d.meta();
 const ws = (await d.words()).filter((w: any) => !w.nonSpeech && !w.cut && w.endFrame > w.startFrame);
 const main = (await d.clips({ trackScope: "main" })).filter((c: any) => c.trackKind === "main" && c.resourceId != null);
 ${LIST_FILES}
 const files = await listFiles(p);
-const clips = main.map((c: any) => {
+const persistent:Record<number,string> = ${J(bindings)};
+const clips = await Promise.all(main.map(async (c: any) => {
+  const rm = await p.resource(c.resourceId).meta();
+  const sourceFps = rm.fps;
   const f = files.find((x: any) => x.resourceId === c.resourceId);
-  const offs = ws.filter((w: any) => w.startFrame >= c.startFrame && w.endFrame <= c.endFrame && w.sourceStartFrame != null).map((w: any) => w.sourceStartFrame - w.startFrame).sort((a: number, b: number) => a - b);
+  const offs = ws.filter((w: any) => w.startFrame >= c.startFrame && w.endFrame <= c.endFrame && w.sourceStartFrame != null && (w.sourceResourceId === c.resourceId || w.sourceResourceId === persistent[c.clipId])).map((w: any) => w.sourceStartFrame / sourceFps - w.startFrame / m.fps).sort((a: number, b: number) => a - b);
   const off = offs.length ? offs[Math.floor(offs.length / 2)] : null;
   return { clipId: c.clipId, rid: c.resourceId, s: c.startFrame, e: c.endFrame, path: f ? f.path : null,
-    sw: f?.frameSize?.width || 0, sh: f?.frameSize?.height || 0, srcStart: off == null ? -1 : (c.startFrame + off) / m.fps };
-});
+    sw: f?.frameSize?.width || rm.frameSize.width, sh: f?.frameSize?.height || rm.frameSize.height, srcStart: off == null ? -1 : c.startFrame / m.fps + off, canonicalResourceId: persistent[c.clipId], sourceFps, sourceDuration: rm.durationSeconds };
+}));
 return { name: m.name, fps: m.fps, width: m.frameSize.width, height: m.frameSize.height,
   endFrame: main.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0),
   words: ws.map((w: any, i: number) => ({ i, t: w.text, s: w.startFrame, e: w.endFrame, ss: w.sourceStartFrame ?? null, rid: w.sourceResourceId ?? null })),
   clips };`;
 async function readDraft(sdk, pid, id, label = "Read the Draft") {
-  return script(sdk, label, READ(id, pid));
+  if (!sdk.call) throw new Error("Update Selects to resolve source Resources.");
+  const before = (0, import_ai_resources.canonicalResourceBindings)(await sdk.call("getDraftCore", id), { projectId: pid, draftId: id });
+  const result = await script(sdk, label, READ(id, pid, Object.fromEntries(before)));
+  const after = (0, import_ai_resources.canonicalResourceBindings)(await sdk.call("getDraftCore", id), { projectId: pid, draftId: id });
+  const fingerprint = (map) => JSON.stringify([...map].sort((a, b) => a[0] - b[0]));
+  if (fingerprint(before) !== fingerprint(after)) throw new Error("Main sources changed while reading the Draft. Try again.");
+  if (result.clips.some((c) => !c.canonicalResourceId || !(c.sourceFps > 0) || !(c.sourceDuration > 0))) throw new Error("The persistent source Resource is unavailable.");
+  return result;
 }
 
 // plugins/a16z-style-captions/src/captions/lexicon.ts
@@ -569,8 +876,8 @@ async function ask(sdk, prompt, images) {
   }
   throw last || new Error("The assistant did not answer.");
 }
-function find(words2, sents, s, q2) {
-  const want = toks(q2);
+function find(words2, sents, s, q) {
+  const want = toks(q);
   if (!want.length) return null;
   const tries = [s - 1, s - 2, s, s - 3].filter((x, i, a) => x >= 0 && x < sents.length && a.indexOf(x) === i);
   for (const si of tries) {
@@ -616,8 +923,8 @@ function parseLoose(text) {
 }
 function resolveSemantic(o, words2, sents, raw = "") {
   let missing = 0;
-  const f = (s, q2) => {
-    const r = find(words2, sents, Number(s) || 0, String(q2 || ""));
+  const f = (s, q) => {
+    const r = find(words2, sents, Number(s) || 0, String(q || ""));
     if (!r) missing += 1;
     return r;
   };
@@ -672,9 +979,9 @@ function resolveSemantic(o, words2, sents, raw = "") {
 }
 function resolveDesigns(list, words2, sents, f) {
   const out = [];
-  const near = (s, q2, after = -1) => {
+  const near = (s, q, after = -1) => {
     for (let k = 0; k < 4; k += 1) {
-      const sp = find(words2, sents, s + k, q2);
+      const sp = find(words2, sents, s + k, q);
       if (sp && sp[0] > after) return sp;
     }
     return null;
@@ -751,47 +1058,192 @@ function headOf(words2, sp) {
   return sp[1];
 }
 
-// plugins/a16z-style-captions/src/pipeline/face_track.py
-var face_track_default = '# Speaker face tracking for the 9:16 reframe (YuNet through OpenCV). Per job (one source range): split\n# into shots where the picture changes, link faces into tracks, keep the track seen most often, largest and\n# most confidently. Figures are fractions of the source frame.\nimport argparse, json, os\nimport cv2\nimport numpy as np\n\n\ndef iou(a, b):\n    ax2, ay2, bx2, by2 = a[0] + a[2], a[1] + a[3], b[0] + b[2], b[1] + b[3]\n    iw = max(0.0, min(ax2, bx2) - max(a[0], b[0]))\n    ih = max(0.0, min(ay2, by2) - max(a[1], b[1]))\n    inter = iw * ih\n    return inter / (a[2] * a[3] + b[2] * b[3] - inter + 1e-9)\n\n\ndef histogram(img):\n    h = cv2.calcHist([cv2.cvtColor(img, cv2.COLOR_BGR2HSV)], [0, 1], None, [32, 16], [0, 180, 0, 256])\n    return cv2.normalize(h, h)\n\n\ndef scan(job, model, rate=6.0, score=0.8, min_face=0.05, cut=0.35):\n    cap = cv2.VideoCapture(job["path"])\n    if not cap.isOpened():\n        return {"id": job.get("id"), "error": "cannot open source"}\n    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0\n    W, H = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))\n    f0 = max(0, int(round(float(job["start"]) * fps)))\n    f1 = max(f0 + 1, int(round(float(job["end"]) * fps)))\n    step = max(1, int(round(fps / rate)))\n    k = min(1.0, 640.0 / max(W, H))\n    small = (max(1, int(round(W * k))), max(1, int(round(H * k))))\n    det = cv2.FaceDetectorYN.create(model, "", small, score, 0.3, 5000)\n    if f0 > 0:\n        cap.set(cv2.CAP_PROP_POS_FRAMES, f0)\n    samples, cuts, prev = [], [f0], None\n    for f in range(f0, f1):\n        if not cap.grab():\n            break\n        if (f - f0) % step:\n            continue\n        ok, img = cap.retrieve()\n        if not ok:\n            break\n        img = cv2.resize(img, small, interpolation=cv2.INTER_AREA)\n        hist = histogram(img)\n        if prev is not None and cv2.compareHist(prev, hist, cv2.HISTCMP_CHISQR_ALT) > cut:\n            cuts.append(f)\n        prev = hist\n        _, rows = det.detect(img)\n        faces = []\n        for r in ([] if rows is None else rows):\n            x, y, w, h = r[0] / small[0], r[1] / small[1], r[2] / small[0], r[3] / small[1]\n            if r[14] < score or h < min_face or not (0.5 < (w * W) / (h * H) < 1.6):\n                continue\n            faces.append({"b": [float(x), float(y), float(w), float(h)], "ex": float((r[4] + r[6]) / 2 / small[0]),\n                          "ey": float((r[5] + r[7]) / 2 / small[1]), "s": float(r[14])})\n        samples.append({"f": f, "faces": faces})\n    cap.release()\n    bounds = cuts + [f1]\n    shots = []\n    for i in range(len(cuts)):\n        ss = [s for s in samples if bounds[i] <= s["f"] < bounds[i + 1]]\n        shot = {"start": round(bounds[i] / fps, 4), "end": round(bounds[i + 1] / fps, 4), "face": None, "faces": 0}\n        if ss:\n            tracks = []\n            for s in ss:\n                for face in s["faces"]:\n                    best = max(tracks, key=lambda t: iou(t["last"], face["b"]), default=None)\n                    if best is None or iou(best["last"], face["b"]) < 0.3 or best["lastF"] == s["f"]:\n                        best = {"rows": [], "last": None, "lastF": None}\n                        tracks.append(best)\n                    best["rows"].append(face)\n                    best["last"] = face["b"]\n                    best["lastF"] = s["f"]\n\n            def weight(t):\n                return len(t["rows"]) / len(ss) * float(np.median([r["b"][3] for r in t["rows"]])) * float(np.mean([r["s"] for r in t["rows"]]))\n\n            ranked = sorted(tracks, key=weight, reverse=True)\n            shot["faces"] = max(len(s["faces"]) for s in ss)\n            if ranked:\n                m = ranked[0]["rows"]\n                med = lambda key: round(float(np.median([key(r) for r in m])), 4)\n                shot["face"] = {"cx": med(lambda r: r["ex"]), "eyes": med(lambda r: r["ey"]), "h": med(lambda r: r["b"][3]),\n                                "w": med(lambda r: r["b"][2]), "top": med(lambda r: r["b"][1])}\n        shots.append(shot)\n    merged = []\n    for s in shots:\n        if merged and (s["end"] - s["start"] < 0.5 or merged[-1]["end"] - merged[-1]["start"] < 0.5):\n            keep = merged[-1] if (merged[-1]["face"] and (merged[-1]["end"] - merged[-1]["start"]) >= (s["end"] - s["start"])) or not s["face"] else s\n            merged[-1] = dict(keep, start=merged[-1]["start"], end=s["end"])\n        else:\n            merged.append(s)\n    return {"id": job.get("id"), "width": W, "height": H, "fps": fps, "shots": merged}\n\n\ndef main():\n    p = argparse.ArgumentParser()\n    p.add_argument("--model", required=True)\n    p.add_argument("--jobs", required=True)\n    p.add_argument("--out", required=True)\n    a = p.parse_args()\n    cv2.setNumThreads(2)\n    out = [scan(j, a.model) for j in json.load(open(a.jobs))]\n    tmp = a.out + ".tmp"\n    with open(tmp, "w") as fh:\n        json.dump({"jobs": out}, fh, separators=(",", ":"))\n    os.replace(tmp, a.out)\n    shots = [s for j in out for s in j.get("shots", [])]\n    print(json.dumps({"ok": True, "shots": len(shots), "noFace": sum(1 for s in shots if not s["face"]), "errors": [j["error"] for j in out if j.get("error")]}))\n\n\nmain()\n';
+// plugins/a16z-style-captions/src/pipeline/faces.ts
+var import_ai_job_client = __toESM(require_ai_job_client());
+var import_face_request_windows = __toESM(require_face_request_windows());
+
+// plugins/a16z-style-captions/src/pipeline/faceTracks.ts
+var median = (xs) => {
+  const v = xs.slice().sort((a, b) => a - b), m = v.length >> 1;
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+};
+function iou(a, b) {
+  const area = Math.max(0, Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[1] + a[3], b[1] + b[3]) - Math.max(a[1], b[1]));
+  return area / (a[2] * a[3] + b[2] * b[3] - area + 1e-9);
+}
+function rows(sample, W2, H2) {
+  return sample.faces.flatMap((f) => {
+    const b = f.box, w = b.xmax - b.xmin, h = b.ymax - b.ymin;
+    if (f.score < 0.8 || h < H2 * 0.05 || w / h <= 0.5 || w / h >= 1.6) return [];
+    return [{ b: [b.xmin / W2, b.ymin / H2, w / W2, h / H2], ex: (f.landmarks[0].x + f.landmarks[1].x) / 2 / W2, ey: (f.landmarks[0].y + f.landmarks[1].y) / 2 / H2, score: f.score }];
+  });
+}
+function speakerShots(samples, cuts, start, end, W2, H2) {
+  if (![start, end, W2, H2].every(Number.isFinite) || start < 0 || end <= start || W2 <= 0 || H2 <= 0) throw new Error("Invalid source face clock.");
+  let previous = -Infinity;
+  for (const sample of samples) {
+    if (!Number.isFinite(sample.sourceTimeSeconds) || sample.sourceTimeSeconds <= previous || sample.sourceTimeSeconds < start - 1e-6 || sample.sourceTimeSeconds >= end || !Array.isArray(sample.faces) || sample.faces.length > 64) throw new Error("Invalid shared face sample order.");
+    previous = sample.sourceTimeSeconds;
+    for (const face of sample.faces) {
+      const b = face.box;
+      if (!b || ![b.xmin, b.ymin, b.xmax, b.ymax, face.score].every(Number.isFinite) || b.xmin < 0 || b.ymin < 0 || b.xmax > W2 || b.ymax > H2 || b.xmax <= b.xmin || b.ymax <= b.ymin || face.score < 0 || face.score > 1 || !Array.isArray(face.landmarks) || face.landmarks.length !== 5 || face.landmarks.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) throw new Error("Invalid shared face geometry.");
+    }
+  }
+  const bounds = [start, ...cuts.filter((t) => t > start && t < end), end].sort((a, b) => a - b);
+  const shots = [];
+  for (let i = 0; i < bounds.length - 1; i++) {
+    const ss = samples.filter((s) => s.sourceTimeSeconds >= bounds[i] && s.sourceTimeSeconds < bounds[i + 1]);
+    const tracks = [];
+    ss.forEach((s, si) => {
+      for (const face of rows(s, W2, H2)) {
+        const best = tracks.slice().sort((a, b) => iou(b.last, face.b) - iou(a.last, face.b))[0];
+        const track = !best || iou(best.last, face.b) < 0.3 || best.lastSample === si ? { rows: [], last: face.b, lastSample: si } : best;
+        if (track !== best) tracks.push(track);
+        track.rows.push(face);
+        track.last = face.b;
+        track.lastSample = si;
+      }
+    });
+    const weight = (t) => t.rows.length / Math.max(1, ss.length) * median(t.rows.map((r) => r.b[3])) * t.rows.reduce((n, r) => n + r.score, 0) / t.rows.length;
+    tracks.sort((a, b) => weight(b) - weight(a));
+    const selected = tracks[0]?.rows, med = (fn) => Math.round(median(selected.map(fn)) * 1e4) / 1e4;
+    const shot = { start: bounds[i], end: bounds[i + 1], face: selected ? { cx: med((r) => r.ex), eyes: med((r) => r.ey), h: med((r) => r.b[3]), w: med((r) => r.b[2]), top: med((r) => r.b[1]) } : null };
+    const previous2 = shots.at(-1);
+    if (previous2 && (shot.end - shot.start < 0.5 || previous2.end - previous2.start < 0.5)) {
+      const keep = previous2.face && previous2.end - previous2.start >= shot.end - shot.start || !shot.face ? previous2 : shot;
+      shots[shots.length - 1] = { ...keep, start: previous2.start, end: shot.end };
+    } else shots.push(shot);
+  }
+  return { W: W2, H: H2, shots };
+}
+
+// plugins/a16z-style-captions/src/pipeline/shotHistogram.ts
+function hsvHistogram(rgb) {
+  const bins = new Float64Array(32 * 16);
+  for (let i = 0; i + 2 < rgb.length; i += 3) {
+    const r = rgb[i], g = rgb[i + 1], b = rgb[i + 2], max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min;
+    const saturation = max ? delta * Math.round((255 << 12) / max) + 2048 >> 12 : 0;
+    let hue = delta ? (max === r ? g - b : max === g ? b - r + 2 * delta : r - g + 4 * delta) * Math.round((180 << 12) / (6 * delta)) + 2048 >> 12 : 0;
+    if (hue < 0) hue += 180;
+    bins[Math.min(31, Math.floor(hue * 32 / 180)) * 16 + Math.min(15, Math.floor(saturation * 16 / 256))] += 1;
+  }
+  const norm4 = Math.hypot(...bins);
+  if (norm4) for (let i = 0; i < bins.length; i++) bins[i] /= norm4;
+  return bins;
+}
+function histogramDistance(a, b) {
+  let distance = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] + b[i] > 0) distance += 2 * (a[i] - b[i]) ** 2 / (a[i] + b[i]);
+  return distance;
+}
+async function histogramCuts(input) {
+  if (input.times.length !== input.count || input.times.some((t, i) => !Number.isFinite(t) || t < 0 || i > 0 && t <= input.times[i - 1])) throw new Error("Invalid camera sample source clock.");
+  const cuts = [];
+  let previous = null;
+  for (let index = 0; index < input.count; index++) {
+    const current = hsvHistogram(await input.read(index));
+    if (previous && histogramDistance(previous, current) > 0.35) cuts.push(input.times[index]);
+    previous = current;
+  }
+  return cuts;
+}
+
+// plugins/a16z-style-captions/src/pipeline/cameraSamples.ts
+function cameraSampleArgs(input, output, width, height, step) {
+  return [
+    "-hide_banner",
+    "-nostdin",
+    "-loglevel",
+    "info",
+    "-y",
+    "-i",
+    input.path,
+    "-map",
+    "0:V:0",
+    "-an",
+    "-sn",
+    "-dn",
+    "-vf",
+    `setpts=PTS-STARTPTS,trim=start=${input.start}:end=${input.end},framestep=${step},showinfo=checksum=0,scale=${width}:${height}:flags=area`,
+    "-pix_fmt",
+    "rgb24",
+    "-fps_mode",
+    "passthrough",
+    "-f",
+    "rawvideo",
+    output
+  ];
+}
+function cameraSampleTimes(stderr, count, start, end) {
+  const base = stderr.match(/config in time_base:\s*(\d+)\/(\d+)/);
+  if (!base || !(Number(base[1]) > 0 && Number(base[2]) > 0)) throw new Error("Camera sample time base was unavailable.");
+  const unit = Number(base[1]) / Number(base[2]), times = [];
+  for (const line of stderr.split(/\r?\n/)) {
+    if (!/showinfo/i.test(line)) continue;
+    const match = line.match(/\bn:\s*(\d+)\s+pts:\s*(-?\d+)\s+pts_time:/);
+    if (!match) continue;
+    const pts = Number(match[2]), time = pts * unit;
+    if (Number(match[1]) !== times.length || !Number.isSafeInteger(pts) || !Number.isFinite(time) || time < start - 1e-7 || time >= end || times.length && time <= times.at(-1)) throw new Error("Camera sample source timestamps were incomplete or unordered.");
+    times.push(time);
+  }
+  if (times.length !== count) throw new Error("Camera sample timestamps do not match the decoded frames.");
+  return times;
+}
 
 // plugins/a16z-style-captions/src/pipeline/faces.ts
-var MODEL_URL = "https://media.githubusercontent.com/media/opencv/opencv_zoo/f12e12798e8314f7c074a6656816c048dcc95b7a/models/face_detection_yunet/face_detection_yunet_2023mar.onnx";
-var MODEL_SHA = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4";
-async function ensureFaceRuntime(sdk, progress) {
-  const env = envRoot();
-  const model2 = fs().join(dataRoot(), "models", "face_detection_yunet_2023mar.onnx");
-  const py = fs().join(env, "bin", "python");
-  const ok = await shell(sdk, "Check speaker framing", "[ -x " + q(py) + " ] && " + q(py) + " -c 'import cv2; cv2.FaceDetectorYN' 2>/dev/null && echo ENV; [ -f " + q(model2) + " ] && echo MODEL; true", 3e4);
-  if (!/ENV/.test(ok)) {
-    progress("Setting up speaker framing (one time, about a minute)\u2026");
-    await shell(
-      sdk,
-      "Install speaker framing",
-      "set -e; /usr/bin/python3 -m venv " + q(env) + " && " + q(fs().join(env, "bin", "pip")) + " install -q --disable-pip-version-check --only-binary=:all: numpy 'opencv-python-headless>=4.8'",
-      3e5
-    );
-  }
-  if (!/MODEL/.test(ok)) {
-    const dir = fs().join(dataRoot(), "models");
-    await shell(
-      sdk,
-      "Download the face model",
-      "set -e; mkdir -p " + q(dir) + " && curl -sfL --max-time 120 -o " + q(model2 + ".part") + " " + q(MODEL_URL) + ' && [ "$(shasum -a 256 ' + q(model2 + ".part") + ` | cut -d' ' -f1)" = ` + MODEL_SHA + " ] && mv " + q(model2 + ".part") + " " + q(model2),
-      15e4
-    );
-  }
-  return { python: py, model: model2 };
-}
-async function trackFaces(sdk, rt, dir, jobs) {
+async function trackFaces(sdk, projectId, dir, jobs, progress = () => {
+}) {
   const out = {};
   if (!jobs.length) return out;
   await fs().mkdir(dir, { recursive: true });
-  const jobsPath = fs().join(dir, "face-jobs.json");
-  const outPath = fs().join(dir, "faces.json");
-  await fs().writeFile(jobsPath, J(jobs));
-  await shell(sdk, "Find the speaker in each shot", q(rt.python) + " -c " + q(face_track_default) + " --model " + q(rt.model) + " --jobs " + q(jobsPath) + " --out " + q(outPath), 3e5);
-  const res = JSON.parse(String(await fs().readFile(outPath, "utf8")));
-  for (const j of res.jobs || []) if (!j.error) out[String(j.id)] = { W: j.width, H: j.height, shots: j.shots };
+  const journal = fs().join(dir, "shared-ai-jobs.json");
+  const client = (0, import_ai_job_client.createSharedAiJobClient)({
+    projectId,
+    scope: "a16z-faces:" + dir,
+    runScript: (body, summary, effect) => script(sdk, summary, body, effect),
+    load: async () => await fs().exists(journal) ? JSON.parse(String(await fs().readFile(journal, "utf8"))) : null,
+    save: async (value) => fs().writeFile(journal, JSON.stringify(value))
+  });
+  for (const job of jobs) {
+    if (!(job.fps > 0 && job.width > 0 && job.height > 0) || !Number.isFinite(job.start) || !(job.end > job.start)) throw new Error("Invalid source frame clock.");
+    const interval = Math.max(1, Math.round(job.fps / 6)) / job.fps;
+    const samples = [];
+    const windows = (0, import_face_request_windows.faceRequestWindows)({ startSeconds: job.start, endSeconds: job.end, sourceFps: job.fps, sampleEverySeconds: interval });
+    for (const window2 of windows) {
+      const run2 = await client.run(
+        {
+          task: "faces.detect",
+          resourceId: job.resourceId,
+          sourceRange: { startSeconds: window2.startSeconds, endSeconds: window2.endSeconds },
+          options: { sampleEverySeconds: interval, scoreThreshold: 0.8, provider: "cpu" }
+        },
+        { retryTerminal: true, identity: job.id + ":" + job.start + ":" + job.end + (windows.length > 1 ? ":" + window2.startSeconds + ":" + window2.endSeconds : ""), onProgress: (s) => progress(s.step || "Finding the speaker\u2026") }
+      );
+      const artifact = run2.result.files.detections, incoming = [];
+      for (let offset = 0; ; offset += 10) {
+        const page = await script(sdk, "Read speaker observations", `const d:any=await selects.ai.readJSON(${JSON.stringify(artifact)},${JSON.stringify(projectId)});
+if(d.parameters?.sourceRange?.startSeconds!==${window2.startSeconds}||d.parameters?.sourceRange?.endSeconds!==${window2.endSeconds}||d.parameters?.scoreThreshold!==0.8||d.parameters?.sampleEverySeconds!==${interval})throw Error("Shared face parameters changed");
+if(d.contractVersion!==1||d.task!=="faces.detect"||d.coordinateSpace!=="display-pixels"||d.boxFormat!=="xyxy"||d.frameSize?.width!==${job.width}||d.frameSize?.height!==${job.height}||!Array.isArray(d.samples)||!d.samples.length||d.samples.length>${Math.ceil((window2.endSeconds - window2.startSeconds) / interval) + 3})throw Error("Invalid shared face result");
+return {total:d.samples.length,samples:d.samples.slice(${offset},${offset + 10})};`);
+        incoming.push(...page.samples);
+        if (offset + 10 >= page.total) break;
+      }
+      (0, import_face_request_windows.appendFaceSamples)(samples, incoming, window2.acceptFromSeconds);
+    }
+    const scale = Math.min(1, 640 / Math.max(job.width, job.height)), width = Math.max(1, Math.round(job.width * scale)), height = Math.max(1, Math.round(job.height * scale));
+    const bytes = width * height * 3, step = Math.max(1, Math.round(job.fps / 6)), rgb = fs().join(dir, "shot-" + job.id + ".rgb");
+    let cuts;
+    try {
+      const decoded = await hostFF("runFFmpeg", cameraSampleArgs(job, rgb, width, height, step), 3e5);
+      const stat = await fs().stat(rgb);
+      if (!stat || stat.size < bytes || stat.size % bytes) throw new Error("Camera sample decoding was incomplete.");
+      const count = Math.floor(stat.size / bytes), times = cameraSampleTimes(decoded.stderr, count, job.start, job.end);
+      cuts = await histogramCuts({ read: (i) => fs().readRange(rgb, i * bytes, bytes), count, times });
+    } finally {
+      await fs().rm(rgb, { force: true });
+    }
+    out[job.id] = speakerShots(samples, cuts, job.start, job.end, job.width, job.height);
+  }
   return out;
 }
 
@@ -1593,7 +2045,7 @@ function phrases(all, words2, tags, cuts) {
   const byIndex = /* @__PURE__ */ new Map();
   words2.forEach((w, k) => byIndex.set(w.i, k));
   const openers = new Set(tags.openers || []);
-  const quotativeEnds = new Set((tags.quotatives || []).map((q2) => q2[1]));
+  const quotativeEnds = new Set((tags.quotatives || []).map((q) => q[1]));
   const out = [];
   let cur = [];
   const close = () => {
@@ -1968,7 +2420,7 @@ function candidates(gs, tags, start) {
   };
   for (const k of tags.keyTerms || []) if (["T", "P", "I", "N", "D"].includes(k.kind) && k.priority >= 4) push(at(k.head), k.priority + (k.kind === "P" ? 1 : 0), k.kind);
   for (const e of tags.enumerations || []) push(at(e.count[0]), 5, "count");
-  for (const q2 of tags.quotes || []) if (q2.kind === "famous" || q2.kind === "coined") push(at(q2.span[1]), 4, "quote");
+  for (const q of tags.quotes || []) if (q.kind === "famous" || q.kind === "coined") push(at(q.span[1]), 4, "quote");
   if (!tags.keyTerms) {
     gs.forEach((g, k) => {
       if (k < start) return;
@@ -2064,7 +2516,7 @@ function caseOf(text, sentenceStart, mode, afterComma, seenLower = /* @__PURE__ 
   const innerCaps = /[a-z][A-Z]/.test(core) || /^[a-z]+[A-Z]/.test(core);
   if (mode === "sentence") {
     let t = text;
-    if (sentenceStart || afterComma) t = t.replace(/^([“"‘']?)([a-z])/, (_, q2, c) => q2 + c.toUpperCase());
+    if (sentenceStart || afterComma) t = t.replace(/^([“"‘']?)([a-z])/, (_, q, c) => q + c.toUpperCase());
     return t;
   }
   if (isI) return mode === "lower_keep_I" ? text : text.replace(/^I/, "i");
@@ -2076,7 +2528,7 @@ function caseOf(text, sentenceStart, mode, afterComma, seenLower = /* @__PURE__ 
 }
 function shownText(groups, tags, style) {
   const punchSpans = tags.punchlines || [];
-  const quoteSpans = (tags.quotes || []).filter((q2) => q2.kind === "famous" || q2.kind === "coined").map((q2) => q2.span);
+  const quoteSpans = (tags.quotes || []).filter((q) => q.kind === "famous" || q.kind === "coined").map((q) => q.span);
   let sentenceStart = true;
   let afterComma = false;
   const seenLower = /* @__PURE__ */ new Set();
@@ -2105,8 +2557,8 @@ function shownText(groups, tags, style) {
       } else if (style.punct === "full" && /,/.test(punct) && k === 0 && g.toks.length > 1) keep = ",";
       if (unitFinal && (tags.abandoned || []).some((a) => a[0] === t.src[t.src.length - 1] + 1)) keep = "-";
       text = text.replace(/^[“"]+|[”"]+$/g, "") + keep;
-      if (quoteSpans.some((q2) => t.src[0] === q2[0])) text = "\u201C" + text;
-      if (quoteSpans.some((q2) => t.src.includes(q2[1]))) text = text + "\u201D";
+      if (quoteSpans.some((q) => t.src[0] === q[0])) text = "\u201C" + text;
+      if (quoteSpans.some((q) => t.src.includes(q[1]))) text = text + "\u201D";
       t.t = text;
     });
   });
@@ -2288,7 +2740,7 @@ function compileCaptions(inp) {
     const n = u.toks.length;
     const sp = u.toks[n - 1].s - u.toks[0].s;
     if (n === 1 || n >= 5 || rapid(k) || sp < 0.25) return;
-    const isQuotative = (tags.quotatives || []).some((q2) => u.toks.some((t) => t.src.some((i) => inSpan4(i, q2))));
+    const isQuotative = (tags.quotatives || []).some((q) => u.toks.some((t) => t.src.some((i) => inSpan4(i, q))));
     if (isQuotative) return;
     let score = 0;
     const prev = us[k - 1];
@@ -2770,15 +3222,15 @@ async function buildGraphic(o) {
   const q0 = (x) => x.span[0];
   const quoteBlocks = [];
   const spans = [];
-  const quotativeEnds = (tags.quotatives || []).map((q2) => q2[1]);
-  for (const q2 of (tags.quotes || []).filter((x) => (x.kind === "reported" || x.kind === "imagined") && quotativeEnds.some((e) => q0(x) - e >= 0 && q0(x) - e <= 3)).sort((x, y) => x.span[0] - y.span[0])) {
+  const quotativeEnds = (tags.quotatives || []).map((q) => q[1]);
+  for (const q of (tags.quotes || []).filter((x) => (x.kind === "reported" || x.kind === "imagined") && quotativeEnds.some((e) => q0(x) - e >= 0 && q0(x) - e <= 3)).sort((x, y) => x.span[0] - y.span[0])) {
     const last = spans[spans.length - 1];
-    if (last && q2.span[0] - last[1] <= 4) last[1] = Math.max(last[1], q2.span[1]);
-    else spans.push([q2.span[0], q2.span[1]]);
+    if (last && q.span[0] - last[1] <= 4) last[1] = Math.max(last[1], q.span[1]);
+    else spans.push([q.span[0], q.span[1]]);
   }
   for (const span2 of spans) {
-    const q2 = { span: span2 };
-    const inside = track.units.filter((u) => u.tokens.some((t) => t.src.some((i) => i >= q2.span[0] && i <= q2.span[1])));
+    const q = { span: span2 };
+    const inside = track.units.filter((u) => u.tokens.some((t) => t.src.some((i) => i >= q.span[0] && i <= q.span[1])));
     if (inside.length < 3) continue;
     const a = Math.round(inside[0].start * fps);
     const b = Math.round(inside[inside.length - 1].end * fps);
@@ -2800,9 +3252,9 @@ async function buildGraphic(o) {
     fonts: o.fonts
   };
   try {
-    const rows = track.units.map((u) => u.start.toFixed(2) + "-" + u.end.toFixed(2) + " " + u.role + (u.build ? "*" : "") + (u.emphasis ? ":" + u.emphasis : "") + " " + u.entrance.kind + " y" + u.y.toFixed(3) + "  " + unitText(u));
+    const rows2 = track.units.map((u) => u.start.toFixed(2) + "-" + u.end.toFixed(2) + " " + u.role + (u.build ? "*" : "") + (u.emphasis ? ":" + u.emphasis : "") + " " + u.entrance.kind + " y" + u.y.toFixed(3) + "  " + unitText(u));
     const dir = fs().join(fs().homedir(), ".selects", "plugin-data", "a16z-style-captions", "shorts", job.shortId);
-    await fs().writeFile(fs().join(dir, "captions.txt"), rows.join("\n"));
+    await fs().writeFile(fs().join(dir, "captions.txt"), rows2.join("\n"));
     await fs().writeFile(fs().join(dir, "inputs.json"), JSON.stringify({ words: words2, tags, cuts, shots, duration, suppress, cards, fps, inserts: o.inserts }));
   } catch {
   }
@@ -2849,13 +3301,13 @@ async function searchCandidates(queries, max, avoid) {
     for (const raw of queries) {
       const query = clean(raw);
       if (!query) continue;
-      let rows = [];
+      let rows2 = [];
       try {
-        rows = await service.searchVideos({ query, per: 8, orientation });
+        rows2 = await service.searchVideos({ query, per: 8, orientation });
       } catch {
         continue;
       }
-      for (const v of rows) {
+      for (const v of rows2) {
         if (out.length >= max) return out;
         if (!v.previewUrl || avoid.has(v.originalUrl) || seen.has(v.originalUrl)) continue;
         const pick = chooseStock([v], orientation);
@@ -2922,10 +3374,10 @@ async function cutCandidate(sdk, c, dir, seconds, offset = 0.4) {
 function serviceLabel(name) {
   return /^pex/i.test(name) ? "Pexels" : name || "stock";
 }
-function chooseStock(rows, orientation) {
+function chooseStock(rows2, orientation) {
   const need = orientation === "portrait" ? 1080 : 720;
   let best = null;
-  rows.forEach((v, rank) => {
+  rows2.forEach((v, rank) => {
     if (!(v.duration >= 3)) return;
     const files = v.files && v.files.length ? v.files : [{ url: v.originalUrl, width: v.width, height: v.height }];
     for (const f of files) {
@@ -3148,16 +3600,10 @@ async function makeShort(sdk, ctx, opts, onStep) {
   });
   onStep("faces", "run");
   const facesJob = (async () => {
-    if (hostIsWindows()) {
-      notes.push("Speaker framing is available on macOS for now, so every shot is centred.");
-      onStep("faces", "skip", "centred");
-      return {};
-    }
     try {
-      const rt = await ensureFaceRuntime(sdk, (s) => onStep("faces", "run", s));
-      const jobs = src.clips.filter((c) => c.path && c.srcStart >= 0).map((c) => ({ id: String(c.clipId), path: c.path, start: c.srcStart, end: c.srcStart + (c.e - c.s) / fps }));
+      const jobs = src.clips.filter((c) => c.path && c.srcStart >= 0).map((c) => ({ id: String(c.clipId), path: c.path, resourceId: c.canonicalResourceId, start: c.srcStart, end: Math.min(c.sourceDuration, c.srcStart + (c.e - c.s) / fps), fps: c.sourceFps, width: c.sw, height: c.sh }));
       const dir = fs().join(dataRoot(), "sources", ctx.sequenceId);
-      const faces2 = await trackFaces(sdk, rt, dir, jobs);
+      const faces2 = await trackFaces(sdk, pid, dir, jobs, (s) => onStep("faces", "run", s));
       const n = Object.values(faces2).reduce((a, f) => a + f.shots.filter((s) => s.face).length, 0);
       onStep("faces", "done", n + " shot" + (n === 1 ? "" : "s") + " with a face");
       return faces2;

@@ -17,5 +17,5 @@ third-party samples).
 
 ## RVM
 
-Person mattes use Robust Video Matting. See [rvm/THIRD_PARTY.md](rvm/THIRD_PARTY.md).
-The model is downloaded at setup and is not shipped in this package.
+Person mattes use Robust Video Matting. The shared `selects-ai-runtime` package owns
+the model download and third-party notices; no model is shipped in this package.

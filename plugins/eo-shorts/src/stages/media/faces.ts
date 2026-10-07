@@ -1,10 +1,8 @@
 import type { Host } from "../../host/types.ts";
 import { encode, pictureInputFormat, pictureNeedsFormat, pictureOutputFormat, probeMedia } from "../../host/ffmpeg.ts";
 import { ensureDir, readBytes, readJsonIfExists, removeFile, renameWithRetry, statFile, writeJsonAtomic } from "../../host/fs.ts";
-import { randomHex } from "../../host/util.ts";
-import { analysisSize } from "../../speaker/ffmpegPass.ts";
-import { plausibleFaces, toSourceFaces, type FaceBox } from "../../speaker/faces.ts";
-import type { FaceDetector } from "../../speaker/yunet/runtime.ts";
+import { plausibleFaces, type FaceBox } from "../../speaker/faces.ts";
+import { sharedFaces, adaptSharedFaces } from "../speaker/sharedFaces.ts";
 
 export type FoundFace = { face: FaceBox; size: { width: number; height: number }; cx: number; cy: number };
 
@@ -18,8 +16,9 @@ export function largestFace(faces: FaceBox[], size: { width: number; height: num
   return { face: best, size, cx: (best.x + best.w / 2) / size.width, cy: (best.y + best.h / 2) / size.height };
 }
 
-export function hostFaceFinder(host: Pick<Host, "fs" | "runtime">, o: { tmpDir: string; detector: () => Promise<FaceDetector>; signal?: AbortSignal | null }): FaceFinder {
+export function hostFaceFinder(host: Host, o: { tmpDir: string; projectId: string; scope: string; signal?: AbortSignal | null }): FaceFinder {
   const fs = host.fs;
+  const infer = sharedFaces(host, { ...o, journalPath: fs.join(o.tmpDir, "ai-jobs.json") });
   return {
     async find(path, atSeconds = null) {
       await ensureDir(fs, o.tmpDir);
@@ -27,23 +26,13 @@ export function hostFaceFinder(host: Pick<Host, "fs" | "runtime">, o: { tmpDir: 
       const m = await probeMedia(host.runtime, path, { fs, tmpDir: o.tmpDir, signal: o.signal, inputFormat });
       if (!m.video || !(m.video.width > 0 && m.video.height > 0)) return null;
       const size = { width: m.video.width, height: m.video.height };
-      const a = analysisSize(size.width, size.height);
+      const image = /\.(?:jpe?g|png|webp|avif|heic|heif|bmp|tiff?)$/i.test(path);
       const duration = m.video.durationSec ?? m.durationSec;
-      const at = atSeconds ?? (duration && duration > 0.2 ? duration / 2 : null);
-      const out = fs.join(o.tmpDir, "face-" + randomHex(6) + ".bgr");
-      try {
-        await encode(
-          host.runtime,
-          ["-hide_banner", "-nostdin", "-v", "error", "-y", ...(at != null ? ["-ss", at.toFixed(3)] : []), ...inputFormat, "-i", path, "-frames:v", "1", "-vf", "scale=" + a.width + ":" + a.height + ":flags=area", "-pix_fmt", "bgr24", "-f", "rawvideo", out],
-          { outPath: out, fs, signal: o.signal, timeoutMs: 60_000 },
-        );
-        const bgr = await readBytes(fs, out);
-        if (bgr.length < a.width * a.height * 3) return null;
-        const rows = await (await o.detector()).detect(bgr, a.width, a.height);
-        return largestFace(plausibleFaces(toSourceFaces(rows, a.width, a.height, size.width, size.height), size.width, size.height), size);
-      } finally {
-        await removeFile(fs, out);
-      }
+      const at = image ? 0 : atSeconds ?? (duration && duration > 0.2 ? duration / 2 : 0);
+      const fps = m.video.fps || 30;
+      const result = await infer(path, [at], fps, image);
+      if (result.frameSize.width !== size.width || result.frameSize.height !== size.height) throw new Error("Shared face dimensions differ from the media.");
+      return largestFace(plausibleFaces(adaptSharedFaces(result, [at], fps)[0], size.width, size.height), size);
     },
   };
 }

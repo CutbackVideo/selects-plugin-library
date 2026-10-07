@@ -100,22 +100,9 @@ test('the port section stays free of shell and host calls',()=>{
  assert.equal(op.pyStr(3),'3.0');assert.equal(op.pyStr(0.375),'0.375');
 });
 
-test('macOS: the shell steps export the running Selects app\'s bundled ffmpeg',async()=>{
- const src=fs.readFileSync(path.join(plugin,'panel.tsx'),'utf8');
- const host=src.slice(src.indexOf('// av-host:start'),src.indexOf('// av-host:end'));
- const i=src.indexOf('const quote = '),mac=src.slice(i,src.indexOf('// mac-only:end',i));
- const apps=p=>p.replace(/^\/Applications\/([^/]+)\.app\/.*$/,'$1');
- const run=({installed,version,name})=>{
-  const plist=v=>'<plist><dict><key>CFBundleShortVersionString</key>\n    <string>'+v+'</string></dict></plist>';
-  const versions={'Selects':'2.0.495','Selects Staging':'2.0.535','Selects Alpha':'2.0.340'};
-  const FileSystem={join:(...p)=>p.join('/'),existsSync:p=>installed.includes(apps(p)),readFileSync:p=>Buffer.from(plist(versions[apps(p)]))};
-  const Runtime={getHostingVersion:()=>version,getAppName:()=>name,getPlatform:()=>'darwin'};
-  const ctx=vm.createContext({panelLocalClient:sdk=>sdk,sdk:asyncSdk({FileSystem,Runtime}),window:{parent:{__DI__:{FileSystem,Runtime}}},navigator:{},TextDecoder});
-  return vm.runInContext(host+mac+';hostUseSdk(sdk);macTools()',ctx);
- };
- const all=['Selects','Selects Staging','Selects Alpha'];
- assert.equal(await run({installed:all,version:'2.0.535',name:'Selects'}),"export POSTCARD_CUTOUT_RVM_FFMPEG='/Applications/Selects Staging.app/Contents/Resources/app.asar.unpacked/dist/bin/ffmpeg' POSTCARD_CUTOUT_RVM_FFPROBE='/Applications/Selects Staging.app/Contents/Resources/app.asar.unpacked/dist/bin/ffprobe'; ");
- assert.match(await run({installed:all,version:'9.9.9',name:'Selects Alpha'}),/Selects\.app/);
- assert.match(await run({installed:['Selects Staging'],version:'',name:''}),/Selects Staging\.app/);
- assert.equal(await run({installed:[],version:'2.0.535',name:'Selects'}),'');
+test('both OSes use canonical host media processing after migration',()=>{
+ const source=fs.readFileSync(path.join(plugin,'panel.tsx'),'utf8');
+ assert.doesNotMatch(source,/runShell\(|async function macMontage/);
+ assert.match(source,/const manifest = await pbmWindowsMontage/);
+ assert.match(source,/pbmSharedMattes/);
 });

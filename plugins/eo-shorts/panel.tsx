@@ -2,6 +2,319 @@
 // @icon wand
 // One click turns a talking-head draft into a new 9:16 EO-style short: tightened talk, speaker framing,
 // typographic scenes, pictures and B-roll, music and loudness, exported and checked.
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+
+// ../../shared/ai-job-client.cjs
+var require_ai_job_client = __commonJS({
+  "../../shared/ai-job-client.cjs"(exports, module) {
+    var STATUS2 = /* @__PURE__ */ new Set(["queued", "running", "canceling", "succeeded", "failed", "canceled"]);
+    var terminal = (status) => ["succeeded", "failed", "canceled"].includes(status);
+    var UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+    var writes = /* @__PURE__ */ new Map();
+    var error = (code, message) => Object.assign(new Error(message), { code });
+    var invalid = () => error("SHARED_AI_INVALID", "Saved AI analysis does not match this source or task.");
+    var clone = (value) => JSON.parse(JSON.stringify(value));
+    function stable(value) {
+      if (Array.isArray(value)) return "[" + value.map(stable).join(",") + "]";
+      if (value && typeof value === "object") return "{" + Object.keys(value).sort().map((k) => JSON.stringify(k) + ":" + stable(value[k])).join(",") + "}";
+      if (value === void 0 || typeof value === "function" || typeof value === "symbol" || typeof value === "bigint" || typeof value === "number" && !Number.isFinite(value)) throw invalid();
+      return JSON.stringify(value);
+    }
+    function attached(signal) {
+      if (signal?.aborted) throw error("SHARED_AI_DETACHED", "AI observation stopped. Reopen to recover the saved job.");
+    }
+    function inputFor(projectId, request2) {
+      if (!request2 || !["faces.detect", "person.matte"].includes(request2.task) || !UUID.test(request2.resourceId)) throw invalid();
+      const input = { runtimeId: "selects-ai-runtime", projectId, resourceId: request2.resourceId, task: request2.task };
+      if (request2.sourceRange !== void 0) {
+        const { startSeconds, endSeconds } = request2.sourceRange || {};
+        if (!Number.isFinite(startSeconds) || startSeconds < 0 || !Number.isFinite(endSeconds) || endSeconds <= startSeconds) throw invalid();
+        input.sourceRange = { startSeconds, endSeconds };
+      }
+      if (request2.options !== void 0) {
+        if (!request2.options || Array.isArray(request2.options) || typeof request2.options !== "object") throw invalid();
+        stable(request2.options);
+        input.options = clone(request2.options);
+      }
+      return input;
+    }
+    async function requestKey(scope, identity, input, attempt2) {
+      const withoutKey = { ...input };
+      delete withoutKey.requestKey;
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stable({ scope, identity, input: withoutKey, attempt: attempt2 })));
+      return "shared-ai-" + Array.from(new Uint8Array(digest), (n2) => n2.toString(16).padStart(2, "0")).join("");
+    }
+    function createSharedAiJobClient2(env) {
+      const { projectId, scope, runScript: runScript2, load, save } = env || {};
+      if (typeof projectId !== "string" || !projectId || typeof scope !== "string" || !scope || ![runScript2, load, save].every((f) => typeof f === "function")) throw invalid();
+      const storageKey = stable({ projectId, scope });
+      const fresh = () => ({ version: 1, projectId, scope, records: [] });
+      async function read() {
+        let journal;
+        try {
+          journal = await load();
+        } catch (cause) {
+          if (String(cause?.message || cause).trim() === "The file is unavailable." || /ENOENT|not found|does not exist/i.test(String(cause?.message || cause))) journal = null;
+          else throw cause;
+        }
+        if (journal == null) return fresh();
+        if (typeof journal === "string") {
+          try {
+            journal = JSON.parse(journal);
+          } catch {
+            throw invalid();
+          }
+        }
+        if (journal.version !== 1 || journal.projectId !== projectId || journal.scope !== scope || !Array.isArray(journal.records) || journal.records.length > 1e4) throw invalid();
+        const keys2 = /* @__PURE__ */ new Set();
+        for (const r5 of journal.records) {
+          if (!r5 || typeof r5.identity !== "string" || !Number.isSafeInteger(r5.attempt) || r5.attempt < 0 || r5.attempt > 255 || !/^shared-ai-[\da-f]{64}$/.test(r5.input?.requestKey) || keys2.has(r5.input.requestKey) || r5.workflowId !== void 0 && (typeof r5.workflowId !== "string" || !r5.workflowId) || r5.status !== void 0 && !STATUS2.has(r5.status) || r5.cancelRequested !== void 0 && typeof r5.cancelRequested !== "boolean") throw invalid();
+          const input = inputFor(projectId, r5.input);
+          if (stable({ ...input, requestKey: r5.input.requestKey }) !== stable(r5.input)) throw invalid();
+          keys2.add(r5.input.requestKey);
+        }
+        return clone(journal);
+      }
+      async function update(record2) {
+        const prior = writes.get(storageKey) || Promise.resolve();
+        const pending2 = prior.catch(() => {
+        }).then(async () => {
+          const journal = await read(), i = journal.records.findIndex((r5) => r5.input.requestKey === record2.input.requestKey), old = journal.records[i];
+          if (old?.workflowId && record2.workflowId && old.workflowId !== record2.workflowId) throw invalid();
+          const next = { ...old, ...record2, cancelRequested: Boolean(old?.cancelRequested || record2.cancelRequested) };
+          if (old?.workflowId) next.workflowId = old.workflowId;
+          if (old && terminal(old.status)) next.status = old.status;
+          if (i < 0) journal.records.push(next);
+          else journal.records[i] = next;
+          await save(clone(journal));
+          Object.assign(record2, next);
+        });
+        writes.set(storageKey, pending2);
+        try {
+          await pending2;
+        } finally {
+          if (writes.get(storageKey) === pending2) writes.delete(storageKey);
+        }
+      }
+      async function ack(record2, signal) {
+        if (record2.workflowId) return;
+        attached(signal);
+        const value = await runScript2(`if(typeof selects.ai?.submit!=='function')throw new Error('AI_UPDATE_REQUIRED');const j=await selects.ai.submit(${JSON.stringify(record2.input)});return {workflowId:j.workflowId};`, "Start shared AI analysis", true);
+        if (typeof value?.workflowId !== "string" || !value.workflowId) throw invalid();
+        record2.workflowId = value.workflowId;
+        await update(record2);
+        attached(signal);
+      }
+      async function status(record2, cancel3 = false) {
+        const value = await runScript2(`return await selects.ai.job(${JSON.stringify(record2.workflowId)},${JSON.stringify(projectId)}).${cancel3 ? "cancel" : "status"}();`, cancel3 ? "Cancel shared AI analysis" : "Read shared AI progress", cancel3);
+        if (value?.workflowId !== record2.workflowId || value.projectId !== projectId || value.runtimeId !== "selects-ai-runtime" || value.task !== record2.input.task || !STATUS2.has(value.status)) throw invalid();
+        record2.status = value.status;
+        await update(record2);
+        return value;
+      }
+      async function stop(record2, options = {}) {
+        record2.cancelRequested = true;
+        await update(record2);
+        await ack(record2, options.signal);
+        if (!terminal(record2.status)) await status(record2, true);
+        const deadline = Date.now() + (options.maxWaitMs ?? 6e4);
+        while (!terminal(record2.status)) {
+          attached(options.signal);
+          if (Date.now() >= deadline) throw error("SHARED_AI_CANCEL_PENDING", "AI is still stopping. Cancellation is saved; reopen to recover it.");
+          await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+          await status(record2);
+        }
+      }
+      async function run2(request2, options = {}) {
+        attached(options.signal);
+        const input = inputFor(projectId, request2), identity = options.identity ?? "";
+        if (typeof identity !== "string") throw invalid();
+        const journal = await read();
+        let record2 = journal.records.filter((r5) => r5.identity === identity && stable(inputFor(projectId, r5.input)) === stable(input)).sort((a, b2) => b2.attempt - a.attempt)[0];
+        if (record2 && record2.input.requestKey !== await requestKey(scope, identity, input, record2.attempt)) throw invalid();
+        if (record2?.workflowId && options.retryTerminal) {
+          attached(options.signal);
+          await status(record2);
+          attached(options.signal);
+        }
+        if (record2 && options.retryTerminal && record2.cancelRequested && !terminal(record2.status)) await stop(record2, options);
+        if (!record2 || options.retryTerminal && (["failed", "canceled"].includes(record2.status) || record2.cancelRequested && terminal(record2.status))) {
+          const attempt2 = record2 ? record2.attempt + 1 : 0;
+          if (attempt2 > 255) throw invalid();
+          record2 = { identity, attempt: attempt2, input: { ...input, requestKey: await requestKey(scope, identity, input, attempt2) } };
+          await update(record2);
+        }
+        await ack(record2, options.signal);
+        for (; ; ) {
+          attached(options.signal);
+          const latest = (await read()).records.find((r5) => r5.input.requestKey === record2.input.requestKey);
+          if (!latest) throw invalid();
+          Object.assign(record2, latest);
+          const value = await status(record2, record2.cancelRequested && !terminal(record2.status));
+          attached(options.signal);
+          if (record2.cancelRequested || record2.status === "canceled") throw error("SHARED_AI_CANCELED", "AI analysis was canceled. Start again to retry.");
+          if (record2.status === "failed") throw error("SHARED_AI_FAILED", "AI analysis failed. " + String(value.lastErrorMessage || "").slice(0, 300));
+          if (record2.status === "succeeded") {
+            const result = await runScript2(`return await selects.ai.job(${JSON.stringify(record2.workflowId)},${JSON.stringify(projectId)}).result();`, "Read shared AI result");
+            attached(options.signal);
+            if (result?.workflowId !== record2.workflowId || result.task !== record2.input.task || !result.files || typeof result.files !== "object") throw invalid();
+            return { workflowId: record2.workflowId, input: clone(record2.input), result };
+          }
+          options.onProgress?.(value);
+          await new Promise((resolve) => setTimeout(resolve, options.pollMs ?? env.pollMs ?? 500));
+        }
+      }
+      async function cancel2(options = {}) {
+        const journal = await read();
+        for (const record2 of journal.records) {
+          if (options.identity !== void 0 && record2.identity !== options.identity || terminal(record2.status)) continue;
+          if (record2.input.requestKey !== await requestKey(scope, record2.identity, record2.input, record2.attempt)) throw invalid();
+          await stop(record2, options);
+        }
+      }
+      return { run: run2, cancel: cancel2 };
+    }
+    module.exports = { createSharedAiJobClient: createSharedAiJobClient2 };
+  }
+});
+
+// ../../shared/ai-resources.cjs
+var require_ai_resources = __commonJS({
+  "../../shared/ai-resources.cjs"(exports, module) {
+    var UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+    var fingerprint = (rows) => JSON.stringify(rows.map((r5) => [r5.resourceId, r5.name, r5.type]));
+    function canonicalResourceBindings2(core, { projectId, draftId, trackKinds = ["Main"] } = {}) {
+      if (!core?.owner?.projectId || projectId && core.owner.projectId !== projectId || draftId && core.sequenceJson?.id !== draftId) throw new Error("The Draft belongs to another Project.");
+      const bindings = /* @__PURE__ */ new Map();
+      function walk(rows) {
+        for (const row of rows || []) {
+          const id = row.mediaReferences?.defaultMedia?.id;
+          if (Number.isSafeInteger(row.id) && UUID.test(id)) {
+            if (bindings.has(row.id) && bindings.get(row.id) !== id) throw new Error("Ambiguous clip source binding.");
+            bindings.set(row.id, id);
+          }
+          if (Array.isArray(row.children)) walk(row.children);
+        }
+      }
+      for (const track of core.sequenceJson?.tracks?.children || []) if (trackKinds.includes(track.kind)) walk(track.children);
+      return bindings;
+    }
+    function pathKey(value) {
+      const path = String(value).normalize("NFC"), windows = /^[a-z]:[\\/]|^\\\\/i.test(path);
+      const normalized = path.replace(/\\/g, "/");
+      return windows ? normalized.toLowerCase() : normalized;
+    }
+    function runner(sdk, runScript2) {
+      return runScript2 || (async (script, summary, allowCommit = false) => {
+        const value = await sdk.runScript({ script, summary, allowCommit });
+        if (value?.isError || value?.result === void 0) throw new Error(value?.output || "The Project read returned an incomplete result.");
+        return value.result;
+      });
+    }
+    async function joinRows(sdk, projectId, runScript2, script) {
+      const before = await sdk.call("listProjectResources", projectId);
+      if (!Array.isArray(before)) throw new Error("Could not read Project Resources.");
+      const observed = await runner(sdk, runScript2)(script, "Resolve persistent AI source");
+      const after = await sdk.call("listProjectResources", projectId);
+      if (!Array.isArray(after) || fingerprint(before) !== fingerprint(after) || observed?.count !== before.length || !Array.isArray(observed.rows)) throw new Error("Project Resources changed while resolving the AI source.");
+      const out = /* @__PURE__ */ new Map();
+      for (const row of observed.rows) {
+        const raw = before[row?.index];
+        if (!Number.isSafeInteger(row?.index) || !raw || raw.name !== row.name || raw.type !== row.type || !UUID.test(raw.resourceId) || typeof row.id !== "string") throw new Error("The persistent AI source could not be matched.");
+        out.set(row.id, raw.resourceId);
+      }
+      return out;
+    }
+    async function resolveSharedAiResources(sdk, projectId, aliases, runScript2) {
+      if (!Array.isArray(aliases) || aliases.some((id) => typeof id !== "string" || !id)) throw new Error("Invalid AI source ids.");
+      const wanted = [...new Set(aliases)];
+      const mappings = await joinRows(sdk, projectId, runScript2, `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const wanted=${JSON.stringify(wanted)};return {count:all.length,rows:all.flatMap((r,index)=>wanted.includes(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`);
+      for (const id of wanted) if (UUID.test(id)) {
+        const raw = await sdk.call("listProjectResources", projectId);
+        if (!raw.some((r5) => r5.resourceId === id)) throw new Error("The AI source is no longer in this Project.");
+        mappings.set(id, id);
+      }
+      if (wanted.some((id) => !mappings.has(id))) throw new Error("The AI source id is unavailable.");
+      return mappings;
+    }
+    async function importSharedAiResource2(sdk, projectId, path, runScript2) {
+      if (typeof path !== "string" || !path || !/^(?:[a-z]:[\\/]|\\\\|\/)/i.test(path)) throw new Error("An absolute AI source path is required.");
+      const run2 = runner(sdk, runScript2);
+      const script = `const p=selects.project(${JSON.stringify(projectId)});const all=await p.resources();const key=${pathKey.toString()};const aliases=new Set<string>();const visit=(rows:any[])=>{for(const n of rows||[]){if(n.type==='dir')visit(n.children);else if(n.path&&key(n.path)===key(${JSON.stringify(path)}))aliases.add(n.resourceId);}};const tree=await p.sourceFiles();if('fileTree' in tree)visit(tree.fileTree);else for(const f of tree.folders||[]){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)visit(part.fileTree);}return {count:all.length,rows:all.flatMap((r,index)=>aliases.has(r.resourceId)?[{index,id:r.resourceId,name:r.name,type:r.type}]:[])};`;
+      let map = await joinRows(sdk, projectId, run2, script);
+      if (!map.size) {
+        await run2(`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:[${JSON.stringify(path)}]});`, "Register AI source media", true);
+        map = await joinRows(sdk, projectId, run2, script);
+      }
+      const ids = [...new Set(map.values())];
+      if (ids.length !== 1) throw new Error("The imported AI source path is missing or ambiguous.");
+      return ids[0];
+    }
+    module.exports = { canonicalResourceBindings: canonicalResourceBindings2, resolveSharedAiResources, importSharedAiResource: importSharedAiResource2, importSharedAiVideo: importSharedAiResource2 };
+  }
+});
+
+// ../../shared/face-request-windows.cjs
+var require_face_request_windows = __commonJS({
+  "../../shared/face-request-windows.cjs"(exports, module) {
+    var FACE_DECODE_BUDGET = 19e3;
+    function faceRequestWindows2({ startSeconds, endSeconds, sourceFps, sampleEverySeconds, maxDecodedFrames = FACE_DECODE_BUDGET }) {
+      if (![startSeconds, endSeconds, sourceFps, sampleEverySeconds].every(Number.isFinite) || startSeconds < 0 || endSeconds <= startSeconds || sourceFps <= 0 || sampleEverySeconds <= 0 || !Number.isSafeInteger(maxDecodedFrames) || maxDecodedFrames < 4) throw new Error("Invalid source face window clock.");
+      const count3 = Math.ceil((endSeconds - startSeconds) / sampleEverySeconds - 1e-7);
+      if (!Number.isSafeInteger(count3) || count3 < 1 || count3 > 1e6) throw new Error("Face sample grid exceeds the supported range.");
+      const perWindow = Math.max(1, Math.floor((maxDecodedFrames - 2) / (sourceFps * sampleEverySeconds)) - 1);
+      const windows = [];
+      for (let first = 0; first < count3; first += perWindow) {
+        const after = Math.min(count3, first + perWindow), boundary = startSeconds + first * sampleEverySeconds;
+        const sparse = sourceFps * sampleEverySeconds > (maxDecodedFrames - 2) / 2;
+        const start = first && !sparse ? startSeconds + (first - 1) * sampleEverySeconds : boundary;
+        const end = sparse ? Math.min(endSeconds, start + 2 / sourceFps) : after < count3 ? startSeconds + after * sampleEverySeconds : endSeconds;
+        windows.push({ startSeconds: start, endSeconds: end, ...first ? { acceptFromSeconds: boundary - 1e-7 } : {} });
+      }
+      return windows;
+    }
+    function appendFaceSamples2(target, incoming, acceptFromSeconds = -Infinity) {
+      let time = -Infinity, localIndex = -1;
+      const last2 = target.at(-1)?.sourceTimeSeconds ?? -Infinity;
+      const rows = incoming.flatMap((row) => {
+        if (!Number.isSafeInteger(row.index) || row.index <= localIndex || !Number.isFinite(row.sourceTimeSeconds) || row.sourceTimeSeconds <= time)
+          throw new Error("Invalid shared face sample order across windows.");
+        localIndex = row.index;
+        time = row.sourceTimeSeconds;
+        if (row.sourceTimeSeconds < acceptFromSeconds || row.sourceTimeSeconds === last2) return [];
+        if (row.sourceTimeSeconds < last2) throw new Error("Invalid shared face sample order across windows.");
+        return [{ ...row }];
+      });
+      for (let i = 0; i < rows.length; i++) rows[i].index = target.length + i;
+      target.push(...rows);
+    }
+    module.exports = { FACE_DECODE_BUDGET, faceRequestWindows: faceRequestWindows2, appendFaceSamples: appendFaceSamples2 };
+  }
+});
 
 // ../../shared/local-client.ts
 import React from "react";
@@ -2173,7 +2486,7 @@ function makeHost(sdk) {
 
 // src/identity.ts
 var PLUGIN_ID = "eo-shorts";
-var PLUGIN_VERSION = true ? "0.1.0" : "0.0.0";
+var PLUGIN_VERSION = true ? "0.1.1" : "0.0.0";
 
 // src/host/roots.ts
 function pluginRoots(fs, id = PLUGIN_ID) {
@@ -7501,656 +7814,6 @@ function stageModelClient(ctx) {
   });
 }
 
-// src/speaker/yunet/model.ts
-var ORT_VERSION = "1.30.0";
-var ORT_DIST = (host2) => host2 + "/onnxruntime-web@" + ORT_VERSION + "/dist/";
-var ORT_JS = {
-  name: "ort.wasm.bundle.min.mjs",
-  label: "face tracker runtime",
-  urls: [ORT_DIST("https://cdn.jsdelivr.net/npm") + "ort.wasm.bundle.min.mjs", ORT_DIST("https://unpkg.com") + "ort.wasm.bundle.min.mjs"],
-  sha256: "11e64bd8ffe11bd1a2a2f0d6275fdfbbba7262f0b76b99b53d228a8a22ef3d90",
-  bytes: 73054
-};
-var ORT_WASM = {
-  name: "ort-wasm-simd-threaded.wasm",
-  label: "face tracker engine",
-  urls: [ORT_DIST("https://cdn.jsdelivr.net/npm") + "ort-wasm-simd-threaded.wasm", ORT_DIST("https://unpkg.com") + "ort-wasm-simd-threaded.wasm"],
-  sha256: "3398c10d07d229bd91b364548e130e0e51a8e5704b88c7c083ebbeb78842dee2",
-  bytes: 14239897
-};
-var YUNET_MODEL = {
-  name: "face_detection_yunet_2023mar.onnx",
-  label: "face model",
-  urls: [
-    "https://media.githubusercontent.com/media/opencv/opencv_zoo/f12e12798e8314f7c074a6656816c048dcc95b7a/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
-  ],
-  sha256: "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
-  bytes: 232589
-};
-var YUNET_STRIDES = [8, 16, 32];
-var YUNET_DIVISOR = 32;
-var YUNET_OUTPUTS = ["cls", "obj", "bbox", "kps"];
-async function sha256(bytes) {
-  const subtle = webCrypto();
-  if (subtle) {
-    try {
-      const d = new Uint8Array(await subtle.digest("SHA-256", bytes));
-      return Array.from(d, (x) => x.toString(16).padStart(2, "0")).join("");
-    } catch {
-    }
-  }
-  return sha256Hex2(bytes);
-}
-function webCrypto() {
-  const g = globalThis;
-  if (g.crypto?.subtle) return g.crypto.subtle;
-  try {
-    if (typeof window !== "undefined" && window.parent?.crypto?.subtle) return window.parent.crypto.subtle;
-  } catch {
-  }
-  return null;
-}
-var K = Uint32Array.from([
-  1116352408,
-  1899447441,
-  3049323471,
-  3921009573,
-  961987163,
-  1508970993,
-  2453635748,
-  2870763221,
-  3624381080,
-  310598401,
-  607225278,
-  1426881987,
-  1925078388,
-  2162078206,
-  2614888103,
-  3248222580,
-  3835390401,
-  4022224774,
-  264347078,
-  604807628,
-  770255983,
-  1249150122,
-  1555081692,
-  1996064986,
-  2554220882,
-  2821834349,
-  2952996808,
-  3210313671,
-  3336571891,
-  3584528711,
-  113926993,
-  338241895,
-  666307205,
-  773529912,
-  1294757372,
-  1396182291,
-  1695183700,
-  1986661051,
-  2177026350,
-  2456956037,
-  2730485921,
-  2820302411,
-  3259730800,
-  3345764771,
-  3516065817,
-  3600352804,
-  4094571909,
-  275423344,
-  430227734,
-  506948616,
-  659060556,
-  883997877,
-  958139571,
-  1322822218,
-  1537002063,
-  1747873779,
-  1955562222,
-  2024104815,
-  2227730452,
-  2361852424,
-  2428436474,
-  2756734187,
-  3204031479,
-  3329325298
-]);
-function sha256Hex2(bytes) {
-  const n2 = bytes.length;
-  const total = Math.ceil((n2 + 9) / 64) * 64;
-  const msg = new Uint8Array(total);
-  msg.set(bytes);
-  msg[n2] = 128;
-  const view3 = new DataView(msg.buffer);
-  view3.setUint32(total - 8, Math.floor(n2 / 536870912));
-  view3.setUint32(total - 4, n2 * 8 >>> 0);
-  const h = Uint32Array.from([1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]);
-  const w = new Uint32Array(64);
-  const rotr = (x, r5) => x >>> r5 | x << 32 - r5;
-  for (let off = 0; off < total; off += 64) {
-    for (let i = 0; i < 16; i += 1) w[i] = view3.getUint32(off + 4 * i);
-    for (let i = 16; i < 64; i += 1) {
-      const a2 = w[i - 15], b3 = w[i - 2];
-      w[i] = w[i - 16] + (rotr(a2, 7) ^ rotr(a2, 18) ^ a2 >>> 3) + w[i - 7] + (rotr(b3, 17) ^ rotr(b3, 19) ^ b3 >>> 10) >>> 0;
-    }
-    let a = h[0], b2 = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
-    for (let i = 0; i < 64; i += 1) {
-      const t1 = hh + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + (e & f ^ ~e & g) + K[i] + w[i] >>> 0;
-      const t2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + (a & b2 ^ a & c ^ b2 & c) >>> 0;
-      hh = g;
-      g = f;
-      f = e;
-      e = d + t1 >>> 0;
-      d = c;
-      c = b2;
-      b2 = a;
-      a = t1 + t2 >>> 0;
-    }
-    h[0] += a;
-    h[1] += b2;
-    h[2] += c;
-    h[3] += d;
-    h[4] += e;
-    h[5] += f;
-    h[6] += g;
-    h[7] += hh;
-  }
-  return Array.from(h, (x) => x.toString(16).padStart(8, "0")).join("");
-}
-function varint(b2, p) {
-  let v = 0, mul2 = 1;
-  for (let i = 0; i < 10; i += 1) {
-    const x = b2[p + i];
-    if (x === void 0) throw new Error("The face model file is truncated.");
-    v += (x & 127) * mul2;
-    if (x < 128) return [v, p + i + 1];
-    mul2 *= 128;
-  }
-  throw new Error("The face model file is not a valid ONNX model.");
-}
-function fields(b2, from = 0, to = b2.length) {
-  const out = [];
-  for (let p = from; p < to; ) {
-    const start = p;
-    const [key, q] = varint(b2, p);
-    const no = Math.floor(key / 8), wire = key % 8;
-    let value = 0, len = 0;
-    if (wire === 0) [value, p] = varint(b2, q);
-    else if (wire === 1) p = q + 8;
-    else if (wire === 5) p = q + 4;
-    else if (wire === 2) {
-      [len, value] = varint(b2, q);
-      p = value + len;
-    } else throw new Error("The face model file has an unsupported protobuf field (wire type " + wire + ").");
-    if (p > to) throw new Error("The face model file is truncated.");
-    out.push({ no, wire, start, end: p, value, len });
-  }
-  return out;
-}
-function encodeVarint(v) {
-  const out = [];
-  while (v >= 128) {
-    out.push(v % 128 | 128);
-    v = Math.floor(v / 128);
-  }
-  out.push(v);
-  return out;
-}
-function concat(parts) {
-  const out = new Uint8Array(parts.reduce((n2, p) => n2 + p.length, 0));
-  let o = 0;
-  for (const p of parts) {
-    out.set(p, o);
-    o += p.length;
-  }
-  return out;
-}
-var lenField = (no, payload2) => concat([Uint8Array.from(encodeVarint(no * 8 + 2).concat(encodeVarint(payload2.length))), payload2]);
-var varintField = (no, v) => Uint8Array.from(encodeVarint(no * 8).concat(encodeVarint(v)));
-var textField = (no, s) => lenField(no, new TextEncoder().encode(s));
-var payload = (b2, f) => b2.subarray(f.value, f.value + f.len);
-var one2 = (fs, no) => fs.find((f) => f.no === no && f.wire === 2);
-function readTensorInfo(b2) {
-  const vi = fields(b2);
-  const name = new TextDecoder().decode(payload(b2, one2(vi, 1)));
-  const type = one2(vi, 2);
-  const tensor = type && one2(fields(b2, type.value, type.value + type.len), 1);
-  if (!tensor) throw new Error("The face model's " + name + " is not a tensor.");
-  const tf = fields(b2, tensor.value, tensor.value + tensor.len);
-  const et = tf.find((f) => f.no === 1 && f.wire === 0);
-  const shape = one2(tf, 2);
-  const dims = shape ? fields(b2, shape.value, shape.value + shape.len).filter((f) => f.no === 1 && f.wire === 2).map((d) => {
-    const df = fields(b2, d.value, d.value + d.len);
-    const v = df.find((f) => f.no === 1 && f.wire === 0);
-    const p = one2(df, 2);
-    return v ? v.value : p ? new TextDecoder().decode(payload(b2, p)) : "?";
-  }) : [];
-  return { name, elemType: et ? et.value : 0, dims };
-}
-function writeTensorInfo(t2) {
-  const dims = t2.dims.map((d) => lenField(1, typeof d === "number" ? varintField(1, d) : textField(2, d)));
-  const tensor = concat([varintField(1, t2.elemType), lenField(2, concat(dims))]);
-  return concat([textField(1, t2.name), lenField(2, lenField(1, tensor))]);
-}
-function withSymbolicInputSize(model) {
-  const top = fields(model);
-  const graph = top.find((f) => f.no === 7 && f.wire === 2);
-  if (!graph) throw new Error("The face model file has no graph.");
-  const parts = [];
-  let inputs = 0, outputs = 0;
-  for (const f of fields(model, graph.value, graph.value + graph.len)) {
-    if (f.no === 13) continue;
-    if ((f.no === 11 || f.no === 12) && f.wire === 2) {
-      const t2 = readTensorInfo(payload(model, f));
-      if (f.no === 11) {
-        if (t2.elemType !== 1 || t2.dims.length !== 4 || t2.dims[0] !== 1 || t2.dims[1] !== 3) throw new Error("Unexpected face model input " + t2.name + ".");
-        t2.dims = [1, 3, "H", "W"];
-        inputs += 1;
-      } else {
-        if (t2.elemType !== 1 || t2.dims.length !== 3 || t2.dims[0] !== 1) throw new Error("Unexpected face model output " + t2.name + ".");
-        t2.dims = [1, "N_" + t2.name, t2.dims[2]];
-        outputs += 1;
-      }
-      parts.push(lenField(f.no, writeTensorInfo(t2)));
-      continue;
-    }
-    parts.push(model.subarray(f.start, f.end));
-  }
-  if (inputs !== 1 || outputs !== YUNET_STRIDES.length * YUNET_OUTPUTS.length) throw new Error("Unexpected face model: " + inputs + " inputs, " + outputs + " outputs.");
-  const newGraph = lenField(7, concat(parts));
-  return concat(top.map((f) => f === graph ? newGraph : model.subarray(f.start, f.end)));
-}
-
-// src/speaker/yunet/decode.ts
-var YUNET_SCORE_THRESHOLD = 0.85;
-var YUNET_NMS_THRESHOLD = 0.3;
-var YUNET_TOP_K = 5e3;
-function paddedSize(width, height) {
-  const up = (x) => Math.floor((x - 1) / YUNET_DIVISOR + 1) * YUNET_DIVISOR;
-  return { width: up(width), height: up(height) };
-}
-function bgrToBlob(bgr, width, height, out) {
-  const pad = paddedSize(width, height);
-  const plane = pad.width * pad.height;
-  if (bgr.length < width * height * 3) throw new Error("A face frame has " + bgr.length + " bytes, not " + width * height * 3 + ".");
-  const data = out && out.length === 3 * plane ? out : new Float32Array(3 * plane);
-  if (out === data) data.fill(0);
-  for (let y = 0; y < height; y += 1) {
-    let p = y * width * 3;
-    let o = y * pad.width;
-    for (let x = 0; x < width; x += 1, p += 3, o += 1) {
-      data[o] = bgr[p];
-      data[plane + o] = bgr[p + 1];
-      data[2 * plane + o] = bgr[p + 2];
-    }
-  }
-  return { data, width: pad.width, height: pad.height };
-}
-var clamp01 = (v) => Math.min(1, Math.max(0, v));
-var f32 = Math.fround;
-function decodeYuNet(outputs, padWidth, padHeight, o = {}) {
-  const threshold = f32(o.score == null ? YUNET_SCORE_THRESHOLD : o.score);
-  const faces = [];
-  for (const stride of YUNET_STRIDES) {
-    const cols = Math.floor(padWidth / stride), rows = Math.floor(padHeight / stride);
-    const cls = outputs["cls_" + stride], obj = outputs["obj_" + stride], bbox = outputs["bbox_" + stride], kps = outputs["kps_" + stride];
-    if (!cls || !obj || !bbox || !kps) throw new Error("The face model gave no output for stride " + stride + ".");
-    if (cls.length !== rows * cols || bbox.length !== rows * cols * 4 || kps.length !== rows * cols * 10) throw new Error("The face model's stride-" + stride + " output does not fit a " + padWidth + "x" + padHeight + " input.");
-    for (let r5 = 0; r5 < rows; r5 += 1) {
-      for (let c = 0; c < cols; c += 1) {
-        const idx = r5 * cols + c;
-        const score = f32(Math.sqrt(f32(clamp01(cls[idx]) * clamp01(obj[idx]))));
-        if (score < threshold) continue;
-        const cx = f32((c + bbox[idx * 4]) * stride), cy = f32((r5 + bbox[idx * 4 + 1]) * stride);
-        const w = f32(f32(Math.exp(bbox[idx * 4 + 2])) * stride), h = f32(f32(Math.exp(bbox[idx * 4 + 3])) * stride);
-        const landmarks = [];
-        for (let n2 = 0; n2 < 5; n2 += 1) landmarks.push([f32((kps[idx * 10 + 2 * n2] + c) * stride), f32((kps[idx * 10 + 2 * n2 + 1] + r5) * stride)]);
-        faces.push({ box: [f32(cx - w / 2), f32(cy - h / 2), w, h], landmarks, score });
-      }
-    }
-  }
-  if (faces.length <= 1) return faces;
-  return nmsBoxes(faces, threshold, f32(o.nms == null ? YUNET_NMS_THRESHOLD : o.nms), o.topK == null ? YUNET_TOP_K : o.topK).map((i) => faces[i]);
-}
-var intRect = (b2) => [Math.trunc(b2[0]), Math.trunc(b2[1]), Math.trunc(b2[2]), Math.trunc(b2[3])];
-function rectOverlap(a, b2) {
-  const aa = a[2] * a[3], ab = b2[2] * b2[3];
-  if (aa + ab <= 0) return 1;
-  const x1 = Math.max(a[0], b2[0]), y1 = Math.max(a[1], b2[1]);
-  const x2 = Math.min(a[0] + a[2], b2[0] + b2[2]), y2 = Math.min(a[1] + a[3], b2[1] + b2[3]);
-  const inter = x2 > x1 && y2 > y1 ? (x2 - x1) * (y2 - y1) : 0;
-  return f32(1 - f32(1 - inter / (aa + ab - inter)));
-}
-function nmsBoxes(faces, scoreThreshold, nmsThreshold, topK) {
-  const order = faces.map((f, i) => ({ s: f.score, i })).filter((p) => p.s > scoreThreshold);
-  order.sort((a, b2) => b2.s - a.s || a.i - b2.i);
-  if (topK > 0 && order.length > topK) order.length = topK;
-  const rects = faces.map((f) => intRect(f.box));
-  const kept = [];
-  for (const { i } of order) if (kept.every((k) => rectOverlap(rects[i], rects[k]) <= nmsThreshold)) kept.push(i);
-  return kept;
-}
-
-// src/speaker/yunet/engine.ts
-var WORKER_SOURCE = `
-let ort = null, session = null, input = "input";
-self.onmessage = async (e) => {
-  const m = e.data;
-  try {
-    if (m.type === "init") {
-      ort = await import(m.ortUrl);
-      ort.env.logLevel = "error";
-      ort.env.wasm.wasmBinary = m.wasm;
-      ort.env.wasm.numThreads = 1;
-      ort.env.wasm.proxy = false;
-      session = await ort.InferenceSession.create(m.model, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
-      input = session.inputNames[0] || "input";
-      self.postMessage({ id: m.id, ok: true, ort: String((ort.env.versions && ort.env.versions.web) || "") });
-    } else if (m.type === "run") {
-      const out = await session.run({ [input]: new ort.Tensor("float32", m.data, m.dims) });
-      const res = {};
-      const moved = [m.data.buffer];
-      for (const k of Object.keys(out)) {
-        const copy = new Float32Array(out[k].data);
-        res[k] = copy;
-        moved.push(copy.buffer);
-      }
-      self.postMessage({ id: m.id, ok: true, res, input: m.data }, moved);
-    }
-  } catch (err) {
-    self.postMessage({ id: m.id, ok: false, error: String((err && err.message) || err) });
-  }
-};
-`;
-var INIT_TIMEOUT_MS = 6e4;
-var RUN_TIMEOUT_MS = 3e4;
-var errText = (e) => String(e && e.message || e || "unknown error").slice(0, 300);
-async function startWorkerEngine(ortJs, wasm, model) {
-  const g = globalThis;
-  if (typeof g.Worker !== "function" || typeof g.Blob !== "function" || !g.URL || typeof g.URL.createObjectURL !== "function") throw new Error("no Worker here");
-  const ortUrl = g.URL.createObjectURL(new g.Blob([ortJs], { type: "text/javascript" }));
-  const workerUrl = g.URL.createObjectURL(new g.Blob([WORKER_SOURCE], { type: "text/javascript" }));
-  let worker;
-  try {
-    worker = new g.Worker(workerUrl, { type: "module", name: "eo-shorts faces" });
-  } catch (e) {
-    g.URL.revokeObjectURL(ortUrl);
-    g.URL.revokeObjectURL(workerUrl);
-    throw e;
-  }
-  const pending2 = /* @__PURE__ */ new Map();
-  let seq = 0;
-  let dead = null;
-  const fail = (e) => {
-    dead = e;
-    for (const p of pending2.values()) {
-      clearTimeout(p.timer);
-      p.reject(e);
-    }
-    pending2.clear();
-  };
-  worker.onmessage = (e) => {
-    const m = e.data;
-    const p = pending2.get(m.id);
-    if (!p) return;
-    pending2.delete(m.id);
-    clearTimeout(p.timer);
-    if (m.ok) p.resolve(m);
-    else p.reject(new Error(m.error));
-  };
-  worker.onerror = (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    fail(new Error("The face tracker worker stopped: " + (e && e.message || "error")));
-  };
-  const call = (msg, transfer, ms) => new Promise((resolve, reject) => {
-    if (dead) return reject(dead);
-    const id = seq += 1;
-    const timer = setTimeout(() => {
-      pending2.delete(id);
-      reject(new Error("The face tracker worker did not answer in " + ms / 1e3 + " s."));
-    }, ms);
-    pending2.set(id, { resolve, reject, timer });
-    worker.postMessage(Object.assign({ id }, msg), transfer);
-  });
-  let ort = "";
-  try {
-    ort = (await call({ type: "init", ortUrl, wasm, model }, [], INIT_TIMEOUT_MS)).ort;
-  } catch (e) {
-    worker.terminate();
-    throw e;
-  } finally {
-    g.URL.revokeObjectURL(ortUrl);
-    g.URL.revokeObjectURL(workerUrl);
-  }
-  return {
-    kind: "worker",
-    via: "blob",
-    ort,
-    async run(data, width, height) {
-      const r5 = await call({ type: "run", data, dims: [1, 3, height, width] }, [data.buffer], RUN_TIMEOUT_MS);
-      return { outputs: r5.res, input: r5.input };
-    },
-    close() {
-      fail(new Error("The face tracker was closed."));
-      worker.terminate();
-    }
-  };
-}
-var importUrl = new Function("u", "return import(u)");
-function base64(bytes) {
-  let s = "";
-  for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + 32768)));
-  return btoa(s);
-}
-async function importOrtBytes(js) {
-  const g = globalThis;
-  let first = "";
-  if (typeof g.Blob === "function" && g.URL && typeof g.URL.createObjectURL === "function") {
-    const url = g.URL.createObjectURL(new g.Blob([js], { type: "text/javascript" }));
-    try {
-      return { ort: await importUrl(url), via: "blob" };
-    } catch (e) {
-      first = errText(e);
-    } finally {
-      g.URL.revokeObjectURL(url);
-    }
-  }
-  try {
-    return { ort: await importUrl("data:text/javascript;base64," + base64(js)), via: "data" };
-  } catch (e) {
-    throw new Error("The face tracker runtime could not be started: " + (first ? first + "; " : "") + errText(e));
-  }
-}
-async function startThreadEngine(ortJs, wasm, model) {
-  const loaded2 = typeof ortJs === "string" ? { ort: await importUrl(ortJs), via: "url" } : await importOrtBytes(ortJs);
-  const ort = loaded2.ort;
-  if (!ort || !ort.env || !ort.InferenceSession) throw new Error("The face tracker runtime did not load (no onnxruntime API).");
-  ort.env.logLevel = "error";
-  ort.env.wasm.wasmBinary = wasm;
-  ort.env.wasm.numThreads = 1;
-  ort.env.wasm.proxy = false;
-  let session;
-  try {
-    session = await ort.InferenceSession.create(model, { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
-  } catch (e) {
-    throw new Error("The face model could not be loaded: " + errText(e));
-  }
-  const input = session.inputNames[0] || "input";
-  return {
-    kind: "thread",
-    via: loaded2.via,
-    ort: String(ort.env.versions && ort.env.versions.web || ""),
-    async run(data, width, height) {
-      const out = await session.run({ [input]: new ort.Tensor("float32", data, [1, 3, height, width]) });
-      const outputs = {};
-      for (const k of Object.keys(out)) outputs[k] = out[k].data;
-      return { outputs, input: data };
-    },
-    close() {
-      if (session.release) session.release().catch(() => void 0);
-    }
-  };
-}
-
-// src/speaker/yunet/runtime.ts
-var DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1e3;
-var errText2 = (e) => String(e && e.message || e || "unknown error").slice(0, 300);
-async function readVerified(files, path, file, own) {
-  if (!await files.exists(path)) return null;
-  try {
-    const bytes = await files.readBytes(path);
-    if (bytes.length === file.bytes && await sha256(bytes) === file.sha256) return bytes;
-  } catch {
-  }
-  if (own) await quietRemove(files, path);
-  return null;
-}
-async function quietRemove(files, path) {
-  try {
-    if (await files.exists(path)) await files.remove(path);
-  } catch {
-  }
-}
-async function renameWithRetry2(files, from, to) {
-  for (let k = 0; ; k += 1) {
-    try {
-      await files.rename(from, to);
-      return;
-    } catch (e) {
-      if (k >= 4) throw e;
-      await new Promise((r5) => setTimeout(r5, 200 * (k + 1)));
-    }
-  }
-}
-async function download(files, file, dest) {
-  const reasons = [];
-  for (let attempt2 = 0; attempt2 < 2; attempt2 += 1) {
-    const url = file.urls[Math.min(attempt2, file.urls.length - 1)];
-    const part = dest + ".part" + attempt2;
-    await quietRemove(files, part);
-    try {
-      let timer = null;
-      await Promise.race([
-        files.downloadFile(url, part),
-        new Promise((_, reject) => timer = setTimeout(() => reject(new Error("no answer after " + DOWNLOAD_TIMEOUT_MS / 1e3 + " s")), DOWNLOAD_TIMEOUT_MS))
-      ]).finally(() => clearTimeout(timer));
-      if (!await files.exists(part)) throw new Error("nothing was saved");
-      const bytes = await files.readBytes(part);
-      if (bytes.length !== file.bytes) throw new Error("the server sent " + bytes.length + " bytes, not " + file.bytes);
-      const got = await sha256(bytes);
-      if (got !== file.sha256) throw new Error("the file's checksum is wrong (sha256 " + got.slice(0, 12) + "…)");
-      await renameWithRetry2(files, part, dest);
-      return bytes;
-    } catch (e) {
-      reasons.push(url.replace(/^https:\/\/([^/]+)\/.*$/, "$1") + ": " + errText2(e));
-      await quietRemove(files, part);
-    }
-  }
-  throw new Error("Could not download the " + file.label + " (" + file.name + "). " + reasons.join("; ") + ". Check the internet connection and try again.");
-}
-async function pinnedRuntimeFiles(files, runtimeDir, progress = () => {
-}, reuse = {}) {
-  const ortDir = files.join(runtimeDir, "ort", "onnxruntime-web-" + ORT_VERSION);
-  const want = [
-    { key: "model", file: YUNET_MODEL, dest: files.join(runtimeDir, "yunet", YUNET_MODEL.name) },
-    { key: "ortJs", file: ORT_JS, dest: files.join(ortDir, ORT_JS.name) },
-    { key: "ortWasm", file: ORT_WASM, dest: files.join(ortDir, ORT_WASM.name) }
-  ];
-  const got = {};
-  for (const w of want) {
-    const own = await readVerified(files, w.dest, w.file, true);
-    if (own) {
-      got[w.key] = { bytes: own, path: w.dest };
-      continue;
-    }
-    for (const p of reuse[w.key] || []) {
-      const bytes = await readVerified(files, p, w.file, false);
-      if (bytes) {
-        got[w.key] = { bytes, path: p };
-        break;
-      }
-    }
-  }
-  const missing = want.filter((w) => !got[w.key]);
-  if (missing.length) {
-    const mb = missing.reduce((n2, w) => n2 + w.file.bytes, 0) / 1e6;
-    progress("Downloading face tracking (one time, " + (mb < 1 ? mb.toFixed(1) : Math.round(mb)) + " MB)…");
-  }
-  for (const w of missing) {
-    await files.mkdirp(files.dirname(w.dest));
-    got[w.key] = { bytes: await download(files, w.file, w.dest), path: w.dest };
-  }
-  return { model: got.model, ortJs: got.ortJs, ortWasm: got.ortWasm };
-}
-function detectorOnEngine(engine, info, decode2 = {}) {
-  let scratch;
-  let queue = Promise.resolve();
-  const detectOne = async (bgr, width, height) => {
-    const blob = bgrToBlob(bgr, width, height, scratch);
-    const r5 = await engine.run(blob.data, blob.width, blob.height);
-    scratch = r5.input;
-    return decodeYuNet(r5.outputs, blob.width, blob.height, decode2);
-  };
-  return {
-    info: { ...info, ort: engine.ort || ORT_VERSION, engine: engine.kind, loadedVia: engine.via },
-    detect(bgr, width, height) {
-      const run2 = queue.then(() => detectOne(bgr, width, height));
-      queue = run2.catch(() => void 0);
-      return run2;
-    },
-    close() {
-      engine.close();
-    }
-  };
-}
-async function loadFaceDetector(o) {
-  const t0 = Date.now();
-  const progress = o.progress || (() => {
-  });
-  const { model, ortJs, ortWasm } = await pinnedRuntimeFiles(o.files, o.runtimeDir, progress, o.reuse);
-  progress("Starting face tracking…");
-  const symbolic = withSymbolicInputSize(model.bytes);
-  let engine = null;
-  let workerError = "";
-  if (o.worker !== false) {
-    try {
-      engine = await startWorkerEngine(ortJs.bytes, ortWasm.bytes, symbolic);
-    } catch (e) {
-      workerError = errText2(e);
-    }
-  }
-  if (!engine) engine = await startThreadEngine(ortJs.bytes, ortWasm.bytes, symbolic);
-  return detectorOnEngine(engine, { workerError, loadMs: Date.now() - t0, modelSha256: YUNET_MODEL.sha256, files: [model.path, ortJs.path, ortWasm.path] }, o.decode);
-}
-
-// src/stages/speaker/detector.ts
-function hostRuntimeFiles(fs) {
-  return {
-    join: (...p) => fs.join(...p),
-    dirname: (p) => fs.dirname(p),
-    exists: async (p) => await fs.exists(p),
-    readBytes: (p) => readBytes(fs, p),
-    downloadFile: (url, dest) => {
-      if (typeof fs.downloadFile !== "function") throw new Error("This Selects build cannot download files (FileSystem.downloadFile).");
-      return fs.downloadFile(url, dest);
-    },
-    mkdirp: async (p) => void await ensureDir(fs, p),
-    rename: async (a, b2) => await fs.rename(a, b2),
-    remove: async (p) => await fs.unlink(p)
-  };
-}
-var loaded = /* @__PURE__ */ new Map();
-function sharedFaceDetector(fs, runtimeDir, progress) {
-  let p = loaded.get(runtimeDir);
-  if (!p) {
-    p = loadFaceDetector({ files: hostRuntimeFiles(fs), runtimeDir, progress });
-    loaded.set(runtimeDir, p);
-    p.catch(() => loaded.delete(runtimeDir));
-  }
-  return p;
-}
-
 // engine/styles/A.json
 var A_default = {
   id: "A",
@@ -10410,10 +10073,10 @@ function objectErrors(plan) {
   const errs = [];
   const copy = iter(or(get(plan, "copy"), [])), assets = iter(or(get(plan, "assets"), []));
   const pages = iter(or(get(plan, "pages"), []));
-  for (const [kind, items, fields2, need2] of [["copy", copy, COPY, ["id", "role", "lines"]], ["assets", assets, ASSET, ["id", "role", "prompt"]]]) {
+  for (const [kind, items, fields, need2] of [["copy", copy, COPY, ["id", "role", "lines"]], ["assets", assets, ASSET, ["id", "role", "prompt"]]]) {
     items.forEach((x, k) => {
       const at = `${kind}.${str(get(x, "id", `[${k}]`))}`;
-      for (const f of sortedStr(keys(x).filter((f2) => !fields2.has(f2)))) errs.push(`${at}: unknown field '${f}' (one of ${reprSorted(fields2)})`);
+      for (const f of sortedStr(keys(x).filter((f2) => !fields.has(f2)))) errs.push(`${at}: unknown field '${f}' (one of ${reprSorted(fields)})`);
       for (const f of need2) if (!has(x, f)) errs.push(`${at}: missing ${f}`);
     });
   }
@@ -10529,7 +10192,7 @@ function blockFieldErrors(p, pictures = /* @__PURE__ */ new Set()) {
   }
   const all = new Set([...BLOCK_FIELDS.values()].flatMap((s) => [...s])), own = BLOCK_FIELDS.get(block);
   for (const f of sortedStr(keys(p).filter((f2) => all.has(f2) && !own.has(f2)))) {
-    const readers = sortedStr([...BLOCK_FIELDS].filter(([, fields2]) => fields2.has(f)).map(([b2]) => b2));
+    const readers = sortedStr([...BLOCK_FIELDS].filter(([, fields]) => fields.has(f)).map(([b2]) => b2));
     errs.push(readers.length === 1 ? `${f}: only a ${readers[0]} page reads it` : `${f}: a ${block} page does not read it (${BLOCK_HINTS.get(block) ?? "see SCHEMA section 3"})`);
   }
   const align = get(p, "align");
@@ -11113,140 +10776,6 @@ function effectivePlan(plan, style, o) {
   return { plan: cap.plan, changed: true, kind: "caption-scene", fallbacks: notes, lint: cap.lint };
 }
 
-// src/speaker/ffmpegPass.ts
-function probeArgs2(path) {
-  return [
-    "-v",
-    "error",
-    "-hide_banner",
-    "-select_streams",
-    "V:0",
-    "-show_entries",
-    "stream=width,height,avg_frame_rate,r_frame_rate,start_time:stream_tags=rotate:stream_side_data=rotation:format=start_time",
-    "-of",
-    "json",
-    path
-  ];
-}
-var rate = (s) => {
-  const m = String(s || "").match(/^(\d+(?:\.\d+)?)(?:\/(\d+(?:\.\d+)?))?$/);
-  if (!m) return 0;
-  const v = m[2] != null ? Number(m[1]) / Number(m[2]) : Number(m[1]);
-  return Number.isFinite(v) && v > 0 ? v : 0;
-};
-function parseProbe(stdout) {
-  const j = JSON.parse(String(stdout || "").replace(/[\r\n]/g, ""));
-  const s = j && j.streams && j.streams[0];
-  if (!s || !(Number(s.width) > 0) || !(Number(s.height) > 0)) throw new Error("The source has no video stream.");
-  let rot = 0;
-  for (const sd of s.side_data_list || []) if (sd && sd.rotation != null) rot = Number(sd.rotation) || 0;
-  if (!rot && s.tags && s.tags.rotate != null) rot = Number(s.tags.rotate) || 0;
-  const turned = Math.abs(Math.round(rot / 90)) % 2 === 1;
-  const fps = rate(s.avg_frame_rate) || rate(s.r_frame_rate);
-  if (!(fps > 0)) throw new Error("The source's frame rate is unknown.");
-  const st = Number(s.start_time), ft = Number(j.format && j.format.start_time);
-  return {
-    width: turned ? Number(s.height) : Number(s.width),
-    height: turned ? Number(s.width) : Number(s.height),
-    fps,
-    startOffset: Number.isFinite(st) ? st - (Number.isFinite(ft) ? ft : 0) : 0
-  };
-}
-var PASS_DEFAULTS = { threshold: 8, sampleFps: 2, longSide: 640 };
-var DECODE_PAD_S = 1;
-function analysisSize(width, height, longSide = PASS_DEFAULTS.longSide) {
-  const k = Math.min(1, longSide / Math.max(width, height));
-  return { width: Math.max(1, Math.round(width * k)), height: Math.max(1, Math.round(height * k)) };
-}
-function sampleStep(fileFps, sampleFps = PASS_DEFAULTS.sampleFps) {
-  return Math.max(1, Math.round(fileFps / sampleFps));
-}
-function planDecodeSpans(ranges, mergeGapS = 3, padS = DECODE_PAD_S) {
-  const byFile = /* @__PURE__ */ new Map();
-  for (const r5 of ranges) {
-    if (!(r5.end > r5.start)) continue;
-    if (!byFile.has(r5.path)) byFile.set(r5.path, []);
-    byFile.get(r5.path).push(r5);
-  }
-  const spans2 = [];
-  for (const list of byFile.values()) {
-    list.sort((a, b2) => a.start - b2.start);
-    let cur = null;
-    for (const r5 of list) {
-      if (cur && r5.start - cur.end <= mergeGapS) cur.end = Math.max(cur.end, r5.end);
-      else {
-        cur = { path: r5.path, resourceIds: [], start: r5.start, end: r5.end };
-        spans2.push(cur);
-      }
-      if (r5.resourceId != null && !cur.resourceIds.includes(r5.resourceId)) cur.resourceIds.push(r5.resourceId);
-    }
-  }
-  for (const s of spans2) {
-    s.start = Math.max(0, s.start - padS);
-    s.end += padS;
-    s.resourceIds.sort();
-  }
-  return spans2.sort((a, b2) => a.path < b2.path ? -1 : a.path > b2.path ? 1 : a.start - b2.start);
-}
-var secs = (x) => String(Math.max(0, Math.round(x * 1e6) / 1e6));
-function analysisPassArgs(span, probe, out, o = {}) {
-  const threshold = o.threshold ?? PASS_DEFAULTS.threshold;
-  const size = analysisSize(probe.width, probe.height, o.longSide ?? PASS_DEFAULTS.longSide);
-  const step = sampleStep(probe.fps, o.sampleFps ?? PASS_DEFAULTS.sampleFps);
-  const vf = "scdet=threshold=" + threshold + ",framestep=" + step + ",showinfo,scale=" + size.width + ":" + size.height + ":flags=area,format=bgr24";
-  return [
-    "-nostdin",
-    "-hide_banner",
-    "-loglevel",
-    "info",
-    "-y",
-    "-ss",
-    secs(span.start),
-    "-t",
-    secs(span.end - span.start),
-    "-i",
-    span.path,
-    "-map",
-    "0:V:0",
-    "-an",
-    "-sn",
-    "-dn",
-    "-vf",
-    vf,
-    "-fps_mode",
-    "passthrough",
-    "-f",
-    "rawvideo",
-    out
-  ];
-}
-function parseScdet2(stderr) {
-  const out = [];
-  for (const line of String(stderr || "").split(/\r?\n/)) {
-    const m = line.match(/lavfi\.scd\.score:\s*(-?[\d.]+(?:e[-+]?\d+)?),\s*lavfi\.scd\.time:\s*(-?[\d.]+(?:e[-+]?\d+)?)/i);
-    if (m) out.push({ score: Number(m[1]), time: Number(m[2]) });
-  }
-  return out;
-}
-function parseShowinfo2(stderr) {
-  const out = [];
-  for (const line of String(stderr || "").split(/\r?\n/)) {
-    if (!/showinfo/i.test(line)) continue;
-    const m = line.match(/\bn:\s*(\d+)\s+pts:\s*(-?\d+)\s+pts_time:\s*(-?[\d.]+(?:e[-+]?\d+)?)/i);
-    if (m) out.push({ n: Number(m[1]), pts: Number(m[2]), ptsTime: Number(m[3]) });
-  }
-  return out;
-}
-function passTimeToFileFrame(span, probe, passTime) {
-  const frame = Math.round((span.start + passTime - probe.startOffset) * probe.fps);
-  return { frame, time: frame / probe.fps };
-}
-function readPass(span, probe, stderr) {
-  const cuts = parseScdet2(stderr).map((h) => ({ ...passTimeToFileFrame(span, probe, h.time), score: h.score }));
-  const samples = parseShowinfo2(stderr).map((f) => ({ index: f.n, ...passTimeToFileFrame(span, probe, f.ptsTime) }));
-  return { cuts, samples };
-}
-
 // src/speaker/faces.ts
 var FACE_RULES = { score: 0.85, minHeight: 0.05, minRatio: 0.5, maxRatio: 1.6, maxMove: 1.25, maxResize: 1.8, ambiguousShare: 0.6 };
 function toSourceFaces(rows, aw, ah, sw, sh) {
@@ -11344,6 +10873,84 @@ function segmentFaces(samples) {
   };
 }
 
+// src/stages/speaker/sharedFaces.ts
+var import_ai_job_client = __toESM(require_ai_job_client());
+var import_ai_resources = __toESM(require_ai_resources());
+var import_face_request_windows = __toESM(require_face_request_windows());
+function adaptSharedFaces(page, times, fps) {
+  if (times.some((t2) => !Number.isFinite(t2) || t2 < 0) || !(fps > 0)) throw new Error("Invalid source frame clock.");
+  if (!(page.frameSize?.width > 0 && page.frameSize?.height > 0) || !Array.isArray(page.samples)) throw new Error("Invalid shared face observations.");
+  let previous = -Infinity, previousIndex = -1;
+  for (const row of page.samples) {
+    if (!Number.isSafeInteger(row.index) || row.index <= previousIndex || !Number.isFinite(row.sourceTimeSeconds) || row.sourceTimeSeconds <= previous || !Array.isArray(row.faces) || row.faces.length > 64) throw new Error("Invalid shared face sample order.");
+    previous = row.sourceTimeSeconds;
+    previousIndex = row.index;
+  }
+  return times.map((t2) => {
+    const row = page.samples.find((s) => s.sourceTimeSeconds >= t2 - 1e-6 && s.sourceTimeSeconds < t2 + 2 / fps + 1e-6);
+    if (!row || !Array.isArray(row.faces)) throw new Error("Shared face observations do not match the source clock.");
+    return row.faces.map((f) => {
+      const b2 = f.box;
+      if (!b2 || ![b2.xmin, b2.ymin, b2.xmax, b2.ymax, f.score].every(Number.isFinite) || f.score < 0 || f.score > 1 || b2.xmax <= b2.xmin || b2.ymax <= b2.ymin || b2.xmin < 0 || b2.ymin < 0 || b2.xmax > page.frameSize.width || b2.ymax > page.frameSize.height || !Array.isArray(f.landmarks) || f.landmarks.length !== 5 || f.landmarks.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) throw new Error("Invalid shared face geometry.");
+      return { x: b2.xmin, y: b2.ymin, w: b2.xmax - b2.xmin, h: b2.ymax - b2.ymin, score: f.score, landmarks: f.landmarks.map((p) => [p.x, p.y]) };
+    });
+  });
+}
+function sharedFaces(host2, options) {
+  const call = (body, summary, effect = false) => runScript(host2.sdk, { summary, script: body, allowCommit: effect }).then((r5) => r5.result);
+  const client = (0, import_ai_job_client.createSharedAiJobClient)({
+    projectId: options.projectId,
+    scope: options.scope,
+    runScript: call,
+    load: () => readJsonIfExists(host2.fs, options.journalPath, null),
+    save: (journal) => writeJsonAtomic(host2.fs, options.journalPath, journal)
+  });
+  return async (path, times, fps, image = false) => {
+    if (!times.length || times.some((t2) => !Number.isFinite(t2) || t2 < 0) || !(fps > 0)) throw new Error("Invalid source frame clock.");
+    const known = options.resources?.[path];
+    const resourceId = known?.resourceId || await (0, import_ai_resources.importSharedAiResource)(host2.sdk, options.projectId, path, call);
+    const step = times.length > 1 ? Math.max(1 / fps, times[1] - times[0]) : 1 / fps;
+    const start = Math.max(0, times[0]), end = Math.min(known?.duration ?? Infinity, times.at(-1) + 1 / fps);
+    const windows = image ? [{ startSeconds: 0, endSeconds: 0 }] : (0, import_face_request_windows.faceRequestWindows)({ startSeconds: start, endSeconds: end, sourceFps: fps, sampleEverySeconds: step });
+    const samples = [];
+    let frameSize2;
+    for (const window2 of windows) {
+      const identity = path + ":" + (image ? "image" : JSON.stringify(windows.length === 1 ? [start, end, step] : [start, end, step, window2.startSeconds, window2.endSeconds]));
+      const onAbort = () => {
+        if (/^Canceled\./.test(String(options.signal?.reason?.message || options.signal?.reason || ""))) void client.cancel({ identity }).catch(() => {
+        });
+      };
+      options.signal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        const run2 = await client.run(
+          {
+            task: "faces.detect",
+            resourceId,
+            ...image ? {} : { sourceRange: { startSeconds: window2.startSeconds, endSeconds: window2.endSeconds } },
+            options: { ...image ? {} : { sampleEverySeconds: step }, scoreThreshold: 0.8, provider: "cpu" }
+          },
+          { identity, retryTerminal: true, signal: options.signal ?? void 0, onProgress: (s) => options.progress?.(s.step || "Finding the speaker's face…") }
+        );
+        const incoming = [];
+        for (let offset = 0; ; offset += 10) {
+          const page = await call(`const d:any=await selects.ai.readJSON(${JSON.stringify(run2.result.files.detections)},${JSON.stringify(options.projectId)});
+if(d.contractVersion!==1||d.task!=="faces.detect"||d.coordinateSpace!=="display-pixels"||d.boxFormat!=="xyxy"||!Array.isArray(d.samples)||d.samples.length<1||d.samples.length>${image ? 1 : Math.ceil((window2.endSeconds - window2.startSeconds) / step) + 3})throw Error("Invalid shared face result");
+if(d.parameters?.scoreThreshold!==0.8||${image ? 'd.sourceKind!=="image"||d.samples.length!==1||d.samples[0].sourceTimeSeconds!==0' : "d.parameters?.sourceRange?.startSeconds!==" + window2.startSeconds + "||d.parameters?.sourceRange?.endSeconds!==" + window2.endSeconds + "||d.parameters?.sampleEverySeconds!==" + step})throw Error("Shared face parameters changed");
+return {frameSize:d.frameSize,total:d.samples.length,samples:d.samples.slice(${offset},${offset + 10})};`, "Read speaker observations");
+          if (frameSize2 && (frameSize2.width !== page.frameSize?.width || frameSize2.height !== page.frameSize?.height)) throw new Error("Shared face dimensions changed across windows.");
+          frameSize2 = page.frameSize;
+          incoming.push(...page.samples);
+          if (offset + 10 >= page.total) break;
+        }
+        (0, import_face_request_windows.appendFaceSamples)(samples, incoming, window2.acceptFromSeconds);
+      } finally {
+        options.signal?.removeEventListener("abort", onAbort);
+      }
+    }
+    return { frameSize: frameSize2, samples };
+  };
+}
+
 // src/stages/media/faces.ts
 function largestFace(faces, size) {
   const best = [...faces].sort((a, b2) => b2.w * b2.h * b2.score - a.w * a.h * a.score)[0];
@@ -11352,6 +10959,7 @@ function largestFace(faces, size) {
 }
 function hostFaceFinder(host2, o) {
   const fs = host2.fs;
+  const infer = sharedFaces(host2, { ...o, journalPath: fs.join(o.tmpDir, "ai-jobs.json") });
   return {
     async find(path, atSeconds = null) {
       await ensureDir(fs, o.tmpDir);
@@ -11359,23 +10967,13 @@ function hostFaceFinder(host2, o) {
       const m = await probeMedia(host2.runtime, path, { fs, tmpDir: o.tmpDir, signal: o.signal, inputFormat });
       if (!m.video || !(m.video.width > 0 && m.video.height > 0)) return null;
       const size = { width: m.video.width, height: m.video.height };
-      const a = analysisSize(size.width, size.height);
+      const image = /\.(?:jpe?g|png|webp|avif|heic|heif|bmp|tiff?)$/i.test(path);
       const duration = m.video.durationSec ?? m.durationSec;
-      const at = atSeconds ?? (duration && duration > 0.2 ? duration / 2 : null);
-      const out = fs.join(o.tmpDir, "face-" + randomHex(6) + ".bgr");
-      try {
-        await encode(
-          host2.runtime,
-          ["-hide_banner", "-nostdin", "-v", "error", "-y", ...at != null ? ["-ss", at.toFixed(3)] : [], ...inputFormat, "-i", path, "-frames:v", "1", "-vf", "scale=" + a.width + ":" + a.height + ":flags=area", "-pix_fmt", "bgr24", "-f", "rawvideo", out],
-          { outPath: out, fs, signal: o.signal, timeoutMs: 6e4 }
-        );
-        const bgr = await readBytes(fs, out);
-        if (bgr.length < a.width * a.height * 3) return null;
-        const rows = await (await o.detector()).detect(bgr, a.width, a.height);
-        return largestFace(plausibleFaces(toSourceFaces(rows, a.width, a.height, size.width, size.height), size.width, size.height), size);
-      } finally {
-        await removeFile(fs, out);
-      }
+      const at = image ? 0 : atSeconds ?? (duration && duration > 0.2 ? duration / 2 : 0);
+      const fps = m.video.fps || 30;
+      const result = await infer(path, [at], fps, image);
+      if (result.frameSize.width !== size.width || result.frameSize.height !== size.height) throw new Error("Shared face dimensions differ from the media.");
+      return largestFace(plausibleFaces(adaptSharedFaces(result, [at], fps)[0], size.width, size.height), size);
     }
   };
 }
@@ -11512,7 +11110,7 @@ async function runMedia(ctx, o) {
   } catch {
     imageRole = null;
   }
-  const finder = o.faces === null ? null : o.faces ? o.faces(ctx) : hostFaceFinder(host2, { tmpDir: ctx.path("media/tmp"), detector: () => sharedFaceDetector(fs, ctx.roots.runtime, (s) => ctx.note(s)), signal: ctx.signal });
+  const finder = o.faces === null ? null : o.faces ? o.faces(ctx) : hostFaceFinder(host2, { tmpDir: ctx.path("media/tmp"), projectId: job.projectId, scope: job.jobId + ":media", signal: ctx.signal });
   const people = film.requests.some((r5) => r5.kind === "person");
   let commons = commonsConfig();
   if (people) {
@@ -12891,6 +12489,143 @@ function pickAudioPolicy(p) {
   };
 }
 
+// src/stages/speaker/stage.ts
+var import_ai_resources2 = __toESM(require_ai_resources());
+
+// src/speaker/ffmpegPass.ts
+function probeArgs2(path) {
+  return [
+    "-v",
+    "error",
+    "-hide_banner",
+    "-select_streams",
+    "V:0",
+    "-show_entries",
+    "stream=width,height,avg_frame_rate,r_frame_rate,start_time:stream_tags=rotate:stream_side_data=rotation:format=start_time",
+    "-of",
+    "json",
+    path
+  ];
+}
+var rate = (s) => {
+  const m = String(s || "").match(/^(\d+(?:\.\d+)?)(?:\/(\d+(?:\.\d+)?))?$/);
+  if (!m) return 0;
+  const v = m[2] != null ? Number(m[1]) / Number(m[2]) : Number(m[1]);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+};
+function parseProbe(stdout) {
+  const j = JSON.parse(String(stdout || "").replace(/[\r\n]/g, ""));
+  const s = j && j.streams && j.streams[0];
+  if (!s || !(Number(s.width) > 0) || !(Number(s.height) > 0)) throw new Error("The source has no video stream.");
+  let rot = 0;
+  for (const sd of s.side_data_list || []) if (sd && sd.rotation != null) rot = Number(sd.rotation) || 0;
+  if (!rot && s.tags && s.tags.rotate != null) rot = Number(s.tags.rotate) || 0;
+  const turned = Math.abs(Math.round(rot / 90)) % 2 === 1;
+  const fps = rate(s.avg_frame_rate) || rate(s.r_frame_rate);
+  if (!(fps > 0)) throw new Error("The source's frame rate is unknown.");
+  const st = Number(s.start_time), ft = Number(j.format && j.format.start_time);
+  return {
+    width: turned ? Number(s.height) : Number(s.width),
+    height: turned ? Number(s.width) : Number(s.height),
+    fps,
+    startOffset: Number.isFinite(st) ? st - (Number.isFinite(ft) ? ft : 0) : 0
+  };
+}
+var PASS_DEFAULTS = { threshold: 8, sampleFps: 2, longSide: 640 };
+var DECODE_PAD_S = 1;
+function analysisSize(width, height, longSide = PASS_DEFAULTS.longSide) {
+  const k = Math.min(1, longSide / Math.max(width, height));
+  return { width: Math.max(1, Math.round(width * k)), height: Math.max(1, Math.round(height * k)) };
+}
+function sampleStep(fileFps, sampleFps = PASS_DEFAULTS.sampleFps) {
+  return Math.max(1, Math.round(fileFps / sampleFps));
+}
+function planDecodeSpans(ranges, mergeGapS = 3, padS = DECODE_PAD_S) {
+  const byFile = /* @__PURE__ */ new Map();
+  for (const r5 of ranges) {
+    if (!(r5.end > r5.start)) continue;
+    if (!byFile.has(r5.path)) byFile.set(r5.path, []);
+    byFile.get(r5.path).push(r5);
+  }
+  const spans2 = [];
+  for (const list of byFile.values()) {
+    list.sort((a, b2) => a.start - b2.start);
+    let cur = null;
+    for (const r5 of list) {
+      if (cur && r5.start - cur.end <= mergeGapS) cur.end = Math.max(cur.end, r5.end);
+      else {
+        cur = { path: r5.path, resourceIds: [], start: r5.start, end: r5.end };
+        spans2.push(cur);
+      }
+      if (r5.resourceId != null && !cur.resourceIds.includes(r5.resourceId)) cur.resourceIds.push(r5.resourceId);
+    }
+  }
+  for (const s of spans2) {
+    s.start = Math.max(0, s.start - padS);
+    s.end += padS;
+    s.resourceIds.sort();
+  }
+  return spans2.sort((a, b2) => a.path < b2.path ? -1 : a.path > b2.path ? 1 : a.start - b2.start);
+}
+var secs = (x) => String(Math.max(0, Math.round(x * 1e6) / 1e6));
+function analysisPassArgs(span, probe, out, o = {}) {
+  const threshold = o.threshold ?? PASS_DEFAULTS.threshold;
+  const size = analysisSize(probe.width, probe.height, o.longSide ?? PASS_DEFAULTS.longSide);
+  const step = sampleStep(probe.fps, o.sampleFps ?? PASS_DEFAULTS.sampleFps);
+  const vf = "scdet=threshold=" + threshold + ",framestep=" + step + ",showinfo,scale=" + size.width + ":" + size.height + ":flags=area,format=bgr24";
+  return [
+    "-nostdin",
+    "-hide_banner",
+    "-loglevel",
+    "info",
+    "-y",
+    "-ss",
+    secs(span.start),
+    "-t",
+    secs(span.end - span.start),
+    "-i",
+    span.path,
+    "-map",
+    "0:V:0",
+    "-an",
+    "-sn",
+    "-dn",
+    "-vf",
+    vf,
+    "-fps_mode",
+    "passthrough",
+    "-f",
+    "rawvideo",
+    out
+  ];
+}
+function parseScdet2(stderr) {
+  const out = [];
+  for (const line of String(stderr || "").split(/\r?\n/)) {
+    const m = line.match(/lavfi\.scd\.score:\s*(-?[\d.]+(?:e[-+]?\d+)?),\s*lavfi\.scd\.time:\s*(-?[\d.]+(?:e[-+]?\d+)?)/i);
+    if (m) out.push({ score: Number(m[1]), time: Number(m[2]) });
+  }
+  return out;
+}
+function parseShowinfo2(stderr) {
+  const out = [];
+  for (const line of String(stderr || "").split(/\r?\n/)) {
+    if (!/showinfo/i.test(line)) continue;
+    const m = line.match(/\bn:\s*(\d+)\s+pts:\s*(-?\d+)\s+pts_time:\s*(-?[\d.]+(?:e[-+]?\d+)?)/i);
+    if (m) out.push({ n: Number(m[1]), pts: Number(m[2]), ptsTime: Number(m[3]) });
+  }
+  return out;
+}
+function passTimeToFileFrame(span, probe, passTime) {
+  const frame = Math.round((span.start + passTime - probe.startOffset) * probe.fps);
+  return { frame, time: frame / probe.fps };
+}
+function readPass(span, probe, stderr) {
+  const cuts = parseScdet2(stderr).map((h) => ({ ...passTimeToFileFrame(span, probe, h.time), score: h.score }));
+  const samples = parseShowinfo2(stderr).map((f) => ({ index: f.n, ...passTimeToFileFrame(span, probe, f.ptsTime) }));
+  return { cuts, samples };
+}
+
 // src/speaker/cameraCuts.ts
 var MIN_SHOT_S = 0.5;
 function cameraSegments(span, cuts, prefix, minShotS = MIN_SHOT_S) {
@@ -12987,7 +12722,7 @@ function pieceSourceOffsets(pieces, words2, seams, draftFps2, resourceFps) {
   const sorted = pieces.slice().sort((a, b2) => a.startFrame - b2.startFrame);
   const out = sorted.map((p) => {
     const fps = resourceFps(p.resourceId);
-    const inside = words2.filter((w) => !w.cut && w.sourceStartFrame != null && w.startFrame >= p.startFrame && w.startFrame < p.endFrame);
+    const inside = words2.filter((w) => (!w.sourceResourceId || w.sourceResourceId === p.resourceId) && !w.cut && w.sourceStartFrame != null && w.startFrame >= p.startFrame && w.startFrame < p.endFrame);
     if (!inside.length || !(fps > 0)) return { ...p, t0: null, via: null, words: 0, spreadS: 0 };
     const offs = inside.map((w) => w.sourceStartFrame / fps - w.startFrame / draftFps2);
     return { ...p, t0: median2(offs), via: "words", words: inside.length, spreadS: Math.max(...offs) - Math.min(...offs) };
@@ -13266,7 +13001,9 @@ async function analyzeSpeaker(input, host2, o = {}) {
     progress("Finding camera cuts and the speaker's face (" + (i + 1) + "/" + spans2.length + ")…");
     let stderr;
     try {
-      stderr = await host2.ffmpeg(analysisPassArgs(span, pr, out, o), o.signal);
+      const args = analysisPassArgs(span, pr, out, o);
+      if (host2.detectSamples) args.splice(args.length - 3, 3, "-f", "null", "-");
+      stderr = await host2.ffmpeg(args, o.signal);
     } catch (e) {
       host2.remove(out);
       throw e;
@@ -13282,9 +13019,15 @@ async function analyzeSpeaker(input, host2, o = {}) {
     const samples = pass.samples.map((s) => ({ ...s, visible: visibleAt(s.time), detected: false, faces: [] }));
     const stills = [];
     const facesOf = async (bytes) => plausibleFaces(toSourceFaces(await host2.detect(bytes, size.width, size.height), size.width, size.height, pr.width, pr.height), pr.width, pr.height);
+    const shared = host2.detectSamples && samples.length ? await host2.detectSamples(span.path, samples.map((s) => s.time), pr.fps, src) : null;
     const detect = async (s) => {
       if (s.detected) return;
       cancelled();
+      if (shared) {
+        s.faces = plausibleFaces(shared[samples.indexOf(s)] || [], pr.width, pr.height);
+        s.detected = true;
+        return;
+      }
       const bytes = await host2.readRange(out, s.index * fb, fb);
       s.detected = true;
       if (bytes.length < fb) return;
@@ -13303,14 +13046,18 @@ async function analyzeSpeaker(input, host2, o = {}) {
       if (c1 <= c0) return null;
       const c = Math.floor((c0 + c1 - 1) / 2);
       const at = (c - 0.25) / pr.fps + pr.startOffset;
-      const one3 = { path: span.path, resourceIds: span.resourceIds, start: at, end: at + 1.5 / pr.fps };
+      const one2 = { path: span.path, resourceIds: span.resourceIds, start: at, end: at + 1.5 / pr.fps };
       const file = host2.scratchPath("speaker-span-" + (i + 1) + "-" + seg.id + ".bgr");
       try {
         cancelled();
-        const got = readPass(one3, pr, await host2.ffmpeg(analysisPassArgs(one3, pr, file, o), o.signal)).samples[0];
+        const args = analysisPassArgs(one2, pr, file, o);
+        if (host2.detectSamples) args.splice(args.length - 3, 3, "-f", "null", "-");
+        const got = readPass(one2, pr, await host2.ffmpeg(args, o.signal)).samples[0];
         if (!got || got.time < seg.start || got.time >= seg.end) return null;
-        const bytes = await host2.readRange(file, 0, fb);
-        const faces = bytes.length < fb ? [] : await facesOf(bytes);
+        const faces = host2.detectSamples ? plausibleFaces((await host2.detectSamples(span.path, [got.time], pr.fps, src))[0], pr.width, pr.height) : await (async () => {
+          const bytes = await host2.readRange(file, 0, fb);
+          return bytes.length < fb ? [] : await facesOf(bytes);
+        })();
         stills.push({ segmentId: seg.id, t: got.time, frame: got.frame, visible: visibleAt(got.time), detected: true, faces });
         return { t: got.time, frame: got.frame, faces };
       } finally {
@@ -13330,9 +13077,9 @@ async function analyzeSpeaker(input, host2, o = {}) {
         }
         let faceSamples = use.map((s) => ({ t: s.time, frame: s.frame, faces: s.faces }));
         if (!faceSamples.length) {
-          const one3 = await still(seg);
-          if (one3) {
-            faceSamples = [one3];
+          const one2 = await still(seg);
+          if (one2) {
+            faceSamples = [one2];
             from = "still";
           }
         }
@@ -13462,6 +13209,7 @@ async function panelSpeakerHost(host2, o) {
   const fs = host2.fs;
   const ranges = rangeReader(host2);
   await ensureDir(fs, o.scratchDir);
+  const faces = sharedFaces(host2, { ...o, journalPath: fs.join(o.scratchDir, "ai-jobs.json") });
   return {
     async probe(path) {
       const rt = host2.runtime;
@@ -13478,13 +13226,17 @@ async function panelSpeakerHost(host2, o) {
       await removeFile(fs, path);
     },
     scratchPath: (name) => fs.join(o.scratchDir, name),
-    detect: async (bgr, w, h) => (await o.detector()).detect(bgr, w, h),
+    detectSamples: async (path, times, fps, size) => {
+      const result = await faces(path, times, fps);
+      if (size && (result.frameSize?.width !== size.width || result.frameSize?.height !== size.height)) throw new Error("Shared face dimensions differ from the source.");
+      return adaptSharedFaces(result, times, fps);
+    },
     progress: o.progress
   };
 }
 
 // src/stages/speaker/scripts.ts
-function readSpeakerDraftScript(projectId, draftId) {
+function readSpeakerDraftScript(projectId, draftId, bindings = {}) {
   return `const p = selects.project(${lit(projectId)});
 const d = selects.draft(${lit(draftId)});
 ${GUARD_WORDS_JS}
@@ -13499,16 +13251,19 @@ const words = all.map((w) => ({ startFrame: w.startFrame, endFrame: w.endFrame, 
 const seams = (await d.seams()).map((s) => ({ playbackFrame: s.playbackFrame, hiddenDraftFrames: s.hiddenDraftFrames, sourceJump: s.sourceJump ?? null, sourceGap: s.sourceGap ?? null }));
 const files = await sourceFiles(p);
 const resources = {};
+const persistent:Record<number,string> = ${lit(bindings)};
 for (const rid of new Set(main.map((c) => c.resourceId).filter(Boolean))) {
   const rm = await p.resource(rid).meta();
   const f = files.find((x) => x.resourceId === rid);
-  resources[rid] = { fps: rm.fps, path: f ? f.path : null, frameSize: f && f.frameSize ? f.frameSize : null, name: rm.name ?? null };
+  resources[rid] = { fps: rm.fps, path: f ? f.path : null, frameSize: f && f.frameSize ? f.frameSize : null, name: rm.name ?? null, canonicalResourceId:persistent[main.find(c=>c.resourceId===rid)?.clipId], durationSeconds:rm.durationSeconds };
 }
+for(const w of words){if(w.sourceResourceId)for(const [rid,r]of Object.entries(resources) as [string,any][]){if(w.sourceResourceId===r.canonicalResourceId)w.sourceResourceId=rid;}}
+for(const seam of seams){if(seam.sourceGap)for(const [rid,r]of Object.entries(resources) as [string,any][]){if(seam.sourceGap.resourceId===r.canonicalResourceId)seam.sourceGap.resourceId=rid;}}
 return { fps: meta.fps, frameSize: meta.frameSize, mainEnd: main.reduce((m, c) => Math.max(m, c.endFrame), 0), wordsSig: guardWordsSig(all), main, words, seams, resources };`;
 }
 
 // src/stages/speaker/stage.ts
-var SPEAKER_STAGE_VERSION = "eo-speaker-stage/1";
+var SPEAKER_STAGE_VERSION = "eo-speaker-stage/2";
 var SPEAKER_REL = {
   faces: "speaker/faces.json",
   framing: "speaker/framing.json",
@@ -13531,7 +13286,13 @@ async function runSpeaker(ctx, o) {
   const rs = { signal: ctx.signal, ...o.backoffMs ? { backoffMs: o.backoffMs } : {} };
   await ensureDir(fs, ctx.path("speaker"));
   ctx.note("Reading the EO draft…");
-  const read = await readScript(host2.sdk, "EO Shorts: read Main for the speaker framing", readSpeakerDraftScript(job.projectId, draftId), rs);
+  if (!host2.sdk.call) throw new Error("Update Selects to resolve source Resources.");
+  const bindings = (0, import_ai_resources2.canonicalResourceBindings)(await host2.sdk.call("getDraftCore", draftId), { projectId: job.projectId, draftId });
+  const read = await readScript(host2.sdk, "EO Shorts: read Main for the speaker framing", readSpeakerDraftScript(job.projectId, draftId, Object.fromEntries(bindings)), rs);
+  const after = (0, import_ai_resources2.canonicalResourceBindings)(await host2.sdk.call("getDraftCore", draftId), { projectId: job.projectId, draftId });
+  const fingerprint = (map) => JSON.stringify([...map].sort((a, b2) => a[0] - b2[0]));
+  if (fingerprint(bindings) !== fingerprint(after)) throw new Error("Main sources changed while reading the Draft. Try again.");
+  if (Object.values(read.resources).some((r5) => !r5.canonicalResourceId)) throw new Error("The persistent source Resource is unavailable.");
   const edited = await readJsonIfExists(fs, ctx.path("edit/words.json"), null);
   if (edited && (edited.mainEnd !== read.mainEnd || Array.isArray(edited.words) && guardWordsSig(edited.words) !== read.wordsSig)) {
     throw new Error("The EO draft changed after the edit (Main ends at frame " + read.mainEnd + ", the edit left " + edited.mainEnd + "). Make a new short from the source.");
@@ -13549,8 +13310,7 @@ async function runSpeaker(ctx, o) {
     seams: read.seams,
     resources
   };
-  const detector = o.detector ? () => o.detector(ctx) : () => sharedFaceDetector(fs, ctx.roots.runtime, (s) => ctx.note(s));
-  const sh = o.host ? o.host(ctx) : await panelSpeakerHost(host2, { scratchDir: ctx.path("speaker/tmp"), detector, signal: ctx.signal, progress: (s) => ctx.note(s) });
+  const sh = o.host ? o.host(ctx) : await panelSpeakerHost(host2, { scratchDir: ctx.path("speaker/tmp"), projectId: job.projectId, scope: job.jobId + ":speaker", resources: Object.fromEntries(Object.entries(read.resources).filter(([, r5]) => r5.path).map(([rid, r5]) => [r5.path, { resourceId: r5.canonicalResourceId || rid, duration: r5.durationSeconds }])), signal: ctx.signal, progress: (s) => ctx.note(s) });
   const result = await analyzeSpeaker(input, sh, { signal: ctx.signal });
   await writeJsonAtomic(fs, ctx.path(SPEAKER_REL.faces), result.faces);
   await writeJsonAtomic(fs, ctx.path(SPEAKER_REL.framing), result.framing);
@@ -14415,10 +14175,10 @@ async function planFilm(input) {
       const answered = Array.isArray(r5.json?.scenes) ? r5.json.scenes : [];
       for (const s of asked) {
         const got = answered.filter((x) => x && x.id === s.id);
-        const one3 = got.length === 1 ? got[0] : null;
-        if (!one3 || repairProblems({ schema: "eo-film-plan/1", film, scenes: [one3] }, [s], film).length) continue;
+        const one2 = got.length === 1 ? got[0] : null;
+        if (!one2 || repairProblems({ schema: "eo-film-plan/1", film, scenes: [one2] }, [s], film).length) continue;
         const i = bundle.scenes.findIndex((x) => x.id === s.id);
-        bundle.scenes[i] = { ...s, type: one3.type, plan: one3.plan };
+        bundle.scenes[i] = { ...s, type: one2.type, plan: one2.plan };
         repair.accepted.push(s.id);
       }
     } catch (e) {
@@ -15022,8 +14782,8 @@ var HB_SUBSET_WASM = Object.freeze({
 function hbWasmPath(fs, runtimeDir) {
   return fs.join(runtimeDir, "harfbuzz", "harfbuzzjs-" + HB_VERSION, HB_SUBSET_WASM.name);
 }
-var DOWNLOAD_TIMEOUT_MS2 = 3 * 60 * 1e3;
-var errText3 = (e) => String(e && e.message || e || "unknown error").slice(0, 300);
+var DOWNLOAD_TIMEOUT_MS = 3 * 60 * 1e3;
+var errText = (e) => String(e && e.message || e || "unknown error").slice(0, 300);
 async function verified(fs, path) {
   if (!await fs.exists(path)) return null;
   try {
@@ -15033,7 +14793,7 @@ async function verified(fs, path) {
   }
   return null;
 }
-async function quietRemove2(fs, path) {
+async function quietRemove(fs, path) {
   try {
     if (await fs.exists(path)) await fs.unlink(path);
   } catch {
@@ -15043,7 +14803,7 @@ async function hbSubsetWasm(fs, runtimeDir, o = {}) {
   const dest = hbWasmPath(fs, runtimeDir);
   const own = await verified(fs, dest);
   if (own) return { bytes: own, path: dest, downloaded: false };
-  await quietRemove2(fs, dest);
+  await quietRemove(fs, dest);
   for (const p of o.reuse ?? []) {
     const b2 = await verified(fs, p);
     if (b2) return { bytes: b2, path: p, downloaded: false };
@@ -15055,12 +14815,12 @@ async function hbSubsetWasm(fs, runtimeDir, o = {}) {
   for (let attempt2 = 0; attempt2 < 2; attempt2 += 1) {
     const url = HB_SUBSET_WASM.urls[Math.min(attempt2, HB_SUBSET_WASM.urls.length - 1)];
     const part = dest + ".part" + attempt2;
-    await quietRemove2(fs, part);
+    await quietRemove(fs, part);
     try {
       let timer = null;
       await Promise.race([
         fs.downloadFile(url, part),
-        new Promise((_, reject) => timer = setTimeout(() => reject(new Error("no answer after " + DOWNLOAD_TIMEOUT_MS2 / 1e3 + " s")), DOWNLOAD_TIMEOUT_MS2))
+        new Promise((_, reject) => timer = setTimeout(() => reject(new Error("no answer after " + DOWNLOAD_TIMEOUT_MS / 1e3 + " s")), DOWNLOAD_TIMEOUT_MS))
       ]).finally(() => timer && clearTimeout(timer));
       if (!await fs.exists(part)) throw new Error("nothing was saved");
       const bytes = await readBytes(fs, part);
@@ -15070,8 +14830,8 @@ async function hbSubsetWasm(fs, runtimeDir, o = {}) {
       await renameWithRetry(fs, part, dest);
       return { bytes, path: dest, downloaded: true };
     } catch (e) {
-      reasons.push(url.replace(/^https:\/\/([^/]+)\/.*$/, "$1") + ": " + errText3(e));
-      await quietRemove2(fs, part);
+      reasons.push(url.replace(/^https:\/\/([^/]+)\/.*$/, "$1") + ": " + errText(e));
+      await quietRemove(fs, part);
     }
   }
   throw new Error("Could not download the " + HB_SUBSET_WASM.label + ". " + reasons.join("; ") + ". Check the internet connection and try again.");
@@ -17675,14 +17435,14 @@ async function declareFonts(doc, fonts, read) {
     let ready = map.get(alias);
     if (!ready) {
       ready = (async () => {
-        const loaded2 = await Promise.all(
+        const loaded = await Promise.all(
           faces2.map(async (x) => {
             const face = new Ctor(alias, x.bytes.slice(), x.descriptors);
             await face.load();
             return face;
           })
         );
-        for (const face of loaded2) doc.fonts.add(face);
+        for (const face of loaded) doc.fonts.add(face);
       })();
       ready.catch(() => map.delete(alias));
       map.set(alias, ready);
@@ -19742,22 +19502,22 @@ function kWeightingBiquads(sampleRate) {
   let f0 = 1681.974450955533;
   const G = 3.999843853973347;
   let Q = 0.7071752369554196;
-  let K2 = Math.tan(Math.PI * f0 / sampleRate);
+  let K = Math.tan(Math.PI * f0 / sampleRate);
   const Vh = Math.pow(10, G / 20);
   const Vb = Math.pow(Vh, 0.4996667741545416);
-  const a0 = 1 + K2 / Q + K2 * K2;
+  const a0 = 1 + K / Q + K * K;
   const shelf = {
-    b0: (Vh + Vb * K2 / Q + K2 * K2) / a0,
-    b1: 2 * (K2 * K2 - Vh) / a0,
-    b2: (Vh - Vb * K2 / Q + K2 * K2) / a0,
-    a1: 2 * (K2 * K2 - 1) / a0,
-    a2: (1 - K2 / Q + K2 * K2) / a0
+    b0: (Vh + Vb * K / Q + K * K) / a0,
+    b1: 2 * (K * K - Vh) / a0,
+    b2: (Vh - Vb * K / Q + K * K) / a0,
+    a1: 2 * (K * K - 1) / a0,
+    a2: (1 - K / Q + K * K) / a0
   };
   f0 = 38.13547087602444;
   Q = 0.5003270373238773;
-  K2 = Math.tan(Math.PI * f0 / sampleRate);
-  const d = 1 + K2 / Q + K2 * K2;
-  const highPass = { b0: 1, b1: -2, b2: 1, a1: 2 * (K2 * K2 - 1) / d, a2: (1 - K2 / Q + K2 * K2) / d };
+  K = Math.tan(Math.PI * f0 / sampleRate);
+  const d = 1 + K / Q + K * K;
+  const highPass = { b0: 1, b1: -2, b2: 1, a1: 2 * (K * K - 1) / d, a2: (1 - K / Q + K * K) / d };
   return [shelf, highPass];
 }
 function kWeight(x, sampleRate) {

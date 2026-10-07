@@ -40,7 +40,7 @@ const run = (bin, args) => new Promise((resolve, reject) => {
 function loadEngine(home, {MediaGeneration = null, version = '2.0.535', panelSource = null} = {}) {
   const src = panelSource || fs.readFileSync(path.join(plugin, 'panel.tsx'), 'utf8');
   const cut = (a, b) => src.slice(src.indexOf(a), src.indexOf(b));
-  const code = ['const PLUGIN = "portrait-beat-montage";', cut('// av-host:start', '// av-host:end'), cut('const MAC_ONLY_TEXT', '// @operation-start'),
+  const code = ['const PLUGIN = "portrait-beat-montage";', cut('// av-host:start', '// av-host:end'), cut(src.includes('const MAC_ONLY_TEXT')?'const MAC_ONLY_TEXT':'const PLAIN_TEXT', '// @operation-start'),
     cut('// @operation-start', '// @operation-end').replace(/^export /gm, ''), cut('// pbm-engine:start', '// pbm-engine:end'),
     ...(src.includes('function generationApi(') ? [topLevel(src, 'generationApi')] : []),
     'globalThis.engine = { pbmWindowsMontage, pbmMatteSource, pbmMattesFromAlpha, pbmWorkerKernels, pbmKernels, pbmUnits, pbmAssemble, plainText: typeof plainText === "function" ? plainText : null };'].join('\n');
@@ -78,7 +78,7 @@ function loadEngine(home, {MediaGeneration = null, version = '2.0.535', panelSou
   vm.runInContext(code + (src.includes('function hostUseSdk(') ? '\nhostUseSdk(sdk);' : ''), ctx);
   const montage = ctx.engine.pbmWindowsMontage;
   ctx.engine.pbmWindowsMontage = (provided, options) => montage({ ...sdk, ...provided }, options);
-  return {engine: ctx.engine, calls, FileSystem: panelSource ? FileSystem : sdk.files};
+  return {engine: ctx.engine, calls, FileSystem: src.includes('function hostUseSdk(') ? sdk.files : FileSystem};
 }
 
 // Two synthetic "person" clips (a bright figure moving over a darker room): one portrait, one landscape.
@@ -144,7 +144,7 @@ test('Windows engine: plan, one matte request, transitions, 17 Draft pieces; sam
   assert.ok(calls.every((a) => a[0] === '-nostdin'));
   const sourcesMade = calls.filter((a) => a.some((x) => String(x).includes('minterpolate')));
   assert.equal(sourcesMade.length, 4);
-  assert.ok(sourcesMade.every((a) => a.includes('-write_tmcd')));
+  assert.ok(sourcesMade.every((a) => a.includes('ffv1') && a.includes('bgr0')), 'Windows source encoding is lossless and built in');
   for (const clip of manifest.clips) {
     const probe = JSON.parse((await run(FFPROBE, ['-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,nb_read_frames,width,height,r_frame_rate', '-of', 'json', clip.path])).stdout);
     assert.equal(probe.streams.length, 1, clip.name + ' has one stream');
@@ -158,6 +158,7 @@ test('Windows engine: plan, one matte request, transitions, 17 Draft pieces; sam
   // pipeline.py on the same clips, with the mattes the engine used (RVM replaced by them), the same ffmpeg.
   const py = String.raw`
 import json, sys
+import hashlib
 from pathlib import Path
 import numpy as np
 sys.path.insert(0, sys.argv[1])
@@ -167,9 +168,36 @@ def mattes(video, folder):
     raw = np.fromfile(js_root / folder.name / "matte.gray", np.uint8).reshape(P.MATTE_FRAMES, P.H, P.W)
     return raw.astype(np.float32) / 255
 P.mattes = mattes
+original_run = P.run
+normalized_sources = 0
+def shared_source_run(argv, **kwargs):
+    global normalized_sources
+    # op_unit normally rewrites source.mp4 unconditionally. Keep only the supplied source normalization
+    # step so the independent Python compositor receives the same lossless RGB frames as the live engine.
+    if Path(argv[-1]).name == "source.mp4" and "minterpolate=" in " ".join(map(str, argv)):
+        assert Path(argv[-1]).exists()
+        normalized_sources += 1
+        return
+    return original_run(argv, **kwargs)
+P.run = shared_source_run
 plan = P.op_plan({"clips": clips})
-for key in plan["units"]: P.op_unit({"runId": plan["runId"], "key": key})
-print(json.dumps({"plan": plan, "manifest": P.op_assemble({"runId": plan["runId"], "master": False})}))
+source_checks = []; raw_checks = []
+for key in plan["units"]:
+    # Feed both renderers the identical normalized source. The Windows source codec is now lossless FFV1.
+    import shutil
+    folder = P.DATA / "runs" / plan["runId"] / key
+    folder.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(js_root / key / "source.avi", folder / "source.mp4")
+    P.op_unit({"runId": plan["runId"], "key": key})
+    ours = P.decode(js_root / key / "source.avi", P.SRC_FRAMES)
+    theirs = P.decode(folder / "source.mp4", P.SRC_FRAMES)
+    source_checks.append(hashlib.sha256(ours.tobytes()).hexdigest() == hashlib.sha256(theirs.tobytes()).hexdigest())
+    actual = np.fromfile(js_root / key / "post.rgb", np.uint8)
+    expected = np.load(folder / "post-held.npy").reshape(-1)
+    delta = np.abs(actual.astype(np.int16) - expected.astype(np.int16))
+    raw_checks.append({"key": key, "max": int(delta.max()), "mean": float(delta.mean())})
+print(json.dumps({"plan": plan, "sourceChecks": source_checks, "normalizedSources": normalized_sources,
+                 "rawChecks": raw_checks, "manifest": P.op_assemble({"runId": plan["runId"], "master": False})}))
 `;
   const r = spawnSync(PYTHON, ['-c', py, plugin, path.join(tmp, 'pydata'), runRoot, JSON.stringify(files.map((f) => f.path))],
     {encoding: 'utf8', maxBuffer: 1 << 26, env: {...process.env, POSTCARD_CUTOUT_RVM_FFMPEG: FFMPEG, POSTCARD_CUTOUT_RVM_FFPROBE: FFPROBE}});
@@ -181,6 +209,12 @@ print(json.dumps({"plan": plan, "manifest": P.op_assemble({"runId": plan["runId"
   assert.deepEqual(plan.slots, pyPlan.slots);
   assert.equal(out.plan.runId.slice(-6), plan.runId.slice(-6), 'same run digest');
   const exact = NUMPY[0] === '1.26.4' && NUMPY[1] === '11.3.0';
+  assert.ok(out.normalizedSources > 0, 'reference consumes the supplied normalization instead of re-encoding it');
+  assert.ok(out.sourceChecks.every(Boolean), 'each source decodes to byte-identical RGB before compositing');
+  for (const raw of out.rawChecks) {
+    assert.ok(raw.max <= (exact ? 0 : 1), raw.key + ' raw transition maximum difference ' + raw.max);
+    assert.ok(raw.mean <= (exact ? 0 : .1), raw.key + ' raw transition mean difference ' + raw.mean);
+  }
   const decode = async (p) => { const f = path.join(tmp, 'decoded.rgb'); await run(FFMPEG, ['-v', 'error', '-y', '-i', p, '-f', 'rawvideo', '-pix_fmt', 'rgb24', f]); return fs.readFileSync(f); };
   let worst = 0, lowest = Infinity;
   for (const [i, clip] of manifest.clips.entries()) {
@@ -201,80 +235,8 @@ print(json.dumps({"plan": plan, "manifest": P.op_assemble({"runId": plan["runId"
   fs.rmSync(tmp, {recursive: true, force: true});
 });
 
-// The paid matte request: nothing is sent before the credits notice is accepted; one request for the montage, with
-// the run's key, the clip's seconds and the joined sources; a declined notice, an old Selects or a Clip highlights run
-// (no panel to click) stops before submit; a rebuild reuses the result and never asks again; Cancel cancels the job.
-test('Windows mattes: credits notice first, one generation request, cached for rebuilds', {skip, timeout: 900000}, async (t) => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pbm-cloud-'));
-  const home = path.join(tmp, 'home');
-  const skills = path.join(home, '.selects', 'skills', 'portrait-beat-montage');
-  fs.mkdirSync(skills, {recursive: true});
-  fs.copyFileSync(path.join(plugin, 'SKILL.md'), path.join(skills, 'SKILL.md'));
-  fs.symlinkSync(path.join(plugin, 'assets'), path.join(skills, 'assets'));
-  const sources = await makeClips(tmp);
-  const files = Array.from({length: 10}, (_, i) => ({path: sources[i % 2]}));
-  // Selects generation stand-in: the alpha video is a luma key of the uploaded clip, saved in the delivery folder.
-  const submitted = [], jobs = new Map(), cancelled = [];
-  const MediaGeneration = {
-    supportsPluginFiles: () => true,
-    submit: async (req) => {
-      submitted.push(req);
-      const jobId = 'job-' + submitted.length;
-      jobs.set(jobId, {jobId, status: 'running', deliveryStatus: 'pending', outputs: []});
-      fs.mkdirSync(req.delivery.pluginFolder, {recursive: true});
-      const out = path.join(req.delivery.pluginFolder, 'person-mattes.mp4');
-      run(FFMPEG, ['-v', 'error', '-y', '-i', req.uploads.source.pluginFile, '-vf', "format=gray,lut=y='if(gt(val,150),255,0)',gblur=sigma=2", '-c:v', 'libx264', '-pix_fmt', 'yuv420p', out])
-        .then(() => Object.assign(jobs.get(jobId), {status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: out}]}));
-      return {jobIds: [jobId]};
-    },
-    list: async () => [...jobs.values()],
-    cancel: async (scope, jobId) => { cancelled.push(jobId); },
-  };
-  const {engine} = loadEngine(home, {MediaGeneration});
-  const data = path.join(home, '.selects', 'plugin-data', 'portrait-beat-montage');
-  const build = (confirm, extra = {}, e = engine) => e.pbmWindowsMontage({}, {projectId: 'p-1', files, confirm, setStep: () => {}, setProgress: () => {}, signal: new AbortController().signal, ...extra});
-  const asked = [];
-
-  // Declined: nothing submitted, nothing rendered.
-  await assert.rejects(build(async (q) => { asked.push(q); return false; }), (e) => e.code === 'cancelled');
-  assert.equal(submitted.length, 0);
-  assert.deepEqual(plain(asked), [{seconds: 4 * 36 / 60, shots: 4}]);
-  // A Clip highlights run: its confirm refuses, before submit.
-  await assert.rejects(build(() => { throw Object.assign(new Error('needs a click'), {code: 'needs-confirm'}); }), /needs a click/);
-  assert.equal(submitted.length, 0);
-  // An old Selects: refused before the notice.
-  await assert.rejects(build(async () => { throw Error('asked'); }, {}, loadEngine(home, {MediaGeneration: null}).engine), /Update Selects/);
-  const runs = fs.readdirSync(path.join(data, 'runs'));
-  assert.equal(runs.length, 1, 'one resumable run');
-  assert.ok(!fs.existsSync(path.join(data, 'runs', runs[0], 'manifest.json')));
-
-  // Accepted: one request for the 4 distinct windows, then the montage.
-  const manifest = await build(async (q) => { asked.push(q); return true; });
-  assert.equal(submitted.length, 1);
-  const req = submitted[0];
-  assert.equal(req.modelId, 'model_v1_dmVlZC92aWRlby1iYWNrZ3JvdW5kLXJlbW92YWwvZmFzdA');
-  assert.deepEqual(plain(req.scope), {projectId: 'p-1'});
-  assert.deepEqual(plain(req.inputMediaSeconds), {video: 4 * 36 / 60});
-  assert.match(req.key, /^pbm-[0-9a-f]{24}$/);
-  assert.ok(req.uploads.source.pluginFile.startsWith(path.join(data, 'runs')));
-  assert.ok(req.delivery.pluginFolder.startsWith(path.join(data, 'runs')));
-  assert.equal(req.input.subject_is_person, true);
-  assert.equal(manifest.clips.length, 17);
-
-  // Rebuild of the same clips: a new run, every window from the cache, no notice, no request.
-  const again = await build(async () => { throw Error('asked again'); });
-  assert.equal(submitted.length, 1);
-  assert.equal(again.clips.length, 17);
-  // Cancel while the request runs cancels it (fresh windows: a cleared cache).
-  fs.rmSync(path.join(data, 'cache-w1'), {recursive: true, force: true});
-  MediaGeneration.submit = async (r) => { submitted.push(r); jobs.set('slow', {jobId: 'slow', status: 'running', deliveryStatus: 'pending', outputs: []}); return {jobIds: ['slow']}; };
-  const c = new AbortController();
-  await assert.rejects(build(async () => { setTimeout(() => c.abort(), 1500); return true; }, {signal: c.signal}), (e) => e.code === 'cancelled');
-  assert.deepEqual(plain(cancelled), ['slow']);
-  t.diagnostic('notice shown ' + asked.length + 'x, requests ' + submitted.length);
-  fs.rmSync(tmp, {recursive: true, force: true});
-});
-
+// Empty local RVM coverage keeps the source footage and montage timing. A genuine inference failure must
+// propagate before postprocessing; only an actual empty matte takes the existing plain-footage path.
 test('Windows no-person unit keeps plain footage, timing, SAR and cached note; genuine failures still fail', {skip, timeout: 900000}, async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pbm-plain-'));
   try {
@@ -292,15 +254,15 @@ test('Windows no-person unit keeps plain footage, timing, SAR and cached note; g
     };
     const worker = engine.pbmWorkerKernels();
     try {
-      // A rejected paid job must never become a fallback (and never be retried here).
-      await assert.rejects(engine.pbmUnits(io, worker.call, runPlan, async () => { throw Error('insufficient credits'); }, null), /insufficient credits/);
+      // A failed local inference must never become a plain-footage fallback or be retried here.
+      await assert.rejects(engine.pbmUnits(io, worker.call, runPlan, async () => { throw Error('model inference failed'); }, null), /model inference failed/);
       assert.ok(!fs.existsSync(path.join(root, 'u', 'post.rgb')));
       await engine.pbmUnits(io, worker.call, runPlan, mattes, null);
       assert.equal(requests, 1);
       assert.ok(fs.existsSync(path.join(root, 'u', 'plain.json')));
       // Independent reference: the pre-cutout speed curve sampled from the normalized source.
       const raw = path.join(tmp, 'source.rgb');
-      await run(FFMPEG, ['-v', 'error', '-y', '-i', path.join(root, 'u', 'source.mp4'), '-f', 'rawvideo', '-pix_fmt', 'rgb24', raw]);
+      await run(FFMPEG, ['-v', 'error', '-y', '-i', path.join(root, 'u', 'source.avi'), '-f', 'rawvideo', '-pix_fmt', 'rgb24', raw]);
       const frames = fs.readFileSync(raw), post = fs.readFileSync(path.join(root, 'u', 'post.rgb'));
       assert.deepEqual(post.subarray(0, 540 * 720 * 3), frames.subarray(0, 540 * 720 * 3));
       assert.equal(post.length, 21 * 540 * 720 * 3);
@@ -317,21 +279,25 @@ test('Windows no-person unit keeps plain footage, timing, SAR and cached note; g
       }
       const nextRoot = path.join(tmp, 'next'); fs.mkdirSync(nextRoot);
       const before = calls.length;
-      await engine.pbmUnits(io, worker.call, {root: nextRoot, plan}, async () => { throw Error('paid twice'); }, null);
+      await engine.pbmUnits(io, worker.call, {root: nextRoot, plan}, async () => { throw Error('inference repeated'); }, null);
       assert.equal(calls.length, before, 'cache reuse makes no ffmpeg calls');
       assert.ok(fs.existsSync(path.join(nextRoot, 'u', 'plain.json')));
     } finally { worker.close(); }
   } finally { fs.rmSync(tmp, {recursive: true, force: true}); }
 });
 
-// Optional before/after oracle: supply an original panel snapshot to prove byte-for-byte preservation.
+// Optional before/after oracle: supply an original panel snapshot to compare the compositor with identical RGB inputs.
+// Source encoding intentionally changed to built-in lossless FFV1; it is tested separately, rather than expecting
+// old lossy source encoding to produce identical downstream pixels.
 // git show origin/main:plugins/portrait-beat-montage/panel.tsx > /tmp/pbm-baseline-panel.tsx
 // PORTRAIT_BEAT_MONTAGE_BASELINE_PANEL=/tmp/pbm-baseline-panel.tsx node --test --test-name-pattern='all-person baseline' tests/portrait_beat_montage_engine.test.mjs
-test('all-person baseline: identical encoded output, manifest and ffmpeg calls', {skip: skip || (!process.env.PORTRAIT_BEAT_MONTAGE_BASELINE_PANEL && 'provide the original panel snapshot'), timeout: 900000}, async () => {
+test('all-person baseline: identical composition and encoded output from the same normalized RGB', {skip: skip || (!process.env.PORTRAIT_BEAT_MONTAGE_BASELINE_PANEL && 'provide the original panel snapshot'), timeout: 900000}, async () => {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pbm-baseline-'));
 try {
   const source = path.join(tmp, 'source.mp4');
   await run(FFMPEG, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=540x720:r=60:d=2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', source]);
+  const normalized = path.join(tmp, 'normalized.avi');
+  await run(FFMPEG, ['-v', 'error', '-y', '-i', source, '-vf', 'setsar=1,fps=60', '-frames:v', '60', '-an', '-c:v', 'ffv1', '-level', '3', '-pix_fmt', 'bgr0', normalized]);
   const results = [];
   for (const baseline of [true, false]) {
     const home = path.join(tmp, baseline ? 'before' : 'after'); fs.mkdirSync(home);
@@ -340,18 +306,21 @@ try {
     const worker = engine.pbmWorkerKernels();
     const io = {fs: FileSystem, data: home, plugin};
     const plan = {runId: 'parity', units: {u: {path: source, start: 0, width: 540, height: 720}}, slots: Array(15).fill('u')};
-    let paid = 0;
+    fs.mkdirSync(path.join(root, 'u'));
+    // Both FFmpeg decoders detect the AVI container regardless of the legacy source.mp4 filename.
+    fs.copyFileSync(normalized, path.join(root, 'u', baseline ? 'source.mp4' : 'source.avi'));
+    let requested = 0;
     try {
       await engine.pbmUnits(io, worker.call, {root, plan}, async (io, units) => {
-        paid++;
+        requested++;
         for (const u of units) fs.writeFileSync(path.join(u.folder, 'matte.gray'), Buffer.alloc(30 * 540 * 720, 128));
       }, null);
       const manifest = await engine.pbmAssemble(io, worker.call, {root, plan}, null);
-      results.push({paid, calls: JSON.stringify(calls).split(home).join('HOME'), manifest: JSON.stringify(manifest).split(home).join('HOME'), post: fs.readFileSync(path.join(root, 'u', 'post.rgb')), clips: Array.from(manifest.clips, c => fs.readFileSync(c.path))});
+      results.push({requested, calls: JSON.stringify(calls).split(home).join('HOME').replaceAll('/u/source.mp4', '/u/source.normalized').replaceAll('/u/source.avi', '/u/source.normalized'), manifest: JSON.stringify(manifest).split(home).join('HOME'), post: fs.readFileSync(path.join(root, 'u', 'post.rgb')), clips: Array.from(manifest.clips, c => fs.readFileSync(c.path))});
     } finally { worker.close(); }
   }
   assert.deepEqual(results[1], results[0]);
-  console.log('PASS: all-person origin/main vs working tree: exact post bytes, all 17 encoded files, manifest, paid request count and every ffmpeg argv');
+  console.log('PASS: all-person baseline vs working tree with identical normalized RGB: exact post bytes, all 17 encoded files, manifest, matte request count and downstream ffmpeg argv');
 } finally { fs.rmSync(tmp, {recursive:true, force:true}); }
 
 });
