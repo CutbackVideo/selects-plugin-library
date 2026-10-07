@@ -2,12 +2,8 @@
 
 ## Music
 
-`projector-screen-vlog-bed.wav` — "Projector Screen (LoFi, Happy)" by HoliznaCC0.
-Source: https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/projector-screen-lofi-happy-mp3/
-License: Creative Commons CC0 1.0 (public domain dedication),
-https://creativecommons.org/publicdomain/zero/1.0/
-This template uses a 19.72-second excerpt starting 0.804 seconds into the track,
-attenuated by 3 dB with a fade in and out.
+`relaxed-urban-bed.wav` — "Relaxed Urban Bed", generated with Suno for Cutback as this template's default song
+(69.84 s, 48 kHz stereo). Redistributed with this plugin under the generating account's plan. The whole song is used.
 
 ## Sound effects
 

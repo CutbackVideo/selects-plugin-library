@@ -58,8 +58,8 @@ function withStoredPanel(Component, load) {
 
 
 const SLUG = "recap-2026";
-const AUDIO_NAME = "recap-2026-fixed-soundtrack.wav";
-const AUDIO_SOURCE_NAME = "recap-preview-v3-beatmatched-61s.wav";
+// The default song. The cut plan is measured from whichever song is used, so another file can replace it.
+const AUDIO_NAME = "brighter-year-ahead.wav";
 const TITLE_CODE = [
   "import React from 'react';",
   "export default function Graphic({data}) {",
@@ -76,60 +76,60 @@ const FADE_CODE = [
 ].join("");
 const WORDS = {
   ko: {
-    folder: "\ud478\ud2f0\uc9c0 \ud3f4\ub354", intro: "\uc778\ud2b8\ub85c \uc601\uc0c1", slot: "\ube60\ub978 \ucef7 \ubc88\ud638 (1–159)",
+    folder: "\ud478\ud2f0\uc9c0 \ud3f4\ub354", intro: "\uc778\ud2b8\ub85c \uc601\uc0c1", slot: "\ube60\ub978 \ucef7 \ubc88\ud638 (1\u2013157)",
     video: "\uc774 \ucef7\uc5d0 \uc0ac\uc6a9\ud560 \uc601\uc0c1", start: "\uc6d0\ubcf8 \uc601\uc0c1 \uc2dc\uc791\uc810", sample: "12\ucd08 \uc0d8\ud50c \ub9cc\ub4e4\uae30",
     full: "\uc804\uccb4 Draft \ub9cc\ub4e4\uae30", loading: "\ud478\ud2f0\uc9c0 \ubd88\ub7ec\uc624\ub294 \uc911…",
     noProject: "Selects \ud504\ub85c\uc81d\ud2b8\ub97c \uba3c\uc800 \uc5f4\uc5b4\uc8fc\uc138\uc694.",
     noVideo: "\uc0ac\uc6a9\ud560 \uc601\uc0c1\uc744 \ud558\ub098 \uc774\uc0c1 \uc120\ud0dd\ud558\uc138\uc694.",
     summary: "\uc601\uc0c1 \ud480", ready: "\uc778\ud2b8\ub85c", progress: "Draft \uc0dd\uc131 \uc911",
-    audio: "\uace0\uc815 \uc74c\uc545\uacfc 2026 \ub0b4\ub808\uc774\uc158 \ud3ec\ud568", introTip: "\uae34 \uc778\ud2b8\ub85c \ub4a4\uc5d0 \ube60\ub978 \ucef7\uc774 \uc790\ub3d9\uc73c\ub85c \uc774\uc5b4\uc9d1\ub2c8\ub2e4.",
+    audio: "\uace0\uc815 \uc74c\uc545 \ud3ec\ud568", introTip: "\uae34 \uc778\ud2b8\ub85c \ub4a4\uc5d0 \ube60\ub978 \ucef7\uc774 \uc790\ub3d9\uc73c\ub85c \uc774\uc5b4\uc9d1\ub2c8\ub2e4.",
     choose: "\uc778\ud2b8\ub85c\ub97c \uace0\ub974\uace0 \ube60\ub978 \ucef7\uc6a9 \ud3f4\ub354\ub97c \uc120\ud0dd\ud558\uba74 \ub098\uba38\uc9c0\ub294 \uc790\ub3d9\uc73c\ub85c \ubc30\uce58\ub429\ub2c8\ub2e4.",
-    invalid: "\uc778\ud2b8\ub85c \uc601\uc0c1\uc740 \uc120\ud0dd\ud55c \uc2dc\uc791\uc810\ubd80\ud130 5\ucd08 \uc774\uc0c1 \ud544\uc694\ud569\ub2c8\ub2e4.",
+    invalid: "\uc778\ud2b8\ub85c \uc601\uc0c1\uc740 \uc120\ud0dd\ud55c \uc2dc\uc791\uc810\ubd80\ud130 8.5\ucd08 \uc774\uc0c1 \ud544\uc694\ud569\ub2c8\ub2e4.",
     gallery: "\ud2b9\uc815 \uc601\uc0c1 \uc81c\uc678 (\uc120\ud0dd \uc0ac\ud56d)", preview: "\uc778\ud2b8\ub85c \uad6c\uac04 \uc120\ud0dd", previous: "\uc774\uc804", next: "\ub2e4\uc74c",
-    previewHint: "\uc544\ub798 \ud0c0\uc784\ub77c\uc778\uc5d0\uc11c \ub178\ub780 \uad6c\uac04\uc744 \uc6c0\uc9c1\uc5ec \uc0ac\uc6a9\ud560 4.7\ucd08\ub97c \uace0\ub974\uc138\uc694.",
+    previewHint: "\uc544\ub798 \ud0c0\uc784\ub77c\uc778\uc5d0\uc11c \ub178\ub780 \uad6c\uac04\uc744 \uc6c0\uc9c1\uc5ec \uc0ac\uc6a9\ud560 8.1\ucd08\ub97c \uace0\ub974\uc138\uc694.",
     galleryHint: "\uc120\ud0dd\ud55c \ud3f4\ub354\uc758 \uc601\uc0c1\uc740 \ubaa8\ub450 \uc790\ub3d9 \uc0ac\uc6a9\ub429\ub2c8\ub2e4. \ube7c\uace0 \uc2f6\uc740 \uc601\uc0c1\ub9cc \uccb4\ud06c\ud558\uc138\uc694.",
     folderGuide: "\uc601\uc0c1 \ud30c\uc77c\uc744 \ud55c \ud3f4\ub354\uc5d0 \ubaa8\uc73c\uba74 \ud3b8\ub9ac\ud569\ub2c8\ub2e4. \uc5ec\ub7ec \ud3f4\ub354\ub97c \uc120\ud0dd\ud574\ub3c4 \ub429\ub2c8\ub2e4.",
-    folderPick: "\ube60\ub978 \ucef7\uc6a9 \ud3f4\ub354", include: "\uc774 \uc601\uc0c1 \uc81c\uc678", poolRule: "\uc120\ud0dd\ud55c \ud3f4\ub354\uc758 \uc601\uc0c1\uc740 \uae30\ubcf8\uc801\uc73c\ub85c \ubaa8\ub450 \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \ubd80\uc871\ud558\uba74 \ud30c\uc77c\uba85 \uc21c\uc11c\ub300\ub85c \ubc18\ubcf5\ud558\uba70, \uacb0\uacfc \uae38\uc774\ub294 \uc74c\uc545\uc5d0 \ub9de\ucdb0 \uc57d 61.5\ucd08\ub85c \uace0\uc815\ub429\ub2c8\ub2e4.",
-    footageCount: "\ube60\ub978 \ucef7\uc6a9 \uc601\uc0c1", repeatNote: "160\uac1c \uc2ac\ub86f\uc744 \ucc44\uc6b0\uae30 \uc704\ud574 \uc601\uc0c1\uc774 \ubc18\ubcf5\ub429\ub2c8\ub2e4.",
+    folderPick: "\ube60\ub978 \ucef7\uc6a9 \ud3f4\ub354", include: "\uc774 \uc601\uc0c1 \uc81c\uc678", poolRule: "\uc120\ud0dd\ud55c \ud3f4\ub354\uc758 \uc601\uc0c1\uc740 \uae30\ubcf8\uc801\uc73c\ub85c \ubaa8\ub450 \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \ubd80\uc871\ud558\uba74 \ud30c\uc77c\uba85 \uc21c\uc11c\ub300\ub85c \ubc18\ubcf5\ud558\uba70, \uacb0\uacfc \uae38\uc774\ub294 \uc74c\uc545\uc5d0 \ub9de\ucdb0 \uc57d 68.6\ucd08\ub85c \uace0\uc815\ub429\ub2c8\ub2e4.",
+    footageCount: "\ube60\ub978 \ucef7\uc6a9 \uc601\uc0c1", repeatNote: "158\uac1c \uc2ac\ub86f\uc744 \ucc44\uc6b0\uae30 \uc704\ud574 \uc601\uc0c1\uc774 \ubc18\ubcf5\ub429\ub2c8\ub2e4.",
     selectAll: "\uc81c\uc678 \ubaa9\ub85d \ucd08\uae30\ud654", selectNone: "\uc804\uccb4 \ud574\uc81c", rebuildHint: "\uc81c\uc678 \uc124\uc815\uc744 \ubc14\uafb8\uba74 \ube60\ub978 \ucef7\uc774 \ub2e4\uc2dc \uc790\ub3d9\uc73c\ub85c \ubc30\uce58\ub429\ub2c8\ub2e4.",
     advanced: "\ube60\ub978 \ucef7 \ud558\ub098 \uc870\uc815 (\uc120\ud0dd \uc0ac\ud56d)", introStart: "\uc778\ud2b8\ub85c \uc2dc\uc791\uc810",
     advancedHint: "1\ubc88\uc740 \uc778\ud2b8\ub85c \uc9c1\ud6c4\uc758 \uccab \ucef7\uc785\ub2c8\ub2e4. \uac19\uc740 \uc601\uc0c1 \uc790\ub9ac\uc758 \ud6c4\ubc18 \ubc18\ubcf5\ubd84\ub3c4 \ud568\uaed8 \ubc14\ub01d\ub2c8\ub2e4.",
     outputAt: "\uc644\uc131 \uc601\uc0c1\uc5d0\uc11c", sourceWindow: "\uc774 \ucef7\uc5d0 \uc0ac\uc6a9\ud560 \uc6d0\ubcf8 \uad6c\uac04",
     advancedSourceHint: "\uc6d0\ubcf8 \ud0c0\uc784\ub77c\uc778\uc758 \ub178\ub780 \uad6c\uac04\uc744 \uc62e\uaca8 \uc774 \ucef7\uc5d0 \uc0ac\uc6a9\ud560 \uc7a5\uba74\uc744 \uace0\ub974\uc138\uc694.",
     repeatsLater: "\uc774 \ucef7\uc740 \ud6c4\ubc18 \ubc18\ubcf5 \uad6c\uac04\uc5d0\ub3c4 \ub2e4\uc2dc \ub098\uc624\uba70 \ud568\uaed8 \ubcc0\uacbd\ub429\ub2c8\ub2e4.",
-    rules: "\uc790\ub3d9 \ubc30\uce58 \uaddc\uce59", quickRule: "\ud544\uc694\ud558\uba74 \ubc18\ubcf5 · \uc57d 61.5\ucd08 \uace0\uc815",
+    rules: "\uc790\ub3d9 \ubc30\uce58 \uaddc\uce59", quickRule: "\ud544\uc694\ud558\uba74 \ubc18\ubcf5 \u00b7 \uc57d 68.6\ucd08 \uace0\uc815",
     noneIncluded: "\uc0ac\uc6a9\ud560 \uc601\uc0c1\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ube60\ub978 \ucef7\uc6a9 \ud3f4\ub354\ub97c \uc120\ud0dd\ud558\uac70\ub098 \uc81c\uc678 \ubaa9\ub85d\uc744 \ucd08\uae30\ud654\ud558\uc138\uc694.",
-    shortNotice: "1.7\ucd08 \ubbf8\ub9cc \uc601\uc0c1\uc740 \uae34 \ucef7\uc744 \ucc44\uc6b8 \uc218 \uc5c6\uc5b4 \uc81c\uc678\ub429\ub2c8\ub2e4. \uc778\ud2b8\ub85c\uc5d0\ub294 5\ucd08 \uc774\uc0c1 \uc601\uc0c1\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
-    example: "\uc644\uc131 \uc608\uc2dc", exampleHint: "61.5\ucd08 \uc644\uc131\ubcf8. \uc7ac\uc0dd\ud574\uc11c \uc601\uc0c1\uacfc \ube44\ud2b8\uc758 \ud750\ub984\uc744 \ud655\uc778\ud558\uc138\uc694.",
+    shortNotice: "1.7\ucd08 \ubbf8\ub9cc \uc601\uc0c1\uc740 \uae34 \ucef7\uc744 \ucc44\uc6b8 \uc218 \uc5c6\uc5b4 \uc81c\uc678\ub429\ub2c8\ub2e4. \uc778\ud2b8\ub85c\uc5d0\ub294 8.5\ucd08 \uc774\uc0c1 \uc601\uc0c1\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
+    example: "\uc644\uc131 \uc608\uc2dc", exampleHint: "68.6\ucd08 \uc644\uc131\ubcf8. \uc7ac\uc0dd\ud574\uc11c \uc601\uc0c1\uacfc \ube44\ud2b8\uc758 \ud750\ub984\uc744 \ud655\uc778\ud558\uc138\uc694.",
     exampleMissing: "\uc608\uc2dc \uc601\uc0c1\uc744 \ubd88\ub7ec\uc62c \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
     hostTooOld: "\uc774 \uae30\ub2a5\uc740 \ub354 \ucd5c\uc2e0 \ubc84\uc804\uc758 Selects\uac00 \ud544\uc694\ud569\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694."
   },
   en: {
-    folder: "Footage folder", intro: "Intro video", slot: "Fast-cut number (1–159)",
+    folder: "Footage folder", intro: "Intro video", slot: "Fast-cut number (1\u2013157)",
     video: "Video for this cut", start: "Source video start", sample: "Create 12s sample",
     full: "Create full Draft", loading: "Loading footage…",
     noProject: "Open a Selects project first.",
     noVideo: "Choose at least one video.",
     summary: "Footage pool", ready: "Intro", progress: "Building Draft",
-    audio: "Fixed music with 2026 narration", introTip: "Fast cuts follow the long intro automatically.",
+    audio: "Fixed music", introTip: "Fast cuts follow the long intro automatically.",
     choose: "Choose the intro and folders for fast cuts. The rest is arranged automatically.",
-    invalid: "The intro needs at least five seconds after its source start.",
+    invalid: "The intro needs at least 8.5 seconds after its source start.",
     gallery: "Exclude specific videos (optional)", preview: "Select the intro segment", previous: "Previous", next: "Next",
-    previewHint: "Move the yellow window on the timeline to choose the 4.7 seconds to use.",
+    previewHint: "Move the yellow window on the timeline to choose the 8.1 seconds to use.",
     galleryHint: "All videos in the selected folders are used automatically. Check only the videos you want to leave out.",
     folderGuide: "Putting videos in one folder is easiest. You can also select multiple folders.",
-    folderPick: "Folders for fast cuts", include: "Exclude this video", poolRule: "All videos in selected folders are used by default. When there are fewer videos than slots, footage repeats in filename order. Runtime stays fixed at about 61.5 seconds to match the music.",
-    footageCount: "Fast-cut videos", repeatNote: "Videos will repeat to fill the 160 slots.",
+    folderPick: "Folders for fast cuts", include: "Exclude this video", poolRule: "All videos in selected folders are used by default. When there are fewer videos than slots, footage repeats in filename order. Runtime stays fixed at about 68.6 seconds to match the music.",
+    footageCount: "Fast-cut videos", repeatNote: "Videos will repeat to fill the 158 slots.",
     selectAll: "Reset exclusions", selectNone: "Clear all", rebuildHint: "Changing exclusions rearranges the fast cuts automatically.",
     advanced: "Adjust one fast cut (optional)", introStart: "Intro source start",
     advancedHint: "Number 1 is the first cut after the intro. If this position repeats later, both copies change together.",
     outputAt: "In finished video", sourceWindow: "Source segment for this cut",
     advancedSourceHint: "Move the yellow window on the source timeline to choose the moment used for this cut.",
     repeatsLater: "This cut also appears in the later repeat; both copies change together.",
-    rules: "How auto-fill works", quickRule: "Repeats if needed · fixed ~61.5s",
+    rules: "How auto-fill works", quickRule: "Repeats if needed \u00b7 fixed ~68.6s",
     noneIncluded: "No footage is available. Choose a fast-cut folder or reset exclusions.",
-    shortNotice: "Clips under 1.7 seconds are excluded. The intro needs a video of at least 5 seconds.",
-    example: "Finished example", exampleHint: "Play the 61.5s example to see the footage and beat timing.",
+    shortNotice: "Clips under 1.7 seconds are excluded. The intro needs a video of at least 8.5 seconds.",
+    example: "Finished example", exampleHint: "Play the 68.6s example to see the footage and beat timing.",
     exampleMissing: "The example video could not be loaded.",
     hostTooOld: "This needs a newer version of Selects. Update Selects and try again."
   }
@@ -142,10 +142,90 @@ const scriptResult = (r) => {
 };
 // One message for a Selects build that lacks a host service (av-host 'host-missing').
 const hostMessage = (e, t) => e?.code === "host-missing" ? t.hostTooOld : String(e?.message || e);
-// The install and data folders (av-host hostRoots), found once and shared by the panel and template runs.
+// The install folder (the recap-2026 folder beneath the Skills root, holding SKILL.md), found once through the Selects SDK
+// (selects.files) and shared by the panel and template runs: a Selects build that runs panels in an isolated frame
+// gives them no host services, so window.parent is not used for it. The data folder (thumbnails, a soundtrack copy)
+// still comes from the host when it has one; without it the panel shows no thumbnails and the template needs none.
 let recapRootsPromise = null;
-const recapRoots = (sdk) => { hostUseSdk(sdk); return recapRootsPromise || (recapRootsPromise = hostRoots(sdk, SLUG, "timing.json").catch((e) => { recapRootsPromise = null; throw e; })); };
-const readTiming = async (sdk) => JSON.parse(await hostReadText(hostJoin((await recapRoots(sdk)).plugin, "timing.json")));
+const recapRoots = (sdk) => { hostUseSdk(sdk); return recapRootsPromise || (recapRootsPromise = hostRoots(sdk, SLUG, "SKILL.md").catch((e) => { recapRootsPromise = null; throw e; })); };
+// The song's pulse: subdivision period inside [lo, hi] s and phase, fitted to the onset flux over the
+// whole song; loudness entry/exit (0.5 s windows within 8 dB of the median); onsets for snapping.
+function songGrid(m, lo, hi) {
+  const a = m.audio;
+  if (!a || a.status !== "measured") throw new Error("The song has no measurable audio.");
+  const h = a.hopSeconds, t0 = a.startSeconds, flux = a.frames.flux, rms = a.frames.rmsDb, n = flux.length, dur = m.durationSeconds;
+  let mean = 0; for (let i = 0; i < n; i++) mean += flux[i]; mean /= n;
+  const ac = (p) => { let s = 0; for (let i = p; i < n; i++) s += (flux[i] - mean) * (flux[i - p] - mean); return s / (n - p); };
+  let p0 = Math.round(lo / h), best = -Infinity;
+  for (let p = Math.round(lo / h); p <= Math.round(hi / h); p++) { const v = ac(p); if (v > best) { best = v; p0 = p; } }
+  // Loudness windows.
+  const win = [], w = Math.round(0.5 / h);
+  for (let i = 0; i + w <= n; i += w) { let s = 0; for (let k = i; k < i + w; k++) s += rms[k]; win.push({ t: t0 + i * h, db: s / w }); }
+  const body = win.map((x) => x.db).sort((x, y) => x - y)[Math.floor(win.length / 2)];
+  const loud = win.filter((x) => x.db >= body - 8);
+  const entry = loud.length ? loud[0].t : 0, exit = loud.length ? loud[loud.length - 1].t + 0.5 : dur;
+  // Fine period and phase: the comb that the most onset flux sits on (within 12 ms) between entry and exit
+  // (2.5 ms phase steps, 0.1 ms period steps). Onset times, not flux peaks, are what cuts snap to.
+  const hits = a.onsets.filter((o) => o.t >= entry && o.t <= exit);
+  let fit = { s: -1, P: p0 * h, phase: 0 };
+  for (let P = p0 * h * 0.985; P <= p0 * h * 1.015; P += 0.0001) {
+    for (let ph = 0; ph < P; ph += 0.0025) {
+      let s = 0;
+      for (const o of hits) { const r = (((o.t - entry - ph) % P) + P) % P; if (Math.min(r, P - r) <= 0.012) s += o.flux; }
+      if (s > fit.s) fit = { s, P, phase: entry + ph };
+    }
+  }
+  const onsets = a.onsets.map((o) => ({ t: o.t, f: o.flux }));
+  // The strongest onset within `tol` of t, else t itself.
+  const snap = (t, tol) => { let b = null; for (const o of onsets) if (Math.abs(o.t - t) <= tol && (!b || o.f > b.f)) b = o; return b ? b.t : t; };
+  const gridAfter = (t) => fit.phase + Math.ceil((t - fit.phase - 1e-6) / fit.P) * fit.P;
+  return { dur, period: fit.P, phase: fit.phase, entry, exit, body, win, onsets, snap, gridAfter };
+}
+
+// 2026 Recap (rules/recap-2026.md): intro hold to the first strong downbeat after the song enters, a cut on every
+// subdivision (0.18–0.30 s band) snapped to onsets, every clip once then a replay from 38 %, the last clip held
+// through the tail with a fade to black. Returns placements in timing.json's shape plus the slot counts.
+function planRecap(m) {
+  const g = songGrid(m, 0.18, 0.30), tol = 0.02, P = g.period;
+  // The reference holds its intro 4.67 s from the song's entry and cuts on the strongest onset there.
+  const aim = g.entry + 4.67;
+  const intro = g.onsets.filter((o) => Math.abs(o.t - aim) <= 0.6).sort((x, y) => y.f - x.f)[0];
+  // Every later cut is one subdivision after the previous cut, moved onto the strongest onset within `tol`, so the
+  // cuts stay on the pulse that downbeat belongs to (the original: 159/240 cuts within a 60 fps frame).
+  const introEnd = intro ? intro.t : aim;
+  const cuts = [introEnd];
+  for (let t = introEnd + P; t <= g.exit - P; t = cuts[cuts.length - 1] + P) cuts.push(g.snap(t, tol));
+  const lastCut = cuts[cuts.length - 1];
+  const quiet = g.win.find((x) => x.t >= g.exit && x.db < g.body - 16);
+  const fadeStart = Math.min(g.dur - 0.9, Math.max(lastCut + 0.6, quiet ? quiet.t : g.dur - 0.95));
+  // Slots: 1 = intro, then the fast cuts. The last fast cut holds to the end.
+  const fast = cuts.length; // placements after the intro, including the final hold
+  const unique = Math.max(1, Math.ceil(fast * 159 / 242)); // the original: 159 distinct clips over 242 cuts
+  const replayFrom = Math.floor(unique * 60 / 159);
+  const placements = [{ slot: 1, startSeconds: 0, endSeconds: introEnd }];
+  for (let i = 0; i < fast; i++) {
+    const k = i < unique ? i : replayFrom + ((i - unique) % (unique - replayFrom || 1));
+    placements.push({ slot: k + 2, startSeconds: cuts[i], endSeconds: i + 1 < fast ? cuts[i + 1] : g.dur });
+  }
+  return {
+    durationSeconds: g.dur, periodSeconds: P, introEnd, fadeStart, slotCount: unique + 1, placements,
+    holdSeconds: g.dur - lastCut, visibleHoldSeconds: fadeStart + 0.75 - lastCut,
+  };
+}
+
+// The song's cut plan, measured once per panel session inside Selects (selects.media.measureBeatSync).
+let recapPlanPromise = null;
+const readPlan = (sdk) => recapPlanPromise || (recapPlanPromise = (async () => {
+  const path = hostJoin((await recapRoots(sdk)).plugin, "assets", AUDIO_NAME);
+  const r = await sdk.runScript({
+    summary:"Measure the song's beat", timeoutSeconds:120,
+    script:"if(typeof selects.media?.measureBeatSync!=='function')return {missing:true};" + songGrid.toString() + planRecap.toString() +
+      "const m=(await selects.media.measureBeatSync({sources:[{path:" + JSON.stringify(path) + "}]}))[0];return planRecap(m);"
+  });
+  const plan = scriptResult(r);
+  if (plan.missing) throw Object.assign(new Error("measureBeatSync is missing"), { code: "host-missing" });
+  return plan;
+})().catch((e) => { recapPlanPromise = null; throw e; }));
 // Host file names compare after NFC, \ to / and the basename (and case on Windows).
 const normPath = (s) => { const v = String(s || "").normalize("NFC").replace(/\\/g, "/"); const b = v.slice(v.lastIndexOf("/") + 1); return hostIsWindows() ? b.toLowerCase() : b; };
 const core = (cfg) => "const cfg=JSON.parse(" + embedded(JSON.stringify(cfg)) + ");const p=selects.project(cfg.projectId);";
@@ -300,10 +380,10 @@ function SourceWindowPicker({sdk,ui,video,startSeconds,windowSeconds,sourceMargi
   </div>;
 }
 
-function buildSlots(videos, intro) {
-  if (!videos.length || !intro?.resourceId) return [];
+function buildSlots(videos, intro, count) {
+  if (!videos.length || !intro?.resourceId || !(count > 1)) return [];
   const slots = [{...intro}];
-  for (let i = 0; i < 159; i++) {
+  for (let i = 0; i < count - 1; i++) {
     const v = videos[i % videos.length];
     const pass = Math.floor(i / videos.length);
     const fraction = pass === 0 ? 0.35 : Math.min(0.8, 0.35 + pass * 0.25);
@@ -317,7 +397,7 @@ function createScript(cfg) {
   return [
     core(cfg),
     "const d=await p.createDraft({name:cfg.name});",
-    "await d.insertResource({resourceId:cfg.intro.resourceId,sourceRange:{startSeconds:cfg.intro.startSeconds,endSeconds:cfg.intro.startSeconds+5}});",
+    "await d.insertResource({resourceId:cfg.intro.resourceId,sourceRange:{startSeconds:cfg.intro.startSeconds,endSeconds:cfg.intro.startSeconds+cfg.introEnd+0.3}});",
     "await d.setFrameSize({width:1080,height:1920});",
     "const fps=(await d.meta()).fps,target=Math.round(cfg.introEnd*fps);",
     "const clips=await d.clips({trackScope:'main'}),end=Math.max(...clips.map(c=>c.endFrame));",
@@ -342,14 +422,15 @@ function batchScript(cfg) {
     "cs=await d.clips({trackScope:'main'});const before=Math.max(...cs.map(c=>c.endFrame));",
     "const wanted=Math.round(row.endSeconds*fps),n=wanted-before;",
     "if(n<1)throw Error('Invalid timing at placement '+i);",
-    "const start=slot.startSeconds,sourceEnd=start+(n+3)/fps;",
-    "if(sourceEnd>media.durationSeconds)throw Error('Source too short for slot '+row.slot);",
+    "let start=slot.startSeconds,actual=before;",
+    "while(actual<wanted){const sourceEnd=Math.min(media.durationSeconds-0.05,start+(wanted-actual+3)/fps);",
+    "if(sourceEnd-start<2/fps)throw Error('Source too short for slot '+row.slot);",
     "await d.insertResource({resourceId:slot.resourceId,sourceRange:{startSeconds:start,endSeconds:sourceEnd}});",
-    "cs=await d.clips({trackScope:'main'});const actual=Math.max(...cs.map(c=>c.endFrame));",
+    "cs=await d.clips({trackScope:'main'});actual=Math.max(...cs.map(c=>c.endFrame));start=0;}",
     "if(actual<wanted)throw Error('Clip short after conform at slot '+row.slot);",
     "if(actual>wanted)await d.remove(await d.rangeAtFrames(wanted,actual),{tracks:'main'});",
-    "cs=await d.clips({trackScope:'main'});const c=[...cs].reverse().find(x=>x.resourceId===slot.resourceId);",
-    "const sz=media.frameSize;if(c&&sz?.width&&sz?.height){const fit=Math.min(1080/sz.width,1920/sz.height),cover=Math.max(1080/sz.width,1920/sz.height)/fit;if(cover>1.001)await d.setClipTransform({clip:c,scale:{x:cover,y:cover}});}",
+    "const sz=media.frameSize;if(sz?.width&&sz?.height){const fit=Math.min(1080/sz.width,1920/sz.height),cover=Math.max(1080/sz.width,1920/sz.height)/fit;",
+    "if(cover>1.001)for(const id of (await d.clips({trackScope:'main'})).filter(x=>x.startFrame>=before&&x.resourceId===slot.resourceId).map(x=>x.clipId)){const c=(await d.clips({trackScope:'main'})).find(x=>x.clipId===id);if(c)await d.setClipTransform({clip:c,scale:{x:cover,y:cover}});}}",
     "}",
     "if((await d.clips({trackScope:'main'})).length===count)return {draftId:cfg.draftId,mainCount:count,unchanged:true};",
     "const commit=await d.commitAll('2026 Recap: add footage batch');",
@@ -367,8 +448,8 @@ function finishScript(cfg) {
     "if(!all.some(c=>c.resourceId===cfg.audioId))await d.overlayResource({resource:p.resource(cfg.audioId),over:await d.rangeAtFrames(0,end)});",
     "const graphics=await d.motionGraphics();",
     "if(!graphics.some(g=>g.name==='2026 Recap title'))await d.addMotionGraphic({label:'2026 Recap title',tsxCode:cfg.titleCode,parameters:{top:'thank you',year:'2026'},editableParameters:[{key:'top',label:'Top line',type:'text',defaultValue:'thank you'},{key:'year',label:'Year',type:'text',defaultValue:'2026'}],within:await d.rangeAtFrames(0,Math.round(cfg.introEnd*fps))});",
-    "if(cfg.full&&!graphics.some(g=>g.name==='2026 Recap fade')){const a=Math.min(end-2,Math.round(60.55*fps));await d.addMotionGraphic({label:'2026 Recap fade',tsxCode:cfg.fadeCode,within:await d.rangeAtFrames(a,end)});}",
-    "const commit=await d.commitAll('2026 Recap: add fixed soundtrack and title');",
+    "if(cfg.full&&!graphics.some(g=>g.name==='2026 Recap fade')){const a=Math.min(end-2,Math.round(cfg.fadeStart*fps));await d.addMotionGraphic({label:'2026 Recap fade',tsxCode:cfg.fadeCode,within:await d.rangeAtFrames(a,end)});}",
+    "const commit=await d.commitAll('2026 Recap: add the song and title');",
     "return {draftId:cfg.draftId,endFrames:end,mainCount:main.length,commitId:commit.commitId};"
   ].join("\n");
 }
@@ -379,8 +460,8 @@ async function ensureAudio(sdk, projectId) {
     summary:"Find fixed soundtrack",
     script:core({projectId}) + "const r=await p.resources();return r.filter(x=>x.type==='Audio').map(x=>({id:x.resourceId,name:x.name,status:x.status}));"
   });
-  let found = scriptResult(r).filter((x) => normPath(x.name) === normPath(AUDIO_NAME) || normPath(x.name) === normPath(AUDIO_SOURCE_NAME));
-  if (found.length) return found.find((x) => normPath(x.name) === normPath(AUDIO_NAME))?.id || found[0].id;
+  const found = scriptResult(r).find((x) => normPath(x.name) === normPath(AUDIO_NAME));
+  if (found) return found.id;
   const {plugin, data} = await recapRoots(sdk);
   const path = hostJoin(plugin, "assets", AUDIO_NAME);
   r = await sdk.runScript({
@@ -400,45 +481,27 @@ async function ensureAudio(sdk, projectId) {
     imported = scriptResult(r).addedResourceIds;
   }
   if (!imported?.length) throw new Error("Could not import the bundled soundtrack");
-  const id = imported[0];
-  // Starting analysis only dispatches it, but on a busy host the call can pass the default 30 s deadline. A slow or
-  // failed start is not fatal: the status poll below decides, and starts it once more if it never left "pending".
-  const start = () => sdk.runScript({
-    summary:"Analyze fixed soundtrack",allowCommit:true,timeoutSeconds:120,
-    script:core({projectId,id}) + "return await p.startAnalysis({resourceIds:[cfg.id]});"
-  }).then((x) => { if (x?.isError) console.warn("[recap-2026] soundtrack analysis start:", x.output); }, (e) => console.warn("[recap-2026] soundtrack analysis start:", e));
-  await start();
-  for (let attempt=0;attempt<60;attempt++) {
-    await new Promise((resolve) => setTimeout(resolve,2000));
-    r = await sdk.runScript({
-      summary:"Check soundtrack analysis",
-      script:core({projectId,id}) + "const x=(await p.resources()).find(v=>v.resourceId===cfg.id);return {status:x?.status};"
-    });
-    const status = scriptResult(r).status;
-    if (status === "analyzingSucceeded" || status === "analysisMerged") return id;
-    if (status === "pending" && attempt === 9) await start();
-    if (status === "analyzingFailed" || status === "samplingFailed") throw new Error("Soundtrack analysis failed: " + status);
-  }
-  throw new Error("Soundtrack analysis is still running. Wait for it to finish, then create the Draft again.");
+  // The song is placed without analysis: an overlay needs none, and starting one asks the user to spend credits.
+  return imported[0];
 }
 
 
-// Builds the recap Draft: the intro, the 242 fast cuts in batches, then the
-// soundtrack and title. `slots` holds the intro and 159 cut sources; `byId`
+// Builds the recap Draft: the intro, the song's fast cuts in batches, then the
+// song and title. `slots` holds the intro and one source per plan slot; `byId`
 // the videos they name. Resolves the new Draft's id, name and clip count.
 async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_count,_limit)=>{}}) {
   hostUseSdk(sdk);
-  const manifest = await readTiming(sdk);
-  if (manifest.placements?.length !== 243) throw new Error("Template timing is incomplete");
+  const manifest = await readPlan(sdk);
+  if (slots.length !== manifest.slotCount) throw new Error("The clip plan does not match the song");
   const audioId = await ensureAudio(sdk, projectId);
   const name = "2026 Recap — " + (mode === "sample" ? "12s sample " : "") + new Date().toLocaleString();
   let r = await sdk.runScript({
     summary:"Create recap intro",allowCommit:true,timeoutSeconds:120,
-    script:createScript({projectId,name,intro,introEnd:manifest.placements[1].startSeconds})
+    script:createScript({projectId,name,intro,introEnd:manifest.introEnd})
   });
   const draftId = scriptResult(r).draftId;
   if (!draftId) throw new Error("Created Draft ID missing");
-  const limit = mode === "sample" ? 33 : manifest.placements.length;
+  const limit = mode === "sample" ? manifest.placements.filter((p) => p.startSeconds < 12).length : manifest.placements.length;
   for (let end=25;end<limit+24;end+=24) {
     const to = Math.min(end,limit);
     if (to <= 1) break;
@@ -452,7 +515,7 @@ async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_coun
   }
   r = await sdk.runScript({
     summary:"Finish recap Draft",allowCommit:true,timeoutSeconds:120,
-    script:finishScript({projectId,draftId,audioId,introEnd:manifest.placements[1].startSeconds,full:mode==="full",titleCode:TITLE_CODE,fadeCode:FADE_CODE})
+    script:finishScript({projectId,draftId,audioId,introEnd:manifest.introEnd,fadeStart:manifest.fadeStart,full:mode==="full",titleCode:TITLE_CODE,fadeCode:FADE_CODE})
   });
   const out = scriptResult(r);
   return {draftId,name,mainCount:out.mainCount};
@@ -516,11 +579,14 @@ function TemplateRun({ sdk, context }) {
       const videos = clipPicks.map((x) => byId[own(x.resourceId)]);
       await withDurations([introVideo, ...videos].filter(Boolean));
       if (!introVideo) throw new Error("The picked intro clip could not be read. Try again.");
-      if (!(introVideo.durationSeconds >= 5)) throw new Error("Pick an intro clip at least 5 seconds long.");
+      setStatus("Listening to the song\u2026");
+      const plan = await readPlan(sdk);
+      const introNeed = Math.ceil((plan.introEnd + 0.3) * 10) / 10;
+      if (!(introVideo.durationSeconds >= introNeed)) throw new Error("Pick an intro clip at least " + introNeed + " seconds long.");
       const short = clipPicks.find((x, i) => !(videos[i]?.durationSeconds >= 1.7));
       if (short) throw new Error((short.name || "A picked clip") + " is shorter than 1.7 seconds. Pick longer clips.");
       const intro = { resourceId: introVideo.resourceId, startSeconds: 0 };
-      const slots = buildSlots(videos, intro);
+      const slots = buildSlots(videos, intro, plan.slotCount);
       if (!live()) return;
       setStatus("Cutting your clips to the beat\u2026");
       // Only the picked videos go into each batch script.
@@ -551,6 +617,13 @@ function RecapPanel({ sdk, context, ui }) {
   const [introChoice, setIntroChoice] = React.useState(null);
   const [loadedKey, setLoadedKey] = React.useState(null);
   const [slots, setSlots] = React.useState([]);
+  const [plan, setPlan] = React.useState(null);
+  const slotCount = plan?.slotCount || 0, introSeconds = plan ? plan.introEnd : 0, introNeed = plan ? Math.ceil((plan.introEnd + 0.3) * 10) / 10 : Infinity;
+  React.useEffect(() => {
+    let live = true;
+    readPlan(sdk).then((p) => { if (live) setPlan(p); }).catch((e) => { if (live) setError(hostMessage(e, t)); });
+    return () => { live = false; };
+  }, []);
   const [editSlot, setEditSlot] = React.useState(2);
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [excludeOpen, setExcludeOpen] = React.useState(false);
@@ -582,7 +655,7 @@ function RecapPanel({ sdk, context, ui }) {
   }, [projectId]);
 
   React.useEffect(() => {
-    if (!projectId || !folders.length) return;
+    if (!projectId || !folders.length || !plan) return;
     let live = true;
     setLoadedKey(null);
     setMessage(t.loading);setError("");setGalleryPage(0);
@@ -605,25 +678,25 @@ function RecapPanel({ sdk, context, ui }) {
       {
         const saved = JSON.parse(savedText || "null");
         const savedIntro=JSON.parse(introText||"null")||JSON.parse(oldIntroText||"null")||(Array.isArray(saved)?saved[0]:null);
-        const introMedia=found.find((v)=>v.resourceId===savedIntro?.resourceId&&v.durationSeconds>=5);
-        if(introMedia)intro={resourceId:introMedia.resourceId,startSeconds:Math.max(0,Math.min(introMedia.durationSeconds-5,savedIntro.startSeconds||0))};
+        const introMedia=found.find((v)=>v.resourceId===savedIntro?.resourceId&&v.durationSeconds>=introNeed);
+        if(introMedia)intro={resourceId:introMedia.resourceId,startSeconds:Math.max(0,Math.min(introMedia.durationSeconds-introNeed,savedIntro.startSeconds||0))};
         const storedExcluded=JSON.parse(excludedText||"[]");
         if(Array.isArray(storedExcluded))excluded=storedExcluded.filter((id)=>found.some((v)=>v.resourceId===id));
         const available=found.filter((v)=>selectedFolders.includes(v.folderName)&&!excluded.includes(v.resourceId));
-        if (Array.isArray(saved) && saved.length === 160 && saved.every((x,index) => index===0?x.resourceId===intro?.resourceId:available.some((v)=>v.resourceId===x.resourceId))) next = saved.map((slot,index)=>{
+        if (Array.isArray(saved) && saved.length === slotCount && saved.every((x,index) => index===0?x.resourceId===intro?.resourceId:available.some((v)=>v.resourceId===x.resourceId))) next = saved.map((slot,index)=>{
           const media=found.find((v)=>v.resourceId===slot.resourceId);
-          const max=Math.max(0,(media?.durationSeconds||0)-(index===0?5:1.7));
+          const max=Math.max(0,(media?.durationSeconds||0)-(index===0?introNeed:1.7));
           return {...slot,startSeconds:Math.max(0,Math.min(max,slot.startSeconds||0))};
         });
       }
-      if(!intro){const first=found.find((v)=>v.durationSeconds>=5);intro=first?{resourceId:first.resourceId,startSeconds:0}:null;}
-      if(!next.length)next=buildSlots(found.filter((v)=>selectedFolders.includes(v.folderName)&&!excluded.includes(v.resourceId)),intro);
+      if(!intro){const first=found.find((v)=>v.durationSeconds>=introNeed);intro=first?{resourceId:first.resourceId,startSeconds:0}:null;}
+      if(!next.length)next=buildSlots(found.filter((v)=>selectedFolders.includes(v.folderName)&&!excluded.includes(v.resourceId)),intro,slotCount);
       setVideos(found);
       setExcludedIds(excluded);
       setIntroChoice(intro);setSlots(next);setLoadedKey(projectId);setMessage(found.length ? t.ready : t.noVideo);
     }).catch((e) => {if(live){setError(String(e.message || e));setMessage("");}});
     return () => {live = false;};
-  }, [projectId, folders.map((x)=>x.name).join("|")]);
+  }, [projectId, folders.map((x)=>x.name).join("|"), slotCount]);
 
   // Capture each complete selection before queueing writes, including the final edit.
   const saveSelection = () => {
@@ -634,7 +707,7 @@ function RecapPanel({ sdk, context, ui }) {
       storage.setItem(SLUG+":"+projectId+":excluded", JSON.stringify(excludedIds)),
       storage.setItem(SLUG+":"+projectId+":intro", JSON.stringify(introChoice)),
     ];
-    if(slots.length===160) writes.push(storage.setItem(key, JSON.stringify(slots)));
+    if(slotCount&&slots.length===slotCount) writes.push(storage.setItem(key, JSON.stringify(slots)));
     return Promise.all(writes);
   };
   React.useEffect(() => {
@@ -653,42 +726,35 @@ function RecapPanel({ sdk, context, ui }) {
   const changeIntro=(patch)=>{
     const next={...introChoice,...patch};
     setIntroChoice(next);
-    setSlots((old)=>old.length===160?[next,...old.slice(1)]:buildSlots(selectedVideos,next));
+    setSlots((old)=>old.length===slotCount?[next,...old.slice(1)]:buildSlots(selectedVideos,next,slotCount));
   };
   const toggleFolder=(name)=>{
     const next=selectedFolders.includes(name)?selectedFolders.filter((x)=>x!==name):folders.map((x)=>x.name).filter((x)=>selectedFolders.includes(x)||x===name);
     setSelectedFolders(next);
     setGalleryPage(0);
-    setSlots(buildSlots(videos.filter((v)=>next.includes(v.folderName)&&!excludedIds.includes(v.resourceId)),introChoice));
+    setSlots(buildSlots(videos.filter((v)=>next.includes(v.folderName)&&!excludedIds.includes(v.resourceId)),introChoice,slotCount));
   };
   const toggleExclusion=(id)=>{
     const next=excludedIds.includes(id)?excludedIds.filter((x)=>x!==id):[...excludedIds,id];
     setExcludedIds(next);
-    setSlots(buildSlots(videos.filter((v)=>selectedFolders.includes(v.folderName)&&!next.includes(v.resourceId)),introChoice));
+    setSlots(buildSlots(videos.filter((v)=>selectedFolders.includes(v.folderName)&&!next.includes(v.resourceId)),introChoice,slotCount));
   };
   const clearExclusions=()=>{
     setExcludedIds([]);
-    setSlots(buildSlots(folderVideos,introChoice));
+    setSlots(buildSlots(folderVideos,introChoice,slotCount));
   };
   const [slotTiming,setSlotTiming]=React.useState({});
-  const [timingError,setTimingError]=React.useState("");
   React.useEffect(()=>{
-    if(!advancedOpen||Object.keys(slotTiming).length)return;
-    let live=true;
-    readTiming(sdk)
-      .then((manifest)=>{
-        if(!live)return;
-        const bySlot={};
-        for(const row of manifest.placements){
-          if(row.slot<2)continue;
-          const prior=bySlot[row.slot];
-          if(!prior)bySlot[row.slot]={firstStart:row.startSeconds,maxDuration:row.endSeconds-row.startSeconds};
-          else prior.maxDuration=Math.max(prior.maxDuration,row.endSeconds-row.startSeconds);
-        }
-        setSlotTiming(bySlot);setTimingError("");
-      }).catch((error)=>{if(live)setTimingError(hostMessage(error,t));});
-    return ()=>{live=false;};
-  },[advancedOpen]);
+    if(!plan)return;
+    const bySlot={};
+    for(const row of plan.placements){
+      if(row.slot<2)continue;
+      const prior=bySlot[row.slot],length=Math.min(1.5,row.endSeconds-row.startSeconds);
+      if(!prior)bySlot[row.slot]={firstStart:row.startSeconds,maxDuration:length,uses:1};
+      else{prior.maxDuration=Math.max(prior.maxDuration,length);prior.uses++;}
+    }
+    setSlotTiming(bySlot);
+  },[plan]);
 
   React.useEffect(() => {
     if(!excludeOpen)return;
@@ -712,14 +778,14 @@ function RecapPanel({ sdk, context, ui }) {
   },[excludeOpen,videos,selectedFolders.join("|"),galleryPage]);
 
   async function make(mode) {
-    if (!projectId || slots.length !== 160 || busy || loadedKey!==projectId) return;
+    if (!projectId || !slotCount || slots.length !== slotCount || busy || loadedKey!==projectId) return;
     setBusy(true);setError("");setMessage(t.progress);
     try {
       await saveSelection();
       if (!introVideo || !selectedVideos.length) throw new Error(t.noVideo);
       const byId = Object.fromEntries(videos.map((v) => [v.resourceId,v]));
       const intro = {...slots[0],frameSize:byId[slots[0].resourceId]?.frameSize};
-      if ((byId[intro.resourceId]?.durationSeconds || 0)-intro.startSeconds < 5) throw new Error(t.invalid);
+      if ((byId[intro.resourceId]?.durationSeconds || 0)-intro.startSeconds < introNeed) throw new Error(t.invalid);
       const {name,mainCount} = await buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress:(count,limit)=>setMessage(t.progress + " " + count + "/" + limit)});
       setMessage("Draft created: " + name + " (" + mainCount + " video clips)");
     } catch (e) {
@@ -738,8 +804,8 @@ function RecapPanel({ sdk, context, ui }) {
     <FinishedExample sdk={sdk} t={t} ui={ui}/>
     {videos.length>0 && <ui.Section title={t.ready}>
       <ui.Stack>
-        <ui.Select label={t.intro} value={introChoice?.resourceId||null} onChange={(resourceId)=>changeIntro({resourceId,startSeconds:0})} options={videos.filter((x)=>x.durationSeconds>=5).map((x)=>({value:x.resourceId,label:x.name}))} disabled={busy || loadedKey!==projectId}/>
-        {introVideo&&<SourceWindowPicker sdk={sdk} ui={ui} video={introVideo} startSeconds={introChoice?.startSeconds||0} windowSeconds={4.7} sourceMargin={0.3} onChange={(startSeconds)=>changeIntro({startSeconds})} disabled={busy || loadedKey!==projectId} label={t.preview} hint={t.previewHint} loading={t.loading} compact/>}
+        <ui.Select label={t.intro} value={introChoice?.resourceId||null} onChange={(resourceId)=>changeIntro({resourceId,startSeconds:0})} options={videos.filter((x)=>x.durationSeconds>=introNeed).map((x)=>({value:x.resourceId,label:x.name}))} disabled={busy || loadedKey!==projectId}/>
+        {introVideo&&<SourceWindowPicker sdk={sdk} ui={ui} video={introVideo} startSeconds={introChoice?.startSeconds||0} windowSeconds={introSeconds} sourceMargin={0.3} onChange={(startSeconds)=>changeIntro({startSeconds})} disabled={busy || loadedKey!==projectId} label={t.preview} hint={t.previewHint} loading={t.loading} compact/>}
       </ui.Stack>
     </ui.Section>}
     <ui.Section title={t.folderPick}>
@@ -781,22 +847,21 @@ function RecapPanel({ sdk, context, ui }) {
     </details>}
     <details onToggle={(event)=>setAdvancedOpen(event.currentTarget.open)}>
       <summary>{t.advanced}</summary>
-      {advancedOpen&&slots.length===160&&<ui.Section title={t.advanced}>
+      {advancedOpen&&slotCount>0&&slots.length===slotCount&&<ui.Section title={t.advanced}>
         <ui.Stack>
           <small>{t.advancedHint}</small>
-          <ui.NumberField label={t.slot} value={editSlot-1} onChange={(v)=>setEditSlot(Math.max(2,Math.min(160,Math.round(v)+1)))} min={1} max={159} step={1} disabled={busy || loadedKey!==projectId}/>
+          <ui.NumberField label={t.slot} value={editSlot-1} onChange={(v)=>setEditSlot(Math.max(2,Math.min(slotCount,Math.round(v)+1)))} min={1} max={slotCount-1} step={1} disabled={busy || loadedKey!==projectId}/>
           {slotTiming[editSlot]&&<small>{t.outputAt}: {slotTiming[editSlot].firstStart.toFixed(2)}s · {slotTiming[editSlot].maxDuration.toFixed(2)}s</small>}
-          {editSlot>=61&&editSlot<=143&&<small>{t.repeatsLater}</small>}
+          {slotTiming[editSlot]?.uses>1&&<small>{t.repeatsLater}</small>}
           <ui.Select label={t.video} value={current?.resourceId||null} onChange={(resourceId)=>changeSlot({resourceId,startSeconds:0})} options={selectedVideos.map((x)=>({value:x.resourceId,label:x.name}))} disabled={busy || loadedKey!==projectId}/>
-          {timingError&&<ui.Message tone="error">{timingError}</ui.Message>}
           {currentVideo&&slotTiming[editSlot]&&<SourceWindowPicker sdk={sdk} ui={ui} video={currentVideo} startSeconds={current?.startSeconds||0} windowSeconds={slotTiming[editSlot].maxDuration} sourceMargin={0.15} onChange={(startSeconds)=>changeSlot({startSeconds})} disabled={busy || loadedKey!==projectId} label={t.sourceWindow} hint={t.advancedSourceHint} loading={t.loading}/>}
         </ui.Stack>
       </ui.Section>}
     </details>
     <ui.Section title="Draft">
       <ui.Actions>
-        <ui.Button variant="secondary" busy={busy} busyLabel={t.progress} disabled={slots.length !== 160 || loadedKey!==projectId} onClick={() => make("sample")}>{t.sample}</ui.Button>
-        <ui.Button variant="primary" busy={busy} busyLabel={t.progress} disabled={slots.length !== 160 || loadedKey!==projectId} onClick={() => make("full")}>{t.full}</ui.Button>
+        <ui.Button variant="secondary" busy={busy} busyLabel={t.progress} disabled={!slotCount || slots.length !== slotCount || loadedKey!==projectId} onClick={() => make("sample")}>{t.sample}</ui.Button>
+        <ui.Button variant="primary" busy={busy} busyLabel={t.progress} disabled={!slotCount || slots.length !== slotCount || loadedKey!==projectId} onClick={() => make("full")}>{t.full}</ui.Button>
       </ui.Actions>
       {message && <ui.Message tone="muted">{message}</ui.Message>}
       {error && <ui.Message tone="error">{error}</ui.Message>}

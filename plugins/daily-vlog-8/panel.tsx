@@ -438,10 +438,10 @@ const TEXT = {
 };
 
 const DURATIONS = [4.3, 2.6, 1.63, 1.53, 1.5, 1.8, 1.8, 2.6];
-const SHOT_PLAN = [{slot:0,frames:129},{slot:1,frames:78},{slot:2,frames:49},{slot:3,frames:52},{extra:0,fallback:3,frames:31},{slot:4,frames:21},{extra:1,fallback:4,frames:45},{slot:5,frames:54},{slot:6,frames:54},{slot:7,frames:78}];
-const ASSETS = ["projector-screen-vlog-bed.wav", "transition-w2.wav", "shutter-s2.wav", "camera-r2.wav", "shutter-c2.wav", "shutter-s6-1.wav", "typing-k3.wav"];
+// ASSETS[0] is the song. The shot plan is measured from it, so another song file can replace it.
+const ASSETS = ["relaxed-urban-bed.wav", "transition-w2.wav", "shutter-s2.wav", "camera-r2.wav", "shutter-c2.wav", "shutter-s6-1.wav", "typing-k3.wav"];
 // Each sound's length in seconds (ffprobe), used when its Resource reports none: no overlay may run past it.
-const ASSET_SECONDS = {"projector-screen-vlog-bed.wav": 19.719728, "transition-w2.wav": 1.389977, "shutter-s2.wav": 0.516984, "camera-r2.wav": 0.940726, "shutter-c2.wav": 1, "shutter-s6-1.wav": 0.213991, "typing-k3.wav": 2.5};
+const ASSET_SECONDS = {"relaxed-urban-bed.wav": 69.84, "transition-w2.wav": 1.389977, "shutter-s2.wav": 0.516984, "camera-r2.wav": 0.940726, "shutter-c2.wav": 1, "shutter-s6-1.wav": 0.213991, "typing-k3.wav": 2.5};
 
 const OPENING = "import React from 'react';\nimport {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';\n\nconst KNOT_FRAMES = [0, 3, 4, 6, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 115, 120, 124, 128, 129, 132, 135, 138];\nconst D_CENTERS = [-550, -447, -353, -269, -195, -131, -87, -41, -11, 15, 36, 54, 72, 91, 112, 143, 166, 198, 242, 322, 350, 480, 630, 780];\nconst DEFAULT_OFFSETS = [0, 69, 113, 150, 201, 245, 291, 351, 412, 479];\n\nfunction pathAt(x) {\n  const phase = 2 * Math.PI * x / 595;\n  const y = 155.29 + 38.84 * Math.sin(phase) + 6.42 * Math.cos(phase);\n  const slope = (2 * Math.PI / 595) * (38.84 * Math.cos(phase) - 6.42 * Math.sin(phase));\n  return {y, angle: Math.atan(slope) * 180 / Math.PI};\n}\n\nexport default function OpeningTitle({data}) {\n  const frame = useCurrentFrame();\n  const {durationInFrames, width, height} = useVideoConfig();\n  const text = String(data.text || 'DAILY VLOG');\n  const chars = text.split('');\n  const anchor = interpolate(frame, KNOT_FRAMES, D_CENTERS, {\n    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',\n  });\n  const offsets = text === 'DAILY VLOG'\n    ? DEFAULT_OFFSETS\n    : chars.map((_, i) => i * 54);\n\n  return <AbsoluteFill style={{overflow: 'hidden'}}>\n    {chars.map((ch, i) => {\n      if (ch === ' ') return null;\n      const x = anchor + offsets[i];\n      const {y, angle} = pathAt(x);\n      return <div key={i} style={{position: 'absolute', left: x * width / 576,\n        top: y * height / 324, transform: `translate(-50%, -50%) rotate(${angle}deg) scaleX(0.84)`,\n        fontFamily: data.fontFamily || 'Gill Sans, Arial Black, sans-serif',\n        fontSize: data.fontSize || 255, fontWeight: 900, lineHeight: 1,\n        color: data.color || '#FEDC5E'}}>{ch}</div>;\n    })}\n  </AbsoluteFill>;\n}\n";
 
@@ -613,50 +613,129 @@ async function hostProbeSeconds(path) {
   } catch { return null; }
 }
 // av-host:end
-// Builds the Draft from the opening clip, the seven other picks (in slot order) and
-// the clips they came from, which supply the two short inserts. Both the panel and a
-// template run use it; resolves to the saved Draft.
+// The song's pulse: subdivision period inside [lo, hi] s and phase, fitted to the onset flux over the
+// whole song; loudness entry/exit (0.5 s windows within 8 dB of the median); onsets for snapping.
+function songGrid(m, lo, hi) {
+  const a = m.audio;
+  if (!a || a.status !== "measured") throw new Error("The song has no measurable audio.");
+  const h = a.hopSeconds, t0 = a.startSeconds, flux = a.frames.flux, rms = a.frames.rmsDb, n = flux.length, dur = m.durationSeconds;
+  let mean = 0; for (let i = 0; i < n; i++) mean += flux[i]; mean /= n;
+  const ac = (p) => { let s = 0; for (let i = p; i < n; i++) s += (flux[i] - mean) * (flux[i - p] - mean); return s / (n - p); };
+  let p0 = Math.round(lo / h), best = -Infinity;
+  for (let p = Math.round(lo / h); p <= Math.round(hi / h); p++) { const v = ac(p); if (v > best) { best = v; p0 = p; } }
+  // Loudness windows.
+  const win = [], w = Math.round(0.5 / h);
+  for (let i = 0; i + w <= n; i += w) { let s = 0; for (let k = i; k < i + w; k++) s += rms[k]; win.push({ t: t0 + i * h, db: s / w }); }
+  const body = win.map((x) => x.db).sort((x, y) => x - y)[Math.floor(win.length / 2)];
+  const loud = win.filter((x) => x.db >= body - 8);
+  const entry = loud.length ? loud[0].t : 0, exit = loud.length ? loud[loud.length - 1].t + 0.5 : dur;
+  // Fine period and phase: the comb that the most onset flux sits on (within 12 ms) between entry and exit
+  // (2.5 ms phase steps, 0.1 ms period steps). Onset times, not flux peaks, are what cuts snap to.
+  const hits = a.onsets.filter((o) => o.t >= entry && o.t <= exit);
+  let fit = { s: -1, P: p0 * h, phase: 0 };
+  for (let P = p0 * h * 0.985; P <= p0 * h * 1.015; P += 0.0001) {
+    for (let ph = 0; ph < P; ph += 0.0025) {
+      let s = 0;
+      for (const o of hits) { const r = (((o.t - entry - ph) % P) + P) % P; if (Math.min(r, P - r) <= 0.012) s += o.flux; }
+      if (s > fit.s) fit = { s, P, phase: entry + ph };
+    }
+  }
+  const onsets = a.onsets.map((o) => ({ t: o.t, f: o.flux }));
+  // The strongest onset within `tol` of t, else t itself.
+  const snap = (t, tol) => { let b = null; for (const o of onsets) if (Math.abs(o.t - t) <= tol && (!b || o.f > b.f)) b = o; return b ? b.t : t; };
+  const gridAfter = (t) => fit.phase + Math.ceil((t - fit.phase - 1e-6) / fit.P) * fit.P;
+  return { dur, period: fit.P, phase: fit.phase, entry, exit, body, win, onsets, snap, gridAfter };
+}
+
+// 8-Clip Daily Vlog (rules/daily-vlog-8.md): the reference's shot lengths in seconds, each cut moved to the
+// song's nearest beat (0.28–0.60 s band, half-beat resolution, onset-snapped); the middle phrase cycles until the
+// pulse ends; the closing shot runs to the song's end. Roles: open, slot, insert, close; `j` is the phrase position.
+function planVlog(m) {
+  const g = songGrid(m, 0.28, 0.6), half = g.period / 2, tol = 0.035;
+  const near = (t) => g.snap(g.phase + Math.round((t - g.phase) / half) * half, tol);
+  const PHRASE = [{ len: 2.6, role: "slot" }, { len: 1.63, role: "slot" }, { len: 1.73, role: "slot" }, { len: 1.03, role: "insert" },
+    { len: 0.7, role: "slot" }, { len: 1.5, role: "insert" }, { len: 1.8, role: "slot" }, { len: 1.8, role: "slot" }];
+  const CLOSE = 2.6;
+  const shots = [];
+  let start = 0, end = near(4.3);
+  shots.push({ role: "open", j: -1, start, end });
+  const lastStart = Math.min(g.exit, g.dur - CLOSE);
+  for (let k = 0; ; k++) {
+    const { len, role } = PHRASE[k % PHRASE.length];
+    start = end;
+    end = near(start + len);
+    if (end - start < half * 0.9) end = near(start + half);
+    if (end > lastStart) break;
+    shots.push({ role, j: k % PHRASE.length, start, end });
+  }
+  shots.push({ role: "close", j: PHRASE.length, start: shots[shots.length - 1].end, end: g.dur });
+  return { durationSeconds: g.dur, beatSeconds: g.period, shots };
+}
+
+// The song's shot plan (planVlog), measured inside Selects with selects.media.measureBeatSync.
+async function readVlogPlan(sdk, songPath) {
+  const r = await sdk.runScript({
+    summary: "Measure the song's beat", timeoutSeconds: 120,
+    script: "if(typeof selects.media?.measureBeatSync!=='function')return {missing:true};" + songGrid.toString() + planVlog.toString() +
+      "const m=(await selects.media.measureBeatSync({sources:[{path:" + JSON.stringify(songPath) + "}]}))[0];return planVlog(m);",
+  });
+  if (r.isError || !r.result) throw new Error(r.output || "Could not measure the song.");
+  if (r.result.missing) { const said = "This Selects build cannot measure the song. Update Selects, then try again."; throw Object.assign(new Error(said), { publicMessage: said }); }
+  return r.result;
+}
+
+// Which clip fills each planned shot. The first phrase keeps the reference's order (the seven picks, the two
+// inserts from clips not picked); later phrases continue through the folder's other clips, then start over at a
+// new source offset. A shot takes the next clip in that order that is long enough for it.
+function castShots(shots, { titleId, picks, pool }) {
+  const byId = new Map(pool.map(x => [x.id, x]));
+  const used = new Set([titleId, ...picks]);
+  const spare = pool.filter(x => !used.has(x.id));
+  for (let i = spare.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const tmp = spare[i]; spare[i] = spare[j]; spare[j] = tmp; }
+  const firstPhrase = [picks[0], picks[1], picks[2], spare[0]?.id || picks[2], picks[3], spare[1]?.id || picks[3], picks[4], picks[5]];
+  const order = [...firstPhrase, ...spare.slice(2).map(x => x.id)];
+  const length = id => byId.get(id)?.duration || 0;
+  const close = shots[shots.length - 1], closeLen = close.end - close.start;
+  const closeId = length(picks[6]) >= closeLen + 0.05 ? picks[6] : [...pool].sort((a, b) => b.duration - a.duration)[0].id;
+  let at = 0;
+  return shots.map((shot, i) => {
+    const len = shot.end - shot.start;
+    if (shot.role === "open") return { ...shot, id: titleId, pass: 0 };
+    if (shot.role === "close") return { ...shot, id: closeId, pass: 0 };
+    let k = 0;
+    while (k < order.length && length(order[(at + k) % order.length]) < len + 0.05) k++;
+    const index = at + (k < order.length ? k : 0);
+    at = index + 1;
+    // The longest clip when nothing in the order is long enough (the build then repeats it to fill the shot).
+    const id = k < order.length ? order[index % order.length] : [...pool].sort((a, b) => b.duration - a.duration)[0].id;
+    return { ...shot, id, pass: Math.floor(index / order.length) };
+  });
+}
+
+// Builds the Draft from the opening clip, the seven other picks and the folder's other clips, cut to the
+// song's plan. Both the panel and a template run use it; resolves to the saved Draft.
 async function buildDailyVlog(sdk, { projectId, titleId, picks, pool }) {
-  hostUseSdk(sdk);if(!hostApi('FileSystem','join','homedir','exists'))throw Error('This Selects build cannot read the plugin files. Update Selects, then try again.');
-  const roots = await hostRoots(sdk, "daily-vlog-8", "assets").catch(() => null);
+  // The install folder (<home>/.selects/skills/daily-vlog-8) through the Selects SDK (selects.files): a Selects build
+  // that runs panels in an isolated frame gives them no host services, so window.parent is not used for it.
+  const roots = await sdk.runScript({ summary: "Find the plugin files", allowCommit: false,
+    script: "const e=await selects.files.environment();const s=e.platform==='win32'?'\\\\':'/';const d=[e.homedir,'.selects','skills','daily-vlog-8'].join(s);return (await selects.files.exists(d+s+'assets'))?{plugin:d}:null;" })
+    .then(r => (r.isError ? null : r.result), () => null);
   if (!roots) throw new Error("Template assets directory is unavailable.");
   const assetPaths = ASSETS.map(name => hostJoin(roots.plugin, "assets", name));
-  const inputs = [titleId].concat(picks).map(id => ({ id, path: null }));
-  // Fill the two short insert positions from clips not already used, so no
-  // source repeats back to back. Falls back to the plan's neighbour only when
-  // the folder cannot supply a distinct clip that is long enough.
-  const selectedIds = [titleId].concat(picks);
-  const usedIds = new Set(selectedIds.filter(Boolean));
-  const spare = pool.filter(x => !usedIds.has(x.id));
-  for (let i = spare.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const tmp = spare[i]; spare[i] = spare[j]; spare[j] = tmp; }
-  const insertPlan = SHOT_PLAN.filter(s => s.extra !== undefined);
-  const extraIds = [];
-  for (const s of insertPlan.slice().sort((a, b) => b.frames - a.frames)) {
-    const need = s.frames * 1001 / 30000;
-    const got = takeShortestFitting(spare, need);
-    if (got) { usedIds.add(got.id); extraIds[s.extra] = got.id; continue; }
-    const neighbour = selectedIds[s.fallback];
-    const alt = pool.find(x => x.id !== neighbour && x.duration + 0.01 >= need);
-    extraIds[s.extra] = alt ? alt.id : null;
-  }
-  const extraInputs = insertPlan.sort((a, b) => a.extra - b.extra)
-    .map(s => ({ id: extraIds[s.extra] || null, path: null }));
-  const draftName = "8-Clip Daily Vlog \u2014 " + new Date().toLocaleString();
+  const plan = await readVlogPlan(sdk, assetPaths[0]);
+  const cast = castShots(plan.shots, { titleId, picks, pool });
+  const draftName = "8-Clip Daily Vlog — " + new Date().toLocaleString();
   const script = `
 const project=selects.project(${JSON.stringify(projectId)});
-const inputs=${JSON.stringify(inputs)};
-const extraInputs=${JSON.stringify(extraInputs)};
-const durations=${JSON.stringify(DURATIONS)};
-const shotPlan=${JSON.stringify(SHOT_PLAN)};
+const cast=${JSON.stringify(cast.map(s => ({ id: s.id, role: s.role, j: s.j, pass: s.pass, start: s.start, end: s.end })))};
+const songSeconds=${JSON.stringify(plan.durationSeconds)};
 const assetPaths=${JSON.stringify(assetPaths)};
 const assetNames=${JSON.stringify(ASSETS)};
 const assetSeconds=${JSON.stringify(ASSET_SECONDS)};
 const OPENING=${JSON.stringify(OPENING)};
 const MIDDLE=${JSON.stringify(MIDDLE)};
 const ENDING=${JSON.stringify(ENDING)};
-const SWISH=${JSON.stringify(SWISH)};
 const FILM_PRISM=${JSON.stringify(FILM_PRISM)};
-const AMBER_SHUTTER=${JSON.stringify(AMBER_SHUTTER)};
 const AMBER_REFERENCE=${JSON.stringify(AMBER_REFERENCE)};
 const FILM_GATE=${JSON.stringify(FILM_GATE)};
 const VERTICAL_SMEAR=${JSON.stringify(VERTICAL_SMEAR)};
@@ -665,34 +744,33 @@ const LONG_DISSOLVE=${JSON.stringify(LONG_DISSOLVE)};
 const ONE_FRAME_HOLD=${JSON.stringify(ONE_FRAME_HOLD)};
 const name=${JSON.stringify(draftName)};
 let rows=await project.resources();
-const selected=[];
-for(let i=0;i<inputs.length;i++){
-  const input=inputs[i];
-  if(input.path){const imported=await project.importFiles({paths:[input.path]});if(!imported.addedResourceIds[0])throw new Error('Could not import video in slot '+(i+1));selected.push(imported.addedResourceIds[0]);}
-  else selected.push(input.id);
-}
-const extraSelected=[];
-for(const input of extraInputs){if(input.path){const imported=await project.importFiles({paths:[input.path]});if(!imported.addedResourceIds[0])throw new Error('Could not import optional shot');extraSelected.push(imported.addedResourceIds[0]);}else extraSelected.push(input.id||null);}
-rows=await project.resources();
 const resourceById=new Map(rows.map(x=>[x.resourceId,x]));
-for(let i=0;i<selected.length;i++){const r=resourceById.get(selected[i]);if(!r||r.type!=='Video')throw new Error('Slot '+(i+1)+' is not a video');if(!r.durationSeconds||r.durationSeconds+0.01<durations[i])throw new Error('Video in slot '+(i+1)+' is too short');}
-for(let i=0;i<extraSelected.length;i++){if(!extraSelected[i])continue;const r=resourceById.get(extraSelected[i]);if(!r||r.type!=='Video'||r.durationSeconds+0.01<shotPlan.find(x=>x.extra===i).frames*1001/30000)throw new Error('Optional shot '+(i+1)+' is too short');}
+for(const shot of cast){const r=resourceById.get(shot.id);if(!r||r.type!=='Video'||!(r.durationSeconds>0.1))throw new Error('A picked clip is not a usable video');}
 let audioByName=new Map(rows.filter(x=>x.type==='Audio').map(x=>[x.name,x.resourceId]));
 for(let i=0;i<assetNames.length;i++){if(!audioByName.has(assetNames[i])){const imported=await project.importFiles({paths:[assetPaths[i]]});if(!imported.addedResourceIds[0])throw new Error('Template sound missing: '+assetNames[i]);audioByName.set(assetNames[i],imported.addedResourceIds[0]);}}
 const draft=await project.createDraft({name});
-// The template's frame numbers are 30000/1001 fps frames; a new Draft takes the Project's frame rate, so they are
-// converted to the Draft's frames (unchanged at 29.97 and 30). Cuts round down, so the timeline never outlasts the
-// bed, which is exactly the 591 template frames long. The rate is read again after each shot (a Draft can adopt its
-// first clip's rate), and each shot ends on its cut measured from where the last one really ended.
+// Template offsets (at) are 30000/1001 fps frames converted to the Draft's rate. Each shot ends on the frame of its
+// planned cut, measured from where the last shot really ended; the rate is read again after each shot (a Draft can
+// adopt its first clip's rate). A shot longer than its clip repeats the clip from its start.
 const rate=async()=>{const reported=(await draft.meta()).fps;const r=[24000/1001,24,25,30000/1001,30,48,50,60000/1001,60].find(x=>Math.abs(x-reported)<0.01)||reported;if(!(r>0))throw new Error('Unsupported draft frame rate: '+reported);return r;};
 let dfps=await rate();
 const at=(f)=>Math.round(f*1001/30000*dfps);
-const cutAt=(f)=>Math.floor(f*1001/30000*dfps+1e-6);
-let planned=0,placed=0;
-for(const shot of shotPlan){const extra=shot.extra!==undefined;const resourceId=extra?(extraSelected[shot.extra]||selected[shot.fallback]):selected[shot.slot];const r=resourceById.get(resourceId);const len=shot.frames*1001/30000;const sourceLen=Math.min(len,r.durationSeconds-0.003);const start=Math.max(0,(r.durationSeconds-sourceLen)*(extra&&!extraSelected[shot.extra]?0.8:0.45));const fitted=Math.min((cutAt(planned+shot.frames)-placed)/dfps,r.durationSeconds-0.003);planned+=shot.frames;await draft.insertResource({resourceId,sourceRange:{startSeconds:start,endSeconds:start+fitted}});dfps=await rate();placed=Math.max(0,...(await draft.clips({trackScope:'main'})).map(c=>c.endFrame));}
+const OFFSETS=[0.45,0.15,0.75,0.3,0.6];
+let placed=0;
+for(const shot of cast){
+  const r=resourceById.get(shot.id);
+  const len=shot.end-shot.start;
+  let start=Math.max(0,(r.durationSeconds-Math.min(len,r.durationSeconds-0.003))*OFFSETS[shot.pass%OFFSETS.length]);
+  // One clip per shot; a second piece only when the clip ran out (not for a frame lost to a rate change).
+  for(let wanted=Math.floor(shot.end*dfps+1e-6),more=true;more&&placed<wanted;wanted=Math.floor(shot.end*dfps+1e-6)){
+    const end=Math.min(r.durationSeconds-0.003,start+(wanted-placed)/dfps);more=end<start+(wanted-placed)/dfps-1e-6;
+    if(end-start<1/dfps)throw new Error('Video '+r.name+' is too short');
+    await draft.insertResource({resourceId:shot.id,sourceRange:{startSeconds:start,endSeconds:end}});
+    dfps=await rate();placed=Math.max(0,...(await draft.clips({trackScope:'main'})).map(c=>c.endFrame));start=0;
+  }
+}
 let main=(await draft.clips({trackScope:'main'})).filter(x=>x.resourceId);
-if(main.length!==10)throw new Error('Expected ten timed shots; found '+main.length);
-const endFrame=main[9].endFrame;
+const endFrame=Math.max(...main.map(c=>c.endFrame));
 for(const original of main){const current=(await draft.clips({trackScope:'main'})).find(x=>x.clipId===original.clipId);if(current)await draft.setClipAudio({clip:current,volumeDb:-60});}
 main=(await draft.clips({trackScope:'main'})).filter(x=>x.resourceId);
 const sourceOverview=await project.sourceFiles();
@@ -703,33 +781,47 @@ else for(const folder of sourceOverview.folders){const detail=await project.sour
 const canvas=(await draft.meta()).frameSize;
 const targetAspect=canvas.width/canvas.height;
 for(const original of main){const size=sourceSizes.get(original.resourceId);if(!size)continue;const sourceAspect=size.width/size.height;const scale=sourceAspect<targetAspect?targetAspect/sourceAspect:1;if(scale>1.001){const current=(await draft.clips({trackScope:'main'})).find(x=>x.clipId===original.clipId);if(current)await draft.setClipTransform({clip:current,scale:{x:scale,y:scale}});}}
+// One entry per planned shot: the first Main clip that starts at or after its first frame.
 main=(await draft.clips({trackScope:'main'})).filter(x=>x.resourceId);
-await draft.addMotionGraphic({label:'DAILY VLOG',tsxCode:OPENING,within:await draft.rangeAtFrames(main[0].startFrame,main[0].endFrame+at(5)),parameters:{text:'DAILY VLOG',fontFamily:'Gill Sans, Arial Black, sans-serif',fontSize:255,color:'#FEDC5E'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'DAILY VLOG'},{key:'fontFamily',label:'Font',type:'text',defaultValue:'Gill Sans'},{key:'fontSize',label:'Size',type:'number',defaultValue:255,min:100,max:450,step:2},{key:'color',label:'Color',type:'color',defaultValue:'#FEDC5E'}]});
-await draft.addMotionGraphic({label:'JUST EVERYDAY MOMENTS',tsxCode:MIDDLE,within:await draft.rangeAtFrames(main[1].startFrame+at(7),main[1].endFrame+at(1)),parameters:{text:'JUST EVERYDAY MOMENTS',fontFamily:'Georgia, serif',fontSize:73,color:'#FFFFFF'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'JUST EVERYDAY MOMENTS'},{key:'fontFamily',label:'Font',type:'text',defaultValue:''},{key:'fontSize',label:'Size',type:'number',defaultValue:73,min:28,max:120,step:2},{key:'color',label:'Color',type:'color',defaultValue:'#FFFFFF'}]});
-await draft.addMotionGraphic({label:'THANKS FOR WATCHING',tsxCode:ENDING,within:await draft.rangeAtFrames(main[9].startFrame+at(5),main[9].endFrame),parameters:{text:'THANKS FOR WATCHING',fontFamily:'Avenir Next Demi Bold, Avenir Next, Segoe UI Semibold, Segoe UI, Arial, sans-serif',fontSize:43,color:'#FFFFFF',letterSpacing:1.2},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'THANKS FOR WATCHING'},{key:'fontFamily',label:'Font',type:'text',defaultValue:'Avenir Next Demi Bold'},{key:'fontSize',label:'Size',type:'number',defaultValue:43,min:18,max:90,step:1},{key:'color',label:'Color',type:'color',defaultValue:'#FFFFFF'}]});
-const transitionSpecs=[{i:0,label:'Reference traced film exposure',code:FILM_PRISM,before:1,after:11},{i:1,label:'Reference amber camera exposure',code:AMBER_REFERENCE,before:4,after:6},{i:2,label:'Reference wide cream film gate',code:FILM_GATE,before:3,after:5},{i:3,label:'Prismatic piano accent',code:FILM_PRISM,before:4,after:6},{i:4,label:'Reference banded vertical exposure',code:VERTICAL_SMEAR,before:4,after:3},{i:5,label:'Amber piano accent',code:AMBER_REFERENCE,before:3,after:5},{i:6,label:'Reference one-frame cut hold',code:ONE_FRAME_HOLD,before:0,after:1},{i:7,label:'Reference cyan-magenta film flash',code:PRISM_SIX_SEVEN,before:5,after:7},{i:8,label:'Reference paced optical dissolve',code:LONG_DISSOLVE,before:2,after:5}];
-for(const spec of transitionSpecs){const current=(await draft.clips({trackScope:'main'})).filter(x=>x.resourceId)[spec.i];await draft.addTransition({after:current,label:spec.label,tsxCode:spec.code,inOffsetSeconds:spec.before/30,outOffsetSeconds:spec.after/30});}
-const lengths=new Map((await project.resources()).map(x=>[x.resourceId,x.durationSeconds]));
-async function sound(assetName,start,end,level){const resourceId=audioByName.get(assetName);const seconds=Math.min(lengths.get(resourceId)||Infinity,assetSeconds[assetName]||Infinity);if(seconds<Infinity)end=Math.min(end,start+Math.floor(seconds*dfps+1e-3));if(end<=start)return;await draft.overlayResource({resource:project.resource(resourceId),over:await draft.rangeAtFrames(start,end)});const added=(await draft.clips({trackScope:'all'})).filter(x=>x.resourceId===resourceId&&x.startFrame===start).slice(-1)[0];if(added)await draft.setClipAudio({clip:added,volumeDb:level,fadeInSeconds:0,fadeOutSeconds:assetName==='projector-screen-vlog-bed.wav'?0:assetName==='typing-k3.wav'?.08:.025});}
-await sound('projector-screen-vlog-bed.wav',0,endFrame,0);
-const musicId=audioByName.get('projector-screen-vlog-bed.wav');
-const musicClip=(await draft.clips({trackScope:'all'})).find(x=>x.resourceId===musicId&&x.startFrame===0);
-if(musicClip){const fps=(await draft.meta()).fps;const keys=[{atSeconds:0,volumeDb:-5},{atSeconds:at(34)/fps,volumeDb:-5},{atSeconds:at(43)/fps,volumeDb:0}];for(const {frame,drop} of [{frame:main[0].endFrame,drop:-5},{frame:main[1].endFrame,drop:-8},{frame:main[2].endFrame,drop:-5},{frame:main[4].endFrame,drop:-9},{frame:main[6].endFrame,drop:-9},{frame:main[7].endFrame,drop:-8},{frame:main[9].startFrame+at(9),drop:-5}])for(const [offset,db] of [[at(-7),0],[at(-3),drop],[at(5),drop],[at(11),0]])keys.push({atSeconds:(frame+offset)/fps,volumeDb:db});keys.push({atSeconds:(endFrame-1)/fps,volumeDb:0});await draft.setClipAudio({clip:musicClip,volumeKeys:keys});}
-await sound('transition-w2.wav',0,Math.min(at(41),endFrame),0);
-await sound('typing-k3.wav',main[1].startFrame+at(14),Math.min(main[1].startFrame+at(60),main[1].endFrame),-2);
-const selectedSounds=[
-  {assetName:'transition-w2.wav',start:main[0].endFrame-at(4),duration:at(41),level:0},
-  {assetName:'shutter-s2.wav',start:main[1].endFrame-at(1),duration:at(15),level:0},
-  {assetName:'transition-w2.wav',start:main[2].endFrame-at(4),duration:at(41),level:0},
-  {assetName:'camera-r2.wav',start:main[4].endFrame-at(16),duration:at(28),level:0},
-  {assetName:'shutter-c2.wav',start:main[6].endFrame-at(9),duration:at(29),level:0},
-  {assetName:'shutter-s6-1.wav',start:main[7].endFrame-at(1),duration:at(6),level:0},
-  {assetName:'typing-k3.wav',start:main[9].startFrame+at(9),duration:endFrame-(main[9].startFrame+at(9)),level:-2}
+const shotClips=cast.map(s=>{const f=Math.floor(s.start*dfps+1e-6);return main.find(c=>c.startFrame>=f-1);});
+const shotEnd=i=>i+1<cast.length?shotClips[i+1].startFrame:endFrame;
+const first=shotClips[0],second=shotClips[1],last=shotClips[cast.length-1];
+await draft.addMotionGraphic({label:'DAILY VLOG',tsxCode:OPENING,within:await draft.rangeAtFrames(first.startFrame,shotEnd(0)+at(5)),parameters:{text:'DAILY VLOG',fontFamily:'Gill Sans, Arial Black, sans-serif',fontSize:255,color:'#FEDC5E'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'DAILY VLOG'},{key:'fontFamily',label:'Font',type:'text',defaultValue:'Gill Sans'},{key:'fontSize',label:'Size',type:'number',defaultValue:255,min:100,max:450,step:2},{key:'color',label:'Color',type:'color',defaultValue:'#FEDC5E'}]});
+await draft.addMotionGraphic({label:'JUST EVERYDAY MOMENTS',tsxCode:MIDDLE,within:await draft.rangeAtFrames(second.startFrame+at(7),shotEnd(1)+at(1)),parameters:{text:'JUST EVERYDAY MOMENTS',fontFamily:'Georgia, serif',fontSize:73,color:'#FFFFFF'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'JUST EVERYDAY MOMENTS'},{key:'fontFamily',label:'Font',type:'text',defaultValue:''},{key:'fontSize',label:'Size',type:'number',defaultValue:73,min:28,max:120,step:2},{key:'color',label:'Color',type:'color',defaultValue:'#FFFFFF'}]});
+await draft.addMotionGraphic({label:'THANKS FOR WATCHING',tsxCode:ENDING,within:await draft.rangeAtFrames(last.startFrame+at(5),endFrame),parameters:{text:'THANKS FOR WATCHING',fontFamily:'Avenir Next Demi Bold, Avenir Next, Segoe UI Semibold, Segoe UI, Arial, sans-serif',fontSize:43,color:'#FFFFFF',letterSpacing:1.2},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'THANKS FOR WATCHING'},{key:'fontFamily',label:'Font',type:'text',defaultValue:'Avenir Next Demi Bold'},{key:'fontSize',label:'Size',type:'number',defaultValue:43,min:18,max:90,step:1},{key:'color',label:'Color',type:'color',defaultValue:'#FFFFFF'}]});
+// The reference's cut vocabulary, by phrase position j (open = the opening cut, the cut into the closing shot is the dissolve).
+const OPEN_CUT={label:'Reference traced film exposure',code:FILM_PRISM,before:1,after:11,sound:['transition-w2.wav',-4,41],duck:-5};
+const PHRASE_CUTS=[
+  {label:'Reference amber camera exposure',code:AMBER_REFERENCE,before:4,after:6,sound:['shutter-s2.wav',-1,15],duck:-8},
+  {label:'Reference wide cream film gate',code:FILM_GATE,before:3,after:5,sound:['transition-w2.wav',-4,41],duck:-5},
+  {label:'Prismatic piano accent',code:FILM_PRISM,before:4,after:6},
+  {label:'Reference banded vertical exposure',code:VERTICAL_SMEAR,before:4,after:3,sound:['camera-r2.wav',-16,28],duck:-9},
+  {label:'Amber piano accent',code:AMBER_REFERENCE,before:3,after:5},
+  {label:'Reference one-frame cut hold',code:ONE_FRAME_HOLD,before:0,after:1,sound:['shutter-c2.wav',-9,29],duck:-9},
+  {label:'Reference cyan-magenta film flash',code:PRISM_SIX_SEVEN,before:5,after:7,sound:['shutter-s6-1.wav',-1,6],duck:-8},
+  {label:'Reference paced optical dissolve',code:LONG_DISSOLVE,before:2,after:5}
 ];
-for(const {assetName,start,duration,level} of selectedSounds)await sound(assetName,start,Math.min(endFrame,start+duration),level);
-const saved=await draft.commitAll('Create editable 8-clip daily vlog template');
-return {draftId:saved.createdDraftId,name,frames:endFrame,fps:(await draft.meta()).fps,videoClips:main.length,graphics:3,transitions:9,audioAssets:7};`;
-  const r = await sdk.runScript({ summary: "Build daily vlog Draft", script, allowCommit: true });
+const cuts=[];
+for(let i=0;i+1<cast.length;i++){
+  const spec=i===0?OPEN_CUT:i+2===cast.length?PHRASE_CUTS[7]:PHRASE_CUTS[cast[i].j];
+  const clip=(await draft.clips({trackScope:'main'})).filter(x=>x.resourceId).filter(x=>x.endFrame<=shotEnd(i)).slice(-1)[0];
+  await draft.addTransition({after:clip,label:spec.label,tsxCode:spec.code,inOffsetSeconds:spec.before/30,outOffsetSeconds:spec.after/30});
+  cuts.push({frame:shotEnd(i),spec});
+}
+const lengths=new Map((await project.resources()).map(x=>[x.resourceId,x.durationSeconds]));
+async function sound(assetName,start,end,level){const resourceId=audioByName.get(assetName);const seconds=Math.min(lengths.get(resourceId)||Infinity,assetSeconds[assetName]||Infinity);if(seconds<Infinity)end=Math.min(end,start+Math.floor(seconds*dfps+1e-3));if(end<=start)return;await draft.overlayResource({resource:project.resource(resourceId),over:await draft.rangeAtFrames(start,end)});const added=(await draft.clips({trackScope:'all'})).filter(x=>x.resourceId===resourceId&&x.startFrame===start).slice(-1)[0];if(added)await draft.setClipAudio({clip:added,volumeDb:level,fadeInSeconds:0,fadeOutSeconds:assetName===assetNames[0]?0:assetName==='typing-k3.wav'?.08:.025});}
+await sound(assetNames[0],0,endFrame,0);
+const musicId=audioByName.get(assetNames[0]);
+const musicClip=(await draft.clips({trackScope:'all'})).find(x=>x.resourceId===musicId&&x.startFrame===0);
+const closingTyping=last.startFrame+at(9);
+if(musicClip){const fps=(await draft.meta()).fps;const keys=[{atSeconds:0,volumeDb:-5},{atSeconds:at(34)/fps,volumeDb:-5},{atSeconds:at(43)/fps,volumeDb:0}];for(const {frame,drop} of [...cuts.filter(c=>c.spec.duck).map(c=>({frame:c.frame,drop:c.spec.duck})),{frame:closingTyping,drop:-5}])for(const [offset,db] of [[at(-7),0],[at(-3),drop],[at(5),drop],[at(11),0]])if(frame+offset>at(43))keys.push({atSeconds:(frame+offset)/fps,volumeDb:db});keys.push({atSeconds:(endFrame-1)/fps,volumeDb:0});keys.sort((a,b)=>a.atSeconds-b.atSeconds);await draft.setClipAudio({clip:musicClip,volumeKeys:keys});}
+await sound('transition-w2.wav',0,Math.min(at(41),endFrame),0);
+await sound('typing-k3.wav',second.startFrame+at(14),Math.min(second.startFrame+at(60),shotEnd(1)),-2);
+for(const {frame,spec} of cuts)if(spec.sound){const [assetName,offset,duration]=spec.sound;const start=Math.max(0,frame+at(offset));await sound(assetName,start,Math.min(endFrame,start+at(duration)),0);}
+await sound('typing-k3.wav',closingTyping,endFrame,-2);
+const saved=await draft.commitAll('Create editable daily vlog from the song plan');
+return {draftId:saved.createdDraftId,name,frames:endFrame,fps:(await draft.meta()).fps,shots:cast.length,videoClips:main.length,transitions:cuts.length};`;
+  const r = await sdk.runScript({ summary: "Build daily vlog Draft", script, allowCommit: true, timeoutSeconds: 120 });
   if (r.isError || !r.result) throw new Error(r.output || "No result was returned.");
   return r.result;
 }

@@ -1,7 +1,8 @@
 # Install notes
 
 No extra runtimes, models or credentials are required. The panel builds the Draft through the
-Selects SDK and reads its bundled audio from `daily-vlog-8/assets/` in the skills root,
+Selects SDK, measures the bundled song with `selects.media.measureBeatSync` (a Selects build without it
+shows an update message) and reads its bundled audio from `daily-vlog-8/assets/` in the skills root,
 through the host's file access (no shell command), on macOS and Windows. No network access is
 used.
 
