@@ -409,39 +409,6 @@ def check_and_extract(d,src,cut,decoder,offsets,dur,masks,size,fps):
   return scores
  finally:shutil.rmtree(stats,ignore_errors=True)
 
-def fetch_result(a):
- """Download a finished generation's clip when the app delivered nothing.
- For Bria background removal the app's generation service reports the job as
- succeeded and delivered with no outputs - its backend lists none for this
- model - although the raw provider result, kept in the app's own job journal,
- carries the clip's URL. Read it from there instead of asking the AI to."""
- job=a['jobId'].removeprefix('selects-');dest=pathlib.Path(a['dest'])  # the journal keys jobs by the bare operation id
- if dest.is_file() and dest.stat().st_size>0:return {'path':str(dest),'cached':True}
- support=pathlib.Path.home()/'Library'/'Application Support'
- url=None
- for journal in [*support.glob('Cutback*/generation/*.json'),*support.glob('Cutback*/*/generation/*.json')]:
-  try:
-   text=journal.read_text()
-   if job not in text:continue
-   jobs=json.loads(text).get('jobs') or {}
-   entries=jobs.values() if isinstance(jobs,dict) else jobs
-   for entry in entries:
-    if entry.get('operationId')!=job:continue
-    found=re.findall(r'"url"\s*:\s*"(https?://[^"]+)"',json.dumps(((entry.get('snapshot') or entry).get('provider_data') or {}).get('result') or {}))
-    if found:url=found[0];break
-  except (OSError,ValueError):continue
-  if url:break
- if not url:raise RuntimeError('The finished clip is not in the app journal yet.')
- tmp=dest.with_suffix('.part');dest.parent.mkdir(parents=True,exist_ok=True)
- with urllib.request.urlopen(url,timeout=120) as r,open(tmp,'wb') as f:
-  while True:
-   chunk=r.read(1<<20)
-   if not chunk:break
-   f.write(chunk)
- if tmp.stat().st_size==0:tmp.unlink();raise RuntimeError('The finished clip downloaded empty.')
- tmp.rename(dest)
- return {'path':str(dest),'cached':False}
-
 # --- Framing ------------------------------------------------------------------
 # The Draft conforms every picture to fit the frame; the assembly then scales and
 # shifts it to fill instead. That needs each picture's size as it is shown, which
@@ -519,7 +486,6 @@ def main(op,a):
  if op=='hold':return hold_clip(a)
  if op=='silent':
   quiet=silent_copy(str(pathlib.Path(a['path']).resolve(strict=True)));return {'path':quiet,'name':pathlib.Path(quiet).name}
- if op=='fetch-result':return fetch_result(a)
  if op=='cutout-input':return cutout_input(a)
  if op=='strip':return strip_preview(a)
  if op=='ensure':return ensure()

@@ -195,7 +195,7 @@ function pcHostIssue(){if(!localSdk?.files||!localSdk?.media||!localSdk?.dialogs
 const preparing={say:null};
 let pcWin=null;
 function pcWindows(sdk){bindLocalSdk(sdk);if(!pcWin)pcWin=(async()=>{const roots=await hostRoots(sdk,'postcard-cutout-studio',hostJoin('sfx','manifest.json'));if(!roots.data)throw Error(UPDATE_SELECTS);let port=null;const ledger=pcLedger(roots.data,{sfx:()=>port.sfx()});port=pcPort(roots,{ledger});return{...port,...ledger}})().catch(e=>{pcWin=null;throw e});return pcWin}
-const PC_OPS=['load','init','update','event','claim','reuse','ensure','folder-media','tile','strip','sizes','hold','silent','cutout-input','fetch-result','prepare','foreground','subject-box','settings-load','settings-save','job-record'];
+const PC_OPS=['load','init','update','event','claim','reuse','ensure','folder-media','tile','strip','sizes','hold','silent','cutout-input','prepare','foreground','subject-box','settings-load','settings-save','job-record'];
 async function helper(sdk,op,args={}){bindLocalSdk(sdk);if(!hostIsWindows())return macHelper(sdk,op,args);const issue=pcHostIssue();if(issue)throw Error(issue);if(!PC_OPS.includes(op))throw Error('Unknown operation');const ops=await pcWindows(sdk),t0=performance.now();try{return await ops[op](args)}finally{traceStep('host: '+op,t0)}}
 // The editor's subject probe and range preview and the export check, in the shape the shell gives them on macOS.
 async function probeSubject(sdk,path){bindLocalSdk(sdk);if(!hostIsWindows())return macProbeSubject(sdk,path);const issue=pcHostIssue();if(issue)throw Error(issue);return{exitCode:0,stdout:(await (await pcWindows(sdk)).probeText(path))||'{}'}}
@@ -415,18 +415,6 @@ function pcPort(roots,{ledger}){
    catch(e){await drop(tmp);throw Error('Could not prepare the subject for background removal: '+String(e.message).slice(0,400))}
    if(!(await exists(tmp)))throw Error('Could not prepare the subject for background removal.');(await rename(tmp,dest))}
   return{path:dest,name:base(dest)}};
- // --- the finished cutout (fetch_result): the app's job journal names its URL; the host downloads it ---
- const journals=async ()=>{const home=fsx('homedir').homedir(),roots=hostIsWindows()?[J(home,'AppData','Roaming')]:[J(home,'Library','Application Support')],out=[],ls=async p=>{try{return (await fsx('readdir').readdir(p)).map(String).sort()}catch{return[]}};
-  const json=async dir=>(await ls(dir)).filter(n=>/\.json$/i.test(n)).map(n=>J(dir,n));
-  for(const r of roots){const apps=(await ls(r)).filter(n=>n.startsWith('Cutback')).map(n=>J(r,n));for(const a of apps)out.push(...(await json(J(a,'generation'))));for(const a of apps)for(const sub of (await ls(a)))out.push(...(await json(J(a,sub,'generation'))))}
-  return out};
- const fetchResult=async a=>{const job=String(a.jobId).replace(/^selects-/,''),dest=String(a.dest);if((await exists(dest))&&(await size(dest))>0)return{path:dest,cached:true};
-  let url=null;for(const journal of (await journals())){try{const text=await hostReadText(journal);if(!text.includes(job))continue;const jobs=JSON.parse(text).jobs||{};
-   for(const entry of Array.isArray(jobs)?jobs:Object.values(jobs)){if(entry?.operationId!==job)continue;const m=/"url"\s*:\s*"(https?:\/\/[^"]+)"/.exec(JSON.stringify(((entry.snapshot||entry).provider_data||{}).result||{}));if(m){url=m[1];break}}}catch{/* the next journal */}
-   if(url)break}
-  if(!url)throw Error('The finished clip is not in the app journal yet.');
-  const tmp=dest.replace(/\.[^.\\/]*$/,'')+'.part';(await mkdir(fsx('dirname').dirname(dest)));await fsx('downloadFile').downloadFile(url,tmp);
-  if(!(await size(tmp))){await drop(tmp);throw Error('The finished clip downloaded empty.')}(await rename(tmp,dest));return{path:dest,cached:false}};
  // --- the cutout check, the masks and the foreground (prepare / check_and_extract / encode_foreground) ---
  const execute=async(args,d,stage,timeoutMs=180000)=>{const t=Date.now();await L.event(d,stage,'start',{command:args});let log='',failed=null;
   try{log=await ffmpeg(args,timeoutMs)}catch(e){failed=e;log=e.message}
@@ -501,7 +489,7 @@ function pcPort(roots,{ledger}){
  const settingsLoad=async a=>(await readJson(settingsPath,{}))[a.projectId]||{};
  const settingsSave=a=>lock('settings',async()=>{const all=await readJson(settingsPath,{});all[a.projectId]={...(all[a.projectId]||{}),...a.settings};(await mkdir(store));await write(settingsPath,JSON.stringify(all,null,2));return{saved:true}});
  const jobRecord=async a=>{const d=await L.load(a.runId),j=await readJson(J(d.logDir,'generation-job.json'),{});if(j.jobId){d.generation={...(d.generation||{}),...j};await L.save(d)}return d};
- return {sfx,'folder-media':folderMedia,tile,strip,sizes,hold,silent:async a=>{const q=await silent(String(a.path));return{path:q,name:base(q)}},'cutout-input':cutoutInput,'fetch-result':fetchResult,
+ return {sfx,'folder-media':folderMedia,tile,strip,sizes,hold,silent:async a=>{const q=await silent(String(a.path));return{path:q,name:base(q)}},'cutout-input':cutoutInput,
   prepare,foreground,'subject-box':subjectBox,'settings-load':settingsLoad,'settings-save':settingsSave,'job-record':jobRecord,ensure:async()=>({}),
   // The editor's own probes (pipeline.py has none of these): the subject's facts, the range preview, the export check.
   probeText:path=>quietProbe(['-v','error','-select_streams','v:0','-show_entries','format=duration:stream=width,height','-of','json',path]),
@@ -625,8 +613,7 @@ if(!collect){
     input:{video_url:'selects-input:source',background_color:'Transparent',output_container_and_codec:'webm_vp9',auto_zoom:false,preserve_audio:false},
     uploads:{source:{resourceId}},
     outputName:'postcard_cutout_'+r.runId,batch:1,origin:{tool:'video',tab:'postcard',recipeId:'postcard-cutout'},
-    // Windows: the host saves the result into the run's log folder when it can; macOS reads it from the journal.
-    ...(hostIsWindows()&&mg.supportsPluginFiles?.()?{delivery:{pluginFolder:hostJoin(r.logDir,'cloud')}}:{})});
+    ...(mg.supportsPluginFiles?.()?{delivery:{pluginFolder:hostJoin(r.logDir,'cloud')}}:{})});
   const jobId=jobIds?.[0];
   if(!/^selects-[a-f0-9]{64}$/.test(jobId||''))throw Error('The app did not return a background-removal job.');
   return persist(r,{generation:{jobId,scope,modelId:BRIA_MODEL_ID,submittedAt:new Date().toISOString(),status:'submitted',deliveredBy:'media-generation'},phase:'generationPending'},'generation','pending',{jobId});
@@ -640,11 +627,9 @@ if(!job)return r;
 const trail=(window.__postcardTrail??=new Map()),steps=trail.get(gen.jobId)||[],step=job.status+'/'+job.deliveryStatus;
 if(steps[steps.length-1]?.[1]!==step)trail.set(gen.jobId,[...steps,[Date.now(),step]]);
 if(['failed','canceled','cancelled'].includes(job.status)){const failed={...gen,status:job.status,error:job.errorCode||job.status};await persist(r,{generation:failed,phase:'generationFailed'},'generation','failed',{generation:failed});throw Error('Background removal '+job.status+(job.errorCode?' ('+job.errorCode+')':'')+'.');}
-const out=(job.outputs||[]).find(o=>o.resourceId),file=hostIsWindows()&&job.deliveryStatus==='delivered'?(job.outputs||[]).find(o=>o.path)?.path||null:null;
+const out=(job.outputs||[]).find(o=>o.resourceId),file=job.deliveryStatus==='delivered'?(job.outputs||[]).find(o=>o.path)?.path||null:null;
 if(!out&&!file&&job.status!=='succeeded')return r;
-// Background removal finishes with no delivered outputs (the app lists none
-// for this model), so take the clip straight from the app's job journal.
-const cutoutPath=out?await appResourcePath(sdk,scope,out.resourceId):file||(await helper(sdk,'fetch-result',{jobId:gen.jobId,dest:hostJoin(r.logDir,'cutout.webm')}).catch(()=>null))?.path;
+const cutoutPath=out?await appResourcePath(sdk,scope,out.resourceId):file;
 if(!cutoutPath)return r;
 // Recorded by the next step ('prepare') in the same call that starts it; if
 // that never runs, the next check finds the job done and the clip on disk.

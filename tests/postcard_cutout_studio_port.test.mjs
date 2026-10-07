@@ -260,26 +260,6 @@ test('the cutout check, masks, foreground and subject box match pipeline.py', { 
   assert.deepEqual(await J['cutout-input']({ path: f('Clip one.mp4'), start: 0, seconds: 1.6, projectId: 'p1' }), { reusable: true });
 });
 
-test('the finished clip is found in the app journal and downloaded by the host', { skip: skip }, async () => {
-  const job = 'a'.repeat(64), url = 'https://cdn.example.test/out/cut.webm', body = Buffer.from('webm-bytes');
-  const journal = { jobs: { x: { operationId: 'b'.repeat(64), snapshot: { provider_data: { result: { video: { url: 'https://wrong.test/x' } } } } },
-    y: { operationId: job, snapshot: { provider_data: { result: { video: { url, content_type: 'video/webm' } } } } } } };
-  for (const [platform, support] of [['darwin', ['Library', 'Application Support']], ['win32', ['AppData', 'Roaming']]]) {
-    const home = tmp(), dir = path.join(home, ...support, 'Cutback Selects Staging', 'generation'); fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, 'jobs.json'), JSON.stringify(journal));
-    const calls = [], p = port(home, { platform, calls, downloads: { [url]: body } }), dest = path.join(home, 'logs', 'cutout.webm');
-    await assert.rejects(p['fetch-result']({ jobId: 'selects-' + 'c'.repeat(64), dest }), /not in the app journal/);
-    assert.deepEqual(await p['fetch-result']({ jobId: 'selects-' + job, dest }), { path: dest, cached: false });
-    assert.deepEqual(fs.readFileSync(dest), body);
-    assert.deepEqual(calls.filter(c => c[0] === 'download').map(c => c[1]), [url]);
-    assert.deepEqual(await p['fetch-result']({ jobId: 'selects-' + job, dest }), { path: dest, cached: true });
-    if (python && platform === 'darwin') {
-      const pdest = path.join(home, 'py', 'cutout.webm'), { out, urls } = py(home, 'fetch-result', { jobId: 'selects-' + job, dest: pdest }, body);
-      assert.deepEqual(urls, [url]); assert.equal(out.cached, false); assert.deepEqual(fs.readFileSync(pdest), body);
-    }
-  }
-});
-
 test('the editor probes: subject facts, range preview frames as scene_preview.py makes them, the export check', { skip: skipParity }, async () => {
   const { f } = media(), p = port(tmp());
   const info = JSON.parse(await p.probeText(f('Clip one.mp4')));

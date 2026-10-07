@@ -33,7 +33,7 @@ SPAWN = re.compile(r"""(?:["'`]|&&|;|\|)\s*(?:node|python3?)\b|/python3?["'\s]""
 GUARD = 'if(hostIssue){setError(hostIssue);return;}'
 # Every op the panel asks the helper for, and the ones pipeline.py has besides.
 OPS = ['load', 'init', 'update', 'event', 'claim', 'reuse', 'ensure', 'folder-media', 'tile', 'strip', 'sizes', 'hold',
-       'silent', 'cutout-input', 'fetch-result', 'prepare', 'foreground', 'subject-box', 'settings-load',
+       'silent', 'cutout-input', 'prepare', 'foreground', 'subject-box', 'settings-load',
        'settings-save', 'job-record']
 
 
@@ -113,9 +113,10 @@ class PostcardCutoutStudioWindowsTest(unittest.TestCase):
         self.assertIn("const PC_MIN_HOST='2.0.508';", self.text)
 
     def test_the_cutout_comes_back_through_the_host(self):
-        self.assertIn("...(hostIsWindows()&&mg.supportsPluginFiles?.()?{delivery:{pluginFolder:hostJoin(r.logDir,'cloud')}}:{})", self.text)
-        self.assertIn("dest:hostJoin(r.logDir,'cutout.webm')", self.text)
-        self.assertIn("fsx('downloadFile').downloadFile(url,tmp)", PORT_BLOCK.search(self.text).group(0))
+        self.assertIn("...(mg.supportsPluginFiles?.()?{delivery:{pluginFolder:hostJoin(r.logDir,'cloud')}}:{})", self.text)
+        self.assertIn("file=job.deliveryStatus==='delivered'?(job.outputs||[]).find(o=>o.path)?.path||null:null", self.text)
+        self.assertNotIn("Application Support", self.text, 'the app journal is not read')
+        self.assertNotIn("'fetch-result'", self.text)
         self.assertNotIn("r.logDir+'/", self.text)
 
     def test_one_stream_mp4_outputs(self):
