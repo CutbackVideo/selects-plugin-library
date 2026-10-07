@@ -45,6 +45,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Portrait Beat Montage](plugins/portrait-beat-montage) — 16.3-second 3:4 portrait montage from 10 person clips, with a monochrome strobe intro, person-only zigzag smear cuts on the beat and a white glow ending | Experimental |
 | [Beat Cutout Gallery](plugins/cutout-beat-gallery) — 15.9-second 3:4 beat-cut photo gallery where cut-out people with paper outlines slide in, stack over the photo on screen and lead into the next cut, on a bundled soundtrack | Experimental |
 | [EO Shorts](plugins/eo-shorts) — a talking-head Draft becomes a 9:16 EO-style short: tightened talk, speaker framing, typographic scenes with pictures and stock B-roll, and a music bed | Experimental |
+| [2026 Moments](plugins/moments-2026) — 27-second 9:16 year-in-review from 15 clips: a rolling year mask that zooms through its last digit, a Moments title and flash, box, light-leak and three-strip beat transitions | Experimental |
 
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 
