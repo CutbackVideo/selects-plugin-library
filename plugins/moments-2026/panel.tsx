@@ -59,54 +59,71 @@ async function createDraft(sdk, projectId, ids, text, music) {
   return res;
 }
 
-// The app hands template runs its own Resource ids; run_script speaks r0, r1…
-// Both lists are the project's Resources in the same order, so they pair row by row.
+const TEMPLATE_FAILED = "2026 Moments couldn't make the timeline. Try again.";
+const userError = (message) => Object.assign(new Error(message), { pub: true });
+
+// The app hands a template its own Resource ids, but every run_script read
+// speaks the short ids the script SDK gives out (r0, r1...). Both lists are the
+// Project's Resources in the same order, so they pair up row by row; names and
+// types are compared so a list that changed in between is refused, not mismatched.
 async function scriptIds(sdk, projectId, appIds) {
   const app = await sdk.call("listProjectResources", projectId);
-  const idx = appIds.map((id) => app.findIndex((r) => r.resourceId === id));
-  if (idx.includes(-1)) throw new Error("A picked clip is missing from this project.");
-  const r = await run(sdk, `const rows=await selects.project(${J(projectId)}).resources();return {n:rows.length,rows:${J(idx)}.map(i=>rows[i]?{id:rows[i].resourceId,name:rows[i].name}:null)};`, "Match picked clips");
-  if (r.n !== app.length || idx.some((x, i) => r.rows[i]?.name !== app[x].name)) throw new Error("Could not match the picked clips.");
-  return new Map(appIds.map((id, i) => [id, r.rows[i].id]));
+  if (!Array.isArray(app)) throw new Error("Could not read the project resources.");
+  const unique = [...new Set(appIds)];
+  const idx = unique.map((id) => app.findIndex((r) => r.resourceId === id));
+  if (idx.includes(-1)) throw userError("A picked clip is missing from this project.");
+  const r = await run(sdk, `const rows=await selects.project(${J(projectId)}).resources();return {n:rows.length,rows:${J(idx)}.map(i=>rows[i]?{id:rows[i].resourceId,name:rows[i].name,type:rows[i].type}:null)};`, "Match picked clips");
+  if (r.n !== app.length || idx.some((x, i) => r.rows[i]?.name !== app[x].name || r.rows[i]?.type !== app[x].type)) throw userError("Could not match the picked clips to this project. Try again.");
+  return new Map(unique.map((id, i) => [id, r.rows[i].id]));
 }
 
+// A Clip highlights run (`context.template`): the intro and clips picked in the
+// app, built out of sight and reported once through sdk.finishTemplate.
 function TemplateRun({ sdk, context }) {
   const runId = context.template?.runId;
-  const [status, setStatus] = useState("Making 2026 Moments…");
-  const started = useRef(null);
+  const [status, setStatus] = useState("Making 2026 Moments\u2026");
+  const started = useRef(null), alive = useRef(true), latest = useRef(context);
+  latest.current = context;
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
     if (!runId || started.current === runId) return;
     started.current = runId;
+    const live = () => alive.current && latest.current.template?.runId === runId;
     let ended = false;
-    const finish = (x) => { if (ended) return; ended = true; try { sdk.finishTemplate(x); } catch {} };
+    const finish = (x) => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(x); } catch {} };
     (async () => {
-      try {
-        const pid = context.projectId;
-        if (!pid) throw Object.assign(new Error("Open a project, then try again."), { pub: true });
-        const inputs = context.template?.inputs || {};
-        const pick = (k) => (inputs[k] || []).filter((x) => x?.kind === "video" && x.resourceId);
-        const intro = pick("intro")[0], clips = pick("clips");
-        if (!intro || !clips.length) throw Object.assign(new Error("Pick the intro clip and the other clips, then try again."), { pub: true });
-        const map = await scriptIds(sdk, pid, [intro, ...clips].map((x) => x.resourceId));
-        const media = await run(sdk, listMedia(pid), "List clips");
-        const byId = new Map(media.map((m) => [m.id, m]));
-        const pool = clips.map((c) => byId.get(map.get(c.resourceId))).filter(Boolean);
-        const ids = [map.get(intro.resourceId)];
-        for (let i = 1; i < 15; i++) {
-          const fit = pool.filter((v) => v.d >= NEED[i]);
-          if (!fit.length) throw Object.assign(new Error("Pick clips at least " + NEED[i] + " seconds long."), { pub: true });
-          const unused = fit.filter((v) => !ids.includes(v.id));
-          ids.push((unused[0] || fit[(i - 1) % fit.length]).id);
-        }
-        setStatus("Cutting…");
-        const res = await createDraft(sdk, pid, ids, {}, null);
-        finish({ sequenceId: res.draftId });
-      } catch (e) {
-        finish({ error: e?.pub ? e.message : "2026 Moments could not make the timeline; try again." });
+      const pid = context.projectId;
+      if (!pid) throw userError("Open a project, then try again.");
+      const inputs = context.template?.inputs || {};
+      const pick = (k) => (inputs[k] || []).filter((x) => x?.kind === "video" && x.resourceId);
+      const intro = pick("intro")[0];
+      const clips = pick("clips").filter((x) => x.resourceId !== intro?.resourceId);
+      if (!intro || !clips.length) throw userError("Pick an intro clip and at least one other clip, then try again.");
+      const map = await scriptIds(sdk, pid, [intro, ...clips].map((x) => x.resourceId));
+      const media = await run(sdk, listMedia(pid), "List clips");
+      const byId = new Map(media.map((m) => [m.id, m]));
+      const first = byId.get(map.get(intro.resourceId));
+      if (!first) throw userError(`Couldn't find ${intro.name || "the intro clip"} in this project. Try again.`);
+      if (first.d < NEED[0]) throw userError(`Pick an intro clip at least ${NEED[0]} seconds long.`);
+      const pool = clips.map((c) => byId.get(map.get(c.resourceId))).filter(Boolean);
+      const ids = [first.id];
+      for (let i = 1; i < 15; i++) {
+        const fit = pool.filter((v) => v.d >= NEED[i]);
+        if (!fit.length) throw userError(`Pick clips at least ${NEED[i]} seconds long.`);
+        const unused = fit.filter((v) => !ids.includes(v.id));
+        ids.push((unused[0] || fit[(i - 1) % fit.length]).id);
       }
-    })();
+      if (!live()) return;
+      setStatus("Cutting your clips\u2026");
+      const res = await createDraft(sdk, pid, ids, {}, null);
+      finish({ sequenceId: res.draftId });
+    })().catch((e) => {
+      console.warn("[moments-2026] template run failed:", e);
+      const said = String(e?.message || "");
+      finish({ error: e?.pub && said.length <= 160 ? said : TEMPLATE_FAILED });
+    });
   }, [runId]);
-  return <p role="status" style={{ margin: 0, fontSize: 12 }}>{status}</p>;
+  return <small>{status}</small>;
 }
 
 function ManualPanel({ sdk, context, ui }) {
