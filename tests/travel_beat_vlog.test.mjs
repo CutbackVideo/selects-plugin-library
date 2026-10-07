@@ -5,10 +5,14 @@ import path from 'node:path';
 import vm from 'node:vm';
 import os from 'node:os';
 import zlib from 'node:zlib';
-import {loadPanelOperation,runPanelShell} from './panel_operation.mjs';
+import {createRequire} from 'node:module';
+import {webcrypto} from 'node:crypto';
+import {loadPanelFunctions} from './windows_host.mjs';
+import {loadPanelOperation} from './panel_operation.mjs';
+import {spawnSync,execFileSync} from 'node:child_process';
 
 const {scenePlan,slotNeeds,colorTransfer,normalizeFinish,buildFinishScript,buildCutoutScript,VIDEO_SLOTS,REFERENCE_TIMING,validateTiming,withinLimits,LIMITS,
- songAnalysis,songWorkerSource,songDecodeArgs,songArrangeArgs,measureArgs,rgbStats,cutoutKey,cutoutCommand}=loadPanelOperation('travel-beat-vlog');
+ songAnalysis,songWorkerSource,songDecodeArgs,songArrangeArgs,measureArgs,rgbStats,cutoutKey,heroAlphaArgs}=loadPanelOperation('travel-beat-vlog');
 const {analyseSamples,timingFrom,opening,hits,rolls}=songAnalysis();
 
 const dir=path.resolve(import.meta.dirname,'../plugins/travel-beat-vlog');
@@ -105,7 +109,10 @@ test('the panel needs no Node.js, runtime.sh or Xcode tools',()=>{
  const panel=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
  assert.doesNotMatch(panel,/['"`]node\s|runtime\.sh|build-script|swiftc|xcrun|python3/);
  const files=JSON.parse(fs.readFileSync(path.join(dir,'plugin.json'),'utf8')).files;
- assert.ok(files.includes('tools/cutout.js')&&files.includes('color-targets.json')&&!files.some(f=>/\.(mjs|sh|swift)$/.test(f)));
+ assert.ok(files.includes('color-targets.json')&&!files.some(f=>/\.(mjs|sh|swift)$/.test(f)));
+ assert.ok(!files.includes('tools/cutout.js'));
+ assert.match(panel,/photoAiMatte\(sdk,projectId,photo/);
+ assert.doesNotMatch(panel,/osascript|SUBJECT_MAC_ONLY/);
  for(const f of files)assert.ok(fs.existsSync(path.join(dir,f)),f);
 });
 
@@ -142,20 +149,99 @@ function boxPng(file,w,h,box){
  const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(w,0);ihdr.writeUInt32BE(h,4);ihdr.set([8,2,0,0,0],8);
  fs.writeFileSync(file,Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',zlib.deflateSync(Buffer.concat(rows))),chunk('IEND',Buffer.alloc(0))]));
 }
-test('cutout runs through osascript with only stock macOS tools',{skip:process.platform!=='darwin'},()=>{
- const home=fs.mkdtempSync(path.join(os.tmpdir(),'travel cutout-'));
- const run=(photo,out,mode)=>runPanelShell(cutoutCommand(path.join(dir,'tools','cutout.js'),photo,out,mode),{home});
- const box=path.join(home,"box's.png"),plain=path.join(home,'plain.png'),out=path.join(home,'hero.png');
- boxPng(box,64,48,{x:22,y:14,w:20,h:20});boxPng(plain,64,48,null);
- const fg=run(box,out,'foreground');
- assert.equal(fg.status,0,fg.stderr);
- assert.equal(fs.readFileSync(out).subarray(1,4).toString(),'PNG');
- const none=run(plain,path.join(home,'none.png'),'person');
- assert.notEqual(none.status,0);assert.match(none.stderr,/^No person found\./);
+test('shared grayscale alpha preserves the original RGB pixels and transparent subject edges', {skip:spawnSync('ffmpeg',['-version']).status!==0},t=>{
+ const home=fs.mkdtempSync(path.join(os.tmpdir(),'travel-alpha-'));t.after(()=>fs.rmSync(home,{recursive:true,force:true}));
+ const source=path.join(home,'original.png'),mask=path.join(home,'mask.png'),out=path.join(home,'subject.png');
+ boxPng(source,16,24,{x:5,y:3,w:7,h:18});
+ const raw=Buffer.alloc(16*24);for(let y=0;y<24;y++)for(let x=0;x<16;x++)raw[y*16+x]=x<5?0:x<12?192:255;
+ const rawFile=path.join(home,'mask.gray');fs.writeFileSync(rawFile,raw);
+ execFileSync('ffmpeg',['-v','error','-y','-f','rawvideo','-pix_fmt','gray','-s','16x24','-i',rawFile,'-frames:v','1',mask]);
+ execFileSync('ffmpeg',heroAlphaArgs(source,mask,out));
+ const rgba=execFileSync('ffmpeg',['-v','error','-i',out,'-frames:v','1','-f','rawvideo','-pix_fmt','rgba','-']);
+ const rgb=execFileSync('ffmpeg',['-v','error','-i',source,'-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','-']);
+ for(let i=0;i<raw.length;i++){assert.deepEqual(rgba.subarray(i*4,i*4+3),rgb.subarray(i*3,i*3+3));assert.equal(rgba[i*4+3],raw[i]);}
+ assert.equal(heroAlphaArgs('C:\\photo.png','C:\\mask.png','C:\\out.png').at(-1),'C:\\out.png');
 });
 
 // Native placement behavior is exercised through runScript in native_image_sdk_migration.test.mjs.
 const panelSource=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
+
+test('both photo panels bundle the current shared journal and canonical resource helpers',()=>{
+ for(const id of ['travel-beat-vlog','cutout-beat-gallery']){
+  const source=fs.readFileSync(path.resolve(dir,'..',id,'panel.tsx'),'utf8');
+  for(const [marker,binding,file]of [['jobs','sharedAiJobs','ai-job-client.cjs'],['resources','sharedAiResources','ai-resources.cjs']]){
+   const start='//shared-ai-'+marker+':start',end='//shared-ai-'+marker+':end';
+   const expected=start+'\nconst '+binding+' = (()=>{const module={exports:{}};\n'+fs.readFileSync(path.resolve(dir,'../../shared',file),'utf8')+'\nreturn module.exports;})();\n'+end;
+   assert.equal(source.slice(source.indexOf(start),source.indexOf(end)+end.length),expected,id+' '+marker);
+  }
+ }
+});
+
+// Exercise the actual template entry and photo adapter, while unrelated beat/timeline work is stubbed.
+function recoveryFixture(initialStatus='succeeded'){
+ const require=createRequire(import.meta.url),stored=new Map(),jobs=new Map(),keys=new Map(),submits=[];
+ const resourceId='ee44b47f-3537-41be-a64f-92262c58a3a3';
+ let nextStatus=initialStatus;
+ const ai={submit:async input=>{
+  if(keys.has(input.requestKey))return {workflowId:keys.get(input.requestKey)};
+  const workflowId='ai:'+String(jobs.size+1);keys.set(input.requestKey,workflowId);
+  jobs.set(workflowId,{input,status:nextStatus});submits.push(input);return {workflowId};
+ },job:(id,pid)=>({
+  status:async()=>({workflowId:id,projectId:pid,runtimeId:'selects-ai-runtime',task:'person.matte',status:jobs.get(id).status}),
+  result:async()=>({workflowId:id,task:'person.matte',files:{manifest:{id}}}),
+  cancel:async()=>{throw Error('Closing a template must not cancel its job');}
+ }),prepareMatte:async()=>({sourceKind:'image',sourceResourceId:resourceId,frameSize:{width:2,height:2},maskUrl:'local:mask'})};
+ const sdk={storage:{getItem:async key=>stored.get(key)??null,setItem:async(key,value)=>stored.set(key,value)},
+  runScript:async({script})=>{try{return {result:await vm.runInNewContext('(async()=>{'+script+'})()',{selects:{ai,files:{pathFromLocalUrl:()=>'/mask.png'}}})}}catch(e){return {isError:true,output:e.message}}}};
+ const photo=loadPanelFunctions(panelSource,['photoAiScript','photoAiClient','photoAiMatte'],{
+  crypto:webcrypto,sharedAiJobs:require('../shared/ai-job-client.cjs'),
+  photoAiCanonicalId:async()=>resourceId,
+ });
+ const raw=panelSource.slice(panelSource.indexOf('function TravelTemplateRun('),panelSource.indexOf('\nfunction Panel('));
+ // The final status element is unrelated to recovery; keep the entire effect body executable as JS.
+ const compiled=raw.replace(/^\s*return <p role="status".*$/m,' return null;');
+ function mount(runId){
+  const effects=[],cleanups=[];let finish;
+  const finished=new Promise(resolve=>{finish=resolve});
+  const context={projectId:'project',template:{runId,inputs:{},options:{}}};
+  const React={useState:value=>[value,()=>{}],useRef:value=>({current:value}),useEffect:effect=>effects.push(effect),createElement:()=>null};
+  const host=vm.createContext({React,AbortController,console:{warn:()=>{}},TEMPLATE_DEFAULTS:{cutoutMode:'person'},TEMPLATE_FAILED:'Failed',
+   templateMedia:async()=>({heroPhoto:{resourceId},chosen:{},song:{}}),templateIssue:message=>Error(message),templateMessage:error=>error.message,
+   buildTravelVlog:async(sdk,args)=>{await photo.photoAiMatte(sdk,args.projectId,args.heroPhoto,{scope:args.aiScope,retryTerminal:args.aiRetryTerminal,control:{observer:{signal:args.aiSignal}}});return {draftId:'draft'}},
+  });
+  vm.runInContext(compiled,host);host.TravelTemplateRun({sdk:{...sdk,finishTemplate:finish},context});
+  for(const effect of effects){const cleanup=effect();if(cleanup)cleanups.push(cleanup)}
+  return {finished,unmount:()=>cleanups.forEach(f=>f())};
+ }
+ return {mount,sdk,photo,resourceId,stored,jobs,submits,setStatus:status=>{nextStatus=status;for(const job of jobs.values())job.status=status}};
+}
+
+for(const state of ['failed','canceled'])test(`same Travel template run recovers ${state} without silently retrying; a new Apply starts a new run`,async()=>{
+ const f=recoveryFixture(state);
+ const first=f.mount('run-a');assert.match((await first.finished).error,/AI analysis/);first.unmount();
+ f.setStatus(state);
+ const reopened=f.mount('run-a');assert.match((await reopened.finished).error,/AI analysis/);reopened.unmount();
+ assert.equal(f.submits.length,1);
+ f.setStatus('succeeded');const applied=f.mount('run-b');assert.equal((await applied.finished).sequenceId,'draft');applied.unmount();
+ assert.equal(f.submits.length,2);
+ const journals=[...f.stored.values()].map(value=>JSON.parse(value));
+ assert.deepEqual(journals.map(j=>j.scope).sort(),['travel-beat-vlog:template:run-a','travel-beat-vlog:template:run-b']);
+});
+
+test('closing a running Travel template detaches; reopening the same run adopts its original job',async()=>{
+ const f=recoveryFixture('running'),first=f.mount('running');
+ for(let i=0;i<100&&f.submits.length===0;i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(f.submits.length,1);first.unmount();f.setStatus('succeeded');
+ const reopened=f.mount('running');assert.equal((await reopened.finished).sequenceId,'draft');reopened.unmount();
+ assert.equal(f.submits.length,1);
+});
+
+test('manual Travel Apply explicitly retries a prior terminal image job',async()=>{
+ const f=recoveryFixture('failed');
+ await assert.rejects(f.photo.photoAiMatte(f.sdk,'project',{resourceId:f.resourceId},{scope:'travel-beat-vlog'}),/AI analysis failed/);
+ f.setStatus('succeeded');await f.photo.photoAiMatte(f.sdk,'project',{resourceId:f.resourceId},{scope:'travel-beat-vlog'});
+ assert.equal(f.submits.length,2);
+});
 
 // --- song fitting (analyze.mjs) ---
 const SR=22050;

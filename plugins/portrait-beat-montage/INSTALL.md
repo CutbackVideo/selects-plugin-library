@@ -1,42 +1,23 @@
 # Install Portrait Beat Montage
 
-Experimental: macOS arm64 (tested with Selects Staging on Apple silicon) and Windows x64.
+Experimental: macOS arm64 or Windows x64. Install this plugin and
+`selects-ai-runtime` from the same library commit. Use a current Selects build
+that exposes `selects.ai`, the canonical files/media SDK and panel storage.
 
-- **macOS** renders with `pipeline.py` and RVM person mattes on this Mac's CPU (one-time setup, below).
-- **Windows** renders inside the panel with nothing to install: the host's bundled ffmpeg, and person
-  mattes from Selects generation (video background removal). That needs Selects 2.0.512 or later and
-  uses generation credits: before anything is sent, the panel says how much video goes out (about 9 s
-  for 15 new shot windows) and waits for **Use credits and continue**. Shot windows rendered before are
-  reused and are never sent again. Starting the Clip highlights template on Windows counts as agreeing
-  to these credits: the run sends the new windows without asking again.
+Inference uses the shared YuNet/RVM runtime. No plugin-specific Python, Node,
+Apple Vision setup or paid background-removal request is needed. The runtime
+selects its available GPU provider for RVM; YuNet uses its CPU provider.
 
-## Requirements
+Foreground, object and animal inputs are allowed through the existing RVM
+model. Results depend on the footage; the migration adds no separate model or
+input restriction. Existing layout/coverage safeguards still apply.
 
-- Nothing to install for video: the pipeline and the RVM runner use the `ffmpeg` and `ffprobe`
-  bundled with the Selects app the panel runs in (`Selects.app/Contents/Resources/app.asar.unpacked/dist/bin`).
-  Run by hand, `pipeline.py` looks for them in the Selects apps in `/Applications`, then on `PATH`.
-- The RVM runtime for person mattes (one-time setup, below).
+Runs and final media stay under `~/.selects/plugin-data/portrait-beat-montage/`.
+Keep files referenced by saved Drafts. Shared jobs persist their identity and
+result; closing a panel detaches observation, and reopening the same operation
+can recover the job. Explicit Cancel requests cancellation.
 
-## One-time RVM setup (macOS)
+The migrated paths have automated regression coverage. Full final-template
+preview/export on both operating systems remains to be verified at this checkpoint.
 
-A Clip highlights run sets it up by itself the first time (a few minutes, once). In the panel, press
-**Set up RVM**. Either way setup runs in the background and keeps going if the panel closes. Or run:
-
-```sh
-cd "$SELECTS_USER_SKILLS_ROOT/portrait-beat-montage/rvm"
-sh setup.sh
-sh run.sh doctor
-```
-
-Setup downloads a pinned private Python 3.11 runtime, hash-locked wheels (numpy, Pillow,
-onnxruntime) and the official RVM MobileNetV3 ONNX model into `rvm/.local/`. Nothing is
-installed globally. The pipeline itself also runs on that private Python.
-
-## Time and space
-
-- About 2-3 minutes per montage on an Apple silicon CPU (15 shot windows, three at a time); about 30 seconds when the same clips and windows were rendered before (shots are cached).
-- On Windows a few minutes in the panel (the matte request, then about 6 seconds of transitions per shot window); keep the panel open, or press Cancel.
-- Roughly 300 MB of run data per montage under `~/.selects/plugin-data/portrait-beat-montage/`.
-  Delete a run folder only when no Draft uses its clips.
-
-See [THIRD_PARTY.md](THIRD_PARTY.md) and [rvm/THIRD_PARTY.md](rvm/THIRD_PARTY.md).
+A new Create or template run can retry failed/canceled AI jobs. Reopening the same template run preserves cancellation. Closing or replacing a headless template aborts its local work and stops later import/Draft/navigation calls. Windows derived inputs use lossless built-in FFV1 AVI; when its bundled FFmpeg lacks x264, final MP4 encoding uses built-in MPEG4 at the same frame rate. Both encoders were verified using the actual Windows bundle, including 60 fps input and 30000/1001 fps output.

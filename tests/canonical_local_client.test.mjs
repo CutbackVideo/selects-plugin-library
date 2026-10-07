@@ -286,3 +286,29 @@ test('panels that keep a module-level client bind the one the wrapper registered
     assert.equal(bindAndRead(sdk),client.files,id);
   }
 });
+
+test('file cleanup succeeds when the host forwards optional flags to Node',async()=>{
+  const directory=await fs.promises.mkdtemp(path.join(tmpdir(),'canonical-remove-'));
+  const calls=[];
+  const sdk={runScript:async input=>{
+    calls.push(input);
+    const result=await new Function('selects',`return(async()=>{${input.script}})()`)({files:{
+      environment:async()=>({platform:process.platform,homedir:directory,tempDirectory:directory}),
+      remove:(file,options={})=>fs.promises.rm(file,{recursive:options.recursive,force:options.force}),
+    }});
+    return {isError:false,result};
+  }};
+  try{
+    const client=await load().createPanelLocalClient(sdk);
+    for(const operation of [file=>client.files.rm(file),file=>client.files.rm(file,{force:true}),file=>client.files.removeFile({filePath:file})]){
+      const file=path.join(directory,'temporary.rgb');await fs.promises.writeFile(file,'pixels');
+      await operation(file);assert.equal(fs.existsSync(file),false);
+    }
+    await client.files.rm(path.join(directory,'missing'),{force:true});
+    const folder=path.join(directory,'nested');await fs.promises.mkdir(folder);await fs.promises.writeFile(path.join(folder,'mask.png'),'mask');
+    await assert.rejects(client.files.rm(folder),/directory|EISDIR/);
+    assert.equal(fs.existsSync(path.join(folder,'mask.png')),true);
+    await client.files.rm(folder,{recursive:true,force:true});assert.equal(fs.existsSync(folder),false);
+    assert(calls.filter(c=>c.script.includes('files.remove')).every(c=>c.allowCommit===true));
+  }finally{await fs.promises.rm(directory,{recursive:true,force:true});}
+});

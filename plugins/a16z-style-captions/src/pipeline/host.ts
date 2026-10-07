@@ -1,14 +1,12 @@
 import {panelLocalClient} from "../../../../shared/local-client";
 // Local files, media and environment use the public SDK; timeline services retain their host adapters.
-// Shell quoting and small
-// wrappers around the panel SDK's runScript / runShell (runShell is cmd.exe on Windows: only the macOS-only
-// speaker framing uses it), plus the host's bundled ffmpeg (hostFF).
+// Timeline scripts and bundled media jobs use the host SDK.
 
 export const PANEL_ID = "a16z-style-captions";
 
 export type Sdk = {
+  call?: (method: string, ...args: any[]) => Promise<any>;
   runScript: (o: { script: string; summary: string; allowCommit?: boolean }) => Promise<{ isError: boolean; output: string; result?: any }>;
-  runShell: (o: { command: string; summary: string; timeoutMs?: number; maxOutputBytes?: number; cwd?: string }) => Promise<any>;
   askAI: (o: { prompt: string; timeoutMs?: number }) => Promise<{ text: string }>;
 };
 
@@ -29,10 +27,6 @@ export function dataRoot(): string {
   const f = fs();
   return f.join(f.homedir(), ".selects", "plugin-data", PANEL_ID);
 }
-export function envRoot(): string {
-  const f = fs();
-  return f.join(f.homedir(), ".selects", "python-envs", PANEL_ID);
-}
 export function hostVersion(): string {
   try {
     return String(hostSdk?.environment?.version || "");
@@ -47,7 +41,6 @@ export function versionBelow(version: string, minimum: string): boolean {
   return false;
 }
 
-export const q = (v: string) => "'" + String(v).replace(/'/g, "'\\''") + "'";
 export const J = (v: any) => JSON.stringify(v);
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -74,16 +67,6 @@ export async function script(sdk: Sdk, summary: string, body: string, allowCommi
     throw new Error(summary + ": " + msg.slice(0, 900));
   }
   return r.result;
-}
-
-export async function shell(sdk: Sdk, summary: string, command: string, timeoutMs = 120000, maxOutputBytes = 16000): Promise<string> {
-  const r = await sdk.runShell({ summary, command, timeoutMs, maxOutputBytes });
-  const code = r?.exitCode ?? (r?.isError ? 1 : 0);
-  if (r?.isError || code !== 0) {
-    const text = String(r?.stderr || r?.output || r?.stdout || "").trim();
-    throw new Error(summary + " failed" + (text ? ": " + text.slice(-700) : "."));
-  }
-  return String(r?.stdout ?? r?.output ?? "");
 }
 
 // av-host:start (copied from plugins/archive-vlog/panel.tsx with TypeScript types; only the helpers this panel uses)

@@ -96,3 +96,13 @@ The song analysis, song section, colour measurement and finishing step moved fro
 - The Clip highlights template run with a picked song (the catalog reads the main branch, so this is checked after merge).
 - Replacing a video inside a saved clip. Create a revised Draft instead.
 - The panel with the song engine inside it, in Selects (macOS) and on a Windows machine.
+
+
+## Shared image runtime migration (2026-10-07, version 0.2.6)
+
+The photo path now uses shared local RVM on macOS and Windows. Previous Vision-specific measurements above describe the old implementation, not guarantees about the RVM model. The People/Main subject choices remain and object/animal inputs are not rejected by a class check.
+
+- Fifteen Travel regression tests pass: timeline/cuts, song fitting, colour statistics, template resource mapping and finish behavior.
+- A real FFmpeg fixture decodes the generated RGBA PNG and proves every original RGB byte and every input grayscale alpha byte is preserved by `heroAlphaArgs`.
+- The shared photo adapter's emitted source-join, image submission, durable `prepareMatte(...,{sourceKind:'image'})` and canonical local URL path scripts compile against the current public Selects SDK declarations.
+- Panel TSX syntax and byte-identical shared orchestration/resource modules are checked. Model and full-template app checks belong to the integration run; this file does not claim a new Mac/Windows full template render has passed.

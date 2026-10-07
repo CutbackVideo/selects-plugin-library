@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "jude-kinetic-style",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "name": "Jude Kinetic Style",
   "summary": "Editable red/cream kinetic podcast typography: bold white captions, red italic emphasis, a cream card, lines behind the speaker and a background music bed (Kevin MacLeod, CC BY 4.0).",
   "status": "experimental",
@@ -12,9 +12,6 @@
     "INSTALL.md",
     "style.json",
     "panel.tsx",
-    "engine.mjs",
-    "runtime.sh",
-    "vision-helper.js",
     "fonts/Poppins-OFL.txt",
     "fonts/PlayfairDisplay-OFL.txt",
     "assets/dark-hallway-distressed.mp3.b64"
@@ -24,7 +21,7 @@
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Requires Panel runScript/runShell/askAI and editable motion graphics. Development build only; released-version compatibility is unverified."
+    "selects": "Requires the current Selects shared AI SDK and selects-ai-runtime from the same library commit on macOS arm64 or Windows x64."
   },
   "preview": {
     "video": "preview.mp4",

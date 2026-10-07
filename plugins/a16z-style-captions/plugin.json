@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "a16z-style-captions",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "name": "a16z Style Captions",
   "summary": "One click turns a talking-head Draft into a 9:16 Short in the a16z house style: framing, editorial captions, keyword cards, B-roll, name tag and music.",
   "status": "experimental",
@@ -24,7 +24,7 @@
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified."
+    "selects": "Development build only. Released-version compatibility is unverified. Shared YuNet framing requires selects.ai and selects-ai-runtime installed from the same library revision (Selects 2.0.570 or later)."
   },
   "localized": {
     "de": {

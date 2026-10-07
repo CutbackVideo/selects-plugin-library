@@ -105,3 +105,17 @@ test('an empty mask gives the full-frame box, as getbbox() None does', () => {
   assert.deepEqual(m.box, [0, 0, 1, 1]);
   assert.deepEqual(E.place(null, [.05, .27, .92, .99]), E.place([0, 0, E.W, E.H], [.05, .27, .92, .99]));
 });
+
+test('original photo and original matte receive the same centered cover crop',()=>{
+ const w=900,h=1200,rgb=E.image(w,h,3),gray=E.image(w,h,1);
+ // A subject off center plus a stripe entirely outside the portrait crop.
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  const value=x<55?255:(x>=440&&x<620&&y>=180&&y<1100?192:0);
+  gray.d[y*w+x]=value;rgb.d[(y*w+x)*3]=value;
+ }
+ const fitted=E.framePhoto(rgb,[]).frame;
+ const mask=E.maskOf(gray.d,w,h,true).mask;
+ for(let i=0;i<mask.length;i++)assert.equal(mask[i],fitted[i*3]);
+ assert.equal(mask[960*E.W],0,'the cropped-away left stripe must not stretch into the sticker');
+ assert.ok(mask[960*E.W+Math.round(.64*E.W)]>180,'the subject remains in the same place as the photo');
+});

@@ -11,7 +11,7 @@ Use this plugin when the user asks for this travel vlog format. The format is fi
 
 - Black, frames 0-12.
 - Montage 1, frames 12-55: videos 1-11, cutting at 12, 16, 19, 22, 25, 28, 32, 35, 38, 42 and 48.
-- Hero, frames 55-102: the hero photo. From frame 62 a large condensed title (default "TRAVEL", #F4C711) sits behind the people: an Apple Vision cutout of the people is placed on top of the title (macOS; on Windows the title sits over the hero photo, with nobody in front).
+- Hero, frames 55-102: the hero photo. From frame 62 a large condensed title (default "TRAVEL", #F4C711) sits behind the people: a shared RVM cutout of the subject is placed on top of the title on macOS and Windows.
 - Video 12, frames 102-182, with grid 1 building over it: videos 13-16 in the top-left, top-right, bottom-left and bottom-right quarters from frames 149, 153, 158 and 163.
 - Video 17, frames 182-263, with grid 2: videos 18-21 from frames 229, 233, 237 and 242.
 - Video 22, frames 263-343. Video 23, frames 343-364.
@@ -30,10 +30,10 @@ Use this plugin when the user asks for this travel vlog format. The format is fi
 
 **Colour.** Each slot is matched to the reference's colour for that slot: per-channel gain and offset that move the clip's RGB mean and spread towards the reference's (`color-targets.json`). The panel's "Match colour to the reference" slider sets the strength (0 = the clip's own colour, 1 = full match; default 0.7).
 
-**Inputs:** one Project photo with clearly visible people for the hero, 3 long shots of at least 3.6 s (videos 12, 17 and 22), 23 clips of at least 2.0 s (videos 1-11, 13-16, 18-21 and 23-26, in that order), and one Project song with a clear beat. Vision finds people down to about a fifth of the photo's height; tiny distant figures may not be found. Do not reorder, duplicate or drop inputs on your own.
+**Inputs:** one Project photo with clearly visible people for the hero, 3 long shots of at least 3.6 s (videos 12, 17 and 22), 23 clips of at least 2.0 s (videos 1-11, 13-16, 18-21 and 23-26, in that order), and one Project song with a clear beat. The shared RVM model receives people, object and animal photos without a class check; result quality varies, particularly for non-person subjects. Do not reorder, duplicate or drop inputs on your own.
 
 From the Clip highlights page, pick the hero photo, the long shots, the clips and the song for the template. In the installed **Travel Beat Vlog** panel the same groups are listed: load the Project media, check the hero photo, long shots 1-3, clips 1-23 and the song, choose what goes in front of the title and how to cut, optionally edit the title text and colour, and create the Draft. The plugin analyses the song, cuts out the people locally, imports the cutout and the song section once, measures each video's colour, creates a new 1080x1920 Draft, places the hero photo and the cutout through the editor's existing Image placement path, overlays the 35 video clips, and adds the crop/colour/fade effects, the title graphic, the ending graphic and the song.
 
 After creation, read back 35 muted video clips at the planned frames, the hero and cutout Image clips, the title graphic over the hero, the ending graphic and one audio clip (the song section) from frame 0 to the end. The panel's plan gives the frames for this song. If the user asks for the video, export it, wait for completion, and check the MP4 through its final frame. If the panel reports a partial Draft or unknown save, inspect that Draft before retrying; never create duplicate Drafts blindly.
 
-Title text, colour and font are editable later in the title graphic. Each video's visible area can be moved with the Horizontal/Vertical focus of its clip effect. If Vision finds no person, choose "Main subject" under "In front of the title"; if it finds no subject either, the plugin stops before creating a Draft, so use a photo with a clear subject.
+Title text, colour and font are editable later in the title graphic. Each video's visible area can be moved with the Horizontal/Vertical focus of its clip effect. The People and Main subject choices use the same shared RVM task. Review the hero cutout for the chosen photo; objects and animals are accepted, with model-dependent results.
