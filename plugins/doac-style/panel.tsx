@@ -231,9 +231,10 @@ function ensureRuntime(sdk,say=()=>{}){
 // Worker side and the font choice); dev/parity and tests/doac_style_parity.test.mjs
 // show it draws the same frames as the Python engine on the same input. Fonts the
 // plans name that Windows has (Arial, Georgia, Times) come from its Fonts folder;
-// Helvetica and Helvetica Neue use the bundled Arimo. Read once per panel load.
+// Helvetica and Helvetica Neue use the bundled Arimo; Malgun Gothic draws the
+// Hangul they lack. Read once per panel load.
 const ENGINE_DATA=['style.json','template-energy.json','PLANNING.md','native/shortlist.json','native/0YVdjmU13E4/plan.json','native/0YVdjmU13E4/legacy-three-scenes.json','native/NhbCBo1KuU8/plan.json','native/8_dh-IB9jZ8/plan.json'];
-const WINDOWS_FONTS=['arial.ttf','arialbd.ttf','arialbi.ttf','ariblk.ttf','arialnb.ttf','georgiab.ttf','times.ttf'];
+const WINDOWS_FONTS=['arial.ttf','arialbd.ttf','arialbi.ttf','ariblk.ttf','arialnb.ttf','georgiab.ttf','times.ttf','malgun.ttf','malgunbd.ttf'];
 const fromBase64=s=>Uint8Array.from(atob(String(s).replace(/\s+/g,'')),c=>c.charCodeAt(0));
 let engineFiles=null;
 function panelEngineFiles(sdk){
@@ -637,7 +638,7 @@ function CaptionPanel({sdk,context,ui}) {
  useEffect(()=>{let live=true;if(!job?.editorial?.[index])return;const [a,z]=job.editorial[index].words;setText(job.input.words.slice(a,z+1).map(w=>w.text).join(' '));setPreview('');const s=job.manifest?.scenes?.[index];if(s)read(s.payload).then(JSON.parse).then(d=>{if(live)setPreview(d);}).catch(()=>{});return()=>{live=false};},[job,index]);
  const complete=job?.targetId&&job.next===job.editorial.length;
  return <ui.Section title="DOAC Style"><ui.Stack>
- {!complete&&<><p>Make every word count.</p><small>Expressive captions, timed to your voice. Made for English talking-head videos.</small>
+ {!complete&&<><p>Make every word count.</p><small>Expressive captions, timed to your voice. Made for English and Korean talking-head videos.</small>
  <ui.Button onClick={()=>load()} disabled={storageLoading||busy||!context.sequenceId||!!job?.uncertain} busy={busy} busyLabel="Creating captions…">Create captions</ui.Button>
  <small>Use an analyzed, vertical 9:16 draft. Your original stays intact.</small></>}
  {complete&&<><ui.Message>Your captioned draft is ready.</ui.Message>{pendingPlan&&!busy&&<ui.Button variant="secondary" onClick={()=>load(job.sourceId)}>Finish prepared version</ui.Button>}
