@@ -9,7 +9,7 @@ import {loadPanelOperation,runPanelShell} from './panel_operation.mjs';
 
 const {scenePlan,slotNeeds,colorTransfer,normalizeFinish,buildFinishScript,buildCutoutScript,VIDEO_SLOTS,REFERENCE_TIMING,validateTiming,withinLimits,LIMITS,
  songAnalysis,songWorkerSource,songDecodeArgs,songArrangeArgs,measureArgs,rgbStats,cutoutKey,cutoutCommand}=loadPanelOperation('travel-beat-vlog');
-const {analyseSamples,timingFrom,hits,rolls}=songAnalysis();
+const {analyseSamples,timingFrom,opening,hits,rolls}=songAnalysis();
 
 const dir=path.resolve(import.meta.dirname,'../plugins/travel-beat-vlog');
 // Independent reference measurements (30 fps, 468 frames), typed from the frame analysis.
@@ -128,6 +128,7 @@ test('the song worker answers with the same fit and timing as the analysis',asyn
  const got=await new Promise((resolve,reject)=>{const ctx={postMessage:m=>m.error?reject(Error(m.error)):resolve(m.ok)};vm.createContext(ctx);vm.runInContext(songWorkerSource(),ctx);ctx.onmessage({data:{samples:x,cuts:'hits'}});});
  const fit=analyseSamples(x);
  assert.equal(JSON.stringify(got.fit),JSON.stringify(fit));assert.equal(JSON.stringify(got.timing),JSON.stringify(timingFrom(fit,'hits')));
+ assert.equal(got.start,opening(fit,'hits'));assert.equal(got.start,fit.window.m1[0]);
  const short=await new Promise(resolve=>{const ctx={postMessage:resolve};vm.createContext(ctx);vm.runInContext(songWorkerSource(),ctx);ctx.onmessage({data:{samples:new Float32Array(SR),cuts:'hits'}});});
  assert.match(short.error,/too short/);
 });
@@ -190,13 +191,32 @@ test('every timing a song can produce stays within the lengths the template prom
   const P=60/bpm,K=(2*bpm/89.4)>=2.5?1.5:1,D=20,T=f=>D+K*b(f)*P;
   for(let trial=0;trial<25;trial++){
    const some=(a,c,n)=>Array.from({length:n},()=>a+rnd()*(c-a)).sort((u,v)=>u-v).filter((v,i,arr)=>!i||v-arr[i-1]>=2/30);
-   const m1=[T(12),...some(T(12)+0.07,T(55)-P/8,Math.floor(rnd()*14))];
+   const first=trial%2?T(12):T(12)-P/2+rnd()*(T(55)-P/8-T(12)+P/2);   // the strongest hit can open anywhere in the window
+   const m1=[first,...some(first+0.07,T(55)-P/8,Math.floor(rnd()*14))];
    const fit={P,K,bpm,window:{D,m1,m2:some(T(364)-P/4,T(424)-P/8,Math.floor(rnd()*14)),g1:some(T(147),T(182)-P/8,Math.floor(rnd()*6)),g2:some(T(227),T(263)-P/8,Math.floor(rnd()*6))}};
    for(const mode of ['hits','reference']){
     const t=withinLimits(validateTiming(timingFrom(fit,mode)));
     for(const [s,v] of Object.entries(slotNeeds(t)))assert.ok(v<=(['V12','V17','V22'].includes(s)?LIMITS.long:LIMITS.clip)+1e-9,`${bpm} BPM ${mode}: ${s} needs ${v.toFixed(2)} s`);
    }
   }
+ }
+});
+// QA: a song with few hits fell back to the reference rhythm but opened on its first hit, ~1.17 s after the grid's
+// first cut, so m1[1] came out at -19. The opening must keep the grid in order, and the song starts at that opening.
+test('a song with few or no montage hits still yields a valid timing that starts the song on its opening',()=>{
+ const bpm=89.4,P=60/bpm,K=1,D=20,b=f=>(f-102)/(30*60/89.4),T=f=>D+K*b(f)*P;
+ const fit=m1=>({P,K,bpm,window:{D,m1,m2:[],g1:[],g2:[]}});
+ const late=fit([T(12)+7/6,T(12)+1.25,T(12)+1.3]);
+ const t=withinLimits(validateTiming(timingFrom(late,'hits')));
+ assert.deepEqual(t.m1.slice(0,2),[12,16]);assert.ok(Math.abs(opening(late,'hits')-T(12))<1e-9);
+ const early=fit([T(12)+0.05,T(12)+0.5]);
+ assert.ok(Math.abs(opening(early,'hits')-early.window.m1[0])<1e-9);   // an early first hit still opens the vlog
+ assert.ok(Math.abs(opening(early,'reference')-T(12))<1e-9);
+ const crowded=fit(Array.from({length:6},(_,i)=>T(12)+0.9+i*0.07));   // 6 hits, too late to fill 11 cuts
+ assert.ok(Math.abs(opening(crowded,'hits')-T(12))<1e-9);
+ for(const f of [late,early,crowded,fit([])])for(const mode of ['hits','reference']){
+  const t=withinLimits(validateTiming(timingFrom(f,mode))),o=opening(f,mode);
+  assert.equal(t.m1[0],12);assert.equal(t.v12,Math.round((T(102)-o+0.4)*30));   // the cuts sit on the song from its opening
  }
 });
 
