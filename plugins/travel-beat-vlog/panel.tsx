@@ -1040,7 +1040,7 @@ async function createPanelLocalClient(sdk: any) {
     throw new Error("Update Selects to use this plugin's local media workspace.");
   const paths = panelLocalPaths(environment.platform);
   const CHUNK_BYTES = 48 * 1024;
-  // Three base64 chunks occupy 192 KiB, below the Panel's default 256 KiB result
+  // Three encoded chunks occupy 192 KiB, below the Panel's default 256 KiB result
   // budget. The same script still awaits each canonical file operation in order.
   const fileBatch = async (method: "readRange" | "writeChunk", inputs: unknown[], lengths: number[]) => {
     let count = Math.min(3, inputs.length), script = "";
