@@ -18,6 +18,6 @@ class PortraitBeatMontageWindowsTest(unittest.TestCase):
         self.assertIn('client.cancel({identity:unit.key})',self.text)
         self.assertIn('React.useEffect(() => () => cancel.current?.abort(), [])',self.text)
     def test_package_is_shared_and_no_generation_credits_are_used(self):
-        m=json.loads((PLUGIN/'plugin.json').read_text());self.assertEqual(m['version'],'0.1.13');self.assertFalse(m['usesCredits'])
+        m=json.loads((PLUGIN/'plugin.json').read_text());self.assertEqual(m['version'],'0.1.14');self.assertFalse(m['usesCredits'])
         self.assertFalse(any(f.startswith('rvm/') or f=='pipeline.py' for f in m['files']))
         self.assertEqual(m['compatibility']['platforms'],['macOS arm64','Windows x64'])

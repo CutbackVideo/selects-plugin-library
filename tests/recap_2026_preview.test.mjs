@@ -59,7 +59,7 @@ async function exampleFiles(platform = 'win32') {
       return {isError: false, result};
     },
   };
-  const context = vm.createContext({crypto, console});
+  const context = vm.createContext({crypto, console, TextEncoder});
   vm.runInContext(topLevel(localClient, 'panelLocalPaths') + '\n' + topLevel(localClient, 'createPanelLocalClient'), context);
   const client = await context.createPanelLocalClient(sdk);
   Object.assign(context, {

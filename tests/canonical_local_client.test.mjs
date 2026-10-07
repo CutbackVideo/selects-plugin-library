@@ -15,17 +15,19 @@ function load(React = {}, clientSource = source) {
   return context.api;
 }
 function host({platform='darwin', clipRead=false, onStart}={}) {
-  const files = new Map(), calls=[], jobs=new Map();
+  const files = new Map(), calls=[], jobs=new Map(), fileCalls=[];
   const fileService={
     environment:async()=>({platform,version:'test',homedir:platform==='win32'?'C:\\Users\\\ud64d\uae38\ub3d9':'/user',tempDirectory:platform==='win32'?'C:\\temp':'/tmp'}),
     stat:async path=>files.has(path)?{size:files.get(path).length}:null,
     exists:async path=>files.has(path),
     readRange:async({path,offset,length})=>{
+      fileCalls.push({method:'readRange',path,offset,length});
       assert(length<=49152);
       const bytes=files.get(path).subarray(offset,offset+length);
       return {base64:Buffer.from(bytes).toString('base64'),bytesRead:bytes.length};
     },
     writeChunk:async({path,offset,base64,mode})=>{
+      fileCalls.push({method:'writeChunk',path,offset,mode});
       const bytes=Buffer.from(base64,'base64');assert(bytes.length<=49152);
       if(offset)assert.equal(files.get(path)?.length,offset);
       if(mode==='exclusive'&&files.has(path))throw new Error('EEXIST');
@@ -40,10 +42,11 @@ function host({platform='darwin', clipRead=false, onStart}={}) {
   const selects={files:fileService,media:{startFFmpeg:start,startFFprobe:start,job:id=>({cancel:async()=>{const job=jobs.get(id);job.cancelled++;job.state='cancelled';job.events=[];}})},editor:{pickDirectory:async()=>null}};
   const sdk={
     runScript:async input=>{
-      calls.push(input);assert(Buffer.byteLength(input.script)<256*1024);
+      calls.push(input);assert(Buffer.byteLength(input.script)<=256*1024);
       if(/writeChunk|startFF|\.cancel\(/.test(input.script))assert.equal(input.allowCommit,true);
       if(clipRead&&input.script.includes('readRange'))return {isError:false,output:'{"clipped":true}'};
       const result=await new Function('selects',`return (async()=>{${input.script}})()`)(selects);
+      assert(Buffer.byteLength(JSON.stringify(result)??'null')<=256*1024,'result must fit the Panel default budget');
       return {isError:false,output:JSON.stringify({result}),result:result===undefined?undefined:JSON.parse(JSON.stringify(result))};
     },
     call:async(method,id,{cursor=0})=>{
@@ -52,7 +55,7 @@ function host({platform='darwin', clipRead=false, onStart}={}) {
       return {state:job.state,events,nextCursor:events.at(-1)?.cursor??cursor,truncated:false};
     },
   };
-  return {sdk,files,calls,jobs};
+  return {sdk,files,calls,jobs,fileCalls,fileService};
 }
 
 // Match the host's pre-execution check, which JavaScript-only tests cannot catch.
@@ -85,6 +88,7 @@ test('shared, Card News Maker and a16z file scripts pass the host SDK TypeScript
       const h = host(), client = await load({}, clientSource).createPanelLocalClient(h.sdk);
       const file = '/tmp/\ud55c\uae00 "quoted"\\file.bin';
       await client.files.writeFile(file, new Uint8Array(100000));
+      assert.deepEqual(await client.files.readFile(file), new Uint8Array(100000));
       await client.files.writeFile(file, '', 'utf8');
       await client.files.writeFile('/lease', 'owner', {flag:'wx'});
       await client.files.writeFile('/lease', '\nnext', {flag:'a'});
@@ -111,8 +115,8 @@ test('binary files exceeding script/result limits round-trip as bounded base64 c
   const data=Uint8Array.from({length:400000},(_,index)=>index%256),path='/tmp/quote";throw Error("injection");.bin';
   await client.files.writeFile(path,data);
   assert.deepEqual(await client.files.readFile(path),data);
-  assert(h.calls.filter(call=>call.script.includes('writeChunk')).length>8);
-  assert(h.calls.filter(call=>call.script.includes('readRange')).length>8);
+  assert.equal(h.calls.filter(call=>call.script.includes('writeChunk')).length,3);
+  assert.equal(h.calls.filter(call=>call.script.includes('readRange')).length,3);
 });
 test('UTF-8 text, empty files, native Windows paths and cancelled picker preserve meaning',async()=>{
   const h=host({platform:'win32'}),client=await load().createPanelLocalClient(h.sdk);
@@ -126,6 +130,85 @@ test('clipped successful reports reject instead of returning empty or partial by
   const h=host({clipRead:true});h.files.set('/x',Buffer.from('data'));
   const client=await load().createPanelLocalClient(h.sdk);
   await assert.rejects(client.files.readFile('/x'),/incomplete result/);
+});
+
+test('batch boundaries round-trip exact bytes without empty trailing operations',async()=>{
+  for(const size of [0,1,49151,49152,49153,147456,147457]){
+    const h=host(),client=await load().createPanelLocalClient(h.sdk);
+    const bytes=Uint8Array.from({length:size},(_,index)=>index%251);
+    await client.files.writeFile('/boundary',bytes);
+    assert.deepEqual(await client.files.readFile('/boundary'),bytes);
+    assert.equal(h.fileCalls.filter(call=>call.method==='writeChunk').length,Math.max(1,Math.ceil(size/49152)));
+    assert.equal(h.fileCalls.filter(call=>call.method==='readRange').length,Math.ceil(size/49152));
+    assert.deepEqual([...h.files.keys()],['/boundary']);
+  }
+});
+test('short reads stop the host batch before later offsets and detect a shrinking file',async()=>{
+  const h=host(),client=await load().createPanelLocalClient(h.sdk);
+  const bytes=Buffer.alloc(49152+23,71);h.files.set('/short',bytes);
+  assert.deepEqual(await client.files.readRange('/short',0,147456),new Uint8Array(bytes));
+  assert.deepEqual(h.fileCalls.map(call=>call.offset),[0,49152]);
+  h.fileCalls.length=0;h.files.set('/short',Buffer.alloc(0));
+  assert.equal((await client.files.readRange('/short',0,147456)).length,0);
+  assert.deepEqual(h.fileCalls.map(call=>call.offset),[0]);
+  h.fileService.stat=async()=>({size:147456});
+  await assert.rejects(client.files.readFile('/short'),/changed while it was being read/);
+});
+test('malformed or truncated read batches never return partial data as a successful read',async()=>{
+  const invalid=[null,[],[{base64:'AA==',bytesRead:49152}],
+    [{base64:'',bytesRead:-1}],[{base64:'',bytesRead:49153}],
+    [{base64:'',bytesRead:0},{base64:'',bytesRead:0}],
+    [{base64:Buffer.alloc(49152).toString('base64'),bytesRead:49152}]];
+  for(const result of invalid){
+    const h=host(),client=await load().createPanelLocalClient(h.sdk),original=h.sdk.runScript;
+    h.sdk.runScript=input=>input.script.includes('readRange')?Promise.resolve({isError:false,result}):original(input);
+    await assert.rejects(client.files.readRange('/invalid',0,147456),/incomplete result|invalid bytes/);
+  }
+});
+test('UTF-8 script budgets reduce batches for long paths before dispatch',async()=>{
+  for(const characters of [15000,35000]){
+    const h=host(),client=await load().createPanelLocalClient(h.sdk),name='/'+ '\uD55C'.repeat(characters);
+    const bytes=Uint8Array.from({length:400000},(_,index)=>index%256);
+    await client.files.writeFile(name,bytes);
+    assert.deepEqual(await client.files.readFile(name),bytes);
+    assert(h.calls.every(call=>Buffer.byteLength(call.script)<=256*1024));
+    const writes=h.calls.filter(call=>call.script.includes('writeChunk'));
+    const reads=h.calls.filter(call=>call.script.includes('readRange'));
+    assert.equal(writes.length,characters===15000?5:9);
+    assert.equal(reads.length,characters===15000?3:5);
+  }
+  const h=host(),client=await load().createPanelLocalClient(h.sdk),before=h.calls.length;
+  await assert.rejects(client.files.readRange('/'+'\uD55C'.repeat(90000),0,1),/256 KiB/);
+  assert.equal(h.calls.length,before,'an oversized single operation must not be dispatched');
+});
+test('a failed second chunk stops the batch, preserves the original, and cleans the temporary file',async()=>{
+  for(const failure of ['throw','ack']){
+    const h=host(),client=await load().createPanelLocalClient(h.sdk),write=h.fileService.writeChunk;
+    h.files.set('/original',Buffer.from('original'));
+    h.fileService.writeChunk=async input=>{
+      if(input.offset===49152&&failure==='throw')throw Error('second chunk blocked');
+      const result=await write(input);
+      return input.offset===49152?{bytesWritten:result.bytesWritten-1}:result;
+    };
+    await assert.rejects(client.files.writeFile('/original',new Uint8Array(147456)),/second chunk blocked|incomplete result/);
+    assert.equal(h.files.get('/original').toString(),'original');
+    assert.deepEqual([...h.files.keys()],['/original']);
+    assert(!h.fileCalls.some(call=>call.offset===98304),'later chunks cannot follow a failed acknowledgement');
+    assert(!h.calls.some(call=>call.script.includes('files.rename')));
+  }
+});
+test('an unknown or malformed batch acknowledgement never publishes its temporary file',async()=>{
+  for(const clipped of [true,false]){
+    const h=host(),client=await load().createPanelLocalClient(h.sdk),original=h.sdk.runScript;
+    h.files.set('/original',Buffer.from('original'));
+    h.sdk.runScript=async input=>{
+      const response=await original(input);
+      return input.script.includes('writeChunk')?{isError:false,...(clipped?{}:{result:[{bytesWritten:49152}]})}:response;
+    };
+    await assert.rejects(client.files.writeFile('/original',new Uint8Array(147456)),/incomplete result/);
+    assert.equal(h.files.get('/original').toString(),'original');
+    assert.deepEqual([...h.files.keys()],['/original']);
+  }
 });
 test('terminal process output is drained across pages and delivered to callbacks',async()=>{
   const h=host(),client=await load().createPanelLocalClient(h.sdk),events=[];
