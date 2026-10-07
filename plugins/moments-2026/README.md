@@ -14,19 +14,19 @@ transition is a regular Draft transition.
 
 | Time | Slot | What happens |
 | --- | --- | --- |
-| 0.0-9.2 s | 1 Year intro | Four digits roll and land as a text mask over the clip, the frame zooms through the last digit, then a diagonal wipe opens to the full clip. |
-| 9.2-11.0 s | 2 Title | "Moments" in Didot with an "Of Life" subtitle, blurring in and out. White flash into the clip. |
-| 11.0-13.2 s | 3 Box reveal | The next clip pops in as a centred box, flashes white, then fills the frame. |
-| 13.2-16.9 s | 4-5 | Black dip, then a light-leak transition with a bright streak. |
-| 16.9-24.1 s | 6-12 | Six three-strip transitions on the beat (123 BPM): the next clip appears in the outer strips, then the middle. |
-| 24.1-27.0 s | 13-15 | Straight cuts to the end. |
+| 0.0-9.0 s | 1 Year intro | Four digits roll and land as a text mask over the clip, the frame zooms through the last digit, then a diagonal wipe opens to the full clip. |
+| 9.0-11.0 s | 2 Title | "Moments" in Didot with an "Of Life" subtitle, blurring in and out. White flash into the clip. |
+| 11.0-13.0 s | 3 Box reveal | The next clip pops in as a centred box, flashes white, then fills the frame. |
+| 13.0-17.0 s | 4-5 | Black dip, then a light-leak transition with a bright streak. |
+| 17.0-24.0 s | 6-12 | Six three-strip transitions, one every two beats: the next clip appears in the outer strips, then the middle. |
+| 24.0-27.0 s | 13-15 | Straight cuts to the end. |
 
-Clips that are not 9:16 are cover-scaled into the portrait frame.
+Every cut lands on the beat of the bundled track (120 BPM), and the track gets fuller right as the strip section starts at 17 s. Clips that are not 9:16 are cover-scaled into the portrait frame.
 
 ## Using it
 
-**From Clip highlights**: pick one intro clip (at least 9.6 s) and up to 14 more
-clips (at least 2.7 s each). Fewer clips are reused in order. The template
+**From Clip highlights**: pick one intro clip (at least 9.5 s) and up to 14 more
+clips (at least 2.6 s each). Fewer clips are reused in order. The template
 builds the Draft and opens it.
 
 **From the panel**: open **2026 Moments** with a project open. The panel lists
@@ -35,11 +35,16 @@ longest clip goes to the intro, the rest follow in project order. You can then:
 
 - change any slot,
 - edit the year, title and subtitle text and pick their fonts,
-- choose a music track from the project and where it starts (clip audio is then
-  muted and the music fades out over the last 0.6 s),
+- keep the included music, choose a track from the project (and where it
+  starts) or none,
 - press **Create Draft**.
 
-No music is bundled. Without a track, each clip keeps its own audio.
+## Music
+
+The included track is a 28-second excerpt of "One Cool Minute" by Loyalty Freak
+Music (CC0 1.0); see `THIRD_PARTY.md`. With music, clip audio is muted and the
+music fades out over the last 0.6 s. With "None", each clip keeps its own audio.
+The first build in a project imports the track into it once.
 
 ## After the build
 

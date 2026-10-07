@@ -3,7 +3,7 @@
   "id": "moments-2026",
   "version": "0.1.0",
   "name": "2026 Moments",
-  "summary": "Turn 15 clips into a 27-second 9:16 year-in-review Draft: the year rolls in as a video mask and zooms through the last digit, a Moments title, then white-flash, box-reveal, light-leak and three-strip beat transitions.",
+  "summary": "Turn 15 clips into a 27-second 9:16 year-in-review Draft: the year rolls in as a video mask and zooms through the last digit, a Moments title, then white-flash, box-reveal, light-leak and three-strip beat transitions, on bundled music.",
   "status": "experimental",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
@@ -11,14 +11,18 @@
     "README.md",
     "INSTALL.md",
     "SKILL.md",
-    "panel.tsx"
+    "THIRD_PARTY.md",
+    "panel.tsx",
+    "assets/music.m4a",
+    "assets/licenses/one-cool-minute.txt",
+    "assets/licenses/CC0-1.0.txt"
   ],
   "compatibility": {
     "platforms": [
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Uses only the Selects SDK: clip placement, video effects, transitions and motion graphics. Verified on macOS in Selects Staging on 2026-10-07 (saved Draft readback and MP4 export). Windows is unverified."
+    "selects": "Uses only the Selects SDK and host file access: clip placement, video effects, transitions, motion graphics and an Audio overlay for the bundled music. Verified on macOS in Selects Staging on 2026-10-07 (saved Draft readback and MP4 export). Windows is unverified."
   },
   "preview": {
     "video": "preview.mp4",
@@ -29,43 +33,43 @@
   "localized": {
     "de": {
       "name": "2026 Momente",
-      "summary": "Macht aus 15 Clips einen 27-sek\u00fcndigen 9:16-Jahresr\u00fcckblick-Entwurf: Die Jahreszahl rollt als Videomaske ein und zoomt durch die letzte Ziffer, dazu ein Moments-Titel sowie Wei\u00dfblitz-, Box-, Lichteinfall- und Dreistreifen-\u00dcberg\u00e4nge im Takt."
+      "summary": "Macht aus 15 Clips einen 27-sek\u00fcndigen 9:16-Jahresr\u00fcckblick-Entwurf: Die Jahreszahl rollt als Videomaske ein und zoomt durch die letzte Ziffer, dazu ein Moments-Titel sowie Wei\u00dfblitz-, Box-, Lichteinfall- und Dreistreifen-\u00dcberg\u00e4nge im Takt, mit mitgelieferter Musik."
     },
     "en": {
       "name": "2026 Moments",
-      "summary": "Turn 15 clips into a 27-second 9:16 year-in-review Draft: the year rolls in as a video mask and zooms through the last digit, a Moments title, then white-flash, box-reveal, light-leak and three-strip beat transitions."
+      "summary": "Turn 15 clips into a 27-second 9:16 year-in-review Draft: the year rolls in as a video mask and zooms through the last digit, a Moments title, then white-flash, box-reveal, light-leak and three-strip beat transitions, on bundled music."
     },
     "es": {
       "name": "Momentos 2026",
-      "summary": "Convierte 15 clips en un borrador de resumen del a\u00f1o 9:16 de 27 segundos: el a\u00f1o entra rodando como m\u00e1scara de v\u00eddeo y hace zoom a trav\u00e9s del \u00faltimo d\u00edgito, un t\u00edtulo Moments y transiciones al ritmo de destello blanco, caja, destello de luz y tres franjas."
+      "summary": "Convierte 15 clips en un borrador de resumen del a\u00f1o 9:16 de 27 segundos: el a\u00f1o entra rodando como m\u00e1scara de v\u00eddeo y hace zoom a trav\u00e9s del \u00faltimo d\u00edgito, un t\u00edtulo Moments y transiciones al ritmo de destello blanco, caja, destello de luz y tres franjas, con m\u00fasica incluida."
     },
     "fr": {
       "name": "Moments 2026",
-      "summary": "Transforme 15 clips en un brouillon r\u00e9trospectif 9:16 de 27 secondes : l\u2019ann\u00e9e d\u00e9file en masque vid\u00e9o et zoome \u00e0 travers le dernier chiffre, un titre Moments, puis des transitions rythm\u00e9es en flash blanc, bo\u00eete, fuite de lumi\u00e8re et trois bandes."
+      "summary": "Transforme 15 clips en un brouillon r\u00e9trospectif 9:16 de 27 secondes : l\u2019ann\u00e9e d\u00e9file en masque vid\u00e9o et zoome \u00e0 travers le dernier chiffre, un titre Moments, puis des transitions rythm\u00e9es en flash blanc, bo\u00eete, fuite de lumi\u00e8re et trois bandes, sur une musique fournie."
     },
     "it": {
       "name": "Momenti 2026",
-      "summary": "Trasforma 15 clip in una bozza di riepilogo dell\u2019anno 9:16 da 27 secondi: l\u2019anno scorre come maschera video e zooma attraverso l\u2019ultima cifra, un titolo Moments e transizioni a tempo con flash bianco, riquadro, lampo di luce e tre strisce."
+      "summary": "Trasforma 15 clip in una bozza di riepilogo dell\u2019anno 9:16 da 27 secondi: l\u2019anno scorre come maschera video e zooma attraverso l\u2019ultima cifra, un titolo Moments e transizioni a tempo con flash bianco, riquadro, lampo di luce e tre strisce, con musica inclusa."
     },
     "ja": {
       "name": "2026 \u30e2\u30fc\u30e1\u30f3\u30c4",
-      "summary": "15\u672c\u306e\u30af\u30ea\u30c3\u30d7\u304b\u308927\u79d2\u306e9:16\u5e74\u9593\u307e\u3068\u3081\u30c9\u30e9\u30d5\u30c8\u3092\u4f5c\u6210\u3057\u307e\u3059\u3002\u5e74\u306e\u6570\u5b57\u304c\u52d5\u753b\u30de\u30b9\u30af\u3067\u56de\u8ee2\u3057\u3066\u73fe\u308c\u3001\u6700\u5f8c\u306e\u6570\u5b57\u306e\u4e2d\u3078\u30ba\u30fc\u30e0\u3057\u3001Moments \u30bf\u30a4\u30c8\u30eb\u306b\u7d9a\u3044\u3066\u767d\u30d5\u30e9\u30c3\u30b7\u30e5\u30fb\u30dc\u30c3\u30af\u30b9\u8868\u793a\u30fb\u5149\u6f0f\u308c\u30fb3\u5206\u5272\u306e\u30d3\u30fc\u30c8\u9077\u79fb\u304c\u5165\u308a\u307e\u3059\u3002"
+      "summary": "15\u672c\u306e\u30af\u30ea\u30c3\u30d7\u304b\u308927\u79d2\u306e9:16\u5e74\u9593\u307e\u3068\u3081\u30c9\u30e9\u30d5\u30c8\u3092\u4f5c\u6210\u3057\u307e\u3059\u3002\u5e74\u306e\u6570\u5b57\u304c\u52d5\u753b\u30de\u30b9\u30af\u3067\u56de\u8ee2\u3057\u3066\u73fe\u308c\u3001\u6700\u5f8c\u306e\u6570\u5b57\u306e\u4e2d\u3078\u30ba\u30fc\u30e0\u3057\u3001Moments \u30bf\u30a4\u30c8\u30eb\u306b\u7d9a\u3044\u3066\u767d\u30d5\u30e9\u30c3\u30b7\u30e5\u30fb\u30dc\u30c3\u30af\u30b9\u8868\u793a\u30fb\u5149\u6f0f\u308c\u30fb3\u5206\u5272\u306e\u30d3\u30fc\u30c8\u9077\u79fb\u304c\u5165\u308a\u307e\u3059\u3002\u97f3\u697d\u3082\u540c\u68b1\u3055\u308c\u3066\u3044\u307e\u3059\u3002"
     },
     "ko": {
       "name": "2026 \ubaa8\uba3c\uce20",
-      "summary": "\ud074\ub9bd 15\uac1c\ub85c 27\ucd08 9:16 \uc5f0\ub9d0 \uacb0\uc0b0 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. \uc5f0\ub3c4\uac00 \uc601\uc0c1 \ub9c8\uc2a4\ud06c\ub85c \uad74\ub7ec \ub4e4\uc5b4\uc640 \ub9c8\uc9c0\ub9c9 \uc22b\uc790 \uc18d\uc73c\ub85c \uc90c\uc778\ub418\uace0, Moments \ud0c0\uc774\ud2c0\uc5d0 \uc774\uc5b4 \ud654\uc774\ud2b8 \ud50c\ub798\uc2dc\u00b7\ubc15\uc2a4 \ub9ac\ube4c\u00b7\ube5b\ubc88\uc9d0\u00b73\ubd84\ud560 \ube44\ud2b8 \uc804\ud658\uc774 \uc774\uc5b4\uc9d1\ub2c8\ub2e4."
+      "summary": "\ud074\ub9bd 15\uac1c\ub85c 27\ucd08 9:16 \uc5f0\ub9d0 \uacb0\uc0b0 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4. \uc5f0\ub3c4\uac00 \uc601\uc0c1 \ub9c8\uc2a4\ud06c\ub85c \uad74\ub7ec \ub4e4\uc5b4\uc640 \ub9c8\uc9c0\ub9c9 \uc22b\uc790 \uc18d\uc73c\ub85c \uc90c\uc778\ub418\uace0, Moments \ud0c0\uc774\ud2c0\uc5d0 \uc774\uc5b4 \ud654\uc774\ud2b8 \ud50c\ub798\uc2dc\u00b7\ubc15\uc2a4 \ub9ac\ube4c\u00b7\ube5b\ubc88\uc9d0\u00b73\ubd84\ud560 \ube44\ud2b8 \uc804\ud658\uc774 \uc774\uc5b4\uc9d1\ub2c8\ub2e4. \uc74c\uc545\uc774 \ud568\uaed8 \ub4e4\uc5b4 \uc788\uc2b5\ub2c8\ub2e4."
     },
     "pt": {
       "name": "Momentos 2026",
-      "summary": "Transforma 15 clipes em um rascunho de retrospectiva 9:16 de 27 segundos: o ano entra girando como m\u00e1scara de v\u00eddeo e d\u00e1 zoom pelo \u00faltimo d\u00edgito, um t\u00edtulo Moments e transi\u00e7\u00f5es no ritmo com flash branco, caixa, vazamento de luz e tr\u00eas faixas."
+      "summary": "Transforma 15 clipes em um rascunho de retrospectiva 9:16 de 27 segundos: o ano entra girando como m\u00e1scara de v\u00eddeo e d\u00e1 zoom pelo \u00faltimo d\u00edgito, um t\u00edtulo Moments e transi\u00e7\u00f5es no ritmo com flash branco, caixa, vazamento de luz e tr\u00eas faixas, com m\u00fasica inclu\u00edda."
     },
     "tr": {
       "name": "2026 Anlar\u0131",
-      "summary": "15 klibi 27 saniyelik 9:16 bir y\u0131l \u00f6zeti tasla\u011f\u0131na d\u00f6n\u00fc\u015ft\u00fcr\u00fcr: y\u0131l bir video maskesi olarak d\u00f6nerek gelir ve son rakam\u0131n i\u00e7ine yak\u0131nla\u015f\u0131r, ard\u0131ndan Moments ba\u015fl\u0131\u011f\u0131 ile beyaz fla\u015f, kutu, \u0131\u015f\u0131k s\u0131z\u0131nt\u0131s\u0131 ve \u00fc\u00e7 \u015feritli ritim ge\u00e7i\u015fleri gelir."
+      "summary": "15 klibi 27 saniyelik 9:16 bir y\u0131l \u00f6zeti tasla\u011f\u0131na d\u00f6n\u00fc\u015ft\u00fcr\u00fcr: y\u0131l bir video maskesi olarak d\u00f6nerek gelir ve son rakam\u0131n i\u00e7ine yak\u0131nla\u015f\u0131r, ard\u0131ndan Moments ba\u015fl\u0131\u011f\u0131 ile beyaz fla\u015f, kutu, \u0131\u015f\u0131k s\u0131z\u0131nt\u0131s\u0131 ve \u00fc\u00e7 \u015feritli ritim ge\u00e7i\u015fleri gelir. M\u00fczik dahildir."
     },
     "zh": {
       "name": "2026 \u65f6\u523b",
-      "summary": "\u7528 15 \u4e2a\u7247\u6bb5\u751f\u6210 27 \u79d2 9:16 \u5e74\u5ea6\u56de\u987e\u8349\u7a3f\uff1a\u5e74\u4efd\u4ee5\u89c6\u9891\u906e\u7f69\u6eda\u52a8\u51fa\u73b0\u5e76\u63a8\u8fdb\u7a7f\u8fc7\u6700\u540e\u4e00\u4f4d\u6570\u5b57\uff0c\u63a5\u7740\u662f Moments \u6807\u9898\uff0c\u4ee5\u53ca\u767d\u95ea\u3001\u65b9\u6846\u63ed\u793a\u3001\u6f0f\u5149\u548c\u4e09\u6761\u5206\u5c4f\u7684\u8282\u62cd\u8f6c\u573a\u3002"
+      "summary": "\u7528 15 \u4e2a\u7247\u6bb5\u751f\u6210 27 \u79d2 9:16 \u5e74\u5ea6\u56de\u987e\u8349\u7a3f\uff1a\u5e74\u4efd\u4ee5\u89c6\u9891\u906e\u7f69\u6eda\u52a8\u51fa\u73b0\u5e76\u63a8\u8fdb\u7a7f\u8fc7\u6700\u540e\u4e00\u4f4d\u6570\u5b57\uff0c\u63a5\u7740\u662f Moments \u6807\u9898\uff0c\u4ee5\u53ca\u767d\u95ea\u3001\u65b9\u6846\u63ed\u793a\u3001\u6f0f\u5149\u548c\u4e09\u6761\u5206\u5c4f\u7684\u8282\u62cd\u8f6c\u573a\uff0c\u5e76\u914d\u6709\u5185\u7f6e\u97f3\u4e50\u3002"
     }
   },
   "collection": "visual-highlights",
@@ -80,7 +84,7 @@
       ],
       "min": 1,
       "max": 1,
-      "minSeconds": 9.6,
+      "minSeconds": 9.5,
       "query": "a wide, bright opening shot"
     },
     {
@@ -92,13 +96,13 @@
       ],
       "min": 1,
       "max": 14,
-      "minSeconds": 2.7,
+      "minSeconds": 2.6,
       "query": "moments from your year"
     }
   ],
   "prepare": [
     "Videos from your year",
-    "An intro clip at least 9.6 seconds long",
-    "Other clips at least 2.7 seconds long"
+    "An intro clip at least 9.5 seconds long",
+    "Other clips at least 2.6 seconds long"
   ]
 }
