@@ -152,19 +152,19 @@ test('Epidemic waveform uses only SDK files/media when DI itself is blocked', as
   assert.equal(calls[1][1], calls[0][1].at(-1));
 });
 
-test('Recap timing entry keeps the real SDK through first and cached root lookup', async () => {
+test('Recap plugin root keeps the real SDK through first and cached root lookup', async () => {
   const source = panelSource('recap-2026');
   const {sdk, files} = memorySdk();
-  const timingPath = sdk.files.join(sdk.files.homedir(), '.selects', 'skills', 'recap-2026', 'timing.json');
-  files.set(timingPath, new TextEncoder().encode(JSON.stringify({placements: [{startSeconds: 0}]})));
+  // The cut plan is measured from the song; the install folder is found by its SKILL.md.
+  const skillPath = sdk.files.join(sdk.files.homedir(), '.selects', 'skills', 'recap-2026', 'SKILL.md');
+  files.set(skillPath, new TextEncoder().encode('---\nname: recap-2026\n---\n'));
   const context = vm.createContext({panelLocalClient: sdk => sdk, TextDecoder, TextEncoder, Uint8Array,
     window: {parent: Object.defineProperty({}, '__DI__', {get() { throw Error('Unexpected DI'); }})}});
   vm.runInContext(hostBlock(source) + '\nconst SLUG="recap-2026"; let recapRootsPromise=null;\n' +
-    topLevel(source, 'recapRoots') + '\n' + topLevel(source, 'readTiming') +
-    '\nthis.loadTiming=readTiming; this.activeSdk=()=>hostSdk;', context);
+    topLevel(source, 'recapRoots') + '\nthis.loadRoots=recapRoots; this.activeSdk=()=>hostSdk;', context);
   for (let attempt = 0; attempt < 2; attempt++) {
-    const result = await context.loadTiming(sdk);
-    assert.equal(result.placements[0].startSeconds, 0);
+    const roots = await context.loadRoots(sdk);
+    assert.equal(roots.plugin, sdk.files.join(sdk.files.homedir(), '.selects', 'skills', 'recap-2026'));
     assert.equal(context.activeSdk(), sdk);
   }
 });
