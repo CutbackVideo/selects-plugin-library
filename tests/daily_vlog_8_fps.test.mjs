@@ -2,7 +2,8 @@
 // song's plan (seconds); template offsets are 30000/1001 fps frames converted to the Draft's frames, and no sound
 // overlay may ask past the end of its asset (Selects: "Resource overlay simulation covered only part of …").
 // Given the reference's own ten-shot plan, every Draft call at 29.97 and 30 must match the fixed-plan script of
-// origin/main (before the song plan). DAILY_VLOG_8_PANEL / DAILY_VLOG_8_BASE override the panels.
+// the last fixed-plan panel (commit 80a4c66, before the song plan). DAILY_VLOG_8_PANEL / DAILY_VLOG_8_BASE override
+// the panels.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import cp from 'node:child_process';
@@ -14,7 +15,7 @@ const read = (p) => fs.readFileSync(p, 'utf8');
 const panel = read(process.env.DAILY_VLOG_8_PANEL || path.join(root, 'plugins/daily-vlog-8/panel.tsx'));
 const base = (() => {
   if (process.env.DAILY_VLOG_8_BASE) return read(process.env.DAILY_VLOG_8_BASE);
-  try { return cp.execSync('git show origin/main:plugins/daily-vlog-8/panel.tsx', {cwd: root, encoding: 'utf8', maxBuffer: 1 << 26}); } catch { return null; }
+  try { return cp.execSync('git show 80a4c66:plugins/daily-vlog-8/panel.tsx', {cwd: root, encoding: 'utf8', maxBuffer: 1 << 26}); } catch { return null; }
 })();
 
 const constant = (src, name) => { const m = new RegExp('^const ' + name + ' = (.*);$', 'm').exec(src); return m ? JSON.parse(JSON.stringify(eval('(' + m[1] + ')'))) : undefined; };
@@ -35,8 +36,8 @@ function scriptOf(src, cast = REFERENCE_CAST) {
   return new Function(...Object.keys(values), 'return `' + tpl + '`;')(...Object.values(values));
 }
 
-// The reference's plan (origin/main's SHOT_PLAN, 30000/1001 fps frames) as song-plan shots: the opening, one
-// phrase (j = phrase position; inserts at 3 and 5) and the closing shot, cast as origin/main casts them.
+// The reference's plan (the fixed-plan panel's SHOT_PLAN, 30000/1001 fps frames) as song-plan shots: the opening, one
+// phrase (j = phrase position; inserts at 3 and 5) and the closing shot, cast as that panel casts them.
 const REFERENCE_CAST = (() => {
   const rows = [['open', -1, 'v0', 129], ['slot', 0, 'v1', 78], ['slot', 1, 'v2', 49], ['slot', 2, 'v3', 52], ['insert', 3, 'x0', 31],
     ['slot', 4, 'v4', 21], ['insert', 5, 'x1', 45], ['slot', 6, 'v5', 54], ['slot', 7, 'v6', 54], ['close', 8, 'v7', 78]];
@@ -110,7 +111,7 @@ test('a Draft reporting a rounded 29.97 builds like the exact rate', async () =>
 });
 
 for (const fps of [BASE, 30]) {
-  test(`at ${fps.toFixed(3)} fps the reference plan makes origin/main's Draft calls`, {skip: base ? false : 'origin/main not available'}, async () => {
+  test(`at ${fps.toFixed(3)} fps the reference plan makes the fixed-plan Draft calls`, {skip: base ? false : 'fixed-plan commit not available'}, async () => {
     const before = await run(scriptOf(base), fps);
     const after = await run(scriptOf(panel), fps);
     assert.deepEqual([after.result.frames, after.result.videoClips], [before.result.frames, before.result.videoClips]);
