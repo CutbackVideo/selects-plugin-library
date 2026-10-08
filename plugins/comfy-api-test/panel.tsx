@@ -142,7 +142,7 @@ const PANEL_COPY = {
     editor_download_failed: 'Could not download the workflow editor.',
     editor_checksum_failed: 'The workflow editor download could not be verified.',
     editor_extract_failed: 'Could not prepare the workflow editor.',
-    inputs: 'Inputs and nodes', results: 'Results', emptyResults: 'No results yet',
+    results: 'Results', emptyResults: 'No results yet',
     chooseWorkflow: 'Choose a workflow',
     refresh: 'Retry', held: 'Run disabled', loading: 'Loading workflows\u2026',
     not_connected: 'The execution server is not connected.',
@@ -151,7 +151,7 @@ const PANEL_COPY = {
   },
   ko: {
     editor: '\ud3b8\uc9d1\uae30 \uc5f4\uae30', newWorkflow: '\uc0c8 \uc6cc\ud06c\ud50c\ub85c\uc6b0', createWorkflow: '\uc6cc\ud06c\ud50c\ub85c\uc6b0 \ub9cc\ub4e4\uae30', returnToEditor: '\ud3b8\uc9d1\uae30\ub85c \ub3cc\uc544\uac00\uae30', workflowTitle: '\uc6cc\ud06c\ud50c\ub85c\uc6b0', selection: '\uc120\ud0dd', editing: 'ComfyUI\uc5d0\uc11c \ud3b8\uc9d1 \uc911', emptyWorkflows: '\uc544\uc9c1 \uc6cc\ud06c\ud50c\ub85c\uc6b0\uac00 \uc5c6\uc5b4\uc694.', editorUnavailable: '\ud3b8\uc9d1\uae30\ub97c \uc5f4\ub824\uba74 Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.',
-    inputs: '\uc785\ub825 \ubc0f \ub178\ub4dc', results: '\uacb0\uacfc', emptyResults: '\uc544\uc9c1 \uacb0\uacfc \uc5c6\uc74c',
+    results: '\uacb0\uacfc', emptyResults: '\uc544\uc9c1 \uacb0\uacfc \uc5c6\uc74c',
     chooseWorkflow: '\uc6cc\ud06c\ud50c\ub85c\uc6b0 \uc120\ud0dd',
     refresh: '\ub2e4\uc2dc \uc2dc\ub3c4', held: '\uc2e4\ud589 \ube44\ud65c\uc131', loading: '\uc6cc\ud06c\ud50c\ub85c\uc6b0 \ubd88\ub7ec\uc624\ub294 \uc911\u2026',
     not_connected: '\uc2e4\ud589 \uc11c\ubc84\uac00 \uc5f0\uacb0\ub418\uc9c0 \uc54a\uc558\uc5b4\uc694.',
@@ -297,7 +297,6 @@ export default function Panel({ sdk, context, ui }) {
           options={workflows.map(item => ({ value: item.id, label: item.name }))}
           onChange={id => action(async captured => { setSelected(await command('select', { id }, captured)); })} />
         {selected && <>
-          <ui.Message>{T.inputs}</ui.Message>
           <ui.Actions><ui.Button variant="secondary" disabled={busy || !!pending} onClick={() => action(captured => openEditor(false, captured))}>{T.editor}</ui.Button></ui.Actions>
           {connection?.editorOpen && <ui.Message>{T.editing}</ui.Message>}
           <ui.Actions><ui.Button variant="primary" busy={busy && !!pending} disabled={busy || !!pending || !!connection?.editorOpen || !connection?.generationEnabled || !selected.document?.workflow} onClick={() => action(run)}>{T.run}</ui.Button></ui.Actions>
