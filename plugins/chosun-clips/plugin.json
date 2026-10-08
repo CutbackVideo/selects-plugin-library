@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "chosun-clips",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "Chosun Ilbo TikTok Clips",
   "summary": "Turn a long Chosun Ilbo YouTube episode into editable vertical TikTok Drafts in the program's own format, with headlines and captions.",
   "status": "experimental",

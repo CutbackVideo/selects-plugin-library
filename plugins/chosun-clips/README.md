@@ -20,8 +20,10 @@ Open **Chosun Ilbo TikTok Clips** from the Plugin list with a Project open.
 4. **Open** a clip from the results to refine it, then export it with
    **Export** at the top right.
 
-Progress is saved after every step. If the panel is closed, **Resume** under
-*Unfinished work* continues where it stopped.
+A bar shows how far the run has got, with the current step and status under
+it; while Selects analyzes the video it shows the time left. **Cancel** stops
+the run at once. Progress is saved after every step, so **Resume** under
+*Unfinished work* continues a cancelled or closed run where it stopped.
 
 ## Templates
 

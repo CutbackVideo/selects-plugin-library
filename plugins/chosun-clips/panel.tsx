@@ -233,6 +233,12 @@ const STRINGS: any = {
     sourceKind: "Get it from",
     programPick: "Program",
     credits: "May use credits.",
+    optionsSec: "Settings",
+    cancel: "Cancel",
+    cancelling: "Cancelling…",
+    cancelled: "Cancelled. Pick it up again under Unfinished work.",
+    finished: "Done",
+    analyzingLeft: (m: number) => `Analyzing · about ${m} min left`,
     thisRun: "This run",
     identifying: "Identifying the program…",
     choosing: "The AI is choosing passages and writing headlines. This can take a few minutes.",
@@ -418,6 +424,12 @@ const STRINGS: any = {
     sourceKind: "가져올 곳",
     programPick: "프로그램",
     credits: "크레딧이 사용될 수 있습니다.",
+    optionsSec: "설정",
+    cancel: "취소",
+    cancelling: "취소하는 중…",
+    cancelled: "취소했습니다. '이어서 할 작업'에서 다시 이어갈 수 있습니다.",
+    finished: "완료",
+    analyzingLeft: (m: number) => `분석 중입니다 · 약 ${m}분 남음`,
     thisRun: "이번 작업",
     identifying: "프로그램을 판별하고 있습니다…",
     choosing: "AI가 구간을 고르고 헤드라인을 쓰고 있습니다. 몇 분 걸릴 수 있습니다.",
@@ -1300,6 +1312,9 @@ function shortError(text: string): string {
   return line.replace(/^ERROR:\s*(\[[^\]]+\]\s*)?([\w-]{6,}:\s*)?/i, "").slice(0, 160);
 }
 
+// A run the user cancelled. Host calls already sent keep running; the run stops waiting for them.
+class RunCancelled extends Error {}
+
 // The AI explains its count at length; the first sentence is the part worth a line.
 function firstSentence(text: string): string {
   const s = String(text || "").trim().split(/(?<=[.!?])\s+/)[0] || "";
@@ -1697,6 +1712,8 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
   const [jobs, setJobs] = React.useState<any[]>([]);
   const [runInfo, setRunInfo] = React.useState<any>(null);
   const [now, setNow] = React.useState<number>(Date.now());
+  const [sub, setSub] = React.useState<number>(0);
+  const [cancelling, setCancelling] = React.useState<boolean>(false);
   const stepStarted = React.useRef<number>(Date.now());
   const resultsRef = React.useRef<HTMLDivElement>(null);
   const [tplSel, setTplSel] = React.useState<string>(BUILTIN_TEMPLATES[0].id);
@@ -1708,6 +1725,7 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
   React.useEffect(() => {
     stepStarted.current = Date.now();
     setNow(Date.now());
+    setSub(0);
   }, [step]);
   React.useEffect(() => {
     if (!busy) return;
@@ -1723,14 +1741,22 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
   const resolver = (resourceId: string, resourceName: string) =>
     `const project = selects.project(${JSON.stringify(projectId)}); const rows = await project.resources(); ` +
     `const res = rows.find((r: any) => r.resourceId === ${JSON.stringify(resourceId)} && (${JSON.stringify(!resourceName)} || r.name === ${JSON.stringify(resourceName)})) || rows.find((r: any) => r.name === ${JSON.stringify(resourceName)}) || rows.find((r: any) => r.resourceId === ${JSON.stringify(resourceId)}) || null; `;
+  // The run in progress. Cancelling rejects its stop promise, which every host call of the run is raced against.
+  const runRef = React.useRef<{ cancelled: boolean; stop: Promise<never>; cancel(): void } | null>(null);
+  const guard = <T,>(p: Promise<T>): Promise<T> => {
+    const run = runRef.current;
+    if (!run) return p;
+    if (run.cancelled) return Promise.reject(new RunCancelled());
+    return Promise.race([p, run.stop]);
+  };
   const script = async (code: string, summary: string, allowCommit = false) => {
-    const r: any = await sdk.runScript({ script: code, summary, allowCommit });
+    const r: any = await guard(sdk.runScript({ script: code, summary, allowCommit }));
     if (r.isError) throw new Error(scriptError(r.output));
     return r.result;
   };
   const shell = async (command: string, summary: string, timeoutMs = 120000, cwd?: string) => {
     const cmd = IS_WIN ? "@echo off\r\n" + command.replace(/\r?\n/g, "\r\n") : command;
-    const r: any = await sdk.runShell({ summary, command: cmd, timeoutMs, maxOutputBytes: 48000, ...(cwd ? { cwd } : {}) });
+    const r: any = await guard(sdk.runShell({ summary, command: cmd, timeoutMs, maxOutputBytes: 48000, ...(cwd ? { cwd } : {}) }));
     return { ...r, stdout: String(r.stdout || ""), stderr: String(r.stderr || ""), output: String(r.output || "") };
   };
 
@@ -1781,7 +1807,7 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
       );
       setResources(rows || []);
     } catch (e: any) {
-      setError(String(e?.message || e));
+      if (!(e instanceof RunCancelled)) setError(String(e?.message || e));
     }
   }, [projectId]);
   React.useEffect(() => {
@@ -1792,6 +1818,14 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
     const off = sdk.on("resourcesChanged", () => loadResources());
     return typeof off === "function" ? off : undefined;
   }, [projectId]);
+  React.useEffect(() => {
+    const eligible = resources.filter((r) => r.sec >= 120);
+    if (eligible.length === 1) {
+      if (pick !== eligible[0].id) setPick(eligible[0].id);
+    } else if (pick && !eligible.some((r) => r.id === pick)) {
+      setPick(null);
+    }
+  }, [resources]);
 
   // ---- Host programs: yt-dlp (downloaded into the app's folder when missing) and ffmpeg ----
   async function dataPaths() {
@@ -1938,8 +1972,14 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
 
   // ---- Step 2: make sure Selects has analyzed it ----
   async function ensureAnalyzed(resourceId: string, resourceName: string) {
+    // The analysis run's own estimate and progress, so the wait shows how far it has got.
     const st = async () =>
-      script(resolver(resourceId, resourceName) + `return res ? { status: res.status, has: res.hasAnalysis } : null;`, "Check analysis status");
+      script(
+        resolver(resourceId, resourceName) +
+          `if (!res) return null; const w = (await project.workflows({ type: "project:analyze-resource" })).find((x) => x.resourceId === res.resourceId && (x.status === "running" || x.status === "queued")); ` +
+          `return { status: res.status, has: res.hasAnalysis, wf: w ? { startedAt: w.startedAt, est: w.estimatedDurationMs ?? null, progress: w.progress ?? null } : null };`,
+        "Check analysis status"
+      );
     let s = await st();
     if (s?.has) return;
     if (s && ["pending", "samplingFailed", "analyzingFailed"].includes(s.status)) {
@@ -1965,10 +2005,18 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
     setStatus(S.waitingAnalysis);
     const t0 = Date.now();
     while (Date.now() - t0 < 45 * 60 * 1000) {
-      await sleep(10000);
+      await guard(sleep(10000));
       s = await st();
       if (s?.has) return;
       if (s && /Failed$/.test(s.status)) throw new Error(S.analysisFailed(s.status));
+      const w = s?.wf;
+      if (w) {
+        const ran = w.startedAt ? Date.now() - w.startedAt : 0;
+        const frac = w.progress != null ? w.progress : w.est ? ran / w.est : null;
+        if (frac != null) setSub(Math.max(0, Math.min(0.95, frac)));
+        const left = w.est && w.startedAt ? Math.round((w.est - ran) / 60000) : null;
+        setStatus(left != null && left >= 1 ? S.analyzingLeft(left) : S.waitingAnalysis);
+      }
     }
     throw new Error(S.analysisSlow);
   }
@@ -1998,7 +2046,7 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
       `해당 없으면 "none". 필요하면 프로젝트 도구로 이 영상(resource)의 화면을 확인해 좌상단/우상단 로고를 봐도 된다. 편집은 하지 마라.\n` +
       `제목/파일명: ${title}\n앞부분 전사: ${head.slice(0, 4000)}\n` +
       `JSON만 답하라: {"program": "<key or none>", "reason": "<한 문장>"}`;
-    const r = await sdk.askAI({ prompt, timeoutMs: 180000 });
+    const r: any = await guard(sdk.askAI({ prompt, timeoutMs: 180000 }));
     const j = extractJson(r.text, S);
     if (!j.program || !list.some((t) => t.id === j.program)) return { key: null, why: j.reason || "" };
     return { key: j.program, why: `${S.whyAI}: ${j.reason || ""}` };
@@ -2031,7 +2079,7 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
     ]
       .filter(Boolean)
       .join("\n\n");
-    const r = await sdk.askAI({ prompt, timeoutMs: 600000 });
+    const r: any = await guard(sdk.askAI({ prompt, timeoutMs: 600000 }));
     const j = extractJson(r.text, S);
     let clips = (j.clips || []).filter((c: any) => Array.isArray(c.segments) && c.segments.length);
     clips = clips
@@ -2056,6 +2104,18 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
     if (!resume && mode === "youtube" && !/^https?:\/\//.test(url.trim())) return setError(S.needUrl);
     if (!resume && mode === "project" && !pick) return setError(S.needPick);
     setBusy(true);
+    let rejectStop: (e: any) => void = () => {};
+    const stop = new Promise<never>((_, reject) => (rejectStop = reject));
+    stop.catch(() => {});
+    const token = {
+      cancelled: false,
+      stop,
+      cancel() {
+        token.cancelled = true;
+        rejectStop(new RunCancelled());
+      },
+    };
+    runRef.current = token;
     let job: any = resume ?? { id: Date.now().toString(36), projectId, created: new Date().toISOString(), mode, url: url.trim(), pick, program, countMode, count, note };
     setRunInfo(job);
     const persist = async (patch: any) => {
@@ -2122,6 +2182,7 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
         const c = pickd.clips[i];
         if (made[i]?.draftId) continue;
         setStatus(S.building(i + 1, pickd.clips.length));
+        setSub(i / pickd.clips.length);
         const name = c.name || `${nameOf(tpl, lang)} ${i + 1} · ${String(c.headline1).replace(/["“”]/g, "").slice(0, 28)} · ${job.id}`;
         // A draft committed just before the panel closed is found by its unique name instead of being built twice.
         const found = await script(
@@ -2154,6 +2215,7 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
             const r = await script(code, `Build ${name}`, true);
             made[i] = { ...c, name, draftId: r?.draftId, seconds: r?.seconds };
           } catch (e: any) {
+            if (e instanceof RunCancelled) throw e;
             made[i] = { ...c, name, error: String(e?.message || e).slice(0, 300) };
           }
         }
@@ -2167,11 +2229,24 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
       setStep(5);
       loadResources();
     } catch (e: any) {
-      setError(String(e?.message || e) + " " + S.resumeHint);
+      if (e instanceof RunCancelled) {
+        setError("");
+        setStatus(S.cancelled);
+      } else {
+        setError(String(e?.message || e) + " " + S.resumeHint);
+      }
       loadJobs();
     } finally {
+      if (runRef.current === token) runRef.current = null;
       setBusy(false);
+      setCancelling(false);
     }
+  }
+
+  function cancelRun() {
+    if (!runRef.current || runRef.current.cancelled) return;
+    setCancelling(true);
+    runRef.current.cancel();
   }
 
   async function dismissJob(job: any) {
@@ -2224,6 +2299,11 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
     </ui.Section>
   );
 
+  const countOptions = [
+    { value: "auto", label: S.countAuto },
+    ...Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: S.clipsUnit(i + 1) })),
+  ];
+
   const form = (
     <>
       <ui.Section title={S.source} actions={sourceAction}>
@@ -2242,19 +2322,19 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
           <ui.Select label={S.pick} value={pick} onChange={setPick} options={videoOptions} placeholder={S.pickPh} />
         )}
       </ui.Section>
-      <ui.Section title={S.program}>
+      <ui.Section title={S.optionsSec}>
         <ui.Select label={S.programPick} value={program} onChange={setProgram} options={programOptions} />
-        <ui.Segmented
+        <ui.Select
           label={S.count}
-          value={countMode}
-          onChange={setCountMode}
-          options={[
-            { value: "auto", label: S.countAuto },
-            { value: "manual", label: S.countManual },
-          ]}
+          value={countMode === "manual" ? String(count) : "auto"}
+          onChange={(v: string) => {
+            if (v === "auto") return setCountMode("auto");
+            setCountMode("manual");
+            setCount(Number(v));
+          }}
+          options={countOptions}
         />
-        {countMode === "manual" && <ui.NumberField label={S.howMany} value={count} onChange={(v: number) => setCount(Math.max(1, Math.min(10, Math.round(v))))} min={1} max={10} step={1} />}
-        <ui.TextField label={S.note} value={note} onChange={setNote} placeholder={S.notePh} multiline />
+        <ui.TextField label={S.note} value={note} onChange={setNote} placeholder={S.notePh} />
       </ui.Section>
     </>
   );
@@ -2289,12 +2369,21 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
       {busy ? runSummary : form}
       <ui.Stack gap={8}>
         <ui.Actions>
+          {busy && (
+            <ui.Button variant="secondary" onClick={cancelRun} disabled={cancelling}>
+              {cancelling ? S.cancelling : S.cancel}
+            </ui.Button>
+          )}
           <ui.Button variant="primary" busy={busy} busyLabel={S.making} onClick={() => run()}>
             {S.make}
           </ui.Button>
         </ui.Actions>
-        <ui.Message>{S.credits}</ui.Message>
-        {step >= 0 && <ui.Progress steps={S.steps} current={step} />}
+        {step >= 0 && (
+          <ui.Progress
+            value={step >= S.steps.length ? 1 : (step + sub) / S.steps.length}
+            label={step >= S.steps.length ? S.finished : `${S.steps[step]} · ${step + 1}/${S.steps.length}`}
+          />
+        )}
         {statusLine && <ui.Message tone={step >= 5 && !busy ? "success" : "muted"}>{statusLine}</ui.Message>}
         {info && (
           <ui.Message>
