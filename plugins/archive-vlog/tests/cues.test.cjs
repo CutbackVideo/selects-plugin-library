@@ -10,8 +10,9 @@ assert.ok(/CC0 1\.0/.test(m.provenance) && /HoliznaCC0/.test(m.provenance) && /F
 // introOf, measured on the mid-band onsets: Peaceful Drift bar 3 (drums at bar 5, 16.7 s), Theta Frequency bar 2
 // (bar 4, 13.7 s), Before Everything bar 1 (bar 3, 12.8 s), Fractured bar 4 (backbeat at bar 6, 20.3 s)).
 const ALL = [
-  // Marimba Motif (Suno, the default): no soft intro (its groove is there from bar 1), grid measured on its first 80 s.
-  { id: 'marimba-motif', label: 'Marimba Motif', bpm: 71, barPhase: 2, introBar: 0, page: '', license: 'suno' },
+  // Marimba Motif (Suno, the default): starts on bar 8, as the team's reference timeline does (startBar), grid measured
+  // on its first 80 s.
+  { id: 'marimba-motif', label: 'Marimba Motif', bpm: 71, barPhase: 2, introBar: 8, page: '', license: 'suno' },
   { id: 'peaceful-drift', label: 'Peaceful Drift', bpm: 72, barPhase: 0, introBar: 3, page: 'peaceful-drift-lofi-nostalgic-calm/' },
   { id: 'theta-frequency', label: 'Theta Frequency', bpm: 70, barPhase: 0, introBar: 2, page: 'theta-frequency-lofi-chill-calm/' },
   { id: 'before-everything', label: 'Before Everything', bpm: 75, barPhase: 3, introBar: 1, page: 'before-everything-lofi-nostalgic-mp3/' },

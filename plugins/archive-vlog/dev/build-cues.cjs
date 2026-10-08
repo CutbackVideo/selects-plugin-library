@@ -20,7 +20,9 @@ const SUNO = { name: 'Suno (generated for Cutback)', url: '', author: 'Suno for 
 const CUES = [
   // measureSeconds: the grid is measured on the first part only. Marimba Motif's beat holds (71.03 BPM, median residual
   // 7-9 ms) to about 80 s; its sparse 30-60 s stretch and loose ending pull the whole-file residual to 12 ms.
-  { id: 'marimba-motif', label: 'Marimba Motif', source: 'suno-marimba-motif.wav', group: 'reference', page: '', license: SUNO, measureSeconds: 80 },
+  { id: 'marimba-motif', label: 'Marimba Motif', source: 'suno-marimba-motif.wav', group: 'reference', page: '', license: SUNO, measureSeconds: 80,
+    // The team's reference timeline (Archive Vlog in the Clip highlights demo project) uses the track from bar 8 (28.85 s).
+    startBar: 8 },
   { id: 'peaceful-drift', label: 'Peaceful Drift', source: 'holiznacc0-peaceful-drift.mp3', group: 'reference', page: FMA + 'peaceful-drift-lofi-nostalgic-calm/' },
   { id: 'theta-frequency', label: 'Theta Frequency', source: 'holiznacc0-theta-frequency.mp3', group: 'reference', page: FMA + 'theta-frequency-lofi-chill-calm/' },
   { id: 'before-everything', label: 'Before Everything', source: 'holiznacc0-before-everything.mp3', group: 'reference', page: FMA + 'before-everything-lofi-nostalgic-mp3/' },
@@ -160,7 +162,9 @@ const beatEnergyOn = (samples, bpm, firstBeat) => {
 // play from bar 0 (no soft intro) gets introStart = firstBeat. introLiftLu = the integrated loudness of the 20 s after
 // the intro minus that of the intro itself ([introStart, introStart + INTRO_BEATS * P]), on the built file.
 const INTRO_BEATS = 8, GROOVE_ON = 0.6, LIFT_BODY_SECONDS = 20;
-const introOf = (file, bpm, firstBeat, usableEnd) => {
+// startBar (per cue): the team's reference timeline starts the track on this bar, so the default section starts there
+// instead of at the measured soft intro (the arrival is still measured and logged).
+const introOf = (file, bpm, firstBeat, usableEnd, startBar) => {
   const x = kit.decode(file), E = kit.bandEnvelopes(x), P = 60 / bpm, sr = 22050, groove = [], rms = [];
   for (let t = firstBeat; t + 4 * P <= usableEnd; t += 4 * P) {
     let m = 0, s = 0;
@@ -177,7 +181,7 @@ const introOf = (file, bpm, firstBeat, usableEnd) => {
     if (g[b] >= GROOVE_ON && mean(g.slice(b, b + 4)) >= GROOVE_ON && mean(rms.slice(b, b + 4)) >= rmsMedian - 3) { arrival = b; break; }
   }
   if (g[0] >= GROOVE_ON) arrival = 0;
-  const bar = Math.max(0, arrival - INTRO_BEATS / 4), introStart = round3(firstBeat + bar * 4 * P);
+  const bar = Number.isInteger(startBar) ? startBar : Math.max(0, arrival - INTRO_BEATS / 4), introStart = round3(firstBeat + bar * 4 * P);
   const intro = loudness(file, [introStart, introStart + INTRO_BEATS * P]), body = loudness(file, [introStart + INTRO_BEATS * P, introStart + INTRO_BEATS * P + LIFT_BODY_SECONDS]);
   return { arrival, bar, introStart, introLiftLu: round2(body.lufs - intro.lufs), groove: g.map(round2), rms: rms.map(v => Math.round(v * 10) / 10) };
 };
@@ -199,7 +203,7 @@ const buildCue = (c, input) => {
   const ratios = [0, 1, 2, 3].map(j => beatOneRatio(lowPerBeat(dst, bpm, a.firstBeat, usableEnd), j));
   const k = ratios.indexOf(Math.max(...ratios)), firstBeat = round3(a.firstBeat + k * 60 / bpm);
   const downbeatRatio = round2(beatOneRatio(lowPerBeat(dst, bpm, firstBeat, usableEnd), 0));
-  const intro = introOf(dst, bpm, firstBeat, usableEnd);
+  const intro = introOf(dst, bpm, firstBeat, usableEnd, c.startBar);
   console.log(c.id, JSON.stringify({ gain: loud.gain, limiterMaxGainReduction: loud.limiterMaxGainReduction, before: loud.before, after: loud.after, passes: loud.passes }));
   console.log(c.id, 'bpm', bpm, 'halves', b1, b2, 'firstBeat', firstBeat, 'phase +' + k, ratios.map(round2).join('/'), 'downbeat', downbeatRatio, 'resid', a.residualMedianMs, 'hit', a.hitRate, 'usableEnd', usableEnd);
   console.log(c.id, 'groove by bar', intro.groove.slice(0, 12).join(' '), '| rms', intro.rms.slice(0, 12).join(' '));
