@@ -14,8 +14,8 @@ from the app's shell when that is unavailable. Templates, saved work,
 downloaded photos and exported card images are kept in
 `~/.selects/plugin-data/chosun-cardnews/`.
 
-Chosun Ilbo also uses `chosun-clips` and `card-news-maker`, installed from the same
-`chosun-ilbo` branch of this library.
+Chosun Ilbo also uses `chosun-clips`, installed from the same `chosun-ilbo`
+branch of this library.
 
 ## Uninstall
 
