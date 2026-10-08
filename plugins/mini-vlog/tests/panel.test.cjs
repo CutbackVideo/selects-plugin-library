@@ -166,7 +166,7 @@ const QUERIES = {
 };
 assert.equal((q.match(/^  \w+: "/gm) || []).length, 8, 'eight queries (the motion query is added only with Beat punch)');
 for (const [role, text] of Object.entries(QUERIES)) assert.ok(q.includes('  ' + role + ': "' + text + '",'), 'query ' + role);
-for (const c of ['const AMBIENT_DB = -18;', 'const DEFAULT_CUE = "weekend-indie-pop";', 'const PREFERRED_CUE = "bedroom-pop-108";', 'const DEFAULT_PRESET = "small-glimpse";',
+for (const c of ['const AMBIENT_DB = -18;', 'const DEFAULT_CUE = "weekend-indie-pop";', 'const PREFERRED_CUE = "buant-hook";', 'const DEFAULT_PRESET = "small-glimpse";',
   'const DEFAULT_LENGTH = "standard";', 'const DEFAULT_PACE = "quick";', 'const DEFAULT_PUNCH = true;', 'const DEFAULT_HOOK = true;', 'const SOFT_STRENGTH = 0.35;', 'const MOTION_STRENGTH = 0.5;']) assert.ok(panel.includes(c), c);
 for (const s of ['React.useState(DEFAULT_CUE)', 'React.useState(DEFAULT_PRESET)', 'React.useState<"short" | "standard" | "long">(DEFAULT_LENGTH)', 'React.useState<"quick" | "relaxed" | "groove">(DEFAULT_PACE)', 'const [beatPunch, setBeatPunch] = React.useState(DEFAULT_PUNCH)', 'const [hook, setHook] = React.useState(DEFAULT_HOOK)',
   'React.useState<"off" | "ambient" | "full">("ambient")', 'const [soft, setSoft] = React.useState(true)', 'const [usePhotos, setUsePhotos] = React.useState(true)']) assert.ok(panel.includes(s), s);
@@ -174,7 +174,7 @@ for (const s of ['React.useState(DEFAULT_CUE)', 'React.useState(DEFAULT_PRESET)'
 assert.ok(presets.presets.some(p => p.id === 'small-glimpse' && p.label === 'A small glimpse'), 'default preset exists');
 assert.deepEqual(presets.presets.map(p => p.id).sort(), ['day-in-my-life', 'mini-vlog', 'small-glimpse'], 'all three presets selectable');
 // The preferred cue replaces the default once, when the manifest has it.
-assert.ok(/cues\.some\(\(c: any\) => c\.id === PREFERRED_CUE\)/.test(panel) && panel.includes('(cur === DEFAULT_CUE ? PREFERRED_CUE : cur)'), 'bedroom-pop-108 becomes the default when present');
+assert.ok(/cues\.some\(\(c: any\) => c\.id === PREFERRED_CUE\)/.test(panel) && panel.includes('(cur === DEFAULT_CUE ? PREFERRED_CUE : cur)'), 'buant-hook becomes the default when present');
 
 // UI order (spec section 8).
 const order = ['title={t(L, "title")}', 'title={t(L, "music")}', 'title={t(L, "length")}', 'title={t(L, "advanced")}', 't(L, "createsDraft")'].map(s => ui.indexOf(s));

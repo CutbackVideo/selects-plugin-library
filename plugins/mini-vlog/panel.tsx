@@ -1869,7 +1869,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.6";
+const PLUGIN_VERSION = "0.1.0-alpha.7";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -1890,9 +1890,9 @@ const MV_QUERIES = {
 const SEARCH_BATCH = 3;
 // Ambient clip sound: the clips' own sound sits this far under the music, which stays at 0 dB.
 const AMBIENT_DB = -18;
-// Default track until the new bedroom-pop cue ships; the preferred cue replaces it once the manifest has it.
+// Fallback track for a manifest without the preferred cue; the preferred cue (Buant Hook) replaces it once the manifest has it.
 const DEFAULT_CUE = "weekend-indie-pop";
-const PREFERRED_CUE = "bedroom-pop-108";
+const PREFERRED_CUE = "buant-hook";
 // The title preset selected when the panel opens (A small glimpse); Mini vlog and A day in my life stay selectable.
 const DEFAULT_PRESET = "small-glimpse";
 const DEFAULT_LENGTH = "standard";

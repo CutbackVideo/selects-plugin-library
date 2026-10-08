@@ -3,12 +3,13 @@ const fs = require('node:fs'), path = require('node:path'), crypto = require('no
 const root = path.resolve(__dirname, '..'), dir = path.join(root, 'assets', 'cues');
 const m = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
 assert.equal(m.version, 1);
-// Every cue the plugin may ship, in manifest order: reference-type first (the two new cues, then the reused
+// Every cue the plugin may ship, in manifest order: reference-type first (Buant Hook, the two ElevenLabs cues, then the reused
 // weekend-indie-pop and golden-hour-disco), the alternatives last. Only the cues present in the manifest are checked;
 // the four reused ones must always be there. downbeat: the measured confidence (see dev/build-cues.cjs); barPhase: the
 // whole beats the build moved firstBeat by to reach the best bar phase; hookStart: the measured best Standard Quick
 // start (Golden Hour Disco and Easy Sunday Lo-fi pick bar 0 on their strongest low band, which fades later).
 const ALL = [
+  { id: 'buant-hook', bpm: 108, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 9.377 },
   { id: 'bedroom-pop-108', bpm: 108, group: 'reference', downbeat: 'high', barPhase: 0, hookStart: 37.806 },
   { id: 'acoustic-pop-104', bpm: 104, group: 'reference', downbeat: 'high', barPhase: 2, hookStart: 33.492 },
   { id: 'weekend-indie-pop', bpm: 112, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 4.313 },
@@ -71,7 +72,8 @@ for (const c of m.cues) {
   // New cues (accepted by the user at GATE-MUSIC): no busy 16th layer, and generated at 60 s so Long + Relaxed fits.
   // Acoustic Pop measured 1.48 at -14 LUFS (low); at -11 LUFS it measures 1.71 on the same grid, so it is high now.
   if (!REUSED.includes(c.id)) {
-    assert.ok(c.sixteenthRatio < 0.3, c.id + ' sixteenthRatio ' + c.sixteenthRatio);
+    // The 16th limit was the generation brief for the ElevenLabs cues; Buant Hook (Suno, chosen by the team) reads 0.316.
+    if (c.id !== 'buant-hook') assert.ok(c.sixteenthRatio < 0.3, c.id + ' sixteenthRatio ' + c.sixteenthRatio);
     assert.ok(c.usableEnd >= 45, c.id + ' usableEnd ' + c.usableEnd);
     assert.equal(fitted(c, 2), 36, c.id + ' fits Long Relaxed');
   }

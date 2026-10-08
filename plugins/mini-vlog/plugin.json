@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "mini-vlog",
-  "version": "0.1.0-alpha.6",
+  "version": "0.1.0-alpha.7",
   "name": "Mini Vlog",
   "summary": "Turn everyday clips and photos into a 16:9 mini vlog cut to the beat, with a pale pink title, as a new editable Draft.",
   "status": "experimental",
@@ -16,6 +16,7 @@
     "planner.js",
     "dev/i18n-check.cjs",
     "assets/cues/acoustic-pop-104.mp3",
+    "assets/cues/buant-hook.mp3",
     "assets/cues/bedroom-pop-108.mp3",
     "assets/cues/easy-sunday-lofi.mp3",
     "assets/cues/golden-hour-disco.mp3",
@@ -133,8 +134,12 @@
     {
       "id": "track",
       "label": "Music",
-      "default": "bedroom-pop-108",
+      "default": "buant-hook",
       "choices": [
+        {
+          "id": "buant-hook",
+          "label": "Buant Hook"
+        },
         {
           "id": "bedroom-pop-108",
           "label": "Bedroom Pop"

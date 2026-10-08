@@ -26,8 +26,9 @@ Each family's licence text is in `assets/fonts/licenses/`.
 
 ## Music
 
-The six bundled tracks in `assets/cues/` were generated for the Selects plugin library with ElevenLabs Music v2.5 (model `model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41`) through the Selects generated-media service. Each is an instrumental, brought to -11 LUFS integrated with a static gain and a true-peak limiter at -1 dBTP, and encoded at 44.1 kHz, 192 kbps. Tempo, first beat, usable end, loudness and true peak, bar confidence and the measured downbeat ratio, hook-window scores, list group and content hash are recorded in `assets/cues/manifest.json`.
+The seven bundled tracks in `assets/cues/` were generated for the Selects plugin library: Buant Hook with Suno, the other six with ElevenLabs Music v2.5 (model `model_v1_ZWxldmVubGFicy9tdXNpYy92Mi41`) through the Selects generated-media service. Each is an instrumental, brought to -11 LUFS integrated with a static gain and a true-peak limiter at -1 dBTP, and encoded at 44.1 kHz, 192 kbps. Tempo, first beat, usable end, loudness and true peak, bar confidence and the measured downbeat ratio, hook-window scores, list group and content hash are recorded in `assets/cues/manifest.json`.
 
+- **Buant Hook** (the default track, 62 seconds) was generated with Suno by the Selects team for this plugin and delivered as a 48 kHz WAV; it was brought to the loudness above with no other change.
 - **Bedroom Pop** and **Acoustic Pop** were generated for this plugin (instrumental only, 60 seconds, delivered as 44.1 kHz 128 kbps MP3) from the prompts below.
 - **Weekend Indie Pop**, **Golden Hour Disco**, **Sunny Soul Strut** and **Easy Sunday Lo-fi** are 40-second tracks that are also bundled with another plugin in this library; here they were re-processed once from those mp3s to the loudness above (no other change). Their generation prompts were not recorded.
 
@@ -35,6 +36,7 @@ The tracks are bundled for use in the videos this plugin builds and are not for 
 
 | Track | File | Tempo | Group |
 | --- | --- | --- | --- |
+| Buant Hook | `buant-hook.mp3` | 108 BPM | Reference |
 | Bedroom Pop | `bedroom-pop-108.mp3` | 108 BPM | Reference |
 | Acoustic Pop | `acoustic-pop-104.mp3` | 104 BPM | Reference |
 | Weekend Indie Pop | `weekend-indie-pop.mp3` | 112 BPM | Reference |

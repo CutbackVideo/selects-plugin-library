@@ -71,7 +71,7 @@ everything uses what Selects brings.
 
 The video lasts (shots x beats per shot) beats and is always whole groups of
 four shots. **Length** Short, Standard (the default) or Long asks for 12, 24
-or 36 shots. With Bedroom Pop (108 BPM, the default track) and Pace Quick
+or 36 shots. With Buant Hook (108 BPM, the default track) and Pace Quick
 that is about 6.7, 13.3 and 20.0 seconds, and Relaxed doubles them (13.3,
 26.7 and 40.0 s). On the shorter reused tracks Long with Relaxed is capped
 by the track (see [Music](#music)). With Groove, a length is a number of
@@ -102,7 +102,7 @@ time.
 The defaults: Title **A small glimpse**, Pace **Quick** (Groove is an
 option), **Beat punch** on, **Start at the hook** on (bundled tracks), **Soft
 look** on, **Use photos** on, Clip sound **Ambient**, Length **Standard** and
-the Bedroom Pop track.
+the Buant Hook track.
 Each of them can be changed before Build.
 
 **Refreshing.** The panel reads the Project's clips when it opens, when you
@@ -206,7 +206,8 @@ alternatives under an "Alternatives" heading, each with its tempo (for example
 
 | Track | Tempo | Group |
 | --- | --- | --- |
-| Bedroom Pop (default) | 108 BPM | Reference |
+| Buant Hook (default) | 108 BPM | Reference |
+| Bedroom Pop | 108 BPM | Reference |
 | Acoustic Pop | 104 BPM | Reference |
 | Weekend Indie Pop | 112 BPM | Reference |
 | Golden Hour Disco | 104 BPM | Reference |
@@ -223,9 +224,9 @@ short-form reference edits, with a fixed gain and a true-peak limiter at
 **Beat and bar.** Bedroom Pop, Acoustic Pop, Sunny Soul Strut and Easy
 Sunday Lo-fi have clear bars: the first beat of a bar is 1.70, 1.71, 3.09
 and 3.14 times as strong as the others, where 1.5 is needed. Their videos
-start on the first beat of a bar and last whole bars. On Weekend Indie Pop
-and Golden Hour Disco the beat is reliable but the start of each bar is not
-(1.35 and 1.16 times): the cuts land on the beat, but the video may start
+start on the first beat of a bar and last whole bars. On Buant Hook, Weekend
+Indie Pop and Golden Hour Disco the beat is reliable but the start of each bar
+is not (1.46, 1.35 and 1.16 times): the cuts land on the beat, but the video may start
 and end mid-bar, and Groove's phrases and the Beat punch's zooms follow the
 beat count from the start of the section rather than the heard bars.
 
@@ -240,7 +241,7 @@ example, "Starts at 4.3 s".
 default) starts the box on the track's hook: of the starts where the
 video fits, the one whose next four bars have the strongest contrast between
 loud and quiet hits and the fullest bass (a drum fill adds a little). For a
-Standard video that is 37.8 s into Bedroom Pop, 33.5 s into Acoustic Pop,
+Standard video that is 9.4 s into Buant Hook, 37.8 s into Bedroom Pop, 33.5 s into Acoustic Pop,
 4.3 s into Weekend Indie Pop, 14.6 s into Sunny Soul Strut and the start of
 Golden Hour Disco and Easy Sunday Lo-fi. While it is on, a new Length or
 Pace moves the box to the hook window for that length. With it off (and
@@ -254,15 +255,15 @@ section** plays the whole section; press it again (**Stop preview**) or press
 Esc to stop. Selects starts the music on a video frame, which can move it by
 up to half a frame; the cuts move with it.
 
-**When the track is too short.** Bedroom Pop and Acoustic Pop are 60
-seconds long; the other bundled tracks are 40 seconds long. When the chosen length does not fit between the start of the track and its
+**When the track is too short.** Buant Hook is 62 seconds long, Bedroom Pop
+and Acoustic Pop are 60 seconds long; the other bundled tracks are 40 seconds long. When the chosen length does not fit between the start of the track and its
 end, the video uses the largest group of four shots that fits, and the panel
 says so under Pace before you build. With Pace Relaxed on Weekend Indie Pop,
 Long reads "Long: 32 of 36 shots fit this track (34.3 s)"; a length that fits
 reads, for example, "Standard: 24 shots (12.9 s)". The box can only move to
 starts where that length fits. Every bundled track fits Long with Pace Quick.
-With Relaxed, Bedroom Pop and Acoustic Pop fit all 36 shots (40.0 and 41.5
-s), Weekend Indie Pop, Golden Hour Disco and Sunny Soul Strut fit at most 32
+With Relaxed, Buant Hook, Bedroom Pop and Acoustic Pop fit all 36 shots
+(40.0, 40.0 and 41.5 s), Weekend Indie Pop, Golden Hour Disco and Sunny Soul Strut fit at most 32
 shots, and Easy Sunday Lo-fi at most 24. The picture never outruns
 the music, and the music is never cut mid-shot.
 
@@ -488,7 +489,7 @@ Finished videos are exported from the Draft with **Handoff → Export**.
 - The title preset cannot be switched in Adjust. To change it, pick another
   preset in the panel and build again. Rebuilding creates a new Draft and does
   not keep Adjust edits.
-- On Weekend Indie Pop, Golden Hour Disco and your own music the cuts
+- On Buant Hook, Weekend Indie Pop, Golden Hour Disco and your own music the cuts
   follow the beat, but bar starts are best effort (see [Music](#music)).
 - The Draft is built in two commits: first the clips, their crop, their
   Ambient sound level and the music; then the title, the Soft look, the photo

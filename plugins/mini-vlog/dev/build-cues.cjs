@@ -10,8 +10,8 @@
 'use strict';
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), { execFileSync, spawnSync } = require('node:child_process');
 const { analyze, sixteenthRatio, bandOnsets } = require('../beat-detect.cjs');
-const PROVENANCE = "Generated with ElevenLabs Music v2.5 (instrumental) for the Selects plugin library; bundled for use in the plugin's output videos, not for redistribution as standalone tracks. Prompts and sources: THIRD_PARTY.md.";
-// Manifest order: reference-type cues first (the two new cues, then the reused City Weekend Vlog ones), the
+const PROVENANCE = "Generated with ElevenLabs Music v2.5 and Suno (instrumental) for the Selects plugin library; bundled for use in the plugin's output videos, not for redistribution as standalone tracks. Prompts and sources: THIRD_PARTY.md.";
+// Manifest order: reference-type cues first (Buant Hook, the default; the two ElevenLabs cues; then the reused City Weekend Vlog ones), the
 // alternatives last. group: 'reference' | 'alternative' (the panel labels the list by it).
 // Downbeat, measured, never declared: downbeatRatio is the low-band onset median on beat 1 over the median on beats
 // 2-4, per beat from firstBeat to usableEnd minus a beat (the cue-metrics.cjs --manifest formula, with its code), and
@@ -25,6 +25,7 @@ const PROVENANCE = "Generated with ElevenLabs Music v2.5 (instrumental) for the 
 // grid (Bedroom Pop reads 1.44 on the 107.99 BPM an analysis of the -11 LUFS file gives), one reason the grid is kept.
 // optional: a cue the build skips while its source is missing and it is not shipped yet.
 const CUES = [
+  { id: 'buant-hook', label: 'Buant Hook', source: 'suno-buant-hook.wav', group: 'reference', optional: true },
   { id: 'bedroom-pop-108', label: 'Bedroom Pop', source: 'minivlog-bedroom-pop-108bpm.mp3', group: 'reference', optional: true },
   { id: 'acoustic-pop-104', label: 'Acoustic Pop', source: 'minivlog-acoustic-pop-104bpm.mp3', group: 'reference', optional: true },
   { id: 'weekend-indie-pop', label: 'Weekend Indie Pop', source: 'nyvlog-weekend-indie-pop-112bpm.mp3', group: 'reference' },
