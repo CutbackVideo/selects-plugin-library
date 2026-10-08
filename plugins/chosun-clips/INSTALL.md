@@ -14,8 +14,8 @@ system, Homebrew or Selects is used when present for full-quality downloads.
 Templates, saved work and downloads are kept in
 `~/.selects/plugin-data/chosun-clips/`.
 
-The companion apps for the same workshop are `chosun-cardnews` and
-`card-news-maker` in this library.
+Chosun Ilbo also uses `chosun-cardnews` and `card-news-maker`, installed from the same
+`chosun-ilbo` branch of this library.
 
 ## Uninstall
 
