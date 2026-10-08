@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "chosun-clips",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "name": "Chosun Ilbo TikTok Clips",
   "summary": "Turn a long Chosun Ilbo YouTube episode into editable vertical TikTok Drafts in the program's own format, with headlines and captions.",
   "status": "experimental",
@@ -16,7 +16,7 @@
     "platforms": [
       "macOS"
     ],
-    "selects": "Requires Panel SDK runScript/runShell/askAI, Project importFiles and startAnalysis, Draft setFrameSize, setClipTransform and addMotionGraphic, and the panel file service. Checked on Selects 2.0.580 on macOS. Skips speaker profiling on Selects builds whose startAnalysis accepts includeSpeakerProfiling; older builds ignore the option."
+    "selects": "Requires Panel SDK runScript/runShell/askAI, Project importFiles and startAnalysis, Draft setFrameSize, setClipTransform and addMotionGraphic, and the panel file service. Checked on Selects 2.0.580 on macOS. Declares @speaker-profiling off, so Selects builds that read it open the analysis credit dialog with speaker profiling off; older builds ignore the line and profile speakers."
   },
   "localized": {
     "en": {

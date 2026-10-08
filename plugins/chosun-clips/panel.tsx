@@ -1,6 +1,7 @@
 // @name Chosun Ilbo TikTok Clips
 // @name:ko 조선일보 틱톡 클립
 // @icon scissors
+// @speaker-profiling off
 // Turns a long YouTube episode (a link or a video already in the project) into editable vertical Drafts in
 // the TikTok format of a program template: layout, background, headline, logo, captions and the AI's
 // passage-selection instructions. Six Chosun Ilbo programs ship as built-in templates; the Templates tab
@@ -1989,10 +1990,9 @@ function ChosunClipsPanel({ sdk, context, ui, files }: any) {
       let begun: any = null;
       try {
         begun = await script(
-          // Speaker profiling is skipped: clips need words and speaker ids, not speaker profiles. The options
-          // go through a variable so a Selects without includeSpeakerProfiling ignores it instead of failing
-          // the script's type check.
-          resolver(resourceId, resourceName) + `if (!res) throw new Error("The source video is no longer in this project."); const options = { resourceIds: [res.resourceId], includeSpeakerProfiling: false }; return await project.startAnalysis(options);`,
+          // `@speaker-profiling off` above opens that request with speaker profiling off: clips need words and
+          // speaker ids, not speaker profiles.
+          resolver(resourceId, resourceName) + `if (!res) throw new Error("The source video is no longer in this project."); return await project.startAnalysis({ resourceIds: [res.resourceId] });`,
           "Analyze the source video",
           true
         );
