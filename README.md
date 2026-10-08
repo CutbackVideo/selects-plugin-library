@@ -4,6 +4,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 
 | Plugin | Status |
 | --- | --- |
+| [ComfyUI](plugins/comfy-api-test) — managed workflows, node editor and project results | Experimental |
 | [Selects AI Runtime](plugins/selects-ai-runtime) — shared local face detection and person masks for plugin developers; requires Selects 2.0.560 or later | Experimental |
 | [Selects Clips](plugins/shortform-cloner) — shorts from long videos, using templates made from a channel's best shorts | Experimental |
 | [Multicam Generator](plugins/multicam-generator) | Experimental |
