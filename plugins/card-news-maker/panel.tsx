@@ -5,7 +5,7 @@
 // @name:fr Créateur de cartes d'actu
 // @name:it Crea schede notizie
 // @name:ja カードニュースメーカー
-// @name:ko Card News Maker
+// @name:ko 카드뉴스 메이커
 // @name:pt Criador de cards de notícias
 // @name:tr Haber Kartı Oluşturucu
 // @name:zh 卡片新闻制作器
@@ -260,6 +260,14 @@ const IMAGE_MODEL = { id: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLXBybw", recipe: "na
 
 const STRINGS: any = {
   en: {
+    sourceKind: "Get it from",
+    design: "Design",
+    credits: "May use credits.",
+    thisRun: "This run",
+    cardsUnit: (n: number) => `${n} cards`,
+    exportedTitle: "Exported cards",
+    postSec: "Post",
+    elapsed: (s: number) => (s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`),
     tabMake: "Make cards",
     tabTemplates: "Templates",
     noProject: "Open a project first.",
@@ -449,6 +457,14 @@ const STRINGS: any = {
     editable: { headline: "Headline", label: "Label", heading: "Heading", body: "Body", cta: "Call to action", credit: "Credit", size: "Size", color: "Color", highlight: "Highlight", font: "Font", tagline: "Tagline", handles: "Handles" },
   },
   ko: {
+    sourceKind: "가져올 곳",
+    design: "디자인",
+    credits: "크레딧이 사용될 수 있습니다.",
+    thisRun: "이번 작업",
+    cardsUnit: (n: number) => `${n}장`,
+    exportedTitle: "내보낸 카드",
+    postSec: "게시글",
+    elapsed: (s: number) => (s >= 60 ? `${Math.floor(s / 60)}분 ${s % 60}초` : `${s}초`),
     tabMake: "\uce74\ub4dc \ub9cc\ub4e4\uae30",
     tabTemplates: "\ud15c\ud50c\ub9bf",
     noProject: "\ud504\ub85c\uc81d\ud2b8\ub97c \uba3c\uc800 \uc5f4\uc5b4 \uc8fc\uc138\uc694.",
@@ -2270,120 +2286,454 @@ function fullSizeUrl(u: string): string {
   return s;
 }
 
-function libraryId(): string | null {
-  try {
-    const m = String((window.parent as any).location.pathname).match(/libraries\/([^/]+)\/projects\/([^/]+)/);
-    return m ? m[1] : null;
-  } catch (e) {
-    return null;
+// ---- Files: only through the panel SDK ----
+// The panel frame is sealed off from the Selects window and from the browser's storage, so every file goes
+// through the SDK: selects.files inside sdk.runScript where this Selects has it, otherwise /bin/sh through
+// sdk.runShell (macOS). Bytes travel as base64 text in bounded pieces, because Selects caps a script's
+// result, a shell command (16 KB) and a shell's output (48 KB). A file is written beside its destination
+// and renamed into place, so a save that fails halfway leaves the earlier file as it was.
+const SDK_PIECE = 48 * 1024; // selects.files.readRange and writeChunk: 49,152 bytes at most
+const SHELL_READ_PIECE = 32768; // 43,692 base64 characters, under the 48 KB output cap
+const SHELL_WRITE_PIECE = 9000; // 12,000 base64 characters, under the 16 KB command cap
+const SHELL_COMMAND_ROOM = 12000; // paths listed in one shell command
+
+function toBase64(bytes: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000) as any);
+  return btoa(s);
+}
+function fromBase64(text: string): Uint8Array {
+  const bin = atob(String(text || "").replace(/\s+/g, ""));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function joinBytes(parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
   }
+  return out;
+}
+// Runs fn over the items, a few at a time, and keeps their order.
+async function pooled(items: any[], width: number, fn: (item: any, i: number) => Promise<any>): Promise<any[]> {
+  const out: any[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(width, items.length)) }, worker));
+  return out;
+}
+const folderOf = (path: string) => path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
+const tempName = () => ".tmp-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+// selects.files: the file service newer Selects versions give to scripts.
+async function sdkFiles(sdk: any): Promise<any> {
+  const J = JSON.stringify;
+  const run = async (script: string, write = false) => {
+    const r: any = await sdk.runScript({ script, summary: write ? "Save this app's files" : "Read this app's files", allowCommit: write });
+    if (r.isError) throw new Error(String(r.output || "selects.files failed").slice(0, 600));
+    return r.result;
+  };
+  const env = await run(`const e = await selects.files.environment(); return { platform: e.platform, home: e.homedir };`);
+  if (!env || typeof env.home !== "string" || !env.home || typeof env.platform !== "string") throw new Error("selects.files is not available");
+  const bytesOf = (base64: any, want: number, path: string) => {
+    if (typeof base64 !== "string") throw new Error("Could not read " + path);
+    const bytes = fromBase64(base64);
+    if (bytes.length !== want) throw new Error(path + " changed while it was being read.");
+    return bytes;
+  };
+  return {
+    via: "sdk",
+    home: env.home,
+    windows: env.platform === "win32",
+    readPiece: SDK_PIECE,
+    width: 4,
+    async stat(paths: string[]) {
+      const groups: string[][] = [];
+      for (let i = 0; i < paths.length; i += 100) groups.push(paths.slice(i, i + 100));
+      const rows = await pooled(groups, 2, (g) =>
+        run(`const out: any[] = []; for (const p of ${J(g)}) { const s = await selects.files.stat(p); out.push(s ? { size: s.size, dir: s.isDirectory, mtime: s.mtimeMs } : null); } return out;`)
+      );
+      const out = rows.flat();
+      if (out.length !== paths.length) throw new Error("Could not look at the app's files.");
+      return out;
+    },
+    async readdir(dir: string) {
+      const names = await run(`const d = ${J(dir)}; const s = await selects.files.stat(d); return s && s.isDirectory ? await selects.files.readdir(d) : [];`);
+      return Array.isArray(names) ? names.map(String) : [];
+    },
+    mkdir: (dir: string) => run(`await selects.files.mkdir(${J(dir)}, { recursive: true });`, true),
+    async readRange(path: string, offset: number, length: number) {
+      const r = await run(`return await selects.files.readRange({ path: ${J(path)}, offset: ${offset}, length: ${length} });`);
+      return bytesOf(r?.base64, length, path);
+    },
+    async readWhole(paths: string[], sizes: number[]) {
+      const r = await run(`const out: string[] = []; for (const p of ${J(paths)}) out.push((await selects.files.readRange({ path: p, offset: 0, length: ${SDK_PIECE} })).base64); return out;`);
+      if (!Array.isArray(r) || r.length !== paths.length) throw new Error("Could not read the app's files.");
+      return r.map((b: any, i: number) => bytesOf(b, sizes[i], paths[i]));
+    },
+    async write(path: string, bytes: Uint8Array) {
+      const tmp = path + tempName();
+      try {
+        let at = 0;
+        do {
+          const part = bytes.subarray(at, at + SDK_PIECE);
+          const last = at + part.length >= bytes.length;
+          const wrote = await run(
+            (at === 0 ? `await selects.files.mkdir(${J(folderOf(path))}, { recursive: true }); ` : "") +
+              `const w = await selects.files.writeChunk({ path: ${J(tmp)}, offset: ${at}, base64: ${J(toBase64(part))} }); ` +
+              (last ? `if (w.bytesWritten === ${part.length}) await selects.files.rename(${J(tmp)}, ${J(path)}); ` : "") +
+              `return w.bytesWritten;`,
+            true
+          );
+          if (wrote !== part.length) throw new Error("Could not save " + path);
+          at += part.length;
+        } while (at < bytes.length);
+      } catch (e) {
+        await run(`const p = ${J(tmp)}; const s = await selects.files.stat(p); if (s && !s.isDirectory) await selects.files.remove(p, { recursive: true, force: true });`, true).catch(() => {});
+        throw e;
+      }
+    },
+    // The service removes a file only when asked with both `recursive` and `force` (Selects 2.0.578 fails
+    // otherwise), and that form would also take a whole folder, so the path is checked to be a file first.
+    // A file that is already gone is not an error.
+    remove: (path: string) => run(`const p = ${J(path)}; const s = await selects.files.stat(p); if (s && !s.isDirectory) await selects.files.remove(p, { recursive: true, force: true });`, true),
+    download: (url: string, path: string) => run(`await selects.files.download(${J(url)}, ${J(path)});`, true),
+  };
 }
 
-// ---- Media files and durable host-owned metadata storage ----
-function hostFs(): any {
-  try {
-    const fs = hostSdk.files;
-    const need = ["readFile", "writeFile", "homedir", "join", "exists", "mkdir", "readdir", "rm"];
-    return fs && need.every((k) => typeof fs[k] === "function") ? fs : null;
-  } catch (e) {
-    return null;
-  }
+// /bin/sh through sdk.runShell, for a Selects that has no selects.files yet. The app starts the user's own
+// login shell, so each command is handed to /bin/sh, and each answer line starts with "@@" so that
+// anything the shell's profile prints is ignored.
+async function shellFiles(sdk: any): Promise<any> {
+  const sh = async (body: string, summary: string, timeoutMs = 60000) => {
+    const r: any = await sdk.runShell({ summary, command: "/bin/sh -c " + pq(body), timeoutMs, maxOutputBytes: 48000 });
+    if (r.isError || r.exitCode !== 0 || r.truncated) throw new Error(String(r.stderr || r.output || "The file command failed.").slice(-400));
+    return String(r.stdout || "")
+      .split(/\r?\n/)
+      .filter((l) => l.startsWith("@@"))
+      .map((l) => l.slice(2));
+  };
+  const UNBASE64 = `(base64 -d 2>/dev/null || base64 -D)`;
+  const sizeOf = (path: string) => `printf '@@%s\\n' "$(wc -c < ${pq(path)} | tr -d ' ')"`;
+  const home = (await sh(`printf '@@%s\\n' "$HOME"`, "Find this app's folder"))[0];
+  if (!home || !home.startsWith("/")) throw new Error("The shell did not name a home folder.");
+  // Paths for one command, as many as fit under the command cap.
+  const packs = (paths: string[], most: number) => {
+    const out: string[][] = [];
+    let cur: string[] = [];
+    let room = 0;
+    for (const p of paths) {
+      const cost = pq(pq(p)).length + 1;
+      if (cur.length && (room + cost > SHELL_COMMAND_ROOM || cur.length >= most)) {
+        out.push(cur);
+        cur = [];
+        room = 0;
+      }
+      cur.push(p);
+      room += cost;
+    }
+    if (cur.length) out.push(cur);
+    return out;
+  };
+  return {
+    via: "shell",
+    home,
+    windows: false,
+    readPiece: SHELL_READ_PIECE,
+    width: 8,
+    async stat(paths: string[]) {
+      const rows = await pooled(packs(paths, 60), 4, async (g) => {
+        const lines = await sh(
+          `for p in ${g.map(pq).join(" ")}; do if [ -d "$p" ]; then echo @@D; elif [ -f "$p" ]; then echo "@@$(/usr/bin/stat -f '%z %m' "$p")"; else echo @@N; fi; done`,
+          "Look at this app's files"
+        );
+        if (lines.length !== g.length) throw new Error("Could not look at the app's files.");
+        return lines.map((l) => {
+          if (l === "D") return { size: 0, dir: true, mtime: 0 };
+          const m = l.match(/^(\d+) (\d+)$/);
+          return m ? { size: Number(m[1]), dir: false, mtime: Number(m[2]) * 1000 } : null;
+        });
+      });
+      return rows.flat();
+    },
+    readdir: (dir: string) => sh(`if [ -d ${pq(dir)} ]; then ls -1A ${pq(dir)} | sed 's/^/@@/'; fi`, "List this app's files"),
+    async mkdir(dir: string) {
+      await sh(`mkdir -p ${pq(dir)}`, "Make this app's folder");
+    },
+    async readRange(path: string, offset: number, length: number) {
+      const lines = await sh(`printf '@@%s\\n' "$(tail -c +${offset + 1} ${pq(path)} | head -c ${length} | base64 | tr -d '\\n')"`, "Read this app's files");
+      const bytes = fromBase64(lines[0] || "");
+      if (bytes.length !== length) throw new Error(path + " changed while it was being read.");
+      return bytes;
+    },
+    async readWhole(paths: string[], sizes: number[]) {
+      const out: Uint8Array[] = [];
+      for (const g of packs(paths, 24)) {
+        const lines = await sh(`for p in ${g.map(pq).join(" ")}; do printf '@@%s\\n' "$(base64 < "$p" | tr -d '\\n')"; done`, "Read this app's files");
+        if (lines.length !== g.length) throw new Error("Could not read the app's files.");
+        for (const l of lines) out.push(fromBase64(l));
+      }
+      out.forEach((b, i) => {
+        if (b.length !== sizes[i]) throw new Error(paths[i] + " changed while it was being read.");
+      });
+      return out;
+    },
+    async write(path: string, bytes: Uint8Array) {
+      const tmp = path + tempName();
+      const done = (lines: string[]) => {
+        if (Number(lines[0]) !== bytes.length) throw new Error("Could not save " + path);
+      };
+      if (bytes.length <= SHELL_WRITE_PIECE) {
+        done(await sh(`mkdir -p ${pq(folderOf(path))} && printf %s ${pq(toBase64(bytes))} | ${UNBASE64} > ${pq(tmp)} && mv -f ${pq(tmp)} ${pq(path)} && ${sizeOf(path)}`, "Save this app's files"));
+        return;
+      }
+      // A larger file goes up as numbered pieces, several at a time, and is put together in one step.
+      const parts = tmp + ".d";
+      const offsets: number[] = [];
+      for (let at = 0; at < bytes.length; at += SHELL_WRITE_PIECE) offsets.push(at);
+      try {
+        await sh(`mkdir -p ${pq(folderOf(path))} ${pq(parts)}`, "Save this app's files");
+        await pooled(offsets, 8, (at, i) =>
+          sh(`printf %s ${pq(toBase64(bytes.subarray(at, at + SHELL_WRITE_PIECE)))} | ${UNBASE64} > ${pq(parts + "/" + String(i).padStart(6, "0"))}`, "Save this app's files")
+        );
+        done(await sh(`cat ${pq(parts)}/* > ${pq(tmp)} && mv -f ${pq(tmp)} ${pq(path)} && rm -rf ${pq(parts)} && ${sizeOf(path)}`, "Save this app's files"));
+      } catch (e) {
+        await sh(`rm -rf ${pq(parts)} ${pq(tmp)}`, "Tidy this app's files").catch(() => {});
+        throw e;
+      }
+    },
+    async remove(path: string) {
+      await sh(`rm -f ${pq(path)}`, "Remove one of this app's files");
+    },
+  };
 }
-// Project switches mount a new store, but its metadata shares the same backend.
-const metadataWrites = new WeakMap<object, Map<string, Promise<void>>>();
-function metadataQueue(backend: object) {
-  let queue = metadataWrites.get(backend);
-  if (!queue) { queue = new Map(); metadataWrites.set(backend, queue); }
-  return queue;
-}
-function writeMetadata(backend: object, key: string, write: () => Promise<void>) {
-  const queue = metadataQueue(backend);
-  const pending = (queue.get(key) || Promise.resolve()).catch(() => {}).then(write);
-  queue.set(key, pending);
-  return pending;
-}
-function makeStore() {
-  const fs = hostFs();
-  const storeSdk = hostSdk;
-  if (fs) {
-    const root = fs.join(fs.homedir(), ".selects", "plugin-data", APP_ID);
-    const dir = (n: string) => fs.join(root, n);
-    const ensure = async (p: string) => {
-      if (!(await fs.exists(p))) (await fs.mkdir(p, { recursive: true }));
-    };
-    return {
-      fs,
-      root,
-      join: (...p: string[]) => fs.join(...p),
-      ensure,
-      size: async (p: string) => {
-        try {
-          return (await fs.exists(p)) ? (typeof fs.stat === "function" ? (await fs.stat(p)).size : 1) : 0;
-        } catch (e) {
-          return 0;
-        }
-      },
-      async list(kind: string) {
-        await metadataQueue(fs).get(dir(kind));
-        const d = dir(kind);
-        if (!(await fs.exists(d))) return [];
-        const out: any[] = [];
-        for (const n of (await fs.readdir(d))) {
-          if (!/\.json$/.test(n)) continue;
+
+// What the rest of the app uses, the same over either route.
+function hostFiles(b: any) {
+  const sep = b.windows ? "\\" : "/";
+  const join = (...p: string[]) =>
+    p
+      .map((s, i) => (i ? String(s).replace(/^[\\/]+/, "") : String(s)).replace(/[\\/]+$/, ""))
+      .filter((s, i) => s || !i)
+      .join(sep);
+  const sized = async (path: string, size: number) => {
+    const offsets: number[] = [];
+    for (let at = 0; at < size; at += b.readPiece) offsets.push(at);
+    return joinBytes(await pooled(offsets, b.width, (at) => b.readRange(path, at, Math.min(b.readPiece, size - at))));
+  };
+  const readFile = async (path: string): Promise<Uint8Array> => {
+    const s = (await b.stat([path]))[0];
+    if (!s || s.dir) throw new Error("No such file: " + path);
+    return sized(path, s.size);
+  };
+  // Files read as a folder with `keep` stay in memory while the panel is open and are read again only when
+  // their size or date changes, because every read is many calls.
+  const kept = new Map<string, { size: number; mtime: number; bytes: Uint8Array }>();
+  return {
+    via: b.via,
+    homedir: () => b.home,
+    join,
+    mkdir: (dir: string) => b.mkdir(dir),
+    exists: async (path: string) => {
+      const s = (await b.stat([path]))[0];
+      return !!s && (s.dir || s.size > 0);
+    },
+    readdir: (dir: string): Promise<string[]> => b.readdir(dir),
+    // 0 for a missing file or a folder.
+    size: async (path: string): Promise<number> => {
+      const s = (await b.stat([path]))[0];
+      return s && !s.dir ? s.size : 0;
+    },
+    readFile,
+    // Every file in a folder whose name matches, and that changed after `since` when given. Small files
+    // share a call and the pieces of large ones are fetched side by side; a file that cannot be read is
+    // left out.
+    async readFolder(dir: string, test: RegExp, opts: { since?: number; keep?: boolean } = {}): Promise<{ name: string; bytes: Uint8Array }[]> {
+      const names = (await b.readdir(dir)).filter((n: string) => test.test(n));
+      if (!names.length) return [];
+      const paths = names.map((n: string) => join(dir, n));
+      const stats = await b.stat(paths);
+      const got: (Uint8Array | null)[] = names.map(() => null);
+      const tasks: (() => Promise<void>)[] = [];
+      const again: number[] = [];
+      const pieces: { [i: number]: Uint8Array[] } = {};
+      let cur: number[] = [];
+      let room = 0;
+      const flush = () => {
+        const ix = cur;
+        cur = [];
+        room = 0;
+        if (!ix.length) return;
+        tasks.push(async () => {
           try {
-            out.push(JSON.parse(dec(await fs.readFile(fs.join(d, n)))));
+            const bytes = await b.readWhole(ix.map((i) => paths[i]), ix.map((i) => stats[i].size));
+            ix.forEach((i, k) => (got[i] = bytes[k]));
+          } catch (e) {
+            again.push(...ix);
+          }
+        });
+      };
+      names.forEach((_: string, i: number) => {
+        const s = stats[i];
+        if (!s || s.dir || (opts.since && s.mtime && s.mtime < opts.since)) return;
+        const had = opts.keep ? kept.get(paths[i]) : undefined;
+        if (had && had.size === s.size && (!had.mtime || had.mtime === s.mtime)) {
+          had.mtime = s.mtime;
+          got[i] = had.bytes;
+          return;
+        }
+        if (s.size > b.readPiece / 2) {
+          const parts: Uint8Array[] = (pieces[i] = []);
+          for (let at = 0, k = 0; at < s.size; at += b.readPiece, k++) {
+            const slot = k;
+            const from = at;
+            tasks.push(async () => {
+              try {
+                parts[slot] = await b.readRange(paths[i], from, Math.min(b.readPiece, s.size - from));
+              } catch (e) {
+                if (!again.includes(i)) again.push(i);
+              }
+            });
+          }
+          return;
+        }
+        if (cur.length && (room + s.size > b.readPiece || cur.length >= 24)) flush();
+        cur.push(i);
+        room += s.size;
+      });
+      flush();
+      await pooled(tasks, b.width, (task) => task());
+      for (const i of Object.keys(pieces).map(Number)) if (!again.includes(i)) got[i] = joinBytes(pieces[i]);
+      // Changed or gone since the listing: read each by itself, with a fresh look at its size.
+      for (const i of again) got[i] = await readFile(paths[i]).catch(() => null);
+      if (opts.keep)
+        names.forEach((_: string, i: number) => {
+          if (got[i] && !again.includes(i)) kept.set(paths[i], { size: stats[i].size, mtime: stats[i].mtime, bytes: got[i] as Uint8Array });
+        });
+      return names.map((name: string, i: number) => ({ name, bytes: got[i] as Uint8Array })).filter((f: any) => f.bytes);
+    },
+    async writeFile(path: string, data: string | Uint8Array) {
+      const bytes = typeof data === "string" ? enc(data) : data;
+      kept.delete(path);
+      await b.write(path, bytes);
+      kept.set(path, { size: bytes.length, mtime: 0, bytes });
+    },
+    async remove(path: string) {
+      kept.delete(path);
+      await b.remove(path);
+    },
+    downloadFile: b.download,
+  };
+}
+
+// The route is chosen once for the panel frame; null when this Selects offers neither.
+let filesFound: Promise<any> | null = null;
+function connectFiles(sdk: any): Promise<any> {
+  if (!filesFound) {
+    const found = (async () => {
+      try {
+        return hostFiles(await sdkFiles(sdk));
+      } catch (e) {}
+      if (!IS_WIN) {
+        try {
+          return hostFiles(await shellFiles(sdk));
+        } catch (e) {}
+      }
+      return null;
+    })();
+    filesFound = found;
+    found.then((f) => {
+      if (!f && filesFound === found) filesFound = null;
+    });
+  }
+  return filesFound;
+}
+
+function makeStore(files: any) {
+  if (files) {
+    const root = files.join(files.homedir(), ".selects", "plugin-data", APP_ID);
+    const dir = (n: string) => files.join(root, n);
+    return {
+      fs: files,
+      root,
+      join: (...p: string[]) => files.join(...p),
+      ensure: (p: string): Promise<void> => files.mkdir(p),
+      size: (p: string): Promise<number> => files.size(p).catch(() => 0),
+      async list(kind: string) {
+        const out: any[] = [];
+        for (const f of await files.readFolder(dir(kind), /\.json$/, { keep: true })) {
+          try {
+            out.push(JSON.parse(dec(f.bytes)));
           } catch (e) {}
         }
         return out;
       },
       async put(kind: string, id: string, v: any) {
-        const snapshot = enc(JSON.stringify(v));
-        await writeMetadata(fs, dir(kind), async () => {
-          const d = dir(kind);
-          await ensure(d);
-          await fs.writeFile(fs.join(d, id + ".json"), snapshot);
-        });
+        await files.writeFile(files.join(dir(kind), id + ".json"), enc(JSON.stringify(v)));
       },
       async del(kind: string, id: string) {
-        await writeMetadata(fs, dir(kind), async () => {
-          const p = fs.join(dir(kind), id + ".json");
-          if (await fs.exists(p)) await fs.rm(p);
-        });
+        await files.remove(files.join(dir(kind), id + ".json"));
       },
     };
   }
-  const key = (kind: string) => `${APP_ID}:${kind}`;
-  const storage = () => {
-    if (!storeSdk.storage?.getItem || !storeSdk.storage?.setItem)
-      throw new Error("Update Selects to use persistent plugin storage, then reopen this panel.");
-    return storeSdk.storage;
-  };
-  const read = async (kind: string) => JSON.parse(await storage().getItem(key(kind)) || "{}") || {};
-  const change = (kind: string, edit: (all: any) => void) => {
-    const backend = storage();
-    return writeMetadata(backend, key(kind), async () => {
-      const all = JSON.parse(await backend.getItem(key(kind)) || "{}") || {};
-      edit(all);
-      await backend.setItem(key(kind), JSON.stringify(all));
-    });
-  };
+  // No file access in this Selects: templates and progress are kept until the app is closed.
+  const kept: any = {};
+  const all = (kind: string) => kept[kind] || (kept[kind] = {});
   return {
     fs: null,
     root: null,
     join: (...p: string[]) => p.join(IS_WIN ? "\\" : "/"),
-    ensure: (_: string) => {},
-    size: (_: string) => 0,
+    ensure: async (_: string) => {},
+    size: async (_: string) => 0,
     async list(kind: string) {
-      await metadataQueue(storage()).get(key(kind));
-      return Object.values(await read(kind));
+      return Object.values(all(kind));
     },
     async put(kind: string, id: string, v: any) {
-      const snapshot = JSON.parse(JSON.stringify(v));
-      await change(kind, all => { all[id] = snapshot; });
+      all(kind)[id] = clone(v);
     },
     async del(kind: string, id: string) {
-      await change(kind, all => { delete all[id]; });
+      delete all(kind)[id];
     },
+  };
+}
+
+// A failed script answers with a JSON report; its own words are the message, not the whole report.
+function scriptError(output: any): string {
+  const text = String(output || "run_script failed");
+  try {
+    const j = JSON.parse(text);
+    if (j && typeof j.error === "string") {
+      const more = Array.isArray(j.colorOps?.failures) ? j.colorOps.failures.map((f: any) => String(f).replace(/^Error:\s*/, "")) : [];
+      return [j.error, ...more].join(" ").slice(0, 600);
+    }
+  } catch (e) {}
+  return text.slice(0, 1200);
+}
+
+// AI pictures are paid jobs the app owns: they are started and watched through selects.generation in a
+// script. The request key stays the same across retries, so a retry never starts a second paid job.
+function sdkGeneration(sdk: any) {
+  const run = async (script: string, summary: string, allowCommit = false) => {
+    const r: any = await sdk.runScript({ script, summary, allowCommit });
+    if (r?.isError) throw new Error(scriptError(r.output));
+    return r?.result;
+  };
+  return {
+    async submit(request: any): Promise<{ jobIds: string[] }> {
+      const input = { projectId: request.projectId, requestKey: request.key, modelId: request.modelId, input: request.input, uploads: {}, outputName: request.outputName, mediaType: "image" };
+      const made = await run(`const job = await selects.generation.submit(${JSON.stringify(input)}); return { jobId: job.jobId };`, "Start an AI picture", true);
+      if (!made?.jobId) throw new Error("The picture request did not return a job. Press Resume to continue with the same request.");
+      return { jobIds: [made.jobId] };
+    },
+    list: (projectId: string): Promise<any[]> => run(`return await selects.generation.jobs(${JSON.stringify(projectId)});`, "Read AI picture progress"),
   };
 }
 
@@ -2719,7 +3069,7 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any
           { value: "end", label: S.end },
         ]}
       />
-      {role === "end" && endKindOf(edit) === "none" ? <small>{S.endNone}</small> : <CardPreview t={edit} card={sample} bodyIndex={1} vars={vars} S={S} />}
+      {role === "end" && endKindOf(edit) === "none" ? <small>{S.endNone}</small> : <CardPreview t={edit} card={sample} bodyIndex={1} vars={vars} S={S} maxWidth={180} />}
     </ui.Stack>
   );
   const placement = (key: string, title: string) => (
@@ -2744,7 +3094,7 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any
   );
   const weights = [300, 400, 500, 600, 700, 800, 900].map((w) => ({ value: String(w), label: String(w) }));
   const look = (
-    <ui.Stack gap={16}>
+    <>
       {preview}
       <ui.Section title={S.cards}>
         {num("counts.min", S.minCards, 1, 20)}
@@ -2757,11 +3107,15 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any
         <ui.FontField label={S.font} value={edit.look.font || ""} onChange={(v: string) => set("look.font", v)} disabled={saving} />
         {num("look.margin", S.margin, 0, 300, 1, "px")}
         {col("look.panelColor", S.panelColor)}
+      </ui.Section>
+      <ui.Section title={S.headline}>
         {num("headline.size", S.headlineSize, 30, 160, 1, "px")}
         <ui.Select label={S.headlineWeight} value={String(edit.headline.weight)} onChange={(v: string) => set("headline.weight", Number(v))} options={weights} disabled={saving} />
         {col("headline.color", S.headlineColor)}
         {col("headline.highlight", S.highlight)}
         {num("headline.lineHeight", S.lineHeight, 0.9, 2.5, 0.05)}
+      </ui.Section>
+      <ui.Section title={S.heading}>
         {tog("heading.on", S.headingOn)}
         {edit.heading.on && (
           <ui.Stack gap={8}>
@@ -2770,16 +3124,18 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any
             {col("heading.color", S.headingColor)}
           </ui.Stack>
         )}
+      </ui.Section>
+      <ui.Section title={S.body}>
         {num("body.size", S.bodySize, 16, 80, 1, "px")}
         <ui.Select label={S.bodyWeight} value={String(edit.body.weight)} onChange={(v: string) => set("body.weight", Number(v))} options={weights} disabled={saving} />
         {col("body.color", S.bodyColor)}
         {num("body.lineHeight", S.lineHeight, 1, 3, 0.05)}
         {tog("body.italic", S.italic)}
       </ui.Section>
-    </ui.Stack>
+    </>
   );
   const brand = (
-    <ui.Stack gap={16}>
+    <>
       {preview}
       <ui.Section title={S.label}>
         {seg("label.style", S.labelStyle, [
@@ -2846,10 +3202,10 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any
           </ui.Stack>
         )}
       </ui.Section>
-    </ui.Stack>
+    </>
   );
   const ai = (
-    <ui.Stack gap={16}>
+    <>
       <ui.Section title={S.images}>
         <ui.Select
           label={S.imageSource}
@@ -2874,12 +3230,12 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any
         {txt("prompt.caption", S.pCaption)}
         {txt("prompt.rules", S.pRules)}
       </ui.Section>
-    </ui.Stack>
+    </>
   );
   const note = current.builtIn ? (current.modified ? S.modifiedNote : S.builtInNote) : S.customNote;
   return (
-    <ui.Stack gap={16}>
-      <ui.Section title={S.template}>
+    <>
+      <ui.Stack gap={8}>
         <ui.Select label={S.template} value={current.id} onChange={(v: string) => setSelId(v)} options={templates.map((t: any) => ({ value: t.id, label: tplLabel(t, lang, S) }))} disabled={dirty || saving} />
         <small>{descOf(edit, lang)} · {note}</small>
         <ui.TextField label={S.tplName} value={nameOf(edit, lang)} onChange={(v: string) => set("name", v)} disabled={saving} />
@@ -2906,7 +3262,6 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any
             {armedDelete ? S.delConfirm : S.del}
           </ui.Button>
         </ui.Row>
-      </ui.Section>
       <ui.Tabs
         value={sub}
         onChange={setSub}
@@ -2916,8 +3271,8 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any
           { value: "ai", label: S.tabAI, content: ai },
         ]}
       />
-      {dirty && <ui.Message>{S.unsaved}</ui.Message>}
-      {msg && <ui.Message tone={msg.tone}>{msg.text}</ui.Message>}
+      </ui.Stack>
+      <ui.Stack gap={8}>
       <ui.Actions>
         <ui.Button variant="ghost" onClick={() => setEdit(clone(current))} disabled={!dirty || saving}>
           {S.discard}
@@ -2926,8 +3281,21 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any
           {S.save}
         </ui.Button>
       </ui.Actions>
-    </ui.Stack>
+        {dirty && <ui.Message>{S.unsaved}</ui.Message>}
+        {msg && <ui.Message tone={msg.tone}>{msg.text}</ui.Message>}
+      </ui.Stack>
+    </>
   );
+}
+
+// One card, result or unfinished job, drawn in the theme's own border and radius.
+const CARD = { border: "1px solid var(--panel-border)", borderRadius: "var(--panel-radius)", padding: 10, minWidth: 0 } as const;
+const CLAMP2 = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as const;
+
+// The AI explains its count at length; the first sentence is the part worth a line.
+function firstSentence(text: string): string {
+  const s = String(text || "").trim().split(/(?<=[.!?])\s+/)[0] || "";
+  return s.length > 90 ? s.slice(0, 90) + "…" : s;
 }
 
 // ---- One card in the review list ----
@@ -2955,7 +3323,9 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
   const title = card.role === "cover" ? S.roleCover : card.role === "end" ? S.roleEnd : `${S.roleBody} ${bodyIndex}`;
   const showPicture = card.role !== "end" || t.end.background === "cover";
   return (
-    <ui.Section title={`${index + 1}. ${title}`}>
+    <div style={CARD}>
+      <ui.Stack gap={8}>
+      <h3>{`${index + 1}. ${title}`}</h3>
       <CardPreview t={t} card={card} bodyIndex={bodyIndex} vars={vars} S={S} image={preview} maxWidth={200} />
       {card.role === "cover" && (
         <ui.Stack gap={4}>
@@ -2974,19 +3344,32 @@ function CardEditor({ ui, S, t, card, index, bodyIndex, plan, vars, fs, made, on
           <ui.TextField label={S.credit} value={card.credit || ""} onChange={(v: string) => onChange({ ...card, credit: v })} disabled={busy} />
         </ui.Stack>
       )}
-    </ui.Section>
+      </ui.Stack>
+    </div>
   );
 }
 
-function Panel(props: any) {
-  return <ProjectPanel key={String(props.context.projectId)} {...props} />;
+// The app itself starts once the file route is known, so its folder is in place from the first render.
+export default function Panel(props: any) {
+  const [files, setFiles] = React.useState<any>(undefined);
+  React.useEffect(() => {
+    let live = true;
+    connectFiles(props.sdk).then((f) => {
+      if (live) setFiles(f);
+    });
+    return () => {
+      live = false;
+    };
+  }, [props.sdk]);
+  if (files === undefined) return null;
+  return <CardNewsPanel {...props} files={files} />;
 }
-function ProjectPanel({ sdk, context, ui }: any) {
-  hostUseSdk(sdk);
+
+function CardNewsPanel({ sdk, context, ui, files }: any) {
   const lang = langOf(context);
-  const S = STRINGS[lang] ?? STRINGS.en;
+  const S = { ...STRINGS.en, ...(STRINGS[lang] || {}) };
   const projectId: string | null = context?.projectId ?? null;
-  const store = React.useMemo(() => makeStore(), []);
+  const store = React.useMemo(() => makeStore(files), [files]);
   const [tab, setTab] = React.useState<string>("make");
   const [templates, setTemplates] = React.useState<any[]>(BUILTIN_TEMPLATES.map((t: any) => ({ ...t, builtIn: true })));
   const [mode, setMode] = React.useState<string>("link");
@@ -3006,6 +3389,9 @@ function ProjectPanel({ sdk, context, ui }: any) {
   const [jobs, setJobs] = React.useState<any[]>([]);
   const [exported, setExported] = React.useState<string[]>([]);
   const [phase, setPhase] = React.useState<number | null>(null);
+  const [now, setNow] = React.useState<number>(Date.now());
+  const stepStarted = React.useRef<number>(Date.now());
+  const exportRef = React.useRef<HTMLDivElement>(null);
   // Template editor state lives here so unsaved edits survive a tab switch.
   const [tplSel, setTplSel] = React.useState<string>(BUILTIN_TEMPLATES[0].id);
   const [tplEdit, setTplEdit] = React.useState<any>(null);
@@ -3014,9 +3400,8 @@ function ProjectPanel({ sdk, context, ui }: any) {
   const [tplRole, setTplRole] = React.useState<string>("cover");
 
   const script = async (code: string, summary: string, allowCommit = false) => {
-    if (activeProject.current !== projectId) throw new Error("The project changed. Reopen the saved job in its original project.");
     const r: any = await sdk.runScript({ script: code, summary, allowCommit });
-    if (r.isError) throw new Error(String(r.output || "run_script failed").slice(0, 1200));
+    if (r.isError) throw new Error(scriptError(r.output));
     return r.result;
   };
   const shell = async (command: string, summary: string, timeoutMs = 120000) => {
@@ -3053,31 +3438,30 @@ function ProjectPanel({ sdk, context, ui }: any) {
 
   const saveJob = async (j: any) => {
     const next = { ...j, updated: new Date().toISOString() };
-    if (activeProject.current === j.projectId) setJob(next);
+    setJob(next);
     await store.put("jobs", next.id, next);
-    if (activeProject.current !== j.projectId) throw new Error("The project changed. Reopen this job in its original project.");
     return next;
   };
-  const activeProject = React.useRef(projectId);
-  activeProject.current = projectId;
-  React.useEffect(() => { activeProject.current = projectId; return () => { activeProject.current = null; }; }, []);
   const loadJobs = React.useCallback(async () => {
     if (!projectId) return;
     const since = Date.now() - 14 * 24 * 3600 * 1000;
     const list = (await store.list("jobs"))
       .filter((j: any) => j && j.projectId === projectId && !j.done && !j.dismissed && Date.parse(j.updated || j.created || "") > since)
       .sort((a: any, b: any) => String(b.updated).localeCompare(String(a.updated)));
-    if (activeProject.current === projectId) setJobs(list);
+    setJobs(list);
   }, [projectId, store]);
   React.useEffect(() => {
-    loadJobs().catch(e => setError(String(e?.message || e)));
+    loadJobs().catch(() => {});
   }, [loadJobs]);
 
   const loadResources = React.useCallback(async () => {
     if (!projectId) return;
     try {
-      const rows = (await readMediaPages(sdk, {script: `return (await selects.project(${JSON.stringify(projectId)}).resources()).filter((r: any) => r.type === "Video").map((r: any) => ({ id: r.resourceId, name: r.name, analyzed: r.hasAnalysis, sec: Math.round(r.durationSeconds ?? 0) }));`, summary: "List project videos"})).result;
-      if (activeProject.current === projectId) setResources(rows || []);
+      const rows = await script(
+        `return (await selects.project(${JSON.stringify(projectId)}).resources()).filter((r: any) => r.type === "Video").map((r: any) => ({ id: r.resourceId, name: r.name, analyzed: r.hasAnalysis, sec: Math.round(r.durationSeconds ?? 0) }));`,
+        "List project videos"
+      );
+      setResources(rows || []);
     } catch (e: any) {
       setError(String(e?.message || e));
     }
@@ -3207,11 +3591,11 @@ function ProjectPanel({ sdk, context, ui }: any) {
     try {
       if (typeof fs.downloadFile === "function") await fs.downloadFile(u, to);
     } catch (e) {}
-    if (await store.size(to) > 1000) return true;
+    if ((await store.size(to)) > 1000) return true;
     const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36";
-    const cmd = IS_WIN ? `"%SystemRoot%\\System32\\curl.exe" -fsSL --retry 2 -A ${wq(ua)} -o ${wq(to)} ${wq(u)}` : `curl -fsSL --retry 2 -A ${pq(ua)} -o ${pq(to)} ${pq(u)}`;
+    const cmd = IS_WIN ? `curl.exe -fsSL --retry 2 -A ${wq(ua)} -o ${wq(to)} ${wq(u)}` : `curl -fsSL --retry 2 -A ${pq(ua)} -o ${pq(to)} ${pq(u)}`;
     await shell(cmd, "Download an article photo", 120000);
-    return await store.size(to) > 1000;
+    return (await store.size(to)) > 1000;
   }
 
   // A generated image is imported under its output name; scripts address resources by their Project alias
@@ -3226,32 +3610,20 @@ function ProjectPanel({ sdk, context, ui }: any) {
 
   async function generate(j: any, need: number[]) {
     const mg = sdkGeneration(sdk);
-    const lib = libraryId();
-    if (!mg?.isAvailable?.() || typeof mg.submit !== "function") throw new Error(S.noGeneration);
     const t = tplOf(j.templateId)!;
-    const scope = { libraryId: lib, projectId };
     const pics = j.pictures.slice();
     for (const i of need) {
       if (pics[i]?.genJobId) continue;
       const card = j.plan.cards[i];
       const prompt = [t.images.style, j.plan.metaphor ? `Visual metaphor for the whole set: ${j.plan.metaphor}.` : "", card.picture.prompt].filter(Boolean).join(" ");
-      const { jobIds } = await mg.submit({
-        origin: { tool: "image", tab: "image", recipeId: IMAGE_MODEL.recipe },
-        scope,
-        key: `cnm-${j.id}-${i}-${card.picture.attempt || 0}`,
-        modelId: IMAGE_MODEL.id,
-        input: { prompt, aspect_ratio: "4:5", resolution: "2K", num_images: 1 },
-        uploads: {},
-        outputName: genName(j.id, i),
-        batch: 1,
-      });
+      const { jobIds } = await mg.submit({ projectId, key: `cnm-${j.id}-${i}-${card.picture.attempt || 0}`, modelId: IMAGE_MODEL.id, input: { prompt, aspect_ratio: "4:5", resolution: "2K", num_images: 1 }, outputName: genName(j.id, i) });
       pics[i] = { kind: "generate", genJobId: jobIds?.[0] };
       j = await saveJob({ ...j, pictures: pics });
     }
     // Wait for every image: the host downloads each result into the project.
     const t0 = Date.now();
     while (Date.now() - t0 < 20 * 60 * 1000) {
-      const rows = await mg.list(scope);
+      const rows = await mg.list(projectId);
       let ready = 0;
       for (const i of need) {
         const row = rows.find((r: any) => r.jobId === pics[i].genJobId);
@@ -3336,8 +3708,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
       `const m = await selects.project(${JSON.stringify(projectId)}).meta(); for (const id of m.draftIds) { const dm = await selects.draft(id).meta(); if (dm.name === ${JSON.stringify(name)}) return id; } return null;`,
       "Check for an existing draft"
     );
-    if (found) return await saveJob({ ...j, draftId: found, draftPending: false });
-    if (j.draftPending) throw new Error("This Draft may already exist. Inspect the project and retry recovery; creation has not been repeated.");
+    if (found) return await saveJob({ ...j, draftId: found });
     let b = 0;
     const cards = j.plan.cards.map((c: any, i: number) => {
       if (c.role === "body") b++;
@@ -3353,9 +3724,8 @@ function ProjectPanel({ sdk, context, ui }: any) {
     });
     setStatus(S.buildingDraft);
     const P = { projectId, name, cardSeconds: t.cardSeconds || 3, cards };
-    j = await saveJob({ ...j, draftPending: true });
     const r = await script(SCRIPT_BUILD.replace("const P: any = __P__;", "const P: any = " + JSON.stringify(P) + ";"), `Build ${name}`, true);
-    return await saveJob({ ...j, draftPending: false, draftId: r?.draftId, fps: r?.fps, bounds: r?.bounds });
+    return await saveJob({ ...j, draftId: r?.draftId, fps: r?.fps, bounds: r?.bounds });
   }
 
   // Put this set's pictures and Drafts in their own folder in the project, so the file list stays tidy.
@@ -3400,7 +3770,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     setBusy(true);
     try {
       setPhase(2);
-      let j = await pictures(await saveJob(job));
+      let j = await pictures(job);
       setPhase(3);
       j = await buildDraft(j);
       j = await organize(j);
@@ -3418,15 +3788,6 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
   // Each card's middle frame is rendered with its picture and text as one PNG. If the renderer returns
   // the text layer alone (transparent), the card's picture is drawn underneath with the same sizing the
   // Draft uses, so the image always matches the card.
-  async function pngFromDataUrl(dataUrl: string): Promise<ImageBitmap> {
-    const m = String(dataUrl).match(/^data:([^;,]+);base64,(.*)$/);
-    if (!m) throw new Error("bad image");
-    const bin = atob(m[2]);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return await createImageBitmap(new Blob([bytes], { type: m[1] }));
-  }
-
   async function finishCard(still: ImageBitmap, t: any, role: string, pic: any): Promise<Uint8Array> {
     const c = document.createElement("canvas");
     c.width = CW;
@@ -3474,13 +3835,14 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
       for (let i = 0; i < info.cards.length; i++) {
         setStatus(S.rendering(i + 1, info.cards.length));
         const frame = Math.floor((info.cards[i][1] + info.cards[i][2]) / 2);
-        const rawPath = store.join(dir, `source-${String(i + 1).padStart(2, "0")}.png`);
-        await script(`return await selects.export.still(${JSON.stringify({projectId, draftSequenceId: job.draftId, resolvedFrame: frame, outPath: rawPath})});`, "Export card composite", true);
-        const rawPng = await store.fs.readFile(rawPath);
+        // The still is written to a new file (Selects never overwrites one), read back, and removed.
+        const raw = store.join(dir, `source-${String(i + 1).padStart(2, "0")}.png`);
+        await script(`return await selects.export.still(${JSON.stringify({ projectId, draftSequenceId: job.draftId, resolvedFrame: frame, outPath: raw })});`, "Render a card", true);
+        const still = await createImageBitmap(new Blob([await store.fs.readFile(raw)], { type: "image/png" }));
         const role = job.plan.cards[i]?.role || "body";
         const pic = job.pictures?.[i];
-        const png = await finishCard(rawPng, t || BUILTIN_TEMPLATES[0], role, pic);
-        await store.fs.removeFile(rawPath);
+        const png = await finishCard(still, t || BUILTIN_TEMPLATES[0], role, pic);
+        await store.fs.remove(raw).catch(() => {});
         const out = store.join(dir, `card-${String(i + 1).padStart(2, "0")}.png`);
         await store.fs.writeFile(out, png);
         files.push(out);
@@ -3499,7 +3861,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
   }
 
   async function openFolder(dir: string) {
-    await script(`await selects.editor.revealFile(${JSON.stringify(dir)}); return {revealed:true};`, "Open the export folder");
+    await shell(IS_WIN ? `explorer ${wq(dir)}` : `open ${pq(dir)}`, "Open the export folder", 30000);
   }
   async function openDraft(id: string) {
     try {
@@ -3523,23 +3885,55 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
     setJob({ ...job, plan: { ...job.plan, cards }, pictures: pics });
   };
   React.useEffect(() => {
-    if (job?.plan && !busy) store.put("jobs", job.id, job).catch(e => setError(String(e?.message || e)));
+    if (job?.plan && !busy) store.put("jobs", job.id, job).catch(() => {});
   }, [job]);
   React.useEffect(() => {
     if (job?.draftId && !job.folder?.done && !busy) organize(job).catch(() => {});
   }, [job?.id, job?.draftId]);
   const step = !job ? -1 : phase != null ? phase : job.export ? 4 : job.draftId ? 3 : job.plan ? 1 : 0;
+  // A slow step (the AI plan, AI images, export) shows how long it has taken, so it does not look stuck.
+  React.useEffect(() => {
+    stepStarted.current = Date.now();
+    setNow(Date.now());
+    if (!busy) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [step, busy]);
+  React.useEffect(() => {
+    if (!busy && exported.length) exportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [busy, exported.length]);
 
   const videoOptions = resources.map((r) => ({ value: r.id, label: `${r.name}${r.analyzed ? "" : " · " + S.noTranscriptTag}` }));
+  const elapsed = Math.max(0, Math.floor((now - stepStarted.current) / 1000));
+  const statusLine = busy && status ? `${status} · ${S.elapsed(elapsed)}` : status;
+  const footerStatus = (
+    <>
+      {step >= 0 && <ui.Progress steps={S.steps} current={step} />}
+      {statusLine && <ui.Message tone={step >= 3 && !busy ? "success" : "muted"}>{statusLine}</ui.Message>}
+      {error && <ui.Message tone="error">{error}</ui.Message>}
+    </>
+  );
+  // While the AI plans, the form is locked anyway, so it folds into what is being made.
+  const planSummary = (
+    <ui.Section title={S.thisRun}>
+      <div style={CARD}>
+        <ui.Stack gap={4}>
+          <strong style={CLAMP2}>{mode === "link" ? url : mode === "text" ? text.slice(0, 160) : resources.find((r) => r.id === pick)?.name || ""}</strong>
+          <small>{[t ? nameOf(t, lang) : "", countMode === "manual" ? S.cardsUnit(count) : S.countAuto].filter(Boolean).join(" · ")}</small>
+          {note ? <small style={CLAMP2}>{note}</small> : null}
+        </ui.Stack>
+      </div>
+    </ui.Section>
+  );
   const form = (
-    <ui.Stack gap={16}>
+    <>
       {jobs.length > 0 && !busy && !job && (
         <ui.Section title={S.saved}>
           {jobs.slice(0, 3).map((j) => (
-            <ui.Stack key={j.id} gap={4}>
-              <p>
-                {String(j.plan?.article?.title || j.source?.url || j.source?.pickName || j.id).slice(0, 60)} · {S.stage(j)}
-              </p>
+            <div key={j.id} style={CARD}>
+            <ui.Stack gap={4}>
+              <strong style={CLAMP2}>{String(j.plan?.article?.title || j.source?.url || j.source?.pickName || j.id).slice(0, 80)}</strong>
+              <small>{S.stage(j)}</small>
               <ui.Row gap={8}>
                 <ui.Button variant="secondary" onClick={() => setJob(j)}>
                   {S.resume}
@@ -3549,12 +3943,17 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
                 </ui.Button>
               </ui.Row>
             </ui.Stack>
+            </div>
           ))}
         </ui.Section>
       )}
+      {busy ? (
+        planSummary
+      ) : (
+      <>
       <ui.Section title={S.source}>
         <ui.Segmented
-          label={S.source}
+          label={S.sourceKind}
           value={mode}
           onChange={setMode}
           options={[
@@ -3569,7 +3968,6 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         {mode === "video" && (
           <ui.Stack gap={4}>
             <ui.Select label={S.pick} value={pick} onChange={setPick} options={videoOptions} placeholder={S.pickPh} disabled={busy} />
-            {pick && <small>{resources.find((r) => r.id === pick)?.name}</small>}
           </ui.Stack>
         )}
       </ui.Section>
@@ -3585,7 +3983,7 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
           disabled={busy}
         />
         {langTemplates.length ? (
-          <ui.Select label={S.template} value={tplId || null} onChange={setTplId} options={langTemplates.map((x: any) => ({ value: x.id, label: nameOf(x, lang) }))} disabled={busy} />
+          <ui.Select label={S.design} value={tplId || null} onChange={setTplId} options={langTemplates.map((x: any) => ({ value: x.id, label: nameOf(x, lang) }))} disabled={busy} />
         ) : (
           <ui.Message>{S.noTplForLang}</ui.Message>
         )}
@@ -3604,22 +4002,28 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
         {countMode === "manual" && <ui.NumberField label={S.howMany} value={count} onChange={(v: number) => setCount(Math.max(1, Math.min(20, Math.round(v))))} min={1} max={20} step={1} disabled={busy} />}
         <ui.TextField label={S.note} value={note} onChange={setNote} placeholder={S.notePh} multiline disabled={busy} />
       </ui.Section>
-      <ui.Actions>
-        <ui.Button variant="primary" busy={busy} busyLabel={S.planning} onClick={plan}>
-          {S.plan}
-        </ui.Button>
-      </ui.Actions>
-    </ui.Stack>
+      </>
+      )}
+      <ui.Stack gap={8}>
+        <ui.Actions>
+          <ui.Button variant="primary" busy={busy} busyLabel={S.planning} onClick={plan}>
+            {S.plan}
+          </ui.Button>
+        </ui.Actions>
+        <ui.Message>{S.credits}</ui.Message>
+        {footerStatus}
+      </ui.Stack>
+    </>
   );
 
   let bodyN = 0;
   const reviewT = job ? tplOf(job.templateId) : null;
   const review =
     job?.plan && reviewT ? (
-      <ui.Stack gap={16}>
+      <>
         <ui.Section title={S.review}>
-          <small>{S.reviewHint}</small>
-          {job.plan.countReason && <p>{S.recommended(job.plan.recommendedCount, job.plan.countReason)}</p>}
+          <ui.Message>{S.reviewHint}</ui.Message>
+          {job.plan.countReason && <ui.Message>{S.recommended(job.plan.recommendedCount, firstSentence(job.plan.countReason))}</ui.Message>}
         </ui.Section>
         <ui.Grid minItemWidth={240}>
           {job.plan.cards.map((c: any, i: number) => {
@@ -3644,11 +4048,11 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
             );
           })}
         </ui.Grid>
-        <ui.Section title={S.caption}>
+        <ui.Section title={S.postSec}>
           <ui.TextField label={S.caption} value={job.plan.caption} onChange={(v: string) => setJob({ ...job, plan: { ...job.plan, caption: v } })} multiline disabled={busy} />
           <ui.TextField label={S.hashtags} value={job.plan.hashtags} onChange={(v: string) => setJob({ ...job, plan: { ...job.plan, hashtags: v } })} disabled={busy} />
         </ui.Section>
-        {!job.draftId && job.plan.cards.some((c: any) => c.picture?.kind === "generate") && <small>{S.creditsNote}</small>}
+        <ui.Stack gap={8}>
         <ui.Actions>
           <ui.Button variant="ghost" onClick={() => { setJob(null); setStatus(""); setError(""); setExported([]); }} disabled={busy}>
             {S.startOver}
@@ -3663,6 +4067,8 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
             </ui.Button>
           )}
         </ui.Actions>
+        {!job.draftId && job.plan.cards.some((c: any) => c.picture?.kind === "generate") && <ui.Message>{S.credits}</ui.Message>}
+        {footerStatus}
         {job.draftId && (
           <ui.Row gap={8}>
             <ui.Button variant="secondary" onClick={() => openDraft(job.draftId)} disabled={busy}>
@@ -3675,21 +4081,26 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
             )}
           </ui.Row>
         )}
+        </ui.Stack>
         {exported.length > 0 && (
+          <div ref={exportRef}>
+          <ui.Section title={S.exportedTitle}>
           <ui.Grid minItemWidth={120}>
             {exported.map((f) => (
               <ExportThumb key={f} path={f} fs={store.fs} />
             ))}
           </ui.Grid>
+          </ui.Section>
+          </div>
         )}
-      </ui.Stack>
+      </>
     ) : null;
 
   const orphan = job?.plan && !reviewT;
   const make = !projectId ? (
     <ui.Message>{S.noProject}</ui.Message>
   ) : (
-    <ui.Stack gap={16}>
+    <>
       {orphan ? (
         <ui.Stack gap={8}>
           <ui.Message tone="error">{S.templateGone}</ui.Message>
@@ -3700,10 +4111,8 @@ return { folderId, moved: moved.movedCount, skipped: moved.skipped };`,
       ) : (
         review || form
       )}
-      {step >= 0 && <ui.Progress steps={S.steps} current={step} />}
-      {status && <ui.Message tone={step >= 3 && !busy ? "success" : "muted"}>{status}</ui.Message>}
-      {error && <ui.Message tone="error">{error}</ui.Message>}
-    </ui.Stack>
+      {orphan && error && <ui.Message tone="error">{error}</ui.Message>}
+    </>
   );
 
   return (
@@ -3736,322 +4145,3 @@ function ExportThumb({ path, fs }: any) {
   const url = useBlobUrl(path, fs);
   return url ? <img src={url} style={{ width: "100%", borderRadius: 4 }} /> : null;
 }
-
-// Only read-only media queries use this: keep every row without exceeding run_script's response limit.
-async function readMediaPages(sdk, args) {
-  let result, total;
-  for (let offset = 0; ; offset += 32) {
-    const script = `const value=await(async()=>{${args.script}\n})();const array=Array.isArray(value);const data=array?{rows:value}:value;const page={};let total=0;for(const key of Object.keys(data)){const rows=data[key];page[key]=Array.isArray(rows)?rows.slice(${offset},${offset + 32}):rows;if(Array.isArray(rows))total=Math.max(total,rows.length);}return {array,page,total};`;
-    const reply = await sdk.runScript({ ...args, script, allowCommit: false });
-    if (reply.isError || !reply.result?.page) throw new Error(reply.output || 'Could not read the Project media.');
-    const batch = reply.result;
-    if (total !== undefined && total !== batch.total) throw new Error('Project media changed while loading. Try again.');
-    total = batch.total;
-    if (offset === 0) result = batch.page;
-    else for (const key of Object.keys(batch.page)) if (Array.isArray(batch.page[key])) result[key].push(...batch.page[key]);
-    if (offset + 32 >= total) return { ...reply, result: batch.array ? result.rows : result };
-  }
-}
-
-let hostSdk: any = null;
-function hostUseSdk(sdk: any) { hostSdk = panelLocalClient(sdk); if (!hostSdk?.files || !hostSdk?.media || !hostSdk?.environment) throw new Error("Update Selects to use this plugin."); }
-
-// generation-sdk:start
-// Paid jobs always cross the canonical run_script boundary. This panel-local
-// adapter preserves old saved job IDs while the host owns scope and delivery.
-function sdkGeneration(sdk) {
-  if (typeof sdk?.runScript !== "function") return null;
-  const run = async (script, summary, allowCommit = false) => {
-    const response = await sdk.runScript({ script, summary, allowCommit });
-    if (response?.isError) throw new Error(String(response.output || "Generation request failed"));
-    return response?.result;
-  };
-  const job = (scope, id) => `selects.generation.job(${JSON.stringify(id)},${JSON.stringify(scope.projectId)})`;
-  return {
-    isAvailable: () => true,
-    supportsPluginFiles: () => true,
-    async submit(request) {
-      if (request.batch != null && request.batch !== 1) throw new Error("Submit one generation at a time.");
-      const input = {
-        projectId: request.scope.projectId, requestKey: request.key,
-        modelId: request.modelId, input: request.input, uploads: request.uploads || {},
-        outputName: request.outputName, mediaType: request.origin?.tool || "video",
-        ...(request.inputMediaSeconds ? { inputMediaSeconds: request.inputMediaSeconds } : {}),
-        ...(request.delivery ? { delivery: { folder: request.delivery.pluginFolder } } : {}),
-      };
-      const result = await run(`const job = await selects.generation.submit(${JSON.stringify(input)}); return {jobId: job.jobId};`, "Start media generation", true);
-      if (!result?.jobId) throw new Error("Generation submission is unknown. Resume with the same request key.");
-      return { jobIds: [result.jobId] };
-    },
-    list: scope => run(`return await selects.generation.jobs(${JSON.stringify(scope.projectId)});`, "Read generation progress"),
-    cancel: (scope, id) => run(`await ${job(scope, id)}.cancel(); return {requested:true};`, "Cancel generation", true),
-    retryDelivery: (scope, id) => run(`await ${job(scope, id)}.retryDelivery(); return {requested:true};`, "Recover generated files", true),
-  };
-}
-// generation-sdk:end
-
-// local-sdk:start
-/** Pure host-platform path operations; no filesystem or renderer globals. */
-function panelLocalPaths(platform: string) {
-  const windows = platform === "win32";
-  const slash = (path: string) => {
-    if (typeof path !== "string")
-      throw new TypeError("A path must be a string.");
-    return windows ? path.replace(/\\/g, "/") : path;
-  };
-  const rootOf = (path: string) => {
-    if (windows) {
-      const unc = path.match(/^\/\/[^/]+\/[^/]+\/?/);
-      if (unc) return unc[0].replace(/\/?$/, "/");
-      const drive = path.match(/^[a-z]:\/?/i);
-      if (drive) return drive[0];
-    }
-    return path.startsWith("/") ? "/" : "";
-  };
-  const native = (value: string) =>
-    windows ? value.replace(/\//g, "\\") : value;
-  const normalize = (value: string) => {
-    const path = slash(value),
-      root = rootOf(path),
-      absolute = root.endsWith("/");
-    const segments: string[] = [];
-    for (const segment of path
-      .slice(Math.min(root.length, path.length))
-      .split("/")) {
-      if (!segment || segment === ".") continue;
-      if (segment === ".." && segments.length && segments.at(-1) !== "..")
-        segments.pop();
-      else if (segment !== ".." || !absolute) segments.push(segment);
-    }
-    let result = root + segments.join("/");
-    if (!result || (windows && /^[a-z]:$/i.test(result))) result += ".";
-    if (path.endsWith("/") && !result.endsWith("/")) result += "/";
-    return native(result);
-  };
-  const basename = (value: string, extension?: string) => {
-    const path = slash(value).replace(/\/+$/, "");
-    const withoutDrive = windows ? path.replace(/^[a-z]:/i, "") : path;
-    const name = withoutDrive.slice(withoutDrive.lastIndexOf("/") + 1);
-    return extension && name.endsWith(extension)
-      ? name.slice(0, -extension.length)
-      : name;
-  };
-  return {
-    normalize,
-    join: (...paths: string[]) => {
-      const parts = paths.map(slash).filter(Boolean);
-      let joined = parts.join("/");
-      if (windows && !/^\/\/[^/]/.test(parts[0] || ""))
-        joined = joined.replace(/^\/{2,}/, "/");
-      return normalize(joined);
-    },
-    dirname(value: string) {
-      const path = slash(value),
-        root = rootOf(path);
-      const end = path.replace(/\/+$/, "").lastIndexOf("/");
-      if (end < root.length) return value.slice(0, root.length) || ".";
-      return value.slice(0, end);
-    },
-    basename,
-    extname(value: string) {
-      const name = basename(value),
-        dot = name.lastIndexOf(".");
-      return dot <= 0 || name === ".." ? "" : name.slice(dot);
-    },
-    isAbsolute: (value: string) => rootOf(slash(value)).endsWith("/"),
-  };
-}
-
-
-/** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
-async function createPanelLocalClient(sdk: any) {
-  const run = async (method: string, args: unknown[], write = false) => {
-    // method names below are fixed implementation constants; values always use JSON encoding.
-    // Direct arguments keep object literals contextually typed by the SDK signature.
-    const response = await sdk.runScript({
-      summary: "Use local media workspace",
-      allowCommit: write,
-      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
-    });
-    if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
-    // A clipped report has no result. Every read returning data rejects that case below.
-    return response.result;
-  };
-  const environment = await run("files.environment", []);
-  if (!environment || typeof environment.platform !== "string" || !environment.homedir)
-    throw new Error("Update Selects to use this plugin's local media workspace.");
-  const paths = panelLocalPaths(environment.platform);
-  const CHUNK_BYTES = 48 * 1024;
-  const readRange = async (path: string, offset: number, length: number) => {
-    const parts: Uint8Array[] = [];
-    let total = 0;
-    while (total < length) {
-      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
-      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
-      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
-      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
-      parts.push(bytes); total += bytes.length;
-      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
-    }
-    const output = new Uint8Array(total);
-    let position = 0;
-    for (const bytes of parts) { output.set(bytes, position); position += bytes.length; }
-    return output;
-  };
-  const files = {
-    ...paths,
-    homedir: () => environment.homedir,
-    getOrCreateTmpDirPath: async () => environment.tempDirectory,
-    exists: (path: string) => run("files.exists", [path]),
-    stat: (path: string) => run("files.stat", [path]),
-    readdir: (path: string) => run("files.readdir", [path]),
-    readRange,
-    async readFile(path: string, encoding?: string) {
-      const stat = await run("files.stat", [path]);
-      if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");
-      const bytes = await readRange(path, 0, stat.size);
-      if (bytes.length !== stat.size) throw new Error("The file changed while it was being read.");
-      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
-      return encoding === "utf8" ? new TextDecoder().decode(bytes) : bytes;
-    },
-    async writeFile(path: string, data: string | Uint8Array, options?: string | { encoding?: string; flag?: "w" | "a" | "wx" }) {
-      const encoding = typeof options === "string" ? options : options?.encoding;
-      const flag = typeof options === "object" ? options.flag : undefined;
-      if (flag !== undefined && !["w", "a", "wx"].includes(flag)) throw new Error("Unsupported file write flag.");
-      if (encoding !== undefined && encoding !== "utf8") throw new Error("Only utf8 text encoding is supported.");
-      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
-      if ((flag === "a" || flag === "wx") && bytes.length > CHUNK_BYTES) throw new Error("Atomic append and exclusive creation are limited to 48 KiB.");
-      // Each complete replacement has its own sibling file. Other panels cannot
-      // overwrite one of its chunks before the final atomic rename publishes it.
-      const replacement = flag !== "a" && flag !== "wx";
-      const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
-      let published = false;
-      try {
-        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
-          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
-          let binary = "";
-          for (const byte of chunk) binary += String.fromCharCode(byte);
-          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
-          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
-          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
-        }
-        if (replacement) await run("files.rename", [destination, path], true);
-        published = true;
-      } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
-      }
-    },
-    async compareAndReplace(path: string, expectedText: string | null, text: string) {
-      const encode = (value: string) => {
-        const bytes = new TextEncoder().encode(value);
-        if (bytes.length > CHUNK_BYTES) throw new Error("Atomic file values are limited to 48 KiB.");
-        let binary = "";
-        for (const byte of bytes) binary += String.fromCharCode(byte);
-        return btoa(binary);
-      };
-      const result = await run("files.compareAndReplace", [{path, expectedBase64: expectedText === null ? null : encode(expectedText), base64: encode(text)}], true);
-      if (typeof result?.replaced !== "boolean") throw new Error("The atomic file update returned an incomplete result. Read the file before retrying.");
-      return result.replaced;
-    },
-    mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
-    rename: (from: string, to: string) => run("files.rename", [from, to], true),
-    copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
-    downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
-    pathToLocalURL: (path: string) => run("files.localUrl", [path]),
-    localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
-  };
-  const activeJobs = new Set<string>();
-  let disposed = false;
-  const cancel = async (jobId: string) => {
-    const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
-    if (response.isError) throw new Error(response.output || "Media cancellation failed.");
-  };
-  const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
-    if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const started = await run("media.start" + executable, [{ args }], true);
-    if (!started?.jobId) throw new Error("The media process did not return a job id.");
-    const jobId = started.jobId;
-    activeJobs.add(jobId);
-    let cancellation: Promise<void> | null = null;
-    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
-    signal?.addEventListener("abort", abort, { once: true });
-    if (disposed || signal?.aborted) abort();
-    let cursor = 0, stdout = "", stderr = "";
-    try {
-      while (true) {
-        if (cancellation) await cancellation;
-        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
-        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
-        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
-        for (const event of status.events) {
-          if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
-          else { stderr += event.text; onStderr?.(event.text); }
-        }
-        cursor = status.nextCursor;
-        if (status.state !== "running" && status.events.length === 0) {
-          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-          if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
-          return { stdout, stderr };
-        }
-        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
-      }
-    } catch (error) {
-      await cancel(jobId).catch(() => {});
-      throw error;
-    } finally {
-      signal?.removeEventListener("abort", abort);
-      activeJobs.delete(jobId);
-    }
-  };
-  return {
-    files,
-    environment,
-    media: {
-      runFFmpeg: (args: string[], quiet?: boolean, signal?: AbortSignal, stdout?: (text: string) => void, stderr?: (text: string) => void) => process("FFmpeg", args, quiet, signal, stdout, stderr),
-      runFFprobe: (args: string[], quiet?: boolean, signal?: AbortSignal) => process("FFprobe", args, quiet, signal),
-    },
-    dialogs: {
-      pickFilePath: (filters?: Array<{ name: string; extensions: string[] }>) => run("editor.pickFile", [{ filters }]),
-      pickDirectoryPath: () => run("editor.pickDirectory", []),
-      pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
-    },
-    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
-  };
-}
-
-const panelLocalClients = new WeakMap<object, any>();
-function panelLocalClient(sdk: any): any {
-  const client = panelLocalClients.get(sdk);
-  if (!client) throw new Error("Local SDK has not initialized.");
-  return client;
-}
-function withPanelLocalClient(Component: any) {
-  return function LocalSdkPanel(props: any) {
-    const [state, setState] = React.useState<any>(null);
-    React.useEffect(() => {
-      let active = true;
-      let client: any;
-      createPanelLocalClient(props.sdk).then(value => {
-        client = {...props.sdk, ...value};
-        if (!active) { value.dispose(); return; }
-        panelLocalClients.set(props.sdk, client);
-        setState({sdk: props.sdk});
-      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
-      return () => {
-        active = false;
-        if (client) {
-          if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
-          client.dispose();
-        }
-      };
-    }, [props.sdk]);
-    if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
-    return React.createElement(Component, props);
-  };
-}
-
-export default withPanelLocalClient(Panel);
-// local-sdk:end

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "chosun-cardnews",
+  "version": "0.1.0-alpha.1",
+  "name": "Chosun Ilbo TikTok Card News",
+  "summary": "Turn a news article, pasted text or a project video into an editable 4:5 card news Draft in Chosun Ilbo templates, then export each card as an image.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS"
+    ],
+    "selects": "Requires Panel SDK runScript/runShell/askAI, Draft setFrameSize, setClipTransform and addMotionGraphic, Project createFolder and moveToFolder, and the panel runtime services FileSystem and MediaGeneration. Checked on Selects 2.0.580 on macOS."
+  },
+  "localized": {
+    "en": {
+      "name": "Chosun Ilbo TikTok Card News",
+      "summary": "Turn a news article, pasted text or a project video into an editable 4:5 card news Draft in Chosun Ilbo templates, then export each card as an image."
+    },
+    "ko": {
+      "name": "\uc870\uc120\uc77c\ubcf4 \ud2f1\ud1a1 \uce74\ub4dc\ub274\uc2a4",
+      "summary": "\uae30\uc0ac \ub9c1\ud06c, \ubd99\uc5ec \ub123\uc740 \uae00, \ud504\ub85c\uc81d\ud2b8 \uc601\uc0c1\uc73c\ub85c \uc870\uc120\uc77c\ubcf4 \ud15c\ud50c\ub9bf\uc758 4:5 \uce74\ub4dc\ub274\uc2a4 Draft\ub97c \ub9cc\ub4e4\uace0 \uce74\ub4dc\ub9c8\ub2e4 \uc774\ubbf8\uc9c0\ub85c \ub0b4\ubcf4\ub0c5\ub2c8\ub2e4."
+    }
+  }
+}

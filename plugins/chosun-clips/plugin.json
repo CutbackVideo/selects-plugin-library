@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "chosun-clips",
+  "version": "0.1.0-alpha.1",
+  "name": "Chosun Ilbo TikTok Clips",
+  "summary": "Turn a long Chosun Ilbo YouTube episode into editable vertical TikTok Drafts in the program's own format, with headlines and captions.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS"
+    ],
+    "selects": "Requires Panel SDK runScript/runShell/askAI, Project importFiles and startAnalysis, Draft setFrameSize, setClipTransform and addMotionGraphic, and the panel file service. Checked on Selects 2.0.580 on macOS. Skips speaker profiling on Selects builds whose startAnalysis accepts includeSpeakerProfiling; older builds ignore the option."
+  },
+  "localized": {
+    "en": {
+      "name": "Chosun Ilbo TikTok Clips",
+      "summary": "Turn a long Chosun Ilbo YouTube episode into editable vertical TikTok Drafts in the program's own format, with headlines and captions."
+    },
+    "ko": {
+      "name": "\uc870\uc120\uc77c\ubcf4 \ud2f1\ud1a1 \ud074\ub9bd",
+      "summary": "\uc870\uc120\uc77c\ubcf4 \uc720\ud29c\ube0c \uc5d0\ud53c\uc18c\ub4dc\ub97c \ud504\ub85c\uadf8\ub7a8\ubcc4 \ud2f1\ud1a1 \ud3ec\ub9f7\uc758 \uc138\ub85c Draft\ub85c \ub9cc\ub4ed\ub2c8\ub2e4. \ud5e4\ub4dc\ub77c\uc778\uacfc \uc790\ub9c9\uc740 Draft\uc5d0\uc11c \uace0\uce60 \uc218 \uc788\uc2b5\ub2c8\ub2e4."
+    }
+  }
+}
