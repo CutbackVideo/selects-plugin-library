@@ -52,7 +52,7 @@ Prompt for Acoustic Pop (`acoustic-pop-104.mp3`):
 
 ## Gallery preview footage
 
-`preview.mp4` and `poster.webp` are not installed with the plugin. They show a Mini Vlog build with the default settings (Bedroom Pop 108, A small glimpse title, Quick, Beat punch, Start at the hook, Standard length) made from these clips and photos under the Pexels License (https://www.pexels.com/license/), which allows free use and modification without attribution; they are credited here anyway.
+`preview.mp4` and `poster.webp` are not installed with the plugin. They show a Mini Vlog build with the default settings (Bedroom Pop 108, A small glimpse title, Quick, Beat punch, Start at the hook, Standard length) made from these clips and photos under the Pexels License (https://www.pexels.com/license/), which allows free use and modification without attribution; they are credited here anyway. In `preview.mp4` (1280x720) the music was replaced with a track the Selects team generated with Suno.
 
 | File | Title | Author | Source |
 |---|---|---|---|

@@ -42,7 +42,7 @@ What we changed: each track was brought to -16.3 LUFS integrated with a static g
 
 ## Gallery preview footage
 
-`preview.mp4` and `poster.webp` are not installed with the plugin. They show an Archive Vlog build with the default settings (Peaceful Drift from its soft intro, Cinematic style, Cinematic pace, Standard length, Credit shot with the sample name, Cinematic look, Ambient clip sound) on a set of golden-hour Istanbul stock footage, encoded to 960x540. Every clip and photo below is used under the Pexels License (https://www.pexels.com/license/), accessed 2026-10-01; the music is Peaceful Drift by HoliznaCC0 (CC0 1.0, see Music).
+`preview.mp4` and `poster.webp` are not installed with the plugin. They show an Archive Vlog build with the default settings (Peaceful Drift from its soft intro, Cinematic style, Cinematic pace, Standard length, Credit shot with the sample name, Cinematic look, Ambient clip sound) on a set of golden-hour Istanbul stock footage. Every clip and photo below is used under the Pexels License (https://www.pexels.com/license/), accessed 2026-10-01. In `preview.mp4` (1280x720) the music was replaced with a track the Selects team generated with Suno; the poster has no sound.
 
 | Title | Kind | Author | Source |
 |---|---|---|---|
