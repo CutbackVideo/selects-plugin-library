@@ -131,7 +131,19 @@ for (const c of m.cues) {
   assert.ok(Math.abs(c.referenceStart - (c.introStart)) < 0.05, 'referenceStart about bar 8: ' + c.referenceStart);
   assert.deepEqual(m.cues.filter(x => x.referenceBpm).map(x => x.id), ['marimba-motif'], 'only Marimba Motif has a reference grid');
   const ui = fs.readFileSync(path.join(root, 'panel.tsx'), 'utf8');
-  assert.ok(ui.includes('onsets: ref ? NO_ONSETS : cue.onsets || NO_ONSETS') && ui.includes('introStart: ref ? cue.referenceStart : cue.introStart'), 'cueGrid runs on the reference grid');
+  assert.ok(ui.includes('onsets: ref ? NO_ONSETS : cue.onsets || NO_ONSETS') && ui.includes('introStart: ref ? cue.referenceStart : cue.introStart')
+    && ui.includes('beatEnergy: ref ? [] : cue.beatEnergy || []') && ui.includes('Math.round(c.referenceBpm || c.bpm)'), 'cueGrid runs on the reference grid');
+  // Every Length and Pace starts on referenceStart (the video fits before usableEnd), a bar of the 72 BPM grid that the
+  // section slider keeps.
+  const bar = 240 / 72, fb = c.referenceStart - Math.floor(c.referenceStart / bar) * bar;
+  for (const length of ['short', 'standard', 'long']) for (const pace of ['cinematic', 'quick']) {
+    const requested = ctx.avMontageShots(length, pace), n = ctx.avFitShots({ requested, pace, bpm: 72, sectionStart: fb, usableEnd: c.usableEnd });
+    assert.equal(n, requested, length + ' ' + pace + ' fits');
+    const videoSeconds = ctx.avVideoSeconds({ bpm: 72, pace, montageShots: n });
+    assert.equal(ctx.avIntroSection({ introStart: c.referenceStart, firstBeat: fb, bpm: 72, usableEnd: c.usableEnd, videoSeconds, beatEnergy: [] }), c.referenceStart, length + ' ' + pace + ' section');
+    const snapped = ctx.avSnapSection({ value: c.referenceStart, firstBeat: fb, bpm: 72, usableEnd: c.usableEnd, videoSeconds, gridAccepted: true });
+    assert.ok(Math.abs(snapped - c.referenceStart) < 1e-9, length + ' ' + pace + ' slider keeps the start');
+  }
   const tpl = ctx.avTemplate({ bpm: 72, pace: 'cinematic', montageShots: ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: c.referenceStart, usableEnd: c.usableEnd }) });
   const sch = ctx.avSchedule({ bpm: 72, fps: 25, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, sectionStart: c.referenceStart, onsets: [] });
   assert.deepEqual(JSON.parse(JSON.stringify(sch.slots.map(x => x.endFrame))), [125, 167, 209, 250, 292, 334, 375, 417, 459, 500, 542, 584, 625, 667, 709, 750, 792, 834, 917], 'reference cuts at 25 fps');

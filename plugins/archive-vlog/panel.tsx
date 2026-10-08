@@ -4047,11 +4047,12 @@ function fontFiles(presets: any): string[] {
 }
 // A bundled cue's grid (manifest), the one a build and the section slider use. A cue with a reference edit
 // (referenceBpm, referenceStart: the team's reference timeline cuts on that grid from there, without onset snapping)
-// runs on that grid: its bars from referenceStart, which is the default section, and no snapping.
+// runs on that grid: its bars from referenceStart, which is the default section, and no snapping. Its beatEnergy is
+// indexed on the measured grid, so it is left out (a section that does not fit falls back to the first bar).
 function cueGrid(cue: any) {
   const ref = cue.referenceBpm > 0 && typeof cue.referenceStart === "number", bpm = ref ? cue.referenceBpm : cue.bpm, bar = 240 / bpm;
   return { bpm, accepted: true, approxBpm: null, firstBeat: ref ? cue.referenceStart - Math.floor(cue.referenceStart / bar) * bar : cue.firstBeat, usableEnd: cue.usableEnd,
-    introStart: ref ? cue.referenceStart : cue.introStart, beatEnergy: cue.beatEnergy || [],
+    introStart: ref ? cue.referenceStart : cue.introStart, beatEnergy: ref ? [] : cue.beatEnergy || [],
     downbeatHigh: cue.downbeatConfidence === "high", peaks: cue.peaks || [], onsets: ref ? NO_ONSETS : cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds };
 }
 const NO_MUSIC_GRID = { none: true, bpm: null, accepted: false, approxBpm: null, firstBeat: 0, usableEnd: null, beatEnergy: [], peaks: [], onsets: NO_ONSETS, onsetThresholds: undefined };
@@ -5192,7 +5193,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       </button>
     );
   };
-  const bpmOf = (c: any) => t(L, "bpm", { bpm: Math.round(c.bpm) });
+  const bpmOf = (c: any) => t(L, "bpm", { bpm: Math.round(c.referenceBpm || c.bpm) });
   const progressLabel = progress ? (progress.detail
     ? t(L, "progressDetail", { step: progress.current + 1, total: AV_BUILD_STEPS.length, name: t(L, "step." + progress.id), detail: progress.detail(L), percent: progress.percent })
     : t(L, "progress", { step: progress.current + 1, total: AV_BUILD_STEPS.length, name: t(L, "step." + progress.id), percent: progress.percent })) : "";
