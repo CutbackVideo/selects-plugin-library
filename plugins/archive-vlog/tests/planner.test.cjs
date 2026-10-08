@@ -203,7 +203,7 @@ for (const downbeatHigh of [true, false, undefined]) {
 // snap window of its grid time, and the montage starts 8 beats in.
 {
   const manifest = JSON.parse(fs.readFileSync(__dirname + '/../assets/cues/manifest.json', 'utf8'));
-  assert.deepStrictEqual(manifest.cues.map(c => c.id).sort(), ['before-everything', 'fractured', 'peaceful-drift', 'theta-frequency']);
+  assert.deepStrictEqual(manifest.cues.map(c => c.id).sort(), ['before-everything', 'fractured', 'marimba-motif', 'peaceful-drift', 'theta-frequency']);
   for (const cue of manifest.cues) {
     const tempo = j(ctx.avTempo({ bpm: cue.bpm, accepted: true }));
     assert.strictEqual(tempo.gridded, true, cue.id + ' has a usable grid');

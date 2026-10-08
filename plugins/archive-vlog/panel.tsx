@@ -1946,7 +1946,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.4";
+const PLUGIN_VERSION = "0.1.0-alpha.5";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -2883,7 +2883,7 @@ const AV_QUERIES = {
 const SEARCH_BATCH = 2;
 // Ambient clip sound: the clips' own sound sits this far under the music, which stays at 0 dB.
 const AMBIENT_DB = -18;
-const DEFAULT_CUE = "peaceful-drift";
+const DEFAULT_CUE = "marimba-motif";
 const DEFAULT_PRESET = "cinematic";
 const DEFAULT_LENGTH = "standard";
 const DEFAULT_PACE = "cinematic";

@@ -10,13 +10,17 @@
 'use strict';
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), { execFileSync, spawnSync } = require('node:child_process');
 const { analyze, sixteenthRatio, bandOnsets } = require('../beat-detect.cjs');
-const PROVENANCE = 'CC0 1.0 (public domain) tracks by HoliznaCC0 from the Free Music Archive, levelled to -16.3 LUFS and re-encoded (no tempo, pitch or structure edit). Track pages and access dates: THIRD_PARTY.md and assets/cues/LICENSES.csv.';
+const PROVENANCE = 'Marimba Motif (Suno, generated for Cutback and bundled with the plugin) and CC0 1.0 (public domain) tracks by HoliznaCC0 from the Free Music Archive, levelled to -16.3 LUFS and re-encoded (no tempo, pitch or structure edit). Track pages and access dates: THIRD_PARTY.md and assets/cues/LICENSES.csv.';
 const CC0 = { name: 'CC0 1.0', url: 'https://creativecommons.org/publicdomain/zero/1.0/', author: 'HoliznaCC0', accessed: '2026-10-01' };
-// Manifest order = panel order; the first is the default (Peaceful Drift). All four sit in the 'reference' group
+// Manifest order = panel order; the first is the default (Marimba Motif, Suno). All five sit in the 'reference' group
 // (group: 'reference' | 'alternative'; the panel labels the list by it). page: the Free Music Archive track page that
 // states the CC0 licence (checked 2026-10-01).
 const FMA = 'https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/';
+const SUNO = { name: 'Suno (generated for Cutback)', url: '', author: 'Suno for Cutback', accessed: '2026-10-08' };
 const CUES = [
+  // measureSeconds: the grid is measured on the first part only. Marimba Motif's beat holds (71.03 BPM, median residual
+  // 7-9 ms) to about 80 s; its sparse 30-60 s stretch and loose ending pull the whole-file residual to 12 ms.
+  { id: 'marimba-motif', label: 'Marimba Motif', source: 'suno-marimba-motif.wav', group: 'reference', page: '', license: SUNO, measureSeconds: 80 },
   { id: 'peaceful-drift', label: 'Peaceful Drift', source: 'holiznacc0-peaceful-drift.mp3', group: 'reference', page: FMA + 'peaceful-drift-lofi-nostalgic-calm/' },
   { id: 'theta-frequency', label: 'Theta Frequency', source: 'holiznacc0-theta-frequency.mp3', group: 'reference', page: FMA + 'theta-frequency-lofi-chill-calm/' },
   { id: 'before-everything', label: 'Before Everything', source: 'holiznacc0-before-everything.mp3', group: 'reference', page: FMA + 'before-everything-lofi-nostalgic-mp3/' },
@@ -183,8 +187,8 @@ const introOf = (file, bpm, firstBeat, usableEnd) => {
 const buildCue = (c, input) => {
   const file = c.id + '.mp3', dst = path.join(out, file);
   const loud = encodeLoud(input, dst);
-  const samples = decode(dst);
-  const a = analyze(samples, 22050);
+  const all = decode(dst), samples = c.measureSeconds ? all.subarray(0, Math.round(c.measureSeconds * 22050)) : all;
+  const a = analyze(samples, 22050), whole = samples === all ? a : analyze(all, 22050); // duration and waveform: the whole file
   if (!a.accepted) throw Error(c.id + ': beat-detect did not accept the grid');
   // Tempo-change guard: each half of the file analysed on its own must give the same tempo.
   const half = samples.length >> 1, b1 = analyze(samples.subarray(0, half), 22050).bpm, b2 = analyze(samples.subarray(half), 22050).bpm;
@@ -201,14 +205,14 @@ const buildCue = (c, input) => {
   console.log(c.id, 'groove by bar', intro.groove.slice(0, 12).join(' '), '| rms', intro.rms.slice(0, 12).join(' '));
   console.log(c.id, 'groove arrives at bar', intro.arrival, '(' + round3(firstBeat + intro.arrival * 240 / bpm) + ' s); introStart bar', intro.bar, '=', intro.introStart, 's; intro->body lift', intro.introLiftLu, 'LU');
   return withHook({
-    id: c.id, label: c.label, group: c.group, file, duration: a.durationSeconds,
-    bpm, firstBeat, barPhaseBeats: k, usableEnd, introStart: intro.introStart, introLiftLu: intro.introLiftLu,
+    id: c.id, label: c.label, group: c.group, file, duration: whole.durationSeconds,
+    bpm, firstBeat, barPhaseBeats: k, usableEnd, ...(c.measureSeconds ? { gridSeconds: c.measureSeconds } : {}), introStart: intro.introStart, introLiftLu: intro.introLiftLu,
     lufs: loud.after.lufs, truePeak: loud.after.tp, lra: loud.after.lra, sha256: crypto.createHash('sha256').update(fs.readFileSync(dst)).digest('hex'),
     downbeatConfidence: downbeatRatio >= DOWNBEAT_HIGH ? 'high' : 'low', downbeatRatio,
     // The 16th-onset ratio over the usable part of the cue decides the title burst (see planner.js).
-    sixteenthRatio: sixteenthRatio(samples, 22050, bpm, firstBeat, usableEnd), peaks: a.peaks, beatEnergy: beatEnergyOn(samples, bpm, firstBeat),
+    sixteenthRatio: sixteenthRatio(samples, 22050, bpm, firstBeat, usableEnd), peaks: whole.peaks, beatEnergy: beatEnergyOn(samples, bpm, firstBeat),
     ...onsetFields(samples),
-    license: { name: CC0.name, url: CC0.url, source: c.page, author: CC0.author, accessed: CC0.accessed },
+    license: (({ name, url, author, accessed }) => ({ name, url, source: c.page, author, accessed }))(c.license || CC0),
   });
 };
 
@@ -226,10 +230,17 @@ function main() {
     m.cues.forEach(c => console.log(c.id, c.onsets.length, 'onsets', JSON.stringify(c.onsetThresholds), 'hookStart', c.hookStart));
     return;
   }
-  if (!kit) throw Error('set SELECTS_APP_KIT to the selects-app-kit checkout to measure the downbeat and the intro');
+  // A cue whose source is not in the folder keeps its shipped manifest entry unchanged (the HoliznaCC0 originals
+  // are not needed to add a new cue); a cue with a source is levelled and measured.
+  const shipped = fs.existsSync(path.join(out, 'manifest.json')) ? JSON.parse(fs.readFileSync(path.join(out, 'manifest.json'), 'utf8')).cues : [];
   const cues = CUES.map(c => {
-    const input = path.join(src, c.source);
-    if (!fs.existsSync(input)) throw Error(c.id + ': ' + c.source + ' is not in ' + src);
+    const input = path.join(src, c.source), kept = shipped.find(k => k.id === c.id);
+    if (!fs.existsSync(input)) {
+      if (!kept) throw Error(c.id + ': ' + c.source + ' is not in ' + src + ' and the cue is not shipped yet');
+      console.log(c.id, 'kept');
+      return kept;
+    }
+    if (!kit) throw Error('set SELECTS_APP_KIT to the selects-app-kit checkout to measure the downbeat and the intro');
     return buildCue(c, input);
   });
   fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify({ version: 1, provenance: PROVENANCE, cues }) + '\n');

@@ -10,6 +10,8 @@ assert.ok(/CC0 1\.0/.test(m.provenance) && /HoliznaCC0/.test(m.provenance) && /F
 // introOf, measured on the mid-band onsets: Peaceful Drift bar 3 (drums at bar 5, 16.7 s), Theta Frequency bar 2
 // (bar 4, 13.7 s), Before Everything bar 1 (bar 3, 12.8 s), Fractured bar 4 (backbeat at bar 6, 20.3 s)).
 const ALL = [
+  // Marimba Motif (Suno, the default): no soft intro (its groove is there from bar 1), grid measured on its first 80 s.
+  { id: 'marimba-motif', label: 'Marimba Motif', bpm: 71, barPhase: 2, introBar: 0, page: '', license: 'suno' },
   { id: 'peaceful-drift', label: 'Peaceful Drift', bpm: 72, barPhase: 0, introBar: 3, page: 'peaceful-drift-lofi-nostalgic-calm/' },
   { id: 'theta-frequency', label: 'Theta Frequency', bpm: 70, barPhase: 0, introBar: 2, page: 'theta-frequency-lofi-chill-calm/' },
   { id: 'before-everything', label: 'Before Everything', bpm: 75, barPhase: 3, introBar: 1, page: 'before-everything-lofi-nostalgic-mp3/' },
@@ -56,9 +58,15 @@ for (const c of m.cues) {
   // -16.3 LUFS integrated (static gain + limiter) and a true peak at or under -1 dBTP.
   assert.ok(Math.abs(c.lufs - TARGET_LUFS) <= LUFS_TOLERANCE, c.id + ' lufs ' + c.lufs);
   assert.ok(typeof c.truePeak === 'number' && c.truePeak <= CEILING_DBTP, c.id + ' truePeak ' + c.truePeak);
-  // Licence: CC0 1.0 from the track's Free Music Archive page, the same page as LICENSES.csv and THIRD_PARTY.md.
+  // Licence: CC0 1.0 from the track's Free Music Archive page, the same page as LICENSES.csv and THIRD_PARTY.md; the
+  // Suno track (generated for Cutback) has no track page.
   const row = csv.find(r => r.bundled_file === c.file);
   assert.deepEqual(Object.keys(c.license).sort(), ['accessed', 'author', 'name', 'source', 'url']);
+  if (e.license === 'suno') {
+    assert.deepEqual(c.license, { name: 'Suno (generated for Cutback)', url: '', source: '', author: 'Suno for Cutback', accessed: '2026-10-08' });
+    assert.deepEqual([row.author, row.license, row.date_accessed], ['Suno for Cutback', 'Suno (generated for Cutback)', '2026-10-08'], c.id + ' LICENSES.csv');
+    assert.ok(thirdParty.includes('`' + c.file + '`'), c.id + ' in THIRD_PARTY.md');
+  } else {
   assert.equal(c.license.name, 'CC0 1.0');
   assert.equal(c.license.url, 'https://creativecommons.org/publicdomain/zero/1.0/');
   assert.equal(c.license.author, 'HoliznaCC0');
@@ -70,6 +78,7 @@ for (const c of m.cues) {
   assert.equal(row.license_url, c.license.url);
   assert.equal(row.date_accessed, c.license.accessed);
   assert.ok(thirdParty.includes(c.license.source) && thirdParty.includes('`' + c.file + '`'), c.id + ' in THIRD_PARTY.md');
+  }
   // introStart: a bar start (firstBeat + k bars, k = the measured bar) from which a Standard video (6 + 2 + 32 + 4 =
   // 44 beats) fits before usableEnd. introLiftLu is informational (Fractured has no soft intro before its backbeat).
   const k = (c.introStart - c.firstBeat) / bar;
@@ -117,7 +126,10 @@ if (spawnSync('ffmpeg', ['-version']).status === 0) {
   const { analyze } = require(path.join(root, 'beat-detect.cjs'));
   for (const c of m.cues) {
     const pcm = execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-i', path.join(dir, c.file), '-ac', '1', '-ar', '22050', '-f', 'f32le', '-'], { maxBuffer: 1 << 28 });
-    const x = new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4));
+    // gridSeconds: a cue whose grid was measured on its first part only (Marimba Motif: 80 s).
+    const full = new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4));
+    const x = c.gridSeconds ? full.subarray(0, Math.round(c.gridSeconds * 22050)) : full;
+    if (c.gridSeconds) assert.ok(c.usableEnd <= c.gridSeconds, c.id + ' usable only where the grid was measured');
     const a = analyze(x, 22050);
     assert.equal(a.accepted, true, c.id + ' accepted');
     assert.ok(Math.abs(a.bpm - c.bpm) <= 1e-9, c.id + ' bpm reproduced: ' + a.bpm + ' vs ' + c.bpm);

@@ -49,8 +49,8 @@ is open.
    `assets/fonts/presets.json`.
 2. Open a Project with video clips (analysed or not) and open the panel. The Style
    tiles show Cinematic, A Day Out and Golden Hour, the title preview shows
-   the finished lockup in its own typefaces, the Track list shows the four
-   bundled tracks (Peaceful Drift first), and the readiness line at the bottom
+   the finished lockup in its own typefaces, the Track list shows the five
+   bundled tracks (Marimba Motif first), and the readiness line at the bottom
    of the Length section reads, for example, "Ready: 6 clips · 12 photos". In
    a Project whose clips were never analysed it reads the same, with a note
    that analysed clips give better picks; Build then checks those clips

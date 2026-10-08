@@ -100,7 +100,7 @@ for (const [lang, v] of Object.entries(plugin.localized)) assert.ok(v.name === '
 const opt = id => plugin.options.find(o => o.id === id);
 assert.deepEqual(opt('track').choices.map(c => c.id), manifest.cues.map(c => c.id), 'template tracks = bundled cues');
 assert.deepEqual(opt('title').choices.map(c => c.id), presets.presets.map(p => p.id), 'template styles = presets');
-for (const [id, want] of [['track', 'peaceful-drift'], ['title', 'cinematic'], ['length', 'standard']]) assert.equal(opt(id).default, want, id + ' default');
+for (const [id, want] of [['track', 'marimba-motif'], ['title', 'cinematic'], ['length', 'standard']]) assert.equal(opt(id).default, want, id + ' default');
 
 // ---- Strings ------------------------------------------------------------------------------------------------------
 // UI text lives in the STRINGS block (10 languages, tests/i18n.test.cjs); wording is checked against STRINGS.en and the
@@ -161,7 +161,7 @@ for (const r of j(P.AV_ROLES)) assert.ok(K.AV_QUERIES[r], 'a query for role ' + 
 assert.ok(K.SEARCH_BATCH * Object.keys(K.AV_QUERIES).length <= 22, 'a search call stays within search.js budget (22 searches)');
 assert.equal(K.SEARCH_BATCH, 2);
 assert.deepEqual([K.AMBIENT_DB, K.DEFAULT_CUE, K.DEFAULT_PRESET, K.DEFAULT_LENGTH, K.DEFAULT_PACE, K.DEFAULT_CLIP_SOUND, K.LOOK_STRENGTH, K.MOTION_STRENGTH,
-  K.VIDEO_MOTION_STRENGTH, K.FADE_SECONDS, K.MUSIC_FADE_OUT], [-18, 'peaceful-drift', 'cinematic', 'standard', 'cinematic', 'ambient', 0.3, 0.5, 0.8, 1, 1]);
+  K.VIDEO_MOTION_STRENGTH, K.FADE_SECONDS, K.MUSIC_FADE_OUT], [-18, 'marimba-motif', 'cinematic', 'standard', 'cinematic', 'ambient', 0.3, 0.5, 0.8, 1, 1]);
 assert.ok(/const FADE_SECONDS = 1\.0;/.test(panel) && /const MUSIC_FADE_OUT = 1\.0;/.test(panel), 'the fades as the driver reads them');
 assert.ok(manifest.cues.some(c => c.id === K.DEFAULT_CUE) && presets.presets.some(p => p.id === K.DEFAULT_PRESET), 'defaults exist');
 assert.deepEqual(K.MOTION_OPTIONS.map(o => o.value), j(P.AV_PHOTO_MOTIONS), 'every photo motion is a choice');
@@ -555,8 +555,8 @@ assert.equal((ui.match(/localAbortRef\.current\?\.abort\(\)/g) || []).length, 3,
 for (const s of ['const requested = avMontageShots(length, pace);', 'avFitShots({ requested, pace, bpm: tm.tempo, sectionStart: timed ? grid.firstBeat : 0, usableEnd: grid.usableEnd })',
   'const seconds = (n: number) => avVideoSeconds({ bpm: tm.tempo, pace, montageShots: n });', 't(L, "fitPartial", { length: lengthName, fitted, count: fit.top, seconds: tenths(videoSeconds) })',
   'readyPlan.shots < readyPlan.musicShots', 'const shortened = plan.shots < plan.musicShots ?']) assert.ok(ui.includes(s), s);
-// Music: four bundled cues, own music, no music; the default section is the cue's soft intro (avIntroSection).
-assert.deepEqual(manifest.cues.map(c => c.id).sort(), ['before-everything', 'fractured', 'peaceful-drift', 'theta-frequency']);
+// Music: five bundled cues (Marimba Motif first), own music, no music; the default section is the cue's soft intro (avIntroSection).
+assert.deepEqual(manifest.cues.map(c => c.id).sort(), ['before-everything', 'fractured', 'marimba-motif', 'peaceful-drift', 'theta-frequency']);
 for (const c of manifest.cues) assert.ok(c.introStart >= 0 && c.group === 'reference', c.id);
 for (const s of ['{cues.map((c) => trackRow(c.id, c.label, bpmOf(c)))}', 'trackRow("own", t(L, "ownMusic"), "")', 'trackRow("none", t(L, "noMusic"), "")',
   'avIntroSection({ introStart: grid.introStart, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, beatEnergy: grid.beatEnergy, downbeatHigh: grid.downbeatHigh })',
