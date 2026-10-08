@@ -3,12 +3,14 @@ const fs = require('node:fs'), path = require('node:path'), crypto = require('no
 const root = path.resolve(__dirname, '..'), dir = path.join(root, 'assets', 'cues');
 const m = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
 assert.equal(m.version, 1);
-// Every cue the plugin may ship, in manifest order: reference-type first (the two new cues, then the reused
+// Every cue the plugin may ship, in manifest order: reference-type first (Buant Hook, the two ElevenLabs cues, then the reused
 // weekend-indie-pop and golden-hour-disco), the alternatives last. Only the cues present in the manifest are checked;
 // the four reused ones must always be there. downbeat: the measured confidence (see dev/build-cues.cjs); barPhase: the
 // whole beats the build moved firstBeat by to reach the best bar phase; hookStart: the measured best Standard Quick
 // start (Golden Hour Disco and Easy Sunday Lo-fi pick bar 0 on their strongest low band, which fades later).
 const ALL = [
+  // Buant Hook's hook start is where the team's reference timeline starts it (referenceStart, at bar 20).
+  { id: 'buant-hook', bpm: 108, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 44.859 },
   { id: 'bedroom-pop-108', bpm: 108, group: 'reference', downbeat: 'high', barPhase: 0, hookStart: 37.806 },
   { id: 'acoustic-pop-104', bpm: 104, group: 'reference', downbeat: 'high', barPhase: 2, hookStart: 33.492 },
   { id: 'weekend-indie-pop', bpm: 112, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 4.313 },
@@ -54,9 +56,20 @@ for (const c of m.cues) {
   const loudIntro = { ...c, onsets: [[c.firstBeat, 'l', 99], [c.firstBeat, 'm', 99], ...c.onsets] };
   assert.deepEqual(hookBars(loudIntro), c.hookBars, c.id + ' hookBars ignore beat 0');
   assert.equal(c.hookStart, e.hookStart, c.id + ' hookStart ' + c.hookStart);
-  // hookStart: the earliest best bar start among those a Standard Quick section (24 beats) fits from.
-  const fits = c.hookBars.map((v, b) => c.firstBeat + (4 * b + 24) * P <= c.usableEnd + 1e-9 ? v : -1), best = fits.indexOf(Math.max(...fits));
-  assert.equal(c.hookStart, Math.round((c.firstBeat + 4 * best * P) * 1000) / 1000, c.id + ' hookStart');
+  // hookStart: the cue's reference bar (hookBar) when a Standard Quick section (24 beats) fits from it, else the earliest
+  // best-scoring bar start among those it fits from.
+  const fits = c.hookBars.map((v, b) => c.firstBeat + (4 * b + 24) * P <= c.usableEnd + 1e-9 ? v : -1);
+  const best = Number.isInteger(c.hookBar) && fits.length > c.hookBar && c.firstBeat + (4 * c.hookBar + 24) * P <= c.usableEnd + 1e-9 ? c.hookBar : fits.indexOf(Math.max(...fits));
+  assert.equal(c.hookStart, Math.round((typeof c.referenceStart === 'number' ? c.referenceStart : c.firstBeat + 4 * best * P) * 1000) / 1000, c.id + ' hookStart');
+  // A reference timeline (Buant Hook): its start lies within 50 ms of bar hookBar, and its cuts are the 24 Standard
+  // Quick shots, each about a beat (within 3 frames at 25 fps: that timeline was cut at 23.976 fps, a frame late), from 0.
+  if (typeof c.referenceStart === 'number') {
+    assert.ok(Number.isInteger(c.hookBar) && Math.abs(c.referenceStart - (c.firstBeat + 4 * c.hookBar * P)) < 0.05, c.id + ' referenceStart near bar ' + c.hookBar);
+    assert.equal(c.referenceCuts.length, 25, c.id + ' referenceCuts');
+    assert.equal(c.referenceCuts[0], 0);
+    c.referenceCuts.slice(1).forEach((t, i) => assert.ok(Math.abs(t - (i + 1) * P) <= 3 / 25 + 1e-9, c.id + ' referenceCut ' + (i + 1) + ' ' + t));
+    assert.ok(c.referenceStart + c.referenceCuts[24] <= c.usableEnd, c.id + ' reference fits');
+  }
   // downbeatConfidence follows the measured beat-1 ratio at the manifest's bar phase (high at 1.5 or more).
   assert.equal(c.downbeatConfidence, e.downbeat, c.id + ' downbeatConfidence');
   assert.ok(typeof c.downbeatRatio === 'number' && c.downbeatRatio > 0, c.id + ' downbeatRatio');
@@ -71,7 +84,8 @@ for (const c of m.cues) {
   // New cues (accepted by the user at GATE-MUSIC): no busy 16th layer, and generated at 60 s so Long + Relaxed fits.
   // Acoustic Pop measured 1.48 at -14 LUFS (low); at -11 LUFS it measures 1.71 on the same grid, so it is high now.
   if (!REUSED.includes(c.id)) {
-    assert.ok(c.sixteenthRatio < 0.3, c.id + ' sixteenthRatio ' + c.sixteenthRatio);
+    // The 16th limit was the generation brief for the ElevenLabs cues; Buant Hook (Suno, chosen by the team) reads 0.316.
+    if (c.id !== 'buant-hook') assert.ok(c.sixteenthRatio < 0.3, c.id + ' sixteenthRatio ' + c.sixteenthRatio);
     assert.ok(c.usableEnd >= 45, c.id + ' usableEnd ' + c.usableEnd);
     assert.equal(fitted(c, 2), 36, c.id + ' fits Long Relaxed');
   }

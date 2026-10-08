@@ -166,7 +166,7 @@ const QUERIES = {
 };
 assert.equal((q.match(/^  \w+: "/gm) || []).length, 8, 'eight queries (the motion query is added only with Beat punch)');
 for (const [role, text] of Object.entries(QUERIES)) assert.ok(q.includes('  ' + role + ': "' + text + '",'), 'query ' + role);
-for (const c of ['const AMBIENT_DB = -18;', 'const DEFAULT_CUE = "weekend-indie-pop";', 'const PREFERRED_CUE = "bedroom-pop-108";', 'const DEFAULT_PRESET = "small-glimpse";',
+for (const c of ['const AMBIENT_DB = -18;', 'const DEFAULT_CUE = "weekend-indie-pop";', 'const PREFERRED_CUE = "buant-hook";', 'const DEFAULT_PRESET = "small-glimpse";',
   'const DEFAULT_LENGTH = "standard";', 'const DEFAULT_PACE = "quick";', 'const DEFAULT_PUNCH = true;', 'const DEFAULT_HOOK = true;', 'const SOFT_STRENGTH = 0.35;', 'const MOTION_STRENGTH = 0.5;']) assert.ok(panel.includes(c), c);
 for (const s of ['React.useState(DEFAULT_CUE)', 'React.useState(DEFAULT_PRESET)', 'React.useState<"short" | "standard" | "long">(DEFAULT_LENGTH)', 'React.useState<"quick" | "relaxed" | "groove">(DEFAULT_PACE)', 'const [beatPunch, setBeatPunch] = React.useState(DEFAULT_PUNCH)', 'const [hook, setHook] = React.useState(DEFAULT_HOOK)',
   'React.useState<"off" | "ambient" | "full">("ambient")', 'const [soft, setSoft] = React.useState(true)', 'const [usePhotos, setUsePhotos] = React.useState(true)']) assert.ok(panel.includes(s), s);
@@ -174,7 +174,7 @@ for (const s of ['React.useState(DEFAULT_CUE)', 'React.useState(DEFAULT_PRESET)'
 assert.ok(presets.presets.some(p => p.id === 'small-glimpse' && p.label === 'A small glimpse'), 'default preset exists');
 assert.deepEqual(presets.presets.map(p => p.id).sort(), ['day-in-my-life', 'mini-vlog', 'small-glimpse'], 'all three presets selectable');
 // The preferred cue replaces the default once, when the manifest has it.
-assert.ok(/cues\.some\(\(c: any\) => c\.id === PREFERRED_CUE\)/.test(panel) && panel.includes('(cur === DEFAULT_CUE ? PREFERRED_CUE : cur)'), 'bedroom-pop-108 becomes the default when present');
+assert.ok(/cues\.some\(\(c: any\) => c\.id === PREFERRED_CUE\)/.test(panel) && panel.includes('(cur === DEFAULT_CUE ? PREFERRED_CUE : cur)'), 'buant-hook becomes the default when present');
 
 // UI order (spec section 8).
 const order = ['title={t(L, "title")}', 'title={t(L, "music")}', 'title={t(L, "length")}', 'title={t(L, "advanced")}', 't(L, "createsDraft")'].map(s => ui.indexOf(s));
@@ -260,7 +260,8 @@ for (const r of ['one-resource', 'too-few', 'music-too-short']) assert.ok(en['fa
 assert.ok(ui.includes('MV_FAIL[plan.reason] ? t(l, "fail." + plan.reason) : t(l, "noPlan")'), 'reasons through STRINGS');
 assert.equal((ui.match(/mvPlanBuild\(/g) || []).length, 3, 'the build plan, the readiness plan and the template run');
 assert.equal((ui.match(/mvPlanBuild\(\{ candidates: [^;]*, bpm: grid\.bpm, accepted: grid\.accepted, approxBpm: grid\.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid\.usableEnd, \.\.\.snapCuts, seed: String\(/g) || []).length, 3, 'every plan gets the same inputs');
-assert.ok(ui.includes('const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };'));
+assert.equal(ui.split('const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded, referenceCuts: grid.referenceCuts, referenceStart: grid.referenceStart };').length, 3, 'panel and template run plan with the same inputs');
+assert.equal((ui.match(/cueGrid\(cue\)/g) || []).length, 2, 'the panel and the template run read a cue the same way');
 // Own music with an approximate grid (beat-detect grid 'approximate'): fixed timing on its tempo and first beat, bpm stays
 // null (no grid features); the pace note and the line under the file say so. The detection result is shown under the
 // file, not in the status line at the bottom.
@@ -299,7 +300,7 @@ says('grooveOneBeat', 'Groove opens phrases with 1 beat'); says('grooveTwoBeats'
 assert.ok(!/fitted \* shotSeconds\)\.toFixed|requested \* shotSeconds\)\.toFixed|readyPlan\.shots \* shotSeconds|plannedShots \* shotSeconds/.test(ui), 'no shots x shotSeconds lines left');
 assert.ok(ui.includes('const shortened = planShort(plan) ?') && ui.includes('readyPlan && readyPlan.ok && planShort(readyPlan)'), 'footage shortfall compares Groove beat spans');
 // Start at the hook (spec 15.3): the default section is the hook window when the toggle is on and the cue has scores.
-assert.ok(ui.includes('hookBars: cue.hookBars || null') && ui.includes('const hookSection = () => (hook && gridded && musicKind === "cue" ? mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null);'), 'hook section from the manifest');
+assert.ok(ui.includes('hookBars: cue.hookBars || null') && ui.includes('const hookSection = () => (hook && gridded && musicKind === "cue" ? mvHookSection({ hookBars: grid.hookBars, hookBar: grid.hookBar, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null);'), 'hook section from the manifest');
 assert.ok(/const hookAt = hookSection\(\);\s*setSection\(hookAt \?\? mvDefaultSection\(/.test(ui), 'falls back to the energy default');
 // With the hook on, a new length or pace moves the section to that length's hook window (else it only re-clamps).
 assert.ok(ui.includes('React.useEffect(() => { const hookAt = hookSection(); setSection((s) => hookAt ?? snap(s ?? 0)); }, [length, pace]);'), 'hook re-picked on length / pace');
