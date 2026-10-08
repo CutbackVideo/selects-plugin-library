@@ -560,7 +560,7 @@ assert.deepEqual(manifest.cues.map(c => c.id).sort(), ['before-everything', 'fra
 for (const c of manifest.cues) assert.ok(c.introStart >= 0 && c.group === 'reference', c.id);
 for (const s of ['{cues.map((c) => trackRow(c.id, c.label, bpmOf(c)))}', 'trackRow("own", t(L, "ownMusic"), "")', 'trackRow("none", t(L, "noMusic"), "")',
   'avIntroSection({ introStart: grid.introStart, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, beatEnergy: grid.beatEnergy, downbeatHigh: grid.downbeatHigh })',
-  'introStart: cue.introStart', 'setSection(fit.defaultSection());', 'barSeconds={fit.timed ? (4 * 60) / tempo : 1}', 'snap={snap} onChange={moveSection}']) assert.ok(ui.includes(s), s);
+  'introStart: ref ? cue.referenceStart : cue.introStart', 'setSection(fit.defaultSection());', 'barSeconds={fit.timed ? (4 * 60) / tempo : 1}', 'snap={snap} onChange={moveSection}']) assert.ok(ui.includes(s), s);
 for (const c of manifest.cues) {
   const box3 = {}; vm.createContext(box3); vm.runInContext(planner + '\nthis.P = { avIntroSection, avVideoSeconds, avMontageShots };', box3);
   for (const length of ['short', 'standard', 'long']) for (const pace of ['cinematic', 'quick']) {

@@ -117,9 +117,11 @@ bundled tracks are in [THIRD_PARTY.md](THIRD_PARTY.md#music).
 - **Music section**: the waveform shows the part of the track the video uses.
   Drag it (or use the arrow keys) to move it; it snaps to whole bars. A bundled
   track starts on its soft intro by default, so the opening and the credit play
-  over the quiet part and the montage starts with the drums. Marimba Motif starts on
-  bar 8 (28.9 s) by default, the part the team's reference edit uses; its beat
-  is measured on its first 80 s, which is the part a video can use. Your own music
+  over the quiet part and the montage starts with the drums. Marimba Motif starts at
+  28.9 s (bar 8) by default and runs on the team's reference edit: cuts on a
+  72 BPM grid from there with no snapping to the music, so a Standard Cinematic
+  video has that edit's cuts (the track itself measures 71 BPM on its first
+  80 s, the part a video can use). Your own music
   starts on its most energetic stretch that fits.
 - **Preview this section** plays the chosen part from its start and fades out
   at its end; Esc or the button stops it.

@@ -21,8 +21,10 @@ const CUES = [
   // measureSeconds: the grid is measured on the first part only. Marimba Motif's beat holds (71.03 BPM, median residual
   // 7-9 ms) to about 80 s; its sparse 30-60 s stretch and loose ending pull the whole-file residual to 12 ms.
   { id: 'marimba-motif', label: 'Marimba Motif', source: 'suno-marimba-motif.wav', group: 'reference', page: '', license: SUNO, measureSeconds: 80,
-    // The team's reference timeline (Archive Vlog in the Clip highlights demo project) uses the track from bar 8 (28.85 s).
-    startBar: 8 },
+    // The team's reference timeline (Archive Vlog in the Clip highlights demo project) plays the track from 28.8986 s
+    // (measured against its audio, about bar 8) and cuts on a 72 BPM grid from there with no onset snapping; the panel
+    // runs this cue on that grid (referenceBpm, referenceStart), so the default output has its cuts.
+    startBar: 8, referenceBpm: 72, referenceStart: 28.8986 },
   { id: 'peaceful-drift', label: 'Peaceful Drift', source: 'holiznacc0-peaceful-drift.mp3', group: 'reference', page: FMA + 'peaceful-drift-lofi-nostalgic-calm/' },
   { id: 'theta-frequency', label: 'Theta Frequency', source: 'holiznacc0-theta-frequency.mp3', group: 'reference', page: FMA + 'theta-frequency-lofi-chill-calm/' },
   { id: 'before-everything', label: 'Before Everything', source: 'holiznacc0-before-everything.mp3', group: 'reference', page: FMA + 'before-everything-lofi-nostalgic-mp3/' },
@@ -217,6 +219,7 @@ const buildCue = (c, input) => {
     sixteenthRatio: sixteenthRatio(samples, 22050, bpm, firstBeat, usableEnd), peaks: whole.peaks, beatEnergy: beatEnergyOn(samples, bpm, firstBeat),
     ...onsetFields(samples),
     license: (({ name, url, author, accessed }) => ({ name, url, source: c.page, author, accessed }))(c.license || CC0),
+    ...(c.referenceBpm ? { referenceBpm: c.referenceBpm, referenceStart: c.referenceStart } : {}),
   });
 };
 

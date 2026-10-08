@@ -4045,10 +4045,14 @@ async function loadAssets(plugin: string) {
 function fontFiles(presets: any): string[] {
   return [...new Set<string>((presets?.presets || []).flatMap((p: any) => (p.fonts || []).map((f: any) => f.file as string)))];
 }
-// A bundled cue's grid (manifest), the one a build and the section slider use.
+// A bundled cue's grid (manifest), the one a build and the section slider use. A cue with a reference edit
+// (referenceBpm, referenceStart: the team's reference timeline cuts on that grid from there, without onset snapping)
+// runs on that grid: its bars from referenceStart, which is the default section, and no snapping.
 function cueGrid(cue: any) {
-  return { bpm: cue.bpm, accepted: true, approxBpm: null, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, introStart: cue.introStart, beatEnergy: cue.beatEnergy || [],
-    downbeatHigh: cue.downbeatConfidence === "high", peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds };
+  const ref = cue.referenceBpm > 0 && typeof cue.referenceStart === "number", bpm = ref ? cue.referenceBpm : cue.bpm, bar = 240 / bpm;
+  return { bpm, accepted: true, approxBpm: null, firstBeat: ref ? cue.referenceStart - Math.floor(cue.referenceStart / bar) * bar : cue.firstBeat, usableEnd: cue.usableEnd,
+    introStart: ref ? cue.referenceStart : cue.introStart, beatEnergy: cue.beatEnergy || [],
+    downbeatHigh: cue.downbeatConfidence === "high", peaks: cue.peaks || [], onsets: ref ? NO_ONSETS : cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds };
 }
 const NO_MUSIC_GRID = { none: true, bpm: null, accepted: false, approxBpm: null, firstBeat: 0, usableEnd: null, beatEnergy: [], peaks: [], onsets: NO_ONSETS, onsetThresholds: undefined };
 // The music side of a build: the tempo the template runs on (avTempo), the montage the music fits, the video's length

@@ -120,6 +120,22 @@ for (const c of m.cues) {
   });
   assert.equal(bands.size, 3, c.id + ' has onsets in every band');
 }
+// Reference edit (Marimba Motif): the team's reference timeline plays the track from referenceStart (about bar 8) and cuts
+// on a 72 BPM grid with no onset snapping. The panel's cue grid (cueGrid) runs on that grid, so the default Standard
+// Cinematic schedule lands on that timeline's frames at 25 fps.
+{
+  const vm = require('node:vm'), ctx = {}; vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8'), ctx);
+  const c = m.cues.find(x => x.id === 'marimba-motif');
+  assert.equal(c.referenceBpm, 72);
+  assert.ok(Math.abs(c.referenceStart - (c.introStart)) < 0.05, 'referenceStart about bar 8: ' + c.referenceStart);
+  assert.deepEqual(m.cues.filter(x => x.referenceBpm).map(x => x.id), ['marimba-motif'], 'only Marimba Motif has a reference grid');
+  const ui = fs.readFileSync(path.join(root, 'panel.tsx'), 'utf8');
+  assert.ok(ui.includes('onsets: ref ? NO_ONSETS : cue.onsets || NO_ONSETS') && ui.includes('introStart: ref ? cue.referenceStart : cue.introStart'), 'cueGrid runs on the reference grid');
+  const tpl = ctx.avTemplate({ bpm: 72, pace: 'cinematic', montageShots: ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: c.referenceStart, usableEnd: c.usableEnd }) });
+  const sch = ctx.avSchedule({ bpm: 72, fps: 25, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, sectionStart: c.referenceStart, onsets: [] });
+  assert.deepEqual(JSON.parse(JSON.stringify(sch.slots.map(x => x.endFrame))), [125, 167, 209, 250, 292, 334, 375, 417, 459, 500, 542, 584, 625, 667, 709, 750, 792, 834, 917], 'reference cuts at 25 fps');
+}
 // From the mp3s themselves (when ffmpeg is available): beat-detect reproduces every grid and accepts it, the tempo is
 // the same in both halves of the track (no tempo change), and the file measures on target.
 const { execFileSync, spawnSync } = require('node:child_process');
