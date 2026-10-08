@@ -2362,11 +2362,13 @@ function mvDefaultSection(opts) {
 // the start firstBeat + 4b beats, scored by onset contrast and low-band punch) among the starts whose video of
 // videoSeconds fits before usableEnd, earliest on ties; the manifest's hookStart is this pick for 24 beats. null when
 // there are no scores (own music, No music), no tempo or nothing fits, so the caller falls back to mvDefaultSection.
-// opts: { hookBars, firstBeat, bpm, usableEnd, videoSeconds, barPhaseBeats? }. barPhaseBeats is informational only:
+// opts: { hookBars, firstBeat, bpm, usableEnd, videoSeconds, hookBar?, barPhaseBeats? }. barPhaseBeats is informational only:
 // the manifest's firstBeat already carries the bar phase, so it never shifts the start.
 function mvHookSection(opts) {
   const bars = opts.hookBars, bar = 4 * 60 / opts.bpm;
   if (!Array.isArray(bars) || !bars.length || !(opts.bpm > 0)) return null;
+  // hookBar: the cue's reference start bar (manifest), taken whenever the video fits there.
+  if (Number.isInteger(opts.hookBar) && opts.hookBar >= 0) { const at = opts.firstBeat + opts.hookBar * bar; if (at + opts.videoSeconds <= opts.usableEnd + 1e-6) return at; }
   let best = null;
   for (let b = 0; b < bars.length; b++) {
     const start = opts.firstBeat + b * bar, score = bars[b];
@@ -2593,7 +2595,10 @@ function mvPlanBuild(opts) {
   // Lengths to try, longest first: shots (Quick / Relaxed) or beat spans (Groove).
   const step = grooved ? 4 : MV_MIN_SHOTS, least = grooved ? MV_GROOVE_MIN_BEATS : MV_MIN_SHOTS;
   for (let n = top; n >= least; n -= step) {
-    const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
+    const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence,
+      // A bundled cue's reference timeline (referenceCuts: its Quick cuts in seconds from referenceStart) is used as it is for
+      // the length it covers when the section starts where that timeline does.
+      ...(opts.pace === 'quick' && guard.beats === 1 && Array.isArray(opts.referenceCuts) && opts.referenceCuts.length === n + 1 && Math.abs(opts.sectionStart - opts.referenceStart) < 1e-3 ? { cuts: opts.referenceCuts } : {}) };
     // Groove fills for this span: none without video (photos cannot take an 8th), the pattern without a grid.
     const fills = !grooved ? null
       : !hasVideo ? { splits: [], source: 'no-video', ratios: [] }
@@ -3982,6 +3987,16 @@ function Panel(props: any) {
   return props?.context?.template ? <TemplateRun sdk={props.sdk} context={props.context} /> : <MiniVlogPanel {...props} />;
 }
 
+// A bundled cue's grid, for the panel and the template run. A cue with a reference timeline (referenceStart: the team's
+// reference edit plays it from there, on bar hookBar) has its bar grid moved onto that start, so the hook section and
+// the section slider land on it; referenceCuts are that edit's cuts (mvPlanBuild).
+function cueGrid(cue: any) {
+  const ref = typeof cue.referenceStart === "number" && Number.isInteger(cue.hookBar);
+  return { bpm: cue.bpm, accepted: true, approxBpm: null, firstBeat: ref ? cue.referenceStart - cue.hookBar * 240 / cue.bpm : cue.firstBeat, usableEnd: cue.usableEnd,
+    beatEnergy: cue.beatEnergy || [], peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds, hookBars: cue.hookBars || null,
+    hookBar: cue.hookBar ?? null, referenceStart: ref ? cue.referenceStart : null, referenceCuts: ref ? cue.referenceCuts || null : null };
+}
+
 function MiniVlogPanel({ sdk, context, ui }: any) {
   // The UI language, read on every render: Selects can switch languages while the panel is open.
   const L = uiLang(context);
@@ -4270,7 +4285,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     : musicKind === "own" ? (ownGrid && ownGrid.accepted
       ? { bpm: ownGrid.bpm, accepted: true, approxBpm: null, firstBeat: ownGrid.firstBeat, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: ownGrid.beatEnergy || [], peaks: ownGrid.peaks || [], onsets: ownGrid.onsets || NO_ONSETS, onsetThresholds: ownGrid.onsetThresholds, hookBars: null }
       : { bpm: null, accepted: false, approxBpm: ownApprox ? ownGrid.bpm : null, firstBeat: ownApprox ? ownGrid.firstBeat : 0, usableEnd: ownDuration ? ownDuration - 0.5 : 0, beatEnergy: [], peaks: ownGrid?.peaks || [], onsets: ownGrid?.onsets || NO_ONSETS, onsetThresholds: ownGrid?.onsetThresholds, hookBars: null })
-    : cue ? { bpm: cue.bpm, accepted: true, approxBpm: null, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [], peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds, hookBars: cue.hookBars || null }
+    : cue ? cueGrid(cue)
     : { bpm: null, accepted: false, approxBpm: null, firstBeat: 0, usableEnd: 0, beatEnergy: [], peaks: [], onsets: NO_ONSETS, onsetThresholds: undefined, hookBars: null };
   // A grid only for 70-160 bpm with an accepted detection (spec 14.1); otherwise fixed shot lengths, on the beat of an
   // approximate tempo when there is one (`tempo` is the grid's or that one, null for the 0.55 s fallback).
@@ -4306,10 +4321,10 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const start = musicKind === "none" ? 0 : snap(section ?? 0);
   const musicStart = musicKind === "none" ? null : start;
   // Onset snapping for every plan; without a reliable beat only bass onsets count, in a wider window.
-  const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };
+  const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded, referenceCuts: grid.referenceCuts, referenceStart: grid.referenceStart };
 
   // The hook window for the current length and pace (Start at the hook on a bundled track with a grid), else null.
-  const hookSection = () => (hook && gridded && musicKind === "cue" ? mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null);
+  const hookSection = () => (hook && gridded && musicKind === "cue" ? mvHookSection({ hookBars: grid.hookBars, hookBar: grid.hookBar, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null);
   // A new track (or its grid) defaults the section to the most energetic window that fits; with Start at the hook,
   // to the track's best-scoring hook window that fits (spec 15.3), falling back to the energy default when the track
   // has no hook scores (your own music). Toggling Start at the hook picks the default again.
@@ -5178,7 +5193,7 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   // Music, length and pace as the panel works them out for a bundled track at its defaults (Quick pace, Beat punch
   // and Start at the hook on).
   const pace = DEFAULT_PACE, punch = DEFAULT_PUNCH;
-  const grid: any = { bpm: cue.bpm, accepted: true, approxBpm: null, firstBeat: cue.firstBeat, usableEnd: cue.usableEnd, beatEnergy: cue.beatEnergy || [], peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds, hookBars: cue.hookBars || null };
+  const grid: any = cueGrid(cue);
   const gridded = mvGridUsable({ bpm: grid.bpm, accepted: grid.accepted });
   const approxTempo = mvApproxTempo({ gridded, approxBpm: grid.approxBpm });
   const tempo = gridded ? grid.bpm : approxTempo;
@@ -5188,11 +5203,11 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   const fitted = mvFitShots({ requested, sectionStart: tempo ? grid.firstBeat : 0, usableEnd: grid.usableEnd, shotSeconds });
   const videoSeconds = fitted ? fitted * shotSeconds : requested * shotSeconds;
   const snap = (value: number) => mvSnapSection({ value, firstBeat: grid.firstBeat, bpm: tempo, usableEnd: grid.usableEnd, videoSeconds, gridAccepted: !!tempo });
-  const hookAt = DEFAULT_HOOK && gridded ? mvHookSection({ hookBars: grid.hookBars, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue.barPhaseBeats }) : null;
+  const hookAt = DEFAULT_HOOK && gridded ? mvHookSection({ hookBars: grid.hookBars, hookBar: grid.hookBar, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue.barPhaseBeats }) : null;
   const section = !gridded ? snap(0) : hookAt ?? mvDefaultSection({ firstBeat: grid.firstBeat, bpm: grid.bpm, beatEnergy: grid.beatEnergy, usableEnd: grid.usableEnd, videoSeconds }) ?? snap(grid.firstBeat);
   const musicStart = snap(section ?? 0);
   if (musicStart == null || !fitted) throw templateIssue(t(bl, "fail.music-too-short"));
-  const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };
+  const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded, referenceCuts: grid.referenceCuts, referenceStart: grid.referenceStart };
 
   // Scene search over the handed videos (with the motion query, as Beat punch is on). Nobody can press Build again, so
   // videos whose search failed get one more try.

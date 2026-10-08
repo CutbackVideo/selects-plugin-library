@@ -9,7 +9,8 @@ assert.equal(m.version, 1);
 // whole beats the build moved firstBeat by to reach the best bar phase; hookStart: the measured best Standard Quick
 // start (Golden Hour Disco and Easy Sunday Lo-fi pick bar 0 on their strongest low band, which fades later).
 const ALL = [
-  { id: 'buant-hook', bpm: 108, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 9.377 },
+  // Buant Hook's hook start is where the team's reference timeline starts it (referenceStart, at bar 20).
+  { id: 'buant-hook', bpm: 108, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 44.859 },
   { id: 'bedroom-pop-108', bpm: 108, group: 'reference', downbeat: 'high', barPhase: 0, hookStart: 37.806 },
   { id: 'acoustic-pop-104', bpm: 104, group: 'reference', downbeat: 'high', barPhase: 2, hookStart: 33.492 },
   { id: 'weekend-indie-pop', bpm: 112, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 4.313 },
@@ -55,9 +56,20 @@ for (const c of m.cues) {
   const loudIntro = { ...c, onsets: [[c.firstBeat, 'l', 99], [c.firstBeat, 'm', 99], ...c.onsets] };
   assert.deepEqual(hookBars(loudIntro), c.hookBars, c.id + ' hookBars ignore beat 0');
   assert.equal(c.hookStart, e.hookStart, c.id + ' hookStart ' + c.hookStart);
-  // hookStart: the earliest best bar start among those a Standard Quick section (24 beats) fits from.
-  const fits = c.hookBars.map((v, b) => c.firstBeat + (4 * b + 24) * P <= c.usableEnd + 1e-9 ? v : -1), best = fits.indexOf(Math.max(...fits));
-  assert.equal(c.hookStart, Math.round((c.firstBeat + 4 * best * P) * 1000) / 1000, c.id + ' hookStart');
+  // hookStart: the cue's reference bar (hookBar) when a Standard Quick section (24 beats) fits from it, else the earliest
+  // best-scoring bar start among those it fits from.
+  const fits = c.hookBars.map((v, b) => c.firstBeat + (4 * b + 24) * P <= c.usableEnd + 1e-9 ? v : -1);
+  const best = Number.isInteger(c.hookBar) && fits.length > c.hookBar && c.firstBeat + (4 * c.hookBar + 24) * P <= c.usableEnd + 1e-9 ? c.hookBar : fits.indexOf(Math.max(...fits));
+  assert.equal(c.hookStart, Math.round((typeof c.referenceStart === 'number' ? c.referenceStart : c.firstBeat + 4 * best * P) * 1000) / 1000, c.id + ' hookStart');
+  // A reference timeline (Buant Hook): its start lies within 50 ms of bar hookBar, and its cuts are the 24 Standard
+  // Quick shots, each about a beat (within 3 frames at 25 fps: that timeline was cut at 23.976 fps, a frame late), from 0.
+  if (typeof c.referenceStart === 'number') {
+    assert.ok(Number.isInteger(c.hookBar) && Math.abs(c.referenceStart - (c.firstBeat + 4 * c.hookBar * P)) < 0.05, c.id + ' referenceStart near bar ' + c.hookBar);
+    assert.equal(c.referenceCuts.length, 25, c.id + ' referenceCuts');
+    assert.equal(c.referenceCuts[0], 0);
+    c.referenceCuts.slice(1).forEach((t, i) => assert.ok(Math.abs(t - (i + 1) * P) <= 3 / 25 + 1e-9, c.id + ' referenceCut ' + (i + 1) + ' ' + t));
+    assert.ok(c.referenceStart + c.referenceCuts[24] <= c.usableEnd, c.id + ' reference fits');
+  }
   // downbeatConfidence follows the measured beat-1 ratio at the manifest's bar phase (high at 1.5 or more).
   assert.equal(c.downbeatConfidence, e.downbeat, c.id + ' downbeatConfidence');
   assert.ok(typeof c.downbeatRatio === 'number' && c.downbeatRatio > 0, c.id + ' downbeatRatio');

@@ -334,10 +334,12 @@ assert.ok(cv(bq.slots.map(x => (x.endFrame - x.startFrame) / F)) < 0.05);
 // Hook section (spec 15.3): the best-scoring bar start (hookBars, index = bar from firstBeat) among the starts whose
 // video fits, earliest on ties. For a Standard Quick video (24 beats) it is the manifest's own hookStart on every cue.
 for (const cue of manifest.cues) {
-  const hs = ctx.mvHookSection({ hookBars: cue.hookBars, firstBeat: cue.firstBeat, bpm: cue.bpm, usableEnd: cue.usableEnd, videoSeconds: 24 * 60 / cue.bpm, barPhaseBeats: cue.barPhaseBeats });
+  // A cue with a reference timeline has its bar grid moved onto referenceStart (panel cueGrid).
+  const fb = typeof cue.referenceStart === 'number' ? cue.referenceStart - cue.hookBar * 240 / cue.bpm : cue.firstBeat;
+  const hs = ctx.mvHookSection({ hookBars: cue.hookBars, hookBar: cue.hookBar, firstBeat: fb, bpm: cue.bpm, usableEnd: cue.usableEnd, videoSeconds: 24 * 60 / cue.bpm, barPhaseBeats: cue.barPhaseBeats });
   assert.ok(Math.abs(hs - cue.hookStart) < 1e-3, cue.id + ' hook section ' + hs + ' vs hookStart ' + cue.hookStart);
   // The pick is a start the section snap keeps as it is.
-  const snapped = ctx.mvSnapSection({ value: hs, firstBeat: cue.firstBeat, bpm: cue.bpm, usableEnd: cue.usableEnd, videoSeconds: 24 * 60 / cue.bpm, gridAccepted: true });
+  const snapped = ctx.mvSnapSection({ value: hs, firstBeat: fb, bpm: cue.bpm, usableEnd: cue.usableEnd, videoSeconds: 24 * 60 / cue.bpm, gridAccepted: true });
   assert.ok(Math.abs(snapped - hs) < 1e-9, cue.id + ' hook section survives snapping');
 }
 {
@@ -356,6 +358,9 @@ for (const cue of manifest.cues) {
   // Non-numeric scores are skipped; barPhaseBeats never shifts the start (firstBeat already carries the bar phase).
   assert.strictEqual(ctx.mvHookSection({ ...base, hookBars: [null, 0.3, 'a', 0.2] }), 0.5 + bar);
   assert.strictEqual(ctx.mvHookSection({ ...base, barPhaseBeats: 2, hookBars: [0.1, 0.5] }), 0.5 + bar);
+  // hookBar (a cue's reference start bar) wins over the scores when the video fits there; otherwise the scores decide.
+  assert.strictEqual(ctx.mvHookSection({ ...base, hookBar: 4, hookBars: [0.2, 0.9, 0.4] }), 0.5 + 4 * bar);
+  assert.strictEqual(ctx.mvHookSection({ ...base, hookBar: 9, hookBars: [0.2, 0.9, 0.4] }), 0.5 + bar);
 }
 // Groove sizes the hook window by its beat span: Bedroom Pop Long Groove (36 beats) cannot start at bar 17.
 {
@@ -385,6 +390,22 @@ for (const cue of manifest.cues) {
     assert.strictEqual(p.photoShots, build(three.concat(pics), { pace }).photoShots, pace + ' photo share kept');
     assert.strictEqual(sig(build(tagged.concat(pics), { pace, motionOpener: false }).picks)[0], 'p', pace + ' opener off');
   }
+}
+
+// Reference timeline (Buant Hook): a Standard Quick plan from referenceStart keeps the team's cuts (referenceCuts), and
+// assemble.js puts them on the frames that timeline has at 25 fps; another length, pace or section uses the grid.
+{
+  const cue = manifest.cues.find(c => c.id === 'buant-hook'), ROLES = K.MV_ROLES;
+  const pool = ['a', 'b', 'c'].flatMap(rid => Array.from({ length: 39 }, (_, k) => ({ rid, role: ROLES[k % ROLES.length], t: 1 + k * 1.5, score: 0.5, sourceDuration: 60 })));
+  const build = extra => j(ctx.mvPlanBuild({ candidates: pool, bpm: cue.bpm, accepted: true, fps: 30, pace: 'quick', requested: 24, sectionStart: cue.referenceStart, usableEnd: cue.usableEnd,
+    onsets: cue.onsets, onsetThresholds: cue.onsetThresholds, referenceCuts: cue.referenceCuts, referenceStart: cue.referenceStart, seed: 's1', ...extra }));
+  const p = build();
+  assert.ok(p.ok); assert.deepStrictEqual(p.schedule.cuts, cue.referenceCuts);
+  const at25 = p.schedule.cuts.map(x => (x === 0 ? 0 : Math.round((x + ctx.mvMusicOffset(cue.referenceStart, 25)) * 25)));
+  assert.deepStrictEqual(at25.slice(1), [15, 29, 42, 57, 70, 84, 99, 112, 126, 140, 154, 167, 182, 195, 209, 224, 237, 251, 265, 279, 292, 306, 321, 334]);
+  assert.notDeepStrictEqual(build({ requested: 12 }).schedule.cuts, cue.referenceCuts.slice(0, 13));
+  assert.notDeepStrictEqual(build({ pace: 'relaxed' }).schedule.cuts, cue.referenceCuts);
+  assert.notDeepStrictEqual(build({ sectionStart: cue.referenceStart + 240 / cue.bpm }).schedule.cuts, cue.referenceCuts);
 }
 
 // Approximate tempo (own music whose beat-detect grid is 'approximate'): used only without a usable grid and inside

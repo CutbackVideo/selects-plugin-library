@@ -241,9 +241,11 @@ example, "Starts at 4.3 s".
 default) starts the box on the track's hook: of the starts where the
 video fits, the one whose next four bars have the strongest contrast between
 loud and quiet hits and the fullest bass (a drum fill adds a little). For a
-Standard video that is 9.4 s into Buant Hook, 37.8 s into Bedroom Pop, 33.5 s into Acoustic Pop,
+Standard video that is 37.8 s into Bedroom Pop, 33.5 s into Acoustic Pop,
 4.3 s into Weekend Indie Pop, 14.6 s into Sunny Soul Strut and the start of
-Golden Hour Disco and Easy Sunday Lo-fi. While it is on, a new Length or
+Golden Hour Disco and Easy Sunday Lo-fi. Buant Hook starts where the team's
+reference edit plays it, 44.9 s in (bar 20), and a Standard Quick video there
+keeps that edit's 24 cuts exactly. While it is on, a new Length or
 Pace moves the box to the hook window for that length. With it off (and
 for your own music, which has no hook scores) the box starts on the most
 energetic section that fits, and a new Length or Pace keeps the start where

@@ -25,7 +25,12 @@ const PROVENANCE = "Generated with ElevenLabs Music v2.5 and Suno (instrumental)
 // grid (Bedroom Pop reads 1.44 on the 107.99 BPM an analysis of the -11 LUFS file gives), one reason the grid is kept.
 // optional: a cue the build skips while its source is missing and it is not shipped yet.
 const CUES = [
-  { id: 'buant-hook', label: 'Buant Hook', source: 'suno-buant-hook.wav', group: 'reference', optional: true },
+  // The team's reference timeline (Mini Vlog in the Clip highlights demo project, 25 fps) plays Buant Hook from
+  // referenceStart (44.8586 s, measured against its audio; 37 ms before the measured bar 20, hookBar) and cuts at
+  // referenceCuts (seconds from there, its Standard Quick shots). The panel moves the bar grid onto referenceStart and
+  // uses those cuts for that length (planner mvPlanBuild).
+  { id: 'buant-hook', label: 'Buant Hook', source: 'suno-buant-hook.wav', group: 'reference', optional: true, hookBar: 20, referenceStart: 44.8586,
+    referenceCuts: [0,0.6,1.16,1.68,2.28,2.8,3.36,3.96,4.48,5.04,5.6,6.16,6.68,7.28,7.8,8.36,8.96,9.48,10.04,10.6,11.16,11.68,12.24,12.84,13.36] },
   { id: 'bedroom-pop-108', label: 'Bedroom Pop', source: 'minivlog-bedroom-pop-108bpm.mp3', group: 'reference', optional: true },
   { id: 'acoustic-pop-104', label: 'Acoustic Pop', source: 'minivlog-acoustic-pop-104bpm.mp3', group: 'reference', optional: true },
   { id: 'weekend-indie-pop', label: 'Weekend Indie Pop', source: 'nyvlog-weekend-indie-pop-112bpm.mp3', group: 'reference' },
@@ -123,7 +128,10 @@ const hookStart = (c, bars, beats) => {
   bars.forEach((v, b) => { if (c.firstBeat + (4 * b + beats) * P <= c.usableEnd + 1e-9 && (best < 0 || v > bars[best])) best = b; });
   return best < 0 ? null : round3(c.firstBeat + 4 * best * P);
 };
-const withHook = c => { const bars = hookBars(c); return { ...c, hookBars: bars, hookStart: hookStart(c, bars, HOOK_STANDARD_QUICK_BEATS) }; };
+// hookBar / referenceStart (per cue): where the team's reference timeline starts the track (the panel moves the bar grid
+// onto referenceStart); it is the hook start whenever the section fits there (planner mvHookSection).
+const withHook = c => { const bars = hookBars(c), P = 60 / c.bpm, at = typeof c.referenceStart === 'number' ? c.referenceStart : Number.isInteger(c.hookBar) ? c.firstBeat + 4 * c.hookBar * P : null;
+  return { ...c, hookBars: bars, hookStart: at != null && at + HOOK_STANDARD_QUICK_BEATS * P <= c.usableEnd + 1e-9 ? round3(at) : hookStart(c, bars, HOOK_STANDARD_QUICK_BEATS) }; };
 module.exports = { hookBars, hookStart, HOOK_BEATS, HOOK_STANDARD_QUICK_BEATS, TARGET_LUFS, CEILING_DBTP, LUFS_TOLERANCE };
 
 const decode = file => {
@@ -183,7 +191,8 @@ const buildCue = (c, input, kept) => {
     downbeatConfidence: downbeatRatio >= DOWNBEAT_HIGH ? 'high' : 'low', downbeatRatio,
     // The 16th-onset ratio over the usable part of the cue decides the title burst (see planner.js).
     sixteenthRatio: sixteenthRatio(samples, 22050, bpm, firstBeat, usableEnd), peaks: a.peaks, beatEnergy: beatEnergyOn(samples, bpm, firstBeat),
-    ...onsetFields(samples),
+    ...onsetFields(samples), ...(Number.isInteger(c.hookBar) ? { hookBar: c.hookBar } : {}),
+    ...(typeof c.referenceStart === 'number' ? { referenceStart: c.referenceStart, referenceCuts: c.referenceCuts } : {}),
   });
 };
 

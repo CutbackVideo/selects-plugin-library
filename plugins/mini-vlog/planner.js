@@ -415,11 +415,13 @@ function mvDefaultSection(opts) {
 // the start firstBeat + 4b beats, scored by onset contrast and low-band punch) among the starts whose video of
 // videoSeconds fits before usableEnd, earliest on ties; the manifest's hookStart is this pick for 24 beats. null when
 // there are no scores (own music, No music), no tempo or nothing fits, so the caller falls back to mvDefaultSection.
-// opts: { hookBars, firstBeat, bpm, usableEnd, videoSeconds, barPhaseBeats? }. barPhaseBeats is informational only:
+// opts: { hookBars, firstBeat, bpm, usableEnd, videoSeconds, hookBar?, barPhaseBeats? }. barPhaseBeats is informational only:
 // the manifest's firstBeat already carries the bar phase, so it never shifts the start.
 function mvHookSection(opts) {
   const bars = opts.hookBars, bar = 4 * 60 / opts.bpm;
   if (!Array.isArray(bars) || !bars.length || !(opts.bpm > 0)) return null;
+  // hookBar: the cue's reference start bar (manifest), taken whenever the video fits there.
+  if (Number.isInteger(opts.hookBar) && opts.hookBar >= 0) { const at = opts.firstBeat + opts.hookBar * bar; if (at + opts.videoSeconds <= opts.usableEnd + 1e-6) return at; }
   let best = null;
   for (let b = 0; b < bars.length; b++) {
     const start = opts.firstBeat + b * bar, score = bars[b];
@@ -646,7 +648,10 @@ function mvPlanBuild(opts) {
   // Lengths to try, longest first: shots (Quick / Relaxed) or beat spans (Groove).
   const step = grooved ? 4 : MV_MIN_SHOTS, least = grooved ? MV_GROOVE_MIN_BEATS : MV_MIN_SHOTS;
   for (let n = top; n >= least; n -= step) {
-    const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
+    const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence,
+      // A bundled cue's reference timeline (referenceCuts: its Quick cuts in seconds from referenceStart) is used as it is for
+      // the length it covers when the section starts where that timeline does.
+      ...(opts.pace === 'quick' && guard.beats === 1 && Array.isArray(opts.referenceCuts) && opts.referenceCuts.length === n + 1 && Math.abs(opts.sectionStart - opts.referenceStart) < 1e-3 ? { cuts: opts.referenceCuts } : {}) };
     // Groove fills for this span: none without video (photos cannot take an 8th), the pattern without a grid.
     const fills = !grooved ? null
       : !hasVideo ? { splits: [], source: 'no-video', ratios: [] }
