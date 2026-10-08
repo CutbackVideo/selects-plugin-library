@@ -27,12 +27,15 @@ Each family's licence text is in `assets/fonts/licenses/`.
 
 <!-- Music section: maintained with dev/build-cues.cjs and assets/cues/LICENSES.csv. -->
 
-The four bundled tracks in `assets/cues/` are by **HoliznaCC0**, published on the Free Music Archive under **CC0 1.0 Universal** (public domain dedication, https://creativecommons.org/publicdomain/zero/1.0/). Each track page stated "licensed under a CC0 1.0 Universal License" when it was checked on 2026-10-01. CC0 needs no attribution; the records are kept here as proof of the licence. `assets/cues/LICENSES.csv` lists the same tracks with their download URLs and the licence text found on each page.
+`marimba-motif.mp3` (Marimba Motif, the default track) was generated with **Suno** for Cutback and is bundled with the plugin for use in the videos it builds. It was brought to -16.3 LUFS like the other tracks (`dev/build-cues.cjs`); tempo, pitch and structure are unchanged.
+
+The four other bundled tracks in `assets/cues/` are by **HoliznaCC0**, published on the Free Music Archive under **CC0 1.0 Universal** (public domain dedication, https://creativecommons.org/publicdomain/zero/1.0/). Each track page stated "licensed under a CC0 1.0 Universal License" when it was checked on 2026-10-01. CC0 needs no attribution; the records are kept here as proof of the licence. `assets/cues/LICENSES.csv` lists the same tracks with their download URLs and the licence text found on each page.
 
 What we changed: each track was brought to -16.3 LUFS integrated with a static gain and a true-peak limiter at -1 dBTP, and re-encoded from the 48 kHz, 320 kbps download to 44.1 kHz, 192 kbps MP3 (`dev/build-cues.cjs`). Tempo, pitch and structure are unchanged: nothing is time-stretched, pitch-shifted, cut or rearranged. Tempo, first beat, soft-intro start, loudness, onsets and content hash are recorded in `assets/cues/manifest.json`.
 
 | Track | Bundled file | Author | Track page | Licence | Accessed | Tempo |
 | --- | --- | --- | --- | --- | --- | --- |
+| Marimba Motif | `marimba-motif.mp3` | Suno for Cutback | (generated for Cutback) | Suno (generated for Cutback) | 2026-10-08 | 71 BPM |
 | Peaceful Drift (Lofi, Nostalgic, Calm) | `peaceful-drift.mp3` | HoliznaCC0 | https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/peaceful-drift-lofi-nostalgic-calm/ | CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/) | 2026-10-01 | 72 BPM |
 | Theta Frequency (Lofi, Chill, Calm) | `theta-frequency.mp3` | HoliznaCC0 | https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/theta-frequency-lofi-chill-calm/ | CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/) | 2026-10-01 | 70 BPM |
 | Before Everything (LoFi, Nostalgic) | `before-everything.mp3` | HoliznaCC0 | https://freemusicarchive.org/music/holiznacc0/public-domain-lofi/before-everything-lofi-nostalgic-mp3/ | CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/) | 2026-10-01 | 75 BPM |

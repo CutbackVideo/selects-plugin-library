@@ -10,6 +10,9 @@ assert.ok(/CC0 1\.0/.test(m.provenance) && /HoliznaCC0/.test(m.provenance) && /F
 // introOf, measured on the mid-band onsets: Peaceful Drift bar 3 (drums at bar 5, 16.7 s), Theta Frequency bar 2
 // (bar 4, 13.7 s), Before Everything bar 1 (bar 3, 12.8 s), Fractured bar 4 (backbeat at bar 6, 20.3 s)).
 const ALL = [
+  // Marimba Motif (Suno, the default): starts on bar 8, as the team's reference timeline does (startBar), grid measured
+  // on its first 80 s.
+  { id: 'marimba-motif', label: 'Marimba Motif', bpm: 71, barPhase: 2, introBar: 8, page: '', license: 'suno' },
   { id: 'peaceful-drift', label: 'Peaceful Drift', bpm: 72, barPhase: 0, introBar: 3, page: 'peaceful-drift-lofi-nostalgic-calm/' },
   { id: 'theta-frequency', label: 'Theta Frequency', bpm: 70, barPhase: 0, introBar: 2, page: 'theta-frequency-lofi-chill-calm/' },
   { id: 'before-everything', label: 'Before Everything', bpm: 75, barPhase: 3, introBar: 1, page: 'before-everything-lofi-nostalgic-mp3/' },
@@ -56,9 +59,15 @@ for (const c of m.cues) {
   // -16.3 LUFS integrated (static gain + limiter) and a true peak at or under -1 dBTP.
   assert.ok(Math.abs(c.lufs - TARGET_LUFS) <= LUFS_TOLERANCE, c.id + ' lufs ' + c.lufs);
   assert.ok(typeof c.truePeak === 'number' && c.truePeak <= CEILING_DBTP, c.id + ' truePeak ' + c.truePeak);
-  // Licence: CC0 1.0 from the track's Free Music Archive page, the same page as LICENSES.csv and THIRD_PARTY.md.
+  // Licence: CC0 1.0 from the track's Free Music Archive page, the same page as LICENSES.csv and THIRD_PARTY.md; the
+  // Suno track (generated for Cutback) has no track page.
   const row = csv.find(r => r.bundled_file === c.file);
   assert.deepEqual(Object.keys(c.license).sort(), ['accessed', 'author', 'name', 'source', 'url']);
+  if (e.license === 'suno') {
+    assert.deepEqual(c.license, { name: 'Suno (generated for Cutback)', url: '', source: '', author: 'Suno for Cutback', accessed: '2026-10-08' });
+    assert.deepEqual([row.author, row.license, row.date_accessed], ['Suno for Cutback', 'Suno (generated for Cutback)', '2026-10-08'], c.id + ' LICENSES.csv');
+    assert.ok(thirdParty.includes('`' + c.file + '`'), c.id + ' in THIRD_PARTY.md');
+  } else {
   assert.equal(c.license.name, 'CC0 1.0');
   assert.equal(c.license.url, 'https://creativecommons.org/publicdomain/zero/1.0/');
   assert.equal(c.license.author, 'HoliznaCC0');
@@ -70,6 +79,7 @@ for (const c of m.cues) {
   assert.equal(row.license_url, c.license.url);
   assert.equal(row.date_accessed, c.license.accessed);
   assert.ok(thirdParty.includes(c.license.source) && thirdParty.includes('`' + c.file + '`'), c.id + ' in THIRD_PARTY.md');
+  }
   // introStart: a bar start (firstBeat + k bars, k = the measured bar) from which a Standard video (6 + 2 + 32 + 4 =
   // 44 beats) fits before usableEnd. introLiftLu is informational (Fractured has no soft intro before its backbeat).
   const k = (c.introStart - c.firstBeat) / bar;
@@ -110,6 +120,34 @@ for (const c of m.cues) {
   });
   assert.equal(bands.size, 3, c.id + ' has onsets in every band');
 }
+// Reference edit (Marimba Motif): the team's reference timeline plays the track from referenceStart (about bar 8) and cuts
+// on a 72 BPM grid with no onset snapping. The panel's cue grid (cueGrid) runs on that grid, so the default Standard
+// Cinematic schedule lands on that timeline's frames at 25 fps.
+{
+  const vm = require('node:vm'), ctx = {}; vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(root, 'planner.js'), 'utf8'), ctx);
+  const c = m.cues.find(x => x.id === 'marimba-motif');
+  assert.equal(c.referenceBpm, 72);
+  assert.ok(Math.abs(c.referenceStart - (c.introStart)) < 0.05, 'referenceStart about bar 8: ' + c.referenceStart);
+  assert.deepEqual(m.cues.filter(x => x.referenceBpm).map(x => x.id), ['marimba-motif'], 'only Marimba Motif has a reference grid');
+  const ui = fs.readFileSync(path.join(root, 'panel.tsx'), 'utf8');
+  assert.ok(ui.includes('onsets: ref ? NO_ONSETS : cue.onsets || NO_ONSETS') && ui.includes('introStart: ref ? cue.referenceStart : cue.introStart')
+    && ui.includes('beatEnergy: ref ? [] : cue.beatEnergy || []') && ui.includes('Math.round(c.referenceBpm || c.bpm)'), 'cueGrid runs on the reference grid');
+  // Every Length and Pace starts on referenceStart (the video fits before usableEnd), a bar of the 72 BPM grid that the
+  // section slider keeps.
+  const bar = 240 / 72, fb = c.referenceStart - Math.floor(c.referenceStart / bar) * bar;
+  for (const length of ['short', 'standard', 'long']) for (const pace of ['cinematic', 'quick']) {
+    const requested = ctx.avMontageShots(length, pace), n = ctx.avFitShots({ requested, pace, bpm: 72, sectionStart: fb, usableEnd: c.usableEnd });
+    assert.equal(n, requested, length + ' ' + pace + ' fits');
+    const videoSeconds = ctx.avVideoSeconds({ bpm: 72, pace, montageShots: n });
+    assert.equal(ctx.avIntroSection({ introStart: c.referenceStart, firstBeat: fb, bpm: 72, usableEnd: c.usableEnd, videoSeconds, beatEnergy: [] }), c.referenceStart, length + ' ' + pace + ' section');
+    const snapped = ctx.avSnapSection({ value: c.referenceStart, firstBeat: fb, bpm: 72, usableEnd: c.usableEnd, videoSeconds, gridAccepted: true });
+    assert.ok(Math.abs(snapped - c.referenceStart) < 1e-9, length + ' ' + pace + ' slider keeps the start');
+  }
+  const tpl = ctx.avTemplate({ bpm: 72, pace: 'cinematic', montageShots: ctx.avFitShots({ requested: 16, pace: 'cinematic', bpm: 72, sectionStart: c.referenceStart, usableEnd: c.usableEnd }) });
+  const sch = ctx.avSchedule({ bpm: 72, fps: 25, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, sectionStart: c.referenceStart, onsets: [] });
+  assert.deepEqual(JSON.parse(JSON.stringify(sch.slots.map(x => x.endFrame))), [125, 167, 209, 250, 292, 334, 375, 417, 459, 500, 542, 584, 625, 667, 709, 750, 792, 834, 917], 'reference cuts at 25 fps');
+}
 // From the mp3s themselves (when ffmpeg is available): beat-detect reproduces every grid and accepts it, the tempo is
 // the same in both halves of the track (no tempo change), and the file measures on target.
 const { execFileSync, spawnSync } = require('node:child_process');
@@ -117,7 +155,10 @@ if (spawnSync('ffmpeg', ['-version']).status === 0) {
   const { analyze } = require(path.join(root, 'beat-detect.cjs'));
   for (const c of m.cues) {
     const pcm = execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-i', path.join(dir, c.file), '-ac', '1', '-ar', '22050', '-f', 'f32le', '-'], { maxBuffer: 1 << 28 });
-    const x = new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4));
+    // gridSeconds: a cue whose grid was measured on its first part only (Marimba Motif: 80 s).
+    const full = new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + Math.floor(pcm.byteLength / 4) * 4));
+    const x = c.gridSeconds ? full.subarray(0, Math.round(c.gridSeconds * 22050)) : full;
+    if (c.gridSeconds) assert.ok(c.usableEnd <= c.gridSeconds, c.id + ' usable only where the grid was measured');
     const a = analyze(x, 22050);
     assert.equal(a.accepted, true, c.id + ' accepted');
     assert.ok(Math.abs(a.bpm - c.bpm) <= 1e-9, c.id + ' bpm reproduced: ' + a.bpm + ' vs ' + c.bpm);

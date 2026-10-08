@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "archive-vlog",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "name": "Archive Vlog",
   "summary": "Turn city and travel clips and photos into a 16:9 cinematic vlog: a letterbox opening with a decoding title, an archived-by credit, a montage cut on the beat and a fade to black, as a new editable Draft.",
   "status": "experimental",
@@ -19,6 +19,7 @@
     "assets/cues/before-everything.mp3",
     "assets/cues/fractured.mp3",
     "assets/cues/manifest.json",
+    "assets/cues/marimba-motif.mp3",
     "assets/cues/peaceful-drift.mp3",
     "assets/cues/theta-frequency.mp3",
     "assets/fonts/anton.woff2.b64",
@@ -132,8 +133,12 @@
     {
       "id": "track",
       "label": "Music",
-      "default": "peaceful-drift",
+      "default": "marimba-motif",
       "choices": [
+        {
+          "id": "marimba-motif",
+          "label": "Marimba Motif"
+        },
         {
           "id": "peaceful-drift",
           "label": "Peaceful Drift"

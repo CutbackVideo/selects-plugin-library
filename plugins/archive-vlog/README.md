@@ -110,14 +110,18 @@ syllables instead of letters.
 
 ## Music
 
-The track list shows four bundled CC0 tracks (Peaceful Drift is the default),
-**Your own music** and **No music**. Credits and licence records for the
+The track list shows Marimba Motif (generated with Suno for Cutback, the
+default), four bundled CC0 tracks, **Your own music** and **No music**. Credits and licence records for the
 bundled tracks are in [THIRD_PARTY.md](THIRD_PARTY.md#music).
 
 - **Music section**: the waveform shows the part of the track the video uses.
   Drag it (or use the arrow keys) to move it; it snaps to whole bars. A bundled
   track starts on its soft intro by default, so the opening and the credit play
-  over the quiet part and the montage starts with the drums. Your own music
+  over the quiet part and the montage starts with the drums. Marimba Motif starts at
+  28.9 s (bar 8) by default and runs on the team's reference edit: cuts on a
+  72 BPM grid from there with no snapping to the music, so a Standard Cinematic
+  video has that edit's cuts (the track itself measures 71 BPM on its first
+  80 s, the part a video can use). Your own music
   starts on its most energetic stretch that fits.
 - **Preview this section** plays the chosen part from its start and fades out
   at its end; Esc or the button stops it.
