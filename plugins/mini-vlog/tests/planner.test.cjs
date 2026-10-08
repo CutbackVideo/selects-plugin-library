@@ -323,7 +323,8 @@ const cvOf = (cueId, requested, fps = F) => {
 };
 for (const cue of manifest.cues) for (const fps of [F, 25]) for (const req of [12, 24, 36]) {
   const r = cvOf(cue.id, req, fps);
-  assert.ok(r.inner >= 0.30 && r.inner <= 0.46, cue.id + ' ' + req + ' at ' + fps + ': inner interval_cv ' + r.inner);
+  // Buant Hook Short at 25 fps rounds its grid to 0.452; every other cue stays at or under 0.45.
+  assert.ok(r.inner >= 0.30 && r.inner <= (cue.id === 'buant-hook' ? 0.46 : 0.45), cue.id + ' ' + req + ' at ' + fps + ': inner interval_cv ' + r.inner);
 }
 const bp = cvOf('bedroom-pop-108', 24);
 assert.ok(bp.cv >= 0.3 && bp.cv <= 0.6, 'interval_cv ' + bp.cv);
@@ -397,13 +398,14 @@ for (const cue of manifest.cues) {
 {
   const cue = manifest.cues.find(c => c.id === 'buant-hook'), ROLES = K.MV_ROLES;
   const pool = ['a', 'b', 'c'].flatMap(rid => Array.from({ length: 39 }, (_, k) => ({ rid, role: ROLES[k % ROLES.length], t: 1 + k * 1.5, score: 0.5, sourceDuration: 60 })));
-  const build = extra => j(ctx.mvPlanBuild({ candidates: pool, bpm: cue.bpm, accepted: true, fps: 30, pace: 'quick', requested: 24, sectionStart: cue.referenceStart, usableEnd: cue.usableEnd,
+  const build = extra => j(ctx.mvPlanBuild({ candidates: pool, bpm: cue.bpm, accepted: true, fps: 25, pace: 'quick', requested: 24, sectionStart: cue.referenceStart, usableEnd: cue.usableEnd,
     onsets: cue.onsets, onsetThresholds: cue.onsetThresholds, referenceCuts: cue.referenceCuts, referenceStart: cue.referenceStart, seed: 's1', ...extra }));
   const p = build();
   assert.ok(p.ok); assert.deepStrictEqual(p.schedule.cuts, cue.referenceCuts);
-  const at25 = p.schedule.cuts.map(x => (x === 0 ? 0 : Math.round((x + ctx.mvMusicOffset(cue.referenceStart, 25)) * 25)));
-  assert.deepStrictEqual(at25.slice(1), [15, 29, 42, 57, 70, 84, 99, 112, 126, 140, 154, 167, 182, 195, 209, 224, 237, 251, 265, 279, 292, 306, 321, 334]);
-  assert.notDeepStrictEqual(build({ requested: 12 }).schedule.cuts, cue.referenceCuts.slice(0, 13));
+  assert.deepStrictEqual(p.schedule.slots.map(x => x.endFrame), [15, 29, 42, 57, 70, 84, 99, 112, 126, 140, 154, 167, 182, 195, 209, 224, 237, 251, 265, 279, 292, 306, 321, 334]);
+  const short = build({ requested: 12 }).schedule;
+  assert.strictEqual(short.cuts.length, 13);
+  short.cuts.forEach((x, k) => assert.ok(Math.abs(x - k * 60 / cue.bpm) <= 0.07, 'Short stays on the grid (onset snaps aside): ' + k));
   assert.notDeepStrictEqual(build({ pace: 'relaxed' }).schedule.cuts, cue.referenceCuts);
   assert.notDeepStrictEqual(build({ sectionStart: cue.referenceStart + 240 / cue.bpm }).schedule.cuts, cue.referenceCuts);
 }
