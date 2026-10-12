@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "vlog-opening",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "name": "Vlog Opening",
   "summary": "Build a 12-22s vlog opening as a new timeline in one of three styles, chosen from the analysed footage of the open Project.",
   "status": "experimental",
@@ -13,7 +13,8 @@
     "panel.tsx",
     "assets/cue-whip-muted-piano-motif.mp3",
     "assets/cue-motion-buant-groove.mp3",
-    "assets/cue-quotes-cafe.mp3"
+    "assets/cue-quotes-cafe.mp3",
+    "tests/reference.test.cjs"
   ],
   "compatibility": {
     "platforms": [
@@ -82,7 +83,7 @@
       "id": "whip-cut",
       "galleryOrder": 105,
       "name": "Vlog Opening \u00b7 Whip cut",
-      "summary": "Fast whip pans between places, cut on the beat.",
+      "summary": "Quick cuts between places with flares, scope bars and a title.",
       "preview": {
         "video": "preview.mp4",
         "poster": "poster.webp",
@@ -94,7 +95,7 @@
       "id": "motion-graphics",
       "galleryOrder": 9,
       "name": "Vlog Opening \u00b7 Motion graphics",
-      "summary": "Place labels, title cards and an iris close.",
+      "summary": "A drawn laptop push-in, an illustrated sky, a place label and a handwritten title.",
       "preview": {
         "video": "preview-motion-graphics.mp4",
         "poster": "poster-motion-graphics.webp",

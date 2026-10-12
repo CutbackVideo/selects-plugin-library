@@ -72,6 +72,8 @@ jobs:
           node plugins/archive-vlog/tests/scripts-read.test.cjs
           node plugins/archive-vlog/tests/scripts-types.test.cjs
           node plugins/archive-vlog/tests/title.test.cjs
+      - name: Test Vlog Opening
+        run: node plugins/vlog-opening/tests/reference.test.cjs
       - name: Test Mini Vlog
         run: |
           node plugins/mini-vlog/tests/allocate.test.cjs
