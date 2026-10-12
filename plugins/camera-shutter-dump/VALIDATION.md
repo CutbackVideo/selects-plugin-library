@@ -1,5 +1,11 @@
 # Validation
 
+## Default layout = Semin's reference Draft (0.1.7, 2026-10-12)
+
+Since 0.1.7 the plan is Semin's hand-finished Draft "Camera shutter dump" (Staging project CLIP HIGHLIGHTS UPDATE; 25 fps, 250 frames, 720x1280), not the 30 fps measurement below: photo starts 3, 22, 39, 58, 74, 91, 111, 130, 150, 165, 184, 201; shutter sounds 3 frames earlier, 11 frames each; her tile sizes, positions and focus points; no crop on photos 11-12; the app's Burst and Text graphics at 216-250 with her parameters and component code. Other frame rates scale every frame by round(f*fps/25). `node --test tests/camera_shutter_dump_semin.test.mjs` runs the real finishing script on a fake Draft with every default and diffs it against `tests/fixtures/camera_shutter_dump_semin.json` (clips per track, transforms, effect names and parameters, graphic parameters and code, sound placements): zero differences. Not yet run in the app.
+
+The sections below describe the earlier 30 fps layout (0.1.6 and before).
+
 ## Reference
 
 A trending "camera shutter dump" short-form template (30 fps, 279 frames, 718x1280), measured with ffmpeg:
