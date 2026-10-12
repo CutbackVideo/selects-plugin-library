@@ -1,0 +1,263 @@
+{
+ "source": "Semin, Staging project CLIP HIGHLIGHTS UPDATE, Draft \"Four Photo Reveal\" (dumps/Four_Photo_Reveal.json, 2026-10-12). Geometry and framing (g, radius, focusX/Y, transforms) left out: they depend on the photos.",
+ "fps": 25,
+ "durationFrames": 196,
+ "musicSourceStartSeconds": 26.2,
+ "clips": [
+  {
+   "trackKind": "main",
+   "start": 0,
+   "end": 196,
+   "resource": "Audio",
+   "effects": []
+  },
+  {
+   "trackKind": "video",
+   "start": 0,
+   "end": 113,
+   "resource": "Image",
+   "effects": [
+    {
+     "name": "No.14 grid A",
+     "parameters": {
+      "startFrame": 0,
+      "revealStart": -0.026667,
+      "revealDuration": 0.5,
+      "lateEase": false,
+      "fadeStart": 4.4,
+      "fadeDuration": 0.28,
+      "transitionIn": null,
+      "transitionOut": null
+     }
+    },
+    {
+     "name": "Fade down",
+     "parameters": {
+      "style": "fade",
+      "direction": "out",
+      "span": 0.6,
+      "amount": 60
+     }
+    }
+   ]
+  },
+  {
+   "trackKind": "video",
+   "start": 0,
+   "end": 113,
+   "resource": "Image",
+   "effects": [
+    {
+     "name": "No.14 grid B",
+     "parameters": {
+      "startFrame": 0,
+      "revealStart": 0.856667,
+      "revealDuration": 0.5,
+      "lateEase": false,
+      "fadeStart": null,
+      "fadeDuration": 1,
+      "transitionIn": null,
+      "transitionOut": null
+     }
+    },
+    {
+     "name": "Fade down",
+     "parameters": {
+      "style": "fade",
+      "direction": "out",
+      "span": 0.6,
+      "amount": 60
+     }
+    }
+   ]
+  },
+  {
+   "trackKind": "video",
+   "start": 0,
+   "end": 113,
+   "resource": "Image",
+   "effects": [
+    {
+     "name": "No.14 grid C",
+     "parameters": {
+      "startFrame": 0,
+      "revealStart": 1.793333,
+      "revealDuration": 0.5,
+      "lateEase": false,
+      "fadeStart": null,
+      "fadeDuration": 1,
+      "transitionIn": null,
+      "transitionOut": null
+     }
+    },
+    {
+     "name": "Fade down",
+     "parameters": {
+      "style": "fade",
+      "direction": "out",
+      "span": 0.6,
+      "amount": 60
+     }
+    }
+   ]
+  },
+  {
+   "trackKind": "video",
+   "start": 0,
+   "end": 113,
+   "resource": "Image",
+   "effects": [
+    {
+     "name": "No.14 grid D",
+     "parameters": {
+      "startFrame": 0,
+      "revealStart": 2.673333,
+      "revealDuration": 0.5,
+      "lateEase": false,
+      "fadeStart": null,
+      "fadeDuration": 1,
+      "transitionIn": null,
+      "transitionOut": null
+     }
+    },
+    {
+     "name": "Fade down",
+     "parameters": {
+      "style": "fade",
+      "direction": "out",
+      "span": 0.6,
+      "amount": 60
+     }
+    }
+   ]
+  },
+  {
+   "trackKind": "video",
+   "start": 95,
+   "end": 143,
+   "resource": "Image",
+   "effects": [
+    {
+     "name": "No.14 fullscreen A",
+     "parameters": {
+      "startFrame": 108,
+      "revealStart": 4.32,
+      "revealDuration": 0.3,
+      "lateEase": true,
+      "fadeStart": null,
+      "fadeDuration": 1,
+      "transitionIn": null,
+      "transitionOut": {
+       "startFrame": 133,
+       "durationFrames": 8
+      }
+     }
+    }
+   ]
+  },
+  {
+   "trackKind": "video",
+   "start": 127,
+   "end": 161,
+   "resource": "Image",
+   "effects": [
+    {
+     "name": "No.14 fullscreen B",
+     "parameters": {
+      "startFrame": 133,
+      "revealStart": null,
+      "revealDuration": 0.3,
+      "lateEase": false,
+      "fadeStart": null,
+      "fadeDuration": 1,
+      "transitionIn": {
+       "startFrame": 133,
+       "durationFrames": 8
+      },
+      "transitionOut": {
+       "startFrame": 159,
+       "durationFrames": 8
+      }
+     }
+    }
+   ]
+  },
+  {
+   "trackKind": "video",
+   "start": 143,
+   "end": 175,
+   "resource": "Image",
+   "effects": [
+    {
+     "name": "No.14 fullscreen D",
+     "parameters": {
+      "startFrame": 159,
+      "revealStart": null,
+      "revealDuration": 0.3,
+      "lateEase": false,
+      "fadeStart": null,
+      "fadeDuration": 1,
+      "transitionIn": {
+       "startFrame": 159,
+       "durationFrames": 8
+      },
+      "transitionOut": {
+       "startFrame": 183,
+       "durationFrames": 8
+      }
+     }
+    }
+   ]
+  },
+  {
+   "trackKind": "video",
+   "start": 161,
+   "end": 196,
+   "resource": "Image",
+   "effects": [
+    {
+     "name": "No.14 fullscreen C",
+     "parameters": {
+      "startFrame": 183,
+      "revealStart": null,
+      "revealDuration": 0.3,
+      "lateEase": false,
+      "fadeStart": null,
+      "fadeDuration": 1,
+      "transitionIn": {
+       "startFrame": 183,
+       "durationFrames": 8
+      },
+      "transitionOut": null
+     }
+    },
+    {
+     "name": "Fade down",
+     "parameters": {
+      "style": "fade",
+      "direction": "out",
+      "span": 0.5,
+      "amount": 60
+     }
+    }
+   ]
+  }
+ ],
+ "motionGraphics": [
+  {
+   "name": "No.14 decoration",
+   "start": 0,
+   "end": 196,
+   "parameters": {
+    "shape": "none",
+    "color": "#ffffff",
+    "size": 29,
+    "x": 1.5,
+    "y": 3.5
+   }
+  }
+ ],
+ "transitions": [],
+ "effectCode": "import {useCurrentFrame} from 'remotion';\nconst revealProgress=function revealProgress(elapsed,duration,lateEase){\n const linear=Math.max(0,Math.min(1,elapsed/duration));\n if(!lateEase||linear<=5/9)return linear;\n const u=(linear-5/9)/(4/9);\n return 5/9+(4/9)*(1-Math.pow(1-u,2.1));\n};\nconst gridExitFadeProgress=function gridExitFadeProgress(t,start,duration){\n const u=Math.max(0,Math.min(1,(t-start)/duration));\n return 1-u*u*(3-2*u);\n};\nconst transitionCoefficients=function transitionCoefficients(progress){\n const p=Math.max(0,Math.min(1,progress)),v=p*9,i=Math.min(8,Math.floor(v)),u=v-i;\n const alphaPoints=[0,.0901,.2356,.3011,.3622,.5160,.6777,.7667,.8582,1];\n const gainPoints=[1,1.0240,1.0451,1.0602,1.0677,1.0936,1.1063,1.0860,1.0542,1];\n const alpha=alphaPoints[i]*(1-u)+alphaPoints[i+1]*u;\n const gain=gainPoints[i]*(1-u)+gainPoints[i+1]*u;\n return {outgoing:gain*(1-alpha),incoming:gain*alpha};\n};\nexport default function No14Crop({Source,data}) {\n const g=data.g,frame=useCurrentFrame(),globalFrame=frame+data.startFrame,t=globalFrame/25;\n let alpha=(data.revealStart==null?1:revealProgress(t-data.revealStart,data.revealDuration,data.lateEase))*(data.fadeStart==null?1:gridExitFadeProgress(t,data.fadeStart,data.fadeDuration));\n let gain=1;\n for(const item of [data.transitionIn,data.transitionOut])if(item&&globalFrame>=item.startFrame&&globalFrame<item.startFrame+item.durationFrames){const coefficients=transitionCoefficients((globalFrame-item.startFrame)/Math.max(1,item.durationFrames-1));gain=coefficients.outgoing+coefficients.incoming;if(item===data.transitionIn)alpha*=coefficients.incoming/gain;}\n const x=Math.max(g.mw-g.w,Math.min(0,g.mw/2-data.focusX*g.w));\n const y=Math.max(g.mh-g.h,Math.min(0,g.mh/2-data.focusY*g.h));\n return <div style={{position:'absolute',inset:0,opacity:alpha,filter:'brightness('+gain+')'}}><div style={{position:'absolute',left:g.left,top:g.top,width:g.mw,height:g.mh,overflow:'hidden',borderRadius:data.radius}}><div style={{position:'absolute',left:x,top:y,width:g.w,height:g.h}}><Source /></div></div></div>;\n}",
+ "decorationCode": "export default function No14Decoration({data}) {\n if(data.shape==='none')return null;\n const paths={heart:<path d=\"M12 21.35 10.55 20.03C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09A5.95 5.95 0 0 1 16.5 3C19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z\"/>,star:<path d=\"m12 2 2.95 6.05 6.67.97-4.81 4.69 1.14 6.63L12 17.22l-5.95 3.12 1.14-6.63-4.81-4.69 6.67-.97L12 2Z\"/>,circle:<circle cx=\"12\" cy=\"12\" r=\"10\"/>};\n return <div style={{position:'absolute',inset:0,display:'flex',justifyContent:'center',alignItems:'center',pointerEvents:'none'}}><svg width={data.size} height={data.size} viewBox=\"0 0 24 24\" fill={data.color} style={{transform:'translate('+data.x+'px,'+data.y+'px)'}}>{paths[data.shape]}</svg></div>;\n}"
+}
