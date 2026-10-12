@@ -14,16 +14,16 @@ const strip = (src) => stripTypeScriptTypes(src, { mode: 'strip' });
 const src = strip([
   between('function placeWindow(', '// Six-second auditions'),
   between('const GFX_SMEAR = `', '// ---------------------------------------------------------------------------\n// Scripts.'),
-  between('function assembleScript(', 'function decorateScript('),
+  between('function selectQuotesScript(', 'function decorateScript('),
 ].join('\n'));
-const K = new Function(src + '\nreturn { retime, voRefStyle, voRefTemplate, voRefEnds, voRefQuotes, voRefPlan, voRefScript, assembleScript, VO_REF };')();
+const K = new Function(src + '\nreturn { retime, voRefRetime, selectQuotesScript, voRefStyle, voRefTemplate, voRefEnds, voRefQuotes, voRefPlan, voRefScript, assembleScript, VO_REF };')();
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
 
 // Effects browser presets by id, as the app names the effect it places.
 const PRESET_NAMES = { 'reveal-blur-in': 'Blur in', 'filter-film-stock': 'Film stock', 'basic-adjust': 'Color & Tone' };
 
 // A Draft that records what the scripts do (the SDK verbs they call, on one main track).
-function recordingSelects(fps) {
+function recordingSelects(fps, opts = {}) {
   let nextId = 1;
   const main = [], video = [], audio = [], transitions = [];
   let tail = 0;
@@ -56,7 +56,11 @@ function recordingSelects(fps) {
       for (const c of main) if (c.startFrame >= at.after.b) { c.startFrame += n; c.endFrame += n; }
       return {};
     },
-    async chapters() { return main.map((c, i) => ({ startFrame: c.startFrame, endFrame: c.endFrame, title: 'Chapter ' + (i + 1) })); },
+    async chapters() {
+      if (opts.noChapters) return [];
+      return main.flatMap((c, i) => [{ kind: 'subchapter', startFrame: c.startFrame, endFrame: c.endFrame, title: 'Sub ' + (i + 1) },
+        { kind: 'chapter', startFrame: c.startFrame, endFrame: c.endFrame, title: 'Chapter ' + (i + 1) }]);
+    },
     async addMotionGraphic({ label, tsxCode, parameters, within }) {
       const c = { clipId: nextId++, label, code: sha(tsxCode), parameters, startFrame: within.a, endFrame: within.b, transform: {} };
       video.push(c);
@@ -78,8 +82,8 @@ const run = (selects, script) => new Function('selects', strip('async function e
 async function build(style, fps, opts = {}) {
   const tpl = K.voRefTemplate(style);
   let beats = tpl.map((s, i) => ({ role: s.role, rid: 'r' + (s.continues ? i - 1 : i), name: 'clip' + i + '.mp4', total: 60, a: 10, b: 10 + s.dur, t: 12, path: null, ...(s.continues ? { continues: true } : {}) }));
-  beats = K.retime(beats, K.voRefEnds(style));
-  const rec = recordingSelects(fps);
+  beats = K.voRefRetime(style, beats);
+  const rec = recordingSelects(fps, opts);
   const asm = await run(rec.selects, K.assembleScript('project-1', 'Opening', beats, null));
   assert.equal(asm.fps, fps);
   const out = await run(rec.selects, K.voRefScript({ projectId: 'project-1', sequenceId: asm.sequenceId, fps, beats, title: 'My Trip',
@@ -154,10 +158,34 @@ const byStart = (a, b) => a[1] - b[1] || a[0].localeCompare(b[0]);
     assert.deepEqual(rec.audio.map(a => [a.startFrame, a.endFrame]), [[0, Math.round(389 * 30 / 25)]]);
     assert.equal(rec.video.find(g => g.label === 'Fade to black').parameters.lengthFrames, 18);
     assert.deepEqual(rec.transitions.map(t => t[3] - t[2]), [10, 10]);
+    // The motion style's gap and the shots after it land on the scaled reference frames too.
+    for (const fps of [24, 30, 50]) {
+      const k = await build('motion', fps);
+      assert.deepEqual(k.rec.main.map(c => [c.startFrame, c.endFrame]), EXPECTED.motion.main.map(([a, b]) => [Math.round(a * fps / 25), Math.round(b * fps / 25)]), 'motion at ' + fps);
+      const sky = k.rec.video.find(g => /^Sky/.test(g.label));
+      assert.deepEqual([sky.startFrame, sky.endFrame], [Math.round(113 * fps / 25), Math.round(157 * fps / 25)]);
+    }
     const m = await build('motion', 30);
     assert.deepEqual(m.rec.audio.map(a => [a.startFrame, a.endFrame]), [[13, 510]]);
     assert.equal(m.rec.main[0].effects[0][1].beatFrames, 12.167);
     assert.equal(m.rec.main[0].effects[0][1].holdFrames, 67);
+  }
+  // Without chapter titles every graphic is still placed, named by the Project.
+  for (const style of ['motion', 'quotes']) {
+    const { rec, out } = await build(style, 25, { noChapters: true });
+    assert.equal(rec.video.length, EXPECTED[style].graphics.length, style + ': every graphic without chapters');
+    for (const g of rec.video) if (g.label === 'Location pin' || g.label.startsWith('Label - ')) assert.equal(g.parameters.place ?? g.parameters.text, 'My Trip');
+    assert.deepEqual(out.notes, []);
+  }
+  // Funny quotes from three talking clips still finds the reference's nine lines (up to nine per clip).
+  {
+    const items = (rid) => Array.from({ length: 6 }, (_, k) => ({ text: 'Is ' + rid + ' line ' + k + ' funny?', span: { startFrame: 30 + k * 150, endFrame: 90 + k * 150 } }));
+    const selects = { project: () => ({ resource: (rid) => ({ turns: async () => ({ items: items(rid) }) }) }) };
+    const clips = ['a', 'b', 'c'].map(rid => ({ rid, name: rid + '.mp4', total: 40 }));
+    const found = await run(selects, K.selectQuotesScript('p', 40, 3, clips, K.VO_REF.quotes.shots.length));
+    assert.equal(K.voRefQuotes(found.beats).length, 9);
+    const two = await run(selects, K.selectQuotesScript('p', 40, 3, clips));
+    assert.equal(K.voRefQuotes(two.beats), null, 'two lines per clip from three clips is not enough');
   }
   // A frame narrower than 3:2 goes without the letterbox.
   assert.ok(!(await build('whip', 25, { wide: false })).rec.video.some(g => /letterbox/.test(g.label)));

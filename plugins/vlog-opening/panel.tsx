@@ -281,7 +281,7 @@ const VO_LABEL_EDIT = (ink, shadow) => [
 ];
 // shots: main clip ends with the gap left out (assembly order); effects/transforms/transitions name main clips by
 // index; graphics are in final timeline frames. `text` maps a parameter to the Project's words: "title" (the Project
-// name), "chapter" (the chapter title where the graphic starts; the graphic is left out without one) or "" (empty).
+// name), "chapter" (the chapter title where the graphic starts, else the Project name) or "" (empty).
 // `frameParams` are counted in frames and scale with the frame rate.
 const VO_REF = {
   // "Vlog Opening - Cinematic Opening": Muted Piano Motif from 0.36 s, running 24 frames past the video.
@@ -389,8 +389,18 @@ function voRefTemplate(style) {
     return shot;
   });
 }
-// Where each shot ends, in seconds (retime's `ends`; assembly lands them on round(s * fps)).
+// Where each shot ends, in seconds (retime's `ends`).
 function voRefEnds(style) { return VO_REF[style].shots.map(([, end]) => end / VO_REF_FPS); }
+// The beats re-cut to the reference. Each carries its end in reference frames on the finished timeline (ref25) and
+// the gap inserted before it (gap25: [from, to]), so assembly lands it on round(f * fps / 25) less the gap as the
+// gap will be inserted at that frame rate.
+function voRefRetime(style, beats) {
+  const ref = VO_REF[style], at = ref.gap ? ref.shots[ref.gap.after][1] : 0;
+  return retime(beats, voRefEnds(style)).map((b, i) => {
+    const late = ref.gap && i > ref.gap.after;
+    return { ...b, ref25: ref.shots[i][1] + (late ? ref.gap.frames : 0), ...(late ? { gap25: [at, at + ref.gap.frames] } : {}) };
+  });
+}
 // The funny-quotes reference has nine lines: the nine best-scored found lines, in the order they were found, or null.
 function voRefQuotes(beats) {
   const n = VO_REF.quotes.shots.length;
@@ -410,7 +420,7 @@ function voRefPlan(style, fps, wide) {
   return {
     style,
     shots: ref.shots.length,
-    gap: ref.gap ? { after: ref.gap.after, frames: f(ref.gap.frames) } : null,
+    gap: ref.gap ? { after: ref.gap.after, frames: f(ref.shots[ref.gap.after][1] + ref.gap.frames) - f(ref.shots[ref.gap.after][1]) } : null,
     music: { start: f(ref.music.start), end: f(ref.music.end), sourceStart: ref.music.sourceStart },
     effects: ref.effects.map(scaled),
     transforms: ref.transforms,
@@ -471,19 +481,19 @@ if (PLAN.gap && clips[PLAN.gap.after]) {
 let chapters: any[] = [];
 try { chapters = await d.chapters(); } catch (e) { chapters = []; }
 const chapterAt = (f: number) => {
-  const ch = chapters.find(x => (x.startFrame ?? (x.span && x.span.startFrame)) <= f && (x.endFrame ?? (x.span && x.span.endFrame)) > f);
+  const at = chapters.filter(x => (x.startFrame ?? (x.span && x.span.startFrame)) <= f && (x.endFrame ?? (x.span && x.span.endFrame)) > f);
+  const ch = at.find(x => x.kind === "chapter") || at[0];
   return ch ? String(ch.title || ch.chapterTitle || "") : "";
 };
 for (const g of PLAN.graphics) {
   const parameters: Record<string, any> = { ...g.parameters };
-  let label = g.name, missing = false;
+  let label = g.name;
   for (const [key, from] of Object.entries(g.text || {})) {
-    const words = from === "title" ? TITLE : from === "chapter" ? chapterAt(g.start) : "";
-    if (from === "chapter" && !words) missing = true;
+    // A shot without a chapter title is named by the Project.
+    const words = from === "title" ? TITLE : from === "chapter" ? chapterAt(g.start) || TITLE : "";
     parameters[key] = words;
     if (from) label = label.replace("{" + from + "}", words);
   }
-  if (missing) { notes.push("no chapter title for " + g.name.replace(" - {chapter}", "") + " at frame " + g.start); continue; }
   let editableParameters = g.editable || [];
   // The preset's controls, less the font picker where the reference leaves the font empty (the app would fill an
   // empty declared font with the user's latest pick; empty draws the component's own stack).
@@ -1349,7 +1359,9 @@ function assignBeats(template: any[], hitsByRole: Record<string, any[]>, pool: a
 // `handed`, when given, is the only footage to quote from (a template run's
 // picked clips, already read by templatePoolScript); otherwise the pool is
 // spread across the whole Project.
-function selectQuotesScript(projectId: string, budgetSeconds: number, poolSize: number, handed?: Array<{ rid: string; name: string; total: number }>) {
+// `perClip` is how many lines one clip may give (2; the reference layout takes up to 9 from one clip, as its own
+// reference does with three lines in a row from one clip).
+function selectQuotesScript(projectId: string, budgetSeconds: number, poolSize: number, handed?: Array<{ rid: string; name: string; total: number }>, perClip = 2) {
   const poolSource = handed
     ? `const pool = ${JSON.stringify(handed.map(h => ({ resourceId: h.rid, name: h.name, durationSeconds: h.total })))};`
     : `const all = await p.resources();
@@ -1408,7 +1420,7 @@ const beats = [];
 const perRes = {};
 const seen = new Set();
 let used = 0;
-for (const pass of [1, 2]) {
+for (let pass = 1; pass <= ${perClip}; pass++) {
   for (const r of rows) {
     if (used >= BUDGET) break;
     const dur = Math.min(3.2, Math.max(1.0, r.b - r.a));
@@ -1448,7 +1460,11 @@ for (const b of BEATS) {
   // A beat-timed clip ends on its planned frame, so frame rounding in earlier
   // clips is absorbed here instead of drifting off the beat.
   if (rate && typeof b.t1 === "number") {
-    const frames = Math.round(b.t1 * rate) - endFrame;
+    // A reference shot (ref25: 25 fps frames on the finished timeline, less any gap inserted later) lands on
+    // round(f * fps / 25).
+    const at = (f: number) => Math.round((f * rate) / 25);
+    const target = typeof b.ref25 === "number" ? at(b.ref25) - (b.gap25 ? at(b.gap25[1]) - at(b.gap25[0]) : 0) : Math.round(b.t1 * rate);
+    const frames = target - endFrame;
     if (frames >= 2) end = Math.min(Math.floor(limit * 100) / 100, start + frames / rate);
   }
   if (!(end > start)) continue;
@@ -1994,7 +2010,7 @@ async function runTemplate(sdk: any, context: any, onStep: (text: string) => voi
   if (style === "quotes") {
     onStep("Finding lines…");
     const find = async (budget: number) => {
-      const found = await runQuiet(sdk, "Find quotable lines", selectQuotesScript(projectId, budget, picked.length, picked), false);
+      const found = await runQuiet(sdk, "Find quotable lines", selectQuotesScript(projectId, budget, picked.length, picked, ref ? VO_REF.quotes.shots.length : 2), false);
       if (!found) return "Could not read what is said in the picked clips; try again.";
       if (found.error === "no_speech") return "None of the picked clips has speech, so Funny quotes has no lines to use; pick clips where people talk.";
       if (found.error) return "None of the picked clips is analysed; analyse them or pick others.";
@@ -2050,7 +2066,7 @@ async function runTemplate(sdk: any, context: any, onStep: (text: string) => voi
   let gapSeconds = 2.0;
   let titleEnd: number | null = null;
   let musicStart = 0;
-  if (ref) beats = retime(beats, voRefEnds(style));
+  if (ref) beats = voRefRetime(style, beats);
   else if (grid && style === "quotes") {
     const plan = quotePlan(beats, grid);
     beats = retime(beats, plan.ends);
@@ -2323,7 +2339,7 @@ function OpeningPanel({ sdk, context, ui }: any) {
       try { if (!ref) await measure(); } catch (e: any) { setStatus({ tone: "error", text: String(e?.message || e) }); return; }
       if (style === "quotes") {
         const find = async (budget: number) => {
-          const r = await sdk.runScript({ summary: "Find quotable lines", script: selectQuotesScript(projectId, budget, 30), allowCommit: false });
+          const r = await sdk.runScript({ summary: "Find quotable lines", script: selectQuotesScript(projectId, budget, 30, undefined, ref ? VO_REF.quotes.shots.length : 2), allowCommit: false });
           if (r.isError) return r.output;
           if (r.result?.error === "no_speech") return "No analysed speech in this project, so the quotes style has nothing to cut.";
           if (r.result?.error === "no_analyzed_video") return "No analysed video in this project yet.";
@@ -2402,7 +2418,7 @@ function OpeningPanel({ sdk, context, ui }: any) {
         gapSeconds = plan.gapSeconds;
         titleEnd = plan.titleEnd;
       }
-      if (ref) beats = retime(beats, voRefEnds(style));
+      if (ref) beats = voRefRetime(style, beats);
       const burstSeconds = grid ? grid.period / 2 + 0.05 : 0.34;
 
       setStep("Sampling colours…");
