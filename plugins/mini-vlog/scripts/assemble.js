@@ -89,7 +89,11 @@ if (cfg.clipSound === 'ambient') {
 }
 if (cfg.music) {
   const audioBefore = new Set((await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'audio').map(c => c.clipId));
-  await d.overlayResource({ resource: p.resource(cfg.music.resourceId), over: await d.rangeAtFrames(0, endFrame), sourceStartSeconds: cfg.music.sectionStart });
+  // tailSeconds: a reference edit's music runs on past the last cut (Buant Hook: 0.68 s). Blank time appended after the
+  // last clip holds it, since an overlay cannot reach past the timeline's end.
+  const tail = cfg.music.tailSeconds > 0 ? Math.round(cfg.music.tailSeconds * fps) : 0;
+  if (tail) await d.insertGap({ seconds: tail / fps });
+  await d.overlayResource({ resource: p.resource(cfg.music.resourceId), over: await d.rangeAtFrames(0, endFrame + tail), sourceStartSeconds: cfg.music.sectionStart });
   // Find the clip the overlay just created: new audio clips only, preferring the music resource.
   const added = (await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'audio' && !audioBefore.has(c.clipId));
   const music = added.find(c => c.resourceId === cfg.music.resourceId) || added[0];

@@ -674,7 +674,7 @@ function mvPlanBuild(opts) {
         name = attempt.name + '-no-opener';
       }
       if (alloc.missing === 0) {
-        return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested),
+        return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested), referenceCuts: !!snapOpts.cuts,
           beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, approxBpm, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
           attempt: name,
           ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, splits: fills.splits, fillSource: fills.source, ratios: fills.ratios, beatSeconds, opener } } : {}) };

@@ -454,3 +454,17 @@ assert.strictEqual(ctx.mvShotSeconds({ bpm: null, beatsPerShot: null, pace: 'qui
 assert.strictEqual(JSON.stringify(ctx.mvProgress('shots', 0)), JSON.stringify({ id: 'shots', value: 0, percent: 0, current: 0 }));
 assert.strictEqual(ctx.mvProgress('open', 1).percent, 100);
 console.log('planner ok');
+
+// Reference music tail (Buant Hook): the reference edit's music runs referenceTail seconds past its last cut (0.68 s =
+// 17 frames at 25 fps: music 0-351 under a 334-frame video). A plan on the reference cuts says so (referenceCuts), so
+// the panel hands assemble.js the tail; any other plan has none.
+{
+  const cue = manifest.cues.find(c => c.id === 'buant-hook'), ROLES = K.MV_ROLES;
+  assert.strictEqual(cue.referenceTail, 0.68);
+  assert.strictEqual(Math.round((cue.referenceCuts[24] + cue.referenceTail) * 25), 351);
+  const pool = ['a', 'b', 'c'].flatMap(rid => Array.from({ length: 39 }, (_, k) => ({ rid, role: ROLES[k % ROLES.length], t: 1 + k * 1.5, score: 0.5, sourceDuration: 60 })));
+  const build = extra => j(ctx.mvPlanBuild({ candidates: pool, bpm: cue.bpm, accepted: true, fps: 25, pace: 'quick', requested: 24, sectionStart: cue.referenceStart, usableEnd: cue.usableEnd,
+    onsets: cue.onsets, onsetThresholds: cue.onsetThresholds, referenceCuts: cue.referenceCuts, referenceStart: cue.referenceStart, seed: 's1', ...extra }));
+  assert.strictEqual(build().referenceCuts, true);
+  assert.strictEqual(build({ requested: 12 }).referenceCuts, false);
+}
