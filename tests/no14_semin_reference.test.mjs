@@ -50,3 +50,10 @@ test('the default plan at 25 fps rebuilds Semin\'s Draft', async()=>{
  assert.equal(effectCodeFor(25),ref.effectCode);
  assert.deepEqual(ref.transitions,[]); // the crossfades live inside the clip effects
 });
+
+test('the template defaults choose that plan: Music on, no decoration', ()=>{
+ const panel=fs.readFileSync(new URL('../plugins/no14-still-video/panel.tsx',import.meta.url),'utf8');
+ assert.match(panel,/DEFAULT_DECORATION=\{shape:'none',color:'#ffffff'\}/);
+ assert.match(panel,/DEFAULT_MUSIC='on'/);
+ assert.match(panel,/const plan=music==='on'\?seminScenePlan\(fps\):nativeScenePlan\(fps\);/);
+});
