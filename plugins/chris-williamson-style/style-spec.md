@@ -36,8 +36,8 @@ Fractions are of the 9:16 frame; values in 1080x1920 are given where useful.
 ## B-roll
 
 - ~13 cutaways in 43 s, 1-3 s each, hard cut on the keyword; B-roll is on screen about 60 % of the time.
-  Full-bleed 9:16, same warm grade. The plugin's floor is 80 % of keywords with B-roll, each held to the
-  next keyword (1.3-5 s), which lands at the same coverage or above.
+  Full-bleed 9:16, same warm grade. The plugin's floor is 60 % of keywords with B-roll, each held to the
+  next keyword (1.3-5 s). This share is counted by keyword, not by total screen time.
 - Literal or clearly metaphoric pictures of the word: a runner, a brain, an eye, a marathon podium.
 
 ## Double inversion (4 in 43 s: 10.2 s, 20.0 s, 30.6 s, 38.2 s) — reference only; removed from plugin

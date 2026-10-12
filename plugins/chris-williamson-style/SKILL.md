@@ -17,7 +17,7 @@ is styled and reframed to 9:16; no copy is made, and a rerun replaces the earlie
 a picked timeline is styled in place the same way; a picked video goes whole into a new Draft
 (`… · Chris Williamson Style`), which is styled.
 
-B-roll density: at least 80 % of the keywords cut to B-roll, spread evenly over the clip (the planner is
+B-roll density: at least 60 % of the keywords cut to B-roll, spread evenly over the clip (the planner is
 asked for that share and spread, and the panel fills any shortfall with a plain "<keyword> photo" search on the
 keyword in the middle of the longest bare stretch); each cutaway runs from its keyword to the next one, 1.3-5 s.
 Each query gets one AI browsing turn (4 min, stock sites before Google, candidates saved to
