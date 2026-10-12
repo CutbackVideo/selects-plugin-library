@@ -12,7 +12,7 @@ Use this plugin when the user asks for the camera shutter dump / shutter photo d
 - Black for the first 3 frames, then one photo appears on each shutter: frames 3, 22, 39, 58, 74, 91, 111, 130, 150, 165, 184, 201.
 - Every photo stays until the end and sits above the earlier ones, so the frame fills into a collage. No motion, borders, rotation, or transitions: hard cuts only.
 - Slots 1-10 are portrait 3:4 tiles cropped around an editable focus point, sized and placed as in the reference; slots 11-12 show the whole photo (no crop) at a 4:3 slot's size.
-- From frame 216 to the end: the app's Burst (confetti, scale 150%) and, above it, a Text title "Lake District / Memories" (Chauncy Pro 120, #F5988A, white stroke, pop in). Both are ordinary editable graphic clips.
+- From frame 216 to the end: the app's Burst (confetti, scale 150%) and, above it, a Text title showing the Project name (editable in the Inspector; Chauncy Pro 120, #F5988A, white stroke, pop in). Both are ordinary editable graphic clips.
 - Audio is only the shutter sound: autofocus beeps, mirror clack and shutter click, 11 frames, starting 3 frames before each photo appears. There is no music.
 
 **Inputs:** exactly twelve registered Project Image resources (JPG/PNG/HEIC), in order. Do not duplicate or drop photos to reach twelve on your own; if the Project has fewer, ask the user which photos to use or reuse. Do not convert photos to video.

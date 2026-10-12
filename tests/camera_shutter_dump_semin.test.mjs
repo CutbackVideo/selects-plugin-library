@@ -1,7 +1,13 @@
 // Builds the Camera Shutter Dump Draft with every default at 25 fps through the Panel's real
 // finishing script (against a recording fake Selects) and diffs the resulting timeline against
 // Semin's reference Draft (tests/fixtures/camera_shutter_dump_semin.json, read back from Staging).
-// Target: zero differences.
+// Target: zero differences, apart from two intentional ones (NOT_REPRODUCED).
+// Not reproduced on purpose, and checked separately below:
+// - crop focusX/focusY: Semin picked them for her own photos; every slot starts at 0.5.
+// - the title text: Semin's "Lake District\nMemories" was about her trip; the title is
+//   the Project name (as Vlog Opening seeds its title). Its look, timing and code are hers.
+const NOT_REPRODUCED=[/\.effects\.\d+\.parameters\.focus[XY]$/,/^video\.0\.parameters\.body$/];
+const PROJECT_NAME='Lake District';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -36,7 +42,7 @@ async function buildDefault(){
   addMotionGraphic:async({within,...g})=>{const c=add({resourceId:null,startFrame:within.a,endFrame:within.b},'video');graphics.set(c.clipId,g);return {clipId:c.clipId,startFrame:c.startFrame,endFrame:c.endFrame};},
   commitAll:async()=>{commits++;return {commitId:'c1'};}};
  const project={meta:async()=>({draftIds:['d']}),resources:async()=>[...types].map(([resourceId,type])=>({resourceId,type})),resource:id=>({id})};
- const script=buildFinishScript({mode:'finish',projectId:'p',draftId:'d',fps:25,photos:sizes.map((s,i)=>({resourceId:'img'+i,...s})),placements,sounds});
+ const script=buildFinishScript({mode:'finish',projectId:'p',draftId:'d',fps:25,title:PROJECT_NAME,photos:sizes.map((s,i)=>({resourceId:'img'+i,...s})),placements,sounds});
  const result=await vm.runInNewContext('(async()=>{'+script+'})()',{selects:{project:()=>project,draft:()=>d,
   // The preset controls as Staging lists them (trimmed); an empty font control must be left out.
   effectPresets:{get:async id=>({editableParameters:[{key:'fontFamily',type:'text',defaultValue:''},{key:id==='text-default'?'body':'kind',type:'text'}]})}}});
@@ -45,6 +51,7 @@ async function buildDefault(){
 
 // Every field that differs, as "where: ours vs reference" lines. Numbers within 1e-9.
 function diff(a,b,where,out){
+ if(NOT_REPRODUCED.some(r=>r.test(where)))return out;
  if(typeof a==='number'&&typeof b==='number'){if(Math.abs(a-b)>1e-9)out.push(where+': '+a+' vs '+b);return out;}
  if(a&&b&&typeof a==='object'&&typeof b==='object'){for(const k of new Set([...Object.keys(a),...Object.keys(b)]))diff(a[k],b[k],where+'.'+k,out);return out;}
  if(a!==b)out.push(where+': '+JSON.stringify(a)+' vs '+JSON.stringify(b));
@@ -70,6 +77,10 @@ test('default build at 25 fps equals Semin\'s Camera shutter dump Draft',async()
  diff({transitions:[],music:null},{transitions:ref.transitions,music:ref.music},'draft',out);
  assert.deepEqual(out,[],'differences from the reference:\n'+out.join('\n'));
  assert.equal(refGraphics.length,2);
+ // The two intentional differences, as they come out.
+ assert.equal(ours[0].graphic,'Text');assert.equal(ours[0].parameters.body,PROJECT_NAME);
+ assert.ok(ours.filter(c=>c.photo).every(c=>c.effects.every(e=>e.parameters.focusX===.5&&e.parameters.focusY===.5)));
+ assert.equal(ours.filter(c=>c.photo).flatMap(c=>c.effects).length,10);
  const defs=Object.fromEntries([...graphics.values()].map(g=>[g.label,g.editableParameters.map(x=>x.key).join()]));
  assert.deepEqual(defs,{Burst:'kind',Text:'fontFamily,body'});
 });

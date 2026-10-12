@@ -128,6 +128,13 @@ test('finish input requires exactly twelve photos and all sounds',()=>{
  assert.throws(()=>normalizeFinish({...request(),extra:1}),/Unsupported/);
 });
 
+test('the closing title is the Project name, cleaned, with a fallback',()=>{
+ assert.equal(normalizeFinish({...request(),title:'  Seoul\nSpring  '}).title,'Seoul Spring');
+ assert.equal(normalizeFinish(request()).title,'Memories');
+ assert.equal(normalizeFinish({...request(),title:'x'.repeat(80)}).title.length,48);
+ assert.ok(normalizeFinish(request()).framing.every(f=>f.x===.5&&f.y===.5));
+});
+
 test('the Panel builds the plan and finishing step itself, with no Node.js',()=>{
  const panel=fs.readFileSync(path.join(dir,'panel.tsx'),'utf8');
  assert.doesNotMatch(panel,/\bnode ["$]|build-script/);

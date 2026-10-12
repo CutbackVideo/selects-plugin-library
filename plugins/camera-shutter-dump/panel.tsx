@@ -27,24 +27,23 @@ const SLOTS=12;
 // The editor transform is the plugin's cover fit times `zoom`, centred at `position`
 // (percent of the canvas height from the centre, as setClipTransform takes it): Semin
 // resized and moved most tiles by hand, so these are her values, with `zoom` solved
-// against her photos. `focusX` is the crop's default horizontal focus; slots 11-12
-// carry no crop (the whole photo shows).
+// against her photos. Slots 11-12 carry no crop (the whole photo shows). Her crop focus
+// points were picked for her own photos, so every slot starts centred (0.5) instead.
 const REFERENCE_SLOTS=[
- {start:3,sfx:0,size:{width:404,height:539},zoom:1,position:{x:-0.078125,y:-0.0390625},focusX:0.64,crop:true},
- {start:22,sfx:19,size:{width:427,height:569},zoom:1.0120551405975395,position:{x:12.139075077901843,y:-29.76743053752272},focusX:0.3,crop:true},
- {start:39,sfx:36,size:{width:407,height:543},zoom:0.9721382941988951,position:{x:-13.315250908854843,y:29.380035400390625},focusX:0.36,crop:true},
- {start:58,sfx:55,size:{width:472,height:629},zoom:0.7623708267090621,position:{x:-10.50275090885484,y:-18.731689453125},focusX:0.5,crop:true},
- {start:74,sfx:71,size:{width:516,height:688},zoom:0.8370049055232558,position:{x:12.13907507790184,y:27.5054931640625},focusX:0.45,crop:true},
- {start:91,sfx:88,size:{width:436,height:582},zoom:0.8245409149484536,position:{x:-14.992801406063023,y:1.075426306342242},focusX:0.34,crop:true},
- {start:111,sfx:108,size:{width:413,height:551},zoom:0.7838376247731398,position:{x:18.606838352612684,y:-1.860809326171875},focusX:0.78,crop:true},
- {start:130,sfx:127,size:{width:397,height:529},zoom:0.9071508742911153,position:{x:-17.430475917431192,y:-34.26867271639409},focusX:0.69,crop:true},
- {start:150,sfx:147,size:{width:392,height:524},zoom:0.9158068940839695,position:{x:7.578125,y:8.75},focusX:0.5,crop:true},
- {start:165,sfx:162,size:{width:390,height:521},zoom:0.8289722288867563,position:{x:-8.337280614280015,y:-22.59445427802154},focusX:0.43,crop:true},
- {start:184,sfx:181,size:{width:402,height:302},zoom:1,position:{x:-3.9112912224644543,y:21.015625},focusX:0.5,crop:false},
- {start:201,sfx:198,size:{width:401,height:300},zoom:1,position:{x:7.079666673562742,y:-13.579559326171871},focusX:0.5,crop:false}
+ {start:3,sfx:0,size:{width:404,height:539},zoom:1,position:{x:-0.078125,y:-0.0390625},crop:true},
+ {start:22,sfx:19,size:{width:427,height:569},zoom:1.0120551405975395,position:{x:12.139075077901843,y:-29.76743053752272},crop:true},
+ {start:39,sfx:36,size:{width:407,height:543},zoom:0.9721382941988951,position:{x:-13.315250908854843,y:29.380035400390625},crop:true},
+ {start:58,sfx:55,size:{width:472,height:629},zoom:0.7623708267090621,position:{x:-10.50275090885484,y:-18.731689453125},crop:true},
+ {start:74,sfx:71,size:{width:516,height:688},zoom:0.8370049055232558,position:{x:12.13907507790184,y:27.5054931640625},crop:true},
+ {start:91,sfx:88,size:{width:436,height:582},zoom:0.8245409149484536,position:{x:-14.992801406063023,y:1.075426306342242},crop:true},
+ {start:111,sfx:108,size:{width:413,height:551},zoom:0.7838376247731398,position:{x:18.606838352612684,y:-1.860809326171875},crop:true},
+ {start:130,sfx:127,size:{width:397,height:529},zoom:0.9071508742911153,position:{x:-17.430475917431192,y:-34.26867271639409},crop:true},
+ {start:150,sfx:147,size:{width:392,height:524},zoom:0.9158068940839695,position:{x:7.578125,y:8.75},crop:true},
+ {start:165,sfx:162,size:{width:390,height:521},zoom:0.8289722288867563,position:{x:-8.337280614280015,y:-22.59445427802154},crop:true},
+ {start:184,sfx:181,size:{width:402,height:302},zoom:1,position:{x:-3.9112912224644543,y:21.015625},crop:false},
+ {start:201,sfx:198,size:{width:401,height:300},zoom:1,position:{x:7.079666673562742,y:-13.579559326171871},crop:false}
 ];
 export const SLOT_COUNT=REFERENCE_SLOTS.length;
-export const DEFAULT_FRAMING=REFERENCE_SLOTS.map(s=>({x:s.focusX,y:.5}));
 const SFX_FRAMES=11,DURATION=250,GRAPHICS_START=216;
 // Semin's closing graphics over the finished collage: the app's built-in Burst (confetti)
 // under its built-in Text title. The components are the exact code her Draft carries.
@@ -53,8 +52,8 @@ const TEXT_CODE="import {AbsoluteFill, useCurrentFrame, useVideoConfig} from \"r
 const REFERENCE_GRAPHICS=[
  {label:'Burst',presetId:'sticker-burst',tsxCode:BURST_CODE,transform:{position:{x:0,y:0},scale:{x:1.5,y:1.5}},
   parameters:{anchor:'center',overlayScale:100,kind:'confetti',count:40,spread:60,fontFamily:'',fontWeight:'700',fontSize:64,color:'#ffffff',accent:'#f472b6'}},
- {label:'Text',presetId:'text-default',tsxCode:TEXT_CODE,transform:{position:{x:0,y:-1.4016723632812518},scale:{x:1,y:1}},
-  parameters:{anchor:'center',overlayScale:100,body:'Lake District\nMemories',fontFamily:'Chauncy Pro',fontWeight:'700',fontSize:120,color:'#F5988A',italic:false,underline:false,textAlign:'center',enterStyle:'pop',enterDuration:0.1,exitStyle:'instant',exitDuration:0.4,ease:'out',strokeColor:'#FFFFFF',strokeWidth:15,backgroundColor:'#00000000',backgroundPadding:24,backgroundRadius:8,shadowColor:'#000000B3',shadowX:0,shadowY:0,shadowBlur:15,glowColor:'#ffffff',glowStrength:0}}
+ {label:'Text',presetId:'text-default',titleKey:'body',tsxCode:TEXT_CODE,transform:{position:{x:0,y:-1.4016723632812518},scale:{x:1,y:1}},
+  parameters:{anchor:'center',overlayScale:100,fontFamily:'Chauncy Pro',fontWeight:'700',fontSize:120,color:'#F5988A',italic:false,underline:false,textAlign:'center',enterStyle:'pop',enterDuration:0.1,exitStyle:'instant',exitDuration:0.4,ease:'out',strokeColor:'#FFFFFF',strokeWidth:15,backgroundColor:'#00000000',backgroundPadding:24,backgroundRadius:8,shadowColor:'#000000B3',shadowX:0,shadowY:0,shadowBlur:15,glowColor:'#ffffff',glowStrength:0}}
 ];
 
 // Reference frames are 25 fps; a Draft at another rate gets the same times in its own frames.
@@ -64,7 +63,7 @@ export function scenePlan(fps=25){
  return {fps,canvas:{width:720,height:1280},durationFrames,
   occurrences:REFERENCE_SLOTS.map((s,i)=>({slot:i+1,startFrame:at(s.start),endFrame:durationFrames,size:s.size,zoom:s.zoom,position:s.position,crop:s.crop})),
   sounds:REFERENCE_SLOTS.map((s,i)=>({slot:i+1,key:'shutter.'+(i%6+1),startFrame:at(s.sfx),endFrame:at(s.sfx)+sfxFrames})),
-  graphics:REFERENCE_GRAPHICS.map(g=>({label:g.label,presetId:g.presetId,startFrame:at(GRAPHICS_START),endFrame:durationFrames,parameters:g.parameters,transform:g.transform}))};
+  graphics:REFERENCE_GRAPHICS.map(g=>({label:g.label,presetId:g.presetId,titleKey:g.titleKey??null,startFrame:at(GRAPHICS_START),endFrame:durationFrames,parameters:g.parameters,transform:g.transform}))};
 }
 
 // Crops the photo to its slot rectangle (cover) around an editable focus point.
@@ -75,8 +74,15 @@ const EFFECT_CODE=`export default function ShutterDumpCrop({Source,data}) {
  return <div style={{position:'absolute',inset:0}}><div style={{position:'absolute',left:g.left,top:g.top,width:g.mw,height:g.mh,overflow:'hidden'}}><div style={{position:'absolute',left:x,top:y,width:g.w,height:g.h}}><Source /></div></div></div>;
 }`;
 
+// The closing title's text: the Project name (as Vlog Opening seeds its title), editable later
+// in the Inspector; the reference Draft's own text was about Semin's trip.
+export function defaultTitle(name){
+ const text=typeof name==='string'?name.replace(/[\u0000-\u001f]+/gu,' ').trim().slice(0,48).trim():'';
+ return text||'Memories';
+}
+
 export function normalizeFinish(raw){
- const keys=['mode','projectId','draftId','fps','photos','placements','framing','sounds'];
+ const keys=['mode','projectId','draftId','fps','photos','placements','framing','sounds','title'];
  if(!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).some(k=>!keys.includes(k))||raw.mode!=='finish')throw Error('Unsupported request');
  const clean=(value,label,max=1000)=>{if(typeof value!=='string'||!value.trim()||value!==value.trim()||value.length>max||/[\u0000-\u001f]/u.test(value))throw Error(label+' is required');return value;};
  const projectId=clean(raw.projectId,'Project ID'),draftId=clean(raw.draftId,'Draft ID',120);
@@ -89,14 +95,15 @@ export function normalizeFinish(raw){
  const framing=[];
  const inFraming=raw.framing??[];
  if(!Array.isArray(inFraming)||inFraming.length>SLOT_COUNT)throw Error('Invalid photo framing');
- for(let i=0;i<SLOT_COUNT;i++){const d=DEFAULT_FRAMING[i],p=inFraming[i]??d,x=p.x??d.x,y=p.y??d.y;if(!Number.isFinite(x)||x<0||x>1||!Number.isFinite(y)||y<0||y>1)throw Error('Photo framing must be between 0 and 1');framing.push({x,y});}
+ for(let i=0;i<SLOT_COUNT;i++){const p=inFraming[i]??{x:.5,y:.5},x=p.x??.5,y=p.y??.5;if(!Number.isFinite(x)||x<0||x>1||!Number.isFinite(y)||y<0||y>1)throw Error('Photo framing must be between 0 and 1');framing.push({x,y});}
  const plan=scenePlan(raw.fps??25);
  if(!Array.isArray(raw.placements)||raw.placements.length!==SLOT_COUNT)throw Error('Expected '+SLOT_COUNT+' Image clips');
  raw.placements.forEach((row,i)=>{const o=plan.occurrences[i];if(!row||typeof row!=='object'||row.slot!==o.slot||!Number.isSafeInteger(row.clipId)||row.clipId<0||typeof row.trackId!=='string'||!row.trackId||row.startFrame!==o.startFrame||row.endFrame!==o.endFrame)throw Error('Image placement differs from the reference plan');});
  if(new Set(raw.placements.map(p=>p.clipId)).size!==SLOT_COUNT)throw Error('Image clips must be independent');
  const sounds={};
  for(const s of plan.sounds){const id=raw.sounds?.[s.key];sounds[s.key]=clean(id,'Shutter sound Resource ID');}
- return {projectId,draftId,fps:plan.fps,photos,placements:raw.placements.map(p=>({slot:p.slot,clipId:p.clipId,trackId:p.trackId,startFrame:p.startFrame,endFrame:p.endFrame})),framing,sounds};
+ const title=defaultTitle(raw.title);
+ return {projectId,draftId,fps:plan.fps,title,photos,placements:raw.placements.map(p=>({slot:p.slot,clipId:p.clipId,trackId:p.trackId,startFrame:p.startFrame,endFrame:p.endFrame})),framing,sounds};
 }
 
 export const authorFinishSource=String.raw`async function authorFinish(selects,input,plan,EFFECT_CODE,GRAPHIC_CODES){
@@ -142,7 +149,7 @@ export const authorFinishSource=String.raw`async function authorFinish(selects,i
    // font control would take the user's latest font, so that control is left out.
    let defs=[];try{defs=(await selects.effectPresets?.get(g.presetId))?.editableParameters||[];}catch{defs=[];}
    defs=defs.filter(def=>!(def.key==='fontFamily'&&g.parameters.fontFamily===''));
-   const placed=await d.addMotionGraphic({label:g.label,tsxCode:GRAPHIC_CODES[g.label],parameters:g.parameters,editableParameters:defs,within:await d.rangeAtFrames(g.startFrame,g.endFrame)});
+   const placed=await d.addMotionGraphic({label:g.label,tsxCode:GRAPHIC_CODES[g.label],parameters:g.titleKey?{...g.parameters,[g.titleKey]:input.title}:g.parameters,editableParameters:defs,within:await d.rangeAtFrames(g.startFrame,g.endFrame)});
    if(placed?.startFrame!==g.startFrame||placed?.endFrame!==g.endFrame)throw Error(g.label+' landed off its frames');
    const clip=(await d.clips({trackScope:'all'})).find(c=>c.clipId===placed.clipId);
    if(!clip)throw Error(g.label+' clip is missing');
@@ -388,7 +395,7 @@ export const DEFAULT_DRAFT_NAME='Camera shutter dump';
 // The create steps, shared by the Panel and a template run. `stillCurrent` says the
 // run still belongs to its Project; `onSeed` runs just before the first save and
 // `onDraft` with the Draft the later steps fill. Returns the saved result.
-export async function createPhotoDraft(sdk,{projectId,selected,framing,name,partialDraftId=null,libraryId=null,stillCurrent,say,onSeed=()=>{},onDraft=_id=>{}}){
+export async function createPhotoDraft(sdk,{projectId,selected,framing,name,title=null,partialDraftId=null,libraryId=null,stillCurrent,say,onSeed=()=>{},onDraft=_id=>{}}){
  const fresh=await inventory(sdk,projectId,'Confirm selected photos',{type:'Image',paths:selected.map(p=>p.path)});
  if(selected.some(p=>fresh.filter(r=>r.resourceId===p.resourceId&&r.path===p.path&&r.type==='Image').length!==1))throw Error('The selected photos changed. Reload the Project photos.');
  const prepared=await prepareNativeImages(sdk,projectId,selected,libraryId);
@@ -414,7 +421,7 @@ export async function createPhotoDraft(sdk,{projectId,selected,framing,name,part
  onDraft(draftId);
  say('Placing 12 photos…');
  const native=await placeNativeImages(prepared,draftId,plan);
- const request={mode:'finish',projectId,draftId,fps,photos:selected.map((p,i)=>({resourceId:p.resourceId,width:native.photos[i].width,height:native.photos[i].height})),placements:native.placements,framing:Array.from({length:SLOTS},(_,i)=>framing[i]||DEFAULT_FRAMING[i]),sounds};
+ const request={mode:'finish',projectId,draftId,fps,title:defaultTitle(title),photos:selected.map((p,i)=>({resourceId:p.resourceId,width:native.photos[i].width,height:native.photos[i].height})),placements:native.placements,framing:Array.from({length:SLOTS},(_,i)=>framing[i]||{x:.5,y:.5}),sounds};
  const script=buildFinishScript(request);
  say('Cropping photos and adding shutter sounds…');
  const result=await sdk.runScript({script,summary:'Finish shutter dump Draft',allowCommit:true,timeoutSeconds:120});
@@ -453,7 +460,7 @@ function PhotoPanel({sdk,context,ui}){
   let createdDraftId=null;
   try{
    const selected=slots.map(id=>{const m=photos.filter(p=>p.resourceId===id);if(m.length!==1)throw Error('Check the selected photos again.');return m[0];});
-   const done=await createPhotoDraft(sdk,{projectId,selected,framing,name:name.trim(),partialDraftId,stillCurrent:()=>currentProject.current===projectId,say:setStatus,onDraft:id=>{createdDraftId=id;}});
+   const done=await createPhotoDraft(sdk,{projectId,selected,framing,name:name.trim(),title:context.projectName,partialDraftId,stillCurrent:()=>currentProject.current===projectId,say:setStatus,onDraft:id=>{createdDraftId=id;}});
    setPartialDraftId(null);setSaved(done);setStatus('Saved. Each photo is its own clip; adjust the focus of photos 1–10 in their clip effect. To use a different photo in a slot, change that slot here and create another Draft — the crop is sized for the original photo.');
   }catch(error){if(createdDraftId)setPartialDraftId(createdDraftId);setStatus(String(error?.message||error)+(createdDraftId?' The partial Draft is '+createdDraftId+'; it will be checked before continuing.':''));}finally{running.current=false;setBusy(false);}
  }
@@ -464,7 +471,7 @@ function PhotoPanel({sdk,context,ui}){
   <ui.Button variant="secondary" onClick={load} disabled={!context.projectId||busy} busy={busy}>Load Project photos</ui.Button>
   {slots.map((value,i)=><ui.Select key={i} label={'Photo '+(i+1)+(i>=10?' (landscape slot)':'')} value={value} onChange={v=>setSlots(old=>old.map((x,j)=>j===i?v:x))} options={photos.map(p=>({value:p.resourceId,label:p.name}))} placeholder="Choose photo" disabled={!ready}/>)}
   <details><summary>Adjust photo framing (optional)</summary><ui.Message>Move the visible part of each photo inside its slot. You can also change it later in each clip's effect.</ui.Message>
-   {slots.map((_,i)=>{const point=framing[i]||DEFAULT_FRAMING[i];return <div key={i}><p>{'Photo '+(i+1)}</p>{['x','y'].map(axis=><ui.Slider key={axis} label={axis==='x'?'Horizontal focus':'Vertical focus'} min={0} max={1} step={.01} value={point[axis]} onChange={value=>setFraming(old=>{const next=[...old];next[i]={...(old[i]||DEFAULT_FRAMING[i]),[axis]:value};return next;})} disabled={busy}/>)}</div>;})}
+   {slots.map((_,i)=>{const point=framing[i]||{x:.5,y:.5};return <div key={i}><p>{'Photo '+(i+1)}</p>{['x','y'].map(axis=><ui.Slider key={axis} label={axis==='x'?'Horizontal focus':'Vertical focus'} min={0} max={1} step={.01} value={point[axis]} onChange={value=>setFraming(old=>{const next=[...old];next[i]={...(old[i]||{x:.5,y:.5}),[axis]:value};return next;})} disabled={busy}/>)}</div>;})}
   </details>
   <ui.TextField label="Draft name" value={name} onChange={setName} disabled={busy}/>
   <ui.Actions><ui.Button variant="primary" onClick={create} disabled={!ready||slots.some(x=>!x)||!name.trim()} busy={busy}>{partialDraftId?'Inspect and continue partial Draft':saved?'Create another Draft':'Create Draft'}</ui.Button></ui.Actions>
@@ -596,7 +603,7 @@ function PhotoTemplateRun({sdk,context}){
     say('Finding your photos…');
     const selected=await templateSelection(sdk,app,projectId,libraryId,template?.inputs);
     if(!live())throw Error('The template run ended before the Draft was made.');
-    const done=await createPhotoDraft(sdk,{projectId,selected,framing:[],name:DEFAULT_DRAFT_NAME,libraryId,stillCurrent:live,say,
+    const done=await createPhotoDraft(sdk,{projectId,selected,framing:[],name:DEFAULT_DRAFT_NAME,title:context?.projectName,libraryId,stillCurrent:live,say,
      onSeed:()=>{if(!live())throw Error('The template run ended before the Draft was made.');seeding=true;},onDraft:id=>{draftId=id;}});
     if(!done?.draftId||done.draftId!==draftId)throw Error('The saved Draft did not report its id.');
     say('Done.');
