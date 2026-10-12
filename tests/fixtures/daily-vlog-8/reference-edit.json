@@ -1,0 +1,249 @@
+{
+ "source": "The team's Clip highlights reference edit \"8-Clip Daily Vlog\", measured 2026-10-12",
+ "fps": 25,
+ "frameSize": {
+  "width": 1920,
+  "height": 1080
+ },
+ "musicSourceStartSeconds": 36.04,
+ "main": [
+  {
+   "start": 0,
+   "end": 107,
+   "clip": 0,
+   "effects": [],
+   "opacity": 100,
+   "scale": 1,
+   "x": 0
+  },
+  {
+   "start": 107,
+   "end": 151,
+   "clip": 1,
+   "effects": [],
+   "opacity": 100,
+   "scale": 1,
+   "x": 0
+  },
+  {
+   "start": 151,
+   "end": 194,
+   "clip": 2,
+   "effects": [],
+   "opacity": 100,
+   "scale": 1,
+   "x": 0
+  },
+  {
+   "start": 194,
+   "end": 236,
+   "clip": 3,
+   "effects": [],
+   "opacity": 100,
+   "scale": 1.1,
+   "x": 0
+  },
+  {
+   "start": 236,
+   "end": 275,
+   "clip": 3,
+   "effects": [],
+   "opacity": 100,
+   "scale": 1.1,
+   "x": 0
+  },
+  {
+   "start": 275,
+   "end": 321,
+   "clip": 4,
+   "effects": [],
+   "opacity": 100,
+   "scale": 1.1,
+   "x": 0
+  },
+  {
+   "start": 321,
+   "end": 366,
+   "clip": 5,
+   "effects": [],
+   "opacity": 100,
+   "scale": 1,
+   "x": 0
+  },
+  {
+   "start": 366,
+   "end": 411,
+   "clip": 6,
+   "effects": [],
+   "opacity": 100,
+   "scale": 1,
+   "x": 0
+  },
+  {
+   "start": 411,
+   "end": 451,
+   "clip": 7,
+   "effects": [],
+   "opacity": 100,
+   "scale": 1,
+   "x": 0
+  },
+  {
+   "start": 451,
+   "end": 512,
+   "clip": 8,
+   "effects": [],
+   "opacity": 100,
+   "scale": 1.1,
+   "x": -6.944444444444444
+  }
+ ],
+ "audio": [
+  {
+   "name": "Relaxed Urban Bed.wav",
+   "start": 0,
+   "end": 512,
+   "track": 0
+  },
+  {
+   "name": "transition-w2.wav",
+   "start": 0,
+   "end": 34,
+   "track": 1
+  },
+  {
+   "name": "typing-k3.wav",
+   "start": 119,
+   "end": 152,
+   "track": 1
+  },
+  {
+   "name": "transition-w2.wav",
+   "start": 183,
+   "end": 217,
+   "track": 1
+  },
+  {
+   "name": "camera-r2.wav",
+   "start": 312,
+   "end": 335,
+   "track": 1
+  },
+  {
+   "name": "shutter-s6-1.wav",
+   "start": 366,
+   "end": 371,
+   "track": 1
+  },
+  {
+   "name": "typing-k3.wav",
+   "start": 451,
+   "end": 485,
+   "track": 1
+  },
+  {
+   "name": "transition-w2.wav",
+   "start": 100,
+   "end": 134,
+   "track": 2
+  }
+ ],
+ "overlayVideo": [
+  [
+   0,
+   107
+  ],
+  [
+   116,
+   194
+  ],
+  [
+   451,
+   512
+  ]
+ ],
+ "motionGraphics": [
+  {
+   "name": "DAILY VLOG",
+   "start": 0,
+   "end": 107,
+   "codeHash": "37291c69",
+   "parameters": {
+    "text": "DAILY VLOG",
+    "fontFamily": "Chelsea Market Pro",
+    "fontSize": 255,
+    "color": "#FEDC5E"
+   }
+  },
+  {
+   "name": "JUST EVERYDAY MOMENTS",
+   "start": 116,
+   "end": 194,
+   "codeHash": "4425c98e",
+   "parameters": {
+    "text": "JUST EVERYDAY MOMENTS",
+    "fontFamily": "Courier New",
+    "fontSize": 73,
+    "color": "#FFFFFF"
+   }
+  },
+  {
+   "name": "THANKS FOR WATCHING",
+   "start": 451,
+   "end": 512,
+   "codeHash": "57d9add8",
+   "parameters": {
+    "text": "THANKS FOR WATCHING",
+    "fontFamily": "Courier New",
+    "fontSize": 60,
+    "color": "#FFFFFF",
+    "letterSpacing": 1.2
+   }
+  }
+ ],
+ "transitions": [
+  {
+   "name": "Reference traced film exposure",
+   "edit": 107,
+   "start": 102,
+   "end": 112
+  },
+  {
+   "name": "Reference amber camera exposure",
+   "edit": 151,
+   "start": 148,
+   "end": 156
+  },
+  {
+   "name": "Reference wide cream film gate",
+   "edit": 194,
+   "start": 191,
+   "end": 198
+  },
+  {
+   "name": "Reference banded vertical exposure",
+   "edit": 321,
+   "start": 318,
+   "end": 324
+  },
+  {
+   "name": "Reference amber camera exposure",
+   "edit": 411,
+   "start": 407,
+   "end": 415
+  },
+  {
+   "name": "Reference traced film exposure",
+   "edit": 451,
+   "start": 446,
+   "end": 456
+  }
+ ],
+ "sourceJumps": [
+  {
+   "frame": 236,
+   "frames": 72,
+   "note": "draft.seams(): same clip, source gap 73-145 at 25 fps"
+  }
+ ]
+}

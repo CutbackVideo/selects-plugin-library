@@ -3,7 +3,7 @@
 ## Music
 
 `relaxed-urban-bed.wav` — "Relaxed Urban Bed", generated with Suno for Cutback as this template's default song
-(69.84 s, 48 kHz stereo). Redistributed with this plugin under the generating account's plan. The whole song is used.
+(69.84 s, 48 kHz stereo). Redistributed with this plugin under the generating account's plan. The Draft uses 20.48 s of it, from 36.04 s.
 
 ## Sound effects
 

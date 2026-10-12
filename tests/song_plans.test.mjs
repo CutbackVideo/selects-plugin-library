@@ -1,4 +1,4 @@
-// The song-measured cut plans of recap-2026 (planRecap) and daily-vlog-8 (planVlog) on a synthetic click track:
+// The song-measured cut plan of recap-2026 (planRecap) on a synthetic click track:
 // a 2 s quiet lead, then a click every 0.25 s (eighths at 120 BPM) to 40 s, then a 4 s quiet tail. Shaped like one
 // selects.media.measureBeatSync source.
 import test from 'node:test';
@@ -29,17 +29,4 @@ test('recap: intro to the downbeat 4.67 s after entry, a cut on every click, the
   assert.equal(p.placements.at(-1).endSeconds, 44);
   assert.ok(p.fadeStart > cuts.at(-1) && p.fadeStart <= 44 - 0.9);
   assert.ok(p.placements.every((x) => x.slot >= 1 && x.slot <= p.slotCount));
-});
-
-test('vlog: the reference phrase cycles on half beats and the closing shot reaches the song end', () => {
-  const {planVlog} = loadPanelFunctions(panelSource('daily-vlog-8'), ['songGrid', 'planVlog'], {});
-  const m = clickSong(), clicks = m.audio.onsets.map((o) => o.t), p = planVlog(m);
-  const shots = p.shots;
-  assert.equal(shots[0].role, 'open');
-  assert.equal(shots.at(-1).role, 'close');
-  assert.equal(shots.at(-1).end, 44);
-  for (let i = 1; i < shots.length; i++) assert.equal(shots[i].start, shots[i - 1].end);
-  assert.ok(shots.slice(1).every((s) => near(s.start, clicks) < 1e-9), 'every cut on a click');
-  assert.deepEqual(JSON.parse(JSON.stringify(shots.slice(1, 9).map((s) => s.role))), ['slot', 'slot', 'slot', 'insert', 'slot', 'insert', 'slot', 'slot']);
-  assert.ok(shots.length > 10, 'the phrase repeats over a song longer than the reference');
 });
