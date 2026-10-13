@@ -1,5 +1,5 @@
 // plugins/vlog-opening/tests/reference.test.cjs
-// The default build of each style against the team's reference timeline (Staging "CLIP HIGHLIGHTS UPDATE", 25 fps):
+// The default build of the whip and motion styles against the team's reference timeline (Staging "CLIP HIGHLIGHTS UPDATE", 25 fps):
 // the panel's own retime, assembly script and reference script run against a recording Draft, and every main clip,
 // effect, transform, transition, motion graphic (code by sha256, parameters, transform) and the music section must
 // equal the reference. The only fields not compared are the words, which come from the Project (title, chapter
@@ -14,9 +14,9 @@ const strip = (src) => stripTypeScriptTypes(src, { mode: 'strip' });
 const src = strip([
   between('function placeWindow(', '// Six-second auditions'),
   between('const GFX_SMEAR = `', '// ---------------------------------------------------------------------------\n// Scripts.'),
-  between('function selectQuotesScript(', 'function decorateScript('),
+  between('function assembleScript(', 'function decorateScript('),
 ].join('\n'));
-const K = new Function(src + '\nreturn { retime, voRefRetime, selectQuotesScript, voRefStyle, voRefTemplate, voRefEnds, voRefQuotes, voRefPlan, voRefScript, assembleScript, VO_REF };')();
+const K = new Function(src + '\nreturn { retime, voRefRetime, voRefStyle, voRefTemplate, voRefEnds, voRefPlan, voRefScript, assembleScript, VO_REF };')();
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
 
 // Effects browser presets by id, as the app names the effect it places.
@@ -116,18 +116,10 @@ const EXPECTED = {
     graphics: [["Fade to black",425,440,{"lengthFrames":15,"color":"#000000"},"a5ad597de0af5834",null],["Sky flight — Sky only",113,157,{"sky":"#96BAE2","cloud":"#FFFFFF","sun":"#F8DB69"},"51459cd24fdf89a2",null],["Label - <text>",157,236,{"text":"<text>","sub":"","ink":"#cedaee","shadow":"#0C110E","fontFamily":"","beatFrames":10.139,"lengthFrames":41},"786499b86ae596a4",null],["Handwritten title",375,440,{"title":"<text>","sub":"","ink":"#f6fafc","shadow":"#0c110e","fontFamily":"","beatFrames":10.139,"lengthFrames":71},"24451d52d3c75147",{"scale":{"x":0.8,"y":0.8}}]],
     music: [11,425,0],
   },
-  quotes: {
-    main: [[0,53],[53,99],[99,133],[133,163],[163,237],[237,306],[306,359],[359,393],[393,467]],
-    effects: [[0,"Color & Tone",{"temperature":12,"tint":0,"exposure":35,"contrast":0,"whites":0,"blacks":0,"saturation":6,"vibrance":16,"highlights":0,"shadows":0,"brightness":0,"clarity":0,"sharpen":0,"noiseReduction":0,"fade":0,"vignette":0,"grain":0,"hslRedHue":0,"hslRedSaturation":0,"hslRedLuminance":0,"hslYellowHue":0,"hslYellowSaturation":0,"hslYellowLuminance":0,"hslGreenHue":0,"hslGreenSaturation":0,"hslGreenLuminance":0,"hslCyanHue":0,"hslCyanSaturation":0,"hslCyanLuminance":0,"hslBlueHue":0,"hslBlueSaturation":0,"hslBlueLuminance":0,"hslMagentaHue":0,"hslMagentaSaturation":0,"hslMagentaLuminance":0,"wheelShadowsX":0,"wheelShadowsY":0,"wheelShadowsLevel":0,"wheelMidtonesX":0,"wheelMidtonesY":0,"wheelMidtonesLevel":0,"wheelHighlightsX":0,"wheelHighlightsY":0,"wheelHighlightsLevel":0,"curveMasterX1":25,"curveMasterY1":25,"curveMasterX2":50,"curveMasterY2":50,"curveMasterX3":75,"curveMasterY3":75,"curveRedX1":25,"curveRedY1":25,"curveRedX2":50,"curveRedY2":50,"curveRedX3":75,"curveRedY3":75,"curveGreenX1":25,"curveGreenY1":25,"curveGreenX2":50,"curveGreenY2":50,"curveGreenX3":75,"curveGreenY3":75,"curveBlueX1":25,"curveBlueY1":25,"curveBlueX2":50,"curveBlueY2":50,"curveBlueX3":75,"curveBlueY3":75}],[1,"Color & Tone",{"temperature":0,"tint":0,"exposure":0,"contrast":0,"whites":0,"blacks":0,"saturation":1,"vibrance":3,"highlights":0,"shadows":0,"brightness":0,"clarity":0,"sharpen":0,"noiseReduction":0,"fade":0,"vignette":0,"grain":0,"hslRedHue":0,"hslRedSaturation":0,"hslRedLuminance":0,"hslYellowHue":0,"hslYellowSaturation":0,"hslYellowLuminance":0,"hslGreenHue":0,"hslGreenSaturation":0,"hslGreenLuminance":0,"hslCyanHue":0,"hslCyanSaturation":0,"hslCyanLuminance":0,"hslBlueHue":0,"hslBlueSaturation":0,"hslBlueLuminance":0,"hslMagentaHue":0,"hslMagentaSaturation":0,"hslMagentaLuminance":0,"wheelShadowsX":0,"wheelShadowsY":0,"wheelShadowsLevel":0,"wheelMidtonesX":0,"wheelMidtonesY":0,"wheelMidtonesLevel":0,"wheelHighlightsX":0,"wheelHighlightsY":0,"wheelHighlightsLevel":0,"curveMasterX1":25,"curveMasterY1":25,"curveMasterX2":50,"curveMasterY2":50,"curveMasterX3":75,"curveMasterY3":75,"curveRedX1":25,"curveRedY1":25,"curveRedX2":50,"curveRedY2":50,"curveRedX3":75,"curveRedY3":75,"curveGreenX1":25,"curveGreenY1":25,"curveGreenX2":50,"curveGreenY2":50,"curveGreenX3":75,"curveGreenY3":75,"curveBlueX1":25,"curveBlueY1":25,"curveBlueX2":50,"curveBlueY2":50,"curveBlueX3":75,"curveBlueY3":75}],[2,"Color & Tone",{"temperature":11,"tint":0,"exposure":35,"contrast":20,"whites":5,"blacks":-10,"saturation":7,"vibrance":16,"highlights":0,"shadows":0,"brightness":0,"clarity":0,"sharpen":0,"noiseReduction":0,"fade":0,"vignette":0,"grain":0,"hslRedHue":0,"hslRedSaturation":0,"hslRedLuminance":0,"hslYellowHue":0,"hslYellowSaturation":0,"hslYellowLuminance":0,"hslGreenHue":0,"hslGreenSaturation":0,"hslGreenLuminance":0,"hslCyanHue":0,"hslCyanSaturation":0,"hslCyanLuminance":0,"hslBlueHue":0,"hslBlueSaturation":0,"hslBlueLuminance":0,"hslMagentaHue":0,"hslMagentaSaturation":0,"hslMagentaLuminance":0,"wheelShadowsX":0,"wheelShadowsY":0,"wheelShadowsLevel":0,"wheelMidtonesX":0,"wheelMidtonesY":0,"wheelMidtonesLevel":0,"wheelHighlightsX":0,"wheelHighlightsY":0,"wheelHighlightsLevel":0,"curveMasterX1":25,"curveMasterY1":25,"curveMasterX2":50,"curveMasterY2":50,"curveMasterX3":75,"curveMasterY3":75,"curveRedX1":25,"curveRedY1":25,"curveRedX2":50,"curveRedY2":50,"curveRedX3":75,"curveRedY3":75,"curveGreenX1":25,"curveGreenY1":25,"curveGreenX2":50,"curveGreenY2":50,"curveGreenX3":75,"curveGreenY3":75,"curveBlueX1":25,"curveBlueY1":25,"curveBlueX2":50,"curveBlueY2":50,"curveBlueX3":75,"curveBlueY3":75}],[3,"Color & Tone",{"temperature":18,"tint":-9,"exposure":35,"contrast":9,"whites":0,"blacks":-9,"saturation":0,"vibrance":0,"highlights":0,"shadows":0,"brightness":0,"clarity":0,"sharpen":0,"noiseReduction":0,"fade":0,"vignette":0,"grain":0,"hslRedHue":0,"hslRedSaturation":0,"hslRedLuminance":0,"hslYellowHue":0,"hslYellowSaturation":0,"hslYellowLuminance":0,"hslGreenHue":0,"hslGreenSaturation":0,"hslGreenLuminance":0,"hslCyanHue":0,"hslCyanSaturation":0,"hslCyanLuminance":0,"hslBlueHue":0,"hslBlueSaturation":0,"hslBlueLuminance":0,"hslMagentaHue":0,"hslMagentaSaturation":0,"hslMagentaLuminance":0,"wheelShadowsX":0,"wheelShadowsY":0,"wheelShadowsLevel":0,"wheelMidtonesX":0,"wheelMidtonesY":0,"wheelMidtonesLevel":0,"wheelHighlightsX":0,"wheelHighlightsY":0,"wheelHighlightsLevel":0,"curveMasterX1":25,"curveMasterY1":25,"curveMasterX2":50,"curveMasterY2":50,"curveMasterX3":75,"curveMasterY3":75,"curveRedX1":25,"curveRedY1":25,"curveRedX2":50,"curveRedY2":50,"curveRedX3":75,"curveRedY3":75,"curveGreenX1":25,"curveGreenY1":25,"curveGreenX2":50,"curveGreenY2":50,"curveGreenX3":75,"curveGreenY3":75,"curveBlueX1":25,"curveBlueY1":25,"curveBlueX2":50,"curveBlueY2":50,"curveBlueX3":75,"curveBlueY3":75}],[6,"Color & Tone",{"temperature":0,"tint":0,"exposure":35,"contrast":13,"whites":11,"blacks":0,"saturation":0,"vibrance":0,"highlights":0,"shadows":0,"brightness":0,"clarity":0,"sharpen":0,"noiseReduction":0,"fade":0,"vignette":0,"grain":0,"hslRedHue":0,"hslRedSaturation":0,"hslRedLuminance":0,"hslYellowHue":0,"hslYellowSaturation":0,"hslYellowLuminance":0,"hslGreenHue":0,"hslGreenSaturation":0,"hslGreenLuminance":0,"hslCyanHue":0,"hslCyanSaturation":0,"hslCyanLuminance":0,"hslBlueHue":0,"hslBlueSaturation":0,"hslBlueLuminance":0,"hslMagentaHue":0,"hslMagentaSaturation":0,"hslMagentaLuminance":0,"wheelShadowsX":0,"wheelShadowsY":0,"wheelShadowsLevel":0,"wheelMidtonesX":0,"wheelMidtonesY":0,"wheelMidtonesLevel":0,"wheelHighlightsX":0,"wheelHighlightsY":0,"wheelHighlightsLevel":0,"curveMasterX1":25,"curveMasterY1":25,"curveMasterX2":50,"curveMasterY2":50,"curveMasterX3":75,"curveMasterY3":75,"curveRedX1":25,"curveRedY1":25,"curveRedX2":50,"curveRedY2":50,"curveRedX3":75,"curveRedY3":75,"curveGreenX1":25,"curveGreenY1":25,"curveGreenX2":50,"curveGreenY2":50,"curveGreenX3":75,"curveGreenY3":75,"curveBlueX1":25,"curveBlueY1":25,"curveBlueX2":50,"curveBlueY2":50,"curveBlueX3":75,"curveBlueY3":75}],[8,"Color & Tone",{"temperature":18,"tint":-4,"exposure":35,"contrast":20,"whites":12,"blacks":-9,"saturation":0,"vibrance":0,"highlights":0,"shadows":0,"brightness":0,"clarity":0,"sharpen":0,"noiseReduction":0,"fade":0,"vignette":0,"grain":0,"hslRedHue":0,"hslRedSaturation":0,"hslRedLuminance":0,"hslYellowHue":0,"hslYellowSaturation":0,"hslYellowLuminance":0,"hslGreenHue":0,"hslGreenSaturation":0,"hslGreenLuminance":0,"hslCyanHue":0,"hslCyanSaturation":0,"hslCyanLuminance":0,"hslBlueHue":0,"hslBlueSaturation":0,"hslBlueLuminance":0,"hslMagentaHue":0,"hslMagentaSaturation":0,"hslMagentaLuminance":0,"wheelShadowsX":0,"wheelShadowsY":0,"wheelShadowsLevel":0,"wheelMidtonesX":0,"wheelMidtonesY":0,"wheelMidtonesLevel":0,"wheelHighlightsX":0,"wheelHighlightsY":0,"wheelHighlightsLevel":0,"curveMasterX1":25,"curveMasterY1":25,"curveMasterX2":50,"curveMasterY2":50,"curveMasterX3":75,"curveMasterY3":75,"curveRedX1":25,"curveRedY1":25,"curveRedX2":50,"curveRedY2":50,"curveRedX3":75,"curveRedY3":75,"curveGreenX1":25,"curveGreenY1":25,"curveGreenX2":50,"curveGreenY2":50,"curveGreenX3":75,"curveGreenY3":75,"curveBlueX1":25,"curveBlueY1":25,"curveBlueX2":50,"curveBlueY2":50,"curveBlueX3":75,"curveBlueY3":75}]],
-    transforms: [],
-    transitions: [],
-    graphics: [["Lower third",0,53,{"anchor":"center","overlayScale":100,"title":"<text>","subtitle":"<text>","direction":"center","barColor":"#ffffff","subtitleColor":"#FFFFFF","fontFamily":"","fontWeight":"800","fontSize":46,"color":"#111111","accent":"#008ff1"},"20c03ab37b53b940",null],["Location pin",53,99,{"anchor":"center","overlayScale":100,"place":"<text>","date":"","fontFamily":"","fontWeight":"700","fontSize":32,"color":"#ffffff","accent":"#34d399"},"65c55e8d52bdaaee",{"position":{"x":64.79916864842988,"y":41.59374843094563}}],["Location pin",253,306,{"anchor":"center","overlayScale":100,"place":"<text>","date":"","fontFamily":"","fontWeight":"700","fontSize":32,"color":"#ffffff","accent":"#34d399"},"65c55e8d52bdaaee",{"position":{"x":60.94914666264989,"y":41.57244732922222}}],["Fade to black — final 1.5 seconds",429,467,{"frames":38},"ef85543b48baf31a",null]],
-    music: [0,467,3.12],
-  },
 };
 
 // The words come from the Project; everything else must be the reference's.
-const TEXT = { 'Text': ['body'], 'Label - <text>': ['text'], 'Handwritten title': ['title'], 'Lower third': ['title', 'subtitle'], 'Location pin': ['place'] };
+const TEXT = { 'Text': ['body'], 'Label - <text>': ['text'], 'Handwritten title': ['title'] };
 const masked = (name, parameters) => {
   const n = name.replace(/^Label - .*/, 'Label - <text>'), p = { ...parameters };
   for (const k of TEXT[n] || []) p[k] = '<text>';
@@ -136,7 +128,7 @@ const masked = (name, parameters) => {
 const byStart = (a, b) => a[1] - b[1] || a[0].localeCompare(b[0]);
 
 (async () => {
-  for (const style of ['whip', 'motion', 'quotes']) {
+  for (const style of ['whip', 'motion']) {
     const want = EXPECTED[style];
     const { rec, out } = await build(style, 25);
     const main = rec.main.slice().sort((a, b) => a.startFrame - b.startFrame);
@@ -151,9 +143,8 @@ const byStart = (a, b) => a[1] - b[1] || a[0].localeCompare(b[0]);
     // The words: the Project name, and each graphic's chapter.
     for (const g of rec.video) {
       if (g.label === 'Text') assert.equal(g.parameters.body, 'My Trip');
-      if (g.label === 'Lower third') assert.deepEqual([g.parameters.title, g.parameters.subtitle], ['My Trip', '']);
       if (g.label === 'Handwritten title') assert.equal(g.parameters.title, 'My Trip');
-      if (g.label === 'Location pin' || g.label.startsWith('Label - ')) assert.match(g.parameters.place ?? g.parameters.text, /^Chapter \d+$/);
+      if (g.label.startsWith('Label - ')) assert.match(g.parameters.text, /^Chapter \d+$/);
     }
     // The desk effect's code (the plugin's own) is the reference's.
     if (style === 'motion') assert.equal(main[0].effects[0][2], 'ffc2c5b4e624befc', 'desk code');
@@ -179,25 +170,15 @@ const byStart = (a, b) => a[1] - b[1] || a[0].localeCompare(b[0]);
     assert.equal(m.rec.main[0].effects[0][1].holdFrames, 67);
   }
   // Without chapter titles every graphic is still placed, named by the Project.
-  for (const style of ['motion', 'quotes']) {
+  for (const style of ['motion']) {
     const { rec, out } = await build(style, 25, { noChapters: true });
     assert.equal(rec.video.length, EXPECTED[style].graphics.length, style + ': every graphic without chapters');
-    for (const g of rec.video) if (g.label === 'Location pin' || g.label.startsWith('Label - ')) assert.equal(g.parameters.place ?? g.parameters.text, 'My Trip');
+    for (const g of rec.video) if (g.label.startsWith('Label - ')) assert.equal(g.parameters.text, 'My Trip');
     assert.deepEqual(out.notes, []);
-  }
-  // Funny quotes from three talking clips still finds the reference's nine lines (up to nine per clip).
-  {
-    const items = (rid) => Array.from({ length: 6 }, (_, k) => ({ text: 'Is ' + rid + ' line ' + k + ' funny?', span: { startFrame: 30 + k * 150, endFrame: 90 + k * 150 } }));
-    const selects = { project: () => ({ resource: (rid) => ({ turns: async () => ({ items: items(rid) }) }) }) };
-    const clips = ['a', 'b', 'c'].map(rid => ({ rid, name: rid + '.mp4', total: 40 }));
-    const found = await run(selects, K.selectQuotesScript('p', 40, 3, clips, K.VO_REF.quotes.shots.length));
-    assert.equal(K.voRefQuotes(found.beats).length, 9);
-    const two = await run(selects, K.selectQuotesScript('p', 40, 3, clips));
-    assert.equal(K.voRefQuotes(two.beats), null, 'two lines per clip from three clips is not enough');
   }
   // A 23.976 fps Draft from sources whose windows start between frames: every boundary still lands on
   // round(f * 23.976 / 25), the clips laid again on a fresh Draft once the real rate is known.
-  for (const style of ['whip', 'motion', 'quotes']) {
+  for (const style of ['whip', 'motion']) {
     const fps = 24000 / 1001;
     const { rec, out } = await build(style, fps, { a: 10.0137 });
     const f = (v) => Math.round(v * fps / 25);
@@ -215,11 +196,8 @@ const byStart = (a, b) => a[1] - b[1] || a[0].localeCompare(b[0]);
   assert.equal(K.voRefStyle('whip', 'cue:vlog', true), null);
   assert.equal(K.voRefStyle('motion', 'cue:vlog', false), 'motion');
   assert.equal(K.voRefStyle('motion', 'cue:vlog', true), null);
-  assert.equal(K.voRefStyle('quotes', 'cue:cafe', false), 'quotes');
-  assert.equal(K.voRefStyle('quotes', 'file', false), null);
-  // Funny quotes keeps the nine best-scored lines in the order they were found; fewer than nine is no reference.
-  const lines = Array.from({ length: 12 }, (_, i) => ({ text: 'l' + i, score: [5, 1, 4, 4, 2, 9, 0, 3, 7, 6, 8, 1][i] }));
-  assert.deepEqual(K.voRefQuotes(lines).map(l => l.text), ['l0', 'l2', 'l3', 'l4', 'l5', 'l7', 'l8', 'l9', 'l10']);
-  assert.equal(K.voRefQuotes(lines.slice(0, 8)), null);
-  console.log('vlog-opening reference: whip, motion and quotes match the reference timelines');
+  // Funny quotes has no reference layout: it always takes the beat-grid path, as before.
+  assert.equal(K.VO_REF.quotes, undefined);
+  for (const music of ['cue:cafe', 'cue:cinematic', 'file', 'none']) for (const bars of [false, true]) assert.equal(K.voRefStyle('quotes', music, bars), null);
+  console.log('vlog-opening reference: whip and motion match the reference timelines; quotes keeps the beat grid');
 })().catch((e) => { console.error(e); process.exit(1); });

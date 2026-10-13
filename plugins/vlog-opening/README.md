@@ -7,8 +7,8 @@ so the same button works on a trip, a wedding or a product shoot.
 
 ## The three styles
 
-With the style's own cue (the default, and always in a template run), each style builds the team's reference
-timeline for it, frame for frame in a 25 fps Draft (other frame rates scale every frame by round(f x fps / 25)).
+With the style's own cue (the default, and always in a template run), Whip cut and Motion graphics build the team's
+reference timeline for that style, frame for frame in a 25 fps Draft (other frame rates scale every frame by round(f x fps / 25)).
 Only the shots, found by scene search, and the words, from the Project name and the Draft's chapter titles, come
 from your Project.
 
@@ -16,10 +16,10 @@ from your Project.
 |---|---|
 | **Whip cut** | 12 shots, 14.6 s: a blur-in opening shot, Flare transitions at the first hit (2.04 s) and at 7.84 s, the Film stock look on five shots, slow push-ins on three, 2.39:1 bars that open over the first two seconds, and the title in large type over the closing shot. Muted Piano Motif from 0.36 s plays to 15.56 s, past the picture. |
 | **Motion graphics** | The first shot plays on a hand-drawn laptop on a checkered tablecloth and the camera zooms into the screen like stop motion; the shot continues full frame, an illustrated sky fills 1.76 s, a place label taken from the chapter title drops onto the next shot, and the title writes itself on over the closing shot. 17.6 s, Buant Groove from its start over 0.44-17.0 s. |
-| **Funny quotes** | Nine talking-head lines picked from the transcript, 18.68 s, graded with Color & Tone, a lower-third title over the first line and location pins from the chapter titles over the second and sixth. The Lo-fi cafe bed from 3.12 s runs under the whole opening; clip dialogue is kept rather than muted. |
+| **Funny quotes** | A cold open: an iris opening on the first line, a script title, a watermark, then a run of talking-head lines picked from the transcript, cut on the Lo-fi cafe bed's beat (below). Clip dialogue is kept rather than muted. |
 
-Each opening fades to black at its end (0.6 s for the whip and motion styles, 1.5 s for quotes). When the picked
-footage gives fewer shots (or lines) than the reference has, the build falls back to the cue's beat grid below.
+Every opening ends with a 0.6 second fade to black so it cuts cleanly into the next timeline. When the picked
+footage gives fewer shots than a reference has, the build falls back to the cue's beat grid below.
 
 ## Why the result is repeatable
 
@@ -39,7 +39,7 @@ Any other music, or the bars switched away from the style's default, cuts on a b
 |---|---|---|
 | Muted Piano Motif (69.7 s, played in full) | 83 bpm, measured when the build starts | The middle (travels, burst, montage, scenics, people) repeats to fill the song; the opening shot holds through the swell and cuts on the first hit; cuts then land on beats, the burst on half beats; the title card arrives on the final hit and holds until the cue has faded. Joined with directional smear transitions and two white flashes around the burst. |
 | Buant Groove (70.8 s, played in full) | 126 bpm, measured when the build starts | Cuts on bar lines, the opening phrase (travel, scenic, scenic, montage) repeating to fill the song; the desk push-in lands on the first bar line, labels drop in on their cut, and the sign-off starts on the last downbeat and ends once the final chord has faded. |
-| Lo-fi cafe bed | 80 bpm | Each quote's cut moves to the nearest half beat after the line, and the cue starts so its groove enters on the first cut; an iris opens on the first line under a script title and a watermark. |
+| Lo-fi cafe bed | 80 bpm | Each quote's cut moves to the nearest half beat after the line, and the cue starts so its groove enters on the first cut. |
 
 Every cut is snapped as an absolute time, and assembly lands each clip on its
 planned frame, so nothing drifts over the length of the opening. A cue can be used with any
