@@ -648,10 +648,13 @@ function mvPlanBuild(opts) {
   // Lengths to try, longest first: shots (Quick / Relaxed) or beat spans (Groove).
   const step = grooved ? 4 : MV_MIN_SHOTS, least = grooved ? MV_GROOVE_MIN_BEATS : MV_MIN_SHOTS;
   for (let n = top; n >= least; n -= step) {
-    const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence,
-      // A bundled cue's reference timeline (referenceCuts: its Quick cuts in seconds from referenceStart) is used as it is for
-      // the length it covers when the section starts where that timeline does.
-      ...(opts.pace === 'quick' && guard.beats === 1 && Array.isArray(opts.referenceCuts) && opts.referenceCuts.length === n + 1 && Math.abs(opts.sectionStart - opts.referenceStart) < 1e-3 ? { cuts: opts.referenceCuts } : {}) };
+    // A bundled cue's reference timeline (referenceCuts: its Quick cuts in seconds from referenceStart, whole frames at 25
+    // fps) is used as it is for the length it covers when the section starts where that timeline does. Its cuts take no
+    // music offset (no sectionStart), so cut f/25 s lands on frame round(f * fps / 25) at any rate (assemble.js too:
+    // music.referenceCuts).
+    const snapOpts = opts.pace === 'quick' && guard.beats === 1 && Array.isArray(opts.referenceCuts) && opts.referenceCuts.length === n + 1 && Math.abs(opts.sectionStart - opts.referenceStart) < 1e-3
+      ? { cuts: opts.referenceCuts }
+      : { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
     // Groove fills for this span: none without video (photos cannot take an 8th), the pattern without a grid.
     const fills = !grooved ? null
       : !hasVideo ? { splits: [], source: 'no-video', ratios: [] }
@@ -674,7 +677,7 @@ function mvPlanBuild(opts) {
         name = attempt.name + '-no-opener';
       }
       if (alloc.missing === 0) {
-        return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested),
+        return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested), referenceCuts: !!snapOpts.cuts,
           beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, approxBpm, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
           attempt: name,
           ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, splits: fills.splits, fillSource: fills.source, ratios: fills.ratios, beatSeconds, opener } } : {}) };

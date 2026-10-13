@@ -1869,7 +1869,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.7";
+const PLUGIN_VERSION = "0.1.0-alpha.9";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -2595,10 +2595,13 @@ function mvPlanBuild(opts) {
   // Lengths to try, longest first: shots (Quick / Relaxed) or beat spans (Groove).
   const step = grooved ? 4 : MV_MIN_SHOTS, least = grooved ? MV_GROOVE_MIN_BEATS : MV_MIN_SHOTS;
   for (let n = top; n >= least; n -= step) {
-    const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence,
-      // A bundled cue's reference timeline (referenceCuts: its Quick cuts in seconds from referenceStart) is used as it is for
-      // the length it covers when the section starts where that timeline does.
-      ...(opts.pace === 'quick' && guard.beats === 1 && Array.isArray(opts.referenceCuts) && opts.referenceCuts.length === n + 1 && Math.abs(opts.sectionStart - opts.referenceStart) < 1e-3 ? { cuts: opts.referenceCuts } : {}) };
+    // A bundled cue's reference timeline (referenceCuts: its Quick cuts in seconds from referenceStart, whole frames at 25
+    // fps) is used as it is for the length it covers when the section starts where that timeline does. Its cuts take no
+    // music offset (no sectionStart), so cut f/25 s lands on frame round(f * fps / 25) at any rate (assemble.js too:
+    // music.referenceCuts).
+    const snapOpts = opts.pace === 'quick' && guard.beats === 1 && Array.isArray(opts.referenceCuts) && opts.referenceCuts.length === n + 1 && Math.abs(opts.sectionStart - opts.referenceStart) < 1e-3
+      ? { cuts: opts.referenceCuts }
+      : { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
     // Groove fills for this span: none without video (photos cannot take an 8th), the pattern without a grid.
     const fills = !grooved ? null
       : !hasVideo ? { splits: [], source: 'no-video', ratios: [] }
@@ -2621,7 +2624,7 @@ function mvPlanBuild(opts) {
         name = attempt.name + '-no-opener';
       }
       if (alloc.missing === 0) {
-        return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested),
+        return { ok: true, schedule, picks: alloc.picks, shots: slots.length, requested, fittedByMusic: top < (fit ? fit.requestedBeats : requested), referenceCuts: !!snapOpts.cuts,
           beatsPerShot: grooved ? null : guard.beats, overridden: guard.overridden, shotSeconds, approxBpm, fillerShots: alloc.fillerShots, photoShots: alloc.photoShots,
           attempt: name,
           ...(fills && fit ? { groove: { beats: n, requestedBeats: fit.requestedBeats, splits: fills.splits, fillSource: fills.source, ratios: fills.ratios, beatSeconds, opener } } : {}) };
@@ -3994,7 +3997,8 @@ function cueGrid(cue: any) {
   const ref = typeof cue.referenceStart === "number" && Number.isInteger(cue.hookBar);
   return { bpm: cue.bpm, accepted: true, approxBpm: null, firstBeat: ref ? cue.referenceStart - cue.hookBar * 240 / cue.bpm : cue.firstBeat, usableEnd: cue.usableEnd,
     beatEnergy: cue.beatEnergy || [], peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds, hookBars: cue.hookBars || null,
-    hookBar: cue.hookBar ?? null, referenceStart: ref ? cue.referenceStart : null, referenceCuts: ref ? cue.referenceCuts || null : null };
+    hookBar: cue.hookBar ?? null, referenceStart: ref ? cue.referenceStart : null, referenceCuts: ref ? cue.referenceCuts || null : null,
+    referenceTail: ref ? cue.referenceTail || 0 : 0 };
 }
 
 function MiniVlogPanel({ sdk, context, ui }: any) {
@@ -4631,7 +4635,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       try {
         a = await run("Assemble Mini Vlog", fill(assets.scripts.assembleJs, {
           projectId: pid, draftName: frozen.draftName, picks: plan.picks, boundaries, crops,
-          music: music ? { resourceId: music.resourceId, sectionStart: frozen.sectionStart ?? 0 } : null, clipSound: frozen.clipSound, ambientDb: AMBIENT_DB }), true);
+          music: music ? { resourceId: music.resourceId, sectionStart: frozen.sectionStart ?? 0, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound: frozen.clipSound, ambientDb: AMBIENT_DB }), true);
       } catch (e) { lost = e; }
       check();
       if (!a || !a.sequenceId) {
@@ -5251,7 +5255,7 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   // Never resent: the reply may be lost after the Draft was saved.
   const a = await run("Assemble the Mini Vlog", fill(assembleJs, {
     projectId: pid, draftName, picks: plan.picks, boundaries: plan.schedule.cuts, crops,
-    music: music ? { resourceId: music.resourceId, sectionStart: musicStart } : null, clipSound, ambientDb: AMBIENT_DB }), true);
+    music: music ? { resourceId: music.resourceId, sectionStart: musicStart, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound, ambientDb: AMBIENT_DB }), true);
   check();
   if (!a.sequenceId || !(a.totalFrames > 0)) throw templateIssue("The Draft \"" + draftName + "\" may have been saved without its title. Open it from the Drafts list, or try again.");
 

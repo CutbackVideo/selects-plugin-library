@@ -394,7 +394,8 @@ for (const cue of manifest.cues) {
 }
 
 // Reference timeline (Buant Hook): a Standard Quick plan from referenceStart keeps the team's cuts (referenceCuts), and
-// assemble.js puts them on the frames that timeline has at 25 fps; another length, pace or section uses the grid.
+// assemble.js puts them on the frames that timeline has at 25 fps (music from 44.88 s exactly), round(f * fps / 25) at any
+// rate (no music offset); another length, pace or section uses the grid.
 {
   const cue = manifest.cues.find(c => c.id === 'buant-hook'), ROLES = K.MV_ROLES;
   const pool = ['a', 'b', 'c'].flatMap(rid => Array.from({ length: 39 }, (_, k) => ({ rid, role: ROLES[k % ROLES.length], t: 1 + k * 1.5, score: 0.5, sourceDuration: 60 })));
@@ -402,7 +403,17 @@ for (const cue of manifest.cues) {
     onsets: cue.onsets, onsetThresholds: cue.onsetThresholds, referenceCuts: cue.referenceCuts, referenceStart: cue.referenceStart, seed: 's1', ...extra }));
   const p = build();
   assert.ok(p.ok); assert.deepStrictEqual(p.schedule.cuts, cue.referenceCuts);
-  assert.deepStrictEqual(p.schedule.slots.map(x => x.endFrame), [15, 29, 42, 57, 70, 84, 99, 112, 126, 140, 154, 167, 182, 195, 209, 224, 237, 251, 265, 279, 292, 306, 321, 334]);
+  const SEMIN = [15, 29, 42, 57, 70, 84, 99, 112, 126, 140, 154, 167, 182, 195, 209, 224, 237, 251, 265, 279, 292, 306, 321, 334];
+  assert.strictEqual(cue.referenceStart, 44.88);
+  assert.deepStrictEqual(p.schedule.slots.map(x => x.endFrame), SEMIN); assert.strictEqual(p.schedule.offset, 0);
+  for (const fps of [24, 30, 30000 / 1001, 50]) {
+    const q = build({ fps });
+    assert.strictEqual(q.referenceCuts, true);
+    assert.deepStrictEqual(q.schedule.slots.map(x => x.endFrame), SEMIN.map(f => Math.round(f * fps / 25)), 'reference cuts at ' + fps + ' fps');
+  }
+  const asm = fs.readFileSync(__dirname + '/../scripts/assemble.js', 'utf8'), ui = fs.readFileSync(__dirname + '/../panel.tsx', 'utf8');
+  assert.ok(asm.includes('cfg.music && !cfg.music.referenceCuts ?'), 'assemble.js places reference cuts without the offset');
+  assert.strictEqual(ui.split('tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts }').length, 3, 'both assemble configs say so');
   const short = build({ requested: 12 }).schedule;
   assert.strictEqual(short.cuts.length, 13);
   short.cuts.forEach((x, k) => assert.ok(Math.abs(x - k * 60 / cue.bpm) <= 0.07, 'Short stays on the grid (onset snaps aside): ' + k));
@@ -454,3 +465,24 @@ assert.strictEqual(ctx.mvShotSeconds({ bpm: null, beatsPerShot: null, pace: 'qui
 assert.strictEqual(JSON.stringify(ctx.mvProgress('shots', 0)), JSON.stringify({ id: 'shots', value: 0, percent: 0, current: 0 }));
 assert.strictEqual(ctx.mvProgress('open', 1).percent, 100);
 console.log('planner ok');
+
+// Reference music tail (Buant Hook): the reference edit's music runs referenceTail seconds past its last cut (0.68 s =
+// 17 frames at 25 fps: music 0-351 under a 334-frame video). A plan on the reference cuts says so (referenceCuts), so
+// the panel hands assemble.js the tail; any other plan has none.
+{
+  const cue = manifest.cues.find(c => c.id === 'buant-hook'), ROLES = K.MV_ROLES;
+  assert.strictEqual(cue.referenceTail, 0.68);
+  assert.strictEqual(Math.round((cue.referenceCuts[24] + cue.referenceTail) * 25), 351);
+  const pool = ['a', 'b', 'c'].flatMap(rid => Array.from({ length: 39 }, (_, k) => ({ rid, role: ROLES[k % ROLES.length], t: 1 + k * 1.5, score: 0.5, sourceDuration: 60 })));
+  const build = extra => j(ctx.mvPlanBuild({ candidates: pool, bpm: cue.bpm, accepted: true, fps: 25, pace: 'quick', requested: 24, sectionStart: cue.referenceStart, usableEnd: cue.usableEnd,
+    onsets: cue.onsets, onsetThresholds: cue.onsetThresholds, referenceCuts: cue.referenceCuts, referenceStart: cue.referenceStart, seed: 's1', ...extra }));
+  assert.strictEqual(build().referenceCuts, true);
+  assert.strictEqual(build({ requested: 12 }).referenceCuts, false);
+}
+// The tail ends on the reference edit's own end frame at any rate: round((last cut + tail) * fps) (assemble.js).
+{
+  const cue = manifest.cues.find(c => c.id === 'buant-hook'), end = cue.referenceCuts[24] + cue.referenceTail;
+  assert.strictEqual(Math.round(end * 25), 351);
+  assert.strictEqual(Math.round(end * 24000 / 1001), 337, '23.976 fps tail end');
+  assert.ok(fs.readFileSync(__dirname + '/../scripts/assemble.js', 'utf8').includes('Math.round((cfg.boundaries[cfg.boundaries.length - 1] + offset(fps) + cfg.music.tailSeconds) * fps) - endFrame'), 'assemble.js aims the tail end');
+}
