@@ -18,8 +18,8 @@ const PREVIEWS: Record<string, string> = {
 };
 
 const STYLE_BLURB: Record<string, string> = {
-  whip: "Fast montage, smear transitions, flashes, scope bars, title card",
-  motion: "Push-in from a device screen, illustrated flight, hand-drawn labels",
+  whip: "Fast montage, flare transitions, film look, scope bars, title",
+  motion: "Push-in from a device screen, illustrated sky, hand-drawn label and title",
   quotes: "Iris open, then a run of talking-head lines over a music bed",
 };
 
@@ -253,6 +253,254 @@ function retime(beats: any[], ends: number[]) {
     return next;
   });
 }
+
+// vo-reference:start
+// The default layouts. With a style's own bundled cue (the template run, and the panel with its defaults) a build is
+// the team's reference timeline for that style: its cuts, music section, effects, transitions, transforms and
+// graphics, in 25 fps frames and scaled to the Draft by round(f * fps / 25). Only the footage (found by the same
+// scene search) and the words (the Project name and chapter titles) come from the Project. Any other music, or the
+// bars toggled off the style's default, builds with the beat grid instead. Plain JS: tests/reference.test.cjs runs it.
+const VO_REF_FPS = 25;
+const VO_FADE_EDIT = [{ key: "color", label: "Fade colour", type: "color", defaultValue: "#000000" }];
+const VO_LABEL_EDIT = (ink, shadow) => [
+  { key: "text", label: "Place", type: "text", defaultValue: "" },
+  { key: "sub", label: "Caption", type: "text", defaultValue: "" },
+  { key: "ink", label: "Text colour", type: "color", defaultValue: ink },
+  { key: "shadow", label: "Glow colour", type: "color", defaultValue: shadow },
+];
+// shots: main clip ends with the gap left out (assembly order); effects/transforms/transitions name main clips by
+// index; graphics are in final timeline frames. `text` maps a parameter to the Project's words: "title" (the Project
+// name), "chapter" (the chapter title where the graphic starts, else the Project name) or "" (empty).
+// `frameParams` are counted in frames and scale with the frame rate.
+const VO_REF = {
+  // "Vlog Opening - Cinematic Opening": Muted Piano Motif from 0.36 s, running 24 frames past the video.
+  whip: {
+    cue: "cinematic",
+    shots: [["hook", 51], ["travel", 69], ["travel", 84], ["scenic", 102], ["montage", 123], ["scenic", 141], ["scenic", 196],
+      ["travel", 215], ["people", 269], ["face", 284], ["people", 297], ["finale", 365]],
+    music: { start: 0, end: 389, sourceStart: 0.36 },
+    effects: [
+      { clip: 0, preset: "reveal-blur-in", name: "Blur in", parameters: { style: "blur", direction: "in", span: 2, amount: 60 } },
+      ...[1, 2, 6, 7, 8].map((clip) => ({ clip, preset: "filter-film-stock", name: "Film stock", parameters: { look: "warm-halation", strength: 1 } })),
+    ],
+    transforms: [
+      { clip: 3, set: { scaleKeys: [{ atSeconds: 0, scale: 1 }, { atSeconds: 0.68, scale: 1.2 }] } },
+      { clip: 4, set: { position: { x: 0, y: -11.11111111111111 } } },
+      { clip: 6, set: { scaleKeys: [{ atSeconds: 0.32, scale: 1 }, { atSeconds: 0.36, scale: 1 }, { atSeconds: 2.16, scale: 1.15 }] } },
+      { clip: 9, set: { scaleKeys: [{ atSeconds: 0, scale: 1 }, { atSeconds: 0.56, scale: 1.2 }] } },
+    ],
+    transitions: [{ after: 0, preset: "transition-flare", name: "Flare", frames: 8 }, { after: 6, preset: "transition-flare", name: "Flare", frames: 8 }],
+    graphics: [
+      { name: "2.39:1 letterbox — centre opening", code: "letterbox", start: 0, end: 365, letterbox: true, parameters: { ratio: 2.39, openSeconds: 2 },
+        editable: [{ key: "ratio", label: "Aspect ratio", type: "number", defaultValue: 2.39, min: 1.6, max: 2.8, step: 0.01 },
+          { key: "openSeconds", label: "Opening (s)", type: "number", defaultValue: 2, min: 0, max: 10, step: 0.1 }] },
+      { name: "Fade to black", code: "fade", start: 350, end: 365, parameters: { lengthFrames: 15, color: "#000000" }, frameParams: ["lengthFrames"], editable: VO_FADE_EDIT },
+      { name: "Text", code: "text", preset: "text-default", start: 297, end: 365, text: { body: "title" },
+        parameters: { anchor: "center", overlayScale: 100, body: "", fontFamily: "Alternate Gothic No2 D", fontWeight: "400", fontSize: 200, color: "#ffffff",
+          italic: false, underline: false, textAlign: "center", enterStyle: "instant", enterDuration: 3, exitStyle: "instant", exitDuration: 0.4, ease: "linear",
+          strokeColor: "#000000", strokeWidth: 0, backgroundColor: "#00000000", backgroundPadding: 24, backgroundRadius: 8, shadowColor: "#000000b3",
+          shadowX: 0, shadowY: 0, shadowBlur: 12, glowColor: "#ffffff", glowStrength: 0 } },
+    ],
+  },
+  // "Vlog Opening - Motion graphics": Buant Groove from its start over frames 11-425; the sky flight fills a 44-frame
+  // gap after the second shot. 10.139 frames per step is the earlier cue's beat, kept as the reference has it.
+  motion: {
+    cue: "vlog",
+    shots: [["people", 86], ["people", 113, true], ["travel", 192], ["scenic", 230], ["scenic", 273], ["finale", 396]],
+    gap: { after: 1, frames: 44 },
+    music: { start: 11, end: 425, sourceStart: 0 },
+    effects: [{ clip: 0, code: "desk", name: "Desk scene -> stop-motion zoom",
+      parameters: { holdFrames: 56, beatFrames: 10.139, paper: "#fbf8ee", check: "#9cbbe8", laptop: "#cfcfd1" }, frameParams: ["holdFrames", "beatFrames"],
+      editable: [
+        { key: "holdFrames", label: "Zoom starts (frame)", type: "number", defaultValue: 56, min: 0, max: 400, step: 1 },
+        { key: "beatFrames", label: "Frames per zoom step", type: "number", defaultValue: 10.139, min: 2, max: 60, step: 1 },
+        { key: "paper", label: "Paper", type: "color", defaultValue: "#fbf8ee" },
+        { key: "check", label: "Tablecloth", type: "color", defaultValue: "#9cbbe8" },
+        { key: "laptop", label: "Laptop", type: "color", defaultValue: "#cfcfd1" },
+      ] }],
+    transforms: [{ clip: 2, set: { flipHorizontal: true } }],
+    transitions: [],
+    graphics: [
+      { name: "Sky flight — Sky only", code: "sky", start: 113, end: 157, parameters: { sky: "#96BAE2", cloud: "#FFFFFF", sun: "#F8DB69" },
+        editable: [{ key: "sky", label: "Sky", type: "color", defaultValue: "#96BAE2" }, { key: "cloud", label: "Clouds", type: "color", defaultValue: "#FFFFFF" },
+          { key: "sun", label: "Sun", type: "color", defaultValue: "#F8DB69" }] },
+      { name: "Label - {chapter}", code: "label", start: 157, end: 236, text: { text: "chapter" },
+        parameters: { text: "", sub: "", ink: "#cedaee", shadow: "#0C110E", fontFamily: "", beatFrames: 10.139, lengthFrames: 41 },
+        frameParams: ["beatFrames", "lengthFrames"], editable: VO_LABEL_EDIT("#cedaee", "#0C110E") },
+      { name: "Handwritten title", code: "signoff", start: 375, end: 440, text: { title: "title" }, transform: { scale: { x: 0.8, y: 0.8 } },
+        parameters: { title: "", sub: "", ink: "#f6fafc", shadow: "#0c110e", fontFamily: "", beatFrames: 10.139, lengthFrames: 71 },
+        frameParams: ["beatFrames", "lengthFrames"],
+        editable: [{ key: "title", label: "Title", type: "text", defaultValue: "" }, { key: "sub", label: "Subtitle", type: "text", defaultValue: "" },
+          { key: "ink", label: "Text colour", type: "color", defaultValue: "#f6fafc" }, { key: "shadow", label: "Glow colour", type: "color", defaultValue: "#0c110e" }] },
+      { name: "Fade to black", code: "fade", start: 425, end: 440, parameters: { lengthFrames: 15, color: "#000000" }, frameParams: ["lengthFrames"], editable: VO_FADE_EDIT },
+    ],
+  },
+};
+
+// The style whose reference layout a build follows, or null: its own bundled cue, and the letterbox on exactly when
+// the style has it (the whip style's bars are part of its reference).
+function voRefStyle(style, music, letterbox) {
+  const ref = VO_REF[style];
+  return ref && music === "cue:" + ref.cue && letterbox === Boolean(ref.graphics.some((g) => g.letterbox)) ? style : null;
+}
+// The shot template scene search fills (roles, lengths in seconds, the motion style's continued second shot).
+function voRefTemplate(style) {
+  let prev = 0;
+  return VO_REF[style].shots.map(([role, end, continues]) => {
+    const shot = { role, dur: (end - prev) / VO_REF_FPS, ...(continues ? { continues: true } : {}) };
+    prev = end;
+    return shot;
+  });
+}
+// Where each shot ends, in seconds (retime's `ends`).
+function voRefEnds(style) { return VO_REF[style].shots.map(([, end]) => end / VO_REF_FPS); }
+// The beats re-cut to the reference. Each carries its end in reference frames on the finished timeline (ref25) and
+// the gap inserted before it (gap25: [from, to]), so assembly lands it on round(f * fps / 25) less the gap as the
+// gap will be inserted at that frame rate.
+function voRefRetime(style, beats) {
+  const ref = VO_REF[style], at = ref.gap ? ref.shots[ref.gap.after][1] : 0;
+  return retime(beats, voRefEnds(style)).map((b, i) => {
+    const late = ref.gap && i > ref.gap.after;
+    return { ...b, ref25: ref.shots[i][1] + (late ? ref.gap.frames : 0), ...(late ? { gap25: [at, at + ref.gap.frames] } : {}) };
+  });
+}
+// The reference at `fps`: every frame count scaled by round(f * fps / 25) (beat lengths in frames exactly); the
+// letterbox left out of a frame narrower than 3:2, which its bars would cover.
+function voRefPlan(style, fps, wide) {
+  const ref = VO_REF[style], k = fps / VO_REF_FPS, f = (v) => Math.round(v * k);
+  const scaled = (x) => {
+    const parameters = { ...x.parameters };
+    for (const key of x.frameParams || []) parameters[key] = Number.isInteger(parameters[key]) ? f(parameters[key]) : Math.round(parameters[key] * k * 1000) / 1000;
+    return { ...x, parameters };
+  };
+  return {
+    style,
+    shots: ref.shots.length,
+    gap: ref.gap ? { after: ref.gap.after, frames: f(ref.shots[ref.gap.after][1] + ref.gap.frames) - f(ref.shots[ref.gap.after][1]) } : null,
+    music: { start: f(ref.music.start), end: f(ref.music.end), sourceStart: ref.music.sourceStart },
+    effects: ref.effects.map(scaled),
+    transforms: ref.transforms,
+    transitions: ref.transitions.map((t) => ({ ...t, frames: f(t.frames) })),
+    graphics: ref.graphics.filter((g) => wide !== false || !g.letterbox).map((g) => ({ ...scaled(g), start: f(g.start), end: f(g.end) })),
+  };
+}
+
+// The whole build after assembly for a reference layout, in one script: effects, transforms and transitions on the
+// shots, the motion style's gap, the graphics, location sound, then the music over its frames (blank time is added
+// after the video first when the music runs past it).
+function voRefScript(o) {
+  const code = {};
+  const codes = { ...VO_REF_CODE, desk: GFX_DESK, label: GFX_LABEL, signoff: GFX_SIGNOFF, fade: GFX_FADE };
+  for (const x of [...o.plan.effects, ...o.plan.graphics]) if (x.code) code[x.code] = codes[x.code];
+  return `
+const p = selects.project(${JSON.stringify(o.projectId)});
+const d = selects.draft(${JSON.stringify(o.sequenceId)});
+const PLAN: any = ${JSON.stringify(o.plan)};
+const CODE: Record<string, string> = ${JSON.stringify(code)};
+const BEATS: any[] = ${JSON.stringify(o.beats)};
+const TITLE = ${JSON.stringify(o.title)};
+const MUSIC: string | null = ${JSON.stringify(o.musicResourceId)};
+const MUTE = ${o.muteSource ? "true" : "false"};
+const fps: number = ${o.fps};
+const notes: string[] = [];
+const main = async () => (await d.clips({ trackScope: "main" })).filter(c => c.resourceId !== null).sort((a, b) => a.startFrame - b.startFrame);
+let clips = await main();
+if (clips.length !== PLAN.shots) notes.push(clips.length + " of " + PLAN.shots + " shots placed");
+for (const e of PLAN.effects) {
+  const clip = clips[e.clip];
+  if (!clip) continue;
+  if (e.preset) await d.applyEffectPreset({ clip, presetId: e.preset, parameters: e.parameters });
+  else await d.addVideoEffect({ clip, label: e.name, tsxCode: CODE[e.code], parameters: e.parameters, editableParameters: e.editable || [] });
+  clips = await main();
+}
+for (const t of PLAN.transforms) {
+  const clip = clips[t.clip];
+  if (!clip) continue;
+  await d.setClipTransform({ clip, ...t.set });
+  clips = await main();
+}
+for (const t of PLAN.transitions) {
+  const after = clips[t.after];
+  if (!after || !clips[t.after + 1]) continue;
+  try {
+    const r = await d.applyTransitionPreset({ after, presetId: t.preset, durationSeconds: t.frames / fps });
+    const got = Math.round(r.inOffsetSeconds * fps) + Math.round(r.outOffsetSeconds * fps);
+    if (got !== t.frames) notes.push(t.name + " after shot " + (t.after + 1) + " is " + got + " frames, not " + t.frames);
+  } catch (e) { notes.push("cut " + (t.after + 1) + " kept hard"); }
+  clips = await main();
+}
+if (PLAN.gap && clips[PLAN.gap.after]) {
+  const a = clips[PLAN.gap.after];
+  await d.insertGap({ at: { after: await d.rangeAtFrames(a.startFrame, a.endFrame) }, seconds: PLAN.gap.frames / fps });
+  clips = await main();
+}
+let chapters: any[] = [];
+try { chapters = await d.chapters(); } catch (e) { chapters = []; }
+const chapterAt = (f: number) => {
+  const at = chapters.filter(x => (x.startFrame ?? (x.span && x.span.startFrame)) <= f && (x.endFrame ?? (x.span && x.span.endFrame)) > f);
+  const ch = at.find(x => x.kind === "chapter") || at[0];
+  return ch ? String(ch.title || ch.chapterTitle || "") : "";
+};
+for (const g of PLAN.graphics) {
+  const parameters: Record<string, any> = { ...g.parameters };
+  let label = g.name;
+  for (const [key, from] of Object.entries(g.text || {})) {
+    // A shot without a chapter title is named by the Project.
+    const words = from === "title" ? TITLE : from === "chapter" ? chapterAt(g.start) || TITLE : "";
+    parameters[key] = words;
+    if (from) label = label.replace("{" + from + "}", words);
+  }
+  let editableParameters = g.editable || [];
+  // The preset's controls, less the font picker where the reference leaves the font empty (the app would fill an
+  // empty declared font with the user's latest pick; empty draws the component's own stack).
+  if (g.preset) { try { editableParameters = (await selects.effectPresets.get(g.preset)).editableParameters.filter((e: any) => !(e.key === "fontFamily" && parameters.fontFamily === "")); } catch (e) {} }
+  const placed = await d.addMotionGraphic({ label, tsxCode: CODE[g.code], parameters, editableParameters, within: await d.rangeAtFrames(g.start, g.end) });
+  if (g.transform) {
+    const row = (await d.clips({ trackScope: "all" })).find(c => c.clipId === placed.clipId);
+    if (row) await d.setClipTransform({ clip: row, ...g.transform });
+  }
+}
+const videoEnd = (await d.clips({ trackScope: "all" })).reduce((a, c) => Math.max(a, c.endFrame), 0);
+if (MUTE) {
+  try { await d.setAudioTracks({ target: await d.rangeAtFrames(0, videoEnd), audioSourceIndexes: [] }); }
+  catch (e) { notes.push("location audio left as-is"); }
+}
+if (MUSIC) {
+  try {
+    if (PLAN.music.end > videoEnd) await d.insertGap({ seconds: (PLAN.music.end - videoEnd) / fps });
+    await d.overlayResource({ resource: p.resource(MUSIC), over: await d.rangeAtFrames(PLAN.music.start, PLAN.music.end), sourceStartSeconds: PLAN.music.sourceStart });
+  } catch (e) { notes.push("music could not be placed"); }
+}
+await d.commitAll("Vlog Opening: " + PLAN.style + " reference layout");
+const fin = await d.clips({ trackScope: "all" });
+const total = fin.reduce((a, c) => Math.max(a, c.endFrame), 0);
+const placedMain = fin.filter(c => c.trackKind === "main" && c.resourceId !== null).sort((a, b) => a.startFrame - b.startFrame);
+return {
+  seconds: Math.round((total / fps) * 100) / 100,
+  clips: placedMain.length,
+  graphics: fin.filter(c => c.trackKind === "video").length,
+  music: fin.filter(c => c.trackKind === "audio").length > 0,
+  notes,
+  manifest: placedMain.map((c, i) => ({
+    i: i + 1,
+    role: (BEATS[i] && BEATS[i].role) || "",
+    name: (BEATS[i] && BEATS[i].name) || "",
+    source: BEATS[i] ? BEATS[i].a + "-" + BEATS[i].b + "s" : "",
+    text: (BEATS[i] && BEATS[i].text) || "",
+    seconds: Math.round(((c.endFrame - c.startFrame) / fps) * 100) / 100,
+  })),
+};
+`;
+}
+// vo-reference:end
+
+// The reference timelines' own graphics, verbatim (their Text is the Effects browser preset as it was when the
+// reference was made).
+const VO_REF_CODE = {
+  letterbox: "import {AbsoluteFill,useCurrentFrame,useVideoConfig} from 'remotion'; export default function Letterbox({data}) { const frame=useCurrentFrame(); const {width,height,fps}=useVideoConfig(); const p=Math.max(0,Math.min(1,frame/(data.openSeconds*fps))); const ease=p*p*(3-2*p); const finalBar=Math.max(0,(height-width/data.ratio)/2); const bar=height/2+(finalBar-height/2)*ease; return <AbsoluteFill style={{pointerEvents:'none'}}><div style={{position:'absolute',top:0,left:0,right:0,height:bar,backgroundColor:'#000'}}/><div style={{position:'absolute',bottom:0,left:0,right:0,height:bar,backgroundColor:'#000'}}/></AbsoluteFill>; }",
+  sky: "import {AbsoluteFill,useCurrentFrame} from 'remotion'; export default function Sky({data}){const f=useCurrentFrame();const step=Math.floor(f/3)*3; const clouds=[{x:120,y:490,s:.95},{x:1240,y:260,s:1.12},{x:300,y:940,s:1.38},{x:1500,y:785,s:1.48}];return <AbsoluteFill style={{backgroundColor:data.sky}}><svg viewBox=\"0 0 1920 1080\" width=\"100%\" height=\"100%\"><g stroke=\"#303235\" strokeWidth=\"6\" strokeLinecap=\"round\" strokeLinejoin=\"round\"><g transform=\"translate(1560 194)\"><circle r=\"96\" fill={data.sun}/>{Array.from({length:12},(_,i)=>{const a=i*Math.PI/6;return <path key={i} d={'M '+Math.cos(a)*124+' '+Math.sin(a)*124+' L '+Math.cos(a+.015)*164+' '+Math.sin(a+.015)*164} fill=\"none\"/>;})}</g>{clouds.map((c,i)=><g key={i} transform={'translate('+(c.x-step*(i===1?12:10))+' '+c.y+') scale('+c.s+')'}><path d=\"M 0 65 C 8 14 31 -4 60 9 C 75 16 91 38 96 66 C 106 7 139 -7 168 4 C 195 14 208 34 211 65 C 224 11 253 5 277 17 C 298 28 309 45 312 69 C 326 27 354 27 372 42 C 381 50 387 61 389 70 C 284 84 156 88 0 65 Z\" fill={data.cloud}/></g>)}</g></svg></AbsoluteFill>;}",
+  text: "import {AbsoluteFill, useCurrentFrame, useVideoConfig} from \"remotion\";\n\nconst SAFE_AREA = \"6%\";\nconst FONT_STACK = \"Inter, ui-sans-serif, system-ui, sans-serif\";\n// A chosen family is whatever the machine has installed, so the app's own stack\n// stays behind it: a project moved to a machine without that font substitutes\n// rather than rendering nothing.\nfunction fontStack(family) {\n  if (typeof family !== \"string\") return FONT_STACK;\n  const name = family.trim().replace(/\"/g, \"\");\n  if (name === \"\") return FONT_STACK;\n  return '\"' + name + '\", ' + FONT_STACK;\n}\n// The margin kept clear around an overlay, measured on the frame's longer side\n// top and bottom as well as across. A percentage padding is always a share of\n// the width, so on a vertical frame the top and bottom margins came out barely\n// half what a landscape frame keeps, and a caption sat down among the\n// platform's own buttons. A landscape or square frame keeps exactly the margin\n// it always had.\nfunction safeArea(config) {\n  if (config == null || typeof config.width !== \"number\" || typeof config.height !== \"number\") {\n    return SAFE_AREA;\n  }\n  const share = parseFloat(SAFE_AREA) / 100;\n  return (share * Math.max(config.width, config.height)) + \"px \" + (share * config.width) + \"px\";\n}\n// A scale grows the graphic from its middle, so one anchored to the bottom\n// grew down past the margin kept clear under it, and off the frame. Shifting\n// it by half of what it grows keeps the anchored edge where it was, while\n// anything a graphic adds after — a tilt, a pop — still turns about its middle.\nfunction anchoredGrowth(v, h, zoom) {\n  const half = Math.round((zoom - 1) * 50000) / 1000;\n  const x = h === \"left\" ? half : h === \"right\" ? -half : 0;\n  const y = v === \"top\" ? half : v === \"bottom\" ? -half : 0;\n  return x === 0 && y === 0 ? \"\" : \" translate(\" + x + \"%, \" + y + \"%)\";\n}\nfunction placement(d, config) {\n  const parts = (typeof d.anchor === \"string\" ? d.anchor : \"center\").split(\"-\");\n  const v = parts[0];\n  const h = parts.length > 1 ? parts[1] : \"center\";\n  const dx = typeof d.offsetX === \"number\" ? d.offsetX : 0;\n  const dy = typeof d.offsetY === \"number\" ? d.offsetY : 0;\n  const zoom =\n    typeof d.overlayScale === \"number\" && d.overlayScale > 0\n      ? d.overlayScale / 100\n      : 1;\n  // AbsoluteFill is a column, so justifyContent runs down the frame and\n  // alignItems runs across it. Reading those as horizontal and vertical is what\n  // put a \"bottom left\" overlay in the top right. The direction is stated here\n  // rather than inherited so the pairing cannot drift again.\n  return {\n    container: {\n      flexDirection: \"column\",\n      justifyContent: v === \"top\" ? \"flex-start\" : v === \"bottom\" ? \"flex-end\" : \"center\",\n      alignItems: h === \"left\" ? \"flex-start\" : h === \"right\" ? \"flex-end\" : \"center\",\n      padding: safeArea(config),\n    },\n    inner: { transform: \"translate(\" + dx + \"%, \" + dy + \"%)\" + anchoredGrowth(v, h, zoom) + \" scale(\" + zoom + \")\" },\n  };\n}\nfunction easeWith(kind, p) {\n  const t = Math.max(0, Math.min(1, p));\n  if (kind === \"linear\") return t;\n  if (kind === \"in\") return t * t;\n  if (kind === \"inOut\") return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;\n  return 1 - Math.pow(1 - t, 2);\n}\n// An overlay is a clip: where it sits on the timeline says when it plays, how\n// long it is says how long it lasts, and the Sequence it renders inside is what\n// stops it existing outside that. So there is nothing to decide here — the\n// clip's own length is handed in. A stored in-point and duration used to say\n// the same thing a second time and could contradict the timeline: an overlay\n// whose duration was shorter than its clip left the clip sitting there showing\n// nothing, with nothing on the timeline to explain the gap.\n//\n// One caveat: an overlay trimmed at the head starts partway through, which is\n// the intent, but its clip length no longer covers the frames it is shown for,\n// so the tail of its exit is clipped. The alternative was plumbing the trim\n// through every renderer for a case the clip effects do not handle either.\nfunction timing(frame, fps, d, clipFrames) {\n  const dur = Math.max(1, Math.round(typeof clipFrames === \"number\" && clipFrames > 0 ? clipFrames : Math.round(fps * 3)));\n  const local = Math.max(0, frame);\n  // The default fade, for overlays with no in and out of their own to run.\n  const fade = Math.max(1, Math.min(Math.round(fps * 0.35), Math.floor(dur / 2)));\n  let raw = 1;\n  if (local < fade) raw = local / fade;\n  else if (local > dur - fade) raw = Math.max(0, (dur - local) / fade);\n  const kind = typeof d.ease === \"string\" ? d.ease : \"out\";\n  return {\n    local: local,\n    duration: dur,\n    // The Sequence already refuses to render outside the clip, so being here\n    // at all is what visible means.\n    visible: true,\n    progress: easeWith(kind, raw),\n    through: Math.max(0, Math.min(1, local / dur)),\n  };\n}\n// Sizes are authored against a 1080 reference and scaled to whatever the\n// composition actually is, so one preset reads the same on a 1080p cut and a\n// 4K master, and stays inside the frame when it turns vertical. The scale is\n// read at render time, so editing the draft's frame size restyles every\n// overlay with no stored values to migrate. Placement is already\n// frame-relative (percentage safe area and offsets); this does the same for\n// type and shapes.\nconst REFERENCE_HEIGHT = 1080;\nfunction frameScale(config) {\n  const c = config || {};\n  const w = typeof c.width === \"number\" && c.width > 0 ? c.width : REFERENCE_HEIGHT;\n  const h = typeof c.height === \"number\" && c.height > 0 ? c.height : REFERENCE_HEIGHT;\n  // The smaller side, not the height: scaling a landscape look by height alone\n  // would blow type up past the edges the moment the frame turns vertical.\n  return Math.min(w, h) / REFERENCE_HEIGHT;\n}\nfunction theme(d, config) {\n  const k = frameScale(config);\n  return {\n    color: typeof d.color === \"string\" ? d.color : \"#ffffff\",\n    accent: typeof d.accent === \"string\" ? d.accent : \"#008ff1\",\n    fontSize: (typeof d.fontSize === \"number\" ? d.fontSize : 64) * k,\n    fontWeight: typeof d.fontWeight === \"string\" ? d.fontWeight : \"700\",\n    fontFamily: fontStack(d.fontFamily),\n    scale: k,\n    px: function (v) { return v * k; },\n  };\n}\n\n// Named for what it draws, so two pieces of type dressed alike share one\n// filter rather than fighting over an id. The region is the frame around the\n// type several times over — a glow is wide, and a region measured from the\n// type's own box would clip it square around a short word.\nfunction typeShadowFilter(layers, cfg, withSource) {\n  const text = JSON.stringify([layers, withSource !== false]);\n  let hash = 5381;\n  for (let i = 0; i < text.length; i += 1) {\n    hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;\n  }\n  const id = \"cbtype\" + (hash >>> 0).toString(36);\n  const c = cfg || {};\n  const w = typeof c.width === \"number\" ? c.width : 1920;\n  const h = typeof c.height === \"number\" ? c.height : 1080;\n  // One shadow per layer: the painted type's outline, moved, softened and\n  // filled with the layer's colour. The deviation is half the radius.\n  const shadows = layers.flatMap(function (layer, i) {\n    return [\n      <feOffset key={\"o\" + i} in=\"SourceAlpha\" dx={layer.x} dy={layer.y} result={\"o\" + i} />,\n      <feGaussianBlur key={\"b\" + i} in={\"o\" + i} stdDeviation={layer.blur / 2} result={\"b\" + i} />,\n      <feFlood key={\"f\" + i} floodColor={layer.color} result={\"f\" + i} />,\n      <feComposite key={\"s\" + i} in={\"f\" + i} in2={\"b\" + i} operator=\"in\" result={\"s\" + i} />,\n    ];\n  });\n  const node = <svg key={id} aria-hidden=\"true\" width=\"0\" height=\"0\"\n    style={{ position: \"absolute\", width: 0, height: 0, pointerEvents: \"none\" }}>\n    <defs>\n      <filter id={id} filterUnits=\"userSpaceOnUse\" x={-w} y={-h} width={w * 3} height={h * 3}\n        colorInterpolationFilters=\"sRGB\">\n        {shadows}\n        <feMerge>\n          {layers.map(function (_, i) {\n            return <feMergeNode key={i} in={\"s\" + (layers.length - 1 - i)} />;\n          })}\n          {withSource === false ? null : <feMergeNode in=\"SourceGraphic\" />}\n        </feMerge>\n      </filter>\n    </defs>\n  </svg>;\n  return { id: id, node: node };\n}\n\nexport default function DefaultText({data, rangeDurationInFrames}) {\n  const d = data ?? {};\n  const cfg = useVideoConfig();\n  const t = theme(d, cfg);\n  const p = placement(d, cfg);\n  const tm = timing(useCurrentFrame(), cfg.fps, d, rangeDurationInFrames);\n  if (!tm.visible) return null;\n  const body = String(d.body == null ? \"Text\" : d.body);\n  const align = typeof d.textAlign === \"string\" ? d.textAlign : \"center\";\n  const strokeWidth = typeof d.strokeWidth === \"number\" ? Math.max(0, d.strokeWidth) : 0;\n  const glow = typeof d.glowStrength === \"number\" ? Math.max(0, d.glowStrength) : 0;\n  const pad = typeof d.backgroundPadding === \"number\" ? Math.max(0, d.backgroundPadding) : 0;\n  const radius = typeof d.backgroundRadius === \"number\" ? Math.max(0, d.backgroundRadius) : 0;\n  const glowPx = t.px(glow * 0.5);\n\n  // Arriving and leaving are asked separately, because they are: a title that\n  // rises in and simply cuts away is an ordinary thing to want. Each end runs\n  // over its own length rather than over the overlay's, so one held for ten\n  // seconds still arrives in half of one — and neither may take more than half\n  // the clip, or the two would overlap and the overlay would never be still.\n  const kind = typeof d.ease === \"string\" ? d.ease : \"out\";\n  const half = Math.max(1, Math.floor(tm.duration / 2));\n  const frames = (seconds) =>\n    Math.max(1, Math.min(Math.round((typeof seconds === \"number\" ? seconds : 0.4) * cfg.fps), half));\n  const inT = Math.max(0, Math.min(1, tm.local / frames(d.enterDuration)));\n  const outT = Math.max(0, Math.min(1, (tm.duration - tm.local) / frames(d.exitDuration)));\n  const travel = t.px(60);\n\n  // `amount` is how present the overlay is: 0 absent, 1 fully arrived. The same\n  // function reads both ends, which is what keeps Rise in and Rise out mirror\n  // images rather than two hand-written cases that drift apart.\n  function motion(style, amount, leaving) {\n    const e = easeWith(kind, amount);\n    const away = 1 - e;\n    // Arriving from below; leaving upward.\n    const dir = leaving ? -1 : 1;\n    return {\n      opacity: style === \"instant\" ? 1 : e,\n      shift: style === \"rise\" ? away * travel * dir : style === \"drop\" ? -away * travel * dir : 0,\n      zoom: style === \"pop\" ? 0.82 + 0.18 * e : 1,\n      reveal: style === \"typewriter\" ? e : 1,\n    };\n  }\n\n  const arriving = motion(typeof d.enterStyle === \"string\" ? d.enterStyle : \"dissolve\", inT, false);\n  const leaving = motion(typeof d.exitStyle === \"string\" ? d.exitStyle : \"dissolve\", outT, true);\n  const opacity = Math.min(arriving.opacity, leaving.opacity);\n  const shift = arriving.shift + leaving.shift;\n  const zoom = arriving.zoom * leaving.zoom;\n  const reveal = Math.min(arriving.reveal, leaving.reveal);\n  // Two shadows rather than one: a tight core and a wide falloff read as light\n  // coming off the letters, where a single blur reads as a flat halo behind\n  // them.\n  const glowColor = typeof d.glowColor === \"string\" ? d.glowColor : \"#ffffff\";\n  const glowShadow = glow === 0\n    ? []\n    : [\n        { x: 0, y: 0, blur: glowPx, color: glowColor },\n        { x: 0, y: 0, blur: glowPx * 2.5, color: glowColor },\n      ];\n  // A cast shadow, which is a different thing from a glow: offset and soft,\n  // rather than centred on the glyphs. Both can be on at once.\n  const shadowBlur = typeof d.shadowBlur === \"number\" ? Math.max(0, d.shadowBlur) : 0;\n  const shadowX = typeof d.shadowX === \"number\" ? d.shadowX : 0;\n  const shadowY = typeof d.shadowY === \"number\" ? d.shadowY : 0;\n  const castShadow = shadowBlur === 0 && shadowX === 0 && shadowY === 0\n    ? []\n    : [{\n        x: t.px(shadowX),\n        y: t.px(shadowY),\n        blur: t.px(shadowBlur),\n        color: typeof d.shadowColor === \"string\" ? d.shadowColor : \"#000000b3\",\n      }];\n  // The cast shadow over the glow: listed first, so it sits on top.\n  const layers = castShadow.concat(glowShadow);\n  const shadow = layers.length === 0 ? null : typeShadowFilter(layers, cfg);\n  return <AbsoluteFill style={{ ...p.container, opacity: opacity }}>\n    {shadow == null ? null : shadow.node}\n    <div style={{ ...p.inner, transform: p.inner.transform + \" translateY(\" + shift + \"px) scale(\" + zoom + \")\" }}>\n      <div style={{\n        background: typeof d.backgroundColor === \"string\" ? d.backgroundColor : \"transparent\",\n        padding: t.px(pad) + \"px \" + t.px(pad * 1.4) + \"px\",\n        borderRadius: t.px(radius),\n        // The frame's own width, not the viewport's: a Remotion composition is\n        // not the window it happens to be previewed in.\n        maxWidth: Math.round((typeof cfg.width === \"number\" ? cfg.width : 1920) * 0.88),\n      }}>\n        <div style={{\n          fontFamily: t.fontFamily,\n          fontWeight: t.fontWeight,\n          fontStyle: d.italic === true ? \"italic\" : \"normal\",\n          textDecoration: d.underline === true ? \"underline\" : \"none\",\n          fontSize: t.fontSize,\n          color: t.color,\n          textAlign: align,\n          lineHeight: 1.2,\n          // What makes the box multiline: the newlines the user typed are the\n          // line breaks, and long lines still wrap on their own.\n          whiteSpace: \"pre-wrap\",\n          filter: shadow == null ? \"none\" : \"url(#\" + shadow.id + \")\",\n          WebkitTextStrokeWidth: t.px(strokeWidth),\n          WebkitTextStrokeColor: typeof d.strokeColor === \"string\" ? d.strokeColor : \"#000000\",\n          // Puts the outline behind the fill instead of straddling the glyph\n          // edge, which would eat into the letterform as the stroke thickens.\n          paintOrder: \"stroke fill\",\n        }}>{reveal >= 1 ? body : body.slice(0, Math.max(0, Math.ceil(body.length * reveal)))}</div>\n      </div>\n    </div>\n  </AbsoluteFill>;\n}\n",
+};
 
 // Six-second auditions of the bundled cues, so the picker can be listened to.
 const AUDITIONS: Record<string, string> = {
@@ -1151,11 +1399,41 @@ function assembleScript(projectId: string, draftName: string, beats: any[], fram
 const p = selects.project(${JSON.stringify(projectId)});
 const BEATS: any[] = ${JSON.stringify(beats)};
 const FRAME: { width: number; height: number } | null = ${JSON.stringify(frameSize ?? null)};
-const d = await p.createDraft({ name: ${JSON.stringify(draftName)} });
+let d = await p.createDraft({ name: ${JSON.stringify(draftName)} });
 const placedMain = async () => (await d.clips({ trackScope: "main" })).filter(c => c.resourceId !== null);
 let rate = 0;
 let endFrame = 0;
-for (const b of BEATS) {
+// A reference layout (ref25 on every beat: its end in 25 fps frames on the finished timeline, gap25 the gap inserted
+// before it later) lands every boundary on round(f * fps / 25) at the Draft's real rate, which may be fractional
+// (23.976). Selects snaps each end of a source range to a Draft frame on its own (round(end * fps) - round(start * fps)),
+// so every window starts on a whole Draft frame and lasts exactly the frames wanted. A new Draft takes its first clip's
+// rate on the first insert; when that differs from the rate aimed at, the clips are laid again on a fresh, never
+// committed Draft.
+const REF = BEATS.length > 0 && BEATS.every(b => typeof b.ref25 === "number");
+const layRef = async (fps: number, final: boolean) => {
+  endFrame = 0;
+  for (let i = 0; i < BEATS.length; i++) {
+    const b = BEATS[i];
+    const at = (f: number) => Math.round((f * fps) / 25);
+    const want = at(b.ref25) - (b.gap25 ? at(b.gap25[1]) - at(b.gap25[0]) : 0) - endFrame;
+    // A source ends at its last whole frame (later is invalid_source_range), so a window near the end slides back.
+    const cap = typeof b.total === "number" && b.total > 0 ? Math.floor(b.total * fps + 1e-6) - want : Infinity;
+    const k = Math.max(0, Math.min(Math.round(b.a * fps), cap));
+    await d.insertResource({ resourceId: b.rid, sourceRange: { startSeconds: k / fps, endSeconds: (k + want) / fps } });
+    endFrame = (await placedMain()).reduce((a, c) => Math.max(a, c.endFrame), 0);
+    if (i === 0) {
+      const real = (await d.meta()).fps;
+      if (real !== fps) { if (!final) return real; fps = real; }
+    }
+  }
+  rate = fps;
+  return null;
+};
+if (REF) {
+  const real = await layRef((await d.meta()).fps, false);
+  if (real) { d = await p.createDraft({ name: ${JSON.stringify(draftName)} }); await layRef(real, true); }
+}
+for (const b of REF ? [] : BEATS) {
   // Never ask for more than the source holds, whatever the caller computed.
   const limit = typeof b.total === "number" && b.total > 0 ? b.total : b.b;
   let end = Math.min(b.b, Math.floor(limit * 100) / 100);
@@ -1694,11 +1972,14 @@ async function runTemplate(sdk: any, context: any, onStep: (text: string) => voi
   // default, which is landscape.
   const landscape = frame ? frame.width >= frame.height : true;
 
-  // The style's own cue, and its beat grid.
+  // The style's own cue: the style's reference layout (whip and motion), which needs no beat grid. When the picked
+  // clips give fewer shots than the reference has, the cue's beat grid times the build instead.
   const cue = CUES.find(c => c.forStyle === style) ?? null;
-  let grid: Grid | null = null;
-  try { grid = cue ? await cueGrid(sdk, cue) : null; } catch (e: any) { return { error: String(e?.message || e) }; }
   const music = cue ? "cue:" + cue.id : "none";
+  let ref: string | null = voRefStyle(style, music, style === "whip");
+  let grid: Grid | null = null;
+  const measure = async () => { grid = cue ? await cueGrid(sdk, cue) : null; };
+  try { if (!ref) await measure(); } catch (e: any) { return { error: String(e?.message || e) }; }
 
   let beats: any[] = [];
   let dropped: any[] = [];
@@ -1716,19 +1997,28 @@ async function runTemplate(sdk: any, context: any, onStep: (text: string) => voi
     const matching = picked.filter(r => r.portrait !== landscape);
     const pool = matching.length >= 3 ? matching : picked;
     const rids = pool.map(r => r.rid);
-    const template = templateFor(style, grid);
-    const roles = Array.from(new Set(template.map((b: any) => b.role)));
     const hitsByRole: Record<string, any[]> = {};
-    for (let i = 0; i < roles.length; i++) {
-      const role = roles[i];
-      onStep("Scanning footage " + (i + 1) + "/" + roles.length + "…");
-      const hits = await runQuiet(sdk, "Scan for " + role, searchRoleScript(projectId, ROLE_QUERIES[role] || role, rids), false);
-      if (!hits) return { error: "Could not search the picked clips; try again." };
-      hitsByRole[role] = hits.hits ?? [];
+    const fill = async (template: any[]) => {
+      const roles = Array.from(new Set(template.map((b: any) => b.role))).filter(role => !hitsByRole[role]);
+      for (let i = 0; i < roles.length; i++) {
+        const role = roles[i];
+        onStep("Scanning footage " + (i + 1) + "/" + roles.length + "…");
+        const hits = await runQuiet(sdk, "Scan for " + role, searchRoleScript(projectId, ROLE_QUERIES[role] || role, rids), false);
+        if (!hits) return false;
+        hitsByRole[role] = hits.hits ?? [];
+      }
+      const assigned = assignBeats(template, hitsByRole, pool);
+      beats = assigned.beats;
+      dropped = assigned.dropped;
+      return true;
+    };
+    if (!(await fill(ref ? voRefTemplate(style) : templateFor(style, grid)))) return { error: "Could not search the picked clips; try again." };
+    if (ref && dropped.length) {
+      ref = null;
+      console.info("[vlog-opening] fewer shots than the reference layout has; timed to the cue's beat instead:", dropped);
+      try { await measure(); } catch (e: any) { return { error: String(e?.message || e) }; }
+      if (!(await fill(templateFor(style, grid)))) return { error: "Could not search the picked clips; try again." };
     }
-    const assigned = assignBeats(template, hitsByRole, pool);
-    beats = assigned.beats;
-    dropped = assigned.dropped;
   }
   if (beats.length < 3) {
     return { error: "Only " + beats.length + " usable shot(s) came out of the picked clips; pick more clips, or longer ones." };
@@ -1739,7 +2029,8 @@ async function runTemplate(sdk: any, context: any, onStep: (text: string) => voi
   let gapSeconds = 2.0;
   let titleEnd: number | null = null;
   let musicStart = 0;
-  if (grid && style === "quotes") {
+  if (ref) beats = voRefRetime(style, beats);
+  else if (grid && style === "quotes") {
     const plan = quotePlan(beats, grid);
     beats = retime(beats, plan.ends);
     musicStart = Math.round(plan.musicStart * 1000) / 1000;
@@ -1752,7 +2043,7 @@ async function runTemplate(sdk: any, context: any, onStep: (text: string) => voi
   const burstSeconds = grid ? grid.period / 2 + 0.05 : 0.34;
 
   onStep("Sampling colours…");
-  const palette = style === "motion" ? await samplePalette(sdk, beats) : { ...FALLBACK_PALETTE };
+  const palette = style === "motion" && !ref ? await samplePalette(sdk, beats) : { ...FALLBACK_PALETTE };
 
   onStep("Preparing music…");
   const chosen = await resolveMusic(sdk, projectId, music, null);
@@ -1767,6 +2058,22 @@ async function runTemplate(sdk: any, context: any, onStep: (text: string) => voi
   if (!asm || asm.error || !asm.sequenceId) return { error: "Could not assemble the new timeline; try again." };
   const sequenceId = asm.sequenceId as string;
   const fps = asm.fps as number;
+
+  if (ref) {
+    onStep("Adding the look and music…");
+    const out = await sdk.runScript({
+      summary: "Style the opening", allowCommit: true,
+      script: voRefScript({ projectId, sequenceId, fps, beats, title, musicResourceId: chosen.id, muteSource: style !== "quotes",
+        plan: voRefPlan(style, fps, !frame || frame.width / frame.height >= 1.5) }),
+    });
+    if (out.isError) {
+      console.warn("[vlog-opening] Style the opening failed:", out.output);
+      return { error: "The new timeline was made but its style and music could not be added; try again." };
+    }
+    if (out.result?.notes?.length) console.info("[vlog-opening] notes:", out.result.notes);
+    if (!chosen.id) console.info("[vlog-opening] built without music:", chosen.note);
+    return { sequenceId };
+  }
 
   onStep("Adding the look…");
   // Scope bars are drawn over a 16:9 frame, so a square or portrait output
@@ -1986,9 +2293,13 @@ function OpeningPanel({ sdk, context, ui }: any) {
       let scanNotes: string[] = [];
       // Bundled cues carry a measured beat grid; own music and silence keep
       // the template's own timing.
+      // The style's own cue with its default bars is the style's reference layout (whip and motion), which needs no
+      // beat grid; when the footage gives fewer shots than the reference has, the grid times the build instead.
       const pickedCue = music.startsWith("cue:") ? CUES.find(c => c.id === music.slice(4)) : undefined;
+      let ref: string | null = voRefStyle(style, music, letterbox);
       let grid: Grid | null = null;
-      try { grid = pickedCue ? await cueGrid(sdk, pickedCue) : null; } catch (e: any) { setStatus({ tone: "error", text: String(e?.message || e) }); return; }
+      const measure = async () => { grid = pickedCue ? await cueGrid(sdk, pickedCue) : null; };
+      try { if (!ref) await measure(); } catch (e: any) { setStatus({ tone: "error", text: String(e?.message || e) }); return; }
       if (style === "quotes") {
         const budget = grid ? Math.min(22, atBeat(grid, grid.end) - atBeat(grid, grid.hit) + 2.5) : 22;
         const r = await sdk.runScript({ summary: "Find quotable lines", script: selectQuotesScript(projectId, budget, 30), allowCommit: false });
@@ -1997,7 +2308,7 @@ function OpeningPanel({ sdk, context, ui }: any) {
         if (r.result?.error === "no_analyzed_video") { setStatus({ tone: "error", text: "No analysed video in this project yet." }); return; }
         beats = r.result?.beats ?? [];
       } else {
-        const template = templateFor(style, grid);
+        let template = ref ? voRefTemplate(style) : templateFor(style, grid);
         setStep("Reading the footage…");
         const poolRun = await sdk.runScript({ summary: "Read footage pool", script: poolScript(projectId, style === "whip" ? 16 : 18), allowCommit: false });
         if (poolRun.isError) { setStatus({ tone: "error", text: poolRun.output }); return; }
@@ -2025,7 +2336,20 @@ function OpeningPanel({ sdk, context, ui }: any) {
           if (failedCount) scanNotes.push(failedCount + " clip(s) unreadable while scanning " + role);
           scanCache.current[cacheKey] = hitsByRole[role];
         }
-        const assigned = assignBeats(template, hitsByRole, pool);
+        let assigned = assignBeats(template, hitsByRole, pool);
+        if (ref && assigned.dropped.length) {
+          ref = null;
+          try { await measure(); } catch (e: any) { setStatus({ tone: "error", text: String(e?.message || e) }); return; }
+          template = templateFor(style, grid);
+          for (const role of Array.from(new Set(template.map((b: any) => b.role)))) {
+            if (hitsByRole[role]) continue;
+            setStep("Scanning footage…");
+            const rr = await sdk.runScript({ summary: "Scan for " + role, script: searchRoleScript(projectId, ROLE_QUERIES[role] || role, rids), allowCommit: false });
+            if (rr.isError) { setStatus({ tone: "error", text: rr.output }); return; }
+            hitsByRole[role] = rr.result?.hits ?? [];
+          }
+          assigned = assignBeats(template, hitsByRole, pool);
+        }
         beats = assigned.beats;
         dropped = assigned.dropped;
       }
@@ -2044,10 +2368,11 @@ function OpeningPanel({ sdk, context, ui }: any) {
         gapSeconds = plan.gapSeconds;
         titleEnd = plan.titleEnd;
       }
+      if (ref) beats = voRefRetime(style, beats);
       const burstSeconds = grid ? grid.period / 2 + 0.05 : 0.34;
 
       setStep("Sampling colours…");
-      const palette = style === "motion" ? await samplePalette(sdk, beats) : { ...FALLBACK_PALETTE };
+      const palette = style === "motion" && !ref ? await samplePalette(sdk, beats) : { ...FALLBACK_PALETTE };
 
       setStep("Preparing music…");
       const chosen = await resolveMusic(sdk, projectId, music, ownFile);
@@ -2061,6 +2386,20 @@ function OpeningPanel({ sdk, context, ui }: any) {
       if (asm.result == null || asm.result.error) { setStatus({ tone: "error", text: "Assembly failed: " + (asm.result?.error ?? "no result") }); return; }
       const sequenceId = asm.result.sequenceId as string;
       const fps = asm.result.fps as number;
+
+      if (ref) {
+        setStep("Adding the look and music…");
+        const out = await sdk.runScript({
+          summary: "Style the opening", allowCommit: true,
+          script: voRefScript({ projectId, sequenceId, fps, beats, title, musicResourceId: chosen.id, muteSource, plan: voRefPlan(style, fps, true) }),
+        });
+        if (out.isError) { setStatus({ tone: "error", text: out.output }); return; }
+        if (out.result == null) { setStatus({ tone: "error", text: "The build finished but returned nothing to show." }); return; }
+        const notes = [...scanNotes, ...(out.result.notes ?? [])];
+        setResult({ ...out.result, notes, dropped, musicNote: chosen.note, sequenceId });
+        setStatus({ text: ["Built " + out.result.seconds + "s from " + out.result.clips + " clips", out.result.graphics + " graphic layer(s)", chosen.note].join(" · ") });
+        return;
+      }
 
       setStep("Adding the look…");
       const dec = await sdk.runScript({
