@@ -88,7 +88,7 @@ export function importMusicScript(projectId, file) {
     const source = (await p.resources()).find(row => row.resourceId === id);
     if (!Number.isFinite(source?.durationSeconds) || source.durationSeconds <= 0) throw new Error('epidemic_import_uncertain');
     return { resourceId: id, durationSeconds: source.durationSeconds,
-      musicResourceIds: files.filter(row => row.path.startsWith(${JSON.stringify(directory)})).map(row => row.resourceId).concat(id) };
+      musicResourceIds: files.filter(row => row.path?.startsWith(${JSON.stringify(directory)})).map(row => row.resourceId).concat(id) };
   `;
 }
 export function addMusicScript(projectId, sequenceId, resourceId, seconds, musicResourceIds) {
@@ -97,10 +97,11 @@ export function addMusicScript(projectId, sequenceId, resourceId, seconds, music
     const d = selects.draft(${JSON.stringify(sequenceId)});
     const clips = await d.clips({ trackScope: 'all' });
     const id = ${JSON.stringify(resourceId)};
-    if (clips.some(clip => clip.resourceId === id && clip.trackKind === 'audio')) return { resourceId: id, inserted: 0 };
-    const music = clips.filter(clip => clip.trackKind === 'audio' && ${JSON.stringify(musicResourceIds)}.includes(clip.resourceId));
+    if (clips.some(clip => clip.resourceId === id)) return { resourceId: id, inserted: 0 };
+    const music = clips.filter(clip => ${JSON.stringify(musicResourceIds)}.includes(clip.resourceId));
     const start = music.reduce((value, clip) => Math.max(value, clip.endFrame), 0);
-    const picture = clips.filter(clip => clip.trackKind === 'main');
+    const resources = await p.resources();
+    const picture = clips.filter(clip => clip.trackKind === 'main' && resources.some(resource => resource.resourceId === clip.resourceId && resource.type !== 'Audio'));
     const end = picture.reduce((value, clip) => Math.max(value, clip.endFrame), 0);
     const meta = await d.meta();
     const songFrames = Math.floor(${JSON.stringify(seconds)} * meta.fps);
@@ -113,7 +114,10 @@ export function addMusicScript(projectId, sequenceId, resourceId, seconds, music
       if (anchor) {
         // Extend only the working copy; restore the held clip before committing.
         held = { ...(await d.moveOverlayClip({ clip: anchor, startFrame: meta.durationFrames + duration })), start: anchor.startFrame };
-      } else await d.insertGap({ seconds: (duration - meta.durationFrames) / meta.fps });
+      } else {
+        const mainEnd = clips.filter(clip => clip.trackKind === 'main').reduce((end, clip) => Math.max(end, clip.endFrame), 0);
+        await d.insertGap({ at: mainEnd > 0 ? { after: await d.rangeAtFrames(0, mainEnd) } : undefined, seconds: (duration - mainEnd) / meta.fps });
+      }
     }
     const placed = await d.overlayResource({ resource: p.resource(id), over: await d.rangeAtFrames(0, duration) });
     if (!placed.inserted) throw new Error('epidemic_import_uncertain');
