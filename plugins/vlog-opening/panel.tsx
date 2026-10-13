@@ -313,13 +313,13 @@ const VO_REF = {
           shadowX: 0, shadowY: 0, shadowBlur: 12, glowColor: "#ffffff", glowStrength: 0 } },
     ],
   },
-  // "Vlog Opening - Motion graphics": Buant Groove from 3.818 s over frames 11-425; the sky flight fills a 44-frame
+  // "Vlog Opening - Motion graphics": Buant Groove from its start over frames 11-425; the sky flight fills a 44-frame
   // gap after the second shot. 10.139 frames per step is the earlier cue's beat, kept as the reference has it.
   motion: {
     cue: "vlog",
     shots: [["people", 86], ["people", 113, true], ["travel", 192], ["scenic", 230], ["scenic", 273], ["finale", 396]],
     gap: { after: 1, frames: 44 },
-    music: { start: 11, end: 425, sourceStart: 3.818 },
+    music: { start: 11, end: 425, sourceStart: 0 },
     effects: [{ clip: 0, code: "desk", name: "Desk scene -> stop-motion zoom",
       parameters: { holdFrames: 56, beatFrames: 10.139, paper: "#fbf8ee", check: "#9cbbe8", laptop: "#cfcfd1" }, frameParams: ["holdFrames", "beatFrames"],
       editable: [

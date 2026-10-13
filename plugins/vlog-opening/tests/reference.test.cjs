@@ -114,7 +114,7 @@ const EXPECTED = {
     transforms: [[2,{"flipHorizontal":true}]],
     transitions: [],
     graphics: [["Fade to black",425,440,{"lengthFrames":15,"color":"#000000"},"a5ad597de0af5834",null],["Sky flight — Sky only",113,157,{"sky":"#96BAE2","cloud":"#FFFFFF","sun":"#F8DB69"},"51459cd24fdf89a2",null],["Label - <text>",157,236,{"text":"<text>","sub":"","ink":"#cedaee","shadow":"#0C110E","fontFamily":"","beatFrames":10.139,"lengthFrames":41},"786499b86ae596a4",null],["Handwritten title",375,440,{"title":"<text>","sub":"","ink":"#f6fafc","shadow":"#0c110e","fontFamily":"","beatFrames":10.139,"lengthFrames":71},"24451d52d3c75147",{"scale":{"x":0.8,"y":0.8}}]],
-    music: [11,425,3.818],
+    music: [11,425,0],
   },
   quotes: {
     main: [[0,53],[53,99],[99,133],[133,163],[163,237],[237,306],[306,359],[359,393],[393,467]],

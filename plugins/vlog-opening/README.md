@@ -15,7 +15,7 @@ from your Project.
 | Style | What it makes |
 |---|---|
 | **Whip cut** | 12 shots, 14.6 s: a blur-in opening shot, Flare transitions at the first hit (2.04 s) and at 7.84 s, the Film stock look on five shots, slow push-ins on three, 2.39:1 bars that open over the first two seconds, and the title in large type over the closing shot. Muted Piano Motif from 0.36 s plays to 15.56 s, past the picture. |
-| **Motion graphics** | The first shot plays on a hand-drawn laptop on a checkered tablecloth and the camera zooms into the screen like stop motion; the shot continues full frame, an illustrated sky fills 1.76 s, a place label taken from the chapter title drops onto the next shot, and the title writes itself on over the closing shot. 17.6 s, Buant Groove from 3.818 s over 0.44-17.0 s. |
+| **Motion graphics** | The first shot plays on a hand-drawn laptop on a checkered tablecloth and the camera zooms into the screen like stop motion; the shot continues full frame, an illustrated sky fills 1.76 s, a place label taken from the chapter title drops onto the next shot, and the title writes itself on over the closing shot. 17.6 s, Buant Groove from its start over 0.44-17.0 s. |
 | **Funny quotes** | Nine talking-head lines picked from the transcript, 18.68 s, graded with Color & Tone, a lower-third title over the first line and location pins from the chapter titles over the second and sixth. The Lo-fi cafe bed from 3.12 s runs under the whole opening; clip dialogue is kept rather than muted. |
 
 Each opening fades to black at its end (0.6 s for the whip and motion styles, 1.5 s for quotes). When the picked
