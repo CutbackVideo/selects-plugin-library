@@ -17,17 +17,22 @@ function fixture({end = 900, timelineEnd = end, fileTree = [], folders, existing
   ];
   const flatten = rows => rows.flatMap(row => row.type === 'dir' ? flatten(row.children) : [row]);
   const duration = () => Math.max(blankFrames, ...clips.map(clip => clip.endFrame), 0);
+  const mainDuration = () => Math.max(blankFrames, ...clips.filter(clip => clip.trackKind === 'main').map(clip => clip.endFrame), 0);
   const project = {
     sourceFiles: async options => options?.folder ? {fileTree} : folders ? {folders} : {fileTree},
     importFiles: async options => { projectWrite = true; calls.push(['import', options]); return {addedResourceIds: ['music']}; },
     resource: id => ({id}),
-    resources: async () => [{resourceId: 'music', durationSeconds: seconds}, ...flatten(fileTree).map(row => ({resourceId: row.resourceId, durationSeconds: seconds}))],
+    resources: async () => [{resourceId: 'music', type: 'Audio', durationSeconds: seconds}, {resourceId: 'picture', type: 'Video'}, ...flatten(fileTree).map(row => ({resourceId: row.resourceId, type: 'Audio', durationSeconds: seconds}))],
   };
   const draft = {
     clips: async options => clips.filter(clip => options.trackScope === 'all' || clip.trackKind === 'main').map(clip => ({...clip})),
     meta: async () => ({fps: 30, durationFrames: duration()}),
     rangeAtFrames: async (startFrame, endFrame) => { assert.ok(endFrame <= duration()); return {startFrame, endFrame}; },
-    insertGap: async options => { calls.push(['gap', options]); blankFrames += Math.round(options.seconds * 30); },
+    insertGap: async options => {
+      const at = options.at?.after.endFrame ?? (mainDuration() > 0 ? duration() : 0);
+      assert.ok(at <= mainDuration(), 'Gap position must be on Main');
+      calls.push(['gap', options]); blankFrames = mainDuration() + Math.round(options.seconds * 30);
+    },
     overlayResource: async options => {
       calls.push(['overlay', options]);
       clips.push({clipId: nextId++, trackId: 'new-audio', resourceId: options.resource.id, trackKind: 'audio', ...options.over});
@@ -80,6 +85,42 @@ test('reuses a file from a paged source tree and escapes paths', async () => {
   await f.run(file);
   assert.deepEqual(f.calls.map(([name]) => name), ['overlay', 'commit']);
   assert.equal(f.calls[0][1].resource.id, 'saved');
+});
+test('adds music with a medialess synced sequence in the source tree', async () => {
+  const f = fixture({fileTree: [{type: 'sequence', path: null, resourceId: 'synced'}]});
+  await f.run('/Music/song.mp3');
+  assert.deepEqual(f.calls.map(([name]) => name), ['import', 'overlay', 'commit']);
+});
+test('reuses music already dropped onto Main without duplicating it', async () => {
+  const f = fixture({end: 0, fileTree: [{type: 'audio', path: '/Music/song.mp3', resourceId: 'saved'}], existingClips: [{resourceId: 'saved', trackKind: 'main', startFrame: 300, endFrame: 600}]});
+  assert.equal((await f.run('/Music/song.mp3')).inserted, 0);
+  assert.equal(f.calls.length, 0);
+});
+test('appends a full song after Music dropped onto Main, preserving that clip', async () => {
+  const old = {resourceId: 'old', trackKind: 'main', startFrame: 0, endFrame: 600};
+  const f = fixture({end: 0, fileTree: [{type: 'audio', path: '/Music/old.mp3', resourceId: 'old'}], existingClips: [old]});
+  await f.run('/Music/song.mp3', 60);
+  assert.deepEqual(f.clips.find(clip => clip.resourceId === 'old'), {clipId: 2, trackId: 'audio', ...old});
+  const added = f.clips.find(clip => clip.resourceId === 'music');
+  assert.equal(added.startFrame, 600);
+  assert.equal(added.endFrame, 2400);
+});
+test('other Main audio does not trim music to its duration', async () => {
+  const f = fixture({end: 0, fileTree: [{type: 'audio', path: '/Voice/voice.mp3', resourceId: 'voice'}], existingClips: [{resourceId: 'voice', trackKind: 'main', startFrame: 0, endFrame: 600}]});
+  await f.run('/Music/song.mp3', 60);
+  const added = f.clips.find(clip => clip.resourceId === 'music');
+  assert.equal(added.startFrame, 0);
+  assert.equal(added.endFrame, 1800);
+});
+test('extends Main music at its own end when a companion gap extends farther', async () => {
+  const f = fixture({end: 0, fileTree: [{type: 'audio', path: '/Music/old.mp3', resourceId: 'old'}], existingClips: [
+    {resourceId: 'old', trackKind: 'main', startFrame: 0, endFrame: 600},
+    {resourceId: null, trackKind: 'chapter', startFrame: 0, endFrame: 900},
+  ]});
+  await f.run('/Music/song.mp3', 60);
+  assert.equal(f.calls.find(([name]) => name === 'gap')[1].at.after.endFrame, 600);
+  assert.equal(f.clips.find(clip => clip.resourceId === 'old').endFrame, 600);
+  assert.equal(f.clips.find(clip => clip.resourceId === 'music').endFrame, 2400);
 });
 test('retry after a lost response does not duplicate music placed after frame zero', async () => {
   const f = fixture({fileTree: [{type: 'file', path: 'song.mp3', resourceId: 'saved'}], existingClips: [{resourceId: 'saved', trackKind: 'audio', startFrame: 300, endFrame: 600}]});
