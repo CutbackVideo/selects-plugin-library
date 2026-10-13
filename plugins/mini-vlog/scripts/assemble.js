@@ -5,8 +5,9 @@ const W = 1920, H = 1080;
 let d, fps, endFrame;
 const main = async () => (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null);
 // Selects snaps the music's source start to a frame, which shifts the whole track by up to half a frame; every cut
-// moves with it so it stays on the beat (planner.js mvMusicOffset, same expression).
-const offset = f => (cfg.music ? cfg.music.sectionStart - Math.round(cfg.music.sectionStart * f) / f : 0);
+// moves with it so it stays on the beat (planner.js mvMusicOffset, same expression). A reference edit's cuts
+// (music.referenceCuts) take no offset: they are whole frames at 25 fps, round(f * fps / 25) at any rate.
+const offset = f => (cfg.music && !cfg.music.referenceCuts ? cfg.music.sectionStart - Math.round(cfg.music.sectionStart * f) / f : 0);
 // Lays the Main clips on a new Draft, aiming every boundary at `rate` (or the new Draft's own rate).
 // A new Draft adopts its first clip's rate and frame size on the first insert. When the rate changes there, the clips
 // were aimed at the wrong rate, so this returns the real rate unless `final`; the caller then lays them again on a

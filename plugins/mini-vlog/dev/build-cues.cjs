@@ -26,10 +26,10 @@ const PROVENANCE = "Generated with ElevenLabs Music v2.5 and Suno (instrumental)
 // optional: a cue the build skips while its source is missing and it is not shipped yet.
 const CUES = [
   // The team's reference timeline (Mini Vlog in the Clip highlights demo project, 25 fps) plays Buant Hook from
-  // referenceStart (44.8586 s, measured against its audio; 37 ms before the measured bar 20, hookBar) and cuts at
+  // referenceStart (44.88 s, read from that project's file; 16 ms before the measured bar 20, hookBar) and cuts at
   // referenceCuts (seconds from there, its Standard Quick shots); its music runs referenceTail (0.68 s) past the last cut. The panel moves the bar grid onto referenceStart and
   // uses those cuts for that length (planner mvPlanBuild).
-  { id: 'buant-hook', label: 'Buant Hook', source: 'suno-buant-hook.wav', group: 'reference', optional: true, hookBar: 20, referenceStart: 44.8586, referenceTail: 0.68,
+  { id: 'buant-hook', label: 'Buant Hook', source: 'suno-buant-hook.wav', group: 'reference', optional: true, hookBar: 20, referenceStart: 44.88, referenceTail: 0.68,
     referenceCuts: [0,0.6,1.16,1.68,2.28,2.8,3.36,3.96,4.48,5.04,5.6,6.16,6.68,7.28,7.8,8.36,8.96,9.48,10.04,10.6,11.16,11.68,12.24,12.84,13.36] },
   { id: 'bedroom-pop-108', label: 'Bedroom Pop', source: 'minivlog-bedroom-pop-108bpm.mp3', group: 'reference', optional: true },
   { id: 'acoustic-pop-104', label: 'Acoustic Pop', source: 'minivlog-acoustic-pop-104bpm.mp3', group: 'reference', optional: true },

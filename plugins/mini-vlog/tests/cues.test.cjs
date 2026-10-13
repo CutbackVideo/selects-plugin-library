@@ -10,7 +10,7 @@ assert.equal(m.version, 1);
 // start (Golden Hour Disco and Easy Sunday Lo-fi pick bar 0 on their strongest low band, which fades later).
 const ALL = [
   // Buant Hook's hook start is where the team's reference timeline starts it (referenceStart, at bar 20).
-  { id: 'buant-hook', bpm: 108, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 44.859 },
+  { id: 'buant-hook', bpm: 108, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 44.88 },
   { id: 'bedroom-pop-108', bpm: 108, group: 'reference', downbeat: 'high', barPhase: 0, hookStart: 37.806 },
   { id: 'acoustic-pop-104', bpm: 104, group: 'reference', downbeat: 'high', barPhase: 2, hookStart: 33.492 },
   { id: 'weekend-indie-pop', bpm: 112, group: 'reference', downbeat: 'low', barPhase: 0, hookStart: 4.313 },
