@@ -479,3 +479,10 @@ console.log('planner ok');
   assert.strictEqual(build().referenceCuts, true);
   assert.strictEqual(build({ requested: 12 }).referenceCuts, false);
 }
+// The tail ends on the reference edit's own end frame at any rate: round((last cut + tail) * fps) (assemble.js).
+{
+  const cue = manifest.cues.find(c => c.id === 'buant-hook'), end = cue.referenceCuts[24] + cue.referenceTail;
+  assert.strictEqual(Math.round(end * 25), 351);
+  assert.strictEqual(Math.round(end * 24000 / 1001), 337, '23.976 fps tail end');
+  assert.ok(fs.readFileSync(__dirname + '/../scripts/assemble.js', 'utf8').includes('Math.round((cfg.boundaries[cfg.boundaries.length - 1] + offset(fps) + cfg.music.tailSeconds) * fps) - endFrame'), 'assemble.js aims the tail end');
+}
