@@ -1,6 +1,6 @@
 ---
 name: daily-vlog-8
-description: Build an editable daily vlog Draft from one project footage folder, cut to the measured beat of its bundled song for the song's full length, with an animated yellow title, transitions and sound effects.
+description: Build an editable 20.48 s daily vlog Draft from one project footage folder on the team's reference edit, with an animated yellow title, transitions, sound effects and the bundled song.
 ---
 
 # 8-Clip Daily Vlog
@@ -21,28 +21,32 @@ left with nothing that fits, which is why a draw succeeds whenever the folder ca
 plan at all.
 
 Press **Create vlog Draft**. The panel writes a new editable Draft: the animated title over the
-opening clip, then the remaining shots on the song's measured cut plan, with transition, shutter and typing
+opening clip, then the remaining shots on the reference edit's cuts, with transition, shutter and typing
 effects and the bundled song. Clips, title text, effects and audio all stay editable.
 
-## Shot plan (measured from the song)
+## Shot plan (the reference edit)
 
-The Draft is exactly as long as the bundled song, "Relaxed Urban Bed" (69.84 s), which plays in full. The panel
-measures the song with `selects.media.measureBeatSync` and plans the shots from the reference edit's rules
-(@capcutverse daily vlog):
+Every build makes the team's reference edit of this template (its "8-Clip Daily Vlog" timeline), frame for frame
+at 25 fps; other Draft rates take round(frame × fps / 25). The Draft is 512 frames (20.48 s) and plays "Relaxed Urban
+Bed" from 36.04 s into the song. The song is not measured.
 
-- The opening shot under the animated title runs about 4.3 s.
-- Then the reference's phrase of shot lengths — 2.6, 1.63, 1.73, 1.03 (insert), 0.7, 1.5 (insert), 1.8, 1.8 s —
-  repeats until the song's pulse ends. Every cut moves to the song's nearest half beat (the beat period inside
-  0.28–0.60 s), then onto the strongest onset within 35 ms, so each transition lands on the music.
-- The closing shot with "THANKS FOR WATCHING" runs from the last cut to the end of the song.
-- Each cut keeps the reference's transition and sound effect for its place in the phrase (film exposure, amber
-  shutter, film gate, vertical smear, one-frame hold, cyan-magenta flash, optical dissolve; whoosh, shutters, camera
-  beep, typing), and the music ducks under each sound effect as in the reference.
+| Frames | Clip | Cut into the next shot |
+|---|---|---|
+| 0–107 | opening clip, "DAILY VLOG" title (0–107) | traced film exposure (5/5 frames), whoosh 100–134 |
+| 107–151 | clip 1 | amber camera exposure (3/5) |
+| 151–194 | clip 2, "JUST EVERYDAY MOMENTS" (116–194) | wide cream film gate (3/4), whoosh 183–217 |
+| 194–275 | clip 3, split at 236 where the source jumps 2.88 s on, 110 % | straight cut |
+| 275–321 | clip 4, 110 % | banded vertical exposure (3/3), camera beep 312–335 |
+| 321–366 | clip 5 | straight cut, shutter 366–371 |
+| 366–411 | clip 6 | amber camera exposure (4/4) |
+| 411–451 | clip 7 | traced film exposure (5/5) |
+| 451–512 | clip 8, 110 % shifted left, "THANKS FOR WATCHING" (451–512) | — |
 
-With the bundled song that is 41 shots. The first phrase uses the seven picks in order, with two clips from the
-folder that were not picked as the inserts; later phrases continue through the folder's other clips and then start
-over at new source offsets, so a bigger folder gives more variety. The closing shot uses the closing pick when it is
-long enough, else the folder's longest clip.
+Also: a whoosh at 0–34 and typing at 119–152 and 451–485. The music dips under the sound effects.
+
+A template run uses the clips in the order given (a ninth is not used; with seven, the opening clip returns for
+411–451). The panel uses its seven picks for clips 1–6 and 8 and one more clip from the folder for clip 7. A clip
+shorter than its shot repeats from its start.
 
 The slot labels are a suggestion, not a constraint: opening/travel, everyday place,
 activity/detail, moving scenery, walking/movement, small discovery, rest/portrait, and a
@@ -65,5 +69,5 @@ install folder.
 
 ## Verify after creating a draft
 
-Check the animated yellow title over the opening clip, the shots changing on the song's beat, the
-transition and shutter effects, and the song running in full to the end.
+Check the animated yellow title over the opening clip, the ten Main clips ending at frames 107, 151, 194, 236,
+275, 321, 366, 411, 451 and 512 (at 25 fps), the transition and shutter effects, and the song under the whole Draft.

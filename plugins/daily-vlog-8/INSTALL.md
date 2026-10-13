@@ -1,11 +1,10 @@
 # Install notes
 
 No extra runtimes, models or credentials are required. The panel builds the Draft through the
-Selects SDK, measures the bundled song with `selects.media.measureBeatSync` (a Selects build without it
-shows an update message) and reads its bundled audio from `daily-vlog-8/assets/` in the skills root,
+Selects SDK and reads its bundled audio from `daily-vlog-8/assets/` in the skills root,
 through the host's file access (no shell command), on macOS and Windows. No network access is
 used.
 
-Fonts: the animated title falls back through `Gill Sans` and `Arial Black` to a generic
-sans-serif, and the closing card through Segoe UI and Arial on Windows, so both render
-without installing anything.
+Fonts: the titles use the reference edit's faces: `Chelsea Market Pro` for the animated title (not
+bundled; without it the title falls back to the system's default face) and `Courier New`, which macOS
+and Windows ship, for the two text cards. All three stay editable in the Draft.
