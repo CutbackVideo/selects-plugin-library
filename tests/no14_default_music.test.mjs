@@ -9,21 +9,22 @@ function fixture(musicType='Audio',durationSeconds=9) {
  const photos='ABCD'.split('').map(slot=>({resourceId:slot,path:`/${slot}.jpg`,width:1024,height:1536}));
  const placements=plan.occurrences.map((o,i)=>({...o,clipId:i+1,trackId:`image-${i}`}));
  const images=placements.map(p=>({...p,trackKind:'video',resourceId:p.slot}));
- const rows=[...images];
+ // createNo14Draft seeds the Draft with the song on Main; the finish step reads it back.
+ const rows=[...images,{clipId:100,trackId:'main',trackKind:'main',resourceId:'music',startFrame:0,endFrame:plan.durationFrames}];
  const calls=[];
  const input={projectId:'project',draftId:'draft',photos,placements,decoration:{shape:'heart',color:'#ffffff'},framing:Object.fromEntries(placements.map(p=>[`${p.appearance}-${p.slot}`,{x:.5,y:.5}])),music:{resourceId:'music'}};
  const resources=[...photos.map(p=>({resourceId:p.resourceId,type:'Image'})),{resourceId:'music',type:musicType,durationSeconds}];
  const project={meta:async()=>({draftIds:['draft']}),resources:async()=>resources,resource:id=>({id})};
- const draft={meta:async()=>({fps:30,durationFrames:266,frameSize:{width:720,height:1280}}),clips:async()=>rows.map(r=>({...r})),rangeAtFrames:async(startFrame,endFrame)=>({startFrame,endFrame}),setClipTransform:async()=>calls.push('transform'),addVideoEffect:async()=>calls.push('effect'),addMotionGraphic:async()=>calls.push('decoration'),overlayResource:async({resource,over})=>{calls.push('music');assert.equal(resource.id,'music');rows.push({clipId:100,trackId:'audio-1',trackKind:'audio',resourceId:'music',startFrame:over.startFrame,endFrame:over.endFrame});return{inserted:true};},commitAll:async()=>{calls.push('commit');return{commitId:'saved'};}};
+ const draft={meta:async()=>({fps:30,durationFrames:266,frameSize:{width:720,height:1280}}),clips:async()=>rows.map(r=>({...r})),rangeAtFrames:async(startFrame,endFrame)=>({startFrame,endFrame}),setClipTransform:async()=>calls.push('transform'),addVideoEffect:async()=>calls.push('effect'),addMotionGraphic:async()=>calls.push('decoration'),commitAll:async()=>{calls.push('commit');return{commitId:'saved'};}};
  return{input,plan,images,rows,calls,selects:{project:()=>project,draft:()=>draft}};
 }
 
-test('default music is one independent full-length Audio clip without altering native Images',async()=>{
+test('default music is one full-length Main clip without altering native Images',async()=>{
  const f=fixture();const before=structuredClone(f.images);
  const result=await authorNativeFinish(f.selects,f.input,f.plan);
  assert.equal(result.status,'saved',result.message);
  assert.deepEqual(f.rows.filter(r=>r.trackKind==='video'),before);
- assert.deepEqual(f.rows.filter(r=>r.trackKind==='audio').map(r=>[r.resourceId,r.startFrame,r.endFrame]),[['music',0,266]]);
+ assert.deepEqual(f.rows.filter(r=>r.trackKind==='main').map(r=>[r.resourceId,r.startFrame,r.endFrame]),[['music',0,266]]);
  assert.equal(f.calls.filter(c=>c==='commit').length,1);
  assert.deepEqual(result.recipe.music,f.input.music);
 });
@@ -60,7 +61,7 @@ test('pre-existing audio is rejected before any mutation',async()=>{
  assert.equal((await authorNativeFinish(f.selects,f.input,f.plan)).status,'notSaved');assert.deepEqual(f.calls,[]);
 });
 
-test('an incomplete audio overlay is never committed',async()=>{
- const f=fixture();f.selects.draft().overlayResource=async()=>{f.rows.push({clipId:100,trackKind:'audio',resourceId:'music',startFrame:0,endFrame:265});};
+test('a short Main music clip is never committed',async()=>{
+ const f=fixture();f.rows.find(r=>r.trackKind==='main').endFrame=265;
  assert.equal((await authorNativeFinish(f.selects,f.input,f.plan)).status,'notSaved');assert.ok(!f.calls.includes('commit'));
 });

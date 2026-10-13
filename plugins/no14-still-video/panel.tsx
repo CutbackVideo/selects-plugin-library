@@ -60,96 +60,22 @@ export function nativeScenePlan(fpsInput){
  if(overlapFrames<2||occurrences.some(o=>!(o.endFrame>o.startFrame)||o.endFrame>durationFrames||(o.fadeDuration!=null&&!(o.fadeDuration>0)))||full.some((o,i)=>i>0&&(o.startFrame!==converted.transitions[i-1].cutFrame||full[i-1].endFrame!==o.startFrame+overlapFrames||o.endFrame-o.startFrame<=overlapFrames)))throw Error('This project frame rate cannot hold the No.14 timing');
  return keyedPlan(converted);
 }
-// The song's pulse: subdivision period inside [lo, hi] s and phase, fitted to the onset flux over the
-// whole song; loudness entry/exit (0.5 s windows within 8 dB of the median); onsets for snapping.
-export function songGrid(m, lo, hi) {
-  const a = m.audio;
-  if (!a || a.status !== "measured") throw new Error("The song has no measurable audio.");
-  const h = a.hopSeconds, t0 = a.startSeconds, flux = a.frames.flux, rms = a.frames.rmsDb, n = flux.length, dur = m.durationSeconds;
-  let mean = 0; for (let i = 0; i < n; i++) mean += flux[i]; mean /= n;
-  const ac = (p) => { let s = 0; for (let i = p; i < n; i++) s += (flux[i] - mean) * (flux[i - p] - mean); return s / (n - p); };
-  let p0 = Math.round(lo / h), best = -Infinity;
-  for (let p = Math.round(lo / h); p <= Math.round(hi / h); p++) { const v = ac(p); if (v > best) { best = v; p0 = p; } }
-  // Loudness windows.
-  const win = [], w = Math.round(0.5 / h);
-  for (let i = 0; i + w <= n; i += w) { let s = 0; for (let k = i; k < i + w; k++) s += rms[k]; win.push({ t: t0 + i * h, db: s / w }); }
-  const body = win.map((x) => x.db).sort((x, y) => x - y)[Math.floor(win.length / 2)];
-  const loud = win.filter((x) => x.db >= body - 8);
-  const entry = loud.length ? loud[0].t : 0, exit = loud.length ? loud[loud.length - 1].t + 0.5 : dur;
-  // Fine period and phase: the comb that the most onset flux sits on (within 12 ms) between entry and exit
-  // (2.5 ms phase steps, 0.1 ms period steps). Onset times, not flux peaks, are what cuts snap to.
-  const hits = a.onsets.filter((o) => o.t >= entry && o.t <= exit);
-  let fit = { s: -1, P: p0 * h, phase: 0 };
-  for (let P = p0 * h * 0.985; P <= p0 * h * 1.015; P += 0.0001) {
-    for (let ph = 0; ph < P; ph += 0.0025) {
-      let s = 0;
-      for (const o of hits) { const r = (((o.t - entry - ph) % P) + P) % P; if (Math.min(r, P - r) <= 0.012) s += o.flux; }
-      if (s > fit.s) fit = { s, P, phase: entry + ph };
-    }
-  }
-  const onsets = a.onsets.map((o) => ({ t: o.t, f: o.flux }));
-  // The strongest onset within `tol` of t, else t itself.
-  const snap = (t, tol) => { let b = null; for (const o of onsets) if (Math.abs(o.t - t) <= tol && (!b || o.f > b.f)) b = o; return b ? b.t : t; };
-  const gridAfter = (t) => fit.phase + Math.ceil((t - fit.phase - 1e-6) / fit.P) * fit.P;
-  return { dur, period: fit.P, phase: fit.phase, entry, exit, body, win, onsets, snap, gridAfter };
+// Semin's reference edit (Music on, the default): the bundled song from 26.2 s under 196 frames at 25 fps. Her
+// clips sit at hand-edited frames while each clip's No.14 effect keeps the plugin's own 25 fps timing
+// (nativeScenePlan), so each animation runs from where its clip starts, as in her Draft. Another rate scales every
+// clip frame by round(f*fps/25). The grid clips and fullscreen C carry the "Fade down" preset (reveal-fade-down).
+export function seminScenePlan(fpsInput){
+ const fps=planFps(fpsInput),at=f=>Math.round(f*fps/25),base=nativeScenePlan(fps);
+ const clips={'grid-A':[0,113,.6],'grid-B':[0,113,.6],'grid-C':[0,113,.6],'grid-D':[0,113,.6],'fullscreen-A':[95,143],'fullscreen-B':[127,161],'fullscreen-D':[143,175],'fullscreen-C':[161,196,.5]};
+ const occurrences=base.occurrences.map(o=>{const [s,e,fadeDown]=clips[o.key];return {...o,startFrame:at(s),endFrame:at(e),effectStartFrame:o.startFrame,fadeDown:fadeDown||0};});
+ if(occurrences.some(o=>!(o.endFrame>o.startFrame)))throw Error('This project frame rate cannot hold the No.14 timing');
+ return {...base,durationFrames:at(196),fidelity:'semin-reference',occurrences,musicStartSeconds:26.2};
 }
-
-// Four Photo Reveal (No.14, capcut.nc "4 Photo Template"): one phrase = A, B, C, D appear in the 2x2 grid about
-// 0.9 s apart, the grid holds, then A, B, D, C go fullscreen about 1 s each (8.87 s at the reference). Each reference
-// time (seconds from the phrase start) moves to the song's nearest half beat (beat 0.28-0.60 s), onset-snapped; the
-// phrase repeats while it fits; the rest of the song continues the fullscreen cycle about 1 s a photo, and the last
-// photo holds to the end. Times are seconds; the panel turns them into frames.
-export function planNo14(m) {
-  const g = songGrid(m, 0.28, 0.6), half = g.period / 2, tol = 0.035, dur = g.dur;
-  const near = (t) => Math.max(0, g.snap(g.phase + Math.round((t - g.phase) / half) * half, tol));
-  const REVEAL = [0.856667, 1.793333, 2.673333], FULL = [4.333333, 5.333333, 6.366667, 7.333333], END = 8.866667, STEP = 1.0;
-  const phrases = [];
-  for (let s = 0; ; ) {
-    let e = near(s + END);
-    if (e > dur + 1e-6) { if (phrases.length) break; e = dur; } // a song as short as the reference still gets its one phrase
-    phrases.push({ start: s, reveal: [s, ...REVEAL.map((x) => near(s + x))], full: FULL.map((x) => near(s + x)), end: e });
-    if (e >= dur) break;
-    s = e;
-  }
-  if (!phrases.length) throw new Error("The song is shorter than one phrase.");
-  const tail = [];
-  let at = phrases[phrases.length - 1].end;
-  while (dur - at >= 2 * STEP) { const next = near(at + STEP); tail.push({ start: at, end: next }); at = next; }
-  if (tail.length) tail[tail.length - 1].end = dur; else phrases[phrases.length - 1].end = dur;
-  return { durationSeconds: dur, beatSeconds: g.period, phrases, tail };
-}
-
-// The song plan (planNo14, seconds) at the Draft's rate. Every occurrence has a key (phrase, appearance, slot) and
-// every transition names the clips it joins. Grid A ends one overlap after its phrase's first fullscreen cut and the
-// other grid photos half an overlap after, A fading over the last eight thirtieths, as in the reference (140, 135,
-// 132-140 against the cut at 130). Fullscreen photos overlap the next one in their run by the ten-frame crossfade;
-// a phrase's run starts with the reference's fade-in, and the fullscreen tail continues the last run.
-export function songScenePlan(song,fpsInput){
- const fps=planFps(fpsInput),base=scenePlan(),at=t=>Math.round(t*fps),overlapFrames=Math.round(10*fps/30),fadeLead=Math.round(2*fps/30);
- const durationFrames=Math.floor(song.durationSeconds*fps+1e-6),full={x:0,y:0,width:base.canvas.width,height:base.canvas.height};
- const rect=Object.fromEntries(base.occurrences.filter(o=>o.appearance==='grid').map(o=>[o.slot,o.rect]));
- const occurrences=[],chain=[];
- song.phrases.forEach((p,k)=>{
-  const cut=at(p.full[0]);
-  ['A','B','C','D'].forEach((slot,i)=>occurrences.push({key:'p'+k+'-grid-'+slot,slot,appearance:'grid',startFrame:at(p.start),endFrame:cut+(i===0?overlapFrames:Math.round(overlapFrames/2)),rect:rect[slot],revealStart:i===0?p.start-0.026667:p.reveal[i],revealDuration:.5,radius:28,...(i===0?{fadeStart:(cut+fadeLead)/fps,fadeDuration:(overlapFrames-fadeLead)/fps}:{})}));
-  ['A','B','D','C'].forEach((slot,i)=>chain.push({key:'p'+k+'-fullscreen-'+slot,slot,start:at(p.full[i]),end:i<3?at(p.full[i+1]):at(p.end),first:i===0}));
- });
- song.tail.forEach((t,i)=>chain.push({key:'t'+i+'-fullscreen-'+'ABDC'[i%4],slot:'ABDC'[i%4],start:at(t.start),end:at(t.end),first:false}));
- chain[chain.length-1].end=durationFrames;
- const transitions=[];
- chain.forEach((c,j)=>{
-  const next=chain[j+1],linked=!!next&&!next.first&&next.start===c.end;
-  if(linked)transitions.push({after:c.slot,from:c.key,to:next.key,cutFrame:next.start});
-  occurrences.push({key:c.key,slot:c.slot,appearance:'fullscreen',startFrame:c.start,endFrame:c.end+(linked?overlapFrames:0),rect:full,revealStart:c.first?c.start/fps:null,revealDuration:.3,lateEase:c.first,radius:0});
- });
- if(overlapFrames<2||occurrences.some(o=>!(o.endFrame>o.startFrame)||o.startFrame<0||o.endFrame>durationFrames))throw Error('This project frame rate cannot hold the song plan');
- return {fps,canvas:base.canvas,durationFrames,fidelity:'song-plan',transitions,occurrences,overlapFrames,referenceFps:30};
-}
-// Keys for the single reference phrase (Music off), in the song plan's shape.
+// Keys for the single reference phrase. Each clip's effect starts with it, no Fade down preset, music from 0 s.
 export function keyedPlan(plan){
- const occurrences=plan.occurrences.map(o=>({...o,key:o.appearance+'-'+o.slot}));
+ const occurrences=plan.occurrences.map(o=>({...o,key:o.appearance+'-'+o.slot,effectStartFrame:o.startFrame,fadeDown:0}));
  const transitions=plan.transitions.map(t=>({...t,from:'fullscreen-'+t.after,to:occurrences.find(o=>o.appearance==='fullscreen'&&o.startFrame===t.cutFrame).key}));
- return {...plan,occurrences,transitions};
+ return {...plan,occurrences,transitions,musicStartSeconds:0};
 }
 // The effect reads time as frame/fps; the 30 fps code is left exactly as measured.
 export function effectCodeFor(fps){
@@ -211,7 +137,7 @@ export function normalizeNativeFinish(raw,plan=nativeScenePlan(raw?.fps)){
   if(!/^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(path)||!Number.isSafeInteger(photo.width)||photo.width<1||!Number.isSafeInteger(photo.height)||photo.height<1)throw Error('Invalid Image dimensions or path');
   return {resourceId,path,width:photo.width,height:photo.height};
  });
- const decoration=raw.decoration??{shape:'heart',color:'#ffffff'};
+ const decoration=raw.decoration??{shape:'none',color:'#ffffff'};
  if(!decoration||typeof decoration!=='object'||Array.isArray(decoration)||Object.keys(decoration).some(k=>!['shape','color'].includes(k))||!['heart','star','circle','none'].includes(decoration.shape)||!/^#[0-9a-fA-F]{6}$/.test(decoration.color))throw Error('Choose a decoration shape and hex color');
  const framingInput=raw.framing??{},framing={};
  const keys=['grid','fullscreen'].flatMap(scene=>['A','B','C','D'].map(slot=>scene+'-'+slot));
@@ -247,7 +173,7 @@ export const authorNativeFinishSource=String.raw`async function authorNativeFini
   if(input.music){
    stage='music preflight';
    const music=resources.find(r=>r.resourceId===input.music.resourceId);
-   if(!music||music.type!=='Audio'||!Number.isFinite(music.durationSeconds)||music.durationSeconds<plan.durationFrames/plan.fps)throw Error('Music must be a ready Audio Resource covering the whole Draft');
+   if(!music||music.type!=='Audio'||!Number.isFinite(music.durationSeconds)||music.durationSeconds<plan.musicStartSeconds+plan.durationFrames/plan.fps)throw Error('Music must be a ready Audio Resource covering the whole Draft');
    if(rows.some(c=>c.trackKind==='audio'&&c.resourceId))throw Error('This new Draft already contains audio; inspect it before continuing');
   }
   const created=[];
@@ -273,9 +199,15 @@ export const authorNativeFinishSource=String.raw`async function authorNativeFini
    stage='effect '+occurrence.appearance+' '+occurrence.slot;
    const incoming=plan.transitions.find(t=>t.to===occurrence.key);
    const outgoing=plan.transitions.find(t=>t.from===occurrence.key);
-   await d.addVideoEffect({clip:current,label:'No.14 '+occurrence.appearance+' '+occurrence.slot,tsxCode:EFFECT_CODE,parameters:{g,startFrame:occurrence.startFrame,revealStart:occurrence.revealStart,revealDuration:occurrence.revealDuration,lateEase:occurrence.lateEase===true,fadeStart:occurrence.fadeStart??null,fadeDuration:occurrence.fadeDuration??1,radius:occurrence.radius*q,focusX:focus.x,focusY:focus.y,transitionIn:incoming?{startFrame:incoming.cutFrame,durationFrames:plan.overlapFrames??10}:null,transitionOut:outgoing?{startFrame:outgoing.cutFrame,durationFrames:plan.overlapFrames??10}:null},editableParameters:[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:focus.x,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:focus.y,min:0,max:1,step:.01}]});
+   await d.addVideoEffect({clip:current,label:'No.14 '+occurrence.appearance+' '+occurrence.slot,tsxCode:EFFECT_CODE,parameters:{g,startFrame:occurrence.effectStartFrame,revealStart:occurrence.revealStart,revealDuration:occurrence.revealDuration,lateEase:occurrence.lateEase===true,fadeStart:occurrence.fadeStart??null,fadeDuration:occurrence.fadeDuration??1,radius:occurrence.radius*q,focusX:focus.x,focusY:focus.y,transitionIn:incoming?{startFrame:incoming.cutFrame,durationFrames:plan.overlapFrames??10}:null,transitionOut:outgoing?{startFrame:outgoing.cutFrame,durationFrames:plan.overlapFrames??10}:null},editableParameters:[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:focus.x,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:focus.y,min:0,max:1,step:.01}]});
+   if(occurrence.fadeDown){
+    stage='Fade down '+occurrence.appearance+' '+occurrence.slot;
+    const withEffect=(await d.clips({trackScope:'all'})).find(c=>c.clipId===clip.clipId&&c.trackId===clip.trackId);
+    await d.applyEffectPreset({clip:withEffect,presetId:'reveal-fade-down',parameters:{style:'fade',direction:'out',span:occurrence.fadeDown,amount:60}});
+   }
   }
-  for(const transition of plan.transitions){
+  // Semin's hand-edited clips overlap by other lengths than the effects' crossfade; only the plugin's own plan is checked.
+  if(plan.fidelity!=='semin-reference')for(const transition of plan.transitions){
    stage='verify transition after '+transition.after;
    const from=created.find(c=>c.key===transition.from);
    const to=created.find(c=>c.key===transition.to);
@@ -285,8 +217,8 @@ export const authorNativeFinishSource=String.raw`async function authorNativeFini
   await d.addMotionGraphic({label:'No.14 decoration',within:await d.rangeAtFrames(0,plan.durationFrames),tsxCode:DECORATION_CODE,parameters:{...input.decoration,size:29,x:1.5,y:3.5},editableParameters:[{key:'shape',label:'Decoration',type:'select',defaultValue:input.decoration.shape,options:['heart','star','circle','none'].map(s=>({label:s,value:s}))},{key:'color',label:'Color',type:'color',defaultValue:input.decoration.color},{key:'size',label:'Size',type:'number',defaultValue:29,min:1,max:160,step:1},{key:'x',label:'Horizontal position',type:'number',defaultValue:1.5,min:-300,max:300,step:.5},{key:'y',label:'Vertical position',type:'number',defaultValue:3.5,min:-500,max:500,step:.5}]});
   if(input.music){
    stage='music';
-   await d.overlayResource({resource:project.resource(input.music.resourceId),over:await d.rangeAtFrames(0,plan.durationFrames)});
-   const audio=(await d.clips({trackScope:'all'})).filter(c=>c.trackKind==='audio'&&c.resourceId);
+   // The Draft was seeded with the song on Main (createNo14Draft), from plan.musicStartSeconds.
+   const audio=(await d.clips({trackScope:'all'})).filter(c=>c.trackKind==='main'&&c.resourceId);
    if(audio.length!==1||audio[0].resourceId!==input.music.resourceId||audio[0].startFrame!==0||audio[0].endFrame!==plan.durationFrames)throw Error('Music clip readback differs from the full Draft interval');
   }
   commitStarted=true;const saved=await d.commitAll('Finish No.14 original Image Draft');
@@ -298,6 +230,11 @@ export const authorNativeFinishSource=String.raw`async function authorNativeFini
 export function buildNativeFinishScript(raw,plan=nativeScenePlan(raw?.fps)){
  const input=normalizeNativeFinish(raw,plan);
  return `const input=${JSON.stringify(input)};const plan=${JSON.stringify(plan)};const EFFECT_CODE=${JSON.stringify(effectCodeFor(plan.fps))};const DECORATION_CODE=${JSON.stringify(DECORATION_CODE)};return await (${authorNativeFinishSource})(selects,input,plan);`;
+}
+// The step that creates the Draft: Main holds the song from plan.musicStartSeconds (Music on) or a gap (Music off),
+// as long as the plan; then the 720x1280 frame size.
+export function seedDraftScript(projectId,name,plan,musicResourceId){
+ return `const p=selects.project(${JSON.stringify(projectId)});const d=await p.createDraft({name:${JSON.stringify(name)}});${musicResourceId?`await d.insertResource({resourceId:${JSON.stringify(musicResourceId)},sourceRange:{startSeconds:${plan.musicStartSeconds},endSeconds:${plan.musicStartSeconds+plan.durationFrames/plan.fps}}});`:`await d.insertGap({seconds:${plan.durationFrames/plan.fps}});`}await d.setFrameSize(${JSON.stringify(plan.canvas)});const m=await d.meta();if(m.fps!==${plan.fps}||m.durationFrames!==${plan.durationFrames}||m.frameSize?.width!==${plan.canvas.width}||m.frameSize?.height!==${plan.canvas.height})throw Error('No.14 Draft frame grid differs from the reference.');const saved=await d.commitAll('Start No.14 original Image Draft');return {draftId:saved.createdDraftId};`;
 }
 // @operation-end
 
@@ -373,15 +310,7 @@ export async function readProjectFps(sdk,projectId){
  return fps;
 }
 
-// The bundled song's plan in seconds, measured inside Selects (selects.media.measureBeatSync).
-export async function readSongPlan(sdk,path){
- const r=await sdk.runScript({summary:'Measure the song\u2019s beat',allowCommit:false,timeoutSeconds:120,script:"if(typeof selects.media?.measureBeatSync!=='function')return {missing:true};"+songGrid.toString()+planNo14.toString()+"const m=(await selects.media.measureBeatSync({sources:[{path:"+JSON.stringify(path)+"}]}))[0];return planNo14(m);"});
- if(r.isError||!r.result)throw Error(r.output||'Could not measure the song.');
- if(r.result.missing)throw Error('This Selects build cannot measure the song. Update Selects, then try again.');
- return r.result;
-}
-
-export const DEFAULT_DECORATION={shape:'heart',color:'#ffffff'},DEFAULT_DRAFT_NAME='No.14 photo format',DEFAULT_MUSIC='on';
+export const DEFAULT_DECORATION={shape:'none',color:'#ffffff'},DEFAULT_DRAFT_NAME='No.14 photo format',DEFAULT_MUSIC='on';
 
 // av-host:start
 // Local files and media tools use the public async SDK. Paths remain host-native.
@@ -488,8 +417,9 @@ export async function createNo14Draft(sdk,{projectId,selected,decoration,framing
  const prepared=await prepareNativeImages(sdk,projectId,selected,libraryId);
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
  const fps=await readProjectFps(sdk,projectId);
- let plan=nativeScenePlan(fps);
- if(plan.fps!==fps||!Number.isSafeInteger(plan.durationFrames)||plan.durationFrames<1||(fps===30&&plan.durationFrames!==266)||plan.occurrences?.length!==8)throw Error('The reference plan is incomplete.');
+ // Music on (the default) is Semin's reference edit; Music off keeps the single reference phrase.
+ const plan=music==='on'?seminScenePlan(fps):nativeScenePlan(fps);
+ if(plan.fps!==fps||!Number.isSafeInteger(plan.durationFrames)||plan.durationFrames<1||(fps===30&&music!=='on'&&plan.durationFrames!==266)||plan.occurrences?.length!==8)throw Error('The reference plan is incomplete.');
  let musicResource=null;
  if(music==='on'){
   say('Checking bundled music…');
@@ -497,26 +427,23 @@ export async function createNo14Draft(sdk,{projectId,selected,decoration,framing
   const roots=await hostRoots(sdk,'no14-still-video',hostJoin('assets','music.mp3')).catch(()=>null);
   if(!roots)throw Error('The installed music asset could not be located. Reinstall the plugin.');
   const musicPath=hostJoin(roots.plugin,'assets','music.mp3');
-  // With the song, the whole song plays and the photos follow its measured beat (planNo14).
-  say('Measuring the song…');
-  plan=songScenePlan(await readSongPlan(sdk,musicPath),fps);
   const imported=await sdk.runScript({summary:'Import bundled music',allowCommit:true,script:`const p=selects.project(${JSON.stringify(projectId)}),path=${JSON.stringify(musicPath)};const nodes=[];const walk=tree=>{for(const n of tree??[]){if(n.path)nodes.push(n);if(n.children)walk(n.children);}};const tree=await p.sourceFiles();if('fileTree' in tree)walk(tree.fileTree);else if('folders' in tree)for(const f of tree.folders){const part=await p.sourceFiles({folder:f.name});if('fileTree' in part)walk(part.fileTree);}const key=x=>String(x||'').normalize('NFC').replace(/\\\\/g,'/').toLowerCase();const found=nodes.filter(n=>key(n.path)===key(path));if(found.length>1)throw Error('Bundled music source is ambiguous.');const id=found[0]?.resourceId??(await p.importFiles({paths:[path]})).addedResourceIds[0];if(!id)throw Error('Bundled music is missing. Reinstall the plugin.');return {resourceId:id};`});
   if(imported.isError||!imported.result?.resourceId)throw Error(imported.output||'Could not import bundled music.');
   musicResource=imported.result;
-  const ready=await sdk.runScript({summary:'Check music readiness',allowCommit:false,script:`const r=(await selects.project(${JSON.stringify(projectId)}).resources()).find(r=>r.resourceId===${JSON.stringify(musicResource.resourceId)});if(!r||r.type!=='Audio'||!Number.isFinite(r.durationSeconds)||r.durationSeconds<${plan.durationFrames/plan.fps})throw Error('Bundled music is not ready. Wait for the import to finish, then create the Draft again.');return true;`});
+  const ready=await sdk.runScript({summary:'Check music readiness',allowCommit:false,script:`const r=(await selects.project(${JSON.stringify(projectId)}).resources()).find(r=>r.resourceId===${JSON.stringify(musicResource.resourceId)});if(!r||r.type!=='Audio'||!Number.isFinite(r.durationSeconds)||r.durationSeconds<${plan.musicStartSeconds+plan.durationFrames/plan.fps})throw Error('Bundled music is not ready. Wait for the import to finish, then create the Draft again.');return true;`});
   if(ready.isError||ready.result!==true)throw Error(ready.output||'Bundled music is not ready.');
  }
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
  say('Creating an editable Image Draft…');
  let draftId;
  if(partialDraftId){
-  const checkScript=`const p=selects.project(${JSON.stringify(projectId)}),id=${JSON.stringify(partialDraftId)};if(!(await p.meta()).draftIds.includes(id))throw Error('Partial Draft is not in this Project.');const d=selects.draft(id),m=await d.meta(),rows=await d.clips({trackScope:'all'});if(m.fps!==${plan.fps}||m.durationFrames!==${plan.durationFrames}||m.frameSize?.width!==${plan.canvas.width}||m.frameSize?.height!==${plan.canvas.height}||rows.some(x=>x.resourceId))throw Error('Partial Draft is not empty; inspect it before retrying.');return {draftId:id};`;
+  const checkScript=`const p=selects.project(${JSON.stringify(projectId)}),id=${JSON.stringify(partialDraftId)};if(!(await p.meta()).draftIds.includes(id))throw Error('Partial Draft is not in this Project.');const d=selects.draft(id),m=await d.meta(),rows=await d.clips({trackScope:'all'});if(m.fps!==${plan.fps}||m.durationFrames!==${plan.durationFrames}||m.frameSize?.width!==${plan.canvas.width}||m.frameSize?.height!==${plan.canvas.height}||rows.some(x=>x.resourceId&&!(x.trackKind==='main'&&x.resourceId===${JSON.stringify(musicResource?.resourceId??null)})))throw Error('Partial Draft is not empty; inspect it before retrying.');return {draftId:id};`;
   const check=await sdk.runScript({script:checkScript,summary:'Inspect partial Image Draft',allowCommit:false});
   if(check.isError||check.result?.draftId!==partialDraftId)throw Error(check.output||'The partial Draft cannot be safely continued.');
   draftId=partialDraftId;
  }else{
   onSeed();
-  const seedScript=`const p=selects.project(${JSON.stringify(projectId)});const d=await p.createDraft({name:${JSON.stringify(name)}});await d.insertGap({seconds:${plan.durationFrames/plan.fps}});await d.setFrameSize(${JSON.stringify(plan.canvas)});const m=await d.meta();if(m.fps!==${plan.fps}||m.durationFrames!==${plan.durationFrames}||m.frameSize?.width!==${plan.canvas.width}||m.frameSize?.height!==${plan.canvas.height})throw Error('No.14 Draft frame grid differs from the reference.');const saved=await d.commitAll('Start No.14 original Image Draft');return {draftId:saved.createdDraftId};`;
+  const seedScript=seedDraftScript(projectId,name,plan,musicResource?.resourceId??null);
   const seed=await sdk.runScript({script:seedScript,summary:'Create No.14 Image Draft',allowCommit:true});
   if(seed.isError||!seed.result?.draftId){const error=Error(seed.output||'Could not create the Image Draft. Check the Project before retrying.');error.seedOutput=seed.output;throw error;}
   draftId=seed.result.draftId;
@@ -566,7 +493,7 @@ function No14Panel({sdk,context,ui}){
   }catch(error){if(createdDraftId)setPartialDraftId(createdDraftId);setStatus(String(error?.message||error)+(createdDraftId?' The partial Draft is '+createdDraftId+'; it will be checked before continuing.':''));}finally{running.current=false;setBusy(false);}
  }
  return <ui.Stack gap={16}><ui.Section title="No.14 photo format">
-  <ui.Message>Four original photos become {music==='off'?'eight':'54'} independently editable Image clips. Timing and transitions are still experimental.</ui.Message>
+  <ui.Message>Four original photos become eight independently editable Image clips. Timing and transitions are still experimental.</ui.Message>
   {!context.projectId&&<ui.Message>Open a Project first.</ui.Message>}
   <ui.Button variant="secondary" onClick={load} disabled={!context.projectId||busy} busy={busy}>Load Project photos</ui.Button>
   {['A','B','C','D'].map((slot,i)=><ui.Select key={slot} label={'Photo '+slot} value={slots[i]} onChange={value=>setSlots(old=>old.map((x,j)=>j===i?value:x))} options={photos.map(p=>({value:p.resourceId,label:p.name}))} placeholder="Choose photo" disabled={busy||loadedProject!==context.projectId}/>)}
