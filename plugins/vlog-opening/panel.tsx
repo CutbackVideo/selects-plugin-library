@@ -1448,11 +1448,41 @@ function assembleScript(projectId: string, draftName: string, beats: any[], fram
 const p = selects.project(${JSON.stringify(projectId)});
 const BEATS: any[] = ${JSON.stringify(beats)};
 const FRAME: { width: number; height: number } | null = ${JSON.stringify(frameSize ?? null)};
-const d = await p.createDraft({ name: ${JSON.stringify(draftName)} });
+let d = await p.createDraft({ name: ${JSON.stringify(draftName)} });
 const placedMain = async () => (await d.clips({ trackScope: "main" })).filter(c => c.resourceId !== null);
 let rate = 0;
 let endFrame = 0;
-for (const b of BEATS) {
+// A reference layout (ref25 on every beat: its end in 25 fps frames on the finished timeline, gap25 the gap inserted
+// before it later) lands every boundary on round(f * fps / 25) at the Draft's real rate, which may be fractional
+// (23.976). Selects snaps each end of a source range to a Draft frame on its own (round(end * fps) - round(start * fps)),
+// so every window starts on a whole Draft frame and lasts exactly the frames wanted. A new Draft takes its first clip's
+// rate on the first insert; when that differs from the rate aimed at, the clips are laid again on a fresh, never
+// committed Draft.
+const REF = BEATS.length > 0 && BEATS.every(b => typeof b.ref25 === "number");
+const layRef = async (fps: number, final: boolean) => {
+  endFrame = 0;
+  for (let i = 0; i < BEATS.length; i++) {
+    const b = BEATS[i];
+    const at = (f: number) => Math.round((f * fps) / 25);
+    const want = at(b.ref25) - (b.gap25 ? at(b.gap25[1]) - at(b.gap25[0]) : 0) - endFrame;
+    // A source ends at its last whole frame (later is invalid_source_range), so a window near the end slides back.
+    const cap = typeof b.total === "number" && b.total > 0 ? Math.floor(b.total * fps + 1e-6) - want : Infinity;
+    const k = Math.max(0, Math.min(Math.round(b.a * fps), cap));
+    await d.insertResource({ resourceId: b.rid, sourceRange: { startSeconds: k / fps, endSeconds: (k + want) / fps } });
+    endFrame = (await placedMain()).reduce((a, c) => Math.max(a, c.endFrame), 0);
+    if (i === 0) {
+      const real = (await d.meta()).fps;
+      if (real !== fps) { if (!final) return real; fps = real; }
+    }
+  }
+  rate = fps;
+  return null;
+};
+if (REF) {
+  const real = await layRef((await d.meta()).fps, false);
+  if (real) { d = await p.createDraft({ name: ${JSON.stringify(draftName)} }); await layRef(real, true); }
+}
+for (const b of REF ? [] : BEATS) {
   // Never ask for more than the source holds, whatever the caller computed.
   const limit = typeof b.total === "number" && b.total > 0 ? b.total : b.b;
   let end = Math.min(b.b, Math.floor(limit * 100) / 100);
@@ -1460,11 +1490,7 @@ for (const b of BEATS) {
   // A beat-timed clip ends on its planned frame, so frame rounding in earlier
   // clips is absorbed here instead of drifting off the beat.
   if (rate && typeof b.t1 === "number") {
-    // A reference shot (ref25: 25 fps frames on the finished timeline, less any gap inserted later) lands on
-    // round(f * fps / 25).
-    const at = (f: number) => Math.round((f * rate) / 25);
-    const target = typeof b.ref25 === "number" ? at(b.ref25) - (b.gap25 ? at(b.gap25[1]) - at(b.gap25[0]) : 0) : Math.round(b.t1 * rate);
-    const frames = target - endFrame;
+    const frames = Math.round(b.t1 * rate) - endFrame;
     if (frames >= 2) end = Math.min(Math.floor(limit * 100) / 100, start + frames / rate);
   }
   if (!(end > start)) continue;

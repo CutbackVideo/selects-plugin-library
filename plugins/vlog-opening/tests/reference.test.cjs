@@ -22,9 +22,11 @@ const sha = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 
 // Effects browser presets by id, as the app names the effect it places.
 const PRESET_NAMES = { 'reveal-blur-in': 'Blur in', 'filter-film-stock': 'Film stock', 'basic-adjust': 'Color & Tone' };
 
-// A Draft that records what the scripts do (the SDK verbs they call, on one main track).
+// A Draft that records what the scripts do (the SDK verbs they call, on one main track). Like Selects, a new Draft
+// is at 30 fps until its first insert gives it the clip's rate (`fps`), and each end of a source range is snapped to a
+// Draft frame on its own.
 function recordingSelects(fps, opts = {}) {
-  let nextId = 1;
+  let nextId = 1, drafts = 0, rate = 30;
   const main = [], video = [], audio = [], transitions = [];
   let tail = 0;
   const end = () => Math.max(0, ...main.map(c => c.endFrame), ...video.map(c => c.endFrame)) + tail;
@@ -32,9 +34,12 @@ function recordingSelects(fps, opts = {}) {
   const find = (clip) => main.find(c => c.clipId === clip.clipId) || video.find(c => c.clipId === clip.clipId);
   const draft = {
     async insertResource({ resourceId, sourceRange }) {
+      rate = fps;
       const at = Math.max(0, ...main.map(c => c.endFrame));
-      main.push({ clipId: nextId++, resourceId, startFrame: at, endFrame: at + Math.round((sourceRange.endSeconds - sourceRange.startSeconds) * fps), effects: [], transform: {} });
+      const n = Math.round(sourceRange.endSeconds * fps) - Math.round(sourceRange.startSeconds * fps);
+      main.push({ clipId: nextId++, resourceId, startFrame: at, endFrame: at + n, effects: [], transform: {} });
     },
+    async meta() { return { fps: rate }; },
     async clips({ trackScope }) {
       const m = main.map(c => row(c, 'main'));
       return trackScope === 'main' ? m : [...m, ...video.map(c => row(c, 'video')), ...audio.map(c => row(c, 'audio'))];
@@ -70,18 +75,21 @@ function recordingSelects(fps, opts = {}) {
     async overlayResource({ over, sourceStartSeconds }) { audio.push({ clipId: nextId++, startFrame: over.a, endFrame: over.b, sourceStartSeconds }); },
   };
   const selects = {
-    project: () => ({ createDraft: async () => draft, resource: (id) => ({ id }) }),
+    project: () => ({
+      createDraft: async () => { drafts++; rate = 30; main.length = 0; video.length = 0; audio.length = 0; transitions.length = 0; tail = 0; return draft; },
+      resource: (id) => ({ id }),
+    }),
     draft: () => draft,
     effectPresets: { get: async () => ({ editableParameters: [] }) },
   };
-  return { selects, main, video, audio, transitions };
+  return { selects, main, video, audio, transitions, drafts: () => drafts };
 }
 const run = (selects, script) => new Function('selects', strip('async function execute() {' + script + '\n}') + '\nreturn execute();')(selects);
 
 // One default build of `style` at `fps`: the reference's shots from made-up footage, assembled and finished.
 async function build(style, fps, opts = {}) {
   const tpl = K.voRefTemplate(style);
-  let beats = tpl.map((s, i) => ({ role: s.role, rid: 'r' + (s.continues ? i - 1 : i), name: 'clip' + i + '.mp4', total: 60, a: 10, b: 10 + s.dur, t: 12, path: null, ...(s.continues ? { continues: true } : {}) }));
+  let beats = tpl.map((s, i) => ({ role: s.role, rid: 'r' + (s.continues ? i - 1 : i), name: 'clip' + i + '.mp4', total: 60, a: opts.a ?? 10, b: (opts.a ?? 10) + s.dur, t: 12, path: null, ...(s.continues ? { continues: true } : {}) }));
   beats = K.voRefRetime(style, beats);
   const rec = recordingSelects(fps, opts);
   const asm = await run(rec.selects, K.assembleScript('project-1', 'Opening', beats, null));
@@ -186,6 +194,17 @@ const byStart = (a, b) => a[1] - b[1] || a[0].localeCompare(b[0]);
     assert.equal(K.voRefQuotes(found.beats).length, 9);
     const two = await run(selects, K.selectQuotesScript('p', 40, 3, clips));
     assert.equal(K.voRefQuotes(two.beats), null, 'two lines per clip from three clips is not enough');
+  }
+  // A 23.976 fps Draft from sources whose windows start between frames: every boundary still lands on
+  // round(f * 23.976 / 25), the clips laid again on a fresh Draft once the real rate is known.
+  for (const style of ['whip', 'motion', 'quotes']) {
+    const fps = 24000 / 1001;
+    const { rec, out } = await build(style, fps, { a: 10.0137 });
+    const f = (v) => Math.round(v * fps / 25);
+    assert.deepEqual(rec.main.map(c => [c.startFrame, c.endFrame]), EXPECTED[style].main.map(([a, b]) => [f(a), f(b)]), style + ' at 23.976');
+    assert.deepEqual(rec.audio.map(a => [a.startFrame, a.endFrame]), [[f(EXPECTED[style].music[0]), f(EXPECTED[style].music[1])]], style + ' music at 23.976');
+    assert.equal(rec.drafts(), 2, 'laid again at the real rate');
+    assert.deepEqual(out.notes, []);
   }
   // A frame narrower than 3:2 goes without the letterbox.
   assert.ok(!(await build('whip', 25, { wide: false })).rec.video.some(g => /letterbox/.test(g.label)));
