@@ -45,7 +45,17 @@ def inspect(name, data):
         text = data.decode('utf-8')
     except UnicodeDecodeError:
         return findings + ['binary file requires review']
-    findings.extend(label for label, pattern in RULES.items() if pattern.search(text))
+    # Panel titles are localized metadata read literally by Selects (Unicode
+    # escapes in these comments would appear verbatim in the Apps list).
+    language_text = text
+    if re.fullmatch(r'plugins/[a-z0-9]+(?:-[a-z0-9]+)*/panel\.tsx', name):
+        lines = text.splitlines(keepends=True)
+        language_text = ''.join(
+            '\n' if i < 24 and re.fullmatch(r'[ \t]*//[ \t]*@name:[a-z]{2}[ \t]+[^\r\n]+\r?\n?', line) else line
+            for i, line in enumerate(lines)
+        )
+    findings.extend(label for label, pattern in RULES.items()
+                    if pattern.search(language_text if label == 'non-English Korean text' else text))
     return findings
 
 
