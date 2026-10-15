@@ -1276,6 +1276,39 @@ async function settleFaceJob(io: { submit(): Promise<any>; status(cancel: boolea
   return { wf, status: { ...s, code: s.code || "TIMEOUT", error: s.error || "Finding faces took too long." } };
 }
 
+// One FFmpeg job on the host (the picture check's frames), from start to end. A media job outlives the script that
+// started it (up to ten minutes), so whenever this ends without success (too slow, a status check failing, the
+// user cancelling, even before the start was answered) the job is cancelled and its end awaited before the error
+// goes on. io.start and io.cancel/io.settled must not be raced with the user's cancel; io.wait is.
+async function runFrameJob(io: { start(): Promise<string>; state(id: string): Promise<string>; settled(id: string): Promise<string>; cancel(id: string): Promise<void>; wait(ms: number): Promise<void>; idle(ms: number): Promise<void>; now(): number; limitMs: number; stopped(): boolean; stopError(): any }): Promise<void> {
+  const id = await io.start();
+  const t0 = io.now();
+  let state = "running";
+  let failure: any = null;
+  try {
+    for (;;) {
+      if (io.stopped()) throw io.stopError();
+      state = await io.state(id);
+      if (state !== "running") break;
+      if (io.now() - t0 > io.limitMs) throw Object.assign(new Error("Taking frames took too long."), { code: "TIMEOUT" });
+      await io.wait(250);
+    }
+  } catch (e: any) {
+    failure = e;
+  }
+  if (!failure && state === "succeeded") return;
+  if (failure || state === "running") {
+    try {
+      await io.cancel(id);
+      const until = io.now() + 10000;
+      while (io.now() < until && (await io.settled(id)) === "running") await io.idle(250);
+    } catch (e) {
+      // The original failure is what matters; the job ends by itself within ten minutes at worst.
+    }
+  }
+  throw failure || new Error(`Taking frames ended ${state}.`);
+}
+
 // Parts of a template a layout variant (TikTok) may override.
 const VARIANT_ROOTS = ["layout", "captions", "labels", "headline", "logo", "background", "border"];
 function forPlatform(t: any, platform: string) {
@@ -2406,6 +2439,12 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
     if (r.isError) throw Object.assign(new Error(scriptError(r.output)), { code: scriptCode(r.output) });
     return r.result;
   };
+  // The same, not raced with the user's cancel: for cleaning up host jobs after the run has stopped.
+  const scriptNow = async (code: string, summary: string, allowCommit = false) => {
+    const r: any = await sdk.runScript({ script: code, summary, allowCommit });
+    if (r.isError) throw Object.assign(new Error(scriptError(r.output)), { code: scriptCode(r.output) });
+    return r.result;
+  };
   const shell = async (command: string, summary: string, timeoutMs = 120000, cwd?: string) => {
     const cmd = IS_WIN ? "@echo off\r\n" + command.replace(/\r?\n/g, "\r\n") : command;
     const r: any = await guard(sdk.runShell({ summary, command: cmd, timeoutMs, maxOutputBytes: 48000, ...(cwd ? { cwd } : {}) }));
@@ -2816,6 +2855,8 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
     //    face is shown four times, close up, in time order. The face whose mouth keeps changing talks.
     // 2. How wide: for every face, its close-up alternatives cut from one frame as the window will show them; the
     //    widest that shows the face whole and nobody else's body and no set seam at the edges wins.
+    // askAI runs a full agent turn with the project's tools; the prompt asks it to answer from the images alone, but
+    // nothing enforces that.
     async function pictureCheck(i: number, c: any, log: any, srcH: number, samples: any[]) {
       const t0 = Date.now();
       const faces = (log.faces || []).filter((f: any) => f.w >= Math.max(...log.faces.map((g: any) => g.w)) * 0.5).sort((a: any, b: any) => a.x - b.x).slice(0, 5);
@@ -2844,7 +2885,8 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
           "Find the source file"
         );
         if (!where?.path) throw new Error("The source file has no path on this computer.");
-        const dir = `${where.tmp}/sbs-clips-frames/${job.id}-${i}`;
+        // A folder of its own for each attempt, so a job left over from an earlier run can never write into it.
+        const dir = `${where.tmp}/sbs-clips-frames/${job.id}-${i}-${Date.now().toString(36)}`;
         // A band across all faces at full resolution for the close-ups, a whole frame per face for the crops.
         const y0 = Math.max(0, Math.round(Math.min(...faces.map((f: any) => f.cy - f.w * 1.3)))), y1 = Math.min(srcH, Math.round(Math.max(...faces.map((f: any) => f.cy + f.w * 1.3))));
         const bandTimes: number[] = [];
@@ -2858,13 +2900,19 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
         [...bandTimes, ...faceTimes].forEach((tt) => args.push("-ss", String(tt), "-i", where.path));
         bandTimes.forEach((tt, k) => { outs.push(`${dir}/b${k}.jpg`); args.push("-map", `${k}:v:0`, "-frames:v", "1", "-vf", `crop=iw:${y1 - y0}:0:${y0}`, "-q:v", "5", outs[outs.length - 1]); });
         faceTimes.forEach((tt, k) => { outs.push(`${dir}/f${k}.jpg`); args.push("-map", `${bandTimes.length + k}:v:0`, "-frames:v", "1", "-vf", "scale=960:-2", "-q:v", "4", outs[outs.length - 1]); });
-        const started = await script(`await selects.files.mkdir(${JSON.stringify(dir)}, { recursive: true }); return await selects.media.startFFmpeg({ args: ${JSON.stringify(args)} });`, "Take frames", true);
-        let state = "running";
-        for (let k = 0; k < 240 && state === "running"; k++) {
-          await guard(sleep(250));
-          state = String((await script(`return (await selects.media.job(${JSON.stringify(started.jobId)}).status()).state;`, "Take frames")) || "");
-        }
-        if (state !== "succeeded") throw new Error(`Taking frames ended ${state}.`);
+        const stateOf = (run: any) => async (id: string) => String((await run(`return (await selects.media.job(${JSON.stringify(id)}).status()).state;`, "Take frames")) || "");
+        await runFrameJob({
+          start: async () => (await scriptNow(`await selects.files.mkdir(${JSON.stringify(dir)}, { recursive: true }); return await selects.media.startFFmpeg({ args: ${JSON.stringify(args)} });`, "Take frames", true)).jobId,
+          state: stateOf(script),
+          settled: stateOf(scriptNow),
+          cancel: async (id) => { await scriptNow(`await selects.media.job(${JSON.stringify(id)}).cancel();`, "Stop taking frames", true); },
+          wait: (ms) => guard(sleep(ms)),
+          idle: (ms) => sleep(ms),
+          now: () => Date.now(),
+          limitMs: 60000,
+          stopped: () => !!runRef.current?.cancelled,
+          stopError: () => new RunCancelled(),
+        });
         const imgs: HTMLImageElement[] = [];
         for (const path of outs) {
           let b64 = "";
@@ -2933,7 +2981,8 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
           `(1) 그 사람의 머리와 어깨가 잘리지 않는다. (2) 다른 사람의 얼굴, 몸, 어깨, 팔, 손이 가장자리에 조금이라도 보이지 않는다. (3) 세트 벽의 이음새, 패널 경계, 기둥처럼 가장자리를 세로로 지나는 선이 보이지 않는다. ` +
           `(4) 이 조건을 지키는 후보 중 가장 넓게 보이는 것. 모두 어긋나면 어긋남이 가장 작은 것.\n` +
           `도구는 쓰지 말고 이미지만 보고 답하라. JSON만 답하라: {"talkers": {"1": 2, "2": 0}, "crops": {"1": "B", "2": "A"}}`;
-        // askAI refuses an image over 1,500,000 base64 characters: a big sheet is sent at a lower JPEG quality.
+        // askAI refuses an image over 1,500,000 base64 characters: a big sheet is sent at a lower JPEG quality. Even at
+        // the lowest it may stay too big; the host then refuses the call and the first guess stands.
         const quality: number[] = [];
         const encode = (cv: HTMLCanvasElement) => {
           for (const q of [0.85, 0.7, 0.55, 0.4, 0.3]) {
@@ -2943,8 +2992,11 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
           return "";
         };
         const r: any = await guard(
+          // Selects' advanced policy, as for the panel's other AI asks: Selects decides the final model (an internal
+          // account with Claude connected stays on its Claude subscription).
           sdk.askAI({
             prompt,
+            advanced: true,
             images: [
               { dataUrl: encode(s1.cv), name: "talkers.jpg" },
               { dataUrl: encode(s2.cv), name: "crops.jpg" },

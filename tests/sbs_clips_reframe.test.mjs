@@ -14,7 +14,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const panel = fs.readFileSync(process.env.SBS_CLIPS_PANEL || path.join(root, 'plugins/sbs-clips/panel.tsx'), 'utf8');
 // The pure reframing helpers, each a top-level function ending at its first unindented closing brace, with
 // their TypeScript types removed.
-const NAMES = ['speakerTurns', 'sentencesOf', 'planShots', 'cropRect', 'faceRanges', 'faceWindows', 'keyHash', 'settleFaceJob'];
+const NAMES = ['speakerTurns', 'sentencesOf', 'planShots', 'cropRect', 'faceRanges', 'faceWindows', 'keyHash', 'settleFaceJob', 'runFrameJob'];
 const code = NAMES.map((name) => {
   const start = panel.search(new RegExp('^(async )?function ' + name + '\\(', 'm'));
   assert.ok(start >= 0, 'not found: ' + name);
@@ -22,7 +22,7 @@ const code = NAMES.map((name) => {
 }).join('\n');
 const ctx = {};
 vm.runInNewContext(stripTypeScriptTypes(code) + '\nObject.assign(globalThis, {' + NAMES.join(', ') + '});', ctx);
-const {planShots, speakerTurns, sentencesOf, cropRect, faceRanges, faceWindows, keyHash, settleFaceJob} = ctx;
+const {planShots, speakerTurns, sentencesOf, cropRect, faceRanges, faceWindows, keyHash, settleFaceJob, runFrameJob} = ctx;
 const fx = JSON.parse(fs.readFileSync(path.join(root, 'tests/fixtures/sbs-clips/newsdirect_reframe.json'), 'utf8'));
 
 // The TikTok layout of the News Direct template: an 850 px window, the source's full height.
@@ -240,4 +240,65 @@ test('a run the user stopped picks up its job again when resumed', async () => {
   assert.equal(rt.jobs.size, 1);
   assert.equal(got.wf, 'wf-0');
   assert.equal(got.status.status, 'succeeded');
+});
+
+test('talkers the picture check saw replace the first guess for their stretch', () => {
+  // Force 700-712 s of the shared-id stretch onto Kim Geun-sik (x≈780); the rest keeps its first guess.
+  const mf = JSON.parse(fs.readFileSync(path.join(root, 'tests/fixtures/sbs-clips/newsdirect_merged_speaker.json'), 'utf8'));
+  const run = (forced) => planShots(mf.samples, speakerTurns(mf.words, mf.range[0], mf.range[1]), mf.frameW, windowW, 4.5, 12, false, windowW, 2.8, undefined, sentencesFor(mf), forced);
+  const before = run();
+  const after = run([{start: 700, end: 712, x: 780, y: 540}]);
+  assert.ok(Math.abs(at(before, 705).cx - 1700) < 150, String(at(before, 705).cx));
+  assert.ok(Math.abs(at(after, 705).cx - 780) < 150, String(at(after, 705).cx));
+  assert.ok(Math.abs(at(after, 690).cx - 1700) < 150 && Math.abs(at(after, 730).cx - 1700) < 150, 'outside the stretch nothing changes');
+  // A seen face nowhere near any detected face changes nothing.
+  assert.equal(JSON.stringify(run([{start: 700, end: 712, x: 1300, y: 100}])), JSON.stringify(before));
+});
+
+// A pretend host media job for runFrameJob. Each status read takes `slow` ms of the clock.
+function mediaHost(o = {}) {
+  const h = {clock: 0, started: 0, cancels: 0, state: 'running', reads: 0, stopped: false, ...o};
+  h.io = {
+    start: async () => { h.started++; if (h.stopOnStart) h.stopped = true; return 'job-1'; },
+    state: async () => { h.clock += h.slow || 0; h.reads++; if (h.failRead && h.reads === h.failRead) throw new Error('status failed'); if (h.doneAfter && h.reads >= h.doneAfter) h.state = 'succeeded'; return h.state; },
+    settled: async () => { h.clock += 100; if (h.state === 'canceling') h.state = 'cancelled'; return h.state; },
+    cancel: async () => { h.cancels++; if (h.state === 'running') h.state = 'canceling'; },
+    wait: async (ms) => { h.clock += ms; if (h.stopAt && h.clock >= h.stopAt) { h.stopped = true; throw new Stopped(); } },
+    idle: async (ms) => { h.clock += ms; },
+    now: () => h.clock, limitMs: 60000, stopped: () => h.stopped, stopError: () => new Stopped(),
+  };
+  return h;
+}
+
+test('a frame job that finishes is left alone', async () => {
+  const h = mediaHost({doneAfter: 3});
+  await runFrameJob(h.io);
+  assert.equal(h.cancels, 0);
+});
+
+test('a frame job past its time is cancelled and awaited, by elapsed time', async () => {
+  // Every status read takes half a second: the limit is 60 s of clock, not a number of reads.
+  const h = mediaHost({slow: 500});
+  await assert.rejects(runFrameJob(h.io), (e) => e.code === 'TIMEOUT');
+  assert.equal(h.cancels, 1);
+  assert.equal(h.state, 'cancelled');
+  assert.ok(h.clock < 75000, String(h.clock));
+});
+
+test('a failed status read cancels the frame job', async () => {
+  const h = mediaHost({failRead: 2});
+  await assert.rejects(runFrameJob(h.io), /status failed/);
+  assert.equal(h.cancels, 1);
+  assert.equal(h.state, 'cancelled');
+});
+
+test('a user cancel stops the frame job, also before its start was answered', async () => {
+  const h = mediaHost({stopAt: 1000});
+  await assert.rejects(runFrameJob(h.io), Stopped);
+  assert.equal(h.cancels, 1);
+  assert.equal(h.state, 'cancelled');
+  const early = mediaHost({stopOnStart: true});
+  await assert.rejects(runFrameJob(early.io), Stopped);
+  assert.equal(early.started, 1);
+  assert.equal(early.cancels, 1);
 });
