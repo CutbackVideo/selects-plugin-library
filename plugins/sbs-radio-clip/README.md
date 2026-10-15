@@ -54,8 +54,22 @@ app shows a warning and continues with the fixed crop. Review the result before
 exporting. This does not change the original Political Show or News Briefing
 framing behavior.
 
-All four templates start without the TikTok demo overlay. Use the separate
-overlay controls to add or remove it on an open Draft.
+New clips always start without the TikTok demo overlay, including resumed jobs
+with legacy overlay settings. The Politics and News Briefing template editors
+have a **Preview overlay** toggle that affects only the preview. It does not
+change saved settings, mark the template as edited, or block switching templates.
+Use the **Add TikTok overlay clip** toggle to add or remove it on the open Draft.
+When enabled, a small red reminder asks users to remove it before uploading.
+The switch automatically follows the visible Draft and is disabled while
+loading or applying changes. A retry control appears only if an operation fails.
+The overlay is one transparent PNG with a generic caption baked in; it has no
+separate description clip or description field.
+The asset is named `tiktok-preview-overlay.png`, with a generic channel name and
+neutral profile icons. Previous PNG filenames are no longer recognized.
+Turning it off removes the current PNG and legacy description graphics.
+Turning it back on uses the current PNG. Footage, headlines, and subtitles
+remain unchanged.
+Controls share the form width and wrap on narrow panels.
 
 ## Editor structure
 
@@ -74,5 +88,18 @@ Run the generation and editor regression checks with an existing authoring
 installation containing React, React DOM, jsdom, TypeScript, and esbuild:
 
 ```sh
-SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test tests/sbs_radio_templates.test.cjs
+SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test tests/sbs_radio_templates.test.cjs tests/sbs_radio_overlay.test.cjs tests/sbs_radio_transcription.test.cjs
 ```
+
+## Start when transcription is ready
+
+Clip selection starts when the Project Resource reports `hasTranscription`,
+even while its analysis status is still `analyzing`. Visual analysis continues
+in the background. The panel rechecks readiness when resuming a saved job.
+
+Before full analysis completes, source words come from `project.transcription()`
+and video metadata from `project.sourceFiles()`. Draft assembly uses
+`insertResource`, which supports sources still being analyzed. Completed
+analysis keeps the existing source-reading path. A missing transcript still
+requires analysis and its normal credit confirmation; missing video metadata
+reports an error rather than inventing a frame rate.

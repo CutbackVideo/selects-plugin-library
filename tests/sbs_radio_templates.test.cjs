@@ -25,8 +25,8 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
   }
   visit(sf);
   assert.ok(params, 'Production clip builder parameters found');
-  const extra = `\nexport { ${names} };\nexport function buildParams(tpl, c, title) {
-    const projectId='test-project', job={resourceId:'test-video',title}, name='template-check';
+  const extra = `\nexport { ${names} };\nexport function buildParams(tpl, c, title, legacyJob={}) {
+    const projectId='test-project', job={...legacyJob,resourceId:'test-video',title}, name='template-check';
     const transform=cropTransform(tpl.layout), buildLogo=tpl.logo.image, overlayResourceId=null;
     const pickd={fixes:[],captionOmissions:[]}, S=merge(RADIO_STRINGS.en,STRINGS.en);
     return ${params};
@@ -51,6 +51,17 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
     assert.equal(api.forPlatform(duplicate,'tiktok').layout.windowTop,560);
     assert.equal(template('sbs-politics').sbsStyle,true);
     assert.equal(template('sbs-newsbriefing').sbsStyle,true);
+  });
+
+  await t.test('new clips never inherit preview or legacy automatic-overlay settings', () => {
+    for (const id of api.BUILTIN_TEMPLATES.map(t=>t.id)) {
+      for (const enabled of [false,true]) {
+        const tpl={...template(id),demoOverlay:enabled};
+        const P=api.buildParams(tpl,clip,title,{demoOverlay:!enabled});
+        assert.equal(P.demoOverlay,false);
+        assert.equal(P.overlayResourceId,null);
+      }
+    }
   });
 
   await t.test('Money Lab produces an editable date and preserves gradients and caption emphasis', () => {
@@ -95,6 +106,35 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       if(id==='moneylab')assert.ok(graphics.some(g=>g.parameters.text?.includes('*market*')));
     });
   }
+  await t.test('all four templates build before visual analysis completes',async()=>{
+    for(const id of api.BUILTIN_TEMPLATES.map(t=>t.id)) {
+      const tpl=template(id), P=api.buildParams(tpl,clip,title), graphics=[];
+      const words=[{text:'The',startFrame:0,endFrame:12,sourceStartFrame:0,speakerId:1,utteranceId:'u'},
+        {text:'market',startFrame:12,endFrame:30,sourceStartFrame:12,speakerId:1,utteranceId:'u'},
+        {text:'moves.',startFrame:30,endFrame:54,sourceStartFrame:30,speakerId:1,utteranceId:'u'}];
+      const draft={words:async()=>words,meta:async()=>({fps:30,durationSeconds:2}),
+        insertResource:async()=>{},silenceSpans:async()=>[],setFrameSize:async()=>{},
+        clips:async()=>[{resourceId:'test-video',trackKind:'main',startFrame:0,endFrame:60}],
+        setClipTransform:async()=>{},rangeAtFrames:async()=>({}),
+        addMotionGraphic:async g=>{graphics.push(g);esbuild.transformSync(g.tsxCode,{loader:'tsx'});return {clipId:'graphic'};},
+        commitAll:async()=>({createdDraftId:'early-'+id})};
+      const project={
+        resources:async()=>[{resourceId:'test-video',hasAnalysis:false,hasTranscription:true,status:'analyzing'}],
+        resource:()=>{throw Error('Must not use analysis-gated resource reads');},
+        sourceFiles:async()=>({fileTree:[{type:'video',resourceId:'test-video',frameRate:30,durationSeconds:2,frameSize:{width:1920,height:1080}}]}),
+        transcription:async()=>({utterances:[{resourceId:'test-video',speaker:1,words:words.map(w=>({word:w.text,start:w.startFrame/30,end:w.endFrame/30}))}]}),
+        createDraft:async()=>draft,
+      };
+      const selects={project:()=>project,effectPresets:{get:async()=>({tsxCode:'export default function Text(){return null}',parameters:{},editableParameters:[]})}};
+      const script=(tpl.radioTemplate?api.RADIO_SCRIPT_BUILD:api.SCRIPT_BUILD).replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
+      const code=esbuild.transformSync('return (async()=>{'+script+'})();',{loader:'ts'}).code;
+      const result=await new Function('selects',code)(selects);
+      assert.equal(result.draftId,'early-'+id);
+      assert.ok(graphics.some(g=>g.label.startsWith('Caption ')),id+' captions');
+      assert.ok(graphics.some(g=>g.label=== (tpl.radioTemplate?'Series frame and headline':'SBS · \uc81c\ubaa9 1')),id+' frame and headline');
+    }
+  });
+
   await t.test('shared editor preserves per-template controls and draft lifecycle', async () => {
     const { JSDOM } = dependency('jsdom');
     const dom = new JSDOM('<div id="root"></div>');
@@ -160,7 +200,17 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         assert.equal(controls.has(S.layoutKind),radio);
         assert.equal(controls.has(S.reframe),radio);
         assert.equal(controls.has(S.stroke),radio);
-        assert.equal(controls.has(api.OVERLAY_STRINGS.en.default),!radio && !!original.sbsStyle);
+        assert.equal(controls.has(api.OVERLAY_STRINGS.en.preview),!radio && !!original.sbsStyle);
+        if(!radio && original.sbsStyle) {
+          const writesBefore=writes.length, imagesBefore=document.querySelectorAll('img').length;
+          await change(api.OVERLAY_STRINGS.en.preview,true);
+          assert.equal(document.querySelectorAll('img').length,imagesBefore+1,'Overlay appears in preview');
+          assert.equal(get(S.template).disabled,false,'Preview does not lock template switching');
+          assert.equal(get(S.save).disabled,true,'Preview is not a template edit');
+          assert.equal(writes.length,writesBefore,'Preview is never persisted');
+          await change(api.OVERLAY_STRINGS.en.preview,false);
+          assert.equal(document.querySelectorAll('img').length,imagesBefore);
+        }
         assert.equal(get(S.logoMode).options.some(o=>o.value==='art'),!radio);
         const displayed=radio?api.forPlatform(original,'tiktok'):original;
         assert.equal(get(S.windowTop).value,displayed.layout.windowTop);
