@@ -12,3 +12,11 @@ python3 tools/plugin_files.py download place-count --destination ./place-count
 ```
 
 Use `--ref <commit>` to reproduce a specific revision. The helper downloads source files only; it does not install dependencies or register panels. Its Python requirement is independent of the plugin's runtime.
+
+## Customer template packs
+
+Shortform Clips installs customer packs separately. In **Templates**, choose
+**+ Add templates** in the template picker, paste the received link, and click
+**Add**. Packs live under `plugins/shortform-clips/template-packs/` but are not
+listed in the app manifest, so app installation does not download them.
+See [template packs](plugins/shortform-clips/template-packs/README.md).

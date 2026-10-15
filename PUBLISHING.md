@@ -111,3 +111,9 @@ A template may set `galleryOrder`, a non-negative number: the gallery lists
 templates with one first, lower first, then the rest by name. A style in
 `variants` may set its own, which overrides its package's, so one package's
 styles can sit apart. Apps without support ignore it and list by name.
+
+## Template pack images
+
+Plugins may ship PNG, JPEG or WebP images under
+`plugins/<plugin-id>/template-packs/<pack-id>/assets/`. The public-source
+checker validates file signatures and allows up to 20 MiB per image.

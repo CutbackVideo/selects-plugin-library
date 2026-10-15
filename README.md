@@ -4,6 +4,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 
 | Plugin | Status |
 | --- | --- |
+| [Shortform Clips](plugins/shortform-clips) — shared vertical clip app with separately installed customer template packs | Experimental |
 | [Selects AI Runtime](plugins/selects-ai-runtime) — shared local face detection and person masks for plugin developers; requires Selects 2.0.560 or later | Experimental |
 | [Selects Clips](plugins/shortform-cloner) — shorts from long videos, using templates made from a channel's best shorts | Experimental |
 | [Multicam Generator](plugins/multicam-generator) | Experimental |
@@ -49,3 +50,5 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 Ask your Selects agent to install a plugin using its folder link. It downloads only that plugin's files from one Git commit and follows `INSTALL.md`. Models and runtimes are installed separately. Export finished videos through **Handoff → Export**.
 
 For maintainers: [Publishing](PUBLISHING.md). For installation: [Installing](INSTALLING.md).
+
+Customer template packs: [SBS Radio](plugins/shortform-clips/template-packs/sbs-radio/pack.json). See [pack authoring and installation](plugins/shortform-clips/template-packs/README.md).

@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "shortform-clips",
+  "version": "0.3.0",
+  "name": "Shortform Clips",
+  "summary": "Create editable vertical clips using separately installed template packs.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS"
+    ],
+    "selects": "Requires the Panel SDK and local file service, editable Draft graphics and captions. Template API 1. Speaker framing requires selects-ai-runtime; otherwise fixed crops are used. Transcribed sources can start before visual analysis completes."
+  },
+  "localized": {
+    "en": {
+      "name": "Shortform Clips",
+      "summary": "Create editable vertical clips using separately installed template packs."
+    },
+    "ko": {
+      "name": "\uc20f\ud3fc \ud074\ub9bd",
+      "summary": "\ubcc4\ub3c4\ub85c \uc124\uce58\ud55c \ud15c\ud50c\ub9bf \ud329\uc73c\ub85c \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc138\ub85c \ud074\ub9bd\uc744 \ub9cc\ub4ed\ub2c8\ub2e4."
+    },
+    "de": {
+      "name": "Kurzvideo-Clips",
+      "summary": "Erstelle bearbeitbare vertikale Clips mit separat installierten Vorlagenpaketen."
+    },
+    "es": {
+      "name": "Clips cortos",
+      "summary": "Crea clips verticales editables con paquetes de plantillas instalados por separado."
+    },
+    "fr": {
+      "name": "Clips courts",
+      "summary": "Cr\u00e9ez des clips verticaux modifiables avec des packs de mod\u00e8les install\u00e9s s\u00e9par\u00e9ment."
+    },
+    "it": {
+      "name": "Clip brevi",
+      "summary": "Crea clip verticali modificabili con pacchetti di modelli installati separatamente."
+    },
+    "ja": {
+      "name": "\u30b7\u30e7\u30fc\u30c8\u52d5\u753b\u30af\u30ea\u30c3\u30d7",
+      "summary": "\u500b\u5225\u306b\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb\u3057\u305f\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u30d1\u30c3\u30af\u3067\u7de8\u96c6\u53ef\u80fd\u306a\u7e26\u578b\u30af\u30ea\u30c3\u30d7\u3092\u4f5c\u6210\u3057\u307e\u3059\u3002"
+    },
+    "pt": {
+      "name": "Clipes curtos",
+      "summary": "Crie clipes verticais edit\u00e1veis com pacotes de modelos instalados separadamente."
+    },
+    "tr": {
+      "name": "K\u0131sa Video Klipleri",
+      "summary": "Ayr\u0131 y\u00fcklenen \u015fablon paketleriyle d\u00fczenlenebilir dikey klipler olu\u015fturun."
+    },
+    "zh": {
+      "name": "\u77ed\u89c6\u9891\u526a\u8f91",
+      "summary": "\u4f7f\u7528\u5355\u72ec\u5b89\u88c5\u7684\u6a21\u677f\u5305\u521b\u5efa\u53ef\u7f16\u8f91\u7684\u7ad6\u5c4f\u77ed\u89c6\u9891\u3002"
+    }
+  },
+  "requiresPlugins": [
+    "selects-ai-runtime"
+  ]
+}

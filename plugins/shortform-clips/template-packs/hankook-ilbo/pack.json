@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "hankook-ilbo",
+  "version": "1.0.2",
+  "name": "Hankook Ilbo \u00b7 TikTok",
+  "names": {
+    "en": "Hankook Ilbo \u00b7 TikTok",
+    "ko": "\ud55c\uad6d\uc77c\ubcf4 \u00b7 \ud2f1\ud1a1"
+  },
+  "requiresApp": {
+    "id": "shortform-clips",
+    "templateApi": 1
+  },
+  "templates": [
+    "templates/knowledge-exchange.json",
+    "templates/issue-broadcast.json"
+  ],
+  "assets": [
+    "assets/knowledge-background.webp",
+    "assets/knowledge-logo.webp",
+    "assets/issue-logo.webp"
+  ]
+}
