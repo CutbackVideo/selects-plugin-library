@@ -14,20 +14,21 @@ const root = path.resolve(import.meta.dirname, '..');
 const panel = fs.readFileSync(process.env.SBS_CLIPS_PANEL || path.join(root, 'plugins/sbs-clips/panel.tsx'), 'utf8');
 // The pure reframing helpers, each a top-level function ending at its first unindented closing brace, with
 // their TypeScript types removed.
-const NAMES = ['speakerTurns', 'planShots', 'faceRanges', 'faceWindows', 'keyHash'];
+const NAMES = ['speakerTurns', 'planShots', 'faceRanges', 'faceWindows', 'keyHash', 'settleFaceJob'];
 const code = NAMES.map((name) => {
-  const start = panel.search(new RegExp('^function ' + name + '\\(', 'm'));
+  const start = panel.search(new RegExp('^(async )?function ' + name + '\\(', 'm'));
   assert.ok(start >= 0, 'not found: ' + name);
   return panel.slice(start, panel.indexOf('\n}\n', start) + 2);
 }).join('\n');
 const ctx = {};
 vm.runInNewContext(stripTypeScriptTypes(code) + '\nObject.assign(globalThis, {' + NAMES.join(', ') + '});', ctx);
-const {planShots, speakerTurns, faceRanges, faceWindows, keyHash} = ctx;
+const {planShots, speakerTurns, faceRanges, faceWindows, keyHash, settleFaceJob} = ctx;
 const fx = JSON.parse(fs.readFileSync(path.join(root, 'tests/fixtures/sbs-clips/newsdirect_reframe.json'), 'utf8'));
 
 // The TikTok layout of the News Direct template: an 850 px window, the source's full height.
 const windowW = 1080 / (850 / 1080);
-const plan = (log) => planShots(fx.samples, speakerTurns(fx.words, fx.range[0], fx.range[1]), fx.frameW, windowW, 4.5, 12, false, windowW, 2.8, log);
+// edgeMin 3.6: the template's narrowest close-up at the picture edge.
+const plan = (log) => planShots(fx.samples, speakerTurns(fx.words, fx.range[0], fx.range[1]), fx.frameW, windowW, 4.5, 12, false, windowW, 2.8, log, 3.6);
 const at = (shots, t) => shots.find((s) => t >= s.start && t < s.end);
 
 test('each passage of the clip is framed on the panellist who talks', () => {
@@ -51,6 +52,18 @@ test('a close-up leaves the neighbours out whole', () => {
       assert.ok(Math.abs(x - s.cx) - s.w / 2 >= w, `${t} s: window ${s.cx}±${s.w / 2} reaches the face at ${x}`);
     }
   }
+});
+
+test('a close-up at the picture edge is no tighter than one in from it', () => {
+  // The right edge panellist sits about 225 px (300 s) and 244 px (265 s) from the edge. Centring the face would
+  // make the first view 450 px, visibly tighter than the second; both stay near 3.6 face widths instead.
+  const shots = plan();
+  const a = at(shots, 265), b = at(shots, 300);
+  assert.ok(b.w >= 137 * 3.5, `300 s: ${b.w} px`);
+  assert.ok(Math.abs(a.w - b.w) < 20, `265 s ${a.w} px vs 300 s ${b.w} px`);
+  for (const s of [a, b]) assert.ok(s.cx + s.w / 2 <= fx.frameW - 12 + 1e-6, `window ${s.cx}±${s.w / 2} passes the edge`);  // Without edgeMin (the other templates) the face stays centred, as before.
+  const centred = planShots(fx.samples, speakerTurns(fx.words, fx.range[0], fx.range[1]), fx.frameW, windowW, 4.5, 12, false, windowW, 2.8);
+  assert.equal(at(centred, 300).w, 2 * (fx.frameW - 12 - at(centred, 300).cx));
 });
 
 test('the speaker matches and every decision are logged', () => {
@@ -94,4 +107,111 @@ test('a face job request key changes with its inputs', () => {
   assert.equal(k({a: 1, b: 2, step: 0.1}), k({a: 1, b: 2, step: 0.1}));
   assert.notEqual(k({a: 1, b: 2, step: 0.1}), k({a: 1, b: 2, step: 0.2}));
   assert.notEqual(k({a: 1, b: 2, step: 0.1}), k({a: 1, b: 3, step: 0.1}));
+});
+
+// A pretend AI runtime for settleFaceJob: jobs are kept by request key, as Selects does, so sending the same key and
+// input again returns the job already started.
+function runtime() {
+  const jobs = new Map();
+  const rt = {jobs, sent: [], checks: 0, lostAcks: 0, lostCode: 'AI_SUBMIT_OUTCOME_UNKNOWN', failChecks: 0, stuck: false, runFor: 0, cancelled: [],
+    submit(key) {
+      rt.sent.push(key);
+      if (!jobs.has(key)) jobs.set(key, {wf: 'wf-' + jobs.size, status: 'running', left: rt.runFor});
+      if (rt.lostAcks > 0) { rt.lostAcks--; throw Object.assign(new Error('lost'), {code: rt.lostCode}); }
+      return {wf: jobs.get(key).wf};
+    },
+    status(cancel) {
+      rt.checks++;
+      if (rt.failChecks > 0) { rt.failChecks--; throw new Error('status read failed'); }
+      const j = [...jobs.values()].at(-1);
+      if (cancel) { rt.cancelled.push(j.wf); if (j.status === 'running') j.status = rt.stuck ? 'canceling' : 'canceled'; }
+      else if (j.status === 'running' && j.left-- <= 0) j.status = 'succeeded';
+      return {status: j.status, code: '', error: ''};
+    },
+  };
+  return rt;
+}
+class Stopped extends Error {}
+const io = (rt, key, more = {}) => {
+  let clock = 0;
+  return {submit: async () => rt.submit(key), status: async (cancel) => rt.status(cancel), wait: async (ms) => { clock += ms; }, deadline: 60000, now: () => clock, stop: (e) => e instanceof Stopped, ...more};
+};
+
+test('a lost submission answer recovers the same job with the same key', async () => {
+  const rt = runtime();
+  rt.lostAcks = 1;
+  const got = await settleFaceJob(io(rt, 'k1'));
+  assert.deepEqual(rt.sent, ['k1', 'k1']);
+  assert.equal(rt.jobs.size, 1);
+  assert.equal(got.wf, 'wf-0');
+  assert.equal(got.status.status, 'succeeded');
+});
+
+test('a submission script that timed out (no error code) is also recovered with the same key', async () => {
+  const rt = runtime();
+  rt.lostAcks = 1;
+  rt.lostCode = '';
+  const got = await settleFaceJob(io(rt, 'k1'));
+  assert.deepEqual(rt.sent, ['k1', 'k1']);
+  assert.equal(rt.jobs.size, 1);
+  assert.equal(got.status.status, 'succeeded');
+});
+
+test('a submission whose outcome stays unknown is held, never sent under another key', async () => {
+  const rt = runtime();
+  rt.lostAcks = 99;
+  await assert.rejects(settleFaceJob(io(rt, 'k1')), (e) => e.unsettled === true && e.code === 'AI_SUBMIT_OUTCOME_UNKNOWN');
+  assert.ok(rt.sent.length > 1 && rt.sent.every((k) => k === 'k1'));
+});
+
+test('a submission the host refused is not retried here', async () => {
+  const rt = runtime();
+  const refuse = async () => { throw Object.assign(new Error('bad input'), {code: 'AI_INPUT_INVALID'}); };
+  await assert.rejects(settleFaceJob(io(rt, 'k1', {submit: refuse})), (e) => !e.unsettled && e.code === 'AI_INPUT_INVALID');
+});
+
+test('a failed status check asks the same job again', async () => {
+  const rt = runtime();
+  rt.runFor = 2;
+  rt.failChecks = 1;
+  const got = await settleFaceJob(io(rt, 'k1'));
+  assert.equal(rt.sent.length, 1);
+  assert.equal(got.status.status, 'succeeded');
+  assert.equal(rt.cancelled.length, 0);
+});
+
+test('status checks that keep failing hold the job instead of moving on', async () => {
+  const rt = runtime();
+  rt.failChecks = 99;
+  await assert.rejects(settleFaceJob(io(rt, 'k1')), (e) => e.unsettled === true && e.wf === 'wf-0');
+  assert.equal(rt.sent.length, 1);
+});
+
+test('a job past its time is cancelled and awaited; one that never stops is held', async () => {
+  const rt = runtime();
+  rt.runFor = 1e9;
+  const got = await settleFaceJob(io(rt, 'k1'));
+  assert.equal(got.status.status, 'canceled');
+  assert.equal(got.status.code, 'TIMEOUT');
+  assert.deepEqual(rt.cancelled, ['wf-0']);
+
+  const stuck = runtime();
+  stuck.runFor = 1e9;
+  stuck.stuck = true;
+  await assert.rejects(settleFaceJob(io(stuck, 'k1')), (e) => e.unsettled === true && e.code === 'TIMEOUT' && e.wf === 'wf-0');
+  assert.equal(stuck.sent.length, 1);
+});
+
+test('a run the user stopped picks up its job again when resumed', async () => {
+  const rt = runtime();
+  rt.runFor = 1e9;
+  let polls = 0;
+  const first = io(rt, 'k1', {wait: async () => { if (++polls === 2) throw new Stopped(); }});
+  await assert.rejects(settleFaceJob(first), Stopped);
+  assert.equal(rt.cancelled.length, 0);
+  rt.jobs.get('k1').left = 0;
+  const got = await settleFaceJob(io(rt, 'k1'));
+  assert.equal(rt.jobs.size, 1);
+  assert.equal(got.wf, 'wf-0');
+  assert.equal(got.status.status, 'succeeded');
 });
