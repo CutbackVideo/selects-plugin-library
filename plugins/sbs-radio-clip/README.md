@@ -56,3 +56,23 @@ framing behavior.
 
 All four templates start without the TikTok demo overlay. Use the separate
 overlay controls to add or remove it on an open Draft.
+
+## Editor structure
+
+The panel stays in one file for Selects installation. `TemplateEditor` selects
+renderer capabilities, `useTemplateDraft` owns the shared save/copy/reset
+lifecycle, and the appearance, captions, and AI sections render shared controls.
+Template-specific controls are selected in `templateEditorProfile`, including
+for custom copies; they are not tied to builtin template IDs.
+
+For templates with platform layouts, design edits go to `variants.tiktok` when
+TikTok is selected. Names, detection, editing rules, and AI instructions stay
+on the base template. The existing template schema and clip renderers are
+unchanged.
+
+Run the generation and editor regression checks with an existing authoring
+installation containing React, React DOM, jsdom, TypeScript, and esbuild:
+
+```sh
+SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test tests/sbs_radio_templates.test.cjs
+```

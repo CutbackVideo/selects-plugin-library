@@ -1408,318 +1408,7 @@ async function compactSbsLogo(url:string):Promise<string>{
 }
 
 // ---- Template editor ----
-function LegacyTemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any) {
-  // Selection, the working copy and the sub-tab live in the Panel, so unsaved edits survive a tab switch.
-  const { selId, setSelId, edit: saved, setEdit: setSaved, baseKey, setBaseKey, sub, setSub } = state;
-  const current = templates.find((t: any) => t.id === selId) || templates[0];
-  const [msg, setMsg] = React.useState<any>(null);
-  const [armedDelete, setArmedDelete] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const fs = store.fs;
 
-  const currentKey = React.useMemo(() => JSON.stringify(current ?? null), [current]);
-  React.useEffect(() => {
-    if (current && (!saved || saved.id !== current.id || baseKey !== currentKey)) {
-      setSaved(clone(current));
-      setBaseKey(currentKey);
-    }
-    setArmedDelete(false);
-  }, [selId, currentKey]);
-
-  if (!current) return null;
-  // Until the stored working copy catches up with the selection, edit a fresh copy of the template.
-  const fresh = !saved || saved.id !== current.id || baseKey !== currentKey;
-  const edit = fresh ? JSON.parse(currentKey) : saved;
-  const setEdit = (f: any) => setSaved((e: any) => (typeof f === "function" ? f(fresh || !e ? JSON.parse(currentKey) : e) : f));
-  const dirty = JSON.stringify(edit) !== currentKey;
-  const set = (path: string, value: any) => {
-    setMsg(null);
-    setEdit((e: any) => {
-      const n = clone(e);
-      const ks = path.split(".");
-      let o = n;
-      for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]];
-      o[ks[ks.length - 1]] = value;
-      return n;
-    });
-  };
-  const num = (path: string, label: string, min: number, max: number, unit?: string) => {
-    const v = path.split(".").reduce((o: any, k) => o[k], edit);
-    return <ui.NumberField label={label} value={Number(v)} min={min} max={max} step={1} unit={unit} onChange={(x: number) => set(path, Math.max(min, Math.min(max, Math.round(x))))} disabled={saving} />;
-  };
-  const text = (path: string, label: string, multiline = true) => {
-    const v = path.split(".").reduce((o: any, k) => o[k], edit);
-    return <ui.TextField label={label} value={String(v ?? "")} onChange={(x: string) => set(path, x)} multiline={multiline} disabled={saving} />;
-  };
-  const list = (path: string, label: string) => {
-    const v = path.split(".").reduce((o: any, k) => o[k], edit) || [];
-    return <ui.TextField label={label} value={v.join(",")} onChange={(x: string) => set(path, x.split(/[,，]/))} disabled={saving} />;
-  };
-  const clean = (t: any) => {
-    const { builtIn, modified, ...rest } = t;
-    const tidy = (a: any) => (Array.isArray(a) ? a.map((x) => String(x).trim()).filter(Boolean) : []);
-    return { ...rest, detect: { ...rest.detect, keywords: tidy(rest.detect?.keywords), exclude: tidy(rest.detect?.exclude) } };
-  };
-
-  async function save() {
-    const L = edit.layout;
-    if (L.windowBottom - L.windowTop < 100 || L.sourceBottom - L.sourceTop < 100) return setMsg({ tone: "error", text: S.invalidLayout });
-    setSaving(true);
-    try {
-      await store.put("templates", edit.id, clean(edit));
-      await onChanged(edit.id);
-      setMsg({ tone: "success", text: S.savedOk });
-    } catch (e: any) {
-      setMsg({ tone: "error", text: String(e?.message || e) });
-    } finally {
-      setSaving(false);
-    }
-  }
-  async function duplicate() {
-    const id = "t" + Date.now().toString(36);
-    const copy = { ...clean(clone(edit)), id, baseId: current.builtIn ? current.id : current.baseId || current.id, name: S.copyName(nameOf(edit, lang)) };
-    setSaving(true);
-    try {
-      await store.put("templates", id, copy);
-      await onChanged(id);
-      setSelId(id);
-      setMsg(null);
-    } catch (e: any) {
-      setMsg({ tone: "error", text: String(e?.message || e) });
-    } finally {
-      setSaving(false);
-    }
-  }
-  async function removeOrReset() {
-    if (!current.builtIn && !armedDelete) return setArmedDelete(true);
-    setSaving(true);
-    try {
-      await store.del("templates", current.id);
-      await onChanged(current.builtIn ? current.id : templates[0].id);
-      if (!current.builtIn) setSelId(templates[0].id);
-      setMsg(null);
-    } catch (e: any) {
-      setMsg({ tone: "error", text: String(e?.message || e) });
-    } finally {
-      setSaving(false);
-      setArmedDelete(false);
-    }
-  }
-  async function pickImage(file: any, kind: "background" | "logo") {
-    if (!file) {
-      if (kind === "background") set("background", { ...edit.background, image: "", imageName: "" });
-      else set("logo", { ...edit.logo, image: "", imageName: "" });
-      return;
-    }
-    if (!fs) return setMsg({ tone: "error", text: S.noFileAccess });
-    try {
-      const url = await imageToDataUrl(fs, file.path, kind);
-      if (kind === "background") set("background", { ...edit.background, mode: "image", image: url, imageName: file.name });
-      else set("logo", { ...edit.logo, mode: "image", image: url, imageName: file.name });
-      setMsg(null);
-    } catch (e) {
-      setMsg({ tone: "error", text: S.imageFailed });
-    }
-  }
-
-  const note = current.builtIn ? (current.modified ? S.modifiedNote : S.builtInNote) : S.customNote;
-  const B = edit.background, H = edit.headline, C = edit.captions, G = edit.logo;
-  const weights = [300, 400, 500, 600, 700, 800, 900].map((w) => ({ value: String(w), label: String(w) }));
-  const look = (
-    <>
-      <LayoutPreview t={edit} S={S} />
-      {edit.sbsStyle && <ui.Toggle label={(OVERLAY_STRINGS[lang]||OVERLAY_STRINGS.en).default} value={!!edit.demoOverlay} onChange={(v:boolean)=>set("demoOverlay",v)} disabled={saving} />}
-      <ui.Section title={S.secWindow}>
-        {num("layout.windowTop", S.windowTop, 0, 1700, "px")}
-        {num("layout.windowBottom", S.windowBottom, 200, 1920, "px")}
-      </ui.Section>
-      <ui.Section title={S.secCrop}>
-        {num("layout.sourceTop", S.sourceTop, 0, 980, "px")}
-        {num("layout.sourceBottom", S.sourceBottom, 100, 1080, "px")}
-        {num("layout.offsetX", S.offsetX, -960, 960, "px")}
-        <small>{S.layoutHint}</small>
-        <SourceCrop t={edit} />
-      </ui.Section>
-      <ui.Section title={S.secPositions}>
-        {num("layout.headlineCenter", S.headlineCenter, 0, 1920, "px")}
-        {num("layout.logoCenter", S.logoCenter, 0, 1920, "px")}
-      </ui.Section>
-      <ui.Section title={S.background}>
-        <ui.Segmented
-          label={S.bgMode}
-          value={B.mode}
-          onChange={(v: string) => set("background.mode", v)}
-          options={[
-            { value: "style", label: S.bgStyle },
-            { value: "color", label: S.bgColor },
-            { value: "image", label: S.bgImage },
-          ]}
-          disabled={saving}
-        />
-        {B.mode === "color" && <ui.ColorField label={S.color} value={B.color} onChange={(v: string) => set("background.color", v)} disabled={saving} />}
-        {B.mode === "image" && (
-          <ui.Stack gap={8}>
-            <ui.FileDrop
-              accept={["image"]}
-              value={B.imageName ? { path: "", name: B.imageName } : null}
-              onChange={(f: any) => pickImage(f, "background")}
-              onReject={() => setMsg({ tone: "error", text: S.imageType })}
-              disabled={saving}
-            />
-            <small>{S.imageHint}</small>
-            <ui.Slider label={S.dim} value={Number(B.dim) || 0} min={0} max={80} step={5} unit="%" onChange={(v: number) => set("background.dim", v)} disabled={saving} />
-          </ui.Stack>
-        )}
-        <ui.Toggle label={S.border} value={!!edit.border.on} onChange={(v: boolean) => set("border.on", v)} disabled={saving} />
-        {edit.border.on && <ui.ColorField label={S.borderColor} value={edit.border.color} onChange={(v: string) => set("border.color", v)} disabled={saving} />}
-      </ui.Section>
-      <ui.Section title={S.headline}>
-        <ui.FontField label={S.font} value={H.font || ""} onChange={(v: string) => set("headline.font", v)} disabled={saving} />
-        {num("headline.size1", S.size1, 30, 160, "px")}
-        <ui.ColorField label={S.color1} value={H.color1} onChange={(v: string) => set("headline.color1", v)} disabled={saving} />
-        {num("headline.size2", S.size2, 30, 160, "px")}
-        <ui.ColorField label={S.color2} value={H.color2} onChange={(v: string) => set("headline.color2", v)} disabled={saving} />
-        <ui.Toggle label={S.box2On} value={!!H.box2On} onChange={(v: boolean) => set("headline.box2On", v)} disabled={saving} />
-        {H.box2On && <ui.ColorField label={S.box2} value={H.box2} onChange={(v: string) => set("headline.box2", v)} disabled={saving} />}
-        <ui.Toggle label={S.italic} value={!!H.italic} onChange={(v: boolean) => set("headline.italic", v)} disabled={saving} />
-        <ui.Toggle label={S.shadow} value={!!H.shadow} onChange={(v: boolean) => set("headline.shadow", v)} disabled={saving} />
-      </ui.Section>
-      <ui.Section title={S.logo}>
-        <ui.Segmented
-          label={S.logoMode}
-          value={G.mode}
-          onChange={(v: string) => set("logo.mode", v)}
-          options={[
-            { value: "art", label: S.logoArt },
-            { value: "image", label: S.logoImage },
-            { value: "none", label: S.logoNone },
-          ]}
-          disabled={saving}
-        />
-        {G.mode === "image" && (
-          <ui.Stack gap={8}>
-            <ui.FileDrop
-              accept={["image"]}
-              value={G.imageName ? { path: "", name: G.imageName } : null}
-              onChange={(f: any) => pickImage(f, "logo")}
-              onReject={() => setMsg({ tone: "error", text: S.imageType })}
-              disabled={saving}
-            />
-            {num("logo.width", S.logoWidth, 80, 1080, "px")}
-          </ui.Stack>
-        )}
-      </ui.Section>
-    </>
-  );
-  const captions = (
-    <>
-      <LayoutPreview t={edit} S={S} />
-      <ui.Section title={S.captions}>
-        <ui.Toggle label={S.captionsOn} value={!!C.on} onChange={(v: boolean) => set("captions.on", v)} disabled={saving} />
-        {!C.on && <small>{S.captionsOffHint}</small>}
-        {C.on && (
-          <ui.Stack gap={8}>
-            <ui.Segmented
-              label={S.capMode}
-              value={C.mode}
-              onChange={(v: string) => set("captions.mode", v)}
-              options={[
-                { value: "bar", label: S.capBar },
-                { value: "box", label: S.capBox },
-              ]}
-              disabled={saving}
-            />
-            {C.mode === "bar" ? num("captions.barHeight", S.barHeight, 60, 600, "px") : num("captions.bottom", S.capBottom, 200, 1920, "px")}
-            <ui.FontField label={S.font} value={C.font || ""} onChange={(v: string) => set("captions.font", v)} disabled={saving} />
-            {num("captions.fontSize", S.fontSize, 24, 120, "px")}
-            <ui.Select label={S.fontWeight} value={String(C.fontWeight)} onChange={(v: string) => set("captions.fontWeight", Number(v))} options={weights} disabled={saving} />
-            <ui.ColorField label={S.textColor} value={C.color} onChange={(v: string) => set("captions.color", v)} disabled={saving} />
-            {C.mode === "box" && <ui.ColorField label={S.boxColor} value={C.boxColor} onChange={(v: string) => set("captions.boxColor", v)} disabled={saving} />}
-            {num("captions.lineMax", S.lineMax, 8, 30)}
-          </ui.Stack>
-        )}
-      </ui.Section>
-      <ui.Section title={S.editing}>
-        <ui.Toggle label={S.removeFillers} value={!!edit.editing.removeFillers} onChange={(v: boolean) => set("editing.removeFillers", v)} disabled={saving} />
-        <ui.Toggle label={S.removeSilences} value={!!edit.editing.removeSilences} onChange={(v: boolean) => set("editing.removeSilences", v)} disabled={saving} />
-      </ui.Section>
-    </>
-  );
-  const ai = (
-    <>
-      <ui.Section title={S.prompt}>
-        <small>{S.promptHint}</small>
-        {text("prompt.role", S.role)}
-        {text("prompt.format", S.format)}
-        {text("prompt.good", S.good)}
-        {text("prompt.bad", S.bad)}
-        {text("prompt.lengthGuide", S.lengthGuide, false)}
-        {text("prompt.countGuide", S.countGuide)}
-        {text("prompt.rules", S.rules)}
-        {text("prompt.headline", S.headlineRules)}
-      </ui.Section>
-      <ui.Section title={S.detection}>
-        {list("detect.keywords", S.keywords)}
-        {list("detect.exclude", S.exclude)}
-        {text("detect.host", S.host, false)}
-      </ui.Section>
-    </>
-  );
-
-  return (
-    <>
-      <ui.Stack gap={8}>
-        <ui.Select
-          label={S.template}
-          value={current.id}
-          onChange={(v: string) => {
-            setSelId(v);
-            setMsg(null);
-          }}
-          options={templates.map((t: any) => ({ value: t.id, label: nameOf(t, lang) }))}
-          disabled={dirty || saving}
-        />
-        <small>{note}</small>
-        <ui.TextField label={S.name} value={nameOf(edit, lang)} onChange={(v: string) => set("name", v)} disabled={saving} />
-        <ui.Row gap={8}>
-          <ui.Button variant="secondary" onClick={duplicate} disabled={dirty || saving}>
-            {S.duplicate}
-          </ui.Button>
-          {current.builtIn ? (
-            <ui.Button variant="ghost" onClick={removeOrReset} disabled={!current.modified || dirty || saving}>
-              {S.reset}
-            </ui.Button>
-          ) : (
-            <ui.Button variant="danger" onClick={removeOrReset} disabled={dirty || saving}>
-              {armedDelete ? S.delConfirm : S.del}
-            </ui.Button>
-          )}
-        </ui.Row>
-        <ui.Tabs
-          value={sub}
-          onChange={setSub}
-          tabs={[
-            { value: "look", label: S.tabLook, content: look },
-            { value: "captions", label: S.tabCaptions, content: captions },
-            { value: "ai", label: S.tabAI, content: ai },
-          ]}
-        />
-      </ui.Stack>
-      <ui.Stack gap={8}>
-        <ui.Actions>
-          <ui.Button variant="ghost" onClick={() => setEdit(clone(current))} disabled={!dirty || saving}>
-            {S.discard}
-          </ui.Button>
-          <ui.Button variant="primary" busy={saving} onClick={save} disabled={!dirty}>
-            {S.save}
-          </ui.Button>
-        </ui.Actions>
-        {dirty && <ui.Message>{S.unsaved}</ui.Message>}
-        {msg && <ui.Message tone={msg.tone}>{msg.text}</ui.Message>}
-      </ui.Stack>
-    </>
-  );
-}
 
 const RADIO_SCRIPT_BUILD: string = "// run_script body: build one series clip as an editable Draft from a template.\n// The clip parameters are injected at runtime; the frame and caption templates at build time.\nconst P: any = __P__;\nconst FRAME_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nfunction GoldText({ children, size, style }) {\\n  return (\\n    <span style={{ position: 'relative', display: 'inline-block', fontSize: size, fontWeight: 900, letterSpacing: '-2px', lineHeight: 1, ...style }}>\\n      <span style={{ position: 'absolute', inset: 0, WebkitTextStroke: '14px #2A1A05', color: '#2A1A05', filter: 'drop-shadow(0 8px 10px rgba(0,0,0,.6))' }}>{children}</span>\\n      <span style={{ position: 'relative', background: 'linear-gradient(180deg,#FFF6C8 0%,#F5CE55 38%,#D9971F 62%,#FFE58A 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>{children}</span>\\n    </span>\\n  );\\n}\\n\\nfunction Logo({ series }) {\\n  if (series === 'heukbaek') {\\n    return (\\n      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\\n        <div style={{ width: 150, height: 150, borderRadius: 75, overflow: 'hidden', display: 'flex', border: '6px solid #F0D27A', boxShadow: '0 6px 16px rgba(0,0,0,.55)', marginBottom: -26, zIndex: 1 }}>\\n          <div style={{ flex: 1, background: '#111', color: '#fff', fontSize: 62, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4 }}>\ud751</div>\\n          <div style={{ flex: 1, background: '#F7F7F7', color: '#111', fontSize: 62, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', paddingLeft: 4 }}>\ubc31</div>\\n        </div>\\n        <GoldText size={150}>\uc5ec\uc758\ub3c4</GoldText>\\n      </div>\\n    );\\n  }\\n  if (series === 'kimkwangil') {\\n    return (\\n      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, filter: 'drop-shadow(0 6px 10px rgba(0,0,0,.6))' }}>\\n        <span style={{ fontSize: 78, fontWeight: 900, color: '#FFD84A', WebkitTextStroke: '3px #3B1D66', letterSpacing: '-2px', marginBottom: 12 }}>\uae40\uad11\uc77c\uc758</span>\\n        <span style={{ fontSize: 190, fontWeight: 900, lineHeight: 0.9, background: 'linear-gradient(180deg,#FFE45C 0%,#FFB21F 60%,#FF7A00 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextStroke: '4px #3B1D66' }}>\uc785</span>\\n      </div>\\n    );\\n  }\\n  if (series === 'panilgi') {\\n    const row = (big, rest) => (\\n      <div style={{ display: 'flex', alignItems: 'flex-end', lineHeight: 1 }}>\\n        <span style={{ fontSize: 120, fontWeight: 900, color: '#FFD400' }}>{big}</span>\\n        <span style={{ fontSize: 76, fontWeight: 800, color: '#FFFFFF', marginLeft: 4, marginBottom: 8 }}>{rest}</span>\\n      </div>\\n    );\\n    return (\\n      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>\\n        {row('\ud310', '\uacb0\ubb38')}\\n        {row('\uc77d', '\uc5b4\uc8fc\ub294')}\\n        {row('\uae30', '\uc790')}\\n      </div>\\n    );\\n  }\\n  if (series === 'history') {\\n    return (\\n      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 34 }}>\\n        <div style={{ border: '6px solid #1A1A1A', padding: '14px 40px 18px', fontSize: 96, fontWeight: 900, color: '#1A1A1A', letterSpacing: '-3px', lineHeight: 1 }}>\ud638\uc900\uc11d\uc758 \uc5ed\uc0ac\uc804\uc7c1</div>\\n        <div style={{ fontSize: 60, fontWeight: 800, color: '#1A1A1A', letterSpacing: '-1px' }}>\ub9e4\uc8fc \ud1a0\uc694\uc77c \uc624\ud6c4 5\uc2dc \uacf5\uac1c</div>\\n      </div>\\n    );\\n  }\\n  if (series === 'villain') {\\n    return (\\n      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\\n        <div style={{ fontSize: 64, fontWeight: 800, color: '#FFFFFF', letterSpacing: '-1px' }}>\uc720\uc11d\uc7ac\uc758</div>\\n        <div style={{ fontSize: 190, fontWeight: 900, color: '#FFFFFF', letterSpacing: '-4px', lineHeight: 1.05, textShadow: '0 6px 14px rgba(0,0,0,.45)' }}>\uc545\uc778\uc804</div>\\n        <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '26px 0 30px' }}>\\n          <div style={{ width: 150, height: 3, background: '#D5B06B' }} />\\n          <div style={{ width: 16, height: 16, background: '#D5B06B', transform: 'rotate(45deg)' }} />\\n          <div style={{ width: 150, height: 3, background: '#D5B06B' }} />\\n        </div>\\n        <div style={{ fontSize: 60, fontWeight: 800, color: '#D5B06B', letterSpacing: '-1px' }}>\ub9e4\uc8fc \uc77c\uc694\uc77c \uc624\ud6c4 5\uc2dc \uacf5\uac1c</div>\\n      </div>\\n    );\\n  }\\n  if (series === 'money') {\\n    return (\\n      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>\\n        <div style={{ fontSize: 58, fontWeight: 700, color: '#FFFFFF', fontStyle: 'italic', marginBottom: 4, marginLeft: -160 }}>\uc190\uc9c4\uc11d\uc758</div>\\n        <div style={{ fontSize: 150, fontWeight: 900, color: '#FFFFFF', letterSpacing: '-4px', lineHeight: 1 }}>\uba38\ub2c8\uc6cc\uce58</div>\\n        <div style={{ fontSize: 54, fontWeight: 500, color: '#E6E6E6', marginTop: 34, letterSpacing: '-1px' }}>\uaca9\uc8fc \uc6d4\uc694\uc77c \uc624\ud6c4 5\uc2dc \uacf5\uac1c</div>\\n      </div>\\n    );\\n  }\\n  return null;\\n}\\n\\nexport default function SeriesFrame({ data }) {\\n  const series = String(data?.series ?? 'newsdirect');\\n  const W = 1080, H = 1920;\\n  const top = Number(data?.windowTop ?? 420);\\n  const bottom = Number(data?.windowBottom ?? 1255);\\n  const bg = String(data?.background ?? '#1E1F22');\\n  const h1 = String(data?.headline1 ?? '');\\n  const h2 = String(data?.headline2 ?? '');\\n  const size1 = Number(data?.headlineSize1 ?? 84);\\n  const size2 = Number(data?.headlineSize2 ?? size1);\\n  const color1 = String(data?.headlineColor1 ?? '#FFFFFF');\\n  const color2 = String(data?.headlineColor2 ?? '#FFFFFF');\\n  const box2 = String(data?.headline2Box ?? '');\\n  const italic = Boolean(data?.headlineItalic ?? false);\\n  const headlineCenter = Number(data?.headlineCenter ?? top / 2 + 40);\\n  const captionBar = Number(data?.captionBarHeight ?? 0);\\n  const logoCenter = Number(data?.logoCenter ?? (bottom + captionBar + H) / 2);\\n  const border = Boolean(data?.goldBorder ?? false);\\n  const shadow = String(data?.headlineShadow ?? '0 4px 10px rgba(0,0,0,.55)');\\n  const strokeColor = String(data?.headlineStrokeColor ?? '');\\n  const strokeWidth = strokeColor ? Number(data?.headlineStrokeWidth ?? 12) : 0;\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const headFont = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const bgImage = String(data?.backgroundImage ?? '');\\n  const bgDim = Math.max(0, Math.min(90, Number(data?.backgroundDim ?? 0)));\\n  const borderColor = String(data?.borderColor ?? '#C9A45C');\\n  const logoMode = String(data?.logoMode ?? 'art');\\n  const logoImage = String(data?.logoImage ?? '');\\n  const logoWidth = Number(data?.logoWidth ?? 600);\\n  // A background image is one 1080x1920 picture shown only where the video window is not.\\n  const band = (y, h) =>\\n    bgImage ? (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, backgroundImage: `url(${bgImage})`, backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px` }}>\\n        {bgDim > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: h, background: `rgba(0,0,0,${bgDim / 100})` }} /> : null}\\n      </div>\\n    ) : (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, background: bg }} />\\n    );\\n  const est = (t) => Array.from(t).reduce((w, ch) => w + (/[\\\\uAC00-\\\\uD7A3\\\\u4E00-\\\\u9FFF]/.test(ch) ? 0.93 : ch === ' ' ? 0.27 : /[0-9A-Za-z%]/.test(ch) ? 0.6 : 0.4), 0);\\n  const fit = (t, size, maxW) => Math.min(size, Math.floor(maxW / Math.max(1, est(t)) - 2));\\n  const lineStyle = (size, color) => ({\\n    fontSize: size, fontWeight: 900, color, lineHeight: 1.16, letterSpacing: '-2px',\\n    fontStyle: italic ? 'italic' : 'normal', whiteSpace: 'nowrap', textShadow: shadow,\\n    WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : `${Math.max(1, Math.round(size * 0.035))}px ${color}`, paintOrder: 'stroke fill',\\n  });\\n  const s1 = fit(h1, size1, 1010);\\n  const s2 = fit(h2, size2, box2 ? 970 : 1010);\\n  const grad1 = String(data?.headlineGradient1 ?? '');\\n  const grad2 = String(data?.headlineGradient2 ?? '');\\n  // Text with an optional gradient fill: the outline and shadow are drawn by a copy underneath, because a\\n  // gradient clipped to the glyphs cannot carry a stroke of its own.\\n  const Deco = ({ text, style, grad, stroke, strokeW, shadowCss }) =>\\n    grad ? (\\n      <div style={{ position: 'relative', ...style }}>\\n        <div style={{ position: 'absolute', left: 0, top: 0, right: 0, color: stroke || 'transparent', WebkitTextStroke: strokeW > 0 ? `${strokeW}px ${stroke}` : '0px transparent', paintOrder: 'stroke fill', textShadow: shadowCss }}>{text}</div>\\n        <div style={{ position: 'relative', background: grad, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' }}>{text}</div>\\n      </div>\\n    ) : (\\n      <div style={{ ...style, WebkitTextStroke: strokeW > 0 ? `${strokeW}px ${stroke}` : style.WebkitTextStroke, paintOrder: 'stroke fill', textShadow: shadowCss }}>{text}</div>\\n    );\\n  const Line = ({ text, size, color, grad }) =>\\n    grad ? (\\n      <Deco text={text} style={{ ...lineStyle(size, color), WebkitTextStroke: undefined, textShadow: undefined }} grad={grad} stroke={strokeWidth > 0 ? strokeColor : color} strokeW={strokeWidth} shadowCss={shadow} />\\n    ) : (\\n      <div style={lineStyle(size, color)}>{text}</div>\\n    );\\n  const label = (key) => {\\n    const text = String(data?.[key] ?? '');\\n    if (!text) return null;\\n    const size = Number(data?.[key + 'Size'] ?? 40);\\n    const cx = Number(data?.[key + 'X'] ?? W / 2);\\n    const y = Number(data?.[key + 'Y'] ?? 100);\\n    const style = { fontSize: size, fontWeight: Number(data?.[key + 'Weight'] ?? 800), color: String(data?.[key + 'Color'] ?? '#FFFFFF'), lineHeight: 1.16, letterSpacing: '-1px', whiteSpace: 'nowrap', fontFamily: headFont };\\n    const sw = Number(data?.[key + 'StrokeWidth'] ?? 0);\\n    return (\\n      <div key={key} style={{ position: 'absolute', left: cx - 540, width: 1080, top: y, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        <Deco text={text} style={style} grad={String(data?.[key + 'Gradient'] ?? '')} stroke={String(data?.[key + 'StrokeColor'] ?? '#000000')} strokeW={sw} shadowCss={String(data?.[key + 'Shadow'] ?? 'none')} />\\n      </div>\\n    );\\n  };\\n  return (\\n    <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: H, fontFamily: FONT, pointerEvents: 'none' }}>\\n      {band(0, top)}\\n      {band(bottom, H - bottom)}\\n      {captionBar > 0 ? <div style={{ position: 'absolute', left: 0, top: bottom, width: W, height: captionBar, background: '#000000' }} /> : null}\\n      {border ? (\\n        <>\\n          <div style={{ position: 'absolute', left: 22, top: 22, width: W - 44, height: top - 22, borderTop: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n          <div style={{ position: 'absolute', left: 22, top: bottom, width: W - 44, height: H - bottom - 22, borderBottom: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n        </>\\n      ) : null}\\n      <div style={{ position: 'absolute', left: 30, width: W - 60, top: headlineCenter, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: box2 ? 14 : Number(data?.headlineGap ?? 2), textAlign: 'center', fontFamily: headFont }}>\\n        {h1 ? <Line text={h1} size={s1} color={color1} grad={grad1} /> : null}\\n        {h2 ? (\\n          box2 ? (\\n            <div style={{ ...lineStyle(s2, color2), textShadow: 'none', background: box2, padding: '4px 18px 8px' }}>{h2}</div>\\n          ) : (\\n            <Line text={h2} size={s2} color={color2} grad={grad2} />\\n          )\\n        ) : null}\\n      </div>\\n      {label('topLabel')}\\n      {label('footer')}\\n      <div style={{ position: 'absolute', left: 0, width: W, top: logoCenter, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        {logoMode === 'none' ? null : logoMode === 'image' && logoImage ? (\\n          <img src={logoImage} style={{ width: logoWidth, height: 'auto', display: 'block' }} />\\n        ) : (\\n          <Logo series={series} />\\n        )}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst DATE_TSX: string = \"import React from 'react';\\n\\n// One line of text centred on (x, y): the episode date under the logo.\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function DateLabel({ data }) {\\n  const d = data || {};\\n  const text = String(d.text ?? '');\\n  if (!text) return null;\\n  const family = typeof d.fontFamily === 'string' ? d.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const sw = Number(d.strokeWidth ?? 0);\\n  return (\\n    <div style={{ position: 'absolute', left: Number(d.x ?? 540) - 540, width: 1080, top: Number(d.y ?? 1564), transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>\\n      <div\\n        style={{\\n          fontFamily: font, fontSize: Number(d.fontSize ?? 55), fontWeight: Number(d.fontWeight ?? 900), color: String(d.textColor ?? '#0C6E62'),\\n          lineHeight: 1.16, letterSpacing: '-1px', whiteSpace: 'nowrap', textShadow: String(d.shadow ?? 'none'),\\n          ...(sw > 0 ? { WebkitTextStroke: `${sw}px ${String(d.strokeColor ?? '#000000')}`, paintOrder: 'stroke fill' } : {}),\\n        }}\\n      >\\n        {text}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst CAPTION_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function ClipCaption({ data }) {\\n  const lines = String(data?.text ?? '').split('\\\\n');\\n  const mode = String(data?.mode ?? 'bar');\\n  const size = Number(data?.fontSize ?? 66);\\n  const weight = Number(data?.fontWeight ?? 600);\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const color = String(data?.textColor ?? '#FFFFFF');\\n  const mark = String(data?.highlightColor ?? '');\\n  // *word* is a highlighted word; without a highlight colour the asterisks are simply dropped.\\n  const rich = (line) =>\\n    line.split(/(\\\\*[^*]+\\\\*)/).map((part, j) =>\\n      /^\\\\*[^*]+\\\\*$/.test(part) ? <span key={j} style={mark ? { color: mark } : undefined}>{part.slice(1, -1)}</span> : part.replace(/\\\\*/g, '')\\n    );\\n  if (mode === 'bar') {\\n    const top = Number(data?.top ?? 1255);\\n    const height = Number(data?.height ?? 230);\\n    return (\\n      <div style={{ position: 'absolute', left: 40, width: 1000, top, height, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: font, pointerEvents: 'none' }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.28, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{rich(line)}</div>\\n        ))}\\n      </div>\\n    );\\n  }\\n  const bottom = Number(data?.bottom ?? 1440);\\n  const box = String(data?.boxColor ?? 'rgba(0,0,0,0.62)');\\n  return (\\n    <div style={{ position: 'absolute', left: 40, width: 1000, top: 0, height: bottom, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', fontFamily: font, pointerEvents: 'none' }}>\\n      <div style={{ background: box, padding: '10px 26px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: 4 }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.3, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{rich(line)}</div>\\n        ))}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\n\n// ---- Captions: one caption per thought ----\n// A caption ends where the speaker's sentence ends or another speaker starts, never in the middle of one.\n// A sentence too long for two lines is divided where a listener would pause (a comma, a breath, the end\n// of a clause), in pieces of similar length, and never between words that belong together (\"\uac08 \uc218 /\n// \uc788\uc744\uae4c\", \"\uadf8 / \uac00\uc218\", \"the / house\"). Each word is [text, startFrame, endFrame, sourceStartFrame,\n// speakerId, utteranceId].\n// Sounds a speaker makes while thinking; they are not captioned.\nconst FILLER = /^(\uc5b4|\uc74c|\uc544|\uc5d0|\uc73c|\ud760|uh|um|er|ah|hmm)[.,…~]*$/i;\n// A word that leans on the next one: breaking after it leaves it stranded.\nconst LEANS_FORWARD =\n  /^(\uadf8|\uc774|\uc800|\ud55c|\ub450|\uc138|\ub124|\uba87|\uc5b4\ub5a4|\ubb34\uc2a8|\uc5b4\ub290|\uc774\ub7f0|\uadf8\ub7f0|\uc800\ub7f0|\ubaa8\ub4e0|\uac01|\uc0c8|\uccab|\ub2e4\ub978|\uc5ec\ub7ec|\uc57d|\ub354|\ub35c|\uac00\uc7a5|\uc81c\uc77c|\ub108\ubb34|\uc544\uc8fc|\ub9e4\uc6b0|\uc815\ub9d0|\uc9c4\uc9dc|\ucc38|\uc880|\uc798|\ubabb|\uc548|\uaf2d|\ub2e4\uc2dc|\uacc4\uc18d|\uac70\uc758|\uc774\ubbf8|\uc544\uc9c1|\ubc14\ub85c|\uadf8\ub0e5|\uadf8\ub9ac\uace0|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7f0\ub370|\uadfc\ub370|\uadf8\ub7ec\ub2c8\uae4c|\uadf8\ub7fc|\ud558\uc9c0\ub9cc|\uadf8\ub807\uc9c0\ub9cc|\uadf8\ub7ec\ub098|\ub610|\ub610\ub294|\ud639\uc740|\uc989|\uc65c\ub0d0\ud558\uba74|\uc608\ub97c|\ub9cc\uc57d|\uc5b4\ub5bb\uac8c|\uc774\ub807\uac8c|\uadf8\ub807\uac8c|\uc800\ub807\uac8c|\uc65c|\uc5bc\ub9c8\ub098|\ub9ce\uc774|\ube68\ub9ac|\uba3c\uc800|\ub2e4\uc74c|a|an|the|to|of|in|on|at|for|with|by|from|about|into|over|under|after|before|between|through|during|without|and|or|but|so|which|who|is|are|was|were|be|i|he|she|we|they|my|your|his|her|our|their|this|these|those|very|not|as|if|than)$/i;\n// A word that leans on the one before it: breaking before it cuts a phrase in two (\"\uac08 \uc218\", \"\ud560 \ub54c\ub3c4\",\n// \"\uc788\ub294 \uac78\ub85c\", \"\ubc15\uc9c4\uc601 \uc528\", \"\uc5d0\ub3c4 \ubd88\uad6c\ud558\uace0\"). These are dependent nouns with at most a particle after them;\n// an ordinary noun that merely starts the same way (\"\uc218\uc0c1\uc790\uac00\", \"\uac70\ub9ac\") does not match.\nconst PARTICLE =\n  \"(?:\uc774|\uac00|\uc740|\ub294|\uc744|\ub97c|\ub3c4|\ub9cc|\uc5d0|\uc758|\ub85c|\uc640|\uacfc|\uc73c\ub85c|\uc5d0\uc11c|\uc5d0\uac8c|\ud55c\ud14c|\uae4c\uc9c0|\ubd80\ud130|\ub9c8\ub2e4|\ucc98\ub7fc|\uc774\ub098|\ub77c\ub3c4|\ubc16\uc5d0|\uae4c\uc9c0\ub294|\uc5d0\ub294|\uc5d0\ub3c4|\ub85c\ub294|\ub85c\ub3c4|\uc5d0\uc11c\ub294|\uc774\ub791|\ub791|\ub791\uc740|\uc774\ub77c\uace0|\ub77c\uace0|\uc774\ub77c|\uc57c|\uc694|\uc8e0|\uc608\uc694|\uc774\uc5d0\uc694|\uc785\ub2c8\ub2e4|\uc774\ub2e4|\uc778\ub370|\uc774\uace0|\uc774\uc9c0|\uc774\uc8e0|\ub4e0|\ub098|\ub4e4)?\";\nconst LEANS_BACK = new RegExp(\n  \"^(?:(?:\uc218|\uac83|\uc904|\ub54c|\uc801|\ub370|\ubc14|\ubfd0|\ub4ef|\uc911|\ub4f1|\ub3d9\uc548|\uc815\ub3c4|\ub54c\ubb38|\ub9cc\ud07c|\uc528|\ub2d8|\uce21|\ucabd)\" +\n    PARTICLE +\n    \"|(?:\uc7a5\uad00|\ucc28\uad00|\uc758\uc6d0|\ub300\ud45c|\uc704\uc6d0\uc7a5|\uc704\uc6d0|\ud68c\uc7a5|\uc0ac\uc7a5|\uc758\uc7a5|\ub300\ud1b5\ub839|\ucd1d\ub9ac|\uad50\uc218|\ubc15\uc0ac|\uae30\uc790|\uac10\ub3c5|\uc120\uc218|\uc791\uac00|\ud300\uc7a5|\uc2e4\uc7a5|\ubd80\uc7a5|\uacfc\uc7a5|\uc774\uc0ac|\ud6c4\ubcf4|\ubcc0\ud638\uc0ac|\uac80\uc0ac|\ud310\uc0ac|\uc575\ucee4)\ub2d8?\" +\n    PARTICLE +\n    \"|(?:\uac70|\uac8c|\uac74|\uac78)(?:\uc608\uc694|\uc5d0\uc694|\uc8e0|\uc57c|\uc9c0|\uace0|\ub4e0\uc694|\ub77c|\ub77c\uace0|\ub77c\uc11c|\ub2c8\uae4c|\uc796\uc544\uc694|\ub2e4|\ub294|\ub97c|\ub85c|\ub3c4|\ub098|\ub4e0|\ub791|\uac00|\uba74)?|\uac81\ub2c8\ub2e4|\uac19\uc740|\uac19\uc774|\ucc98\ub7fc|\ubcf4\ub2e4|\ub300\ub85c|\ub9c8\ub2e4|\ubc16\uc5d0|\ubd88\uad6c\ud558\uace0|\ubabb[\uac00-\ud7a3]+|\uc544\ub2c8[\uac00-\ud7a3]+\" +\n    \"|(?:\ud558|\ud574|\ud588|\ud560|\ud55c\ub2e4|\ud569|\ub418|\ub3fc|\ub410|\ub420|\ub41c\ub2e4|\ub429)[\uac00-\ud7a3]{0,4})[.,?!]*$\"\n);\nconst NOT_A_VERB = /^(\ud558\ub098|\ud558\ub298|\ud558\ub8e8|\ud558\ubc18\uae30|\ud558\ub77d|\ud558\uc704|\ud574\uc678|\ud574\uacb0|\ud574\uc11d|\ud574\ub2f9|\ud574\uccb4|\ud574\uba85|\ud574\uc9c0|\ud574\uc124|\ud574\ub2f5|\ud560\uba38\ub2c8|\ud560\uc544\ubc84\uc9c0|\ud560\uc778|\ud569\uc758|\ud569\uaca9|\ud569\uacc4|\ud569\ub958|\ud569\uc791|\ub418\ub808)/;\n// A unit that follows a number (\"200\ub9cc \uc6d0\", \"4\uac1c\uc0ac\").\nconst COUNTER = /^(\uc6d0|\uba85|\uac1c|\ubc88|\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uc0b4|\uc5b5|\ub9cc|\ucc9c|\ubc31|\ubc30|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc704|\ucc28|\ud68c|\ub300|\uacf3|\uac00\uc9c0|\uac1c\uc0ac|\uac1c\uc6d4|\uc2dc\uac04|\uc8fc|\uc8fc\uc77c)[\uac00-\ud7a3]{0,2}[.,?!]*$/;\n// A word describing the next one (\"\uace0\ubc1c\ub420 \ud655\ub960\", \"\ub2f9\uc5f0\ud55c \uc758\uc2ec\", \"\ud558\uace0 \uc2f6\uc740 \ub9c8\uc74c\").\nconst DESCRIBES_NEXT = /(\ud558\ub294|\ub418\ub294|\uc788\ub294|\uc5c6\ub294|\ub77c\ub294|\ub2e4\ub294|\uc54a\ub294|\uac19\uc740|\uc2f6\uc740|\ub9ce\uc740|\uc88b\uc740|\ub192\uc740|\uc791\uc740|\ud070|\ub41c|\ub358|\uc788\uc744|\uc5c6\uc744|\ubc1b\uc744|\uac19\uc744|[\uac00-\ud7a3]\ud55c|[\ud560\ub420\uac08\uc62c\ubcfc\uc4f8\ub0bc\ube84\uafc0\ud0ac\ub9b4\ub084])$/;\n// Korean words normally end in a particle or an ending; one that does not is usually the first half of a\n// compound or an adverb, and belongs with what follows (\"\ubb38\uccb4\ubd80 \uc7a5\uad00\", \"\ud68c\uc0ac \uc77c\", \"\ub300\uad00 \ubd80\uc11c\").\nconst MARKED_END = /[\uc740\ub294\uc774\uac00\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\uc11c\uace0\uc694\ub2e4\uc8e0\uae4c\ub124\ub098\uba70\uba74\uc9c0\uac8c\ub370\uc57c\ub77c\uc790\ub2c8\uaed8\ub791\ub4e0\uc529\uc74c\uc784\uc5b4\uc544\ud574\ub3fc\ub798\ub300\uac78\uac74\uc918\ubd10\uc6cc\uc838\uc5ec]$/;\nconst HANGUL = /[\uac00-\ud7a3]/;\nconst NUMBER_WORD = /^([0-9]+|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+|\ud55c|\ub450|\uc138|\ub124|\ub2e4\uc12f|\uc5ec\uc12f|\uc77c\uacf1|\uc5ec\ub35f|\uc544\ud649|\uc5f4)$/;\nconst STARTS_NUMBER = /^([0-9]|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]|\ud55c |\ub450 |\uc138 |\ub124 )/;\n// The end of a clause in Korean, or a comma: a natural place to stop.\nconst CLAUSE_END = /(\uace0|\uba70|\uc11c|\uba74|\ub294\ub370|\uc740\ub370|\uc778\ub370|\ub2c8\uae4c|\uc9c0\ub9cc|\ub2e4\uac00|\uba74\uc11c|\ub824\uace0|\ub3c4\ub85d|\uac70\ub098|\ub354\ub2c8|\ub2e4\uba74|\ub77c\uba74)[,]?$/;\n// \"\uc788\ub2e4 / \uc5c6\ub2e4 / \uc54a\ub2e4 / \uc2f6\ub2e4\" finish a verb phrase (\"\uac08 \uc218 \uc788\uc744\uae4c\", \"\uc27d\uc9c0 \uc54a\uc796\uc544\uc694\", \"\ud558\uace0 \uc2f6\uc740\"); after a\n// plain subject (\"\ud655\ub960 \uc788\ub294\") they pull much less.\nconst FINISHES_VERB = /^(\uc788|\uc5c6|\uc54a|\uc2f6)[\uac00-\ud7a3]*[.,?!]*$/;\nconst OPENS_VERB = /((\uc218|\uc904|\uc801|\ub9ac|\ud544\uc694)(\uac00|\ub294|\uc740|\ub3c4|\ub97c|\uc774)?|\uace0|\uc9c0|\uc5b4|\uc544|\uac8c|\ud574|\uc57c|\uc11c|\ub3c4)$/;\n// A word a new clause opens with: breaking before it is natural (\"\uc544\ud2f0\uc2a4\ud2b8 / \ud639\uc740 \ud68c\uc0ac\ub4e4\uc744\").\nconst OPENS_CLAUSE = /^(\ud639\uc740|\ub610\ub294|\uadf8\ub9ac\uace0|\ubc0f|\uadfc\ub370|\uadf8\ub7f0\ub370|\ud558\uc9c0\ub9cc|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7ec\ub2c8\uae4c|\uc65c\ub0d0\ud558\uba74|and|or|but|so|because|we|they|i|he|she|which|who|when|where|while|if|although|though|then)$/i;\nconst SENTENCE_END = /[.?!。？！…][\"'”’)]?$/;\n\n// Numbers said in Korean are shown in digits when a unit follows: \"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\" -> \"11\uac1c\uc6d4\uc9f8\",\n// \"\uc774\ucc9c\uc0bc\ub144\ub3c4\uc600\uc5b4\uc694\" -> \"2003\ub144\ub3c4\uc600\uc5b4\uc694\", \"\uce60\uc5b5\uc774\" -> \"7\uc5b5\uc774\". A numeral with no unit, or one that is also an\n// everyday word (\"\uc774\ubc88\", \"\uc2ed\ubd84\", \"\uc0ac\ud68c\", \"\uc624\ucc28\", \"\uc774\ucc9c\uc2dc\"), stays as it was said.\nconst KO_ONES: any = { \uc77c: 1, \uc774: 2, \uc0bc: 3, \uc0ac: 4, \uc624: 5, \uc721: 6, \uce60: 7, \ud314: 8, \uad6c: 9 };\nconst KO_PLACES: any = { \uc2ed: 10, \ubc31: 100, \ucc9c: 1000 };\nconst KO_NUMERAL = /^[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+/;\nconst UNIT_LONG = /^(\uac1c\uc6d4|\ub144\ub3c4|\ub144\ub300|\ub144\uac04|\ub144\uc9f8|\ub144\uc0dd|\ub144\ucc28|\uc8fc\uc77c|\uc8fc\ub144|\uc8fc\uac04|\uc2dc\uac04|\ubd84\uac04|\ucd08\uac04|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc720\ub85c|\ud0ac\ub85c|\ubbf8\ud130|\uc13c\ud2f0|\uadf8\ub7a8|\ub9ac\ud130|\ud559\ub144|\uc138\uae30|\ubd84\uae30|\uc778\ubd84|\uac1c\uad6d|\uac1c\uc0ac|\uac1c\ub144|\ud68c\ucc28|\ub4f1\uae09|\ub2e8\uacc4|\uc138\ub300)/;\nconst UNIT_SHORT = /^(\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uba85|\uac1c|\ubc88|\uc6d0|\uc704|\ub4f1|\ucc28|\ud68c|\uce35|\ud638|\ub300|\uc138|\uc778|\ubc30|\ud3b8|\uace1|\uc7a5|\uad8c|\ud300|\uc2b9|\ud328|\uace8|\uc810|\ud3c9|\uac74|\ud45c|\uc8fc|\uc0b4)/;\n// One-syllable numerals joined to a one-syllable unit are mostly other words (\"\uc774\ubc88\", \"\uc0ac\ud68c\", \"\uc624\ucc28\",\n// \"\uc77c\uba85\"); only these are numbers for certain.\nconst SURE_SHORT = /^([\uc77c\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\ub144|[\uc77c\uc0bc\uc0ac\uc624\uce60\ud314\uad6c]\uc6d4|[\uc77c\uc774\uc0bc]\ucc28|[\uc77c\uc774\uc0bc]\ub4f1|[\uc77c\uc774]\uc704|\uc2ed\ub300|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\uce35|[\uc77c\uc0bc\uc624\uc2ed]\ucd08)/;\nconst MONTH_WORD: any = { \uc720\uc6d4: \"6\uc6d4\", \uc2dc\uc6d4: \"10\uc6d4\" };\n\nfunction koNumber(run: string): number | null {\n  let total = 0;\n  let group = 0;\n  let ones = 0;\n  let place = 10000;\n  let big = Infinity;\n  for (const ch of run) {\n    if (KO_ONES[ch]) {\n      if (ones) return null; // two digits in a row: \"\uc0bc\uc0ac\", \"\uc774\uc77c\"\n      ones = KO_ONES[ch];\n    } else if (KO_PLACES[ch]) {\n      if (KO_PLACES[ch] >= place) return null;\n      place = KO_PLACES[ch];\n      group += (ones || 1) * place;\n      ones = 0;\n    } else {\n      const unit = ch === \"\uc5b5\" ? 1e8 : 1e4;\n      if (unit >= big) return null;\n      big = unit;\n      total += (group + ones || 1) * unit;\n      group = 0;\n      ones = 0;\n      place = 10000;\n    }\n  }\n  return total + group + ones;\n}\n// 2003 -> \"2003\", 700000000 -> \"7\uc5b5\", 40000000 -> \"4\ucc9c\ub9cc\", 35000000 -> \"3500\ub9cc\".\nfunction koShown(n: number): string {\n  if (n < 10000) return String(n);\n  const part = (v: number, unit: string) => (v ? (v >= 1000 && v % 1000 === 0 ? v / 1000 + \"\ucc9c\" : String(v)) + unit : \"\");\n  const rest = n % 10000;\n  return part(Math.floor(n / 1e8), \"\uc5b5\") + part(Math.floor((n % 1e8) / 1e4), \"\ub9cc\") + (rest ? String(rest) : \"\");\n}\n// A unit ends the number only when the word stops there or goes on with a particle or an ending; \"\ud504\ub85c\" in\n// \"\ud504\ub85c\uc81d\ud2b8\" and \"\uc138\ub300\" in \"\uc138\ub300\uc8fc\" are other words.\nconst AFTER_UNIT = /^([\uc774\uac00\uc740\ub294\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\ub098\ubd80\uae4c\uc11c\ubc16\ub9c8\uc9f8\uac04\ucbe4\uc529\uc9dc\uc5ec\uc600\uc785\uc608\uc778\ub3d9\uc804\ud6c4\ub4a4\uc815\uc548\ub54c\uc0dd][\uac00-\ud7a3]*)?[.,?!]*$/;\nconst unitIn = (units: RegExp, text: string): string | null => {\n  const m = units.exec(text);\n  return m && AFTER_UNIT.test(text.slice(m[1].length)) ? m[1] : null;\n};\n// What may follow a number of this size: a clock has 24 hours and a year 12 months (\"\uc774\ucc9c\uc2dc\" is a city).\nconst fitsUnit = (unit: string, n: number) => (unit === \"\uc2dc\" ? n <= 24 : unit === \"\uc6d4\" ? n <= 12 : true);\n\nfunction koDigits(word: string, next: string | null): string {\n  for (const m of Object.keys(MONTH_WORD)) if (word.startsWith(m) && !/^[\uac00-\ud7a3]{2,}/.test(word.slice(m.length).replace(/^(\uc5d0|\uc740|\ub294|\uc774|\uac00|\ub3c4|\ubd80\ud130|\uae4c\uc9c0|\ub2ec|\uc758|\uc5d0\ub294|\uc5d0\ub3c4)/, \"\"))) return MONTH_WORD[m] + word.slice(m.length);\n  const found = word.match(KO_NUMERAL);\n  if (!found) return word;\n  for (let len = found[0].length; len >= 1; len--) {\n    const run = found[0].slice(0, len);\n    const n = koNumber(run);\n    if (!n) continue;\n    const rest = word.slice(len);\n    const alone = /^[.,?!]*$/.test(rest);\n    // The unit is in this word (\"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\"), or it is the next word (\"\uc774\uc2ed \uba85\").\n    const after = alone ? String(next || \"\") : rest;\n    const short = unitIn(UNIT_SHORT, after);\n    let ok = false;\n    if (unitIn(UNIT_LONG, after)) ok = run !== \"\uc774\" || !alone;\n    else if (short && fitsUnit(short, n)) ok = run.length >= 2 ? !/^[\uc5b5\ub9cc]$/.test(run.slice(-1)) || /^(\uc6d0|\uba85|\uac1c|\ub144|\ud3c9|\ub300|\uc7a5|\uac74|\ud45c|\ubc30)$/.test(short) : alone ? run !== \"\uc774\" && run !== \"\ub9cc\" && run !== \"\uc5b5\" : SURE_SHORT.test(run + after);\n    else if (!alone && run.length >= 2 && /\uc5b5$/.test(run) && n >= 1e8) ok = !/^[\uac00-\ud7a3]{3,}/.test(rest); // \"\uce60\uc5b5\uc774\", \"\uc2ed\uc5b5\uc744\"\n    if (ok && alone && !rest && /^,/.test(after)) ok = false;\n    if (ok) return koShown(n) + rest;\n  }\n  return word;\n}\n\nconst shown = (t: string) => t.replace(/\\./g, \"\");\nconst width = (ws: any[], a: number, b: number) => {\n  let n = b - a - 1;\n  for (let i = a; i < b; i++) n += shown(String(ws[i][0])).length;\n  return Math.max(0, n);\n};\n\n// How bad it is to break between word i and word i + 1 (lower is better).\nfunction joint(ws: any[], i: number, fps: number): number {\n  const cur = String(ws[i][0]);\n  const next = String(ws[i + 1][0]);\n  const bare = cur.replace(/[.,?!]+$/, \"\");\n  const stop = (k: number) => {\n    const w = String(ws[k][0]);\n    const b = w.replace(/[.,?!]+$/, \"\");\n    return /,$/.test(w) || (CLAUSE_END.test(w) && !LEANS_FORWARD.test(b)) || (ws[k + 1][1] - ws[k][2]) / fps >= 0.5;\n  };\n  let s = 0;\n  const predicate = FINISHES_VERB.test(next) && !LEANS_BACK.test(next);\n  if (OPENS_CLAUSE.test(next.replace(/[.,?!]+$/, \"\"))) s -= 2;\n  else if (LEANS_FORWARD.test(bare)) s += 8;\n  else if (cur === bare && HANGUL.test(next) && !predicate) {\n    if (DESCRIBES_NEXT.test(bare)) s += 4;\n    else if (!MARKED_END.test(bare)) s += 3.5;\n  }\n  if (LEANS_BACK.test(next) && !NOT_A_VERB.test(next)) s += 6;\n  else if (predicate) s += OPENS_VERB.test(bare) ? 6 : 3;\n  if (/[0-9]/.test(bare) && (COUNTER.test(next) || /[0-9%]$/.test(bare))) s += 6;\n  const pause = (ws[i + 1][1] - ws[i][2]) / fps;\n  if (pause >= 0.3) s -= 2 + Math.min(2, pause);\n  if (NUMBER_WORD.test(bare) && STARTS_NUMBER.test(next + \" \")) s += 8;\n  else if (/,$/.test(cur)) s -= 3;\n  else if (CLAUSE_END.test(cur) && !LEANS_FORWARD.test(bare)) s -= 3;\n  // One word past a natural stop (\"\ucd94\uc9c4\ud558\ub294\ub370 \ucc98\uc74c\uc5d0\ub294 / \uc6b0\ub9ac\") strands the word that opens the next clause.\n  if (i >= 1 && !stop(i) && stop(i - 1)) s += 3;\n  return s;\n}\n\n// The best place to fold words [a, b) into two lines: [index of the first word of line two, cost]. One\n// line when it fits. `at(i)` is the cost of breaking after word i.\nfunction fold(ws: any[], a: number, b: number, maxc: number, at: (i: number) => number): [number, number] {\n  if (width(ws, a, b) <= maxc || b - a < 2) return [b, 0];\n  let best: [number, number] = [b, Infinity];\n  let top = -1;\n  const all = width(ws, a, b);\n  for (let k = a + 1; k < b; k++) {\n    top += shown(String(ws[k - 1][0])).length + 1;\n    const bottom = all - top - 1;\n    const over = Math.max(0, top - maxc) + Math.max(0, bottom - maxc);\n    const c = Math.abs(top - bottom) * 0.35 + over * 6 + at(k - 1) + (top > bottom + 3 ? 1 : 0) + (Math.min(top, bottom) < 5 ? 3 : 0);\n    if (c < best[1]) best = [k, c];\n  }\n  return best;\n}\n\n// Divide one sentence into captions: [end index of each caption]. Every way of cutting it into the\n// fewest captions that fit, or one more, is scored: even lengths, natural cuts and folds, nothing too\n// short to read.\nfunction divide(ws: any[], a: number, b: number, maxc: number, fps: number): number[] {\n  const cap = maxc * 2 - 1;\n  const n = b - a;\n  const total = width(ws, a, b);\n  if (n < 2 || total <= maxc) return [b];\n  const cuts: number[] = [];\n  for (let i = a; i < b - 1; i++) cuts.push(joint(ws, i, fps));\n  const at = (i: number) => cuts[i - a];\n  const folds = new Map<number, number>();\n  const lines = (i: number, j: number) => {\n    const key = i * 100000 + j;\n    let v = folds.get(key);\n    if (v === undefined) {\n      v = fold(ws, i, j, maxc, at)[1];\n      folds.set(key, v);\n    }\n    return v;\n  };\n  // The fewest captions that can hold it, filling each as far as it goes.\n  let least = 0;\n  for (let i = a; i < b; least++) {\n    let j = i + 1;\n    while (j < b && width(ws, i, j + 1) <= cap) j++;\n    i = j;\n  }\n  let bestCost = Infinity;\n  let bestCuts: number[] = [b];\n  for (let k = least; k <= Math.min(n, least + 1); k++) {\n    const ideal = total / k;\n    // cost[p][j]: the first j words in p captions.\n    const cost: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(Infinity));\n    const from: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(-1));\n    cost[0][0] = 0;\n    for (let p = 1; p <= k; p++) {\n      for (let j = p; j <= n; j++) {\n        for (let i = j - 1; i >= p - 1; i--) {\n          const w = width(ws, a + i, a + j);\n          if (w > cap && j - i > 1) break;\n          if (cost[p - 1][i] === Infinity) continue;\n          const uneven = ((w - ideal) / ideal) ** 2 * 6;\n          // A caption on screen for well under a second cannot be read.\n          const seconds = ((j < n ? ws[a + j][1] : ws[b - 1][2] + 0.4 * fps) - ws[a + i][1]) / fps;\n          const stub = (w < 6 ? 8 : 0) + (seconds < 0.5 ? 12 : seconds < 0.8 ? 6 : 0);\n          const c = cost[p - 1][i] + uneven + stub + lines(a + i, a + j) + (j < n ? at(a + j - 1) : 0);\n          if (c < cost[p][j]) {\n            cost[p][j] = c;\n            from[p][j] = i;\n          }\n        }\n      }\n    }\n    // A further caption has to earn its place.\n    const c = cost[k][n] + k * 3;\n    if (c < bestCost) {\n      const ends: number[] = [];\n      for (let p = k, j = n; p > 0; p--) {\n        ends.unshift(a + j);\n        j = from[p][j];\n      }\n      bestCost = c;\n      bestCuts = ends;\n    }\n  }\n  return bestCuts;\n}\n\nfunction makeCues(words: any[], fps: number, maxc: number, total: number, fixes: any[]): [number, number, string][] {\n  const clean = (t: string) => t.replace(/[\"“”]/g, \"\");\n  const ws = words\n    .map((w: any) => [clean(String(w[0])), w[1], w[2], w[3], w[4] ?? null, w[5] ?? null])\n    .filter((w: any) => String(w[0]).trim().length > 0 && !FILLER.test(String(w[0]).trim()));\n  if (!ws.length) return [];\n  // A stumble said twice (\"\uc6b0\ud06c\ub77c\uc774\ub098\ub9cc \ub098\ub9cc\", \"\uadf8 \uadf8\") is shown once: a word that repeats the word just before\n  // it, or its ending, within half a second is left out of the captions (the cut itself keeps the speech).\n  const bare = (t: string) => t.replace(/[.,?!…~]+$/, \"\");\n  for (let i = ws.length - 1; i > 0; i--) {\n    const cur = bare(String(ws[i][0])), prev = bare(String(ws[i - 1][0]));\n    const gap = (ws[i][1] - ws[i - 1][2]) / fps;\n    if (!cur || gap >= 0.5) continue;\n    if (cur === prev || (cur.length >= 2 && prev.length > cur.length && prev.endsWith(cur))) {\n      const mark = String(ws[i][0]).slice(cur.length);\n      if (mark && !/[.,?!…~]$/.test(String(ws[i - 1][0]))) ws[i - 1][0] = String(ws[i - 1][0]) + mark;\n      ws[i - 1][2] = ws[i][2];\n      ws.splice(i, 1);\n    }\n  }\n  // Numbers in digits, including the first of a pair said together (\"\ud55c \uc721, \uce60\uc5b5\" -> \"\ud55c 6, 7\uc5b5\").\n  for (let i = 0; i < ws.length; i++) ws[i][0] = koDigits(String(ws[i][0]), i + 1 < ws.length ? String(ws[i + 1][0]) : null);\n  for (let i = 0; i + 1 < ws.length; i++) {\n    const pair = String(ws[i][0]).match(/^([\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]),$/);\n    if (pair && /^[0-9]/.test(String(ws[i + 1][0]))) ws[i][0] = String(koNumber(pair[1])) + \",\";\n  }\n  // 1. Sentences: a new one starts with another speaker, after a full stop, at a cut in the source, or\n  // after a long silence.\n  const starts: number[] = [0];\n  for (let i = 1; i < ws.length; i++) {\n    const prev = ws[i - 1];\n    const w = ws[i];\n    const silence = (w[1] - prev[2]) / fps;\n    const cutInSource = w[3] != null && prev[3] != null && Math.abs(w[3] - prev[3] - (w[1] - prev[1])) > fps * 3;\n    const otherSpeaker = w[4] != null && prev[4] != null && w[4] !== prev[4];\n    const otherUtterance = w[5] != null && prev[5] != null && w[5] !== prev[5] && SENTENCE_END.test(String(prev[0]));\n    if (otherSpeaker || otherUtterance || SENTENCE_END.test(String(prev[0])) || cutInSource || silence > 1.5) starts.push(i);\n  }\n  starts.push(ws.length);\n  // 2. Captions within each sentence.\n  const groups: [number, number][] = [];\n  for (let s = 0; s + 1 < starts.length; s++) {\n    let a = starts[s];\n    for (const b of divide(ws, a, starts[s + 1], maxc, fps)) {\n      groups.push([a, b]);\n      a = b;\n    }\n  }\n  // 3. A one-word reply (\"\uc608.\", \"Right.\") gets its own caption. Only when it would be gone before it can\n  // be read does it join the caption before it; it never joins the sentence that follows.\n  const merged: [number, number][] = [];\n  const replyAt = new Map<number, number>(); // caption start -> index where a joined reply begins\n  for (let g = 0; g < groups.length; g++) {\n    const [a, b] = groups[g];\n    const nextStart = g + 1 < groups.length ? ws[groups[g + 1][0]][1] : total;\n    const onScreen = (Math.min(nextStart, ws[b - 1][2] + Math.round(0.6 * fps)) - ws[a][1]) / fps;\n    const last = merged[merged.length - 1];\n    if (last && width(ws, a, b) <= 3 && onScreen < 0.35 && width(ws, last[0], b) <= maxc * 2 - 1 && (ws[a][1] - ws[last[1] - 1][2]) / fps < 0.8) {\n      if (!replyAt.has(last[0])) replyAt.set(last[0], a);\n      last[1] = b;\n      continue;\n    }\n    merged.push([a, b]);\n  }\n  // 4. Text and timing.\n  const out: [number, number, string][] = [];\n  for (let g = 0; g < merged.length; g++) {\n    const [a, b] = merged[g];\n    let piece: any[] = ws.slice(a, b);\n    let joined = piece.map((x: any) => String(x[0])).join(\" \");\n    for (const f of fixes || []) if (f && f.from) joined = joined.split(String(f.from)).join(String(f.to ?? \"\"));\n    const fixed = joined.split(\" \").filter((t: string) => shown(t).length > 0);\n    // Fold on the words as they will be shown; timing for pauses comes from the original words when the\n    // spelling fixes kept their number, otherwise from none.\n    const timed = fixed.length === piece.length ? fixed.map((t: string, i: number) => [t, piece[i][1], piece[i][2]]) : fixed.map((t: string) => [t, 0, 0]);\n    const reply = replyAt.get(a);\n    const own = reply !== undefined && fixed.length === piece.length && width(ws, a, reply) <= maxc ? reply - a : -1;\n    const k = own > 0 ? own : fold(timed, 0, timed.length, maxc, (i: number) => joint(timed, i, fps))[0];\n    const text = k >= timed.length ? fixed.map(shown).join(\" \") : fixed.slice(0, k).map(shown).join(\" \") + \"\\n\" + fixed.slice(k).map(shown).join(\" \");\n    const start = ws[a][1];\n    let end = g + 1 < merged.length ? ws[merged[g + 1][0]][1] : total;\n    if (g + 1 < merged.length && (ws[merged[g + 1][0]][1] - ws[b - 1][2]) / fps > 1.2) end = Math.min(end, ws[b - 1][2] + Math.round(0.6 * fps));\n    out.push([Math.round(start), Math.round(end), text]);\n  }\n  for (let i = 0; i < out.length - 1; i++) {\n    const g = out[i + 1][0] - out[i][1];\n    if (g > 0 && g < 8) out[i][1] = out[i + 1][0];\n  }\n  // 5. Every caption stays long enough to read: one that would flash by borrows the time from the\n  // silence after it, or from the start of a longer caption that follows.\n  const least = Math.round(0.6 * fps);\n  for (let i = 0; i < out.length; i++) {\n    const short = least - (out[i][1] - out[i][0]);\n    if (short <= 0) continue;\n    const next = out[i + 1];\n    if (!next) {\n      out[i][1] = Math.min(total, out[i][0] + least);\n      continue;\n    }\n    const silence = next[0] - out[i][1];\n    if (silence >= short) out[i][1] += short;\n    else if (next[1] - next[0] - (short - silence) >= Math.round(1.0 * fps)) {\n      out[i][1] += short;\n      next[0] = out[i][1];\n    } else out[i][1] = next[0];\n  }\n  if (out.length && out[0][0] < 10) out[0][0] = 0;\n  return out;\n}\n\n// Resource ids are Project-scoped aliases; listing the resources first makes a saved id valid in this\n// session, and the file name finds the same video again if the alias changed.\nasync function resolveResource(project: any, id: string, name: string): Promise<string> {\n  const rows = await project.resources();\n  const hit =\n    rows.find((r: any) => r.resourceId === id && (!name || r.name === name)) ||\n    (name ? rows.find((r: any) => r.name === name) : null) ||\n    rows.find((r: any) => r.resourceId === id);\n  if (!hit) throw new Error(\"The source video is no longer in this project.\");\n  return hit.resourceId;\n}\nconst project = selects.project(P.projectId);\nconst RID = await resolveResource(project, P.resourceId, P.resourceName || \"\");\nconst src = project.resource(RID);\nconst sm = await src.meta();\nconst sfps = sm.fps;\nconst sws = (await src.words()).filter((w: any) => !w.nonSpeech && String(w.text).trim().length > 0);\nconst W: number[][] = sws.map((w: any) => [w.startFrame / sfps, w.endFrame / sfps]);\nif (!W.length) throw new Error(\"The source has no transcript words. Analyze it first.\");\n\n// Snap each requested range to whole words without catching the neighbouring word.\nfunction snap(a: number, b: number): number[] {\n  let i = 0;\n  let j = 0;\n  let bi = Infinity;\n  let bj = Infinity;\n  for (let k = 0; k < W.length; k++) {\n    const da = Math.abs(W[k][0] - a);\n    if (da < bi) {\n      bi = da;\n      i = k;\n    }\n    const db = Math.abs(W[k][1] - b);\n    if (db < bj) {\n      bj = db;\n      j = k;\n    }\n  }\n  if (j < i) j = i;\n  const prevEnd = i > 0 ? W[i - 1][1] : 0;\n  const nextStart = j + 1 < W.length ? W[j + 1][0] : W[j][1] + 1;\n  const start = Math.max(prevEnd + 0.03, W[i][0] - 0.15, 0);\n  const end = Math.min(nextStart - 0.04, W[j][1] + 0.22, sm.durationSeconds);\n  return [Math.round(start * 1000) / 1000, Math.round(end * 1000) / 1000];\n}\n\nconst segs = (P.segments as number[][]).map((s) => snap(Number(s[0]), Number(s[1]))).filter((s) => s[1] - s[0] > 0.5);\nif (!segs.length) throw new Error(\"No usable source range for this clip.\");\n\nconst d = await project.createDraft({ name: P.name });\nfor (const s of segs) {\n  await d.insertResource({ resourceId: RID, sourceRange: { startSeconds: s[0], endSeconds: s[1] } });\n}\nif (P.removeFillers) {\n  const fill = (await d.words()).filter((w: any) => w.filler && w.filler.removable);\n  if (fill.length) await d.remove(fill.map((w: any) => w.span), { tracks: \"all\" });\n}\nif (P.removeSilences) {\n  const sil = await d.silenceSpans({ preset: \"normal\" });\n  const cut = sil.flatMap((x: any) => x.cutSpans);\n  if (cut.length) await d.remove(cut, { tracks: \"all\" });\n}\nawait d.setFrameSize({ width: 1080, height: 1920 });\nconst readV = async () =>\n  (await d.clips({ trackScope: \"all\" })).filter((c: any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nconst nV = (await readV()).length;\nfor (let k = 0; k < nV; k++) {\n  const c = (await readV())[k];\n  await d.setClipTransform({\n    clip: c,\n    scale: { x: P.transform.scale, y: P.transform.scale },\n    position: { x: P.transform.posX, y: P.transform.posY },\n  });\n}\n// Speaker reframing: each shot pans (and for side-by-side faces, widens) the window to the faces it follows. Shots are in source seconds; the\n// Draft's words map them onto its own frames, after fillers and pauses were cut.\nif (Array.isArray(P.reframe) && P.reframe.length) {\n  try {\n    const fitScale = P.transform.scale * (1080 / 1920);\n    const srcW = Number(sm.frameSize?.width) || 1920;\n    // A shot with a width w shows that many source pixels across the window (two people side by side),\n    // centred in the window; other shots keep the template's crop and pan only.\n    const FIT = 1080 / srcW;\n    const winMid = (Number(P.frame.windowTop) + Number(P.frame.windowBottom)) / 2;\n    const r4 = (x: number) => Math.round(x * 10000) / 10000;\n    const placeOf = (shot: any) => {\n      const sc = shot.w ? 1080 / shot.w : fitScale;\n      const inset = Number(P.reframeInset) || 0;\n      const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;\n      const x = r4((Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc)) / 1920) * 100);\n      if (!shot.w) return { scale: P.transform.scale, x, y: P.transform.posY };\n      if (!shot.cy) return { scale: r4(sc / FIT), x, y: r4((-(winMid - 960) / 1920) * 100) };\n      // A close-up puts the face faceY of the way down the window (headroom above it) and keeps the picture\n      // covering the whole window.\n      const top = Number(P.frame.windowTop), bottom = Number(P.frame.windowBottom), half = (1080 / 2) * sc * (Number(sm.frameSize?.height) || 1080) / 1080;\n      const faceY = Number(P.reframeFaceY) || 0.4;\n      const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - shot.cy) * sc));\n      return { scale: r4(sc / FIT), x, y: r4((-(yc - 960) / 1920) * 100) };\n    };\n    const key = (shot: any) => JSON.stringify(placeOf(shot));\n    const shotAt = (sec: number) =>\n      P.reframe.find((r: any) => sec >= r.start && sec < r.end) || (sec < P.reframe[0].start ? P.reframe[0] : P.reframe[P.reframe.length - 1]);\n    const ws = (await d.words()).filter((w: any) => !w.nonSpeech).map((w: any) => [w.startFrame, w.sourceStartFrame / sm.fps]);\n    for (let k = 1; k < ws.length; k++) {\n      if (key(shotAt(ws[k][1])) === key(shotAt(ws[k - 1][1]))) continue;\n      try {\n        await d.splitAt({ frame: ws[k][0] });\n      } catch (e) {\n        // Already a clip boundary.\n      }\n    }\n    const nM = (await d.clips({ trackScope: \"main\" })).length;\n    for (let k = 0; k < nM; k++) {\n      const mc = (await d.clips({ trackScope: \"main\" }))[k];\n      const w = ws.find((x: any) => x[0] >= mc.startFrame && x[0] < mc.endFrame);\n      if (!w) continue;\n      const pl = placeOf(shotAt(w[1]));\n      const vs = (await readV()).filter((c: any) => c.startFrame >= mc.startFrame && c.startFrame < mc.endFrame);\n      for (let v = 0; v < vs.length; v++) {\n        const c = (await readV()).filter((c2: any) => c2.startFrame >= mc.startFrame && c2.startFrame < mc.endFrame)[v];\n        await d.setClipTransform({ clip: c, scale: { x: pl.scale, y: pl.scale }, position: { x: pl.x, y: pl.y } });\n      }\n    }\n  } catch (e) {\n    // Reframing is optional: a clip keeps the fixed crop rather than failing.\n  }\n}\nconst mainClips = await d.clips({ trackScope: \"main\" });\nconst endFrame = mainClips.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);\nconst meta = await d.meta();\nawait d.addMotionGraphic({\n  label: \"Series frame and headline\",\n  tsxCode: FRAME_TSX,\n  parameters: P.frame,\n  editableParameters: P.editableFrame,\n  within: await d.rangeAtFrames(0, endFrame),\n});\n\n// Highlight phrases chosen with the passage are wrapped in *asterisks* for the caption graphic.\nconst markCue = (text: string) => {\n  const phrases = (Array.isArray(P.highlights) ? P.highlights : []).map((h: any) => String(h).trim()).filter((h: string) => h.length >= 2).sort((x: string, y: string) => y.length - x.length);\n  return text\n    .split(\"\\n\")\n    .map((line: string) => {\n      let out = line;\n      for (const h of phrases) {\n        const at = out.indexOf(h);\n        if (at < 0 || out.slice(0, at).split(\"*\").length % 2 === 0) continue;\n        out = out.slice(0, at) + \"*\" + h + \"*\" + out.slice(at + h.length);\n      }\n      return out;\n    })\n    .join(\"\\n\");\n};\n// The episode date is its own graphic, so its text and position can be changed in the Draft.\nif (P.dateLabel && String(P.dateLabel.text || \"\").trim()) {\n  await d.addMotionGraphic({\n    label: \"Date\",\n    tsxCode: DATE_TSX,\n    parameters: P.dateLabel,\n    editableParameters: P.editableDate,\n    within: await d.rangeAtFrames(0, endFrame),\n  });\n}\nlet cueCount = 0;\nif (P.captions && P.caption) {\n  const words = (await d.words())\n    .filter((w: any) => !w.nonSpeech)\n    .map((w: any) => [String(w.text), w.startFrame, w.endFrame, w.sourceStartFrame, w.speakerId ?? null, w.utteranceId ?? null]);\n  const cues = makeCues(words, meta.fps, P.lineMax, endFrame, P.fixes);\n  for (let k = 0; k < cues.length; k++) {\n    const a = cues[k][0];\n    const e = Math.min(cues[k][1], endFrame);\n    if (e <= a) continue;\n    await d.addMotionGraphic({\n      label: \"Caption \" + String(k + 1).padStart(2, \"0\"),\n      tsxCode: CAPTION_TSX,\n      parameters: { ...P.caption, text: markCue(cues[k][2]) },\n      editableParameters: P.editableCaption,\n      within: await d.rangeAtFrames(a, e),\n    });\n    cueCount++;\n  }\n}\nconst out: any = await d.commitAll(\"SBS Radio clip: \" + P.name);\nreturn { draftId: out.createdDraftId ?? null, seconds: Math.round((endFrame / meta.fps) * 10) / 10, captions: cueCount, segments: segs };\n";
 
@@ -2719,7 +2408,48 @@ function RadioLayoutPreview({ t, S }: any) {
   );
 }
 
-function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any) {
+// Template editing shares one draft lifecycle and one set of sections. Renderer
+// capabilities control the few fields that differ, including custom duplicates.
+type TemplateEditorProfile = {
+  platformLayouts: boolean;
+  reframe: boolean;
+  headlineStroke: boolean;
+  labels: boolean;
+  artworkLogo: boolean;
+  demoOverlay: boolean;
+  Preview: typeof LayoutPreview;
+};
+
+function templateEditorProfile(template: any): TemplateEditorProfile {
+  const radio = !!template?.radioTemplate;
+  return {
+    platformLayouts: radio,
+    reframe: radio,
+    headlineStroke: radio,
+    labels: radio,
+    artworkLogo: !radio,
+    demoOverlay: !radio && !!template?.sbsStyle,
+    Preview: radio ? RadioLayoutPreview : LayoutPreview,
+  };
+}
+
+function updateTemplateField(template: any, path: string, value: any, tiktok: boolean) {
+  const next = clone(template);
+  const target = tiktok && VARIANT_ROOTS.includes(path.split(".")[0]) ? "variants.tiktok." + path : path;
+  const keys = target.split(".");
+  let object = next;
+  for (let i = 0; i < keys.length - 1; i++) object = object[keys[i]] ?? (object[keys[i]] = {});
+  object[keys[keys.length - 1]] = value;
+  return next;
+}
+
+function cleanTemplate(t: any) {
+  const { builtIn, modified, ...rest } = t;
+  const tidy = (a: any) => (Array.isArray(a) ? a.map((x) => String(x).trim()).filter(Boolean) : []);
+  return { ...rest, detect: { ...rest.detect, keywords: tidy(rest.detect?.keywords), exclude: tidy(rest.detect?.exclude) } };
+}
+
+function useTemplateDraft({ S, lang, templates, store, onChanged, state }: any, profile: TemplateEditorProfile) {
   // Selection, the working copy and the sub-tab live in the Panel, so unsaved edits survive a tab switch.
   const { selId, setSelId, edit: saved, setEdit: setSaved, baseKey, setBaseKey, sub, setSub } = state;
   const current = templates.find((t: any) => t.id === selId) || templates[0];
@@ -2743,36 +2473,12 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
   const fresh = !saved || saved.id !== current.id || baseKey !== currentKey;
   const stored = fresh ? JSON.parse(currentKey) : saved;
   // The TikTok layout is a set of overrides on the template; the editor shows and edits whichever layout is picked.
-  const edit = layoutKey === "tiktok" ? merge(stored, stored.variants?.tiktok || {}) : stored;
+  const edit = profile.platformLayouts && layoutKey === "tiktok" ? merge(stored, stored.variants?.tiktok || {}) : stored;
   const setEdit = (f: any) => setSaved((e: any) => (typeof f === "function" ? f(fresh || !e ? JSON.parse(currentKey) : e) : f));
   const dirty = JSON.stringify(stored) !== currentKey;
   const set = (path: string, value: any) => {
     setMsg(null);
-    setEdit((e: any) => {
-      const n = clone(e);
-      const ks = (layoutKey === "tiktok" && VARIANT_ROOTS.includes(path.split(".")[0]) ? "variants.tiktok." + path : path).split(".");
-      let o = n;
-      for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]] ?? (o[ks[i]] = {});
-      o[ks[ks.length - 1]] = value;
-      return n;
-    });
-  };
-  const num = (path: string, label: string, min: number, max: number, unit?: string, dflt?: number) => {
-    const v = path.split(".").reduce((o: any, k) => o?.[k], edit);
-    return <ui.NumberField label={label} value={Number.isFinite(Number(v)) && v !== null && v !== "" ? Number(v) : dflt ?? min} min={min} max={max} step={1} unit={unit} onChange={(x: number) => set(path, Math.max(min, Math.min(max, Math.round(x))))} disabled={saving} />;
-  };
-  const text = (path: string, label: string, multiline = true) => {
-    const v = path.split(".").reduce((o: any, k) => o[k], edit);
-    return <ui.TextField label={label} value={String(v ?? "")} onChange={(x: string) => set(path, x)} multiline={multiline} disabled={saving} />;
-  };
-  const list = (path: string, label: string) => {
-    const v = path.split(".").reduce((o: any, k) => o[k], edit) || [];
-    return <ui.TextField label={label} value={v.join(",")} onChange={(x: string) => set(path, x.split(/[,，]/))} disabled={saving} />;
-  };
-  const clean = (t: any) => {
-    const { builtIn, modified, ...rest } = t;
-    const tidy = (a: any) => (Array.isArray(a) ? a.map((x) => String(x).trim()).filter(Boolean) : []);
-    return { ...rest, detect: { ...rest.detect, keywords: tidy(rest.detect?.keywords), exclude: tidy(rest.detect?.exclude) } };
+    setEdit((e: any) => updateTemplateField(e, path, value, profile.platformLayouts && layoutKey === "tiktok"));
   };
 
   async function save() {
@@ -2782,7 +2488,7 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
     if (L.windowBottom - L.windowTop < 100 || L.sourceBottom - L.sourceTop < 100) return setMsg({ tone: "error", text: S.invalidLayout });
     setSaving(true);
     try {
-      await store.put("templates", stored.id, clean(stored));
+      await store.put("templates", stored.id, cleanTemplate(stored));
       await onChanged(stored.id);
       setMsg({ tone: "success", text: S.savedOk });
     } catch (e: any) {
@@ -2793,7 +2499,7 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
   }
   async function duplicate() {
     const id = "t" + Date.now().toString(36);
-    const copy = { ...clean(clone(stored)), id, baseId: current.builtIn ? current.id : current.baseId || current.id, name: S.copyName(nameOf(stored, lang)) };
+    const copy = { ...cleanTemplate(clone(stored)), id, baseId: current.builtIn ? current.id : current.baseId || current.id, name: S.copyName(nameOf(stored, lang)) };
     setSaving(true);
     try {
       await store.put("templates", id, copy);
@@ -2838,12 +2544,37 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
     }
   }
 
-  const note = current.builtIn ? (current.modified ? S.modifiedNote : S.builtInNote) : S.customNote;
-  const B = edit.background, H = edit.headline, C = edit.captions, G = edit.logo;
-  const weights = [300, 400, 500, 600, 700, 800, 900].map((w) => ({ value: String(w), label: String(w) }));
-  const look = (
+  return {
+    current, edit, dirty, saving, msg, armedDelete, layoutKey, setLayoutKey,
+    setEdit, set, setMsg, save, duplicate, removeOrReset, pickImage,
+  };
+}
+
+function templateFields({ ui, edit, set, saving }: any) {
+  const num = (path: string, label: string, min: number, max: number, unit?: string, dflt?: number) => {
+    const v = path.split(".").reduce((o: any, k) => o?.[k], edit);
+    return <ui.NumberField label={label} value={Number.isFinite(Number(v)) && v !== null && v !== "" ? Number(v) : dflt ?? min} min={min} max={max} step={1} unit={unit} onChange={(x: number) => set(path, Math.max(min, Math.min(max, Math.round(x))))} disabled={saving} />;
+  };
+  const text = (path: string, label: string, multiline = true) => {
+    const v = path.split(".").reduce((o: any, k) => o[k], edit);
+    return <ui.TextField label={label} value={String(v ?? "")} onChange={(x: string) => set(path, x)} multiline={multiline} disabled={saving} />;
+  };
+  const list = (path: string, label: string) => {
+    const v = path.split(".").reduce((o: any, k) => o[k], edit) || [];
+    return <ui.TextField label={label} value={v.join(",")} onChange={(x: string) => set(path, x.split(/[,，]/))} disabled={saving} />;
+  };
+  return { num, text, list };
+}
+
+function TemplateAppearanceSection({ ui, S, lang, draft, profile }: any) {
+  const { edit, set, saving, pickImage, setMsg } = draft;
+  const { num, text } = templateFields({ ui, ...draft });
+  const { Preview } = profile;
+  const B = edit.background, H = edit.headline, G = edit.logo;
+  return (
     <>
-      <RadioLayoutPreview t={edit} S={S} />
+      <Preview t={edit} S={S} />
+      {profile.demoOverlay && <ui.Toggle label={(OVERLAY_STRINGS[lang] || OVERLAY_STRINGS.en).default} value={!!edit.demoOverlay} onChange={(v: boolean) => set("demoOverlay", v)} disabled={saving} />}
       <ui.Section title={S.secWindow}>
         {num("layout.windowTop", S.windowTop, 0, 1700, "px")}
         {num("layout.windowBottom", S.windowBottom, 200, 1920, "px")}
@@ -2852,9 +2583,9 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
         {num("layout.sourceTop", S.sourceTop, 0, 980, "px")}
         {num("layout.sourceBottom", S.sourceBottom, 100, 1080, "px")}
         {num("layout.offsetX", S.offsetX, -960, 960, "px")}
-        <ui.Toggle label={S.reframe} value={!!edit.layout.reframe} onChange={(v: boolean) => set("layout.reframe", v)} disabled={saving} />
-        {edit.layout.reframe ? num("layout.closeUp", S.closeUp, 2, 12, "×", 4.5) : null}
-        {edit.layout.reframe ? num("layout.faceY", S.faceY, 25, 65, "%", 40) : null}
+        {profile.reframe && <ui.Toggle label={S.reframe} value={!!edit.layout.reframe} onChange={(v: boolean) => set("layout.reframe", v)} disabled={saving} />}
+        {profile.reframe && edit.layout.reframe ? num("layout.closeUp", S.closeUp, 2, 12, "×", 4.5) : null}
+        {profile.reframe && edit.layout.reframe ? num("layout.faceY", S.faceY, 25, 65, "%", 40) : null}
         <small>{S.layoutHint}</small>
         <SourceCrop t={edit} />
       </ui.Section>
@@ -2901,18 +2632,19 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
         {H.box2On && <ui.ColorField label={S.box2} value={H.box2} onChange={(v: string) => set("headline.box2", v)} disabled={saving} />}
         <ui.Toggle label={S.italic} value={!!H.italic} onChange={(v: boolean) => set("headline.italic", v)} disabled={saving} />
         <ui.Toggle label={S.shadow} value={!!H.shadow} onChange={(v: boolean) => set("headline.shadow", v)} disabled={saving} />
-        <ui.Toggle label={S.stroke} value={!!H.strokeOn} onChange={(v: boolean) => set("headline.strokeOn", v)} disabled={saving} />
-        {H.strokeOn && <ui.ColorField label={S.strokeColor} value={H.strokeColor || "#000000"} onChange={(v: string) => set("headline.strokeColor", v)} disabled={saving} />}
-        {H.strokeOn && num("headline.strokeWidth", S.strokeWidth, 2, 30, "px")}
+        {profile.headlineStroke && <ui.Toggle label={S.stroke} value={!!H.strokeOn} onChange={(v: boolean) => set("headline.strokeOn", v)} disabled={saving} />}
+        {profile.headlineStroke && H.strokeOn && <ui.ColorField label={S.strokeColor} value={H.strokeColor || "#000000"} onChange={(v: string) => set("headline.strokeColor", v)} disabled={saving} />}
+        {profile.headlineStroke && H.strokeOn && num("headline.strokeWidth", S.strokeWidth, 2, 30, "px")}
       </ui.Section>
       <ui.Section title={S.logo}>
-        {edit.labels?.top ? text("labels.top.text", S.editable.topLabel, false) : null}
-        {edit.labels?.footer ? text("labels.footer.text", S.editable.footer, false) : null}
+        {profile.labels && edit.labels?.top ? text("labels.top.text", S.editable.topLabel, false) : null}
+        {profile.labels && edit.labels?.footer ? text("labels.footer.text", S.editable.footer, false) : null}
         <ui.Segmented
           label={S.logoMode}
           value={G.mode}
           onChange={(v: string) => set("logo.mode", v)}
           options={[
+            ...(profile.artworkLogo ? [{ value: "art", label: S.logoArt }] : []),
             { value: "image", label: S.logoImage },
             { value: "none", label: S.logoNone },
           ]}
@@ -2933,9 +2665,17 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
       </ui.Section>
     </>
   );
-  const captions = (
+}
+
+function TemplateCaptionsSection({ ui, S, draft, profile }: any) {
+  const { edit, set, saving } = draft;
+  const { num } = templateFields({ ui, ...draft });
+  const { Preview } = profile;
+  const C = edit.captions;
+  const weights = [300, 400, 500, 600, 700, 800, 900].map((w) => ({ value: String(w), label: String(w) }));
+  return (
     <>
-      <RadioLayoutPreview t={edit} S={S} />
+      <Preview t={edit} S={S} />
       <ui.Section title={S.captions}>
         <ui.Toggle label={S.captionsOn} value={!!C.on} onChange={(v: boolean) => set("captions.on", v)} disabled={saving} />
         {!C.on && <small>{S.captionsOffHint}</small>}
@@ -2967,7 +2707,11 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
       </ui.Section>
     </>
   );
-  const ai = (
+}
+
+function TemplateAISection({ ui, S, draft }: any) {
+  const { text, list } = templateFields({ ui, ...draft });
+  return (
     <>
       <ui.Section title={S.prompt}>
         <small>{S.promptHint}</small>
@@ -2988,6 +2732,17 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
     </>
   );
 
+}
+
+function TemplateEditorForm(props: any) {
+  const { ui, S, lang, templates, state, profile } = props;
+  const draft = useTemplateDraft(props, profile);
+  if (!draft) return null;
+  const { current, edit, dirty, saving, msg, armedDelete, layoutKey, setLayoutKey,
+    setEdit, set, setMsg, save, duplicate, removeOrReset } = draft;
+  const { setSelId, sub, setSub } = state;
+  const note = current.builtIn ? (current.modified ? S.modifiedNote : S.builtInNote) : S.customNote;
+
   return (
     <>
       <ui.Stack gap={8}>
@@ -3002,7 +2757,7 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
           disabled={dirty || saving}
         />
         <small>{note}</small>
-        <ui.Segmented
+        {profile.platformLayouts && <ui.Segmented
           label={S.layoutKind}
           value={layoutKey}
           onChange={setLayoutKey}
@@ -3010,8 +2765,8 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
             { value: "shorts", label: S.layoutShorts },
             { value: "tiktok", label: S.layoutTiktok },
           ]}
-        />
-        {layoutKey === "tiktok" ? <small>{S.tiktokHint}</small> : null}
+        />}
+        {profile.platformLayouts && layoutKey === "tiktok" ? <small>{S.tiktokHint}</small> : null}
         <ui.TextField label={S.name} value={nameOf(edit, lang)} onChange={(v: string) => set("name", v)} disabled={saving} />
         <ui.Row gap={8}>
           <ui.Button variant="secondary" onClick={duplicate} disabled={dirty || saving}>
@@ -3031,9 +2786,9 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
           value={sub}
           onChange={setSub}
           tabs={[
-            { value: "look", label: S.tabLook, content: look },
-            { value: "captions", label: S.tabCaptions, content: captions },
-            { value: "ai", label: S.tabAI, content: ai },
+            { value: "look", label: S.tabLook, content: <TemplateAppearanceSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} /> },
+            { value: "captions", label: S.tabCaptions, content: <TemplateCaptionsSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} /> },
+            { value: "ai", label: S.tabAI, content: <TemplateAISection ui={ui} S={S} lang={lang} draft={draft} profile={profile} /> },
           ]}
         />
       </ui.Stack>
@@ -3055,7 +2810,10 @@ function RadioTemplateEditor({ ui, S, lang, templates, store, onChanged, state }
 
 function TemplateEditor(props: any) {
   const current = props.templates.find((t: any) => t.id === props.state.selId) || props.templates[0];
-  return current?.radioTemplate ? <RadioTemplateEditor {...props} /> : <LegacyTemplateEditor {...props} />;
+  const profile = templateEditorProfile(current);
+  // Preserve the original reset of local UI state when changing renderer families.
+  // The parent still owns the working copy, so switching main tabs keeps edits.
+  return <TemplateEditorForm key={profile.platformLayouts ? "radio" : "classic"} {...props} profile={profile} />;
 }
 
 // The app itself starts once the file route is known, so its folder is in place from the first render.

@@ -16,7 +16,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
   const { renderToStaticMarkup } = dependency('react-dom/server');
   const source = fs.readFileSync(path.join(__dirname, '../plugins/sbs-radio-clip/panel.tsx'), 'utf8');
   const sf = ts.createSourceFile('panel.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const names = 'BUILTIN_TEMPLATES,forPlatform,merge,STRINGS,RADIO_STRINGS,RADIO_SCRIPT_BUILD,SCRIPT_BUILD,SCRIPT_LIMIT,RadioPreviewFrame,RadioPreviewCaption,speakerTurns,planShots';
+  const names = 'BUILTIN_TEMPLATES,forPlatform,merge,STRINGS,RADIO_STRINGS,RADIO_SCRIPT_BUILD,SCRIPT_BUILD,SCRIPT_LIMIT,RadioPreviewFrame,RadioPreviewCaption,speakerTurns,planShots,TemplateEditor,OVERLAY_STRINGS';
   // Extract the actual production build-parameter expression, not a test copy of it.
   let params;
   function visit(node) {
@@ -95,4 +95,170 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       if(id==='moneylab')assert.ok(graphics.some(g=>g.parameters.text?.includes('*market*')));
     });
   }
+  await t.test('shared editor preserves per-template controls and draft lifecycle', async () => {
+    const { JSDOM } = dependency('jsdom');
+    const dom = new JSDOM('<div id="root"></div>');
+    const previous = Object.fromEntries(['window','document','IS_REACT_ACT_ENVIRONMENT','ResizeObserver'].map(k=>[k,global[k]]));
+    Object.assign(global, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true, ResizeObserver: class { observe() {} disconnect() {} } });
+    const { createRoot } = dependency('react-dom/client');
+    const { act } = React;
+    const root = createRoot(document.getElementById('root'));
+    const S = api.merge(api.RADIO_STRINGS.en, api.STRINGS.en);
+    const h = React.createElement;
+    const controls = new Map();
+    const SectionContext = React.createContext('');
+    const control = kind => props => {
+      const label = props.label || props.children || kind;
+      const section = React.useContext(SectionContext);
+      const key = section === S.secWindow ? section + '/' + label : label;
+      React.useLayoutEffect(() => { controls.set(key, props); return () => { if(controls.get(key)===props) controls.delete(key); }; });
+      return h('span', { 'data-control': kind });
+    };
+    const container = ({ children }) => h('div', null, children);
+    const ui = Object.fromEntries(['NumberField','TextField','Select','Segmented','Toggle','ColorField','FontField','Slider','FileDrop','Button'].map(k=>[k,control(k)]));
+    Object.assign(ui,{Stack:container,Row:container,Section:({title,children})=>h(SectionContext.Provider,{value:title},children),Actions:container,Message:container});
+    ui.Tabs = props => {
+      React.useLayoutEffect(()=>{controls.set('tabs',props);return ()=>controls.delete('tabs');});
+      return props.tabs.find(t=>t.value===props.value)?.content;
+    };
+    const originals = structuredClone(api.BUILTIN_TEMPLATES);
+    const rows = new Map();
+    const writes = [];
+    let failSave = false, holdSave, showEditor;
+    const store = {
+      put:async (collection,id,value)=>{
+        assert.equal(collection,'templates');
+        if(failSave)throw new Error('Storage unavailable');
+        if(holdSave)await holdSave;
+        rows.set(id,structuredClone(value)); writes.push(id);
+      },
+      del:async (collection,id)=>{assert.equal(collection,'templates');rows.delete(id);},
+    };
+    const readTemplates=()=>[
+      ...originals.map(t=>({...api.merge(t,rows.get(t.id)||{}),builtIn:true,modified:rows.has(t.id)})),
+      ...[...rows.values()].filter(t=>!originals.some(b=>b.id===t.id)),
+    ];
+    function Harness() {
+      const [templates,setTemplates]=React.useState(readTemplates);
+      const [selId,setSelId]=React.useState(originals[0].id);
+      const [edit,setEdit]=React.useState(null);
+      const [baseKey,setBaseKey]=React.useState('');
+      const [sub,setSub]=React.useState('look');
+      const [visible,setVisible]=React.useState(true);
+      showEditor=setVisible;
+      const onChanged=async()=>setTemplates(readTemplates());
+      return visible?h(api.TemplateEditor,{ui,S,lang:'en',templates,store,onChanged,state:{selId,setSelId,edit,setEdit,baseKey,setBaseKey,sub,setSub}}):null;
+    }
+    const get=label=>{const c=controls.get(S.secWindow+'/'+label)||controls.get(label);assert.ok(c,'Control is visible: '+label);return c;};
+    const change=async(label,value)=>{const c=get(label);assert.ok(!c.disabled,label+' is enabled');await act(async()=>c.onChange(value));};
+    const click=async label=>{const c=get(label);assert.ok(!c.disabled,label+' is enabled');await act(async()=>c.onClick());};
+    try {
+      await act(async()=>root.render(h(Harness)));
+      for(const original of originals) {
+        await change(S.template,original.id);
+        const radio=!!original.radioTemplate;
+        assert.equal(controls.has(S.layoutKind),radio);
+        assert.equal(controls.has(S.reframe),radio);
+        assert.equal(controls.has(S.stroke),radio);
+        assert.equal(controls.has(api.OVERLAY_STRINGS.en.default),!radio && !!original.sbsStyle);
+        assert.equal(get(S.logoMode).options.some(o=>o.value==='art'),!radio);
+        const displayed=radio?api.forPlatform(original,'tiktok'):original;
+        assert.equal(get(S.windowTop).value,displayed.layout.windowTop);
+        assert.equal(controls.has(S.editable.topLabel),radio && !!displayed.labels?.top);
+        assert.equal(controls.has(S.editable.footer),radio && !!displayed.labels?.footer);
+      }
+      // Variants have separate design settings, while the name and AI prompts remain shared.
+      await change(S.windowTop,601);
+      assert.equal(get(S.template).disabled,true);
+      assert.equal(get(S.duplicate).disabled,true);
+      await change(S.layoutKind,'shorts');
+      assert.equal(get(S.windowTop).value,402);
+      await change(S.windowTop,450);
+      await change(S.layoutKind,'tiktok');
+      assert.equal(get(S.windowTop).value,601);
+      await change(S.name,'Edited Money Lab');
+      await change('tabs','ai');
+      await change(S.role,'Edited prompt');
+      await change(S.keywords,' alpha , beta , ');
+      // Main tab navigation unmounts the editor but must keep the working copy.
+      await act(async()=>showEditor(false));
+      await act(async()=>showEditor(true));
+      assert.equal(get(S.role).value,'Edited prompt');
+      await change('tabs','look');
+      assert.equal(get(S.windowTop).value,601);
+      failSave=true;
+      await click(S.save);
+      assert.match(document.body.textContent,/Storage unavailable/);
+      assert.equal(rows.size,0);
+      assert.equal(get(S.template).disabled,true);
+      failSave=false;
+      let release;
+      holdSave=new Promise(resolve=>{release=resolve;});
+      let pending;
+      await act(async()=>{pending=get(S.save).onClick();});
+      assert.equal(get(S.save).busy,true);
+      assert.equal(get(S.windowTop).disabled,true);
+      await act(async()=>{release();await pending;});
+      holdSave=null;
+      const money=rows.get('moneylab');
+      assert.equal(money.layout.windowTop,450);
+      assert.equal(money.variants.tiktok.layout.windowTop,601);
+      assert.equal(money.name,'Edited Money Lab');
+      assert.equal(money.prompt.role,'Edited prompt');
+      assert.deepEqual(money.detect.keywords,['alpha','beta']);
+      assert.equal(money.builtIn,undefined);
+      assert.equal(money.modified,undefined);
+      assert.equal(money.variants.tiktok.prompt,undefined);
+      assert.equal(get(S.save).disabled,true);
+      await change(S.windowTop,650);
+      await click(S.discard);
+      assert.equal(get(S.windowTop).value,601);
+      await click(S.duplicate);
+      const customId=get(S.template).value;
+      assert.notEqual(customId,'moneylab');
+      assert.equal(rows.get(customId).baseId,'moneylab');
+      assert.equal(rows.get(customId).radioTemplate,true);
+      assert.equal(rows.get(customId).variants.tiktok.layout.windowTop,601);
+      await change(S.windowTop,620);
+      await click(S.save);
+      assert.equal(rows.get('moneylab').variants.tiktok.layout.windowTop,601);
+      await click(S.del);
+      assert.ok(rows.has(customId));
+      await click(S.delConfirm);
+      assert.equal(rows.has(customId),false);
+      assert.equal(get(S.template).value,originals[0].id);
+      assert.equal(controls.has(S.layoutKind),false);
+      // Classic templates write directly into their own base layout.
+      const classicTop=get(S.windowTop).value;
+      await change(S.windowTop,classicTop+10);
+      await click(S.save);
+      assert.equal(rows.get(originals[0].id).layout.windowTop,classicTop+10);
+      assert.deepEqual(rows.get(originals[0].id).variants,originals[0].variants);
+      await click(S.reset);
+      assert.equal(get(S.windowTop).value,classicTop);
+      await change(S.template,'moneylab');
+      await click(S.reset);
+      assert.equal(rows.has('moneylab'),false);
+      assert.equal(get(S.windowTop).value,560);
+      const count=writes.length;
+      await change(S.windowTop,1700);
+      await click(S.save);
+      assert.equal(writes.length,count,'Invalid layout never reaches storage');
+      assert.ok(document.body.textContent.includes(S.invalidLayout));
+      await click(S.discard);
+      await change('tabs','captions');
+      await change(S.captionsOn,false);
+      assert.equal(controls.has(S.fontSize),false);
+      await click(S.discard);
+      assert.equal(get(S.captionsOn).value,true);
+      assert.deepEqual(api.BUILTIN_TEMPLATES,originals,'Editing never mutates builtin defaults');
+    } finally {
+      await act(async()=>root.unmount());
+      dom.window.close();
+      for(const [key,value] of Object.entries(previous)) {
+        if(value===undefined)delete global[key]; else global[key]=value;
+      }
+    }
+  });
+
 });
