@@ -24,7 +24,10 @@ or a default for new clips. Remove that clip before uploading.
 
 Transcription can be used before visual analysis finishes. Analysis and AI passage
 selection can use credits. Speaker framing uses `selects-ai-runtime`; when unavailable,
-the app warns and uses the template's fixed crop.
+the app retries with smaller searches, then warns and uses the full picture if
+framing remains unavailable. Face searches run sequentially; a job whose status
+cannot be recovered prevents further face searches in that run. Each completed
+clip's framing is saved so an interrupted run can resume without repeating it.
 
 ## Pack updates and local edits
 
@@ -69,7 +72,7 @@ change, not executable code in a pack.
 ## Verification
 
 ```sh
-SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test tests/shortform_packs.test.cjs tests/shortform_results.test.cjs tests/sbs_radio_templates.test.cjs tests/sbs_radio_overlay.test.cjs tests/sbs_radio_transcription.test.cjs
+SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test tests/shortform_packs.test.cjs tests/shortform_results.test.cjs tests/shortform_reframe.test.mjs tests/sbs_radio_templates.test.cjs tests/sbs_radio_overlay.test.cjs tests/sbs_radio_transcription.test.cjs
 python3 tools/plugin_files.py check shortform-clips
 python3 tools/plugin_files.py check-pack sbs-radio
 python3 tools/check_public.py
