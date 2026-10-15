@@ -22,6 +22,13 @@ Following faces is on for News Direct (Templates tab to change). It needs
 Visual C++ 2019-or-newer x64 runtime. The first run downloads the face model.
 Without them clips keep the fixed crop and the panel says so.
 
+Program detection and clip selection ask Selects for its advanced AI policy
+(Sol medium) instead of the chat's model. That needs a Selects build with panel
+advanced inference (`agent.panelAdvancedInference`). An older build ignores the
+request and uses its usual model; a build whose app does not support it yet
+asks you to update. Selects picks the final model: an internal account with
+Claude connected stays on its Claude subscription.
+
 ## Uninstall
 
 Delete the `sbs-clips` folder from the panels root, and optionally
