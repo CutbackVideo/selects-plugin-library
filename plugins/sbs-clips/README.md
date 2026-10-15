@@ -32,7 +32,9 @@ Two programs ship as built-in templates:
 - **Money Lab**: green gradient frame, a two-line headline with the channel's
   yellow and green gradient fills and black outline, the host label, the
   channel logo and an editable episode date (taken from the YouTube title,
-  else today), the guest's half of the split screen, box captions. The
+  else today), the guest's half of the split screen, box captions with key
+  words in yellow (the AI picks them with each passage; in a Draft caption,
+  *asterisks* mark a highlighted word). The
   channel's headline face is a condensed display font; set it in the Templates
   tab when it is installed, otherwise the default sans is used.
 
