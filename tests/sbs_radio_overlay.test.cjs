@@ -18,7 +18,7 @@ test('SBS overlay follows the visible Draft without stale results or edits', {sk
     const projectId=context.projectId, lang='en', OVERLAY_STRINGS={en:strings};
     ${state}
     ${effect}
-    observe({overlayTarget,overlayLoading,overlayMessage,overlayError,refresh:()=>setOverlayRefresh(n=>n+1)});
+    observe({visibleDraftId,overlayTarget,overlayLoading,overlayMessage,overlayError,refresh:()=>setOverlayRefresh(n=>n+1)});
     return null;
   }\nreturn Harness;`,{loader:'tsx'}).code;
   const Harness = new Function('React',code)(React);
@@ -38,15 +38,15 @@ test('SBS overlay follows the visible Draft without stale results or edits', {sk
   };
   const render=async(id,extra={})=>{visible=id;await act(async()=>root.render(React.createElement(Harness,{sdk,context:{projectId:'project',sequenceId:id},overlayCall,observe:v=>view=v,O:{failed:'Failed'},...extra})));};
   try {
-    await render('a');assert.equal(view.overlayTarget.id,'a');
+    await render('a');assert.equal(view.overlayTarget.id,'a');assert.equal(view.visibleDraftId,'a');
     await render('slow');assert.equal(view.overlayTarget,null);assert.equal(view.overlayLoading,true);
     await render('b');assert.equal(view.overlayTarget.id,'b');
     await act(async()=>pendingResolve({id:'slow',name:'old',count:2,description:'Stale'}));
-    assert.equal(view.overlayTarget.id,'b');
+    assert.equal(view.overlayTarget.id,'b');assert.equal(view.visibleDraftId,'b');
     await render('c');
     const before=calls.length;await act(async()=>view.refresh());assert.equal(calls.length,before+1);assert.equal(view.overlayTarget.id,'c');
-    kind='synced';await render('source');assert.equal(view.overlayTarget,null);assert.equal(view.overlayLoading,false);
-    kind='draft';fail=true;await render('failed');assert.equal(view.overlayError,true);assert.equal(view.overlayMessage,'Read failed');assert.equal(view.overlayTarget,null);
+    kind='synced';await render('source');assert.equal(view.visibleDraftId,null);assert.equal(view.overlayTarget,null);assert.equal(view.overlayLoading,false);
+    kind='draft';fail=true;await render('failed');assert.equal(view.overlayError,true);assert.equal(view.overlayMessage,'Read failed');assert.equal(view.overlayTarget,null);assert.equal(view.visibleDraftId,'failed','An overlay read failure must not hide which draft is open');
     fail=false;await act(async()=>view.refresh());assert.equal(view.overlayError,false);assert.equal(view.overlayTarget.id,'failed');
     await render(null,{context:{projectId:null,sequenceId:null}});assert.equal(view.overlayTarget,null);
   } finally {

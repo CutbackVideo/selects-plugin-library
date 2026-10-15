@@ -17,9 +17,10 @@ are delivered separately as template packs. The app has no bundled customer temp
 The Templates tab edits design, captions, editing options, program detection and
 AI instructions. Controls depend on the template renderer. TikTok/Shorts layout
 variants keep separate design values and share detection and AI instructions.
-Template overlay preview does not change the template or new Drafts. The separate
-**Add TikTok overlay clip** switch adds/removes a single preview PNG in the visible
-Draft. Remove that clip before uploading.
+Template overlay preview does not change the template or new Drafts. After clips
+are created, **TikTok overlay preview** beside the results heading adds/removes a
+single preview PNG in the currently visible Draft. It is not a template setting
+or a default for new clips. Remove that clip before uploading.
 
 Transcription can be used before visual analysis finishes. Analysis and AI passage
 selection can use credits. Speaker framing uses `selects-ai-runtime`; when unavailable,
@@ -68,7 +69,7 @@ change, not executable code in a pack.
 ## Verification
 
 ```sh
-SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test tests/shortform_packs.test.cjs tests/sbs_radio_templates.test.cjs tests/sbs_radio_overlay.test.cjs tests/sbs_radio_transcription.test.cjs
+SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test tests/shortform_packs.test.cjs tests/shortform_results.test.cjs tests/sbs_radio_templates.test.cjs tests/sbs_radio_overlay.test.cjs tests/sbs_radio_transcription.test.cjs
 python3 tools/plugin_files.py check shortform-clips
 python3 tools/plugin_files.py check-pack sbs-radio
 python3 tools/check_public.py

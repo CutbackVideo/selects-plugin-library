@@ -158,7 +158,7 @@ const YTDLP_URL = IS_WIN
   : "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos";
 const SHADOW = "0 4px 10px rgba(0,0,0,.55)";
 
-const OVERLAY_STRINGS:any = {"ko": {"title": "\ud2f1\ud1a1 \uc624\ubc84\ub808\uc774 \ud074\ub9bd \ucd94\uac00", "refresh": "\uc624\ubc84\ub808\uc774 \uc0c1\ud0dc \uc0c8\ub85c\uace0\uce68", "empty": "\ud0c0\uc784\ub77c\uc778\uc5d0\uc11c \ub4dc\ub798\ud504\ud2b8\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694.", "failed": "\uc644\ub8cc \uc5ec\ubd80\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc0c8\ub85c\uace0\uce68 \ud6c4 \uc0c1\ud0dc\ub97c \ud655\uc778\ud574\uc8fc\uc138\uc694.", "preview": "\uc624\ubc84\ub808\uc774 \ubbf8\ub9ac\ubcf4\uae30", "uploadWarning": "\uc5c5\ub85c\ub4dc \uc804\uc5d0 \uc624\ubc84\ub808\uc774 \ud074\ub9bd\uc744 \uc81c\uac70\ud574 \uc8fc\uc138\uc694."}, "en": {"title": "Add TikTok overlay clip", "refresh": "Refresh overlay status", "empty": "Open a Draft in the timeline.", "failed": "Could not confirm completion. Refresh to check the saved state.", "preview": "Preview overlay", "uploadWarning": "Remove the overlay clip before uploading."}};
+const OVERLAY_STRINGS:any = {"ko": {"title": "\ud2f1\ud1a1 \uc624\ubc84\ub808\uc774 \ubbf8\ub9ac\ubcf4\uae30", "refresh": "\uc624\ubc84\ub808\uc774 \uc0c1\ud0dc \uc0c8\ub85c\uace0\uce68", "empty": "\ud0c0\uc784\ub77c\uc778\uc5d0\uc11c \ub4dc\ub798\ud504\ud2b8\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694.", "failed": "\uc644\ub8cc \uc5ec\ubd80\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc0c8\ub85c\uace0\uce68 \ud6c4 \uc0c1\ud0dc\ub97c \ud655\uc778\ud574\uc8fc\uc138\uc694.", "preview": "\ud2f1\ud1a1 \uc624\ubc84\ub808\uc774 \ubbf8\ub9ac\ubcf4\uae30", "uploadWarning": "\uc5c5\ub85c\ub4dc \uc804\uc5d0 \uc624\ubc84\ub808\uc774 \ud074\ub9bd\uc744 \uc81c\uac70\ud574 \uc8fc\uc138\uc694."}, "en": {"title": "TikTok overlay preview", "refresh": "Refresh overlay status", "empty": "Open a Draft in the timeline.", "failed": "Could not confirm completion. Refresh to check the saved state.", "preview": "TikTok overlay preview", "uploadWarning": "Remove the overlay clip before uploading."}};
 const STRINGS: any = {
   en: {
     tabMake: "Make clips",
@@ -175,7 +175,7 @@ const STRINGS: any = {
     cancelled: "Cancelled. Pick it up again under Unfinished work.",
     finished: "Done",
     analyzingLeft: (m: number) => `Analyzing · about ${m} min left`,
-    thisRun: "This run",
+    thisRun: "Work in progress",
     identifying: "Identifying the program…",
     choosing: "The AI is choosing passages and writing headlines. This can take a few minutes.",
     building: (i: number, n: number) => `Building draft ${i} of ${n}…`,
@@ -367,7 +367,7 @@ const STRINGS: any = {
     cancelled: "\ucde8\uc18c\ud588\uc2b5\ub2c8\ub2e4. '\uc774\uc5b4\uc11c \ud560 \uc791\uc5c5'\uc5d0\uc11c \ub2e4\uc2dc \uc774\uc5b4\uac08 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     finished: "\uc644\ub8cc",
     analyzingLeft: (m: number) => `\ubd84\uc11d \uc911\uc785\ub2c8\ub2e4 · \uc57d ${m}\ubd84 \ub0a8\uc74c`,
-    thisRun: "\uc774\ubc88 \uc791\uc5c5",
+    thisRun: "\uc9c4\ud589 \uc911\uc778 \uc791\uc5c5",
     identifying: "\ud504\ub85c\uadf8\ub7a8\uc744 \ud310\ubcc4\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4…",
     choosing: "AI\uac00 \uad6c\uac04\uc744 \uace0\ub974\uace0 \ud5e4\ub4dc\ub77c\uc778\uc744 \uc4f0\uace0 \uc788\uc2b5\ub2c8\ub2e4. \uba87 \ubd84 \uac78\ub9b4 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     building: (i: number, n: number) => `\ucd08\uc548 ${i}/${n} \ub9cc\ub4dc\ub294 \uc911…`,
@@ -1625,7 +1625,72 @@ const SCRIPT_LIMIT = 232000;
 
 // One result or unfinished job, drawn in the theme's own border and radius.
 const CARD = { border: "1px solid var(--panel-border)", borderRadius: "var(--panel-radius)", padding: 10, minWidth: 0 } as const;
+const FORM_COLUMN = { width: "100%", maxWidth: "var(--panel-field-max, 480px)", marginInline: "auto", minWidth: 0, boxSizing: "border-box" } as const;
 const CLAMP2 = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as const;
+
+const RESULT_STRINGS: any = {
+  en: { title: (n: number) => `${n} clips created`, more: "Show more", less: "Show less", current: "Currently viewing", target: "Current draft" },
+  ko: { title: (n: number) => `\uc0dd\uc131\ub41c \ud074\ub9bd ${n}\uac1c`, more: "\ub354 \ubcf4\uae30", less: "\uc811\uae30", current: "\ubcf4\uace0 \uc788\ub294 \ucd08\uc548", target: "\ud604\uc7ac \ucd08\uc548" },
+};
+
+// Restore the latest run with results; unfinished work stays in its separate resume list.
+function latestDraftResult(jobs: any[], projectId: string) {
+  const latest = jobs.filter(j => j?.projectId === projectId && !j.dismissed && Array.isArray(j.built) && j.built.some((d: any) => d?.draftId || d?.error))
+    .sort((a, b) => String(b.updated || b.created || "").localeCompare(String(a.updated || a.created || "")))[0];
+  return latest || null;
+}
+
+function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R }: any) {
+  const [expanded, setExpanded] = React.useState(false);
+  const [overflow, setOverflow] = React.useState(false);
+  const description = React.useRef<HTMLElement>(null);
+  React.useEffect(() => {
+    if (expanded) return;
+    const element = description.current;
+    if (!element) { setOverflow(false); return; }
+    let live = true;
+    const measure = () => { if (live) setOverflow(element.scrollHeight > element.clientHeight + 1); };
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    window.addEventListener("resize", measure);
+    document.fonts?.ready.then(measure);
+    return () => { live = false; observer?.disconnect(); window.removeEventListener("resize", measure); };
+  }, [d.why, expanded]);
+  return (
+    <div style={{ ...CARD, display: "flex", flexDirection: "column", gap: 8, overflowWrap: "anywhere" }}>
+      <strong>{d.headline1}</strong>
+      {d.headline2 && <small>{d.headline2}</small>}
+      {d.seconds != null && <small>{S.seconds(d.seconds)}</small>}
+      {d.why && <>
+        <small ref={description} style={{ lineHeight: 1.5, whiteSpace: "pre-wrap", ...(expanded ? {} : { ...CLAMP2, WebkitLineClamp: 3 }) }}>{d.why}</small>
+        {(overflow || expanded) && <div><ui.Button variant="ghost" onClick={() => setExpanded(value => !value)}>{expanded ? R.less : R.more}</ui.Button></div>}
+      </>}
+      {d.error && <ui.Message tone="error">{d.error}</ui.Message>}
+      {d.draftId && <div style={{ marginTop: "auto" }}>
+        <ui.Button variant="secondary" disabled={current || !!opening} busy={opening === d.draftId} onClick={() => onOpen(d.draftId)}>{current ? R.current : S.open}</ui.Button>
+      </div>}
+    </div>
+  );
+}
+
+function DraftResults({ drafts, template, visibleDraftId, opening, onOpen, overlayControl, overlayFeedback, ui, S, R }: any) {
+  return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 140px", minWidth: 0 }}>
+          <strong role="heading" aria-level={2} style={{ minHeight: 32, display: "flex", alignItems: "center" }}>{R.title(drafts.filter((d: any) => d.draftId).length)}</strong>
+          {template && <small>{template}</small>}
+        </div>
+        {overlayControl && <div style={{ width: 250, maxWidth: "100%", minWidth: 0 }}>{overlayControl}</div>}
+      </div>
+      {overlayFeedback}
+    </div>
+    <ui.Grid minItemWidth={200}>
+      {drafts.map((d: any, i: number) => <DraftResultCard key={d.draftId || d.name || i} draft={d} current={!!d.draftId && visibleDraftId === d.draftId} opening={opening} onOpen={onOpen} ui={ui} S={S} R={R} />)}
+    </ui.Grid>
+  </div>;
+}
 
 // The downloader's own error line, without its tool prefix and video id, for a person to read.
 function shortError(text: string): string {
@@ -1878,7 +1943,7 @@ const RADIO_STRINGS: any = {
     cancelled: "Cancelled. Pick it up again under Unfinished work.",
     finished: "Done",
     analyzingLeft: (m: number) => `Analyzing · about ${m} min left`,
-    thisRun: "This run",
+    thisRun: "Work in progress",
     identifying: "Identifying the program…",
     choosing: "The AI is choosing passages and writing headlines. This can take a few minutes.",
     building: (i: number, n: number) => `Building draft ${i} of ${n}…`,
@@ -2086,7 +2151,7 @@ const RADIO_STRINGS: any = {
     cancelled: "\ucde8\uc18c\ud588\uc2b5\ub2c8\ub2e4. '\uc774\uc5b4\uc11c \ud560 \uc791\uc5c5'\uc5d0\uc11c \ub2e4\uc2dc \uc774\uc5b4\uac08 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     finished: "\uc644\ub8cc",
     analyzingLeft: (m: number) => `\ubd84\uc11d \uc911\uc785\ub2c8\ub2e4 · \uc57d ${m}\ubd84 \ub0a8\uc74c`,
-    thisRun: "\uc774\ubc88 \uc791\uc5c5",
+    thisRun: "\uc9c4\ud589 \uc911\uc778 \uc791\uc5c5",
     identifying: "\ud504\ub85c\uadf8\ub7a8\uc744 \ud310\ubcc4\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4…",
     choosing: "AI\uac00 \uad6c\uac04\uc744 \uace0\ub974\uace0 \ud5e4\ub4dc\ub77c\uc778\uc744 \uc4f0\uace0 \uc788\uc2b5\ub2c8\ub2e4. \uba87 \ubd84 \uac78\ub9b4 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     building: (i: number, n: number) => `\ucd08\uc548 ${i}/${n} \ub9cc\ub4dc\ub294 \uc911…`,
@@ -3067,7 +3132,11 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const [packError, setPackError] = React.useState("");
   const packLock = React.useRef(false);
   const K = PACK_STRINGS[lang] || PACK_STRINGS.en;
+  const R=RESULT_STRINGS[lang]||RESULT_STRINGS.en;
   const O=OVERLAY_STRINGS[lang]||OVERLAY_STRINGS.en;
+  const [visibleDraftId,setVisibleDraftId]=React.useState<string|null>(null);
+  const [openingDraft,setOpeningDraft]=React.useState<string|null>(null);
+  const openingLock=React.useRef(false);
   const [overlayTarget,setOverlayTarget]=React.useState<any>(null);
   const [overlayBusy,setOverlayBusy]=React.useState(false);
   const [overlayPending,setOverlayPending]=React.useState<boolean|null>(null);
@@ -3079,7 +3148,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const overlayScopeKey=JSON.stringify([projectId,context.sequenceId]);
   const overlayScope=React.useRef({key:overlayScopeKey});
   if(overlayScope.current.key!==overlayScopeKey)overlayScope.current={key:overlayScopeKey};
-  React.useEffect(()=>{setOverlayTarget(null);setOverlayPending(null);setOverlayMessage("");setOverlayError(false);},[projectId,context.sequenceId,overlayRefresh]);
+  React.useEffect(()=>{setVisibleDraftId(null);setOverlayTarget(null);setOverlayPending(null);setOverlayMessage("");setOverlayError(false);},[projectId,context.sequenceId,overlayRefresh]);
   const [mode, setMode] = React.useState<string>("youtube");
   const [url, setUrl] = React.useState<string>("");
   const [resources, setResources] = React.useState<any[]>([]);
@@ -3103,6 +3172,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const [cancelling, setCancelling] = React.useState<boolean>(false);
   const stepStarted = React.useRef<number>(Date.now());
   const resultsRef = React.useRef<HTMLDivElement>(null);
+  const resultsRevision = React.useRef(0);
   const [tplSel, setTplSel] = React.useState<string>("");
   const [tplEdit, setTplEdit] = React.useState<any>(null);
   const [tplBase, setTplBase] = React.useState<string>("");
@@ -3206,8 +3276,9 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         if(stateResult.isError||!stateResult.result)throw Error(O.failed);
         const state=stateResult.result;
         if(state.projectId!==projectId||state.onScreenTab?.kind!=="draft"){
-          setOverlayTarget(null);return;
+          setVisibleDraftId(null);setOverlayTarget(null);return;
         }
+        setVisibleDraftId(state.onScreenTab.sequenceId);
         const current=await overlayCall({action:"inspect",sequenceId:state.onScreenTab.sequenceId});
         if(!isCurrent())return;
         setOverlayTarget({id:current.id,name:current.name,count:current.count});
@@ -3266,6 +3337,23 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   React.useEffect(() => {
     loadJobs();
   }, [loadJobs]);
+
+  // Reopening the panel restores saved results without rerunning generation or editing Drafts.
+  React.useEffect(() => {
+    const revision = ++resultsRevision.current;
+    let live = true;
+    setDrafts([]); setInfo(null); setWarn(""); setStatus(""); setStep(-1);
+    if (projectId) store.list("jobs").then((rows: any[]) => {
+      if (!live || resultsRevision.current !== revision || runRef.current) return;
+      const job = latestDraftResult(rows, projectId);
+      if (!job) return;
+      setDrafts(job.built.filter(Boolean));
+      setInfo({ key: job.key, why: job.why, recommended: job.choice?.recommendedCount, countReason: job.choice?.countReason });
+      setWarn(job.resultWarning || "");
+      setStep(5);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [projectId, store]);
 
   const loadResources = React.useCallback(async () => {
     if (!projectId) return;
@@ -3636,6 +3724,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
 
   async function run(resume?: any) {
     if(overlayLock.current||busy||packLock.current)return;
+    resultsRevision.current++;
     setError("");
     setWarn("");
     setDrafts([]);
@@ -3717,6 +3806,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       const pickd = job.choice;
       setInfo({ key: job.key, why: job.why, recommended: pickd.recommendedCount, countReason: pickd.countReason });
       setStep(4);
+      let resultWarning = job.resultWarning || "";
       if ((tpl.renderer === "series") && tpl.layout.reframe && !pickd.reframed) {
         setStatus(S.reframing);
         try {
@@ -3730,10 +3820,12 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             await persist({ choice: pickd });
           }
           console.warn("[shortform-clips] reframing skipped", e);
-          setWarn(S.reframeSkipped + shortError(String(e?.message || e)));
+          resultWarning = S.reframeSkipped + shortError(String(e?.message || e));
+          setWarn(resultWarning);
         }
       }
-      if(tpl.framingMode === "single-speaker") setWarn(S.singleSpeakerNote);
+      if(tpl.framingMode === "single-speaker") resultWarning = S.singleSpeakerNote;
+      if (resultWarning) setWarn(resultWarning);
       const transform = cropTransform(tpl.layout);
       const buildLogo = (tpl.renderer === "separate-headlines") && tpl.logo.mode === "image" ? await compactLogo(tpl.logo.image) : tpl.logo.image;
       const made: any[] = Array.isArray(job.built) ? job.built.slice() : [];
@@ -3795,7 +3887,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           }
         }
         setDrafts(made.filter(Boolean));
-        await persist({ built: made });
+        await persist({ built: made, resultWarning });
       }
       const allBuilt = made.length === pickd.clips.length && made.every((m) => m && m.draftId);
       await persist({ done: allBuilt });
@@ -3830,10 +3922,17 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   }
 
   async function openDraft(id: string) {
+    if (openingLock.current) return;
+    openingLock.current = true;
+    setOpeningDraft(id);
     try {
       await script(`return await selects.editor.openDraft(${JSON.stringify(id)});`, "Open the draft");
+      setOverlayRefresh(n => n + 1);
     } catch (e: any) {
       setError(String(e?.message || e));
+    } finally {
+      openingLock.current = false;
+      setOpeningDraft(null);
     }
   }
 
@@ -3855,7 +3954,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   // stays in view.
   const runSummary = runInfo && (
     <ui.Section title={S.thisRun}>
-      <div style={CARD}>
+      <div style={{ ...CARD, ...FORM_COLUMN }}>
         <ui.Stack gap={4}>
           <strong style={CLAMP2}>
             {runInfo.mode === "youtube" ? runInfo.title || runInfo.url : runInfo.resourceName || resourceName(runInfo.pick)}
@@ -3970,71 +4069,50 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             {S.make}
           </ui.Button>
         </ui.Actions>
-        {step >= 0 && (
+        {step >= 0 && step < 5 && (
           <ui.Progress
             value={step >= S.steps.length ? 1 : (step + sub) / S.steps.length}
             label={step >= S.steps.length ? S.finished : `${S.steps[step]} · ${step + 1}/${S.steps.length}`}
           />
         )}
-        {statusLine && <ui.Message tone={step >= 5 && !busy ? "success" : "muted"}>{statusLine}</ui.Message>}
-        {info && (
+        {statusLine && (busy || step < 5) && <ui.Message tone={step >= 5 && !busy ? "success" : "muted"}>{statusLine}</ui.Message>}
+        {info && drafts.length === 0 && (
           <ui.Message>
             {S.detected}: {infoTpl ? nameOf(infoTpl, lang) : info.key}
             {info.why ? ` · ${firstSentence(info.why)}` : ""}
           </ui.Message>
         )}
-        {info && info.recommended != null && (
+        {info && drafts.length === 0 && info.recommended != null && (
           <ui.Message>
             {S.recommended}: {S.clipsUnit(info.recommended)}
             {info.countReason ? ` · ${firstSentence(info.countReason)}` : ""}
           </ui.Message>
         )}
-        {warn && <ui.Message>{warn}</ui.Message>}
+        {warn && drafts.length === 0 && <ui.Message>{warn}</ui.Message>}
         {error && <ui.Message tone="error">{error}</ui.Message>}
       </ui.Stack>
-      <div style={{width:"100%",maxWidth:"var(--panel-field-max, 480px)",marginInline:"auto",minWidth:0}}>
-        <hr style={{ marginBlock: 16 }} />
-        <ui.Stack gap={8}>
-          <ui.Toggle
+      {drafts.length > 0 && <div ref={resultsRef} style={{ ...FORM_COLUMN, marginTop: 24 }}>
+        <hr style={{ margin: "0 0 16px" }} />
+        <DraftResults drafts={drafts} template={infoTpl ? nameOf(infoTpl, lang) : info?.key} visibleDraftId={visibleDraftId} opening={openingDraft} onOpen={openDraft}
+          overlayControl={<ui.Stack gap={4}><ui.Toggle
             label={O.title}
             value={overlayPending ?? !!overlayTarget?.count}
             onChange={(enabled: boolean)=>manageOverlay(enabled?"add":"remove")}
             disabled={busy||overlayBusy||overlayLoading||!overlayTarget}
           />
-          {(overlayPending ?? !!overlayTarget?.count)&&<small style={{color:"var(--panel-danger)",fontSize:12,lineHeight:1.5}}>{O.uploadWarning}</small>}
-          {!overlayTarget&&!overlayBusy&&!overlayLoading&&!overlayError&&<ui.Message>{O.empty}</ui.Message>}
-          {overlayError&&overlayMessage&&<>
-            <ui.Message tone="error">{overlayMessage}</ui.Message>
-            <ui.Actions><ui.IconButton icon="refresh" label={O.refresh} onClick={()=>setOverlayRefresh(n=>n+1)} disabled={busy||overlayBusy||overlayLoading||!projectId} /></ui.Actions>
+            {(overlayPending ?? !!overlayTarget?.count)&&<small style={{color:"var(--panel-danger)",fontSize:12,lineHeight:1.5}}>{O.uploadWarning}</small>}
+          </ui.Stack>}
+          overlayFeedback={<>
+            {overlayTarget && !drafts.some(d=>d.draftId===overlayTarget.id) && <small>{R.target}: {overlayTarget.name}</small>}
+            {!overlayTarget&&!overlayBusy&&!overlayLoading&&!overlayError&&<ui.Message>{O.empty}</ui.Message>}
+            {overlayError&&overlayMessage&&<>
+              <ui.Message tone="error">{overlayMessage}</ui.Message>
+              <ui.Actions><ui.IconButton icon="refresh" label={O.refresh} onClick={()=>setOverlayRefresh(n=>n+1)} disabled={busy||overlayBusy||overlayLoading||!projectId} /></ui.Actions>
+            </>}
           </>}
-        </ui.Stack>
-      </div>
-      {drafts.length > 0 && (
-        <div ref={resultsRef}>
-          <ui.Section title={S.result}>
-            <ui.Grid minItemWidth={200}>
-              {drafts.map((d, i) => (
-                <div key={i} style={CARD}>
-                  <ui.Stack gap={4}>
-                    <strong style={CLAMP2}>{d.headline1}</strong>
-                    {d.headline2 ? <small style={CLAMP2}>{d.headline2}</small> : null}
-                    {d.error ? (
-                      <ui.Message tone="error">{d.error}</ui.Message>
-                    ) : (
-                      <small style={CLAMP2}>{[d.seconds ? S.seconds(d.seconds) : "", d.why || ""].filter(Boolean).join(" · ")}</small>
-                    )}
-                    {d.draftId && (
-                      <ui.Button variant="secondary" onClick={() => openDraft(d.draftId)}>
-                        {S.open}
-                      </ui.Button>
-                    )}
-                  </ui.Stack>
-                </div>
-              ))}
-            </ui.Grid>
-          </ui.Section>
-        </div>
-      )}
+          ui={ui} S={S} R={R} />
+      </div>}
+
     </>
   );
 
