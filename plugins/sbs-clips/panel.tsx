@@ -1709,9 +1709,9 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any
       return n;
     });
   };
-  const num = (path: string, label: string, min: number, max: number, unit?: string) => {
-    const v = path.split(".").reduce((o: any, k) => o[k], edit);
-    return <ui.NumberField label={label} value={Number(v)} min={min} max={max} step={1} unit={unit} onChange={(x: number) => set(path, Math.max(min, Math.min(max, Math.round(x))))} disabled={saving} />;
+  const num = (path: string, label: string, min: number, max: number, unit?: string, dflt?: number) => {
+    const v = path.split(".").reduce((o: any, k) => o?.[k], edit);
+    return <ui.NumberField label={label} value={Number.isFinite(Number(v)) && v !== null && v !== "" ? Number(v) : dflt ?? min} min={min} max={max} step={1} unit={unit} onChange={(x: number) => set(path, Math.max(min, Math.min(max, Math.round(x))))} disabled={saving} />;
   };
   const text = (path: string, label: string, multiline = true) => {
     const v = path.split(".").reduce((o: any, k) => o[k], edit);
@@ -1805,8 +1805,8 @@ function TemplateEditor({ ui, S, lang, templates, store, onChanged, state }: any
         {num("layout.sourceBottom", S.sourceBottom, 100, 1080, "px")}
         {num("layout.offsetX", S.offsetX, -960, 960, "px")}
         <ui.Toggle label={S.reframe} value={!!edit.layout.reframe} onChange={(v: boolean) => set("layout.reframe", v)} disabled={saving} />
-        {edit.layout.reframe ? num("layout.closeUp", S.closeUp, 2, 12, "×") : null}
-        {edit.layout.reframe ? num("layout.faceY", S.faceY, 25, 65, "%") : null}
+        {edit.layout.reframe ? num("layout.closeUp", S.closeUp, 2, 12, "×", 4.5) : null}
+        {edit.layout.reframe ? num("layout.faceY", S.faceY, 25, 65, "%", 40) : null}
         <small>{S.layoutHint}</small>
         <SourceCrop t={edit} />
       </ui.Section>
