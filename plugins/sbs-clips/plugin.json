@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "sbs-clips",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "name": "SBS Radio Clips",
   "summary": "Turn a long SBS Radio episode into editable vertical shorts in the program's own format, with headlines and captions.",
   "status": "experimental",

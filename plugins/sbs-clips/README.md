@@ -32,6 +32,10 @@ Two programs ship as built-in templates:
 - **Money Lab**: green gradient frame, yellow headline with a black
   outline, the guest's half of the split screen, box captions.
 
+News Direct follows faces: the panel finds faces with the Selects AI Runtime plugin (install it from this
+library), splits each clip at speaker turns and camera cuts, and pans the window so whole faces stay in
+frame. Without the runtime it keeps the fixed crop. It does not yet pick out who is talking in a wide shot.
+
 The video window and source crop match the programs' YouTube episodes. Footage
 framed differently (a single camera, another split) needs the window and crop
 changed in the **Templates** tab, where you can also change the headline (now
