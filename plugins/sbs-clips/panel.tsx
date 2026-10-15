@@ -892,7 +892,10 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
     if (byTalk[0].talk >= 1.08 && (byTalk.length < 2 || byTalk[0].talk >= byTalk[1].talk * 1.04)) {
       // A close-up on the talker: about closeUp face widths across the window.
       const t0 = byTalk[0];
-      const w = Math.max(windowW * 0.5, Math.min(windowW, t0.w * closeUp));
+      // Near the edge of the picture the view narrows (down to 2.8 face widths) so the face can stay centred.
+      const edge = Math.min(t0.cx, frameW - t0.cx);
+      let w = Math.max(windowW * 0.4, Math.min(windowW, t0.w * closeUp));
+      if (w / 2 > edge) w = Math.max(t0.w * 2.8, 2 * edge);
       shots.push({ ...piece, cx: Math.max(w / 2, Math.min(frameW - w / 2, t0.cx)), w, cy: t0.cy });
       continue;
     }
