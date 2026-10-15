@@ -10,10 +10,14 @@ YouTube-specific layout, customer app fork, demo overlay or sample video.
 
 ## Install
 
-Install the shared [Shortform Clips app](../../plugins/shortform-clips), then choose
-this folder's `pack.json` in **Templates > Template packs > Or choose a local file**.
-Keep `templates/` and `assets/` alongside the manifest during installation.
-After publication, this folder's GitHub URL can be installed through **Template link**.
+Install the shared [Shortform Clips app](../..). In **Templates**, choose
+**+ Add templates** at the end of the template picker, paste this folder's
+published GitHub URL, and click **Add**. If no templates are installed yet,
+use the **Add templates** button.
+
+The pack lives at `plugins/shortform-clips/template-packs/hankook-ilbo/`.
+Use a published branch or commit containing that path; a GitHub `pack.json`
+page or raw file URL also works. Installing the app does not install this pack.
 
 Select **TikTok** when making clips. Template API 1 does not restrict platform
 choices per pack: these are single TikTok designs stored as the base layout, with
