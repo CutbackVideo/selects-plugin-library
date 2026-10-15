@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "music",
+  "version": "0.1.0",
+  "name": "Music",
+  "summary": "Connect your Epidemic Sound subscription, find music, preview tracks and add them to your Draft.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS",
+      "Windows"
+    ],
+    "selects": "Requires music.epidemic.mcp-key.v1 and the user's own Epidemic MCP API key. Download permissions depend on the user's Epidemic account. Creator MP3 download, editable Audio, reload and WAV export verified. Video is optional. Experimental; MP4 export failed with local FFmpeg 9, and Windows remains unverified. Export usage reporting and safelisting are not integrated."
+  },
+  "localized": {
+    "en": {
+      "name": "Music",
+      "summary": "Connect your Epidemic Sound subscription, find music, preview tracks and add them to your Draft."
+    },
+    "ko": {
+      "name": "Music",
+      "summary": "Epidemic Sound \uad6c\ub3c5\uc744 \uc5f0\uacb0\ud574 \uc74c\uc545\uc744 \ucc3e\uace0 \ubbf8\ub9ac \ub4e4\uc740 \ub4a4 Draft\uc5d0 \ucd94\uac00\ud569\ub2c8\ub2e4."
+    }
+  }
+}
