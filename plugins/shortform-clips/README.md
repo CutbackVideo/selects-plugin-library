@@ -10,11 +10,11 @@ are delivered separately as template packs. The app has no bundled customer temp
 2. In **Templates**, choose **+ Add templates** at the bottom of the template
    picker, paste the link you received, and click **Add**. With no templates yet,
    use the **Add templates** button.
-3. Select a source, a program (or automatic detection), and the clip count in
+3. Select a source, a template (or automatic detection), and the clip count in
    **Make clips**. Add optional instructions and create the clips.
 4. In **My clips**, review one clip per row, with a saved preview, title and description.
    Hover or focus a preview to reveal Open; click it to open the Draft. The current
-   Draft has a highlighted preview and a Viewing badge. Use **Saved results** to switch between runs in this Project; the latest
+   Draft has a dimmed preview and a Viewing badge. Use **Saved results** to switch between runs in this Project; the latest
    is first, with source titles, dates and clip counts. Validation failures and new
    runs preserve previous results. You can browse history while generation runs;
    the first saved clip opens My clips with live progress and a cancel control.
