@@ -11,9 +11,9 @@ Open **SBS Radio Clips** from the Plugin list with a Project open.
 
 1. **Source video.** Paste a YouTube link, or pick a video of two minutes or
    more that is already in the Project. A link is downloaded once and reused.
-2. **Template.** Leave the program on *Detect automatically* or choose one.
-   Keep the recommended number of clips or set it, and add extra instructions
-   if you like.
+2. **Template.** Leave the program on *Detect automatically* or choose one,
+   and pick the layout: **YouTube Shorts** or **TikTok**. Keep the recommended
+   number of clips or set it, and add extra instructions if you like.
 3. **Make clips.** The panel analyzes the video if needed (Selects asks you to
    confirm the credits), identifies the program, lets the Selects AI choose the
    passages and write the headlines, and builds one Draft per clip.
@@ -53,6 +53,14 @@ framed differently (a single camera, another split) needs the window and crop
 changed in the **Templates** tab, where you can also change the headline (now
 with an optional outline), background, logo, captions, filler and pause
 trimming, and the AI's instructions. Duplicate a template to make your own.
+
+## Layouts
+
+Each template has a YouTube Shorts layout and a TikTok layout. The TikTok
+layout keeps the headline, captions, logo and date inside the profile grid's
+3:4 crop and clear of the app's bottom caption and right-hand buttons. In the
+Templates tab, the Layout switch shows and edits either one; the TikTok preview
+draws those safe zones.
 
 ## Data
 
