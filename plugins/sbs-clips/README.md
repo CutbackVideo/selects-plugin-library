@@ -42,7 +42,8 @@ Following faces (on for News Direct; change it in the Templates tab): the panel
 finds faces with the Selects AI Runtime plugin (installed with this one), splits
 each clip at speaker turns and camera cuts, and frames whoever talks in each
 turn: the face whose mouth moves most compared with its own average. When no
-face clearly talks, the window keeps the most faces whole. A back-and-forth the
+face clearly talks, the window keeps the most faces whole, widening the view when
+large faces sit side by side (a split-screen insert). A back-and-forth the
 transcript gives to one speaker keeps one framing. Without the runtime clips
 keep the fixed crop.
 
