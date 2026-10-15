@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "sbs-clips",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "name": "SBS Radio Clips",
   "summary": "Turn a long SBS Radio episode into editable vertical shorts in the program's own format, with headlines and captions.",
   "status": "experimental",
@@ -14,9 +14,10 @@
   ],
   "compatibility": {
     "platforms": [
-      "macOS"
+      "macOS",
+      "Windows x64"
     ],
-    "selects": "Requires Panel SDK runScript/runShell/askAI, Project importFiles and startAnalysis, Draft setFrameSize, setClipTransform and addMotionGraphic, and the panel file service. Built from Chosun Ilbo TikTok Clips 0.1.0-alpha.3; checked on Selects Staging 2.0.661 on macOS."
+    "selects": "Requires Panel SDK runScript/runShell/askAI, the selects.files panel file service (YouTube links, saved templates and progress), Project importFiles and startAnalysis, and Draft setFrameSize, splitAt, setClipTransform and addMotionGraphic. On Windows the yt-dlp steps run in cmd.exe and full-quality downloads use the ffmpeg bundled with Selects. Face following (optional, off by default) needs selects.ai (Selects 2.0.560 or later) and selects-ai-runtime from the same library revision, plus the Microsoft Visual C++ 2019-or-newer x64 runtime on Windows; without them clips keep the fixed crop. Built from Chosun Ilbo TikTok Clips 0.1.0-alpha.3; checked on Selects Staging 2.0.661 on macOS; Windows x64 not yet run on a Windows host."
   },
   "localized": {
     "en": {

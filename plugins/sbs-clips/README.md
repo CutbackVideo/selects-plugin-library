@@ -29,10 +29,14 @@ Two programs ship as built-in templates:
 
 - **News Direct**: black frame, white and yellow two-line headline,
   a 1080x1280 video window on the panel's wide shot, box captions.
-- **Money Lab**: green gradient frame, yellow headline with a black
-  outline, the guest's half of the split screen, box captions.
+- **Money Lab**: green gradient frame, a two-line headline with the channel's
+  yellow and green gradient fills and black outline, the host label, the
+  channel logo and an editable episode date (taken from the YouTube title,
+  else today), the guest's half of the split screen, box captions. The
+  channel's headline face is a condensed display font; set it in the Templates
+  tab when it is installed, otherwise the default sans is used.
 
-News Direct follows faces: the panel finds faces with the Selects AI Runtime plugin (install it from this
+Following faces (off by default; turn it on in the Templates tab): the panel finds faces with the Selects AI Runtime plugin (install it from this
 library), splits each clip at speaker turns and camera cuts, and pans the window so whole faces stay in
 frame. Without the runtime it keeps the fixed crop. It does not yet pick out who is talking in a wide shot.
 
