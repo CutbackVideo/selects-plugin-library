@@ -7,6 +7,30 @@ public = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(public)
 
 
+class KoreanPanelTitleTest(unittest.TestCase):
+    def test_installed_title_matches_manifest_and_passes_source_checks(self):
+        import json
+        root = Path(__file__).resolve().parents[1] / 'plugins/shortform-clips'
+        title = json.loads((root / 'plugin.json').read_text())['localized']['ko']['name']
+        header = (root / 'panel.tsx').read_text().splitlines()[:24]
+        self.assertIn('// @name:ko ' + title, header)
+        self.assertEqual(public.inspect('plugins/shortform-clips/panel.tsx', '\n'.join(header[:4]).encode()), [])
+
+    def test_exception_is_limited_to_korean_panel_title_headers(self):
+        title = '// @name:ko \uc20f\ud3fc \ud074\ub9bd\n'
+        self.assertEqual(public.inspect('plugins/another-app/panel.tsx', title.encode()), [])
+        for source in ('\n' * 24 + title, title.replace('@name:ko', '@name'),
+                       title.replace('@name:ko', '@name:en'), title + 'const text = "\ud55c\uae00";'):
+            self.assertIn('non-English Korean text', public.inspect('plugins/example/panel.tsx', source.encode()))
+        self.assertIn('non-English Korean text', public.inspect('plugins/example/README.md', title.encode()))
+
+    def test_title_metadata_still_checks_paths_and_credentials(self):
+        for value, finding in [('/Users/' + 'example/private', 'personal filesystem path'),
+                               ('ghp_' + 'a' * 36, 'access token')]:
+            source = ('// @name:ko \uc20f\ud3fc ' + value).encode()
+            self.assertIn(finding, public.inspect('plugins/example/panel.tsx', source))
+
+
 class PreviewAssetTest(unittest.TestCase):
     def test_canonical_media_headers(self):
         self.assertEqual(public.inspect('plugins/example/preview.mp4', b'\x00\x00\x00\x18ftypisom'), [])

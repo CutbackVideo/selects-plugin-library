@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "issue-broadcast",
-  "version": 3,
+  "version": 4,
   "names": {
-    "ko": "\uc774\uc288\uc804\ud30c\uc0ac \u00b7 \ud2f1\ud1a1",
-    "en": "Issue Broadcast \u00b7 TikTok"
+    "ko": "\uc774\uc288\uc804\ud30c\uc0ac",
+    "en": "Issue Broadcast"
   },
   "renderer": "series",
   "layout": {

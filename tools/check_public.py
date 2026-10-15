@@ -51,7 +51,16 @@ def inspect(name, data):
         text = data.decode('utf-8')
     except UnicodeDecodeError:
         return findings + ['binary file requires review']
-    findings.extend(label for label, pattern in RULES.items() if pattern.search(text))
+    # Installed app names come from literal panel headers, not manifest localization.
+    # Exempt only Korean title metadata within the host's first 24 header lines.
+    language_text = text
+    if re.fullmatch(rf'plugins/{slug}/panel\.tsx', name):
+        language_text = ''.join(
+            '\n' if i < 24 and re.fullmatch(r'[ \t]*//[ \t]*@name:ko[ \t]+[^\r\n]+\r?\n?', line) else line
+            for i, line in enumerate(text.splitlines(keepends=True))
+        )
+    findings.extend(label for label, pattern in RULES.items()
+                    if pattern.search(language_text if label == 'non-English Korean text' else text))
     return findings
 
 

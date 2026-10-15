@@ -1,4 +1,4 @@
-# Hankook Ilbo TikTok template pack
+# Hankook Ilbo template pack
 
 Two TikTok layouts for the shared Shortform Clips app. This pack contains no
 YouTube-specific layout, customer app fork, demo overlay or sample video.

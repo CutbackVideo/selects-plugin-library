@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "hankook-ilbo",
-  "version": "1.0.2",
-  "name": "Hankook Ilbo \u00b7 TikTok",
+  "version": "1.0.3",
+  "name": "Hankook Ilbo",
   "names": {
-    "en": "Hankook Ilbo \u00b7 TikTok",
-    "ko": "\ud55c\uad6d\uc77c\ubcf4 \u00b7 \ud2f1\ud1a1"
+    "en": "Hankook Ilbo",
+    "ko": "\ud55c\uad6d\uc77c\ubcf4"
   },
   "requiresApp": {
     "id": "shortform-clips",

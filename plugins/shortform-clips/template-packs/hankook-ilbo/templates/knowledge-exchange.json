@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "knowledge-exchange",
-  "version": 2,
+  "version": 3,
   "names": {
-    "ko": "\uc9c0\uc2dd\ud658\uc804\uc18c \u00b7 \ud2f1\ud1a1",
-    "en": "Knowledge Exchange \u00b7 TikTok"
+    "ko": "\uc9c0\uc2dd\ud658\uc804\uc18c",
+    "en": "Knowledge Exchange"
   },
   "renderer": "series",
   "layout": {
