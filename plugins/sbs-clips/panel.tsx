@@ -2404,7 +2404,8 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
       `해당 없으면 "none". 필요하면 프로젝트 도구로 이 영상(resource)의 화면을 확인해 좌상단/우상단 로고를 봐도 된다. 편집은 하지 마라.\n` +
       `제목/파일명: ${title}\n앞부분 전사: ${head.slice(0, 4000)}\n` +
       `JSON만 답하라: {"program": "<key or none>", "reason": "<한 문장>"}`;
-    const r: any = await guard(sdk.askAI({ prompt, timeoutMs: 180000 }));
+    // SBS Radio asks run on Selects' managed advanced policy (Sol medium), not the chat's model.
+    const r: any = await guard(sdk.askAI({ prompt, advanced: true, timeoutMs: 180000 }));
     const j = extractJson(r.text, S);
     if (!j.program || !list.some((t) => t.id === j.program)) return { key: null, why: j.reason || "" };
     return { key: j.program, why: `${S.whyAI}: ${j.reason || ""}` };
@@ -2509,7 +2510,7 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
     ]
       .filter(Boolean)
       .join("\n\n");
-    const r: any = await guard(sdk.askAI({ prompt, timeoutMs: 600000 }));
+    const r: any = await guard(sdk.askAI({ prompt, advanced: true, timeoutMs: 600000 }));
     const j = extractJson(r.text, S);
     let clips = (j.clips || []).filter((c: any) => Array.isArray(c.segments) && c.segments.length);
     clips = clips
