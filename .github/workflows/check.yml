@@ -166,6 +166,7 @@ jobs:
           node --test tests/daily_vlog_8.test.mjs
           node --test tests/daily_vlog_8_reference.test.mjs
           node --test tests/song_plans.test.mjs
+          node --test tests/sbs_clips_reframe.test.mjs
           node --test tests/doac_style_parity.test.mjs
           node --test tests/doac_style_check.test.mjs
           node --test tests/four_photo_stop_motion.test.mjs
