@@ -95,7 +95,7 @@ async function main() {
   observedPeakRssBytes = Math.max(observedPeakRssBytes, process.memoryUsage().rss);
   const summary = {
     contractVersion: 1, task: request.task, status: 'succeeded', files: result.files,
-    metrics: { ...result.metrics, ...decoderMetrics, prepareMs, probeMs, totalMs: performance.now() - began, observedPeakRssBytes },
+    metrics: { ...result.metrics, ...decoderMetrics, prepareMs, probeMs, timelineCached: Boolean(video.timelineCached), totalMs: performance.now() - began, observedPeakRssBytes },
     diagnostics: {
       ...result.diagnostics, node: process.versions.node, electron: process.versions.electron ?? null,
       platform: process.platform, arch: process.arch, ortVersion, requestedProvider: config.provider,
