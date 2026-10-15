@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "clip-studio",
+  "version": "0.1.0-alpha.1",
+  "name": "Clip Studio",
+  "summary": "Turn long videos into editable vertical clips with your own visual templates and editorial rules.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS"
+    ],
+    "selects": "Requires Panel SDK runScript/runShell/askAI, Project importFiles and startAnalysis, Draft setFrameSize, setClipTransform and addMotionGraphic, and the panel file service."
+  },
+  "localized": {
+    "ko": {
+      "name": "\ud074\ub9bd \uc2a4\ud29c\ub514\uc624",
+      "summary": "\uace0\uac1d\ubcc4 \ud15c\ud50c\ub9bf\uacfc \ud3b8\uc9d1 \uc9c0\uce68\uc73c\ub85c \uae34 \uc601\uc0c1\uc744 \ud3b8\uc9d1 \uac00\ub2a5\ud55c \uc138\ub85c \ud074\ub9bd\uc73c\ub85c \ub9cc\ub4ed\ub2c8\ub2e4."
+    },
+    "en": {
+      "name": "Clip Studio",
+      "summary": "Turn long videos into editable vertical clips with your own visual templates and editorial rules."
+    },
+    "de": {
+      "name": "Clip Studio",
+      "summary": "Lange Videos mit eigenen visuellen Vorlagen und redaktionellen Regeln in bearbeitbare Hochkant-Clips umwandeln."
+    },
+    "es": {
+      "name": "Clip Studio",
+      "summary": "Convierte videos largos en clips verticales editables con tus propias plantillas visuales y criterios editoriales."
+    },
+    "fr": {
+      "name": "Clip Studio",
+      "summary": "Transformez de longues vid\u00e9os en clips verticaux modifiables avec vos mod\u00e8les visuels et consignes \u00e9ditoriales."
+    },
+    "it": {
+      "name": "Clip Studio",
+      "summary": "Trasforma video lunghi in clip verticali modificabili con i tuoi modelli visivi e criteri editoriali."
+    },
+    "ja": {
+      "name": "\u30af\u30ea\u30c3\u30d7\u30b9\u30bf\u30b8\u30aa",
+      "summary": "\u72ec\u81ea\u306e\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8\u3068\u7de8\u96c6\u65b9\u91dd\u3067\u3001\u9577\u3044\u52d5\u753b\u304b\u3089\u7de8\u96c6\u53ef\u80fd\u306a\u7e26\u578b\u30af\u30ea\u30c3\u30d7\u3092\u4f5c\u6210\u3057\u307e\u3059\u3002"
+    },
+    "pt": {
+      "name": "Clip Studio",
+      "summary": "Transforme v\u00eddeos longos em clipes verticais edit\u00e1veis com seus pr\u00f3prios modelos visuais e crit\u00e9rios editoriais."
+    },
+    "tr": {
+      "name": "Clip Studio",
+      "summary": "Uzun videolar\u0131 kendi g\u00f6rsel \u015fablonlar\u0131n\u0131z ve editoryal kurallar\u0131n\u0131zla d\u00fczenlenebilir dikey kliplere d\u00f6n\u00fc\u015ft\u00fcr\u00fcn."
+    },
+    "zh": {
+      "name": "\u526a\u8f91\u5de5\u4f5c\u5ba4",
+      "summary": "\u4f7f\u7528\u81ea\u5b9a\u4e49\u89c6\u89c9\u6a21\u677f\u548c\u7f16\u8f91\u89c4\u5219\uff0c\u5c06\u957f\u89c6\u9891\u8f6c\u6362\u4e3a\u53ef\u7f16\u8f91\u7684\u7ad6\u5c4f\u7247\u6bb5\u3002"
+    }
+  }
+}

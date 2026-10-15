@@ -157,6 +157,9 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/recap-preview-test" --no-package-lock --ignore-scripts typescript@5.8.3
           SELECTS_DEV_REPO="$RUNNER_TEMP/recap-preview-test" node --test tests/recap_2026_preview.test.mjs
+      - name: Test Clip Studio
+        run: |
+          SELECTS_DEV_REPO="$RUNNER_TEMP/recap-preview-test" node --test tests/clip_studio.test.mjs
       - name: Test template panels on Windows paths
         run: |
           node --test tests/selected_template_media.test.mjs

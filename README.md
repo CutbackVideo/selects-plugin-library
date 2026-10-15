@@ -6,6 +6,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | --- | --- |
 | [Selects AI Runtime](plugins/selects-ai-runtime) — shared local face detection and person masks for plugin developers; requires Selects 2.0.560 or later | Experimental |
 | [Selects Clips](plugins/shortform-cloner) — shorts from long videos, using templates made from a channel's best shorts | Experimental |
+| [Clip Studio](plugins/clip-studio) — editable vertical clips; copy the app and customize its built-in templates for each customer | Experimental |
 | [Multicam Generator](plugins/multicam-generator) | Experimental |
 | [Place Count](plugins/place-count) | Experimental |
 | [Postcard Cutout Studio](plugins/postcard-cutout-studio) | Experimental |
