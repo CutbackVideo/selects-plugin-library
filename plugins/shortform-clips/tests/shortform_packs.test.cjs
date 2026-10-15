@@ -143,6 +143,25 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     };
     return {fetcher,calls};
   }
+  await t.test('local and link imports accept 20 MiB images and reject larger files',async()=>{
+    const asset='assets/news-briefing-logo-image.png';
+    const image=Buffer.alloc(20*1024*1024);fs.readFileSync(path.join(realPack,asset)).copy(image);
+    const local={...fileService,size:undefined,readFile:async p=>p.endsWith(asset)?image:fileService.readFile(p)};
+    const pack=await api.readTemplatePack(local,path.join(realPack,'pack.json'));
+    assert.equal(Buffer.from(pack.templates.find(t=>t.id==='news-briefing').logo.image.split(',')[1],'base64').length,image.length);
+    const remote=remoteFetch({change:(file,bytes)=>file===asset?image:bytes});
+    assert.equal((await api.readGitHubTemplatePack(folderLink,remote.fetcher)).templates.length,4);
+    await assert.rejects(api.readTemplatePack({...local,readFile:async p=>p.endsWith(asset)?Buffer.concat([image,Buffer.from([0])]):fileService.readFile(p)},path.join(realPack,'pack.json')),/oversized pack file/);
+  });
+  await t.test('cumulative pack bytes remain bounded to 100 MiB',async()=>{
+    const manifest=JSON.parse(fs.readFileSync(path.join(realPack,'pack.json')));
+    manifest.assets=Array.from({length:6},(_,i)=>`assets/image-${i}.png`);
+    const image=Buffer.alloc(20*1024*1024);fs.readFileSync(path.join(realPack,'assets/news-briefing-logo-image.png')).copy(image);
+    const local={...fileService,size:undefined,readFile:async p=>p.endsWith('pack.json')?Buffer.from(JSON.stringify(manifest)):image};
+    await assert.rejects(api.readTemplatePack(local,path.join(realPack,'pack.json')),/exceeds 100 MiB/);
+    const remote=remoteFetch({change:(file,bytes)=>file==='pack.json'?Buffer.from(JSON.stringify({...manifest,assets:JSON.parse(bytes).assets})):file.startsWith('assets/')?image:bytes});
+    await assert.rejects(api.readGitHubTemplatePack(folderLink,remote.fetcher),e=>e.code==='tooLarge');
+  });
   await t.test('folder, manifest, raw and slash-branch links install only the declared files at one commit',async()=>{
     const links=[folderLink,folderLink.replace('/tree/','/blob/')+'/pack.json?raw=true',`https://raw.githubusercontent.com/example/templates/${sha}/plugins/shortform-clips/template-packs/sbs-radio/pack.json`,folderLink.replace('/main/','/codex/my-pack/')];
     for(const link of links){
@@ -165,7 +184,7 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     for(const status of [403,429,500])await assert.rejects(api.readGitHubTemplatePack(folderLink,async()=>new Response('',{status})),e=>e.code===(status===500?'network':'rateLimit'));
     await assert.rejects(api.readGitHubTemplatePack(folderLink,async()=>{throw new TypeError('fetch failed')}),e=>e.code==='network');
     let remote=remoteFetch({failFile:'pack.json'});await assert.rejects(api.readGitHubTemplatePack(folderLink,remote.fetcher),e=>e.code==='notFound');
-    remote=remoteFetch({change:(file,bytes)=>file==='pack.json'?new Uint8Array(4*1024*1024+1):bytes});await assert.rejects(api.readGitHubTemplatePack(folderLink,remote.fetcher),e=>e.code==='tooLarge');
+    remote=remoteFetch({change:(file,bytes)=>file==='pack.json'?new Uint8Array(20*1024*1024+1):bytes});await assert.rejects(api.readGitHubTemplatePack(folderLink,remote.fetcher),e=>e.code==='tooLarge');
   });
   await t.test('incomplete and invalid remote updates preserve the installed pack and user overrides',async()=>{
     const store=storage(),repo=api.makeTemplateRepository(store);await install(repo,copyPack());

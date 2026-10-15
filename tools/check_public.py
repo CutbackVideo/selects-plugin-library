@@ -38,11 +38,11 @@ def inspect(name, data):
     if re.fullmatch(r'plugins/[a-z0-9]+(?:-[a-z0-9]+)*/.+\.(?:m4a|wav|mp3)', name) and not BLOCKED & set(Path(name).parts):
         return [] if is_audio(name, data) and len(data) <= 20 * 1024 * 1024 else ['Invalid or oversized audio asset']
     # Customer pack images are source assets, bounded and scoped to the pack's assets directory.
-    if re.fullmatch(r'plugins/shortform-clips/template-packs/[a-z0-9]+(?:-[a-z0-9]+)*/assets/[a-zA-Z0-9_/-]+\.(?:png|jpe?g|webp)', name) and not BLOCKED & set(Path(name).parts):
+    if re.fullmatch(rf'plugins/{slug}/template-packs/{slug}/assets/[a-zA-Z0-9_/-]+\.(?:png|jpe?g|webp)', name) and not BLOCKED & set(Path(name).parts):
         valid = (name.endswith('.png') and len(data) > 24 and data.startswith(b'\x89PNG\r\n\x1a\n') or
                  name.endswith(('.jpg', '.jpeg')) and len(data) > 3 and data.startswith(b'\xff\xd8\xff') or
                  name.endswith('.webp') and len(data) > 12 and data[:4] == b'RIFF' and data[8:12] == b'WEBP')
-        return [] if valid and len(data) <= 4 * 1024 * 1024 else ['Invalid or oversized template pack image']
+        return [] if valid and len(data) <= 20 * 1024 * 1024 else ['Invalid or oversized template pack image']
     findings = []
     path = Path(name)
     if any(part in BLOCKED for part in path.parts) or path.suffix in {'.onnx', '.mp4', '.webm', '.pyc', '.pem', '.key'}:
@@ -51,17 +51,7 @@ def inspect(name, data):
         text = data.decode('utf-8')
     except UnicodeDecodeError:
         return findings + ['binary file requires review']
-    # Panel titles are localized metadata read literally by Selects (Unicode
-    # escapes in these comments would appear verbatim in the Apps list).
-    language_text = text
-    if re.fullmatch(r'plugins/[a-z0-9]+(?:-[a-z0-9]+)*/panel\.tsx', name):
-        lines = text.splitlines(keepends=True)
-        language_text = ''.join(
-            '\n' if i < 24 and re.fullmatch(r'[ \t]*//[ \t]*@name:[a-z]{2}[ \t]+[^\r\n]+\r?\n?', line) else line
-            for i, line in enumerate(lines)
-        )
-    findings.extend(label for label, pattern in RULES.items()
-                    if pattern.search(language_text if label == 'non-English Korean text' else text))
+    findings.extend(label for label, pattern in RULES.items() if pattern.search(text))
     return findings
 
 

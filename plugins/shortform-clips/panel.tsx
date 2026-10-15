@@ -1,5 +1,5 @@
 // @name Shortform Clips
-// @name:ko 숏폼 클립
+// @name:ko Shortform Clips
 // @icon scissors
 // @speaker-profiling off
 // Turns a long YouTube episode (a link or a video already in the project) into editable vertical Drafts in
@@ -1074,7 +1074,8 @@ function connectFiles(sdk: any): Promise<any> {
 
 // Template API v1. Pack installation is explicit; mount only reads installed data.
 const TEMPLATE_API = 1;
-const PACK_MAX_BYTES = 16 * 1024 * 1024;
+const PACK_FILE_MAX_BYTES = 20 * 1024 * 1024;
+const PACK_MAX_BYTES = 100 * 1024 * 1024;
 const PACK_STRINGS: any = {
   en: {"link": "Template link", "linkPlaceholder": "Paste the template link you received", "installLink": "Add", "invalidLink": "Check the template link you received.", "notFound": "Templates not found. Check the link.", "rateLimit": "Downloads are temporarily limited. Try again later.", "network": "Could not download the templates. Check your connection and try again.", "tooLarge": "The download exceeds the template pack size limit.", "title": "Add templates", "add": "Adding templates...", "empty": "Add a template pack in the Templates tab first.", "installed": "Templates added.", "noFiles": "File access is required to install template packs.", "blocked": "Save or discard template edits before updating a pack.", "loading": "Loading templates...", "failed": "Could not install the template pack."},
   ko: {"link": "\ud15c\ud50c\ub9bf \ub9c1\ud06c", "linkPlaceholder": "\uc804\ub2ec\ubc1b\uc740 \ud15c\ud50c\ub9bf \ub9c1\ud06c\ub97c \ubd99\uc5ec\ub123\uc73c\uc138\uc694", "installLink": "\ucd94\uac00", "invalidLink": "\uc804\ub2ec\ubc1b\uc740 \ud15c\ud50c\ub9bf \ub9c1\ud06c\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "notFound": "\ud15c\ud50c\ub9bf\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \ub9c1\ud06c\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "rateLimit": "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \uc77c\uc2dc\uc801\uc73c\ub85c \uc81c\ud55c\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "network": "\ud15c\ud50c\ub9bf\uc744 \ub0b4\ub824\ubc1b\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc5f0\uacb0\uc744 \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "tooLarge": "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \ud15c\ud50c\ub9bf \ud329 \uc6a9\ub7c9 \uc81c\ud55c\uc744 \ucd08\uacfc\ud588\uc2b5\ub2c8\ub2e4.", "title": "\ud15c\ud50c\ub9bf \ucd94\uac00", "add": "\ud15c\ud50c\ub9bf\uc744 \ucd94\uac00\ud558\ub294 \uc911\uc785\ub2c8\ub2e4.", "empty": "\ud15c\ud50c\ub9bf \ud0ed\uc5d0\uc11c \ud15c\ud50c\ub9bf \ud329\uc744 \uba3c\uc800 \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", "installed": "\ud15c\ud50c\ub9bf\uc744 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4.", "noFiles": "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\ub824\uba74 \ud30c\uc77c \uc811\uadfc\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.", "blocked": "\uc218\uc815 \uc911\uc778 \ud15c\ud50c\ub9bf\uc744 \uc800\uc7a5\ud558\uac70\ub098 \ucde8\uc18c\ud55c \ub4a4 \ud329\uc744 \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.", "loading": "\ud15c\ud50c\ub9bf\uc744 \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.", "failed": "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4."},
@@ -1183,7 +1184,7 @@ async function readTemplatePack(fs: any, manifestPath: string) {
   const root = folderOf(manifestPath);
   return hydrateTemplatePack(async path => {
     const absolute = fs.join(root, path);
-    if (fs.size) { const size = await fs.size(absolute); packAssert(size > 0 && size <= 4 * 1024 * 1024, "Missing or oversized pack file: " + path); }
+    if (fs.size) { const size = await fs.size(absolute); packAssert(size > 0 && size <= PACK_FILE_MAX_BYTES, "Missing or oversized pack file: " + path); }
     return fs.readFile(absolute);
   });
 }
@@ -1192,16 +1193,16 @@ async function hydrateTemplatePack(readFile: (path: string) => Promise<Uint8Arra
   let total = 0;
   const read = async (path: string) => {
     const bytes = await readFile(path);
-    packAssert(bytes.length > 0 && bytes.length <= 4 * 1024 * 1024, "Missing or oversized pack file: " + path);
+    packAssert(bytes.length > 0 && bytes.length <= PACK_FILE_MAX_BYTES, "Missing or oversized pack file: " + path);
     total += bytes.length;
-    packAssert(total <= PACK_MAX_BYTES, "Template pack exceeds 16 MiB.");
+    packAssert(total <= PACK_MAX_BYTES, "Template pack exceeds 100 MiB.");
     return bytes;
   };
   const manifest = validatePackManifest(JSON.parse(dec(await read("pack.json"))));
   const assets: any = {};
   for (const path of manifest.assets) {
     const bytes = await read(path);
-    packAssert(bytes.length <= 4 * 1024 * 1024, "Pack image exceeds 4 MiB: " + path);
+    packAssert(bytes.length <= PACK_FILE_MAX_BYTES, "Pack image exceeds 20 MiB: " + path);
     assets[path] = "data:" + imageMime(bytes) + ";base64," + toBase64(bytes);
   }
   const resolveImages = (v: any): any => {
@@ -1293,7 +1294,7 @@ async function readGitHubTemplatePack(input: string, fetcher: typeof fetch = fet
     if (!commit) throw new PackLinkError("notFound");
     const root = `https://raw.githubusercontent.com/${link.owner}/${link.repo}/${commit}/` + (folder.length ? folder.map(encodeURIComponent).join("/") + "/" : "");
     const pack = await hydrateTemplatePack(async path => {
-      const bytes = await request(root + path.split("/").map(encodeURIComponent).join("/"), Math.min(4 * 1024 * 1024, PACK_MAX_BYTES - total));
+      const bytes = await request(root + path.split("/").map(encodeURIComponent).join("/"), Math.min(PACK_FILE_MAX_BYTES, PACK_MAX_BYTES - total));
       if (!bytes) throw new PackLinkError("notFound");
       total += bytes.length;
       return bytes;

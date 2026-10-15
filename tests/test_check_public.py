@@ -7,21 +7,6 @@ public = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(public)
 
 
-class LocalizedPanelTitleTest(unittest.TestCase):
-    def test_localized_title_is_metadata(self):
-        source = '// @name SBS Radio TikTok Clips\n// @name:ko SBS \ub77c\ub514\uc624 \ud2f1\ud1a1 \ud074\ub9bd\n'
-        self.assertEqual(public.inspect('plugins/sbs-radio-clip/panel.tsx', source.encode()), [])
-
-    def test_other_source_text_stays_checked(self):
-        for source in ('// @name \ud55c\uad6d\uc5b4\n', 'const title = "\ud55c\uad6d\uc5b4";', '\n' * 24 + '// @name:ko \ud55c\uad6d\uc5b4\n'):
-            self.assertIn('non-English Korean text', public.inspect('plugins/example/panel.tsx', source.encode()))
-        self.assertIn('non-English Korean text', public.inspect('plugins/example/README.md', '// @name:ko \ud55c\uad6d\uc5b4'.encode()))
-
-    def test_localized_title_still_checks_personal_paths(self):
-        source = '// @name:ko \ud55c\uad6d\uc5b4 /Users/{}'.format('example/private') + '\n'
-        self.assertIn('personal filesystem path', public.inspect('plugins/example/panel.tsx', source.encode()))
-
-
 class PreviewAssetTest(unittest.TestCase):
     def test_canonical_media_headers(self):
         self.assertEqual(public.inspect('plugins/example/preview.mp4', b'\x00\x00\x00\x18ftypisom'), [])
@@ -69,4 +54,13 @@ class TemplatePackImagesTest(unittest.TestCase):
                      'plugins/shortform-clips/template-packs/example/assets/../logo.png', 'plugins/shortform-clips/template-packs/example/assets/.local/logo.png'):
             self.assertTrue(public.inspect(name, png), name)
         self.assertTrue(public.inspect('plugins/shortform-clips/template-packs/example/assets/logo.png', b'not an image'))
-        self.assertTrue(public.inspect('plugins/shortform-clips/template-packs/example/assets/logo.png', png + b'0' * (4 * 1024 * 1024)))
+        self.assertEqual(public.inspect('plugins/other-app/template-packs/customer/assets/logo.png', png), [])
+
+    def test_image_size_boundary_and_formats(self):
+        for extension, header in [('png', b'\x89PNG\r\n\x1a\n'), ('jpg', b'\xff\xd8\xff'),
+                                  ('jpeg', b'\xff\xd8\xff'), ('webp', b'RIFF0000WEBP')]:
+            name = f'plugins/other-app/template-packs/customer/assets/background.{extension}'
+            image = header + b'0' * (20 * 1024 * 1024 - len(header))
+            self.assertEqual(public.inspect(name, image), [])
+            self.assertTrue(public.inspect(name, image + b'0'))
+        self.assertTrue(public.inspect('plugins/other-app/template-packs/customer/assets/logo.jpg', b'\x89PNG\r\n\x1a\n' + b'0' * 24))

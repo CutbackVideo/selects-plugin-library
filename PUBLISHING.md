@@ -52,10 +52,8 @@ For public plugins, the authoring agent writes translations directly for
 `de en es fr it ja ko pt tr zh`. This is authoring guidance: the manifest
 validator does not require translations, an English dictionary, or all ten
 languages. There is no CI translation pipeline or translation build step.
-The public-source checker rejects literal Korean text except for localized
-`// @name:<language>` metadata in the first 24 lines of a plugin's `panel.tsx`.
-Selects reads those titles literally, so use the actual localized title there;
-use Unicode escapes for Korean string literals elsewhere in source code.
+The separate public-source checker currently rejects literal Korean text;
+that existing restriction is not changed by this metadata contract.
 
 ## Gallery previews
 
@@ -113,3 +111,9 @@ A template may set `galleryOrder`, a non-negative number: the gallery lists
 templates with one first, lower first, then the rest by name. A style in
 `variants` may set its own, which overrides its package's, so one package's
 styles can sit apart. Apps without support ignore it and list by name.
+
+## Template pack images
+
+Plugins may ship PNG, JPEG or WebP images under
+`plugins/<plugin-id>/template-packs/<pack-id>/assets/`. The public-source
+checker validates file signatures and allows up to 20 MiB per image.

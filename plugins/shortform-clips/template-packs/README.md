@@ -30,7 +30,7 @@ its declared JSON/image files, validates the full pack, and installs a self-cont
 snapshot. It stores the source URL and resolved commit with that snapshot. Repeat
 the action to update; updates are explicit, never automatic. Public GitHub only;
 no GitHub login or token is required. Rate limits and missing files are reported.
-Downloads are bounded to 4 MiB per file, 16 MiB per pack and two minutes per attempt.
+Downloads are bounded to 20 MiB per file, 100 MiB per pack and two minutes per attempt.
 
 There is no file-upload flow, separate download tool, or new build step. Packs
 contain data only. Plugin-local tests load every checked-in pack through the
@@ -60,7 +60,7 @@ Names can be localized. Use Unicode escapes for Korean strings to satisfy the
 repository's public-source checks. Every template and image must be declared.
 Paths are relative to the pack root, with no absolute paths, parent traversal,
 symlinks, remote URLs or executable content. PNG, JPEG and WebP assets are supported.
-Limits: 100 templates, 200 assets, 4 MiB per file, 16 MiB per source pack.
+Limits: 100 templates, 200 assets, 20 MiB per file, 100 MiB per source pack.
 
 ## Template API 1
 
