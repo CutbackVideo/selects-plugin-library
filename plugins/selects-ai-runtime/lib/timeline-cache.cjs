@@ -2,18 +2,30 @@
 // Reading a source's frame timeline (every frame's timestamp) is a full ffprobe pass over the file: about
 // half a minute for a long 1080p episode, repeated by every job on that file. Jobs reuse it instead. An
 // entry is keyed by the file's path, size and modification time and the ffprobe binary, and lives in the
-// host-owned runtime cache that preparation creates. A missing, unreadable or malformed entry only means
-// a fresh probe; a cache that cannot be written is skipped.
+// host-owned runtime cache that preparation creates. A missing, unreadable, oversized or malformed entry
+// (lib/video.cjs also rejects one whose timestamps are out of order) only means a fresh probe; a cache that
+// cannot be written is skipped.
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
 const MAX_ENTRIES = 64;
+// The same bound as ffprobe's own metadata output (lib/process.cjs).
+const MAX_BYTES = 64 * 1024 * 1024;
 
-function timelineKey(filename, stat, probeTool) {
+// The ffprobe binary is identified by its path, size and modification time, so a build replaced in place
+// gets new entries.
+async function timelineKey(filename, stat, probeTool) {
+  let tool = [String(probeTool || ''), null, null];
+  try {
+    const toolStat = await fs.stat(String(probeTool));
+    tool = [String(probeTool), toolStat.size, toolStat.mtimeMs];
+  } catch {
+    // An unreadable tool path keys on the path alone.
+  }
   return crypto
     .createHash('sha256')
-    .update(JSON.stringify([path.resolve(filename), stat.size, stat.mtimeMs, String(probeTool || '')]))
+    .update(JSON.stringify([path.resolve(filename), stat.size, stat.mtimeMs, ...tool]))
     .digest('hex');
 }
 
@@ -33,7 +45,7 @@ async function readTimeline(dir, key) {
   try {
     const file = path.join(root, `${key}.json`);
     const stat = await fs.lstat(file);
-    if (!stat.isFile()) return null;
+    if (!stat.isFile() || stat.size > MAX_BYTES) return null;
     const data = JSON.parse(await fs.readFile(file, 'utf8'));
     if (data?.version !== 1 || data.key !== key || !Array.isArray(data.rawPts) || !data.rawPts.length) return null;
     if (data.rawPts.some(value => !Number.isSafeInteger(value))) return null;

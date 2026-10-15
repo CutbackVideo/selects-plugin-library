@@ -75,15 +75,25 @@ test('a changed file, a malformed entry or no cache directory means a fresh time
     assert.equal(edited.timelineCached, false);
     assert.equal(await passes(), 2);
 
-    const key = timelineKey(source, await fs.stat(source), ffprobe);
+    const key = await timelineKey(source, await fs.stat(source), ffprobe);
     await fs.writeFile(path.join(cache, `${key}.json`), '{"version":1,"key":"' + key + '","rawPts":[0,"x"]}');
     const repaired = await probeVideo({ tools: { ffprobe }, timelineCache: cache }, request, signal);
     assert.equal(repaired.timelineCached, false);
     assert.equal(await passes(), 3);
 
+    // Integers that go backwards pass the cache's own shape check; the probe still rejects and replaces them.
+    await fs.writeFile(path.join(cache, `${key}.json`), JSON.stringify({ version: 1, key, rawPts: [0, 1024, 512] }));
+    const reordered = await probeVideo({ tools: { ffprobe }, timelineCache: cache }, request, signal);
+    assert.equal(reordered.timelineCached, false);
+    assert.equal(reordered.frameTimes.length, 30);
+    assert.equal(await passes(), 4);
+    const replaced = await probeVideo({ tools: { ffprobe }, timelineCache: cache }, request, signal);
+    assert.equal(replaced.timelineCached, true);
+    assert.equal(await passes(), 4);
+
     await probeVideo({ tools: { ffprobe } }, request, signal);
     await probeVideo({ tools: { ffprobe }, timelineCache: path.join(directory, 'missing') }, request, signal);
-    assert.equal(await passes(), 5);
+    assert.equal(await passes(), 6);
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }
@@ -95,11 +105,11 @@ test('the cache keeps only the most recent entries and ignores links', async () 
     const cache = path.join(directory, 'timelines');
     await fs.mkdir(cache);
     for (let i = 0; i < MAX_ENTRIES + 5; i++) {
-      assert.equal(await writeTimeline(cache, timelineKey(`/source-${i}.mp4`, { size: i, mtimeMs: i }, 'ffprobe'), [0, 512, 1024]), true);
+      assert.equal(await writeTimeline(cache, await timelineKey(`/source-${i}.mp4`, { size: i, mtimeMs: i }, 'ffprobe'), [0, 512, 1024]), true);
     }
     const names = (await fs.readdir(cache)).filter(name => name.endsWith('.json'));
     assert.ok(names.length <= MAX_ENTRIES, `${names.length} entries kept`);
-    const newest = timelineKey(`/source-${MAX_ENTRIES + 4}.mp4`, { size: MAX_ENTRIES + 4, mtimeMs: MAX_ENTRIES + 4 }, 'ffprobe');
+    const newest = await timelineKey(`/source-${MAX_ENTRIES + 4}.mp4`, { size: MAX_ENTRIES + 4, mtimeMs: MAX_ENTRIES + 4 }, 'ffprobe');
     assert.deepEqual(await readTimeline(cache, newest), [0, 512, 1024]);
 
     if (process.platform !== 'win32') {
@@ -108,6 +118,28 @@ test('the cache keeps only the most recent entries and ignores links', async () 
       assert.equal(await readTimeline(linked, newest), null);
       assert.equal(await writeTimeline(linked, newest, [0]), false);
     }
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('replacing the ffprobe binary in place, or an oversized entry, means a fresh timeline', { skip }, async () => {
+  const { directory, ffprobe, source, cache, passes, request } = await setup();
+  try {
+    const signal = new AbortController().signal;
+    const config = { tools: { ffprobe }, timelineCache: cache };
+    await probeVideo(config, request, signal);
+    await fs.appendFile(ffprobe, '\n# rebuilt\n');
+    const rebuilt = await probeVideo(config, request, signal);
+    assert.equal(rebuilt.timelineCached, false);
+    assert.equal(await passes(), 2);
+
+    const key = await timelineKey(source, await fs.stat(source), ffprobe);
+    const file = path.join(cache, `${key}.json`);
+    const handle = await fs.open(file, 'r+');
+    await handle.truncate(64 * 1024 * 1024 + 1);
+    await handle.close();
+    assert.equal(await readTimeline(cache, key), null);
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }

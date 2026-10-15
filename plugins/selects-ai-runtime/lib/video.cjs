@@ -30,6 +30,15 @@ function ceilingTimeTicks(seconds, timeBase) {
   return Number(ticks);
 }
 
+// Timestamps relative to the first frame, or null unless they are safe integers that never go backwards.
+function relativeTimeline(rawPts) {
+  if (!Array.isArray(rawPts) || !rawPts.length || rawPts.some(value => !Number.isSafeInteger(value))) return null;
+  const origin = rawPts[0];
+  const sourcePts = rawPts.map(pts => pts - origin);
+  if (sourcePts.some((pts, index) => !Number.isSafeInteger(pts) || pts < 0 || (index && pts < sourcePts[index - 1]))) return null;
+  return sourcePts;
+}
+
 async function probeVideo(config, request, signal) {
   const filename = request.input.source.path;
   const data = JSON.parse(await collectTool(config.tools.ffprobe, [
@@ -50,10 +59,14 @@ async function probeVideo(config, request, signal) {
   const width = quarterTurn ? stream.height : stream.width;
   const height = quarterTurn ? stream.width : stream.height;
   if (width * height > 32_000_000) throw new Error('Source exceeds the PoC raster limit');
-  // The frame timeline is a full pass over the file; a later job on the same unchanged file reuses it.
-  const cacheKey = config.timelineCache ? timelineKey(filename, await fs.stat(filename), config.tools.ffprobe) : null;
-  let rawPts = cacheKey ? await readTimeline(config.timelineCache, cacheKey) : null;
-  const timelineCached = Boolean(rawPts);
+  // The frame timeline is a full pass over the file; a later job on the same unchanged file reuses it. A
+  // cached timeline passes the same checks as a fresh one, and one that fails them is read again.
+  const cacheKey = config.timelineCache ? await timelineKey(filename, await fs.stat(filename), config.tools.ffprobe) : null;
+  const cached = cacheKey ? await readTimeline(config.timelineCache, cacheKey) : null;
+  const cachedPts = cached && relativeTimeline(cached);
+  const timelineCached = Boolean(cachedPts);
+  let rawPts = cachedPts ? cached : null;
+  let sourcePts = cachedPts;
   if (!rawPts) {
     const timeline = JSON.parse(await collectTool(config.tools.ffprobe, [
       '-v', 'error', '-select_streams', 'v:0', '-show_frames',
@@ -61,13 +74,11 @@ async function probeVideo(config, request, signal) {
     ], { signal }));
     rawPts = (timeline.frames ?? []).map(frame => frame.best_effort_timestamp);
     if (!rawPts.length || rawPts.some(value => !Number.isSafeInteger(value))) throw new Error('Source frame timestamps are unavailable');
+    sourcePts = relativeTimeline(rawPts);
+    if (!sourcePts) throw new Error('Source timestamps are not ordered or exceed the safe timestamp limit');
     if (cacheKey) await writeTimeline(config.timelineCache, cacheKey, rawPts);
   }
   const origin = rawPts[0];
-  const sourcePts = rawPts.map(pts => pts - origin);
-  if (sourcePts.some((pts, index) => !Number.isSafeInteger(pts) || pts < 0 || (index && pts < sourcePts[index - 1]))) {
-    throw new Error('Source timestamps are not ordered or exceed the safe timestamp limit');
-  }
   const { startSeconds, endSeconds } = request.input.sourceRange;
   const rangeStartPts = ceilingTimeTicks(startSeconds, timeBase);
   const rangeEndPts = ceilingTimeTicks(endSeconds, timeBase);
