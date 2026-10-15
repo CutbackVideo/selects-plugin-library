@@ -2933,12 +2933,21 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
           `(1) 그 사람의 머리와 어깨가 잘리지 않는다. (2) 다른 사람의 얼굴, 몸, 어깨, 팔, 손이 가장자리에 조금이라도 보이지 않는다. (3) 세트 벽의 이음새, 패널 경계, 기둥처럼 가장자리를 세로로 지나는 선이 보이지 않는다. ` +
           `(4) 이 조건을 지키는 후보 중 가장 넓게 보이는 것. 모두 어긋나면 어긋남이 가장 작은 것.\n` +
           `도구는 쓰지 말고 이미지만 보고 답하라. JSON만 답하라: {"talkers": {"1": 2, "2": 0}, "crops": {"1": "B", "2": "A"}}`;
+        // askAI refuses an image over 1,500,000 base64 characters: a big sheet is sent at a lower JPEG quality.
+        const quality: number[] = [];
+        const encode = (cv: HTMLCanvasElement) => {
+          for (const q of [0.85, 0.7, 0.55, 0.4, 0.3]) {
+            const d = cv.toDataURL("image/jpeg", q);
+            if (d.length < 1.4e6 || q === 0.3) { quality.push(q); return d; }
+          }
+          return "";
+        };
         const r: any = await guard(
           sdk.askAI({
             prompt,
             images: [
-              { dataUrl: s1.cv.toDataURL("image/jpeg", 0.85), name: "talkers.jpg" },
-              { dataUrl: s2.cv.toDataURL("image/jpeg", 0.85), name: "crops.jpg" },
+              { dataUrl: encode(s1.cv), name: "talkers.jpg" },
+              { dataUrl: encode(s2.cv), name: "crops.jpg" },
             ],
             timeoutMs: 75000,
           })
@@ -2959,6 +2968,7 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
           clip: i,
           plan: "picture",
           seconds: Math.round((Date.now() - t0) / 100) / 10,
+          quality,
           chunks: chunks.map((k: any, row: number) => ({ start: Math.round(k.start * 10) / 10, end: Math.round(k.end * 10) / 10, face: k.x, saw: ans?.talkers?.[String(row + 1)] ?? null })),
           faces: faces.map((f: any, row: number) => ({ x: f.x, alts: f.alts, pick: ans?.crops?.[String(row + 1)] ?? null })),
         });
