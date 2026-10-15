@@ -391,7 +391,6 @@ const STRINGS: any = {
     layoutTiktok: "TikTok",
     tiktokHint: "Changes here apply to the TikTok layout only. Keep text inside the green box: the profile grid crops the top and bottom, and the app covers the bottom and the right-hand buttons.",
     reframing: "Finding faces to frame each speaker…",
-    reframeSkipped: "Clips keep the fixed crop; following faces failed: ",
     closeUp: "Close-up on the talker (face widths across)",
     faceY: "Face height of the talker (% down the window)",
     headlineCenter: "Headline",
@@ -598,7 +597,6 @@ const STRINGS: any = {
     layoutTiktok: "틱톡",
     tiktokHint: "여기서 바꾸는 값은 틱톡 레이아웃에만 적용됩니다. 글자는 초록 상자 안에 두세요. 프로필 그리드는 위아래를 자르고, 앱은 아래쪽과 오른쪽 버튼 영역을 가립니다.",
     reframing: "화자를 화면에 맞추려고 얼굴 찾는 중…",
-    reframeSkipped: "얼굴 따라가기에 실패해 고정 크롭으로 만들었습니다: ",
     closeUp: "화자 클로즈업 (화면 폭 = 얼굴 폭의 몇 배)",
     faceY: "화자 얼굴 높이 (창 위에서부터 %)",
     headlineCenter: "헤드라인",
@@ -837,10 +835,12 @@ function speakerTurns(words: any[], a: number, b: number): any[] {
 // (narrower than the window for a close-up on the talker, wider for side-by-side faces) and cy the face to
 // place in the window's upper part.
 // Pieces are speaker turns further split where the faces on screen change (a cut to another camera or an
-// insert). In each piece the window centres on the talker: the face whose mouth moves most compared with its
-// own average over the whole window, which covers other speakers' turns too. When no face clearly stands
-// out, the piece frames the spot that keeps the most face area whole.
-function planShots(samples: any[], turns: any[], frameW: number, windowW: number, closeUp = 4.5, inset = 0, split = false, coverW = windowW, closeUpMin = 2.8): any[] {
+// insert). In each piece the window centres on the talker: the face matched to the turn's transcript speaker,
+// else the face whose mouth moves most compared with its own average. When no face clearly stands out, the
+// piece frames the spot that keeps the most face area whole, or a wider view that keeps everyone whole.
+// Samples may come from several separate ranges (the clip's passages); a face at the same place on both
+// sides of a gap stays one face. log, when given, receives the speaker matches and each piece's decision.
+function planShots(samples: any[], turns: any[], frameW: number, windowW: number, closeUp = 4.5, inset = 0, split = false, coverW = windowW, closeUpMin = 2.8, log?: any): any[] {
   // coverW: the widest view whose picture still fills the window from top to bottom.
   // inset: source pixels at each side edge never shown (black bars some broadcasts carry). split: the picture is
   // two halves side by side (guest | host), so a view never crosses the middle.
@@ -848,8 +848,18 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
   const boundsOf = (cx: number) => (split ? (cx < frameW / 2 ? [lo, frameW / 2 - 6] : [frameW / 2 + 6, hi]) : [lo, hi]);
   const half = windowW / 2;
   const clampX = (x: number) => Math.max(lo + half, Math.min(hi - half, x));
+  // Mouth movement pairs samples one step apart (a missed sample in between is allowed).
+  const steps = samples.slice(1, 200).map((s: any, i: number) => s[0] - samples[i][0]).filter((d: number) => d > 0).sort((x: number, y: number) => x - y);
+  const pairGap = Math.max(0.25, (steps.length ? steps[steps.length >> 1] : 0.1) * 2.5);
   const tracks: any[] = [];
+  let prevT = -Infinity;
   const rows = samples.map(([t, faces]: any) => {
+    if (t - prevT > 1.6) {
+      // A gap between two face ranges: faces still on screen on the far side continue at the same place, but
+      // mouth movement is not compared across the gap.
+      for (const tr of tracks) if (prevT - tr.lastT <= 1.6) { tr.lastT = t; tr.lastM = undefined; }
+    }
+    prevT = t;
     const out: any[] = [];
     for (const [cx, w, h, mouth, cy] of faces) {
       let best: any = null, bd = Infinity;
@@ -858,8 +868,9 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
         const d = Math.abs(tr.lastX - cx);
         if (d < Math.max(w, tr.lastW) * 0.6 && d < bd) { best = tr; bd = d; }
       }
-      if (!best) { best = { jit: [] as number[][], n: 0 }; tracks.push(best); }
-      if (best.lastM !== undefined && t - best.lastT <= 0.25) best.jit.push([t, Math.abs(mouth - best.lastM)]);
+      if (!best) { best = { jit: [] as number[][], n: 0, xs: [] as number[] }; tracks.push(best); }
+      if (best.lastM !== undefined && t - best.lastT <= pairGap) best.jit.push([t, Math.abs(mouth - best.lastM)]);
+      if (best.xs.length < 50) best.xs.push(cx);
       best.lastT = t; best.lastX = cx; best.lastW = w; best.lastM = mouth;
       out.push({ track: best, cx, cy: cy ?? 540, w, area: w * h });
     }
@@ -888,32 +899,55 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
   }
   const median = (a: number[]) => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[s.length >> 1] : frameW / 2; };
   // A close-up on one face: about closeUp face widths across; near an edge (or the middle of a split picture)
-  // the view narrows, down to closeUpMin face widths, so the face stays (nearly) centred.
-  const closeUpOn = (f: any) => {
+  // the view narrows, down to closeUpMin face widths, so the face stays (nearly) centred. A neighbour beside
+  // the face narrows it too, so the window's edge falls between them, about 1.3 of the neighbour's face widths
+  // from their centre: their face and most of their shoulder stay out, without a tighter close-up than needed.
+  const closeUpOn = (f: any, others: any[] = []) => {
     const [blo, bhi] = boundsOf(f.cx);
     const edge = Math.min(f.cx - blo, bhi - f.cx);
     let w = Math.max(windowW * 0.4, Math.min(coverW, bhi - blo, f.w * closeUp));
+    for (const n of others) {
+      if (n === f || n.cx < blo || n.cx > bhi) continue;
+      w = Math.min(w, Math.max(f.w * closeUpMin, 2 * (Math.abs(n.cx - f.cx) - n.w * 1.3)));
+    }
     if (w / 2 > edge) w = Math.max(f.w * closeUpMin, 2 * edge);
     return { cx: Math.max(blo + w / 2, Math.min(bhi - w / 2, f.cx)), w, cy: f.cy };
   };
-  // Each transcript speaker is matched once to a face over the whole window: the face whose mouth moves
-  // most, against its own average, across all of that speaker's turns. Many turns together outvote the
-  // noise of any single one.
+  // Each transcript speaker is matched once to a face over the whole window: the face whose mouth moves most
+  // during that speaker's turns compared with its own movement during the other speakers' turns. Comparing with
+  // the other speakers' turns, rather than with the face's overall average, keeps a speaker who talks through
+  // most of the window (or whose mouth reads noisily behind a microphone) from looking average. Turns without
+  // a speaker count for neither side. With no other speaker in the window, the overall average is the
+  // reference. Many turns together outvote the noise of any single one.
   const voice = new Map<any, any>();
+  const voiceLog: any[] = [];
   {
+    const spkOf = (u: number) => turns.find((t: any) => u >= t.start && u < t.end)?.spk;
     const bySpk = new Map<any, Map<any, number[]>>();
-    for (const t of turns) {
-      if (t.spk === null || t.spk === undefined) continue;
-      const m = bySpk.get(t.spk) || new Map<any, number[]>();
-      for (const tr of tracks)
-        for (const [u, v] of tr.jit) if (u >= t.start && u < t.end) { const a = m.get(tr) || [0, 0]; a[0] += v; a[1]++; m.set(tr, a); }
-      bySpk.set(t.spk, m);
-    }
+    const labelled = new Set(turns.map((t: any) => t.spk).filter((s: any) => s !== null && s !== undefined));
+    for (const spk of labelled) bySpk.set(spk, new Map<any, number[]>());
+    for (const tr of tracks)
+      for (const [u, v] of tr.jit) {
+        const at = spkOf(u);
+        if (at === null || at === undefined) continue;
+        for (const [spk, m] of bySpk) {
+          // [sum in turns, n in turns, sum in other speakers' turns, n there]
+          const a = m.get(tr) || [0, 0, 0, 0];
+          if (at === spk) { a[0] += v; a[1]++; } else { a[2] += v; a[3]++; }
+          m.set(tr, a);
+        }
+      }
     for (const [spk, m] of bySpk) {
-      const rated = [...m.entries()].filter(([tr, [, n]]) => n >= 20 && tr.base > 0).map(([tr, [sum, n]]) => ({ tr, r: sum / n / tr.base })).sort((x, y) => y.r - x.r);
-      if (rated.length && rated[0].r >= 1.05 && (rated.length < 2 || rated[0].r >= rated[1].r * 1.08)) voice.set(spk, rated[0].tr);
+      const rated = [...m.entries()]
+        .filter(([tr, [, n]]) => n >= 20 && tr.base > 0)
+        .map(([tr, [sum, n, os, on]]) => ({ tr, r: on >= 20 && os > 0 ? sum / n / (os / on) : sum / n / tr.base }))
+        .sort((x, y) => y.r - x.r);
+      const ok = rated.length > 0 && rated[0].r >= 1.05 && (rated.length < 2 || rated[0].r >= rated[1].r * 1.08);
+      if (ok) voice.set(spk, rated[0].tr);
+      voiceLog.push({ spk, face: ok ? Math.round(median(rated[0].tr.xs)) : null, r: rated.slice(0, 3).map((x) => [Math.round(median(x.tr.xs)), Math.round(x.r * 100) / 100]) });
     }
   }
+  if (log) { log.voice = voiceLog; log.pieces = []; }
   const shots: any[] = [];
   for (const piece of tidy) {
     const inPiece = rows.filter((r: any) => r.t >= piece.start && r.t < piece.end);
@@ -929,11 +963,15 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
       const talk = j.length >= 5 && s.track.base > 0 ? j.reduce((a: number, v: number) => a + v, 0) / j.length / s.track.base : 0;
       return { track: s.track, cx: median(s.xs), cy: median(s.ys), w: s.w / s.n, area: s.area / s.n, talk };
     });
-    if (!faces.length) { shots.push({ ...piece, cx: shots.length ? shots[shots.length - 1].cx : frameW / 2 }); continue; }
+    const take = (how: string, shot: any) => {
+      shots.push(shot);
+      if (log) log.pieces.push({ start: Math.round(shot.start * 10) / 10, end: Math.round(shot.end * 10) / 10, spk: shot.spk ?? null, how, cx: Math.round(shot.cx), ...(shot.w ? { w: Math.round(shot.w) } : {}), faces: faces.map((f) => Math.round(f.cx)) });
+    };
+    if (!faces.length) { take("noFaces", { ...piece, cx: shots.length ? shots[shots.length - 1].cx : frameW / 2 }); continue; }
     const voiced = voice.get(piece.spk);
     const voicedFace = voiced && faces.find((f) => f.track === voiced);
     if (voicedFace) {
-      shots.push({ ...piece, ...closeUpOn(voicedFace) });
+      take("voice", { ...piece, ...closeUpOn(voicedFace, faces) });
       continue;
     }
     const byTalk = faces.slice().sort((x, y) => y.talk - x.talk);
@@ -941,12 +979,12 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
       // A close-up on the talker: about closeUp face widths across the window.
       const t0 = byTalk[0];
       // Near the edge of the picture the view narrows (down to 2.8 face widths) so the face can stay centred.
-      shots.push({ ...piece, ...closeUpOn(t0) });
+      take("talk", { ...piece, ...closeUpOn(t0, faces) });
       continue;
     }
     if (split) {
       // A split picture without a clear talker stays on the larger face (usually the guest).
-      shots.push({ ...piece, ...closeUpOn(faces.slice().sort((x, y) => y.area - x.area)[0]) });
+      take("split", { ...piece, ...closeUpOn(faces.slice().sort((x, y) => y.area - x.area)[0], faces) });
       continue;
     }
     const centres = faces.map((f) => f.cx);
@@ -963,25 +1001,26 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
     const large = faces.filter((f) => f.w >= maxW * 0.6);
     if (large.some((f) => Math.abs(f.cx - best) > half - f.w * 0.5)) {
       // Two main people on either side of the picture (a split-screen insert): each sits in the middle of their
-      // half of the window, as far as the picture allows. Smaller faces behind them are left out.
+      // half of the window, as far as the picture allows. Smaller faces behind them are left out. With three or
+      // more people of that size (a studio panel) this would cut the outer ones in half, so they all stay whole.
       const byArea = faces.slice().sort((x, y) => y.area - x.area);
       const main = byArea[0];
       const other = byArea.find((f) => (f.cx < frameW / 2) !== (main.cx < frameW / 2));
-      if (other && other.area >= main.area * 0.6) {
+      if (large.length <= 2 && other && other.area >= main.area * 0.6) {
         const [a, b] = [main, other].sort((x, y) => x.cx - y.cx);
         const w = Math.min(hi - lo, Math.max(windowW, 2 * (b.cx - a.cx)));
         const cx = Math.max(lo + w / 2, Math.min(hi - w / 2, (a.cx + b.cx) / 2));
-        shots.push({ ...piece, cx, w });
+        take("pair", { ...piece, cx, w });
         continue;
       }
       const left = Math.min(...large.map((f) => f.cx - f.w * 0.75));
       const right = Math.max(...large.map((f) => f.cx + f.w * 0.75));
       const w = Math.min(hi - lo, Math.max(windowW, right - left));
       const cx = Math.max(lo + w / 2, Math.min(hi - w / 2, (left + right) / 2));
-      shots.push({ ...piece, cx, w });
+      take("wide", { ...piece, cx, w });
       continue;
     }
-    shots.push({ ...piece, cx: best });
+    take("most", { ...piece, cx: best });
   }
   const merged: any[] = [];
   for (const s of shots) {
@@ -991,6 +1030,41 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
   }
   const r3 = (x: number) => Math.round(x * 1000) / 1000;
   return merged.map((s) => ({ start: r3(s.start), end: r3(s.end), cx: Math.round(s.cx), ...(s.w ? { w: Math.round(s.w) } : {}), ...(s.cy ? { cy: Math.round(s.cy) } : {}) }));
+}
+
+// The source ranges searched for faces in one clip. Speaker matching compares each face's mouth during a
+// speaker's turns with its mouth during the other speakers' turns, so the whole stretch from the clip's first
+// passage to its last, plus 30 s around it, is searched; only a clip spread over more than ten minutes is
+// searched passage by passage. pad 0 searches the passages alone.
+function faceRanges(segments: number[][], duration: number, pad = 30): number[][] {
+  const end = Math.max(0, duration - 0.05);
+  const segs = segments.map((s) => [Math.max(0, s[0] - pad), Math.min(end, s[1] + pad)]).filter((r) => r[1] > r[0]).sort((x, y) => x[0] - y[0]);
+  if (!segs.length) return [];
+  if (pad > 0 && segs[segs.length - 1][1] - segs[0][0] <= 600) return [[segs[0][0], Math.max(...segs.map((r) => r[1]))]];
+  const out: number[][] = [];
+  for (const r of segs) {
+    const last = out[out.length - 1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+    else out.push(r.slice());
+  }
+  return out;
+}
+
+// One face job's range is kept short. The runtime refuses a result file over 8 MiB, about 850 bytes a face:
+// a 435 s range of a four-person studio at 0.1 s is about 16 MiB. A 60 s window at 0.1 s stays under 6 MiB
+// with up to ten faces on screen. The runtime also decodes every source frame in a range, up to 20,000.
+function faceWindows(a: number, b: number, step: number, fps: number, longest = 60): number[][] {
+  const span = Math.max(step * 4, Math.min(longest * (step / 0.1), (19000 - 2) / Math.max(1, fps) - step));
+  const out: number[][] = [];
+  for (let s = a; s < b - 1e-6; s += span) out.push([Math.round(s * 1000) / 1000, Math.round(Math.min(b, s + span) * 1000) / 1000]);
+  return out;
+}
+
+// A short, stable text hash, so a face job's request key changes whenever its inputs do.
+function keyHash(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
 }
 
 // Parts of a template a layout variant (TikTok) may override.
@@ -2413,9 +2487,14 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
   }
 
   // ---- Step 4a: speaker reframing. Faces come from the Selects AI runtime on this computer. ----
-  async function reframeClips(clips: any[], job: any, tpl: any) {
+  // Every failure is recovered here without asking anything: a failed face search is retried on its own, then
+  // with fewer and coarser samples, and a clip whose faces can't be found at all shows the whole picture, so
+  // nobody is cut in half. What happened goes to note() (the job's reframeLog) for debugging only. Each clip's
+  // plan is saved as soon as it is made, so a resumed run continues with the next clip.
+  async function reframeClips(clips: any[], job: any, tpl: any, note: (entry: any) => void, saveClip: () => Promise<void>) {
     const L = tpl.layout;
     const windowW = 1080 / ((L.windowBottom - L.windowTop) / (L.sourceBottom - L.sourceTop));
+    const inset = Number(L.edgeInset) || 0;
     const nm = JSON.stringify(job.resourceName || "");
     const rid = JSON.stringify(job.resourceId);
     const pid = JSON.stringify(projectId);
@@ -2423,64 +2502,136 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
       `const p = selects.project(${pid}); const rows = await p.resources(); ` +
       `const hit = rows.find((r: any) => r.resourceId === ${rid} && r.name === ${nm}) || rows.find((r: any) => r.name === ${nm}) || rows.find((r: any) => r.resourceId === ${rid}); ` +
       `if (!hit) throw new Error("The source video is no longer in this project."); const RID = hit.resourceId; `;
-    // One face job per clip covers its passages plus 30 s around them, so every face has an average to
-    // compare its mouth movement with, even in a clip where only one person talks.
-    const parts: any[] = clips.map((c: any, i: number) => {
-      const starts = c.segments.map((s: number[]) => s[0]), ends = c.segments.map((s: number[]) => s[1]);
-      return { i, a: Math.max(0, Math.min(...starts) - 30), b: Math.max(...ends) + 30 };
-    });
-    // Jobs run one at a time: the runtime can crash when two face jobs overlap. A crashed job is retried once.
-    const until = Date.now() + 15 * 60000;
-    for (const part of parts) {
-      for (let attempt = 0; ; attempt++) {
-        const key = JSON.stringify(`${APP_ID}:${job.id}:${part.i}:${job.choice?.reframeTry || 0}:v2:${attempt}`);
+    const src = await script(res + `const m = await p.resource(RID).meta(); return { fps: m.fps, duration: m.durationSeconds, W: Number(m.frameSize?.width) || 1920 };`, "Read the source");
+    const fps = Number(src.fps) || 30;
+
+    // One face job, polled until it ends. Jobs run one at a time: the runtime can crash when two overlap, so a
+    // job that takes too long is cancelled, and its end awaited, before anything else is sent.
+    async function faceJob(i: number, level: number, a: number, b: number, step: number): Promise<{ samples: any[]; W: number; H: number }> {
+      const key = JSON.stringify(`${APP_ID}:${job.id}:${i}:v3:${level}:${keyHash(JSON.stringify({ task: "faces.detect", a, b, step }))}`);
+      const t0 = Date.now();
+      const entry: any = { clip: i, level, range: [a, b], step };
+      try {
         const got = await script(
-          res +
-            `const m = await p.resource(RID).meta(); const b = Math.min(${part.b}, m.durationSeconds - 0.05); ` +
-            `const h = await selects.ai.submit({ runtimeId: "${AI_RUNTIME}", requestKey: ${key}, projectId: ${pid}, resourceId: RID, sourceRange: { startSeconds: ${part.a}, endSeconds: b }, task: "faces.detect", options: { sampleEverySeconds: 0.1 } }); return { wf: h.workflowId, b };`,
+          res + `const h = await selects.ai.submit({ runtimeId: "${AI_RUNTIME}", requestKey: ${key}, projectId: ${pid}, resourceId: RID, sourceRange: { startSeconds: ${a}, endSeconds: ${b} }, task: "faces.detect", options: { sampleEverySeconds: ${step} } }); return { wf: h.workflowId };`,
           "Find faces",
           true
         );
-        part.wf = got.wf;
-        part.b = got.b;
-        let failed = "";
+        entry.wf = got.wf;
+        const wf = JSON.stringify(got.wf);
+        const status = (cancel = false) =>
+          script(`const j = selects.ai.job(${wf}, ${pid}); ${cancel ? "await j.cancel(); " : ""}const s = await j.status(); return { status: s.status, code: s.lastErrorCode || "", error: s.lastErrorMessage || "" };`, cancel ? "Stop face finding" : "Check face finding", cancel);
+        // Generous: a 60 s window takes well under a minute on a Mac.
+        const until = t0 + (120 + (b - a) * 5) * 1000;
+        let s: any;
         for (;;) {
-          const s = await script(`const s = await selects.ai.job(${JSON.stringify(part.wf)}, ${pid}).status(); return { status: s.status, error: s.lastErrorMessage || "" };`, "Check face finding");
-          if (s.status === "succeeded") break;
-          if (s.status === "failed" || s.status === "canceled") { failed = s.error || s.status; break; }
-          if (Date.now() > until) throw new Error("Finding faces took too long.");
+          s = await status();
+          if (["succeeded", "failed", "canceled"].includes(s.status)) break;
+          if (Date.now() > until) {
+            s = await status(true);
+            for (let k = 0; k < 30 && !["succeeded", "failed", "canceled"].includes(s.status); k++) {
+              await guard(sleep(2000));
+              s = await status();
+            }
+            s = { ...s, code: s.code || "TIMEOUT", error: s.error || "Finding faces took too long." };
+            break;
+          }
           await guard(sleep(3000));
         }
-        if (!failed) break;
-        if (attempt >= 1) throw Object.assign(new Error(failed), { terminal: true });
+        entry.status = s.status;
+        if (s.status !== "succeeded") throw Object.assign(new Error(s.error || s.status), { code: s.code });
+        // Faces are read a page at a time to stay under the script result size.
+        const samples: any[] = [];
+        let W = src.W, H = 1080;
+        for (let off = 0; ; off += 400) {
+          const page = await script(
+            `const h = selects.ai.job(${wf}, ${pid}); const r = await h.result(); const j: any = await selects.ai.readJSON(r.files.detections, ${pid}); ` +
+              `const q = (x: number) => Math.round(x); const all = j.samples; ` +
+              `return { W: j.frameSize.width, H: j.frameSize.height, total: all.length, samples: all.slice(${off}, ${off + 400}).map((s: any) => [Math.round(s.sourceTimeSeconds * 1000) / 1000, s.faces.map((f: any) => { const w = f.box.xmax - f.box.xmin, hh = f.box.ymax - f.box.ymin; return [q((f.box.xmin + f.box.xmax) / 2), q(w), q(hh), q(((f.landmarks[3].y + f.landmarks[4].y) / 2 - f.landmarks[2].y) / Math.max(1, hh) * 1000), q((f.box.ymin + f.box.ymax) / 2)]; })]) };`,
+            "Read faces"
+          );
+          W = page.W || W;
+          H = page.H || H;
+          samples.push(...page.samples);
+          if (off + 400 >= page.total) break;
+        }
+        entry.samples = samples.length;
+        return { samples, W, H };
+      } catch (e: any) {
+        if (e instanceof RunCancelled) throw e;
+        entry.status = entry.status || "error";
+        entry.code = e?.code || "";
+        entry.error = String(e?.message || e).slice(0, 200);
+        throw e;
+      } finally {
+        entry.seconds = Math.round((Date.now() - t0) / 100) / 10;
+        note(entry);
       }
-      // Faces are read a page at a time to stay under the script result size.
-      const samples: any[] = [];
-      let W = 1920, H = 1080;
-      for (let off = 0; ; off += 400) {
-        const page = await script(
-          `const h = selects.ai.job(${JSON.stringify(part.wf)}, ${pid}); const r = await h.result(); const j: any = await selects.ai.readJSON(r.files.detections, ${pid}); ` +
-            `const q = (x: number) => Math.round(x); const all = j.samples; ` +
-            `return { W: j.frameSize.width, H: j.frameSize.height, total: all.length, samples: all.slice(${off}, ${off + 400}).map((s: any) => [Math.round(s.sourceTimeSeconds * 1000) / 1000, s.faces.map((f: any) => { const w = f.box.xmax - f.box.xmin, hh = f.box.ymax - f.box.ymin; return [q((f.box.xmin + f.box.xmax) / 2), q(w), q(hh), q(((f.landmarks[3].y + f.landmarks[4].y) / 2 - f.landmarks[2].y) / Math.max(1, hh) * 1000), q((f.box.ymin + f.box.ymax) / 2)]; })]) };`,
-          "Read faces"
-        );
-        W = page.W;
-        H = page.H || H;
-        samples.push(...page.samples);
-        if (off + 400 >= page.total) break;
-      }
-      const words = await script(
-        res +
-          `const src = p.resource(RID); const m = await src.meta(); ` +
-          `return (await src.words()).filter((w: any) => !w.nonSpeech && w.endFrame / m.fps >= ${part.a} && w.startFrame / m.fps <= ${part.b}).map((w: any) => [Math.round((w.startFrame / m.fps) * 100) / 100, Math.round((w.endFrame / m.fps) * 100) / 100, w.speakerId ?? null]);`,
-        "Read speakers"
-      );
-      const coverW = (H * 1080) / Math.max(1, L.windowBottom - L.windowTop);
-      part.shots = planShots(samples, speakerTurns(words, part.a, part.b), W, windowW, Number(L.closeUp) || 4.5, Number(L.edgeInset) || 0, !!L.splitHalves, coverW, Number(L.closeUpMin) || 2.8);
     }
-    clips.forEach((c: any, i: number) => {
-      c.reframe = parts.find((p) => p.i === i)?.shots || [];
-    });
+
+    // All faces for a list of ranges. A window whose result is too large (a crowded picture) is searched again
+    // in halves.
+    async function findFaces(i: number, level: number, ranges: number[][], step: number) {
+      const samples: any[] = [];
+      let W = src.W, H = 1080;
+      const search = async (a: number, b: number) => {
+        try {
+          const got = await faceJob(i, level, a, b, step);
+          W = got.W;
+          H = got.H;
+          for (const s of got.samples) if (!samples.length || s[0] > samples[samples.length - 1][0]) samples.push(s);
+        } catch (e: any) {
+          if (e instanceof RunCancelled || e?.code !== "AI_ARTIFACT_TOO_LARGE" || b - a < 10) throw e;
+          const mid = Math.round(((a + b) / 2) * 1000) / 1000;
+          await search(a, mid);
+          await search(mid, b);
+        }
+      };
+      for (const [a, b] of ranges) for (const [wa, wb] of faceWindows(a, b, step, fps)) await search(wa, wb);
+      return { samples, W, H };
+    }
+
+    // Each level is tried only if the one before it failed: the clip's stretch, the same once more (the runtime
+    // can crash once), then only the clip's own passages with half the samples.
+    const levels = [
+      { pad: 30, step: 0.1 },
+      { pad: 30, step: 0.1 },
+      { pad: 0, step: 0.2 },
+    ];
+    for (let i = 0; i < clips.length; i++) {
+      const c = clips[i];
+      if (Array.isArray(c.reframe)) continue;
+      let plan: any = null;
+      for (let level = 0; level < levels.length && !plan; level++) {
+        const ranges = faceRanges(c.segments, Number(src.duration) || Infinity, levels[level].pad);
+        if (!ranges.length) break;
+        try {
+          const got = await findFaces(i, level, ranges, levels[level].step);
+          const a = ranges[0][0], b = ranges[ranges.length - 1][1];
+          const words = await script(
+            res +
+              `const src = p.resource(RID); const m = await src.meta(); ` +
+              `return (await src.words()).filter((w: any) => !w.nonSpeech && w.endFrame / m.fps >= ${a} && w.startFrame / m.fps <= ${b}).map((w: any) => [Math.round((w.startFrame / m.fps) * 100) / 100, Math.round((w.endFrame / m.fps) * 100) / 100, w.speakerId ?? null]);`,
+            "Read speakers"
+          );
+          const coverW = (got.H * 1080) / Math.max(1, L.windowBottom - L.windowTop);
+          const log: any = {};
+          const shots = planShots(got.samples, speakerTurns(words, a, b), got.W, windowW, Number(L.closeUp) || 4.5, inset, !!L.splitHalves, coverW, Number(L.closeUpMin) || 2.8, log);
+          plan = shots;
+          note({ clip: i, level, plan: "faces", voice: log.voice, pieces: (log.pieces || []).filter((pc: any) => c.segments.some((sg: number[]) => pc.end > sg[0] && pc.start < sg[1])) });
+        } catch (e: any) {
+          if (e instanceof RunCancelled) throw e;
+          console.warn("[sbs-clips] face finding failed", level, e);
+        }
+      }
+      if (!plan) {
+        // No faces at all: the whole picture, so nobody is cut in half.
+        plan = [{ start: 0, end: 1e9, cx: Math.round(src.W / 2), w: Math.round(src.W - 2 * inset) }];
+        note({ clip: i, plan: "whole" });
+      }
+      c.reframe = plan;
+      await saveClip();
+    }
   }
 
   // ---- Step 4: recommend a count and choose passages, following the template's instructions ----
@@ -2610,19 +2761,22 @@ function SbsClipsPanel({ sdk, context, ui, files }: any) {
       setStep(4);
       if (tpl.layout.reframe && !pickd.reframed) {
         setStatus(S.reframing);
+        // Diagnostics for debugging only; the last 300 entries are kept with the job.
+        const note = (entry: any) => {
+          pickd.reframeLog = [...(pickd.reframeLog || []), { at: new Date().toISOString(), ...entry }].slice(-300);
+        };
         try {
-          await reframeClips(pickd.clips, job, tpl);
-          pickd.reframed = true;
-          await persist({ choice: pickd });
+          await reframeClips(pickd.clips, job, tpl, note, () => persist({ choice: pickd }));
         } catch (e: any) {
           if (e instanceof RunCancelled) throw e;
-          if (e?.terminal) {
-            pickd.reframeTry = (pickd.reframeTry || 0) + 1;
-            await persist({ choice: pickd });
-          }
-          console.warn("[sbs-clips] reframing skipped", e);
-          setWarn(S.reframeSkipped + shortError(String(e?.message || e)));
+          // Not a face search (reframeClips recovers from those itself): reading the source or its speakers
+          // failed. Clips without a plan show the whole picture, so nobody is cut in half.
+          console.warn("[sbs-clips] reframing failed", e);
+          note({ plan: "whole", error: String(e?.message || e).slice(0, 200) });
+          for (const c of pickd.clips) if (!Array.isArray(c.reframe)) c.reframe = [{ start: 0, end: 1e9, cx: 960, w: 1920 - 2 * (Number(tpl.layout.edgeInset) || 0) }];
         }
+        pickd.reframed = true;
+        await persist({ choice: pickd });
       }
       const transform = cropTransform(tpl.layout);
       const made: any[] = Array.isArray(job.built) ? job.built.slice() : [];
