@@ -37,6 +37,12 @@ def inspect(name, data):
     # really is audio and stays a reasonable size for the Git history.
     if re.fullmatch(r'plugins/[a-z0-9]+(?:-[a-z0-9]+)*/.+\.(?:m4a|wav|mp3)', name) and not BLOCKED & set(Path(name).parts):
         return [] if is_audio(name, data) and len(data) <= 20 * 1024 * 1024 else ['Invalid or oversized audio asset']
+    # Customer pack images are source assets, bounded and scoped to the pack's assets directory.
+    if re.fullmatch(r'template-packs/[a-z0-9]+(?:-[a-z0-9]+)*/assets/[a-zA-Z0-9_/-]+\.(?:png|jpe?g|webp)', name) and not BLOCKED & set(Path(name).parts):
+        valid = (name.endswith('.png') and len(data) > 24 and data.startswith(b'\x89PNG\r\n\x1a\n') or
+                 name.endswith(('.jpg', '.jpeg')) and len(data) > 3 and data.startswith(b'\xff\xd8\xff') or
+                 name.endswith('.webp') and len(data) > 12 and data[:4] == b'RIFF' and data[8:12] == b'WEBP')
+        return [] if valid and len(data) <= 4 * 1024 * 1024 else ['Invalid or oversized template pack image']
     findings = []
     path = Path(name)
     if any(part in BLOCKED for part in path.parts) or path.suffix in {'.onnx', '.mp4', '.webm', '.pyc', '.pem', '.key'}:

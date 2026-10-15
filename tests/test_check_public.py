@@ -60,3 +60,13 @@ class AudioAssetTest(unittest.TestCase):
 
     def test_oversized_audio_is_blocked(self):
         self.assertTrue(public.inspect('plugins/example/theme.m4a', b'\x00\x00\x00\x20ftypM4A ' + b'0' * (20 * 1024 * 1024)))
+
+class TemplatePackImagesTest(unittest.TestCase):
+    def test_scoped_images_only(self):
+        png = b'\x89PNG\r\n\x1a\n' + b'0' * 24
+        self.assertEqual(public.inspect('template-packs/example/assets/logo.png', png), [])
+        for name in ('template-packs/example/logo.png', 'plugins/example/assets/logo.png',
+                     'template-packs/example/assets/../logo.png', 'template-packs/example/assets/.local/logo.png'):
+            self.assertTrue(public.inspect(name, png), name)
+        self.assertTrue(public.inspect('template-packs/example/assets/logo.png', b'not an image'))
+        self.assertTrue(public.inspect('template-packs/example/assets/logo.png', png + b'0' * (4 * 1024 * 1024)))

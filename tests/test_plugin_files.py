@@ -210,3 +210,45 @@ class PluginFilesTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class TemplatePackFilesTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.manifest = {'schemaVersion': 1, 'id': 'example', 'version': '1.0.0',
+                         'name': 'Example', 'requiresApp': {'id': 'shortform-clips', 'templateApi': 1},
+                         'templates': ['templates/interview.json'], 'assets': ['assets/logo.png']}
+
+    def test_pack_download_uses_one_commit_and_only_declared_files(self):
+        calls = []
+        def fetch(url, limit):
+            calls.append(url)
+            if '/commits/' in url:
+                return json.dumps({'sha': COMMIT}).encode()
+            if url.endswith('/pack.json'):
+                return json.dumps(self.manifest).encode()
+            return b'pack file'
+        target = self.root / 'pack'
+        with patch.object(plugins, 'fetch', side_effect=fetch):
+            result = plugins.download('example', target, 'main', pack=True)
+        self.assertEqual(result['commit'], COMMIT)
+        self.assertEqual(len(calls), 4)
+        for url in calls[1:]:
+            self.assertIn('/' + COMMIT + '/template-packs/example/', url)
+        self.assertEqual({str(p.relative_to(target)) for p in target.rglob('*') if p.is_file()},
+                         {'pack.json', 'templates/interview.json', 'assets/logo.png'})
+
+    def test_invalid_paths_and_api_are_rejected(self):
+        for name in ('../private.json', 'templates/../../private.json', '/templates/a.json', 'templates/a.py'):
+            bad = dict(self.manifest, templates=[name])
+            with self.assertRaises(ValueError):
+                plugins.validate_pack_manifest(bad)
+        bad = dict(self.manifest, requiresApp={'id': 'shortform-clips', 'templateApi': 2})
+        with self.assertRaises(ValueError):
+            plugins.validate_pack_manifest(bad)
+
+    def test_checked_in_pack_is_complete(self):
+        result = plugins.check_pack('sbs-radio')
+        self.assertEqual(result['templates'], 4)
+        self.assertEqual(result['files'], 10)

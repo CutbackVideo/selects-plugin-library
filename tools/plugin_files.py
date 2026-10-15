@@ -117,6 +117,66 @@ def check(pid, root=ROOT):
     return {'id': pid, 'version': manifest['version'], 'files': len(names)}
 
 
+def validate_pack_manifest(manifest):
+    require(manifest.get('schemaVersion') == 1, 'Unsupported pack schema')
+    plugin_id(manifest.get('id'))
+    require(isinstance(manifest.get('version'), str) and re.fullmatch(
+        r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', manifest['version']), 'Invalid pack version')
+    require(isinstance(manifest.get('name'), str) and manifest['name'].strip(), 'Missing pack name')
+    require(manifest.get('requiresApp') == {'id': 'shortform-clips', 'templateApi': 1}, 'Unsupported template API')
+    templates, assets = manifest.get('templates'), manifest.get('assets')
+    require(isinstance(templates, list) and 0 < len(templates) <= 100, 'Missing pack templates')
+    require(isinstance(assets, list) and len(assets) <= 200, 'Invalid pack assets')
+    for group, names, extension in [('templates', templates, r'json'), ('assets', assets, r'png|jpe?g|webp')]:
+        for name in names:
+            relative_file(name)
+            require(name.startswith(group + '/') and re.fullmatch(
+                rf'{group}/[a-zA-Z0-9_./-]+\.({extension})', name), 'Invalid pack file: ' + name)
+    require(len(set(templates + assets)) == len(templates + assets), 'Duplicate pack files')
+    return ['pack.json'] + templates + assets
+
+
+def check_pack(pid, root=ROOT):
+    directory = Path(root).resolve() / 'template-packs' / plugin_id(pid)
+    manifest = json.loads((directory / 'pack.json').read_text())
+    require(manifest['id'] == pid, 'Folder and pack ID differ')
+    names = validate_pack_manifest(manifest)
+    total, ids = 0, set()
+    for name in names:
+        path = directory / name
+        require(path.is_file() and not path.is_symlink(), 'Not a regular pack file: ' + name)
+        require(not any(p.is_symlink() for p in path.parents), 'Symlinked pack path')
+        size = path.stat().st_size
+        require(size <= 4 * 1024 * 1024, 'Pack file too large: ' + name)
+        total += size
+    require(total <= 16 * 1024 * 1024, 'Template pack too large')
+    def images(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key == 'image' and child:
+                    require(child in manifest['assets'], 'Undeclared template image: ' + str(child))
+                else:
+                    images(child)
+        elif isinstance(value, list):
+            for child in value:
+                images(child)
+    for name in manifest['templates']:
+        template = json.loads((directory / name).read_text())
+        tid = plugin_id(template.get('id'))
+        require(tid not in ids, 'Duplicate template ID')
+        ids.add(tid)
+        require(template.get('schemaVersion') == 1, 'Unsupported template schema')
+        require(template.get('renderer') in ('series', 'separate-headlines'), 'Unsupported renderer')
+        images(template)
+    for name in manifest['assets']:
+        data = (directory / name).read_bytes()
+        valid = (name.endswith('.png') and data.startswith(b'\x89PNG\r\n\x1a\n') or
+                 name.endswith(('.jpg', '.jpeg')) and data.startswith(b'\xff\xd8\xff') or
+                 name.endswith('.webp') and data[:4] == b'RIFF' and data[8:12] == b'WEBP')
+        require(valid, 'Invalid pack image: ' + name)
+    return {'id': pid, 'version': manifest['version'], 'files': len(names), 'templates': len(ids)}
+
+
 def fetch(url, limit):
     # No credentials, cookies, netrc or GitHub CLI authentication.
     request = urllib.request.Request(url, headers={'User-Agent': 'selects-plugin-library'})
@@ -136,25 +196,26 @@ def resolve_commit(ref):
     return commit
 
 
-def download(pid, destination, ref='main'):
+def download(pid, destination, ref='main', pack=False):
     plugin_id(pid)
     destination = Path(destination).absolute()
     require(not destination.exists() and not destination.is_symlink(), 'Destination already exists; use a fresh folder')
     commit = resolve_commit(ref)
-    base = f'https://raw.githubusercontent.com/{REPOSITORY}/{commit}/plugins/{pid}/'
-    manifest_bytes = fetch(base + 'plugin.json', 65536)
+    kind, manifest_name = ('template-packs', 'pack.json') if pack else ('plugins', 'plugin.json')
+    base = f'https://raw.githubusercontent.com/{REPOSITORY}/{commit}/{kind}/{pid}/'
+    manifest_bytes = fetch(base + manifest_name, 65536)
     manifest = json.loads(manifest_bytes)
     require(manifest.get('id') == pid, 'Requested plugin differs from manifest')
-    names = validate_manifest(manifest)
+    names = validate_pack_manifest(manifest) if pack else validate_manifest(manifest)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.plugin-stage-', dir=destination.parent) as temporary:
         stage = Path(temporary)
         total = 0
         for name in names:
-            data = manifest_bytes if name == 'plugin.json' else fetch(
-                base + urllib.parse.quote(name, safe='/'), MAX_FILE)
+            data = manifest_bytes if name == manifest_name else fetch(
+                base + urllib.parse.quote(name, safe='/'), 4 * 1024 * 1024 if pack else MAX_FILE)
             total += len(data)
-            require(total <= MAX_TOTAL, 'Plugin exceeds download limit')
+            require(total <= (16 * 1024 * 1024 if pack else MAX_TOTAL), 'Package exceeds download limit')
             target = stage / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
@@ -180,9 +241,18 @@ def main():
     dl.add_argument('id')
     dl.add_argument('--destination', type=Path, required=True)
     dl.add_argument('--ref', default='main', help='Branch, tag or full commit SHA')
+    pack_check = commands.add_parser('check-pack')
+    pack_check.add_argument('id', nargs='?')
+    pack_dl = commands.add_parser('download-pack')
+    pack_dl.add_argument('id')
+    pack_dl.add_argument('--destination', type=Path, required=True)
+    pack_dl.add_argument('--ref', default='main')
     args = parser.parse_args()
-    if args.command == 'download':
-        result = download(args.id, args.destination, args.ref)
+    if args.command in ('download', 'download-pack'):
+        result = download(args.id, args.destination, args.ref, pack=args.command == 'download-pack')
+    elif args.command == 'check-pack':
+        ids = [args.id] if args.id else sorted(p.parent.name for p in (ROOT / 'template-packs').glob('*/pack.json'))
+        result = [check_pack(pid) for pid in ids]
     else:
         ids = [args.id] if args.id else sorted(p.parent.name for p in (ROOT / 'plugins').glob('*/plugin.json'))
         result = [check(pid) for pid in ids]

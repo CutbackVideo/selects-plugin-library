@@ -9,7 +9,7 @@ const modulesRoot = process.env.SBS_PANEL_TEST_MODULES;
 test('SBS transcript readiness', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MODULES'}, async t => {
   const dependency = createRequire(path.join(path.resolve(modulesRoot), '..', 'package.json'));
   const ts = dependency('typescript'), esbuild = dependency('esbuild');
-  const source = fs.readFileSync(path.join(__dirname, '../plugins/sbs-radio-clip/panel.tsx'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../plugins/shortform-clips/panel.tsx'), 'utf8');
   const ast = ts.createSourceFile('panel.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let waitFunction, resolver;
   function visit(n) {

@@ -9,7 +9,7 @@ const modulesRoot = process.env.SBS_PANEL_TEST_MODULES;
 test('SBS overlay follows the visible Draft without stale results or edits', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MODULES'}, async () => {
   const dep = createRequire(path.join(path.resolve(modulesRoot), '..', 'package.json'));
   const React = dep('react'), {act} = React, {JSDOM} = dep('jsdom');
-  const source = fs.readFileSync(path.join(__dirname, '../plugins/sbs-radio-clip/panel.tsx'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../plugins/shortform-clips/panel.tsx'), 'utf8');
   // Run the production state and effect in isolation from unrelated clip generation.
   const state = source.slice(source.indexOf('  const O=OVERLAY_STRINGS[lang]'), source.indexOf('  const [mode, setMode]',source.indexOf('  const O=OVERLAY_STRINGS[lang]')));
   const start = source.indexOf('  // Follow the visible Draft;');
@@ -58,12 +58,12 @@ test('SBS overlay follows the visible Draft without stale results or edits', {sk
 test('one PNG replaces legacy graphics while ignoring old image names', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MODULES'}, async () => {
   const dep=createRequire(path.join(path.resolve(modulesRoot),'..','package.json'));
   const esbuild=dep('esbuild'), React=dep('react');
-  const source=fs.readFileSync(path.join(__dirname,'../plugins/sbs-radio-clip/panel.tsx'),'utf8');
-  const compiled=esbuild.transformSync(source+'\nexport {SCRIPT_OVERLAY,SCRIPT_BUILD,SBS_OVERLAY_ASSET_NAME};',{loader:'tsx',format:'cjs'}).code;
+  const source=fs.readFileSync(path.join(__dirname,'../plugins/shortform-clips/panel.tsx'),'utf8');
+  const compiled=esbuild.transformSync(source+'\nexport {SCRIPT_OVERLAY,SCRIPT_BUILD,TIKTOK_OVERLAY_ASSET_NAME};',{loader:'tsx',format:'cjs'}).code;
   const mod={exports:{}};new Function('require','module','exports',compiled)(()=>React,mod,mod.exports);
   const api=mod.exports;
   const oldName='previous-overlay.png';
-  const resources=[{resourceId:'new',name:api.SBS_OVERLAY_ASSET_NAME},{resourceId:'old',name:oldName}];
+  const resources=[{resourceId:'new',name:api.TIKTOK_OVERLAY_ASSET_NAME},{resourceId:'old',name:oldName}];
   const base=[{clipId:'footage',resourceId:'video',trackKind:'main',startFrame:0,endFrame:300},{clipId:'subtitle',trackKind:'overlay',startFrame:0,endFrame:300}];
   let clips=[...base], commits=0;
   const d={meta:async()=>({name:'Test',durationFrames:300,frameSize:{width:1080,height:1920}}),
@@ -97,9 +97,9 @@ test('one PNG replaces legacy graphics while ignoring old image names', {skip: !
   assert.equal(clips.length,4);
   // The generated-clip builder uses the same one-PNG helper.
   clips=[...base];
-  const start=api.SCRIPT_BUILD.indexOf('const SBS_PNG_ALIASES:');
-  const end=api.SCRIPT_BUILD.indexOf('\nconst SBS_ELEMENT',start);
-  const helper=esbuild.transformSync(api.SCRIPT_BUILD.slice(start,end)+'\nreturn addSbsPngOverlay;',{loader:'ts'}).code;
+  const start=api.SCRIPT_BUILD.indexOf('const TIKTOK_PNG_ALIASES:');
+  const end=api.SCRIPT_BUILD.indexOf('\nconst FRAME_ELEMENT',start);
+  const helper=esbuild.transformSync(api.SCRIPT_BUILD.slice(start,end)+'\nreturn addPreviewPngOverlay;',{loader:'ts'}).code;
   await new Function('selects',helper)(selects)(d,{projectId:'project',overlayResourceId:'new'},300);
   assert.deepEqual(clips.map(c=>c.clipId),['footage','subtitle','png']);
 });

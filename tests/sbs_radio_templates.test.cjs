@@ -14,9 +14,9 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
   const ts = dependency('typescript');
   const React = dependency('react');
   const { renderToStaticMarkup } = dependency('react-dom/server');
-  const source = fs.readFileSync(path.join(__dirname, '../plugins/sbs-radio-clip/panel.tsx'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../plugins/shortform-clips/panel.tsx'), 'utf8');
   const sf = ts.createSourceFile('panel.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const names = 'BUILTIN_TEMPLATES,forPlatform,merge,STRINGS,RADIO_STRINGS,RADIO_SCRIPT_BUILD,SCRIPT_BUILD,SCRIPT_LIMIT,RadioPreviewFrame,RadioPreviewCaption,speakerTurns,planShots,TemplateEditor,OVERLAY_STRINGS';
+  const names = 'readTemplatePack,forPlatform,merge,STRINGS,RADIO_STRINGS,RADIO_SCRIPT_BUILD,SCRIPT_BUILD,SCRIPT_LIMIT,RadioPreviewFrame,RadioPreviewCaption,speakerTurns,planShots,TemplateEditor,OVERLAY_STRINGS';
   // Extract the actual production build-parameter expression, not a test copy of it.
   let params;
   function visit(node) {
@@ -37,20 +37,22 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
     assert.equal(name, 'react'); return React;
   }, loaded, loaded.exports);
   const api = loaded.exports;
+  const packFs = {readFile: async p => new Uint8Array(fs.readFileSync(p)), join:path.join};
+  api.BUILTIN_TEMPLATES = (await api.readTemplatePack(packFs, path.join(__dirname,'../template-packs/sbs-radio/pack.json'))).templates;
   const template = (id, layout='tiktok') => api.forPlatform(api.BUILTIN_TEMPLATES.find(t => t.id === id), layout);
   const clip = {headline1:'Headline',headline2:'Second line',segments:[[0,1.8]],highlights:['market']};
   const title = 'Episode 261014(\uc218)';
 
   await t.test('all four programs remain selectable, with independent layout variants', () => {
-    assert.deepEqual(api.BUILTIN_TEMPLATES.map(t=>t.id), ['sbs-politics','sbs-newsbriefing','newsdirect','moneylab']);
-    for (const t of api.BUILTIN_TEMPLATES) assert.equal(t.demoOverlay,false);
-    assert.equal(template('moneylab').layout.windowTop,560);
-    assert.equal(template('moneylab','shorts').layout.windowTop,402);
-    const duplicate={...structuredClone(template('moneylab','shorts')),id:'custom-money'};
-    assert.equal(api.forPlatform(duplicate,'tiktok').radioTemplate,true);
+    assert.deepEqual(api.BUILTIN_TEMPLATES.map(t=>t.id), ['political-show','news-briefing','news-direct','money-lab']);
+    for (const t of api.BUILTIN_TEMPLATES) assert.equal(t.demoOverlay,undefined);
+    assert.equal(template('money-lab').layout.windowTop,560);
+    assert.equal(template('money-lab','shorts').layout.windowTop,402);
+    const duplicate={...structuredClone(template('money-lab','shorts')),id:'custom-money'};
+    assert.equal(api.forPlatform(duplicate,'tiktok').renderer,'series');
     assert.equal(api.forPlatform(duplicate,'tiktok').layout.windowTop,560);
-    assert.equal(template('sbs-politics').sbsStyle,true);
-    assert.equal(template('sbs-newsbriefing').sbsStyle,true);
+    assert.equal(template('political-show').renderer,'separate-headlines');
+    assert.equal(template('news-briefing').renderer,'separate-headlines');
   });
 
   await t.test('new clips never inherit preview or legacy automatic-overlay settings', () => {
@@ -65,7 +67,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
   });
 
   await t.test('Money Lab produces an editable date and preserves gradients and caption emphasis', () => {
-    const P=api.buildParams(template('moneylab'),clip,title);
+    const P=api.buildParams(template('money-lab'),clip,title);
     assert.equal(P.dateLabel.text,'261014(\uc218)');
     assert.equal(P.dateLabel.y,1415);
     assert.equal(P.frame.footer,undefined, 'Date is a separate editable graphic');
@@ -81,7 +83,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
     assert.match(caption,/#F8D30A/i);
   });
 
-  for(const id of ['newsdirect','moneylab']) for(const layout of ['tiktok','shorts']) {
+  for(const id of ['news-direct','money-lab']) for(const layout of ['tiktok','shorts']) {
     await t.test(`${id} ${layout} builds editable graphics without the demo overlay`,async()=>{
       const P=api.buildParams(template(id,layout),clip,title);
       const code=api.RADIO_SCRIPT_BUILD.replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
@@ -101,9 +103,9 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       assert.ok(graphics.some(g=>g.label==='Series frame and headline'));
       for (const g of graphics) assert.ok(g.editableParameters?.length > 0, g.label + ' remains editable');
       assert.ok(graphics.some(g=>g.label.startsWith('Caption ')));
-      assert.equal(graphics.some(g=>g.label==='Date'),id==='moneylab');
+      assert.equal(graphics.some(g=>g.label==='Date'),id==='money-lab');
       assert.ok(graphics.every(g=>! /overlay|demo/i.test(g.label)));
-      if(id==='moneylab')assert.ok(graphics.some(g=>g.parameters.text?.includes('*market*')));
+      if(id==='money-lab')assert.ok(graphics.some(g=>g.parameters.text?.includes('*market*')));
     });
   }
   await t.test('all four templates build before visual analysis completes',async()=>{
@@ -126,12 +128,12 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         createDraft:async()=>draft,
       };
       const selects={project:()=>project,effectPresets:{get:async()=>({tsxCode:'export default function Text(){return null}',parameters:{},editableParameters:[]})}};
-      const script=(tpl.radioTemplate?api.RADIO_SCRIPT_BUILD:api.SCRIPT_BUILD).replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
+      const script=((tpl.renderer==='series')?api.RADIO_SCRIPT_BUILD:api.SCRIPT_BUILD).replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
       const code=esbuild.transformSync('return (async()=>{'+script+'})();',{loader:'ts'}).code;
       const result=await new Function('selects',code)(selects);
       assert.equal(result.draftId,'early-'+id);
       assert.ok(graphics.some(g=>g.label.startsWith('Caption ')),id+' captions');
-      assert.ok(graphics.some(g=>g.label=== (tpl.radioTemplate?'Series frame and headline':'SBS · \uc81c\ubaa9 1')),id+' frame and headline');
+      assert.ok(graphics.some(g=>g.label=== ((tpl.renderer==='series')?'Series frame and headline':'Clip · \uc81c\ubaa9 1')),id+' frame and headline');
     }
   });
 
@@ -196,12 +198,12 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       await act(async()=>root.render(h(Harness)));
       for(const original of originals) {
         await change(S.template,original.id);
-        const radio=!!original.radioTemplate;
+        const radio=original.renderer==='series';
         assert.equal(controls.has(S.layoutKind),radio);
         assert.equal(controls.has(S.reframe),radio);
         assert.equal(controls.has(S.stroke),radio);
-        assert.equal(controls.has(api.OVERLAY_STRINGS.en.preview),!radio && !!original.sbsStyle);
-        if(!radio && original.sbsStyle) {
+        assert.equal(controls.has(api.OVERLAY_STRINGS.en.preview),!radio && original.renderer==='separate-headlines');
+        if(!radio && original.renderer==='separate-headlines') {
           const writesBefore=writes.length, imagesBefore=document.querySelectorAll('img').length;
           await change(api.OVERLAY_STRINGS.en.preview,true);
           assert.equal(document.querySelectorAll('img').length,imagesBefore+1,'Overlay appears in preview');
@@ -211,7 +213,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
           await change(api.OVERLAY_STRINGS.en.preview,false);
           assert.equal(document.querySelectorAll('img').length,imagesBefore);
         }
-        assert.equal(get(S.logoMode).options.some(o=>o.value==='art'),!radio);
+        assert.equal(get(S.logoMode).options.some(o=>o.value==='art'),false);
         const displayed=radio?api.forPlatform(original,'tiktok'):original;
         assert.equal(get(S.windowTop).value,displayed.layout.windowTop);
         assert.equal(controls.has(S.editable.topLabel),radio && !!displayed.labels?.top);
@@ -250,7 +252,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       assert.equal(get(S.windowTop).disabled,true);
       await act(async()=>{release();await pending;});
       holdSave=null;
-      const money=rows.get('moneylab');
+      const money=rows.get('money-lab');
       assert.equal(money.layout.windowTop,450);
       assert.equal(money.variants.tiktok.layout.windowTop,601);
       assert.equal(money.name,'Edited Money Lab');
@@ -265,13 +267,13 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       assert.equal(get(S.windowTop).value,601);
       await click(S.duplicate);
       const customId=get(S.template).value;
-      assert.notEqual(customId,'moneylab');
-      assert.equal(rows.get(customId).baseId,'moneylab');
-      assert.equal(rows.get(customId).radioTemplate,true);
+      assert.notEqual(customId,'money-lab');
+      assert.equal(rows.get(customId).baseId,'money-lab');
+      assert.equal(rows.get(customId).renderer,'series');
       assert.equal(rows.get(customId).variants.tiktok.layout.windowTop,601);
       await change(S.windowTop,620);
       await click(S.save);
-      assert.equal(rows.get('moneylab').variants.tiktok.layout.windowTop,601);
+      assert.equal(rows.get('money-lab').variants.tiktok.layout.windowTop,601);
       await click(S.del);
       assert.ok(rows.has(customId));
       await click(S.delConfirm);
@@ -286,9 +288,9 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       assert.deepEqual(rows.get(originals[0].id).variants,originals[0].variants);
       await click(S.reset);
       assert.equal(get(S.windowTop).value,classicTop);
-      await change(S.template,'moneylab');
+      await change(S.template,'money-lab');
       await click(S.reset);
-      assert.equal(rows.has('moneylab'),false);
+      assert.equal(rows.has('money-lab'),false);
       assert.equal(get(S.windowTop).value,560);
       const count=writes.length;
       await change(S.windowTop,1700);

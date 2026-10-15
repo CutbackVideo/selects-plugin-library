@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "sbs-radio",
+  "version": "1.0.0",
+  "name": "SBS Radio",
+  "names": {
+    "en": "SBS Radio",
+    "ko": "SBS \ub77c\ub514\uc624"
+  },
+  "requiresApp": {
+    "id": "shortform-clips",
+    "templateApi": 1
+  },
+  "templates": [
+    "templates/political-show.json",
+    "templates/news-briefing.json",
+    "templates/news-direct.json",
+    "templates/money-lab.json"
+  ],
+  "assets": [
+    "assets/money-lab-background-image.jpg",
+    "assets/money-lab-logo-image.png",
+    "assets/news-briefing-logo-image.png",
+    "assets/news-direct-logo-image.png",
+    "assets/political-show-logo-image.png"
+  ],
+  "legacy": {
+    "appId": "sbs-radio-clip",
+    "templateIds": {
+      "sbs-politics": "political-show",
+      "sbs-newsbriefing": "news-briefing",
+      "newsdirect": "news-direct",
+      "moneylab": "money-lab"
+    }
+  }
+}
