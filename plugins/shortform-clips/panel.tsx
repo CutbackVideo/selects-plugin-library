@@ -1633,14 +1633,17 @@ const RESULT_STRINGS: any = {
     "more": "Show more",
     "less": "Show less",
     "current": "Currently viewing",
+    "viewing": "Viewing",
+    "opening": "Opening…",
     "target": "Current draft",
     "history": "Saved results",
     "latest": "Latest",
     "untitled": "Untitled video",
     "unknownDate": "Unknown date",
-    "score": "AI recommendation",
+    "score": "AI score",
     "unrated": "Unrated",
     "scoreDetails": "Score breakdown",
+    "scoreReason": "Why this score",
     "scoreBasis": "Transcript-based assessment",
     "hook": "Hook",
     "flow": "Flow",
@@ -1654,17 +1657,20 @@ const RESULT_STRINGS: any = {
   "ko": {
     "myClips": "\ub0b4 \ud074\ub9bd",
     "emptyClips": "\ud074\ub9bd\uc744 \ub9cc\ub4e4\uba74 \uc5ec\uae30\uc5d0 \ubaa8\uc544 \ubcfc \uc218 \uc788\uc5b4\uc694.",
-    "more": "\ub354 \ubcf4\uae30",
+    "more": "\ub354\ubcf4\uae30",
     "less": "\uc811\uae30",
     "current": "\ubcf4\uace0 \uc788\ub294 \ucd08\uc548",
+    "viewing": "\ubcf4\ub294 \uc911",
+    "opening": "\uc5ec\ub294 \uc911…",
     "target": "\ud604\uc7ac \ucd08\uc548",
     "history": "\uc0dd\uc131 \uae30\ub85d",
     "latest": "\ucd5c\uc2e0",
     "untitled": "\uc81c\ubaa9 \uc5c6\ub294 \uc601\uc0c1",
     "unknownDate": "\ub0a0\uc9dc \uc5c6\uc74c",
-    "score": "AI \ucd94\ucc9c \uc810\uc218",
+    "score": "AI \uc810\uc218",
     "unrated": "\ubbf8\ud3c9\uac00",
     "scoreDetails": "\ud3c9\uac00 \uae30\uc900",
+    "scoreReason": "\ud3c9\uac00 \uc774\uc720",
     "scoreBasis": "\uc804\uc0ac \ub0b4\uc6a9 \uae30\uc900 \ud3c9\uac00",
     "hook": "\ud6c5",
     "flow": "\ud750\ub984",
@@ -1677,6 +1683,8 @@ const RESULT_STRINGS: any = {
 RESULT_STRINGS.en.title = (n: number) => `${n} clips created`;
 RESULT_STRINGS.ko.title = (n: number) => `\uc0dd\uc131\ub41c \ud074\ub9bd ${n}\uac1c`;
 
+RESULT_STRINGS.en.createdCount = (done: number,total: number) => `${done}/${total} clips created`;
+RESULT_STRINGS.ko.createdCount = (done: number,total: number) => `\ud074\ub9bd ${done}/${total}\uac1c \uc0dd\uc131 \uc644\ub8cc`;
 function savedDraftResults(jobs: any[], projectId: string) {
   return jobs.filter(j=>j?.projectId === projectId && !j.dismissed && Array.isArray(j.built) && j.built.some((d: any)=>d?.draftId || d?.error))
     .sort((a,b)=>String(b.created || b.updated || "").localeCompare(String(a.created || a.updated || "")) || String(b.id || "").localeCompare(String(a.id || "")));
@@ -1756,6 +1764,32 @@ function DraftThumbnail({sdk,store,jobId,projectId,draftId,R}: any) {
     {url ? <img src={url} alt="" style={{width:"100%",height:"100%",objectFit:"contain",display:"block"}}/> : <small>{R.noThumbnail}</small>}
   </div>;
 }
+function ScoreTooltip({assessment,R}: any) {
+  const [open,setOpen] = React.useState(false);
+  const [above,setAbove] = React.useState(false);
+  const id = React.useId();
+  const show = (event: any) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setAbove(window.innerHeight - rect.bottom < 220 && rect.top > 220);
+    setOpen(true);
+  };
+  return <span style={{position:"relative",display:"inline-flex"}} onMouseEnter={show} onMouseLeave={()=>setOpen(false)}>
+    <button type="button" aria-label={R.scoreReason} aria-describedby={open ? id : undefined}
+      onFocus={show} onBlur={()=>setOpen(false)} onClick={show}
+      onKeyDown={event=>{if(event.key === "Escape"){setOpen(false);event.stopPropagation();}}}
+      style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:14,height:14,minWidth:0,minHeight:0,padding:0,border:0,borderRadius:0,boxShadow:"none",background:"none",color:"var(--panel-muted-fg)",lineHeight:1,cursor:"help",flexShrink:0}}>
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
+        <circle cx="8" cy="8" r="6.2"/><path d="M8 7v4"/><circle cx="8" cy="4.8" r="0.7" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
+    {open && <span id={id} role="tooltip" style={{position:"absolute",right:0,...(above ? {bottom:"100%"} : {top:"100%"}),zIndex:20,
+      width:"min(260px, calc(100vw - 32px))",boxSizing:"border-box",padding:12,border:"1px solid var(--panel-border)",borderRadius:8,
+      background:"var(--background, #202020)",color:"var(--panel-fg)",boxShadow:"0 4px 16px #0005",textAlign:"left",fontSize:12,lineHeight:1.5,display:"flex",flexDirection:"column",gap:8}}>
+      <span>{assessment.reason}</span>
+    </span>}
+  </span>;
+}
+
 function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, store, jobId, projectId }: any) {
   const [expanded, setExpanded] = React.useState(false);
   const [overflow, setOverflow] = React.useState(false);
@@ -1774,38 +1808,74 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
     document.fonts?.ready.then(measure);
     return () => { live = false; observer?.disconnect(); window.removeEventListener("resize", measure); };
   }, [d.why, expanded]);
-  return <div style={{...CARD,overflowWrap:"anywhere"}} className="clip-result-row">
-    <DraftThumbnail sdk={sdk} store={store} jobId={jobId} projectId={projectId} draftId={d.draftId} R={R}/>
+  return <div style={{...CARD,padding:12,overflowWrap:"anywhere"}} className="clip-result-row">
+    {d.draftId ? <button type="button" className="clip-thumbnail-button" aria-label={current ? R.current : S.open} title={d.headline1}
+      aria-current={current ? "true" : undefined} aria-busy={opening === d.draftId} data-opening={opening === d.draftId ? "true" : undefined}
+      disabled={current || !!opening} onClick={()=>onOpen(d.draftId)}
+      style={{display:"block",position:"relative",width:"fit-content",height:"auto",maxHeight:"none",minWidth:0,minHeight:0,padding:0,border:0,borderRadius:6,background:"none",lineHeight:1,overflow:"hidden",opacity:1,
+        cursor:current || opening ? "default" : "pointer",boxShadow:current ? "0 0 0 2px var(--panel-fg)" : "none"}}>
+      <DraftThumbnail sdk={sdk} store={store} jobId={jobId} projectId={projectId} draftId={d.draftId} R={R}/>
+      {current ? <span style={{position:"absolute",bottom:5,left:4,right:4,padding:"4px 2px",borderRadius:3,background:"#000b",color:"#fff",fontSize:10,lineHeight:1.2}}>{R.viewing}</span>
+        : <span className="clip-thumbnail-open" aria-hidden="true">{opening === d.draftId ? R.opening : <>{S.open} <span>↗</span></>}</span>}
+    </button> : <DraftThumbnail sdk={sdk} store={store} jobId={jobId} projectId={projectId} R={R}/>}
     <div className="clip-result-copy" style={{minWidth:0,display:"flex",flexDirection:"column",gap:6}}>
       <strong>{d.headline1}</strong>
-      {d.headline2 && <small>{d.headline2}</small>}
-      {d.seconds != null && <small>{S.seconds(d.seconds)}</small>}
+      {(d.headline2 || d.seconds != null) && <small style={{lineHeight:1.5}}>{[d.headline2,d.seconds != null ? S.seconds(d.seconds) : null].filter(Boolean).join(" · ")}</small>}
       {d.why && <>
         <small ref={description} style={{ lineHeight: 1.5, whiteSpace: "pre-wrap", ...(expanded ? {} : { ...CLAMP2, WebkitLineClamp: 3 }) }}>{d.why}</small>
-        {(overflow || expanded) && <div><ui.Button variant="ghost" onClick={() => setExpanded(value => !value)}>{expanded ? R.less : R.more}</ui.Button></div>}
+        {overflow && !expanded && <button type="button" aria-expanded={false}
+          style={{alignSelf:"flex-start",width:"auto",minHeight:0,border:0,borderRadius:0,boxShadow:"none",background:"none",padding:0,color:"var(--panel-muted-fg)",font:"inherit",fontSize:12,textDecoration:"underline",textUnderlineOffset:2,cursor:"pointer"}}
+          onClick={() => setExpanded(true)}>{R.more}</button>}
       </>}
       {d.error && <ui.Message tone="error">{d.error}</ui.Message>}
     </div>
-    <div className="clip-result-actions" style={{display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end",justifyContent:"space-between",minWidth:0}}>
-      <div style={{textAlign:"right"}}><small>{R.score}</small><div><strong style={{fontSize:20}}>{assessment ? `${assessment.overall.toFixed(1)}/10` : R.unrated}</strong></div></div>
-      {d.draftId && <ui.Button variant="secondary" disabled={current || !!opening} busy={opening === d.draftId} onClick={() => onOpen(d.draftId)}>{current ? R.current : S.open}</ui.Button>}
-    </div>
-    {assessment && <details style={{gridColumn:"1 / -1",fontSize:12,color:"var(--panel-muted-fg)"}}>
-      <summary style={{cursor:"pointer"}}>{R.scoreDetails}</summary>
-      <div style={{display:"flex",flexDirection:"column",gap:6,paddingTop:8}}>
-        <span>{R.hook} {assessment.hook}/10 · {R.flow} {assessment.flow}/10 · {R.payoff} {assessment.payoff}/10</span>
-        <span>{assessment.reason}</span><small>{R.scoreBasis}</small>
+    <div className="clip-result-actions" style={{display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end",minWidth:0}}>
+      <div style={{textAlign:"right"}}><div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,marginBottom:4}}><small>{R.score}</small>{assessment && <ScoreTooltip assessment={assessment} R={R}/>}</div><div><strong style={{fontSize:20}}>{assessment ? `${assessment.overall.toFixed(1)}/10` : R.unrated}</strong></div>
+        {assessment && <dl aria-label={R.scoreDetails} className="clip-score-breakdown"
+          style={{display:"grid",gridTemplateColumns:"max-content max-content",columnGap:6,rowGap:2,width:"max-content",maxWidth:"100%",margin:"8px 0 0 auto",fontSize:11,lineHeight:1.4,color:"var(--panel-muted-fg)"}}>
+          {[[R.hook,assessment.hook],[R.flow,assessment.flow],[R.payoff,assessment.payoff]].map(([label,value])=><React.Fragment key={label}>
+            <dt style={{margin:0,textAlign:"left"}}>{label}</dt><dd style={{margin:0,textAlign:"right",fontVariantNumeric:"tabular-nums"}}>{value}</dd>
+          </React.Fragment>)}
+        </dl>}
       </div>
-    </details>}
+    </div>
+
+  </div>;
+}
+
+function ClipRunProgress({ui,S,R,job,busy,step,sub,statusLine,cancelling,onCancel}: any) {
+  if (!busy) return null;
+  const total = job?.choice?.clips?.length || 0;
+  const completed = job?.built?.filter((d: any)=>d?.draftId).length || 0;
+  const value = step === 4 && total ? completed / total : Math.max(0,Math.min(1,(step+sub)/S.steps.length));
+  const label = step === 4 && total ? R.createdCount(completed,total) : S.steps[step] || S.thisRun;
+  return <div style={{...CARD,marginBottom:16}} role="status" aria-live="polite">
+    <ui.Stack gap={8}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+        <strong>{S.thisRun}</strong>
+        <ui.Button variant="secondary" onClick={onCancel} disabled={cancelling}>{cancelling ? S.cancelling : S.cancel}</ui.Button>
+      </div>
+      {job && <small style={CLAMP2}>{job.title || job.resourceName || job.url}</small>}
+      <ui.Progress value={value} label={label} />
+      {statusLine && <small>{statusLine}</small>}
+    </ui.Stack>
   </div>;
 }
 
 function DraftResults({ drafts, template, visibleDraftId, opening, onOpen, overlayControl, overlayFeedback, ui, S, R, sdk, store, jobId, projectId }: any) {
   return <div style={{ display: "flex", flexDirection: "column", gap: 16,containerType:"inline-size" }}>
     <style>{`
-      .clip-result-row { display:grid; grid-template-columns:72px minmax(0,1fr) auto; gap:12px; }
-      .clip-result-thumbnail { width:72px; height:104px; overflow:hidden; border-radius:6px; background:var(--panel-muted); display:flex; align-items:center; justify-content:center; text-align:center; }
-      @container (max-width:360px) { .clip-result-row { grid-template-columns:56px minmax(0,1fr); } .clip-result-thumbnail {width:56px;height:80px;} .clip-result-actions {grid-column:1 / -1;flex-direction:row!important;align-items:center!important;} }
+      .clip-thumbnail-button[aria-current="true"] .clip-result-thumbnail {filter:brightness(0.5);}
+      .clip-thumbnail-open {position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:4px;background:#0008;color:#fff;border-radius:6px;font-size:12px;opacity:0;transition:opacity 120ms;pointer-events:none;}
+      .clip-thumbnail-button:not(:disabled):hover .clip-thumbnail-open,
+      .clip-thumbnail-button:focus-visible .clip-thumbnail-open,
+      .clip-thumbnail-button[data-opening="true"] .clip-thumbnail-open {opacity:1;}
+      .clip-thumbnail-button:focus-visible {outline:2px solid var(--panel-fg);outline-offset:3px;}
+      @media (hover:none) { .clip-thumbnail-open {opacity:1;} }
+      @media (prefers-reduced-motion:reduce) { .clip-thumbnail-open {transition:none;} }
+      .clip-result-row { display:grid; grid-template-columns:72px minmax(0,1fr) 100px; gap:12px; align-items:start; }
+      .clip-result-thumbnail { width:72px; height:128px; overflow:hidden; border-radius:6px; background:var(--panel-muted); display:flex; align-items:center; justify-content:center; text-align:center; }
+      @container (max-width:360px) { .clip-result-row { grid-template-columns:56px minmax(0,1fr); } .clip-result-thumbnail {width:56px;height:100px;} .clip-result-actions {grid-column:1 / -1;min-height:0!important;flex-direction:row!important;align-items:center!important;} }
       @container (max-width:180px) { .clip-result-row {grid-template-columns:minmax(0,1fr);} .clip-result-actions {flex-wrap:wrap;} }
     `}</style>
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -3359,9 +3429,6 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [busy]);
-  React.useEffect(() => {
-    if (!busy && step >= 5 && drafts.length) resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [busy, step, drafts.length]);
 
   // Resource ids are Project-scoped aliases; every script re-resolves a saved one by id and file name.
   const resolver = (resourceId: string, resourceName: string) =>
@@ -3921,6 +3988,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     runRef.current = token;
     let job: any = resume ?? { id: Date.now().toString(36), projectId, created: new Date().toISOString(), mode, url: url.trim(), pick, program, countMode, count, note, platform };
     setRunInfo(job);
+    let revealedResults = false;
     const persist = async (patch: any) => {
       job = { ...job, ...patch, updated: new Date().toISOString() };
       setRunInfo(job);
@@ -3928,6 +3996,12 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       if (resultProject.current===job.projectId && job.built?.some((d: any)=>d?.draftId || d?.error)) {
         const snapshot=clone(job);
         setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==snapshot.id),snapshot],job.projectId));
+        // Reveal the first usable clip once; later saves must not override the user's navigation.
+        if (!revealedResults && snapshot.built.some((d: any)=>d?.draftId)) {
+          revealedResults = true;
+          setResultSelection(job.id);
+          setTab("results");
+        }
       }
     };
     try {
@@ -4081,7 +4155,6 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       setStatus(S.done(made.filter((m) => m && m.draftId).length));
       if (!allBuilt) setError(made.filter((m) => m && m.error).map((m) => m.error).join(" / ").slice(0, 600) + " " + S.resumeHint);
       setStep(5);
-      if (made.some(m=>m?.draftId)) { setResultSelection(job.id); setTab("results"); }
       loadResources();
     } catch (e: any) {
       if (e instanceof RunCancelled) {
@@ -4290,6 +4363,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
 
   const myClips = (
       <div ref={resultsRef} style={FORM_COLUMN}>
+      {runInfo?.projectId === projectId && <ClipRunProgress ui={ui} S={S} R={R} job={runInfo} busy={busy}
+        step={step} sub={sub} statusLine={statusLine} cancelling={cancelling} onCancel={cancelRun} />}
+      {!busy && runInfo?.id === shownResult?.id && step >= 0 && step < 5 && (error || status) &&
+        <div style={{marginBottom:16}}><ui.Message tone={error ? "error" : "muted"}>{error || status}</ui.Message></div>}
       {shownDrafts.length > 0 ? <>
         <div style={{marginBottom:16}}><ui.Select label={R.history}
           value={resultSelection === "__latest__" || resultSelection===history[0]?.id || !history.some(j=>j.id===resultSelection) ? "__latest__" : resultSelection}

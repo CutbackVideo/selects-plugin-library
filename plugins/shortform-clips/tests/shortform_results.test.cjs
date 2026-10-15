@@ -10,10 +10,10 @@ test('draft results preserve descriptions and follow the current draft', {skip: 
   const dep = createRequire(path.resolve(modulesRoot, '../package.json'));
   const React = dep('react'), {act} = React, {JSDOM} = dep('jsdom');
   const source = fs.readFileSync(path.join(__dirname, '../panel.tsx'), 'utf8');
-  const code = dep('esbuild').transformSync(source + '\nexport {DraftResults,RESULT_STRINGS,latestDraftResult,savedDraftResults,resultJobLabel,clipAssessment,rankDrafts,readDraftThumbnail,loadDraftThumbnail,thumbnailPath,CLIP_SCORE_PROMPT};', {loader:'tsx',format:'cjs'}).code;
+  const code = dep('esbuild').transformSync(source + '\nexport {DraftResults,ClipRunProgress,RESULT_STRINGS,latestDraftResult,savedDraftResults,resultJobLabel,clipAssessment,rankDrafts,readDraftThumbnail,loadDraftThumbnail,thumbnailPath,CLIP_SCORE_PROMPT};', {loader:'tsx',format:'cjs'}).code;
   const mod = {exports:{}};
   new Function('require','module','exports',code)(() => React, mod, mod.exports);
-  const {DraftResults, RESULT_STRINGS, latestDraftResult,savedDraftResults,resultJobLabel,clipAssessment,rankDrafts,readDraftThumbnail,loadDraftThumbnail,thumbnailPath,CLIP_SCORE_PROMPT} = mod.exports;
+  const {DraftResults, ClipRunProgress, RESULT_STRINGS, latestDraftResult,savedDraftResults,resultJobLabel,clipAssessment,rankDrafts,readDraftThumbnail,loadDraftThumbnail,thumbnailPath,CLIP_SCORE_PROMPT} = mod.exports;
 
   await t.test('restore the latest project result, including partial failures, without losing results when a later run has no drafts yet', () => {
     const older = {projectId:'a',updated:'2026-10-15',built:[{draftId:'old'}],done:true};
@@ -80,7 +80,26 @@ test('draft results preserve descriptions and follow the current draft', {skip: 
     assert.doesNotMatch(make,/<DraftResults/);assert.match(results,/<DraftResults/);
     assert.match(results,/value: "results", label: R.myClips, content: myClips/);
     assert.doesNotMatch(results,/onChange=\{setResultSelection\} disabled=\{busy\}/);
-    assert.match(source,/if \(made.some\(m=>m\?\.draftId\)\) \{ setResultSelection\(job.id\); setTab\("results"\); \}/);
+  });
+
+  await t.test('first successful saved clip reveals results once and subsequent saves stream without stealing navigation',async()=>{
+    const start=source.indexOf('    let revealedResults = false;');
+    const chunk=source.slice(start,source.indexOf('    try {',start));
+    const compiled=dep('esbuild').transformSync(chunk,{loader:'ts'}).code;
+    const events=[],saved=[],scope={current:'project'};let rows=[];
+    const env={clone:x=>JSON.parse(JSON.stringify(x)),setRunInfo:()=>{},saveJob:async j=>saved.push(j),resultProject:scope,
+      setResultJobs:f=>rows=f(rows),savedDraftResults,setResultSelection:id=>events.push(['selection',id]),setTab:tab=>events.push(['tab',tab])};
+    const create=new Function('env','initial',`const {clone,setRunInfo,saveJob,resultProject,setResultJobs,savedDraftResults,setResultSelection,setTab}=env;let job=initial;${compiled};return persist;`);
+    const persist=create(env,{id:'job',projectId:'project'});
+    await persist({built:[{error:'failed'}]});assert.deepEqual(events,[]);
+    await persist({built:[{error:'failed'},{draftId:'one'}]});
+    assert.deepEqual(events,[['selection','job'],['tab','results']]);assert.equal(saved.length,2);
+    await persist({built:[{error:'failed'},{draftId:'one',thumbnailPath:'preview.jpg'},{draftId:'two'}]});
+    await persist({done:true});assert.equal(events.length,2);assert.equal(rows[0].built.length,3);
+    scope.current='other';await create(env,{id:'other-run',projectId:'project'})({built:[{draftId:'three'}]});assert.equal(events.length,2);
+    scope.current='project';await assert.rejects(()=>create({...env,saveJob:async()=>{throw Error('disk failed');}},{id:'bad',projectId:'project'})({built:[{draftId:'four'}]}),/disk failed/);assert.equal(events.length,2);
+    const end=source.slice(source.indexOf('      const allBuilt ='),source.indexOf('  function cancelRun()'));
+    assert.doesNotMatch(end,/setTab|setResultSelection/);
   });
 
   const dom = new JSDOM('<div id="root"></div>');
@@ -101,6 +120,7 @@ test('draft results preserve descriptions and follow the current draft', {skip: 
   const ui = {
     Button: ({children,onClick,disabled,busy}) => e('button',{onClick,disabled:disabled||busy},children),
     Stack: ({children}) => e('div',null,children),
+    Progress: ({value,label}) => e('div',{role:'progressbar','aria-valuenow':value},label),
     Grid: ({children}) => e('div',null,children),
     Message: ({children,tone}) => e('p',{'data-tone':tone},children),
   };
@@ -112,41 +132,89 @@ test('draft results preserve descriptions and follow the current draft', {skip: 
   const opened = [];
   const props = {drafts,ui,S:{open:'Open',seconds:n=>`${n}s`,recommended:'Recommended',clipsUnit:n=>`${n} clips`},R:RESULT_STRINGS.en,template:'Test template',info:{why:'Template selection reason.',recommended:3,countReason:'Full recommendation. Including the final sentence.'},warn:'Check the crop.',onOpen:id=>opened.push(id)};
   const buttons = () => [...document.querySelectorAll('button')];
-  const button = label => buttons().find(b=>b.textContent===label);
+  const button = label => buttons().find(b=>b.getAttribute('aria-label')===label || b.textContent===label);
   const render = async extra => act(async()=>root.render(e(DraftResults,{...props,...extra})));
   const click = async label => act(async()=>button(label).click());
+  await t.test('live progress reports completed clips, supports cancellation, and disappears when finished',async()=>{
+    let cancelled=0;
+    const progress={ui,S:{steps:['Import','Transcribe','Identify','Choose','Build'],thisRun:'Work in progress',cancel:'Cancel',cancelling:'Cancelling'},R:RESULT_STRINGS.en,
+      job:{title:'Interview',choice:{clips:[{},{},{}]},built:[{draftId:'one'},{error:'failed'}]},busy:true,step:4,sub:0,statusLine:'Building clip 2',cancelling:false,onCancel:()=>cancelled++};
+    await act(async()=>root.render(e(ClipRunProgress,progress)));
+    assert.equal(document.querySelector('[role="progressbar"]').getAttribute('aria-valuenow'),String(1/3));assert.match(document.body.textContent,/1\/3 clips created/);
+    await click('Cancel');assert.equal(cancelled,1);
+    await act(async()=>root.render(e(ClipRunProgress,{...progress,cancelling:true})));
+    assert.equal(button('Cancelling').disabled,true);
+    await act(async()=>root.render(e(ClipRunProgress,{...progress,job:{...progress.job,built:[{draftId:'one'},{draftId:'two'}]}})));
+    assert.match(document.body.textContent,/2\/3 clips created/);
+    await act(async()=>root.render(e(ClipRunProgress,{...progress,busy:false})));
+    assert.equal(document.querySelector('[role="progressbar"]'),null);
+  });
   try {
     await render({visibleDraftId:'a'});
     assert.match(document.body.textContent,/2 clips created/);
     assert.equal(button('Currently viewing').disabled,true);
+    assert.equal(button('Currently viewing').getAttribute('aria-current'),'true');
+    assert.match(button('Currently viewing').textContent,/Viewing/);
+    assert.equal(button('Open').className,'clip-thumbnail-button');
+    assert.equal(document.querySelector('.clip-result-actions button[aria-label="Open"]'),null);
+    assert.ok(button('Open').querySelector('.clip-result-thumbnail'));
+    assert.ok(button('Open').querySelector('.clip-thumbnail-open'));
+    assert.match(document.querySelector('style').textContent,/:focus-visible.*clip-thumbnail-open/);
     assert.equal(button('Show more') != null,true);
+    assert.equal(button('Show more').style.textDecoration,'underline');
+    assert.equal(button('Show more').getAttribute('aria-expanded'),'false');
+    assert.match(document.body.textContent,/AI score/);
+    assert.equal(RESULT_STRINGS.ko.score,'AI \uc810\uc218');
     assert.equal(buttons().filter(b=>b.textContent==='Show more').length,1,'Short descriptions need no toggle');
     assert.match(document.body.textContent,/Keep the explanation even on failure/);
     assert.equal(document.querySelectorAll('[data-tone="error"]').length,1);
     const description = [...document.querySelectorAll('small')].find(n=>n.textContent===drafts[0].why);
     assert.equal(description.style.webkitLineClamp,'3');
     await click('Show more');
+    assert.equal(button('Show less'),undefined);
+    assert.equal(button('Show more'),undefined);
     assert.equal(description.style.webkitLineClamp,'');
     assert.equal(description.textContent,drafts[0].why);
-    await click('Show less');
-    assert.equal(description.style.webkitLineClamp,'3');
+    await render({visibleDraftId:'a'});
+    assert.equal(description.style.webkitLineClamp,'','Expanded descriptions stay open across updates');
     await click('Open');
     assert.deepEqual(opened,['b']);
     await render({visibleDraftId:'b'});
-    assert.match(button('Currently viewing').parentElement.parentElement.textContent,/Another headline/);
+    assert.match(button('Currently viewing').closest('.clip-result-row').textContent,/Another headline/);
     await render({visibleDraftId:'unrelated'});
     assert.equal(button('Currently viewing'),undefined);
-    assert.equal(buttons().filter(b=>b.textContent==='Open').length,2);
+    assert.equal(buttons().filter(b=>b.getAttribute('aria-label')==='Open').length,2);
     await render({visibleDraftId:'unrelated',opening:'b'});
-    assert.equal(buttons().filter(b=>b.textContent==='Open' && b.disabled).length,2);
+    assert.equal(buttons().filter(b=>b.getAttribute('aria-label')==='Open' && b.disabled).length,2);
+    assert.equal(document.querySelector('[data-opening="true"]').getAttribute('aria-busy'),'true');
+    assert.match(document.querySelector('[data-opening="true"]').textContent,/Opening/);
     assert.equal(button('Details'),undefined);
     assert.doesNotMatch(document.body.textContent,/Full recommendation|Check the crop/);
     const assessed=drafts.map((d,i)=>({...d,assessment:i===1?{hook:9,flow:8,payoff:7,reason:'Specific payoff.'}:null}));
     await render({drafts:assessed,visibleDraftId:'unrelated'});
     assert.match(document.querySelector('.clip-result-row').textContent,/Another headline/);
-    assert.match(document.body.textContent,/8.0\/10/);assert.match(document.body.textContent,/Specific payoff/);
+    assert.match(document.body.textContent,/8.0\/10/);
+    assert.equal(document.querySelector('.clip-result-row details'),null);
+    assert.equal(document.querySelector('[role="tooltip"]'),null);
+    const scoreInfo=document.querySelector('button[aria-label="Why this score"]');
+    await act(async()=>scoreInfo.dispatchEvent(new dom.window.MouseEvent('mouseover',{bubbles:true})));
+    const tooltip=document.querySelector('[role="tooltip"]');
+    assert.equal(tooltip.textContent,'Specific payoff.');
+    const breakdown=document.querySelector('.clip-score-breakdown');
+    assert.deepEqual([...breakdown.querySelectorAll('dt')].map(n=>n.textContent),['Hook','Flow','Payoff']);
+    assert.deepEqual([...breakdown.querySelectorAll('dd')].map(n=>n.textContent),['9','8','7']);
+    assert.match(tooltip.textContent,/Specific payoff/);
+    assert.equal(scoreInfo.getAttribute('aria-describedby'),tooltip.id);
+    await act(async()=>scoreInfo.parentElement.dispatchEvent(new dom.window.MouseEvent('mouseout',{bubbles:true,relatedTarget:document.body})));
+    assert.equal(document.querySelector('[role="tooltip"]'),null);
+    await act(async()=>scoreInfo.focus());
+    assert.ok(document.querySelector('[role="tooltip"]'),'Keyboard focus reveals the same explanation');
+    await act(async()=>scoreInfo.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+    assert.equal(document.querySelector('[role="tooltip"]'),null);
     assert.match(document.body.textContent,/Unrated/);
     assert.equal(document.querySelectorAll('.clip-result-row').length,3);
+    await act(async()=>root.render(null));
+    await render({drafts:assessed,visibleDraftId:'unrelated'});
     overflow=false;
     await act(async()=>observers.forEach(o=>o.callback()));
     assert.equal(button('Show more'),undefined,'Wider cards no longer need the toggle');

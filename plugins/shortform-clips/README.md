@@ -12,15 +12,19 @@ are delivered separately as template packs. The app has no bundled customer temp
    use the **Add templates** button.
 3. Select a source, a program (or automatic detection), and the clip count in
    **Make clips**. Add optional instructions and create the clips.
-4. In **My clips**, review one clip per row, with a saved preview, title, description and Open
-   button. Use **Saved results** to switch between runs in this Project; the latest
+4. In **My clips**, review one clip per row, with a saved preview, title and description.
+   Hover or focus a preview to reveal Open; click it to open the Draft. The current
+   Draft has a highlighted preview and a Viewing badge. Use **Saved results** to switch between runs in this Project; the latest
    is first, with source titles, dates and clip counts. Validation failures and new
    runs preserve previous results. You can browse history while generation runs;
-   completion switches to My clips and selects the new run. Export through **Handoff > Export**.
+   the first saved clip opens My clips with live progress and a cancel control.
+   Later clips appear as they are saved; subsequent updates do not override your
+   tab or history selection. Export through **Handoff > Export**.
 
 New clip selections include transcript-based Hook, Flow and Payoff ratings (0-10).
 The app computes their equal-weight average and sorts each run by that score;
-expand the breakdown for its reason. These are content recommendations, not view
+the three component scores appear below the overall score. Hover or focus the
+info icon beside AI score for its reason. These are content recommendations, not view
 predictions or finished-video quality scores. Older or malformed assessments show
 **Unrated** and sort after scored clips, without re-running AI. Thumbnails capture
 one composited Draft frame at one second (or the last frame for shorter clips),
