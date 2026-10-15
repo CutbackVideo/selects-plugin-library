@@ -52,8 +52,12 @@ For public plugins, the authoring agent writes translations directly for
 `de en es fr it ja ko pt tr zh`. This is authoring guidance: the manifest
 validator does not require translations, an English dictionary, or all ten
 languages. There is no CI translation pipeline or translation build step.
-The separate public-source checker currently rejects literal Korean text;
-that existing restriction is not changed by this metadata contract.
+Installed app lists and panel tabs read names from `panel.tsx` header comments,
+not from the manifest's `localized` entries. To show a Korean installed name,
+put a literal Korean title in `// @name:ko` within the first 24 lines.
+The public-source checker exempts only that metadata from its Korean-text rule;
+all secret and private-path checks still apply. Use Unicode escapes for Korean
+strings elsewhere in source files.
 
 ## Gallery previews
 
