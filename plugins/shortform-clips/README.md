@@ -36,6 +36,13 @@ open Draft. A failed preview leaves the editable clip and its history intact.
 The Templates tab edits design, captions, editing options, program detection and
 AI instructions. Controls depend on the template renderer. TikTok/Shorts layout
 variants keep separate design values and share detection and AI instructions.
+The layout selected in Make clips also selects which design to edit in Templates;
+a small label identifies it when the pack provides both designs. Templates has no
+separate layout picker. Single-layout templates keep their existing TikTok edits.
+The trash icon beside the template picker opens a confirmation before removing
+the selected template from both the editor and clip creation. Generated clips and
+saved results are retained. Adding a pack again restores its removed templates
+with their saved edits; removed custom copies stay removed.
 Template overlay preview does not change the template or new Drafts. After clips
 are created, **TikTok overlay preview** beside the results heading adds/removes a
 single preview PNG in the currently visible Draft. It is not a template setting
@@ -64,6 +71,8 @@ Local data lives under `~/.selects/plugin-data/shortform-clips/`:
 - `overrides/<encoded-pack-and-template-id>.json`: only fields the user changed.
   Untouched fields follow new pack defaults; reset deletes the override.
 - `custom-templates/<encoded-id>.json`: independent copies made in the editor.
+- `removed-templates/<encoded-id>.json`: removal records that keep templates out
+  of the pickers without deleting shared assets or generated clips.
 - `jobs/<job-id>.json`: generation settings, results, Draft IDs and new results'
   relative `thumbnailPath` and `thumbnailCapturedAt` fields.
 - `thumbnails/<job-id>/<draft-id>.jpg`: saved composited previews. Older jobs

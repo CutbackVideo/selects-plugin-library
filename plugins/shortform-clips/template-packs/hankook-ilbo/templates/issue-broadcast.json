@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "issue-broadcast",
-  "version": 1,
+  "version": 3,
   "names": {
     "ko": "\uc774\uc288\uc804\ud30c\uc0ac \u00b7 \ud2f1\ud1a1",
     "en": "Issue Broadcast \u00b7 TikTok"
@@ -9,7 +9,7 @@
   "renderer": "series",
   "layout": {
     "windowTop": 0,
-    "windowBottom": 1460,
+    "windowBottom": 1920,
     "sourceTop": 0,
     "sourceBottom": 1080,
     "offsetX": 0,
@@ -68,8 +68,8 @@
     "highlight": false
   },
   "editing": {
-    "removeFillers": false,
-    "removeSilences": false
+    "removeFillers": true,
+    "removeSilences": true
   },
   "detect": {
     "keywords": [

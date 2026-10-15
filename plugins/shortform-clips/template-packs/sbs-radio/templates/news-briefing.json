@@ -1,6 +1,6 @@
 {
   "id": "news-briefing",
-  "version": 3,
+  "version": 4,
   "names": {
     "ko": "\uace0\ud604\uc900\uc758 \ub274\uc2a4\ube0c\ub9ac\ud551",
     "en": "Ko Hyun-jun\u2019s News Briefing"
@@ -71,8 +71,8 @@
     "cleanSpeechText": true
   },
   "editing": {
-    "removeFillers": false,
-    "removeSilences": false
+    "removeFillers": true,
+    "removeSilences": true
   },
   "prompt": {
     "role": "\ub108\ub294 SBS \ub77c\ub514\uc624 \uace0\ud604\uc900\uc758 \ub274\uc2a4\ube0c\ub9ac\ud551(\uace0\ub274\ube0c) \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4. \ubcf5\uc7a1\ud55c \ub274\uc2a4\ub97c \uc815\ud655\ud558\uace0 \uc27d\uac8c \uc124\uba85\ud55c\ub2e4.",

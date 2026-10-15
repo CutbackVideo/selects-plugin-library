@@ -256,6 +256,10 @@ const STRINGS: any = {
     reset: "Reset to default",
     del: "Delete",
     delConfirm: "Press again to delete",
+    deleteTemplate: "Delete selected template",
+    deleteTitle: "Delete template?",
+    deleteBody: (name: string) => `Delete “${name}” from your templates?`,
+    deleteKeepClips: "Clips you already created will be kept.",
     save: "Save",
     discard: "Discard changes",
     savedOk: "Saved.",
@@ -447,6 +451,10 @@ const STRINGS: any = {
     reset: "\uae30\ubcf8\uac12\uc73c\ub85c",
     del: "\uc0ad\uc81c",
     delConfirm: "\ud55c \ubc88 \ub354 \ub204\ub974\uba74 \uc0ad\uc81c",
+    deleteTemplate: "\uc120\ud0dd\ud55c \ud15c\ud50c\ub9bf \uc0ad\uc81c",
+    deleteTitle: "\ud15c\ud50c\ub9bf\uc744 \uc0ad\uc81c\ud560\uae4c\uc694?",
+    deleteBody: (name: string) => `\u2018${name}\u2019 \ud15c\ud50c\ub9bf\uc744 \ubaa9\ub85d\uc5d0\uc11c \uc0ad\uc81c\ud569\ub2c8\ub2e4.`,
+    deleteKeepClips: "\uc774\ubbf8 \ub9cc\ub4e0 \ud074\ub9bd\uc740 \uc720\uc9c0\ub429\ub2c8\ub2e4.",
     save: "\uc800\uc7a5",
     discard: "\ubcc0\uacbd \ucde8\uc18c",
     savedOk: "\uc800\uc7a5\ud588\uc2b5\ub2c8\ub2e4.",
@@ -1315,7 +1323,8 @@ function templatePatch(base: any, edited: any): any {
   return clone(edited);
 }
 function templateIdentity(pack: any, t: any) {
-  return {...t, id: pack.manifest.id + "/" + t.id};
+  // Pack defaults define available layouts; local TikTok edits do not add a new layout choice.
+  return {...t, id: pack.manifest.id + "/" + t.id, platformLayouts: !!t.variants?.tiktok};
 }
 function makeTemplateRepository(storage: any) {
   const defaults = new Map<string, any>();
@@ -1329,6 +1338,7 @@ function makeTemplateRepository(storage: any) {
       const revision = ++loadRevision;
       const templates: any[] = [], packs: any[] = [], errors: string[] = [];
       const nextDefaults = new Map<string, any>();
+      const removed = new Set((await records("removed-templates")).map((r: any) => r.id));
       const overrides = new Map((await records("overrides")).map((r: any) => [r.id, r]));
       for (const pack of await records("packs")) {
         try {
@@ -1358,7 +1368,7 @@ function makeTemplateRepository(storage: any) {
         defaults.clear();
         for (const [id, value] of nextDefaults) defaults.set(id, value);
       }
-      return {templates, packs, errors};
+      return {templates: templates.filter(t => !removed.has(t.id)), packs, errors};
     },
     async put(kind: string, id: string, value: any) {
       packAssert(kind === "templates", "Invalid template collection.");
@@ -1374,6 +1384,11 @@ function makeTemplateRepository(storage: any) {
     async del(kind: string, id: string) {
       packAssert(kind === "templates", "Invalid template collection.");
       await storage.del(defaults.has(id) ? "overrides" : "custom-templates", key(id));
+    },
+    async remove(id: string) {
+      packAssert(defaults.has(id) || (await records("custom-templates")).some((t: any) => t.id === id), "Unknown template.");
+      // Keep shared pack assets, local edits and generated clips intact.
+      await storage.put("removed-templates", key(id), {id, removedAt: new Date().toISOString()});
     },
     async install(input: string, fromLink = false) {
       const pack = fromLink ? await readGitHubTemplatePack(input) : await readTemplatePack(fs, input);
@@ -1418,6 +1433,10 @@ function makeTemplateRepository(storage: any) {
       }
       // One atomic snapshot activates all templates and resolved assets together.
       await storage.put("packs", pack.manifest.id, pack);
+      const restoredIds = new Set(pack.templates.map((t: any) => pack.manifest.id + "/" + t.id));
+      for (const removed of await records("removed-templates")) {
+        if (restoredIds.has(removed.id)) await storage.del("removed-templates", key(removed.id));
+      }
       return pack.manifest;
     },
   };
@@ -2226,6 +2245,10 @@ const RADIO_STRINGS: any = {
     reset: "Reset to default",
     del: "Delete",
     delConfirm: "Press again to delete",
+    deleteTemplate: "Delete selected template",
+    deleteTitle: "Delete template?",
+    deleteBody: (name: string) => `Delete “${name}” from your templates?`,
+    deleteKeepClips: "Clips you already created will be kept.",
     save: "Save",
     discard: "Discard changes",
     savedOk: "Saved.",
@@ -2251,7 +2274,7 @@ const RADIO_STRINGS: any = {
     layoutKind: "Layout",
     layoutShorts: "YouTube Shorts",
     layoutTiktok: "TikTok",
-    tiktokHint: "Changes here apply to the TikTok layout only.",
+    editingLayout: (layout: string) => `Editing ${layout} layout`,
     reframing: "Finding faces to frame each speaker…",
     reframeSkipped: "Clips keep the fixed crop; following faces failed: ",
     closeUp: "Close-up on the talker (face widths across)",
@@ -2433,6 +2456,10 @@ const RADIO_STRINGS: any = {
     reset: "\uae30\ubcf8\uac12\uc73c\ub85c",
     del: "\uc0ad\uc81c",
     delConfirm: "\ud55c \ubc88 \ub354 \ub204\ub974\uba74 \uc0ad\uc81c",
+    deleteTemplate: "\uc120\ud0dd\ud55c \ud15c\ud50c\ub9bf \uc0ad\uc81c",
+    deleteTitle: "\ud15c\ud50c\ub9bf\uc744 \uc0ad\uc81c\ud560\uae4c\uc694?",
+    deleteBody: (name: string) => `\u2018${name}\u2019 \ud15c\ud50c\ub9bf\uc744 \ubaa9\ub85d\uc5d0\uc11c \uc0ad\uc81c\ud569\ub2c8\ub2e4.`,
+    deleteKeepClips: "\uc774\ubbf8 \ub9cc\ub4e0 \ud074\ub9bd\uc740 \uc720\uc9c0\ub429\ub2c8\ub2e4.",
     save: "\uc800\uc7a5",
     discard: "\ubcc0\uacbd \ucde8\uc18c",
     savedOk: "\uc800\uc7a5\ud588\uc2b5\ub2c8\ub2e4.",
@@ -2458,7 +2485,7 @@ const RADIO_STRINGS: any = {
     layoutKind: "\ub808\uc774\uc544\uc6c3",
     layoutShorts: "\uc720\ud29c\ube0c \uc1fc\uce20",
     layoutTiktok: "\ud2f1\ud1a1",
-    tiktokHint: "\uc5ec\uae30\uc11c \ubc14\uafb8\ub294 \uac12\uc740 \ud2f1\ud1a1 \ub808\uc774\uc544\uc6c3\uc5d0\ub9cc \uc801\uc6a9\ub429\ub2c8\ub2e4.",
+    editingLayout: (layout: string) => `${layout} \ub808\uc774\uc544\uc6c3 \ud3b8\uc9d1 \uc911`,
     reframing: "\ud654\uc790\ub97c \ud654\uba74\uc5d0 \ub9de\ucd94\ub824\uace0 \uc5bc\uad74 \ucc3e\ub294 \uc911…",
     reframeSkipped: "\uc5bc\uad74 \ub530\ub77c\uac00\uae30\uc5d0 \uc2e4\ud328\ud574 \uace0\uc815 \ud06c\ub86d\uc73c\ub85c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4: ",
     closeUp: "\ud654\uc790 \ud074\ub85c\uc988\uc5c5 (\ud654\uba74 \ud3ed = \uc5bc\uad74 \ud3ed\uc758 \uba87 \ubc30)",
@@ -2884,6 +2911,7 @@ function RadioLayoutPreview({ t, S }: any) {
 // capabilities control the few fields that differ, including custom duplicates.
 type TemplateEditorProfile = {
   platformLayouts: boolean;
+  layoutVariants: boolean;
   reframe: boolean;
   headlineStroke: boolean;
   labels: boolean;
@@ -2896,6 +2924,7 @@ function templateEditorProfile(template: any): TemplateEditorProfile {
   const radio = template?.renderer === "series";
   return {
     platformLayouts: radio,
+    layoutVariants: radio && (template?.platformLayouts ?? !!template?.variants?.tiktok),
     reframe: radio,
     headlineStroke: radio,
     labels: radio,
@@ -2921,15 +2950,15 @@ function cleanTemplate(t: any) {
   return { ...rest, detect: { ...rest.detect, keywords: tidy(rest.detect?.keywords), exclude: tidy(rest.detect?.exclude) } };
 }
 
-function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange, state }: any, profile: TemplateEditorProfile) {
+function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange, state, platform = "tiktok" }: any, profile: TemplateEditorProfile) {
   // Selection, the working copy and the sub-tab live in the Panel, so unsaved edits survive a tab switch.
   const { selId, setSelId, edit: saved, setEdit: setSaved, baseKey, setBaseKey, sub, setSub } = state;
   const current = templates.find((t: any) => t.id === selId) || templates[0];
   const [msg, setMsg] = React.useState<any>(null);
-  const [armedDelete, setArmedDelete] = React.useState(false);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [saving, setSavingState] = React.useState(false);
   const setSaving = (value: boolean) => { setSavingState(value); onSavingChange?.(value); };
-  const [layoutKey, setLayoutKey] = React.useState<string>("tiktok");
+  const layoutKey = profile.layoutVariants ? platform : "tiktok";
   const fs = store.fs;
 
   const currentKey = React.useMemo(() => JSON.stringify(current ?? null), [current]);
@@ -2938,7 +2967,7 @@ function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange
       setSaved(clone(current));
       setBaseKey(currentKey);
     }
-    setArmedDelete(false);
+    setDeleteOpen(false);
   }, [selId, currentKey]);
 
   if (!current) return null;
@@ -2946,12 +2975,13 @@ function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange
   const fresh = !saved || saved.id !== current.id || baseKey !== currentKey;
   const stored = fresh ? JSON.parse(currentKey) : saved;
   // The TikTok layout is a set of overrides on the template; the editor shows and edits whichever layout is picked.
-  const edit = profile.platformLayouts && layoutKey === "tiktok" ? merge(stored, stored.variants?.tiktok || {}) : stored;
+  const editingTiktok = profile.platformLayouts && (!profile.layoutVariants || layoutKey === "tiktok");
+  const edit = editingTiktok ? merge(stored, stored.variants?.tiktok || {}) : stored;
   const setEdit = (f: any) => setSaved((e: any) => (typeof f === "function" ? f(fresh || !e ? JSON.parse(currentKey) : e) : f));
   const dirty = JSON.stringify(stored) !== currentKey;
   const set = (path: string, value: any) => {
     setMsg(null);
-    setEdit((e: any) => updateTemplateField(e, path, value, profile.platformLayouts && layoutKey === "tiktok"));
+    setEdit((e: any) => updateTemplateField(e, path, value, editingTiktok));
   };
 
   async function save() {
@@ -2985,20 +3015,31 @@ function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange
       setSaving(false);
     }
   }
-  async function removeOrReset() {
-    if (!current.builtIn && !armedDelete) return setArmedDelete(true);
+  async function reset() {
     setSaving(true);
     try {
       await store.del("templates", current.id);
-      await onChanged(current.builtIn ? current.id : templates[0].id);
-      if (!current.builtIn) setSelId(templates[0].id);
+      await onChanged(current.id);
       setMsg(null);
     } catch (e: any) {
       setMsg({ tone: "error", text: String(e?.message || e) });
-    } finally {
-      setSaving(false);
-      setArmedDelete(false);
-    }
+    } finally { setSaving(false); }
+  }
+  async function remove() {
+    if (!deleteOpen || saving || dirty) return;
+    setSaving(true);
+    setMsg(null);
+    try {
+      await store.remove(current.id);
+      const next = templates.find((t: any) => t.id !== current.id)?.id || "";
+      setSaved(null);
+      setBaseKey("");
+      await onChanged(next);
+      setSelId(next);
+      setDeleteOpen(false);
+    } catch (e: any) {
+      setMsg({ tone: "error", text: String(e?.message || e) });
+    } finally { setSaving(false); }
   }
   async function pickImage(file: any, kind: "background" | "logo") {
     if (!file) {
@@ -3018,8 +3059,8 @@ function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange
   }
 
   return {
-    current, edit, dirty, saving, msg, armedDelete, layoutKey, setLayoutKey,
-    setEdit, set, setMsg, save, duplicate, removeOrReset, pickImage,
+    current, edit, dirty, saving, msg, deleteOpen, setDeleteOpen, layoutKey,
+    setEdit, set, setMsg, save, duplicate, reset, remove, pickImage,
   };
 }
 
@@ -3254,14 +3295,16 @@ function TemplateEditorForm(props: any) {
   const draft = useTemplateDraft(props, profile);
   const [previewOverlay, setPreviewOverlay] = React.useState(false);
   if (!draft) return null;
-  const { current, edit, dirty, saving, msg, armedDelete, layoutKey, setLayoutKey,
-    setEdit, set, setMsg, save, duplicate, removeOrReset } = draft;
+  const { current, edit, dirty, saving, msg, deleteOpen, setDeleteOpen, layoutKey,
+    setEdit, set, setMsg, save, duplicate, reset, remove } = draft;
   const { setSelId, sub, setSub } = state;
   const note = current.builtIn ? (current.modified ? S.modifiedNote : S.builtInNote) : S.customNote;
 
   return (
     <div style={{width:"100%",maxWidth:"var(--panel-field-max, 480px)",marginInline:"auto",minWidth:0,display:"flex",flexDirection:"column",gap:16,paddingTop:8}}>
       <ui.Stack gap={8}>
+        <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+        <div style={{flex:"1 1 0",minWidth:0}}>
         <TemplatePicker ui={ui} templates={templates} lang={lang}
           onAdd={props.onAddTemplates} addLabel={props.addTemplatesLabel}
           label={S.template}
@@ -3272,29 +3315,33 @@ function TemplateEditorForm(props: any) {
           }}
           disabled={dirty || saving || !!props.packBusy}
         />
+        </div>
+        <div style={{flexShrink:0}}><ui.IconButton icon="trash" label={S.deleteTemplate}
+          disabled={dirty || saving || !!props.packBusy || !!props.busy}
+          onClick={()=>{setMsg(null);setDeleteOpen(true);}} /></div>
+        </div>
+        <TemplatePackDialog ui={ui} open={deleteOpen} title={S.deleteTitle} closeLabel={S.cancel}
+          busy={saving} onClose={()=>setDeleteOpen(false)}>
+          <div style={{display:"flex",flexDirection:"column",gap:8,overflowWrap:"anywhere"}}>
+            <span>{S.deleteBody(nameOf(current,lang))}</span>
+            <small>{S.deleteKeepClips}</small>
+          </div>
+          {msg?.tone === "error" && <ui.Message tone="error">{msg.text}</ui.Message>}
+          <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+            <ui.Button variant="secondary" disabled={saving} onClick={()=>setDeleteOpen(false)}>{S.cancel}</ui.Button>
+            <ui.Button variant="danger" busy={saving} onClick={remove}>{S.del}</ui.Button>
+          </div>
+        </TemplatePackDialog>
         <small>{note}</small>
-        {profile.platformLayouts && <ui.Segmented
-          label={S.layoutKind}
-          value={layoutKey}
-          onChange={setLayoutKey}
-          options={[
-            { value: "shorts", label: S.layoutShorts },
-            { value: "tiktok", label: S.layoutTiktok },
-          ]}
-        />}
-        {profile.platformLayouts && layoutKey === "tiktok" ? <small>{S.tiktokHint}</small> : null}
+        {profile.layoutVariants && <small>{S.editingLayout(layoutKey === "tiktok" ? S.layoutTiktok : S.layoutShorts)}</small>}
         <ui.TextField label={S.name} value={nameOf(edit, lang)} onChange={(v: string) => set("name", v)} disabled={saving} />
         <ui.Actions>
           <ui.Button variant="secondary" onClick={duplicate} disabled={dirty || saving}>
             {S.duplicate}
           </ui.Button>
-          {current.builtIn ? (
-            <ui.Button variant="ghost" onClick={removeOrReset} disabled={!current.modified || dirty || saving}>
+          {current.builtIn && (
+            <ui.Button variant="ghost" onClick={reset} disabled={!current.modified || dirty || saving}>
               {S.reset}
-            </ui.Button>
-          ) : (
-            <ui.Button variant="danger" onClick={removeOrReset} disabled={dirty || saving}>
-              {armedDelete ? S.delConfirm : S.del}
             </ui.Button>
           )}
         </ui.Actions>
@@ -4423,7 +4470,9 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
               {packError && <ui.Message tone="error">{packError}</ui.Message>}
             </TemplatePackDialog>
             {templates.length > 0 && <TemplateEditor
+              platform={platform}
               packBusy={packBusy}
+              busy={busy}
               onAddTemplates={()=>{setPackError("");setPackMessage("");setPackDialogOpen(true);}}
               addTemplatesLabel={K.title}
               ui={ui}

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "knowledge-exchange",
-  "version": 1,
+  "version": 2,
   "names": {
     "ko": "\uc9c0\uc2dd\ud658\uc804\uc18c \u00b7 \ud2f1\ud1a1",
     "en": "Knowledge Exchange \u00b7 TikTok"
@@ -65,8 +65,8 @@
     "highlight": false
   },
   "editing": {
-    "removeFillers": false,
-    "removeSilences": false
+    "removeFillers": true,
+    "removeSilences": true
   },
   "detect": {
     "keywords": [

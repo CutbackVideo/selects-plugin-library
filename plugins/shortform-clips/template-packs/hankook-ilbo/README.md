@@ -6,7 +6,7 @@ YouTube-specific layout, customer app fork, demo overlay or sample video.
 | Template | Layout |
 | --- | --- |
 | Knowledge Exchange | Original green background and logo, white/red two-line headline, black speech caption box; video window y=622..1378 |
-| Issue Broadcast | Portrait video with face-following enabled, fluorescent yellow headline and second-line box, original logo; video window y=0..1460 |
+| Issue Broadcast | Portrait video with face-following enabled, fluorescent yellow headline and second-line box, original logo over the video; full-height video window y=0..1920 |
 
 ## Install
 
@@ -41,6 +41,7 @@ its **Longform to shortform** section, inspected 2026-10-16.
 - [Issue Broadcast reference SVG](https://hankookilbo-demo-research.thetomkim.chatgpt.site/assets/templates/shorts-issue-template-v9.svg)
 - [Knowledge Exchange TikTok example](https://www.tiktok.com/@hankookilbo/video/7686001087052090632)
 - [Issue Broadcast TikTok example](https://www.tiktok.com/@hankookilbo/video/7683071292169309448)
+- [Issue Broadcast full-height reference](https://www.tiktok.com/@hankookilbo/video/7690521678647921938), inspected 2026-10-16
 - [Research scope and limitations](https://hankookilbo-demo-research.thetomkim.chatgpt.site/research.md)
 
 The SVG filenames say `shorts`, but the page explicitly compares these designs
@@ -54,9 +55,9 @@ These are editable adaptations, not pixel-identical replicas:
 
 - Knowledge Exchange's second headline is capped at 160px rather than the
   reference's sample-specific 260px, within the current panel editor's range.
-- Issue Broadcast uses a dark caption box instead of outlined captions, and a
-  solid charcoal lower band instead of a video fade. API 1 has no caption-outline
-  or video-fade fields. The shared outline width is reduced to 2px so the black boxed headline
+- Issue Broadcast uses full-height portrait video with the logo overlaid, matching
+  the full-height TikTok reference. It retains a dark caption box instead of outlined
+  captions; API 1 has no caption-outline or video-fade fields. The shared outline width is reduced to 2px so the black boxed headline
   stays legible; box spacing and shadows use the common renderer's existing behavior. Its logo is centered by that renderer.
 - Titles, caption contents and video remain editable; sample episode text is not
   baked into the images. TikTok interface graphics are not included.

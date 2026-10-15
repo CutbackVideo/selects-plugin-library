@@ -64,6 +64,42 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     await repo.del('templates',custom.id);assert.equal((await repo.load()).templates.length,4);
     const reopened=api.makeTemplateRepository(store);assert.equal((await reopened.load()).templates.find(t=>t.id===current.id).headline.size1,111);
   });
+  await t.test('single-layout packs preserve older TikTok edits without exposing layout choices',async()=>{
+    const store=storage(),repo=api.makeTemplateRepository(store);
+    await install(repo,path.join(__dirname,'../template-packs/hankook-ilbo'));
+    for(const original of (await repo.load()).templates){
+      assert.equal(original.platformLayouts,false);
+      await store.put('overrides',encodeURIComponent(original.id),{schemaVersion:1,id:original.id,patch:{variants:{tiktok:{headline:{size1:120}}}}});
+      const edited=(await repo.load()).templates.find(t=>t.id===original.id);
+      assert.equal(edited.platformLayouts,false);assert.equal(edited.variants.tiktok.headline.size1,120);
+      await repo.put('templates',edited.id,edited);
+      const copy={...api.cleanTemplate(edited),id:'copy-'+original.id.split('/')[1],baseId:original.id};
+      await repo.put('templates',copy.id,copy);
+      assert.equal((await repo.load()).templates.find(t=>t.id===copy.id).platformLayouts,false);
+    }
+  });
+  await t.test('removing a template persists without affecting siblings, saved edits or generated results',async()=>{
+    const store=storage(),repo=api.makeTemplateRepository(store),folder=copyPack();
+    await install(repo,folder);const initial=await repo.load();
+    const target=structuredClone(initial.templates.find(t=>t.id.endsWith('/money-lab')));
+    target.headline.color1='#123456';await repo.put('templates',target.id,target);
+    await store.put('jobs','run',{id:'run',built:[{draftId:'saved-clip'}]});
+    const untouched=structuredClone([...store.rows]);
+    await repo.remove(target.id);
+    assert.equal((await repo.load()).templates.length,3);
+    assert.equal((await api.makeTemplateRepository(store).load()).templates.some(t=>t.id===target.id),false);
+    for(const [key,value] of untouched)assert.deepEqual(store.rows.get(key),value,'Removal only changes the removed-template record');
+    const duplicate={...api.cleanTemplate(target),id:'custom-copy'};
+    await repo.put('templates',duplicate.id,duplicate);await repo.remove(duplicate.id);
+    assert.equal((await repo.load()).templates.some(t=>t.id===duplicate.id),false);
+    await install(repo,folder);
+    const restored=await repo.load();assert.equal(restored.templates.length,4);
+    assert.equal(restored.templates.find(t=>t.id===target.id).headline.color1,'#123456');
+    assert.equal(restored.templates.some(t=>t.id===duplicate.id),false,'Pack reinstall does not restore removed custom copies');
+    for(const t of restored.templates)await repo.remove(t.id);
+    assert.equal((await repo.load()).templates.length,0);
+    assert.deepEqual(await store.list('jobs'),[{id:'run',built:[{draftId:'saved-clip'}]}]);
+  });
   await t.test('an invalid update never replaces a working installed pack',async()=>{
     const folder=copyPack(),store=storage(),repo=api.makeTemplateRepository(store);await install(repo,folder);const before=structuredClone(await store.list('packs'));
     edit(folder,'pack.json',m=>m.requiresApp.templateApi=99);await assert.rejects(install(repo,folder),/different app or template API/);assert.deepEqual(await store.list('packs'),before);

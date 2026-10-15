@@ -140,6 +140,8 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
   await t.test('shared editor preserves per-template controls and draft lifecycle', async () => {
     const { JSDOM } = dependency('jsdom');
     const dom = new JSDOM('<div id="root"></div>');
+    dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
+    dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
     const previous = Object.fromEntries(['window','document','IS_REACT_ACT_ENVIRONMENT','ResizeObserver'].map(k=>[k,global[k]]));
     Object.assign(global, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true, ResizeObserver: class { observe() {} disconnect() {} } });
     const { createRoot } = dependency('react-dom/client');
@@ -157,7 +159,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       return h('span', { 'data-control': kind });
     };
     const container = ({ children }) => h('div', null, children);
-    const ui = Object.fromEntries(['NumberField','TextField','Select','Segmented','Toggle','ColorField','FontField','Slider','FileDrop','Button'].map(k=>[k,control(k)]));
+    const ui = Object.fromEntries(['NumberField','TextField','Select','Segmented','Toggle','ColorField','FontField','Slider','FileDrop','Button','IconButton'].map(k=>[k,control(k)]));
     Object.assign(ui,{Stack:container,Row:container,Section:({title,children})=>h(SectionContext.Provider,{value:title},children),Actions:container,Message:container});
     ui.Tabs = props => {
       React.useLayoutEffect(()=>{controls.set('tabs',props);return ()=>controls.delete('tabs');});
@@ -165,8 +167,9 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
     };
     const originals = structuredClone(api.BUILTIN_TEMPLATES);
     const rows = new Map();
+    const removed = new Set();
     const writes = [];
-    let failSave = false, holdSave, showEditor;
+    let failSave = false, holdSave, showEditor, refresh, setPlatform;
     const store = {
       put:async (collection,id,value)=>{
         assert.equal(collection,'templates');
@@ -175,13 +178,16 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         rows.set(id,structuredClone(value)); writes.push(id);
       },
       del:async (collection,id)=>{assert.equal(collection,'templates');rows.delete(id);},
+      remove:async id=>{if(failSave)throw Error('Storage unavailable');removed.add(id);rows.delete(id);},
     };
     const readTemplates=()=>[
       ...originals.map(t=>({...api.merge(t,rows.get(t.id)||{}),builtIn:true,modified:rows.has(t.id)})),
       ...[...rows.values()].filter(t=>!originals.some(b=>b.id===t.id)),
-    ];
+    ].filter(t=>!removed.has(t.id));
     function Harness() {
       const [templates,setTemplates]=React.useState(readTemplates);
+      const [platform,updatePlatform]=React.useState("tiktok");
+      setPlatform=updatePlatform;
       const [selId,setSelId]=React.useState(originals[0].id);
       const [edit,setEdit]=React.useState(null);
       const [baseKey,setBaseKey]=React.useState('');
@@ -189,7 +195,8 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       const [visible,setVisible]=React.useState(true);
       showEditor=setVisible;
       const onChanged=async()=>setTemplates(readTemplates());
-      return visible?h(api.TemplateEditor,{ui,S,lang:'en',templates,store,onChanged,state:{selId,setSelId,edit,setEdit,baseKey,setBaseKey,sub,setSub}}):null;
+      refresh=onChanged;
+      return visible?h(api.TemplateEditor,{ui,S,platform,lang:'en',templates,store,onChanged,state:{selId,setSelId,edit,setEdit,baseKey,setBaseKey,sub,setSub}}):null;
     }
     const get=label=>{const c=controls.get(S.secWindow+'/'+label)||controls.get(label);assert.ok(c,'Control is visible: '+label);return c;};
     const change=async(label,value)=>{const c=get(label);assert.ok(!c.disabled,label+' is enabled');await act(async()=>c.onChange(value));};
@@ -199,7 +206,8 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       for(const original of originals) {
         await change(S.template,original.id);
         const radio=original.renderer==='series';
-        assert.equal(controls.has(S.layoutKind),radio);
+        assert.equal(controls.has(S.layoutKind),false);
+        if(radio) assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutTiktok)));
         assert.equal(controls.has(S.reframe),radio);
         assert.equal(controls.has(S.stroke),radio);
         assert.equal(controls.has(api.OVERLAY_STRINGS.en.preview),!radio && original.renderer==='separate-headlines');
@@ -223,10 +231,12 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       await change(S.windowTop,601);
       assert.equal(get(S.template).disabled,true);
       assert.equal(get(S.duplicate).disabled,true);
-      await change(S.layoutKind,'shorts');
+      await act(async()=>setPlatform('shorts'));
+      assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutShorts)));
       assert.equal(get(S.windowTop).value,402);
       await change(S.windowTop,450);
-      await change(S.layoutKind,'tiktok');
+      await act(async()=>setPlatform('tiktok'));
+      assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutTiktok)));
       assert.equal(get(S.windowTop).value,601);
       await change(S.name,'Edited Money Lab');
       await change('tabs','ai');
@@ -274,9 +284,19 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       await change(S.windowTop,620);
       await click(S.save);
       assert.equal(rows.get('money-lab').variants.tiktok.layout.windowTop,601);
-      await click(S.del);
+      await click(S.deleteTemplate);
+      assert.equal(document.querySelector('dialog').open,true);
+      assert.ok(document.body.textContent.includes(S.deleteBody(rows.get(customId).name)));
+      assert.ok(document.body.textContent.includes(S.deleteKeepClips));
       assert.ok(rows.has(customId));
-      await click(S.delConfirm);
+      await click(S.cancel);
+      assert.equal(document.querySelector('dialog').open,false);
+      assert.ok(rows.has(customId),'Cancel leaves the template intact');
+      await click(S.deleteTemplate);
+      failSave=true;await click(S.del);
+      assert.equal(document.querySelector('dialog').open,true);
+      assert.ok(rows.has(customId),'Failed deletion leaves the template intact');
+      failSave=false;await click(S.del);
       assert.equal(rows.has(customId),false);
       assert.equal(get(S.template).value,originals[0].id);
       assert.equal(controls.has(S.layoutKind),false);
@@ -304,6 +324,36 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       await click(S.discard);
       assert.equal(get(S.captionsOn).value,true);
       assert.deepEqual(api.BUILTIN_TEMPLATES,originals,'Editing never mutates builtin defaults');
+      const singleLayouts=(await api.readTemplatePack(packFs,path.join(__dirname,'../template-packs/hankook-ilbo/pack.json'))).templates;
+      originals.push(...singleLayouts.map(t=>({...t,platformLayouts:false,variants:{tiktok:{headline:{size1:120}}}})));
+      await act(async()=>refresh());
+      await change('tabs','look');
+      await act(async()=>setPlatform('shorts'));
+      assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutShorts)));
+      for(const single of singleLayouts){
+        await change(S.template,single.id);
+        assert.equal(controls.has(S.layoutKind),false);
+        assert.equal(get(S.size1).value,120,'Previously saved TikTok edits remain visible');
+        await change(S.size1,125);await click(S.save);
+        assert.equal(rows.get(single.id).variants.tiktok.headline.size1,125);
+        assert.equal(controls.has(S.layoutKind),false,'Saving does not expose layout choices');
+        await click(S.duplicate);
+        assert.equal(controls.has(S.layoutKind),false,'Copies retain the single-layout editor');
+      }
+      await change(S.template,originals[0].id);
+      await click(S.deleteTemplate);
+      const cancelEvent=new dom.window.Event('cancel',{cancelable:true});
+      await act(async()=>document.querySelector('dialog').dispatchEvent(cancelEvent));
+      assert.equal(document.querySelector('dialog').open,false);
+      assert.equal(removed.has(originals[0].id),false,'Escape cancels deletion');
+      await click(S.deleteTemplate);await click(S.del);
+      assert.equal(removed.has(originals[0].id),true,'Pack templates can be removed too');
+      while(controls.has(S.deleteTemplate)){
+        await click(S.deleteTemplate);await click(S.del);
+      }
+      assert.equal(controls.has(S.template),false,'Removing the final template leaves no dangling selection');
+
+
     } finally {
       await act(async()=>root.unmount());
       dom.window.close();
