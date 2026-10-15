@@ -38,9 +38,13 @@ Two programs ship as built-in templates:
   channel's headline face is a condensed display font; set it in the Templates
   tab when it is installed, otherwise the default sans is used.
 
-Following faces (off by default; turn it on in the Templates tab): the panel finds faces with the Selects AI Runtime plugin (install it from this
-library), splits each clip at speaker turns and camera cuts, and pans the window so whole faces stay in
-frame. Without the runtime it keeps the fixed crop. It does not yet pick out who is talking in a wide shot.
+Following faces (on for News Direct; change it in the Templates tab): the panel
+finds faces with the Selects AI Runtime plugin (installed with this one), splits
+each clip at speaker turns and camera cuts, and frames whoever talks in each
+turn: the face whose mouth moves most compared with its own average. When no
+face clearly talks, the window keeps the most faces whole. A back-and-forth the
+transcript gives to one speaker keeps one framing. Without the runtime clips
+keep the fixed crop.
 
 The video window and source crop match the programs' YouTube episodes. Footage
 framed differently (a single camera, another split) needs the window and crop
