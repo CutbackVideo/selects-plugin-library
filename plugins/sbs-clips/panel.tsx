@@ -912,6 +912,18 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
     const maxW = Math.max(...faces.map((f) => f.w));
     const large = faces.filter((f) => f.w >= maxW * 0.6);
     if (large.some((f) => Math.abs(f.cx - best) > half - f.w * 0.5)) {
+      // Two main people on either side of the picture (a split-screen insert): each sits in the middle of their
+      // half of the window, as far as the picture allows. Smaller faces behind them are left out.
+      const byArea = faces.slice().sort((x, y) => y.area - x.area);
+      const main = byArea[0];
+      const other = byArea.find((f) => (f.cx < frameW / 2) !== (main.cx < frameW / 2));
+      if (other && other.area >= main.area * 0.6) {
+        const [a, b] = [main, other].sort((x, y) => x.cx - y.cx);
+        const w = Math.min(frameW, Math.max(windowW, 2 * (b.cx - a.cx)));
+        const cx = Math.max(w / 2, Math.min(frameW - w / 2, (a.cx + b.cx) / 2));
+        shots.push({ ...piece, cx, w });
+        continue;
+      }
       const left = Math.min(...large.map((f) => f.cx - f.w * 0.75));
       const right = Math.max(...large.map((f) => f.cx + f.w * 0.75));
       const w = Math.min(frameW, Math.max(windowW, right - left));
