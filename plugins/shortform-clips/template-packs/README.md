@@ -1,10 +1,10 @@
 # Template packs
 
-A pack supplies data to the shared [Shortform Clips app](../plugins/shortform-clips).
+A pack supplies data to the shared [Shortform Clips app](..).
 Customer branches and customer copies of the app are not required.
 
 ```text
-template-packs/<pack-id>/
+plugins/shortform-clips/template-packs/<pack-id>/
   pack.json
   templates/<template-id>.json
   assets/<image>.png
@@ -12,22 +12,17 @@ template-packs/<pack-id>/
 
 ## Distribution
 
-Commit a pack's manifest, template JSON files and images together. Download files
-from one resolved Git commit, retaining their relative paths. The existing helper
-supports packs separately from plugins:
+Commit a pack's manifest, template JSON files and images together. Share its folder
+link after publishing. In **Templates**, choose **+ Add templates** at the end
+of the template picker, paste the link, and click **Add**. When no templates are
+installed, use the **Add templates** button. A public manifest page or raw file
+link also works.
 
-```sh
-python3 tools/plugin_files.py check-pack sbs-radio
-python3 tools/plugin_files.py download-pack sbs-radio --ref <commit> --destination ./sbs-radio
-```
+Example after publication on main:
+`https://github.com/CutbackVideo/selects-plugin-library/tree/main/plugins/shortform-clips/template-packs/sbs-radio`
 
-Install the shared app normally. In **Templates > Template packs**, paste a public
-GitHub pack folder link into **Template link** and click **Add from link**. A GitHub
-`pack.json` page or `raw.githubusercontent.com` link also works. The folder must
-already be committed and pushed; local uncommitted files cannot be downloaded.
-
-Example after the pack is published on main:
-`https://github.com/CutbackVideo/selects-plugin-library/tree/main/template-packs/sbs-radio`
+Packs are excluded from the app manifest's `files` list. Installing the app does
+not download these directories. A full repository clone or ZIP includes them.
 
 Branch and tag links resolve to one commit before downloading. Links with branch
 names containing slashes are supported. The app downloads only the manifest and
@@ -37,10 +32,13 @@ the action to update; updates are explicit, never automatic. Public GitHub only;
 no GitHub login or token is required. Rate limits and missing files are reported.
 Downloads are bounded to 4 MiB per file, 16 MiB per pack and two minutes per attempt.
 
-Alternatively, select the downloaded `pack.json` under **Or choose a local file**,
-keeping `templates/` and `assets/` alongside it during installation. Source files can
-then be moved. There is no new build step and no executable code in a pack. The
-command-line downloader only downloads; it does not install or register an app.
+There is no file-upload flow, separate download tool, or new build step. Packs
+contain data only. Plugin-local tests load every checked-in pack through the
+same validator used by the app:
+
+```sh
+SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test plugins/shortform-clips/tests/shortform_packs.test.cjs
+```
 
 ## Manifest v1
 

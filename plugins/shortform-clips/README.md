@@ -7,12 +7,27 @@ are delivered separately as template packs. The app has no bundled customer temp
 ## Use
 
 1. Open **Shortform Clips** from Apps with a Project open.
-2. In **Templates > Template packs**, paste a public GitHub pack folder link and
-   click **Add from link**. You can also select a downloaded `pack.json` with its
-   `templates/` and `assets/` alongside it.
+2. In **Templates**, choose **+ Add templates** at the bottom of the template
+   picker, paste the link you received, and click **Add**. With no templates yet,
+   use the **Add templates** button.
 3. Select a source, a program (or automatic detection), and the clip count in
    **Make clips**. Add optional instructions and create the clips.
-4. Review the editable Drafts. Export through **Handoff > Export**.
+4. In **My clips**, review one clip per row, with a saved preview, title, description and Open
+   button. Use **Saved results** to switch between runs in this Project; the latest
+   is first, with source titles, dates and clip counts. Validation failures and new
+   runs preserve previous results. You can browse history while generation runs;
+   completion switches to My clips and selects the new run. Export through **Handoff > Export**.
+
+New clip selections include transcript-based Hook, Flow and Payoff ratings (0-10).
+The app computes their equal-weight average and sorts each run by that score;
+expand the breakdown for its reason. These are content recommendations, not view
+predictions or finished-video quality scores. Older or malformed assessments show
+**Unrated** and sort after scored clips, without re-running AI. Thumbnails capture
+one composited Draft frame at one second (or the last frame for shorter clips),
+including its template and captions. New clips save this JPEG after creation;
+older results capture the current Draft on their first visit. Subsequent edits
+or opening a Draft do not refresh the saved image. Capture does not change the
+open Draft. A failed preview leaves the editable clip and its history intact.
 
 The Templates tab edits design, captions, editing options, program detection and
 AI instructions. Controls depend on the template renderer. TikTok/Shorts layout
@@ -45,7 +60,14 @@ Local data lives under `~/.selects/plugin-data/shortform-clips/`:
 - `overrides/<encoded-pack-and-template-id>.json`: only fields the user changed.
   Untouched fields follow new pack defaults; reset deletes the override.
 - `custom-templates/<encoded-id>.json`: independent copies made in the editor.
-- `jobs/`, `media/`, `bin/`, `references/`: existing run recovery and media data.
+- `jobs/<job-id>.json`: generation settings, results, Draft IDs and new results'
+  relative `thumbnailPath` and `thumbnailCapturedAt` fields.
+- `thumbnails/<job-id>/<draft-id>.jpg`: saved composited previews. Older jobs
+  resolve the same path from their existing job and Draft IDs.
+- `media/`, `bin/`, `references/`: downloaded media, tools and reference data.
+
+Editable Drafts remain in the Selects Project; these files hold app history and
+preview images, not exported video.
 
 A template identity is `<pack-id>/<template-id>`. Keep IDs stable across updates.
 Removed templates disappear from the picker, but their overrides remain for a
@@ -59,7 +81,7 @@ remain with the old app and are not migrated.
 
 ## Authoring
 
-See [Template packs](../../template-packs/README.md). Template JSON and image files
+See [Template packs](template-packs/README.md). Template JSON and image files
 are the source of truth; do not embed customer defaults in `panel.tsx`.
 
 The panel remains a single React file for Selects. Shared renderers implement
@@ -69,9 +91,8 @@ change, not executable code in a pack.
 ## Verification
 
 ```sh
-SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test tests/shortform_packs.test.cjs tests/shortform_results.test.cjs tests/sbs_radio_templates.test.cjs tests/sbs_radio_overlay.test.cjs tests/sbs_radio_transcription.test.cjs
+SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test plugins/shortform-clips/tests/shortform_packs.test.cjs plugins/shortform-clips/tests/shortform_results.test.cjs plugins/shortform-clips/tests/sbs_radio_templates.test.cjs plugins/shortform-clips/tests/sbs_radio_overlay.test.cjs plugins/shortform-clips/tests/sbs_radio_transcription.test.cjs
 python3 tools/plugin_files.py check shortform-clips
-python3 tools/plugin_files.py check-pack sbs-radio
 python3 tools/check_public.py
 ```
 

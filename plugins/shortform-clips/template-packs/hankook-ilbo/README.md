@@ -67,7 +67,7 @@ layouts on the research site are outside this pack's two video templates.
 ## Validation
 
 ```sh
-python3 tools/plugin_files.py check-pack hankook-ilbo
+SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test plugins/shortform-clips/tests/shortform_packs.test.cjs
 python3 tools/check_public.py
 ```
 

@@ -1068,8 +1068,8 @@ function connectFiles(sdk: any): Promise<any> {
 const TEMPLATE_API = 1;
 const PACK_MAX_BYTES = 16 * 1024 * 1024;
 const PACK_STRINGS: any = {
-  en: { link: "Template link", linkPlaceholder: "Paste a GitHub template folder link", installLink: "Add from link", local: "Or choose a local file", invalidLink: "Paste a public GitHub template folder or pack.json link.", notFound: "Template pack not found. Check the link and make sure it is public.", rateLimit: "GitHub is temporarily limiting downloads. Try again later or choose a downloaded pack.json.", network: "Could not download the template pack. Check your connection and try again.", tooLarge: "The download exceeds the template pack size limit.", title: "Template packs", add: "Add or update a pack", choose: "Choose pack.json", empty: "Add a template pack in the Templates tab first.", installed: "Template pack installed.", noFiles: "File access is required to install template packs.", blocked: "Save or discard template edits before updating a pack.", loading: "Loading templates...", failed: "Could not install the template pack.", reload: "Reload templates" },
-  ko: { link: "\ud15c\ud50c\ub9bf \ub9c1\ud06c", linkPlaceholder: "GitHub \ud15c\ud50c\ub9bf \ud3f4\ub354 \ub9c1\ud06c\ub97c \ubd99\uc5ec\ub123\uc73c\uc138\uc694", installLink: "\ub9c1\ud06c\ub85c \ucd94\uac00", local: "\ub610\ub294 \ud30c\uc77c\uc5d0\uc11c \ucd94\uac00", invalidLink: "\uacf5\uac1c GitHub \ud15c\ud50c\ub9bf \ud3f4\ub354 \ub610\ub294 pack.json \ub9c1\ud06c\ub97c \ub123\uc5b4 \uc8fc\uc138\uc694.", notFound: "\ud15c\ud50c\ub9bf \ud329\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \ub9c1\ud06c\uc640 \uc800\uc7a5\uc18c \uacf5\uac1c \uc5ec\ubd80\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", rateLimit: "GitHub \ub2e4\uc6b4\ub85c\ub4dc\uac00 \uc77c\uc2dc\uc801\uc73c\ub85c \uc81c\ud55c\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uac70\ub098 \ub0b4\ub824\ubc1b\uc740 pack.json\uc744 \uc120\ud0dd\ud574 \uc8fc\uc138\uc694.", network: "\ud15c\ud50c\ub9bf \ud329\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc5f0\uacb0\uc744 \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", tooLarge: "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \ud15c\ud50c\ub9bf \ud329 \uc6a9\ub7c9 \uc81c\ud55c\uc744 \ucd08\uacfc\ud588\uc2b5\ub2c8\ub2e4.", title: "\ud15c\ud50c\ub9bf \ud329", add: "\ud15c\ud50c\ub9bf \ud329 \ucd94\uac00\u00b7\uc5c5\ub370\uc774\ud2b8", choose: "pack.json \uc120\ud0dd", empty: "\ud15c\ud50c\ub9bf \ud0ed\uc5d0\uc11c \ud15c\ud50c\ub9bf \ud329\uc744 \uba3c\uc800 \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", installed: "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud588\uc2b5\ub2c8\ub2e4.", noFiles: "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\ub824\uba74 \ud30c\uc77c \uc811\uadfc\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.", blocked: "\uc218\uc815 \uc911\uc778 \ud15c\ud50c\ub9bf\uc744 \uc800\uc7a5\ud558\uac70\ub098 \ucde8\uc18c\ud55c \ub4a4 \ud329\uc744 \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.", loading: "\ud15c\ud50c\ub9bf\uc744 \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.", failed: "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.", reload: "\ud15c\ud50c\ub9bf \uc0c8\ub85c\uace0\uce68" },
+  en: {"link": "Template link", "linkPlaceholder": "Paste the template link you received", "installLink": "Add", "invalidLink": "Check the template link you received.", "notFound": "Templates not found. Check the link.", "rateLimit": "Downloads are temporarily limited. Try again later.", "network": "Could not download the templates. Check your connection and try again.", "tooLarge": "The download exceeds the template pack size limit.", "title": "Add templates", "add": "Adding templates...", "empty": "Add a template pack in the Templates tab first.", "installed": "Templates added.", "noFiles": "File access is required to install template packs.", "blocked": "Save or discard template edits before updating a pack.", "loading": "Loading templates...", "failed": "Could not install the template pack."},
+  ko: {"link": "\ud15c\ud50c\ub9bf \ub9c1\ud06c", "linkPlaceholder": "\uc804\ub2ec\ubc1b\uc740 \ud15c\ud50c\ub9bf \ub9c1\ud06c\ub97c \ubd99\uc5ec\ub123\uc73c\uc138\uc694", "installLink": "\ucd94\uac00", "invalidLink": "\uc804\ub2ec\ubc1b\uc740 \ud15c\ud50c\ub9bf \ub9c1\ud06c\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "notFound": "\ud15c\ud50c\ub9bf\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \ub9c1\ud06c\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "rateLimit": "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \uc77c\uc2dc\uc801\uc73c\ub85c \uc81c\ud55c\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "network": "\ud15c\ud50c\ub9bf\uc744 \ub0b4\ub824\ubc1b\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc5f0\uacb0\uc744 \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "tooLarge": "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \ud15c\ud50c\ub9bf \ud329 \uc6a9\ub7c9 \uc81c\ud55c\uc744 \ucd08\uacfc\ud588\uc2b5\ub2c8\ub2e4.", "title": "\ud15c\ud50c\ub9bf \ucd94\uac00", "add": "\ud15c\ud50c\ub9bf\uc744 \ucd94\uac00\ud558\ub294 \uc911\uc785\ub2c8\ub2e4.", "empty": "\ud15c\ud50c\ub9bf \ud0ed\uc5d0\uc11c \ud15c\ud50c\ub9bf \ud329\uc744 \uba3c\uc800 \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", "installed": "\ud15c\ud50c\ub9bf\uc744 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4.", "noFiles": "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\ub824\uba74 \ud30c\uc77c \uc811\uadfc\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.", "blocked": "\uc218\uc815 \uc911\uc778 \ud15c\ud50c\ub9bf\uc744 \uc800\uc7a5\ud558\uac70\ub098 \ucde8\uc18c\ud55c \ub4a4 \ud329\uc744 \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.", "loading": "\ud15c\ud50c\ub9bf\uc744 \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.", "failed": "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4."},
 };
 function packAssert(ok: any, message: string): asserts ok { if (!ok) throw new Error(message); }
 function plainObject(v: any) { return v !== null && typeof v === "object" && !Array.isArray(v); }
@@ -1629,21 +1629,138 @@ const FORM_COLUMN = { width: "100%", maxWidth: "var(--panel-field-max, 480px)", 
 const CLAMP2 = { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as const;
 
 const RESULT_STRINGS: any = {
-  en: { title: (n: number) => `${n} clips created`, more: "Show more", less: "Show less", current: "Currently viewing", target: "Current draft" },
-  ko: { title: (n: number) => `\uc0dd\uc131\ub41c \ud074\ub9bd ${n}\uac1c`, more: "\ub354 \ubcf4\uae30", less: "\uc811\uae30", current: "\ubcf4\uace0 \uc788\ub294 \ucd08\uc548", target: "\ud604\uc7ac \ucd08\uc548" },
+  "en": {
+    "more": "Show more",
+    "less": "Show less",
+    "current": "Currently viewing",
+    "target": "Current draft",
+    "history": "Saved results",
+    "latest": "Latest",
+    "untitled": "Untitled video",
+    "unknownDate": "Unknown date",
+    "score": "AI recommendation",
+    "unrated": "Unrated",
+    "scoreDetails": "Score breakdown",
+    "scoreBasis": "Transcript-based assessment",
+    "hook": "Hook",
+    "flow": "Flow",
+    "payoff": "Payoff",
+    "thumbnail": "Clip thumbnail",
+    "noThumbnail": "No preview",
+    "myClips": "My clips",
+    "emptyClips": "Your generated clips will appear here.",
+    "historyError": "Could not load saved results."
+  },
+  "ko": {
+    "myClips": "\ub0b4 \ud074\ub9bd",
+    "emptyClips": "\ud074\ub9bd\uc744 \ub9cc\ub4e4\uba74 \uc5ec\uae30\uc5d0 \ubaa8\uc544 \ubcfc \uc218 \uc788\uc5b4\uc694.",
+    "more": "\ub354 \ubcf4\uae30",
+    "less": "\uc811\uae30",
+    "current": "\ubcf4\uace0 \uc788\ub294 \ucd08\uc548",
+    "target": "\ud604\uc7ac \ucd08\uc548",
+    "history": "\uc0dd\uc131 \uae30\ub85d",
+    "latest": "\ucd5c\uc2e0",
+    "untitled": "\uc81c\ubaa9 \uc5c6\ub294 \uc601\uc0c1",
+    "unknownDate": "\ub0a0\uc9dc \uc5c6\uc74c",
+    "score": "AI \ucd94\ucc9c \uc810\uc218",
+    "unrated": "\ubbf8\ud3c9\uac00",
+    "scoreDetails": "\ud3c9\uac00 \uae30\uc900",
+    "scoreBasis": "\uc804\uc0ac \ub0b4\uc6a9 \uae30\uc900 \ud3c9\uac00",
+    "hook": "\ud6c5",
+    "flow": "\ud750\ub984",
+    "payoff": "\uc644\uacb0\uc131",
+    "thumbnail": "\ud074\ub9bd \uc378\ub124\uc77c",
+    "noThumbnail": "\ubbf8\ub9ac\ubcf4\uae30 \uc5c6\uc74c",
+    "historyError": "\uc0dd\uc131 \uae30\ub85d\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4."
+  }
 };
+RESULT_STRINGS.en.title = (n: number) => `${n} clips created`;
+RESULT_STRINGS.ko.title = (n: number) => `\uc0dd\uc131\ub41c \ud074\ub9bd ${n}\uac1c`;
 
-// Restore the latest run with results; unfinished work stays in its separate resume list.
-function latestDraftResult(jobs: any[], projectId: string) {
-  const latest = jobs.filter(j => j?.projectId === projectId && !j.dismissed && Array.isArray(j.built) && j.built.some((d: any) => d?.draftId || d?.error))
-    .sort((a, b) => String(b.updated || b.created || "").localeCompare(String(a.updated || a.created || "")))[0];
-  return latest || null;
+function savedDraftResults(jobs: any[], projectId: string) {
+  return jobs.filter(j=>j?.projectId === projectId && !j.dismissed && Array.isArray(j.built) && j.built.some((d: any)=>d?.draftId || d?.error))
+    .sort((a,b)=>String(b.created || b.updated || "").localeCompare(String(a.created || a.updated || "")) || String(b.id || "").localeCompare(String(a.id || "")));
 }
-
-function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R }: any) {
+function latestDraftResult(jobs: any[], projectId: string) { return savedDraftResults(jobs,projectId)[0] || null; }
+function resultJobLabel(job: any, lang: string, R: any) {
+  const sourceName=String(job.title || job.resourceName || "");
+  const source=sourceName && !/^[\w-]{11}\.(mp4|mov|mkv|webm)$/i.test(sourceName)
+    ? sourceName : String(job.built?.find((d: any)=>d?.headline1)?.headline1 || R.untitled);
+  const date=new Date(job.created || job.updated);
+  const stamp=Number.isNaN(date.getTime()) ? R.unknownDate : new Intl.DateTimeFormat(lang === "ko" ? "ko-KR" : "en-US",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(date);
+  return `${source} · ${stamp} · ${R.title(job.built.filter((d: any)=>d?.draftId).length)}`;
+}
+// A fixed rubric and deterministic mean keep the displayed score independent of AI arithmetic.
+const CLIP_SCORE_PROMPT = `For each clip, assess only the selected transcript content, not visuals, audio delivery or predicted views.
+Return assessment: {hook:0..10, flow:0..10, payoff:0..10, reason:"one short explanation in the user's language"}.
+Use integer scores. Hook: does the opening establish a clear reason to keep watching? Flow: does the sequence make sense without missing context or abrupt jumps? Payoff: does it deliver an answer, insight or conclusion?
+Anchors for each criterion: 0-2 absent or incoherent; 3-4 weak; 5-6 adequate; 7-8 strong; 9-10 exceptional with clear evidence in the selected passage. Do not give high scores just to fill the requested count. Ground the reason in this clip's opening, progression and ending.`;
+function clipAssessment(value: any) {
+  if (!value || !["hook","flow","payoff"].every(k=>Number.isInteger(value[k]) && value[k]>=0 && value[k]<=10) || typeof value.reason!=="string" || !value.reason.trim()) return null;
+  return {hook:value.hook,flow:value.flow,payoff:value.payoff,reason:value.reason.trim().slice(0,600),
+    overall:Math.round((value.hook+value.flow+value.payoff)/3*10)/10,rubricVersion:1};
+}
+function rankDrafts(drafts: any[]) {
+  return [...drafts].sort((a,b)=>(clipAssessment(b.assessment)?.overall ?? -1)-(clipAssessment(a.assessment)?.overall ?? -1));
+}
+// Cache snapshots independently of the timeline: opening a draft never refreshes its saved image.
+function thumbnailPath(jobId: string, draftId: string) {
+  if (![jobId,draftId].every(id => /^[a-zA-Z0-9_-]+$/.test(id))) throw new Error("Invalid thumbnail identifier");
+  return `thumbnails/${jobId}/${draftId}.jpg`;
+}
+async function readDraftThumbnail(sdk: any, projectId: string, draftId: string) {
+  const snapshot = await sdk.call("getDraftMediaSnapshot",projectId,draftId);
+  const ends = (snapshot?.clips || []).filter((c: any)=>c.trackKind === "main").map((c: any)=>c.endFrame).filter(Number.isFinite);
+  const end = ends.length ? Math.max(...ends) : 0;
+  if (!(snapshot?.fps > 0) || end <= 0) return null;
+  const frameNumber = Math.min(Math.round(snapshot.fps),Math.max(0,Math.ceil(end)-1));
+  const core = await sdk.call("getDraftCore",draftId);
+  if (!core?.owner || core.owner.projectId !== projectId) throw new Error("Draft project mismatch");
+  const image = await sdk.call("captureVisualFrames",{
+    owner:core.owner,sequenceId:draftId,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,
+    coordinate:"resolved",frames:[{frameNumber,view:"timeline_composite"}],includeOverlays:true,
+  });
+  if (image?.mimeType !== "image/jpeg" || typeof image.data !== "string" || image.data.length > 4000000 || !image.data) return null;
+  return "data:image/jpeg;base64," + image.data;
+}
+const thumbnailRequests = new Map<string,Promise<any>>();
+function loadDraftThumbnail(store: any, sdk: any, projectId: string, jobId: string, draftId: string): Promise<any> {
+  const key = JSON.stringify([store?.root,projectId,jobId,draftId]);
+  const existing = thumbnailRequests.get(key);
+  if (existing) return existing;
+  const request = captureOrReadThumbnail(store,sdk,projectId,jobId,draftId).finally(()=>thumbnailRequests.delete(key));
+  thumbnailRequests.set(key,request);
+  return request;
+}
+async function captureOrReadThumbnail(store: any, sdk: any, projectId: string, jobId: string, draftId: string) {
+  const relative = thumbnailPath(jobId,draftId);
+  const path = store?.fs && store.join(store.root,relative);
+  if (path && await store.exists(path)) {
+    const bytes = await store.fs.readFile(path);
+    if (bytes.length && bytes.length <= 3000000) return {data:"data:image/jpeg;base64,"+toBase64(bytes),thumbnailPath:relative};
+  }
+  const data = await readDraftThumbnail(sdk,projectId,draftId);
+  if (!data) return null;
+  if (path) await store.fs.writeFile(path,fromBase64(data.split(",")[1]));
+  return {data,thumbnailPath:path ? relative : null};
+}
+function DraftThumbnail({sdk,store,jobId,projectId,draftId,R}: any) {
+  const [data,setData]=React.useState("");
+  React.useEffect(()=>{
+    let live=true;setData("");
+    if (sdk && projectId && jobId && draftId) loadDraftThumbnail(store,sdk,projectId,jobId,draftId).then(image=>{if(live)setData(image?.data||"");}).catch(()=>{});
+    return ()=>{live=false;};
+  },[sdk,store,jobId,projectId,draftId]);
+  const url=useBlobUrl(data);
+  return <div className="clip-result-thumbnail" aria-label={R.thumbnail}>
+    {url ? <img src={url} alt="" style={{width:"100%",height:"100%",objectFit:"contain",display:"block"}}/> : <small>{R.noThumbnail}</small>}
+  </div>;
+}
+function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, store, jobId, projectId }: any) {
   const [expanded, setExpanded] = React.useState(false);
   const [overflow, setOverflow] = React.useState(false);
   const description = React.useRef<HTMLElement>(null);
+  const assessment=clipAssessment(d.assessment);
   React.useEffect(() => {
     if (expanded) return;
     const element = description.current;
@@ -1657,8 +1774,9 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R }: any) 
     document.fonts?.ready.then(measure);
     return () => { live = false; observer?.disconnect(); window.removeEventListener("resize", measure); };
   }, [d.why, expanded]);
-  return (
-    <div style={{ ...CARD, display: "flex", flexDirection: "column", gap: 8, overflowWrap: "anywhere" }}>
+  return <div style={{...CARD,overflowWrap:"anywhere"}} className="clip-result-row">
+    <DraftThumbnail sdk={sdk} store={store} jobId={jobId} projectId={projectId} draftId={d.draftId} R={R}/>
+    <div className="clip-result-copy" style={{minWidth:0,display:"flex",flexDirection:"column",gap:6}}>
       <strong>{d.headline1}</strong>
       {d.headline2 && <small>{d.headline2}</small>}
       {d.seconds != null && <small>{S.seconds(d.seconds)}</small>}
@@ -1667,15 +1785,29 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R }: any) 
         {(overflow || expanded) && <div><ui.Button variant="ghost" onClick={() => setExpanded(value => !value)}>{expanded ? R.less : R.more}</ui.Button></div>}
       </>}
       {d.error && <ui.Message tone="error">{d.error}</ui.Message>}
-      {d.draftId && <div style={{ marginTop: "auto" }}>
-        <ui.Button variant="secondary" disabled={current || !!opening} busy={opening === d.draftId} onClick={() => onOpen(d.draftId)}>{current ? R.current : S.open}</ui.Button>
-      </div>}
     </div>
-  );
+    <div className="clip-result-actions" style={{display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end",justifyContent:"space-between",minWidth:0}}>
+      <div style={{textAlign:"right"}}><small>{R.score}</small><div><strong style={{fontSize:20}}>{assessment ? `${assessment.overall.toFixed(1)}/10` : R.unrated}</strong></div></div>
+      {d.draftId && <ui.Button variant="secondary" disabled={current || !!opening} busy={opening === d.draftId} onClick={() => onOpen(d.draftId)}>{current ? R.current : S.open}</ui.Button>}
+    </div>
+    {assessment && <details style={{gridColumn:"1 / -1",fontSize:12,color:"var(--panel-muted-fg)"}}>
+      <summary style={{cursor:"pointer"}}>{R.scoreDetails}</summary>
+      <div style={{display:"flex",flexDirection:"column",gap:6,paddingTop:8}}>
+        <span>{R.hook} {assessment.hook}/10 · {R.flow} {assessment.flow}/10 · {R.payoff} {assessment.payoff}/10</span>
+        <span>{assessment.reason}</span><small>{R.scoreBasis}</small>
+      </div>
+    </details>}
+  </div>;
 }
 
-function DraftResults({ drafts, template, visibleDraftId, opening, onOpen, overlayControl, overlayFeedback, ui, S, R }: any) {
-  return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+function DraftResults({ drafts, template, visibleDraftId, opening, onOpen, overlayControl, overlayFeedback, ui, S, R, sdk, store, jobId, projectId }: any) {
+  return <div style={{ display: "flex", flexDirection: "column", gap: 16,containerType:"inline-size" }}>
+    <style>{`
+      .clip-result-row { display:grid; grid-template-columns:72px minmax(0,1fr) auto; gap:12px; }
+      .clip-result-thumbnail { width:72px; height:104px; overflow:hidden; border-radius:6px; background:var(--panel-muted); display:flex; align-items:center; justify-content:center; text-align:center; }
+      @container (max-width:360px) { .clip-result-row { grid-template-columns:56px minmax(0,1fr); } .clip-result-thumbnail {width:56px;height:80px;} .clip-result-actions {grid-column:1 / -1;flex-direction:row!important;align-items:center!important;} }
+      @container (max-width:180px) { .clip-result-row {grid-template-columns:minmax(0,1fr);} .clip-result-actions {flex-wrap:wrap;} }
+    `}</style>
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 140px", minWidth: 0 }}>
@@ -1686,9 +1818,9 @@ function DraftResults({ drafts, template, visibleDraftId, opening, onOpen, overl
       </div>
       {overlayFeedback}
     </div>
-    <ui.Grid minItemWidth={200}>
-      {drafts.map((d: any, i: number) => <DraftResultCard key={d.draftId || d.name || i} draft={d} current={!!d.draftId && visibleDraftId === d.draftId} opening={opening} onOpen={onOpen} ui={ui} S={S} R={R} />)}
-    </ui.Grid>
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {rankDrafts(drafts).map((d: any, i: number) => <DraftResultCard key={d.draftId || d.name || i} draft={d} current={!!d.draftId && visibleDraftId === d.draftId} opening={opening} onOpen={onOpen} ui={ui} S={S} R={R} sdk={sdk} store={store} jobId={jobId} projectId={projectId} />)}
+    </div>
   </div>;
 }
 
@@ -3015,6 +3147,38 @@ function TemplateAISection({ ui, S, draft }: any) {
 
 }
 
+// This action opens the installer without replacing the selected template.
+function TemplatePicker({ui, label, value, templates, lang, disabled, onChange, onAdd, addLabel}: any) {
+  return <ui.Select label={label} value={value} disabled={disabled}
+    options={[...templates.map((t: any)=>({value:t.id,label:nameOf(t,lang)})),
+      ...(onAdd ? [{value:"__add_templates__",label:"+ " + addLabel}] : [])]}
+    onChange={(id: string)=>id === "__add_templates__" ? onAdd?.() : onChange(id)} />;
+}
+
+function TemplatePackDialog({ui, open, title, closeLabel, busy, onClose, children}: any) {
+  const ref = React.useRef<HTMLDialogElement>(null);
+  React.useEffect(()=>{
+    const dialog=ref.current;
+    if (!open || !dialog) return;
+    const previous=document.activeElement as HTMLElement | null;
+    dialog.showModal();
+    dialog.querySelector<HTMLInputElement>("input")?.focus();
+    return ()=>{dialog.close();previous?.focus();};
+  },[open]);
+  return <dialog ref={ref} className="template-pack-dialog" aria-label={title}
+    onCancel={(event)=>{event.preventDefault();if (!busy) onClose();}}
+    onKeyDown={(event)=>event.stopPropagation()}
+    style={{boxSizing:"border-box",width:"min(360px, calc(100% - 32px))",maxHeight:"calc(100% - 24px)",
+      padding:20,border:"1px solid var(--panel-border)",borderRadius:12,boxShadow:"0 16px 48px #0006",
+      background:"var(--background, Canvas)",color:"var(--panel-fg)",overflowY:"auto"}}>
+    <style>{`.template-pack-dialog::backdrop {background:rgb(0 0 0 / 55%);backdrop-filter:blur(2px);}`}</style>
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <strong style={{fontSize:14,lineHeight:1.4}}>{title}</strong>
+      {children}
+    </div>
+  </dialog>;
+}
+
 function TemplateEditorForm(props: any) {
   const { ui, S, lang, templates, state, profile } = props;
   const draft = useTemplateDraft(props, profile);
@@ -3028,15 +3192,15 @@ function TemplateEditorForm(props: any) {
   return (
     <div style={{width:"100%",maxWidth:"var(--panel-field-max, 480px)",marginInline:"auto",minWidth:0,display:"flex",flexDirection:"column",gap:16,paddingTop:8}}>
       <ui.Stack gap={8}>
-        <ui.Select
+        <TemplatePicker ui={ui} templates={templates} lang={lang}
+          onAdd={props.onAddTemplates} addLabel={props.addTemplatesLabel}
           label={S.template}
           value={current.id}
           onChange={(v: string) => {
             setSelId(v);
             setMsg(null);
           }}
-          options={templates.map((t: any) => ({ value: t.id, label: nameOf(t, lang) }))}
-          disabled={dirty || saving}
+          disabled={dirty || saving || !!props.packBusy}
         />
         <small>{note}</small>
         {profile.platformLayouts && <ui.Segmented
@@ -3124,6 +3288,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const [templates, setTemplates] = React.useState<any[]>([]);
   const [packs, setPacks] = React.useState<any[]>([]);
   const [packLink, setPackLink] = React.useState("");
+  const [packDialogOpen, setPackDialogOpen] = React.useState(false);
   const [packBusy, setPackBusy] = React.useState(false);
   const [templateSaving, setTemplateSaving] = React.useState(false);
   const [templatesLoading, setTemplatesLoading] = React.useState(true);
@@ -3166,6 +3331,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const [info, setInfo] = React.useState<any>(null);
   const [drafts, setDrafts] = React.useState<any[]>([]);
   const [jobs, setJobs] = React.useState<any[]>([]);
+  const [resultJobs,setResultJobs]=React.useState<any[]>([]);
+  const [resultSelection,setResultSelection]=React.useState("__latest__");
+  const resultProject=React.useRef(projectId);
+  resultProject.current=projectId;
   const [runInfo, setRunInfo] = React.useState<any>(null);
   const [now, setNow] = React.useState<number>(Date.now());
   const [sub, setSub] = React.useState<number>(0);
@@ -3306,15 +3475,16 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     } finally { if (revision === templateLoadRevision.current) setTemplatesLoading(false); }
   }, [repository]);
   const templateDirty = !!tplEdit && JSON.stringify(tplEdit) !== tplBase;
-  async function installPack(file: any, fromLink = false) {
-    if (!(fromLink ? packLink.trim() : file) || packLock.current || busy || templateDirty || templateSaving) return;
+  async function installPack() {
+    if (!packLink.trim() || packLock.current || busy || templateDirty || templateSaving) return;
     packLock.current = true;
     setPackBusy(true); setPackError(""); setPackMessage("");
     try {
-      const installed = await repository.install(fromLink ? packLink.trim() : file.path, fromLink);
-      if (fromLink) setPackLink("");
+      const installed = await repository.install(packLink.trim(), true);
+      setPackLink("");
       await loadTemplates();
       setPackMessage(K.installed + " " + (installed.names?.[lang] || installed.name));
+      setPackDialogOpen(false);
     } catch (e: any) { setPackError(K.failed + " " + (K[e?.code] || String(e?.message || e))); }
     finally { packLock.current = false; setPackBusy(false); }
   }
@@ -3342,16 +3512,19 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   React.useEffect(() => {
     const revision = ++resultsRevision.current;
     let live = true;
+    setResultJobs([]);setResultSelection("__latest__");
     setDrafts([]); setInfo(null); setWarn(""); setStatus(""); setStep(-1);
     if (projectId) store.list("jobs").then((rows: any[]) => {
-      if (!live || resultsRevision.current !== revision || runRef.current) return;
+      if (!live) return;
+      setResultJobs(current=>savedDraftResults([...rows.filter(j=>!current.some(c=>c.id===j.id)),...current],projectId));
+      if (resultsRevision.current !== revision || runRef.current) return;
       const job = latestDraftResult(rows, projectId);
       if (!job) return;
       setDrafts(job.built.filter(Boolean));
       setInfo({ key: job.key, why: job.why, recommended: job.choice?.recommendedCount, countReason: job.choice?.countReason });
       setWarn(job.resultWarning || "");
       setStep(5);
-    }).catch(() => {});
+    }).catch(() => {if(live && resultsRevision.current===revision)setError(R.historyError);});
     return () => { live = false; };
   }, [projectId, store]);
 
@@ -3696,6 +3869,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       `\uaddc\uce59: ${p.rules} \uc6d0\ubcf8 \uae30\uc900 \uae38\uc774 ${p.lengthGuide}.`,
       `\ud5e4\ub4dc\ub77c\uc778 \ub450 \uc904: ${p.headline}`,
       want,
+      CLIP_SCORE_PROMPT,
       tpl.captions.highlight ? `\uc790\ub9c9 \uac15\uc870: \ud074\ub9bd\ub9c8\ub2e4 \uc790\ub9c9\uc5d0\uc11c \ub178\ub780\uc0c9\uc73c\ub85c \uac15\uc870\ud560 \ud575\uc2ec\uc5b4 3-6\uac1c\ub97c highlights\uc5d0 \ub123\uc5b4\ub77c. \uadf8 \ud074\ub9bd \uad6c\uac04\uc758 \uc804\uc0ac\uc5d0 \uadf8\ub300\ub85c \ub098\uc624\ub294 1-3\uc5b4\uc808 \ud45c\ud604\ub9cc \uc4f4\ub2e4(\uc22b\uc790, \uc885\ubaa9·\uae30\uc5c5\uba85, \ud575\uc2ec \uc8fc\uc7a5). \uc870\uc0ac\ub294 \ube7c\uace0 \uc9e7\uac8c.` : "",
       cNote ? `\uc0ac\uc6a9\uc790 \ucd94\uac00 \uc694\uccad: ${cNote}` : "",
       `\uc804\uc0ac\uc758 \uac01 \uc904\uc740 [\uc2dc\uc791\ucd08-\ub05d\ucd08] \ubb38\uc7a5\uc774\ub2e4. segments\uc758 \uc2dc\uc791\uc740 \uc5b4\ub5a4 \uc904\uc758 \uc2dc\uc791\ucd08, \ub05d\uc740 \uc5b4\ub5a4 \uc904\uc758 \ub05d\ucd08\ub85c \uc815\ud655\ud788 \ub9de\ucd98\ub2e4.` + (truncated ? " \uc804\uc0ac\uac00 \uae38\uc5b4 \ub4b7\ubd80\ubd84\uc774 \uc798\ub838\ub2e4. \ud544\uc694\ud558\uba74 \ud504\ub85c\uc81d\ud2b8 \ub3c4\uad6c\ub85c \uc774 \uc601\uc0c1\uc758 \ub098\uba38\uc9c0 \uc804\uc0ac\ub97c \uc77d\uc5b4\ub3c4 \ub41c\ub2e4." : ""),
@@ -3712,6 +3886,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     clips = clips
       .map((c: any) => ({
         ...c,
+        assessment: clipAssessment(c.assessment),
         segments: c.segments
           .map((x: any) => [Math.max(0, Number(x[0])), Math.min(duration, Number(x[1]))])
           .filter((x: any) => x[1] - x[0] > 1)
@@ -3724,15 +3899,13 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
 
   async function run(resume?: any) {
     if(overlayLock.current||busy||packLock.current)return;
-    resultsRevision.current++;
     setError("");
-    setWarn("");
-    setDrafts([]);
-    setInfo(null);
     if (!projectId) return setError(S.noProject);
     if (!templates.length) return setError(K.empty);
     if (!resume && mode === "youtube" && !/^https?:\/\//.test(url.trim())) return setError(S.needUrl);
     if (!resume && mode === "project" && !pick) return setError(S.needPick);
+    resultsRevision.current++;
+    setWarn("");
     setBusy(true);
     let rejectStop: (e: any) => void = () => {};
     const stop = new Promise<never>((_, reject) => (rejectStop = reject));
@@ -3752,6 +3925,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       job = { ...job, ...patch, updated: new Date().toISOString() };
       setRunInfo(job);
       await saveJob(job);
+      if (resultProject.current===job.projectId && job.built?.some((d: any)=>d?.draftId || d?.error)) {
+        const snapshot=clone(job);
+        setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==snapshot.id),snapshot],job.projectId));
+      }
     };
     try {
       const list = (await loadTemplates()) || templates;
@@ -3790,6 +3967,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       const selected = list.find((t: any) => t.id === job.key);
       const tpl = selected?.renderer === "series" ? forPlatform(selected, job.platform ?? "tiktok") : selected;
       if (!tpl) throw new Error(S.templateGone);
+      await persist({templateName:nameOf(tpl,lang)});
       setInfo({ key: job.key, why: job.why });
       setStep(3);
       setStatus(S.choosing);
@@ -3888,12 +4066,22 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         }
         setDrafts(made.filter(Boolean));
         await persist({ built: made, resultWarning });
+        if (made[i]?.draftId) {
+          try {
+            const image = await guard(loadDraftThumbnail(store,sdk,projectId,job.id,made[i].draftId));
+            if (image?.thumbnailPath) {
+              made[i] = {...made[i],thumbnailPath:image.thumbnailPath,thumbnailCapturedAt:new Date().toISOString()};
+              await persist({built:made,resultWarning});
+            }
+          } catch (e) { if (e instanceof RunCancelled) throw e; /* A preview failure leaves the editable clip intact. */ }
+        }
       }
       const allBuilt = made.length === pickd.clips.length && made.every((m) => m && m.draftId);
       await persist({ done: allBuilt });
       setStatus(S.done(made.filter((m) => m && m.draftId).length));
       if (!allBuilt) setError(made.filter((m) => m && m.error).map((m) => m.error).join(" / ").slice(0, 600) + " " + S.resumeHint);
       setStep(5);
+      if (made.some(m=>m?.draftId)) { setResultSelection(job.id); setTab("results"); }
       loadResources();
     } catch (e: any) {
       if (e instanceof RunCancelled) {
@@ -3940,6 +4128,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const videoOptions = resources
     .filter((r) => r.sec >= 120)
     .map((r) => ({ value: r.id, label: `${r.name} · ${S.minutes(Math.floor(r.sec / 60))}${r.transcribed || r.analyzed ? "" : " · " + S.notAnalyzed}` }));
+  const history=savedDraftResults(resultJobs,projectId || "");
+  const shownResult=(resultSelection === "__latest__" ? history[0] : history.find(j=>j.id===resultSelection)) || history[0];
+  const shownDrafts=shownResult?.built?.filter(Boolean) || [];
+  const shownTemplate=templates.find(t=>t.id===shownResult?.key);
   const infoTpl = info ? templates.find((t) => t.id === info.key) : null;
   const resourceName = (id: string | null) => resources.find((r) => r.id === id)?.name || "";
   const templateName = (id: string) => {
@@ -4091,9 +4283,21 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         {warn && drafts.length === 0 && <ui.Message>{warn}</ui.Message>}
         {error && <ui.Message tone="error">{error}</ui.Message>}
       </ui.Stack>
-      {drafts.length > 0 && <div ref={resultsRef} style={{ ...FORM_COLUMN, marginTop: 24 }}>
-        <hr style={{ margin: "0 0 16px" }} />
-        <DraftResults drafts={drafts} template={infoTpl ? nameOf(infoTpl, lang) : info?.key} visibleDraftId={visibleDraftId} opening={openingDraft} onOpen={openDraft}
+
+
+    </>
+  );
+
+  const myClips = (
+      <div ref={resultsRef} style={FORM_COLUMN}>
+      {shownDrafts.length > 0 ? <>
+        <div style={{marginBottom:16}}><ui.Select label={R.history}
+          value={resultSelection === "__latest__" || resultSelection===history[0]?.id || !history.some(j=>j.id===resultSelection) ? "__latest__" : resultSelection}
+          onChange={setResultSelection}
+          options={[{value:"__latest__",label:`${R.latest} · ${resultJobLabel(history[0],lang,R)}`},
+            ...history.slice(1).map(j=>({value:j.id,label:resultJobLabel(j,lang,R)}))]} /></div>
+        <DraftResults drafts={shownDrafts} template={shownResult.templateName || (shownTemplate ? nameOf(shownTemplate,lang) : "")}
+          sdk={sdk} store={store} jobId={shownResult.id} projectId={projectId} visibleDraftId={visibleDraftId} opening={openingDraft} onOpen={openDraft}
           overlayControl={<ui.Stack gap={4}><ui.Toggle
             label={O.title}
             value={overlayPending ?? !!overlayTarget?.count}
@@ -4103,7 +4307,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             {(overlayPending ?? !!overlayTarget?.count)&&<small style={{color:"var(--panel-danger)",fontSize:12,lineHeight:1.5}}>{O.uploadWarning}</small>}
           </ui.Stack>}
           overlayFeedback={<>
-            {overlayTarget && !drafts.some(d=>d.draftId===overlayTarget.id) && <small>{R.target}: {overlayTarget.name}</small>}
+            {overlayTarget && !shownDrafts.some((d:any)=>d.draftId===overlayTarget.id) && <small>{R.target}: {overlayTarget.name}</small>}
             {!overlayTarget&&!overlayBusy&&!overlayLoading&&!overlayError&&<ui.Message>{O.empty}</ui.Message>}
             {overlayError&&overlayMessage&&<>
               <ui.Message tone="error">{overlayMessage}</ui.Message>
@@ -4111,9 +4315,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             </>}
           </>}
           ui={ui} S={S} R={R} />
-      </div>}
-
-    </>
+      </> : <ui.Message>{R.emptyClips}</ui.Message>}
+      </div>
   );
 
   return (
@@ -4123,30 +4326,29 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       onChange={setTab}
       tabs={[
         { value: "make", label: S.tabMake, content: make },
+        { value: "results", label: R.myClips, content: myClips },
         {
           value: "templates",
           label: S.tabTemplates,
           content: (
             <>
-            <div style={{width:"100%",maxWidth:"var(--panel-field-max, 480px)",marginInline:"auto",paddingBlock:8}}>
-              <details open={!packs.length}>
-              <summary style={{cursor:"pointer",color:"var(--panel-muted-fg)",fontSize:12}}>{K.title}{packs.length ? " · " + packs.map(p=>p.names?.[lang] || p.name).join(", ") : ""}</summary>
-              <div style={{paddingTop:8}}><ui.Stack gap={8}>
-                <ui.Row gap={8}><h3 style={{margin:0}}>{K.title}</h3><ui.IconButton icon="refresh" label={K.reload} disabled={busy || packBusy || templateDirty || templateSaving} onClick={loadTemplates} /></ui.Row>
-                {packs.map(p => <small key={p.id}>{p.names?.[lang] || p.name} · {p.version}</small>)}
-                <ui.TextField label={K.link} value={packLink} onChange={setPackLink} placeholder={K.linkPlaceholder} disabled={!files || busy || packBusy || templateDirty || templateSaving} />
-                <ui.Actions><ui.Button variant="secondary" busy={packBusy} disabled={!files || !packLink.trim() || busy || packBusy || templateDirty || templateSaving} onClick={()=>installPack(null, true)}>{K.installLink}</ui.Button></ui.Actions>
-                <small>{K.local}</small>
-                <ui.FileDrop accept={["json"]} value={null} onChange={installPack} disabled={!files || busy || packBusy || templateDirty || templateSaving} labels={{drop:K.add,choose:K.choose}} onReject={()=>setPackError(K.failed)} />
-                {!files && <ui.Message tone="error">{K.noFiles}</ui.Message>}
-                {templateDirty && <ui.Message>{K.blocked}</ui.Message>}
-                {packBusy && <ui.Progress label={K.add} />}
-              </ui.Stack></div>
-              </details>
+            {!templates.length && <ui.Actions><ui.Button variant="secondary"
+              disabled={busy || packBusy || templatesLoading}
+              onClick={()=>{setPackError("");setPackMessage("");setPackDialogOpen(true);}}>{K.title}</ui.Button></ui.Actions>}
+            {packMessage && <ui.Message tone="success">{packMessage}</ui.Message>}
+            <TemplatePackDialog ui={ui} open={packDialogOpen} title={K.title} closeLabel={S.cancel}
+              busy={packBusy} onClose={()=>setPackDialogOpen(false)}>
+              <ui.TextField label={K.link} value={packLink} onChange={setPackLink} placeholder={K.linkPlaceholder} disabled={!files || busy || packBusy || templateDirty || templateSaving} />
+              <div style={{display:"flex",justifyContent:"flex-end",gap:8,flexWrap:"wrap",paddingTop:4}}><div><ui.Button variant="secondary" disabled={packBusy} onClick={()=>setPackDialogOpen(false)}>{S.cancel}</ui.Button></div><div><ui.Button variant="primary" busy={packBusy} disabled={!files || !packLink.trim() || busy || packBusy || templateDirty || templateSaving} onClick={installPack}>{K.installLink}</ui.Button></div></div>
+              {!files && <ui.Message tone="error">{K.noFiles}</ui.Message>}
+              {templateDirty && <ui.Message>{K.blocked}</ui.Message>}
+              {packBusy && <ui.Progress label={K.add} />}
               {packError && <ui.Message tone="error">{packError}</ui.Message>}
-              {packMessage && <ui.Message tone="success">{packMessage}</ui.Message>}
-            </div>
-            {!packBusy && <TemplateEditor
+            </TemplatePackDialog>
+            {templates.length > 0 && <TemplateEditor
+              packBusy={packBusy}
+              onAddTemplates={()=>{setPackError("");setPackMessage("");setPackDialogOpen(true);}}
+              addTemplatesLabel={K.title}
               ui={ui}
               S={S}
               lang={lang}

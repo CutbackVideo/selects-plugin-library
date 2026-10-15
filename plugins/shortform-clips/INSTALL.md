@@ -6,15 +6,15 @@ Use the library's standard installation layout:
 - Other listed package files go under `SELECTS_USER_SKILLS_ROOT/shortform-clips/`.
 
 Open **Shortform Clips** from Apps. It initially has no customer templates.
-In **Templates > Template packs**, paste the customer's public GitHub pack folder
-link and click **Add from link**. A GitHub `pack.json` page or raw file link also
-works. The files must already be committed and pushed. For SBS, link to the
-`template-packs/sbs-radio` folder on the published branch or commit.
+In **Templates**, choose **+ Add templates** in the template picker (or the
+**Add templates** button if none are installed), paste the link you received,
+and click **Add**. Share the published folder link for
+`plugins/shortform-clips/template-packs/sbs-radio` to install the SBS pack.
+A public pack manifest page or raw file link also works.
 
-You can also download the pack folder and select `pack.json` under **Or choose a
-local file**. Both paths validate and copy the complete pack into the app's runtime
-data. No ZIP extraction or additional runtime is needed. Link installation does
-not require a GitHub login; private repositories are not supported.
+Template packs are kept beside the app source but excluded from `plugin.json`'s
+file list. Installing the app downloads no customer packs; each pack is added
+separately by link. No file upload or command-line helper is required.
 
 Install the `selects-ai-runtime` dependency for speaker framing. Without an
 available runtime, the app warns and uses fixed crops. The YouTube downloader

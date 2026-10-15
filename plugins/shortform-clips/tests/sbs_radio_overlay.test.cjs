@@ -9,7 +9,7 @@ const modulesRoot = process.env.SBS_PANEL_TEST_MODULES;
 test('SBS overlay follows the visible Draft without stale results or edits', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MODULES'}, async () => {
   const dep = createRequire(path.join(path.resolve(modulesRoot), '..', 'package.json'));
   const React = dep('react'), {act} = React, {JSDOM} = dep('jsdom');
-  const source = fs.readFileSync(path.join(__dirname, '../plugins/shortform-clips/panel.tsx'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../panel.tsx'), 'utf8');
   // Run the production state and effect in isolation from unrelated clip generation.
   const state = source.slice(source.indexOf('  const O=OVERLAY_STRINGS[lang]'), source.indexOf('  const [mode, setMode]',source.indexOf('  const O=OVERLAY_STRINGS[lang]')));
   const start = source.indexOf('  // Follow the visible Draft;');
@@ -58,7 +58,7 @@ test('SBS overlay follows the visible Draft without stale results or edits', {sk
 test('one PNG replaces legacy graphics while ignoring old image names', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MODULES'}, async () => {
   const dep=createRequire(path.join(path.resolve(modulesRoot),'..','package.json'));
   const esbuild=dep('esbuild'), React=dep('react');
-  const source=fs.readFileSync(path.join(__dirname,'../plugins/shortform-clips/panel.tsx'),'utf8');
+  const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
   const compiled=esbuild.transformSync(source+'\nexport {SCRIPT_OVERLAY,SCRIPT_BUILD,TIKTOK_OVERLAY_ASSET_NAME};',{loader:'tsx',format:'cjs'}).code;
   const mod={exports:{}};new Function('require','module','exports',compiled)(()=>React,mod,mod.exports);
   const api=mod.exports;

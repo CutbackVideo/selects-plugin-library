@@ -51,4 +51,4 @@ Ask your Selects agent to install a plugin using its folder link. It downloads o
 
 For maintainers: [Publishing](PUBLISHING.md). For installation: [Installing](INSTALLING.md).
 
-Customer template packs: [SBS Radio](template-packs/sbs-radio/pack.json). See [pack authoring and installation](template-packs/README.md).
+Customer template packs: [SBS Radio](plugins/shortform-clips/template-packs/sbs-radio/pack.json). See [pack authoring and installation](plugins/shortform-clips/template-packs/README.md).

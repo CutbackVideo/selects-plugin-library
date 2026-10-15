@@ -5,12 +5,12 @@ const {createRequire}=require('node:module');
 const modulesRoot=process.env.SBS_PANEL_TEST_MODULES;
 test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULES'}, async t=>{
   const dep=createRequire(path.resolve(modulesRoot,'../package.json'));
-  const source=fs.readFileSync(path.join(__dirname,'../plugins/shortform-clips/panel.tsx'),'utf8');
+  const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
   const ts=dep('typescript');
-  const program=ts.createProgram([path.join(__dirname,'../plugins/shortform-clips/panel.tsx')],{noEmit:true,target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.React,skipLibCheck:true});
+  const program=ts.createProgram([path.join(__dirname,'../panel.tsx')],{noEmit:true,target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.React,skipLibCheck:true});
   const undefinedNames=ts.getPreEmitDiagnostics(program).filter(d=>[2304,2552,2580,2591].includes(d.code));
   assert.deepEqual(undefinedNames.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')),[], 'The host rejects panels with undefined identifiers');
-  const code=dep('esbuild').transformSync(source+'\nexport {readGitHubTemplatePack,parsePackLink,ShortformClipsPanel,PACK_STRINGS,readTemplatePack,makeTemplateRepository,validateTemplate,templatePatch,merge,cleanTemplate,TemplateEditor,STRINGS,RADIO_STRINGS};',{loader:'tsx',format:'cjs'}).code;
+  const code=dep('esbuild').transformSync(source+'\nexport {readGitHubTemplatePack,parsePackLink,ShortformClipsPanel,TemplatePicker,TemplatePackDialog,PACK_STRINGS,readTemplatePack,makeTemplateRepository,validateTemplate,templatePatch,merge,cleanTemplate,TemplateEditor,STRINGS,RADIO_STRINGS};',{loader:'tsx',format:'cjs'}).code;
   const mod={exports:{}};new Function('require','module','exports',code)(()=>dep('react'),mod,mod.exports);
   const api=mod.exports;
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'clip-packs-'));t.after(()=>fs.rmSync(temp,{recursive:true,force:true}));
@@ -20,6 +20,25 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
   function copyPack(id='sbs-radio') {const folder=fs.mkdtempSync(path.join(temp,'source-'));fs.cpSync(realPack,folder,{recursive:true});edit(folder,'pack.json',m=>{m.id=id;delete m.legacy;});return folder;}
   function edit(folder,file,fn){const p=path.join(folder,file),data=JSON.parse(fs.readFileSync(p,'utf8'));fn(data);fs.writeFileSync(p,JSON.stringify(data));}
   const install=(repo,folder)=>repo.install(path.join(folder,'pack.json'));
+  await t.test('every checked-in pack validates and stays outside the app download manifest',async()=>{
+    const packsRoot=path.join(__dirname,'../template-packs');
+    const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../plugin.json')));
+    assert.ok(manifest.files.every(name=>!name.startsWith('template-packs/') && !name.startsWith('tests/')));
+    for(const entry of fs.readdirSync(packsRoot,{withFileTypes:true}).filter(e=>e.isDirectory())){
+      const pack=await api.readTemplatePack(fileService,path.join(packsRoot,entry.name,'pack.json'));
+      assert.equal(pack.manifest.id,entry.name);assert.ok(pack.templates.length>0);
+    }
+  });
+  await t.test('picker appends an action without selecting it as a template',()=>{
+    let picked=null,opened=0,options;
+    const view=api.TemplatePicker({ui:{Select:()=>null},label:'Template',value:'existing',
+      templates:[{id:'existing',name:'Existing'}],lang:'en',addLabel:'Add templates',
+      onChange:id=>picked=id,onAdd:()=>opened++});
+    options=view.props.options;
+    assert.equal(options.at(-1).label,'+ Add templates');
+    view.props.onChange(options.at(-1).value);assert.equal(opened,1);assert.equal(picked,null);
+    assert.equal(view.props.value,'existing');view.props.onChange('existing');assert.equal(picked,'existing');
+  });
   await t.test('new install has no templates until a valid pack is added; two packs do not collide',async()=>{
     const store=storage(),repo=api.makeTemplateRepository(store);
     assert.deepEqual((await repo.load()).templates,[]);assert.equal(store.rows.size,0,'Mount performs no writes');
@@ -72,13 +91,13 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     const lower=copyPack();edit(lower,'pack.json',m=>m.version='0.9.0');await assert.rejects(install(repo,lower),/older/);
     const fail=copyPack();store.put=async()=>{throw Error('Disk full')};await assert.rejects(install(repo,fail),/Disk full/);assert.deepEqual(await store.list('packs'),before);
   });
-  const sha='a'.repeat(40), folderLink='https://github.com/example/templates/tree/main/template-packs/sbs-radio';
+  const sha='a'.repeat(40), folderLink='https://github.com/example/templates/tree/main/plugins/shortform-clips/template-packs/sbs-radio';
   function remoteFetch({ref='main', change, failFile, status=404}={}) {
     const calls=[];
     const fetcher=async(url,options)=>{
       calls.push(url);assert.equal(options.credentials,'omit');assert.equal(options.redirect,'error');
       if(url.startsWith('https://api.github.com/'))return new Response(decodeURIComponent(url.split('/commits/')[1])===ref?sha:'Not found',{status:decodeURIComponent(url.split('/commits/')[1])===ref?200:422});
-      const prefix=`https://raw.githubusercontent.com/example/templates/${sha}/template-packs/sbs-radio/`;
+      const prefix=`https://raw.githubusercontent.com/example/templates/${sha}/plugins/shortform-clips/template-packs/sbs-radio/`;
       assert.ok(url.startsWith(prefix),'All pack files come from one pinned commit');
       const file=url.slice(prefix.length);
       if(file===failFile)return new Response('Unavailable',{status});
@@ -89,7 +108,7 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     return {fetcher,calls};
   }
   await t.test('folder, manifest, raw and slash-branch links install only the declared files at one commit',async()=>{
-    const links=[folderLink,folderLink.replace('/tree/','/blob/')+'/pack.json?raw=true',`https://raw.githubusercontent.com/example/templates/${sha}/template-packs/sbs-radio/pack.json`,folderLink.replace('/main/','/codex/my-pack/')];
+    const links=[folderLink,folderLink.replace('/tree/','/blob/')+'/pack.json?raw=true',`https://raw.githubusercontent.com/example/templates/${sha}/plugins/shortform-clips/template-packs/sbs-radio/pack.json`,folderLink.replace('/main/','/codex/my-pack/')];
     for(const link of links){
       const remote=remoteFetch({ref:link.includes('/codex/')?'codex/my-pack':'main'});
       const pack=await api.readGitHubTemplatePack(link,remote.fetcher);
@@ -127,22 +146,25 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
       await repo.install(folderLink,true);const result=(await repo.load()).templates[0];assert.equal(result.headline.color1,'#123456');assert.equal(result.headline.size1,99);
     } finally {global.fetch=previous;}
   });
-  await t.test('link controls disable duplicates and edits; successful install clears input; file import stays available',async()=>{
+  await t.test('link-only controls disable duplicates and edits; successful install clears input',async()=>{
     const React=dep('react'),{act}=React,{JSDOM}=dep('jsdom');
     const dom=new JSDOM('<div id="root"></div>');const keys=['window','document','IS_REACT_ACT_ENVIRONMENT'];const previous=Object.fromEntries(keys.map(k=>[k,global[k]]));
     Object.assign(global,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
+    dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
+    dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
     const root=dep('react-dom/client').createRoot(document.getElementById('root'));
     const start=source.indexOf('  async function installPack('),handler=source.slice(start,source.indexOf('  React.useEffect(',start));
-    const markupStart=source.indexOf('            <div style={{width:"100%",maxWidth:"var(--panel-field-max, 480px)"');
-    const markup=source.slice(markupStart,source.indexOf('            {!packBusy && <TemplateEditor',markupStart));
+    const markupStart=source.indexOf('            {!templates.length && <ui.Actions>');
+    const markup=source.slice(markupStart,source.indexOf('            {templates.length > 0 && <TemplateEditor',markupStart));
     const code=dep('esbuild').transformSync(`function Harness({ui,repository,loadTemplates,templateDirty=false,templateSaving=false,busy=false}){
-      const K=${JSON.stringify(api.PACK_STRINGS.en)}, lang='en',files={},packs=[];
+      const K=${JSON.stringify(api.PACK_STRINGS.en)}, lang='en',files={},templates=[],templatesLoading=false,S={cancel:'Cancel'};
+      const [packDialogOpen,setPackDialogOpen]=React.useState(true);
       const [packLink,setPackLink]=React.useState(''),[packBusy,setPackBusy]=React.useState(false),[packMessage,setPackMessage]=React.useState(''),[packError,setPackError]=React.useState('');
       const packLock=React.useRef(false);
       ${handler}
-      return (${markup});
+      return (<>${markup}</>);
     } return Harness;`,{loader:'tsx'}).code;
-    const Harness=new Function('React',code)(React);
+    const Harness=new Function('React','TemplatePackDialog',code)(React,api.TemplatePackDialog);
     let input,file,resolveInstall,calls=[],reloads=0;
     const box=p=>React.createElement('div',null,p.children);
     const ui={Stack:box,Row:box,Actions:box,Message:box,Progress:()=>React.createElement('span',null,'Loading'),IconButton:p=>React.createElement('button',{disabled:p.disabled,onClick:p.onClick},p.label),TextField:p=>{input=p;return React.createElement('input',{value:p.value,onChange:e=>p.onChange(e.target.value),disabled:p.disabled});},Button:p=>React.createElement('button',{disabled:p.disabled||p.busy,onClick:p.onClick},p.children),FileDrop:p=>{file=p;return React.createElement('button',{disabled:p.disabled,onClick:()=>p.onChange({path:'/pack.json'})},p.labels.choose);}};
@@ -150,14 +172,14 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     const render=async extra=>act(async()=>root.render(React.createElement(Harness,{ui,repository,loadTemplates:async()=>{reloads++;},...extra})));
     const button=label=>[...document.querySelectorAll('button')].find(b=>b.textContent===label);
     try{
-      await render();assert.equal(button('Add from link').disabled,true);
-      await act(async()=>input.onChange(folderLink));assert.equal(button('Add from link').disabled,false);
-      await act(async()=>{button('Add from link').click();button('Add from link').click();});
-      assert.deepEqual(calls,[[folderLink,true]]);assert.equal(file.disabled,true);assert.equal(input.disabled,true);
-      await act(async()=>resolveInstall({name:'SBS Radio'}));assert.equal(reloads,1);assert.equal(input.value,'');assert.match(document.body.textContent,/Template pack installed. SBS Radio/);
-      await act(async()=>input.onChange(folderLink));await render({templateDirty:true});assert.equal(button('Add from link').disabled,true);assert.equal(file.disabled,true);assert.match(document.body.textContent,/Save or discard/);
-      await render({templateSaving:true});assert.equal(button('Add from link').disabled,true);
-      await render();await act(async()=>button('Choose pack.json').click());assert.deepEqual(calls[1],['/pack.json',false]);await act(async()=>resolveInstall({name:'Local pack'}));
+      await render();assert.equal(document.querySelector('dialog').open,true);assert.equal(button('Add').disabled,true);
+      await act(async()=>input.onChange(folderLink));assert.equal(button('Add').disabled,false);
+      await act(async()=>{button('Add').click();button('Add').click();});
+      assert.deepEqual(calls,[[folderLink,true]]);assert.equal(file,undefined);assert.equal(input.disabled,true);
+      await act(async()=>resolveInstall({name:'SBS Radio'}));assert.equal(reloads,1);assert.equal(document.querySelector('dialog').open,false);assert.equal(input.value,'');assert.match(document.body.textContent,/Templates added. SBS Radio/);
+      await act(async()=>input.onChange(folderLink));await render({templateDirty:true});assert.equal(button('Add').disabled,true);assert.equal(file,undefined);assert.match(document.body.textContent,/Save or discard/);
+      await render({templateSaving:true});assert.equal(button('Add').disabled,true);
+      await render();assert.equal(button('Choose pack.json'),undefined);assert.doesNotMatch(document.body.textContent,/GitHub|pack\.json/);assert.doesNotMatch(input.placeholder || '',/GitHub/);
     }finally{await act(async()=>root.unmount());dom.window.close();for(const k of keys)if(previous[k]===undefined)delete global[k];else global[k]=previous[k];}
   });
   await t.test('legacy edits and copies migrate once without changing their source files',async()=>{

@@ -15,4 +15,8 @@ Use `--ref <commit>` to reproduce a specific revision. The helper downloads sour
 
 ## Customer template packs
 
-Shortform Clips uses separate packs. In **Templates > Template packs**, paste a public GitHub template folder link and click **Add from link**. Alternatively, download a pack with `python3 tools/plugin_files.py download-pack <id> --ref <commit> --destination <fresh-folder>`, then select its `pack.json` in the app's Templates tab. See [template packs](template-packs/README.md). The app and packs update independently.
+Shortform Clips installs customer packs separately. In **Templates**, choose
+**+ Add templates** in the template picker, paste the received link, and click
+**Add**. Packs live under `plugins/shortform-clips/template-packs/` but are not
+listed in the app manifest, so app installation does not download them.
+See [template packs](plugins/shortform-clips/template-packs/README.md).

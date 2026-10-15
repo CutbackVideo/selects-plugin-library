@@ -14,7 +14,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
   const ts = dependency('typescript');
   const React = dependency('react');
   const { renderToStaticMarkup } = dependency('react-dom/server');
-  const source = fs.readFileSync(path.join(__dirname, '../plugins/shortform-clips/panel.tsx'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../panel.tsx'), 'utf8');
   const sf = ts.createSourceFile('panel.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const names = 'readTemplatePack,forPlatform,merge,STRINGS,RADIO_STRINGS,RADIO_SCRIPT_BUILD,SCRIPT_BUILD,SCRIPT_LIMIT,RadioPreviewFrame,RadioPreviewCaption,speakerTurns,planShots,TemplateEditor,OVERLAY_STRINGS';
   // Extract the actual production build-parameter expression, not a test copy of it.
