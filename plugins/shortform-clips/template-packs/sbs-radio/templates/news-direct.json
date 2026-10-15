@@ -1,6 +1,6 @@
 {
   "id": "news-direct",
-  "version": 1,
+  "version": 2,
   "names": {
     "ko": "\ub274\uc2a4\uc9c1\uaca9",
     "en": "News Direct"
@@ -24,7 +24,8 @@
     "logoCenter": 1805,
     "reframe": true,
     "closeUp": 4.5,
-    "edgeInset": 12
+    "edgeInset": 12,
+    "edgeMin": 3.6
   },
   "background": {
     "mode": "color",
