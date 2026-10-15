@@ -38,6 +38,8 @@ async function main() {
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Invalid runtime cache');
   const ortModule = await prepareEnvironment(cache, `${process.platform}-${process.arch}`, { signal: controller.signal, emit });
   await ensureCacheDirectory(cache, 'models');
+  // Frame timelines of probed sources, reused by later jobs on the same file (lib/timeline-cache.cjs).
+  const timelineCache = await ensureCacheDirectory(cache, 'timelines');
   const modelPath = await downloadAsset(model, path.join(cache, 'models', `${model.sha256}.onnx`), { signal: controller.signal, emit, step: 'download-model' });
   controller.signal.throwIfAborted();
   emit({ step: 'verify-runtime' });
@@ -65,7 +67,7 @@ async function main() {
   }
   controller.signal.throwIfAborted();
   await writeJson(path.resolve(argument('--output')), {
-    ortModule, tools, models: { [model.name]: { path: modelPath, sha256: model.sha256 } }, provider: 'cpu', intraOpNumThreads: 4,
+    ortModule, tools, models: { [model.name]: { path: modelPath, sha256: model.sha256 } }, provider: 'cpu', intraOpNumThreads: 4, timelineCache,
     ...(webgpu ? { webgpu } : {}),
     ...(webgpuPreparationFailure ? { webgpuPreparationFailure } : {}),
   });

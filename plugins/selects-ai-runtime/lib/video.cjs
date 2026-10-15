@@ -2,6 +2,8 @@
 const { collectTool, startTool } = require('./process.cjs');
 const { throwIfAborted } = require('./errors.cjs');
 const { constantFrameRate } = require('./constant-frame-rate.cjs');
+const fs = require('node:fs/promises');
+const { timelineKey, readTimeline, writeTimeline } = require('./timeline-cache.cjs');
 
 function parseTimeBase(value) {
   const parts = typeof value === 'string' ? value.split('/').map(Number) : [];
@@ -48,12 +50,19 @@ async function probeVideo(config, request, signal) {
   const width = quarterTurn ? stream.height : stream.width;
   const height = quarterTurn ? stream.width : stream.height;
   if (width * height > 32_000_000) throw new Error('Source exceeds the PoC raster limit');
-  const timeline = JSON.parse(await collectTool(config.tools.ffprobe, [
-    '-v', 'error', '-select_streams', 'v:0', '-show_frames',
-    '-show_entries', 'frame=best_effort_timestamp', '-of', 'json', filename,
-  ], { signal }));
-  const rawPts = (timeline.frames ?? []).map(frame => frame.best_effort_timestamp);
-  if (!rawPts.length || rawPts.some(value => !Number.isSafeInteger(value))) throw new Error('Source frame timestamps are unavailable');
+  // The frame timeline is a full pass over the file; a later job on the same unchanged file reuses it.
+  const cacheKey = config.timelineCache ? timelineKey(filename, await fs.stat(filename), config.tools.ffprobe) : null;
+  let rawPts = cacheKey ? await readTimeline(config.timelineCache, cacheKey) : null;
+  const timelineCached = Boolean(rawPts);
+  if (!rawPts) {
+    const timeline = JSON.parse(await collectTool(config.tools.ffprobe, [
+      '-v', 'error', '-select_streams', 'v:0', '-show_frames',
+      '-show_entries', 'frame=best_effort_timestamp', '-of', 'json', filename,
+    ], { signal }));
+    rawPts = (timeline.frames ?? []).map(frame => frame.best_effort_timestamp);
+    if (!rawPts.length || rawPts.some(value => !Number.isSafeInteger(value))) throw new Error('Source frame timestamps are unavailable');
+    if (cacheKey) await writeTimeline(config.timelineCache, cacheKey, rawPts);
+  }
   const origin = rawPts[0];
   const sourcePts = rawPts.map(pts => pts - origin);
   if (sourcePts.some((pts, index) => !Number.isSafeInteger(pts) || pts < 0 || (index && pts < sourcePts[index - 1]))) {
@@ -80,7 +89,7 @@ async function probeVideo(config, request, signal) {
     ...(verifiedRate ? {
       sourceRange: { startSeconds: firstFrame / fps, endSeconds: (firstFrame + frameTimes.length) / fps },
     } : {}),
-    timeBase: stream.time_base, rangeStartPts, rangeEndPts,
+    timeBase: stream.time_base, rangeStartPts, rangeEndPts, timelineCached,
   };
 }
 
