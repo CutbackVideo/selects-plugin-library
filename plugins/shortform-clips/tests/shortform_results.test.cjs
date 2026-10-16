@@ -15,6 +15,33 @@ test('draft results preserve descriptions and follow the current draft', {skip: 
   new Function('require','module','exports',code)(() => React, mod, mod.exports);
   const {DraftResults, ClipRunProgress, RESULT_STRINGS, latestDraftResult,savedDraftResults,resultJobLabel,clipAssessment,rankDrafts,readDraftThumbnail,loadDraftThumbnail,thumbnailPath,CLIP_SCORE_PROMPT} = mod.exports;
 
+  await t.test('short project videos remain visible and selected through metadata refreshes', () => {
+    const selectionEnd = source.indexOf('  }, [resources]);');
+    const selectionStart = source.lastIndexOf('  React.useEffect(() => {', selectionEnd);
+    const selection = source.slice(selectionStart, selectionEnd + '  }, [resources]);'.length);
+    const optionsStart = source.indexOf('  const videoOptions =');
+    const options = source.slice(optionsStart, source.indexOf('  const history=', optionsStart));
+    const picker = new Function('resources', 'pick', 'S', `
+      const React = {useEffect: fn => fn()}, setPick = value => {pick = value;};
+      ${selection}
+      ${options}
+      return {pick, options: videoOptions};
+    `);
+    const S = {seconds: n => `${n}s`, minutes: n => `${n} min`, notAnalyzed: 'Not analyzed'};
+    const short = {id:'short', name:'interview.MOV', sec:40, transcribed:true};
+    const long = {id:'long', name:'episode.mp4', sec:600, analyzed:true};
+    const pending = {id:'pending', name:'importing.mov', sec:0};
+    assert.deepEqual(picker([short], null, S), {pick:'short', options:[{value:'short', label:'interview.MOV · 40s'}]});
+    const refreshed = picker([short, long, pending], 'short', S);
+    assert.equal(refreshed.pick, 'short');
+    assert.deepEqual(refreshed.options.map(o => o.value), ['short','long','pending']);
+    assert.equal(refreshed.options[2].label, 'importing.mov · Not analyzed');
+    assert.equal(picker([short, long, pending], 'pending', S).pick, 'pending');
+    assert.equal(picker([{...pending,sec:40,transcribed:true}], 'pending', S).pick, 'pending');
+    assert.equal(picker([short, long], 'removed', S).pick, null);
+    assert.equal(picker([], 'short', S).pick, null);
+  });
+
   await t.test('restore the latest project result, including partial failures, without losing results when a later run has no drafts yet', () => {
     const older = {projectId:'a',updated:'2026-10-15',built:[{draftId:'old'}],done:true};
     const latest = {projectId:'a',updated:'2026-10-16',built:[{draftId:'new'},null,{error:'Failed'}]};
