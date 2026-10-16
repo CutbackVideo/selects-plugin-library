@@ -1510,6 +1510,15 @@ function scriptError(output: any): string {
   return text.slice(0, 1200);
 }
 
+function scriptCode(output: any): string {
+  try {
+    const j = JSON.parse(String(output || ""));
+    return typeof j?.code === "string" ? j.code : "";
+  } catch (e) {
+    return "";
+  }
+}
+
 function useBlobUrl(dataUrl: string): string {
   const [url, setUrl] = React.useState("");
   React.useEffect(() => {
@@ -1978,7 +1987,7 @@ async function compactLogo(url:string):Promise<string>{
 // ---- Template editor ----
 
 
-const RADIO_SCRIPT_BUILD: string = SCRIPT_SOURCE_READER + "// run_script body: build one series clip as an editable Draft from a template.\n// The clip parameters are injected at runtime; the frame and caption templates at build time.\nconst P: any = __P__;\nconst FRAME_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nfunction Logo(_props: any) { return null; }\\n\\nexport default function SeriesFrame({ data }) {\\n  const series = String(data?.series ?? 'newsdirect');\\n  const W = 1080, H = 1920;\\n  const top = Number(data?.windowTop ?? 420);\\n  const bottom = Number(data?.windowBottom ?? 1255);\\n  const bg = String(data?.background ?? '#1E1F22');\\n  const h1 = String(data?.headline1 ?? '');\\n  const h2 = String(data?.headline2 ?? '');\\n  const size1 = Number(data?.headlineSize1 ?? 84);\\n  const size2 = Number(data?.headlineSize2 ?? size1);\\n  const color1 = String(data?.headlineColor1 ?? '#FFFFFF');\\n  const color2 = String(data?.headlineColor2 ?? '#FFFFFF');\\n  const box2 = String(data?.headline2Box ?? '');\\n  const italic = Boolean(data?.headlineItalic ?? false);\\n  const headlineCenter = Number(data?.headlineCenter ?? top / 2 + 40);\\n  const captionBar = Number(data?.captionBarHeight ?? 0);\\n  const logoCenter = Number(data?.logoCenter ?? (bottom + captionBar + H) / 2);\\n  const border = Boolean(data?.goldBorder ?? false);\\n  const shadow = String(data?.headlineShadow ?? '0 4px 10px rgba(0,0,0,.55)');\\n  const strokeColor = String(data?.headlineStrokeColor ?? '');\\n  const strokeWidth = strokeColor ? Number(data?.headlineStrokeWidth ?? 12) : 0;\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const headFont = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const bgImage = String(data?.backgroundImage ?? '');\\n  const bgDim = Math.max(0, Math.min(90, Number(data?.backgroundDim ?? 0)));\\n  const borderColor = String(data?.borderColor ?? '#C9A45C');\\n  const logoMode = String(data?.logoMode ?? 'art');\\n  const logoImage = String(data?.logoImage ?? '');\\n  const logoWidth = Number(data?.logoWidth ?? 600);\\n  // A background image is one 1080x1920 picture shown only where the video window is not.\\n  const band = (y, h) =>\\n    bgImage ? (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, backgroundImage: `url(${bgImage})`, backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px` }}>\\n        {bgDim > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: h, background: `rgba(0,0,0,${bgDim / 100})` }} /> : null}\\n      </div>\\n    ) : (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, background: bg }} />\\n    );\\n  const est = (t) => Array.from(t).reduce((w, ch) => w + (/[\\\\uAC00-\\\\uD7A3\\\\u4E00-\\\\u9FFF]/.test(ch) ? 0.93 : ch === ' ' ? 0.27 : /[0-9A-Za-z%]/.test(ch) ? 0.6 : 0.4), 0);\\n  const fit = (t, size, maxW) => Math.min(size, Math.floor(maxW / Math.max(1, est(t)) - 2));\\n  const lineStyle = (size, color) => ({\\n    fontSize: size, fontWeight: 900, color, lineHeight: 1.16, letterSpacing: '-2px',\\n    fontStyle: italic ? 'italic' : 'normal', whiteSpace: 'nowrap', textShadow: shadow,\\n    WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : `${Math.max(1, Math.round(size * 0.035))}px ${color}`, paintOrder: 'stroke fill',\\n  });\\n  const s1 = fit(h1, size1, 1010);\\n  const s2 = fit(h2, size2, box2 ? 970 : 1010);\\n  const grad1 = String(data?.headlineGradient1 ?? '');\\n  const grad2 = String(data?.headlineGradient2 ?? '');\\n  // Text with an optional gradient fill: the outline and shadow are drawn by a copy underneath, because a\\n  // gradient clipped to the glyphs cannot carry a stroke of its own.\\n  const Deco = ({ text, style, grad, stroke, strokeW, shadowCss }) =>\\n    grad ? (\\n      <div style={{ position: 'relative', ...style }}>\\n        <div style={{ position: 'absolute', left: 0, top: 0, right: 0, color: stroke || 'transparent', WebkitTextStroke: strokeW > 0 ? `${strokeW}px ${stroke}` : '0px transparent', paintOrder: 'stroke fill', textShadow: shadowCss }}>{text}</div>\\n        <div style={{ position: 'relative', background: grad, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' }}>{text}</div>\\n      </div>\\n    ) : (\\n      <div style={{ ...style, WebkitTextStroke: strokeW > 0 ? `${strokeW}px ${stroke}` : style.WebkitTextStroke, paintOrder: 'stroke fill', textShadow: shadowCss }}>{text}</div>\\n    );\\n  const Line = ({ text, size, color, grad }) =>\\n    grad ? (\\n      <Deco text={text} style={{ ...lineStyle(size, color), WebkitTextStroke: undefined, textShadow: undefined }} grad={grad} stroke={strokeWidth > 0 ? strokeColor : color} strokeW={strokeWidth} shadowCss={shadow} />\\n    ) : (\\n      <div style={lineStyle(size, color)}>{text}</div>\\n    );\\n  const label = (key) => {\\n    const text = String(data?.[key] ?? '');\\n    if (!text) return null;\\n    const size = Number(data?.[key + 'Size'] ?? 40);\\n    const cx = Number(data?.[key + 'X'] ?? W / 2);\\n    const y = Number(data?.[key + 'Y'] ?? 100);\\n    const style = { fontSize: size, fontWeight: Number(data?.[key + 'Weight'] ?? 800), color: String(data?.[key + 'Color'] ?? '#FFFFFF'), lineHeight: 1.16, letterSpacing: '-1px', whiteSpace: 'nowrap', fontFamily: headFont };\\n    const sw = Number(data?.[key + 'StrokeWidth'] ?? 0);\\n    return (\\n      <div key={key} style={{ position: 'absolute', left: cx - 540, width: 1080, top: y, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        <Deco text={text} style={style} grad={String(data?.[key + 'Gradient'] ?? '')} stroke={String(data?.[key + 'StrokeColor'] ?? '#000000')} strokeW={sw} shadowCss={String(data?.[key + 'Shadow'] ?? 'none')} />\\n      </div>\\n    );\\n  };\\n  return (\\n    <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: H, fontFamily: FONT, pointerEvents: 'none' }}>\\n      {band(0, top)}\\n      {band(bottom, H - bottom)}\\n      {captionBar > 0 ? <div style={{ position: 'absolute', left: 0, top: bottom, width: W, height: captionBar, background: '#000000' }} /> : null}\\n      {border ? (\\n        <>\\n          <div style={{ position: 'absolute', left: 22, top: 22, width: W - 44, height: top - 22, borderTop: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n          <div style={{ position: 'absolute', left: 22, top: bottom, width: W - 44, height: H - bottom - 22, borderBottom: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n        </>\\n      ) : null}\\n      <div style={{ position: 'absolute', left: 30, width: W - 60, top: headlineCenter, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: box2 ? 14 : Number(data?.headlineGap ?? 2), textAlign: 'center', fontFamily: headFont }}>\\n        {h1 ? <Line text={h1} size={s1} color={color1} grad={grad1} /> : null}\\n        {h2 ? (\\n          box2 ? (\\n            <div style={{ ...lineStyle(s2, color2), textShadow: 'none', background: box2, padding: '4px 18px 8px' }}>{h2}</div>\\n          ) : (\\n            <Line text={h2} size={s2} color={color2} grad={grad2} />\\n          )\\n        ) : null}\\n      </div>\\n      {label('topLabel')}\\n      {label('footer')}\\n      <div style={{ position: 'absolute', left: 0, width: W, top: logoCenter, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        {logoMode === 'none' ? null : logoMode === 'image' && logoImage ? (\\n          <img src={logoImage} style={{ width: logoWidth, height: 'auto', display: 'block' }} />\\n        ) : (\\n          <Logo series={series} />\\n        )}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst DATE_TSX: string = \"import React from 'react';\\n\\n// One line of text centred on (x, y): the episode date under the logo.\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function DateLabel({ data }) {\\n  const d = data || {};\\n  const text = String(d.text ?? '');\\n  if (!text) return null;\\n  const family = typeof d.fontFamily === 'string' ? d.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const sw = Number(d.strokeWidth ?? 0);\\n  return (\\n    <div style={{ position: 'absolute', left: Number(d.x ?? 540) - 540, width: 1080, top: Number(d.y ?? 1564), transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>\\n      <div\\n        style={{\\n          fontFamily: font, fontSize: Number(d.fontSize ?? 55), fontWeight: Number(d.fontWeight ?? 900), color: String(d.textColor ?? '#0C6E62'),\\n          lineHeight: 1.16, letterSpacing: '-1px', whiteSpace: 'nowrap', textShadow: String(d.shadow ?? 'none'),\\n          ...(sw > 0 ? { WebkitTextStroke: `${sw}px ${String(d.strokeColor ?? '#000000')}`, paintOrder: 'stroke fill' } : {}),\\n        }}\\n      >\\n        {text}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst CAPTION_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function ClipCaption({ data }) {\\n  const lines = String(data?.text ?? '').split('\\\\n');\\n  const mode = String(data?.mode ?? 'bar');\\n  const size = Number(data?.fontSize ?? 66);\\n  const weight = Number(data?.fontWeight ?? 600);\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const color = String(data?.textColor ?? '#FFFFFF');\\n  const mark = String(data?.highlightColor ?? '');\\n  // *word* is a highlighted word; without a highlight colour the asterisks are simply dropped.\\n  const rich = (line) =>\\n    line.split(/(\\\\*[^*]+\\\\*)/).map((part, j) =>\\n      /^\\\\*[^*]+\\\\*$/.test(part) ? <span key={j} style={mark ? { color: mark } : undefined}>{part.slice(1, -1)}</span> : part.replace(/\\\\*/g, '')\\n    );\\n  if (mode === 'bar') {\\n    const top = Number(data?.top ?? 1255);\\n    const height = Number(data?.height ?? 230);\\n    return (\\n      <div style={{ position: 'absolute', left: 40, width: 1000, top, height, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: font, pointerEvents: 'none' }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.28, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{rich(line)}</div>\\n        ))}\\n      </div>\\n    );\\n  }\\n  const bottom = Number(data?.bottom ?? 1440);\\n  const box = String(data?.boxColor ?? 'rgba(0,0,0,0.62)');\\n  return (\\n    <div style={{ position: 'absolute', left: 40, width: 1000, top: 0, height: bottom, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', fontFamily: font, pointerEvents: 'none' }}>\\n      <div style={{ background: box, padding: '10px 26px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: 4 }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.3, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{rich(line)}</div>\\n        ))}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\n\n// ---- Captions: one caption per thought ----\n// A caption ends where the speaker's sentence ends or another speaker starts, never in the middle of one.\n// A sentence too long for two lines is divided where a listener would pause (a comma, a breath, the end\n// of a clause), in pieces of similar length, and never between words that belong together (\"\uac08 \uc218 /\n// \uc788\uc744\uae4c\", \"\uadf8 / \uac00\uc218\", \"the / house\"). Each word is [text, startFrame, endFrame, sourceStartFrame,\n// speakerId, utteranceId].\n// Sounds a speaker makes while thinking; they are not captioned.\nconst FILLER = /^(\uc5b4|\uc74c|\uc544|\uc5d0|\uc73c|\ud760|uh|um|er|ah|hmm)[.,\u2026~]*$/i;\n// A word that leans on the next one: breaking after it leaves it stranded.\nconst LEANS_FORWARD =\n  /^(\uadf8|\uc774|\uc800|\ud55c|\ub450|\uc138|\ub124|\uba87|\uc5b4\ub5a4|\ubb34\uc2a8|\uc5b4\ub290|\uc774\ub7f0|\uadf8\ub7f0|\uc800\ub7f0|\ubaa8\ub4e0|\uac01|\uc0c8|\uccab|\ub2e4\ub978|\uc5ec\ub7ec|\uc57d|\ub354|\ub35c|\uac00\uc7a5|\uc81c\uc77c|\ub108\ubb34|\uc544\uc8fc|\ub9e4\uc6b0|\uc815\ub9d0|\uc9c4\uc9dc|\ucc38|\uc880|\uc798|\ubabb|\uc548|\uaf2d|\ub2e4\uc2dc|\uacc4\uc18d|\uac70\uc758|\uc774\ubbf8|\uc544\uc9c1|\ubc14\ub85c|\uadf8\ub0e5|\uadf8\ub9ac\uace0|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7f0\ub370|\uadfc\ub370|\uadf8\ub7ec\ub2c8\uae4c|\uadf8\ub7fc|\ud558\uc9c0\ub9cc|\uadf8\ub807\uc9c0\ub9cc|\uadf8\ub7ec\ub098|\ub610|\ub610\ub294|\ud639\uc740|\uc989|\uc65c\ub0d0\ud558\uba74|\uc608\ub97c|\ub9cc\uc57d|\uc5b4\ub5bb\uac8c|\uc774\ub807\uac8c|\uadf8\ub807\uac8c|\uc800\ub807\uac8c|\uc65c|\uc5bc\ub9c8\ub098|\ub9ce\uc774|\ube68\ub9ac|\uba3c\uc800|\ub2e4\uc74c|a|an|the|to|of|in|on|at|for|with|by|from|about|into|over|under|after|before|between|through|during|without|and|or|but|so|which|who|is|are|was|were|be|i|he|she|we|they|my|your|his|her|our|their|this|these|those|very|not|as|if|than)$/i;\n// A word that leans on the one before it: breaking before it cuts a phrase in two (\"\uac08 \uc218\", \"\ud560 \ub54c\ub3c4\",\n// \"\uc788\ub294 \uac78\ub85c\", \"\ubc15\uc9c4\uc601 \uc528\", \"\uc5d0\ub3c4 \ubd88\uad6c\ud558\uace0\"). These are dependent nouns with at most a particle after them;\n// an ordinary noun that merely starts the same way (\"\uc218\uc0c1\uc790\uac00\", \"\uac70\ub9ac\") does not match.\nconst PARTICLE =\n  \"(?:\uc774|\uac00|\uc740|\ub294|\uc744|\ub97c|\ub3c4|\ub9cc|\uc5d0|\uc758|\ub85c|\uc640|\uacfc|\uc73c\ub85c|\uc5d0\uc11c|\uc5d0\uac8c|\ud55c\ud14c|\uae4c\uc9c0|\ubd80\ud130|\ub9c8\ub2e4|\ucc98\ub7fc|\uc774\ub098|\ub77c\ub3c4|\ubc16\uc5d0|\uae4c\uc9c0\ub294|\uc5d0\ub294|\uc5d0\ub3c4|\ub85c\ub294|\ub85c\ub3c4|\uc5d0\uc11c\ub294|\uc774\ub791|\ub791|\ub791\uc740|\uc774\ub77c\uace0|\ub77c\uace0|\uc774\ub77c|\uc57c|\uc694|\uc8e0|\uc608\uc694|\uc774\uc5d0\uc694|\uc785\ub2c8\ub2e4|\uc774\ub2e4|\uc778\ub370|\uc774\uace0|\uc774\uc9c0|\uc774\uc8e0|\ub4e0|\ub098|\ub4e4)?\";\nconst LEANS_BACK = new RegExp(\n  \"^(?:(?:\uc218|\uac83|\uc904|\ub54c|\uc801|\ub370|\ubc14|\ubfd0|\ub4ef|\uc911|\ub4f1|\ub3d9\uc548|\uc815\ub3c4|\ub54c\ubb38|\ub9cc\ud07c|\uc528|\ub2d8|\uce21|\ucabd)\" +\n    PARTICLE +\n    \"|(?:\uc7a5\uad00|\ucc28\uad00|\uc758\uc6d0|\ub300\ud45c|\uc704\uc6d0\uc7a5|\uc704\uc6d0|\ud68c\uc7a5|\uc0ac\uc7a5|\uc758\uc7a5|\ub300\ud1b5\ub839|\ucd1d\ub9ac|\uad50\uc218|\ubc15\uc0ac|\uae30\uc790|\uac10\ub3c5|\uc120\uc218|\uc791\uac00|\ud300\uc7a5|\uc2e4\uc7a5|\ubd80\uc7a5|\uacfc\uc7a5|\uc774\uc0ac|\ud6c4\ubcf4|\ubcc0\ud638\uc0ac|\uac80\uc0ac|\ud310\uc0ac|\uc575\ucee4)\ub2d8?\" +\n    PARTICLE +\n    \"|(?:\uac70|\uac8c|\uac74|\uac78)(?:\uc608\uc694|\uc5d0\uc694|\uc8e0|\uc57c|\uc9c0|\uace0|\ub4e0\uc694|\ub77c|\ub77c\uace0|\ub77c\uc11c|\ub2c8\uae4c|\uc796\uc544\uc694|\ub2e4|\ub294|\ub97c|\ub85c|\ub3c4|\ub098|\ub4e0|\ub791|\uac00|\uba74)?|\uac81\ub2c8\ub2e4|\uac19\uc740|\uac19\uc774|\ucc98\ub7fc|\ubcf4\ub2e4|\ub300\ub85c|\ub9c8\ub2e4|\ubc16\uc5d0|\ubd88\uad6c\ud558\uace0|\ubabb[\uac00-\ud7a3]+|\uc544\ub2c8[\uac00-\ud7a3]+\" +\n    \"|(?:\ud558|\ud574|\ud588|\ud560|\ud55c\ub2e4|\ud569|\ub418|\ub3fc|\ub410|\ub420|\ub41c\ub2e4|\ub429)[\uac00-\ud7a3]{0,4})[.,?!]*$\"\n);\nconst NOT_A_VERB = /^(\ud558\ub098|\ud558\ub298|\ud558\ub8e8|\ud558\ubc18\uae30|\ud558\ub77d|\ud558\uc704|\ud574\uc678|\ud574\uacb0|\ud574\uc11d|\ud574\ub2f9|\ud574\uccb4|\ud574\uba85|\ud574\uc9c0|\ud574\uc124|\ud574\ub2f5|\ud560\uba38\ub2c8|\ud560\uc544\ubc84\uc9c0|\ud560\uc778|\ud569\uc758|\ud569\uaca9|\ud569\uacc4|\ud569\ub958|\ud569\uc791|\ub418\ub808)/;\n// A unit that follows a number (\"200\ub9cc \uc6d0\", \"4\uac1c\uc0ac\").\nconst COUNTER = /^(\uc6d0|\uba85|\uac1c|\ubc88|\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uc0b4|\uc5b5|\ub9cc|\ucc9c|\ubc31|\ubc30|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc704|\ucc28|\ud68c|\ub300|\uacf3|\uac00\uc9c0|\uac1c\uc0ac|\uac1c\uc6d4|\uc2dc\uac04|\uc8fc|\uc8fc\uc77c)[\uac00-\ud7a3]{0,2}[.,?!]*$/;\n// A word describing the next one (\"\uace0\ubc1c\ub420 \ud655\ub960\", \"\ub2f9\uc5f0\ud55c \uc758\uc2ec\", \"\ud558\uace0 \uc2f6\uc740 \ub9c8\uc74c\").\nconst DESCRIBES_NEXT = /(\ud558\ub294|\ub418\ub294|\uc788\ub294|\uc5c6\ub294|\ub77c\ub294|\ub2e4\ub294|\uc54a\ub294|\uac19\uc740|\uc2f6\uc740|\ub9ce\uc740|\uc88b\uc740|\ub192\uc740|\uc791\uc740|\ud070|\ub41c|\ub358|\uc788\uc744|\uc5c6\uc744|\ubc1b\uc744|\uac19\uc744|[\uac00-\ud7a3]\ud55c|[\ud560\ub420\uac08\uc62c\ubcfc\uc4f8\ub0bc\ube84\uafc0\ud0ac\ub9b4\ub084])$/;\n// Korean words normally end in a particle or an ending; one that does not is usually the first half of a\n// compound or an adverb, and belongs with what follows (\"\ubb38\uccb4\ubd80 \uc7a5\uad00\", \"\ud68c\uc0ac \uc77c\", \"\ub300\uad00 \ubd80\uc11c\").\nconst MARKED_END = /[\uc740\ub294\uc774\uac00\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\uc11c\uace0\uc694\ub2e4\uc8e0\uae4c\ub124\ub098\uba70\uba74\uc9c0\uac8c\ub370\uc57c\ub77c\uc790\ub2c8\uaed8\ub791\ub4e0\uc529\uc74c\uc784\uc5b4\uc544\ud574\ub3fc\ub798\ub300\uac78\uac74\uc918\ubd10\uc6cc\uc838\uc5ec]$/;\nconst HANGUL = /[\uac00-\ud7a3]/;\nconst NUMBER_WORD = /^([0-9]+|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+|\ud55c|\ub450|\uc138|\ub124|\ub2e4\uc12f|\uc5ec\uc12f|\uc77c\uacf1|\uc5ec\ub35f|\uc544\ud649|\uc5f4)$/;\nconst STARTS_NUMBER = /^([0-9]|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]|\ud55c |\ub450 |\uc138 |\ub124 )/;\n// The end of a clause in Korean, or a comma: a natural place to stop.\nconst CLAUSE_END = /(\uace0|\uba70|\uc11c|\uba74|\ub294\ub370|\uc740\ub370|\uc778\ub370|\ub2c8\uae4c|\uc9c0\ub9cc|\ub2e4\uac00|\uba74\uc11c|\ub824\uace0|\ub3c4\ub85d|\uac70\ub098|\ub354\ub2c8|\ub2e4\uba74|\ub77c\uba74)[,]?$/;\n// \"\uc788\ub2e4 / \uc5c6\ub2e4 / \uc54a\ub2e4 / \uc2f6\ub2e4\" finish a verb phrase (\"\uac08 \uc218 \uc788\uc744\uae4c\", \"\uc27d\uc9c0 \uc54a\uc796\uc544\uc694\", \"\ud558\uace0 \uc2f6\uc740\"); after a\n// plain subject (\"\ud655\ub960 \uc788\ub294\") they pull much less.\nconst FINISHES_VERB = /^(\uc788|\uc5c6|\uc54a|\uc2f6)[\uac00-\ud7a3]*[.,?!]*$/;\nconst OPENS_VERB = /((\uc218|\uc904|\uc801|\ub9ac|\ud544\uc694)(\uac00|\ub294|\uc740|\ub3c4|\ub97c|\uc774)?|\uace0|\uc9c0|\uc5b4|\uc544|\uac8c|\ud574|\uc57c|\uc11c|\ub3c4)$/;\n// A word a new clause opens with: breaking before it is natural (\"\uc544\ud2f0\uc2a4\ud2b8 / \ud639\uc740 \ud68c\uc0ac\ub4e4\uc744\").\nconst OPENS_CLAUSE = /^(\ud639\uc740|\ub610\ub294|\uadf8\ub9ac\uace0|\ubc0f|\uadfc\ub370|\uadf8\ub7f0\ub370|\ud558\uc9c0\ub9cc|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7ec\ub2c8\uae4c|\uc65c\ub0d0\ud558\uba74|and|or|but|so|because|we|they|i|he|she|which|who|when|where|while|if|although|though|then)$/i;\nconst SENTENCE_END = /[.?!\u3002\uff1f\uff01\u2026][\"'\u201d\u2019)]?$/;\n\n// Numbers said in Korean are shown in digits when a unit follows: \"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\" -> \"11\uac1c\uc6d4\uc9f8\",\n// \"\uc774\ucc9c\uc0bc\ub144\ub3c4\uc600\uc5b4\uc694\" -> \"2003\ub144\ub3c4\uc600\uc5b4\uc694\", \"\uce60\uc5b5\uc774\" -> \"7\uc5b5\uc774\". A numeral with no unit, or one that is also an\n// everyday word (\"\uc774\ubc88\", \"\uc2ed\ubd84\", \"\uc0ac\ud68c\", \"\uc624\ucc28\", \"\uc774\ucc9c\uc2dc\"), stays as it was said.\nconst KO_ONES: any = { \uc77c: 1, \uc774: 2, \uc0bc: 3, \uc0ac: 4, \uc624: 5, \uc721: 6, \uce60: 7, \ud314: 8, \uad6c: 9 };\nconst KO_PLACES: any = { \uc2ed: 10, \ubc31: 100, \ucc9c: 1000 };\nconst KO_NUMERAL = /^[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+/;\nconst UNIT_LONG = /^(\uac1c\uc6d4|\ub144\ub3c4|\ub144\ub300|\ub144\uac04|\ub144\uc9f8|\ub144\uc0dd|\ub144\ucc28|\uc8fc\uc77c|\uc8fc\ub144|\uc8fc\uac04|\uc2dc\uac04|\ubd84\uac04|\ucd08\uac04|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc720\ub85c|\ud0ac\ub85c|\ubbf8\ud130|\uc13c\ud2f0|\uadf8\ub7a8|\ub9ac\ud130|\ud559\ub144|\uc138\uae30|\ubd84\uae30|\uc778\ubd84|\uac1c\uad6d|\uac1c\uc0ac|\uac1c\ub144|\ud68c\ucc28|\ub4f1\uae09|\ub2e8\uacc4|\uc138\ub300)/;\nconst UNIT_SHORT = /^(\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uba85|\uac1c|\ubc88|\uc6d0|\uc704|\ub4f1|\ucc28|\ud68c|\uce35|\ud638|\ub300|\uc138|\uc778|\ubc30|\ud3b8|\uace1|\uc7a5|\uad8c|\ud300|\uc2b9|\ud328|\uace8|\uc810|\ud3c9|\uac74|\ud45c|\uc8fc|\uc0b4)/;\n// One-syllable numerals joined to a one-syllable unit are mostly other words (\"\uc774\ubc88\", \"\uc0ac\ud68c\", \"\uc624\ucc28\",\n// \"\uc77c\uba85\"); only these are numbers for certain.\nconst SURE_SHORT = /^([\uc77c\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\ub144|[\uc77c\uc0bc\uc0ac\uc624\uce60\ud314\uad6c]\uc6d4|[\uc77c\uc774\uc0bc]\ucc28|[\uc77c\uc774\uc0bc]\ub4f1|[\uc77c\uc774]\uc704|\uc2ed\ub300|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\uce35|[\uc77c\uc0bc\uc624\uc2ed]\ucd08)/;\nconst MONTH_WORD: any = { \uc720\uc6d4: \"6\uc6d4\", \uc2dc\uc6d4: \"10\uc6d4\" };\n\nfunction koNumber(run: string): number | null {\n  let total = 0;\n  let group = 0;\n  let ones = 0;\n  let place = 10000;\n  let big = Infinity;\n  for (const ch of run) {\n    if (KO_ONES[ch]) {\n      if (ones) return null; // two digits in a row: \"\uc0bc\uc0ac\", \"\uc774\uc77c\"\n      ones = KO_ONES[ch];\n    } else if (KO_PLACES[ch]) {\n      if (KO_PLACES[ch] >= place) return null;\n      place = KO_PLACES[ch];\n      group += (ones || 1) * place;\n      ones = 0;\n    } else {\n      const unit = ch === \"\uc5b5\" ? 1e8 : 1e4;\n      if (unit >= big) return null;\n      big = unit;\n      total += (group + ones || 1) * unit;\n      group = 0;\n      ones = 0;\n      place = 10000;\n    }\n  }\n  return total + group + ones;\n}\n// 2003 -> \"2003\", 700000000 -> \"7\uc5b5\", 40000000 -> \"4\ucc9c\ub9cc\", 35000000 -> \"3500\ub9cc\".\nfunction koShown(n: number): string {\n  if (n < 10000) return String(n);\n  const part = (v: number, unit: string) => (v ? (v >= 1000 && v % 1000 === 0 ? v / 1000 + \"\ucc9c\" : String(v)) + unit : \"\");\n  const rest = n % 10000;\n  return part(Math.floor(n / 1e8), \"\uc5b5\") + part(Math.floor((n % 1e8) / 1e4), \"\ub9cc\") + (rest ? String(rest) : \"\");\n}\n// A unit ends the number only when the word stops there or goes on with a particle or an ending; \"\ud504\ub85c\" in\n// \"\ud504\ub85c\uc81d\ud2b8\" and \"\uc138\ub300\" in \"\uc138\ub300\uc8fc\" are other words.\nconst AFTER_UNIT = /^([\uc774\uac00\uc740\ub294\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\ub098\ubd80\uae4c\uc11c\ubc16\ub9c8\uc9f8\uac04\ucbe4\uc529\uc9dc\uc5ec\uc600\uc785\uc608\uc778\ub3d9\uc804\ud6c4\ub4a4\uc815\uc548\ub54c\uc0dd][\uac00-\ud7a3]*)?[.,?!]*$/;\nconst unitIn = (units: RegExp, text: string): string | null => {\n  const m = units.exec(text);\n  return m && AFTER_UNIT.test(text.slice(m[1].length)) ? m[1] : null;\n};\n// What may follow a number of this size: a clock has 24 hours and a year 12 months (\"\uc774\ucc9c\uc2dc\" is a city).\nconst fitsUnit = (unit: string, n: number) => (unit === \"\uc2dc\" ? n <= 24 : unit === \"\uc6d4\" ? n <= 12 : true);\n\nfunction koDigits(word: string, next: string | null): string {\n  for (const m of Object.keys(MONTH_WORD)) if (word.startsWith(m) && !/^[\uac00-\ud7a3]{2,}/.test(word.slice(m.length).replace(/^(\uc5d0|\uc740|\ub294|\uc774|\uac00|\ub3c4|\ubd80\ud130|\uae4c\uc9c0|\ub2ec|\uc758|\uc5d0\ub294|\uc5d0\ub3c4)/, \"\"))) return MONTH_WORD[m] + word.slice(m.length);\n  const found = word.match(KO_NUMERAL);\n  if (!found) return word;\n  for (let len = found[0].length; len >= 1; len--) {\n    const run = found[0].slice(0, len);\n    const n = koNumber(run);\n    if (!n) continue;\n    const rest = word.slice(len);\n    const alone = /^[.,?!]*$/.test(rest);\n    // The unit is in this word (\"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\"), or it is the next word (\"\uc774\uc2ed \uba85\").\n    const after = alone ? String(next || \"\") : rest;\n    const short = unitIn(UNIT_SHORT, after);\n    let ok = false;\n    if (unitIn(UNIT_LONG, after)) ok = run !== \"\uc774\" || !alone;\n    else if (short && fitsUnit(short, n)) ok = run.length >= 2 ? !/^[\uc5b5\ub9cc]$/.test(run.slice(-1)) || /^(\uc6d0|\uba85|\uac1c|\ub144|\ud3c9|\ub300|\uc7a5|\uac74|\ud45c|\ubc30)$/.test(short) : alone ? run !== \"\uc774\" && run !== \"\ub9cc\" && run !== \"\uc5b5\" : SURE_SHORT.test(run + after);\n    else if (!alone && run.length >= 2 && /\uc5b5$/.test(run) && n >= 1e8) ok = !/^[\uac00-\ud7a3]{3,}/.test(rest); // \"\uce60\uc5b5\uc774\", \"\uc2ed\uc5b5\uc744\"\n    if (ok && alone && !rest && /^,/.test(after)) ok = false;\n    if (ok) return koShown(n) + rest;\n  }\n  return word;\n}\n\nconst shown = (t: string) => t.replace(/\\./g, \"\");\nconst width = (ws: any[], a: number, b: number) => {\n  let n = b - a - 1;\n  for (let i = a; i < b; i++) n += shown(String(ws[i][0])).length;\n  return Math.max(0, n);\n};\n\n// How bad it is to break between word i and word i + 1 (lower is better).\nfunction joint(ws: any[], i: number, fps: number): number {\n  const cur = String(ws[i][0]);\n  const next = String(ws[i + 1][0]);\n  const bare = cur.replace(/[.,?!]+$/, \"\");\n  const stop = (k: number) => {\n    const w = String(ws[k][0]);\n    const b = w.replace(/[.,?!]+$/, \"\");\n    return /,$/.test(w) || (CLAUSE_END.test(w) && !LEANS_FORWARD.test(b)) || (ws[k + 1][1] - ws[k][2]) / fps >= 0.5;\n  };\n  let s = 0;\n  const predicate = FINISHES_VERB.test(next) && !LEANS_BACK.test(next);\n  if (OPENS_CLAUSE.test(next.replace(/[.,?!]+$/, \"\"))) s -= 2;\n  else if (LEANS_FORWARD.test(bare)) s += 8;\n  else if (cur === bare && HANGUL.test(next) && !predicate) {\n    if (DESCRIBES_NEXT.test(bare)) s += 4;\n    else if (!MARKED_END.test(bare)) s += 3.5;\n  }\n  if (LEANS_BACK.test(next) && !NOT_A_VERB.test(next)) s += 6;\n  else if (predicate) s += OPENS_VERB.test(bare) ? 6 : 3;\n  if (/[0-9]/.test(bare) && (COUNTER.test(next) || /[0-9%]$/.test(bare))) s += 6;\n  const pause = (ws[i + 1][1] - ws[i][2]) / fps;\n  if (pause >= 0.3) s -= 2 + Math.min(2, pause);\n  if (NUMBER_WORD.test(bare) && STARTS_NUMBER.test(next + \" \")) s += 8;\n  else if (/,$/.test(cur)) s -= 3;\n  else if (CLAUSE_END.test(cur) && !LEANS_FORWARD.test(bare)) s -= 3;\n  // One word past a natural stop (\"\ucd94\uc9c4\ud558\ub294\ub370 \ucc98\uc74c\uc5d0\ub294 / \uc6b0\ub9ac\") strands the word that opens the next clause.\n  if (i >= 1 && !stop(i) && stop(i - 1)) s += 3;\n  return s;\n}\n\n// The best place to fold words [a, b) into two lines: [index of the first word of line two, cost]. One\n// line when it fits. `at(i)` is the cost of breaking after word i.\nfunction fold(ws: any[], a: number, b: number, maxc: number, at: (i: number) => number): [number, number] {\n  if (width(ws, a, b) <= maxc || b - a < 2) return [b, 0];\n  let best: [number, number] = [b, Infinity];\n  let top = -1;\n  const all = width(ws, a, b);\n  for (let k = a + 1; k < b; k++) {\n    top += shown(String(ws[k - 1][0])).length + 1;\n    const bottom = all - top - 1;\n    const over = Math.max(0, top - maxc) + Math.max(0, bottom - maxc);\n    const c = Math.abs(top - bottom) * 0.35 + over * 6 + at(k - 1) + (top > bottom + 3 ? 1 : 0) + (Math.min(top, bottom) < 5 ? 3 : 0);\n    if (c < best[1]) best = [k, c];\n  }\n  return best;\n}\n\n// Divide one sentence into captions: [end index of each caption]. Every way of cutting it into the\n// fewest captions that fit, or one more, is scored: even lengths, natural cuts and folds, nothing too\n// short to read.\nfunction divide(ws: any[], a: number, b: number, maxc: number, fps: number): number[] {\n  const cap = maxc * 2 - 1;\n  const n = b - a;\n  const total = width(ws, a, b);\n  if (n < 2 || total <= maxc) return [b];\n  const cuts: number[] = [];\n  for (let i = a; i < b - 1; i++) cuts.push(joint(ws, i, fps));\n  const at = (i: number) => cuts[i - a];\n  const folds = new Map<number, number>();\n  const lines = (i: number, j: number) => {\n    const key = i * 100000 + j;\n    let v = folds.get(key);\n    if (v === undefined) {\n      v = fold(ws, i, j, maxc, at)[1];\n      folds.set(key, v);\n    }\n    return v;\n  };\n  // The fewest captions that can hold it, filling each as far as it goes.\n  let least = 0;\n  for (let i = a; i < b; least++) {\n    let j = i + 1;\n    while (j < b && width(ws, i, j + 1) <= cap) j++;\n    i = j;\n  }\n  let bestCost = Infinity;\n  let bestCuts: number[] = [b];\n  for (let k = least; k <= Math.min(n, least + 1); k++) {\n    const ideal = total / k;\n    // cost[p][j]: the first j words in p captions.\n    const cost: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(Infinity));\n    const from: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(-1));\n    cost[0][0] = 0;\n    for (let p = 1; p <= k; p++) {\n      for (let j = p; j <= n; j++) {\n        for (let i = j - 1; i >= p - 1; i--) {\n          const w = width(ws, a + i, a + j);\n          if (w > cap && j - i > 1) break;\n          if (cost[p - 1][i] === Infinity) continue;\n          const uneven = ((w - ideal) / ideal) ** 2 * 6;\n          // A caption on screen for well under a second cannot be read.\n          const seconds = ((j < n ? ws[a + j][1] : ws[b - 1][2] + 0.4 * fps) - ws[a + i][1]) / fps;\n          const stub = (w < 6 ? 8 : 0) + (seconds < 0.5 ? 12 : seconds < 0.8 ? 6 : 0);\n          const c = cost[p - 1][i] + uneven + stub + lines(a + i, a + j) + (j < n ? at(a + j - 1) : 0);\n          if (c < cost[p][j]) {\n            cost[p][j] = c;\n            from[p][j] = i;\n          }\n        }\n      }\n    }\n    // A further caption has to earn its place.\n    const c = cost[k][n] + k * 3;\n    if (c < bestCost) {\n      const ends: number[] = [];\n      for (let p = k, j = n; p > 0; p--) {\n        ends.unshift(a + j);\n        j = from[p][j];\n      }\n      bestCost = c;\n      bestCuts = ends;\n    }\n  }\n  return bestCuts;\n}\n\nfunction makeCues(words: any[], fps: number, maxc: number, total: number, fixes: any[]): [number, number, string][] {\n  const clean = (t: string) => t.replace(/[\"\u201c\u201d]/g, \"\");\n  const ws = words\n    .map((w: any) => [clean(String(w[0])), w[1], w[2], w[3], w[4] ?? null, w[5] ?? null])\n    .filter((w: any) => String(w[0]).trim().length > 0 && !FILLER.test(String(w[0]).trim()));\n  if (!ws.length) return [];\n  // A stumble said twice (\"\uc6b0\ud06c\ub77c\uc774\ub098\ub9cc \ub098\ub9cc\", \"\uadf8 \uadf8\") is shown once: a word that repeats the word just before\n  // it, or its ending, within half a second is left out of the captions (the cut itself keeps the speech).\n  const bare = (t: string) => t.replace(/[.,?!\u2026~]+$/, \"\");\n  for (let i = ws.length - 1; i > 0; i--) {\n    const cur = bare(String(ws[i][0])), prev = bare(String(ws[i - 1][0]));\n    const gap = (ws[i][1] - ws[i - 1][2]) / fps;\n    if (!cur || gap >= 0.5) continue;\n    if (cur === prev || (cur.length >= 2 && prev.length > cur.length && prev.endsWith(cur))) {\n      const mark = String(ws[i][0]).slice(cur.length);\n      if (mark && !/[.,?!\u2026~]$/.test(String(ws[i - 1][0]))) ws[i - 1][0] = String(ws[i - 1][0]) + mark;\n      ws[i - 1][2] = ws[i][2];\n      ws.splice(i, 1);\n    }\n  }\n  // Numbers in digits, including the first of a pair said together (\"\ud55c \uc721, \uce60\uc5b5\" -> \"\ud55c 6, 7\uc5b5\").\n  for (let i = 0; i < ws.length; i++) ws[i][0] = koDigits(String(ws[i][0]), i + 1 < ws.length ? String(ws[i + 1][0]) : null);\n  for (let i = 0; i + 1 < ws.length; i++) {\n    const pair = String(ws[i][0]).match(/^([\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]),$/);\n    if (pair && /^[0-9]/.test(String(ws[i + 1][0]))) ws[i][0] = String(koNumber(pair[1])) + \",\";\n  }\n  // 1. Sentences: a new one starts with another speaker, after a full stop, at a cut in the source, or\n  // after a long silence.\n  const starts: number[] = [0];\n  for (let i = 1; i < ws.length; i++) {\n    const prev = ws[i - 1];\n    const w = ws[i];\n    const silence = (w[1] - prev[2]) / fps;\n    const cutInSource = w[3] != null && prev[3] != null && Math.abs(w[3] - prev[3] - (w[1] - prev[1])) > fps * 3;\n    const otherSpeaker = w[4] != null && prev[4] != null && w[4] !== prev[4];\n    const otherUtterance = w[5] != null && prev[5] != null && w[5] !== prev[5] && SENTENCE_END.test(String(prev[0]));\n    if (otherSpeaker || otherUtterance || SENTENCE_END.test(String(prev[0])) || cutInSource || silence > 1.5) starts.push(i);\n  }\n  starts.push(ws.length);\n  // 2. Captions within each sentence.\n  const groups: [number, number][] = [];\n  for (let s = 0; s + 1 < starts.length; s++) {\n    let a = starts[s];\n    for (const b of divide(ws, a, starts[s + 1], maxc, fps)) {\n      groups.push([a, b]);\n      a = b;\n    }\n  }\n  // 3. A one-word reply (\"\uc608.\", \"Right.\") gets its own caption. Only when it would be gone before it can\n  // be read does it join the caption before it; it never joins the sentence that follows.\n  const merged: [number, number][] = [];\n  const replyAt = new Map<number, number>(); // caption start -> index where a joined reply begins\n  for (let g = 0; g < groups.length; g++) {\n    const [a, b] = groups[g];\n    const nextStart = g + 1 < groups.length ? ws[groups[g + 1][0]][1] : total;\n    const onScreen = (Math.min(nextStart, ws[b - 1][2] + Math.round(0.6 * fps)) - ws[a][1]) / fps;\n    const last = merged[merged.length - 1];\n    if (last && width(ws, a, b) <= 3 && onScreen < 0.35 && width(ws, last[0], b) <= maxc * 2 - 1 && (ws[a][1] - ws[last[1] - 1][2]) / fps < 0.8) {\n      if (!replyAt.has(last[0])) replyAt.set(last[0], a);\n      last[1] = b;\n      continue;\n    }\n    merged.push([a, b]);\n  }\n  // 4. Text and timing.\n  const out: [number, number, string][] = [];\n  for (let g = 0; g < merged.length; g++) {\n    const [a, b] = merged[g];\n    let piece: any[] = ws.slice(a, b);\n    let joined = piece.map((x: any) => String(x[0])).join(\" \");\n    for (const f of fixes || []) if (f && f.from) joined = joined.split(String(f.from)).join(String(f.to ?? \"\"));\n    const fixed = joined.split(\" \").filter((t: string) => shown(t).length > 0);\n    // Fold on the words as they will be shown; timing for pauses comes from the original words when the\n    // spelling fixes kept their number, otherwise from none.\n    const timed = fixed.length === piece.length ? fixed.map((t: string, i: number) => [t, piece[i][1], piece[i][2]]) : fixed.map((t: string) => [t, 0, 0]);\n    const reply = replyAt.get(a);\n    const own = reply !== undefined && fixed.length === piece.length && width(ws, a, reply) <= maxc ? reply - a : -1;\n    const k = own > 0 ? own : fold(timed, 0, timed.length, maxc, (i: number) => joint(timed, i, fps))[0];\n    const text = k >= timed.length ? fixed.map(shown).join(\" \") : fixed.slice(0, k).map(shown).join(\" \") + \"\\n\" + fixed.slice(k).map(shown).join(\" \");\n    const start = ws[a][1];\n    let end = g + 1 < merged.length ? ws[merged[g + 1][0]][1] : total;\n    if (g + 1 < merged.length && (ws[merged[g + 1][0]][1] - ws[b - 1][2]) / fps > 1.2) end = Math.min(end, ws[b - 1][2] + Math.round(0.6 * fps));\n    out.push([Math.round(start), Math.round(end), text]);\n  }\n  for (let i = 0; i < out.length - 1; i++) {\n    const g = out[i + 1][0] - out[i][1];\n    if (g > 0 && g < 8) out[i][1] = out[i + 1][0];\n  }\n  // 5. Every caption stays long enough to read: one that would flash by borrows the time from the\n  // silence after it, or from the start of a longer caption that follows.\n  const least = Math.round(0.6 * fps);\n  for (let i = 0; i < out.length; i++) {\n    const short = least - (out[i][1] - out[i][0]);\n    if (short <= 0) continue;\n    const next = out[i + 1];\n    if (!next) {\n      out[i][1] = Math.min(total, out[i][0] + least);\n      continue;\n    }\n    const silence = next[0] - out[i][1];\n    if (silence >= short) out[i][1] += short;\n    else if (next[1] - next[0] - (short - silence) >= Math.round(1.0 * fps)) {\n      out[i][1] += short;\n      next[0] = out[i][1];\n    } else out[i][1] = next[0];\n  }\n  if (out.length && out[0][0] < 10) out[0][0] = 0;\n  return out;\n}\n\n// Resource ids are Project-scoped aliases; listing the resources first makes a saved id valid in this\n// session, and the file name finds the same video again if the alias changed.\nasync function resolveResource(project: any, id: string, name: string): Promise<string> {\n  const rows = await project.resources();\n  const hit =\n    rows.find((r: any) => r.resourceId === id && (!name || r.name === name)) ||\n    (name ? rows.find((r: any) => r.name === name) : null) ||\n    rows.find((r: any) => r.resourceId === id);\n  if (!hit) throw new Error(\"The source video is no longer in this project.\");\n  return hit.resourceId;\n}\nconst project = selects.project(P.projectId);\nconst RID = await resolveResource(project, P.resourceId, P.resourceName || \"\");\nconst { meta: sm, words: sourceWords } = await readClipSource(project, RID);\nconst sfps = sm.fps;\nconst sws = sourceWords.filter((w: any) => !w.nonSpeech && String(w.text).trim().length > 0);\nconst W: number[][] = sws.map((w: any) => [w.startFrame / sfps, w.endFrame / sfps]);\nif (!W.length) throw new Error(\"The source has no transcript words. Analyze it first.\");\n\n// Snap each requested range to whole words without catching the neighbouring word.\nfunction snap(a: number, b: number): number[] {\n  let i = 0;\n  let j = 0;\n  let bi = Infinity;\n  let bj = Infinity;\n  for (let k = 0; k < W.length; k++) {\n    const da = Math.abs(W[k][0] - a);\n    if (da < bi) {\n      bi = da;\n      i = k;\n    }\n    const db = Math.abs(W[k][1] - b);\n    if (db < bj) {\n      bj = db;\n      j = k;\n    }\n  }\n  if (j < i) j = i;\n  const prevEnd = i > 0 ? W[i - 1][1] : 0;\n  const nextStart = j + 1 < W.length ? W[j + 1][0] : W[j][1] + 1;\n  const start = Math.max(prevEnd + 0.03, W[i][0] - 0.15, 0);\n  const end = Math.min(nextStart - 0.04, W[j][1] + 0.22, sm.durationSeconds);\n  return [Math.round(start * 1000) / 1000, Math.round(end * 1000) / 1000];\n}\n\nconst segs = (P.segments as number[][]).map((s) => snap(Number(s[0]), Number(s[1]))).filter((s) => s[1] - s[0] > 0.5);\nif (!segs.length) throw new Error(\"No usable source range for this clip.\");\n\nconst d = await project.createDraft({ name: P.name });\nfor (const s of segs) {\n  await d.insertResource({ resourceId: RID, sourceRange: { startSeconds: s[0], endSeconds: s[1] } });\n}\nif (P.removeFillers) {\n  const fill = (await d.words()).filter((w: any) => w.filler && w.filler.removable);\n  if (fill.length) await d.remove(fill.map((w: any) => w.span), { tracks: \"all\" });\n}\nif (P.removeSilences) {\n  const sil = await d.silenceSpans({ preset: \"normal\" });\n  const cut = sil.flatMap((x: any) => x.cutSpans);\n  if (cut.length) await d.remove(cut, { tracks: \"all\" });\n}\nawait d.setFrameSize({ width: 1080, height: 1920 });\nconst readV = async () =>\n  (await d.clips({ trackScope: \"all\" })).filter((c: any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nconst nV = (await readV()).length;\nfor (let k = 0; k < nV; k++) {\n  const c = (await readV())[k];\n  await d.setClipTransform({\n    clip: c,\n    scale: { x: P.transform.scale, y: P.transform.scale },\n    position: { x: P.transform.posX, y: P.transform.posY },\n  });\n}\n// Speaker reframing: each shot pans (and for side-by-side faces, widens) the window to the faces it follows. Shots are in source seconds; the\n// Draft's words map them onto its own frames, after fillers and pauses were cut.\nif (Array.isArray(P.reframe) && P.reframe.length) {\n  try {\n    const fitScale = P.transform.scale * (1080 / 1920);\n    const srcW = Number(sm.frameSize?.width) || 1920;\n    // A shot with a width w shows that many source pixels across the window (two people side by side),\n    // centred in the window; other shots keep the template's crop and pan only.\n    const FIT = 1080 / srcW;\n    const winMid = (Number(P.frame.windowTop) + Number(P.frame.windowBottom)) / 2;\n    const r4 = (x: number) => Math.round(x * 10000) / 10000;\n    const placeOf = (shot: any) => {\n      const sc = shot.w ? 1080 / shot.w : fitScale;\n      const inset = Number(P.reframeInset) || 0;\n      const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;\n      const x = r4((Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc)) / 1920) * 100);\n      if (!shot.w) return { scale: P.transform.scale, x, y: P.transform.posY };\n      if (!shot.cy) return { scale: r4(sc / FIT), x, y: r4((-(winMid - 960) / 1920) * 100) };\n      // A close-up puts the face faceY of the way down the window (headroom above it) and keeps the picture\n      // covering the whole window.\n      const top = Number(P.frame.windowTop), bottom = Number(P.frame.windowBottom), half = (1080 / 2) * sc * (Number(sm.frameSize?.height) || 1080) / 1080;\n      const faceY = Number(P.reframeFaceY) || 0.4;\n      const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - shot.cy) * sc));\n      return { scale: r4(sc / FIT), x, y: r4((-(yc - 960) / 1920) * 100) };\n    };\n    const key = (shot: any) => JSON.stringify(placeOf(shot));\n    const shotAt = (sec: number) =>\n      P.reframe.find((r: any) => sec >= r.start && sec < r.end) || (sec < P.reframe[0].start ? P.reframe[0] : P.reframe[P.reframe.length - 1]);\n    const ws = (await d.words()).filter((w: any) => !w.nonSpeech).map((w: any) => [w.startFrame, w.sourceStartFrame / sm.fps]);\n    for (let k = 1; k < ws.length; k++) {\n      if (key(shotAt(ws[k][1])) === key(shotAt(ws[k - 1][1]))) continue;\n      try {\n        await d.splitAt({ frame: ws[k][0] });\n      } catch (e) {\n        // Already a clip boundary.\n      }\n    }\n    const nM = (await d.clips({ trackScope: \"main\" })).length;\n    for (let k = 0; k < nM; k++) {\n      const mc = (await d.clips({ trackScope: \"main\" }))[k];\n      const w = ws.find((x: any) => x[0] >= mc.startFrame && x[0] < mc.endFrame);\n      if (!w) continue;\n      const pl = placeOf(shotAt(w[1]));\n      const vs = (await readV()).filter((c: any) => c.startFrame >= mc.startFrame && c.startFrame < mc.endFrame);\n      for (let v = 0; v < vs.length; v++) {\n        const c = (await readV()).filter((c2: any) => c2.startFrame >= mc.startFrame && c2.startFrame < mc.endFrame)[v];\n        await d.setClipTransform({ clip: c, scale: { x: pl.scale, y: pl.scale }, position: { x: pl.x, y: pl.y } });\n      }\n    }\n  } catch (e) {\n    // Reframing is optional: a clip keeps the fixed crop rather than failing.\n  }\n}\nconst mainClips = await d.clips({ trackScope: \"main\" });\nconst endFrame = mainClips.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);\nconst meta = await d.meta();\nawait d.addMotionGraphic({\n  label: \"Series frame and headline\",\n  tsxCode: FRAME_TSX,\n  parameters: P.frame,\n  editableParameters: P.editableFrame,\n  within: await d.rangeAtFrames(0, endFrame),\n});\n\n// Highlight phrases chosen with the passage are wrapped in *asterisks* for the caption graphic.\nconst markCue = (text: string) => {\n  const phrases = (Array.isArray(P.highlights) ? P.highlights : []).map((h: any) => String(h).trim()).filter((h: string) => h.length >= 2).sort((x: string, y: string) => y.length - x.length);\n  return text\n    .split(\"\\n\")\n    .map((line: string) => {\n      let out = line;\n      for (const h of phrases) {\n        const at = out.indexOf(h);\n        if (at < 0 || out.slice(0, at).split(\"*\").length % 2 === 0) continue;\n        out = out.slice(0, at) + \"*\" + h + \"*\" + out.slice(at + h.length);\n      }\n      return out;\n    })\n    .join(\"\\n\");\n};\n// The episode date is its own graphic, so its text and position can be changed in the Draft.\nif (P.dateLabel && String(P.dateLabel.text || \"\").trim()) {\n  await d.addMotionGraphic({\n    label: \"Date\",\n    tsxCode: DATE_TSX,\n    parameters: P.dateLabel,\n    editableParameters: P.editableDate,\n    within: await d.rangeAtFrames(0, endFrame),\n  });\n}\nlet cueCount = 0;\nif (P.captions && P.caption) {\n  const words = (await d.words())\n    .filter((w: any) => !w.nonSpeech)\n    .map((w: any) => [String(w.text), w.startFrame, w.endFrame, w.sourceStartFrame, w.speakerId ?? null, w.utteranceId ?? null]);\n  const cues = makeCues(words, meta.fps, P.lineMax, endFrame, P.fixes);\n  for (let k = 0; k < cues.length; k++) {\n    const a = cues[k][0];\n    const e = Math.min(cues[k][1], endFrame);\n    if (e <= a) continue;\n    await d.addMotionGraphic({\n      label: \"Caption \" + String(k + 1).padStart(2, \"0\"),\n      tsxCode: CAPTION_TSX,\n      parameters: { ...P.caption, text: markCue(cues[k][2]) },\n      editableParameters: P.editableCaption,\n      within: await d.rangeAtFrames(a, e),\n    });\n    cueCount++;\n  }\n}\nconst out: any = await d.commitAll(\"Shortform clip: \" + P.name);\nreturn { draftId: out.createdDraftId ?? null, seconds: Math.round((endFrame / meta.fps) * 10) / 10, captions: cueCount, segments: segs };\n";
+const RADIO_SCRIPT_BUILD: string = SCRIPT_SOURCE_READER + "// run_script body: build one series clip as an editable Draft from a template.\n// The clip parameters are injected at runtime; the frame and caption templates at build time.\nconst P: any = __P__;\nconst FRAME_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nfunction Logo(_props: any) { return null; }\\n\\nexport default function SeriesFrame({ data }) {\\n  const series = String(data?.series ?? 'newsdirect');\\n  const W = 1080, H = 1920;\\n  const top = Number(data?.windowTop ?? 420);\\n  const bottom = Number(data?.windowBottom ?? 1255);\\n  const bg = String(data?.background ?? '#1E1F22');\\n  const h1 = String(data?.headline1 ?? '');\\n  const h2 = String(data?.headline2 ?? '');\\n  const size1 = Number(data?.headlineSize1 ?? 84);\\n  const size2 = Number(data?.headlineSize2 ?? size1);\\n  const color1 = String(data?.headlineColor1 ?? '#FFFFFF');\\n  const color2 = String(data?.headlineColor2 ?? '#FFFFFF');\\n  const box2 = String(data?.headline2Box ?? '');\\n  const italic = Boolean(data?.headlineItalic ?? false);\\n  const headlineCenter = Number(data?.headlineCenter ?? top / 2 + 40);\\n  const captionBar = Number(data?.captionBarHeight ?? 0);\\n  const logoCenter = Number(data?.logoCenter ?? (bottom + captionBar + H) / 2);\\n  const border = Boolean(data?.goldBorder ?? false);\\n  const shadow = String(data?.headlineShadow ?? '0 4px 10px rgba(0,0,0,.55)');\\n  const strokeColor = String(data?.headlineStrokeColor ?? '');\\n  const strokeWidth = strokeColor ? Number(data?.headlineStrokeWidth ?? 12) : 0;\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const headFont = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const bgImage = String(data?.backgroundImage ?? '');\\n  const bgDim = Math.max(0, Math.min(90, Number(data?.backgroundDim ?? 0)));\\n  const borderColor = String(data?.borderColor ?? '#C9A45C');\\n  const logoMode = String(data?.logoMode ?? 'art');\\n  const logoImage = String(data?.logoImage ?? '');\\n  const logoWidth = Number(data?.logoWidth ?? 600);\\n  // A background image is one 1080x1920 picture shown only where the video window is not.\\n  const band = (y, h) =>\\n    bgImage ? (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, backgroundImage: `url(${bgImage})`, backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px` }}>\\n        {bgDim > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: h, background: `rgba(0,0,0,${bgDim / 100})` }} /> : null}\\n      </div>\\n    ) : (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, background: bg }} />\\n    );\\n  const est = (t) => Array.from(t).reduce((w, ch) => w + (/[\\\\uAC00-\\\\uD7A3\\\\u4E00-\\\\u9FFF]/.test(ch) ? 0.93 : ch === ' ' ? 0.27 : /[0-9A-Za-z%]/.test(ch) ? 0.6 : 0.4), 0);\\n  const fit = (t, size, maxW) => Math.min(size, Math.floor(maxW / Math.max(1, est(t)) - 2));\\n  const lineStyle = (size, color) => ({\\n    fontSize: size, fontWeight: 900, color, lineHeight: 1.16, letterSpacing: '-2px',\\n    fontStyle: italic ? 'italic' : 'normal', whiteSpace: 'nowrap', textShadow: shadow,\\n    WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : `${Math.max(1, Math.round(size * 0.035))}px ${color}`, paintOrder: 'stroke fill',\\n  });\\n  const s1 = fit(h1, size1, 1010);\\n  const s2 = fit(h2, size2, box2 ? 970 : 1010);\\n  const grad1 = String(data?.headlineGradient1 ?? '');\\n  const grad2 = String(data?.headlineGradient2 ?? '');\\n  // Text with an optional gradient fill: the outline and shadow are drawn by a copy underneath, because a\\n  // gradient clipped to the glyphs cannot carry a stroke of its own.\\n  const Deco = ({ text, style, grad, stroke, strokeW, shadowCss }) =>\\n    grad ? (\\n      <div style={{ position: 'relative', ...style }}>\\n        <div style={{ position: 'absolute', left: 0, top: 0, right: 0, color: stroke || 'transparent', WebkitTextStroke: strokeW > 0 ? `${strokeW}px ${stroke}` : '0px transparent', paintOrder: 'stroke fill', textShadow: shadowCss }}>{text}</div>\\n        <div style={{ position: 'relative', background: grad, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' }}>{text}</div>\\n      </div>\\n    ) : (\\n      <div style={{ ...style, WebkitTextStroke: strokeW > 0 ? `${strokeW}px ${stroke}` : style.WebkitTextStroke, paintOrder: 'stroke fill', textShadow: shadowCss }}>{text}</div>\\n    );\\n  const Line = ({ text, size, color, grad }) =>\\n    grad ? (\\n      <Deco text={text} style={{ ...lineStyle(size, color), WebkitTextStroke: undefined, textShadow: undefined }} grad={grad} stroke={strokeWidth > 0 ? strokeColor : color} strokeW={strokeWidth} shadowCss={shadow} />\\n    ) : (\\n      <div style={lineStyle(size, color)}>{text}</div>\\n    );\\n  const label = (key) => {\\n    const text = String(data?.[key] ?? '');\\n    if (!text) return null;\\n    const size = Number(data?.[key + 'Size'] ?? 40);\\n    const cx = Number(data?.[key + 'X'] ?? W / 2);\\n    const y = Number(data?.[key + 'Y'] ?? 100);\\n    const style = { fontSize: size, fontWeight: Number(data?.[key + 'Weight'] ?? 800), color: String(data?.[key + 'Color'] ?? '#FFFFFF'), lineHeight: 1.16, letterSpacing: '-1px', whiteSpace: 'nowrap', fontFamily: headFont };\\n    const sw = Number(data?.[key + 'StrokeWidth'] ?? 0);\\n    return (\\n      <div key={key} style={{ position: 'absolute', left: cx - 540, width: 1080, top: y, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        <Deco text={text} style={style} grad={String(data?.[key + 'Gradient'] ?? '')} stroke={String(data?.[key + 'StrokeColor'] ?? '#000000')} strokeW={sw} shadowCss={String(data?.[key + 'Shadow'] ?? 'none')} />\\n      </div>\\n    );\\n  };\\n  return (\\n    <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: H, fontFamily: FONT, pointerEvents: 'none' }}>\\n      {band(0, top)}\\n      {band(bottom, H - bottom)}\\n      {captionBar > 0 ? <div style={{ position: 'absolute', left: 0, top: bottom, width: W, height: captionBar, background: '#000000' }} /> : null}\\n      {border ? (\\n        <>\\n          <div style={{ position: 'absolute', left: 22, top: 22, width: W - 44, height: top - 22, borderTop: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n          <div style={{ position: 'absolute', left: 22, top: bottom, width: W - 44, height: H - bottom - 22, borderBottom: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n        </>\\n      ) : null}\\n      <div style={{ position: 'absolute', left: 30, width: W - 60, top: headlineCenter, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: box2 ? 14 : Number(data?.headlineGap ?? 2), textAlign: 'center', fontFamily: headFont }}>\\n        {h1 ? <Line text={h1} size={s1} color={color1} grad={grad1} /> : null}\\n        {h2 ? (\\n          box2 ? (\\n            <div style={{ ...lineStyle(s2, color2), textShadow: 'none', background: box2, padding: '4px 18px 8px' }}>{h2}</div>\\n          ) : (\\n            <Line text={h2} size={s2} color={color2} grad={grad2} />\\n          )\\n        ) : null}\\n      </div>\\n      {label('topLabel')}\\n      {label('footer')}\\n      <div style={{ position: 'absolute', left: 0, width: W, top: logoCenter, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        {logoMode === 'none' ? null : logoMode === 'image' && logoImage ? (\\n          <img src={logoImage} style={{ width: logoWidth, height: 'auto', display: 'block' }} />\\n        ) : (\\n          <Logo series={series} />\\n        )}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst DATE_TSX: string = \"import React from 'react';\\n\\n// One line of text centred on (x, y): the episode date under the logo.\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function DateLabel({ data }) {\\n  const d = data || {};\\n  const text = String(d.text ?? '');\\n  if (!text) return null;\\n  const family = typeof d.fontFamily === 'string' ? d.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const sw = Number(d.strokeWidth ?? 0);\\n  return (\\n    <div style={{ position: 'absolute', left: Number(d.x ?? 540) - 540, width: 1080, top: Number(d.y ?? 1564), transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>\\n      <div\\n        style={{\\n          fontFamily: font, fontSize: Number(d.fontSize ?? 55), fontWeight: Number(d.fontWeight ?? 900), color: String(d.textColor ?? '#0C6E62'),\\n          lineHeight: 1.16, letterSpacing: '-1px', whiteSpace: 'nowrap', textShadow: String(d.shadow ?? 'none'),\\n          ...(sw > 0 ? { WebkitTextStroke: `${sw}px ${String(d.strokeColor ?? '#000000')}`, paintOrder: 'stroke fill' } : {}),\\n        }}\\n      >\\n        {text}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst CAPTION_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function ClipCaption({ data }) {\\n  const lines = String(data?.text ?? '').split('\\\\n');\\n  const mode = String(data?.mode ?? 'bar');\\n  const size = Number(data?.fontSize ?? 66);\\n  const weight = Number(data?.fontWeight ?? 600);\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const color = String(data?.textColor ?? '#FFFFFF');\\n  const mark = String(data?.highlightColor ?? '');\\n  // *word* is a highlighted word; without a highlight colour the asterisks are simply dropped.\\n  const rich = (line) =>\\n    line.split(/(\\\\*[^*]+\\\\*)/).map((part, j) =>\\n      /^\\\\*[^*]+\\\\*$/.test(part) ? <span key={j} style={mark ? { color: mark } : undefined}>{part.slice(1, -1)}</span> : part.replace(/\\\\*/g, '')\\n    );\\n  if (mode === 'bar') {\\n    const top = Number(data?.top ?? 1255);\\n    const height = Number(data?.height ?? 230);\\n    return (\\n      <div style={{ position: 'absolute', left: 40, width: 1000, top, height, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: font, pointerEvents: 'none' }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.28, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{rich(line)}</div>\\n        ))}\\n      </div>\\n    );\\n  }\\n  const bottom = Number(data?.bottom ?? 1440);\\n  const box = String(data?.boxColor ?? 'rgba(0,0,0,0.62)');\\n  return (\\n    <div style={{ position: 'absolute', left: 40, width: 1000, top: 0, height: bottom, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', fontFamily: font, pointerEvents: 'none' }}>\\n      <div style={{ background: box, padding: '10px 26px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: 4 }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.3, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{rich(line)}</div>\\n        ))}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\n\n// ---- Captions: one caption per thought ----\n// A caption ends where the speaker's sentence ends or another speaker starts, never in the middle of one.\n// A sentence too long for two lines is divided where a listener would pause (a comma, a breath, the end\n// of a clause), in pieces of similar length, and never between words that belong together (\"\uac08 \uc218 /\n// \uc788\uc744\uae4c\", \"\uadf8 / \uac00\uc218\", \"the / house\"). Each word is [text, startFrame, endFrame, sourceStartFrame,\n// speakerId, utteranceId].\n// Sounds a speaker makes while thinking; they are not captioned.\nconst FILLER = /^(\uc5b4|\uc74c|\uc544|\uc5d0|\uc73c|\ud760|uh|um|er|ah|hmm)[.,\u2026~]*$/i;\n// A word that leans on the next one: breaking after it leaves it stranded.\nconst LEANS_FORWARD =\n  /^(\uadf8|\uc774|\uc800|\ud55c|\ub450|\uc138|\ub124|\uba87|\uc5b4\ub5a4|\ubb34\uc2a8|\uc5b4\ub290|\uc774\ub7f0|\uadf8\ub7f0|\uc800\ub7f0|\ubaa8\ub4e0|\uac01|\uc0c8|\uccab|\ub2e4\ub978|\uc5ec\ub7ec|\uc57d|\ub354|\ub35c|\uac00\uc7a5|\uc81c\uc77c|\ub108\ubb34|\uc544\uc8fc|\ub9e4\uc6b0|\uc815\ub9d0|\uc9c4\uc9dc|\ucc38|\uc880|\uc798|\ubabb|\uc548|\uaf2d|\ub2e4\uc2dc|\uacc4\uc18d|\uac70\uc758|\uc774\ubbf8|\uc544\uc9c1|\ubc14\ub85c|\uadf8\ub0e5|\uadf8\ub9ac\uace0|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7f0\ub370|\uadfc\ub370|\uadf8\ub7ec\ub2c8\uae4c|\uadf8\ub7fc|\ud558\uc9c0\ub9cc|\uadf8\ub807\uc9c0\ub9cc|\uadf8\ub7ec\ub098|\ub610|\ub610\ub294|\ud639\uc740|\uc989|\uc65c\ub0d0\ud558\uba74|\uc608\ub97c|\ub9cc\uc57d|\uc5b4\ub5bb\uac8c|\uc774\ub807\uac8c|\uadf8\ub807\uac8c|\uc800\ub807\uac8c|\uc65c|\uc5bc\ub9c8\ub098|\ub9ce\uc774|\ube68\ub9ac|\uba3c\uc800|\ub2e4\uc74c|a|an|the|to|of|in|on|at|for|with|by|from|about|into|over|under|after|before|between|through|during|without|and|or|but|so|which|who|is|are|was|were|be|i|he|she|we|they|my|your|his|her|our|their|this|these|those|very|not|as|if|than)$/i;\n// A word that leans on the one before it: breaking before it cuts a phrase in two (\"\uac08 \uc218\", \"\ud560 \ub54c\ub3c4\",\n// \"\uc788\ub294 \uac78\ub85c\", \"\ubc15\uc9c4\uc601 \uc528\", \"\uc5d0\ub3c4 \ubd88\uad6c\ud558\uace0\"). These are dependent nouns with at most a particle after them;\n// an ordinary noun that merely starts the same way (\"\uc218\uc0c1\uc790\uac00\", \"\uac70\ub9ac\") does not match.\nconst PARTICLE =\n  \"(?:\uc774|\uac00|\uc740|\ub294|\uc744|\ub97c|\ub3c4|\ub9cc|\uc5d0|\uc758|\ub85c|\uc640|\uacfc|\uc73c\ub85c|\uc5d0\uc11c|\uc5d0\uac8c|\ud55c\ud14c|\uae4c\uc9c0|\ubd80\ud130|\ub9c8\ub2e4|\ucc98\ub7fc|\uc774\ub098|\ub77c\ub3c4|\ubc16\uc5d0|\uae4c\uc9c0\ub294|\uc5d0\ub294|\uc5d0\ub3c4|\ub85c\ub294|\ub85c\ub3c4|\uc5d0\uc11c\ub294|\uc774\ub791|\ub791|\ub791\uc740|\uc774\ub77c\uace0|\ub77c\uace0|\uc774\ub77c|\uc57c|\uc694|\uc8e0|\uc608\uc694|\uc774\uc5d0\uc694|\uc785\ub2c8\ub2e4|\uc774\ub2e4|\uc778\ub370|\uc774\uace0|\uc774\uc9c0|\uc774\uc8e0|\ub4e0|\ub098|\ub4e4)?\";\nconst LEANS_BACK = new RegExp(\n  \"^(?:(?:\uc218|\uac83|\uc904|\ub54c|\uc801|\ub370|\ubc14|\ubfd0|\ub4ef|\uc911|\ub4f1|\ub3d9\uc548|\uc815\ub3c4|\ub54c\ubb38|\ub9cc\ud07c|\uc528|\ub2d8|\uce21|\ucabd)\" +\n    PARTICLE +\n    \"|(?:\uc7a5\uad00|\ucc28\uad00|\uc758\uc6d0|\ub300\ud45c|\uc704\uc6d0\uc7a5|\uc704\uc6d0|\ud68c\uc7a5|\uc0ac\uc7a5|\uc758\uc7a5|\ub300\ud1b5\ub839|\ucd1d\ub9ac|\uad50\uc218|\ubc15\uc0ac|\uae30\uc790|\uac10\ub3c5|\uc120\uc218|\uc791\uac00|\ud300\uc7a5|\uc2e4\uc7a5|\ubd80\uc7a5|\uacfc\uc7a5|\uc774\uc0ac|\ud6c4\ubcf4|\ubcc0\ud638\uc0ac|\uac80\uc0ac|\ud310\uc0ac|\uc575\ucee4)\ub2d8?\" +\n    PARTICLE +\n    \"|(?:\uac70|\uac8c|\uac74|\uac78)(?:\uc608\uc694|\uc5d0\uc694|\uc8e0|\uc57c|\uc9c0|\uace0|\ub4e0\uc694|\ub77c|\ub77c\uace0|\ub77c\uc11c|\ub2c8\uae4c|\uc796\uc544\uc694|\ub2e4|\ub294|\ub97c|\ub85c|\ub3c4|\ub098|\ub4e0|\ub791|\uac00|\uba74)?|\uac81\ub2c8\ub2e4|\uac19\uc740|\uac19\uc774|\ucc98\ub7fc|\ubcf4\ub2e4|\ub300\ub85c|\ub9c8\ub2e4|\ubc16\uc5d0|\ubd88\uad6c\ud558\uace0|\ubabb[\uac00-\ud7a3]+|\uc544\ub2c8[\uac00-\ud7a3]+\" +\n    \"|(?:\ud558|\ud574|\ud588|\ud560|\ud55c\ub2e4|\ud569|\ub418|\ub3fc|\ub410|\ub420|\ub41c\ub2e4|\ub429)[\uac00-\ud7a3]{0,4})[.,?!]*$\"\n);\nconst NOT_A_VERB = /^(\ud558\ub098|\ud558\ub298|\ud558\ub8e8|\ud558\ubc18\uae30|\ud558\ub77d|\ud558\uc704|\ud574\uc678|\ud574\uacb0|\ud574\uc11d|\ud574\ub2f9|\ud574\uccb4|\ud574\uba85|\ud574\uc9c0|\ud574\uc124|\ud574\ub2f5|\ud560\uba38\ub2c8|\ud560\uc544\ubc84\uc9c0|\ud560\uc778|\ud569\uc758|\ud569\uaca9|\ud569\uacc4|\ud569\ub958|\ud569\uc791|\ub418\ub808)/;\n// A unit that follows a number (\"200\ub9cc \uc6d0\", \"4\uac1c\uc0ac\").\nconst COUNTER = /^(\uc6d0|\uba85|\uac1c|\ubc88|\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uc0b4|\uc5b5|\ub9cc|\ucc9c|\ubc31|\ubc30|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc704|\ucc28|\ud68c|\ub300|\uacf3|\uac00\uc9c0|\uac1c\uc0ac|\uac1c\uc6d4|\uc2dc\uac04|\uc8fc|\uc8fc\uc77c)[\uac00-\ud7a3]{0,2}[.,?!]*$/;\n// A word describing the next one (\"\uace0\ubc1c\ub420 \ud655\ub960\", \"\ub2f9\uc5f0\ud55c \uc758\uc2ec\", \"\ud558\uace0 \uc2f6\uc740 \ub9c8\uc74c\").\nconst DESCRIBES_NEXT = /(\ud558\ub294|\ub418\ub294|\uc788\ub294|\uc5c6\ub294|\ub77c\ub294|\ub2e4\ub294|\uc54a\ub294|\uac19\uc740|\uc2f6\uc740|\ub9ce\uc740|\uc88b\uc740|\ub192\uc740|\uc791\uc740|\ud070|\ub41c|\ub358|\uc788\uc744|\uc5c6\uc744|\ubc1b\uc744|\uac19\uc744|[\uac00-\ud7a3]\ud55c|[\ud560\ub420\uac08\uc62c\ubcfc\uc4f8\ub0bc\ube84\uafc0\ud0ac\ub9b4\ub084])$/;\n// Korean words normally end in a particle or an ending; one that does not is usually the first half of a\n// compound or an adverb, and belongs with what follows (\"\ubb38\uccb4\ubd80 \uc7a5\uad00\", \"\ud68c\uc0ac \uc77c\", \"\ub300\uad00 \ubd80\uc11c\").\nconst MARKED_END = /[\uc740\ub294\uc774\uac00\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\uc11c\uace0\uc694\ub2e4\uc8e0\uae4c\ub124\ub098\uba70\uba74\uc9c0\uac8c\ub370\uc57c\ub77c\uc790\ub2c8\uaed8\ub791\ub4e0\uc529\uc74c\uc784\uc5b4\uc544\ud574\ub3fc\ub798\ub300\uac78\uac74\uc918\ubd10\uc6cc\uc838\uc5ec]$/;\nconst HANGUL = /[\uac00-\ud7a3]/;\nconst NUMBER_WORD = /^([0-9]+|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+|\ud55c|\ub450|\uc138|\ub124|\ub2e4\uc12f|\uc5ec\uc12f|\uc77c\uacf1|\uc5ec\ub35f|\uc544\ud649|\uc5f4)$/;\nconst STARTS_NUMBER = /^([0-9]|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]|\ud55c |\ub450 |\uc138 |\ub124 )/;\n// The end of a clause in Korean, or a comma: a natural place to stop.\nconst CLAUSE_END = /(\uace0|\uba70|\uc11c|\uba74|\ub294\ub370|\uc740\ub370|\uc778\ub370|\ub2c8\uae4c|\uc9c0\ub9cc|\ub2e4\uac00|\uba74\uc11c|\ub824\uace0|\ub3c4\ub85d|\uac70\ub098|\ub354\ub2c8|\ub2e4\uba74|\ub77c\uba74)[,]?$/;\n// \"\uc788\ub2e4 / \uc5c6\ub2e4 / \uc54a\ub2e4 / \uc2f6\ub2e4\" finish a verb phrase (\"\uac08 \uc218 \uc788\uc744\uae4c\", \"\uc27d\uc9c0 \uc54a\uc796\uc544\uc694\", \"\ud558\uace0 \uc2f6\uc740\"); after a\n// plain subject (\"\ud655\ub960 \uc788\ub294\") they pull much less.\nconst FINISHES_VERB = /^(\uc788|\uc5c6|\uc54a|\uc2f6)[\uac00-\ud7a3]*[.,?!]*$/;\nconst OPENS_VERB = /((\uc218|\uc904|\uc801|\ub9ac|\ud544\uc694)(\uac00|\ub294|\uc740|\ub3c4|\ub97c|\uc774)?|\uace0|\uc9c0|\uc5b4|\uc544|\uac8c|\ud574|\uc57c|\uc11c|\ub3c4)$/;\n// A word a new clause opens with: breaking before it is natural (\"\uc544\ud2f0\uc2a4\ud2b8 / \ud639\uc740 \ud68c\uc0ac\ub4e4\uc744\").\nconst OPENS_CLAUSE = /^(\ud639\uc740|\ub610\ub294|\uadf8\ub9ac\uace0|\ubc0f|\uadfc\ub370|\uadf8\ub7f0\ub370|\ud558\uc9c0\ub9cc|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7ec\ub2c8\uae4c|\uc65c\ub0d0\ud558\uba74|and|or|but|so|because|we|they|i|he|she|which|who|when|where|while|if|although|though|then)$/i;\nconst SENTENCE_END = /[.?!\u3002\uff1f\uff01\u2026][\"'\u201d\u2019)]?$/;\n\n// Numbers said in Korean are shown in digits when a unit follows: \"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\" -> \"11\uac1c\uc6d4\uc9f8\",\n// \"\uc774\ucc9c\uc0bc\ub144\ub3c4\uc600\uc5b4\uc694\" -> \"2003\ub144\ub3c4\uc600\uc5b4\uc694\", \"\uce60\uc5b5\uc774\" -> \"7\uc5b5\uc774\". A numeral with no unit, or one that is also an\n// everyday word (\"\uc774\ubc88\", \"\uc2ed\ubd84\", \"\uc0ac\ud68c\", \"\uc624\ucc28\", \"\uc774\ucc9c\uc2dc\"), stays as it was said.\nconst KO_ONES: any = { \uc77c: 1, \uc774: 2, \uc0bc: 3, \uc0ac: 4, \uc624: 5, \uc721: 6, \uce60: 7, \ud314: 8, \uad6c: 9 };\nconst KO_PLACES: any = { \uc2ed: 10, \ubc31: 100, \ucc9c: 1000 };\nconst KO_NUMERAL = /^[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+/;\nconst UNIT_LONG = /^(\uac1c\uc6d4|\ub144\ub3c4|\ub144\ub300|\ub144\uac04|\ub144\uc9f8|\ub144\uc0dd|\ub144\ucc28|\uc8fc\uc77c|\uc8fc\ub144|\uc8fc\uac04|\uc2dc\uac04|\ubd84\uac04|\ucd08\uac04|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc720\ub85c|\ud0ac\ub85c|\ubbf8\ud130|\uc13c\ud2f0|\uadf8\ub7a8|\ub9ac\ud130|\ud559\ub144|\uc138\uae30|\ubd84\uae30|\uc778\ubd84|\uac1c\uad6d|\uac1c\uc0ac|\uac1c\ub144|\ud68c\ucc28|\ub4f1\uae09|\ub2e8\uacc4|\uc138\ub300)/;\nconst UNIT_SHORT = /^(\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uba85|\uac1c|\ubc88|\uc6d0|\uc704|\ub4f1|\ucc28|\ud68c|\uce35|\ud638|\ub300|\uc138|\uc778|\ubc30|\ud3b8|\uace1|\uc7a5|\uad8c|\ud300|\uc2b9|\ud328|\uace8|\uc810|\ud3c9|\uac74|\ud45c|\uc8fc|\uc0b4)/;\n// One-syllable numerals joined to a one-syllable unit are mostly other words (\"\uc774\ubc88\", \"\uc0ac\ud68c\", \"\uc624\ucc28\",\n// \"\uc77c\uba85\"); only these are numbers for certain.\nconst SURE_SHORT = /^([\uc77c\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\ub144|[\uc77c\uc0bc\uc0ac\uc624\uce60\ud314\uad6c]\uc6d4|[\uc77c\uc774\uc0bc]\ucc28|[\uc77c\uc774\uc0bc]\ub4f1|[\uc77c\uc774]\uc704|\uc2ed\ub300|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\uce35|[\uc77c\uc0bc\uc624\uc2ed]\ucd08)/;\nconst MONTH_WORD: any = { \uc720\uc6d4: \"6\uc6d4\", \uc2dc\uc6d4: \"10\uc6d4\" };\n\nfunction koNumber(run: string): number | null {\n  let total = 0;\n  let group = 0;\n  let ones = 0;\n  let place = 10000;\n  let big = Infinity;\n  for (const ch of run) {\n    if (KO_ONES[ch]) {\n      if (ones) return null; // two digits in a row: \"\uc0bc\uc0ac\", \"\uc774\uc77c\"\n      ones = KO_ONES[ch];\n    } else if (KO_PLACES[ch]) {\n      if (KO_PLACES[ch] >= place) return null;\n      place = KO_PLACES[ch];\n      group += (ones || 1) * place;\n      ones = 0;\n    } else {\n      const unit = ch === \"\uc5b5\" ? 1e8 : 1e4;\n      if (unit >= big) return null;\n      big = unit;\n      total += (group + ones || 1) * unit;\n      group = 0;\n      ones = 0;\n      place = 10000;\n    }\n  }\n  return total + group + ones;\n}\n// 2003 -> \"2003\", 700000000 -> \"7\uc5b5\", 40000000 -> \"4\ucc9c\ub9cc\", 35000000 -> \"3500\ub9cc\".\nfunction koShown(n: number): string {\n  if (n < 10000) return String(n);\n  const part = (v: number, unit: string) => (v ? (v >= 1000 && v % 1000 === 0 ? v / 1000 + \"\ucc9c\" : String(v)) + unit : \"\");\n  const rest = n % 10000;\n  return part(Math.floor(n / 1e8), \"\uc5b5\") + part(Math.floor((n % 1e8) / 1e4), \"\ub9cc\") + (rest ? String(rest) : \"\");\n}\n// A unit ends the number only when the word stops there or goes on with a particle or an ending; \"\ud504\ub85c\" in\n// \"\ud504\ub85c\uc81d\ud2b8\" and \"\uc138\ub300\" in \"\uc138\ub300\uc8fc\" are other words.\nconst AFTER_UNIT = /^([\uc774\uac00\uc740\ub294\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\ub098\ubd80\uae4c\uc11c\ubc16\ub9c8\uc9f8\uac04\ucbe4\uc529\uc9dc\uc5ec\uc600\uc785\uc608\uc778\ub3d9\uc804\ud6c4\ub4a4\uc815\uc548\ub54c\uc0dd][\uac00-\ud7a3]*)?[.,?!]*$/;\nconst unitIn = (units: RegExp, text: string): string | null => {\n  const m = units.exec(text);\n  return m && AFTER_UNIT.test(text.slice(m[1].length)) ? m[1] : null;\n};\n// What may follow a number of this size: a clock has 24 hours and a year 12 months (\"\uc774\ucc9c\uc2dc\" is a city).\nconst fitsUnit = (unit: string, n: number) => (unit === \"\uc2dc\" ? n <= 24 : unit === \"\uc6d4\" ? n <= 12 : true);\n\nfunction koDigits(word: string, next: string | null): string {\n  for (const m of Object.keys(MONTH_WORD)) if (word.startsWith(m) && !/^[\uac00-\ud7a3]{2,}/.test(word.slice(m.length).replace(/^(\uc5d0|\uc740|\ub294|\uc774|\uac00|\ub3c4|\ubd80\ud130|\uae4c\uc9c0|\ub2ec|\uc758|\uc5d0\ub294|\uc5d0\ub3c4)/, \"\"))) return MONTH_WORD[m] + word.slice(m.length);\n  const found = word.match(KO_NUMERAL);\n  if (!found) return word;\n  for (let len = found[0].length; len >= 1; len--) {\n    const run = found[0].slice(0, len);\n    const n = koNumber(run);\n    if (!n) continue;\n    const rest = word.slice(len);\n    const alone = /^[.,?!]*$/.test(rest);\n    // The unit is in this word (\"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\"), or it is the next word (\"\uc774\uc2ed \uba85\").\n    const after = alone ? String(next || \"\") : rest;\n    const short = unitIn(UNIT_SHORT, after);\n    let ok = false;\n    if (unitIn(UNIT_LONG, after)) ok = run !== \"\uc774\" || !alone;\n    else if (short && fitsUnit(short, n)) ok = run.length >= 2 ? !/^[\uc5b5\ub9cc]$/.test(run.slice(-1)) || /^(\uc6d0|\uba85|\uac1c|\ub144|\ud3c9|\ub300|\uc7a5|\uac74|\ud45c|\ubc30)$/.test(short) : alone ? run !== \"\uc774\" && run !== \"\ub9cc\" && run !== \"\uc5b5\" : SURE_SHORT.test(run + after);\n    else if (!alone && run.length >= 2 && /\uc5b5$/.test(run) && n >= 1e8) ok = !/^[\uac00-\ud7a3]{3,}/.test(rest); // \"\uce60\uc5b5\uc774\", \"\uc2ed\uc5b5\uc744\"\n    if (ok && alone && !rest && /^,/.test(after)) ok = false;\n    if (ok) return koShown(n) + rest;\n  }\n  return word;\n}\n\nconst shown = (t: string) => t.replace(/\\./g, \"\");\nconst width = (ws: any[], a: number, b: number) => {\n  let n = b - a - 1;\n  for (let i = a; i < b; i++) n += shown(String(ws[i][0])).length;\n  return Math.max(0, n);\n};\n\n// How bad it is to break between word i and word i + 1 (lower is better).\nfunction joint(ws: any[], i: number, fps: number): number {\n  const cur = String(ws[i][0]);\n  const next = String(ws[i + 1][0]);\n  const bare = cur.replace(/[.,?!]+$/, \"\");\n  const stop = (k: number) => {\n    const w = String(ws[k][0]);\n    const b = w.replace(/[.,?!]+$/, \"\");\n    return /,$/.test(w) || (CLAUSE_END.test(w) && !LEANS_FORWARD.test(b)) || (ws[k + 1][1] - ws[k][2]) / fps >= 0.5;\n  };\n  let s = 0;\n  const predicate = FINISHES_VERB.test(next) && !LEANS_BACK.test(next);\n  if (OPENS_CLAUSE.test(next.replace(/[.,?!]+$/, \"\"))) s -= 2;\n  else if (LEANS_FORWARD.test(bare)) s += 8;\n  else if (cur === bare && HANGUL.test(next) && !predicate) {\n    if (DESCRIBES_NEXT.test(bare)) s += 4;\n    else if (!MARKED_END.test(bare)) s += 3.5;\n  }\n  if (LEANS_BACK.test(next) && !NOT_A_VERB.test(next)) s += 6;\n  else if (predicate) s += OPENS_VERB.test(bare) ? 6 : 3;\n  if (/[0-9]/.test(bare) && (COUNTER.test(next) || /[0-9%]$/.test(bare))) s += 6;\n  const pause = (ws[i + 1][1] - ws[i][2]) / fps;\n  if (pause >= 0.3) s -= 2 + Math.min(2, pause);\n  if (NUMBER_WORD.test(bare) && STARTS_NUMBER.test(next + \" \")) s += 8;\n  else if (/,$/.test(cur)) s -= 3;\n  else if (CLAUSE_END.test(cur) && !LEANS_FORWARD.test(bare)) s -= 3;\n  // One word past a natural stop (\"\ucd94\uc9c4\ud558\ub294\ub370 \ucc98\uc74c\uc5d0\ub294 / \uc6b0\ub9ac\") strands the word that opens the next clause.\n  if (i >= 1 && !stop(i) && stop(i - 1)) s += 3;\n  return s;\n}\n\n// The best place to fold words [a, b) into two lines: [index of the first word of line two, cost]. One\n// line when it fits. `at(i)` is the cost of breaking after word i.\nfunction fold(ws: any[], a: number, b: number, maxc: number, at: (i: number) => number): [number, number] {\n  if (width(ws, a, b) <= maxc || b - a < 2) return [b, 0];\n  let best: [number, number] = [b, Infinity];\n  let top = -1;\n  const all = width(ws, a, b);\n  for (let k = a + 1; k < b; k++) {\n    top += shown(String(ws[k - 1][0])).length + 1;\n    const bottom = all - top - 1;\n    const over = Math.max(0, top - maxc) + Math.max(0, bottom - maxc);\n    const c = Math.abs(top - bottom) * 0.35 + over * 6 + at(k - 1) + (top > bottom + 3 ? 1 : 0) + (Math.min(top, bottom) < 5 ? 3 : 0);\n    if (c < best[1]) best = [k, c];\n  }\n  return best;\n}\n\n// Divide one sentence into captions: [end index of each caption]. Every way of cutting it into the\n// fewest captions that fit, or one more, is scored: even lengths, natural cuts and folds, nothing too\n// short to read.\nfunction divide(ws: any[], a: number, b: number, maxc: number, fps: number): number[] {\n  const cap = maxc * 2 - 1;\n  const n = b - a;\n  const total = width(ws, a, b);\n  if (n < 2 || total <= maxc) return [b];\n  const cuts: number[] = [];\n  for (let i = a; i < b - 1; i++) cuts.push(joint(ws, i, fps));\n  const at = (i: number) => cuts[i - a];\n  const folds = new Map<number, number>();\n  const lines = (i: number, j: number) => {\n    const key = i * 100000 + j;\n    let v = folds.get(key);\n    if (v === undefined) {\n      v = fold(ws, i, j, maxc, at)[1];\n      folds.set(key, v);\n    }\n    return v;\n  };\n  // The fewest captions that can hold it, filling each as far as it goes.\n  let least = 0;\n  for (let i = a; i < b; least++) {\n    let j = i + 1;\n    while (j < b && width(ws, i, j + 1) <= cap) j++;\n    i = j;\n  }\n  let bestCost = Infinity;\n  let bestCuts: number[] = [b];\n  for (let k = least; k <= Math.min(n, least + 1); k++) {\n    const ideal = total / k;\n    // cost[p][j]: the first j words in p captions.\n    const cost: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(Infinity));\n    const from: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(-1));\n    cost[0][0] = 0;\n    for (let p = 1; p <= k; p++) {\n      for (let j = p; j <= n; j++) {\n        for (let i = j - 1; i >= p - 1; i--) {\n          const w = width(ws, a + i, a + j);\n          if (w > cap && j - i > 1) break;\n          if (cost[p - 1][i] === Infinity) continue;\n          const uneven = ((w - ideal) / ideal) ** 2 * 6;\n          // A caption on screen for well under a second cannot be read.\n          const seconds = ((j < n ? ws[a + j][1] : ws[b - 1][2] + 0.4 * fps) - ws[a + i][1]) / fps;\n          const stub = (w < 6 ? 8 : 0) + (seconds < 0.5 ? 12 : seconds < 0.8 ? 6 : 0);\n          const c = cost[p - 1][i] + uneven + stub + lines(a + i, a + j) + (j < n ? at(a + j - 1) : 0);\n          if (c < cost[p][j]) {\n            cost[p][j] = c;\n            from[p][j] = i;\n          }\n        }\n      }\n    }\n    // A further caption has to earn its place.\n    const c = cost[k][n] + k * 3;\n    if (c < bestCost) {\n      const ends: number[] = [];\n      for (let p = k, j = n; p > 0; p--) {\n        ends.unshift(a + j);\n        j = from[p][j];\n      }\n      bestCost = c;\n      bestCuts = ends;\n    }\n  }\n  return bestCuts;\n}\n\nfunction makeCues(words: any[], fps: number, maxc: number, total: number, fixes: any[]): [number, number, string][] {\n  const clean = (t: string) => t.replace(/[\"\u201c\u201d]/g, \"\");\n  const ws = words\n    .map((w: any) => [clean(String(w[0])), w[1], w[2], w[3], w[4] ?? null, w[5] ?? null])\n    .filter((w: any) => String(w[0]).trim().length > 0 && !FILLER.test(String(w[0]).trim()));\n  if (!ws.length) return [];\n  // A stumble said twice (\"\uc6b0\ud06c\ub77c\uc774\ub098\ub9cc \ub098\ub9cc\", \"\uadf8 \uadf8\") is shown once: a word that repeats the word just before\n  // it, or its ending, within half a second is left out of the captions (the cut itself keeps the speech).\n  const bare = (t: string) => t.replace(/[.,?!\u2026~]+$/, \"\");\n  for (let i = ws.length - 1; i > 0; i--) {\n    const cur = bare(String(ws[i][0])), prev = bare(String(ws[i - 1][0]));\n    const gap = (ws[i][1] - ws[i - 1][2]) / fps;\n    if (!cur || gap >= 0.5) continue;\n    if (cur === prev || (cur.length >= 2 && prev.length > cur.length && prev.endsWith(cur))) {\n      const mark = String(ws[i][0]).slice(cur.length);\n      if (mark && !/[.,?!\u2026~]$/.test(String(ws[i - 1][0]))) ws[i - 1][0] = String(ws[i - 1][0]) + mark;\n      ws[i - 1][2] = ws[i][2];\n      ws.splice(i, 1);\n    }\n  }\n  // Numbers in digits, including the first of a pair said together (\"\ud55c \uc721, \uce60\uc5b5\" -> \"\ud55c 6, 7\uc5b5\").\n  for (let i = 0; i < ws.length; i++) ws[i][0] = koDigits(String(ws[i][0]), i + 1 < ws.length ? String(ws[i + 1][0]) : null);\n  for (let i = 0; i + 1 < ws.length; i++) {\n    const pair = String(ws[i][0]).match(/^([\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]),$/);\n    if (pair && /^[0-9]/.test(String(ws[i + 1][0]))) ws[i][0] = String(koNumber(pair[1])) + \",\";\n  }\n  // 1. Sentences: a new one starts with another speaker, after a full stop, at a cut in the source, or\n  // after a long silence.\n  const starts: number[] = [0];\n  for (let i = 1; i < ws.length; i++) {\n    const prev = ws[i - 1];\n    const w = ws[i];\n    const silence = (w[1] - prev[2]) / fps;\n    const cutInSource = w[3] != null && prev[3] != null && Math.abs(w[3] - prev[3] - (w[1] - prev[1])) > fps * 3;\n    const otherSpeaker = w[4] != null && prev[4] != null && w[4] !== prev[4];\n    const otherUtterance = w[5] != null && prev[5] != null && w[5] !== prev[5] && SENTENCE_END.test(String(prev[0]));\n    if (otherSpeaker || otherUtterance || SENTENCE_END.test(String(prev[0])) || cutInSource || silence > 1.5) starts.push(i);\n  }\n  starts.push(ws.length);\n  // 2. Captions within each sentence.\n  const groups: [number, number][] = [];\n  for (let s = 0; s + 1 < starts.length; s++) {\n    let a = starts[s];\n    for (const b of divide(ws, a, starts[s + 1], maxc, fps)) {\n      groups.push([a, b]);\n      a = b;\n    }\n  }\n  // 3. A one-word reply (\"\uc608.\", \"Right.\") gets its own caption. Only when it would be gone before it can\n  // be read does it join the caption before it; it never joins the sentence that follows.\n  const merged: [number, number][] = [];\n  const replyAt = new Map<number, number>(); // caption start -> index where a joined reply begins\n  for (let g = 0; g < groups.length; g++) {\n    const [a, b] = groups[g];\n    const nextStart = g + 1 < groups.length ? ws[groups[g + 1][0]][1] : total;\n    const onScreen = (Math.min(nextStart, ws[b - 1][2] + Math.round(0.6 * fps)) - ws[a][1]) / fps;\n    const last = merged[merged.length - 1];\n    if (last && width(ws, a, b) <= 3 && onScreen < 0.35 && width(ws, last[0], b) <= maxc * 2 - 1 && (ws[a][1] - ws[last[1] - 1][2]) / fps < 0.8) {\n      if (!replyAt.has(last[0])) replyAt.set(last[0], a);\n      last[1] = b;\n      continue;\n    }\n    merged.push([a, b]);\n  }\n  // 4. Text and timing.\n  const out: [number, number, string][] = [];\n  for (let g = 0; g < merged.length; g++) {\n    const [a, b] = merged[g];\n    let piece: any[] = ws.slice(a, b);\n    let joined = piece.map((x: any) => String(x[0])).join(\" \");\n    for (const f of fixes || []) if (f && f.from) joined = joined.split(String(f.from)).join(String(f.to ?? \"\"));\n    const fixed = joined.split(\" \").filter((t: string) => shown(t).length > 0);\n    // Fold on the words as they will be shown; timing for pauses comes from the original words when the\n    // spelling fixes kept their number, otherwise from none.\n    const timed = fixed.length === piece.length ? fixed.map((t: string, i: number) => [t, piece[i][1], piece[i][2]]) : fixed.map((t: string) => [t, 0, 0]);\n    const reply = replyAt.get(a);\n    const own = reply !== undefined && fixed.length === piece.length && width(ws, a, reply) <= maxc ? reply - a : -1;\n    const k = own > 0 ? own : fold(timed, 0, timed.length, maxc, (i: number) => joint(timed, i, fps))[0];\n    const text = k >= timed.length ? fixed.map(shown).join(\" \") : fixed.slice(0, k).map(shown).join(\" \") + \"\\n\" + fixed.slice(k).map(shown).join(\" \");\n    const start = ws[a][1];\n    let end = g + 1 < merged.length ? ws[merged[g + 1][0]][1] : total;\n    if (g + 1 < merged.length && (ws[merged[g + 1][0]][1] - ws[b - 1][2]) / fps > 1.2) end = Math.min(end, ws[b - 1][2] + Math.round(0.6 * fps));\n    out.push([Math.round(start), Math.round(end), text]);\n  }\n  for (let i = 0; i < out.length - 1; i++) {\n    const g = out[i + 1][0] - out[i][1];\n    if (g > 0 && g < 8) out[i][1] = out[i + 1][0];\n  }\n  // 5. Every caption stays long enough to read: one that would flash by borrows the time from the\n  // silence after it, or from the start of a longer caption that follows.\n  const least = Math.round(0.6 * fps);\n  for (let i = 0; i < out.length; i++) {\n    const short = least - (out[i][1] - out[i][0]);\n    if (short <= 0) continue;\n    const next = out[i + 1];\n    if (!next) {\n      out[i][1] = Math.min(total, out[i][0] + least);\n      continue;\n    }\n    const silence = next[0] - out[i][1];\n    if (silence >= short) out[i][1] += short;\n    else if (next[1] - next[0] - (short - silence) >= Math.round(1.0 * fps)) {\n      out[i][1] += short;\n      next[0] = out[i][1];\n    } else out[i][1] = next[0];\n  }\n  if (out.length && out[0][0] < 10) out[0][0] = 0;\n  return out;\n}\n\n// Resource ids are Project-scoped aliases; listing the resources first makes a saved id valid in this\n// session, and the file name finds the same video again if the alias changed.\nasync function resolveResource(project: any, id: string, name: string): Promise<string> {\n  const rows = await project.resources();\n  const hit =\n    rows.find((r: any) => r.resourceId === id && (!name || r.name === name)) ||\n    (name ? rows.find((r: any) => r.name === name) : null) ||\n    rows.find((r: any) => r.resourceId === id);\n  if (!hit) throw new Error(\"The source video is no longer in this project.\");\n  return hit.resourceId;\n}\nconst project = selects.project(P.projectId);\nconst RID = await resolveResource(project, P.resourceId, P.resourceName || \"\");\nconst { meta: sm, words: sourceWords } = await readClipSource(project, RID);\nconst sfps = sm.fps;\nconst sws = sourceWords.filter((w: any) => !w.nonSpeech && String(w.text).trim().length > 0);\nconst W: number[][] = sws.map((w: any) => [w.startFrame / sfps, w.endFrame / sfps]);\nif (!W.length) throw new Error(\"The source has no transcript words. Analyze it first.\");\n\n// Snap each requested range to whole words without catching the neighbouring word.\nfunction snap(a: number, b: number): number[] {\n  let i = 0;\n  let j = 0;\n  let bi = Infinity;\n  let bj = Infinity;\n  for (let k = 0; k < W.length; k++) {\n    const da = Math.abs(W[k][0] - a);\n    if (da < bi) {\n      bi = da;\n      i = k;\n    }\n    const db = Math.abs(W[k][1] - b);\n    if (db < bj) {\n      bj = db;\n      j = k;\n    }\n  }\n  if (j < i) j = i;\n  const prevEnd = i > 0 ? W[i - 1][1] : 0;\n  const nextStart = j + 1 < W.length ? W[j + 1][0] : W[j][1] + 1;\n  const start = Math.max(prevEnd + 0.03, W[i][0] - 0.15, 0);\n  const end = Math.min(nextStart - 0.04, W[j][1] + 0.22, sm.durationSeconds);\n  return [Math.round(start * 1000) / 1000, Math.round(end * 1000) / 1000];\n}\n\nconst segs = (P.segments as number[][]).map((s) => snap(Number(s[0]), Number(s[1]))).filter((s) => s[1] - s[0] > 0.5);\nif (!segs.length) throw new Error(\"No usable source range for this clip.\");\n\nconst d = await project.createDraft({ name: P.name });\nfor (const s of segs) {\n  await d.insertResource({ resourceId: RID, sourceRange: { startSeconds: s[0], endSeconds: s[1] } });\n}\nif (P.removeFillers) {\n  const fill = (await d.words()).filter((w: any) => w.filler && w.filler.removable);\n  if (fill.length) await d.remove(fill.map((w: any) => w.span), { tracks: \"all\" });\n}\nif (P.removeSilences) {\n  const sil = await d.silenceSpans({ preset: \"normal\" });\n  const cut = sil.flatMap((x: any) => x.cutSpans);\n  if (cut.length) await d.remove(cut, { tracks: \"all\" });\n}\nawait d.setFrameSize({ width: 1080, height: 1920 });\nconst readV = async () =>\n  (await d.clips({ trackScope: \"all\" })).filter((c: any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nconst nV = (await readV()).length;\nfor (let k = 0; k < nV; k++) {\n  const c = (await readV())[k];\n  await d.setClipTransform({\n    clip: c,\n    scale: { x: P.transform.scale, y: P.transform.scale },\n    position: { x: P.transform.posX, y: P.transform.posY },\n  });\n}\n// Speaker reframing: each shot pans (and for side-by-side faces, widens) the window to the faces it follows. Shots are in source seconds; the\n// Draft's words map them onto its own frames, after fillers and pauses were cut.\nif (Array.isArray(P.reframe) && P.reframe.length) {\n  try {\n    const fitScale = P.transform.scale * (1080 / 1920);\n    const srcW = Number(sm.frameSize?.width) || 1920;\n    // A shot with a width w shows that many source pixels across the window (two people side by side),\n    // centred in the window; other shots keep the template's crop and pan only.\n    const FIT = 1080 / srcW;\n    const winMid = (Number(P.frame.windowTop) + Number(P.frame.windowBottom)) / 2;\n    const r4 = (x: number) => Math.round(x * 10000) / 10000;\n    const placeOf = (shot: any) => {\n      const sc = shot.w ? 1080 / shot.w : fitScale;\n      const inset = Number(P.reframeInset) || 0;\n      const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;\n      const x = r4((Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc)) / 1920) * 100);\n      if (!shot.w) return { scale: P.transform.scale, x, y: P.transform.posY };\n      if (!shot.cy) return { scale: r4(sc / FIT), x, y: r4((-(winMid - 960) / 1920) * 100) };\n      // A close-up puts the face faceY of the way down the window (headroom above it) and keeps the picture\n      // covering the whole window.\n      const top = Number(P.frame.windowTop), bottom = Number(P.frame.windowBottom), half = (1080 / 2) * sc * (Number(sm.frameSize?.height) || 1080) / 1080;\n      const faceY = Number(P.reframeFaceY) || 0.4;\n      const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - shot.cy) * sc));\n      return { scale: r4(sc / FIT), x, y: r4((-(yc - 960) / 1920) * 100) };\n    };\n    const key = (shot: any) => JSON.stringify(placeOf(shot));\n    const shotAt = (sec: number) =>\n      P.reframe.find((r: any) => sec >= r.start && sec < r.end) || (sec < P.reframe[0].start ? P.reframe[0] : P.reframe[P.reframe.length - 1]);\n    const ws = (await d.words()).filter((w: any) => !w.nonSpeech).map((w: any) => [w.startFrame, w.sourceStartFrame / sm.fps]);\n    for (let k = 1; k < ws.length; k++) {\n      if (key(shotAt(ws[k][1])) === key(shotAt(ws[k - 1][1]))) continue;\n      try {\n        await d.splitAt({ frame: ws[k][0] });\n      } catch (e) {\n        // Already a clip boundary.\n      }\n    }\n    const nM = (await d.clips({ trackScope: \"main\" })).length;\n    for (let k = 0; k < nM; k++) {\n      const mc = (await d.clips({ trackScope: \"main\" }))[k];\n      // Keep the preceding shot across wordless passage tails; use the next word for a leading gap.\n      const w = ws.find((x: any) => x[0] >= mc.startFrame && x[0] < mc.endFrame) || ws.filter((x: any) => x[0] < mc.startFrame).pop() || ws.find((x: any) => x[0] >= mc.endFrame);\n      if (!w) continue;\n      const pl = placeOf(shotAt(w[1]));\n      const vs = (await readV()).filter((c: any) => c.startFrame >= mc.startFrame && c.startFrame < mc.endFrame);\n      for (let v = 0; v < vs.length; v++) {\n        const c = (await readV()).filter((c2: any) => c2.startFrame >= mc.startFrame && c2.startFrame < mc.endFrame)[v];\n        await d.setClipTransform({ clip: c, scale: { x: pl.scale, y: pl.scale }, position: { x: pl.x, y: pl.y } });\n      }\n    }\n  } catch (e) {\n    // Reframing is optional: a clip keeps the fixed crop rather than failing.\n  }\n}\nconst mainClips = await d.clips({ trackScope: \"main\" });\nconst endFrame = mainClips.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);\nconst meta = await d.meta();\nawait d.addMotionGraphic({\n  label: \"Series frame and headline\",\n  tsxCode: FRAME_TSX,\n  parameters: P.frame,\n  editableParameters: P.editableFrame,\n  within: await d.rangeAtFrames(0, endFrame),\n});\n\n// Highlight phrases chosen with the passage are wrapped in *asterisks* for the caption graphic.\nconst markCue = (text: string) => {\n  const phrases = (Array.isArray(P.highlights) ? P.highlights : []).map((h: any) => String(h).trim()).filter((h: string) => h.length >= 2).sort((x: string, y: string) => y.length - x.length);\n  return text\n    .split(\"\\n\")\n    .map((line: string) => {\n      let out = line;\n      for (const h of phrases) {\n        const at = out.indexOf(h);\n        if (at < 0 || out.slice(0, at).split(\"*\").length % 2 === 0) continue;\n        out = out.slice(0, at) + \"*\" + h + \"*\" + out.slice(at + h.length);\n      }\n      return out;\n    })\n    .join(\"\\n\");\n};\n// The episode date is its own graphic, so its text and position can be changed in the Draft.\nif (P.dateLabel && String(P.dateLabel.text || \"\").trim()) {\n  await d.addMotionGraphic({\n    label: \"Date\",\n    tsxCode: DATE_TSX,\n    parameters: P.dateLabel,\n    editableParameters: P.editableDate,\n    within: await d.rangeAtFrames(0, endFrame),\n  });\n}\nlet cueCount = 0;\nif (P.captions && P.caption) {\n  const words = (await d.words())\n    .filter((w: any) => !w.nonSpeech)\n    .map((w: any) => [String(w.text), w.startFrame, w.endFrame, w.sourceStartFrame, w.speakerId ?? null, w.utteranceId ?? null]);\n  const cues = makeCues(words, meta.fps, P.lineMax, endFrame, P.fixes);\n  for (let k = 0; k < cues.length; k++) {\n    const a = cues[k][0];\n    const e = Math.min(cues[k][1], endFrame);\n    if (e <= a) continue;\n    await d.addMotionGraphic({\n      label: \"Caption \" + String(k + 1).padStart(2, \"0\"),\n      tsxCode: CAPTION_TSX,\n      parameters: { ...P.caption, text: markCue(cues[k][2]) },\n      editableParameters: P.editableCaption,\n      within: await d.rangeAtFrames(a, e),\n    });\n    cueCount++;\n  }\n}\nconst out: any = await d.commitAll(\"Shortform clip: \" + P.name);\nreturn { draftId: out.createdDraftId ?? null, seconds: Math.round((endFrame / meta.fps) * 10) / 10, captions: cueCount, segments: segs };\n";
 
 const RadioPreviewFrame: any = (() => {
 
@@ -2277,7 +2286,7 @@ const RADIO_STRINGS: any = {
     layoutTiktok: "TikTok",
     editingLayout: (layout: string) => `Editing ${layout} layout`,
     reframing: "Finding faces to frame each speaker…",
-    reframeSkipped: "Clips keep the fixed crop; following faces failed: ",
+    reframeSkipped: "Some clips use the full picture because speaker framing was unavailable.",
     closeUp: "Close-up on the talker (face widths across)",
     faceY: "Face height of the talker (% down the window)",
     headlineCenter: "Headline",
@@ -2488,7 +2497,7 @@ const RADIO_STRINGS: any = {
     layoutTiktok: "\ud2f1\ud1a1",
     editingLayout: (layout: string) => `${layout} \ub808\uc774\uc544\uc6c3 \ud3b8\uc9d1 \uc911`,
     reframing: "\ud654\uc790\ub97c \ud654\uba74\uc5d0 \ub9de\ucd94\ub824\uace0 \uc5bc\uad74 \ucc3e\ub294 \uc911…",
-    reframeSkipped: "\uc5bc\uad74 \ub530\ub77c\uac00\uae30\uc5d0 \uc2e4\ud328\ud574 \uace0\uc815 \ud06c\ub86d\uc73c\ub85c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4: ",
+    reframeSkipped: "\uc77c\ubd80 \ud074\ub9bd\uc740 \ud654\uc790 \uad6c\ub3c4\ub97c \uc7a1\uc744 \uc218 \uc5c6\uc5b4 \uc804\uccb4 \ud654\uba74\uc73c\ub85c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.",
     closeUp: "\ud654\uc790 \ud074\ub85c\uc988\uc5c5 (\ud654\uba74 \ud3ed = \uc5bc\uad74 \ud3ed\uc758 \uba87 \ubc30)",
     faceY: "\ud654\uc790 \uc5bc\uad74 \ub192\uc774 (\ucc3d \uc704\uc5d0\uc11c\ubd80\ud130 %)",
     headlineCenter: "\ud5e4\ub4dc\ub77c\uc778",
@@ -2642,7 +2651,32 @@ function speakerTurns(words: any[], a: number, b: number): any[] {
   return kept;
 }
 
-function planShots(samples: any[], turns: any[], frameW: number, windowW: number, closeUp = 4.5, inset = 0, split = false, coverW = windowW, closeUpMin = 2.8): any[] {
+// Sentences of the transcript: [start, end, speakerId, text] words split at a pause of 0.6 s or more, at a change
+// of speaker id, after sentence-ending punctuation and before they pass 4 s. Each gets its own talker in
+// planShots, so a speaker id the transcript gave to two people still follows whoever actually talks.
+function sentencesOf(words: any[]): any[] {
+  const out: any[] = [];
+  let cur: any = null;
+  for (const [s, e, spk, text] of words) {
+    if (cur && (s - cur.end >= 0.6 || spk !== cur.spk || /[.?!]$/.test(cur.text) || e - cur.start > 4)) { out.push(cur); cur = null; }
+    if (!cur) cur = { start: s, end: e, spk, text: String(text || "") };
+    else { cur.end = e; cur.text += " " + String(text || ""); }
+  }
+  if (cur) out.push(cur);
+  return out.map(({ start, end, spk }) => ({ start, end, spk }));
+}
+
+// samples: [seconds, [[cx, w, h, mouth, cy], ...]][] from faces.detect every 0.1 s, where mouth is the nose-to-mouth
+// distance per mille of the face height; returns [{ start, end, cx, w?, cy? }]: w is the source width to show
+// (narrower than the window for a close-up on the talker, wider for side-by-side faces) and cy the face to
+// place in the window's upper part.
+// Pieces are speaker turns further split where the faces on screen change (a cut to another camera or an
+// insert). In each piece the window centres on the talker: the face matched to the turn's transcript speaker,
+// else the face whose mouth moves most compared with its own average. When no face clearly stands out, the
+// piece frames the spot that keeps the most face area whole, or a wider view that keeps everyone whole.
+// Samples may come from several separate ranges (the clip's passages); a face at the same place on both
+// sides of a gap stays one face. log, when given, receives the speaker matches and each piece's decision.
+function planShots(samples: any[], turns: any[], frameW: number, windowW: number, closeUp = 4.5, inset = 0, split = false, coverW = windowW, closeUpMin = 2.8, log?: any, sents?: any[], forced?: any[]): any[] {
   // coverW: the widest view whose picture still fills the window from top to bottom.
   // inset: source pixels at each side edge never shown (black bars some broadcasts carry). split: the picture is
   // two halves side by side (guest | host), so a view never crosses the middle.
@@ -2650,19 +2684,32 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
   const boundsOf = (cx: number) => (split ? (cx < frameW / 2 ? [lo, frameW / 2 - 6] : [frameW / 2 + 6, hi]) : [lo, hi]);
   const half = windowW / 2;
   const clampX = (x: number) => Math.max(lo + half, Math.min(hi - half, x));
+  // Mouth movement pairs samples one step apart (a missed sample in between is allowed).
+  const steps = samples.slice(1, 200).map((s: any, i: number) => s[0] - samples[i][0]).filter((d: number) => d > 0).sort((x: number, y: number) => x - y);
+  const pairGap = Math.max(0.25, (steps.length ? steps[steps.length >> 1] : 0.1) * 2.5);
   const tracks: any[] = [];
+  let prevT = -Infinity;
   const rows = samples.map(([t, faces]: any) => {
+    if (t - prevT > 1.6) {
+      // A gap between two face ranges: faces still on screen on the far side continue at the same place, but
+      // mouth movement is not compared across the gap.
+      for (const tr of tracks) if (prevT - tr.lastT <= 1.6) { tr.lastT = t; tr.lastM = undefined; }
+    }
+    prevT = t;
     const out: any[] = [];
     for (const [cx, w, h, mouth, cy] of faces) {
       let best: any = null, bd = Infinity;
       for (const tr of tracks) {
         if (t - tr.lastT > 1.6 || out.some((o) => o.track === tr)) continue;
-        const d = Math.abs(tr.lastX - cx);
+        // Height counts too, at half weight: a picture split into rows (a composite of several cameras) can stack
+        // two people at nearly the same x, while one person's head moves up and down far less than a row.
+        const d = Math.hypot(tr.lastX - cx, ((tr.lastY ?? cy ?? 540) - (cy ?? 540)) / 2);
         if (d < Math.max(w, tr.lastW) * 0.6 && d < bd) { best = tr; bd = d; }
       }
-      if (!best) { best = { jit: [] as number[][], n: 0 }; tracks.push(best); }
-      if (best.lastM !== undefined && t - best.lastT <= 0.25) best.jit.push([t, Math.abs(mouth - best.lastM)]);
-      best.lastT = t; best.lastX = cx; best.lastW = w; best.lastM = mouth;
+      if (!best) { best = { jit: [] as number[][], n: 0, xs: [] as number[] }; tracks.push(best); }
+      if (best.lastM !== undefined && t - best.lastT <= pairGap) best.jit.push([t, Math.abs(mouth - best.lastM)]);
+      if (best.xs.length < 50) best.xs.push(cx);
+      best.lastT = t; best.lastX = cx; best.lastY = cy ?? 540; best.lastW = w; best.lastM = mouth;
       out.push({ track: best, cx, cy: cy ?? 540, w, area: w * h });
     }
     return { t, faces: out };
@@ -2682,7 +2729,7 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
     for (const c of cuts) if (c > s && c < turn.end) { pieces.push({ start: s, end: c, spk: turn.spk }); s = c; }
     pieces.push({ start: s, end: turn.end, spk: turn.spk });
   }
-  const tidy: any[] = [];
+  let tidy: any[] = [];
   for (const p of pieces) {
     const prev = tidy[tidy.length - 1];
     if (prev && p.end - p.start < 1) prev.end = p.end;
@@ -2690,32 +2737,179 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
   }
   const median = (a: number[]) => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[s.length >> 1] : frameW / 2; };
   // A close-up on one face: about closeUp face widths across; near an edge (or the middle of a split picture)
-  // the view narrows, down to closeUpMin face widths, so the face stays (nearly) centred.
-  const closeUpOn = (f: any) => {
+  // the view narrows, down to closeUpMin face widths, so the face stays (nearly) centred. A neighbour beside
+  // the face narrows it too, so the window's edge falls between them, about 1.3 of the neighbour's face widths
+  // from their centre: their face and most of their shoulder stay out, without a tighter close-up than needed.
+  const closeUpOn = (f: any, others: any[] = []) => {
     const [blo, bhi] = boundsOf(f.cx);
     const edge = Math.min(f.cx - blo, bhi - f.cx);
     let w = Math.max(windowW * 0.4, Math.min(coverW, bhi - blo, f.w * closeUp));
-    if (w / 2 > edge) w = Math.max(f.w * closeUpMin, 2 * edge);
-    return { cx: Math.max(blo + w / 2, Math.min(bhi - w / 2, f.cx)), w, cy: f.cy };
-  };
-  // Each transcript speaker is matched once to a face over the whole window: the face whose mouth moves
-  // most, against its own average, across all of that speaker's turns. Many turns together outvote the
-  // noise of any single one.
-  const voice = new Map<any, any>();
-  {
-    const bySpk = new Map<any, Map<any, number[]>>();
-    for (const t of turns) {
-      if (t.spk === null || t.spk === undefined) continue;
-      const m = bySpk.get(t.spk) || new Map<any, number[]>();
-      for (const tr of tracks)
-        for (const [u, v] of tr.jit) if (u >= t.start && u < t.end) { const a = m.get(tr) || [0, 0]; a[0] += v; a[1]++; m.set(tr, a); }
-      bySpk.set(t.spk, m);
+    for (const n of others) {
+      // A face in another row of a composite picture is not beside this one.
+      if (n === f || n.cx < blo || n.cx > bhi || Math.abs((n.cy ?? 540) - (f.cy ?? 540)) > f.w * 2) continue;
+      w = Math.min(w, Math.max(f.w * closeUpMin, 2 * (Math.abs(n.cx - f.cx) - n.w * 1.3)));
     }
+    if (w / 2 > edge) w = Math.min(w, Math.max(f.w * closeUpMin, 2 * edge));
+    const at = (ww: number) => [Math.round(Math.max(blo + ww / 2, Math.min(bhi - ww / 2, f.cx))), Math.round(ww)];
+    // Alternatives for the picture check (pictureCheck): up to 30 % wider, never tighter (a tighter close-up
+    // looked cramped). A wider view at the picture's edge leaves the face off centre; which of them shows nobody
+    // else and no set seam is judged on the actual frame, not by these numbers.
+    const alts: number[][] = [];
+    for (const k of [1, 1.08, 1.17, 1.3]) {
+      const ww = Math.min(coverW, bhi - blo, w * k);
+      const c = at(ww);
+      if (!alts.some((x) => Math.abs(x[0] - c[0]) < 12 && Math.abs(x[1] - c[1]) < 12)) alts.push(c);
+    }
+    return { cx: alts[0][0], w: alts[0][1], cy: f.cy, alts };
+  };
+  // Each transcript speaker is matched once to a face over the whole window: the face whose mouth moves most
+  // during that speaker's turns compared with its own movement during the other speakers' turns. Comparing with
+  // the other speakers' turns, rather than with the face's overall average, keeps a speaker who talks through
+  // most of the window (or whose mouth reads noisily behind a microphone) from looking average. Turns without
+  // a speaker count for neither side. With no other speaker in the window, the overall average is the
+  // reference. Many turns together outvote the noise of any single one.
+  const voice = new Map<any, any>();
+  const voiceLog: any[] = [];
+  {
+    const spkOf = (u: number) => turns.find((t: any) => u >= t.start && u < t.end)?.spk;
+    const bySpk = new Map<any, Map<any, number[]>>();
+    const labelled = new Set(turns.map((t: any) => t.spk).filter((s: any) => s !== null && s !== undefined));
+    for (const spk of labelled) bySpk.set(spk, new Map<any, number[]>());
+    for (const tr of tracks)
+      for (const [u, v] of tr.jit) {
+        const at = spkOf(u);
+        if (at === null || at === undefined) continue;
+        for (const [spk, m] of bySpk) {
+          // [sum in turns, n in turns, sum in other speakers' turns, n there]
+          const a = m.get(tr) || [0, 0, 0, 0];
+          if (at === spk) { a[0] += v; a[1]++; } else { a[2] += v; a[3]++; }
+          m.set(tr, a);
+        }
+      }
     for (const [spk, m] of bySpk) {
-      const rated = [...m.entries()].filter(([tr, [, n]]) => n >= 20 && tr.base > 0).map(([tr, [sum, n]]) => ({ tr, r: sum / n / tr.base })).sort((x, y) => y.r - x.r);
-      if (rated.length && rated[0].r >= 1.05 && (rated.length < 2 || rated[0].r >= rated[1].r * 1.08)) voice.set(spk, rated[0].tr);
+      const rated = [...m.entries()]
+        .filter(([tr, [, n]]) => n >= 20 && tr.base > 0)
+        .map(([tr, [sum, n, os, on]]) => ({ tr, r: on >= 20 && os > 0 ? sum / n / (os / on) : sum / n / tr.base }))
+        .sort((x, y) => y.r - x.r);
+      const ok = rated.length > 0 && rated[0].r >= 1.05 && (rated.length < 2 || rated[0].r >= rated[1].r * 1.08);
+      if (ok) voice.set(spk, rated[0].tr);
+      voiceLog.push({ spk, face: ok ? Math.round(median(rated[0].tr.xs)) : null, r: rated.slice(0, 3).map((x) => [Math.round(median(x.tr.xs)), Math.round(x.r * 100) / 100]) });
     }
   }
+  if (log) { log.voice = voiceLog; log.pieces = []; }
+  // The talker of each sentence (not of each speaker id): a transcript can give two people one id, and a short
+  // passage may have an id no face was matched to. Each face's mouth movement in a sentence is compared with its
+  // movement while the other speaker ids talk, when it listens: a talker moves well above their listening level,
+  // while a listener who nods or smiles stays near theirs, and someone who talks a lot is not held against their
+  // own talking. The face furthest above its listening level, compared with the others, talks. One sentence is
+  // a few noisy seconds, so the talkers of all sentences are chosen together (Viterbi): changing talker costs
+  // about as much as a second and a half of clearly higher movement, which also keeps the picture from cutting
+  // back and forth. Checked against hand-labelled talkers in the clip
+  // passages of several News Direct episodes, including a stretch where two panellists share one id.
+  const unitsLog: any[] = [];
+  if (sents && sents.length && !split) {
+    const live = tracks.filter((tr: any) => tr.jit.length >= 50);
+    // Who talks at a moment, by the transcript's own word runs (backchannels included), for the listening level.
+    const spkAt = (u: number) => sents.find((t: any) => u >= t.start && u < t.end)?.spk;
+    for (const tr of live) tr.jk = tr.jit.map(([u, v]: number[]) => [u, v, spkAt(u)]);
+    const units: any[] = [];
+    for (const s of sents) {
+      const last = units[units.length - 1];
+      if (s.end - s.start < 0.8 && last) last.end = Math.max(last.end, s.end);
+      else units.push({ ...s });
+    }
+    // Turns of the speaker ids matched to the face itself (above) are left out of its listening level, so a talker
+    // who also got a second id somewhere is not measured against their own talking.
+    const ownIds = (tr: any) => new Set([...voice.entries()].filter(([, v]) => v === tr).map(([k]) => k));
+    const listenOf = new Map<any, number>();
+    const listen = (tr: any, spk: any) => {
+      const key = live.indexOf(tr) + ":" + spk;
+      if (!listenOf.has(key)) {
+        const own = ownIds(tr);
+        const o = tr.jk.filter((x: any[]) => x[2] !== null && x[2] !== undefined && x[2] !== spk && !own.has(x[2]));
+        listenOf.set(key, o.length >= 20 ? o.reduce((a: number, x: any[]) => a + x[1], 0) / o.length : 0);
+      }
+      return listenOf.get(key) as number;
+    };
+    if (live.length && units.length) {
+      const em = units.map((u: any) => {
+        const lr = live.map((tr: any) => {
+          const v = tr.jit.filter(([x]: number[]) => x >= u.start && x < u.end).map(([, y]: number[]) => y);
+          const base = listen(tr, u.spk);
+          if (v.length < 4 || !(base > 0)) return null;
+          return Math.log(Math.max(1e-6, v.reduce((x: number, y: number) => x + y, 0) / v.length) / base);
+        });
+        const got = lr.filter((r: any) => r !== null) as number[];
+        const mu = got.length ? got.reduce((x, y) => x + y, 0) / got.length : 0;
+        const d = Math.sqrt(Math.min(8, u.end - u.start));
+        return lr.map((r: any) => (r === null ? -5 : (r - mu) * d));
+      });
+      const SWITCH = 1.5;
+      let V = em[0].slice();
+      const back: number[][] = [];
+      for (let i = 1; i < units.length; i++) {
+        const nv: number[] = [], bk: number[] = [];
+        for (let j = 0; j < live.length; j++) {
+          let bi = j, bs = V[j];
+          for (let k = 0; k < live.length; k++) if (V[k] - SWITCH > bs) { bs = V[k] - SWITCH; bi = k; }
+          nv.push(bs + em[i][j]); bk.push(bi);
+        }
+        V = nv; back.push(bk);
+      }
+      let cur = V.indexOf(Math.max(...V));
+      const path = [cur];
+      for (let i = back.length - 1; i >= 0; i--) { cur = back[i][cur]; path.push(cur); }
+      path.reverse();
+      // Where each face sits, over the whole window.
+      for (const tr of live) {
+        const xs: number[] = [], ws: number[] = [], ys: number[] = [];
+        for (const r of rows) for (const f of r.faces) if (f.track === tr) { xs.push(f.cx); ws.push(f.w); ys.push(f.cy); }
+        tr.at = { cx: median(xs), w: median(ws), cy: median(ys) };
+      }
+      // forced: talkers the picture check saw ([{ start, end, x }]); they replace the choice above for the
+      // sentences whose middle falls inside, as the face sitting nearest x.
+      units.forEach((u: any, i: number) => {
+        u.talker = live[path[i]];
+        const mid = (u.start + u.end) / 2;
+        const f = (forced || []).find((x: any) => mid >= x.start && mid < x.end);
+        if (f) {
+          const dist = (p: any) => Math.hypot(p.at.cx - f.x, f.y === undefined ? 0 : p.at.cy - f.y);
+          const near = live.slice().sort((p: any, q: any) => dist(p) - dist(q))[0];
+          if (near && dist(near) < 200) u.talker = near;
+        }
+        unitsLog.push({ start: Math.round(u.start * 10) / 10, end: Math.round(u.end * 10) / 10, spk: u.spk ?? null, face: Math.round(u.talker.at.cx), faceY: Math.round(u.talker.at.cy) });
+      });
+      // Every face's close-up alternatives, for the picture check.
+      if (log) {
+        const all = live.map((tr: any) => ({ track: tr, cx: tr.at.cx, cy: tr.at.cy, w: tr.at.w }));
+        log.faces = all.map((f: any) => ({ x: Math.round(f.cx), w: Math.round(f.w), cy: Math.round(f.cy), alts: closeUpOn(f, all).alts }));
+      }
+      // Runs of one talker, covering the whole window, split where the camera cuts.
+      const a0 = turns.length ? turns[0].start : units[0].start, b0 = turns.length ? turns[turns.length - 1].end : units[units.length - 1].end;
+      const runs: any[] = [];
+      for (const u of units) {
+        const last = runs[runs.length - 1];
+        if (last && last.talker === u.talker) last.end = u.end;
+        else runs.push({ start: u.start, end: u.end, spk: u.spk, talker: u.talker });
+      }
+      runs[0].start = Math.min(runs[0].start, a0);
+      for (let i = 1; i < runs.length; i++) runs[i - 1].end = runs[i].start;
+      runs[runs.length - 1].end = Math.max(runs[runs.length - 1].end, b0);
+      const cutRuns: any[] = [];
+      for (const r of runs) {
+        let s = r.start;
+        for (const c of cuts) if (c > s && c < r.end) { cutRuns.push({ ...r, start: s, end: c }); s = c; }
+        cutRuns.push({ ...r, start: s });
+      }
+      tidy = [];
+      for (const p of cutRuns) {
+        const prev = tidy[tidy.length - 1];
+        if (prev && p.end - p.start < 1) prev.end = p.end;
+        else tidy.push({ ...p });
+      }
+    }
+  }
+  if (log) log.units = unitsLog;
   const shots: any[] = [];
   for (const piece of tidy) {
     const inPiece = rows.filter((r: any) => r.t >= piece.start && r.t < piece.end);
@@ -2731,11 +2925,20 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
       const talk = j.length >= 5 && s.track.base > 0 ? j.reduce((a: number, v: number) => a + v, 0) / j.length / s.track.base : 0;
       return { track: s.track, cx: median(s.xs), cy: median(s.ys), w: s.w / s.n, area: s.area / s.n, talk };
     });
-    if (!faces.length) { shots.push({ ...piece, cx: shots.length ? shots[shots.length - 1].cx : frameW / 2 }); continue; }
+    const take = (how: string, shot: any) => {
+      shots.push(shot);
+      if (log) log.pieces.push({ start: Math.round(shot.start * 10) / 10, end: Math.round(shot.end * 10) / 10, spk: shot.spk ?? null, how, cx: Math.round(shot.cx), ...(shot.w ? { w: Math.round(shot.w) } : {}), faces: faces.map((f) => Math.round(f.cx)) });
+    };
+    if (!faces.length) { take("noFaces", { ...piece, cx: shots.length ? shots[shots.length - 1].cx : frameW / 2 }); continue; }
+    const talkerFace = piece.talker && faces.find((f) => f.track === piece.talker);
+    if (talkerFace) {
+      take("sentence", { ...piece, ...closeUpOn(talkerFace, faces) });
+      continue;
+    }
     const voiced = voice.get(piece.spk);
     const voicedFace = voiced && faces.find((f) => f.track === voiced);
     if (voicedFace) {
-      shots.push({ ...piece, ...closeUpOn(voicedFace) });
+      take("voice", { ...piece, ...closeUpOn(voicedFace, faces) });
       continue;
     }
     const byTalk = faces.slice().sort((x, y) => y.talk - x.talk);
@@ -2743,12 +2946,12 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
       // A close-up on the talker: about closeUp face widths across the window.
       const t0 = byTalk[0];
       // Near the edge of the picture the view narrows (down to 2.8 face widths) so the face can stay centred.
-      shots.push({ ...piece, ...closeUpOn(t0) });
+      take("talk", { ...piece, ...closeUpOn(t0, faces) });
       continue;
     }
     if (split) {
       // A split picture without a clear talker stays on the larger face (usually the guest).
-      shots.push({ ...piece, ...closeUpOn(faces.slice().sort((x, y) => y.area - x.area)[0]) });
+      take("split", { ...piece, ...closeUpOn(faces.slice().sort((x, y) => y.area - x.area)[0], faces) });
       continue;
     }
     const centres = faces.map((f) => f.cx);
@@ -2765,25 +2968,26 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
     const large = faces.filter((f) => f.w >= maxW * 0.6);
     if (large.some((f) => Math.abs(f.cx - best) > half - f.w * 0.5)) {
       // Two main people on either side of the picture (a split-screen insert): each sits in the middle of their
-      // half of the window, as far as the picture allows. Smaller faces behind them are left out.
+      // half of the window, as far as the picture allows. Smaller faces behind them are left out. With three or
+      // more people of that size (a studio panel) this would cut the outer ones in half, so they all stay whole.
       const byArea = faces.slice().sort((x, y) => y.area - x.area);
       const main = byArea[0];
       const other = byArea.find((f) => (f.cx < frameW / 2) !== (main.cx < frameW / 2));
-      if (other && other.area >= main.area * 0.6) {
+      if (large.length <= 2 && other && other.area >= main.area * 0.6) {
         const [a, b] = [main, other].sort((x, y) => x.cx - y.cx);
         const w = Math.min(hi - lo, Math.max(windowW, 2 * (b.cx - a.cx)));
         const cx = Math.max(lo + w / 2, Math.min(hi - w / 2, (a.cx + b.cx) / 2));
-        shots.push({ ...piece, cx, w });
+        take("pair", { ...piece, cx, w });
         continue;
       }
       const left = Math.min(...large.map((f) => f.cx - f.w * 0.75));
       const right = Math.max(...large.map((f) => f.cx + f.w * 0.75));
       const w = Math.min(hi - lo, Math.max(windowW, right - left));
       const cx = Math.max(lo + w / 2, Math.min(hi - w / 2, (left + right) / 2));
-      shots.push({ ...piece, cx, w });
+      take("wide", { ...piece, cx, w });
       continue;
     }
-    shots.push({ ...piece, cx: best });
+    take("most", { ...piece, cx: best });
   }
   const merged: any[] = [];
   for (const s of shots) {
@@ -2792,7 +2996,127 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
     else merged.push({ ...s });
   }
   const r3 = (x: number) => Math.round(x * 1000) / 1000;
-  return merged.map((s) => ({ start: r3(s.start), end: r3(s.end), cx: Math.round(s.cx), ...(s.w ? { w: Math.round(s.w) } : {}), ...(s.cy ? { cy: Math.round(s.cy) } : {}) }));
+  return merged.map((s) => ({ start: r3(s.start), end: r3(s.end), cx: Math.round(s.cx), ...(s.w ? { w: Math.round(s.w) } : {}), ...(s.cy ? { cy: Math.round(s.cy) } : {}), ...(s.alts && s.alts.length > 1 ? { alts: s.alts } : {}) }));
+}
+
+// The part of the source picture a close-up shows in the template's window, as [x, y, width, height] in source
+// pixels: the geometry of RADIO_SCRIPT_BUILD's placeOf (scale 1080 / w, the face faceY of the way down the window,
+// the picture kept covering the window and inside the edge inset), so a preview shows what the Draft will.
+function cropRect(shot: any, frame: any, srcW: number, srcH: number, faceY = 0.4, inset = 0): number[] {
+  const sc = 1080 / shot.w;
+  const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;
+  const xoff = Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc));
+  const top = Number(frame.windowTop), bottom = Number(frame.windowBottom);
+  const half = (540 * sc * srcH) / 1080;
+  const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - (shot.cy ?? 540)) * sc));
+  return [srcW / 2 + (-540 - xoff) / sc, srcH / 2 + (top - yc) / sc, 1080 / sc, (bottom - top) / sc];
+}
+
+// The source ranges searched for faces in one clip. Speaker matching compares each face's mouth during a
+// speaker's turns with its mouth during the other speakers' turns, so the whole stretch from the clip's first
+// passage to its last, plus 30 s around it, is searched; only a clip spread over more than ten minutes is
+// searched passage by passage. pad 0 searches the passages alone.
+function faceRanges(segments: number[][], duration: number, pad = 30): number[][] {
+  const end = Math.max(0, duration - 0.05);
+  const segs = segments.map((s) => [Math.max(0, s[0] - pad), Math.min(end, s[1] + pad)]).filter((r) => r[1] > r[0]).sort((x, y) => x[0] - y[0]);
+  if (!segs.length) return [];
+  if (pad > 0 && segs[segs.length - 1][1] - segs[0][0] <= 600) return [[segs[0][0], Math.max(...segs.map((r) => r[1]))]];
+  const out: number[][] = [];
+  for (const r of segs) {
+    const last = out[out.length - 1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+    else out.push(r.slice());
+  }
+  return out;
+}
+
+function faceWindows(a: number, b: number, step: number, fps: number, longest = 60): number[][] {
+  const span = Math.max(step * 4, Math.min(longest * (step / 0.1), (19000 - 2) / Math.max(1, fps) - step));
+  const out: number[][] = [];
+  for (let s = a; s < b - 1e-6; s += span) out.push([Math.round(s * 1000) / 1000, Math.round(Math.min(b, s + span) * 1000) / 1000]);
+  return out;
+}
+
+function keyHash(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+async function settleFaceJob(io: { submit(): Promise<any>; status(cancel: boolean): Promise<any>; wait(ms: number): Promise<void>; deadline: number; now(): number; stop(e: any): boolean }): Promise<{ wf: string; status: any }> {
+  const ended = (s: any) => ["succeeded", "failed", "canceled", "interrupted"].includes(s?.status);
+  const unsettled = (e: any, wf?: string) => Object.assign(new Error(String(e?.message || e)), { code: e?.code || "", unsettled: true, wf });
+  let wf = "";
+  for (let k = 0; ; k++) {
+    try {
+      wf = (await io.submit()).wf;
+      break;
+    } catch (e: any) {
+      // Only a rejection with the host's own error code says no job started. Anything else (a lost answer, a
+      // script that timed out) may have started one, and only the same key and input can find it.
+      if (io.stop(e) || (e?.code && e.code !== "AI_SUBMIT_OUTCOME_UNKNOWN")) throw e;
+      if (k >= 4) throw unsettled(e);
+      await io.wait(2000 * (k + 1));
+    }
+  }
+  const check = async (cancel = false) => {
+    for (let k = 0; ; k++) {
+      try {
+        return await io.status(cancel);
+      } catch (e: any) {
+        if (io.stop(e)) throw e;
+        if (k >= 4) throw unsettled(e, wf);
+        await io.wait(2000 * (k + 1));
+      }
+    }
+  };
+  let s: any;
+  for (;;) {
+    s = await check();
+    if (ended(s)) return { wf, status: s };
+    if (io.now() > io.deadline) break;
+    await io.wait(3000);
+  }
+  s = await check(true);
+  for (let k = 0; k < 30 && !ended(s); k++) {
+    await io.wait(2000);
+    s = await check();
+  }
+  if (!ended(s)) throw unsettled({ code: "TIMEOUT", message: `Finding faces took too long and did not stop (${s.status}).` }, wf);
+  return { wf, status: { ...s, code: s.code || "TIMEOUT", error: s.error || "Finding faces took too long." } };
+}
+
+// One FFmpeg job on the host (the picture check's frames), from start to end. A media job outlives the script that
+// started it (up to ten minutes), so whenever this ends without success (too slow, a status check failing, the
+// user cancelling, even before the start was answered) the job is cancelled and its end awaited before the error
+// goes on. io.start and io.cancel/io.settled must not be raced with the user's cancel; io.wait is.
+async function runFrameJob(io: { start(): Promise<string>; state(id: string): Promise<string>; settled(id: string): Promise<string>; cancel(id: string): Promise<void>; wait(ms: number): Promise<void>; idle(ms: number): Promise<void>; now(): number; limitMs: number; stopped(): boolean; stopError(): any }): Promise<void> {
+  const id = await io.start();
+  const t0 = io.now();
+  let state = "running";
+  let failure: any = null;
+  try {
+    for (;;) {
+      if (io.stopped()) throw io.stopError();
+      state = await io.state(id);
+      if (state !== "running") break;
+      if (io.now() - t0 > io.limitMs) throw Object.assign(new Error("Taking frames took too long."), { code: "TIMEOUT" });
+      await io.wait(250);
+    }
+  } catch (e: any) {
+    failure = e;
+  }
+  if (!failure && state === "succeeded") return;
+  if (failure || state === "running") {
+    try {
+      await io.cancel(id);
+      const until = io.now() + 10000;
+      while (io.now() < until && (await io.settled(id)) === "running") await io.idle(250);
+    } catch (e) {
+      // The original failure is what matters; the job ends by itself within ten minutes at worst.
+    }
+  }
+  throw failure || new Error(`Taking frames ended ${state}.`);
 }
 
 const VARIANT_ROOTS = ["layout", "captions", "labels", "headline", "logo", "background", "border"];
@@ -3492,7 +3816,13 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   };
   const script = async (code: string, summary: string, allowCommit = false) => {
     const r: any = await guard(sdk.runScript({ script: code, summary, allowCommit }));
-    if (r.isError) throw new Error(scriptError(r.output));
+    if (r.isError) throw Object.assign(new Error(scriptError(r.output)), { code: scriptCode(r.output) });
+    return r.result;
+  };
+  // The same, not raced with the user's cancel: for cleaning up host jobs after the run has stopped.
+  const scriptNow = async (code: string, summary: string, allowCommit = false) => {
+    const r: any = await sdk.runScript({ script: code, summary, allowCommit });
+    if (r.isError) throw Object.assign(new Error(scriptError(r.output)), { code: scriptCode(r.output) });
     return r.result;
   };
   const shell = async (command: string, summary: string, timeoutMs = 120000, cwd?: string) => {
@@ -3895,9 +4225,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     return { key: j.program, why: `${S.whyAI}: ${j.reason || ""}` };
   }
 
-  async function reframeClips(clips: any[], job: any, tpl: any) {
+  async function reframeClips(clips: any[], job: any, tpl: any, note: (entry: any) => void, saveClip: () => Promise<void>) {
     const L = tpl.layout;
     const windowW = 1080 / ((L.windowBottom - L.windowTop) / (L.sourceBottom - L.sourceTop));
+    const inset = Number(L.edgeInset) || 0;
     const nm = JSON.stringify(job.resourceName || "");
     const rid = JSON.stringify(job.resourceId);
     const pid = JSON.stringify(projectId);
@@ -3905,64 +4236,338 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       `const p = selects.project(${pid}); const rows = await p.resources(); ` +
       `const hit = rows.find((r: any) => r.resourceId === ${rid} && r.name === ${nm}) || rows.find((r: any) => r.name === ${nm}) || rows.find((r: any) => r.resourceId === ${rid}); ` +
       `if (!hit) throw new Error("The source video is no longer in this project."); const RID = hit.resourceId; `;
-    // One face job per clip covers its passages plus 30 s around them, so every face has an average to
-    // compare its mouth movement with, even in a clip where only one person talks.
-    const parts: any[] = clips.map((c: any, i: number) => {
-      const starts = c.segments.map((s: number[]) => s[0]), ends = c.segments.map((s: number[]) => s[1]);
-      return { i, a: Math.max(0, Math.min(...starts) - 30), b: Math.max(...ends) + 30 };
-    });
-    // Jobs run one at a time: the runtime can crash when two face jobs overlap. A crashed job is retried once.
-    const until = Date.now() + 15 * 60000;
-    for (const part of parts) {
-      for (let attempt = 0; ; attempt++) {
-        const key = JSON.stringify(`${APP_ID}:${job.id}:${part.i}:${job.choice?.reframeTry || 0}:v2:${attempt}`);
-        const got = await script(
-          res +
-            `const m = await p.resource(RID).meta(); const b = Math.min(${part.b}, m.durationSeconds - 0.05); ` +
-            `const h = await selects.ai.submit({ runtimeId: "${AI_RUNTIME}", requestKey: ${key}, projectId: ${pid}, resourceId: RID, sourceRange: { startSeconds: ${part.a}, endSeconds: b }, task: "faces.detect", options: { sampleEverySeconds: 0.1 } }); return { wf: h.workflowId, b };`,
-          "Find faces",
-          true
-        );
-        part.wf = got.wf;
-        part.b = got.b;
-        let failed = "";
-        for (;;) {
-          const s = await script(`const s = await selects.ai.job(${JSON.stringify(part.wf)}, ${pid}).status(); return { status: s.status, error: s.lastErrorMessage || "" };`, "Check face finding");
-          if (s.status === "succeeded") break;
-          if (s.status === "failed" || s.status === "canceled") { failed = s.error || s.status; break; }
-          if (Date.now() > until) throw new Error("Finding faces took too long.");
-          await guard(sleep(3000));
+    const src = await script(res + SCRIPT_SOURCE_READER + `const { meta: m } = await readClipSource(p, RID); if (!m.frameSize?.width) throw new Error("Source frame size is unavailable."); return { fps: m.fps, duration: m.durationSeconds, W: m.frameSize.width };`, "Read the source");
+    const fps = Number(src.fps) || 30;
+
+    // One face job, polled until it ends (settleFaceJob). Jobs run one at a time: the runtime can crash when two
+    // overlap, so a job that takes too long is cancelled, and its end awaited, before anything else is sent.
+    async function faceJob(i: number, level: number, a: number, b: number, step: number): Promise<{ samples: any[]; W: number; H: number }> {
+      const key = JSON.stringify(`${APP_ID}:${job.id}:${i}:v3:${level}:${keyHash(JSON.stringify({ task: "faces.detect", a, b, step }))}`);
+      const t0 = Date.now();
+      const entry: any = { clip: i, level, range: [a, b], step, key: JSON.parse(key) };
+      try {
+        let wfId = "";
+        const settled = await settleFaceJob({
+          submit: async () => {
+            const got = await script(
+              res + `const h = await selects.ai.submit({ runtimeId: "${AI_RUNTIME}", requestKey: ${key}, projectId: ${pid}, resourceId: RID, sourceRange: { startSeconds: ${a}, endSeconds: ${b} }, task: "faces.detect", options: { sampleEverySeconds: ${step} } }); return { wf: h.workflowId };`,
+              "Find faces",
+              true
+            );
+            wfId = entry.wf = got.wf;
+            return got;
+          },
+          status: (cancel) =>
+            script(`const j = selects.ai.job(${JSON.stringify(wfId)}, ${pid}); ${cancel ? "await j.cancel(); " : ""}const s = await j.status(); return { status: s.status, code: s.lastErrorCode || "", error: s.lastErrorMessage || "" };`, cancel ? "Stop face finding" : "Check face finding", cancel),
+          wait: (ms) => guard(sleep(ms)),
+          // Generous: a 60 s window takes well under a minute on a Mac.
+          deadline: t0 + (120 + (b - a) * 5) * 1000,
+          now: () => Date.now(),
+          stop: (e) => e instanceof RunCancelled,
+        });
+        const wf = JSON.stringify(settled.wf);
+        const s = settled.status;
+        entry.status = s.status;
+        if (s.status !== "succeeded") throw Object.assign(new Error(s.error || s.status), { code: s.code });
+        // Faces are read a page at a time to stay under the script result size.
+        const samples: any[] = [];
+        let W = src.W, H = 1080;
+        for (let off = 0; ; off += 400) {
+          const page = await script(
+            `const h = selects.ai.job(${wf}, ${pid}); const r = await h.result(); const j: any = await selects.ai.readJSON(r.files.detections, ${pid}); ` +
+              `const q = (x: number) => Math.round(x); const all = j.samples; ` +
+              `return { W: j.frameSize.width, H: j.frameSize.height, total: all.length, samples: all.slice(${off}, ${off + 400}).map((s: any) => [Math.round(s.sourceTimeSeconds * 1000) / 1000, s.faces.map((f: any) => { const w = f.box.xmax - f.box.xmin, hh = f.box.ymax - f.box.ymin; return [q((f.box.xmin + f.box.xmax) / 2), q(w), q(hh), q(((f.landmarks[3].y + f.landmarks[4].y) / 2 - f.landmarks[2].y) / Math.max(1, hh) * 1000), q((f.box.ymin + f.box.ymax) / 2)]; })]) };`,
+            "Read faces"
+          );
+          W = page.W || W;
+          H = page.H || H;
+          samples.push(...page.samples);
+          if (off + 400 >= page.total) break;
         }
-        if (!failed) break;
-        if (attempt >= 1) throw Object.assign(new Error(failed), { terminal: true });
+        entry.samples = samples.length;
+        return { samples, W, H };
+      } catch (e: any) {
+        if (e instanceof RunCancelled) throw e;
+        entry.status = entry.status || "error";
+        entry.code = e?.code || "";
+        entry.error = String(e?.message || e).slice(0, 200);
+        // The key, range and step above are what a later run needs to recover this job.
+        if (e?.unsettled) entry.unsettled = true;
+        throw e;
+      } finally {
+        entry.seconds = Math.round((Date.now() - t0) / 100) / 10;
+        note(entry);
       }
-      // Faces are read a page at a time to stay under the script result size.
-      const samples: any[] = [];
-      let W = 1920, H = 1080;
-      for (let off = 0; ; off += 400) {
-        const page = await script(
-          `const h = selects.ai.job(${JSON.stringify(part.wf)}, ${pid}); const r = await h.result(); const j: any = await selects.ai.readJSON(r.files.detections, ${pid}); ` +
-            `const q = (x: number) => Math.round(x); const all = j.samples; ` +
-            `return { W: j.frameSize.width, H: j.frameSize.height, total: all.length, samples: all.slice(${off}, ${off + 400}).map((s: any) => [Math.round(s.sourceTimeSeconds * 1000) / 1000, s.faces.map((f: any) => { const w = f.box.xmax - f.box.xmin, hh = f.box.ymax - f.box.ymin; return [q((f.box.xmin + f.box.xmax) / 2), q(w), q(hh), q(((f.landmarks[3].y + f.landmarks[4].y) / 2 - f.landmarks[2].y) / Math.max(1, hh) * 1000), q((f.box.ymin + f.box.ymax) / 2)]; })]) };`,
-          "Read faces"
-        );
-        W = page.W;
-        H = page.H || H;
-        samples.push(...page.samples);
-        if (off + 400 >= page.total) break;
-      }
-      const words = await script(
-        res +
-          SCRIPT_SOURCE_READER + `const { meta: m, words } = await readClipSource(p, RID); ` +
-          `return words.filter((w: any) => !w.nonSpeech && w.endFrame / m.fps >= ${part.a} && w.startFrame / m.fps <= ${part.b}).map((w: any) => [Math.round((w.startFrame / m.fps) * 100) / 100, Math.round((w.endFrame / m.fps) * 100) / 100, w.speakerId ?? null]);`,
-        "Read speakers"
-      );
-      const coverW = (H * 1080) / Math.max(1, L.windowBottom - L.windowTop);
-      part.shots = planShots(samples, speakerTurns(words, part.a, part.b), W, windowW, Number(L.closeUp) || 4.5, Number(L.edgeInset) || 0, !!L.splitHalves, coverW, Number(L.closeUpMin) || 2.8);
     }
-    clips.forEach((c: any, i: number) => {
-      c.reframe = parts.find((p) => p.i === i)?.shots || [];
-    });
+
+    // All faces for a list of ranges. A window whose result is too large (a crowded picture) is searched again
+    // in halves.
+    async function findFaces(i: number, level: number, ranges: number[][], step: number) {
+      const samples: any[] = [];
+      let W = src.W, H = 1080;
+      const search = async (a: number, b: number) => {
+        try {
+          const got = await faceJob(i, level, a, b, step);
+          W = got.W;
+          H = got.H;
+          for (const s of got.samples) if (!samples.length || s[0] > samples[samples.length - 1][0]) samples.push(s);
+        } catch (e: any) {
+          if (e instanceof RunCancelled || e?.code !== "AI_ARTIFACT_TOO_LARGE" || b - a < 10) throw e;
+          const mid = Math.round(((a + b) / 2) * 1000) / 1000;
+          await search(a, mid);
+          await search(mid, b);
+        }
+      };
+      for (const [a, b] of ranges) for (const [wa, wb] of faceWindows(a, b, step, fps)) await search(wa, wb);
+      return { samples, W, H };
+    }
+
+    // The picture check, one AI call per clip with two sheets (at most about a minute; on any failure the face
+    // numbers above stand). The mouth landmarks are noisy (a microphone, heads bent over notes) and know nothing of
+    // the set, so the picture itself is looked at:
+    // 1. Who talks: the clip is cut into stretches of a few seconds along the sentences; for each stretch every
+    //    face is shown four times, close up, in time order. The face whose mouth keeps changing talks.
+    // 2. How wide: for every face, its close-up alternatives cut from one frame as the window will show them; the
+    //    widest that shows the face whole and nobody else's body and no set seam at the edges wins.
+    // askAI runs a full agent turn with the project's tools; the prompt asks it to answer from the images alone, but
+    // nothing enforces that.
+    async function pictureCheck(i: number, c: any, log: any, srcH: number, samples: any[]) {
+      const t0 = Date.now();
+      const faces = (log.faces || []).filter((f: any) => f.w >= Math.max(...log.faces.map((g: any) => g.w)) * 0.5).sort((a: any, b: any) => a.x - b.x).slice(0, 5);
+      if (!faces.length) return null;
+      const inClip = (u: any) => c.segments.map((g: number[]) => [Math.max(u.start, g[0]), Math.min(u.end, g[1])]).filter((r: number[]) => r[1] - r[0] > 0.5);
+      const pieces: any[] = [];
+      for (const u of log.units || []) for (const [a, b] of inClip(u)) pieces.push({ start: a, end: b, spk: u.spk, x: u.face, y: u.faceY });
+      let chunks: any[] = [];
+      for (let len = 6; len <= 48; len *= 2) {
+        chunks = [];
+        for (const p of pieces) {
+          const last = chunks[chunks.length - 1];
+          if (last && last.spk === p.spk && Math.abs(p.start - last.end) < 1 && p.end - last.start <= len) last.end = p.end;
+          else chunks.push({ ...p });
+        }
+        if (chunks.length <= 10) break;
+      }
+      chunks = chunks.filter((k: any) => k.end - k.start >= 0.8).slice(0, 10);
+      if (!chunks.length) return null;
+      try {
+        const where = await script(
+          res +
+            // A large project lists its files per folder (as readClipSource handles).
+            `const e = await selects.files.environment(); const sf: any = await p.sourceFiles(); const all: any[] = []; ` +
+            `const walk = (n: any[]) => { for (const x of n || []) { if (x.type === "dir") walk(x.children); else all.push(x); } }; ` +
+            `if ("fileTree" in sf) walk(sf.fileTree); else for (const fo of sf.folders || []) { const d: any = await p.sourceFiles({ folder: fo.name }); if ("fileTree" in d) walk(d.fileTree); if (all.some((x: any) => x.resourceId === RID)) break; } ` +
+            `const f = all.find((x: any) => x.resourceId === RID); return { path: f ? f.path : null, tmp: e.tempDirectory };`,
+          "Find the source file"
+        );
+        if (!where?.path) throw new Error("The source file has no path on this computer.");
+        // A folder of its own for each attempt, so a job left over from an earlier run can never write into it.
+        const dir = `${where.tmp}/shortform-clips-frames/${job.id}-${i}-${Date.now().toString(36)}`;
+        // A band across all faces at full resolution for the close-ups, a whole frame per face for the crops.
+        const y0 = Math.max(0, Math.round(Math.min(...faces.map((f: any) => f.cy - f.w * 1.3)))), y1 = Math.min(srcH, Math.round(Math.max(...faces.map((f: any) => f.cy + f.w * 1.3))));
+        const bandTimes: number[] = [];
+        for (const k of chunks) for (let n = 0; n < 4; n++) bandTimes.push(Math.round((k.start + 0.2 + ((k.end - k.start - 0.4) * (n + 0.5)) / 4) * 100) / 100);
+        const faceTimes = faces.map((f: any) => {
+          const mine = chunks.filter((k: any) => Math.hypot(k.x - f.x, (k.y ?? f.cy) - f.cy) < 150).sort((a: any, b: any) => b.end - b.start - (a.end - a.start))[0] || chunks[0];
+          return Math.round(((mine.start + mine.end) / 2) * 100) / 100;
+        });
+        const args: string[] = ["-y", "-v", "error"];
+        const outs: string[] = [];
+        [...bandTimes, ...faceTimes].forEach((tt) => args.push("-ss", String(tt), "-i", where.path));
+        bandTimes.forEach((tt, k) => { outs.push(`${dir}/b${k}.jpg`); args.push("-map", `${k}:v:0`, "-frames:v", "1", "-vf", `crop=iw:${y1 - y0}:0:${y0}`, "-q:v", "5", outs[outs.length - 1]); });
+        faceTimes.forEach((tt, k) => { outs.push(`${dir}/f${k}.jpg`); args.push("-map", `${bandTimes.length + k}:v:0`, "-frames:v", "1", "-vf", "scale=960:-2", "-q:v", "4", outs[outs.length - 1]); });
+        const stateOf = (run: any) => async (id: string) => String((await run(`return (await selects.media.job(${JSON.stringify(id)}).status()).state;`, "Take frames")) || "");
+        await runFrameJob({
+          start: async () => (await scriptNow(`await selects.files.mkdir(${JSON.stringify(dir)}, { recursive: true }); return await selects.media.startFFmpeg({ args: ${JSON.stringify(args)} });`, "Take frames", true)).jobId,
+          state: stateOf(script),
+          settled: stateOf(scriptNow),
+          cancel: async (id) => { await scriptNow(`await selects.media.job(${JSON.stringify(id)}).cancel();`, "Stop taking frames", true); },
+          wait: (ms) => guard(sleep(ms)),
+          idle: (ms) => sleep(ms),
+          now: () => Date.now(),
+          limitMs: 60000,
+          stopped: () => !!runRef.current?.cancelled,
+          stopError: () => new RunCancelled(),
+        });
+        const imgs: HTMLImageElement[] = [];
+        for (const path of outs) {
+          let b64 = "";
+          for (let off = 0; off < 8e6; off += SDK_PIECE) {
+            const r = await script(`return await selects.files.readRange({ path: ${JSON.stringify(path)}, offset: ${off}, length: ${SDK_PIECE} });`, "Read a frame");
+            b64 += r.base64;
+            if (r.bytesRead < SDK_PIECE) break;
+          }
+          const img = new Image();
+          img.src = "data:image/jpeg;base64," + b64;
+          await img.decode();
+          imgs.push(img);
+        }
+        const sheet = (w: number, h: number) => {
+          const cv = document.createElement("canvas");
+          cv.width = w;
+          cv.height = h;
+          const g = cv.getContext("2d") as CanvasRenderingContext2D;
+          g.fillStyle = "#ffffff";
+          g.fillRect(0, 0, w, h);
+          g.fillStyle = "#000000";
+          g.font = "bold 22px sans-serif";
+          return { cv, g };
+        };
+        // Sheet 1: stretches (rows) \u00d7 faces (columns), four close-ups per cell.
+        const cs = 100, lw = 44, hh = 34, cellW = 4 * cs + 6;
+        const s1 = sheet(lw + faces.length * (cellW + 16), hh + chunks.length * (cs + 10));
+        faces.forEach((f: any, col: number) => s1.g.fillText(String(col + 1), lw + col * (cellW + 16) + cellW / 2 - 6, 24));
+        chunks.forEach((k: any, row: number) => {
+          const y = hh + row * (cs + 10);
+          s1.g.fillText(String(row + 1), 8, y + cs / 2 + 8);
+          faces.forEach((f: any, col: number) => {
+            for (let n = 0; n < 4; n++) {
+              const img = imgs[row * 4 + n];
+              // The face where it was detected nearest that moment (people lean), else where it usually sits.
+              const tt = bandTimes[row * 4 + n];
+              let lo = 0, hi2 = samples.length - 1;
+              while (lo < hi2) { const m = (lo + hi2) >> 1; if (samples[m][0] < tt) lo = m + 1; else hi2 = m; }
+              const dd = (q: number[]) => Math.hypot(q[0] - f.x, (q[4] ?? f.cy) - f.cy);
+              const near = (samples[lo]?.[1] || []).filter((q: number[]) => dd(q) < f.w * 1.2).sort((p: number[], q: number[]) => dd(p) - dd(q))[0];
+              const [fx, fw, , , fy] = near && Math.abs(samples[lo][0] - tt) < 0.6 ? near : [f.x, f.w, 0, 0, f.cy];
+              const side = fw * 2.1;
+              s1.g.drawImage(img, fx - side / 2, (fy ?? f.cy) - y0 - side / 2, side, side, lw + col * (cellW + 16) + n * (cs + 2), y, cs, cs);
+            }
+          });
+        });
+        // Sheet 2: faces (rows, numbered as the columns of sheet 1) \u00d7 close-up alternatives.
+        const winH = L.windowBottom - L.windowTop, tw = 280, th = Math.round((tw * winH) / 1080), cols = Math.max(...faces.map((f: any) => f.alts.length));
+        const s2 = sheet(lw + cols * (tw + 12), faces.length * (th + 34) + 12);
+        const faceY = (Number(L.faceY) || 40) / 100;
+        faces.forEach((f: any, row: number) => {
+          const y = 12 + row * (th + 34), img = imgs[bandTimes.length + row], k = img.naturalWidth / src.W;
+          s2.g.fillText(String(row + 1), 8, y + th / 2);
+          f.alts.forEach((alt: number[], col: number) => {
+            const [sx, sy, sw, sh] = cropRect({ cx: alt[0], w: alt[1], cy: f.cy }, L, src.W, srcH, faceY, inset);
+            const xx = lw + col * (tw + 12);
+            s2.g.drawImage(img, sx * k, sy * k, sw * k, sh * k, xx, y, tw, th);
+            s2.g.fillText(String.fromCharCode(65 + col), xx + tw / 2 - 7, y + th + 24);
+          });
+        });
+        const prompt =
+          `\uc774\ubbf8\uc9c0 \ub450 \uc7a5\uc740 \ubc29\uc1a1 \ud328\ub110 \ud1a0\ub860 \uc601\uc0c1\uc758 \ud55c \ud074\ub9bd\uc774\ub2e4.\n` +
+          `\uc774\ubbf8\uc9c0 1: \uac01 \uc904(1-${chunks.length})\uc740 \ud074\ub9bd\uc758 \ud55c \uad6c\uac04\uc774\uace0, \uac01 \uc5f4(1-${faces.length})\uc740 \ud654\uba74 \uc18d \uc0ac\ub78c \ud55c \uba85\uc774\ub2e4. \uce78\ub9c8\ub2e4 \uadf8 \uad6c\uac04\uc5d0\uc11c \uadf8 \uc0ac\ub78c\uc758 \uc5bc\uad74\uc744 \uc2dc\uac04 \uc21c\uc11c\ub85c \ub124 \ubc88 \ucc0d\uc5c8\ub2e4. ` +
+          `\uc904\ub9c8\ub2e4 \uadf8 \uad6c\uac04\uc5d0 \ub9d0\ud558\uace0 \uc788\ub294 \uc0ac\ub78c\uc758 \uc5f4 \ubc88\ud638\ub97c \uace8\ub77c\ub77c. \ub124 \uc7a5\uc5d0 \uac78\uccd0 \uc785\uc774 \ubc8c\uc5b4\uc9c0\uace0 \uc785 \ubaa8\uc591\uc774 \uacc4\uc18d \ubc14\ub00c\ub294 \uc0ac\ub78c\uc774 \ub9d0\ud558\ub294 \uc0ac\ub78c\uc774\ub2e4. \uace0\uac1c\ub97c \uc219\uc774\uac70\ub098 \ub044\ub355\uc774\uac70\ub098 \uc6c3\ub294 \uac83\ub9cc\uc73c\ub85c\ub294 \ub9d0\ud558\ub294 \uac83\uc774 \uc544\ub2c8\ub2e4. \uc54c \uc218 \uc5c6\uc73c\uba74 0.\n` +
+          `\uc774\ubbf8\uc9c0 2: \uac01 \uc904(1-${faces.length})\uc740 \uc774\ubbf8\uc9c0 1\uc758 \uac19\uc740 \ubc88\ud638 \uc0ac\ub78c\uc744 \uc138\ub85c \ud654\uba74\uc5d0 \ub2f4\ub294 \ud6c4\ubcf4 A-${String.fromCharCode(64 + cols)}\ub2e4. \uc904\ub9c8\ub2e4 \ud558\ub098\ub97c \uace8\ub77c\ub77c. \uae30\uc900\uc744 \uc21c\uc11c\ub300\ub85c \uc801\uc6a9\ud55c\ub2e4: ` +
+          `(1) \uadf8 \uc0ac\ub78c\uc758 \uba38\ub9ac\uc640 \uc5b4\uae68\uac00 \uc798\ub9ac\uc9c0 \uc54a\ub294\ub2e4. (2) \ub2e4\ub978 \uc0ac\ub78c\uc758 \uc5bc\uad74, \ubab8, \uc5b4\uae68, \ud314, \uc190\uc774 \uac00\uc7a5\uc790\ub9ac\uc5d0 \uc870\uae08\uc774\ub77c\ub3c4 \ubcf4\uc774\uc9c0 \uc54a\ub294\ub2e4. (3) \uc138\ud2b8 \ubcbd\uc758 \uc774\uc74c\uc0c8, \ud328\ub110 \uacbd\uacc4, \uae30\ub465\ucc98\ub7fc \uac00\uc7a5\uc790\ub9ac\ub97c \uc138\ub85c\ub85c \uc9c0\ub098\ub294 \uc120\uc774 \ubcf4\uc774\uc9c0 \uc54a\ub294\ub2e4. ` +
+          `(4) \uc774 \uc870\uac74\uc744 \uc9c0\ud0a4\ub294 \ud6c4\ubcf4 \uc911 \uac00\uc7a5 \ub113\uac8c \ubcf4\uc774\ub294 \uac83. \ubaa8\ub450 \uc5b4\uae0b\ub098\uba74 \uc5b4\uae0b\ub0a8\uc774 \uac00\uc7a5 \uc791\uc740 \uac83.\n` +
+          `\ub3c4\uad6c\ub294 \uc4f0\uc9c0 \ub9d0\uace0 \uc774\ubbf8\uc9c0\ub9cc \ubcf4\uace0 \ub2f5\ud558\ub77c. JSON\ub9cc \ub2f5\ud558\ub77c: {"talkers": {"1": 2, "2": 0}, "crops": {"1": "B", "2": "A"}}`;
+        // askAI refuses an image over 1,500,000 base64 characters: a big sheet is sent at a lower JPEG quality. Even at
+        // the lowest it may stay too big; the host then refuses the call and the first guess stands.
+        const quality: number[] = [];
+        const encode = (cv: HTMLCanvasElement) => {
+          for (const q of [0.85, 0.7, 0.55, 0.4, 0.3]) {
+            const d = cv.toDataURL("image/jpeg", q);
+            if (d.length < 1.4e6 || q === 0.3) { quality.push(q); return d; }
+          }
+          return "";
+        };
+        const r: any = await guard(
+          // Asked like the app's other AI asks. A model that cannot read images fails here, and the first guess stands.
+          sdk.askAI({
+            prompt,
+            images: [
+              { dataUrl: encode(s1.cv), name: "talkers.jpg" },
+              { dataUrl: encode(s2.cv), name: "crops.jpg" },
+            ],
+            timeoutMs: 75000,
+          })
+        );
+        const ans = extractJson(r.text, S);
+        const forced: any[] = [];
+        chunks.forEach((k: any, row: number) => {
+          const n = Number(ans?.talkers?.[String(row + 1)]);
+          if (n >= 1 && n <= faces.length) forced.push({ start: k.start, end: k.end, x: faces[n - 1].x, y: faces[n - 1].cy });
+        });
+        const crops: any[] = [];
+        faces.forEach((f: any, row: number) => {
+          const letter = String(ans?.crops?.[String(row + 1)] || "").trim().toUpperCase();
+          const alt = f.alts[letter.charCodeAt(0) - 65];
+          if (alt) crops.push({ x: f.x, y: f.cy, alt });
+        });
+        note({
+          clip: i,
+          plan: "picture",
+          seconds: Math.round((Date.now() - t0) / 100) / 10,
+          quality,
+          chunks: chunks.map((k: any, row: number) => ({ start: Math.round(k.start * 10) / 10, end: Math.round(k.end * 10) / 10, face: k.x, saw: ans?.talkers?.[String(row + 1)] ?? null })),
+          faces: faces.map((f: any, row: number) => ({ x: f.x, alts: f.alts, pick: ans?.crops?.[String(row + 1)] ?? null })),
+        });
+        return { forced, crops };
+      } catch (e: any) {
+        if (e instanceof RunCancelled) throw e;
+        console.warn("[shortform-clips] picture check failed", e);
+        note({ clip: i, plan: "picture", error: String(e?.message || e).slice(0, 200), seconds: Math.round((Date.now() - t0) / 100) / 10 });
+        return null;
+      }
+    }
+
+    // Each level is tried only if the one before it failed: the clip's stretch, the same once more (the runtime
+    // can crash once), then only the clip's own passages with half the samples.
+    const levels = [
+      { pad: 30, step: 0.1 },
+      { pad: 30, step: 0.1 },
+      { pad: 0, step: 0.2 },
+    ];
+    // Set when a face job's state couldn't be learned: it may still hold the runtime, so no further job is sent
+    // in this run and the remaining clips show the whole picture. Its key is in the log for recovery.
+    let held = false;
+    for (let i = 0; i < clips.length; i++) {
+      const c = clips[i];
+      if (Array.isArray(c.reframe)) continue;
+      let plan: any = null;
+      for (let level = 0; level < levels.length && !plan && !held; level++) {
+        const ranges = faceRanges(c.segments, Number(src.duration) || Infinity, levels[level].pad);
+        if (!ranges.length) break;
+        try {
+          const got = await findFaces(i, level, ranges, levels[level].step);
+          const a = ranges[0][0], b = ranges[ranges.length - 1][1];
+          const words = await script(
+            res +
+              SCRIPT_SOURCE_READER + `const { meta: m, words } = await readClipSource(p, RID); ` +
+              `return words.filter((w: any) => !w.nonSpeech && w.endFrame / m.fps >= ${a} && w.startFrame / m.fps <= ${b}).map((w: any) => [Math.round((w.startFrame / m.fps) * 100) / 100, Math.round((w.endFrame / m.fps) * 100) / 100, w.speakerId ?? null, String(w.text || "")]);`,
+            "Read speakers"
+          );
+          const coverW = (got.H * 1080) / Math.max(1, L.windowBottom - L.windowTop);
+          if (!got.samples.some((s: any) => s[1]?.length)) continue;
+          const sents = sentencesOf(words);
+          const replan = (lg: any, forced?: any[]) => planShots(got.samples, speakerTurns(words, a, b), got.W, windowW, Number(L.closeUp) || 4.5, inset, !!L.splitHalves, coverW, Number(L.closeUpMin) || 2.8, lg, sents, forced);
+          let log: any = {};
+          let shots = replan(log);
+          const inClip = (pc: any) => c.segments.some((sg: number[]) => pc.end > sg[0] && pc.start < sg[1]);
+          note({ clip: i, level, plan: "faces", voice: log.voice, units: (log.units || []).filter(inClip), pieces: (log.pieces || []).filter(inClip) });
+          const seen = log.faces ? await pictureCheck(i, c, log, got.H, got.samples) : null;
+          if (seen?.forced.length) {
+            log = {};
+            shots = replan(log, seen.forced);
+            note({ clip: i, level, plan: "seen", units: (log.units || []).filter(inClip), pieces: (log.pieces || []).filter(inClip) });
+          }
+          if (seen?.crops.length)
+            for (const s of shots) {
+              if (!s.cy) continue;
+              const cr = seen.crops.slice().sort((p: any, q: any) => Math.hypot(p.x - s.cx, p.y - s.cy) - Math.hypot(q.x - s.cx, q.y - s.cy)).find((x: any) => Math.hypot(x.x - s.cx, x.y - s.cy) < 160);
+              if (cr) { s.cx = cr.alt[0]; s.w = cr.alt[1]; }
+            }
+          plan = shots.length ? shots.map(({ alts, ...s }: any) => s) : null;
+        } catch (e: any) {
+          if (e instanceof RunCancelled) throw e;
+          console.warn("[shortform-clips] face finding failed", level, e);
+          if (e?.unsettled) held = true;
+        }
+      }
+      if (!plan) {
+        // No faces at all: the whole picture, so nobody is cut in half.
+        plan = [{ start: 0, end: 1e9, cx: Math.round(src.W / 2), w: Math.round(src.W - 2 * inset) }];
+        note({ clip: i, plan: "whole", ...(held ? { held: true } : {}) });
+      }
+      c.reframe = plan;
+      await saveClip();
+    }
   }
 
   // ---- Step 4: recommend a count and choose passages, following the template's instructions ----
@@ -4109,20 +4714,15 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       let resultWarning = job.resultWarning || "";
       if ((tpl.renderer === "series") && tpl.layout.reframe && !pickd.reframed) {
         setStatus(S.reframing);
-        try {
-          await reframeClips(pickd.clips, job, tpl);
-          pickd.reframed = true;
-          await persist({ choice: pickd });
-        } catch (e: any) {
-          if (e instanceof RunCancelled) throw e;
-          if (e?.terminal) {
-            pickd.reframeTry = (pickd.reframeTry || 0) + 1;
-            await persist({ choice: pickd });
-          }
-          console.warn("[shortform-clips] reframing skipped", e);
-          resultWarning = S.reframeSkipped + shortError(String(e?.message || e));
-          setWarn(resultWarning);
-        }
+        const note = (entry: any) => {
+          pickd.reframeLog = [...(pickd.reframeLog || []), { at: new Date().toISOString(), ...entry }].slice(-300);
+        };
+        // Source-read failures stop this run; do not invent a 1920px fallback for unknown media.
+        // Face-job failures are recovered inside reframeClips, preserving each completed clip's plan.
+        await reframeClips(pickd.clips, job, tpl, note, () => persist({ choice: pickd }));
+        pickd.reframed = true;
+        if (pickd.reframeLog.some((entry: any) => entry.plan === "whole")) resultWarning = S.reframeSkipped;
+        await persist({ choice: pickd, resultWarning });
       }
       if(tpl.framingMode === "single-speaker") resultWarning = S.singleSpeakerNote;
       if (resultWarning) setWarn(resultWarning);

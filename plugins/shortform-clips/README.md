@@ -50,7 +50,19 @@ or a default for new clips. Remove that clip before uploading.
 
 Transcription can be used before visual analysis finishes. Analysis and AI passage
 selection can use credits. Speaker framing uses `selects-ai-runtime`; when unavailable,
-the app warns and uses the template's fixed crop.
+the app retries with smaller searches, then warns and uses the full picture if
+framing remains unavailable. Face searches run sequentially; a job whose status
+cannot be recovered prevents further face searches in that run. Each completed
+clip's framing is saved so an interrupted run can resume without repeating it.
+
+The talker is chosen per transcript sentence, from each face's mouth movement
+against its own listening level, so two people sharing one transcript speaker are
+told apart. Then one AI call per clip looks at the picture: close-ups of every face
+at several moments decide who talks, and each face's close-up alternatives (1 to
+1.3 times the rule's width, cut as the Draft will show them) decide how wide to go
+without another person's body or a set seam at the edges. The frames come from
+Selects' bundled FFmpeg. Any failure keeps the first guess, and the choices are
+recorded in the job's `reframeLog`.
 
 ## Pack updates and local edits
 
@@ -104,7 +116,7 @@ change, not executable code in a pack.
 ## Verification
 
 ```sh
-SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test plugins/shortform-clips/tests/shortform_packs.test.cjs plugins/shortform-clips/tests/shortform_results.test.cjs plugins/shortform-clips/tests/sbs_radio_templates.test.cjs plugins/shortform-clips/tests/sbs_radio_overlay.test.cjs plugins/shortform-clips/tests/sbs_radio_transcription.test.cjs
+SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test plugins/shortform-clips/tests/shortform_packs.test.cjs plugins/shortform-clips/tests/shortform_results.test.cjs plugins/shortform-clips/tests/shortform_reframe.test.mjs plugins/shortform-clips/tests/sbs_radio_templates.test.cjs plugins/shortform-clips/tests/sbs_radio_overlay.test.cjs plugins/shortform-clips/tests/sbs_radio_transcription.test.cjs
 python3 tools/plugin_files.py check shortform-clips
 python3 tools/check_public.py
 ```

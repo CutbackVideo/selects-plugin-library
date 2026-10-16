@@ -82,6 +82,11 @@ customer's defaults. Required sections:
 | `labels` (optional) | Top/footer labels; footer can derive an episode date |
 | `framingMode` (optional) | Fixed single-speaker crop note |
 
+For a `series` template with `layout.reframe` enabled, the app checks each clip's
+picture once to choose the talker and the close-up width (see the app README), so a
+template needs no edge rule. Money Lab retains its split-screen rules;
+`separate-headlines` templates retain their fixed crop.
+
 The shared app validates all templates and images before activation. Its renderer
 features bound what a JSON file can express. New graphics behavior belongs in the
 shared app and a future compatible template API.
