@@ -14,7 +14,7 @@ const root = path.resolve(import.meta.dirname, '../../..');
 const panel = fs.readFileSync(process.env.SHORTFORM_CLIPS_PANEL || path.join(root, 'plugins/shortform-clips/panel.tsx'), 'utf8');
 // The pure reframing helpers, each a top-level function ending at its first unindented closing brace, with
 // their TypeScript types removed.
-const NAMES = ['speakerTurns', 'planShots', 'faceRanges', 'faceWindows', 'keyHash', 'settleFaceJob'];
+const NAMES = ['speakerTurns', 'sentencesOf', 'planShots', 'cropRect', 'faceRanges', 'faceWindows', 'keyHash', 'settleFaceJob', 'runFrameJob'];
 const code = NAMES.map((name) => {
   const start = panel.search(new RegExp('^(async )?function ' + name + '\\(', 'm'));
   assert.ok(start >= 0, 'not found: ' + name);
@@ -22,13 +22,14 @@ const code = NAMES.map((name) => {
 }).join('\n');
 const ctx = {};
 vm.runInNewContext(stripTypeScriptTypes(code) + '\nObject.assign(globalThis, {' + NAMES.join(', ') + '});', ctx);
-const {planShots, speakerTurns, faceRanges, faceWindows, keyHash, settleFaceJob} = ctx;
+const {planShots, speakerTurns, sentencesOf, cropRect, faceRanges, faceWindows, keyHash, settleFaceJob, runFrameJob} = ctx;
 const fx = JSON.parse(fs.readFileSync(path.join(root, 'tests/fixtures/shortform-clips/newsdirect_reframe.json'), 'utf8'));
 
 // The TikTok layout of the News Direct template: an 850 px window, the source's full height.
 const windowW = 1080 / (850 / 1080);
-// edgeMin 3.6: the template's narrowest close-up at the picture edge.
-const plan = (log) => planShots(fx.samples, speakerTurns(fx.words, fx.range[0], fx.range[1]), fx.frameW, windowW, 4.5, 12, false, windowW, 2.8, log, 3.6);
+// This fixture's words carry no text, so sentences break only at pauses, speaker changes and 4 s.
+const sentencesFor = (f) => sentencesOf(f.words.map((w) => (w.length === 3 ? [...w, ''] : w)));
+const plan = (log) => planShots(fx.samples, speakerTurns(fx.words, fx.range[0], fx.range[1]), fx.frameW, windowW, 4.5, 12, false, windowW, 2.8, log, sentencesFor(fx));
 const at = (shots, t) => shots.find((s) => t >= s.start && t < s.end);
 
 test('each passage of the clip is framed on the panellist who talks', () => {
@@ -54,16 +55,41 @@ test('a close-up leaves the neighbours out whole', () => {
   }
 });
 
-test('a close-up at the picture edge is no tighter than one in from it', () => {
-  // The right edge panellist sits about 225 px (300 s) and 244 px (265 s) from the edge. Centring the face would
-  // make the first view 450 px, visibly tighter than the second; both stay near 3.6 face widths instead.
-  const shots = plan();
-  const a = at(shots, 265), b = at(shots, 300);
-  assert.ok(b.w >= 137 * 3.5, `300 s: ${b.w} px`);
-  assert.ok(Math.abs(a.w - b.w) < 20, `265 s ${a.w} px vs 300 s ${b.w} px`);
-  for (const s of [a, b]) assert.ok(s.cx + s.w / 2 <= fx.frameW - 12 + 1e-6, `window ${s.cx}±${s.w / 2} passes the edge`);  // Without edgeMin (the other templates) the face stays centred, as before.
-  const centred = planShots(fx.samples, speakerTurns(fx.words, fx.range[0], fx.range[1]), fx.frameW, windowW, 4.5, 12, false, windowW, 2.8);
-  assert.equal(at(centred, 300).w, 2 * (fx.frameW - 12 - at(centred, 300).cx));
+test('a close-up at the picture edge offers wider views for the picture check', () => {
+  // The right edge panellist sits about 225 px from the edge at 300 s: centred, the close-up is 450 px, which
+  // looked cramped. The alternatives go up to 30 % wider, off centre but inside the picture; which of them
+  // is clean of neighbours and set seams is judged on the frame itself (pickCrops).
+  const s = at(plan(), 300);
+  assert.equal(s.w, 2 * (fx.frameW - 12 - s.cx));
+  const widths = s.alts.map((a) => a[1]);
+  assert.ok(Math.max(...widths) >= s.w * 1.28, JSON.stringify(s.alts));
+  for (const [cx, w] of s.alts) assert.ok(cx + w / 2 <= fx.frameW - 12 + 1 && cx - w / 2 >= 12 - 1, `${cx}±${w / 2} leaves the picture`);
+});
+
+test('the crop preview matches the Draft placement', () => {
+  // A centred close-up shows w source pixels across and w × 850 / 1080 down, with the face 48 % down the window.
+  const L = {windowTop: 450, windowBottom: 1300};
+  const [x, y, w, h] = cropRect({cx: 960, w: 500, cy: 540}, L, 1920, 1080, 0.48, 12);
+  assert.ok(Math.abs(x - 710) < 1e-6 && Math.abs(w - 500) < 1e-6 && Math.abs(h - (500 * 850) / 1080) < 1e-6, JSON.stringify([x, y, w, h]));
+  assert.ok(Math.abs(540 - (y + h * 0.48)) < 1e-6, 'face 48 % down');
+  // At the picture edge the view stops at the edge inset instead of showing past it.
+  const [ex, , ew] = cropRect({cx: 1880, w: 500, cy: 540}, L, 1920, 1080, 0.48, 12);
+  assert.ok(Math.abs(ex + ew - (1920 - 12)) < 1e-6, String(ex + ew));
+  // The picture always covers the window top to bottom.
+  const [, ty, , tht] = cropRect({cx: 960, w: 500, cy: 60}, L, 1920, 1080, 0.48, 12);
+  assert.ok(ty >= -1e-6 && ty + tht <= 1080 + 1e-6, String([ty, tht]));
+});
+
+test('each sentence follows the panellist who actually talks, even when two share a speaker id', () => {
+  // WaeCpJ4g7fk 680-762 s: the transcript gives speaker id 5 to both Cho Eung-cheon (right edge, x≈1700, talks until
+  // 751 s) and Kim Geun-sik (x≈780, talks from 751.5 s), checked on the source frames. Matching one face per id put
+  // the whole stretch on Kim Geun-sik. 746-751 s is still given to Kim Geun-sik (his mouth moves more while listening there).
+  const mf = JSON.parse(fs.readFileSync(path.join(root, 'tests/fixtures/shortform-clips/newsdirect_merged_speaker.json'), 'utf8'));
+  const shots = planShots(mf.samples, speakerTurns(mf.words, mf.range[0], mf.range[1]), mf.frameW, windowW, 4.5, 12, false, windowW, 2.8, undefined, sentencesFor(mf));
+  for (const [t, x] of [[685, 1700], [692, 1700], [705, 1700], [718, 1700], [731, 1700], [740, 1700], [744, 1700], [755, 780], [761, 780]]) {
+    const s = at(shots, t);
+    assert.ok(s && s.cy && Math.abs(s.cx - x) < 150, `${t} s: x ${s && s.cx}, expected about ${x}`);
+  }
 });
 
 test('the speaker matches and every decision are logged', () => {
@@ -214,6 +240,67 @@ test('a run the user stopped picks up its job again when resumed', async () => {
   assert.equal(rt.jobs.size, 1);
   assert.equal(got.wf, 'wf-0');
   assert.equal(got.status.status, 'succeeded');
+});
+
+test('talkers the picture check saw replace the first guess for their stretch', () => {
+  // Force 700-712 s of the shared-id stretch onto Kim Geun-sik (x≈780); the rest keeps its first guess.
+  const mf = JSON.parse(fs.readFileSync(path.join(root, 'tests/fixtures/shortform-clips/newsdirect_merged_speaker.json'), 'utf8'));
+  const run = (forced) => planShots(mf.samples, speakerTurns(mf.words, mf.range[0], mf.range[1]), mf.frameW, windowW, 4.5, 12, false, windowW, 2.8, undefined, sentencesFor(mf), forced);
+  const before = run();
+  const after = run([{start: 700, end: 712, x: 780, y: 540}]);
+  assert.ok(Math.abs(at(before, 705).cx - 1700) < 150, String(at(before, 705).cx));
+  assert.ok(Math.abs(at(after, 705).cx - 780) < 150, String(at(after, 705).cx));
+  assert.ok(Math.abs(at(after, 690).cx - 1700) < 150 && Math.abs(at(after, 730).cx - 1700) < 150, 'outside the stretch nothing changes');
+  // A seen face nowhere near any detected face changes nothing.
+  assert.equal(JSON.stringify(run([{start: 700, end: 712, x: 1300, y: 100}])), JSON.stringify(before));
+});
+
+// A pretend host media job for runFrameJob. Each status read takes `slow` ms of the clock.
+function mediaHost(o = {}) {
+  const h = {clock: 0, started: 0, cancels: 0, state: 'running', reads: 0, stopped: false, ...o};
+  h.io = {
+    start: async () => { h.started++; if (h.stopOnStart) h.stopped = true; return 'job-1'; },
+    state: async () => { h.clock += h.slow || 0; h.reads++; if (h.failRead && h.reads === h.failRead) throw new Error('status failed'); if (h.doneAfter && h.reads >= h.doneAfter) h.state = 'succeeded'; return h.state; },
+    settled: async () => { h.clock += 100; if (h.state === 'canceling') h.state = 'cancelled'; return h.state; },
+    cancel: async () => { h.cancels++; if (h.state === 'running') h.state = 'canceling'; },
+    wait: async (ms) => { h.clock += ms; if (h.stopAt && h.clock >= h.stopAt) { h.stopped = true; throw new Stopped(); } },
+    idle: async (ms) => { h.clock += ms; },
+    now: () => h.clock, limitMs: 60000, stopped: () => h.stopped, stopError: () => new Stopped(),
+  };
+  return h;
+}
+
+test('a frame job that finishes is left alone', async () => {
+  const h = mediaHost({doneAfter: 3});
+  await runFrameJob(h.io);
+  assert.equal(h.cancels, 0);
+});
+
+test('a frame job past its time is cancelled and awaited, by elapsed time', async () => {
+  // Every status read takes half a second: the limit is 60 s of clock, not a number of reads.
+  const h = mediaHost({slow: 500});
+  await assert.rejects(runFrameJob(h.io), (e) => e.code === 'TIMEOUT');
+  assert.equal(h.cancels, 1);
+  assert.equal(h.state, 'cancelled');
+  assert.ok(h.clock < 75000, String(h.clock));
+});
+
+test('a failed status read cancels the frame job', async () => {
+  const h = mediaHost({failRead: 2});
+  await assert.rejects(runFrameJob(h.io), /status failed/);
+  assert.equal(h.cancels, 1);
+  assert.equal(h.state, 'cancelled');
+});
+
+test('a user cancel stops the frame job, also before its start was answered', async () => {
+  const h = mediaHost({stopAt: 1000});
+  await assert.rejects(runFrameJob(h.io), Stopped);
+  assert.equal(h.cancels, 1);
+  assert.equal(h.state, 'cancelled');
+  const early = mediaHost({stopOnStart: true});
+  await assert.rejects(runFrameJob(early.io), Stopped);
+  assert.equal(early.started, 1);
+  assert.equal(early.cancels, 1);
 });
 
 // Exercise the panel's orchestration as well as the pure shot planner.

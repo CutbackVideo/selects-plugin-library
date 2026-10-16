@@ -1136,7 +1136,6 @@ function validateTemplate(t: any, runtime = false) {
     for (const k of ["gradient1", "gradient2", "strokeColor", "style"]) if (d.headline[k] !== undefined) packAssert(typeof d.headline[k] === "string", "Invalid headline value: " + k);
     for (const k of ["strokeOn"]) if (d.headline[k] !== undefined) packAssert(typeof d.headline[k] === "boolean", "Invalid headline option: " + k);
     for (const k of ["closeUp", "edgeInset", "faceY"]) if (d.layout[k] !== undefined) packAssert(typeof d.layout[k] === "number", "Invalid layout value: " + k);
-    if (d.layout.edgeMin !== undefined) packAssert(typeof d.layout.edgeMin === "number" && Number.isFinite(d.layout.edgeMin) && d.layout.edgeMin > 0 && d.layout.edgeMin <= 20, "Invalid edge close-up minimum.");
     for (const k of ["reframe", "splitHalves"]) if (d.layout[k] !== undefined) packAssert(typeof d.layout[k] === "boolean", "Invalid layout option: " + k);
     for (const k of ["left", "width"]) if (d.captions[k] !== undefined) packAssert(typeof d.captions[k] === "number", "Invalid caption value: " + k);
     for (const k of ["highlight", "cleanSpeechText"]) if (d.captions[k] !== undefined) packAssert(typeof d.captions[k] === "boolean", "Invalid caption option: " + k);
@@ -2652,7 +2651,32 @@ function speakerTurns(words: any[], a: number, b: number): any[] {
   return kept;
 }
 
-function planShots(samples: any[], turns: any[], frameW: number, windowW: number, closeUp = 4.5, inset = 0, split = false, coverW = windowW, closeUpMin = 2.8, log?: any, edgeMin = closeUpMin): any[] {
+// Sentences of the transcript: [start, end, speakerId, text] words split at a pause of 0.6 s or more, at a change
+// of speaker id, after sentence-ending punctuation and before they pass 4 s. Each gets its own talker in
+// planShots, so a speaker id the transcript gave to two people still follows whoever actually talks.
+function sentencesOf(words: any[]): any[] {
+  const out: any[] = [];
+  let cur: any = null;
+  for (const [s, e, spk, text] of words) {
+    if (cur && (s - cur.end >= 0.6 || spk !== cur.spk || /[.?!]$/.test(cur.text) || e - cur.start > 4)) { out.push(cur); cur = null; }
+    if (!cur) cur = { start: s, end: e, spk, text: String(text || "") };
+    else { cur.end = e; cur.text += " " + String(text || ""); }
+  }
+  if (cur) out.push(cur);
+  return out.map(({ start, end, spk }) => ({ start, end, spk }));
+}
+
+// samples: [seconds, [[cx, w, h, mouth, cy], ...]][] from faces.detect every 0.1 s, where mouth is the nose-to-mouth
+// distance per mille of the face height; returns [{ start, end, cx, w?, cy? }]: w is the source width to show
+// (narrower than the window for a close-up on the talker, wider for side-by-side faces) and cy the face to
+// place in the window's upper part.
+// Pieces are speaker turns further split where the faces on screen change (a cut to another camera or an
+// insert). In each piece the window centres on the talker: the face matched to the turn's transcript speaker,
+// else the face whose mouth moves most compared with its own average. When no face clearly stands out, the
+// piece frames the spot that keeps the most face area whole, or a wider view that keeps everyone whole.
+// Samples may come from several separate ranges (the clip's passages); a face at the same place on both
+// sides of a gap stays one face. log, when given, receives the speaker matches and each piece's decision.
+function planShots(samples: any[], turns: any[], frameW: number, windowW: number, closeUp = 4.5, inset = 0, split = false, coverW = windowW, closeUpMin = 2.8, log?: any, sents?: any[], forced?: any[]): any[] {
   // coverW: the widest view whose picture still fills the window from top to bottom.
   // inset: source pixels at each side edge never shown (black bars some broadcasts carry). split: the picture is
   // two halves side by side (guest | host), so a view never crosses the middle.
@@ -2677,13 +2701,15 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
       let best: any = null, bd = Infinity;
       for (const tr of tracks) {
         if (t - tr.lastT > 1.6 || out.some((o) => o.track === tr)) continue;
-        const d = Math.abs(tr.lastX - cx);
+        // Height counts too, at half weight: a picture split into rows (a composite of several cameras) can stack
+        // two people at nearly the same x, while one person's head moves up and down far less than a row.
+        const d = Math.hypot(tr.lastX - cx, ((tr.lastY ?? cy ?? 540) - (cy ?? 540)) / 2);
         if (d < Math.max(w, tr.lastW) * 0.6 && d < bd) { best = tr; bd = d; }
       }
       if (!best) { best = { jit: [] as number[][], n: 0, xs: [] as number[] }; tracks.push(best); }
       if (best.lastM !== undefined && t - best.lastT <= pairGap) best.jit.push([t, Math.abs(mouth - best.lastM)]);
       if (best.xs.length < 50) best.xs.push(cx);
-      best.lastT = t; best.lastX = cx; best.lastW = w; best.lastM = mouth;
+      best.lastT = t; best.lastX = cx; best.lastY = cy ?? 540; best.lastW = w; best.lastM = mouth;
       out.push({ track: best, cx, cy: cy ?? 540, w, area: w * h });
     }
     return { t, faces: out };
@@ -2703,7 +2729,7 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
     for (const c of cuts) if (c > s && c < turn.end) { pieces.push({ start: s, end: c, spk: turn.spk }); s = c; }
     pieces.push({ start: s, end: turn.end, spk: turn.spk });
   }
-  const tidy: any[] = [];
+  let tidy: any[] = [];
   for (const p of pieces) {
     const prev = tidy[tidy.length - 1];
     if (prev && p.end - p.start < 1) prev.end = p.end;
@@ -2719,14 +2745,22 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
     const edge = Math.min(f.cx - blo, bhi - f.cx);
     let w = Math.max(windowW * 0.4, Math.min(coverW, bhi - blo, f.w * closeUp));
     for (const n of others) {
-      if (n === f || n.cx < blo || n.cx > bhi) continue;
+      // A face in another row of a composite picture is not beside this one.
+      if (n === f || n.cx < blo || n.cx > bhi || Math.abs((n.cy ?? 540) - (f.cy ?? 540)) > f.w * 2) continue;
       w = Math.min(w, Math.max(f.w * closeUpMin, 2 * (Math.abs(n.cx - f.cx) - n.w * 1.3)));
     }
-    // A template may keep that narrowing above edgeMin face widths (News Direct: 3.6, its right edge panellist
-    // sits too close to the edge to be centred): the face then sits a little off centre instead of filling the
-    // window.
-    if (w / 2 > edge) w = Math.min(w, Math.max(f.w * closeUpMin, f.w * edgeMin, 2 * edge));
-    return { cx: Math.max(blo + w / 2, Math.min(bhi - w / 2, f.cx)), w, cy: f.cy };
+    if (w / 2 > edge) w = Math.min(w, Math.max(f.w * closeUpMin, 2 * edge));
+    const at = (ww: number) => [Math.round(Math.max(blo + ww / 2, Math.min(bhi - ww / 2, f.cx))), Math.round(ww)];
+    // Alternatives for the picture check (pictureCheck): up to 30 % wider, never tighter (a tighter close-up
+    // looked cramped). A wider view at the picture's edge leaves the face off centre; which of them shows nobody
+    // else and no set seam is judged on the actual frame, not by these numbers.
+    const alts: number[][] = [];
+    for (const k of [1, 1.08, 1.17, 1.3]) {
+      const ww = Math.min(coverW, bhi - blo, w * k);
+      const c = at(ww);
+      if (!alts.some((x) => Math.abs(x[0] - c[0]) < 12 && Math.abs(x[1] - c[1]) < 12)) alts.push(c);
+    }
+    return { cx: alts[0][0], w: alts[0][1], cy: f.cy, alts };
   };
   // Each transcript speaker is matched once to a face over the whole window: the face whose mouth moves most
   // during that speaker's turns compared with its own movement during the other speakers' turns. Comparing with
@@ -2763,6 +2797,119 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
     }
   }
   if (log) { log.voice = voiceLog; log.pieces = []; }
+  // The talker of each sentence (not of each speaker id): a transcript can give two people one id, and a short
+  // passage may have an id no face was matched to. Each face's mouth movement in a sentence is compared with its
+  // movement while the other speaker ids talk, when it listens: a talker moves well above their listening level,
+  // while a listener who nods or smiles stays near theirs, and someone who talks a lot is not held against their
+  // own talking. The face furthest above its listening level, compared with the others, talks. One sentence is
+  // a few noisy seconds, so the talkers of all sentences are chosen together (Viterbi): changing talker costs
+  // about as much as a second and a half of clearly higher movement, which also keeps the picture from cutting
+  // back and forth. Checked against hand-labelled talkers in the clip
+  // passages of several News Direct episodes, including a stretch where two panellists share one id.
+  const unitsLog: any[] = [];
+  if (sents && sents.length && !split) {
+    const live = tracks.filter((tr: any) => tr.jit.length >= 50);
+    // Who talks at a moment, by the transcript's own word runs (backchannels included), for the listening level.
+    const spkAt = (u: number) => sents.find((t: any) => u >= t.start && u < t.end)?.spk;
+    for (const tr of live) tr.jk = tr.jit.map(([u, v]: number[]) => [u, v, spkAt(u)]);
+    const units: any[] = [];
+    for (const s of sents) {
+      const last = units[units.length - 1];
+      if (s.end - s.start < 0.8 && last) last.end = Math.max(last.end, s.end);
+      else units.push({ ...s });
+    }
+    // Turns of the speaker ids matched to the face itself (above) are left out of its listening level, so a talker
+    // who also got a second id somewhere is not measured against their own talking.
+    const ownIds = (tr: any) => new Set([...voice.entries()].filter(([, v]) => v === tr).map(([k]) => k));
+    const listenOf = new Map<any, number>();
+    const listen = (tr: any, spk: any) => {
+      const key = live.indexOf(tr) + ":" + spk;
+      if (!listenOf.has(key)) {
+        const own = ownIds(tr);
+        const o = tr.jk.filter((x: any[]) => x[2] !== null && x[2] !== undefined && x[2] !== spk && !own.has(x[2]));
+        listenOf.set(key, o.length >= 20 ? o.reduce((a: number, x: any[]) => a + x[1], 0) / o.length : 0);
+      }
+      return listenOf.get(key) as number;
+    };
+    if (live.length && units.length) {
+      const em = units.map((u: any) => {
+        const lr = live.map((tr: any) => {
+          const v = tr.jit.filter(([x]: number[]) => x >= u.start && x < u.end).map(([, y]: number[]) => y);
+          const base = listen(tr, u.spk);
+          if (v.length < 4 || !(base > 0)) return null;
+          return Math.log(Math.max(1e-6, v.reduce((x: number, y: number) => x + y, 0) / v.length) / base);
+        });
+        const got = lr.filter((r: any) => r !== null) as number[];
+        const mu = got.length ? got.reduce((x, y) => x + y, 0) / got.length : 0;
+        const d = Math.sqrt(Math.min(8, u.end - u.start));
+        return lr.map((r: any) => (r === null ? -5 : (r - mu) * d));
+      });
+      const SWITCH = 1.5;
+      let V = em[0].slice();
+      const back: number[][] = [];
+      for (let i = 1; i < units.length; i++) {
+        const nv: number[] = [], bk: number[] = [];
+        for (let j = 0; j < live.length; j++) {
+          let bi = j, bs = V[j];
+          for (let k = 0; k < live.length; k++) if (V[k] - SWITCH > bs) { bs = V[k] - SWITCH; bi = k; }
+          nv.push(bs + em[i][j]); bk.push(bi);
+        }
+        V = nv; back.push(bk);
+      }
+      let cur = V.indexOf(Math.max(...V));
+      const path = [cur];
+      for (let i = back.length - 1; i >= 0; i--) { cur = back[i][cur]; path.push(cur); }
+      path.reverse();
+      // Where each face sits, over the whole window.
+      for (const tr of live) {
+        const xs: number[] = [], ws: number[] = [], ys: number[] = [];
+        for (const r of rows) for (const f of r.faces) if (f.track === tr) { xs.push(f.cx); ws.push(f.w); ys.push(f.cy); }
+        tr.at = { cx: median(xs), w: median(ws), cy: median(ys) };
+      }
+      // forced: talkers the picture check saw ([{ start, end, x }]); they replace the choice above for the
+      // sentences whose middle falls inside, as the face sitting nearest x.
+      units.forEach((u: any, i: number) => {
+        u.talker = live[path[i]];
+        const mid = (u.start + u.end) / 2;
+        const f = (forced || []).find((x: any) => mid >= x.start && mid < x.end);
+        if (f) {
+          const dist = (p: any) => Math.hypot(p.at.cx - f.x, f.y === undefined ? 0 : p.at.cy - f.y);
+          const near = live.slice().sort((p: any, q: any) => dist(p) - dist(q))[0];
+          if (near && dist(near) < 200) u.talker = near;
+        }
+        unitsLog.push({ start: Math.round(u.start * 10) / 10, end: Math.round(u.end * 10) / 10, spk: u.spk ?? null, face: Math.round(u.talker.at.cx), faceY: Math.round(u.talker.at.cy) });
+      });
+      // Every face's close-up alternatives, for the picture check.
+      if (log) {
+        const all = live.map((tr: any) => ({ track: tr, cx: tr.at.cx, cy: tr.at.cy, w: tr.at.w }));
+        log.faces = all.map((f: any) => ({ x: Math.round(f.cx), w: Math.round(f.w), cy: Math.round(f.cy), alts: closeUpOn(f, all).alts }));
+      }
+      // Runs of one talker, covering the whole window, split where the camera cuts.
+      const a0 = turns.length ? turns[0].start : units[0].start, b0 = turns.length ? turns[turns.length - 1].end : units[units.length - 1].end;
+      const runs: any[] = [];
+      for (const u of units) {
+        const last = runs[runs.length - 1];
+        if (last && last.talker === u.talker) last.end = u.end;
+        else runs.push({ start: u.start, end: u.end, spk: u.spk, talker: u.talker });
+      }
+      runs[0].start = Math.min(runs[0].start, a0);
+      for (let i = 1; i < runs.length; i++) runs[i - 1].end = runs[i].start;
+      runs[runs.length - 1].end = Math.max(runs[runs.length - 1].end, b0);
+      const cutRuns: any[] = [];
+      for (const r of runs) {
+        let s = r.start;
+        for (const c of cuts) if (c > s && c < r.end) { cutRuns.push({ ...r, start: s, end: c }); s = c; }
+        cutRuns.push({ ...r, start: s });
+      }
+      tidy = [];
+      for (const p of cutRuns) {
+        const prev = tidy[tidy.length - 1];
+        if (prev && p.end - p.start < 1) prev.end = p.end;
+        else tidy.push({ ...p });
+      }
+    }
+  }
+  if (log) log.units = unitsLog;
   const shots: any[] = [];
   for (const piece of tidy) {
     const inPiece = rows.filter((r: any) => r.t >= piece.start && r.t < piece.end);
@@ -2783,6 +2930,11 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
       if (log) log.pieces.push({ start: Math.round(shot.start * 10) / 10, end: Math.round(shot.end * 10) / 10, spk: shot.spk ?? null, how, cx: Math.round(shot.cx), ...(shot.w ? { w: Math.round(shot.w) } : {}), faces: faces.map((f) => Math.round(f.cx)) });
     };
     if (!faces.length) { take("noFaces", { ...piece, cx: shots.length ? shots[shots.length - 1].cx : frameW / 2 }); continue; }
+    const talkerFace = piece.talker && faces.find((f) => f.track === piece.talker);
+    if (talkerFace) {
+      take("sentence", { ...piece, ...closeUpOn(talkerFace, faces) });
+      continue;
+    }
     const voiced = voice.get(piece.spk);
     const voicedFace = voiced && faces.find((f) => f.track === voiced);
     if (voicedFace) {
@@ -2844,9 +2996,26 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
     else merged.push({ ...s });
   }
   const r3 = (x: number) => Math.round(x * 1000) / 1000;
-  return merged.map((s) => ({ start: r3(s.start), end: r3(s.end), cx: Math.round(s.cx), ...(s.w ? { w: Math.round(s.w) } : {}), ...(s.cy ? { cy: Math.round(s.cy) } : {}) }));
+  return merged.map((s) => ({ start: r3(s.start), end: r3(s.end), cx: Math.round(s.cx), ...(s.w ? { w: Math.round(s.w) } : {}), ...(s.cy ? { cy: Math.round(s.cy) } : {}), ...(s.alts && s.alts.length > 1 ? { alts: s.alts } : {}) }));
 }
 
+// The part of the source picture a close-up shows in the template's window, as [x, y, width, height] in source
+// pixels: the geometry of RADIO_SCRIPT_BUILD's placeOf (scale 1080 / w, the face faceY of the way down the window,
+// the picture kept covering the window and inside the edge inset), so a preview shows what the Draft will.
+function cropRect(shot: any, frame: any, srcW: number, srcH: number, faceY = 0.4, inset = 0): number[] {
+  const sc = 1080 / shot.w;
+  const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;
+  const xoff = Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc));
+  const top = Number(frame.windowTop), bottom = Number(frame.windowBottom);
+  const half = (540 * sc * srcH) / 1080;
+  const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - (shot.cy ?? 540)) * sc));
+  return [srcW / 2 + (-540 - xoff) / sc, srcH / 2 + (top - yc) / sc, 1080 / sc, (bottom - top) / sc];
+}
+
+// The source ranges searched for faces in one clip. Speaker matching compares each face's mouth during a
+// speaker's turns with its mouth during the other speakers' turns, so the whole stretch from the clip's first
+// passage to its last, plus 30 s around it, is searched; only a clip spread over more than ten minutes is
+// searched passage by passage. pad 0 searches the passages alone.
 function faceRanges(segments: number[][], duration: number, pad = 30): number[][] {
   const end = Math.max(0, duration - 0.05);
   const segs = segments.map((s) => [Math.max(0, s[0] - pad), Math.min(end, s[1] + pad)]).filter((r) => r[1] > r[0]).sort((x, y) => x[0] - y[0]);
@@ -2915,6 +3084,39 @@ async function settleFaceJob(io: { submit(): Promise<any>; status(cancel: boolea
   }
   if (!ended(s)) throw unsettled({ code: "TIMEOUT", message: `Finding faces took too long and did not stop (${s.status}).` }, wf);
   return { wf, status: { ...s, code: s.code || "TIMEOUT", error: s.error || "Finding faces took too long." } };
+}
+
+// One FFmpeg job on the host (the picture check's frames), from start to end. A media job outlives the script that
+// started it (up to ten minutes), so whenever this ends without success (too slow, a status check failing, the
+// user cancelling, even before the start was answered) the job is cancelled and its end awaited before the error
+// goes on. io.start and io.cancel/io.settled must not be raced with the user's cancel; io.wait is.
+async function runFrameJob(io: { start(): Promise<string>; state(id: string): Promise<string>; settled(id: string): Promise<string>; cancel(id: string): Promise<void>; wait(ms: number): Promise<void>; idle(ms: number): Promise<void>; now(): number; limitMs: number; stopped(): boolean; stopError(): any }): Promise<void> {
+  const id = await io.start();
+  const t0 = io.now();
+  let state = "running";
+  let failure: any = null;
+  try {
+    for (;;) {
+      if (io.stopped()) throw io.stopError();
+      state = await io.state(id);
+      if (state !== "running") break;
+      if (io.now() - t0 > io.limitMs) throw Object.assign(new Error("Taking frames took too long."), { code: "TIMEOUT" });
+      await io.wait(250);
+    }
+  } catch (e: any) {
+    failure = e;
+  }
+  if (!failure && state === "succeeded") return;
+  if (failure || state === "running") {
+    try {
+      await io.cancel(id);
+      const until = io.now() + 10000;
+      while (io.now() < until && (await io.settled(id)) === "running") await io.idle(250);
+    } catch (e) {
+      // The original failure is what matters; the job ends by itself within ten minutes at worst.
+    }
+  }
+  throw failure || new Error(`Taking frames ended ${state}.`);
 }
 
 const VARIANT_ROOTS = ["layout", "captions", "labels", "headline", "logo", "background", "border"];
@@ -3617,6 +3819,12 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     if (r.isError) throw Object.assign(new Error(scriptError(r.output)), { code: scriptCode(r.output) });
     return r.result;
   };
+  // The same, not raced with the user's cancel: for cleaning up host jobs after the run has stopped.
+  const scriptNow = async (code: string, summary: string, allowCommit = false) => {
+    const r: any = await sdk.runScript({ script: code, summary, allowCommit });
+    if (r.isError) throw Object.assign(new Error(scriptError(r.output)), { code: scriptCode(r.output) });
+    return r.result;
+  };
   const shell = async (command: string, summary: string, timeoutMs = 120000, cwd?: string) => {
     const cmd = IS_WIN ? "@echo off\r\n" + command.replace(/\r?\n/g, "\r\n") : command;
     const r: any = await guard(sdk.runShell({ summary, command: cmd, timeoutMs, maxOutputBytes: 48000, ...(cwd ? { cwd } : {}) }));
@@ -4114,6 +4322,191 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       return { samples, W, H };
     }
 
+    // The picture check, one AI call per clip with two sheets (at most about a minute; on any failure the face
+    // numbers above stand). The mouth landmarks are noisy (a microphone, heads bent over notes) and know nothing of
+    // the set, so the picture itself is looked at:
+    // 1. Who talks: the clip is cut into stretches of a few seconds along the sentences; for each stretch every
+    //    face is shown four times, close up, in time order. The face whose mouth keeps changing talks.
+    // 2. How wide: for every face, its close-up alternatives cut from one frame as the window will show them; the
+    //    widest that shows the face whole and nobody else's body and no set seam at the edges wins.
+    // askAI runs a full agent turn with the project's tools; the prompt asks it to answer from the images alone, but
+    // nothing enforces that.
+    async function pictureCheck(i: number, c: any, log: any, srcH: number, samples: any[]) {
+      const t0 = Date.now();
+      const faces = (log.faces || []).filter((f: any) => f.w >= Math.max(...log.faces.map((g: any) => g.w)) * 0.5).sort((a: any, b: any) => a.x - b.x).slice(0, 5);
+      if (!faces.length) return null;
+      const inClip = (u: any) => c.segments.map((g: number[]) => [Math.max(u.start, g[0]), Math.min(u.end, g[1])]).filter((r: number[]) => r[1] - r[0] > 0.5);
+      const pieces: any[] = [];
+      for (const u of log.units || []) for (const [a, b] of inClip(u)) pieces.push({ start: a, end: b, spk: u.spk, x: u.face, y: u.faceY });
+      let chunks: any[] = [];
+      for (let len = 6; len <= 48; len *= 2) {
+        chunks = [];
+        for (const p of pieces) {
+          const last = chunks[chunks.length - 1];
+          if (last && last.spk === p.spk && Math.abs(p.start - last.end) < 1 && p.end - last.start <= len) last.end = p.end;
+          else chunks.push({ ...p });
+        }
+        if (chunks.length <= 10) break;
+      }
+      chunks = chunks.filter((k: any) => k.end - k.start >= 0.8).slice(0, 10);
+      if (!chunks.length) return null;
+      try {
+        const where = await script(
+          res +
+            // A large project lists its files per folder (as readClipSource handles).
+            `const e = await selects.files.environment(); const sf: any = await p.sourceFiles(); const all: any[] = []; ` +
+            `const walk = (n: any[]) => { for (const x of n || []) { if (x.type === "dir") walk(x.children); else all.push(x); } }; ` +
+            `if ("fileTree" in sf) walk(sf.fileTree); else for (const fo of sf.folders || []) { const d: any = await p.sourceFiles({ folder: fo.name }); if ("fileTree" in d) walk(d.fileTree); if (all.some((x: any) => x.resourceId === RID)) break; } ` +
+            `const f = all.find((x: any) => x.resourceId === RID); return { path: f ? f.path : null, tmp: e.tempDirectory };`,
+          "Find the source file"
+        );
+        if (!where?.path) throw new Error("The source file has no path on this computer.");
+        // A folder of its own for each attempt, so a job left over from an earlier run can never write into it.
+        const dir = `${where.tmp}/shortform-clips-frames/${job.id}-${i}-${Date.now().toString(36)}`;
+        // A band across all faces at full resolution for the close-ups, a whole frame per face for the crops.
+        const y0 = Math.max(0, Math.round(Math.min(...faces.map((f: any) => f.cy - f.w * 1.3)))), y1 = Math.min(srcH, Math.round(Math.max(...faces.map((f: any) => f.cy + f.w * 1.3))));
+        const bandTimes: number[] = [];
+        for (const k of chunks) for (let n = 0; n < 4; n++) bandTimes.push(Math.round((k.start + 0.2 + ((k.end - k.start - 0.4) * (n + 0.5)) / 4) * 100) / 100);
+        const faceTimes = faces.map((f: any) => {
+          const mine = chunks.filter((k: any) => Math.hypot(k.x - f.x, (k.y ?? f.cy) - f.cy) < 150).sort((a: any, b: any) => b.end - b.start - (a.end - a.start))[0] || chunks[0];
+          return Math.round(((mine.start + mine.end) / 2) * 100) / 100;
+        });
+        const args: string[] = ["-y", "-v", "error"];
+        const outs: string[] = [];
+        [...bandTimes, ...faceTimes].forEach((tt) => args.push("-ss", String(tt), "-i", where.path));
+        bandTimes.forEach((tt, k) => { outs.push(`${dir}/b${k}.jpg`); args.push("-map", `${k}:v:0`, "-frames:v", "1", "-vf", `crop=iw:${y1 - y0}:0:${y0}`, "-q:v", "5", outs[outs.length - 1]); });
+        faceTimes.forEach((tt, k) => { outs.push(`${dir}/f${k}.jpg`); args.push("-map", `${bandTimes.length + k}:v:0`, "-frames:v", "1", "-vf", "scale=960:-2", "-q:v", "4", outs[outs.length - 1]); });
+        const stateOf = (run: any) => async (id: string) => String((await run(`return (await selects.media.job(${JSON.stringify(id)}).status()).state;`, "Take frames")) || "");
+        await runFrameJob({
+          start: async () => (await scriptNow(`await selects.files.mkdir(${JSON.stringify(dir)}, { recursive: true }); return await selects.media.startFFmpeg({ args: ${JSON.stringify(args)} });`, "Take frames", true)).jobId,
+          state: stateOf(script),
+          settled: stateOf(scriptNow),
+          cancel: async (id) => { await scriptNow(`await selects.media.job(${JSON.stringify(id)}).cancel();`, "Stop taking frames", true); },
+          wait: (ms) => guard(sleep(ms)),
+          idle: (ms) => sleep(ms),
+          now: () => Date.now(),
+          limitMs: 60000,
+          stopped: () => !!runRef.current?.cancelled,
+          stopError: () => new RunCancelled(),
+        });
+        const imgs: HTMLImageElement[] = [];
+        for (const path of outs) {
+          let b64 = "";
+          for (let off = 0; off < 8e6; off += SDK_PIECE) {
+            const r = await script(`return await selects.files.readRange({ path: ${JSON.stringify(path)}, offset: ${off}, length: ${SDK_PIECE} });`, "Read a frame");
+            b64 += r.base64;
+            if (r.bytesRead < SDK_PIECE) break;
+          }
+          const img = new Image();
+          img.src = "data:image/jpeg;base64," + b64;
+          await img.decode();
+          imgs.push(img);
+        }
+        const sheet = (w: number, h: number) => {
+          const cv = document.createElement("canvas");
+          cv.width = w;
+          cv.height = h;
+          const g = cv.getContext("2d") as CanvasRenderingContext2D;
+          g.fillStyle = "#ffffff";
+          g.fillRect(0, 0, w, h);
+          g.fillStyle = "#000000";
+          g.font = "bold 22px sans-serif";
+          return { cv, g };
+        };
+        // Sheet 1: stretches (rows) \u00d7 faces (columns), four close-ups per cell.
+        const cs = 100, lw = 44, hh = 34, cellW = 4 * cs + 6;
+        const s1 = sheet(lw + faces.length * (cellW + 16), hh + chunks.length * (cs + 10));
+        faces.forEach((f: any, col: number) => s1.g.fillText(String(col + 1), lw + col * (cellW + 16) + cellW / 2 - 6, 24));
+        chunks.forEach((k: any, row: number) => {
+          const y = hh + row * (cs + 10);
+          s1.g.fillText(String(row + 1), 8, y + cs / 2 + 8);
+          faces.forEach((f: any, col: number) => {
+            for (let n = 0; n < 4; n++) {
+              const img = imgs[row * 4 + n];
+              // The face where it was detected nearest that moment (people lean), else where it usually sits.
+              const tt = bandTimes[row * 4 + n];
+              let lo = 0, hi2 = samples.length - 1;
+              while (lo < hi2) { const m = (lo + hi2) >> 1; if (samples[m][0] < tt) lo = m + 1; else hi2 = m; }
+              const dd = (q: number[]) => Math.hypot(q[0] - f.x, (q[4] ?? f.cy) - f.cy);
+              const near = (samples[lo]?.[1] || []).filter((q: number[]) => dd(q) < f.w * 1.2).sort((p: number[], q: number[]) => dd(p) - dd(q))[0];
+              const [fx, fw, , , fy] = near && Math.abs(samples[lo][0] - tt) < 0.6 ? near : [f.x, f.w, 0, 0, f.cy];
+              const side = fw * 2.1;
+              s1.g.drawImage(img, fx - side / 2, (fy ?? f.cy) - y0 - side / 2, side, side, lw + col * (cellW + 16) + n * (cs + 2), y, cs, cs);
+            }
+          });
+        });
+        // Sheet 2: faces (rows, numbered as the columns of sheet 1) \u00d7 close-up alternatives.
+        const winH = L.windowBottom - L.windowTop, tw = 280, th = Math.round((tw * winH) / 1080), cols = Math.max(...faces.map((f: any) => f.alts.length));
+        const s2 = sheet(lw + cols * (tw + 12), faces.length * (th + 34) + 12);
+        const faceY = (Number(L.faceY) || 40) / 100;
+        faces.forEach((f: any, row: number) => {
+          const y = 12 + row * (th + 34), img = imgs[bandTimes.length + row], k = img.naturalWidth / src.W;
+          s2.g.fillText(String(row + 1), 8, y + th / 2);
+          f.alts.forEach((alt: number[], col: number) => {
+            const [sx, sy, sw, sh] = cropRect({ cx: alt[0], w: alt[1], cy: f.cy }, L, src.W, srcH, faceY, inset);
+            const xx = lw + col * (tw + 12);
+            s2.g.drawImage(img, sx * k, sy * k, sw * k, sh * k, xx, y, tw, th);
+            s2.g.fillText(String.fromCharCode(65 + col), xx + tw / 2 - 7, y + th + 24);
+          });
+        });
+        const prompt =
+          `\uc774\ubbf8\uc9c0 \ub450 \uc7a5\uc740 \ubc29\uc1a1 \ud328\ub110 \ud1a0\ub860 \uc601\uc0c1\uc758 \ud55c \ud074\ub9bd\uc774\ub2e4.\n` +
+          `\uc774\ubbf8\uc9c0 1: \uac01 \uc904(1-${chunks.length})\uc740 \ud074\ub9bd\uc758 \ud55c \uad6c\uac04\uc774\uace0, \uac01 \uc5f4(1-${faces.length})\uc740 \ud654\uba74 \uc18d \uc0ac\ub78c \ud55c \uba85\uc774\ub2e4. \uce78\ub9c8\ub2e4 \uadf8 \uad6c\uac04\uc5d0\uc11c \uadf8 \uc0ac\ub78c\uc758 \uc5bc\uad74\uc744 \uc2dc\uac04 \uc21c\uc11c\ub85c \ub124 \ubc88 \ucc0d\uc5c8\ub2e4. ` +
+          `\uc904\ub9c8\ub2e4 \uadf8 \uad6c\uac04\uc5d0 \ub9d0\ud558\uace0 \uc788\ub294 \uc0ac\ub78c\uc758 \uc5f4 \ubc88\ud638\ub97c \uace8\ub77c\ub77c. \ub124 \uc7a5\uc5d0 \uac78\uccd0 \uc785\uc774 \ubc8c\uc5b4\uc9c0\uace0 \uc785 \ubaa8\uc591\uc774 \uacc4\uc18d \ubc14\ub00c\ub294 \uc0ac\ub78c\uc774 \ub9d0\ud558\ub294 \uc0ac\ub78c\uc774\ub2e4. \uace0\uac1c\ub97c \uc219\uc774\uac70\ub098 \ub044\ub355\uc774\uac70\ub098 \uc6c3\ub294 \uac83\ub9cc\uc73c\ub85c\ub294 \ub9d0\ud558\ub294 \uac83\uc774 \uc544\ub2c8\ub2e4. \uc54c \uc218 \uc5c6\uc73c\uba74 0.\n` +
+          `\uc774\ubbf8\uc9c0 2: \uac01 \uc904(1-${faces.length})\uc740 \uc774\ubbf8\uc9c0 1\uc758 \uac19\uc740 \ubc88\ud638 \uc0ac\ub78c\uc744 \uc138\ub85c \ud654\uba74\uc5d0 \ub2f4\ub294 \ud6c4\ubcf4 A-${String.fromCharCode(64 + cols)}\ub2e4. \uc904\ub9c8\ub2e4 \ud558\ub098\ub97c \uace8\ub77c\ub77c. \uae30\uc900\uc744 \uc21c\uc11c\ub300\ub85c \uc801\uc6a9\ud55c\ub2e4: ` +
+          `(1) \uadf8 \uc0ac\ub78c\uc758 \uba38\ub9ac\uc640 \uc5b4\uae68\uac00 \uc798\ub9ac\uc9c0 \uc54a\ub294\ub2e4. (2) \ub2e4\ub978 \uc0ac\ub78c\uc758 \uc5bc\uad74, \ubab8, \uc5b4\uae68, \ud314, \uc190\uc774 \uac00\uc7a5\uc790\ub9ac\uc5d0 \uc870\uae08\uc774\ub77c\ub3c4 \ubcf4\uc774\uc9c0 \uc54a\ub294\ub2e4. (3) \uc138\ud2b8 \ubcbd\uc758 \uc774\uc74c\uc0c8, \ud328\ub110 \uacbd\uacc4, \uae30\ub465\ucc98\ub7fc \uac00\uc7a5\uc790\ub9ac\ub97c \uc138\ub85c\ub85c \uc9c0\ub098\ub294 \uc120\uc774 \ubcf4\uc774\uc9c0 \uc54a\ub294\ub2e4. ` +
+          `(4) \uc774 \uc870\uac74\uc744 \uc9c0\ud0a4\ub294 \ud6c4\ubcf4 \uc911 \uac00\uc7a5 \ub113\uac8c \ubcf4\uc774\ub294 \uac83. \ubaa8\ub450 \uc5b4\uae0b\ub098\uba74 \uc5b4\uae0b\ub0a8\uc774 \uac00\uc7a5 \uc791\uc740 \uac83.\n` +
+          `\ub3c4\uad6c\ub294 \uc4f0\uc9c0 \ub9d0\uace0 \uc774\ubbf8\uc9c0\ub9cc \ubcf4\uace0 \ub2f5\ud558\ub77c. JSON\ub9cc \ub2f5\ud558\ub77c: {"talkers": {"1": 2, "2": 0}, "crops": {"1": "B", "2": "A"}}`;
+        // askAI refuses an image over 1,500,000 base64 characters: a big sheet is sent at a lower JPEG quality. Even at
+        // the lowest it may stay too big; the host then refuses the call and the first guess stands.
+        const quality: number[] = [];
+        const encode = (cv: HTMLCanvasElement) => {
+          for (const q of [0.85, 0.7, 0.55, 0.4, 0.3]) {
+            const d = cv.toDataURL("image/jpeg", q);
+            if (d.length < 1.4e6 || q === 0.3) { quality.push(q); return d; }
+          }
+          return "";
+        };
+        const r: any = await guard(
+          // Asked like the app's other AI asks. A model that cannot read images fails here, and the first guess stands.
+          sdk.askAI({
+            prompt,
+            images: [
+              { dataUrl: encode(s1.cv), name: "talkers.jpg" },
+              { dataUrl: encode(s2.cv), name: "crops.jpg" },
+            ],
+            timeoutMs: 75000,
+          })
+        );
+        const ans = extractJson(r.text, S);
+        const forced: any[] = [];
+        chunks.forEach((k: any, row: number) => {
+          const n = Number(ans?.talkers?.[String(row + 1)]);
+          if (n >= 1 && n <= faces.length) forced.push({ start: k.start, end: k.end, x: faces[n - 1].x, y: faces[n - 1].cy });
+        });
+        const crops: any[] = [];
+        faces.forEach((f: any, row: number) => {
+          const letter = String(ans?.crops?.[String(row + 1)] || "").trim().toUpperCase();
+          const alt = f.alts[letter.charCodeAt(0) - 65];
+          if (alt) crops.push({ x: f.x, y: f.cy, alt });
+        });
+        note({
+          clip: i,
+          plan: "picture",
+          seconds: Math.round((Date.now() - t0) / 100) / 10,
+          quality,
+          chunks: chunks.map((k: any, row: number) => ({ start: Math.round(k.start * 10) / 10, end: Math.round(k.end * 10) / 10, face: k.x, saw: ans?.talkers?.[String(row + 1)] ?? null })),
+          faces: faces.map((f: any, row: number) => ({ x: f.x, alts: f.alts, pick: ans?.crops?.[String(row + 1)] ?? null })),
+        });
+        return { forced, crops };
+      } catch (e: any) {
+        if (e instanceof RunCancelled) throw e;
+        console.warn("[shortform-clips] picture check failed", e);
+        note({ clip: i, plan: "picture", error: String(e?.message || e).slice(0, 200), seconds: Math.round((Date.now() - t0) / 100) / 10 });
+        return null;
+      }
+    }
+
     // Each level is tried only if the one before it failed: the clip's stretch, the same once more (the runtime
     // can crash once), then only the clip's own passages with half the samples.
     const levels = [
@@ -4137,15 +4530,30 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           const words = await script(
             res +
               SCRIPT_SOURCE_READER + `const { meta: m, words } = await readClipSource(p, RID); ` +
-              `return words.filter((w: any) => !w.nonSpeech && w.endFrame / m.fps >= ${a} && w.startFrame / m.fps <= ${b}).map((w: any) => [Math.round((w.startFrame / m.fps) * 100) / 100, Math.round((w.endFrame / m.fps) * 100) / 100, w.speakerId ?? null]);`,
+              `return words.filter((w: any) => !w.nonSpeech && w.endFrame / m.fps >= ${a} && w.startFrame / m.fps <= ${b}).map((w: any) => [Math.round((w.startFrame / m.fps) * 100) / 100, Math.round((w.endFrame / m.fps) * 100) / 100, w.speakerId ?? null, String(w.text || "")]);`,
             "Read speakers"
           );
           const coverW = (got.H * 1080) / Math.max(1, L.windowBottom - L.windowTop);
-          const log: any = {};
           if (!got.samples.some((s: any) => s[1]?.length)) continue;
-          const shots = planShots(got.samples, speakerTurns(words, a, b), got.W, windowW, Number(L.closeUp) || 4.5, inset, !!L.splitHalves, coverW, Number(L.closeUpMin) || 2.8, log, Number(L.edgeMin) || undefined);
-          plan = shots.length ? shots : null;
-          note({ clip: i, level, plan: "faces", voice: log.voice, pieces: (log.pieces || []).filter((pc: any) => c.segments.some((sg: number[]) => pc.end > sg[0] && pc.start < sg[1])) });
+          const sents = sentencesOf(words);
+          const replan = (lg: any, forced?: any[]) => planShots(got.samples, speakerTurns(words, a, b), got.W, windowW, Number(L.closeUp) || 4.5, inset, !!L.splitHalves, coverW, Number(L.closeUpMin) || 2.8, lg, sents, forced);
+          let log: any = {};
+          let shots = replan(log);
+          const inClip = (pc: any) => c.segments.some((sg: number[]) => pc.end > sg[0] && pc.start < sg[1]);
+          note({ clip: i, level, plan: "faces", voice: log.voice, units: (log.units || []).filter(inClip), pieces: (log.pieces || []).filter(inClip) });
+          const seen = log.faces ? await pictureCheck(i, c, log, got.H, got.samples) : null;
+          if (seen?.forced.length) {
+            log = {};
+            shots = replan(log, seen.forced);
+            note({ clip: i, level, plan: "seen", units: (log.units || []).filter(inClip), pieces: (log.pieces || []).filter(inClip) });
+          }
+          if (seen?.crops.length)
+            for (const s of shots) {
+              if (!s.cy) continue;
+              const cr = seen.crops.slice().sort((p: any, q: any) => Math.hypot(p.x - s.cx, p.y - s.cy) - Math.hypot(q.x - s.cx, q.y - s.cy)).find((x: any) => Math.hypot(x.x - s.cx, x.y - s.cy) < 160);
+              if (cr) { s.cx = cr.alt[0]; s.w = cr.alt[1]; }
+            }
+          plan = shots.length ? shots.map(({ alts, ...s }: any) => s) : null;
         } catch (e: any) {
           if (e instanceof RunCancelled) throw e;
           console.warn("[shortform-clips] face finding failed", level, e);

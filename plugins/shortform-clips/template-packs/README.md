@@ -82,10 +82,9 @@ customer's defaults. Required sections:
 | `labels` (optional) | Top/footer labels; footer can derive an episode date |
 | `framingMode` (optional) | Fixed single-speaker crop note |
 
-For a `series` template with `layout.reframe` enabled, `layout.edgeMin` optionally
-sets the minimum close-up width at the source edge in face widths (positive,
-maximum 20). It defaults to `closeUpMin`. News Direct uses 3.6 to avoid an overly
-tight crop of the outermost panellist. Money Lab retains its split-screen rules;
+For a `series` template with `layout.reframe` enabled, the app checks each clip's
+picture once to choose the talker and the close-up width (see the app README), so a
+template needs no edge rule. Money Lab retains its split-screen rules;
 `separate-headlines` templates retain their fixed crop.
 
 The shared app validates all templates and images before activation. Its renderer
