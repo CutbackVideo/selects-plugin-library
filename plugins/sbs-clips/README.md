@@ -39,14 +39,17 @@ Two programs ship as built-in templates:
   tab when it is installed, otherwise the default sans is used.
 
 Following faces (on for News Direct; change it in the Templates tab): the panel
-finds faces with the Selects AI Runtime plugin (installed with this one), splits
-each clip at speaker turns and camera cuts, and frames whoever talks in each
-turn with a close-up: the face whose mouth moves most compared with its own
-average, about 4.5 face widths across (Templates tab). When no
-face clearly talks, the window keeps the most faces whole, widening the view when
-large faces sit side by side (a split-screen insert). A back-and-forth the
-transcript gives to one speaker keeps one framing. Without the runtime clips
-keep the fixed crop.
+finds faces with the Selects AI Runtime plugin (installed with this one) and
+frames whoever talks in each sentence with a close-up, about 4.5 face widths
+across (Templates tab). A first guess comes from mouth movement against each
+face's listening level. Then one AI call per clip looks at the picture: close-ups
+of every face over each stretch of a few seconds decide who actually talks (the
+transcript can give two people one speaker), and each face's close-up
+alternatives, cut as the window will show them, decide how wide to go without a
+neighbour or a set seam at the edge. If that call fails, the first guess stands.
+When no face clearly talks, the window keeps the most faces whole, widening the
+view when large faces sit side by side (a split-screen insert). Without the
+runtime clips keep the fixed crop.
 
 The video window and source crop match the programs' YouTube episodes. Footage
 framed differently (a single camera, another split) needs the window and crop
