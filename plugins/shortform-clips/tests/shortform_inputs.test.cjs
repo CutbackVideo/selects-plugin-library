@@ -1,0 +1,102 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const {createRequire} = require('node:module');
+const modulesRoot = process.env.SBS_PANEL_TEST_MODULES;
+
+test('shortform timeline inputs', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MODULES'}, async t => {
+  const dep = createRequire(path.resolve(modulesRoot, '../package.json'));
+  const esbuild = dep('esbuild');
+  const source = fs.readFileSync(path.join(__dirname, '../panel.tsx'), 'utf8');
+  const mod = {exports:{}};
+  new Function('require','module','exports',esbuild.transformSync(source+'\nexport {SCRIPT_INPUTS,SCRIPT_SOURCE_READER,SCRIPT_TRANSCRIPT,SCRIPT_BUILD,RADIO_SCRIPT_BUILD};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+  const api = mod.exports;
+  const run = (code, selects) => new Function('selects',esbuild.transformSync('return (async()=>{'+code+'})();',{loader:'ts'}).code)(selects);
+  const body = (code, P) => code.replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
+  const word = (text,startFrame,endFrame,sourceStartFrame,extra={}) => ({text,startFrame,endFrame,sourceStartFrame,sourceEndFrame:sourceStartFrame+endFrame-startFrame,sourceResourceId:'camera',speakerId:1,...extra});
+  const meta = {name:'Edited interview',fps:25,durationSeconds:60,durationFrames:1500,frameSize:{width:1920,height:1080}};
+  const playback = [word('Second.',250,275,1000,{wordId:'b'}),word('First.',750,775,100,{wordId:'a'})];
+  const draft = {meta:async()=>meta,words:async options=>{assert.deepEqual(options,{view:'playback'});return playback;}};
+  const project = {meta:async()=>({draftIds:['d1']}),resources:async()=>[{resourceId:'v1',name:'Video',type:'Video',hasAnalysis:true,durationSeconds:30},{resourceId:'s1',name:'Sync',type:'Sequence',hasAnalysis:true,durationSeconds:60}],syncedTimelines:async()=>[{resourceId:'s1',sequenceId:'s',name:'Sync',hasAnalysis:true},{resourceId:'broken',issue:'missing-sequence'}]};
+  const selects={project:()=>project,draft:id=>{assert.equal(id,'d1');return draft;}};
+
+  await t.test('input inventory passes host TypeScript checks for broken synced timeline rows',()=>{
+    const ts=dep('typescript');
+    const filename=path.resolve('shortform-input-check.ts');
+    const code=`
+      declare const selects: {
+        project(id:string): {
+          resources(): Promise<any[]>;
+          syncedTimelines(): Promise<({sequenceId:string,resourceId:string,name:string,hasAnalysis:boolean,issue?:never}|{resourceId:string,name:string,issue:"missing-sequence"})[]>;
+          syncedTimeline(id:string): {layout():Promise<{frameRate:number,placements:{baseEndFrame:number}[]}>};
+          meta(): Promise<{draftIds:string[]}>;
+        };
+        draft(id:string): {meta():Promise<{name:string,fps:number,durationSeconds:number}>};
+      };
+      async function inventory() {${api.SCRIPT_INPUTS.replace('__PROJECT_ID__','"p"')}}
+    `;
+    const options={noEmit:true,strict:true,types:[],target:ts.ScriptTarget.ES2022,skipLibCheck:true};
+    const host=ts.createCompilerHost(options),original=host.getSourceFile;
+    host.getSourceFile=(file,...args)=>file===filename?ts.createSourceFile(file,code,options.target,true):original.call(host,file,...args);
+    const program=ts.createProgram([filename],options,host);
+    const errors=ts.getPreEmitDiagnostics(program).filter(d=>d.category===ts.DiagnosticCategory.Error);
+    assert.deepEqual(errors.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')),[]);
+  });
+  await t.test('inventory includes short videos, synced timelines, and project-owned Drafts exactly once',async()=>{
+    const rows=await run(api.SCRIPT_INPUTS.replace('__PROJECT_ID__','"p"'),selects);
+    assert.deepEqual(rows.map(r=>[r.id,r.kind]),[['v1','video'],['s1','synced'],['draft:d1','draft']]);
+    assert.equal(rows[2].sourceDraftId,'d1');
+    assert.equal(rows[0].sec,30);
+  });
+  await t.test('synced inventory uses layout duration when Resource duration is missing',async()=>{
+    const p={...project,resources:async()=>[],syncedTimeline:()=>({layout:async()=>({frameRate:25,placements:[{baseEndFrame:1500},{baseEndFrame:3000}]})})};
+    const rows=await run(api.SCRIPT_INPUTS.replace('__PROJECT_ID__','"p"'),{...selects,project:()=>p});
+    assert.equal(rows[0].sec,120);
+  });
+  await t.test('Draft passage selection uses edited playback order and times, excluding cut words',async()=>{
+    const d={...draft,words:async()=>[playback[0],word('Deleted.',500,525,600,{cut:true}),playback[1]]};
+    const result=await run(body(api.SCRIPT_TRANSCRIPT,{projectId:'p',sourceKind:'draft',sourceDraftId:'d1',offset:0,limit:250}),{...selects,draft:()=>d});
+    assert.deepEqual(result,{duration:60,total:2,lines:[[10,11,'Second.'],[30,31,'First.']]});
+  });
+  await t.test('synced input reads only its merged transcript and never the member transcripts',async()=>{
+    let reads=0;
+    const p={...project,resource:id=>{assert.equal(id,'s1');return {meta:async()=>meta,words:async opts=>{reads++;assert.deepEqual(opts,{view:'playback'});return playback;}};},transcription:()=>{throw Error('Do not concatenate members');}};
+    const result=await run(body(api.SCRIPT_TRANSCRIPT,{projectId:'p',sourceKind:'synced',resourceId:'s1',resourceName:'Sync',offset:1,limit:1}),{project:()=>p});
+    assert.equal(reads,1);assert.deepEqual(result.lines,[[30,31,'First.']]);assert.equal(result.total,2);
+  });
+  await t.test('missing Draft and unavailable merged transcript fail before creating output',async()=>{
+    await assert.rejects(run(body(api.SCRIPT_TRANSCRIPT,{projectId:'p',sourceKind:'draft',sourceDraftId:'foreign'}),selects),/no longer in this project/);
+    const p={...project,syncedTimelines:async()=>[{resourceId:'s1',hasAnalysis:false}]};
+    await assert.rejects(run(body(api.SCRIPT_TRANSCRIPT,{projectId:'p',sourceKind:'synced',resourceId:'s1',resourceName:'Sync'}),{project:()=>p}),/merged transcript/);
+  });
+  for (const renderer of ['SCRIPT_BUILD','RADIO_SCRIPT_BUILD']) for(const kind of ['draft','synced']) {
+    await t.test(`${renderer}: ${kind} builds disjoint passages through its own input clock`,async()=>{
+      const calls=[],graphics=[];let frames=0;
+      const d={...draft,rangeAtFrames:async(a,b)=>({owner:'input',startFrame:a,endFrame:b})};
+      const add=(a,b)=>{frames+=b-a;};
+      const out={
+        insert:async opts=>{assert.equal(opts.tracks,'all');assert.equal(opts.source.owner,'input');calls.push(opts);add(opts.source.startFrame,opts.source.endFrame);},
+        insertResource:async opts=>{assert.equal(opts.resourceId,'s1');calls.push(opts);add(Math.round(opts.sourceRange.startSeconds*25),Math.round(opts.sourceRange.endSeconds*25));},
+        setFrameSize:async()=>{},clips:async()=>[{resourceId:'camera',trackKind:'main',startFrame:0,endFrame:frames}],setClipTransform:async()=>{},
+        meta:async()=>({...meta,durationFrames:frames,durationSeconds:frames/25}),rangeAtFrames:async(a,b)=>({startFrame:a,endFrame:b}),
+        addMotionGraphic:async g=>graphics.push(g),commitAll:async()=>({createdDraftId:'output'}),
+      };
+      const p={...project,resource:id=>{assert.equal(id,'s1');return {meta:async()=>meta,words:async()=>playback};},createDraft:async()=>out};
+      const P={projectId:'p',sourceKind:kind,sourceDraftId:'d1',resourceId:'s1',resourceName:'Sync',name:'Clip',segments:[[10,11],[30,31]],transform:{scale:1,posX:0,posY:0},frame:{},captions:false};
+      const result=await run(body(api[renderer],P),{project:()=>p,draft:()=>d});
+      assert.equal(result.draftId,'output');assert.equal(calls.length,2);assert.ok(graphics.length>0);
+      if(kind==='draft') {
+        assert.ok(calls[0].source.startFrame<250 && calls[0].source.endFrame>275);
+        assert.ok(calls[1].source.startFrame<750 && calls[1].source.endFrame>775);
+      } else assert.ok(calls[0].sourceRange.startSeconds<10);
+    });
+  }
+  await t.test('caption omission timing maps repeated source occurrences to the selected Draft passage',async()=>{
+    const input={draft:{},meta,words:[word('Yes',250,275,100,{wordId:'same'}),word('Yes',750,775,100,{wordId:'same'})]};
+    const output=[word('Yes',0,30,120,{wordId:'same'})];
+    const result=await run(api.SCRIPT_SOURCE_READER+'return inputCaptionWords('+JSON.stringify(output)+','+JSON.stringify(input)+',[[30,31]],30);',{});
+    assert.equal(result[0].sourceStartFrame,750);
+  });
+});

@@ -1,7 +1,7 @@
 # Shortform Clips
 
-A shared app for turning a YouTube link or a project video into editable vertical
-Drafts. Customer designs, detection keywords and passage-selection instructions
+A shared app for turning a YouTube link, project video, synced timeline, or existing
+Draft into editable vertical Drafts. Customer designs, detection keywords and passage-selection instructions
 are delivered separately as template packs. The app has no bundled customer templates.
 
 ## Use
@@ -10,7 +10,7 @@ are delivered separately as template packs. The app has no bundled customer temp
 2. In **Templates**, choose **+ Add templates** at the bottom of the template
    picker, paste the link you received, and click **Add**. With no templates yet,
    use the **Add templates** button.
-3. Select a source, a template (or automatic detection), and the clip count in
+3. Select a source (YouTube or Project), a template (or automatic detection), and the clip count in
    **Make clips**. Add optional instructions and create the clips.
 4. In **My clips**, review one clip per row, with a saved preview, title and description.
    Hover or focus a preview to reveal Open; click it to open the Draft. The current
@@ -20,6 +20,18 @@ are delivered separately as template packs. The app has no bundled customer temp
    the first saved clip opens My clips with live progress and a cancel control.
    Later clips appear as they are saved; subsequent updates do not override your
    tab or history selection. Export through **Handoff > Export**.
+
+The Project picker includes videos, synced timelines, and Drafts, including inputs
+shorter than two minutes. Refresh the list after creating a timeline. Synced inputs
+use their merged transcript; Draft inputs use their playback transcript, excluding
+cut speech and following the edited order. Selected Draft ranges are copied across
+all tracks into new editable clips. The input is not modified. Timeline inputs
+need an existing readable transcript; this app does not start member analysis.
+Saved runs retain the input kind and Draft identity when resumed.
+
+Timeline inputs currently use the full-picture fallback for face-following templates,
+with a visible warning: the face-analysis runtime only accepts individual media
+resources. Other template, caption, and editing settings continue to apply.
 
 New clip selections include transcript-based Hook, Flow and Payoff ratings (0-10).
 The app computes their equal-weight average and sorts each run by that score;
