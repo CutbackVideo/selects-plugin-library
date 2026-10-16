@@ -3994,7 +3994,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     return typeof off === "function" ? off : undefined;
   }, [projectId]);
   React.useEffect(() => {
-    const eligible = resources.filter((r) => r.sec >= 120);
+    const eligible = resources;
     if (eligible.length === 1) {
       if (pick !== eligible[0].id) setPick(eligible[0].id);
     } else if (pick && !eligible.some((r) => r.id === pick)) {
@@ -4846,9 +4846,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   }
 
   const programOptions = [{ value: "auto", label: S.auto }, ...templates.map((t) => ({ value: t.id, label: nameOf(t, lang) }))];
-  const videoOptions = resources
-    .filter((r) => r.sec >= 120)
-    .map((r) => ({ value: r.id, label: `${r.name} · ${S.minutes(Math.floor(r.sec / 60))}${r.transcribed || r.analyzed ? "" : " · " + S.notAnalyzed}` }));
+  const videoOptions = resources.map((r) => {
+    const duration = r.sec > 0 ? (r.sec < 60 ? S.seconds(r.sec) : S.minutes(Math.floor(r.sec / 60))) : "";
+    return { value: r.id, label: `${r.name}${duration ? " · " + duration : ""}${r.transcribed || r.analyzed ? "" : " · " + S.notAnalyzed}` };
+  });
   const history=savedDraftResults(resultJobs,projectId || "");
   const shownResult=(resultSelection === "__latest__" ? history[0] : history.find(j=>j.id===resultSelection)) || history[0];
   const shownDrafts=shownResult?.built?.filter(Boolean) || [];
