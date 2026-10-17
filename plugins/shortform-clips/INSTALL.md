@@ -16,6 +16,11 @@ Template packs are kept beside the app source but excluded from `plugin.json`'s
 file list. Installing the app downloads no customer packs; each pack is added
 separately by link. No file upload or command-line helper is required.
 
+On hosts supporting catalog installation links, a link such as
+`cutback-selects://plugin/install?id=shortform-clips&pack=sbs-radio` installs the app
+and adds the selected pack through the same import flow. See
+[Template packs](template-packs/README.md#distribution) for client release requirements.
+
 Install the `selects-ai-runtime` dependency for speaker framing. Without an
 available runtime, the app warns and uses fixed crops. The YouTube downloader
 (yt-dlp) is downloaded on first use and refreshed if a download fails.

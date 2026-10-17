@@ -237,6 +237,45 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
       await render();assert.equal(button('Choose pack.json'),undefined);assert.doesNotMatch(document.body.textContent,/GitHub|pack\.json/);assert.doesNotMatch(input.placeholder || '',/GitHub/);
     }finally{await act(async()=>root.unmount());dom.window.close();for(const k of keys)if(previous[k]===undefined)delete global[k];else global[k]=previous[k];}
   });
+  await t.test('a host pack request waits for edits, imports once, selects its template and reports failures for retry',async()=>{
+    const React=dep('react'),{act}=React,{JSDOM}=dep('jsdom');
+    const dom=new JSDOM('<div id="root"></div>');const keys=['window','document','IS_REACT_ACT_ENVIRONMENT','fetch'];const previous=Object.fromEntries(keys.map(k=>[k,global[k]]));
+    Object.assign(global,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
+    const root=dep('react-dom/client').createRoot(document.getElementById('root'));
+    const start=source.indexOf('  async function installPack(');
+    const handlers=source.slice(start,source.indexOf('  React.useEffect(() => {\n    loadTemplates();',start));
+    const code=dep('esbuild').transformSync(`function Harness({context,repository,loadTemplates,sdk,files,templateDirty=false,templateSaving=false,busy=false,templatesLoading=false}){
+      const K=${JSON.stringify(api.PACK_STRINGS.en)},lang='en';
+      const [packLink,setPackLink]=React.useState(''),[packBusy,setPackBusy]=React.useState(false),[packMessage,setPackMessage]=React.useState(''),[packError,setPackError]=React.useState('');
+      const [packDialogOpen,setPackDialogOpen]=React.useState(false),[tab,setTab]=React.useState('create'),[tplSel,setTplSel]=React.useState(''),[program,setProgram]=React.useState('');
+      const packLock=React.useRef(false);
+      ${handlers}
+      report({packLink,packBusy,packMessage,packError,packDialogOpen,tab,tplSel,program,retry:installPack});
+      return null;
+    } return Harness;`,{loader:'tsx'}).code;
+    let state,calls=[],finished=[];
+    const Harness=new Function('React','report',code)(React,value=>state=value);
+    const store=storage(),repo=api.makeTemplateRepository(store);
+    const repository={install:async(...args)=>{calls.push(args);return repo.install(...args);}};
+    const request={requestId:'pack-1',url:folderLink};
+    const sdk={finishTemplatePackInstall:id=>finished.push(id)};
+    const render=async extra=>act(async()=>root.render(React.createElement(Harness,{context:{templatePack:request},repository,loadTemplates:async()=>(await repo.load()).templates,sdk,files:fileService,...extra})));
+    try{
+      global.fetch=remoteFetch().fetcher;
+      await render({templatesLoading:true});await render({busy:true});await render({templateDirty:true});await render({templateSaving:true});assert.equal(calls.length,0);
+      await render();
+      assert.deepEqual(calls,[[folderLink,true]]);assert.deepEqual(finished,['pack-1']);
+      assert.equal(state.tab,'templates');assert.ok(state.tplSel.startsWith('sbs-radio/'));assert.equal(state.program,state.tplSel);assert.equal(state.packDialogOpen,false);
+      await render();assert.equal(calls.length,1);
+      const saved=structuredClone([...store.rows]);
+      global.fetch=remoteFetch({failFile:'pack.json'}).fetcher;
+      request.requestId='pack-2';await render();
+      assert.equal(calls.length,2);assert.deepEqual(finished,['pack-1','pack-2']);assert.ok(state.packError);assert.equal(state.packLink,folderLink);assert.equal(state.packDialogOpen,true);assert.deepEqual([...store.rows],saved);
+      await render();assert.equal(calls.length,2);
+      global.fetch=remoteFetch().fetcher;
+      await act(async()=>state.retry());assert.equal(calls.length,3);assert.equal(state.packError,'');assert.equal(state.packDialogOpen,false);
+    }finally{await act(async()=>root.unmount());dom.window.close();for(const k of keys)if(previous[k]===undefined)delete global[k];else global[k]=previous[k];}
+  });
   await t.test('legacy edits and copies migrate once without changing their source files',async()=>{
     const pack=await api.readTemplatePack(fileService,path.join(realPack,'pack.json'));
     const legacyDir=path.join(temp,'.selects/plugin-data/sbs-radio-clip/templates');fs.mkdirSync(legacyDir,{recursive:true});
