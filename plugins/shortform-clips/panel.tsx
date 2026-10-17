@@ -3920,19 +3920,34 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     } finally { if (revision === templateLoadRevision.current) setTemplatesLoading(false); }
   }, [repository]);
   const templateDirty = !!tplEdit && JSON.stringify(tplEdit) !== tplBase;
-  async function installPack() {
-    if (!packLink.trim() || packLock.current || busy || templateDirty || templateSaving) return;
+  async function installPack(link = packLink, requestId?: string) {
+    if (!link.trim() || packLock.current || busy || templateDirty || templateSaving) return;
     packLock.current = true;
     setPackBusy(true); setPackError(""); setPackMessage("");
     try {
-      const installed = await repository.install(packLink.trim(), true);
+      const installed = await repository.install(link.trim(), true);
       setPackLink("");
-      await loadTemplates();
+      const loaded = await loadTemplates();
+      if (requestId) {
+        const first = loaded?.find(t => t.id.startsWith(installed.id + "/"));
+        if (first) { setTplSel(first.id); setProgram(first.id); }
+      }
       setPackMessage(K.installed + " " + (installed.names?.[lang] || installed.name));
       setPackDialogOpen(false);
     } catch (e: any) { setPackError(K.failed + " " + (K[e?.code] || String(e?.message || e))); }
-    finally { packLock.current = false; setPackBusy(false); }
+    finally {
+      packLock.current = false; setPackBusy(false);
+      if (requestId) sdk.finishTemplatePackInstall?.(requestId);
+    }
   }
+  const attemptedPack = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const request = context?.templatePack;
+    if (!request || attemptedPack.current === request.requestId || !files || templatesLoading || busy || packBusy || templateDirty || templateSaving) return;
+    attemptedPack.current = request.requestId;
+    setTab("templates"); setPackLink(request.url); setPackDialogOpen(true);
+    void installPack(request.url, request.requestId);
+  }, [context?.templatePack?.requestId, files, templatesLoading, busy, packBusy, templateDirty, templateSaving]);
   React.useEffect(() => {
     loadTemplates();
   }, [loadTemplates]);
@@ -5064,7 +5079,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             <TemplatePackDialog ui={ui} open={packDialogOpen} title={K.title} closeLabel={S.cancel}
               busy={packBusy} onClose={()=>setPackDialogOpen(false)}>
               <ui.TextField label={K.link} value={packLink} onChange={setPackLink} placeholder={K.linkPlaceholder} disabled={!files || busy || packBusy || templateDirty || templateSaving} />
-              <div style={{display:"flex",justifyContent:"flex-end",gap:8,flexWrap:"wrap",paddingTop:4}}><div><ui.Button variant="secondary" disabled={packBusy} onClick={()=>setPackDialogOpen(false)}>{S.cancel}</ui.Button></div><div><ui.Button variant="primary" busy={packBusy} disabled={!files || !packLink.trim() || busy || packBusy || templateDirty || templateSaving} onClick={installPack}>{K.installLink}</ui.Button></div></div>
+              <div style={{display:"flex",justifyContent:"flex-end",gap:8,flexWrap:"wrap",paddingTop:4}}><div><ui.Button variant="secondary" disabled={packBusy} onClick={()=>setPackDialogOpen(false)}>{S.cancel}</ui.Button></div><div><ui.Button variant="primary" busy={packBusy} disabled={!files || !packLink.trim() || busy || packBusy || templateDirty || templateSaving} onClick={()=>void installPack()}>{K.installLink}</ui.Button></div></div>
               {!files && <ui.Message tone="error">{K.noFiles}</ui.Message>}
               {templateDirty && <ui.Message>{K.blocked}</ui.Message>}
               {packBusy && <ui.Progress label={K.add} />}

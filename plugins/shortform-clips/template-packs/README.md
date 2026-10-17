@@ -21,6 +21,22 @@ link also works.
 Example after publication on main:
 `https://github.com/CutbackVideo/selects-plugin-library/tree/main/plugins/shortform-clips/template-packs/sbs-radio`
 
+Hosts supporting catalog installation links can install the app and a pack together:
+
+```text
+cutback-selects://plugin/install?id=shortform-clips&pack=sbs-radio
+cutback-selects://plugin/install?id=shortform-clips&pack=hankook-ilbo
+```
+
+Use `cutback-selects-dev://` for the development app. These links require the client
+release that advertises `deepLink.catalogInstall.v1` and a published app manifest
+with `templatePackInstall: 1`. The host supplies a commit-pinned official pack URL
+in `context.templatePack`; the app imports once through the same installer and
+acknowledges the request with `sdk.finishTemplatePackInstall(requestId)`.
+The Templates tab opens and selects a template from the installed pack. Busy jobs
+and unsaved edits finish first. Failed imports keep the dialog open for retry.
+Opening a link never starts clip generation. Older hosts retain manual link import.
+
 Packs are excluded from the app manifest's `files` list. Installing the app does
 not download these directories. A full repository clone or ZIP includes them.
 
