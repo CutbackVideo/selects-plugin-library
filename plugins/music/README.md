@@ -7,7 +7,8 @@ fits the shorter of the song and the picture on Main or Video tracks. Without vi
 song. Later songs append after existing Music downloads, preserving earlier
 clip positions; other audio does not determine the music append point. Length
 comes from the downloaded file. Import and Draft commit use separate script
-transactions. An existing placement of the same file is reused at any position.
+transactions. Each explicit Add creates a new clip, including repeated uses of the
+same song or effect. The imported media file is reused; earlier clips stay in place.
 Export through the existing **Handoff → Export** flow.
 
 Requires `music.epidemic.mcp-key.v1`. The key is entered in Selects' host dialog

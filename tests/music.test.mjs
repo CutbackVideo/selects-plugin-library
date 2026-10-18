@@ -5,7 +5,7 @@ import {loadPanelOperation} from './panel_operation.mjs';
 import {checkScriptTypes} from './run_script_types.mjs';
 
 const {importMusicScript, addMusicScript} = loadPanelOperation('music');
-function fixture({end = 900, timelineEnd = end, pictureTrackKind = 'main', fileTree = [], folders, existingClips = []} = {}) {
+function fixture({end = 900, timelineEnd = end, pictureTrackKind = 'main', fileTree = [], folders, existingClips = [], remintMoves = false} = {}) {
   const calls = [];
   let projectWrite = false;
   let seconds = 60;
@@ -43,6 +43,7 @@ function fixture({end = 900, timelineEnd = end, pictureTrackKind = 'main', fileT
       const clip = clips.find(clip => clip.clipId === options.clip.clipId);
       clip.endFrame += options.startFrame - clip.startFrame;
       clip.startFrame = options.startFrame;
+      if (remintMoves) clip.clipId = nextId++;
       return {clipId: clip.clipId};
     },
     commitAll: async label => { assert.equal(projectWrite, false, 'Import and Draft commit require separate script transactions'); calls.push(['commit', label]); },
@@ -98,10 +99,14 @@ test('adds music with a medialess synced sequence in the source tree', async () 
   await f.run('/Music/song.mp3');
   assert.deepEqual(f.calls.map(([name]) => name), ['import', 'overlay', 'commit']);
 });
-test('reuses music already dropped onto Main without duplicating it', async () => {
+test('adds another use of music on Main without moving the earlier clip', async () => {
   const f = fixture({end: 0, fileTree: [{type: 'audio', path: '/Music/song.mp3', resourceId: 'saved'}], existingClips: [{resourceId: 'saved', trackKind: 'main', startFrame: 300, endFrame: 600}]});
-  assert.equal((await f.run('/Music/song.mp3')).inserted, 0);
-  assert.equal(f.calls.length, 0);
+  const earlier = {...f.clips[0]};
+  assert.equal((await f.run('/Music/song.mp3')).inserted, 1);
+  assert.deepEqual(f.clips[0], earlier);
+  assert.equal(f.calls.some(([name]) => name === 'import'), false);
+  assert.equal(f.clips.at(-1).startFrame, 600);
+  assert.equal(f.clips.at(-1).endFrame, 2400);
 });
 test('appends a full song after Music dropped onto Main, preserving that clip', async () => {
   const old = {resourceId: 'old', trackKind: 'main', startFrame: 0, endFrame: 600};
@@ -129,11 +134,46 @@ test('extends Main music at its own end when a companion gap extends farther', a
   assert.equal(f.clips.find(clip => clip.resourceId === 'old').endFrame, 600);
   assert.equal(f.clips.find(clip => clip.resourceId === 'music').endFrame, 2400);
 });
-test('retry after a lost response does not duplicate music placed after frame zero', async () => {
+test('an explicit repeat adds a new clip without moving an earlier placement', async () => {
   const f = fixture({fileTree: [{type: 'file', path: 'song.mp3', resourceId: 'saved'}], existingClips: [{resourceId: 'saved', trackKind: 'audio', startFrame: 300, endFrame: 600}]});
+  const earlier = {...f.clips[1]};
   const result = await f.run();
-  assert.equal(result.inserted, 0);
-  assert.equal(f.calls.length, 0);
+  assert.equal(result.inserted, 1);
+  assert.deepEqual(f.clips[1], earlier);
+  assert.equal(f.calls.some(([name]) => name === 'import'), false);
+  assert.equal(f.clips.at(-1).startFrame, 600);
+  assert.equal(f.clips.at(-1).endFrame, 2400);
+});
+for (const [file, seconds] of [['song.mp3', 60], ['effect.wav', 0.6]]) {
+  test(`two explicit adds of ${file} reuse media and create two clips`, async () => {
+    const f = fixture({end: 0, fileTree: [{type: 'file', path: file, resourceId: 'saved'}]});
+    await f.run(file, seconds);
+    const earlier = {...f.clips[0]};
+    await f.run(file, seconds);
+    assert.equal(f.clips.length, 2);
+    assert.deepEqual(f.clips[0], earlier);
+    assert.equal(f.clips[1].startFrame, earlier.endFrame);
+    assert.equal(f.clips[1].endFrame, earlier.endFrame * 2);
+    assert.notEqual(f.clips[1].clipId, earlier.clipId);
+    assert.equal(f.calls.some(([name]) => name === 'import'), false);
+  });
+}
+test('repeats a trimmed song across audio lanes when temporary moves remint IDs', async () => {
+  const f = fixture({end: 600, remintMoves: true, fileTree: [{type: 'file', path: 'song.mp3', resourceId: 'saved'}], existingClips: [
+    {resourceId: 'saved', trackKind: 'audio', startFrame: 0, endFrame: 600},
+    {resourceId: 'other', trackKind: 'audio', trackId: 'outer-audio', startFrame: 0, endFrame: 300},
+  ]});
+  const {clipId, ...earlier} = f.clips[1];
+  const other = {...f.clips[2]};
+  await f.run();
+  const {clipId: restoredId, ...restored} = f.clips[1];
+  assert.notEqual(restoredId, clipId);
+  assert.deepEqual(restored, earlier);
+  assert.deepEqual(f.clips[2], other);
+  assert.equal(f.clips.at(-1).startFrame, 600);
+  assert.equal(f.clips.at(-1).endFrame, 2400);
+  assert.equal(f.calls.at(-1)[0], 'commit');
+  assert.equal(f.calls.some(([name]) => name === 'import'), false);
 });
 for (const length of [5, 40]) {
   test(`appends a ${length}-second song without moving existing music or adding another gap`, async () => {

@@ -16,7 +16,7 @@ const COPY = {
     pause: 'Pause', close: 'Close player', position: 'Playback position', adding: 'Downloading and adding music…',
     search: 'Search', clear: 'Clear search', query: 'Music search', more: 'Load more', empty: 'No tracks found.',
     drag: 'Drag a cover onto the timeline to add music.',
-    preview: 'Preview', add: 'Add to Draft', added: 'Added to Draft', draft: 'Open a Draft to add music.', loading: 'Loading music\u2026', failed: 'Could not load music. Try again.',
+    preview: 'Preview', add: 'Add to Draft', addAgain: 'Add again', added: 'Added to Draft', draft: 'Open a Draft to add music.', loading: 'Loading music\u2026', failed: 'Could not load music. Try again.',
     epidemic_update_required: 'Update Selects to connect Epidemic Sound.', epidemic_sign_in_required: 'Sign in to Selects first.',
     epidemic_reconnect_required: 'Reconnect your Epidemic account.', epidemic_account_changed: 'Your account changed. Try again.',
     epidemic_subscription_required: 'Your Epidemic subscription does not allow this download.', epidemic_connection_canceled: 'Connection canceled. Try again.',
@@ -35,7 +35,7 @@ const COPY = {
     pause: '\uc77c\uc2dc \uc815\uc9c0', close: '\ud50c\ub808\uc774\uc5b4 \ub2eb\uae30', position: '\uc7ac\uc0dd \uc704\uce58', adding: '\uc74c\uc545\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud558\uace0 \ucd94\uac00\ud558\ub294 \uc911…',
     search: '\uac80\uc0c9', clear: '\uac80\uc0c9\uc5b4 \uc9c0\uc6b0\uae30', query: '\uc74c\uc545 \uac80\uc0c9', more: '\ub354 \ubcf4\uae30', empty: '\uac80\uc0c9\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694.',
     drag: '\ucee4\ubc84\ub97c \ud0c0\uc784\ub77c\uc778\uc73c\ub85c \ub4dc\ub798\uadf8\ud574 \uc74c\uc545\uc744 \ucd94\uac00\ud558\uc138\uc694.',
-    preview: '\ubbf8\ub9ac\ub4e3\uae30', add: 'Draft\uc5d0 \ucd94\uac00', added: 'Draft\uc5d0 \ucd94\uac00\ub428', draft: '\uc74c\uc545\uc744 \ucd94\uac00\ud558\ub824\uba74 Draft\ub97c \uc5f4\uc5b4 \uc8fc\uc138\uc694.', loading: '\uc74c\uc545 \ubd88\ub7ec\uc624\ub294 \uc911\u2026', failed: '\uc74c\uc545\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
+    preview: '\ubbf8\ub9ac\ub4e3\uae30', add: 'Draft\uc5d0 \ucd94\uac00', addAgain: '\ub2e4\uc2dc \ucd94\uac00', added: 'Draft\uc5d0 \ucd94\uac00\ub428', draft: '\uc74c\uc545\uc744 \ucd94\uac00\ud558\ub824\uba74 Draft\ub97c \uc5f4\uc5b4 \uc8fc\uc138\uc694.', loading: '\uc74c\uc545 \ubd88\ub7ec\uc624\ub294 \uc911\u2026', failed: '\uc74c\uc545\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
     epidemic_update_required: 'Epidemic\uc744 \uc5f0\uacb0\ud558\ub824\uba74 Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.', epidemic_sign_in_required: 'Selects\uc5d0 \uba3c\uc800 \ub85c\uadf8\uc778\ud574 \uc8fc\uc138\uc694.',
     epidemic_reconnect_required: 'Epidemic \uacc4\uc815\uc744 \ub2e4\uc2dc \uc5f0\uacb0\ud574 \uc8fc\uc138\uc694.', epidemic_account_changed: '\uacc4\uc815\uc774 \ubc14\ub00c\uc5c8\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
     epidemic_subscription_required: 'Epidemic \uad6c\ub3c5\uc5d0\uc11c \uc774 \uace1\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud560 \uc218 \uc5c6\uc5b4\uc694.', epidemic_connection_canceled: '\uc5f0\uacb0\uc774 \ucde8\uc18c\ub410\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
@@ -148,7 +148,6 @@ export function addMusicScript(projectId, sequenceId, resourceId, seconds, music
     const d = selects.draft(${JSON.stringify(sequenceId)});
     const clips = await d.clips({ trackScope: 'all' });
     const id = ${JSON.stringify(resourceId)};
-    if (clips.some(clip => clip.resourceId === id)) return { resourceId: id, inserted: 0 };
     const music = clips.filter(clip => ${JSON.stringify(musicResourceIds)}.includes(clip.resourceId));
     const start = music.reduce((value, clip) => Math.max(value, clip.endFrame), 0);
     const resources = await p.resources();
@@ -170,9 +169,10 @@ export function addMusicScript(projectId, sequenceId, resourceId, seconds, music
         await d.insertGap({ at: mainEnd > 0 ? { after: await d.rangeAtFrames(0, mainEnd) } : undefined, seconds: (duration - mainEnd) / meta.fps });
       }
     }
+    const existingClipIds = new Set((await d.clips({ trackScope: 'all' })).map(clip => clip.clipId));
     const placed = await d.overlayResource({ resource: p.resource(id), over: await d.rangeAtFrames(0, duration) });
     if (!placed.inserted) throw new Error('epidemic_import_uncertain');
-    if (start > 0) await d.moveOverlayClip({ clip: (await d.clips({ trackScope: 'all' })).find(clip => clip.resourceId === id && clip.trackKind === 'audio'), startFrame: start });
+    if (start > 0) await d.moveOverlayClip({ clip: (await d.clips({ trackScope: 'all' })).find(clip => clip.resourceId === id && clip.trackKind === 'audio' && !existingClipIds.has(clip.clipId)), startFrame: start });
     if (held) await d.moveOverlayClip({ clip: (await d.clips({ trackScope: 'all' })).find(clip => clip.clipId === held.clipId), startFrame: held.start });
     await d.commitAll('Add music');
     return { resourceId: id, inserted: placed.inserted };
@@ -280,7 +280,7 @@ function MusicPreview({ row, durationSeconds, media, playing, onPlaying, onClose
         onChange={event => { media.current.currentTime = Number(event.target.value); setTime(Number(event.target.value)); }} />
       <small>{durationSeconds ? '≈ ' : ''}{clock(shownDuration)}</small>
     </div>
-    <div className="music-player-actions"><ui.Button variant="primary" icon={added ? 'check' : 'plus'} busy={adding} busyLabel={T.adding} disabled={busy || added} onClick={onAdd}>{added ? T.added : T.add}</ui.Button></div>
+    <div className="music-player-actions"><ui.Button variant="primary" icon="plus" busy={adding} busyLabel={T.adding} disabled={busy} onClick={onAdd}>{added ? T.addAgain : T.add}</ui.Button></div>
   </div>;
 }
 
@@ -605,7 +605,7 @@ export default function Panel({ sdk, context, ui }) {
             <div className="music-track-copy music-meta"><span className="music-length">{clock(row.length)}</span>{row.bpm > 0 && <span className="music-bpm music-length">{row.bpm} BPM</span>}
             </div>
             {artlist && <ui.Button variant="ghost" disabled={busy} onClick={() => action(captured => script(`return await selects.artlist.openTrack(${JSON.stringify(row.url)});`, true, captured), 'open', row.id)}>Artlist ↗</ui.Button>}
-            {<ui.IconButton icon={adding === row.id ? 'loading' : added.includes(row.id) ? 'check' : 'plus'} label={(adding === row.id ? T.adding : added.includes(row.id) ? T.added : T.add) + ': ' + row.title} disabled={busy || !context.projectId || !context.sequenceId} onClick={() => add(row)} />}
+            {<ui.IconButton icon={adding === row.id ? 'loading' : 'plus'} label={(adding === row.id ? T.adding : added.includes(row.id) ? T.addAgain : T.add) + ': ' + row.title} disabled={busy || !context.projectId || !context.sequenceId} onClick={() => add(row)} />}
           </div>
         </div>)}</ui.Grid>
         {artlist && view !== 'search' && (pageNumber > 1 || hasMore) && <ui.Row><ui.Button variant="ghost" disabled={busy || pageNumber === 1} onClick={() => changePage(pageNumber - 1)}>{T.previousPage}</ui.Button><small>{T.pageLabel} {pageNumber}</small><ui.Button variant="ghost" disabled={busy || !hasMore} onClick={() => changePage(pageNumber + 1)}>{T.nextPage}</ui.Button></ui.Row>}

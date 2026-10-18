@@ -11,7 +11,8 @@
    key into the host dialog. Do not put the key in panel code or agent scripts.
 5. Search, preview and add an authorized track to an open Draft. Video is
    optional: an empty Draft takes the full song as editable Audio. Later songs
-   append after existing Music downloads without shifting earlier clips.
+   append after existing Music downloads without shifting earlier clips. Use
+   **Add again** to place the same song or effect another time.
 
 Selects encrypts the key locally, separately for each Selects account. An older
 binary shows an update message. No Developer Portal key, client ID or partner
