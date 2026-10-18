@@ -88,3 +88,13 @@ class TemplatePackImagesTest(unittest.TestCase):
             self.assertEqual(public.inspect(name, image), [])
             self.assertTrue(public.inspect(name, image + b'0'))
         self.assertTrue(public.inspect('plugins/other-app/template-packs/customer/assets/logo.jpg', b'\x89PNG\r\n\x1a\n' + b'0' * 24))
+
+
+class BundledSpeakerModelTest(unittest.TestCase):
+    def test_only_the_reviewed_model_at_its_canonical_path_is_allowed(self):
+        name = 'plugins/selects-ai-runtime/models/light-asd-ava.onnx'
+        model = (Path(__file__).resolve().parents[1] / name).read_bytes()
+        self.assertEqual(public.inspect(name, model), [])
+        self.assertTrue(public.inspect(name, model[:-1] + bytes([model[-1] ^ 1])))
+        self.assertTrue(public.inspect(name, model[:-1]))
+        self.assertTrue(public.inspect('plugins/other/models/light-asd-ava.onnx', model))

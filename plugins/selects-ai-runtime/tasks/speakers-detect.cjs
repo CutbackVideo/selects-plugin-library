@@ -12,6 +12,12 @@ async function bytes(executable,args,signal,limit) {
   try {for await(const chunk of p.child.stdout){size+=chunk.length;if(size>limit)throw new Error('Speaker decode exceeded bounded window');chunks.push(chunk);}await p.completed;return Buffer.concat(chunks);}
   finally {if(p.child.exitCode===null)p.child.kill('SIGKILL');p.child.stdout.destroy();await p.completed.catch(()=>{});}
 }
+// Distribute the remainder across windows so a sub-frame tail cannot become
+// an empty decode request. Every window remains within the model's 3s scope.
+function speakerWindows(range) {
+  const length=range.endSeconds-range.startSeconds,count=Math.ceil(length/3);
+  return Array.from({length:count},(_,i)=>({start:range.startSeconds+length*i/count,duration:length/count}));
+}
 async function runSpeakers({request,config,outputDir,ort,video,emitProgress,signal,decoderMetrics={}}) {
   const started=performance.now(),range=request.input.sourceRange;
   if(config.models.yunet?.sha256!==descriptor.tasks['faces.detect'].sha256)throw new Error('Speaker face model checksum differs from pinned detector');
@@ -21,8 +27,8 @@ async function runSpeakers({request,config,outputDir,ort,video,emitProgress,sign
   const all=[];let inferenceMilliseconds=0,trackCount=0;
   try {
     model=await createVerifiedModelSession(ort,config.models.lightAsd,options);
-    for(let start=range.startSeconds;start<range.endSeconds-1e-7;start+=3) {
-      signal.throwIfAborted();const duration=Math.min(3,range.endSeconds-start);
+    for(const {start,duration} of speakerWindows(range)) {
+      signal.throwIfAborted();
       // Source audio and video are decoded from the same origin. No external
       // recorder offsets or per-camera identities are guessed here.
       const common=['-v','error','-ss',String(start+(video.timestampOriginSeconds??0)-(video.formatStartTime??0)),'-i',request.input.source.path,'-t',String(duration)];
@@ -69,4 +75,4 @@ async function runSpeakers({request,config,outputDir,ort,video,emitProgress,sign
     return {files:{detections:'speakers.json'},metrics:{sampleCount:all.length,trackCount,inferenceMilliseconds,elapsedMilliseconds:performance.now()-started},diagnostics:{provider:'cpu',modelSha256:document.model.sha256,scoreKind:document.scoreKind,trackingScope:document.trackingScope}};
   } finally {await model?.release();await yunet.release();}
 }
-module.exports={runSpeakers};
+module.exports={runSpeakers,speakerWindows};

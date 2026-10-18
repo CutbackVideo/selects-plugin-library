@@ -58,6 +58,9 @@ test('agent selected source crop geometry',{skip:!modules},async t=>{
   const script=m.exports.sourceCropApplyScript('p','d',layout,sources,90).replace('__SHOTS__',JSON.stringify([shot]));
   const exec=new Function('selects','return (async()=>{'+script+'})()');
   await exec(selects);await exec(selects);assert.equal(effects.length,2);assert.equal(effects[0].name,'User color grade');assert.equal(commits,2);assert.equal(transforms,2);
-  clip.resourceId='unrelated';await assert.rejects(()=>exec(selects),/source does not match/);assert.equal(commits,2);
+  const preserveScript=m.exports.sourceCropApplyScript('p','d',layout,sources,90).replace('__SHOTS__',JSON.stringify([{...shot,style:'preserve',regions:[]}]));
+  await new Function('selects','return (async()=>{'+preserveScript+'})()')(selects);
+  assert.equal(transforms,2);assert.equal(effects.length,2);assert.equal(commits,3);
+  clip.resourceId='unrelated';await assert.rejects(()=>exec(selects),/source does not match/);assert.equal(commits,3);
  });
 });

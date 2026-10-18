@@ -492,9 +492,9 @@ const STRINGS: any = {
     builtInNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4. \ubc14\uafbc \ub0b4\uc6a9\uc740 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc800\uc7a5\ub418\uace0, \"\uae30\ubcf8\uac12\uc73c\ub85c\"\ub97c \ub204\ub974\uba74 \uc6d0\ub798\ub300\ub85c \ub3cc\uc544\uac11\ub2c8\ub2e4.",
     modifiedNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc744 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \ubc14\uafbc \uc0c1\ud0dc\uc785\ub2c8\ub2e4.",
     customNote: "\uc9c1\uc811 \ub9cc\ub4e0 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4.",
-    tabLook: "디자인",
+    tabLook: "\ub514\uc790\uc778",
     tabCaptions: "\uc790\ub9c9",
-    tabAI: "내용",
+    tabAI: "\ub0b4\uc6a9",
     preview: "\ubbf8\ub9ac\ubcf4\uae30",
     sampleH1: "\"\uac00\uc7a5 \uc13c \ud55c\ub9c8\ub514\uac00 \uc5ec\uae30\uc5d0\"",
     sampleH2: "\ub204\uac00 \ud55c \ub9d0\uc778\uc9c0",
@@ -1759,7 +1759,7 @@ function resultJobLabel(job: any, lang: string, R: any) {
     ? sourceName : String(job.built?.find((d: any)=>d?.headline1)?.headline1 || R.untitled);
   const date=new Date(job.created || job.updated);
   const stamp=Number.isNaN(date.getTime()) ? R.unknownDate : new Intl.DateTimeFormat(lang === "ko" ? "ko-KR" : "en-US",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(date);
-  return `${source} · ${stamp} · ${R.title(job.built.filter((d: any)=>d?.draftId).length)}`;
+  return `${source} · ${stamp} · ${R.title(job.built.filter(clipReady).length)}`;
 }
 // A fixed rubric and deterministic mean keep the displayed score independent of AI arithmetic.
 const CLIP_SCORE_PROMPT = `For each clip, assess only the selected transcript content, not visuals, audio delivery or predicted views.
@@ -1831,18 +1831,18 @@ async function readDraftThumbnail(sdk: any, projectId: string, draftId: string) 
   return "data:image/jpeg;base64," + image.data;
 }
 const thumbnailRequests = new Map<string,Promise<any>>();
-function loadDraftThumbnail(store: any, sdk: any, projectId: string, jobId: string, draftId: string): Promise<any> {
+function loadDraftThumbnail(store: any, sdk: any, projectId: string, jobId: string, draftId: string, refresh = false): Promise<any> {
   const key = JSON.stringify([store?.root,projectId,jobId,draftId]);
   const existing = thumbnailRequests.get(key);
   if (existing) return existing;
-  const request = captureOrReadThumbnail(store,sdk,projectId,jobId,draftId).finally(()=>thumbnailRequests.delete(key));
+  const request = captureOrReadThumbnail(store,sdk,projectId,jobId,draftId,refresh).finally(()=>thumbnailRequests.delete(key));
   thumbnailRequests.set(key,request);
   return request;
 }
-async function captureOrReadThumbnail(store: any, sdk: any, projectId: string, jobId: string, draftId: string) {
+async function captureOrReadThumbnail(store: any, sdk: any, projectId: string, jobId: string, draftId: string, refresh = false) {
   const relative = thumbnailPath(jobId,draftId);
   const path = store?.fs && store.join(store.root,relative);
-  if (path && await store.exists(path)) {
+  if (!refresh && path && await store.exists(path)) {
     const bytes = await store.fs.readFile(path);
     if (bytes.length && bytes.length <= 3000000) return {data:"data:image/jpeg;base64,"+toBase64(bytes),thumbnailPath:relative};
   }
@@ -1889,11 +1889,24 @@ function ScoreTooltip({assessment,R}: any) {
   </span>;
 }
 
-Object.assign(RESULT_STRINGS.ko, {reframeTokens:"화면 구성 토큰",jobTokens:"전체 작업 토큰",jobTokenScope:"템플릿 판단 · 구간 선택 · 모든 쇼츠의 화면 구성",tokensUnavailable:"미제공",partialTokens:"일부 사용량",tokenFields:["입력","출력","캐시 읽기","캐시 쓰기"]});
+Object.assign(RESULT_STRINGS.ko, {reframeTokens:"\ud654\uba74 \uad6c\uc131 \ud1a0\ud070",jobTokens:"\uc804\uccb4 \uc791\uc5c5 \ud1a0\ud070",jobTokenScope:"\ud15c\ud50c\ub9bf \ud310\ub2e8 · \uad6c\uac04 \uc120\ud0dd · \ubaa8\ub4e0 \uc1fc\uce20\uc758 \ud654\uba74 \uad6c\uc131",tokensUnavailable:"\ubbf8\uc81c\uacf5",partialTokens:"\uc77c\ubd80 \uc0ac\uc6a9\ub7c9",tokenFields:["\uc785\ub825","\ucd9c\ub825","\uce90\uc2dc \uc77d\uae30","\uce90\uc2dc \uc4f0\uae30"]});
 Object.assign(RESULT_STRINGS.en, {reframeTokens:"Reframing tokens",jobTokens:"Total job tokens",jobTokenScope:"Template identification · Segment selection · All clip reframing",tokensUnavailable:"Unavailable",partialTokens:"partial usage",tokenFields:["Input","Output","Cache read","Cache write"]});
 
-Object.assign(RESULT_STRINGS.ko,{stages:{"speakers-wait":"발화 인물 분석 대기",speakers:"음성·입 움직임 분석 중","faces-wait":"얼굴 분석 대기",faces:"얼굴 분석 중","evidence-wait":"화면 자료 준비 대기",evidence:"화면 자료 준비 중",ai:"AI 화면 구성 판단 중",agent:"AI 원본 분석·화면 구성 중","apply-wait":"편집 적용 대기",apply:"편집 적용 중","verify-wait":"결과 검증 대기",verify:"결과 검증 중",thumbnail:"썸네일 생성 중",done:"완료",failed:"실패",pending:"준비 중"}});
+Object.assign(RESULT_STRINGS.ko,{stages:{"speakers-wait":"\ubc1c\ud654 \uc778\ubb3c \ubd84\uc11d \ub300\uae30",speakers:"\uc74c\uc131·\uc785 \uc6c0\uc9c1\uc784 \ubd84\uc11d \uc911","faces-wait":"\uc5bc\uad74 \ubd84\uc11d \ub300\uae30",faces:"\uc5bc\uad74 \ubd84\uc11d \uc911","evidence-wait":"\ud654\uba74 \uc790\ub8cc \uc900\ube44 \ub300\uae30",evidence:"\ud654\uba74 \uc790\ub8cc \uc900\ube44 \uc911",ai:"AI \ud654\uba74 \uad6c\uc131 \ud310\ub2e8 \uc911",agent:"AI \uc6d0\ubcf8 \ubd84\uc11d·\ud654\uba74 \uad6c\uc131 \uc911","apply-wait":"\ud3b8\uc9d1 \uc801\uc6a9 \ub300\uae30",apply:"\ud3b8\uc9d1 \uc801\uc6a9 \uc911","verify-wait":"\uacb0\uacfc \uac80\uc99d \ub300\uae30",verify:"\uacb0\uacfc \uac80\uc99d \uc911",thumbnail:"\uc378\ub124\uc77c \uc0dd\uc131 \uc911",done:"\uc644\ub8cc",failed:"\uc2e4\ud328",pending:"\uc900\ube44 \uc911"}});
 Object.assign(RESULT_STRINGS.en,{stages:{"speakers-wait":"Waiting for speaker analysis",speakers:"Analyzing audio and mouth motion","faces-wait":"Waiting for face analysis",faces:"Analyzing faces","evidence-wait":"Waiting for evidence",evidence:"Preparing evidence",ai:"AI composition planning",agent:"AI source analysis and composition","apply-wait":"Waiting to apply edits",apply:"Applying edits","verify-wait":"Waiting for verification",verify:"Verifying output",thumbnail:"Creating thumbnail",done:"Complete",failed:"Failed",pending:"Preparing"}});
+Object.assign(RESULT_STRINGS.ko,{preparingClip:"\ud654\uba74 \uad6c\uc131 \uc911",previewPending:"\uc644\ub8cc \ud6c4 \uc5f4 \uc218 \uc788\uc5b4\uc694",retryClip:"\uc774 \ud074\ub9bd \uc7ac\uc2dc\ub3c4",failureDetails:"\uc624\ub958 \uc0c1\uc138",failedAt:(stage:string)=>`${stage} \ub2e8\uacc4\uc5d0\uc11c \uc2e4\ud328`});
+Object.assign(RESULT_STRINGS.en,{preparingClip:"Composing",previewPending:"Available when complete",retryClip:"Retry this clip",failureDetails:"Error details",failedAt:(stage:string)=>`Failed at: ${stage}`});
+function clipReady(d:any) {
+  return !!d.draftId && !d.error && d.reframeState !== "pending" && d.reframeState !== "failed" && (!d.progressStage || d.progressStage === "done");
+}
+function ClipCardProgress({draft:d,R,S}:any) {
+  const [now,setNow]=React.useState(Date.now());
+  const active=!clipReady(d) && !d.error && d.reframeState!=="failed" && !!d.progressAt;
+  React.useEffect(()=>{if(!active)return;const id=setInterval(()=>setNow(Date.now()),1000);return ()=>clearInterval(id);},[active]);
+  const stage=clipStageLabel(d,R);
+  const label=d.reframeState==="failed" && d.failedStage ? R.failedAt(R.stages[d.failedStage] || d.failedStage) : stage;
+  return <small role="status" style={{color:d.error?"var(--panel-danger)":"var(--panel-muted-fg)",lineHeight:1.5}}>{label}{active && d.progressAt ? ` · ${S.elapsed(Math.max(0,Math.floor((now-d.progressAt)/1000)))}` : ""}</small>;
+}
 function clipStageLabel(d:any,R:any) {return R.stages?.[d.progressStage || d.reframeState] || "";}
 
 function reframingTokenLabel(d: any, R: any) {
@@ -1920,7 +1933,8 @@ function jobTokenLabel(job: any, R: any) {
   return reframingTokenLabel({reframeUsageCalls:calls}, R);
 }
 
-function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, store, jobId, projectId }: any) {
+function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, store, jobId, projectId, busy, onRetry }: any) {
+  const ready=clipReady(d);
   const [expanded, setExpanded] = React.useState(false);
   const [overflow, setOverflow] = React.useState(false);
   const description = React.useRef<HTMLElement>(null);
@@ -1939,18 +1953,17 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
     return () => { live = false; observer?.disconnect(); window.removeEventListener("resize", measure); };
   }, [d.why, expanded]);
   return <div style={{...CARD,padding:12,overflowWrap:"anywhere"}} className="clip-result-row">
-    {d.draftId ? <button type="button" className="clip-thumbnail-button" aria-label={current ? R.current : S.open} title={d.headline1}
+    {ready ? <button type="button" className="clip-thumbnail-button" aria-label={current ? R.current : S.open} title={d.headline1}
       aria-current={current ? "true" : undefined} aria-busy={opening === d.draftId} data-opening={opening === d.draftId ? "true" : undefined}
-      disabled={current || !!opening} onClick={()=>onOpen(d.draftId)}
+      disabled={!ready || current || !!opening} onClick={()=>{if(clipReady(d))onOpen(d.draftId);}}
       style={{display:"block",position:"relative",width:"fit-content",height:"auto",maxHeight:"none",minWidth:0,minHeight:0,padding:0,border:0,borderRadius:6,background:"none",lineHeight:1,overflow:"hidden",opacity:1,
         cursor:current || opening ? "default" : "pointer",boxShadow:current ? "0 0 0 2px var(--panel-fg)" : "none"}}>
       <DraftThumbnail sdk={sdk} store={store} jobId={jobId} projectId={projectId} draftId={d.draftId} R={R}/>
       {current ? <span style={{position:"absolute",bottom:5,left:4,right:4,padding:"4px 2px",borderRadius:3,background:"#000b",color:"#fff",fontSize:10,lineHeight:1.2}}>{R.viewing}</span>
         : <span className="clip-thumbnail-open" aria-hidden="true">{opening === d.draftId ? R.opening : <>{S.open} <span>↗</span></>}</span>}
-    </button> : <DraftThumbnail sdk={sdk} store={store} jobId={jobId} projectId={projectId} R={R}/>}
+    </button> : <div className="clip-result-thumbnail" aria-label={R.previewPending}><small>{d.error ? R.stages.failed : R.preparingClip}<br/>{R.previewPending}</small></div>}
     <div className="clip-result-copy" style={{minWidth:0,display:"flex",flexDirection:"column",gap:6}}>
       <strong>{d.headline1}</strong>
-      {clipStageLabel(d,R) && <small>{clipStageLabel(d,R)}</small>}
       {(d.headline2 || d.seconds != null) && <small style={{lineHeight:1.5}}>{[d.headline2,d.seconds != null ? S.seconds(d.seconds) : null].filter(Boolean).join(" · ")}</small>}
       {d.why && <>
         <small ref={description} style={{ lineHeight: 1.5, whiteSpace: "pre-wrap", ...(expanded ? {} : { ...CLAMP2, WebkitLineClamp: 3 }) }}>{d.why}</small>
@@ -1958,7 +1971,8 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
           style={{alignSelf:"flex-start",width:"auto",minHeight:0,border:0,borderRadius:0,boxShadow:"none",background:"none",padding:0,color:"var(--panel-muted-fg)",font:"inherit",fontSize:12,textDecoration:"underline",textUnderlineOffset:2,cursor:"pointer"}}
           onClick={() => setExpanded(true)}>{R.more}</button>}
       </>}
-      {d.error && <ui.Message tone="error">{d.error}</ui.Message>}
+      {d.reframeReport?.qualityStatus==="limited" && <details><summary>{R===RESULT_STRINGS.ko?"\uc77c\ubd80 \uad6c\ub3c4 \uc720\uc9c0":"Some framing retained"}</summary><small>{(d.reframeReport.preservedRanges||[]).map((r:any)=>r.reason).filter((v:any,i:number,a:any[])=>a.indexOf(v)===i).join(" · ")}</small></details>}
+      {d.error && <><details><summary>{R.failureDetails}</summary><ui.Message tone="error">{d.error}</ui.Message></details>{onRetry && <ui.Button variant="secondary" disabled={busy} onClick={()=>onRetry(d.draftId)}>{R.retryClip}</ui.Button>}</>}
     </div>
     <div className="clip-result-actions" style={{display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end",minWidth:0}}>
       <div style={{textAlign:"right"}}><div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,marginBottom:4}}><small>{R.score}</small>{assessment && <ScoreTooltip assessment={assessment} R={R}/>}</div><div><strong style={{fontSize:20}}>{assessment ? `${assessment.overall.toFixed(1)}/10` : R.unrated}</strong></div>
@@ -1970,14 +1984,14 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
         </dl>}
       </div>
     </div>
-
+    <div className="clip-result-progress" style={{gridColumn:"1 / -1",borderTop:"1px solid var(--panel-border)",paddingTop:8}}><ClipCardProgress draft={d} R={R} S={S}/></div>
   </div>;
 }
 
 function ClipRunProgress({ui,S,R,job,busy,step,sub,statusLine,cancelling,onCancel}: any) {
   if (!busy) return null;
   const total = job?.choice?.clips?.length || 0;
-  const completed = job?.built?.filter((d: any)=>d?.draftId && d.reframeState !== "pending" && d.reframeState !== "failed").length || 0;
+  const completed = job?.built?.filter((d: any)=>clipReady(d)).length || 0;
   const value = step === 4 && total ? completed / total : Math.max(0,Math.min(1,(step+sub)/S.steps.length));
   const label = step === 4 && total ? R.createdCount(completed,total) : S.steps[step] || S.thisRun;
   return <div style={{...CARD,marginBottom:16}} role="status" aria-live="polite">
@@ -1988,13 +2002,12 @@ function ClipRunProgress({ui,S,R,job,busy,step,sub,statusLine,cancelling,onCance
       </div>
       {job && <small style={CLAMP2}>{job.title || job.resourceName || job.url}</small>}
       <ui.Progress value={value} label={label} />
-      {statusLine && <small>{statusLine}</small>}
-      {step === 4 && job?.built?.filter(Boolean).map((d:any,i:number)=><small key={d.draftId || i}>{i+1}. {d.headline1} · {clipStageLabel(d,R)}{d.progressAt && d.progressStage !== "done" && d.progressStage !== "failed" ? ` · ${S.elapsed(Math.max(0,Math.floor((Date.now()-d.progressAt)/1000)))}` : ""}</small>)}
+      {step !== 4 && statusLine && <small>{statusLine}</small>}
     </ui.Stack>
   </div>;
 }
 
-function DraftResults({ drafts, template, visibleDraftId, opening, onOpen, overlayControl, overlayFeedback, ui, S, R, sdk, store, jobId, projectId }: any) {
+function DraftResults({ drafts, template, visibleDraftId, opening, onOpen, overlayControl, overlayFeedback, ui, S, R, sdk, store, jobId, projectId, busy, onRetry }: any) {
   return <div style={{ display: "flex", flexDirection: "column", gap: 16,containerType:"inline-size" }}>
     <style>{`
       .clip-thumbnail-button[aria-current="true"] .clip-result-thumbnail {filter:brightness(0.5);}
@@ -2013,7 +2026,7 @@ function DraftResults({ drafts, template, visibleDraftId, opening, onOpen, overl
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 140px", minWidth: 0 }}>
-          <strong role="heading" aria-level={2} style={{ minHeight: 32, display: "flex", alignItems: "center" }}>{R.title(drafts.filter((d: any) => d.draftId).length)}</strong>
+          <strong role="heading" aria-level={2} style={{ minHeight: 32, display: "flex", alignItems: "center" }}>{R.title(drafts.filter(clipReady).length)}</strong>
           {template && <small>{template}</small>}
         </div>
         {overlayControl && <div style={{ width: 250, maxWidth: "100%", minWidth: 0 }}>{overlayControl}</div>}
@@ -2021,7 +2034,7 @@ function DraftResults({ drafts, template, visibleDraftId, opening, onOpen, overl
       {overlayFeedback}
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {rankDrafts(drafts).map((d: any, i: number) => <DraftResultCard key={d.draftId || d.name || i} draft={d} current={!!d.draftId && visibleDraftId === d.draftId} opening={opening} onOpen={onOpen} ui={ui} S={S} R={R} sdk={sdk} store={store} jobId={jobId} projectId={projectId} />)}
+      {rankDrafts(drafts).map((d: any, i: number) => <DraftResultCard key={d.draftId || d.name || i} draft={d} busy={busy} onRetry={onRetry} current={!!d.draftId && visibleDraftId === d.draftId} opening={opening} onOpen={onOpen} ui={ui} S={S} R={R} sdk={sdk} store={store} jobId={jobId} projectId={projectId} />)}
     </div>
   </div>;
 }
@@ -2581,9 +2594,9 @@ const RADIO_STRINGS: any = {
     builtInNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4. \ubc14\uafbc \ub0b4\uc6a9\uc740 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc800\uc7a5\ub418\uace0, \"\uae30\ubcf8\uac12\uc73c\ub85c\"\ub97c \ub204\ub974\uba74 \uc6d0\ub798\ub300\ub85c \ub3cc\uc544\uac11\ub2c8\ub2e4.",
     modifiedNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc744 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \ubc14\uafbc \uc0c1\ud0dc\uc785\ub2c8\ub2e4.",
     customNote: "\uc9c1\uc811 \ub9cc\ub4e0 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4.",
-    tabLook: "디자인",
+    tabLook: "\ub514\uc790\uc778",
     tabCaptions: "\uc790\ub9c9",
-    tabAI: "내용",
+    tabAI: "\ub0b4\uc6a9",
     preview: "\ubbf8\ub9ac\ubcf4\uae30",
     sampleH1: "\"\uac00\uc7a5 \uc13c \ud55c\ub9c8\ub514\uac00 \uc5ec\uae30\uc5d0\"",
     sampleH2: "\ub204\uac00 \ud55c \ub9d0\uc778\uc9c0",
@@ -2599,7 +2612,7 @@ const RADIO_STRINGS: any = {
     layoutShorts: "\uc720\ud29c\ube0c \uc1fc\uce20",
     layoutTiktok: "\ud2f1\ud1a1",
     editingLayout: (layout: string) => `${layout} \ub808\uc774\uc544\uc6c3 \ud3b8\uc9d1 \uc911`,
-    reframing: "쇼츠별 화면 구성 진행 중…",
+    reframing: "\uc1fc\uce20\ubcc4 \ud654\uba74 \uad6c\uc131 \uc9c4\ud589 \uc911…",
     reframeSkipped: "\uc77c\ubd80 \ud074\ub9bd\uc740 \ud654\uc790 \uad6c\ub3c4\ub97c \uc7a1\uc744 \uc218 \uc5c6\uc5b4 \uc804\uccb4 \ud654\uba74\uc73c\ub85c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.",
     closeUp: "\ud654\uc790 \ud074\ub85c\uc988\uc5c5 (\ud654\uba74 \ud3ed = \uc5bc\uad74 \ud3ed\uc758 \uba87 \ubc30)",
     faceY: "\ud654\uc790 \uc5bc\uad74 \ub192\uc774 (\ucc3d \uc704\uc5d0\uc11c\ubd80\ud130 %)",
@@ -3030,6 +3043,7 @@ function compileSourceCropPlan(shots:any[], sources:any[], duration:number, layo
     const source=sources.find((s:any)=>s.resourceId===shot.resourceId);
     const W=source?.meta?.frameSize?.width,H=source?.meta?.frameSize?.height;
     if(![W,H].every(Number.isFinite)||!(W>0&&H>0)) throw new Error('Unknown source or source dimensions');
+    if(shot.style==='preserve')return {...shot,regions:[],sourceW:W,sourceH:H,windowH,panels:[]};
     if(!['speaker','stacked','wide','detail'].includes(shot.style)) throw new Error('Unknown shot style');
     if(shot.style==='wide'&&(layout.widePolicy||'never')==='never') throw new Error('Template forbids wide shots');
     if(shot.style==='stacked'&&((layout.splitPolicy||'selective')==='never'||layout.cameraMode==='speaker')) throw new Error('Template forbids stacked shots');
@@ -3071,6 +3085,25 @@ function compileSourceCropPlan(shots:any[], sources:any[], duration:number, layo
   });
 }
 
+// Fail a composition, never unrelated shots. A stable composition is resolved
+// as a group so silence cuts cannot acquire different fallback geometry.
+function resolveSourceComposition(shots:any[],catalog:any[],sources:any[],duration:number,layout:any) {
+  const groups=new Map<string,any[]>(),resolved=new Map<any,any>(),limitations:any[]=[];
+  for(const shot of shots){const key=JSON.stringify([shot.resourceId,shot.style,shot.compositionId]);if(!groups.has(key))groups.set(key,[]);groups.get(key)!.push(shot);}
+  for(const group of groups.values()) {
+    try {
+      const measured=measuredFaceShots(group,catalog,sources,layout);
+      for(const shot of measured)checkSourceCompositionGeometry(compileSourceCropPlan([{...shot,startFrame:0,endFrame:shot.endFrame-shot.startFrame}],sources,shot.endFrame-shot.startFrame,layout),layout);
+      group.forEach((shot,i)=>resolved.set(shot,measured[i]));
+    } catch(error:any) {
+      for(const shot of group){resolved.set(shot,{...shot,style:'preserve',regions:[]});limitations.push({startFrame:shot.startFrame,endFrame:shot.endFrame,compositionId:shot.compositionId,reason:String(error?.message||error)});}
+    }
+  }
+  const result=shots.map(s=>resolved.get(s));
+  checkSourceCompositionGeometry(compileSourceCropPlan(result,sources,duration,layout),layout);
+  return {shots:result,limitations,adjustments:result.flatMap(s=>s.geometryAdjustments||[])};
+}
+
 function sourceCropApplyScript(projectId:string,draftId:string,layout:any,sources:any[],duration:number) {
   return `const shots = __SHOTS__;
 const compile = ${compileSourceCropPlan.toString()};
@@ -3099,6 +3132,7 @@ for (const key of keys) {
  const fresh=async()=> (await d.clips({trackScope:"main"})).find(c=>c.clipId===key.clipId&&c.trackId===key.trackId);
  const c=await fresh(),s=plan.find(s=>s.startFrame<=c.startFrame&&s.endFrame>=c.endFrame);
  if (!s) throw new Error("Uncovered main clip");
+ if (s.style==="preserve") continue;
  await d.setClipTransform({clip:c,scale:{x:1,y:s.windowH/(s.sourceH*1080/s.sourceW)},position:{x:0,y:(960-(${Number(layout.windowTop??0)}+${Number(layout.windowBottom??1920)})/2)/1920*100}});
  const parameters={sourceW:s.sourceW,sourceH:s.sourceH,windowH:s.windowH,panels:s.panels};
  const old=(await d.videoEffects(await fresh())).find(e=>e.name==="Shortform stacked framing");
@@ -3123,7 +3157,7 @@ function validateSourceCropRepair(previous:any[],next:any[],adjustments:any,fram
 const measuredFaceWork = createReframeWork();
 async function collectMeasuredFaces({sdk,guard,projectId,before,note}:any) {
   const read=async(script:string,summary:string,allowCommit=false)=>{
-    const r=await guard(sdk.runScript({script,summary,allowCommit}));
+    const r=await guard(sdk.runScript({script,summary,allowCommit,timeoutSeconds:120}));
     if(r.isError) throw new Error(r.output||summary);return r.result;
   };
   const catalog:any[]=[];
@@ -3174,16 +3208,27 @@ function measuredFaceShots(shots:any[],catalog:any[],sources:any[],layout:any) {
       const f=catalog.find((f:any)=>f.id===q.faceId);
       if(!f||f.resourceId!==s.resourceId) throw new Error('Unknown face ID or source mismatch');
       const key=JSON.stringify([s.resourceId,s.style,s.compositionId,slot]);
-      if(!(f.draftFrame>=s.startFrame&&f.draftFrame<s.endFrame)&&!(f.draftStartFrame<s.endFrame&&f.draftEndFrame>s.startFrame)&&first.get(key)!==f.id) throw new Error('Choose a face measured within this shot');
+      const matchingShots=shots.filter((other:any)=>other.resourceId===s.resourceId&&other.style===s.style&&other.compositionId===s.compositionId);
+      const observedInComposition=(v:any)=>matchingShots.some((other:any)=>(v.draftFrame>=other.startFrame&&v.draftFrame<other.endFrame)||(v.draftStartFrame<other.endFrame&&v.draftEndFrame>other.startFrame));
+      if(!observedInComposition(f)&&!(f.draftFrame>=s.startFrame&&f.draftFrame<s.endFrame)&&!(f.draftStartFrame<s.endFrame&&f.draftEndFrame>s.startFrame)&&first.get(key)!==f.id) throw new Error('Choose a face measured within this shot');
       if(!first.has(key)) first.set(key,f.id);
       const left=q.left??0,right=q.right??1;
       if(![left,right].every(Number.isFinite)||left<0||right>1||left>=right) throw new Error('Invalid source pane bounds');
-      const selected=[f,...(q.faceIds||[]).filter((id:string)=>id!==f.id).map((id:string)=>{const v=catalog.find((c:any)=>c.id===id);if(!v||v.resourceId!==s.resourceId||!((v.draftFrame>=s.startFrame&&v.draftFrame<s.endFrame)||(v.draftStartFrame<s.endFrame&&v.draftEndFrame>s.startFrame)))throw Error('Additional face reference is outside its shot');return v;})];
+      const selected=[f,...(q.faceIds||[]).filter((id:string)=>id!==f.id).map((id:string)=>{const v=catalog.find((c:any)=>c.id===id);if(!v||v.resourceId!==s.resourceId||!observedInComposition(v))throw Error('Additional face reference is outside its shot');return v;})];
       // Only the agent links identities. Preserve the full observed local-track
       // envelope even when the editorial shot uses only part of that track.
       const boxes=selected.map((v:any)=>v.envelope||v.box);
       const b={xmin:Math.min(...boxes.map((b:any)=>b.xmin)),xmax:Math.max(...boxes.map((b:any)=>b.xmax)),ymin:Math.min(...boxes.map((b:any)=>b.ymin)),ymax:Math.max(...boxes.map((b:any)=>b.ymax))},fw=b.xmax-b.xmin,fh=b.ymax-b.ymin,cx=(b.xmin+b.xmax)/2,cy=(b.ymin+b.ymax)/2;
-      if(b.xmin<left*W||b.xmax>right*W) throw new Error('Measured face is outside its selected pane');
+      if(b.xmin<left*W||b.xmax>right*W) {
+        // A local-track envelope is a noisy union, not an exact face outline.
+        // Keep the agent's pane and all representative faces; trim only small
+        // envelope overshoot, bounded by BOTH pane size and subject size.
+        const tolerance=Math.min((right-left)*W*.02,fw*.05);
+        const representativeFits=selected.every((v:any)=>v.box.xmin>=left*W&&v.box.xmax<=right*W);
+        if(!representativeFits||left*W-b.xmin>tolerance||b.xmax-right*W>tolerance) throw new Error('Measured face is outside its selected pane');
+        s={...s,geometryAdjustments:[...(s.geometryAdjustments||[]),{kind:'envelope-boundary',maxPixels:Math.max(0,left*W-b.xmin,b.xmax-right*W)}]};
+        b.xmin=Math.max(left*W,b.xmin);b.xmax=Math.min(right*W,b.xmax);
+      }
       let x1=Math.max(left*W,b.xmin-fw*.18),x2=Math.min(right*W,b.xmax+fw*.18);let y1=Math.max(0,b.ymin-fh*.48),y2=Math.min(H,b.ymax+fh*.12);
       const faceY=Math.max(.25,Math.min(.65,Number(layout.faceY??40)/100)),aspect=1080/((Number(layout.windowBottom??1920)-Number(layout.windowTop??0))/count);
       // Soft side margins may shrink on an already-tight source closeup;
@@ -3406,7 +3451,7 @@ function reframingPlanningFacts(before:any,catalog:any[]) {
     if(last&&last.source===row.source&&last.endFrame===row.startFrame&&last.sourceEndFrame===row.sourceStartFrame&&Math.abs((last.sourceEndFrame-last.sourceStartFrame)/(last.endFrame-last.startFrame)-(row.sourceEndFrame-row.sourceStartFrame)/(row.endFrame-row.startFrame))<1e-6){last.endFrame=row.endFrame;last.sourceEndFrame=row.sourceEndFrame;}else mapping.push(row);
   }
   return {turns,mapping,words:before.words.map((w:any)=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,source:source(w.sourceResourceId),sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame,speakerId:w.speakerId})),
-    faces:catalog.map((f:any)=>({id:f.id,source:source(f.resourceId),sourceFrame:f.sourceFrame,draftFrame:f.draftFrame,orderFromLeft:f.orderFromLeft,facesInFrame:f.facesInFrame,box:f.box,sourceStartFrame:f.sourceStartFrame,sourceEndFrame:f.sourceEndFrame,draftStartFrame:f.draftStartFrame,draftEndFrame:f.draftEndFrame}))};
+    faces:catalog.map((f:any)=>({id:f.id,source:source(f.resourceId),sourceFrame:f.sourceFrame,draftFrame:f.draftFrame,orderFromLeft:f.orderFromLeft,facesInFrame:f.facesInFrame,box:f.box,envelope:f.envelope,sourceStartFrame:f.sourceStartFrame,sourceEndFrame:f.sourceEndFrame,draftStartFrame:f.draftStartFrame,draftEndFrame:f.draftEndFrame}))};
 }
 
 // Reuse the runtime collector on source coordinates, bounded by the inspected
@@ -3440,7 +3485,7 @@ async function collectSourceActiveSpeakers({sdk,guard,projectId,before,catalog,s
 // Analyze each surviving source range once. Speaker analysis also supplies face
 // detections; window-local tracks are evidence, never cross-camera identities.
 async function collectSourceObservations({sdk,guard,projectId,before,note}:any) {
-  const read=async(script:string,summary:string,allowCommit=false)=>{const r=await guard(sdk.runScript({script,summary,allowCommit}));if(r.isError)throw Error(r.output||summary);return r.result;};
+  const read=async(script:string,summary:string,allowCommit=false)=>{const r=await guard(sdk.runScript({script,summary,allowCommit,timeoutSeconds:120}));if(r.isError)throw Error(r.output||summary);return r.result;};
   const catalog:any[]=[],observations:any[]=[];
   for(const [si,source] of before.sources.entries()) {
     const fps=source.meta.fps;
@@ -3448,7 +3493,7 @@ async function collectSourceObservations({sdk,guard,projectId,before,note}:any) 
     const ranges=cameraFaceRanges(words.map((w:any)=>[w.sourceStartFrame/fps,w.sourceEndFrame/fps]));
     for(const [ri,[a,b]] of ranges.flatMap(([a,b]:number[])=>Array.from({length:Math.ceil((b-a)/30)},(_,i)=>[a+i*30,Math.min(b,a+(i+1)*30)])).entries()) {
       note({plan:'stage',stage:'speakers-wait'});
-      const request={runtimeId:AI_RUNTIME,requestKey:`${APP_ID}:source-observations-v1:${keyHash(JSON.stringify({projectId,resourceId:source.resourceId,a,b}))}`,projectId,resourceId:source.resourceId,sourceRange:{startSeconds:a,endSeconds:b},task:'speakers.detect',options:{provider:'cpu'}};
+      const request={runtimeId:AI_RUNTIME,requestKey:`${APP_ID}:source-observations-v2:${keyHash(JSON.stringify({projectId,resourceId:source.resourceId,a,b}))}`,projectId,resourceId:source.resourceId,sourceRange:{startSeconds:a,endSeconds:b},task:'speakers.detect',options:{provider:'cpu'}};
       const data=await guard(measuredFaceWork.face(JSON.stringify(request),async()=>{
         note({plan:'stage',stage:'speakers'});let wf='';const settled=await settleFaceJob({submit:async()=>{wf=(await read(`return await selects.ai.submit(${JSON.stringify(request)});`,'Analyze source faces and speaking',true)).workflowId;return {wf};},status:cancel=>read(`const j=selects.ai.job(${JSON.stringify(wf)},${JSON.stringify(projectId)});${cancel?'await j.cancel();':''}const s=await j.status();return {status:s.status,error:s.lastErrorMessage};`,'Check source observations',cancel),wait:ms=>guard(sleep(ms)),deadline:Date.now()+240000,now:()=>Date.now(),stop:e=>e instanceof RunCancelled});
         if(settled.status.status!=='succeeded')throw Error(settled.status.error||'Source observations failed');
@@ -3506,7 +3551,7 @@ async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note}:any
     // Every local face track receives an actual raw reference image. This lets
     // the agent connect identities across windows instead of trusting track IDs.
     for(const f of catalog.filter((f:any)=>f.resourceId===source.resourceId))selected.add(f.sourceFrame);
-    for(const t of reframingPlanningFacts(before,[]).turns.filter((t:any)=>before.sources[t.source]?.resourceId===source.resourceId)){const w=words.find((w:any)=>w.startFrame<=t.startFrame&&w.endFrame>t.startFrame);if(w)selected.add(w.sourceStartFrame);}
+    for(const t of reframingPlanningFacts(before,[]).turns.filter((t:any)=>before.sources[t.source]?.resourceId===source.resourceId)){const w=words.find((w:any)=>w.startFrame<=t.startFrame&&w.endFrame>t.startFrame);if(w)selected.add(Math.round(w.sourceStartFrame));}
     const frames=[...selected].sort((a,b)=>a-b);await capture(frames);
     for(let i=0;i<frames.length;i+=6){const page=frames.slice(i,i+6),cv=document.createElement('canvas');cv.width=1280;const h=cache.get(page[0]).cv.height+40;cv.height=h*Math.ceil(page.length/2);const g=cv.getContext('2d')!;g.fillStyle='#15191f';g.fillRect(0,0,cv.width,cv.height);
       page.forEach((f,j)=>{const x=j%2*640,y=Math.floor(j/2)*h;g.drawImage(cache.get(f).cv,x,y+40);g.fillStyle='white';g.font='16px sans-serif';const ids=catalog.filter((c:any)=>c.resourceId===source.resourceId&&c.sourceFrame===f).map((c:any)=>c.id);g.fillText(`source frame ${f} · ${ids.join(', ')||'context'}`,x+8,y+26);});
@@ -3519,7 +3564,7 @@ async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note}:any
 
 async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measureFaces,prepareEvidence,measureSpeakers,work}:any):Promise<any> {
   const inspect=async(preflight=false)=>{
-    const r=await guard(sdk.runScript({script:`const p=selects.project(${JSON.stringify(projectId)}); if (!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)})) throw new Error("Draft ownership changed"); const d=selects.draft(${JSON.stringify(draftId)}); const words=(await d.words()).map(w=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,wordId:w.wordId,speakerId:w.speakerId,speakerName:w.speakerName,sourceResourceId:w.sourceResourceId,sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame})); const sources=${preflight ? 'await Promise.all([...new Set((await d.clips({trackScope:"main"})).map(c=>c.resourceId).filter(Boolean))].map(async resourceId=>({resourceId:(await p.resource(resourceId).rangeAtFrames(0,1)).resourceId,meta:await p.resource(resourceId).meta()})))' : '[]'}; return {meta:await d.meta(),words,sources};`,summary:'Verify reframing target'}));
+    const r=await guard(sdk.runScript({timeoutSeconds:120,script:`const p=selects.project(${JSON.stringify(projectId)}); if (!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)})) throw new Error("Draft ownership changed"); const d=selects.draft(${JSON.stringify(draftId)}); const words=(await d.words()).map(w=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,wordId:w.wordId,speakerId:w.speakerId,speakerName:w.speakerName,sourceResourceId:w.sourceResourceId,sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame})); const sources=${preflight ? 'await Promise.all([...new Set((await d.clips({trackScope:"main"})).map(c=>c.resourceId).filter(Boolean))].map(async resourceId=>({resourceId:(await p.resource(resourceId).rangeAtFrames(0,1)).resourceId,meta:await p.resource(resourceId).meta()})))' : '[]'}; return {meta:await d.meta(),words,sources};`,summary:'Verify reframing target'}));
     if(r.isError||!r.result?.meta) throw new Error(r.output||'Cannot verify reframing target');
     return r.result;
   };
@@ -3532,19 +3577,24 @@ async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measur
     });
     if(!before.segments.length)throw Error('Missing source playback mapping');
   }
-  const observations=measureFaces?{catalog:await measureFaces({sdk,guard,projectId,before,note}),activeSpeakers:[]}:await collectSourceObservations({sdk,guard,projectId,before,note});
-  const faceCatalog=observations.catalog;
-  const evidence=await (prepareEvidence||prepareSourceSurvey)({sdk,guard,projectId,before,catalog:faceCatalog,note});
-  const activeSpeakers=measureSpeakers?await measureSpeakers({sdk,guard,projectId,before,catalog:faceCatalog,samples:evidence.samples,note,work}):observations.activeSpeakers;
   const unchanged=async()=>{
     const after=await inspect();
     if(after.meta.durationFrames!==before.meta.durationFrames||after.meta.fps!==before.meta.fps||JSON.stringify(after.meta.frameSize)!==JSON.stringify(before.meta.frameSize)||JSON.stringify(normalizeReframeWords(after.words))!==JSON.stringify(normalizeReframeWords(before.words))) throw new Error('Agent changed speech or timing outside reframing scope. Inspect the saved Draft before resuming.');
   };
+  const analysisLimitations:string[]=[];
+  let observations:any={catalog:[],activeSpeakers:[]};
+  try {observations=measureFaces?{catalog:await measureFaces({sdk,guard,projectId,before,note}),activeSpeakers:[]}:await collectSourceObservations({sdk,guard,projectId,before,note});}
+  catch(error:any){if(error instanceof RunCancelled)throw error;analysisLimitations.push(String(error?.message||error));note({plan:'analysis-limited',reason:analysisLimitations[0]});}
+  const faceCatalog=observations.catalog;
+  let evidence:any;
+  try{evidence=await (prepareEvidence||prepareSourceSurvey)({sdk,guard,projectId,before,catalog:faceCatalog,note});}
+  catch(error:any){if(error instanceof RunCancelled)throw error;await unchanged();const report={draftId,status:'complete',qualityStatus:'limited',preservedRanges:[{startFrame:0,endFrame:before.meta.durationFrames,reason:String(error?.message||error)}],verification:{kind:'timing',status:'passed'},visualReview:{status:'not-run'}};note({plan:'agent-reframe-result',draftId,report});return report;}
+  const activeSpeakers=measureSpeakers?await measureSpeakers({sdk,guard,projectId,before,catalog:faceCatalog,samples:evidence.samples,note,work}):observations.activeSpeakers;
   const facts=reframingPlanningFacts(before,faceCatalog);
   const prompt=`You are the editorial agent for shortform screen composition. Use your existing Selects SDK tools READ-ONLY for missing evidence. The app applies your JSON plan; you do not edit or commit. No questions, export, effect code, or second review pass.
 
 DECISIONS
-Choose people, reactions, layouts and exact cut boundaries for the whole clip. Obey the template. Group speaker turns into a consistent person mapping using source images and Light-ASD AVA scores. Scores are uncalibrated logits, not probabilities; missing means unknown. A visible listener can remain during offscreen speech. A camera cut is not a speaker change. Do not infer speaking from one open mouth. Local tracks expire at their source ranges and are NOT persistent identities. Connect them by appearance. Never force a person into scenery, maps, sports or silent action.
+Choose people, reactions, layouts and exact cut boundaries for the whole clip. Deliver the best feasible plan. Priority: preserve speech/timing and choose evidence-supported subjects, then the user-selected focus, then layout preferences, then original graphics and cosmetic framing. If preferences conflict, choose the closest feasible composition and disclose the compromise in limitations; do not block the whole clip for cosmetic conflicts. Never invent identity or change speech. Obey the template where feasible. Group speaker turns into a consistent person mapping using source images and Light-ASD AVA scores. Scores are uncalibrated logits, not probabilities; missing means unknown. A visible listener can remain during offscreen speech. A camera cut is not a speaker change. Do not infer speaking from one open mouth. Local tracks expire at their source ranges and are NOT persistent identities. Connect them by appearance. Never force a person into scenery, maps, sports or silent action.
 
 EVIDENCE
 JSON below contains speaker timing without transcript text, source/Draft mappings, measured face references, source images, active-speaker scores and appearance-change candidates. Those candidates may be motion/flash rather than cuts: judge the pictures. When accepting a candidate as a cut, use its exact firstNewSourceFrame; do not substitute rounded seconds or a runtime track boundary. Never insert a tiny wide transition merely to bridge a source cut. Cover all source layout changes, including inside words. Source and Draft frame rates can differ. Map frames linearly within the matching source mapping range; never across removed silence.
@@ -3552,10 +3602,10 @@ Use supplied UNCROPPED SOURCE images and measurements first. Only request a spec
 
 GEOMETRY
 For people, select measured face IDs; never write face boxes or crop coordinates. Each panel target has {subjectId,refs:[measured IDs of THAT SAME PERSON]}; panel.sourcePane has {left,right} and panel.closeUp controls size. left/right are normalized fractions from 0 to 1 (NOT pixels): full source {left:0,right:1}, left third {left:0,right:0.333333}. They delimit an embedded source pane, not the face crop. For embedded mosaics, supply both pane boundaries for every subject; do not let a crop leak into a neighboring pane. Select IDs whose observed source interval overlaps the shot; a representative image can lie outside the shot when its local track overlaps. Only an already-used primary faceId may be reused for the same composition after a silence cut. Include all relevant local-track references for that person so code fits the observed head envelope, not just one instant. Do not link different people or source layouts. closeUp is window width in face widths; template faceY is preferred face-center height, percent down the window. Code preserves head margins and fixes identical compositionId geometry across silence edits. A camera/layout change needs a new compositionId. Reuse only for the same person/source layout/framing. Establish one compositionId per person (or pair) and actual source layout, and reuse it whenever returning to that composition. A runtime window beginning, face-ID change, speaker-score change, or gesture NEVER establishes a new source layout. Do not split a shot at those analysis boundaries. Merge adjacent same-person/same-layout shots, including speaker-to-listener reaction holds. Include their face IDs together. A new composition for the same visible person requires an actual source camera/layout change visible in the images; cite that observed change in the reason. Do not label track windows as scene cuts. Before returning JSON, check that every new compositionId has an editorial or visible source-layout reason and that unchanged people/layouts reuse the same ID.
-For non-person content use layout "detail" with targets:[] and one panel.region {x,y,width,height}, choosing the action/object yourself. region is the IMPORTANT AREA that must remain fully visible, not a rough full-image crop. Code fills the portrait window around it without cutting this area. Normalized region width must be <= min(1, sourceHeight * 1080 / (windowBottom-windowTop) / sourceWidth), and height <= min(1, sourceWidth * (windowBottom-windowTop) / 1080 / sourceHeight). For 1920x1080 into 1080x1920, width must be <=0.3164. Select the essential visual subject within that feasible area; if none can preserve the intended content, report blocked. "wide" preserves the whole source and is allowed only by widePolicy. "stacked" has exactly two distinct subjects, in top/bottom order, and must be allowed by the template. Never invent a face when there is none. If important evidence is unavailable, report blocked with the specific reason.
+For non-person content use layout "detail" with targets:[] and one panel.region {x,y,width,height}, choosing the action/object yourself. region is the IMPORTANT AREA that must remain fully visible, not a rough full-image crop. Code fills the portrait window around it without cutting this area. Normalized region width must be <= min(1, sourceHeight * 1080 / (windowBottom-windowTop) / sourceWidth), and height <= min(1, sourceWidth * (windowBottom-windowTop) / 1080 / sourceHeight). For 1920x1080 into 1080x1920, width must be <=0.3164. Select the essential visual subject within that feasible area. If no supported plan is justified, report blocked only for missing essential evidence; the app will preserve existing framing and still deliver the clip. "wide" preserves the whole source and is allowed only by widePolicy. "stacked" has exactly two distinct subjects, in top/bottom order, and must be allowed by the template. Never invent a face when there is none. If important evidence is unavailable, report blocked with the specific reason.
 
 INPUT_JSON
-${JSON.stringify({version:1,capabilities:{layouts:['speaker','stacked','detail','wide'],cameras:before.sources.map((s:any)=>s.resourceId),continuousTracking:false},projectId,draftId,durationFrames:before.meta.durationFrames,draftFps:before.meta.fps,template:layout,sources:before.sources.map((s:any)=>({resourceId:s.resourceId,fps:s.meta.fps,frameSize:s.meta.frameSize})),speakerTurns:facts.turns.map(({text,...t}:any)=>t),sourceMapping:facts.mapping,faces:facts.faces,activeSpeakers,images:evidence.samples,appearanceChanges:evidence.boundaries||[]})}
+${JSON.stringify({version:1,capabilities:{layouts:['speaker','stacked','detail','wide'],cameras:before.sources.map((s:any)=>s.resourceId),continuousTracking:false},projectId,draftId,durationFrames:before.meta.durationFrames,draftFps:before.meta.fps,template:layout,sources:before.sources.map((s:any)=>({resourceId:s.resourceId,fps:s.meta.fps,frameSize:s.meta.frameSize})),analysisLimitations,speakerTurns:facts.turns.map(({text,...t}:any)=>t),sourceMapping:facts.mapping,faces:facts.faces,activeSpeakers,images:evidence.samples,appearanceChanges:evidence.boundaries||[]})}
 
 OUTPUT_JSON
 ${COMPOSITION_PLAN_SCHEMA}
@@ -3563,26 +3613,34 @@ Use camera=resourceId. Supported layouts: speaker, stacked, detail, wide. Each p
 Shots must cover [0,${before.meta.durationFrames}) contiguously with integer half-open intervals. Evidence must cover the clip. Use one evidence row per coherent shot, not per transcript turn; each row MUST cite at least one integer source frame actually supplied/inspected (never an empty array). A broad visual-content row can cover narration over an unchanged insert without redundant offscreen rows. Name the measured IDs used for people. Keep each reason/evidence/limitation under 25 words. Return syntactically valid JSON with every string quoted and closed. "audio-visual" cites runtime scores plus images, "offscreen" identifies the listener/narration, "visual-content" explains non-speaker material. Do not claim lip-sync verification from still images.
 ${reframingPreferencePrompt(layout)}`;
   note({plan:'stage',stage:'agent'});note({plan:'agent-reframe-start',draftId});
+  let plan:any,resolved:any;
+  try {
   const response=await askReframingAI({sdk,guard,note},{prompt,images:evidence.images,timeoutMs:600000,ephemeral:false});
-  let plan:any;
   try {plan=parseAgentReframeReport(String(response.text||''));}
   catch {throw new Error('Agent finished without a valid source crop plan.');}
   if(plan.draftId!==draftId||plan.status!=='planned') throw new Error(plan.summary||'Agent could not plan reframing');
+  note({plan:"agent-source-plan",draftId,report:plan});
   plan=sourceCompositionAdapter(plan,before.sources,before.meta.durationFrames,layout,faceCatalog);
   validateSpeakerEvidence(plan,before.meta.durationFrames);
-  checkSourceCompositionGeometry(compileSourceCropPlan(measuredFaceShots(plan.shots,faceCatalog,before.sources,layout),before.sources,before.meta.durationFrames,layout),layout);
+  resolved=resolveSourceComposition(plan.shots,faceCatalog,before.sources,before.meta.durationFrames,layout);
+  } catch(error:any) {
+    if(error instanceof RunCancelled)throw error;
+    await unchanged();
+    const report={draftId,status:'complete',qualityStatus:'limited',preservedRanges:[{startFrame:0,endFrame:before.meta.durationFrames,reason:String(error?.message||error)}],limitations:[String(error?.message||error)],verification:{kind:'timing',status:'passed'},visualReview:{status:'not-run'}};
+    note({plan:'agent-reframe-result',draftId,report});return report;
+  }
   await unchanged();
   note({plan:'agent-reframe-plan',draftId,report:plan});
   const apply=async(shots:any[])=>{
-    const measured=measuredFaceShots(shots,faceCatalog,before.sources,layout);
+    const measured=shots;
     checkSourceCompositionGeometry(compileSourceCropPlan(measured,before.sources,before.meta.durationFrames,layout),layout);
     note({plan:'stage',stage:'apply'});
-    const r=await guard(sdk.runScript({script:sourceCropApplyScript(projectId,draftId,layout,before.sources,before.meta.durationFrames).replace('__SHOTS__',JSON.stringify(measured)),summary:'Apply agent-selected source crops',allowCommit:true}));
+    const r=await guard(sdk.runScript({timeoutSeconds:120,script:sourceCropApplyScript(projectId,draftId,layout,before.sources,before.meta.durationFrames).replace('__SHOTS__',JSON.stringify(measured)),summary:'Apply agent-selected source crops',allowCommit:true}));
     if(r.isError||!r.result?.applied) throw new Error(r.output||'Source crop application failed');
     await unchanged();
   };
-  await apply(plan.shots);
-  const report={...plan,status:'complete',verification:{kind:'geometry-and-timing',status:'passed'},visualReview:{status:'not-run',reason:'Runtime visual review disabled; rendered output is checked in regression tests.'}};
+  await apply(resolved.shots);
+  const report={...plan,appliedShots:resolved.shots,qualityStatus:resolved.limitations.length?"limited":"complete",preservedRanges:resolved.limitations,geometryAdjustments:resolved.adjustments,status:'complete',verification:{kind:'geometry-and-timing',status:'passed'},visualReview:{status:'not-run',reason:'Runtime visual review disabled; rendered output is checked in regression tests.'}};
   note({plan:'agent-reframe-result',draftId,report});return report;
 }
 
@@ -3610,7 +3668,7 @@ function reframingPreferences(layout:any={}) {
 }
 function reframingPreferencePrompt(layout:any) {
   const p=reframingPreferences(layout);
-  return `User reframing preferences: ${JSON.stringify(p)}. These override generic framing advice. Hard constraints: ${p.wide==='never'?'Never use wide or an intact-camera fallback, including when identity is uncertain.':'Wide is '+p.wide+'.'} ${p.split==='never'?'Never use stacked.':'Stacked is '+p.split+'.'} Fixed framing: keep crop position and scale unchanged throughout a continuous playback shot of the same subjects/camera/layout. Silence-removal cuts and forward source-time gaps do not start a new composition; keep the exact same crop position and scale across them. Never re-estimate zoom or centering independently for each surviving source fragment. Focus reactions means speaker-led editing with meaningful listener reactions, not constant listener coverage. Decide selective split from the conversation structure of the WHOLE clip before choosing individual shots. Use stacked framing when frequent substantive back-and-forth between the same two distinct people is a defining pattern across the clip, and keeping both visible helps follow that conversation. In that case keep stacked framing stable through coherent dialogue passages, or the whole clip when appropriate; do not toggle it on and off for each brief overlap or reaction. If one person delivers most of the explanation and others only briefly interject, keep speaker-led single-person framing. A momentary overlap, hesitation, ordinary listening, short acknowledgements, a single question-answer pair, uncertainty, or variety alone do not justify selective split. Do not add a brief split at the end of an otherwise single-speaker clip just because a second person starts speaking. Frequent split still requires relevant distinct people and coherent conversation passages. Explain the clip-wide exchange pattern supporting each split choice; do not invent numerical turn-count thresholds. Wide essential means only when group action or spatial context is necessary to understand the scene, never merely to break up a long answer. Pacing is a preference, not a fixed timer. If identification is uncertain, retain an evidence-supported allowed composition; if none exists report an error rather than violate a prohibition. Explain the specific evidence for every split or wide choice.`;
+  return `User reframing preferences: ${JSON.stringify(p)}. These override generic framing advice. Hard constraints: ${p.wide==='never'?'Never use wide or an intact-camera fallback, including when identity is uncertain.':'Wide is '+p.wide+'.'} ${p.split==='never'?'Never use stacked.':'Stacked is '+p.split+'.'} Fixed framing: keep crop position and scale unchanged throughout a continuous playback shot of the same subjects/camera/layout. Silence-removal cuts and forward source-time gaps do not start a new composition; keep the exact same crop position and scale across them. Never re-estimate zoom or centering independently for each surviving source fragment. Focus reactions means speaker-led editing with meaningful listener reactions, not constant listener coverage. Decide selective split from the conversation structure of the WHOLE clip before choosing individual shots. Use stacked framing when frequent substantive back-and-forth between the same two distinct people is a defining pattern across the clip, and keeping both visible helps follow that conversation. In that case keep stacked framing stable through coherent dialogue passages, or the whole clip when appropriate; do not toggle it on and off for each brief overlap or reaction. If one person delivers most of the explanation and others only briefly interject, keep speaker-led single-person framing. A momentary overlap, hesitation, ordinary listening, short acknowledgements, a single question-answer pair, uncertainty, or variety alone do not justify selective split. Do not add a brief split at the end of an otherwise single-speaker clip just because a second person starts speaking. Frequent split still requires relevant distinct people and coherent conversation passages. Explain the clip-wide exchange pattern supporting each split choice; do not invent numerical turn-count thresholds. Wide essential means only when group action or spatial context is necessary to understand the scene, never merely to break up a long answer. Pacing is a preference, not a fixed timer. If identification is uncertain, retain an evidence-supported allowed composition; if none exists explain the limitation so the app can retain existing framing instead of losing the clip. Explain the specific evidence for every split or wide choice.`;
 }
 function reframingPreset(layout:any,preset:string) {
   const choices:any={speaker:{reframeFocus:'speaker',splitPolicy:'never',widePolicy:'never'},conversation:{reframeFocus:'reactions',splitPolicy:'selective',widePolicy:'never'},context:{reframeFocus:'context',splitPolicy:'selective',widePolicy:'essential'}};
@@ -3803,7 +3861,7 @@ function activeSpeakerRows(document:any,options:any[],panel:any,sourceStart:numb
   return [...bins.values()].filter(r=>r.scores.length>=3).map(r=>({candidateId:r.candidateId,startFrame:r.startFrame,endFrame:r.endFrame,score:Math.round(r.scores.reduce((a:number,b:number)=>a+b,0)/r.scores.length*100)/100}));
 }
 async function collectActiveSpeakerEvidence({sdk,guard,projectId,bursts,fps,note,work}:any) {
-  const read=async(script:string,summary:string,allowCommit=false)=>{const r=await guard(sdk.runScript({script,summary,allowCommit}));if(r.isError)throw new Error(r.output||summary);return r.result;};
+  const read=async(script:string,summary:string,allowCommit=false)=>{const r=await guard(sdk.runScript({script,summary,allowCommit,timeoutSeconds:120}));if(r.isError)throw new Error(r.output||summary);return r.result;};
   const supported=await read('return selects.ai.activeSpeakerSupported===true;','Check active speaker support');
   if(!supported){await note({plan:'active-speakers',status:'unsupported'});return [];}
   const evidence:any[]=[];
@@ -5011,22 +5069,22 @@ function TemplateFramingSection({ ui, S, lang, draft, profile }: any) {
   const { edit, set, saving } = draft;
   const { num, text } = templateFields({ ui, ...draft });
   return (<>
-      <ui.Section title={lang === "ko" ? "구도" : "Framing"}>
-        {profile.reframe ? <ui.Segmented label={lang === "ko" ? "구도 방식" : "Framing mode"}
+      <ui.Section title={lang === "ko" ? "\uad6c\ub3c4" : "Framing"}>
+        {profile.reframe ? <ui.Segmented label={lang === "ko" ? "\uad6c\ub3c4 \ubc29\uc2dd" : "Framing mode"}
           value={edit.layout.reframe ? "auto" : "manual"}
           onChange={(v:string)=>set("layout.reframe",v === "auto")}
-          options={[{value:"auto",label:lang === "ko" ? "자동 (AI)" : "Automatic (AI)"},{value:"manual",label:lang === "ko" ? "수동" : "Manual"}]} disabled={saving}/>
-          : <small>{lang === "ko" ? "이 템플릿은 수동 구도를 사용합니다." : "This template uses manual framing."}</small>}
+          options={[{value:"auto",label:lang === "ko" ? "\uc790\ub3d9 (AI)" : "Automatic (AI)"},{value:"manual",label:lang === "ko" ? "\uc218\ub3d9" : "Manual"}]} disabled={saving}/>
+          : <small>{lang === "ko" ? "\uc774 \ud15c\ud50c\ub9bf\uc740 \uc218\ub3d9 \uad6c\ub3c4\ub97c \uc0ac\uc6a9\ud569\ub2c8\ub2e4." : "This template uses manual framing."}</small>}
         {profile.reframe && edit.layout.reframe && <>
-          <ui.Segmented label={lang==='ko'?'리프레이밍 스타일':'Reframing style'} value={edit.layout.reframePreset||'conversation'} onChange={(v:string)=>set('layout',reframingPreset(edit.layout,v))} options={[
-            {value:'speaker',label:lang==='ko'?'화자 집중':'Speaker focus'}, {value:'conversation',label:lang==='ko'?'대화와 반응':'Conversation'}, {value:'context',label:lang==='ko'?'현장감':'Context'}, {value:'custom',label:lang==='ko'?'직접 설정':'Custom'}]} disabled={saving}/>
+          <ui.Segmented label={lang==='ko'?'\ub9ac\ud504\ub808\uc774\ubc0d \uc2a4\ud0c0\uc77c':'Reframing style'} value={edit.layout.reframePreset||'conversation'} onChange={(v:string)=>set('layout',reframingPreset(edit.layout,v))} options={[
+            {value:'speaker',label:lang==='ko'?'\ud654\uc790 \uc9d1\uc911':'Speaker focus'}, {value:'conversation',label:lang==='ko'?'\ub300\ud654\uc640 \ubc18\uc751':'Conversation'}, {value:'context',label:lang==='ko'?'\ud604\uc7a5\uac10':'Context'}, {value:'custom',label:lang==='ko'?'\uc9c1\uc811 \uc124\uc815':'Custom'}]} disabled={saving}/>
         {profile.reframe && edit.layout.reframe ? num("layout.closeUp", S.closeUp, 2, 12, "×", 4.5) : null}
         {profile.reframe && edit.layout.reframe ? num("layout.faceY", S.faceY, 25, 65, "%", 40) : null}
           {[
-            ['reframeFocus','화면에 담을 대상','Show',[['speaker','말하는 사람 위주','Speaker'],['reactions','듣는 사람의 반응도','Reactions'],['context','대화 전체','Context']],'reactions'],
-            ['splitPolicy','상하 분할','Stacked split',[['never','사용 안 함','Never'],['selective','필요할 때','Selective'],['frequent','적극 활용','Frequent']],'selective'],
-            ['widePolicy','와이드샷','Wide shots',[['never','사용 안 함','Never'],['essential','꼭 필요할 때','Essential'],['free','자유롭게','Free']],'never'],
-            ['reframePacing','화면 전환 빈도','Pacing',[['calm','차분하게','Calm'],['balanced','보통','Balanced'],['dynamic','역동적으로','Dynamic']],'balanced'],
+            ['reframeFocus','\ud654\uba74\uc5d0 \ub2f4\uc744 \ub300\uc0c1','Show',[['speaker','\ub9d0\ud558\ub294 \uc0ac\ub78c \uc704\uc8fc','Speaker'],['reactions','\ub4e3\ub294 \uc0ac\ub78c\uc758 \ubc18\uc751\ub3c4','Reactions'],['context','\ub300\ud654 \uc804\uccb4','Context']],'reactions'],
+            ['splitPolicy','\uc0c1\ud558 \ubd84\ud560','Stacked split',[['never','\uc0ac\uc6a9 \uc548 \ud568','Never'],['selective','\ud544\uc694\ud560 \ub54c','Selective'],['frequent','\uc801\uadf9 \ud65c\uc6a9','Frequent']],'selective'],
+            ['widePolicy','\uc640\uc774\ub4dc\uc0f7','Wide shots',[['never','\uc0ac\uc6a9 \uc548 \ud568','Never'],['essential','\uaf2d \ud544\uc694\ud560 \ub54c','Essential'],['free','\uc790\uc720\ub86d\uac8c','Free']],'never'],
+            ['reframePacing','\ud654\uba74 \uc804\ud658 \ube48\ub3c4','Pacing',[['calm','\ucc28\ubd84\ud558\uac8c','Calm'],['balanced','\ubcf4\ud1b5','Balanced'],['dynamic','\uc5ed\ub3d9\uc801\uc73c\ub85c','Dynamic']],'balanced'],
           ].map(([key,ko,en,options,fallback]:any)=><ui.Segmented key={key} label={lang==='ko'?ko:en} value={edit.layout[key]||fallback} onChange={(v:string)=>set('layout',{...edit.layout,[key]:v,reframePreset:'custom'})} options={options.map(([value,k,e]:any)=>({value,label:lang==='ko'?k:e}))} disabled={saving}/>)}
           {text("layout.reframeInstructions",lang === "ko" ? "\uad6c\ub3c4 \uc9c0\uce68 (AI \ucc38\uace0)" : "Framing instructions (AI guidance)")}
 
@@ -5179,7 +5237,7 @@ function TemplateEditorForm(props: any) {
           disabled={dirty || saving || !!props.packBusy}
         />
         </div>
-        <div style={{flexShrink:0}}><ui.IconButton icon="settings" label={lang === "ko" ? "템플릿 설정" : "Template settings"}
+        <div style={{flexShrink:0}}><ui.IconButton icon="settings" label={lang === "ko" ? "\ud15c\ud50c\ub9bf \uc124\uc815" : "Template settings"}
           disabled={saving || !!props.packBusy}
           onClick={()=>setSettingsOpen(v=>!v)} /></div>
         <div style={{flexShrink:0}}><ui.IconButton icon="trash" label={S.deleteTemplate}
@@ -5221,13 +5279,13 @@ function TemplateEditorForm(props: any) {
             </div>
           </div>}
           feedback={msg && <ui.Message tone={msg.tone}>{msg.text}</ui.Message>}
-          label={lang === "ko" ? "템플릿 편집" : "Template editor"}
+          label={lang === "ko" ? "\ud15c\ud50c\ub9bf \ud3b8\uc9d1" : "Template editor"}
           value={sub}
           onChange={setSub}
           tabs={[
             { value: "look", label: S.tabLook, content: <TemplateAppearanceSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} previewOverlay={previewOverlay} setPreviewOverlay={setPreviewOverlay} /> },
             { value: "captions", label: S.tabCaptions, content: <TemplateCaptionsSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} previewOverlay={previewOverlay} /> },
-            { value: "framing", label: lang === "ko" ? "구도" : "Framing", content: <TemplateFramingSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} /> },
+            { value: "framing", label: lang === "ko" ? "\uad6c\ub3c4" : "Framing", content: <TemplateFramingSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} /> },
             { value: "ai", label: S.tabAI, content: <TemplateAISection ui={ui} S={S} lang={lang} draft={draft} profile={profile} /> },
           ]}
       />
@@ -6284,7 +6342,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     return { clips, recommendedCount: j.recommendedCount ?? clips.length, countReason: j.countReason || "", fixes: Array.isArray(j.fixes) ? j.fixes : [], captionOmissions: (tpl.renderer === "separate-headlines") && Array.isArray(j.captionOmissions) ? j.captionOmissions : [] };
   }
 
-  async function run(resume?: any) {
+  async function run(resume?: any, onlyDraftId?: string, forceReframe = false) {
     if(overlayLock.current||busy||packLock.current)return;
     setError("");
     if (!projectId) return setError(S.noProject);
@@ -6406,6 +6464,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       let progressSaveError: any;
       for (let i = 0; i < pickd.clips.length; i++) {
         const c = pickd.clips[i];
+        if (onlyDraftId && made[i]?.draftId !== onlyDraftId) continue;
+        if(forceReframe && made[i]?.draftId) made[i]={...made[i],reframeState:"pending",progressStage:"pending",error:undefined};
         // Completed legacy drafts already contain their framing; new drafts persist
         // an explicit pending state so interruption resumes the same output.
         if (made[i]?.draftId && made[i].reframeState !== "pending" && made[i].reframeState !== "failed") continue;
@@ -6498,14 +6558,14 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             made[i] = {...made[i],reframeReport:report,reframeState:"done",progressStage:"thumbnail",progressAt:Date.now(),error:undefined};
           } catch (e: any) {
             if (e instanceof RunCancelled) throw e;
-            made[i] = {...made[i], reframeState:"failed", progressStage:"failed",progressAt:Date.now(), error:String(e?.message || e).slice(0,300)};
+            made[i] = {...made[i], reframeState:"failed", failedStage:made[i].progressStage, progressStage:"failed",progressAt:Date.now(), error:String(e?.message || e).slice(0,300)};
           }
           setDrafts(made.filter(Boolean));
           await persist({built:made, choice:pickd, resultWarning});
         }
         if (made[i]?.draftId && made[i].reframeState !== "failed") {
           try {
-            const image = await guard(loadDraftThumbnail(store,sdk,projectId,job.id,made[i].draftId));
+            const image = await guard(loadDraftThumbnail(store,sdk,projectId,job.id,made[i].draftId,true));
             if (image?.thumbnailPath) {
               made[i] = {...made[i],thumbnailPath:image.thumbnailPath,thumbnailCapturedAt:new Date().toISOString()};
               await persist({built:made,resultWarning});
@@ -6741,7 +6801,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           onChange={setResultSelection}
           options={[{value:"__latest__",label:`${R.latest} · ${resultJobLabel(history[0],lang,R)}`},
             ...history.slice(1).map(j=>({value:j.id,label:resultJobLabel(j,lang,R)}))]} /></div>
-        <DraftResults drafts={shownDrafts} template={shownResult.templateName || (shownTemplate ? nameOf(shownTemplate,lang) : "")}
+        <div style={{marginBottom:12}}><ui.Button variant="secondary" disabled={busy} onClick={()=>run(shownResult,undefined,true)}>{lang==="ko"?"\uc804\uccb4 \ud654\uba74 \uad6c\uc131 \ub2e4\uc2dc":"Reframe all clips"}</ui.Button></div>
+        <DraftResults drafts={shownDrafts} busy={busy} onRetry={(id:string)=>run(shownResult,id)} template={shownResult.templateName || (shownTemplate ? nameOf(shownTemplate,lang) : "")}
           sdk={sdk} store={store} jobId={shownResult.id} projectId={projectId} visibleDraftId={visibleDraftId} opening={openingDraft} onOpen={openDraft}
           overlayControl={<ui.Stack gap={4}><ui.Toggle
             label={O.title}

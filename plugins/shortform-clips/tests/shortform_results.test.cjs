@@ -37,8 +37,8 @@ test('draft results preserve descriptions and follow the current draft', {skip: 
     assert.match(resultJobLabel({built:[{draftId:'x',headline1:'Clip title'}]},'en',RESULT_STRINGS.en),/Clip title.*Unknown date/);
   });
   await t.test('empty source validation leaves previous results and pending restoration intact',async()=>{
-    const start=source.indexOf('  async function run(resume?: any) {');
-    const prefix=source.slice(start+'  async function run(resume?: any) {'.length,source.indexOf('    setBusy(true);',start));
+    const start=source.indexOf('  async function run(resume?: any, onlyDraftId?: string, forceReframe = false) {');
+    const prefix=source.slice(start+'  async function run(resume?: any, onlyDraftId?: string, forceReframe = false) {'.length,source.indexOf('    setBusy(true);',start));
     const check=new Function('env',`return async function(resume){const {overlayLock,busy,packLock,setError,setWarn,setDrafts,setInfo,projectId,templates,mode,url,pick,S,K,resultsRevision}=env;${prefix};return 'valid';}`);
     const saved=[{draftId:'keep'}];let visible=saved,error='',clears=0;
     const env={overlayLock:{current:false},busy:false,packLock:{current:false},setError:x=>error=x,setWarn:()=>{},setDrafts:x=>{visible=x;clears++;},setInfo:()=>{},projectId:'project',templates:[{}],mode:'youtube',url:'',pick:null,S:{needUrl:'Need URL',needPick:'Need video',noProject:'Need project'},K:{empty:'Need templates'},resultsRevision:{current:2}};
@@ -71,6 +71,7 @@ test('draft results preserve descriptions and follow the current draft', {skip: 
     const first=await loadDraftThumbnail(store,sdk,'p','job','draft');
     assert.equal(first.thumbnailPath,'thumbnails/job/draft.jpg');assert.deepEqual([...saved.get('/data/'+first.thumbnailPath)],[97]);
     assert.deepEqual(await loadDraftThumbnail(store,sdk,'p','job','draft'),first);assert.equal(captures,1);
+    await loadDraftThumbnail(store,sdk,'p','job','draft',true);assert.equal(captures,2);
     assert.throws(()=>thumbnailPath('../escape','draft'),/Invalid/);
     await assert.rejects(()=>loadDraftThumbnail({...store,exists:async()=>false}, {call:async()=>{throw Error('unavailable');}},'p','job','draft'),/unavailable/);
   });
@@ -135,12 +136,29 @@ test('draft results preserve descriptions and follow the current draft', {skip: 
   const button = label => buttons().find(b=>b.getAttribute('aria-label')===label || b.textContent===label);
   const render = async extra => act(async()=>root.render(e(DraftResults,{...props,...extra})));
   const click = async label => act(async()=>button(label).click());
+  await t.test('unfinished clips do not open or capture previews; failed cards retry only their own draft',async()=>{
+    const retried=[];
+    await render({S:{...props.S,elapsed:n=>`${n}s`},busy:false,onRetry:id=>retried.push(id),drafts:[
+      {draftId:'pending',headline1:'Pending',reframeState:'pending',progressStage:'speakers',progressAt:Date.now()-5000},
+      {draftId:'failed',headline1:'Failed',reframeState:'failed',progressStage:'failed',failedStage:'speakers',error:'runtime unavailable'},
+      {draftId:'thumbnail',headline1:'Preview',reframeState:'done',progressStage:'thumbnail'},
+    ]});
+    assert.equal(document.querySelectorAll('.clip-thumbnail-button').length,0);
+    assert.match(document.body.textContent,/Analyzing audio and mouth motion/);
+    assert.match(document.body.textContent,/Available when complete/);
+    assert.ok([...document.querySelectorAll('.clip-result-row')].every(row=>row.lastElementChild.className==='clip-result-progress'));
+    await click('Retry this clip');assert.deepEqual(retried,['failed']);
+    assert.deepEqual(opened,[]);
+    await render({busy:true,onRetry:id=>retried.push(id),drafts:[{draftId:'failed',headline1:'Failed',reframeState:'failed',error:'unavailable'}]});
+    assert.equal(button('Retry this clip').disabled,true);
+  });
   await t.test('live progress reports completed clips, supports cancellation, and disappears when finished',async()=>{
     let cancelled=0;
     const progress={ui,S:{steps:['Import','Transcribe','Identify','Choose','Build'],thisRun:'Work in progress',cancel:'Cancel',cancelling:'Cancelling'},R:RESULT_STRINGS.en,
       job:{title:'Interview',choice:{clips:[{},{},{}]},built:[{draftId:'one'},{error:'failed'}]},busy:true,step:4,sub:0,statusLine:'Building clip 2',cancelling:false,onCancel:()=>cancelled++};
     await act(async()=>root.render(e(ClipRunProgress,progress)));
     assert.equal(document.querySelector('[role="progressbar"]').getAttribute('aria-valuenow'),String(1/3));assert.match(document.body.textContent,/1\/3 clips created/);
+    assert.doesNotMatch(document.body.textContent,/Building clip 2/);
     await click('Cancel');assert.equal(cancelled,1);
     await act(async()=>root.render(e(ClipRunProgress,{...progress,cancelling:true})));
     assert.equal(button('Cancelling').disabled,true);
@@ -194,7 +212,7 @@ test('draft results preserve descriptions and follow the current draft', {skip: 
     await render({drafts:assessed,visibleDraftId:'unrelated'});
     assert.match(document.querySelector('.clip-result-row').textContent,/Another headline/);
     assert.match(document.body.textContent,/8.0\/10/);
-    assert.equal(document.querySelector('.clip-result-row details'),null);
+    assert.equal(document.querySelector('.clip-result-row').querySelector('details'),null);
     assert.equal(document.querySelector('[role="tooltip"]'),null);
     const scoreInfo=document.querySelector('button[aria-label="Why this score"]');
     await act(async()=>scoreInfo.dispatchEvent(new dom.window.MouseEvent('mouseover',{bubbles:true})));

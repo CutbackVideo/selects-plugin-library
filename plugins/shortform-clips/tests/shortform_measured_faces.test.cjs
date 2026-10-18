@@ -4,7 +4,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('agent face selection uses runtime measurements',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild'),m={exports:{}};
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
- new Function('require','module','exports',esbuild.transformSync(src+'\nexport {measuredFaceShots,compileSourceCropPlan,collectMeasuredFaces};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
+ new Function('require','module','exports',esbuild.transformSync(src+'\nexport {resolveSourceComposition,measuredFaceShots,compileSourceCropPlan,collectMeasuredFaces};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
  const sources=[{resourceId:'r',meta:{fps:30,frameSize:{width:1920,height:1080}}}],layout={windowTop:0,windowBottom:1920,faceY:40,closeUp:4.5};
  const catalog=[{id:'F1',resourceId:'r',draftFrame:30,sourceFrame:300,box:{xmin:1178,xmax:1361,ymin:299,ymax:531}},{id:'F2',resourceId:'r',draftFrame:40,sourceFrame:310,box:{xmin:145,xmax:331,ymin:310,ymax:553}}];
  const shot={startFrame:0,endFrame:90,resourceId:'r',style:'speaker',compositionId:'woman',subjects:[{faceId:'F1',left:.5,right:.75}]};
@@ -16,6 +16,21 @@ test('agent face selection uses runtime measurements',{skip:!modules},async t=>{
   assert.ok(Math.abs(((299+531)/2-y)/h-.4)<1e-6);
   // Fabricated coordinates on a model result never drive the crop.
   assert.deepEqual(compile([{...shot,regions:[{x:0,y:0,width:.1,height:.1}]}])[0].panels,[p]);
+ });
+ await t.test('bounded envelope noise is corrected without crossing panes or substituting people',()=>{
+  const face={...catalog[0],envelope:{...catalog[0].box,xmax:1446}};
+  const resolved=m.exports.resolveSourceComposition([shot],[face],sources,90,layout);
+  assert.equal(resolved.limitations.length,0);assert.equal(resolved.adjustments.length,1);
+  const p=m.exports.compileSourceCropPlan(resolved.shots,sources,90,layout)[0].panels[0];
+  assert.ok(p.cx+p.w/2<=1440+1e-6);assert.equal(resolved.shots[0].subjects[0].faceId,'F1');
+  const tooLarge=m.exports.resolveSourceComposition([shot],[{...face,envelope:{...face.envelope,xmax:1500}}],sources,90,layout);
+  assert.equal(tooLarge.shots[0].style,'preserve');assert.equal(tooLarge.limitations.length,1);
+ });
+ await t.test('an impossible composition preserves only its ranges and applies unrelated valid shots',()=>{
+  const shots=[{...shot,endFrame:45},{...shot,startFrame:45,compositionId:'other',subjects:[{faceId:'F2',left:.5,right:.75}]}];
+  const resolved=m.exports.resolveSourceComposition(shots,catalog,sources,90,layout);
+  assert.deepEqual(resolved.shots.map(s=>s.style),['speaker','preserve']);
+  assert.equal(resolved.limitations[0].startFrame,45);
  });
  await t.test('unknown faces, wrong sources, impossible panes and references from another shot are rejected',()=>{
   for(const change of [{subjects:[{faceId:'invented'}]},{resourceId:'other'},{subjects:[{faceId:'F1',left:0,right:.25}]},{startFrame:50}]) assert.throws(()=>compile([{...shot,...change}]));
@@ -33,6 +48,13 @@ test('agent face selection uses runtime measurements',{skip:!modules},async t=>{
   assert.deepEqual(plan[0].panels,plan[1].panels);
   const p=plan[0].panels[0],h=p.w*1920/1080,x=p.cx-p.w/2,y=p.cy-h*.4;
   for(const f of [catalog[0],moved]){assert.ok(x<=f.box.xmin&&x+p.w>=f.box.xmax);assert.ok(y<=f.box.ymin&&y+h>=f.box.ymax);}
+ });
+ await t.test('same composition shares measured references across returning fragments',()=>{
+  const later={...catalog[0],id:'later',draftFrame:70};
+  const subjects=[{faceId:'F1',faceIds:['later'],left:.5,right:.75}];
+  const shots=[{...shot,endFrame:45,subjects},{...shot,startFrame:45,subjects}];
+  const result=m.exports.resolveSourceComposition(shots,[...catalog,later],sources,90,layout);
+  assert.equal(result.limitations.length,0);assert.deepEqual(result.shots[0].regions,result.shots[1].regions);
  });
  await t.test('non-person details need no fabricated face and still respect source geometry',()=>{
   const detail={...shot,style:'detail',subjects:[],regions:[{x:.25,y:0,width:.5,height:1}]};

@@ -42,9 +42,9 @@ test('local resource queues leave agents parallel',{skip:!modules},async t=>{
   assert.deepEqual(cameraFaceRanges([]),[]);
  });
  await t.test('UI labels report actual work rather than calling every phase face detection',()=>{
-  const R={stages:{ai:'AI 판단',faces:'얼굴 분석',verify:'검증',done:'완료'}};
-  assert.equal(clipStageLabel({progressStage:'ai',reframeState:'pending'},R),'AI 판단');
-  assert.equal(clipStageLabel({progressStage:'verify'},R),'검증');
-  assert.equal(clipStageLabel({reframeState:'done'},R),'완료');
+  const R={stages:{ai:'AI \ud310\ub2e8',faces:'\uc5bc\uad74 \ubd84\uc11d',verify:'\uac80\uc99d',done:'\uc644\ub8cc'}};
+  assert.equal(clipStageLabel({progressStage:'ai',reframeState:'pending'},R),'AI \ud310\ub2e8');
+  assert.equal(clipStageLabel({progressStage:'verify'},R),'\uac80\uc99d');
+  assert.equal(clipStageLabel({reframeState:'done'},R),'\uc644\ub8cc');
  });
 });

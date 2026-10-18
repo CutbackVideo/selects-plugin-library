@@ -83,6 +83,12 @@ Before applying, it compiles the entire plan and rejects non-finite crops,
 out-of-pane coordinates, clipped measured heads (including reused fixed
 compositions), missing coverage and template-forbidden layouts. Application
 rechecks source ownership before editing and preserves speech timing.
+For the single-source path, small envelope-only boundary noise is bounded without
+changing the chosen person or pane. An infeasible composition retains existing
+framing only for its affected ranges; unavailable evidence or an invalid agent
+plan retains the baseline before any edit. These outcomes are explicitly marked
+`qualityStatus: limited` with reasons. Mutation failures still fail rather than
+claiming a partially applied plan succeeded.
 The single-source path no longer captures final composites or calls an AI
 review/repair loop during normal generation. Completion explicitly records
 geometry-and-timing verification and visualReview.status=not-run. This does
@@ -102,8 +108,11 @@ info icon beside AI score for its reason. These are content recommendations, not
 predictions or finished-video quality scores. Older or malformed assessments show
 **Unrated** and sort after scored clips, without re-running AI. Thumbnails capture
 one composited Draft frame at one second (or the last frame for shorter clips),
-including its template and captions. New clips save this JPEG after creation;
-older results capture the current Draft on their first visit. Subsequent edits
+including its template and captions. New clips save this JPEG after framing;
+reframing again refreshes the saved JPEG. Cards show their own stage and elapsed
+time at the bottom and cannot open until composition and thumbnail processing
+finish. Failed clips expose details and individual retry. The overall progress
+shows only the batch count. Older results capture the current Draft on their first visit. Subsequent edits
 or opening a Draft do not refresh the saved image. Capture does not change the
 open Draft. A failed preview leaves the editable clip and its history intact.
 

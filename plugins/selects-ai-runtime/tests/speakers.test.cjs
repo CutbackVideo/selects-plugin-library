@@ -20,3 +20,14 @@ test('speaker outputs reject invented probabilities, nonfinite scores and out-of
  const check=x=>verifySpeakerOutput(x,{startSeconds:1,endSeconds:2},d.frameSize);check(d);assert.throws(()=>check({...d,scoreKind:'probability'}));
  const bad=structuredClone(d);bad.samples[0].faces[0].activeSpeakerScore=NaN;assert.throws(()=>check(bad));bad.samples[0].sourceTimeSeconds=2;assert.throws(()=>check(bad));
 });
+
+test('speaker windows cover fractional ranges without a sub-frame remainder',()=>{
+ const {speakerWindows}=require('../tasks/speakers-detect.cjs');
+ for(const length of [21.017633333333,30,0.5338666667,60]) {
+  const start=1239.3414666666667,windows=speakerWindows({startSeconds:start,endSeconds:start+length});
+  assert.ok(windows.every(w=>w.duration>=.04&&w.duration<=3));
+  assert.equal(windows[0].start,start);
+  windows.forEach((w,i)=>{if(i)assert.ok(Math.abs(w.start-windows[i-1].start-windows[i-1].duration)<1e-9);});
+  assert.ok(Math.abs(windows.at(-1).start+windows.at(-1).duration-start-length)<1e-9);
+ }
+});

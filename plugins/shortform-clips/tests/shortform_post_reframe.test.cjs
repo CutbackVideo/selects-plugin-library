@@ -34,7 +34,7 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   const body=esbuild.transformSync(loop,{loader:'ts'}).code;
   let job={built:[]},builds=0,applies=0,thumbnails=0,fail=true;const events=[];
   const pickd={clips:[{name:'One',segments:[[1,5]]}]};
-  const env={token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
+  const env={forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
    STACKED_REFRAME_EFFECT:'effect',projectId:'p',S:{building:()=>'',reframing:'framing'},lang:'en',transform:{scale:1},buildLogo:'',SCRIPT_APPLY_REFRAME:'APPLY const P: any = __P__;',
    RADIO_SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_BUILD:'',SCRIPT_LIMIT:1e7,RunCancelled:class extends Error{},
    setStatus:()=>{},setSub:()=>{},setDrafts:()=>{},setWarn:()=>{},nameOf:()=>'',radioFrameParams:()=>({}),
@@ -66,6 +66,12 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   assert.deepEqual(job.built.map(d=>d.reframeState),['done','done','failed','done','done']);
   assert.deepEqual(job.built.map(d=>d.reframeUsageCalls[0].input_tokens),[100,101,102,103,104]);
   assert.equal(job.done,false);
+  // Retrying one card must leave other failed cards untouched.
+  job={built:job.built.map(d=>({...d,reframeState:'failed'}))};waiting.clear();env.onlyDraftId='d2';
+  const single=attempt();await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual([...waiting.keys()],['d2']);waiting.get('d2').resolve({status:'complete'});await single;
+  assert.deepEqual(job.built.map(d=>d.reframeState),['failed','failed','done','failed','failed']);
+  env.onlyDraftId=undefined;
   // Cancellation drains every worker before the batch rejects.
   job={built:job.built.map(d=>({...d,reframeState:'pending'}))};waiting.clear();
   const cancelled=attempt();void cancelled.catch(()=>{});
