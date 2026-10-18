@@ -15,6 +15,13 @@ test('shortform timeline inputs', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MOD
   const api = mod.exports;
   const run = (code, selects) => new Function('selects',esbuild.transformSync('return (async()=>{'+code+'})();',{loader:'ts'}).code)(selects);
   const body = (code, P) => code.replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
+  await t.test('source settings preserve NTSC rates before placement and reject unsupported rates',async()=>{
+    for (const [fps,ratio] of [[24000/1001,'24000/1001'],[30000/1001,'30000/1001'],[60000/1001,'60000/1001'],[30,'30/1']]) {
+      const result=await run(api.SCRIPT_SOURCE_READER+`let saved; await initializeShortformSettings({setSettings:async value=>{saved=value;}},{meta:{fps:${fps},frameSize:{width:1920,height:1080}}}); return saved;`,{});
+      assert.deepEqual(result,{frameRate:ratio,frameSize:{width:1920,height:1080}});
+    }
+    await assert.rejects(run(api.SCRIPT_SOURCE_READER+'await initializeShortformSettings({}, {meta:{fps:27}});',{}),/Unsupported source frame rate/);
+  });
   const word = (text,startFrame,endFrame,sourceStartFrame,extra={}) => ({text,startFrame,endFrame,sourceStartFrame,sourceEndFrame:sourceStartFrame+endFrame-startFrame,sourceResourceId:'camera',speakerId:1,...extra});
   const meta = {name:'Edited interview',fps:25,durationSeconds:60,durationFrames:1500,frameSize:{width:1920,height:1080}};
   const playback = [word('Second.',250,275,1000,{wordId:'b'}),word('First.',750,775,100,{wordId:'a'})];
@@ -79,7 +86,7 @@ test('shortform timeline inputs', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MOD
       const out={
         insert:async opts=>{assert.equal(opts.tracks,'all');assert.equal(opts.source.owner,'input');calls.push(opts);add(opts.source.startFrame,opts.source.endFrame);},
         insertResource:async opts=>{assert.equal(opts.resourceId,'s1');calls.push(opts);add(Math.round(opts.sourceRange.startSeconds*25),Math.round(opts.sourceRange.endSeconds*25));},
-        setFrameSize:async()=>{},clips:async()=>[{resourceId:'camera',trackKind:'main',startFrame:0,endFrame:frames}],setClipTransform:async()=>{},
+        setSettings:async settings=>{assert.deepEqual(settings,{frameRate:'25/1',frameSize:meta.frameSize});assert.equal(calls.length,0);},setFrameSize:async()=>{},clips:async()=>[{resourceId:'camera',trackKind:'main',startFrame:0,endFrame:frames}],setClipTransform:async()=>{},
         meta:async()=>({...meta,durationFrames:frames,durationSeconds:frames/25}),rangeAtFrames:async(a,b)=>({startFrame:a,endFrame:b}),
         addMotionGraphic:async g=>graphics.push(g),commitAll:async()=>({createdDraftId:'output'}),
       };

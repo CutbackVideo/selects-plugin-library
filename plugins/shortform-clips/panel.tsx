@@ -42,9 +42,11 @@ for (const id of (await project.meta()).draftIds) {
 return rows;
 `;
 
-const SCRIPT_SOURCE_READER = "async function resolveResource(project: any, id: string, name: string): Promise<string> {\n  const rows = await project.resources();\n  const hit =\n    rows.find((r: any) => r.resourceId === id && (!name || r.name === name)) ||\n    (name ? rows.find((r: any) => r.name === name) : null) ||\n    rows.find((r: any) => r.resourceId === id);\n  if (!hit) throw new Error(\"The source video is no longer in this project.\");\n  return hit.resourceId;\n}\n// Read source speech without waiting for visual analysis. Resource meta()/words()\n// require completed analysis; project transcription and file metadata do not.\nasync function readClipSource(project: any, resourceId: string) {\n  const resource = (await project.resources()).find((r: any) => r.resourceId === resourceId);\n  if (!resource) throw new Error(\"The source video is no longer in this project.\");\n  if (resource.hasAnalysis || resource.hasTranscription !== true) {\n    const source = project.resource(resourceId);\n    return { meta: await source.meta(), words: await source.words() };\n  }\n  const findFile = (nodes: any[]): any => {\n    for (const node of nodes) {\n      if (node.type === \"dir\") {\n        const found = findFile(node.children);\n        if (found) return found;\n      } else if (node.resourceId === resourceId) return node;\n    }\n    return null;\n  };\n  const inventory = await project.sourceFiles();\n  let file = \"fileTree\" in inventory ? findFile(inventory.fileTree) : null;\n  if (!(\"fileTree\" in inventory)) {\n    for (const folder of inventory.folders) {\n      const detail = await project.sourceFiles({ folder: folder.name });\n      if (\"fileTree\" in detail) file = findFile(detail.fileTree);\n      if (file) break;\n    }\n  }\n  const fps = Number(file?.frameRate);\n  const durationSeconds = Number(file?.durationSeconds ?? resource.durationSeconds);\n  if (!(fps > 0) || !Number.isFinite(fps) || !(durationSeconds > 0) || !Number.isFinite(durationSeconds)) {\n    throw new Error(\"The source video metadata is not available yet. Refresh the project video list and resume.\");\n  }\n  const transcript = await project.transcription();\n  const words = transcript.utterances\n    .filter((u: any) => u.resourceId === resourceId)\n    .flatMap((u: any) => u.words.map((w: any) => ({\n      text: w.punctuatedWord || w.word,\n      startFrame: w.start * fps,\n      endFrame: w.end * fps,\n      speakerId: w.speaker ?? u.speaker ?? null,\n      utteranceId: u.utteranceId,\n    })))\n    .filter((w: any) => String(w.text || \"\").trim() && Number.isFinite(w.startFrame) && w.endFrame > w.startFrame)\n    .sort((a: any, b: any) => a.startFrame - b.startFrame);\n  return { meta: { fps, durationSeconds, frameSize: file.frameSize }, words };\n}\n\n// Inputs share one clock: resource base time or Draft playback time.\nasync function readShortformInput(project: any, P: any) {\n  if (P.sourceKind === \"draft\") {\n    const inventory = await project.meta();\n    if (!inventory.draftIds.includes(P.sourceDraftId)) throw new Error(\"The input Draft is no longer in this project.\");\n    const draft = selects.draft(P.sourceDraftId);\n    const meta = await draft.meta();\n    const words = (await draft.words({ view: \"playback\" }))\n      .filter((w: any) => !w.cut && w.endFrame > w.startFrame);\n    return { meta, words, draft, resourceId: null };\n  }\n  const resourceId = await resolveResource(project, P.resourceId, P.resourceName || \"\");\n  if (P.sourceKind === \"synced\") {\n    const timeline = (await project.syncedTimelines()).find((t: any) => t.resourceId === resourceId && !t.issue);\n    if (!timeline) throw new Error(\"The input synced timeline is no longer available.\");\n    if (!timeline.hasAnalysis) throw new Error(\"Prepare the synced timeline's merged transcript in Selects, then retry.\");\n    const source = project.resource(resourceId);\n    return { meta: await source.meta(), words: await source.words({ view: \"playback\" }), draft: null, resourceId };\n  }\n  return { ...await readClipSource(project, resourceId), draft: null, resourceId };\n}\nasync function insertShortformRange(output: any, input: any, start: number, end: number) {\n  if (input.draft) {\n    const fps = input.meta.fps;\n    const source = await input.draft.rangeAtFrames(Math.round(start * fps), Math.round(end * fps));\n    await output.insert({ source, tracks: \"all\" });\n  } else {\n    await output.insertResource({ resourceId: input.resourceId, sourceRange: { startSeconds: start, endSeconds: end } });\n  }\n}\n// Caption omission ranges use the input clock, even after Draft passages are copied\n// and silence/filler edits shorten the output. Match word occurrences in playback order.\nfunction inputCaptionWords(words: any[], input: any, segments: number[][], outputFps: number) {\n  if (!input.draft) return words;\n  const expected = segments.flatMap(([a,b]) => input.words.filter((w: any) =>\n    !w.nonSpeech && w.endFrame / input.meta.fps > a && w.startFrame / input.meta.fps < b));\n  let cursor = 0;\n  return words.map((w: any) => {\n    const index = expected.findIndex((x: any, i: number) => i >= cursor &&\n      String(x.text) === String(w.text) && x.sourceResourceId === w.sourceResourceId &&\n      (x.wordId != null && w.wordId != null ? x.wordId === w.wordId :\n        Math.abs(x.sourceStartFrame / input.meta.fps - w.sourceStartFrame / outputFps) < 0.05));\n    if (index < 0) return { ...w, sourceStartFrame: null };\n    cursor = index + 1;\n    return { ...w, sourceStartFrame: expected[index].startFrame };\n  });\n}\n";
-const SCRIPT_BUILD: string = SCRIPT_SOURCE_READER + "// run_script body: build one series clip as an editable Draft from a template.\n// The clip parameters are injected at runtime; the frame and caption templates at build time.\nconst P: any = __P__;\nconst FRAME_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nfunction Logo(_props: any) { return null; }\\n\\nexport default function SeriesFrame({ data }) {\\n  const series = String(data?.series ?? '');\\n  const W = 1080, H = 1920;\\n  const top = Number(data?.windowTop ?? 420);\\n  const bottom = Number(data?.windowBottom ?? 1255);\\n  const bg = String(data?.background ?? '#1E1F22');\\n  const h1 = String(data?.headline1 ?? '');\\n  const h2 = String(data?.headline2 ?? '');\\n  const size1 = Number(data?.headlineSize1 ?? 84);\\n  const size2 = Number(data?.headlineSize2 ?? size1);\\n  const color1 = String(data?.headlineColor1 ?? '#FFFFFF');\\n  const color2 = String(data?.headlineColor2 ?? '#FFFFFF');\\n  const box2 = String(data?.headline2Box ?? '');\\n  const italic = Boolean(data?.headlineItalic ?? false);\\n  const headlineCenter = Number(data?.headlineCenter ?? top / 2 + 40);\\n  const captionBar = Number(data?.captionBarHeight ?? 0);\\n  const logoCenter = Number(data?.logoCenter ?? (bottom + captionBar + H) / 2);\\n  const border = Boolean(data?.goldBorder ?? false);\\n  const shadow = String(data?.headlineShadow ?? '0 4px 10px rgba(0,0,0,.55)');\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const headFont = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const bgImage = String(data?.backgroundImage ?? '');\\n  const bgDim = Math.max(0, Math.min(90, Number(data?.backgroundDim ?? 0)));\\n  const borderColor = String(data?.borderColor ?? '#C9A45C');\\n  const logoMode = String(data?.logoMode ?? 'art');\\n  const logoImage = String(data?.logoImage ?? '');\\n  const logoWidth = Number(data?.logoWidth ?? 600);\\n  // A background image is one 1080x1920 picture shown only where the video window is not.\\n  const band = (y, h) =>\\n    bgImage ? (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, backgroundImage: `url(${bgImage})`, backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px` }}>\\n        {bgDim > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: h, background: `rgba(0,0,0,${bgDim / 100})` }} /> : null}\\n      </div>\\n    ) : (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, background: bg }} />\\n    );\\n  const est = (t) => Array.from(t).reduce((w, ch) => w + (/[\\\\uAC00-\\\\uD7A3\\\\u4E00-\\\\u9FFF]/.test(ch) ? 0.93 : ch === ' ' ? 0.27 : /[0-9A-Za-z%]/.test(ch) ? 0.6 : 0.4), 0);\\n  const fit = (t, size, maxW) => Math.min(size, Math.floor(maxW / Math.max(1, est(t)) - 2));\\n  const lineStyle = (size, color) => ({\\n    fontSize: size, fontWeight: 900, color, lineHeight: 1.16, letterSpacing: '-2px',\\n    fontStyle: italic ? 'italic' : 'normal', whiteSpace: 'nowrap', textShadow: shadow,\\n    WebkitTextStroke: `${Math.max(1, Math.round(size * 0.035))}px ${color}`, paintOrder: 'stroke fill',\\n  });\\n  const s1 = fit(h1, size1, 1010);\\n  const s2 = fit(h2, size2, box2 ? 970 : 1010);\\n  return (\\n    <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: H, fontFamily: FONT, pointerEvents: 'none' }}>\\n      {band(0, top)}\\n      {band(bottom, H - bottom)}\\n      {captionBar > 0 ? <div style={{ position: 'absolute', left: 0, top: bottom, width: W, height: captionBar, background: '#000000' }} /> : null}\\n      {border ? (\\n        <>\\n          <div style={{ position: 'absolute', left: 22, top: 22, width: W - 44, height: top - 22, borderTop: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n          <div style={{ position: 'absolute', left: 22, top: bottom, width: W - 44, height: H - bottom - 22, borderBottom: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n        </>\\n      ) : null}\\n      <div style={{ position: 'absolute', left: 30, width: W - 60, top: headlineCenter, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: box2 ? 14 : 2, textAlign: 'center', fontFamily: headFont }}>\\n        {h1 ? <div style={lineStyle(s1, color1)}>{h1}</div> : null}\\n        {h2 ? (\\n          box2 ? (\\n            <div style={{ ...lineStyle(s2, color2), textShadow: 'none', background: box2, padding: '4px 18px 8px' }}>{h2}</div>\\n          ) : (\\n            <div style={lineStyle(s2, color2)}>{h2}</div>\\n          )\\n        ) : null}\\n      </div>\\n      <div style={{ position: 'absolute', left: 0, width: W, top: logoCenter, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        {logoMode === 'none' ? null : logoMode === 'image' && logoImage ? (\\n          <img src={logoImage} style={{ width: logoWidth, height: 'auto', display: 'block' }} />\\n        ) : (\\n          <Logo series={series} />\\n        )}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst CAPTION_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function ClipCaption({ data }) {\\n  const lines = String(data?.text ?? '').split('\\\\n');\\n  const mode = String(data?.mode ?? 'bar');\\n  const left = Number(data?.left ?? 40);\\n  const width = Number(data?.width ?? 1000);\\n  const requestedSize = Number(data?.fontSize ?? 66);\\n  const units = (text) => Array.from(text).reduce((w, ch) => w + (/[\\uac00-\\ud7a3\\u4e00-\\u9fff]/.test(ch) ? 1 : ch === ' ' ? .3 : .65), 0);\\n  const size = data?.width ? Math.min(requestedSize, Math.floor((width - 52) / Math.max(1, ...lines.map(units)))) : requestedSize;\\n  const weight = Number(data?.fontWeight ?? 600);\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const color = String(data?.textColor ?? '#FFFFFF');\\n  if (mode === 'bar') {\\n    const top = Number(data?.top ?? 1255);\\n    const height = Number(data?.height ?? 230);\\n    return (\\n      <div style={{ position: 'absolute', left, width, top, height, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: font, pointerEvents: 'none' }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.28, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{line}</div>\\n        ))}\\n      </div>\\n    );\\n  }\\n  const bottom = Number(data?.bottom ?? 1440);\\n  const box = String(data?.boxColor ?? 'rgba(0,0,0,0.62)');\\n  return (\\n    <div style={{ position: 'absolute', left, width, top: 0, height: bottom, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', fontFamily: font, pointerEvents: 'none' }}>\\n      <div style={{ background: box, padding: '10px 26px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: 4 }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.3, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{line}</div>\\n        ))}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\n\n// ---- Captions: one caption per thought ----\n// A caption ends where the speaker's sentence ends or another speaker starts, never in the middle of one.\n// A sentence too long for two lines is divided where a listener would pause (a comma, a breath, the end\n// of a clause), in pieces of similar length, and never between words that belong together (\"\uac08 \uc218 /\n// \uc788\uc744\uae4c\", \"\uadf8 / \uac00\uc218\", \"the / house\"). Each word is [text, startFrame, endFrame, sourceStartFrame,\n// speakerId, utteranceId].\n// Sounds a speaker makes while thinking; they are not captioned.\nconst FILLER = /^(\uc5b4|\uc74c|\uc544|\uc5d0|\uc73c|\ud760|uh|um|er|ah|hmm)[.,\u2026~]*$/i;\n// A word that leans on the next one: breaking after it leaves it stranded.\nconst LEANS_FORWARD =\n  /^(\uadf8|\uc774|\uc800|\ud55c|\ub450|\uc138|\ub124|\uba87|\uc5b4\ub5a4|\ubb34\uc2a8|\uc5b4\ub290|\uc774\ub7f0|\uadf8\ub7f0|\uc800\ub7f0|\ubaa8\ub4e0|\uac01|\uc0c8|\uccab|\ub2e4\ub978|\uc5ec\ub7ec|\uc57d|\ub354|\ub35c|\uac00\uc7a5|\uc81c\uc77c|\ub108\ubb34|\uc544\uc8fc|\ub9e4\uc6b0|\uc815\ub9d0|\uc9c4\uc9dc|\ucc38|\uc880|\uc798|\ubabb|\uc548|\uaf2d|\ub2e4\uc2dc|\uacc4\uc18d|\uac70\uc758|\uc774\ubbf8|\uc544\uc9c1|\ubc14\ub85c|\uadf8\ub0e5|\uadf8\ub9ac\uace0|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7f0\ub370|\uadfc\ub370|\uadf8\ub7ec\ub2c8\uae4c|\uadf8\ub7fc|\ud558\uc9c0\ub9cc|\uadf8\ub807\uc9c0\ub9cc|\uadf8\ub7ec\ub098|\ub610|\ub610\ub294|\ud639\uc740|\uc989|\uc65c\ub0d0\ud558\uba74|\uc608\ub97c|\ub9cc\uc57d|\uc5b4\ub5bb\uac8c|\uc774\ub807\uac8c|\uadf8\ub807\uac8c|\uc800\ub807\uac8c|\uc65c|\uc5bc\ub9c8\ub098|\ub9ce\uc774|\ube68\ub9ac|\uba3c\uc800|\ub2e4\uc74c|a|an|the|to|of|in|on|at|for|with|by|from|about|into|over|under|after|before|between|through|during|without|and|or|but|so|which|who|is|are|was|were|be|i|he|she|we|they|my|your|his|her|our|their|this|these|those|very|not|as|if|than)$/i;\n// A word that leans on the one before it: breaking before it cuts a phrase in two (\"\uac08 \uc218\", \"\ud560 \ub54c\ub3c4\",\n// \"\uc788\ub294 \uac78\ub85c\", \"\ubc15\uc9c4\uc601 \uc528\", \"\uc5d0\ub3c4 \ubd88\uad6c\ud558\uace0\"). These are dependent nouns with at most a particle after them;\n// an ordinary noun that merely starts the same way (\"\uc218\uc0c1\uc790\uac00\", \"\uac70\ub9ac\") does not match.\nconst PARTICLE =\n  \"(?:\uc774|\uac00|\uc740|\ub294|\uc744|\ub97c|\ub3c4|\ub9cc|\uc5d0|\uc758|\ub85c|\uc640|\uacfc|\uc73c\ub85c|\uc5d0\uc11c|\uc5d0\uac8c|\ud55c\ud14c|\uae4c\uc9c0|\ubd80\ud130|\ub9c8\ub2e4|\ucc98\ub7fc|\uc774\ub098|\ub77c\ub3c4|\ubc16\uc5d0|\uae4c\uc9c0\ub294|\uc5d0\ub294|\uc5d0\ub3c4|\ub85c\ub294|\ub85c\ub3c4|\uc5d0\uc11c\ub294|\uc774\ub791|\ub791|\ub791\uc740|\uc774\ub77c\uace0|\ub77c\uace0|\uc774\ub77c|\uc57c|\uc694|\uc8e0|\uc608\uc694|\uc774\uc5d0\uc694|\uc785\ub2c8\ub2e4|\uc774\ub2e4|\uc778\ub370|\uc774\uace0|\uc774\uc9c0|\uc774\uc8e0|\ub4e0|\ub098|\ub4e4)?\";\nconst LEANS_BACK = new RegExp(\n  \"^(?:(?:\uc218|\uac83|\uc904|\ub54c|\uc801|\ub370|\ubc14|\ubfd0|\ub4ef|\uc911|\ub4f1|\ub3d9\uc548|\uc815\ub3c4|\ub54c\ubb38|\ub9cc\ud07c|\uc528|\ub2d8|\uce21|\ucabd)\" +\n    PARTICLE +\n    \"|(?:\uc7a5\uad00|\ucc28\uad00|\uc758\uc6d0|\ub300\ud45c|\uc704\uc6d0\uc7a5|\uc704\uc6d0|\ud68c\uc7a5|\uc0ac\uc7a5|\uc758\uc7a5|\ub300\ud1b5\ub839|\ucd1d\ub9ac|\uad50\uc218|\ubc15\uc0ac|\uae30\uc790|\uac10\ub3c5|\uc120\uc218|\uc791\uac00|\ud300\uc7a5|\uc2e4\uc7a5|\ubd80\uc7a5|\uacfc\uc7a5|\uc774\uc0ac|\ud6c4\ubcf4|\ubcc0\ud638\uc0ac|\uac80\uc0ac|\ud310\uc0ac|\uc575\ucee4)\ub2d8?\" +\n    PARTICLE +\n    \"|(?:\uac70|\uac8c|\uac74|\uac78)(?:\uc608\uc694|\uc5d0\uc694|\uc8e0|\uc57c|\uc9c0|\uace0|\ub4e0\uc694|\ub77c|\ub77c\uace0|\ub77c\uc11c|\ub2c8\uae4c|\uc796\uc544\uc694|\ub2e4|\ub294|\ub97c|\ub85c|\ub3c4|\ub098|\ub4e0|\ub791|\uac00|\uba74)?|\uac81\ub2c8\ub2e4|\uac19\uc740|\uac19\uc774|\ucc98\ub7fc|\ubcf4\ub2e4|\ub300\ub85c|\ub9c8\ub2e4|\ubc16\uc5d0|\ubd88\uad6c\ud558\uace0|\ubabb[\uac00-\ud7a3]+|\uc544\ub2c8[\uac00-\ud7a3]+\" +\n    \"|(?:\ud558|\ud574|\ud588|\ud560|\ud55c\ub2e4|\ud569|\ub418|\ub3fc|\ub410|\ub420|\ub41c\ub2e4|\ub429)[\uac00-\ud7a3]{0,4})[.,?!]*$\"\n);\nconst NOT_A_VERB = /^(\ud558\ub098|\ud558\ub298|\ud558\ub8e8|\ud558\ubc18\uae30|\ud558\ub77d|\ud558\uc704|\ud574\uc678|\ud574\uacb0|\ud574\uc11d|\ud574\ub2f9|\ud574\uccb4|\ud574\uba85|\ud574\uc9c0|\ud574\uc124|\ud574\ub2f5|\ud560\uba38\ub2c8|\ud560\uc544\ubc84\uc9c0|\ud560\uc778|\ud569\uc758|\ud569\uaca9|\ud569\uacc4|\ud569\ub958|\ud569\uc791|\ub418\ub808)/;\n// A unit that follows a number (\"200\ub9cc \uc6d0\", \"4\uac1c\uc0ac\").\nconst COUNTER = /^(\uc6d0|\uba85|\uac1c|\ubc88|\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uc0b4|\uc5b5|\ub9cc|\ucc9c|\ubc31|\ubc30|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc704|\ucc28|\ud68c|\ub300|\uacf3|\uac00\uc9c0|\uac1c\uc0ac|\uac1c\uc6d4|\uc2dc\uac04|\uc8fc|\uc8fc\uc77c)[\uac00-\ud7a3]{0,2}[.,?!]*$/;\n// A word describing the next one (\"\uace0\ubc1c\ub420 \ud655\ub960\", \"\ub2f9\uc5f0\ud55c \uc758\uc2ec\", \"\ud558\uace0 \uc2f6\uc740 \ub9c8\uc74c\").\nconst DESCRIBES_NEXT = /(\ud558\ub294|\ub418\ub294|\uc788\ub294|\uc5c6\ub294|\ub77c\ub294|\ub2e4\ub294|\uc54a\ub294|\uac19\uc740|\uc2f6\uc740|\ub9ce\uc740|\uc88b\uc740|\ub192\uc740|\uc791\uc740|\ud070|\ub41c|\ub358|\uc788\uc744|\uc5c6\uc744|\ubc1b\uc744|\uac19\uc744|[\uac00-\ud7a3]\ud55c|[\ud560\ub420\uac08\uc62c\ubcfc\uc4f8\ub0bc\ube84\uafc0\ud0ac\ub9b4\ub084])$/;\n// Korean words normally end in a particle or an ending; one that does not is usually the first half of a\n// compound or an adverb, and belongs with what follows (\"\ubb38\uccb4\ubd80 \uc7a5\uad00\", \"\ud68c\uc0ac \uc77c\", \"\ub300\uad00 \ubd80\uc11c\").\nconst MARKED_END = /[\uc740\ub294\uc774\uac00\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\uc11c\uace0\uc694\ub2e4\uc8e0\uae4c\ub124\ub098\uba70\uba74\uc9c0\uac8c\ub370\uc57c\ub77c\uc790\ub2c8\uaed8\ub791\ub4e0\uc529\uc74c\uc784\uc5b4\uc544\ud574\ub3fc\ub798\ub300\uac78\uac74\uc918\ubd10\uc6cc\uc838\uc5ec]$/;\nconst HANGUL = /[\uac00-\ud7a3]/;\nconst NUMBER_WORD = /^([0-9]+|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+|\ud55c|\ub450|\uc138|\ub124|\ub2e4\uc12f|\uc5ec\uc12f|\uc77c\uacf1|\uc5ec\ub35f|\uc544\ud649|\uc5f4)$/;\nconst STARTS_NUMBER = /^([0-9]|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]|\ud55c |\ub450 |\uc138 |\ub124 )/;\n// The end of a clause in Korean, or a comma: a natural place to stop.\nconst CLAUSE_END = /(\uace0|\uba70|\uc11c|\uba74|\ub294\ub370|\uc740\ub370|\uc778\ub370|\ub2c8\uae4c|\uc9c0\ub9cc|\ub2e4\uac00|\uba74\uc11c|\ub824\uace0|\ub3c4\ub85d|\uac70\ub098|\ub354\ub2c8|\ub2e4\uba74|\ub77c\uba74)[,]?$/;\n// \"\uc788\ub2e4 / \uc5c6\ub2e4 / \uc54a\ub2e4 / \uc2f6\ub2e4\" finish a verb phrase (\"\uac08 \uc218 \uc788\uc744\uae4c\", \"\uc27d\uc9c0 \uc54a\uc796\uc544\uc694\", \"\ud558\uace0 \uc2f6\uc740\"); after a\n// plain subject (\"\ud655\ub960 \uc788\ub294\") they pull much less.\nconst FINISHES_VERB = /^(\uc788|\uc5c6|\uc54a|\uc2f6)[\uac00-\ud7a3]*[.,?!]*$/;\nconst OPENS_VERB = /((\uc218|\uc904|\uc801|\ub9ac|\ud544\uc694)(\uac00|\ub294|\uc740|\ub3c4|\ub97c|\uc774)?|\uace0|\uc9c0|\uc5b4|\uc544|\uac8c|\ud574|\uc57c|\uc11c|\ub3c4)$/;\n// A word a new clause opens with: breaking before it is natural (\"\uc544\ud2f0\uc2a4\ud2b8 / \ud639\uc740 \ud68c\uc0ac\ub4e4\uc744\").\nconst OPENS_CLAUSE = /^(\ud639\uc740|\ub610\ub294|\uadf8\ub9ac\uace0|\ubc0f|\uadfc\ub370|\uadf8\ub7f0\ub370|\ud558\uc9c0\ub9cc|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7ec\ub2c8\uae4c|\uc65c\ub0d0\ud558\uba74|and|or|but|so|because|we|they|i|he|she|which|who|when|where|while|if|although|though|then)$/i;\nconst SENTENCE_END = /[.?!\u3002\uff1f\uff01\u2026][\"'\u201d\u2019)]?$/;\n\n// Numbers said in Korean are shown in digits when a unit follows: \"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\" -> \"11\uac1c\uc6d4\uc9f8\",\n// \"\uc774\ucc9c\uc0bc\ub144\ub3c4\uc600\uc5b4\uc694\" -> \"2003\ub144\ub3c4\uc600\uc5b4\uc694\", \"\uce60\uc5b5\uc774\" -> \"7\uc5b5\uc774\". A numeral with no unit, or one that is also an\n// everyday word (\"\uc774\ubc88\", \"\uc2ed\ubd84\", \"\uc0ac\ud68c\", \"\uc624\ucc28\", \"\uc774\ucc9c\uc2dc\"), stays as it was said.\nconst KO_ONES: any = { \uc77c: 1, \uc774: 2, \uc0bc: 3, \uc0ac: 4, \uc624: 5, \uc721: 6, \uce60: 7, \ud314: 8, \uad6c: 9 };\nconst KO_PLACES: any = { \uc2ed: 10, \ubc31: 100, \ucc9c: 1000 };\nconst KO_NUMERAL = /^[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+/;\nconst UNIT_LONG = /^(\uac1c\uc6d4|\ub144\ub3c4|\ub144\ub300|\ub144\uac04|\ub144\uc9f8|\ub144\uc0dd|\ub144\ucc28|\uc8fc\uc77c|\uc8fc\ub144|\uc8fc\uac04|\uc2dc\uac04|\ubd84\uac04|\ucd08\uac04|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc720\ub85c|\ud0ac\ub85c|\ubbf8\ud130|\uc13c\ud2f0|\uadf8\ub7a8|\ub9ac\ud130|\ud559\ub144|\uc138\uae30|\ubd84\uae30|\uc778\ubd84|\uac1c\uad6d|\uac1c\uc0ac|\uac1c\ub144|\ud68c\ucc28|\ub4f1\uae09|\ub2e8\uacc4|\uc138\ub300)/;\nconst UNIT_SHORT = /^(\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uba85|\uac1c|\ubc88|\uc6d0|\uc704|\ub4f1|\ucc28|\ud68c|\uce35|\ud638|\ub300|\uc138|\uc778|\ubc30|\ud3b8|\uace1|\uc7a5|\uad8c|\ud300|\uc2b9|\ud328|\uace8|\uc810|\ud3c9|\uac74|\ud45c|\uc8fc|\uc0b4)/;\n// One-syllable numerals joined to a one-syllable unit are mostly other words (\"\uc774\ubc88\", \"\uc0ac\ud68c\", \"\uc624\ucc28\",\n// \"\uc77c\uba85\"); only these are numbers for certain.\nconst SURE_SHORT = /^([\uc77c\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\ub144|[\uc77c\uc0bc\uc0ac\uc624\uce60\ud314\uad6c]\uc6d4|[\uc77c\uc774\uc0bc]\ucc28|[\uc77c\uc774\uc0bc]\ub4f1|[\uc77c\uc774]\uc704|\uc2ed\ub300|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\uce35|[\uc77c\uc0bc\uc624\uc2ed]\ucd08)/;\nconst MONTH_WORD: any = { \uc720\uc6d4: \"6\uc6d4\", \uc2dc\uc6d4: \"10\uc6d4\" };\n\nfunction koNumber(run: string): number | null {\n  let total = 0;\n  let group = 0;\n  let ones = 0;\n  let place = 10000;\n  let big = Infinity;\n  for (const ch of run) {\n    if (KO_ONES[ch]) {\n      if (ones) return null; // two digits in a row: \"\uc0bc\uc0ac\", \"\uc774\uc77c\"\n      ones = KO_ONES[ch];\n    } else if (KO_PLACES[ch]) {\n      if (KO_PLACES[ch] >= place) return null;\n      place = KO_PLACES[ch];\n      group += (ones || 1) * place;\n      ones = 0;\n    } else {\n      const unit = ch === \"\uc5b5\" ? 1e8 : 1e4;\n      if (unit >= big) return null;\n      big = unit;\n      total += (group + ones || 1) * unit;\n      group = 0;\n      ones = 0;\n      place = 10000;\n    }\n  }\n  return total + group + ones;\n}\n// 2003 -> \"2003\", 700000000 -> \"7\uc5b5\", 40000000 -> \"4\ucc9c\ub9cc\", 35000000 -> \"3500\ub9cc\".\nfunction koShown(n: number): string {\n  if (n < 10000) return String(n);\n  const part = (v: number, unit: string) => (v ? (v >= 1000 && v % 1000 === 0 ? v / 1000 + \"\ucc9c\" : String(v)) + unit : \"\");\n  const rest = n % 10000;\n  return part(Math.floor(n / 1e8), \"\uc5b5\") + part(Math.floor((n % 1e8) / 1e4), \"\ub9cc\") + (rest ? String(rest) : \"\");\n}\n// A unit ends the number only when the word stops there or goes on with a particle or an ending; \"\ud504\ub85c\" in\n// \"\ud504\ub85c\uc81d\ud2b8\" and \"\uc138\ub300\" in \"\uc138\ub300\uc8fc\" are other words.\nconst AFTER_UNIT = /^([\uc774\uac00\uc740\ub294\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\ub098\ubd80\uae4c\uc11c\ubc16\ub9c8\uc9f8\uac04\ucbe4\uc529\uc9dc\uc5ec\uc600\uc785\uc608\uc778\ub3d9\uc804\ud6c4\ub4a4\uc815\uc548\ub54c\uc0dd][\uac00-\ud7a3]*)?[.,?!]*$/;\nconst unitIn = (units: RegExp, text: string): string | null => {\n  const m = units.exec(text);\n  return m && AFTER_UNIT.test(text.slice(m[1].length)) ? m[1] : null;\n};\n// What may follow a number of this size: a clock has 24 hours and a year 12 months (\"\uc774\ucc9c\uc2dc\" is a city).\nconst fitsUnit = (unit: string, n: number) => (unit === \"\uc2dc\" ? n <= 24 : unit === \"\uc6d4\" ? n <= 12 : true);\n\nfunction koDigits(word: string, next: string | null): string {\n  for (const m of Object.keys(MONTH_WORD)) if (word.startsWith(m) && !/^[\uac00-\ud7a3]{2,}/.test(word.slice(m.length).replace(/^(\uc5d0|\uc740|\ub294|\uc774|\uac00|\ub3c4|\ubd80\ud130|\uae4c\uc9c0|\ub2ec|\uc758|\uc5d0\ub294|\uc5d0\ub3c4)/, \"\"))) return MONTH_WORD[m] + word.slice(m.length);\n  const found = word.match(KO_NUMERAL);\n  if (!found) return word;\n  for (let len = found[0].length; len >= 1; len--) {\n    const run = found[0].slice(0, len);\n    const n = koNumber(run);\n    if (!n) continue;\n    const rest = word.slice(len);\n    const alone = /^[.,?!]*$/.test(rest);\n    // The unit is in this word (\"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\"), or it is the next word (\"\uc774\uc2ed \uba85\").\n    const after = alone ? String(next || \"\") : rest;\n    const short = unitIn(UNIT_SHORT, after);\n    let ok = false;\n    if (unitIn(UNIT_LONG, after)) ok = run !== \"\uc774\" || !alone;\n    else if (short && fitsUnit(short, n)) ok = run.length >= 2 ? !/^[\uc5b5\ub9cc]$/.test(run.slice(-1)) || /^(\uc6d0|\uba85|\uac1c|\ub144|\ud3c9|\ub300|\uc7a5|\uac74|\ud45c|\ubc30)$/.test(short) : alone ? run !== \"\uc774\" && run !== \"\ub9cc\" && run !== \"\uc5b5\" : SURE_SHORT.test(run + after);\n    else if (!alone && run.length >= 2 && /\uc5b5$/.test(run) && n >= 1e8) ok = !/^[\uac00-\ud7a3]{3,}/.test(rest); // \"\uce60\uc5b5\uc774\", \"\uc2ed\uc5b5\uc744\"\n    if (ok && alone && !rest && /^,/.test(after)) ok = false;\n    if (ok) return koShown(n) + rest;\n  }\n  return word;\n}\n\nconst shown = (t: string) => t.replace(P.separateHeadlines ? /[.,\uff0c]/g : /\\./g, \"\");\nconst width = (ws: any[], a: number, b: number) => {\n  let n = b - a - 1;\n  for (let i = a; i < b; i++) n += shown(String(ws[i][0])).length;\n  return Math.max(0, n);\n};\n\n// How bad it is to break between word i and word i + 1 (lower is better).\nfunction joint(ws: any[], i: number, fps: number): number {\n  const cur = String(ws[i][0]);\n  const next = String(ws[i + 1][0]);\n  const bare = cur.replace(/[.,?!]+$/, \"\");\n  const stop = (k: number) => {\n    const w = String(ws[k][0]);\n    const b = w.replace(/[.,?!]+$/, \"\");\n    return /,$/.test(w) || (CLAUSE_END.test(w) && !LEANS_FORWARD.test(b)) || (ws[k + 1][1] - ws[k][2]) / fps >= 0.5;\n  };\n  let s = 0;\n  const predicate = FINISHES_VERB.test(next) && !LEANS_BACK.test(next);\n  if (OPENS_CLAUSE.test(next.replace(/[.,?!]+$/, \"\"))) s -= 2;\n  else if (LEANS_FORWARD.test(bare)) s += 8;\n  else if (cur === bare && HANGUL.test(next) && !predicate) {\n    if (DESCRIBES_NEXT.test(bare)) s += 4;\n    else if (!MARKED_END.test(bare)) s += 3.5;\n  }\n  if (LEANS_BACK.test(next) && !NOT_A_VERB.test(next)) s += 6;\n  else if (predicate) s += OPENS_VERB.test(bare) ? 6 : 3;\n  if (/[0-9]/.test(bare) && (COUNTER.test(next) || /[0-9%]$/.test(bare))) s += 6;\n  const pause = (ws[i + 1][1] - ws[i][2]) / fps;\n  if (pause >= 0.3) s -= 2 + Math.min(2, pause);\n  if (NUMBER_WORD.test(bare) && STARTS_NUMBER.test(next + \" \")) s += 8;\n  else if (/,$/.test(cur)) s -= 3;\n  else if (CLAUSE_END.test(cur) && !LEANS_FORWARD.test(bare)) s -= 3;\n  // One word past a natural stop (\"\ucd94\uc9c4\ud558\ub294\ub370 \ucc98\uc74c\uc5d0\ub294 / \uc6b0\ub9ac\") strands the word that opens the next clause.\n  if (i >= 1 && !stop(i) && stop(i - 1)) s += 3;\n  return s;\n}\n\n// The best place to fold words [a, b) into two lines: [index of the first word of line two, cost]. One\n// line when it fits. `at(i)` is the cost of breaking after word i.\nfunction fold(ws: any[], a: number, b: number, maxc: number, at: (i: number) => number): [number, number] {\n  if (width(ws, a, b) <= maxc || b - a < 2) return [b, 0];\n  let best: [number, number] = [b, Infinity];\n  let top = -1;\n  const all = width(ws, a, b);\n  for (let k = a + 1; k < b; k++) {\n    top += shown(String(ws[k - 1][0])).length + 1;\n    const bottom = all - top - 1;\n    const over = Math.max(0, top - maxc) + Math.max(0, bottom - maxc);\n    const c = Math.abs(top - bottom) * 0.35 + over * 6 + at(k - 1) + (top > bottom + 3 ? 1 : 0) + (Math.min(top, bottom) < 5 ? 3 : 0);\n    if (c < best[1]) best = [k, c];\n  }\n  return best;\n}\n\n// Divide one sentence into captions: [end index of each caption]. Every way of cutting it into the\n// fewest captions that fit, or one more, is scored: even lengths, natural cuts and folds, nothing too\n// short to read.\nfunction divide(ws: any[], a: number, b: number, maxc: number, fps: number): number[] {\n  const cap = maxc * 2 - 1;\n  const n = b - a;\n  const total = width(ws, a, b);\n  if (n < 2 || total <= maxc) return [b];\n  const cuts: number[] = [];\n  for (let i = a; i < b - 1; i++) cuts.push(joint(ws, i, fps));\n  const at = (i: number) => cuts[i - a];\n  const folds = new Map<number, number>();\n  const lines = (i: number, j: number) => {\n    const key = i * 100000 + j;\n    let v = folds.get(key);\n    if (v === undefined) {\n      v = fold(ws, i, j, maxc, at)[1];\n      folds.set(key, v);\n    }\n    return v;\n  };\n  // The fewest captions that can hold it, filling each as far as it goes.\n  let least = 0;\n  for (let i = a; i < b; least++) {\n    let j = i + 1;\n    while (j < b && width(ws, i, j + 1) <= cap) j++;\n    i = j;\n  }\n  let bestCost = Infinity;\n  let bestCuts: number[] = [b];\n  for (let k = least; k <= Math.min(n, least + 1); k++) {\n    const ideal = total / k;\n    // cost[p][j]: the first j words in p captions.\n    const cost: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(Infinity));\n    const from: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(-1));\n    cost[0][0] = 0;\n    for (let p = 1; p <= k; p++) {\n      for (let j = p; j <= n; j++) {\n        for (let i = j - 1; i >= p - 1; i--) {\n          const w = width(ws, a + i, a + j);\n          if (w > cap && j - i > 1) break;\n          if (cost[p - 1][i] === Infinity) continue;\n          const uneven = ((w - ideal) / ideal) ** 2 * 6;\n          // A caption on screen for well under a second cannot be read.\n          const seconds = ((j < n ? ws[a + j][1] : ws[b - 1][2] + 0.4 * fps) - ws[a + i][1]) / fps;\n          const stub = (w < 6 ? 8 : 0) + (seconds < 0.5 ? 12 : seconds < 0.8 ? 6 : 0);\n          const c = cost[p - 1][i] + uneven + stub + lines(a + i, a + j) + (j < n ? at(a + j - 1) : 0);\n          if (c < cost[p][j]) {\n            cost[p][j] = c;\n            from[p][j] = i;\n          }\n        }\n      }\n    }\n    // A further caption has to earn its place.\n    const c = cost[k][n] + k * 3;\n    if (c < bestCost) {\n      const ends: number[] = [];\n      for (let p = k, j = n; p > 0; p--) {\n        ends.unshift(a + j);\n        j = from[p][j];\n      }\n      bestCost = c;\n      bestCuts = ends;\n    }\n  }\n  return bestCuts;\n}\n\nfunction makeCues(words: any[], fps: number, maxc: number, total: number, fixes: any[]): [number, number, string][] {\n  const clean = (t: string) => t.replace(/[\"\u201c\u201d]/g, \"\");\n  const ws = words\n    .map((w: any) => [clean(String(w[0])), w[1], w[2], w[3], w[4] ?? null, w[5] ?? null])\n    .filter((w: any) => String(w[0]).trim().length > 0 && !FILLER.test(String(w[0]).trim()));\n  if (!ws.length) return [];\n  // Numbers in digits, including the first of a pair said together (\"\ud55c \uc721, \uce60\uc5b5\" -> \"\ud55c 6, 7\uc5b5\").\n  for (let i = 0; i < ws.length; i++) ws[i][0] = koDigits(String(ws[i][0]), i + 1 < ws.length ? String(ws[i + 1][0]) : null);\n  for (let i = 0; i + 1 < ws.length; i++) {\n    const pair = String(ws[i][0]).match(/^([\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]),$/);\n    if (pair && /^[0-9]/.test(String(ws[i + 1][0]))) ws[i][0] = String(koNumber(pair[1])) + \",\";\n  }\n  // 1. Sentences: a new one starts with another speaker, after a full stop, at a cut in the source, or\n  // after a long silence.\n  const starts: number[] = [0];\n  for (let i = 1; i < ws.length; i++) {\n    const prev = ws[i - 1];\n    const w = ws[i];\n    const silence = (w[1] - prev[2]) / fps;\n    const cutInSource = w[3] != null && prev[3] != null && Math.abs(w[3] - prev[3] - (w[1] - prev[1])) > fps * 3;\n    const otherSpeaker = w[4] != null && prev[4] != null && w[4] !== prev[4];\n    const otherUtterance = w[5] != null && prev[5] != null && w[5] !== prev[5] && SENTENCE_END.test(String(prev[0]));\n    if (otherSpeaker || otherUtterance || SENTENCE_END.test(String(prev[0])) || cutInSource || silence > 1.5) starts.push(i);\n  }\n  starts.push(ws.length);\n  // 2. Captions within each sentence.\n  const groups: [number, number][] = [];\n  for (let s = 0; s + 1 < starts.length; s++) {\n    let a = starts[s];\n    for (const b of divide(ws, a, starts[s + 1], maxc, fps)) {\n      groups.push([a, b]);\n      a = b;\n    }\n  }\n  // 3. A one-word reply (\"\uc608.\", \"Right.\") gets its own caption. Only when it would be gone before it can\n  // be read does it join the caption before it; it never joins the sentence that follows.\n  const merged: [number, number][] = [];\n  const replyAt = new Map<number, number>(); // caption start -> index where a joined reply begins\n  for (let g = 0; g < groups.length; g++) {\n    const [a, b] = groups[g];\n    const nextStart = g + 1 < groups.length ? ws[groups[g + 1][0]][1] : total;\n    const onScreen = (Math.min(nextStart, ws[b - 1][2] + Math.round(0.6 * fps)) - ws[a][1]) / fps;\n    const last = merged[merged.length - 1];\n    if (last && width(ws, a, b) <= 3 && onScreen < 0.35 && width(ws, last[0], b) <= maxc * 2 - 1 && (ws[a][1] - ws[last[1] - 1][2]) / fps < 0.8) {\n      if (!replyAt.has(last[0])) replyAt.set(last[0], a);\n      last[1] = b;\n      continue;\n    }\n    merged.push([a, b]);\n  }\n  // 4. Text and timing.\n  const out: [number, number, string][] = [];\n  for (let g = 0; g < merged.length; g++) {\n    const [a, b] = merged[g];\n    let piece: any[] = ws.slice(a, b);\n    let joined = piece.map((x: any) => String(x[0])).join(\" \");\n    for (const f of fixes || []) if (f && f.from) joined = joined.split(String(f.from)).join(String(f.to ?? \"\"));\n    const fixed = joined.split(\" \").filter((t: string) => shown(t).length > 0);\n    // Fold on the words as they will be shown; timing for pauses comes from the original words when the\n    // spelling fixes kept their number, otherwise from none.\n    const timed = fixed.length === piece.length ? fixed.map((t: string, i: number) => [t, piece[i][1], piece[i][2]]) : fixed.map((t: string) => [t, 0, 0]);\n    const reply = replyAt.get(a);\n    const own = reply !== undefined && fixed.length === piece.length && width(ws, a, reply) <= maxc ? reply - a : -1;\n    const k = own > 0 ? own : fold(timed, 0, timed.length, maxc, (i: number) => joint(timed, i, fps))[0];\n    const text = k >= timed.length ? fixed.map(shown).join(\" \") : fixed.slice(0, k).map(shown).join(\" \") + \"\\n\" + fixed.slice(k).map(shown).join(\" \");\n    const start = ws[a][1];\n    let end = g + 1 < merged.length ? ws[merged[g + 1][0]][1] : total;\n    if (g + 1 < merged.length && (ws[merged[g + 1][0]][1] - ws[b - 1][2]) / fps > 1.2) end = Math.min(end, ws[b - 1][2] + Math.round(0.6 * fps));\n    out.push([Math.round(start), Math.round(end), text]);\n  }\n  for (let i = 0; i < out.length - 1; i++) {\n    const g = out[i + 1][0] - out[i][1];\n    if (g > 0 && g < 8) out[i][1] = out[i + 1][0];\n  }\n  // 5. Every caption stays long enough to read: one that would flash by borrows the time from the\n  // silence after it, or from the start of a longer caption that follows.\n  const least = Math.round(0.6 * fps);\n  for (let i = 0; i < out.length; i++) {\n    const short = least - (out[i][1] - out[i][0]);\n    if (short <= 0) continue;\n    const next = out[i + 1];\n    if (!next) {\n      out[i][1] = Math.min(total, out[i][0] + least);\n      continue;\n    }\n    const silence = next[0] - out[i][1];\n    if (silence >= short) out[i][1] += short;\n    else if (next[1] - next[0] - (short - silence) >= Math.round(1.0 * fps)) {\n      out[i][1] += short;\n      next[0] = out[i][1];\n    } else out[i][1] = next[0];\n  }\n  if (out.length && out[0][0] < 10) out[0][0] = 0;\n  return out;\n}\n\n\n// Demo UI and its fixed caption share one removable PNG clip.\nconst TIKTOK_PNG_ALIASES: string[] = [\"tiktok-preview-overlay.png\"];\nasync function addPreviewPngOverlay(d:any,P:any,endFrame:number){\n const project=selects.project(P.projectId);\n const resources=await project.resources();\n const image=resources.find((x:any)=>x.resourceId===P.overlayResourceId&&TIKTOK_PNG_ALIASES.includes(x.name))||resources.find((x:any)=>TIKTOK_PNG_ALIASES.includes(x.name));\n if(!image)throw Error('\ud2f1\ud1a1 PNG\ub97c \uc900\ube44\ud55c \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694. / Prepare the TikTok PNG first.');\n const imageIds=new Set(resources.filter((x:any)=>TIKTOK_PNG_ALIASES.includes(x.name)).map((x:any)=>x.resourceId));\n const imagePresent=(await d.clips({trackScope:'all'})).some((x:any)=>x.trackKind!=='main'&&imageIds.has(x.resourceId));\n if(!imagePresent)await d.overlayResource({resource:project.resource(image.resourceId),over:await d.rangeAtFrames(0,endFrame)});\n return {added:Number(!imagePresent)};\n}\n\nconst FRAME_ELEMENT = \"import React from 'react';export default function Element({data:d}){return d.kind==='logo'?<img src={d.image} style={{position:'absolute',left:540-d.width/2,top:d.center,transform:'translateY(-50%)',width:d.width,height:'auto'}}/>:<div style={{position:'absolute',left:0,top:d.y,width:1080,height:d.height,background:d.image?'url('+d.image+')':d.background,backgroundSize:'1080px 1920px',backgroundPosition:'0px '+(-d.y)+'px'}}/>;}\";\nfunction headlineRows(F:any){\n const bold=F.headlineStyle==='bold-outline';\n const clean=(v:any)=>String(v||'').replace(/[\\r\\n]+/g,' ').trim();\n const text=[clean(F.headline1),clean(F.headline2)];\n const units=(v:string)=>Array.from(v).reduce((w:number,ch:string)=>w+(/[\uac00-\ud7a3\u4e00-\u9fff]/.test(ch)?1.02:ch===' '?.34:/[A-ZMW]/.test(ch)?.85:.68),0);\n const legacyUnits=(v:string)=>Array.from(v).reduce((w:number,ch:string)=>w+(/[\uac00-\ud7a3\u4e00-\u9fff]/.test(ch)?.93:ch===' '?.27:/[0-9A-Za-z%]/.test(ch)?.6:.4),0);\n const sizes=text.map((v,i)=>Math.max(12,Math.min(Number(i?F.headlineSize2:F.headlineSize1),bold?Math.floor(880/Math.max(1,units(v))):Math.floor(1010/Math.max(1,legacyUnits(v))-2))));\n return text.map((body,i)=>({body,size:sizes[i],color:i?F.headlineColor2:F.headlineColor1,\n y:Number(F.headlineCenter)+(bold?(i===0?-1:1)*Number(F.headlineRowGap||136.8)/2:(i===0?-(sizes[1]*1.16+2)/2:(sizes[0]*1.16+2)/2)),\n bold}));\n}\nconst PLAIN_HEADLINE = \"import React from 'react';export default function NewsHeadline({data:d}){return <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}><div style={{maxWidth:1020,fontFamily:'\\\"'+(d.fontFamily||'Helvetica Neue')+'\\\",Pretendard,Apple SD Gothic Neo,Malgun Gothic,Noto Sans KR,sans-serif',fontSize:d.fontSize,fontWeight:900,color:d.color,lineHeight:1.16,letterSpacing:'-2px',whiteSpace:'nowrap',textAlign:'center',fontStyle:d.italic?'italic':'normal',textShadow:d.shadowBlur?'0 4px 10px rgba(0,0,0,.55)':'none',WebkitTextStroke:Math.max(1,Math.round(d.fontSize*.035))+'px '+d.color,paintOrder:'stroke fill'}}>{d.body}</div></div>}\";\nasync function addSeparateHeadlines(d:any,P:any,endFrame:number,overlayOnly=false){\n const preset=await selects.effectPresets.get('text-default');\n const add=async(label:string,tsxCode:string,parameters:any,editableParameters:any[]=[],position:any=null)=>{\n  const a=await d.addMotionGraphic({label,tsxCode,parameters,editableParameters,within:await d.rangeAtFrames(0,endFrame)});\n  if(position){const c=(await d.clips({trackScope:'all'})).find((c:any)=>c.clipId===a.clipId);await d.setClipTransform({clip:c,position});}\n };\n const F=P.frame;\n const est=(t:string)=>Array.from(t).reduce((w:number,ch:string)=>w+(/[\uac00-\ud7a3\u4e00-\u9fff]/.test(ch)?.93:ch===' '?.27:/[0-9A-Za-z%]/.test(ch)?.6:.4),0);\n if(!overlayOnly){\n for(const [y,height] of [[0,F.windowTop],[F.windowBottom,1920-F.windowBottom]])\n  await add(y===0?'Clip \u00b7 \uc0c1\ub2e8 \ubc30\uacbd':'Clip \u00b7 \ud558\ub2e8 \ubc30\uacbd',FRAME_ELEMENT,{kind:'band',y,height,background:F.background,image:F.backgroundImage||''});\n for(const [i,row] of headlineRows(F).entries()){\n  const {body:text,size,color,y,bold}=row;if(!text)continue;\n  const line=i+1;\n  await add('Clip \u00b7 \uc81c\ubaa9 '+line,bold?preset.tsxCode:PLAIN_HEADLINE,{...preset.parameters,anchor:'center',overlayScale:100,body:text,fontFamily:F.fontFamily||'Helvetica Neue',fontSize:size,fontWeight:'800',color,italic:!!F.headlineItalic,underline:false,textAlign:'center',backgroundColor:line===2&&F.headline2Box?F.headline2Box:'#00000000',backgroundPadding:0,strokeColor:bold?(F.headlineStrokeColor||'#000000'):color,strokeWidth:bold?Number(F.headlineStrokeWidth||18):Math.max(1,Math.round(size*.035)),enterStyle:'instant',exitStyle:'instant',shadowBlur:F.headlineShadow==='none'?0:bold?0:10,shadowX:bold?1:0,shadowY:F.headlineShadow==='none'?0:bold?6:4,shadowColor:bold?'#000000':'#0000008c'},preset.editableParameters,{x:0,y:(960-y)/19.2});\n }\n if(F.logoMode==='image'&&F.logoImage)await add('Clip \u00b7 \ud504\ub85c\uadf8\ub7a8 \ub85c\uace0',FRAME_ELEMENT,{kind:'logo',image:F.logoImage,width:F.logoWidth,center:F.logoCenter},[{key:'width',label:'Width',type:'number',defaultValue:F.logoWidth,min:50,max:1000,step:1},{key:'center',label:'Vertical center',type:'number',defaultValue:F.logoCenter,min:0,max:1920,step:1}]);\n }\n if(overlayOnly&&P.demoOverlay)await addPreviewPngOverlay(d,P,endFrame);\n}\n// Text-only omissions, scoped to source time and exact tokens. Never changes audio or timeline duration.\nfunction cleanSpeechWords(words:any[],sourceFps:number,omissions:any[]){\n const norm=(x:any)=>String(x).replace(/[.,\uff0c!?\u3002\uff1f\uff01\u2026~]/g,'').trim();\n return words.filter((w:any,i:number)=>{\n  const t=norm(w[0]);if(/^(\uc73c\ud760|\uc73c\uc74c|\ud750\uc74c|\uc74c\uc74c)$/.test(t))return false;\n  if(t==='\uc774\ub140'&&norm(words[i+1]?.[0])==='\uc774'&&norm(words[i+2]?.[0]).startsWith('\ub140\uc11d'))return false;\n  const sec=w[3] == null ? NaN : w[3]/sourceFps;\n  return !(omissions||[]).some((o:any)=>Number.isFinite(o.startSeconds)&&Number.isFinite(o.endSeconds)&&o.endSeconds>o.startSeconds&&o.endSeconds-o.startSeconds<=20&&sec>=o.startSeconds-.08&&sec<=o.endSeconds+.08&&norm(o.text)===t);\n });\n}\n\n// Resource ids are Project-scoped aliases; listing the resources first makes a saved id valid in this\n// session, and the file name finds the same video again if the alias changed.\nconst project = selects.project(P.projectId);\nconst input = await readShortformInput(project, P);\nconst { meta: sm, words: sourceWords } = input;\nconst sfps = sm.fps;\nconst sws = sourceWords.filter((w: any) => !w.nonSpeech && String(w.text).trim().length > 0);\nconst W: number[][] = sws.map((w: any) => [w.startFrame / sfps, w.endFrame / sfps]);\nif (!W.length) throw new Error(\"The source has no transcript words. Analyze it first.\");\n\n// Snap each requested range to whole words without catching the neighbouring word.\nfunction snap(a: number, b: number): number[] {\n  let i = 0;\n  let j = 0;\n  let bi = Infinity;\n  let bj = Infinity;\n  for (let k = 0; k < W.length; k++) {\n    const da = Math.abs(W[k][0] - a);\n    if (da < bi) {\n      bi = da;\n      i = k;\n    }\n    const db = Math.abs(W[k][1] - b);\n    if (db < bj) {\n      bj = db;\n      j = k;\n    }\n  }\n  if (j < i) j = i;\n  const prevEnd = i > 0 ? W[i - 1][1] : 0;\n  const nextStart = j + 1 < W.length ? W[j + 1][0] : W[j][1] + 1;\n  const start = Math.max(prevEnd + 0.03, W[i][0] - 0.15, 0);\n  const end = Math.min(nextStart - 0.04, W[j][1] + 0.22, sm.durationSeconds);\n  return [Math.round(start * 1000) / 1000, Math.round(end * 1000) / 1000];\n}\n\nconst segs = (P.segments as number[][]).map((s) => snap(Number(s[0]), Number(s[1]))).filter((s) => s[1] - s[0] > 0.5);\nif (!segs.length) throw new Error(\"No usable source range for this clip.\");\n\nconst d = await project.createDraft({ name: P.name });\nfor (const s of segs) {\n  await insertShortformRange(d, input, s[0], s[1]);\n}\nif (P.removeFillers) {\n  const fill = (await d.words()).filter((w: any) => w.filler && w.filler.removable);\n  if (fill.length) await d.remove(fill.map((w: any) => w.span), { tracks: \"all\" });\n}\nif (P.removeSilences) {\n  const sil = await d.silenceSpans({ preset: \"normal\" });\n  const cut = sil.flatMap((x: any) => x.cutSpans);\n  if (cut.length) await d.remove(cut, { tracks: \"all\" });\n}\nawait d.setFrameSize({ width: 1080, height: 1920 });\nconst readV = async () =>\n  (await d.clips({ trackScope: \"all\" })).filter((c: any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nconst nV = (await readV()).length;\nfor (let k = 0; k < nV; k++) {\n  const c = (await readV())[k];\n  await d.setClipTransform({\n    clip: c,\n    scale: { x: P.transform.scale, y: P.transform.scale },\n    position: { x: P.transform.posX, y: P.transform.posY },\n  });\n}\nconst mainClips = await d.clips({ trackScope: \"main\" });\nconst endFrame = mainClips.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);\nconst meta = await d.meta();\nif (!P.separateHeadlines) {\nawait d.addMotionGraphic({\n  label: \"Series frame and headline\",\n  tsxCode: FRAME_TSX,\n  parameters: P.frame,\n  editableParameters: P.editableFrame,\n  within: await d.rangeAtFrames(0, endFrame),\n});\n}\nif(P.separateHeadlines) await addSeparateHeadlines(d,P,endFrame);\nlet cueCount = 0;\nif (P.captions && P.caption) {\n  const words = inputCaptionWords(await d.words(), input, segs, meta.fps)\n    .filter((w: any) => !w.nonSpeech)\n    .map((w: any) => [String(w.text), w.startFrame, w.endFrame, w.sourceStartFrame, w.speakerId ?? null, w.utteranceId ?? null]);\n  const cleanWords = P.separateHeadlines ? cleanSpeechWords(words, sm.fps, P.captionOmissions) : words;\n  const cues = makeCues(cleanWords, meta.fps, P.lineMax, endFrame, P.fixes);\n  for (let k = 0; k < cues.length; k++) {\n    const a = cues[k][0];\n    const e = Math.min(cues[k][1], endFrame);\n    if (e <= a || !cues[k][2].trim()) continue;\n    await d.addMotionGraphic({\n      label: \"Caption \" + String(k + 1).padStart(2, \"0\"),\n      tsxCode: CAPTION_TSX,\n      parameters: { ...P.caption, text: cues[k][2] },\n      editableParameters: P.editableCaption,\n      within: await d.rangeAtFrames(a, e),\n    });\n    cueCount++;\n  }\n}\nif(P.separateHeadlines) await addSeparateHeadlines(d,P,endFrame,true);\nconst out: any = await d.commitAll(\"Chosun Ilbo clip: \" + P.name);\nreturn { draftId: out.createdDraftId ?? null, seconds: Math.round((endFrame / meta.fps) * 10) / 10, captions: cueCount, segments: segs };\n";
+const SCRIPT_SOURCE_READER = "async function initializeShortformSettings(output: any, input: any) {\n  const presets = [\"24000/1001\", \"24/1\", \"25/1\", \"30000/1001\", \"30/1\", \"48000/1001\", \"48/1\", \"50/1\", \"60000/1001\", \"60/1\", \"100/1\", \"120000/1001\", \"120/1\"];\n  const fps = Number(input.meta.fps);\n  const frameRate = presets.find(value => { const [n,d] = value.split(\"/\").map(Number); return Math.abs(n / d - fps) < 0.0001; });\n  if (!frameRate) throw new Error(\"Unsupported source frame rate: \" + fps);\n  await output.setSettings({ frameRate, frameSize: input.meta.frameSize });\n}\nasync function resolveResource(project: any, id: string, name: string): Promise<string> {\n  const rows = await project.resources();\n  const hit =\n    rows.find((r: any) => r.resourceId === id && (!name || r.name === name)) ||\n    (name ? rows.find((r: any) => r.name === name) : null) ||\n    rows.find((r: any) => r.resourceId === id);\n  if (!hit) throw new Error(\"The source video is no longer in this project.\");\n  return hit.resourceId;\n}\n// Read source speech without waiting for visual analysis. Resource meta()/words()\n// require completed analysis; project transcription and file metadata do not.\nasync function readClipSource(project: any, resourceId: string) {\n  const resource = (await project.resources()).find((r: any) => r.resourceId === resourceId);\n  if (!resource) throw new Error(\"The source video is no longer in this project.\");\n  if (resource.hasAnalysis || resource.hasTranscription !== true) {\n    const source = project.resource(resourceId);\n    return { meta: await source.meta(), words: await source.words() };\n  }\n  const findFile = (nodes: any[]): any => {\n    for (const node of nodes) {\n      if (node.type === \"dir\") {\n        const found = findFile(node.children);\n        if (found) return found;\n      } else if (node.resourceId === resourceId) return node;\n    }\n    return null;\n  };\n  const inventory = await project.sourceFiles();\n  let file = \"fileTree\" in inventory ? findFile(inventory.fileTree) : null;\n  if (!(\"fileTree\" in inventory)) {\n    for (const folder of inventory.folders) {\n      const detail = await project.sourceFiles({ folder: folder.name });\n      if (\"fileTree\" in detail) file = findFile(detail.fileTree);\n      if (file) break;\n    }\n  }\n  const fps = Number(file?.frameRate);\n  const durationSeconds = Number(file?.durationSeconds ?? resource.durationSeconds);\n  if (!(fps > 0) || !Number.isFinite(fps) || !(durationSeconds > 0) || !Number.isFinite(durationSeconds)) {\n    throw new Error(\"The source video metadata is not available yet. Refresh the project video list and resume.\");\n  }\n  const transcript = await project.transcription();\n  const words = transcript.utterances\n    .filter((u: any) => u.resourceId === resourceId)\n    .flatMap((u: any) => u.words.map((w: any) => ({\n      text: w.punctuatedWord || w.word,\n      startFrame: w.start * fps,\n      endFrame: w.end * fps,\n      speakerId: w.speaker ?? u.speaker ?? null,\n      utteranceId: u.utteranceId,\n    })))\n    .filter((w: any) => String(w.text || \"\").trim() && Number.isFinite(w.startFrame) && w.endFrame > w.startFrame)\n    .sort((a: any, b: any) => a.startFrame - b.startFrame);\n  return { meta: { fps, durationSeconds, frameSize: file.frameSize }, words };\n}\n\n// Inputs share one clock: resource base time or Draft playback time.\nasync function readShortformInput(project: any, P: any) {\n  if (P.sourceKind === \"draft\") {\n    const inventory = await project.meta();\n    if (!inventory.draftIds.includes(P.sourceDraftId)) throw new Error(\"The input Draft is no longer in this project.\");\n    const draft = selects.draft(P.sourceDraftId);\n    const meta = await draft.meta();\n    const words = (await draft.words({ view: \"playback\" }))\n      .filter((w: any) => !w.cut && w.endFrame > w.startFrame);\n    return { meta, words, draft, resourceId: null };\n  }\n  const resourceId = await resolveResource(project, P.resourceId, P.resourceName || \"\");\n  if (P.sourceKind === \"synced\") {\n    const timeline = (await project.syncedTimelines()).find((t: any) => t.resourceId === resourceId && !t.issue);\n    if (!timeline) throw new Error(\"The input synced timeline is no longer available.\");\n    if (!timeline.hasAnalysis) throw new Error(\"Prepare the synced timeline's merged transcript in Selects, then retry.\");\n    const source = project.resource(resourceId);\n    return { meta: await source.meta(), words: await source.words({ view: \"playback\" }), draft: null, resourceId };\n  }\n  return { ...await readClipSource(project, resourceId), draft: null, resourceId };\n}\nasync function insertShortformRange(output: any, input: any, start: number, end: number) {\n  if (input.draft) {\n    const fps = input.meta.fps;\n    const source = await input.draft.rangeAtFrames(Math.round(start * fps), Math.round(end * fps));\n    await output.insert({ source, tracks: \"all\" });\n  } else {\n    await output.insertResource({ resourceId: input.resourceId, sourceRange: { startSeconds: start, endSeconds: end } });\n  }\n}\n// Caption omission ranges use the input clock, even after Draft passages are copied\n// and silence/filler edits shorten the output. Match word occurrences in playback order.\nfunction inputCaptionWords(words: any[], input: any, segments: number[][], outputFps: number) {\n  if (!input.draft) return words;\n  const expected = segments.flatMap(([a,b]) => input.words.filter((w: any) =>\n    !w.nonSpeech && w.endFrame / input.meta.fps > a && w.startFrame / input.meta.fps < b));\n  let cursor = 0;\n  return words.map((w: any) => {\n    const index = expected.findIndex((x: any, i: number) => i >= cursor &&\n      String(x.text) === String(w.text) && x.sourceResourceId === w.sourceResourceId &&\n      (x.wordId != null && w.wordId != null ? x.wordId === w.wordId :\n        Math.abs(x.sourceStartFrame / input.meta.fps - w.sourceStartFrame / outputFps) < 0.05));\n    if (index < 0) return { ...w, sourceStartFrame: null };\n    cursor = index + 1;\n    return { ...w, sourceStartFrame: expected[index].startFrame };\n  });\n}\n";
+const SCRIPT_BUILD: string = SCRIPT_SOURCE_READER + "// run_script body: build one series clip as an editable Draft from a template.\n// The clip parameters are injected at runtime; the frame and caption templates at build time.\nconst P: any = __P__;\nconst FRAME_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nfunction Logo(_props: any) { return null; }\\n\\nexport default function SeriesFrame({ data }) {\\n  const series = String(data?.series ?? '');\\n  const W = 1080, H = 1920;\\n  const top = Number(data?.windowTop ?? 420);\\n  const bottom = Number(data?.windowBottom ?? 1255);\\n  const bg = String(data?.background ?? '#1E1F22');\\n  const h1 = String(data?.headline1 ?? '');\\n  const h2 = String(data?.headline2 ?? '');\\n  const size1 = Number(data?.headlineSize1 ?? 84);\\n  const size2 = Number(data?.headlineSize2 ?? size1);\\n  const color1 = String(data?.headlineColor1 ?? '#FFFFFF');\\n  const color2 = String(data?.headlineColor2 ?? '#FFFFFF');\\n  const box2 = String(data?.headline2Box ?? '');\\n  const italic = Boolean(data?.headlineItalic ?? false);\\n  const headlineCenter = Number(data?.headlineCenter ?? top / 2 + 40);\\n  const captionBar = Number(data?.captionBarHeight ?? 0);\\n  const logoCenter = Number(data?.logoCenter ?? (bottom + captionBar + H) / 2);\\n  const border = Boolean(data?.goldBorder ?? false);\\n  const shadow = String(data?.headlineShadow ?? '0 4px 10px rgba(0,0,0,.55)');\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const headFont = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const bgImage = String(data?.backgroundImage ?? '');\\n  const bgDim = Math.max(0, Math.min(90, Number(data?.backgroundDim ?? 0)));\\n  const borderColor = String(data?.borderColor ?? '#C9A45C');\\n  const logoMode = String(data?.logoMode ?? 'art');\\n  const logoImage = String(data?.logoImage ?? '');\\n  const logoWidth = Number(data?.logoWidth ?? 600);\\n  // A background image is one 1080x1920 picture shown only where the video window is not.\\n  const band = (y, h) =>\\n    bgImage ? (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, backgroundImage: `url(${bgImage})`, backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px` }}>\\n        {bgDim > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: h, background: `rgba(0,0,0,${bgDim / 100})` }} /> : null}\\n      </div>\\n    ) : (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, background: bg }} />\\n    );\\n  const est = (t) => Array.from(t).reduce((w, ch) => w + (/[\\\\uAC00-\\\\uD7A3\\\\u4E00-\\\\u9FFF]/.test(ch) ? 0.93 : ch === ' ' ? 0.27 : /[0-9A-Za-z%]/.test(ch) ? 0.6 : 0.4), 0);\\n  const fit = (t, size, maxW) => Math.min(size, Math.floor(maxW / Math.max(1, est(t)) - 2));\\n  const lineStyle = (size, color) => ({\\n    fontSize: size, fontWeight: 900, color, lineHeight: 1.16, letterSpacing: '-2px',\\n    fontStyle: italic ? 'italic' : 'normal', whiteSpace: 'nowrap', textShadow: shadow,\\n    WebkitTextStroke: `${Math.max(1, Math.round(size * 0.035))}px ${color}`, paintOrder: 'stroke fill',\\n  });\\n  const s1 = fit(h1, size1, 1010);\\n  const s2 = fit(h2, size2, box2 ? 970 : 1010);\\n  return (\\n    <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: H, fontFamily: FONT, pointerEvents: 'none' }}>\\n      {band(0, top)}\\n      {band(bottom, H - bottom)}\\n      {captionBar > 0 ? <div style={{ position: 'absolute', left: 0, top: bottom, width: W, height: captionBar, background: '#000000' }} /> : null}\\n      {border ? (\\n        <>\\n          <div style={{ position: 'absolute', left: 22, top: 22, width: W - 44, height: top - 22, borderTop: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n          <div style={{ position: 'absolute', left: 22, top: bottom, width: W - 44, height: H - bottom - 22, borderBottom: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n        </>\\n      ) : null}\\n      <div style={{ position: 'absolute', left: 30, width: W - 60, top: headlineCenter, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: box2 ? 14 : 2, textAlign: 'center', fontFamily: headFont }}>\\n        {h1 ? <div style={lineStyle(s1, color1)}>{h1}</div> : null}\\n        {h2 ? (\\n          box2 ? (\\n            <div style={{ ...lineStyle(s2, color2), textShadow: 'none', background: box2, padding: '4px 18px 8px' }}>{h2}</div>\\n          ) : (\\n            <div style={lineStyle(s2, color2)}>{h2}</div>\\n          )\\n        ) : null}\\n      </div>\\n      <div style={{ position: 'absolute', left: 0, width: W, top: logoCenter, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        {logoMode === 'none' ? null : logoMode === 'image' && logoImage ? (\\n          <img src={logoImage} style={{ width: logoWidth, height: 'auto', display: 'block' }} />\\n        ) : (\\n          <Logo series={series} />\\n        )}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst CAPTION_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function ClipCaption({ data }) {\\n  const lines = String(data?.text ?? '').split('\\\\n');\\n  const mode = String(data?.mode ?? 'bar');\\n  const left = Number(data?.left ?? 40);\\n  const width = Number(data?.width ?? 1000);\\n  const requestedSize = Number(data?.fontSize ?? 66);\\n  const units = (text) => Array.from(text).reduce((w, ch) => w + (/[\\uac00-\\ud7a3\\u4e00-\\u9fff]/.test(ch) ? 1 : ch === ' ' ? .3 : .65), 0);\\n  const size = data?.width ? Math.min(requestedSize, Math.floor((width - 52) / Math.max(1, ...lines.map(units)))) : requestedSize;\\n  const weight = Number(data?.fontWeight ?? 600);\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const color = String(data?.textColor ?? '#FFFFFF');\\n  if (mode === 'bar') {\\n    const top = Number(data?.top ?? 1255);\\n    const height = Number(data?.height ?? 230);\\n    return (\\n      <div style={{ position: 'absolute', left, width, top, height, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: font, pointerEvents: 'none' }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.28, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{line}</div>\\n        ))}\\n      </div>\\n    );\\n  }\\n  const bottom = Number(data?.bottom ?? 1440);\\n  const box = String(data?.boxColor ?? 'rgba(0,0,0,0.62)');\\n  return (\\n    <div style={{ position: 'absolute', left, width, top: 0, height: bottom, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', fontFamily: font, pointerEvents: 'none' }}>\\n      <div style={{ background: box, padding: '10px 26px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: 4 }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.3, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{line}</div>\\n        ))}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\n\n// ---- Captions: one caption per thought ----\n// A caption ends where the speaker's sentence ends or another speaker starts, never in the middle of one.\n// A sentence too long for two lines is divided where a listener would pause (a comma, a breath, the end\n// of a clause), in pieces of similar length, and never between words that belong together (\"\uac08 \uc218 /\n// \uc788\uc744\uae4c\", \"\uadf8 / \uac00\uc218\", \"the / house\"). Each word is [text, startFrame, endFrame, sourceStartFrame,\n// speakerId, utteranceId].\n// Sounds a speaker makes while thinking; they are not captioned.\nconst FILLER = /^(\uc5b4|\uc74c|\uc544|\uc5d0|\uc73c|\ud760|uh|um|er|ah|hmm)[.,\u2026~]*$/i;\n// A word that leans on the next one: breaking after it leaves it stranded.\nconst LEANS_FORWARD =\n  /^(\uadf8|\uc774|\uc800|\ud55c|\ub450|\uc138|\ub124|\uba87|\uc5b4\ub5a4|\ubb34\uc2a8|\uc5b4\ub290|\uc774\ub7f0|\uadf8\ub7f0|\uc800\ub7f0|\ubaa8\ub4e0|\uac01|\uc0c8|\uccab|\ub2e4\ub978|\uc5ec\ub7ec|\uc57d|\ub354|\ub35c|\uac00\uc7a5|\uc81c\uc77c|\ub108\ubb34|\uc544\uc8fc|\ub9e4\uc6b0|\uc815\ub9d0|\uc9c4\uc9dc|\ucc38|\uc880|\uc798|\ubabb|\uc548|\uaf2d|\ub2e4\uc2dc|\uacc4\uc18d|\uac70\uc758|\uc774\ubbf8|\uc544\uc9c1|\ubc14\ub85c|\uadf8\ub0e5|\uadf8\ub9ac\uace0|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7f0\ub370|\uadfc\ub370|\uadf8\ub7ec\ub2c8\uae4c|\uadf8\ub7fc|\ud558\uc9c0\ub9cc|\uadf8\ub807\uc9c0\ub9cc|\uadf8\ub7ec\ub098|\ub610|\ub610\ub294|\ud639\uc740|\uc989|\uc65c\ub0d0\ud558\uba74|\uc608\ub97c|\ub9cc\uc57d|\uc5b4\ub5bb\uac8c|\uc774\ub807\uac8c|\uadf8\ub807\uac8c|\uc800\ub807\uac8c|\uc65c|\uc5bc\ub9c8\ub098|\ub9ce\uc774|\ube68\ub9ac|\uba3c\uc800|\ub2e4\uc74c|a|an|the|to|of|in|on|at|for|with|by|from|about|into|over|under|after|before|between|through|during|without|and|or|but|so|which|who|is|are|was|were|be|i|he|she|we|they|my|your|his|her|our|their|this|these|those|very|not|as|if|than)$/i;\n// A word that leans on the one before it: breaking before it cuts a phrase in two (\"\uac08 \uc218\", \"\ud560 \ub54c\ub3c4\",\n// \"\uc788\ub294 \uac78\ub85c\", \"\ubc15\uc9c4\uc601 \uc528\", \"\uc5d0\ub3c4 \ubd88\uad6c\ud558\uace0\"). These are dependent nouns with at most a particle after them;\n// an ordinary noun that merely starts the same way (\"\uc218\uc0c1\uc790\uac00\", \"\uac70\ub9ac\") does not match.\nconst PARTICLE =\n  \"(?:\uc774|\uac00|\uc740|\ub294|\uc744|\ub97c|\ub3c4|\ub9cc|\uc5d0|\uc758|\ub85c|\uc640|\uacfc|\uc73c\ub85c|\uc5d0\uc11c|\uc5d0\uac8c|\ud55c\ud14c|\uae4c\uc9c0|\ubd80\ud130|\ub9c8\ub2e4|\ucc98\ub7fc|\uc774\ub098|\ub77c\ub3c4|\ubc16\uc5d0|\uae4c\uc9c0\ub294|\uc5d0\ub294|\uc5d0\ub3c4|\ub85c\ub294|\ub85c\ub3c4|\uc5d0\uc11c\ub294|\uc774\ub791|\ub791|\ub791\uc740|\uc774\ub77c\uace0|\ub77c\uace0|\uc774\ub77c|\uc57c|\uc694|\uc8e0|\uc608\uc694|\uc774\uc5d0\uc694|\uc785\ub2c8\ub2e4|\uc774\ub2e4|\uc778\ub370|\uc774\uace0|\uc774\uc9c0|\uc774\uc8e0|\ub4e0|\ub098|\ub4e4)?\";\nconst LEANS_BACK = new RegExp(\n  \"^(?:(?:\uc218|\uac83|\uc904|\ub54c|\uc801|\ub370|\ubc14|\ubfd0|\ub4ef|\uc911|\ub4f1|\ub3d9\uc548|\uc815\ub3c4|\ub54c\ubb38|\ub9cc\ud07c|\uc528|\ub2d8|\uce21|\ucabd)\" +\n    PARTICLE +\n    \"|(?:\uc7a5\uad00|\ucc28\uad00|\uc758\uc6d0|\ub300\ud45c|\uc704\uc6d0\uc7a5|\uc704\uc6d0|\ud68c\uc7a5|\uc0ac\uc7a5|\uc758\uc7a5|\ub300\ud1b5\ub839|\ucd1d\ub9ac|\uad50\uc218|\ubc15\uc0ac|\uae30\uc790|\uac10\ub3c5|\uc120\uc218|\uc791\uac00|\ud300\uc7a5|\uc2e4\uc7a5|\ubd80\uc7a5|\uacfc\uc7a5|\uc774\uc0ac|\ud6c4\ubcf4|\ubcc0\ud638\uc0ac|\uac80\uc0ac|\ud310\uc0ac|\uc575\ucee4)\ub2d8?\" +\n    PARTICLE +\n    \"|(?:\uac70|\uac8c|\uac74|\uac78)(?:\uc608\uc694|\uc5d0\uc694|\uc8e0|\uc57c|\uc9c0|\uace0|\ub4e0\uc694|\ub77c|\ub77c\uace0|\ub77c\uc11c|\ub2c8\uae4c|\uc796\uc544\uc694|\ub2e4|\ub294|\ub97c|\ub85c|\ub3c4|\ub098|\ub4e0|\ub791|\uac00|\uba74)?|\uac81\ub2c8\ub2e4|\uac19\uc740|\uac19\uc774|\ucc98\ub7fc|\ubcf4\ub2e4|\ub300\ub85c|\ub9c8\ub2e4|\ubc16\uc5d0|\ubd88\uad6c\ud558\uace0|\ubabb[\uac00-\ud7a3]+|\uc544\ub2c8[\uac00-\ud7a3]+\" +\n    \"|(?:\ud558|\ud574|\ud588|\ud560|\ud55c\ub2e4|\ud569|\ub418|\ub3fc|\ub410|\ub420|\ub41c\ub2e4|\ub429)[\uac00-\ud7a3]{0,4})[.,?!]*$\"\n);\nconst NOT_A_VERB = /^(\ud558\ub098|\ud558\ub298|\ud558\ub8e8|\ud558\ubc18\uae30|\ud558\ub77d|\ud558\uc704|\ud574\uc678|\ud574\uacb0|\ud574\uc11d|\ud574\ub2f9|\ud574\uccb4|\ud574\uba85|\ud574\uc9c0|\ud574\uc124|\ud574\ub2f5|\ud560\uba38\ub2c8|\ud560\uc544\ubc84\uc9c0|\ud560\uc778|\ud569\uc758|\ud569\uaca9|\ud569\uacc4|\ud569\ub958|\ud569\uc791|\ub418\ub808)/;\n// A unit that follows a number (\"200\ub9cc \uc6d0\", \"4\uac1c\uc0ac\").\nconst COUNTER = /^(\uc6d0|\uba85|\uac1c|\ubc88|\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uc0b4|\uc5b5|\ub9cc|\ucc9c|\ubc31|\ubc30|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc704|\ucc28|\ud68c|\ub300|\uacf3|\uac00\uc9c0|\uac1c\uc0ac|\uac1c\uc6d4|\uc2dc\uac04|\uc8fc|\uc8fc\uc77c)[\uac00-\ud7a3]{0,2}[.,?!]*$/;\n// A word describing the next one (\"\uace0\ubc1c\ub420 \ud655\ub960\", \"\ub2f9\uc5f0\ud55c \uc758\uc2ec\", \"\ud558\uace0 \uc2f6\uc740 \ub9c8\uc74c\").\nconst DESCRIBES_NEXT = /(\ud558\ub294|\ub418\ub294|\uc788\ub294|\uc5c6\ub294|\ub77c\ub294|\ub2e4\ub294|\uc54a\ub294|\uac19\uc740|\uc2f6\uc740|\ub9ce\uc740|\uc88b\uc740|\ub192\uc740|\uc791\uc740|\ud070|\ub41c|\ub358|\uc788\uc744|\uc5c6\uc744|\ubc1b\uc744|\uac19\uc744|[\uac00-\ud7a3]\ud55c|[\ud560\ub420\uac08\uc62c\ubcfc\uc4f8\ub0bc\ube84\uafc0\ud0ac\ub9b4\ub084])$/;\n// Korean words normally end in a particle or an ending; one that does not is usually the first half of a\n// compound or an adverb, and belongs with what follows (\"\ubb38\uccb4\ubd80 \uc7a5\uad00\", \"\ud68c\uc0ac \uc77c\", \"\ub300\uad00 \ubd80\uc11c\").\nconst MARKED_END = /[\uc740\ub294\uc774\uac00\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\uc11c\uace0\uc694\ub2e4\uc8e0\uae4c\ub124\ub098\uba70\uba74\uc9c0\uac8c\ub370\uc57c\ub77c\uc790\ub2c8\uaed8\ub791\ub4e0\uc529\uc74c\uc784\uc5b4\uc544\ud574\ub3fc\ub798\ub300\uac78\uac74\uc918\ubd10\uc6cc\uc838\uc5ec]$/;\nconst HANGUL = /[\uac00-\ud7a3]/;\nconst NUMBER_WORD = /^([0-9]+|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+|\ud55c|\ub450|\uc138|\ub124|\ub2e4\uc12f|\uc5ec\uc12f|\uc77c\uacf1|\uc5ec\ub35f|\uc544\ud649|\uc5f4)$/;\nconst STARTS_NUMBER = /^([0-9]|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]|\ud55c |\ub450 |\uc138 |\ub124 )/;\n// The end of a clause in Korean, or a comma: a natural place to stop.\nconst CLAUSE_END = /(\uace0|\uba70|\uc11c|\uba74|\ub294\ub370|\uc740\ub370|\uc778\ub370|\ub2c8\uae4c|\uc9c0\ub9cc|\ub2e4\uac00|\uba74\uc11c|\ub824\uace0|\ub3c4\ub85d|\uac70\ub098|\ub354\ub2c8|\ub2e4\uba74|\ub77c\uba74)[,]?$/;\n// \"\uc788\ub2e4 / \uc5c6\ub2e4 / \uc54a\ub2e4 / \uc2f6\ub2e4\" finish a verb phrase (\"\uac08 \uc218 \uc788\uc744\uae4c\", \"\uc27d\uc9c0 \uc54a\uc796\uc544\uc694\", \"\ud558\uace0 \uc2f6\uc740\"); after a\n// plain subject (\"\ud655\ub960 \uc788\ub294\") they pull much less.\nconst FINISHES_VERB = /^(\uc788|\uc5c6|\uc54a|\uc2f6)[\uac00-\ud7a3]*[.,?!]*$/;\nconst OPENS_VERB = /((\uc218|\uc904|\uc801|\ub9ac|\ud544\uc694)(\uac00|\ub294|\uc740|\ub3c4|\ub97c|\uc774)?|\uace0|\uc9c0|\uc5b4|\uc544|\uac8c|\ud574|\uc57c|\uc11c|\ub3c4)$/;\n// A word a new clause opens with: breaking before it is natural (\"\uc544\ud2f0\uc2a4\ud2b8 / \ud639\uc740 \ud68c\uc0ac\ub4e4\uc744\").\nconst OPENS_CLAUSE = /^(\ud639\uc740|\ub610\ub294|\uadf8\ub9ac\uace0|\ubc0f|\uadfc\ub370|\uadf8\ub7f0\ub370|\ud558\uc9c0\ub9cc|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7ec\ub2c8\uae4c|\uc65c\ub0d0\ud558\uba74|and|or|but|so|because|we|they|i|he|she|which|who|when|where|while|if|although|though|then)$/i;\nconst SENTENCE_END = /[.?!\u3002\uff1f\uff01\u2026][\"'\u201d\u2019)]?$/;\n\n// Numbers said in Korean are shown in digits when a unit follows: \"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\" -> \"11\uac1c\uc6d4\uc9f8\",\n// \"\uc774\ucc9c\uc0bc\ub144\ub3c4\uc600\uc5b4\uc694\" -> \"2003\ub144\ub3c4\uc600\uc5b4\uc694\", \"\uce60\uc5b5\uc774\" -> \"7\uc5b5\uc774\". A numeral with no unit, or one that is also an\n// everyday word (\"\uc774\ubc88\", \"\uc2ed\ubd84\", \"\uc0ac\ud68c\", \"\uc624\ucc28\", \"\uc774\ucc9c\uc2dc\"), stays as it was said.\nconst KO_ONES: any = { \uc77c: 1, \uc774: 2, \uc0bc: 3, \uc0ac: 4, \uc624: 5, \uc721: 6, \uce60: 7, \ud314: 8, \uad6c: 9 };\nconst KO_PLACES: any = { \uc2ed: 10, \ubc31: 100, \ucc9c: 1000 };\nconst KO_NUMERAL = /^[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+/;\nconst UNIT_LONG = /^(\uac1c\uc6d4|\ub144\ub3c4|\ub144\ub300|\ub144\uac04|\ub144\uc9f8|\ub144\uc0dd|\ub144\ucc28|\uc8fc\uc77c|\uc8fc\ub144|\uc8fc\uac04|\uc2dc\uac04|\ubd84\uac04|\ucd08\uac04|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc720\ub85c|\ud0ac\ub85c|\ubbf8\ud130|\uc13c\ud2f0|\uadf8\ub7a8|\ub9ac\ud130|\ud559\ub144|\uc138\uae30|\ubd84\uae30|\uc778\ubd84|\uac1c\uad6d|\uac1c\uc0ac|\uac1c\ub144|\ud68c\ucc28|\ub4f1\uae09|\ub2e8\uacc4|\uc138\ub300)/;\nconst UNIT_SHORT = /^(\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uba85|\uac1c|\ubc88|\uc6d0|\uc704|\ub4f1|\ucc28|\ud68c|\uce35|\ud638|\ub300|\uc138|\uc778|\ubc30|\ud3b8|\uace1|\uc7a5|\uad8c|\ud300|\uc2b9|\ud328|\uace8|\uc810|\ud3c9|\uac74|\ud45c|\uc8fc|\uc0b4)/;\n// One-syllable numerals joined to a one-syllable unit are mostly other words (\"\uc774\ubc88\", \"\uc0ac\ud68c\", \"\uc624\ucc28\",\n// \"\uc77c\uba85\"); only these are numbers for certain.\nconst SURE_SHORT = /^([\uc77c\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\ub144|[\uc77c\uc0bc\uc0ac\uc624\uce60\ud314\uad6c]\uc6d4|[\uc77c\uc774\uc0bc]\ucc28|[\uc77c\uc774\uc0bc]\ub4f1|[\uc77c\uc774]\uc704|\uc2ed\ub300|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\uce35|[\uc77c\uc0bc\uc624\uc2ed]\ucd08)/;\nconst MONTH_WORD: any = { \uc720\uc6d4: \"6\uc6d4\", \uc2dc\uc6d4: \"10\uc6d4\" };\n\nfunction koNumber(run: string): number | null {\n  let total = 0;\n  let group = 0;\n  let ones = 0;\n  let place = 10000;\n  let big = Infinity;\n  for (const ch of run) {\n    if (KO_ONES[ch]) {\n      if (ones) return null; // two digits in a row: \"\uc0bc\uc0ac\", \"\uc774\uc77c\"\n      ones = KO_ONES[ch];\n    } else if (KO_PLACES[ch]) {\n      if (KO_PLACES[ch] >= place) return null;\n      place = KO_PLACES[ch];\n      group += (ones || 1) * place;\n      ones = 0;\n    } else {\n      const unit = ch === \"\uc5b5\" ? 1e8 : 1e4;\n      if (unit >= big) return null;\n      big = unit;\n      total += (group + ones || 1) * unit;\n      group = 0;\n      ones = 0;\n      place = 10000;\n    }\n  }\n  return total + group + ones;\n}\n// 2003 -> \"2003\", 700000000 -> \"7\uc5b5\", 40000000 -> \"4\ucc9c\ub9cc\", 35000000 -> \"3500\ub9cc\".\nfunction koShown(n: number): string {\n  if (n < 10000) return String(n);\n  const part = (v: number, unit: string) => (v ? (v >= 1000 && v % 1000 === 0 ? v / 1000 + \"\ucc9c\" : String(v)) + unit : \"\");\n  const rest = n % 10000;\n  return part(Math.floor(n / 1e8), \"\uc5b5\") + part(Math.floor((n % 1e8) / 1e4), \"\ub9cc\") + (rest ? String(rest) : \"\");\n}\n// A unit ends the number only when the word stops there or goes on with a particle or an ending; \"\ud504\ub85c\" in\n// \"\ud504\ub85c\uc81d\ud2b8\" and \"\uc138\ub300\" in \"\uc138\ub300\uc8fc\" are other words.\nconst AFTER_UNIT = /^([\uc774\uac00\uc740\ub294\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\ub098\ubd80\uae4c\uc11c\ubc16\ub9c8\uc9f8\uac04\ucbe4\uc529\uc9dc\uc5ec\uc600\uc785\uc608\uc778\ub3d9\uc804\ud6c4\ub4a4\uc815\uc548\ub54c\uc0dd][\uac00-\ud7a3]*)?[.,?!]*$/;\nconst unitIn = (units: RegExp, text: string): string | null => {\n  const m = units.exec(text);\n  return m && AFTER_UNIT.test(text.slice(m[1].length)) ? m[1] : null;\n};\n// What may follow a number of this size: a clock has 24 hours and a year 12 months (\"\uc774\ucc9c\uc2dc\" is a city).\nconst fitsUnit = (unit: string, n: number) => (unit === \"\uc2dc\" ? n <= 24 : unit === \"\uc6d4\" ? n <= 12 : true);\n\nfunction koDigits(word: string, next: string | null): string {\n  for (const m of Object.keys(MONTH_WORD)) if (word.startsWith(m) && !/^[\uac00-\ud7a3]{2,}/.test(word.slice(m.length).replace(/^(\uc5d0|\uc740|\ub294|\uc774|\uac00|\ub3c4|\ubd80\ud130|\uae4c\uc9c0|\ub2ec|\uc758|\uc5d0\ub294|\uc5d0\ub3c4)/, \"\"))) return MONTH_WORD[m] + word.slice(m.length);\n  const found = word.match(KO_NUMERAL);\n  if (!found) return word;\n  for (let len = found[0].length; len >= 1; len--) {\n    const run = found[0].slice(0, len);\n    const n = koNumber(run);\n    if (!n) continue;\n    const rest = word.slice(len);\n    const alone = /^[.,?!]*$/.test(rest);\n    // The unit is in this word (\"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\"), or it is the next word (\"\uc774\uc2ed \uba85\").\n    const after = alone ? String(next || \"\") : rest;\n    const short = unitIn(UNIT_SHORT, after);\n    let ok = false;\n    if (unitIn(UNIT_LONG, after)) ok = run !== \"\uc774\" || !alone;\n    else if (short && fitsUnit(short, n)) ok = run.length >= 2 ? !/^[\uc5b5\ub9cc]$/.test(run.slice(-1)) || /^(\uc6d0|\uba85|\uac1c|\ub144|\ud3c9|\ub300|\uc7a5|\uac74|\ud45c|\ubc30)$/.test(short) : alone ? run !== \"\uc774\" && run !== \"\ub9cc\" && run !== \"\uc5b5\" : SURE_SHORT.test(run + after);\n    else if (!alone && run.length >= 2 && /\uc5b5$/.test(run) && n >= 1e8) ok = !/^[\uac00-\ud7a3]{3,}/.test(rest); // \"\uce60\uc5b5\uc774\", \"\uc2ed\uc5b5\uc744\"\n    if (ok && alone && !rest && /^,/.test(after)) ok = false;\n    if (ok) return koShown(n) + rest;\n  }\n  return word;\n}\n\nconst shown = (t: string) => t.replace(P.separateHeadlines ? /[.,\uff0c]/g : /\\./g, \"\");\nconst width = (ws: any[], a: number, b: number) => {\n  let n = b - a - 1;\n  for (let i = a; i < b; i++) n += shown(String(ws[i][0])).length;\n  return Math.max(0, n);\n};\n\n// How bad it is to break between word i and word i + 1 (lower is better).\nfunction joint(ws: any[], i: number, fps: number): number {\n  const cur = String(ws[i][0]);\n  const next = String(ws[i + 1][0]);\n  const bare = cur.replace(/[.,?!]+$/, \"\");\n  const stop = (k: number) => {\n    const w = String(ws[k][0]);\n    const b = w.replace(/[.,?!]+$/, \"\");\n    return /,$/.test(w) || (CLAUSE_END.test(w) && !LEANS_FORWARD.test(b)) || (ws[k + 1][1] - ws[k][2]) / fps >= 0.5;\n  };\n  let s = 0;\n  const predicate = FINISHES_VERB.test(next) && !LEANS_BACK.test(next);\n  if (OPENS_CLAUSE.test(next.replace(/[.,?!]+$/, \"\"))) s -= 2;\n  else if (LEANS_FORWARD.test(bare)) s += 8;\n  else if (cur === bare && HANGUL.test(next) && !predicate) {\n    if (DESCRIBES_NEXT.test(bare)) s += 4;\n    else if (!MARKED_END.test(bare)) s += 3.5;\n  }\n  if (LEANS_BACK.test(next) && !NOT_A_VERB.test(next)) s += 6;\n  else if (predicate) s += OPENS_VERB.test(bare) ? 6 : 3;\n  if (/[0-9]/.test(bare) && (COUNTER.test(next) || /[0-9%]$/.test(bare))) s += 6;\n  const pause = (ws[i + 1][1] - ws[i][2]) / fps;\n  if (pause >= 0.3) s -= 2 + Math.min(2, pause);\n  if (NUMBER_WORD.test(bare) && STARTS_NUMBER.test(next + \" \")) s += 8;\n  else if (/,$/.test(cur)) s -= 3;\n  else if (CLAUSE_END.test(cur) && !LEANS_FORWARD.test(bare)) s -= 3;\n  // One word past a natural stop (\"\ucd94\uc9c4\ud558\ub294\ub370 \ucc98\uc74c\uc5d0\ub294 / \uc6b0\ub9ac\") strands the word that opens the next clause.\n  if (i >= 1 && !stop(i) && stop(i - 1)) s += 3;\n  return s;\n}\n\n// The best place to fold words [a, b) into two lines: [index of the first word of line two, cost]. One\n// line when it fits. `at(i)` is the cost of breaking after word i.\nfunction fold(ws: any[], a: number, b: number, maxc: number, at: (i: number) => number): [number, number] {\n  if (width(ws, a, b) <= maxc || b - a < 2) return [b, 0];\n  let best: [number, number] = [b, Infinity];\n  let top = -1;\n  const all = width(ws, a, b);\n  for (let k = a + 1; k < b; k++) {\n    top += shown(String(ws[k - 1][0])).length + 1;\n    const bottom = all - top - 1;\n    const over = Math.max(0, top - maxc) + Math.max(0, bottom - maxc);\n    const c = Math.abs(top - bottom) * 0.35 + over * 6 + at(k - 1) + (top > bottom + 3 ? 1 : 0) + (Math.min(top, bottom) < 5 ? 3 : 0);\n    if (c < best[1]) best = [k, c];\n  }\n  return best;\n}\n\n// Divide one sentence into captions: [end index of each caption]. Every way of cutting it into the\n// fewest captions that fit, or one more, is scored: even lengths, natural cuts and folds, nothing too\n// short to read.\nfunction divide(ws: any[], a: number, b: number, maxc: number, fps: number): number[] {\n  const cap = maxc * 2 - 1;\n  const n = b - a;\n  const total = width(ws, a, b);\n  if (n < 2 || total <= maxc) return [b];\n  const cuts: number[] = [];\n  for (let i = a; i < b - 1; i++) cuts.push(joint(ws, i, fps));\n  const at = (i: number) => cuts[i - a];\n  const folds = new Map<number, number>();\n  const lines = (i: number, j: number) => {\n    const key = i * 100000 + j;\n    let v = folds.get(key);\n    if (v === undefined) {\n      v = fold(ws, i, j, maxc, at)[1];\n      folds.set(key, v);\n    }\n    return v;\n  };\n  // The fewest captions that can hold it, filling each as far as it goes.\n  let least = 0;\n  for (let i = a; i < b; least++) {\n    let j = i + 1;\n    while (j < b && width(ws, i, j + 1) <= cap) j++;\n    i = j;\n  }\n  let bestCost = Infinity;\n  let bestCuts: number[] = [b];\n  for (let k = least; k <= Math.min(n, least + 1); k++) {\n    const ideal = total / k;\n    // cost[p][j]: the first j words in p captions.\n    const cost: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(Infinity));\n    const from: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(-1));\n    cost[0][0] = 0;\n    for (let p = 1; p <= k; p++) {\n      for (let j = p; j <= n; j++) {\n        for (let i = j - 1; i >= p - 1; i--) {\n          const w = width(ws, a + i, a + j);\n          if (w > cap && j - i > 1) break;\n          if (cost[p - 1][i] === Infinity) continue;\n          const uneven = ((w - ideal) / ideal) ** 2 * 6;\n          // A caption on screen for well under a second cannot be read.\n          const seconds = ((j < n ? ws[a + j][1] : ws[b - 1][2] + 0.4 * fps) - ws[a + i][1]) / fps;\n          const stub = (w < 6 ? 8 : 0) + (seconds < 0.5 ? 12 : seconds < 0.8 ? 6 : 0);\n          const c = cost[p - 1][i] + uneven + stub + lines(a + i, a + j) + (j < n ? at(a + j - 1) : 0);\n          if (c < cost[p][j]) {\n            cost[p][j] = c;\n            from[p][j] = i;\n          }\n        }\n      }\n    }\n    // A further caption has to earn its place.\n    const c = cost[k][n] + k * 3;\n    if (c < bestCost) {\n      const ends: number[] = [];\n      for (let p = k, j = n; p > 0; p--) {\n        ends.unshift(a + j);\n        j = from[p][j];\n      }\n      bestCost = c;\n      bestCuts = ends;\n    }\n  }\n  return bestCuts;\n}\n\nfunction makeCues(words: any[], fps: number, maxc: number, total: number, fixes: any[]): [number, number, string][] {\n  const clean = (t: string) => t.replace(/[\"\u201c\u201d]/g, \"\");\n  const ws = words\n    .map((w: any) => [clean(String(w[0])), w[1], w[2], w[3], w[4] ?? null, w[5] ?? null])\n    .filter((w: any) => String(w[0]).trim().length > 0 && !FILLER.test(String(w[0]).trim()));\n  if (!ws.length) return [];\n  // Numbers in digits, including the first of a pair said together (\"\ud55c \uc721, \uce60\uc5b5\" -> \"\ud55c 6, 7\uc5b5\").\n  for (let i = 0; i < ws.length; i++) ws[i][0] = koDigits(String(ws[i][0]), i + 1 < ws.length ? String(ws[i + 1][0]) : null);\n  for (let i = 0; i + 1 < ws.length; i++) {\n    const pair = String(ws[i][0]).match(/^([\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]),$/);\n    if (pair && /^[0-9]/.test(String(ws[i + 1][0]))) ws[i][0] = String(koNumber(pair[1])) + \",\";\n  }\n  // 1. Sentences: a new one starts with another speaker, after a full stop, at a cut in the source, or\n  // after a long silence.\n  const starts: number[] = [0];\n  for (let i = 1; i < ws.length; i++) {\n    const prev = ws[i - 1];\n    const w = ws[i];\n    const silence = (w[1] - prev[2]) / fps;\n    const cutInSource = w[3] != null && prev[3] != null && Math.abs(w[3] - prev[3] - (w[1] - prev[1])) > fps * 3;\n    const otherSpeaker = w[4] != null && prev[4] != null && w[4] !== prev[4];\n    const otherUtterance = w[5] != null && prev[5] != null && w[5] !== prev[5] && SENTENCE_END.test(String(prev[0]));\n    if (otherSpeaker || otherUtterance || SENTENCE_END.test(String(prev[0])) || cutInSource || silence > 1.5) starts.push(i);\n  }\n  starts.push(ws.length);\n  // 2. Captions within each sentence.\n  const groups: [number, number][] = [];\n  for (let s = 0; s + 1 < starts.length; s++) {\n    let a = starts[s];\n    for (const b of divide(ws, a, starts[s + 1], maxc, fps)) {\n      groups.push([a, b]);\n      a = b;\n    }\n  }\n  // 3. A one-word reply (\"\uc608.\", \"Right.\") gets its own caption. Only when it would be gone before it can\n  // be read does it join the caption before it; it never joins the sentence that follows.\n  const merged: [number, number][] = [];\n  const replyAt = new Map<number, number>(); // caption start -> index where a joined reply begins\n  for (let g = 0; g < groups.length; g++) {\n    const [a, b] = groups[g];\n    const nextStart = g + 1 < groups.length ? ws[groups[g + 1][0]][1] : total;\n    const onScreen = (Math.min(nextStart, ws[b - 1][2] + Math.round(0.6 * fps)) - ws[a][1]) / fps;\n    const last = merged[merged.length - 1];\n    if (last && width(ws, a, b) <= 3 && onScreen < 0.35 && width(ws, last[0], b) <= maxc * 2 - 1 && (ws[a][1] - ws[last[1] - 1][2]) / fps < 0.8) {\n      if (!replyAt.has(last[0])) replyAt.set(last[0], a);\n      last[1] = b;\n      continue;\n    }\n    merged.push([a, b]);\n  }\n  // 4. Text and timing.\n  const out: [number, number, string][] = [];\n  for (let g = 0; g < merged.length; g++) {\n    const [a, b] = merged[g];\n    let piece: any[] = ws.slice(a, b);\n    let joined = piece.map((x: any) => String(x[0])).join(\" \");\n    for (const f of fixes || []) if (f && f.from) joined = joined.split(String(f.from)).join(String(f.to ?? \"\"));\n    const fixed = joined.split(\" \").filter((t: string) => shown(t).length > 0);\n    // Fold on the words as they will be shown; timing for pauses comes from the original words when the\n    // spelling fixes kept their number, otherwise from none.\n    const timed = fixed.length === piece.length ? fixed.map((t: string, i: number) => [t, piece[i][1], piece[i][2]]) : fixed.map((t: string) => [t, 0, 0]);\n    const reply = replyAt.get(a);\n    const own = reply !== undefined && fixed.length === piece.length && width(ws, a, reply) <= maxc ? reply - a : -1;\n    const k = own > 0 ? own : fold(timed, 0, timed.length, maxc, (i: number) => joint(timed, i, fps))[0];\n    const text = k >= timed.length ? fixed.map(shown).join(\" \") : fixed.slice(0, k).map(shown).join(\" \") + \"\\n\" + fixed.slice(k).map(shown).join(\" \");\n    const start = ws[a][1];\n    let end = g + 1 < merged.length ? ws[merged[g + 1][0]][1] : total;\n    if (g + 1 < merged.length && (ws[merged[g + 1][0]][1] - ws[b - 1][2]) / fps > 1.2) end = Math.min(end, ws[b - 1][2] + Math.round(0.6 * fps));\n    out.push([Math.round(start), Math.round(end), text]);\n  }\n  for (let i = 0; i < out.length - 1; i++) {\n    const g = out[i + 1][0] - out[i][1];\n    if (g > 0 && g < 8) out[i][1] = out[i + 1][0];\n  }\n  // 5. Every caption stays long enough to read: one that would flash by borrows the time from the\n  // silence after it, or from the start of a longer caption that follows.\n  const least = Math.round(0.6 * fps);\n  for (let i = 0; i < out.length; i++) {\n    const short = least - (out[i][1] - out[i][0]);\n    if (short <= 0) continue;\n    const next = out[i + 1];\n    if (!next) {\n      out[i][1] = Math.min(total, out[i][0] + least);\n      continue;\n    }\n    const silence = next[0] - out[i][1];\n    if (silence >= short) out[i][1] += short;\n    else if (next[1] - next[0] - (short - silence) >= Math.round(1.0 * fps)) {\n      out[i][1] += short;\n      next[0] = out[i][1];\n    } else out[i][1] = next[0];\n  }\n  if (out.length && out[0][0] < 10) out[0][0] = 0;\n  return out;\n}\n\n\n// Demo UI and its fixed caption share one removable PNG clip.\nconst TIKTOK_PNG_ALIASES: string[] = [\"tiktok-preview-overlay.png\"];\nasync function addPreviewPngOverlay(d:any,P:any,endFrame:number){\n const project=selects.project(P.projectId);\n const resources=await project.resources();\n const image=resources.find((x:any)=>x.resourceId===P.overlayResourceId&&TIKTOK_PNG_ALIASES.includes(x.name))||resources.find((x:any)=>TIKTOK_PNG_ALIASES.includes(x.name));\n if(!image)throw Error('\ud2f1\ud1a1 PNG\ub97c \uc900\ube44\ud55c \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694. / Prepare the TikTok PNG first.');\n const imageIds=new Set(resources.filter((x:any)=>TIKTOK_PNG_ALIASES.includes(x.name)).map((x:any)=>x.resourceId));\n const imagePresent=(await d.clips({trackScope:'all'})).some((x:any)=>x.trackKind!=='main'&&imageIds.has(x.resourceId));\n if(!imagePresent)await d.overlayResource({resource:project.resource(image.resourceId),over:await d.rangeAtFrames(0,endFrame)});\n return {added:Number(!imagePresent)};\n}\n\nconst FRAME_ELEMENT = \"import React from 'react';export default function Element({data:d}){return d.kind==='logo'?<img src={d.image} style={{position:'absolute',left:540-d.width/2,top:d.center,transform:'translateY(-50%)',width:d.width,height:'auto'}}/>:<div style={{position:'absolute',left:0,top:d.y,width:1080,height:d.height,background:d.image?'url('+d.image+')':d.background,backgroundSize:'1080px 1920px',backgroundPosition:'0px '+(-d.y)+'px'}}/>;}\";\nfunction headlineRows(F:any){\n const bold=F.headlineStyle==='bold-outline';\n const clean=(v:any)=>String(v||'').replace(/[\\r\\n]+/g,' ').trim();\n const text=[clean(F.headline1),clean(F.headline2)];\n const units=(v:string)=>Array.from(v).reduce((w:number,ch:string)=>w+(/[\uac00-\ud7a3\u4e00-\u9fff]/.test(ch)?1.02:ch===' '?.34:/[A-ZMW]/.test(ch)?.85:.68),0);\n const legacyUnits=(v:string)=>Array.from(v).reduce((w:number,ch:string)=>w+(/[\uac00-\ud7a3\u4e00-\u9fff]/.test(ch)?.93:ch===' '?.27:/[0-9A-Za-z%]/.test(ch)?.6:.4),0);\n const sizes=text.map((v,i)=>Math.max(12,Math.min(Number(i?F.headlineSize2:F.headlineSize1),bold?Math.floor(880/Math.max(1,units(v))):Math.floor(1010/Math.max(1,legacyUnits(v))-2))));\n return text.map((body,i)=>({body,size:sizes[i],color:i?F.headlineColor2:F.headlineColor1,\n y:Number(F.headlineCenter)+(bold?(i===0?-1:1)*Number(F.headlineRowGap||136.8)/2:(i===0?-(sizes[1]*1.16+2)/2:(sizes[0]*1.16+2)/2)),\n bold}));\n}\nconst PLAIN_HEADLINE = \"import React from 'react';export default function NewsHeadline({data:d}){return <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}><div style={{maxWidth:1020,fontFamily:'\\\"'+(d.fontFamily||'Helvetica Neue')+'\\\",Pretendard,Apple SD Gothic Neo,Malgun Gothic,Noto Sans KR,sans-serif',fontSize:d.fontSize,fontWeight:900,color:d.color,lineHeight:1.16,letterSpacing:'-2px',whiteSpace:'nowrap',textAlign:'center',fontStyle:d.italic?'italic':'normal',textShadow:d.shadowBlur?'0 4px 10px rgba(0,0,0,.55)':'none',WebkitTextStroke:Math.max(1,Math.round(d.fontSize*.035))+'px '+d.color,paintOrder:'stroke fill'}}>{d.body}</div></div>}\";\nasync function addSeparateHeadlines(d:any,P:any,endFrame:number,overlayOnly=false){\n const preset=await selects.effectPresets.get('text-default');\n const add=async(label:string,tsxCode:string,parameters:any,editableParameters:any[]=[],position:any=null)=>{\n  const a=await d.addMotionGraphic({label,tsxCode,parameters,editableParameters,within:await d.rangeAtFrames(0,endFrame)});\n  if(position){const c=(await d.clips({trackScope:'all'})).find((c:any)=>c.clipId===a.clipId);await d.setClipTransform({clip:c,position});}\n };\n const F=P.frame;\n const est=(t:string)=>Array.from(t).reduce((w:number,ch:string)=>w+(/[\uac00-\ud7a3\u4e00-\u9fff]/.test(ch)?.93:ch===' '?.27:/[0-9A-Za-z%]/.test(ch)?.6:.4),0);\n if(!overlayOnly){\n for(const [y,height] of [[0,F.windowTop],[F.windowBottom,1920-F.windowBottom]])\n  await add(y===0?'Clip \u00b7 \uc0c1\ub2e8 \ubc30\uacbd':'Clip \u00b7 \ud558\ub2e8 \ubc30\uacbd',FRAME_ELEMENT,{kind:'band',y,height,background:F.background,image:F.backgroundImage||''});\n for(const [i,row] of headlineRows(F).entries()){\n  const {body:text,size,color,y,bold}=row;if(!text)continue;\n  const line=i+1;\n  await add('Clip \u00b7 \uc81c\ubaa9 '+line,bold?preset.tsxCode:PLAIN_HEADLINE,{...preset.parameters,anchor:'center',overlayScale:100,body:text,fontFamily:F.fontFamily||'Helvetica Neue',fontSize:size,fontWeight:'800',color,italic:!!F.headlineItalic,underline:false,textAlign:'center',backgroundColor:line===2&&F.headline2Box?F.headline2Box:'#00000000',backgroundPadding:0,strokeColor:bold?(F.headlineStrokeColor||'#000000'):color,strokeWidth:bold?Number(F.headlineStrokeWidth||18):Math.max(1,Math.round(size*.035)),enterStyle:'instant',exitStyle:'instant',shadowBlur:F.headlineShadow==='none'?0:bold?0:10,shadowX:bold?1:0,shadowY:F.headlineShadow==='none'?0:bold?6:4,shadowColor:bold?'#000000':'#0000008c'},preset.editableParameters,{x:0,y:(960-y)/19.2});\n }\n if(F.logoMode==='image'&&F.logoImage)await add('Clip \u00b7 \ud504\ub85c\uadf8\ub7a8 \ub85c\uace0',FRAME_ELEMENT,{kind:'logo',image:F.logoImage,width:F.logoWidth,center:F.logoCenter},[{key:'width',label:'Width',type:'number',defaultValue:F.logoWidth,min:50,max:1000,step:1},{key:'center',label:'Vertical center',type:'number',defaultValue:F.logoCenter,min:0,max:1920,step:1}]);\n }\n if(overlayOnly&&P.demoOverlay)await addPreviewPngOverlay(d,P,endFrame);\n}\n// Text-only omissions, scoped to source time and exact tokens. Never changes audio or timeline duration.\nfunction cleanSpeechWords(words:any[],sourceFps:number,omissions:any[]){\n const norm=(x:any)=>String(x).replace(/[.,\uff0c!?\u3002\uff1f\uff01\u2026~]/g,'').trim();\n return words.filter((w:any,i:number)=>{\n  const t=norm(w[0]);if(/^(\uc73c\ud760|\uc73c\uc74c|\ud750\uc74c|\uc74c\uc74c)$/.test(t))return false;\n  if(t==='\uc774\ub140'&&norm(words[i+1]?.[0])==='\uc774'&&norm(words[i+2]?.[0]).startsWith('\ub140\uc11d'))return false;\n  const sec=w[3] == null ? NaN : w[3]/sourceFps;\n  return !(omissions||[]).some((o:any)=>Number.isFinite(o.startSeconds)&&Number.isFinite(o.endSeconds)&&o.endSeconds>o.startSeconds&&o.endSeconds-o.startSeconds<=20&&sec>=o.startSeconds-.08&&sec<=o.endSeconds+.08&&norm(o.text)===t);\n });\n}\n\n// Resource ids are Project-scoped aliases; listing the resources first makes a saved id valid in this\n// session, and the file name finds the same video again if the alias changed.\nconst project = selects.project(P.projectId);\nconst input = await readShortformInput(project, P);\nconst { meta: sm, words: sourceWords } = input;\nconst sfps = sm.fps;\nconst sws = sourceWords.filter((w: any) => !w.nonSpeech && String(w.text).trim().length > 0);\nconst W: number[][] = sws.map((w: any) => [w.startFrame / sfps, w.endFrame / sfps]);\nif (!W.length) throw new Error(\"The source has no transcript words. Analyze it first.\");\n\n// Snap each requested range to whole words without catching the neighbouring word.\nfunction snap(a: number, b: number): number[] {\n  let i = 0;\n  let j = 0;\n  let bi = Infinity;\n  let bj = Infinity;\n  for (let k = 0; k < W.length; k++) {\n    const da = Math.abs(W[k][0] - a);\n    if (da < bi) {\n      bi = da;\n      i = k;\n    }\n    const db = Math.abs(W[k][1] - b);\n    if (db < bj) {\n      bj = db;\n      j = k;\n    }\n  }\n  if (j < i) j = i;\n  const prevEnd = i > 0 ? W[i - 1][1] : 0;\n  const nextStart = j + 1 < W.length ? W[j + 1][0] : W[j][1] + 1;\n  const start = Math.max(prevEnd + 0.03, W[i][0] - 0.15, 0);\n  const end = Math.min(nextStart - 0.04, W[j][1] + 0.22, sm.durationSeconds);\n  return [Math.round(start * 1000) / 1000, Math.round(end * 1000) / 1000];\n}\n\nconst segs = (P.segments as number[][]).map((s) => snap(Number(s[0]), Number(s[1]))).filter((s) => s[1] - s[0] > 0.5);\nif (!segs.length) throw new Error(\"No usable source range for this clip.\");\n\nconst d = await project.createDraft({ name: P.name });\nawait initializeShortformSettings(d, input);\nfor (const s of segs) {\n  await insertShortformRange(d, input, s[0], s[1]);\n}\nif (P.removeFillers) {\n  const fill = (await d.words()).filter((w: any) => w.filler && w.filler.removable);\n  if (fill.length) await d.remove(fill.map((w: any) => w.span), { tracks: \"all\" });\n}\nif (P.removeSilences) {\n  const sil = await d.silenceSpans({ preset: \"normal\" });\n  const cut = sil.flatMap((x: any) => x.cutSpans);\n  if (cut.length) await d.remove(cut, { tracks: \"all\" });\n}\nawait d.setFrameSize({ width: 1080, height: 1920 });\nconst readV = async () =>\n  (await d.clips({ trackScope: \"all\" })).filter((c: any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nconst nV = (await readV()).length;\nfor (let k = 0; k < nV; k++) {\n  const c = (await readV())[k];\n  await d.setClipTransform({\n    clip: c,\n    scale: { x: P.transform.scale, y: P.transform.scale },\n    position: { x: P.transform.posX, y: P.transform.posY },\n  });\n}\nconst mainClips = await d.clips({ trackScope: \"main\" });\nconst endFrame = mainClips.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);\nconst meta = await d.meta();\nif (!P.separateHeadlines) {\nawait d.addMotionGraphic({\n  label: \"Series frame and headline\",\n  tsxCode: FRAME_TSX,\n  parameters: P.frame,\n  editableParameters: P.editableFrame,\n  within: await d.rangeAtFrames(0, endFrame),\n});\n}\nif(P.separateHeadlines) await addSeparateHeadlines(d,P,endFrame);\nlet cueCount = 0;\nif (P.captions && P.caption) {\n  const words = inputCaptionWords(await d.words(), input, segs, meta.fps)\n    .filter((w: any) => !w.nonSpeech)\n    .map((w: any) => [String(w.text), w.startFrame, w.endFrame, w.sourceStartFrame, w.speakerId ?? null, w.utteranceId ?? null]);\n  const cleanWords = P.separateHeadlines ? cleanSpeechWords(words, sm.fps, P.captionOmissions) : words;\n  const cues = makeCues(cleanWords, meta.fps, P.lineMax, endFrame, P.fixes);\n  for (let k = 0; k < cues.length; k++) {\n    const a = cues[k][0];\n    const e = Math.min(cues[k][1], endFrame);\n    if (e <= a || !cues[k][2].trim()) continue;\n    await d.addMotionGraphic({\n      label: \"Caption \" + String(k + 1).padStart(2, \"0\"),\n      tsxCode: CAPTION_TSX,\n      parameters: { ...P.caption, text: cues[k][2] },\n      editableParameters: P.editableCaption,\n      within: await d.rangeAtFrames(a, e),\n    });\n    cueCount++;\n  }\n}\nif(P.separateHeadlines) await addSeparateHeadlines(d,P,endFrame,true);\nconst out: any = await d.commitAll(\"Chosun Ilbo clip: \" + P.name);\nreturn { draftId: out.createdDraftId ?? null, seconds: Math.round((endFrame / meta.fps) * 10) / 10, captions: cueCount, segments: segs };\n";
 const SCRIPT_OVERLAY: string = "const P:any=__P__;\nconst TIKTOK_PNG_ALIASES: string[] = [\"tiktok-preview-overlay.png\"];\nasync function addPreviewPngOverlay(d:any,P:any,endFrame:number){\n const project=selects.project(P.projectId);\n const resources=await project.resources();\n const image=resources.find((x:any)=>x.resourceId===P.overlayResourceId&&TIKTOK_PNG_ALIASES.includes(x.name))||resources.find((x:any)=>TIKTOK_PNG_ALIASES.includes(x.name));\n if(!image)throw Error('\ud2f1\ud1a1 PNG\ub97c \uc900\ube44\ud55c \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694. / Prepare the TikTok PNG first.');\n const imageIds=new Set(resources.filter((x:any)=>TIKTOK_PNG_ALIASES.includes(x.name)).map((x:any)=>x.resourceId));\n const imagePresent=(await d.clips({trackScope:'all'})).some((x:any)=>x.trackKind!=='main'&&imageIds.has(x.resourceId));\n if(!imagePresent)await d.overlayResource({resource:project.resource(image.resourceId),over:await d.rangeAtFrames(0,endFrame)});\n return {added:Number(!imagePresent)};\n}\n\nconst LEGACY_NAMES:string[]=[\"TikTok \u00b7 Share\", \"TikTok \u00b7 \uccb4\ud06c \ud45c\uc2dc\", \"TikTok \u00b7 \uccb4\ud06c \ubc30\uc9c0 \ubc14\ud0d5\", \"TikTok \u00b7 \uacf5\uc720 \ud654\uc0b4\ud45c\", \"TikTok \u00b7 \ub4a4\ub85c\uac00\uae30\", \"TikTok \u00b7 \uac80\uc0c9\", \"TikTok \u00b7 \ud504\ub85c\ud544\", \"TikTok \u00b7 \uc88b\uc544\uc694\", \"TikTok \u00b7 \ub313\uae00\", \"TikTok \u00b7 \uc800\uc7a5\", \"TikTok \u00b7 \uc74c\uc6d0 \uc774\ubbf8\uc9c0\", \"TikTok \u00b7 \uc9c4\ud589 \ub9c9\ub300 \ubc14\ud0d5\", \"TikTok \u00b7 \uc9c4\ud589 \ub9c9\ub300\", \"TikTok \u00b7 \uc9c4\ud589 \ud45c\uc2dc\uc810\", \"TikTok \u00b7 \uc88b\uc544\uc694 \uc218\", \"TikTok \u00b7 \ub313\uae00 \uc218\", \"TikTok \u00b7 \uc800\uc7a5 \uc218\", \"TikTok \u00b7 \uacc4\uc815\uba85\", \"TikTok \u00b7 \uc5c5\ub85c\ub4dc \uc2dc\uc810\", \"TikTok \u00b7 \uc124\uba85\"];\nconst project=selects.project(P.projectId),pm=await project.meta(),state=await selects.editor.state();\nconst visible=state.projectId===P.projectId&&state.onScreenTab?.kind==='draft'?state.onScreenTab.sequenceId:null;\nconst id=P.sequenceId||visible;\nif(!id||!pm.draftIds.includes(id))throw Error('\ud604\uc7ac \ud504\ub85c\uc81d\ud2b8\uc758 \ub4dc\ub798\ud504\ud2b8\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694. / Open a Draft in this project.');\nif(P.requireVisible!==false&&id!==visible)throw Error('\uc5f4\ub9b0 \ub4dc\ub798\ud504\ud2b8\uac00 \ubc14\ub00c\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ud655\uc778\ud574\uc8fc\uc138\uc694. / Refresh the current Draft.');\nconst d=selects.draft(id),meta=await d.meta(),main=await d.clips({trackScope:'main'});\nconst endFrame=main.length?Math.max(...main.map(x=>x.endFrame)):meta.durationFrames;\nconst resources=await project.resources();\nconst imageIds=new Set(resources.filter(x=>TIKTOK_PNG_ALIASES.includes(x.name)).map(x=>x.resourceId));\nconst imageClips=(await d.clips({trackScope:'all'})).filter(x=>x.trackKind!=='main'&&imageIds.has(x.resourceId));\nconst graphics=await d.motionGraphics();\nconst mg=graphics.filter(x=>LEGACY_NAMES.includes(x.name));\nconst oldGraphics=mg;\nconst owned=[...imageClips,...mg.map(x=>x.clip)];\nconst signature=JSON.stringify(owned.map(x=>[x.clipId,x.startFrame,x.endFrame]));\nif(P.action==='inspect')return {id,name:meta.name,count:owned.length,signature,legacy:oldGraphics.length>0||imageClips.length>1};\nif(P.action==='remove'){\n if(P.signature!==signature)throw Error('\uc624\ubc84\ub808\uc774\uac00 \ubc14\ub00c\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ud655\uc778\ud574\uc8fc\uc138\uc694. / Refresh overlay.');\n if(owned.length){await d.removeClips(owned);await d.commitAll('Remove TikTok PNG overlay');}\n return {id,removed:owned.length};\n}\nif(P.action!=='add')throw Error('Unknown action');\nif(meta.frameSize.width!==1080||meta.frameSize.height!==1920||endFrame<=0)throw Error('1080\u00d71920 \uc138\ub85c \ub4dc\ub798\ud504\ud2b8\ub97c \uc0ac\uc6a9\ud574\uc8fc\uc138\uc694. / Use a portrait Draft.');\n// Remove separate legacy graphics and duplicate current PNGs only when explicitly enabled.\nconst obsolete=[...oldGraphics.map(x=>x.clip),...imageClips.slice(1)];\nif(obsolete.length)await d.removeClips(obsolete);\nconst result=await addPreviewPngOverlay(d,P,endFrame);\nif(result.added||obsolete.length)await d.commitAll('Add TikTok PNG overlay with fixed caption');\nreturn {id,added:result.added,converted:obsolete.length>0};\n";
+const STACKED_REFRAME_EFFECT = "import React from \"react\";\nimport {AbsoluteFill} from \"remotion\";\nexport default function ShortformPanels({Source,data}) {\n const {sourceW:W,sourceH:H,windowH,panels}=data;\n return <AbsoluteFill>{panels.map((p,i)=>{\n   const count=p.count || panels.length, slot=p.slot ?? i; const cell=H/count, outH=windowH/count;\n   const w=p.fit === \"contain\" ? Math.max(W,H*1080/outH) : Math.max(1,Math.min(W,p.w)), sc=1080/w;\n   const x=p.fit === \"contain\" ? (W-w)/2 : Math.max(0,Math.min(W-w,p.cx-w/2));\n   const h=outH/sc, y=p.fit === \"contain\" ? (H-h)/2 : h>H ? (H-h)/2 : Math.max(0,Math.min(H-h,p.cy-h*0.4));\n   return <div key={i} style={{position:\"absolute\",left:0,top:slot*cell,width:W,height:cell,overflow:\"hidden\",backgroundColor:\"black\"}}>\n    <div style={{position:\"absolute\",left:-x*W/w,top:-y*H/windowH*sc,width:W,height:H,transformOrigin:\"0 0\",transform:`scale(${W/w},${H/windowH*sc})`}}><Source/></div>\n   </div>;\n })}</AbsoluteFill>;\n}";
+const SCRIPT_APPLY_REFRAME: string = SCRIPT_SOURCE_READER + "const P: any = __P__;\nconst project = selects.project(P.projectId);\nif (!(await project.meta()).draftIds.includes(P.draftId)) throw new Error(\"The output Draft is no longer in this project.\");\nif (!Array.isArray(P.reframe) || !P.reframe.length) throw new Error(\"No framing plan is available.\");\nconst input = await readShortformInput(project, P);\nconst sm = input.meta;\nconst d = selects.draft(P.draftId);\n// Remove only panel clips owned by this app on a retried/ack-lost apply.\nif (P.cameraPanels?.length) {\n  const previous = await d.clips({trackScope:\"all\"});\n  for (const row of previous.filter((c:any)=>c.trackKind === \"video\" && c.resourceId)) {\n    const live=(await d.clips({trackScope:\"all\"})).find((c:any)=>c.clipId===row.clipId&&c.trackId===row.trackId);\n    if ((await d.videoEffects(live)).some((e:any)=>e.name === \"Shortform camera panel\")) await d.removeClips(live);\n  }\n}\nfor (const shot of P.cameraShots || []) {\n  const changed=await d.setVideoAngle({target:await d.rangeAtFrames(shot.startFrame,shot.endFrame),videoIndex:shot.videoIndex});\n  if (changed.uncovered.length) throw new Error(\"The selected camera has a recording gap; no reframing changes were saved.\");\n}\n\nconst readV = async () => (await d.clips({trackScope:\"all\"})).filter((c:any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nif (Array.isArray(P.reframe) && P.reframe.length) {\n    const fitScale = P.transform.scale * (1080 / 1920);\n    const srcW = Number(sm.frameSize?.width) || 1920;\n    // A shot with a width w shows that many source pixels across the window (two people side by side),\n    // centred in the window; other shots keep the template's crop and pan only.\n    const FIT = 1080 / srcW;\n    const winMid = (Number(P.frame.windowTop) + Number(P.frame.windowBottom)) / 2;\n    const r4 = (x: number) => Math.round(x * 10000) / 10000;\n    const placeOf = (shot: any) => {\n      const sc = shot.w ? 1080 / shot.w : fitScale;\n      const inset = Number(P.reframeInset) || 0;\n      const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;\n      const x = r4((Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc)) / 1920) * 100);\n      if (!shot.w) return { scale: P.transform.scale, x, y: P.transform.posY };\n      if (!shot.cy) return { scale: r4(sc / FIT), x, y: r4((-(winMid - 960) / 1920) * 100) };\n      // A close-up puts the face faceY of the way down the window (headroom above it) and keeps the picture\n      // covering the whole window.\n      const top = Number(P.frame.windowTop), bottom = Number(P.frame.windowBottom), half = (1080 / 2) * sc * (Number(sm.frameSize?.height) || 1080) / 1080;\n      const faceY = Number(P.reframeFaceY) || 0.4;\n      const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - shot.cy) * sc));\n      return { scale: r4(sc / FIT), x, y: r4((-(yc - 960) / 1920) * 100) };\n    };\n    const key = (shot: any) => JSON.stringify([placeOf(shot),shot.panels]);\n    const shotAt = (sec: number) =>\n      P.reframe.find((r: any) => sec >= r.start && sec < r.end) || (sec < P.reframe[0].start ? P.reframe[0] : P.reframe[P.reframe.length - 1]);\n    const ws = (await d.words()).filter((w: any) => !w.nonSpeech).map((w: any) => [w.startFrame, P.sourceKind === \"draft\" || P.sourceKind === \"synced\" ? 0 : w.sourceStartFrame / sm.fps]);\n    for (let k = 1; k < ws.length; k++) {\n      if (key(shotAt(ws[k][1])) === key(shotAt(ws[k - 1][1]))) continue;\n      try {\n        await d.splitAt({ frame: ws[k][0] });\n      } catch (e) {\n        const current = await d.clips({trackScope:\"main\"});\n        if (!current.some((c:any)=>c.startFrame === ws[k][0] || c.endFrame === ws[k][0])) throw e;\n      }\n    }\n    const nM = (await d.clips({ trackScope: \"main\" })).length;\n    for (let k = 0; k < nM; k++) {\n      const mc = (await d.clips({ trackScope: \"main\" }))[k];\n      // Keep the preceding shot across wordless passage tails; use the next word for a leading gap.\n      const w = ws.find((x: any) => x[0] >= mc.startFrame && x[0] < mc.endFrame) || ws.filter((x: any) => x[0] < mc.startFrame).pop() || ws.find((x: any) => x[0] >= mc.endFrame);\n      if (!w) continue;\n      const shot = shotAt(w[1]);\n      const pl = placeOf(shot);\n      const vs = (await readV()).filter((c: any) => c.trackKind === \"main\" && c.startFrame >= mc.startFrame && c.startFrame < mc.endFrame);\n      for (let v = 0; v < vs.length; v++) {\n        const c = (await readV()).filter((c2: any) => c2.trackKind === \"main\" && c2.startFrame >= mc.startFrame && c2.startFrame < mc.endFrame)[v];\n        if (shot.panels?.length === 2 && P.stackEffect) {\n          const H = Number(sm.frameSize?.height) || 1080;\n          const windowH = Number(P.frame.windowBottom)-Number(P.frame.windowTop);\n          await d.setClipTransform({clip:c,scale:{x:1,y:windowH/(H*1080/srcW)},position:{x:0,y:(960-winMid)/1920*100}});\n          const fresh = () => d.clips({trackScope:\"main\"}).then((cs:any[])=>cs.find(x=>x.clipId===c.clipId && x.trackId===c.trackId));\n          const old = (await d.videoEffects(await fresh())).find((x:any)=>x.name === \"Shortform stacked framing\");\n          const parameters = {sourceW:srcW,sourceH:H,windowH,panels:shot.panels};\n          if (old) await d.replaceVideoEffect(old,{tsxCode:P.stackEffect,parameters});\n          else await d.addVideoEffect({clip:await fresh(),label:\"Shortform stacked framing\",tsxCode:P.stackEffect,parameters});\n          continue;\n        }\n        await d.setClipTransform({ clip: c, scale: { x: pl.scale, y: pl.scale }, position: { x: pl.x, y: pl.y } });\n      }\n    }\n}\nif (P.cameraPanels?.length) {\n  const windowH=Number(P.frame.windowBottom)-Number(P.frame.windowTop);\n  const winMid=(Number(P.frame.windowBottom)+Number(P.frame.windowTop))/2;\n  // Keep the existing template above newly added picture lanes. Recreate only\n  // this app's own graphics with their current editable values and exact ranges.\n  const graphics:any[]=[];\n  for (const g of await d.motionGraphics()) {\n    if (!(g.name === \"Series frame and headline\" || g.name === \"Date\" || /^Caption \\d+$/.test(g.name))) continue;\n    const program=await d.motionGraphicProgram(g.clip);\n    if (!program) throw new Error(\"Template graphic is unavailable.\");\n    graphics.push({name:g.name,start:g.clip.startFrame,end:g.clip.endFrame,program,transform:await d.clipTransform(g.clip)});\n  }\n  for (const panel of P.cameraPanels) {\n    const source=project.resource(panel.resourceId),meta=await source.meta();\n    const W=meta.frameSize?.width,H=meta.frameSize?.height;\n    if (!(W>0 && H>0)) throw new Error(\"Camera dimensions are unavailable.\");\n    const before=new Set((await d.clips({trackScope:\"all\"})).map((x:any)=>x.trackId+\":\"+x.clipId));\n    await d.overlayResource({resource:source,over:await d.rangeAtFrames(panel.startFrame,panel.endFrame),sourceStartSeconds:panel.sourceStartSeconds,playbackSpeed:panel.playbackSpeed,withSound:false});\n    let clip=(await d.clips({trackScope:\"all\"})).find((x:any)=>x.trackKind === \"video\" && !before.has(x.trackId+\":\"+x.clipId));\n    if (!clip) throw new Error(\"Camera placement did not produce a video clip.\");\n    const id=clip.clipId,track=clip.trackId;\n    const fresh=()=>d.clips({trackScope:\"all\"}).then((xs:any[])=>xs.find(x=>x.clipId===id&&x.trackId===track));\n    await d.setClipTransform({clip,scale:{x:1,y:windowH/(H*1080/W)},position:{x:0,y:(960-winMid)/1920*100}});\n    await d.addVideoEffect({clip:await fresh(),label:\"Shortform camera panel\",tsxCode:P.stackEffect,parameters:{sourceW:W,sourceH:H,windowH,panels:[{cx:W/2,cy:H/2,w:Math.min(W,H*1080/(windowH/panel.count)),...panel.crop,slot:panel.slot,count:panel.count}]}});\n  }\n  for (const g of graphics) {\n    const live=(await d.motionGraphics()).find((x:any)=>x.name===g.name&&x.clip.startFrame===g.start&&x.clip.endFrame===g.end);\n    if (!live) throw new Error(\"Template graphic changed during framing.\");\n    await d.removeClips(live.clip);\n    const placed=await d.addMotionGraphic({label:g.name,tsxCode:g.program.tsxCode,parameters:g.program.parameters,editableParameters:g.program.editableParameters,within:await d.rangeAtFrames(g.start,g.end)});\n    const clip=(await d.clips({trackScope:\"all\"})).find((x:any)=>x.clipId===placed.clipId);\n    const t=g.transform;\n    await d.setClipTransform({clip,position:t.positionKeys.length?undefined:t.position,positionKeys:t.positionKeys.length?t.positionKeys:undefined,\n      scale:t.scaleKeys.length?undefined:t.scale,scaleKeys:t.scaleKeys.length?t.scaleKeys:undefined,\n      rotation:t.rotationKeys.length?undefined:t.rotation,rotationKeys:t.rotationKeys.length?t.rotationKeys:undefined,anchor:t.anchor,flipHorizontal:t.flipHorizontal,flipVertical:t.flipVertical});\n  }\n}\n\nawait d.commitAll(\"Apply shortform reframing\");\nreturn {draftId:P.draftId, reframed:true};\n";
 const SCRIPT_TRANSCRIPT: string = SCRIPT_SOURCE_READER + "// run_script body: return the source transcript as sentence lines with source-second timings, one page at a time.\nconst P: any = __P__;\n// Resource ids are Project-scoped aliases; listing the resources first makes a saved id valid in this\n// session, and the file name finds the same video again if the alias changed.\nconst project = selects.project(P.projectId);\nconst input = await readShortformInput(project, P);\nconst { meta: m, words } = input;\nconst ws = words.filter((w: any) => !w.nonSpeech && String(w.text).trim().length > 0);\nconst lines: any[][] = [];\nlet cur: any[] = [];\nfor (const w of ws) {\n  cur.push(w);\n  if (/[.?!]$/.test(String(w.text)) || cur.length >= 28) {\n    lines.push(cur);\n    cur = [];\n  }\n}\nif (cur.length) lines.push(cur);\nconst r1 = (x: number) => Math.round(x * 10) / 10;\nconst all = lines.map((l) => [r1(l[0].startFrame / m.fps), r1(l[l.length - 1].endFrame / m.fps), l.map((w: any) => String(w.text)).join(\" \")]);\nreturn { duration: m.durationSeconds, total: all.length, lines: all.slice(P.offset, P.offset + P.limit) };\n";
 const PreviewFrame: any = (() => {
 
@@ -295,9 +297,9 @@ const STRINGS: any = {
     builtInNote: "Built-in template. Changes are saved on this computer; Reset to default restores the original.",
     modifiedNote: "Built-in template, changed on this computer.",
     customNote: "Your template.",
-    tabLook: "Look",
+    tabLook: "Design",
     tabCaptions: "Captions",
-    tabAI: "AI",
+    tabAI: "Content",
     preview: "Preview",
     sampleH1: "\"The strongest line here\"",
     sampleH2: "Who said it",
@@ -490,9 +492,9 @@ const STRINGS: any = {
     builtInNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4. \ubc14\uafbc \ub0b4\uc6a9\uc740 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc800\uc7a5\ub418\uace0, \"\uae30\ubcf8\uac12\uc73c\ub85c\"\ub97c \ub204\ub974\uba74 \uc6d0\ub798\ub300\ub85c \ub3cc\uc544\uac11\ub2c8\ub2e4.",
     modifiedNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc744 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \ubc14\uafbc \uc0c1\ud0dc\uc785\ub2c8\ub2e4.",
     customNote: "\uc9c1\uc811 \ub9cc\ub4e0 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4.",
-    tabLook: "\ud654\uba74",
+    tabLook: "디자인",
     tabCaptions: "\uc790\ub9c9",
-    tabAI: "AI",
+    tabAI: "내용",
     preview: "\ubbf8\ub9ac\ubcf4\uae30",
     sampleH1: "\"\uac00\uc7a5 \uc13c \ud55c\ub9c8\ub514\uac00 \uc5ec\uae30\uc5d0\"",
     sampleH2: "\ub204\uac00 \ud55c \ub9d0\uc778\uc9c0",
@@ -1163,6 +1165,11 @@ function validateTemplate(t: any, runtime = false) {
     for (const k of ["gradient1", "gradient2", "strokeColor", "style"]) if (d.headline[k] !== undefined) packAssert(typeof d.headline[k] === "string", "Invalid headline value: " + k);
     for (const k of ["strokeOn"]) if (d.headline[k] !== undefined) packAssert(typeof d.headline[k] === "boolean", "Invalid headline option: " + k);
     for (const k of ["closeUp", "edgeInset", "faceY"]) if (d.layout[k] !== undefined) packAssert(typeof d.layout[k] === "number", "Invalid layout value: " + k);
+    if (d.layout.reframeMode !== undefined) packAssert(["speaker","auto","stacked"].includes(d.layout.reframeMode), "Invalid framing style.");
+    if (d.layout.cameraMode !== undefined) packAssert(["auto","speaker","preserve","stacked"].includes(d.layout.cameraMode), "Invalid camera style.");
+    if (d.layout.minShotSeconds !== undefined) packAssert(Number.isFinite(d.layout.minShotSeconds) && d.layout.minShotSeconds >= 0.5 && d.layout.minShotSeconds <= 10, "Invalid minimum shot duration.");
+    for (const [key,values] of Object.entries({reframePreset:['speaker','conversation','context','custom'],reframeFocus:['speaker','reactions','context'],splitPolicy:['never','selective','frequent'],widePolicy:['never','essential','free'],reframePacing:['calm','balanced','dynamic'],cropMotion:['fixed']})) if(d.layout[key]!==undefined) packAssert(values.includes(d.layout[key]),'Invalid reframing preference: '+key);
+    if (d.layout.reframeInstructions !== undefined) packAssert(typeof d.layout.reframeInstructions === "string" && d.layout.reframeInstructions.length <= 2000, "Invalid framing instructions.");
     for (const k of ["reframe", "splitHalves"]) if (d.layout[k] !== undefined) packAssert(typeof d.layout[k] === "boolean", "Invalid layout option: " + k);
     for (const k of ["left", "width"]) if (d.captions[k] !== undefined) packAssert(typeof d.captions[k] === "number", "Invalid caption value: " + k);
     for (const k of ["highlight", "cleanSpeechText"]) if (d.captions[k] !== undefined) packAssert(typeof d.captions[k] === "boolean", "Invalid caption option: " + k);
@@ -1772,6 +1779,42 @@ function thumbnailPath(jobId: string, draftId: string) {
   if (![jobId,draftId].every(id => /^[a-zA-Z0-9_-]+$/.test(id))) throw new Error("Invalid thumbnail identifier");
   return `thumbnails/${jobId}/${draftId}.jpg`;
 }
+// Heavy local operations share a FIFO; model calls never enter this queue.
+function createWorkQueue() {
+  let tail: Promise<any> = Promise.resolve();
+  return <T,>(task: () => Promise<T>): Promise<T> => {
+    const result = tail.then(task);
+    tail = result.catch(() => {});
+    return result;
+  };
+}
+const visualWork = createWorkQueue();
+function createReframeWork(check: () => void = () => {}) {
+  const faces = createWorkQueue();
+  const cache = new Map<string,Promise<any>>();
+  return {
+    check,
+    face(key: string, task: () => Promise<any>) {
+      const existing = cache.get(key);
+      if (existing) return existing;
+      const result = faces(async()=>{check();return task();});
+      cache.set(key,result);
+      result.catch(() => { if(cache.get(key) === result) cache.delete(key); });
+      return result;
+    },
+  };
+}
+// Bridge silence-removal gaps without repeatedly decoding/model-loading each fragment.
+function cameraFaceRanges(segments: number[][]): number[][] {
+  const out: number[][] = [];
+  for (const range of faceRanges(segments,Infinity,0)) {
+    const previous = out[out.length-1];
+    if (previous && range[0]-previous[1] <= 1) previous[1]=Math.max(previous[1],range[1]);
+    else out.push(range.slice());
+  }
+  return out;
+}
+
 async function readDraftThumbnail(sdk: any, projectId: string, draftId: string) {
   const snapshot = await sdk.call("getDraftMediaSnapshot",projectId,draftId);
   const ends = (snapshot?.clips || []).filter((c: any)=>c.trackKind === "main").map((c: any)=>c.endFrame).filter(Number.isFinite);
@@ -1780,10 +1823,10 @@ async function readDraftThumbnail(sdk: any, projectId: string, draftId: string) 
   const frameNumber = Math.min(Math.round(snapshot.fps),Math.max(0,Math.ceil(end)-1));
   const core = await sdk.call("getDraftCore",draftId);
   if (!core?.owner || core.owner.projectId !== projectId) throw new Error("Draft project mismatch");
-  const image = await sdk.call("captureVisualFrames",{
+  const image = await visualWork(() => sdk.call("captureVisualFrames",{
     owner:core.owner,sequenceId:draftId,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,
     coordinate:"resolved",frames:[{frameNumber,view:"timeline_composite"}],includeOverlays:true,
-  });
+  }));
   if (image?.mimeType !== "image/jpeg" || typeof image.data !== "string" || image.data.length > 4000000 || !image.data) return null;
   return "data:image/jpeg;base64," + image.data;
 }
@@ -1846,6 +1889,37 @@ function ScoreTooltip({assessment,R}: any) {
   </span>;
 }
 
+Object.assign(RESULT_STRINGS.ko, {reframeTokens:"화면 구성 토큰",jobTokens:"전체 작업 토큰",jobTokenScope:"템플릿 판단 · 구간 선택 · 모든 쇼츠의 화면 구성",tokensUnavailable:"미제공",partialTokens:"일부 사용량",tokenFields:["입력","출력","캐시 읽기","캐시 쓰기"]});
+Object.assign(RESULT_STRINGS.en, {reframeTokens:"Reframing tokens",jobTokens:"Total job tokens",jobTokenScope:"Template identification · Segment selection · All clip reframing",tokensUnavailable:"Unavailable",partialTokens:"partial usage",tokenFields:["Input","Output","Cache read","Cache write"]});
+
+Object.assign(RESULT_STRINGS.ko,{stages:{"speakers-wait":"발화 인물 분석 대기",speakers:"음성·입 움직임 분석 중","faces-wait":"얼굴 분석 대기",faces:"얼굴 분석 중","evidence-wait":"화면 자료 준비 대기",evidence:"화면 자료 준비 중",ai:"AI 화면 구성 판단 중",agent:"AI 원본 분석·화면 구성 중","apply-wait":"편집 적용 대기",apply:"편집 적용 중","verify-wait":"결과 검증 대기",verify:"결과 검증 중",thumbnail:"썸네일 생성 중",done:"완료",failed:"실패",pending:"준비 중"}});
+Object.assign(RESULT_STRINGS.en,{stages:{"speakers-wait":"Waiting for speaker analysis",speakers:"Analyzing audio and mouth motion","faces-wait":"Waiting for face analysis",faces:"Analyzing faces","evidence-wait":"Waiting for evidence",evidence:"Preparing evidence",ai:"AI composition planning",agent:"AI source analysis and composition","apply-wait":"Waiting to apply edits",apply:"Applying edits","verify-wait":"Waiting for verification",verify:"Verifying output",thumbnail:"Creating thumbnail",done:"Complete",failed:"Failed",pending:"Preparing"}});
+function clipStageLabel(d:any,R:any) {return R.stages?.[d.progressStage || d.reframeState] || "";}
+
+function reframingTokenLabel(d: any, R: any) {
+  const calls = d.reframeUsageCalls || [];
+  const fields = ["input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"];
+  const known = calls.filter((u: any) => u && fields.some(k => Number.isFinite(u[k]) && u[k] >= 0));
+  if (!known.length) return R.tokensUnavailable;
+  const parts = fields.map((key, i) => {
+    const values = known.map((u: any) => u[key]).filter((v: any) => Number.isFinite(v) && v >= 0);
+    return values.length ? `${R.tokenFields[i]} ${values.reduce((a: number,b: number)=>a+b,0).toLocaleString()}` : null;
+  }).filter(Boolean);
+  const partial = known.length !== calls.length || known.some((u: any)=>!Number.isFinite(u.input_tokens)||!Number.isFinite(u.output_tokens));
+  return parts.join(" · ") + (partial ? ` (${R.partialTokens})` : "");
+}
+
+function jobTokenLabel(job: any, R: any) {
+  const calls = (job.sharedUsageCalls || []).map((call: any) => call.usage ?? null);
+  // Older jobs may have already completed shared stages without telemetry.
+  if (job.usageTracking !== true) calls.push(null);
+  for (const clip of job.built || []) {
+    if (!clip || clip.reframeState === "skipped") continue;
+    calls.push(...(clip.reframeUsageCalls?.length ? clip.reframeUsageCalls : [null]));
+  }
+  return reframingTokenLabel({reframeUsageCalls:calls}, R);
+}
+
 function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, store, jobId, projectId }: any) {
   const [expanded, setExpanded] = React.useState(false);
   const [overflow, setOverflow] = React.useState(false);
@@ -1876,6 +1950,7 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
     </button> : <DraftThumbnail sdk={sdk} store={store} jobId={jobId} projectId={projectId} R={R}/>}
     <div className="clip-result-copy" style={{minWidth:0,display:"flex",flexDirection:"column",gap:6}}>
       <strong>{d.headline1}</strong>
+      {clipStageLabel(d,R) && <small>{clipStageLabel(d,R)}</small>}
       {(d.headline2 || d.seconds != null) && <small style={{lineHeight:1.5}}>{[d.headline2,d.seconds != null ? S.seconds(d.seconds) : null].filter(Boolean).join(" · ")}</small>}
       {d.why && <>
         <small ref={description} style={{ lineHeight: 1.5, whiteSpace: "pre-wrap", ...(expanded ? {} : { ...CLAMP2, WebkitLineClamp: 3 }) }}>{d.why}</small>
@@ -1883,6 +1958,7 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
           style={{alignSelf:"flex-start",width:"auto",minHeight:0,border:0,borderRadius:0,boxShadow:"none",background:"none",padding:0,color:"var(--panel-muted-fg)",font:"inherit",fontSize:12,textDecoration:"underline",textUnderlineOffset:2,cursor:"pointer"}}
           onClick={() => setExpanded(true)}>{R.more}</button>}
       </>}
+      <small style={{lineHeight:1.5}}>{R.reframeTokens}: {reframingTokenLabel(d,R)}</small>
       {d.error && <ui.Message tone="error">{d.error}</ui.Message>}
     </div>
     <div className="clip-result-actions" style={{display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end",minWidth:0}}>
@@ -1902,7 +1978,7 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
 function ClipRunProgress({ui,S,R,job,busy,step,sub,statusLine,cancelling,onCancel}: any) {
   if (!busy) return null;
   const total = job?.choice?.clips?.length || 0;
-  const completed = job?.built?.filter((d: any)=>d?.draftId).length || 0;
+  const completed = job?.built?.filter((d: any)=>d?.draftId && d.reframeState !== "pending" && d.reframeState !== "failed").length || 0;
   const value = step === 4 && total ? completed / total : Math.max(0,Math.min(1,(step+sub)/S.steps.length));
   const label = step === 4 && total ? R.createdCount(completed,total) : S.steps[step] || S.thisRun;
   return <div style={{...CARD,marginBottom:16}} role="status" aria-live="polite">
@@ -1914,6 +1990,7 @@ function ClipRunProgress({ui,S,R,job,busy,step,sub,statusLine,cancelling,onCance
       {job && <small style={CLAMP2}>{job.title || job.resourceName || job.url}</small>}
       <ui.Progress value={value} label={label} />
       {statusLine && <small>{statusLine}</small>}
+      {step === 4 && job?.built?.filter(Boolean).map((d:any,i:number)=><small key={d.draftId || i}>{i+1}. {d.headline1} · {clipStageLabel(d,R)}{d.progressAt && d.progressStage !== "done" && d.progressStage !== "failed" ? ` · ${S.elapsed(Math.max(0,Math.floor((Date.now()-d.progressAt)/1000)))}` : ""}</small>)}
     </ui.Stack>
   </div>;
 }
@@ -2014,7 +2091,7 @@ async function compactLogo(url:string):Promise<string>{
 // ---- Template editor ----
 
 
-const RADIO_SCRIPT_BUILD: string = SCRIPT_SOURCE_READER + "// run_script body: build one series clip as an editable Draft from a template.\n// The clip parameters are injected at runtime; the frame and caption templates at build time.\nconst P: any = __P__;\nconst FRAME_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nfunction Logo(_props: any) { return null; }\\n\\nexport default function SeriesFrame({ data }) {\\n  const series = String(data?.series ?? 'newsdirect');\\n  const W = 1080, H = 1920;\\n  const top = Number(data?.windowTop ?? 420);\\n  const bottom = Number(data?.windowBottom ?? 1255);\\n  const bg = String(data?.background ?? '#1E1F22');\\n  const h1 = String(data?.headline1 ?? '');\\n  const h2 = String(data?.headline2 ?? '');\\n  const size1 = Number(data?.headlineSize1 ?? 84);\\n  const size2 = Number(data?.headlineSize2 ?? size1);\\n  const color1 = String(data?.headlineColor1 ?? '#FFFFFF');\\n  const color2 = String(data?.headlineColor2 ?? '#FFFFFF');\\n  const box2 = String(data?.headline2Box ?? '');\\n  const italic = Boolean(data?.headlineItalic ?? false);\\n  const headlineCenter = Number(data?.headlineCenter ?? top / 2 + 40);\\n  const captionBar = Number(data?.captionBarHeight ?? 0);\\n  const logoCenter = Number(data?.logoCenter ?? (bottom + captionBar + H) / 2);\\n  const border = Boolean(data?.goldBorder ?? false);\\n  const shadow = String(data?.headlineShadow ?? '0 4px 10px rgba(0,0,0,.55)');\\n  const strokeColor = String(data?.headlineStrokeColor ?? '');\\n  const strokeWidth = strokeColor ? Number(data?.headlineStrokeWidth ?? 12) : 0;\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const headFont = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const bgImage = String(data?.backgroundImage ?? '');\\n  const bgDim = Math.max(0, Math.min(90, Number(data?.backgroundDim ?? 0)));\\n  const borderColor = String(data?.borderColor ?? '#C9A45C');\\n  const logoMode = String(data?.logoMode ?? 'art');\\n  const logoImage = String(data?.logoImage ?? '');\\n  const logoWidth = Number(data?.logoWidth ?? 600);\\n  // A background image is one 1080x1920 picture shown only where the video window is not.\\n  const band = (y, h) =>\\n    bgImage ? (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, backgroundImage: `url(${bgImage})`, backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px` }}>\\n        {bgDim > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: h, background: `rgba(0,0,0,${bgDim / 100})` }} /> : null}\\n      </div>\\n    ) : (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, background: bg }} />\\n    );\\n  const est = (t) => Array.from(t).reduce((w, ch) => w + (/[\\\\uAC00-\\\\uD7A3\\\\u4E00-\\\\u9FFF]/.test(ch) ? 0.93 : ch === ' ' ? 0.27 : /[0-9A-Za-z%]/.test(ch) ? 0.6 : 0.4), 0);\\n  const fit = (t, size, maxW) => Math.min(size, Math.floor(maxW / Math.max(1, est(t)) - 2));\\n  const lineStyle = (size, color) => ({\\n    fontSize: size, fontWeight: 900, color, lineHeight: 1.16, letterSpacing: '-2px',\\n    fontStyle: italic ? 'italic' : 'normal', whiteSpace: 'nowrap', textShadow: shadow,\\n    WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : `${Math.max(1, Math.round(size * 0.035))}px ${color}`, paintOrder: 'stroke fill',\\n  });\\n  const s1 = fit(h1, size1, 1010);\\n  const s2 = fit(h2, size2, box2 ? 970 : 1010);\\n  const grad1 = String(data?.headlineGradient1 ?? '');\\n  const grad2 = String(data?.headlineGradient2 ?? '');\\n  // Text with an optional gradient fill: the outline and shadow are drawn by a copy underneath, because a\\n  // gradient clipped to the glyphs cannot carry a stroke of its own.\\n  const Deco = ({ text, style, grad, stroke, strokeW, shadowCss }) =>\\n    grad ? (\\n      <div style={{ position: 'relative', ...style }}>\\n        <div style={{ position: 'absolute', left: 0, top: 0, right: 0, color: stroke || 'transparent', WebkitTextStroke: strokeW > 0 ? `${strokeW}px ${stroke}` : '0px transparent', paintOrder: 'stroke fill', textShadow: shadowCss }}>{text}</div>\\n        <div style={{ position: 'relative', background: grad, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' }}>{text}</div>\\n      </div>\\n    ) : (\\n      <div style={{ ...style, WebkitTextStroke: strokeW > 0 ? `${strokeW}px ${stroke}` : style.WebkitTextStroke, paintOrder: 'stroke fill', textShadow: shadowCss }}>{text}</div>\\n    );\\n  const Line = ({ text, size, color, grad }) =>\\n    grad ? (\\n      <Deco text={text} style={{ ...lineStyle(size, color), WebkitTextStroke: undefined, textShadow: undefined }} grad={grad} stroke={strokeWidth > 0 ? strokeColor : color} strokeW={strokeWidth} shadowCss={shadow} />\\n    ) : (\\n      <div style={lineStyle(size, color)}>{text}</div>\\n    );\\n  const label = (key) => {\\n    const text = String(data?.[key] ?? '');\\n    if (!text) return null;\\n    const size = Number(data?.[key + 'Size'] ?? 40);\\n    const cx = Number(data?.[key + 'X'] ?? W / 2);\\n    const y = Number(data?.[key + 'Y'] ?? 100);\\n    const style = { fontSize: size, fontWeight: Number(data?.[key + 'Weight'] ?? 800), color: String(data?.[key + 'Color'] ?? '#FFFFFF'), lineHeight: 1.16, letterSpacing: '-1px', whiteSpace: 'nowrap', fontFamily: headFont };\\n    const sw = Number(data?.[key + 'StrokeWidth'] ?? 0);\\n    return (\\n      <div key={key} style={{ position: 'absolute', left: cx - 540, width: 1080, top: y, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        <Deco text={text} style={style} grad={String(data?.[key + 'Gradient'] ?? '')} stroke={String(data?.[key + 'StrokeColor'] ?? '#000000')} strokeW={sw} shadowCss={String(data?.[key + 'Shadow'] ?? 'none')} />\\n      </div>\\n    );\\n  };\\n  return (\\n    <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: H, fontFamily: FONT, pointerEvents: 'none' }}>\\n      {band(0, top)}\\n      {band(bottom, H - bottom)}\\n      {captionBar > 0 ? <div style={{ position: 'absolute', left: 0, top: bottom, width: W, height: captionBar, background: '#000000' }} /> : null}\\n      {border ? (\\n        <>\\n          <div style={{ position: 'absolute', left: 22, top: 22, width: W - 44, height: top - 22, borderTop: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n          <div style={{ position: 'absolute', left: 22, top: bottom, width: W - 44, height: H - bottom - 22, borderBottom: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n        </>\\n      ) : null}\\n      <div style={{ position: 'absolute', left: 30, width: W - 60, top: headlineCenter, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: box2 ? 14 : Number(data?.headlineGap ?? 2), textAlign: 'center', fontFamily: headFont }}>\\n        {h1 ? <Line text={h1} size={s1} color={color1} grad={grad1} /> : null}\\n        {h2 ? (\\n          box2 ? (\\n            <div style={{ ...lineStyle(s2, color2), textShadow: 'none', background: box2, padding: '4px 18px 8px' }}>{h2}</div>\\n          ) : (\\n            <Line text={h2} size={s2} color={color2} grad={grad2} />\\n          )\\n        ) : null}\\n      </div>\\n      {label('topLabel')}\\n      {label('footer')}\\n      <div style={{ position: 'absolute', left: 0, width: W, top: logoCenter, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        {logoMode === 'none' ? null : logoMode === 'image' && logoImage ? (\\n          <img src={logoImage} style={{ width: logoWidth, height: 'auto', display: 'block' }} />\\n        ) : (\\n          <Logo series={series} />\\n        )}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst DATE_TSX: string = \"import React from 'react';\\n\\n// One line of text centred on (x, y): the episode date under the logo.\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function DateLabel({ data }) {\\n  const d = data || {};\\n  const text = String(d.text ?? '');\\n  if (!text) return null;\\n  const family = typeof d.fontFamily === 'string' ? d.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const sw = Number(d.strokeWidth ?? 0);\\n  return (\\n    <div style={{ position: 'absolute', left: Number(d.x ?? 540) - 540, width: 1080, top: Number(d.y ?? 1564), transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>\\n      <div\\n        style={{\\n          fontFamily: font, fontSize: Number(d.fontSize ?? 55), fontWeight: Number(d.fontWeight ?? 900), color: String(d.textColor ?? '#0C6E62'),\\n          lineHeight: 1.16, letterSpacing: '-1px', whiteSpace: 'nowrap', textShadow: String(d.shadow ?? 'none'),\\n          ...(sw > 0 ? { WebkitTextStroke: `${sw}px ${String(d.strokeColor ?? '#000000')}`, paintOrder: 'stroke fill' } : {}),\\n        }}\\n      >\\n        {text}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst CAPTION_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function ClipCaption({ data }) {\\n  const lines = String(data?.text ?? '').split('\\\\n');\\n  const mode = String(data?.mode ?? 'bar');\\n  const size = Number(data?.fontSize ?? 66);\\n  const weight = Number(data?.fontWeight ?? 600);\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const color = String(data?.textColor ?? '#FFFFFF');\\n  const mark = String(data?.highlightColor ?? '');\\n  // *word* is a highlighted word; without a highlight colour the asterisks are simply dropped.\\n  const rich = (line) =>\\n    line.split(/(\\\\*[^*]+\\\\*)/).map((part, j) =>\\n      /^\\\\*[^*]+\\\\*$/.test(part) ? <span key={j} style={mark ? { color: mark } : undefined}>{part.slice(1, -1)}</span> : part.replace(/\\\\*/g, '')\\n    );\\n  if (mode === 'bar') {\\n    const top = Number(data?.top ?? 1255);\\n    const height = Number(data?.height ?? 230);\\n    return (\\n      <div style={{ position: 'absolute', left: 40, width: 1000, top, height, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: font, pointerEvents: 'none' }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.28, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{rich(line)}</div>\\n        ))}\\n      </div>\\n    );\\n  }\\n  const bottom = Number(data?.bottom ?? 1440);\\n  const box = String(data?.boxColor ?? 'rgba(0,0,0,0.62)');\\n  return (\\n    <div style={{ position: 'absolute', left: 40, width: 1000, top: 0, height: bottom, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', fontFamily: font, pointerEvents: 'none' }}>\\n      <div style={{ background: box, padding: '10px 26px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: 4 }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.3, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{rich(line)}</div>\\n        ))}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\n\n// ---- Captions: one caption per thought ----\n// A caption ends where the speaker's sentence ends or another speaker starts, never in the middle of one.\n// A sentence too long for two lines is divided where a listener would pause (a comma, a breath, the end\n// of a clause), in pieces of similar length, and never between words that belong together (\"\uac08 \uc218 /\n// \uc788\uc744\uae4c\", \"\uadf8 / \uac00\uc218\", \"the / house\"). Each word is [text, startFrame, endFrame, sourceStartFrame,\n// speakerId, utteranceId].\n// Sounds a speaker makes while thinking; they are not captioned.\nconst FILLER = /^(\uc5b4|\uc74c|\uc544|\uc5d0|\uc73c|\ud760|uh|um|er|ah|hmm)[.,\u2026~]*$/i;\n// A word that leans on the next one: breaking after it leaves it stranded.\nconst LEANS_FORWARD =\n  /^(\uadf8|\uc774|\uc800|\ud55c|\ub450|\uc138|\ub124|\uba87|\uc5b4\ub5a4|\ubb34\uc2a8|\uc5b4\ub290|\uc774\ub7f0|\uadf8\ub7f0|\uc800\ub7f0|\ubaa8\ub4e0|\uac01|\uc0c8|\uccab|\ub2e4\ub978|\uc5ec\ub7ec|\uc57d|\ub354|\ub35c|\uac00\uc7a5|\uc81c\uc77c|\ub108\ubb34|\uc544\uc8fc|\ub9e4\uc6b0|\uc815\ub9d0|\uc9c4\uc9dc|\ucc38|\uc880|\uc798|\ubabb|\uc548|\uaf2d|\ub2e4\uc2dc|\uacc4\uc18d|\uac70\uc758|\uc774\ubbf8|\uc544\uc9c1|\ubc14\ub85c|\uadf8\ub0e5|\uadf8\ub9ac\uace0|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7f0\ub370|\uadfc\ub370|\uadf8\ub7ec\ub2c8\uae4c|\uadf8\ub7fc|\ud558\uc9c0\ub9cc|\uadf8\ub807\uc9c0\ub9cc|\uadf8\ub7ec\ub098|\ub610|\ub610\ub294|\ud639\uc740|\uc989|\uc65c\ub0d0\ud558\uba74|\uc608\ub97c|\ub9cc\uc57d|\uc5b4\ub5bb\uac8c|\uc774\ub807\uac8c|\uadf8\ub807\uac8c|\uc800\ub807\uac8c|\uc65c|\uc5bc\ub9c8\ub098|\ub9ce\uc774|\ube68\ub9ac|\uba3c\uc800|\ub2e4\uc74c|a|an|the|to|of|in|on|at|for|with|by|from|about|into|over|under|after|before|between|through|during|without|and|or|but|so|which|who|is|are|was|were|be|i|he|she|we|they|my|your|his|her|our|their|this|these|those|very|not|as|if|than)$/i;\n// A word that leans on the one before it: breaking before it cuts a phrase in two (\"\uac08 \uc218\", \"\ud560 \ub54c\ub3c4\",\n// \"\uc788\ub294 \uac78\ub85c\", \"\ubc15\uc9c4\uc601 \uc528\", \"\uc5d0\ub3c4 \ubd88\uad6c\ud558\uace0\"). These are dependent nouns with at most a particle after them;\n// an ordinary noun that merely starts the same way (\"\uc218\uc0c1\uc790\uac00\", \"\uac70\ub9ac\") does not match.\nconst PARTICLE =\n  \"(?:\uc774|\uac00|\uc740|\ub294|\uc744|\ub97c|\ub3c4|\ub9cc|\uc5d0|\uc758|\ub85c|\uc640|\uacfc|\uc73c\ub85c|\uc5d0\uc11c|\uc5d0\uac8c|\ud55c\ud14c|\uae4c\uc9c0|\ubd80\ud130|\ub9c8\ub2e4|\ucc98\ub7fc|\uc774\ub098|\ub77c\ub3c4|\ubc16\uc5d0|\uae4c\uc9c0\ub294|\uc5d0\ub294|\uc5d0\ub3c4|\ub85c\ub294|\ub85c\ub3c4|\uc5d0\uc11c\ub294|\uc774\ub791|\ub791|\ub791\uc740|\uc774\ub77c\uace0|\ub77c\uace0|\uc774\ub77c|\uc57c|\uc694|\uc8e0|\uc608\uc694|\uc774\uc5d0\uc694|\uc785\ub2c8\ub2e4|\uc774\ub2e4|\uc778\ub370|\uc774\uace0|\uc774\uc9c0|\uc774\uc8e0|\ub4e0|\ub098|\ub4e4)?\";\nconst LEANS_BACK = new RegExp(\n  \"^(?:(?:\uc218|\uac83|\uc904|\ub54c|\uc801|\ub370|\ubc14|\ubfd0|\ub4ef|\uc911|\ub4f1|\ub3d9\uc548|\uc815\ub3c4|\ub54c\ubb38|\ub9cc\ud07c|\uc528|\ub2d8|\uce21|\ucabd)\" +\n    PARTICLE +\n    \"|(?:\uc7a5\uad00|\ucc28\uad00|\uc758\uc6d0|\ub300\ud45c|\uc704\uc6d0\uc7a5|\uc704\uc6d0|\ud68c\uc7a5|\uc0ac\uc7a5|\uc758\uc7a5|\ub300\ud1b5\ub839|\ucd1d\ub9ac|\uad50\uc218|\ubc15\uc0ac|\uae30\uc790|\uac10\ub3c5|\uc120\uc218|\uc791\uac00|\ud300\uc7a5|\uc2e4\uc7a5|\ubd80\uc7a5|\uacfc\uc7a5|\uc774\uc0ac|\ud6c4\ubcf4|\ubcc0\ud638\uc0ac|\uac80\uc0ac|\ud310\uc0ac|\uc575\ucee4)\ub2d8?\" +\n    PARTICLE +\n    \"|(?:\uac70|\uac8c|\uac74|\uac78)(?:\uc608\uc694|\uc5d0\uc694|\uc8e0|\uc57c|\uc9c0|\uace0|\ub4e0\uc694|\ub77c|\ub77c\uace0|\ub77c\uc11c|\ub2c8\uae4c|\uc796\uc544\uc694|\ub2e4|\ub294|\ub97c|\ub85c|\ub3c4|\ub098|\ub4e0|\ub791|\uac00|\uba74)?|\uac81\ub2c8\ub2e4|\uac19\uc740|\uac19\uc774|\ucc98\ub7fc|\ubcf4\ub2e4|\ub300\ub85c|\ub9c8\ub2e4|\ubc16\uc5d0|\ubd88\uad6c\ud558\uace0|\ubabb[\uac00-\ud7a3]+|\uc544\ub2c8[\uac00-\ud7a3]+\" +\n    \"|(?:\ud558|\ud574|\ud588|\ud560|\ud55c\ub2e4|\ud569|\ub418|\ub3fc|\ub410|\ub420|\ub41c\ub2e4|\ub429)[\uac00-\ud7a3]{0,4})[.,?!]*$\"\n);\nconst NOT_A_VERB = /^(\ud558\ub098|\ud558\ub298|\ud558\ub8e8|\ud558\ubc18\uae30|\ud558\ub77d|\ud558\uc704|\ud574\uc678|\ud574\uacb0|\ud574\uc11d|\ud574\ub2f9|\ud574\uccb4|\ud574\uba85|\ud574\uc9c0|\ud574\uc124|\ud574\ub2f5|\ud560\uba38\ub2c8|\ud560\uc544\ubc84\uc9c0|\ud560\uc778|\ud569\uc758|\ud569\uaca9|\ud569\uacc4|\ud569\ub958|\ud569\uc791|\ub418\ub808)/;\n// A unit that follows a number (\"200\ub9cc \uc6d0\", \"4\uac1c\uc0ac\").\nconst COUNTER = /^(\uc6d0|\uba85|\uac1c|\ubc88|\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uc0b4|\uc5b5|\ub9cc|\ucc9c|\ubc31|\ubc30|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc704|\ucc28|\ud68c|\ub300|\uacf3|\uac00\uc9c0|\uac1c\uc0ac|\uac1c\uc6d4|\uc2dc\uac04|\uc8fc|\uc8fc\uc77c)[\uac00-\ud7a3]{0,2}[.,?!]*$/;\n// A word describing the next one (\"\uace0\ubc1c\ub420 \ud655\ub960\", \"\ub2f9\uc5f0\ud55c \uc758\uc2ec\", \"\ud558\uace0 \uc2f6\uc740 \ub9c8\uc74c\").\nconst DESCRIBES_NEXT = /(\ud558\ub294|\ub418\ub294|\uc788\ub294|\uc5c6\ub294|\ub77c\ub294|\ub2e4\ub294|\uc54a\ub294|\uac19\uc740|\uc2f6\uc740|\ub9ce\uc740|\uc88b\uc740|\ub192\uc740|\uc791\uc740|\ud070|\ub41c|\ub358|\uc788\uc744|\uc5c6\uc744|\ubc1b\uc744|\uac19\uc744|[\uac00-\ud7a3]\ud55c|[\ud560\ub420\uac08\uc62c\ubcfc\uc4f8\ub0bc\ube84\uafc0\ud0ac\ub9b4\ub084])$/;\n// Korean words normally end in a particle or an ending; one that does not is usually the first half of a\n// compound or an adverb, and belongs with what follows (\"\ubb38\uccb4\ubd80 \uc7a5\uad00\", \"\ud68c\uc0ac \uc77c\", \"\ub300\uad00 \ubd80\uc11c\").\nconst MARKED_END = /[\uc740\ub294\uc774\uac00\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\uc11c\uace0\uc694\ub2e4\uc8e0\uae4c\ub124\ub098\uba70\uba74\uc9c0\uac8c\ub370\uc57c\ub77c\uc790\ub2c8\uaed8\ub791\ub4e0\uc529\uc74c\uc784\uc5b4\uc544\ud574\ub3fc\ub798\ub300\uac78\uac74\uc918\ubd10\uc6cc\uc838\uc5ec]$/;\nconst HANGUL = /[\uac00-\ud7a3]/;\nconst NUMBER_WORD = /^([0-9]+|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+|\ud55c|\ub450|\uc138|\ub124|\ub2e4\uc12f|\uc5ec\uc12f|\uc77c\uacf1|\uc5ec\ub35f|\uc544\ud649|\uc5f4)$/;\nconst STARTS_NUMBER = /^([0-9]|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]|\ud55c |\ub450 |\uc138 |\ub124 )/;\n// The end of a clause in Korean, or a comma: a natural place to stop.\nconst CLAUSE_END = /(\uace0|\uba70|\uc11c|\uba74|\ub294\ub370|\uc740\ub370|\uc778\ub370|\ub2c8\uae4c|\uc9c0\ub9cc|\ub2e4\uac00|\uba74\uc11c|\ub824\uace0|\ub3c4\ub85d|\uac70\ub098|\ub354\ub2c8|\ub2e4\uba74|\ub77c\uba74)[,]?$/;\n// \"\uc788\ub2e4 / \uc5c6\ub2e4 / \uc54a\ub2e4 / \uc2f6\ub2e4\" finish a verb phrase (\"\uac08 \uc218 \uc788\uc744\uae4c\", \"\uc27d\uc9c0 \uc54a\uc796\uc544\uc694\", \"\ud558\uace0 \uc2f6\uc740\"); after a\n// plain subject (\"\ud655\ub960 \uc788\ub294\") they pull much less.\nconst FINISHES_VERB = /^(\uc788|\uc5c6|\uc54a|\uc2f6)[\uac00-\ud7a3]*[.,?!]*$/;\nconst OPENS_VERB = /((\uc218|\uc904|\uc801|\ub9ac|\ud544\uc694)(\uac00|\ub294|\uc740|\ub3c4|\ub97c|\uc774)?|\uace0|\uc9c0|\uc5b4|\uc544|\uac8c|\ud574|\uc57c|\uc11c|\ub3c4)$/;\n// A word a new clause opens with: breaking before it is natural (\"\uc544\ud2f0\uc2a4\ud2b8 / \ud639\uc740 \ud68c\uc0ac\ub4e4\uc744\").\nconst OPENS_CLAUSE = /^(\ud639\uc740|\ub610\ub294|\uadf8\ub9ac\uace0|\ubc0f|\uadfc\ub370|\uadf8\ub7f0\ub370|\ud558\uc9c0\ub9cc|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7ec\ub2c8\uae4c|\uc65c\ub0d0\ud558\uba74|and|or|but|so|because|we|they|i|he|she|which|who|when|where|while|if|although|though|then)$/i;\nconst SENTENCE_END = /[.?!\u3002\uff1f\uff01\u2026][\"'\u201d\u2019)]?$/;\n\n// Numbers said in Korean are shown in digits when a unit follows: \"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\" -> \"11\uac1c\uc6d4\uc9f8\",\n// \"\uc774\ucc9c\uc0bc\ub144\ub3c4\uc600\uc5b4\uc694\" -> \"2003\ub144\ub3c4\uc600\uc5b4\uc694\", \"\uce60\uc5b5\uc774\" -> \"7\uc5b5\uc774\". A numeral with no unit, or one that is also an\n// everyday word (\"\uc774\ubc88\", \"\uc2ed\ubd84\", \"\uc0ac\ud68c\", \"\uc624\ucc28\", \"\uc774\ucc9c\uc2dc\"), stays as it was said.\nconst KO_ONES: any = { \uc77c: 1, \uc774: 2, \uc0bc: 3, \uc0ac: 4, \uc624: 5, \uc721: 6, \uce60: 7, \ud314: 8, \uad6c: 9 };\nconst KO_PLACES: any = { \uc2ed: 10, \ubc31: 100, \ucc9c: 1000 };\nconst KO_NUMERAL = /^[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+/;\nconst UNIT_LONG = /^(\uac1c\uc6d4|\ub144\ub3c4|\ub144\ub300|\ub144\uac04|\ub144\uc9f8|\ub144\uc0dd|\ub144\ucc28|\uc8fc\uc77c|\uc8fc\ub144|\uc8fc\uac04|\uc2dc\uac04|\ubd84\uac04|\ucd08\uac04|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc720\ub85c|\ud0ac\ub85c|\ubbf8\ud130|\uc13c\ud2f0|\uadf8\ub7a8|\ub9ac\ud130|\ud559\ub144|\uc138\uae30|\ubd84\uae30|\uc778\ubd84|\uac1c\uad6d|\uac1c\uc0ac|\uac1c\ub144|\ud68c\ucc28|\ub4f1\uae09|\ub2e8\uacc4|\uc138\ub300)/;\nconst UNIT_SHORT = /^(\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uba85|\uac1c|\ubc88|\uc6d0|\uc704|\ub4f1|\ucc28|\ud68c|\uce35|\ud638|\ub300|\uc138|\uc778|\ubc30|\ud3b8|\uace1|\uc7a5|\uad8c|\ud300|\uc2b9|\ud328|\uace8|\uc810|\ud3c9|\uac74|\ud45c|\uc8fc|\uc0b4)/;\n// One-syllable numerals joined to a one-syllable unit are mostly other words (\"\uc774\ubc88\", \"\uc0ac\ud68c\", \"\uc624\ucc28\",\n// \"\uc77c\uba85\"); only these are numbers for certain.\nconst SURE_SHORT = /^([\uc77c\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\ub144|[\uc77c\uc0bc\uc0ac\uc624\uce60\ud314\uad6c]\uc6d4|[\uc77c\uc774\uc0bc]\ucc28|[\uc77c\uc774\uc0bc]\ub4f1|[\uc77c\uc774]\uc704|\uc2ed\ub300|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\uce35|[\uc77c\uc0bc\uc624\uc2ed]\ucd08)/;\nconst MONTH_WORD: any = { \uc720\uc6d4: \"6\uc6d4\", \uc2dc\uc6d4: \"10\uc6d4\" };\n\nfunction koNumber(run: string): number | null {\n  let total = 0;\n  let group = 0;\n  let ones = 0;\n  let place = 10000;\n  let big = Infinity;\n  for (const ch of run) {\n    if (KO_ONES[ch]) {\n      if (ones) return null; // two digits in a row: \"\uc0bc\uc0ac\", \"\uc774\uc77c\"\n      ones = KO_ONES[ch];\n    } else if (KO_PLACES[ch]) {\n      if (KO_PLACES[ch] >= place) return null;\n      place = KO_PLACES[ch];\n      group += (ones || 1) * place;\n      ones = 0;\n    } else {\n      const unit = ch === \"\uc5b5\" ? 1e8 : 1e4;\n      if (unit >= big) return null;\n      big = unit;\n      total += (group + ones || 1) * unit;\n      group = 0;\n      ones = 0;\n      place = 10000;\n    }\n  }\n  return total + group + ones;\n}\n// 2003 -> \"2003\", 700000000 -> \"7\uc5b5\", 40000000 -> \"4\ucc9c\ub9cc\", 35000000 -> \"3500\ub9cc\".\nfunction koShown(n: number): string {\n  if (n < 10000) return String(n);\n  const part = (v: number, unit: string) => (v ? (v >= 1000 && v % 1000 === 0 ? v / 1000 + \"\ucc9c\" : String(v)) + unit : \"\");\n  const rest = n % 10000;\n  return part(Math.floor(n / 1e8), \"\uc5b5\") + part(Math.floor((n % 1e8) / 1e4), \"\ub9cc\") + (rest ? String(rest) : \"\");\n}\n// A unit ends the number only when the word stops there or goes on with a particle or an ending; \"\ud504\ub85c\" in\n// \"\ud504\ub85c\uc81d\ud2b8\" and \"\uc138\ub300\" in \"\uc138\ub300\uc8fc\" are other words.\nconst AFTER_UNIT = /^([\uc774\uac00\uc740\ub294\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\ub098\ubd80\uae4c\uc11c\ubc16\ub9c8\uc9f8\uac04\ucbe4\uc529\uc9dc\uc5ec\uc600\uc785\uc608\uc778\ub3d9\uc804\ud6c4\ub4a4\uc815\uc548\ub54c\uc0dd][\uac00-\ud7a3]*)?[.,?!]*$/;\nconst unitIn = (units: RegExp, text: string): string | null => {\n  const m = units.exec(text);\n  return m && AFTER_UNIT.test(text.slice(m[1].length)) ? m[1] : null;\n};\n// What may follow a number of this size: a clock has 24 hours and a year 12 months (\"\uc774\ucc9c\uc2dc\" is a city).\nconst fitsUnit = (unit: string, n: number) => (unit === \"\uc2dc\" ? n <= 24 : unit === \"\uc6d4\" ? n <= 12 : true);\n\nfunction koDigits(word: string, next: string | null): string {\n  for (const m of Object.keys(MONTH_WORD)) if (word.startsWith(m) && !/^[\uac00-\ud7a3]{2,}/.test(word.slice(m.length).replace(/^(\uc5d0|\uc740|\ub294|\uc774|\uac00|\ub3c4|\ubd80\ud130|\uae4c\uc9c0|\ub2ec|\uc758|\uc5d0\ub294|\uc5d0\ub3c4)/, \"\"))) return MONTH_WORD[m] + word.slice(m.length);\n  const found = word.match(KO_NUMERAL);\n  if (!found) return word;\n  for (let len = found[0].length; len >= 1; len--) {\n    const run = found[0].slice(0, len);\n    const n = koNumber(run);\n    if (!n) continue;\n    const rest = word.slice(len);\n    const alone = /^[.,?!]*$/.test(rest);\n    // The unit is in this word (\"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\"), or it is the next word (\"\uc774\uc2ed \uba85\").\n    const after = alone ? String(next || \"\") : rest;\n    const short = unitIn(UNIT_SHORT, after);\n    let ok = false;\n    if (unitIn(UNIT_LONG, after)) ok = run !== \"\uc774\" || !alone;\n    else if (short && fitsUnit(short, n)) ok = run.length >= 2 ? !/^[\uc5b5\ub9cc]$/.test(run.slice(-1)) || /^(\uc6d0|\uba85|\uac1c|\ub144|\ud3c9|\ub300|\uc7a5|\uac74|\ud45c|\ubc30)$/.test(short) : alone ? run !== \"\uc774\" && run !== \"\ub9cc\" && run !== \"\uc5b5\" : SURE_SHORT.test(run + after);\n    else if (!alone && run.length >= 2 && /\uc5b5$/.test(run) && n >= 1e8) ok = !/^[\uac00-\ud7a3]{3,}/.test(rest); // \"\uce60\uc5b5\uc774\", \"\uc2ed\uc5b5\uc744\"\n    if (ok && alone && !rest && /^,/.test(after)) ok = false;\n    if (ok) return koShown(n) + rest;\n  }\n  return word;\n}\n\nconst shown = (t: string) => t.replace(/\\./g, \"\");\nconst width = (ws: any[], a: number, b: number) => {\n  let n = b - a - 1;\n  for (let i = a; i < b; i++) n += shown(String(ws[i][0])).length;\n  return Math.max(0, n);\n};\n\n// How bad it is to break between word i and word i + 1 (lower is better).\nfunction joint(ws: any[], i: number, fps: number): number {\n  const cur = String(ws[i][0]);\n  const next = String(ws[i + 1][0]);\n  const bare = cur.replace(/[.,?!]+$/, \"\");\n  const stop = (k: number) => {\n    const w = String(ws[k][0]);\n    const b = w.replace(/[.,?!]+$/, \"\");\n    return /,$/.test(w) || (CLAUSE_END.test(w) && !LEANS_FORWARD.test(b)) || (ws[k + 1][1] - ws[k][2]) / fps >= 0.5;\n  };\n  let s = 0;\n  const predicate = FINISHES_VERB.test(next) && !LEANS_BACK.test(next);\n  if (OPENS_CLAUSE.test(next.replace(/[.,?!]+$/, \"\"))) s -= 2;\n  else if (LEANS_FORWARD.test(bare)) s += 8;\n  else if (cur === bare && HANGUL.test(next) && !predicate) {\n    if (DESCRIBES_NEXT.test(bare)) s += 4;\n    else if (!MARKED_END.test(bare)) s += 3.5;\n  }\n  if (LEANS_BACK.test(next) && !NOT_A_VERB.test(next)) s += 6;\n  else if (predicate) s += OPENS_VERB.test(bare) ? 6 : 3;\n  if (/[0-9]/.test(bare) && (COUNTER.test(next) || /[0-9%]$/.test(bare))) s += 6;\n  const pause = (ws[i + 1][1] - ws[i][2]) / fps;\n  if (pause >= 0.3) s -= 2 + Math.min(2, pause);\n  if (NUMBER_WORD.test(bare) && STARTS_NUMBER.test(next + \" \")) s += 8;\n  else if (/,$/.test(cur)) s -= 3;\n  else if (CLAUSE_END.test(cur) && !LEANS_FORWARD.test(bare)) s -= 3;\n  // One word past a natural stop (\"\ucd94\uc9c4\ud558\ub294\ub370 \ucc98\uc74c\uc5d0\ub294 / \uc6b0\ub9ac\") strands the word that opens the next clause.\n  if (i >= 1 && !stop(i) && stop(i - 1)) s += 3;\n  return s;\n}\n\n// The best place to fold words [a, b) into two lines: [index of the first word of line two, cost]. One\n// line when it fits. `at(i)` is the cost of breaking after word i.\nfunction fold(ws: any[], a: number, b: number, maxc: number, at: (i: number) => number): [number, number] {\n  if (width(ws, a, b) <= maxc || b - a < 2) return [b, 0];\n  let best: [number, number] = [b, Infinity];\n  let top = -1;\n  const all = width(ws, a, b);\n  for (let k = a + 1; k < b; k++) {\n    top += shown(String(ws[k - 1][0])).length + 1;\n    const bottom = all - top - 1;\n    const over = Math.max(0, top - maxc) + Math.max(0, bottom - maxc);\n    const c = Math.abs(top - bottom) * 0.35 + over * 6 + at(k - 1) + (top > bottom + 3 ? 1 : 0) + (Math.min(top, bottom) < 5 ? 3 : 0);\n    if (c < best[1]) best = [k, c];\n  }\n  return best;\n}\n\n// Divide one sentence into captions: [end index of each caption]. Every way of cutting it into the\n// fewest captions that fit, or one more, is scored: even lengths, natural cuts and folds, nothing too\n// short to read.\nfunction divide(ws: any[], a: number, b: number, maxc: number, fps: number): number[] {\n  const cap = maxc * 2 - 1;\n  const n = b - a;\n  const total = width(ws, a, b);\n  if (n < 2 || total <= maxc) return [b];\n  const cuts: number[] = [];\n  for (let i = a; i < b - 1; i++) cuts.push(joint(ws, i, fps));\n  const at = (i: number) => cuts[i - a];\n  const folds = new Map<number, number>();\n  const lines = (i: number, j: number) => {\n    const key = i * 100000 + j;\n    let v = folds.get(key);\n    if (v === undefined) {\n      v = fold(ws, i, j, maxc, at)[1];\n      folds.set(key, v);\n    }\n    return v;\n  };\n  // The fewest captions that can hold it, filling each as far as it goes.\n  let least = 0;\n  for (let i = a; i < b; least++) {\n    let j = i + 1;\n    while (j < b && width(ws, i, j + 1) <= cap) j++;\n    i = j;\n  }\n  let bestCost = Infinity;\n  let bestCuts: number[] = [b];\n  for (let k = least; k <= Math.min(n, least + 1); k++) {\n    const ideal = total / k;\n    // cost[p][j]: the first j words in p captions.\n    const cost: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(Infinity));\n    const from: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(-1));\n    cost[0][0] = 0;\n    for (let p = 1; p <= k; p++) {\n      for (let j = p; j <= n; j++) {\n        for (let i = j - 1; i >= p - 1; i--) {\n          const w = width(ws, a + i, a + j);\n          if (w > cap && j - i > 1) break;\n          if (cost[p - 1][i] === Infinity) continue;\n          const uneven = ((w - ideal) / ideal) ** 2 * 6;\n          // A caption on screen for well under a second cannot be read.\n          const seconds = ((j < n ? ws[a + j][1] : ws[b - 1][2] + 0.4 * fps) - ws[a + i][1]) / fps;\n          const stub = (w < 6 ? 8 : 0) + (seconds < 0.5 ? 12 : seconds < 0.8 ? 6 : 0);\n          const c = cost[p - 1][i] + uneven + stub + lines(a + i, a + j) + (j < n ? at(a + j - 1) : 0);\n          if (c < cost[p][j]) {\n            cost[p][j] = c;\n            from[p][j] = i;\n          }\n        }\n      }\n    }\n    // A further caption has to earn its place.\n    const c = cost[k][n] + k * 3;\n    if (c < bestCost) {\n      const ends: number[] = [];\n      for (let p = k, j = n; p > 0; p--) {\n        ends.unshift(a + j);\n        j = from[p][j];\n      }\n      bestCost = c;\n      bestCuts = ends;\n    }\n  }\n  return bestCuts;\n}\n\nfunction makeCues(words: any[], fps: number, maxc: number, total: number, fixes: any[]): [number, number, string][] {\n  const clean = (t: string) => t.replace(/[\"\u201c\u201d]/g, \"\");\n  const ws = words\n    .map((w: any) => [clean(String(w[0])), w[1], w[2], w[3], w[4] ?? null, w[5] ?? null])\n    .filter((w: any) => String(w[0]).trim().length > 0 && !FILLER.test(String(w[0]).trim()));\n  if (!ws.length) return [];\n  // A stumble said twice (\"\uc6b0\ud06c\ub77c\uc774\ub098\ub9cc \ub098\ub9cc\", \"\uadf8 \uadf8\") is shown once: a word that repeats the word just before\n  // it, or its ending, within half a second is left out of the captions (the cut itself keeps the speech).\n  const bare = (t: string) => t.replace(/[.,?!\u2026~]+$/, \"\");\n  for (let i = ws.length - 1; i > 0; i--) {\n    const cur = bare(String(ws[i][0])), prev = bare(String(ws[i - 1][0]));\n    const gap = (ws[i][1] - ws[i - 1][2]) / fps;\n    if (!cur || gap >= 0.5) continue;\n    if (cur === prev || (cur.length >= 2 && prev.length > cur.length && prev.endsWith(cur))) {\n      const mark = String(ws[i][0]).slice(cur.length);\n      if (mark && !/[.,?!\u2026~]$/.test(String(ws[i - 1][0]))) ws[i - 1][0] = String(ws[i - 1][0]) + mark;\n      ws[i - 1][2] = ws[i][2];\n      ws.splice(i, 1);\n    }\n  }\n  // Numbers in digits, including the first of a pair said together (\"\ud55c \uc721, \uce60\uc5b5\" -> \"\ud55c 6, 7\uc5b5\").\n  for (let i = 0; i < ws.length; i++) ws[i][0] = koDigits(String(ws[i][0]), i + 1 < ws.length ? String(ws[i + 1][0]) : null);\n  for (let i = 0; i + 1 < ws.length; i++) {\n    const pair = String(ws[i][0]).match(/^([\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]),$/);\n    if (pair && /^[0-9]/.test(String(ws[i + 1][0]))) ws[i][0] = String(koNumber(pair[1])) + \",\";\n  }\n  // 1. Sentences: a new one starts with another speaker, after a full stop, at a cut in the source, or\n  // after a long silence.\n  const starts: number[] = [0];\n  for (let i = 1; i < ws.length; i++) {\n    const prev = ws[i - 1];\n    const w = ws[i];\n    const silence = (w[1] - prev[2]) / fps;\n    const cutInSource = w[3] != null && prev[3] != null && Math.abs(w[3] - prev[3] - (w[1] - prev[1])) > fps * 3;\n    const otherSpeaker = w[4] != null && prev[4] != null && w[4] !== prev[4];\n    const otherUtterance = w[5] != null && prev[5] != null && w[5] !== prev[5] && SENTENCE_END.test(String(prev[0]));\n    if (otherSpeaker || otherUtterance || SENTENCE_END.test(String(prev[0])) || cutInSource || silence > 1.5) starts.push(i);\n  }\n  starts.push(ws.length);\n  // 2. Captions within each sentence.\n  const groups: [number, number][] = [];\n  for (let s = 0; s + 1 < starts.length; s++) {\n    let a = starts[s];\n    for (const b of divide(ws, a, starts[s + 1], maxc, fps)) {\n      groups.push([a, b]);\n      a = b;\n    }\n  }\n  // 3. A one-word reply (\"\uc608.\", \"Right.\") gets its own caption. Only when it would be gone before it can\n  // be read does it join the caption before it; it never joins the sentence that follows.\n  const merged: [number, number][] = [];\n  const replyAt = new Map<number, number>(); // caption start -> index where a joined reply begins\n  for (let g = 0; g < groups.length; g++) {\n    const [a, b] = groups[g];\n    const nextStart = g + 1 < groups.length ? ws[groups[g + 1][0]][1] : total;\n    const onScreen = (Math.min(nextStart, ws[b - 1][2] + Math.round(0.6 * fps)) - ws[a][1]) / fps;\n    const last = merged[merged.length - 1];\n    if (last && width(ws, a, b) <= 3 && onScreen < 0.35 && width(ws, last[0], b) <= maxc * 2 - 1 && (ws[a][1] - ws[last[1] - 1][2]) / fps < 0.8) {\n      if (!replyAt.has(last[0])) replyAt.set(last[0], a);\n      last[1] = b;\n      continue;\n    }\n    merged.push([a, b]);\n  }\n  // 4. Text and timing.\n  const out: [number, number, string][] = [];\n  for (let g = 0; g < merged.length; g++) {\n    const [a, b] = merged[g];\n    let piece: any[] = ws.slice(a, b);\n    let joined = piece.map((x: any) => String(x[0])).join(\" \");\n    for (const f of fixes || []) if (f && f.from) joined = joined.split(String(f.from)).join(String(f.to ?? \"\"));\n    const fixed = joined.split(\" \").filter((t: string) => shown(t).length > 0);\n    // Fold on the words as they will be shown; timing for pauses comes from the original words when the\n    // spelling fixes kept their number, otherwise from none.\n    const timed = fixed.length === piece.length ? fixed.map((t: string, i: number) => [t, piece[i][1], piece[i][2]]) : fixed.map((t: string) => [t, 0, 0]);\n    const reply = replyAt.get(a);\n    const own = reply !== undefined && fixed.length === piece.length && width(ws, a, reply) <= maxc ? reply - a : -1;\n    const k = own > 0 ? own : fold(timed, 0, timed.length, maxc, (i: number) => joint(timed, i, fps))[0];\n    const text = k >= timed.length ? fixed.map(shown).join(\" \") : fixed.slice(0, k).map(shown).join(\" \") + \"\\n\" + fixed.slice(k).map(shown).join(\" \");\n    const start = ws[a][1];\n    let end = g + 1 < merged.length ? ws[merged[g + 1][0]][1] : total;\n    if (g + 1 < merged.length && (ws[merged[g + 1][0]][1] - ws[b - 1][2]) / fps > 1.2) end = Math.min(end, ws[b - 1][2] + Math.round(0.6 * fps));\n    out.push([Math.round(start), Math.round(end), text]);\n  }\n  for (let i = 0; i < out.length - 1; i++) {\n    const g = out[i + 1][0] - out[i][1];\n    if (g > 0 && g < 8) out[i][1] = out[i + 1][0];\n  }\n  // 5. Every caption stays long enough to read: one that would flash by borrows the time from the\n  // silence after it, or from the start of a longer caption that follows.\n  const least = Math.round(0.6 * fps);\n  for (let i = 0; i < out.length; i++) {\n    const short = least - (out[i][1] - out[i][0]);\n    if (short <= 0) continue;\n    const next = out[i + 1];\n    if (!next) {\n      out[i][1] = Math.min(total, out[i][0] + least);\n      continue;\n    }\n    const silence = next[0] - out[i][1];\n    if (silence >= short) out[i][1] += short;\n    else if (next[1] - next[0] - (short - silence) >= Math.round(1.0 * fps)) {\n      out[i][1] += short;\n      next[0] = out[i][1];\n    } else out[i][1] = next[0];\n  }\n  if (out.length && out[0][0] < 10) out[0][0] = 0;\n  return out;\n}\n\n// Resource ids are Project-scoped aliases; listing the resources first makes a saved id valid in this\n// session, and the file name finds the same video again if the alias changed.\nconst project = selects.project(P.projectId);\nconst input = await readShortformInput(project, P);\nconst { meta: sm, words: sourceWords } = input;\nconst sfps = sm.fps;\nconst sws = sourceWords.filter((w: any) => !w.nonSpeech && String(w.text).trim().length > 0);\nconst W: number[][] = sws.map((w: any) => [w.startFrame / sfps, w.endFrame / sfps]);\nif (!W.length) throw new Error(\"The source has no transcript words. Analyze it first.\");\n\n// Snap each requested range to whole words without catching the neighbouring word.\nfunction snap(a: number, b: number): number[] {\n  let i = 0;\n  let j = 0;\n  let bi = Infinity;\n  let bj = Infinity;\n  for (let k = 0; k < W.length; k++) {\n    const da = Math.abs(W[k][0] - a);\n    if (da < bi) {\n      bi = da;\n      i = k;\n    }\n    const db = Math.abs(W[k][1] - b);\n    if (db < bj) {\n      bj = db;\n      j = k;\n    }\n  }\n  if (j < i) j = i;\n  const prevEnd = i > 0 ? W[i - 1][1] : 0;\n  const nextStart = j + 1 < W.length ? W[j + 1][0] : W[j][1] + 1;\n  const start = Math.max(prevEnd + 0.03, W[i][0] - 0.15, 0);\n  const end = Math.min(nextStart - 0.04, W[j][1] + 0.22, sm.durationSeconds);\n  return [Math.round(start * 1000) / 1000, Math.round(end * 1000) / 1000];\n}\n\nconst segs = (P.segments as number[][]).map((s) => snap(Number(s[0]), Number(s[1]))).filter((s) => s[1] - s[0] > 0.5);\nif (!segs.length) throw new Error(\"No usable source range for this clip.\");\n\nconst d = await project.createDraft({ name: P.name });\nfor (const s of segs) {\n  await insertShortformRange(d, input, s[0], s[1]);\n}\nif (P.removeFillers) {\n  const fill = (await d.words()).filter((w: any) => w.filler && w.filler.removable);\n  if (fill.length) await d.remove(fill.map((w: any) => w.span), { tracks: \"all\" });\n}\nif (P.removeSilences) {\n  const sil = await d.silenceSpans({ preset: \"normal\" });\n  const cut = sil.flatMap((x: any) => x.cutSpans);\n  if (cut.length) await d.remove(cut, { tracks: \"all\" });\n}\nawait d.setFrameSize({ width: 1080, height: 1920 });\nconst readV = async () =>\n  (await d.clips({ trackScope: \"all\" })).filter((c: any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nconst nV = (await readV()).length;\nfor (let k = 0; k < nV; k++) {\n  const c = (await readV())[k];\n  await d.setClipTransform({\n    clip: c,\n    scale: { x: P.transform.scale, y: P.transform.scale },\n    position: { x: P.transform.posX, y: P.transform.posY },\n  });\n}\n// Speaker reframing: each shot pans (and for side-by-side faces, widens) the window to the faces it follows. Shots are in source seconds; the\n// Draft's words map them onto its own frames, after fillers and pauses were cut.\nif (Array.isArray(P.reframe) && P.reframe.length) {\n  try {\n    const fitScale = P.transform.scale * (1080 / 1920);\n    const srcW = Number(sm.frameSize?.width) || 1920;\n    // A shot with a width w shows that many source pixels across the window (two people side by side),\n    // centred in the window; other shots keep the template's crop and pan only.\n    const FIT = 1080 / srcW;\n    const winMid = (Number(P.frame.windowTop) + Number(P.frame.windowBottom)) / 2;\n    const r4 = (x: number) => Math.round(x * 10000) / 10000;\n    const placeOf = (shot: any) => {\n      const sc = shot.w ? 1080 / shot.w : fitScale;\n      const inset = Number(P.reframeInset) || 0;\n      const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;\n      const x = r4((Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc)) / 1920) * 100);\n      if (!shot.w) return { scale: P.transform.scale, x, y: P.transform.posY };\n      if (!shot.cy) return { scale: r4(sc / FIT), x, y: r4((-(winMid - 960) / 1920) * 100) };\n      // A close-up puts the face faceY of the way down the window (headroom above it) and keeps the picture\n      // covering the whole window.\n      const top = Number(P.frame.windowTop), bottom = Number(P.frame.windowBottom), half = (1080 / 2) * sc * (Number(sm.frameSize?.height) || 1080) / 1080;\n      const faceY = Number(P.reframeFaceY) || 0.4;\n      const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - shot.cy) * sc));\n      return { scale: r4(sc / FIT), x, y: r4((-(yc - 960) / 1920) * 100) };\n    };\n    const key = (shot: any) => JSON.stringify(placeOf(shot));\n    const shotAt = (sec: number) =>\n      P.reframe.find((r: any) => sec >= r.start && sec < r.end) || (sec < P.reframe[0].start ? P.reframe[0] : P.reframe[P.reframe.length - 1]);\n    const ws = (await d.words()).filter((w: any) => !w.nonSpeech).map((w: any) => [w.startFrame, P.sourceKind === \"draft\" || P.sourceKind === \"synced\" ? 0 : w.sourceStartFrame / sm.fps]);\n    for (let k = 1; k < ws.length; k++) {\n      if (key(shotAt(ws[k][1])) === key(shotAt(ws[k - 1][1]))) continue;\n      try {\n        await d.splitAt({ frame: ws[k][0] });\n      } catch (e) {\n        // Already a clip boundary.\n      }\n    }\n    const nM = (await d.clips({ trackScope: \"main\" })).length;\n    for (let k = 0; k < nM; k++) {\n      const mc = (await d.clips({ trackScope: \"main\" }))[k];\n      // Keep the preceding shot across wordless passage tails; use the next word for a leading gap.\n      const w = ws.find((x: any) => x[0] >= mc.startFrame && x[0] < mc.endFrame) || ws.filter((x: any) => x[0] < mc.startFrame).pop() || ws.find((x: any) => x[0] >= mc.endFrame);\n      if (!w) continue;\n      const pl = placeOf(shotAt(w[1]));\n      const vs = (await readV()).filter((c: any) => c.startFrame >= mc.startFrame && c.startFrame < mc.endFrame);\n      for (let v = 0; v < vs.length; v++) {\n        const c = (await readV()).filter((c2: any) => c2.startFrame >= mc.startFrame && c2.startFrame < mc.endFrame)[v];\n        await d.setClipTransform({ clip: c, scale: { x: pl.scale, y: pl.scale }, position: { x: pl.x, y: pl.y } });\n      }\n    }\n  } catch (e) {\n    // Reframing is optional: a clip keeps the fixed crop rather than failing.\n  }\n}\nconst mainClips = await d.clips({ trackScope: \"main\" });\nconst endFrame = mainClips.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);\nconst meta = await d.meta();\nawait d.addMotionGraphic({\n  label: \"Series frame and headline\",\n  tsxCode: FRAME_TSX,\n  parameters: P.frame,\n  editableParameters: P.editableFrame,\n  within: await d.rangeAtFrames(0, endFrame),\n});\n\n// Highlight phrases chosen with the passage are wrapped in *asterisks* for the caption graphic.\nconst markCue = (text: string) => {\n  const phrases = (Array.isArray(P.highlights) ? P.highlights : []).map((h: any) => String(h).trim()).filter((h: string) => h.length >= 2).sort((x: string, y: string) => y.length - x.length);\n  return text\n    .split(\"\\n\")\n    .map((line: string) => {\n      let out = line;\n      for (const h of phrases) {\n        const at = out.indexOf(h);\n        if (at < 0 || out.slice(0, at).split(\"*\").length % 2 === 0) continue;\n        out = out.slice(0, at) + \"*\" + h + \"*\" + out.slice(at + h.length);\n      }\n      return out;\n    })\n    .join(\"\\n\");\n};\n// The episode date is its own graphic, so its text and position can be changed in the Draft.\nif (P.dateLabel && String(P.dateLabel.text || \"\").trim()) {\n  await d.addMotionGraphic({\n    label: \"Date\",\n    tsxCode: DATE_TSX,\n    parameters: P.dateLabel,\n    editableParameters: P.editableDate,\n    within: await d.rangeAtFrames(0, endFrame),\n  });\n}\nlet cueCount = 0;\nif (P.captions && P.caption) {\n  const words = inputCaptionWords(await d.words(), input, segs, meta.fps)\n    .filter((w: any) => !w.nonSpeech)\n    .map((w: any) => [String(w.text), w.startFrame, w.endFrame, w.sourceStartFrame, w.speakerId ?? null, w.utteranceId ?? null]);\n  const cues = makeCues(words, meta.fps, P.lineMax, endFrame, P.fixes);\n  for (let k = 0; k < cues.length; k++) {\n    const a = cues[k][0];\n    const e = Math.min(cues[k][1], endFrame);\n    if (e <= a) continue;\n    await d.addMotionGraphic({\n      label: \"Caption \" + String(k + 1).padStart(2, \"0\"),\n      tsxCode: CAPTION_TSX,\n      parameters: { ...P.caption, text: markCue(cues[k][2]) },\n      editableParameters: P.editableCaption,\n      within: await d.rangeAtFrames(a, e),\n    });\n    cueCount++;\n  }\n}\nconst out: any = await d.commitAll(\"Shortform clip: \" + P.name);\nreturn { draftId: out.createdDraftId ?? null, seconds: Math.round((endFrame / meta.fps) * 10) / 10, captions: cueCount, segments: segs };\n";
+const RADIO_SCRIPT_BUILD: string = SCRIPT_SOURCE_READER + "// run_script body: build one series clip as an editable Draft from a template.\n// The clip parameters are injected at runtime; the frame and caption templates at build time.\nconst P: any = __P__;\nconst FRAME_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nfunction Logo(_props: any) { return null; }\\n\\nexport default function SeriesFrame({ data }) {\\n  const series = String(data?.series ?? 'newsdirect');\\n  const W = 1080, H = 1920;\\n  const top = Number(data?.windowTop ?? 420);\\n  const bottom = Number(data?.windowBottom ?? 1255);\\n  const bg = String(data?.background ?? '#1E1F22');\\n  const h1 = String(data?.headline1 ?? '');\\n  const h2 = String(data?.headline2 ?? '');\\n  const size1 = Number(data?.headlineSize1 ?? 84);\\n  const size2 = Number(data?.headlineSize2 ?? size1);\\n  const color1 = String(data?.headlineColor1 ?? '#FFFFFF');\\n  const color2 = String(data?.headlineColor2 ?? '#FFFFFF');\\n  const box2 = String(data?.headline2Box ?? '');\\n  const italic = Boolean(data?.headlineItalic ?? false);\\n  const headlineCenter = Number(data?.headlineCenter ?? top / 2 + 40);\\n  const captionBar = Number(data?.captionBarHeight ?? 0);\\n  const logoCenter = Number(data?.logoCenter ?? (bottom + captionBar + H) / 2);\\n  const border = Boolean(data?.goldBorder ?? false);\\n  const shadow = String(data?.headlineShadow ?? '0 4px 10px rgba(0,0,0,.55)');\\n  const strokeColor = String(data?.headlineStrokeColor ?? '');\\n  const strokeWidth = strokeColor ? Number(data?.headlineStrokeWidth ?? 12) : 0;\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const headFont = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const bgImage = String(data?.backgroundImage ?? '');\\n  const bgDim = Math.max(0, Math.min(90, Number(data?.backgroundDim ?? 0)));\\n  const borderColor = String(data?.borderColor ?? '#C9A45C');\\n  const logoMode = String(data?.logoMode ?? 'art');\\n  const logoImage = String(data?.logoImage ?? '');\\n  const logoWidth = Number(data?.logoWidth ?? 600);\\n  // A background image is one 1080x1920 picture shown only where the video window is not.\\n  const band = (y, h) =>\\n    bgImage ? (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, backgroundImage: `url(${bgImage})`, backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px` }}>\\n        {bgDim > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: h, background: `rgba(0,0,0,${bgDim / 100})` }} /> : null}\\n      </div>\\n    ) : (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, background: bg }} />\\n    );\\n  const est = (t) => Array.from(t).reduce((w, ch) => w + (/[\\\\uAC00-\\\\uD7A3\\\\u4E00-\\\\u9FFF]/.test(ch) ? 0.93 : ch === ' ' ? 0.27 : /[0-9A-Za-z%]/.test(ch) ? 0.6 : 0.4), 0);\\n  const fit = (t, size, maxW) => Math.min(size, Math.floor(maxW / Math.max(1, est(t)) - 2));\\n  const lineStyle = (size, color) => ({\\n    fontSize: size, fontWeight: 900, color, lineHeight: 1.16, letterSpacing: '-2px',\\n    fontStyle: italic ? 'italic' : 'normal', whiteSpace: 'nowrap', textShadow: shadow,\\n    WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : `${Math.max(1, Math.round(size * 0.035))}px ${color}`, paintOrder: 'stroke fill',\\n  });\\n  const s1 = fit(h1, size1, 1010);\\n  const s2 = fit(h2, size2, box2 ? 970 : 1010);\\n  const grad1 = String(data?.headlineGradient1 ?? '');\\n  const grad2 = String(data?.headlineGradient2 ?? '');\\n  // Text with an optional gradient fill: the outline and shadow are drawn by a copy underneath, because a\\n  // gradient clipped to the glyphs cannot carry a stroke of its own.\\n  const Deco = ({ text, style, grad, stroke, strokeW, shadowCss }) =>\\n    grad ? (\\n      <div style={{ position: 'relative', ...style }}>\\n        <div style={{ position: 'absolute', left: 0, top: 0, right: 0, color: stroke || 'transparent', WebkitTextStroke: strokeW > 0 ? `${strokeW}px ${stroke}` : '0px transparent', paintOrder: 'stroke fill', textShadow: shadowCss }}>{text}</div>\\n        <div style={{ position: 'relative', background: grad, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' }}>{text}</div>\\n      </div>\\n    ) : (\\n      <div style={{ ...style, WebkitTextStroke: strokeW > 0 ? `${strokeW}px ${stroke}` : style.WebkitTextStroke, paintOrder: 'stroke fill', textShadow: shadowCss }}>{text}</div>\\n    );\\n  const Line = ({ text, size, color, grad }) =>\\n    grad ? (\\n      <Deco text={text} style={{ ...lineStyle(size, color), WebkitTextStroke: undefined, textShadow: undefined }} grad={grad} stroke={strokeWidth > 0 ? strokeColor : color} strokeW={strokeWidth} shadowCss={shadow} />\\n    ) : (\\n      <div style={lineStyle(size, color)}>{text}</div>\\n    );\\n  const label = (key) => {\\n    const text = String(data?.[key] ?? '');\\n    if (!text) return null;\\n    const size = Number(data?.[key + 'Size'] ?? 40);\\n    const cx = Number(data?.[key + 'X'] ?? W / 2);\\n    const y = Number(data?.[key + 'Y'] ?? 100);\\n    const style = { fontSize: size, fontWeight: Number(data?.[key + 'Weight'] ?? 800), color: String(data?.[key + 'Color'] ?? '#FFFFFF'), lineHeight: 1.16, letterSpacing: '-1px', whiteSpace: 'nowrap', fontFamily: headFont };\\n    const sw = Number(data?.[key + 'StrokeWidth'] ?? 0);\\n    return (\\n      <div key={key} style={{ position: 'absolute', left: cx - 540, width: 1080, top: y, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        <Deco text={text} style={style} grad={String(data?.[key + 'Gradient'] ?? '')} stroke={String(data?.[key + 'StrokeColor'] ?? '#000000')} strokeW={sw} shadowCss={String(data?.[key + 'Shadow'] ?? 'none')} />\\n      </div>\\n    );\\n  };\\n  return (\\n    <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: H, fontFamily: FONT, pointerEvents: 'none' }}>\\n      {band(0, top)}\\n      {band(bottom, H - bottom)}\\n      {captionBar > 0 ? <div style={{ position: 'absolute', left: 0, top: bottom, width: W, height: captionBar, background: '#000000' }} /> : null}\\n      {border ? (\\n        <>\\n          <div style={{ position: 'absolute', left: 22, top: 22, width: W - 44, height: top - 22, borderTop: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n          <div style={{ position: 'absolute', left: 22, top: bottom, width: W - 44, height: H - bottom - 22, borderBottom: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n        </>\\n      ) : null}\\n      <div style={{ position: 'absolute', left: 30, width: W - 60, top: headlineCenter, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: box2 ? 14 : Number(data?.headlineGap ?? 2), textAlign: 'center', fontFamily: headFont }}>\\n        {h1 ? <Line text={h1} size={s1} color={color1} grad={grad1} /> : null}\\n        {h2 ? (\\n          box2 ? (\\n            <div style={{ ...lineStyle(s2, color2), textShadow: 'none', background: box2, padding: '4px 18px 8px' }}>{h2}</div>\\n          ) : (\\n            <Line text={h2} size={s2} color={color2} grad={grad2} />\\n          )\\n        ) : null}\\n      </div>\\n      {label('topLabel')}\\n      {label('footer')}\\n      <div style={{ position: 'absolute', left: 0, width: W, top: logoCenter, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        {logoMode === 'none' ? null : logoMode === 'image' && logoImage ? (\\n          <img src={logoImage} style={{ width: logoWidth, height: 'auto', display: 'block' }} />\\n        ) : (\\n          <Logo series={series} />\\n        )}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst DATE_TSX: string = \"import React from 'react';\\n\\n// One line of text centred on (x, y): the episode date under the logo.\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function DateLabel({ data }) {\\n  const d = data || {};\\n  const text = String(d.text ?? '');\\n  if (!text) return null;\\n  const family = typeof d.fontFamily === 'string' ? d.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const sw = Number(d.strokeWidth ?? 0);\\n  return (\\n    <div style={{ position: 'absolute', left: Number(d.x ?? 540) - 540, width: 1080, top: Number(d.y ?? 1564), transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>\\n      <div\\n        style={{\\n          fontFamily: font, fontSize: Number(d.fontSize ?? 55), fontWeight: Number(d.fontWeight ?? 900), color: String(d.textColor ?? '#0C6E62'),\\n          lineHeight: 1.16, letterSpacing: '-1px', whiteSpace: 'nowrap', textShadow: String(d.shadow ?? 'none'),\\n          ...(sw > 0 ? { WebkitTextStroke: `${sw}px ${String(d.strokeColor ?? '#000000')}`, paintOrder: 'stroke fill' } : {}),\\n        }}\\n      >\\n        {text}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst CAPTION_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function ClipCaption({ data }) {\\n  const lines = String(data?.text ?? '').split('\\\\n');\\n  const mode = String(data?.mode ?? 'bar');\\n  const size = Number(data?.fontSize ?? 66);\\n  const weight = Number(data?.fontWeight ?? 600);\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const color = String(data?.textColor ?? '#FFFFFF');\\n  const mark = String(data?.highlightColor ?? '');\\n  // *word* is a highlighted word; without a highlight colour the asterisks are simply dropped.\\n  const rich = (line) =>\\n    line.split(/(\\\\*[^*]+\\\\*)/).map((part, j) =>\\n      /^\\\\*[^*]+\\\\*$/.test(part) ? <span key={j} style={mark ? { color: mark } : undefined}>{part.slice(1, -1)}</span> : part.replace(/\\\\*/g, '')\\n    );\\n  if (mode === 'bar') {\\n    const top = Number(data?.top ?? 1255);\\n    const height = Number(data?.height ?? 230);\\n    return (\\n      <div style={{ position: 'absolute', left: 40, width: 1000, top, height, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: font, pointerEvents: 'none' }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.28, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{rich(line)}</div>\\n        ))}\\n      </div>\\n    );\\n  }\\n  const bottom = Number(data?.bottom ?? 1440);\\n  const box = String(data?.boxColor ?? 'rgba(0,0,0,0.62)');\\n  return (\\n    <div style={{ position: 'absolute', left: 40, width: 1000, top: 0, height: bottom, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', fontFamily: font, pointerEvents: 'none' }}>\\n      <div style={{ background: box, padding: '10px 26px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: 4 }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.3, letterSpacing: '-1px', whiteSpace: 'nowrap' }}>{rich(line)}</div>\\n        ))}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\n\n// ---- Captions: one caption per thought ----\n// A caption ends where the speaker's sentence ends or another speaker starts, never in the middle of one.\n// A sentence too long for two lines is divided where a listener would pause (a comma, a breath, the end\n// of a clause), in pieces of similar length, and never between words that belong together (\"\uac08 \uc218 /\n// \uc788\uc744\uae4c\", \"\uadf8 / \uac00\uc218\", \"the / house\"). Each word is [text, startFrame, endFrame, sourceStartFrame,\n// speakerId, utteranceId].\n// Sounds a speaker makes while thinking; they are not captioned.\nconst FILLER = /^(\uc5b4|\uc74c|\uc544|\uc5d0|\uc73c|\ud760|uh|um|er|ah|hmm)[.,\u2026~]*$/i;\n// A word that leans on the next one: breaking after it leaves it stranded.\nconst LEANS_FORWARD =\n  /^(\uadf8|\uc774|\uc800|\ud55c|\ub450|\uc138|\ub124|\uba87|\uc5b4\ub5a4|\ubb34\uc2a8|\uc5b4\ub290|\uc774\ub7f0|\uadf8\ub7f0|\uc800\ub7f0|\ubaa8\ub4e0|\uac01|\uc0c8|\uccab|\ub2e4\ub978|\uc5ec\ub7ec|\uc57d|\ub354|\ub35c|\uac00\uc7a5|\uc81c\uc77c|\ub108\ubb34|\uc544\uc8fc|\ub9e4\uc6b0|\uc815\ub9d0|\uc9c4\uc9dc|\ucc38|\uc880|\uc798|\ubabb|\uc548|\uaf2d|\ub2e4\uc2dc|\uacc4\uc18d|\uac70\uc758|\uc774\ubbf8|\uc544\uc9c1|\ubc14\ub85c|\uadf8\ub0e5|\uadf8\ub9ac\uace0|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7f0\ub370|\uadfc\ub370|\uadf8\ub7ec\ub2c8\uae4c|\uadf8\ub7fc|\ud558\uc9c0\ub9cc|\uadf8\ub807\uc9c0\ub9cc|\uadf8\ub7ec\ub098|\ub610|\ub610\ub294|\ud639\uc740|\uc989|\uc65c\ub0d0\ud558\uba74|\uc608\ub97c|\ub9cc\uc57d|\uc5b4\ub5bb\uac8c|\uc774\ub807\uac8c|\uadf8\ub807\uac8c|\uc800\ub807\uac8c|\uc65c|\uc5bc\ub9c8\ub098|\ub9ce\uc774|\ube68\ub9ac|\uba3c\uc800|\ub2e4\uc74c|a|an|the|to|of|in|on|at|for|with|by|from|about|into|over|under|after|before|between|through|during|without|and|or|but|so|which|who|is|are|was|were|be|i|he|she|we|they|my|your|his|her|our|their|this|these|those|very|not|as|if|than)$/i;\n// A word that leans on the one before it: breaking before it cuts a phrase in two (\"\uac08 \uc218\", \"\ud560 \ub54c\ub3c4\",\n// \"\uc788\ub294 \uac78\ub85c\", \"\ubc15\uc9c4\uc601 \uc528\", \"\uc5d0\ub3c4 \ubd88\uad6c\ud558\uace0\"). These are dependent nouns with at most a particle after them;\n// an ordinary noun that merely starts the same way (\"\uc218\uc0c1\uc790\uac00\", \"\uac70\ub9ac\") does not match.\nconst PARTICLE =\n  \"(?:\uc774|\uac00|\uc740|\ub294|\uc744|\ub97c|\ub3c4|\ub9cc|\uc5d0|\uc758|\ub85c|\uc640|\uacfc|\uc73c\ub85c|\uc5d0\uc11c|\uc5d0\uac8c|\ud55c\ud14c|\uae4c\uc9c0|\ubd80\ud130|\ub9c8\ub2e4|\ucc98\ub7fc|\uc774\ub098|\ub77c\ub3c4|\ubc16\uc5d0|\uae4c\uc9c0\ub294|\uc5d0\ub294|\uc5d0\ub3c4|\ub85c\ub294|\ub85c\ub3c4|\uc5d0\uc11c\ub294|\uc774\ub791|\ub791|\ub791\uc740|\uc774\ub77c\uace0|\ub77c\uace0|\uc774\ub77c|\uc57c|\uc694|\uc8e0|\uc608\uc694|\uc774\uc5d0\uc694|\uc785\ub2c8\ub2e4|\uc774\ub2e4|\uc778\ub370|\uc774\uace0|\uc774\uc9c0|\uc774\uc8e0|\ub4e0|\ub098|\ub4e4)?\";\nconst LEANS_BACK = new RegExp(\n  \"^(?:(?:\uc218|\uac83|\uc904|\ub54c|\uc801|\ub370|\ubc14|\ubfd0|\ub4ef|\uc911|\ub4f1|\ub3d9\uc548|\uc815\ub3c4|\ub54c\ubb38|\ub9cc\ud07c|\uc528|\ub2d8|\uce21|\ucabd)\" +\n    PARTICLE +\n    \"|(?:\uc7a5\uad00|\ucc28\uad00|\uc758\uc6d0|\ub300\ud45c|\uc704\uc6d0\uc7a5|\uc704\uc6d0|\ud68c\uc7a5|\uc0ac\uc7a5|\uc758\uc7a5|\ub300\ud1b5\ub839|\ucd1d\ub9ac|\uad50\uc218|\ubc15\uc0ac|\uae30\uc790|\uac10\ub3c5|\uc120\uc218|\uc791\uac00|\ud300\uc7a5|\uc2e4\uc7a5|\ubd80\uc7a5|\uacfc\uc7a5|\uc774\uc0ac|\ud6c4\ubcf4|\ubcc0\ud638\uc0ac|\uac80\uc0ac|\ud310\uc0ac|\uc575\ucee4)\ub2d8?\" +\n    PARTICLE +\n    \"|(?:\uac70|\uac8c|\uac74|\uac78)(?:\uc608\uc694|\uc5d0\uc694|\uc8e0|\uc57c|\uc9c0|\uace0|\ub4e0\uc694|\ub77c|\ub77c\uace0|\ub77c\uc11c|\ub2c8\uae4c|\uc796\uc544\uc694|\ub2e4|\ub294|\ub97c|\ub85c|\ub3c4|\ub098|\ub4e0|\ub791|\uac00|\uba74)?|\uac81\ub2c8\ub2e4|\uac19\uc740|\uac19\uc774|\ucc98\ub7fc|\ubcf4\ub2e4|\ub300\ub85c|\ub9c8\ub2e4|\ubc16\uc5d0|\ubd88\uad6c\ud558\uace0|\ubabb[\uac00-\ud7a3]+|\uc544\ub2c8[\uac00-\ud7a3]+\" +\n    \"|(?:\ud558|\ud574|\ud588|\ud560|\ud55c\ub2e4|\ud569|\ub418|\ub3fc|\ub410|\ub420|\ub41c\ub2e4|\ub429)[\uac00-\ud7a3]{0,4})[.,?!]*$\"\n);\nconst NOT_A_VERB = /^(\ud558\ub098|\ud558\ub298|\ud558\ub8e8|\ud558\ubc18\uae30|\ud558\ub77d|\ud558\uc704|\ud574\uc678|\ud574\uacb0|\ud574\uc11d|\ud574\ub2f9|\ud574\uccb4|\ud574\uba85|\ud574\uc9c0|\ud574\uc124|\ud574\ub2f5|\ud560\uba38\ub2c8|\ud560\uc544\ubc84\uc9c0|\ud560\uc778|\ud569\uc758|\ud569\uaca9|\ud569\uacc4|\ud569\ub958|\ud569\uc791|\ub418\ub808)/;\n// A unit that follows a number (\"200\ub9cc \uc6d0\", \"4\uac1c\uc0ac\").\nconst COUNTER = /^(\uc6d0|\uba85|\uac1c|\ubc88|\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uc0b4|\uc5b5|\ub9cc|\ucc9c|\ubc31|\ubc30|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc704|\ucc28|\ud68c|\ub300|\uacf3|\uac00\uc9c0|\uac1c\uc0ac|\uac1c\uc6d4|\uc2dc\uac04|\uc8fc|\uc8fc\uc77c)[\uac00-\ud7a3]{0,2}[.,?!]*$/;\n// A word describing the next one (\"\uace0\ubc1c\ub420 \ud655\ub960\", \"\ub2f9\uc5f0\ud55c \uc758\uc2ec\", \"\ud558\uace0 \uc2f6\uc740 \ub9c8\uc74c\").\nconst DESCRIBES_NEXT = /(\ud558\ub294|\ub418\ub294|\uc788\ub294|\uc5c6\ub294|\ub77c\ub294|\ub2e4\ub294|\uc54a\ub294|\uac19\uc740|\uc2f6\uc740|\ub9ce\uc740|\uc88b\uc740|\ub192\uc740|\uc791\uc740|\ud070|\ub41c|\ub358|\uc788\uc744|\uc5c6\uc744|\ubc1b\uc744|\uac19\uc744|[\uac00-\ud7a3]\ud55c|[\ud560\ub420\uac08\uc62c\ubcfc\uc4f8\ub0bc\ube84\uafc0\ud0ac\ub9b4\ub084])$/;\n// Korean words normally end in a particle or an ending; one that does not is usually the first half of a\n// compound or an adverb, and belongs with what follows (\"\ubb38\uccb4\ubd80 \uc7a5\uad00\", \"\ud68c\uc0ac \uc77c\", \"\ub300\uad00 \ubd80\uc11c\").\nconst MARKED_END = /[\uc740\ub294\uc774\uac00\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\uc11c\uace0\uc694\ub2e4\uc8e0\uae4c\ub124\ub098\uba70\uba74\uc9c0\uac8c\ub370\uc57c\ub77c\uc790\ub2c8\uaed8\ub791\ub4e0\uc529\uc74c\uc784\uc5b4\uc544\ud574\ub3fc\ub798\ub300\uac78\uac74\uc918\ubd10\uc6cc\uc838\uc5ec]$/;\nconst HANGUL = /[\uac00-\ud7a3]/;\nconst NUMBER_WORD = /^([0-9]+|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+|\ud55c|\ub450|\uc138|\ub124|\ub2e4\uc12f|\uc5ec\uc12f|\uc77c\uacf1|\uc5ec\ub35f|\uc544\ud649|\uc5f4)$/;\nconst STARTS_NUMBER = /^([0-9]|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]|\ud55c |\ub450 |\uc138 |\ub124 )/;\n// The end of a clause in Korean, or a comma: a natural place to stop.\nconst CLAUSE_END = /(\uace0|\uba70|\uc11c|\uba74|\ub294\ub370|\uc740\ub370|\uc778\ub370|\ub2c8\uae4c|\uc9c0\ub9cc|\ub2e4\uac00|\uba74\uc11c|\ub824\uace0|\ub3c4\ub85d|\uac70\ub098|\ub354\ub2c8|\ub2e4\uba74|\ub77c\uba74)[,]?$/;\n// \"\uc788\ub2e4 / \uc5c6\ub2e4 / \uc54a\ub2e4 / \uc2f6\ub2e4\" finish a verb phrase (\"\uac08 \uc218 \uc788\uc744\uae4c\", \"\uc27d\uc9c0 \uc54a\uc796\uc544\uc694\", \"\ud558\uace0 \uc2f6\uc740\"); after a\n// plain subject (\"\ud655\ub960 \uc788\ub294\") they pull much less.\nconst FINISHES_VERB = /^(\uc788|\uc5c6|\uc54a|\uc2f6)[\uac00-\ud7a3]*[.,?!]*$/;\nconst OPENS_VERB = /((\uc218|\uc904|\uc801|\ub9ac|\ud544\uc694)(\uac00|\ub294|\uc740|\ub3c4|\ub97c|\uc774)?|\uace0|\uc9c0|\uc5b4|\uc544|\uac8c|\ud574|\uc57c|\uc11c|\ub3c4)$/;\n// A word a new clause opens with: breaking before it is natural (\"\uc544\ud2f0\uc2a4\ud2b8 / \ud639\uc740 \ud68c\uc0ac\ub4e4\uc744\").\nconst OPENS_CLAUSE = /^(\ud639\uc740|\ub610\ub294|\uadf8\ub9ac\uace0|\ubc0f|\uadfc\ub370|\uadf8\ub7f0\ub370|\ud558\uc9c0\ub9cc|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7ec\ub2c8\uae4c|\uc65c\ub0d0\ud558\uba74|and|or|but|so|because|we|they|i|he|she|which|who|when|where|while|if|although|though|then)$/i;\nconst SENTENCE_END = /[.?!\u3002\uff1f\uff01\u2026][\"'\u201d\u2019)]?$/;\n\n// Numbers said in Korean are shown in digits when a unit follows: \"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\" -> \"11\uac1c\uc6d4\uc9f8\",\n// \"\uc774\ucc9c\uc0bc\ub144\ub3c4\uc600\uc5b4\uc694\" -> \"2003\ub144\ub3c4\uc600\uc5b4\uc694\", \"\uce60\uc5b5\uc774\" -> \"7\uc5b5\uc774\". A numeral with no unit, or one that is also an\n// everyday word (\"\uc774\ubc88\", \"\uc2ed\ubd84\", \"\uc0ac\ud68c\", \"\uc624\ucc28\", \"\uc774\ucc9c\uc2dc\"), stays as it was said.\nconst KO_ONES: any = { \uc77c: 1, \uc774: 2, \uc0bc: 3, \uc0ac: 4, \uc624: 5, \uc721: 6, \uce60: 7, \ud314: 8, \uad6c: 9 };\nconst KO_PLACES: any = { \uc2ed: 10, \ubc31: 100, \ucc9c: 1000 };\nconst KO_NUMERAL = /^[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+/;\nconst UNIT_LONG = /^(\uac1c\uc6d4|\ub144\ub3c4|\ub144\ub300|\ub144\uac04|\ub144\uc9f8|\ub144\uc0dd|\ub144\ucc28|\uc8fc\uc77c|\uc8fc\ub144|\uc8fc\uac04|\uc2dc\uac04|\ubd84\uac04|\ucd08\uac04|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc720\ub85c|\ud0ac\ub85c|\ubbf8\ud130|\uc13c\ud2f0|\uadf8\ub7a8|\ub9ac\ud130|\ud559\ub144|\uc138\uae30|\ubd84\uae30|\uc778\ubd84|\uac1c\uad6d|\uac1c\uc0ac|\uac1c\ub144|\ud68c\ucc28|\ub4f1\uae09|\ub2e8\uacc4|\uc138\ub300)/;\nconst UNIT_SHORT = /^(\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uba85|\uac1c|\ubc88|\uc6d0|\uc704|\ub4f1|\ucc28|\ud68c|\uce35|\ud638|\ub300|\uc138|\uc778|\ubc30|\ud3b8|\uace1|\uc7a5|\uad8c|\ud300|\uc2b9|\ud328|\uace8|\uc810|\ud3c9|\uac74|\ud45c|\uc8fc|\uc0b4)/;\n// One-syllable numerals joined to a one-syllable unit are mostly other words (\"\uc774\ubc88\", \"\uc0ac\ud68c\", \"\uc624\ucc28\",\n// \"\uc77c\uba85\"); only these are numbers for certain.\nconst SURE_SHORT = /^([\uc77c\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\ub144|[\uc77c\uc0bc\uc0ac\uc624\uce60\ud314\uad6c]\uc6d4|[\uc77c\uc774\uc0bc]\ucc28|[\uc77c\uc774\uc0bc]\ub4f1|[\uc77c\uc774]\uc704|\uc2ed\ub300|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\uce35|[\uc77c\uc0bc\uc624\uc2ed]\ucd08)/;\nconst MONTH_WORD: any = { \uc720\uc6d4: \"6\uc6d4\", \uc2dc\uc6d4: \"10\uc6d4\" };\n\nfunction koNumber(run: string): number | null {\n  let total = 0;\n  let group = 0;\n  let ones = 0;\n  let place = 10000;\n  let big = Infinity;\n  for (const ch of run) {\n    if (KO_ONES[ch]) {\n      if (ones) return null; // two digits in a row: \"\uc0bc\uc0ac\", \"\uc774\uc77c\"\n      ones = KO_ONES[ch];\n    } else if (KO_PLACES[ch]) {\n      if (KO_PLACES[ch] >= place) return null;\n      place = KO_PLACES[ch];\n      group += (ones || 1) * place;\n      ones = 0;\n    } else {\n      const unit = ch === \"\uc5b5\" ? 1e8 : 1e4;\n      if (unit >= big) return null;\n      big = unit;\n      total += (group + ones || 1) * unit;\n      group = 0;\n      ones = 0;\n      place = 10000;\n    }\n  }\n  return total + group + ones;\n}\n// 2003 -> \"2003\", 700000000 -> \"7\uc5b5\", 40000000 -> \"4\ucc9c\ub9cc\", 35000000 -> \"3500\ub9cc\".\nfunction koShown(n: number): string {\n  if (n < 10000) return String(n);\n  const part = (v: number, unit: string) => (v ? (v >= 1000 && v % 1000 === 0 ? v / 1000 + \"\ucc9c\" : String(v)) + unit : \"\");\n  const rest = n % 10000;\n  return part(Math.floor(n / 1e8), \"\uc5b5\") + part(Math.floor((n % 1e8) / 1e4), \"\ub9cc\") + (rest ? String(rest) : \"\");\n}\n// A unit ends the number only when the word stops there or goes on with a particle or an ending; \"\ud504\ub85c\" in\n// \"\ud504\ub85c\uc81d\ud2b8\" and \"\uc138\ub300\" in \"\uc138\ub300\uc8fc\" are other words.\nconst AFTER_UNIT = /^([\uc774\uac00\uc740\ub294\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\ub098\ubd80\uae4c\uc11c\ubc16\ub9c8\uc9f8\uac04\ucbe4\uc529\uc9dc\uc5ec\uc600\uc785\uc608\uc778\ub3d9\uc804\ud6c4\ub4a4\uc815\uc548\ub54c\uc0dd][\uac00-\ud7a3]*)?[.,?!]*$/;\nconst unitIn = (units: RegExp, text: string): string | null => {\n  const m = units.exec(text);\n  return m && AFTER_UNIT.test(text.slice(m[1].length)) ? m[1] : null;\n};\n// What may follow a number of this size: a clock has 24 hours and a year 12 months (\"\uc774\ucc9c\uc2dc\" is a city).\nconst fitsUnit = (unit: string, n: number) => (unit === \"\uc2dc\" ? n <= 24 : unit === \"\uc6d4\" ? n <= 12 : true);\n\nfunction koDigits(word: string, next: string | null): string {\n  for (const m of Object.keys(MONTH_WORD)) if (word.startsWith(m) && !/^[\uac00-\ud7a3]{2,}/.test(word.slice(m.length).replace(/^(\uc5d0|\uc740|\ub294|\uc774|\uac00|\ub3c4|\ubd80\ud130|\uae4c\uc9c0|\ub2ec|\uc758|\uc5d0\ub294|\uc5d0\ub3c4)/, \"\"))) return MONTH_WORD[m] + word.slice(m.length);\n  const found = word.match(KO_NUMERAL);\n  if (!found) return word;\n  for (let len = found[0].length; len >= 1; len--) {\n    const run = found[0].slice(0, len);\n    const n = koNumber(run);\n    if (!n) continue;\n    const rest = word.slice(len);\n    const alone = /^[.,?!]*$/.test(rest);\n    // The unit is in this word (\"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\"), or it is the next word (\"\uc774\uc2ed \uba85\").\n    const after = alone ? String(next || \"\") : rest;\n    const short = unitIn(UNIT_SHORT, after);\n    let ok = false;\n    if (unitIn(UNIT_LONG, after)) ok = run !== \"\uc774\" || !alone;\n    else if (short && fitsUnit(short, n)) ok = run.length >= 2 ? !/^[\uc5b5\ub9cc]$/.test(run.slice(-1)) || /^(\uc6d0|\uba85|\uac1c|\ub144|\ud3c9|\ub300|\uc7a5|\uac74|\ud45c|\ubc30)$/.test(short) : alone ? run !== \"\uc774\" && run !== \"\ub9cc\" && run !== \"\uc5b5\" : SURE_SHORT.test(run + after);\n    else if (!alone && run.length >= 2 && /\uc5b5$/.test(run) && n >= 1e8) ok = !/^[\uac00-\ud7a3]{3,}/.test(rest); // \"\uce60\uc5b5\uc774\", \"\uc2ed\uc5b5\uc744\"\n    if (ok && alone && !rest && /^,/.test(after)) ok = false;\n    if (ok) return koShown(n) + rest;\n  }\n  return word;\n}\n\nconst shown = (t: string) => t.replace(/\\./g, \"\");\nconst width = (ws: any[], a: number, b: number) => {\n  let n = b - a - 1;\n  for (let i = a; i < b; i++) n += shown(String(ws[i][0])).length;\n  return Math.max(0, n);\n};\n\n// How bad it is to break between word i and word i + 1 (lower is better).\nfunction joint(ws: any[], i: number, fps: number): number {\n  const cur = String(ws[i][0]);\n  const next = String(ws[i + 1][0]);\n  const bare = cur.replace(/[.,?!]+$/, \"\");\n  const stop = (k: number) => {\n    const w = String(ws[k][0]);\n    const b = w.replace(/[.,?!]+$/, \"\");\n    return /,$/.test(w) || (CLAUSE_END.test(w) && !LEANS_FORWARD.test(b)) || (ws[k + 1][1] - ws[k][2]) / fps >= 0.5;\n  };\n  let s = 0;\n  const predicate = FINISHES_VERB.test(next) && !LEANS_BACK.test(next);\n  if (OPENS_CLAUSE.test(next.replace(/[.,?!]+$/, \"\"))) s -= 2;\n  else if (LEANS_FORWARD.test(bare)) s += 8;\n  else if (cur === bare && HANGUL.test(next) && !predicate) {\n    if (DESCRIBES_NEXT.test(bare)) s += 4;\n    else if (!MARKED_END.test(bare)) s += 3.5;\n  }\n  if (LEANS_BACK.test(next) && !NOT_A_VERB.test(next)) s += 6;\n  else if (predicate) s += OPENS_VERB.test(bare) ? 6 : 3;\n  if (/[0-9]/.test(bare) && (COUNTER.test(next) || /[0-9%]$/.test(bare))) s += 6;\n  const pause = (ws[i + 1][1] - ws[i][2]) / fps;\n  if (pause >= 0.3) s -= 2 + Math.min(2, pause);\n  if (NUMBER_WORD.test(bare) && STARTS_NUMBER.test(next + \" \")) s += 8;\n  else if (/,$/.test(cur)) s -= 3;\n  else if (CLAUSE_END.test(cur) && !LEANS_FORWARD.test(bare)) s -= 3;\n  // One word past a natural stop (\"\ucd94\uc9c4\ud558\ub294\ub370 \ucc98\uc74c\uc5d0\ub294 / \uc6b0\ub9ac\") strands the word that opens the next clause.\n  if (i >= 1 && !stop(i) && stop(i - 1)) s += 3;\n  return s;\n}\n\n// The best place to fold words [a, b) into two lines: [index of the first word of line two, cost]. One\n// line when it fits. `at(i)` is the cost of breaking after word i.\nfunction fold(ws: any[], a: number, b: number, maxc: number, at: (i: number) => number): [number, number] {\n  if (width(ws, a, b) <= maxc || b - a < 2) return [b, 0];\n  let best: [number, number] = [b, Infinity];\n  let top = -1;\n  const all = width(ws, a, b);\n  for (let k = a + 1; k < b; k++) {\n    top += shown(String(ws[k - 1][0])).length + 1;\n    const bottom = all - top - 1;\n    const over = Math.max(0, top - maxc) + Math.max(0, bottom - maxc);\n    const c = Math.abs(top - bottom) * 0.35 + over * 6 + at(k - 1) + (top > bottom + 3 ? 1 : 0) + (Math.min(top, bottom) < 5 ? 3 : 0);\n    if (c < best[1]) best = [k, c];\n  }\n  return best;\n}\n\n// Divide one sentence into captions: [end index of each caption]. Every way of cutting it into the\n// fewest captions that fit, or one more, is scored: even lengths, natural cuts and folds, nothing too\n// short to read.\nfunction divide(ws: any[], a: number, b: number, maxc: number, fps: number): number[] {\n  const cap = maxc * 2 - 1;\n  const n = b - a;\n  const total = width(ws, a, b);\n  if (n < 2 || total <= maxc) return [b];\n  const cuts: number[] = [];\n  for (let i = a; i < b - 1; i++) cuts.push(joint(ws, i, fps));\n  const at = (i: number) => cuts[i - a];\n  const folds = new Map<number, number>();\n  const lines = (i: number, j: number) => {\n    const key = i * 100000 + j;\n    let v = folds.get(key);\n    if (v === undefined) {\n      v = fold(ws, i, j, maxc, at)[1];\n      folds.set(key, v);\n    }\n    return v;\n  };\n  // The fewest captions that can hold it, filling each as far as it goes.\n  let least = 0;\n  for (let i = a; i < b; least++) {\n    let j = i + 1;\n    while (j < b && width(ws, i, j + 1) <= cap) j++;\n    i = j;\n  }\n  let bestCost = Infinity;\n  let bestCuts: number[] = [b];\n  for (let k = least; k <= Math.min(n, least + 1); k++) {\n    const ideal = total / k;\n    // cost[p][j]: the first j words in p captions.\n    const cost: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(Infinity));\n    const from: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(-1));\n    cost[0][0] = 0;\n    for (let p = 1; p <= k; p++) {\n      for (let j = p; j <= n; j++) {\n        for (let i = j - 1; i >= p - 1; i--) {\n          const w = width(ws, a + i, a + j);\n          if (w > cap && j - i > 1) break;\n          if (cost[p - 1][i] === Infinity) continue;\n          const uneven = ((w - ideal) / ideal) ** 2 * 6;\n          // A caption on screen for well under a second cannot be read.\n          const seconds = ((j < n ? ws[a + j][1] : ws[b - 1][2] + 0.4 * fps) - ws[a + i][1]) / fps;\n          const stub = (w < 6 ? 8 : 0) + (seconds < 0.5 ? 12 : seconds < 0.8 ? 6 : 0);\n          const c = cost[p - 1][i] + uneven + stub + lines(a + i, a + j) + (j < n ? at(a + j - 1) : 0);\n          if (c < cost[p][j]) {\n            cost[p][j] = c;\n            from[p][j] = i;\n          }\n        }\n      }\n    }\n    // A further caption has to earn its place.\n    const c = cost[k][n] + k * 3;\n    if (c < bestCost) {\n      const ends: number[] = [];\n      for (let p = k, j = n; p > 0; p--) {\n        ends.unshift(a + j);\n        j = from[p][j];\n      }\n      bestCost = c;\n      bestCuts = ends;\n    }\n  }\n  return bestCuts;\n}\n\nfunction makeCues(words: any[], fps: number, maxc: number, total: number, fixes: any[]): [number, number, string][] {\n  const clean = (t: string) => t.replace(/[\"\u201c\u201d]/g, \"\");\n  const ws = words\n    .map((w: any) => [clean(String(w[0])), w[1], w[2], w[3], w[4] ?? null, w[5] ?? null])\n    .filter((w: any) => String(w[0]).trim().length > 0 && !FILLER.test(String(w[0]).trim()));\n  if (!ws.length) return [];\n  // A stumble said twice (\"\uc6b0\ud06c\ub77c\uc774\ub098\ub9cc \ub098\ub9cc\", \"\uadf8 \uadf8\") is shown once: a word that repeats the word just before\n  // it, or its ending, within half a second is left out of the captions (the cut itself keeps the speech).\n  const bare = (t: string) => t.replace(/[.,?!\u2026~]+$/, \"\");\n  for (let i = ws.length - 1; i > 0; i--) {\n    const cur = bare(String(ws[i][0])), prev = bare(String(ws[i - 1][0]));\n    const gap = (ws[i][1] - ws[i - 1][2]) / fps;\n    if (!cur || gap >= 0.5) continue;\n    if (cur === prev || (cur.length >= 2 && prev.length > cur.length && prev.endsWith(cur))) {\n      const mark = String(ws[i][0]).slice(cur.length);\n      if (mark && !/[.,?!\u2026~]$/.test(String(ws[i - 1][0]))) ws[i - 1][0] = String(ws[i - 1][0]) + mark;\n      ws[i - 1][2] = ws[i][2];\n      ws.splice(i, 1);\n    }\n  }\n  // Numbers in digits, including the first of a pair said together (\"\ud55c \uc721, \uce60\uc5b5\" -> \"\ud55c 6, 7\uc5b5\").\n  for (let i = 0; i < ws.length; i++) ws[i][0] = koDigits(String(ws[i][0]), i + 1 < ws.length ? String(ws[i + 1][0]) : null);\n  for (let i = 0; i + 1 < ws.length; i++) {\n    const pair = String(ws[i][0]).match(/^([\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]),$/);\n    if (pair && /^[0-9]/.test(String(ws[i + 1][0]))) ws[i][0] = String(koNumber(pair[1])) + \",\";\n  }\n  // 1. Sentences: a new one starts with another speaker, after a full stop, at a cut in the source, or\n  // after a long silence.\n  const starts: number[] = [0];\n  for (let i = 1; i < ws.length; i++) {\n    const prev = ws[i - 1];\n    const w = ws[i];\n    const silence = (w[1] - prev[2]) / fps;\n    const cutInSource = w[3] != null && prev[3] != null && Math.abs(w[3] - prev[3] - (w[1] - prev[1])) > fps * 3;\n    const otherSpeaker = w[4] != null && prev[4] != null && w[4] !== prev[4];\n    const otherUtterance = w[5] != null && prev[5] != null && w[5] !== prev[5] && SENTENCE_END.test(String(prev[0]));\n    if (otherSpeaker || otherUtterance || SENTENCE_END.test(String(prev[0])) || cutInSource || silence > 1.5) starts.push(i);\n  }\n  starts.push(ws.length);\n  // 2. Captions within each sentence.\n  const groups: [number, number][] = [];\n  for (let s = 0; s + 1 < starts.length; s++) {\n    let a = starts[s];\n    for (const b of divide(ws, a, starts[s + 1], maxc, fps)) {\n      groups.push([a, b]);\n      a = b;\n    }\n  }\n  // 3. A one-word reply (\"\uc608.\", \"Right.\") gets its own caption. Only when it would be gone before it can\n  // be read does it join the caption before it; it never joins the sentence that follows.\n  const merged: [number, number][] = [];\n  const replyAt = new Map<number, number>(); // caption start -> index where a joined reply begins\n  for (let g = 0; g < groups.length; g++) {\n    const [a, b] = groups[g];\n    const nextStart = g + 1 < groups.length ? ws[groups[g + 1][0]][1] : total;\n    const onScreen = (Math.min(nextStart, ws[b - 1][2] + Math.round(0.6 * fps)) - ws[a][1]) / fps;\n    const last = merged[merged.length - 1];\n    if (last && width(ws, a, b) <= 3 && onScreen < 0.35 && width(ws, last[0], b) <= maxc * 2 - 1 && (ws[a][1] - ws[last[1] - 1][2]) / fps < 0.8) {\n      if (!replyAt.has(last[0])) replyAt.set(last[0], a);\n      last[1] = b;\n      continue;\n    }\n    merged.push([a, b]);\n  }\n  // 4. Text and timing.\n  const out: [number, number, string][] = [];\n  for (let g = 0; g < merged.length; g++) {\n    const [a, b] = merged[g];\n    let piece: any[] = ws.slice(a, b);\n    let joined = piece.map((x: any) => String(x[0])).join(\" \");\n    for (const f of fixes || []) if (f && f.from) joined = joined.split(String(f.from)).join(String(f.to ?? \"\"));\n    const fixed = joined.split(\" \").filter((t: string) => shown(t).length > 0);\n    // Fold on the words as they will be shown; timing for pauses comes from the original words when the\n    // spelling fixes kept their number, otherwise from none.\n    const timed = fixed.length === piece.length ? fixed.map((t: string, i: number) => [t, piece[i][1], piece[i][2]]) : fixed.map((t: string) => [t, 0, 0]);\n    const reply = replyAt.get(a);\n    const own = reply !== undefined && fixed.length === piece.length && width(ws, a, reply) <= maxc ? reply - a : -1;\n    const k = own > 0 ? own : fold(timed, 0, timed.length, maxc, (i: number) => joint(timed, i, fps))[0];\n    const text = k >= timed.length ? fixed.map(shown).join(\" \") : fixed.slice(0, k).map(shown).join(\" \") + \"\\n\" + fixed.slice(k).map(shown).join(\" \");\n    const start = ws[a][1];\n    let end = g + 1 < merged.length ? ws[merged[g + 1][0]][1] : total;\n    if (g + 1 < merged.length && (ws[merged[g + 1][0]][1] - ws[b - 1][2]) / fps > 1.2) end = Math.min(end, ws[b - 1][2] + Math.round(0.6 * fps));\n    out.push([Math.round(start), Math.round(end), text]);\n  }\n  for (let i = 0; i < out.length - 1; i++) {\n    const g = out[i + 1][0] - out[i][1];\n    if (g > 0 && g < 8) out[i][1] = out[i + 1][0];\n  }\n  // 5. Every caption stays long enough to read: one that would flash by borrows the time from the\n  // silence after it, or from the start of a longer caption that follows.\n  const least = Math.round(0.6 * fps);\n  for (let i = 0; i < out.length; i++) {\n    const short = least - (out[i][1] - out[i][0]);\n    if (short <= 0) continue;\n    const next = out[i + 1];\n    if (!next) {\n      out[i][1] = Math.min(total, out[i][0] + least);\n      continue;\n    }\n    const silence = next[0] - out[i][1];\n    if (silence >= short) out[i][1] += short;\n    else if (next[1] - next[0] - (short - silence) >= Math.round(1.0 * fps)) {\n      out[i][1] += short;\n      next[0] = out[i][1];\n    } else out[i][1] = next[0];\n  }\n  if (out.length && out[0][0] < 10) out[0][0] = 0;\n  return out;\n}\n\n// Resource ids are Project-scoped aliases; listing the resources first makes a saved id valid in this\n// session, and the file name finds the same video again if the alias changed.\nconst project = selects.project(P.projectId);\nconst input = await readShortformInput(project, P);\nconst { meta: sm, words: sourceWords } = input;\nconst sfps = sm.fps;\nconst sws = sourceWords.filter((w: any) => !w.nonSpeech && String(w.text).trim().length > 0);\nconst W: number[][] = sws.map((w: any) => [w.startFrame / sfps, w.endFrame / sfps]);\nif (!W.length) throw new Error(\"The source has no transcript words. Analyze it first.\");\n\n// Snap each requested range to whole words without catching the neighbouring word.\nfunction snap(a: number, b: number): number[] {\n  let i = 0;\n  let j = 0;\n  let bi = Infinity;\n  let bj = Infinity;\n  for (let k = 0; k < W.length; k++) {\n    const da = Math.abs(W[k][0] - a);\n    if (da < bi) {\n      bi = da;\n      i = k;\n    }\n    const db = Math.abs(W[k][1] - b);\n    if (db < bj) {\n      bj = db;\n      j = k;\n    }\n  }\n  if (j < i) j = i;\n  const prevEnd = i > 0 ? W[i - 1][1] : 0;\n  const nextStart = j + 1 < W.length ? W[j + 1][0] : W[j][1] + 1;\n  const start = Math.max(prevEnd + 0.03, W[i][0] - 0.15, 0);\n  const end = Math.min(nextStart - 0.04, W[j][1] + 0.22, sm.durationSeconds);\n  return [Math.round(start * 1000) / 1000, Math.round(end * 1000) / 1000];\n}\n\nconst segs = (P.segments as number[][]).map((s) => snap(Number(s[0]), Number(s[1]))).filter((s) => s[1] - s[0] > 0.5);\nif (!segs.length) throw new Error(\"No usable source range for this clip.\");\n\nconst d = await project.createDraft({ name: P.name });\nawait initializeShortformSettings(d, input);\nfor (const s of segs) {\n  await insertShortformRange(d, input, s[0], s[1]);\n}\nif (P.removeFillers) {\n  const fill = (await d.words()).filter((w: any) => w.filler && w.filler.removable);\n  if (fill.length) await d.remove(fill.map((w: any) => w.span), { tracks: \"all\" });\n}\nif (P.removeSilences) {\n  const sil = await d.silenceSpans({ preset: \"normal\" });\n  const cut = sil.flatMap((x: any) => x.cutSpans);\n  if (cut.length) await d.remove(cut, { tracks: \"all\" });\n}\nawait d.setFrameSize({ width: 1080, height: 1920 });\nconst readV = async () =>\n  (await d.clips({ trackScope: \"all\" })).filter((c: any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nconst nV = (await readV()).length;\nfor (let k = 0; k < nV; k++) {\n  const c = (await readV())[k];\n  await d.setClipTransform({\n    clip: c,\n    scale: { x: P.transform.scale, y: P.transform.scale },\n    position: { x: P.transform.posX, y: P.transform.posY },\n  });\n}\n// Speaker reframing: each shot pans (and for side-by-side faces, widens) the window to the faces it follows. Shots are in source seconds; the\n// Draft's words map them onto its own frames, after fillers and pauses were cut.\nif (Array.isArray(P.reframe) && P.reframe.length) {\n  try {\n    const fitScale = P.transform.scale * (1080 / 1920);\n    const srcW = Number(sm.frameSize?.width) || 1920;\n    // A shot with a width w shows that many source pixels across the window (two people side by side),\n    // centred in the window; other shots keep the template's crop and pan only.\n    const FIT = 1080 / srcW;\n    const winMid = (Number(P.frame.windowTop) + Number(P.frame.windowBottom)) / 2;\n    const r4 = (x: number) => Math.round(x * 10000) / 10000;\n    const placeOf = (shot: any) => {\n      const sc = shot.w ? 1080 / shot.w : fitScale;\n      const inset = Number(P.reframeInset) || 0;\n      const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;\n      const x = r4((Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc)) / 1920) * 100);\n      if (!shot.w) return { scale: P.transform.scale, x, y: P.transform.posY };\n      if (!shot.cy) return { scale: r4(sc / FIT), x, y: r4((-(winMid - 960) / 1920) * 100) };\n      // A close-up puts the face faceY of the way down the window (headroom above it) and keeps the picture\n      // covering the whole window.\n      const top = Number(P.frame.windowTop), bottom = Number(P.frame.windowBottom), half = (1080 / 2) * sc * (Number(sm.frameSize?.height) || 1080) / 1080;\n      const faceY = Number(P.reframeFaceY) || 0.4;\n      const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - shot.cy) * sc));\n      return { scale: r4(sc / FIT), x, y: r4((-(yc - 960) / 1920) * 100) };\n    };\n    const key = (shot: any) => JSON.stringify(placeOf(shot));\n    const shotAt = (sec: number) =>\n      P.reframe.find((r: any) => sec >= r.start && sec < r.end) || (sec < P.reframe[0].start ? P.reframe[0] : P.reframe[P.reframe.length - 1]);\n    const ws = (await d.words()).filter((w: any) => !w.nonSpeech).map((w: any) => [w.startFrame, P.sourceKind === \"draft\" || P.sourceKind === \"synced\" ? 0 : w.sourceStartFrame / sm.fps]);\n    for (let k = 1; k < ws.length; k++) {\n      if (key(shotAt(ws[k][1])) === key(shotAt(ws[k - 1][1]))) continue;\n      try {\n        await d.splitAt({ frame: ws[k][0] });\n      } catch (e) {\n        // Already a clip boundary.\n      }\n    }\n    const nM = (await d.clips({ trackScope: \"main\" })).length;\n    for (let k = 0; k < nM; k++) {\n      const mc = (await d.clips({ trackScope: \"main\" }))[k];\n      // Keep the preceding shot across wordless passage tails; use the next word for a leading gap.\n      const w = ws.find((x: any) => x[0] >= mc.startFrame && x[0] < mc.endFrame) || ws.filter((x: any) => x[0] < mc.startFrame).pop() || ws.find((x: any) => x[0] >= mc.endFrame);\n      if (!w) continue;\n      const pl = placeOf(shotAt(w[1]));\n      const vs = (await readV()).filter((c: any) => c.startFrame >= mc.startFrame && c.startFrame < mc.endFrame);\n      for (let v = 0; v < vs.length; v++) {\n        const c = (await readV()).filter((c2: any) => c2.startFrame >= mc.startFrame && c2.startFrame < mc.endFrame)[v];\n        await d.setClipTransform({ clip: c, scale: { x: pl.scale, y: pl.scale }, position: { x: pl.x, y: pl.y } });\n      }\n    }\n  } catch (e) {\n    // Reframing is optional: a clip keeps the fixed crop rather than failing.\n  }\n}\nconst mainClips = await d.clips({ trackScope: \"main\" });\nconst endFrame = mainClips.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);\nconst meta = await d.meta();\nawait d.addMotionGraphic({\n  label: \"Series frame and headline\",\n  tsxCode: FRAME_TSX,\n  parameters: P.frame,\n  editableParameters: P.editableFrame,\n  within: await d.rangeAtFrames(0, endFrame),\n});\n\n// Highlight phrases chosen with the passage are wrapped in *asterisks* for the caption graphic.\nconst markCue = (text: string) => {\n  const phrases = (Array.isArray(P.highlights) ? P.highlights : []).map((h: any) => String(h).trim()).filter((h: string) => h.length >= 2).sort((x: string, y: string) => y.length - x.length);\n  return text\n    .split(\"\\n\")\n    .map((line: string) => {\n      let out = line;\n      for (const h of phrases) {\n        const at = out.indexOf(h);\n        if (at < 0 || out.slice(0, at).split(\"*\").length % 2 === 0) continue;\n        out = out.slice(0, at) + \"*\" + h + \"*\" + out.slice(at + h.length);\n      }\n      return out;\n    })\n    .join(\"\\n\");\n};\n// The episode date is its own graphic, so its text and position can be changed in the Draft.\nif (P.dateLabel && String(P.dateLabel.text || \"\").trim()) {\n  await d.addMotionGraphic({\n    label: \"Date\",\n    tsxCode: DATE_TSX,\n    parameters: P.dateLabel,\n    editableParameters: P.editableDate,\n    within: await d.rangeAtFrames(0, endFrame),\n  });\n}\nlet cueCount = 0;\nif (P.captions && P.caption) {\n  const words = inputCaptionWords(await d.words(), input, segs, meta.fps)\n    .filter((w: any) => !w.nonSpeech)\n    .map((w: any) => [String(w.text), w.startFrame, w.endFrame, w.sourceStartFrame, w.speakerId ?? null, w.utteranceId ?? null]);\n  const cues = makeCues(words, meta.fps, P.lineMax, endFrame, P.fixes);\n  for (let k = 0; k < cues.length; k++) {\n    const a = cues[k][0];\n    const e = Math.min(cues[k][1], endFrame);\n    if (e <= a) continue;\n    await d.addMotionGraphic({\n      label: \"Caption \" + String(k + 1).padStart(2, \"0\"),\n      tsxCode: CAPTION_TSX,\n      parameters: { ...P.caption, text: markCue(cues[k][2]) },\n      editableParameters: P.editableCaption,\n      within: await d.rangeAtFrames(a, e),\n    });\n    cueCount++;\n  }\n}\nconst out: any = await d.commitAll(\"Shortform clip: \" + P.name);\nreturn { draftId: out.createdDraftId ?? null, seconds: Math.round((endFrame / meta.fps) * 10) / 10, captions: cueCount, segments: segs };\n";
 
 const RadioPreviewFrame: any = (() => {
 
@@ -2294,9 +2371,9 @@ const RADIO_STRINGS: any = {
     builtInNote: "Built-in template. Changes are saved on this computer; Reset to default restores the original.",
     modifiedNote: "Built-in template, changed on this computer.",
     customNote: "Your template.",
-    tabLook: "Look",
+    tabLook: "Design",
     tabCaptions: "Captions",
-    tabAI: "AI",
+    tabAI: "Content",
     preview: "Preview",
     sampleH1: "\"The strongest line here\"",
     sampleH2: "Who said it",
@@ -2312,7 +2389,7 @@ const RADIO_STRINGS: any = {
     layoutShorts: "YouTube Shorts",
     layoutTiktok: "TikTok",
     editingLayout: (layout: string) => `Editing ${layout} layout`,
-    reframing: "Finding faces to frame each speaker…",
+    reframing: "Composing clips…",
     reframeSkipped: "Some clips use the full picture because speaker framing was unavailable.",
     closeUp: "Close-up on the talker (face widths across)",
     faceY: "Face height of the talker (% down the window)",
@@ -2505,9 +2582,9 @@ const RADIO_STRINGS: any = {
     builtInNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4. \ubc14\uafbc \ub0b4\uc6a9\uc740 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc800\uc7a5\ub418\uace0, \"\uae30\ubcf8\uac12\uc73c\ub85c\"\ub97c \ub204\ub974\uba74 \uc6d0\ub798\ub300\ub85c \ub3cc\uc544\uac11\ub2c8\ub2e4.",
     modifiedNote: "\uae30\ubcf8 \ud15c\ud50c\ub9bf\uc744 \uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \ubc14\uafbc \uc0c1\ud0dc\uc785\ub2c8\ub2e4.",
     customNote: "\uc9c1\uc811 \ub9cc\ub4e0 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4.",
-    tabLook: "\ud654\uba74",
+    tabLook: "디자인",
     tabCaptions: "\uc790\ub9c9",
-    tabAI: "AI",
+    tabAI: "내용",
     preview: "\ubbf8\ub9ac\ubcf4\uae30",
     sampleH1: "\"\uac00\uc7a5 \uc13c \ud55c\ub9c8\ub514\uac00 \uc5ec\uae30\uc5d0\"",
     sampleH2: "\ub204\uac00 \ud55c \ub9d0\uc778\uc9c0",
@@ -2523,7 +2600,7 @@ const RADIO_STRINGS: any = {
     layoutShorts: "\uc720\ud29c\ube0c \uc1fc\uce20",
     layoutTiktok: "\ud2f1\ud1a1",
     editingLayout: (layout: string) => `${layout} \ub808\uc774\uc544\uc6c3 \ud3b8\uc9d1 \uc911`,
-    reframing: "\ud654\uc790\ub97c \ud654\uba74\uc5d0 \ub9de\ucd94\ub824\uace0 \uc5bc\uad74 \ucc3e\ub294 \uc911…",
+    reframing: "쇼츠별 화면 구성 진행 중…",
     reframeSkipped: "\uc77c\ubd80 \ud074\ub9bd\uc740 \ud654\uc790 \uad6c\ub3c4\ub97c \uc7a1\uc744 \uc218 \uc5c6\uc5b4 \uc804\uccb4 \ud654\uba74\uc73c\ub85c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.",
     closeUp: "\ud654\uc790 \ud074\ub85c\uc988\uc5c5 (\ud654\uba74 \ud3ed = \uc5bc\uad74 \ud3ed\uc758 \uba87 \ubc30)",
     faceY: "\ud654\uc790 \uc5bc\uad74 \ub192\uc774 (\ucc3d \uc704\uc5d0\uc11c\ubd80\ud130 %)",
@@ -2703,7 +2780,1019 @@ function sentencesOf(words: any[]): any[] {
 // piece frames the spot that keeps the most face area whole, or a wider view that keeps everyone whole.
 // Samples may come from several separate ranges (the clip's passages); a face at the same place on both
 // sides of a gap stays one face. log, when given, receives the speaker matches and each piece's decision.
-function planShots(samples: any[], turns: any[], frameW: number, windowW: number, closeUp = 4.5, inset = 0, split = false, coverW = windowW, closeUpMin = 2.8, log?: any, sents?: any[], forced?: any[]): any[] {
+// Map synchronized source windows through each edited Main occurrence. Source
+// seconds never stand in for playback frames; repeated passages stay distinct.
+function cameraHeadroom(boxes: any[], W: number, H: number, panelH: number): any {
+  const valid=boxes.filter(b=>[b.xmin,b.xmax,b.ymin,b.ymax].every(Number.isFinite)&&b.xmax>b.xmin&&b.ymax>b.ymin);
+  if (!valid.length || !(W>0 && H>0 && panelH>0)) return {fit:"contain"};
+  // A fill crop must fit BOTH source dimensions and contain every requested head.
+  // The old full-width crop could be taller than the source in portrait layouts.
+  const left=Math.max(0,Math.min(...valid.map(b=>b.xmin-(b.xmax-b.xmin)*.15)));
+  const right=Math.min(W,Math.max(...valid.map(b=>b.xmax+(b.xmax-b.xmin)*.15)));
+  const top=Math.max(0,Math.min(...valid.map(b=>b.ymin-(b.ymax-b.ymin)*.3)));
+  const bottom=Math.min(H,Math.max(...valid.map(b=>b.ymax+(b.ymax-b.ymin)*.3)));
+  const maxW=Math.min(W,H*1080/panelH);
+  const w=Math.max(right-left,(bottom-top)*1080/panelH);
+  if(w>maxW+1e-6) return {fit:"contain"};
+  const width=Math.min(maxW,Math.max(w,maxW*.85)),h=width*panelH/1080;
+  const x=Math.max(0,Math.min(W-width,(left+right-width)/2));
+  const y=Math.max(0,Math.min(H-h,(top+bottom-h)/2));
+  return {cx:x+width/2,cy:y+h*.4,w:width,sourceW:W,sourceH:H};
+}
+
+// Read-only adapter for the allowlisted analyzed-sequence payload. Reject timing
+// representations we cannot map exactly; never guess synchronization offsets.
+function cameraManifestFromSequence(payload:any):any {
+  const resource=payload?.resourceJson,seq=resource?.content,fps=Number(seq?.frameRate);
+  if(!(fps>0)||!Array.isArray(seq?.tracks?.children)) throw new Error('Source camera layout unavailable');
+  const cameras:any[]=[];
+  if(resource.type!=='Sequence'||!Array.isArray(resource.videoSources)||seq.ownerResourceId!==resource.id) throw new Error('Synchronized camera source ownership unavailable');
+  resource.videoSources.forEach((source:any,videoIndex:number)=>{
+    if(source.kind!=='sequence'||source.sequenceId!==seq.id||source.slotIndex!==0) throw new Error('Unsupported synchronized camera source');
+    const track=seq.tracks.children.find((t:any)=>t.id===source.trackId&&t.kind==='Video');
+    if(!track) throw new Error('Synchronized camera track missing');
+    if(source.isActive===false||track.visible===false) return;
+    let at=0;
+    for(const c of track.children) {
+      const schema=String(c.schema),ticks=schema==='Cutback.Clip.2'||schema==='Cutback.Gap.2';
+      if(!ticks) throw new Error('Unsupported source camera timing schema: '+schema);
+      const speed=c.timing?.playbackSpeed;
+      if(speed&&speed.numerator!==speed.denominator) throw new Error('Retimed synchronized members are not supported');
+      if(c.timing?.sourceTickRoundingRemainder) throw new Error('Fractional member timing is unsupported');
+      const start=Number(c.sourceRange?.startTime)/705600000,duration=Number(c.sourceRange?.duration)/705600000;
+      if(!Number.isFinite(start)||!Number.isFinite(duration)||duration<0) throw new Error('Invalid member timing');
+      const resourceId=c.mediaReferences?.defaultMedia?.id;
+      if(resourceId&&!c.cut&&c.enabled!==false) cameras.push({videoIndex,resourceId,windows:[{srcStartSec:start,srcEndSec:start+duration,offsetSec:at-start}]});
+      // Synced source placements use base time, including soft-cut material.
+      at+=duration;
+    }
+  });
+  if(!cameras.length) throw new Error('No visible synchronized camera placements are available.');
+  return {cameras};
+}
+
+function cameraPanelPlacements(snapshot: any, manifests: any): any[] {
+  const fps = Number(snapshot.fps);
+  if (!(fps > 0)) throw new Error("Draft frame rate is unavailable.");
+  const out: any[] = [];
+  for (const c of snapshot.clips.filter((x:any)=>x.trackKind === "main")) {
+    const cameras = manifests[c.resourceId]?.cameras || [];
+    if (cameras.length < 2) continue;
+    const rate = Number(c.playbackSpeed);
+    if (!(rate > 0) || !Number.isFinite(c.sourceStartSeconds)) throw new Error("Camera source timing is unavailable.");
+    const at = (sec:number,end=false)=>Math.max(c.startFrame,Math.min(c.endFrame,(end ? Math.floor : Math.ceil)(c.startFrame+(sec-c.sourceStartSeconds)/rate*fps+(end ? 1e-7 : -1e-7))));
+    const candidates:any[] = [];
+    for (const camera of cameras) for (const w of camera.windows) {
+      const start = at(w.srcStartSec+w.offsetSec), end = at(w.srcEndSec+w.offsetSec,true);
+      if (end>start) candidates.push({...camera,window:w,start,end});
+    }
+    const edges = [...new Set([c.startFrame,c.endFrame,...candidates.flatMap(x=>[x.start,x.end])])].sort((a,b)=>a-b);
+    for (let i=1;i<edges.length;i++) {
+      const startFrame=edges[i-1],endFrame=edges[i];
+      const available=candidates.filter(x=>x.start<=startFrame&&x.end>=endFrame).sort((a,b)=>a.videoIndex-b.videoIndex);
+      const unique=available.filter((x,j)=>available.findIndex(y=>y.videoIndex===x.videoIndex)===j).slice(0,3);
+      if (!unique.length) continue;
+      unique.forEach((x,slot)=>out.push({startFrame,endFrame,slot,count:unique.length,resourceId:x.resourceId,videoIndex:x.videoIndex,
+        sourceStartSeconds:c.sourceStartSeconds+(startFrame-c.startFrame)/fps*rate-x.window.offsetSec,
+        playbackSpeed:{numerator:Math.round(rate*1000000),denominator:1000000}}));
+    }
+  }
+  return out;
+}
+function parseAgentReframeReport(text:string):any {
+  const raw=text.trim();
+  try {return JSON.parse(raw);} catch {}
+  // Agent runtimes can include a short completion note around the final JSON.
+  const fenced=[...raw.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)];
+  for(const match of fenced.reverse()) {try {const value=JSON.parse(match[1]);if(value?.draftId&&value?.status)return value;} catch {}}
+  const start=raw.indexOf('{'),end=raw.lastIndexOf('}');
+  if(start>=0&&end>start) return JSON.parse(raw.slice(start,end+1));
+  throw new Error('Missing agent completion report');
+}
+// A framing split may divide one source word into adjacent projection rows.
+// Rejoin only the same identified word with continuous source and output time.
+function normalizeReframeWords(words:any[]):any[] {
+  const result:any[]=[];
+  for(const word of words) {
+    const previous=result[result.length-1];
+    if(previous && word.wordId!=null && word.sourceResourceId!=null &&
+      previous.wordId===word.wordId && previous.sourceResourceId===word.sourceResourceId &&
+      previous.text===word.text && previous.endFrame===word.startFrame &&
+      Number.isFinite(previous.sourceEndFrame) && previous.sourceEndFrame===word.sourceStartFrame) {
+      previous.endFrame=word.endFrame; previous.sourceEndFrame=word.sourceEndFrame;
+    } else result.push({...word});
+  }
+  return result;
+}
+// Delegate the complete reframing turn to the existing Selects Agent runtime.
+async function askReframingAI({sdk,guard,note}: any, request: any) {
+  try {
+    const response = await guard(sdk.askAI(request));
+    note({plan:"reframe-usage",usage:response.usage ?? null});
+    return response;
+  } catch (error) {
+    note({plan:"reframe-usage",usage:null});
+    throw error;
+  }
+}
+
+// The agent chooses the regions and cuts. This function only validates and fits them.
+function compileSourceCropPlan(shots:any[], sources:any[], duration:number, layout:any) {
+  const top=Number(layout.windowTop??0), bottom=Number(layout.windowBottom??1920), windowH=bottom-top;
+  if(!Number.isFinite(top)||!Number.isFinite(bottom)||top<0||bottom>1920||windowH<=0) throw new Error('Invalid video window');
+  if(!Array.isArray(shots)||!shots.length) throw new Error('Missing source crop plan');
+  const fixed=new Map<string,any>();let end=0;
+  return shots.map((shot:any)=>{
+    if(!Number.isInteger(shot.startFrame)||shot.startFrame!==end||!Number.isInteger(shot.endFrame)||shot.endFrame<=end||shot.endFrame>duration) throw new Error('Shots must cover the Draft exactly, without gaps or overlaps');
+    end=shot.endFrame;
+    const source=sources.find((s:any)=>s.resourceId===shot.resourceId);
+    const W=source?.meta?.frameSize?.width,H=source?.meta?.frameSize?.height;
+    if(![W,H].every(Number.isFinite)||!(W>0&&H>0)) throw new Error('Unknown source or source dimensions');
+    if(!['speaker','stacked','wide'].includes(shot.style)) throw new Error('Unknown shot style');
+    if(shot.style==='wide'&&(layout.widePolicy||'never')==='never') throw new Error('Template forbids wide shots');
+    if(shot.style==='stacked'&&((layout.splitPolicy||'selective')==='never'||layout.cameraMode==='speaker')) throw new Error('Template forbids stacked shots');
+    const count=shot.style==='stacked'?2:1;
+    if(!Array.isArray(shot.regions)||shot.regions.length!==count) throw new Error('Wrong region count');
+    if(typeof shot.compositionId!=='string'||!shot.compositionId.trim()) throw new Error('Missing stable composition ID');
+    const proposed=shot.regions.map((r:any)=>{
+      if(![r.x,r.y,r.width,r.height].every(Number.isFinite)||r.x<0||r.y<0||r.width<=0||r.height<=0||r.x+r.width>1.000001||r.y+r.height>1.000001) throw new Error('Region must be inside the source');
+      const f=r.focus;
+      if(f && (![f.x,f.y,f.width,f.height].every(Number.isFinite)||f.width<=0||f.height<=0||f.x<r.x||f.y<r.y||f.x+f.width>r.x+r.width+1e-6||f.y+f.height>r.y+r.height+1e-6)) throw new Error('Head bounds must be inside the selected source region');
+      if(r.anchor&&(!f||![r.anchor.x,r.anchor.y].every(Number.isFinite)||r.anchor.x<f.x||r.anchor.x>f.x+f.width||r.anchor.y<f.y||r.anchor.y>f.y+f.height)) throw new Error('Invalid measured face anchor');
+      return {x:r.x,y:r.y,width:r.width,height:r.height,...(f?{focus:{x:f.x,y:f.y,width:f.width,height:f.height}}:{}),...(r.anchor?{anchor:r.anchor}:{})};
+    });
+    const key=JSON.stringify([shot.resourceId,shot.style,shot.compositionId]);
+    // A silence edit cannot introduce tiny independent zoom/position estimates.
+    const regions=fixed.get(key)||proposed;fixed.set(key,regions);
+    const panels=regions.map((r:any,slot:number)=>{
+      const outH=windowH/count,aspect=1080/outH;
+      const w=Math.min(r.width*W,r.height*H*aspect),h=w/aspect;
+      let x=r.x*W+(r.width*W-w)/2,y=r.y*H+(r.height*H-h)/2;
+      if(r.focus && shot.style!=='wide') {
+        const f=r.focus,fx=f.x*W,fy=f.y*H,fw=f.width*W,fh=f.height*H;
+        if(fw>w+1e-6||fh>h+1e-6) throw new Error('Selected head cannot fit in the portrait crop');
+        const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
+        // Place the selected head, not the center of a broad person/pane region.
+        x=clamp((r.anchor?.x*W||fx+fw/2)-w/2,Math.max(r.x*W,fx+fw-w),Math.min((r.x+r.width)*W-w,fx));
+        const faceY=clamp(Number(layout.faceY??40)/100,.25,.65);
+        y=clamp((r.anchor?.y*H||fy+fh/2)-h*faceY,Math.max(r.y*H,fy+fh-h),Math.min((r.y+r.height)*H-h,fy));
+      }
+      if(![w,h,x,y].every(Number.isFinite)||w<=0||h<=0) throw new Error('Invalid computed crop');
+      if(x<r.x*W-1e-6||y<r.y*H-1e-6||x+w>(r.x+r.width)*W+1e-6||y+h>(r.y+r.height)*H+1e-6) throw new Error('Computed crop leaves the source pane');
+      // A reused composition must still contain this shot's measured head.
+      const current=proposed[slot],f=current.focus;
+      if(shot.style!=='wide'&&f&&(x>f.x*W+1e-6||y>f.y*H+1e-6||x+w<(f.x+f.width)*W-1e-6||y+h<(f.y+f.height)*H-1e-6)) throw new Error('Fixed composition clips the selected head');
+      return {w,cx:x+w/2,cy:y+h*.4,slot,count,...(shot.style==='wide'?{fit:'contain'}:{})};
+    });
+    if(shot===shots[shots.length-1]&&end!==duration) throw new Error('Shots must cover the full Draft');
+    return {...shot,regions,sourceW:W,sourceH:H,windowH,panels};
+  });
+}
+
+function sourceCropApplyScript(projectId:string,draftId:string,layout:any,sources:any[],duration:number) {
+  return `const shots = __SHOTS__;
+const compile = ${compileSourceCropPlan.toString()};
+const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(draftId)});
+const sources = ${JSON.stringify(sources)};
+const aliases = new Map();
+for (const source of sources) {
+ const id=(await p.resource(source.resourceId).rangeAtFrames(0,1)).resourceId;
+ aliases.set(source.resourceId,id); source.resourceId=id;
+}
+const plan = compile(shots.map(s=>({...s,resourceId:aliases.get(s.resourceId)||s.resourceId})), sources, ${duration}, ${JSON.stringify(layout)});
+if (!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)})) throw new Error("Draft ownership changed");
+if ((await d.meta()).durationFrames!==${duration}) throw new Error("Draft duration changed");
+// Validate source ownership before any edit.
+for (const c of await d.clips({trackScope:"main"})) {
+ if (!c.resourceId) continue;
+ for (const s of plan.filter(s=>s.startFrame<c.endFrame && s.endFrame>c.startFrame))
+  if (s.resourceId!==c.resourceId) throw new Error("Shot source does not match its clip");
+}
+for (const s of plan.slice(1)) {
+ const clips=await d.clips({trackScope:"main"});
+ if (clips.some(c=>c.startFrame<s.startFrame&&c.endFrame>s.startFrame)) await d.splitAt({frame:s.startFrame});
+}
+const keys=(await d.clips({trackScope:"main"})).filter(c=>c.resourceId).map(c=>({clipId:c.clipId,trackId:c.trackId}));
+for (const key of keys) {
+ const fresh=async()=> (await d.clips({trackScope:"main"})).find(c=>c.clipId===key.clipId&&c.trackId===key.trackId);
+ const c=await fresh(),s=plan.find(s=>s.startFrame<=c.startFrame&&s.endFrame>=c.endFrame);
+ if (!s) throw new Error("Uncovered main clip");
+ await d.setClipTransform({clip:c,scale:{x:1,y:s.windowH/(s.sourceH*1080/s.sourceW)},position:{x:0,y:(960-(${Number(layout.windowTop??0)}+${Number(layout.windowBottom??1920)})/2)/1920*100}});
+ const parameters={sourceW:s.sourceW,sourceH:s.sourceH,windowH:s.windowH,panels:s.panels};
+ const old=(await d.videoEffects(await fresh())).find(e=>e.name==="Shortform stacked framing");
+ if(old) await d.replaceVideoEffect(old,{tsxCode:${JSON.stringify(STACKED_REFRAME_EFFECT)},parameters});
+ else await d.addVideoEffect({clip:await fresh(),label:"Shortform stacked framing",tsxCode:${JSON.stringify(STACKED_REFRAME_EFFECT)},parameters});
+}
+await d.commitAll("Apply agent-selected source crops");
+return {applied:plan.map(s=>({startFrame:s.startFrame,endFrame:s.endFrame,compositionId:s.compositionId,panels:s.panels}))};`;
+}
+
+function validateSourceCropRepair(previous:any[],next:any[],adjustments:any,frames:number[]) {
+  if(!Array.isArray(next)||next.length!==previous.length||next.some((s:any,i:number)=>['resourceId','style','compositionId'].some(k=>s[k]!==previous[i][k]))) throw new Error('Visual repair changed editorial scope');
+  if(next[0]?.startFrame!==previous[0]?.startFrame||next[next.length-1]?.endFrame!==previous[previous.length-1]?.endFrame) throw new Error('Visual repair changed editorial scope');
+  for(let i=1;i<previous.length;i++) {
+    const oldFrame=previous[i].startFrame,newFrame=next[i].startFrame;
+    if(oldFrame===newFrame) continue;
+    if(Math.abs(newFrame-oldFrame)!==1||!frames.includes(newFrame-1)||!frames.includes(newFrame)||!Array.isArray(adjustments)||!adjustments.some((a:any)=>a.oldFrame===oldFrame&&a.newFrame===newFrame&&typeof a.reason==='string'&&a.reason.trim())) throw new Error('Boundary correction lacks adjacent-frame evidence');
+  }
+  for(let i=0;i<next.length-1;i++) if(next[i].endFrame!==next[i+1].startFrame) throw new Error('Visual repair changed editorial scope');
+}
+
+const measuredFaceWork = createReframeWork();
+async function collectMeasuredFaces({sdk,guard,projectId,before,note}:any) {
+  const read=async(script:string,summary:string,allowCommit=false)=>{
+    const r=await guard(sdk.runScript({script,summary,allowCommit}));
+    if(r.isError) throw new Error(r.output||summary);return r.result;
+  };
+  const catalog:any[]=[];
+  for(const [sourceIndex,source] of before.sources.entries()) {
+    const fps=source.meta.fps,W=source.meta.frameSize.width,H=source.meta.frameSize.height;
+    const words=before.words.filter((w:any)=>w.sourceResourceId===source.resourceId&&Number.isFinite(w.sourceStartFrame)&&w.sourceEndFrame>w.sourceStartFrame);
+    if(!words.length||!(fps>0)) throw new Error('Missing source timing for face measurements');
+    const ranges=cameraFaceRanges(words.map((w:any)=>[w.sourceStartFrame/fps,w.sourceEndFrame/fps]));
+    let sampleIndex=0;
+    for(const [a,b] of ranges.flatMap(r=>faceWindows(r[0],r[1],.5,fps,12))) {
+      const request={runtimeId:AI_RUNTIME,requestKey:`${APP_ID}:measured-v1:${keyHash(JSON.stringify({projectId,resourceId:source.resourceId,a,b}))}`,projectId,resourceId:source.resourceId,sourceRange:{startSeconds:a,endSeconds:b},task:'faces.detect',options:{sampleEverySeconds:.5}};
+      note({plan:'stage',stage:'faces-wait'});
+      const data=await guard(measuredFaceWork.face(JSON.stringify(request),async()=>{
+        await guard(Promise.resolve());note({plan:'stage',stage:'faces'});let wf='';
+        const settled=await settleFaceJob({submit:async()=>{wf=(await read(`return await selects.ai.submit(${JSON.stringify(request)});`,'Measure source faces',true)).workflowId;return {wf};},
+          status:cancel=>read(`const j=selects.ai.job(${JSON.stringify(wf)},${JSON.stringify(projectId)});${cancel?'await j.cancel();':''}const s=await j.status();return {status:s.status,error:s.lastErrorMessage};`,'Check source face measurements',cancel),
+          wait:ms=>guard(sleep(ms)),deadline:Date.now()+120000,now:()=>Date.now(),stop:e=>e instanceof RunCancelled});
+        if(settled.status.status!=='succeeded') throw new Error(settled.status.error||'Source face measurements failed');
+        return read(`const r=await selects.ai.job(${JSON.stringify(wf)},${JSON.stringify(projectId)}).result();return await selects.ai.readJSON(r.files.detections,${JSON.stringify(projectId)});`,'Read measured source faces');
+      }));
+      if(data.frameSize?.width!==W||data.frameSize?.height!==H) throw new Error('Face measurement dimensions do not match the source');
+      for(const sample of data.samples||[]) {
+        const sourceFrame=Math.round(sample.sourceTimeSeconds*fps),word=words.find((w:any)=>sourceFrame>=w.sourceStartFrame&&sourceFrame<w.sourceEndFrame);
+        if(!word) continue;
+        const draftFrame=Math.round(word.startFrame+(sourceFrame-word.sourceStartFrame)*(word.endFrame-word.startFrame)/(word.sourceEndFrame-word.sourceStartFrame));
+        const faces=(sample.faces||[]).filter((f:any)=>f.score>=.8&&[f.box?.xmin,f.box?.xmax,f.box?.ymin,f.box?.ymax].every(Number.isFinite)&&f.box.xmin>=0&&f.box.ymin>=0&&f.box.xmax<=W&&f.box.ymax<=H&&f.box.xmax>f.box.xmin&&f.box.ymax>f.box.ymin).sort((a:any,b:any)=>a.box.xmin-b.box.xmin);
+        for(const [i,f] of faces.entries()) catalog.push({id:`F${sourceIndex}_${sampleIndex}_${i}`,resourceId:source.resourceId,sourceFrame,draftFrame,orderFromLeft:i+1,facesInFrame:faces.length,box:f.box,score:f.score});
+        sampleIndex++;
+      }
+    }
+  }
+  if(!catalog.length) throw new Error('No measured faces are available for agent selection');
+  note({plan:'measured-faces',catalog});return catalog;
+}
+
+// The model selects face IDs and coarse source-pane limits. It never supplies face coordinates.
+function measuredFaceShots(shots:any[],catalog:any[],sources:any[],layout:any) {
+  if(!Array.isArray(shots)||!shots.length) throw new Error('Missing measured-face edit plan');
+  const first=new Map<string,string>();
+  return shots.map((s:any)=>{
+    const src=sources.find((r:any)=>r.resourceId===s.resourceId),W=src?.meta?.frameSize?.width,H=src?.meta?.frameSize?.height;
+    if(![W,H].every(Number.isFinite)||!(W>0&&H>0)) throw new Error('Unknown measured-face source');
+    if(s.style==='wide') return {...s,regions:[{x:0,y:0,width:1,height:1}]};
+    const count=s.style==='stacked'?2:1;
+    if(!Array.isArray(s.subjects)||s.subjects.length!==count||new Set(s.subjects.map((q:any)=>q.faceId)).size!==count) throw new Error('Select one measured face per panel');
+    const regions=s.subjects.map((q:any,slot:number)=>{
+      const f=catalog.find((f:any)=>f.id===q.faceId);
+      if(!f||f.resourceId!==s.resourceId) throw new Error('Unknown face ID or source mismatch');
+      const key=JSON.stringify([s.resourceId,s.style,s.compositionId,slot]);
+      if(!(f.draftFrame>=s.startFrame&&f.draftFrame<s.endFrame)&&first.get(key)!==f.id) throw new Error('Choose a face measured within this shot');
+      if(!first.has(key)) first.set(key,f.id);
+      const left=q.left??0,right=q.right??1;
+      if(![left,right].every(Number.isFinite)||left<0||right>1||left>=right) throw new Error('Invalid source pane bounds');
+      const b=f.box,fw=b.xmax-b.xmin,fh=b.ymax-b.ymin,cx=(b.xmin+b.xmax)/2,cy=(b.ymin+b.ymax)/2;
+      if(b.xmin<left*W||b.xmax>right*W) throw new Error('Measured face is outside its selected pane');
+      const x1=Math.max(left*W,b.xmin-fw*.18),x2=Math.min(right*W,b.xmax+fw*.18),y1=Math.max(0,b.ymin-fh*.48),y2=Math.min(H,b.ymax+fh*.12);
+      const faceY=Math.max(.25,Math.min(.65,Number(layout.faceY??40)/100)),aspect=1080/((Number(layout.windowBottom??1920)-Number(layout.windowTop??0))/count);
+      const closeUp=q.closeUp??layout.closeUp??4.5;
+      if(!Number.isFinite(closeUp)||closeUp<2||closeUp>12) throw new Error('Invalid measured-face framing size');
+      const wantedH=Math.max(y2-y1,(cy-y1)/faceY,(y2-cy)/(1-faceY));
+      const w=Math.min((right-left)*W,H*aspect,Math.max(fw*closeUp,wantedH*aspect,x2-x1)),h=w/aspect;
+      if(w+1e-6<x2-x1||h+1e-6<y2-y1) throw new Error('Measured head cannot fit the selected pane');
+      const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
+      const x=clamp(cx-w/2,Math.max(left*W,x2-w),Math.min(right*W-w,x1));
+      const y=clamp(cy-h*faceY,Math.max(0,y2-h),Math.min(H-h,y1));
+      return {x:x/W,y:y/H,width:w/W,height:h/H,focus:{x:x1/W,y:y1/H,width:(x2-x1)/W,height:(y2-y1)/H},anchor:{x:cx/W,y:cy/H}};
+    });
+    return {...s,regions};
+  });
+}
+
+// Face strips preserve enough pixels to compare articulation across a short burst.
+function sourceEvidenceBursts(before:any,catalog:any[],limit=8) {
+  const fps=before.meta.fps;
+  const samples=[...new Map(catalog.map((f:any)=>[`${f.resourceId}:${f.sourceFrame}`,{resourceId:f.resourceId,sourceFrame:f.sourceFrame,draftFrame:f.draftFrame}])).values()] as any[];
+  samples.sort((a,b)=>a.draftFrame-b.draftFrame);
+  const turns:any[]=[];
+  for(const w of before.words) {
+    const last=turns[turns.length-1];
+    if(last&&last.speakerId===w.speakerId&&last.resourceId===w.sourceResourceId)last.endFrame=w.endFrame;
+    else turns.push({speakerId:w.speakerId,resourceId:w.sourceResourceId,startFrame:w.startFrame,endFrame:w.endFrame});
+  }
+  const anchors:any[]=[];
+  const add=(sample:any,reason:string)=>{if(sample&&!anchors.some(s=>s.resourceId===sample.resourceId&&Math.abs(s.sourceFrame-sample.sourceFrame)<fps*.4)&&anchors.length<limit)anchors.push({...sample,reason});};
+  for(const turn of turns) {
+    const start=turn.startFrame+Math.min(fps*.65,(turn.endFrame-turn.startFrame)/4);
+    add(samples.find(s=>s.resourceId===turn.resourceId&&s.draftFrame>=start&&s.draftFrame<turn.endFrame),'speaker-turn');
+  }
+  for(let i=1;i<samples.length;i++) {
+    const a=samples[i-1],b=samples[i];
+    const count=(s:any)=>catalog.filter((f:any)=>f.resourceId===s.resourceId&&f.sourceFrame===s.sourceFrame).length;
+    if(a.resourceId!==b.resourceId||count(a)!==count(b))add(b,'layout-survey');
+  }
+  for(const fraction of [0,1,.5])add(samples[Math.round((samples.length-1)*fraction)],'context');
+  return anchors.sort((a,b)=>a.draftFrame-b.draftFrame).map(a=>{
+    const source=before.sources.find((s:any)=>s.resourceId===a.resourceId),sourceFps=source.meta.fps;
+    const turn=turns.find(t=>t.resourceId===a.resourceId&&t.startFrame<=a.draftFrame&&t.endFrame>a.draftFrame);
+    const containing=before.words.find((w:any)=>w.sourceResourceId===a.resourceId&&w.sourceStartFrame<=a.sourceFrame&&w.sourceEndFrame>a.sourceFrame);
+    const end=Math.min(source.meta.durationFrames-1,(containing?.sourceEndFrame ?? source.meta.durationFrames)-1);
+    // A strip stays within one surviving word/source segment; it cannot jump across silence edits.
+    const previous=before.words.filter((w:any)=>w.sourceResourceId===a.resourceId&&w.startFrame>= (turn?.startFrame??0)&&w.endFrame<= (turn?.endFrame??before.meta.durationFrames));
+    let segmentEnd=containing?.sourceEndFrame??end+1;
+    for(const w of previous.filter((w:any)=>w.sourceStartFrame>=segmentEnd).sort((a:any,b:any)=>a.sourceStartFrame-b.sourceStartFrame)) {
+      if(w.sourceStartFrame-segmentEnd>sourceFps*.1)break;
+      segmentEnd=Math.max(segmentEnd,w.sourceEndFrame);
+    }
+    const maxEnd=Math.min(source.meta.durationFrames-1,segmentEnd-1,a.sourceFrame+Math.round(sourceFps*1.5));
+    const frames=[...new Set(Array.from({length:8},(_,i)=>a.sourceFrame+Math.round(Math.max(0,maxEnd-a.sourceFrame)*i/7)))];
+    return {...a,speakerId:turn?.speakerId,sourceFrames:frames,faceIds:catalog.filter((f:any)=>f.resourceId===a.resourceId&&f.sourceFrame===a.sourceFrame).map((f:any)=>f.id)};
+  }).filter(a=>a.sourceFrames.length>=3);
+}
+// Conservative evidence guard, not person tracking or an editorial cut detector.
+// Discard a strip suffix when the entire source changes, rather than label a new face as the old one.
+function sourceEvidenceDiscontinuity(a:ArrayLike<number>,b:ArrayLike<number>) {
+  if(a.length!==b.length||!a.length)return true;
+  let total=0,changed=0,count=0;
+  for(let i=0;i<a.length;i+=4) {
+    const d=(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2]))/765;
+    total+=d;changed+=Number(d>.18);count++;
+  }
+  return total/count>.1&&changed/count>.25;
+}
+const preparedSourceEvidence=new Map<string,Promise<any>>();
+async function prepareSourceEvidence(args:any) {
+  const key=JSON.stringify({projectId:args.projectId,sources:args.before.sources,words:args.before.words,catalog:args.catalog});
+  let pending=preparedSourceEvidence.get(key);
+  if(!pending) {
+    if(preparedSourceEvidence.size>=8)preparedSourceEvidence.delete(preparedSourceEvidence.keys().next().value);
+    pending=prepareSourceEvidenceUncached(args);preparedSourceEvidence.set(key,pending);
+    pending.catch(()=>{if(preparedSourceEvidence.get(key)===pending)preparedSourceEvidence.delete(key);});
+  }
+  const result=await args.guard(pending);
+  args.note({plan:'source-evidence',samples:result.samples,imageCount:result.images.length});return result;
+}
+async function prepareSourceEvidenceUncached({sdk,guard,projectId,before,catalog,note}:any) {
+  const samples=sourceEvidenceBursts(before,catalog),images:any[]=[],cores=new Map();
+  if(!samples.length)throw new Error('No source evidence bursts');
+  // One burst per image keeps candidate rows readable without a tall image being downscaled.
+  for(let page=0;page<samples.length;page++) {
+    const rows=samples.slice(page,page+1),side=160,label=126,header=480;
+    const rowCounts=rows.map(b=>Math.min(4,b.faceIds.length));
+    const cv=document.createElement('canvas');cv.width=label+8*side;cv.height=rows.reduce((n,b,i)=>n+header+rowCounts[i]*(side+18),0);
+    const g=cv.getContext('2d');if(!g)throw new Error('Source evidence canvas unavailable');
+    g.fillStyle='#f4f6f8';g.fillRect(0,0,cv.width,cv.height);let top=0;
+    for(const burst of rows) {
+      const src=before.sources.find((s:any)=>s.resourceId===burst.resourceId),W=src.meta.frameSize.width,H=src.meta.frameSize.height;
+      let core=cores.get(burst.resourceId);
+      if(!core){core=await guard(sdk.call('getResourceAnalyzedSequence',projectId,burst.resourceId));cores.set(burst.resourceId,core);}
+      if(core?.owner?.projectId!==projectId||!core.analyzedSequenceJson?.id)throw new Error('Source evidence ownership or sequence is missing');
+      const faces=burst.faceIds.slice(0,4).map((id:string)=>catalog.find((f:any)=>f.id===id));
+      const probe=document.createElement('canvas');probe.width=32;probe.height=18;
+      const pg=probe.getContext('2d',{willReadFrequently:true});if(!pg)throw new Error('Source continuity probe unavailable');
+      let previousPixels:Uint8ClampedArray|undefined;
+      g.fillStyle='#15202d';g.font='bold 16px sans-serif';g.fillText(`Draft ${(burst.draftFrame/before.meta.fps).toFixed(2)}s | speaker ${burst.speakerId??'unknown'} | ${burst.reason}`,4,top+22);
+      g.font='13px sans-serif';g.fillText(`Source ${burst.resourceId}`,4,top+42);
+      for(let col=0;col<burst.sourceFrames.length;col++) {
+        const frameNumber=burst.sourceFrames[col];note({plan:'stage',stage:'evidence'});
+        const capture=await guard(visualWork(()=>sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:core.analyzedSequenceJson.id,sequenceJson:core.analyzedSequenceJson,coordinate:'base',frames:[{frameNumber,view:'timeline_composite'}],includeOverlays:false})));
+        const tile=capture?.frames?.[0];
+        if(!capture?.data||!tile?.hasSourceImage||tile.frameNumber!==frameNumber)throw new Error('Source evidence pixels are missing');
+        const image=new Image();image.src='data:image/jpeg;base64,'+capture.data;await image.decode();
+        const scale=Math.min(tile.width/W,tile.height/H),ox=tile.x+(tile.width-W*scale)/2,oy=tile.y+(tile.height-H*scale)/2;
+        pg.drawImage(image,ox,oy,W*scale,H*scale,0,0,32,18);
+        const pixels=pg.getImageData(0,0,32,18).data;
+        if(previousPixels&&sourceEvidenceDiscontinuity(previousPixels,pixels)) {
+          const lastSame=burst.sourceFrames[col-1],checkedFrames:number[]=[];
+          let firstNew=frameNumber;
+          // Refine only this observed discontinuity, at most one coarse sampling gap.
+          for(let f=lastSame+1;f<frameNumber;f++) {
+            const detail=await guard(visualWork(()=>sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:core.analyzedSequenceJson.id,sequenceJson:core.analyzedSequenceJson,coordinate:'base',frames:[{frameNumber:f,view:'timeline_composite'}],includeOverlays:false})));
+            const dt=detail?.frames?.[0];if(!detail?.data||!dt?.hasSourceImage||dt.frameNumber!==f)throw new Error('Source cut probe pixels are missing');
+            const di=new Image();di.src='data:image/jpeg;base64,'+detail.data;await di.decode();
+            const ds=Math.min(dt.width/W,dt.height/H);
+            pg.drawImage(di,dt.x+(dt.width-W*ds)/2,dt.y+(dt.height-H*ds)/2,W*ds,H*ds,0,0,32,18);
+            checkedFrames.push(f);
+            if(sourceEvidenceDiscontinuity(previousPixels,pg.getImageData(0,0,32,18).data)){firstNew=f;break;}
+          }
+          burst.sourceChange={lastOldSourceFrame:firstNew-1,firstNewSourceFrame:firstNew,inspectedFrames:[lastSame,...checkedFrames,frameNumber]};
+          burst.sourceFrames=burst.sourceFrames.slice(0,col);
+          g.fillStyle='#8b2635';g.font='bold 13px sans-serif';g.fillText(`SOURCE CHANGES AT ${firstNew} — remaining cells omitted`,230,top+78);
+          break;
+        }
+        previousPixels=pixels;
+        if(col===0||col===burst.sourceFrames.length-1) {
+          const contextW=(cv.width-8)/2,contextH=contextW*H/W;
+          g.drawImage(image,ox,oy,W*scale,H*scale,col===0?0:contextW+8,top+68,contextW,Math.min(contextH,header-72));
+        }
+        for(let row=0;row<faces.length;row++) {
+          const face=faces[row],b=face.box,w=Math.min(W,H,Math.max(b.xmax-b.xmin,b.ymax-b.ymin)*1.7),x=Math.max(0,Math.min(W-w,(b.xmin+b.xmax-w)/2)),y=Math.max(0,Math.min(H-w,(b.ymin+b.ymax-w)/2));
+          const dy=top+header+row*(side+18);
+          if(col===0){g.fillStyle='#15202d';g.font='bold 14px sans-serif';g.fillText(face.id,4,dy+28);g.font='12px sans-serif';g.fillText(`left order ${face.orderFromLeft}`,4,dy+48);}
+          g.drawImage(image,ox+x*scale,oy+y*scale,w*scale,w*scale,label+col*side,dy,side,side);
+          g.fillStyle='#15202d';g.font='12px sans-serif';g.fillText(String(frameNumber),label+col*side+4,dy+side+13);
+        }
+      }
+      top+=header+faces.length*(side+18);
+    }
+    images.push({dataUrl:cv.toDataURL('image/jpeg',.88),name:`face-motion-${page+1}.jpg`});
+  }
+  return {images,samples};
+}
+
+// Initial review: one representative per composition, all cut edges and clip endpoints.
+// Repair review: only changed compositions and old/new boundary neighborhoods.
+function sourceReviewFrames(shots:any[],duration:number,previous?:any[]) {
+  const frames=new Set<number>();
+  const edge=(f:number)=>{for(const n of [f-2,f-1,f,f+1])frames.add(n);};
+  if(previous) {
+    const changed=new Set<string>();
+    shots.forEach((s:any,i:number)=>{
+      const old=previous[i];
+      if(JSON.stringify(s.subjects)!==JSON.stringify(old.subjects))changed.add(JSON.stringify([s.resourceId,s.style,s.compositionId]));
+      if(s.startFrame!==old.startFrame){edge(old.startFrame);edge(s.startFrame);}
+    });
+    for(const s of shots)if(changed.has(JSON.stringify([s.resourceId,s.style,s.compositionId]))) [s.startFrame,Math.floor((s.startFrame+s.endFrame-1)/2),s.endFrame-1].forEach(f=>frames.add(f));
+  } else {
+    frames.add(0);frames.add(duration-1);const seen=new Set<string>();
+    for(const s of shots) {
+      const key=JSON.stringify([s.resourceId,s.style,s.compositionId]);
+      if(!seen.has(key)){frames.add(Math.floor((s.startFrame+s.endFrame-1)/2));seen.add(key);}
+    }
+    shots.slice(1).forEach(s=>edge(s.startFrame));
+  }
+  return [...frames].filter(f=>f>=0&&f<duration).sort((a,b)=>a-b);
+}
+
+// Face geometry belongs to application, not visual identity reasoning. Keep every
+// candidate and word coordinate while removing repeated IDs and unused box decimals.
+function reframingPlanningFacts(before:any,catalog:any[]) {
+  const source=(id:string)=>before.sources.findIndex((s:any)=>s.resourceId===id);
+  const turns:any[]=[];
+  for(const w of before.words) {
+    const previous=turns[turns.length-1];
+    if(previous&&previous.speakerId===w.speakerId&&previous.source===source(w.sourceResourceId)) {
+      previous.endFrame=w.endFrame;previous.text+=' '+w.text;
+    } else turns.push({speakerId:w.speakerId,source:source(w.sourceResourceId),startFrame:w.startFrame,endFrame:w.endFrame,text:w.text});
+  }
+  return {turns,words:before.words.map((w:any)=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,source:source(w.sourceResourceId),sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame,speakerId:w.speakerId})),
+    faces:catalog.map((f:any)=>({id:f.id,source:source(f.resourceId),sourceFrame:f.sourceFrame,draftFrame:f.draftFrame,orderFromLeft:f.orderFromLeft,facesInFrame:f.facesInFrame}))};
+}
+
+// Reuse the runtime collector on source coordinates, bounded by the inspected
+// continuous burst. Never extend a face reference across a detected source cut.
+function sourceActiveSpeakerBursts(before:any,catalog:any[],samples:any[]) {
+  return samples.flatMap((sample:any)=>{
+    const videoIndex=before.sources.findIndex((s:any)=>s.resourceId===sample.resourceId);
+    const source=before.sources[videoIndex],fps=source?.meta?.fps;
+    const frames=sample.sourceFrames||[];
+    if(!(fps>0)||!frames.length)return [];
+    const start=frames[0],end=Math.min(frames[frames.length-1]+1,sample.sourceChange?.firstNewSourceFrame??Infinity,source.meta.durationFrames);
+    if((end-start)/fps<.32)return [];
+    const panel={videoIndex,resourceId:sample.resourceId,startFrame:start,endFrame:end,sourceStartSeconds:start/fps,playbackSpeed:{numerator:1,denominator:1}};
+    const options=catalog.filter((f:any)=>f.resourceId===sample.resourceId&&f.sourceFrame===start&&sample.faceIds.includes(f.id)).map((f:any)=>({id:f.id,videoIndex,x:(f.box.xmin+f.box.xmax)/2,y:(f.box.ymin+f.box.ymax)/2,w:f.box.xmax-f.box.xmin}));
+    return options.length?[{fps,frames:[start],observation:{available:[panel],options}}]:[];
+  });
+}
+async function collectSourceActiveSpeakers({sdk,guard,projectId,before,catalog,samples,note,work=createReframeWork()}:any) {
+  const bursts=sourceActiveSpeakerBursts(before,catalog,samples),evidence:any[]=[];
+  for(const fps of [...new Set(bursts.map((b:any)=>b.fps))]) {
+    const result=await collectActiveSpeakerEvidence({sdk,guard,projectId,bursts:bursts.filter((b:any)=>b.fps===fps),fps,note,work});
+    for(const burst of result) {
+      const resourceId=before.sources[burst.videoIndex].resourceId;
+      evidence.push({resourceId,sourceFps:fps,sourceAnchorFrame:burst.burstFrame,rows:burst.rows.map((r:any)=>({faceId:r.candidateId,sourceStartFrame:r.startFrame,sourceEndFrame:r.endFrame,score:r.score}))});
+    }
+  }
+  note({plan:'source-active-speakers',status:evidence.some(e=>e.rows.length)?'complete':'unavailable',evidence});
+  return evidence;
+}
+
+async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measureFaces=collectMeasuredFaces,prepareEvidence=prepareSourceEvidence,measureSpeakers=collectSourceActiveSpeakers,work}:any):Promise<any> {
+  const inspect=async(preflight=false)=>{
+    const r=await guard(sdk.runScript({script:`const p=selects.project(${JSON.stringify(projectId)}); if (!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)})) throw new Error("Draft ownership changed"); const d=selects.draft(${JSON.stringify(draftId)}); const words=(await d.words()).map(w=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,wordId:w.wordId,speakerId:w.speakerId,speakerName:w.speakerName,sourceResourceId:w.sourceResourceId,sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame})); const sources=${preflight ? 'await Promise.all([...new Set(words.map(w=>w.sourceResourceId).filter(Boolean))].map(async resourceId=>({resourceId,meta:await p.resource(resourceId).meta()})))' : '[]'}; return {meta:await d.meta(),words,sources};`,summary:'Verify reframing target'}));
+    if(r.isError||!r.result?.meta) throw new Error(r.output||'Cannot verify reframing target');
+    return r.result;
+  };
+  const before=await inspect(true);
+  const faceCatalog=await measureFaces({sdk,guard,projectId,before,note});
+  const evidence=await prepareEvidence({sdk,guard,projectId,before,catalog:faceCatalog,note});
+  const activeSpeakers=await measureSpeakers({sdk,guard,projectId,before,catalog:faceCatalog,samples:evidence.samples,note,work});
+  const unchanged=async()=>{
+    const after=await inspect();
+    if(after.meta.durationFrames!==before.meta.durationFrames||after.meta.fps!==before.meta.fps||JSON.stringify(after.meta.frameSize)!==JSON.stringify(before.meta.frameSize)||JSON.stringify(normalizeReframeWords(after.words))!==JSON.stringify(normalizeReframeWords(before.words))) throw new Error('Agent changed speech or timing outside reframing scope. Inspect the saved Draft before resuming.');
+  };
+  const facts=reframingPlanningFacts(before,faceCatalog);
+  const prompt=`Plan the reframing of Draft ${draftId} in project ${projectId}. Use your existing Selects SDK tools READ-ONLY to inspect UNCROPPED SOURCE imagery. Return the editorial plan; the app will validate crop geometry and apply it. There is no subsequent AI visual review. Do NOT edit, commit, export, render portrait composites, generate effect code, or inspect unrelated project workflows. No questions.
+You decide all subjects, cut boundaries, framing and layouts. The app only fits the measured faces you select to the template and preserves speech/audio/captions/graphics. Template faceY is the preferred face-center height as percent down the video window (for example 40 means near the upper-middle), and closeUp is the preferred window width in face widths. Keep the face clear of app captions and logos. Avoid excessive empty space above the head, especially inside a broadcast mosaic: choose the correct measured face and source pane. Baked-in broadcast branding must not force the face behind the app captions. Template: ${JSON.stringify(layout)}. Draft metadata: ${JSON.stringify(before.meta)}. Source metadata already verified: ${JSON.stringify(before.sources)}.
+Use the supplied resource UUIDs in your returned plan. UUIDs work in SDK resource() even when reads return rN aliases. Do not enumerate the project to rediscover IDs. In the data below, source is a zero-based index into the Source metadata list above; return the corresponding resource UUID in your plan. Transcript turns: ${JSON.stringify(facts.turns)}. Words/source mapping (including transcript speaker labels): ${JSON.stringify(facts.words)}. Speaker labels are fallible but IMPORTANT evidence about turn boundaries. Build a consistent speaker-to-person mapping for the WHOLE clip before choosing shots. Recognize the same person across solo and mosaic views using appearance, not pane position. A speaker label resuming later normally maps back to that same person. A short acknowledgement by another visible person does not justify assigning the entire following answer to that person. Treat conflicts as unresolved unless specific inspected evidence supports a correction; do not override diarization merely because the previous speaker is still on screen. A visible listener may be held while the actual speaker is offscreen; label that span as offscreen/reaction, never pretend the listener is speaking. When a source layout later reveals the speaker, use that evidence for their identity; do not block a valid reaction hold just because a speaker is temporarily not visible. Group consecutive words by speakerId and inspect a short source burst for each changed speaker turn. Do not carry the first speaker through the whole clip just because the camera layout or topic is unchanged. Resolve each transcript turn against visible mouth motion; a label is not itself a person identity. If a transcript turn and your visual interpretation conflict, inspect that specific turn once or report blocked; do not silently ignore it.
+Capture contract: display(await selects.project(${JSON.stringify(projectId)}).resource(resourceId).captureFrames({frames:[sourceFrameNumbers]})); 1-12 integer source frames per capture, max 4 displayed artifacts per script. These source frames default to uncropped, no overlays. Frame metadata is frameNumber/timeSeconds, not frame/startSeconds. Source frame rate may differ from Draft rate. Use word sourceStartFrame/sourceEndFrame for mapping, not ClipInfo (which has no source coordinates). Use resource.captureFrames, not draft.captureCameraAngles for this single-angle source. No need to reread metadata, words, captions or transforms.
+Audio-visual active-speaker evidence (Light-ASD AVA): ${JSON.stringify(activeSpeakers)}. These scores combine source audio with face motion; they are uncalibrated logits, NOT probabilities. Positive supports audible speaking, negative opposes it, missing means unknown. Rows reference the measured face IDs and SOURCE frame ranges, not Draft frames. Map through the supplied words when locating them on the Draft. Use sustained evidence to anchor the speaker-to-person mapping; several positives may mean overlap. These bounded samples do not establish identity outside the measured window or across source cuts. Do not override sustained evidence based on a single open mouth or a listener shot; explain conflicts. Keep deciding all editorial reactions and layouts yourself. Use these supplied scores first; do not call the runtime again or recapture covered turns merely to reconfirm them. In speakerEvidence, describe audio-visual support together with the supplied face strips; do not claim full-clip lip-sync verification.
+The attached sheets contain short SOURCE FACE-MOTION STRIPS. Each row is ONE measured face candidate; columns show consecutive times from left to right, with original source frame numbers. Each attached image contains ONE burst. Its uncropped source context is above the candidate rows. Read the appearance and mouth change of EVERY row before deciding who speaks. A small uncropped source context image is above each burst. These crops are evidence only, not the final edit. Compare CHANGES of mouth shape across each row, not a single open mouth. Static open lips are not articulation. Labels identify the face measured at the first frame; strips use a fixed local window and are not identity tracking. A strip stops at a detected source discontinuity; blank cells after SOURCE CHANGES contain no evidence. Never link identities by crop position across a cut. sourceChange records a full-frame appearance discontinuity refined using consecutive source frames: firstNewSourceFrame is the first changed frame, lastOldSourceFrame is the preceding frame. Use that measured boundary for this source layout transition, mapping through words; do not put it at the first post-cut face detection. Additional SDK cut probes are needed only for transitions not measured here. A transcript speaker change while the same silent face remains on screen is offscreen speech, not proof that the face changed identity. Prepared burst mapping (sourceFrames are the actual inspected frame sequence; faceIds are reference selections): ${JSON.stringify(evidence.samples)}. Read these first; do not recapture provided frames or perform a fresh broad survey. Use your existing Selects SDK tools READ-ONLY only for a specific unresolved speaker or an exact source-layout cut. Aim for zero additional calls when the supplied evidence is sufficient. If more evidence is necessary, batch the missing turn bursts into one call where possible. A broadcast mosaic inside one video is not selectable cameras. Sustained mouth articulation across frames and transcript continuity are evidence; a smile, nod, gender, single open mouth or cut to a listener is not. A camera change does not imply a speaker change. If identity remains inconclusive after one targeted burst, report blocked instead of inventing a speaker. When a layout cut is bracketed, capture one contiguous burst of up to 12 integer source frames to identify the first new-layout frame. Do not binary-search repeatedly or put a cut at a coarse bracket midpoint. Map the source frame through the supplied word coordinates. Face-count changes are only survey hints, not proven camera cuts. The prepared sheets are bounded samples, not exhaustive coverage; inspect any uncovered speaker turn when required.
+Return contiguous half-open shots covering every Draft frame [0,${before.meta.durationFrames}). A source-layout change may split a word; preserve source/Draft mapping. Choose subjects by the MEASURED FACE IDs below, never write face boxes or crop coordinates. Each ID identifies a detection in ONE source frame, not a persistent person identity. Match its sourceFrame and left-to-right order against raw imagery. Select a reference measured within each shot. Reuse compositionId for the same person/source layout/framing across silence removal; code fixes that composition's crop. A new person or camera layout needs a new compositionId. Speaker has one subject, stacked has two distinct people in top/bottom order, wide has no subjects and must be allowed by the template. Each subject is {faceId,left?:number,right?:number,closeUp?:number}; left/right are only the coarse horizontal boundaries of an embedded source pane, normalized 0..1 (default full source), NOT the face crop. For a four-column mosaic use the actual pane's quarter boundaries. Code measures face position from the selected ID and fits it at template faceY/closeUp with head margin. Do not invent a head position, resize the measured head, or select a different face merely to fit. If no detection supports the intended subject, report blocked. Wide/stacked require editorial justification.
+MEASURED FACE REFERENCES (geometry is handled by the app): ${JSON.stringify(facts.faces)}
+JSON only: {draftId:${JSON.stringify(draftId)},status:"planned"|"blocked",summary:string,observations:[{draftFrame:number,candidates:[{faceId:string,appearance:string,mouthChange:string}],selectedFaceId:string|null}],shots:[{startFrame,endFrame,resourceId,style:"speaker"|"stacked"|"wide",compositionId,subjects:[{faceId,left?:number,right?:number,closeUp?:number}],reason:string}],speakerEvidence:[{startFrame,endFrame,resourceId,sourceFrames:number[],subject:string,basis:"mouth-motion"|"offscreen",evidence:string}],limitations:string[]}. Evidence must cover the full Draft. In each evidence description identify the chosen row by exact face ID and visible appearance, and contrast its mouth changes with the other visible candidates. Check that the face ID in shots names that same row; do not select by a guessed row number. Only list frames actually inspected.
+${reframingPreferencePrompt(layout)}`;
+  note({plan:'stage',stage:'agent'});note({plan:'agent-reframe-start',draftId});
+  const response=await askReframingAI({sdk,guard,note},{prompt,images:evidence.images,timeoutMs:600000,ephemeral:false});
+  let plan:any;
+  try {plan=parseAgentReframeReport(String(response.text||''));}
+  catch {throw new Error('Agent finished without a valid source crop plan.');}
+  if(plan.draftId!==draftId||plan.status!=='planned') throw new Error(plan.summary||'Agent could not plan reframing');
+  validateSpeakerEvidence(plan,before.meta.durationFrames);
+  compileSourceCropPlan(measuredFaceShots(plan.shots,faceCatalog,before.sources,layout),before.sources,before.meta.durationFrames,layout);
+  await unchanged();
+  note({plan:'agent-reframe-plan',draftId,report:plan});
+  const apply=async(shots:any[])=>{
+    const measured=measuredFaceShots(shots,faceCatalog,before.sources,layout);
+    compileSourceCropPlan(measured,before.sources,before.meta.durationFrames,layout);
+    note({plan:'stage',stage:'apply'});
+    const r=await guard(sdk.runScript({script:sourceCropApplyScript(projectId,draftId,layout,before.sources,before.meta.durationFrames).replace('__SHOTS__',JSON.stringify(measured)),summary:'Apply agent-selected source crops',allowCommit:true}));
+    if(r.isError||!r.result?.applied) throw new Error(r.output||'Source crop application failed');
+    await unchanged();
+  };
+  await apply(plan.shots);
+  const report={...plan,status:'complete',verification:{kind:'geometry-and-timing',status:'passed'},visualReview:{status:'not-run',reason:'Runtime visual review disabled; rendered output is checked in regression tests.'}};
+  note({plan:'agent-reframe-result',draftId,report});return report;
+}
+
+// This checks report coverage, not the truth of a visual identity claim.
+// Visual accuracy still needs comparison against the captured source evidence.
+function validateSpeakerEvidence(report:any,duration:number) {
+  const rows=report.speakerEvidence;
+  if(!Array.isArray(rows)||!rows.length) throw new Error('Missing source speaker evidence.');
+  for(const row of rows) {
+    if(!Number.isInteger(row.startFrame)||!Number.isInteger(row.endFrame)||row.startFrame<0||row.endFrame<=row.startFrame||row.endFrame>duration||
+      typeof row.resourceId!=='string'||!row.resourceId||typeof row.subject!=='string'||!row.subject.trim()||typeof row.evidence!=='string'||!row.evidence.trim()||
+      !['mouth-motion','offscreen'].includes(row.basis)||!Array.isArray(row.sourceFrames)||row.sourceFrames.length<3||
+      new Set(row.sourceFrames).size<3||row.sourceFrames.some((f:any)=>!Number.isInteger(f)||f<0)) throw new Error('Invalid source speaker evidence.');
+  }
+  if(!rows.some((r:any)=>r.startFrame===0)) throw new Error('Opening speaker was not checked against source evidence.');
+  let covered=0;
+  for(const row of [...rows].sort((a:any,b:any)=>a.startFrame-b.startFrame)) {
+    if(row.startFrame>covered) throw new Error('Source speaker evidence has an uncovered interval.');
+    covered=Math.max(covered,row.endFrame);
+  }
+  if(covered!==duration) throw new Error('Source speaker evidence does not cover the full Draft.');
+}
+function reframingPreferences(layout:any={}) {
+  return {focus:layout.reframeFocus||'reactions',split:layout.splitPolicy||'selective',wide:layout.widePolicy||'never',pacing:layout.reframePacing||'balanced',motion:'fixed'};
+}
+function reframingPreferencePrompt(layout:any) {
+  const p=reframingPreferences(layout);
+  return `User reframing preferences: ${JSON.stringify(p)}. These override generic framing advice. Hard constraints: ${p.wide==='never'?'Never use wide or an intact-camera fallback, including when identity is uncertain.':'Wide is '+p.wide+'.'} ${p.split==='never'?'Never use stacked.':'Stacked is '+p.split+'.'} Fixed framing: keep crop position and scale unchanged throughout a continuous playback shot of the same subjects/camera/layout. Silence-removal cuts and forward source-time gaps do not start a new composition; keep the exact same crop position and scale across them. Never re-estimate zoom or centering independently for each surviving source fragment. Focus reactions means speaker-led editing with meaningful listener reactions, not constant listener coverage. Decide selective split from the conversation structure of the WHOLE clip before choosing individual shots. Use stacked framing when frequent substantive back-and-forth between the same two distinct people is a defining pattern across the clip, and keeping both visible helps follow that conversation. In that case keep stacked framing stable through coherent dialogue passages, or the whole clip when appropriate; do not toggle it on and off for each brief overlap or reaction. If one person delivers most of the explanation and others only briefly interject, keep speaker-led single-person framing. A momentary overlap, hesitation, ordinary listening, short acknowledgements, a single question-answer pair, uncertainty, or variety alone do not justify selective split. Do not add a brief split at the end of an otherwise single-speaker clip just because a second person starts speaking. Frequent split still requires relevant distinct people and coherent conversation passages. Explain the clip-wide exchange pattern supporting each split choice; do not invent numerical turn-count thresholds. Wide essential means only when group action or spatial context is necessary to understand the scene, never merely to break up a long answer. Pacing is a preference, not a fixed timer. If identification is uncertain, retain an evidence-supported allowed composition; if none exists report an error rather than violate a prohibition. Explain the specific evidence for every split or wide choice.`;
+}
+function reframingPreset(layout:any,preset:string) {
+  const choices:any={speaker:{reframeFocus:'speaker',splitPolicy:'never',widePolicy:'never'},conversation:{reframeFocus:'reactions',splitPolicy:'selective',widePolicy:'never'},context:{reframeFocus:'context',splitPolicy:'selective',widePolicy:'essential'}};
+  return {...layout,...choices[preset],reframePreset:preset,reframePacing:'balanced',cropMotion:'fixed',cameraMode:'auto',reframeMode:'auto'};
+}
+
+// The agent can recognize that two conservative spatial references are the same
+// person. Resolve only within the requested camera; never switch angles in code.
+function cameraIdentityObservations(plan:any,observations:any[]):any[] {
+  const known=new Set(observations.flatMap(o=>o.options.map((f:any)=>f.id))),groups:string[][]=[];
+  for(const row of plan.speakerMap||[]) {
+    const ids=[...new Set(row.candidateIds||[])] as string[];
+    if(ids.some(id=>!known.has(id)))throw new Error('Speaker map references an unobserved candidate');
+    if(!ids.length)continue;
+    const overlap=groups.filter(g=>g.some(id=>ids.includes(id)));
+    const merged=[...new Set([...ids,...overlap.flat()])];
+    for(const g of overlap)groups.splice(groups.indexOf(g),1);
+    groups.push(merged);
+  }
+  return observations.map(o=>({...o,options:o.options.flatMap((f:any)=>{
+    const group=groups.find(g=>g.includes(f.id));
+    if(!group)return [f];
+    // Two simultaneously measured faces cannot be aliased to one person.
+    const sameCamera=group.filter(id=>id.split(':')[0]===f.id.split(':')[0]);
+    if(o.options.filter((q:any)=>sameCamera.includes(q.id)).length>1)throw new Error('Speaker map merges two simultaneous faces in one camera');
+    return sameCamera.map(id=>({...f,id,identityKey:group.slice().sort().join('|')}));
+  })}));
+}
+// AI chooses editorial intent; this compiler owns layout geometry and fallbacks.
+function compileTemplateCameraPlan(plan:any, observations:any[], layout:any, fps:number):any[] {
+  observations=cameraIdentityObservations(plan,observations);
+  const prefs=reframingPreferences(layout);
+  const allowSplit=(layout.cameraMode||'auto')==='auto'&&prefs.split!=='never';
+  const allowed=new Set(['speaker','wide','two-shot',...(allowSplit?['stacked']:[])]);
+  const shots=(plan?.shots||[]).map((s:any)=>{
+    if(!allowed.has(s.style)) throw new Error('Unsupported template style: '+s.style);
+    if(!Number.isFinite(s.confidence)||s.confidence<0||s.confidence>1) throw new Error('Missing confidence');
+    if(s.style==='wide'&&prefs.wide==='never') throw new Error('Template forbids wide shots; choose an evidence-supported allowed composition.');
+    const wide=s.style==='wide';
+    return {...s,style:wide?'wide':s.style,primary:wide?null:s.primary,
+      secondary:wide||s.style==='speaker'?null:s.secondary};
+  });
+  validateCameraEditPlan({shots},observations,true);
+  const out:any[]=[];
+  for(const [shotIndex,s] of shots.entries()) {
+    if(s.style==='stacked'&&!allowSplit) throw new Error('Template forbids split');
+    if(['two-shot','stacked'].includes(s.style)&&(!s.secondary||!s.distinctPeople)) throw new Error('Two distinct observed people are required');
+    for(const o of observations.filter(o=>o.unit.startFrame<s.endFrame&&o.unit.endFrame>s.startFrame)) {
+      const startFrame=Math.max(s.startFrame,o.unit.startFrame),endFrame=Math.min(s.endFrame,o.unit.endFrame);
+      const a=o.options.find((f:any)=>f.id===s.primary),b=o.options.find((f:any)=>f.id===s.secondary);
+      if(b&&a.identityKey&&a.identityKey===b.identityKey)throw new Error('Two-person composition selects the same mapped person twice');
+      if(s.style==='two-shot'&&a.panel.videoIndex!==b.panel.videoIndex) throw new Error('Two-shot requires one camera');
+      const selected=s.style==='wide'?[{panel:o.available.find((p:any)=>p.videoIndex===s.camera) || o.available[0]}]:s.style==='stacked'?[a,b]:[a];
+      if(!selected[0]?.panel) throw new Error('No camera covers the shot');
+      for(const [slot,f] of selected.entries()) {
+        const p=f.panel,rate=p.playbackSpeed.numerator/p.playbackSpeed.denominator;
+        let crop:any={fit:'contain'};
+        if(s.style==='two-shot') crop=cameraHeadroom([a,b].map(q=>({xmin:q.x-q.w/2,xmax:q.x+q.w/2,ymin:q.headTop,ymax:q.headBottom})),p.observation.W,p.observation.H,layout.windowBottom-layout.windowTop);
+        else if(s.style!=='wide') crop=speakerCrop(f,(layout.windowBottom-layout.windowTop)/selected.length,layout);
+        if(s.style==='two-shot'&&crop.fit==='contain') throw new Error('Two-shot cannot contain both heads while filling this portrait window. Choose stacked if the template allows it, or an observed single speaker. Do not repeat this two-shot.');
+        // Sampled envelopes retain room for motion instead of pretending that samples are exact tracking.
+        out.push({...p,observation:undefined,startFrame,endFrame,slot,count:selected.length,
+          sourceStartSeconds:p.sourceStartSeconds+(startFrame-p.startFrame)/fps*rate,crop,shotIndex,style:s.style,reason:s.reason,
+          framingKey:JSON.stringify([s.style,a?.identityKey||s.primary,b?.identityKey||s.secondary]),framingFaces:s.style==='wide'?[]:s.style==='two-shot'?[a,b]:[f]});
+      }
+    }
+  }
+  // Analysis units are evidence boundaries, not camera moves. Lock geometry
+  // across playback-contiguous placements of the same subjects/layout/source camera.
+  // Removed silence advances source time; it must not reset the crop. Rewinds
+  // still start a new group, as do subject, camera, layout, or speed changes.
+  const groups:any[][]=[];
+  const tails=new Map<number,any[]>();
+  for(const row of out) {
+    const group=tails.get(row.slot),prev=group?.[group.length-1];
+    const rate=row.playbackSpeed.numerator/row.playbackSpeed.denominator;
+    const previousRate=prev?prev.playbackSpeed.numerator/prev.playbackSpeed.denominator:0;
+    const continuous=prev&&prev.endFrame===row.startFrame&&prev.framingKey===row.framingKey&&
+      prev.count===row.count&&prev.videoIndex===row.videoIndex&&prev.resourceId===row.resourceId&&
+      rate===previousRate&&row.sourceStartSeconds>=prev.sourceStartSeconds+(prev.endFrame-prev.startFrame)/fps*previousRate-1e-6&&
+      prev.crop.sourceW===row.crop.sourceW&&prev.crop.sourceH===row.crop.sourceH;
+    if(continuous) group!.push(row);
+    else {const next=[row];groups.push(next);tails.set(row.slot,next);}
+  }
+  for(const group of groups) {
+    const first=group[0],faces=group.flatMap(r=>r.framingFaces);
+    if(!faces.length) continue;
+    const panel=faces[0].panel,windowH=(layout.windowBottom-layout.windowTop)/first.count;
+    let crop:any;
+    if(first.style==='two-shot') {
+      crop=cameraHeadroom(faces.map(q=>({xmin:q.x-q.w/2,xmax:q.x+q.w/2,ymin:q.headTop,ymax:q.headBottom})),panel.observation.W,panel.observation.H,windowH);
+    } else {
+      const left=Math.min(...faces.map(q=>q.x-q.w/2)),right=Math.max(...faces.map(q=>q.x+q.w/2));
+      crop=speakerCrop({...faces[0],x:(left+right)/2,w:right-left,
+        y:cameraMedian(faces.map(q=>q.y)),
+        headTop:Math.min(...faces.map(q=>q.headTop)),headBottom:Math.max(...faces.map(q=>q.headBottom))},windowH,layout);
+    }
+    if(first.style==='two-shot'&&crop.fit==='contain') throw new Error('Two-shot head envelope cannot fit the portrait window across this passage. Choose stacked if allowed or an observed single speaker.');
+    for(const row of group) row.crop={...crop};
+  }
+  return out.map(({framingKey,framingFaces,...row})=>row);
+}
+
+// Stable spatial references within continuous camera footage, not biometric identity.
+// Never recycle a disappearing face's ordinal for its neighbour.
+function stabilizeCameraCandidates(observations:any[],fps:number):any[] {
+  const tracks=new Map<string,any[]>(),serials=new Map<number,number>();
+  for(const o of observations) {
+    const used=new Set<string>();
+    for(const f of o.options) {
+      const p=f.panel,key=JSON.stringify([p.videoIndex,p.resourceId,p.observation.W,p.observation.H]);
+      const time=p.sourceStartSeconds+(o.unit.startFrame-p.startFrame)/fps*p.playbackSpeed.numerator/p.playbackSpeed.denominator;
+      const endTime=time+(o.unit.endFrame-o.unit.startFrame)/fps*p.playbackSpeed.numerator/p.playbackSpeed.denominator;
+      const prior=tracks.get(key)||[];
+      const near=prior.filter(t=>!used.has(t.id)&&time>=t.time&&time-t.endTime<=6&&Math.max(t.w,f.w)/Math.min(t.w,f.w)<1.8)
+        .map(t=>({t,d:Math.hypot(t.x-f.x,t.y-f.y)/Math.max(t.w,f.w)})).filter(q=>q.d<.7).sort((a,b)=>a.d-b.d);
+      // Ambiguous proximity starts a new reference rather than asserting identity.
+      const match=near.length&&(!near[1]||near[1].d-near[0].d>.2)?near[0].t:null;
+      if(match) {f.id=match.id;Object.assign(match,{x:f.x,y:f.y,w:f.w,time,endTime});}
+      else {const n=serials.get(p.videoIndex)||0;serials.set(p.videoIndex,n+1);f.id=`${p.videoIndex}:${n}`;prior.push({id:f.id,x:f.x,y:f.y,w:f.w,time,endTime});}
+      used.add(f.id);tracks.set(key,prior.filter(t=>time-t.endTime<=6));
+    }
+  }
+  return observations;
+}
+function cameraDialogueTurns(words:any[]):any[] {
+  const turns:any[]=[];
+  for(const w of words) {
+    const last=turns[turns.length-1];
+    if(last&&last.speakerId===w.speakerId&&last.endFrame>=w.startFrame-3) {last.endFrame=Math.max(last.endFrame,w.endFrame);last.text+=' '+w.text;}
+    else turns.push({speakerId:w.speakerId??null,startFrame:w.startFrame,endFrame:w.endFrame,text:w.text});
+  }
+  return turns;
+}
+function cameraMotionBursts(observations:any[],words:any[],fps:number,limit=8):any[] {
+  const turns=cameraDialogueTurns(words),candidates:any[]=[];
+  for(const turn of turns) for(const o of observations) {
+    const a=Math.max(turn.startFrame,o.unit.startFrame),b=Math.min(turn.endFrame,o.unit.endFrame);
+    if(b-a<Math.max(4,fps*.3)||!o.options.length)continue;
+    const start=Math.min(b-4,a+Math.round(Math.min(fps*.15,(b-a)*.1)));
+    const end=Math.min(b-1,start+Math.round(fps*.75));
+    const frames=[...new Set(Array.from({length:4},(_,i)=>Math.round(start+(end-start)*i/3)))];
+    if(frames.length===4)candidates.push({speakerId:turn.speakerId,startFrame:turn.startFrame,endFrame:turn.endFrame,text:turn.text,frames,observation:o,span:b-a});
+  }
+  const chosen:any[]=[];
+  const add=(b:any)=>{if(b&&!chosen.includes(b)&&chosen.length<limit)chosen.push(b);};
+  add(candidates[0]);
+  for(const speaker of [...new Set(turns.map(t=>t.speakerId))])add(candidates.filter(b=>b.speakerId===speaker).sort((a,b)=>b.span-a.span)[0]);
+  for(const b of [...candidates].sort((a,b)=>b.span-a.span)) {
+    if(!chosen.some(c=>c.startFrame===b.startFrame&&c.endFrame===b.endFrame))add(b);
+  }
+  return chosen.sort((a,b)=>a.frames[0]-b.frames[0]);
+}
+function cameraReviewFrames(panels:any[],duration:number):number[] {
+  // Evidence-fragment boundaries do not represent new compositions.
+  const shots=panels.filter((p,i)=>panels.findIndex(q=>q.shotIndex===p.shotIndex)===i);
+  return [...new Set([0,duration-1,...shots.map(p=>p.startFrame)])].filter(f=>f>=0&&f<duration).sort((a,b)=>a-b).slice(0,12);
+}
+
+// Runtime scores are observations, never editorial decisions or global identities.
+function activeSpeakerRows(document:any,options:any[],panel:any,sourceStart:number,fps:number) {
+  const rate=panel.playbackSpeed.numerator/panel.playbackSpeed.denominator;
+  const bins=new Map<string,any>();
+  for(const sample of document.samples||[]) for(const face of sample.faces||[]) {
+    if(!Number.isFinite(face.activeSpeakerScore))continue;
+    const b=face.box,x=(b.xmin+b.xmax)/2,y=(b.ymin+b.ymax)/2,w=b.xmax-b.xmin;
+    const ranked=options.filter((o:any)=>o.videoIndex===panel.videoIndex).map((o:any)=>({o,d:Math.hypot(o.x-x,o.y-y)/Math.max(o.w,w)})).sort((a:any,b:any)=>a.d-b.d);
+    if(!ranked[0]||ranked[0].d>.8||(ranked[1]&&ranked[1].d-ranked[0].d<.2))continue;
+    const frame=panel.startFrame+(sample.sourceTimeSeconds-panel.sourceStartSeconds)/rate*fps;
+    if(frame<panel.startFrame||frame>=panel.endFrame)continue;
+    const bucket=Math.floor((sample.sourceTimeSeconds-sourceStart)/.4),key=ranked[0].o.id+':'+bucket;
+    const row=bins.get(key)||{candidateId:ranked[0].o.id,startFrame:Math.floor(frame),endFrame:Math.ceil(frame+fps/25/rate),scores:[]};
+    row.endFrame=Math.min(panel.endFrame,Math.ceil(frame+fps/25/rate));row.scores.push(face.activeSpeakerScore);bins.set(key,row);
+  }
+  return [...bins.values()].filter(r=>r.scores.length>=3).map(r=>({candidateId:r.candidateId,startFrame:r.startFrame,endFrame:r.endFrame,score:Math.round(r.scores.reduce((a:number,b:number)=>a+b,0)/r.scores.length*100)/100}));
+}
+async function collectActiveSpeakerEvidence({sdk,guard,projectId,bursts,fps,note,work}:any) {
+  const read=async(script:string,summary:string,allowCommit=false)=>{const r=await guard(sdk.runScript({script,summary,allowCommit}));if(r.isError)throw new Error(r.output||summary);return r.result;};
+  const supported=await read('return selects.ai.activeSpeakerSupported===true;','Check active speaker support');
+  if(!supported){await note({plan:'active-speakers',status:'unsupported'});return [];}
+  const evidence:any[]=[];
+  for(const burst of bursts) {
+    const o=burst.observation;
+    for(const panel of o.available) {
+      const rate=panel.playbackSpeed.numerator/panel.playbackSpeed.denominator;
+      const a=Math.max(panel.sourceStartSeconds,panel.sourceStartSeconds+(burst.frames[0]-panel.startFrame)/fps*rate-.4);
+      const b=Math.min(a+3,panel.sourceStartSeconds+(panel.endFrame-panel.startFrame)/fps*rate);
+      if(b-a<.32)continue;
+      const request={runtimeId:AI_RUNTIME,requestKey:`${APP_ID}:speakers-ava-v1:${keyHash(JSON.stringify({projectId,resourceId:panel.resourceId,a,b}))}`,projectId,resourceId:panel.resourceId,task:'speakers.detect',sourceRange:{startSeconds:a,endSeconds:b},options:{provider:'cpu'}};
+      try {
+        note({plan:'stage',stage:'speakers-wait'});
+        const doc=await guard(work.face(JSON.stringify(request),async()=>{
+          note({plan:'stage',stage:'speakers'});let wf='';
+          const settled=await settleFaceJob({submit:async()=>{wf=(await read(`return await selects.ai.submit(${JSON.stringify(request)});`,'Analyze audio and mouth motion',true)).workflowId;return {wf};},status:cancel=>read(`const j=selects.ai.job(${JSON.stringify(wf)},${JSON.stringify(projectId)});${cancel?'await j.cancel();':''}const s=await j.status();return {status:s.status,error:s.lastErrorMessage};`,'Check active speaker analysis',cancel),wait:ms=>guard(sleep(ms)),deadline:Date.now()+120000,now:()=>Date.now(),stop:e=>e instanceof RunCancelled});
+          if(settled.status.status!=='succeeded')throw new Error(settled.status.error||'Speaker analysis failed');
+          return read(`const r=await selects.ai.job(${JSON.stringify(wf)},${JSON.stringify(projectId)}).result();const d:any=await selects.ai.readJSON(r.files.detections,${JSON.stringify(projectId)});return {samples:d.samples,scoreKind:d.scoreKind};`,'Read active speaker evidence');
+        }));
+        if(doc.scoreKind!=='uncalibrated-logit')throw new Error('Unknown speaker score scale');
+        evidence.push({videoIndex:panel.videoIndex,burstFrame:burst.frames[0],rows:activeSpeakerRows(doc,o.options,panel,a,fps)});
+      } catch(e:any){if(e instanceof RunCancelled||e?.unsettled)throw e;await note({plan:'active-speakers',status:'unavailable',videoIndex:panel.videoIndex,error:String(e?.message||e)});}
+    }
+  }
+  await note({plan:'active-speakers',status:'complete',evidence});return evidence;
+}
+
+async function planTemplateCameraPanels({sdk,guard,projectId,draftId,panels,units,words,fps,layout,note,work}:any):Promise<any[]> {
+  const observations=stabilizeCameraCandidates(units.map((unit:any)=>{
+    const available=panels.filter((p:any)=>p.startFrame<=unit.startFrame&&p.endFrame>=unit.endFrame);
+    return {unit,available,options:available.flatMap((p:any)=>cameraFaceOptions(p,unit.startFrame,unit.endFrame,fps))};
+  }),fps);
+  note({plan:'stage',stage:'evidence-wait'});
+  const core=await guard(sdk.call('getDraftCore',draftId));
+  if(core?.owner?.projectId!==projectId) throw new Error('Draft project mismatch');
+  const images:any[]=[],sampleFrames:number[]=[],motionEvidence:any[]=[];
+  const bursts=cameraMotionBursts(observations,words,fps,5);
+  if(!bursts.length)throw new Error('No continuous dialogue frames are available for speaker evidence.');
+  const activeSpeakers=await collectActiveSpeakerEvidence({sdk,guard,projectId,bursts,fps,note,work});
+  for(const burst of bursts) {
+    const o=burst.observation,captures:any[]=[];
+    const hasScores=o.available.every((p:any)=>activeSpeakers.some((e:any)=>e.burstFrame===burst.frames[0]&&e.videoIndex===p.videoIndex&&e.rows.length));
+    for(const frameNumber of (hasScores?[burst.frames[0]]:burst.frames)) {
+      note({plan:'stage',stage:'evidence-wait'});
+      const capture=await guard(visualWork(async()=>{work?.check();await guard(Promise.resolve());note({plan:'stage',stage:'evidence'});return sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:draftId,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,coordinate:'resolved',frames:o.available.map((p:any)=>({frameNumber,view:'camera_angle',videoIndex:p.videoIndex})),includeOverlays:false});}));
+      if(!capture?.data||!o.available.every((p:any)=>capture.frames?.some((f:any)=>f.videoIndex===p.videoIndex&&f.hasSourceImage)))throw new Error('Camera motion evidence is incomplete');
+      captures.push(capture);sampleFrames.push(frameNumber);
+    }
+    const strip=await cameraEvidenceSheet(captures,o.options);
+    images.push({dataUrl:strip,name:`mouth-motion-${burst.frames[0]}.jpg`});
+    motionEvidence.push({speakerId:burst.speakerId,startFrame:burst.startFrame,endFrame:burst.endFrame,text:burst.text,frames:hasScores?[burst.frames[0]]:burst.frames,candidateRows:o.options.map((f:any)=>f.id)});
+  }
+  const evidence=observations.map((o:any)=>({startFrame:o.unit.startFrame,endFrame:o.unit.endFrame,
+    twoShotPairs:o.options.flatMap((a:any,i:number)=>o.options.slice(i+1).filter((b:any)=>a.panel.videoIndex===b.panel.videoIndex&&cameraHeadroom([a,b].map(q=>({xmin:q.x-q.w/2,xmax:q.x+q.w/2,ymin:q.headTop,ymax:q.headBottom})),a.panel.observation.W,a.panel.observation.H,layout.windowBottom-layout.windowTop).fit!=='contain').map((b:any)=>[a.id,b.id])),
+    cameras:o.available.map((p:any)=>p.videoIndex),candidates:o.options.map((f:any)=>({id:f.id,camera:f.videoIndex,x:Math.round(f.x/f.panel.observation.W*100),y:Math.round(f.y/f.panel.observation.H*100)}))}));
+  const prompt=`Choose the editorial plan for this short. Do not use tools or edit any Draft. Code will apply all crop geometry and layouts. Return JSON only: {shots:[{startFrame,endFrame,style:"speaker"|"wide"|"two-shot"|"stacked",primary:string|null,secondary:string|null,camera?:number,distinctPeople:boolean,confidence:number,reason:string}]}. Cover the entire playback exactly without gaps or overlaps. Choose when to change shot; unit boundaries are candidates, not mandatory cuts. Preserve brief acknowledgements without frantic switching. speaker shows one observed person; two-shot shows two DISTINCT people from the SAME camera and is allowed ONLY for a pair listed in twoShotPairs in EVERY covered evidence unit; an empty list means no pair fits the portrait window. If two people should remain visible but no two-shot fits, choose stacked when permitted by the template, otherwise choose an observed single speaker; stacked shows two distinct people; wide contains a whole available camera (camera index optional). cameraMode speaker forbids stacked; preserve is handled without this call. Use observed candidate IDs. If a face reference changes but you recognize the same person, list both IDs in speakerMap.candidateIds; code resolves these aliases within the SAME camera. You can then keep one shot across that reference change. Do not create editorial cuts for reference-number changes. IDs are conservative spatial references within one camera; they are NOT global person identities. A missing face does not renumber its neighbours. Match appearances across cameras yourself, and never assume identical suffixes indicate the same person. NEVER infer identity merely from transcript speaker IDs. A question and answer can belong to different people even when transcript labels match. The attached face sheets label candidate appearances. When runtime evidence is available a sheet has one moment; otherwise it has four consecutive moments. Audio-visual active-speaker evidence (Light-ASD AVA) is ${JSON.stringify(activeSpeakers)}. Scores are uncalibrated logits, NOT probabilities: positive supports audible speaking, negative opposes it, absent means unknown. Use sustained positive evidence to anchor speaker-to-person mapping, but retain uncertainty around transitions/overlap and outside measured windows. Several positives can be overlapping speakers. Never infer identity from window-local track IDs. You still decide reaction holds, camera choice and layouts according to the template. When consecutive frames are supplied, compare changing mouth articulation across ALL rows; a single open mouth, smile or nod is not speech evidence. First establish speaker-to-person correspondences from runtime audio-visual evidence and the sheets, then use the full transcript turns to direct the clip. Transcript labels are fallible, but do not discard them or hold the opening person over later substantive speakers without specific contrary evidence. When uncertain, say so; a listener hold must be described as a reaction, not as that person speaking. Prefer the camera where the selected person is clearly visible. Do not infer speech from who holds a prop or from dialogue meaning alone. Never duplicate one person from two angles. Do not invent frame-accurate turns from sparse samples. Template ${JSON.stringify(layout)}. Motion strips: ${JSON.stringify(motionEvidence)}. Full dialogue turns: ${JSON.stringify(cameraDialogueTurns(words))}. These are bounded samples, not full lip-sync verification. Return compact JSON: each shot reason at most 12 words, each appearance/uncertainty at most 12 words. Include a speakerMap array with {speakerId,candidateIds,appearance,evidenceFrames,confidence,uncertainty}; use only observed rows and supplied frames, or leave candidateIds empty if unresolved. Map speakers first, then plan COHERENT CONVERSATION PASSAGES, not one cut per transcript turn. A speaker map does not require cutting to every short utterance. For calm pacing, frequent short replies should favour a stable permitted two-person composition across the exchange when appropriate, instead of a sequence of sub-second singles. Hold brief acknowledgements. Cut single-person shots for sustained changes of the main speaker. Keep the plan concise; in each shot reason name the main speaker or the intentional reaction hold. Camera indices are zero-based. Candidate x/y are percentages. Evidence ${JSON.stringify(evidence)}`;
+  note({plan:'template-evidence',units:units.length,sampleFrames,motionEvidence});
+  return requestTemplateCameraPlan({sdk,guard,draftId,prompt,images,observations,layout,fps,note});
+}
+
+// Persist before calling/parsing, and retain failed outputs outside the rolling
+// progress log. This is diagnostics only: the existing two-attempt policy stays.
+async function requestTemplateCameraPlan({sdk,guard,draftId,prompt,images,observations,layout,fps,note}:any):Promise<any[]> {
+  const runId=`${draftId}:${Date.now()}`;
+  const compactPanel=(p:any)=>({...p,observation:p.observation?{W:p.observation.W,H:p.observation.H}:undefined});
+  const replay=observations.map((o:any)=>({...o,available:o.available.map(compactPanel),options:o.options.map((f:any)=>({...f,panel:compactPanel(f.panel)}))}));
+  await note({plan:'template-ai-context',runId,draftId,fps,layout,observations:replay,imageNames:images.map((x:any)=>x.name)});
+  let feedback='';
+  for(let attempt=0;attempt<2;attempt++) {
+    const started=Date.now(),requestPrompt=prompt+"\n"+reframingPreferencePrompt(layout)+feedback;
+    const audit:any={plan:'template-ai-attempt',runId,attempt,startedAt:new Date(started).toISOString(),prompt:requestPrompt,status:'running',timeoutMs:180000};
+    await note(audit);
+    note({plan:'stage',stage:'ai'});
+    let answer:any;
+    try {answer=await askReframingAI({sdk,guard,note},{prompt:requestPrompt,images,timeoutMs:180000});}
+    catch(e:any) {await note({...audit,status:'request-failed',finishedAt:new Date().toISOString(),elapsedMs:Date.now()-started,error:String(e.message||e)});throw e;}
+    const response={...audit,status:'received',finishedAt:new Date().toISOString(),elapsedMs:Date.now()-started,responseText:String(answer.text||''),usage:answer.usage??null};
+    await note(response);
+    let plan:any,result:any[],failurePhase='json';
+    try {
+      plan=JSON.parse(response.responseText.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
+      failurePhase='compile';
+      result=compileTemplateCameraPlan(plan,observations,layout,fps);
+    } catch(e:any) {
+      await note({...response,status:'validation-failed',failurePhase,error:String(e.message||e)});
+      note({plan:'template-plan-validation',attempt,error:String(e.message||e)});
+      if(attempt)throw e;
+      feedback='\nCorrect this validation error: '+e.message;
+      continue;
+    }
+    await note({...response,status:'accepted',placements:result.length});
+    note({plan:'template-camera-plan',shots:plan.shots,speakerMap:plan.speakerMap,placements:result.length});
+    return result;
+  }
+  throw new Error('No valid camera plan');
+}
+
+function cameraMedian(a:number[]):number {const s=a.slice().sort((x,y)=>x-y);return s.length?s[s.length>>1]:0;}
+// Analyze editorial units, never turn the camera inventory into a layout.
+function cameraUnits(panels:any[], words:any[], fps:number, minSeconds=2):any[] {
+  const ranges=panels.filter((p,i)=>panels.findIndex(q=>q.startFrame===p.startFrame&&q.endFrame===p.endFrame)===i);
+  const out:any[]=[];
+  for(const r of ranges) {
+    let start=r.startFrame;
+    while(start<r.endFrame) {
+      const target=Math.min(r.endFrame,start+Math.round(Math.max(3,minSeconds)*fps));
+      const boundary=words.find(w=>w.endFrame>=target&&w.endFrame<=target+fps&&/[.!?]$/.test(w.text));
+      let end=Math.min(r.endFrame,boundary?.endFrame ?? target);
+      if(r.endFrame-end<minSeconds*fps) end=r.endFrame;
+      out.push({id:out.length,startFrame:start,endFrame:end,text:words.filter(w=>w.startFrame<end&&w.endFrame>start).map(w=>w.text).join(' ')});
+      start=end;
+    }
+  }
+  return out;
+}
+function cameraFaceOptions(panel:any, start:number,end:number,fps:number):any[] {
+  const rate=panel.playbackSpeed.numerator/panel.playbackSpeed.denominator;
+  const a=panel.sourceStartSeconds+(start-panel.startFrame)/fps*rate,b=a+(end-start)/fps*rate;
+  const samples=(panel.observation?.samples || []).filter(s=>s.time>=a&&s.time<b);
+  const groups:any[]=[];
+  for(const s of samples) for(const box of s.boxes) {
+    const x=(box.xmin+box.xmax)/2,y=(box.ymin+box.ymax)/2,w=box.xmax-box.xmin,h=box.ymax-box.ymin;
+    if(![x,y,w,h].every(Number.isFinite)||w<=0||h<=0) continue;
+    const near=groups.find(g=>Math.hypot(g.x-x,g.y-y)<Math.max(g.w,w)*1.2);
+    if(near) {near.rows.push({x,y,w,h}); near.x=cameraMedian(near.rows.map(r=>r.x));near.y=cameraMedian(near.rows.map(r=>r.y));}
+    else groups.push({x,y,w,rows:[{x,y,w,h}]});
+  }
+  return groups.filter(g=>g.rows.length>=Math.max(1,samples.length*.4)).sort((a,b)=>a.x-b.x).map((g,i)=>({
+    id:`${panel.videoIndex}:${i}`,videoIndex:panel.videoIndex,panel,
+    x:cameraMedian(g.rows.map(r=>r.x)),y:cameraMedian(g.rows.map(r=>r.y)),w:cameraMedian(g.rows.map(r=>r.w)),h:cameraMedian(g.rows.map(r=>r.h)),
+    headTop:Math.max(0,Math.min(...g.rows.map(r=>r.y-r.h*.95))),headBottom:Math.max(...g.rows.map(r=>r.y+r.h*.7)),
+  }));
+}
+function speakerCrop(face:any,windowH:number,style:any={}):any {
+  const W=face.panel.observation.W,H=face.panel.observation.H;
+  const maxW=Math.min(W,H*1080/windowH);
+  const headTop=face.headTop ?? Math.max(0,face.y-face.h*.95),headBottom=face.headBottom ?? face.y+face.h*.7;
+  const closeUp=Number.isFinite(style.closeUp)?Math.max(2,Math.min(12,style.closeUp)):4.5;
+  const faceY=(Number.isFinite(style.faceY)?Math.max(25,Math.min(65,style.faceY)):40)/100;
+  const w=Math.min(maxW,Math.max(face.w*closeUp,(headBottom-headTop)*1.12*1080/windowH));
+  const cropH=w*windowH/1080;
+  const low=Math.max(0,headBottom-cropH),high=Math.min(H-cropH,headTop);
+  const y=Math.max(0,Math.min(H-cropH,low<=high?Math.max(low,Math.min(high,face.y-cropH*faceY)):headTop));
+  return {cx:Math.max(w/2,Math.min(W-w/2,face.x)),cy:y+cropH*.4,w,headTop,headBottom,sourceH:H,sourceW:W};
+}
+async function cameraEvidenceSheet(captures:any[], options:any[]):Promise<string> {
+  const side=160,label=90,rowH=side+18;
+  const cv=document.createElement('canvas');cv.width=label+side*captures.length;cv.height=Math.max(1,options.length)*rowH;
+  const g=cv.getContext('2d');if(!g) throw new Error('Camera evidence canvas unavailable');
+  g.fillStyle='#ffffff';g.fillRect(0,0,cv.width,cv.height);g.fillStyle='#111111';g.font='bold 20px sans-serif';
+  const imgs=await Promise.all(captures.map(async c=>{const im=new Image();im.src='data:image/jpeg;base64,'+c.data;await im.decode();return im;}));
+  options.forEach((o,row)=>{
+    g.fillText(o.id,8,row*rowH+side/2);
+    captures.forEach((c,col)=>{
+      const tile=c.frames.find(f=>f.videoIndex===o.videoIndex);
+      if(!tile?.hasSourceImage) return;
+      const scale=Math.min(tile.width/o.panel.observation.W,tile.height/o.panel.observation.H);
+      const ox=tile.x+(tile.width-o.panel.observation.W*scale)/2,oy=tile.y+(tile.height-o.panel.observation.H*scale)/2;
+      const w=Math.max(o.w*1.6,o.h*1.4),W=o.panel.observation.W,H=o.panel.observation.H;
+      const x=Math.max(0,Math.min(W-w,o.x-w/2)),y=Math.max(0,Math.min(H-w,o.y-w/2));
+      g.drawImage(imgs[col],ox+x*scale,oy+y*scale,w*scale,w*scale,label+col*side,row*rowH,side,side);
+    });
+  });
+  const data=cv.toDataURL('image/jpeg',.85);if(data.length>1400000) throw new Error('Face evidence sheet exceeds image limit');return data;
+}
+
+function validateCameraEditPlan(plan:any,observations:any[],allowSplit:boolean):any[] {
+  if(!Array.isArray(plan?.shots)||!plan.shots.length||plan.shots.length>500) throw new Error('Return 1-500 shots.');
+  let cursor=observations[0].unit.startFrame;
+  const end=observations[observations.length-1].unit.endFrame;
+  for(const shot of plan.shots) {
+    if(!Number.isInteger(shot.startFrame)||!Number.isInteger(shot.endFrame)||shot.startFrame!==cursor||shot.endFrame<=cursor||shot.endFrame>end) throw new Error('Shots must cover the clip exactly, in order, with no gaps or overlaps.');
+    if(shot.primary!==null && typeof shot.primary!=='string') throw new Error('Use a candidate ID or null for primary.');
+    if(shot.secondary!=null && (!allowSplit||shot.primary===null||shot.secondary===shot.primary||shot.distinctPeople!==true)) throw new Error('Split requires permission and two distinct observed people.');
+    for(const key of ['closeUp','faceY']) if(shot[key]!==undefined && (!Number.isFinite(shot[key])||shot[key]<(key==='closeUp'?2:25)||shot[key]>(key==='closeUp'?12:65))) throw new Error('Crop settings must be closeUp 2-12 and faceY 25-65.');
+    for(const o of observations.filter(o=>o.unit.startFrame<shot.endFrame&&o.unit.endFrame>shot.startFrame)) {
+      for(const id of [shot.primary,shot.secondary].filter(id=>id!=null)) if(!o.options.some(f=>f.id===id)) throw new Error('Selected person is not observed throughout this shot; split at the evidence boundary or use null.');
+    }
+    cursor=shot.endFrame;
+  }
+  if(cursor!==end) throw new Error('Plan does not cover the end of the clip.');
+  return plan.shots;
+}
+
+async function directCameraPanels({sdk,guard,projectId,draftId,panels,units,fps,windowH,allowSplit,instructions,closeUp=4.5,faceY=40,minShotSeconds=2,note}:any):Promise<any[]> {
+  const core=await guard(sdk.call('getDraftCore',draftId));
+  if(core?.owner?.projectId!==projectId) throw new Error('Draft project mismatch');
+  const out:any[]=[],observations:any[]=[];
+  for(const unit of units) {
+    const available=panels.filter(p=>p.startFrame<=unit.startFrame&&p.endFrame>=unit.endFrame);
+    const options=available.flatMap(p=>cameraFaceOptions(p,unit.startFrame,unit.endFrame,fps));
+    const images:any[]=[],captures:any[]=[];
+    // The bridge camera-angle contract accepts one playback frame per call.
+    // Eight synchronized sheets keep time order explicit across every camera.
+    for(const [index,t] of [.08,.2,.32,.44,.56,.68,.8,.92].entries()) {
+      const frameNumber=Math.min(unit.endFrame-1,Math.floor(unit.startFrame+(unit.endFrame-unit.startFrame)*t));
+      const frames=available.map(p=>({frameNumber,view:'camera_angle',videoIndex:p.videoIndex}));
+      const image=await guard(sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:draftId,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,coordinate:'resolved',frames,includeOverlays:false}));
+      if(!image?.data || image.data.length>1400000) throw new Error('Camera evidence image unavailable or too large');
+      captures.push(image);
+    }
+    if(options.length) images.push({dataUrl:await cameraEvidenceSheet(captures,options),name:'faces-in-time-order.jpg'});
+    for(const n of [0,captures.length-1]) images.push({dataUrl:'data:image/jpeg;base64,'+captures[n].data,name:`camera-context-${n}.jpg`});
+    const candidates=options.map(o=>({id:o.id,camera:o.videoIndex,x:Math.round(o.x/o.panel.observation.W*100),y:Math.round(o.y/o.panel.observation.H*100)}));
+    const prompt=`Direct this short-form conversation. Image 1 has one row per candidate, labeled with its exact candidate ID. Each row has EIGHT ENLARGED FACE CLOSE-UPS in chronological order during this unit. Compare actual mouth shape changes across the row; hand gestures alone are not speaking evidence. Images 2 and 3 supply the opening and closing camera context (V1 means camera 0, V2 means camera 1, etc). Choose the person actually speaking from mouth changes across frames. Transcript speaker labels may combine different people; do not treat them as identity evidence. Do not confuse a listener nodding, smiling or looking down with speaking. Prefer a tight source camera over a wide showing the same person. Never show the same person twice. Judge this unit independently of previous camera choices. A closed-mouth smile, a laugh, or a listener's small lip movements are not sustained speech. Return confidence .65-.79 for a probable speaker supported by visible articulation, >=.8 only when clear; return null below .65. Default is ONE person filling the video window. A second person is justified only by clearly overlapping speech or a visibly meaningful reaction in THIS unit, not merely being present or alternating normally. If uncertain, primary=null, confidence=0. No tools, no edits. Return only JSON {primary:candidateId|null,confidence:0..1,secondary:candidateId|null,distinctPeople:boolean,splitConfidence:0..1,reason:'visible-reaction'|'overlapping-speech'|'speaker',evidence:string}. Unit transcript=${JSON.stringify(unit.text)}. Candidates=${JSON.stringify(candidates)}. User style=${String(instructions||'')}.`;
+    const response=await guard(sdk.askAI({prompt,images,timeoutMs:120000}));
+    const text=String(response.text||'').replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'');
+    let answer:any;try{answer=JSON.parse(text);}catch{throw new Error('Camera direction returned invalid JSON; resume to retry.');}
+    observations.push({unit,options,answer,available});
+    note({plan:'camera-observation',startFrame:unit.startFrame,endFrame:unit.endFrame,answer});
+  }
+  const evidence=observations.map(o=>({startFrame:o.unit.startFrame,endFrame:o.unit.endFrame,transcript:o.unit.text,
+    candidates:o.options.map(f=>({id:f.id,camera:f.videoIndex})),observation:o.answer}));
+  const prompt=`You are the editor of this complete short-form clip. Produce the final camera edit using the visual observations below. Choose shot boundaries in integer playback frames, the subject, and whether a second distinct person meaningfully improves the scene. Default to the speaking person; do not stack cameras merely because they exist. You control split duration, frequency and timing: there is NO split quota or mandatory cooldown. Consider continuity and available window height ${windowH}px; avoid cramped splits when a large face communicates better. Visual observations are fallible: do not invent speaker evidence from transcript IDs. Candidate IDs are local camera/position references, not guaranteed identities across cuts; consult each observation. Use primary:null for an uncertain intact-camera view. Cover the entire clip exactly without gaps or overlaps. You may cut within an observation interval, but avoid precise speaker-switch claims unsupported by sampled evidence. User settings: ${JSON.stringify({allowSplit,closeUp,faceY,minShotSeconds,instructions})}. closeUp means output width in face widths (larger is wider); faceY is face position in percent from the top. Respect these defaults; optional per-shot closeUp/faceY overrides require a visual/editorial reason in reason. minShotSeconds is a pacing preference, not a hard constraint. No tools or edits. Return only JSON {shots:[{startFrame,endFrame,primary:string|null,secondary:string|null,distinctPeople:boolean,closeUp?:number,faceY?:number,reason:string}]}. Evidence: ${JSON.stringify(evidence)}`;
+  let shots:any[]=[],feedback='';
+  for(let attempt=0;attempt<2;attempt++) {
+    const response=await guard(sdk.askAI({prompt:prompt+feedback,timeoutMs:120000}));
+    try {
+      const plan=JSON.parse(String(response.text||'').replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
+      shots=validateCameraEditPlan(plan,observations,allowSplit);break;
+    } catch(e:any) {
+      if(attempt===1) throw new Error('Camera edit plan invalid: '+e.message);
+      feedback='\nYour previous plan was invalid: '+e.message+'. Return a corrected complete plan.';
+      note({plan:'camera-plan-retry',error:e.message});
+    }
+  }
+  for(const [shotIndex,shot] of shots.entries()) {
+    const covered=observations.filter(o=>o.unit.startFrame<shot.endFrame&&o.unit.endFrame>shot.startFrame);
+    const cropFace=(f:any)=>{
+      const peers=covered.flatMap(o=>o.options).filter(q=>q.id===f.id&&q.panel.resourceId===f.panel.resourceId);
+      return {...f,x:cameraMedian(peers.map(q=>q.x)),y:cameraMedian(peers.map(q=>q.y)),w:cameraMedian(peers.map(q=>q.w)),
+        headTop:Math.min(...peers.map(q=>q.headTop)),headBottom:Math.max(...peers.map(q=>q.headBottom))};
+    };
+    for(const o of covered) {
+      const start=Math.max(shot.startFrame,o.unit.startFrame),end=Math.min(shot.endFrame,o.unit.endFrame);
+      const chosen=shot.primary===null?[{panel:o.available[0]}]:[shot.primary,shot.secondary].filter(id=>id!=null).map(id=>o.options.find(f=>f.id===id));
+      for(const [slot,f] of chosen.entries()) {
+        const p=f.panel,rate=p.playbackSpeed.numerator/p.playbackSpeed.denominator;
+        if(!p) throw new Error('No recorded camera covers the planned shot.');
+        out.push({...p,observation:undefined,startFrame:start,endFrame:end,
+          sourceStartSeconds:p.sourceStartSeconds+(start-p.startFrame)/fps*rate,
+          slot,count:chosen.length,focusId:f.id||null,shotIndex,
+          crop:f.id?speakerCrop(cropFace(f),windowH/chosen.length,{closeUp:shot.closeUp??closeUp,faceY:shot.faceY??faceY}):{fit:'contain'}});
+      }
+    }
+    note({plan:'camera-direction',...shot});
+  }
+  return out;
+}
+
+function stableCameraShots(rows: any[], minFrames: number): any[] {
+  const out:any[]=[];
+  for (const r of rows) {
+    if (!Number.isInteger(r.videoIndex) || r.videoIndex<0 || r.videoIndex>=10000 || r.endFrame<=r.startFrame) continue;
+    const p=out[out.length-1];
+    // Only absorb brief backchannels between the SAME camera, never extend
+    // an angle blindly across a different resource or a camera coverage gap.
+    if (p && p.resourceId===r.resourceId && p.endFrame===r.startFrame && p.videoIndex===r.videoIndex) p.endFrame=r.endFrame;
+    else out.push({...r});
+  }
+  for (let i=1;i+1<out.length;i++) {
+    const a=out[i-1],b=out[i],c=out[i+1];
+    if (b.endFrame-b.startFrame<minFrames && a.resourceId===b.resourceId && b.resourceId===c.resourceId && a.videoIndex===c.videoIndex && a.endFrame===b.startFrame && b.endFrame===c.startFrame) {
+      // Keep the original short shot's range for a coverage check at apply time.
+      a.endFrame=c.endFrame;out.splice(i,2);i--;
+    }
+  }
+  return out;
+}
+
+function planShots(samples: any[], turns: any[], frameW: number, windowW: number, closeUp = 4.5, inset = 0, split = false, coverW = windowW, closeUpMin = 2.8, log?: any, sents?: any[], forced?: any[], policy: any = {}): any[] {
   // coverW: the widest view whose picture still fills the window from top to bottom.
   // inset: source pixels at each side edge never shown (black bars some broadcasts carry). split: the picture is
   // two halves side by side (guest | host), so a view never crosses the middle.
@@ -2896,15 +3985,21 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
       // forced: talkers the picture check saw ([{ start, end, x }]); they replace the choice above for the
       // sentences whose middle falls inside, as the face sitting nearest x.
       units.forEach((u: any, i: number) => {
-        u.talker = live[path[i]];
+        // Smoothing must not manufacture evidence: equal or missing emissions
+        // have no winner, even though Viterbi necessarily returns a path.
+        const ranked = em[i].map((v: number, j: number) => ({v,j})).sort((a: any,b: any)=>b.v-a.v);
+        const evidence = live.length === 1 || (em[i][path[i]] !== -5 && ranked[0].v > 0 && ranked[0].v - ranked[1].v >= 0.08);
+        u.talker = evidence ? live[path[i]] : null;
+        u.uncertain = !evidence;
         const mid = (u.start + u.end) / 2;
         const f = (forced || []).find((x: any) => mid >= x.start && mid < x.end);
-        if (f) {
+        if (f?.unknown) { u.talker = null; u.uncertain = true; }
+        else if (f) {
           const dist = (p: any) => Math.hypot(p.at.cx - f.x, f.y === undefined ? 0 : p.at.cy - f.y);
           const near = live.slice().sort((p: any, q: any) => dist(p) - dist(q))[0];
-          if (near && dist(near) < 200) u.talker = near;
+          if (near && dist(near) < 200) { u.talker = near; u.uncertain = false; }
         }
-        unitsLog.push({ start: Math.round(u.start * 10) / 10, end: Math.round(u.end * 10) / 10, spk: u.spk ?? null, face: Math.round(u.talker.at.cx), faceY: Math.round(u.talker.at.cy) });
+        unitsLog.push({ start: Math.round(u.start * 10) / 10, end: Math.round(u.end * 10) / 10, spk: u.spk ?? null, face: u.talker ? Math.round(u.talker.at.cx) : null, faceY: u.talker ? Math.round(u.talker.at.cy) : null });
       });
       // Every face's close-up alternatives, for the picture check.
       if (log) {
@@ -2917,7 +4012,7 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
       for (const u of units) {
         const last = runs[runs.length - 1];
         if (last && last.talker === u.talker) last.end = u.end;
-        else runs.push({ start: u.start, end: u.end, spk: u.spk, talker: u.talker });
+        else runs.push({ start: u.start, end: u.end, spk: u.spk, talker: u.talker, uncertain:u.uncertain });
       }
       runs[0].start = Math.min(runs[0].start, a0);
       for (let i = 1; i < runs.length; i++) runs[i - 1].end = runs[i].start;
@@ -2957,6 +4052,12 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
       if (log) log.pieces.push({ start: Math.round(shot.start * 10) / 10, end: Math.round(shot.end * 10) / 10, spk: shot.spk ?? null, how, cx: Math.round(shot.cx), ...(shot.w ? { w: Math.round(shot.w) } : {}), faces: faces.map((f) => Math.round(f.cx)) });
     };
     if (!faces.length) { take("noFaces", { ...piece, cx: shots.length ? shots[shots.length - 1].cx : frameW / 2 }); continue; }
+    const candidates = faces.slice().sort((a,b)=>b.area-a.area).slice(0,2).sort((a,b)=>a.cx-b.cx);
+    const stack = () => {
+      const panels = candidates.map(f => ({cx:f.cx,cy:f.cy,w:Math.min(frameW-2*inset,Math.max(f.w*5,windowW/2))}));
+      take("stacked", {...piece,layout:"stacked",cx:frameW/2,w:frameW,panels});
+    };
+    if (policy.mode === "stacked" && candidates.length === 2) { stack(); continue; }
     const talkerFace = piece.talker && faces.find((f) => f.track === piece.talker);
     if (talkerFace) {
       take("sentence", { ...piece, ...closeUpOn(talkerFace, faces) });
@@ -2964,19 +4065,20 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
     }
     const voiced = voice.get(piece.spk);
     const voicedFace = voiced && faces.find((f) => f.track === voiced);
-    if (voicedFace) {
+    if (voicedFace && !piece.uncertain) {
       take("voice", { ...piece, ...closeUpOn(voicedFace, faces) });
       continue;
     }
     const byTalk = faces.slice().sort((x, y) => y.talk - x.talk);
-    if (byTalk[0].talk >= 1.08 && (byTalk.length < 2 || byTalk[0].talk >= byTalk[1].talk * 1.04)) {
+    if (!piece.uncertain && byTalk[0].talk >= 1.08 && (byTalk.length < 2 || byTalk[0].talk >= byTalk[1].talk * 1.04)) {
       // A close-up on the talker: about closeUp face widths across the window.
       const t0 = byTalk[0];
       // Near the edge of the picture the view narrows (down to 2.8 face widths) so the face can stay centred.
       take("talk", { ...piece, ...closeUpOn(t0, faces) });
       continue;
     }
-    if (split) {
+    if (policy.mode === "auto" && candidates.length === 2 && candidates[1].area >= candidates[0].area * 0.4 && candidates[0].area >= candidates[1].area * 0.4) { stack(); continue; }
+    if (split && !piece.uncertain) {
       // A split picture without a clear talker stays on the larger face (usually the guest).
       take("split", { ...piece, ...closeUpOn(faces.slice().sort((x, y) => y.area - x.area)[0], faces) });
       continue;
@@ -3019,11 +4121,11 @@ function planShots(samples: any[], turns: any[], frameW: number, windowW: number
   const merged: any[] = [];
   for (const s of shots) {
     const p = merged[merged.length - 1];
-    if (p && Math.abs(p.cx - s.cx) < 80 && Math.abs((p.w || 0) - (s.w || 0)) < 40 && !p.cy === !s.cy) p.end = s.end;
+    if (p && p.layout === s.layout && JSON.stringify(p.panels) === JSON.stringify(s.panels) && Math.abs(p.cx - s.cx) < 80 && Math.abs((p.w || 0) - (s.w || 0)) < 40 && !p.cy === !s.cy) p.end = s.end;
     else merged.push({ ...s });
   }
   const r3 = (x: number) => Math.round(x * 1000) / 1000;
-  return merged.map((s) => ({ start: r3(s.start), end: r3(s.end), cx: Math.round(s.cx), ...(s.w ? { w: Math.round(s.w) } : {}), ...(s.cy ? { cy: Math.round(s.cy) } : {}), ...(s.alts && s.alts.length > 1 ? { alts: s.alts } : {}) }));
+  return merged.map((s) => ({ ...(s.panels ? {layout:s.layout,panels:s.panels} : {}), start: r3(s.start), end: r3(s.end), cx: Math.round(s.cx), ...(s.w ? { w: Math.round(s.w) } : {}), ...(s.cy ? { cy: Math.round(s.cy) } : {}), ...(s.alts && s.alts.length > 1 ? { alts: s.alts } : {}) }));
 }
 
 // The part of the source picture a close-up shows in the template's window, as [x, y, width, height] in source
@@ -3432,38 +4534,68 @@ function templateFields({ ui, edit, set, saving }: any) {
   return { num, text, list };
 }
 
+function TemplateSectionNavigation({ value, onChange, tabs, label, actions, feedback }: any) {
+  return <div className="template-section-layout">
+    <style>{`
+      .template-section-layout {display:grid;grid-template-columns:76px minmax(0,1fr);gap:16px;align-items:start;}
+      .template-section-nav {display:flex;flex-direction:column;gap:4px;position:sticky;top:var(--template-sticky-top,16px);}
+      .template-section-nav > button {display:flex;align-items:center;justify-content:flex-start;width:100%;min-height:32px;margin:0;padding:7px 10px;border:0;border-radius:var(--panel-radius, 6px);text-align:left;background:transparent;color:var(--panel-muted-fg);font:inherit;font-weight:400;box-shadow:none;cursor:pointer;transition:background 120ms ease,color 120ms ease;}
+      .template-section-nav > button:hover {background:var(--panel-accent);color:var(--panel-fg);}
+      .template-section-nav > button[aria-current="page"] {background:var(--panel-muted);color:var(--panel-fg);font-weight:500;box-shadow:none;}
+      .template-section-nav > button:focus-visible {outline:2px solid var(--panel-ring);outline-offset:2px;}
+      .template-section-content {min-width:0;}
+    `}</style>
+    <nav className="template-section-nav" aria-label={label}>
+      {tabs.map((tab:any)=><button type="button" key={tab.value} data-template-section={tab.value}
+        aria-current={value===tab.value?'page':undefined} onClick={()=>onChange(tab.value)}>{tab.label}</button>)}
+      {actions}
+    </nav>
+    <div className="template-section-content">{feedback}{tabs.find((tab:any)=>tab.value===value)?.content}</div>
+  </div>;
+}
+
+function TemplateVisualLayout({ preview, children }: any) {
+  return <div style={{containerType:'inline-size',width:'100%',minWidth:0}}>
+    <style>{`
+      .template-visual-grid {display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start;}
+      .template-visual-preview {width:100%;max-width:220px;margin-inline:auto;min-width:0;}
+      .template-visual-settings {min-width:0;}
+      @container (min-width:440px) {
+        .template-visual-grid {grid-template-columns:minmax(120px,0.6fr) minmax(260px,1fr);}
+        .template-visual-preview {position:sticky;top:var(--template-sticky-top,16px);max-width:240px;}
+      }
+    `}</style>
+    <div className="template-visual-grid">
+      <div className="template-visual-preview">{preview}</div>
+      <div className="template-visual-settings">{children}</div>
+    </div>
+  </div>;
+}
+
 function TemplateAppearanceSection({ ui, S, lang, draft, profile, previewOverlay, setPreviewOverlay }: any) {
   const { edit, set, saving, pickImage, setMsg } = draft;
   const { num, text } = templateFields({ ui, ...draft });
   const { Preview } = profile;
   const B = edit.background, H = edit.headline, G = edit.logo;
   return (
-    <>
+    <TemplateVisualLayout preview={
       <div style={{ paddingBlock: 16 }}>
         <ui.Stack gap={16}>
           {edit.framingMode === "single-speaker" && <ui.Message>{S.singleSpeakerNote}</ui.Message>}
           <Preview t={edit} S={S} overlay={previewOverlay} />
           {profile.demoOverlay && <ui.Toggle label={(OVERLAY_STRINGS[lang] || OVERLAY_STRINGS.en).preview} value={previewOverlay} onChange={setPreviewOverlay} />}
         </ui.Stack>
-      </div>
+      </div>}>
       <ui.Section title={S.secWindow}>
         {num("layout.windowTop", S.windowTop, 0, 1700, "px")}
         {num("layout.windowBottom", S.windowBottom, 200, 1920, "px")}
       </ui.Section>
-      <ui.Section title={S.secCrop}>
-        {num("layout.sourceTop", S.sourceTop, 0, 980, "px")}
-        {num("layout.sourceBottom", S.sourceBottom, 100, 1080, "px")}
-        {num("layout.offsetX", S.offsetX, -960, 960, "px")}
-        {profile.reframe && <ui.Toggle label={S.reframe} value={!!edit.layout.reframe} onChange={(v: boolean) => set("layout.reframe", v)} disabled={saving} />}
-        {profile.reframe && edit.layout.reframe ? num("layout.closeUp", S.closeUp, 2, 12, "×", 4.5) : null}
-        {profile.reframe && edit.layout.reframe ? num("layout.faceY", S.faceY, 25, 65, "%", 40) : null}
-        <small>{S.layoutHint}</small>
-        <SourceCrop t={edit} />
-      </ui.Section>
+
       <ui.Section title={S.secPositions}>
         {num("layout.headlineCenter", S.headlineCenter, 0, 1920, "px")}
         {num("layout.logoCenter", S.logoCenter, 0, 1920, "px")}
       </ui.Section>
+
       <ui.Section title={S.background}>
         <ui.Segmented
           label={S.bgMode}
@@ -3534,8 +4666,46 @@ function TemplateAppearanceSection({ ui, S, lang, draft, profile, previewOverlay
           </ui.Stack>
         )}
       </ui.Section>
-    </>
+    </TemplateVisualLayout>
   );
+}
+
+function TemplateFramingSection({ ui, S, lang, draft, profile }: any) {
+  const { edit, set, saving } = draft;
+  const { num, text } = templateFields({ ui, ...draft });
+  return (<>
+      <ui.Section title={lang === "ko" ? "구도" : "Framing"}>
+        {profile.reframe ? <ui.Segmented label={lang === "ko" ? "구도 방식" : "Framing mode"}
+          value={edit.layout.reframe ? "auto" : "manual"}
+          onChange={(v:string)=>set("layout.reframe",v === "auto")}
+          options={[{value:"auto",label:lang === "ko" ? "자동 (AI)" : "Automatic (AI)"},{value:"manual",label:lang === "ko" ? "수동" : "Manual"}]} disabled={saving}/>
+          : <small>{lang === "ko" ? "이 템플릿은 수동 구도를 사용합니다." : "This template uses manual framing."}</small>}
+        {profile.reframe && edit.layout.reframe && <>
+          <ui.Segmented label={lang==='ko'?'리프레이밍 스타일':'Reframing style'} value={edit.layout.reframePreset||'conversation'} onChange={(v:string)=>set('layout',reframingPreset(edit.layout,v))} options={[
+            {value:'speaker',label:lang==='ko'?'화자 집중':'Speaker focus'}, {value:'conversation',label:lang==='ko'?'대화와 반응':'Conversation'}, {value:'context',label:lang==='ko'?'현장감':'Context'}, {value:'custom',label:lang==='ko'?'직접 설정':'Custom'}]} disabled={saving}/>
+        {profile.reframe && edit.layout.reframe ? num("layout.closeUp", S.closeUp, 2, 12, "×", 4.5) : null}
+        {profile.reframe && edit.layout.reframe ? num("layout.faceY", S.faceY, 25, 65, "%", 40) : null}
+          {[
+            ['reframeFocus','화면에 담을 대상','Show',[['speaker','말하는 사람 위주','Speaker'],['reactions','듣는 사람의 반응도','Reactions'],['context','대화 전체','Context']],'reactions'],
+            ['splitPolicy','상하 분할','Stacked split',[['never','사용 안 함','Never'],['selective','필요할 때','Selective'],['frequent','적극 활용','Frequent']],'selective'],
+            ['widePolicy','와이드샷','Wide shots',[['never','사용 안 함','Never'],['essential','꼭 필요할 때','Essential'],['free','자유롭게','Free']],'never'],
+            ['reframePacing','화면 전환 빈도','Pacing',[['calm','차분하게','Calm'],['balanced','보통','Balanced'],['dynamic','역동적으로','Dynamic']],'balanced'],
+          ].map(([key,ko,en,options,fallback]:any)=><ui.Segmented key={key} label={lang==='ko'?ko:en} value={edit.layout[key]||fallback} onChange={(v:string)=>set('layout',{...edit.layout,[key]:v,reframePreset:'custom'})} options={options.map(([value,k,e]:any)=>({value,label:lang==='ko'?k:e}))} disabled={saving}/>)}
+          {text("layout.reframeInstructions",lang === "ko" ? "\uad6c\ub3c4 \uc9c0\uce68 (AI \ucc38\uace0)" : "Framing instructions (AI guidance)")}
+
+        </>}
+
+      </ui.Section>
+      {(!profile.reframe || !edit.layout.reframe) && (
+      <ui.Section title={S.secCrop}>
+        {num("layout.sourceTop", S.sourceTop, 0, 980, "px")}
+        {num("layout.sourceBottom", S.sourceBottom, 100, 1080, "px")}
+        {num("layout.offsetX", S.offsetX, -960, 960, "px")}
+        <small>{S.layoutHint}</small>
+        <SourceCrop t={edit} />
+      </ui.Section>
+      )}
+  </>);
 }
 
 function TemplateCaptionsSection({ ui, S, draft, profile, previewOverlay }: any) {
@@ -3545,13 +4715,13 @@ function TemplateCaptionsSection({ ui, S, draft, profile, previewOverlay }: any)
   const C = edit.captions;
   const weights = [300, 400, 500, 600, 700, 800, 900].map((w) => ({ value: String(w), label: String(w) }));
   return (
-    <>
+    <TemplateVisualLayout preview={
       <div style={{ paddingBlock: 16 }}>
         <ui.Stack gap={16}>
           {edit.framingMode === "single-speaker" && <ui.Message>{S.singleSpeakerNote}</ui.Message>}
           <Preview t={edit} S={S} overlay={previewOverlay} />
         </ui.Stack>
-      </div>
+      </div>}>
       <ui.Section title={S.captions}>
         <ui.Toggle label={S.captionsOn} value={!!C.on} onChange={(v: boolean) => set("captions.on", v)} disabled={saving} />
         {!C.on && <small>{S.captionsOffHint}</small>}
@@ -3577,20 +4747,17 @@ function TemplateCaptionsSection({ ui, S, draft, profile, previewOverlay }: any)
           </ui.Stack>
         )}
       </ui.Section>
-      <ui.Section title={S.editing}>
-        <ui.Toggle label={S.removeFillers} value={!!edit.editing.removeFillers} onChange={(v: boolean) => set("editing.removeFillers", v)} disabled={saving} />
-        <ui.Toggle label={S.removeSilences} value={!!edit.editing.removeSilences} onChange={(v: boolean) => set("editing.removeSilences", v)} disabled={saving} />
-      </ui.Section>
-    </>
+
+    </TemplateVisualLayout>
   );
 }
 
-function TemplateAISection({ ui, S, draft }: any) {
+function TemplateAISection({ ui, S, lang, draft }: any) {
+  const { edit, set, saving } = draft;
   const { text, list } = templateFields({ ui, ...draft });
   return (
     <>
       <ui.Section title={S.prompt}>
-        <small>{S.promptHint}</small>
         {text("prompt.role", S.role)}
         {text("prompt.format", S.format)}
         {text("prompt.good", S.good)}
@@ -3600,11 +4767,16 @@ function TemplateAISection({ ui, S, draft }: any) {
         {text("prompt.rules", S.rules)}
         {text("prompt.headline", S.headlineRules)}
       </ui.Section>
+      <ui.Section title={S.editing}>
+        <ui.Toggle label={S.removeFillers} value={!!edit.editing.removeFillers} onChange={(v: boolean) => set("editing.removeFillers", v)} disabled={saving} />
+        <ui.Toggle label={S.removeSilences} value={!!edit.editing.removeSilences} onChange={(v: boolean) => set("editing.removeSilences", v)} disabled={saving} />
+      </ui.Section>
       <ui.Section title={S.detection}>
         {list("detect.keywords", S.keywords)}
         {list("detect.exclude", S.exclude)}
         {text("detect.host", S.host, false)}
       </ui.Section>
+
     </>
   );
 
@@ -3646,17 +4818,18 @@ function TemplateEditorForm(props: any) {
   const { ui, S, lang, templates, state, profile } = props;
   const draft = useTemplateDraft(props, profile);
   const [previewOverlay, setPreviewOverlay] = React.useState(false);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
   if (!draft) return null;
   const { current, edit, dirty, saving, msg, deleteOpen, setDeleteOpen, layoutKey,
     setEdit, set, setMsg, save, duplicate, reset, remove } = draft;
   const { setSelId, sub, setSub } = state;
-  const note = current.builtIn ? (current.modified ? S.modifiedNote : S.builtInNote) : S.customNote;
+
 
   return (
-    <div style={{width:"100%",maxWidth:"var(--panel-field-max, 480px)",marginInline:"auto",minWidth:0,display:"flex",flexDirection:"column",gap:16,paddingTop:8}}>
+    <div style={{width:"100%",maxWidth:"100%",marginInline:"auto",minWidth:0,display:"flex",flexDirection:"column",gap:16,paddingTop:8,"--template-sticky-top":"16px"} as React.CSSProperties}>
       <ui.Stack gap={8}>
         <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
-        <div style={{flex:"1 1 0",minWidth:0}}>
+        <div style={{flex:"1 1 0",minWidth:0,"--panel-field-max":"100%"} as React.CSSProperties}>
         <TemplatePicker ui={ui} templates={templates} lang={lang}
           onAdd={props.onAddTemplates} addLabel={props.addTemplatesLabel}
           label={S.template}
@@ -3664,10 +4837,14 @@ function TemplateEditorForm(props: any) {
           onChange={(v: string) => {
             setSelId(v);
             setMsg(null);
+            setSettingsOpen(false);
           }}
           disabled={dirty || saving || !!props.packBusy}
         />
         </div>
+        <div style={{flexShrink:0}}><ui.IconButton icon="settings" label={lang === "ko" ? "템플릿 설정" : "Template settings"}
+          disabled={saving || !!props.packBusy}
+          onClick={()=>setSettingsOpen(v=>!v)} /></div>
         <div style={{flexShrink:0}}><ui.IconButton icon="trash" label={S.deleteTemplate}
           disabled={dirty || saving || !!props.packBusy || !!props.busy}
           onClick={()=>{setMsg(null);setDeleteOpen(true);}} /></div>
@@ -3684,8 +4861,8 @@ function TemplateEditorForm(props: any) {
             <ui.Button variant="danger" busy={saving} onClick={remove}>{S.del}</ui.Button>
           </div>
         </TemplatePackDialog>
-        <small>{note}</small>
         {profile.layoutVariants && <small>{S.editingLayout(layoutKey === "tiktok" ? S.layoutTiktok : S.layoutShorts)}</small>}
+        <div hidden={!settingsOpen} style={{padding:16,border:"1px solid var(--panel-border)",borderRadius:8}}>
         <ui.TextField label={S.name} value={nameOf(edit, lang)} onChange={(v: string) => set("name", v)} disabled={saving} />
         <ui.Actions>
           <ui.Button variant="secondary" onClick={duplicate} disabled={dirty || saving}>
@@ -3697,28 +4874,27 @@ function TemplateEditorForm(props: any) {
             </ui.Button>
           )}
         </ui.Actions>
+        </div>
       </ui.Stack>
-      <ui.Tabs
+      <TemplateSectionNavigation
+          actions={<div hidden={!dirty && !saving} style={{marginTop:20,paddingTop:12,borderTop:"1px solid var(--panel-border)"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:8,alignItems:"stretch"}}>
+              <ui.Button variant="primary" busy={saving} onClick={save} disabled={!dirty || saving}>{S.save}</ui.Button>
+              <ui.Button variant="ghost" onClick={()=>{setEdit(clone(current));setMsg(null);}} disabled={!dirty || saving}>{S.discard}</ui.Button>
+            </div>
+          </div>}
+          feedback={msg && <ui.Message tone={msg.tone}>{msg.text}</ui.Message>}
+          label={lang === "ko" ? "템플릿 편집" : "Template editor"}
           value={sub}
           onChange={setSub}
           tabs={[
             { value: "look", label: S.tabLook, content: <TemplateAppearanceSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} previewOverlay={previewOverlay} setPreviewOverlay={setPreviewOverlay} /> },
             { value: "captions", label: S.tabCaptions, content: <TemplateCaptionsSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} previewOverlay={previewOverlay} /> },
+            { value: "framing", label: lang === "ko" ? "구도" : "Framing", content: <TemplateFramingSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} /> },
             { value: "ai", label: S.tabAI, content: <TemplateAISection ui={ui} S={S} lang={lang} draft={draft} profile={profile} /> },
           ]}
       />
-      <ui.Stack gap={8}>
-        <ui.Actions>
-          <ui.Button variant="ghost" onClick={() => setEdit(clone(current))} disabled={!dirty || saving}>
-            {S.discard}
-          </ui.Button>
-          <ui.Button variant="primary" busy={saving} onClick={save} disabled={!dirty}>
-            {S.save}
-          </ui.Button>
-        </ui.Actions>
-        {dirty && <ui.Message>{S.unsaved}</ui.Message>}
-        {msg && <ui.Message tone={msg.tone}>{msg.text}</ui.Message>}
-      </ui.Stack>
+
     </div>
   );
 }
@@ -4234,7 +5410,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   }
 
   // ---- Step 3: identify the program ----
-  async function identify(title: string, lines: any[], list: any[]) {
+  async function identify(title: string, lines: any[], list: any[], ask: (request: any) => Promise<any>) {
     const head = lines.slice(0, 120).map((l) => l[2]).join(" ");
     const all = lines.map((l) => l[2]).join(" ");
     const byTitle = scoreProgram(title, list);
@@ -4246,10 +5422,107 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       `\ud574\ub2f9 \uc5c6\uc73c\uba74 "none". \ud544\uc694\ud558\uba74 \ud504\ub85c\uc81d\ud2b8 \ub3c4\uad6c\ub85c \uc774 \uc601\uc0c1(resource)\uc758 \ud654\uba74\uc744 \ud655\uc778\ud574 \uc88c\uc0c1\ub2e8/\uc6b0\uc0c1\ub2e8 \ub85c\uace0\ub97c \ubd10\ub3c4 \ub41c\ub2e4. \ud3b8\uc9d1\uc740 \ud558\uc9c0 \ub9c8\ub77c.\n` +
       `\uc81c\ubaa9/\ud30c\uc77c\uba85: ${title}\n\uc55e\ubd80\ubd84 \uc804\uc0ac: ${head.slice(0, 4000)}\n` +
       `JSON\ub9cc \ub2f5\ud558\ub77c: {"program": "<key or none>", "reason": "<\ud55c \ubb38\uc7a5>"}`;
-    const r: any = await guard(sdk.askAI({ prompt, timeoutMs: 180000 }));
+    const r: any = await ask({ prompt, timeoutMs: 180000 });
     const j = extractJson(r.text, S);
     if (!j.program || !list.some((t) => t.id === j.program)) return { key: null, why: j.reason || "" };
     return { key: j.program, why: `${S.whyAI}: ${j.reason || ""}` };
+  }
+
+  async function frameCameraPanels(panels: any[], fps: number, windowH: number, draftId: string, note: (e:any)=>void, work: ReturnType<typeof createReframeWork>) {
+    for (const resourceId of [...new Set(panels.map(p=>p.resourceId))]) {
+      const own=panels.filter(p=>p.resourceId===resourceId);
+      const ranges=cameraFaceRanges(own.map(p=>[p.sourceStartSeconds,p.sourceStartSeconds+(p.endFrame-p.startFrame)/fps*p.playbackSpeed.numerator/p.playbackSpeed.denominator]));
+      const samples:any[]=[];
+      let W=0,H=0;
+      for (const [a,b] of ranges.flatMap(r=>faceWindows(r[0],r[1],0.5,60,12))) {
+        const request={runtimeId:AI_RUNTIME,requestKey:`${APP_ID}:camera-v2:${keyHash(JSON.stringify({projectId,resourceId,a,b}))}`,projectId,resourceId,sourceRange:{startSeconds:a,endSeconds:b},task:"faces.detect",options:{sampleEverySeconds:0.5}};
+        note({plan:"stage",stage:"faces-wait",resourceId,start:a,end:b});
+        try {
+          const got=await guard(work.face(JSON.stringify(request),async()=>{
+            await guard(Promise.resolve());
+            note({plan:"stage",stage:"faces",resourceId,start:a,end:b});
+            let wf="";
+            const settled=await settleFaceJob({submit:async()=>{const h=await script(`return await selects.ai.submit(${JSON.stringify(request)});`,"Find camera faces",true);wf=h.workflowId;return {wf};},
+              status:cancel=>script(`const j=selects.ai.job(${JSON.stringify(wf)},${JSON.stringify(projectId)});${cancel?"await j.cancel();":""}const s=await j.status();return {status:s.status,error:s.lastErrorMessage};`,cancel?"Stop camera analysis":"Check camera faces",cancel),
+              wait:ms=>guard(sleep(ms)),deadline:Date.now()+120000+(b-a)*5000,now:()=>Date.now(),stop:e=>e instanceof RunCancelled});
+            if (settled.status.status !== "succeeded") throw new Error(settled.status.error || "Camera face analysis failed.");
+            return await script(`const r=await selects.ai.job(${JSON.stringify(wf)},${JSON.stringify(projectId)}).result(); const j:any=await selects.ai.readJSON(r.files.detections,${JSON.stringify(projectId)}); return {W:j.frameSize.width,H:j.frameSize.height,samples:j.samples.map((s:any)=>({time:s.sourceTimeSeconds,boxes:s.faces.map((f:any)=>f.box)}))};`,"Read camera faces");
+          }));
+          W=got.W;H=got.H;samples.push(...got.samples);
+        } catch(e:any) {
+          if(e instanceof RunCancelled || e?.unsettled) {note({plan:"camera-faces",unsettled:!!e?.unsettled});throw e;}
+          note({plan:"camera-faces",resourceId,error:String(e?.message||e)});
+          // An unobserved camera is fitted whole, rather than guessing headroom.
+        }
+      }
+      for (const panel of own) {
+        const end=panel.sourceStartSeconds+(panel.endFrame-panel.startFrame)/fps*panel.playbackSpeed.numerator/panel.playbackSpeed.denominator;
+        const boxes=samples.filter(s=>s.time>=panel.sourceStartSeconds&&s.time<end).flatMap(s=>s.boxes);
+        panel.crop=cameraHeadroom(boxes,W,H,windowH/panel.count);
+        panel.observation={W,H,samples};
+      }
+    }
+  }
+
+  async function prepareCameraFraming(draftId: string, tpl: any, note: (e:any)=>void, work: ReturnType<typeof createReframeWork>) {
+    const mode=tpl.layout.cameraMode || "auto";
+    if (mode === "preserve") return {cameraShots:[],cameraPanels:[]};
+    const args=JSON.stringify({projectId,draftId});
+    const read = `const P=${args}; const p=selects.project(P.projectId); if (!(await p.meta()).draftIds.includes(P.draftId)) throw new Error("Draft ownership changed."); const d=selects.draft(P.draftId);`;
+    let data=await script(read+`return {meta:await d.meta(),regions:await d.multicam.regions()};`,"Read camera analysis");
+    if (data.meta.videoAngles.length<2) return {cameraShots:[],cameraPanels:[]};
+    {
+      const snapshot=await guard(sdk.call("getDraftMediaSnapshot",projectId,draftId));
+      const manifests:any={};
+      const ids=[...new Set(snapshot.clips.filter((x:any)=>x.trackKind === "main" && x.resourceId).map((x:any)=>x.resourceId))];
+      for (const resourceId of ids) {
+        const payload=await guard(sdk.call("getResourceAnalyzedSequence",projectId,resourceId));
+        if(payload.owner?.projectId!==projectId||payload.resourceJson?.id!==resourceId) throw new Error("Camera source ownership changed.");
+        manifests[String(resourceId)]=cameraManifestFromSequence(payload);
+      }
+      const cameraPanels=cameraPanelPlacements(snapshot,manifests);
+      if (!cameraPanels.length) throw new Error("No overlapping synchronized camera windows are available for a split screen.");
+      await frameCameraPanels(cameraPanels,snapshot.fps,tpl.layout.windowBottom-tpl.layout.windowTop,draftId,note,work);
+      const words=await script(read+`return (await d.words()).map(w=>({startFrame:w.startFrame,endFrame:w.endFrame,text:w.text,speakerId:w.speakerId}));`,"Read camera dialogue");
+      // Evidence sampling stays dense even when the user prefers long shots.
+      const units=cameraUnits(cameraPanels,words,snapshot.fps,2);
+      const directed=await planTemplateCameraPanels({sdk,guard,projectId,draftId,panels:cameraPanels,units,words,fps:snapshot.fps,layout:tpl.layout,note,work});
+      return {cameraShots:[],cameraPanels:directed};
+    }
+  }
+
+  async function runTemplateReframing(draftId:string,job:any,tpl:any,note:(e:any)=>void,work:ReturnType<typeof createReframeWork>) {
+    const id=JSON.stringify(draftId);
+    const before=await script(`const d=selects.draft(${id}); return {meta:await d.meta(),words:await d.words()};`,"Read framing baseline");
+    if(before.meta.videoAngles.length<2) return runAgentReframing({sdk,guard,projectId,draftId,layout:tpl.layout,note,work});
+    note({plan:'template-reframe-start',draftId,preferences:reframingPreferences(tpl.layout)});
+    if(tpl.layout.cameraMode==='preserve') return {draftId,status:'complete',summary:'Template preserves camera framing.',verifiedFrames:[],limitations:['No camera changes requested.']};
+    const camera=await prepareCameraFraming(draftId,tpl,note,work);
+    const P={projectId,draftId,sourceKind:job.sourceKind,sourceDraftId:job.sourceDraftId,resourceId:job.resourceId,resourceName:job.resourceName,
+      transform:cropTransform(tpl.layout),frame:{windowTop:tpl.layout.windowTop,windowBottom:tpl.layout.windowBottom},
+      reframe:[{start:0,end:1e9,cx:960,w:1920}],...camera,stackEffect:STACKED_REFRAME_EFFECT};
+    note({plan:'stage',stage:'apply-wait'});
+    await guard(visualWork(async()=>{
+      work.check();await guard(Promise.resolve());note({plan:'stage',stage:'apply'});
+      return script(SCRIPT_APPLY_REFRAME.replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';'),'Apply template camera plan',true);
+    }));
+    note({plan:'stage',stage:'verify'});
+    const after=await script(`const d=selects.draft(${id}); return {meta:await d.meta(),words:await d.words()};`,"Verify framing timing");
+    const speech=(ws:any[])=>normalizeReframeWords(ws.map(w=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,wordId:w.wordId,sourceResourceId:w.sourceResourceId,sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame})));
+    if(before.meta.durationFrames!==after.meta.durationFrames||JSON.stringify(speech(before.words))!==JSON.stringify(speech(after.words))) throw new Error('Framing changed speech or timing; inspect the saved Draft.');
+    const frames=cameraReviewFrames(camera.cameraPanels,after.meta.durationFrames);
+    // Render through the owning visual service: a composite contact sheet can
+    // take longer than the panel runScript transport's fixed 30-second deadline.
+    const core=await guard(sdk.call('getDraftCore',draftId));
+    if(core?.owner?.projectId!==projectId) throw new Error('Draft project mismatch');
+    for(let i=0;i<frames.length;i+=3) {
+      const batch=frames.slice(i,i+3);
+      note({plan:'stage',stage:'verify-wait'});
+      const preview=await guard(visualWork(async()=>{work.check();await guard(Promise.resolve());note({plan:'stage',stage:'verify'});return sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:draftId,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,coordinate:'resolved',frames:batch.map(frameNumber=>({frameNumber,view:'timeline_composite'})),includeOverlays:true});}));
+      if(!preview?.data||!batch.every(f=>preview.frames?.some((r:any)=>r.frameNumber===f&&r.hasSourceImage))) throw new Error('Template preview did not render every requested frame');
+    }
+    const report={draftId,status:'complete',summary:'AI selected template camera layouts; code applied crops and silent camera panels.',verifiedFrames:frames,limitations:['Bounded mouth-motion strips and transcript labels; no audio-based speaker verification.','Preview frames were rendered; this is not an independent visual quality approval.']};
+    note({plan:'template-reframe-result',draftId,report});return report;
   }
 
   async function reframeClips(clips: any[], job: any, tpl: any, note: (entry: any) => void, saveClip: () => Promise<void>) {
@@ -4509,7 +5782,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         const r: any = await guard(
           // Asked like the app's other AI asks. A model that cannot read images fails here, and the first guess stands.
           sdk.askAI({
-            prompt,
+            prompt: prompt + '\nAlso return confidence: {"1": 0.0}, one value from 0 to 1 for each talker row. Use 0 (unknown) unless visible mouth motion clearly supports the identification.\nAdditional framing preferences (do not infer identity from these): ' + String(L.reframeInstructions || ""),
             images: [
               { dataUrl: encode(s1.cv), name: "talkers.jpg" },
               { dataUrl: encode(s2.cv), name: "crops.jpg" },
@@ -4520,8 +5793,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         const ans = extractJson(r.text, S);
         const forced: any[] = [];
         chunks.forEach((k: any, row: number) => {
-          const n = Number(ans?.talkers?.[String(row + 1)]);
-          if (n >= 1 && n <= faces.length) forced.push({ start: k.start, end: k.end, x: faces[n - 1].x, y: faces[n - 1].cy });
+          const confidence = Number(ans?.confidence?.[String(row + 1)]);
+          const n = Number.isFinite(confidence) && confidence >= 0.75 && confidence <= 1 ? Number(ans?.talkers?.[String(row + 1)]) : 0;
+          if (n === 0) forced.push({start:k.start,end:k.end,unknown:true});
+          if (Number.isInteger(n) && n >= 1 && n <= faces.length) forced.push({ start: k.start, end: k.end, x: faces[n - 1].x, y: faces[n - 1].cy });
         });
         const crops: any[] = [];
         faces.forEach((f: any, row: number) => {
@@ -4575,7 +5850,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           const coverW = (got.H * 1080) / Math.max(1, L.windowBottom - L.windowTop);
           if (!got.samples.some((s: any) => s[1]?.length)) continue;
           const sents = sentencesOf(words);
-          const replan = (lg: any, forced?: any[]) => planShots(got.samples, speakerTurns(words, a, b), got.W, windowW, Number(L.closeUp) || 4.5, inset, !!L.splitHalves, coverW, Number(L.closeUpMin) || 2.8, lg, sents, forced);
+          const replan = (lg: any, forced?: any[]) => planShots(got.samples, speakerTurns(words, a, b), got.W, windowW, Number(L.closeUp) || 4.5, inset, !!L.splitHalves, coverW, Number(L.closeUpMin) || 2.8, lg, sents, forced, {mode:L.reframeMode || "speaker"});
           let log: any = {};
           let shots = replan(log);
           const inClip = (pc: any) => c.segments.some((sg: number[]) => pc.end > sg[0] && pc.start < sg[1]);
@@ -4610,7 +5885,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   }
 
   // ---- Step 4: recommend a count and choose passages, following the template's instructions ----
-  async function choose(tpl: any, title: string, lines: any[], duration: number, cMode: string, cNum: number, cNote: string) {
+  async function choose(tpl: any, title: string, lines: any[], duration: number, cMode: string, cNum: number, cNote: string, ask: (request: any) => Promise<any>) {
     const p = tpl.prompt;
     let tx = lines.map((l) => `[${l[0]}-${l[1]}] ${l[2]}`).join("\n");
     let truncated = false;
@@ -4639,7 +5914,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     ]
       .filter(Boolean)
       .join("\n\n");
-    const r: any = await guard(sdk.askAI({ prompt, timeoutMs: 600000 }));
+    const r: any = await ask({ prompt, timeoutMs: 600000 });
     const j = extractJson(r.text, S);
     let clips = (j.clips || []).filter((c: any) => Array.isArray(c.segments) && c.segments.length);
     clips = clips
@@ -4678,23 +5953,38 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       },
     };
     runRef.current = token;
-    let job: any = resume ?? { id: Date.now().toString(36), projectId, created: new Date().toISOString(), mode, url: url.trim(), pick, program, countMode, count, note, platform };
+    let job: any = resume ?? { id: Date.now().toString(36), usageTracking: true, sharedUsageCalls: [], projectId, created: new Date().toISOString(), mode, url: url.trim(), pick, program, countMode, count, note, platform };
     setRunInfo(job);
     let revealedResults = false;
-    const persist = async (patch: any) => {
+    // Snapshot at enqueue time and serialize disk writes across concurrent clips.
+    let saveQueue: Promise<void> = Promise.resolve();
+    const persist = (patch: any) => {
       job = { ...job, ...patch, updated: new Date().toISOString() };
-      setRunInfo(job);
-      await saveJob(job);
-      if (resultProject.current===job.projectId && job.built?.some((d: any)=>d?.draftId || d?.error)) {
-        const snapshot=clone(job);
-        setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==snapshot.id),snapshot],job.projectId));
-        // Reveal the first usable clip once; later saves must not override the user's navigation.
-        if (!revealedResults && snapshot.built.some((d: any)=>d?.draftId)) {
-          revealedResults = true;
-          setResultSelection(job.id);
-          setTab("results");
+      const snapshot = clone(job);
+      setRunInfo(snapshot);
+      const write = saveQueue.then(async () => {
+        await saveJob(snapshot);
+        if (resultProject.current===snapshot.projectId && snapshot.built?.some((d: any)=>d?.draftId || d?.error)) {
+          setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==snapshot.id),snapshot],snapshot.projectId));
+          if (!revealedResults && snapshot.built.some((d: any)=>d?.draftId)) {
+            revealedResults = true;
+            setResultSelection(snapshot.id);
+            setTab("results");
+          }
         }
-      }
+      });
+      saveQueue = write.catch(() => {});
+      return write;
+    };
+    const askShared = (stage: string) => async (request: any) => {
+      const calls = [...(job.sharedUsageCalls || []), {stage,usage:null}];
+      const index = calls.length - 1;
+      await persist({sharedUsageCalls:calls});
+      const response = await guard(sdk.askAI(request));
+      calls[index] = {stage,usage:response.usage ?? null};
+      // Persist before parsing: invalid model output still consumed tokens.
+      await persist({sharedUsageCalls:calls});
+      return response;
     };
     try {
       const list = (await loadTemplates()) || templates;
@@ -4725,7 +6015,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         let key = job.program !== "auto" && list.some((t: any) => t.id === job.program) ? job.program : null;
         let why = key ? S.whyManual : "";
         if (!key) {
-          const id = await identify(job.title || "", lines, list);
+          const id = await identify(job.title || "", lines, list, askShared("identify"));
           key = id.key;
           why = id.why;
         }
@@ -4740,7 +6030,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       setStep(3);
       setStatus(S.choosing);
       if (!job.choice) {
-        const pickd = await choose(tpl, job.title || "", lines, duration, job.countMode, job.count, job.note);
+        const pickd = await choose(tpl, job.title || "", lines, duration, job.countMode, job.count, job.note, askShared("choose"));
         if (!pickd.clips.length) throw new Error(S.noPassage);
         // Names are fixed here so a resumed job finds the drafts it already made, whatever the app language.
         pickd.clips = pickd.clips.map((c: any, i: number) => ({
@@ -4753,36 +6043,30 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       setInfo({ key: job.key, why: job.why, recommended: pickd.recommendedCount, countReason: pickd.countReason });
       setStep(4);
       let resultWarning = job.resultWarning || "";
-      if ((tpl.renderer === "series") && tpl.layout.reframe && !pickd.reframed) {
-        setStatus(S.reframing);
-        const note = (entry: any) => {
-          pickd.reframeLog = [...(pickd.reframeLog || []), { at: new Date().toISOString(), ...entry }].slice(-300);
-        };
-        // Source-read failures stop this run; do not invent a 1920px fallback for unknown media.
-        // Face-job failures are recovered inside reframeClips, preserving each completed clip's plan.
-        await reframeClips(pickd.clips, job, tpl, note, () => persist({ choice: pickd }));
-        pickd.reframed = true;
-        if (pickd.reframeLog.some((entry: any) => entry.plan === "whole")) resultWarning = S.reframeSkipped;
-        await persist({ choice: pickd, resultWarning });
-      }
       if(tpl.framingMode === "single-speaker") resultWarning = S.singleSpeakerNote;
       if (resultWarning) setWarn(resultWarning);
       const transform = cropTransform(tpl.layout);
       const buildLogo = (tpl.renderer === "separate-headlines") && tpl.logo.mode === "image" ? await compactLogo(tpl.logo.image) : tpl.logo.image;
       const made: any[] = Array.isArray(job.built) ? job.built.slice() : [];
+      const pending: number[] = [];
+      const work = createReframeWork(() => {if(token.cancelled) throw new RunCancelled();});
+      let progressSaveError: any;
       for (let i = 0; i < pickd.clips.length; i++) {
         const c = pickd.clips[i];
-        if (made[i]?.draftId) continue;
+        // Completed legacy drafts already contain their framing; new drafts persist
+        // an explicit pending state so interruption resumes the same output.
+        if (made[i]?.draftId && made[i].reframeState !== "pending" && made[i].reframeState !== "failed") continue;
+        const needsReframe = tpl.renderer === "series" && !!tpl.layout.reframe;
         setStatus(S.building(i + 1, pickd.clips.length));
         setSub(i / pickd.clips.length);
         const name = c.name || `${nameOf(tpl, lang)} ${i + 1} · ${String(c.headline1).replace(/["“”]/g, "").slice(0, 28)} · ${job.id}`;
         // A draft committed just before the panel closed is found by its unique name instead of being built twice.
-        const found = await script(
+        const found = made[i]?.draftId ? made[i] : await script(
           `const m = await selects.project(${JSON.stringify(projectId)}).meta(); for (const id of m.draftIds) { const dm = await selects.draft(id).meta(); if (dm.name === ${JSON.stringify(name)}) return { draftId: id, seconds: Math.round(dm.durationSeconds * 10) / 10 }; } return null;`,
           "Check for an existing draft"
         );
         if (found?.draftId) {
-          made[i] = { ...c, name, draftId: found.draftId, seconds: found.seconds };
+          made[i] = { ...c, ...found, name, draftId: found.draftId, seconds: found.seconds, error:undefined, progressStage:"pending", progressAt:Date.now(), reframeState: needsReframe ? "pending" : "skipped" };
         } else {
           const P = {
             projectId,
@@ -4808,7 +6092,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             highlights: tpl.captions.highlight && Array.isArray(c.highlights) ? c.highlights : [],
             reframeInset: Number(tpl.layout.edgeInset) || 0,
             reframeFaceY: (Number(tpl.layout.faceY) || 40) / 100,
-            reframe: c.reframe || null,
+            reframe: null,
             fixes: pickd.fixes,
           };
           try {
@@ -4823,7 +6107,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
               P.removeSilences = false;
               r = await script(buildScript.replace("const P: any = __P__;", "const P: any = " + JSON.stringify(P) + ";"), `Build ${name}`, true);
             }
-            made[i] = { ...c, name, draftId: r?.draftId, seconds: r?.seconds };
+            made[i] = { ...c, name, draftId: r?.draftId, seconds: r?.seconds, reframeState: needsReframe ? "pending" : "skipped" };
           } catch (e: any) {
             if (e instanceof RunCancelled) throw e;
             made[i] = { ...c, name, error: String(e?.message || e).slice(0, 300) };
@@ -4831,7 +6115,42 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         }
         setDrafts(made.filter(Boolean));
         await persist({ built: made, resultWarning });
-        if (made[i]?.draftId) {
+        if (made[i]?.draftId) pending.push(i);
+      }
+      // Every clip has its own Draft and agent session. Do not cap concurrency.
+      const outcomes = await Promise.allSettled(pending.map(async (i) => {
+        if (made[i].reframeState === "pending") {
+
+          setStatus(S.reframing);
+          const note = (entry: any) => {
+            if(entry.plan==='template-ai-context'||entry.plan==='template-ai-attempt') {
+              const records=made[i].reframeDiagnostics||[];
+              const key=(r:any)=>`${r.runId}:${r.plan}:${r.attempt??'context'}`;
+              made[i]={...made[i],reframeDiagnostics:[...records.filter((r:any)=>key(r)!==key(entry)),clone(entry)]};
+              return persist({built:made,choice:pickd,resultWarning});
+            }
+            if (entry.plan === 'stage') {
+              made[i] = {...made[i], progressStage:entry.stage, progressAt:Date.now()};
+              setDrafts(made.filter(Boolean));
+            }
+            if (entry.plan === 'reframe-usage') {
+              const calls = [...(made[i].reframeUsageCalls || []), entry.usage ?? null];
+              made[i] = {...made[i], reframeUsageCalls:calls};
+            }
+            pickd.reframeLog = [...(pickd.reframeLog || []), { at: new Date().toISOString(), ...entry, clip: i }].slice(-300);
+            if (entry.plan === 'stage') void persist({built:made,choice:pickd,resultWarning}).catch(e=>{progressSaveError=e;});
+          };
+          try {
+            const report=await runTemplateReframing(made[i].draftId,job,tpl,note,work);
+            made[i] = {...made[i],reframeReport:report,reframeState:"done",progressStage:"thumbnail",progressAt:Date.now(),error:undefined};
+          } catch (e: any) {
+            if (e instanceof RunCancelled) throw e;
+            made[i] = {...made[i], reframeState:"failed", progressStage:"failed",progressAt:Date.now(), error:String(e?.message || e).slice(0,300)};
+          }
+          setDrafts(made.filter(Boolean));
+          await persist({built:made, choice:pickd, resultWarning});
+        }
+        if (made[i]?.draftId && made[i].reframeState !== "failed") {
           try {
             const image = await guard(loadDraftThumbnail(store,sdk,projectId,job.id,made[i].draftId));
             if (image?.thumbnailPath) {
@@ -4839,9 +6158,15 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
               await persist({built:made,resultWarning});
             }
           } catch (e) { if (e instanceof RunCancelled) throw e; /* A preview failure leaves the editable clip intact. */ }
+          made[i] = {...made[i],progressStage:"done",progressAt:Date.now()};
+          setDrafts(made.filter(Boolean));
+          await persist({built:made,resultWarning});
         }
-      }
-      const allBuilt = made.length === pickd.clips.length && made.every((m) => m && m.draftId);
+      }));
+      const rejected = outcomes.find((outcome) => outcome.status === "rejected");
+      if (rejected?.status === "rejected") throw rejected.reason;
+      if (progressSaveError) throw progressSaveError;
+      const allBuilt = made.length === pickd.clips.length && made.every((m) => m && m.draftId && m.reframeState !== "failed" && m.reframeState !== "pending");
       await persist({ done: allBuilt });
       setStatus(S.done(made.filter((m) => m && m.draftId).length));
       if (!allBuilt) setError(made.filter((m) => m && m.error).map((m) => m.error).join(" / ").slice(0, 600) + " " + S.resumeHint);
@@ -5063,6 +6388,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           onChange={setResultSelection}
           options={[{value:"__latest__",label:`${R.latest} · ${resultJobLabel(history[0],lang,R)}`},
             ...history.slice(1).map(j=>({value:j.id,label:resultJobLabel(j,lang,R)}))]} /></div>
+        <div style={{...CARD,marginBottom:16,padding:12}}>
+          <strong>{R.jobTokens}: {jobTokenLabel(shownResult,R)}</strong>
+          <div><small>{R.jobTokenScope}</small></div>
+        </div>
         <DraftResults drafts={shownDrafts} template={shownResult.templateName || (shownTemplate ? nameOf(shownTemplate,lang) : "")}
           sdk={sdk} store={store} jobId={shownResult.id} projectId={projectId} visibleDraftId={visibleDraftId} opening={openingDraft} onOpen={openDraft}
           overlayControl={<ui.Stack gap={4}><ui.Toggle

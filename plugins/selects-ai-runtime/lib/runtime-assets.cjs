@@ -13,6 +13,7 @@ const ASSETS = {
   },
 };
 const MODELS = {
+  'speakers.detect': {name: 'lightAsd', bundled: 'models/light-asd-ava.onnx', size: 4106136, sha256: 'dfc69dc7c138cdd67ad1ee9b107808b17c142a21d641e2fa06260012d294fa63'},
   'faces.detect': {
     name: 'yunet', size: 232589,
     url: 'https://media.githubusercontent.com/media/opencv/opencv_zoo/f12e12798e8314f7c074a6656816c048dcc95b7a/models/face_detection_yunet/face_detection_yunet_2023mar.onnx',

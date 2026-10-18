@@ -9,7 +9,7 @@ const { writeJson } = require('./lib/files.cjs');
 const { collectTool } = require('./lib/process.cjs');
 const { ensureCacheDirectory } = require('./lib/runtime-cache.cjs');
 const { resolveRuntimeTool } = require('./lib/runtime-tools.cjs');
-const { createVerifiedModelSession } = require('./lib/models.cjs');
+const { createVerifiedModelSession, verifyModel } = require('./lib/models.cjs');
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -40,7 +40,7 @@ async function main() {
   await ensureCacheDirectory(cache, 'models');
   // Frame timelines of probed sources, reused by later jobs on the same file (lib/timeline-cache.cjs).
   const timelineCache = await ensureCacheDirectory(cache, 'timelines');
-  const modelPath = await downloadAsset(model, path.join(cache, 'models', `${model.sha256}.onnx`), { signal: controller.signal, emit, step: 'download-model' });
+  const modelPath = model.bundled ? path.join(__dirname, model.bundled) : await downloadAsset(model, path.join(cache, 'models', `${model.sha256}.onnx`), { signal: controller.signal, emit, step: 'download-model' });
   controller.signal.throwIfAborted();
   emit({ step: 'verify-runtime' });
   let ort;
@@ -65,9 +65,15 @@ async function main() {
       emit({ step: 'gpu-backend-unavailable' });
     }
   }
+  const models = { [model.name]: { path: modelPath, sha256: model.sha256 } };
+  if (task === 'speakers.detect') {
+    const face = MODELS['faces.detect'];
+    models.yunet = {path: await downloadAsset(face, path.join(cache, 'models', `${face.sha256}.onnx`), {signal: controller.signal, emit, step:'download-model'}), sha256: face.sha256};
+    await verifyModel(models.yunet);
+  }
   controller.signal.throwIfAborted();
   await writeJson(path.resolve(argument('--output')), {
-    ortModule, tools, models: { [model.name]: { path: modelPath, sha256: model.sha256 } }, provider: 'cpu', intraOpNumThreads: 4, timelineCache,
+    ortModule, tools, models, provider: 'cpu', intraOpNumThreads: 4, timelineCache,
     ...(webgpu ? { webgpu } : {}),
     ...(webgpuPreparationFailure ? { webgpuPreparationFailure } : {}),
   });

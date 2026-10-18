@@ -43,7 +43,7 @@ async function probeVideo(config, request, signal) {
   const filename = request.input.source.path;
   const data = JSON.parse(await collectTool(config.tools.ffprobe, [
     '-v', 'error', '-select_streams', 'v:0', '-show_entries',
-    'stream=width,height,sample_aspect_ratio,avg_frame_rate,time_base,duration,start_time:stream_tags=rotate:stream_side_data=rotation:format=duration',
+    'stream=width,height,sample_aspect_ratio,avg_frame_rate,time_base,duration,start_time:stream_tags=rotate:stream_side_data=rotation:format=duration,start_time',
     '-of', 'json', filename,
   ], { signal }));
   const stream = data.streams?.[0];
@@ -59,6 +59,41 @@ async function probeVideo(config, request, signal) {
   const width = quarterTurn ? stream.height : stream.width;
   const height = quarterTurn ? stream.width : stream.height;
   if (width * height > 32_000_000) throw new Error('Source exceeds the PoC raster limit');
+  // Face samples need timestamps only inside the requested range. Do not scan
+  // an hour-long source to analyze a few seconds. Matte keeps its full clock
+  // verification below because its output promises exact source frame indices.
+  if (request.task === 'faces.detect' || request.task === 'speakers.detect') {
+    const readFrames = async interval => {
+      const result = JSON.parse(await collectTool(config.tools.ffprobe, [
+        '-v', 'error', '-select_streams', 'v:0', '-read_intervals', interval,
+        '-show_frames', '-show_entries', 'frame=best_effort_timestamp', '-of', 'json', filename,
+      ], { signal }));
+      const points = (result.frames ?? []).map(frame => frame.best_effort_timestamp);
+      if (!relativeTimeline(points)) throw new Error('Source frame timestamps are unavailable or not ordered');
+      return points;
+    };
+    // Read enough packets to flush reordered frames, retaining the first
+    // displayed timestamp rather than assuming stream.start_time is exact.
+    const origin = (await readFrames('%+#64'))[0];
+    const secondsPerTick = timeBase.numerator / timeBase.denominator;
+    const originSeconds = origin * secondsPerTick;
+    const { startSeconds, endSeconds } = request.input.sourceRange;
+    const rangeStartPts = ceilingTimeTicks(startSeconds, timeBase);
+    const rangeEndPts = ceilingTimeTicks(endSeconds, timeBase);
+    const seekSeconds = Math.max(originSeconds, originSeconds + startSeconds - 2);
+    const points = await readFrames(`${seekSeconds}%${originSeconds + endSeconds + 1}`);
+    const selected = points.map(pts => pts - origin).filter(pts => pts >= rangeStartPts && pts < rangeEndPts);
+    if (!selected.length || selected.length > 20_000) throw new Error('Range has no frames or exceeds the PoC frame limit');
+    return {
+      width, height, rotation, sourceSampleAspectRatio, pixelAspectRatioPolicy,
+      frameTimes: selected.map(pts => pts * timeBase.numerator / timeBase.denominator),
+      timestampOriginSeconds: originSeconds, timestampOriginPts: origin,
+      formatStartTime: Number(data.format?.start_time ?? 0),
+      averageFrameRate: stream.avg_frame_rate, constantFrameRate: null,
+      timeBase: stream.time_base, rangeStartPts, rangeEndPts,
+      seekSeconds, timelineCached: false,
+    };
+  }
   // The frame timeline is a full pass over the file; a later job on the same unchanged file reuses it. A
   // cached timeline passes the same checks as a fresh one, and one that fails them is read again.
   const cacheKey = config.timelineCache ? await timelineKey(filename, await fs.stat(filename), config.tools.ffprobe) : null;
@@ -108,9 +143,14 @@ async function* decodeFrames(config, request, video, signal, emitProgress, decod
   throwIfAborted(signal);
   // Match the probe clock: first displayed video frame is source playback zero.
   // Integer PTS avoids ffprobe's rounded *_time strings disagreeing with trim.
-  const filters = `setpts=PTS-STARTPTS,trim=start_pts=${video.rangeStartPts}:end_pts=${video.rangeEndPts}`;
+  const fastSeek = Number.isFinite(video.seekSeconds);
+  const filters = `setpts=PTS-${fastSeek ? video.timestampOriginPts : 'STARTPTS'},trim=start_pts=${video.rangeStartPts}:end_pts=${video.rangeEndPts}`;
   const decoder = startTool(config.tools.ffmpeg, [
-    '-v', 'error', '-nostdin', '-threads', '2', '-i', request.input.source.path,
+    '-v', 'error', '-nostdin', '-threads', '2',
+    // Disable FFmpeg's seek-time discard: on offset containers it may discard
+    // against a different origin. The integer trim below owns the exact cut.
+    ...(fastSeek ? ['-copyts', '-noaccurate_seek', '-seek_timestamp', '1', '-ss', String(video.seekSeconds)] : []),
+    '-i', request.input.source.path,
     '-map', '0:v:0', '-an', '-sn', '-dn', '-vf', filters, '-fps_mode', 'passthrough',
     // trim alone continues decoding the tail. The known frame bound makes ffmpeg
     // stop after the range's last output frame instead of traversing the file.
