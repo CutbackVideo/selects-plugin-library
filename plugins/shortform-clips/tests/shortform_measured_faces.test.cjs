@@ -25,6 +25,53 @@ test('agent face selection uses runtime measurements',{skip:!modules},async t=>{
   const stacked=compile([{...shot,style:'stacked',subjects:[...shot.subjects,{faceId:'F2',left:0,right:.25}]}])[0];assert.equal(stacked.panels.length,2);assert.equal(stacked.panels[1].slot,1);
   assert.throws(()=>compile([{...shot,style:'stacked',subjects:[...shot.subjects,...shot.subjects]}]));
  });
+ await t.test('one stable crop fits both agent-selected head positions across a silence cut',()=>{
+  const moved={...catalog[0],id:'later',draftFrame:65,sourceFrame:400,box:{xmin:1220,xmax:1400,ymin:240,ymax:470}};
+  const shots=[{...shot,endFrame:45},{...shot,startFrame:45,subjects:[{faceId:'later',left:.5,right:.75}]}];
+  const measured=m.exports.measuredFaceShots(shots,[...catalog,moved],sources,layout);
+  const plan=m.exports.compileSourceCropPlan(measured,sources,90,layout);
+  assert.deepEqual(plan[0].panels,plan[1].panels);
+  const p=plan[0].panels[0],h=p.w*1920/1080,x=p.cx-p.w/2,y=p.cy-h*.4;
+  for(const f of [catalog[0],moved]){assert.ok(x<=f.box.xmin&&x+p.w>=f.box.xmax);assert.ok(y<=f.box.ymin&&y+h>=f.box.ymax);}
+ });
+ await t.test('non-person details need no fabricated face and still respect source geometry',()=>{
+  const detail={...shot,style:'detail',subjects:[],regions:[{x:.25,y:0,width:.5,height:1}]};
+  const measured=m.exports.measuredFaceShots([detail],[],sources,layout);
+  assert.equal(m.exports.compileSourceCropPlan(measured,sources,90,layout)[0].panels.length,1);
+  assert.throws(()=>m.exports.measuredFaceShots([{...detail,subjects:[{faceId:'F1'}]}],catalog,sources,layout));
+  assert.throws(()=>m.exports.compileSourceCropPlan([{...detail,regions:[{x:.9,y:0,width:.5,height:1}]}],sources,90,layout));
+ });
+ await t.test('tight original closeup relaxes soft side margins without clipping the measured face',()=>{
+  const close={id:'close',resourceId:'r',draftFrame:40,sourceFrame:3400,box:{xmin:454,xmax:915,ymin:171,ymax:752}};
+  const plan=m.exports.compileSourceCropPlan(m.exports.measuredFaceShots([{...shot,subjects:[{faceId:'close'}]}],[close],sources,layout),sources,90,layout);
+  const p=plan[0].panels[0];assert.ok(p.cx-p.w/2<=454);assert.ok(p.cx+p.w/2>=915);assert.ok(p.w<=1080*1080/1920+1e-6);
+ });
+ await t.test('stacked embedded pane reduces only soft vertical padding when the measured face fits',()=>{
+  const faces=[{id:'top',resourceId:'r',draftFrame:40,box:{xmin:237,xmax:442,ymin:255,ymax:523}},
+   {id:'bottom',resourceId:'r',draftFrame:40,box:{xmin:827,xmax:1065,ymin:230,ymax:591}}];
+  const stacked={...shot,style:'stacked',subjects:[{faceId:'top',left:0,right:1/3},{faceId:'bottom',left:1/3,right:2/3}]};
+  const measured=m.exports.measuredFaceShots([stacked],faces,sources,layout);
+  const plan=m.exports.compileSourceCropPlan(measured,sources,90,layout)[0];
+  for(const [i,p] of plan.panels.entries()){
+   const b=faces[i].box,h=p.w*960/1080,x=p.cx-p.w/2,y=p.cy-h*.4;
+   assert.ok(x<=b.xmin&&x+p.w>=b.xmax);assert.ok(y<=b.ymin&&y+h>=b.ymax);
+   assert.ok(x>=i*640-1e-6&&x+p.w<=(i+1)*640+1e-6);
+  }
+  assert.throws(()=>m.exports.measuredFaceShots([stacked],[faces[0],{...faces[1],box:{...faces[1].box,ymin:50,ymax:900}}],sources,layout),/cannot fit/);
+ });
+ await t.test('real stacked plan accepts subpixel floating point boundary noise',()=>{
+  const f=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/stacked-rounding-regression.json'),'utf8'));
+  const measured=m.exports.measuredFaceShots(f.shots,f.catalog,f.sources,f.layout);
+  const plan=m.exports.compileSourceCropPlan(measured,f.sources,f.duration,f.layout);
+  assert.equal(plan.at(-1).endFrame,f.duration);
+  const invalid=structuredClone(measured);invalid[0].regions[0].focus.x=invalid[0].regions[0].x-.001;
+  assert.throws(()=>m.exports.compileSourceCropPlan(invalid,f.sources,f.duration,f.layout),/Head bounds/);
+ });
+ await t.test('a local track can overlap a shot even when its representative lies outside',()=>{
+  const track={...catalog[0],draftFrame:30,draftStartFrame:20,draftEndFrame:80};
+  assert.equal(m.exports.measuredFaceShots([{...shot,startFrame:50}], [track],sources,layout).length,1);
+  assert.throws(()=>m.exports.measuredFaceShots([{...shot,startFrame:85}], [track],sources,layout));
+ });
  await t.test('runtime analysis is limited to edited source ranges and maps detections into playback time',async()=>{
   const requests=[];const before={sources,words:[{sourceResourceId:'r',sourceStartFrame:300,sourceEndFrame:330,startFrame:0,endFrame:30}]};
   const sdk={runScript:async({script,summary})=>{

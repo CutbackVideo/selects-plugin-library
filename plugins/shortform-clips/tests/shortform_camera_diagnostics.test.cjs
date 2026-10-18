@@ -5,7 +5,7 @@ test('camera planning diagnostics survive failed responses',{skip:!modules},asyn
  new Function('require','module','exports',dep('esbuild').transformSync(fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8')+'\nexport {requestTemplateCameraPlan};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
  const panel={videoIndex:0,resourceId:'r',startFrame:0,endFrame:90,sourceStartSeconds:0,playbackSpeed:{numerator:1,denominator:1},observation:{W:1920,H:1080,samples:[{privateLargeSample:true}]}};
  const options=[{id:'0:0',panel,x:900,y:400,w:180,h:180,headTop:220,headBottom:540}];
- const valid=JSON.stringify({shots:[{startFrame:0,endFrame:90,style:'speaker',primary:'0:0',confidence:.8}]});
+ const valid=JSON.stringify({version:1,draftId:'draft',status:'planned',shots:[{startFrame:0,endFrame:90,compositionId:'person',layout:'speaker',panels:[{camera:'0',targets:[{subjectId:'person',refs:['0:0']}]}]}]});
  const base={guard:p=>p,draftId:'draft',prompt:'test prompt',images:[{name:'face.jpg',dataUrl:'not persisted'}],observations:[{unit:{startFrame:0,endFrame:90},available:[panel],options}],layout:{windowTop:0,windowBottom:1920},fps:30};
  await t.test('invalid JSON is retained before retry, including exact feedback and usage',async()=>{
   const events=[],requests=[];

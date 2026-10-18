@@ -24,13 +24,13 @@ test('template director validates plans before layout application',{skip:!module
  const obs=[{unit:{startFrame:0,endFrame:300},available:panels,options}];
  const shot={startFrame:0,endFrame:300,style:'speaker',primary:'0:0',secondary:null,confidence:.9};
  const run=(s=shot,l=layout,o=obs)=>m.exports.compileTemplateCameraPlan({shots:[s]},o,l,30);
- await t.test('uncertainty never silently enables forbidden wide',()=>{const p=run({...shot,confidence:.3});assert.equal(p[0].style,'speaker');assert.throws(()=>run({...shot,style:'wide',primary:null}),/forbids wide/);});
+ await t.test('uncertainty never silently enables forbidden wide',()=>{const p=run({...shot,confidence:.3});assert.equal(p[0].style,'speaker');assert.throws(()=>run({...shot,style:'wide',primary:null,camera:0}),/forbids wide/);});
  await t.test('split uses two silent placements with exact source timing',()=>{const p=run({...shot,style:'stacked',secondary:'1:0',distinctPeople:true});assert.equal(p.length,2);assert.deepEqual(p.map(x=>x.slot),[0,1]);assert.ok(p.every(x=>x.sourceStartSeconds===20&&x.count===2&&Number.isFinite(x.crop.w)));});
  await t.test('forbidden, duplicate, unknown and uncovered plans reject',()=>{
   for(const s of [{...shot,style:'stacked',secondary:'0:0',distinctPeople:true},{...shot,primary:'9:0'},{...shot,startFrame:1},{...shot,style:'two-shot',secondary:'1:0',distinctPeople:true},{...shot,confidence:NaN}])assert.throws(()=>run(s));
   assert.throws(()=>run({...shot,style:'stacked',secondary:'1:0',distinctPeople:true},{...layout,cameraMode:'speaker'}));
  });
- await t.test('missing faces still allow safe whole-camera view',()=>{const p=run({...shot,style:'wide',primary:null},{...layout,widePolicy:'essential'},[{...obs[0],options:[]}]);assert.deepEqual(p[0].crop,{fit:'contain'});});
+ await t.test('missing faces still allow safe whole-camera view',()=>{const p=run({...shot,style:'wide',primary:null,camera:0},{...layout,widePolicy:'essential'},[{...obs[0],options:[]}]);assert.deepEqual(p[0].crop,{fit:'contain'});});
  await t.test('one speaker keeps identical geometry across noisy analysis units and adjacent AI shots',()=>{
   const units=[0,100,200].map((start,i)=>({unit:{startFrame:start,endFrame:start+100},available:panels,options:options.map(f=>({...f,x:f.x+i*12,y:f.y-i*3,w:f.w+i*4,headTop:f.headTop-i*2}))}));
   const out=m.exports.compileTemplateCameraPlan({shots:[{...shot,endFrame:100},{...shot,startFrame:100}]},units,layout,30);
@@ -79,7 +79,7 @@ test('template director validates plans before layout application',{skip:!module
   assert.deepEqual(m.exports.reframingPreferences({}),{focus:'reactions',split:'selective',wide:'never',pacing:'balanced',motion:'fixed'});
   const focused=m.exports.reframingPreset(layout,'speaker');assert.equal(focused.splitPolicy,'never');
   assert.throws(()=>run({...shot,style:'stacked',secondary:'1:0',distinctPeople:true},focused),/Unsupported|forbids/);
-  const context=m.exports.reframingPreset(layout,'context');assert.equal(run({...shot,style:'wide',primary:null},context)[0].style,'wide');
+  const context=m.exports.reframingPreset(layout,'context');assert.equal(run({...shot,style:'wide',primary:null,camera:0},context)[0].style,'wide');
   assert.match(m.exports.reframingPreferencePrompt({}),/Never use wide/);
   assert.match(m.exports.reframingPreferencePrompt(focused),/Never use stacked/);
   assert.match(m.exports.reframingPreferencePrompt({}),/hesitation, ordinary listening/);

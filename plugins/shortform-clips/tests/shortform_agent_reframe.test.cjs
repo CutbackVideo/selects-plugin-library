@@ -7,7 +7,7 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
  new Function('require','module','exports',esbuild.transformSync(src+'\nexport {runAgentReframing,parseAgentReframeReport,normalizeReframeWords,validateSpeakerEvidence};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
  const baseline={meta:{durationFrames:90,fps:30},words:[{text:'Hello',startFrame:0,endFrame:30}],sources:[{resourceId:'r',meta:{frameSize:{width:1920,height:1080}}}]};
  const shot={startFrame:0,endFrame:90,resourceId:'r',style:'speaker',compositionId:'person',subjects:[{faceId:'F1'}]};
- const valid={draftId:'d',status:'planned',shots:[shot],speakerEvidence:[{startFrame:0,endFrame:90,resourceId:'r',sourceFrames:[0,8,16],subject:'right person',basis:'mouth-motion',evidence:'sustained articulation'}]};
+ const valid={version:1,draftId:'d',status:'planned',shots:[{startFrame:0,endFrame:90,compositionId:'person',layout:'speaker',panels:[{camera:'r',targets:[{subjectId:'person',refs:['F1']}]}]}],speakerEvidence:[{startFrame:0,endFrame:90,resourceId:'r',sourceFrames:[0,8,16],subject:'right person',basis:'mouth-motion',evidence:'sustained articulation'}]};
  async function run({after=baseline,report=valid,failRead=false,failAi=false,review={status:'complete',summary:'Acceptable'},missingFrame=false}={}){
   let reads=0,calls=0,applies=0;const notes=[];
   const sdk={runScript:async input=>input.summary==='Apply agent-selected source crops'?(applies++,{result:{applied:[shot]}}):({result:++reads===1?baseline:after,isError:failRead}),
@@ -15,7 +15,7 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
    askAI:async input=>{
     calls++;if(calls===1){assert.equal(input.timeoutMs,600000);assert.equal(input.ephemeral,false);assert.ok(input.prompt.includes("Light-ASD AVA"));assert.ok(input.prompt.includes('"score":1.5'));
      assert.ok(input.prompt.includes('Use your existing Selects SDK tools READ-ONLY'));assert.ok(input.prompt.includes('"closeUp":6'));
-     assert.ok(input.prompt.includes('face-center height'));assert.ok(input.prompt.includes('UNCROPPED SOURCE'));assert.ok(input.prompt.includes('Group consecutive words by speakerId'));assert.ok(src.includes('speakerId:w.speakerId,speakerName:w.speakerName'));assert.ok(input.prompt.includes('never write face boxes or crop coordinates'));assert.ok(input.prompt.includes('not draft.captureCameraAngles'));assert.ok(!input.prompt.includes('SOURCE-CROP SCRIPT'));
+     assert.ok(input.prompt.includes('face-center height'));assert.ok(input.prompt.includes('UNCROPPED SOURCE'));assert.ok(input.prompt.includes('speakerTurns'));assert.ok(!input.prompt.includes('Hello'));assert.ok(src.includes('speakerId:w.speakerId,speakerName:w.speakerName'));assert.ok(input.prompt.includes('never write face boxes or crop coordinates'));assert.ok(input.prompt.includes('not draft.captureCameraAngles'));assert.ok(!input.prompt.includes('SOURCE-CROP SCRIPT'));
      if(failAi)throw Error('timeout');return {text:JSON.stringify(report)};
     }
     assert.equal(input.advanced,undefined);assert.equal(input.timeoutMs,120000);assert.ok(input.images.length);assert.ok(input.prompt.includes('covering the eyes or mouth'));return {text:JSON.stringify(review)};

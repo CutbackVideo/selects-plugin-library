@@ -2800,6 +2800,20 @@ function cameraHeadroom(boxes: any[], W: number, H: number, panelH: number): any
   return {cx:x+width/2,cy:y+h*.4,w:width,sourceW:W,sourceH:H};
 }
 
+// Feasible origins of the largest portrait fill crop, in source pixels.
+// Intersect these intervals across a passage to test a fixed two-person crop.
+function cameraFixedCropRange(boxes:any[],W:number,H:number,panelH:number):any {
+  if(!boxes.length||!(W>0&&H>0&&panelH>0)||boxes.some(b=>![b.xmin,b.xmax,b.ymin,b.ymax].every(Number.isFinite)||b.xmax<=b.xmin||b.ymax<=b.ymin))return null;
+  const left=Math.max(0,Math.min(...boxes.map(b=>b.xmin-(b.xmax-b.xmin)*.15)));
+  const right=Math.min(W,Math.max(...boxes.map(b=>b.xmax+(b.xmax-b.xmin)*.15)));
+  const top=Math.max(0,Math.min(...boxes.map(b=>b.ymin-(b.ymax-b.ymin)*.3)));
+  const bottom=Math.min(H,Math.max(...boxes.map(b=>b.ymax+(b.ymax-b.ymin)*.3)));
+  const w=Math.min(W,H*1080/panelH),h=w*panelH/1080;
+  const x=[Math.max(0,right-w),Math.min(left,W-w)],y=[Math.max(0,bottom-h),Math.min(top,H-h)];
+  if(x[0]>x[1]+1e-6||y[0]>y[1]+1e-6)return null;
+  return {x,y};
+}
+
 // Read-only adapter for the allowlisted analyzed-sequence payload. Reject timing
 // representations we cannot map exactly; never guess synchronization offsets.
 function cameraManifestFromSequence(payload:any):any {
@@ -2896,6 +2910,115 @@ async function askReframingAI({sdk,guard,note}: any, request: any) {
   }
 }
 
+// One editorial contract for source clips and synchronized cameras. The agent
+// owns identity, shots and layouts; adapters only translate execution formats.
+const COMPOSITION_PLAN_SCHEMA = `This is a video composition task, not a coding task. This prompt defines the complete output contract. Do not inspect application source code, local logs, prior experiment outputs or other panels. Additional inspection is limited to missing media evidence through the documented Selects SDK. Return {version:1,draftId,status:"planned"|"blocked",summary,shots:[{startFrame,endFrame,compositionId,layout:"speaker"|"stacked"|"two-shot"|"detail"|"wide",panels:[{camera:string,targets:[{subjectId:string,refs:string[]}],region?:{x,y,width,height},sourcePane?:{left,right},closeUp?:number}],reason}],speakerEvidence?:[],limitations:[]}. Panels are in display order. One target per speaker/stacked panel, two distinct targets in the single two-shot panel, no targets for detail/wide. camera is an exact supplied camera key, NOT a person ID. refs are observed references, NOT invented persistent identities; YOU assign subjectId and link refs by appearance. Reuse compositionId only for the same ordered subjects, cameras, layout and source pane. Include all relevant observations across its passage. Code computes fixed crops; it never chooses different subjects or changes your layout. A blocked plan has no shots and states the missing evidence or conflicting constraints.`;
+
+function validateCompositionPlan(plan:any,duration:number,layout:any,cameras:string[],styles:string[]) {
+  const fail=(code:string,detail:string)=>{throw new Error(`[composition:${code}] ${detail}`);};
+  if(plan?.version!==1)fail('schema','Expected version 1');
+  if(plan.status==='blocked')fail('blocked',String(plan.summary||'Agent could not resolve the requested composition'));
+  if(plan.status!=='planned'||!Array.isArray(plan.shots)||!plan.shots.length)fail('schema','Missing planned shots');
+  const compositions=new Map<string,string>(),owners=new Map<string,string>();let cursor=0;
+  for(const shot of plan.shots) {
+    if(!Number.isInteger(shot.startFrame)||!Number.isInteger(shot.endFrame)||shot.startFrame!==cursor||shot.endFrame<=cursor||shot.endFrame>duration)fail('time',`Shots must cover [0,${duration}) exactly; invalid interval at ${cursor}`);
+    cursor=shot.endFrame;
+    if(!styles.includes(shot.layout))fail('capability',`Unsupported layout ${shot.layout}`);
+    if(shot.layout==='wide'&&(layout.widePolicy||'never')==='never')fail('template','Wide is forbidden');
+    if(shot.layout==='stacked'&&(layout.splitPolicy==='never'||layout.cameraMode==='speaker'))fail('template','Stacked is forbidden');
+    if(typeof shot.compositionId!=='string'||!shot.compositionId.trim())fail('identity','Missing compositionId');
+    const count=shot.layout==='stacked'?2:1;
+    if(!Array.isArray(shot.panels)||shot.panels.length!==count)fail('layout',`Expected ${count} panels`);
+    const ids:string[]=[];
+    for(const p of shot.panels) {
+      if(!cameras.includes(p.camera))fail('camera',`Unknown camera ${p.camera}`);
+      const n=['wide','detail'].includes(shot.layout)?0:shot.layout==='two-shot'?2:1;
+      if(n===0&&p.targets==null)p.targets=[];
+      if(!Array.isArray(p.targets)||p.targets.length!==n)fail('target',`Expected ${n} targets in ${shot.layout}`);
+      for(const t of p.targets) {
+        if(typeof t.subjectId!=='string'||!t.subjectId.trim()||!Array.isArray(t.refs)||!t.refs.length||t.refs.some((r:any)=>typeof r!=='string'||!r))fail('target','Each subject needs an identity and observed refs');
+        for(const ref of t.refs){const key=JSON.stringify([p.camera,ref]),owner=owners.get(key);if(owner&&owner!==t.subjectId)fail('identity',`Observed reference ${ref} is assigned to different subjects`);owners.set(key,t.subjectId);}
+        ids.push(t.subjectId);
+      }
+      if(shot.layout==='detail') {
+        const r=p.region;
+        if(!r||![r.x,r.y,r.width,r.height].every(Number.isFinite)||r.x<0||r.y<0||r.width<=0||r.height<=0||r.x+r.width>1+1e-6||r.y+r.height>1+1e-6)fail('bounds','Detail region must lie inside its source');
+      }
+      if(p.sourcePane&&(![p.sourcePane.left,p.sourcePane.right].every(Number.isFinite)||p.sourcePane.left<0||p.sourcePane.right>1||p.sourcePane.left>=p.sourcePane.right))fail('bounds','Invalid source pane');
+    }
+    if(new Set(ids).size!==ids.length)fail('identity','A multi-person composition repeats the same subject');
+    const signature=JSON.stringify([shot.layout,shot.panels.map((p:any)=>[p.camera,p.targets.map((t:any)=>t.subjectId),p.sourcePane||null,p.closeUp??null,p.region||null])]);
+    if(compositions.has(shot.compositionId)&&compositions.get(shot.compositionId)!==signature)fail('continuity',`Composition ${shot.compositionId} changes subjects, camera or layout`);
+    compositions.set(shot.compositionId,signature);
+  }
+  if(cursor!==duration)fail('time',`Plan ends at ${cursor}, expected ${duration}`);
+  return plan;
+}
+
+function sourceCompositionAdapter(plan:any,sources:any[],duration:number,layout:any,catalog:any[]) {
+  validateCompositionPlan(plan,duration,layout,sources.map(s=>s.resourceId),['speaker','stacked','detail','wide']);
+  return {...plan,shots:plan.shots.map((s:any)=>{
+    const resourceId=s.panels[0].camera;
+    if(s.panels.some((p:any)=>p.camera!==resourceId))throw Error('[composition:capability] A source shot cannot mix cameras; use a synchronized timeline');
+    const subjects=s.panels.flatMap((p:any)=>p.targets.map((t:any)=>{
+      for(const ref of t.refs)if(!catalog.some(f=>f.id===ref&&f.resourceId===p.camera))throw Error(`[composition:reference] Unobserved reference ${ref} for ${p.camera}`);
+      return {faceId:t.refs[0],faceIds:t.refs.slice(1),left:p.sourcePane?.left,right:p.sourcePane?.right,closeUp:p.closeUp,subjectId:t.subjectId};
+    }));
+    return {...s,resourceId,style:s.layout,subjects,regions:s.layout==='detail'?[{x:0,y:0,width:1,height:1,focus:s.panels[0].region}]:undefined};
+  })};
+}
+
+function cameraCompositionAdapter(plan:any,observations:any[],layout:any) {
+  const cameras=[...new Set(observations.flatMap(o=>o.available.map((p:any)=>String(p.videoIndex))))];
+  validateCompositionPlan(plan,Math.max(...observations.map(o=>o.unit.endFrame)),layout,cameras,['speaker','stacked','two-shot','wide']);
+  const links=new Map<string,Set<string>>();
+  for(const s of plan.shots)for(const p of s.panels)for(const t of p.targets) {
+    if(p.sourcePane||p.closeUp!=null)throw Error('[composition:capability] Multicam uses template crop settings; per-panel sourcePane/closeUp are unsupported');
+    const refs=links.get(t.subjectId)||new Set<string>();
+    for(const ref of t.refs) {
+      if(!observations.some(o=>o.options.some((f:any)=>f.id===ref&&String(f.panel.videoIndex)===p.camera)))throw Error(`[composition:reference] Unobserved reference ${ref} for camera ${p.camera}`);
+      refs.add(ref);
+    }
+    links.set(t.subjectId,refs);
+  }
+  return {...plan,speakerMap:[...links].map(([speakerId,refs])=>({speakerId,candidateIds:[...refs]})),shots:plan.shots.map((s:any)=>{
+    const ts=s.panels.flatMap((p:any)=>p.targets);
+    return {...s,style:s.layout,primary:ts[0]?.refs[0]??null,secondary:ts[1]?.refs[0]??null,camera:Number(s.panels[0].camera),distinctPeople:ts.length===2,confidence:0};
+  })};
+}
+
+// Check executed geometry independently of the source-specific compiler. Boxes
+// are source pixels; reserved areas and destinations are output pixels.
+function validateCompositionGeometry(rows:any[],layout:any) {
+  const fixed=new Map<string,any>();
+  for(const r of rows) {
+    const {x,y,width:w,height:h}=r.crop,W=r.sourceWidth,H=r.sourceHeight;
+    if(![x,y,w,h,W,H].every(Number.isFinite)||W<=0||H<=0||w<=0||h<=0||x< -1e-6||y< -1e-6||x+w>W+1e-6||y+h>H+1e-6)throw Error('[composition:bounds] Computed crop leaves source');
+    for(const b of r.protectedRegions||[]) {
+      if(![b.x,b.y,b.width,b.height].every(Number.isFinite)||b.width<=0||b.height<=0||x>b.x+1e-6||y>b.y+1e-6||x+w<b.x+b.width-1e-6||y+h<b.y+b.height-1e-6)throw Error(`[composition:target] Selected target cannot fit at [${r.startFrame},${r.endFrame})`);
+      const dst=r.destination;
+      for(const a of layout.reservedAreas||[]) {
+        if(!dst||![a.x,a.y,a.width,a.height].every(Number.isFinite)||a.width<=0||a.height<=0)throw Error('[composition:template] Invalid reserved area');
+        const bx=dst.x+(b.x-x)/w*dst.width,by=dst.y+(b.y-y)/h*dst.height,bw=b.width/w*dst.width,bh=b.height/h*dst.height;
+        if(bx<a.x+a.width&&bx+bw>a.x&&by<a.y+a.height&&by+bh>a.y)throw Error('[composition:occlusion] Protected target intersects a reserved template area');
+      }
+    }
+    if(r.compositionId) {
+      const key=JSON.stringify([r.compositionId,r.slot,r.sourceKey]),prev=fixed.get(key),values=[x,y,w,h];
+      if(prev&&values.some((n,i)=>Math.abs(n-prev[i])>1e-6))throw Error(`[composition:continuity] Fixed composition ${r.compositionId} changes crop`);
+      fixed.set(key,values);
+    }
+  }
+  return rows;
+}
+function checkSourceCompositionGeometry(compiled:any[],layout:any) {
+  validateCompositionGeometry(compiled.flatMap(s=>s.panels.map((p:any,i:number)=>{
+    const h=p.w*s.windowH/p.count/1080,r=s.regions[i],focus=r.focus;
+    return {startFrame:s.startFrame,endFrame:s.endFrame,compositionId:s.compositionId,slot:i,sourceKey:s.resourceId,sourceWidth:s.sourceW,sourceHeight:s.sourceH,crop:p.fit==='contain'?{x:0,y:0,width:s.sourceW,height:s.sourceH}:{x:p.cx-p.w/2,y:p.cy-h*.4,width:p.w,height:h},protectedRegions:focus?[{x:focus.x*s.sourceW,y:focus.y*s.sourceH,width:focus.width*s.sourceW,height:focus.height*s.sourceH}]:[],destination:{x:0,y:Number(layout.windowTop||0)+i*s.windowH/p.count,width:1080,height:s.windowH/p.count}};
+  })),layout);
+  return compiled;
+}
+
 // The agent chooses the regions and cuts. This function only validates and fits them.
 function compileSourceCropPlan(shots:any[], sources:any[], duration:number, layout:any) {
   const top=Number(layout.windowTop??0), bottom=Number(layout.windowBottom??1920), windowH=bottom-top;
@@ -2908,7 +3031,7 @@ function compileSourceCropPlan(shots:any[], sources:any[], duration:number, layo
     const source=sources.find((s:any)=>s.resourceId===shot.resourceId);
     const W=source?.meta?.frameSize?.width,H=source?.meta?.frameSize?.height;
     if(![W,H].every(Number.isFinite)||!(W>0&&H>0)) throw new Error('Unknown source or source dimensions');
-    if(!['speaker','stacked','wide'].includes(shot.style)) throw new Error('Unknown shot style');
+    if(!['speaker','stacked','wide','detail'].includes(shot.style)) throw new Error('Unknown shot style');
     if(shot.style==='wide'&&(layout.widePolicy||'never')==='never') throw new Error('Template forbids wide shots');
     if(shot.style==='stacked'&&((layout.splitPolicy||'selective')==='never'||layout.cameraMode==='speaker')) throw new Error('Template forbids stacked shots');
     const count=shot.style==='stacked'?2:1;
@@ -2917,7 +3040,7 @@ function compileSourceCropPlan(shots:any[], sources:any[], duration:number, layo
     const proposed=shot.regions.map((r:any)=>{
       if(![r.x,r.y,r.width,r.height].every(Number.isFinite)||r.x<0||r.y<0||r.width<=0||r.height<=0||r.x+r.width>1.000001||r.y+r.height>1.000001) throw new Error('Region must be inside the source');
       const f=r.focus;
-      if(f && (![f.x,f.y,f.width,f.height].every(Number.isFinite)||f.width<=0||f.height<=0||f.x<r.x||f.y<r.y||f.x+f.width>r.x+r.width+1e-6||f.y+f.height>r.y+r.height+1e-6)) throw new Error('Head bounds must be inside the selected source region');
+      if(f && (![f.x,f.y,f.width,f.height].every(Number.isFinite)||f.width<=0||f.height<=0||f.x<r.x-1e-6||f.y<r.y-1e-6||f.x+f.width>r.x+r.width+1e-6||f.y+f.height>r.y+r.height+1e-6)) throw new Error('Head bounds must be inside the selected source region');
       if(r.anchor&&(!f||![r.anchor.x,r.anchor.y].every(Number.isFinite)||r.anchor.x<f.x||r.anchor.x>f.x+f.width||r.anchor.y<f.y||r.anchor.y>f.y+f.height)) throw new Error('Invalid measured face anchor');
       return {x:r.x,y:r.y,width:r.width,height:r.height,...(f?{focus:{x:f.x,y:f.y,width:f.width,height:f.height}}:{}),...(r.anchor?{anchor:r.anchor}:{})};
     });
@@ -3007,7 +3130,7 @@ async function collectMeasuredFaces({sdk,guard,projectId,before,note}:any) {
   const catalog:any[]=[];
   for(const [sourceIndex,source] of before.sources.entries()) {
     const fps=source.meta.fps,W=source.meta.frameSize.width,H=source.meta.frameSize.height;
-    const words=before.words.filter((w:any)=>w.sourceResourceId===source.resourceId&&Number.isFinite(w.sourceStartFrame)&&w.sourceEndFrame>w.sourceStartFrame);
+    const words=(before.segments||before.words).filter((w:any)=>w.sourceResourceId===source.resourceId&&Number.isFinite(w.sourceStartFrame)&&w.sourceEndFrame>w.sourceStartFrame);
     if(!words.length||!(fps>0)) throw new Error('Missing source timing for face measurements');
     const ranges=cameraFaceRanges(words.map((w:any)=>[w.sourceStartFrame/fps,w.sourceEndFrame/fps]));
     let sampleIndex=0;
@@ -3041,24 +3164,40 @@ async function collectMeasuredFaces({sdk,guard,projectId,before,note}:any) {
 function measuredFaceShots(shots:any[],catalog:any[],sources:any[],layout:any) {
   if(!Array.isArray(shots)||!shots.length) throw new Error('Missing measured-face edit plan');
   const first=new Map<string,string>();
-  return shots.map((s:any)=>{
+  const measured=shots.map((s:any)=>{
     const src=sources.find((r:any)=>r.resourceId===s.resourceId),W=src?.meta?.frameSize?.width,H=src?.meta?.frameSize?.height;
     if(![W,H].every(Number.isFinite)||!(W>0&&H>0)) throw new Error('Unknown measured-face source');
     if(s.style==='wide') return {...s,regions:[{x:0,y:0,width:1,height:1}]};
+    if(s.style==='detail') {if(s.subjects?.length)throw Error('Detail region cannot claim measured subjects');return s;}
     const count=s.style==='stacked'?2:1;
     if(!Array.isArray(s.subjects)||s.subjects.length!==count||new Set(s.subjects.map((q:any)=>q.faceId)).size!==count) throw new Error('Select one measured face per panel');
     const regions=s.subjects.map((q:any,slot:number)=>{
       const f=catalog.find((f:any)=>f.id===q.faceId);
       if(!f||f.resourceId!==s.resourceId) throw new Error('Unknown face ID or source mismatch');
       const key=JSON.stringify([s.resourceId,s.style,s.compositionId,slot]);
-      if(!(f.draftFrame>=s.startFrame&&f.draftFrame<s.endFrame)&&first.get(key)!==f.id) throw new Error('Choose a face measured within this shot');
+      if(!(f.draftFrame>=s.startFrame&&f.draftFrame<s.endFrame)&&!(f.draftStartFrame<s.endFrame&&f.draftEndFrame>s.startFrame)&&first.get(key)!==f.id) throw new Error('Choose a face measured within this shot');
       if(!first.has(key)) first.set(key,f.id);
       const left=q.left??0,right=q.right??1;
       if(![left,right].every(Number.isFinite)||left<0||right>1||left>=right) throw new Error('Invalid source pane bounds');
-      const b=f.box,fw=b.xmax-b.xmin,fh=b.ymax-b.ymin,cx=(b.xmin+b.xmax)/2,cy=(b.ymin+b.ymax)/2;
+      const selected=[f,...(q.faceIds||[]).filter((id:string)=>id!==f.id).map((id:string)=>{const v=catalog.find((c:any)=>c.id===id);if(!v||v.resourceId!==s.resourceId||!((v.draftFrame>=s.startFrame&&v.draftFrame<s.endFrame)||(v.draftStartFrame<s.endFrame&&v.draftEndFrame>s.startFrame)))throw Error('Additional face reference is outside its shot');return v;})];
+      // Only the agent links identities. Preserve the full observed local-track
+      // envelope even when the editorial shot uses only part of that track.
+      const boxes=selected.map((v:any)=>v.envelope||v.box);
+      const b={xmin:Math.min(...boxes.map((b:any)=>b.xmin)),xmax:Math.max(...boxes.map((b:any)=>b.xmax)),ymin:Math.min(...boxes.map((b:any)=>b.ymin)),ymax:Math.max(...boxes.map((b:any)=>b.ymax))},fw=b.xmax-b.xmin,fh=b.ymax-b.ymin,cx=(b.xmin+b.xmax)/2,cy=(b.ymin+b.ymax)/2;
       if(b.xmin<left*W||b.xmax>right*W) throw new Error('Measured face is outside its selected pane');
-      const x1=Math.max(left*W,b.xmin-fw*.18),x2=Math.min(right*W,b.xmax+fw*.18),y1=Math.max(0,b.ymin-fh*.48),y2=Math.min(H,b.ymax+fh*.12);
+      let x1=Math.max(left*W,b.xmin-fw*.18),x2=Math.min(right*W,b.xmax+fw*.18);let y1=Math.max(0,b.ymin-fh*.48),y2=Math.min(H,b.ymax+fh*.12);
       const faceY=Math.max(.25,Math.min(.65,Number(layout.faceY??40)/100)),aspect=1080/((Number(layout.windowBottom??1920)-Number(layout.windowTop??0))/count);
+      // Soft side margins may shrink on an already-tight source closeup;
+      // the measured face itself must always remain inside the final crop.
+      const availableW=Math.min((right-left)*W,H*aspect);
+      if(x2-x1>availableW&&fw<=availableW){x1=Math.max(left*W,Math.min(right*W-availableW,cx-availableW/2));x2=x1+availableW;}
+      // Head padding is a preference; never reject a fitting measured face just
+      // because padding exceeds a narrow embedded pane by a few pixels.
+      const availableH=availableW/aspect;
+      if(y2-y1>availableH&&fh<=availableH){
+        const padding=availableH-fh,above=b.ymin-y1,below=y2-b.ymax;
+        y1=b.ymin-padding*above/(above+below);y2=b.ymax+padding*below/(above+below);
+      }
       const closeUp=q.closeUp??layout.closeUp??4.5;
       if(!Number.isFinite(closeUp)||closeUp<2||closeUp>12) throw new Error('Invalid measured-face framing size');
       const wantedH=Math.max(y2-y1,(cy-y1)/faceY,(y2-cy)/(1-faceY));
@@ -3071,6 +3210,28 @@ function measuredFaceShots(shots:any[],catalog:any[],sources:any[],layout:any) {
     });
     return {...s,regions};
   });
+  // Calculate fixed geometry from all agent-selected references before applying
+  // any shot. Later silence fragments cannot cause a small crop/zoom jump.
+  const groups=new Map<string,any[]>();
+  for(const shot of measured)if(shot.style==='speaker'||shot.style==='stacked'){
+    const key=JSON.stringify([shot.resourceId,shot.style,shot.compositionId]);
+    if(!groups.has(key))groups.set(key,[]);groups.get(key)!.push(shot);
+  }
+  for(const group of groups.values()) {
+    const src=sources.find((s:any)=>s.resourceId===group[0].resourceId),W=src.meta.frameSize.width,H=src.meta.frameSize.height;
+    const regions=group[0].regions.map((_:any,slot:number)=>{
+      const rows=group.map((s:any)=>s.regions[slot]),left=Math.max(...group.map((s:any)=>s.subjects[slot].left??0))*W,right=Math.min(...group.map((s:any)=>s.subjects[slot].right??1))*W;
+      const x1=Math.min(...rows.map((r:any)=>r.focus.x))*W,x2=Math.max(...rows.map((r:any)=>r.focus.x+r.focus.width))*W,y1=Math.min(...rows.map((r:any)=>r.focus.y))*H,y2=Math.max(...rows.map((r:any)=>r.focus.y+r.focus.height))*H;
+      const ratio=1080/((Number(layout.windowBottom??1920)-Number(layout.windowTop??0))/group[0].regions.length);
+      const w=Math.min(right-left,H*ratio,Math.max(...rows.map((r:any)=>r.width*W),x2-x1,(y2-y1)*ratio)),h=w/ratio;
+      if(w<x2-x1-1e-6||h<y2-y1-1e-6||x1<left||x2>right)throw Error('Selected head motion cannot fit one fixed composition');
+      const cx=rows.reduce((n:number,r:any)=>n+r.anchor.x*W,0)/rows.length,cy=rows.reduce((n:number,r:any)=>n+r.anchor.y*H,0)/rows.length,faceY=Math.max(.25,Math.min(.65,Number(layout.faceY??40)/100));
+      const x=Math.max(Math.max(left,x2-w),Math.min(Math.min(right-w,x1),cx-w/2)),y=Math.max(Math.max(0,y2-h),Math.min(Math.min(H-h,y1),cy-h*faceY));
+      return {x:x/W,y:y/H,width:w/W,height:h/H,focus:{x:x1/W,y:y1/H,width:(x2-x1)/W,height:(y2-y1)/H},anchor:{x:cx/W,y:cy/H}};
+    });
+    for(const shot of group)shot.regions=regions;
+  }
+  return measured;
 }
 
 // Face strips preserve enough pixels to compare articulation across a short burst.
@@ -3239,8 +3400,14 @@ function reframingPlanningFacts(before:any,catalog:any[]) {
       previous.endFrame=w.endFrame;previous.text+=' '+w.text;
     } else turns.push({speakerId:w.speakerId,source:source(w.sourceResourceId),startFrame:w.startFrame,endFrame:w.endFrame,text:w.text});
   }
-  return {turns,words:before.words.map((w:any)=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,source:source(w.sourceResourceId),sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame,speakerId:w.speakerId})),
-    faces:catalog.map((f:any)=>({id:f.id,source:source(f.resourceId),sourceFrame:f.sourceFrame,draftFrame:f.draftFrame,orderFromLeft:f.orderFromLeft,facesInFrame:f.facesInFrame}))};
+  const mapping:any[]=[];
+  for(const w of before.segments||before.words) {
+    const row={startFrame:w.startFrame,endFrame:w.endFrame,source:source(w.sourceResourceId),sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame};
+    const last=mapping[mapping.length-1];
+    if(last&&last.source===row.source&&last.endFrame===row.startFrame&&last.sourceEndFrame===row.sourceStartFrame&&Math.abs((last.sourceEndFrame-last.sourceStartFrame)/(last.endFrame-last.startFrame)-(row.sourceEndFrame-row.sourceStartFrame)/(row.endFrame-row.startFrame))<1e-6){last.endFrame=row.endFrame;last.sourceEndFrame=row.sourceEndFrame;}else mapping.push(row);
+  }
+  return {turns,mapping,words:before.words.map((w:any)=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,source:source(w.sourceResourceId),sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame,speakerId:w.speakerId})),
+    faces:catalog.map((f:any)=>({id:f.id,source:source(f.resourceId),sourceFrame:f.sourceFrame,draftFrame:f.draftFrame,orderFromLeft:f.orderFromLeft,facesInFrame:f.facesInFrame,box:f.box,sourceStartFrame:f.sourceStartFrame,sourceEndFrame:f.sourceEndFrame,draftStartFrame:f.draftStartFrame,draftEndFrame:f.draftEndFrame}))};
 }
 
 // Reuse the runtime collector on source coordinates, bounded by the inspected
@@ -3271,30 +3438,130 @@ async function collectSourceActiveSpeakers({sdk,guard,projectId,before,catalog,s
   return evidence;
 }
 
-async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measureFaces=collectMeasuredFaces,prepareEvidence=prepareSourceEvidence,measureSpeakers=collectSourceActiveSpeakers,work}:any):Promise<any> {
+// Analyze each surviving source range once. Speaker analysis also supplies face
+// detections; window-local tracks are evidence, never cross-camera identities.
+async function collectSourceObservations({sdk,guard,projectId,before,note}:any) {
+  const read=async(script:string,summary:string,allowCommit=false)=>{const r=await guard(sdk.runScript({script,summary,allowCommit}));if(r.isError)throw Error(r.output||summary);return r.result;};
+  const catalog:any[]=[],observations:any[]=[];
+  for(const [si,source] of before.sources.entries()) {
+    const fps=source.meta.fps;
+    const words=(before.segments||before.words).filter((w:any)=>w.sourceResourceId===source.resourceId&&Number.isFinite(w.sourceStartFrame)&&w.sourceEndFrame>w.sourceStartFrame);
+    const ranges=cameraFaceRanges(words.map((w:any)=>[w.sourceStartFrame/fps,w.sourceEndFrame/fps]));
+    for(const [ri,[a,b]] of ranges.flatMap(([a,b]:number[])=>Array.from({length:Math.ceil((b-a)/30)},(_,i)=>[a+i*30,Math.min(b,a+(i+1)*30)])).entries()) {
+      note({plan:'stage',stage:'speakers-wait'});
+      const request={runtimeId:AI_RUNTIME,requestKey:`${APP_ID}:source-observations-v1:${keyHash(JSON.stringify({projectId,resourceId:source.resourceId,a,b}))}`,projectId,resourceId:source.resourceId,sourceRange:{startSeconds:a,endSeconds:b},task:'speakers.detect',options:{provider:'cpu'}};
+      const data=await guard(measuredFaceWork.face(JSON.stringify(request),async()=>{
+        note({plan:'stage',stage:'speakers'});let wf='';const settled=await settleFaceJob({submit:async()=>{wf=(await read(`return await selects.ai.submit(${JSON.stringify(request)});`,'Analyze source faces and speaking',true)).workflowId;return {wf};},status:cancel=>read(`const j=selects.ai.job(${JSON.stringify(wf)},${JSON.stringify(projectId)});${cancel?'await j.cancel();':''}const s=await j.status();return {status:s.status,error:s.lastErrorMessage};`,'Check source observations',cancel),wait:ms=>guard(sleep(ms)),deadline:Date.now()+240000,now:()=>Date.now(),stop:e=>e instanceof RunCancelled});
+        if(settled.status.status!=='succeeded')throw Error(settled.status.error||'Source observations failed');
+        // Keep dense boxes in the host; return one representative and an observed
+        // envelope per local track. Never truncate a large runtime JSON response.
+        return read(`const r=await selects.ai.job(${JSON.stringify(wf)},${JSON.stringify(projectId)}).result();const d:any=await selects.ai.readJSON(r.files.detections,${JSON.stringify(projectId)});const groups=new Map();for(const [si,s] of (d.samples||[]).entries())for(const [fi,f] of (s.faces||[]).entries()){if(!f.trackId&&si%10!==0)continue;const key=f.trackId||('untracked-'+si+'-'+fi);let g=groups.get(key);if(!g){g={trackId:key,samples:[]};groups.set(key,g);}g.samples.push({t:s.sourceTimeSeconds,box:f.box,score:f.activeSpeakerScore});}return {frameSize:d.frameSize,metrics:r.metrics,tracks:[...groups.values()].map(g=>{const ss=g.samples,b=ss.map(s=>s.box),mid=ss[Math.floor(ss.length/2)];return {trackId:g.trackId,start: ss[0].t,end:ss[ss.length-1].t+1/25,t:mid.t,box:mid.box,envelope:{xmin:Math.min(...b.map(b=>b.xmin)),xmax:Math.max(...b.map(b=>b.xmax)),ymin:Math.min(...b.map(b=>b.ymin)),ymax:Math.max(...b.map(b=>b.ymax))},scores:ss.filter((s,i)=>i%10===0&&Number.isFinite(s.score)).map(s=>({t:s.t,score:Math.round(s.score*100)/100}))};})};`,'Read compact source observations');
+      }));
+      if(data.frameSize?.width!==source.meta.frameSize.width||data.frameSize?.height!==source.meta.frameSize.height)throw Error('Source observation dimensions mismatch');
+      for(const [ti,t] of data.tracks.entries()) {
+        const sourceFrame=Math.round(t.t*fps),w=words.find((w:any)=>sourceFrame>=w.sourceStartFrame&&sourceFrame<w.sourceEndFrame);if(!w)continue;
+        const draftFrame=Math.round(w.startFrame+(sourceFrame-w.sourceStartFrame)*(w.endFrame-w.startFrame)/(w.sourceEndFrame-w.sourceStartFrame));
+        const id=`F${si}_${ri}_${ti}`;
+        const projectFrame=(time:number)=>w.startFrame+(time*fps-w.sourceStartFrame)*(w.endFrame-w.startFrame)/(w.sourceEndFrame-w.sourceStartFrame);
+        catalog.push({id,resourceId:source.resourceId,sourceFrame,draftFrame,draftStartFrame:projectFrame(t.start),draftEndFrame:projectFrame(t.end),box:t.box,envelope:t.envelope,sourceStartFrame:Math.round(t.start*fps),sourceEndFrame:Math.round(t.end*fps),trackId:`${ri}:${t.trackId}`});
+        observations.push({faceId:id,resourceId:source.resourceId,sourceStartFrame:Math.round(t.start*fps),sourceEndFrame:Math.round(t.end*fps),scores:t.scores.map((s:any)=>({sourceFrame:Math.round(s.t*fps),score:s.score}))});
+      }
+      note({plan:'source-analysis-metrics',resourceId:source.resourceId,range:[a,b],metrics:data.metrics});
+    }
+  }
+  note({plan:'measured-faces',catalog});return {catalog,activeSpeakers:observations};
+}
+
+function sourceAppearanceChange(a:ArrayLike<number>,b:ArrayLike<number>) {
+  if(a.length!==b.length||!a.length)return true;
+  let sum=0,area=0,n=0;
+  for(let i=0;i<a.length;i+=4){const d=(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2]))/765;sum+=d;area+=Number(d>.1);n++;}
+  return sum/n>.04&&area/n>.12;
+}
+
+// Survey the whole selected source, not just face-bearing instants. Pixel changes
+// are candidates for the agent to interpret; motion and flashes can also trigger.
+async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note}:any) {
+  const images:any[]=[],samples:any[]=[],boundaries:any[]=[];
+  for(const source of before.sources) {
+    const words=(before.segments||before.words).filter((w:any)=>w.sourceResourceId===source.resourceId&&Number.isFinite(w.sourceStartFrame));
+    const ranges=cameraFaceRanges(words.map((w:any)=>[w.sourceStartFrame/source.meta.fps,w.sourceEndFrame/source.meta.fps]));
+    const core=await guard(sdk.call('getResourceAnalyzedSequence',projectId,source.resourceId));
+    if(core?.owner?.projectId!==projectId||!core.analyzedSequenceJson?.id)throw Error('Source survey ownership mismatch');
+    const cache=new Map<number,any>();
+    const capture=async(frames:number[])=>{
+      const missing=[...new Set(frames)].filter(f=>!cache.has(f));
+      for(let i=0;i<missing.length;i+=12){note({plan:'stage',stage:'evidence'});const wanted=missing.slice(i,i+12);
+        const c=await guard(visualWork(()=>sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:core.analyzedSequenceJson.id,sequenceJson:core.analyzedSequenceJson,coordinate:'base',frames:wanted.map(frameNumber=>({frameNumber,view:'timeline_composite'})),includeOverlays:false})));
+        const image=new Image();image.src='data:image/jpeg;base64,'+c.data;await image.decode();
+        for(const f of wanted){const tile=c.frames?.find((t:any)=>t.frameNumber===f);if(!tile?.hasSourceImage)throw Error('Missing source survey image');const cv=document.createElement('canvas');cv.width=640;cv.height=Math.round(640*source.meta.frameSize.height/source.meta.frameSize.width);const g=cv.getContext('2d')!;g.drawImage(image,tile.x,tile.y,tile.width,tile.height,0,0,cv.width,cv.height);const probe=document.createElement('canvas');probe.width=32;probe.height=18;const pg=probe.getContext('2d')!;pg.drawImage(cv,0,0,32,18);cache.set(f,{cv,pixels:pg.getImageData(0,0,32,18).data});}
+      }
+    };
+    const selected=new Set<number>();
+    for(const [a,b] of ranges){const start=Math.round(a*source.meta.fps),end=Math.ceil(b*source.meta.fps)-1,step=Math.max(1,Math.round(source.meta.fps*.5)),coarse:number[]=[];for(let f=start;f<=end;f+=step)coarse.push(f);coarse.push(end);await capture(coarse);selected.add(start);selected.add(end);
+      for(let i=1;i<coarse.length;i++)if(sourceAppearanceChange(cache.get(coarse[i-1]).pixels,cache.get(coarse[i]).pixels)){
+        const frames=Array.from({length:coarse[i]-coarse[i-1]+1},(_,j)=>coarse[i-1]+j);await capture(frames);
+        for(let j=1;j<frames.length;j++)if(sourceAppearanceChange(cache.get(frames[j-1]).pixels,cache.get(frames[j]).pixels)){boundaries.push({resourceId:source.resourceId,lastOldSourceFrame:frames[j-1],firstNewSourceFrame:frames[j],kind:'appearance-change-candidate'});selected.add(frames[j-1]);selected.add(frames[j]);}
+      }
+    }
+    // Every local face track receives an actual raw reference image. This lets
+    // the agent connect identities across windows instead of trusting track IDs.
+    for(const f of catalog.filter((f:any)=>f.resourceId===source.resourceId))selected.add(f.sourceFrame);
+    for(const t of reframingPlanningFacts(before,[]).turns.filter((t:any)=>before.sources[t.source]?.resourceId===source.resourceId)){const w=words.find((w:any)=>w.startFrame<=t.startFrame&&w.endFrame>t.startFrame);if(w)selected.add(w.sourceStartFrame);}
+    const frames=[...selected].sort((a,b)=>a-b);await capture(frames);
+    for(let i=0;i<frames.length;i+=6){const page=frames.slice(i,i+6),cv=document.createElement('canvas');cv.width=1280;const h=cache.get(page[0]).cv.height+40;cv.height=h*Math.ceil(page.length/2);const g=cv.getContext('2d')!;g.fillStyle='#15191f';g.fillRect(0,0,cv.width,cv.height);
+      page.forEach((f,j)=>{const x=j%2*640,y=Math.floor(j/2)*h;g.drawImage(cache.get(f).cv,x,y+40);g.fillStyle='white';g.font='16px sans-serif';const ids=catalog.filter((c:any)=>c.resourceId===source.resourceId&&c.sourceFrame===f).map((c:any)=>c.id);g.fillText(`source frame ${f} · ${ids.join(', ')||'context'}`,x+8,y+26);});
+      images.push({dataUrl:cv.toDataURL('image/jpeg',.85),name:`source-${before.sources.indexOf(source)}-${i/6}.jpg`});
+    }
+    samples.push({resourceId:source.resourceId,sourceFrames:frames});
+  }
+  note({plan:'source-evidence',samples,boundaries,imageCount:images.length});return {images,samples,boundaries};
+}
+
+async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measureFaces,prepareEvidence,measureSpeakers,work}:any):Promise<any> {
   const inspect=async(preflight=false)=>{
-    const r=await guard(sdk.runScript({script:`const p=selects.project(${JSON.stringify(projectId)}); if (!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)})) throw new Error("Draft ownership changed"); const d=selects.draft(${JSON.stringify(draftId)}); const words=(await d.words()).map(w=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,wordId:w.wordId,speakerId:w.speakerId,speakerName:w.speakerName,sourceResourceId:w.sourceResourceId,sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame})); const sources=${preflight ? 'await Promise.all([...new Set(words.map(w=>w.sourceResourceId).filter(Boolean))].map(async resourceId=>({resourceId,meta:await p.resource(resourceId).meta()})))' : '[]'}; return {meta:await d.meta(),words,sources};`,summary:'Verify reframing target'}));
+    const r=await guard(sdk.runScript({script:`const p=selects.project(${JSON.stringify(projectId)}); if (!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)})) throw new Error("Draft ownership changed"); const d=selects.draft(${JSON.stringify(draftId)}); const words=(await d.words()).map(w=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,wordId:w.wordId,speakerId:w.speakerId,speakerName:w.speakerName,sourceResourceId:w.sourceResourceId,sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame})); const sources=${preflight ? 'await Promise.all([...new Set((await d.clips({trackScope:"main"})).map(c=>c.resourceId).filter(Boolean))].map(async resourceId=>({resourceId:(await p.resource(resourceId).rangeAtFrames(0,1)).resourceId,meta:await p.resource(resourceId).meta()})))' : '[]'}; return {meta:await d.meta(),words,sources};`,summary:'Verify reframing target'}));
     if(r.isError||!r.result?.meta) throw new Error(r.output||'Cannot verify reframing target');
     return r.result;
   };
   const before=await inspect(true);
-  const faceCatalog=await measureFaces({sdk,guard,projectId,before,note});
-  const evidence=await prepareEvidence({sdk,guard,projectId,before,catalog:faceCatalog,note});
-  const activeSpeakers=await measureSpeakers({sdk,guard,projectId,before,catalog:faceCatalog,samples:evidence.samples,note,work});
+  if(!measureFaces){
+    const snapshot=await guard(sdk.call('getDraftMediaSnapshot',projectId,draftId));
+    before.segments=snapshot.clips.filter((c:any)=>c.trackKind==='main'&&c.resourceId).map((c:any)=>{
+      const source=before.sources.find((s:any)=>s.resourceId===c.resourceId);if(!source)throw Error('Draft source mapping mismatch');
+      return {startFrame:c.startFrame,endFrame:c.endFrame,sourceResourceId:c.resourceId,sourceStartFrame:c.sourceStartSeconds*source.meta.fps,sourceEndFrame:c.sourceEndSeconds*source.meta.fps};
+    });
+    if(!before.segments.length)throw Error('Missing source playback mapping');
+  }
+  const observations=measureFaces?{catalog:await measureFaces({sdk,guard,projectId,before,note}),activeSpeakers:[]}:await collectSourceObservations({sdk,guard,projectId,before,note});
+  const faceCatalog=observations.catalog;
+  const evidence=await (prepareEvidence||prepareSourceSurvey)({sdk,guard,projectId,before,catalog:faceCatalog,note});
+  const activeSpeakers=measureSpeakers?await measureSpeakers({sdk,guard,projectId,before,catalog:faceCatalog,samples:evidence.samples,note,work}):observations.activeSpeakers;
   const unchanged=async()=>{
     const after=await inspect();
     if(after.meta.durationFrames!==before.meta.durationFrames||after.meta.fps!==before.meta.fps||JSON.stringify(after.meta.frameSize)!==JSON.stringify(before.meta.frameSize)||JSON.stringify(normalizeReframeWords(after.words))!==JSON.stringify(normalizeReframeWords(before.words))) throw new Error('Agent changed speech or timing outside reframing scope. Inspect the saved Draft before resuming.');
   };
   const facts=reframingPlanningFacts(before,faceCatalog);
-  const prompt=`Plan the reframing of Draft ${draftId} in project ${projectId}. Use your existing Selects SDK tools READ-ONLY to inspect UNCROPPED SOURCE imagery. Return the editorial plan; the app will validate crop geometry and apply it. There is no subsequent AI visual review. Do NOT edit, commit, export, render portrait composites, generate effect code, or inspect unrelated project workflows. No questions.
-You decide all subjects, cut boundaries, framing and layouts. The app only fits the measured faces you select to the template and preserves speech/audio/captions/graphics. Template faceY is the preferred face-center height as percent down the video window (for example 40 means near the upper-middle), and closeUp is the preferred window width in face widths. Keep the face clear of app captions and logos. Avoid excessive empty space above the head, especially inside a broadcast mosaic: choose the correct measured face and source pane. Baked-in broadcast branding must not force the face behind the app captions. Template: ${JSON.stringify(layout)}. Draft metadata: ${JSON.stringify(before.meta)}. Source metadata already verified: ${JSON.stringify(before.sources)}.
-Use the supplied resource UUIDs in your returned plan. UUIDs work in SDK resource() even when reads return rN aliases. Do not enumerate the project to rediscover IDs. In the data below, source is a zero-based index into the Source metadata list above; return the corresponding resource UUID in your plan. Transcript turns: ${JSON.stringify(facts.turns)}. Words/source mapping (including transcript speaker labels): ${JSON.stringify(facts.words)}. Speaker labels are fallible but IMPORTANT evidence about turn boundaries. Build a consistent speaker-to-person mapping for the WHOLE clip before choosing shots. Recognize the same person across solo and mosaic views using appearance, not pane position. A speaker label resuming later normally maps back to that same person. A short acknowledgement by another visible person does not justify assigning the entire following answer to that person. Treat conflicts as unresolved unless specific inspected evidence supports a correction; do not override diarization merely because the previous speaker is still on screen. A visible listener may be held while the actual speaker is offscreen; label that span as offscreen/reaction, never pretend the listener is speaking. When a source layout later reveals the speaker, use that evidence for their identity; do not block a valid reaction hold just because a speaker is temporarily not visible. Group consecutive words by speakerId and inspect a short source burst for each changed speaker turn. Do not carry the first speaker through the whole clip just because the camera layout or topic is unchanged. Resolve each transcript turn against visible mouth motion; a label is not itself a person identity. If a transcript turn and your visual interpretation conflict, inspect that specific turn once or report blocked; do not silently ignore it.
-Capture contract: display(await selects.project(${JSON.stringify(projectId)}).resource(resourceId).captureFrames({frames:[sourceFrameNumbers]})); 1-12 integer source frames per capture, max 4 displayed artifacts per script. These source frames default to uncropped, no overlays. Frame metadata is frameNumber/timeSeconds, not frame/startSeconds. Source frame rate may differ from Draft rate. Use word sourceStartFrame/sourceEndFrame for mapping, not ClipInfo (which has no source coordinates). Use resource.captureFrames, not draft.captureCameraAngles for this single-angle source. No need to reread metadata, words, captions or transforms.
-Audio-visual active-speaker evidence (Light-ASD AVA): ${JSON.stringify(activeSpeakers)}. These scores combine source audio with face motion; they are uncalibrated logits, NOT probabilities. Positive supports audible speaking, negative opposes it, missing means unknown. Rows reference the measured face IDs and SOURCE frame ranges, not Draft frames. Map through the supplied words when locating them on the Draft. Use sustained evidence to anchor the speaker-to-person mapping; several positives may mean overlap. These bounded samples do not establish identity outside the measured window or across source cuts. Do not override sustained evidence based on a single open mouth or a listener shot; explain conflicts. Keep deciding all editorial reactions and layouts yourself. Use these supplied scores first; do not call the runtime again or recapture covered turns merely to reconfirm them. In speakerEvidence, describe audio-visual support together with the supplied face strips; do not claim full-clip lip-sync verification.
-The attached sheets contain short SOURCE FACE-MOTION STRIPS. Each row is ONE measured face candidate; columns show consecutive times from left to right, with original source frame numbers. Each attached image contains ONE burst. Its uncropped source context is above the candidate rows. Read the appearance and mouth change of EVERY row before deciding who speaks. A small uncropped source context image is above each burst. These crops are evidence only, not the final edit. Compare CHANGES of mouth shape across each row, not a single open mouth. Static open lips are not articulation. Labels identify the face measured at the first frame; strips use a fixed local window and are not identity tracking. A strip stops at a detected source discontinuity; blank cells after SOURCE CHANGES contain no evidence. Never link identities by crop position across a cut. sourceChange records a full-frame appearance discontinuity refined using consecutive source frames: firstNewSourceFrame is the first changed frame, lastOldSourceFrame is the preceding frame. Use that measured boundary for this source layout transition, mapping through words; do not put it at the first post-cut face detection. Additional SDK cut probes are needed only for transitions not measured here. A transcript speaker change while the same silent face remains on screen is offscreen speech, not proof that the face changed identity. Prepared burst mapping (sourceFrames are the actual inspected frame sequence; faceIds are reference selections): ${JSON.stringify(evidence.samples)}. Read these first; do not recapture provided frames or perform a fresh broad survey. Use your existing Selects SDK tools READ-ONLY only for a specific unresolved speaker or an exact source-layout cut. Aim for zero additional calls when the supplied evidence is sufficient. If more evidence is necessary, batch the missing turn bursts into one call where possible. A broadcast mosaic inside one video is not selectable cameras. Sustained mouth articulation across frames and transcript continuity are evidence; a smile, nod, gender, single open mouth or cut to a listener is not. A camera change does not imply a speaker change. If identity remains inconclusive after one targeted burst, report blocked instead of inventing a speaker. When a layout cut is bracketed, capture one contiguous burst of up to 12 integer source frames to identify the first new-layout frame. Do not binary-search repeatedly or put a cut at a coarse bracket midpoint. Map the source frame through the supplied word coordinates. Face-count changes are only survey hints, not proven camera cuts. The prepared sheets are bounded samples, not exhaustive coverage; inspect any uncovered speaker turn when required.
-Return contiguous half-open shots covering every Draft frame [0,${before.meta.durationFrames}). A source-layout change may split a word; preserve source/Draft mapping. Choose subjects by the MEASURED FACE IDs below, never write face boxes or crop coordinates. Each ID identifies a detection in ONE source frame, not a persistent person identity. Match its sourceFrame and left-to-right order against raw imagery. Select a reference measured within each shot. Reuse compositionId for the same person/source layout/framing across silence removal; code fixes that composition's crop. A new person or camera layout needs a new compositionId. Speaker has one subject, stacked has two distinct people in top/bottom order, wide has no subjects and must be allowed by the template. Each subject is {faceId,left?:number,right?:number,closeUp?:number}; left/right are only the coarse horizontal boundaries of an embedded source pane, normalized 0..1 (default full source), NOT the face crop. For a four-column mosaic use the actual pane's quarter boundaries. Code measures face position from the selected ID and fits it at template faceY/closeUp with head margin. Do not invent a head position, resize the measured head, or select a different face merely to fit. If no detection supports the intended subject, report blocked. Wide/stacked require editorial justification.
-MEASURED FACE REFERENCES (geometry is handled by the app): ${JSON.stringify(facts.faces)}
-JSON only: {draftId:${JSON.stringify(draftId)},status:"planned"|"blocked",summary:string,observations:[{draftFrame:number,candidates:[{faceId:string,appearance:string,mouthChange:string}],selectedFaceId:string|null}],shots:[{startFrame,endFrame,resourceId,style:"speaker"|"stacked"|"wide",compositionId,subjects:[{faceId,left?:number,right?:number,closeUp?:number}],reason:string}],speakerEvidence:[{startFrame,endFrame,resourceId,sourceFrames:number[],subject:string,basis:"mouth-motion"|"offscreen",evidence:string}],limitations:string[]}. Evidence must cover the full Draft. In each evidence description identify the chosen row by exact face ID and visible appearance, and contrast its mouth changes with the other visible candidates. Check that the face ID in shots names that same row; do not select by a guessed row number. Only list frames actually inspected.
+  const prompt=`You are the editorial agent for shortform screen composition. Use your existing Selects SDK tools READ-ONLY for missing evidence. The app applies your JSON plan; you do not edit or commit. No questions, export, effect code, or second review pass.
+
+DECISIONS
+Choose people, reactions, layouts and exact cut boundaries for the whole clip. Obey the template. Group speaker turns into a consistent person mapping using source images and Light-ASD AVA scores. Scores are uncalibrated logits, not probabilities; missing means unknown. A visible listener can remain during offscreen speech. A camera cut is not a speaker change. Do not infer speaking from one open mouth. Local tracks expire at their source ranges and are NOT persistent identities. Connect them by appearance. Never force a person into scenery, maps, sports or silent action.
+
+EVIDENCE
+JSON below contains speaker timing without transcript text, source/Draft mappings, measured face references, source images, active-speaker scores and appearance-change candidates. Those candidates may be motion/flash rather than cuts: judge the pictures. When accepting a candidate as a cut, use its exact firstNewSourceFrame; do not substitute rounded seconds or a runtime track boundary. Never insert a tiny wide transition merely to bridge a source cut. Cover all source layout changes, including inside words. Source and Draft frame rates can differ. Map frames linearly within the matching source mapping range; never across removed silence.
+Use supplied UNCROPPED SOURCE images and measurements first. Only request a specific missing identity, subject or boundary. Aim for zero additional calls; do not repeat metadata, broad surveys or analyzed ranges. For missing source pixels: display(await selects.project(${JSON.stringify(projectId)}).resource(resourceId).captureFrames({frames:[integerSourceFrames]})); 1–12 frames per capture, at most 4 displayed artifacts per script. Use resource.captureFrames, not draft.captureCameraAngles. Transcript text is available via draft.words() only if semantics are genuinely needed.
+
+GEOMETRY
+For people, select measured face IDs; never write face boxes or crop coordinates. Each panel target has {subjectId,refs:[measured IDs of THAT SAME PERSON]}; panel.sourcePane has {left,right} and panel.closeUp controls size. left/right are normalized fractions from 0 to 1 (NOT pixels): full source {left:0,right:1}, left third {left:0,right:0.333333}. They delimit an embedded source pane, not the face crop. For embedded mosaics, supply both pane boundaries for every subject; do not let a crop leak into a neighboring pane. Select IDs whose observed source interval overlaps the shot; a representative image can lie outside the shot when its local track overlaps. Only an already-used primary faceId may be reused for the same composition after a silence cut. Include all relevant local-track references for that person so code fits the observed head envelope, not just one instant. Do not link different people or source layouts. closeUp is window width in face widths; template faceY is preferred face-center height, percent down the window. Code preserves head margins and fixes identical compositionId geometry across silence edits. A camera/layout change needs a new compositionId. Reuse only for the same person/source layout/framing. Establish one compositionId per person (or pair) and actual source layout, and reuse it whenever returning to that composition. A runtime window beginning, face-ID change, speaker-score change, or gesture NEVER establishes a new source layout. Do not split a shot at those analysis boundaries. Merge adjacent same-person/same-layout shots, including speaker-to-listener reaction holds. Include their face IDs together. A new composition for the same visible person requires an actual source camera/layout change visible in the images; cite that observed change in the reason. Do not label track windows as scene cuts. Before returning JSON, check that every new compositionId has an editorial or visible source-layout reason and that unchanged people/layouts reuse the same ID.
+For non-person content use layout "detail" with targets:[] and one panel.region {x,y,width,height}, choosing the action/object yourself. region is the IMPORTANT AREA that must remain fully visible, not a rough full-image crop. Code fills the portrait window around it without cutting this area. Normalized region width must be <= min(1, sourceHeight * 1080 / (windowBottom-windowTop) / sourceWidth), and height <= min(1, sourceWidth * (windowBottom-windowTop) / 1080 / sourceHeight). For 1920x1080 into 1080x1920, width must be <=0.3164. Select the essential visual subject within that feasible area; if none can preserve the intended content, report blocked. "wide" preserves the whole source and is allowed only by widePolicy. "stacked" has exactly two distinct subjects, in top/bottom order, and must be allowed by the template. Never invent a face when there is none. If important evidence is unavailable, report blocked with the specific reason.
+
+INPUT_JSON
+${JSON.stringify({version:1,capabilities:{layouts:['speaker','stacked','detail','wide'],cameras:before.sources.map((s:any)=>s.resourceId),continuousTracking:false},projectId,draftId,durationFrames:before.meta.durationFrames,draftFps:before.meta.fps,template:layout,sources:before.sources.map((s:any)=>({resourceId:s.resourceId,fps:s.meta.fps,frameSize:s.meta.frameSize})),speakerTurns:facts.turns.map(({text,...t}:any)=>t),sourceMapping:facts.mapping,faces:facts.faces,activeSpeakers,images:evidence.samples,appearanceChanges:evidence.boundaries||[]})}
+
+OUTPUT_JSON
+${COMPOSITION_PLAN_SCHEMA}
+Use camera=resourceId. Supported layouts: speaker, stacked, detail, wide. Each panel target uses subjectId and refs (the measured face IDs); put sourcePane and closeUp on the panel. Include speakerEvidence rows {startFrame,endFrame,resourceId,sourceFrames,subject,basis,evidence}. draftId must be ${JSON.stringify(draftId)}.
+Shots must cover [0,${before.meta.durationFrames}) contiguously with integer half-open intervals. Evidence must cover the clip. Use one evidence row per coherent shot, not per transcript turn; each row MUST cite at least one integer source frame actually supplied/inspected (never an empty array). A broad visual-content row can cover narration over an unchanged insert without redundant offscreen rows. Name the measured IDs used for people. Keep each reason/evidence/limitation under 25 words. Return syntactically valid JSON with every string quoted and closed. "audio-visual" cites runtime scores plus images, "offscreen" identifies the listener/narration, "visual-content" explains non-speaker material. Do not claim lip-sync verification from still images.
 ${reframingPreferencePrompt(layout)}`;
   note({plan:'stage',stage:'agent'});note({plan:'agent-reframe-start',draftId});
   const response=await askReframingAI({sdk,guard,note},{prompt,images:evidence.images,timeoutMs:600000,ephemeral:false});
@@ -3302,13 +3569,14 @@ ${reframingPreferencePrompt(layout)}`;
   try {plan=parseAgentReframeReport(String(response.text||''));}
   catch {throw new Error('Agent finished without a valid source crop plan.');}
   if(plan.draftId!==draftId||plan.status!=='planned') throw new Error(plan.summary||'Agent could not plan reframing');
+  plan=sourceCompositionAdapter(plan,before.sources,before.meta.durationFrames,layout,faceCatalog);
   validateSpeakerEvidence(plan,before.meta.durationFrames);
-  compileSourceCropPlan(measuredFaceShots(plan.shots,faceCatalog,before.sources,layout),before.sources,before.meta.durationFrames,layout);
+  checkSourceCompositionGeometry(compileSourceCropPlan(measuredFaceShots(plan.shots,faceCatalog,before.sources,layout),before.sources,before.meta.durationFrames,layout),layout);
   await unchanged();
   note({plan:'agent-reframe-plan',draftId,report:plan});
   const apply=async(shots:any[])=>{
     const measured=measuredFaceShots(shots,faceCatalog,before.sources,layout);
-    compileSourceCropPlan(measured,before.sources,before.meta.durationFrames,layout);
+    checkSourceCompositionGeometry(compileSourceCropPlan(measured,before.sources,before.meta.durationFrames,layout),layout);
     note({plan:'stage',stage:'apply'});
     const r=await guard(sdk.runScript({script:sourceCropApplyScript(projectId,draftId,layout,before.sources,before.meta.durationFrames).replace('__SHOTS__',JSON.stringify(measured)),summary:'Apply agent-selected source crops',allowCommit:true}));
     if(r.isError||!r.result?.applied) throw new Error(r.output||'Source crop application failed');
@@ -3327,8 +3595,8 @@ function validateSpeakerEvidence(report:any,duration:number) {
   for(const row of rows) {
     if(!Number.isInteger(row.startFrame)||!Number.isInteger(row.endFrame)||row.startFrame<0||row.endFrame<=row.startFrame||row.endFrame>duration||
       typeof row.resourceId!=='string'||!row.resourceId||typeof row.subject!=='string'||!row.subject.trim()||typeof row.evidence!=='string'||!row.evidence.trim()||
-      !['mouth-motion','offscreen'].includes(row.basis)||!Array.isArray(row.sourceFrames)||row.sourceFrames.length<3||
-      new Set(row.sourceFrames).size<3||row.sourceFrames.some((f:any)=>!Number.isInteger(f)||f<0)) throw new Error('Invalid source speaker evidence.');
+      !['mouth-motion','offscreen','audio-visual','visual-content'].includes(row.basis)||!Array.isArray(row.sourceFrames)||row.sourceFrames.length<(row.basis==='mouth-motion'?3:1)||
+      new Set(row.sourceFrames).size<(row.basis==='mouth-motion'?3:1)||row.sourceFrames.some((f:any)=>!Number.isInteger(f)||f<0)) throw new Error('Invalid source speaker evidence.');
   }
   if(!rows.some((r:any)=>r.startFrame===0)) throw new Error('Opening speaker was not checked against source evidence.');
   let covered=0;
@@ -3374,6 +3642,7 @@ function cameraIdentityObservations(plan:any,observations:any[]):any[] {
 }
 // AI chooses editorial intent; this compiler owns layout geometry and fallbacks.
 function compileTemplateCameraPlan(plan:any, observations:any[], layout:any, fps:number):any[] {
+  if(plan?.version===1)plan=cameraCompositionAdapter(plan,observations,layout);
   observations=cameraIdentityObservations(plan,observations);
   const prefs=reframingPreferences(layout);
   const allowSplit=(layout.cameraMode||'auto')==='auto'&&prefs.split!=='never';
@@ -3396,7 +3665,7 @@ function compileTemplateCameraPlan(plan:any, observations:any[], layout:any, fps
       const a=o.options.find((f:any)=>f.id===s.primary),b=o.options.find((f:any)=>f.id===s.secondary);
       if(b&&a.identityKey&&a.identityKey===b.identityKey)throw new Error('Two-person composition selects the same mapped person twice');
       if(s.style==='two-shot'&&a.panel.videoIndex!==b.panel.videoIndex) throw new Error('Two-shot requires one camera');
-      const selected=s.style==='wide'?[{panel:o.available.find((p:any)=>p.videoIndex===s.camera) || o.available[0]}]:s.style==='stacked'?[a,b]:[a];
+      const selected=s.style==='wide'?[{panel:o.available.find((p:any)=>p.videoIndex===s.camera)}]:s.style==='stacked'?[a,b]:[a];
       if(!selected[0]?.panel) throw new Error('No camera covers the shot');
       for(const [slot,f] of selected.entries()) {
         const p=f.panel,rate=p.playbackSpeed.numerator/p.playbackSpeed.denominator;
@@ -3406,8 +3675,8 @@ function compileTemplateCameraPlan(plan:any, observations:any[], layout:any, fps
         if(s.style==='two-shot'&&crop.fit==='contain') throw new Error('Two-shot cannot contain both heads while filling this portrait window. Choose stacked if the template allows it, or an observed single speaker. Do not repeat this two-shot.');
         // Sampled envelopes retain room for motion instead of pretending that samples are exact tracking.
         out.push({...p,observation:undefined,startFrame,endFrame,slot,count:selected.length,
-          sourceStartSeconds:p.sourceStartSeconds+(startFrame-p.startFrame)/fps*rate,crop,shotIndex,style:s.style,reason:s.reason,
-          framingKey:JSON.stringify([s.style,a?.identityKey||s.primary,b?.identityKey||s.secondary]),framingFaces:s.style==='wide'?[]:s.style==='two-shot'?[a,b]:[f]});
+          sourceStartSeconds:p.sourceStartSeconds+(startFrame-p.startFrame)/fps*rate,crop,shotIndex,style:s.style,reason:s.reason,compositionId:s.compositionId,
+          framingKey:JSON.stringify([s.compositionId||null,s.style,a?.identityKey||s.primary,b?.identityKey||s.secondary]),framingFaces:s.style==='wide'?[]:s.style==='two-shot'?[a,b]:[f]});
       }
     }
   }
@@ -3416,8 +3685,14 @@ function compileTemplateCameraPlan(plan:any, observations:any[], layout:any, fps
   // Removed silence advances source time; it must not reset the crop. Rewinds
   // still start a new group, as do subject, camera, layout, or speed changes.
   const groups:any[][]=[];
-  const tails=new Map<number,any[]>();
+  const tails=new Map<number,any[]>(),explicitGroups=new Map<string,any[]>();
   for(const row of out) {
+    if(row.compositionId){
+      const key=JSON.stringify([row.compositionId,row.slot,row.videoIndex,row.resourceId,row.playbackSpeed,row.crop.sourceW,row.crop.sourceH]);
+      const group=explicitGroups.get(key);
+      if(group)group.push(row);else {const next=[row];explicitGroups.set(key,next);groups.push(next);}
+      continue;
+    }
     const group=tails.get(row.slot),prev=group?.[group.length-1];
     const rate=row.playbackSpeed.numerator/row.playbackSpeed.denominator;
     const previousRate=prev?prev.playbackSpeed.numerator/prev.playbackSpeed.denominator:0;
@@ -3444,6 +3719,14 @@ function compileTemplateCameraPlan(plan:any, observations:any[], layout:any, fps
     if(first.style==='two-shot'&&crop.fit==='contain') throw new Error('Two-shot head envelope cannot fit the portrait window across this passage. Choose stacked if allowed or an observed single speaker.');
     for(const row of group) row.crop={...crop};
   }
+  validateCompositionGeometry(out.map(row=>{
+    const panel=row.framingFaces[0]?.panel||observations.flatMap(o=>o.available).find(p=>p.videoIndex===row.videoIndex&&p.resourceId===row.resourceId);
+    const W=panel.observation.W,H=panel.observation.H,h=row.crop.w*(layout.windowBottom-layout.windowTop)/row.count/1080;
+    return {startFrame:row.startFrame,endFrame:row.endFrame,compositionId:row.compositionId,slot:row.slot,sourceKey:row.resourceId,sourceWidth:W,sourceHeight:H,
+      crop:row.crop.fit==='contain'?{x:0,y:0,width:W,height:H}:{x:row.crop.cx-row.crop.w/2,y:row.crop.cy-h*.4,width:row.crop.w,height:h},
+      protectedRegions:row.framingFaces.map(f=>({x:f.x-f.w/2,y:f.headTop,width:f.w,height:f.headBottom-f.headTop})),
+      destination:{x:0,y:layout.windowTop+row.slot*(layout.windowBottom-layout.windowTop)/row.count,width:1080,height:(layout.windowBottom-layout.windowTop)/row.count}};
+  }),layout);
   return out.map(({framingKey,framingFaces,...row})=>row);
 }
 
@@ -3549,11 +3832,32 @@ async function collectActiveSpeakerEvidence({sdk,guard,projectId,bursts,fps,note
   await note({plan:'active-speakers',status:'complete',evidence});return evidence;
 }
 
+// Position matching is not person identity: a camera pan can put another
+// person at the same coordinates. Scope references to one observation unit;
+// only the agent's appearance mapping may join them across units.
+function scopeCameraReferences(observations:any[]) {
+  return observations.map(o=>({...o,options:o.options.map((f:any)=>({...f,id:`${f.id}@${o.unit.startFrame}`}))}));
+}
+
+// Supply a visual reference for every candidate ID exposed to the agent.
+// This selects evidence only; the agent still links identities and chooses shots.
+function cameraIdentitySamples(observations:any[],bursts:any[]) {
+  const seen=new Set(bursts.flatMap(b=>b.observation.options.map((f:any)=>f.id))),samples:any[]=[];
+  let remaining=observations.filter(o=>o.options.some((f:any)=>!seen.has(f.id)));
+  while(remaining.length){
+    const o=remaining.reduce((best,o)=>o.options.filter((f:any)=>!seen.has(f.id)).length>best.options.filter((f:any)=>!seen.has(f.id)).length?o:best);
+    samples.push({observation:o,frame:Math.floor((o.unit.startFrame+o.unit.endFrame-1)/2)});
+    for(const f of o.options)seen.add(f.id);
+    remaining=remaining.filter(o=>o.options.some((f:any)=>!seen.has(f.id)));
+  }
+  return samples.sort((a,b)=>a.frame-b.frame);
+}
+
 async function planTemplateCameraPanels({sdk,guard,projectId,draftId,panels,units,words,fps,layout,note,work}:any):Promise<any[]> {
-  const observations=stabilizeCameraCandidates(units.map((unit:any)=>{
+  const observations=scopeCameraReferences(stabilizeCameraCandidates(units.map((unit:any)=>{
     const available=panels.filter((p:any)=>p.startFrame<=unit.startFrame&&p.endFrame>=unit.endFrame);
     return {unit,available,options:available.flatMap((p:any)=>cameraFaceOptions(p,unit.startFrame,unit.endFrame,fps))};
-  }),fps);
+  }),fps));
   note({plan:'stage',stage:'evidence-wait'});
   const core=await guard(sdk.call('getDraftCore',draftId));
   if(core?.owner?.projectId!==projectId) throw new Error('Draft project mismatch');
@@ -3574,10 +3878,43 @@ async function planTemplateCameraPanels({sdk,guard,projectId,draftId,panels,unit
     images.push({dataUrl:strip,name:`mouth-motion-${burst.frames[0]}.jpg`});
     motionEvidence.push({speakerId:burst.speakerId,startFrame:burst.startFrame,endFrame:burst.endFrame,text:burst.text,frames:hasScores?[burst.frames[0]]:burst.frames,candidateRows:o.options.map((f:any)=>f.id)});
   }
+  for(const sample of cameraIdentitySamples(observations,bursts)) {
+    const o=sample.observation,frameNumber=sample.frame;
+    note({plan:'stage',stage:'evidence-wait'});
+    const capture=await guard(visualWork(async()=>{work?.check();note({plan:'stage',stage:'evidence'});return sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:draftId,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,coordinate:'resolved',frames:o.available.map((p:any)=>({frameNumber,view:'camera_angle',videoIndex:p.videoIndex})),includeOverlays:false});}));
+    if(!capture?.data||!o.available.every((p:any)=>capture.frames?.some((f:any)=>f.videoIndex===p.videoIndex&&f.hasSourceImage)))throw new Error('Camera identity evidence is incomplete');
+    images.push({dataUrl:await cameraEvidenceSheet([capture],o.options),name:`identity-reference-${frameNumber}.jpg`});
+    sampleFrames.push(frameNumber);
+    motionEvidence.push({kind:'identity-reference-only',frames:[frameNumber],candidateRows:o.options.map((f:any)=>f.id)});
+  }
   const evidence=observations.map((o:any)=>({startFrame:o.unit.startFrame,endFrame:o.unit.endFrame,
     twoShotPairs:o.options.flatMap((a:any,i:number)=>o.options.slice(i+1).filter((b:any)=>a.panel.videoIndex===b.panel.videoIndex&&cameraHeadroom([a,b].map(q=>({xmin:q.x-q.w/2,xmax:q.x+q.w/2,ymin:q.headTop,ymax:q.headBottom})),a.panel.observation.W,a.panel.observation.H,layout.windowBottom-layout.windowTop).fit!=='contain').map((b:any)=>[a.id,b.id])),
+    twoShotFixedRanges:o.options.flatMap((a:any,i:number)=>o.options.slice(i+1).filter((b:any)=>a.panel.videoIndex===b.panel.videoIndex).flatMap((b:any)=>{
+      const range=cameraFixedCropRange([a,b].map(q=>({xmin:q.x-q.w/2,xmax:q.x+q.w/2,ymin:q.headTop,ymax:q.headBottom})),a.panel.observation.W,a.panel.observation.H,layout.windowBottom-layout.windowTop);
+      return range?[{pair:[a.id,b.id],...range}]:[];
+    })),
     cameras:o.available.map((p:any)=>p.videoIndex),candidates:o.options.map((f:any)=>({id:f.id,camera:f.videoIndex,x:Math.round(f.x/f.panel.observation.W*100),y:Math.round(f.y/f.panel.observation.H*100)}))}));
-  const prompt=`Choose the editorial plan for this short. Do not use tools or edit any Draft. Code will apply all crop geometry and layouts. Return JSON only: {shots:[{startFrame,endFrame,style:"speaker"|"wide"|"two-shot"|"stacked",primary:string|null,secondary:string|null,camera?:number,distinctPeople:boolean,confidence:number,reason:string}]}. Cover the entire playback exactly without gaps or overlaps. Choose when to change shot; unit boundaries are candidates, not mandatory cuts. Preserve brief acknowledgements without frantic switching. speaker shows one observed person; two-shot shows two DISTINCT people from the SAME camera and is allowed ONLY for a pair listed in twoShotPairs in EVERY covered evidence unit; an empty list means no pair fits the portrait window. If two people should remain visible but no two-shot fits, choose stacked when permitted by the template, otherwise choose an observed single speaker; stacked shows two distinct people; wide contains a whole available camera (camera index optional). cameraMode speaker forbids stacked; preserve is handled without this call. Use observed candidate IDs. If a face reference changes but you recognize the same person, list both IDs in speakerMap.candidateIds; code resolves these aliases within the SAME camera. You can then keep one shot across that reference change. Do not create editorial cuts for reference-number changes. IDs are conservative spatial references within one camera; they are NOT global person identities. A missing face does not renumber its neighbours. Match appearances across cameras yourself, and never assume identical suffixes indicate the same person. NEVER infer identity merely from transcript speaker IDs. A question and answer can belong to different people even when transcript labels match. The attached face sheets label candidate appearances. When runtime evidence is available a sheet has one moment; otherwise it has four consecutive moments. Audio-visual active-speaker evidence (Light-ASD AVA) is ${JSON.stringify(activeSpeakers)}. Scores are uncalibrated logits, NOT probabilities: positive supports audible speaking, negative opposes it, absent means unknown. Use sustained positive evidence to anchor speaker-to-person mapping, but retain uncertainty around transitions/overlap and outside measured windows. Several positives can be overlapping speakers. Never infer identity from window-local track IDs. You still decide reaction holds, camera choice and layouts according to the template. When consecutive frames are supplied, compare changing mouth articulation across ALL rows; a single open mouth, smile or nod is not speech evidence. First establish speaker-to-person correspondences from runtime audio-visual evidence and the sheets, then use the full transcript turns to direct the clip. Transcript labels are fallible, but do not discard them or hold the opening person over later substantive speakers without specific contrary evidence. When uncertain, say so; a listener hold must be described as a reaction, not as that person speaking. Prefer the camera where the selected person is clearly visible. Do not infer speech from who holds a prop or from dialogue meaning alone. Never duplicate one person from two angles. Do not invent frame-accurate turns from sparse samples. Template ${JSON.stringify(layout)}. Motion strips: ${JSON.stringify(motionEvidence)}. Full dialogue turns: ${JSON.stringify(cameraDialogueTurns(words))}. These are bounded samples, not full lip-sync verification. Return compact JSON: each shot reason at most 12 words, each appearance/uncertainty at most 12 words. Include a speakerMap array with {speakerId,candidateIds,appearance,evidenceFrames,confidence,uncertainty}; use only observed rows and supplied frames, or leave candidateIds empty if unresolved. Map speakers first, then plan COHERENT CONVERSATION PASSAGES, not one cut per transcript turn. A speaker map does not require cutting to every short utterance. For calm pacing, frequent short replies should favour a stable permitted two-person composition across the exchange when appropriate, instead of a sequence of sub-second singles. Hold brief acknowledgements. Cut single-person shots for sustained changes of the main speaker. Keep the plan concise; in each shot reason name the main speaker or the intentional reaction hold. Camera indices are zero-based. Candidate x/y are percentages. Evidence ${JSON.stringify(evidence)}`;
+  const prompt=`You are the editorial agent for shortform screen composition. Decide subjects, cameras, layouts and cuts. The app applies your plan; never edit or commit a Draft. Use supplied evidence first; use existing Selects SDK tools READ-ONLY only for a specific missing observation, not another broad survey.
+
+DECISIONS
+Interpret user intent and content. A speaker change does not require a cut. For calm pacing, hold brief acknowledgements and consider a stable allowed two-person composition for sustained dialogue. Reactions are valid editorial choices; describe them as reactions, not as speaking. Never infer speech from dialogue meaning, a prop, an open mouth or a smile alone. Missing evidence means unknown. If the requested result cannot be supported, return blocked with the concrete reason.
+
+OBSERVATIONS
+Reference IDs are local to an observation unit, NOT identities. A pan, zoom or source cut can put a different person at the same position. YOU connect appearances across units and cameras with subjectId; never group by the numeric prefix or transcript label. Every selected target needs refs covering EVERY overlapping observation unit, including partial overlaps. A shot [0,200) crossing [0,90), [90,180), [180,270) needs all three corresponding refs. Reference changes alone are not editorial cuts.
+Identity-reference-only sheets provide appearance, not speech evidence. Light-ASD AVA scores are uncalibrated logits: positive supports speaking, negative opposes it; absence means unknown. Anchor speaker mapping in sustained evidence and pictures. Transcript speaker labels can be wrong. Do not claim full lip-sync verification from sampled observations.
+
+EXECUTION CONTRACT
+Only choose supplied camera keys and observed refs. speaker has one target; stacked has two ordered panels with distinct subjects; two-shot has one camera and two distinct targets; wide contains its camera and requires template permission. No duplicate person from two angles. Code computes geometry, never substitutes subjects or layouts.
+Reuse compositionId when returning to the same ordered subjects/cameras/layout/source framing. A real source-layout change requires a new ID. Fixed geometry includes the whole composition, even across silence edits and reaction holds.
+twoShotPairs lists pairs that fit each unit. twoShotFixedRanges gives feasible crop-origin x/y intervals in source pixels. For a fixed two-shot, intersect matching pair intervals across the whole composition: maximum lower bound must not exceed minimum upper bound on either axis. Per-unit fit is insufficient after camera movement. If impossible, YOU choose another permitted layout/camera or report blocked. Do not insert tiny cuts to reset geometry.
+
+INPUT_JSON
+${JSON.stringify({version:1,draftId,durationFrames:Math.max(...units.map((u:any)=>u.endFrame)),draftFps:fps,capabilities:{layouts:['speaker','stacked','two-shot','wide'],cameras:[...new Set(observations.flatMap(o=>o.available.map((p:any)=>String(p.videoIndex))))],continuousTracking:false},template:layout,referenceImages:motionEvidence,activeSpeakers,turns:cameraDialogueTurns(words),observations:evidence})}
+
+OUTPUT_JSON
+${COMPOSITION_PLAN_SCHEMA}
+Cover the entire playback exactly with integer half-open frame ranges. Return compact valid JSON; keep reasons under 20 words. Do not return legacy style, primary, secondary or speakerMap fields. Per-panel sourcePane and closeUp are unsupported for this multicam input; omit them and use template crop settings.
+${reframingPreferencePrompt(layout)}`;
   note({plan:'template-evidence',units:units.length,sampleFrames,motionEvidence});
   return requestTemplateCameraPlan({sdk,guard,draftId,prompt,images,observations,layout,fps,note});
 }
@@ -3592,11 +3929,11 @@ async function requestTemplateCameraPlan({sdk,guard,draftId,prompt,images,observ
   let feedback='';
   for(let attempt=0;attempt<2;attempt++) {
     const started=Date.now(),requestPrompt=prompt+"\n"+reframingPreferencePrompt(layout)+feedback;
-    const audit:any={plan:'template-ai-attempt',runId,attempt,startedAt:new Date(started).toISOString(),prompt:requestPrompt,status:'running',timeoutMs:180000};
+    const audit:any={plan:'template-ai-attempt',runId,attempt,startedAt:new Date(started).toISOString(),prompt:requestPrompt,status:'running',timeoutMs:600000};
     await note(audit);
     note({plan:'stage',stage:'ai'});
     let answer:any;
-    try {answer=await askReframingAI({sdk,guard,note},{prompt:requestPrompt,images,timeoutMs:180000});}
+    try {answer=await askReframingAI({sdk,guard,note},{prompt:requestPrompt,images,timeoutMs:600000});}
     catch(e:any) {await note({...audit,status:'request-failed',finishedAt:new Date().toISOString(),elapsedMs:Date.now()-started,error:String(e.message||e)});throw e;}
     const response={...audit,status:'received',finishedAt:new Date().toISOString(),elapsedMs:Date.now()-started,responseText:String(answer.text||''),usage:answer.usage??null};
     await note(response);
@@ -3604,6 +3941,7 @@ async function requestTemplateCameraPlan({sdk,guard,draftId,prompt,images,observ
     try {
       plan=JSON.parse(response.responseText.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
       failurePhase='compile';
+      if(plan.version!==1||plan.draftId!==draftId)throw Error('[composition:schema] Return version 1 with the requested draftId');
       result=compileTemplateCameraPlan(plan,observations,layout,fps);
     } catch(e:any) {
       await note({...response,status:'validation-failed',failurePhase,error:String(e.message||e)});
@@ -3698,7 +4036,7 @@ function validateCameraEditPlan(plan:any,observations:any[],allowSplit:boolean):
     if(shot.secondary!=null && (!allowSplit||shot.primary===null||shot.secondary===shot.primary||shot.distinctPeople!==true)) throw new Error('Split requires permission and two distinct observed people.');
     for(const key of ['closeUp','faceY']) if(shot[key]!==undefined && (!Number.isFinite(shot[key])||shot[key]<(key==='closeUp'?2:25)||shot[key]>(key==='closeUp'?12:65))) throw new Error('Crop settings must be closeUp 2-12 and faceY 25-65.');
     for(const o of observations.filter(o=>o.unit.startFrame<shot.endFrame&&o.unit.endFrame>shot.startFrame)) {
-      for(const id of [shot.primary,shot.secondary].filter(id=>id!=null)) if(!o.options.some(f=>f.id===id)) throw new Error('Selected person is not observed throughout this shot; split at the evidence boundary or use null.');
+      for(const id of [shot.primary,shot.secondary].filter(id=>id!=null)) if(!o.options.some(f=>f.id===id)) throw new Error(`Selected person is not observed throughout this shot: ${id} has no mapped reference in [${o.unit.startFrame},${o.unit.endFrame}). Available: ${o.options.map(f=>f.id).join(', ')}. Link the matching observed person in speakerMap for every overlapping unit, or choose a supported camera. Do not create a cut merely for a reference change.`);
     }
     cursor=shot.endFrame;
   }
@@ -5521,7 +5859,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       const preview=await guard(visualWork(async()=>{work.check();await guard(Promise.resolve());note({plan:'stage',stage:'verify'});return sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:draftId,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,coordinate:'resolved',frames:batch.map(frameNumber=>({frameNumber,view:'timeline_composite'})),includeOverlays:true});}));
       if(!preview?.data||!batch.every(f=>preview.frames?.some((r:any)=>r.frameNumber===f&&r.hasSourceImage))) throw new Error('Template preview did not render every requested frame');
     }
-    const report={draftId,status:'complete',summary:'AI selected template camera layouts; code applied crops and silent camera panels.',verifiedFrames:frames,limitations:['Bounded mouth-motion strips and transcript labels; no audio-based speaker verification.','Preview frames were rendered; this is not an independent visual quality approval.']};
+    const report={draftId,status:'complete',summary:'AI selected template camera layouts; code applied crops and silent camera panels.',verifiedFrames:frames,limitations:['Bounded audio-visual active-speaker samples and transcript labels; not continuous identity or lip-sync verification.','Preview frames were rendered; this is not an independent visual quality approval.']};
     note({plan:'template-reframe-result',draftId,report});return report;
   }
 

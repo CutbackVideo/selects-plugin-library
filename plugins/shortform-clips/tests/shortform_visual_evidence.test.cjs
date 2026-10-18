@@ -31,7 +31,7 @@ test('bounded source evidence and targeted review',{skip:!modules},async t=>{
   assert.deepEqual(facts.words.map(w=>[w.source,w.sourceStartFrame,w.sourceEndFrame]),[[0,100,108],[0,115,127],[1,5,15]]);
   assert.deepEqual(facts.turns.map(t=>[t.source,t.startFrame,t.endFrame,t.text]),[[0,0,20,'one two'],[1,20,30,'three']]);
   assert.equal(facts.faces[0].source,1);assert.equal(facts.faces[0].id,'f');
-  assert.equal(facts.words[0].wordId,undefined);assert.equal(facts.faces[0].box,undefined);
+  assert.equal(facts.words[0].wordId,undefined);assert.deepEqual(facts.faces[0].box,faces[0].box);assert.equal(facts.mapping.length,3);
   assert.equal(words[0].wordId,'w1');assert.ok(faces[0].box);
  });
  await t.test('real source cut breaks identity strips while articulation within each layout does not',()=>{

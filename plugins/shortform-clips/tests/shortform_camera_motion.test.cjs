@@ -2,10 +2,42 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('multicam motion evidence and stable references',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),m={exports:{}};
- new Function('require','module','exports',dep('esbuild').transformSync(fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8')+'\nexport {stabilizeCameraCandidates,cameraMotionBursts,cameraDialogueTurns,cameraReviewFrames,compileTemplateCameraPlan};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
+ new Function('require','module','exports',dep('esbuild').transformSync(fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8')+'\nexport {cameraFixedCropRange,cameraHeadroom,scopeCameraReferences,cameraIdentitySamples,stabilizeCameraCandidates,cameraMotionBursts,cameraDialogueTurns,cameraReviewFrames,compileTemplateCameraPlan};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
  const panel={videoIndex:0,resourceId:'r',startFrame:0,endFrame:300,sourceStartSeconds:0,playbackSpeed:{numerator:1,denominator:1},observation:{W:1920,H:1080}};
  const face=x=>({id:'local',panel,x,y:400,w:150,h:180,headTop:220,headBottom:540});
  const observations=[{unit:{startFrame:0,endFrame:100},available:[panel],options:[face(300),face(1000)]},{unit:{startFrame:100,endFrame:200},available:[panel],options:[face(1010)]},{unit:{startFrame:200,endFrame:300},available:[panel],options:[face(310),face(1005)]}];
+ await t.test('fixed two-shot feasibility detects a pan that fits individually but not together',()=>{
+  const box=x=>({xmin:x,xmax:x+100,ymin:300,ymax:500});
+  const a=[box(400),box(650)],b=[box(800),box(1050)];
+  const first=m.exports.cameraFixedCropRange(a,1920,1080,1920),next=m.exports.cameraFixedCropRange(b,1920,1080,1920);
+  assert.ok(first&&next);
+  assert.ok(Math.max(first.x[0],next.x[0])>Math.min(first.x[1],next.x[1]));
+  assert.equal(m.exports.cameraHeadroom([...a,...b],1920,1080,1920).fit,'contain');
+  const close=[box(410),box(660)],stable=m.exports.cameraFixedCropRange(close,1920,1080,1920);
+  assert.ok(Math.max(first.x[0],stable.x[0])<=Math.min(first.x[1],stable.x[1]));
+  assert.notEqual(m.exports.cameraHeadroom([...a,...close],1920,1080,1920).fit,'contain');
+  assert.equal(m.exports.cameraFixedCropRange([],1920,1080,1920),null);
+ });
+ await t.test('a camera pan cannot reuse one positional reference as a persistent person',()=>{
+  const first={unit:{startFrame:0,endFrame:100},available:[panel],options:[{...face(300),id:'0:0'}]};
+  const next={unit:{startFrame:100,endFrame:200},available:[panel],options:[{...face(300),id:'0:0'}]};
+  const scoped=m.exports.scopeCameraReferences([first,next]);
+  assert.notEqual(scoped[0].options[0].id,scoped[1].options[0].id);
+  assert.equal(first.options[0].id,'0:0');
+  const shot={startFrame:0,endFrame:200,style:'speaker',primary:scoped[0].options[0].id,confidence:.8};
+  assert.throws(()=>m.exports.compileTemplateCameraPlan({shots:[shot]},scoped,{windowTop:0,windowBottom:1920},30),/not observed/);
+  const linked={shots:[shot],speakerMap:[{candidateIds:scoped.map(o=>o.options[0].id)}]};
+  assert.equal(m.exports.compileTemplateCameraPlan(linked,scoped,{windowTop:0,windowBottom:1920},30).length,2);
+ });
+ await t.test('identity sheets cover candidates missed by dialogue samples without inventing identity',()=>{
+  const obs=[['0:0'],['0:0','1:2','2:2'],['0:5','1:2','2:2'],['0:0']].map((ids,i)=>({unit:{startFrame:i*30,endFrame:(i+1)*30},options:ids.map(id=>({id}))}));
+  const bursts=[{observation:obs[0]}],samples=m.exports.cameraIdentitySamples(obs,bursts);
+  const covered=new Set([...bursts.map(b=>b.observation),...samples.map(s=>s.observation)].flatMap(o=>o.options.map(f=>f.id)));
+  assert.deepEqual([...covered].sort(),['0:0','0:5','1:2','2:2']);assert.equal(samples.length,1);
+  assert.ok(samples.every(s=>s.frame>=s.observation.unit.startFrame&&s.frame<s.observation.unit.endFrame));
+  assert.deepEqual(m.exports.cameraIdentitySamples(obs,obs.map(observation=>({observation}))),[]);
+  assert.deepEqual(m.exports.cameraIdentitySamples([],[]),[]);
+ });
  await t.test('a disappearing neighbour does not renumber or move the remaining person',()=>{
   m.exports.stabilizeCameraCandidates(observations,30);
   assert.deepEqual(observations.map(o=>o.options.map(f=>f.id)),[['0:0','0:1'],['0:1'],['0:0','0:1']]);
