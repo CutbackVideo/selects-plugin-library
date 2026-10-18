@@ -5,14 +5,14 @@ import {loadPanelOperation} from './panel_operation.mjs';
 import {checkScriptTypes} from './run_script_types.mjs';
 
 const {importMusicScript, addMusicScript} = loadPanelOperation('music');
-function fixture({end = 900, timelineEnd = end, fileTree = [], folders, existingClips = []} = {}) {
+function fixture({end = 900, timelineEnd = end, pictureTrackKind = 'main', fileTree = [], folders, existingClips = []} = {}) {
   const calls = [];
   let projectWrite = false;
   let seconds = 60;
   let blankFrames = timelineEnd;
   let nextId = 100;
   const clips = [
-    ...(end > 0 ? [{clipId: 1, resourceId: 'picture', trackKind: 'main', startFrame: 0, endFrame: end}] : []),
+    ...(end > 0 ? [{clipId: 1, resourceId: 'picture', trackKind: pictureTrackKind, startFrame: 0, endFrame: end}] : []),
     ...existingClips.map((clip, index) => ({clipId: index + 2, trackId: 'audio', ...clip})),
   ];
   const flatten = rows => rows.flatMap(row => row.type === 'dir' ? flatten(row.children) : [row]);
@@ -71,6 +71,13 @@ test('adds editable audio over the picture and commits it', async () => {
 test('a short song limits the placement duration', async () => {
   const f = fixture(); await f.run('song.mp3', 5.1);
   assert.equal(f.calls[1][1].over.endFrame, 153);
+});
+test('fits the first song to overlay-only picture while preserving its position', async () => {
+  const f = fixture({end: 90, pictureTrackKind: 'video'});
+  const before = {...f.clips[0]};
+  await f.run('song.mp3', 167);
+  assert.equal(f.clips.find(clip=>clip.resourceId === 'music').endFrame, 90);
+  assert.deepEqual(f.clips[0], before);
 });
 test('an empty Draft adds the full song without requiring video', async () => {
   const f = fixture({end: 0});
@@ -159,4 +166,23 @@ test('the generated edit typechecks against the available SDK', () => {
     {name: 'Import music', script: importMusicScript('project', 'song.mp3')},
     {name: 'Add music', script: addMusicScript('project', 'draft', 'music', 60, ['music'])},
   ]);
+});
+
+test('appends Artlist after Epidemic music without moving the earlier clip', async () => {
+  const f = fixture({fileTree: [{type: 'file', path: '/UserData/Music/mcp/account/audio/old.mp3', resourceId: 'old-music'}],
+    existingClips: [{resourceId: 'old-music', trackKind: 'audio', startFrame: 300, endFrame: 900}]});
+  await f.run('/UserData/Music/artlist/account/downloads/track.mp3', 5);
+  assert.equal(f.clips.find(clip => clip.resourceId === 'old-music').startFrame, 300);
+  assert.equal(f.clips.find(clip => clip.resourceId === 'music').startFrame, 900);
+});
+
+test('imports WAV sound effects and appends them after MP3 music', async () => {
+  const old = {resourceId: 'old-music', trackKind: 'audio', startFrame: 300, endFrame: 900};
+  const f = fixture({fileTree: [{type: 'file', path: '/UserData/Music/mcp/account/audio/old.mp3', resourceId: 'old-music'}], existingClips: [old]});
+  await f.run('/UserData/Music/artlist/account/downloads/effect.wav', 0.6);
+  assert.equal(f.calls[0][1].paths[0], '/UserData/Music/artlist/account/downloads/effect.wav');
+  const added = f.clips.find(clip => clip.resourceId === 'music');
+  assert.equal(added.startFrame, 900);
+  assert.equal(added.endFrame, 918);
+  assert.deepEqual(f.clips.find(clip => clip.resourceId === old.resourceId), {clipId: 2, trackId: 'audio', ...old});
 });
