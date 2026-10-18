@@ -2900,7 +2900,7 @@ function normalizeReframeWords(words:any[]):any[] {
 // Delegate the complete reframing turn to the existing Selects Agent runtime.
 async function askReframingAI({sdk,guard,note}: any, request: any) {
   try {
-    const response = await guard(sdk.askAI(request));
+    const response = await guard(sdk.askAI({...request,advanced:true}));
     note({plan:"reframe-usage",usage:response.usage ?? null});
     return response;
   } catch (error) {
@@ -4064,7 +4064,7 @@ async function directCameraPanels({sdk,guard,projectId,draftId,panels,units,fps,
     for(const n of [0,captures.length-1]) images.push({dataUrl:'data:image/jpeg;base64,'+captures[n].data,name:`camera-context-${n}.jpg`});
     const candidates=options.map(o=>({id:o.id,camera:o.videoIndex,x:Math.round(o.x/o.panel.observation.W*100),y:Math.round(o.y/o.panel.observation.H*100)}));
     const prompt=`Direct this short-form conversation. Image 1 has one row per candidate, labeled with its exact candidate ID. Each row has EIGHT ENLARGED FACE CLOSE-UPS in chronological order during this unit. Compare actual mouth shape changes across the row; hand gestures alone are not speaking evidence. Images 2 and 3 supply the opening and closing camera context (V1 means camera 0, V2 means camera 1, etc). Choose the person actually speaking from mouth changes across frames. Transcript speaker labels may combine different people; do not treat them as identity evidence. Do not confuse a listener nodding, smiling or looking down with speaking. Prefer a tight source camera over a wide showing the same person. Never show the same person twice. Judge this unit independently of previous camera choices. A closed-mouth smile, a laugh, or a listener's small lip movements are not sustained speech. Return confidence .65-.79 for a probable speaker supported by visible articulation, >=.8 only when clear; return null below .65. Default is ONE person filling the video window. A second person is justified only by clearly overlapping speech or a visibly meaningful reaction in THIS unit, not merely being present or alternating normally. If uncertain, primary=null, confidence=0. No tools, no edits. Return only JSON {primary:candidateId|null,confidence:0..1,secondary:candidateId|null,distinctPeople:boolean,splitConfidence:0..1,reason:'visible-reaction'|'overlapping-speech'|'speaker',evidence:string}. Unit transcript=${JSON.stringify(unit.text)}. Candidates=${JSON.stringify(candidates)}. User style=${String(instructions||'')}.`;
-    const response=await guard(sdk.askAI({prompt,images,timeoutMs:120000}));
+    const response=await guard(sdk.askAI({prompt,images,advanced:true,timeoutMs:120000}));
     const text=String(response.text||'').replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'');
     let answer:any;try{answer=JSON.parse(text);}catch{throw new Error('Camera direction returned invalid JSON; resume to retry.');}
     observations.push({unit,options,answer,available});
@@ -4075,7 +4075,7 @@ async function directCameraPanels({sdk,guard,projectId,draftId,panels,units,fps,
   const prompt=`You are the editor of this complete short-form clip. Produce the final camera edit using the visual observations below. Choose shot boundaries in integer playback frames, the subject, and whether a second distinct person meaningfully improves the scene. Default to the speaking person; do not stack cameras merely because they exist. You control split duration, frequency and timing: there is NO split quota or mandatory cooldown. Consider continuity and available window height ${windowH}px; avoid cramped splits when a large face communicates better. Visual observations are fallible: do not invent speaker evidence from transcript IDs. Candidate IDs are local camera/position references, not guaranteed identities across cuts; consult each observation. Use primary:null for an uncertain intact-camera view. Cover the entire clip exactly without gaps or overlaps. You may cut within an observation interval, but avoid precise speaker-switch claims unsupported by sampled evidence. User settings: ${JSON.stringify({allowSplit,closeUp,faceY,minShotSeconds,instructions})}. closeUp means output width in face widths (larger is wider); faceY is face position in percent from the top. Respect these defaults; optional per-shot closeUp/faceY overrides require a visual/editorial reason in reason. minShotSeconds is a pacing preference, not a hard constraint. No tools or edits. Return only JSON {shots:[{startFrame,endFrame,primary:string|null,secondary:string|null,distinctPeople:boolean,closeUp?:number,faceY?:number,reason:string}]}. Evidence: ${JSON.stringify(evidence)}`;
   let shots:any[]=[],feedback='';
   for(let attempt=0;attempt<2;attempt++) {
-    const response=await guard(sdk.askAI({prompt:prompt+feedback,timeoutMs:120000}));
+    const response=await guard(sdk.askAI({prompt:prompt+feedback,advanced:true,timeoutMs:120000}));
     try {
       const plan=JSON.parse(String(response.text||'').replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
       shots=validateCameraEditPlan(plan,observations,allowSplit);break;
@@ -6134,6 +6134,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         const r: any = await guard(
           // Asked like the app's other AI asks. A model that cannot read images fails here, and the first guess stands.
           sdk.askAI({
+            advanced: true,
             prompt: prompt + '\nAlso return confidence: {"1": 0.0}, one value from 0 to 1 for each talker row. Use 0 (unknown) unless visible mouth motion clearly supports the identification.\nAdditional framing preferences (do not infer identity from these): ' + String(L.reframeInstructions || ""),
             images: [
               { dataUrl: encode(s1.cv), name: "talkers.jpg" },
@@ -6332,7 +6333,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       const calls = [...(job.sharedUsageCalls || []), {stage,usage:null}];
       const index = calls.length - 1;
       await persist({sharedUsageCalls:calls});
-      const response = await guard(sdk.askAI(request));
+      const response = await guard(sdk.askAI({...request,advanced:true}));
       calls[index] = {stage,usage:response.usage ?? null};
       // Persist before parsing: invalid model output still consumed tokens.
       await persist({sharedUsageCalls:calls});
