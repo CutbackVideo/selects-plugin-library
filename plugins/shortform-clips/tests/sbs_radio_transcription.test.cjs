@@ -20,11 +20,11 @@ test('SBS transcript readiness', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MODU
   visit(ast);
   assert.ok(waitFunction && resolver);
   const extra = `\nexport {SCRIPT_SOURCE_READER,SCRIPT_TRANSCRIPT};
-export function waitForTranscript(deps) {
+export function waitForTranscript(deps, requireVisual=false) {
  const {script,guard,sleep,setStatus,setSub,S}=deps;
  const projectId='project';const resolver=${resolver};
  ${waitFunction}
- return ensureTranscriptReady('r1','source.mp4');
+ return ensureTranscriptReady('r1','source.mp4',requireVisual);
 }`;
   const loaded = {exports:{}};
   new Function('require','module','exports',esbuild.transformSync(source+extra,{loader:'tsx',format:'cjs'}).code)(dependency,loaded,loaded.exports);
@@ -62,7 +62,7 @@ export function waitForTranscript(deps) {
   await t.test('refuses to invent a frame rate when early source metadata is missing',async()=>{
     await assert.rejects(read({...project,sourceFiles:async()=>({fileTree:[]})}),/metadata is not available/);
   });
-  const wait = async (states,{active=false,startError=null,cancel=false}={})=>{
+  const wait = async (states,{active=false,startError=null,cancel=false,requireVisual=false}={})=>{
     let index=0,started=0,sleeps=0;
     const p={
       resources:async()=>[{resourceId:'r1',name:'source.mp4',...states[Math.min(index++,states.length-1)]}],
@@ -75,7 +75,7 @@ export function waitForTranscript(deps) {
       sleep:async()=>{if(++sleeps>3)throw Error('Waited after transcript was ready');},
       setStatus:()=>{},setSub:()=>{},
       S:{confirmCredits:'confirm',waitingAnalysis:'waiting',confirmMissed:'confirmation missed',analysisFailed:s=>'analysis failed '+s},
-    });
+    },requireVisual);
     return {started,sleeps};
   };
   await t.test('starts immediately for ready transcripts, including later visual-analysis failure',async()=>{
@@ -87,6 +87,15 @@ export function waitForTranscript(deps) {
       {status:'analyzing',hasAnalysis:false,hasTranscription:false},
       {status:'analyzing',hasAnalysis:false,hasTranscription:true},
     ],{active:true}),{started:0,sleeps:1});
+  });
+  await t.test('field footage waits for visual analysis even when speech is ready',async()=>{
+    assert.deepEqual(await wait([
+      {status:'analyzing',hasTranscription:true,hasAnalysis:false},
+      {status:'analyzingSucceeded',hasTranscription:true,hasAnalysis:true},
+    ],{active:true,requireVisual:true}),{started:0,sleeps:1});
+    assert.deepEqual(await wait([{status:'analyzingSucceeded',hasTranscription:false,hasAnalysis:true}],{requireVisual:true}),{started:0,sleeps:0});
+    await assert.rejects(wait([{status:'analyzing',hasTranscription:true},{status:'analyzingFailed',hasTranscription:true}],{active:true,requireVisual:true}),/analysis failed/);
+    await assert.rejects(wait([{status:'analyzing',hasTranscription:true}],{active:true,requireVisual:true,cancel:true}),/cancelled/);
   });
   await t.test('requests analysis only when missing, and preserves denial, failure and cancellation',async()=>{
     assert.deepEqual(await wait([
