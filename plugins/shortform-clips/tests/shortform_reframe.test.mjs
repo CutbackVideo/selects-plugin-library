@@ -372,10 +372,10 @@ test('user cancellation propagates without saving a fallback',async()=>{
   assert.equal(p.saved.length,0);
 });
 
-const buildLiteral = panel.match(/^const RADIO_SCRIPT_BUILD: string = SCRIPT_SOURCE_READER \+ (".*");$/m);
+const buildLiteral = panel.match(/^const RADIO_SCRIPT_BUILD: string = SCRIPT_SOURCE_READER \+ SCRIPT_FIELD_RANGES \+ (".*");$/m);
 assert.ok(buildLiteral);
 const build = JSON.parse(buildLiteral[1]);
-const framing = build.slice(build.indexOf('if (Array.isArray(P.reframe)'), build.indexOf('\nconst mainClips ='));
+const framing = build.slice(build.indexOf('if (P.contentMode !== "field" && Array.isArray(P.reframe)'), build.indexOf('\nconst mainClips ='));
 test('a wordless tail inherits the previous shot instead of reverting to the fixed crop',async()=>{
   const transforms = [];
   const clips = [{startFrame:0,endFrame:30},{startFrame:30,endFrame:60}];

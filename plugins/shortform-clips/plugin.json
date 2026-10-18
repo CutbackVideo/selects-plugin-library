@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "shortform-clips",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "templatePackInstall": 1,
   "name": "Shortform Clips",
   "summary": "Create editable vertical clips using separately installed template packs.",
@@ -17,7 +17,7 @@
     "platforms": [
       "macOS"
     ],
-    "selects": "Requires the Panel SDK and local file service, editable Draft graphics and captions. Template API 1. Speaker framing requires selects-ai-runtime; otherwise face-following templates use the full picture. The picture check of face-following templates also uses selects.media.startFFmpeg, Project sourceFiles, selects.files.readRange and askAI with images; without them the first guess stands. Transcribed sources can start before visual analysis completes."
+    "selects": "Requires the Panel SDK and local file service, editable Draft graphics and captions. Template API 1. Speaker framing requires selects-ai-runtime; otherwise face-following templates use the full picture. The picture check of face-following templates also uses selects.media.startFFmpeg, Project sourceFiles, selects.files.readRange and askAI with images; without them the first guess stands. Transcribed sources can start before visual analysis completes. Field footage requires completed video analysis, resource.searchScenes and resource.captureFrames with display in the agent SDK."
   },
   "localized": {
     "en": {

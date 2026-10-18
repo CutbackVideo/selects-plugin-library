@@ -39,12 +39,14 @@ test('draft results preserve descriptions and follow the current draft', {skip: 
   await t.test('empty source validation leaves previous results and pending restoration intact',async()=>{
     const start=source.indexOf('  async function run(resume?: any) {');
     const prefix=source.slice(start+'  async function run(resume?: any) {'.length,source.indexOf('    setBusy(true);',start));
-    const check=new Function('env',`return async function(resume){const {overlayLock,busy,packLock,setError,setWarn,setDrafts,setInfo,projectId,templates,mode,url,pick,S,K,resultsRevision}=env;${prefix};return 'valid';}`);
+    const check=new Function('env',`return async function(resume){const {overlayLock,busy,packLock,setError,setWarn,setDrafts,setInfo,projectId,templates,mode,url,pick,S,K,F,contentMode,program,resultsRevision}=env;${prefix};return 'valid';}`);
     const saved=[{draftId:'keep'}];let visible=saved,error='',clears=0;
-    const env={overlayLock:{current:false},busy:false,packLock:{current:false},setError:x=>error=x,setWarn:()=>{},setDrafts:x=>{visible=x;clears++;},setInfo:()=>{},projectId:'project',templates:[{}],mode:'youtube',url:'',pick:null,S:{needUrl:'Need URL',needPick:'Need video',noProject:'Need project'},K:{empty:'Need templates'},resultsRevision:{current:2}};
+    const env={overlayLock:{current:false},busy:false,packLock:{current:false},setError:x=>error=x,setWarn:()=>{},setDrafts:x=>{visible=x;clears++;},setInfo:()=>{},projectId:'project',templates:[{id:'template'}],mode:'youtube',contentMode:'speech',program:'auto',url:'',pick:null,S:{needUrl:'Need URL',needPick:'Need video',noProject:'Need project'},K:{empty:'Need templates'},F:{template:'Choose template'},resultsRevision:{current:2}};
     await check(env)();assert.equal(error,'Need URL');assert.equal(visible,saved);assert.equal(clears,0);assert.equal(env.resultsRevision.current,2);
     await check({...env,mode:'project'})();assert.equal(error,'Need video');assert.equal(visible,saved);
     assert.equal(await check({...env,url:'https://youtube.com/watch?v=example'})(),'valid');assert.equal(visible,saved);
+    await check({...env,contentMode:'field',mode:'project',pick:'video'})();assert.equal(error,'Choose template');assert.equal(visible,saved);
+    assert.equal(await check({...env,contentMode:'field',program:'template',mode:'project',pick:'video'})(),'valid');
   });
   await t.test('fixed rubric rejects invented or malformed scores and sorts without changing build order',()=>{
     assert.match(CLIP_SCORE_PROMPT,/Hook:.*Flow:.*Payoff:/s);

@@ -10,8 +10,11 @@ are delivered separately as template packs. The app has no bundled customer temp
 2. In **Templates**, choose **+ Add templates** at the bottom of the template
    picker, paste the link you received, and click **Add**. With no templates yet,
    use the **Add templates** button.
-3. Select a source, a template (or automatic detection), and the clip count in
-   **Make clips**. Add optional instructions and create the clips.
+3. Select a source, footage type, template and clip count in **Make clips**.
+   **Conversation** uses speech and supports automatic template detection.
+   **Field footage** uses pictures and requires an explicit template.
+   Add optional instructions and create the clips. Videos shorter than two
+   minutes are selectable too.
 4. In **My clips**, review one clip per row, with a saved preview, title and description.
    Hover or focus a preview to reveal Open; click it to open the Draft. The current
    Draft has a dimmed preview and a Viewing badge. Use **Saved results** to switch between runs in this Project; the latest
@@ -21,7 +24,7 @@ are delivered separately as template packs. The app has no bundled customer temp
    Later clips appear as they are saved; subsequent updates do not override your
    tab or history selection. Export through **Handoff > Export**.
 
-New clip selections include transcript-based Hook, Flow and Payoff ratings (0-10).
+New Conversation clip selections include transcript-based Hook, Flow and Payoff ratings (0-10).
 The app computes their equal-weight average and sorts each run by that score;
 the three component scores appear below the overall score. Hover or focus the
 info icon beside AI score for its reason. These are content recommendations, not view
@@ -63,6 +66,28 @@ at several moments decide who talks, and each face's close-up alternatives (1 to
 without another person's body or a set seam at the edges. The frames come from
 Selects' bundled FFmpeg. Any failure keeps the first guess, and the choices are
 recorded in the job's `reframeLog`.
+
+## Field footage
+
+Use **Field footage** for location coverage, visible action and silent footage.
+The app waits for full video analysis, then the AI uses the existing semantic scene
+index through `resource.searchScenes()` and inspects actual pictures through
+`captureFrames()` and `display()`. Search needs the corresponding SDK methods
+in the installed Selects version. Partial index coverage is reported; numeric
+frame inspection covers unindexed scenes. Search/analysis errors remain errors.
+
+The selected scene ranges stay intact, with frame-aligned boundaries. A boundary
+inside a spoken word expands to retain that word; it does not jump across silence
+to another statement. The app preserves ambient sound and disables filler/silence
+removal and speaker following for these runs. The complete source picture fits
+inside the selected template's video window. Existing editable headlines, captions
+where speech is available, saved results and Draft export are reused. Visual plans
+include observed-frame descriptions and remain **Unrated** by the speech rubric.
+Saved runs without a footage type retain Conversation behavior.
+
+This mode selects ranges from one project video or imported YouTube video. It
+does not add multi-source assembly or a finished-Draft input. Selection quality
+still needs editorial review, especially for factual news headlines.
 
 ## Pack updates and local edits
 
@@ -116,7 +141,7 @@ change, not executable code in a pack.
 ## Verification
 
 ```sh
-SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test plugins/shortform-clips/tests/shortform_packs.test.cjs plugins/shortform-clips/tests/shortform_results.test.cjs plugins/shortform-clips/tests/shortform_reframe.test.mjs plugins/shortform-clips/tests/sbs_radio_templates.test.cjs plugins/shortform-clips/tests/sbs_radio_overlay.test.cjs plugins/shortform-clips/tests/sbs_radio_transcription.test.cjs
+SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test plugins/shortform-clips/tests/*.test.cjs plugins/shortform-clips/tests/*.test.mjs
 python3 tools/plugin_files.py check shortform-clips
 python3 tools/check_public.py
 ```
