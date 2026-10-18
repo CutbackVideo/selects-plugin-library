@@ -1,0 +1,441 @@
+{
+  "shots": [
+    {
+      "startFrame": 0,
+      "endFrame": 271,
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "style": "speaker",
+      "compositionId": "single-center-man-opening",
+      "subjects": [
+        {
+          "faceId": "F0_0_0",
+          "faceIds": [
+            "F0_0_1",
+            "F0_0_2"
+          ],
+          "closeUp": 4.5
+        }
+      ],
+      "reason": "Opening is a single centered man; keep stable speaker framing through brief offscreen responses."
+    },
+    {
+      "startFrame": 271,
+      "endFrame": 421,
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "style": "stacked",
+      "compositionId": "stacked-woman-center-man-exchange",
+      "subjects": [
+        {
+          "faceId": "F0_0_4",
+          "faceIds": [
+            "F0_0_6"
+          ],
+          "left": 0,
+          "right": 0.333333,
+          "closeUp": 4.5
+        },
+        {
+          "faceId": "F0_0_3",
+          "faceIds": [
+            "F0_0_7"
+          ],
+          "left": 0.333333,
+          "right": 0.666667,
+          "closeUp": 4.5
+        }
+      ],
+      "reason": "After the exact layout cut, substantive back-and-forth supports stable stacked visibility for both recurring speakers."
+    },
+    {
+      "startFrame": 421,
+      "endFrame": 594,
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "style": "speaker",
+      "compositionId": "single-left-woman-closing",
+      "subjects": [
+        {
+          "faceId": "F0_0_9",
+          "faceIds": [
+            "F0_0_6",
+            "F0_0_13"
+          ],
+          "left": 0,
+          "right": 0.333333,
+          "closeUp": 4.5
+        }
+      ],
+      "reason": "The woman owns the sustained closing passage; preserve fixed left-pane framing."
+    }
+  ],
+  "catalog": [
+    {
+      "id": "F0_0_0",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 5654,
+      "draftFrame": 44,
+      "draftStartFrame": 0,
+      "draftEndFrame": 88.79999999999927,
+      "box": {
+        "xmin": 917.0107727050781,
+        "ymin": 296.9220199584961,
+        "xmax": 1112.9971389770508,
+        "ymax": 552.0323867797852
+      },
+      "envelope": {
+        "xmin": 912.4049377441406,
+        "xmax": 1132.6268920898438,
+        "ymin": 278.14036560058594,
+        "ymax": 571.6928558349609
+      },
+      "sourceStartFrame": 5610,
+      "sourceEndFrame": 5699,
+      "trackId": "0:window-0:0"
+    },
+    {
+      "id": "F0_0_1",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 5744,
+      "draftFrame": 134,
+      "draftStartFrame": 90,
+      "draftEndFrame": 178.79999999999927,
+      "box": {
+        "xmin": 920.1463623046875,
+        "ymin": 279.3354034423828,
+        "xmax": 1112.0226745605469,
+        "ymax": 530.7503128051758
+      },
+      "envelope": {
+        "xmin": 900.7162170410156,
+        "xmax": 1127.948387145996,
+        "ymin": 275.94383239746094,
+        "ymax": 551.5309524536133
+      },
+      "sourceStartFrame": 5700,
+      "sourceEndFrame": 5789,
+      "trackId": "0:window-75:1"
+    },
+    {
+      "id": "F0_0_2",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 5834,
+      "draftFrame": 224,
+      "draftStartFrame": 180,
+      "draftEndFrame": 268.7999999999993,
+      "box": {
+        "xmin": 830.6369934082031,
+        "ymin": 264.99188232421875,
+        "xmax": 1018.841869354248,
+        "ymax": 510.7942428588867
+      },
+      "envelope": {
+        "xmin": 815.3138122558594,
+        "xmax": 1115.2559280395508,
+        "ymin": 251.33349609375,
+        "ymax": 548.8894500732422
+      },
+      "sourceStartFrame": 5790,
+      "sourceEndFrame": 5879,
+      "trackId": "0:window-150:2"
+    },
+    {
+      "id": "F0_0_3",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 5924,
+      "draftFrame": 314,
+      "draftStartFrame": 270,
+      "draftEndFrame": 358.7999999999993,
+      "box": {
+        "xmin": 847.5018310546875,
+        "ymin": 238.78791046142578,
+        "xmax": 1040.8537673950195,
+        "ymax": 495.7689743041992
+      },
+      "envelope": {
+        "xmin": 833.5576171875,
+        "xmax": 1065.4003715515137,
+        "ymin": 230.2836456298828,
+        "ymax": 545.7188415527344
+      },
+      "sourceStartFrame": 5880,
+      "sourceEndFrame": 5969,
+      "trackId": "0:window-225:3"
+    },
+    {
+      "id": "F0_0_4",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 5924,
+      "draftFrame": 314,
+      "draftStartFrame": 271.1999999999998,
+      "draftEndFrame": 358.7999999999993,
+      "box": {
+        "xmin": 244.7830352783203,
+        "ymin": 257.2638931274414,
+        "xmax": 432.5455513000488,
+        "ymax": 477.95999908447266
+      },
+      "envelope": {
+        "xmin": 243.67398834228516,
+        "xmax": 442.05965423583984,
+        "ymin": 254.98233032226562,
+        "ymax": 518.8505859375
+      },
+      "sourceStartFrame": 5881,
+      "sourceEndFrame": 5969,
+      "trackId": "0:window-225:4"
+    },
+    {
+      "id": "F0_0_5",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 5924,
+      "draftFrame": 314,
+      "draftStartFrame": 271.1999999999998,
+      "draftEndFrame": 358.7999999999993,
+      "box": {
+        "xmin": 1574.9447021484375,
+        "ymin": 302.66139221191406,
+        "xmax": 1774.0964126586914,
+        "ymax": 564.3634872436523
+      },
+      "envelope": {
+        "xmin": 1566.0736083984375,
+        "xmax": 1782.1941146850586,
+        "ymin": 302.1499786376953,
+        "ymax": 571.6677474975586
+      },
+      "sourceStartFrame": 5881,
+      "sourceEndFrame": 5969,
+      "trackId": "0:window-225:5"
+    },
+    {
+      "id": "F0_0_6",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 6014,
+      "draftFrame": 404,
+      "draftStartFrame": 360,
+      "draftEndFrame": 448.7999999999992,
+      "box": {
+        "xmin": 243.0937042236328,
+        "ymin": 268.26326751708984,
+        "xmax": 424.6604232788086,
+        "ymax": 504.82166290283203
+      },
+      "envelope": {
+        "xmin": 236.8007354736328,
+        "xmax": 435.3888931274414,
+        "ymin": 261.3553161621094,
+        "ymax": 523.2109909057617
+      },
+      "sourceStartFrame": 5970,
+      "sourceEndFrame": 6059,
+      "trackId": "0:window-300:6"
+    },
+    {
+      "id": "F0_0_7",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 6014,
+      "draftFrame": 404,
+      "draftStartFrame": 360,
+      "draftEndFrame": 448.7999999999992,
+      "box": {
+        "xmin": 841.8407592773438,
+        "ymin": 277.44969177246094,
+        "xmax": 1032.3560943603516,
+        "ymax": 536.9234848022461
+      },
+      "envelope": {
+        "xmin": 827.3070373535156,
+        "xmax": 1046.9119606018066,
+        "ymin": 273.41475677490234,
+        "ymax": 590.5204696655273
+      },
+      "sourceStartFrame": 5970,
+      "sourceEndFrame": 6059,
+      "trackId": "0:window-300:7"
+    },
+    {
+      "id": "F0_0_8",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 6014,
+      "draftFrame": 404,
+      "draftStartFrame": 360,
+      "draftEndFrame": 448.7999999999992,
+      "box": {
+        "xmin": 1570.37548828125,
+        "ymin": 312.5653381347656,
+        "xmax": 1770.1346054077148,
+        "ymax": 566.4514846801758
+      },
+      "envelope": {
+        "xmin": 1546.1515502929688,
+        "xmax": 1795.4415893554688,
+        "ymin": 300.3014831542969,
+        "ymax": 595.6749801635742
+      },
+      "sourceStartFrame": 5970,
+      "sourceEndFrame": 6059,
+      "trackId": "0:window-300:8"
+    },
+    {
+      "id": "F0_0_9",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 6104,
+      "draftFrame": 494,
+      "draftStartFrame": 450,
+      "draftEndFrame": 538.7999999999993,
+      "box": {
+        "xmin": 190.05344009399414,
+        "ymin": 272.97825622558594,
+        "xmax": 379.20983505249023,
+        "ymax": 509.0603256225586
+      },
+      "envelope": {
+        "xmin": 183.30860137939453,
+        "xmax": 438.4610824584961,
+        "ymin": 256.25701904296875,
+        "ymax": 521.0083236694336
+      },
+      "sourceStartFrame": 6060,
+      "sourceEndFrame": 6149,
+      "trackId": "0:window-375:9"
+    },
+    {
+      "id": "F0_0_10",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 6104,
+      "draftFrame": 494,
+      "draftStartFrame": 450,
+      "draftEndFrame": 538.7999999999993,
+      "box": {
+        "xmin": 828.7566833496094,
+        "ymin": 284.4477996826172,
+        "xmax": 1021.3251571655273,
+        "ymax": 528.0312881469727
+      },
+      "envelope": {
+        "xmin": 824.0234985351562,
+        "xmax": 1024.8391571044922,
+        "ymin": 278.6707763671875,
+        "ymax": 529.3699951171875
+      },
+      "sourceStartFrame": 6060,
+      "sourceEndFrame": 6149,
+      "trackId": "0:window-375:10"
+    },
+    {
+      "id": "F0_0_11",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 6104,
+      "draftFrame": 494,
+      "draftStartFrame": 450,
+      "draftEndFrame": 538.7999999999993,
+      "box": {
+        "xmin": 1509.3197021484375,
+        "ymin": 332.6448669433594,
+        "xmax": 1710.9364929199219,
+        "ymax": 582.6307067871094
+      },
+      "envelope": {
+        "xmin": 1503.9561767578125,
+        "xmax": 1743.7741241455078,
+        "ymin": 330.66371154785156,
+        "ymax": 593.3256454467773
+      },
+      "sourceStartFrame": 6060,
+      "sourceEndFrame": 6149,
+      "trackId": "0:window-375:11"
+    },
+    {
+      "id": "F0_0_12",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 6176,
+      "draftFrame": 566,
+      "draftStartFrame": 540,
+      "draftEndFrame": 592.7999999999993,
+      "box": {
+        "xmin": 826.1385498046875,
+        "ymin": 285.78247833251953,
+        "xmax": 1019.2942886352539,
+        "ymax": 527.9535140991211
+      },
+      "envelope": {
+        "xmin": 825.1904296875,
+        "xmax": 1020.0449523925781,
+        "ymin": 279.6986846923828,
+        "ymax": 528.8211135864258
+      },
+      "sourceStartFrame": 6150,
+      "sourceEndFrame": 6203,
+      "trackId": "0:window-450:12"
+    },
+    {
+      "id": "F0_0_13",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 6176,
+      "draftFrame": 566,
+      "draftStartFrame": 540,
+      "draftEndFrame": 592.7999999999993,
+      "box": {
+        "xmin": 257.39298248291016,
+        "ymin": 259.7313537597656,
+        "xmax": 433.94367599487305,
+        "ymax": 479.8879852294922
+      },
+      "envelope": {
+        "xmin": 251.85033416748047,
+        "xmax": 452.19483947753906,
+        "ymin": 257.1489028930664,
+        "ymax": 517.7006378173828
+      },
+      "sourceStartFrame": 6150,
+      "sourceEndFrame": 6203,
+      "trackId": "0:window-450:13"
+    },
+    {
+      "id": "F0_0_14",
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "sourceFrame": 6176,
+      "draftFrame": 566,
+      "draftStartFrame": 540,
+      "draftEndFrame": 592.7999999999993,
+      "box": {
+        "xmin": 1510.19970703125,
+        "ymin": 337.9840393066406,
+        "xmax": 1710.3280334472656,
+        "ymax": 589.0637283325195
+      },
+      "envelope": {
+        "xmin": 1507.7117614746094,
+        "xmax": 1713.5748138427734,
+        "ymin": 334.54820251464844,
+        "ymax": 594.8700942993164
+      },
+      "sourceStartFrame": 6150,
+      "sourceEndFrame": 6203,
+      "trackId": "0:window-450:14"
+    }
+  ],
+  "sources": [
+    {
+      "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+      "meta": {
+        "resourceId": "ace2b62f-6b73-4466-b14b-a473e33a3bb0",
+        "fps": 30,
+        "frameSize": {
+          "width": 1920,
+          "height": 1080
+        }
+      }
+    }
+  ],
+  "layout": {
+    "windowTop": 0,
+    "windowBottom": 1920,
+    "widePolicy": "never",
+    "splitPolicy": "selective",
+    "cameraMode": "auto",
+    "cropMotion": "fixed",
+    "faceY": 40,
+    "closeUp": 4.5
+  },
+  "duration": 594
+}

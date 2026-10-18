@@ -93,7 +93,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         {text:'market',startFrame:12,endFrame:30,sourceStartFrame:12,speakerId:'a',utteranceId:'u'},
         {text:'moves.',startFrame:30,endFrame:54,sourceStartFrame:30,speakerId:'a',utteranceId:'u'}];
       const meta=async()=>({fps:30,durationSeconds:2,frameSize:{width:1920,height:1080}});
-      const draft={words:async()=>words,meta,insertResource:async()=>{},silenceSpans:async()=>[],setFrameSize:async x=>assert.deepEqual(x,{width:1080,height:1920}),
+      const draft={words:async()=>words,meta,insertResource:async()=>{},silenceSpans:async()=>[],setSettings:async x=>assert.deepEqual(x,{frameRate:'30/1',frameSize:{width:1920,height:1080}}),setFrameSize:async x=>assert.deepEqual(x,{width:1080,height:1920}),
         clips:async()=>[{resourceId:'test-video',trackKind:'main',startFrame:0,endFrame:60}],setClipTransform:async()=>{},rangeAtFrames:async(a,b)=>({a,b}),
         addMotionGraphic:async g=>{graphics.push(g);esbuild.transformSync(g.tsxCode,{loader:'tsx'});},commitAll:async()=>({createdDraftId:'verified'})};
       const selects={project:()=>({resources:async()=>[{resourceId:'test-video'}],resource:()=>({meta,words:async()=>words}),createDraft:async()=>draft})};
@@ -115,7 +115,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         {text:'market',startFrame:12,endFrame:30,sourceStartFrame:12,speakerId:1,utteranceId:'u'},
         {text:'moves.',startFrame:30,endFrame:54,sourceStartFrame:30,speakerId:1,utteranceId:'u'}];
       const draft={words:async()=>words,meta:async()=>({fps:30,durationSeconds:2}),
-        insertResource:async()=>{},silenceSpans:async()=>[],setFrameSize:async()=>{},
+        insertResource:async()=>{},silenceSpans:async()=>[],setSettings:async x=>assert.deepEqual(x,{frameRate:'30/1',frameSize:{width:1920,height:1080}}),setFrameSize:async()=>{},
         clips:async()=>[{resourceId:'test-video',trackKind:'main',startFrame:0,endFrame:60}],
         setClipTransform:async()=>{},rangeAtFrames:async()=>({}),
         addMotionGraphic:async g=>{graphics.push(g);esbuild.transformSync(g.tsxCode,{loader:'tsx'});return {clipId:'graphic'};},
@@ -199,7 +199,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       return visible?h(api.TemplateEditor,{ui,S,platform,lang:'en',templates,store,onChanged,state:{selId,setSelId,edit,setEdit,baseKey,setBaseKey,sub,setSub}}):null;
     }
     const get=label=>{const c=controls.get(S.secWindow+'/'+label)||controls.get(label);assert.ok(c,'Control is visible: '+label);return c;};
-    const change=async(label,value)=>{const c=get(label);assert.ok(!c.disabled,label+' is enabled');await act(async()=>c.onChange(value));};
+    const change=async(label,value)=>{if(label==='tabs'){await act(async()=>document.querySelector('[data-template-section="'+value+'"]').click());return;}const c=get(label);assert.ok(!c.disabled,label+' is enabled');await act(async()=>c.onChange(value));};
     const click=async label=>{const c=get(label);assert.ok(!c.disabled,label+' is enabled');await act(async()=>c.onClick());};
     try {
       await act(async()=>root.render(h(Harness)));
@@ -208,7 +208,26 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         const radio=original.renderer==='series';
         assert.equal(controls.has(S.layoutKind),false);
         if(radio) assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutTiktok)));
-        assert.equal(controls.has(S.reframe),radio);
+        assert.deepEqual([...document.querySelectorAll('[data-template-section]')].map(t=>t.textContent), ['Design','Captions','Framing','Content']);
+        assert.equal(controls.has('Framing mode'),false);
+        await change('tabs','framing');
+        assert.equal(controls.has('Framing mode'),radio);
+        if(radio) {
+          const previousMode=get('Framing mode').value;
+          await change('Framing mode','manual');
+          assert.ok(controls.has(S.sourceTop));
+          assert.equal(controls.has('Reframing style'),false);
+          await change('Framing mode','auto');
+          assert.equal(controls.has(S.sourceTop),false);
+          assert.ok(controls.has('Reframing style'));
+          await change('Framing mode',previousMode);
+          if(!get(S.discard).disabled) await click(S.discard);
+        }
+        await change('tabs','captions');
+        assert.equal(controls.has(S.removeFillers),false);
+        await change('tabs','ai');
+        assert.equal(controls.has(S.removeFillers),true);
+        await change('tabs','look');
         assert.equal(controls.has(S.stroke),radio);
         assert.equal(controls.has(api.OVERLAY_STRINGS.en.preview),!radio && original.renderer==='separate-headlines');
         if(!radio && original.renderer==='separate-headlines') {

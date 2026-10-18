@@ -40,7 +40,7 @@ async function setup() {
   const log = path.join(directory, 'probe.log');
   process.env.FAKE_PROBE_LOG = log;
   const passes = async () => (await fs.readFile(log, 'utf8').catch(() => '')).split('\n').filter(Boolean).length;
-  const request = { contractVersion: 1, task: 'faces.detect', input: { source: { path: source }, sourceRange: { startSeconds: 1, endSeconds: 2 } } };
+  const request = { contractVersion: 1, task: 'person.matte', input: { source: { path: source }, sourceRange: { startSeconds: 1, endSeconds: 2 } } };
   return { directory, ffprobe, source, cache, passes, request };
 }
 

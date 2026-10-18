@@ -79,7 +79,7 @@ The manual commands below remain useful for development with an explicitly prepa
 - An installed Selects executable that supports `ELECTRON_RUN_AS_NODE=1`. The measured build exposes Electron 43.2.0 / Node 24.18.0 / N-API 10. Future app fuse settings can change this capability.
 - `onnxruntime-node` **1.30.0**, including the native files for the OS/architecture. The registered prepare entrypoint supplies its absolute package directory in the generated config. The earlier PoC validation reused existing local caches.
 - Selects' bundled FFmpeg and FFprobe, with absolute executable paths.
-- Original YuNet 2023mar and RVM MobileNetV3 FP32 ONNX models matching the hashes in `runtime.json`. Patched GPU models are not substitutes for this baseline. Models are not included in the source package.
+- Original YuNet 2023mar and RVM MobileNetV3 FP32 ONNX models matching the hashes in `runtime.json`. Patched GPU models are not substitutes for this baseline. YuNet and RVM are downloaded during preparation; the Light-ASD AVA graph and license are bundled.
 - A readable local video file. The host-resolved CLI path is internal to this PoC.
 
 Create a private `.local/config.json` using actual absolute paths:
@@ -145,3 +145,13 @@ Use the same embedded executable for `--test tests/*.test.cjs`. Set `AI_RUNTIME_
 Run `scripts/verify-lifecycle.cjs --request <long-RVM-request> --config <config> --output <fresh-report-folder>` to exercise actual inference cancellation, host death, decoder cleanup and checksum rejection. Run `scripts/compare-alpha.cjs --left <matte.json> --right <matte.json> --config <config>` to compare full-job integrity and three sampled alpha rasters. `--samples-only` explicitly reduces integrity checking to the downloaded first/middle/last files.
 
 The independent reference scripts use an existing Python environment only for validation. They are not production runtime dependencies and never install packages. See their argument/environment checks and [VALIDATION.md](VALIDATION.md) for the reference versions and comparison scope.
+
+## Active-speaker capability
+
+Requires an updated host advertising `selects.ai.activeSpeakerSupported`.
+Submit `task: "speakers.detect"`, an explicit `sourceRange` of at most 60 seconds,
+and optionally `options: { provider: "cpu" }`. Read `result.files.detections`.
+The input must be a video with its own synchronized audio; static images and
+sampling overrides are rejected. Preparation verifies the bundled Light-ASD
+model and provisions its auxiliary YuNet model. No Python installation is needed.
+Windows execution of this new task remains unverified.

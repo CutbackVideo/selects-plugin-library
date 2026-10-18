@@ -71,6 +71,12 @@ async function verifyOutputs(root, request, result, video) {
   if (!descriptor.tasks[request.task]) throw new Error('Unsupported output task');
   if (!result || !result.files || !Object.keys(result.files).length) throw new Error('Runtime produced no result files');
   for (const file of Object.values(result.files)) await verifyOutputFile(root, file);
+  if (request.task === 'speakers.detect') {
+    const document=await readJson(await verifyOutputFile(root,result.files.detections));
+    verifyModelMetadata(document.model, request.task, 'id');
+    require('./speaker-output.cjs').verifySpeakerOutput(document,request.input.sourceRange,video);
+    return;
+  }
   if (request.task === 'person.matte') {
     const manifest = await readJson(await verifyOutputFile(root, result.files.manifest));
     verifySourceKind(manifest, request);

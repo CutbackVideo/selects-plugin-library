@@ -1,6 +1,6 @@
 # Third-party provenance
 
-This source package includes no ONNX models, ONNX Runtime native libraries, FFmpeg executable, test media or generated alpha files. The registered preparation entrypoint downloads exact upstream packages and original model files using the URLs and integrity values in `lib/runtime-assets.cjs` and `lib/webgpu-assets.cjs`. The earlier PoC used existing local copies. Mac WebGPU derives a channel-zero-padded RVM graph in memory from verified original bytes; its transform version and distinct SHA are recorded, and the original model is retained. Preserve upstream licenses and notices in any redistributed binary/model bundle.
+This source package includes a derived Light-ASD AVA ONNX model and its upstream MIT notice. It includes no other ONNX models, ONNX Runtime native libraries, FFmpeg executable, test media or generated alpha files. The registered preparation entrypoint downloads exact upstream packages and original model files using the URLs and integrity values in `lib/runtime-assets.cjs` and `lib/webgpu-assets.cjs`. The earlier PoC used existing local copies. Mac WebGPU derives a channel-zero-padded RVM graph in memory from verified original bytes; its transform version and distinct SHA are recorded, and the original model is retained. Preserve upstream licenses and notices in any redistributed binary/model bundle.
 
 | Component | Provenance / terms |
 | --- | --- |
@@ -28,3 +28,16 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ## OpenCV-derived conventions
 
 The YuNet decoding/preprocessing code incorporates Apache-2.0 OpenCV conventions. The accompanying `licenses/Apache-2.0.txt` applies to those derived portions. The independent test oracle uses OpenCV's implementation rather than this package's decoder. The full source package remains a private experiment; `package.json` does not grant rights to third-party assets.
+
+## Light-ASD AVA export
+
+Upstream: https://github.com/Junhua-Liao/Light-ASD at
+`ed38c232de5efe0261dbd68627c0ade7cdfe14eb`.
+Source `weight/pretrain_AVA_CVPR.model` SHA-256:
+`d44bc3ea7baa8e0946fa3921311714a630ed8b90a1928fab0dbe30d918909317`.
+Bundled `models/light-asd-ava.onnx` SHA-256:
+`dfc69dc7c138cdd67ad1ee9b107808b17c142a21d641e2fa06260012d294fa63`.
+The export includes the audiovisual classifier head and replaces the audio
+4D-input MaxPool3d operation with its equivalent MaxPool2d for ONNX export.
+See `experiments/active-speaker/export_onnx.py` at the repository root and
+`models/LICENSE.Light-ASD.txt` for the retained upstream MIT license.

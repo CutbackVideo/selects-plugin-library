@@ -17,7 +17,7 @@ let config;
 let base;
 
 function request(source, startSeconds, endSeconds) {
-  return { contractVersion: 1, task: 'faces.detect', input: { source: { path: source }, sourceRange: { startSeconds, endSeconds } } };
+  return { contractVersion: 1, task: 'person.matte', input: { source: { path: source }, sourceRange: { startSeconds, endSeconds } } };
 }
 
 async function ffmpeg(args, binary = config.tools.ffmpeg) {
@@ -205,5 +205,30 @@ test('result file resolution accepts only files inside the job output folder', a
     await assert.rejects(verifyOutputFile(output, 'escaped.json'), /escapes/);
   } finally {
     await fs.rm(own, { recursive: true, force: true });
+  }
+});
+
+// Compare real decoded pixels, not just matching counts: a shifted seek can
+// otherwise pair plausible face coordinates with the wrong speaker timestamp.
+test('bounded face probing matches full decoding for B-frames, offset clocks, VFR and rotation', { skip: !configPath }, async () => {
+  const long = path.join(directory, 'seek-bframes.mp4');
+  await ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=64x32:r=30000/1001:d=9', '-c:v', 'libx264', '-g', '30', '-bf', '3', long]);
+  const shifted = path.join(directory, 'seek-offset.mp4');
+  await ffmpeg(['-i', long, '-c', 'copy', '-output_ts_offset', '5', shifted]);
+  const variable = path.join(directory, 'seek-variable.mkv');
+  await ffmpeg(['-i', long, '-vf', 'select=not(eq(mod(n\\,7)\\,0))', '-fps_mode', 'passthrough', '-c:v', 'ffv1', variable]);
+  const rotated = path.join(directory, 'seek-rotated.mp4');
+  await ffmpeg(['-display_rotation', '90', '-i', long, '-c', 'copy', rotated]);
+  for (const filename of [long, shifted, variable, rotated]) {
+    const baseline = await readFrames(filename, 6.3333332, 7.1);
+    const input = { ...request(filename, 6.3333332, 7.1), task: 'faces.detect' };
+    const signal = new AbortController().signal;
+    const video = await probeVideo(config, input, signal);
+    assert.ok(video.seekSeconds >= 4, filename);
+    assert.equal(video.constantFrameRate, null); // never promise global CFR from a window
+    assert.deepEqual(video.frameTimes, baseline.video.frameTimes, filename);
+    const frames = [];
+    for await (const frame of decodeFrames(config, input, video, signal, () => {}, { decoderWaitMs: 0 })) frames.push(frame);
+    assert.deepEqual(Buffer.concat(frames.map(f => f.rgb)), Buffer.concat(baseline.frames.map(f => f.rgb)), filename);
   }
 });
