@@ -11,10 +11,11 @@ test('field footage selection and Draft generation', {skip: !modulesRoot && 'Set
   const esbuild = dep('esbuild'), ts = dep('typescript');
   const source = fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
   const ast = ts.createSourceFile('panel.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
-  let params, chooseField;
+  let params, chooseField, resolver;
   function visit(n) {
     if(ts.isVariableDeclaration(n) && n.name.getText(ast)==='P' && ts.isObjectLiteralExpression(n.initializer) && n.initializer.properties.some(p=>p.name?.getText(ast)==='segments')) params=n.initializer.getText(ast);
     if(ts.isFunctionDeclaration(n) && n.name?.text==='chooseFieldClips') chooseField=n.getText(ast);
+    if(ts.isVariableDeclaration(n) && n.name.getText(ast)==='resolver') resolver=n.initializer.getText(ast);
     ts.forEachChild(n,visit);
   }
   visit(ast);assert.ok(params && chooseField);
@@ -26,8 +27,9 @@ export function buildParams(tpl,c,contentMode='field') {
  const pickd={fixes:[],captionOmissions:[]},S=merge(RADIO_STRINGS.en,STRINGS.en);
  return ${params};
 }
-export function chooseForTest(sdk) {
+export function chooseForTest(sdk,script) {
  const projectId='project',lang='en',guard=p=>p,S={badJson:'bad JSON'},F={invalid:'invalid plan'};
+ const resolver=${resolver};
  ${chooseField}
  return chooseFieldClips;
 }`;
@@ -35,7 +37,8 @@ export function chooseForTest(sdk) {
   new Function('require','module','exports',esbuild.transformSync(source+extra,{loader:'tsx',format:'cjs'}).code)(dep,loaded,loaded.exports);
   const api=loaded.exports;
   const execute=(body,selects)=>new Function('selects',esbuild.transformSync('return (async()=>{'+body+'})();',{loader:'ts'}).code)(selects);
-  const {preserveSceneRange,sceneTransform}=await execute(api.SCRIPT_FIELD_RANGES+'return {preserveSceneRange,sceneTransform};');
+  const {preserveSceneRange,sceneTransform,sceneRanges}=await execute(api.SCRIPT_FIELD_RANGES+'return {preserveSceneRange,sceneTransform,sceneRanges};');
+  const sourceScript=(rows=[{resourceId:'video',name:'scene.mp4'}])=>body=>execute(body,{project:()=>({resources:async()=>rows})});
   const scene={headline1:'Flooded road',headline2:'Crews clear debris',why:'Wide view followed by the clean-up.',segments:[[8,12]],observations:[{timeSeconds:8,description:'Road and debris.'},{timeSeconds:11,description:'Crew clearing the road.'}]};
   const plan=()=>({searchComplete:true,countReason:'One complete sequence.',clips:[structuredClone(scene)]});
 
@@ -57,11 +60,21 @@ export function chooseForTest(sdk) {
   });
   await t.test('planner uses source-scoped search and frame tools in the AI session',async()=>{
     let request;
-    const choose=api.chooseForTest({askAI:async p=>{request=p;return {text:JSON.stringify(plan())};}});
+    const choose=api.chooseForTest({askAI:async p=>{request=p;return {text:JSON.stringify(plan())};}},sourceScript());
     const result=await choose({prompt:{headline:'Two lines',lengthGuide:'30 seconds'}},{resourceId:'video',resourceName:'scene.mp4',countMode:'manual',count:1,note:'Show the cleanup'},[],20);
     assert.equal(result.clips.length,1);assert.equal(request.timeoutMs,600000);
     for(const pattern of [/"projectId":"project"/,/"resourceId":"video"/,/"maxClips":1/,/source.searchScenes/,/display\(await source.captureFrames/,/SAME run_script/,/complete:false/,/not an empty search/,/No clips is valid/])assert.match(request.prompt,pattern);
-    await assert.rejects(api.chooseForTest({askAI:async()=>{throw Error('cancelled');}})({prompt:{}},{countMode:'auto'},[],20),/cancelled/);
+    await assert.rejects(api.chooseForTest({askAI:async()=>{throw Error('cancelled');}},sourceScript())({prompt:{}},{resourceId:'video',countMode:'auto'},[],20),/cancelled/);
+  });
+  await t.test('resumed jobs resolve a changed source alias before asking AI',async()=>{
+    let prompt;
+    const sdk={askAI:async p=>{prompt=p.prompt;return {text:JSON.stringify(plan())};}};
+    const rows=[{resourceId:'r0',name:'other.mp4'},{resourceId:'r1',name:'scene.mp4'}];
+    await api.chooseForTest(sdk,sourceScript(rows))({prompt:{}},{resourceId:'r0',resourceName:'scene.mp4',countMode:'auto'},[],20);
+    assert.match(prompt,/"resourceId":"r1"/);assert.doesNotMatch(prompt,/"resourceId":"r0"/);
+    prompt=null;
+    await assert.rejects(api.chooseForTest(sdk,sourceScript(rows.slice(0,1)))({prompt:{}},{resourceId:'r0',resourceName:'scene.mp4'},[],20),/no longer in this project/);
+    assert.equal(prompt,null);
   });
   await t.test('silent scenes retain heads and tails; only cuts inside speech expand to word boundaries',()=>{
     const meta={fps:30,durationSeconds:20};
@@ -72,6 +85,10 @@ export function chooseForTest(sdk) {
     assert.ok(a<=.1 && .1-a<1/fps && b>=1.2 && b-1.2<1/fps);
     assert.deepEqual(preserveSceneRange(0,20,[],meta),[0,20]);
     assert.throws(()=>preserveSceneRange(0,21,[],meta),/Invalid scene/);
+    for(const fps of [24,30,30000/1001]) {
+      const ranges=sceneRanges([[8,10.01],[10.01,12]],[],{fps,durationSeconds:20});
+      assert.equal(ranges.length,1);assert.ok(ranges[0][0]<=8 && ranges[0][1]>=12);
+    }
   });
   await t.test('landscape and portrait footage fit entirely inside the template window',()=>{
     for(const [width,height] of [[1920,1080],[3840,2160],[1080,1920],[1080,1080]]) {
@@ -83,7 +100,8 @@ export function chooseForTest(sdk) {
     }
   });
   const packFs={readFile:async p=>new Uint8Array(fs.readFileSync(p)),join:path.join};
-  const templates=(await api.readTemplatePack(packFs,path.join(__dirname,'../template-packs/sbs-radio/pack.json'))).templates;
+  const templates=[];
+  for(const pack of ['sbs-radio','hankook-ilbo'])templates.push(...(await api.readTemplatePack(packFs,path.join(__dirname,'../template-packs',pack,'pack.json'))).templates);
   async function build(tpl, words, {segments=[[8,12]],contentMode='field',size={width:1920,height:1080}}={}) {
     const P=api.buildParams(tpl,{...scene,segments},contentMode);
     // Even a stale saved parameter cannot enable speech cleanup or face following in field mode.
@@ -105,7 +123,7 @@ export function chooseForTest(sdk) {
     try{return {result:await execute(code,selects),ranges,graphics,transforms,wordReads,created};}
     catch(error){error.created=created;throw error;}
   }
-  for(const id of ['news-direct','political-show']) {
+  for(const id of ['news-direct','political-show','knowledge-exchange','issue-broadcast']) {
     const tpl=api.forPlatform(templates.find(t=>t.id===id),'tiktok');
     await t.test(`${tpl.renderer}: wordless field scenes create editable Drafts without cleanup or face tracking`,async()=>{
       const r=await build(tpl,[]);assert.equal(r.result.draftId,'field-draft');assert.equal(r.wordReads,0);
@@ -117,11 +135,28 @@ export function chooseForTest(sdk) {
       const words=[{text:'Debris.',startFrame:240,endFrame:270,utteranceId:'u',speakerId:'s'}];
       const r=await build(tpl,words,{segments:[[8,10],[14,17]]});
       assert.deepEqual(r.ranges,[{startSeconds:8,endSeconds:10},{startSeconds:14,endSeconds:17}]);
-      assert.ok(r.graphics.some(g=>g.label.startsWith('Caption ')));assert.equal(r.transforms.length,2);
+      const captions=r.graphics.filter(g=>g.label.startsWith('Caption '));
+      assert.equal(captions.length,1);assert.equal(captions[0].within.b,48);
+      assert.equal(r.transforms.length,2);
     });
-    await t.test(`${tpl.renderer}: invalid or overlapping expanded ranges fail before creating a Draft`,async()=>{
+    await t.test(`${tpl.renderer}: touching and speech-expanded ranges merge without repeating frames`,async()=>{
       const words=[{text:'Debris.',startFrame:240,endFrame:300}];
-      for(const segments of [[[8,21]],[[8.1,8.8],[9.1,10.5]]])await assert.rejects(build(tpl,words,{segments}),e=>/scene range|Scene ranges/.test(e.message)&&e.created===0);
+      assert.deepEqual((await build(tpl,[],{segments:[[8,10.01],[10.01,12]]})).ranges,[{startSeconds:8,endSeconds:12}]);
+      assert.deepEqual((await build(tpl,words,{segments:[[8.1,8.8],[9.1,10.5]]})).ranges,[{startSeconds:8,endSeconds:10.5}]);
+      const cut=await build(tpl,[{text:'Debris.',startFrame:270,endFrame:297}],{segments:[[8,10],[14,17]]});
+      assert.equal(cut.graphics.find(g=>g.label.startsWith('Caption ')).within.b,60);
+    });
+    await t.test(`${tpl.renderer}: a filler after a long silent tail cannot prolong the last caption`,async()=>{
+      for(const text of ['um','"uh"','\u201c\uc74c\u201d']) {
+        const words=[{text:'Debris.',startFrame:0,endFrame:30},{text,startFrame:570,endFrame:585}];
+        const r=await build(tpl,words,{segments:[[0,20]]});
+        const captions=r.graphics.filter(g=>g.label.startsWith('Caption '));
+        assert.equal(captions.length,1);assert.equal(captions[0].within.b,48);
+        assert.deepEqual(r.ranges,[{startSeconds:0,endSeconds:20}]);
+      }
+    });
+    await t.test(`${tpl.renderer}: invalid ranges and speech jobs without words fail before creating a Draft`,async()=>{
+      await assert.rejects(build(tpl,[],{segments:[[8,21]]}),e=>/Invalid scene range/.test(e.message)&&e.created===0);
       await assert.rejects(build(tpl,[],{contentMode:'speech'}),e=>/no transcript/.test(e.message)&&e.created===0);
     });
   }
