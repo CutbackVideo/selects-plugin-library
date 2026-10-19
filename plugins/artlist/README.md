@@ -37,23 +37,26 @@ the panel or script. This path uses the website, not MCP OAuth. Requires
 `music.artlist.web-session.v1`; older hosts show an update message.
 
 The layout follows the built-in Epidemic Sound app. Search, Favorites,
-Downloads and Artboards are the tabs; docked, the strip scrolls sideways. The
-⋯ after them opens the account: email and plan, **Refresh account and plan**,
+Downloads and Artboards are the app's own panel tabs (Panel UI version 4,
+`Tabs variant="strip"`); docked, the strip scrolls sideways. The ⋯ after them
+is a dropdown with the account's email and plan, **Refresh account and plan**,
 the license link and **Disconnect**. Under the tabs sit the search field (on
 Search), the Artboard picker (on Artboards) and Music/Sound effects.
 
 Results are a list under a quiet heading. A row is the cover, the title over
 the artist, and the length over the BPM; narrow, the BPM gives way first, then
 the length. Clicking anywhere on a row previews it, and the cover drags it onto
-the timeline. While a row is hovered, focused or playing, its **Save** button
-(favorite and Artboard controls, below the list) or its Artlist link takes the
-length's place; **+** is always there. Space plays and pauses the preview
+the timeline. While a row is hovered, focused or playing, its ⋯ (**Save**) or
+its Artlist link takes the length's place; **+** is always there. Save is a
+dropdown: Favorite or Unfavorite, Open in Artlist, Remove from this Artboard
+(on an Artboard), then the person's Artboards to add it to and **New
+Artboard…**, which asks for a name and adds the track to the new board. Space plays and pauses the preview
 while focus is in the panel.
 
 The player is ruled off across the panel's foot: the seek bar, "Title -
 Artist" between the time played and the length, then play/pause with **+**.
-Save and New Artboard controls open between the list and the player and scroll
-within a bounded area.
+New Artboard's name field opens between the list and the player. On Panel UI
+version 3 and earlier, Save and the account open as sections there instead.
 
 Search Music or Sound effects, click a cover to preview, or open its Artlist
 page. The plus button and cover drag request the website's MP3 download for

@@ -17,7 +17,7 @@ const COPY = {
     artlist_import_uncertain: 'Check project files before trying the import again.',
     kindLabel: 'Type', openTrack: 'Open in Artlist', connect: 'Connect Artlist', connected: 'Artlist connected', connectHint: 'Sign in on Artlist, then open your profile menu to finish connecting.',
     cancelLibrary: 'Cancel', closeLibrary: 'Close save controls', savingLibrary: 'Saving…', creatingBoard: 'Creating…', boardSaved: 'Saved to Artboard.',
-    previousPage: 'Previous', nextPage: 'Next', pageLabel: 'Page', moreBoards: 'More Artboards', saveManage: 'Save', favoriteLabel: 'Favorite', unfavoriteLabel: 'Unfavorite', addToBoard: 'Add to Artboard', removeFromBoard: 'Remove from this Artboard', newBoard: 'New Artboard', boardName: 'Artboard name', createBoard: 'Create', artlist_library_edit_uncertain: 'The change could not be verified. Refresh your library before trying again.', artlist_ambiguous_artboard: 'Artboards have identical names. Rename them in Artlist before selecting one.', artlist_artboard_unavailable: 'This Artboard is no longer available. Refresh your library.',
+    previousPage: 'Previous', nextPage: 'Next', pageLabel: 'Page', moreBoards: 'More Artboards', saveManage: 'Save', favoriteLabel: 'Favorite', unfavoriteLabel: 'Unfavorite', addToBoard: 'Add to Artboard', removeFromBoard: 'Remove from this Artboard', newBoard: 'New Artboard', newBoardMenu: 'New Artboard…', boardName: 'Artboard name', createBoard: 'Create', artlist_library_edit_uncertain: 'The change could not be verified. Refresh your library before trying again.', artlist_ambiguous_artboard: 'Artboards have identical names. Rename them in Artlist before selecting one.', artlist_artboard_unavailable: 'This Artboard is no longer available. Refresh your library.',
     library: 'Browse', favorites: 'Favorites', downloads: 'Downloads', artboards: 'Artboards', catalog: 'Search', refreshLibrary: 'Refresh', chooseArtboard: 'Choose an Artboard', emptyLibrary: 'No saved tracks here yet', emptyLibraryHint: 'Save tracks in Artlist, then refresh this list.', emptyBoards: 'No Artboards yet', libraryLimit: 'Showing the first 50 tracks.', artlist_library_unavailable: 'Could not load your Artlist library. Try again.', cancelDownloadLabel: 'Cancel download', refresh: 'Refresh account and plan', license: 'View license', licenseHint: 'Your Artlist plan determines how downloaded music can be used.',
     append: 'Add at end', appended: 'Added at end',
     music: 'Music', sfx: 'Sound effects', cancel: 'Cancel login',
@@ -49,7 +49,7 @@ const COPY = {
     artlist_import_uncertain: '\ub2e4\uc2dc \uac00\uc838\uc624\uae30 \uc804\uc5d0 \ud504\ub85c\uc81d\ud2b8 \ud30c\uc77c\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.',
     kindLabel: '\uc885\ub958', openTrack: 'Artlist\uc5d0\uc11c \uc5f4\uae30', connect: 'Artlist \uc5f0\uacb0', connected: 'Artlist \uc5f0\uacb0\ub428', connectHint: 'Artlist\uc5d0\uc11c \ub85c\uadf8\uc778\ud55c \ub4a4 \uc624\ub978\ucabd \ud504\ub85c\ud544 \uba54\ub274\ub97c \uc5f4\uc5b4 \uc5f0\uacb0\uc744 \uc644\ub8cc\ud558\uc138\uc694.',
     cancelLibrary: '\ucde8\uc18c', closeLibrary: '\uc800\uc7a5 \uad00\ub9ac \ub2eb\uae30', savingLibrary: '\uc800\uc7a5 \uc911…', creatingBoard: '\ub9cc\ub4dc\ub294 \uc911…', boardSaved: '\ubcf4\uad00\ud568\uc5d0 \uc800\uc7a5\ud588\uc5b4\uc694.',
-    previousPage: '\uc774\uc804', nextPage: '\ub2e4\uc74c', pageLabel: '\ud398\uc774\uc9c0', moreBoards: '\ubcf4\uad00\ud568 \ub354 \ubcf4\uae30', saveManage: '\uc800\uc7a5 \uad00\ub9ac', favoriteLabel: '\ucc1c\ud558\uae30', unfavoriteLabel: '\ucc1c \ud574\uc81c', addToBoard: '\ubcf4\uad00\ud568\uc5d0 \ub123\uae30', removeFromBoard: '\uc774 \ubcf4\uad00\ud568\uc5d0\uc11c \ube7c\uae30', newBoard: '\uc0c8 \ubcf4\uad00\ud568', boardName: '\ubcf4\uad00\ud568 \uc774\ub984', createBoard: '\ub9cc\ub4e4\uae30', artlist_library_edit_uncertain: '\ubcc0\uacbd \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubcf4\uad00\ud568\uc744 \uc0c8\ub85c\uace0\uce68\ud55c \ub4a4 \ud655\uc778\ud574 \uc8fc\uc138\uc694.', artlist_ambiguous_artboard: '\uc774\ub984\uc774 \uac19\uc740 \ubcf4\uad00\ud568\uc774 \uc788\uc5b4\uc694. Artlist\uc5d0\uc11c \uc774\ub984\uc744 \uad6c\ubd84\ud574 \uc8fc\uc138\uc694.', artlist_artboard_unavailable: '\uc774 \ubcf4\uad00\ud568\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubaa9\ub85d\uc744 \uc0c8\ub85c\uace0\uce68\ud574 \uc8fc\uc138\uc694.',
+    previousPage: '\uc774\uc804', nextPage: '\ub2e4\uc74c', pageLabel: '\ud398\uc774\uc9c0', moreBoards: '\ubcf4\uad00\ud568 \ub354 \ubcf4\uae30', saveManage: '\uc800\uc7a5 \uad00\ub9ac', favoriteLabel: '\ucc1c\ud558\uae30', unfavoriteLabel: '\ucc1c \ud574\uc81c', addToBoard: '\ubcf4\uad00\ud568\uc5d0 \ub123\uae30', removeFromBoard: '\uc774 \ubcf4\uad00\ud568\uc5d0\uc11c \ube7c\uae30', newBoard: '\uc0c8 \ubcf4\uad00\ud568', newBoardMenu: '\uc0c8 \ubcf4\uad00\ud568…', boardName: '\ubcf4\uad00\ud568 \uc774\ub984', createBoard: '\ub9cc\ub4e4\uae30', artlist_library_edit_uncertain: '\ubcc0\uacbd \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubcf4\uad00\ud568\uc744 \uc0c8\ub85c\uace0\uce68\ud55c \ub4a4 \ud655\uc778\ud574 \uc8fc\uc138\uc694.', artlist_ambiguous_artboard: '\uc774\ub984\uc774 \uac19\uc740 \ubcf4\uad00\ud568\uc774 \uc788\uc5b4\uc694. Artlist\uc5d0\uc11c \uc774\ub984\uc744 \uad6c\ubd84\ud574 \uc8fc\uc138\uc694.', artlist_artboard_unavailable: '\uc774 \ubcf4\uad00\ud568\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubaa9\ub85d\uc744 \uc0c8\ub85c\uace0\uce68\ud574 \uc8fc\uc138\uc694.',
     library: '\ubaa9\ub85d', favorites: '\ucc1c', downloads: '\ub2e4\uc6b4\ub85c\ub4dc', artboards: '\ubcf4\uad00\ud568', catalog: '\uac80\uc0c9', refreshLibrary: '\uc0c8\ub85c\uace0\uce68', chooseArtboard: '\ubcf4\uad00\ud568 \uc120\ud0dd', emptyLibrary: '\uc544\uc9c1 \uc800\uc7a5\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694', emptyLibraryHint: 'Artlist\uc5d0\uc11c \uace1\uc744 \uc800\uc7a5\ud55c \ub4a4 \uc0c8\ub85c\uace0\uce68\ud574 \uc8fc\uc138\uc694.', emptyBoards: '\uc544\uc9c1 \ubcf4\uad00\ud568\uc774 \uc5c6\uc5b4\uc694', libraryLimit: '\ucc98\uc74c 50\uace1\uc744 \ud45c\uc2dc\ud558\uace0 \uc788\uc5b4\uc694.', artlist_library_unavailable: 'Artlist \ubcf4\uad00\ud568\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', cancelDownloadLabel: '\ub2e4\uc6b4\ub85c\ub4dc \ucde8\uc18c', refresh: '\uacc4\uc815·\uad6c\ub3c5 \uc0c8\ub85c\uace0\uce68', license: '\ub77c\uc774\uc120\uc2a4 \ubcf4\uae30', licenseHint: '\ub2e4\uc6b4\ub85c\ub4dc\ud55c \uc74c\uc545\uc758 \uc0ac\uc6a9 \ubc94\uc704\ub294 \ub0b4 Artlist \ud50c\ub79c\uc744 \ub530\ub985\ub2c8\ub2e4.',
     append: '\ub05d\uc5d0 \ucd94\uac00', appended: '\ub05d\uc5d0 \ucd94\uac00\ub428',
     music: '\uc74c\uc545', sfx: '\ud6a8\uacfc\uc74c', cancel: '\ub85c\uadf8\uc778 \ucde8\uc18c',
@@ -192,8 +192,8 @@ const STYLES = `
   .music-row-meta span { display: block; }
   .music-row-actions { flex-shrink: 0; display: flex; align-items: center; gap: 2px; padding-right: 2px; }
   .music-row-extra { display: none; }
-  .music-row:hover .music-row-extra, .music-row:focus-within .music-row-extra, .music-row[data-active=true] .music-row-extra { display: flex; }
-  .music-row:hover .music-row-meta, .music-row:focus-within .music-row-meta, .music-row[data-active=true] .music-row-meta { display: none; }
+  .music-row:hover .music-row-extra, .music-row:focus-within .music-row-extra, .music-row[data-active=true] .music-row-extra, .music-row[data-menu=true] .music-row-extra { display: flex; }
+  .music-row:hover .music-row-meta, .music-row:focus-within .music-row-meta, .music-row[data-active=true] .music-row-meta, .music-row[data-menu=true] .music-row-meta { display: none; }
   .music-empty { padding: 40px 0; text-align: center; }
   .music-empty p { margin: 4px 0 0; }
   .music-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
@@ -281,6 +281,11 @@ export default function Panel({ sdk, context, ui }) {
   const [targetBoard, setTargetBoard] = React.useState('');
   const [newBoardName, setNewBoardName] = React.useState('');
   const [showCreate, setShowCreate] = React.useState(false);
+  // The track a row's Save menu is open on, with what the menu needs loaded.
+  const [menuTrack, setMenuTrack] = React.useState(null);
+  const [menuOpen, setMenuOpen] = React.useState(null);
+  // The track a New Artboard from its menu adds to the board once made.
+  const [boardFor, setBoardFor] = React.useState(null);
   const [preferencesReady, setPreferencesReady] = React.useState(false);
   const T = { ...COPY.en, ...(COPY[context.language] || {}) };
   if (kind === 'sfx') { T.add = T.append; T.added = T.appended; }
@@ -460,29 +465,69 @@ export default function Panel({ sdk, context, ui }) {
   function changePage(page) {
     setPageNumber(page); setRows([]); setAudio(null); setEditTrack(null); setSearchedTerm(''); setMessage(''); setHasMore(false);
   }
-  function editFavorite() {
+  function editFavorite(track = editTrack) {
     action(async captured => {
-      const result = await script(`return await selects.artlist.setFavorite(${JSON.stringify(editTrack.id)}, ${!editTrack.favorited}, ${JSON.stringify(account.current)});`, true, captured);
-      setEditTrack(previous => ({...previous, favorited: result.favorite}));
-      setRows(previous => previous.map(row => row.id === editTrack.id ? {...row, favorited: result.favorite} : row));
-      if (view === 'favorites') { if (!result.favorite && audio?.id === editTrack.id) setAudio(null); await load(null, captured); }
-    }, 'favorite', editTrack.id);
+      const result = await script(`return await selects.artlist.setFavorite(${JSON.stringify(track.id)}, ${!track.favorited}, ${JSON.stringify(account.current)});`, true, captured);
+      const mark = previous => previous?.id === track.id ? {...previous, favorited: result.favorite} : previous;
+      setEditTrack(mark); setMenuTrack(mark);
+      setRows(previous => previous.map(row => row.id === track.id ? {...row, favorited: result.favorite} : row));
+      if (view === 'favorites') { if (!result.favorite && audio?.id === track.id) setAudio(null); await load(null, captured); }
+    }, 'favorite', track.id);
   }
-  function editBoard(included) {
+  function editBoard(included, track = editTrack, id = included ? targetBoard : boardId) {
     action(async captured => {
-      const id = included ? targetBoard : boardId;
-      await script(`return await selects.artlist.setArtboardTrack(${JSON.stringify(id)}, ${JSON.stringify(editTrack.id)}, ${included}, ${JSON.stringify(account.current)});`, true, captured);
-      if (view === 'artboards' && boardId === id) { if (!included && audio?.id === editTrack.id) setAudio(null); await load(null, captured); if (!included) setEditTrack(null); }
+      await script(`return await selects.artlist.setArtboardTrack(${JSON.stringify(id)}, ${JSON.stringify(track.id)}, ${included}, ${JSON.stringify(account.current)});`, true, captured);
+      if (view === 'artboards' && boardId === id) { if (!included && audio?.id === track.id) setAudio(null); await load(null, captured); if (!included) setEditTrack(null); }
       if (included) setMessage(T.boardSaved);
-    }, included ? 'board-add' : 'board-remove', editTrack.id);
+    }, included ? 'board-add' : 'board-remove', track.id);
   }
   function createBoard() {
     action(async captured => {
       const result = await script(`return await selects.artlist.createArtboard(${JSON.stringify(newBoardName.trim())}, ${JSON.stringify(account.current)});`, true, captured);
       setArtboards(previous => [result.artboard, ...previous.filter(board => board.id !== result.artboard.id)]);
       setTargetBoard(result.artboard.id); setShowCreate(false); setNewBoardName('');
+      if (boardFor) {
+        await script(`return await selects.artlist.setArtboardTrack(${JSON.stringify(result.artboard.id)}, ${JSON.stringify(boardFor.id)}, true, ${JSON.stringify(account.current)});`, true, captured);
+        setBoardFor(null); setMessage(T.boardSaved);
+      }
       if (view === 'artboards' && !boardId) { setBoardId(result.artboard.id); setRows([]); setPageNumber(1); setSearchedTerm(''); }
     }, 'board-create');
+  }
+  // What a row's Save menu needs, loaded as it opens: whether the track is a
+  // favorite (a search row may not say) and the person's Artboards. The menu
+  // shows those rows disabled until they come.
+  async function loadTrackMenu(row) {
+    const captured = scope.current;
+    setMenuTrack({ ...row, loading: true });
+    try {
+      let selected = row;
+      if (typeof row.favorited !== 'boolean') {
+        const result = await script(`return await selects.artlist.search(${JSON.stringify(row.title)}, ${JSON.stringify(kind)});`, false, captured);
+        selected = result.tracks.find(track => track.id === row.id) || row;
+      }
+      if (!artboards.length) await loadBoards(captured);
+      setMenuTrack(previous => previous?.id === row.id ? { ...selected, loading: false } : previous);
+    } catch (error) {
+      if (scope.current !== captured || !captured.mounted) return;
+      setMenuTrack(previous => previous?.id === row.id ? { ...row, loading: false } : previous);
+      setFailed(true); setMessage(T[error.message] || T.failed);
+    }
+  }
+  function trackMenu(row) {
+    const known = menuTrack?.id === row.id ? menuTrack : row;
+    const loading = menuTrack?.id === row.id && menuTrack.loading;
+    const boards = artboards.filter(board => !(view === 'artboards' && board.id === boardId));
+    return [
+      { label: known.favorited ? T.unfavoriteLabel : T.favoriteLabel, disabled: typeof known.favorited !== 'boolean', onSelect: () => editFavorite(known) },
+      { label: T.openTrack, onSelect: () => action(captured => script(`return await selects.artlist.openTrack(${JSON.stringify(row.url)});`, true, captured), 'open', row.id) },
+      ...(view === 'artboards' && boardId ? [{ label: T.removeFromBoard, onSelect: () => editBoard(false, row, boardId) }] : []),
+      { separator: true },
+      { heading: T.addToBoard },
+      ...(loading && !boards.length ? [{ label: T.loading, disabled: true, onSelect() {} }] : boards.map(board => ({ label: board.name, onSelect: () => editBoard(true, row, board.id) }))),
+      ...(moreBoards ? [{ label: T.moreBoards, onSelect: () => action(captured => loadBoards(captured, true), 'board-more') }] : []),
+      { separator: true },
+      { label: T.newBoardMenu, onSelect: () => { setManage(false); setEditTrack(null); setBoardFor(row); setShowCreate(true); } },
+    ];
   }
   function changeLibrary(value) {
     if (!connection?.library && value !== 'search') { setFailed(true); setMessage(T.artlist_update_required); return; }
@@ -516,7 +561,7 @@ export default function Panel({ sdk, context, ui }) {
   function track(row) {
     const active = audio?.id === row.id;
     const artists = row.mainArtists.join(', ');
-    return <li key={row.id} className="music-row" data-active={active}>
+    return <li key={row.id} className="music-row" data-active={active} data-menu={menuOpen === row.id || undefined}>
       {/* The whole row previews; only the cover drags, as the timeline's own drop. */}
       <div className="music-row-open" onClick={event => { if (!event.target.closest('button') && !busy) preview(row); }}>
         <span className="music-cover-wrap" aria-busy={adding === row.id || undefined}>
@@ -541,7 +586,9 @@ export default function Panel({ sdk, context, ui }) {
       </div>
       <div className="music-row-actions">
         <span className="music-row-extra">
-          {connection.libraryEdit ? <ui.IconButton icon={pending?.kind === 'library' && pending.trackId === row.id ? 'loading' : 'more'} label={T.saveManage + ': ' + row.title} disabled={busy} onClick={() => action(async captured => {
+          {connection.libraryEdit && ui.Menu ? <ui.Menu label={T.saveManage + ': ' + row.title} disabled={busy} items={trackMenu(row)}
+            onOpenChange={open => { if (open) { setMenuOpen(row.id); loadTrackMenu(row); } else setMenuOpen(previous => previous === row.id ? null : previous); }} />
+          : connection.libraryEdit ? <ui.IconButton icon={pending?.kind === 'library' && pending.trackId === row.id ? 'loading' : 'more'} label={T.saveManage + ': ' + row.title} disabled={busy} onClick={() => action(async captured => {
             setManage(false);setEditTrack(row);setTargetBoard(boardId || '');
             let selected = row;
             if (typeof row.favorited !== 'boolean') {
@@ -557,6 +604,13 @@ export default function Panel({ sdk, context, ui }) {
       </div>
     </li>;
   }
+  const libraryTabs = [{value:'search',label:T.catalog},{value:'favorites',label:T.favorites},{value:'downloads',label:T.downloads},{value:'artboards',label:T.artboards}].map(tab => ({...tab, content: null}));
+  const refreshAccount = () => action(async captured => { await script('return await selects.artlist.connect();', true, captured); await status(captured); }, 'connect');
+  const openLicense = () => action(captured => script('return await selects.artlist.openTrack("https://artlist.io/help-center/privacy-terms/artlist-license/");', true, captured), 'open');
+  const disconnect = () => action(async captured => {
+    await script('return await selects.artlist.disconnect();', true, captured);
+    setRows([]); setAudio(null); setCursor(null); setManage(false); await status(captured);
+  }, 'disconnect');
   return <div className="music-panel">
     <style>{STYLES}</style>
     {!connection && (message ? <ui.Message tone="error">{message}</ui.Message> : <ui.Progress label={T.loading} />)}
@@ -567,23 +621,29 @@ export default function Panel({ sdk, context, ui }) {
       {message && <ui.Message tone={failed ? 'error' : 'success'}>{message}</ui.Message>}
     </div>}
     {connection?.connected && <>
-      <div className="music-tabs">
+      {ui.Menu ? <ui.Tabs variant="strip" value={view} onChange={value => { if (!busy) changeLibrary(value); }} tabs={libraryTabs}
+        actions={<ui.Menu label={T.account} disabled={busy} items={[
+          { heading: (connection.email || T.connected) + (connection.plan ? ' · ' + connection.plan : '') },
+          { label: T.refresh, onSelect: refreshAccount },
+          { label: T.license, onSelect: openLicense },
+          { separator: true },
+          { label: T.disconnect, onSelect: disconnect },
+        ]} />} />
+      : <><div className="music-tabs">
         <fieldset className="music-navigation" disabled={busy} aria-label={T.library}>
           <ui.Tabs value={view} onChange={value => { if (!busy) changeLibrary(value); }}
-            tabs={[{value:'search',label:T.catalog},{value:'favorites',label:T.favorites},{value:'downloads',label:T.downloads},{value:'artboards',label:T.artboards}].map(tab => ({...tab, content: null}))} />
+            tabs={libraryTabs} />
         </fieldset>
         <ui.IconButton icon={manage ? 'close' : 'more'} label={T.account} disabled={busy} onClick={() => {setManage(value => !value);setEditTrack(null);setShowCreate(false);}} />
       </div>
       {manage && <div className="music-account">
         <small title={connection.email || T.connected}>{connection.email || T.connected}{connection.plan ? ' · ' + connection.plan : ''}</small>
-        <ui.Button variant="ghost" disabled={busy} onClick={() => action(async captured => { await script('return await selects.artlist.connect();', true, captured); await status(captured); }, 'connect')}>{T.refresh}</ui.Button>
-        <ui.Button variant="ghost" disabled={busy} onClick={() => action(captured => script('return await selects.artlist.openTrack("https://artlist.io/help-center/privacy-terms/artlist-license/");', true, captured), 'open')}>{T.license}</ui.Button>
+        <ui.Button variant="ghost" disabled={busy} onClick={refreshAccount}>{T.refresh}</ui.Button>
+        <ui.Button variant="ghost" disabled={busy} onClick={openLicense}>{T.license}</ui.Button>
         <small>{T.licenseHint}</small>
-        <ui.Button variant="ghost" disabled={busy} onClick={() => action(async captured => {
-          await script('return await selects.artlist.disconnect();', true, captured);
-          setRows([]); setAudio(null); setCursor(null); setManage(false); await status(captured);
-        }, 'disconnect')}>{T.disconnect}</ui.Button>
+        <ui.Button variant="ghost" disabled={busy} onClick={disconnect}>{T.disconnect}</ui.Button>
       </div>}
+      </>}
       <div className="music-controls">
         {view === 'search' && <div className="music-search" onKeyDown={event => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.target.tagName === 'INPUT') { event.preventDefault(); search(); }
@@ -635,7 +695,7 @@ export default function Panel({ sdk, context, ui }) {
         {view !== 'search' && !connection.libraryPages && rows.length === 50 && <small>{T.libraryLimit}</small>}
         {cursor && <ui.Button variant="ghost" busy={pending?.kind === 'more'} busyLabel={T.loading} disabled={busy} onClick={() => action(captured => load(cursor, captured, searchedTerm), 'more')}>{T.more}</ui.Button>}
       </div>
-      {(showCreate || editTrack && connection.libraryEdit) && <div key={showCreate ? 'create' : editTrack?.id} className="music-editor">
+      {(showCreate || editTrack && connection.libraryEdit && !ui.Menu) && <div key={showCreate ? 'create' : editTrack?.id} className="music-editor">
         {editTrack && !showCreate && connection.libraryEdit && <ui.Section title={editTrack.title} actions={<ui.IconButton icon="close" label={T.closeLibrary} disabled={busy} onClick={() => setEditTrack(null)} />}>
           <ui.Row><ui.Button variant="ghost" busy={pending?.kind === 'favorite'} busyLabel={T.savingLibrary} disabled={busy || typeof editTrack.favorited !== 'boolean'} onClick={editFavorite}>{editTrack.favorited ? T.unfavoriteLabel : T.favoriteLabel}</ui.Button><ui.Button variant="ghost" disabled={busy} onClick={() => action(captured => script(`return await selects.artlist.openTrack(${JSON.stringify(editTrack.url)});`, true, captured), 'open', editTrack.id)}>{T.openTrack}</ui.Button></ui.Row>
           {artboards.length > 0 && <ui.Select key={targetBoard} label={T.artboards} placeholder={T.chooseArtboard} value={targetBoard || null} options={artboards.map(board => ({value:board.id,label:board.name}))} disabled={busy} onChange={setTargetBoard} />}
@@ -644,9 +704,9 @@ export default function Panel({ sdk, context, ui }) {
             {view === 'artboards' && boardId && <ui.Button variant="ghost" busy={pending?.kind === 'board-remove'} busyLabel={T.savingLibrary} disabled={busy} onClick={() => editBoard(false)}>{T.removeFromBoard}</ui.Button>}</ui.Row>
           {view !== 'artboards' && <ui.Row><ui.Button variant="ghost" disabled={busy} onClick={() => {setManage(false);setShowCreate(value => !value);}}>{T.newBoard}</ui.Button></ui.Row>}
         </ui.Section>}
-        {showCreate && <ui.Section title={T.newBoard} actions={<ui.IconButton icon="close" label={T.cancelLibrary + ': ' + T.newBoard} disabled={busy} onClick={() => setShowCreate(false)} />}>
+        {showCreate && <ui.Section title={T.newBoard} actions={<ui.IconButton icon="close" label={T.cancelLibrary + ': ' + T.newBoard} disabled={busy} onClick={() => { setShowCreate(false); setBoardFor(null); }} />}>
           <ui.TextField label={T.boardName} value={newBoardName} disabled={busy} onChange={setNewBoardName} />
-          <ui.Actions><ui.Button variant="ghost" disabled={busy} onClick={() => setShowCreate(false)}>{T.cancelLibrary}</ui.Button><ui.Button busy={pending?.kind === 'board-create'} busyLabel={T.creatingBoard} disabled={busy || !newBoardName.trim() || newBoardName.trim().length > 80} onClick={createBoard}>{T.createBoard}</ui.Button></ui.Actions>
+          <ui.Actions><ui.Button variant="ghost" disabled={busy} onClick={() => { setShowCreate(false); setBoardFor(null); }}>{T.cancelLibrary}</ui.Button><ui.Button busy={pending?.kind === 'board-create'} busyLabel={T.creatingBoard} disabled={busy || !newBoardName.trim() || newBoardName.trim().length > 80} onClick={createBoard}>{T.createBoard}</ui.Button></ui.Actions>
         </ui.Section>}
       </div>}
       {audio && <MusicPreview row={audio} durationSeconds={audio.length} media={media} playing={playing} onPlaying={setPlaying}
