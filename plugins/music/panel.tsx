@@ -8,14 +8,14 @@ import React from 'react';
 const COPY = {
   en: {
     connect: 'Connect Epidemic Sound', disconnect: 'Disconnect', connected: 'Epidemic Sound connected',
-    manage: 'Manage connection', placeholder: 'Track, artist or mood', browse: 'Browse music',
+    service: 'Service', manage: 'Manage connection', placeholder: 'Track, artist or mood', browse: 'Browse music',
     hints: 'Search by track, artist or mood.', results: 'Search results', shown: 'tracks shown',
     ready: 'Connected', connectTitle: 'Bring your music into Selects', connectHint: 'Connect with a key from your own Epidemic Sound account.',
     connecting: 'Connecting…',
     searching: 'Searching…', previewFailed: 'Could not play this track. Try another track.', emptyHint: 'Try another track, artist or mood.',
     pause: 'Pause', close: 'Close player', position: 'Playback position', adding: 'Downloading and adding music…',
     search: 'Search', clear: 'Clear search', query: 'Music search', more: 'Load more', empty: 'No tracks found.',
-    drag: 'Drag a cover onto the timeline to add music.',
+    drag: 'Drag a cover to the timeline.',
     preview: 'Preview', add: 'Add to Draft', addAgain: 'Add again', added: 'Added to Draft', draft: 'Open a Draft to add music.', loading: 'Loading music\u2026', failed: 'Could not load music. Try again.',
     epidemic_update_required: 'Update Selects to connect Epidemic Sound.', epidemic_sign_in_required: 'Sign in to Selects first.',
     epidemic_reconnect_required: 'Reconnect your Epidemic account.', epidemic_account_changed: 'Your account changed. Try again.',
@@ -27,14 +27,14 @@ const COPY = {
   },
   ko: {
     connect: 'Epidemic Sound \uc5f0\uacb0', disconnect: '\uc5f0\uacb0 \ud574\uc81c', connected: 'Epidemic Sound \uc5f0\uacb0\ub428',
-    manage: '\uc5f0\uacb0 \uad00\ub9ac', placeholder: '\uace1, \uc544\ud2f0\uc2a4\ud2b8, \ubd84\uc704\uae30\ub85c \uac80\uc0c9', browse: '\uc74c\uc545 \ub458\ub7ec\ubcf4\uae30',
+    service: '\uc11c\ube44\uc2a4', manage: '\uc5f0\uacb0 \uad00\ub9ac', placeholder: '\uace1, \uc544\ud2f0\uc2a4\ud2b8, \ubd84\uc704\uae30\ub85c \uac80\uc0c9', browse: '\uc74c\uc545 \ub458\ub7ec\ubcf4\uae30',
     hints: '\uace1, \uc544\ud2f0\uc2a4\ud2b8, \ubd84\uc704\uae30\ub85c \uc6d0\ud558\ub294 \uc74c\uc545\uc744 \ucc3e\uc544\ubcf4\uc138\uc694.', results: '\uac80\uc0c9 \uacb0\uacfc', shown: '\uace1 \ud45c\uc2dc',
     ready: '\uc5f0\uacb0\ub428', connectTitle: '\ub0b4 \uc74c\uc545\uc744 Selects\uc5d0\uc11c', connectHint: '\ub0b4 Epidemic Sound \uacc4\uc815\uc5d0\uc11c \ubc1c\uae09\ud55c \ud0a4\ub85c \uc5f0\uacb0\ud558\uc138\uc694.',
     connecting: '\uc5f0\uacb0 \uc911…',
     searching: '\uac80\uc0c9 \uc911…', previewFailed: '\uc774 \uace1\uc744 \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\ub978 \uace1\uc744 \uc120\ud0dd\ud574 \uc8fc\uc138\uc694.', emptyHint: '\ub2e4\ub978 \uace1, \uc544\ud2f0\uc2a4\ud2b8 \ub610\ub294 \ubd84\uc704\uae30\ub85c \uac80\uc0c9\ud574 \ubcf4\uc138\uc694.',
     pause: '\uc77c\uc2dc \uc815\uc9c0', close: '\ud50c\ub808\uc774\uc5b4 \ub2eb\uae30', position: '\uc7ac\uc0dd \uc704\uce58', adding: '\uc74c\uc545\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud558\uace0 \ucd94\uac00\ud558\ub294 \uc911…',
     search: '\uac80\uc0c9', clear: '\uac80\uc0c9\uc5b4 \uc9c0\uc6b0\uae30', query: '\uc74c\uc545 \uac80\uc0c9', more: '\ub354 \ubcf4\uae30', empty: '\uac80\uc0c9\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694.',
-    drag: '\ucee4\ubc84\ub97c \ud0c0\uc784\ub77c\uc778\uc73c\ub85c \ub4dc\ub798\uadf8\ud574 \uc74c\uc545\uc744 \ucd94\uac00\ud558\uc138\uc694.',
+    drag: '\ucee4\ubc84\ub97c \ud0c0\uc784\ub77c\uc778\uc5d0 \ub4dc\ub798\uadf8\ud574 \ucd94\uac00\ud558\uc138\uc694.',
     preview: '\ubbf8\ub9ac\ub4e3\uae30', add: 'Draft\uc5d0 \ucd94\uac00', addAgain: '\ub2e4\uc2dc \ucd94\uac00', added: 'Draft\uc5d0 \ucd94\uac00\ub428', draft: '\uc74c\uc545\uc744 \ucd94\uac00\ud558\ub824\uba74 Draft\ub97c \uc5f4\uc5b4 \uc8fc\uc138\uc694.', loading: '\uc74c\uc545 \ubd88\ub7ec\uc624\ub294 \uc911\u2026', failed: '\uc74c\uc545\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
     epidemic_update_required: 'Epidemic\uc744 \uc5f0\uacb0\ud558\ub824\uba74 Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.', epidemic_sign_in_required: 'Selects\uc5d0 \uba3c\uc800 \ub85c\uadf8\uc778\ud574 \uc8fc\uc138\uc694.',
     epidemic_reconnect_required: 'Epidemic \uacc4\uc815\uc744 \ub2e4\uc2dc \uc5f0\uacb0\ud574 \uc8fc\uc138\uc694.', epidemic_account_changed: '\uacc4\uc815\uc774 \ubc14\ub00c\uc5c8\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
@@ -47,7 +47,7 @@ const COPY = {
 };
 const ARTLIST_COPY = {
   en: {
-    connect: 'Connect Artlist', connected: 'Artlist connected', connectHint: 'Sign in on Artlist, then open your profile menu to finish connecting.',
+    kindLabel: 'Type', openTrack: 'Open in Artlist', connect: 'Connect Artlist', connected: 'Artlist connected', connectHint: 'Sign in on Artlist, then open your profile menu to finish connecting.',
     cancelLibrary: 'Cancel', closeLibrary: 'Close save controls', savingLibrary: 'Saving…', creatingBoard: 'Creating…', boardSaved: 'Saved to Artboard.',
     previousPage: 'Previous', nextPage: 'Next', pageLabel: 'Page', moreBoards: 'More Artboards', saveManage: 'Save', favoriteLabel: 'Favorite', unfavoriteLabel: 'Unfavorite', addToBoard: 'Add to Artboard', removeFromBoard: 'Remove from this Artboard', newBoard: 'New Artboard', boardName: 'Artboard name', createBoard: 'Create', artlist_library_edit_uncertain: 'The change could not be verified. Refresh your library before trying again.', artlist_ambiguous_artboard: 'Artboards have identical names. Rename them in Artlist before selecting one.', artlist_artboard_unavailable: 'This Artboard is no longer available. Refresh your library.',
     library: 'Browse', favorites: 'Favorites', downloads: 'Downloads', artboards: 'Artboards', catalog: 'Search', refreshLibrary: 'Refresh', chooseArtboard: 'Choose an Artboard', emptyLibrary: 'No saved tracks here yet', emptyLibraryHint: 'Save tracks in Artlist, then refresh this list.', emptyBoards: 'No Artboards yet', libraryLimit: 'Showing the first 50 tracks.', artlist_library_unavailable: 'Could not load your Artlist library. Try again.', cancelDownloadLabel: 'Cancel download', refresh: 'Refresh account and plan', license: 'View license', licenseHint: 'Your Artlist plan determines how downloaded music can be used.',
@@ -71,10 +71,10 @@ const ARTLIST_COPY = {
     artlist_storage_failed: 'Could not save your Artlist connection.', artlist_invalid_url: 'This Artlist link is invalid.',
   },
   ko: {
-    connect: 'Artlist \uc5f0\uacb0', connected: 'Artlist \uc5f0\uacb0\ub428', connectHint: 'Artlist\uc5d0\uc11c \ub85c\uadf8\uc778\ud55c \ub4a4 \uc624\ub978\ucabd \ud504\ub85c\ud544 \uba54\ub274\ub97c \uc5f4\uc5b4 \uc5f0\uacb0\uc744 \uc644\ub8cc\ud558\uc138\uc694.',
+    kindLabel: '\uc885\ub958', openTrack: 'Artlist\uc5d0\uc11c \uc5f4\uae30', connect: 'Artlist \uc5f0\uacb0', connected: 'Artlist \uc5f0\uacb0\ub428', connectHint: 'Artlist\uc5d0\uc11c \ub85c\uadf8\uc778\ud55c \ub4a4 \uc624\ub978\ucabd \ud504\ub85c\ud544 \uba54\ub274\ub97c \uc5f4\uc5b4 \uc5f0\uacb0\uc744 \uc644\ub8cc\ud558\uc138\uc694.',
     cancelLibrary: '\ucde8\uc18c', closeLibrary: '\uc800\uc7a5 \uad00\ub9ac \ub2eb\uae30', savingLibrary: '\uc800\uc7a5 \uc911…', creatingBoard: '\ub9cc\ub4dc\ub294 \uc911…', boardSaved: '\ubcf4\uad00\ud568\uc5d0 \uc800\uc7a5\ud588\uc5b4\uc694.',
-    previousPage: '\uc774\uc804', nextPage: '\ub2e4\uc74c', pageLabel: '\ud398\uc774\uc9c0', moreBoards: '\ubcf4\uad00\ud568 \ub354 \ubcf4\uae30', saveManage: '\uc800\uc7a5 \uad00\ub9ac', favoriteLabel: '\ucc1c\ud558\uae30', unfavoriteLabel: '\ucc1c \ud574\uc81c', addToBoard: '\ubcf4\uad00\ud568\uc5d0 \ub123\uae30', removeFromBoard: '\uc774 \ubcf4\uad00\ud568\uc5d0\uc11c \ube7c\uae30', newBoard: '\uc0c8 Artboard', boardName: '\ubcf4\uad00\ud568 \uc774\ub984', createBoard: '\ub9cc\ub4e4\uae30', artlist_library_edit_uncertain: '\ubcc0\uacbd \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubcf4\uad00\ud568\uc744 \uc0c8\ub85c\uace0\uce68\ud55c \ub4a4 \ud655\uc778\ud574 \uc8fc\uc138\uc694.', artlist_ambiguous_artboard: '\uc774\ub984\uc774 \uac19\uc740 \ubcf4\uad00\ud568\uc774 \uc788\uc5b4\uc694. Artlist\uc5d0\uc11c \uc774\ub984\uc744 \uad6c\ubd84\ud574 \uc8fc\uc138\uc694.', artlist_artboard_unavailable: '\uc774 \ubcf4\uad00\ud568\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubaa9\ub85d\uc744 \uc0c8\ub85c\uace0\uce68\ud574 \uc8fc\uc138\uc694.',
-    library: '\ubaa9\ub85d', favorites: '\ucc1c', downloads: '\ub2e4\uc6b4\ub85c\ub4dc', artboards: 'Artboards', catalog: '\uac80\uc0c9', refreshLibrary: '\uc0c8\ub85c\uace0\uce68', chooseArtboard: 'Artboard\ub97c \uc120\ud0dd\ud558\uc138\uc694', emptyLibrary: '\uc544\uc9c1 \uc800\uc7a5\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694', emptyLibraryHint: 'Artlist\uc5d0\uc11c \uace1\uc744 \uc800\uc7a5\ud55c \ub4a4 \uc0c8\ub85c\uace0\uce68\ud574 \uc8fc\uc138\uc694.', emptyBoards: '\uc544\uc9c1 Artboard\uac00 \uc5c6\uc5b4\uc694', libraryLimit: '\ucc98\uc74c 50\uace1\uc744 \ud45c\uc2dc\ud558\uace0 \uc788\uc5b4\uc694.', artlist_library_unavailable: 'Artlist \ubcf4\uad00\ud568\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', cancelDownloadLabel: '\ub2e4\uc6b4\ub85c\ub4dc \ucde8\uc18c', refresh: '\uacc4\uc815·\uad6c\ub3c5 \uc0c8\ub85c\uace0\uce68', license: '\ub77c\uc774\uc120\uc2a4 \ubcf4\uae30', licenseHint: '\ub2e4\uc6b4\ub85c\ub4dc\ud55c \uc74c\uc545\uc758 \uc0ac\uc6a9 \ubc94\uc704\ub294 \ub0b4 Artlist \ud50c\ub79c\uc744 \ub530\ub985\ub2c8\ub2e4.',
+    previousPage: '\uc774\uc804', nextPage: '\ub2e4\uc74c', pageLabel: '\ud398\uc774\uc9c0', moreBoards: '\ubcf4\uad00\ud568 \ub354 \ubcf4\uae30', saveManage: '\uc800\uc7a5 \uad00\ub9ac', favoriteLabel: '\ucc1c\ud558\uae30', unfavoriteLabel: '\ucc1c \ud574\uc81c', addToBoard: '\ubcf4\uad00\ud568\uc5d0 \ub123\uae30', removeFromBoard: '\uc774 \ubcf4\uad00\ud568\uc5d0\uc11c \ube7c\uae30', newBoard: '\uc0c8 \ubcf4\uad00\ud568', boardName: '\ubcf4\uad00\ud568 \uc774\ub984', createBoard: '\ub9cc\ub4e4\uae30', artlist_library_edit_uncertain: '\ubcc0\uacbd \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubcf4\uad00\ud568\uc744 \uc0c8\ub85c\uace0\uce68\ud55c \ub4a4 \ud655\uc778\ud574 \uc8fc\uc138\uc694.', artlist_ambiguous_artboard: '\uc774\ub984\uc774 \uac19\uc740 \ubcf4\uad00\ud568\uc774 \uc788\uc5b4\uc694. Artlist\uc5d0\uc11c \uc774\ub984\uc744 \uad6c\ubd84\ud574 \uc8fc\uc138\uc694.', artlist_artboard_unavailable: '\uc774 \ubcf4\uad00\ud568\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubaa9\ub85d\uc744 \uc0c8\ub85c\uace0\uce68\ud574 \uc8fc\uc138\uc694.',
+    library: '\ubaa9\ub85d', favorites: '\ucc1c', downloads: '\ub2e4\uc6b4\ub85c\ub4dc', artboards: '\ubcf4\uad00\ud568', catalog: '\uac80\uc0c9', refreshLibrary: '\uc0c8\ub85c\uace0\uce68', chooseArtboard: '\ubcf4\uad00\ud568 \uc120\ud0dd', emptyLibrary: '\uc544\uc9c1 \uc800\uc7a5\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694', emptyLibraryHint: 'Artlist\uc5d0\uc11c \uace1\uc744 \uc800\uc7a5\ud55c \ub4a4 \uc0c8\ub85c\uace0\uce68\ud574 \uc8fc\uc138\uc694.', emptyBoards: '\uc544\uc9c1 \ubcf4\uad00\ud568\uc774 \uc5c6\uc5b4\uc694', libraryLimit: '\ucc98\uc74c 50\uace1\uc744 \ud45c\uc2dc\ud558\uace0 \uc788\uc5b4\uc694.', artlist_library_unavailable: 'Artlist \ubcf4\uad00\ud568\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', cancelDownloadLabel: '\ub2e4\uc6b4\ub85c\ub4dc \ucde8\uc18c', refresh: '\uacc4\uc815·\uad6c\ub3c5 \uc0c8\ub85c\uace0\uce68', license: '\ub77c\uc774\uc120\uc2a4 \ubcf4\uae30', licenseHint: '\ub2e4\uc6b4\ub85c\ub4dc\ud55c \uc74c\uc545\uc758 \uc0ac\uc6a9 \ubc94\uc704\ub294 \ub0b4 Artlist \ud50c\ub79c\uc744 \ub530\ub985\ub2c8\ub2e4.',
     append: '\ub05d\uc5d0 \ucd94\uac00', appended: '\ub05d\uc5d0 \ucd94\uac00\ub428',
     music: '\uc74c\uc545', sfx: '\ud6a8\uacfc\uc74c', cancel: '\ub85c\uadf8\uc778 \ucde8\uc18c',
     downloadHint: 'Free \uacc4\uc815\uc740 \ubbf8\ub9ac\ub4e3\uae30\ub97c \ud560 \uc218 \uc788\uc5b4\uc694. \uc6d0\uace1\uc744 \ucd94\uac00\ud558\ub824\uba74 \uc74c\uc545 \uad6c\ub3c5\uc774 \ud544\uc694\ud574\uc694.',
@@ -183,8 +183,17 @@ export function addMusicScript(projectId, sequenceId, resourceId, seconds, music
 const STYLES = `
   .music-panel { height: calc(100dvh - var(--panel-gap)); margin: auto; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
   .music-header, .music-player-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .music-header { min-height: 44px; flex-shrink: 0; }
-  .music-provider { flex: 1; min-width: 0; font-weight: 600; }
+  .music-header { min-height: 32px; flex-shrink: 0; }
+  .music-service { flex: 1; min-width: 0; }
+  .music-navigation { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .music-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .music-toolbar .music-search { flex: 1; min-width: 120px; }
+  .music-kind { flex: 0 1 144px; min-width: 120px; }
+  .music-toolbar:not(:has(.music-search)) .music-kind { flex: 1; }
+  .music-library-picker { display: flex; align-items: center; gap: 8px; }
+  .music-library-picker > :first-child { flex: 1; min-width: 0; }
+  .music-library-editor { flex-shrink: 0; max-height: 42dvh; overflow-y: auto; }
+  .music-library-editor[data-player=true] { max-height: 28dvh; }
   .music-status { color: var(--panel-muted-fg); display: flex; align-items: center; gap: 4px; font-size: 11px; white-space: nowrap; }
   .music-connect { padding: 20px 0; display: flex; flex-direction: column; gap: 12px; }
   .music-connect h3 { color: var(--panel-fg); font-size: 16px; line-height: 1.35; }
@@ -193,14 +202,13 @@ const STYLES = `
   .music-search { display: flex; align-items: end; gap: 8px; }
   .music-search > :first-child { flex: 1; min-width: 0; }
   .music-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px; margin: 0 -4px; }
-  .music-results-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0 8px; color: var(--panel-muted-fg); }
-  .music-drag-hint { display: block; margin-bottom: 12px; }
-  .music-track { min-width: 0; padding-bottom: 12px; }
-  .music-track-info { display: flex; align-items: center; gap: 4px; padding-top: 4px; }
-  .music-track-info .music-meta { flex-wrap: wrap; gap: 4px; margin-top: 0; }
-  .music-track-copy { min-width: 0; flex: 1; }
+  .music-results-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 0 4px; color: var(--panel-muted-fg); }
+  .music-drag-hint { display: block; margin-bottom: 8px; font-size: 11px; color: var(--panel-muted-fg); }
+  .music-track { min-width: 0; display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--panel-border); }
+  .music-track-main { min-width: 0; }
+  .music-track-info { display: flex; align-items: center; }
   .music-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .music-cover-wrap { position: relative; display: grid; }
+  .music-cover-wrap { position: relative; display: grid; width: 56px; }
   .music-cover-loading { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; border-radius: 2px; background: color-mix(in srgb, var(--background) 45%, transparent); }
   .music-cover-loading svg { animation: music-spin 1s linear infinite; }
   @keyframes music-spin { to { transform: rotate(360deg); } }
@@ -209,9 +217,9 @@ const STYLES = `
   .music-track:hover .music-tile-mark, .music-track:focus-within .music-tile-mark, .music-track[data-active=true] .music-tile-mark { opacity: 1; }
   .music-play-mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--background); color: var(--panel-fg); }
   .music-cover-thumb { width: 44px; height: 44px; position: relative; flex-shrink: 0; overflow: hidden; border-radius: 2px; }
-  .music-card-title { margin-top: 8px; font-weight: 500; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .music-card-title { margin: 0; font-size: 12px; font-weight: 500; line-height: 18px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .music-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .music-meta { display: flex; gap: 8px; align-items: center; margin-top: 3px; color: var(--panel-muted-fg); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .music-meta { display: flex; gap: 6px; align-items: center; margin-top: 3px; color: var(--panel-muted-fg); font-size: 11px; font-variant-numeric: tabular-nums; }
   .music-artist { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .music-length { white-space: nowrap; }
   .music-empty { padding: 24px 0; }
@@ -223,6 +231,10 @@ const STYLES = `
   .music-seek { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-variant-numeric: tabular-nums; }
   .music-seek input { flex: 1; min-width: 0; }
   .music-player-actions { display: flex; justify-content: flex-end; }
+  .music-body > div:has(> .music-track) { gap: 0 20px; }
+  @media (prefers-reduced-motion: reduce) { .music-cover-loading svg { animation: none; } }
+  @media (max-height: 640px) { .music-library-editor[data-player=true] { max-height: 20dvh; } }
+  @media (max-width: 280px) { .music-track { grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; } .music-cover-wrap { width: 44px; } }
   @media (max-width: 240px) { .music-bpm, .music-status span { display: none; } }
 `;
 function MusicCover({ url, ui }) {
@@ -513,12 +525,11 @@ export default function Panel({ sdk, context, ui }) {
     setTerm(query);
     action(captured => load(null, captured, query), 'search');
   }
-  return <div className="music-panel">
+  return <div className="music-panel" data-provider={provider}>
     <style>{STYLES}</style>
-    <ui.Select label={context.language === 'ko' ? '\uc74c\uc545 \uc11c\ube44\uc2a4' : 'Music service'} value={provider} options={[{value: 'epidemic', label: 'Epidemic Sound'}, {value: 'artlist', label: 'Artlist'}]} disabled={busy} onChange={value => { setProvider(value); setPageNumber(1); setHasMore(false); setEditTrack(null); setTargetBoard(''); setShowCreate(false); setView('search'); setBoardId(''); setArtboards([]); setTerm(''); setConnection(null); setRows([]); setAudio(null); setMessage(''); }} />
     <div className="music-header">
-      <ui.Icon name="audio" /><span className="music-provider">{artlist ? 'Artlist' : 'Epidemic Sound'}</span>
-      {connection?.connected && <><span className="music-status" title={T.connected}><ui.Icon name="check" size={12} /><span>{T.ready}</span></span><ui.IconButton icon={manage ? 'close' : 'settings'} label={T.manage} disabled={busy} onClick={() => setManage(value => !value)} /></>}
+      <div className="music-service"><ui.Select label={T.service} value={provider} options={[{value: 'epidemic', label: 'Epidemic Sound'}, {value: 'artlist', label: 'Artlist'}]} disabled={busy} onChange={value => { setProvider(value); setPageNumber(1); setHasMore(false); setEditTrack(null); setTargetBoard(''); setShowCreate(false); setView('search'); setBoardId(''); setArtboards([]); setTerm(''); setConnection(null); setRows([]); setAudio(null); setMessage(''); }} /></div>
+      {connection?.connected && <><span className="music-status" title={T.connected}><ui.Icon name="check" size={12} /><span>{T.ready}</span></span><ui.IconButton icon={manage ? 'close' : 'settings'} label={T.manage} disabled={busy} onClick={() => {setManage(value => !value);setEditTrack(null);setShowCreate(false);}} /></>}
     </div>
     {manage && connection?.connected && <div className="music-settings">
       <small>{connection.email || T.connected}{connection.plan ? ' · ' + connection.plan : ''}</small>
@@ -536,40 +547,33 @@ export default function Panel({ sdk, context, ui }) {
       </ui.Actions>
     </div>}
     {connection?.connected && <>
-      {artlist && <ui.Select label={context.language === 'ko' ? '\uc885\ub958' : 'Catalog'} value={kind} options={[{value: 'music', label: T.music}, {value: 'sfx', label: T.sfx}]} disabled={busy} onChange={value => {setKind(value); setPageNumber(1); setHasMore(false); setEditTrack(null); setTerm(''); setRows([]); setAudio(null); setSearchedTerm(''); setMessage('');}} />}
-      {artlist && <ui.Segmented label={T.library} value={view} disabled={busy} onChange={changeLibrary}
-        options={[{value:'search',label:T.catalog},{value:'favorites',label:T.favorites},{value:'downloads',label:T.downloads},{value:'artboards',label:T.artboards}]} />}
-      {artlist && view !== 'search' && <ui.Row>
-        {view === 'artboards' && artboards.length > 0 && <ui.Select key={boardId} label={T.artboards} placeholder={T.chooseArtboard} value={boardId || null} disabled={busy}
-          options={artboards.map(board => ({value:board.id,label:board.name}))} onChange={value => {setBoardId(value);setPageNumber(1);setHasMore(false);setEditTrack(null);setRows([]);setAudio(null);setSearchedTerm('');setMessage('');}} />}
-        <ui.Button variant="ghost" disabled={busy} onClick={() => action(async captured => {
+      {artlist && <fieldset className="music-navigation" disabled={busy} aria-label={T.library}>
+        <ui.Tabs value={view} onChange={value => { if (!busy) changeLibrary(value); }}
+          tabs={[{value:'search',label:T.catalog},{value:'favorites',label:T.favorites},{value:'downloads',label:T.downloads},{value:'artboards',label:T.artboards}].map(tab => ({...tab, content: null}))} />
+      </fieldset>}
+      <div className="music-toolbar">
+        {(!artlist || view === 'search') && <div className="music-search" onKeyDown={event => {
+          if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.target.tagName === 'INPUT') { event.preventDefault(); search(); }
+        }}>
+          {ui.version >= 2 && ui.SearchInput ? <ui.SearchInput label={T.query} placeholder={T.placeholder} value={term}
+            disabled={busy} busy={pending?.kind === 'search'} clearLabel={T.clear} searchLabel={pending?.kind === 'search' ? T.searching : T.search}
+            onChange={setTerm} onSearch={() => search()} /> : <>
+            <ui.TextField label={T.query} placeholder={T.placeholder} value={term} disabled={busy} onChange={setTerm} />
+            <ui.IconButton icon={pending?.kind === 'search' ? 'loading' : 'search'} label={pending?.kind === 'search' ? T.searching : T.search} disabled={busy || !term.trim()} onClick={() => search()} />
+          </>}
+        </div>}
+        {artlist && <div className="music-kind"><ui.Select label={T.kindLabel} value={kind} options={[{value:'music',label:T.music},{value:'sfx',label:T.sfx}]} disabled={busy} onChange={value => {setKind(value);setPageNumber(1);setHasMore(false);setEditTrack(null);setTerm('');setRows([]);setAudio(null);setSearchedTerm('');setMessage('');}} /></div>}
+        {artlist && view !== 'search' && <ui.IconButton icon="refresh" label={T.refreshLibrary} disabled={busy} onClick={() => action(async captured => {
           if (view === 'artboards' && boardId) await loadBoards(captured);
           await load(null, captured);
-        }, 'library')}>{T.refreshLibrary}</ui.Button>
-      </ui.Row>}
-      {artlist && view === 'artboards' && moreBoards && <ui.Button variant="ghost" busy={pending?.kind === 'board-more'} busyLabel={T.loading} disabled={busy} onClick={() => action(captured => loadBoards(captured, true), 'board-more')}>{T.moreBoards}</ui.Button>}
-      {artlist && connection.libraryEdit && (view === 'artboards' || editTrack) && <ui.Button variant="ghost" disabled={busy} onClick={() => setShowCreate(value => !value)}>{T.newBoard}</ui.Button>}
-      {artlist && showCreate && <ui.Section title={T.newBoard}>
-        <ui.TextField label={T.boardName} value={newBoardName} disabled={busy} onChange={setNewBoardName} />
-        <ui.Actions><ui.Button variant="ghost" disabled={busy} onClick={() => setShowCreate(false)}>{T.cancelLibrary}</ui.Button><ui.Button busy={pending?.kind === 'board-create'} busyLabel={T.creatingBoard} disabled={busy || !newBoardName.trim() || newBoardName.trim().length > 80} onClick={createBoard}>{T.createBoard}</ui.Button></ui.Actions>
-      </ui.Section>}
-      {artlist && editTrack && connection.libraryEdit && <ui.Section title={editTrack.title} actions={<ui.IconButton icon="close" label={T.closeLibrary} disabled={busy} onClick={() => setEditTrack(null)} />}>
-        <ui.Button variant="ghost" busy={pending?.kind === 'favorite'} busyLabel={T.savingLibrary} disabled={busy} onClick={editFavorite}>{editTrack.favorited ? T.unfavoriteLabel : T.favoriteLabel}</ui.Button>
-        {artboards.length > 0 && <ui.Select key={targetBoard} label={T.artboards} placeholder={T.chooseArtboard} value={targetBoard || null} options={artboards.map(board => ({value:board.id,label:board.name}))} disabled={busy} onChange={setTargetBoard} />}
-        {moreBoards && view !== 'artboards' && <ui.Button variant="ghost" busy={pending?.kind === 'board-more'} busyLabel={T.loading} disabled={busy} onClick={() => action(captured => loadBoards(captured, true), 'board-more')}>{T.moreBoards}</ui.Button>}
-        <ui.Row><ui.Button variant="ghost" busy={pending?.kind === 'board-add'} busyLabel={T.savingLibrary} disabled={busy || !targetBoard} onClick={() => editBoard(true)}>{T.addToBoard}</ui.Button>
-          {view === 'artboards' && boardId && <ui.Button variant="ghost" busy={pending?.kind === 'board-remove'} busyLabel={T.savingLibrary} disabled={busy} onClick={() => editBoard(false)}>{T.removeFromBoard}</ui.Button>}</ui.Row>
-      </ui.Section>}
-      {(!artlist || view === 'search') && <div className="music-search" onKeyDown={event => {
-        if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.target.tagName === 'INPUT') { event.preventDefault(); search(); }
-      }}>
-        {ui.version >= 2 && ui.SearchInput ? <ui.SearchInput label={T.query} placeholder={T.placeholder} value={term}
-          disabled={busy} busy={pending?.kind === 'search'} clearLabel={T.clear} searchLabel={pending?.kind === 'search' ? T.searching : T.search}
-          onChange={setTerm} onSearch={() => search()} /> : <>
-          <ui.TextField label={T.query} placeholder={T.placeholder} value={term} disabled={busy} onChange={setTerm} />
-          <ui.IconButton icon={pending?.kind === 'search' ? 'loading' : 'search'} label={pending?.kind === 'search' ? T.searching : T.search} disabled={busy || !term.trim()} onClick={() => search()} />
-        </>}
+        }, 'library')} />}
+      </div>
+      {artlist && view === 'artboards' && <div className="music-library-picker">
+        {artboards.length > 0 && <ui.Select key={boardId} label={T.artboards} placeholder={T.chooseArtboard} value={boardId || null} disabled={busy}
+          options={artboards.map(board => ({value:board.id,label:board.name}))} onChange={value => {setBoardId(value);setPageNumber(1);setHasMore(false);setEditTrack(null);setRows([]);setAudio(null);setSearchedTerm('');setMessage('');}} />}
+        {connection.libraryEdit && <ui.Button variant="ghost" disabled={busy} onClick={() => {setManage(false);setShowCreate(value => !value);}}>{T.newBoard}</ui.Button>}
       </div>}
+      {artlist && view === 'artboards' && moreBoards && <ui.Button variant="ghost" busy={pending?.kind === 'board-more'} busyLabel={T.loading} disabled={busy} onClick={() => action(captured => loadBoards(captured, true), 'board-more')}>{T.moreBoards}</ui.Button>}
       {!context.sequenceId && <ui.Message>{T.draft}</ui.Message>}
       <div className="music-body">
         {rows.length > 0 && <div className="music-results-heading"><span className="music-title">{artlist && view !== 'search' ? view === 'artboards' ? artboards.find(board => board.id === boardId)?.name || T.artboards : T[view] : searchedTerm === BROWSE_QUERY ? T.browse : searchedTerm}</span><small className="music-length">{rows.length} {T.shown}</small></div>}
@@ -577,7 +581,7 @@ export default function Panel({ sdk, context, ui }) {
         {rows.length > 0 && ui.version >= 3 && context.projectId && <small className="music-drag-hint">{T.drag}</small>}
         {!rows.length && !busy && !message && <div className="music-empty"><h3>{artlist && view !== 'search' ? view === 'artboards' && !boardId ? artboards.length ? T.chooseArtboard : T.emptyBoards : T.emptyLibrary : searchedTerm ? T.empty : T.browse}</h3><p>{artlist && view !== 'search' ? T.emptyLibraryHint : searchedTerm ? T.emptyHint : T.hints}</p></div>}
         {busy && !rows.length && <ui.Progress label={T.loading} />}
-        <ui.Grid minItemWidth={80}>{rows.map(row => <div key={row.id} className="music-track" data-active={audio?.id === row.id}>
+        <ui.Grid minItemWidth={300}>{rows.map(row => <div key={row.id} className="music-track" data-active={audio?.id === row.id}>
           <div className="music-cover-wrap" aria-busy={adding === row.id || undefined}>
           {ui.version >= 2 && ui.MediaTile ? <ui.MediaTile label={(adding === row.id ? T.adding : audio?.id === row.id && playing ? T.pause : T.preview) + ': ' + row.title}
             selected={audio?.id === row.id} disabled={busy} onClick={() => preview(row)}
@@ -590,21 +594,20 @@ export default function Panel({ sdk, context, ui }) {
           </ui.MediaTile> : <ui.IconButton icon={audio?.id === row.id && playing ? 'pause' : 'play'} label={T.preview + ': ' + row.title} disabled={busy} onClick={() => preview(row)} />}
           {adding === row.id && <span className="music-cover-loading" role="status" aria-label={T.adding + ': ' + row.title}><span className="music-play-mark"><ui.Icon name="loading" /></span></span>}
           </div>
-          <div className="music-card-title" title={row.title}>{row.title}</div>
-          <div className="music-meta"><span className="music-artist" title={row.mainArtists.join(', ')}>{row.mainArtists.join(', ')}</span></div>
-          {artlist && connection.libraryEdit && <ui.Button variant="ghost" busy={pending?.kind === 'library' && pending.trackId === row.id} busyLabel={T.loading} disabled={busy} onClick={() => action(async captured => {
+          <div className="music-track-main"><div className="music-card-title" title={row.title}>{row.title}</div>
+          <div className="music-meta"><span className="music-artist" title={row.mainArtists.join(', ')}>{row.mainArtists.join(', ')}</span><span className="music-length">{clock(row.length)}</span>{row.bpm > 0 && <span className="music-bpm music-length">{row.bpm} BPM</span>}</div></div>
+          <div className="music-track-info">
+          {artlist && connection.libraryEdit && <ui.IconButton icon={pending?.kind === 'library' && pending.trackId === row.id ? 'loading' : 'more'} label={T.saveManage + ': ' + row.title} disabled={busy} onClick={() => action(async captured => {
+            setManage(false);setEditTrack(row);setTargetBoard(boardId || '');
             let selected = row;
             if (typeof row.favorited !== 'boolean') {
               const result = await script(`return await selects.artlist.search(${JSON.stringify(row.title)}, ${JSON.stringify(kind)});`, false, captured);
               selected = result.tracks.find(track => track.id === row.id);
               if (!selected || typeof selected.favorited !== 'boolean') throw new Error('artlist_library_unavailable');
             }
-            setEditTrack(selected);setTargetBoard(boardId || '');if (!artboards.length) await loadBoards(captured);
-          }, 'library', row.id)}>{T.saveManage}</ui.Button>}
-          <div className="music-track-info">
-            <div className="music-track-copy music-meta"><span className="music-length">{clock(row.length)}</span>{row.bpm > 0 && <span className="music-bpm music-length">{row.bpm} BPM</span>}
-            </div>
-            {artlist && <ui.Button variant="ghost" disabled={busy} onClick={() => action(captured => script(`return await selects.artlist.openTrack(${JSON.stringify(row.url)});`, true, captured), 'open', row.id)}>Artlist ↗</ui.Button>}
+            setEditTrack(selected);if (!artboards.length) await loadBoards(captured);
+          }, 'library', row.id)} />}
+            {artlist && !connection.libraryEdit && <ui.IconButton icon="external-link" label={T.openTrack + ': ' + row.title} disabled={busy} onClick={() => action(captured => script(`return await selects.artlist.openTrack(${JSON.stringify(row.url)});`, true, captured), 'open', row.id)} />}
             {<ui.IconButton icon={adding === row.id ? 'loading' : 'plus'} label={(adding === row.id ? T.adding : added.includes(row.id) ? T.addAgain : T.add) + ': ' + row.title} disabled={busy || !context.projectId || !context.sequenceId} onClick={() => add(row)} />}
           </div>
         </div>)}</ui.Grid>
@@ -613,6 +616,21 @@ export default function Panel({ sdk, context, ui }) {
         {cursor && <ui.Actions><ui.Button variant="ghost" busy={pending?.kind === 'more'} busyLabel={T.loading} disabled={busy} onClick={() => action(captured => load(cursor, captured, searchedTerm), 'more')}>{T.more}</ui.Button></ui.Actions>}
       </div>
     </>}
+    {artlist && connection?.connected && (showCreate || editTrack && connection.libraryEdit) && <div key={showCreate ? 'create' : editTrack?.id} className="music-library-editor" data-player={!!audio}>
+      {editTrack && !showCreate && connection.libraryEdit && <ui.Section title={editTrack.title} actions={<ui.IconButton icon="close" label={T.closeLibrary} disabled={busy} onClick={() => setEditTrack(null)} />}>
+        <ui.Row><ui.Button variant="ghost" busy={pending?.kind === 'favorite'} busyLabel={T.savingLibrary} disabled={busy || typeof editTrack.favorited !== 'boolean'} onClick={editFavorite}>{editTrack.favorited ? T.unfavoriteLabel : T.favoriteLabel}</ui.Button><ui.Button variant="ghost" icon="external-link" disabled={busy} onClick={() => action(captured => script(`return await selects.artlist.openTrack(${JSON.stringify(editTrack.url)});`, true, captured), 'open', editTrack.id)}>{T.openTrack}</ui.Button></ui.Row>
+        {artboards.length > 0 && <ui.Select key={targetBoard} label={T.artboards} placeholder={T.chooseArtboard} value={targetBoard || null} options={artboards.map(board => ({value:board.id,label:board.name}))} disabled={busy} onChange={setTargetBoard} />}
+        {moreBoards && view !== 'artboards' && <ui.Button variant="ghost" busy={pending?.kind === 'board-more'} busyLabel={T.loading} disabled={busy} onClick={() => action(captured => loadBoards(captured, true), 'board-more')}>{T.moreBoards}</ui.Button>}
+        <ui.Row><ui.Button variant="ghost" busy={pending?.kind === 'board-add'} busyLabel={T.savingLibrary} disabled={busy || !targetBoard} onClick={() => editBoard(true)}>{T.addToBoard}</ui.Button>
+          {view === 'artboards' && boardId && <ui.Button variant="ghost" busy={pending?.kind === 'board-remove'} busyLabel={T.savingLibrary} disabled={busy} onClick={() => editBoard(false)}>{T.removeFromBoard}</ui.Button>}</ui.Row>
+        {view !== 'artboards' && <ui.Row><ui.Button variant="ghost" disabled={busy} onClick={() => {setManage(false);setShowCreate(value => !value);}}>{T.newBoard}</ui.Button></ui.Row>}
+      </ui.Section>}
+      {showCreate && <ui.Section title={T.newBoard} actions={<ui.IconButton icon="close" label={T.cancelLibrary + ': ' + T.newBoard} disabled={busy} onClick={() => setShowCreate(false)} />}>
+        <ui.TextField label={T.boardName} value={newBoardName} disabled={busy} onChange={setNewBoardName} />
+        <ui.Actions><ui.Button variant="ghost" disabled={busy} onClick={() => setShowCreate(false)}>{T.cancelLibrary}</ui.Button><ui.Button busy={pending?.kind === 'board-create'} busyLabel={T.creatingBoard} disabled={busy || !newBoardName.trim() || newBoardName.trim().length > 80} onClick={createBoard}>{T.createBoard}</ui.Button></ui.Actions>
+      </ui.Section>}
+    </div>}
+
     {artlist && cancellable && <ui.Button variant="ghost" disabled={canceling} onClick={cancelDownload}>{T.cancelDownloadLabel}</ui.Button>}
     {message && <ui.Message tone={failed ? 'error' : 'success'}>{message}</ui.Message>}
     {audio && <MusicPreview row={audio} durationSeconds={artlist ? audio.length : undefined} media={media} playing={playing} onPlaying={setPlaying} onClose={() => { setAudio(null); setPlaying(false); }}

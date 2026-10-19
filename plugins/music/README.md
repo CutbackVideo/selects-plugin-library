@@ -63,6 +63,16 @@ the panel or script. This path uses the website, not MCP OAuth. Requires
 `music.artlist.web-session.v1`; older hosts retain Epidemic and show an update
 message when Artlist is selected.
 
+The header combines the provider picker, connection status and settings. Search,
+Favorites, Downloads and Artboards use native tabs in Artlist; its search and
+Music/Sound effects controls share a toolbar when there is room. Both providers
+share compact track rows with a cover, readable title and artist, duration/BPM,
+and an Add button. Artlist's More button opens favorites, Artboard controls and
+the Artlist link below the list. These controls scroll within a bounded area so the bottom preview
+player stays available. New Artboard controls use the same area. Account settings
+and track options open separately. Search, preview, drag, cover-loading feedback
+and the bottom player use the same layout for both providers.
+
 Search Music or Sound effects, click a cover to preview, or open its Artlist
 page. The plus button and cover drag request the website's MP3 download for
 Music or WAV download for Sound effects, then
