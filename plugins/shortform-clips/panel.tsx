@@ -6489,6 +6489,13 @@ export default function Panel(props: any) {
   return <ShortformClipsPanel {...props} files={files} />;
 }
 
+// Optional host update contract. Old hosts and all unregistered apps stay unchanged.
+function shortformUpdateCommand(mode: string, id?: string) {
+  const script = "const p=require('node:path');const f=p.join(require('node:os').homedir(),'.selects','skills','shortform-clips','update.cjs');require(f).run(" + JSON.stringify(mode) + "," + JSON.stringify(id || "") + ").then(v=>console.log(JSON.stringify(v))).catch(e=>{console.error(e.message);process.exitCode=1;});";
+  const encoded = btoa(script);
+  return 'node -e "eval(Buffer.from(\'' + encoded + '\',\'base64\').toString())"';
+}
+
 function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const lang = langOf(context);
   const S = merge(RADIO_STRINGS[lang] ?? RADIO_STRINGS.en, STRINGS[lang] ?? STRINGS.en);
@@ -6692,6 +6699,25 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     } finally { if (revision === templateLoadRevision.current) setTemplatesLoading(false); }
   }, [repository]);
   const templateDirty = !!tplEdit && JSON.stringify(tplEdit) !== tplBase;
+  const updateBlocked = React.useRef(false);
+  updateBlocked.current = !!(busy || packBusy || templateSaving || templateDirty);
+  React.useEffect(() => {
+    if (!sdk.updates?.register || !sdk.runShell) return;
+    return sdk.updates.register({
+      async checkUpdate() {
+        if (updateBlocked.current) return null;
+        const result = await sdk.runShell({summary: "Check Shortform Clips update", command: shortformUpdateCommand("check"), timeoutMs: 60000, maxOutputBytes: 8192});
+        if (result.isError || result.exitCode !== 0) throw new Error(result.stderr || "Update check failed.");
+        return JSON.parse(result.stdout.trim());
+      },
+      async prepareUpdate(id: string) {
+        if (updateBlocked.current) throw new Error("Finish the current operation and save template changes before updating.");
+        if (!/^[a-f0-9]{40}$/.test(id)) throw new Error("Invalid Shortform release.");
+        return {summary: "Update Shortform Clips", command: shortformUpdateCommand("apply", id), timeoutMs: 300000};
+      },
+    });
+  }, [sdk]);
+
   async function installPack(link = packLink, requestId?: string) {
     if (!link.trim() || packLock.current || busy || templateDirty || templateSaving) return;
     packLock.current = true;

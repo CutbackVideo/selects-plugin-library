@@ -355,3 +355,17 @@ reuses existing requests after unknown transport outcomes. A failed variant does
 not stop its siblings. Already submitted image jobs can continue with the panel
 closed. Photo-research usage and per-stage placement timings are retained when
 available. Generation is paid; each explicit new request can incur charges.
+
+
+### Optional app updates
+
+On a host with `sdk.updates`, Shortform registers its own update provider. The host
+shows an update only when the provider finds a newer supported release; existing
+hosts continue without the update control. Active runs and unsaved template edits
+block applying an update. `update.cjs` downloads and verifies the pinned code
+files, backs up replaced files, and rolls back normal installation failures.
+User templates, overrides and job data under `plugin-data/shortform-clips` are not
+replaced. Backups and interruption recovery details are in
+`.selects/.updates/shortform-clips`. A process interruption leaves the lock for
+recovery rather than permitting a second install. The first opted-in version must
+be installed once; releases without `updates.protocol=1` are not offered.

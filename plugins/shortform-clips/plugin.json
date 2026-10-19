@@ -11,7 +11,8 @@
   "files": [
     "README.md",
     "INSTALL.md",
-    "panel.tsx"
+    "panel.tsx",
+    "update.cjs"
   ],
   "compatibility": {
     "platforms": [
@@ -63,5 +64,8 @@
   },
   "requiresPlugins": [
     "selects-ai-runtime"
-  ]
+  ],
+  "updates": {
+    "protocol": 1
+  }
 }
