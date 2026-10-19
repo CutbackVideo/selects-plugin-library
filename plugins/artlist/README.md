@@ -22,8 +22,8 @@ frame. The original downloads after release, then the existing file-drop
 pipeline imports and places it. The drop captures the target before
 downloading and never follows navigation into another Draft. Existing timeline
 overwrite/insert rules apply: use an empty Audio lane or hold Cmd/Ctrl for
-insert. Both the plus button and timeline drop dim the cover and show a
-spinning loader over it while the original downloads and imports. Older
+insert. Both the plus button and a timeline drop show a spinner in the
+row's plus button while the original downloads and imports. Older
 runtimes without `musicImportChanged` keep the native loading toast as their
 feedback. Navigating to another Draft clears the cover indicator and finishes
 the import only in the original project.
@@ -36,14 +36,24 @@ retains its own browser session per Selects user; no password or API key enters
 the panel or script. This path uses the website, not MCP OAuth. Requires
 `music.artlist.web-session.v1`; older hosts show an update message.
 
-The header shows the connection status and settings. Search,
-Favorites, Downloads and Artboards use native tabs; its search and
-Music/Sound effects controls share a toolbar when there is room. Track rows are
-compact, with a cover, readable title and artist, duration/BPM, and an Add
-button. The More button opens favorites, Artboard controls and
-the Artlist link below the list. These controls scroll within a bounded area so the bottom preview
-player stays available. New Artboard controls use the same area. Account settings
-and track options open separately.
+The layout follows the built-in Epidemic Sound app. Search, Favorites,
+Downloads and Artboards are the tabs; docked, the strip scrolls sideways. The
+⋯ after them opens the account: email and plan, **Refresh account and plan**,
+the license link and **Disconnect**. Under the tabs sit the search field (on
+Search), the Artboard picker (on Artboards) and Music/Sound effects.
+
+Results are a list under a quiet heading. A row is the cover, the title over
+the artist, and the length over the BPM; narrow, the BPM gives way first, then
+the length. Clicking anywhere on a row previews it, and the cover drags it onto
+the timeline. While a row is hovered, focused or playing, its **Save** button
+(favorite and Artboard controls, below the list) or its Artlist link takes the
+length's place; **+** is always there. Space plays and pauses the preview
+while focus is in the panel.
+
+The player is ruled off across the panel's foot: the seek bar, "Title -
+Artist" between the time played and the length, then play/pause with **+**.
+Save and New Artboard controls open between the list and the player and scroll
+within a bounded area.
 
 Search Music or Sound effects, click a cover to preview, or open its Artlist
 page. The plus button and cover drag request the website's MP3 download for
