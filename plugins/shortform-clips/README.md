@@ -355,26 +355,3 @@ reuses existing requests after unknown transport outcomes. A failed variant does
 not stop its siblings. Already submitted image jobs can continue with the panel
 closed. Photo-research usage and per-stage placement timings are retained when
 available. Generation is paid; each explicit new request can incur charges.
-
-
-### File transport and template images
-
-On hosts advertising `panel.files.binary.v1`, saved JSON and other file contents
-use `sdk.files.readRange` as binary chunks (up to 1 MiB), bypassing script JSON
-and Base64 limits. Older hosts retain the script/shell fallback; script batches
-use at most three 48 KiB chunks to leave JSON overhead under the 256 KiB cap.
-
-Backgrounds and logos are immutable files under `template-assets/`, addressed by
-SHA-256. Existing inline template images migrate when loaded; the original
-record is replaced only after all image files are saved. Settings contain
-`selects-template-asset:<hash>.<extension>` references, not absolute paths or
-machine-specific URLs. The store resolves those references into host local URLs
-for display and generated Drafts. Without binary file support, the updated plugin
-can still load those references as inline images through the legacy file route.
-Asset files are retained because saved Drafts may still use them.
-
-Shared template packs keep their existing format: `pack.json`, template JSON,
-and `assets/` files with relative image paths. Never share a display URL as a
-pack asset. A future export of customized templates must copy referenced image
-files into `assets/` and replace the internal references with pack-relative paths;
-this change does not add a custom-template export UI.

@@ -24,7 +24,7 @@ test('shortform timeline inputs', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MOD
         lengths.push(length);assert.ok(length<=49152);
         return {base64:Buffer.from(bytes.slice(offset,offset+length)).toString('base64')};
       }}});
-      assert.ok(Buffer.byteLength(JSON.stringify(result))<=256*1024,"SDK response must fit the real script result cap");
+      assert.ok(Buffer.byteLength(JSON.stringify({result})) < 256*1024, "Serialized file response must fit the script cap");
       return {result};
     }});
     const before=calls;
@@ -34,63 +34,26 @@ test('shortform timeline inputs', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MOD
     assert.deepEqual(whole,[bytes.slice(0,70000),bytes.slice(0,3000)]);
     await assert.rejects(files.readRange('/image',199999,2),/changed while/);
   });
-  await t.test('binary reads bypass runScript and preserve large files and EOF errors',async()=>{
-    let scripts=0,reads=0;
-    const data=Uint8Array.from({length:1500000},(_,i)=>i%256);
-    const files=await api.sdkFiles({files:{supported:true,localUrl:async path=>'local://'+path,readRange:async({offset,length})=>{reads++;return data.slice(offset,offset+length);}},runScript:async()=>{scripts++;return {result:{home:'/home',platform:'darwin'}};}});
-    assert.equal(files.readPiece,1024*1024);
-    assert.deepEqual(await files.readRange('/image',0,files.readPiece),data.slice(0,files.readPiece));
-    assert.deepEqual(await files.readWhole(['/image'],[300000]),[data.slice(0,300000)]);
-    assert.equal(await api.hostFiles(files).localUrl('/image.png'),'local:///image.png');
-    await assert.rejects(files.readRange('/image',data.length-1,2),/changed while/);
-    assert.equal(scripts,1);assert.equal(reads,3);
-  });
-  await t.test('saved template images migrate once to durable URLs and survive reopening without image reads',async()=>{
-    const png=Buffer.alloc(300000,99);Buffer.from([137,80,78,71,13,10,26,10]).copy(png);
-    const data='data:image/png;base64,'+png.toString('base64');
-    const disk=new Map(),writes=[];
-    const files={homedir:()=>'/home',join:(...x)=>x.join('/'),exists:async p=>disk.has(p),localUrl:async p=>'local://'+p,
-      writeFile:async(p,bytes)=>{writes.push(p);disk.set(p,bytes);},
-      readFolder:async dir=>[...disk].filter(([p])=>p.startsWith(dir+'/')).map(([p,bytes])=>({name:p.slice(dir.length+1),bytes}))};
-    const record='/home/.selects/plugin-data/shortform-clips/packs/pack.json';
-    disk.set(record,new TextEncoder().encode(JSON.stringify({templates:[{background:{image:data},logo:{image:data}}]})));
-    const store=api.makeStore(files),rows=await store.list('packs');
-    const url=rows[0].templates[0].background.image;
-    assert.match(url,/^local:\/\/.*template-assets\/[a-f0-9]{64}\.png$/);
-    assert.equal(rows[0].templates[0].logo.image,url);
-    assert.deepEqual(Buffer.from(disk.get(url.slice('local://'.length))),png);
-    assert.equal(writes.length,2,'one deduplicated image and one metadata rewrite');
-    assert.ok(disk.get(record).length<1000);
-    const saved=new TextDecoder().decode(disk.get(record));
-    assert.ok(saved.includes('selects-template-asset:'));assert.ok(!saved.includes('local://'));
-    const older=api.makeStore({...files,localUrl:undefined,readFile:async p=>disk.get(p)});
-    assert.equal((await older.list('packs'))[0].templates[0].background.image,data);
-    assert.deepEqual(await api.makeStore(files).list('packs'),rows);assert.equal(writes.length,2);
-    await store.put('custom-templates','copy',{logo:{image:data}});
-    assert.equal((await store.list('custom-templates'))[0].logo.image,url);
-  });
-  await t.test('failed image migration preserves the original record and old hosts keep inline images',async()=>{
-    const bytes=new Uint8Array(30);bytes.set([137,80,78,71,13,10,26,10]);
-    const original={logo:{image:'data:image/png;base64,'+Buffer.from(bytes).toString('base64')}};
-    let writes=0;
-    const files={homedir:()=>'/home',join:(...x)=>x.join('/'),exists:async()=>false,localUrl:async()=>'',writeFile:async()=>{writes++;throw Error('disk full');},readFolder:async()=>[{name:'pack.json',bytes:new TextEncoder().encode(JSON.stringify(original))}]};
-    await assert.rejects(api.makeStore(files).list('packs'),/disk full/);assert.equal(writes,1);
-    delete files.localUrl;
-    assert.deepEqual(await api.makeStore(files).list('packs'),[original]);assert.equal(writes,1);
-  });
-  await t.test('a save during image migration remains newer than the migrated snapshot',async()=>{
-    const bytes=new Uint8Array(30);bytes.set([137,80,78,71,13,10,26,10]);
-    const old={name:'old',logo:{image:'data:image/png;base64,'+Buffer.from(bytes).toString('base64')}};
-    let begin,release;
-    const started=new Promise(r=>begin=r),gate=new Promise(r=>release=r);
-    const writes=[];
-    const store=api.makeStore({homedir:()=>'/home',join:(...x)=>x.join('/'),exists:async()=>false,localUrl:async p=>'local://'+p,
-      readFolder:async()=>[{name:'pack.json',bytes:new TextEncoder().encode(JSON.stringify(old))}],
-      writeFile:async(p,data)=>{if(p.includes('template-assets')){begin();await gate;}else writes.push(JSON.parse(new TextDecoder().decode(data)));}});
-    const loading=store.list('packs');await started;
-    const saving=store.put('packs','pack',{name:'latest',logo:{image:''}});
-    release();await Promise.all([loading,saving]);
-    assert.deepEqual(writes.map(x=>x.name),['old','latest']);
+  await t.test('shared readers preserve multi-megabyte files within each response cap',async()=>{
+    const data=new Map([['/images/large.png',Uint8Array.from({length:2*1024*1024+17},(_,i)=>i%251)],...Array.from({length:25},(_,i)=>['/images/small-'+i+'.png',new Uint8Array(7000+i).fill(i)])]);
+    const responseSizes=[];
+    const backend=await api.sdkFiles({runScript:async({script})=>{
+      const result=await run(script,{files:{
+        environment:async()=>({platform:'darwin',homedir:'/home'}),
+        stat:async p=>p==='/images'?{size:0,isDirectory:true,mtimeMs:1}:{size:data.get(p).length,isDirectory:false,mtimeMs:1},
+        readdir:async()=>[...data.keys()].map(p=>p.split('/').pop()),
+        readRange:async({path,offset,length})=>({base64:Buffer.from(data.get(path).slice(offset,offset+length)).toString('base64')})
+      }});
+      const size=Buffer.byteLength(JSON.stringify({result}));responseSizes.push(size);
+      assert.ok(size<256*1024,'Response exceeds script cap: '+size);
+      return {result};
+    }});
+    const files=api.hostFiles(backend);
+    assert.deepEqual(await files.readFile('/images/large.png'),data.get('/images/large.png'));
+    const rows=await files.readFolder('/images',/\.png$/);
+    assert.equal(rows.length,data.size);
+    for(const row of rows)assert.deepEqual(row.bytes,data.get('/images/'+row.name));
+    assert.ok(responseSizes.length>10);
   });
   await t.test('concurrent saved-data readers share I/O but receive independent values',async()=>{
     let release,calls=0;

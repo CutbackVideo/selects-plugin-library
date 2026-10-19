@@ -8,21 +8,19 @@ const repo=process.env.SELECTS_DEV_REPO || path.resolve('../cutback-client');
 let ts;
 try{ts=require('typescript')}catch{try{ts=require(path.join(repo,'node_modules/typescript'))}catch{}}
 const root=new URL('../plugins/',import.meta.url);
-test('every published panel keeps DI and removed SDK namespaces out of executable code', ()=>{
+test('every published panel keeps DI and panel-only SDK namespaces out of executable code', ()=>{
  for(const id of fs.readdirSync(root)){
   const file=new URL(`${id}/panel.tsx`,root);
   if(!fs.existsSync(file))continue;
   const source=fs.readFileSync(file,'utf8');
   const runtime=source.split('\n').filter(line=>!line.trimStart().startsWith('//')).join('\n');
   assert(!/(?:\.\s*__DI__|\[\s*['"]__DI__['"]\s*\])/.test(runtime),id+' still accesses DI');
-  // panel.files.binary.v1 restores only binary reads and local image URLs.
-  assert(!/\bsdk\??\.(media|dialogs|environment)\b/.test(runtime),id+' uses a removed public namespace');
+  assert(!/\bsdk\??\.(files|media|dialogs|environment)\b/.test(runtime),id+' uses a removed public namespace');
   if(!ts)continue;
   const tree=ts.createSourceFile(String(file),source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
   function visit(node){
    if(ts.isIdentifier(node))assert.notEqual(node.text,'__DI__',id+' still references DI');
-   if(ts.isPropertyAccessExpression(node)&&node.expression.getText(tree)==='sdk')assert(!['media','dialogs','environment'].includes(node.name.text),id+' uses a removed public namespace');
-   if(ts.isPropertyAccessExpression(node)&&/^sdk\??\.files$/.test(node.expression.getText(tree)))assert(['supported','readRange','localUrl'].includes(node.name.text),id+' uses a removed sdk.files operation');
+   if(ts.isPropertyAccessExpression(node)&&node.expression.getText(tree)==='sdk')assert(!['files','media','dialogs','environment'].includes(node.name.text),id+' uses a removed public namespace');
    if(ts.isElementAccessExpression(node)&&ts.isStringLiteral(node.argumentExpression))assert.notEqual(node.argumentExpression.text,'__DI__',id+' still references DI');
    ts.forEachChild(node,visit);
   }
