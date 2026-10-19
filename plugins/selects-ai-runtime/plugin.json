@@ -3,7 +3,7 @@
   "id": "selects-ai-runtime",
   "version": "0.1.0-alpha.4",
   "name": "Selects AI Runtime PoC",
-  "summary": "Shared external YuNet and RVM runtime with verified native dependency provisioning.",
+  "summary": "Shared external YuNet, RVM and experimental Light-ASD runtime with verified native dependencies.",
   "status": "experimental",
   "entrypoint": "SKILL.md",
   "installation": "INSTALL.md",
@@ -90,7 +90,16 @@
     "lib/image-header.cjs",
     "lib/image.cjs",
     "tests/image-fixtures.cjs",
-    "tests/image-input.test.cjs"
+    "tests/image-input.test.cjs",
+    "lib/speaker-audio.cjs",
+    "lib/speaker-tracks.cjs",
+    "lib/speaker-output.cjs",
+    "tasks/speakers-detect.cjs",
+    "schemas/speakers.schema.json",
+    "models/light-asd-ava.onnx",
+    "models/LICENSE.Light-ASD.txt",
+    "tests/speakers.test.cjs",
+    "tests/fixtures/speaker-mfcc-reference.json"
   ],
   "runtime": "runtime.json"
 }

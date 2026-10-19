@@ -2,6 +2,7 @@
 """Check tracked and new source files before publication."""
 from pathlib import Path
 import re
+import hashlib
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,11 @@ def is_audio(name, data):
 
 
 def inspect(name, data):
+    # Reviewed, MIT-licensed Light-ASD export; provenance is in THIRD_PARTY.md.
+    # Permit only these exact shipped bytes, not arbitrary generated models.
+    if name == 'plugins/selects-ai-runtime/models/light-asd-ava.onnx':
+        valid = len(data) == 4106136 and hashlib.sha256(data).hexdigest() == 'dfc69dc7c138cdd67ad1ee9b107808b17c142a21d641e2fa06260012d294fa63'
+        return [] if valid else ['Unrecognized bundled speaker model']
     # Only canonical, bounded gallery assets are permitted as public binaries:
     # the plugin's own, or one variant's (`preview-<id>.mp4`, `poster-<id>.webp`).
     slug = r'[a-z0-9]+(?:-[a-z0-9]+)*'

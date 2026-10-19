@@ -14,7 +14,8 @@
     "task": {
       "enum": [
         "faces.detect",
-        "person.matte"
+        "person.matte",
+        "speakers.detect"
       ]
     },
     "requestKey": {

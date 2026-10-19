@@ -38,6 +38,14 @@
       ],
       "output": "schemas/matte.schema.json",
       "defaultProvider": "auto"
+    },
+    "speakers.detect": {
+      "model": "light-asd-ava",
+      "sha256": "dfc69dc7c138cdd67ad1ee9b107808b17c142a21d641e2fa06260012d294fa63",
+      "providers": [
+        "cpu"
+      ],
+      "output": "schemas/speakers.schema.json"
     }
   },
   "platforms": [

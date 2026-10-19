@@ -122,3 +122,20 @@ CoreML remains a private runtime-config experiment with `enableCoreMlAuto: true`
 Diagnostics report requested/selected provider, selection reason, rejected attempts and the observation scope. DirectML/CoreML report observed kernel placement; WebGPU reports the hardware adapter, GPU state retention and derived model metadata, with `observedExecutionProviders: null` and no claim of GPU-only kernel placement. CoreML kernel events do not prove all operations ran on GPU: its compute units permit CPU, and RVM retains CPU partitions. A Windows device ID is not a verified physical GPU name. WebGPU inference metrics wait for GPU submission completion; alpha/foreground downloads are timed separately as `readbackMilliseconds`. GPU preprocessing measures CPU upload/shader submission time; queued conversion work completes within the inference wait. GPU-first is an availability policy, not a total-time guarantee; short jobs can be slower because of initialization and encoding.
 
 The protocol version, task contract and model/preprocessing version are distinct. Changing the model or preprocessing can change numerical results even when the request schema remains unchanged. The prototype does not implement server adapters, retries or exactly-once submission; a server adapter must preserve task contracts while implementing its own transport, cancellation and file materialization.
+
+## Experimental active-speaker observations
+
+`speakers.detect` is video-only and requires an explicit positive interval no
+longer than 60 seconds. Only CPU execution is supported. Face `scoreThreshold`
+controls YuNet detections; it is not a speaking threshold. Sampling overrides
+are rejected because Light-ASD requires consecutive 25 fps crops and aligned
+16 kHz audio. The task decodes bounded windows rather than scanning the full
+source PTS timeline.
+
+The primary output is `speakers.json` through `files.detections`. A sample
+contains source timestamps, source-pixel face boxes and optional
+`activeSpeakerScore` plus a window-local `trackId`. Scores are finite raw
+logits (`scoreKind: "uncalibrated-logit"`), not probabilities. A missing score
+is unknown, not silent. Track IDs are not global identities and cannot connect
+people across windows or cameras. Input audio comes from the same video.
+Clients must check the host's `activeSpeakerSupported` before submission.

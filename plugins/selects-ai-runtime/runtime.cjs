@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 'use strict';
+// Disable native telemetry before ORT loads: its shutdown callbacks can race
+// with process teardown and abort an otherwise successful analysis.
+process.env.ORT_DISABLE_TELEMETRY = '1';
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { writeSync } = require('node:fs');
@@ -50,10 +53,10 @@ async function main() {
   emitProgress({ step: 'preparing' });
   if (!['auto', 'cpu', 'dml'].includes(config.provider ?? 'cpu')) throw new Error('Unsupported PoC execution provider');
   config.provider ??= request.task === 'person.matte' ? 'auto' : 'cpu';
-  if (request.task === 'faces.detect' && config.provider !== 'cpu') throw new Error('Face detection supports only CPU');
+  if (request.task !== 'person.matte' && config.provider !== 'cpu') throw new Error('Face detection supports only CPU');
   if (config.provider === 'dml' && process.platform !== 'win32') throw new Error('DirectML requires Windows');
   if (!Number.isInteger(config.intraOpNumThreads ?? 4) || (config.intraOpNumThreads ?? 4) < 1) throw new Error('Invalid inference thread limit');
-  const model = config.models?.[request.task === 'faces.detect' ? 'yunet' : 'rvm'];
+  const model = config.models?.[request.task === 'speakers.detect' ? 'lightAsd' : request.task === 'faces.detect' ? 'yunet' : 'rvm'];
   if (model?.sha256 !== require('./runtime.json').tasks[request.task].sha256) throw new Error('Model checksum differs from the pinned task descriptor');
   await verifyModel(model);
   throwIfAborted(controller.signal);
@@ -77,11 +80,11 @@ async function main() {
   let result;
   try {
     const context = {
-      request, config, outputDir, ort, video, emitProgress, signal: controller.signal,
+      request, config, outputDir, ort, video, emitProgress, decoderMetrics, signal: controller.signal,
       frames: () => (isImage ? decodeImage : decodeFrames)(config, request, video, controller.signal, emitProgress, decoderMetrics,
         { reuseFrameBuffer: request.task === 'person.matte' }),
     };
-    const run = request.task === 'faces.detect' ? require('./tasks/faces-detect.cjs').runFaces : require('./tasks/person-matte.cjs').runMatte;
+    const run = request.task === 'speakers.detect' ? require('./tasks/speakers-detect.cjs').runSpeakers : request.task === 'faces.detect' ? require('./tasks/faces-detect.cjs').runFaces : require('./tasks/person-matte.cjs').runMatte;
     result = await run(context);
     throwIfAborted(controller.signal);
     emitProgress({ step: 'validating-output' });

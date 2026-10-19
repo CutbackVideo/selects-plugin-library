@@ -1,0 +1,108 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{createRequire}=require('node:module');
+const modules=process.env.SBS_PANEL_TEST_MODULES;
+test('agent face selection uses runtime measurements',{skip:!modules},async t=>{
+ const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild'),m={exports:{}};
+ const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
+ new Function('require','module','exports',esbuild.transformSync(src+'\nexport {resolveSourceComposition,measuredFaceShots,compileSourceCropPlan,collectMeasuredFaces};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
+ const sources=[{resourceId:'r',meta:{fps:30,frameSize:{width:1920,height:1080}}}],layout={windowTop:0,windowBottom:1920,faceY:40,closeUp:4.5};
+ const catalog=[{id:'F1',resourceId:'r',draftFrame:30,sourceFrame:300,box:{xmin:1178,xmax:1361,ymin:299,ymax:531}},{id:'F2',resourceId:'r',draftFrame:40,sourceFrame:310,box:{xmin:145,xmax:331,ymin:310,ymax:553}}];
+ const shot={startFrame:0,endFrame:90,resourceId:'r',style:'speaker',compositionId:'woman',subjects:[{faceId:'F1',left:.5,right:.75}]};
+ const compile=shots=>m.exports.compileSourceCropPlan(m.exports.measuredFaceShots(shots,catalog,sources,layout),sources,90,layout);
+ await t.test('off-center measured face stays in its selected pane with head room and template height',()=>{
+  const p=compile([shot])[0].panels[0],h=p.w*1920/1080,x=p.cx-p.w/2,y=p.cy-h*.4;
+  assert.ok(x>=960-1e-6&&x+p.w<=1440+1e-6);
+  assert.ok(x<=1178&&x+p.w>=1361);assert.ok(y<=299-232*.48&&y+h>=531+232*.12);
+  assert.ok(Math.abs(((299+531)/2-y)/h-.4)<1e-6);
+  // Fabricated coordinates on a model result never drive the crop.
+  assert.deepEqual(compile([{...shot,regions:[{x:0,y:0,width:.1,height:.1}]}])[0].panels,[p]);
+ });
+ await t.test('bounded envelope noise is corrected without crossing panes or substituting people',()=>{
+  const face={...catalog[0],envelope:{...catalog[0].box,xmax:1446}};
+  const resolved=m.exports.resolveSourceComposition([shot],[face],sources,90,layout);
+  assert.equal(resolved.limitations.length,0);assert.equal(resolved.adjustments.length,1);
+  const p=m.exports.compileSourceCropPlan(resolved.shots,sources,90,layout)[0].panels[0];
+  assert.ok(p.cx+p.w/2<=1440+1e-6);assert.equal(resolved.shots[0].subjects[0].faceId,'F1');
+  const tooLarge=m.exports.resolveSourceComposition([shot],[{...face,envelope:{...face.envelope,xmax:1500}}],sources,90,layout);
+  assert.equal(tooLarge.shots[0].style,'preserve');assert.equal(tooLarge.limitations.length,1);
+ });
+ await t.test('an impossible composition preserves only its ranges and applies unrelated valid shots',()=>{
+  const shots=[{...shot,endFrame:45},{...shot,startFrame:45,compositionId:'other',subjects:[{faceId:'F2',left:.5,right:.75}]}];
+  const resolved=m.exports.resolveSourceComposition(shots,catalog,sources,90,layout);
+  assert.deepEqual(resolved.shots.map(s=>s.style),['speaker','preserve']);
+  assert.equal(resolved.limitations[0].startFrame,45);
+ });
+ await t.test('unknown faces, wrong sources, impossible panes and references from another shot are rejected',()=>{
+  for(const change of [{subjects:[{faceId:'invented'}]},{resourceId:'other'},{subjects:[{faceId:'F1',left:0,right:.25}]},{startFrame:50}]) assert.throws(()=>compile([{...shot,...change}]));
+ });
+ await t.test('silence fragments reuse exact geometry and split panels contain distinct measured people',()=>{
+  const repeated=compile([{...shot,endFrame:45},{...shot,startFrame:45}]);assert.deepEqual(repeated[0].panels,repeated[1].panels);
+  const stacked=compile([{...shot,style:'stacked',subjects:[...shot.subjects,{faceId:'F2',left:0,right:.25}]}])[0];assert.equal(stacked.panels.length,2);assert.equal(stacked.panels[1].slot,1);
+  assert.throws(()=>compile([{...shot,style:'stacked',subjects:[...shot.subjects,...shot.subjects]}]));
+ });
+ await t.test('one stable crop fits both agent-selected head positions across a silence cut',()=>{
+  const moved={...catalog[0],id:'later',draftFrame:65,sourceFrame:400,box:{xmin:1220,xmax:1400,ymin:240,ymax:470}};
+  const shots=[{...shot,endFrame:45},{...shot,startFrame:45,subjects:[{faceId:'later',left:.5,right:.75}]}];
+  const measured=m.exports.measuredFaceShots(shots,[...catalog,moved],sources,layout);
+  const plan=m.exports.compileSourceCropPlan(measured,sources,90,layout);
+  assert.deepEqual(plan[0].panels,plan[1].panels);
+  const p=plan[0].panels[0],h=p.w*1920/1080,x=p.cx-p.w/2,y=p.cy-h*.4;
+  for(const f of [catalog[0],moved]){assert.ok(x<=f.box.xmin&&x+p.w>=f.box.xmax);assert.ok(y<=f.box.ymin&&y+h>=f.box.ymax);}
+ });
+ await t.test('same composition shares measured references across returning fragments',()=>{
+  const later={...catalog[0],id:'later',draftFrame:70};
+  const subjects=[{faceId:'F1',faceIds:['later'],left:.5,right:.75}];
+  const shots=[{...shot,endFrame:45,subjects},{...shot,startFrame:45,subjects}];
+  const result=m.exports.resolveSourceComposition(shots,[...catalog,later],sources,90,layout);
+  assert.equal(result.limitations.length,0);assert.deepEqual(result.shots[0].regions,result.shots[1].regions);
+ });
+ await t.test('non-person details need no fabricated face and still respect source geometry',()=>{
+  const detail={...shot,style:'detail',subjects:[],regions:[{x:.25,y:0,width:.5,height:1}]};
+  const measured=m.exports.measuredFaceShots([detail],[],sources,layout);
+  assert.equal(m.exports.compileSourceCropPlan(measured,sources,90,layout)[0].panels.length,1);
+  assert.throws(()=>m.exports.measuredFaceShots([{...detail,subjects:[{faceId:'F1'}]}],catalog,sources,layout));
+  assert.throws(()=>m.exports.compileSourceCropPlan([{...detail,regions:[{x:.9,y:0,width:.5,height:1}]}],sources,90,layout));
+ });
+ await t.test('tight original closeup relaxes soft side margins without clipping the measured face',()=>{
+  const close={id:'close',resourceId:'r',draftFrame:40,sourceFrame:3400,box:{xmin:454,xmax:915,ymin:171,ymax:752}};
+  const plan=m.exports.compileSourceCropPlan(m.exports.measuredFaceShots([{...shot,subjects:[{faceId:'close'}]}],[close],sources,layout),sources,90,layout);
+  const p=plan[0].panels[0];assert.ok(p.cx-p.w/2<=454);assert.ok(p.cx+p.w/2>=915);assert.ok(p.w<=1080*1080/1920+1e-6);
+ });
+ await t.test('stacked embedded pane reduces only soft vertical padding when the measured face fits',()=>{
+  const faces=[{id:'top',resourceId:'r',draftFrame:40,box:{xmin:237,xmax:442,ymin:255,ymax:523}},
+   {id:'bottom',resourceId:'r',draftFrame:40,box:{xmin:827,xmax:1065,ymin:230,ymax:591}}];
+  const stacked={...shot,style:'stacked',subjects:[{faceId:'top',left:0,right:1/3},{faceId:'bottom',left:1/3,right:2/3}]};
+  const measured=m.exports.measuredFaceShots([stacked],faces,sources,layout);
+  const plan=m.exports.compileSourceCropPlan(measured,sources,90,layout)[0];
+  for(const [i,p] of plan.panels.entries()){
+   const b=faces[i].box,h=p.w*960/1080,x=p.cx-p.w/2,y=p.cy-h*.4;
+   assert.ok(x<=b.xmin&&x+p.w>=b.xmax);assert.ok(y<=b.ymin&&y+h>=b.ymax);
+   assert.ok(x>=i*640-1e-6&&x+p.w<=(i+1)*640+1e-6);
+  }
+  assert.throws(()=>m.exports.measuredFaceShots([stacked],[faces[0],{...faces[1],box:{...faces[1].box,ymin:50,ymax:900}}],sources,layout),/cannot fit/);
+ });
+ await t.test('real stacked plan accepts subpixel floating point boundary noise',()=>{
+  const f=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/stacked-rounding-regression.json'),'utf8'));
+  const measured=m.exports.measuredFaceShots(f.shots,f.catalog,f.sources,f.layout);
+  const plan=m.exports.compileSourceCropPlan(measured,f.sources,f.duration,f.layout);
+  assert.equal(plan.at(-1).endFrame,f.duration);
+  const invalid=structuredClone(measured);invalid[0].regions[0].focus.x=invalid[0].regions[0].x-.001;
+  assert.throws(()=>m.exports.compileSourceCropPlan(invalid,f.sources,f.duration,f.layout),/Head bounds/);
+ });
+ await t.test('a local track can overlap a shot even when its representative lies outside',()=>{
+  const track={...catalog[0],draftFrame:30,draftStartFrame:20,draftEndFrame:80};
+  assert.equal(m.exports.measuredFaceShots([{...shot,startFrame:50}], [track],sources,layout).length,1);
+  assert.throws(()=>m.exports.measuredFaceShots([{...shot,startFrame:85}], [track],sources,layout));
+ });
+ await t.test('runtime analysis is limited to edited source ranges and maps detections into playback time',async()=>{
+  const requests=[];const before={sources,words:[{sourceResourceId:'r',sourceStartFrame:300,sourceEndFrame:330,startFrame:0,endFrame:30}]};
+  const sdk={runScript:async({script,summary})=>{
+   if(summary==='Measure source faces'){requests.push(JSON.parse(script.match(/submit\((.*)\);/)[1]));return {result:{workflowId:'wf'}};}
+   if(summary==='Check source face measurements')return {result:{status:'succeeded'}};
+   if(summary==='Read measured source faces')return {result:{frameSize:{width:1920,height:1080},samples:[{sourceTimeSeconds:10.5,faces:[{score:.9,box:catalog[0].box},{score:.1,box:catalog[1].box}]}]}};
+   throw Error(summary);
+  }};
+  const faces=await m.exports.collectMeasuredFaces({sdk,guard:p=>p,projectId:'measured-face-test',before,note:()=>{}});
+  assert.equal(requests.length,1);assert.deepEqual(requests[0].sourceRange,{startSeconds:10,endSeconds:11});assert.equal(faces.length,1);assert.equal(faces[0].draftFrame,15);assert.equal(faces[0].sourceFrame,315);
+ });
+});

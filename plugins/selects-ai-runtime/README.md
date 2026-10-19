@@ -25,6 +25,29 @@ flowchart LR
   Files --> Host
 ```
 
+## Active-speaker experiment
+
+`speakers.detect` adds CPU Light-ASD AVA inference after YuNet face detection.
+It consumes a Video Resource with its own synchronized audio and an explicit
+source interval of at most 60 seconds. Internally it uses bounded 3-second
+windows, 25 fps face crops and 16 kHz MFCC audio. `speakers.json` contains
+source-pixel faces, source timestamps, window-local track IDs and optional
+uncalibrated active-speaker logits. Missing scores mean unknown; positive scores
+are evidence, not calibrated probabilities or verified identities.
+
+The host must expose `selects.ai.activeSpeakerSupported === true`; installing
+this plugin alone cannot upgrade the host SDK. The shortform multicamera planner
+uses these observations as agent input; the runtime does not choose shots,
+identify people across cameras, or edit Drafts. Silent camera audio and tracks
+that cannot be followed reliably remain limitations. Separate recorder audio
+is not accepted by this initial task.
+
+The bundled ONNX graph runs through the same Node/ONNX Runtime CPU path as
+YuNet. Python is needed only for the developer export recipe, not deployment.
+macOS ARM64 inference and an SDK job have been exercised. Windows active-speaker
+execution has **not** been tested; previous YuNet/RVM Windows results do not
+establish active-speaker compatibility or performance.
+
 ## Responsibilities
 
 - The runtime owns model verification, task-specific preprocessing, inference, postprocessing and output schemas.
