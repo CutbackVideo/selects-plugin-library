@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 'use strict';
+// Disable native telemetry before ORT loads: its shutdown callbacks can race
+// with process teardown and abort an otherwise successful analysis.
+process.env.ORT_DISABLE_TELEMETRY = '1';
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { writeSync } = require('node:fs');
