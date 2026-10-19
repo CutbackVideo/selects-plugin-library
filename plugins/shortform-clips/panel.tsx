@@ -789,6 +789,7 @@ const tempName = () => ".tmp-" + Date.now().toString(36) + Math.random().toStrin
 // selects.files: the file service newer Selects versions give to scripts.
 async function sdkFiles(sdk: any): Promise<any> {
   const J = JSON.stringify;
+  const binary = sdk.files?.supported === true ? sdk.files : null;
   const run = async (script: string, write = false) => {
     const r: any = await sdk.runScript({ script, summary: write ? "Save this app's files" : "Read this app's files", allowCommit: write });
     if (r.isError) throw new Error(String(r.output || "selects.files failed").slice(0, 600));
@@ -806,7 +807,9 @@ async function sdkFiles(sdk: any): Promise<any> {
     via: "sdk",
     home: env.home,
     windows: env.platform === "win32",
-    readPiece: SDK_PIECE * 4,
+    // Three Base64 chunks leave room for JSON inside the 256 KiB script cap.
+    readPiece: binary ? 1024 * 1024 : SDK_PIECE * 3,
+    localUrl: binary ? (path: string) => binary.localUrl(path) : undefined,
     width: 4,
     async stat(paths: string[]) {
       const groups: string[][] = [];
@@ -824,12 +827,18 @@ async function sdkFiles(sdk: any): Promise<any> {
     },
     mkdir: (dir: string) => run(`await selects.files.mkdir(${J(dir)}, { recursive: true });`, true),
     async readRange(path: string, offset: number, length: number) {
-      // Bundle four legal SDK chunks into one script; never increase a file-service read.
+      if (binary) {
+        const bytes = new Uint8Array(await binary.readRange({path, offset, length}));
+        if (bytes.length !== length) throw new Error(path + " changed while it was being read.");
+        return bytes;
+      }
+      // Bundle legal SDK chunks, leaving headroom for JSON serialization.
       const rows = await run(`const out: string[] = []; for (let at = 0; at < ${length}; at += ${SDK_PIECE}) out.push((await selects.files.readRange({path:${J(path)},offset:${offset}+at,length:Math.min(${SDK_PIECE},${length}-at)})).base64); return out;`);
       if (!Array.isArray(rows) || rows.length !== Math.ceil(length / SDK_PIECE)) throw new Error("Could not read " + path);
       return joinBytes(rows.map((row: any, i: number) => bytesOf(row, Math.min(SDK_PIECE, length - i * SDK_PIECE), path)));
     },
     async readWhole(paths: string[], sizes: number[]) {
+      if (binary) return Promise.all(paths.map((path, i) => this.readRange(path, 0, sizes[i])));
       const rows = await run(`const paths = ${J(paths)}, sizes = ${J(sizes)}, out: string[][] = []; for (let i=0;i<paths.length;i++) { const parts: string[] = []; for(let at=0;at<sizes[i];at+=${SDK_PIECE}) parts.push((await selects.files.readRange({path:paths[i],offset:at,length:Math.min(${SDK_PIECE},sizes[i]-at)})).base64); out.push(parts); } return out;`);
       if (!Array.isArray(rows) || rows.length !== paths.length) throw new Error("Could not read the app's files.");
       return rows.map((parts: any, i: number) => {
@@ -997,6 +1006,7 @@ function hostFiles(b: any) {
   const kept = new Map<string, { size: number; mtime: number; bytes: Uint8Array }>();
   return {
     via: b.via,
+    localUrl: b.localUrl,
     homedir: () => b.home,
     join,
     mkdir: (dir: string) => b.mkdir(dir),
@@ -1202,7 +1212,7 @@ function validateTemplate(t: any, runtime = false) {
     for (const k of ["removeFillers", "removeSilences"]) packAssert(typeof d.editing[k] === "boolean", "Invalid editing option: " + k);
     for (const k of ["background", "logo"]) {
       packAssert(typeof d[k].image === "string", "Missing image value: " + k);
-      if (d[k].image) packAssert(runtime ? /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(d[k].image) : !!packPath(d[k].image, "assets"), "Invalid image: " + k);
+      if (d[k].image) packAssert(runtime ? (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(d[k].image) || /^local:\/\/.+\.(png|jpeg|webp)$/.test(d[k].image)) : !!packPath(d[k].image, "assets"), "Invalid image: " + k);
       if (d[k].mode === "image") packAssert(d[k].image, "Missing " + k + " image.");
     }
     if (d.labels) for (const label of Object.values(d.labels) as any[]) {
@@ -1495,10 +1505,72 @@ function makeTemplateRepository(storage: any) {
   };
 }
 
+// Store image bytes once; previews and generated Drafts use the host local-image loader.
+// Only image fields in template collections are migrated. A failed image/record write
+// leaves the original JSON usable; files are immutable and retained for saved Drafts.
+function templateAssetStore(files: any, root: string) {
+  const pending = new Map<string, Promise<string>>();
+  const urls = new Map<string, string>();
+  const reference = /^selects-template-asset:([a-f0-9]{64}\.(?:png|jpeg|webp))$/;
+  const assetPath = (name: string) => files.join(root, "template-assets", name);
+  async function saveImage(value: string) {
+    const bytes = fromBase64(value.slice(value.indexOf(",") + 1));
+    const mime = imageMime(bytes);
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), n => n.toString(16).padStart(2, "0")).join("");
+    let work = pending.get(hash);
+    if (!work) {
+      work = (async () => {
+        const name = hash + "." + mime.split("/")[1];
+        const path = assetPath(name);
+        if (!(await files.exists(path))) await files.writeFile(path, bytes);
+        return "selects-template-asset:" + name;
+      })();
+      pending.set(hash, work);
+    }
+    try { return await work; } finally { if (pending.get(hash) === work) pending.delete(hash); }
+  }
+  async function visit(value: any, display: boolean): Promise<any> {
+    if (Array.isArray(value)) return Promise.all(value.map(item => visit(item, display)));
+    if (!plainObject(value)) return value;
+    const out: any = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (key !== "image" || typeof item !== "string") { out[key] = await visit(item, display); continue; }
+      const match = item.match(reference);
+      if (display && match) {
+        const path = assetPath(match[1]);
+        if (files.localUrl) {
+          const url = await files.localUrl(path);
+          urls.set(url, item);
+          out[key] = url;
+        } else {
+          const bytes = await files.readFile(path);
+          out[key] = "data:" + imageMime(bytes) + ";base64," + toBase64(bytes);
+        }
+      } else if (!display && urls.has(item)) out[key] = urls.get(item);
+      else if (!display && files.localUrl && /^data:image\/(png|jpeg|webp);base64,/.test(item)) out[key] = await saveImage(item);
+      else out[key] = item;
+    }
+    return out;
+  }
+  return async (kind: string, value: any, display = false) => {
+    if (!["packs", "overrides", "custom-templates"].includes(kind)) return value;
+    safeJson(value);
+    return visit(value, display);
+  };
+}
+
 function makeStore(files: any) {
   if (files) {
     const root = files.join(files.homedir(), ".selects", "plugin-data", APP_ID);
     const dir = (n: string) => files.join(root, n);
+    const assets = templateAssetStore(files, root);
+    // A migration and an editor save must not replace each other's snapshot.
+    const operations = new Map<string, Promise<any>>();
+    const serial = async (kind: string, operation: () => Promise<any>) => {
+      const work = (operations.get(kind) || Promise.resolve()).catch(() => {}).then(operation);
+      operations.set(kind, work);
+      try { return await work; } finally { if (operations.get(kind) === work) operations.delete(kind); }
+    };
     const reads = new Map<string,Promise<any[]>>();
     const invalidate=(kind:string)=>{for(const key of reads.keys())if(key.startsWith(kind+":"))reads.delete(key);};
     return {
@@ -1514,24 +1586,30 @@ function makeStore(files: any) {
         const key=kind+":"+since;
         let pending=reads.get(key);
         if(!pending){
-          pending=(async()=>{
+          pending=serial(kind,async()=>{
             const out:any[]=[];
             for(const f of await files.readFolder(dir(kind), /\.json$/, {since,keep:true})){
-              try{out.push(JSON.parse(dec(f.bytes)));}catch(e){throw new Error("Invalid saved data in "+kind+": "+String(e));}
+              try {
+                const original = JSON.parse(dec(f.bytes));
+                const value = await assets(kind, original);
+                if (JSON.stringify(value) !== JSON.stringify(original))
+                  await files.writeFile(files.join(dir(kind), f.name), enc(JSON.stringify(value)));
+                out.push(await assets(kind, value, true));
+              } catch(e) { throw new Error("Invalid saved data in " + kind + ": " + String(e)); }
             }
             return out;
-          })();
+          });
           reads.set(key,pending);
         }
         try{return clone(await pending);}finally{if(reads.get(key)===pending)reads.delete(key);}
       },
       async put(kind: string, id: string, v: any) {
         invalidate(kind);
-        try{await files.writeFile(files.join(dir(kind), id + ".json"), enc(JSON.stringify(v)));}finally{invalidate(kind);}
+        try{await serial(kind, async () => files.writeFile(files.join(dir(kind), id + ".json"), enc(JSON.stringify(await assets(kind, v)))));}finally{invalidate(kind);}
       },
       async del(kind: string, id: string) {
         invalidate(kind);
-        try{await files.remove(files.join(dir(kind), id + ".json"));}finally{invalidate(kind);}
+        try{await serial(kind, () => files.remove(files.join(dir(kind), id + ".json")));}finally{invalidate(kind);}
       },
     };
   }
