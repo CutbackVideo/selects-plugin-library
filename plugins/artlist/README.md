@@ -30,8 +30,11 @@ the import only in the original project.
 
 ## Account and library
 
-Click **Connect Artlist**. Sign in on the official
-website, then open the profile menu to confirm the account and plan. Selects
+Click **Connect Artlist** and sign in on the official website. On hosts with
+`music.artlist.auto-identity.v1` that is all: Selects reads the account and
+plan itself and the panel says only "Sign in on Artlist". Older hosts finish
+once you open the profile menu, and only while that menu shows your email,
+which Artlist's current menu does not. Selects
 retains its own browser session per Selects user; no password or API key enters
 the panel or script. This path uses the website, not MCP OAuth. Requires
 `music.artlist.web-session.v1`; older hosts show an update message.
@@ -86,7 +89,7 @@ download selectors depend on the website. Release permission for this automated
 website workflow is unresolved.
 
 Account settings show the account and detected plan. **Refresh account and plan**
-rechecks the existing website session; open the profile menu to finish. Closing
+rechecks the existing website session (older hosts: open the profile menu to finish). Closing
 that window cancels login polling without disconnecting an existing account.
 Expired login returns to Connect; explicit empty-result pages return zero tracks.
 Selected tracks retain their search context across other panel/SDK searches,

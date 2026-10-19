@@ -6,7 +6,8 @@
 2. Copy `panel.tsx` to `SELECTS_USER_PANELS_ROOT/artlist/panel.tsx` and the other
    manifest files to `SELECTS_USER_SKILLS_ROOT/artlist/`.
 3. Open Artlist in Selects Apps and click **Connect Artlist**. Sign in through
-   the visible login window, then open the account profile menu to finish.
+   the visible login window. A host with `music.artlist.auto-identity.v1`
+   finishes on its own; an older one waits for you to open the profile menu.
    No password, API key, Developer Portal key or OAuth client is used.
 4. Search, preview and add an authorized track to an open Draft. Video is
    optional: an empty Draft takes the full song as editable Audio. Later songs
