@@ -208,7 +208,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         const radio=original.renderer==='series';
         assert.equal(controls.has(S.layoutKind),false);
         if(radio) assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutTiktok)));
-        assert.deepEqual([...document.querySelectorAll('[data-template-section]')].map(t=>t.textContent), ['Design','Captions','Framing','Content']);
+        assert.deepEqual([...document.querySelectorAll('[data-template-section]')].map(t=>t.textContent), ['Design','Captions','Framing','Content','Thumbnails']);
         assert.equal(controls.has('Framing mode'),false);
         await change('tabs','framing');
         assert.equal(controls.has('Framing mode'),radio);

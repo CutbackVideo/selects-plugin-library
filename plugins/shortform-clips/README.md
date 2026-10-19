@@ -293,3 +293,65 @@ validation. Rendered visual comparisons are development checks. Source-capture c
 Token counters remain actual SDK-reported usage. The SDK does not currently
 return an attributable charged-credit receipt; do not label a token-to-cost
 estimate or a change in account balance as this clip's actual credit charge.
+
+## Generated thumbnails
+
+Create thumbnails manually from My Clips after choosing a clip. The Create dialog
+requests 1–3 variants; making or resuming clips never starts thumbnail generation.
+Template settings include creation mode, photo-search scope (whole source or clip),
+headline style, an optional original logo, up to five design references, and extra
+instructions. Two-option settings use segmented buttons. References are downscaled
+without cropping, capped at 450,000 data-URL characters each, and sent on each
+creation request rather than converted into a reusable generated template.
+
+### Creation and composition
+
+- **Preserve real people**: advanced photo research requests additional source
+  timestamps, then advanced design planning selects 1–3 people, source crops and
+  headline wording. RVM `person.matte` supplies alpha while retaining original RGB.
+  Nano Banana Pro Edit generates background and headline artwork; it does not
+  receive the selected original-person pixels for synthesis. The original logo is
+  composited separately. Advanced placement planning inspects actual artwork and
+  cutouts; advanced candidate selection chooses a measured rendered composition.
+- **Generate entire image**: Nano Banana Pro Edit generates a complete 9:16 / 2K
+  image from clip context and references. Faces can change in this mode.
+- New generated-title results skip the legacy final composition-review call.
+  Legacy saved requests retain their stored pipeline and acknowledged stages.
+
+Local face detection and alpha-overlap measurements help build up to six placement
+candidates while protecting faces, title bounds and logo space. These measurements
+are sampled and are not an aesthetic guarantee. Quality findings are advisory:
+ambiguous faces, no safe candidate, occlusion or title overlap leave renderable
+outputs available with a Needs review label. Invalid plans, missing files and
+transport failures remain errors. Unsupported image-source/matting hosts report an
+error rather than silently switching to synthesized people.
+
+### Results and persistence
+
+Results appear as compact thumbnails with hover-to-preview. The preview immediately
+uses the small cached JPEG, shows a spinner while the full image loads, and exposes
+Add/remove from video and Delete. An active cover is labeled In use. Failed entries
+can also be deleted. Deletion detaches an active cover and soft-deletes its gallery
+entry, retaining files; deleted entries are excluded from refresh and resume.
+Credits are not displayed in the gallery; returned usage remains stored when available.
+
+Adding a cover overlays playback frame `[0,1)` without shifting video, audio or
+captions or extending duration. Replacing/removing it preserves other placements.
+Platforms can still choose a different upload preview frame. Drafts and generated
+image Resources reuse the existing run folder in the project.
+
+Local artifacts live under `runs/<run ID>/<Draft ID>/`: `covers.json`, immutable
+request snapshots, outputs and imported images. Manifests reference content-addressed
+`config-<sha256>.json` files instead of repeating large reference/logo payloads.
+Keep these configuration files with the manifest when moving saved runs. Legacy
+inline configurations remain readable. Small `.preview.jpg` files and bounded
+in-memory caches avoid loading every original image when opening the gallery.
+
+Variants run concurrently with independent request keys, artifacts and error states.
+Manifest writes and folder organization use short queues to avoid lost checkpoints
+and duplicate folders. Provider capacity can still limit throughput. Image and
+matting requests persist stable keys and workflow IDs before submission; resume
+reuses existing requests after unknown transport outcomes. A failed variant does
+not stop its siblings. Already submitted image jobs can continue with the panel
+closed. Photo-research usage and per-stage placement timings are retained when
+available. Generation is paid; each explicit new request can incur charges.
