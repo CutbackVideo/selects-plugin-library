@@ -1362,6 +1362,50 @@ function templateIdentity(pack: any, t: any) {
   // Pack defaults define available layouts; local TikTok edits do not add a new layout choice.
   return {...t, id: pack.manifest.id + "/" + t.id, platformLayouts: !!t.variants?.tiktok};
 }
+const TEMPLATE_SHARE_MAX_BYTES = 20 * 1024 * 1024;
+const TEMPLATE_SHARE_FIELDS = ["schemaVersion","version","renderer","names","name","detect","layout","background","border","headline","logo","captions","editing","prompt","framingMode","variants","labels","thumbnail"];
+function portableTemplate(value: any) {
+  safeJson(value);
+  const template: any = {id: "shared-template"};
+  for (const key of TEMPLATE_SHARE_FIELDS) if (value[key] !== undefined) template[key] = clone(value[key]);
+  for (const design of [template, template.variants?.tiktok].filter(Boolean)) {
+    for (const key of ["background","logo"]) if (design[key]?.imageName) design[key].imageName = String(design[key].imageName).split(/[\\/]/).pop();
+  }
+  validateTemplate(template, true);
+  return template;
+}
+function encodeSharedTemplate(value: any): Uint8Array {
+  const bytes = enc(JSON.stringify({format:"selects-shortform-template",version:1,templateApi:TEMPLATE_API,template:portableTemplate(value)},null,2));
+  packAssert(bytes.length <= TEMPLATE_SHARE_MAX_BYTES, "Template file exceeds 20 MiB.");
+  return bytes;
+}
+function decodeSharedTemplate(bytes: Uint8Array) {
+  packAssert(bytes.length > 0 && bytes.length <= TEMPLATE_SHARE_MAX_BYTES, "Template file must be between 1 byte and 20 MiB.");
+  const data = JSON.parse(dec(bytes).replace(/^\uFEFF/, ""));
+  safeJson(data);
+  packAssert(data?.format === "selects-shortform-template" && data.version === 1 && data.templateApi === TEMPLATE_API, "Unsupported template file. Use a compatible Shortform Clips export.");
+  packAssert(plainObject(data.template), "Missing template settings.");
+  const template = portableTemplate(data.template);
+  // Embedded raster images only: importing never downloads files or runs code.
+  for (const design of [template, template.variants?.tiktok].filter(Boolean)) {
+    for (const key of ["background","logo"]) {
+      const image = design[key]?.image;
+      if (image) {
+        const match = /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(image);
+        packAssert(match && imageMime(fromBase64(match[2])) === match[1], "Invalid embedded template image.");
+      }
+    }
+  }
+  return template;
+}
+async function importSharedTemplate(repository: any, bytes: Uint8Array) {
+  const template = decodeSharedTemplate(bytes);
+  const id = "custom/" + crypto.randomUUID();
+  const imported = {...template, id, platformLayouts: !!template.variants?.tiktok};
+  await repository.put("templates", id, imported);
+  return imported;
+}
+
 function makeTemplateRepository(storage: any) {
   const defaults = new Map<string, any>();
   let loadRevision = 0;
@@ -6349,6 +6393,10 @@ function TemplateEditorForm(props: any) {
           <ui.Button variant="secondary" onClick={duplicate} disabled={dirty || saving}>
             {S.duplicate}
           </ui.Button>
+          <ui.Button variant="secondary" onClick={()=>props.onExportTemplate(current)} disabled={dirty || saving || !!props.packBusy || !!props.busy}>
+            {lang === "ko" ? "\ud30c\uc77c\ub85c \ub0b4\ubcf4\ub0b4\uae30" : "Export to file"}
+          </ui.Button>
+          {dirty && <small>{lang === "ko" ? "\ub0b4\ubcf4\ub0b4\uae30 \uc804\uc5d0 \ubcc0\uacbd\uc0ac\ud56d\uc744 \uc800\uc7a5\ud574 \uc8fc\uc138\uc694." : "Save changes before exporting."}</small>}
           {current.builtIn && (
             <ui.Button variant="ghost" onClick={reset} disabled={!current.modified || dirty || saving}>
               {S.reset}
@@ -6624,6 +6672,32 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       packLock.current = false; setPackBusy(false);
       if (requestId) sdk.finishTemplatePackInstall?.(requestId);
     }
+  }
+  async function transferTemplate(direction: "import" | "export", selected?: any) {
+    if (!files || packLock.current || busy || templateDirty || templateSaving) return;
+    packLock.current = true;
+    setPackBusy(true); setPackError(""); setPackMessage("");
+    try {
+      if (direction === "import") {
+        const path = await script('return await selects.editor.pickFile({filters:[{name:"Shortform template",extensions:["json"]}]});', "Choose template file");
+        if (!path) return;
+        const size = await files.size(path);
+        packAssert(size > 0 && size <= TEMPLATE_SHARE_MAX_BYTES, "Template file must be between 1 byte and 20 MiB.");
+        const imported = await importSharedTemplate(repository, await files.readFile(path));
+        await loadTemplates(); setTplSel(imported.id); setProgram(imported.id);
+        setPackMessage(lang === "ko" ? "\ud15c\ud50c\ub9bf\uc744 \ub3c5\ub9bd\ub41c \ubcf5\uc0ac\ubcf8\uc73c\ub85c \uac00\uc838\uc654\uc2b5\ub2c8\ub2e4." : "Imported an independent template copy.");
+        setPackDialogOpen(false);
+      } else {
+        const bytes = encodeSharedTemplate(selected);
+        const filename = nameOf(selected,lang).replace(/[<>:"/\\|?*\x00-\x1f]/g,"-").slice(0,80) || "template";
+        const defaultPath = files.join(files.homedir(), "Downloads", filename + ".shortform-template.json");
+        const path = await script(`return await selects.editor.pickSavePath({defaultPath:${JSON.stringify(defaultPath)}});`, "Save template file");
+        if (!path) return;
+        await files.writeFile(path, bytes);
+        setPackMessage(lang === "ko" ? "\ud15c\ud50c\ub9bf \ud30c\uc77c\uc744 \uc800\uc7a5\ud588\uc2b5\ub2c8\ub2e4. \uc774 \ud30c\uc77c\uc744 \uc804\ub2ec\ud558\uba74 \ub429\ub2c8\ub2e4." : "Template saved. Share this file with the recipient.");
+      }
+    } catch (e: any) { setPackError((lang === "ko" ? "\ud15c\ud50c\ub9bf \ud30c\uc77c \ucc98\ub9ac \uc2e4\ud328: " : "Template file error: ") + String(e?.message || e)); }
+    finally { packLock.current = false; setPackBusy(false); }
   }
   const attemptedPack = React.useRef<string | null>(null);
   React.useEffect(() => {
@@ -7938,8 +8012,13 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
               disabled={busy || packBusy || templatesLoading}
               onClick={()=>{setPackError("");setPackMessage("");setPackDialogOpen(true);}}>{K.title}</ui.Button></ui.Actions>}
             {packMessage && <ui.Message tone="success">{packMessage}</ui.Message>}
+            {!packDialogOpen && packError && <ui.Message tone="error">{packError}</ui.Message>}
             <TemplatePackDialog ui={ui} open={packDialogOpen} title={K.title} closeLabel={S.cancel}
               busy={packBusy} onClose={()=>setPackDialogOpen(false)}>
+              <ui.Button variant="primary" disabled={!files || busy || packBusy || templateDirty || templateSaving} onClick={()=>void transferTemplate("import")}>
+                {lang === "ko" ? "\ud30c\uc77c\uc5d0\uc11c \uac00\uc838\uc624\uae30" : "Import from file"}
+              </ui.Button>
+              <small>{lang === "ko" ? "\ub514\uc790\uc778·\uc790\ub9c9·\ud654\uba74 \uad6c\uc131·\ub0b4\uc6a9 \uc124\uc815\uacfc \ub85c\uace0·\ubc30\uacbd \uc774\ubbf8\uc9c0\ub97c \ud3ec\ud568\ud569\ub2c8\ub2e4. \uae30\uc874 \ud15c\ud50c\ub9bf\uc744 \ub36e\uc5b4\uc4f0\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4." : "Includes design, captions, framing, content settings and logo/background images. Existing templates are not overwritten."}</small>
               <ui.TextField label={K.link} value={packLink} onChange={setPackLink} placeholder={K.linkPlaceholder} disabled={!files || busy || packBusy || templateDirty || templateSaving} />
               <div style={{display:"flex",justifyContent:"flex-end",gap:8,flexWrap:"wrap",paddingTop:4}}><div><ui.Button variant="secondary" disabled={packBusy} onClick={()=>setPackDialogOpen(false)}>{S.cancel}</ui.Button></div><div><ui.Button variant="primary" busy={packBusy} disabled={!files || !packLink.trim() || busy || packBusy || templateDirty || templateSaving} onClick={()=>void installPack()}>{K.installLink}</ui.Button></div></div>
               {!files && <ui.Message tone="error">{K.noFiles}</ui.Message>}
@@ -7951,6 +8030,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
               platform={platform}
               packBusy={packBusy}
               busy={busy}
+              onExportTemplate={(selected:any)=>void transferTemplate("export",selected)}
               onAddTemplates={()=>{setPackError("");setPackMessage("");setPackDialogOpen(true);}}
               addTemplatesLabel={K.title}
               ui={ui}
