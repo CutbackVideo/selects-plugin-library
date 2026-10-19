@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {loadPanelOperation} from './panel_operation.mjs';
 import {checkScriptTypes} from './run_script_types.mjs';
 
-const {importMusicScript, addMusicScript} = loadPanelOperation('music');
+const {importMusicScript, addMusicScript} = loadPanelOperation('artlist');
 function fixture({end = 900, timelineEnd = end, pictureTrackKind = 'main', fileTree = [], folders, existingClips = [], remintMoves = false} = {}) {
   const calls = [];
   let projectWrite = false;
