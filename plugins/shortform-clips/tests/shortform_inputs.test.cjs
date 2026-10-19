@@ -20,17 +20,40 @@ test('shortform timeline inputs', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MOD
     const bytes=Uint8Array.from({length:200000},(_,i)=>i%256);
     const files=await api.sdkFiles({runScript:async({script})=>{
       calls++;
-      return {result:await run(script,{files:{environment:async()=>({platform:'darwin',homedir:'/home'}),readRange:async({offset,length})=>{
+      const result=await run(script,{files:{environment:async()=>({platform:'darwin',homedir:'/home'}),readRange:async({offset,length})=>{
         lengths.push(length);assert.ok(length<=49152);
         return {base64:Buffer.from(bytes.slice(offset,offset+length)).toString('base64')};
-      }}})};
+      }}});
+      assert.ok(Buffer.byteLength(JSON.stringify({result})) < 256*1024, "Serialized file response must fit the script cap");
+      return {result};
     }});
     const before=calls;
-    assert.deepEqual(await files.readRange('/image',0,files.readPiece),bytes.slice(0,196608));
-    assert.equal(calls-before,1);assert.equal(lengths.length,4);
+    assert.deepEqual(await files.readRange('/image',0,files.readPiece),bytes.slice(0,147456));
+    assert.equal(calls-before,1);assert.equal(lengths.length,3);
     const whole=await files.readWhole(['/one','/two'],[70000,3000]);
     assert.deepEqual(whole,[bytes.slice(0,70000),bytes.slice(0,3000)]);
     await assert.rejects(files.readRange('/image',199999,2),/changed while/);
+  });
+  await t.test('shared readers preserve multi-megabyte files within each response cap',async()=>{
+    const data=new Map([['/images/large.png',Uint8Array.from({length:2*1024*1024+17},(_,i)=>i%251)],...Array.from({length:25},(_,i)=>['/images/small-'+i+'.png',new Uint8Array(7000+i).fill(i)])]);
+    const responseSizes=[];
+    const backend=await api.sdkFiles({runScript:async({script})=>{
+      const result=await run(script,{files:{
+        environment:async()=>({platform:'darwin',homedir:'/home'}),
+        stat:async p=>p==='/images'?{size:0,isDirectory:true,mtimeMs:1}:{size:data.get(p).length,isDirectory:false,mtimeMs:1},
+        readdir:async()=>[...data.keys()].map(p=>p.split('/').pop()),
+        readRange:async({path,offset,length})=>({base64:Buffer.from(data.get(path).slice(offset,offset+length)).toString('base64')})
+      }});
+      const size=Buffer.byteLength(JSON.stringify({result}));responseSizes.push(size);
+      assert.ok(size<256*1024,'Response exceeds script cap: '+size);
+      return {result};
+    }});
+    const files=api.hostFiles(backend);
+    assert.deepEqual(await files.readFile('/images/large.png'),data.get('/images/large.png'));
+    const rows=await files.readFolder('/images',/\.png$/);
+    assert.equal(rows.length,data.size);
+    for(const row of rows)assert.deepEqual(row.bytes,data.get('/images/'+row.name));
+    assert.ok(responseSizes.length>10);
   });
   await t.test('concurrent saved-data readers share I/O but receive independent values',async()=>{
     let release,calls=0;

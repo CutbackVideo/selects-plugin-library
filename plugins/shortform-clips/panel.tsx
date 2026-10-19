@@ -806,7 +806,8 @@ async function sdkFiles(sdk: any): Promise<any> {
     via: "sdk",
     home: env.home,
     windows: env.platform === "win32",
-    readPiece: SDK_PIECE * 4,
+    // Three base64 chunks leave room for JSON inside the 256 KiB script response cap.
+    readPiece: SDK_PIECE * 3,
     width: 4,
     async stat(paths: string[]) {
       const groups: string[][] = [];
