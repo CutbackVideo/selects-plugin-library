@@ -423,8 +423,8 @@ const STRINGS: any = {
     countAuto: "\ucd94\ucc9c\ub300\ub85c",
     countManual: "\uc9c1\uc811 \uc9c0\uc815",
     howMany: "\ub9cc\ub4e4 \uac1c\uc218",
-    note: "클립 요청사항 (선택)",
-    notePh: "예: 60초 정도로, 두 사람이 의견을 주고받는 구간 위주로 골라줘",
+    note: "\ud074\ub9bd \uc694\uccad\uc0ac\ud56d (\uc120\ud0dd)",
+    notePh: "\uc608: 60\ucd08 \uc815\ub3c4\ub85c, \ub450 \uc0ac\ub78c\uc774 \uc758\uacac\uc744 \uc8fc\uace0\ubc1b\ub294 \uad6c\uac04 \uc704\uc8fc\ub85c \uace8\ub77c\uc918",
     make: "\ud074\ub9bd \ub9cc\ub4e4\uae30",
     making: "\ub9cc\ub4dc\ub294 \uc911…",
     steps: ["\uc6d0\ubcf8 \uc900\ube44", "\uc804\uc0ac \uc900\ube44", "\ud15c\ud50c\ub9bf \ud310\ubcc4", "\uad6c\uac04 \uc120\ud0dd", "\ucd08\uc548 \ub9cc\ub4e4\uae30"],
@@ -1784,7 +1784,7 @@ function runFolderName(job: any) {
   const title = String(job.title || job.resourceName || "Shorts").replace(/[\/\\\x00-\x1f]/g, " ").trim().slice(0, 64);
   const created = new Date(job.created);
   const stamp = Number.isFinite(created.getTime()) ? created.toLocaleString("sv-SE").slice(0, 16) : "";
-  return `쇼츠 · ${title} · ${stamp} · ${job.id}`;
+  return `\uc1fc\uce20 · ${title} · ${stamp} · ${job.id}`;
 }
 function runFolderScript(projectId: string, folderId: string | undefined, name: string) {
   return `const project = selects.project(${JSON.stringify(projectId)});
@@ -2569,8 +2569,8 @@ const RADIO_STRINGS: any = {
     countAuto: "\ucd94\ucc9c\ub300\ub85c",
     countManual: "\uc9c1\uc811 \uc9c0\uc815",
     howMany: "\ub9cc\ub4e4 \uac1c\uc218",
-    note: "클립 요청사항 (선택)",
-    notePh: "예: 60초 정도로, 두 사람이 의견을 주고받는 구간 위주로 골라줘",
+    note: "\ud074\ub9bd \uc694\uccad\uc0ac\ud56d (\uc120\ud0dd)",
+    notePh: "\uc608: 60\ucd08 \uc815\ub3c4\ub85c, \ub450 \uc0ac\ub78c\uc774 \uc758\uacac\uc744 \uc8fc\uace0\ubc1b\ub294 \uad6c\uac04 \uc704\uc8fc\ub85c \uace8\ub77c\uc918",
     make: "\ud074\ub9bd \ub9cc\ub4e4\uae30",
     making: "\ub9cc\ub4dc\ub294 \uc911…",
     steps: ["\uc6d0\ubcf8 \uc900\ube44", "\uc804\uc0ac \uc900\ube44", "\ud15c\ud50c\ub9bf \ud310\ubcc4", "\uad6c\uac04 \uc120\ud0dd", "\ucd08\uc548 \ub9cc\ub4e4\uae30"],
