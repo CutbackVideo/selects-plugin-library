@@ -196,7 +196,7 @@ const STRINGS: any = {
     noProject: "Open a project first.",
     source: "Source video",
     sourceKind: "Source",
-    programPick: "Program",
+    programPick: "Template",
     credits: "May use credits.",
     optionsSec: "Settings",
     cancel: "Cancel",
@@ -205,7 +205,7 @@ const STRINGS: any = {
     finished: "Done",
     analyzingLeft: (m: number) => `Analyzing · about ${m} min left`,
     thisRun: "Work in progress",
-    identifying: "Identifying the program…",
+    identifying: "Choosing a template…",
     choosing: "The AI is choosing passages and writing headlines. This can take a few minutes.",
     building: (i: number, n: number) => `Building draft ${i} of ${n}…`,
     downloading: (n: number) => (n > 1 ? `Downloading the video… (attempt ${n})` : "Downloading the video…"),
@@ -227,11 +227,11 @@ const STRINGS: any = {
     countAuto: "Recommended",
     countManual: "Set",
     howMany: "Clips",
-    note: "Extra instructions (optional)",
-    notePh: "e.g. focus on the main topic, under 60 seconds",
+    note: "Clip requests (optional)",
+    notePh: "e.g. Around 60 seconds, focusing on two people exchanging opinions",
     make: "Make clips",
     making: "Making…",
-    steps: ["Prepare source", "Prepare transcript", "Identify program", "Choose passages", "Build drafts"],
+    steps: ["Prepare source", "Prepare transcript", "Choose template", "Choose passages", "Build drafts"],
     confirmCredits: "Selects is asking you to confirm the transcription credits. Approve it in the Selects window as soon as it appears; it closes by itself within about 30 seconds…",
     confirmMissed: "The credit confirmation was not approved, so transcription did not start. Selects keeps that request open for about 30 seconds. Nothing was charged.",
     waitingAnalysis: "Waiting for the transcript. Clipping starts as soon as it is ready; visual analysis can continue in the background.",
@@ -392,7 +392,7 @@ const STRINGS: any = {
     noProject: "\ud504\ub85c\uc81d\ud2b8\ub97c \uba3c\uc800 \uc5f4\uc5b4 \uc8fc\uc138\uc694.",
     source: "\uc6d0\ubcf8 \uc601\uc0c1",
     sourceKind: "\ucd9c\ucc98",
-    programPick: "\ud504\ub85c\uadf8\ub7a8",
+    programPick: "\ud15c\ud50c\ub9bf",
     credits: "\ud06c\ub808\ub527\uc774 \uc0ac\uc6a9\ub420 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     optionsSec: "\uc124\uc815",
     cancel: "\ucde8\uc18c",
@@ -401,7 +401,7 @@ const STRINGS: any = {
     finished: "\uc644\ub8cc",
     analyzingLeft: (m: number) => `\ubd84\uc11d \uc911\uc785\ub2c8\ub2e4 · \uc57d ${m}\ubd84 \ub0a8\uc74c`,
     thisRun: "\uc9c4\ud589 \uc911\uc778 \uc791\uc5c5",
-    identifying: "\ud504\ub85c\uadf8\ub7a8\uc744 \ud310\ubcc4\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4…",
+    identifying: "\ud15c\ud50c\ub9bf\uc744 \ud310\ubcc4\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4…",
     choosing: "AI\uac00 \uad6c\uac04\uc744 \uace0\ub974\uace0 \ud5e4\ub4dc\ub77c\uc778\uc744 \uc4f0\uace0 \uc788\uc2b5\ub2c8\ub2e4. \uba87 \ubd84 \uac78\ub9b4 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     building: (i: number, n: number) => `\ucd08\uc548 ${i}/${n} \ub9cc\ub4dc\ub294 \uc911…`,
     downloading: (n: number) => (n > 1 ? `\uc601\uc0c1\uc744 \ubc1b\ub294 \uc911… (${n}\ubc88\uc9f8 \uc2dc\ub3c4)` : "\uc601\uc0c1\uc744 \ubc1b\ub294 \uc911…"),
@@ -423,11 +423,11 @@ const STRINGS: any = {
     countAuto: "\ucd94\ucc9c\ub300\ub85c",
     countManual: "\uc9c1\uc811 \uc9c0\uc815",
     howMany: "\ub9cc\ub4e4 \uac1c\uc218",
-    note: "\ucd94\uac00 \uc694\uccad (\uc120\ud0dd)",
-    notePh: "\uc608: \uc8fc\uc694 \uc7c1\uc810 \uc704\uc8fc\ub85c, 60\ucd08 \uc774\ub0b4",
+    note: "클립 요청사항 (선택)",
+    notePh: "예: 60초 정도로, 두 사람이 의견을 주고받는 구간 위주로 골라줘",
     make: "\ud074\ub9bd \ub9cc\ub4e4\uae30",
     making: "\ub9cc\ub4dc\ub294 \uc911…",
-    steps: ["\uc6d0\ubcf8 \uc900\ube44", "\uc804\uc0ac \uc900\ube44", "\ud504\ub85c\uadf8\ub7a8 \ud310\ubcc4", "\uad6c\uac04 \uc120\ud0dd", "\ucd08\uc548 \ub9cc\ub4e4\uae30"],
+    steps: ["\uc6d0\ubcf8 \uc900\ube44", "\uc804\uc0ac \uc900\ube44", "\ud15c\ud50c\ub9bf \ud310\ubcc4", "\uad6c\uac04 \uc120\ud0dd", "\ucd08\uc548 \ub9cc\ub4e4\uae30"],
     confirmCredits: "Selects\uac00 \uc804\uc0ac \ud06c\ub808\ub527 \uc0ac\uc6a9 \ud655\uc778\uc744 \uc694\uccad\ud569\ub2c8\ub2e4. \ud655\uc778 \ucc3d\uc774 \ub728\uba74 \ubc14\ub85c Selects \ucc3d\uc5d0\uc11c \uc2b9\uc778\ud574 \uc8fc\uc138\uc694. \uc57d 30\ucd08 \uc548\uc5d0 \uc800\uc808\ub85c \ub2eb\ud799\ub2c8\ub2e4…",
     confirmMissed: "\ud06c\ub808\ub527 \uc0ac\uc6a9 \ud655\uc778\uc774 \uc2b9\uc778\ub418\uc9c0 \uc54a\uc544 \uc804\uc0ac\uac00 \uc2dc\uc791\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. Selects\ub294 \uc774 \ud655\uc778 \uc694\uccad\uc744 \uc57d 30\ucd08 \ub3d9\uc548\ub9cc \uc5f4\uc5b4 \ub461\ub2c8\ub2e4. \ud06c\ub808\ub527\uc740 \ucc28\uac10\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
     waitingAnalysis: "\uc804\uc0ac\ub97c \uae30\ub2e4\ub9ac\uace0 \uc788\uc2b5\ub2c8\ub2e4. \uc804\uc0ac\uac00 \uc900\ube44\ub418\uba74 \ubc14\ub85c \ud074\ub9bd\uc744 \ub9cc\ub4e4\uace0, \ub098\uba38\uc9c0 \ubd84\uc11d\uc740 \ubc31\uadf8\ub77c\uc6b4\ub4dc\uc5d0\uc11c \uacc4\uc18d\ub429\ub2c8\ub2e4.",
@@ -468,7 +468,7 @@ const STRINGS: any = {
         : j.key
           ? "\uad6c\uac04 \uc120\ud0dd \uc804"
           : (j.transcriptReady || j.analyzed)
-            ? "\ud504\ub85c\uadf8\ub7a8 \ud310\ubcc4 \uc804"
+            ? "\ud15c\ud50c\ub9bf \ud310\ubcc4 \uc804"
             : j.resourceId
               ? "\uc804\uc0ac \uc900\ube44 \uc804"
               : "\uc6d0\ubcf8 \uc900\ube44 \uc804",
@@ -553,7 +553,7 @@ const STRINGS: any = {
     prompt: "\uad6c\uac04 \uc120\ud0dd",
     promptHint: "AI\uc5d0\uac8c \uc8fc\ub294 \uc9c0\uc2dc\ubb38\uc785\ub2c8\ub2e4. \uc601\uc0c1\uacfc \uac19\uc740 \uc5b8\uc5b4\ub85c \uc501\ub2c8\ub2e4. \ub2f5\ubcc0 \ud615\uc2dd\uacfc \uc2dc\uac04 \ub9de\ucda4 \uaddc\uce59\uc740 \uc571\uc774 \uc815\ud569\ub2c8\ub2e4.",
     role: "\uc5ed\ud560",
-    format: "\ud504\ub85c\uadf8\ub7a8 \uc124\uba85",
+    format: "\ud15c\ud50c\ub9bf \uc124\uba85",
     good: "\uc798 \ub418\ub294 \ud074\ub9bd",
     bad: "\ud53c\ud560 \ud074\ub9bd",
     lengthGuide: "\ud074\ub9bd \uae38\uc774",
@@ -1776,6 +1776,10 @@ function rankDrafts(drafts: any[]) {
 }
 // Cache snapshots independently of the timeline: opening a draft never refreshes its saved image.
 // Folder identity belongs to the run, not to an individual clip or retry.
+function withoutRunSuffix(name: string, runId: string) {
+  const suffix = ` · ${runId}`;
+  return name.endsWith(suffix) ? name.slice(0, -suffix.length) : name;
+}
 function runFolderName(job: any) {
   const title = String(job.title || job.resourceName || "Shorts").replace(/[\/\\\x00-\x1f]/g, " ").trim().slice(0, 64);
   const created = new Date(job.created);
@@ -1796,13 +1800,23 @@ async function ensureRunFolder(job: any, script: any, persist: any) {
   const result = await script(runFolderScript(job.projectId, job.folderId, folderName), "Prepare shorts run folder", true);
   if (!result?.folderId) throw new Error("Could not create the shorts run folder");
   await persist({folderId: result.folderId});
+  // Keep the recovery name private; only rename names created by this run.
+  const displayName = withoutRunSuffix(folderName, job.id);
+  await script(`const p = selects.project(${JSON.stringify(job.projectId)});
+const folder = (await p.readFootage()).folders.find(f => f.folderId === ${JSON.stringify(result.folderId)});
+if (folder?.name === ${JSON.stringify(folderName)} && folder.name !== ${JSON.stringify(displayName)}) await p.renameFolder({folderId: folder.folderId, name: ${JSON.stringify(displayName)}});
+return true;`, "Name shorts run folder", true);
   return result.folderId;
 }
-async function moveRunDrafts(projectId: string, folderId: string, draftIds: string[], script: any) {
+async function moveRunDrafts(projectId: string, folderId: string, draftIds: string[], script: any, runId?: string) {
   const ids = [...new Set(draftIds.filter(Boolean))];
   if (!ids.length) return;
   const result = await script(`return await selects.project(${JSON.stringify(projectId)}).moveToFolder(${JSON.stringify({targetFolderId: folderId, draftIds: ids})});`, "Place shorts in run folder", true);
   if (!result || result.skipped?.length) throw new Error("Some shorts could not be placed in the run folder. Resume to retry.");
+  if (runId) await script(`for (const id of ${JSON.stringify(ids)}) {
+const d = selects.draft(id); const m = await d.meta(); const suffix = ${JSON.stringify(" · " + runId)};
+if (m.name.endsWith(suffix)) { await d.setName(m.name.slice(0, -suffix.length)); await d.commitAll("Set clip display name"); }
+} return true;`, "Name shorts drafts", true);
 }
 
 function thumbnailPath(jobId: string, draftId: string) {
@@ -2312,7 +2326,7 @@ const RADIO_STRINGS: any = {
     noProject: "Open a project first.",
     source: "Source video",
     sourceKind: "Source",
-    programPick: "Program",
+    programPick: "Template",
     credits: "May use credits.",
     optionsSec: "Settings",
     cancel: "Cancel",
@@ -2321,7 +2335,7 @@ const RADIO_STRINGS: any = {
     finished: "Done",
     analyzingLeft: (m: number) => `Analyzing · about ${m} min left`,
     thisRun: "Work in progress",
-    identifying: "Identifying the program…",
+    identifying: "Choosing a template…",
     choosing: "The AI is choosing passages and writing headlines. This can take a few minutes.",
     building: (i: number, n: number) => `Building draft ${i} of ${n}…`,
     downloading: (n: number) => (n > 1 ? `Downloading the video… (attempt ${n})` : "Downloading the video…"),
@@ -2343,11 +2357,11 @@ const RADIO_STRINGS: any = {
     countAuto: "Recommended",
     countManual: "Set",
     howMany: "Clips",
-    note: "Extra instructions (optional)",
-    notePh: "e.g. focus on the main topic, under 60 seconds",
+    note: "Clip requests (optional)",
+    notePh: "e.g. Around 60 seconds, focusing on two people exchanging opinions",
     make: "Make clips",
     making: "Making…",
-    steps: ["Prepare source", "Prepare transcript", "Identify program", "Choose passages", "Build drafts"],
+    steps: ["Prepare source", "Prepare transcript", "Choose template", "Choose passages", "Build drafts"],
     confirmCredits: "Selects is asking you to confirm the transcription credits. Approve it in the Selects window as soon as it appears; it closes by itself within about 30 seconds…",
     confirmMissed: "The credit confirmation was not approved, so transcription did not start. Selects keeps that request open for about 30 seconds. Nothing was charged.",
     waitingAnalysis: "Waiting for the transcript. Clipping starts as soon as it is ready; visual analysis can continue in the background.",
@@ -2524,7 +2538,7 @@ const RADIO_STRINGS: any = {
     noProject: "\ud504\ub85c\uc81d\ud2b8\ub97c \uba3c\uc800 \uc5f4\uc5b4 \uc8fc\uc138\uc694.",
     source: "\uc6d0\ubcf8 \uc601\uc0c1",
     sourceKind: "\ucd9c\ucc98",
-    programPick: "\ud504\ub85c\uadf8\ub7a8",
+    programPick: "\ud15c\ud50c\ub9bf",
     credits: "\ud06c\ub808\ub527\uc774 \uc0ac\uc6a9\ub420 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     optionsSec: "\uc124\uc815",
     cancel: "\ucde8\uc18c",
@@ -2533,7 +2547,7 @@ const RADIO_STRINGS: any = {
     finished: "\uc644\ub8cc",
     analyzingLeft: (m: number) => `\ubd84\uc11d \uc911\uc785\ub2c8\ub2e4 · \uc57d ${m}\ubd84 \ub0a8\uc74c`,
     thisRun: "\uc9c4\ud589 \uc911\uc778 \uc791\uc5c5",
-    identifying: "\ud504\ub85c\uadf8\ub7a8\uc744 \ud310\ubcc4\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4…",
+    identifying: "\ud15c\ud50c\ub9bf\uc744 \ud310\ubcc4\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4…",
     choosing: "AI\uac00 \uad6c\uac04\uc744 \uace0\ub974\uace0 \ud5e4\ub4dc\ub77c\uc778\uc744 \uc4f0\uace0 \uc788\uc2b5\ub2c8\ub2e4. \uba87 \ubd84 \uac78\ub9b4 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     building: (i: number, n: number) => `\ucd08\uc548 ${i}/${n} \ub9cc\ub4dc\ub294 \uc911…`,
     downloading: (n: number) => (n > 1 ? `\uc601\uc0c1\uc744 \ubc1b\ub294 \uc911… (${n}\ubc88\uc9f8 \uc2dc\ub3c4)` : "\uc601\uc0c1\uc744 \ubc1b\ub294 \uc911…"),
@@ -2555,11 +2569,11 @@ const RADIO_STRINGS: any = {
     countAuto: "\ucd94\ucc9c\ub300\ub85c",
     countManual: "\uc9c1\uc811 \uc9c0\uc815",
     howMany: "\ub9cc\ub4e4 \uac1c\uc218",
-    note: "\ucd94\uac00 \uc694\uccad (\uc120\ud0dd)",
-    notePh: "\uc608: \uc8fc\uc694 \uc7c1\uc810 \uc704\uc8fc\ub85c, 60\ucd08 \uc774\ub0b4",
+    note: "클립 요청사항 (선택)",
+    notePh: "예: 60초 정도로, 두 사람이 의견을 주고받는 구간 위주로 골라줘",
     make: "\ud074\ub9bd \ub9cc\ub4e4\uae30",
     making: "\ub9cc\ub4dc\ub294 \uc911…",
-    steps: ["\uc6d0\ubcf8 \uc900\ube44", "\uc804\uc0ac \uc900\ube44", "\ud504\ub85c\uadf8\ub7a8 \ud310\ubcc4", "\uad6c\uac04 \uc120\ud0dd", "\ucd08\uc548 \ub9cc\ub4e4\uae30"],
+    steps: ["\uc6d0\ubcf8 \uc900\ube44", "\uc804\uc0ac \uc900\ube44", "\ud15c\ud50c\ub9bf \ud310\ubcc4", "\uad6c\uac04 \uc120\ud0dd", "\ucd08\uc548 \ub9cc\ub4e4\uae30"],
     confirmCredits: "Selects\uac00 \uc804\uc0ac \ud06c\ub808\ub527 \uc0ac\uc6a9 \ud655\uc778\uc744 \uc694\uccad\ud569\ub2c8\ub2e4. \ud655\uc778 \ucc3d\uc774 \ub728\uba74 \ubc14\ub85c Selects \ucc3d\uc5d0\uc11c \uc2b9\uc778\ud574 \uc8fc\uc138\uc694. \uc57d 30\ucd08 \uc548\uc5d0 \uc800\uc808\ub85c \ub2eb\ud799\ub2c8\ub2e4…",
     confirmMissed: "\ud06c\ub808\ub527 \uc0ac\uc6a9 \ud655\uc778\uc774 \uc2b9\uc778\ub418\uc9c0 \uc54a\uc544 \uc804\uc0ac\uac00 \uc2dc\uc791\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. Selects\ub294 \uc774 \ud655\uc778 \uc694\uccad\uc744 \uc57d 30\ucd08 \ub3d9\uc548\ub9cc \uc5f4\uc5b4 \ub461\ub2c8\ub2e4. \ud06c\ub808\ub527\uc740 \ucc28\uac10\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
     waitingAnalysis: "\uc804\uc0ac\ub97c \uae30\ub2e4\ub9ac\uace0 \uc788\uc2b5\ub2c8\ub2e4. \uc804\uc0ac\uac00 \uc900\ube44\ub418\uba74 \ubc14\ub85c \ud074\ub9bd\uc744 \ub9cc\ub4e4\uace0, \ub098\uba38\uc9c0 \ubd84\uc11d\uc740 \ubc31\uadf8\ub77c\uc6b4\ub4dc\uc5d0\uc11c \uacc4\uc18d\ub429\ub2c8\ub2e4.",
@@ -2600,7 +2614,7 @@ const RADIO_STRINGS: any = {
         : j.key
           ? "\uad6c\uac04 \uc120\ud0dd \uc804"
           : (j.transcriptReady || j.analyzed)
-            ? "\ud504\ub85c\uadf8\ub7a8 \ud310\ubcc4 \uc804"
+            ? "\ud15c\ud50c\ub9bf \ud310\ubcc4 \uc804"
             : j.resourceId
               ? "\uc804\uc0ac \uc900\ube44 \uc804"
               : "\uc6d0\ubcf8 \uc900\ube44 \uc804",
@@ -2697,7 +2711,7 @@ const RADIO_STRINGS: any = {
     prompt: "\uad6c\uac04 \uc120\ud0dd",
     promptHint: "AI\uc5d0\uac8c \uc8fc\ub294 \uc9c0\uc2dc\ubb38\uc785\ub2c8\ub2e4. \uc601\uc0c1\uacfc \uac19\uc740 \uc5b8\uc5b4\ub85c \uc501\ub2c8\ub2e4. \ub2f5\ubcc0 \ud615\uc2dd\uacfc \uc2dc\uac04 \ub9de\ucda4 \uaddc\uce59\uc740 \uc571\uc774 \uc815\ud569\ub2c8\ub2e4.",
     role: "\uc5ed\ud560",
-    format: "\ud504\ub85c\uadf8\ub7a8 \uc124\uba85",
+    format: "\ud15c\ud50c\ub9bf \uc124\uba85",
     good: "\uc798 \ub418\ub294 \ud074\ub9bd",
     bad: "\ud53c\ud560 \ud074\ub9bd",
     lengthGuide: "\ud074\ub9bd \uae38\uc774",
@@ -5105,12 +5119,12 @@ function TemplateFramingSection({ ui, S, lang, draft, profile }: any) {
   const { edit, set, saving } = draft;
   const { num, text } = templateFields({ ui, ...draft });
   return (<>
-      <ui.Section title={lang === "ko" ? "\uad6c\ub3c4" : "Framing"}>
-        {profile.reframe ? <ui.Segmented label={lang === "ko" ? "\uad6c\ub3c4 \ubc29\uc2dd" : "Framing mode"}
+      <ui.Section title={lang === "ko" ? "\ud654\uba74 \uad6c\uc131" : "Framing"}>
+        {profile.reframe ? <ui.Segmented label={lang === "ko" ? "\ud654\uba74 \uad6c\uc131 \ubc29\uc2dd" : "Framing mode"}
           value={edit.layout.reframe ? "auto" : "manual"}
           onChange={(v:string)=>set("layout.reframe",v === "auto")}
           options={[{value:"auto",label:lang === "ko" ? "\uc790\ub3d9 (AI)" : "Automatic (AI)"},{value:"manual",label:lang === "ko" ? "\uc218\ub3d9" : "Manual"}]} disabled={saving}/>
-          : <small>{lang === "ko" ? "\uc774 \ud15c\ud50c\ub9bf\uc740 \uc218\ub3d9 \uad6c\ub3c4\ub97c \uc0ac\uc6a9\ud569\ub2c8\ub2e4." : "This template uses manual framing."}</small>}
+          : <small>{lang === "ko" ? "\uc774 \ud15c\ud50c\ub9bf\uc740 \uc218\ub3d9 \ud654\uba74 \uad6c\uc131\uc744 \uc0ac\uc6a9\ud569\ub2c8\ub2e4." : "This template uses manual framing."}</small>}
         {profile.reframe && edit.layout.reframe && <>
           <ui.Segmented label={lang==='ko'?'\ub9ac\ud504\ub808\uc774\ubc0d \uc2a4\ud0c0\uc77c':'Reframing style'} value={edit.layout.reframePreset||'conversation'} onChange={(v:string)=>set('layout',reframingPreset(edit.layout,v))} options={[
             {value:'speaker',label:lang==='ko'?'\ud654\uc790 \uc9d1\uc911':'Speaker focus'}, {value:'conversation',label:lang==='ko'?'\ub300\ud654\uc640 \ubc18\uc751':'Conversation'}, {value:'context',label:lang==='ko'?'\ud604\uc7a5\uac10':'Context'}, {value:'custom',label:lang==='ko'?'\uc9c1\uc811 \uc124\uc815':'Custom'}]} disabled={saving}/>
@@ -5122,7 +5136,7 @@ function TemplateFramingSection({ ui, S, lang, draft, profile }: any) {
             ['widePolicy','\uc640\uc774\ub4dc\uc0f7','Wide shots',[['never','\uc0ac\uc6a9 \uc548 \ud568','Never'],['essential','\uaf2d \ud544\uc694\ud560 \ub54c','Essential'],['free','\uc790\uc720\ub86d\uac8c','Free']],'never'],
             ['reframePacing','\ud654\uba74 \uc804\ud658 \ube48\ub3c4','Pacing',[['calm','\ucc28\ubd84\ud558\uac8c','Calm'],['balanced','\ubcf4\ud1b5','Balanced'],['dynamic','\uc5ed\ub3d9\uc801\uc73c\ub85c','Dynamic']],'balanced'],
           ].map(([key,ko,en,options,fallback]:any)=><ui.Segmented key={key} label={lang==='ko'?ko:en} value={edit.layout[key]||fallback} onChange={(v:string)=>set('layout',{...edit.layout,[key]:v,reframePreset:'custom'})} options={options.map(([value,k,e]:any)=>({value,label:lang==='ko'?k:e}))} disabled={saving}/>)}
-          {text("layout.reframeInstructions",lang === "ko" ? "\uad6c\ub3c4 \uc9c0\uce68 (AI \ucc38\uace0)" : "Framing instructions (AI guidance)")}
+          {text("layout.reframeInstructions",lang === "ko" ? "\ud654\uba74 \uad6c\uc131 \uc9c0\uce68 (AI \ucc38\uace0)" : "Framing instructions (AI guidance)")}
 
         </>}
 
@@ -5321,7 +5335,7 @@ function TemplateEditorForm(props: any) {
           tabs={[
             { value: "look", label: S.tabLook, content: <TemplateAppearanceSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} previewOverlay={previewOverlay} setPreviewOverlay={setPreviewOverlay} /> },
             { value: "captions", label: S.tabCaptions, content: <TemplateCaptionsSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} previewOverlay={previewOverlay} /> },
-            { value: "framing", label: lang === "ko" ? "\uad6c\ub3c4" : "Framing", content: <TemplateFramingSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} /> },
+            { value: "framing", label: lang === "ko" ? "\ud654\uba74 \uad6c\uc131" : "Framing", content: <TemplateFramingSection ui={ui} S={S} lang={lang} draft={draft} profile={profile} /> },
             { value: "ai", label: S.tabAI, content: <TemplateAISection ui={ui} S={S} lang={lang} draft={draft} profile={profile} /> },
           ]}
       />
@@ -6496,7 +6510,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       const buildLogo = (tpl.renderer === "separate-headlines") && tpl.logo.mode === "image" ? await compactLogo(tpl.logo.image) : tpl.logo.image;
       const made: any[] = Array.isArray(job.built) ? job.built.slice() : [];
       const folderId = await ensureRunFolder(job, script, persist);
-      await moveRunDrafts(job.projectId, folderId, made.map(d => d?.draftId), script);
+      await moveRunDrafts(job.projectId, folderId, made.map(d => d?.draftId), script, job.id);
+      for (const d of made) if (d?.name) d.name = withoutRunSuffix(d.name, job.id);
       const pending: number[] = [];
       const work = createReframeWork(() => {if(token.cancelled) throw new RunCancelled();});
       let progressSaveError: any;
@@ -6567,7 +6582,9 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         setDrafts(made.filter(Boolean));
         await persist({ built: made, resultWarning });
         if (made[i]?.draftId) {
-          await moveRunDrafts(job.projectId, folderId, [made[i].draftId], script);
+          await moveRunDrafts(job.projectId, folderId, [made[i].draftId], script, job.id);
+          made[i].name = withoutRunSuffix(made[i].name, job.id);
+          await persist({built: made});
           pending.push(i);
         }
       }

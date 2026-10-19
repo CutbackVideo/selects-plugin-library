@@ -22,6 +22,7 @@ test('run folders', {skip: !modules}, async t => {
         if (loseReply) {loseReply = false; throw Error('connection lost');}
         return folder;
       },
+      renameFolder: async ({folderId,name}) => { folders.find(f=>f.folderId===folderId).name=name; },
       moveToFolder: async data => {moves.push(data); return {movedCount:data.draftIds.length,skipped:[]};}
     };
     const script = async (code, summary, allowCommit) => {
@@ -34,6 +35,8 @@ test('run folders', {skip: !modules}, async t => {
   await t.test('one folder per run; retries reuse renamed folders and move only result Drafts', async () => {
     const f = fixture();
     const id = await ensureRunFolder(f.job,f.script,f.persist);
+    assert.ok(!f.folders[0].name.endsWith(' · run-1'));
+    assert.ok(f.job.folderName.endsWith(' · run-1'));
     f.folders[0].name = 'User renamed';
     assert.equal(await ensureRunFolder(f.job,f.script,f.persist),id);
     await moveRunDrafts(f.job.projectId,id,['draft-a','draft-b','draft-a',undefined],f.script);
@@ -55,6 +58,23 @@ test('run folders', {skip: !modules}, async t => {
     assert.equal(await ensureRunFolder(f.job,f.script,f.persist),'folder-2');
     delete f.job.folderId;delete f.job.folderName;f.job.id = 'run-2';
     assert.equal(await ensureRunFolder(f.job,f.script,f.persist),'folder-3');
+  });
+  await t.test('removes only the exact run suffix after moving; keeps custom names and IDs', async () => {
+    const f = fixture();
+    const names = {a:'Clip 1 · run-1',b:'Custom name'};
+    const commits=[];
+    const script=async(code,summary,allowCommit)=>{
+      assert.equal(allowCommit,true);
+      return new AsyncFunction('selects',code)({project:()=>f.project,draft:id=>({
+        meta:async()=>({name:names[id]}), setName:async name=>{names[id]=name;},commitAll:async()=>{commits.push(id);}
+      })});
+    };
+    await moveRunDrafts('project-1','folder-1',['a','b'],script,'run-1');
+    assert.deepEqual(names,{a:'Clip 1',b:'Custom name'});
+    assert.deepEqual(commits,['a']);
+    assert.deepEqual(f.moves[0].draftIds,['a','b']);
+    await moveRunDrafts('project-1','folder-1',['a','b'],script,'run-1');
+    assert.deepEqual(commits,['a']);
   });
   await t.test('missing Draft is reported so resume can retry placement', async () => {
     const f = fixture();
