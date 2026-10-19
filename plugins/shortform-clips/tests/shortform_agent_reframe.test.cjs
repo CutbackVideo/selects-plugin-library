@@ -36,6 +36,17 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
   assert.deepEqual(parts[0].endFrame,20);
  });
  await t.test('agent plans once and code validates and applies without runtime previews',async()=>{const r=await run();assert.equal((await r.execute()).status,'complete');assert.equal(r.state().reads,3);assert.equal(r.state().calls,1);assert.equal(r.state().applies,1);});
+ await t.test('descriptive evidence cannot discard executable framing or change its geometry',async()=>{
+  const baselineRun=await run(),expected=await baselineRun.execute();
+  for(const speakerEvidence of [undefined,[],[null],[{...valid.speakerEvidence[0],basis:'visual'}],[{...valid.speakerEvidence[0],basis:'appearance-only'}],[{...valid.speakerEvidence[0],subject:''}],[{...valid.speakerEvidence[0],sourceFrames:[]}],[{...valid.speakerEvidence[0],startFrame:1}],[{...valid.speakerEvidence[0],endFrame:30}]]){
+   const r=await run({report:{...valid,speakerEvidence}}),result=await r.execute();
+   assert.equal(r.state().applies,1);assert.equal(r.state().calls,1);
+   assert.deepEqual(result.appliedShots,expected.appliedShots);
+   assert.equal(result.qualityStatus,'complete');
+   assert.ok(['incomplete','reported'].includes(result.evidenceReview.status));
+   if(!speakerEvidence?.[0]?.basis||speakerEvidence[0].subject===''||speakerEvidence[0].sourceFrames.length===0||speakerEvidence[0].startFrame===1||speakerEvidence[0].endFrame===30)assert.ok(result.evidenceReview.warnings.length);
+  }
+ });
  await t.test('rejects speech edits and timing changes outside framing scope',async()=>{
   for(const after of [{...baseline,meta:{...baseline.meta,durationFrames:80}},{...baseline,words:[]}]){const r=await run({after});await assert.rejects(r.execute,/outside reframing scope/);}
  });

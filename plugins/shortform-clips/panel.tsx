@@ -3609,7 +3609,7 @@ ${JSON.stringify({version:1,capabilities:{layouts:['speaker','stacked','detail',
 
 OUTPUT_JSON
 ${COMPOSITION_PLAN_SCHEMA}
-Use camera=resourceId. Supported layouts: speaker, stacked, detail, wide. Each panel target uses subjectId and refs (the measured face IDs); put sourcePane and closeUp on the panel. Include speakerEvidence rows {startFrame,endFrame,resourceId,sourceFrames,subject,basis,evidence}. draftId must be ${JSON.stringify(draftId)}.
+Use camera=resourceId. Supported layouts: speaker, stacked, detail, wide. Each panel target uses subjectId and refs (the measured face IDs); put sourcePane and closeUp on the panel. Include speakerEvidence rows {startFrame,endFrame,resourceId,sourceFrames,subject,basis,evidence}. basis is descriptive text, not an editing command; prefer audio-visual, offscreen, visual-content, or mouth-motion when applicable. draftId must be ${JSON.stringify(draftId)}.
 Shots must cover [0,${before.meta.durationFrames}) contiguously with integer half-open intervals. Evidence must cover the clip. Use one evidence row per coherent shot, not per transcript turn; each row MUST cite at least one integer source frame actually supplied/inspected (never an empty array). A broad visual-content row can cover narration over an unchanged insert without redundant offscreen rows. Name the measured IDs used for people. Keep each reason/evidence/limitation under 25 words. Return syntactically valid JSON with every string quoted and closed. "audio-visual" cites runtime scores plus images, "offscreen" identifies the listener/narration, "visual-content" explains non-speaker material. Do not claim lip-sync verification from still images.
 ${reframingPreferencePrompt(layout)}`;
   note({plan:'stage',stage:'agent'});note({plan:'agent-reframe-start',draftId});
@@ -3621,7 +3621,13 @@ ${reframingPreferencePrompt(layout)}`;
   if(plan.draftId!==draftId||plan.status!=='planned') throw new Error(plan.summary||'Agent could not plan reframing');
   note({plan:"agent-source-plan",draftId,report:plan});
   plan=sourceCompositionAdapter(plan,before.sources,before.meta.durationFrames,layout,faceCatalog);
-  validateSpeakerEvidence(plan,before.meta.durationFrames);
+  // Descriptive evidence is diagnostic, not an executable crop instruction.
+  // Keep malformed/incomplete reports visible without discarding a valid plan.
+  const evidenceWarnings:string[]=[];
+  try {validateSpeakerEvidence(plan,before.meta.durationFrames);}
+  catch(error:any) {evidenceWarnings.push(String(error?.message||error));}
+  plan={...plan,evidenceReview:{status:evidenceWarnings.length?'incomplete':'reported',warnings:evidenceWarnings}};
+  if(evidenceWarnings.length)note({plan:'source-evidence-warning',draftId,warnings:evidenceWarnings});
   resolved=resolveSourceComposition(plan.shots,faceCatalog,before.sources,before.meta.durationFrames,layout);
   } catch(error:any) {
     if(error instanceof RunCancelled)throw error;
@@ -3652,7 +3658,7 @@ function validateSpeakerEvidence(report:any,duration:number) {
   for(const row of rows) {
     if(!Number.isInteger(row.startFrame)||!Number.isInteger(row.endFrame)||row.startFrame<0||row.endFrame<=row.startFrame||row.endFrame>duration||
       typeof row.resourceId!=='string'||!row.resourceId||typeof row.subject!=='string'||!row.subject.trim()||typeof row.evidence!=='string'||!row.evidence.trim()||
-      !['mouth-motion','offscreen','audio-visual','visual-content'].includes(row.basis)||!Array.isArray(row.sourceFrames)||row.sourceFrames.length<(row.basis==='mouth-motion'?3:1)||
+      typeof row.basis!=='string'||!row.basis.trim()||!Array.isArray(row.sourceFrames)||row.sourceFrames.length<(row.basis==='mouth-motion'?3:1)||
       new Set(row.sourceFrames).size<(row.basis==='mouth-motion'?3:1)||row.sourceFrames.some((f:any)=>!Number.isInteger(f)||f<0)) throw new Error('Invalid source speaker evidence.');
   }
   if(!rows.some((r:any)=>r.startFrame===0)) throw new Error('Opening speaker was not checked against source evidence.');
