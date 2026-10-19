@@ -32,6 +32,26 @@ test('run folders', {skip: !modules}, async t => {
     const persist = async patch => {Object.assign(job,patch);snapshots.push(structuredClone(job));};
     return {job,folders,moves,snapshots,project,script,persist,lose:()=>{loseReply=true;}, count:()=>creates};
   }
+  await t.test('folder display-name script passes host TypeScript checks', async () => {
+    const f = fixture(), ts = dep('typescript');
+    await ensureRunFolder(f.job, async (script, summary, allowCommit) => {
+      if (summary === 'Name shorts run folder') {
+        const filename = path.resolve('shortform-folder-check.ts');
+        const code = `declare const selects: { project(id:string): {
+          readFootage(): Promise<{folders:{folderId:string,name:string}[]}>;
+          renameFolder(input:{folderId:string,name:string}): Promise<void>;
+        }};
+        async function rename() {${script}}`;
+        const options = {noEmit:true,strict:true,types:[],target:ts.ScriptTarget.ES2022,skipLibCheck:true};
+        const host = ts.createCompilerHost(options), original = host.getSourceFile;
+        host.getSourceFile = (file,...args) => file === filename ? ts.createSourceFile(file,code,options.target,true) : original.call(host,file,...args);
+        const program = ts.createProgram([filename],options,host);
+        assert.deepEqual(ts.getPreEmitDiagnostics(program).map(d=>ts.flattenDiagnosticMessageText(d.messageText,'\n')),[]);
+      }
+      return f.script(script,summary,allowCommit);
+    }, f.persist);
+    assert.ok(!f.folders[0].name.endsWith(' · run-1'));
+  });
   await t.test('one folder per run; retries reuse renamed folders and move only result Drafts', async () => {
     const f = fixture();
     const id = await ensureRunFolder(f.job,f.script,f.persist);
@@ -39,6 +59,7 @@ test('run folders', {skip: !modules}, async t => {
     assert.ok(f.job.folderName.endsWith(' · run-1'));
     f.folders[0].name = 'User renamed';
     assert.equal(await ensureRunFolder(f.job,f.script,f.persist),id);
+    assert.equal(f.folders[0].name,'User renamed');
     await moveRunDrafts(f.job.projectId,id,['draft-a','draft-b','draft-a',undefined],f.script);
     assert.equal(f.count(),1);
     assert.deepEqual(f.moves,[{targetFolderId:id,draftIds:['draft-a','draft-b']}]);

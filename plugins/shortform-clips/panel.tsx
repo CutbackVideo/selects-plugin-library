@@ -1805,7 +1805,7 @@ async function ensureRunFolder(job: any, script: any, persist: any) {
   const displayName = withoutRunSuffix(folderName, job.id);
   await script(`const p = selects.project(${JSON.stringify(job.projectId)});
 const folder = (await p.readFootage()).folders.find(f => f.folderId === ${JSON.stringify(result.folderId)});
-if (folder?.name === ${JSON.stringify(folderName)} && folder.name !== ${JSON.stringify(displayName)}) await p.renameFolder({folderId: folder.folderId, name: ${JSON.stringify(displayName)}});
+if (folder?.name === ${JSON.stringify(folderName)}) await p.renameFolder({folderId: folder.folderId, name: ${JSON.stringify(displayName)}});
 return true;`, "Name shorts run folder", true);
   return result.folderId;
 }
