@@ -1775,6 +1775,36 @@ function rankDrafts(drafts: any[]) {
   return [...drafts].sort((a,b)=>(clipAssessment(b.assessment)?.overall ?? -1)-(clipAssessment(a.assessment)?.overall ?? -1));
 }
 // Cache snapshots independently of the timeline: opening a draft never refreshes its saved image.
+// Folder identity belongs to the run, not to an individual clip or retry.
+function runFolderName(job: any) {
+  const title = String(job.title || job.resourceName || "Shorts").replace(/[\/\\\x00-\x1f]/g, " ").trim().slice(0, 64);
+  const created = new Date(job.created);
+  const stamp = Number.isFinite(created.getTime()) ? created.toLocaleString("sv-SE").slice(0, 16) : "";
+  return `쇼츠 · ${title} · ${stamp} · ${job.id}`;
+}
+function runFolderScript(projectId: string, folderId: string | undefined, name: string) {
+  return `const project = selects.project(${JSON.stringify(projectId)});
+const inventory = await project.readFootage();
+const folder = inventory.folders.find(f => f.folderId === ${JSON.stringify(folderId || null)})
+  || inventory.folders.find(f => f.name === ${JSON.stringify(name)});
+return folder ? {folderId: folder.folderId} : await project.createFolder({name: ${JSON.stringify(name)}});`;
+}
+async function ensureRunFolder(job: any, script: any, persist: any) {
+  const folderName = job.folderName || runFolderName(job);
+  // Save the deterministic name first, so a crash after creation can recover it.
+  await persist({folderName});
+  const result = await script(runFolderScript(job.projectId, job.folderId, folderName), "Prepare shorts run folder", true);
+  if (!result?.folderId) throw new Error("Could not create the shorts run folder");
+  await persist({folderId: result.folderId});
+  return result.folderId;
+}
+async function moveRunDrafts(projectId: string, folderId: string, draftIds: string[], script: any) {
+  const ids = [...new Set(draftIds.filter(Boolean))];
+  if (!ids.length) return;
+  const result = await script(`return await selects.project(${JSON.stringify(projectId)}).moveToFolder(${JSON.stringify({targetFolderId: folderId, draftIds: ids})});`, "Place shorts in run folder", true);
+  if (!result || result.skipped?.length) throw new Error("Some shorts could not be placed in the run folder. Resume to retry.");
+}
+
 function thumbnailPath(jobId: string, draftId: string) {
   if (![jobId,draftId].every(id => /^[a-zA-Z0-9_-]+$/.test(id))) throw new Error("Invalid thumbnail identifier");
   return `thumbnails/${jobId}/${draftId}.jpg`;
@@ -6465,6 +6495,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       const transform = cropTransform(tpl.layout);
       const buildLogo = (tpl.renderer === "separate-headlines") && tpl.logo.mode === "image" ? await compactLogo(tpl.logo.image) : tpl.logo.image;
       const made: any[] = Array.isArray(job.built) ? job.built.slice() : [];
+      const folderId = await ensureRunFolder(job, script, persist);
+      await moveRunDrafts(job.projectId, folderId, made.map(d => d?.draftId), script);
       const pending: number[] = [];
       const work = createReframeWork(() => {if(token.cancelled) throw new RunCancelled();});
       let progressSaveError: any;
@@ -6534,7 +6566,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         }
         setDrafts(made.filter(Boolean));
         await persist({ built: made, resultWarning });
-        if (made[i]?.draftId) pending.push(i);
+        if (made[i]?.draftId) {
+          await moveRunDrafts(job.projectId, folderId, [made[i].draftId], script);
+          pending.push(i);
+        }
       }
       // Every clip has its own Draft and agent session. Do not cap concurrency.
       const outcomes = await Promise.allSettled(pending.map(async (i) => {
