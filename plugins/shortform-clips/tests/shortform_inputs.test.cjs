@@ -11,10 +11,74 @@ test('shortform timeline inputs', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MOD
   const esbuild = dep('esbuild');
   const source = fs.readFileSync(path.join(__dirname, '../panel.tsx'), 'utf8');
   const mod = {exports:{}};
-  new Function('require','module','exports',esbuild.transformSync(source+'\nexport {SCRIPT_INPUTS,SCRIPT_SOURCE_READER,SCRIPT_TRANSCRIPT,SCRIPT_BUILD,RADIO_SCRIPT_BUILD};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+  new Function('require','module','exports',esbuild.transformSync(source+'\nexport {sdkFiles,hostFiles,makeStore,SCRIPT_INPUTS,SCRIPT_SOURCE_READER,SCRIPT_TRANSCRIPT,SCRIPT_BUILD,RADIO_SCRIPT_BUILD};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
   const api = mod.exports;
   const run = (code, selects) => new Function('selects',esbuild.transformSync('return (async()=>{'+code+'})();',{loader:'ts'}).code)(selects);
   const body = (code, P) => code.replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
+  await t.test('SDK batches legal chunks without losing binary bytes or hiding truncation',async()=>{
+    let calls=0;const lengths=[];
+    const bytes=Uint8Array.from({length:200000},(_,i)=>i%256);
+    const files=await api.sdkFiles({runScript:async({script})=>{
+      calls++;
+      const result=await run(script,{files:{environment:async()=>({platform:'darwin',homedir:'/home'}),readRange:async({offset,length})=>{
+        lengths.push(length);assert.ok(length<=49152);
+        return {base64:Buffer.from(bytes.slice(offset,offset+length)).toString('base64')};
+      }}});
+      assert.ok(Buffer.byteLength(JSON.stringify({result})) < 256*1024, "Serialized file response must fit the script cap");
+      return {result};
+    }});
+    const before=calls;
+    assert.deepEqual(await files.readRange('/image',0,files.readPiece),bytes.slice(0,147456));
+    assert.equal(calls-before,1);assert.equal(lengths.length,3);
+    const whole=await files.readWhole(['/one','/two'],[70000,3000]);
+    assert.deepEqual(whole,[bytes.slice(0,70000),bytes.slice(0,3000)]);
+    await assert.rejects(files.readRange('/image',199999,2),/changed while/);
+  });
+  await t.test('shared readers preserve multi-megabyte files within each response cap',async()=>{
+    const data=new Map([['/images/large.png',Uint8Array.from({length:2*1024*1024+17},(_,i)=>i%251)],...Array.from({length:25},(_,i)=>['/images/small-'+i+'.png',new Uint8Array(7000+i).fill(i)])]);
+    const responseSizes=[];
+    const backend=await api.sdkFiles({runScript:async({script})=>{
+      const result=await run(script,{files:{
+        environment:async()=>({platform:'darwin',homedir:'/home'}),
+        stat:async p=>p==='/images'?{size:0,isDirectory:true,mtimeMs:1}:{size:data.get(p).length,isDirectory:false,mtimeMs:1},
+        readdir:async()=>[...data.keys()].map(p=>p.split('/').pop()),
+        readRange:async({path,offset,length})=>({base64:Buffer.from(data.get(path).slice(offset,offset+length)).toString('base64')})
+      }});
+      const size=Buffer.byteLength(JSON.stringify({result}));responseSizes.push(size);
+      assert.ok(size<256*1024,'Response exceeds script cap: '+size);
+      return {result};
+    }});
+    const files=api.hostFiles(backend);
+    assert.deepEqual(await files.readFile('/images/large.png'),data.get('/images/large.png'));
+    const rows=await files.readFolder('/images',/\.png$/);
+    assert.equal(rows.length,data.size);
+    for(const row of rows)assert.deepEqual(row.bytes,data.get('/images/'+row.name));
+    assert.ok(responseSizes.length>10);
+  });
+  await t.test('concurrent saved-data readers share I/O but receive independent values',async()=>{
+    let release,calls=0;
+    const gate=new Promise(r=>release=r);
+    const store=api.makeStore({homedir:()=>'/home',join:(...x)=>x.join('/'),readFolder:async()=>{calls++;await gate;return [{bytes:new TextEncoder().encode('[1]')}];}});
+    const a=store.list('jobs'),b=store.list('jobs');release();
+    const [first,second]=await Promise.all([a,b]);
+    assert.equal(calls,1);first[0].push(2);assert.deepEqual(second,[[1]]);
+    await store.list('jobs');assert.equal(calls,2);
+  });
+  await t.test('source inventory does not wait for Draft metadata',async()=>{
+    const rows=await run(api.SCRIPT_INPUTS.replace('__PROJECT_ID__','"p"').replace('const inputScope: string = "all";','const inputScope: string = "sources";'),{
+      project:()=>({resources:async()=>[{type:'Video',resourceId:'v',durationSeconds:1}],syncedTimelines:async()=>[],meta:()=>{throw Error('Draft enumeration blocks sources');}}),
+      draft:()=>{throw Error('Draft read blocks sources');}
+    });
+    assert.equal(rows[0].id,'v');
+  });
+  await t.test('Draft inventory bounds concurrency at four and preserves order',async()=>{
+    let active=0,peak=0;
+    const rows=await run(api.SCRIPT_INPUTS.replace('__PROJECT_ID__','"p"').replace('const inputScope: string = "all";','const inputScope: string = "drafts";'),{
+      project:()=>({meta:async()=>({draftIds:Array.from({length:9},(_,i)=>String(i))})}),
+      draft:id=>({meta:async()=>{active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,2));active--;return {name:id,durationSeconds:1};}})
+    });
+    assert.equal(peak,4);assert.deepEqual(rows.map(x=>x.name),Array.from({length:9},(_,i)=>String(i)));
+  });
   await t.test('source settings preserve NTSC rates before placement and reject unsupported rates',async()=>{
     for (const [fps,ratio] of [[24000/1001,'24000/1001'],[30000/1001,'30000/1001'],[60000/1001,'60000/1001'],[30,'30/1']]) {
       const result=await run(api.SCRIPT_SOURCE_READER+`let saved; await initializeShortformSettings({setSettings:async value=>{saved=value;}},{meta:{fps:${fps},frameSize:{width:1920,height:1080}}}); return saved;`,{});

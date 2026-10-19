@@ -17,12 +17,15 @@ const TIKTOK_OVERLAY_ALIASES = ["tiktok-preview-overlay.png"];
 
 const SCRIPT_INPUTS = `
 const project = selects.project(__PROJECT_ID__);
+const inputScope: string = "all";
+const rows: any[] = [];
+if (inputScope !== "drafts") {
 const resources = await project.resources();
 const timelines = (await project.syncedTimelines()).filter((t: any) => !t.issue);
 const syncedIds = new Set(timelines.map((t: any) => t.resourceId));
-const rows: any[] = resources.filter((r: any) => r.type === "Video" && !syncedIds.has(r.resourceId))
+rows.push(...resources.filter((r: any) => r.type === "Video" && !syncedIds.has(r.resourceId))
   .map((r: any) => ({ id: r.resourceId, resourceId: r.resourceId, kind: "video", name: r.name,
-    analyzed: r.hasAnalysis, transcribed: r.hasTranscription, status: r.status, sec: Math.round(r.durationSeconds ?? 0) }));
+    analyzed: r.hasAnalysis, transcribed: r.hasTranscription, status: r.status, sec: Math.round(r.durationSeconds ?? 0) })));
 for (const t of timelines) {
   if (!("hasAnalysis" in t)) continue;
   const r = resources.find((r: any) => r.resourceId === t.resourceId);
@@ -34,10 +37,16 @@ for (const t of timelines) {
   rows.push({ id: t.resourceId, resourceId: t.resourceId, kind: "synced", name: t.name,
     analyzed: t.hasAnalysis, transcribed: t.hasAnalysis, sec: Math.round(seconds ?? 0) });
 }
-for (const id of (await project.meta()).draftIds) {
-  const m = await selects.draft(id).meta();
-  rows.push({ id: "draft:" + id, sourceDraftId: id, kind: "draft", name: m.name || "Draft",
-    sec: Math.round(m.durationSeconds), transcribed: true });
+}
+if (inputScope !== "sources") {
+  const ids = (await project.meta()).draftIds;
+  for (let start=0;start<ids.length;start+=4) {
+    const batch=await Promise.all(ids.slice(start,start+4).map(async (id:string)=>{
+      const m=await selects.draft(id).meta();
+      return {id:"draft:"+id,sourceDraftId:id,kind:"draft",name:m.name||"Draft",sec:Math.round(m.durationSeconds),transcribed:true};
+    }));
+    rows.push(...batch);
+  }
 }
 return rows;
 `;
@@ -797,7 +806,8 @@ async function sdkFiles(sdk: any): Promise<any> {
     via: "sdk",
     home: env.home,
     windows: env.platform === "win32",
-    readPiece: SDK_PIECE,
+    // Three base64 chunks leave room for JSON inside the 256 KiB script response cap.
+    readPiece: SDK_PIECE * 3,
     width: 4,
     async stat(paths: string[]) {
       const groups: string[][] = [];
@@ -815,13 +825,18 @@ async function sdkFiles(sdk: any): Promise<any> {
     },
     mkdir: (dir: string) => run(`await selects.files.mkdir(${J(dir)}, { recursive: true });`, true),
     async readRange(path: string, offset: number, length: number) {
-      const r = await run(`return await selects.files.readRange({ path: ${J(path)}, offset: ${offset}, length: ${length} });`);
-      return bytesOf(r?.base64, length, path);
+      // Bundle four legal SDK chunks into one script; never increase a file-service read.
+      const rows = await run(`const out: string[] = []; for (let at = 0; at < ${length}; at += ${SDK_PIECE}) out.push((await selects.files.readRange({path:${J(path)},offset:${offset}+at,length:Math.min(${SDK_PIECE},${length}-at)})).base64); return out;`);
+      if (!Array.isArray(rows) || rows.length !== Math.ceil(length / SDK_PIECE)) throw new Error("Could not read " + path);
+      return joinBytes(rows.map((row: any, i: number) => bytesOf(row, Math.min(SDK_PIECE, length - i * SDK_PIECE), path)));
     },
     async readWhole(paths: string[], sizes: number[]) {
-      const r = await run(`const out: string[] = []; for (const p of ${J(paths)}) out.push((await selects.files.readRange({ path: p, offset: 0, length: ${SDK_PIECE} })).base64); return out;`);
-      if (!Array.isArray(r) || r.length !== paths.length) throw new Error("Could not read the app's files.");
-      return r.map((b: any, i: number) => bytesOf(b, sizes[i], paths[i]));
+      const rows = await run(`const paths = ${J(paths)}, sizes = ${J(sizes)}, out: string[][] = []; for (let i=0;i<paths.length;i++) { const parts: string[] = []; for(let at=0;at<sizes[i];at+=${SDK_PIECE}) parts.push((await selects.files.readRange({path:paths[i],offset:at,length:Math.min(${SDK_PIECE},sizes[i]-at)})).base64); out.push(parts); } return out;`);
+      if (!Array.isArray(rows) || rows.length !== paths.length) throw new Error("Could not read the app's files.");
+      return rows.map((parts: any, i: number) => {
+        if (!Array.isArray(parts) || parts.length !== Math.ceil(sizes[i] / SDK_PIECE)) throw new Error("Could not read " + paths[i]);
+        return joinBytes(parts.map((part: any, k: number) => bytesOf(part, Math.min(SDK_PIECE, sizes[i] - k * SDK_PIECE), paths[i])));
+      });
     },
     async write(path: string, bytes: Uint8Array) {
       const tmp = path + tempName();
@@ -1418,9 +1433,12 @@ function makeTemplateRepository(storage: any) {
       const revision = ++loadRevision;
       const templates: any[] = [], packs: any[] = [], errors: string[] = [];
       const nextDefaults = new Map<string, any>();
-      const removed = new Set((await records("removed-templates")).map((r: any) => r.id));
-      const overrides = new Map((await records("overrides")).map((r: any) => [r.id, r]));
-      for (const pack of await records("packs")) {
+      const [removedRows,overrideRows,packRows,customRows] = await Promise.all([
+        records("removed-templates"),records("overrides"),records("packs"),records("custom-templates")
+      ]);
+      const removed = new Set(removedRows.map((r:any)=>r.id));
+      const overrides = new Map(overrideRows.map((r:any)=>[r.id,r]));
+      for (const pack of packRows) {
         try {
           validateInstalledPack(pack);
           packs.push(pack.manifest);
@@ -1440,7 +1458,7 @@ function makeTemplateRepository(storage: any) {
           }
         } catch (e: any) { errors.push((pack.manifest?.id || "Pack") + ": " + e.message); }
       }
-      for (const t of await records("custom-templates")) {
+      for (const t of customRows) {
         try { validateTemplate(t, true); packAssert(!nextDefaults.has(t.id), "Custom template ID conflicts with a pack."); templates.push({...t, builtIn: false}); }
         catch(e: any) { errors.push((t.id || "Custom template") + ": " + e.message); }
       }
@@ -1526,6 +1544,8 @@ function makeStore(files: any) {
   if (files) {
     const root = files.join(files.homedir(), ".selects", "plugin-data", APP_ID);
     const dir = (n: string) => files.join(root, n);
+    const reads = new Map<string,Promise<any[]>>();
+    const invalidate=(kind:string)=>{for(const key of reads.keys())if(key.startsWith(kind+":"))reads.delete(key);};
     return {
       fs: files,
       root,
@@ -1536,19 +1556,27 @@ function makeStore(files: any) {
       ensure: (p: string): Promise<void> => files.mkdir(p),
       exists: (p: string): Promise<boolean> => files.exists(p).catch(() => false),
       async list(kind: string, since = 0) {
-        const out: any[] = [];
-        for (const f of await files.readFolder(dir(kind), /\.json$/, { since, keep: true })) {
-          try {
-            out.push(JSON.parse(dec(f.bytes)));
-          } catch (e) { throw new Error("Invalid saved data in " + kind + ": " + String(e)); }
+        const key=kind+":"+since;
+        let pending=reads.get(key);
+        if(!pending){
+          pending=(async()=>{
+            const out:any[]=[];
+            for(const f of await files.readFolder(dir(kind), /\.json$/, {since,keep:true})){
+              try{out.push(JSON.parse(dec(f.bytes)));}catch(e){throw new Error("Invalid saved data in "+kind+": "+String(e));}
+            }
+            return out;
+          })();
+          reads.set(key,pending);
         }
-        return out;
+        try{return clone(await pending);}finally{if(reads.get(key)===pending)reads.delete(key);}
       },
       async put(kind: string, id: string, v: any) {
-        await files.writeFile(files.join(dir(kind), id + ".json"), enc(JSON.stringify(v)));
+        invalidate(kind);
+        try{await files.writeFile(files.join(dir(kind), id + ".json"), enc(JSON.stringify(v)));}finally{invalidate(kind);}
       },
       async del(kind: string, id: string) {
-        await files.remove(files.join(dir(kind), id + ".json"));
+        invalidate(kind);
+        try{await files.remove(files.join(dir(kind), id + ".json"));}finally{invalidate(kind);}
       },
     };
   }
@@ -6437,6 +6465,14 @@ function TemplateEditor(props: any) {
   return <TemplateEditorForm key={profile.platformLayouts ? "radio" : "classic"} {...props} profile={profile} />;
 }
 
+function PanelLoading({label, compact = false}: {label: string; compact?: boolean}) {
+  return <div role="status" aria-live="polite" style={{display:"flex",alignItems:"center",justifyContent:compact?"flex-start":"center",gap:10,minHeight:compact?32:160,color:"var(--panel-muted-fg)",fontSize:13}}>
+    <style>{`@keyframes shortform-loading-turn {to {transform:rotate(360deg)}} @media (prefers-reduced-motion: reduce) {.shortform-loading-spinner {animation:none!important}}`}</style>
+    <span aria-hidden="true" className="shortform-loading-spinner" style={{width:16,height:16,flexShrink:0,border:"2px solid currentColor",borderRightColor:"transparent",borderRadius:"50%",animation:"shortform-loading-turn .8s linear infinite"}}/>
+    <span>{label}</span>
+  </div>;
+}
+
 // The app itself starts once the file route is known, so its folder is in place from the first render.
 export default function Panel(props: any) {
   const [files, setFiles] = React.useState<any>(undefined);
@@ -6449,7 +6485,7 @@ export default function Panel(props: any) {
       live = false;
     };
   }, [props.sdk]);
-  if (files === undefined) return null;
+  if (files === undefined) return <PanelLoading label={langOf(props.context)==="ko"?"\uc20f\ud3fc \ud074\ub9bd\uc744 \ubd88\ub7ec\uc624\ub294 \uc911…":"Loading Shortform Clips…"}/>;
   return <ShortformClipsPanel {...props} files={files} />;
 }
 
@@ -6466,6 +6502,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const [packDialogOpen, setPackDialogOpen] = React.useState(false);
   const [packBusy, setPackBusy] = React.useState(false);
   const [templateSaving, setTemplateSaving] = React.useState(false);
+  const [historyLoading, setHistoryLoading] = React.useState(true);
   const [templatesLoading, setTemplatesLoading] = React.useState(true);
   const templateLoadRevision = React.useRef(0);
   const [packMessage, setPackMessage] = React.useState("");
@@ -6492,6 +6529,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const [mode, setMode] = React.useState<string>("youtube");
   const [url, setUrl] = React.useState<string>("");
   const [resources, setResources] = React.useState<any[]>([]);
+  const [resourcesLoading,setResourcesLoading]=React.useState(false);
+  const inputRevision=React.useRef(0);
   const [pick, setPick] = React.useState<string | null>(null);
   const [program, setProgram] = React.useState<string>("auto");
   const [platform, setPlatform] = React.useState<string>("tiktok");
@@ -6724,15 +6763,20 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     } catch (e) {}
   }, [projectId, store]);
   React.useEffect(() => {
-    loadJobs();
-  }, [loadJobs]);
+    if (!templatesLoading) loadJobs();
+  }, [loadJobs, templatesLoading]);
 
   // Reopening the panel restores saved results without rerunning generation or editing Drafts.
   React.useEffect(() => {
-    const revision = ++resultsRevision.current;
-    let live = true;
+    ++resultsRevision.current;
+    setHistoryLoading(!!projectId);
     setResultJobs([]);setResultSelection("__latest__");
     setDrafts([]); setInfo(null); setWarn(""); setStatus(""); setStep(-1);
+  }, [projectId, store]);
+  React.useEffect(() => {
+    if (templatesLoading) return;
+    const revision = resultsRevision.current;
+    let live = true;
     if (projectId) store.list("jobs").then((rows: any[]) => {
       if (!live) return;
       setResultJobs(current=>savedDraftResults([...rows.filter(j=>!current.some(c=>c.id===j.id)),...current],projectId));
@@ -6743,38 +6787,47 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       setInfo({ key: job.key, why: job.why, recommended: job.choice?.recommendedCount, countReason: job.choice?.countReason });
       setWarn(job.resultWarning || "");
       setStep(5);
-    }).catch(() => {if(live && resultsRevision.current===revision)setError(R.historyError);});
+    }).catch(() => {if(live && resultsRevision.current===revision)setError(R.historyError);}).finally(()=>{if(live)setHistoryLoading(false);});
     return () => { live = false; };
-  }, [projectId, store]);
+  }, [projectId, store, templatesLoading]);
 
   const loadResources = React.useCallback(async () => {
-    if (!projectId) return;
-    try {
-      const rows = await script(
-        SCRIPT_INPUTS.replace("__PROJECT_ID__", JSON.stringify(projectId)),
-        "List project inputs"
-      );
-      setResources(rows || []);
-    } catch (e: any) {
-      if (!(e instanceof RunCancelled)) setError(String(e?.message || e));
-    }
-  }, [projectId]);
+    const revision=++inputRevision.current;
+    if(!projectId)return;
+    setResourcesLoading(true);
+    const started=performance.now();
+    const read=async(scope:string)=>{
+      const response:any=await sdk.runScript({script:SCRIPT_INPUTS.replace("__PROJECT_ID__",JSON.stringify(projectId)).replace('const inputScope: string = "all";',`const inputScope: string = "${scope}";`),summary:scope==='sources'?"List source videos and synced timelines":"List Draft inputs"});
+      if(response.isError)throw Error(scriptError(response.output));
+      return response.result||[];
+    };
+    try{
+      const sources=await read('sources');
+      if(revision!==inputRevision.current)return;
+      setResources(previous=>[...sources,...previous.filter(r=>r.kind==='draft')]);
+      console.debug('[shortform startup] sources ready',Math.round(performance.now()-started));
+      const drafts=await read('drafts');
+      if(revision!==inputRevision.current)return;
+      setResources([...sources,...drafts]);
+      console.debug('[shortform startup] inputs ready',Math.round(performance.now()-started));
+    }catch(e:any){if(revision===inputRevision.current)setError(String(e?.message||e));}
+    finally{if(revision===inputRevision.current)setResourcesLoading(false);}
+  }, [projectId,sdk]);
+  React.useEffect(()=>{
+    setResources([]);
+    void loadResources();
+    const off=typeof sdk?.on==='function'?sdk.on("resourcesChanged",()=>void loadResources()):null;
+    return ()=>{inputRevision.current++;if(typeof off==='function')off();};
+  },[loadResources]);
   React.useEffect(() => {
-    loadResources();
-  }, [loadResources]);
-  React.useEffect(() => {
-    if (typeof sdk?.on !== "function") return;
-    const off = sdk.on("resourcesChanged", () => loadResources());
-    return typeof off === "function" ? off : undefined;
-  }, [projectId]);
-  React.useEffect(() => {
+    if(resourcesLoading)return;
     const eligible = resources;
     if (eligible.length === 1) {
       if (pick !== eligible[0].id) setPick(eligible[0].id);
     } else if (pick && !eligible.some((r) => r.id === pick)) {
       setPick(null);
     }
-  }, [resources]);
+  }, [resources,resourcesLoading]);
 
   // ---- Host programs: yt-dlp (downloaded into the app's folder when missing) and ffmpeg ----
   async function dataPaths() {
@@ -7861,6 +7914,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           ) : (
             <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
               <div style={{flex:1,minWidth:0}}>
+                {resourcesLoading && <PanelLoading compact label={lang==="ko"?"\uc601\uc0c1\uacfc \ud0c0\uc784\ub77c\uc778\uc744 \ubd88\ub7ec\uc624\ub294 \uc911…":"Loading videos and timelines…"}/>}
                 <ui.Select label={S.pick} value={pick} onChange={setPick} options={videoOptions} placeholder={S.pickPh} />
               </div>
               {sourceAction}
@@ -7871,7 +7925,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         <ui.Stack gap={4}>
           <h3 style={{margin:0,minHeight:0,fontSize:12,fontWeight:400,lineHeight:"16px",color:"var(--panel-muted-fg)"}}>{S.optionsSec}</h3>
           <ui.Stack gap={8}>
-        <ui.Select label={S.programPick} value={program} onChange={setProgram} options={programOptions} />
+        {templatesLoading ? <div aria-busy="true" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"4px 12px",minHeight:40,borderRadius:8,background:"var(--panel-muted)",fontSize:13}}>
+          <span style={{color:"var(--panel-muted-fg)"}}>{S.programPick}</span>
+          <PanelLoading compact label={lang==="ko"?"\ubd88\ub7ec\uc624\ub294 \uc911…":"Loading…"}/>
+        </div> : <ui.Select label={S.programPick} value={program} onChange={setProgram} options={programOptions} />}
         {(program === "auto" || templates.find(t => t.id === program)?.renderer === "series") && <ui.Segmented
           label={S.layoutKind} value={platform} onChange={setPlatform}
           options={[{value: "tiktok", label: S.layoutTiktok}, {value: "shorts", label: S.layoutShorts}]}
@@ -7896,7 +7953,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const elapsed = Math.max(0, Math.floor((now - stepStarted.current) / 1000));
   const statusLine = busy && step >= 0 ? [status, S.elapsed(elapsed)].filter(Boolean).join(" · ") : status;
 
-  const make = templatesLoading ? <ui.Message>{K.loading}</ui.Message> : !templates.length ? <ui.Stack gap={8}><ui.Message>{K.empty}</ui.Message>{packError && <ui.Message tone="error">{packError}</ui.Message>}<ui.Button variant="secondary" onClick={()=>setTab("templates")}>{S.tabTemplates}</ui.Button></ui.Stack> : !projectId ? (
+  const make = !projectId ? (
     <ui.Message>{S.noProject}</ui.Message>
   ) : (
     <>
@@ -7921,6 +7978,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         </ui.Section>
       )}
       {busy ? runSummary : form}
+      {!templatesLoading && !templates.length && <ui.Stack gap={8}><ui.Message>{K.empty}</ui.Message>{packError && <ui.Message tone="error">{packError}</ui.Message>}<ui.Button variant="secondary" onClick={()=>setTab("templates")}>{S.tabTemplates}</ui.Button></ui.Stack>}
       <ui.Stack gap={8}>
         <ui.Actions>
           {busy && (
@@ -7965,7 +8023,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         step={step} sub={sub} statusLine={statusLine} cancelling={cancelling} onCancel={cancelRun} />}
       {!busy && runInfo?.id === shownResult?.id && step >= 0 && step < 5 && (error || status) &&
         <div style={{marginBottom:16}}><ui.Message tone={error ? "error" : "muted"}>{error || status}</ui.Message></div>}
-      {shownDrafts.length > 0 ? <>
+      {historyLoading && !shownDrafts.length ? <PanelLoading label={lang==="ko"?"\ub0b4 \ud074\ub9bd\uc744 \ubd88\ub7ec\uc624\ub294 \uc911…":"Loading your clips…"}/> : shownDrafts.length > 0 ? <>
         <div style={{marginBottom:16}}><ui.Select label={R.history}
           value={resultSelection === "__latest__" || resultSelection===history[0]?.id || !history.some(j=>j.id===resultSelection) ? "__latest__" : resultSelection}
           onChange={setResultSelection}
@@ -8006,7 +8064,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         {
           value: "templates",
           label: S.tabTemplates,
-          content: (
+          content: templatesLoading ? <PanelLoading label={K.loading}/> : (
             <>
             {!templates.length && <ui.Actions><ui.Button variant="secondary"
               disabled={busy || packBusy || templatesLoading}
