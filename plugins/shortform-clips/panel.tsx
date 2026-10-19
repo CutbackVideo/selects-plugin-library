@@ -6200,17 +6200,42 @@ function CoverImage({store,item,onClick,lang}:any) {
     <span className="cover-preview-label" aria-hidden="true" style={opening||failed?{opacity:1}:undefined}>{opening?'···':failed?(lang==='ko'?'\ub2e4\uc2dc \uc2dc\ub3c4':'Retry'):label}</span>
   </button>;
 }
+function coverIsRunning(item:any) {
+  return !item.deletedAt&&['preparing','searching','designing','submitting','pending','matting','artwork','measuring','reviewing'].includes(item.status);
+}
+function coverProgressLabel(item:any,lang:string) {
+  const labels:any={preparing:['\uc790\ub8cc \uc900\ube44','Preparing inputs'],searching:['\uc6d0\ubcf8 \uc0ac\uc9c4 \ud0d0\uc0c9','Researching source photos'],designing:['\ub514\uc790\uc778·\uc778\ubb3c \ubc30\uce58 \uae30\ud68d','Planning design and placement'],submitting:['\uc0dd\uc131 \uc694\uccad \uc804\uc1a1','Submitting generation'],pending:['\uc774\ubbf8\uc9c0 \uc0dd\uc131 \ub300\uae30·\ucc98\ub9ac','Image generation queued / running'],matting:['\uc778\ubb3c \ubc30\uacbd \uc81c\uac70','Removing portrait backgrounds'],artwork:['\ubc30\uacbd·\uc81c\ubaa9 \uc774\ubbf8\uc9c0 \uc0dd\uc131','Generating background and headline'],measuring:['\uc778\ubb3c \uc601\uc5ed \ubd84\uc11d','Measuring portrait regions'],reviewing:['\uc778\ubb3c \ubc30\uce58 \uc120\ud0dd','Selecting composition']};
+  return (labels[item.status]||['\ucc98\ub9ac \uc911','Processing'])[lang==='ko'?0:1];
+}
+function CoverGenerationProgress({items,busy,lang}:any) {
+  const running=items.filter(coverIsRunning);
+  const [now,setNow]=React.useState(Date.now());
+  const ticking=running.length>0;
+  React.useEffect(()=>{if(!ticking)return;setNow(Date.now());const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[ticking]);
+  if(!ticking&&!busy)return null;
+  return <div className="cover-generation-progress" role="status" aria-live="polite" style={{display:'flex',flexDirection:'column',gap:5,padding:'5px 0',fontSize:11,color:'var(--panel-muted-fg)'}}>
+    {!ticking&&<span>{lang==='ko'?'\uc694\uccad \ucc98\ub9ac \uc911…':'Processing request…'}</span>}
+    {running.map((item:any)=>{const started=Date.parse(item.startedAt),seconds=Number.isFinite(started)?Math.max(0,Math.floor((now-started)/1000)):null;return <div key={item.id} style={{display:'flex',alignItems:'center',gap:7,minWidth:0}}>
+      <span aria-hidden="true" className="cover-progress-spinner" style={{width:10,height:10,flexShrink:0,border:'1.5px solid var(--panel-border)',borderTopColor:'var(--panel-fg)',borderRadius:'50%',animation:'cover-spinner-turn .8s linear infinite'}}/>
+      <span style={{flex:1}}>{lang==='ko'?`\uc378\ub124\uc77c ${items.indexOf(item)+1}`:`Thumbnail ${items.indexOf(item)+1}`} · {coverProgressLabel(item,lang)}</span>
+      {seconds!==null&&<span aria-live="off" style={{fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'}}>{Math.floor(seconds/60)}:{String(seconds%60).padStart(2,'0')}</span>}
+    </div>;})}
+  </div>;
+}
 function GeneratedCoverGallery({sdk,store,job,clip,config,lang,ui,disabled}:any) {
   const T=COVER_TEXT[lang]||COVER_TEXT.en;
   const [manifest,setManifest]=React.useState<any>({items:[]}),[busy,setBusy]=React.useState(false),[error,setError]=React.useState(''),[count,setCount]=React.useState('1'),[preview,setPreview]=React.useState(''),[previewId,setPreviewId]=React.useState(''),[previewLoading,setPreviewLoading]=React.useState(false),[previewError,setPreviewError]=React.useState(''),[createOpen,setCreateOpen]=React.useState(false),[deleteTarget,setDeleteTarget]=React.useState<any>(null);
-  const active=React.useRef(false),previewRequest=React.useRef(0);
+  const active=React.useRef(false),previewRequest=React.useRef(0),refreshActive=React.useRef(false);
   React.useEffect(()=>{let live=true,timer:any;
     const poll=async()=>{try {
       // Paint lightweight saved results before waiting for any generation work.
       const saved=await readCoverManifest(store,job.id,clip.draftId,false);
-      if(live&&!active.current)setManifest(saved);
+      if(live)setManifest(saved);
       const pending=saved.items.some((x:any)=>!x.deletedAt&&['pending','matting','artwork','measuring','delivery-failed'].includes(x.status));
-      if(pending&&!active.current){const m=await refreshCovers(sdk,store,job,clip);if(live&&!active.current)setManifest(m);}
+      if(pending&&!active.current&&!refreshActive.current){
+        refreshActive.current=true;
+        void refreshCovers(sdk,store,job,clip).catch((e:any)=>{if(live)setError(String(e.message||e));}).finally(()=>{refreshActive.current=false;});
+      }
     }catch(e:any){if(live&&!active.current)setError(String(e.message||e));}if(live)timer=setTimeout(poll,5000);};
     void poll();return()=>{live=false;clearTimeout(timer);};
   },[sdk,store,job.id,clip.draftId]);
@@ -6236,7 +6261,8 @@ function GeneratedCoverGallery({sdk,store,job,clip,config,lang,ui,disabled}:any)
       .cover-preview:hover .cover-preview-label, .cover-preview:focus-visible .cover-preview-label {opacity:1;}
       .cover-preview:focus-visible {outline:2px solid var(--panel-text);outline-offset:2px;}`}</style>
     <div className="cover-gallery-header" style={{display:'flex',justifyContent:'flex-start',gap:8,alignItems:'center',fontSize:11,color:'var(--panel-muted-fg)'}}><span>{T.tab}</span><ui.Button variant="ghost" disabled={busy||disabled} onClick={()=>setCreateOpen(true)}>{lang==='ko'?'\ub9cc\ub4e4\uae30':'Create'}</ui.Button></div>
-    <div style={{display:'flex',gap:8,overflowX:'auto'}}>{visibleItems.map((item:any)=><div className="cover-card" key={item.id} style={{width:51,minWidth:51,maxWidth:51,display:'flex',flexDirection:'column',gap:2}}>
+    <CoverGenerationProgress items={visibleItems} busy={busy} lang={lang}/>
+    <div style={{display:'flex',gap:8,overflowX:'auto'}}>{visibleItems.filter((item:any)=>!coverIsRunning(item)||item.path).map((item:any)=><div className="cover-card" key={item.id} style={{width:51,minWidth:51,maxWidth:51,display:'flex',flexDirection:'column',gap:2}}>
       <CoverImage store={store} item={item} onClick={(url:string)=>{const request=++previewRequest.current;setPreviewId(item.id);setPreview(url);setPreviewLoading(true);setPreviewError('');void loadCoverImage(store,item.path).then(async full=>{const image=new Image();image.src=full;await image.decode();if(previewRequest.current===request)setPreview(full);}).catch(()=>{if(previewRequest.current===request)setPreviewError(lang==='ko'?'\uc6d0\ubcf8\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ucd95\uc18c \uc774\ubbf8\uc9c0\ub85c \ud45c\uc2dc\ud569\ub2c8\ub2e4.':'Could not load original. Showing preview.');}).finally(()=>{if(previewRequest.current===request)setPreviewLoading(false);});}} lang={lang}/>
       {!item.path&&<button type="button" aria-label={lang==='ko'?'\uc0c1\uc138 \ubcf4\uae30':'Details'} onClick={()=>{previewRequest.current++;setPreviewLoading(false);setPreviewError('');setPreviewId(item.id);setPreview('');}} style={{width:45,height:80,minHeight:80,padding:0,border:'1px solid var(--panel-border)',borderRadius:6,background:'var(--panel-muted)',color:'var(--panel-muted-fg)'}}>···</button>}
       {item.status!=='ready'&&<small>{item.status==='measuring'?(lang==='ko'?'\uc5bc\uad74 \ubcf4\ud638 \uc601\uc5ed \uce21\uc815 \uc911':'Measuring face protection'):item.status==='searching'?(lang==='ko'?'AI\uac00 \uc6d0\ubcf8\uc5d0\uc11c \uc0ac\uc9c4 \ud0d0\uc0c9 \uc911':'AI researching source photos'):item.status==='reviewing'?(lang==='ko'?'\uc2e4\uc81c \uacb0\uacfc \ud655\uc778 \uc911':'Reviewing composition'):item.status==='artwork'?(lang==='ko'?(item.generatedTypography?'\ubc30\uacbd·\uc81c\ubaa9 \ub514\uc790\uc778 \uc0dd\uc131 \uc911':'\ubc30\uacbd \ub514\uc790\uc778 \uc0dd\uc131 \uc911'):'Generating artwork'):item.status==='matting'?(lang==='ko'?'\uc778\ubb3c \ubc30\uacbd \uc81c\uac70 \uc911':'Removing background'):item.status==='designing'?(lang==='ko'?'\uc378\ub124\uc77c \ub514\uc790\uc778 \uc911':'Designing thumbnail'):item.status==='ready'?T.ready:item.status==='failed'||item.status==='prepare-failed'?T.failed:item.status==='unknown'?T.unknown:T.pending}</small>}

@@ -5,11 +5,23 @@ const root=process.env.SBS_PANEL_TEST_MODULES;
 test('generated thumbnail lifecycle', {skip:!root&&'Set SBS_PANEL_TEST_MODULES'}, async t=>{
   const dep=createRequire(path.resolve(root,'../package.json')),React=dep('react');
   const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
-  const exportsList='organizeCoverRun,deleteCover,CoverQualityIssue,allowCoverQualityResult,warnCoverQuality,safeCoverLayouts,selectedCoverLayout,parallelCovers,setCoverTestWorkers,directCover,saveCoverManifest,coverCachedStore,coverSettings,validateCoverSettings,coverDirectory,coverPrompt,generateCovers,resumeCovers,refreshCovers,readCoverManifest,coverPlacementScript,TemplateThumbnailSection,validatePhotoCoverPlan,renderPhotoCover,finishPhotoCover,applyCoverAlpha,prepareCoverCutouts,validateDirectedCoverPlan,isolateCoverPerson,validateCoverCompositionRevision,coverRenderPlan,validateCoverSearch,searchCoverPhotos,drawCoverTypography,validateCoverTypography,coverBackgroundBrief,redesignSavedCover,validateGeneratedCoverLayout,generatedCoverArtworkPrompt,coverPlacementPhotos,coverOverlapReport';
+  const exportsList='CoverGenerationProgress,organizeCoverRun,deleteCover,CoverQualityIssue,allowCoverQualityResult,warnCoverQuality,safeCoverLayouts,selectedCoverLayout,parallelCovers,setCoverTestWorkers,directCover,saveCoverManifest,coverCachedStore,coverSettings,validateCoverSettings,coverDirectory,coverPrompt,generateCovers,resumeCovers,refreshCovers,readCoverManifest,coverPlacementScript,TemplateThumbnailSection,validatePhotoCoverPlan,renderPhotoCover,finishPhotoCover,applyCoverAlpha,prepareCoverCutouts,validateDirectedCoverPlan,isolateCoverPerson,validateCoverCompositionRevision,coverRenderPlan,validateCoverSearch,searchCoverPhotos,drawCoverTypography,validateCoverTypography,coverBackgroundBrief,redesignSavedCover,validateGeneratedCoverLayout,generatedCoverArtworkPrompt,coverPlacementPhotos,coverOverlapReport';
   const hooks=`\nfunction setCoverTestWorkers(prepare,finish){const oldPrepare=prepareDirectedCoverRequest,oldFinish=finishPhotoCover;prepareDirectedCoverRequest=prepare;finishPhotoCover=finish;return ()=>{prepareDirectedCoverRequest=oldPrepare;finishPhotoCover=oldFinish;};}\n`;
   const code=dep('esbuild').transformSync(source+hooks+'\nexport {'+exportsList+'};',{loader:'tsx',format:'cjs'}).code;
   const mod={exports:{}};new Function('require','module','exports',code)(()=>React,mod,mod.exports);
   const api=mod.exports;
+  await t.test('progress shows concurrent stages and elapsed time without treating failures as running',()=>{
+    const render=dep('react-dom/server').renderToStaticMarkup;
+    const startedAt=new Date(Date.now()-65000).toISOString();
+    const items=[{id:'a',status:'searching',startedAt},{id:'b',status:'matting',startedAt},{id:'c',status:'ready'},{id:'d',status:'prepare-failed'},{id:'e',status:'searching',deletedAt:'deleted'}];
+    const html=render(React.createElement(api.CoverGenerationProgress,{items,busy:true,lang:'en'}));
+    assert.match(html,/Thumbnail 1.*Researching source photos/);
+    assert.match(html,/Thumbnail 2.*Removing portrait backgrounds/);
+    assert.match(html,/1:05/);
+    assert.equal((html.match(/cover-progress-spinner/g)||[]).length,2);
+    assert.match(render(React.createElement(api.CoverGenerationProgress,{items:[],busy:true,lang:'en'})),/Processing request/);
+    assert.equal(render(React.createElement(api.CoverGenerationProgress,{items:[{id:'done',status:'ready'}],busy:false,lang:'en'})),'');
+  });
   await t.test('quality failures permit rendering but execution failures still propagate',async()=>{
     const item={};
     assert.equal(await api.allowCoverQualityResult(item,async()=>{throw new api.CoverQualityIssue('Face uncertain');}),true);
