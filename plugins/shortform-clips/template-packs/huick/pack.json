@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "huick",
+  "version": "1.0.0",
+  "name": "Huick Alpha",
+  "names": {
+    "en": "Huick Alpha",
+    "ko": "\ud719\uc54c\ud30c"
+  },
+  "requiresApp": {
+    "id": "shortform-clips",
+    "templateApi": 1
+  },
+  "templates": [
+    "templates/huick-sseol.json"
+  ],
+  "assets": [
+    "assets/huick-sseol-logo.png"
+  ]
+}
