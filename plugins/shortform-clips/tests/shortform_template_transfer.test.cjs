@@ -48,4 +48,26 @@ test('portable template files',{skip:!modules},async t=>{
    assert.throws(()=>api.decodeSharedTemplate(new TextEncoder().encode(JSON.stringify(data))));
   }
  });
+ await t.test('BOM JSON keeps stable identity and imports without duplicates',async()=>{
+  const r=repo(),bytes=api.encodeSharedTemplate(original);
+  const bom=new TextEncoder().encode('\uFEFF'+new TextDecoder().decode(bytes));
+  await api.importSharedTemplate(r.repository,bom);await api.importSharedTemplate(r.repository,bytes);
+  assert.equal((await r.repository.load()).templates.length,1);
+  assert.equal((await r.repository.load()).templates[0].id,original.id);
+ });
+ await t.test('file transfer uses JSON export and picker, and cancellation releases the lock',async()=>{
+  const r=repo(),saved=new Map(),calls=[];let cancelled=false,selected;
+  const files={join:(...p)=>p.join('/'),homedir:()=>'/test',size:async p=>saved.get(p).length,readFile:async p=>saved.get(p),writeFile:async(p,b)=>saved.set(p,b)};
+  const globals={files,packLock:{current:false},busy:false,templateDirty:false,templateSaving:false,setPackBusy:()=>{},setPackError:m=>{if(m)throw Error(m)},setPackMessage:()=>{},script:async code=>{calls.push(code);return cancelled?null:'/template.json';},packAssert:(v,m)=>assert.ok(v,m),TEMPLATE_SHARE_MAX_BYTES:20*1024*1024,resolveTemplateImport:f=>f(),importSharedTemplate:api.importSharedTemplate,repository:r.repository,loadTemplates:()=>r.repository.load(),setTplSel:id=>selected=id,setProgram:()=>{},setPackDialogOpen:()=>{},lang:'en',encodeSharedTemplate:api.encodeSharedTemplate,nameOf:()=>original.name};
+  const start=source.indexOf('  async function transferTemplate('),handler=source.slice(start,source.indexOf('  const attemptedPack =',start));
+  const transfer=new Function(...Object.keys(globals),dep('esbuild').transformSync(handler,{loader:'tsx'}).code+';return transferTemplate;')(...Object.values(globals));
+  await transfer('export',original);assert.ok(calls[0].includes('.shortform-template.json'));assert.equal(JSON.parse(new TextDecoder().decode(saved.get('/template.json'))).identity,original.id);
+  await transfer('import');assert.ok(calls[1].includes('extensions:["json"]'));assert.equal(selected,original.id);
+  cancelled=true;await transfer('import');assert.equal(globals.packLock.current,false);
+ });
+ await t.test('ZIP input is rejected without changing stored templates',async()=>{
+  const r=repo();await api.importSharedTemplate(r.repository,api.encodeSharedTemplate(original));const before=structuredClone([...r.rows]);
+  await assert.rejects(api.importSharedTemplate(r.repository,new Uint8Array([80,75,3,4,0,0])));assert.deepEqual([...r.rows],before);
+ });
+
 });

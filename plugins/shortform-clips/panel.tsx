@@ -1280,116 +1280,9 @@ function validateSharedTemplateData(data:any) {
   }
   return template;
 }
-// Portable ZIPs keep raster bytes outside JSON. No archive path is extracted to disk.
-const TEMPLATE_ZIP_MAX_BYTES = 100 * 1024 * 1024;
-const TEMPLATE_ZIP_ENTRY_MAX = 20 * 1024 * 1024;
-const TEMPLATE_ZIP_JSON_MAX = 4 * 1024 * 1024;
-const TEMPLATE_ZIP_ENTRIES_MAX = 128;
-const TEMPLATE_CRC_TABLE = Array.from({length:256},(_,n)=>{for(let i=0;i<8;i++)n=(n>>>1)^((n&1)?0xedb88320:0);return n>>>0;});
-function templateCrc(bytes:Uint8Array){let crc=0xffffffff;for(const b of bytes)crc=(crc>>>8)^TEMPLATE_CRC_TABLE[(crc^b)&255];return (crc^0xffffffff)>>>0;}
-function templateZipPath(name:string){return name==='template.json'||/^assets\/[a-f0-9]{64}\.(png|jpg|webp)$/.test(name);}
-function writeTemplateZip(entries:Map<string,Uint8Array>){
-  const local:Uint8Array[]=[],central:Uint8Array[]=[];let offset=0;
-  packAssert(entries.size>0&&entries.size<=TEMPLATE_ZIP_ENTRIES_MAX,'Too many ZIP entries.');
-  for(const [name,bytes] of entries){
-    packAssert(templateZipPath(name),'Invalid ZIP entry path.');
-    packAssert(bytes.length<=(name==='template.json'?TEMPLATE_ZIP_JSON_MAX:TEMPLATE_ZIP_ENTRY_MAX),'ZIP entry is too large.');
-    const path=enc(name),crc=templateCrc(bytes),header=new Uint8Array(30+path.length),h=new DataView(header.buffer);
-    h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x800,true);h.setUint16(12,33,true);
-    h.setUint32(14,crc,true);h.setUint32(18,bytes.length,true);h.setUint32(22,bytes.length,true);h.setUint16(26,path.length,true);header.set(path,30);
-    const dir=new Uint8Array(46+path.length),d=new DataView(dir.buffer);
-    d.setUint32(0,0x02014b50,true);d.setUint16(4,20,true);d.setUint16(6,20,true);d.setUint16(8,0x800,true);d.setUint16(14,33,true);
-    d.setUint32(16,crc,true);d.setUint32(20,bytes.length,true);d.setUint32(24,bytes.length,true);d.setUint16(28,path.length,true);d.setUint32(42,offset,true);dir.set(path,46);
-    local.push(header,bytes);central.push(dir);offset+=header.length+bytes.length;
-  }
-  const directory=joinBytes(central),end=new Uint8Array(22),e=new DataView(end.buffer);
-  e.setUint32(0,0x06054b50,true);e.setUint16(8,entries.size,true);e.setUint16(10,entries.size,true);e.setUint32(12,directory.length,true);e.setUint32(16,offset,true);
-  packAssert(offset+directory.length+22<=TEMPLATE_ZIP_MAX_BYTES,'Template ZIP exceeds 100 MiB.');
-  return joinBytes([...local,directory,end]);
-}
-async function readTemplateZip(bytes:Uint8Array){
-  packAssert(bytes.length>=22&&bytes.length<=TEMPLATE_ZIP_MAX_BYTES,'Invalid or oversized template ZIP.');
-  const d=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);let end=-1;
-  for(let p=bytes.length-22;p>=Math.max(0,bytes.length-65557);p--)if(d.getUint32(p,true)===0x06054b50&&p+22+d.getUint16(p+20,true)===bytes.length){end=p;break;}
-  packAssert(end>=0,'Missing ZIP directory.');
-  const count=d.getUint16(end+10,true),size=d.getUint32(end+12,true),start=d.getUint32(end+16,true);
-  packAssert(d.getUint16(end+4,true)===0&&d.getUint16(end+6,true)===0&&d.getUint16(end+8,true)===count,'Multi-volume ZIP is unsupported.');
-  packAssert(count>0&&count<=TEMPLATE_ZIP_ENTRIES_MAX&&start+size===end,'Invalid ZIP directory size.');
-  const rows:any[]=[],names=new Set<string>();let p=start,total=0;
-  for(let i=0;i<count;i++){
-    packAssert(p+46<=end&&d.getUint32(p,true)===0x02014b50,'Invalid ZIP directory entry.');
-    const flags=d.getUint16(p+8,true),method=d.getUint16(p+10,true),crc=d.getUint32(p+16,true),packed=d.getUint32(p+20,true),length=d.getUint32(p+24,true),n=d.getUint16(p+28,true),extra=d.getUint16(p+30,true),comment=d.getUint16(p+32,true),local=d.getUint32(p+42,true);
-    packAssert(p+46+n+extra+comment<=end,'Truncated ZIP directory.');
-    const name=dec(bytes.subarray(p+46,p+46+n));
-    packAssert(templateZipPath(name)&&!names.has(name),'Invalid or duplicate ZIP entry path.');names.add(name);
-    packAssert((flags&~0x80e)===0&&[0,8].includes(method)&&(method===8||!(flags&6))&&d.getUint16(p+34,true)===0,'Encrypted or unsupported ZIP entry.');
-    packAssert(((d.getUint32(p+38,true)>>>16)&0xf000)!==0xa000,'ZIP symbolic links are unsupported.');
-    total+=length;packAssert(length<=(name==='template.json'?TEMPLATE_ZIP_JSON_MAX:TEMPLATE_ZIP_ENTRY_MAX)&&total<=TEMPLATE_ZIP_MAX_BYTES,'Expanded ZIP exceeds size limit.');
-    packAssert(local+30<=start&&d.getUint32(local,true)===0x04034b50,'Invalid ZIP local entry.');
-    const ln=d.getUint16(local+26,true),le=d.getUint16(local+28,true),dataStart=local+30+ln+le;
-    packAssert(dataStart+packed<=start&&dec(bytes.subarray(local+30,local+30+ln))===name&&d.getUint16(local+6,true)===flags&&d.getUint16(local+8,true)===method,'ZIP headers disagree.');
-    if(!(flags&8))packAssert(d.getUint32(local+14,true)===crc&&d.getUint32(local+18,true)===packed&&d.getUint32(local+22,true)===length,'ZIP headers disagree.');
-    rows.push({name,method,crc,packed,length,local,dataStart});p+=46+n+extra+comment;
-  }
-  packAssert(p===end,'Invalid ZIP directory length.');
-  const ordered=[...rows].sort((a,b)=>a.local-b.local);for(let i=1;i<ordered.length;i++)packAssert(ordered[i].local>=ordered[i-1].dataStart+ordered[i-1].packed,'Overlapping ZIP entries.');
-  const entries=new Map<string,Uint8Array>();
-  for(const row of rows){
-    const compressed=bytes.subarray(row.dataStart,row.dataStart+row.packed);let output:Uint8Array;
-    if(row.method===0){packAssert(row.packed===row.length,'Invalid stored ZIP entry length.');output=compressed;}
-    else{
-      // Bound actual decompressed bytes as well as the untrusted directory sizes.
-      const reader=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader(),parts:Uint8Array[]=[];let seen=0;
-      try{while(true){const {done,value}=await reader.read();if(done)break;seen+=value.length;packAssert(seen<=row.length,'Expanded ZIP entry exceeds declared size.');parts.push(value);}output=joinBytes(parts);}
-      finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
-    }
-    packAssert(output.length===row.length&&templateCrc(output)===row.crc,'Damaged ZIP entry: '+row.name);entries.set(row.name,output);
-  }
-  return entries;
-}
-async function encodeTemplateZip(value:any){
-  const entries=new Map<string,Uint8Array>();
-  async function externalize(v:any):Promise<any>{
-    if(typeof v==='string'&&v.startsWith('data:image/')){
-      const match=/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(v);packAssert(match,'Invalid template image.');
-      const bytes=fromBase64(match![2]);packAssert(imageMime(bytes)===match![1],'Invalid template image bytes.');
-      const hash=await crypto.subtle.digest('SHA-256',bytes),hex=Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
-      const name='assets/'+hex+'.'+({ 'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[match![1]]);
-      entries.set(name,bytes);return {$asset:name};
-    }
-    if(Array.isArray(v))return Promise.all(v.map(externalize));
-    if(plainObject(v)){const out:any={};for(const [k,item] of Object.entries(v))out[k]=await externalize(item);return out;}return v;
-  }
-  const template=await externalize(portableTemplate(value));
-  entries.set('template.json',enc(JSON.stringify({format:'selects-shortform-template-archive',version:1,templateApi:TEMPLATE_API,identity:value.id,template},null,2)));
-  return writeTemplateZip(entries);
-}
-async function decodeTemplateFile(bytes:Uint8Array){
-  if(bytes[0]!==0x50||bytes[1]!==0x4b){const template=decodeSharedTemplate(bytes);return {data:JSON.parse(dec(bytes).replace(/^\uFEFF/,'')),template};}
-  const entries=await readTemplateZip(bytes),manifest=entries.get('template.json');packAssert(manifest,'Missing template.json in ZIP.');
-  const data=JSON.parse(dec(manifest!));safeJson(data);
-  packAssert(data.format==='selects-shortform-template-archive'&&data.version===1&&[1,TEMPLATE_API].includes(data.templateApi),'Unsupported template ZIP.');
-  const used=new Set<string>(['template.json']),images=new Map<string,string>();
-  async function hydrate(v:any):Promise<any>{
-    if(plainObject(v)&&Object.prototype.hasOwnProperty.call(v,'$asset')){
-      packAssert(Object.keys(v).length===1&&typeof v.$asset==='string'&&v.$asset.startsWith('assets/')&&templateZipPath(v.$asset),'Invalid template asset reference.');
-      if(images.has(v.$asset))return images.get(v.$asset);
-      const image=entries.get(v.$asset);packAssert(image,'Missing template image: '+v.$asset);
-      const mime=imageMime(image!),hash=await crypto.subtle.digest('SHA-256',image!),hex=Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
-      packAssert(v.$asset==='assets/'+hex+'.'+({'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[mime]),'Template image hash or type mismatch.');
-      used.add(v.$asset);const url='data:'+mime+';base64,'+toBase64(image!);images.set(v.$asset,url);return url;
-    }
-    if(Array.isArray(v))return Promise.all(v.map(hydrate));
-    if(plainObject(v)){const out:any={};for(const [k,item] of Object.entries(v))out[k]=await hydrate(item);return out;}return v;
-  }
-  const template=validateSharedTemplateData({...data,format:'selects-shortform-template',template:await hydrate(data.template)});
-  packAssert(used.size===entries.size,'Unreferenced files in template ZIP.');
-  return {data,template};
-}
-
 async function importSharedTemplate(repository: any, bytes: Uint8Array) {
   if(repository.importFile)return repository.importFile(bytes);
-  const {template} = await decodeTemplateFile(bytes);
+  const template = decodeSharedTemplate(bytes);
   const id = "custom/" + crypto.randomUUID();
   const imported = {...template, id};
   await repository.put("templates", id, imported);
@@ -1711,7 +1604,7 @@ function makeTemplateRepository(storage:any) {
       return pack.manifest;
     },
     async importFile(bytes:Uint8Array,choices:any={},expected:any={}){
-      const {data,template}=await decodeTemplateFile(bytes);
+      const template=decodeSharedTemplate(bytes),data=JSON.parse(dec(bytes).replace(/^\uFEFF/,''));
       const identity=data.identity;
       packAssert(identity===undefined||typeof identity==='string'&&/^(?:[a-z0-9-]+\/)?[a-zA-Z0-9-]+$/.test(identity),'Invalid template identity.');
       template.id=identity||'custom/'+crypto.randomUUID();
@@ -7112,10 +7005,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     setPackBusy(true); setPackError(""); setPackMessage("");
     try {
       if (direction === "import") {
-        const path = await script('return await selects.editor.pickFile({filters:[{name:"Shortform template",extensions:["zip","json"]}]});', "Choose template file");
+        const path = await script('return await selects.editor.pickFile({filters:[{name:"Shortform template",extensions:["json"]}]});', "Choose template file");
         if (!path) return;
         const size = await files.size(path);
-        packAssert(size > 0 && size <= TEMPLATE_ZIP_MAX_BYTES, "Template file must be between 1 byte and 100 MiB.");
+        packAssert(size > 0 && size <= TEMPLATE_SHARE_MAX_BYTES, "Template file must be between 1 byte and 20 MiB.");
         const bytes = await files.readFile(path);
         const imported = await resolveTemplateImport(()=>importSharedTemplate(repository, bytes));
         if(!imported)return;
@@ -7123,9 +7016,9 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         setPackMessage(lang === "ko" ? "\ud15c\ud50c\ub9bf\uc744 \uac00\uc838\uc654\uc2b5\ub2c8\ub2e4." : "Template imported.");
         setPackDialogOpen(false);
       } else {
-        const bytes = await encodeTemplateZip(selected);
+        const bytes = encodeSharedTemplate(selected);
         const filename = nameOf(selected,lang).replace(/[<>:"/\\|?*\x00-\x1f]/g,"-").slice(0,80) || "template";
-        const defaultPath = files.join(files.homedir(), "Downloads", filename + ".shortform-template.zip");
+        const defaultPath = files.join(files.homedir(), "Downloads", filename + ".shortform-template.json");
         const path = await script(`return await selects.editor.pickSavePath({defaultPath:${JSON.stringify(defaultPath)}});`, "Save template file");
         if (!path) return;
         await files.writeFile(path, bytes);
@@ -8471,7 +8364,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
               <ui.Button variant="primary" disabled={!files || busy || packBusy || templateDirty || templateSaving} onClick={()=>void transferTemplate("import")}>
                 {lang === "ko" ? "\ud30c\uc77c\uc5d0\uc11c \uac00\uc838\uc624\uae30" : "Import from file"}
               </ui.Button>
-              <small>{lang === "ko" ? "ZIP\uacfc \uae30\uc874 JSON \ud30c\uc77c\uc744 \uac00\uc838\uc62c \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uc124\uc815\uacfc \uc774\ubbf8\uc9c0\ub97c \ud3ec\ud568\ud558\uba70, \uc218\uc815\ud55c \ud15c\ud50c\ub9bf\uacfc \ucda9\ub3cc\ud558\uba74 \ucc98\ub9ac \ubc29\ubc95\uc744 \uc120\ud0dd\ud569\ub2c8\ub2e4." : "Import ZIP or legacy JSON files with settings and images. Conflicts with local edits require a choice."}</small>
+              <small>{lang === "ko" ? "JSON \ud30c\uc77c\uc744 \uac00\uc838\uc62c \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uc124\uc815\uacfc \uc774\ubbf8\uc9c0\ub97c \ud3ec\ud568\ud558\uba70, \uc218\uc815\ud55c \ud15c\ud50c\ub9bf\uacfc \ucda9\ub3cc\ud558\uba74 \ucc98\ub9ac \ubc29\ubc95\uc744 \uc120\ud0dd\ud569\ub2c8\ub2e4." : "Import JSON files with settings and embedded images. Conflicts with local edits require a choice."}</small>
               <ui.TextField label={K.link} value={packLink} onChange={setPackLink} placeholder={K.linkPlaceholder} disabled={!files || busy || packBusy || templateDirty || templateSaving} />
               <div style={{display:"flex",justifyContent:"flex-end",gap:8,flexWrap:"wrap",paddingTop:4}}><div><ui.Button variant="secondary" disabled={packBusy} onClick={()=>setPackDialogOpen(false)}>{S.cancel}</ui.Button></div><div><ui.Button variant="primary" busy={packBusy} disabled={!files || !packLink.trim() || busy || packBusy || templateDirty || templateSaving} onClick={()=>void installPack()}>{K.installLink}</ui.Button></div></div>
               {!files && <ui.Message tone="error">{K.noFiles}</ui.Message>}
