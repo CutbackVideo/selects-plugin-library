@@ -34,7 +34,7 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   const body=esbuild.transformSync(loop,{loader:'ts'}).code;
   let job={built:[]},builds=0,applies=0,thumbnails=0,fail=true;const events=[];
   const pickd={clips:[{name:'One',segments:[[1,5]]}]};
-  const env={withoutRunSuffix:(name)=>name,ensureRunFolder:async()=>"run-folder",moveRunDrafts:async()=>{},forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
+  const env={findRunDraftScript:()=>"LOOKUP",withoutRunSuffix:(name)=>name,ensureRunFolder:async()=>"run-folder",moveRunDrafts:async()=>{},forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
    STACKED_REFRAME_EFFECT:'effect',projectId:'p',S:{building:()=>'',reframing:'framing'},lang:'en',transform:{scale:1},buildLogo:'',SCRIPT_APPLY_REFRAME:'APPLY const P: any = __P__;',
    RADIO_SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_BUILD:'',SCRIPT_LIMIT:1e7,RunCancelled:class extends Error{},
    setStatus:()=>{},setSub:()=>{},setDrafts:()=>{},setWarn:()=>{},nameOf:()=>'',radioFrameParams:()=>({}),
@@ -49,6 +49,13 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   await attempt();assert.equal(builds,1);assert.equal(job.built[0].draftId,'d');assert.equal(job.built[0].reframeState,'failed');assert.equal(job.done,false);assert.equal(thumbnails,0);
   assert.ok(events.findIndex(x=>x[0]==='save'&&x[1]==='pending')<events.findIndex(x=>x[0]==='apply'));
   fail=false;await attempt();assert.equal(builds,1);assert.equal(applies,2);assert.equal(job.built[0].reframeState,'done');assert.equal(job.done,true);assert.equal(thumbnails,1);
+  // Headline-based templates must also run the selected AI framing on new Drafts.
+  job={built:[]};env.tpl.renderer='separate-headlines';env.frameParams=()=>({});env.editableFrame=()=>[];env.SCRIPT_BUILD='BUILD const P: any = __P__;';
+  await attempt();assert.equal(builds,2);assert.equal(applies,3);assert.equal(job.built[0].reframeState,'done');
+  // Explicitly disabled framing remains disabled for either renderer.
+  job={built:[]};env.tpl.layout.reframe=false;
+  await attempt();assert.equal(builds,3);assert.equal(applies,3);assert.equal(job.built[0].reframeState,'skipped');
+  env.tpl.layout.reframe=true;
   // All five must start before any can finish; no hidden two-worker cap.
   job={built:Array.from({length:5},(_,i)=>({draftId:'d'+i,reframeState:'pending'}))};
   pickd.clips=Array.from({length:5},(_,i)=>({name:'Clip '+i,segments:[[1,5]]}));
