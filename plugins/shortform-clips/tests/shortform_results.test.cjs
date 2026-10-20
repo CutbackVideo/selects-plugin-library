@@ -39,11 +39,20 @@ test('draft results preserve descriptions and follow the current draft', {skip: 
   await t.test('empty source validation leaves previous results and pending restoration intact',async()=>{
     const start=source.indexOf('  async function run(resume?: any, onlyDraftId?: string, forceReframe = false) {');
     const prefix=source.slice(start+'  async function run(resume?: any, onlyDraftId?: string, forceReframe = false) {'.length,source.indexOf('    setBusy(true);',start));
-    const check=new Function('env',`return async function(resume){const {overlayLock,busy,packLock,setError,setWarn,setDrafts,setInfo,projectId,templates,mode,url,pick,S,K,resultsRevision}=env;${prefix};return 'valid';}`);
+    const check=new Function('env',`return async function(resume){const {templateDirty,templateSaving,setTab,overlayLock,busy,packLock,setError,setWarn,setDrafts,setInfo,projectId,templates,mode,url,pick,S,K,resultsRevision}=env;${prefix};return 'valid';}`);
     const saved=[{draftId:'keep'}];let visible=saved,error='',clears=0;
     const env={overlayLock:{current:false},busy:false,packLock:{current:false},setError:x=>error=x,setWarn:()=>{},setDrafts:x=>{visible=x;clears++;},setInfo:()=>{},projectId:'project',templates:[{}],mode:'youtube',url:'',pick:null,S:{needUrl:'Need URL',needPick:'Need video',noProject:'Need project'},K:{empty:'Need templates'},resultsRevision:{current:2}};
     await check(env)();assert.equal(error,'Need URL');assert.equal(visible,saved);assert.equal(clears,0);assert.equal(env.resultsRevision.current,2);
     await check({...env,mode:'project'})();assert.equal(error,'Need video');assert.equal(visible,saved);
+    for (const state of [{templateDirty:true},{templateSaving:true}]) {
+      let tab='create';
+      const revision=env.resultsRevision.current;
+      for (const resume of [undefined,{id:'pending'}]) {
+        assert.equal(await check({...env,...state,url:'https://youtube.com/watch?v=example',setTab:value=>tab=value})(resume),undefined);
+        assert.equal(tab,'templates');
+        assert.equal(env.resultsRevision.current,revision,'Unsaved edits never start or resume generation');
+      }
+    }
     assert.equal(await check({...env,url:'https://youtube.com/watch?v=example'})(),'valid');assert.equal(visible,saved);
   });
   await t.test('fixed rubric rejects invented or malformed scores and sorts without changing build order',()=>{
