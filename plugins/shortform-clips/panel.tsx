@@ -7990,7 +7990,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       {!templatesLoading && !templates.length && <ui.Stack gap={8}><ui.Message>{K.empty}</ui.Message>{packError && <ui.Message tone="error">{packError}</ui.Message>}<ui.Button variant="secondary" onClick={()=>setTab("templates")}>{S.tabTemplates}</ui.Button></ui.Stack>}
       <ui.Stack gap={8}>
         {(templateDirty || templateSaving) && <ui.Message>
-          {lang === "ko" ? "클립을 만들기 전에 템플릿 변경사항을 저장하거나 취소해 주세요." : "Save or discard template changes before creating clips."}
+          {lang === "ko" ? "\ud074\ub9bd\uc744 \ub9cc\ub4e4\uae30 \uc804\uc5d0 \ud15c\ud50c\ub9bf \ubcc0\uacbd\uc0ac\ud56d\uc744 \uc800\uc7a5\ud558\uac70\ub098 \ucde8\uc18c\ud574 \uc8fc\uc138\uc694." : "Save or discard template changes before creating clips."}
           <ui.Button variant="secondary" onClick={()=>setTab("templates")}>{S.tabTemplates}</ui.Button>
         </ui.Message>}
         <ui.Actions>
