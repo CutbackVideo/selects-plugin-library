@@ -3,14 +3,14 @@ const test=require('node:test'), assert=require('node:assert/strict');
 const fs=require('node:fs'), path=require('node:path'), os=require('node:os');
 const {createRequire}=require('node:module');
 const modulesRoot=process.env.SBS_PANEL_TEST_MODULES;
-test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULES'}, async t=>{
+test('legacy pack reader and source installation compatibility', {skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULES'}, async t=>{
   const dep=createRequire(path.resolve(modulesRoot,'../package.json'));
   const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
   const ts=dep('typescript');
   const program=ts.createProgram([path.join(__dirname,'../panel.tsx')],{noEmit:true,target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.React,skipLibCheck:true});
   const undefinedNames=ts.getPreEmitDiagnostics(program).filter(d=>[2304,2552,2580,2591].includes(d.code));
   assert.deepEqual(undefinedNames.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')),[], 'The host rejects panels with undefined identifiers');
-  const code=dep('esbuild').transformSync(source+'\nexport {readGitHubTemplatePack,parsePackLink,ShortformClipsPanel,TemplatePicker,TemplatePackDialog,PACK_STRINGS,readTemplatePack,makeTemplateRepository,validateTemplate,templatePatch,merge,cleanTemplate,TemplateEditor,STRINGS,RADIO_STRINGS};',{loader:'tsx',format:'cjs'}).code;
+  const code=dep('esbuild').transformSync(source+'\nexport {readGitHubTemplatePack,parsePackLink,ShortformClipsPanel,TemplatePicker,TemplatePackDialog,PACK_STRINGS,readTemplatePack,makeLegacyTemplateRepository as makeTemplateRepository,validateTemplate,templatePatch,merge,cleanTemplate,TemplateEditor,STRINGS,RADIO_STRINGS};',{loader:'tsx',format:'cjs'}).code;
   const mod={exports:{}};new Function('require','module','exports',code)(()=>dep('react'),mod,mod.exports);
   const api=mod.exports;
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'clip-packs-'));t.after(()=>fs.rmSync(temp,{recursive:true,force:true}));
@@ -257,7 +257,7 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
     dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
     const root=dep('react-dom/client').createRoot(document.getElementById('root'));
-    const start=source.indexOf('  async function installPack('),handler=source.slice(start,source.indexOf('  React.useEffect(',start));
+    const start=source.indexOf('  const [importConflict,setImportConflict]'),handler=source.slice(start,source.indexOf('  React.useEffect(',start));
     const markupStart=source.indexOf('            {!templates.length && <ui.Actions>');
     const markup=source.slice(markupStart,source.indexOf('            {templates.length > 0 && <TemplateEditor',markupStart));
     const code=dep('esbuild').transformSync(`function Harness({ui,repository,loadTemplates,templateDirty=false,templateSaving=false,busy=false}){
@@ -268,7 +268,7 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
       ${handler}
       return (<>${markup}</>);
     } return Harness;`,{loader:'tsx'}).code;
-    const Harness=new Function('React','TemplatePackDialog',code)(React,api.TemplatePackDialog);
+    const Harness=new Function('React','TemplatePackDialog','TemplateImportConflict',code)(React,api.TemplatePackDialog,Error);
     let input,file,resolveInstall,calls=[],reloads=0;
     const box=p=>React.createElement('div',null,p.children);
     const ui={Stack:box,Row:box,Actions:box,Message:box,Progress:()=>React.createElement('span',null,'Loading'),IconButton:p=>React.createElement('button',{disabled:p.disabled,onClick:p.onClick},p.label),TextField:p=>{input=p;return React.createElement('input',{value:p.value,onChange:e=>p.onChange(e.target.value),disabled:p.disabled});},Button:p=>React.createElement('button',{disabled:p.disabled||p.busy,onClick:p.onClick},p.children),FileDrop:p=>{file=p;return React.createElement('button',{disabled:p.disabled,onClick:()=>p.onChange({path:'/pack.json'})},p.labels.choose);}};
@@ -291,7 +291,7 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     const dom=new JSDOM('<div id="root"></div>');const keys=['window','document','IS_REACT_ACT_ENVIRONMENT','fetch'];const previous=Object.fromEntries(keys.map(k=>[k,global[k]]));
     Object.assign(global,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
     const root=dep('react-dom/client').createRoot(document.getElementById('root'));
-    const start=source.indexOf('  async function installPack(');
+    const start=source.indexOf('  const [importConflict,setImportConflict]');
     const handlers=source.slice(start,source.indexOf('  React.useEffect(() => {\n    loadTemplates();',start));
     const code=dep('esbuild').transformSync(`function Harness({context,repository,loadTemplates,sdk,files,templateDirty=false,templateSaving=false,busy=false,templatesLoading=false}){
       const K=${JSON.stringify(api.PACK_STRINGS.en)},lang='en';
@@ -303,7 +303,7 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
       return null;
     } return Harness;`,{loader:'tsx'}).code;
     let state,calls=[],finished=[];
-    const Harness=new Function('React','report',code)(React,value=>state=value);
+    const Harness=new Function('React','report','TemplateImportConflict',code)(React,value=>state=value,Error);
     const store=storage(),repo=api.makeTemplateRepository(store);
     const repository={install:async(...args)=>{calls.push(args);return repo.install(...args);}};
     const request={requestId:'pack-1',url:folderLink};

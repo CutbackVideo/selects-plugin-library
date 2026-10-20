@@ -161,7 +161,7 @@ const STRINGS: any = {
     template: "Template",
     name: "Name",
     duplicate: "Duplicate",
-    reset: "Reset to default",
+    reset: "Restore imported settings",
     del: "Delete",
     delConfirm: "Press again to delete",
     deleteTemplate: "Delete selected template",
@@ -356,7 +356,7 @@ const STRINGS: any = {
     template: "\ud15c\ud50c\ub9bf",
     name: "\uc774\ub984",
     duplicate: "\ubcf5\uc81c",
-    reset: "\uae30\ubcf8\uac12\uc73c\ub85c",
+    reset: "\uac00\uc838\uc628 \uc0c1\ud0dc\ub85c \ub418\ub3cc\ub9ac\uae30",
     del: "\uc0ad\uc81c",
     delConfirm: "\ud55c \ubc88 \ub354 \ub204\ub974\uba74 \uc0ad\uc81c",
     deleteTemplate: "\uc120\ud0dd\ud55c \ud15c\ud50c\ub9bf \uc0ad\uc81c",
@@ -1254,7 +1254,7 @@ function portableTemplate(value: any) {
   return template;
 }
 function encodeSharedTemplate(value: any): Uint8Array {
-  const bytes = enc(JSON.stringify({format:"selects-shortform-template",version:1,templateApi:TEMPLATE_API,template:portableTemplate(value)},null,2));
+  const bytes = enc(JSON.stringify({format:"selects-shortform-template",version:1,templateApi:TEMPLATE_API,identity:value.id,template:portableTemplate(value)},null,2));
   packAssert(bytes.length <= TEMPLATE_SHARE_MAX_BYTES, "Template file exceeds 20 MiB.");
   return bytes;
 }
@@ -1278,6 +1278,7 @@ function decodeSharedTemplate(bytes: Uint8Array) {
   return template;
 }
 async function importSharedTemplate(repository: any, bytes: Uint8Array) {
+  if(repository.importFile)return repository.importFile(bytes);
   const template = decodeSharedTemplate(bytes);
   const id = "custom/" + crypto.randomUUID();
   const imported = {...template, id};
@@ -1285,7 +1286,7 @@ async function importSharedTemplate(repository: any, bytes: Uint8Array) {
   return imported;
 }
 
-function makeTemplateRepository(storage: any) {
+function makeLegacyTemplateRepository(storage: any) {
   const defaults = new Map<string, any>();
   let loadRevision = 0;
   let packDefaultIds = new Set<string>();
@@ -1352,7 +1353,7 @@ function makeTemplateRepository(storage: any) {
         defaults.clear();
         for (const [id, value] of nextDefaults) defaults.set(id, value);
       }
-      return {templates: templates.filter(t => !removed.has(t.id)), packs, errors};
+      return {templates: templates.filter(t => !removed.has(t.id)), baselines:[...defaults.values()], packs, errors};
     },
     async put(kind: string, id: string, value: any) {
       packAssert(kind === "templates", "Invalid template collection.");
@@ -1455,6 +1456,163 @@ function makeTemplateRepository(storage: any) {
   };
 }
 
+// One catalog points to immutable full settings snapshots. Baseline and working
+// never merge during updates; large embedded images are deduplicated separately.
+function templateCanonical(value:any):string {
+  const stable=(v:any):any=>Array.isArray(v)?v.map(stable):plainObject(v)?Object.fromEntries(Object.keys(v).sort().filter(k=>v[k]!==undefined).map(k=>[k,stable(v[k])])):v;
+  return JSON.stringify(stable(value));
+}
+async function templateDigest(value:any):Promise<string> {
+  const bytes=await crypto.subtle.digest('SHA-256',enc(templateCanonical(value)));
+  return Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
+}
+class TemplateImportConflict extends Error {
+  conflicts:any[];
+  retry?:any;
+  constructor(conflicts:any[]){super('Template import needs a choice.');this.name='TemplateImportConflict';this.conflicts=conflicts;}
+}
+function makeTemplateRepository(storage:any) {
+  const legacy=makeLegacyTemplateRepository(storage);
+  const pendingSnapshots=new Map<string,any>(),pendingAssets=new Map<string,any>();
+  let queue:Promise<any>=Promise.resolve();
+  const serial=(fn:any)=>{const next=queue.then(fn,fn);queue=next.catch(()=>{});return next;};
+  const readRecord=async(kind:string,id:string)=>storage.get?storage.get(kind,id):(await storage.list(kind)).find((r:any)=>r.id===id);
+  const readIndex=async()=>{
+    const index=await readRecord('template-library','index');
+    if(index){safeJson(index);packAssert(index.schemaVersion===1&&Array.isArray(index.records),'Invalid template library.');}
+    return index;
+  };
+  async function dehydrate(value:any):Promise<any> {
+    if(typeof value==='string'&&/^data:image\/(png|jpeg|webp);base64,/.test(value)){
+      const hash=await templateDigest(value);pendingAssets.set(hash,{id:hash,data:value});return {templateAsset:hash};
+    }
+    if(Array.isArray(value))return Promise.all(value.map(dehydrate));
+    if(plainObject(value)){const out:any={};for(const [k,v] of Object.entries(value))out[k]=await dehydrate(v);return out;}
+    return value;
+  }
+  async function snapshot(value:any){
+    const clean=portableTemplate(independentTemplateDesigns(value)[0]);
+    const data=await dehydrate(clean),id=await templateDigest(data);
+    pendingSnapshots.set(id,{id,data});return id;
+  }
+  async function hydrate(value:any,assets:Map<string,any>):Promise<any>{
+    if(plainObject(value)&&Object.keys(value).length===1&&value.templateAsset){
+      packAssert(/^[a-f0-9]{64}$/.test(value.templateAsset),'Invalid template asset reference.');
+      let asset=assets.get(value.templateAsset);if(!asset){asset=await readRecord('template-assets',value.templateAsset);if(asset)assets.set(value.templateAsset,asset);}
+      packAssert(asset&&await templateDigest(asset.data)===value.templateAsset,'Missing or damaged template image.');return asset.data;
+    }
+    if(Array.isArray(value))return Promise.all(value.map(v=>hydrate(v,assets)));
+    if(plainObject(value)){const out:any={};for(const [k,v] of Object.entries(value))out[k]=await hydrate(v,assets);return out;}
+    return value;
+  }
+  async function getSnapshot(id:string){
+    packAssert(/^[a-f0-9]{64}$/.test(id),'Invalid template snapshot reference.');
+    const row=pendingSnapshots.get(id)||await readRecord('template-snapshots',id);
+    packAssert(row&&await templateDigest(row.data)===id,'Missing or damaged template settings.');
+    const assets=new Map<string,any>();
+    for(const [k,v] of pendingAssets)assets.set(k,v);
+    return validateTemplate(await hydrate(row.data,assets),true);
+  }
+  async function state(){
+    const existing=await readIndex();if(existing)return existing;
+    const old=await legacy.load();
+    packAssert(!old.errors.length,'Could not migrate templates: '+old.errors.join('; '));
+    const records=[];
+    for(const t of old.templates){
+      const base=old.baselines.find((b:any)=>b.id===t.id)||t;
+      records.push({id:t.id,baseline:await snapshot(base),working:await snapshot(t),
+        source:{kind:t.builtIn?'pack':'file',packId:t.packId,packVersion:t.packVersion},history:[],removed:false});
+    }
+    return {id:'index',schemaVersion:1,revision:0,records,packs:old.packs};
+  }
+  async function persist(next:any){
+    for(const [id,row] of pendingAssets)if(!await readRecord('template-assets',id))await storage.put('template-assets',id,row);
+    for(const [id,row] of pendingSnapshots)if(!await readRecord('template-snapshots',id))await storage.put('template-snapshots',id,row);
+    // The index is the only mutable commit point: interrupted staging leaves the previous library usable.
+    await storage.put('template-library','index',{...next,revision:next.revision+1});
+    pendingSnapshots.clear();pendingAssets.clear();
+  }
+  const remember=(record:any)=>({...record,history:[...(record.history||[]),{baseline:record.baseline,working:record.working,source:record.source,at:new Date().toISOString()}]});
+  async function view(record:any){return {...await getSnapshot(record.working),id:record.id,builtIn:record.source?.kind==='pack',modified:record.working!==record.baseline,packId:record.source?.packId,packVersion:record.source?.packVersion,historyCount:record.history?.length||0};}
+  const api:any={
+    fs:storage.fs,
+    async load(){try{const index=await state();return {templates:await Promise.all(index.records.filter((r:any)=>!r.removed).map(view)),packs:index.packs,errors:[]};}catch(e:any){return {templates:[],packs:[],errors:[e.message]};}},
+    put(kind:string,id:string,value:any){return serial(async()=>{
+      packAssert(kind==='templates','Invalid template collection.');validateTemplate(cleanTemplate(value),true);
+      const index=await state(),hash=await snapshot(value),at=index.records.findIndex((r:any)=>r.id===id);
+      if(at<0)index.records.push({id,baseline:hash,working:hash,source:{kind:'local'},history:[],removed:false});
+      else index.records[at]={...index.records[at],working:hash,removed:false};
+      await persist(index);
+    });},
+    del(kind:string,id:string){return serial(async()=>{
+      packAssert(kind==='templates','Invalid template collection.');const index=await state(),at=index.records.findIndex((r:any)=>r.id===id);packAssert(at>=0,'Unknown template.');
+      const old=index.records[at];index.records[at]={...remember(old),working:old.baseline};await persist(index);
+    });},
+    remove(id:string){return serial(async()=>{const index=await state(),at=index.records.findIndex((r:any)=>r.id===id);packAssert(at>=0,'Unknown template.');index.records[at]={...index.records[at],removed:true};await persist(index);});},
+    async history(id:string){const index=await state();return clone(index.records.find((r:any)=>r.id===id)?.history||[]);},
+    restore(id:string,position:number){return serial(async()=>{
+      const index=await state(),at=index.records.findIndex((r:any)=>r.id===id);packAssert(at>=0,'Unknown template.');const old=index.records[at],entry=old.history?.[position];packAssert(entry,'Unknown template history.');
+      await getSnapshot(entry.baseline);await getSnapshot(entry.working);
+      index.records[at]={...remember(old),baseline:entry.baseline,working:entry.working,source:entry.source,removed:false};await persist(index);
+    });},
+    importTemplates(incoming:any[],source:any,choices:any={},expected:any={}){return serial(async()=>{
+      const index=await state(),conflicts:any[]=[],actions:any[]=[];
+      for(const input of incoming){
+        validateTemplate(input,true);const next=independentTemplateDesigns(input)[0],hash=await snapshot(next);
+        const old=index.records.find((r:any)=>r.id===next.id);
+        if(!old){actions.push({next,hash});continue;}
+        const base=await getSnapshot(old.baseline);
+        let reason='';
+        const oldPack=old.source?.packVersion,newPack=source?.packVersion;
+        const cmp=(a:string,b:string)=>{const x=a.split('.').map(Number),y=b.split('.').map(Number);return x[0]-y[0]||x[1]-y[1]||x[2]-y[2];};
+        if(hash===old.working&&!old.removed){
+          if(old.working===old.baseline&&old.source?.packId===source?.packId&&oldPack&&newPack&&cmp(newPack,oldPack)>0)actions.push({next,hash,old,metadataOnly:true});
+          continue;
+        }
+        if(expected[next.id]&&expected[next.id]!==templateCanonical(old))reason='changed';
+        else if(old.working!==old.baseline)reason='modified';
+        else if(next.version<base.version||(oldPack&&newPack&&cmp(newPack,oldPack)<0))reason='older';
+        else if(next.version===base.version&&hash!==old.baseline&&!(oldPack&&newPack&&cmp(newPack,oldPack)>0))reason='same-version';
+        else if(old.removed)reason='removed';
+        const choice=choices[next.id];
+        if(reason&&(!['replace','copy'].includes(choice)||reason==='changed'))conflicts.push({id:next.id,name:next.name||next.names?.ko||next.names?.en,reason,currentVersion:base.version,incomingVersion:next.version,token:templateCanonical(old)});
+        actions.push({next,hash,old,choice});
+      }
+      if(conflicts.length)throw new TemplateImportConflict(conflicts);
+      const result=[];
+      for(const {next,hash,old,choice,metadataOnly} of actions){
+        if(metadataOnly){
+          old.source=source;result.push(old.id);
+        }else if(choice==='copy'){
+          const id='custom/'+crypto.randomUUID();index.records.push({id,baseline:hash,working:hash,source:{kind:'local'},history:[],removed:false});result.push(id);
+        }else if(old){
+          const at=index.records.findIndex((r:any)=>r.id===old.id);index.records[at]={...remember(old),baseline:hash,working:hash,source,removed:false};result.push(old.id);
+        }else{index.records.push({id:next.id,baseline:hash,working:hash,source,history:[],removed:false});result.push(next.id);}
+      }
+      if(source?.manifest){index.packs=index.packs.filter((p:any)=>p.id!==source.manifest.id);index.packs.push(source.manifest);}
+      if(actions.length)await persist(index);
+      return {ids:result.length?result:incoming.map(t=>t.id),unchanged:!actions.length};
+    });},
+    async install(input:string,fromLink=false,choices:any={},expected:any={}){
+      const pack=fromLink?await readGitHubTemplatePack(input):await readTemplatePack(storage.fs,input);
+      const incoming=pack.templates.map((t:any)=>independentTemplateDesigns(templateIdentity(pack,t))[0]);
+      const source={kind:'pack',packId:pack.manifest.id,packVersion:pack.manifest.version,manifest:pack.manifest,url:pack.source?.url};
+      try{await api.importTemplates(incoming,source,choices,expected);}catch(e:any){if(e instanceof TemplateImportConflict)e.retry=(c:any,t:any)=>api.importTemplates(incoming,source,c,t).then(()=>pack.manifest);throw e;}
+      return pack.manifest;
+    },
+    async importFile(bytes:Uint8Array,choices:any={},expected:any={}){
+      const data=JSON.parse(dec(bytes)),template=decodeSharedTemplate(bytes);
+      const identity=data.identity;
+      packAssert(identity===undefined||typeof identity==='string'&&/^(?:[a-z0-9-]+\/)?[a-zA-Z0-9-]+$/.test(identity),'Invalid template identity.');
+      template.id=identity||'custom/'+crypto.randomUUID();
+      const source={kind:'file'};
+      try{const result=await api.importTemplates([template],source,choices,expected);return {id:result.ids[0]};}
+      catch(e:any){if(e instanceof TemplateImportConflict)e.retry=(c:any,t:any)=>api.importTemplates([template],source,c,t).then((r:any)=>({id:r.ids[0]}));throw e;}
+    },
+  };
+  return api;
+}
+
 function makeStore(files: any) {
   if (files) {
     const root = files.join(files.homedir(), ".selects", "plugin-data", APP_ID);
@@ -1470,6 +1628,10 @@ function makeStore(files: any) {
       join: (...p: string[]) => files.join(...p),
       ensure: (p: string): Promise<void> => files.mkdir(p),
       exists: (p: string): Promise<boolean> => files.exists(p).catch(() => false),
+      async get(kind:string,id:string){
+        const path=files.join(dir(kind),id+".json");
+        return await files.exists(path)?JSON.parse(dec(await files.readFile(path))):null;
+      },
       async list(kind: string, since = 0) {
         const key=kind+":"+since;
         let pending=reads.get(key);
@@ -1507,6 +1669,7 @@ function makeStore(files: any) {
     join: (...p: string[]) => p.join(IS_WIN ? "\\" : "/"),
     ensure: async (_: string) => {},
     exists: async (_: string) => false,
+    async get(kind:string,id:string){return clone(all(kind)[id]??null);},
     async list(kind: string, _since = 0) {
       return Object.values(all(kind));
     },
@@ -2362,7 +2525,7 @@ const RADIO_STRINGS: any = {
     template: "Template",
     name: "Name",
     duplicate: "Duplicate",
-    reset: "Reset to default",
+    reset: "Restore imported settings",
     del: "Delete",
     delConfirm: "Press again to delete",
     deleteTemplate: "Delete selected template",
@@ -2573,7 +2736,7 @@ const RADIO_STRINGS: any = {
     template: "\ud15c\ud50c\ub9bf",
     name: "\uc774\ub984",
     duplicate: "\ubcf5\uc81c",
-    reset: "\uae30\ubcf8\uac12\uc73c\ub85c",
+    reset: "\uac00\uc838\uc628 \uc0c1\ud0dc\ub85c \ub418\ub3cc\ub9ac\uae30",
     del: "\uc0ad\uc81c",
     delConfirm: "\ud55c \ubc88 \ub354 \ub204\ub974\uba74 \uc0ad\uc81c",
     deleteTemplate: "\uc120\ud0dd\ud55c \ud15c\ud50c\ub9bf \uc0ad\uc81c",
@@ -5052,6 +5215,13 @@ function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange
       setMsg({ tone: "error", text: String(e?.message || e) });
     } finally { setSaving(false); }
   }
+  async function restorePrevious() {
+    if(dirty||saving||!current.historyCount)return;
+    setSaving(true);
+    try{await store.restore(current.id,current.historyCount-1);await onChanged(current.id);setMsg(null);}
+    catch(e:any){setMsg({tone:"error",text:String(e?.message||e)});}
+    finally{setSaving(false);}
+  }
   async function remove() {
     if (!deleteOpen || saving || dirty) return;
     setSaving(true);
@@ -5087,7 +5257,7 @@ function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange
 
   return {
     current, edit, dirty, saving, msg, deleteOpen, setDeleteOpen,
-    setEdit, set, setMsg, save, duplicate, reset, remove, pickImage,
+    setEdit, set, setMsg, save, duplicate, reset, restorePrevious, remove, pickImage,
   };
 }
 
@@ -6436,7 +6606,7 @@ function TemplateEditorForm(props: any) {
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   if (!draft) return null;
   const { current, edit, dirty, saving, msg, deleteOpen, setDeleteOpen,
-    setEdit, set, setMsg, save, duplicate, reset, remove } = draft;
+    setEdit, set, setMsg, save, duplicate, reset, restorePrevious, remove } = draft;
   const { setSelId, sub, setSub } = state;
 
 
@@ -6486,11 +6656,12 @@ function TemplateEditorForm(props: any) {
             {lang === "ko" ? "\ud30c\uc77c\ub85c \ub0b4\ubcf4\ub0b4\uae30" : "Export to file"}
           </ui.Button>
           {dirty && <small>{lang === "ko" ? "\ub0b4\ubcf4\ub0b4\uae30 \uc804\uc5d0 \ubcc0\uacbd\uc0ac\ud56d\uc744 \uc800\uc7a5\ud574 \uc8fc\uc138\uc694." : "Save changes before exporting."}</small>}
-          {current.builtIn && (
+          <>
+            {current.historyCount>0 && <ui.Button variant="secondary" disabled={dirty||saving} onClick={restorePrevious}>{lang==='ko'?'\uc774\uc804 \uc0c1\ud0dc \ubcf5\uad6c':'Restore previous state'}</ui.Button>}
             <ui.Button variant="ghost" onClick={reset} disabled={!current.modified || dirty || saving}>
               {S.reset}
             </ui.Button>
-          )}
+          </>
         </ui.Actions>
         </div>
       </ui.Stack>
@@ -6791,12 +6962,24 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     }, { checkOnMount: true });
   }, [sdk, lang]);
 
+  const [importConflict,setImportConflict]=React.useState<any>(null);
+  const [importChoices,setImportChoices]=React.useState<any>({});
+  async function resolveTemplateImport(operation:()=>Promise<any>):Promise<any>{
+    try{return await operation();}catch(e:any){
+      if(!(e instanceof TemplateImportConflict)||!e.retry)throw e;
+      const choices:any=await new Promise(resolve=>{setImportChoices({});setImportConflict({conflicts:e.conflicts,resolve});});
+      setImportConflict(null);if(!choices)return null;
+      const expected=Object.fromEntries(e.conflicts.map((c:any)=>[c.id,c.token]));
+      return resolveTemplateImport(()=>e.retry(choices,expected));
+    }
+  }
   async function installPack(link = packLink, requestId?: string) {
     if (!link.trim() || packLock.current || busy || templateDirty || templateSaving) return;
     packLock.current = true;
     setPackBusy(true); setPackError(""); setPackMessage("");
     try {
-      const installed = await repository.install(link.trim(), true);
+      const installed = await resolveTemplateImport(()=>repository.install(link.trim(), true));
+      if(!installed)return;
       setPackLink("");
       const loaded = await loadTemplates();
       if (requestId) {
@@ -6821,9 +7004,11 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         if (!path) return;
         const size = await files.size(path);
         packAssert(size > 0 && size <= TEMPLATE_SHARE_MAX_BYTES, "Template file must be between 1 byte and 20 MiB.");
-        const imported = await importSharedTemplate(repository, await files.readFile(path));
+        const bytes = await files.readFile(path);
+        const imported = await resolveTemplateImport(()=>importSharedTemplate(repository, bytes));
+        if(!imported)return;
         await loadTemplates(); setTplSel(imported.id); setProgram(imported.id);
-        setPackMessage(lang === "ko" ? "\ud15c\ud50c\ub9bf\uc744 \ub3c5\ub9bd\ub41c \ubcf5\uc0ac\ubcf8\uc73c\ub85c \uac00\uc838\uc654\uc2b5\ub2c8\ub2e4." : "Imported an independent template copy.");
+        setPackMessage(lang === "ko" ? "\ud15c\ud50c\ub9bf\uc744 \uac00\uc838\uc654\uc2b5\ub2c8\ub2e4." : "Template imported.");
         setPackDialogOpen(false);
       } else {
         const bytes = encodeSharedTemplate(selected);
@@ -8181,6 +8366,22 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
               {templateDirty && <ui.Message>{K.blocked}</ui.Message>}
               {packBusy && <ui.Progress label={K.add} />}
               {packError && <ui.Message tone="error">{packError}</ui.Message>}
+            </TemplatePackDialog>
+            <TemplatePackDialog ui={ui} open={!!importConflict} title={lang==='ko'?'\ud15c\ud50c\ub9bf \uac00\uc838\uc624\uae30 \ud655\uc778':'Review template import'} closeLabel={S.cancel}
+              onClose={()=>importConflict?.resolve(null)}>
+              <div style={{display:'flex',flexDirection:'column',gap:16}}>
+              {(importConflict?.conflicts||[]).map((c:any)=><div key={c.id} style={{display:'flex',flexDirection:'column',gap:8}}>
+                <strong>{c.name}</strong>
+                <span>{lang==='ko'?({modified:'\uc800\uc7a5\ud55c \uc218\uc815\uc0ac\ud56d\uc774 \uc788\uc2b5\ub2c8\ub2e4.',older:'\uc774\uc804 \ubc84\uc804\uc785\ub2c8\ub2e4.', 'same-version':'\ubc84\uc804\uc740 \uac19\uc9c0\ub9cc \ub0b4\uc6a9\uc774 \ub2e4\ub985\ub2c8\ub2e4.',removed:'\uc0ad\uc81c\ud588\ub358 \ud15c\ud50c\ub9bf\uc785\ub2c8\ub2e4.',changed:'\ud655\uc778\ud558\ub294 \ub3d9\uc548 \uc124\uc815\uc774 \ubc14\ub00c\uc5c8\uc2b5\ub2c8\ub2e4.'} as any)[c.reason]:c.reason}</span>
+                <small>{lang==='ko'?'\ud604\uc7ac':'Current'} v{c.currentVersion} → {lang==='ko'?'\uac00\uc838\uc62c \ubc84\uc804':'Incoming'} v{c.incomingVersion}</small>
+                <ui.Segmented label={lang==='ko'?'\ucc98\ub9ac \ubc29\ubc95':'Action'} value={importChoices[c.id]||''} onChange={(value:string)=>setImportChoices((old:any)=>({...old,[c.id]:value}))}
+                  options={[{value:'replace',label:lang==='ko'?'\uac00\uc838\uc628 \uc124\uc815\uc73c\ub85c \uad50\uccb4':'Replace settings'},{value:'copy',label:lang==='ko'?'\uc0c8 \ud15c\ud50c\ub9bf\uc73c\ub85c \ucd94\uac00':'Add a copy'}]}/>
+              </div>)}
+              <small>{lang==='ko'?'\uad50\uccb4 \uc804 \uc0c1\ud0dc\ub294 \ubcf5\uad6c\ud560 \uc218 \uc788\ub3c4\ub85d \ubcf4\uad00\ud569\ub2c8\ub2e4. \uc124\uc815\uc744 \uc790\ub3d9\uc73c\ub85c \uc11e\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.':'The previous state is kept for recovery. Settings are never merged.'}</small>
+              <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
+                <ui.Button variant="secondary" onClick={()=>importConflict?.resolve(null)}>{S.cancel}</ui.Button>
+                <ui.Button variant="primary" disabled={!importConflict?.conflicts.every((c:any)=>importChoices[c.id])} onClick={()=>importConflict?.resolve(importChoices)}>{lang==='ko'?'\uc801\uc6a9':'Apply'}</ui.Button>
+              </div></div>
             </TemplatePackDialog>
             {templates.length > 0 && <TemplateEditor
               packBusy={packBusy}
