@@ -137,7 +137,7 @@ test('a pending face journal resumes before look commits; only a user click perm
 test('template unmount detaches and prevents a late finishTemplate response',async()=>{
   const template=panel.slice(panel.indexOf('function TemplateRun('),panel.indexOf('/** A template run (`context.template`)')).replace('  return <small>{status}</small>;','  return status;');
   const effects=[];let release,env;const finished=[];
-  const exports=vm.runInNewContext(stripTypeScriptTypes(template)+';({TemplateRun})',{
+  const exports=vm.runInNewContext(stripTypeScriptTypes(template)+';({TemplateRun})',{useAppUpdateGuard:()=>{},
     AbortController,useRef:value=>({current:value}),useState:value=>[value,()=>{}],useEffect:fn=>effects.push(fn),
     templateSpeaker:()=>({kind:'timeline',sequenceId:'draft'}),templatePaths:async()=>({}),
     panelEnv:(_sdk,_paths,_status,signal)=>{env={signal};return env;},
@@ -154,7 +154,7 @@ test('template unmount detaches and prevents a late finishTemplate response',asy
 test('template effect cleanup/setup before async preparation does not strand a StrictMode run',async()=>{
   const template=panel.slice(panel.indexOf('function TemplateRun('),panel.indexOf('/** A template run (`context.template`)')).replace('  return <small>{status}</small>;','  return status;');
   const effects=[],finished=[];let calls=0;
-  const TemplateRun=vm.runInNewContext(stripTypeScriptTypes(template)+';TemplateRun',{
+  const TemplateRun=vm.runInNewContext(stripTypeScriptTypes(template)+';TemplateRun',{useAppUpdateGuard:()=>{},
     AbortController,useRef:value=>({current:value}),useState:value=>[value,()=>{}],useEffect:fn=>effects.push(fn),
     templateSpeaker:()=>({kind:'timeline',sequenceId:'draft'}),templatePaths:async()=>({}),
     panelEnv:(_sdk,_paths,_status,signal)=>({signal}),
@@ -172,7 +172,7 @@ function styleHarness({deferCancel=false,transcriptRead} = {}) {
   const states=[],refs=[],effects=[],cancelCalls=[],editorCalls=[],runs=[];
   let stateIndex=0,refIndex=0,release,activeEnv,finishCancel;
   const paths={data:'/data',plugin:'/plugin',ffmpeg:'ffmpeg'};
-  const StylePanel=vm.runInNewContext(stripTypeScriptTypes(source)+';StylePanel',{
+  const StylePanel=vm.runInNewContext(stripTypeScriptTypes(source)+';StylePanel',{useAppUpdateGuard:()=>{},
     AbortController,MUSIC:{levelDb:-5},SUFFIX:' · Chris Williamson Style',faceUI:()=>['Resume styling','Cancel AI','Canceled','Canceling'],
     useRef:value=>refs[refIndex++]??=( {current:value} ),
     useState:value=>{const i=stateIndex++;if(!(i in states))states[i]=i===0?paths:value;return [states[i],next=>states[i]=next];},

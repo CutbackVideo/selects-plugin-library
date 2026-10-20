@@ -97,7 +97,7 @@ function templateFixture(saved=new Map()) {
  readMediaPages:async()=>({result:{videos:Array.from({length:10},(_,i)=>({resourceId:'r'+i,path:'/media/'+i+'.mp4'}))}}),
  mediaScript:()=>'',buildMontage:async(s,options)=>{calls.push(options);return new Promise((resolve,reject)=>{options.resolve=resolve;options.signal.addEventListener('abort',()=>reject(Error('Cancelled.')),{once:true});});}};
  const code=panelFunction('portrait-beat-montage','TemplateRun');
- const ctx=vm.createContext(globals);vm.runInContext(code+';this.run=TemplateRun;',ctx);
+ const ctx=vm.createContext({useAppUpdateGuard:()=>{},...globals});vm.runInContext(code+';this.run=TemplateRun;',ctx);
  return {sdk,saved,finishes,statuses,calls,render:(runId,{reopen=false}={})=>{
   if(reopen)refs=[];refIndex=0;
   ctx.run({sdk,context:{projectId:'project',template:{runId,inputs:{clips:Array.from({length:10},(_,i)=>({resourceId:'r'+i}))}}}});
@@ -145,7 +145,7 @@ test('Depth template retry intent is true once per new run and false on its remo
  DEPTH_TAG:'depth',DEPTH_TEMPLATE_SECONDS:90,DEPTH_DEFAULTS:{},DEPTH_TEMPLATE_FAILED:'failed',DEPTH_TEMPLATE_ERRORS:{},
  depthStorage:()=>({getItem:async key=>saved.get(key)||null}),depthSave:async(key,value)=>saved.set(key,JSON.stringify(value)),depthHostProblem:()=>null,
  depthTemplateError:code=>Object.assign(Error(code),{code}),depthMakeCaptions:async({control})=>{controls.push(control);throw Error('fixture stops after AI intent');},console:{warn:()=>{}}};
- const ctx=vm.createContext(globals);vm.runInContext(panelFunction('depth-type-captions','DepthTemplateRun')+';this.run=DepthTemplateRun;',ctx);
+ const ctx=vm.createContext({useAppUpdateGuard:()=>{},...globals});vm.runInContext(panelFunction('depth-type-captions','DepthTemplateRun')+';this.run=DepthTemplateRun;',ctx);
  const sdk={runScript:async()=>({result:{seconds:3}}),finishTemplate:()=>{}};
  const render=runId=>{i=0;ctx.run({sdk,context:{projectId:'project',template:{runId,libraryId:'library',inputs:{speaker:[{kind:'timeline',sequenceId:'draft'}]}}}});return effect();};
  render('same');await tick();assert.equal(controls[0].retryAi,true);
@@ -208,7 +208,7 @@ test('Jude template retries failed AI only for a new user run and reuses its vid
  TEMPLATE_FAILED:'failed',templateSpeaker:()=>({kind:'video',resourceId:'r0',name:'source'}),
  pluginPaths:async()=>({data:'/plugin-data',plugin:'/plugin'}),panelEnv:sdk=>({sdk}),
  templateDraftFromVideo:async()=>{made++;return 'template-draft';},runPipeline:async(env,pid,sid)=>{runs.push({retryAi:env.retryAi,sid});throw Error('fixture AI canceled');},hostMessage:e=>e.message};
- const ctx=vm.createContext(globals);vm.runInContext(stripTypeScriptTypes(panelFunction('jude-kinetic-style','TemplateRun'))+'\n;this.run=TemplateRun;',ctx);
+ const ctx=vm.createContext({useAppUpdateGuard:()=>{},...globals});vm.runInContext(stripTypeScriptTypes(panelFunction('jude-kinetic-style','TemplateRun'))+'\n;this.run=TemplateRun;',ctx);
  const sdk={storage:{getItem:async k=>saved.get(k)||null,setItem:async(k,v)=>saved.set(k,v)},finishTemplate:r=>finishes.push(r)};
  const render=runId=>{i=0;ctx.run({sdk,context:{projectId:'project',template:{runId}}});return effect();};
  render('same');await tick();assert.equal(runs[0].retryAi,true);assert.equal(made,1);

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "card-news-maker",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "name": "Card News Maker",
   "summary": "Turn a news article, pasted text or a project video into an editable 4:5 card news Draft, then export each card as an image.",
   "status": "experimental",

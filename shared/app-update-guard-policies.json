@@ -1,0 +1,175 @@
+{
+  "a16z-style-captions": {
+    "A16zShort": "busy"
+  },
+  "ali-abdaal-style": {
+    "StylePanel": "busy",
+    "TemplateRun": "true"
+  },
+  "archive-vlog": {
+    "ArchiveVlogPanel": "busy || busyRef.current || invLoadingRef.current",
+    "TemplateRun": "true"
+  },
+  "camera-shutter-dump": {
+    "PhotoPanel": "busy || running.current",
+    "PhotoTemplateRun": "true"
+  },
+  "card-news-maker": {
+    "ProjectPanel": "busy || (!!tplEdit && JSON.stringify(tplEdit) !== tplBase)",
+    "TemplateEditor": "saving || dirty"
+  },
+  "chris-williamson-style": {
+    "StylePanel": "busy || !!pending",
+    "TemplateRun": "true"
+  },
+  "cinema-vlog-studio": {
+    "CinemaVlogPanel": "busy || loadingFolders || loadingVideos || !!pending.current",
+    "CinemaTemplateRun": "true"
+  },
+  "city-weekend-vlog": {
+    "CityWeekendVlogPanel": "busy || busyRef.current || invLoadingRef.current",
+    "TemplateRun": "true"
+  },
+  "cutout-beat-gallery": {
+    "Panel": "busy"
+  },
+  "daily-vlog-8": {
+    "DailyVlogPanel": "busy || loadingFolders || loadingVideos",
+    "DailyTemplateRun": "true"
+  },
+  "depth-type-captions": {
+    "DepthEditorReady": "busy",
+    "DepthTemplateRun": "true"
+  },
+  "doac-style": {
+    "CaptionPanel": "busy || lock.current || !!pendingSave.current || editing || storageLoading || !!job?.uncertain",
+    "TemplateRun": "true"
+  },
+  "eo-shorts": {
+    "EoShortsPanel": "getState().busy || s.lease === 'live' || confirmRebuild"
+  },
+  "epidemic-sound-search": {
+    "Panel": "!!busy || !!busyRef.current"
+  },
+  "fast-switching-stopmotion": {
+    "StopMotionPanel": "busy || busyRef.current",
+    "TemplateRun": "true"
+  },
+  "four-photo-stop-motion": {
+    "PhotoPanel": "busy || running.current",
+    "PhotoTemplateRun": "true"
+  },
+  "gongju-gallery": {
+    "GalleryPanel": "busy || loading",
+    "TemplateRun": "true"
+  },
+  "imessage-generator": {
+    "IMessageGenerator": "busy || setupBusy || voiceBusy || voicesLoading || audioLoading || scriptFocused || !!pane"
+  },
+  "jared-vox-editorial": {
+    "Panel": "!!busy"
+  },
+  "jude-kinetic-style": {
+    "StylePanel": "busy",
+    "TemplateRun": "true"
+  },
+  "mini-vlog": {
+    "MiniVlogPanel": "busy || busyRef.current || invLoadingRef.current",
+    "TemplateRun": "true"
+  },
+  "multicam-generator": {
+    "Session": "busy || pendingSave.current || !restored || (!!job && !['placed','failed','canceled'].includes(job.phase))"
+  },
+  "music": {
+    "Panel": "busy || lock.current || canceling"
+  },
+  "no14-still-video": {
+    "No14Panel": "busy || running.current",
+    "No14TemplateRun": "true"
+  },
+  "photo-gallery-no2": {
+    "GalleryPanel": "busy || running.current",
+    "GalleryTemplateRun": "true"
+  },
+  "place-count": {
+    "PlaceCountWorkspace": "busy || lock.current || !!running",
+    "PlaceCountTemplate": "true"
+  },
+  "podcast-hook-captions": {
+    "PodcastHookReel": "busy",
+    "FaceStage": "busy || running.current"
+  },
+  "polaroid-photo-dump": {
+    "PhotoPanel": "busy || running.current",
+    "PhotoTemplateRun": "true"
+  },
+  "portrait-beat-montage": {
+    "MontagePanel": "busy || loading",
+    "TemplateRun": "true"
+  },
+  "postcard-cutout-studio": {
+    "PostcardEditor": "busy || busyRef.current || folderBusy.current || dirty.current || !!active || !!creditAsk",
+    "PostcardTemplateRun": "true"
+  },
+  "recap-2026": {
+    "RecapPanel": "busy",
+    "TemplateRun": "true"
+  },
+  "selects-ai-runtime": {
+    "TaskPane": "busy || busyRef.current || !!pending || !restored"
+  },
+  "selfie-aesthetic": {
+    "SelfieAestheticPanel": "busy || busyRef.current || invLoadingRef.current",
+    "TemplateRun": "true"
+  },
+  "short-form-safe-zones": {
+    "Panel": "busy"
+  },
+  "shortform-clips": {
+    "ShortformClipsPanel": "updateBlocked.current || overlayBusy || overlayLoading",
+    "GeneratedCoverGallery": "busy || previewLoading"
+  },
+  "shortform-cloner": {
+    "ProjectPanel": "busy || aBusy || (!!tplEdit && JSON.stringify(tplEdit) !== tplBase)",
+    "TemplateEditor": "saving || dirty"
+  },
+  "six-clip-velocity": {
+    "Panel": "busy || running.current"
+  },
+  "summer-trip": {
+    "SummerTripPanel": "busy || busyRef.current || invLoadingRef.current",
+    "TemplateRun": "true"
+  },
+  "tang-poetry-explainer": {
+    "Panel": "!!busy"
+  },
+  "tetris": {
+    "Panel": "(phase === 'playing' && !stats.over) || conn !== 'off'"
+  },
+  "thank-you-recap": {
+    "RecapPanel": "busy || busyRef.current",
+    "TemplateRun": "true"
+  },
+  "the-end-credits": {
+    "EndCreditsPanel": "busy || busyRef.current || invLoadingRef.current",
+    "TemplateRun": "true"
+  },
+  "timeline-shorts-builder": {
+    "Panel": "busy || loading || !!pendingRead"
+  },
+  "torn-paper-love": {
+    "TornPaperPanel": "busy || !!busyRef.current || invLoadingRef.current",
+    "TemplateRun": "true"
+  },
+  "travel-beat-vlog": {
+    "TravelPanel": "busy || running.current",
+    "TravelTemplateRun": "true"
+  },
+  "vlog-opening": {
+    "OpeningPanel": "busy",
+    "TemplateRun": "true"
+  },
+  "vox-explainer": {
+    "Panel": "!!busy"
+  }
+}

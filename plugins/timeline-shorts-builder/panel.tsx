@@ -74,6 +74,7 @@ class ImageWorker {
 function Layout({ratio,setRatio,disabled,aspect}:{ratio:number;setRatio:(n:number)=>void;disabled:boolean;aspect:number}){const ref=useRef<HTMLDivElement|null>(null),drag=useRef(false),update=(y:number)=>{const r=ref.current?.getBoundingClientRect();if(r&&!disabled)setRatio(Math.max(30,Math.min(80,Math.round((y-r.top)/r.height*100))))};const fit=Math.min(1080/(aspect*1000),1920*ratio/100/1000),iw=aspect*1000*fit/1080*100,ih=1000*fit/1920*100;
 return <div style={{display:'grid',gap:6,justifyItems:'center'}}><div ref={ref} role="slider" aria-label="Video area ratio" aria-valuemin={30} aria-valuemax={80} aria-valuenow={ratio} tabIndex={disabled?-1:0} onPointerDown={e=>{if(disabled)return;drag.current=true;e.currentTarget.setPointerCapture(e.pointerId);update(e.clientY)}} onPointerMove={e=>{if(drag.current)update(e.clientY)}} onPointerUp={()=>{drag.current=false}} onPointerCancel={()=>{drag.current=false}} onDoubleClick={()=>{if(!disabled)setRatio(50)}} onKeyDown={e=>{if(!disabled&&(e.key==='ArrowUp'||e.key==='ArrowDown')){e.preventDefault();setRatio(Math.max(30,Math.min(80,ratio+(e.key==='ArrowUp'?-1:1))))}}} style={{position:'relative',width:'min(156px,100%)',aspectRatio:'9/16',background:'#000',overflow:'hidden',border:'1px solid var(--panel-border)',touchAction:'none',cursor:'row-resize'}}><div style={{position:'absolute',left:`${(100-iw)/2}%`,top:`${ratio-ih}%`,width:`${iw}%`,height:`${ih}%`,background:'linear-gradient(160deg,#f59e0b,#2563eb,#0f766e)'}}/><span style={{position:'absolute',left:6,top:6,fontSize:9,color:'white'}}>Fit entire source · {ratio}%</span><div style={{position:'absolute',left:0,right:0,top:`${ratio}%`,bottom:0,background:'#171717',paddingTop:20}}>{[0,1,2].map(i=><div key={i} style={{margin:'4px 8px 4px 20px',height:15,background:i===0?'#5520a3':'#164e63',border:'1px solid #36c5d4'}}/>)}<div style={{position:'absolute',left:'42%',top:8,bottom:0,width:1,background:'#8ac926'}}/></div><div style={{position:'absolute',left:0,right:0,top:`calc(${ratio}% - 2px)`,height:4,background:'#38bdf8'}}/></div><small>Drag to split · Double-click for 50:50</small></div>}
 function Panel({sdk,context}:any){
+  useAppUpdateGuard(sdk, context?.language, () => !!(busy || loading || !!pendingRead));
   hostUseSdk(sdk);
  const [rows,setRows]=useState<Row[]>([]),[id,setId]=useState(''),[name,setName]=useState('Timeline Shorts'),[ratio,setRatio]=useState(50),[bg,setBg]=useState('#151515'),[head,setHead]=useState('#8ac926'),[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[status,setStatus]=useState(''),[last,setLast]=useState(''),[pendingRead,setPendingRead]=useState(0);const job=useRef<AbortController|null>(null),pendingReads=useRef(0);const lock=useRef(false),seqRef=useRef(''),load=useRef(0),projectRef=useRef(context.projectId);projectRef.current=context.projectId;const target=rows.find(x=>x.sequenceId===id);const [prepared,setPrepared]=useState<any>(null),[metrics,setMetrics]=useState<any>(null);const preparedRef=useRef<any>(null),converter=useRef(new ImageWorker()),metricRef=useRef<any>(null),sessionNonce=useRef(String(Date.now()));
  async function checkpoint(){await yieldUI();if(job.current?.signal.aborted)throw new StopWork('Stopped. Any Draft already saved is preserved.');}
@@ -416,3 +417,50 @@ function withPanelLocalClient(Component: any) {
 
 export default withPanelLocalClient(Panel);
 // local-sdk:end
+
+// app-update-guard:start
+// Shared source, inlined into portable panels by tools/sync_app_update_guards.py.
+import * as AppUpdateGuardReact from 'react';
+
+const appUpdateGuardScopes = new WeakMap<object, any>();
+
+/** Each mounted editor contributes a live veto; the host receives one guard per SDK. */
+function useAppUpdateGuard(sdk: any, language: string | undefined, readBlocked: (context: any) => boolean) {
+  const live = AppUpdateGuardReact.useRef({ language, readBlocked });
+  live.current = { language, readBlocked };
+  AppUpdateGuardReact.useEffect(() => {
+    const api = sdk?.updates;
+    if (typeof api?.registerGuard !== 'function') return;
+    let group = appUpdateGuardScopes.get(api);
+    if (!group) {
+      group = { entries: new Set(), dispose: null };
+      appUpdateGuardScopes.set(api, group);
+    }
+    group.entries.add(live);
+    if (!group.dispose) {
+      group.dispose = api.registerGuard({
+        async canUpdate(context: any) {
+          for (const entry of group.entries) {
+            // A partially initialized editor must not lose state during reload.
+            let blocked = true;
+            try { blocked = Boolean(entry.current.readBlocked(context)); } catch { /* fail closed */ }
+            if (blocked) {
+              const korean = String(entry.current.language || '').toLowerCase().startsWith('ko');
+              throw new Error(korean
+                ? '\uc9c4\ud589 \uc911\uc778 \uc791\uc5c5\uc744 \ub9c8\uce58\uace0 \ubcc0\uacbd\uc0ac\ud56d\uc744 \uc800\uc7a5\ud55c \ub4a4 \uc571\uc744 \uc5c5\ub370\uc774\ud2b8\ud574\uc8fc\uc138\uc694.'
+                : 'Finish the current operation and save changes before updating this app.');
+            }
+          }
+        },
+      });
+    }
+    return () => {
+      group.entries.delete(live);
+      if (!group.entries.size) {
+        group.dispose?.();
+        appUpdateGuardScopes.delete(api);
+      }
+    };
+  }, [sdk?.updates]);
+}
+// app-update-guard:end

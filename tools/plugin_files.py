@@ -43,6 +43,19 @@ def validate_manifest(manifest):
     require(isinstance(manifest.get('version'), str) and re.fullmatch(
         r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?',
         manifest['version']), 'Invalid version')
+    if 'minSelectsVersion' in manifest:
+        minimum = manifest['minSelectsVersion']
+        match = re.fullmatch(
+            r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
+            r'(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?'
+            r'(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?', minimum
+        ) if isinstance(minimum, str) else None
+        require(match is not None, 'Invalid minSelectsVersion')
+        prerelease = match.group(4)
+        require(not prerelease or not any(
+            item.isdigit() and len(item) > 1 and item.startswith('0')
+            for item in prerelease.split('.')
+        ), 'Invalid minSelectsVersion')
     files = manifest.get('files')
     require(isinstance(files, list) and 0 < len(files) <= 1000 and all(isinstance(f, str) for f in files), 'Missing files list')
     require(len(set(files)) == len(files) and 'plugin.json' not in files, 'Duplicate or reserved file')

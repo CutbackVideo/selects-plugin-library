@@ -121,3 +121,34 @@ styles can sit apart. Apps without support ignore it and list by name.
 Plugins may ship PNG, JPEG or WebP images under
 `plugins/<plugin-id>/template-packs/<pack-id>/assets/`. The public-source
 checker validates file signatures and allows up to 20 MiB per image.
+
+## Minimum Selects version
+
+A plugin that needs a newer Selects host may declare `"minSelectsVersion": "2.0.730"`
+in `plugin.json`. This is an optional strict SemVer version, not a range.
+Prerelease and build metadata are accepted; numeric prerelease identifiers cannot
+have leading zeroes. Omitting the field imposes no minimum. Declare it only when
+the app requires that host version; do not copy the example into every manifest.
+The host applies the minimum to installation and update eligibility. Older hosts
+may ignore this new metadata, so keep feature guards for any unsupported host APIs.
+
+### Update guards for panel apps
+
+The common host installer asks open apps whether they can be reloaded. Panel apps
+use `sdk.updates?.registerGuard` when available; older hosts simply skip the guard.
+The shared React hook in `shared/app-update-guard.ts` combines mounted editors into
+one guard. Any active operation or unsaved editor can reject a reload, including a
+reload caused by updating a dependency such as `selects-ai-runtime`.
+
+When adding an app or new editor, add its live busy/dirty predicate to
+`shared/app-update-guard-policies.json` and call `useAppUpdateGuard` from the React
+component. Do not call hooks from async job functions. Run
+`python3 tools/sync_app_update_guards.py` after editing the shared helper, then
+rebuild panels that have source generators. The policy test checks component hook
+coverage; application-specific state handling still needs review when an editor
+changes. The guard throws a localized message; it never downloads or installs.
+
+The existing Shortform Clips update provider remains in place for compatibility
+with the first opt-in host. Removing that provider and its updater is a separate
+release after the common host is available. This change does not update template
+packs or migrate user data.

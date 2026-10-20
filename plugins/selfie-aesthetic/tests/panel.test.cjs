@@ -466,9 +466,9 @@ const tplRun = between(own, 'async function runSelfieTemplate(', '\nfunction Tem
 test('template run: the code from the "Template runs." banner to the end is byte-identical to origin/main (user policy)', () => {
   // Hyun/Jay's Clip highlights template mode: never edited by this plugin's changes. It benefits from the shared steps
   // (readSpans, readMotionCurves, searchCloseUps, buildDraft), whose signatures it calls unchanged.
-  // Normalize only the new shared SDK wrapper; keep the existing template-body hash.
+  // Normalize SDK setup and the reload guard only; keep the existing template-body hash.
   const slice = panel.slice(panel.indexOf('// Template runs.'), panel.indexOf('// local-sdk:start')).trimEnd().replace(/^ *function Panel\(/m, 'export default function Panel(') + '\n';
-  const originalTemplate = slice.replace(/  hostUseSdk\((?:props\.)?sdk\);\n/g, '').replace('(await saeSkillsDir(PLUGIN_ID))', 'saeSkillsDir(PLUGIN_ID)').replaceAll('fs.mkdir"', 'fs.mkdirSync"');
+  const originalTemplate = slice.replace(/  useAppUpdateGuard\(sdk, context\?\.language, \(\) => !!\(true\)\);\n/g, '').replace(/  hostUseSdk\((?:props\.)?sdk\);\n/g, '').replace('(await saeSkillsDir(PLUGIN_ID))', 'saeSkillsDir(PLUGIN_ID)').replaceAll('fs.mkdir"', 'fs.mkdirSync"');
   assert.equal(require('node:crypto').createHash('sha256').update(originalTemplate).digest('hex'), '02aada7708b5c40e26f3b496bd9c95fbff4515842cb76567aedba4beacaf685f');
   for (const sig of ['async function readSpans(sdk: any, pid: string, inv: any, rids: string[], spansCache: Map<string, number[][]>, check: () => void,',
     'async function readMotionCurves(pid: string, inv: any, rids: string[], motionCache: Map<string, { fps: number; values: Float32Array }>, check: () => void,',

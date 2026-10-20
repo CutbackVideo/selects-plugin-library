@@ -1,3 +1,5 @@
+// Injected by the portable-panel build footer from shared/app-update-guard.ts.
+declare function useAppUpdateGuard(sdk: any, language: string | undefined, readBlocked: (context: any) => boolean): void;
 import {withPanelLocalClient} from "../../../shared/local-client";
 import { hostUseSdk } from "./pipeline/host";
 import React, { useEffect, useRef, useState } from "react";
@@ -52,6 +54,7 @@ import { app } from "./pipeline/host";
 const STORE = "podcast-hook-captions:v2:";
 
 function PodcastHookReel({ sdk, context, ui, saved }: any) {
+  useAppUpdateGuard(sdk, context?.language, () => !!(busy));
   hostUseSdk(sdk);
   const [seconds, setSeconds] = useState(25);
   const [hint, setHint] = useState("");

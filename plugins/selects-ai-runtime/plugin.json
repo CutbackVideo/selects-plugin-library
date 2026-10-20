@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "selects-ai-runtime",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "name": "Selects AI Runtime PoC",
   "summary": "Shared external YuNet, RVM and experimental Light-ASD runtime with verified native dependencies.",
   "status": "experimental",

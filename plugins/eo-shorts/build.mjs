@@ -79,6 +79,7 @@ const result = esbuild.buildSync({
   logLevel: "warning",
   define: { __EO_PLUGIN_VERSION__: JSON.stringify(manifest.version) },
   banner: { js: header },
+  footer: { js: "// app-update-guard:start\n" + readFileSync(join(ROOT, "../../shared/app-update-guard.ts"), "utf8").trimEnd() + "\n// app-update-guard:end" },
 });
 const imports = new Set();
 for (const o of Object.values(result.metafile.outputs)) for (const i of o.imports || []) if (i.external) imports.add(i.path);

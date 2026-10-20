@@ -474,7 +474,7 @@ async function openFrameSize(steps,sequenceId){
  try{const size=await steps.run('Read the open timeline size',`return (await selects.draft(${JSON.stringify(sequenceId)}).meta()).frameSize;`);const width=Math.round(Number(size?.width)),height=Math.round(Number(size?.height));return width>0&&height>0?{width,height}:null;}catch{return null;}
 }
 // Resolves to the new Draft's sequence id; rejects with a public message.
-async function runTemplate({sdk,context,live,progress}){bindLocalSdk(sdk);
+async function runTemplate({sdk,context,live,progress}){
  const t={pid:context.projectId};
  const check=()=>{if(!live())throw issue('A newer run replaced this one.','CONTEXT_CHANGED');};
  if(!t.pid)throw issue('Open a project, then try again.');
@@ -560,6 +560,7 @@ function PlaceRow({place,frozen,onToggle,onChange,onTextChange,playing,onPlay,on
   </li>;
 }
 function PlaceCountWorkspace({sdk,context}){
+  useAppUpdateGuard(sdk, context?.language, () => !!(busy || lock.current || !!running));
  const [story,setStory]=useState(()=>newStory(context.projectId)),ref=useRef(story);ref.current=story;
  const [busy,setBusy]=useState(false),content=useRef(null),lock=useRef(false),stop=useRef(false),epoch=useRef(0),pid=useRef(context.projectId);pid.current=context.projectId;const alive=useRef(true);
  const [loaded,setLoaded]=useState(false),[error,setError]=useState(null),[progress,setProgress]=useState(null),[playing,setPlaying]=useState(null),[settingsOpen,setSettingsOpen]=useState(false),[running,setRunning]=useState(null),[support,setSupport]=useState({ready:false,message:''});const assets=useRef({});
@@ -679,6 +680,7 @@ function PlaceCountWorkspace({sdk,context}){
 // The template run's panel: nobody sees it, so it shows one status line. It
 // starts once per run id, and reports once, unless a newer run replaced it.
 function PlaceCountTemplate({sdk,context}){
+  useAppUpdateGuard(sdk, context?.language, () => !!(true));
  const runId=context.template?.runId,[status,setStatus]=useState('Building your story...'),started=useRef(null),alive=useRef(true),latest=useRef(context);latest.current=context;
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
  useEffect(()=>{
@@ -958,3 +960,50 @@ function withPanelLocalClient(Component: any) {
 
 export default withPanelLocalClient(PlaceCount);
 // local-sdk:end
+
+// app-update-guard:start
+// Shared source, inlined into portable panels by tools/sync_app_update_guards.py.
+import * as AppUpdateGuardReact from 'react';
+
+const appUpdateGuardScopes = new WeakMap<object, any>();
+
+/** Each mounted editor contributes a live veto; the host receives one guard per SDK. */
+function useAppUpdateGuard(sdk: any, language: string | undefined, readBlocked: (context: any) => boolean) {
+  const live = AppUpdateGuardReact.useRef({ language, readBlocked });
+  live.current = { language, readBlocked };
+  AppUpdateGuardReact.useEffect(() => {
+    const api = sdk?.updates;
+    if (typeof api?.registerGuard !== 'function') return;
+    let group = appUpdateGuardScopes.get(api);
+    if (!group) {
+      group = { entries: new Set(), dispose: null };
+      appUpdateGuardScopes.set(api, group);
+    }
+    group.entries.add(live);
+    if (!group.dispose) {
+      group.dispose = api.registerGuard({
+        async canUpdate(context: any) {
+          for (const entry of group.entries) {
+            // A partially initialized editor must not lose state during reload.
+            let blocked = true;
+            try { blocked = Boolean(entry.current.readBlocked(context)); } catch { /* fail closed */ }
+            if (blocked) {
+              const korean = String(entry.current.language || '').toLowerCase().startsWith('ko');
+              throw new Error(korean
+                ? '\uc9c4\ud589 \uc911\uc778 \uc791\uc5c5\uc744 \ub9c8\uce58\uace0 \ubcc0\uacbd\uc0ac\ud56d\uc744 \uc800\uc7a5\ud55c \ub4a4 \uc571\uc744 \uc5c5\ub370\uc774\ud2b8\ud574\uc8fc\uc138\uc694.'
+                : 'Finish the current operation and save changes before updating this app.');
+            }
+          }
+        },
+      });
+    }
+    return () => {
+      group.entries.delete(live);
+      if (!group.entries.size) {
+        group.dispose?.();
+        appUpdateGuardScopes.delete(api);
+      }
+    };
+  }, [sdk?.updates]);
+}
+// app-update-guard:end
