@@ -39,12 +39,14 @@ retains its own browser session per Selects user; no password or API key enters
 the panel or script. This path uses the website, not MCP OAuth. Requires
 `music.artlist.web-session.v1`; older hosts show an update message.
 
-The layout follows the built-in Epidemic Sound app. Search, Favorites,
-Downloads and Artboards are the app's own panel tabs (Panel UI version 4,
+The layout follows the built-in Epidemic Sound app. Music, Sound
+effects, Favorites, Downloads and Artboards are the app's own panel tabs (Panel UI version 4,
 `Tabs variant="strip"`); docked, the strip scrolls sideways. The ⋯ after them
 is a dropdown with the account's email and plan, **Refresh account and plan**,
-the license link and **Disconnect**. Under the tabs sit the search field (on
-Search), the Artboard picker (on Artboards) and Music/Sound effects.
+the license link and **Disconnect**. Music and Sound effects search the catalog;
+Favorites, Downloads (the account's Artlist download history) and Artboards
+list music and sound effects together, a page of each. Artboards adds the
+board picker under the tabs.
 
 Results are a list under a quiet heading. A row is the cover, the title over
 the artist, and the length over the BPM; narrow, the BPM gives way first, then
