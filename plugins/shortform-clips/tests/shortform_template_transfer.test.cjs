@@ -17,7 +17,9 @@ test('portable template files',{skip:!modules},async t=>{
  await t.test('round trip keeps actual edits, both layouts and embedded images without source identity',()=>{
   const bytes=api.encodeSharedTemplate(original),text=new TextDecoder().decode(bytes),decoded=api.decodeSharedTemplate(bytes);
   for(const secret of ['private-pack','private-project','private-source','/private/video.mp4','sbs-radio/private-template'])assert.ok(!text.includes(secret));
-  for(const field of ['name','layout','prompt','variants','logo','background','captions','thumbnail'])assert.deepEqual(decoded[field],original[field]);
+  for(const field of ['name','layout','prompt','variants','logo','background','captions'])assert.deepEqual(decoded[field],original[field]);
+  const {enabled,...thumbnail}=original.thumbnail;assert.deepEqual(decoded.thumbnail,thumbnail);
+  assert.equal(original.thumbnail.enabled,true,'Migration does not mutate the source export object');
   assert.ok(decoded.logo.image.startsWith('data:image/'));
  });
  await t.test('same file imports as independent copies and survives repository reload',async()=>{

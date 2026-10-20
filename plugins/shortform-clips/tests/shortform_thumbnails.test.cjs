@@ -237,8 +237,8 @@ test('generated thumbnail lifecycle', {skip:!root&&'Set SBS_PANEL_TEST_MODULES'}
     f.store.fs.readFile=async()=>new TextEncoder().encode(++reads===1?'{"version":1,"items":':'{"version":1,"items":[{"id":"retained"}]}');
     const m=await api.readCoverManifest(f.store,'run','draft');assert.equal(reads,2);assert.equal(m.items[0].id,'retained');
   });
-  await t.test('defaults off, preserves up to five references, rejects malformed settings',()=>{
-    assert.equal(api.coverSettings({}).enabled,false);
+  await t.test('manual generation has no enable flag, preserves references and validates settings',()=>{
+    assert.equal(api.coverSettings({}).enabled,undefined);
     api.validateCoverSettings(config);
     assert.throws(()=>api.validateCoverSettings({...config,references:Array(6).fill(config.references[0])}),/five/);
     assert.throws(()=>api.validateCoverSettings({...config,references:[{name:'bad',data:'https://untrusted'}]}),/reference/);

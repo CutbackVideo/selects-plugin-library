@@ -372,7 +372,7 @@ test('user cancellation propagates without saving a fallback',async()=>{
   assert.equal(p.saved.length,0);
 });
 
-const buildLiteral = panel.match(/^const RADIO_SCRIPT_BUILD: string = SCRIPT_SOURCE_READER \+ (".*");$/m);
+const buildLiteral = panel.match(/^const SCRIPT_BUILD: string = SCRIPT_SOURCE_READER \+ SCRIPT_DESIGN_ELEMENTS \+ (".*");$/m);
 assert.ok(buildLiteral);
 const build = JSON.parse(buildLiteral[1]);
 const framing = build.slice(build.indexOf('if (Array.isArray(P.reframe)'), build.indexOf('\nconst mainClips ='));

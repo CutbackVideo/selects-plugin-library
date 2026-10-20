@@ -49,10 +49,10 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
     assert.equal(template('money-lab').layout.windowTop,560);
     assert.equal(template('money-lab','shorts').layout.windowTop,402);
     const duplicate={...structuredClone(template('money-lab','shorts')),id:'custom-money'};
-    assert.equal(api.forPlatform(duplicate,'tiktok').renderer,'series');
+    assert.equal(api.forPlatform(duplicate,'tiktok').renderer,undefined);
     assert.equal(api.forPlatform(duplicate,'tiktok').layout.windowTop,560);
-    assert.equal(template('political-show').renderer,'separate-headlines');
-    assert.equal(template('news-briefing').renderer,'separate-headlines');
+    assert.equal(template('political-show').renderer,undefined);
+    assert.equal(template('news-briefing').renderer,undefined);
   });
 
   await t.test('new clips never inherit preview or legacy automatic-overlay settings', () => {
@@ -100,7 +100,18 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       const wrapped=esbuild.transformSync('async function build(selects){'+code+'}\nreturn build;',{loader:'ts'}).code;
       const result=await new Function(wrapped)()(selects);
       assert.equal(result.draftId,'verified');
-      assert.ok(graphics.some(g=>g.label==='Series frame and headline'));
+      assert.ok(!graphics.some(g=>g.label==='Series frame and headline'));
+      for(const label of ['Clip · \ubc30\uacbd','Clip · \uc81c\ubaa9 1','Clip · \uc81c\ubaa9 2','Clip · \ud504\ub85c\uadf8\ub7a8 \ub85c\uace0'])assert.ok(graphics.some(g=>g.label===label),label);
+      const first=graphics.find(g=>g.label==='Clip · \uc81c\ubaa9 1'),second=graphics.find(g=>g.label==='Clip · \uc81c\ubaa9 2');
+      assert.ok(first.editableParameters.some(p=>p.key==='headline1'));
+      assert.ok(!first.editableParameters.some(p=>p.key==='headline2'));
+      assert.ok(second.editableParameters.some(p=>p.key==='headline2'));
+      assert.equal(first.parameters.designElement,'headline1');
+      assert.equal(second.parameters.designElement,'headline2');
+      const background=graphics.find(g=>g.label==='Clip · \ubc30\uacbd');
+      assert.equal(background.parameters.designElement,'background');
+      // Gradient strings are valid backgrounds, but not SDK color-field defaults.
+      assert.equal(background.editableParameters.find(p=>p.key==='background').type,'text');
       for (const g of graphics) assert.ok(g.editableParameters?.length > 0, g.label + ' remains editable');
       assert.ok(graphics.some(g=>g.label.startsWith('Caption ')));
       assert.equal(graphics.some(g=>g.label==='Date'),id==='money-lab');
@@ -131,7 +142,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         createDraft:async()=>draft,
       };
       const selects={project:()=>project,effectPresets:{get:async()=>({tsxCode:'export default function Text(){return null}',parameters:{},editableParameters:[]})}};
-      const script=((tpl.renderer==='series')?api.RADIO_SCRIPT_BUILD:api.SCRIPT_BUILD).replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
+      const script=api.SCRIPT_BUILD.replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
       const code=esbuild.transformSync('return (async()=>{'+script+'})();',{loader:'ts'}).code;
       const result=await new Function('selects',code)(selects);
       assert.equal(result.draftId,'early-'+id);
@@ -139,10 +150,10 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       for (const g of graphics.filter(g=>g.label.startsWith('Caption '))) {
         assert.equal(g.parameters.fontFamily,'Sandoll Caption',id+' generated caption font');
       }
-      if(tpl.renderer==='series') {
-        assert.equal(graphics.find(g=>g.label==='Series frame and headline').parameters.fontFamily,'Sandoll Headline');
+      {
+        assert.equal(graphics.find(g=>g.label==='Clip · \uc81c\ubaa9 1').parameters.fontFamily,'Sandoll Headline');
       }
-      assert.ok(graphics.some(g=>g.label=== ((tpl.renderer==='series')?'Series frame and headline':'Clip · \uc81c\ubaa9 1')),id+' frame and headline');
+      assert.ok(graphics.some(g=>g.label=== 'Clip · \uc81c\ubaa9 1'),id+' frame and headline');
     }
   });
 
@@ -214,14 +225,14 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       await act(async()=>root.render(h(Harness)));
       for(const original of originals) {
         await change(S.template,original.id);
-        const radio=original.renderer==='series';
+        const radio=original.platformLayouts ?? !!original.variants?.tiktok;
         assert.equal(controls.has(S.layoutKind),radio);
         if(radio) assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutTiktok)));
         assert.deepEqual([...document.querySelectorAll('[data-template-section]')].map(t=>t.textContent), ['Design','Captions','Framing','Content','Thumbnails']);
         assert.equal(controls.has('Framing mode'),false);
         await change('tabs','framing');
-        assert.equal(controls.has('Framing mode'),radio);
-        if(radio) {
+        assert.equal(controls.has('Framing mode'),true);
+        {
           const previousMode=get('Framing mode').value;
           await change('Framing mode','manual');
           assert.ok(controls.has(S.sourceTop));
@@ -237,9 +248,9 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         await change('tabs','ai');
         assert.equal(controls.has(S.removeFillers),true);
         await change('tabs','look');
-        assert.equal(controls.has(S.stroke),radio);
-        assert.equal(controls.has(api.OVERLAY_STRINGS.en.preview),!radio && original.renderer==='separate-headlines');
-        if(!radio && original.renderer==='separate-headlines') {
+        assert.equal(controls.has(S.stroke),true);
+        assert.equal(controls.has(api.OVERLAY_STRINGS.en.preview),true);
+        if(true) {
           const writesBefore=writes.length, imagesBefore=document.querySelectorAll('img').length;
           await change(api.OVERLAY_STRINGS.en.preview,true);
           assert.equal(document.querySelectorAll('img').length,imagesBefore+1,'Overlay appears in preview');
@@ -252,8 +263,8 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         assert.equal(get(S.logoMode).options.some(o=>o.value==='art'),false);
         const displayed=radio?api.forPlatform(original,'tiktok'):original;
         assert.equal(get(S.windowTop).value,displayed.layout.windowTop);
-        assert.equal(controls.has(S.editable.topLabel),radio && !!displayed.labels?.top);
-        assert.equal(controls.has(S.editable.footer),radio && !!displayed.labels?.footer);
+        assert.equal(controls.has(S.editable.topLabel),true);
+        assert.equal(controls.has(S.editable.footer),true);
       }
       // Variants have separate design settings, while the name and AI prompts remain shared.
       await change(S.windowTop,601);
@@ -308,7 +319,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       const customId=get(S.template).value;
       assert.notEqual(customId,'money-lab');
       assert.equal(rows.get(customId).baseId,'money-lab');
-      assert.equal(rows.get(customId).renderer,'series');
+      assert.equal(rows.get(customId).renderer,undefined);
       assert.equal(rows.get(customId).variants.tiktok.layout.windowTop,601);
       await change(S.windowTop,620);
       await click(S.save);
