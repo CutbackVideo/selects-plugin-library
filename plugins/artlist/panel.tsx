@@ -15,7 +15,7 @@ const COPY = {
     artlist_import_uncertain: 'Check project files before trying the import again.',
     openTrack: 'Open in Artlist', connect: 'Connect Artlist', connected: 'Artlist connected', connectHint: 'Sign in on Artlist, then open your profile menu to finish connecting.', connectHintAuto: 'Sign in on Artlist to finish connecting.',
     closeLibrary: 'Close save controls', savingLibrary: 'Saving…',     previousPage: 'Previous', nextPage: 'Next', pageLabel: 'Page', saveManage: 'Save', favoriteLabel: 'Favorite', unfavoriteLabel: 'Unfavorite', artlist_library_edit_uncertain: 'The change could not be verified. Refresh your library before trying again.',     library: 'Browse', favorites: 'Favorites', downloads: 'Downloads', refreshLibrary: 'Refresh list', emptyLibrary: 'No saved tracks here yet', libraryLimit: 'Showing the first 50 tracks.', artlist_library_unavailable: 'Could not load your Artlist library. Try again.', cancelDownloadLabel: 'Cancel download', refresh: 'Refresh account and plan', license: 'View license', licenseHint: 'Your Artlist plan determines how downloaded music can be used.',
-    append: 'Add at end',     music: 'Music', sfx: 'Sound effects', cancel: 'Cancel login',
+    append: 'Add at end',     music: 'Music', sfx: 'Sound effects', footage: 'Footage', cancel: 'Cancel login',
         artlist_subscription_required: 'Your Artlist music subscription is required for original downloads.',
     artlist_download_failed: 'Could not download this track. Try again.',
     artlist_download_too_large: 'This file exceeds the 128 MB download limit.',
@@ -41,7 +41,7 @@ const COPY = {
     artlist_import_uncertain: '\ub2e4\uc2dc \uac00\uc838\uc624\uae30 \uc804\uc5d0 \ud504\ub85c\uc81d\ud2b8 \ud30c\uc77c\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.',
     openTrack: 'Artlist\uc5d0\uc11c \uc5f4\uae30', connect: 'Artlist \uc5f0\uacb0', connected: 'Artlist \uc5f0\uacb0\ub428', connectHint: 'Artlist\uc5d0\uc11c \ub85c\uadf8\uc778\ud55c \ub4a4 \uc624\ub978\ucabd \ud504\ub85c\ud544 \uba54\ub274\ub97c \uc5f4\uc5b4 \uc5f0\uacb0\uc744 \uc644\ub8cc\ud558\uc138\uc694.', connectHintAuto: 'Artlist\uc5d0 \ub85c\uadf8\uc778\ud558\uba74 \uc5f0\uacb0\uc774 \uc644\ub8cc\ub3fc\uc694.',
     closeLibrary: '\uc800\uc7a5 \uad00\ub9ac \ub2eb\uae30', savingLibrary: '\uc800\uc7a5 \uc911…',     previousPage: '\uc774\uc804', nextPage: '\ub2e4\uc74c', pageLabel: '\ud398\uc774\uc9c0', saveManage: '\uc800\uc7a5 \uad00\ub9ac', favoriteLabel: '\ucc1c\ud558\uae30', unfavoriteLabel: '\ucc1c \ud574\uc81c', artlist_library_edit_uncertain: '\ubcc0\uacbd \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubcf4\uad00\ud568\uc744 \uc0c8\ub85c\uace0\uce68\ud55c \ub4a4 \ud655\uc778\ud574 \uc8fc\uc138\uc694.',     library: '\ubaa9\ub85d', favorites: '\ucc1c', downloads: '\ub2e4\uc6b4\ub85c\ub4dc', refreshLibrary: '\ubaa9\ub85d \uc0c8\ub85c\uace0\uce68', emptyLibrary: '\uc544\uc9c1 \uc800\uc7a5\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694', libraryLimit: '\ucc98\uc74c 50\uace1\uc744 \ud45c\uc2dc\ud558\uace0 \uc788\uc5b4\uc694.', artlist_library_unavailable: 'Artlist \ubcf4\uad00\ud568\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', cancelDownloadLabel: '\ub2e4\uc6b4\ub85c\ub4dc \ucde8\uc18c', refresh: '\uacc4\uc815·\uad6c\ub3c5 \uc0c8\ub85c\uace0\uce68', license: '\ub77c\uc774\uc120\uc2a4 \ubcf4\uae30', licenseHint: '\ub2e4\uc6b4\ub85c\ub4dc\ud55c \uc74c\uc545\uc758 \uc0ac\uc6a9 \ubc94\uc704\ub294 \ub0b4 Artlist \ud50c\ub79c\uc744 \ub530\ub985\ub2c8\ub2e4.',
-    append: '\ub05d\uc5d0 \ucd94\uac00',     music: '\uc74c\uc545', sfx: '\ud6a8\uacfc\uc74c', cancel: '\ub85c\uadf8\uc778 \ucde8\uc18c',
+    append: '\ub05d\uc5d0 \ucd94\uac00',     music: '\uc74c\uc545', sfx: '\ud6a8\uacfc\uc74c', footage: '\uc601\uc0c1', cancel: '\ub85c\uadf8\uc778 \ucde8\uc18c',
         artlist_subscription_required: '\uc6d0\uace1\uc744 \ucd94\uac00\ud558\ub824\uba74 Artlist \uc74c\uc545 \uad6c\ub3c5\uc774 \ud544\uc694\ud574\uc694.',
     artlist_download_failed: '\uace1\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
     artlist_download_too_large: '\uc774 \ud30c\uc77c\uc740 \ub2e4\uc6b4\ub85c\ub4dc \uc81c\ud55c\uc778 128MB\ub97c \ucd08\uacfc\ud574\uc694.',
@@ -61,7 +61,7 @@ const COPY = {
 };
 const ERROR_CODES = Object.keys(COPY.en).filter(key => key.startsWith('artlist_'));
 const BROWSE_QUERY = 'background music';
-const TABS = ['music', 'sfx', 'favorites', 'downloads'];
+const TABS = ['music', 'sfx', 'footage', 'favorites', 'downloads'];
 const READS = ['browse', 'search', 'library', 'more', 'preview', 'board-more'];
 
 // @operation-start
@@ -135,6 +135,21 @@ export function addMusicScript(projectId, sequenceId, resourceId, seconds, music
     return { resourceId: id, inserted: placed.inserted };
   `;
 }
+// A footage clip goes after Main's last clip, as the project panel's "Add to
+// current timeline" places a video file.
+export function addFootageScript(projectId, sequenceId, resourceId) {
+  return `
+    const d = selects.draft(${JSON.stringify(sequenceId)});
+    const main = await d.clips({ trackScope: 'main' });
+    const mainEnd = main.reduce((end, clip) => Math.max(end, clip.endFrame), 0);
+    const placed = await d.insertResource({
+      resourceId: ${JSON.stringify(resourceId)},
+      at: mainEnd > 0 ? { after: await d.rangeAtFrames(0, mainEnd) } : undefined,
+    });
+    await d.commitAll('Add footage');
+    return { resourceId: ${JSON.stringify(resourceId)}, deltaFrames: placed.deltaFrames };
+  `;
+}
 // @operation-end
 
 const STYLES = `
@@ -164,6 +179,8 @@ const STYLES = `
   .music-row-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 4px 6px 6px; cursor: pointer; }
   .music-cover-wrap { position: relative; flex-shrink: 0; width: 36px; height: 36px; margin-right: 4px; border-radius: 2px; overflow: hidden; }
   .music-cover-wrap > button { width: 36px; height: 36px; }
+  .music-still { position: relative; flex-shrink: 0; width: 64px; height: 36px; margin-right: 4px; border-radius: 2px; overflow: hidden; display: grid; place-items: center; background: var(--panel-muted); color: var(--panel-muted-fg); }
+  .music-still img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .music-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .music-cover-empty { position: absolute; inset: 0; display: grid; place-items: center; background: var(--panel-muted); color: var(--panel-muted-fg); }
   .music-play-mark { position: absolute; inset: 0; display: grid; place-items: center; color: var(--panel-fg); background: color-mix(in srgb, var(--panel-muted) 70%, transparent); opacity: 0; transition: opacity .15s; pointer-events: none; }
@@ -445,6 +462,12 @@ export default function Panel({ sdk, context, ui }) {
     const identity = await status(captured);
     if (after && identity.accountSession !== previousAccount) throw new Error('artlist_account_changed');
     if (!identity.connected) throw new Error('artlist_reconnect_required');
+    if (view === 'footage') {
+      if (!identity.footage) throw new Error('artlist_update_required');
+      const result = await script(`return await selects.artlist.footage(${JSON.stringify(query === BROWSE_QUERY ? '' : query)});`, false, captured);
+      setRows(result.clips.map(clip => ({ ...clip, kind: 'footage', mainArtists: clip.filmmaker ? [clip.filmmaker] : [], bpm: 0 })));
+      setCursor(null); setSearchedTerm(query); return;
+    }
     if (view !== 'search') {
       if (!identity.library) throw new Error('artlist_update_required');
       const collectionId = view;
@@ -475,7 +498,11 @@ export default function Panel({ sdk, context, ui }) {
       action(captured => load(null, captured, BROWSE_QUERY), 'browse');
     }
   }, [connection?.connected, connection?.accountSession, busy, rows.length, searchedTerm, message, key, preferencesReady]);
+  function openOnArtlist(row) {
+    action(captured => script(`return await selects.artlist.openTrack(${JSON.stringify(row.url)});`, true, captured), 'open', row.id);
+  }
   function preview(row) {
+    if (row.kind === 'footage') return openOnArtlist(row);
     if (audio?.id === row.id && media.current) {
       if (media.current.paused) media.current.play().catch(() => { setFailed(true); setMessage(T.previewFailed); });
       else media.current.pause();
@@ -502,7 +529,9 @@ export default function Panel({ sdk, context, ui }) {
       if (saved.accountSession !== account.current) throw new Error('artlist_account_changed');
       try {
         const imported = await script(importMusicScript(context.projectId, saved.path), true, captured);
-        await script(addMusicScript(context.projectId, context.sequenceId, imported.resourceId, imported.durationSeconds, imported.musicResourceIds), true, captured);
+        await script(row.kind === 'footage'
+          ? addFootageScript(context.projectId, context.sequenceId, imported.resourceId)
+          : addMusicScript(context.projectId, context.sequenceId, imported.resourceId, imported.durationSeconds, imported.musicResourceIds), true, captured);
       }
       catch (error) { if (error.message === 'failed') throw new Error('artlist_import_uncertain'); throw error; }
       setAdded(previous => previous.includes(row.id) ? previous : previous.concat(row.id));
@@ -557,7 +586,7 @@ export default function Panel({ sdk, context, ui }) {
     ];
   }
   function changeLibrary(value) {
-    if (!connection?.library && value !== 'music' && value !== 'sfx') { setFailed(true); setMessage(T.artlist_update_required); return; }
+    if (value === 'footage' ? !connection?.footage : !connection?.library && value !== 'music' && value !== 'sfx') { setFailed(true); setMessage(T.artlist_update_required); return; }
     setTab(value); setPageNumber(1); setHasMore(false); setEditTrack(null); setRows([]); setAudio(null); setCursor(null); setSearchedTerm(''); setMessage(''); setTerm('');
   }
   function pickedIds(next) {
@@ -612,6 +641,28 @@ export default function Panel({ sdk, context, ui }) {
     await load(null, captured);
   }, 'library');
   const canAdd = !busy && !!context.projectId && !!context.sequenceId;
+  // A footage clip: its still at 16:9, title over filmmaker, length over 4K or
+  // HD. Clicking it opens the clip on Artlist; + adds the HD MP4 after Main.
+  function clip(row) {
+    const artists = row.mainArtists.join(', ');
+    const size = row.width >= 3840 ? '4K' : row.width >= 1920 ? 'HD' : '';
+    return <li key={row.id} className="music-row">
+      <div className="music-row-open" onClick={event => { if (!event.target.closest('button') && !busy) openOnArtlist(row); }}>
+        <span className="music-still">{row.thumbnailUrl ? <img src={row.thumbnailUrl} alt="" loading="lazy" draggable={false} /> : <ui.Icon name="video" size={14} />}</span>
+        <span className="music-row-text">
+          <span className="music-title" title={row.title}>{row.title}</span>
+          <span className="music-artist" title={artists}>{artists}</span>
+        </span>
+        <span className="music-row-meta">
+          <span className="font-tabular">{clock(row.length)}</span>
+          {size && <span className="music-bpm">{size}</span>}
+        </span>
+      </div>
+      <div className="music-row-actions">
+        <ui.IconButton icon={adding === row.id ? 'loading' : 'plus'} label={(adding === row.id ? T.adding : added.includes(row.id) ? T.addAgain : T.add) + ': ' + row.title} disabled={!canAdd} onClick={() => add(row)} />
+      </div>
+    </li>;
+  }
   function track(row) {
     const active = audio?.id === row.id;
     const artists = row.mainArtists.join(', ');
@@ -658,7 +709,7 @@ export default function Panel({ sdk, context, ui }) {
       </div>
     </li>;
   }
-  const libraryTabs = [{value:'music',label:T.music},{value:'sfx',label:T.sfx},{value:'favorites',label:T.favorites},{value:'downloads',label:T.downloads}].map(each => ({...each, content: null}));
+  const libraryTabs = [{value:'music',label:T.music},{value:'sfx',label:T.sfx},...(connection?.footage ? [{value:'footage',label:T.footage}] : []),{value:'favorites',label:T.favorites},{value:'downloads',label:T.downloads}].map(each => ({...each, content: null}));
   const refreshAccount = () => action(async captured => { await script('return await selects.artlist.connect();', true, captured); await status(captured); }, 'connect');
   const openLicense = () => action(captured => script('return await selects.artlist.openTrack("https://artlist.io/help-center/privacy-terms/artlist-license/");', true, captured), 'open');
   const disconnect = () => action(async captured => {
@@ -678,7 +729,7 @@ export default function Panel({ sdk, context, ui }) {
     {connection?.connected && <>
       {ui.Menu ? <ui.Tabs variant="strip" value={tab} onChange={value => { if (!tabsLocked) changeLibrary(value); }} tabs={libraryTabs}
         actions={<ui.Menu label={T.options} disabled={busy} items={[
-          ...(view !== 'search' ? [{ label: T.refreshLibrary, onSelect: refreshLibrary }, { separator: true }] : []),
+          ...(view === 'favorites' || view === 'downloads' ? [{ label: T.refreshLibrary, onSelect: refreshLibrary }, { separator: true }] : []),
           { heading: (connection.email || T.connected) + (connection.plan ? ' · ' + connection.plan : '') },
           { label: T.refresh, onSelect: refreshAccount },
           { label: T.license, onSelect: openLicense },
@@ -690,7 +741,7 @@ export default function Panel({ sdk, context, ui }) {
           <ui.Tabs value={tab} onChange={value => { if (!tabsLocked) changeLibrary(value); }}
             tabs={libraryTabs} />
         </fieldset>
-        {view !== 'search' && <ui.IconButton icon="refresh" label={T.refreshLibrary} disabled={busy} onClick={refreshLibrary} />}
+        {(view === 'favorites' || view === 'downloads') && <ui.IconButton icon="refresh" label={T.refreshLibrary} disabled={busy} onClick={refreshLibrary} />}
         <ui.IconButton icon={manage ? 'close' : 'more'} label={T.account} disabled={busy} onClick={() => {setManage(value => !value);setEditTrack(null);}} />
       </div>
       {manage && <div className="music-account">
@@ -702,7 +753,7 @@ export default function Panel({ sdk, context, ui }) {
       </div>}
       </>}
       <div className="music-controls">
-        {view === 'search' && <div className="music-search" onKeyDown={event => {
+        {(view === 'search' || view === 'footage') && <div className="music-search" onKeyDown={event => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.target.tagName === 'INPUT') { event.preventDefault(); search(); }
         }}>
           {ui.version >= 2 && ui.SearchInput ? <ui.SearchInput label={T.query} placeholder={T.placeholder} value={term}
@@ -729,9 +780,9 @@ export default function Panel({ sdk, context, ui }) {
       <div className="music-body">
         {!rows.length && (busy || !searchedTerm) && !message && <LoadingRows ui={ui} label={T.loading} />}
         {!rows.length && !busy && searchedTerm && !message && <div className="music-empty">
-          <small>{view !== 'search' ? T.emptyLibrary : T.empty}</small>
+          <small>{view === 'favorites' || view === 'downloads' ? T.emptyLibrary : T.empty}</small>
         </div>}
-        {rows.length > 0 && <ul className="music-rows">{rows.map(track)}</ul>}
+        {rows.length > 0 && <ul className="music-rows">{rows.map(row => row.kind === 'footage' ? clip(row) : track(row))}</ul>}
         {view !== 'search' && (pageNumber > 1 || hasMore) && <div className="music-pager">
           <ui.Button variant="ghost" disabled={busy || pageNumber === 1} onClick={() => changePage(pageNumber - 1)}>{T.previousPage}</ui.Button>
           <small>{T.pageLabel} {pageNumber}</small>

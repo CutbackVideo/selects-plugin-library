@@ -226,3 +226,27 @@ test('imports WAV sound effects and appends them after MP3 music', async () => {
   assert.equal(added.endFrame, 918);
   assert.deepEqual(f.clips.find(clip => clip.resourceId === old.resourceId), {clipId: 2, trackId: 'audio', ...old});
 });
+
+test('a footage clip goes after the last clip on Main, as Add to current timeline places video', async () => {
+  const {addFootageScript} = loadPanelOperation('artlist');
+  const calls = [];
+  const draft = mainEnd => ({
+    clips: async options => { calls.push(['clips', options]); return mainEnd ? [{endFrame: mainEnd - 100}, {endFrame: mainEnd}] : []; },
+    rangeAtFrames: async (startFrame, endFrame) => ({startFrame, endFrame}),
+    insertResource: async options => { calls.push(['insert', options]); return {deltaFrames: 300}; },
+    commitAll: async label => calls.push(['commit', label]),
+  });
+  const run = (mainEnd) => vm.runInNewContext(`(async () => {${addFootageScript('project', 'draft', 'clip')}})()`,
+    {selects: {draft: id => { assert.equal(id, 'draft'); return draft(mainEnd); }}});
+  // The script runs in its own realm; compare plain values.
+  const plain = value => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(plain(await run(900)), {resourceId: 'clip', deltaFrames: 300});
+  assert.deepEqual(plain(calls), [
+    ['clips', {trackScope: 'main'}],
+    ['insert', {resourceId: 'clip', at: {after: {startFrame: 0, endFrame: 900}}}],
+    ['commit', 'Add footage'],
+  ]);
+  calls.length = 0;
+  await run(0);
+  assert.equal(calls[1][1].at, undefined);
+});
