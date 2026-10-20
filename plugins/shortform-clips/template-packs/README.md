@@ -130,33 +130,20 @@ for compatibility. The first successful mutation records their resolved baseline
 and working settings in the unified library; the old files are left untouched.
 No new imports or edits are written to those legacy collections.
 
-## Portable ZIP files and legacy JSON
+## Portable JSON files
 
-File export now produces `.shortform-template.zip`. The archive contains
-`template.json` and content-addressed PNG/JPEG/WebP files under `assets/`.
-Settings reference images with `{ "$asset": "assets/<sha256>.<extension>" }`;
-identical images used by backgrounds, logos, and thumbnail references are included
-once. Export preserves original image bytes and current settings without resizing
-or recompressing images. Entries are stored without additional compression because
-the supported raster formats already compress their payloads.
+File export produces a self-contained `.shortform-template.json` containing current
+settings and embedded Base64 raster images. Encoding preserves the stored image
+bytes; export does not resize or recompress them. Shared files retain template
+identity and use the same conflict, baseline, and recovery rules as pack imports.
 
-File import detects ZIP versus JSON from the contents, not the extension. Existing
-API 1/2 JSON exports remain supported, including identity-free legacy files. ZIP
-and JSON use the same identity, conflict, baseline, and recovery rules. Older app
-versions cannot import the new ZIP format; recipients need the updated app.
+API 1/2 JSON exports remain supported, including UTF-8 BOMs and identity-free
+legacy files. File import/export is limited to 20 MiB. ZIP file transfer is no
+longer supported. Templates previously imported from ZIP remain in the library
+and can be exported as JSON without reinstalling them.
 
-ZIP transfer is limited to 100 MiB, with 100 MiB total expanded content, 128 entries,
-20 MiB per image, and 4 MiB for settings JSON. Existing thumbnail reference count
-and editor limits are unchanged. Legacy JSON retains its 20 MiB limit. ZIP imports
-support stored and Deflate entries, validate checksums and asset hashes, and reject
-unsafe/duplicate paths, symlinks, missing assets, unknown files, and oversized
-expansion before changing template storage. Nothing is extracted to arbitrary disk
-paths. Multi-volume, encrypted, and ZIP64 archives are unsupported.
-
-The existing cross-platform binary file APIs are sufficient; no client change is
-required. Deflate imports use the browser's `DecompressionStream`. Chunked host
-transfers still affect large-file performance. GitHub pack links and folder-based
-`pack.json` installation are unchanged; portable ZIPs contain one template.
+GitHub packs continue to use `pack.json`, template JSON files, and separate image
+assets. GitHub links and folder-based pack installation are unchanged.
 
 ## Settings-based generation
 
