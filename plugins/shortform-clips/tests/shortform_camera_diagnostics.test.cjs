@@ -7,11 +7,17 @@ test('camera planning diagnostics survive failed responses',{skip:!modules},asyn
  const options=[{id:'0:0',panel,x:900,y:400,w:180,h:180,headTop:220,headBottom:540}];
  const valid=JSON.stringify({version:1,draftId:'draft',status:'planned',shots:[{startFrame:0,endFrame:90,compositionId:'person',layout:'speaker',panels:[{camera:'0',targets:[{subjectId:'person',refs:['0:0']}]}]}]});
  const base={guard:p=>p,draftId:'draft',prompt:'test prompt',images:[{name:'face.jpg',dataUrl:'not persisted'}],observations:[{unit:{startFrame:0,endFrame:90},available:[panel],options}],layout:{windowTop:0,windowBottom:1920},fps:30};
- await t.test('invalid JSON is retained before retry, including exact feedback and usage',async()=>{
-  const events=[],requests=[];
-  await m.exports.requestTemplateCameraPlan({...base,note:async e=>{events.push(structuredClone(e));},sdk:{askAI:async r=>{assert.equal(events.at(-2).status,'running');requests.push(r);return {text:requests.length===1?'not JSON':valid,usage:{output_tokens:5}};}}});
-  const failed=events.find(e=>e.status==='validation-failed');assert.equal(failed.responseText,'not JSON');assert.equal(failed.failurePhase,'json');assert.equal(failed.usage.output_tokens,5);assert.ok(requests[1].prompt.includes(failed.error));assert.ok(events.some(e=>e.status==='accepted'));
+ await t.test('invalid JSON is repaired without re-running the visual planner',async()=>{
+  const events=[],requests=[],broken=valid.replace('"shots":','"shots"::');
+  const result=await m.exports.requestTemplateCameraPlan({...base,note:async e=>{events.push(structuredClone(e));},sdk:{askAI:async r=>{requests.push(r);return {text:requests.length===1?broken:valid,usage:{output_tokens:5}};}}});
+  assert.ok(result.length);assert.equal(requests.length,2);assert.equal(requests[1].images,undefined);
+  const repair=events.find(e=>e.plan==='reframe-json-repair'&&e.status==='requested');
+  assert.equal(repair.responseText,broken);assert.ok(requests[1].prompt.includes(repair.error));assert.ok(events.some(e=>e.status==='accepted'));
   assert.equal(events[0].observations[0].options[0].panel.observation.samples,undefined);assert.equal(JSON.stringify(events[0]).includes('not persisted'),false);
+ });
+ await t.test('second malformed answer fails without a full planning retry',async()=>{
+  let calls=0;const broken=valid.replace('"shots":','"shots"::');
+  await assert.rejects(m.exports.requestTemplateCameraPlan({...base,note:async()=>{},sdk:{askAI:async()=>{calls++;return {text:broken}}}}),/JSON repair/);assert.equal(calls,2);
  });
  await t.test('compiler rejection is distinct from transport timeout and never silently succeeds',async()=>{
   const events=[];let calls=0;

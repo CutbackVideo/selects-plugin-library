@@ -8,7 +8,7 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
  const baseline={meta:{durationFrames:90,fps:30},words:[{text:'Hello',startFrame:0,endFrame:30}],sources:[{resourceId:'r',meta:{frameSize:{width:1920,height:1080}}}]};
  const shot={startFrame:0,endFrame:90,resourceId:'r',style:'speaker',compositionId:'person',subjects:[{faceId:'F1'}]};
  const valid={version:1,draftId:'d',status:'planned',shots:[{startFrame:0,endFrame:90,compositionId:'person',layout:'speaker',panels:[{camera:'r',targets:[{subjectId:'person',refs:['F1']}]}]}],speakerEvidence:[{startFrame:0,endFrame:90,resourceId:'r',sourceFrames:[0,8,16],subject:'right person',basis:'mouth-motion',evidence:'sustained articulation'}]};
- async function run({after=baseline,report=valid,failRead=false,failAi=false,review={status:'complete',summary:'Acceptable'},missingFrame=false,failEvidence=false}={}){
+ async function run({after=baseline,report=valid,failRead=false,failAi=false,review={status:'complete',summary:'Acceptable'},missingFrame=false,failEvidence=false,raw,repairText}={}){
   let reads=0,calls=0,applies=0;const notes=[];
   const sdk={runScript:async input=>input.summary==='Apply agent-selected source crops'?(applies++,{result:{applied:[shot]}}):({result:++reads===1?baseline:after,isError:failRead}),
    call:async()=>{throw Error('Runtime review must not capture previews');},
@@ -16,12 +16,27 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
     calls++;if(calls===1){assert.equal(input.timeoutMs,600000);assert.equal(input.ephemeral,false);assert.ok(input.prompt.includes("Light-ASD AVA"));assert.ok(input.prompt.includes('"score":1.5'));
      assert.ok(input.prompt.includes('Use your existing Selects SDK tools READ-ONLY'));assert.ok(!input.prompt.includes('"closeUp":6'));
      assert.ok(input.prompt.includes('UNCROPPED SOURCE'));assert.ok(input.prompt.includes('speakerTurns'));assert.ok(!input.prompt.includes('Hello'));assert.ok(src.includes('speakerId:w.speakerId,speakerName:w.speakerName'));assert.ok(input.prompt.includes('Do not specify closeUp'));assert.ok(input.prompt.includes('not draft.captureCameraAngles'));assert.ok(!input.prompt.includes('SOURCE-CROP SCRIPT'));
-     if(failAi)throw Error('timeout');return {text:JSON.stringify(report)};
+     if(failAi)throw Error('timeout');return {text:raw??JSON.stringify(report)};
     }
+    if(raw!==undefined){assert.equal(input.images,undefined);assert.equal(input.timeoutMs,120000);assert.ok(input.prompt.includes('Repair JSON syntax only'));return {text:repairText??JSON.stringify(report)};}
     assert.equal(input.advanced,undefined);assert.equal(input.timeoutMs,120000);assert.ok(input.images.length);assert.ok(input.prompt.includes('covering the eyes or mouth'));return {text:JSON.stringify(review)};
    }};
   return {execute:()=>m.exports.runAgentReframing({sdk,guard:p=>p,projectId:'p',draftId:'d',layout:{closeUp:6,faceY:35,cameraMode:'speaker'},note:e=>notes.push(e),measureSpeakers:async()=>[{resourceId:"r",rows:[{faceId:"F1",score:1.5}]}],prepareEvidence:async()=>{if(failEvidence)throw Error('capture unavailable');return ({images:[{dataUrl:"data:image/jpeg;base64,test"}],samples:[]});},measureFaces:async()=>[{id:'F1',resourceId:'r',draftFrame:20,box:{xmin:800,xmax:1000,ymin:250,ymax:500}}]}),state:()=>({reads,calls,applies,notes})};
  }
+ await t.test('repairs a malformed plan once then applies through normal validation',async()=>{
+  const raw=JSON.stringify(valid).replace('"shots":','"shots"::');
+  const r=await run({raw});assert.equal((await r.execute()).status,'complete');assert.equal(r.state().calls,2);assert.equal(r.state().applies,1);
+ });
+ await t.test('failed syntax repair is not reported as completed baseline framing',async()=>{
+  const raw=JSON.stringify(valid).replace('"shots":','"shots"::');
+  for(const repairText of [raw,JSON.stringify({...valid,draftId:'other'})]){
+   const r=await run({raw,repairText});await assert.rejects(r.execute,/JSON repair/);assert.equal(r.state().calls,2);assert.equal(r.state().applies,0);
+  }
+ });
+ await t.test('repaired JSON still has to pass the existing composition validator',async()=>{
+  const report={...valid,shots:[]},raw=JSON.stringify(report).replace('"shots":','"shots"::');
+  const r=await run({report,raw});await assert.rejects(r.execute);assert.equal(r.state().calls,2);assert.equal(r.state().applies,0);
+ });
  await t.test('reads fenced reports even when the agent adds a completion note',()=>{
   const report={draftId:'d',status:'complete',verifiedFrames:[1]};
   assert.deepEqual(m.exports.parseAgentReframeReport('Saved.\n```json\n'+JSON.stringify(report)+'\n```\n'),report);
