@@ -67,12 +67,12 @@ test('busy or unsaved app still discovers updates while refusing installation', 
   const source = await fs.readFile(path.join(__dirname, '../panel.tsx'), 'utf8');
   const start = source.indexOf('      async checkUpdate(checkContext: any) {');
   const end = source.indexOf('      async prepareUpdate(id: string) {', start);
-  const check = source.slice(start, end).trim().replace(/,$/, '').replace('checkContext: any', 'checkContext');
+  const check = source.slice(start, end).trim().replace(/,$/, '').replace('checkContext: any', 'checkContext').replace('let offer: any', 'let offer');
   const prepareEnd = source.indexOf('\n    });', end);
   const prepare = source.slice(end, prepareEnd).trim().replace('id: string', 'id').replace(/,$/, '');
   let calls = 0;
   const sdk = {runShell: async () => { calls++; return {exitCode: 0, stdout: JSON.stringify({id: latest, version: 'new'})}; }};
-  const provider = new Function('sdk', 'updateBlocked', 'shortformUpdateCommand', `let selectedContext = null;return {${check},${prepare}};`)(sdk, {current: true}, mode => mode);
+  const provider = new Function('sdk', 'updateBlocked', 'shortformUpdateCommand', 'shortformUpdateText', 'lang', 'IS_WIN', `let selectedContext = null;return {${check},${prepare}};`)(sdk, {current: true}, mode => mode, (lang,key) => key === 'busy' ? 'Finish the current operation' : key, 'en', false);
   assert.equal((await provider.checkUpdate({installed:{commit:old,version:'0.4.1'},latest:{commit:latest,version:'0.4.2'}})).id, latest);
   assert.equal(calls, 1);
   await assert.rejects(provider.prepareUpdate(latest), /Finish the current operation/);
@@ -141,7 +141,7 @@ test('panel command forwards the host catalog context to the installed updater',
   let received;
   const mockRequire = name => name.endsWith('update.cjs') ? {run: async (...args) => {received = args; return {updated: true};}} : require(name);
   await new Function('require', 'console', script.replace("require(f).run(", "return require(f).run("))(mockRequire, {log() {}, error(message) {throw Error(message);}});
-  assert.deepEqual(received, ['apply', latest, {checkContext: context}]);
+  assert.deepEqual(received, ['apply', latest, {checkContext: context, language: 'en'}]);
 });
 
 test('uses configured skills and panels roots without writing default installation paths', async t => {
@@ -174,8 +174,23 @@ test('uses the host runtime with spaces in its path and no node on PATH', async 
   const output = require('node:child_process').execFileSync('/bin/sh', ['-c', command('check', '', context)], {
     env:{PATH:'/usr/bin:/bin',SELECTS_NODE:wrapper,SELECTS_USER_SKILLS_ROOT:skills}, encoding:'utf8',
   });
-  assert.deepEqual(JSON.parse(output), {mode:'check',id:'',checkContext:context});
+  assert.deepEqual(JSON.parse(output), {mode:'check',id:'',checkContext:context,language:'en'});
   const windows = command('check', '', context, true);
   assert.match(windows, /^if not defined SELECTS_NODE set "SELECTS_NODE=node"\r\n"%SELECTS_NODE%" -e /);
   assert.doesNotMatch(windows, /\$\{SELECTS_NODE/);
+});
+
+test('Korean updates localize descriptions and manual-install or protocol errors', async t => {
+  const source = await fs.readFile(path.join(__dirname, '../panel.tsx'), 'utf8');
+  const start = source.indexOf('function shortformUpdateText(');
+  const code = source.slice(start, source.indexOf('function shortformUpdateCommand(', start)).replaceAll(': string', '').replaceAll(': any', '');
+  const text = new Function(`${code};return shortformUpdateText;`)();
+  assert.match(text('ko', 'description'), /\uc20f\ud3fc \ud074\ub9bd/);
+  assert.match(text('en', 'description'), /Saved templates/);
+  assert.equal(text('fr', 'description'), text('en', 'description'));
+  for (const key of ['check', 'busy', 'invalid', 'retry']) assert.match(text('ko', key), /[\uac00-\ud7a3]/);
+  const f = await fixture(t);
+  await assert.rejects(run('check', null, {...f, language:'ko', checkContext:{...f.checkContext,installed:null}}), /\ub77c\uc774\ube0c\ub7ec\ub9ac/);
+  f.release['plugin.json']=Buffer.from(JSON.stringify({id:'shortform-clips',version:'0.4.2',files:['panel.tsx']}));
+  await assert.rejects(run('apply',latest,{...f,language:'ko'}), /\uc5c5\ub370\uc774\ud2b8\ub97c \uc9c0\uc6d0\ud558\uc9c0/);
 });

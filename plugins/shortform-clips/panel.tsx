@@ -6490,8 +6490,13 @@ export default function Panel(props: any) {
 }
 
 // Optional host update contract. Old hosts and all unregistered apps stay unchanged.
-function shortformUpdateCommand(mode: string, id: string, checkContext: any, windows = IS_WIN) {
-  const script = "const p=require('node:path');const f=p.join(process.env.SELECTS_USER_SKILLS_ROOT||p.join(require('node:os').homedir(),'.selects','skills'),'shortform-clips','update.cjs');require(f).run(" + JSON.stringify(mode) + "," + JSON.stringify(id || "") + "," + JSON.stringify({checkContext}) + ").then(v=>console.log(JSON.stringify(v))).catch(e=>{console.error(e.message);process.exitCode=1;});";
+function shortformUpdateText(language: string, key: string) {
+  const copy: any = {"en": {"description": "Update Shortform Clips. Saved templates and clips are kept.", "check": "Update check failed.", "busy": "Finish the current operation and save template changes before updating.", "invalid": "Invalid Shortform release.", "retry": "Check for updates again before installing."}, "ko": {"description": "\uc20f\ud3fc \ud074\ub9bd\uc744 \uc5c5\ub370\uc774\ud2b8\ud569\ub2c8\ub2e4. \uc800\uc7a5\ud55c \ud15c\ud50c\ub9bf\uacfc \ud074\ub9bd\uc740 \uadf8\ub300\ub85c \uc720\uc9c0\ub3fc\uc694.", "check": "\uc5c5\ub370\uc774\ud2b8\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.", "busy": "\uc9c4\ud589 \uc911\uc778 \uc791\uc5c5\uc744 \ub9c8\uce58\uace0 \ud15c\ud50c\ub9bf \ubcc0\uacbd\uc0ac\ud56d\uc744 \uc800\uc7a5\ud55c \ub4a4 \uc5c5\ub370\uc774\ud2b8\ud574\uc8fc\uc138\uc694.", "invalid": "\uc62c\ubc14\ub978 \uc20f\ud3fc \ud074\ub9bd \uc5c5\ub370\uc774\ud2b8\uac00 \uc544\ub2c8\uc5d0\uc694.", "retry": "\uc124\uce58\ud558\uae30 \uc804\uc5d0 \uc5c5\ub370\uc774\ud2b8\ub97c \ub2e4\uc2dc \ud655\uc778\ud574\uc8fc\uc138\uc694."}};
+  return (copy[language] || copy.en)[key];
+}
+
+function shortformUpdateCommand(mode: string, id: string, checkContext: any, windows = IS_WIN, language = "en") {
+  const script = "const p=require('node:path');const f=p.join(process.env.SELECTS_USER_SKILLS_ROOT||p.join(require('node:os').homedir(),'.selects','skills'),'shortform-clips','update.cjs');require(f).run(" + JSON.stringify(mode) + "," + JSON.stringify(id || "") + "," + JSON.stringify({checkContext, language}) + ").then(v=>console.log(JSON.stringify(v))).catch(e=>{console.error(e.message);process.exitCode=1;});";
   const encoded = btoa(script);
   const evaluate = ' -e "eval(Buffer.from(\'' + encoded + '\',\'base64\').toString())"';
   return windows
@@ -6710,20 +6715,21 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     return sdk.updates.register({
       async checkUpdate(checkContext: any) {
         selectedContext = null;
-        const result = await sdk.runShell({summary: "Check Shortform Clips update", command: shortformUpdateCommand("check", "", checkContext), timeoutMs: 60000, maxOutputBytes: 8192});
-        if (result.isError || result.exitCode !== 0) throw new Error(result.stderr || "Update check failed.");
-        const offer = JSON.parse(result.stdout.trim());
-        if (offer) selectedContext = checkContext;
+        const result = await sdk.runShell({summary: "Check Shortform Clips update", command: shortformUpdateCommand("check", "", checkContext, IS_WIN, lang), timeoutMs: 60000, maxOutputBytes: 8192});
+        if (result.isError || result.exitCode !== 0) throw new Error(result.stderr?.trim() || shortformUpdateText(lang, "check"));
+        let offer: any;
+        try { offer = JSON.parse(result.stdout.trim()); } catch { throw new Error(shortformUpdateText(lang, "check")); }
+        if (offer) { selectedContext = checkContext; offer.description = shortformUpdateText(lang, "description"); }
         return offer;
       },
       async prepareUpdate(id: string) {
-        if (updateBlocked.current) throw new Error("Finish the current operation and save template changes before updating.");
-        if (!/^[a-f0-9]{40}$/.test(id)) throw new Error("Invalid Shortform release.");
-        if (!selectedContext || selectedContext.latest?.commit !== id) throw new Error("Check for updates again before installing.");
-        return {summary: "Update Shortform Clips", command: shortformUpdateCommand("apply", id, selectedContext), timeoutMs: 300000};
+        if (updateBlocked.current) throw new Error(shortformUpdateText(lang, "busy"));
+        if (!/^[a-f0-9]{40}$/.test(id)) throw new Error(shortformUpdateText(lang, "invalid"));
+        if (!selectedContext || selectedContext.latest?.commit !== id) throw new Error(shortformUpdateText(lang, "retry"));
+        return {summary: "Update Shortform Clips", command: shortformUpdateCommand("apply", id, selectedContext, IS_WIN, lang), timeoutMs: 300000};
       },
     });
-  }, [sdk]);
+  }, [sdk, lang]);
 
   async function installPack(link = packLink, requestId?: string) {
     if (!link.trim() || packLock.current || busy || templateDirty || templateSaving) return;

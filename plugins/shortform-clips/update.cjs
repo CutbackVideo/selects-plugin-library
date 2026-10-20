@@ -74,7 +74,7 @@ async function safe(root, target) {
 function destination(roots, file) {
   return path.join(file === 'panel.tsx' ? roots.panels : roots.skills, ID, file);
 }
-async function run(mode, release, deps = {}) {
+async function runUpdate(mode, release, deps = {}) {
   const root = deps.root || path.join(os.homedir(), '.selects');
   const env = deps.env || process.env;
   const roots = {
@@ -106,8 +106,7 @@ async function run(mode, release, deps = {}) {
   if (context.installed.commit !== installed || context.installed.version !== installedManifest.version)
     throw new Error('The installed app changed. Check for updates again.');
   const newer = compareVersions(candidate.version, installedManifest.version) > 0;
-  if (mode === 'check') return newer ? {id: candidate.commit, version: candidate.version,
-    description: 'Update Shortform Clips. Saved templates and clips are kept.'} : null;
+  if (mode === 'check') return newer ? {id: candidate.commit, version: candidate.version} : null;
   if (release !== candidate.commit) throw new Error('Selected release differs from the published catalog.');
   if (!newer) throw new Error('The published Shortform version is not newer than the installed version.');
   const verified = await packageAt(candidate, fetchImpl);
@@ -163,6 +162,20 @@ async function run(mode, release, deps = {}) {
     }
     return {updated:true,version:release,backup:stage};
   }finally{await handle.close();if(!recoveryRequired)await fs.rm(lock,{force:true});}
+}
+async function run(mode, release, deps = {}) {
+  try { return await runUpdate(mode, release, deps); }
+  catch (error) {
+    if (deps.language !== 'ko') throw error;
+    const messages = {"Update file is too large.": "\uc5c5\ub370\uc774\ud2b8 \ud30c\uc77c\uc774 \ub108\ubb34 \ucee4\uc694.", "Invalid Shortform release version.": "\uc20f\ud3fc \ud074\ub9bd \ubc84\uc804 \uc815\ubcf4\uac00 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc544\uc694.", "Invalid catalog release.": "\uce74\ud0c8\ub85c\uadf8\uc758 \uc5c5\ub370\uc774\ud2b8 \uc815\ubcf4\uac00 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc544\uc694.", "Invalid Shortform catalog entry.": "\uce74\ud0c8\ub85c\uadf8\uc758 \uc20f\ud3fc \ud074\ub9bd \uc815\ubcf4\uac00 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc544\uc694.", "Invalid Shortform release file list.": "\uc5c5\ub370\uc774\ud2b8 \ud30c\uc77c \ubaa9\ub85d\uc774 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc544\uc694.", "Release version differs from the published catalog.": "\uc5c5\ub370\uc774\ud2b8 \ubc84\uc804\uc774 \uce74\ud0c8\ub85c\uadf8\uc640 \ub2ec\ub77c\uc694. \ub2e4\uc2dc \ud655\uc778\ud574\uc8fc\uc138\uc694.", "This release does not support app updates.": "\uc774 \ubc84\uc804\uc740 \uc571 \uc5c5\ub370\uc774\ud2b8\ub97c \uc9c0\uc6d0\ud558\uc9c0 \uc54a\uc544\uc694.", "Update path escaped app storage.": "\uc5c5\ub370\uc774\ud2b8 \uacbd\ub85c\uac00 \uc571 \uc800\uc7a5\uc18c\ub97c \ubc97\uc5b4\ub0ac\uc5b4\uc694.", "Installation roots must be absolute paths.": "\uc571 \uc124\uce58 \uacbd\ub85c\uac00 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc544\uc694.", "Unsupported update operation.": "\uc9c0\uc6d0\ud558\uc9c0 \uc54a\ub294 \uc5c5\ub370\uc774\ud2b8 \uc791\uc5c5\uc774\uc5d0\uc694.", "The host does not support catalog-based update checks.": "\uc774 Selects \ubc84\uc804\uc740 \uce74\ud0c8\ub85c\uadf8 \uae30\ubc18 \uc5c5\ub370\uc774\ud2b8 \ud655\uc778\uc744 \uc9c0\uc6d0\ud558\uc9c0 \uc54a\uc544\uc694.", "No published Shortform release is selected.": "\uc124\uce58\ud560 \uc20f\ud3fc \ud074\ub9bd \uc5c5\ub370\uc774\ud2b8\uac00 \uc5c6\uc5b4\uc694.", "Install this app from the library once to enable updates.": "\uc5c5\ub370\uc774\ud2b8\ub97c \uc0ac\uc6a9\ud558\ub824\uba74 \ub77c\uc774\ube0c\ub7ec\ub9ac\uc5d0\uc11c \uc774 \uc571\uc744 \ud55c \ubc88 \uc124\uce58\ud574\uc8fc\uc138\uc694.", "Invalid installed Shortform manifest.": "\uc124\uce58\ub41c \uc20f\ud3fc \ud074\ub9bd \uc815\ubcf4\uac00 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc544\uc694.", "The installed app changed. Check for updates again.": "\uc124\uce58\ub41c \uc571\uc774 \ubcc0\uacbd\ub410\uc5b4\uc694. \uc5c5\ub370\uc774\ud2b8\ub97c \ub2e4\uc2dc \ud655\uc778\ud574\uc8fc\uc138\uc694.", "Selected release differs from the published catalog.": "\uc120\ud0dd\ud55c \uc5c5\ub370\uc774\ud2b8\uac00 \uce74\ud0c8\ub85c\uadf8\uc640 \ub2ec\ub77c\uc694. \ub2e4\uc2dc \ud655\uc778\ud574\uc8fc\uc138\uc694.", "The published Shortform version is not newer than the installed version.": "\uc124\uce58\ub41c \uc20f\ud3fc \ud074\ub9bd\uc774 \ucd5c\uc2e0 \ubc84\uc804\uc774\uc5d0\uc694.", "Another Shortform update is running, or a previous update was interrupted.": "\ub2e4\ub978 \uc20f\ud3fc \ud074\ub9bd \uc5c5\ub370\uc774\ud2b8\uac00 \uc2e4\ud589 \uc911\uc774\uac70\ub098 \uc774\uc804 \uc5c5\ub370\uc774\ud2b8\uac00 \uc911\ub2e8\ub410\uc5b4\uc694.", "Update package is too large.": "\uc5c5\ub370\uc774\ud2b8 \ud30c\uc77c \uc804\uccb4 \ud06c\uae30\uac00 \ub108\ubb34 \ucee4\uc694."};
+    let text = messages[error.message];
+    if (!text && error.message.startsWith('Update download failed (')) text = "\uc5c5\ub370\uc774\ud2b8 \ud30c\uc77c\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. " + error.message.match(/\(.*\)/)?.[0];
+    if (!text && error.message.startsWith('Update refuses symbolic links: ')) text = "\uc2ec\ubcfc\ub9ad \ub9c1\ud06c \uacbd\ub85c\uc5d0\ub294 \uc5c5\ub370\uc774\ud2b8\ub97c \uc124\uce58\ud560 \uc218 \uc5c6\uc5b4\uc694: " + error.message.slice('Update refuses symbolic links: '.length);
+    if (!text && error.message.startsWith('Update failed; recovery is required for ')) text = "\uc5c5\ub370\uc774\ud2b8 \ubcf5\uad6c\uac00 \ud544\uc694\ud574\uc694. \ubc31\uc5c5 \uacbd\ub85c: " + error.message.split('. Backup: ').slice(1).join('. Backup: ');
+    const localized = new Error(text || "\uc5c5\ub370\uc774\ud2b8\ub97c \uc644\ub8cc\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub124\ud2b8\uc6cc\ud06c \uc5f0\uacb0\uacfc \ud30c\uc77c \uc811\uadfc \uad8c\ud55c\uc744 \ud655\uc778\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.");
+    localized.cause = error;
+    throw localized;
+  }
 }
 module.exports = {run,compareVersions,readRelease};
 if(require.main === module)run(process.argv[2],process.argv[3],{checkContext: JSON.parse(process.argv[4] || 'null')}).then(result=>console.log(JSON.stringify(result))).catch(error=>{console.error(error.message);process.exitCode=1;});
