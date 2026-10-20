@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {loadPanelOperation} from './panel_operation.mjs';
 import {checkScriptTypes} from './run_script_types.mjs';
 
-const {importMusicScript, addMusicScript} = loadPanelOperation('artlist');
+const {importMusicScript, addMusicScript, appendRows, restoreFilters, spaceTogglesPreview} = loadPanelOperation('artlist');
 function fixture({end = 900, timelineEnd = end, pictureTrackKind = 'main', fileTree = [], folders, existingClips = [], remintMoves = false} = {}) {
   const calls = [];
   let projectWrite = false;
@@ -22,7 +22,7 @@ function fixture({end = 900, timelineEnd = end, pictureTrackKind = 'main', fileT
     sourceFiles: async options => options?.folder ? {fileTree} : folders ? {folders} : {fileTree},
     importFiles: async options => { projectWrite = true; calls.push(['import', options]); return {addedResourceIds: ['music']}; },
     resource: id => ({id}),
-    resources: async () => [{resourceId: 'music', type: 'Audio', durationSeconds: seconds}, {resourceId: 'picture', type: 'Video'}, ...flatten(fileTree).map(row => ({resourceId: row.resourceId, type: 'Audio', durationSeconds: seconds}))],
+    resources: async () => [{resourceId: 'music', type: 'Audio', durationSeconds: seconds}, {resourceId: 'picture', type: 'Video'}, ...flatten(fileTree).map(row => ({resourceId: row.resourceId, type: row.resourceType ?? 'Audio', durationSeconds: seconds}))],
   };
   const draft = {
     clips: async options => clips.filter(clip => options.trackScope === 'all' || clip.trackKind === 'main').map(clip => ({...clip})),
@@ -117,6 +117,14 @@ test('appends a full song after Music dropped onto Main, preserving that clip', 
   assert.equal(added.startFrame, 600);
   assert.equal(added.endFrame, 2400);
 });
+test('Artlist footage saved beside the music is picture, not music', async () => {
+  const clip = {resourceId: 'clip', trackKind: 'main', startFrame: 900, endFrame: 1200};
+  const f = fixture({fileTree: [{type: 'file', path: '/Music/artlist/owner/downloads/clip.mp4', resourceId: 'clip', resourceType: 'Video'}], existingClips: [clip]});
+  await f.run('/Music/artlist/owner/downloads/song.mp3', 60);
+  const added = f.clips.find(each => each.resourceId === 'music');
+  assert.equal(added.startFrame, 0);
+  assert.equal(added.endFrame, 1200);
+});
 test('other Main audio does not trim music to its duration', async () => {
   const f = fixture({end: 0, fileTree: [{type: 'audio', path: '/Voice/voice.mp3', resourceId: 'voice'}], existingClips: [{resourceId: 'voice', trackKind: 'main', startFrame: 0, endFrame: 600}]});
   await f.run('/Music/song.mp3', 60);
@@ -205,6 +213,7 @@ test('the generated edit typechecks against the available SDK', () => {
   checkScriptTypes([
     {name: 'Import music', script: importMusicScript('project', 'song.mp3')},
     {name: 'Add music', script: addMusicScript('project', 'draft', 'music', 60, ['music'])},
+    {name: 'Add footage', script: loadPanelOperation('artlist').addFootageScript('project', 'draft', 'clip')},
   ]);
 });
 
@@ -249,4 +258,26 @@ test('a footage clip goes after the last clip on Main, as Add to current timelin
   calls.length = 0;
   await run(0);
   assert.equal(calls[1][1].at, undefined);
+});
+
+test('Load more never repeats a row the list already shows', () => {
+  const shown = [{id: 'music:1'}, {id: 'music:2'}];
+  const rows = appendRows(shown, [{id: 'music:2'}, {id: 'music:3'}]);
+  assert.deepEqual(rows.map(row => row.id), ['music:1', 'music:2', 'music:3']);
+});
+test('filters that failed to list go back to the listed ones, on that tab only', () => {
+  const listed = {music: {genre: ['1']}, sfx: {}};
+  const tried = {music: {genre: ['1', '2']}, sfx: {}};
+  assert.deepEqual(restoreFilters(tried, 'music', tried, listed), {music: {genre: ['1']}, sfx: {}});
+  const changedSince = {music: {mood: ['5']}, sfx: {}};
+  assert.equal(restoreFilters(changedSince, 'music', tried, listed), changedSince);
+});
+test('Space toggles the preview only where it has no meaning of its own', () => {
+  const on = selector => ({code: 'Space', target: {closest: query => query.split(', ').includes(selector) ? {} : null}});
+  assert.equal(spaceTogglesPreview(on('body')), true);
+  assert.equal(spaceTogglesPreview(on('input[type=range]')), true);
+  for (const control of ['button', '[role=tab]', '[role=menuitem]', 'textarea', 'input:not([type=range])'])
+    assert.equal(spaceTogglesPreview(on(control)), false, control);
+  assert.equal(spaceTogglesPreview({code: 'Space', repeat: true, target: {}}), false);
+  assert.equal(spaceTogglesPreview({code: 'KeyA', target: {}}), false);
 });

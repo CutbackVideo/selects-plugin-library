@@ -2,7 +2,8 @@
 // @name:en Artlist
 // @name:ko Artlist
 // @icon artlist
-// Connect a personal Artlist account and add editable Audio clips.
+// Connect a personal Artlist account and add its music, sound effects and
+// stock footage to a Draft.
 import React from 'react';
 
 const COPY = {
@@ -16,9 +17,28 @@ const COPY = {
 const ERROR_CODES = Object.keys(COPY.en).filter(key => key.startsWith('artlist_'));
 const BROWSE_QUERY = 'background music';
 const TABS = ['music', 'sfx', 'footage', 'favorites', 'downloads'];
-const READS = ['browse', 'search', 'library', 'more', 'preview', 'board-more'];
+const READS = ['browse', 'search', 'library', 'more', 'preview'];
 
 // @operation-start
+// A later page goes under what is shown. Artlist's lists move while they are
+// read (a download joins the history's top), so a row already shown is not
+// repeated.
+export function appendRows(previous, items) {
+  const shown = new Set(previous.map(row => row.id));
+  return previous.concat(items.filter(row => !shown.has(row.id)));
+}
+// Filters that could not be listed go back to the ones the list shows, so the
+// chips and Load more stay with the rows. Another tab's filters are left alone.
+export function restoreFilters(current, kind, tried, listed) {
+  return current[kind] === tried[kind] ? { ...current, [kind]: listed[kind] } : current;
+}
+// Space plays and pauses the preview, except where it already means something:
+// typing, or pressing a focused button, tab or menu item.
+const SPACE_KEEPERS = 'input:not([type=range]), textarea, select, [contenteditable], button, a[href], [role=tab], [role=menuitem], [role=menuitemcheckbox], [role=menuitemradio], [role=option], [role=checkbox], [role=switch]';
+export function spaceTogglesPreview(event) {
+  if (event.code !== 'Space' || event.repeat || event.isComposing) return false;
+  return !event.target?.closest?.(SPACE_KEEPERS);
+}
 export function startMusicPreview(media, url, onError) {
   let stopped = false;
   media.src = url;
@@ -47,10 +67,13 @@ export function importMusicScript(projectId, file) {
     const existing = files.find(row => row.path === ${JSON.stringify(file)});
     const id = existing?.resourceId || (await p.importFiles({ paths: [${JSON.stringify(file)}] })).addedResourceIds[0];
     if (!id) throw new Error('artlist_import_uncertain');
-    const source = (await p.resources()).find(row => row.resourceId === id);
+    const resources = await p.resources();
+    const source = resources.find(row => row.resourceId === id);
     if (!Number.isFinite(source?.durationSeconds) || source.durationSeconds <= 0) throw new Error('artlist_import_uncertain');
+    // Artlist footage downloads beside the music; only audio counts as music.
+    const audio = new Set(resources.filter(row => row.type === 'Audio').map(row => row.resourceId));
     return { resourceId: id, durationSeconds: source.durationSeconds,
-      musicResourceIds: files.filter(row => row.path?.startsWith(${JSON.stringify(musicDirectory)})).map(row => row.resourceId).concat(id) };
+      musicResourceIds: files.filter(row => row.path?.startsWith(${JSON.stringify(musicDirectory)}) && audio.has(row.resourceId)).map(row => row.resourceId).concat(id) };
   `;
 }
 export function addMusicScript(projectId, sequenceId, resourceId, seconds, musicResourceIds) {
@@ -422,7 +445,7 @@ export default function Panel({ sdk, context, ui }) {
     if (!identity.connected) throw new Error('artlist_reconnect_required');
     const page = more ? pageNumber + 1 : 1;
     const show = (items, next) => {
-      setRows(previous => more ? [...previous, ...items] : items);
+      setRows(previous => more ? appendRows(previous, items) : items);
       setPageNumber(page); setHasMore(!!next); setSearchedTerm(query);
     };
     // A page number goes only to a host that pages; an older one has the first.
@@ -444,9 +467,9 @@ export default function Panel({ sdk, context, ui }) {
         const result = await script(read, false, captured);
         pages.push({ ...result, tracks: result.tracks.map(track => ({ ...track, kind: each })) });
         // Music shows as soon as it comes; sound effects join it after.
-        if (each === 'music') setRows(previous => more ? [...previous, ...pages[0].tracks] : pages[0].tracks);
+        if (each === 'music') setRows(previous => more ? appendRows(previous, pages[0].tracks) : pages[0].tracks);
       }
-      setRows(previous => more ? [...previous, ...pages[1].tracks] : pages.flatMap(each => each.tracks));
+      setRows(previous => more ? appendRows(previous, pages[1].tracks) : pages.flatMap(each => each.tracks));
       setPageNumber(page); setHasMore(pages.some(each => each.hasMore)); setSearchedTerm(view);
       return;
     }
@@ -555,9 +578,14 @@ export default function Panel({ sdk, context, ui }) {
   }
   // Re-runs what is listed (the search, or the browse page) under new filters.
   function refilter(next) {
+    if (lock.current) return;
+    const listed = filters;
     setFilters(next);
     const query = searchedTerm && searchedTerm !== BROWSE_QUERY ? searchedTerm : BROWSE_QUERY;
-    action(captured => load(null, captured, query, pickedIds(next)), 'search');
+    action(async captured => {
+      try { await load(null, captured, query, pickedIds(next)); }
+      catch (error) { if (scope.current === captured) setFilters(current => restoreFilters(current, kind, next, listed)); throw error; }
+    }, 'search');
   }
   function search(query = term) {
     if (!query.trim()) return;
@@ -583,13 +611,12 @@ export default function Panel({ sdk, context, ui }) {
       .then(result => setWaves(previous => ({ ...previous, [audio.id]: result.peaks })))
       .catch(() => {});
   }, [audio?.id, connection?.waveform]);
-  // Space plays and pauses the preview while focus is in the panel, ahead of a
-  // focused button's own click; a text field keeps its Space.
+  // Space plays and pauses the preview while focus is in the panel and not on
+  // a field or a control of its own.
   React.useEffect(() => {
     if (!audio) return;
     const onKey = event => {
-      if (event.code !== 'Space' || event.repeat || event.isComposing) return;
-      if (event.target.closest?.('input:not([type=range]), textarea, select, [contenteditable]')) return;
+      if (!spaceTogglesPreview(event)) return;
       event.preventDefault();
       const element = media.current;
       if (!element) return;
