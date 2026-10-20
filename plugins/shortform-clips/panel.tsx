@@ -6417,6 +6417,11 @@ function TemplateEditorForm(props: any) {
             <ui.Button variant="danger" busy={saving} onClick={remove}>{S.del}</ui.Button>
           </div>
         </TemplatePackDialog>
+        {profile.layoutVariants && <ui.Segmented
+          label={S.layoutKind} value={layoutKey} onChange={props.onPlatformChange}
+          options={[{value: "tiktok", label: S.layoutTiktok}, {value: "shorts", label: S.layoutShorts}]}
+          disabled={saving || !!props.packBusy || !!props.busy}
+        />}
         {profile.layoutVariants && <small>{S.editingLayout(layoutKey === "tiktok" ? S.layoutTiktok : S.layoutShorts)}</small>}
         <div hidden={!settingsOpen} style={{padding:16,border:"1px solid var(--panel-border)",borderRadius:8}}>
         <ui.TextField label={S.name} value={nameOf(edit, lang)} onChange={(v: string) => set("name", v)} disabled={saving} />
@@ -8094,6 +8099,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             </TemplatePackDialog>
             {templates.length > 0 && <TemplateEditor
               platform={platform}
+              onPlatformChange={setPlatform}
               packBusy={packBusy}
               busy={busy}
               onExportTemplate={(selected:any)=>void transferTemplate("export",selected)}

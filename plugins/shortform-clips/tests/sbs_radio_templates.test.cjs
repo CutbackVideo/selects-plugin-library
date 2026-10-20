@@ -205,7 +205,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       showEditor=setVisible;
       const onChanged=async()=>setTemplates(readTemplates());
       refresh=onChanged;
-      return visible?h(api.TemplateEditor,{ui,S,platform,lang:'en',templates,store,onChanged,state:{selId,setSelId,edit,setEdit,baseKey,setBaseKey,sub,setSub}}):null;
+      return visible?h(api.TemplateEditor,{ui,S,platform,onPlatformChange:updatePlatform,lang:'en',templates,store,onChanged,state:{selId,setSelId,edit,setEdit,baseKey,setBaseKey,sub,setSub}}):null;
     }
     const get=label=>{const c=controls.get(S.secWindow+'/'+label)||controls.get(label);assert.ok(c,'Control is visible: '+label);return c;};
     const change=async(label,value)=>{if(label==='tabs'){await act(async()=>document.querySelector('[data-template-section="'+value+'"]').click());return;}const c=get(label);assert.ok(!c.disabled,label+' is enabled');await act(async()=>c.onChange(value));};
@@ -215,7 +215,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       for(const original of originals) {
         await change(S.template,original.id);
         const radio=original.renderer==='series';
-        assert.equal(controls.has(S.layoutKind),false);
+        assert.equal(controls.has(S.layoutKind),radio);
         if(radio) assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutTiktok)));
         assert.deepEqual([...document.querySelectorAll('[data-template-section]')].map(t=>t.textContent), ['Design','Captions','Framing','Content','Thumbnails']);
         assert.equal(controls.has('Framing mode'),false);
@@ -259,11 +259,11 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       await change(S.windowTop,601);
       assert.equal(get(S.template).disabled,true);
       assert.equal(get(S.duplicate).disabled,true);
-      await act(async()=>setPlatform('shorts'));
+      await change(S.layoutKind,'shorts');
       assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutShorts)));
       assert.equal(get(S.windowTop).value,402);
       await change(S.windowTop,450);
-      await act(async()=>setPlatform('tiktok'));
+      await change(S.layoutKind,'tiktok');
       assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutTiktok)));
       assert.equal(get(S.windowTop).value,601);
       await change(S.name,'Edited Money Lab');
@@ -288,6 +288,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       await act(async()=>{pending=get(S.save).onClick();});
       assert.equal(get(S.save).busy,true);
       assert.equal(get(S.windowTop).disabled,true);
+      assert.equal(get(S.layoutKind).disabled,true);
       await act(async()=>{release();await pending;});
       holdSave=null;
       const money=rows.get('money-lab');
@@ -356,7 +357,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       originals.push(...singleLayouts.map(t=>({...t,platformLayouts:false,variants:{tiktok:{headline:{size1:120}}}})));
       await act(async()=>refresh());
       await change('tabs','look');
-      await act(async()=>setPlatform('shorts'));
+      await change(S.layoutKind,'shorts');
       assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutShorts)));
       for(const single of singleLayouts){
         await change(S.template,single.id);
