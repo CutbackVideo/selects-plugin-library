@@ -10,9 +10,9 @@ test('ZIP template transfers',{skip:!modules},async t=>{
  const fileService={join:path.join,size:async p=>fs.statSync(p).size,readFile:async p=>new Uint8Array(fs.readFileSync(p))};
  const pack=await api.readTemplatePack(fileService,path.join(__dirname,'../template-packs/sbs-radio/pack.json'));
  const original={...structuredClone(pack.templates[0]),id:'sbs-radio/political-show'};
- original.name='한글 이름';original.prompt.rules='My edited rules';
+ original.name='\ud55c\uae00 \uc774\ub984';original.prompt.rules='My edited rules';
  original.background.image=original.logo.image;
- original.thumbnail={mode:'preserve',instructions:'참고 디자인',logo:{name:'로고.png',data:original.logo.image},references:[{name:'참고.png',data:original.logo.image}]};
+ original.thumbnail={mode:'preserve',instructions:'\ucc38\uace0 \ub514\uc790\uc778',logo:{name:'\ub85c\uace0.png',data:original.logo.image},references:[{name:'\ucc38\uace0.png',data:original.logo.image}]};
  const folder=fs.mkdtempSync(path.join(os.tmpdir(),'shortform-zip-'));
  function repo(){const rows=new Map();return {rows,repository:api.makeTemplateRepository({list:async k=>[...rows].filter(([key])=>key.startsWith(k+'/')).map(([,v])=>structuredClone(v)),get:async(k,id)=>structuredClone(rows.get(k+'/'+id)||null),put:async(k,id,v)=>rows.set(k+'/'+id,structuredClone(v))})};}
  const zip=await api.encodeTemplateZip(original),json=api.encodeSharedTemplate(original);
