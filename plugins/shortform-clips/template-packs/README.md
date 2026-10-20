@@ -104,22 +104,35 @@ The shared app validates all templates and images before activation. Its rendere
 features bound what a JSON file can express. New graphics behavior belongs in the
 shared app and a future compatible template API.
 
-## Updates
+## Updates and local storage
 
-Increase the pack version (major.minor.patch) and changed templates' integer
-versions. Existing template IDs must keep their renderer; use a new ID when changing
-renderer behavior. Downgrades and incompatible API versions are rejected.
+All templates use one repository regardless of whether they arrived by link,
+file, or duplication. A template has a stable identity, a baseline snapshot
+(last accepted import), and a working snapshot (the complete current settings).
+Settings are never merged with a changed baseline during updates.
 
-User changes are stored as field differences from the installed template, separately
-from the pack. Reset removes those differences and uses the latest defaults.
-Copies are full independent templates. Removed templates' overrides remain on disk.
-An incompatible saved edit rejects the pack update so the working version remains.
+- Identical incoming content: no-op.
+- Newer version and unchanged working copy: replace baseline and working together.
+- Local edits, different content at the same version, a downgrade, or a previously
+  removed identity: ask to replace, add an independent copy, or cancel.
+- Replace/reset: retain the prior baseline and working pointers in recovery history.
+- Reset restores the imported baseline; it works for file imports and copies too.
+- File exports retain a stable identity. Older identity-free files import as copies.
 
-For migration only, an optional `legacy` object declares an old app ID and a mapping
-of old template IDs to current IDs. It copies old saved templates on the first pack
-install without modifying legacy files. The old app's full snapshots cannot identify
-which historical values were deliberate edits, so differences are preserved
-conservatively. No customer-specific migration IDs are hardcoded into the app.
+`template-library/index.json` is the mutable commit point. It references immutable
+full-setting records in `template-snapshots`; embedded raster images are stored
+once per content hash in `template-assets`. New snapshots are staged before the
+index is replaced. Interrupted staging does not activate partial imports. Only
+referenced snapshots/assets are read; unrelated history is not loaded for previews.
+
+Existing `packs`, `custom-templates`, `overrides`, and `design-overrides` are read
+for compatibility. The first successful mutation records their resolved baseline
+and working settings in the unified library; the old files are left untouched.
+No new imports or edits are written to those legacy collections.
+
+The export format remains a self-contained JSON file for now. ZIP packaging can
+be implemented in the panel using the existing binary file APIs, without a client
+change; chunked host transfers still affect large-file performance.
 
 ## Settings-based generation
 
@@ -132,8 +145,8 @@ Legacy `series` and `separate-headlines` values are accepted only on input.
 The loader converts their implicit behavior into explicit settings and removes
 the tag from in-memory templates, duplicates, saved custom templates and shared
 files. Checked-in legacy packs remain readable without rewriting user files.
-Local overrides still merge over pack defaults; their identity and version remain
-pack-owned. Unknown legacy tags are rejected rather than silently changing a design.
+Legacy field differences are resolved only during migration to complete snapshots.
+Unknown legacy tags are rejected rather than silently changing a design.
 
 Independent settings include:
 
@@ -195,3 +208,15 @@ and rendering; AI editorial preferences still require judgment by the agent.
 New packs and shared files require template API 2, so API 1 apps reject them
 before installation. API 2 apps also accept API 1 packs and shared files; existing
 installed templates need no reinstall. Template JSON schemaVersion remains 1.
+
+## Current storage limits
+
+Mutations are serialized within one panel instance. The catalog write is atomic,
+but it is not a cross-window compare-and-swap: simultaneous saves from separate
+panels can overwrite each other. Use one editing panel until host-level locking
+is implemented. Conflict confirmation checks detect edits made before retry,
+not concurrent writes after that check.
+
+Recovery history and staged immutable records are retained without automatic
+pruning. Images are deduplicated, but storage can still grow. ZIP import/export
+and retention controls are not part of this change.

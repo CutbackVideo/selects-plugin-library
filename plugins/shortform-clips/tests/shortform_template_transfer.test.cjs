@@ -21,22 +21,20 @@ test('portable template files',{skip:!modules},async t=>{
   envelope.templateApi=1;
   assert.deepEqual(api.decodeSharedTemplate(new TextEncoder().encode(JSON.stringify(envelope))),api.decodeSharedTemplate(bytes));
  });
- await t.test('round trip keeps actual edits, both layouts and embedded images without source identity',()=>{
+ await t.test('round trip keeps actual edits, settings and embedded images with stable identity but no private metadata',()=>{
   const bytes=api.encodeSharedTemplate(original),text=new TextDecoder().decode(bytes),decoded=api.decodeSharedTemplate(bytes);
-  for(const secret of ['private-pack','private-project','private-source','/private/video.mp4','sbs-radio/private-template'])assert.ok(!text.includes(secret));
+  for(const secret of ['private-pack','private-project','private-source','/private/video.mp4'])assert.ok(!text.includes(secret));
   for(const field of ['name','layout','prompt','variants','logo','background','captions'])assert.deepEqual(decoded[field],original[field]);
   const {enabled,...thumbnail}=original.thumbnail;assert.deepEqual(decoded.thumbnail,thumbnail);
   assert.equal(original.thumbnail.enabled,true,'Migration does not mutate the source export object');
-  assert.ok(decoded.logo.image.startsWith('data:image/'));
+  assert.ok(decoded.logo.image.startsWith('data:image/'));assert.equal(JSON.parse(text).identity,original.id);
  });
- await t.test('same file imports as independent copies and survives repository reload',async()=>{
+ await t.test('the same unchanged file is idempotent and retains its identity',async()=>{
   const r=repo(),bytes=api.encodeSharedTemplate(original);
-  const a=await api.importSharedTemplate(r.repository,bytes),b=await api.importSharedTemplate(r.repository,bytes);
-  assert.notEqual(a.id,b.id);assert.equal(r.rows.size,2);
-  a.layout.splitPolicy='frequent';await r.repository.put('templates',a.id,a);
-  const loaded=await r.repository.load();assert.equal(loaded.templates.length,2);assert.deepEqual(loaded.errors,[]);
-  assert.equal(loaded.templates.find(t=>t.id===b.id).layout.splitPolicy,'never');
-  assert.equal(loaded.templates.find(t=>t.id===b.id).builtIn,false);
+  const a=await api.importSharedTemplate(r.repository,bytes),before=structuredClone([...r.rows]),b=await api.importSharedTemplate(r.repository,bytes);
+  assert.equal(a.id,b.id);assert.deepEqual([...r.rows],before);
+  const loaded=await r.repository.load();assert.equal(loaded.templates.length,1);assert.deepEqual(loaded.errors,[]);
+  assert.equal(loaded.templates[0].layout.splitPolicy,'never');assert.equal(loaded.templates[0].builtIn,false);
  });
  await t.test('unsupported, malformed and oversized files never write to storage',async()=>{
   const r=repo();const bytes=api.encodeSharedTemplate(original),data=JSON.parse(new TextDecoder().decode(bytes));
