@@ -373,6 +373,11 @@ Installation respects `SELECTS_USER_SKILLS_ROOT` and `SELECTS_USER_PANELS_ROOT`,
 falling back independently to the default home folders when absent. Backups use
 `.updates/shortform-clips` beside the skills root.
 
+Shell commands use the host-provided `SELECTS_NODE` executable wrapper when
+available, with `node` as a compatibility fallback. The wrapper path is quoted
+for POSIX shells and Windows cmd; users need no separate Node installation on
+hosts that provide this runtime.
+
 The app-owned `update.cjs` downloads `plugin.json` and its declared app files from
 the exact catalog-selected commit over HTTPS. It does not discover releases or
 read Git trees through the GitHub API. It validates the manifest version against

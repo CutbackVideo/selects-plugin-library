@@ -134,7 +134,7 @@ test('panel command forwards the host catalog context to the installed updater',
   const source = await fs.readFile(path.join(__dirname, '../panel.tsx'), 'utf8');
   const start = source.indexOf('function shortformUpdateCommand(');
   const code = source.slice(start, source.indexOf('\nfunction ShortformClipsPanel', start)).replaceAll(': string', '').replaceAll(': any', '');
-  const command = new Function(`${code};return shortformUpdateCommand;`)();
+  const command = new Function('IS_WIN', `${code};return shortformUpdateCommand;`)(false);
   const context = {installed: {commit: old, version: '0.4.1'}, latest: {commit: latest, version: '0.4.2'}};
   const encoded = command('apply', latest, context).match(/Buffer.from\('([^']+)'/)[1];
   const script = Buffer.from(encoded, 'base64').toString();
@@ -156,4 +156,26 @@ test('uses configured skills and panels roots without writing default installati
   assert.equal(await fs.readFile(path.join(f.skills, '.source-commit'), 'utf8'), latest);
   assert.equal(await fs.readFile(path.join(f.data, 'draft.json'), 'utf8'), 'saved draft');
   await assert.rejects(fs.access(path.join(f.root, 'panels/shortform-clips/panel.tsx')));
+});
+
+test('uses the host runtime with spaces in its path and no node on PATH', async t => {
+  const source = await fs.readFile(path.join(__dirname, '../panel.tsx'), 'utf8');
+  const start = source.indexOf('function shortformUpdateCommand(');
+  const code = source.slice(start, source.indexOf('\nfunction ShortformClipsPanel', start)).replaceAll(': string', '').replaceAll(': any', '');
+  const command = new Function('IS_WIN', `${code};return shortformUpdateCommand;`)(false);
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'runtime with spaces '));
+  t.after(() => fs.rm(dir, {recursive:true,force:true}));
+  const skills = path.join(dir, 'skills with spaces');
+  await fs.mkdir(path.join(skills, 'shortform-clips'), {recursive:true});
+  await fs.writeFile(path.join(skills, 'shortform-clips/update.cjs'), 'exports.run=async(mode,id,deps)=>({mode,id,...deps});');
+  const wrapper = path.join(dir, 'host node');
+  await fs.writeFile(wrapper, `#!/bin/sh\nexec '${process.execPath.replaceAll("'", "'\\''")}' "$@"\n`, {mode:0o700});
+  const context = {installed:{commit:old,version:'0.4.1'},latest:{commit:latest,version:'0.4.2'}};
+  const output = require('node:child_process').execFileSync('/bin/sh', ['-c', command('check', '', context)], {
+    env:{PATH:'/usr/bin:/bin',SELECTS_NODE:wrapper,SELECTS_USER_SKILLS_ROOT:skills}, encoding:'utf8',
+  });
+  assert.deepEqual(JSON.parse(output), {mode:'check',id:'',checkContext:context});
+  const windows = command('check', '', context, true);
+  assert.match(windows, /^if not defined SELECTS_NODE set "SELECTS_NODE=node"\r\n"%SELECTS_NODE%" -e /);
+  assert.doesNotMatch(windows, /\$\{SELECTS_NODE/);
 });

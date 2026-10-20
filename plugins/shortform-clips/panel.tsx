@@ -6490,10 +6490,13 @@ export default function Panel(props: any) {
 }
 
 // Optional host update contract. Old hosts and all unregistered apps stay unchanged.
-function shortformUpdateCommand(mode: string, id: string, checkContext: any) {
+function shortformUpdateCommand(mode: string, id: string, checkContext: any, windows = IS_WIN) {
   const script = "const p=require('node:path');const f=p.join(process.env.SELECTS_USER_SKILLS_ROOT||p.join(require('node:os').homedir(),'.selects','skills'),'shortform-clips','update.cjs');require(f).run(" + JSON.stringify(mode) + "," + JSON.stringify(id || "") + "," + JSON.stringify({checkContext}) + ").then(v=>console.log(JSON.stringify(v))).catch(e=>{console.error(e.message);process.exitCode=1;});";
   const encoded = btoa(script);
-  return 'node -e "eval(Buffer.from(\'' + encoded + '\',\'base64\').toString())"';
+  const evaluate = ' -e "eval(Buffer.from(\'' + encoded + '\',\'base64\').toString())"';
+  return windows
+    ? 'if not defined SELECTS_NODE set "SELECTS_NODE=node"\r\n"%SELECTS_NODE%"' + evaluate
+    : '"${SELECTS_NODE:-node}"' + evaluate;
 }
 
 function ShortformClipsPanel({ sdk, context, ui, files }: any) {
