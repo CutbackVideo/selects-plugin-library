@@ -1,7 +1,7 @@
 // @name Artlist
 // @name:en Artlist
 // @name:ko Artlist
-// @icon audio
+// @icon artlist
 // Connect a personal Artlist account and add editable Audio clips.
 import React from 'react';
 
@@ -145,6 +145,7 @@ const STYLES = `
   .music-panel { height: calc(100dvh - var(--panel-gap)); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
   .music-connect { width: 100%; max-width: var(--panel-field-max); margin: 0 auto; padding-top: 12px; display: flex; flex-direction: column; gap: 12px; }
   .music-connect p { margin: 0; text-align: center; text-wrap: balance; }
+  .music-connect-icon { display: flex; justify-content: center; }
   .music-tabs { display: flex; align-items: center; gap: 4px; min-width: 0; flex-shrink: 0; }
   .music-navigation { flex: 1; min-width: 0; border: 0; margin: 0; padding: 0; }
   /* Docked, four tabs don't fit: they keep their words and the strip scrolls, as the app's own panel tabs do. */
@@ -726,6 +727,7 @@ export default function Panel({ sdk, context, ui }) {
     <style>{STYLES}</style>
     {!connection && (message ? <ui.Message tone="error">{message}</ui.Message> : <Spinner ui={ui} label={T.loading} />)}
     {connection && !connection.connected && <div className="music-connect">
+      {ui.AppIcon && <span className="music-connect-icon"><ui.AppIcon icon="artlist" /></span>}
       <p>{connection.autoIdentity ? T.connectHintAuto : T.connectHint}</p>
       <ui.Button variant="primary" busy={pending?.kind === 'connect' || !!connection.connecting} busyLabel={T.connecting} disabled={busy} onClick={() => action(async captured => { await script('return await selects.artlist.connect();', true, captured); await status(captured); }, 'connect')}>{T.connect}</ui.Button>
       {connection.connecting && <ui.Button variant="ghost" onClick={() => action(async captured => { await script('return await selects.artlist.disconnect();', true, captured); await status(captured); }, 'disconnect')}>{T.cancel}</ui.Button>}
