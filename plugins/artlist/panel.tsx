@@ -564,15 +564,17 @@ export default function Panel({ sdk, context, ui }) {
     setTerm(query);
     action(captured => load(null, captured, query), 'search');
   }
+  // The chips are read once the list is in: Artlist's requests share one
+  // page and queue, so the list never waits behind them.
   React.useEffect(() => {
-    if (!connection?.connected || !connection.categories || !ui.FilterBar || view !== 'search' || categoryGroups[kind]) return;
+    if (!connection?.connected || !connection.categories || !ui.FilterBar || view !== 'search' || categoryGroups[kind] || !searchedTerm || busy) return;
     const captured = scope.current;
     script(`return await selects.artlist.categories(${JSON.stringify(kind)});`, false, captured)
       .then(result => setCategoryGroups(previous => ({ ...previous, [kind]: result.groups })))
       // An older host or a failed read shows no chips; a read cut short by
       // leaving the tab is simply tried again on coming back.
       .catch(() => { if (scope.current === captured) setCategoryGroups(previous => ({ ...previous, [kind]: [] })); });
-  }, [connection?.connected, connection?.categories, view, kind]);
+  }, [connection?.connected, connection?.categories, view, kind, searchedTerm, busy]);
   React.useEffect(() => {
     if (!audio || !connection?.waveform || audio.id in waves) return;
     const captured = scope.current;
