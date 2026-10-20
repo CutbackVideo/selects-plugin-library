@@ -103,6 +103,13 @@ test('templates use independent settings without renderer families',{skip:!modul
     if(dateA.dateLabel)assert.equal(renderGraphic('DATE_TSX',dateB.dateLabel),renderGraphic('DATE_TSX',dateA.dateLabel));
    }
   }
+  // These presets were migrated separately from the customer-specific app.
+  for(const id of ['heukbaek','history','kimkwangil','money','panilgi','villain']){
+   expectedFiles.push('chosun-ilbo/'+id+'.json');
+   const current=JSON.parse(fs.readFileSync(path.join(root,'chosun-ilbo','templates',id+'.json'),'utf8'));
+   assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
+   assert.deepEqual(api.validateTemplate(structuredClone(current)),current,id+': no migration needed');
+  }
   assert.deepEqual(files.sort(),expectedFiles.sort());
  });
  await t.test('footer gradient, font, shadow and stroke survive date extraction and render',()=>{

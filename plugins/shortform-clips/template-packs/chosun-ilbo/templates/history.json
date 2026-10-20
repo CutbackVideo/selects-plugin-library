@@ -1,0 +1,114 @@
+{
+  "id": "history",
+  "version": 1,
+  "names": {
+    "ko": "\uc5ed\uc0ac\uc804\uc7c1",
+    "en": "History War"
+  },
+  "detect": {
+    "keywords": [
+      "\uc5ed\uc0ac\uc804\uc7c1",
+      "\ud638\uc900\uc11d"
+    ],
+    "exclude": [],
+    "host": "\ud638\uc900\uc11d"
+  },
+  "layout": {
+    "windowTop": 557,
+    "windowBottom": 1172,
+    "sourceTop": 0,
+    "sourceBottom": 1080,
+    "offsetX": 0,
+    "headlineCenter": 378,
+    "logoCenter": 1358,
+    "reframe": false
+  },
+  "background": {
+    "mode": "image",
+    "style": "radial-gradient(ellipse at 50% 45%,#F1F0EC 0%,#DCDBD6 55%,#B5B4AE 100%)",
+    "color": "#F1F0EC",
+    "image": "assets/history-background.webp",
+    "imageName": "TikTok @_chosunilbo_",
+    "dim": 0
+  },
+  "border": {
+    "on": false,
+    "color": "#C9A45C"
+  },
+  "headline": {
+    "font": "",
+    "size1": 88,
+    "size2": 88,
+    "color1": "#131313",
+    "color2": "#FFFFFF",
+    "box2On": true,
+    "box2": "#EF3F54",
+    "italic": false,
+    "shadow": false,
+    "fontWeight": 900,
+    "lineHeight": 1.16,
+    "letterSpacing": -2,
+    "fitWidth": 1010,
+    "fitPadding": 2,
+    "fitCjk": 0.93,
+    "fitSpace": 0.27,
+    "fitLatin": 0.6,
+    "fitOther": 0.4,
+    "fitWideLatin": 0.6,
+    "strokeOn": true,
+    "strokeWidth": 3,
+    "strokeColor": "currentColor",
+    "gap": 14
+  },
+  "logo": {
+    "mode": "image",
+    "image": "assets/history-logo.webp",
+    "imageName": "TikTok @_chosunilbo_",
+    "width": 952
+  },
+  "captions": {
+    "on": false,
+    "mode": "box",
+    "barHeight": 230,
+    "bottom": 1142,
+    "fontSize": 60,
+    "fontWeight": 600,
+    "boxColor": "#0000009E",
+    "color": "#FFFFFF",
+    "font": "",
+    "lineMax": 16
+  },
+  "editing": {
+    "removeFillers": false,
+    "removeSilences": false
+  },
+  "prompt": {
+    "role": "\ub108\ub294 \uc870\uc120\uc77c\ubcf4 \ud2f1\ud1a1 \uacc4\uc815\uc758 \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4.",
+    "format": "\ud604\ub300\uc0ac \ub2e4\ud050 \ub0b4\ub808\uc774\uc158(\uc790\ub8cc\ud654\uba74·\uc99d\uc5b8). \uc6d0\ubcf8 \uc790\ub9c9\uc744 \uadf8\ub300\ub85c \uc4f4\ub2e4.",
+    "good": "\uc794\ud639\ud55c \uc2e4\ud654 \uc7a5\uba74 \ubb18\uc0ac, \uac04\ucca9·\uc6d4\ubd81 \uac19\uc740 \ubc18\uc804",
+    "bad": "\ub0a9\ubd81·\ud3ec\ub85c·\uae30\ub2e4\ub9bc \uac19\uc740 \uc815\uc801\uc778 \uc11c\uc220, \uc0ac\uac74 \uacbd\uc704 \uc124\uba85",
+    "lengthGuide": "60-100\ucd08 (\uae38\uc5b4\ub3c4 130\ucd08)",
+    "countGuide": "\uc870\uc120\uc77c\ubcf4\ub294 \ud68c\ucc28(\uc57d 15\ubd84)\ub2f9 6\uac1c\ub97c \uc62c\ub9b0\ub2e4.",
+    "rules": "\ud55c \ud074\ub9bd\uc5d0 \uc8fc\uc7a5·\uc7a5\uba74 \ud558\ub098. \uccab \ubb38\uc7a5\ub9cc \ub4e4\uc5b4\ub3c4 \uc774\ud574\ub418\uac8c \uc2dc\uc791\ud558\uace0, \uc644\uacb0\ub41c \ubb38\uc7a5\uc73c\ub85c \ub05d\ub0b8\ub2e4. \ud55c \ud074\ub9bd\uc740 \uc6d0\ubcf8 \uad6c\uac04 1-3\uac1c\ub85c \uad6c\uc131\ud558\uace0 \uc5ec\ub2f4\uc740 \ube80\ub2e4. \ud074\ub9bd\ub07c\ub9ac \uad6c\uac04\uc774 \uacb9\uce58\uba74 \uc548 \ub41c\ub2e4. \uc120\uac70·\uc218\uc0ac·\uc7ac\ud310·\uc2e4\uba85 \uc815\uce58 \uac08\ub4f1·\uac15\ub825\ubc94\uc8c4\ub97c \uc6b0\uc120\ud558\uace0, \ud574\uc678 \uc0ac\ub840·\uc81c\ub3c4 \uc124\uba85\uc740 \ub4a4\ub85c \ubbf8\ub8ec\ub2e4.",
+    "headline": "headline1\uc740 \uac00\uc7a5 \uc13c \ubc1c\uc5b8\uc744 \ud070\ub530\uc634\ud45c\ub85c \uadf8\ub300\ub85c \uc778\uc6a9\ud558\uac70\ub098 \uc9c8\ubb38\ud615(18\uc790 \uc774\ub0b4), headline2\ub294 \ub204\uac00/\ubb34\uc5c7\uc778\uc9c0(16\uc790 \uc774\ub0b4). \ubc1c\uc5b8\uc790\uc758 \uc2e4\uba85\uc740 \uc804\uc0ac\ub098 \uc81c\ubaa9\uc5d0 \ubd84\uba85\ud788 \ub098\uc62c \ub54c\ub9cc \uc4f4\ub2e4. \uc758\ud639\uc740 \uc758\ud639\uc73c\ub85c \uc4f4\ub2e4."
+  },
+  "schemaVersion": 1,
+  "labels": {
+    "top": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 100,
+      "size": 40,
+      "weight": 800
+    },
+    "footer": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 1750,
+      "size": 40,
+      "weight": 800
+    }
+  }
+}

@@ -1,0 +1,499 @@
+{
+  "sourceCommit": "2938989c4f647fdb2d0fef685a91f39174cb39ac",
+  "sourcePath": "plugins/chosun-clips/panel.tsx",
+  "templates": [
+    {
+      "id": "heukbaek",
+      "version": 1,
+      "names": {
+        "ko": "\ud751\ubc31\uc5ec\uc758\ub3c4",
+        "en": "Black & White Yeouido"
+      },
+      "logoArt": "heukbaek",
+      "detect": {
+        "keywords": [
+          "\ud751\ubc31\uc5ec\uc758\ub3c4",
+          "\ud751\ubc31 \uc5ec\uc758\ub3c4"
+        ],
+        "exclude": [],
+        "host": "\ud328\ub110 \ud1a0\ub860"
+      },
+      "layout": {
+        "windowTop": 421,
+        "windowBottom": 1228,
+        "sourceTop": 0,
+        "sourceBottom": 807,
+        "offsetX": 0,
+        "headlineCenter": 292,
+        "logoCenter": 1670
+      },
+      "background": {
+        "mode": "image",
+        "style": "linear-gradient(160deg,#3A3C42 0%,#26272B 42%,#1A1B1E 100%)",
+        "color": "#3A3C42",
+        "imageName": "TikTok @_chosunilbo_",
+        "dim": 0,
+        "imageSha256": "556229db4a537877f8e46c0c0ec71178e45c003c2923128cfc7a403d39e96fb5"
+      },
+      "border": {
+        "on": false,
+        "color": "#C9A45C"
+      },
+      "headline": {
+        "font": "",
+        "size1": 92,
+        "size2": 92,
+        "color1": "#FFFFFF",
+        "color2": "#EC09B2",
+        "box2On": false,
+        "box2": "#D7263D",
+        "italic": false,
+        "shadow": true
+      },
+      "logo": {
+        "mode": "image",
+        "imageName": "TikTok @_chosunilbo_",
+        "width": 432,
+        "imageSha256": "4915d55aedcac24ca3d5ce1b92fafa5a7d009a0d87f9d8e95b136cbeb6fa11a7"
+      },
+      "captions": {
+        "on": true,
+        "mode": "bar",
+        "barHeight": 260,
+        "bottom": 1198,
+        "fontSize": 72,
+        "fontWeight": 500,
+        "boxColor": "#0000009E",
+        "color": "#FFFFFF",
+        "font": "",
+        "lineMax": 14
+      },
+      "editing": {
+        "removeFillers": true,
+        "removeSilences": true
+      },
+      "prompt": {
+        "role": "\ub108\ub294 \uc870\uc120\uc77c\ubcf4 \ud2f1\ud1a1 \uacc4\uc815\uc758 \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4.",
+        "format": "\uc5ec\ub7ec \ud328\ub110\uc774 \ub098\uc624\ub294 \uad6d\ud68c \uc815\uce58 \ud1a0\ud06c\uc1fc. \ud55c \ud074\ub9bd\uc5d0 \ud55c \ud328\ub110\uc758 \uc8fc\uc7a5 \ud558\ub098.",
+        "good": "\uc2e4\uba85 \uc815\uce58\uc778\u00b7\uac80\uc0ac\ub97c \uaca8\ub0e5\ud55c \ud55c \uc904 \uacf5\uaca9\uc744 \ud070\ub530\uc634\ud45c\ub85c \ubf51\uc740 \ud074\ub9bd, \ub2f9\uc77c \ud130\uc9c4 \uc815\uce58 \uc774\uc288",
+        "bad": "\ubcf4\uc218 \ub0b4\ubd80 \ub178\uc120\u00b7\uc591\ubcf4\ub860 \uac19\uc740 \ucd94\uc0c1\uc801 \uc8fc\uc81c, \ubc29\uc1a1 \uc790\uccb4\ub97c \uc18c\uac1c\ud558\ub294 \ud074\ub9bd",
+        "lengthGuide": "45-75\ucd08 (\uae38\uc5b4\ub3c4 110\ucd08)",
+        "countGuide": "\uc870\uc120\uc77c\ubcf4\ub294 \ub77c\uc774\ube0c 1\ud68c(1.5-3\uc2dc\uac04)\ub2f9 \uc57d 4\uac1c\ub97c \uc62c\ub9b0\ub2e4. 20-30\ubd84 \ud3b8\uc9d1\ubcf8\uc774\uba74 3-4\uac1c\uac00 \uae30\uc900\uc774\ub2e4.",
+        "rules": "\ud55c \ud074\ub9bd\uc5d0 \uc8fc\uc7a5\u00b7\uc7a5\uba74 \ud558\ub098. \uccab \ubb38\uc7a5\ub9cc \ub4e4\uc5b4\ub3c4 \uc774\ud574\ub418\uac8c \uc2dc\uc791\ud558\uace0, \uc644\uacb0\ub41c \ubb38\uc7a5\uc73c\ub85c \ub05d\ub0b8\ub2e4. \ud55c \ud074\ub9bd\uc740 \uc6d0\ubcf8 \uad6c\uac04 1-3\uac1c\ub85c \uad6c\uc131\ud558\uace0 \uc5ec\ub2f4\uc740 \ube80\ub2e4. \ud074\ub9bd\ub07c\ub9ac \uad6c\uac04\uc774 \uacb9\uce58\uba74 \uc548 \ub41c\ub2e4. \uc120\uac70\u00b7\uc218\uc0ac\u00b7\uc7ac\ud310\u00b7\uc2e4\uba85 \uc815\uce58 \uac08\ub4f1\u00b7\uac15\ub825\ubc94\uc8c4\ub97c \uc6b0\uc120\ud558\uace0, \ud574\uc678 \uc0ac\ub840\u00b7\uc81c\ub3c4 \uc124\uba85\uc740 \ub4a4\ub85c \ubbf8\ub8ec\ub2e4.",
+        "headline": "headline1\uc740 \uac00\uc7a5 \uc13c \ubc1c\uc5b8\uc744 \ud070\ub530\uc634\ud45c\ub85c \uadf8\ub300\ub85c \uc778\uc6a9\ud558\uac70\ub098 \uc9c8\ubb38\ud615(18\uc790 \uc774\ub0b4), headline2\ub294 \ub204\uac00/\ubb34\uc5c7\uc778\uc9c0(16\uc790 \uc774\ub0b4). \ubc1c\uc5b8\uc790\uc758 \uc2e4\uba85\uc740 \uc804\uc0ac\ub098 \uc81c\ubaa9\uc5d0 \ubd84\uba85\ud788 \ub098\uc62c \ub54c\ub9cc \uc4f4\ub2e4. \uc758\ud639\uc740 \uc758\ud639\uc73c\ub85c \uc4f4\ub2e4."
+      }
+    },
+    {
+      "id": "kimkwangil",
+      "version": 1,
+      "names": {
+        "ko": "\uae40\uad11\uc77c\uc758\uc785",
+        "en": "Kim Kwang-il's Mouth"
+      },
+      "logoArt": "kimkwangil",
+      "detect": {
+        "keywords": [
+          "\uae40\uad11\uc77c\uc758\uc785",
+          "\uae40\uad11\uc77c\uc758 \uc785",
+          "\uae40\uad11\uc77c"
+        ],
+        "exclude": [],
+        "host": "\uae40\uad11\uc77c \ub17c\uc124\uc704\uc6d0 1\uc778 \ub17c\ud3c9"
+      },
+      "layout": {
+        "windowTop": 396,
+        "windowBottom": 1470,
+        "sourceTop": 30,
+        "sourceBottom": 889,
+        "offsetX": 0,
+        "headlineCenter": 250,
+        "logoCenter": 1698
+      },
+      "background": {
+        "mode": "image",
+        "style": "linear-gradient(180deg,#081330 0%,#10224C 55%,#162B5E 100%)",
+        "color": "#081330",
+        "imageName": "TikTok @_chosunilbo_",
+        "dim": 0,
+        "imageSha256": "caf71c3a9fb9e53945c2d460ef0dfbc3be553ac114e7331f2ec998fa925f6301"
+      },
+      "border": {
+        "on": false,
+        "color": "#C9A45C"
+      },
+      "headline": {
+        "font": "",
+        "size1": 78,
+        "size2": 78,
+        "color1": "#FFFFFF",
+        "color2": "#F7DB08",
+        "box2On": false,
+        "box2": "#D7263D",
+        "italic": false,
+        "shadow": true
+      },
+      "logo": {
+        "mode": "image",
+        "imageName": "TikTok @_chosunilbo_",
+        "width": 388,
+        "imageSha256": "502bcc2e602959f1d02b1c8d2e31788550c8bd0b87adcf4143292ac5b1d456c1"
+      },
+      "captions": {
+        "on": true,
+        "mode": "box",
+        "barHeight": 230,
+        "bottom": 1440,
+        "fontSize": 60,
+        "fontWeight": 600,
+        "boxColor": "#0000009E",
+        "color": "#FFFFFF",
+        "font": "",
+        "lineMax": 16
+      },
+      "editing": {
+        "removeFillers": true,
+        "removeSilences": true
+      },
+      "prompt": {
+        "role": "\ub108\ub294 \uc870\uc120\uc77c\ubcf4 \ud2f1\ud1a1 \uacc4\uc815\uc758 \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4.",
+        "format": "\ub17c\uc124\uc704\uc6d0 1\uc778 \uc815\uce58 \ub17c\ud3c9.",
+        "good": "\uc0ac\uac74\uc131 \uc788\ub294 \uc758\ud639 \uc81c\uae30, \uc120\uac70 \uc774\uc288",
+        "bad": "\uad6d\uc81c\u00b7\uc548\ubcf4 \uc8fc\uc81c, \uac1c\ubcc4 \ud6c4\ubcf4 \ud574\uba85 \uc694\uad6c, \uc5ec\ub860\uc870\uc0ac \ud574\uc124",
+        "lengthGuide": "45-75\ucd08",
+        "countGuide": "\uc870\uc120\uc77c\ubcf4\ub294 \ub77c\uc774\ube0c 1\ud68c\ub2f9 4-5\uac1c\ub97c \uc62c\ub9b0\ub2e4. 15-20\ubd84 \ud3b8\uc9d1\ubcf8\uc774\uba74 3\uac1c\uac00 \uae30\uc900\uc774\ub2e4.",
+        "rules": "\ud55c \ud074\ub9bd\uc5d0 \uc8fc\uc7a5\u00b7\uc7a5\uba74 \ud558\ub098. \uccab \ubb38\uc7a5\ub9cc \ub4e4\uc5b4\ub3c4 \uc774\ud574\ub418\uac8c \uc2dc\uc791\ud558\uace0, \uc644\uacb0\ub41c \ubb38\uc7a5\uc73c\ub85c \ub05d\ub0b8\ub2e4. \ud55c \ud074\ub9bd\uc740 \uc6d0\ubcf8 \uad6c\uac04 1-3\uac1c\ub85c \uad6c\uc131\ud558\uace0 \uc5ec\ub2f4\uc740 \ube80\ub2e4. \ud074\ub9bd\ub07c\ub9ac \uad6c\uac04\uc774 \uacb9\uce58\uba74 \uc548 \ub41c\ub2e4. \uc120\uac70\u00b7\uc218\uc0ac\u00b7\uc7ac\ud310\u00b7\uc2e4\uba85 \uc815\uce58 \uac08\ub4f1\u00b7\uac15\ub825\ubc94\uc8c4\ub97c \uc6b0\uc120\ud558\uace0, \ud574\uc678 \uc0ac\ub840\u00b7\uc81c\ub3c4 \uc124\uba85\uc740 \ub4a4\ub85c \ubbf8\ub8ec\ub2e4.",
+        "headline": "headline1\uc740 \uac00\uc7a5 \uc13c \ubc1c\uc5b8\uc744 \ud070\ub530\uc634\ud45c\ub85c \uadf8\ub300\ub85c \uc778\uc6a9\ud558\uac70\ub098 \uc9c8\ubb38\ud615(18\uc790 \uc774\ub0b4), headline2\ub294 \ub204\uac00/\ubb34\uc5c7\uc778\uc9c0(16\uc790 \uc774\ub0b4). \ubc1c\uc5b8\uc790\uc758 \uc2e4\uba85\uc740 \uc804\uc0ac\ub098 \uc81c\ubaa9\uc5d0 \ubd84\uba85\ud788 \ub098\uc62c \ub54c\ub9cc \uc4f4\ub2e4. \uc758\ud639\uc740 \uc758\ud639\uc73c\ub85c \uc4f4\ub2e4."
+      }
+    },
+    {
+      "id": "panilgi",
+      "version": 1,
+      "names": {
+        "ko": "\ud310\uc77d\uae30",
+        "en": "Court Ruling Reader"
+      },
+      "logoArt": "panilgi",
+      "detect": {
+        "keywords": [
+          "\ud310\uacb0\ubb38\uc77d\uc5b4\uc8fc\ub294",
+          "\ud310\uacb0\ubb38 \uc77d\uc5b4\uc8fc\ub294",
+          "\ud310\uc77d\uae30",
+          "\uc591\uc740\uacbd"
+        ],
+        "exclude": [
+          "\uae00\ub85c\ubc8c\ud310\uc77d\uae30",
+          "\uc2e0\ubc94\ucca0"
+        ],
+        "host": "\ud310\uacb0\ubb38 \uc77d\uc5b4\uc8fc\ub294 \uae30\uc790(\uc591\uc740\uacbd)"
+      },
+      "layout": {
+        "windowTop": 440,
+        "windowBottom": 1495,
+        "sourceTop": 0,
+        "sourceBottom": 854,
+        "offsetX": 0,
+        "headlineCenter": 320,
+        "logoCenter": 1688
+      },
+      "background": {
+        "mode": "image",
+        "style": "#000000",
+        "color": "#000000",
+        "imageName": "TikTok @_chosunilbo_",
+        "dim": 0,
+        "imageSha256": "1a1d6c94824299dd01c99457edb657458a4a6ead6e70b78460d5fbaa427d8c7f"
+      },
+      "border": {
+        "on": false,
+        "color": "#C9A45C"
+      },
+      "headline": {
+        "font": "",
+        "size1": 68,
+        "size2": 68,
+        "color1": "#FAEF09",
+        "color2": "#FFFFFF",
+        "box2On": false,
+        "box2": "#D7263D",
+        "italic": true,
+        "shadow": true
+      },
+      "logo": {
+        "mode": "image",
+        "imageName": "TikTok @_chosunilbo_",
+        "width": 354,
+        "imageSha256": "d97425a10e1407f6f5db1ea98abecf7ab7525481863527f662aa15bba73f2c6e"
+      },
+      "captions": {
+        "on": true,
+        "mode": "box",
+        "barHeight": 230,
+        "bottom": 1465,
+        "fontSize": 58,
+        "fontWeight": 600,
+        "boxColor": "#000000D9",
+        "color": "#FFFFFF",
+        "font": "",
+        "lineMax": 17
+      },
+      "editing": {
+        "removeFillers": true,
+        "removeSilences": true
+      },
+      "prompt": {
+        "role": "\ub108\ub294 \uc870\uc120\uc77c\ubcf4 \ud2f1\ud1a1 \uacc4\uc815\uc758 \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4.",
+        "format": "\ubc95\uc870 \uae30\uc790\uac00 \ud310\uacb0\u00b7\uc218\uc0ac\ub97c \ud574\uc124.",
+        "good": "\uc120\uac70\u00b7\ub300\ud1b5\ub839\uacfc \uc5bd\ud78c \ubc95\ub960 \ud574\uc11d, \ub2e8\ub3c5 \uc785\uc218 \ubb38\uac74",
+        "bad": "\uac1c\ubcc4 \uc758\uc6d0 \uc758\ud639\uc758 \ud6c4\uc18d \ubcf4\ub3c4, \uae30\uc5c5 \uc18c\uc1a1 \ud574\uc124",
+        "lengthGuide": "45-75\ucd08",
+        "countGuide": "\ud68c\ucc28\ub2f9 4-5\uac1c\uac00 \uae30\uc900\uc774\ub2e4.",
+        "rules": "\ud55c \ud074\ub9bd\uc5d0 \uc8fc\uc7a5\u00b7\uc7a5\uba74 \ud558\ub098. \uccab \ubb38\uc7a5\ub9cc \ub4e4\uc5b4\ub3c4 \uc774\ud574\ub418\uac8c \uc2dc\uc791\ud558\uace0, \uc644\uacb0\ub41c \ubb38\uc7a5\uc73c\ub85c \ub05d\ub0b8\ub2e4. \ud55c \ud074\ub9bd\uc740 \uc6d0\ubcf8 \uad6c\uac04 1-3\uac1c\ub85c \uad6c\uc131\ud558\uace0 \uc5ec\ub2f4\uc740 \ube80\ub2e4. \ud074\ub9bd\ub07c\ub9ac \uad6c\uac04\uc774 \uacb9\uce58\uba74 \uc548 \ub41c\ub2e4. \uc120\uac70\u00b7\uc218\uc0ac\u00b7\uc7ac\ud310\u00b7\uc2e4\uba85 \uc815\uce58 \uac08\ub4f1\u00b7\uac15\ub825\ubc94\uc8c4\ub97c \uc6b0\uc120\ud558\uace0, \ud574\uc678 \uc0ac\ub840\u00b7\uc81c\ub3c4 \uc124\uba85\uc740 \ub4a4\ub85c \ubbf8\ub8ec\ub2e4.",
+        "headline": "headline1\uc740 \uac00\uc7a5 \uc13c \ubc1c\uc5b8\uc744 \ud070\ub530\uc634\ud45c\ub85c \uadf8\ub300\ub85c \uc778\uc6a9\ud558\uac70\ub098 \uc9c8\ubb38\ud615(18\uc790 \uc774\ub0b4), headline2\ub294 \ub204\uac00/\ubb34\uc5c7\uc778\uc9c0(16\uc790 \uc774\ub0b4). \ubc1c\uc5b8\uc790\uc758 \uc2e4\uba85\uc740 \uc804\uc0ac\ub098 \uc81c\ubaa9\uc5d0 \ubd84\uba85\ud788 \ub098\uc62c \ub54c\ub9cc \uc4f4\ub2e4. \uc758\ud639\uc740 \uc758\ud639\uc73c\ub85c \uc4f4\ub2e4."
+      }
+    },
+    {
+      "id": "history",
+      "version": 1,
+      "names": {
+        "ko": "\uc5ed\uc0ac\uc804\uc7c1",
+        "en": "History War"
+      },
+      "logoArt": "history",
+      "detect": {
+        "keywords": [
+          "\uc5ed\uc0ac\uc804\uc7c1",
+          "\ud638\uc900\uc11d"
+        ],
+        "exclude": [],
+        "host": "\ud638\uc900\uc11d"
+      },
+      "layout": {
+        "windowTop": 557,
+        "windowBottom": 1172,
+        "sourceTop": 0,
+        "sourceBottom": 1080,
+        "offsetX": 0,
+        "headlineCenter": 378,
+        "logoCenter": 1358
+      },
+      "background": {
+        "mode": "image",
+        "style": "radial-gradient(ellipse at 50% 45%,#F1F0EC 0%,#DCDBD6 55%,#B5B4AE 100%)",
+        "color": "#F1F0EC",
+        "imageName": "TikTok @_chosunilbo_",
+        "dim": 0,
+        "imageSha256": "c82be115bc9706a49dc427f7f6a756d44a744243539f1e827f7daaa311d14668"
+      },
+      "border": {
+        "on": false,
+        "color": "#C9A45C"
+      },
+      "headline": {
+        "font": "",
+        "size1": 88,
+        "size2": 88,
+        "color1": "#131313",
+        "color2": "#FFFFFF",
+        "box2On": true,
+        "box2": "#EF3F54",
+        "italic": false,
+        "shadow": false
+      },
+      "logo": {
+        "mode": "image",
+        "imageName": "TikTok @_chosunilbo_",
+        "width": 952,
+        "imageSha256": "7a34cc56e02b7400224d50dbc801fdec78e2a9e5a8bdc3b3affc972cda54825a"
+      },
+      "captions": {
+        "on": false,
+        "mode": "box",
+        "barHeight": 230,
+        "bottom": 1142,
+        "fontSize": 60,
+        "fontWeight": 600,
+        "boxColor": "#0000009E",
+        "color": "#FFFFFF",
+        "font": "",
+        "lineMax": 16
+      },
+      "editing": {
+        "removeFillers": false,
+        "removeSilences": false
+      },
+      "prompt": {
+        "role": "\ub108\ub294 \uc870\uc120\uc77c\ubcf4 \ud2f1\ud1a1 \uacc4\uc815\uc758 \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4.",
+        "format": "\ud604\ub300\uc0ac \ub2e4\ud050 \ub0b4\ub808\uc774\uc158(\uc790\ub8cc\ud654\uba74\u00b7\uc99d\uc5b8). \uc6d0\ubcf8 \uc790\ub9c9\uc744 \uadf8\ub300\ub85c \uc4f4\ub2e4.",
+        "good": "\uc794\ud639\ud55c \uc2e4\ud654 \uc7a5\uba74 \ubb18\uc0ac, \uac04\ucca9\u00b7\uc6d4\ubd81 \uac19\uc740 \ubc18\uc804",
+        "bad": "\ub0a9\ubd81\u00b7\ud3ec\ub85c\u00b7\uae30\ub2e4\ub9bc \uac19\uc740 \uc815\uc801\uc778 \uc11c\uc220, \uc0ac\uac74 \uacbd\uc704 \uc124\uba85",
+        "lengthGuide": "60-100\ucd08 (\uae38\uc5b4\ub3c4 130\ucd08)",
+        "countGuide": "\uc870\uc120\uc77c\ubcf4\ub294 \ud68c\ucc28(\uc57d 15\ubd84)\ub2f9 6\uac1c\ub97c \uc62c\ub9b0\ub2e4.",
+        "rules": "\ud55c \ud074\ub9bd\uc5d0 \uc8fc\uc7a5\u00b7\uc7a5\uba74 \ud558\ub098. \uccab \ubb38\uc7a5\ub9cc \ub4e4\uc5b4\ub3c4 \uc774\ud574\ub418\uac8c \uc2dc\uc791\ud558\uace0, \uc644\uacb0\ub41c \ubb38\uc7a5\uc73c\ub85c \ub05d\ub0b8\ub2e4. \ud55c \ud074\ub9bd\uc740 \uc6d0\ubcf8 \uad6c\uac04 1-3\uac1c\ub85c \uad6c\uc131\ud558\uace0 \uc5ec\ub2f4\uc740 \ube80\ub2e4. \ud074\ub9bd\ub07c\ub9ac \uad6c\uac04\uc774 \uacb9\uce58\uba74 \uc548 \ub41c\ub2e4. \uc120\uac70\u00b7\uc218\uc0ac\u00b7\uc7ac\ud310\u00b7\uc2e4\uba85 \uc815\uce58 \uac08\ub4f1\u00b7\uac15\ub825\ubc94\uc8c4\ub97c \uc6b0\uc120\ud558\uace0, \ud574\uc678 \uc0ac\ub840\u00b7\uc81c\ub3c4 \uc124\uba85\uc740 \ub4a4\ub85c \ubbf8\ub8ec\ub2e4.",
+        "headline": "headline1\uc740 \uac00\uc7a5 \uc13c \ubc1c\uc5b8\uc744 \ud070\ub530\uc634\ud45c\ub85c \uadf8\ub300\ub85c \uc778\uc6a9\ud558\uac70\ub098 \uc9c8\ubb38\ud615(18\uc790 \uc774\ub0b4), headline2\ub294 \ub204\uac00/\ubb34\uc5c7\uc778\uc9c0(16\uc790 \uc774\ub0b4). \ubc1c\uc5b8\uc790\uc758 \uc2e4\uba85\uc740 \uc804\uc0ac\ub098 \uc81c\ubaa9\uc5d0 \ubd84\uba85\ud788 \ub098\uc62c \ub54c\ub9cc \uc4f4\ub2e4. \uc758\ud639\uc740 \uc758\ud639\uc73c\ub85c \uc4f4\ub2e4."
+      }
+    },
+    {
+      "id": "villain",
+      "version": 1,
+      "names": {
+        "ko": "\uc545\uc778\uc804",
+        "en": "Villains"
+      },
+      "logoArt": "villain",
+      "detect": {
+        "keywords": [
+          "\uc545\uc778\uc804",
+          "\uc720\uc11d\uc7ac"
+        ],
+        "exclude": [],
+        "host": "\uc720\uc11d\uc7ac \uc5ed\uc0ac\ubb38\ud654\uc804\ubb38\uae30\uc790"
+      },
+      "layout": {
+        "windowTop": 558,
+        "windowBottom": 1161,
+        "sourceTop": 0,
+        "sourceBottom": 1080,
+        "offsetX": 0,
+        "headlineCenter": 376,
+        "logoCenter": 1494
+      },
+      "background": {
+        "mode": "image",
+        "style": "linear-gradient(180deg,#702126 0%,#5A181C 100%)",
+        "color": "#702126",
+        "imageName": "TikTok @_chosunilbo_",
+        "dim": 0,
+        "imageSha256": "29f3b2663d24b1edb3ec9815fbf2b9a7f9a714a83fe51cb63acd7473030bef41"
+      },
+      "border": {
+        "on": false,
+        "color": "#C9A45C"
+      },
+      "headline": {
+        "font": "",
+        "size1": 88,
+        "size2": 88,
+        "color1": "#FFFFFF",
+        "color2": "#131313",
+        "box2On": true,
+        "box2": "#DBBB5E",
+        "italic": false,
+        "shadow": true
+      },
+      "logo": {
+        "mode": "image",
+        "imageName": "TikTok @_chosunilbo_",
+        "width": 920,
+        "imageSha256": "fe33f0e783c78a9710348d671b1f822466e1ddeca4acc56c5e9f57c2fa931b59"
+      },
+      "captions": {
+        "on": false,
+        "mode": "box",
+        "barHeight": 230,
+        "bottom": 1131,
+        "fontSize": 60,
+        "fontWeight": 600,
+        "boxColor": "#0000009E",
+        "color": "#FFFFFF",
+        "font": "",
+        "lineMax": 16
+      },
+      "editing": {
+        "removeFillers": false,
+        "removeSilences": false
+      },
+      "prompt": {
+        "role": "\ub108\ub294 \uc870\uc120\uc77c\ubcf4 \ud2f1\ud1a1 \uacc4\uc815\uc758 \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4.",
+        "format": "\uc545\uc778 \uc778\ubb3c\uc0ac. \uc9c4\ud589\uc790 \uc124\uba85\uacfc \uc790\ub8cc\ud654\uba74. \uc6d0\ubcf8 \uc790\ub9c9\uc744 \uadf8\ub300\ub85c \uc4f4\ub2e4.",
+        "good": "\uacf5\uc0b0\u00b7\ubd81\ud55c \uc778\ubb3c\uc758 \uc228\uc740 \uc2e4\uccb4 \ud3ed\ub85c, \uc5f0\uc1c4\uc0b4\uc778 \uac19\uc740 \ubc94\uc8c4 \uc2e4\ud654",
+        "bad": "\uc870\uc120\uc2dc\ub300 \uc778\ubb3c\u00b7\uc2a4\uce94\ub4e4, \uc81c\ub3c4 \uc124\uba85",
+        "lengthGuide": "50-100\ucd08",
+        "countGuide": "\uc870\uc120\uc77c\ubcf4\ub294 \ud68c\ucc28(\uc57d 15\ubd84)\ub2f9 6\uac1c\ub97c \uc62c\ub9b0\ub2e4.",
+        "rules": "\ud55c \ud074\ub9bd\uc5d0 \uc8fc\uc7a5\u00b7\uc7a5\uba74 \ud558\ub098. \uccab \ubb38\uc7a5\ub9cc \ub4e4\uc5b4\ub3c4 \uc774\ud574\ub418\uac8c \uc2dc\uc791\ud558\uace0, \uc644\uacb0\ub41c \ubb38\uc7a5\uc73c\ub85c \ub05d\ub0b8\ub2e4. \ud55c \ud074\ub9bd\uc740 \uc6d0\ubcf8 \uad6c\uac04 1-3\uac1c\ub85c \uad6c\uc131\ud558\uace0 \uc5ec\ub2f4\uc740 \ube80\ub2e4. \ud074\ub9bd\ub07c\ub9ac \uad6c\uac04\uc774 \uacb9\uce58\uba74 \uc548 \ub41c\ub2e4. \uc120\uac70\u00b7\uc218\uc0ac\u00b7\uc7ac\ud310\u00b7\uc2e4\uba85 \uc815\uce58 \uac08\ub4f1\u00b7\uac15\ub825\ubc94\uc8c4\ub97c \uc6b0\uc120\ud558\uace0, \ud574\uc678 \uc0ac\ub840\u00b7\uc81c\ub3c4 \uc124\uba85\uc740 \ub4a4\ub85c \ubbf8\ub8ec\ub2e4.",
+        "headline": "headline1\uc740 \uac00\uc7a5 \uc13c \ubc1c\uc5b8\uc744 \ud070\ub530\uc634\ud45c\ub85c \uadf8\ub300\ub85c \uc778\uc6a9\ud558\uac70\ub098 \uc9c8\ubb38\ud615(18\uc790 \uc774\ub0b4), headline2\ub294 \ub204\uac00/\ubb34\uc5c7\uc778\uc9c0(16\uc790 \uc774\ub0b4). \ubc1c\uc5b8\uc790\uc758 \uc2e4\uba85\uc740 \uc804\uc0ac\ub098 \uc81c\ubaa9\uc5d0 \ubd84\uba85\ud788 \ub098\uc62c \ub54c\ub9cc \uc4f4\ub2e4. \uc758\ud639\uc740 \uc758\ud639\uc73c\ub85c \uc4f4\ub2e4."
+      }
+    },
+    {
+      "id": "money",
+      "version": 1,
+      "names": {
+        "ko": "\uba38\ub2c8\uc6cc\uce58",
+        "en": "Money Watch"
+      },
+      "logoArt": "money",
+      "detect": {
+        "keywords": [
+          "\uba38\ub2c8\uc6cc\uce58",
+          "\uba38\ub2c8 \uc6cc\uce58",
+          "\uc190\uc9c4\uc11d"
+        ],
+        "exclude": [],
+        "host": "\uc190\uc9c4\uc11d \uae30\uc790"
+      },
+      "layout": {
+        "windowTop": 558,
+        "windowBottom": 1161,
+        "sourceTop": 0,
+        "sourceBottom": 1080,
+        "offsetX": 0,
+        "headlineCenter": 392,
+        "logoCenter": 1316
+      },
+      "background": {
+        "mode": "image",
+        "style": "radial-gradient(ellipse at 50% 40%,#2A2A2A 0%,#171717 60%,#0D0D0D 100%)",
+        "color": "#2A2A2A",
+        "imageName": "TikTok @_chosunilbo_",
+        "dim": 0,
+        "imageSha256": "1404b0a13a565ced756dc4d8d1f577e7e3f5f2b5eaa404ac4dbfac59dec46275"
+      },
+      "border": {
+        "on": false,
+        "color": "#C9A45C"
+      },
+      "headline": {
+        "font": "",
+        "size1": 86,
+        "size2": 86,
+        "color1": "#FFFFFF",
+        "color2": "#34EDA4",
+        "box2On": false,
+        "box2": "#D7263D",
+        "italic": false,
+        "shadow": true
+      },
+      "logo": {
+        "mode": "image",
+        "imageName": "TikTok @_chosunilbo_",
+        "width": 696,
+        "imageSha256": "7470a0119a86fbfaf646654779404cb82b881afbcd5c2b030993338b568b11f1"
+      },
+      "captions": {
+        "on": false,
+        "mode": "box",
+        "barHeight": 230,
+        "bottom": 1131,
+        "fontSize": 60,
+        "fontWeight": 600,
+        "boxColor": "#0000009E",
+        "color": "#FFFFFF",
+        "font": "",
+        "lineMax": 16
+      },
+      "editing": {
+        "removeFillers": false,
+        "removeSilences": false
+      },
+      "prompt": {
+        "role": "\ub108\ub294 \uc870\uc120\uc77c\ubcf4 \ud2f1\ud1a1 \uacc4\uc815\uc758 \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4.",
+        "format": "\uacbd\uc81c \ud574\uc124. \uc9c4\ud589\uc790\uc640 \uadf8\ub798\ud53d. \uc6d0\ubcf8 \uc790\ub9c9\uc744 \uadf8\ub300\ub85c \uc4f4\ub2e4.",
+        "good": "\uc774\uc7ac\uba85 \uc815\ubd80 \uc815\ucc45\uacfc \ubc14\ub85c \uc774\uc5b4\uc9c0\ub294 \ub3c8 \uc774\uc57c\uae30(\uc608\uc0b0\u00b7\uc138\uae08\u00b7\ubd80\ub3d9\uc0b0\u00b7\ud1b5\ud654\ub7c9)",
+        "bad": "\uc720\ub7fd \uad6d\uac00 \uc0ac\ub840 \ud574\uc124",
+        "lengthGuide": "60-100\ucd08",
+        "countGuide": "\uc870\uc120\uc77c\ubcf4\ub294 \ud68c\ucc28(\uc57d 20\ubd84)\ub2f9 6-7\uac1c\ub97c \uc62c\ub9b0\ub2e4.",
+        "rules": "\ud55c \ud074\ub9bd\uc5d0 \uc8fc\uc7a5\u00b7\uc7a5\uba74 \ud558\ub098. \uccab \ubb38\uc7a5\ub9cc \ub4e4\uc5b4\ub3c4 \uc774\ud574\ub418\uac8c \uc2dc\uc791\ud558\uace0, \uc644\uacb0\ub41c \ubb38\uc7a5\uc73c\ub85c \ub05d\ub0b8\ub2e4. \ud55c \ud074\ub9bd\uc740 \uc6d0\ubcf8 \uad6c\uac04 1-3\uac1c\ub85c \uad6c\uc131\ud558\uace0 \uc5ec\ub2f4\uc740 \ube80\ub2e4. \ud074\ub9bd\ub07c\ub9ac \uad6c\uac04\uc774 \uacb9\uce58\uba74 \uc548 \ub41c\ub2e4. \uc120\uac70\u00b7\uc218\uc0ac\u00b7\uc7ac\ud310\u00b7\uc2e4\uba85 \uc815\uce58 \uac08\ub4f1\u00b7\uac15\ub825\ubc94\uc8c4\ub97c \uc6b0\uc120\ud558\uace0, \ud574\uc678 \uc0ac\ub840\u00b7\uc81c\ub3c4 \uc124\uba85\uc740 \ub4a4\ub85c \ubbf8\ub8ec\ub2e4.",
+        "headline": "headline1\uc740 \uac00\uc7a5 \uc13c \ubc1c\uc5b8\uc744 \ud070\ub530\uc634\ud45c\ub85c \uadf8\ub300\ub85c \uc778\uc6a9\ud558\uac70\ub098 \uc9c8\ubb38\ud615(18\uc790 \uc774\ub0b4), headline2\ub294 \ub204\uac00/\ubb34\uc5c7\uc778\uc9c0(16\uc790 \uc774\ub0b4). \ubc1c\uc5b8\uc790\uc758 \uc2e4\uba85\uc740 \uc804\uc0ac\ub098 \uc81c\ubaa9\uc5d0 \ubd84\uba85\ud788 \ub098\uc62c \ub54c\ub9cc \uc4f4\ub2e4. \uc758\ud639\uc740 \uc758\ud639\uc73c\ub85c \uc4f4\ub2e4."
+      }
+    }
+  ]
+}
