@@ -10,7 +10,7 @@ const COPY = {
     disconnect: 'Disconnect', account: 'Account', options: 'More options', play: 'Play',
     placeholder: 'Track, artist or mood',     connecting: 'Connecting…',
     searching: 'Searching…', previewFailed: 'Could not play this track. Try another track.',     pause: 'Pause', position: 'Playback position', adding: 'Downloading and adding music…',
-    search: 'Search', clear: 'Clear search', query: 'Music search', more: 'Load more', empty: 'No tracks found.',
+    search: 'Search', clear: 'Clear search', clearFilters: 'Clear', query: 'Music search', more: 'Load more', empty: 'No tracks found.',
     preview: 'Preview', add: 'Add to Draft', addAgain: 'Add again', loading: 'Loading music\u2026', failed: 'Could not load music. Try again.',
     artlist_import_uncertain: 'Check project files before trying the import again.',
     openTrack: 'Open in Artlist', connect: 'Connect Artlist', connected: 'Artlist connected', connectHint: 'Sign in on Artlist, then open your profile menu to finish connecting.', connectHintAuto: 'Sign in on Artlist to finish connecting.',
@@ -38,7 +38,7 @@ const COPY = {
     disconnect: '\uc5f0\uacb0 \ud574\uc81c', account: '\uacc4\uc815', options: '\ub354 \ubcf4\uae30', play: '\uc7ac\uc0dd',
     placeholder: '\uace1, \uc544\ud2f0\uc2a4\ud2b8, \ubd84\uc704\uae30\ub85c \uac80\uc0c9',     connecting: '\uc5f0\uacb0 \uc911…',
     searching: '\uac80\uc0c9 \uc911…', previewFailed: '\uc774 \uace1\uc744 \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\ub978 \uace1\uc744 \uc120\ud0dd\ud574 \uc8fc\uc138\uc694.',     pause: '\uc77c\uc2dc \uc815\uc9c0', position: '\uc7ac\uc0dd \uc704\uce58', adding: '\uc74c\uc545\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud558\uace0 \ucd94\uac00\ud558\ub294 \uc911…',
-    search: '\uac80\uc0c9', clear: '\uac80\uc0c9\uc5b4 \uc9c0\uc6b0\uae30', query: '\uc74c\uc545 \uac80\uc0c9', more: '\ub354 \ubcf4\uae30', empty: '\uac80\uc0c9\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694.',
+    search: '\uac80\uc0c9', clear: '\uac80\uc0c9\uc5b4 \uc9c0\uc6b0\uae30', clearFilters: '\uc9c0\uc6b0\uae30', query: '\uc74c\uc545 \uac80\uc0c9', more: '\ub354 \ubcf4\uae30', empty: '\uac80\uc0c9\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694.',
     preview: '\ubbf8\ub9ac\ub4e3\uae30', add: 'Draft\uc5d0 \ucd94\uac00', addAgain: '\ub2e4\uc2dc \ucd94\uac00', loading: '\uc74c\uc545 \ubd88\ub7ec\uc624\ub294 \uc911\u2026', failed: '\uc74c\uc545\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
     artlist_import_uncertain: '\ub2e4\uc2dc \uac00\uc838\uc624\uae30 \uc804\uc5d0 \ud504\ub85c\uc81d\ud2b8 \ud30c\uc77c\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.',
     openTrack: 'Artlist\uc5d0\uc11c \uc5f4\uae30', connect: 'Artlist \uc5f0\uacb0', connected: 'Artlist \uc5f0\uacb0\ub428', connectHint: 'Artlist\uc5d0\uc11c \ub85c\uadf8\uc778\ud55c \ub4a4 \uc624\ub978\ucabd \ud504\ub85c\ud544 \uba54\ub274\ub97c \uc5f4\uc5b4 \uc5f0\uacb0\uc744 \uc644\ub8cc\ud558\uc138\uc694.', connectHintAuto: 'Artlist\uc5d0 \ub85c\uadf8\uc778\ud558\uba74 \uc5f0\uacb0\uc774 \uc644\ub8cc\ub3fc\uc694.',
@@ -300,6 +300,11 @@ export default function Panel({ sdk, context, ui }) {
   // The track a row's Save menu is open on, with what the menu needs loaded.
   const [menuTrack, setMenuTrack] = React.useState(null);
   const [menuOpen, setMenuOpen] = React.useState(null);
+  // Artlist's own category groups per kind, and what is picked in each:
+  // { music: { [groupId]: [categoryId, …] }, sfx: … }. Kept per kind while the
+  // panel is open, as each Epidemic tab keeps its filters.
+  const [categoryGroups, setCategoryGroups] = React.useState({});
+  const [filters, setFilters] = React.useState({ music: {}, sfx: {} });
   // The track a New Artboard from its menu adds to the board once made.
   const [boardFor, setBoardFor] = React.useState(null);
   const [preferencesReady, setPreferencesReady] = React.useState(false);
@@ -403,7 +408,7 @@ export default function Panel({ sdk, context, ui }) {
     } }
     finally { if (scope.current === captured && captured.mounted) { lock.current = false; setPending(null); } }
   }
-  async function load(after, captured, query = term) {
+  async function load(after, captured, query = term, categoryIds = pickedIds(filters)) {
     const previousAccount = account.current;
     const identity = await status(captured);
     if (after && identity.accountSession !== previousAccount) throw new Error('artlist_account_changed');
@@ -427,7 +432,10 @@ export default function Panel({ sdk, context, ui }) {
       }
       setHasMore(pages.some(page => page.hasMore)); setCursor(null); setSearchedTerm(collectionId); return;
     }
-    const result = await script(`return await selects.artlist.search(${JSON.stringify(query)}, ${JSON.stringify(kind)});`, false, captured);
+    // Filters alone list the catalog within them; browsing has its own term.
+    const narrowed = identity.categories && categoryIds.length > 0;
+    const searchTerm = narrowed && query === BROWSE_QUERY ? '' : query;
+    const result = await script(`return await selects.artlist.search(${JSON.stringify(searchTerm)}, ${JSON.stringify(kind)}${narrowed ? ', ' + JSON.stringify(categoryIds) : ''});`, false, captured);
     const tracks = result.tracks.map(track => ({ ...track, kind }));
     setRows(previous => after ? [...previous, ...tracks] : tracks);
     setCursor(result.cursor ?? null);
@@ -562,11 +570,29 @@ export default function Panel({ sdk, context, ui }) {
     if (!connection?.library && value !== 'music' && value !== 'sfx') { setFailed(true); setMessage(T.artlist_update_required); return; }
     setTab(value); setBoardId(''); setPageNumber(1); setHasMore(false); setEditTrack(null); setShowCreate(false); setRows([]); setAudio(null); setCursor(null); setSearchedTerm(''); setMessage(''); setTerm('');
   }
+  function pickedIds(next) {
+    return Object.values(next[kind] || {}).flat().map(Number);
+  }
+  // Re-runs what is listed (the search, or the browse page) under new filters.
+  function refilter(next) {
+    setFilters(next);
+    const query = searchedTerm && searchedTerm !== BROWSE_QUERY ? searchedTerm : BROWSE_QUERY;
+    action(captured => load(null, captured, query, pickedIds(next)), 'search');
+  }
   function search(query = term) {
     if (!query.trim()) return;
     setTerm(query);
     action(captured => load(null, captured, query), 'search');
   }
+  React.useEffect(() => {
+    if (!connection?.connected || !connection.categories || !ui.FilterBar || view !== 'search' || categoryGroups[kind]) return;
+    const captured = scope.current;
+    script(`return await selects.artlist.categories(${JSON.stringify(kind)});`, false, captured)
+      .then(result => setCategoryGroups(previous => ({ ...previous, [kind]: result.groups })))
+      // An older host or a failed read shows no chips; a read cut short by
+      // leaving the tab is simply tried again on coming back.
+      .catch(() => { if (scope.current === captured) setCategoryGroups(previous => ({ ...previous, [kind]: [] })); });
+  }, [connection?.connected, connection?.categories, view, kind]);
   // Space plays and pauses the preview while focus is in the panel, ahead of a
   // focused button's own click; a text field keeps its Space.
   React.useEffect(() => {
@@ -688,6 +714,15 @@ export default function Panel({ sdk, context, ui }) {
             <ui.IconButton icon={pending?.kind === 'search' ? 'loading' : 'search'} label={pending?.kind === 'search' ? T.searching : T.search} disabled={busy || !term.trim()} onClick={() => search()} />
           </>}
         </div>}
+        {view === 'search' && ui.FilterBar && categoryGroups[kind]?.length > 0 && <ui.FilterBar disabled={busy} clearLabel={T.clearFilters}
+          onClear={() => refilter({ ...filters, [kind]: {} })}
+          chips={categoryGroups[kind].map(group => ({
+            id: String(group.id),
+            label: group.name,
+            options: group.categories.map(category => ({ value: String(category.id), label: category.name })),
+            selected: filters[kind][group.id] || [],
+            onChange: values => refilter({ ...filters, [kind]: { ...filters[kind], [group.id]: values } }),
+          }))} />}
         {view === 'artboards' && <div className="music-picker">
           {artboards.length > 0 && <ui.Select key={boardId} label={T.artboards} placeholder={T.chooseArtboard} value={boardId || null} disabled={busy}
             options={artboards.map(board => ({value:board.id,label:board.name}))} onChange={value => {setBoardId(value);setPageNumber(1);setHasMore(false);setEditTrack(null);setRows([]);setAudio(null);setSearchedTerm('');setMessage('');}} />}

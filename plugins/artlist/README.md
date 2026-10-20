@@ -48,6 +48,14 @@ Favorites, Downloads (the account's Artlist download history) and Artboards
 list music and sound effects together, a page of each. Artboards adds the
 board picker under the tabs.
 
+On hosts with `music.artlist.categories.v1` (Panel UI version 4), Artlist's
+own categories sit as filter chips under the search, as Epidemic's do: music's
+Genre, Mood, Video Theme and Instrument; sound effects' Ambience, Foley,
+Genre, Musical, Realistic and Transitions. Each chip is a checkbox menu; a
+chip in use reads "Genre · 2", and **Clear** empties them. Filters alone list
+the catalog within them; with a search they narrow it. Each tab keeps its own
+filters while the panel is open. What several picks mean is Artlist's rule.
+
 Results are a list with no title over it. A row is the cover, the title over
 the artist, and the length over the BPM; narrow, the BPM gives way first, then
 the length. Clicking anywhere on a row previews it, and the cover drags it onto
