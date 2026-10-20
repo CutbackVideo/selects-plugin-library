@@ -1233,20 +1233,12 @@ function templateIdentity(pack: any, t: any) {
   return {...t, id: pack.manifest.id + "/" + t.id, platformLayouts: t.platformLayouts ?? !!t.variants?.tiktok};
 }
 // Resolve legacy layouts once at the repository boundary. Every visible template is one design.
-function independentTemplateDesigns(value: any, forceSplit = false) {
-  const t = normalizeTemplateSettings(clone(value));
-  const flatten = (layout: string) => {
-    const result = clone(forPlatform(t, layout));
-    delete result.variants; delete result.platformLayouts;
-    return result;
-  };
-  const primary = flatten("tiktok"), secondary = flatten("shorts");
-  const stable = (v:any):any => Array.isArray(v) ? v.map(stable) : plainObject(v) ? Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable(v[k])])) : v;
-  if (!forceSplit && JSON.stringify(stable(primary)) === JSON.stringify(stable(secondary))) return [primary];
-  const named = (design:any, suffix:string) => ({...design,
-    names:Object.fromEntries(Object.entries(design.names).map(([k,v])=>[k,String(v)+" · "+suffix])),
-    ...(design.name ? {name:design.name+" · "+suffix} : {})});
-  return [primary, {...named(secondary,"Shorts"),id:t.id+"-shorts"}];
+function independentTemplateDesigns(value: any) {
+  const legacy = normalizeTemplateSettings(clone(value));
+  const template = clone(forPlatform(legacy, "tiktok"));
+  delete template.variants;
+  delete template.platformLayouts;
+  return [template];
 }
 const TEMPLATE_SHARE_MAX_BYTES = 20 * 1024 * 1024;
 const TEMPLATE_SHARE_FIELDS = ["schemaVersion","version","platformLayouts","names","name","detect","layout","background","border","headline","logo","captions","editing","prompt","variants","labels","thumbnail"];
@@ -1314,10 +1306,9 @@ function makeTemplateRepository(storage: any) {
       const overrides = new Map(overrideRows.map((r:any)=>[r.id,r]));
       const designOverrides = new Map(designRows.map((r:any)=>[r.id,r]));
       const addDesigns = (base:any, shown:any, metadata:any, migrations:any[] = []) => {
-        const split = independentTemplateDesigns(base).length > 1 || independentTemplateDesigns(shown).length > 1;
-        const raw = independentTemplateDesigns(base,split);
-        for (const design of independentTemplateDesigns(shown,split)) {
-          const fallback = raw.find((d:any)=>d.id===design.id) || {...clone(forPlatform(base,"shorts")),id:design.id,names:design.names};
+        const raw = independentTemplateDesigns(base);
+        for (const design of independentTemplateDesigns(shown)) {
+          const fallback = raw[0];
           delete fallback.variants; delete fallback.platformLayouts;
           packAssert(!nextDefaults.has(design.id),"Conflicting independent template ID: "+design.id);
           nextDefaults.set(design.id,fallback);
@@ -1417,9 +1408,8 @@ function makeTemplateRepository(storage: any) {
         if(!base.variants) continue;
         const saved:any = savedOverrides.get(base.id);
         const shown = saved ? validateTemplate(merge(base,saved.patch),true) : base;
-        const split = independentTemplateDesigns(base).length>1 || independentTemplateDesigns(shown).length>1;
-        const before = independentTemplateDesigns(base,split);
-        for(const design of independentTemplateDesigns(shown,split)) {
+        const before = independentTemplateDesigns(base);
+        for(const design of independentTemplateDesigns(shown)) {
           const original=before.find((d:any)=>d.id===design.id);
           const patch=templatePatch(original,design)||{};
           if(Object.keys(patch).length) migrations.set(design.id,{schemaVersion:1,id:design.id,patch});
@@ -7718,9 +7708,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         if (!key) throw new Error(S.unsupported);
         await persist({ key, why });
       }
-      // Older jobs selected a platform separately; retain that exact design when resuming.
-      const tpl = (job.platform === "shorts" ? list.find((t:any)=>t.id===job.key+"-shorts") : null)
-        || list.find((t: any) => t.id === job.key);
+      // Templates now always use the saved primary design, regardless of legacy platform choices.
+      const tpl = list.find((t: any) => t.id === job.key);
       if (!tpl) throw new Error(S.templateGone);
       await persist({templateName:nameOf(tpl,lang),coverConfig:job.coverConfig||coverSettings(tpl)});
       setInfo({ key: job.key, why: job.why });

@@ -43,14 +43,14 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
   const clip = {headline1:'Headline',headline2:'Second line',segments:[[0,1.8]],highlights:['market']};
   const title = 'Episode 261014(\uc218)';
 
-  await t.test('all four programs remain selectable, with independent layout variants', () => {
-    assert.deepEqual(api.BUILTIN_TEMPLATES.map(t=>t.id), ['political-show','news-briefing','news-direct','news-direct-shorts','money-lab','money-lab-shorts']);
+  await t.test('all four programs keep one primary design regardless of legacy platform arguments', () => {
+    assert.deepEqual(api.BUILTIN_TEMPLATES.map(t=>t.id), ['political-show','news-briefing','news-direct','money-lab']);
     for (const t of api.BUILTIN_TEMPLATES) assert.equal(t.demoOverlay,undefined);
     assert.equal(template('money-lab').layout.windowTop,560);
-    assert.equal(template('money-lab-shorts').layout.windowTop,402);
-    const duplicate={...structuredClone(template('money-lab-shorts')),id:'custom-money'};
+    assert.equal(template('money-lab','shorts').layout.windowTop,560);
+    const duplicate={...structuredClone(template('money-lab','shorts')),id:'custom-money'};
     assert.equal(api.forPlatform(duplicate,'tiktok').renderer,undefined);
-    assert.equal(api.forPlatform(duplicate,'tiktok').layout.windowTop,402);
+    assert.equal(api.forPlatform(duplicate,'tiktok').layout.windowTop,560);
     assert.equal(template('political-show').renderer,undefined);
     assert.equal(template('news-briefing').renderer,undefined);
   });

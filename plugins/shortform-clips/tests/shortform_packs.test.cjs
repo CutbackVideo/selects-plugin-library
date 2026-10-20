@@ -43,7 +43,7 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     const store=storage(),repo=api.makeTemplateRepository(store);
     assert.deepEqual((await repo.load()).templates,[]);assert.equal(store.rows.size,0,'Mount performs no writes');
     await install(repo,copyPack());await install(repo,copyPack('other-customer'));
-    const got=await repo.load();assert.equal(got.templates.length,12);assert.equal(new Set(got.templates.map(t=>t.id)).size,12);
+    const got=await repo.load();assert.equal(got.templates.length,8);assert.equal(new Set(got.templates.map(t=>t.id)).size,8);
     assert.ok(got.templates.some(t=>t.id==='sbs-radio/political-show'));assert.deepEqual(got.errors,[]);
     assert.match(got.templates[0].logo.image,/^data:image\/png;base64,/);
     const names=Object.keys(got.templates[0]);assert.ok(!names.includes('sbsStyle')&&!names.includes('radioTemplate'));
@@ -61,7 +61,7 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     await repo.del('templates',current.id);const reset=(await repo.load()).templates.find(t=>t.id===current.id);
     assert.equal(reset.headline.color1,'#FF0000');assert.equal(reset.layout.windowTop,580);assert.equal(reset.modified,false);
     assert.equal((await repo.load()).templates.find(t=>t.id===custom.id).headline.color1,'#123456');
-    await repo.del('templates',custom.id);assert.equal((await repo.load()).templates.length,6);
+    await repo.del('templates',custom.id);assert.equal((await repo.load()).templates.length,4);
     const reopened=api.makeTemplateRepository(store);assert.equal((await reopened.load()).templates.find(t=>t.id===current.id).headline.size1,111);
   });
   await t.test('single-layout packs preserve older TikTok edits without exposing layout choices',async()=>{
@@ -86,21 +86,21 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     await store.put('jobs','run',{id:'run',built:[{draftId:'saved-clip'}]});
     const untouched=structuredClone([...store.rows]);
     await repo.remove(target.id);
-    assert.equal((await repo.load()).templates.length,5);
+    assert.equal((await repo.load()).templates.length,3);
     assert.equal((await api.makeTemplateRepository(store).load()).templates.some(t=>t.id===target.id),false);
     for(const [key,value] of untouched)assert.deepEqual(store.rows.get(key),value,'Removal only changes the removed-template record');
     const duplicate={...api.cleanTemplate(target),id:'custom-copy'};
     await repo.put('templates',duplicate.id,duplicate);await repo.remove(duplicate.id);
     assert.equal((await repo.load()).templates.some(t=>t.id===duplicate.id),false);
     await install(repo,folder);
-    const restored=await repo.load();assert.equal(restored.templates.length,6);
+    const restored=await repo.load();assert.equal(restored.templates.length,4);
     assert.equal(restored.templates.find(t=>t.id===target.id).headline.color1,'#123456');
     assert.equal(restored.templates.some(t=>t.id===duplicate.id),false,'Pack reinstall does not restore removed custom copies');
     for(const t of restored.templates)await repo.remove(t.id);
     assert.equal((await repo.load()).templates.length,0);
     assert.deepEqual(await store.list('jobs'),[{id:'run',built:[{draftId:'saved-clip'}]}]);
   });
-  await t.test('legacy layouts split after local edits and remain independent across reload, reset and pack update',async()=>{
+  await t.test('legacy layouts keep only edited TikTok design across reload, reset and pack update',async()=>{
     const legacy=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/legacy-template-packs.json'),'utf8'));
     const folder=copyPack();
     const paths=[];
@@ -114,43 +114,40 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     const legacyOverride={schemaVersion:1,id,patch:{layout:{windowTop:430},variants:{tiktok:{layout:{windowTop:610}}},headline:{color1:'#123456'}}};
     await store.put('overrides',encodeURIComponent(id),legacyOverride);
     const before=structuredClone([...store.rows]);
-    let result=await repo.load();assert.deepEqual(result.errors,[]);assert.equal(result.templates.length,6);
+    let result=await repo.load();assert.deepEqual(result.errors,[]);assert.equal(result.templates.length,4);
     assert.deepEqual([...store.rows],before,'loading legacy layouts never writes data');
     assert.equal(result.templates.find(t=>t.id===id).layout.windowTop,610);
     assert.deepEqual(result.templates.find(t=>t.id===id).names,legacy['sbs-radio/money-lab.json'].names);
-    assert.equal(result.templates.find(t=>t.id===other).layout.windowTop,430);
+    assert.ok(!result.templates.some(t=>t.id===other));
     for(const item of result.templates){assert.equal(item.variants,undefined);assert.equal(item.platformLayouts,undefined);}
     const primary=result.templates.find(t=>t.id===id);primary.layout.windowTop=620;primary.name='Custom name';
     await repo.put('templates',id,primary);
     result=await api.makeTemplateRepository(store).load();
     assert.equal(result.templates.find(t=>t.id===id).layout.windowTop,620);
-    assert.equal(result.templates.find(t=>t.id===other).layout.windowTop,430);
+    assert.ok(!result.templates.some(t=>t.id===other));
     assert.deepEqual((await store.list('overrides'))[0],legacyOverride);
-    // Installing the new independent source pack carries old edits into both designs atomically.
+    // Installing the new source pack carries the TikTok edits forward atomically.
     await install(repo,copyPack());result=await repo.load();assert.deepEqual(result.errors,[]);
     assert.equal(result.templates.find(t=>t.id===id).layout.windowTop,620);
     assert.equal(result.templates.find(t=>t.id===id).name,'Custom name');
-    assert.equal(result.templates.find(t=>t.id===other).layout.windowTop,430);
-    assert.equal(result.templates.find(t=>t.id===other).headline.color1,'#123456');
+    assert.ok(!result.templates.some(t=>t.id===other));
+    assert.equal(result.templates.find(t=>t.id===id).headline.color1,'#123456');
     await repo.del('templates',id);result=await repo.load();
     assert.equal(result.templates.find(t=>t.id===id).layout.windowTop,560);
-    assert.equal(result.templates.find(t=>t.id===other).layout.windowTop,430);
-    await repo.remove(other);result=await repo.load();
+    assert.ok(!result.templates.some(t=>t.id===other));
     assert.ok(result.templates.some(t=>t.id===id));assert.ok(!result.templates.some(t=>t.id===other));
   });
-  await t.test('identical custom layouts collapse; distinct custom layouts edit and delete independently',async()=>{
+  await t.test('custom legacy templates retain only TikTok under their original name and ID',async()=>{
     const store=storage(),repo=api.makeTemplateRepository(store);
     const pack=await api.readTemplatePack(fileService,path.join(realPack,'pack.json'));
-    const base={...structuredClone(pack.templates[0]),id:'custom/test',platformLayouts:true,variants:{tiktok:{layout:{windowTop:400}}}};
+    const base={...structuredClone(pack.templates[0]),id:'custom/test',name:'My template',platformLayouts:true,variants:{tiktok:{layout:{windowTop:500}}}};
     await store.put('custom-templates',encodeURIComponent(base.id),base);
     let result=await repo.load();assert.equal(result.templates.length,1);
-    base.variants.tiktok.layout.windowTop=500;await store.put('custom-templates',encodeURIComponent(base.id),base);
-    result=await repo.load();assert.equal(result.templates.length,2);
-    const secondary=result.templates.find(t=>t.id.endsWith('-shorts'));secondary.headline.size1=111;
-    await repo.put('templates',secondary.id,secondary);
-    result=await repo.load();assert.equal(result.templates.find(t=>t.id===base.id).headline.size1,100);
-    assert.equal(result.templates.find(t=>t.id===secondary.id).headline.size1,111);
-    await repo.remove(secondary.id);result=await repo.load();assert.equal(result.templates.length,1);
+    const current=result.templates[0];assert.equal(current.id,base.id);assert.equal(current.name,base.name);
+    assert.equal(current.layout.windowTop,500);assert.equal(current.variants,undefined);
+    current.headline.size1=111;await repo.put('templates',current.id,current);
+    result=await repo.load();assert.equal(result.templates.length,1);assert.equal(result.templates[0].headline.size1,111);
+    await repo.remove(current.id);assert.equal((await repo.load()).templates.length,0);
   });
   await t.test('an invalid update never replaces a working installed pack',async()=>{
     const folder=copyPack(),store=storage(),repo=api.makeTemplateRepository(store);await install(repo,folder);const before=structuredClone(await store.list('packs'));
@@ -202,7 +199,7 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     const pack=await api.readTemplatePack(local,path.join(realPack,'pack.json'));
     assert.equal(Buffer.from(pack.templates.find(t=>t.id==='news-briefing').logo.image.split(',')[1],'base64').length,image.length);
     const remote=remoteFetch({change:(file,bytes)=>file===asset?image:bytes});
-    assert.equal((await api.readGitHubTemplatePack(folderLink,remote.fetcher)).templates.length,6);
+    assert.equal((await api.readGitHubTemplatePack(folderLink,remote.fetcher)).templates.length,4);
     await assert.rejects(api.readTemplatePack({...local,readFile:async p=>p.endsWith(asset)?Buffer.concat([image,Buffer.from([0])]):fileService.readFile(p)},path.join(realPack,'pack.json')),/oversized pack file/);
   });
   await t.test('cumulative pack bytes remain bounded to 100 MiB',async()=>{
@@ -219,13 +216,13 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     for(const link of links){
       const remote=remoteFetch({ref:link.includes('/codex/')?'codex/my-pack':'main'});
       const pack=await api.readGitHubTemplatePack(link,remote.fetcher);
-      assert.equal(pack.templates.length,6);assert.equal(pack.source.commit,sha);
+      assert.equal(pack.templates.length,4);assert.equal(pack.source.commit,sha);
       assert.match(pack.templates[0].logo.image,/^data:image\/png;base64,/);
       assert.equal(remote.calls.filter(u=>u.includes('raw.githubusercontent.com')).length,1+pack.manifest.templates.length+pack.manifest.assets.length);
     }
     const remote=remoteFetch();const store=storage(),repo=api.makeTemplateRepository(store);
     const previous=global.fetch;global.fetch=remote.fetcher;
-    try {await repo.install(folderLink,true);assert.equal((await repo.load()).templates.length,6);assert.equal((await store.list('packs'))[0].source.commit,sha);}
+    try {await repo.install(folderLink,true);assert.equal((await repo.load()).templates.length,4);assert.equal((await store.list('packs'))[0].source.commit,sha);}
     finally{global.fetch=previous;}
   });
   await t.test('invalid links make no requests; private/missing/rate-limited/network/oversize downloads fail clearly',async()=>{
@@ -334,11 +331,11 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     const old={...structuredClone(pack.templates[0]),id:'sbs-politics',sbsStyle:true};delete old.schemaVersion;delete old.renderer;old.headline.color1='#123456';
     const custom={...structuredClone(old),id:'tlegacy',baseId:'sbs-politics',name:'Copied'};
     const raw=JSON.stringify(old);fs.writeFileSync(path.join(legacyDir,'sbs-politics.json'),raw);fs.writeFileSync(path.join(legacyDir,'tlegacy.json'),JSON.stringify(custom));
-    const store=storage(),repo=api.makeTemplateRepository(store);await install(repo,realPack);let data=await repo.load();assert.equal(data.templates.length,7);
+    const store=storage(),repo=api.makeTemplateRepository(store);await install(repo,realPack);let data=await repo.load();assert.equal(data.templates.length,5);
     assert.equal(data.templates.find(t=>t.id==='sbs-radio/political-show').headline.color1,'#123456');
     assert.equal(data.templates.find(t=>t.id==='custom/sbs-radio-clip-tlegacy').name,'Copied');
     assert.equal(fs.readFileSync(path.join(legacyDir,'sbs-politics.json'),'utf8'),raw);
     await repo.del('templates','sbs-radio/political-show');await repo.del('templates','custom/sbs-radio-clip-tlegacy');
-    await install(repo,realPack);data=await repo.load();assert.equal(data.templates.length,6);assert.equal(data.templates[0].modified,false);
+    await install(repo,realPack);data=await repo.load();assert.equal(data.templates.length,4);assert.equal(data.templates[0].modified,false);
   });
 });

@@ -159,14 +159,12 @@ Independent settings include:
 Each template contains exactly one design. To create another layout, duplicate
 and rename the template; there is no platform selector in creation or editing.
 Legacy `variants.tiktok` and `platformLayouts` are accepted only on input. The
-repository resolves user overrides first, then exposes separate templates only
-when the two designs differ. The former TikTok design retains the original ID;
-the former TikTok design also retains its original name and file path. Only
-the former Shorts design receives a name suffix and the `-shorts` file/ID suffix. Identical designs remain one
-template. Migrated names can be changed freely. New edits are stored separately
-from legacy overrides, so editing, resetting or deleting one design does not
-change its sibling. Old job platform selections are used only to resume the
-matching independent template. The safety-zone overlay remains a preview guide.
+repository resolves user overrides, then retains only the former TikTok design
+under the original name, ID and file path. It never creates a separate Shorts
+template. Existing storage files and generated Drafts remain untouched. Different
+designs can be created explicitly by duplicating a template. Legacy platform
+choices do not change the design of new or resumed generation. The safety-zone
+overlay remains a preview guide.
 
 ## Removed compatibility fields and rendering guarantees
 

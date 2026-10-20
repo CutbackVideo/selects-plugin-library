@@ -70,7 +70,7 @@ test('templates use independent settings without renderer families',{skip:!modul
   new Function('require','module','exports',esbuild.transformSync(JSON.parse(literal[1]),{loader:'tsx',format:'cjs'}).code)(dep,graphic,graphic.exports);
   return dep('react-dom/server').renderToStaticMarkup(dep('react').createElement(graphic.exports.default,{data:parameters}));
  }
- await t.test('all shipped presets retain both platform designs after removing compatibility fields',()=>{
+ await t.test('all shipped presets retain only the original TikTok design and identity',()=>{
   const root=path.join(__dirname,'../template-packs');
   const files=fs.readdirSync(root).flatMap(pack=>{
    const dir=path.join(root,pack,'templates');
@@ -86,7 +86,7 @@ test('templates use independent settings without renderer families',{skip:!modul
     assert.deepEqual(current,design,key+': explicit settings preserve the complete resolved preset');
     assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
     assert.deepEqual(api.validateTemplate(structuredClone(current)),current,key+': no migration needed');
-    const platform=design.id.endsWith('-shorts')?'shorts':'tiktok';
+    const platform='tiktok';
     if(platform==='tiktok'){assert.equal(file,key.split('/')[1]);assert.deepEqual(current.names,legacy.names);assert.equal(current.id,legacy.id);}
     const a=api.forPlatform(before,platform),b=current;
     const frameA=api.radioFrameParams(a,'First headline','Second headline');
