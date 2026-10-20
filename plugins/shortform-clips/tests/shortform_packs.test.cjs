@@ -51,15 +51,15 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
   await t.test('updates preserve only edited fields; untouched defaults change; reset uses latest defaults; duplicates are independent',async()=>{
     const folder=copyPack(),store=storage(),repo=api.makeTemplateRepository(store);await install(repo,folder);
     let original=(await repo.load()).templates.find(t=>t.id.endsWith('/money-lab'));
-    let edited=structuredClone(original);edited.headline.color1='#123456';edited.variants.tiktok.layout.windowTop=600;
+    let edited=structuredClone(original);edited.headline.color1='#123456';edited.layout.windowTop=600;
     await repo.put('templates',edited.id,api.cleanTemplate(edited));
-    const saved=await store.list('overrides');assert.deepEqual(saved[0].patch,{headline:{color1:'#123456'},variants:{tiktok:{layout:{windowTop:600}}}});
-    edit(folder,'pack.json',m=>m.version='1.1.0');edit(folder,'templates/money-lab.json',t=>{t.version++;t.headline.size1=111;t.headline.color1='#FF0000';t.variants.tiktok.layout.windowTop=580;});
+    const saved=await store.list('design-overrides');assert.deepEqual(saved[0].patch,{layout:{windowTop:600},headline:{color1:'#123456'}});
+    edit(folder,'pack.json',m=>m.version='1.1.0');edit(folder,'templates/money-lab.json',t=>{t.version++;t.headline.size1=111;t.headline.color1='#FF0000';t.layout.windowTop=580;});
     await install(repo,folder);const current=(await repo.load()).templates.find(t=>t.id===edited.id);
-    assert.equal(current.headline.color1,'#123456');assert.equal(current.headline.size1,111);assert.equal(current.variants.tiktok.layout.windowTop,600);
+    assert.equal(current.headline.color1,'#123456');assert.equal(current.headline.size1,111);assert.equal(current.layout.windowTop,600);
     const custom={...api.cleanTemplate(current),id:'custom/copy',baseId:current.id,name:'My copy'};await repo.put('templates',custom.id,custom);
     await repo.del('templates',current.id);const reset=(await repo.load()).templates.find(t=>t.id===current.id);
-    assert.equal(reset.headline.color1,'#FF0000');assert.equal(reset.variants.tiktok.layout.windowTop,580);assert.equal(reset.modified,false);
+    assert.equal(reset.headline.color1,'#FF0000');assert.equal(reset.layout.windowTop,580);assert.equal(reset.modified,false);
     assert.equal((await repo.load()).templates.find(t=>t.id===custom.id).headline.color1,'#123456');
     await repo.del('templates',custom.id);assert.equal((await repo.load()).templates.length,4);
     const reopened=api.makeTemplateRepository(store);assert.equal((await reopened.load()).templates.find(t=>t.id===current.id).headline.size1,111);
@@ -68,14 +68,14 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     const store=storage(),repo=api.makeTemplateRepository(store);
     await install(repo,path.join(__dirname,'../template-packs/hankook-ilbo'));
     for(const original of (await repo.load()).templates){
-      assert.equal(original.platformLayouts,false);
+      assert.equal(original.platformLayouts,undefined);
       await store.put('overrides',encodeURIComponent(original.id),{schemaVersion:1,id:original.id,patch:{variants:{tiktok:{headline:{size1:120}}}}});
       const edited=(await repo.load()).templates.find(t=>t.id===original.id);
-      assert.equal(edited.platformLayouts,false);assert.equal(edited.variants.tiktok.headline.size1,120);
+      assert.equal(edited.platformLayouts,undefined);assert.equal(edited.headline.size1,120);
       await repo.put('templates',edited.id,edited);
       const copy={...api.cleanTemplate(edited),id:'copy-'+original.id.split('/')[1],baseId:original.id};
       await repo.put('templates',copy.id,copy);
-      assert.equal((await repo.load()).templates.find(t=>t.id===copy.id).platformLayouts,false);
+      assert.equal((await repo.load()).templates.find(t=>t.id===copy.id).platformLayouts,undefined);
     }
   });
   await t.test('removing a template persists without affecting siblings, saved edits or generated results',async()=>{
@@ -99,6 +99,55 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     for(const t of restored.templates)await repo.remove(t.id);
     assert.equal((await repo.load()).templates.length,0);
     assert.deepEqual(await store.list('jobs'),[{id:'run',built:[{draftId:'saved-clip'}]}]);
+  });
+  await t.test('legacy layouts keep only edited TikTok design across reload, reset and pack update',async()=>{
+    const legacy=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/legacy-template-packs.json'),'utf8'));
+    const folder=copyPack();
+    const paths=[];
+    for(const [key,value] of Object.entries(legacy))if(key.startsWith('sbs-radio/')){
+      const rel='templates/'+key.split('/')[1];paths.push(rel);
+      fs.writeFileSync(path.join(folder,rel),JSON.stringify(value));
+    }
+    edit(folder,'pack.json',m=>{m.templates=paths;m.requiresApp.templateApi=1;});
+    const store=storage(),repo=api.makeTemplateRepository(store);await install(repo,folder);
+    const id='sbs-radio/money-lab',other=id+'-shorts';
+    const legacyOverride={schemaVersion:1,id,patch:{layout:{windowTop:430},variants:{tiktok:{layout:{windowTop:610}}},headline:{color1:'#123456'}}};
+    await store.put('overrides',encodeURIComponent(id),legacyOverride);
+    const before=structuredClone([...store.rows]);
+    let result=await repo.load();assert.deepEqual(result.errors,[]);assert.equal(result.templates.length,4);
+    assert.deepEqual([...store.rows],before,'loading legacy layouts never writes data');
+    assert.equal(result.templates.find(t=>t.id===id).layout.windowTop,610);
+    assert.deepEqual(result.templates.find(t=>t.id===id).names,legacy['sbs-radio/money-lab.json'].names);
+    assert.ok(!result.templates.some(t=>t.id===other));
+    for(const item of result.templates){assert.equal(item.variants,undefined);assert.equal(item.platformLayouts,undefined);}
+    const primary=result.templates.find(t=>t.id===id);primary.layout.windowTop=620;primary.name='Custom name';
+    await repo.put('templates',id,primary);
+    result=await api.makeTemplateRepository(store).load();
+    assert.equal(result.templates.find(t=>t.id===id).layout.windowTop,620);
+    assert.ok(!result.templates.some(t=>t.id===other));
+    assert.deepEqual((await store.list('overrides'))[0],legacyOverride);
+    // Installing the new source pack carries the TikTok edits forward atomically.
+    await install(repo,copyPack());result=await repo.load();assert.deepEqual(result.errors,[]);
+    assert.equal(result.templates.find(t=>t.id===id).layout.windowTop,620);
+    assert.equal(result.templates.find(t=>t.id===id).name,'Custom name');
+    assert.ok(!result.templates.some(t=>t.id===other));
+    assert.equal(result.templates.find(t=>t.id===id).headline.color1,'#123456');
+    await repo.del('templates',id);result=await repo.load();
+    assert.equal(result.templates.find(t=>t.id===id).layout.windowTop,560);
+    assert.ok(!result.templates.some(t=>t.id===other));
+    assert.ok(result.templates.some(t=>t.id===id));assert.ok(!result.templates.some(t=>t.id===other));
+  });
+  await t.test('custom legacy templates retain only TikTok under their original name and ID',async()=>{
+    const store=storage(),repo=api.makeTemplateRepository(store);
+    const pack=await api.readTemplatePack(fileService,path.join(realPack,'pack.json'));
+    const base={...structuredClone(pack.templates[0]),id:'custom/test',name:'My template',platformLayouts:true,variants:{tiktok:{layout:{windowTop:500}}}};
+    await store.put('custom-templates',encodeURIComponent(base.id),base);
+    let result=await repo.load();assert.equal(result.templates.length,1);
+    const current=result.templates[0];assert.equal(current.id,base.id);assert.equal(current.name,base.name);
+    assert.equal(current.layout.windowTop,500);assert.equal(current.variants,undefined);
+    current.headline.size1=111;await repo.put('templates',current.id,current);
+    result=await repo.load();assert.equal(result.templates.length,1);assert.equal(result.templates[0].headline.size1,111);
+    await repo.remove(current.id);assert.equal((await repo.load()).templates.length,0);
   });
   await t.test('an invalid update never replaces a working installed pack',async()=>{
     const folder=copyPack(),store=storage(),repo=api.makeTemplateRepository(store);await install(repo,folder);const before=structuredClone(await store.list('packs'));

@@ -15,16 +15,17 @@
     "host": "\ucd5c\uc120\ud638 \uc9c4\ud589, \uc815\uce58 \ud3c9\ub860\uac00 \ud328\ub110"
   },
   "layout": {
-    "windowTop": 410,
-    "windowBottom": 1690,
+    "windowTop": 450,
+    "windowBottom": 1300,
     "sourceTop": 0,
     "sourceBottom": 1080,
     "offsetX": 0,
-    "headlineCenter": 295,
-    "logoCenter": 1805,
+    "headlineCenter": 345,
+    "logoCenter": 1372,
     "reframe": true,
     "closeUp": 4.5,
-    "edgeInset": 12
+    "edgeInset": 12,
+    "faceY": 48
   },
   "background": {
     "mode": "color",
@@ -56,38 +57,20 @@
     "mode": "image",
     "image": "assets/news-direct-logo-image.png",
     "imageName": "\ucd5c\uc120\ud638\uc758 \ub274\uc2a4\uc9c1\uaca9",
-    "width": 300
-  },
-  "variants": {
-    "tiktok": {
-      "layout": {
-        "windowTop": 450,
-        "windowBottom": 1300,
-        "headlineCenter": 345,
-        "logoCenter": 1372,
-        "faceY": 48
-      },
-      "logo": {
-        "width": 230
-      },
-      "captions": {
-        "bottom": 1280,
-        "fontSize": 52,
-        "lineMax": 12
-      }
-    }
+    "width": 230
   },
   "captions": {
     "on": true,
     "mode": "box",
     "barHeight": 230,
-    "bottom": 1640,
-    "fontSize": 62,
+    "bottom": 1280,
+    "fontSize": 52,
     "fontWeight": 600,
     "boxColor": "#000000B3",
     "color": "#FFFFFF",
     "font": "",
-    "lineMax": 16
+    "lineMax": 12,
+    "cleanSpeechText": false
   },
   "editing": {
     "removeFillers": true,
@@ -104,5 +87,22 @@
     "headline": "\ucc44\ub110 \uc1fc\uce20\ucc98\ub7fc \ud55c\uad6d\uc5b4\ub85c \uc4f4\ub2e4. headline1(\ud770\uc0c9 \uc717\uc904)\uc740 \uc774\uc288\ub97c \uc138\uc6b0\uac70\ub098 \uc9c8\ubb38\uc73c\ub85c \ub358\uc9c0\uace0, headline2(\ub178\ub780 \ub458\uc9f8 \uc904)\ub294 \ud380\uce58\ub77c\uc778\uc774\ub2e4: \ud328\ub110\uc758 \ud310\uc815\u00b7\ubc18\uc804\u00b7\uc77c\uce68\uc744 \ud070\ub530\uc634\ud45c \uc9c1\uc811 \uc778\uc6a9, \ubc18\ubb38, \uac10\ud0c4\uc73c\ub85c. \uac01 \uc904\uc740 \uacf5\ubc31 \ud3ec\ud568 16\uc790 \uc774\ub0b4. \uc774\ub984(\uc608: \ud55c\ub3d9\ud6c8, \uc7a5\ub3d9\ud601, \ucd94\ubbf8\uc560)\uc740 \uc804\uc0ac\uc5d0 \ubd84\uba85\ud560 \ub54c\ub9cc \uc4f4\ub2e4. \ucc44\ub110 \uc608\uc2dc: \"\ud55c\ub3d9\ud6c8 \uc758\ud639 \uc804\ub2f4\ud300 \uad6c\uc131\" / \"\uacf5\uc791\uc815\uce58\uace0 \ud55c\ub3d9\ud6c8\ub9cc \ub744\uc6cc\uc918\"; \"\ube44\uc11c\uc2e4\uc7a5 \uc778\uc120\" / \"\uc548 \ud558\ub098? \ubabb \ud558\ub098?\"; \"\ud55c\ub3d9\ud6c8\uc758 \uac10\uc815\uc801 \uc9c8\ubb38?\" / \"\uc815\ub3d9\uc601\uc758 \uc720\uccb4\uc774\ud0c8 \ud654\ubc95?\"; \"\ub204\uac00 \uc815\uad8c\uc744 \uc7a1\ub4e0,\" / \"\uc911\uc218\uccad\uc7a5\uc758 \uc911\ub9bd\uc131 \uc9c0\ucf1c\uc838\uc57c\"; \"\ub300\ub7b5\ub09c\uac10 \uc55e \uac74\uc124\uc801 \uad6d\uac10?\" / \"\uc5c6\ub358 \uac08\ub4f1\ub3c4 \ub098\uc624\ub2c8 \uac74\uc124\uc801!\"."
   },
   "schemaVersion": 1,
-  "renderer": "series"
+  "labels": {
+    "top": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 100,
+      "size": 40,
+      "weight": 800
+    },
+    "footer": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 1750,
+      "size": 40,
+      "weight": 800
+    }
+  }
 }

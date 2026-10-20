@@ -5,12 +5,13 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('templates use independent settings without renderer families',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild');
  const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8'),mod={exports:{}};
- new Function('require','module','exports',esbuild.transformSync(source+'\nexport {normalizeTemplateSettings,validateTemplate,cleanTemplate,portableTemplate,templateEditorProfile,radioFrameParams,radioCaptionParams,forPlatform,merge,splitDate,withEpisodeDate,STRINGS,SCRIPT_BUILD,RADIO_SCRIPT_BUILD};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ new Function('require','module','exports',esbuild.transformSync(source+'\nexport {independentTemplateDesigns,normalizeTemplateSettings,validateTemplate,cleanTemplate,portableTemplate,templateEditorProfile,radioFrameParams,radioCaptionParams,forPlatform,merge,splitDate,withEpisodeDate,STRINGS,SCRIPT_BUILD,RADIO_SCRIPT_BUILD};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
  const api=mod.exports;
  const raw=id=>JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/sbs-radio/templates/'+id+'.json'),'utf8'));
  const migrated=id=>api.validateTemplate(raw(id));
+ const legacyPacks=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/legacy-template-packs.json'),'utf8'));
  await t.test('legacy plain and outlined titles preserve their own geometry, background and user values',()=>{
-  const old=raw('political-show');old.headline.size1=119;old.layout.windowTop=470;
+  const old=structuredClone(legacyPacks['sbs-radio/political-show.json']);old.headline.size1=119;old.layout.windowTop=470;
   const result=api.validateTemplate(old);
   assert.equal(result.renderer,undefined);assert.equal(result.headline.style,undefined);
   assert.equal(result.headline.size1,119);assert.equal(result.layout.windowTop,470);
@@ -25,7 +26,7 @@ test('templates use independent settings without renderer families',{skip:!modul
   const plain=migrated('political-show');plain.logo.mode='none';plain.logo.image='';
   assert.equal(api.validateTemplate(structuredClone(plain)).renderer,undefined);
   const portable=api.portableTemplate(plain);assert.equal(portable.renderer,undefined);
-  assert.deepEqual(portable.headline,plain.headline);assert.equal(portable.platformLayouts,false);
+  assert.deepEqual(portable.headline,plain.headline);assert.equal(portable.platformLayouts,undefined);
   const copy=api.cleanTemplate({...plain,id:'custom-copy',builtIn:true});assert.equal(copy.renderer,undefined);assert.equal(copy.builtIn,undefined);
   assert.throws(()=>api.validateTemplate({...plain,headline:{...plain.headline,fitWidth:NaN}}),/finite/);
  });
@@ -69,6 +70,41 @@ test('templates use independent settings without renderer families',{skip:!modul
   new Function('require','module','exports',esbuild.transformSync(JSON.parse(literal[1]),{loader:'tsx',format:'cjs'}).code)(dep,graphic,graphic.exports);
   return dep('react-dom/server').renderToStaticMarkup(dep('react').createElement(graphic.exports.default,{data:parameters}));
  }
+ await t.test('all shipped presets retain only the original TikTok design and identity',()=>{
+  const root=path.join(__dirname,'../template-packs');
+  const files=fs.readdirSync(root).flatMap(pack=>{
+   const dir=path.join(root,pack,'templates');
+   return fs.existsSync(dir)?fs.readdirSync(dir).filter(f=>f.endsWith('.json')).map(f=>pack+'/'+f):[];
+  });
+  const expectedFiles=[];
+  for(const [key,legacy] of Object.entries(legacyPacks)){
+   const [pack]=key.split('/');
+   const before=api.validateTemplate(structuredClone(legacy));
+   for(const design of api.independentTemplateDesigns(before)){
+    const file=design.id+'.json';expectedFiles.push(pack+'/'+file);
+    const current=JSON.parse(fs.readFileSync(path.join(root,pack,'templates',file),'utf8'));
+    assert.deepEqual(current,design,key+': explicit settings preserve the complete resolved preset');
+    assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
+    assert.deepEqual(api.validateTemplate(structuredClone(current)),current,key+': no migration needed');
+    const platform='tiktok';
+    if(platform==='tiktok'){assert.equal(file,key.split('/')[1]);assert.deepEqual(current.names,legacy.names);assert.equal(current.id,legacy.id);}
+    const a=api.forPlatform(before,platform),b=current;
+    const frameA=api.radioFrameParams(a,'First headline','Second headline');
+    const frameB=api.radioFrameParams(b,'First headline','Second headline');
+    assert.deepEqual(frameB,frameA,key+'/'+platform);
+    for(const designElement of ['background','headline1','headline2','logo']){
+     assert.equal(renderGraphic('FRAME_TSX',{...frameB,designElement}),renderGraphic('FRAME_TSX',{...frameA,designElement}),key+'/'+platform+'/'+designElement);
+    }
+    const captionA=api.radioCaptionParams(a),captionB=api.radioCaptionParams(b);
+    assert.deepEqual(captionB,captionA);
+    assert.equal(renderGraphic('CAPTION_TSX',{...captionB,text:'Caption'}),renderGraphic('CAPTION_TSX',{...captionA,text:'Caption'}));
+    const dateA=api.splitDate(frameA,api.STRINGS.en),dateB=api.splitDate(frameB,api.STRINGS.en);
+    assert.deepEqual(dateB,dateA);
+    if(dateA.dateLabel)assert.equal(renderGraphic('DATE_TSX',dateB.dateLabel),renderGraphic('DATE_TSX',dateA.dateLabel));
+   }
+  }
+  assert.deepEqual(files.sort(),expectedFiles.sort());
+ });
  await t.test('footer gradient, font, shadow and stroke survive date extraction and render',()=>{
   const template=migrated('money-lab');template.headline.font='Test Font';
   Object.assign(template.labels.footer,{text:'Manual footer',auto:undefined,gradient:'linear-gradient(90deg,#ff0000,#0000ff)',strokeWidth:3,strokeColor:'#123456',shadowCss:'2px 3px 4px #654321'});

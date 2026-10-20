@@ -65,7 +65,7 @@ SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test plugins/shortform-clips
   "version": "1.0.0",
   "name": "Example Customer",
   "names": { "en": "Example Customer" },
-  "requiresApp": { "id": "shortform-clips", "templateApi": 1 },
+  "requiresApp": { "id": "shortform-clips", "templateApi": 2 },
   "templates": ["templates/interview.json"],
   "assets": ["assets/logo.png"]
 }
@@ -78,7 +78,7 @@ Paths are relative to the pack root, with no absolute paths, parent traversal,
 symlinks, remote URLs or executable content. PNG, JPEG and WebP assets are supported.
 Limits: 100 templates, 200 assets, 20 MiB per file, 100 MiB per source pack.
 
-## Template API 1
+## Template API 2
 
 Start from one of the four [SBS templates](sbs-radio/templates), replacing customer
 content and images. Each template is complete rather than inheriting another
@@ -86,15 +86,13 @@ customer's defaults. Required sections:
 
 | Field | Meaning |
 | --- | --- |
-| `schemaVersion`, `id`, `version`, `names` | API version, stable local ID, positive integer revision, localized names |
-| `platformLayouts` (optional) | Whether to expose separate Shorts/TikTok layouts; defaults to the presence of a variant in a new template |
+| `schemaVersion`, `id`, `version`, `names` | JSON schema version (1), stable local ID, positive integer revision, localized names |
 | `layout` | Video window, source crop, headline/logo positions, optional speaker framing |
 | `background`, `border`, `headline`, `logo` | Design settings; `image` values reference declared `assets/` files |
 | `captions` | Caption mode, position, typeface, size and emphasis |
 | `editing` | Filler and silence handling |
 | `detect` | Keywords, exclusions and program description |
 | `prompt` | Role, format, good/bad clips, length/count guidance, rules and headlines |
-| `variants.tiktok` (optional) | Design overrides for the TikTok layout; base is the Shorts layout |
 | `labels` (optional) | Top/footer labels; footer can derive an episode date |
 
 For a `series` template with `layout.reframe` enabled, the app checks each clip's
@@ -158,10 +156,15 @@ Independent settings include:
 - `layout.reframe` and the existing framing preferences: AI framing can be
   enabled on every template. Migration never enables it implicitly.
 
-Layout overrides continue to use `variants.tiktok`. Single-layout templates with
-existing local TikTok overrides apply those overrides even if a previous template
-left the creation form set to Shorts. Editing a template with no variant updates
-its base design, rather than creating an implicit second layout.
+Each template contains exactly one design. To create another layout, duplicate
+and rename the template; there is no platform selector in creation or editing.
+Legacy `variants.tiktok` and `platformLayouts` are accepted only on input. The
+repository resolves user overrides, then retains only the former TikTok design
+under the original name, ID and file path. It never creates a separate Shorts
+template. Existing storage files and generated Drafts remain untouched. Different
+designs can be created explicitly by duplicating a template. Legacy platform
+choices do not change the design of new or resumed generation. The safety-zone
+overlay remains a preview guide.
 
 ## Removed compatibility fields and rendering guarantees
 
@@ -188,3 +191,7 @@ Regression coverage includes normalization and share/import round trips, emitted
 graphic parameters and rendered markup. Actual Selects frame comparisons verify
 boxed-title and footer gradients together. These checks validate setting delivery
 and rendering; AI editorial preferences still require judgment by the agent.
+
+New packs and shared files require template API 2, so API 1 apps reject them
+before installation. API 2 apps also accept API 1 packs and shared files; existing
+installed templates need no reinstall. Template JSON schemaVersion remains 1.

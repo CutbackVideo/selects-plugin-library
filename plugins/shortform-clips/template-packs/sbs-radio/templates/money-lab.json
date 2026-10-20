@@ -15,17 +15,17 @@
     "host": "\ubc15\uc5f0\ubbf8 \uc9c4\ud589, \uc99d\uad8c\u00b7\uacbd\uc81c \uc804\ubb38\uac00 \uac8c\uc2a4\ud2b8"
   },
   "layout": {
-    "windowTop": 402,
-    "windowBottom": 1528,
-    "sourceTop": 22,
-    "sourceBottom": 891,
+    "windowTop": 560,
+    "windowBottom": 1300,
+    "sourceTop": 80,
+    "sourceBottom": 651,
     "offsetX": 622,
-    "headlineCenter": 290,
-    "logoCenter": 1512,
+    "headlineCenter": 440,
+    "logoCenter": 1362,
     "reframe": true,
     "closeUp": 6,
     "edgeInset": 0,
-    "splitHalves": true
+    "faceY": 50
   },
   "background": {
     "mode": "image",
@@ -61,7 +61,7 @@
       "on": true,
       "text": "\ubc15\uc5f0\ubbf8 \uc9c4\ud589",
       "x": 539,
-      "y": 116,
+      "y": 280,
       "size": 41,
       "weight": 900,
       "color": "#108B6D",
@@ -71,11 +71,11 @@
     "footer": {
       "on": true,
       "text": "",
-      "auto": "episodeDate",
-      "x": 814,
-      "y": 1564,
+      "x": 790,
+      "y": 1415,
       "size": 55,
       "weight": 900,
+      "auto": "episodeDate",
       "color": "#0C6E62",
       "strokeColor": "#000000",
       "strokeWidth": 0,
@@ -88,46 +88,20 @@
     "imageName": "\ubc15\uc5f0\ubbf8\uc758 \ubaa9\ub3c8\uc5f0\uad6c\uc18c",
     "width": 227
   },
-  "variants": {
-    "tiktok": {
-      "layout": {
-        "windowTop": 560,
-        "windowBottom": 1300,
-        "sourceTop": 80,
-        "sourceBottom": 651,
-        "headlineCenter": 440,
-        "logoCenter": 1362,
-        "faceY": 50
-      },
-      "labels": {
-        "top": {
-          "y": 280
-        },
-        "footer": {
-          "x": 790,
-          "y": 1415
-        }
-      },
-      "captions": {
-        "bottom": 1290,
-        "fontSize": 52,
-        "lineMax": 12
-      }
-    }
-  },
   "captions": {
     "on": true,
     "mode": "box",
     "barHeight": 230,
-    "bottom": 1437,
-    "fontSize": 64,
+    "bottom": 1290,
+    "fontSize": 52,
     "fontWeight": 700,
     "boxColor": "#000000A3",
     "color": "#FFFFFF",
     "font": "",
-    "lineMax": 17,
+    "lineMax": 12,
     "highlight": true,
-    "highlightColor": "#F8D30A"
+    "highlightColor": "#F8D30A",
+    "cleanSpeechText": false
   },
   "editing": {
     "removeFillers": true,
@@ -143,6 +117,5 @@
     "rules": "\ud55c \ud074\ub9bd\uc5d0 \uc9c8\ubb38 \ud558\ub098\uc640 \uadf8 \ub2f5. \uc9c4\ud589\uc790\uc758 \uc9c8\ubb38\uc774\ub098 \ud63c\uc790 \ub4e4\uc5b4\ub3c4 \uc774\ud574\ub418\ub294 \uac8c\uc2a4\ud2b8\uc758 \uccab \ubb38\uc7a5\uc5d0\uc11c \uc2dc\uc791\ud574, \uac8c\uc2a4\ud2b8\uc758 \uacb0\ub860\uc744 \uc644\uacb0\ub41c \ubb38\uc7a5\uc73c\ub85c \ub05d\ub0b8\ub2e4. \uc6d0\ubcf8 \uad6c\uac04 1-3\uac1c\ub85c \uad6c\uc131\ud558\uace0 \uc5ec\ub2f4\uacfc \ubc18\ubcf5\uc740 \ube80\ub2e4. \ud074\ub9bd\ub07c\ub9ac \uad6c\uac04\uc774 \uacb9\uce58\uba74 \uc548 \ub41c\ub2e4.",
     "headline": "\ucc44\ub110 \uc1fc\uce20\ucc98\ub7fc \ud55c\uad6d\uc5b4\ub85c \uc4f4\ub2e4. \ub178\ub780 \ud070 \ud5e4\ub4dc\ub77c\uc778 \ub450 \uc904\uc774 \ud55c \ubb38\uc7a5\uc73c\ub85c \uc774\uc5b4\uc9c4\ub2e4: headline1\uc774 \uccab \uc904, headline2\uac00 \ub458\uc9f8 \uc904. \ud22c\uc790\uc790\uc758 \uc9c8\ubb38\uc774\ub098 \uac8c\uc2a4\ud2b8\uc758 \uacfc\uac10\ud55c \uc8fc\uc7a5\uc744 \uac15\uc870 \ubd80\ud638(?, ??, !!!)\uc640 \uad6c\uccb4\uc801\uc778 \uc885\ubaa9\uba85\u00b7\uc22b\uc790\ub85c \uc4f4\ub2e4. \uac01 \uc904\uc740 \uacf5\ubc31 \ud3ec\ud568 12\uc790 \uc774\ub0b4, \uc790\uc5f0\uc2a4\ub7ec\uc6b4 \uacf3\uc5d0\uc11c \ub04a\ub294\ub2e4. \ucc44\ub110 \uc608\uc2dc: \"\uc77c\ubcf8 \uc8fc\uc2dd\" / \"\uc624\ub978 \uc774\uc720\ub294?\"; \"\uc911\uad6d \uc8fc\uc2dd \uc2dc\uc7a5,\" / \"\uc9c0\uae08 \ub4e4\uc5b4\uac00\ub3c4 \ub420\uae4c?\"; \"\ubb3c\uac00 \ub192\uc740\ub370,\" / \"\uc8fc\uc2dd \ub2e4 \ud314\uc544\uc694?\"; \"\uc624\ud508AI \ub9e4\ucd9c\uc740\" / \"\uc904\uc9c0 \uc54a\uc558\ub2e4!!!\"; \"\uc0bc\uc131\uc804\uc790 \uc601\uc5c5\uc775\" / \"106\uc870 \ub118\ub098?\"; \"\uc5f0\ub9d0 \uac00\uba74, \uc0bc\uc804-\ub2c9\uc2a4\" / \"\uc804\uace0\uc810 \ub3cc\uc544\uc628\ub2e4!\"."
   },
-  "schemaVersion": 1,
-  "renderer": "series"
+  "schemaVersion": 1
 }

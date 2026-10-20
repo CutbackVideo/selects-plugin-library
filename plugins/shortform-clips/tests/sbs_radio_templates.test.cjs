@@ -16,7 +16,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
   const { renderToStaticMarkup } = dependency('react-dom/server');
   const source = fs.readFileSync(path.join(__dirname, '../panel.tsx'), 'utf8');
   const sf = ts.createSourceFile('panel.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const names = 'readTemplatePack,forPlatform,merge,STRINGS,RADIO_STRINGS,RADIO_SCRIPT_BUILD,SCRIPT_BUILD,SCRIPT_LIMIT,RadioPreviewFrame,RadioPreviewCaption,speakerTurns,planShots,TemplateEditor,OVERLAY_STRINGS';
+  const names = 'independentTemplateDesigns,readTemplatePack,forPlatform,merge,STRINGS,RADIO_STRINGS,RADIO_SCRIPT_BUILD,SCRIPT_BUILD,SCRIPT_LIMIT,RadioPreviewFrame,RadioPreviewCaption,speakerTurns,planShots,TemplateEditor,OVERLAY_STRINGS';
   // Extract the actual production build-parameter expression, not a test copy of it.
   let params;
   function visit(node) {
@@ -43,11 +43,11 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
   const clip = {headline1:'Headline',headline2:'Second line',segments:[[0,1.8]],highlights:['market']};
   const title = 'Episode 261014(\uc218)';
 
-  await t.test('all four programs remain selectable, with independent layout variants', () => {
+  await t.test('all four programs keep one primary design regardless of legacy platform arguments', () => {
     assert.deepEqual(api.BUILTIN_TEMPLATES.map(t=>t.id), ['political-show','news-briefing','news-direct','money-lab']);
     for (const t of api.BUILTIN_TEMPLATES) assert.equal(t.demoOverlay,undefined);
     assert.equal(template('money-lab').layout.windowTop,560);
-    assert.equal(template('money-lab','shorts').layout.windowTop,402);
+    assert.equal(template('money-lab','shorts').layout.windowTop,560);
     const duplicate={...structuredClone(template('money-lab','shorts')),id:'custom-money'};
     assert.equal(api.forPlatform(duplicate,'tiktok').renderer,undefined);
     assert.equal(api.forPlatform(duplicate,'tiktok').layout.windowTop,560);
@@ -266,17 +266,12 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         assert.equal(controls.has(S.editable.topLabel),true);
         assert.equal(controls.has(S.editable.footer),true);
       }
-      // Variants have separate design settings, while the name and AI prompts remain shared.
+      await change(S.template,'money-lab');
+      // Each selected template has one design; no platform picker changes the working copy.
       await change(S.windowTop,601);
       assert.equal(get(S.template).disabled,true);
       assert.equal(get(S.duplicate).disabled,true);
-      await change(S.layoutKind,'shorts');
-      assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutShorts)));
-      assert.equal(get(S.windowTop).value,402);
-      await change(S.windowTop,450);
-      await change(S.layoutKind,'tiktok');
-      assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutTiktok)));
-      assert.equal(get(S.windowTop).value,601);
+      assert.equal(controls.has(S.layoutKind),false);
       await change(S.name,'Edited Money Lab');
       await change('tabs','ai');
       await change(S.role,'Edited prompt');
@@ -299,18 +294,18 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       await act(async()=>{pending=get(S.save).onClick();});
       assert.equal(get(S.save).busy,true);
       assert.equal(get(S.windowTop).disabled,true);
-      assert.equal(get(S.layoutKind).disabled,true);
+      assert.equal(controls.has(S.layoutKind),false);
       await act(async()=>{release();await pending;});
       holdSave=null;
       const money=rows.get('money-lab');
-      assert.equal(money.layout.windowTop,450);
-      assert.equal(money.variants.tiktok.layout.windowTop,601);
+      assert.equal(money.layout.windowTop,601);
+      assert.equal(money.variants,undefined);
       assert.equal(money.name,'Edited Money Lab');
       assert.equal(money.prompt.role,'Edited prompt');
       assert.deepEqual(money.detect.keywords,['alpha','beta']);
       assert.equal(money.builtIn,undefined);
       assert.equal(money.modified,undefined);
-      assert.equal(money.variants.tiktok.prompt,undefined);
+      assert.equal(money.platformLayouts,undefined);
       assert.equal(get(S.save).disabled,true);
       await change(S.windowTop,650);
       await click(S.discard);
@@ -320,10 +315,10 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       assert.notEqual(customId,'money-lab');
       assert.equal(rows.get(customId).baseId,'money-lab');
       assert.equal(rows.get(customId).renderer,undefined);
-      assert.equal(rows.get(customId).variants.tiktok.layout.windowTop,601);
+      assert.equal(rows.get(customId).layout.windowTop,601);
       await change(S.windowTop,620);
       await click(S.save);
-      assert.equal(rows.get('money-lab').variants.tiktok.layout.windowTop,601);
+      assert.equal(rows.get('money-lab').layout.windowTop,601);
       await click(S.deleteTemplate);
       assert.equal(document.querySelector('dialog').open,true);
       assert.ok(document.body.textContent.includes(S.deleteBody(rows.get(customId).name)));
@@ -365,11 +360,10 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       assert.equal(get(S.captionsOn).value,true);
       assert.deepEqual(api.BUILTIN_TEMPLATES,originals,'Editing never mutates builtin defaults');
       const singleLayouts=(await api.readTemplatePack(packFs,path.join(__dirname,'../template-packs/hankook-ilbo/pack.json'))).templates;
-      originals.push(...singleLayouts.map(t=>({...t,platformLayouts:false,variants:{tiktok:{headline:{size1:120}}}})));
+      originals.push(...singleLayouts.flatMap(t=>api.independentTemplateDesigns({...t,platformLayouts:false,variants:{tiktok:{headline:{size1:120}}}})));
       await act(async()=>refresh());
       await change('tabs','look');
-      await change(S.layoutKind,'shorts');
-      assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutShorts)));
+      assert.equal(controls.has(S.layoutKind),false);
       for(const single of singleLayouts){
         await change(S.template,single.id);
         assert.equal(controls.has(S.layoutKind),false);
@@ -379,7 +373,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         await change('tabs','captions');
         await change(S.font,'Sandoll Caption');
         await click(S.save);
-        assert.equal(rows.get(single.id).variants.tiktok.headline.size1,125);
+        assert.equal(rows.get(single.id).headline.size1,125);
         for (const platform of ['tiktok','shorts']) {
           const saved=readTemplates().find(t=>t.id===single.id);
           const P=api.buildParams(api.forPlatform(saved,platform),clip,title);
