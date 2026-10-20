@@ -365,6 +365,9 @@ from the authenticated Selects app catalog and passes them to `checkUpdate`.
 Shortform offers an update only when its published `plugin.json` version has
 higher semantic-version precedence than the installed version. Changes to other
 apps, equal versions and older versions do not produce an update offer.
+Shortform opts into a read-only check when the app opens. If a newer version is
+available, the host shows its update notice without installing automatically.
+Manual checks remain available; older hosts may ignore this opt-in option.
 Update checks are read-only; active runs and unsaved template edits block
 applying an update. Older hosts without update support retain existing behavior;
 a host without catalog context reports that catalog-based checks are unsupported.

@@ -6728,7 +6728,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         if (!selectedUpdateContext.current || selectedUpdateContext.current.latest?.commit !== id) throw new Error(shortformUpdateText(lang, "retry"));
         return {summary: "Update Shortform Clips", command: shortformUpdateCommand("apply", id, selectedUpdateContext.current, IS_WIN, lang), timeoutMs: 300000};
       },
-    });
+    }, { checkOnMount: true });
   }, [sdk, lang]);
 
   async function installPack(link = packLink, requestId?: string) {

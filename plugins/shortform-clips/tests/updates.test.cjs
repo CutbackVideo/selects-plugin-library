@@ -68,7 +68,7 @@ test('busy or unsaved app still discovers updates while refusing installation', 
   const start = source.indexOf('      async checkUpdate(checkContext: any) {');
   const end = source.indexOf('      async prepareUpdate(id: string) {', start);
   const check = source.slice(start, end).trim().replace(/,$/, '').replace('checkContext: any', 'checkContext').replace('let offer: any', 'let offer');
-  const prepareEnd = source.indexOf('\n    });', end);
+  const prepareEnd = source.indexOf('\n    }, { checkOnMount: true });', end);
   const prepare = source.slice(end, prepareEnd).trim().replace('id: string', 'id').replace(/,$/, '');
   let calls = 0;
   const sdk = {runShell: async () => { calls++; return {exitCode: 0, stdout: JSON.stringify({id: latest, version: 'new'})}; }};
@@ -200,7 +200,7 @@ test('language-driven provider re-registration retains the checked release for i
   const start=source.indexOf('      async checkUpdate(checkContext: any) {');
   const end=source.indexOf('      async prepareUpdate(id: string) {',start);
   const check=source.slice(start,end).trim().replace(/,$/,'').replace('checkContext: any','checkContext').replace('let offer: any','let offer');
-  const prepare=source.slice(end,source.indexOf('\n    });',end)).trim().replace('id: string','id').replace(/,$/,'');
+  const prepare=source.slice(end,source.indexOf('\n    }, { checkOnMount: true });',end)).trim().replace('id: string','id').replace(/,$/,'');
   const create=new Function('sdk','updateBlocked','shortformUpdateCommand','shortformUpdateText','lang','IS_WIN','selectedUpdateContext',`return {${check},${prepare}};`);
   const state={current:null},commands=[];
   const sdk={runShell:async()=>({exitCode:0,stdout:JSON.stringify({id:latest,version:'0.4.2'})})};
@@ -212,4 +212,20 @@ test('language-driven provider re-registration retains the checked release for i
   assert.equal((await korean.prepareUpdate(latest)).command,'apply');
   assert.deepEqual(commands.at(-1),['apply',latest,context,false,'ko']);
   await assert.rejects(korean.prepareUpdate(old),/retry/);
+});
+
+test('opts into a host-managed opening nudge without initiating installation or shell work', async () => {
+  const source=await fs.readFile(path.join(__dirname,'../panel.tsx'),'utf8');
+  const register=source.indexOf('    return sdk.updates.register({');
+  const end=source.indexOf('\n  }, [sdk, lang]);',register);
+  const code=source.slice(register,end).replaceAll(': any','').replaceAll(': string','');
+  let options,provider,called=0;
+  const cleanup=()=>{};
+  const sdk={updates:{register:(p,o)=>{provider=p;options=o;return cleanup;}},runShell:()=>{called++;}};
+  const result=new Function('sdk','lang','selectedUpdateContext','updateBlocked','IS_WIN',code)(sdk,'ko',{current:null},{current:false},false);
+  assert.equal(result,cleanup);
+  assert.deepEqual(options,{checkOnMount:true});
+  assert.equal(typeof provider.checkUpdate,'function');
+  assert.equal(typeof provider.prepareUpdate,'function');
+  assert.equal(called,0);
 });
