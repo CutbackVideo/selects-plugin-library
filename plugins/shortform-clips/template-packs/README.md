@@ -138,7 +138,7 @@ bytes; export does not resize or recompress them. Shared files retain template
 identity and use the same conflict, baseline, and recovery rules as pack imports.
 
 API 1/2 JSON exports remain supported, including UTF-8 BOMs and identity-free
-legacy files. File import/export is limited to 20 MiB. ZIP file transfer is no
+legacy files. File import/export is limited to 256 MiB (including Base64 image data). ZIP file transfer is no
 longer supported. Templates previously imported from ZIP remain in the library
 and can be exported as JSON without reinstalling them.
 
@@ -231,3 +231,20 @@ not concurrent writes after that check.
 Recovery history and staged immutable records are retained without automatic
 pruning. Images are deduplicated, but storage can still grow. Retention controls
 are not part of this change.
+
+## Original image preservation
+
+Backgrounds, design logos, thumbnail logos, and thumbnail references retain their
+uploaded PNG/JPEG/WebP bytes, including alpha and metadata. Upload no longer crops,
+resizes, or recompresses originals. Each image is limited to 20 MiB, 33,000,000
+pixels, and 8,192 pixels on either side. Dimensions are checked before decoding;
+invalid or oversized inputs produce an error rather than a silently reduced image.
+These limits also apply to template and pack imports. Reference count remains five.
+
+UI previews use disposable downscaled copies. AI reference inputs use separate
+bounded derivatives; the saved template and final thumbnail logo use originals.
+Clip creation also retains the original background and logo. When settings exceed
+the runScript inline budget, the panel writes an ASCII JSON parameter file and the
+build script reads it through bounded SDK file reads. It does not compress images
+to fit the script argument limit. Older already-compressed saved images cannot be
+restored automatically; upload their original files again.

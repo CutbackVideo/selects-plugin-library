@@ -5,7 +5,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild');
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8'),mod={exports:{}};
- new Function('require','module','exports',esbuild.transformSync(src+'\nexport {SCRIPT_APPLY_REFRAME,createReframeWork};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ new Function('require','module','exports',esbuild.transformSync(src+'\nexport {SCRIPT_APPLY_REFRAME,createReframeWork,templateBuildScript};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
  const P={projectId:'p',draftId:'d',resourceId:'v',resourceName:'Video',sourceKind:'video',transform:{scale:2,posX:0,posY:0},frame:{windowTop:450,windowBottom:1300},reframe:[{start:0,end:10,cx:450,w:800},{start:10,end:30,cx:1400,w:800}]};
  async function run({fail=false,owned=true}={}){
   let committed=0,transforms=[],splits=[];
@@ -34,7 +34,7 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   const body=esbuild.transformSync(loop,{loader:'ts'}).code;
   let job={built:[]},builds=0,applies=0,thumbnails=0,fail=true;const events=[];
   const pickd={clips:[{name:'One',segments:[[1,5]]}]};
-  const env={findRunDraftScript:()=>"LOOKUP",withoutRunSuffix:(name)=>name,ensureRunFolder:async()=>"run-folder",moveRunDrafts:async()=>{},forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
+  const env={templateBuildScript:mod.exports.templateBuildScript,findRunDraftScript:()=>"LOOKUP",withoutRunSuffix:(name)=>name,ensureRunFolder:async()=>"run-folder",moveRunDrafts:async()=>{},forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
    STACKED_REFRAME_EFFECT:'effect',projectId:'p',S:{building:()=>'',reframing:'framing'},lang:'en',transform:{scale:1},buildLogo:'',SCRIPT_APPLY_REFRAME:'APPLY const P: any = __P__;',
    RADIO_SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_LIMIT:1e7,RunCancelled:class extends Error{},
    setStatus:()=>{},setSub:()=>{},setDrafts:()=>{},setWarn:()=>{},nameOf:()=>'',radioFrameParams:()=>({}),
