@@ -68,6 +68,7 @@ const COPY = {
 const ERROR_CODES = Object.keys(COPY.en).filter(key => key.startsWith('artlist_'));
 const BROWSE_QUERY = 'background music';
 const TABS = ['music', 'sfx', 'favorites', 'downloads', 'artboards'];
+const READS = ['browse', 'search', 'library', 'more', 'preview', 'board-more'];
 
 // @operation-start
 export function startMusicPreview(media, url, onError) {
@@ -189,6 +190,11 @@ const STYLES = `
   .music-row-extra { display: none; }
   .music-row:hover .music-row-extra, .music-row:focus-within .music-row-extra, .music-row[data-active=true] .music-row-extra, .music-row[data-menu=true] .music-row-extra { display: flex; }
   .music-row:hover .music-row-meta, .music-row:focus-within .music-row-meta, .music-row[data-active=true] .music-row-meta, .music-row[data-menu=true] .music-row-meta { display: none; }
+  .music-row-skeleton:hover { background: none; }
+  .music-row-skeleton .music-row-open { cursor: default; }
+  .music-row-skeleton .music-row-text { display: flex; flex-direction: column; gap: 6px; }
+  .music-loading { display: grid; place-items: center; padding-top: 32px; color: var(--panel-muted-fg); }
+  .music-loading svg { animation: music-spin 1s linear infinite; }
   .music-empty { padding: 40px 0; text-align: center; }
   .music-empty p { margin: 4px 0 0; }
   .music-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
@@ -205,7 +211,7 @@ const STYLES = `
   .music-transport .lucide-play, .music-transport .lucide-pause { fill: currentColor; }
   @container (max-width: 259px) { .music-bpm { display: none; } }
   @container (max-width: 199px) { .music-row-meta { display: none !important; } }
-  @media (prefers-reduced-motion: reduce) { .music-play-mark[data-busy=true] svg { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .music-play-mark[data-busy=true] svg, .music-loading svg { animation: none; } }
 `;
 function MusicCover({ url, ui }) {
   const [failed, setFailed] = React.useState(null);
@@ -224,6 +230,22 @@ function PlayMark({ busy, adding, active, playing, ui }) {
   return <span className="music-play-mark" data-busy={busy || undefined}>
     <ui.Icon name={busy ? 'loading' : active && playing ? 'pause' : 'play'} size={16} />
   </span>;
+}
+
+// While a list loads: rows in the list's own shape, so nothing jumps when the
+// tracks arrive. Kits before version 4 have no Skeleton and get a spinner.
+const SKELETON_WIDTHS = [72, 55, 80, 62, 70, 50, 66];
+function LoadingRows({ ui, label }) {
+  if (!ui.Skeleton) return <Spinner ui={ui} label={label} />;
+  return <ul className="music-rows" aria-busy="true" aria-label={label}>{SKELETON_WIDTHS.map((width, index) =>
+    <li key={index} className="music-row music-row-skeleton"><div className="music-row-open">
+      <span className="music-cover-wrap"><ui.Skeleton width={36} height={36} /></span>
+      <span className="music-row-text"><ui.Skeleton width={width + '%'} height={12} /><ui.Skeleton width={width * 0.6 + '%'} height={10} /></span>
+      <span className="music-row-meta"><ui.Skeleton width={28} height={10} /></span>
+    </div></li>)}</ul>;
+}
+function Spinner({ ui, label }) {
+  return <span className="music-loading" role="status" aria-label={label}><ui.Icon name="loading" size={16} /></span>;
 }
 
 // The one player, ruled off at the foot of the panel: the seek bar, "Title - Artist"
@@ -248,9 +270,9 @@ function MusicPreview({ row, durationSeconds, media, playing, onPlaying, onAdd, 
     <input className="music-seek" type="range" aria-label={T.position} aria-valuetext={clock(time)} min={0} max={shownDuration || 1} step={0.1} value={time} disabled={!duration}
       onChange={event => { media.current.currentTime = Number(event.target.value); setTime(Number(event.target.value)); }} />
     <div className="music-player-line">
-      <span className="music-player-time">{clock(time)}</span>
+      <span className="music-player-time font-tabular">{clock(time)}</span>
       <p className="music-player-title" title={artists ? row.title + ' - ' + artists : row.title}>{artists ? <><span>{row.title} - </span><b>{artists}</b></> : <b>{row.title}</b>}</p>
-      <span className="music-player-time">{durationSeconds ? '≈ ' : ''}{clock(shownDuration)}</span>
+      <span className="music-player-time font-tabular">{durationSeconds ? '≈ ' : ''}{clock(shownDuration)}</span>
     </div>
     <div className="music-transport">
       <span className="music-transport-spacer" aria-hidden="true" />
@@ -305,6 +327,9 @@ export default function Panel({ sdk, context, ui }) {
   const [added, setAdded] = React.useState([]);
   const [dragAdding, setDragAdding] = React.useState(null);
   const busy = pending !== null || dragAdding !== null || !!connection?.connecting;
+  // A tab can be left while a list or preview loads (that read is dropped),
+  // never while something is being added or saved.
+  const tabsLocked = dragAdding !== null || !!connection?.connecting || (pending !== null && !READS.includes(pending.kind));
   const adding = pending?.kind === 'add' ? pending.trackId : dragAdding?.trackId;
   const cancellable = pending?.requestId || dragAdding?.requestId;
   const [canceling, setCanceling] = React.useState(false);
@@ -401,8 +426,10 @@ export default function Panel({ sdk, context, ui }) {
           : `return await selects.artlist.collectionTracks(${JSON.stringify(collectionId)}, ${JSON.stringify(each)});`;
         const result = await script(query, false, captured);
         pages.push({ ...result, tracks: result.tracks.map(track => ({ ...track, kind: each })) });
+        // Music shows as soon as it comes; sound effects join it after.
+        setRows(pages.flatMap(page => page.tracks));
       }
-      setRows(pages.flatMap(page => page.tracks)); setHasMore(pages.some(page => page.hasMore)); setCursor(null); setSearchedTerm(collectionId); return;
+      setHasMore(pages.some(page => page.hasMore)); setCursor(null); setSearchedTerm(collectionId); return;
     }
     const result = await script(`return await selects.artlist.search(${JSON.stringify(query)}, ${JSON.stringify(kind)});`, false, captured);
     const tracks = result.tracks.map(track => ({ ...track, kind }));
@@ -586,7 +613,7 @@ export default function Panel({ sdk, context, ui }) {
           <span className="music-artist" title={artists}>{artists}</span>
         </span>
         <span className="music-row-meta">
-          <span>{clock(row.length)}</span>
+          <span className="font-tabular">{clock(row.length)}</span>
           {row.bpm > 0 && <span className="music-bpm">{row.bpm} BPM</span>}
         </span>
       </div>
@@ -619,7 +646,7 @@ export default function Panel({ sdk, context, ui }) {
   }, 'disconnect');
   return <div className="music-panel">
     <style>{STYLES}</style>
-    {!connection && (message ? <ui.Message tone="error">{message}</ui.Message> : <ui.Progress label={T.loading} />)}
+    {!connection && (message ? <ui.Message tone="error">{message}</ui.Message> : <Spinner ui={ui} label={T.loading} />)}
     {connection && !connection.connected && <div className="music-connect">
       <p>{connection.autoIdentity ? T.connectHintAuto : T.connectHint}</p>
       <ui.Button variant="primary" busy={pending?.kind === 'connect' || !!connection.connecting} busyLabel={T.connecting} disabled={busy} onClick={() => action(async captured => { await script('return await selects.artlist.connect();', true, captured); await status(captured); }, 'connect')}>{T.connect}</ui.Button>
@@ -627,7 +654,7 @@ export default function Panel({ sdk, context, ui }) {
       {message && <ui.Message tone={failed ? 'error' : 'success'}>{message}</ui.Message>}
     </div>}
     {connection?.connected && <>
-      {ui.Menu ? <ui.Tabs variant="strip" value={tab} onChange={value => { if (!busy) changeLibrary(value); }} tabs={libraryTabs}
+      {ui.Menu ? <ui.Tabs variant="strip" value={tab} onChange={value => { if (!tabsLocked) changeLibrary(value); }} tabs={libraryTabs}
         actions={<ui.Menu label={T.account} disabled={busy} items={[
           { heading: (connection.email || T.connected) + (connection.plan ? ' · ' + connection.plan : '') },
           { label: T.refresh, onSelect: refreshAccount },
@@ -636,8 +663,8 @@ export default function Panel({ sdk, context, ui }) {
           { label: T.disconnect, onSelect: disconnect },
         ]} />} />
       : <><div className="music-tabs">
-        <fieldset className="music-navigation" disabled={busy} aria-label={T.library}>
-          <ui.Tabs value={tab} onChange={value => { if (!busy) changeLibrary(value); }}
+        <fieldset className="music-navigation" disabled={tabsLocked} aria-label={T.library}>
+          <ui.Tabs value={tab} onChange={value => { if (!tabsLocked) changeLibrary(value); }}
             tabs={libraryTabs} />
         </fieldset>
         <ui.IconButton icon={manage ? 'close' : 'more'} label={T.account} disabled={busy} onClick={() => {setManage(value => !value);setEditTrack(null);setShowCreate(false);}} />
@@ -680,8 +707,8 @@ export default function Panel({ sdk, context, ui }) {
             await load(null, captured);
           }, 'library')} />}
         </div>}
-        {busy && !rows.length && <ui.Progress label={T.loading} />}
-        {!rows.length && !busy && !message && <div className="music-empty">
+        {!rows.length && (busy || !searchedTerm) && !message && <LoadingRows ui={ui} label={T.loading} />}
+        {!rows.length && !busy && searchedTerm && !message && <div className="music-empty">
           <small>{view !== 'search' ? view === 'artboards' && !boardId ? artboards.length ? T.chooseArtboard : T.emptyBoards : T.emptyLibrary : searchedTerm ? T.empty : kind === 'sfx' ? T.browseSfx : T.browse}</small>
         </div>}
         {rows.length > 0 && <ul className="music-rows">{rows.map(track)}</ul>}
