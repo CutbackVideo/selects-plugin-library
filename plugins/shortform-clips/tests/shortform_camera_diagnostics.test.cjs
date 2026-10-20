@@ -27,4 +27,9 @@ test('camera planning diagnostics survive failed responses',{skip:!modules},asyn
  await t.test('cannot start an unlogged model request when durable logging fails',async()=>{
   let calls=0;await assert.rejects(m.exports.requestTemplateCameraPlan({...base,note:async()=>{throw Error('disk full');},sdk:{askAI:async()=>{calls++;return {text:valid}}}}),/disk full/);assert.equal(calls,0);
  });
+ await t.test('valid plan followed by an agent summary does not spend a second AI call',async()=>{
+  let calls=0;const rows=await m.exports.requestTemplateCameraPlan({...base,note:async()=>{},sdk:{askAI:async()=>{calls++;return {text:valid+'\nSaved the requested camera plan.'};}}});
+  assert.equal(calls,1);assert.equal(rows.length,1);
+ });
+
 });

@@ -14,8 +14,8 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
    call:async()=>{throw Error('Runtime review must not capture previews');},
    askAI:async input=>{
     calls++;if(calls===1){assert.equal(input.timeoutMs,600000);assert.equal(input.ephemeral,false);assert.ok(input.prompt.includes("Light-ASD AVA"));assert.ok(input.prompt.includes('"score":1.5'));
-     assert.ok(input.prompt.includes('Use your existing Selects SDK tools READ-ONLY'));assert.ok(input.prompt.includes('"closeUp":6'));
-     assert.ok(input.prompt.includes('face-center height'));assert.ok(input.prompt.includes('UNCROPPED SOURCE'));assert.ok(input.prompt.includes('speakerTurns'));assert.ok(!input.prompt.includes('Hello'));assert.ok(src.includes('speakerId:w.speakerId,speakerName:w.speakerName'));assert.ok(input.prompt.includes('never write face boxes or crop coordinates'));assert.ok(input.prompt.includes('not draft.captureCameraAngles'));assert.ok(!input.prompt.includes('SOURCE-CROP SCRIPT'));
+     assert.ok(input.prompt.includes('Use your existing Selects SDK tools READ-ONLY'));assert.ok(!input.prompt.includes('"closeUp":6'));
+     assert.ok(input.prompt.includes('UNCROPPED SOURCE'));assert.ok(input.prompt.includes('speakerTurns'));assert.ok(!input.prompt.includes('Hello'));assert.ok(src.includes('speakerId:w.speakerId,speakerName:w.speakerName'));assert.ok(input.prompt.includes('Do not specify closeUp'));assert.ok(input.prompt.includes('not draft.captureCameraAngles'));assert.ok(!input.prompt.includes('SOURCE-CROP SCRIPT'));
      if(failAi)throw Error('timeout');return {text:raw??JSON.stringify(report)};
     }
     if(raw!==undefined){assert.equal(input.images,undefined);assert.equal(input.timeoutMs,120000);assert.ok(input.prompt.includes('Repair JSON syntax only'));return {text:repairText??JSON.stringify(report)};}
@@ -65,11 +65,9 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
  await t.test('rejects speech edits and timing changes outside framing scope',async()=>{
   for(const after of [{...baseline,meta:{...baseline.meta,durationFrames:80}},{...baseline,words:[]}]){const r=await run({after});await assert.rejects(r.execute,/outside reframing scope/);}
  });
- await t.test('does not automatically replay an agent turn after partial failure',async()=>{const r=await run({failAi:true});assert.equal((await r.execute()).qualityStatus,'limited');assert.equal(r.state().calls,1);assert.equal(r.state().applies,0);});
- await t.test('missing visual evidence retains baseline and reports a limitation without inventing a plan',async()=>{
-  const r=await run({failEvidence:true}),result=await r.execute();
-  assert.equal(result.status,'complete');assert.equal(result.qualityStatus,'limited');
-  assert.match(result.preservedRanges[0].reason,/capture unavailable/);
+ await t.test('does not automatically replay an agent turn after partial failure',async()=>{const r=await run({failAi:true});await assert.rejects(r.execute);assert.equal(r.state().calls,1);assert.equal(r.state().applies,0);});
+ await t.test('missing evidence reports failure without marking unchanged framing complete',async()=>{
+  const r=await run({failEvidence:true});await assert.rejects(r.execute,/capture unavailable/);
   assert.equal(r.state().applies,0);assert.equal(r.state().calls,0);
  });
  await t.test('rejects missing, fabricated-shaped and uncovered opening evidence',()=>{
@@ -89,7 +87,7 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
   m.exports.validateSpeakerEvidence({speakerEvidence:[{...row,startFrame:30,endFrame:90},row]},90);
  });
  await t.test('blocked, wrong-target and invalid plans never reach application',async()=>{
-  for(const report of [{...valid,draftId:'x'},{draftId:'d',status:'blocked'},{...valid,shots:[]},{...valid,shots:[{...shot,endFrame:80}]}]){const r=await run({report});assert.equal((await r.execute()).qualityStatus,'limited');assert.equal(r.state().applies,0);}
+  for(const report of [{...valid,draftId:'x'},{draftId:'d',status:'blocked'},{...valid,shots:[]},{...valid,shots:[{...shot,endFrame:80}]}]){const r=await run({report});await assert.rejects(r.execute);assert.equal(r.state().applies,0);}
  });
  await t.test('completion reports geometry checks without claiming visual verification',async()=>{
   const r=await run();const result=await r.execute();assert.equal(result.visualReview.status,'not-run');assert.equal(result.verification.kind,'geometry-and-timing');assert.equal(result.verifiedFrames,undefined);

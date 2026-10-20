@@ -110,7 +110,10 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
   }
   await t.test('all four templates build before visual analysis completes',async()=>{
     for(const id of api.BUILTIN_TEMPLATES.map(t=>t.id)) {
-      const tpl=template(id), P=api.buildParams(tpl,clip,title), graphics=[];
+      const tpl=structuredClone(template(id));
+      tpl.headline.font='Sandoll Headline';
+      tpl.captions.font='Sandoll Caption';
+      const P=api.buildParams(tpl,clip,title), graphics=[];
       const words=[{text:'The',startFrame:0,endFrame:12,sourceStartFrame:0,speakerId:1,utteranceId:'u'},
         {text:'market',startFrame:12,endFrame:30,sourceStartFrame:12,speakerId:1,utteranceId:'u'},
         {text:'moves.',startFrame:30,endFrame:54,sourceStartFrame:30,speakerId:1,utteranceId:'u'}];
@@ -133,6 +136,12 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       const result=await new Function('selects',code)(selects);
       assert.equal(result.draftId,'early-'+id);
       assert.ok(graphics.some(g=>g.label.startsWith('Caption ')),id+' captions');
+      for (const g of graphics.filter(g=>g.label.startsWith('Caption '))) {
+        assert.equal(g.parameters.fontFamily,'Sandoll Caption',id+' generated caption font');
+      }
+      if(tpl.renderer==='series') {
+        assert.equal(graphics.find(g=>g.label==='Series frame and headline').parameters.fontFamily,'Sandoll Headline');
+      }
       assert.ok(graphics.some(g=>g.label=== ((tpl.renderer==='series')?'Series frame and headline':'Clip · \uc81c\ubaa9 1')),id+' frame and headline');
     }
   });
@@ -196,7 +205,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       showEditor=setVisible;
       const onChanged=async()=>setTemplates(readTemplates());
       refresh=onChanged;
-      return visible?h(api.TemplateEditor,{ui,S,platform,lang:'en',templates,store,onChanged,state:{selId,setSelId,edit,setEdit,baseKey,setBaseKey,sub,setSub}}):null;
+      return visible?h(api.TemplateEditor,{ui,S,platform,onPlatformChange:updatePlatform,lang:'en',templates,store,onChanged,state:{selId,setSelId,edit,setEdit,baseKey,setBaseKey,sub,setSub}}):null;
     }
     const get=label=>{const c=controls.get(S.secWindow+'/'+label)||controls.get(label);assert.ok(c,'Control is visible: '+label);return c;};
     const change=async(label,value)=>{if(label==='tabs'){await act(async()=>document.querySelector('[data-template-section="'+value+'"]').click());return;}const c=get(label);assert.ok(!c.disabled,label+' is enabled');await act(async()=>c.onChange(value));};
@@ -206,7 +215,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       for(const original of originals) {
         await change(S.template,original.id);
         const radio=original.renderer==='series';
-        assert.equal(controls.has(S.layoutKind),false);
+        assert.equal(controls.has(S.layoutKind),radio);
         if(radio) assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutTiktok)));
         assert.deepEqual([...document.querySelectorAll('[data-template-section]')].map(t=>t.textContent), ['Design','Captions','Framing','Content','Thumbnails']);
         assert.equal(controls.has('Framing mode'),false);
@@ -250,11 +259,11 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       await change(S.windowTop,601);
       assert.equal(get(S.template).disabled,true);
       assert.equal(get(S.duplicate).disabled,true);
-      await act(async()=>setPlatform('shorts'));
+      await change(S.layoutKind,'shorts');
       assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutShorts)));
       assert.equal(get(S.windowTop).value,402);
       await change(S.windowTop,450);
-      await act(async()=>setPlatform('tiktok'));
+      await change(S.layoutKind,'tiktok');
       assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutTiktok)));
       assert.equal(get(S.windowTop).value,601);
       await change(S.name,'Edited Money Lab');
@@ -279,6 +288,7 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       await act(async()=>{pending=get(S.save).onClick();});
       assert.equal(get(S.save).busy,true);
       assert.equal(get(S.windowTop).disabled,true);
+      assert.equal(get(S.layoutKind).disabled,true);
       await act(async()=>{release();await pending;});
       holdSave=null;
       const money=rows.get('money-lab');
@@ -347,14 +357,26 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       originals.push(...singleLayouts.map(t=>({...t,platformLayouts:false,variants:{tiktok:{headline:{size1:120}}}})));
       await act(async()=>refresh());
       await change('tabs','look');
-      await act(async()=>setPlatform('shorts'));
+      await change(S.layoutKind,'shorts');
       assert.ok(document.body.textContent.includes(S.editingLayout(S.layoutShorts)));
       for(const single of singleLayouts){
         await change(S.template,single.id);
         assert.equal(controls.has(S.layoutKind),false);
         assert.equal(get(S.size1).value,120,'Previously saved TikTok edits remain visible');
-        await change(S.size1,125);await click(S.save);
+        await change(S.size1,125);
+        await change(S.font,'Sandoll Headline');
+        await change('tabs','captions');
+        await change(S.font,'Sandoll Caption');
+        await click(S.save);
         assert.equal(rows.get(single.id).variants.tiktok.headline.size1,125);
+        for (const platform of ['tiktok','shorts']) {
+          const saved=readTemplates().find(t=>t.id===single.id);
+          const P=api.buildParams(api.forPlatform(saved,platform),clip,title);
+          assert.equal(P.frame.fontFamily,'Sandoll Headline',platform+' headline');
+          assert.equal(P.caption.fontFamily,'Sandoll Caption',platform+' caption');
+          assert.equal(P.frame.headlineSize1,125,platform+' layout');
+        }
+        await change('tabs','look');
         assert.equal(controls.has(S.layoutKind),false,'Saving does not expose layout choices');
         await click(S.duplicate);
         assert.equal(controls.has(S.layoutKind),false,'Copies retain the single-layout editor');
