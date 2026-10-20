@@ -355,3 +355,45 @@ reuses existing requests after unknown transport outcomes. A failed variant does
 not stop its siblings. Already submitted image jobs can continue with the panel
 closed. Photo-research usage and per-stage placement timings are retained when
 available. Generation is paid; each explicit new request can incur charges.
+
+
+### Optional app updates
+
+On a host with catalog-aware `sdk.updates`, Shortform registers its own update
+provider. The host obtains this app's installed and published commit/version
+from the authenticated Selects app catalog and passes them to `checkUpdate`.
+Shortform offers an update only when its published `plugin.json` version has
+higher semantic-version precedence than the installed version. Changes to other
+apps, equal versions and older versions do not produce an update offer.
+Shortform opts into a read-only check when the app opens. If a newer version is
+available, the host shows its update notice without installing automatically.
+Manual checks remain available; older hosts may ignore this opt-in option.
+Update checks are read-only; active runs and unsaved template edits block
+applying an update. Older hosts without update support retain existing behavior;
+a host without catalog context reports that catalog-based checks are unsupported.
+
+Installation respects `SELECTS_USER_SKILLS_ROOT` and `SELECTS_USER_PANELS_ROOT`,
+falling back independently to the default home folders when absent. Backups use
+`.updates/shortform-clips` beside the skills root.
+
+Shell commands use the host-provided `SELECTS_NODE` executable wrapper when
+available, with `node` as a compatibility fallback. The wrapper path is quoted
+for POSIX shells and Windows cmd; users need no separate Node installation on
+hosts that provide this runtime.
+
+The app-owned `update.cjs` downloads `plugin.json` and its declared app files from
+the exact catalog-selected commit over HTTPS. It does not discover releases or
+read Git trees through the GitHub API. It validates the manifest version against
+the selected catalog version, stages all downloads before replacing files, backs
+up replaced files, and rolls back normal installation failures. File authenticity
+relies on HTTPS downloads from the fixed repository and commit; the catalog does
+not supply independent content hashes. New declared app files are supported
+without requiring a four-file updater upgrade. Paths are bounded and validated.
+
+Template packs are excluded from updates. User templates, overrides, jobs and
+media under `plugin-data/shortform-clips` are not replaced. Backups and recovery
+manifests remain in `.selects/.updates/shortform-clips`. Process interruption or
+failed rollback retains the install lock and requires manual recovery. This lock
+coordinates this updater's instances; it is not shared with the host's separate
+native installer. Manual installations without an official installation receipt display an instruction to install the app from the library once. The first opted-in version must be installed once. Releases
+that remove `updates.protocol=1` or the updater are refused during installation.
