@@ -8,9 +8,18 @@ test('run folders', {skip: !modules}, async t => {
   const dep = createRequire(path.resolve(modules, '../package.json'));
   const src = fs.readFileSync(path.join(__dirname, '../panel.tsx'), 'utf8');
   const mod = {exports: {}};
-  new Function('require', 'module', 'exports', dep('esbuild').transformSync(src + '\nexport {ensureRunFolder,moveRunDrafts};', {loader:'tsx',format:'cjs'}).code)(dep, mod, mod.exports);
+  new Function('require', 'module', 'exports', dep('esbuild').transformSync(src + '\nexport {ensureRunFolder,moveRunDrafts,findRunDraftScript};', {loader:'tsx',format:'cjs'}).code)(dep, mod, mod.exports);
   const {ensureRunFolder, moveRunDrafts} = mod.exports;
   const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+  await t.test('resume lookup reads only the exact matching Draft in a large project',async()=>{
+    let reads=0;const rows=Array.from({length:1000},(_,i)=>({sequenceId:'d'+i,name:'Other '+i}));
+    rows.push({sequenceId:'saved',name:'Clip · current-run'});
+    const selects={project:()=>({readFootage:async()=>({drafts:rows})}),draft:id=>({meta:async()=>{reads++;assert.equal(id,'saved');return {durationSeconds:12.34};}})};
+    const execute=name=>new AsyncFunction('selects',mod.exports.findRunDraftScript('p',name))(selects);
+    assert.equal(await execute('Missing · current-run'),null);assert.equal(reads,0);
+    assert.deepEqual(await execute('Clip · current-run'),{draftId:'saved',seconds:12.3});assert.equal(reads,1);
+    assert.equal(await execute('Clip · another-run'),null);assert.equal(reads,1);
+  });
   function fixture() {
     const folders = [], moves = [], snapshots = [];
     let creates = 0, loseReply = false;
