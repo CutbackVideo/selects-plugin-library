@@ -249,6 +249,8 @@ function PlayMark({ busy, adding, active, playing, ui }) {
 // While a list loads: rows in the list's own shape, so nothing jumps when the
 // tracks arrive. Kits before version 4 have no Skeleton and get a spinner.
 const SKELETON_WIDTHS = [72, 55, 80, 62, 70, 50, 66];
+// The shapes footage usually comes in, as Stock media's placeholders are.
+const FOOTAGE_SHAPES = [16 / 9, 16 / 9, 9 / 16, 16 / 9, 16 / 9, 16 / 9, 9 / 16, 16 / 9];
 function LoadingRows({ ui, label }) {
   if (!ui.Skeleton) return <Spinner ui={ui} label={label} />;
   return <ul className="music-rows" aria-busy="true" aria-label={label}>{SKELETON_WIDTHS.map((width, index) =>
@@ -778,11 +780,26 @@ export default function Panel({ sdk, context, ui }) {
         {message && <ui.Message tone={failed ? 'error' : 'success'}>{message}</ui.Message>}
       </div>}
       <div className="music-body">
-        {!rows.length && (busy || !searchedTerm) && !message && <LoadingRows ui={ui} label={T.loading} />}
+        {!rows.length && (busy || !searchedTerm) && !message && (view === 'footage' && ui.MediaGrid
+          ? <ui.MediaGrid items={[]} loading={FOOTAGE_SHAPES} />
+          : <LoadingRows ui={ui} label={T.loading} />)}
         {!rows.length && !busy && searchedTerm && !message && <div className="music-empty">
           <small>{view === 'favorites' || view === 'downloads' ? T.emptyLibrary : T.empty}</small>
         </div>}
-        {rows.length > 0 && <ul className="music-rows">{rows.map(row => row.kind === 'footage' ? clip(row) : track(row))}</ul>}
+        {rows.length > 0 && (view === 'footage' && ui.MediaGrid
+          // Footage as thumbnails only, as Stock media shows video.
+          ? <ui.MediaGrid items={rows.map(row => ({
+              id: row.id,
+              label: row.mainArtists.length ? row.title + ' — ' + row.mainArtists.join(', ') : row.title,
+              aspect: row.width > 0 && row.height > 0 ? row.width / row.height : 16 / 9,
+              imageUrl: row.thumbnailUrl,
+              onOpen: () => openOnArtlist(row),
+              onAdd: canAdd ? () => add(row) : undefined,
+              addLabel: added.includes(row.id) ? T.addAgain : T.add,
+              adding: adding === row.id,
+              disabled: busy && adding !== row.id,
+            }))} />
+          : <ul className="music-rows">{rows.map(row => row.kind === 'footage' ? clip(row) : track(row))}</ul>)}
         {view !== 'search' && (pageNumber > 1 || hasMore) && <div className="music-pager">
           <ui.Button variant="ghost" disabled={busy || pageNumber === 1} onClick={() => changePage(pageNumber - 1)}>{T.previousPage}</ui.Button>
           <small>{T.pageLabel} {pageNumber}</small>
