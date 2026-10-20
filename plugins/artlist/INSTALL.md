@@ -23,18 +23,14 @@ Artlist settings include **Refresh account and plan** for subscription changes.
 Build with `music.artlist.download-controls.v1` to enable per-download cancellation;
 older session hosts retain basic downloads. Preview cache cleanup never removes
 original media referenced by projects. New originals retain readable track names
-and local source sidecars. The last Music/Sound effects choice is remembered.
+and local source sidecars. The last tab is remembered.
 
-Build with `music.artlist.library.v1` for personal Favorites, Downloads and
-Artboards. Select a library view, choose Music/SFX or an Artboard, then
-preview or add as usual. Refresh reloads Artlist's current saved items. Older
-hosts show an update message and receive no new library commands.
-
-Build with `music.artlist.library-pages.v1` for Previous/Next track pages and
-More Artboards. `music.artlist.library-edit.v1` enables Favorite/Unfavorite,
-blank Artboard creation and track membership editing through Save. Each edit
-uses the current account session and `allowCommit: true`. Earlier hosts keep
-read-only library behavior and receive no new edit commands.
+Build with `music.artlist.library.v1` and `music.artlist.library-pages.v1`
+for the Favorites and Downloads tabs, in pages; `music.artlist.library-edit.v1`
+lets Save set Favorite/Unfavorite (with `allowCommit: true` and the current
+account session). Build with `music.artlist.categories.v1` for category filter
+chips and `music.artlist.waveform.v1` for the player's waveform. Each is
+optional: without it the panel leaves that part out.
 
 ## Upgrading from Music
 

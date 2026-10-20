@@ -3,148 +3,83 @@
 Connect your own Artlist account, then search, preview and add authorized
 originals to a Draft as editable Audio. This is a local prototype, not an
 official Artlist plugin. It was the Artlist half of the Music plugin; Epidemic
-Sound is now a built-in Selects app.
+Sound is now a built-in Selects app, and this panel follows its layout.
+
+## Connecting
+
+Click **Connect Artlist** and sign in on the official website in the window
+Selects opens. On hosts with `music.artlist.auto-identity.v1` that is all:
+Selects reads the account and plan itself, and the panel says only "Sign in on
+Artlist". Older hosts finish once you open the profile menu, and only while
+that menu shows your email, which Artlist's current menu does not.
+
+Selects keeps its own browser session per Selects user; no password or API key
+enters the panel or a script. This path uses the website, not an Artlist API.
+It requires `music.artlist.web-session.v1`; older hosts show an update message.
+Expired login returns to Connect. **Disconnect** clears the Artlist browser
+login and keeps media already downloaded into projects.
+
+## The panel
+
+- **Tabs** — Music, Sound effects, Favorites and Downloads, as the app's own
+  panel tabs (Panel UI version 4, `Tabs variant="strip"`); docked, the strip
+  scrolls sideways. The ⋯ after them is a dropdown: **Refresh list** on a
+  library tab, then the account's email and plan, **Refresh account and plan**,
+  the license link and **Disconnect**. The last tab is remembered.
+- **Search and filters** — Music and Sound effects search Artlist's catalog.
+  On hosts with `music.artlist.categories.v1`, Artlist's own categories sit as
+  filter chips under the search (`FilterBar`): music's Genre, Mood, Video Theme
+  and Instrument; sound effects' Ambience, Foley, Genre, Musical, Realistic and
+  Transitions. A chip in use reads "Genre · 2", and **Clear** empties them.
+  Filters alone list the catalog within them; with a search they narrow it.
+  Each tab keeps its own filters while the panel is open.
+- **Library** — Favorites and Downloads (the account's Artlist download
+  history, not files on this computer) list music and sound effects together,
+  a page of each (`music.artlist.library-pages.v1`), with Previous/Next. Their
+  order is Artlist's current order; **Refresh list** after saving on Artlist.
+- **Rows** — the cover, the title over the artist, the length over the BPM in
+  the app's figures face; narrow, the BPM gives way first, then the length.
+  Clicking a row previews it; the cover drags it onto the timeline. While a
+  row is hovered, focused or playing, its ⋯ (**Save**: Favorite or Unfavorite,
+  and Open in Artlist) takes the length's place; **+** is always there.
+- **Player** — ruled off across the panel's foot: the track's Artlist
+  waveform as the seek bar (`music.artlist.waveform.v1`; a plain bar on older
+  hosts), "Title - Artist" between the time played and the length, then
+  play/pause and **+**. Space plays and pauses while focus is in the panel.
+- **Loading** — placeholder rows in the list's shape (`Skeleton`) while a list
+  loads; tabs can be switched meanwhile, but not while something is being
+  added or saved.
+
+On Panel UI version 3 and earlier, the tabs are a boxed switch and Save and the
+account open as sections above the player.
 
 ## Adding to a Draft
 
-Click the plus button to import the original. The first song starts at frame
-zero and fits the shorter of the song and the picture on Main or Video tracks.
-Without video it uses the full song. Later songs append after existing music
-downloads, preserving earlier clip positions; other audio does not determine
-the append point. Length comes from the downloaded file. Import and Draft
-commit use separate script transactions. Each explicit Add creates a new clip,
-including repeated uses of the same song or effect. The imported media file is
-reused; earlier clips stay in place. Export through the existing
-**Handoff → Export** flow.
+**+** downloads the original — the website's MP3 for music, WAV for sound
+effects — and imports it as editable Audio. The first song starts at frame
+zero and fits the shorter of the song and the picture on Main or Video tracks;
+without video it uses the full song. Later songs append after existing music
+downloads, keeping earlier clips where they are. Sound effects' **+** reads
+**Add at end**. Each **+** makes a new clip, reusing the imported file.
 
-On Panel UI version 3, drag a cover directly onto an Audio lane at the desired
-frame. The original downloads after release, then the existing file-drop
-pipeline imports and places it. The drop captures the target before
-downloading and never follows navigation into another Draft. Existing timeline
-overwrite/insert rules apply: use an empty Audio lane or hold Cmd/Ctrl for
-insert. Both the plus button and a timeline drop show a spinner in the
-row's plus button while the original downloads and imports. Older
-runtimes without `musicImportChanged` keep the native loading toast as their
-feedback. Navigating to another Draft clears the cover indicator and finishes
-the import only in the original project.
+On Panel UI version 3, drag a cover onto an Audio lane at the frame you want;
+the original downloads after release and the timeline's own file drop places
+it (use an empty lane, or hold Cmd/Ctrl to insert). While a download runs, the
+row's **+** shows the spinner; hosts with `music.artlist.download-controls.v1`
+also offer **Cancel download**.
 
-## Account and library
+Free and Free Trial accounts can preview but cannot add originals; what a plan
+allows is Artlist's decision. New originals are named for the track, with a
+private `.artlist.json` sidecar (title, artist, URL, file hash) as local
+provenance, not a license certificate. Downloads keep the 128 MiB / 120 s
+limits. Previews are read inside the signed-in page, because Artlist's CDN
+refuses other origins, cached for up to seven days and never offered for
+import.
 
-Click **Connect Artlist** and sign in on the official website. On hosts with
-`music.artlist.auto-identity.v1` that is all: Selects reads the account and
-plan itself and the panel says only "Sign in on Artlist". Older hosts finish
-once you open the profile menu, and only while that menu shows your email,
-which Artlist's current menu does not. Selects
-retains its own browser session per Selects user; no password or API key enters
-the panel or script. This path uses the website, not MCP OAuth. Requires
-`music.artlist.web-session.v1`; older hosts show an update message.
+## Status
 
-The layout follows the built-in Epidemic Sound app. Music, Sound
-effects, Favorites, Downloads and Artboards are the app's own panel tabs (Panel UI version 4,
-`Tabs variant="strip"`); docked, the strip scrolls sideways. The ⋯ after them
-is a dropdown with, on a library tab, **Refresh list**, then the account's email and plan, **Refresh account and plan**,
-the license link and **Disconnect**. Music and Sound effects search the catalog;
-Favorites, Downloads (the account's Artlist download history) and Artboards
-list music and sound effects together, a page of each. Artboards adds the
-board picker under the tabs.
-
-On hosts with `music.artlist.categories.v1` (Panel UI version 4), Artlist's
-own categories sit as filter chips under the search, as Epidemic's do: music's
-Genre, Mood, Video Theme and Instrument; sound effects' Ambience, Foley,
-Genre, Musical, Realistic and Transitions. Each chip is a checkbox menu; a
-chip in use reads "Genre · 2", and **Clear** empties them. Filters alone list
-the catalog within them; with a search they narrow it. Each tab keeps its own
-filters while the panel is open. What several picks mean is Artlist's rule.
-
-Results are a list with no title over it. A row is the cover, the title over
-the artist, and the length over the BPM; narrow, the BPM gives way first, then
-the length. Clicking anywhere on a row previews it, and the cover drags it onto
-the timeline. While a row is hovered, focused or playing, its ⋯ (**Save**) or
-its Artlist link takes the length's place; **+** is always there. Save is a
-dropdown: Favorite or Unfavorite, Open in Artlist, Remove from this Artboard
-(on an Artboard), then the person's Artboards to add it to and **New
-Artboard…**, which asks for a name and adds the track to the new board. Space plays and pauses the preview
-while focus is in the panel.
-
-The player is ruled off across the panel's foot: the seek bar, "Title -
-Artist" between the time played and the length, then play/pause with **+**.
-New Artboard's name field opens between the list and the player. On Panel UI
-version 3 and earlier, Save and the account open as sections there instead.
-
-Search Music or Sound effects, click a cover to preview, or open its Artlist
-page. The plus button and cover drag request the website's MP3 download for
-Music or WAV download for Sound effects, then
-use the editable Audio import and cover-loading feedback described above.
-Artlist previews are read inside the signed-in page and cached separately from
-originals, because its CDN rejects direct app playback. Preview cache files are
-not offered for Draft import. Preview source capture starts before the selected
-track's play click, so clips that finish quickly are retained. Mislabeled AAC
-responses require a valid ADTS header before being cached as audio.
-Background login polling stops once connected.
-Free/Free Trial accounts cannot add watermarked previews as original music.
-Subscription permissions remain Artlist's decision. Disconnect clears the
-Artlist browser login, retaining downloaded project media.
-
-This integration is unpublished. On macOS with Social Monthly, real Music MP3
-downloads, plus import, trusted cover drag, cover loading, preservation of
-existing audio, full restart, WAV mix export and video-with-music MP4 export
-were verified. SFX WAV originals were also verified through plus, trusted cover
-drag, native playback, WAV-only audio export and MP4 mixing with MP3 music.
-The tested WAVs are 96kHz/24bit mono and stereo. Original extensions are validated
-and preserved; the existing 128MiB/120s download limits still apply. Optional
-Clearlist onboarding is deferred through the website's own control (unit tested;
-the prompt had already been dismissed before the live WAV checks).
-Windows has not been verified. Login and
-download selectors depend on the website. Release permission for this automated
-website workflow is unresolved.
-
-Account settings show the account and detected plan. **Refresh account and plan**
-rechecks the existing website session (older hosts: open the profile menu to finish). Closing
-that window cancels login polling without disconnecting an existing account.
-Expired login returns to Connect; explicit empty-result pages return zero tracks.
-Selected tracks retain their search context across other panel/SDK searches,
-with a bounded 500-track registry. Music/SFX changes clear the input query. The
-last Music/Sound effects choice is remembered in panel preferences.
-
-Hosts with `music.artlist.download-controls.v1` expose **Cancel download** for
-plus and timeline-cover drops. Each request has its own UUID; cancellation keeps
-the account connected. Older session hosts retain ordinary downloads without
-cancellation. Size and timeout errors are distinct from subscription errors.
-Previews are limited to 256MiB and seven days, cleaned on the next preview save;
-originals are excluded. New originals use a readable title and provider track ID,
-with a private `.artlist.json` sidecar containing title, artist, URL and file hash.
-Previously imported hash paths are retained. Sidecars are local provenance, not
-license certificates; project export does not promise to collect them.
-Sound effects' plus action is labeled **Add at end**. Drag a cover to choose an
-exact timeline position, including repeated placements of the same effect.
-On hosts with `music.artlist.library.v1`, switch between Search, Favorites,
-Downloads and Artboards. Choose Music or Sound effects, refresh after saving on
-Artlist, and select an Artboard to read its tracks. Earlier library-only hosts read the first 50 rendered tracks
-and up to 100 rendered Artboards; the newer paging and editing contracts are
-described below. Unsupported hosts keep search and show an update
-message when a library view is selected. Download-history links can have an
-incomplete slug, so preview/add restore a catalog search and match the provider
-track ID rather than the title or old slug.
-The bad-MIME and short-SFX preview failures were fixed and verified on macOS:
-both tracks passed five repeated native requests and actual panel playback.
-
-
-Hosts with `music.artlist.library-pages.v1` read the live personal library in
-50-track pages, with Previous/Next navigation. Artboards load 100 at a time;
-More Artboards extends the selector. Order is Artlist's current order rather
-than a frozen snapshot, so refresh after an external edit. Each page registers
-its track IDs again, preserving preview/add after moving between pages.
-Older library hosts retain the first 50 tracks /100 Artboards.
-
-With `music.artlist.library-edit.v1`, **Save** opens a track's storage controls:
-Favorite/Unfavorite, Add to Artboard, and Remove from this Artboard while browsing
-that Artboard. **New Artboard** creates a blank board with a name; it does not
-request AI suggestions or credits. These are changes to the connected Artlist
-account, separate from adding Audio to a Selects Draft. Changes are checked again
-after a website reload. The current account-session ID and the SDK write gate
-are required. Favorite and membership commands set a desired state rather than
-blindly toggling. Identical Artboard names fail without choosing an ambiguous
-board; rename them on Artlist first. Creation is not automatically retried:
-if renaming fails, refresh the Artboard list before trying again because a
-new default-named board may already exist. Deleting or sharing Artboards is not
-included. Unsupported hosts do not show the new edit controls.
+Unpublished. On macOS with Social Monthly, Music MP3 and Sound effects WAV
+originals were verified through **+**, cover drag, playback, WAV export and
+MP4 export. Windows is unverified. Login and download depend on the website's
+current pages, and permission for this automated website workflow is
+unresolved.

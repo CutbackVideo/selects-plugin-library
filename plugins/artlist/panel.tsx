@@ -14,9 +14,7 @@ const COPY = {
     preview: 'Preview', add: 'Add to Draft', addAgain: 'Add again', loading: 'Loading music\u2026', failed: 'Could not load music. Try again.',
     artlist_import_uncertain: 'Check project files before trying the import again.',
     openTrack: 'Open in Artlist', connect: 'Connect Artlist', connected: 'Artlist connected', connectHint: 'Sign in on Artlist, then open your profile menu to finish connecting.', connectHintAuto: 'Sign in on Artlist to finish connecting.',
-    cancelLibrary: 'Cancel', closeLibrary: 'Close save controls', savingLibrary: 'Saving…', creatingBoard: 'Creating…', boardSaved: 'Saved to Artboard.',
-    previousPage: 'Previous', nextPage: 'Next', pageLabel: 'Page', moreBoards: 'More Artboards', saveManage: 'Save', favoriteLabel: 'Favorite', unfavoriteLabel: 'Unfavorite', addToBoard: 'Add to Artboard', removeFromBoard: 'Remove from this Artboard', newBoard: 'New Artboard', newBoardMenu: 'New Artboard…', boardName: 'Artboard name', createBoard: 'Create', artlist_library_edit_uncertain: 'The change could not be verified. Refresh your library before trying again.', artlist_ambiguous_artboard: 'Artboards have identical names. Rename them in Artlist before selecting one.', artlist_artboard_unavailable: 'This Artboard is no longer available. Refresh your library.',
-    library: 'Browse', favorites: 'Favorites', downloads: 'Downloads', artboards: 'Artboards', refreshLibrary: 'Refresh list', chooseArtboard: 'Choose an Artboard', emptyLibrary: 'No saved tracks here yet', emptyBoards: 'No Artboards yet', libraryLimit: 'Showing the first 50 tracks.', artlist_library_unavailable: 'Could not load your Artlist library. Try again.', cancelDownloadLabel: 'Cancel download', refresh: 'Refresh account and plan', license: 'View license', licenseHint: 'Your Artlist plan determines how downloaded music can be used.',
+    closeLibrary: 'Close save controls', savingLibrary: 'Saving…',     previousPage: 'Previous', nextPage: 'Next', pageLabel: 'Page', saveManage: 'Save', favoriteLabel: 'Favorite', unfavoriteLabel: 'Unfavorite', artlist_library_edit_uncertain: 'The change could not be verified. Refresh your library before trying again.',     library: 'Browse', favorites: 'Favorites', downloads: 'Downloads', refreshLibrary: 'Refresh list', emptyLibrary: 'No saved tracks here yet', libraryLimit: 'Showing the first 50 tracks.', artlist_library_unavailable: 'Could not load your Artlist library. Try again.', cancelDownloadLabel: 'Cancel download', refresh: 'Refresh account and plan', license: 'View license', licenseHint: 'Your Artlist plan determines how downloaded music can be used.',
     append: 'Add at end',     music: 'Music', sfx: 'Sound effects', cancel: 'Cancel login',
         artlist_subscription_required: 'Your Artlist music subscription is required for original downloads.',
     artlist_download_failed: 'Could not download this track. Try again.',
@@ -42,9 +40,7 @@ const COPY = {
     preview: '\ubbf8\ub9ac\ub4e3\uae30', add: 'Draft\uc5d0 \ucd94\uac00', addAgain: '\ub2e4\uc2dc \ucd94\uac00', loading: '\uc74c\uc545 \ubd88\ub7ec\uc624\ub294 \uc911\u2026', failed: '\uc74c\uc545\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
     artlist_import_uncertain: '\ub2e4\uc2dc \uac00\uc838\uc624\uae30 \uc804\uc5d0 \ud504\ub85c\uc81d\ud2b8 \ud30c\uc77c\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.',
     openTrack: 'Artlist\uc5d0\uc11c \uc5f4\uae30', connect: 'Artlist \uc5f0\uacb0', connected: 'Artlist \uc5f0\uacb0\ub428', connectHint: 'Artlist\uc5d0\uc11c \ub85c\uadf8\uc778\ud55c \ub4a4 \uc624\ub978\ucabd \ud504\ub85c\ud544 \uba54\ub274\ub97c \uc5f4\uc5b4 \uc5f0\uacb0\uc744 \uc644\ub8cc\ud558\uc138\uc694.', connectHintAuto: 'Artlist\uc5d0 \ub85c\uadf8\uc778\ud558\uba74 \uc5f0\uacb0\uc774 \uc644\ub8cc\ub3fc\uc694.',
-    cancelLibrary: '\ucde8\uc18c', closeLibrary: '\uc800\uc7a5 \uad00\ub9ac \ub2eb\uae30', savingLibrary: '\uc800\uc7a5 \uc911…', creatingBoard: '\ub9cc\ub4dc\ub294 \uc911…', boardSaved: '\ubcf4\uad00\ud568\uc5d0 \uc800\uc7a5\ud588\uc5b4\uc694.',
-    previousPage: '\uc774\uc804', nextPage: '\ub2e4\uc74c', pageLabel: '\ud398\uc774\uc9c0', moreBoards: '\ubcf4\uad00\ud568 \ub354 \ubcf4\uae30', saveManage: '\uc800\uc7a5 \uad00\ub9ac', favoriteLabel: '\ucc1c\ud558\uae30', unfavoriteLabel: '\ucc1c \ud574\uc81c', addToBoard: '\ubcf4\uad00\ud568\uc5d0 \ub123\uae30', removeFromBoard: '\uc774 \ubcf4\uad00\ud568\uc5d0\uc11c \ube7c\uae30', newBoard: '\uc0c8 \ubcf4\uad00\ud568', newBoardMenu: '\uc0c8 \ubcf4\uad00\ud568…', boardName: '\ubcf4\uad00\ud568 \uc774\ub984', createBoard: '\ub9cc\ub4e4\uae30', artlist_library_edit_uncertain: '\ubcc0\uacbd \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubcf4\uad00\ud568\uc744 \uc0c8\ub85c\uace0\uce68\ud55c \ub4a4 \ud655\uc778\ud574 \uc8fc\uc138\uc694.', artlist_ambiguous_artboard: '\uc774\ub984\uc774 \uac19\uc740 \ubcf4\uad00\ud568\uc774 \uc788\uc5b4\uc694. Artlist\uc5d0\uc11c \uc774\ub984\uc744 \uad6c\ubd84\ud574 \uc8fc\uc138\uc694.', artlist_artboard_unavailable: '\uc774 \ubcf4\uad00\ud568\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubaa9\ub85d\uc744 \uc0c8\ub85c\uace0\uce68\ud574 \uc8fc\uc138\uc694.',
-    library: '\ubaa9\ub85d', favorites: '\ucc1c', downloads: '\ub2e4\uc6b4\ub85c\ub4dc', artboards: '\ubcf4\uad00\ud568', refreshLibrary: '\ubaa9\ub85d \uc0c8\ub85c\uace0\uce68', chooseArtboard: '\ubcf4\uad00\ud568 \uc120\ud0dd', emptyLibrary: '\uc544\uc9c1 \uc800\uc7a5\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694', emptyBoards: '\uc544\uc9c1 \ubcf4\uad00\ud568\uc774 \uc5c6\uc5b4\uc694', libraryLimit: '\ucc98\uc74c 50\uace1\uc744 \ud45c\uc2dc\ud558\uace0 \uc788\uc5b4\uc694.', artlist_library_unavailable: 'Artlist \ubcf4\uad00\ud568\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', cancelDownloadLabel: '\ub2e4\uc6b4\ub85c\ub4dc \ucde8\uc18c', refresh: '\uacc4\uc815·\uad6c\ub3c5 \uc0c8\ub85c\uace0\uce68', license: '\ub77c\uc774\uc120\uc2a4 \ubcf4\uae30', licenseHint: '\ub2e4\uc6b4\ub85c\ub4dc\ud55c \uc74c\uc545\uc758 \uc0ac\uc6a9 \ubc94\uc704\ub294 \ub0b4 Artlist \ud50c\ub79c\uc744 \ub530\ub985\ub2c8\ub2e4.',
+    closeLibrary: '\uc800\uc7a5 \uad00\ub9ac \ub2eb\uae30', savingLibrary: '\uc800\uc7a5 \uc911…',     previousPage: '\uc774\uc804', nextPage: '\ub2e4\uc74c', pageLabel: '\ud398\uc774\uc9c0', saveManage: '\uc800\uc7a5 \uad00\ub9ac', favoriteLabel: '\ucc1c\ud558\uae30', unfavoriteLabel: '\ucc1c \ud574\uc81c', artlist_library_edit_uncertain: '\ubcc0\uacbd \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubcf4\uad00\ud568\uc744 \uc0c8\ub85c\uace0\uce68\ud55c \ub4a4 \ud655\uc778\ud574 \uc8fc\uc138\uc694.',     library: '\ubaa9\ub85d', favorites: '\ucc1c', downloads: '\ub2e4\uc6b4\ub85c\ub4dc', refreshLibrary: '\ubaa9\ub85d \uc0c8\ub85c\uace0\uce68', emptyLibrary: '\uc544\uc9c1 \uc800\uc7a5\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694', libraryLimit: '\ucc98\uc74c 50\uace1\uc744 \ud45c\uc2dc\ud558\uace0 \uc788\uc5b4\uc694.', artlist_library_unavailable: 'Artlist \ubcf4\uad00\ud568\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', cancelDownloadLabel: '\ub2e4\uc6b4\ub85c\ub4dc \ucde8\uc18c', refresh: '\uacc4\uc815·\uad6c\ub3c5 \uc0c8\ub85c\uace0\uce68', license: '\ub77c\uc774\uc120\uc2a4 \ubcf4\uae30', licenseHint: '\ub2e4\uc6b4\ub85c\ub4dc\ud55c \uc74c\uc545\uc758 \uc0ac\uc6a9 \ubc94\uc704\ub294 \ub0b4 Artlist \ud50c\ub79c\uc744 \ub530\ub985\ub2c8\ub2e4.',
     append: '\ub05d\uc5d0 \ucd94\uac00',     music: '\uc74c\uc545', sfx: '\ud6a8\uacfc\uc74c', cancel: '\ub85c\uadf8\uc778 \ucde8\uc18c',
         artlist_subscription_required: '\uc6d0\uace1\uc744 \ucd94\uac00\ud558\ub824\uba74 Artlist \uc74c\uc545 \uad6c\ub3c5\uc774 \ud544\uc694\ud574\uc694.',
     artlist_download_failed: '\uace1\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
@@ -65,7 +61,7 @@ const COPY = {
 };
 const ERROR_CODES = Object.keys(COPY.en).filter(key => key.startsWith('artlist_'));
 const BROWSE_QUERY = 'background music';
-const TABS = ['music', 'sfx', 'favorites', 'downloads', 'artboards'];
+const TABS = ['music', 'sfx', 'favorites', 'downloads'];
 const READS = ['browse', 'search', 'library', 'more', 'preview', 'board-more'];
 
 // @operation-start
@@ -158,8 +154,6 @@ const STYLES = `
   .music-controls { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; min-width: 0; }
   .music-search { display: flex; align-items: end; gap: 8px; }
   .music-search > :first-child { flex: 1; min-width: 0; }
-  .music-picker { display: flex; align-items: center; gap: 8px; }
-  .music-picker > :first-child { flex: 1; min-width: 0; }
   .music-notes { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
   .music-notes small { display: block; }
   .music-body { flex: 1; min-height: 0; overflow-y: auto; margin: 0 calc(-1 * var(--panel-pad-right)) 0 calc(-1 * var(--panel-pad-left)); padding: 0 var(--panel-pad-right) 16px var(--panel-pad-left); container-type: inline-size; }
@@ -332,16 +326,9 @@ export default function Panel({ sdk, context, ui }) {
   const [tab, setTab] = React.useState('music');
   const view = tab === 'music' || tab === 'sfx' ? 'search' : tab;
   const kind = tab === 'sfx' ? 'sfx' : 'music';
-  const [artboards, setArtboards] = React.useState([]);
-  const [boardId, setBoardId] = React.useState('');
   const [pageNumber, setPageNumber] = React.useState(1);
   const [hasMore, setHasMore] = React.useState(false);
-  const [boardsPage, setBoardsPage] = React.useState(1);
-  const [moreBoards, setMoreBoards] = React.useState(false);
   const [editTrack, setEditTrack] = React.useState(null);
-  const [targetBoard, setTargetBoard] = React.useState('');
-  const [newBoardName, setNewBoardName] = React.useState('');
-  const [showCreate, setShowCreate] = React.useState(false);
   // The track a row's Save menu is open on, with what the menu needs loaded.
   const [menuTrack, setMenuTrack] = React.useState(null);
   const [menuOpen, setMenuOpen] = React.useState(null);
@@ -352,13 +339,11 @@ export default function Panel({ sdk, context, ui }) {
   const [filters, setFilters] = React.useState({ music: {}, sfx: {} });
   // Peaks per track id: null while they load or when Artlist has none.
   const [waves, setWaves] = React.useState({});
-  // The track a New Artboard from its menu adds to the board once made.
-  const [boardFor, setBoardFor] = React.useState(null);
   const [preferencesReady, setPreferencesReady] = React.useState(false);
   const T = { ...COPY.en, ...(COPY[context.language] || {}) };
   // Sound effects go at the end of the Draft; music fits the picture.
   const addLabel = row => row.kind === 'sfx' ? T.append : T.add;
-  const key = JSON.stringify([context.projectId, context.sequenceId, tab, boardId, pageNumber]);
+  const key = JSON.stringify([context.projectId, context.sequenceId, tab, pageNumber]);
   const scope = React.useRef({ key, mounted: true });
   if (scope.current.key !== key) scope.current = { key, mounted: true };
   const [connection, setConnection] = React.useState(null);
@@ -414,7 +399,7 @@ export default function Panel({ sdk, context, ui }) {
     const next = await script(`return await selects.artlist.status();`, false, captured);
     captured.connecting = !!next.connecting;
     if (!next.connected || (account.current && account.current !== next.accountSession)) {
-      setRows([]); setAudio(null); setPlaying(false); setCursor(null); setSearchedTerm(''); setAdded([]); setDragAdding(null); setMessage(''); setArtboards([]); setBoardId(''); setPageNumber(1); setHasMore(false); setBoardsPage(1); setMoreBoards(false); setEditTrack(null); setTargetBoard(''); setNewBoardName(''); setShowCreate(false);
+      setRows([]); setAudio(null); setPlaying(false); setCursor(null); setSearchedTerm(''); setAdded([]); setDragAdding(null); setMessage(''); setPageNumber(1); setHasMore(false); setEditTrack(null);
     }
     account.current = next.accountSession;
     setConnection(next);
@@ -462,10 +447,7 @@ export default function Panel({ sdk, context, ui }) {
     if (!identity.connected) throw new Error('artlist_reconnect_required');
     if (view !== 'search') {
       if (!identity.library) throw new Error('artlist_update_required');
-      if (view === 'artboards' && !boardId) {
-        await loadBoards(captured); setSearchedTerm('artboards'); return;
-      }
-      const collectionId = view === 'artboards' ? boardId : view;
+      const collectionId = view;
       // Artlist keeps music and sound effects apart; a page here is a page of each.
       const pages = [];
       for (const each of ['music', 'sfx']) {
@@ -537,15 +519,6 @@ export default function Panel({ sdk, context, ui }) {
       if (captured === scope.current && captured.mounted) { setFailed(true); setMessage(T[error.message] || T.failed); }
     } finally { if (captured === scope.current && captured.mounted) setCanceling(false); }
   }
-  async function loadBoards(captured, append = false) {
-    const page = append ? boardsPage + 1 : 1;
-    const query = connection?.libraryPages
-      ? `return await selects.artlist.artboardsPage(${page});`
-      : 'return await selects.artlist.artboards();';
-    const result = await script(query, false, captured);
-    setArtboards(previous => append ? [...new Map(previous.concat(result.artboards).map(board => [board.id, board])).values()] : result.artboards);
-    setBoardsPage(page); setMoreBoards(!!result.hasMore);
-  }
   function changePage(page) {
     setPageNumber(page); setRows([]); setAudio(null); setEditTrack(null); setSearchedTerm(''); setMessage(''); setHasMore(false);
   }
@@ -558,28 +531,8 @@ export default function Panel({ sdk, context, ui }) {
       if (view === 'favorites') { if (!result.favorite && audio?.id === track.id) setAudio(null); await load(null, captured); }
     }, 'favorite', track.id);
   }
-  function editBoard(included, track = editTrack, id = included ? targetBoard : boardId) {
-    action(async captured => {
-      await script(`return await selects.artlist.setArtboardTrack(${JSON.stringify(id)}, ${JSON.stringify(track.id)}, ${included}, ${JSON.stringify(account.current)});`, true, captured);
-      if (view === 'artboards' && boardId === id) { if (!included && audio?.id === track.id) setAudio(null); await load(null, captured); if (!included) setEditTrack(null); }
-      if (included) setMessage(T.boardSaved);
-    }, included ? 'board-add' : 'board-remove', track.id);
-  }
-  function createBoard() {
-    action(async captured => {
-      const result = await script(`return await selects.artlist.createArtboard(${JSON.stringify(newBoardName.trim())}, ${JSON.stringify(account.current)});`, true, captured);
-      setArtboards(previous => [result.artboard, ...previous.filter(board => board.id !== result.artboard.id)]);
-      setTargetBoard(result.artboard.id); setShowCreate(false); setNewBoardName('');
-      if (boardFor) {
-        await script(`return await selects.artlist.setArtboardTrack(${JSON.stringify(result.artboard.id)}, ${JSON.stringify(boardFor.id)}, true, ${JSON.stringify(account.current)});`, true, captured);
-        setBoardFor(null); setMessage(T.boardSaved);
-      }
-      if (view === 'artboards' && !boardId) { setBoardId(result.artboard.id); setRows([]); setPageNumber(1); setSearchedTerm(''); }
-    }, 'board-create');
-  }
   // What a row's Save menu needs, loaded as it opens: whether the track is a
-  // favorite (a search row may not say) and the person's Artboards. The menu
-  // shows those rows disabled until they come.
+  // favorite (a search row may not say). Favorite shows disabled until then.
   async function loadTrackMenu(row) {
     const captured = scope.current;
     setMenuTrack({ ...row, loading: true });
@@ -589,7 +542,6 @@ export default function Panel({ sdk, context, ui }) {
         const result = await script(`return await selects.artlist.search(${JSON.stringify(row.title)}, ${JSON.stringify(row.kind || kind)});`, false, captured);
         selected = result.tracks.find(track => track.id === row.id) || row;
       }
-      if (!artboards.length) await loadBoards(captured);
       setMenuTrack(previous => previous?.id === row.id ? { ...selected, loading: false } : previous);
     } catch (error) {
       if (scope.current !== captured || !captured.mounted) return;
@@ -599,23 +551,14 @@ export default function Panel({ sdk, context, ui }) {
   }
   function trackMenu(row) {
     const known = menuTrack?.id === row.id ? menuTrack : row;
-    const loading = menuTrack?.id === row.id && menuTrack.loading;
-    const boards = artboards.filter(board => !(view === 'artboards' && board.id === boardId));
     return [
       { label: known.favorited ? T.unfavoriteLabel : T.favoriteLabel, disabled: typeof known.favorited !== 'boolean', onSelect: () => editFavorite(known) },
       { label: T.openTrack, onSelect: () => action(captured => script(`return await selects.artlist.openTrack(${JSON.stringify(row.url)});`, true, captured), 'open', row.id) },
-      ...(view === 'artboards' && boardId ? [{ label: T.removeFromBoard, onSelect: () => editBoard(false, row, boardId) }] : []),
-      { separator: true },
-      { heading: T.addToBoard },
-      ...(loading && !boards.length ? [{ label: T.loading, disabled: true, onSelect() {} }] : boards.map(board => ({ label: board.name, onSelect: () => editBoard(true, row, board.id) }))),
-      ...(moreBoards ? [{ label: T.moreBoards, onSelect: () => action(captured => loadBoards(captured, true), 'board-more') }] : []),
-      { separator: true },
-      { label: T.newBoardMenu, onSelect: () => { setManage(false); setEditTrack(null); setBoardFor(row); setShowCreate(true); } },
     ];
   }
   function changeLibrary(value) {
     if (!connection?.library && value !== 'music' && value !== 'sfx') { setFailed(true); setMessage(T.artlist_update_required); return; }
-    setTab(value); setBoardId(''); setPageNumber(1); setHasMore(false); setEditTrack(null); setShowCreate(false); setRows([]); setAudio(null); setCursor(null); setSearchedTerm(''); setMessage(''); setTerm('');
+    setTab(value); setPageNumber(1); setHasMore(false); setEditTrack(null); setRows([]); setAudio(null); setCursor(null); setSearchedTerm(''); setMessage(''); setTerm('');
   }
   function pickedIds(next) {
     return Object.values(next[kind] || {}).flat().map(Number);
@@ -666,7 +609,6 @@ export default function Panel({ sdk, context, ui }) {
   }, [audio?.id]);
   // Saved on Artlist since the list loaded; the list is the website's, not ours.
   const refreshLibrary = () => action(async captured => {
-    if (view === 'artboards' && boardId) await loadBoards(captured);
     await load(null, captured);
   }, 'library');
   const canAdd = !busy && !!context.projectId && !!context.sequenceId;
@@ -701,14 +643,14 @@ export default function Panel({ sdk, context, ui }) {
           {connection.libraryEdit && ui.Menu ? <ui.Menu label={T.saveManage + ': ' + row.title} disabled={busy} items={trackMenu(row)}
             onOpenChange={open => { if (open) { setMenuOpen(row.id); loadTrackMenu(row); } else setMenuOpen(previous => previous === row.id ? null : previous); }} />
           : connection.libraryEdit ? <ui.IconButton icon={pending?.kind === 'library' && pending.trackId === row.id ? 'loading' : 'more'} label={T.saveManage + ': ' + row.title} disabled={busy} onClick={() => action(async captured => {
-            setManage(false);setEditTrack(row);setTargetBoard(boardId || '');
+            setManage(false);setEditTrack(row);
             let selected = row;
             if (typeof row.favorited !== 'boolean') {
               const result = await script(`return await selects.artlist.search(${JSON.stringify(row.title)}, ${JSON.stringify(row.kind || kind)});`, false, captured);
               selected = result.tracks.find(track => track.id === row.id);
               if (!selected || typeof selected.favorited !== 'boolean') throw new Error('artlist_library_unavailable');
             }
-            setEditTrack(selected);if (!artboards.length) await loadBoards(captured);
+            setEditTrack(selected);
           }, 'library', row.id)} />
           : <ui.IconButton icon="external-link" label={T.openTrack + ': ' + row.title} disabled={busy} onClick={() => action(captured => script(`return await selects.artlist.openTrack(${JSON.stringify(row.url)});`, true, captured), 'open', row.id)} />}
         </span>
@@ -716,7 +658,7 @@ export default function Panel({ sdk, context, ui }) {
       </div>
     </li>;
   }
-  const libraryTabs = [{value:'music',label:T.music},{value:'sfx',label:T.sfx},{value:'favorites',label:T.favorites},{value:'downloads',label:T.downloads},{value:'artboards',label:T.artboards}].map(each => ({...each, content: null}));
+  const libraryTabs = [{value:'music',label:T.music},{value:'sfx',label:T.sfx},{value:'favorites',label:T.favorites},{value:'downloads',label:T.downloads}].map(each => ({...each, content: null}));
   const refreshAccount = () => action(async captured => { await script('return await selects.artlist.connect();', true, captured); await status(captured); }, 'connect');
   const openLicense = () => action(captured => script('return await selects.artlist.openTrack("https://artlist.io/help-center/privacy-terms/artlist-license/");', true, captured), 'open');
   const disconnect = () => action(async captured => {
@@ -749,7 +691,7 @@ export default function Panel({ sdk, context, ui }) {
             tabs={libraryTabs} />
         </fieldset>
         {view !== 'search' && <ui.IconButton icon="refresh" label={T.refreshLibrary} disabled={busy} onClick={refreshLibrary} />}
-        <ui.IconButton icon={manage ? 'close' : 'more'} label={T.account} disabled={busy} onClick={() => {setManage(value => !value);setEditTrack(null);setShowCreate(false);}} />
+        <ui.IconButton icon={manage ? 'close' : 'more'} label={T.account} disabled={busy} onClick={() => {setManage(value => !value);setEditTrack(null);}} />
       </div>
       {manage && <div className="music-account">
         <small title={connection.email || T.connected}>{connection.email || T.connected}{connection.plan ? ' · ' + connection.plan : ''}</small>
@@ -779,12 +721,6 @@ export default function Panel({ sdk, context, ui }) {
             selected: filters[kind][group.id] || [],
             onChange: values => refilter({ ...filters, [kind]: { ...filters[kind], [group.id]: values } }),
           }))} />}
-        {view === 'artboards' && <div className="music-picker">
-          {artboards.length > 0 && <ui.Select key={boardId} label={T.artboards} placeholder={T.chooseArtboard} value={boardId || null} disabled={busy}
-            options={artboards.map(board => ({value:board.id,label:board.name}))} onChange={value => {setBoardId(value);setPageNumber(1);setHasMore(false);setEditTrack(null);setRows([]);setAudio(null);setSearchedTerm('');setMessage('');}} />}
-          {connection.libraryEdit && <ui.Button variant="ghost" disabled={busy} onClick={() => {setManage(false);setShowCreate(value => !value);}}>{T.newBoard}</ui.Button>}
-        </div>}
-        {view === 'artboards' && moreBoards && <ui.Button variant="ghost" busy={pending?.kind === 'board-more'} busyLabel={T.loading} disabled={busy} onClick={() => action(captured => loadBoards(captured, true), 'board-more')}>{T.moreBoards}</ui.Button>}
       </div>
       {(cancellable || message) && <div className="music-notes">
         {cancellable && <ui.Button variant="ghost" disabled={canceling} onClick={cancelDownload}>{T.cancelDownloadLabel}</ui.Button>}
@@ -793,7 +729,7 @@ export default function Panel({ sdk, context, ui }) {
       <div className="music-body">
         {!rows.length && (busy || !searchedTerm) && !message && <LoadingRows ui={ui} label={T.loading} />}
         {!rows.length && !busy && searchedTerm && !message && <div className="music-empty">
-          <small>{view !== 'search' ? view === 'artboards' && !boardId ? artboards.length ? T.chooseArtboard : T.emptyBoards : T.emptyLibrary : T.empty}</small>
+          <small>{view !== 'search' ? T.emptyLibrary : T.empty}</small>
         </div>}
         {rows.length > 0 && <ul className="music-rows">{rows.map(track)}</ul>}
         {view !== 'search' && (pageNumber > 1 || hasMore) && <div className="music-pager">
@@ -804,19 +740,10 @@ export default function Panel({ sdk, context, ui }) {
         {view !== 'search' && !connection.libraryPages && rows.length === 50 && <small>{T.libraryLimit}</small>}
         {cursor && <ui.Button variant="ghost" busy={pending?.kind === 'more'} busyLabel={T.loading} disabled={busy} onClick={() => action(captured => load(cursor, captured, searchedTerm), 'more')}>{T.more}</ui.Button>}
       </div>
-      {(showCreate || editTrack && connection.libraryEdit && !ui.Menu) && <div key={showCreate ? 'create' : editTrack?.id} className="music-editor">
-        {editTrack && !showCreate && connection.libraryEdit && <ui.Section title={editTrack.title} actions={<ui.IconButton icon="close" label={T.closeLibrary} disabled={busy} onClick={() => setEditTrack(null)} />}>
+      {editTrack && connection.libraryEdit && !ui.Menu && <div key={editTrack.id} className="music-editor">
+        <ui.Section title={editTrack.title} actions={<ui.IconButton icon="close" label={T.closeLibrary} disabled={busy} onClick={() => setEditTrack(null)} />}>
           <ui.Row><ui.Button variant="ghost" busy={pending?.kind === 'favorite'} busyLabel={T.savingLibrary} disabled={busy || typeof editTrack.favorited !== 'boolean'} onClick={editFavorite}>{editTrack.favorited ? T.unfavoriteLabel : T.favoriteLabel}</ui.Button><ui.Button variant="ghost" disabled={busy} onClick={() => action(captured => script(`return await selects.artlist.openTrack(${JSON.stringify(editTrack.url)});`, true, captured), 'open', editTrack.id)}>{T.openTrack}</ui.Button></ui.Row>
-          {artboards.length > 0 && <ui.Select key={targetBoard} label={T.artboards} placeholder={T.chooseArtboard} value={targetBoard || null} options={artboards.map(board => ({value:board.id,label:board.name}))} disabled={busy} onChange={setTargetBoard} />}
-          {moreBoards && view !== 'artboards' && <ui.Button variant="ghost" busy={pending?.kind === 'board-more'} busyLabel={T.loading} disabled={busy} onClick={() => action(captured => loadBoards(captured, true), 'board-more')}>{T.moreBoards}</ui.Button>}
-          <ui.Row><ui.Button variant="ghost" busy={pending?.kind === 'board-add'} busyLabel={T.savingLibrary} disabled={busy || !targetBoard} onClick={() => editBoard(true)}>{T.addToBoard}</ui.Button>
-            {view === 'artboards' && boardId && <ui.Button variant="ghost" busy={pending?.kind === 'board-remove'} busyLabel={T.savingLibrary} disabled={busy} onClick={() => editBoard(false)}>{T.removeFromBoard}</ui.Button>}</ui.Row>
-          {view !== 'artboards' && <ui.Row><ui.Button variant="ghost" disabled={busy} onClick={() => {setManage(false);setShowCreate(value => !value);}}>{T.newBoard}</ui.Button></ui.Row>}
-        </ui.Section>}
-        {showCreate && <ui.Section title={T.newBoard} actions={<ui.IconButton icon="close" label={T.cancelLibrary + ': ' + T.newBoard} disabled={busy} onClick={() => { setShowCreate(false); setBoardFor(null); }} />}>
-          <ui.TextField label={T.boardName} value={newBoardName} disabled={busy} onChange={setNewBoardName} />
-          <ui.Actions><ui.Button variant="ghost" disabled={busy} onClick={() => { setShowCreate(false); setBoardFor(null); }}>{T.cancelLibrary}</ui.Button><ui.Button busy={pending?.kind === 'board-create'} busyLabel={T.creatingBoard} disabled={busy || !newBoardName.trim() || newBoardName.trim().length > 80} onClick={createBoard}>{T.createBoard}</ui.Button></ui.Actions>
-        </ui.Section>}
+        </ui.Section>
       </div>}
       {audio && <MusicPreview row={audio} durationSeconds={audio.length} peaks={connection?.waveform ? waves[audio.id] ?? null : undefined} media={media} playing={playing} onPlaying={setPlaying}
         onAdd={() => add(audio)} busy={!canAdd} adding={adding === audio.id} added={added.includes(audio.id)} T={T} ui={ui}
