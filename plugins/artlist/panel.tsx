@@ -196,6 +196,12 @@ const STYLES = `
   .music-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
   .music-editor { flex-shrink: 0; max-height: 36dvh; overflow-y: auto; border-top: 1px solid var(--panel-border); margin: 0 calc(-1 * var(--panel-pad-right)) 0 calc(-1 * var(--panel-pad-left)); padding: 8px var(--panel-pad-right) 0 var(--panel-pad-left); }
   .music-player { flex-shrink: 0; border-top: 1px solid var(--panel-border); margin: 0 calc(-1 * var(--panel-pad-right)) 0 calc(-1 * var(--panel-pad-left)); padding: 12px var(--panel-pad-right) 0 var(--panel-pad-left); }
+  .music-wave { position: relative; height: 28px; width: 100%; cursor: pointer; touch-action: none; outline: none; }
+  .music-wave-bars { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .music-wave-rest { fill: color-mix(in srgb, var(--panel-fg) 30%, transparent); }
+  .music-wave-done { fill: var(--panel-fg); }
+  .music-wave-played { position: absolute; top: 0; bottom: 0; left: 0; overflow: hidden; }
+  .music-wave-inner { position: relative; height: 100%; }
   .music-seek { display: block; width: 100%; height: 16px; margin: 0; padding: 0; border: 0; background: none; accent-color: var(--panel-key); }
   .music-player-line { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; font-size: 12px; }
   .music-player-time { flex-shrink: 0; color: var(--panel-muted-fg); font-variant-numeric: tabular-nums; }
@@ -244,10 +250,46 @@ function Spinner({ ui, label }) {
   return <span className="music-loading" role="status" aria-label={label}><ui.Icon name="loading" size={16} /></span>;
 }
 
+// The seek bar drawn as the track's waveform, as Epidemic's player draws it:
+// peaks as bars, the part played in the foreground and the rest muted. Click
+// or drag to seek; as a slider, ←/→ step a second, Page Up/Down a tenth.
+// Flat bars stand in until the peaks arrive, so the bar never changes shape.
+const FLAT_PEAKS = Array.from({ length: 200 }, () => 0);
+function Waveform({ peaks, time, duration, onSeek, label, valueText }) {
+  const box = React.useRef(null);
+  const played = duration > 0 ? Math.min(1, time / duration) : 0;
+  const seekAt = clientX => {
+    const rect = box.current?.getBoundingClientRect();
+    if (!rect || !rect.width || duration <= 0) return;
+    onSeek(Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) * duration);
+  };
+  const bars = className => <svg className={'music-wave-bars ' + className} viewBox={'0 0 ' + peaks.length + ' 2'} preserveAspectRatio="none" aria-hidden="true">
+    {peaks.map((peak, index) => {
+      const height = Math.max(0.06, peak) * 2;
+      return <rect key={index} x={index + 0.15} y={(2 - height) / 2} width={0.7} height={height} />;
+    })}
+  </svg>;
+  return <div ref={box} className="music-wave" role="slider" tabIndex={duration > 0 ? 0 : -1} aria-label={label}
+    aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(time)} aria-valuetext={valueText} aria-disabled={duration <= 0 || undefined}
+    onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); seekAt(event.clientX); }}
+    onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) seekAt(event.clientX); }}
+    onKeyDown={event => {
+      const step = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1, PageUp: duration / 10, PageDown: -duration / 10 }[event.key];
+      if (step == null || duration <= 0) return;
+      event.preventDefault();
+      onSeek(Math.min(duration, Math.max(0, time + step)));
+    }}>
+    {bars('music-wave-rest')}
+    <div className="music-wave-played" style={{ width: played * 100 + '%' }}>
+      <div className="music-wave-inner" style={{ width: played > 0 ? 100 / played + '%' : '100%' }}>{bars('music-wave-done')}</div>
+    </div>
+  </div>;
+}
+
 // The one player, ruled off at the foot of the panel: the seek bar, "Title - Artist"
 // between the time played and the length, then play/pause with Add at the end.
 // Raw AAC duration is estimated by the browser; Artlist supplies the track length.
-function MusicPreview({ row, durationSeconds, media, playing, onPlaying, onAdd, busy, adding, added, T, ui, onError }) {
+function MusicPreview({ row, durationSeconds, peaks, media, playing, onPlaying, onAdd, busy, adding, added, T, ui, onError }) {
   const fail = React.useRef(onError);
   fail.current = onError;
   const [time, setTime] = React.useState(0);
@@ -263,12 +305,14 @@ function MusicPreview({ row, durationSeconds, media, playing, onPlaying, onAdd, 
       onTimeUpdate={event => setTime(event.currentTarget.currentTime)}
       onDurationChange={event => setDuration(durationSeconds || (Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0))}
       onError={() => fail.current()} />
-    <input className="music-seek" type="range" aria-label={T.position} aria-valuetext={clock(time)} min={0} max={shownDuration || 1} step={0.1} value={time} disabled={!duration}
-      onChange={event => { media.current.currentTime = Number(event.target.value); setTime(Number(event.target.value)); }} />
+    {peaks !== undefined ? <Waveform peaks={peaks || FLAT_PEAKS} time={time} duration={shownDuration} label={T.position} valueText={clock(time)}
+      onSeek={seconds => { media.current.currentTime = seconds; setTime(seconds); }} />
+    : <input className="music-seek" type="range" aria-label={T.position} aria-valuetext={clock(time)} min={0} max={shownDuration || 1} step={0.1} value={time} disabled={!duration}
+      onChange={event => { media.current.currentTime = Number(event.target.value); setTime(Number(event.target.value)); }} />}
     <div className="music-player-line">
       <span className="music-player-time font-tabular">{clock(time)}</span>
       <p className="music-player-title" title={artists ? row.title + ' - ' + artists : row.title}>{artists ? <><span>{row.title} - </span><b>{artists}</b></> : <b>{row.title}</b>}</p>
-      <span className="music-player-time font-tabular">{durationSeconds ? '≈ ' : ''}{clock(shownDuration)}</span>
+      <span className="music-player-time font-tabular">{clock(shownDuration)}</span>
     </div>
     <div className="music-transport">
       <span className="music-transport-spacer" aria-hidden="true" />
@@ -305,6 +349,8 @@ export default function Panel({ sdk, context, ui }) {
   // panel is open, as each Epidemic tab keeps its filters.
   const [categoryGroups, setCategoryGroups] = React.useState({});
   const [filters, setFilters] = React.useState({ music: {}, sfx: {} });
+  // Peaks per track id: null while they load or when Artlist has none.
+  const [waves, setWaves] = React.useState({});
   // The track a New Artboard from its menu adds to the board once made.
   const [boardFor, setBoardFor] = React.useState(null);
   const [preferencesReady, setPreferencesReady] = React.useState(false);
@@ -593,6 +639,14 @@ export default function Panel({ sdk, context, ui }) {
       // leaving the tab is simply tried again on coming back.
       .catch(() => { if (scope.current === captured) setCategoryGroups(previous => ({ ...previous, [kind]: [] })); });
   }, [connection?.connected, connection?.categories, view, kind]);
+  React.useEffect(() => {
+    if (!audio || !connection?.waveform || audio.id in waves) return;
+    const captured = scope.current;
+    setWaves(previous => ({ ...previous, [audio.id]: null }));
+    script(`return await selects.artlist.waveform(${JSON.stringify(audio.id)});`, false, captured)
+      .then(result => setWaves(previous => ({ ...previous, [audio.id]: result.peaks })))
+      .catch(() => {});
+  }, [audio?.id, connection?.waveform]);
   // Space plays and pauses the preview while focus is in the panel, ahead of a
   // focused button's own click; a text field keeps its Space.
   React.useEffect(() => {
@@ -762,7 +816,7 @@ export default function Panel({ sdk, context, ui }) {
           <ui.Actions><ui.Button variant="ghost" disabled={busy} onClick={() => { setShowCreate(false); setBoardFor(null); }}>{T.cancelLibrary}</ui.Button><ui.Button busy={pending?.kind === 'board-create'} busyLabel={T.creatingBoard} disabled={busy || !newBoardName.trim() || newBoardName.trim().length > 80} onClick={createBoard}>{T.createBoard}</ui.Button></ui.Actions>
         </ui.Section>}
       </div>}
-      {audio && <MusicPreview row={audio} durationSeconds={audio.length} media={media} playing={playing} onPlaying={setPlaying}
+      {audio && <MusicPreview row={audio} durationSeconds={audio.length} peaks={connection?.waveform ? waves[audio.id] ?? null : undefined} media={media} playing={playing} onPlaying={setPlaying}
         onAdd={() => add(audio)} busy={!canAdd} adding={adding === audio.id} added={added.includes(audio.id)} T={T} ui={ui}
         onError={() => { setFailed(true); setMessage(T.previewFailed); }} />}
     </>}
