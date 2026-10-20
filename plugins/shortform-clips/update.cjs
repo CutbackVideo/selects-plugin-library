@@ -71,11 +71,19 @@ async function safe(root, target) {
     if (stat?.isSymbolicLink()) throw new Error(`Update refuses symbolic links: ${current}`);
   }
 }
-function destination(root, file) {
-  return path.join(root, file === 'panel.tsx' ? 'panels' : 'skills', ID, file);
+function destination(roots, file) {
+  return path.join(file === 'panel.tsx' ? roots.panels : roots.skills, ID, file);
 }
 async function run(mode, release, deps = {}) {
   const root = deps.root || path.join(os.homedir(), '.selects');
+  const env = deps.env || process.env;
+  const roots = {
+    skills: deps.root ? path.join(root, 'skills') : env.SELECTS_USER_SKILLS_ROOT || path.join(root, 'skills'),
+    panels: deps.root ? path.join(root, 'panels') : env.SELECTS_USER_PANELS_ROOT || path.join(root, 'panels'),
+  };
+  if (!path.isAbsolute(roots.skills) || !path.isAbsolute(roots.panels)) throw new Error('Installation roots must be absolute paths.');
+  const storageRoot = deps.root || path.dirname(roots.skills);
+  const safeFile = file => safe(file === 'panel.tsx' ? roots.panels : roots.skills, destination(roots, file));
   const fetchImpl = deps.fetchImpl || fetch;
   if (mode !== 'check' && mode !== 'apply') throw new Error('Unsupported update operation.');
   const context = deps.checkContext;
@@ -85,14 +93,14 @@ async function run(mode, release, deps = {}) {
     throw new Error('No published Shortform release is selected.');
   }
   if (!context.installed) throw new Error('Install this app from the library once to enable updates.');
-  const receipt = destination(root, '.source-commit');
-  await safe(root, receipt);
+  const receipt = destination(roots, '.source-commit');
+  await safeFile('.source-commit');
   const installed = (await fs.readFile(receipt, 'utf8').catch(e => {if (e.code === 'ENOENT') return '';throw e;})).trim();
   if (!SHA.test(installed)) throw new Error('Install this app from the library once to enable updates.');
   const candidate = context.latest;
   if (!SHA.test(candidate.commit) || !SHA.test(context.installed.commit)) throw new Error('Invalid catalog release.');
-  await safe(root, destination(root, 'plugin.json'));
-  const installedManifestText = await fs.readFile(destination(root, 'plugin.json'), 'utf8');
+  await safeFile('plugin.json');
+  const installedManifestText = await fs.readFile(destination(roots, 'plugin.json'), 'utf8');
   const installedManifest = JSON.parse(installedManifestText);
   if (installedManifest.id !== ID) throw new Error('Invalid installed Shortform manifest.');
   if (context.installed.commit !== installed || context.installed.version !== installedManifest.version)
@@ -103,8 +111,8 @@ async function run(mode, release, deps = {}) {
   if (release !== candidate.commit) throw new Error('Selected release differs from the published catalog.');
   if (!newer) throw new Error('The published Shortform version is not newer than the installed version.');
   const verified = await packageAt(candidate, fetchImpl);
-  const base = path.join(root, '.updates', ID);
-  await safe(root, base); await fs.mkdir(base, {recursive:true});
+  const base = path.join(storageRoot, '.updates', ID);
+  await safe(storageRoot, base); await fs.mkdir(base, {recursive:true});
   const lock = path.join(base, 'install.lock');
   const handle = await fs.open(lock, 'wx').catch(e => {if(e.code==='EEXIST')throw new Error('Another Shortform update is running, or a previous update was interrupted.');throw e;});
   let stage;
@@ -112,7 +120,7 @@ async function run(mode, release, deps = {}) {
   try {
     // Another window may have completed an install while files were downloading.
     if ((await fs.readFile(receipt, 'utf8')).trim() !== installed ||
-        (await fs.readFile(destination(root, 'plugin.json'), 'utf8')) !== installedManifestText)
+        (await fs.readFile(destination(roots, 'plugin.json'), 'utf8')) !== installedManifestText)
       throw new Error('The installed app changed. Check for updates again.');
     stage = await fs.mkdtemp(path.join(base, 'release-'));
     const entries = [];
@@ -122,7 +130,7 @@ async function run(mode, release, deps = {}) {
       const data = file === 'plugin.json' ? verified.manifestBytes : await bytes(raw(release, file), fetchImpl);
       totalBytes += data.length;
       if (totalBytes > 64 * 1024 * 1024) throw new Error('Update package is too large.');
-      const target = destination(root, file); await safe(root, target);
+      const target = destination(roots, file); await safeFile(file);
       const previous = await fs.readFile(target).catch(e => {if(e.code==='ENOENT')return null;throw e;});
       entries.push({file,target,data,previous});
     }
@@ -137,7 +145,7 @@ async function run(mode, release, deps = {}) {
     const placed=[];
     try {
       for(const e of entries){
-        await safe(root,e.target);await fs.mkdir(path.dirname(e.target),{recursive:true});
+        await safeFile(e.file);await fs.mkdir(path.dirname(e.target),{recursive:true});
         await fs.rename(path.join(stage,e.file+'.next'),e.target);placed.push(e);
         await deps.afterPlace?.(e.file);
       }

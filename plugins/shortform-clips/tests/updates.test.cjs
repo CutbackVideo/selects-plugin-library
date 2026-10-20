@@ -143,3 +143,17 @@ test('panel command forwards the host catalog context to the installed updater',
   await new Function('require', 'console', script.replace("require(f).run(", "return require(f).run("))(mockRequire, {log() {}, error(message) {throw Error(message);}});
   assert.deepEqual(received, ['apply', latest, {checkContext: context}]);
 });
+
+test('uses configured skills and panels roots without writing default installation paths', async t => {
+  const f = await fixture(t);
+  const customPanels = path.join(f.root, 'separate-panels');
+  await fs.mkdir(customPanels);
+  await fs.rename(path.join(f.root, 'panels', 'shortform-clips'), path.join(customPanels, 'shortform-clips'));
+  const deps = {...f, root: undefined, env: {SELECTS_USER_SKILLS_ROOT: path.join(f.root, 'skills'), SELECTS_USER_PANELS_ROOT: customPanels}};
+  assert.equal((await run('check', null, deps)).version, '0.4.2');
+  await run('apply', latest, deps);
+  assert.equal(await fs.readFile(path.join(customPanels, 'shortform-clips/panel.tsx'), 'utf8'), 'new panel.tsx');
+  assert.equal(await fs.readFile(path.join(f.skills, '.source-commit'), 'utf8'), latest);
+  assert.equal(await fs.readFile(path.join(f.data, 'draft.json'), 'utf8'), 'saved draft');
+  await assert.rejects(fs.access(path.join(f.root, 'panels/shortform-clips/panel.tsx')));
+});
