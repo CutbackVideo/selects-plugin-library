@@ -359,13 +359,29 @@ available. Generation is paid; each explicit new request can incur charges.
 
 ### Optional app updates
 
-On a host with `sdk.updates`, Shortform registers its own update provider. The host
-shows an update only when the provider finds a newer supported release; existing
-hosts continue without the update control. Active runs and unsaved template edits
-block applying an update. `update.cjs` downloads and verifies the pinned code
-files, backs up replaced files, and rolls back normal installation failures.
-User templates, overrides and job data under `plugin-data/shortform-clips` are not
-replaced. Backups and interruption recovery details are in
-`.selects/.updates/shortform-clips`. A process interruption leaves the lock for
-recovery rather than permitting a second install. The first opted-in version must
-be installed once; releases without `updates.protocol=1` are not offered.
+On a host with catalog-aware `sdk.updates`, Shortform registers its own update
+provider. The host obtains this app's installed and published commit/version
+from the authenticated Selects app catalog and passes them to `checkUpdate`.
+Shortform offers an update only when its published `plugin.json` version has
+higher semantic-version precedence than the installed version. Changes to other
+apps, equal versions and older versions do not produce an update offer.
+Update checks are read-only; active runs and unsaved template edits block
+applying an update. Older hosts without update support retain existing behavior;
+a host without catalog context reports that catalog-based checks are unsupported.
+
+The app-owned `update.cjs` downloads `plugin.json` and its declared app files from
+the exact catalog-selected commit over HTTPS. It does not discover releases or
+read Git trees through the GitHub API. It validates the manifest version against
+the selected catalog version, stages all downloads before replacing files, backs
+up replaced files, and rolls back normal installation failures. File authenticity
+relies on HTTPS downloads from the fixed repository and commit; the catalog does
+not supply independent content hashes. New declared app files are supported
+without requiring a four-file updater upgrade. Paths are bounded and validated.
+
+Template packs are excluded from updates. User templates, overrides, jobs and
+media under `plugin-data/shortform-clips` are not replaced. Backups and recovery
+manifests remain in `.selects/.updates/shortform-clips`. Process interruption or
+failed rollback retains the install lock and requires manual recovery. This lock
+coordinates this updater's instances; it is not shared with the host's separate
+native installer. Manual installations without an official installation receipt display an instruction to install the app from the library once. The first opted-in version must be installed once. Releases
+that remove `updates.protocol=1` or the updater are refused during installation.

@@ -2,10 +2,8 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
-const crypto = require('node:crypto');
 const REPO = 'CutbackVideo/selects-plugin-library';
 const ID = 'shortform-clips';
-const ALLOWED = new Set(['README.md', 'INSTALL.md', 'panel.tsx', 'update.cjs']);
 const SHA = /^[a-f0-9]{40}$/;
 async function bytes(url, fetchImpl) {
   const res = await fetchImpl(url, {signal: AbortSignal.timeout(30_000)});
@@ -18,25 +16,50 @@ async function bytes(url, fetchImpl) {
   }
   return Buffer.concat(chunks);
 }
-const json = async (url, fetchImpl) => JSON.parse((await bytes(url, fetchImpl)).toString('utf8'));
 const raw = (sha, file) => `https://raw.githubusercontent.com/${REPO}/${sha}/plugins/${ID}/${file}`;
-const blob = buffer => crypto.createHash('sha1').update(`blob ${buffer.length}\0`).update(buffer).digest('hex');
-async function packageAt(sha, fetchImpl) {
-  if (!SHA.test(sha)) throw new Error('Invalid release identity.');
-  const manifestBytes = await bytes(raw(sha, 'plugin.json'), fetchImpl);
-  const manifest = JSON.parse(manifestBytes);
-  // Older releases cannot keep the opt-in update protocol alive. Do not offer them.
+function version(value) {
+  const match = typeof value === 'string' && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(value);
+  if (!match) throw new Error('Invalid Shortform release version.');
+  const pre = match[4]?.split('.');
+  if (pre?.some(p => /^\d+$/.test(p) && p.length > 1 && p[0] === '0')) throw new Error('Invalid Shortform release version.');
+  return {core: match.slice(1, 4).map(BigInt), pre};
+}
+function compareVersions(candidate, installed) {
+  const a = version(candidate), b = version(installed);
+  const cmp = (x, y) => x > y ? 1 : x < y ? -1 : 0;
+  for (let i = 0; i < 3; i++) { const n = cmp(a.core[i], b.core[i]); if (n) return n; }
+  if (!a.pre || !b.pre) return a.pre ? -1 : b.pre ? 1 : 0;
+  for (let i = 0; i < Math.max(a.pre.length, b.pre.length); i++) {
+    if (a.pre[i] === undefined) return -1;
+    if (b.pre[i] === undefined) return 1;
+    const x = a.pre[i], y = b.pre[i], xn = /^\d+$/.test(x), yn = /^\d+$/.test(y);
+    const n = xn && yn ? cmp(BigInt(x), BigInt(y)) : xn !== yn ? (xn ? -1 : 1) : cmp(x, y);
+    if (n) return n;
+  }
+  return 0;
+}
+function readRelease(entry) {
+  if (!entry || !SHA.test(entry.commit)) throw new Error('Invalid catalog release.');
+  const manifest = entry.manifest;
+  if (!manifest || manifest.id !== ID) throw new Error('Invalid Shortform catalog entry.');
+  version(manifest.version);
   if (manifest.updates?.protocol !== 1) return null;
-  if (manifest.id !== ID || !Array.isArray(manifest.files) || manifest.files.length !== ALLOWED.size ||
-      new Set(manifest.files).size !== manifest.files.length || manifest.files.some(f => !ALLOWED.has(f)))
-    throw new Error('This release needs a newer Shortform updater.');
-  const tree = await json(`https://api.github.com/repos/${REPO}/git/trees/${sha}?recursive=1`, fetchImpl);
-  if (tree.truncated || !Array.isArray(tree.tree)) throw new Error('Incomplete release file list.');
-  const hashes = new Map(tree.tree.filter(e => e.type === 'blob').map(e => [e.path, e.sha]));
-  const files = [...manifest.files, 'plugin.json'];
-  for (const file of files) if (!SHA.test(hashes.get(`plugins/${ID}/${file}`) || '')) throw new Error(`Missing release file: ${file}`);
-  if (blob(manifestBytes) !== hashes.get(`plugins/${ID}/plugin.json`)) throw new Error('Release manifest verification failed.');
-  return {files, hashes, manifestBytes};
+  const files = manifest.files;
+  if (!Array.isArray(files) || !files.length || files.length > 256 ||
+      new Set(files.map(f => typeof f === 'string' ? f.toLowerCase() : f)).size !== files.length ||
+      files.some(f => typeof f !== 'string' || f.length > 240 || f.split('/').some(part =>
+        !/^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*$/.test(part) || part.endsWith('.') || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part)) ||
+        /^(template-packs|plugin-data|plugin\.json)(?:\/|$)/i.test(f)) ||
+      !files.includes('panel.tsx') || !files.includes('update.cjs')) throw new Error('Invalid Shortform release file list.');
+  return {commit: entry.commit, manifest, files: [...files, 'plugin.json']};
+}
+async function packageAt(release, fetchImpl) {
+  const manifestBytes = await bytes(raw(release.commit, 'plugin.json'), fetchImpl);
+  const manifest = JSON.parse(manifestBytes);
+  if (manifest.version !== release.version) throw new Error('Release version differs from the published catalog.');
+  const pkg = readRelease({commit: release.commit, manifest});
+  if (!pkg) throw new Error('This release does not support app updates.');
+  return {...pkg, manifestBytes};
 }
 async function safe(root, target) {
   const relative = path.relative(root, target);
@@ -54,39 +77,51 @@ function destination(root, file) {
 async function run(mode, release, deps = {}) {
   const root = deps.root || path.join(os.homedir(), '.selects');
   const fetchImpl = deps.fetchImpl || fetch;
+  if (mode !== 'check' && mode !== 'apply') throw new Error('Unsupported update operation.');
+  const context = deps.checkContext;
+  if (!context || !('installed' in context) || !('latest' in context)) throw new Error('The host does not support catalog-based update checks.');
+  if (!context.latest) {
+    if (mode === 'check') return null;
+    throw new Error('No published Shortform release is selected.');
+  }
+  if (!context.installed) throw new Error('Install this app from the library once to enable updates.');
   const receipt = destination(root, '.source-commit');
   await safe(root, receipt);
   const installed = (await fs.readFile(receipt, 'utf8').catch(e => {if (e.code === 'ENOENT') return '';throw e;})).trim();
-  if (mode === 'check') {
-    if (!SHA.test(installed)) return null;
-    const head = await json(`https://api.github.com/repos/${REPO}/commits/main`, fetchImpl);
-    if (head.sha === installed) return null;
-    const pkg = await packageAt(head.sha, fetchImpl);
-    if (!pkg) return null;
-    let changed = false;
-    for (const file of pkg.files) {
-      const target = destination(root, file); await safe(root, target);
-      const data = await fs.readFile(target).catch(e => {if (e.code === 'ENOENT') return null;throw e;});
-      if (!data || blob(data) !== pkg.hashes.get(`plugins/${ID}/${file}`)) changed = true;
-    }
-    return changed ? {id:head.sha,version:head.sha.slice(0,7),description:'Update Shortform Clips. Saved templates and clips are kept.'} : null;
-  }
-  if (mode !== 'apply') throw new Error('Unsupported update operation.');
-  if (!SHA.test(installed)) throw new Error('No official installation receipt.');
-  const pkg = await packageAt(release, fetchImpl);
-  if (!pkg) throw new Error('This release does not support app updates.');
+  if (!SHA.test(installed)) throw new Error('Install this app from the library once to enable updates.');
+  const candidate = context.latest;
+  if (!SHA.test(candidate.commit) || !SHA.test(context.installed.commit)) throw new Error('Invalid catalog release.');
+  await safe(root, destination(root, 'plugin.json'));
+  const installedManifestText = await fs.readFile(destination(root, 'plugin.json'), 'utf8');
+  const installedManifest = JSON.parse(installedManifestText);
+  if (installedManifest.id !== ID) throw new Error('Invalid installed Shortform manifest.');
+  if (context.installed.commit !== installed || context.installed.version !== installedManifest.version)
+    throw new Error('The installed app changed. Check for updates again.');
+  const newer = compareVersions(candidate.version, installedManifest.version) > 0;
+  if (mode === 'check') return newer ? {id: candidate.commit, version: candidate.version,
+    description: 'Update Shortform Clips. Saved templates and clips are kept.'} : null;
+  if (release !== candidate.commit) throw new Error('Selected release differs from the published catalog.');
+  if (!newer) throw new Error('The published Shortform version is not newer than the installed version.');
+  const verified = await packageAt(candidate, fetchImpl);
   const base = path.join(root, '.updates', ID);
   await safe(root, base); await fs.mkdir(base, {recursive:true});
   const lock = path.join(base, 'install.lock');
   const handle = await fs.open(lock, 'wx').catch(e => {if(e.code==='EEXIST')throw new Error('Another Shortform update is running, or a previous update was interrupted.');throw e;});
   let stage;
+  let recoveryRequired = false;
   try {
+    // Another window may have completed an install while files were downloading.
+    if ((await fs.readFile(receipt, 'utf8')).trim() !== installed ||
+        (await fs.readFile(destination(root, 'plugin.json'), 'utf8')) !== installedManifestText)
+      throw new Error('The installed app changed. Check for updates again.');
     stage = await fs.mkdtemp(path.join(base, 'release-'));
     const entries = [];
-    // Download and verify everything before touching the installed app.
-    for (const file of pkg.files) {
-      const data = file === 'plugin.json' ? pkg.manifestBytes : await bytes(raw(release, file), fetchImpl);
-      if (blob(data) !== pkg.hashes.get(`plugins/${ID}/${file}`)) throw new Error(`Update verification failed: ${file}`);
+    let totalBytes = 0;
+    // Download all files at the catalog-selected commit before replacing the installed app.
+    for (const file of verified.files) {
+      const data = file === 'plugin.json' ? verified.manifestBytes : await bytes(raw(release, file), fetchImpl);
+      totalBytes += data.length;
+      if (totalBytes > 64 * 1024 * 1024) throw new Error('Update package is too large.');
       const target = destination(root, file); await safe(root, target);
       const previous = await fs.readFile(target).catch(e => {if(e.code==='ENOENT')return null;throw e;});
       entries.push({file,target,data,previous});
@@ -94,6 +129,7 @@ async function run(mode, release, deps = {}) {
     // Receipt last: a failed update never advertises successful installation.
     entries.push({file:'.source-commit',target:receipt,data:Buffer.from(release),previous:Buffer.from(installed)});
     for (const e of entries) {
+      await fs.mkdir(path.dirname(path.join(stage,e.file+'.next')), {recursive:true});
       await fs.writeFile(path.join(stage,e.file+'.next'),e.data);
       if(e.previous !== null)await fs.writeFile(path.join(stage,e.file+'.backup'),e.previous);
     }
@@ -111,11 +147,14 @@ async function run(mode, release, deps = {}) {
         if(e.previous===null)await fs.rm(e.target,{force:true});
         else await fs.rename(path.join(stage,e.file+'.backup'),e.target);
       }catch{failures.push(e.file);}
-      if(failures.length)throw new Error(`Update failed; recovery is required for ${failures.join(', ')}. Backup: ${stage}`);
+      if(failures.length){
+        recoveryRequired = true;
+        throw new Error(`Update failed; recovery is required for ${failures.join(', ')}. Backup: ${stage}`);
+      }
       throw error;
     }
     return {updated:true,version:release,backup:stage};
-  }finally{await handle.close();await fs.rm(lock,{force:true});}
+  }finally{await handle.close();if(!recoveryRequired)await fs.rm(lock,{force:true});}
 }
-module.exports = {run,blob};
-if(require.main === module)run(process.argv[2],process.argv[3]).then(result=>console.log(JSON.stringify(result))).catch(error=>{console.error(error.message);process.exitCode=1;});
+module.exports = {run,compareVersions,readRelease};
+if(require.main === module)run(process.argv[2],process.argv[3],{checkContext: JSON.parse(process.argv[4] || 'null')}).then(result=>console.log(JSON.stringify(result))).catch(error=>{console.error(error.message);process.exitCode=1;});

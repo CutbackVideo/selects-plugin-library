@@ -6490,8 +6490,8 @@ export default function Panel(props: any) {
 }
 
 // Optional host update contract. Old hosts and all unregistered apps stay unchanged.
-function shortformUpdateCommand(mode: string, id?: string) {
-  const script = "const p=require('node:path');const f=p.join(require('node:os').homedir(),'.selects','skills','shortform-clips','update.cjs');require(f).run(" + JSON.stringify(mode) + "," + JSON.stringify(id || "") + ").then(v=>console.log(JSON.stringify(v))).catch(e=>{console.error(e.message);process.exitCode=1;});";
+function shortformUpdateCommand(mode: string, id: string, checkContext: any) {
+  const script = "const p=require('node:path');const f=p.join(require('node:os').homedir(),'.selects','skills','shortform-clips','update.cjs');require(f).run(" + JSON.stringify(mode) + "," + JSON.stringify(id || "") + "," + JSON.stringify({checkContext}) + ").then(v=>console.log(JSON.stringify(v))).catch(e=>{console.error(e.message);process.exitCode=1;});";
   const encoded = btoa(script);
   return 'node -e "eval(Buffer.from(\'' + encoded + '\',\'base64\').toString())"';
 }
@@ -6703,17 +6703,21 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   updateBlocked.current = !!(busy || packBusy || templateSaving || templateDirty);
   React.useEffect(() => {
     if (!sdk.updates?.register || !sdk.runShell) return;
+    let selectedContext: any = null;
     return sdk.updates.register({
-      async checkUpdate() {
-        if (updateBlocked.current) return null;
-        const result = await sdk.runShell({summary: "Check Shortform Clips update", command: shortformUpdateCommand("check"), timeoutMs: 60000, maxOutputBytes: 8192});
+      async checkUpdate(checkContext: any) {
+        selectedContext = null;
+        const result = await sdk.runShell({summary: "Check Shortform Clips update", command: shortformUpdateCommand("check", "", checkContext), timeoutMs: 60000, maxOutputBytes: 8192});
         if (result.isError || result.exitCode !== 0) throw new Error(result.stderr || "Update check failed.");
-        return JSON.parse(result.stdout.trim());
+        const offer = JSON.parse(result.stdout.trim());
+        if (offer) selectedContext = checkContext;
+        return offer;
       },
       async prepareUpdate(id: string) {
         if (updateBlocked.current) throw new Error("Finish the current operation and save template changes before updating.");
         if (!/^[a-f0-9]{40}$/.test(id)) throw new Error("Invalid Shortform release.");
-        return {summary: "Update Shortform Clips", command: shortformUpdateCommand("apply", id), timeoutMs: 300000};
+        if (!selectedContext || selectedContext.latest?.commit !== id) throw new Error("Check for updates again before installing.");
+        return {summary: "Update Shortform Clips", command: shortformUpdateCommand("apply", id, selectedContext), timeoutMs: 300000};
       },
     });
   }, [sdk]);
