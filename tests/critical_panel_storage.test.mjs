@@ -14,6 +14,8 @@ function session(storage, source = multicam, caption = false) {
   const scope = {projectId:'project-a', sequenceId:'draft-a'};
   const sdk = {storage, runScript:async () => ({result:{name:'Source'}})};
   const ctx = vm.createContext({
+    // Component excerpts omit shared hooks; full React guard behavior is covered in app_update_guards.test.cjs.
+    useAppUpdateGuard:()=>{},
     console, Date, JSON, Error, Set, crypto, TextDecoder, window:{},
     LABELS:{}, JOB_ID:/^job-/, report:()=>{}, safeDetail:String, UI_KO:{}, ERRORS:{submission_unknown:'Submission unknown'},
     writeLocalDiagnostic:async()=>{},

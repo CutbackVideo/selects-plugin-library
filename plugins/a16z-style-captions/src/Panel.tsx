@@ -1,3 +1,5 @@
+// Injected by the portable-panel build footer from shared/app-update-guard.ts.
+declare function useAppUpdateGuard(sdk: any, language: string | undefined, readBlocked: (context: any) => boolean): void;
 import {withPanelLocalClient} from "../../../shared/local-client";
 import { hostUseSdk } from "./pipeline/host";
 import React, { useEffect, useRef, useState } from "react";
@@ -60,6 +62,7 @@ const setRun = (patch: Partial<RunState>) => {
 };
 
 function A16zShort({ sdk, context, saved }: any) {
+  useAppUpdateGuard(sdk, context?.language, () => !!(busy));
   hostUseSdk(sdk);
   const [, force] = useState(0);
   useEffect(() => {

@@ -34,7 +34,8 @@ for (const lang of ['de', 'en', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'tr', 'zh'])
 assert.match(head, /^\/\/ @name:ko THE END Credits$/m);
 assert.match(head, /^\/\/ @icon (panel|search|wand|scissors|captions|chapters|image|palette|speaker|audio|translate|chart|clock|sparkles|upload|download|tag|list|eye|mic|video)$/m);
 assert.ok(!/^import .* from "(?!react")/m.test(panel), 'only react may be imported');
-assert.equal((panel.match(/^import /gm) || []).length, 1, 'one import');
+assert.equal((panel.match(/^import /gm) || []).length, 2, 'panel and shared update guard import React');
+assert.ok([...panel.matchAll(/^import .* from ['"]([^'"]+)['"]/gm)].every(m => m[1] === 'react'), 'shared guard adds no runtime dependency');
 
 // It reads every script and asset it sends (and runs beat-detect.cjs for own music).
 for (const name of ['assets/cues/manifest.json', 'scripts/inventory.js', 'scripts/search.js', 'scripts/ensure-audio.js', 'scripts/assemble.js', 'scripts/decorate.js',

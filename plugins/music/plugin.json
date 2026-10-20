@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "music",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "Music",
   "summary": "Connect personal Epidemic Sound or Artlist accounts, preview music and add authorized originals to a Draft.",
   "status": "experimental",

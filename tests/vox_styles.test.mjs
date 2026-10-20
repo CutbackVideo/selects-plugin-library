@@ -51,7 +51,7 @@ for(const id of ids){
  test(`${id}: self-contained transferable panel`,()=>{
   const p=fs.readFileSync(new URL(`../plugins/${id}/panel.tsx`,import.meta.url),'utf8');
   assert.doesNotMatch(p,/sdk\.runShell|IS_WIN|xcode-select|\/Users\/|\/opt\/homebrew/);
-  const imports=[...p.matchAll(/^import .*?from ["']([^"']+)["']/gm)].map(m=>m[1]);assert.deepEqual(imports,['react']);
+  const imports=[...p.matchAll(/^import .*?from ["']([^"']+)["']/gm)].map(m=>m[1]);assert.deepEqual([...new Set(imports)],['react']);
   assert.match(p,new RegExp(`const APP_ID = "${id}"`));
   assert.match(p,/savedJob\?\.projectId !== projectId/);assert.match(p,/await scope\(\);\s*const sel/);
   assert.match(p,/May use credits/);assert.match(p,/addMotionGraphic/);

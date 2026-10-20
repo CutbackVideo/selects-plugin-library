@@ -1,3 +1,5 @@
+// Injected by the portable-panel build footer from shared/app-update-guard.ts.
+declare function useAppUpdateGuard(sdk: any, language: string | undefined, readBlocked: (context: any) => boolean): void;
 import { withPanelLocalClient } from "../../../shared/local-client.ts";
 import React, { useEffect, useState } from "react";
 import type { PanelSdk } from "./host/types.ts";
@@ -61,6 +63,7 @@ function StepRow(p: { kit: Kit; r: StageRow; open: boolean; onToggle(): void; sh
 }
 
 function EoShortsPanel({ sdk, context, ui }: Props) {
+  useAppUpdateGuard(sdk, context?.language, () => !!(getState().busy || s.lease === 'live' || confirmRebuild));
   const kit: Kit = ui && typeof ui.Button === "function" ? ui : fallbackKit;
   const [, force] = useState(0);
   const [clock, setClock] = useState(0);

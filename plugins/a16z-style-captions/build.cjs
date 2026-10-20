@@ -55,5 +55,6 @@ esbuild.buildSync({
   minify: false,
   legalComments: "none",
   banner: { js: banner },
+  footer: { js: "// app-update-guard:start\n" + fs.readFileSync(path.join(root, "../../shared/app-update-guard.ts"), "utf8").trimEnd() + "\n// app-update-guard:end" },
 });
 console.log("built", panelOut, fs.statSync(panelOut).size, "bytes; renderers", fs.statSync(path.join(root, "src", "renderers.ts")).size, "bytes");

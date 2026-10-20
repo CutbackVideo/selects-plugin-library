@@ -440,31 +440,59 @@ function panelLocalPaths(platform) {
   };
 }
 async function createPanelLocalClient(sdk) {
-  const run = async (method, args, write = false) => {
+  const SCRIPT_BYTES = 256 * 1024;
+  const runSource = async (script2, write = false) => {
+    if (new TextEncoder().encode(script2).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
     const response = await sdk.runScript({
       summary: "Use local media workspace",
       allowCommit: write,
-      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");"
+      script: script2
     });
     if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
     return response.result;
   };
+  const run = (method, args, write = false) => runSource("return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");", write);
   const environment = await run("files.environment", []);
   if (!environment || typeof environment.platform !== "string" || !environment.homedir)
     throw new Error("Update Selects to use this plugin's local media workspace.");
   const paths = panelLocalPaths(environment.platform);
   const CHUNK_BYTES2 = 48 * 1024;
+  const fileBatch = async (method, inputs, lengths) => {
+    let count = Math.min(3, inputs.length), script2 = "";
+    while (count > 0) {
+      script2 = "const rows=[];" + inputs.slice(0, count).map((input, index) => {
+        const call = "{const result=await selects.files." + method + "(" + JSON.stringify(input) + ");";
+        if (method === "writeChunk")
+          return call + "if(result?.bytesWritten!==" + lengths[index] + ")throw Error('The file write returned an incomplete result. Check the file before retrying.');rows.push(result);}";
+        return call + "if(!result||typeof result.base64!=='string'||!Number.isSafeInteger(result.bytesRead)||result.bytesRead<0||result.bytesRead>" + lengths[index] + ")throw Error('The file read returned an incomplete result.');rows.push(result);if(result.bytesRead<" + lengths[index] + ")return rows;}";
+      }).join("") + "return rows;";
+      if (new TextEncoder().encode(script2).byteLength <= SCRIPT_BYTES) break;
+      count--;
+    }
+    if (!count) throw new Error("The local file script exceeds the 256 KiB limit.");
+    return { count, rows: await runSource(script2, method === "writeChunk") };
+  };
   const readRange = async (path, offset, length) => {
     const parts = [];
     let total = 0;
     while (total < length) {
-      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES2, length - total) }]);
-      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
-      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
-      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
-      parts.push(bytes);
-      total += bytes.length;
-      if (bytes.length < Math.min(CHUNK_BYTES2, length - (total - bytes.length))) break;
+      const inputs = Array.from({ length: Math.min(3, Math.ceil((length - total) / CHUNK_BYTES2)) }, (_, index) => ({ path, offset: offset + total + index * CHUNK_BYTES2, length: Math.min(CHUNK_BYTES2, length - total - index * CHUNK_BYTES2) }));
+      const lengths = inputs.map((input) => input.length);
+      const { rows, count } = await fileBatch("readRange", inputs, lengths);
+      if (!Array.isArray(rows) || rows.length < 1 || rows.length > count) throw new Error("The file read returned an incomplete result.");
+      let short = false;
+      for (let index = 0; index < rows.length; index++) {
+        const result = rows[index];
+        if (!result || typeof result.base64 !== "string" || !Number.isSafeInteger(result.bytesRead) || result.bytesRead < 0 || result.bytesRead > lengths[index]) throw new Error("The file read returned an incomplete result.");
+        const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+        if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+        short = bytes.length < lengths[index];
+        if (short && index !== rows.length - 1) throw new Error("The file read returned invalid bytes.");
+        parts.push(bytes);
+        total += bytes.length;
+      }
+      if (rows.length !== count && !short) throw new Error("The file read returned an incomplete result.");
+      if (short) break;
     }
     const output = new Uint8Array(total);
     let position = 0;
@@ -501,18 +529,31 @@ async function createPanelLocalClient(sdk) {
       const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
       let published = false;
       try {
-        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES2) {
-          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES2);
-          let binary = "";
-          for (const byte of chunk) binary += String.fromCharCode(byte);
-          const mode = offset === 0 ? flag === "a" ? "append" : "exclusive" : void 0;
-          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...mode ? { mode } : {} }], true);
-          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
-        }
+        let offset = 0;
+        do {
+          const inputs = [], lengths = [];
+          for (let index = 0; index < (replacement ? 3 : 1) && (offset + index * CHUNK_BYTES2 < bytes.length || index === 0); index++) {
+            const position = offset + index * CHUNK_BYTES2, chunk = bytes.subarray(position, position + CHUNK_BYTES2);
+            let binary = "";
+            for (const byte of chunk) binary += String.fromCharCode(byte);
+            const mode = position === 0 ? flag === "a" ? "append" : "exclusive" : void 0;
+            inputs.push({ path: destination, offset: position, base64: btoa(binary), ...mode ? { mode } : {} });
+            lengths.push(chunk.length);
+          }
+          if (!replacement) {
+            const result = await run("files.writeChunk", [inputs[0]], true);
+            if (result?.bytesWritten !== lengths[0]) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+          } else {
+            const { rows, count } = await fileBatch("writeChunk", inputs, lengths);
+            if (!Array.isArray(rows) || rows.length !== count || rows.some((row, index) => row?.bytesWritten !== lengths[index])) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+            lengths.length = count;
+          }
+          offset += lengths.reduce((sum, size) => sum + size, 0);
+        } while (offset < bytes.length);
         if (replacement) await run("files.rename", [destination, path], true);
         published = true;
       } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {
+        if (replacement && !published) await run("files.remove", [destination, { recursive: false, force: true }], true).catch(() => {
         });
       }
     },
@@ -529,8 +570,8 @@ async function createPanelLocalClient(sdk) {
       return result.replaced;
     },
     mkdir: (path, options) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path, options) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }) => run("files.remove", [filePath, { force: true }], true),
+    rm: (path, options) => run("files.remove", [path, { recursive: options?.recursive ?? false, force: options?.force ?? false }], true),
+    removeFile: ({ filePath }) => run("files.remove", [filePath, { recursive: false, force: true }], true),
     rename: (from, to) => run("files.rename", [from, to], true),
     copyFile: (from, to) => run("files.copy", [from, to], true),
     downloadFile: (url, path) => run("files.download", [url, path], true),
@@ -4523,6 +4564,7 @@ async function build(sdk, job, reel, onStep, opts, retryTerminalFaces = false) {
 // plugins/podcast-hook-captions/src/FaceStage.tsx
 import React3, { useEffect, useRef, useState } from "react";
 function FaceStage({ sdk, context, ui: U }) {
+  useAppUpdateGuard(sdk, context?.language, () => !!(busy || running.current));
   const [busy, setBusy] = useState(false), [message, setMessage] = useState(""), [error, setError] = useState("");
   const scope = useRef(null), active = useRef(null), running = useRef(false);
   const projectId = context?.projectId, sequenceId = context?.sequenceId;
@@ -4630,6 +4672,7 @@ function withStoredPanel(Component, load) {
 }
 var STORE = "podcast-hook-captions:v2:";
 function PodcastHookReel({ sdk, context, ui, saved }) {
+  useAppUpdateGuard(sdk, context?.language, () => !!busy);
   hostUseSdk(sdk);
   const [seconds, setSeconds] = useState2(25);
   const [hint, setHint] = useState2("");
@@ -4736,3 +4779,49 @@ var Panel_default = withPanelLocalClient(withStoredPanel(PodcastHookReel, async 
 export {
   Panel_default as default
 };
+// app-update-guard:start
+// Shared source, inlined into portable panels by tools/sync_app_update_guards.py.
+import * as AppUpdateGuardReact from 'react';
+
+const appUpdateGuardScopes = new WeakMap<object, any>();
+
+/** Each mounted editor contributes a live veto; the host receives one guard per SDK. */
+function useAppUpdateGuard(sdk: any, language: string | undefined, readBlocked: (context: any) => boolean) {
+  const live = AppUpdateGuardReact.useRef({ language, readBlocked });
+  live.current = { language, readBlocked };
+  AppUpdateGuardReact.useEffect(() => {
+    const api = sdk?.updates;
+    if (typeof api?.registerGuard !== 'function') return;
+    let group = appUpdateGuardScopes.get(api);
+    if (!group) {
+      group = { entries: new Set(), dispose: null };
+      appUpdateGuardScopes.set(api, group);
+    }
+    group.entries.add(live);
+    if (!group.dispose) {
+      group.dispose = api.registerGuard({
+        async canUpdate(context: any) {
+          for (const entry of group.entries) {
+            // A partially initialized editor must not lose state during reload.
+            let blocked = true;
+            try { blocked = Boolean(entry.current.readBlocked(context)); } catch { /* fail closed */ }
+            if (blocked) {
+              const korean = String(entry.current.language || '').toLowerCase().startsWith('ko');
+              throw new Error(korean
+                ? '\uc9c4\ud589 \uc911\uc778 \uc791\uc5c5\uc744 \ub9c8\uce58\uace0 \ubcc0\uacbd\uc0ac\ud56d\uc744 \uc800\uc7a5\ud55c \ub4a4 \uc571\uc744 \uc5c5\ub370\uc774\ud2b8\ud574\uc8fc\uc138\uc694.'
+                : 'Finish the current operation and save changes before updating this app.');
+            }
+          }
+        },
+      });
+    }
+    return () => {
+      group.entries.delete(live);
+      if (!group.entries.size) {
+        group.dispose?.();
+        appUpdateGuardScopes.delete(api);
+      }
+    };
+  }, [sdk?.updates]);
+}
+// app-update-guard:end

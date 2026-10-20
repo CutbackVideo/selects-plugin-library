@@ -205,7 +205,7 @@ function recoveryFixture(initialStatus='succeeded'){
   const finished=new Promise(resolve=>{finish=resolve});
   const context={projectId:'project',template:{runId,inputs:{},options:{}}};
   const React={useState:value=>[value,()=>{}],useRef:value=>({current:value}),useEffect:effect=>effects.push(effect),createElement:()=>null};
-  const host=vm.createContext({React,AbortController,console:{warn:()=>{}},TEMPLATE_DEFAULTS:{cutoutMode:'person'},TEMPLATE_FAILED:'Failed',
+  const host=vm.createContext({useAppUpdateGuard:()=>{},React,AbortController,console:{warn:()=>{}},TEMPLATE_DEFAULTS:{cutoutMode:'person'},TEMPLATE_FAILED:'Failed',
    templateMedia:async()=>({heroPhoto:{resourceId},chosen:{},song:{}}),templateIssue:message=>Error(message),templateMessage:error=>error.message,
    buildTravelVlog:async(sdk,args)=>{await photo.photoAiMatte(sdk,args.projectId,args.heroPhoto,{scope:args.aiScope,retryTerminal:args.aiRetryTerminal,control:{observer:{signal:args.aiSignal}}});return {draftId:'draft'}},
   });

@@ -1,3 +1,5 @@
+// Injected by the portable-panel build footer from shared/app-update-guard.ts.
+declare function useAppUpdateGuard(sdk: any, language: string | undefined, readBlocked: (context: any) => boolean): void;
 // A no-generation observation pass on the open Draft. No Draft edits or paid media operations.
 import React, {useEffect,useRef,useState} from "react";
 import {dataRoot,fs,requireSharedAiHost} from "./pipeline/host";
@@ -6,6 +8,7 @@ import {trackFaces,reelShots} from "./pipeline/faces";
 import {cancelFaceJobs,newFacePass} from "./pipeline/sharedFaceJobs";
 
 export default function FaceStage({sdk,context,ui:U}:any) {
+  useAppUpdateGuard(sdk, context?.language, () => !!(busy || running.current));
   const [busy,setBusy]=useState(false),[message,setMessage]=useState(""),[error,setError]=useState("");
   const scope=useRef<any>(null),active=useRef<any>(null),running=useRef(false);
   const projectId=context?.projectId,sequenceId=context?.sequenceId;

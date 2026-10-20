@@ -136,6 +136,8 @@ for (const plugin of ['card-news-maker', 'shortform-cloner']) {
 }
 
 function depthFunction(name, endMarker, globals) {
+  // Component excerpts exclude the shared hook; full guard behavior has separate React tests.
+  globals = {useAppUpdateGuard:()=>{}, ...globals};
   const source = fs.readFileSync(path.join(root, 'plugins/depth-type-captions/panel.tsx'), 'utf8');
   const start = source.indexOf(`function ${name}(`);
   const functionStart = source.slice(start - 6, start) === 'async ' ? start - 6 : start;

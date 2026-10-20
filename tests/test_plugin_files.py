@@ -22,6 +22,21 @@ class PluginFilesTest(unittest.TestCase):
                          'files': ['SKILL.md', 'INSTALL.md', 'scripts/use.py']}
         self.calls = []
 
+    def test_optional_minimum_selects_version_accepts_strict_semver(self):
+        plugins.validate_manifest(self.manifest)
+        for value in ('2.0.730', '2.0.730-rc.1', '2.0.730+build.2',
+                      '2.0.730-rc.1+build.2', '0.0.0', '2.0.730-alpha-beta'):
+            with self.subTest(value=value):
+                plugins.validate_manifest(dict(self.manifest, minSelectsVersion=value))
+
+    def test_minimum_selects_version_rejects_malformed_or_non_string_values(self):
+        for value in (None, False, 730, {}, [], '', '2.0', 'v2.0.730',
+                      '02.0.730', '2.00.730', '2.0.0730', '2.0.730-01',
+                      '2.0.730-rc.01', '2.0.730-', '2.0.730+build..2',
+                      '>=2.0.730', '2.0.730\n', ' 2.0.730'):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'Invalid minSelectsVersion'):
+                plugins.validate_manifest(dict(self.manifest, minSelectsVersion=value))
+
     def fetch(self, url, limit):
         self.calls.append(url)
         if '/commits/' in url:
