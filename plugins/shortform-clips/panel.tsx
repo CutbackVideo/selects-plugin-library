@@ -6486,7 +6486,7 @@ export default function Panel(props: any) {
     };
   }, [props.sdk]);
   if (files === undefined) return <PanelLoading label={langOf(props.context)==="ko"?"\uc20f\ud3fc \ud074\ub9bd\uc744 \ubd88\ub7ec\uc624\ub294 \uc911…":"Loading Shortform Clips…"}/>;
-  return <ShortformClipsPanel {...props} files={files} />;
+  return <><div data-testid="app-update-e2e-marker">App update E2E: 0.4.3</div><ShortformClipsPanel {...props} files={files} /></>;
 }
 
 // Optional host update contract. Old hosts and all unregistered apps stay unchanged.
