@@ -39,8 +39,8 @@ test('portable template files',{skip:!modules},async t=>{
  await t.test('unsupported, malformed and oversized files never write to storage',async()=>{
   const r=repo();const bytes=api.encodeSharedTemplate(original),data=JSON.parse(new TextDecoder().decode(bytes));
   const encode=x=>new TextEncoder().encode(JSON.stringify(x));
-  for(const bad of [encode({...data,version:999}),encode({...data,templateApi:999}),new TextEncoder().encode('{broken'),new Uint8Array(20*1024*1024+1),new TextEncoder().encode('{"__proto__":{"polluted":true}}')]) await assert.rejects(api.importSharedTemplate(r.repository,bad));
-  assert.equal(r.rows.size,0);assert.equal({}.polluted,undefined);
+  for(const bad of [encode({...data,version:999}),encode({...data,templateApi:999}),new TextEncoder().encode('{broken'),new TextEncoder().encode('{"__proto__":{"polluted":true}}')]) await assert.rejects(api.importSharedTemplate(r.repository,bad));
+  assert.equal(r.rows.size,0);assert.equal({}.polluted,undefined);assert.throws(()=>api.decodeSharedTemplate({length:256*1024*1024+1}),/256 MiB/);
  });
  await t.test('local/remote image dependencies and forged image bytes are rejected',()=>{
   for(const image of ['/private/logo.png','https://example.com/logo.png','data:image/png;base64,AAAA']){
@@ -58,7 +58,7 @@ test('portable template files',{skip:!modules},async t=>{
  await t.test('file transfer uses JSON export and picker, and cancellation releases the lock',async()=>{
   const r=repo(),saved=new Map(),calls=[];let cancelled=false,selected;
   const files={join:(...p)=>p.join('/'),homedir:()=>'/test',size:async p=>saved.get(p).length,readFile:async p=>saved.get(p),writeFile:async(p,b)=>saved.set(p,b)};
-  const globals={files,packLock:{current:false},busy:false,templateDirty:false,templateSaving:false,setPackBusy:()=>{},setPackError:m=>{if(m)throw Error(m)},setPackMessage:()=>{},script:async code=>{calls.push(code);return cancelled?null:'/template.json';},packAssert:(v,m)=>assert.ok(v,m),TEMPLATE_SHARE_MAX_BYTES:20*1024*1024,resolveTemplateImport:f=>f(),importSharedTemplate:api.importSharedTemplate,repository:r.repository,loadTemplates:()=>r.repository.load(),setTplSel:id=>selected=id,setProgram:()=>{},setPackDialogOpen:()=>{},lang:'en',encodeSharedTemplate:api.encodeSharedTemplate,nameOf:()=>original.name};
+  const globals={files,packLock:{current:false},busy:false,templateDirty:false,templateSaving:false,setPackBusy:()=>{},setPackError:m=>{if(m)throw Error(m)},setPackMessage:()=>{},script:async code=>{calls.push(code);return cancelled?null:'/template.json';},packAssert:(v,m)=>assert.ok(v,m),TEMPLATE_SHARE_MAX_BYTES:256*1024*1024,resolveTemplateImport:f=>f(),importSharedTemplate:api.importSharedTemplate,repository:r.repository,loadTemplates:()=>r.repository.load(),setTplSel:id=>selected=id,setProgram:()=>{},setPackDialogOpen:()=>{},lang:'en',encodeSharedTemplate:api.encodeSharedTemplate,nameOf:()=>original.name};
   const start=source.indexOf('  async function transferTemplate('),handler=source.slice(start,source.indexOf('  const attemptedPack =',start));
   const transfer=new Function(...Object.keys(globals),dep('esbuild').transformSync(handler,{loader:'tsx'}).code+';return transferTemplate;')(...Object.values(globals));
   await transfer('export',original);assert.ok(calls[0].includes('.shortform-template.json'));assert.equal(JSON.parse(new TextDecoder().decode(saved.get('/template.json'))).identity,original.id);

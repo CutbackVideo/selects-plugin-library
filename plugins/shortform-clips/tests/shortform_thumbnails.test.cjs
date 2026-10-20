@@ -30,7 +30,7 @@ test('generated thumbnail lifecycle', {skip:!root&&'Set SBS_PANEL_TEST_MODULES'}
     assert.equal(await api.allowCoverQualityResult({},async()=>false),false);
     await assert.rejects(api.allowCoverQualityResult({},async()=>{throw Error('File missing');}),/File missing/);
   });
-  const config={enabled:true,references:[{name:'style',data:'data:image/jpeg;base64,YQ=='}],instructions:'Yellow type'};
+  const config={enabled:true,references:[{name:'style',data:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=='}],instructions:'Yellow type'};
   function fixture(){
     const files=new Map(),requests=[],placements=[];let lost=true,submits=0,captures=0;
     const store={root:'/plugins/app',join:(...p)=>p.join('/'),ensure:async()=>{},exists:async p=>files.has(p),fs:{writeFile:async(p,v)=>files.set(p,v),readFile:async p=>files.get(p)}};
@@ -213,7 +213,7 @@ test('generated thumbnail lifecycle', {skip:!root&&'Set SBS_PANEL_TEST_MODULES'}
     const plan={background:'#102030',backgroundPrompt:'A photographic editing desk without people or lettering',subjects:[{frame:2,crop:[.1,.1,.7,.8]}],photos:[{frame:0,x:0,y:0,width:1080,height:1600}],texts:[{text:'NO MOUSE?',x:60,y:1300,width:960,height:300,size:140,color:'#ffff00',font:'condensed',stroke:'#000000',strokeWidth:8}]};
     assert.equal(api.validateDirectedCoverPlan(structuredClone(plan),3).artDirected,true);
     const splitHeadline={...structuredClone(plan),texts:Array.from({length:4},(_,i)=>({...plan.texts[0],text:'Line '+i}))};assert.equal(api.validateDirectedCoverPlan(splitHeadline,3).texts.length,4);
-    api.validateCoverSettings({...config,logo:{name:'Original logo',data:'data:image/webp;base64,YQ=='}});
+    api.validateCoverSettings({...config,logo:{name:'Original logo',data:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=='}});
     const revision={photos:[{...plan.photos[0],fit:'contain'}],texts:plan.texts,backgroundPath:'/untrusted.png',subjects:[]};
     const revised=api.validateCoverCompositionRevision({...plan,backgroundPath:'/original-art.png'},revision,3);
     assert.equal(revised.backgroundPath,'/original-art.png');assert.deepEqual(revised.subjects,plan.subjects);
@@ -229,7 +229,7 @@ test('generated thumbnail lifecycle', {skip:!root&&'Set SBS_PANEL_TEST_MODULES'}
     const c=api.coverSettings({thumbnail:{titleStyle:'fixed',titleColor:'#ffee00',titleOutline:'#112233',titleFont:'heavy'}});
     const out=api.coverRenderPlan(plan,c);assert.equal(out.texts[0].plate,undefined);assert.equal(out.texts[0].color,'#ffee00');assert.equal(out.texts[0].stroke,'#112233');assert.equal(plan.texts[0].plate,'#000000');
     assert.equal(c.sourceScope,'source');
-    const branded=api.coverRenderPlan({artDirected:true,texts:[{text:'fake logo',x:42,y:46,width:285,height:68},{text:'headline',x:48,y:1200,width:980,height:300}]},{...c,logo:{data:'data:image/webp;base64,YQ=='}});assert.equal(branded.texts.length,1);assert.equal(branded.texts[0].text,'headline');assert.equal(branded.texts[0].color,'#ffee00');
+    const branded=api.coverRenderPlan({artDirected:true,texts:[{text:'fake logo',x:42,y:46,width:285,height:68},{text:'headline',x:48,y:1200,width:980,height:300}]},{...c,logo:{data:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=='}});assert.equal(branded.texts.length,1);assert.equal(branded.texts[0].text,'headline');assert.equal(branded.texts[0].color,'#ffee00');
     assert.throws(()=>api.validateCoverSettings({...config,logo:{name:'bad',data:'https://example.org/logo'}}),/logo/);
   });
   await t.test('manifest reads retry a replacement race without losing saved jobs',async()=>{
@@ -271,7 +271,7 @@ test('generated thumbnail lifecycle', {skip:!root&&'Set SBS_PANEL_TEST_MODULES'}
     global.document={fonts:{ready:Promise.resolve()},createElement:()=>{const n=contexts.length;const ctx={save(){},restore(){},translate(){},scale(){},fillRect(){},drawImage(...a){events.push({n,a});},measureText:s=>({width:s.length*20}),strokeText(){},fillText(){},createLinearGradient(...a){events.push({gradient:a,n});return {addColorStop(){}}}};contexts.push(ctx);return {getContext:()=>ctx,toBlob:cb=>cb(new Blob(['png']))};}};
     try{
       const f=fixture();const plan={artDirected:true,background:'#112233',photos:[{frame:0,x:0,y:0,width:1000,height:1400,fit:'contain'}],texts:[{text:'Test',x:50,y:1450,width:950,height:200,size:90,color:'#ffffff'}]};
-      await api.renderPhotoCover({...f.store,fs:{...f.store.fs,readFile:async()=>new Uint8Array([1])}},['face.png'],plan,'out.png',{logo:{data:'data:image/png;base64,YQ=='},logoPosition:'right'});
+      await api.renderPhotoCover({...f.store,fs:{...f.store.fs,readFile:async()=>new Uint8Array([1])}},['face.png'],plan,'out.png',{logo:{data:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=='},logoPosition:'right'});
       assert.equal(contexts[1].globalCompositeOperation,'destination-in');assert.equal(contexts[0].globalCompositeOperation,undefined);
       assert.deepEqual(events.find(e=>e.gradient).gradient,[0,624,0,800]);
       const last=events.at(-1);assert.equal(last.n,0);assert.equal(last.a[1]+last.a[3],1032);assert.equal(last.a[2],48);
