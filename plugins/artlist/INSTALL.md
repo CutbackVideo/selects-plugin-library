@@ -29,8 +29,10 @@ Build with `music.artlist.library.v1` and `music.artlist.library-pages.v1`
 for the Favorites and Downloads tabs, in pages; `music.artlist.library-edit.v1`
 lets Save set Favorite/Unfavorite (with `allowCommit: true` and the current
 account session). Build with `music.artlist.categories.v1` for category filter
-chips and `music.artlist.waveform.v1` for the player's waveform. Each is
-optional: without it the panel leaves that part out.
+chips, `music.artlist.waveform.v1` for the player's waveform,
+`music.artlist.footage.v1` for the Footage tab and
+`music.artlist.more-pages.v1` for **Load more** under search and footage
+lists. Each is optional: without it the panel leaves that part out.
 
 ## Upgrading from Music
 
