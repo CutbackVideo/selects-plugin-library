@@ -229,3 +229,24 @@ test('opts into a host-managed opening nudge without initiating installation or 
   assert.equal(typeof provider.prepareUpdate,'function');
   assert.equal(called,0);
 });
+
+test('legacy hosts without updates remain inert and legacy register ignores nudge options', async () => {
+  const source=await fs.readFile(path.join(__dirname,'../panel.tsx'),'utf8');
+  const register=source.indexOf('    return sdk.updates.register({');
+  const guard=source.lastIndexOf('    if (!sdk.updates?.register || !sdk.runShell) return;',register);
+  const end=source.indexOf('\n  }, [sdk, lang]);',register);
+  const code=source.slice(guard,end).replaceAll(': any','').replaceAll(': string','');
+  const effect=new Function('sdk','lang','selectedUpdateContext','updateBlocked','IS_WIN',code);
+  let calls=0,provider;
+  const runShell=()=>{calls++;throw Error('legacy host must not execute update work on registration');};
+  for(const sdk of [{runShell},{updates:{},runShell},{updates:{register:()=>{throw Error('missing shell');}}}]) {
+    assert.equal(effect(sdk,'en',{current:null},{current:false},false),undefined);
+  }
+  const cleanup=()=>{};
+  // Historical register takes one argument: JS ignores the extra option.
+  const legacy={runShell,updates:{register:function(p){provider=p;return cleanup;}}};
+  assert.equal(effect(legacy,'en',{current:null},{current:false},false),cleanup);
+  assert.equal(typeof provider.checkUpdate,'function');
+  assert.equal(typeof provider.prepareUpdate,'function');
+  assert.equal(calls,0);
+});
