@@ -2,8 +2,8 @@
   "id": "news-direct",
   "version": 1,
   "names": {
-    "ko": "\ub274\uc2a4\uc9c1\uaca9 \u00b7 TikTok",
-    "en": "News Direct \u00b7 TikTok"
+    "ko": "\ub274\uc2a4\uc9c1\uaca9",
+    "en": "News Direct"
   },
   "detect": {
     "keywords": [

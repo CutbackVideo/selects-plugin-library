@@ -922,7 +922,8 @@ function connectFiles(sdk: any): Promise<any> {
 }
 
 // Template API v1. Pack installation is explicit; mount only reads installed data.
-const TEMPLATE_API = 1;
+const TEMPLATE_API = 2;
+const TEMPLATE_SCHEMA = 1;
 const PACK_FILE_MAX_BYTES = 20 * 1024 * 1024;
 const PACK_MAX_BYTES = 100 * 1024 * 1024;
 const PACK_STRINGS: any = {
@@ -952,7 +953,7 @@ function validatePackManifest(m: any) {
   packAssert(typeof m.version === "string" && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(m.version), "Pack version must be major.minor.patch.");
   packAssert(typeof m.name === "string" && m.name.trim(), "Missing pack name.");
   if (m.names) packAssert(plainObject(m.names) && Object.values(m.names).every(v => typeof v === "string"), "Invalid localized pack names.");
-  packAssert(m.requiresApp?.id === APP_ID && m.requiresApp.templateApi === TEMPLATE_API, "This pack requires a different app or template API. Update the app or request a compatible pack.");
+  packAssert(m.requiresApp?.id === APP_ID && [1,TEMPLATE_API].includes(m.requiresApp.templateApi), "This pack requires a different app or template API. Update the app or request a compatible pack.");
   packAssert(Array.isArray(m.templates) && m.templates.length > 0 && m.templates.length <= 100, "A pack must contain 1-100 templates.");
   packAssert(Array.isArray(m.assets) && m.assets.length <= 200, "Invalid pack asset list.");
   m.templates.forEach((p: any) => packPath(p, "templates"));
@@ -1012,7 +1013,7 @@ function validateTemplate(t: any, runtime = false) {
   safeJson(t);
   normalizeTemplateSettings(t);
   validateCoverSettings(t?.thumbnail);
-  packAssert(t?.schemaVersion === TEMPLATE_API, "Unsupported template schema.");
+  packAssert(t?.schemaVersion === TEMPLATE_SCHEMA, "Unsupported template schema.");
   packAssert(typeof t.id === "string" && (runtime ? /^(?:[a-z0-9-]+\/)?[a-zA-Z0-9-]+$/.test(t.id) : packSlug(t.id)), "Invalid template ID.");
   packAssert(Number.isInteger(t.version) && t.version > 0, "Invalid template version: " + t.id);
 
@@ -1245,7 +1246,7 @@ function independentTemplateDesigns(value: any, forceSplit = false) {
   const named = (design:any, suffix:string) => ({...design,
     names:Object.fromEntries(Object.entries(design.names).map(([k,v])=>[k,String(v)+" · "+suffix])),
     ...(design.name ? {name:design.name+" · "+suffix} : {})});
-  return [named(primary,"TikTok"), {...named(secondary,"Shorts"),id:t.id+"-shorts"}];
+  return [primary, {...named(secondary,"Shorts"),id:t.id+"-shorts"}];
 }
 const TEMPLATE_SHARE_MAX_BYTES = 20 * 1024 * 1024;
 const TEMPLATE_SHARE_FIELDS = ["schemaVersion","version","platformLayouts","names","name","detect","layout","background","border","headline","logo","captions","editing","prompt","variants","labels","thumbnail"];
@@ -1269,7 +1270,7 @@ function decodeSharedTemplate(bytes: Uint8Array) {
   packAssert(bytes.length > 0 && bytes.length <= TEMPLATE_SHARE_MAX_BYTES, "Template file must be between 1 byte and 20 MiB.");
   const data = JSON.parse(dec(bytes).replace(/^\uFEFF/, ""));
   safeJson(data);
-  packAssert(data?.format === "selects-shortform-template" && data.version === 1 && data.templateApi === TEMPLATE_API, "Unsupported template file. Use a compatible Shortform Clips export.");
+  packAssert(data?.format === "selects-shortform-template" && data.version === 1 && [1,TEMPLATE_API].includes(data.templateApi), "Unsupported template file. Use a compatible Shortform Clips export.");
   packAssert(plainObject(data.template), "Missing template settings.");
   const template = portableTemplate(data.template);
   // Embedded raster images only: importing never downloads files or runs code.
@@ -1447,7 +1448,7 @@ function makeTemplateRepository(storage: any) {
           packAssert(base, "Cannot migrate legacy template " + old.id + ": missing base template.");
           const {sbsStyle, radioTemplate, logoArt, demoOverlay, ...fields} = old;
           const id = mapped ? pack.manifest.id + "/" + mapped : "custom/" + legacy.appId + "-" + old.id;
-          const normalized = cleanTemplate({...merge(base, fields), id, schemaVersion: TEMPLATE_API, version: base.version});
+          const normalized = cleanTemplate({...merge(base, fields), id, schemaVersion: TEMPLATE_SCHEMA, version: base.version});
           validateTemplate(normalized, true);
           if (mapped && !existing.has(id)) await storage.put("overrides", key(id), {schemaVersion: 1, id, baseVersion: base.version, patch: templatePatch(templateIdentity(pack, base), normalized) || {}});
           if (!mapped && !customs.has(id)) await storage.put("custom-templates", key(id), {...normalized, baseId: pack.manifest.id + "/" + base.id});

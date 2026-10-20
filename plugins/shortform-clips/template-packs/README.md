@@ -65,7 +65,7 @@ SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test plugins/shortform-clips
   "version": "1.0.0",
   "name": "Example Customer",
   "names": { "en": "Example Customer" },
-  "requiresApp": { "id": "shortform-clips", "templateApi": 1 },
+  "requiresApp": { "id": "shortform-clips", "templateApi": 2 },
   "templates": ["templates/interview.json"],
   "assets": ["assets/logo.png"]
 }
@@ -78,7 +78,7 @@ Paths are relative to the pack root, with no absolute paths, parent traversal,
 symlinks, remote URLs or executable content. PNG, JPEG and WebP assets are supported.
 Limits: 100 templates, 200 assets, 20 MiB per file, 100 MiB per source pack.
 
-## Template API 1
+## Template API 2
 
 Start from one of the four [SBS templates](sbs-radio/templates), replacing customer
 content and images. Each template is complete rather than inheriting another
@@ -86,7 +86,7 @@ customer's defaults. Required sections:
 
 | Field | Meaning |
 | --- | --- |
-| `schemaVersion`, `id`, `version`, `names` | API version, stable local ID, positive integer revision, localized names |
+| `schemaVersion`, `id`, `version`, `names` | JSON schema version (1), stable local ID, positive integer revision, localized names |
 | `layout` | Video window, source crop, headline/logo positions, optional speaker framing |
 | `background`, `border`, `headline`, `logo` | Design settings; `image` values reference declared `assets/` files |
 | `captions` | Caption mode, position, typeface, size and emphasis |
@@ -161,7 +161,8 @@ and rename the template; there is no platform selector in creation or editing.
 Legacy `variants.tiktok` and `platformLayouts` are accepted only on input. The
 repository resolves user overrides first, then exposes separate templates only
 when the two designs differ. The former TikTok design retains the original ID;
-the former Shorts design uses the `-shorts` suffix. Identical designs remain one
+the former TikTok design also retains its original name and file path. Only
+the former Shorts design receives a name suffix and the `-shorts` file/ID suffix. Identical designs remain one
 template. Migrated names can be changed freely. New edits are stored separately
 from legacy overrides, so editing, resetting or deleting one design does not
 change its sibling. Old job platform selections are used only to resume the
@@ -192,3 +193,7 @@ Regression coverage includes normalization and share/import round trips, emitted
 graphic parameters and rendered markup. Actual Selects frame comparisons verify
 boxed-title and footer gradients together. These checks validate setting delivery
 and rendering; AI editorial preferences still require judgment by the agent.
+
+New packs and shared files require template API 2, so API 1 apps reject them
+before installation. API 2 apps also accept API 1 packs and shared files; existing
+installed templates need no reinstall. Template JSON schemaVersion remains 1.

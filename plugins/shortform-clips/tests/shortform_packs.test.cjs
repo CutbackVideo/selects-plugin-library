@@ -108,7 +108,7 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
       const rel='templates/'+key.split('/')[1];paths.push(rel);
       fs.writeFileSync(path.join(folder,rel),JSON.stringify(value));
     }
-    edit(folder,'pack.json',m=>m.templates=paths);
+    edit(folder,'pack.json',m=>{m.templates=paths;m.requiresApp.templateApi=1;});
     const store=storage(),repo=api.makeTemplateRepository(store);await install(repo,folder);
     const id='sbs-radio/money-lab',other=id+'-shorts';
     const legacyOverride={schemaVersion:1,id,patch:{layout:{windowTop:430},variants:{tiktok:{layout:{windowTop:610}}},headline:{color1:'#123456'}}};
@@ -117,6 +117,7 @@ test('external template pack lifecycle', {skip:!modulesRoot && 'Set SBS_PANEL_TE
     let result=await repo.load();assert.deepEqual(result.errors,[]);assert.equal(result.templates.length,6);
     assert.deepEqual([...store.rows],before,'loading legacy layouts never writes data');
     assert.equal(result.templates.find(t=>t.id===id).layout.windowTop,610);
+    assert.deepEqual(result.templates.find(t=>t.id===id).names,legacy['sbs-radio/money-lab.json'].names);
     assert.equal(result.templates.find(t=>t.id===other).layout.windowTop,430);
     for(const item of result.templates){assert.equal(item.variants,undefined);assert.equal(item.platformLayouts,undefined);}
     const primary=result.templates.find(t=>t.id===id);primary.layout.windowTop=620;primary.name='Custom name';

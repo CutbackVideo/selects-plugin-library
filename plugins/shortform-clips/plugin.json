@@ -17,7 +17,7 @@
     "platforms": [
       "macOS"
     ],
-    "selects": "Requires the Panel SDK and local file service, editable Draft graphics and captions. Template API 1. Speaker framing requires selects-ai-runtime; otherwise face-following templates use the full picture. The picture check of face-following templates also uses selects.media.startFFmpeg, Project sourceFiles, selects.files.readRange and askAI with images; without them the first guess stands. Transcribed sources can start before visual analysis completes."
+    "selects": "Requires the Panel SDK and local file service, editable Draft graphics and captions. Template API 2 (reads API 1 packs too). Speaker framing requires selects-ai-runtime; otherwise face-following templates use the full picture. The picture check of face-following templates also uses selects.media.startFFmpeg, Project sourceFiles, selects.files.readRange and askAI with images; without them the first guess stands. Transcribed sources can start before visual analysis completes."
   },
   "localized": {
     "en": {

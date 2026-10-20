@@ -9,7 +9,7 @@
   },
   "requiresApp": {
     "id": "shortform-clips",
-    "templateApi": 1
+    "templateApi": 2
   },
   "templates": [
     "templates/political-show.json",

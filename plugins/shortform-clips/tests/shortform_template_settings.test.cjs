@@ -87,6 +87,7 @@ test('templates use independent settings without renderer families',{skip:!modul
     assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
     assert.deepEqual(api.validateTemplate(structuredClone(current)),current,key+': no migration needed');
     const platform=design.id.endsWith('-shorts')?'shorts':'tiktok';
+    if(platform==='tiktok'){assert.equal(file,key.split('/')[1]);assert.deepEqual(current.names,legacy.names);assert.equal(current.id,legacy.id);}
     const a=api.forPlatform(before,platform),b=current;
     const frameA=api.radioFrameParams(a,'First headline','Second headline');
     const frameB=api.radioFrameParams(b,'First headline','Second headline');

@@ -14,6 +14,13 @@ test('portable template files',{skip:!modules},async t=>{
  original.thumbnail={enabled:true,mode:'preserve',instructions:'Keep the original title',references:[]};
  original.name='My edited template';original.layout.splitPolicy='never';original.prompt.rules='Keep clips under 60 seconds';
  function repo(){const rows=new Map();const storage={list:async kind=>[...rows].filter(([k])=>k.startsWith(kind+'/')).map(([,v])=>structuredClone(v)),put:async(k,id,v)=>rows.set(k+'/'+id,structuredClone(v)),del:async(k,id)=>rows.delete(k+'/'+id)};return {rows,repository:api.makeTemplateRepository(storage)};}
+ await t.test('new exports require API 2 while API 1 shared files remain readable',()=>{
+  const bytes=api.encodeSharedTemplate(original);
+  const envelope=JSON.parse(new TextDecoder().decode(bytes));
+  assert.equal(envelope.templateApi,2);assert.equal(envelope.template.schemaVersion,1);
+  envelope.templateApi=1;
+  assert.deepEqual(api.decodeSharedTemplate(new TextEncoder().encode(JSON.stringify(envelope))),api.decodeSharedTemplate(bytes));
+ });
  await t.test('round trip keeps actual edits, both layouts and embedded images without source identity',()=>{
   const bytes=api.encodeSharedTemplate(original),text=new TextDecoder().decode(bytes),decoded=api.decodeSharedTemplate(bytes);
   for(const secret of ['private-pack','private-project','private-source','/private/video.mp4','sbs-radio/private-template'])assert.ok(!text.includes(secret));
