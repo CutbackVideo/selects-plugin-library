@@ -4770,7 +4770,10 @@ async function runFrameJob(io: { start(): Promise<string>; state(id: string): Pr
 const VARIANT_ROOTS = ["layout", "captions", "labels", "headline", "logo", "background", "border"];
 
 function forPlatform(t: any, platform: string) {
-  return t && platform === "tiktok" && t.variants?.tiktok ? merge(t, t.variants.tiktok) : t;
+  // Single-layout series templates are edited through TikTok overrides, even
+  // when the generation form still has Shorts selected from another template.
+  const layout = t?.renderer === "series" && !templateEditorProfile(t).layoutVariants ? "tiktok" : platform;
+  return t && layout === "tiktok" && t.variants?.tiktok ? merge(t, t.variants.tiktok) : t;
 }
 
 function radioFrameParams(t: any, h1: string, h2: string, images?: { background?: string; logo?: string }) {
@@ -7558,6 +7561,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
 
   async function run(resume?: any, onlyDraftId?: string, forceReframe = false) {
     if(overlayLock.current||busy||packLock.current)return;
+    if (templateDirty || templateSaving) { setTab("templates"); return; }
     setError("");
     if (!projectId) return setError(S.noProject);
     if (!templates.length) return setError(K.empty);
@@ -7929,7 +7933,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           <span style={{color:"var(--panel-muted-fg)"}}>{S.programPick}</span>
           <PanelLoading compact label={lang==="ko"?"\ubd88\ub7ec\uc624\ub294 \uc911…":"Loading…"}/>
         </div> : <ui.Select label={S.programPick} value={program} onChange={setProgram} options={programOptions} />}
-        {(program === "auto" || templates.find(t => t.id === program)?.renderer === "series") && <ui.Segmented
+        {(program === "auto" || templateEditorProfile(templates.find(t => t.id === program)).layoutVariants) && <ui.Segmented
           label={S.layoutKind} value={platform} onChange={setPlatform}
           options={[{value: "tiktok", label: S.layoutTiktok}, {value: "shorts", label: S.layoutShorts}]}
         />}
@@ -7980,13 +7984,17 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       {busy ? runSummary : form}
       {!templatesLoading && !templates.length && <ui.Stack gap={8}><ui.Message>{K.empty}</ui.Message>{packError && <ui.Message tone="error">{packError}</ui.Message>}<ui.Button variant="secondary" onClick={()=>setTab("templates")}>{S.tabTemplates}</ui.Button></ui.Stack>}
       <ui.Stack gap={8}>
+        {(templateDirty || templateSaving) && <ui.Message>
+          {lang === "ko" ? "클립을 만들기 전에 템플릿 변경사항을 저장하거나 취소해 주세요." : "Save or discard template changes before creating clips."}
+          <ui.Button variant="secondary" onClick={()=>setTab("templates")}>{S.tabTemplates}</ui.Button>
+        </ui.Message>}
         <ui.Actions>
           {busy && (
             <ui.Button variant="secondary" onClick={cancelRun} disabled={cancelling}>
               {cancelling ? S.cancelling : S.cancel}
             </ui.Button>
           )}
-          <ui.Button variant="primary" busy={busy} disabled={overlayBusy || packBusy || templatesLoading || !templates.length} busyLabel={S.making} onClick={() => run()}>
+          <ui.Button variant="primary" busy={busy} disabled={overlayBusy || packBusy || templatesLoading || !templates.length || templateDirty || templateSaving} busyLabel={S.making} onClick={() => run()}>
             {S.make}
           </ui.Button>
         </ui.Actions>

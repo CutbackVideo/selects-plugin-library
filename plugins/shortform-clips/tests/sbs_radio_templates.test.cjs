@@ -110,7 +110,10 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
   }
   await t.test('all four templates build before visual analysis completes',async()=>{
     for(const id of api.BUILTIN_TEMPLATES.map(t=>t.id)) {
-      const tpl=template(id), P=api.buildParams(tpl,clip,title), graphics=[];
+      const tpl=structuredClone(template(id));
+      tpl.headline.font='Sandoll Headline';
+      tpl.captions.font='Sandoll Caption';
+      const P=api.buildParams(tpl,clip,title), graphics=[];
       const words=[{text:'The',startFrame:0,endFrame:12,sourceStartFrame:0,speakerId:1,utteranceId:'u'},
         {text:'market',startFrame:12,endFrame:30,sourceStartFrame:12,speakerId:1,utteranceId:'u'},
         {text:'moves.',startFrame:30,endFrame:54,sourceStartFrame:30,speakerId:1,utteranceId:'u'}];
@@ -133,6 +136,12 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       const result=await new Function('selects',code)(selects);
       assert.equal(result.draftId,'early-'+id);
       assert.ok(graphics.some(g=>g.label.startsWith('Caption ')),id+' captions');
+      for (const g of graphics.filter(g=>g.label.startsWith('Caption '))) {
+        assert.equal(g.parameters.fontFamily,'Sandoll Caption',id+' generated caption font');
+      }
+      if(tpl.renderer==='series') {
+        assert.equal(graphics.find(g=>g.label==='Series frame and headline').parameters.fontFamily,'Sandoll Headline');
+      }
       assert.ok(graphics.some(g=>g.label=== ((tpl.renderer==='series')?'Series frame and headline':'Clip · \uc81c\ubaa9 1')),id+' frame and headline');
     }
   });
@@ -353,8 +362,20 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
         await change(S.template,single.id);
         assert.equal(controls.has(S.layoutKind),false);
         assert.equal(get(S.size1).value,120,'Previously saved TikTok edits remain visible');
-        await change(S.size1,125);await click(S.save);
+        await change(S.size1,125);
+        await change(S.font,'Sandoll Headline');
+        await change('tabs','captions');
+        await change(S.font,'Sandoll Caption');
+        await click(S.save);
         assert.equal(rows.get(single.id).variants.tiktok.headline.size1,125);
+        for (const platform of ['tiktok','shorts']) {
+          const saved=readTemplates().find(t=>t.id===single.id);
+          const P=api.buildParams(api.forPlatform(saved,platform),clip,title);
+          assert.equal(P.frame.fontFamily,'Sandoll Headline',platform+' headline');
+          assert.equal(P.caption.fontFamily,'Sandoll Caption',platform+' caption');
+          assert.equal(P.frame.headlineSize1,125,platform+' layout');
+        }
+        await change('tabs','look');
         assert.equal(controls.has(S.layoutKind),false,'Saving does not expose layout choices');
         await click(S.duplicate);
         assert.equal(controls.has(S.layoutKind),false,'Copies retain the single-layout editor');
