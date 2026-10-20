@@ -6708,25 +6708,25 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   }, [repository]);
   const templateDirty = !!tplEdit && JSON.stringify(tplEdit) !== tplBase;
   const updateBlocked = React.useRef(false);
+  const selectedUpdateContext = React.useRef<any>(null);
   updateBlocked.current = !!(busy || packBusy || templateSaving || templateDirty);
   React.useEffect(() => {
     if (!sdk.updates?.register || !sdk.runShell) return;
-    let selectedContext: any = null;
     return sdk.updates.register({
       async checkUpdate(checkContext: any) {
-        selectedContext = null;
+        selectedUpdateContext.current = null;
         const result = await sdk.runShell({summary: "Check Shortform Clips update", command: shortformUpdateCommand("check", "", checkContext, IS_WIN, lang), timeoutMs: 60000, maxOutputBytes: 8192});
         if (result.isError || result.exitCode !== 0) throw new Error(result.stderr?.trim() || shortformUpdateText(lang, "check"));
         let offer: any;
         try { offer = JSON.parse(result.stdout.trim()); } catch { throw new Error(shortformUpdateText(lang, "check")); }
-        if (offer) { selectedContext = checkContext; offer.description = shortformUpdateText(lang, "description"); }
+        if (offer) { selectedUpdateContext.current = checkContext; offer.description = shortformUpdateText(lang, "description"); }
         return offer;
       },
       async prepareUpdate(id: string) {
         if (updateBlocked.current) throw new Error(shortformUpdateText(lang, "busy"));
         if (!/^[a-f0-9]{40}$/.test(id)) throw new Error(shortformUpdateText(lang, "invalid"));
-        if (!selectedContext || selectedContext.latest?.commit !== id) throw new Error(shortformUpdateText(lang, "retry"));
-        return {summary: "Update Shortform Clips", command: shortformUpdateCommand("apply", id, selectedContext, IS_WIN, lang), timeoutMs: 300000};
+        if (!selectedUpdateContext.current || selectedUpdateContext.current.latest?.commit !== id) throw new Error(shortformUpdateText(lang, "retry"));
+        return {summary: "Update Shortform Clips", command: shortformUpdateCommand("apply", id, selectedUpdateContext.current, IS_WIN, lang), timeoutMs: 300000};
       },
     });
   }, [sdk, lang]);

@@ -72,7 +72,7 @@ test('busy or unsaved app still discovers updates while refusing installation', 
   const prepare = source.slice(end, prepareEnd).trim().replace('id: string', 'id').replace(/,$/, '');
   let calls = 0;
   const sdk = {runShell: async () => { calls++; return {exitCode: 0, stdout: JSON.stringify({id: latest, version: 'new'})}; }};
-  const provider = new Function('sdk', 'updateBlocked', 'shortformUpdateCommand', 'shortformUpdateText', 'lang', 'IS_WIN', `let selectedContext = null;return {${check},${prepare}};`)(sdk, {current: true}, mode => mode, (lang,key) => key === 'busy' ? 'Finish the current operation' : key, 'en', false);
+  const provider = new Function('sdk', 'updateBlocked', 'shortformUpdateCommand', 'shortformUpdateText', 'lang', 'IS_WIN', 'selectedUpdateContext', `return {${check},${prepare}};`)(sdk, {current: true}, mode => mode, (lang,key) => key === 'busy' ? 'Finish the current operation' : key, 'en', false, {current:null});
   assert.equal((await provider.checkUpdate({installed:{commit:old,version:'0.4.1'},latest:{commit:latest,version:'0.4.2'}})).id, latest);
   assert.equal(calls, 1);
   await assert.rejects(provider.prepareUpdate(latest), /Finish the current operation/);
@@ -193,4 +193,23 @@ test('Korean updates localize descriptions and manual-install or protocol errors
   await assert.rejects(run('check', null, {...f, language:'ko', checkContext:{...f.checkContext,installed:null}}), /\ub77c\uc774\ube0c\ub7ec\ub9ac/);
   f.release['plugin.json']=Buffer.from(JSON.stringify({id:'shortform-clips',version:'0.4.2',files:['panel.tsx']}));
   await assert.rejects(run('apply',latest,{...f,language:'ko'}), /\uc5c5\ub370\uc774\ud2b8\ub97c \uc9c0\uc6d0\ud558\uc9c0/);
+});
+
+test('language-driven provider re-registration retains the checked release for installation', async () => {
+  const source=await fs.readFile(path.join(__dirname,'../panel.tsx'),'utf8');
+  const start=source.indexOf('      async checkUpdate(checkContext: any) {');
+  const end=source.indexOf('      async prepareUpdate(id: string) {',start);
+  const check=source.slice(start,end).trim().replace(/,$/,'').replace('checkContext: any','checkContext').replace('let offer: any','let offer');
+  const prepare=source.slice(end,source.indexOf('\n    });',end)).trim().replace('id: string','id').replace(/,$/,'');
+  const create=new Function('sdk','updateBlocked','shortformUpdateCommand','shortformUpdateText','lang','IS_WIN','selectedUpdateContext',`return {${check},${prepare}};`);
+  const state={current:null},commands=[];
+  const sdk={runShell:async()=>({exitCode:0,stdout:JSON.stringify({id:latest,version:'0.4.2'})})};
+  const command=(...args)=>{commands.push(args);return args[0];};
+  const context={installed:{commit:old,version:'0.4.1'},latest:{commit:latest,version:'0.4.2'}};
+  const english=create(sdk,{current:false},command,(_lang,key)=>key,'en',false,state);
+  await english.checkUpdate(context);
+  const korean=create(sdk,{current:false},command,(_lang,key)=>key,'ko',false,state);
+  assert.equal((await korean.prepareUpdate(latest)).command,'apply');
+  assert.deepEqual(commands.at(-1),['apply',latest,context,false,'ko']);
+  await assert.rejects(korean.prepareUpdate(old),/retry/);
 });
