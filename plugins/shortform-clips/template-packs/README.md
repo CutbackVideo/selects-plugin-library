@@ -87,14 +87,12 @@ customer's defaults. Required sections:
 | Field | Meaning |
 | --- | --- |
 | `schemaVersion`, `id`, `version`, `names` | API version, stable local ID, positive integer revision, localized names |
-| `platformLayouts` (optional) | Whether to expose separate Shorts/TikTok layouts; defaults to the presence of a variant in a new template |
 | `layout` | Video window, source crop, headline/logo positions, optional speaker framing |
 | `background`, `border`, `headline`, `logo` | Design settings; `image` values reference declared `assets/` files |
 | `captions` | Caption mode, position, typeface, size and emphasis |
 | `editing` | Filler and silence handling |
 | `detect` | Keywords, exclusions and program description |
 | `prompt` | Role, format, good/bad clips, length/count guidance, rules and headlines |
-| `variants.tiktok` (optional) | Design overrides for the TikTok layout; base is the Shorts layout |
 | `labels` (optional) | Top/footer labels; footer can derive an episode date |
 
 For a `series` template with `layout.reframe` enabled, the app checks each clip's
@@ -158,10 +156,16 @@ Independent settings include:
 - `layout.reframe` and the existing framing preferences: AI framing can be
   enabled on every template. Migration never enables it implicitly.
 
-Layout overrides continue to use `variants.tiktok`. Single-layout templates with
-existing local TikTok overrides apply those overrides even if a previous template
-left the creation form set to Shorts. Editing a template with no variant updates
-its base design, rather than creating an implicit second layout.
+Each template contains exactly one design. To create another layout, duplicate
+and rename the template; there is no platform selector in creation or editing.
+Legacy `variants.tiktok` and `platformLayouts` are accepted only on input. The
+repository resolves user overrides first, then exposes separate templates only
+when the two designs differ. The former TikTok design retains the original ID;
+the former Shorts design uses the `-shorts` suffix. Identical designs remain one
+template. Migrated names can be changed freely. New edits are stored separately
+from legacy overrides, so editing, resetting or deleting one design does not
+change its sibling. Old job platform selections are used only to resume the
+matching independent template. The safety-zone overlay remains a preview guide.
 
 ## Removed compatibility fields and rendering guarantees
 

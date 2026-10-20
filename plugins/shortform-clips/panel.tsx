@@ -1228,8 +1228,24 @@ function templatePatch(base: any, edited: any): any {
   return clone(edited);
 }
 function templateIdentity(pack: any, t: any) {
-  // Pack defaults define available layouts; local TikTok edits do not add a new layout choice.
+  // Preserve the legacy layout contract until repository expansion resolves local edits.
   return {...t, id: pack.manifest.id + "/" + t.id, platformLayouts: t.platformLayouts ?? !!t.variants?.tiktok};
+}
+// Resolve legacy layouts once at the repository boundary. Every visible template is one design.
+function independentTemplateDesigns(value: any, forceSplit = false) {
+  const t = normalizeTemplateSettings(clone(value));
+  const flatten = (layout: string) => {
+    const result = clone(forPlatform(t, layout));
+    delete result.variants; delete result.platformLayouts;
+    return result;
+  };
+  const primary = flatten("tiktok"), secondary = flatten("shorts");
+  const stable = (v:any):any => Array.isArray(v) ? v.map(stable) : plainObject(v) ? Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable(v[k])])) : v;
+  if (!forceSplit && JSON.stringify(stable(primary)) === JSON.stringify(stable(secondary))) return [primary];
+  const named = (design:any, suffix:string) => ({...design,
+    names:Object.fromEntries(Object.entries(design.names).map(([k,v])=>[k,String(v)+" · "+suffix])),
+    ...(design.name ? {name:design.name+" · "+suffix} : {})});
+  return [named(primary,"TikTok"), {...named(secondary,"Shorts"),id:t.id+"-shorts"}];
 }
 const TEMPLATE_SHARE_MAX_BYTES = 20 * 1024 * 1024;
 const TEMPLATE_SHARE_FIELDS = ["schemaVersion","version","platformLayouts","names","name","detect","layout","background","border","headline","logo","captions","editing","prompt","variants","labels","thumbnail"];
@@ -1271,7 +1287,7 @@ function decodeSharedTemplate(bytes: Uint8Array) {
 async function importSharedTemplate(repository: any, bytes: Uint8Array) {
   const template = decodeSharedTemplate(bytes);
   const id = "custom/" + crypto.randomUUID();
-  const imported = {...template, id, platformLayouts: !!template.variants?.tiktok};
+  const imported = {...template, id};
   await repository.put("templates", id, imported);
   return imported;
 }
@@ -1279,6 +1295,7 @@ async function importSharedTemplate(repository: any, bytes: Uint8Array) {
 function makeTemplateRepository(storage: any) {
   const defaults = new Map<string, any>();
   let loadRevision = 0;
+  let packDefaultIds = new Set<string>();
   const fs = storage.fs;
   const key = (id: string) => encodeURIComponent(id);
   async function records(kind: string) { return await storage.list(kind); }
@@ -1288,18 +1305,39 @@ function makeTemplateRepository(storage: any) {
       const revision = ++loadRevision;
       const templates: any[] = [], packs: any[] = [], errors: string[] = [];
       const nextDefaults = new Map<string, any>();
-      const [removedRows,overrideRows,packRows,customRows] = await Promise.all([
-        records("removed-templates"),records("overrides"),records("packs"),records("custom-templates")
+      const nextPackIds = new Set<string>();
+      const [removedRows,overrideRows,packRows,customRows,designRows] = await Promise.all([
+        records("removed-templates"),records("overrides"),records("packs"),records("custom-templates"),records("design-overrides")
       ]);
       const removed = new Set(removedRows.map((r:any)=>r.id));
       const overrides = new Map(overrideRows.map((r:any)=>[r.id,r]));
+      const designOverrides = new Map(designRows.map((r:any)=>[r.id,r]));
+      const addDesigns = (base:any, shown:any, metadata:any, migrations:any[] = []) => {
+        const split = independentTemplateDesigns(base).length > 1 || independentTemplateDesigns(shown).length > 1;
+        const raw = independentTemplateDesigns(base,split);
+        for (const design of independentTemplateDesigns(shown,split)) {
+          const fallback = raw.find((d:any)=>d.id===design.id) || {...clone(forPlatform(base,"shorts")),id:design.id,names:design.names};
+          delete fallback.variants; delete fallback.platformLayouts;
+          packAssert(!nextDefaults.has(design.id),"Conflicting independent template ID: "+design.id);
+          nextDefaults.set(design.id,fallback);
+          if(metadata.builtIn) nextPackIds.add(design.id);
+          const saved:any = designOverrides.get(design.id) || migrations.find((r:any)=>r.id===design.id);
+          let result = design;
+          if(saved) {
+            packAssert(saved.schemaVersion===1 && plainObject(saved.patch),"Unsupported design settings.");
+            safeJson(saved.patch);
+            result = validateTemplate({...merge(fallback,saved.patch),id:design.id},true);
+          }
+          templates.push({...result,...metadata,modified:saved?Object.keys(saved.patch).length>0:metadata.modified});
+        }
+      };
       for (const pack of packRows) {
         try {
           validateInstalledPack(pack);
           packs.push(pack.manifest);
           for (const t of pack.templates) {
             const base = templateIdentity(pack, t);
-            nextDefaults.set(base.id, base);
+
             const saved: any = overrides.get(base.id);
             let shown = base;
             if (saved) {
@@ -1309,15 +1347,16 @@ function makeTemplateRepository(storage: any) {
                 shown = validateTemplate({...merge(base, saved.patch), id: base.id, schemaVersion: base.schemaVersion, version: base.version}, true);
               } catch (e: any) { errors.push(base.id + ": " + e.message); shown = base; }
             }
-            templates.push({...shown, builtIn: true, modified: !!saved && Object.keys(saved.patch || {}).length > 0, packId: pack.manifest.id, packVersion: pack.manifest.version});
+            addDesigns(base,shown,{builtIn: true, modified: !!saved && Object.keys(saved.patch || {}).length > 0, packId: pack.manifest.id, packVersion: pack.manifest.version},pack.designMigrations || []);
           }
         } catch (e: any) { errors.push((pack.manifest?.id || "Pack") + ": " + e.message); }
       }
       for (const t of customRows) {
-        try { validateTemplate(t, true); packAssert(!nextDefaults.has(t.id), "Custom template ID conflicts with a pack."); templates.push({...t, builtIn: false}); }
+        try { validateTemplate(t, true); packAssert(!nextDefaults.has(t.id), "Custom template ID conflicts with a pack."); addDesigns(t,t,{builtIn:false}); }
         catch(e: any) { errors.push((t.id || "Custom template") + ": " + e.message); }
       }
       if (revision === loadRevision) {
+        packDefaultIds = nextPackIds;
         defaults.clear();
         for (const [id, value] of nextDefaults) defaults.set(id, value);
       }
@@ -1331,12 +1370,17 @@ function makeTemplateRepository(storage: any) {
       if (base) {
         // Identity is owned by the pack; every design option is editable.
         const patch = templatePatch(base, {...clean, id: base.id, version: base.version, schemaVersion: base.schemaVersion}) || {};
-        await storage.put("overrides", key(id), {schemaVersion: 1, id, baseVersion: base.version, patch});
+        await storage.put("design-overrides", key(id), {schemaVersion: 1, id, baseVersion: base.version, patch});
       } else await storage.put("custom-templates", key(id), clean);
     },
     async del(kind: string, id: string) {
       packAssert(kind === "templates", "Invalid template collection.");
-      await storage.del(defaults.has(id) ? "overrides" : "custom-templates", key(id));
+      if(packDefaultIds.has(id)) await storage.put("design-overrides",key(id),{schemaVersion:1,id,patch:{}});
+      else {
+        await storage.del("custom-templates",key(id));
+        await storage.del("design-overrides",key(id));
+        await storage.put("removed-templates",key(id),{id,removedAt:new Date().toISOString()});
+      }
     },
     async remove(id: string) {
       packAssert(defaults.has(id) || (await records("custom-templates")).some((t: any) => t.id === id), "Unknown template.");
@@ -1364,6 +1408,31 @@ function makeTemplateRepository(storage: any) {
           validateTemplate({...merge(base, saved.patch), id: base.id, schemaVersion: base.schemaVersion, version: base.version}, true);
         }
       }
+      const designOverrides = new Map((await records("design-overrides")).map((r:any)=>[r.id,r]));
+      // Keep migration patches inside the atomic pack snapshot. Never rewrite old user records.
+      const migrations = new Map<string,any>((previous?.designMigrations || []).map((r:any)=>[r.id,r]));
+      if(previous) for(const old of previous.templates) {
+        const base = templateIdentity(previous,normalizeTemplateSettings(clone(old)));
+        if(!base.variants) continue;
+        const saved:any = savedOverrides.get(base.id);
+        const shown = saved ? validateTemplate(merge(base,saved.patch),true) : base;
+        const split = independentTemplateDesigns(base).length>1 || independentTemplateDesigns(shown).length>1;
+        const before = independentTemplateDesigns(base,split);
+        for(const design of independentTemplateDesigns(shown,split)) {
+          const original=before.find((d:any)=>d.id===design.id);
+          const patch=templatePatch(original,design)||{};
+          if(Object.keys(patch).length) migrations.set(design.id,{schemaVersion:1,id:design.id,patch});
+        }
+      }
+      pack.designMigrations=[...migrations.values()];
+      for(const t of pack.templates) for(const design of independentTemplateDesigns(templateIdentity(pack,t))) {
+        const saved:any = designOverrides.get(design.id) || migrations.get(design.id);
+        if(saved) {
+          packAssert(saved.schemaVersion===1 && plainObject(saved.patch),"Unsupported design settings.");
+          safeJson(saved.patch);
+          validateTemplate({...merge(design,saved.patch),id:design.id},true);
+        }
+      }
       // First install can copy legacy edits. Source files remain untouched; retries never replace an existing override.
       if (!previous && pack.manifest.legacy) {
         const legacy = pack.manifest.legacy;
@@ -1386,7 +1455,7 @@ function makeTemplateRepository(storage: any) {
       }
       // One atomic snapshot activates all templates and resolved assets together.
       await storage.put("packs", pack.manifest.id, pack);
-      const restoredIds = new Set(pack.templates.map((t: any) => pack.manifest.id + "/" + t.id));
+      const restoredIds = new Set(pack.templates.flatMap((t:any)=>independentTemplateDesigns(templateIdentity(pack,t)).map((d:any)=>d.id)));
       for (const removed of await records("removed-templates")) {
         if (restoredIds.has(removed.id)) await storage.del("removed-templates", key(removed.id));
       }
@@ -4755,7 +4824,7 @@ const VARIANT_ROOTS = ["layout", "captions", "labels", "headline", "logo", "back
 function forPlatform(t: any, platform: string) {
   // Single-layout templates are edited through TikTok overrides, even
   // when the generation form still has Shorts selected from another template.
-  const layout = !templateEditorProfile(t).layoutVariants ? "tiktok" : platform;
+  const layout = !(t?.platformLayouts ?? !!t?.variants?.tiktok) ? "tiktok" : platform;
   return t && layout === "tiktok" && t.variants?.tiktok ? merge(t, t.variants.tiktok) : t;
 }
 
@@ -4884,8 +4953,6 @@ function RadioLayoutPreview({ t, S, overlay = false }: any) {
 // Template editing shares one draft lifecycle and one set of sections;
 // settings determine layouts; all templates expose the same capabilities.
 type TemplateEditorProfile = {
-  platformLayouts: boolean;
-  layoutVariants: boolean;
   reframe: boolean;
   headlineStroke: boolean;
   labels: boolean;
@@ -4896,8 +4963,6 @@ type TemplateEditorProfile = {
 
 function templateEditorProfile(template: any): TemplateEditorProfile {
   return {
-    platformLayouts: true,
-    layoutVariants: template?.platformLayouts ?? !!template?.variants?.tiktok,
     reframe: true,
     headlineStroke: true,
     labels: true,
@@ -4907,9 +4972,9 @@ function templateEditorProfile(template: any): TemplateEditorProfile {
   };
 }
 
-function updateTemplateField(template: any, path: string, value: any, tiktok: boolean) {
+function updateTemplateField(template: any, path: string, value: any) {
   const next = clone(template);
-  const target = tiktok && VARIANT_ROOTS.includes(path.split(".")[0]) ? "variants.tiktok." + path : path;
+  const target = path;
   const keys = target.split(".");
   let object = next;
   for (let i = 0; i < keys.length - 1; i++) object = object[keys[i]] ?? (object[keys[i]] = {});
@@ -4923,7 +4988,7 @@ function cleanTemplate(t: any) {
   return { ...rest, detect: { ...rest.detect, keywords: tidy(rest.detect?.keywords), exclude: tidy(rest.detect?.exclude) } };
 }
 
-function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange, state, platform = "tiktok" }: any, profile: TemplateEditorProfile) {
+function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange, state }: any, profile: TemplateEditorProfile) {
   // Selection, the working copy and the sub-tab live in the Panel, so unsaved edits survive a tab switch.
   const { selId, setSelId, edit: saved, setEdit: setSaved, baseKey, setBaseKey, sub, setSub } = state;
   const current = templates.find((t: any) => t.id === selId) || templates[0];
@@ -4931,7 +4996,6 @@ function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [saving, setSavingState] = React.useState(false);
   const setSaving = (value: boolean) => { setSavingState(value); onSavingChange?.(value); };
-  const layoutKey = profile.layoutVariants ? platform : "tiktok";
   const fs = store.fs;
 
   const currentKey = React.useMemo(() => JSON.stringify(current ?? null), [current]);
@@ -4947,14 +5011,13 @@ function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange
   // Until the stored working copy catches up with the selection, edit a fresh copy of the template.
   const fresh = !saved || saved.id !== current.id || baseKey !== currentKey;
   const stored = fresh ? JSON.parse(currentKey) : saved;
-  // The TikTok layout is a set of overrides on the template; the editor shows and edits whichever layout is picked.
-  const editingTiktok = !!stored.variants?.tiktok && layoutKey === "tiktok";
-  const edit = editingTiktok ? merge(stored, stored.variants?.tiktok || {}) : stored;
+  // Repository entries are already resolved to a single independent design.
+  const edit = stored;
   const setEdit = (f: any) => setSaved((e: any) => (typeof f === "function" ? f(fresh || !e ? JSON.parse(currentKey) : e) : f));
   const dirty = JSON.stringify(stored) !== currentKey;
   const set = (path: string, value: any) => {
     setMsg(null);
-    setEdit((e: any) => updateTemplateField(e, path, value, editingTiktok));
+    setEdit((e: any) => updateTemplateField(e, path, value));
   };
 
   async function save() {
@@ -5032,7 +5095,7 @@ function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange
   }
 
   return {
-    current, edit, dirty, saving, msg, deleteOpen, setDeleteOpen, layoutKey,
+    current, edit, dirty, saving, msg, deleteOpen, setDeleteOpen,
     setEdit, set, setMsg, save, duplicate, reset, remove, pickImage,
   };
 }
@@ -6381,7 +6444,7 @@ function TemplateEditorForm(props: any) {
   const [previewOverlay, setPreviewOverlay] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   if (!draft) return null;
-  const { current, edit, dirty, saving, msg, deleteOpen, setDeleteOpen, layoutKey,
+  const { current, edit, dirty, saving, msg, deleteOpen, setDeleteOpen,
     setEdit, set, setMsg, save, duplicate, reset, remove } = draft;
   const { setSelId, sub, setSub } = state;
 
@@ -6422,12 +6485,6 @@ function TemplateEditorForm(props: any) {
             <ui.Button variant="danger" busy={saving} onClick={remove}>{S.del}</ui.Button>
           </div>
         </TemplatePackDialog>
-        {profile.layoutVariants && <ui.Segmented
-          label={S.layoutKind} value={layoutKey} onChange={props.onPlatformChange}
-          options={[{value: "tiktok", label: S.layoutTiktok}, {value: "shorts", label: S.layoutShorts}]}
-          disabled={saving || !!props.packBusy || !!props.busy}
-        />}
-        {profile.layoutVariants && <small>{S.editingLayout(layoutKey === "tiktok" ? S.layoutTiktok : S.layoutShorts)}</small>}
         <div hidden={!settingsOpen} style={{padding:16,border:"1px solid var(--panel-border)",borderRadius:8}}>
         <ui.TextField label={S.name} value={nameOf(edit, lang)} onChange={(v: string) => set("name", v)} disabled={saving} />
         <ui.Actions>
@@ -6546,7 +6603,6 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const inputRevision=React.useRef(0);
   const [pick, setPick] = React.useState<string | null>(null);
   const [program, setProgram] = React.useState<string>("auto");
-  const [platform, setPlatform] = React.useState<string>("tiktok");
   const [countMode, setCountMode] = React.useState<string>("auto");
   const [count, setCount] = React.useState<number>(4);
   const [note, setNote] = React.useState<string>("");
@@ -7592,7 +7648,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       },
     };
     runRef.current = token;
-    let job: any = resume ?? { id: Date.now().toString(36), usageTracking: true, sharedUsageCalls: [], projectId, created: new Date().toISOString(), mode, url: url.trim(), pick, program, countMode, count, note, platform };
+    let job: any = resume ?? { id: Date.now().toString(36), usageTracking: true, sharedUsageCalls: [], projectId, created: new Date().toISOString(), mode, url: url.trim(), pick, program, countMode, count, note };
     setRunInfo(job);
     let revealedResults = false;
     // Snapshot at enqueue time and serialize disk writes across concurrent clips.
@@ -7661,8 +7717,9 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         if (!key) throw new Error(S.unsupported);
         await persist({ key, why });
       }
-      const selected = list.find((t: any) => t.id === job.key);
-      const tpl = forPlatform(selected, job.platform ?? "tiktok");
+      // Older jobs selected a platform separately; retain that exact design when resuming.
+      const tpl = (job.platform === "shorts" ? list.find((t:any)=>t.id===job.key+"-shorts") : null)
+        || list.find((t: any) => t.id === job.key);
       if (!tpl) throw new Error(S.templateGone);
       await persist({templateName:nameOf(tpl,lang),coverConfig:job.coverConfig||coverSettings(tpl)});
       setInfo({ key: job.key, why: job.why });
@@ -7941,10 +7998,6 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           <span style={{color:"var(--panel-muted-fg)"}}>{S.programPick}</span>
           <PanelLoading compact label={lang==="ko"?"\ubd88\ub7ec\uc624\ub294 \uc911…":"Loading…"}/>
         </div> : <ui.Select label={S.programPick} value={program} onChange={setProgram} options={programOptions} />}
-        {(program === "auto" || templateEditorProfile(templates.find(t => t.id === program)).layoutVariants) && <ui.Segmented
-          label={S.layoutKind} value={platform} onChange={setPlatform}
-          options={[{value: "tiktok", label: S.layoutTiktok}, {value: "shorts", label: S.layoutShorts}]}
-        />}
         <ui.Select
           label={S.count}
           value={countMode === "manual" ? String(count) : "auto"}
@@ -8101,8 +8154,6 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
               {packError && <ui.Message tone="error">{packError}</ui.Message>}
             </TemplatePackDialog>
             {templates.length > 0 && <TemplateEditor
-              platform={platform}
-              onPlatformChange={setPlatform}
               packBusy={packBusy}
               busy={busy}
               onExportTemplate={(selected:any)=>void transferTemplate("export",selected)}

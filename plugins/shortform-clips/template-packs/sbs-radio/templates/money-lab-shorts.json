@@ -1,0 +1,120 @@
+{
+  "id": "money-lab-shorts",
+  "version": 1,
+  "names": {
+    "ko": "\ubaa9\ub3c8\uc5f0\uad6c\uc18c \u00b7 Shorts",
+    "en": "Money Lab \u00b7 Shorts"
+  },
+  "detect": {
+    "keywords": [
+      "\ubaa9\ub3c8\uc5f0\uad6c\uc18c",
+      "\ubaa9\ub3c8 \uc5f0\uad6c\uc18c",
+      "\ubc15\uc5f0\ubbf8"
+    ],
+    "exclude": [],
+    "host": "\ubc15\uc5f0\ubbf8 \uc9c4\ud589, \uc99d\uad8c\u00b7\uacbd\uc81c \uc804\ubb38\uac00 \uac8c\uc2a4\ud2b8"
+  },
+  "layout": {
+    "windowTop": 402,
+    "windowBottom": 1528,
+    "sourceTop": 22,
+    "sourceBottom": 891,
+    "offsetX": 622,
+    "headlineCenter": 290,
+    "logoCenter": 1512,
+    "reframe": true,
+    "closeUp": 6,
+    "edgeInset": 0
+  },
+  "background": {
+    "mode": "image",
+    "style": "linear-gradient(180deg,#17655F 0px,#0D2E25 375px,#0D2E25 100%)",
+    "color": "#0D2E25",
+    "image": "assets/money-lab-background-image.jpg",
+    "imageName": "SBS \ubaa9\ub3c8\uc5f0\uad6c\uc18c green",
+    "dim": 0
+  },
+  "border": {
+    "on": false,
+    "color": "#C9A45C"
+  },
+  "headline": {
+    "font": "",
+    "box2On": false,
+    "box2": "#D7263D",
+    "italic": false,
+    "size1": 90,
+    "size2": 124,
+    "color1": "#FBD601",
+    "color2": "#A0FD01",
+    "shadow": false,
+    "strokeOn": true,
+    "strokeColor": "#000000",
+    "strokeWidth": 20,
+    "gradient1": "linear-gradient(180deg,#F9B600 15%,#FBD601 50%,#FBF703 85%)",
+    "gradient2": "linear-gradient(180deg,#D7FC00 15%,#A0FD01 50%,#6DFC01 85%)",
+    "gap": -27
+  },
+  "labels": {
+    "top": {
+      "on": true,
+      "text": "\ubc15\uc5f0\ubbf8 \uc9c4\ud589",
+      "x": 539,
+      "y": 116,
+      "size": 41,
+      "weight": 900,
+      "color": "#108B6D",
+      "strokeColor": "#000000",
+      "strokeWidth": 10
+    },
+    "footer": {
+      "on": true,
+      "text": "",
+      "x": 814,
+      "y": 1564,
+      "size": 55,
+      "weight": 900,
+      "auto": "episodeDate",
+      "color": "#0C6E62",
+      "strokeColor": "#000000",
+      "strokeWidth": 0,
+      "shadowCss": "0 0 6px rgba(0,0,0,.45)"
+    }
+  },
+  "logo": {
+    "mode": "image",
+    "image": "assets/money-lab-logo-image.png",
+    "imageName": "\ubc15\uc5f0\ubbf8\uc758 \ubaa9\ub3c8\uc5f0\uad6c\uc18c",
+    "width": 227
+  },
+  "captions": {
+    "on": true,
+    "mode": "box",
+    "barHeight": 230,
+    "bottom": 1437,
+    "fontSize": 64,
+    "fontWeight": 700,
+    "boxColor": "#000000A3",
+    "color": "#FFFFFF",
+    "font": "",
+    "lineMax": 17,
+    "highlight": true,
+    "highlightColor": "#F8D30A",
+    "cleanSpeechText": false
+  },
+  "editing": {
+    "removeFillers": true,
+    "removeSilences": true
+  },
+  "prompt": {
+    "role": "\ub108\ub294 SBS \ub77c\ub514\uc624 \uacbd\uc81c \ud504\ub85c\uadf8\ub7a8 \"\ubc15\uc5f0\ubbf8\uc758 \ubaa9\ub3c8\uc5f0\uad6c\uc18c\"\uc758 \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4. \uac1c\uc778 \ud22c\uc790\uc790\ub97c \uc704\ud55c \uc1fc\uce20\ub97c \ub9cc\ub4e0\ub2e4.",
+    "format": "25-60\ubd84 \ub77c\ub514\uc624 \uacbd\uc81c \ud1a0\ud06c. \uc9c4\ud589\uc790(\ubc15\uc5f0\ubbf8)\uac00 \uc99d\uad8c\uc0ac \uc560\ub110\ub9ac\uc2a4\ud2b8\u00b7\uc6b4\uc6a9\uc5ed\u00b7\uc774\ucf54\ub178\ubbf8\uc2a4\ud2b8\u00b7\uae30\uc790 \uac8c\uc2a4\ud2b8 \ud55c \uba85\uc529\uacfc \uc8fc\uc2dd(\ucf54\uc2a4\ud53c, \ub098\uc2a4\ub2e5, \uc0bc\uc131\uc804\uc790, SK\ud558\uc774\ub2c9\uc2a4, \uc5d4\ube44\ub514\uc544), \ubd80\ub3d9\uc0b0, \uae08\ub9ac, \ud658\uc728, \uac00\uacc4 \uc790\uc0b0\uc744 \uc774\uc57c\uae30\ud55c\ub2e4.",
+    "good": "\uac1c\uc778 \ud22c\uc790\uc790\uac00 \ubc14\ub85c \uc4f0\uac70\ub098 \uae30\uc5b5\ud560 \uac8c\uc2a4\ud2b8\uc758 \ubd84\uba85\ud558\uace0 \uad6c\uccb4\uc801\uc778 \ub2f5: \uacfc\uac10\ud55c \uc804\ub9dd(\"\uc5f0\ub9d0 \uac00\uba74 \uc804\uace0\uc810 \ub3cc\uc544\uc628\ub2e4\"), \ub180\ub77c\uc6b4 \uc22b\uc790(\uc2e4\uc801, \ubaa9\ud45c\uac00, \ud37c\uc13c\ud2b8), \uc2dc\uc7a5\uc774 \uc6c0\uc9c1\uc778 \uc774\uc720, \ubb34\uc5c7\uc744 \uc0ac\uace0 \ub4e4\uace0 \ud53c\ud560\uc9c0\uc640 \uadf8 \uc774\uc720, \ud754\ud55c \uc2e4\uc218\uc5d0 \ub300\ud55c \uacbd\uace0. \ubc14\ub85c \ub2f5\uc774 \uc774\uc5b4\uc9c0\uba74 \uc9c4\ud589\uc790\uc758 \uc9e7\uc740 \uc9c8\ubb38\uc73c\ub85c \uc2dc\uc791\ud574\ub3c4 \uc88b\ub2e4.",
+    "bad": "\uc778\uc0ac\uc640 \uac8c\uc2a4\ud2b8 \uc18c\uac1c, \uc758\uacac \uc5c6\ub294 \uc2dc\ud669 \uc77d\uae30, \uad11\uace0\u00b7\ud611\ucc2c\u00b7\ud504\ub85c\uadf8\ub7a8 \uc548\ub0b4, \uccad\ucde8\uc790 \uc0ac\uc5f0, \uacb0\ub860 \uc5c6\ub294 \uc5bc\ubc84\ubb34\ub9bc, \ucc28\ud2b8\ub098 \uc55e \ub9e5\ub77d\uc774 \uc788\uc5b4\uc57c \uc774\ud574\ub418\ub294 \uad6c\uac04, \ud074\ub85c\uc9d5.",
+    "lengthGuide": "50-100\ucd08 (\uae38\uc5b4\ub3c4 150\ucd08)",
+    "countGuide": "\uc6d0\ubcf8 5-8\ubd84\ub9c8\ub2e4 1\uac1c \uc815\ub3c4, \uc2dc\uc7a5 \uc9c8\ubb38 \ud558\ub098\ub2f9 \ud558\ub098. \uac8c\uc2a4\ud2b8\uac00 \ubd84\uba85\ud55c \ub2f5\uc744 \uc904 \ub54c\ub9cc \ub9cc\ub4e0\ub2e4.",
+    "rules": "\ud55c \ud074\ub9bd\uc5d0 \uc9c8\ubb38 \ud558\ub098\uc640 \uadf8 \ub2f5. \uc9c4\ud589\uc790\uc758 \uc9c8\ubb38\uc774\ub098 \ud63c\uc790 \ub4e4\uc5b4\ub3c4 \uc774\ud574\ub418\ub294 \uac8c\uc2a4\ud2b8\uc758 \uccab \ubb38\uc7a5\uc5d0\uc11c \uc2dc\uc791\ud574, \uac8c\uc2a4\ud2b8\uc758 \uacb0\ub860\uc744 \uc644\uacb0\ub41c \ubb38\uc7a5\uc73c\ub85c \ub05d\ub0b8\ub2e4. \uc6d0\ubcf8 \uad6c\uac04 1-3\uac1c\ub85c \uad6c\uc131\ud558\uace0 \uc5ec\ub2f4\uacfc \ubc18\ubcf5\uc740 \ube80\ub2e4. \ud074\ub9bd\ub07c\ub9ac \uad6c\uac04\uc774 \uacb9\uce58\uba74 \uc548 \ub41c\ub2e4.",
+    "headline": "\ucc44\ub110 \uc1fc\uce20\ucc98\ub7fc \ud55c\uad6d\uc5b4\ub85c \uc4f4\ub2e4. \ub178\ub780 \ud070 \ud5e4\ub4dc\ub77c\uc778 \ub450 \uc904\uc774 \ud55c \ubb38\uc7a5\uc73c\ub85c \uc774\uc5b4\uc9c4\ub2e4: headline1\uc774 \uccab \uc904, headline2\uac00 \ub458\uc9f8 \uc904. \ud22c\uc790\uc790\uc758 \uc9c8\ubb38\uc774\ub098 \uac8c\uc2a4\ud2b8\uc758 \uacfc\uac10\ud55c \uc8fc\uc7a5\uc744 \uac15\uc870 \ubd80\ud638(?, ??, !!!)\uc640 \uad6c\uccb4\uc801\uc778 \uc885\ubaa9\uba85\u00b7\uc22b\uc790\ub85c \uc4f4\ub2e4. \uac01 \uc904\uc740 \uacf5\ubc31 \ud3ec\ud568 12\uc790 \uc774\ub0b4, \uc790\uc5f0\uc2a4\ub7ec\uc6b4 \uacf3\uc5d0\uc11c \ub04a\ub294\ub2e4. \ucc44\ub110 \uc608\uc2dc: \"\uc77c\ubcf8 \uc8fc\uc2dd\" / \"\uc624\ub978 \uc774\uc720\ub294?\"; \"\uc911\uad6d \uc8fc\uc2dd \uc2dc\uc7a5,\" / \"\uc9c0\uae08 \ub4e4\uc5b4\uac00\ub3c4 \ub420\uae4c?\"; \"\ubb3c\uac00 \ub192\uc740\ub370,\" / \"\uc8fc\uc2dd \ub2e4 \ud314\uc544\uc694?\"; \"\uc624\ud508AI \ub9e4\ucd9c\uc740\" / \"\uc904\uc9c0 \uc54a\uc558\ub2e4!!!\"; \"\uc0bc\uc131\uc804\uc790 \uc601\uc5c5\uc775\" / \"106\uc870 \ub118\ub098?\"; \"\uc5f0\ub9d0 \uac00\uba74, \uc0bc\uc804-\ub2c9\uc2a4\" / \"\uc804\uace0\uc810 \ub3cc\uc544\uc628\ub2e4!\"."
+  },
+  "schemaVersion": 1
+}

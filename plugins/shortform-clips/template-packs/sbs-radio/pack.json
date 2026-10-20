@@ -15,7 +15,9 @@
     "templates/political-show.json",
     "templates/news-briefing.json",
     "templates/news-direct.json",
-    "templates/money-lab.json"
+    "templates/news-direct-shorts.json",
+    "templates/money-lab.json",
+    "templates/money-lab-shorts.json"
   ],
   "assets": [
     "assets/money-lab-background-image.jpg",
