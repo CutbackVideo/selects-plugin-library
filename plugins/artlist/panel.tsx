@@ -7,56 +7,10 @@ import React from 'react';
 
 const COPY = {
   en: {
-    disconnect: 'Disconnect', account: 'Account', options: 'More options', play: 'Play',
-    placeholder: 'Track, artist or mood',     connecting: 'Connecting…',
-    searching: 'Searching…', previewFailed: 'Could not play this track. Try another track.',     pause: 'Pause', position: 'Playback position', adding: 'Downloading and adding music…',
-    search: 'Search', clear: 'Clear search', clearFilters: 'Clear', query: 'Music search', more: 'Load more', empty: 'No tracks found.',
-    preview: 'Preview', add: 'Add to Draft', addAgain: 'Add again', loading: 'Loading music\u2026', failed: 'Could not load music. Try again.',
-    artlist_import_uncertain: 'Check project files before trying the import again.',
-    openTrack: 'Open in Artlist', connect: 'Connect Artlist', connected: 'Artlist connected', connectHint: 'Sign in on Artlist, then open your profile menu to finish connecting.', connectHintAuto: 'Sign in on Artlist to finish connecting.',
-    closeLibrary: 'Close save controls', savingLibrary: 'Saving…',     previousPage: 'Previous', nextPage: 'Next', pageLabel: 'Page', saveManage: 'Save', favoriteLabel: 'Favorite', unfavoriteLabel: 'Unfavorite', artlist_library_edit_uncertain: 'The change could not be verified. Refresh your library before trying again.',     library: 'Browse', favorites: 'Favorites', downloads: 'Downloads', refreshLibrary: 'Refresh list', emptyLibrary: 'No saved tracks here yet', libraryLimit: 'Showing the first 50 tracks.', artlist_library_unavailable: 'Could not load your Artlist library. Try again.', cancelDownloadLabel: 'Cancel download', refresh: 'Refresh account and plan', license: 'View license', licenseHint: 'Your Artlist plan determines how downloaded music can be used.',
-    append: 'Add at end',     music: 'Music', sfx: 'Sound effects', footage: 'Footage', cancel: 'Cancel login',
-        artlist_subscription_required: 'Your Artlist music subscription is required for original downloads.',
-    artlist_download_failed: 'Could not download this track. Try again.',
-    artlist_download_too_large: 'This file exceeds the 128 MB download limit.',
-    artlist_download_timeout: 'The download timed out. Check your connection and try again.',
-    artlist_download_canceled: 'Download canceled.',
-    artlist_track_unavailable: 'Search again to reload this track.',
-    artlist_preview_unavailable: 'Could not play this Artlist preview. Try again.',
-    artlist_update_required: 'Update Selects to connect Artlist.', artlist_sign_in_required: 'Sign in to Selects first.',
-    artlist_reconnect_required: 'Reconnect your Artlist account.', artlist_account_changed: 'Your account changed. Try again.',
-    artlist_setup_required: 'Artlist connection is not available in this build yet.',
-    artlist_connection_failed: 'Could not connect to Artlist. Try again.',
-    artlist_connection_canceled: 'Artlist login was canceled.', artlist_request_failed: 'Could not complete the Artlist request. Try again.',
-    artlist_catalog_unavailable: 'Artlist catalog search is unavailable for this connection.',
-    artlist_secure_storage_unavailable: 'Secure account storage is unavailable on this computer.',
-    artlist_storage_failed: 'Could not save your Artlist connection.', artlist_invalid_url: 'This Artlist link is invalid.',
+    disconnect: 'Disconnect', account: 'Account', options: 'More options', play: 'Play', placeholder: 'Track, artist or mood', connecting: 'Connecting…', searching: 'Searching…', previewFailed: 'Could not play this track. Try another track.', pause: 'Pause', position: 'Playback position', adding: 'Downloading and adding music…', search: 'Search', clear: 'Clear search', clearFilters: 'Clear', query: 'Music search', more: 'Load more', empty: 'No tracks found.', preview: 'Preview', add: 'Add to Draft', addAgain: 'Add again', loading: 'Loading music\u2026', failed: 'Could not load music. Try again.', artlist_import_uncertain: 'Check project files before trying the import again.', openTrack: 'Open in Artlist', connect: 'Connect Artlist', connected: 'Artlist connected', connectHint: 'Sign in on Artlist, then open your profile menu to finish connecting.', connectHintAuto: 'Sign in on Artlist to finish connecting.', closeLibrary: 'Close save controls', savingLibrary: 'Saving…', saveManage: 'Save', favoriteLabel: 'Favorite', unfavoriteLabel: 'Unfavorite', artlist_library_edit_uncertain: 'The change could not be verified. Refresh your library before trying again.', library: 'Browse', favorites: 'Favorites', downloads: 'Downloads', refreshLibrary: 'Refresh list', emptyLibrary: 'No saved tracks here yet', libraryLimit: 'Showing the first 50 tracks.', artlist_library_unavailable: 'Could not load your Artlist library. Try again.', cancelDownloadLabel: 'Cancel download', refresh: 'Refresh account and plan', license: 'View license', licenseHint: 'Your Artlist plan determines how downloaded music can be used.', append: 'Add at end', music: 'Music', sfx: 'Sound effects', footage: 'Footage', cancel: 'Cancel login', artlist_subscription_required: 'Your Artlist music subscription is required for original downloads.', artlist_download_failed: 'Could not download this track. Try again.', artlist_download_too_large: 'This file exceeds the 128 MB download limit.', artlist_download_timeout: 'The download timed out. Check your connection and try again.', artlist_download_canceled: 'Download canceled.', artlist_track_unavailable: 'Search again to reload this track.', artlist_preview_unavailable: 'Could not play this Artlist preview. Try again.', artlist_update_required: 'Update Selects to connect Artlist.', artlist_sign_in_required: 'Sign in to Selects first.', artlist_reconnect_required: 'Reconnect your Artlist account.', artlist_account_changed: 'Your account changed. Try again.', artlist_setup_required: 'Artlist connection is not available in this build yet.', artlist_connection_failed: 'Could not connect to Artlist. Try again.', artlist_connection_canceled: 'Artlist login was canceled.', artlist_request_failed: 'Could not complete the Artlist request. Try again.', artlist_catalog_unavailable: 'Artlist catalog search is unavailable for this connection.', artlist_secure_storage_unavailable: 'Secure account storage is unavailable on this computer.', artlist_storage_failed: 'Could not save your Artlist connection.', artlist_invalid_url: 'This Artlist link is invalid.',
   },
   ko: {
-    disconnect: '\uc5f0\uacb0 \ud574\uc81c', account: '\uacc4\uc815', options: '\ub354 \ubcf4\uae30', play: '\uc7ac\uc0dd',
-    placeholder: '\uace1, \uc544\ud2f0\uc2a4\ud2b8, \ubd84\uc704\uae30\ub85c \uac80\uc0c9',     connecting: '\uc5f0\uacb0 \uc911…',
-    searching: '\uac80\uc0c9 \uc911…', previewFailed: '\uc774 \uace1\uc744 \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\ub978 \uace1\uc744 \uc120\ud0dd\ud574 \uc8fc\uc138\uc694.',     pause: '\uc77c\uc2dc \uc815\uc9c0', position: '\uc7ac\uc0dd \uc704\uce58', adding: '\uc74c\uc545\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud558\uace0 \ucd94\uac00\ud558\ub294 \uc911…',
-    search: '\uac80\uc0c9', clear: '\uac80\uc0c9\uc5b4 \uc9c0\uc6b0\uae30', clearFilters: '\uc9c0\uc6b0\uae30', query: '\uc74c\uc545 \uac80\uc0c9', more: '\ub354 \ubcf4\uae30', empty: '\uac80\uc0c9\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694.',
-    preview: '\ubbf8\ub9ac\ub4e3\uae30', add: 'Draft\uc5d0 \ucd94\uac00', addAgain: '\ub2e4\uc2dc \ucd94\uac00', loading: '\uc74c\uc545 \ubd88\ub7ec\uc624\ub294 \uc911\u2026', failed: '\uc74c\uc545\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
-    artlist_import_uncertain: '\ub2e4\uc2dc \uac00\uc838\uc624\uae30 \uc804\uc5d0 \ud504\ub85c\uc81d\ud2b8 \ud30c\uc77c\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.',
-    openTrack: 'Artlist\uc5d0\uc11c \uc5f4\uae30', connect: 'Artlist \uc5f0\uacb0', connected: 'Artlist \uc5f0\uacb0\ub428', connectHint: 'Artlist\uc5d0\uc11c \ub85c\uadf8\uc778\ud55c \ub4a4 \uc624\ub978\ucabd \ud504\ub85c\ud544 \uba54\ub274\ub97c \uc5f4\uc5b4 \uc5f0\uacb0\uc744 \uc644\ub8cc\ud558\uc138\uc694.', connectHintAuto: 'Artlist\uc5d0 \ub85c\uadf8\uc778\ud558\uba74 \uc5f0\uacb0\uc774 \uc644\ub8cc\ub3fc\uc694.',
-    closeLibrary: '\uc800\uc7a5 \uad00\ub9ac \ub2eb\uae30', savingLibrary: '\uc800\uc7a5 \uc911…',     previousPage: '\uc774\uc804', nextPage: '\ub2e4\uc74c', pageLabel: '\ud398\uc774\uc9c0', saveManage: '\uc800\uc7a5 \uad00\ub9ac', favoriteLabel: '\ucc1c\ud558\uae30', unfavoriteLabel: '\ucc1c \ud574\uc81c', artlist_library_edit_uncertain: '\ubcc0\uacbd \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubcf4\uad00\ud568\uc744 \uc0c8\ub85c\uace0\uce68\ud55c \ub4a4 \ud655\uc778\ud574 \uc8fc\uc138\uc694.',     library: '\ubaa9\ub85d', favorites: '\ucc1c', downloads: '\ub2e4\uc6b4\ub85c\ub4dc', refreshLibrary: '\ubaa9\ub85d \uc0c8\ub85c\uace0\uce68', emptyLibrary: '\uc544\uc9c1 \uc800\uc7a5\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694', libraryLimit: '\ucc98\uc74c 50\uace1\uc744 \ud45c\uc2dc\ud558\uace0 \uc788\uc5b4\uc694.', artlist_library_unavailable: 'Artlist \ubcf4\uad00\ud568\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', cancelDownloadLabel: '\ub2e4\uc6b4\ub85c\ub4dc \ucde8\uc18c', refresh: '\uacc4\uc815·\uad6c\ub3c5 \uc0c8\ub85c\uace0\uce68', license: '\ub77c\uc774\uc120\uc2a4 \ubcf4\uae30', licenseHint: '\ub2e4\uc6b4\ub85c\ub4dc\ud55c \uc74c\uc545\uc758 \uc0ac\uc6a9 \ubc94\uc704\ub294 \ub0b4 Artlist \ud50c\ub79c\uc744 \ub530\ub985\ub2c8\ub2e4.',
-    append: '\ub05d\uc5d0 \ucd94\uac00',     music: '\uc74c\uc545', sfx: '\ud6a8\uacfc\uc74c', footage: '\uc601\uc0c1', cancel: '\ub85c\uadf8\uc778 \ucde8\uc18c',
-        artlist_subscription_required: '\uc6d0\uace1\uc744 \ucd94\uac00\ud558\ub824\uba74 Artlist \uc74c\uc545 \uad6c\ub3c5\uc774 \ud544\uc694\ud574\uc694.',
-    artlist_download_failed: '\uace1\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
-    artlist_download_too_large: '\uc774 \ud30c\uc77c\uc740 \ub2e4\uc6b4\ub85c\ub4dc \uc81c\ud55c\uc778 128MB\ub97c \ucd08\uacfc\ud574\uc694.',
-    artlist_download_timeout: '\ub2e4\uc6b4\ub85c\ub4dc \uc2dc\uac04\uc774 \ucd08\uacfc\ub410\uc5b4\uc694. \uc5f0\uacb0\uc744 \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
-    artlist_download_canceled: '\ub2e4\uc6b4\ub85c\ub4dc\ub97c \ucde8\uc18c\ud588\uc5b4\uc694.',
-    artlist_track_unavailable: '\ub2e4\uc2dc \uac80\uc0c9\ud574 \uace1\uc744 \ubd88\ub7ec\uc640 \uc8fc\uc138\uc694.',
-    artlist_preview_unavailable: 'Artlist \ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
-    artlist_update_required: 'Artlist\ub97c \uc5f0\uacb0\ud558\ub824\uba74 Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.', artlist_sign_in_required: 'Selects\uc5d0 \uba3c\uc800 \ub85c\uadf8\uc778\ud574 \uc8fc\uc138\uc694.',
-    artlist_reconnect_required: 'Artlist \uacc4\uc815\uc744 \ub2e4\uc2dc \uc5f0\uacb0\ud574 \uc8fc\uc138\uc694.', artlist_account_changed: '\uacc4\uc815\uc774 \ubc14\ub00c\uc5c8\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
-    artlist_setup_required: '\uc774 \ubc84\uc804\uc5d0\uc11c\ub294 \uc544\uc9c1 Artlist\uc5d0 \uc5f0\uacb0\ud560 \uc218 \uc5c6\uc5b4\uc694.',
-    artlist_connection_failed: 'Artlist\uc5d0 \uc5f0\uacb0\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
-    artlist_connection_canceled: 'Artlist \ub85c\uadf8\uc778\uc774 \ucde8\uc18c\ub410\uc5b4\uc694.', artlist_request_failed: 'Artlist \uc791\uc5c5\uc744 \uc644\ub8cc\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.',
-    artlist_catalog_unavailable: '\uc774 \uc5f0\uacb0\uc5d0\uc11c\ub294 Artlist \uc74c\uc545 \uac80\uc0c9\uc744 \uc0ac\uc6a9\ud560 \uc218 \uc5c6\uc5b4\uc694.',
-    artlist_secure_storage_unavailable: '\uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc548\uc804\ud55c \uacc4\uc815 \uc800\uc7a5\uc18c\ub97c \uc0ac\uc6a9\ud560 \uc218 \uc5c6\uc5b4\uc694.',
-    artlist_storage_failed: 'Artlist \uc5f0\uacb0\uc744 \uc800\uc7a5\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694.', artlist_invalid_url: 'Artlist \ub9c1\ud06c\uac00 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc544\uc694.',
+    disconnect: '\uc5f0\uacb0 \ud574\uc81c', account: '\uacc4\uc815', options: '\ub354 \ubcf4\uae30', play: '\uc7ac\uc0dd', placeholder: '\uace1, \uc544\ud2f0\uc2a4\ud2b8, \ubd84\uc704\uae30\ub85c \uac80\uc0c9', connecting: '\uc5f0\uacb0 \uc911…', searching: '\uac80\uc0c9 \uc911…', previewFailed: '\uc774 \uace1\uc744 \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\ub978 \uace1\uc744 \uc120\ud0dd\ud574 \uc8fc\uc138\uc694.', pause: '\uc77c\uc2dc \uc815\uc9c0', position: '\uc7ac\uc0dd \uc704\uce58', adding: '\uc74c\uc545\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud558\uace0 \ucd94\uac00\ud558\ub294 \uc911…', search: '\uac80\uc0c9', clear: '\uac80\uc0c9\uc5b4 \uc9c0\uc6b0\uae30', clearFilters: '\uc9c0\uc6b0\uae30', query: '\uc74c\uc545 \uac80\uc0c9', more: '\ub354 \ubcf4\uae30', empty: '\uac80\uc0c9\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694.', preview: '\ubbf8\ub9ac\ub4e3\uae30', add: 'Draft\uc5d0 \ucd94\uac00', addAgain: '\ub2e4\uc2dc \ucd94\uac00', loading: '\uc74c\uc545 \ubd88\ub7ec\uc624\ub294 \uc911\u2026', failed: '\uc74c\uc545\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', artlist_import_uncertain: '\ub2e4\uc2dc \uac00\uc838\uc624\uae30 \uc804\uc5d0 \ud504\ub85c\uc81d\ud2b8 \ud30c\uc77c\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.', openTrack: 'Artlist\uc5d0\uc11c \uc5f4\uae30', connect: 'Artlist \uc5f0\uacb0', connected: 'Artlist \uc5f0\uacb0\ub428', connectHint: 'Artlist\uc5d0\uc11c \ub85c\uadf8\uc778\ud55c \ub4a4 \uc624\ub978\ucabd \ud504\ub85c\ud544 \uba54\ub274\ub97c \uc5f4\uc5b4 \uc5f0\uacb0\uc744 \uc644\ub8cc\ud558\uc138\uc694.', connectHintAuto: 'Artlist\uc5d0 \ub85c\uadf8\uc778\ud558\uba74 \uc5f0\uacb0\uc774 \uc644\ub8cc\ub3fc\uc694.', closeLibrary: '\uc800\uc7a5 \uad00\ub9ac \ub2eb\uae30', savingLibrary: '\uc800\uc7a5 \uc911…', saveManage: '\uc800\uc7a5 \uad00\ub9ac', favoriteLabel: '\ucc1c\ud558\uae30', unfavoriteLabel: '\ucc1c \ud574\uc81c', artlist_library_edit_uncertain: '\ubcc0\uacbd \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ubcf4\uad00\ud568\uc744 \uc0c8\ub85c\uace0\uce68\ud55c \ub4a4 \ud655\uc778\ud574 \uc8fc\uc138\uc694.', library: '\ubaa9\ub85d', favorites: '\ucc1c', downloads: '\ub2e4\uc6b4\ub85c\ub4dc', refreshLibrary: '\ubaa9\ub85d \uc0c8\ub85c\uace0\uce68', emptyLibrary: '\uc544\uc9c1 \uc800\uc7a5\ub41c \uace1\uc774 \uc5c6\uc5b4\uc694', libraryLimit: '\ucc98\uc74c 50\uace1\uc744 \ud45c\uc2dc\ud558\uace0 \uc788\uc5b4\uc694.', artlist_library_unavailable: 'Artlist \ubcf4\uad00\ud568\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', cancelDownloadLabel: '\ub2e4\uc6b4\ub85c\ub4dc \ucde8\uc18c', refresh: '\uacc4\uc815·\uad6c\ub3c5 \uc0c8\ub85c\uace0\uce68', license: '\ub77c\uc774\uc120\uc2a4 \ubcf4\uae30', licenseHint: '\ub2e4\uc6b4\ub85c\ub4dc\ud55c \uc74c\uc545\uc758 \uc0ac\uc6a9 \ubc94\uc704\ub294 \ub0b4 Artlist \ud50c\ub79c\uc744 \ub530\ub985\ub2c8\ub2e4.', append: '\ub05d\uc5d0 \ucd94\uac00', music: '\uc74c\uc545', sfx: '\ud6a8\uacfc\uc74c', footage: '\uc601\uc0c1', cancel: '\ub85c\uadf8\uc778 \ucde8\uc18c', artlist_subscription_required: '\uc6d0\uace1\uc744 \ucd94\uac00\ud558\ub824\uba74 Artlist \uc74c\uc545 \uad6c\ub3c5\uc774 \ud544\uc694\ud574\uc694.', artlist_download_failed: '\uace1\uc744 \ub2e4\uc6b4\ub85c\ub4dc\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', artlist_download_too_large: '\uc774 \ud30c\uc77c\uc740 \ub2e4\uc6b4\ub85c\ub4dc \uc81c\ud55c\uc778 128MB\ub97c \ucd08\uacfc\ud574\uc694.', artlist_download_timeout: '\ub2e4\uc6b4\ub85c\ub4dc \uc2dc\uac04\uc774 \ucd08\uacfc\ub410\uc5b4\uc694. \uc5f0\uacb0\uc744 \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', artlist_download_canceled: '\ub2e4\uc6b4\ub85c\ub4dc\ub97c \ucde8\uc18c\ud588\uc5b4\uc694.', artlist_track_unavailable: '\ub2e4\uc2dc \uac80\uc0c9\ud574 \uace1\uc744 \ubd88\ub7ec\uc640 \uc8fc\uc138\uc694.', artlist_preview_unavailable: 'Artlist \ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', artlist_update_required: 'Artlist\ub97c \uc5f0\uacb0\ud558\ub824\uba74 Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.', artlist_sign_in_required: 'Selects\uc5d0 \uba3c\uc800 \ub85c\uadf8\uc778\ud574 \uc8fc\uc138\uc694.', artlist_reconnect_required: 'Artlist \uacc4\uc815\uc744 \ub2e4\uc2dc \uc5f0\uacb0\ud574 \uc8fc\uc138\uc694.', artlist_account_changed: '\uacc4\uc815\uc774 \ubc14\ub00c\uc5c8\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', artlist_setup_required: '\uc774 \ubc84\uc804\uc5d0\uc11c\ub294 \uc544\uc9c1 Artlist\uc5d0 \uc5f0\uacb0\ud560 \uc218 \uc5c6\uc5b4\uc694.', artlist_connection_failed: 'Artlist\uc5d0 \uc5f0\uacb0\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', artlist_connection_canceled: 'Artlist \ub85c\uadf8\uc778\uc774 \ucde8\uc18c\ub410\uc5b4\uc694.', artlist_request_failed: 'Artlist \uc791\uc5c5\uc744 \uc644\ub8cc\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.', artlist_catalog_unavailable: '\uc774 \uc5f0\uacb0\uc5d0\uc11c\ub294 Artlist \uc74c\uc545 \uac80\uc0c9\uc744 \uc0ac\uc6a9\ud560 \uc218 \uc5c6\uc5b4\uc694.', artlist_secure_storage_unavailable: '\uc774 \ucef4\ud4e8\ud130\uc5d0\uc11c \uc548\uc804\ud55c \uacc4\uc815 \uc800\uc7a5\uc18c\ub97c \uc0ac\uc6a9\ud560 \uc218 \uc5c6\uc5b4\uc694.', artlist_storage_failed: 'Artlist \uc5f0\uacb0\uc744 \uc800\uc7a5\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694.', artlist_invalid_url: 'Artlist \ub9c1\ud06c\uac00 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc544\uc694.',
   },
 };
 const ERROR_CODES = Object.keys(COPY.en).filter(key => key.startsWith('artlist_'));
@@ -205,7 +159,7 @@ const STYLES = `
   .music-loading svg { animation: music-spin 1s linear infinite; }
   .music-empty { padding: 40px 0; text-align: center; }
   .music-empty p { margin: 4px 0 0; }
-  .music-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+  .music-more { display: flex; justify-content: center; margin-top: 4px; }
   .music-editor { flex-shrink: 0; max-height: 36dvh; overflow-y: auto; border-top: 1px solid var(--panel-border); margin: 0 calc(-1 * var(--panel-pad-right)) 0 calc(-1 * var(--panel-pad-left)); padding: 8px var(--panel-pad-right) 0 var(--panel-pad-left); }
   .music-player { flex-shrink: 0; border-top: 1px solid var(--panel-border); margin: 0 calc(-1 * var(--panel-pad-right)) 0 calc(-1 * var(--panel-pad-left)); padding: 12px var(--panel-pad-right) 0 var(--panel-pad-left); }
   .music-wave { position: relative; height: 28px; width: 100%; cursor: pointer; touch-action: none; outline: none; }
@@ -362,13 +316,12 @@ export default function Panel({ sdk, context, ui }) {
   const T = { ...COPY.en, ...(COPY[context.language] || {}) };
   // Sound effects go at the end of the Draft; music fits the picture.
   const addLabel = row => row.kind === 'sfx' ? T.append : T.add;
-  const key = JSON.stringify([context.projectId, context.sequenceId, tab, pageNumber]);
+  const key = JSON.stringify([context.projectId, context.sequenceId, tab]);
   const scope = React.useRef({ key, mounted: true });
   if (scope.current.key !== key) scope.current = { key, mounted: true };
   const [connection, setConnection] = React.useState(null);
   const [term, setTerm] = React.useState('');
   const [rows, setRows] = React.useState([]);
-  const [cursor, setCursor] = React.useState(null);
   const [pending, setPending] = React.useState(null);
   const [message, setMessage] = React.useState('');
   const [failed, setFailed] = React.useState(false);
@@ -418,7 +371,7 @@ export default function Panel({ sdk, context, ui }) {
     const next = await script(`return await selects.artlist.status();`, false, captured);
     captured.connecting = !!next.connecting;
     if (!next.connected || (account.current && account.current !== next.accountSession)) {
-      setRows([]); setAudio(null); setPlaying(false); setCursor(null); setSearchedTerm(''); setAdded([]); setDragAdding(null); setMessage(''); setPageNumber(1); setHasMore(false); setEditTrack(null);
+      setRows([]); setAudio(null); setPlaying(false); setSearchedTerm(''); setAdded([]); setDragAdding(null); setMessage(''); setPageNumber(1); setHasMore(false); setEditTrack(null);
     }
     account.current = next.accountSession;
     setConnection(next);
@@ -454,46 +407,55 @@ export default function Panel({ sdk, context, ui }) {
     lock.current = true; setPending({ kind, trackId }); setMessage(''); setFailed(false);
     try { await callback(captured); }
     catch (error) { if (scope.current === captured && captured.mounted) {
-      if (/^artlist_(sign_in_required|account_changed|reconnect_required)$/.test(error.message)) { account.current = null; setConnection({connected: false, connecting: false, accountSession: ''}); setRows([]); setAudio(null); setCursor(null); }
+      if (/^artlist_(sign_in_required|account_changed|reconnect_required)$/.test(error.message)) { account.current = null; setConnection({connected: false, connecting: false, accountSession: ''}); setRows([]); setAudio(null); }
       setFailed(error.message !== 'artlist_download_canceled'); setMessage(T[error.message] || T.failed);
     } }
     finally { if (scope.current === captured && captured.mounted) { lock.current = false; setPending(null); } }
   }
-  async function load(after, captured, query = term, categoryIds = pickedIds(filters)) {
+  // The list's first page, or with `more` the next one after what is shown,
+  // added under it. Every list pages the same way: Load more at its end
+  // while Artlist says more follow.
+  async function load(more, captured, query = term, categoryIds = pickedIds(filters)) {
     const previousAccount = account.current;
     const identity = await status(captured);
-    if (after && identity.accountSession !== previousAccount) throw new Error('artlist_account_changed');
+    if (more && identity.accountSession !== previousAccount) throw new Error('artlist_account_changed');
     if (!identity.connected) throw new Error('artlist_reconnect_required');
+    const page = more ? pageNumber + 1 : 1;
+    const show = (items, next) => {
+      setRows(previous => more ? [...previous, ...items] : items);
+      setPageNumber(page); setHasMore(!!next); setSearchedTerm(query);
+    };
+    // A page number goes only to a host that pages; an older one has the first.
+    const at = identity.morePages ? ', ' + page : '';
     if (view === 'footage') {
       if (!identity.footage) throw new Error('artlist_update_required');
-      const result = await script(`return await selects.artlist.footage(${JSON.stringify(query === BROWSE_QUERY ? '' : query)});`, false, captured);
-      setRows(result.clips.map(clip => ({ ...clip, kind: 'footage', mainArtists: clip.filmmaker ? [clip.filmmaker] : [], bpm: 0 })));
-      setCursor(null); setSearchedTerm(query); return;
+      const result = await script(`return await selects.artlist.footage(${JSON.stringify(query === BROWSE_QUERY ? '' : query)}${at});`, false, captured);
+      show(result.clips.map(clip => ({ ...clip, kind: 'footage', mainArtists: clip.filmmaker ? [clip.filmmaker] : [], bpm: 0 })), result.hasMore);
+      return;
     }
     if (view !== 'search') {
       if (!identity.library) throw new Error('artlist_update_required');
-      const collectionId = view;
       // Artlist keeps music and sound effects apart; a page here is a page of each.
       const pages = [];
       for (const each of ['music', 'sfx']) {
-        const query = identity.libraryPages
-          ? `return await selects.artlist.collectionPage(${JSON.stringify(collectionId)}, ${JSON.stringify(each)}, ${pageNumber});`
-          : `return await selects.artlist.collectionTracks(${JSON.stringify(collectionId)}, ${JSON.stringify(each)});`;
-        const result = await script(query, false, captured);
+        const read = identity.libraryPages
+          ? `return await selects.artlist.collectionPage(${JSON.stringify(view)}, ${JSON.stringify(each)}, ${page});`
+          : `return await selects.artlist.collectionTracks(${JSON.stringify(view)}, ${JSON.stringify(each)});`;
+        const result = await script(read, false, captured);
         pages.push({ ...result, tracks: result.tracks.map(track => ({ ...track, kind: each })) });
         // Music shows as soon as it comes; sound effects join it after.
-        setRows(pages.flatMap(page => page.tracks));
+        if (each === 'music') setRows(previous => more ? [...previous, ...pages[0].tracks] : pages[0].tracks);
       }
-      setHasMore(pages.some(page => page.hasMore)); setCursor(null); setSearchedTerm(collectionId); return;
+      setRows(previous => more ? [...previous, ...pages[1].tracks] : pages.flatMap(each => each.tracks));
+      setPageNumber(page); setHasMore(pages.some(each => each.hasMore)); setSearchedTerm(view);
+      return;
     }
     // Filters alone list the catalog within them; browsing has its own term.
     const narrowed = identity.categories && categoryIds.length > 0;
     const searchTerm = narrowed && query === BROWSE_QUERY ? '' : query;
-    const result = await script(`return await selects.artlist.search(${JSON.stringify(searchTerm)}, ${JSON.stringify(kind)}${narrowed ? ', ' + JSON.stringify(categoryIds) : ''});`, false, captured);
-    const tracks = result.tracks.map(track => ({ ...track, kind }));
-    setRows(previous => after ? [...previous, ...tracks] : tracks);
-    setCursor(result.cursor ?? null);
-    setSearchedTerm(query);
+    const ids = narrowed ? JSON.stringify(categoryIds) : identity.morePages ? 'undefined' : '';
+    const result = await script(`return await selects.artlist.search(${JSON.stringify(searchTerm)}, ${JSON.stringify(kind)}${ids ? ', ' + ids : ''}${at});`, false, captured);
+    show(result.tracks.map(track => ({ ...track, kind })), result.hasMore);
   }
   React.useEffect(() => {
     if (preferencesReady && connection?.connected && !busy && !rows.length && !searchedTerm && !message) {
@@ -550,9 +512,6 @@ export default function Panel({ sdk, context, ui }) {
       if (captured === scope.current && captured.mounted) { setFailed(true); setMessage(T[error.message] || T.failed); }
     } finally { if (captured === scope.current && captured.mounted) setCanceling(false); }
   }
-  function changePage(page) {
-    setPageNumber(page); setRows([]); setAudio(null); setEditTrack(null); setSearchedTerm(''); setMessage(''); setHasMore(false);
-  }
   function editFavorite(track = editTrack) {
     action(async captured => {
       const result = await script(`return await selects.artlist.setFavorite(${JSON.stringify(track.id)}, ${!track.favorited}, ${JSON.stringify(account.current)});`, true, captured);
@@ -589,7 +548,7 @@ export default function Panel({ sdk, context, ui }) {
   }
   function changeLibrary(value) {
     if (value === 'footage' ? !connection?.footage : !connection?.library && value !== 'music' && value !== 'sfx') { setFailed(true); setMessage(T.artlist_update_required); return; }
-    setTab(value); setPageNumber(1); setHasMore(false); setEditTrack(null); setRows([]); setAudio(null); setCursor(null); setSearchedTerm(''); setMessage(''); setTerm('');
+    setTab(value); setPageNumber(1); setHasMore(false); setEditTrack(null); setRows([]); setAudio(null); setSearchedTerm(''); setMessage(''); setTerm('');
   }
   function pickedIds(next) {
     return Object.values(next[kind] || {}).flat().map(Number);
@@ -675,8 +634,7 @@ export default function Panel({ sdk, context, ui }) {
           {ui.version >= 2 && ui.MediaTile ? <ui.MediaTile label={(adding === row.id ? T.adding : active && playing ? T.pause : T.preview) + ': ' + row.title}
             disabled={busy} onClick={() => preview(row)}
             dragData={ui.version >= 3 && context.projectId && account.current ? {
-              type: 'application/x-selects-artlist-music',
-              data: JSON.stringify({ provider: 'artlist', trackId: row.id, accountSession: account.current }),
+              type: 'application/x-selects-artlist-music', data: JSON.stringify({ provider: 'artlist', trackId: row.id, accountSession: account.current }),
             } : undefined}>
             <MusicCover url={row.coverArtUrl} ui={ui} />
             <PlayMark busy={pending?.kind === 'preview' && pending.trackId === row.id} adding={adding === row.id} active={active} playing={playing} ui={ui} />
@@ -716,7 +674,7 @@ export default function Panel({ sdk, context, ui }) {
   const openLicense = () => action(captured => script('return await selects.artlist.openTrack("https://artlist.io/help-center/privacy-terms/artlist-license/");', true, captured), 'open');
   const disconnect = () => action(async captured => {
     await script('return await selects.artlist.disconnect();', true, captured);
-    setRows([]); setAudio(null); setCursor(null); setManage(false); await status(captured);
+    setRows([]); setAudio(null); setManage(false); await status(captured);
   }, 'disconnect');
   return <div className="music-panel">
     <style>{STYLES}</style>
@@ -800,13 +758,9 @@ export default function Panel({ sdk, context, ui }) {
               disabled: busy && adding !== row.id,
             }))} />
           : <ul className="music-rows">{rows.map(row => row.kind === 'footage' ? clip(row) : track(row))}</ul>)}
-        {view !== 'search' && (pageNumber > 1 || hasMore) && <div className="music-pager">
-          <ui.Button variant="ghost" disabled={busy || pageNumber === 1} onClick={() => changePage(pageNumber - 1)}>{T.previousPage}</ui.Button>
-          <small>{T.pageLabel} {pageNumber}</small>
-          <ui.Button variant="ghost" disabled={busy || !hasMore} onClick={() => changePage(pageNumber + 1)}>{T.nextPage}</ui.Button>
-        </div>}
-        {view !== 'search' && !connection.libraryPages && rows.length === 50 && <small>{T.libraryLimit}</small>}
-        {cursor && <ui.Button variant="ghost" busy={pending?.kind === 'more'} busyLabel={T.loading} disabled={busy} onClick={() => action(captured => load(cursor, captured, searchedTerm), 'more')}>{T.more}</ui.Button>}
+        {view !== 'search' && view !== 'footage' && !connection.libraryPages && rows.length === 50 && <small>{T.libraryLimit}</small>}
+        {rows.length > 0 && hasMore && <div className="music-more"><ui.Button variant="ghost" busy={pending?.kind === 'more'} busyLabel={T.loading} disabled={busy}
+          onClick={() => action(captured => load(true, captured, searchedTerm), 'more')}>{T.more}</ui.Button></div>}
       </div>
       {editTrack && connection.libraryEdit && !ui.Menu && <div key={editTrack.id} className="music-editor">
         <ui.Section title={editTrack.title} actions={<ui.IconButton icon="close" label={T.closeLibrary} disabled={busy} onClick={() => setEditTrack(null)} />}>
