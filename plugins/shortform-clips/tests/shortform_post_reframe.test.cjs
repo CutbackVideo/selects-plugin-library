@@ -36,7 +36,7 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   const pickd={clips:[{name:'One',segments:[[1,5]]}]};
   const env={findRunDraftScript:()=>"LOOKUP",withoutRunSuffix:(name)=>name,ensureRunFolder:async()=>"run-folder",moveRunDrafts:async()=>{},forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
    STACKED_REFRAME_EFFECT:'effect',projectId:'p',S:{building:()=>'',reframing:'framing'},lang:'en',transform:{scale:1},buildLogo:'',SCRIPT_APPLY_REFRAME:'APPLY const P: any = __P__;',
-   RADIO_SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_BUILD:'',SCRIPT_LIMIT:1e7,RunCancelled:class extends Error{},
+   RADIO_SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_LIMIT:1e7,RunCancelled:class extends Error{},
    setStatus:()=>{},setSub:()=>{},setDrafts:()=>{},setWarn:()=>{},nameOf:()=>'',radioFrameParams:()=>({}),
    splitDate:()=>({}),withEpisodeDate:()=>({}),radioEditableFrame:()=>[],editableCaption:()=>[],
    persist:async patch=>{job={...job,...JSON.parse(JSON.stringify(patch))};events.push(['save',job.built[0]?.reframeState]);},

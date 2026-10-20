@@ -87,7 +87,7 @@ customer's defaults. Required sections:
 | Field | Meaning |
 | --- | --- |
 | `schemaVersion`, `id`, `version`, `names` | API version, stable local ID, positive integer revision, localized names |
-| `renderer` | `separate-headlines` for independent background/headline/logo graphics; `series` for a series frame with labels and optional speaker framing |
+| `platformLayouts` (optional) | Whether to expose separate Shorts/TikTok layouts; defaults to the presence of a variant in a new template |
 | `layout` | Video window, source crop, headline/logo positions, optional speaker framing |
 | `background`, `border`, `headline`, `logo` | Design settings; `image` values reference declared `assets/` files |
 | `captions` | Caption mode, position, typeface, size and emphasis |
@@ -96,7 +96,6 @@ customer's defaults. Required sections:
 | `prompt` | Role, format, good/bad clips, length/count guidance, rules and headlines |
 | `variants.tiktok` (optional) | Design overrides for the TikTok layout; base is the Shorts layout |
 | `labels` (optional) | Top/footer labels; footer can derive an episode date |
-| `framingMode` (optional) | Fixed single-speaker crop note |
 
 For a `series` template with `layout.reframe` enabled, the app checks each clip's
 picture once to choose the talker and the close-up width (see the app README), so a
@@ -123,3 +122,69 @@ of old template IDs to current IDs. It copies old saved templates on the first p
 install without modifying legacy files. The old app's full snapshots cannot identify
 which historical values were deliberate edits, so differences are preserved
 conservatively. No customer-specific migration IDs are hardcoded into the app.
+
+## Settings-based generation
+
+New templates do not need a `renderer` field. All templates use the same Draft
+builder and expose the same AI framing, title, caption, logo and label controls.
+Background, each title line, logo and enabled labels become separate editable
+motion graphics. Existing Drafts are not migrated.
+
+Legacy `series` and `separate-headlines` values are accepted only on input.
+The loader converts their implicit behavior into explicit settings and removes
+the tag from in-memory templates, duplicates, saved custom templates and shared
+files. Checked-in legacy packs remain readable without rewriting user files.
+Local overrides still merge over pack defaults; their identity and version remain
+pack-owned. Unknown legacy tags are rejected rather than silently changing a design.
+
+Independent settings include:
+
+- `headline.on`: show/hide titles (default true).
+- `headline.fontWeight`, `lineHeight`, `letterSpacing`: typography.
+- `headline.gap`: edge-to-edge line spacing; `rowGap` overrides it with fixed
+  center-to-center spacing. Set `rowGap` to null to return to content-based spacing.
+- `headline.strokeOn`, `strokeColor`, `strokeWidth`, `gradient1`, `gradient2`,
+  `shadow`, `shadowCss`: independently composable title decoration.
+- `headline.fitWidth`, `fitPadding`, `fitCjk`, `fitSpace`, `fitLatin`,
+  `fitWideLatin`, `fitOther`: deterministic text fit metrics. Legacy migration
+  records these values to preserve title size without a named renderer preset.
+- `background.canvasAligned`: align gradient coordinates to the full canvas
+  instead of restarting them inside each background band.
+- `captions.cleanSpeechText`: text-only caption omissions; never trims audio.
+- `captions.highlight`, `highlightColor`, `left`, `width`: emphasis and placement
+  supported together, regardless of template origin.
+- `labels.top` / `labels.footer`: optional text; default disabled. Each has its
+  own position, typography and on/off setting.
+- `layout.reframe` and the existing framing preferences: AI framing can be
+  enabled on every template. Migration never enables it implicitly.
+
+Layout overrides continue to use `variants.tiktok`. Single-layout templates with
+existing local TikTok overrides apply those overrides even if a previous template
+left the creation form set to Shorts. Editing a template with no variant updates
+its base design, rather than creating an implicit second layout.
+
+## Removed compatibility fields and rendering guarantees
+
+Input normalization drops disconnected controls from the base and TikTok variant:
+`layout.minShotSeconds`, `layout.closeUpMin`, `layout.splitHalves`, and
+`layout.reframeMode`. It also removes the obsolete `framingMode`, `sbsStyle`,
+`radioTemplate`, `logoArt`, `demoOverlay`, `headline.style` (after migrating legacy
+renderer typography), and `thumbnail.enabled`. Thumbnails are generated manually
+from result cards. The existing pack files need not be rewritten to load them;
+newly saved custom templates and shared files omit these values.
+
+`layout.cameraMode` is retained: its camera-preservation and split restrictions
+still have live consumers. It is not an unused compatibility field.
+
+Footer text, including automatically populated episode dates, carries its
+configured gradient, stroke, shadow, position, size, weight and title font into
+the separately editable footer graphic. Setting a label's `shadow` explicitly to
+false suppresses even a saved `shadowCss`. Boxed titles retain their gradient and
+other typography. `headline.strokeOn: false` or `strokeWidth: 0` renders no outline;
+there is no implicit colored-stroke fallback. Caption `left` is honored even when
+`width` is omitted, and a left position of zero remains zero.
+
+Regression coverage includes normalization and share/import round trips, emitted
+graphic parameters and rendered markup. Actual Selects frame comparisons verify
+boxed-title and footer gradients together. These checks validate setting delivery
+and rendering; AI editorial preferences still require judgment by the agent.
