@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "shortform-clips",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "templatePackInstall": 1,
   "name": "Shortform Clips",
   "summary": "Create editable vertical clips using separately installed template packs.",
@@ -11,7 +11,8 @@
   "files": [
     "README.md",
     "INSTALL.md",
-    "panel.tsx"
+    "panel.tsx",
+    "update.cjs"
   ],
   "compatibility": {
     "platforms": [
@@ -63,5 +64,8 @@
   },
   "requiresPlugins": [
     "selects-ai-runtime"
-  ]
+  ],
+  "updates": {
+    "protocol": 1
+  }
 }
