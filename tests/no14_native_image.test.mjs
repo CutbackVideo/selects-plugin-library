@@ -1,3 +1,4 @@
+import {fixture as authoringFixture} from './photo_authoring_fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -31,13 +32,13 @@ function finishInput(){
  return normalizeNativeFinish({mode:'native-finish',projectId:'project',draftId:'draft',photos:selected.map((p,i)=>({resourceId:p.resourceId,path:p.path,width:i%2?960:640,height:i%2?640:960})),placements:plan.occurrences.map((o,i)=>({key:o.key,slot:o.slot,appearance:o.appearance,clipId:20+i,trackId:o.appearance==='fullscreen'?`fullscreen-${i}`:`grid-${i}`,startFrame:o.startFrame,endFrame:o.endFrame})),decoration:{shape:'heart',color:'#ffffff'},framing:{'grid-A':{x:.25,y:.75}}});
 }
 
-test('the finish request sends the shared placement result in the shape native finish accepts',()=>{
+test('the finish request sends the shared placement result in the shape native finish accepts',async()=>{
  const placed=nativeScenePlan().occurrences.map((o,i)=>({...o,source:'ABCD'.indexOf(o.slot),clipId:20+i,trackId:`image-${i}`}));
- const expression=panelSource.match(/placements:(native\.placements[^\n]*?),decoration,/)?.[1];
- assert.ok(expression,'createNo14Draft builds its finish request from native.placements');
- const placements=new Function('native','return '+expression)({placements:placed});
  assert.throws(()=>normalizeNativeFinish({...finishInput(),mode:'native-finish',placements:placed}),/Invalid Image placement/);
- assert.equal(normalizeNativeFinish({...finishInput(),mode:'native-finish',placements}).placements.length,8);
+ const f=authoringFixture('no14-still-video'),result=await f.create();
+ assert.equal(result.status,'saved');assert.equal(result.clips.length,8);
+ assert.equal(f.commits.length,1);
+ assert.deepEqual(Array.from(result.clips,c=>[c.startFrame,c.endFrame]),nativeScenePlan().occurrences.map(c=>[c.startFrame,c.endFrame]));
 });
 
 test('serialized finish plans expose the overlap used by every fullscreen crossfade',()=>{

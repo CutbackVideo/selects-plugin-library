@@ -21,6 +21,14 @@
       "compatibilityTargets": [
         "plugins/cutout-beat-gallery/panel.tsx"
       ]
+    },
+    {
+      "id": "native-image-authoring",
+      "source": "shared/native-image-authoring.js",
+      "targets": [
+        "plugins/no14-still-video/panel.tsx",
+        "plugins/camera-shutter-dump/panel.tsx"
+      ]
     }
   ]
 }
