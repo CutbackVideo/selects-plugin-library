@@ -13,6 +13,51 @@
 // Build a beat-timed, editable recap Draft from footage in the current project.
 import React from "react";
 
+// media-duration:start
+// Source-media seconds only: never derive these from a Draft's frame rate.
+// Zero, missing, non-numeric and non-finite values are unknown, not short clips.
+// This pure function is also serialized into read-only run_script queries.
+function mediaDurationFact(resourceSeconds = null, treeSeconds = null) {
+  if (typeof resourceSeconds === "number" && Number.isFinite(resourceSeconds) && resourceSeconds > 0) {
+    return { durationSeconds: resourceSeconds, durationSource: "resource" };
+  }
+  if (typeof treeSeconds === "number" && Number.isFinite(treeSeconds) && treeSeconds > 0) {
+    return { durationSeconds: treeSeconds, durationSource: "source-tree" };
+  }
+  return { durationSeconds: null, durationSource: "unknown" };
+}
+
+// Keep each row's identity, name and path together; do not mutate caller snapshots.
+// The caller supplies its existing read-only host probe, not an import or analysis.
+async function resolveMediaDurations(rows, probeSeconds) {
+  const resolved = [];
+  for (const row of rows) {
+    let fact = mediaDurationFact(row.durationSeconds);
+    if (fact.durationSeconds !== null) {
+      fact.durationSource = row.durationSource || "provided";
+    } else if (row.path) {
+      try {
+        const seconds = await probeSeconds(row.path);
+        if (typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0) {
+          fact = { durationSeconds: seconds, durationSource: "probe" };
+        }
+      } catch { /* A failed observation remains unknown. */ }
+    }
+    resolved.push({ ...row, ...fact });
+  }
+  return resolved;
+}
+
+function requireMediaDurations(rows) {
+  const unknown = rows.find(row => mediaDurationFact(row.durationSeconds).durationSeconds === null);
+  if (unknown) {
+    throw Object.assign(new Error(`Could not read the duration of ${unknown.name || "a picked video"}. Try again.`), {
+      code: "media-duration-unknown", resourceId: unknown.resourceId,
+    });
+  }
+}
+// media-duration:end
+
 // panel-storage:start
 // Keep writes ordered even across a panel remount; failed writes remain visible to callers.
 const panelStorageClients = new WeakMap();
@@ -523,14 +568,13 @@ async function buildRecap(sdk,{projectId,slots,byId,intro,mode,onProgress=(_coun
 
 // The length the Resource itself reports (the source-file tree keeps the length from when the tree was built,
 // which can be missing or 0), keyed by script resource id. Prepended to a script that reads `dur`.
-const RESOURCE_SECONDS = "const res=await p.resources();const dur={};for(const x of res)dur[x.resourceId]=x.durationSeconds;";
+const RESOURCE_SECONDS = mediaDurationFact.toString() + ";const res=await p.resources();const dur={};for(const x of res)dur[x.resourceId]=x.durationSeconds;";
 // Return only the picked videos across the script boundary, including Resources missing from the tree.
 const selectedVideosScript = (projectId, resourceIds) => core({projectId,resourceIds}) + RESOURCE_SECONDS +
-  "const items=[];const walk=(nodes)=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.type==='video'&&n.resourceId)items.push({resourceId:n.resourceId,name:n.name,path:n.path,durationSeconds:dur[n.resourceId]||n.durationSeconds,frameSize:n.frameSize});}};const r=await p.sourceFiles();if('fileTree' in r)walk(r.fileTree);else for(const f of r.folders){const page=await p.sourceFiles({folder:f.name});if('fileTree' in page)walk(page.fileTree);}const seen=new Set(items.map(x=>x.resourceId));for(const x of res)if(String(x.type).toLowerCase()==='video'&&!seen.has(x.resourceId))items.push({resourceId:x.resourceId,name:x.name,path:null,durationSeconds:x.durationSeconds});return items.filter(x=>cfg.resourceIds.includes(x.resourceId));";
+  "const items=[];const walk=(nodes)=>{for(const n of nodes||[]){if(n.type==='dir')walk(n.children);else if(n.type==='video'&&n.resourceId)items.push({resourceId:n.resourceId,name:n.name,path:n.path,...mediaDurationFact(dur[n.resourceId],n.durationSeconds),frameSize:n.frameSize});}};const r=await p.sourceFiles();if('fileTree' in r)walk(r.fileTree);else for(const f of r.folders){const page=await p.sourceFiles({folder:f.name});if('fileTree' in page)walk(page.fileTree);}const seen=new Set(items.map(x=>x.resourceId));for(const x of res)if(String(x.type).toLowerCase()==='video'&&!seen.has(x.resourceId))items.push({resourceId:x.resourceId,name:x.name,path:null,...mediaDurationFact(x.durationSeconds)});return items.filter(x=>cfg.resourceIds.includes(x.resourceId));";
 // A clip with no length yet is measured with the host's ffprobe (av-host hostProbeSeconds) when it has a path.
 async function withDurations(list) {
-  for (const v of list) if (!(v.durationSeconds > 0) && v.path) v.durationSeconds = (await hostProbeSeconds(v.path)) || 0;
-  return list;
+  return resolveMediaDurations(list, hostProbeSeconds);
 }
 
 const TEMPLATE_FAILED = "2026 Recap couldn't make the timeline. Try again.";
@@ -574,12 +618,13 @@ function TemplateRun({ sdk, context }) {
       if (!introPick || !clipPicks.length) throw new Error("Pick an intro and at least one clip, then try again.");
       const ids = await scriptResourceIds(sdk, projectId, [introPick, ...clipPicks].map(x => x.resourceId));
       const own = (id) => ids.get(id) ?? id;
-      const found = scriptResult(await sdk.runScript({ script: selectedVideosScript(projectId, [...ids.values()]), summary: "Read footage" }));
+      const found = await withDurations(scriptResult(await sdk.runScript({ script: selectedVideosScript(projectId, [...ids.values()]), summary: "Read footage" })));
       const byId = Object.fromEntries(found.map((v) => [v.resourceId, v]));
       const introVideo = byId[own(introPick.resourceId)];
       const videos = clipPicks.map((x) => byId[own(x.resourceId)]);
-      await withDurations([introVideo, ...videos].filter(Boolean));
       if (!introVideo) throw new Error("The picked intro clip could not be read. Try again.");
+      if (videos.some(video => !video)) throw new Error("A picked clip could not be read. Try again.");
+      requireMediaDurations([introVideo, ...videos]);
       setStatus("Listening to the song\u2026");
       const plan = await readPlan(sdk);
       const introNeed = Math.ceil((plan.introEnd + 0.3) * 10) / 10;
@@ -663,7 +708,7 @@ function RecapPanel({ sdk, context, ui }) {
     setMessage(t.loading);setError("");setGalleryPage(0);
     setThumbnails({});thumbnailCache.current={};
     const script = core({projectId,folders:folders.map((x)=>x.name)}) + RESOURCE_SECONDS +
-      "const out=[];for(const name of cfg.folders){const r=await p.sourceFiles({folder:name});if(!('fileTree' in r))throw Error('Footage folder returned a summary');for(const x of r.fileTree){if(x.type!=='video')continue;const d=dur[x.resourceId]||x.durationSeconds;if(d>=1.7||!(d>0))out.push({resourceId:x.resourceId,name:x.name,path:x.path,durationSeconds:d,frameSize:x.frameSize,folderName:name});}}return out;";
+      "const out=[];for(const name of cfg.folders){const r=await p.sourceFiles({folder:name});if(!('fileTree' in r))throw Error('Footage folder returned a summary');for(const x of r.fileTree){if(x.type!=='video')continue;const fact=mediaDurationFact(dur[x.resourceId],x.durationSeconds);if(fact.durationSeconds===null||fact.durationSeconds>=1.7)out.push({resourceId:x.resourceId,name:x.name,path:x.path,...fact,frameSize:x.frameSize,folderName:name});}}return out;";
     readMediaPages(sdk,{script,summary:"Read footage folders"}).then((r) => withDurations(scriptResult(r))).then(async (list) => {
       if (!live) return;
       const found = [...new Map(list.filter((v)=>v.durationSeconds>=1.7).map((v)=>[v.resourceId,v])).values()].sort((a,b) => a.name.localeCompare(b.name));

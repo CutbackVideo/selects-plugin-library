@@ -31,6 +31,10 @@ only those are used; otherwise every eligible video is used.
 
 Both modes take the middle of each source clip, trimmed to the length of its cut.
 
+Length checks prefer the current Resource duration, then a valid source-file tree value,
+then the host's media probe. A missing or unreadable duration is reported separately from
+a clip that is actually shorter than 1.3 seconds, before cropping or importing media.
+
 ## Scope and media
 
 The folder list shows only footage imported into the **currently open project**. To use footage

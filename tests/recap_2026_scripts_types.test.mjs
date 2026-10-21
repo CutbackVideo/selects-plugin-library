@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {loadPanelFunctions} from './windows_host.mjs';
 
 const panel = process.env.RECAP_2026_PANEL || path.resolve(import.meta.dirname, '../plugins/recap-2026/panel.tsx');
 const sdk = [process.env.RECAP_SDK_TYPES, path.join(os.homedir(), '.selects', 'resources', 'sdk'), path.join(os.homedir(), '.selects-staging', 'resources', 'sdk')]
@@ -33,7 +34,7 @@ const literal = (src, after) => {
 
 test('footage scripts type-check against the Selects SDK', {skip: !sdk || !tsc ? 'no SDK typings or TypeScript' : false}, () => {
   const src = fs.readFileSync(panel, 'utf8');
-  const resources = literal(src, 'const RESOURCE_SECONDS = ');
+  const resources = loadPanelFunctions(src, ['RESOURCE_SECONDS']).RESOURCE_SECONDS;
   const bodies = {
     selectedVideos: literal(src, 'const selectedVideosScript = (projectId, resourceIds) => core({projectId,resourceIds}) + RESOURCE_SECONDS +'),
     folders: literal(src, 'const script = core({projectId,folders:folders.map((x)=>x.name)}) + RESOURCE_SECONDS +'),
