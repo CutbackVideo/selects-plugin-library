@@ -1,0 +1,57 @@
+{
+  "overrides": {
+    "heukbaek": {
+      "headline": {
+        "font": "SDGyeokdongG206Hv",
+        "size1": 74,
+        "size2": 74,
+        "fontWeight": 400,
+        "letterSpacing": -1.48
+      },
+      "captions": {
+        "font": "SDGyeokdongG204Rg",
+        "fontSize": 75,
+        "fontWeight": 400
+      }
+    },
+    "panilgi": {
+      "headline": {
+        "font": "SDGyeokdongG206Hv",
+        "size1": 75.04,
+        "size2": 75.3828564453125,
+        "fontWeight": 400,
+        "strokeWidth": 4.48,
+        "strokeColor": "#000000"
+      },
+      "captions": {
+        "font": "TTOmniGothicM",
+        "fontSize": 55.71999740600586,
+        "fontWeight": 400
+      }
+    },
+    "history": {
+      "headline": {
+        "font": "SDGdMyeongjo",
+        "size1": 100,
+        "size2": 100,
+        "fontWeight": 400,
+        "strokeOn": false
+      }
+    },
+    "villain": {
+      "headline": {
+        "font": "ROKAF-Slab-Serif-Bold",
+        "size1": 100,
+        "size2": 100,
+        "fontWeight": 400,
+        "strokeOn": false
+      }
+    },
+    "money": {
+      "headline": {
+        "font": "ROKAF Sans Bold",
+        "fontWeight": 400
+      }
+    }
+  }
+}
