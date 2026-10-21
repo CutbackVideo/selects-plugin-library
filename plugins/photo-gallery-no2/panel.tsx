@@ -1261,6 +1261,10 @@ const STRINGS = {
 // their old content paths; installation paths are never newly registered.
 const GALLERY_MUSIC={bytes:457308,sha256:'70146fa3ee1829efc1fff40ffe93f4a6a40394bca094d9b69877756432d8b8f0',seconds:853/60};
 async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurrent, onImportStarted }) {
+  if(typeof sdk?.runScript!=='function'){
+    const message='Update Selects to prepare bundled music.';
+    throw Object.assign(new Error(message),{publicMessage:message,safeNotSaved:true});
+  }
   let importStarted=false;
   try {
     if(!Number.isSafeInteger(durationFrames)||durationFrames<1||durationFrames>36000)throw templateIssue('Music length must be an integer from 1 to 36000 frames.');
