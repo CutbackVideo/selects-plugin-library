@@ -20,17 +20,22 @@ for (const id of common) test(`${id}: roots and media use the asynchronous SDK w
   const exists = sdk.files.exists, mkdir = sdk.files.mkdir;
   sdk.files.exists = async path => { await tick(); calls.push('exists'); return exists(path); };
   sdk.files.mkdir = async (...args) => { await tick(); calls.push('mkdir'); return mkdir(...args); };
-  const functions = loadPanelFunctions(source, [], { ...hostGlobals(host), __sdk: sdk, AbortController });
+  // Gallery retired the legacy random PCM helpers. Exercise the actual bounded
+  // reader and shared media adapter there; other consumers retain their helpers.
+  const featureNames=id==='photo-gallery-no2'?['holdError','holdTool','runAssetMediaTool','bundledAssetIssue','readBundledAssetBytes']:[];
+  const functions = loadPanelFunctions(source, featureNames, { ...hostGlobals(host), __sdk: sdk, AbortController });
   const roots = await functions.hostRoots(sdk, id, 'planner.js');
   assert.deepEqual(calls, ['exists', 'mkdir']);
   assert.equal(roots.plugin, sdk.files.dirname ? sdk.files.dirname(marker) : marker.slice(0, -11));
   assert.equal(functions.hostIsWindows(), true);
-  assert.equal(await functions.hostReadText(marker), 'A');
+  if(id==='photo-gallery-no2')assert.deepEqual(Array.from(await functions.readBundledAssetBytes(sdk.files,marker,1,()=>{})),[65]);
+  else assert.equal(await functions.hostReadText(marker), 'A');
   await assert.rejects(functions.hostRoots(sdk, 'missing-plugin', 'planner.js'), { code: 'not-found' });
   const signal = new AbortController().signal;
   let relayed;
   sdk.media.runFFmpeg = async (_args, _quiet, receivedSignal) => { relayed = receivedSignal; throw Error('test decode failure'); };
-  await assert.rejects(functions.hostDecodePcm('C:\\media\\clip.mp4', roots.data, 22050, 5, signal), /test decode failure/);
+  if(id==='photo-gallery-no2')await assert.rejects(functions.holdTool('runFFmpeg',['-version'],5,{client:sdk,signal}),e=>e.code==='hold-failed'&&!e.publicMessage.includes('test decode failure')&&e.cause?.cause?.message==='test decode failure');
+  else await assert.rejects(functions.hostDecodePcm('C:\\media\\clip.mp4', roots.data, 22050, 5, signal), /test decode failure/);
   assert.ok(relayed instanceof AbortSignal);
   assert.equal(Object.keys(sdk.files).some(name => name.endsWith('Sync')), false);
 });

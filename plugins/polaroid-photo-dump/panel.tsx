@@ -553,7 +553,7 @@ async function prepareDerivedAsset(files,options){
  const valid=value=>value&&typeof value.sha256==='string'&&/^[0-9a-f]{64}$/.test(value.sha256)&&Number.isSafeInteger(value.bytes)&&value.bytes>0;
  const freshSource=async()=>{if(!same(await readAssetFileIdentity(files,sourcePath,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');};
  current();
- if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!valid(source)||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png'].includes(extension)||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
+ if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!valid(source)||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png','f32'].includes(extension)||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
  if(['join','stat','readFile','exists','mkdir','writeFile','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
  const indexDirectory=files.join(directory,'index'),objectDirectory=files.join(directory,'objects',key),indexPath=files.join(indexDirectory,key+'.json');
  const cached=async()=>{
@@ -607,6 +607,39 @@ async function prepareDerivedAsset(files,options){
   // objects/indexes may already be referenced by a different run or old Draft.
   for(const path of owned)await files.removeFile({filePath:path}).catch(()=>{});
  }
+}
+
+// A media process belongs to one captured client and one live invocation. Abort
+// requests stop useful work; await host settlement before callers clean staging
+// files. A late successful response never turns an ended invocation into success.
+async function runAssetMediaTool(media,kind,args,options={}){
+ if(!options||typeof options!=='object'||Array.isArray(options))throw bundledAssetIssue('INPUT','The media process options are invalid.');
+ const {isCurrent=()=>true,signal,timeoutMs=120000,deadline}=options;
+ if(!['runFFmpeg','runFFprobe'].includes(kind)||!Array.isArray(args)||args.some(arg=>typeof arg!=='string')||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||deadline!==undefined&&!Number.isFinite(deadline)||signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw bundledAssetIssue('INPUT','The media process request or scope is invalid.');
+ if(typeof media?.[kind]!=='function'||typeof AbortController!=='function')throw bundledAssetIssue('UNSUPPORTED','Update Selects to run and cancel media preparation safely.');
+ const controller=new AbortController();let stopped=false,timedOut=false,watch,timer;
+ const stop=()=>{stopped=true;controller.abort();};
+ const live=()=>{try{return isCurrent()&&!signal?.aborted;}catch{return false;}};
+ const check=()=>{if(!live())stop();else watch=setTimeout(check,50);};
+ const expiresAt=Math.min(Date.now()+timeoutMs,deadline===undefined?Infinity:deadline),remaining=expiresAt-Date.now();
+ signal?.addEventListener('abort',stop,{once:true});check();
+ if(remaining<=0){timedOut=true;controller.abort();}
+ else timer=setTimeout(()=>{timedOut=true;controller.abort();},remaining);
+ try{
+  if(stopped||timedOut)throw Error('The media process was not dispatched.');
+  const result=await media[kind](args,true,controller.signal);
+  if(!live())stop();
+  if(Date.now()>=expiresAt){timedOut=true;controller.abort();}
+  if(stopped||timedOut||controller.signal.aborted)throw Error('The media process ended after its scope.');
+  return result;
+ }catch(cause){
+  if(!live())stop();
+  if(Date.now()>=expiresAt){timedOut=true;controller.abort();}
+  if(stopped)throw Object.assign(bundledAssetIssue('STOPPED','The template run ended before media preparation completed.',cause),{terminal:true});
+  if(timedOut)throw Object.assign(bundledAssetIssue('TIMEOUT','Media preparation timed out.',cause),{terminal:true});
+  if(cause?.terminal||cause?.code==='host-missing')throw cause;
+  throw bundledAssetIssue('MEDIA','Media preparation could not be completed. Check the source file and media tools.',cause);
+ }finally{clearTimeout(timer);clearTimeout(watch);signal?.removeEventListener('abort',stop);}
 }
 // bundled-assets:end
 

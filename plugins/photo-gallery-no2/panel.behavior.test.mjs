@@ -89,6 +89,7 @@ function harness(media = photos, options = {}) {
   const sep = options.platform === 'win32' ? '\\' : '/';
   const home = options.platform === 'win32' ? 'C:\\Users\\tester' : '/installed';
   const disk=new Map();
+  for(const audio of options.audio??[])disk.set(audio.path,Buffer.from('fixture audio '+audio.resourceId));
   if(!options.musicMissing)disk.set([home,'.selects','skills','photo-gallery-no2','assets','music.mp3'].join(sep),fs.readFileSync(new URL('./assets/music.mp3',import.meta.url)));
   const assetResources=[],assetNodes=[];
   const assetProject={resources:async()=>assetResources,sourceFiles:async()=>({fileTree:assetNodes}),importFiles:async({paths})=>{
@@ -106,7 +107,7 @@ function harness(media = photos, options = {}) {
       existsSync: path => disk.has(path) || (!options.musicMissing && path.endsWith('SKILL.md')) || /short\.mp4$/.test(path),
       statSync: p => disk.has(p)||/short\.mp4$/.test(p)?{size:disk.get(p)?.length??1000,mtimeMs:1,isDirectory:false}:null, renameSync: (from, to) => {tools.push(['rename', from, to]);disk.set(to,disk.get(from));disk.delete(from);},
       copyFile:async(from,to)=>{disk.set(to,Buffer.from(disk.get(from)??Buffer.alloc(1000)));},
-      writeFile: async (p,bytes) => {disk.set(p,Buffer.from(bytes));}, removeFile: async () => {},
+      writeFile: async (p,bytes) => {disk.set(p,Buffer.from(bytes));}, removeFile: async ({filePath}) => {disk.delete(filePath);},
       readFile: async p => disk.get(p)??(options.pcm ? Buffer.from(options.pcm.buffer) : Buffer.alloc(0)) },
     Runtime: { getPlatform: () => options.platform || 'darwin',
       runFFprobe: async args => { tools.push(['ffprobe', ...args]); return { stdout: probed(args.at(-1)), stderr: '' }; },
@@ -114,6 +115,7 @@ function harness(media = photos, options = {}) {
         tools.push(['ffmpeg', ...args]);await options.onMediaProcess?.(args,signal);
         if(args.includes('-hash'))return {stdout:'SHA256='+createHash('sha256').update(disk.get(args[args.indexOf('-i')+1])??Buffer.alloc(1000)).digest('hex'),stderr:''};
         if(args.includes('-vf'))disk.set(args.at(-1),Buffer.alloc(1000));
+        if(args.includes('f32le'))disk.set(args.at(-1),Buffer.from((options.pcm??new Float32Array(0)).buffer));
         return { stdout: '', stderr: '' };
       } },
   };
@@ -141,6 +143,7 @@ function harness(media = photos, options = {}) {
         return { result: paged ? { array: false, page: value, total: Math.max(media.length, value.audio.length) } : value };
       }
       if (input.operation === 'verifyInputs') return options.inputFailure ? { result: { status: 'notSaved', message: 'The original photo file is missing: Tile 1', code: 'image-source-missing' } } : { result: { status: 'inputsReady', media: input.media, music: input.music } };
+      if (input.operation === 'verifyMusic') return options.musicInputFailure ? {result:{status:'notSaved',message:'Selected music changed'}} : {result:{status:'musicReady',music:{...input.music,durationSeconds:input.music.durationSeconds??input.music.durationFrames/60}}};
       if (input.operation === 'importBundledMusic') return options.musicResponse ?? { result: { status: 'musicReady', music: { resourceId: 'bundled-music', path: input.path, durationFrames: 853, startFrame: 0 } } };
       if (input.operation === 'importConverted') return { result: { status: 'prepared', converted: input.converted.map(item =>
         ({ ...item, resourceId: 'held-1', width: 128, height: 96, durationFrames: input.durationFrames, durationSeconds: input.durationFrames/60 })) } };
@@ -156,7 +159,7 @@ function harness(media = photos, options = {}) {
   };
   const view = render(React.createElement(Panel, { sdk,
     context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
-  return { view, calls, nativeCalls, changeSequence: sequenceId => view.rerender(React.createElement(Panel, { sdk,
+  return { view, calls, nativeCalls, changeAudio:(file,bytes)=>disk.set(file,bytes), changeSequence: sequenceId => view.rerender(React.createElement(Panel, { sdk,
     context: { projectId: 'project-1', sequenceId, language: 'en' }, ui: kit() })) };
 }
 async function assignAndCreate(view) {
@@ -276,8 +279,9 @@ for (const platform of ['darwin', 'win32']) {
     fireEvent.click(h.view.getByLabelText('Enter BPM manually'));
     fireEvent.click(h.view.getByRole('button', { name: 'Estimate music BPM' }));
     await waitFor(() => assert.match(h.view.container.textContent, /Estimated BPM: 10[89]|Estimated BPM: 11[01]/));
-    const decode = tools.find(call => call[0] === 'ffmpeg');
-    assert.equal(decode[decode.indexOf('-i') + 1], audio[0].path);
+    const decode = tools.find(call => call[0] === 'ffmpeg'&&call.includes('f32le'));
+    assert.match(decode[decode.indexOf('-i') + 1],/\.source-/);
+    assert.ok(tools.some(call=>call.includes('-hash')&&call[call.indexOf('-i')+1]===audio[0].path));
     assert.deepEqual(decode.slice(decode.indexOf('-ar'), decode.indexOf('-ar') + 2), ['-ar', '11025']);
     assert.ok(!h.calls.some(c => c.allowCommit));
   });
@@ -414,6 +418,40 @@ for(const bpm of [0,1,999999])test('invalid manual BPM '+bpm+' stops before bund
  await waitFor(()=>assert.equal(h.view.getByRole('button',{name:'Create Draft'}).disabled,false));
  assert.equal(h.calls.filter(c=>c.allowCommit).length,0);assert.equal(tools.length,0);
  assert.equal(h.calls.filter(c=>c.input.operation==='preflight'||c.input.operation==='create').length,0);
+});
+
+function clickPcm(bpm){
+ const rate=11025,pcm=new Float32Array(rate*14);
+ for(let n=0;n*60/bpm<14;n++){const at=Math.round(n*60*rate/bpm);for(let i=0;i<55&&at+i<pcm.length;i++)pcm[at+i]=Math.trunc(25000*Math.exp(-i/10))/32768;}
+ return pcm;
+}
+async function openMusicEstimate(h){
+ fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));
+ fireEvent.click(await waitFor(()=>h.view.getByRole('button',{name:'Assign all 21 in listed order'})));
+ fireEvent.change(h.view.getByLabelText('Music'),{target:{value:'custom'}});
+ fireEvent.click(h.view.getByLabelText('Enter BPM manually'));
+ fireEvent.click(h.view.getByRole('button',{name:'Estimate music BPM'}));
+}
+test('BPM UI does not reuse a Resource-ID estimate after the music bytes change',async()=>{
+ const audio={resourceId:'custom',name:'Custom',path:'/custom.wav',durationFrames:900},options={audio:[audio],pcm:clickPcm(110),tools:[]},h=harness(photos,options);
+ await openMusicEstimate(h);await waitFor(()=>assert.match(h.view.container.textContent,/Estimated BPM: 10[89]|Estimated BPM: 11[01]/));
+ options.pcm=clickPcm(140);h.changeAudio(audio.path,Buffer.from('replacement audio'));
+ fireEvent.click(h.view.getByRole('button',{name:'Estimate music BPM'}));
+ await waitFor(()=>assert.match(h.view.container.textContent,/Estimated BPM: 1[34][0-9]/));
+ assert.equal(options.tools.filter(c=>c.includes('f32le')).length,2);
+});
+for(const end of ['unmount','context','context-ABA'])test('BPM UI cancels active decode on '+end,{timeout:5000},async t=>{
+ let entered,release,signal;const started=new Promise(r=>entered=r),gate=new Promise(r=>release=r);t.after(()=>release());
+ const options={audio:[{resourceId:'custom',name:'Custom',path:'/custom.wav',durationFrames:900}],pcm:clickPcm(110),tools:[],onMediaProcess:async(args,s)=>{if(args.includes('f32le')){signal=s;entered();await Promise.race([gate,new Promise(r=>s.addEventListener('abort',r,{once:true}))]);}}};
+ const h=harness(photos,options);await openMusicEstimate(h);await started;
+ if(end==='unmount')h.view.unmount();else {h.changeSequence('another-draft');if(end==='context-ABA')h.changeSequence(null);}
+ await waitFor(()=>assert.equal(signal.aborted,true));release();
+ await new Promise(r=>setTimeout(r,20));assert.equal(h.calls.filter(c=>c.allowCommit).length,0);
+ if(end!=='unmount')assert.doesNotMatch(h.view.container.textContent,/Estimated BPM: 10[89]|Estimated BPM: 11[01]/);
+});
+test('BPM UI verifies selected music before starting media work',async()=>{
+ const tools=[],h=harness(photos,{audio:[{resourceId:'custom',name:'Custom',path:'/custom.wav',durationFrames:900}],pcm:clickPcm(110),tools,musicInputFailure:true});
+ await openMusicEstimate(h);await waitFor(()=>assert.match(h.view.container.textContent,/Selected music changed/));assert.equal(tools.length,0);
 });
 
 test('an unsupported complete-authoring host stops before music import or video preparation',async()=>{

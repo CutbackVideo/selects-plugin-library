@@ -48,11 +48,11 @@ export async function holdFixture(t,{minify=false,sourceName='source.mp4'}={}){
   const key=String(minify);
   if(!compiled.has(key)){
    const source=fs.readFileSync(process.env.GALLERY_HOLD_PANEL||new URL('../plugins/photo-gallery-no2/panel.tsx',import.meta.url),'utf8');
-   const extra='\nexport function __hold(sdk,local,request,data,options){panelLocalClients.set(sdk,local);hostUseSdk(sdk);return holdVideos(request,data,options);}export function __derive(local,options){return prepareDerivedAsset(local.files,options);}';
+   const extra='\nexport function __hold(sdk,local,request,data,options){panelLocalClients.set(sdk,local);hostUseSdk(sdk);return holdVideos(request,data,options);}export function __derive(local,options){return prepareDerivedAsset(local.files,options);}export function __tempo(sdk,local,path,data,options){panelLocalClients.set(sdk,local);hostUseSdk(sdk);return tempoOfFile(path,data,{client:local,...options});}export function __bind(sdk,local){panelLocalClients.set(sdk,local);hostUseSdk(sdk);}export function __estimate(samples){return tempoEstimate(samples);}';
    compiled.set(key,esbuild.transformSync(source+extra,{loader:'tsx',format:'cjs',jsx:'automatic',target:'es2022',minify}).code);
   }
   const panel={exports:{}};vm.runInNewContext(compiled.get(key),{module:panel,exports:panel.exports,require:()=>({}),crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array,AbortController,setTimeout,clearTimeout,btoa,atob,console});
-  return {run:(options={},request={videos:[{path:source}],durationFrames:18})=>panel.exports.__hold(sdk,local,request,data,{isCurrent:()=>live,...options}),derive:options=>panel.exports.__derive(local,options),local};
+  return {run:(options={},request={videos:[{path:source}],durationFrames:18})=>panel.exports.__hold(sdk,local,request,data,{isCurrent:()=>live,...options}),derive:options=>panel.exports.__derive(local,options),tempo:(file,options={},directory=data)=>panel.exports.__tempo(sdk,local,file,directory,{isCurrent:()=>live,...options}),bind:other=>panel.exports.__bind({},other.local),estimate:samples=>panel.exports.__estimate(samples),local};
  };
- const api=await mount();return {root,data,source,other,calls,reads,writes,renames,hooks,files,run:api.run,derive:api.derive,local:api.local,mount,stop:()=>{live=false;},replace:()=>replaceSameFacts(source,other)};
+ const api=await mount();return {root,data,source,other,calls,reads,writes,renames,hooks,files,run:api.run,derive:api.derive,tempo:api.tempo,bind:api.bind,estimate:api.estimate,local:api.local,mount,stop:()=>{live=false;},replace:()=>replaceSameFacts(source,other)};
 }

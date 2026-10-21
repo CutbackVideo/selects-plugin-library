@@ -1,6 +1,38 @@
 # Validation and limits
 
-## Current repair checkpoint: 0.3.16
+## Current repair checkpoint: 0.3.17
+
+Music analysis now has an invocation scope, a captured client and a 45-second
+budget. Context change/unmount aborts it; changing away and back does not revive
+it. Late completions cannot update BPM or authorize creation. The existing shared
+asset module now provides the media process runner for both held Video and PCM.
+Its derived-file owner additionally permits raw F32; older asset call paths stay.
+The five-feature/ten-consumer pool remains. Three generated consumers receive
+additive definitions, not a change in their active file/media policy.
+
+No Resource-ID BPM memo is trusted. Current Audio metadata/probe is read before
+and after analysis. PCM comes from an exclusive source snapshot, is bounded to
+1323000 bytes, checked for alignment/finite floats, bound to its output digest at
+the actual analysis read, and followed by another whole-source identity check.
+Verified content-addressed PCM is reusable; malformed/changed output is never
+accepted as a successful estimate. Private transport errors keep safe public
+messages; errors before Draft dispatch remain safely retryable. The existing
+tempo algorithm and Python parity reference are retained. Unused legacy random
+PCM temporary-file/read helpers are removed from Gallery.
+
+Evidence includes whole compiled normal/minified panels, real files/ffmpeg,
+same-size/same-time replacement, A-B-A changes, final-read tampering, concurrent
+realms, client rebinding and UI scope cancellation. The corrected parent-file
+fixture first reproduced 12 failures with two controls; UI and final-read cases
+also fail before their corresponding fixes. These do not verify installed-app
+or Windows cancellation, arbitrary music BPM accuracy, playback/export or
+reference/changed-input quality. In-flight filesystem operations and host media
+settlement may outlast the scope budget. No hard latency bound is claimed for an
+unresponsive host; staging cleanup awaits process settlement. Cache GC, late
+Video/Audio changes during composition and all remaining template gates stay
+open. See `docs/template-repair/gallery-tempo-scope.md` in the source repository.
+
+## Earlier repair checkpoint: 0.3.16
 
 The shared Gallery planner computes physical coverage from the rounded Project
 end. Default 30/50/90 fps outputs require 854 frames of prepared 60 fps video,

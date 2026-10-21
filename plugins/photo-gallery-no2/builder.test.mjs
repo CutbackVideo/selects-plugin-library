@@ -49,6 +49,6 @@ test('packaged authoring helpers match existing canonical sources without browse
  for(const name of ['templateRunJSON','templateRunBase64','writeTemplateRunResult','templateRunIssue','validateTemplateRun','executeTemplateRun'])assert.ok(PANEL_RUN_SOURCE.includes(new Function(run+';return '+name+'.toString()')()));
  assert.ok(!TEMPLATE_RUN_SOURCE.includes('executeTemplateRun'));assert.ok(!IMAGE_AUTHORING_SOURCE.includes('buildAtomicImageDraftScript'));
  const assets=readFileSync(new URL('../../shared/bundled-assets.js',import.meta.url),'utf8');
- for(const name of ['bundledAssetIssue','readBundledAssetBytes','readBundledAssetResource','prepareBundledAsset','readAssetFileIdentity','prepareDerivedAsset'])assert.ok(PANEL_ASSET_SOURCE.includes(new Function(assets+';return '+name+'.toString()')()));
+ for(const name of ['bundledAssetIssue','readBundledAssetBytes','readBundledAssetResource','prepareBundledAsset','readAssetFileIdentity','prepareDerivedAsset','runAssetMediaTool'])assert.ok(PANEL_ASSET_SOURCE.includes(new Function(assets+';return '+name+'.toString()')()));
  assert.ok(!SCRIPT_PREFIX.includes('async function prepareBundledAsset('),'browser asset publication must not enter SDK requests');
 });

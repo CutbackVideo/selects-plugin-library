@@ -40,33 +40,6 @@ function hostJoin(...parts) {
   const sep = hostIsWindows() ? "\\" : "/";
   return parts.filter((x) => x !== "").map((x, i) => (i === 0 ? x.replace(/[\\/]+$/, "") : x.replace(/^[\\/]+|[\\/]+$/g, ""))).join(sep);
 }
-// A Buffer, ArrayBuffer or typed array as bytes (a Buffer may be a view into a larger pool). The value comes from the
-// host window (window.parent), another JavaScript realm, so `instanceof ArrayBuffer` is false for it: the checks use
-// the internal [[Class]] tag and array-likeness instead.
-function hostBytes(v) {
-  const tag = (x) => Object.prototype.toString.call(x);
-  if (tag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
-  if (v && typeof v.byteLength === "number" && v.buffer && tag(v.buffer) === "[object ArrayBuffer]") {
-    return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
-  }
-  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
-  throw hostError("read-failed", "the file could not be read");
-}
-// A file's bytes (FileSystem.readFile without an encoding).
-async function hostReadBytes(path) {
-  const v = await hostNeed("FileSystem", "readFile").readFile(path);
-  if (typeof v === "string") throw hostError("read-failed", "the file came back as text");
-  return hostBytes(v);
-}
-// A text file (some host builds return text directly, others bytes).
-async function hostReadText(path) {
-  const v = await hostNeed("FileSystem", "readFile").readFile(path);
-  return typeof v === "string" ? v : new TextDecoder().decode(hostBytes(v));
-}
-// Cleanup is best effort; all disk operations cross the async SDK bridge.
-async function hostRemove(path) {
-  try { await hostNeed("FileSystem", "removeFile").removeFile({ filePath: path }); } catch { /* leftover temporary file */ }
-}
 async function hostRoots(sdk, id, marker) {
   hostUseSdk(sdk);
   const fs = hostNeed("FileSystem", "exists");
@@ -75,40 +48,6 @@ async function hostRoots(sdk, id, marker) {
   let data = fs.join(fs.homedir(), ".selects", "plugin-data", id);
   try { await fs.mkdir(data, { recursive: true }); } catch { data = null; }
   return { plugin, data };
-}
-// Mono 32-bit float samples of an audio file at `rate`, at most `maxSeconds`, decoded by the host's ffmpeg into a
-// temporary file in `dataDir` and read back (the file is removed). null when this host has no ffmpeg or no data folder;
-// throws when ffmpeg fails or `signal` (optional) aborts it.
-async function hostDecodePcm(path, dataDir, rate, maxSeconds, signal, timeoutMs = 120000) {
-  const rt = hostApi("Runtime", "runFFmpeg");
-  if (!rt || !dataDir || !hostApi("FileSystem", "readFile")) return null;
-  const tmp = hostJoin(dataDir, "pcm-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".f32");
-  const controller = typeof AbortController === "undefined" ? null : new AbortController();
-  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-  const relay = () => { if (controller) controller.abort(); };
-  if (signal) { if (signal.aborted) relay(); else signal.addEventListener("abort", relay); }
-  try {
-    await rt.runFFmpeg(["-nostdin", "-v", "error", "-y", "-t", String(maxSeconds), "-i", path, "-ac", "1", "-ar", String(rate), "-f", "f32le", tmp], true, controller ? controller.signal : undefined);
-    const bytes = await hostReadBytes(tmp);
-    // A copy, so the samples sit on a 4-byte boundary.
-    const samples = new Float32Array(bytes.slice(0, Math.floor(bytes.byteLength / 4) * 4).buffer);
-    if (!samples.length) throw hostError("decode-failed", "ffmpeg returned no audio");
-    return samples;
-  } finally {
-    if (timer) clearTimeout(timer);
-    if (signal) signal.removeEventListener("abort", relay);
-    await hostRemove(tmp);
-  }
-}
-// An audio or video file's length in seconds from the host's ffprobe, or null.
-async function hostProbeSeconds(path) {
-  try {
-    const rt = hostApi("Runtime", "runFFprobe");
-    if (!rt) return null;
-    const r = await rt.runFFprobe(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], true);
-    const v = parseFloat(String(r?.stdout || "").trim());
-    return v > 0 ? v : null;
-  } catch { return null; }
 }
 // av-host:end
 
@@ -130,26 +69,14 @@ function holdPathKey(path) {
 }
 // Runs Runtime.runFFmpeg/runFFprobe with a deadline. The host rejects with a JSON string, not an Error.
 async function holdTool(kind, argv, seconds, options = {}) {
-  const rt = hostNeed('Runtime', kind);
-  if(typeof AbortController!=='function')throw hostError('host-missing','Update Selects to cancel media preparation safely.','AbortController');
-  const controller = new AbortController();let timedOut=false,stopped=false,watch;
-  const stop=()=>{stopped=true;controller.abort();};
-  const check=()=>{let live=false;try{live=options.isCurrent?.()??true;}catch{}if(!live||options.signal?.aborted)stop();else watch=setTimeout(check,50);};
-  const timer=setTimeout(()=>{timedOut=true;controller.abort();},seconds*1000);
-  options.signal?.addEventListener('abort',stop,{once:true});check();
-  try {
-    if(stopped)throw holdError('The template run ended during media preparation');
-    const result=await rt[kind](argv,true,controller.signal);
-    if(stopped||controller.signal.aborted)throw holdError('The template run ended during media preparation');
-    return result;
+  const rt = options.client ? options.client.media : hostNeed('Runtime', kind);
+  if(typeof rt?.[kind]!=='function')throw hostError('host-missing','Update Selects to prepare media: missing '+kind);
+  try{return await runAssetMediaTool(rt,kind,argv,{isCurrent:options.isCurrent,signal:options.signal,deadline:options.deadline,timeoutMs:seconds*1000});}
+  catch(error){
+    if(error?.code==='host-missing')throw error;
+    if(error?.code==='BUNDLED_ASSET_UNSUPPORTED')throw hostError('host-missing',error.publicMessage);
+    throw Object.assign(holdError(error?.publicMessage||'Media preparation failed.'),{terminal:!!error?.terminal,cause:error});
   }
-  catch (error) {
-    if(stopped)throw Object.assign(holdError('The template run ended during media preparation'),{publicMessage:'The template run ended before media preparation completed.',terminal:true});
-    if(timedOut)throw Object.assign(holdError('Media conversion timed out'),{terminal:true});
-    if(error?.terminal)throw error;
-    if (error?.code === 'host-missing') throw error;
-    throw Object.assign(holdError(kind + ' failed'), { detail: String(error?.message ?? error).slice(0, 600) });
-  } finally { clearTimeout(timer);clearTimeout(watch);options.signal?.removeEventListener('abort',stop); }
 }
 async function holdProbe(path, countFrames = false, options = {}) {
   let result;
@@ -222,7 +149,7 @@ async function holdFileHash(path,options) {
 async function holdConvertOne(source, identity, sourceDimensions, frames, cacheRoot, options) {
   const key = await holdKey([HOLD_ALGORITHM,holdPathKey(source),identity.sha256,identity.bytes,frames,HOLD_FPS,...sourceDimensions].join('\0'));
   const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
-  const result=await prepareDerivedAsset(hostSdk.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,hashFile:path=>holdFileHash(path,options),
+  const result=await prepareDerivedAsset(options.client.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,hashFile:path=>holdFileHash(path,options),
     produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,true,options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options);},
     verify:path=>holdValidate(path,frames,dimensions,true,options)});
   return {videoPath:result.path,dimensions,reused:result.reused};
@@ -234,16 +161,18 @@ async function holdVideos(request, dataDir, options = {}) {
   if (!Number.isSafeInteger(frames) || frames < 1 || frames > HOLD_MAX_FRAMES) throw holdError('durationFrames must be a positive integer at most 36000');
   if (!dataDir) throw holdError('The plugin data folder is unavailable');
   if(!options||typeof options!=='object'||Array.isArray(options)||options.isCurrent!==undefined&&typeof options.isCurrent!=='function')throw holdError('Media preparation options need a callable liveness predicate');
-  options={...options,isCurrent:options.isCurrent??(()=>true)};
+  options={...options,client:options.client??hostSdk,isCurrent:options.isCurrent??(()=>true)};
   const current=()=>{if(!options.isCurrent()||options.signal?.aborted)throw holdError('The template run ended during media preparation');};
   const paths=videos.map((item,index)=>{const path=item?.path;if(typeof path!=='string')throw holdError('Video '+(index+1)+' needs a file path');if(!path||path.includes('\0')||path.length>8192)throw holdError('Video '+(index+1)+' has an invalid path');return path;});
-  hostNeed('Runtime', 'runFFmpeg'); hostNeed('Runtime', 'runFFprobe');
-  hostNeed('FileSystem','copyFile');hostNeed('FileSystem','rename');
+  const files=options.client?.files;
+  for(const [service,names,label] of [[options.client?.media,['runFFmpeg','runFFprobe'],'Runtime'],[files,['copyFile','rename','join'],'FileSystem']]){
+    for(const name of names)if(typeof service?.[name]!=='function')throw hostError('host-missing','Update Selects to prepare media: missing '+label+'.'+name,label+'.'+name);
+  }
   if(typeof globalThis.crypto?.subtle?.digest!=='function')throw holdError('Update Selects to verify complete source media contents');
-  const cacheRoot = hostJoin(dataDir, 'held-v3'),selected=new Map();
+  const cacheRoot = files.join(dataDir, 'held-v3'),selected=new Map();
   // Observe every requested source before generating any derived file.
   for(const raw of paths){current();const key=holdPathKey(raw);if(selected.has(key))continue;
-    const identity=await readAssetFileIdentity(hostSdk.files,raw,path=>holdFileHash(path,options),current);
+    const identity=await readAssetFileIdentity(files,raw,path=>holdFileHash(path,options),current);
     const {video}=await holdProbe(raw,true,options);if(!(Number(video.nb_read_frames)>=1))throw holdError('Video has no readable frames');selected.set(key,{identity,sourceDimensions:holdUpright(video)});
   }
   const completed = new Map(), output = [];
@@ -270,7 +199,7 @@ async function holdVideos(request, dataDir, options = {}) {
 
 // tempo:start
 // Bounded local BPM suggestion (formerly tempo.py), plain JS so tests can run it in node:vm. The first 30 s are
-// decoded by the host's ffmpeg to mono samples at 11025 Hz (hostDecodePcm), quantized to 16-bit as tempo.py read
+// decoded from a verified source snapshot to mono samples at 11025 Hz, quantized to 16-bit as tempo.py read
 // them, then a ~10 ms RMS onset envelope is autocorrelated over 70-180 BPM. Ambiguous or silent input yields no BPM.
 const TEMPO_RATE = 11025, TEMPO_HOP = 110, TEMPO_MIN_BPM = 70, TEMPO_MAX_BPM = 180, TEMPO_SECONDS = 30;
 // Python's round(): halves go to the even neighbour.
@@ -309,16 +238,54 @@ function tempoEstimate(samples) {
   if (best[0] < 0.12 || best[0] < runnerUp * 1.08) return { status: 'uncertain', reason: 'Tempo is ambiguous; enter BPM manually' };
   return { status: 'estimated', bpm: tempoRoundEven(best[1] * 10) / 10 };
 }
-// The estimate for an audio file, decoded through the host's ffmpeg into `dataDir`; never throws for bad audio.
-async function tempoOfFile(path, dataDir) {
-  let samples;
-  try { samples = await hostDecodePcm(path, dataDir, TEMPO_RATE, TEMPO_SECONDS, undefined, 45000); }
-  catch (error) {
-    if (error?.code === 'host-missing') throw error;
-    return { status: 'uncertain', reason: 'Audio could not be decoded' };
+// Analyze a verified private source through the existing derived-file owner.
+// No Resource-ID memo: every invocation checks source and cached PCM bytes.
+async function tempoOfFile(path, dataDir, options = {}) {
+  const client=options.client??hostSdk,files=client?.files;
+  const issue=(message,code='tempo-invalid')=>Object.assign(new Error(message),{code,publicMessage:message,terminal:true,safeNotSaved:true});
+  if(typeof options.isCurrent!=='undefined'&&typeof options.isCurrent!=='function')throw issue('The music analysis scope is invalid.');
+  const timeout=options.timeoutMs??45000;
+  if(!Number.isFinite(timeout)||timeout<=0||timeout>45000)throw issue('The music analysis deadline is invalid.');
+  const deadline=Date.now()+timeout;
+  const live=()=>{try{return !options.signal?.aborted&&(options.isCurrent?.()??true);}catch{return false;}};
+  const current=()=>{if(!live())throw issue('The music analysis ended before completion.','tempo-stopped');if(Date.now()>=deadline)throw issue('The music analysis timed out.','tempo-timeout');};
+  current();
+  if(!dataDir)throw issue('The music analysis folder is unavailable. Check storage and file access.','tempo-storage');
+  if(['join','stat','readFile','exists','mkdir','writeFile','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function')||typeof client?.media?.runFFmpeg!=='function'||!globalThis.crypto?.subtle||typeof globalThis.crypto?.randomUUID!=='function')throw hostError('host-missing','Update Selects to verify and analyze the selected music.');
+  const work={client,isCurrent:live,signal:options.signal,deadline};
+  const hashFile=path=>holdFileHash(path,work);
+  let decodeFailed=false;
+  try{
+    const source=await readAssetFileIdentity(files,path,hashFile,current);current();
+    const key=await holdKey(['gallery-tempo-v1-f32le',holdPathKey(path),source.sha256,source.bytes,TEMPO_RATE,TEMPO_SECONDS].join('\0'));current();
+    const maxBytes=TEMPO_RATE*TEMPO_SECONDS*4;
+    const read=async(file,expected)=>{
+      const bytes=await readBundledAssetBytes(files,file,maxBytes,current);current();
+      if(expected){
+        const digest=await crypto.subtle.digest('SHA-256',bytes);current();
+        const sha256=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+        if(bytes.length!==expected.bytes||sha256!==expected.sha256)throw issue('The decoded music PCM contents changed before analysis.','tempo-pcm');
+      }
+      if(bytes.length%4!==0)throw issue('The decoded music PCM length is invalid.','tempo-pcm');
+      const values=new Float32Array(bytes.length/4),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+      for(let i=0;i<values.length;i++){values[i]=view.getFloat32(i*4,true);if(!Number.isFinite(values[i]))throw issue('The decoded music PCM contains an invalid sample.','tempo-pcm');}
+      return values;
+    };
+    const prepared=await prepareDerivedAsset(files,{directory:files.join(dataDir,'tempo-v1'),key,sourcePath:path,source,extension:'f32',isCurrent:()=>{current();return true;},hashFile,
+      produce:async(snapshot,target)=>{
+        try{await holdTool('runFFmpeg',['-nostdin','-v','error','-y','-t',String(TEMPO_SECONDS),'-i',snapshot,'-vn','-ac','1','-ar',String(TEMPO_RATE),'-f','f32le',target],45,work);}
+        catch(error){if(!error?.terminal&&error?.code==='hold-failed')decodeFailed=true;throw error;}
+      },verify:read});
+    current();const samples=await read(prepared.path,prepared.output);current();
+    const result=tempoEstimate(samples);current();
+    const after=await readAssetFileIdentity(files,path,hashFile,current);current();
+    if(after.sha256!==source.sha256||after.bytes!==source.bytes)throw issue('The selected music source changed during analysis.','tempo-changed');
+    return result;
+  }catch(error){
+    current();if(decodeFailed&&!error?.terminal)return {status:'uncertain',reason:'Audio could not be decoded'};
+    if(error?.code==='host-missing'||typeof error?.publicMessage==='string'){error.safeNotSaved=true;throw error;}
+    throw Object.assign(issue('Music analysis could not be completed. Check the source file and media tools.','tempo-read'),{cause:error});
   }
-  if (!samples) return { status: 'uncertain', reason: 'This Selects build cannot decode audio for the estimate' };
-  return tempoEstimate(samples);
 }
 // tempo:end
 
@@ -804,6 +771,8 @@ async function prepareVisuals(sdk, t, media, clock, projectId, onImportStarted, 
   const frames = clock.durationFrames;
   const videos = [...new Map(media.filter(item => item.kind === 'video').map(item => [item.resourceId, item])).values()];
   const shortVideos = videos.filter(item => gallerySourceSeconds(item, 'Video') + 1e-9 < clock.minimumSeconds);
+  if(!shortVideos.length)return media;
+  const client=panelLocalClient(sdk);
   const groups = [{ sources: shortVideos, key: 'videos' }];
   const requestPaths = [];
   for (const group of groups) {
@@ -813,7 +782,7 @@ async function prepareVisuals(sdk, t, media, clock, projectId, onImportStarted, 
     const request = { [group.key]: group.sources.map(item => ({ path: item.path })), durationFrames: frames };
     preparing.say?.('Extending short videos…');
     let converted;
-    try { converted = await holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data, {isCurrent}); }
+    try { converted = await holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data, {isCurrent,client}); }
     catch (error) { if(error?.publicMessage)throw error;throw new Error(String(error?.message || error) || 'Media conversion failed.'); }
     const output = converted[group.key];
     if (converted.status !== 'converted' || output?.length !== group.sources.length) {
@@ -914,6 +883,8 @@ function GalleryPanel({ sdk, context, ui }) {
   const [savedTarget, setSavedTarget] = React.useState(null);
   const running = React.useRef(false);
   const alive = React.useRef(true);
+  const musicScope = React.useRef(null);
+  React.useEffect(()=>()=>{musicScope.current?.abort();},[context.projectId,context.sequenceId]);
   const current = React.useRef({ projectId: context.projectId, sequenceId: context.sequenceId });
   React.useEffect(() => {
     alive.current = true;
@@ -972,29 +943,50 @@ function GalleryPanel({ sdk, context, ui }) {
     finally { running.current = false; setBusy(false); }
   }
 
-  async function estimateMusic(audio) {
+  function beginMusicScope(isCurrent=()=>true) {
+    if(typeof AbortController!=='function')throw hostError('host-missing','Update Selects to cancel music analysis safely.');
+    musicScope.current?.abort();
+    setEstimated(null);
+    const controller=new AbortController(),projectId=context.projectId,sequenceId=context.sequenceId;
+    musicScope.current=controller;
+    return {client:panelLocalClient(sdk),signal:controller.signal,isCurrent:()=>!controller.signal.aborted&&musicScope.current===controller&&sameContext(projectId,sequenceId)&&isCurrent()};
+  }
+
+  async function estimateMusic(audio,scope) {
     if (!audio?.path) throw new Error(t.uncertain);
-    if (estimated?.resourceId === audio.resourceId) return estimated.bpm;
-    const value = await tempoOfFile(audio.path, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data);
+    const current=()=>{if(!scope.isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});};
+    const read=async()=>{
+      current();const response=await sdk.runScript({script:buildScript({operation:'verifyMusic',projectId:context.projectId,music:audio}),summary:'Verify selected Gallery music',allowCommit:false});current();
+      if(response.isError||response.result?.status!=='musicReady'||!response.result.music)throw new Error(response.result?.message||'Selected music could not be verified.');
+      return response.result.music;
+    };
+    const before=await read(),roots=await hostRoots(sdk,'photo-gallery-no2','SKILL.md');current();
+    const value = await tempoOfFile(before.path,roots.data,scope);current();
     if (value?.status !== 'estimated' || !Number.isFinite(value.bpm)) throw new Error(value?.reason || t.uncertain);
-    setEstimated({ resourceId: audio.resourceId, bpm: value.bpm });
+    const after=await read();current();
+    if(before.resourceId!==after.resourceId||holdPathKey(before.path)!==holdPathKey(after.path)||before.durationSeconds!==after.durationSeconds)throw new Error('Selected music changed during analysis. Start a new estimate.');
+    setEstimated({ resourceId: after.resourceId, path:after.path, bpm: value.bpm });
     return value.bpm;
   }
 
   async function estimateOnClick() {
     if (running.current || !selectedMusic) return;
     running.current = true; setBusy(true); setStatus(null);
-    try { const bpm = await estimateMusic(selectedMusic); setStatus({ tone: 'success', text: t.estimated + ': ' + bpm }); }
-    catch (error) { setStatus({ tone: 'error', text: t.uncertain + ' ' + String(error?.message || error) }); }
-    finally { running.current = false; setBusy(false); }
+    let scope;
+    try { scope=beginMusicScope();const bpm = await estimateMusic(selectedMusic,scope);if(scope.isCurrent())setStatus({ tone: 'success', text: t.estimated + ': ' + bpm }); }
+    catch (error) { if(!scope||scope.isCurrent())setStatus({ tone: 'error', text: t.uncertain + ' ' + String(error?.publicMessage||error?.message || error) }); }
+    finally { running.current = false;if(alive.current)setBusy(false); }
   }
 
-  async function resolveBpm(audio) {
+  async function resolveBpm(audio,isCurrent) {
     if (manualEnabled) {
       if (!Number.isFinite(manualBpm) || manualBpm <= 0) throw new Error(t.bpmMissing);
       return { manualBpm };
     }
-    if (audio) return { estimatedBpm: await estimateMusic(audio) };
+    if (audio) {
+      try{return { estimatedBpm: await estimateMusic(audio,beginMusicScope(isCurrent)) };}
+      catch(error){if(error&&typeof error==='object')error.safeNotSaved=true;throw error;}
+    }
     throw new Error(t.bpmMissing);
   }
 
@@ -1021,7 +1013,7 @@ function GalleryPanel({ sdk, context, ui }) {
       const audio = musicChoice === 'bundled' ? await prepareBundledMusic(sdk, t, { projectId,
         durationFrames: input.durationFrames, fps:input.fps, isCurrent, onImportStarted: () => { dispatched = true; } }) : input.music;
       input.music = audio ? { resourceId: audio.resourceId, path: audio.path, durationFrames: audio.durationFrames, durationSeconds: audio.durationSeconds, startFrame: 0 } : null;
-      Object.assign(input, await resolveBpm(audio));
+      Object.assign(input, await resolveBpm(audio,isCurrent));
       if (!isCurrent()) { setStatus({ tone: 'error', text: t.changed }); return; }
       const built = await buildGalleryDraft(sdk, t, { input, isCurrent,
         onDispatched: () => { dispatched = true; }, onImportStarted: () => { dispatched = true; }, onDraft: draftId => setSavedTarget({ projectId, draftId }) });

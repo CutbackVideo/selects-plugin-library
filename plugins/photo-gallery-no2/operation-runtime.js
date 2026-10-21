@@ -13,7 +13,7 @@ export default function PhotoGalleryTile({Source,data}) {
   </div>;
 }`;
 
-function galleryFail(message) { throw new Error(message); }
+function galleryFail(message) { throw Object.assign(new Error(message),{galleryPublic:true}); }
 
 // Host paths: POSIX (/…) on macOS; a drive (C:\… or C:/…) or UNC (\\server\…) path on Windows.
 function galleryAbsolute(path) {
@@ -103,7 +103,7 @@ function galleryGeometry(tile, source, colorFrame) {
 function assertGalleryInput(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) galleryFail('Gallery input is required');
   if (typeof input.projectId !== 'string' || !input.projectId) galleryFail('Select a Project');
-  if (!['inspect', 'verifyInputs', 'importBundledMusic', 'importConverted', 'create', 'preflight', 'createBase', 'fillBase', 'placeVideosExisting', 'styleExisting', 'verifyCreated'].includes(input.operation)) galleryFail('Unknown gallery action');
+  if (!['inspect', 'verifyInputs', 'verifyMusic', 'importBundledMusic', 'importConverted', 'create', 'preflight', 'createBase', 'fillBase', 'placeVideosExisting', 'styleExisting', 'verifyCreated'].includes(input.operation)) galleryFail('Unknown gallery action');
   if (['create', 'verifyInputs', 'preflight', 'createBase', 'placeVideosExisting', 'styleExisting'].includes(input.operation) && (!Array.isArray(input.media) || input.media.length !== 21)) galleryFail('Select exactly 21 visual slots');
   return input;
 }
@@ -239,6 +239,25 @@ async function galleryReadInputs(selects, project, input, inventory) {
     }
   }
   return { chosen: media, music: selectedMusic };
+}
+
+async function galleryReadMusic(selects, project, input, inventory) {
+  try {
+  const read=rows=>{
+    const music=galleryResolveResource(rows.audio,input.music?.resourceId,input.music?.path,'Music');
+    if(!Number.isFinite(music.durationSeconds)||music.durationSeconds<=0)galleryFail('Selected music duration is unavailable');
+    return music;
+  };
+  const before=read(inventory),probe=await selects.media.probe({filePaths:[before.path]});
+  const matches=(probe.files??[]).filter(file=>gallerySamePath(file.path,before.path)&&(!file.type||/audio/i.test(file.type)));
+  if(probe.error||probe.errors?.length||probe.summary?.failed||matches.length!==1)galleryFail('Selected music is missing, unreadable or not Audio');
+  const after=read(await galleryInventory(project));
+  if(before.resourceId!==after.resourceId||!gallerySamePath(before.path,after.path)||before.durationSeconds!==after.durationSeconds)galleryFail('Selected music changed while checking inputs');
+  return after;
+  }catch(error){
+    if(error?.galleryPublic)throw error;
+    galleryFail('Selected music could not be verified. Check the Project file and try again.');
+  }
 }
 
 async function galleryPreflight(selects, project, input, inventory) {
@@ -565,6 +584,7 @@ async function galleryOperationBody(selects, raw) {
       const { chosen, music } = await galleryReadInputs(selects, project, input, inventory);
       return { status: 'inputsReady', media: chosen, music };
     }
+    if (input.operation === 'verifyMusic') return {status:'musicReady',music:await galleryReadMusic(selects,project,input,inventory)};
     if (input.operation === 'importBundledMusic') return await galleryImportBundledMusic(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'importConverted') return await galleryImportConverted(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'create') return await galleryCreate(selects, project, input, inventory, () => { commitStarted = true; });
@@ -582,6 +602,7 @@ async function galleryOperationBody(selects, raw) {
     if (input.operation === 'verifyCreated') return await galleryVerifyCreated(selects, project, input, inventory);
     galleryFail('Unknown gallery action');
   } catch (error) {
-    return { status: commitStarted ? 'outcomeUnknown' : 'notSaved', message: String(error?.message || error), .../^image-source-/.test(error?.code || '') ? { code: error.code, resourceId: error.resourceId } : {} };
+    const message=raw?.operation==='verifyMusic'&&!error?.galleryPublic?'Selected music could not be verified. Check the Project file and try again.':String(error?.message||error);
+    return { status: commitStarted ? 'outcomeUnknown' : 'notSaved', message, .../^image-source-/.test(error?.code || '') ? { code: error.code, resourceId: error.resourceId } : {} };
   }
 }

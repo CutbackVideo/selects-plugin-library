@@ -22,8 +22,7 @@ PANEL = os.environ.get("PHOTO_GALLERY_NO2_PANEL") or os.path.join(PLUGIN, "panel
 
 AV_HOST = re.compile(r"// av-host:start\n.*?// av-host:end\n", re.S)
 MAC_ONLY = re.compile(r"^[ \t]*// mac-only:start[ \t]*\n.*?^[ \t]*// mac-only:end[ \t]*\n", re.S | re.M)
-HOST_FUNCTIONS = ["hostError", "hostUseSdk", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostBytes",
-                  "hostReadBytes", "hostReadText", "hostRemove", "hostRoots", "hostDecodePcm", "hostProbeSeconds"]
+HOST_FUNCTIONS = ["hostError", "hostUseSdk", "hostApi", "hostNeed", "hostIsWindows", "hostJoin", "hostRoots"]
 FORBIDDEN = [
     "mkdir -p", "printf", "$HOME", "$SELECTS_USER", "SELECTS_USER_SKILLS_ROOT", "rm -f", "base64 ", "| base64",
     "shasum", "command -v", "export PATH", 'cat "', "2>/dev/null", "/usr/bin/", 'sh "', "sh '", "runtime.sh",
@@ -104,13 +103,13 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         self.assertIn("hostNeed('Runtime', kind)", hold)
         for tool in ("'runFFmpeg'", "'runFFprobe'"):
             self.assertIn(tool, hold, tool)
-        self.assertIn("hostJoin(dataDir, 'held-v3')", hold)
+        self.assertIn("files.join(dataDir, 'held-v3')", hold)
         self.assertIn("prepareDerivedAsset(", hold)
         self.assertIn("readAssetFileIdentity(", hold)
         self.assertNotIn("pattern_type", hold)
         self.assertNotIn("runShell", hold)
         visuals = body(self.runtime, "async function prepareVisuals(")
-        self.assertIn("holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data, {isCurrent})", visuals)
+        self.assertIn("holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data, {isCurrent,client})", visuals)
         self.assertNotIn("hold_video", self.runtime)
         self.assertNotIn("shortMacOnly", self.source, "short videos work on Windows")
 
@@ -118,11 +117,16 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         tempo = re.search(r"// tempo:start\n.*?// tempo:end\n", self.source, re.S)
         self.assertIsNotNone(tempo, "panel has no tempo block")
         tempo = tempo.group(0)
-        self.assertIn("hostDecodePcm(path, dataDir, TEMPO_RATE, TEMPO_SECONDS", tempo)
+        self.assertIn("prepareDerivedAsset(files", tempo)
+        self.assertIn("readAssetFileIdentity(files", tempo)
+        self.assertIn("extension:'f32'", tempo)
+        self.assertIn("'-f','f32le'", tempo)
         self.assertIn("TEMPO_RATE = 11025", tempo)
         self.assertIn("TEMPO_SECONDS = 30", tempo)
-        estimate = body(self.runtime, "  async function estimateMusic(audio) {", "\n  }\n")
-        self.assertIn("tempoOfFile(audio.path, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data)", estimate)
+        estimate = body(self.runtime, "  async function estimateMusic(audio,scope) {", "\n  }\n")
+        self.assertIn("tempoOfFile(before.path,roots.data,scope)", estimate)
+        self.assertIn("operation:'verifyMusic'", estimate)
+        self.assertNotIn("estimated?.resourceId", estimate)
         strings = json.loads(re.search(r"const STRINGS = (\{.*?\n\});\n", self.source, re.S).group(1))
         self.assertEqual(sorted(strings), sorted(LANGUAGES))
         self.assertNotIn("MacOnly", self.source, "every feature works on Windows")

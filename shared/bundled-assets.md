@@ -6,6 +6,23 @@ Photo Dump and Gallery. The pool still has five registered modules. `panel-modul
 embeds the source into independent panels; no runtime shared-file loader or
 cross-plugin installation dependency is introduced.
 
+`runAssetMediaTool(media, kind, args, options)` runs a process on one captured
+media client. Options carry liveness, an AbortSignal, a timeout and an optional
+absolute deadline. It validates before dispatch, requests cancellation when a
+scope ends, rejects late successful replies and clears timers/listeners. Errors
+expose controlled public messages and keep private diagnostics as causes. It
+awaits host settlement before returning so derived-file owners can clean staging
+without deleting files beneath an active process. It cannot impose a hard return
+deadline on an unresponsive host. Gallery's held-video and BPM paths use it; other
+consumers' call paths remain unchanged.
+
+`prepareDerivedAsset` additionally supports `f32` objects for bounded PCM analysis.
+Gallery retains the 30-second/11025 Hz mono float recipe and validates size,
+alignment, finite samples and the exact bytes analyzed. The owner handles source
+snapshots/content-addressed publication and preserves existing media caches; it
+does not import PCM into a Project. This is an additive extension of the existing
+feature, not another registered module. Old supported extensions are unchanged.
+
 `prepareBundledAsset` receives SDK, canonical async files, pinned Project/plugin
 IDs, installed path, Resource type/extension, binary/base64 encoding, explicit
 platform/path comparison policy, expected Image dimensions or minimum Audio

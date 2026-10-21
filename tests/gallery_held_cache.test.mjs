@@ -4,6 +4,12 @@ import path from 'node:path';
 import test from 'node:test';
 import {holdFixture,hash,jsonFiles} from './gallery_hold_fixture.mjs';
 
+test('Gallery hold: another panel binding cannot redirect the active client',async t=>{
+ const a=await holdFixture(t),b=await holdFixture(t);let rebound=false;
+ a.hooks.beforeTool=()=>{if(!rebound){rebound=true;a.bind(b);}};
+ assert.equal((await a.run()).status,'converted');assert.equal(b.calls.length,0);assert.equal(b.reads.length,0);assert.equal(b.writes.length,0);
+});
+
 for(const minify of [false,true])test('Gallery hold: whole-file identities survive same-size/same-time source replacement (minify='+minify+')',async t=>{
  const f=await holdFixture(t,{minify}),a=(await f.run()).videos[0],before=hash(a.outputPath);f.replace();const b=(await f.run()).videos[0];
  assert.equal(b.cacheHit,false);assert.notEqual(b.outputPath,a.outputPath);assert.notEqual(hash(b.outputPath),before);assert.equal(hash(a.outputPath),before,'old published media must remain stable');
