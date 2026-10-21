@@ -9,7 +9,7 @@ import {loadPanelOperation} from './panel_operation.mjs';
 const presetSnapshot=JSON.parse(fs.readFileSync(new URL('./fixtures/photo-program-presets.json',import.meta.url),'utf8'));
 
 export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceiptOnly=false,commitReplyLost=false,projectTitle='Fixture Project',graphicsReadSupported=true,transformReadSupported=true,audioReadSupported=true,sourceReadSupported=true,programReadSupported=true}={}){
- const count=id==='no14-still-video'?4:12,photos=Array.from({length:count},(_,i)=>({resourceId:'r'+i,name:'Photo '+i,path:'/photos/'+i+'.png'}));
+ const count=id==='camera-shutter-dump'?12:4,photos=Array.from({length:count},(_,i)=>({resourceId:'r'+i,name:'Photo '+i,path:'/photos/'+i+'.png'}));
  const resources=[...photos.map(p=>({...p,type:'Image'})),...Array.from({length:6},(_,i)=>({resourceId:'a'+i,name:'Sound '+i,type:'Audio',durationSeconds:10}))];
  const nodes=resources.map(r=>({...r,type:r.type.toLowerCase(),path:r.path||'/audio/'+r.name+'.wav',frameSize:{width:640,height:960},durationSeconds:10}));
  const saved=new Map(),calls=[],commits=[],hooks={},receipts=[];let serial=0,live=true,imports=0;
@@ -43,7 +43,7 @@ export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceipt
  const sdk={environment:{platform:'darwin'},files:{join:(...parts)=>parts.join('/'),homedir:()=>'/user',exists:async path=>hostFiles.has(path),mkdir:async()=>{},stat:async path=>hostFiles.has(path)?{size:hostFiles.get(path).length,isDirectory:false}:null,readFile:async(path,encoding)=>{if(!hostFiles.has(path))throw Error('ENOENT');return encoding==='utf8'?hostFiles.get(path).toString():new Uint8Array(hostFiles.get(path));},writeFile:async(path,bytes)=>{hostFiles.set(path,Buffer.from(bytes));}},runScript:async input=>{calls.push(input);try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.afterScript?.(input);return {result};}catch(error){return {isError:true,output:error.message};}}};
  const source=fs.readFileSync(new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
  const common=['nativeImageSources','nativeImageRun','prepareNativeImages','nativeImagePlacement','placeNativeImages','readMediaPages'];
- const extra=id==='no14-still-video'?['INVENTORY','DECORATION_CODE','readProjectFps','createNo14Draft']:['INVENTORY','EFFECT_CODE','BURST_CODE','TEXT_CODE','samePath','inventory','createPhotoDraft'];
+ const extra=id==='no14-still-video'?['INVENTORY','DECORATION_CODE','readProjectFps','createNo14Draft']:id==='four-photo-stop-motion'?['INVENTORY','EFFECT_CODE','OUTRO_CODE','inventory','ensureMusic','templateIssue','createPhotoDraft']:['INVENTORY','EFFECT_CODE','BURST_CODE','TEXT_CODE','samePath','inventory','createPhotoDraft'];
  const future=['placeWorkingCopyImages','authorAtomicImageDraft','buildAtomicImageDraftScript','verifyAtomicImageDraft','readImageDraftFps','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature','templateRunJSON','prepareBundledAudio','readBundledAudioResource'];
  const api=loadPanelFunctions(source,[...common,...extra,...future.filter(name=>source.includes('function '+name+'('))],{
   ...loadPanelOperation(id),crypto:webcrypto,SLOTS:count,DEFAULT_MUSIC:'off',ensureSounds:async()=>{imports++;return Object.fromEntries(Array.from({length:6},(_,i)=>['shutter.'+(i+1),'a'+i]));},

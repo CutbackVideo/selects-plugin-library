@@ -5,7 +5,9 @@ import {fixture} from './photo_authoring_fixture.mjs';
 import fs from 'node:fs';
 import {loadPanelFunctions} from './windows_host.mjs';
 
-const ids=['no14-still-video','camera-shutter-dump'];
+const ids=['no14-still-video','camera-shutter-dump','four-photo-stop-motion'];
+const frames=id=>id==='no14-still-video'?266:id==='four-photo-stop-motion'?347:300;
+const canvas=id=>id==='four-photo-stop-motion'?{width:1080,height:1440}:{width:720,height:1280};
 
 for(const id of ids){
  test(id+': saved-state verification carries only the receipt, not original paths or recipes',async()=>{
@@ -32,7 +34,7 @@ for(const id of ids){
  });
  test(id+': the acknowledged Draft callback receives the complete saved images',async()=>{
   const f=fixture(id);await f.create();assert.equal(f.receipts.length,1);
-  assert.equal(f.receipts[0].images,id==='no14-still-video'?8:12);
+  assert.equal(f.receipts[0].images,id==='no14-still-video'?8:id==='four-photo-stop-motion'?21:12);
  });
  test(id+': persisted readback cannot be replaced by the pre-commit working copy',async()=>{
   const f=fixture(id,{tamperSaved:true});await assert.rejects(f.create(),/saved|readback|confirm|grid/i);
@@ -47,23 +49,23 @@ for(const id of ids){
  test(id+': a late acknowledgment is retained after the observer stops, without another write',async()=>{
   const f=fixture(id);f.hooks.afterScript=input=>{if(input.allowCommit&&input.summary.startsWith('Create complete'))f.stop();};
   const result=await f.create();assert.equal(result.status,'saved');assert.equal(f.receipts[0].draftId,result.draftId);
-  assert.equal(f.commits.length,1);assert.equal(f.calls.filter(c=>c.allowCommit).length,1);
+  assert.equal(f.commits.length,1);assert.equal(f.calls.filter(c=>c.allowCommit).length,id==='four-photo-stop-motion'?2:1);
  });
  test(id+': legacy empty seeds can finish without creating another Draft',async()=>{
-  const f=fixture(id),durationFrames=id==='no14-still-video'?266:300;
-  f.saved.set('legacy',{name:'Legacy',fps:30,durationFrames,frameSize:{width:720,height:1280},clips:[]});
+  const f=fixture(id),durationFrames=frames(id);
+  f.saved.set('legacy',{name:'Legacy',fps:30,durationFrames,frameSize:canvas(id),clips:[]});
   assert.equal((await f.create({partialDraftId:'legacy'})).draftId,'legacy');assert.equal(f.saved.size,1);assert.equal(f.commits.length,1);
  });
  test(id+': resuming a legacy seed keeps its frame rate when the Project default changed',async()=>{
-  const f=fixture(id,{fps:60}),durationFrames=id==='no14-still-video'?Math.round(266*25/30):250;
-  f.saved.set('legacy',{name:'Legacy 25fps',fps:25,durationFrames,frameSize:{width:720,height:1280},clips:[]});
+  const f=fixture(id,{fps:60}),durationFrames=Math.round(frames(id)*25/30);
+  f.saved.set('legacy',{name:'Legacy 25fps',fps:25,durationFrames,frameSize:canvas(id),clips:[]});
   const result=await f.create({partialDraftId:'legacy'});
   assert.equal(result.draftId,'legacy');assert.equal(result.fps,25);assert.equal(result.durationFrames,durationFrames);
   assert.equal(f.saved.size,1);assert.equal(f.commits.length,1);
  });
  test(id+': a legacy Draft with a manual graphic is preserved without any save',async()=>{
-  const f=fixture(id),durationFrames=id==='no14-still-video'?266:300;
-  const state={name:'Manual',fps:30,durationFrames,frameSize:{width:720,height:1280},clips:[{clipId:99,trackId:'manual',trackKind:'video',resourceId:null,startFrame:0,endFrame:30}]};
+  const f=fixture(id),durationFrames=frames(id);
+  const state={name:'Manual',fps:30,durationFrames,frameSize:canvas(id),clips:[{clipId:99,trackId:'manual',trackKind:'video',resourceId:null,startFrame:0,endFrame:30}]};
   f.saved.set('legacy',structuredClone(state));await assert.rejects(f.create({partialDraftId:'legacy'}),/not empty|inspect/i);
   assert.deepEqual(f.saved.get('legacy'),state);assert.equal(f.commits.length,0);
  });
@@ -94,4 +96,21 @@ test('Camera rechecks run ownership after preparing sounds and before importing 
  const api=loadPanelFunctions(source,['ensureSounds'],{unpackSounds:async()=>({sound:{path:'/sound.wav'}}),inventory:async()=>{live=false;return [];}});
  const sdk={runScript:async()=>{imports++;throw Error('unexpected import');}};
  await assert.rejects(api.ensureSounds(sdk,'p',()=>live),/ended|changed|stopped/i);assert.equal(imports,0);
+});
+
+test('Four Photo Stop Motion requires music for the realized rounded Draft duration',async()=>{
+ const f=fixture('four-photo-stop-motion',{fps:10}),p=f.selects.project('p'),original=p.importFiles;
+ p.importFiles=async input=>{const reply=await original(input);f.resources.find(r=>r.resourceId==='music').durationSeconds=11.58;return reply;};
+ await assert.rejects(f.create(),/music|Audio|short/i);
+ assert.equal(f.commits.length,0);assert.equal(f.saved.size,0);
+});
+test('Four Photo Stop Motion preserves repeated picks and independent slot focus in the complete save',async()=>{
+ const f=fixture('four-photo-stop-motion'),selected=[f.photos[1],f.photos[0],f.photos[1],f.photos[2]];
+ const framing=[{x:0,y:1},{x:1,y:0},{x:.2,y:.8},{x:.8,y:.2}],before=JSON.stringify(selected);
+ const result=await f.create({selected,framing}),state=f.saved.get(result.draftId),images=state.clips.filter(c=>c.trackKind==='video'&&c.resourceId);
+ const slots='ABCDABCDABCDABCDABCDA';
+ assert.equal(images.length,21);assert.equal(new Set(images.map(c=>c.clipId)).size,21);
+ assert.deepEqual(images.map(c=>c.resourceId),[...slots].map(s=>selected['ABCD'.indexOf(s)].resourceId));
+ for(const [i,row] of images.entries())assert.deepEqual([row._effects[0].parameters.focusX,row._effects[0].parameters.focusY],Object.values(framing['ABCD'.indexOf(slots[i])]));
+ assert.equal(JSON.stringify(selected),before);assert.equal(f.commits.length,1);assert.equal(f.imports,1);
 });

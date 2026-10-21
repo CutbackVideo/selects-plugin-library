@@ -1,5 +1,17 @@
 # Validation
 
+## Current repair checkpoint: 0.1.10
+
+The historical reference/export runs below belong to their stated versions.
+They do not validate the current shared authoring/run migration in an installed
+app. The current checkpoint uses one complete working-copy commit and durable
+app-run recovery, with independent saved-state verification. Local regression
+and actual SDK/renderer/Storyboard source-clock probes are documented in
+`docs/template-repair/stop-motion-atomic.md` in the source repository. Installed
+execution, complete AV playback/export, original-versus-changed-input evaluation
+and Windows checks remain unverified. Client PR #7828's SDK rollout is required
+before publishing this version.
+
 ## Reference
 
 A trending "stopmotion #closer" short-form template (30 fps, 347 frames, 1080x1440, 3:4), measured with ffmpeg:

@@ -3,7 +3,7 @@ import test from 'node:test';
 import {fixture} from './photo_authoring_fixture.mjs';
 import {templateFixture} from './photo_template_run_fixture.mjs';
 
-for(const id of ['no14-still-video','camera-shutter-dump']){
+for(const id of ['no14-still-video','camera-shutter-dump','four-photo-stop-motion']){
  test(id+': complete authoring reports every Image and graphic transform',async()=>{
   const f=fixture(id),result=await f.create();
   assert.equal(result.transforms?.length,result.clips.length+result.graphics.length);

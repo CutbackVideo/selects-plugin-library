@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "four-photo-stop-motion",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "name": "Four Photo Stop Motion",
   "summary": "Cycle four photos as a beat-synced stop motion with blur hits, a black pause and a dark fade, over bundled music, as editable Image clips.",
   "status": "experimental",
@@ -20,7 +20,7 @@
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Needs public original Image placement, effects, graphics, Audio overlays and asynchronous host file storage. This version passes local tests; installed-app and Windows runtime, full playback and export checks remain pending."
+    "selects": "Needs public original Image placement, effect/graphic/transform/Audio program reads, clipSourceWindow (client PR #7828), Audio overlays and asynchronous atomic file storage. Unsupported reads stop before committing. Do not publish before the prerequisite SDK rollout. Installed-app and Windows runtime, full playback and export checks remain pending."
   },
   "preview": {
     "video": "preview.mp4",

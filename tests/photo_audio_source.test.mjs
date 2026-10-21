@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {fixture} from './photo_authoring_fixture.mjs';
 import {templateFixture} from './photo_template_run_fixture.mjs';
-const ids=['no14-still-video','camera-shutter-dump'];
+const ids=['no14-still-video','camera-shutter-dump','four-photo-stop-motion'];
 const options=id=>id==='no14-still-video'?{music:'on'}:{};
 const sound=state=>state.clips.find(c=>c.trackKind==='audio'||c.trackKind==='main'&&c.resourceId);
 const mutate=(row,kind)=>{

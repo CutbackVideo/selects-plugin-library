@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {templateFixture} from './photo_template_run_fixture.mjs';
 import {checkScriptTypes} from './run_script_types.mjs';
-const ids=['no14-still-video','camera-shutter-dump'];
+const ids=['no14-still-video','camera-shutter-dump','four-photo-stop-motion'];
 const records=f=>[...f.files.keys()].filter(p=>p.includes('/template-runs/'));
 test('template completion waits for delayed host I/O instead of counting event-loop turns',{timeout:4000},async()=>{
  const f=templateFixture('no14-still-video');
@@ -124,7 +124,7 @@ test(id+': a run record growing after stat is read within the bound and refused'
  await f.mount();await f.until(()=>f.finishes.length===2);assert.ok(f.finishes[1].error);assert.ok(requested>0&&requested<=49152);assert.equal(f.commits.length,1);
 });
 }
-test('both complete durable-run scripts typecheck and fit the default script budget',async()=>{
+test('complete durable-run scripts typecheck and fit the default script budget',async()=>{
  const scripts=[];
  for(const id of ids){const f=templateFixture(id);await f.mount();await f.until(()=>f.finishes.length===1);assert.ok(f.finishes[0].sequenceId);
   for(const input of f.requests){assert.ok(Buffer.byteLength(input.script)<256*1024);scripts.push({name:id+' '+input.summary,script:input.script});}

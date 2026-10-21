@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {fixture} from './photo_authoring_fixture.mjs';
 import {templateFixture} from './photo_template_run_fixture.mjs';
-for(const id of ['no14-still-video','camera-shutter-dump']){
+for(const id of ['no14-still-video','camera-shutter-dump','four-photo-stop-motion']){
  test(id+': programs are verified for all visuals with deduplicated source',async()=>{
   const f=fixture(id),r=await f.create();assert.equal(r.programs?.clips.length,r.clips.length+r.graphics.length);
-  assert.equal(r.programs.sources.length,id==='no14-still-video'?2:3);assert.equal(new Set(r.programs.sources).size,r.programs.sources.length);
+  assert.equal(r.programs.sources.length,id==='camera-shutter-dump'?3:2);assert.equal(new Set(r.programs.sources).size,r.programs.sources.length);
  });
  for(const target of ['effect','graphic'])for(const kind of ['code','parameters','controls'])test(id+': wrong persisted '+target+' '+kind+' is refused',async()=>{
   const f=fixture(id);f.hooks.afterScript=input=>{if(input.summary.startsWith('Create complete')){
@@ -41,7 +41,9 @@ for(const id of ['no14-still-video','camera-shutter-dump']){
   const f=templateFixture(id);await f.mount();await f.until(()=>f.finishes.length===1);const path=[...f.files.keys()].find(p=>p.includes('/template-runs/')),row=JSON.parse(f.files.get(path));delete row.result.programs;f.files.set(path,Buffer.from(JSON.stringify(row)));const before=Buffer.from(f.files.get(path));
   await f.mount();await f.until(()=>f.finishes.length===2);assert.ok(f.finishes[1].error);assert.equal(f.commits.length,1);assert.deepEqual(f.files.get(path),before);
  });
- test(id+': oversized hidden-run evidence records a known pre-commit failure',async()=>{
+ // This fault injects preset controls. Stop Motion has authored programs only;
+ // the shared serializer still gates its real prospective receipt before commit.
+ if(id!=='four-photo-stop-motion')test(id+': oversized hidden-run evidence records a known pre-commit failure',async()=>{
   const f=templateFixture(id),get=f.selects.effectPresets.get;
   f.selects.effectPresets.get=async key=>{const d=await get(key);return {...d,editableParameters:[...d.editableParameters,{key:'large',label:'Large',type:'text',defaultValue:'x'.repeat(50000)}]};};
   await f.mount();await f.until(()=>f.finishes.length===1);assert.ok(f.finishes[0].error);assert.equal(f.commits.length,0);assert.equal(f.saved.size,0);

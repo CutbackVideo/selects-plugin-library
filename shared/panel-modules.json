@@ -36,7 +36,8 @@
       "source": "shared/native-image-authoring.js",
       "targets": [
         "plugins/no14-still-video/panel.tsx",
-        "plugins/camera-shutter-dump/panel.tsx"
+        "plugins/camera-shutter-dump/panel.tsx",
+        "plugins/four-photo-stop-motion/panel.tsx"
       ]
     },
     {
@@ -44,7 +45,8 @@
       "source": "shared/template-run.js",
       "targets": [
         "plugins/no14-still-video/panel.tsx",
-        "plugins/camera-shutter-dump/panel.tsx"
+        "plugins/camera-shutter-dump/panel.tsx",
+        "plugins/four-photo-stop-motion/panel.tsx"
       ]
     }
   ]

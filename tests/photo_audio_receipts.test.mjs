@@ -4,10 +4,10 @@ import {fixture} from './photo_authoring_fixture.mjs';
 import {templateFixture} from './photo_template_run_fixture.mjs';
 const options=id=>id==='no14-still-video'?{music:'on'}:{};
 const sound=state=>state.clips.find(c=>c.trackKind==='audio'||c.trackKind==='main'&&c.resourceId);
-for(const id of ['no14-still-video','camera-shutter-dump']){
+for(const id of ['no14-still-video','camera-shutter-dump','four-photo-stop-motion']){
  test(id+': the saved receipt contains verified Audio identities and settings',async()=>{
   const f=fixture(id),result=await f.create(options(id));
-  assert.equal(result.audio?.length,id==='no14-still-video'?1:12);
+  assert.equal(result.audio?.length,id==='camera-shutter-dump'?12:1);
   for(const row of result.audio){assert.equal(row.settings.volumeDb,0);assert.equal(row.audioSourceIndexes,null);assert.equal(row.settings.fadeInSeconds,0);}
  });
  for(const kind of ['volume','fade','keys','route','resource','missing','interval','resource type'])test(id+': wrong persisted '+kind+' sound data cannot be verified',async()=>{

@@ -1,7 +1,8 @@
 # Durable template run ownership and saved receipts
 
 `template-run.js` owns one app-supplied `runId` across panel remounts. Its first
-consumers are Four Photo Reveal and Camera Shutter Dump. It reuses the existing
+consumers are Four Photo Reveal and Camera Shutter Dump, now also used by Four
+Photo Stop Motion. It reuses the existing
 `shared/local-client.ts` file adapter and public SDK; no new client IPC, SDK
 capability, global runtime module loader or cross-plugin file import is added.
 
