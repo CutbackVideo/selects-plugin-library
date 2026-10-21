@@ -110,6 +110,7 @@ export function fakeHost({ platform = 'win32', home = 'C:\\Users\\\uD64D\uAE38\u
     homedir: () => home,
     existsSync: p => store.has(p) || dirs.has(p) || [...store.keys()].some(k => k.startsWith(p + sep)),
     exists: async p => FileSystem.existsSync(p),
+    stat: async p => store.has(p)?{size:store.get(p).byteLength,isDirectory:false}:null,
     mkdirSync: p => { dirs.add(p); },
     readFile: async p => { if (!store.has(p)) throw Error('ENOENT ' + p); return store.get(p); },
     writeFile: async (p, data) => { calls.push(['writeFile', p]); store.set(p, RealmBytes.from(typeof data === 'string' ? Buffer.from(data) : data)); },

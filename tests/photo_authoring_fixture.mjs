@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {webcrypto} from 'node:crypto';
 import {loadPanelFunctions} from './windows_host.mjs';
 import {loadPanelOperation} from './panel_operation.mjs';
 // Independent client preset metadata: pin real controls and source size instead
@@ -38,16 +39,17 @@ export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceipt
  }
  const selects={project:()=>project,draft:draftId=>{assert.ok(saved.has(draftId),'only persisted IDs may be reopened');return handle(draftId,structuredClone(saved.get(draftId)));},
   files:{stat:async()=>({size:32,isDirectory:false,mtimeMs:1,ino:1}),readRange:async()=>({bytesRead:1,base64:'iQ=='})},effectPresets:{get:async presetId=>{const {referenceSource,...definition}=presetSnapshot.presets.find(p=>p.id===presetId);return structuredClone({...definition,tsxCode:null});}}};
- const sdk={files:{join:(...parts)=>parts.join('/'),homedir:()=>'/user',exists:async()=>true,mkdir:async()=>{}},runScript:async input=>{calls.push(input);try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.afterScript?.(input);return {result};}catch(error){return {isError:true,output:error.message};}}};
+ const hostFiles=new Map([['/user/.selects/skills/'+id+'/assets/music.mp3',Buffer.from('fixture music')]]);
+ const sdk={environment:{platform:'darwin'},files:{join:(...parts)=>parts.join('/'),homedir:()=>'/user',exists:async path=>hostFiles.has(path),mkdir:async()=>{},stat:async path=>hostFiles.has(path)?{size:hostFiles.get(path).length,isDirectory:false}:null,readFile:async(path,encoding)=>{if(!hostFiles.has(path))throw Error('ENOENT');return encoding==='utf8'?hostFiles.get(path).toString():new Uint8Array(hostFiles.get(path));},writeFile:async(path,bytes)=>{hostFiles.set(path,Buffer.from(bytes));}},runScript:async input=>{calls.push(input);try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.afterScript?.(input);return {result};}catch(error){return {isError:true,output:error.message};}}};
  const source=fs.readFileSync(new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
  const common=['nativeImageSources','nativeImageRun','prepareNativeImages','nativeImagePlacement','placeNativeImages','readMediaPages'];
  const extra=id==='no14-still-video'?['INVENTORY','DECORATION_CODE','readProjectFps','createNo14Draft']:['INVENTORY','EFFECT_CODE','BURST_CODE','TEXT_CODE','samePath','inventory','createPhotoDraft'];
- const future=['placeWorkingCopyImages','authorAtomicImageDraft','buildAtomicImageDraftScript','verifyAtomicImageDraft','readImageDraftFps','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature','templateRunJSON'];
+ const future=['placeWorkingCopyImages','authorAtomicImageDraft','buildAtomicImageDraftScript','verifyAtomicImageDraft','readImageDraftFps','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature','templateRunJSON','prepareBundledAudio','readBundledAudioResource'];
  const api=loadPanelFunctions(source,[...common,...extra,...future.filter(name=>source.includes('function '+name+'('))],{
-  ...loadPanelOperation(id),SLOTS:count,DEFAULT_MUSIC:'off',ensureSounds:async()=>{imports++;return Object.fromEntries(Array.from({length:6},(_,i)=>['shutter.'+(i+1),'a'+i]));},
+  ...loadPanelOperation(id),crypto:webcrypto,SLOTS:count,DEFAULT_MUSIC:'off',ensureSounds:async()=>{imports++;return Object.fromEntries(Array.from({length:6},(_,i)=>['shutter.'+(i+1),'a'+i]));},
  });
  const args={projectId:'p',selected:photos,decoration:{shape:'none',color:'#ffffff'},framing:id==='no14-still-video'?{}:[],music:'off',name:'Fixture',stillCurrent:()=>live,say:()=>{},onDraft:async draftId=>{await Promise.resolve();receipts.push({draftId,images:saved.get(draftId).clips.filter(c=>c.trackKind==='video'&&c.resourceId).length});}};
  const invoke=(fn,options={})=>fn(sdk,{...args,...options});
  const create=(options={})=>invoke(api[id==='no14-still-video'?'createNo14Draft':'createPhotoDraft'],options);
- return {create,invoke,commits,saved,calls,hooks,receipts,api,sdk,selects,photos,resources,nodes,args,stop:()=>{live=false;},get imports(){return imports;}};
+ return {create,invoke,commits,saved,calls,hooks,receipts,api,sdk,selects,photos,resources,nodes,args,hostFiles,stop:()=>{live=false;},get imports(){return imports;}};
 }

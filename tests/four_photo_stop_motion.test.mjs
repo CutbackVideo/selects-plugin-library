@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {webcrypto,createHash} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -79,7 +80,7 @@ test('bundled music outlasts the Draft',()=>{
 // earlier import is reused whatever the path's case or slashes.
 const W_HOME='C:\\Users\\\uD64D\uAE38\uB3D9';
 const W_MUSIC=W_HOME+'\\.selects\\skills\\four-photo-stop-motion\\assets\\music.mp3';
-const loadMusic=host=>loadPanelFunctions(panelSource,['readMediaPages','inventory','isBundledMusic','ensureMusic'],{...hostGlobals(host),INVENTORY:''});
+const loadMusic=host=>loadPanelFunctions(panelSource,['prepareBundledAudio','readBundledAudioResource','ensureMusic'],{...hostGlobals(host),crypto:webcrypto});
 
 test('the host I/O block is Archive Vlog\'s, unchanged, and no POSIX shell is left',()=>{
  assert.equal(hostBlock(panelSource),REFERENCE_BLOCK);
@@ -91,21 +92,14 @@ test('Windows: the music resolves through FileSystem and is imported once',async
  const host=fakeHost({files:{[W_MUSIC]:'x'}});
  const {ensureMusic}=loadMusic(host);
  const imports=[];let rows=[];
- const sdk={runShell:()=>{throw Error('no shell on this path')},runScript:async({script})=>{
-  if(script.includes('importFiles')){imports.push(JSON.parse(/paths:(\[.*?\])/.exec(script)[1])[0]);rows=[{resourceId:'m1',type:'Audio',path:imports[0]}];return{result:{}};}
-  return{result:{array:true,page:{rows},total:rows.length}};
- }};
+ const dataPath=W_HOME+'\\.selects\\plugin-data\\four-photo-stop-motion\\assets\\'+createHash('sha256').update('x').digest('hex')+'.mp3';
+ const project={resources:async()=>rows,sourceFiles:async()=>({fileTree:rows}),importFiles:async({paths})=>{imports.push(...paths);rows=[{resourceId:'m1',type:'Audio',durationSeconds:60,path:paths[0]}];return {addedResourceIds:['m1']};}};
+ const sdk={runShell:()=>{throw Error('no shell on this path')},runScript:async({script})=>({result:await new Function('selects','return (async()=>{'+script+'})();')({project:()=>project})})};
  assert.equal(await ensureMusic(sdk,'p'),'m1');
- assert.deepEqual(imports,[W_MUSIC]);
- rows=[{resourceId:'m1',type:'Audio',path:W_MUSIC.toLowerCase().replaceAll('\\','/')}];
+ assert.deepEqual(imports,[dataPath]);
+ rows=[{resourceId:'m1',type:'Audio',durationSeconds:60,path:dataPath.toLowerCase().replaceAll('\\','/')}];
  assert.equal(await ensureMusic(sdk,'p'),'m1');
  assert.equal(imports.length,1,'an earlier import is reused');
-});
-
-test('an import through a linked install folder is reused, other music.mp3 files are not',()=>{
- const {isBundledMusic}=loadMusic(fakeHost());
- assert.ok(isBundledMusic('/Volumes/dev/plugins/four-photo-stop-motion/assets/music.mp3','~/.selects/skills/four-photo-stop-motion/assets/music.mp3'));
- assert.ok(!isBundledMusic('~/Music/music.mp3','~/.selects/skills/four-photo-stop-motion/assets/music.mp3'));
 });
 
 test('a missing install says the music is missing',async()=>{

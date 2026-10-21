@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "modules": [
     {
+      "id": "bundled-audio",
+      "source": "shared/bundled-audio.js",
+      "targets": [
+        "plugins/no14-still-video/panel.tsx",
+        "plugins/four-photo-stop-motion/panel.tsx"
+      ]
+    },
+    {
       "id": "native-image-input",
       "source": "shared/native-image-input.js",
       "targets": [
