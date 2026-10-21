@@ -1,5 +1,24 @@
 # Validation and limits
 
+## Isolated browser export-frame validation
+
+The real SDK-saved mixed Gallery is now projected and rendered through the
+product export-frame path in macOS Chrome/WebGPU. Four generated aspect/focus
+cases pass all 341 frames each at the actual 24000/1001 Project grid (1364
+normal frames total), including sampled reveal timing, grayscale/color, Image
+focus and vertical/horizontal grid boundaries. Both deliberately incorrect
+color-clock and placement controls are detected. The probe exposed fractional
+CSS rounding and insufficient presentation raster density; the paired client
+fix `9ef36e4db` repairs the existing common renderer. Its real-browser suite
+passes 17 tests, and the ordinary SDK contract remains ten passing cases.
+
+Run `SELECTS_DEV_REPO=/path/to/combined-selects node tools/check_gallery_pixels.mjs`
+in the source repository. Prerequisites, source-hash receipts, causal evidence,
+sampling details and limits are in `docs/template-repair/gallery-render-contract.md`.
+This uses synthetic media, one grid, no Audio and an isolated browser, not an
+installed app or encoded native export. The runtime, complete AV, Windows,
+original-reference and changed-input acceptance gates below remain open.
+
 ## Current repair checkpoint: 0.3.18
 
 Selected source metadata and complete file contents are reobserved before and

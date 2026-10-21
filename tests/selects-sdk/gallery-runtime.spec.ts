@@ -7,6 +7,8 @@ import { RemotionSequenceRenderingValidator } from "@/external-services/out-adap
 import { compileOverlayTsx } from "../electron/mcp/tools/overlay-compile";
 import { execFileSync } from "node:child_process";
 import { afterAll, afterEach, beforeAll, it, expect } from "vitest";
+import { exportInput } from "@/external-services/out-adapter/export/scene/exportInput";
+import { RemotionOverlayProjectionAdapter } from "@/js/main/adapters/remotion/RemotionOverlayProjectionAdapter";
 import { Project } from "@/domain/model/project/Project";
 import { Resource } from "@/domain/model/resource/Resource";
 import { Clip } from "@/domain/model/sequence/Clip";
@@ -77,6 +79,7 @@ afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 afterEach(() => {
   Resource.configureSequenceResolver(null as never);
   Clip.configureResourceSyncResolver(null as never);
+  Clip.configureResourceResolver(null as never);
 });
 
 function fixture({
@@ -84,11 +87,13 @@ function fixture({
   music = true,
   change = null,
   aliases = true,
+  variant = "plain",
 }: {
   mix?: string;
   music?: boolean;
   change?: string | null;
   aliases?: boolean;
+  variant?: string;
 } = {}) {
   const directory = fs.mkdtempSync(path.join(root, "case-"));
   let project = Project.ofEmpty({
@@ -108,6 +113,30 @@ function fixture({
   ]) {
     const file = path.join(directory, name);
     fs.copyFileSync(path.join(root, name), file);
+    if (kind === "image" && variant !== "plain") {
+      const [width, height] =
+        variant === "landscape"
+          ? [320, 96]
+          : variant === "portrait"
+            ? [96, 320]
+            : [160, 160];
+      const filter =
+        variant === "landscape"
+          ? "drawbox=x=iw/3:y=0:w=iw/3:h=ih:color=0x00ff00:t=fill,drawbox=x=2*iw/3:y=0:w=iw/3:h=ih:color=0x0000ff:t=fill"
+          : variant === "portrait"
+            ? "drawbox=x=0:y=ih/3:w=iw:h=ih/3:color=0x00ff00:t=fill,drawbox=x=0:y=2*ih/3:w=iw:h=ih/3:color=0x0000ff:t=fill"
+            : null;
+      ffmpeg([
+        "-f",
+        "lavfi",
+        "-i",
+        `color=c=0xff0000:s=${width}x${height}`,
+        ...(filter ? ["-vf", filter] : []),
+        "-frames:v",
+        "1",
+        file,
+      ]);
+    }
     const info = JSON.parse(
       execFileSync(
         "ffprobe",
@@ -115,6 +144,9 @@ function fixture({
         { encoding: "utf8" },
       ),
     );
+    const size = info.streams.find(
+      (stream: any) => stream.codec_type === "video",
+    ) ?? { width: 64, height: 96 };
     let r = Resource.ofFile({
       libraryId: "test-library",
       file: {
@@ -126,8 +158,8 @@ function fixture({
         sampleRate: 48000,
         frameRate: 60,
         frameRateF: "60/1",
-        width: 64,
-        height: 96,
+        width: size.width,
+        height: size.height,
         checksum: kind,
         thumbnail: "",
         metadata: { ffprobe: info },
@@ -148,7 +180,7 @@ function fixture({
       resourceId: r.getId(),
       path: file,
       hasTimecode: false,
-      frameSize: { width: 64, height: 96 },
+      frameSize: { width: size.width, height: size.height },
       durationSeconds: 15,
     });
   }
@@ -156,6 +188,7 @@ function fixture({
   Resource.configureSequenceResolver(
     async (_lib, id) => sequences.get(id) ?? null,
   );
+  Clip.configureResourceResolver(async (_lib, id) => resources.get(id) ?? null);
   Clip.configureResourceSyncResolver((_lib, id) => resources.get(id) ?? null);
   const parts: any = {
     HostCapabilities: { supports: () => true },
@@ -355,8 +388,8 @@ function fixture({
       ...(mix === "video" || (mix === "mixed" && slots.has(i + 1))
         ? video
         : image),
-      focusX: 0.5,
-      focusY: 0.5,
+      focusX: variant === "landscape" ? (i % 3) / 2 : 0.5,
+      focusY: variant === "portrait" ? (Math.floor(i / 3) % 3) / 2 : 0.5,
     }));
     latest = {
       operation: "create",
@@ -376,6 +409,8 @@ function fixture({
     writes,
     sequences,
     generators,
+    resources,
+    directory,
     requests,
     get latest() {
       return latest;
@@ -481,3 +516,58 @@ it("Gallery keeps raw external SDK identities as well as in-app aliases", async 
     expect((r.result as any).status, JSON.stringify(r.result)).toBe("saved");
   expect(f.writes).toEqual(["sequence", "project"]);
 });
+
+if (process.env.GALLERY_RENDER_FIXTURE_DIR)
+  it("exports the saved Gallery through product projection for pixel validation", async () => {
+    const destination = process.env.GALLERY_RENDER_FIXTURE_DIR;
+    if (!destination) throw Error("GALLERY_RENDER_FIXTURE_DIR required");
+    fs.mkdirSync(destination, { recursive: true });
+    const variant = process.env.GALLERY_RENDER_VARIANT ?? "plain";
+    if (!["plain", "landscape", "portrait", "square"].includes(variant))
+      throw Error("Unknown render variant");
+    const f = fixture({ music: false, variant }),
+      r = await f.create();
+    expect(r.ok).toBe(true);
+    if (!r.ok) throw Error(r.message);
+    const result: any = r.result;
+    expect(result.status).toBe("saved");
+    const sequence = f.sequences.get(result.draftId);
+    const projection = new RemotionOverlayProjectionAdapter(
+      { list: () => [] } as any,
+      {
+        findByIdSync: (_lib: string, id: string) => f.resources.get(id),
+      } as any,
+      getMockFileSystem({ pathToLocalURL: (p) => p }),
+    );
+    const snapshot = await projection.getSnapshotForExport(
+      result.draftId,
+      sequence,
+      f.project,
+    );
+    expect(snapshot?.overlays).toHaveLength(21);
+    const projected = await exportInput(
+      sequence,
+      [...f.resources.values()],
+      snapshot!,
+      true,
+    );
+    expect(projected.remotion?.programs).toHaveLength(21);
+    expect(projected.scene.procedural?.length).toBe(21);
+    const files = [...f.resources.values()].map((resource: any) => {
+      const media = resource.getMedia(),
+        filename = path.basename(media.path);
+      fs.copyFileSync(media.path, path.join(destination, filename));
+      return { originalPath: media.path, filename };
+    });
+    fs.writeFileSync(
+      path.join(destination, "render-input.json"),
+      JSON.stringify({
+        ...projected,
+        files,
+        variant,
+        receipt: result,
+        sequence: sequence.toJSON(),
+        resources: [...f.resources.values()].map((r: any) => r.toJSON()),
+      }),
+    );
+  });
