@@ -30,8 +30,10 @@ try{
    requireValue(match&&!excluded.has(match[1]),'Invalid or excluded build-time module consumer');
    const manifest=JSON.parse(readFileSync(path.join(root,'plugins',match[1],'plugin.json'),'utf8'));
    requireValue(manifest.id===match[1]&&manifest.collection==='visual-highlights','Build-time consumer is not a declared template');
-   const imports=[...readFileSync(path.join(root,target),'utf8').matchAll(/\bfrom\s*(['"])([^'"]+)\1/g)].map(match=>match[2]);
-   requireValue(imports.includes('../../'+module.source),'Missing canonical build-time module import: '+target);
+   const builder=readFileSync(path.join(root,target),'utf8');
+   const imports=[...builder.matchAll(/\bfrom\s*(['"])([^'"]+)\1/g)].map(match=>match[2]);
+   const urls=[...builder.matchAll(/\bnew\s+URL\(\s*(['"])([^'"]+)\1\s*,\s*import\.meta\.url\s*\)/g)].map(match=>match[2]);
+   requireValue([...imports,...urls].includes('../../'+module.source),'Missing canonical build-time module import: '+target);
    consumers.add(match[1]);
   }
   for(const target of targets){

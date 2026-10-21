@@ -21,6 +21,8 @@ test.afterEach(() => cleanup());
 
 const template = fs.readFileSync(process.env.GALLERY_PANEL_TEMPLATE || path.join(import.meta.dirname, 'panel.template.tsx'), 'utf8');
 const nativeMock = `
+const readImageDraftFps = () => globalThis.__native.fps();
+const verifyAtomicImageDraft = (...args) => globalThis.__native.verify(...args);
 const galleryNativeResources = (...args) => globalThis.__native.resources(...args);
 const galleryNativeSetFps = (...args) => globalThis.__native.setFps(...args);
 const galleryNativePlace = (...args) => globalThis.__native.place(...args);`;
@@ -64,6 +66,8 @@ const photos = Array.from({ length: 21 }, (_, i) => ({ resourceId: `r${i}`, name
 function harness(media = photos, options = {}) {
   const calls = [], nativeCalls = [];
   globalThis.__native = {
+    fps:async()=>options.fps??60,
+    verify:async(sdk,projectId,result)=>{const r=await sdk.runScript({script:JSON.stringify({operation:"verifyCreated",projectId,draftId:result.draftId}),allowCommit:false});if(r.isError||r.result?.status!=="verified")throw Object.assign(new Error("Saved Draft could not be confirmed"),{code:"IMAGE_SAVE_UNVERIFIED"});return result;},
     resources: async (_sdk, _projectId, rows) => {
       nativeCalls.push('resources');
       if (options.missingDimension && rows.some(row => row.resourceId === 'r4')) throw new Error('Tile 5 has no verified image dimensions');
@@ -97,6 +101,7 @@ function harness(media = photos, options = {}) {
       runFFmpeg: async args => { tools.push(['ffmpeg', ...args]); return { stdout: '', stderr: '' }; } },
   };
   const sdk = {
+    maxScriptTimeoutSeconds:options.maxScriptTimeoutSeconds??120,
     ...asyncSdk(dom.window.__DI__),
     runShell: async request => {
       if (options.runShell) return options.runShell(request);
@@ -106,7 +111,7 @@ function harness(media = photos, options = {}) {
       if(request.script.includes("name:'Gallery frame grid'"))return {result:{fps:options.fps??60}};
       const paged = request.script.startsWith('const value=await(async()=>{');
       const input = JSON.parse(paged ? request.script.slice('const value=await(async()=>{'.length, request.script.indexOf('\n})();const array')) : request.script);
-      calls.push({ input, allowCommit: request.allowCommit });
+      calls.push({ input, allowCommit: request.allowCommit, timeoutSeconds: request.timeoutSeconds });
       if (input.operation === options.failOperation) return { isError: true, output: options.failOutput };
       if (options.coldBudget && ((input.operation === 'placeVideosExisting' && input.slotKeys?.length !== 1) ||
           (input.operation === 'styleExisting' && !(input.slotKeys?.length <= 3)))) return { isError: true, output: 'Script deadline of 30s exceeded' };
@@ -119,6 +124,7 @@ function harness(media = photos, options = {}) {
       if (input.operation === 'importConverted') return { result: { status: 'prepared', converted: input.converted.map(item =>
         ({ ...item, resourceId: 'held-1', width: 128, height: 96, durationFrames: 853 })) } };
       if (input.operation === 'preflight') return { result: { status: 'ready', plan: planGallery(input) } };
+      if(input.operation==='create'){if(options.coldBudget&&request.timeoutSeconds!==120)return {isError:true,output:'Script deadline exceeded'};if(options.placeError)return {result:{status:'outcomeUnknown',message:options.placeError}};options.onPlace?.();return {result:{status:'saved',draftId:'draft-new'}};}
       if (input.operation === 'createBase') return { result: { status: 'baseCreated', draftId: 'draft-new' } };
       if (input.operation === 'fillBase') return { result: { status: 'baseFilled', draftId: 'draft-new' } };
       if (input.operation === 'placeVideosExisting') return { result: { status: 'videosPlaced', draftId: 'draft-new' } };
@@ -145,10 +151,10 @@ test('21 original photos follow one panel action through preflight, native place
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
   assert.match(h.view.container.textContent, /reference moves in these tiles.*4, 6, 11, 17, 19, 21/);
   assert.deepEqual(h.calls.map(call => call.input.operation),
-    ['inspect', 'verifyInputs', 'verifyInputs', 'preflight', 'createBase', ...Array(7).fill('styleExisting'), 'verifyCreated']);
-  assert.deepEqual(h.nativeCalls, ['resources', 'resources', 'place']);
-  assert.equal(h.calls.find(call => call.input.operation === 'createBase').allowCommit, true);
-  assert.deepEqual(h.calls.find(call => call.input.operation === 'styleExisting').input.media.map(item => item.path), photos.map(item => item.path));
+    ['inspect', 'verifyInputs', 'verifyInputs', 'preflight', 'create', 'verifyCreated']);
+  assert.deepEqual(h.nativeCalls, ['resources', 'resources']);
+  assert.equal(h.calls.find(call => call.input.operation === 'create').allowCommit, true);
+  assert.deepEqual(h.calls.find(call => call.input.operation === 'create').input.media.map(item => item.path), photos.map(item => item.path));
 });
 
 test('a mixed photo/video gallery preserves its selected video slot', async () => {
@@ -157,11 +163,11 @@ test('a mixed photo/video gallery preserves its selected video slot', async () =
   const h = harness(media);
   await assignAndCreate(h.view);
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
-  const placed = h.calls.find(call => call.input.operation === 'styleExisting').input.media;
+  const placed = h.calls.find(call => call.input.operation === 'create').input.media;
   assert.equal(placed[20].kind, 'video');
   assert.equal(placed[20].path, '/fixture/moving.mp4');
-  assert.ok(h.calls.some(call => call.input.operation === 'placeVideosExisting'));
-  assert.equal(h.nativeCalls.filter(item => item === 'place').length, 1);
+  assert.equal(h.calls.filter(call => call.input.operation === 'create').length,1);
+  assert.equal(h.nativeCalls.filter(item => item === 'place').length, 0);
 });
 
 test('an exact 15-photo/6-video selection assigns motion to the observed reference slots', async () => {
@@ -175,7 +181,7 @@ test('an exact 15-photo/6-video selection assigns motion to the observed referen
   fireEvent.change(h.view.getByLabelText('Music'), { target: { value: 'none' } });
   fireEvent.click(h.view.getByRole('button', { name: 'Create Draft' }));
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
-  const assigned = h.calls.find(call => call.input.operation === 'styleExisting').input.media;
+  const assigned = h.calls.find(call => call.input.operation === 'create').input.media;
   assert.deepEqual(assigned.flatMap((item, index) => item.kind === 'video' ? [index + 1] : []),
     [4, 6, 11, 17, 19, 21]);
   assert.deepEqual(assigned.filter(item => item.kind === 'video').map(item => item.resourceId),
@@ -199,7 +205,7 @@ for (const platform of ['darwin', 'win32']) {
     assert.ok(held.includes(['.selects', 'plugin-data', 'photo-gallery-no2', 'held-v2', ''].join(sep)), held);
     assert.deepEqual(h.calls.slice(0, 5).map(call => call.input.operation), ['inspect', 'verifyInputs', 'verifyInputs', 'importConverted', 'preflight']);
     assert.deepEqual(h.calls.find(call => call.input.operation === 'importConverted').input.converted, [{ sourceResourceId: 'short-1', sourcePath: source, path: held }]);
-    assert.equal(h.calls.find(call => call.input.operation === 'styleExisting').input.media[20].resourceId, 'held-1');
+    assert.equal(h.calls.find(call => call.input.operation === 'create').input.media[20].resourceId, 'held-1');
   });
 }
 
@@ -269,37 +275,29 @@ test('an ambiguous save after native placement blocks blind duplicate creation',
   await assignAndCreate(h.view);
   await waitFor(() => assert.match(h.view.container.textContent, /Save outcome is unknown/));
   assert.equal(h.view.getByRole('button', { name: 'Create Draft' }).disabled, true);
-  assert.ok(h.calls.some(call => call.input.operation === 'createBase'));
-  assert.ok(!h.calls.some(call => call.input.operation === 'styleExisting'));
+  assert.ok(h.calls.some(call => call.input.operation === 'create'));
+  assert.equal(h.calls.filter(call => call.input.operation === 'create').length,1);
 });
 
-test('a failed video step exposes the host error and saved target without another Create', async () => {
+test('an unknown complete-authoring reply exposes the host error without inventing a saved target', async () => {
   const media = [...photos.slice(0, 20), { resourceId: 'v1', name: 'Video',
     kind: 'video', width: 1000, height: 1000, path: '/video.mp4', durationFrames: 900 }];
-  const h = harness(media, { failOperation: 'placeVideosExisting', failOutput: 'script_timeout: Deadline exceeded before commit' });
+  const h = harness(media, { failOperation: 'create', failOutput: 'script_timeout: Deadline exceeded before commit' });
   await assignAndCreate(h.view);
   await waitFor(() => assert.match(h.view.container.textContent, /Deadline exceeded before commit/));
-  assert.match(h.view.container.textContent, /Place Gallery video tiles/);
-  assert.match(h.view.container.textContent, /draft-new/);
+  assert.ok(!h.view.queryByRole('button',{name:'Open saved Draft'}));
   assert.equal(h.view.getByRole('button', { name: 'Create Draft' }).disabled, true);
-  assert.equal(h.calls.filter(call => call.input.operation === 'createBase').length, 1);
-  assert.ok(!h.calls.some(call => call.input.operation === 'styleExisting'));
+  assert.equal(h.calls.filter(call => call.input.operation === 'create').length, 1);
+  assert.equal(h.calls.filter(call => call.input.operation === 'create').length,1);
 });
 
-test('a cold 21-video gallery stays within per-call video and style budgets', async () => {
+test('a 21-video gallery requests the extended deadline for its one authoring call', async () => {
   const media = photos.map((p, i) => ({ ...p, resourceId: 'v' + i, kind: 'video', path: '/video-' + i + '.mp4', durationFrames: 900 }));
   const h = harness(media, { coldBudget: true });
   await assignAndCreate(h.view);
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
-  const videoCalls = h.calls.filter(c => c.input.operation === 'placeVideosExisting');
-  const styleCalls = h.calls.filter(c => c.input.operation === 'styleExisting');
-  assert.equal(videoCalls.length, 21);
-  assert.equal(styleCalls.length, 7);
-  assert.deepEqual(videoCalls.flatMap(c => c.input.slotKeys), styleCalls.flatMap(c => c.input.slotKeys));
-  assert.equal(new Set(videoCalls.flatMap(c => c.input.slotKeys)).size, 21);
-  assert.ok(styleCalls.slice(0, -1).every(c => c.input.placeMusic === false));
-  assert.equal(styleCalls.at(-1).input.placeMusic, true);
-  assert.equal(h.calls.filter(c => c.input.operation === 'createBase').length, 1);
+  const creates=h.calls.filter(c=>c.input.operation==='create');
+  assert.equal(creates.length,1);assert.equal(creates[0].timeoutSeconds,120);assert.equal(creates[0].input.media.length,21);
 });
 
 test('opening the newly created Draft preserves panel inputs and its saved target', async () => {
@@ -319,7 +317,7 @@ test('one Create action uses bundled B2 by default with reference timing and cre
   assert.match(h.view.container.textContent, /TAD MILLER.*CC BY 4.0/);
   fireEvent.click(h.view.getByRole('button', { name: 'Create Draft' }));
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
-  const styled = h.calls.find(c => c.input.operation === 'styleExisting').input;
+  const styled = h.calls.find(c => c.input.operation === 'create').input;
   assert.equal(styled.music.resourceId, 'bundled-music');
   assert.equal(styled.manualBpm, 113);
   assert.equal(h.calls.filter(c => c.input.operation === 'importBundledMusic').length, 1);
@@ -332,7 +330,7 @@ test('custom Project music uses its exact resource without importing B2', async 
   fireEvent.change(h.view.getByLabelText('Music'), { target: { value: 'custom' } });
   fireEvent.click(h.view.getByRole('button', { name: 'Create Draft' }));
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
-  assert.equal(h.calls.find(c => c.input.operation === 'styleExisting').input.music.path, '/custom.mp3');
+  assert.equal(h.calls.find(c => c.input.operation === 'create').input.music.path, '/custom.mp3');
   assert.ok(!h.calls.some(c => c.input.operation === 'importBundledMusic'));
 });
 test('unknown music import outcome blocks another Create and no Draft starts', async () => {
@@ -349,10 +347,10 @@ test('a 30 fps Project keeps reference seconds while creating and styling on its
   const h=harness(photos,{fps:30});
   await assignAndCreate(h.view);
   await waitFor(()=>assert.ok(h.calls.some(call=>call.input.operation==='verifyCreated')));
-  const creation=h.calls.find(call=>call.input.operation==='createBase').input;
+  const creation=h.calls.find(call=>call.input.operation==='create').input;
   assert.equal(creation.fps,30);
-  assert.equal(creation.durationFrames,427);
-  const style=h.calls.find(call=>call.input.operation==='styleExisting').input;
+  assert.equal(creation.durationFrames,853);
+  const style=h.calls.find(call=>call.input.operation==='create').input;
   assert.equal(style.fps,30);
   assert.equal(planGallery(style).durationFrames,427);
 });
@@ -362,4 +360,10 @@ test('selected-original failure stops before bundled music import or short-video
  fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));fireEvent.click(await waitFor(()=>h.view.getByRole('button',{name:'Assign all 21 in listed order'})));fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));
  await waitFor(()=>assert.match(h.view.container.textContent,/original photo file is missing|Saved and read back/));
  assert.equal(h.calls.some(call=>call.allowCommit),false);assert.equal(tools.some(call=>call[0]==='ffmpeg'),false);assert.equal(h.view.getByRole('button',{name:'Create Draft'}).disabled,false);
+});
+
+test('an unsupported complete-authoring host stops before music import or video preparation',async()=>{
+ const tools=[],h=harness(photos,{maxScriptTimeoutSeconds:30,tools});
+ fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));fireEvent.click(await waitFor(()=>h.view.getByRole('button',{name:'Assign all 21 in listed order'})));fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));
+ await waitFor(()=>assert.match(h.view.container.textContent,/Update Selects/));assert.deepEqual(h.calls.map(c=>c.input.operation),['inspect']);assert.equal(tools.length,0);assert.equal(h.calls.some(c=>c.allowCommit),false);
 });

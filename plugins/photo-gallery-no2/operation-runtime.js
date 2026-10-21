@@ -225,59 +225,49 @@ async function galleryPreflight(selects, project, input, inventory) {
   return { plan, chosen, music };
 }
 
-async function galleryCreate(selects, project, input, inventory, onCommitStarted) {
-  const { plan, chosen, music } = await galleryPreflight(selects, project, input, inventory);
-  const name = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Photo Gallery';
-  const draft = await project.createDraft({ name });
-  if ((await draft.meta()).fps !== plan.fps) galleryFail('The Project frame rate changed; no Draft was saved');
-  await draft.insertGap({ seconds: plan.durationFrames / plan.fps });
-  await draft.setFrameSize(plan.frameSize);
-  const prepared = await draft.meta();
-  if (prepared.fps !== plan.fps || prepared.durationFrames !== plan.durationFrames ||
-      prepared.frameSize?.width !== plan.frameSize.width || prepared.frameSize?.height !== plan.frameSize.height) {
-    galleryFail('The working Draft does not match the requested frame grid, canvas, and duration; no Draft was saved');
-  }
-  let knownClipIds = new Set((await draft.clips({ trackScope: 'all' })).map((row) => row.clipId));
-  for (let i = 0; i < plan.tiles.length; i++) {
-    const tile = plan.tiles[i], source = chosen[i];
-    try {
-      await draft.overlayResource({ resource: project.resource(tile.resourceId), over: await draft.rangeAtFrames(tile.revealFrame, tile.endFrame) });
-    } catch (error) {
-      if (source.kind === 'image' && /not a Video\/Audio asset/i.test(String(error?.message || error))) {
-        galleryFail('The plugin SDK cannot place original Image Resources on video tracks, although the editor can; no Draft was saved');
-      }
-      throw error;
+async function galleryAtomicSources(selects, projectId, sources) {
+  const project=selects.project(projectId),inventory=await galleryInventory(project);
+  return (await galleryReadInputs(selects,project,{projectId,media:sources,music:null},inventory)).chosen;
+}
+
+async function galleryAtomicFinish(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio,programs) {
+  let commitStarted=false;
+  try {
+    const {plan,projectId}=config,project=selects.project(projectId),expectedTransforms=[],expectedPrograms=[];
+    const controls=[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:.5,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:.5,min:0,max:1,step:.01}];
+    for (let index=0;index<plan.tiles.length;index++) {
+      const tile=plan.tiles[index],placement=native.placements[index];
+      const clip=(await draft.clips({trackScope:'all'})).find(row=>row.clipId===placement.clipId&&row.trackId===placement.trackId);
+      if(!clip)throw Error('A Gallery tile disappeared before styling');
+      const geometry=galleryGeometry(tile,config.sources[index],plan.colorFrame);
+      const name=`Gallery ${tile.slotKey} color-${plan.colorFrame}`;
+      await draft.addVideoEffect({clip,label:name,tsxCode:TILE_EFFECT,parameters:geometry.effect,editableParameters:controls});
+      const fresh=(await draft.clips({trackScope:'all'})).find(row=>row.clipId===clip.clipId&&row.trackId===clip.trackId);
+      if(!fresh)throw Error('A Gallery tile disappeared during styling');
+      await draft.setClipTransform({clip:fresh,position:geometry.transform.position,scale:geometry.transform.scale});
+      expectedTransforms.push({clipId:clip.clipId,trackId:clip.trackId,transform:{position:geometry.transform.position,scale:geometry.transform.scale}});
+      expectedPrograms.push({clipId:clip.clipId,trackId:clip.trackId,effects:[{name,tsxCode:TILE_EFFECT,parameters:geometry.effect,editableParameters:controls}],graphic:null});
     }
-    const after = await draft.clips({ trackScope: 'all' });
-    const added = after.filter((row) => !knownClipIds.has(row.clipId) && row.resourceId === tile.resourceId && row.startFrame === tile.revealFrame && row.endFrame === tile.endFrame);
-    if (added.length !== 1) galleryFail(`Could not identify tile ${i + 1} after placement; no Draft was saved`);
-    const clip = added[0];
-    const geometry = galleryGeometry(tile, source, plan.colorFrame);
-    await draft.addVideoEffect({
-      clip, label: `Gallery ${tile.slotKey} color-${plan.colorFrame}`,
-      tsxCode: TILE_EFFECT,
-      parameters: geometry.effect,
-      editableParameters: [
-        { key: 'focusX', label: 'Horizontal focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },
-        { key: 'focusY', label: 'Vertical focus', type: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01 },
-      ],
-    });
-    const freshClip = (await draft.clips({ trackScope: 'all' })).find((row) => row.clipId === clip.clipId);
-    if (!freshClip) galleryFail(`Tile ${i + 1} disappeared before placement was complete`);
-    await draft.setClipTransform({ clip: freshClip, position: geometry.transform.position, scale: geometry.transform.scale });
-    const finalRows = await draft.clips({ trackScope: 'all' });
-    const finalClip = finalRows.find((row) => row.clipId === clip.clipId);
-    if (!finalClip) galleryFail(`Tile ${i + 1} disappeared after transform`);
-    knownClipIds = new Set(finalRows.map((row) => row.clipId));
-  }
-  if (music) await draft.overlayResource({ resource: project.resource(music.resourceId), over: await draft.rangeAtFrames(0, plan.durationFrames), sourceStartSeconds: (music.startSeconds ?? music.startFrame / 60) });
-  const rows = await draft.clips({ trackScope: 'all' });
-  if (rows.some((row) => row.trackKind === 'main' && row.resourceId)) galleryFail('The working Draft has an unexpected Main Resource');
-  if (rows.filter((row) => row.trackKind === 'video' && row.resourceId != null).length !== 21) galleryFail('The working Draft does not contain all 21 editable tiles');
-  onCommitStarted();
-  const saved = await draft.commitAll('Create editable 21-tile Photo Gallery');
-  if (!saved?.createdDraftId) galleryFail('Save outcome is unknown; inspect Project Drafts before retrying');
-  return { status: 'saved', draftId: saved.createdDraftId, tileCount: 21, durationFrames: plan.durationFrames, colorFrame: plan.colorFrame };
+    if(plan.music)await draft.overlayResource({resource:project.resource(plan.music.resourceId),over:await draft.rangeAtFrames(0,plan.durationFrames),sourceStartSeconds:plan.music.startSeconds});
+    const rows=await draft.clips({trackScope:'all'});
+    if(rows.some(row=>row.trackKind==='main'&&row.resourceId)||rows.filter(row=>row.trackKind==='video'&&row.resourceId).length!==21)throw Error('The complete Gallery does not contain exactly 21 visual tiles');
+    const graphics=[];await inspectGraphics(draft,graphics);
+    const transforms=await inspectTransforms(draft,expectedTransforms),audioRows=rows.filter(row=>row.trackKind==='audio');
+    const wantedAudio=plan.music?[{clipId:audioRows[0]?.clipId,trackId:audioRows[0]?.trackId,trackKind:'audio',resourceId:plan.music.resourceId,startFrame:0,endFrame:plan.durationFrames,audioSourceIndexes:null,settings:{},source:{startSeconds:plan.music.startSeconds,endSeconds:plan.music.startSeconds+plan.durationFrames/plan.fps}}]:[];
+    const audio=await inspectAudio(draft,wantedAudio,project),programSnapshot=await programs.inspect(draft,expectedPrograms);
+    const receipts={graphics,transforms,audio,programs:programSnapshot};programs.confirm(receipts);
+    config.onCommitStarted();commitStarted=true;
+    const saved=await draft.commitAll('Create complete Photo Gallery Draft');
+    if(!saved?.createdDraftId)throw Error('Gallery save outcome is unknown; inspect the Project before retrying');
+    return {status:'saved',draftId:saved.createdDraftId,...receipts};
+  }catch(error){return {status:commitStarted?'outcomeUnknown':'notSaved',message:String(error?.message||error)};}
+}
+
+async function galleryCreate(selects,project,input,inventory,onCommitStarted) {
+  const {plan,chosen}=await galleryPreflight(selects,project,input,inventory);
+  const config={projectId:input.projectId,name:typeof input.name==='string'&&input.name.trim()?input.name.trim():'Photo Gallery',plan:{...plan,canvas:plan.frameSize},sources:chosen,items:plan.tiles.map((tile,index)=>({key:tile.slotKey,slot:index,source:index,startFrame:tile.revealFrame,endFrame:tile.endFrame})),onCommitStarted};
+  const result=await authorAtomicImageDraft(selects,config,galleryAtomicFinish,placeWorkingCopyImages,galleryAtomicSources,inspectImageGraphics,inspectImageTransforms,inspectImageAudio,imageProgramsFeature,templateRunJSON);
+  return result.status==='saved'?{...result,tileCount:21,colorFrame:plan.colorFrame}:result;
 }
 
 async function galleryCreateBase(project, input, onCommitStarted) {

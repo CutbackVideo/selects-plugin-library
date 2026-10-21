@@ -789,7 +789,15 @@ async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurren
   return response.result.music;
 }
 
+function requireGalleryAuthoringHost(sdk) {
+  if(!Number.isSafeInteger(sdk.maxScriptTimeoutSeconds)||sdk.maxScriptTimeoutSeconds<120){
+    const message='Update Selects to create a complete Photo Grid Reveal Draft.';
+    throw Object.assign(new Error(message),{safeNotSaved:true,publicMessage:message});
+  }
+}
+
 async function verifyGalleryInputs(sdk, t, input, isCurrent) {
+  requireGalleryAuthoringHost(sdk);
   const stopped = () => Object.assign(new Error(t.changed), { contextChanged: true, safeNotSaved: true });
   if (!isCurrent()) throw stopped();
   const reply = await sdk.runScript({ script: buildScript({ ...input, operation: 'verifyInputs' }), summary: 'Verify Gallery original inputs', allowCommit: false });
@@ -833,11 +841,12 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
   if (!requestPaths.length) return media;
   if (!isCurrent()) throw new Error(t.changed);
   const prepared = [];
-  // Panel runScript has a fixed 30-second deadline. Keep persistent imports small.
+  // Keep reusable media imports small; they are separate from complete Draft authoring.
   for (let start = 0; start < requestPaths.length; start += 3) {
     if (!isCurrent()) throw new Error(t.changed);
     const chunk = requestPaths.slice(start, start + 3);
-    onImportStarted();
+    await onImportStarted();
+    if (!isCurrent()) throw Object.assign(new Error(t.changed), { contextChanged: true, safeNotSaved: true });
     const imported = await sdk.runScript({ script: buildScript({ operation: 'importConverted', projectId,
       converted: chunk, durationFrames: frames }), summary: 'Import independent Photo Gallery tile videos', allowCommit: true });
     if (imported.isError || imported.result?.status === 'outcomeUnknown' || !imported.result) throw new Error(t.unknown);
@@ -858,61 +867,29 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
     : item);
 }
 
-function scriptFailure(t, response, phase, draftId) {
-  const detail = response.result?.message || response.output || t.unknown;
-  return new Error(phase + (draftId ? ' [' + draftId + ']' : '') + ': ' + String(detail).slice(0, 1200));
-}
-
 // Builds the Draft once its inputs are settled (21 tiles, music, BPM), shared by
 // the Panel and a template run. `isCurrent` says the run still belongs to its
 // Project; `onDispatched` marks the first step that may save; `onDraft` gets the
 // new Draft. `libraryId` is a template run's library. A context change before
 // anything is created throws with `contextChanged`.
-async function buildGalleryDraft(sdk, t, { input, isCurrent, onDispatched, onDraft, libraryId = null }) {
-  Object.assign(input, await verifyGalleryInputs(sdk, t, input, isCurrent));
-  const projectId = input.projectId;
-  const clock=await sdk.runScript({script:`const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:'Gallery frame grid'});return {fps:(await d.meta()).fps};`,summary:'Read Project frame grid',allowCommit:false});
-  if(clock.isError||!Number.isFinite(clock.result?.fps)||clock.result.fps<=0)throw new Error('Project frame rate is unavailable');
-  input.fps=clock.result.fps;
-  input.media = await prepareVisuals(sdk, t, input.media, input.durationFrames, projectId, onDispatched, isCurrent);
-  if (!isCurrent()) throw Object.assign(new Error(t.changed), { contextChanged: true });
-  input.media = (await galleryNativeResources(sdk, projectId, input.media, libraryId)).selected.map(({ nativeResource, ...item }) => item);
-  const preflight = await sdk.runScript({ script: buildScript({ ...input, operation: 'preflight' }),
-    summary: 'Check Photo Gallery media and timing', allowCommit: false });
-  if (preflight.isError || preflight.result?.status !== 'ready') throw Object.assign(
-    new Error(preflight.result?.message || preflight.output || t.failed), { safeNotSaved: true });
-  const plan = preflight.result.plan;
-  if (!isCurrent()) throw Object.assign(new Error(t.changed), { safeNotSaved: true });
-  onDispatched();
-  const base = await sdk.runScript({ script: buildScript({ ...input, operation: 'createBase', durationFrames: plan.durationFrames }),
-    summary: 'Create Photo Gallery Draft', allowCommit: true });
-  if (base.isError || base.result?.status !== 'baseCreated' || !base.result.draftId) throw scriptFailure(t, base, 'Create Photo Gallery Draft');
-  const draftId = base.result.draftId;
-  onDraft(draftId);
-  await galleryNativePlace(sdk, projectId, draftId, input.media, plan, libraryId);
-  // Each panel script has a fixed 30-second deadline. Cold video analysis
-  // and effect compilation must not accumulate across all 21 tiles.
-  for (const tile of plan.tiles.filter(item => item.kind === 'video')) {
-    const videos = await sdk.runScript({ script: buildScript({ ...input, operation: 'placeVideosExisting', draftId,
-      slotKeys: [tile.slotKey] }),
-      summary: 'Place Gallery video tiles', allowCommit: true });
-    if (videos.isError || videos.result?.status !== 'videosPlaced') throw scriptFailure(t, videos, 'Place Gallery video tiles', draftId);
+async function buildGalleryDraft(sdk,t,{input,isCurrent,onDispatched,onDraft,libraryId=null}) {
+  Object.assign(input,await verifyGalleryInputs(sdk,t,input,isCurrent));
+  input.fps=await readImageDraftFps(sdk,input.projectId);
+  input.media=await prepareVisuals(sdk,t,input.media,input.durationFrames,input.projectId,onDispatched,isCurrent);
+  if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
+  input.media=(await galleryNativeResources(sdk,input.projectId,input.media,libraryId)).selected;
+  const preflight=await sdk.runScript({script:buildScript({...input,operation:'preflight'}),summary:'Check Photo Gallery media and timing',allowCommit:false});
+  if(preflight.isError||preflight.result?.status!=='ready')throw Object.assign(new Error(preflight.result?.message||preflight.output||t.failed),{safeNotSaved:true});
+  await onDispatched();
+  if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
+  const response=await sdk.runScript({script:buildScript({...input,operation:'create'}),summary:'Create complete Photo Gallery Draft',allowCommit:true,timeoutSeconds:120});
+  if(response.isError||response.result?.status!=='saved'||!response.result.draftId){
+    const result=response.result;throw Object.assign(new Error(result?.message||response.output||t.unknown),{safeNotSaved:result?.status==='notSaved'});
   }
-  for (let start = 0; start < plan.tiles.length; start += 3) {
-    const styled = await sdk.runScript({ script: buildScript({ ...input, operation: 'styleExisting', draftId,
-      slotKeys: plan.tiles.slice(start, start + 3).map(tile => tile.slotKey),
-      placeMusic: start + 3 >= plan.tiles.length }),
-      summary: 'Style Photo Gallery tiles', allowCommit: true });
-    if (styled.isError || styled.result?.status !== 'styled') throw scriptFailure(t, styled, 'Style Photo Gallery tiles', draftId);
-  }
-  let verified = false, readReturned = false;
-  try {
-    const read = await sdk.runScript({ script: buildScript({ ...input, operation: 'verifyCreated', draftId }),
-      summary: 'Read saved Photo Gallery Draft', allowCommit: false });
-    readReturned = true;
-    verified = !read.isError && read.result?.status === 'verified' && read.result.tileCount === 21;
-  } catch { /* The mutating call already returned a saved Draft ID. */ }
-  return { draftId, verified, readReturned };
+  const result=response.result;
+  await onDraft(result.draftId);
+  await verifyAtomicImageDraft(sdk,input.projectId,result);
+  return {draftId:result.draftId,verified:true,readReturned:true};
 }
 
 // A template run gets its own component, so it never touches the Panel's state.
@@ -1243,6 +1220,7 @@ function GalleryTemplateRun({ sdk, context }) {
     (async () => {
       try {
         if (!projectId) throw templateIssue('Open a Project, then try again.');
+        requireGalleryAuthoringHost(sdk);
         const app = window.parent, libraryId = templateLibrary(app, projectId, template);
         say('Finding your photos and videos…');
         const media = await templateTiles(sdk, app, projectId, libraryId, template?.inputs);

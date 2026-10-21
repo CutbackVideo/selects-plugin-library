@@ -214,7 +214,7 @@ function creationFixture({ failCommit = false, rejectNativeImages = false, video
       }
       const trackKind = resource.resourceId === 'song' ? 'audio' : 'video';
       const endOffset = trackKind === 'video' ? videoEndOffsets[resource.resourceId]?.(over.startFrame) ?? 0 : 0;
-      inserted.push({ clipId: Math.max(0, ...inserted.map(item => item.clipId)) + 1, trackId: `v${inserted.length}`, trackKind, resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame + endOffset, sourceStartSeconds });
+      inserted.push({ clipId: Math.max(0, ...inserted.map(item => item.clipId)) + 1, trackId: `v${inserted.length}`, trackKind, audioSourceIndexes:null, playbackSpeed:{numerator:1,denominator:1}, preserveAudioPitch:true, resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame + endOffset, sourceStartSeconds });
       if (videoAudio && trackKind === 'video' && videoIndices.includes(Number(resource.resourceId.slice(1)))) {
         inserted.push({ clipId: Math.max(0, ...inserted.map(item => item.clipId)) + 1, trackId: `a${inserted.length}`, trackKind: 'audio',
           resourceId: resource.resourceId, startFrame: over.startFrame, endFrame: over.endFrame });
@@ -240,11 +240,15 @@ function creationFixture({ failCommit = false, rejectNativeImages = false, video
     setClipTransform: async (entry) => transforms.push(entry),
     clipTransform: async (clip) => {
       const value = transforms.find((entry) => entry.clip.clipId === clip.clipId);
-      return value ? { enabled: true, position: value.position, scale: value.scale } :
+      return value ? { enabled: true, position: value.position, scale: value.scale, rotation:0,anchor:{x:0,y:0},flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[] } :
         { enabled: true, position: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rotation: 0, anchor: { x: 0, y: 0 } };
     },
     videoEffects: async (clip) => effects.filter((effect) => effect.clip.clipId === clip.clipId)
-      .map((effect) => ({ name: effect.label, enabled: true })),
+      .map((effect,effectIndex) => ({ clipId:clip.clipId,trackId:clip.trackId,effectIndex,name: effect.label, enabled: true })),
+    videoEffectProgram: async ref => {const {clip,label,...program}=effects.filter(e=>e.clip.clipId===ref.clipId)[ref.effectIndex];return program;},
+    motionGraphics:async()=>[],motionGraphicProgram:async()=>null,
+    clipAudio:async clip=>({clipId:clip.clipId,volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:0}),
+    clipSourceWindow:async clip=>({clipId:clip.clipId,startSeconds:clip.sourceStartSeconds??0,endSeconds:(clip.sourceStartSeconds??0)+(clip.endFrame-clip.startFrame)/60}),
     commitAll: async () => {
       if (failCommit) throw new Error('transport lost after commit started');
       return createCount ? { createdDraftId: 'draft-new' } : { commitId: 'commit-style' };
@@ -457,7 +461,7 @@ test('mixed gallery places Video through the public SDK while preserving preplac
   assert.equal(result.status, 'videosPlaced', result.message);
   assert.equal(result.tileCount, 1);
   assert.equal(f.inserted.length, 21);
-  assert.deepEqual(f.inserted[20], { clipId: 21, trackId: 'v20', trackKind: 'video',
+  assert.deepEqual(f.inserted[20], { clipId: 21, trackId: 'v20', trackKind: 'video', audioSourceIndexes:null, playbackSpeed:{numerator:1,denominator:1}, preserveAudioPitch:true,
     resourceId: 'r20', startFrame: 205, endFrame: 853, sourceStartSeconds: undefined });
   assert.equal((await f.run({ operation: 'styleExisting', projectId: 'project-1',
     draftId: 'known', media, manualBpm: 113 })).status, 'styled');
@@ -509,7 +513,7 @@ test('a Selects build without native Image overlays stops before commit without 
     path: `/test/photo-${i}.png`, kind: 'image' }));
   const result = await f.run({ operation: 'create', projectId: 'project-1', media, manualBpm: 113 });
   assert.equal(result.status, 'notSaved');
-  assert.match(result.message, /plugin SDK cannot place original Image Resources on video tracks/i);
+  assert.match(result.message, /Video\/Audio asset|cannot place original Image/i);
   assert.equal(f.inserted.length, 0);
 });
 

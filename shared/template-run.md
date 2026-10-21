@@ -114,3 +114,11 @@ remain explicit new operations without an app run ID; they are not deduplicated
 by this feature. Other template migrations, audio-import ownership, complete
 design readback, installed execution, playback/export and Windows execution
 remain separate acceptance gates.
+
+## Gallery serialization-only build dependency
+
+Gallery currently consumes only `templateRunJSON` to bound pre-commit receipt
+evidence. Its generator excludes browser-owned run/file functions from SDK
+requests. This registry dependency does not mean Gallery has adopted durable
+claims or run recovery; that migration is still pending. The module pool
+remains five registered features across ten consumers.

@@ -88,3 +88,11 @@ test('excluded build-time consumers cannot be registered',()=>fixture(({dir,run}
  const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath,'utf8'));registry.modules[0].buildTimeTargets=['plugins/shortform-clips/operation-builder.mjs'];fs.writeFileSync(registryPath,JSON.stringify(registry));
  assert.notEqual(run('--check').status,0);
 }));
+test('a declared canonical URL read is a valid build-time source edge',()=>fixture(({dir,run})=>{
+ const folder=path.join(dir,'plugins/photo-gallery-no2');fs.mkdirSync(folder);
+ fs.writeFileSync(path.join(folder,'plugin.json'),JSON.stringify({id:'photo-gallery-no2',collection:'visual-highlights'}));
+ fs.writeFileSync(path.join(folder,'build-panel.mjs'),"const source = readFileSync(new URL('../../shared/example.js', import.meta.url), 'utf8');\n");
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath,'utf8'));
+ registry.modules[0].buildTimeTargets=['plugins/photo-gallery-no2/build-panel.mjs'];fs.writeFileSync(registryPath,JSON.stringify(registry));
+ assert.equal(run('--check').status,0);
+}));

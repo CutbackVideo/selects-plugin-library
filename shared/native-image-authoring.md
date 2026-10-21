@@ -110,3 +110,20 @@ that does not prove rendering or Inspector behavior. Missing old graphic,
 transform, Audio or program evidence requires inspection, not a save replay.
 They do not prove actual image decoding, playback, visual fidelity or export. Those acceptance
 gates remain separate. See the [checkpoint](../docs/template-repair/photo-atomic-authoring.md).
+
+## Gallery mixed visual consumer
+
+Photo Grid Reveal reuses the same placement, working-copy and saved-receipt
+functions through its existing generator. A Gallery-specific source-facts
+adapter resolves the frozen paths and validates Image/Video facts before
+passing ordered occurrences to shared placement; that function delegates
+source validation rather than assuming every Resource must be an Image.
+The canonical function bodies and four earlier consumers are unchanged.
+Only SDK-safe helpers enter Gallery's emitted requests; selected existing
+panel-side readers enter its self-contained panel. `authoring.generated.mjs`
+is a distribution artifact, not another functional module.
+
+Gallery commits its complete normal creation once. Its explicit legacy repair
+operations are still staged and are not the app-run route. The normal launcher
+requires client #7847's deadline fact before preparation; sound readback also
+needs #7828. See `docs/template-repair/gallery-atomic.md` for evidence/limits.

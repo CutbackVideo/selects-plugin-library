@@ -44,6 +44,9 @@
         "plugins/camera-shutter-dump/panel.tsx",
         "plugins/four-photo-stop-motion/panel.tsx",
         "plugins/polaroid-photo-dump/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/photo-gallery-no2/build-panel.mjs"
       ]
     },
     {
@@ -54,6 +57,9 @@
         "plugins/camera-shutter-dump/panel.tsx",
         "plugins/four-photo-stop-motion/panel.tsx",
         "plugins/polaroid-photo-dump/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/photo-gallery-no2/build-panel.mjs"
       ]
     }
   ]

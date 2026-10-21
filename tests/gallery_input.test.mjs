@@ -24,7 +24,7 @@ function fixture({fault=null,minify=false}={}){
  const selects={project:()=>project,files,media:{probe:async({filePaths})=>{await hooks.probe?.();return {files:filePaths.map(path=>({path})),errors:[],summary:{failed:0}};}}};
  const scripts=[];const run=input=>{const script=buildScript(input);scripts.push({name:'Gallery '+input.operation,script});return new asyncFunction('selects',script)(selects);};
  const input={operation:'preflight',projectId:'p',fps:30,durationFrames:853,manualBpm:113,music:null,media:media.map(m=>({...m}))};
- const sdk={call:async method=>{assert.equal(method,'listProjectResources');return resources;},runScript:async request=>{requests.push(request);if(request.allowCommit){writes.push(request);return {isError:true,output:'WRITE_REACHED'};}try{return {result:await vm.runInNewContext('(async()=>{'+request.script+'})()',{selects})};}catch(error){return {isError:true,output:error.message};}},finishTemplate:result=>{finishes.push(result);finish?.();}};
+ const sdk={maxScriptTimeoutSeconds:120,call:async method=>{assert.equal(method,'listProjectResources');return resources;},runScript:async request=>{requests.push(request);if(request.allowCommit){writes.push(request);return {isError:true,output:'WRITE_REACHED'};}try{return {result:await vm.runInNewContext('(async()=>{'+request.script+'})()',{selects})};}catch(error){return {isError:true,output:error.message};}},finishTemplate:result=>{finishes.push(result);finish?.();}};
  const local={environment:{platform:'darwin'},files:{join:(...parts)=>parts.join('/'),homedir:()=>'/profile',exists:async()=>true,mkdir:async()=>{}}};
  const mount=()=>new Promise((resolve,reject)=>{
   const key=String(minify);

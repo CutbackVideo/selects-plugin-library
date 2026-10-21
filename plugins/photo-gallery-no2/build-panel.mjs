@@ -6,13 +6,25 @@ const marker = '/*__SHARED_SCRIPT_BUILDER__*/';
 if (template.split(marker).length !== 2) throw new Error('Panel must have exactly one shared builder marker');
 const nativeSource = readFileSync(new URL('./native-image-runtime.js', import.meta.url), 'utf8');
 const originalImageSource = nativeImageSources.toString();
+const authoringSource = readFileSync(new URL('../../shared/native-image-authoring.js', import.meta.url), 'utf8');
+const runSource = readFileSync(new URL('../../shared/template-run.js', import.meta.url), 'utf8');
+// Serialize only SDK-safe functions into SDK requests. Browser-side ownership
+// and file-client functions remain outside the script worker.
+const sdkNames = ['placeWorkingCopyImages','authorAtomicImageDraft','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature'];
+const panelNames = [...sdkNames,'verifyAtomicImageDraft','readImageDraftFps'];
+const functions = await import('data:text/javascript;base64,' + Buffer.from(authoringSource + '\nexport {' + panelNames.join(',') + '};').toString('base64'));
+const runFunctions = await import('data:text/javascript;base64,' + Buffer.from(runSource + '\nexport {templateRunJSON};').toString('base64'));
+const sdkAuthoringSource = sdkNames.map(name => functions[name].toString()).join('\n');
+const panelAuthoringSource = panelNames.map(name => functions[name].toString()).join('\n');
+const jsonSource = runFunctions.templateRunJSON.toString();
 const stdout = process.argv.includes('--stdout');
 // The installed builder cannot import repository-wide paths. Publish its small
 // generated copy before importing it, so a normal rebuild also bootstraps it.
 if (!stdout) writeFileSync(new URL('./input-facts.generated.mjs', import.meta.url), '// Generated from shared/native-image-input.mjs; edit the canonical source.\nexport ' + originalImageSource + '\n');
+if (!stdout) writeFileSync(new URL('./authoring.generated.mjs', import.meta.url), '// Generated from existing shared authoring and run features; edit the canonical sources.\nexport const IMAGE_AUTHORING_SOURCE = ' + JSON.stringify(sdkAuthoringSource) + ';\nexport const PANEL_AUTHORING_SOURCE = ' + JSON.stringify(panelAuthoringSource) + ';\nexport const TEMPLATE_RUN_SOURCE = ' + JSON.stringify(jsonSource) + ';\n');
 const { createScriptPrefix } = await import('./operation-builder.mjs');
-const prefix = createScriptPrefix(originalImageSource);
-const generated = template.replace(marker, `const SCRIPT_PREFIX = ${JSON.stringify(prefix)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';\nconst gallerySourceFacts = ${originalImageSource};\n${nativeSource}`);
+const prefix = createScriptPrefix(originalImageSource, sdkAuthoringSource, jsonSource);
+const generated = template.replace(marker, `const SCRIPT_PREFIX = ${JSON.stringify(prefix)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';\nconst gallerySourceFacts = ${originalImageSource};\n${panelAuthoringSource}\n${nativeSource}`);
 // `--stdout` prints the panel instead (tests compare it with the checked-in panel.tsx).
 if (stdout) process.stdout.write(generated);
 else writeFileSync(new URL('./panel.tsx', import.meta.url), generated);

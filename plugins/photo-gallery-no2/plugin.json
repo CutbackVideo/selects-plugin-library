@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "photo-gallery-no2",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "name": "Photo Grid Reveal",
   "summary": "Build an editable 3-by-7 photo and video gallery with sequential reveals and a shared monochrome-to-color switch.",
   "status": "experimental",
@@ -15,6 +15,7 @@
     "operation-builder.mjs",
     "operation-runtime.js",
     "input-facts.generated.mjs",
+    "authoring.generated.mjs",
     "native-image-runtime.js",
     "format.mjs",
     "reference-oracle.json",
@@ -27,7 +28,7 @@
       "macOS Selects Staging",
       "Windows x64"
     ],
-    "selects": "Requires public original Image placement, Project Image dimensions, file stat/readRange, media probes, Video/Audio overlays, effects/transforms and gap-backed Draft persistence. The current original-input/bootstrap repair has local tests; installed-app/Windows and full playback/export remain unverified. No internal TimelineMutation or DI access is used."
+    "selects": "Requires public original Image placement, Project Image dimensions, file stat/readRange, media probes, Video/Audio overlays, effects/transforms and gap-backed Draft persistence. Requires the extended panel deadline contract (client #7847) and, for music verification, clipSourceWindow (client #7828). Complete single-commit authoring has local tests; installed-app/Windows and full playback/export remain unverified. No internal TimelineMutation or DI access is used."
   },
   "localized": {
     "de": {

@@ -1,6 +1,24 @@
 # Validation and limits
 
-## Current repair checkpoint: 0.3.11
+## Current repair checkpoint: 0.3.12
+
+Normal creation now uses the existing shared working-copy authoring and receipt
+checks. It authors all 21 Image/Video tiles and optional music before its only
+commit, acknowledges only the complete saved identity, and independently reads
+back transforms, effects/programs, graphics and Audio evidence. The first ten
+parent-source cases failed nine with one control; the expanded 33-case parent
+baseline failed 30 with three controls. A malformed host-limit regression also
+failed before its fix. Current evidence and remaining work are recorded in
+`docs/template-repair/gallery-atomic.md` in the source repository.
+
+Client #7847's panel deadline contract is required; sound-bearing verification
+also requires #7828's source-window reader. No binary was installed or deployed.
+The hidden app-run still needs durable ownership/recovery, asset ownership,
+source-clock completion and installed/actual Windows/whole AV/export checks.
+Explicit legacy low-level staged repair operations retain their old contract;
+they are not the normal new-creation route.
+
+## Earlier repair checkpoint: 0.3.11
 
 Selected originals are verified before bundled-music import or short-video
 preparation. The shared original-Image feature supplies stat/read-one-byte/stat
