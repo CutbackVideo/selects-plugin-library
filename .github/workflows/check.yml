@@ -28,6 +28,7 @@ jobs:
         run: node --test tests/music.test.mjs tests/music-preview.test.mjs
       - name: Test Place Count
         run: |
+          node --test tests/place_count_authoring.test.mjs
           node plugins/place-count/tests/core.test.cjs
           node plugins/place-count/tests/path-collision.test.cjs
           node plugins/place-count/tests/local-sdk.test.cjs
