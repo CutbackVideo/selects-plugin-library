@@ -16,7 +16,8 @@ SELECTS_DEV_REPO=/path/to/combined-selects node tools/check_gallery_pixels.mjs -
 
 The client needs the deadline (#7847), source-window (#7828), fresh-read and
 file-fingerprint (#7866) changes, plus the CSS raster precision/density fix
-`9ef36e4db`. Normal client dependencies, ffmpeg/ffprobe and local Chrome with
+and margin regression fix (client draft PR #7876, `fa425968e`). Normal client
+dependencies, ffmpeg/ffprobe and local Chrome with
 WebGPU are required. Missing prerequisites fail explicitly. This optional local
 command does not turn the private client into a public-library CI dependency.
 It owns a temporary client-local fixture directory and loopback Vite server,
@@ -76,12 +77,17 @@ host policy are unchanged.
 ## Causal verification and limits
 
 Failing browser cases precede the fractional fix, and failing density cases
-precede the density fix. The final real-browser component suite passes 17
+precede the density fix. A further two-case regression caught and repaired
+absolute-element margin placement before handoff. The final real-browser
+component suite passes 19
 tests across five files, retaining prior controls and adding fractional clips,
 scaled opacity/filter groups, resolution-aware SVG caching, affine stretch
 and spatial-filter coverage. The expanded Gallery probe passes all 1,364
 normal frames, both fault-injection controls and has no captured browser or
 HTTP errors. The ordinary real-SDK authoring suite still passes ten cases.
+
+Review the library probe in draft PR #300 and the paired renderer repair in
+client draft PR #7876; neither is a merged or deployed release.
 
 The final pixel run used combined client HEAD d3e146c0c with the owned renderer
 patch applied. Its summary records all three production renderer hashes and
@@ -90,6 +96,13 @@ The summary explicitly records the modified tree rather than attributing the
 patched output to the unpatched HEAD. Local artifacts retain the initial and
 intermediate failures, whose oracle scopes differ and must not be compared
 as if they were identical bug counts.
+
+After the margin correction, the complete probe passed again against clean
+combined validation commit b87220feae1a50b2455dffae5dfffd11d162143f: all 1,364
+normal frames, both fault controls and no captured browser/HTTP errors. Its
+production renderer hashes match final standalone client commit
+fa425968e4abe04df0765078fb02628acf1a5d84. The local combination preserves
+the prerequisite branches without merging or publishing them.
 
 An offline analysis of post-color interior samples finds one stable signature
 for each of the 15 Image cells and 226-229 signatures for each of the six Video

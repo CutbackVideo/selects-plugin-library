@@ -9,8 +9,9 @@ normal frames total), including sampled reveal timing, grayscale/color, Image
 focus and vertical/horizontal grid boundaries. Both deliberately incorrect
 color-clock and placement controls are detected. The probe exposed fractional
 CSS rounding and insufficient presentation raster density; the paired client
-fix `9ef36e4db` repairs the existing common renderer. Its real-browser suite
-passes 17 tests, and the ordinary SDK contract remains ten passing cases.
+fix (draft PR #7876, `fa425968e`) repairs the existing common renderer and
+preserves absolute-element margins. Its real-browser suite passes 19 tests,
+and the ordinary SDK contract remains ten passing cases.
 
 Run `SELECTS_DEV_REPO=/path/to/combined-selects node tools/check_gallery_pixels.mjs`
 in the source repository. Prerequisites, source-hash receipts, causal evidence,
