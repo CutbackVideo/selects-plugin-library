@@ -30,7 +30,8 @@ effects, graphics and audio recipes remain template-owned.
 - `verifyAtomicImageDraft` starts a separate read-only SDK invocation. It reads
   the persisted Project/Draft, fps, canvas, duration and Image clip IDs, tracks,
   Resource IDs and intervals. Only the minimal receipt enters this query; source
-  paths and template recipes are not sent again. Verification never replays a save.
+  paths and full template recipes are not sent again. Bounded deduplicated program
+  evidence is included as described below. Verification never replays a save.
 - `inspectImageGraphics` compares the procedural clip count, live identities,
   tracks, intervals and explicit parameter values using the existing
   `motionGraphics`/`motionGraphicProgram` SDK reads. Normal create paths invoke
@@ -60,6 +61,24 @@ effects, graphics and audio recipes remain template-owned.
   unchecked host response. Working-copy and independent saved-state reads use
   the same contract. Music Off verifies an empty sound set and does not require
   an unused `clipAudio` API. An unexpected Main sound or Audio-lane clip fails.
+- `imageProgramsFeature` owns program inspection, canonical static-preset
+  preparation, compact evidence and its pre-commit budget gate. Templates supply
+  intended TSX, complete explicit/default parameter values, editable definitions
+  and effect order. Every visual clip is checked, including empty stacks and
+  non-graphic Images. Enabled effects, labels, source and controls must match.
+  Source strings are deduplicated independently of each placement's parameters
+  and controls; exact structural comparison ignores object key order.
+- Effect preset definitions omit effect TSX in the existing public API. For
+  No.14's static Fade down preset, the feature creates one unsaved reference
+  using a validated Image, applies the canonical preset, verifies its returned
+  identity/label/definitions/defaults and reads its program. It does not adopt
+  the target's output as the canonical source or commit the reference. Recovery
+  compares against the original saved snapshot and does not reapply the preset.
+- Before the sole commit, `confirm` reuses `templateRunJSON` with the actual
+  journal envelope and minimal expected result, reserving 120 ASCII characters
+  for a new Draft identity. An oversized snapshot stops before committing. The
+  existing 48 KiB cap is unchanged. Private program-read diagnostics are kept
+  out of public messages. Stored program source is compared as data, not run.
 - A legacy empty seed may continue in one commit if it belongs to the Project
   and matches the plan. Any preexisting non-Main clip, including a manual graphic
   without a Resource ID, is refused. A configured Main Audio must match the
@@ -84,9 +103,10 @@ their individual operations when explicitly called; normal create paths use the
 new one-commit operation.
 
 Persisted receipts do not verify every saved effect/graphic/audio property,
-including TSX identity, editable definitions, effect stacks, sound source offsets
-or actual source bytes. Audio identity, Draft placement, explicit routing and
-level/fade properties are checked; actual audible content is not proved.
-Missing old graphic/transform/Audio evidence requires inspection, not a save replay.
+including effect-internal time mappings, intrinsic Blend/Spatial Conform,
+layer order, sound source offsets or actual media bytes. Authored program TSX,
+parameters, editable definitions and effect order/enabled state are checked;
+that does not prove rendering or Inspector behavior. Missing old graphic,
+transform, Audio or program evidence requires inspection, not a save replay.
 They do not prove actual image decoding, playback, visual fidelity or export. Those acceptance
 gates remain separate. See the [checkpoint](../docs/template-repair/photo-atomic-authoring.md).

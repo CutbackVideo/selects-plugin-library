@@ -25,7 +25,7 @@ The record is under the existing installation-independent plugin data root:
 version, scope, normalized request digest, unique owner and status. A saved record
 adds only the Draft ID, fps, duration, canvas, Image clip receipts and optional
 graphic clip/parameter and normalized visual-transform receipts, not original
-paths, image bytes, full TSX/recipes or private diagnostics. Transform records
+paths, image bytes, full template recipes or private diagnostics. Transform records
 must cover exactly the recorded Image/graphic identities and carry finite,
 well-formed values with positive scale. They remain optional for generic users;
 Image recovery requires the graphic and transform evidence its current verifier
@@ -35,6 +35,15 @@ bounded counts, valid frame intervals, routing indexes and finite SDK-domain
 settings. Current Image recovery also requires this evidence, including an empty
 array for Music Off. An older record without it is inspected without replay. Reads check file size
 before loading and are limited to 48 KiB, matching the existing atomic file API.
+
+Optional program evidence now stores a deduplicated TSX source table and a
+complete visual identity set with ordered effect/graphic references, parameter
+values and editable definitions. Source indexes, identity coverage, control keys,
+stack lengths and source use are validated; per-placement source duplication is
+avoided. Current Image recovery requires this evidence as well. The authoring
+feature checks the whole encoded prospective journal before its final commit,
+so a larger program snapshot cannot silently bypass the existing file limit.
+Source text in the record is compared with live SDK programs, never evaluated.
 
 ## Exclusive claim and SDK-side completion
 

@@ -3,8 +3,11 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {loadPanelFunctions} from './windows_host.mjs';
 import {loadPanelOperation} from './panel_operation.mjs';
+// Independent client preset metadata: pin real controls and source size instead
+// of modelling only an empty Inspector. This is test data, never panel code.
+const presetSnapshot=JSON.parse(fs.readFileSync(new URL('./fixtures/photo-program-presets.json',import.meta.url),'utf8'));
 
-export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceiptOnly=false,commitReplyLost=false,projectTitle='Fixture Project',graphicsReadSupported=true,transformReadSupported=true,audioReadSupported=true}={}){
+export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceiptOnly=false,commitReplyLost=false,projectTitle='Fixture Project',graphicsReadSupported=true,transformReadSupported=true,audioReadSupported=true,programReadSupported=true}={}){
  const count=id==='no14-still-video'?4:12,photos=Array.from({length:count},(_,i)=>({resourceId:'r'+i,name:'Photo '+i,path:'/photos/'+i+'.png'}));
  const resources=[...photos.map(p=>({...p,type:'Image'})),...Array.from({length:6},(_,i)=>({resourceId:'a'+i,name:'Sound '+i,type:'Audio',durationSeconds:10}))];
  const nodes=resources.map(r=>({...r,type:r.type.toLowerCase(),path:r.path||'/audio/'+r.name+'.wav',frameSize:{width:640,height:960},durationSeconds:10}));
@@ -21,20 +24,22 @@ export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceipt
    overlayResource:async({resource,over})=>add(resources.find(r=>r.resourceId===resource.id)?.type==='Audio'?'audio':'video',resource.id,over),
    setClipTransform:async({clip,...patch})=>{const row=clips.find(c=>c.clipId===clip.clipId&&c.trackId===clip.trackId);assert.ok(row);row._transform={...row._transform,...structuredClone(patch)};},
    ...transformReadSupported?{clipTransform:async clip=>{const row=clips.find(c=>c.clipId===clip.clipId&&c.trackId===clip.trackId);assert.ok(row);return structuredClone({enabled:true,position:{x:0,y:0},scale:{x:1,y:1},anchor:{x:0,y:0},rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[],...row._transform});}}:{},
-   addVideoEffect:async()=>{if(failEffect)throw Error('effect compiler failed');},applyEffectPreset:async()=>{},
+   addVideoEffect:async({clip,label,...program})=>{if(failEffect)throw Error('effect compiler failed');const row=clips.find(c=>c.clipId===clip.clipId);(row._effects??=[]).push({name:label,enabled:true,...structuredClone(program)});},
+   applyEffectPreset:async({clip,presetId,parameters})=>{const def=await selects.effectPresets.get(presetId),row=clips.find(c=>c.clipId===clip.clipId);(row._effects??=[]).push({name:def.label,enabled:true,tsxCode:presetSnapshot.presets.find(p=>p.id===presetId).referenceSource,editableParameters:def.editableParameters,parameters:{...def.parameters,...parameters}});return {presetId};},
+   ...programReadSupported?{videoEffects:async clip=>(clips.find(c=>c.clipId===clip.clipId)._effects??[]).map((e,effectIndex)=>({clipId:clip.clipId,trackId:clip.trackId,effectIndex,name:e.name,enabled:e.enabled,effectName:'remotion'})),videoEffectProgram:async e=>{const {name,enabled,...program}=clips.find(c=>c.clipId===e.clipId)._effects[e.effectIndex];const values=Object.fromEntries((program.editableParameters??[]).map(d=>[d.key,d.defaultValue]));return structuredClone({...program,parameters:{...values,...program.parameters}});}}:{},
    ...audioReadSupported?{clipAudio:async clip=>{const row=clips.find(c=>c.clipId===clip.clipId&&c.trackId===clip.trackId);assert.ok(row);return structuredClone({clipId:row.clipId,volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:0,...row._audio});}}:{},
    addMotionGraphic:async({within,...program})=>{const placed=add('video',null,within);clips.find(c=>c.clipId===placed.clipId)._graphic=structuredClone(program);return placed;},
-   ...graphicsReadSupported?{motionGraphics:async()=>clips.filter(c=>c._graphic).map(c=>({name:c._graphic.label,clip:structuredClone(c)})),motionGraphicProgram:async clip=>structuredClone(clips.find(c=>c.clipId===clip.clipId)?._graphic??null)}:{},
+   ...graphicsReadSupported?{motionGraphics:async()=>clips.filter(c=>c._graphic).map(c=>({name:c._graphic.label,clip:structuredClone(c)})),motionGraphicProgram:async clip=>{const p=clips.find(c=>c.clipId===clip.clipId)?._graphic;if(!p)return null;return structuredClone({...p,parameters:{...Object.fromEntries((p.editableParameters??[]).map(d=>[d.key,d.defaultValue])),...p.parameters}});}}:{},
    commitAll:async reason=>{const isNew=!saved.has(draftId);saved.set(draftId,structuredClone(state));commits.push({draftId,reason});if(commitReplyLost)throw Error('commit reply lost');if(tamperSaved&&/Finish/.test(reason))saved.get(draftId).frameSize.width=123;return isNew?{createdDraftId:draftId,...newReceiptOnly?{}:{commitId:'c'+commits.length}}:{commitId:'c'+commits.length};},
   };
  }
  const selects={project:()=>project,draft:draftId=>{assert.ok(saved.has(draftId),'only persisted IDs may be reopened');return handle(draftId,structuredClone(saved.get(draftId)));},
-  files:{stat:async()=>({size:32,isDirectory:false,mtimeMs:1,ino:1}),readRange:async()=>({bytesRead:1,base64:'iQ=='})},effectPresets:{get:async()=>({editableParameters:[]})}};
+  files:{stat:async()=>({size:32,isDirectory:false,mtimeMs:1,ino:1}),readRange:async()=>({bytesRead:1,base64:'iQ=='})},effectPresets:{get:async presetId=>{const {referenceSource,...definition}=presetSnapshot.presets.find(p=>p.id===presetId);return structuredClone({...definition,tsxCode:null});}}};
  const sdk={files:{join:(...parts)=>parts.join('/'),homedir:()=>'/user',exists:async()=>true,mkdir:async()=>{}},runScript:async input=>{calls.push(input);try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.afterScript?.(input);return {result};}catch(error){return {isError:true,output:error.message};}}};
  const source=fs.readFileSync(new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
  const common=['nativeImageSources','nativeImageRun','prepareNativeImages','nativeImagePlacement','placeNativeImages','readMediaPages'];
  const extra=id==='no14-still-video'?['INVENTORY','DECORATION_CODE','readProjectFps','createNo14Draft']:['INVENTORY','EFFECT_CODE','BURST_CODE','TEXT_CODE','samePath','inventory','createPhotoDraft'];
- const future=['placeWorkingCopyImages','authorAtomicImageDraft','buildAtomicImageDraftScript','verifyAtomicImageDraft','readImageDraftFps','inspectImageGraphics','inspectImageTransforms','inspectImageAudio'];
+ const future=['placeWorkingCopyImages','authorAtomicImageDraft','buildAtomicImageDraftScript','verifyAtomicImageDraft','readImageDraftFps','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature','templateRunJSON'];
  const api=loadPanelFunctions(source,[...common,...extra,...future.filter(name=>source.includes('function '+name+'('))],{
   ...loadPanelOperation(id),SLOTS:count,DEFAULT_MUSIC:'off',ensureSounds:async()=>{imports++;return Object.fromEntries(Array.from({length:6},(_,i)=>['shutter.'+(i+1),'a'+i]));},
  });

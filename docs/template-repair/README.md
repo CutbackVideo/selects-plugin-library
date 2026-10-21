@@ -50,6 +50,11 @@ an unrelated workflow. A passing unit suite alone is not completion.
   before/after commit and on remount. Music Off checks silence. See
   [photo-audio-readback.md](photo-audio-readback.md); source offsets, source bytes,
   audible content, effect programs and runtime/platform gates remain open.
+  Program source, parameters, editable definitions, effect order and enabled
+  state now have pre-commit, saved-state and remount checks, with a bounded
+  source table and unsaved static-preset reference. See
+  [photo-program-readback.md](photo-program-readback.md); rendering/Inspector,
+  time mappings, Blend/Spatial Conform and layer order remain unverified.
 - Place Count's obsolete named capability query: independent draft PR #260;
   canonical Draft-method checks and both remote CI checks pass. Installed-app
   save/playback/export and the other six audited findings remain pending.

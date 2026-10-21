@@ -108,7 +108,7 @@ export function normalizeFinishForPlan(raw,plan,title,unsaved=false){
  return {projectId,draftId,fps:plan.fps,title,photos,placements:raw.placements.map(p=>({slot:p.slot,clipId:p.clipId,trackId:p.trackId,startFrame:p.startFrame,endFrame:p.endFrame})),framing,sounds};
 }
 
-export const authorFinishSource=String.raw`async function authorFinish(selects,input,plan,EFFECT_CODE,GRAPHIC_CODES,workingDraft=null,inspectGraphics=null,inspectTransforms=null,inspectAudio=null){
+export const authorFinishSource=String.raw`async function authorFinish(selects,input,plan,EFFECT_CODE,GRAPHIC_CODES,workingDraft=null,inspectGraphics=null,inspectTransforms=null,inspectAudio=null,programs=null){
  let commitStarted=false,stage='read';
  try{
   const project=selects.project(input.projectId),d=workingDraft||selects.draft(input.draftId);
@@ -118,7 +118,7 @@ export const authorFinishSource=String.raw`async function authorFinish(selects,i
   const types=new Map((await project.resources()).map(r=>[r.resourceId,r.type]));
   for(const [key,id] of Object.entries(input.sounds))if(types.get(id)!=='Audio')throw Error('Shutter sound is not an Audio resource: '+key);
   const rows=await d.clips({trackScope:'all'});
-  const transforms=[];
+  const transforms=[],programTargets=[];
   for(const [i,o] of plan.occurrences.entries()){
    const placed=input.placements[i],photo=input.photos[i];
    const clip=rows.find(c=>c.clipId===placed.clipId&&c.trackId===placed.trackId);
@@ -136,11 +136,14 @@ export const authorFinishSource=String.raw`async function authorFinish(selects,i
    const transform={enabled:true,scale:{x:o.zoom/(q*c),y:o.zoom/(q*c)},position:o.position,anchor:{x:0,y:0},rotation:0};
    await d.setClipTransform({clip,...transform});
    transforms.push({clipId:clip.clipId,trackId:clip.trackId,transform});
+   const target={clipId:clip.clipId,trackId:clip.trackId,effects:[],graphic:null};programTargets.push(target);
    if(!o.crop)continue;
    const current=(await d.clips({trackScope:'all'})).find(c=>c.clipId===clip.clipId&&c.trackId===clip.trackId);
    const focus=input.framing[i];
    stage='crop photo '+o.slot;
-   await d.addVideoEffect({clip:current,label:'Photo '+o.slot+' crop',tsxCode:EFFECT_CODE,parameters:{g,focusX:focus.x,focusY:focus.y},editableParameters:[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:focus.x,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:focus.y,min:0,max:1,step:.01}]});
+   const effect={name:'Photo '+o.slot+' crop',tsxCode:EFFECT_CODE,parameters:{g,focusX:focus.x,focusY:focus.y},editableParameters:[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:focus.x,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:focus.y,min:0,max:1,step:.01}]};
+   await d.addVideoEffect({clip:current,label:effect.name,tsxCode:effect.tsxCode,parameters:effect.parameters,editableParameters:effect.editableParameters});
+   target.effects.push(effect);
   }
   const sounds=[],soundTargets=[];
   for(const s of plan.sounds){
@@ -162,25 +165,27 @@ export const authorFinishSource=String.raw`async function authorFinish(selects,i
    let defs=[];try{defs=(await selects.effectPresets?.get(g.presetId))?.editableParameters||[];}catch{defs=[];}
    defs=defs.filter(def=>!(def.key==='fontFamily'&&g.parameters.fontFamily===''));
    const parameters=g.titleKey?{...g.parameters,[g.titleKey]:input.title}:g.parameters;
-   const placed=await d.addMotionGraphic({label:g.label,tsxCode:GRAPHIC_CODES[g.label],parameters,editableParameters:defs,within:await d.rangeAtFrames(g.startFrame,g.endFrame)});
+   const graphic={tsxCode:GRAPHIC_CODES[g.label],parameters,editableParameters:defs};
+   const placed=await d.addMotionGraphic({label:g.label,...graphic,within:await d.rangeAtFrames(g.startFrame,g.endFrame)});
    if(placed?.startFrame!==g.startFrame||placed?.endFrame!==g.endFrame)throw Error(g.label+' landed off its frames');
    const clip=(await d.clips({trackScope:'all'})).find(c=>c.clipId===placed.clipId);
    if(!clip)throw Error(g.label+' clip is missing');
    await d.setClipTransform({clip,...g.transform});
    transforms.push({clipId:clip.clipId,trackId:clip.trackId,transform:g.transform});
    graphics.push({clipId:clip.clipId,trackId:clip.trackId,startFrame:g.startFrame,endFrame:g.endFrame,parameters});
+   programTargets.push({clipId:clip.clipId,trackId:clip.trackId,effects:[],graphic});
   }
   stage='readback';
   const after=await d.clips({trackScope:'all'});
   const audio=after.filter(c=>Object.values(input.sounds).includes(c.resourceId));
   if(audio.length!==plan.sounds.length)throw Error('Expected '+plan.sounds.length+' shutter sound clips, found '+audio.length);
   for(const s of plan.sounds)if(!audio.some(c=>c.startFrame===s.startFrame))throw Error('Shutter sound '+s.slot+' is not at frame '+s.startFrame);
-  let verifiedTransforms,verifiedAudio;
-  if(workingDraft){await inspectGraphics(d,graphics);verifiedTransforms=await inspectTransforms(d,transforms);verifiedAudio=await inspectAudio(d,soundTargets,project);}
+  let verifiedTransforms,verifiedAudio,verifiedPrograms;
+  if(workingDraft){await inspectGraphics(d,graphics);verifiedTransforms=await inspectTransforms(d,transforms);verifiedAudio=await inspectAudio(d,soundTargets,project);verifiedPrograms=await programs.inspect(d,programTargets);programs.confirm({graphics,transforms:verifiedTransforms,audio:verifiedAudio,programs:verifiedPrograms});}
   commitStarted=true;const saved=await d.commitAll('Finish Camera Shutter Dump Draft');
   const draftId=saved?.createdDraftId||input.draftId;
   if(!draftId||(!saved?.commitId&&!saved?.createdDraftId))throw Error('Draft save response did not include its identity');
-  return {status:'saved',projectId:input.projectId,draftId,clips:input.placements,sounds,graphics,...verifiedTransforms?{transforms:verifiedTransforms,audio:verifiedAudio}:{}};
+  return {status:'saved',projectId:input.projectId,draftId,clips:input.placements,sounds,graphics,...verifiedTransforms?{transforms:verifiedTransforms,audio:verifiedAudio,programs:verifiedPrograms}:{}};
  }catch(error){return {status:commitStarted?'outcomeUnknown':'notSaved',stage,message:String(error?.message||error),draftId:input?.draftId};}
 }`;
 
@@ -332,7 +337,70 @@ async function inspectImageAudio(draft,expected,project){
  }
  return receipts;
 }
-async function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFacts,inspectGraphics,inspectTransforms,inspectAudio){
+function imageProgramsFeature(selects,config=null,format=null){
+ const issue=message=>Object.assign(Error(message),{code:'IMAGE_PROGRAM_INVALID',publicMessage:message});
+ const guarded=fn=>async(...args)=>{try{return await fn(...args);}catch(cause){if(cause?.code==='IMAGE_PROGRAM_INVALID')throw cause;throw Object.assign(issue('Image program state could not be confirmed.'),{cause});}};
+ const same=(a,b)=>{
+  if(a===b)return true;
+  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
+ };
+ const normalized=program=>({tsxCode:program.tsxCode,editableParameters:program.editableParameters,parameters:{...Object.fromEntries(program.editableParameters.map(d=>[d.key,d.defaultValue])),...program.parameters}});
+ const matches=(actual,wanted)=>actual&&actual.tsxCode===wanted.tsxCode&&same(actual.editableParameters,wanted.editableParameters)&&same(actual.parameters,wanted.parameters);
+ const inspect=async(draft,expected)=>{
+  if(!('videoEffects' in draft)||!('videoEffectProgram' in draft)||!('motionGraphicProgram' in draft))throw issue('Update Selects to verify Image programs.');
+  const rows=(await draft.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
+  if(!Array.isArray(expected)||expected.length!==rows.length||new Set(expected.map(c=>c.clipId)).size!==expected.length)throw issue('Visual program count could not be confirmed.');
+  const sources=[],clips=[];
+  const pack=program=>{const p=normalized(program);let source=sources.indexOf(p.tsxCode);if(source<0){source=sources.length;sources.push(p.tsxCode);}return {source,parameters:p.parameters,editableParameters:p.editableParameters};};
+  for(const wanted of expected){
+   const clip=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);if(!clip)throw issue('Visual program target could not be confirmed.');
+   const effects=await draft.videoEffects(clip);
+   if(!Array.isArray(effects)||effects.length!==wanted.effects.length)throw issue('Effect stack could not be confirmed.');
+   const checked=[];
+   for(const [index,entry] of wanted.effects.entries()){
+    const actual=effects[index],program=normalized(entry);
+    if(actual.effectIndex!==index||actual.name!==entry.name||actual.enabled!==true||!matches(await draft.videoEffectProgram(actual),program))throw issue('Effect program, order or controls could not be confirmed.');
+    checked.push({name:entry.name,...pack(program)});
+   }
+   const graphic=await draft.motionGraphicProgram(clip);
+   if(wanted.graphic?!matches(graphic,normalized(wanted.graphic)):graphic!==null)throw issue('Graphic program or controls could not be confirmed.');
+   clips.push({clipId:clip.clipId,trackId:clip.trackId,effects:checked,graphic:wanted.graphic?pack(wanted.graphic):null});
+  }
+  return {sources,clips};
+ };
+ const presets=new Map();
+ const preset=async id=>{
+  if(!config)throw issue('Effect preset preparation requires an authoring target.');
+  if(presets.has(id))return presets.get(id);
+  const definition=await selects.effectPresets.get(id);
+  if(definition?.id!==id||definition.kind!=='effect'||typeof definition.label!=='string'||!Array.isArray(definition.editableParameters)||!definition.parameters)throw issue('Effect preset definition could not be confirmed.');
+  // The public preset definition omits effect TSX. Resolve a canonical program
+  // in an isolated unsaved reference, never by adopting the target's output.
+  const project=selects.project(config.projectId),probe=await project.createDraft({name:'Image preset reference'});
+  await probe.insertGap({seconds:config.plan.durationFrames/config.plan.fps});await probe.setFrameSize(config.plan.canvas);
+  await probe.overlayResource({resource:project.resource(config.sources[0].resourceId),over:await probe.rangeAtFrames(0,config.plan.durationFrames)});
+  if(!('videoEffects' in probe)||!('videoEffectProgram' in probe))throw issue('Update Selects to verify effect presets.');
+  let clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');if(clips.length!==1)throw issue('Effect preset reference could not be confirmed.');
+  const applied=await probe.applyEffectPreset({clip:clips[0],presetId:id,parameters:definition.parameters});
+  if(applied?.presetId!==id)throw issue('Effect preset identity could not be confirmed.');
+  clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
+  const effects=await probe.videoEffects(clips[0]);if(effects.length!==1||effects[0].enabled!==true||effects[0].name!==definition.label)throw issue('Effect preset reference stack could not be confirmed.');
+  const program=await probe.videoEffectProgram(effects[0]),expected=normalized({tsxCode:program?.tsxCode,parameters:definition.parameters,editableParameters:definition.editableParameters});
+  if(typeof program?.tsxCode!=='string'||!program.tsxCode||!matches(program,expected))throw issue('Effect preset reference program could not be confirmed.');
+  const value={name:definition.label,...expected};presets.set(id,value);return value;
+ };
+ const confirm=details=>{
+  if(!config||!format)throw issue('Program receipt confirmation requires an authoring target.');
+  const result={draftId:config.partialDraftId||'x'.repeat(120),fps:config.plan.fps,durationFrames:config.plan.durationFrames,frameSize:config.plan.canvas,clips:config.clips,...details};
+  // Reserve more than a UUID for the post-commit identity. Check the actual
+  // journal envelope and ASCII encoding before the only persistence boundary.
+  try{format(config.runReceipt?{...JSON.parse(config.runReceipt.expectedText),status:'saved',result}:result);}catch(cause){throw Object.assign(issue('The Image program receipt exceeds its limit or could not be prepared.'),{cause});}
+ };
+ const verify=(draft,receipt)=>inspect(draft,receipt.clips.map(c=>{const expand=p=>({tsxCode:receipt.sources[p.source],parameters:p.parameters,editableParameters:p.editableParameters});return {...c,effects:c.effects.map(e=>({name:e.name,...expand(e)})),graphic:c.graphic?expand(c.graphic):null};}));
+ return {inspect:guarded(inspect),preset:guarded(preset),confirm,verify:guarded(verify)};
+}
+async function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFacts,inspectGraphics,inspectTransforms,inspectAudio,programFeature,format){
  let stage='read';
  try{
   const {projectId,plan,sources,items,partialDraftId}=config,project=selects.project(projectId);
@@ -350,22 +418,23 @@ async function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFa
    if(rows.some(row=>row.trackKind!=='main'||(config.main?row.resourceId!==config.main.resourceId:Boolean(row.resourceId)))||config.main&&rows.length!==1)throw Error('Partial Draft is not empty; inspect it before retrying.');
   }
   stage='placement';const native=await placeImages(selects,projectId,draft,plan,sources,items,sourceFacts);
-  stage='finish';const result=await finish(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio);
   const clips=native.placements.map(({key,slot,appearance,clipId,trackId,resourceId,startFrame,endFrame})=>({key,slot,appearance,clipId,trackId,resourceId,startFrame,endFrame}));
+  stage='finish';const result=await finish(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio,programFeature(selects,{...config,clips},format));
   return {...result,fps:plan.fps,durationFrames:plan.durationFrames,frameSize:plan.canvas,clips};
  }catch(error){return {status:stage==='finish'?'outcomeUnknown':'notSaved',stage,message:String(error?.message||error),draftId:config.partialDraftId||null};}
 }
 function buildAtomicImageDraftScript(config,finishSource){
  const receipt=config.runReceipt?`await (${writeTemplateRunResult.toString()})(selects,config.runReceipt,result,${templateRunJSON.toString()},${templateRunBase64.toString()})`:'result';
- return `const config=${JSON.stringify(config)};const result=await (${authorAtomicImageDraft.toString()})(selects,config,${finishSource},${placeWorkingCopyImages.toString()},${nativeImageSources.toString()},${inspectImageGraphics.toString()},${inspectImageTransforms.toString()},${inspectImageAudio.toString()});return ${receipt};`;
+ return `const config=${JSON.stringify(config)};const result=await (${authorAtomicImageDraft.toString()})(selects,config,${finishSource},${placeWorkingCopyImages.toString()},${nativeImageSources.toString()},${inspectImageGraphics.toString()},${inspectImageTransforms.toString()},${inspectImageAudio.toString()},${imageProgramsFeature.toString()},${templateRunJSON.toString()});return ${receipt};`;
 }
 async function verifyAtomicImageDraft(sdk,projectId,result){
- const {draftId,fps,durationFrames,frameSize,clips,graphics,transforms,audio}=result,expected={draftId,fps,durationFrames,frameSize,clips,graphics,transforms,audio};
+ const {draftId,fps,durationFrames,frameSize,clips,graphics,transforms,audio,programs}=result,expected={draftId,fps,durationFrames,frameSize,clips,graphics,transforms,audio,programs};
  const unverified=cause=>{const message='The saved Image Draft, graphics or sound could not be confirmed. Inspect the Draft before starting a new run.';return Object.assign(Error(message),{code:'IMAGE_SAVE_UNVERIFIED',draftId,publicMessage:message,cause});};
  if(!Array.isArray(graphics))throw Object.assign(Error('Saved graphic receipts are unavailable. Inspect the existing Draft before starting a new run.'),{code:'IMAGE_SAVE_UNVERIFIED',draftId});
  if(!Array.isArray(transforms))throw unverified('Saved transform receipts are unavailable.');
  if(!Array.isArray(audio))throw unverified('Saved Audio receipts are unavailable.');
- let response;try{response=await sdk.runScript({summary:'Verify complete saved Image Draft',allowCommit:false,script:`const expected=${JSON.stringify(expected)};const project=selects.project(${JSON.stringify(projectId)});if(!(await project.meta()).draftIds.includes(expected.draftId))throw Error('Saved Draft is not in this Project');const draft=selects.draft(expected.draftId),meta=await draft.meta(),rows=await draft.clips({trackScope:'all'});if(meta.fps!==expected.fps||meta.durationFrames!==expected.durationFrames||meta.frameSize.width!==expected.frameSize.width||meta.frameSize.height!==expected.frameSize.height)throw Error('Saved Draft frame grid could not be confirmed');if(rows.filter(row=>row.trackKind==='video'&&row.resourceId).length!==expected.clips.length)throw Error('Saved Image count could not be confirmed');for(const wanted of expected.clips){const actual=rows.find(row=>row.clipId===wanted.clipId&&row.trackId===wanted.trackId);if(!actual||actual.resourceId!==wanted.resourceId||actual.startFrame!==wanted.startFrame||actual.endFrame!==wanted.endFrame)throw Error('Saved Image placement could not be confirmed');}await (${inspectImageGraphics.toString()})(draft,expected.graphics);await (${inspectImageTransforms.toString()})(draft,expected.transforms);await (${inspectImageAudio.toString()})(draft,expected.audio,project);return {verified:true};`});}catch(cause){throw unverified(cause);}
+ if(!programs)throw unverified('Saved program receipts are unavailable.');
+ let response;try{response=await sdk.runScript({summary:'Verify complete saved Image Draft',allowCommit:false,script:`const expected=${JSON.stringify(expected)};const project=selects.project(${JSON.stringify(projectId)});if(!(await project.meta()).draftIds.includes(expected.draftId))throw Error('Saved Draft is not in this Project');const draft=selects.draft(expected.draftId),meta=await draft.meta(),rows=await draft.clips({trackScope:'all'});if(meta.fps!==expected.fps||meta.durationFrames!==expected.durationFrames||meta.frameSize.width!==expected.frameSize.width||meta.frameSize.height!==expected.frameSize.height)throw Error('Saved Draft frame grid could not be confirmed');if(rows.filter(row=>row.trackKind==='video'&&row.resourceId).length!==expected.clips.length)throw Error('Saved Image count could not be confirmed');for(const wanted of expected.clips){const actual=rows.find(row=>row.clipId===wanted.clipId&&row.trackId===wanted.trackId);if(!actual||actual.resourceId!==wanted.resourceId||actual.startFrame!==wanted.startFrame||actual.endFrame!==wanted.endFrame)throw Error('Saved Image placement could not be confirmed');}await (${inspectImageGraphics.toString()})(draft,expected.graphics);await (${inspectImageTransforms.toString()})(draft,expected.transforms);await (${inspectImageAudio.toString()})(draft,expected.audio,project);await (${imageProgramsFeature.toString()})(selects).verify(draft,expected.programs);return {verified:true};`});}catch(cause){throw unverified(cause);}
  if(response?.isError||response?.result?.verified!==true)throw unverified(response?.output);
  return result;
 }
@@ -429,6 +498,22 @@ function validateTemplateRun(row,scope,digest) {
     if(!Array.isArray(s.volumeKeys)||s.volumeKeys.length>256||(s.volumeKeys.length?s.volumeDb!==null:!db(s.volumeDb))||s.volumeKeys.some(k=>!k||!Number.isFinite(k.atSeconds)||k.atSeconds<0||k.atSeconds>duration||!db(k.volumeDb))||!Number.isFinite(s.fadeInSeconds)||s.fadeInSeconds<0||s.fadeInSeconds>duration||!Number.isFinite(s.fadeOutSeconds)||s.fadeOutSeconds<0||s.fadeOutSeconds>duration)throw invalid();
    }
   }
+  if(r.programs!==undefined){
+   const p=r.programs,visual=[...r.clips,...(r.graphics??[])],used=new Set();
+   if(!p||Object.keys(p).length!==2||!Array.isArray(p.sources)||p.sources.length>256||p.sources.some(s=>typeof s!=='string'||!s||s.length>49152)||new Set(p.sources).size!==p.sources.length||!Array.isArray(p.clips)||p.clips.length!==visual.length||new Set(p.clips.map(c=>c?.clipId)).size!==p.clips.length)throw invalid();
+   const entry=(e,effect)=>{
+    if(!e||Object.keys(e).length!==(effect?4:3)||!Number.isSafeInteger(e.source)||e.source<0||e.source>=p.sources.length||!e.parameters||typeof e.parameters!=='object'||Array.isArray(e.parameters)||!Array.isArray(e.editableParameters)||e.editableParameters.length>256||effect&&(typeof e.name!=='string'||!e.name))throw invalid();
+    if(new Set(e.editableParameters.map(d=>d?.key)).size!==e.editableParameters.length||e.editableParameters.some(d=>!d||typeof d.key!=='string'||!d.key||typeof d.label!=='string'||!['text','number','color','boolean','select'].includes(d.type)||!Object.prototype.hasOwnProperty.call(e.parameters,d.key)))throw invalid();
+    used.add(e.source);
+   };
+   for(const c of p.clips){
+    if(!c||Object.keys(c).length!==4||!visual.some(v=>v.clipId===c.clipId&&v.trackId===c.trackId)||!Array.isArray(c.effects)||c.effects.length>64)throw invalid();
+    c.effects.forEach(e=>entry(e,true));
+    const graphic=(r.graphics??[]).some(g=>g.clipId===c.clipId);
+    if(graphic)entry(c.graphic,false);else if(c.graphic!==null)throw invalid();
+   }
+   if(used.size!==p.sources.length)throw invalid();
+  }
  }
  return row;
 }
@@ -441,7 +526,7 @@ async function writeTemplateRunResult(selects,claim,result,json,encode) {
   let saved;
   if(status==='saved'){
    if(!('fps' in result)||!('durationFrames' in result)||!('frameSize' in result)||!('clips' in result)||typeof result.draftId!=='string'||!result.draftId)throw Error('Saved run receipt is incomplete');
-   saved={draftId:result.draftId,fps:result.fps,durationFrames:result.durationFrames,frameSize:result.frameSize,clips:result.clips,...'graphics' in result?{graphics:result.graphics}:{},...'transforms' in result?{transforms:result.transforms}:{},...'audio' in result?{audio:result.audio}:{}};
+   saved={draftId:result.draftId,fps:result.fps,durationFrames:result.durationFrames,frameSize:result.frameSize,clips:result.clips,...'graphics' in result?{graphics:result.graphics}:{},...'transforms' in result?{transforms:result.transforms}:{},...'audio' in result?{audio:result.audio}:{},...'programs' in result?{programs:result.programs}:{}};
   }
   const next=json({...row,status,...saved?{result:saved}:{}});
   const reply=await selects.files.compareAndReplace({path:claim.path,expectedBase64:encode(claim.expectedText),base64:encode(next)});
@@ -706,7 +791,7 @@ export async function createPhotoDraft(sdk,{projectId,selected,framing,name,titl
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
  const config={projectId,name,partialDraftId,runReceipt,plan,sources:prepared.sources,items:plan.occurrences.map((item,source)=>({...item,source})),main:null,
   finishRequest:{mode:'finish',projectId,draftId:partialDraftId,fps,title:defaultTitle(title),framing,sounds}};
- const finishSource=`async function(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio){const photos=config.sources.map(({resourceId,width,height})=>({resourceId,width,height}));const input=(${normalizeFinishForPlan.toString()})({...config.finishRequest,photos,placements:native.placements},config.plan,config.finishRequest.title,true);return await (${authorFinishSource})(selects,input,config.plan,${JSON.stringify(EFFECT_CODE)},${JSON.stringify({Burst:BURST_CODE,Text:TEXT_CODE})},draft,inspectGraphics,inspectTransforms,inspectAudio);}`;
+ const finishSource=`async function(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio,programs){const photos=config.sources.map(({resourceId,width,height})=>({resourceId,width,height}));const input=(${normalizeFinishForPlan.toString()})({...config.finishRequest,photos,placements:native.placements},config.plan,config.finishRequest.title,true);return await (${authorFinishSource})(selects,input,config.plan,${JSON.stringify(EFFECT_CODE)},${JSON.stringify({Burst:BURST_CODE,Text:TEXT_CODE})},draft,inspectGraphics,inspectTransforms,inspectAudio,programs);}`;
  say('Creating the complete editable Draft…');
  if(!partialDraftId)await onSeed();
  if(!stillCurrent())throw Error('The template run ended before the Draft was saved.');
