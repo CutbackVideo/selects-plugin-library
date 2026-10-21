@@ -43,6 +43,11 @@ set takes three steps.
      and **Save** them. A picture style written in Korean is put into English
      for the image model on save, and the English is shown under it.
      **Back to the defaults** restores Huick's. They apply from the next plan.
+     **Picture style reference** takes one image, dropped in or loaded from an
+     image address (a post link such as Instagram's is not an image). Every
+     picture is then drawn after it with the image model's edit endpoint:
+     its lines, shapes, colours and texture, not its content or text. Use an
+     image you may use.
 2. **Check the cards.** In **My card news**, pick a card from the thumbnails
    and fix its copy or its picture scene (the image prompt).
 3. **Make the cards.** One button draws every picture with Selects image
