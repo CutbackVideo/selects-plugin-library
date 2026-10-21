@@ -50,6 +50,16 @@ test('agent selected source crop geometry',{skip:!modules},async t=>{
   assert.throws(()=>m.exports.validateSourceCropRepair(previous,[{...next[0],endFrame:42},{...next[1],startFrame:42}],fix,[40,41,42]));
   assert.throws(()=>m.exports.validateSourceCropRepair(previous,[next[0],{...next[1],compositionId:'other-person'}],fix,[39,40,41]));
  });
+ await t.test('transcript-only application resolves current aliases without reading analyzed resources',async()=>{
+  let commits=0,transforms=0,foreign=false;
+  const clip={clipId:1,trackId:'t',resourceId:'current-alias',startFrame:0,endFrame:90};
+  const d={meta:async()=>({durationFrames:90}),clips:async()=>[clip],setClipTransform:async()=>transforms++,videoEffects:async()=>[],addVideoEffect:async()=>{},commitAll:async()=>commits++};
+  const project={meta:async()=>({draftIds:['d']}),sourceFiles:async()=>({fileTree:[{resourceId:foreign?'other':'current-alias',path:'/source.mp4'}]}),resource:()=>{throw Error('resource_not_analyzed');}};
+  const script=m.exports.sourceCropApplyScript('p','d',layout,sources.map(s=>({...s,path:'/source.mp4'})),90).replace('__SHOTS__',JSON.stringify([shot]));
+  const execute=()=>new Function('selects','return (async()=>{'+script+'})()')({project:()=>project,draft:()=>d});
+  await execute();assert.equal(commits,1);assert.equal(transforms,1);
+  foreign=true;await assert.rejects(execute,/source file changed/);assert.equal(commits,1);assert.equal(transforms,1);
+ });
  await t.test('application is reusable and replaces its effect without touching unrelated effects',async()=>{
   let effects=[{name:'User color grade'}],commits=0,transforms=0;
   const clip={clipId:1,trackId:'t',resourceId:'r4',startFrame:0,endFrame:90};

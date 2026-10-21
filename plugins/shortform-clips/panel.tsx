@@ -55,8 +55,8 @@ const SCRIPT_SOURCE_READER = "async function initializeShortformSettings(output:
 const SCRIPT_DESIGN_ELEMENTS = "// One design emitter for every template; individual settings control appearance.\nasync function addTemplateDesignElements(d:any,P:any,endFrame:number){\n const F=P.frame;\n const number=(key:string,label:string,min:number,max:number)=>({key,label,type:'number',defaultValue:Number.isFinite(F[key])?F[key]:min,min,max,step:1});\n const parts:any[]=[{key:'background',label:'Clip · \ubc30\uacbd',fields:[{key:'background',label:'Background',type:'text',defaultValue:F.background||'#000000'},number('windowTop','Video top',0,1920),number('windowBottom','Video bottom',0,1920)]}];\n for(const line of [1,2])if(String(F['headline'+line]||'').trim())parts.push({key:'headline'+line,label:'Clip · \uc81c\ubaa9 '+line,fields:[...(P.editableFrame||[]).filter((e:any)=>['headline'+line,'headlineColor'+line,'headlineSize'+line,'fontFamily'].includes(e.key)),number('headlineCenter','Vertical center',0,1920)]});\n for(const key of ['topLabel','footer'])if(String(F[key]||'').trim())parts.push({key,label:key==='topLabel'?'Clip · \uc0c1\ub2e8 \ubb38\uad6c':'Clip · \ud558\ub2e8 \ubb38\uad6c',fields:[{key,label:'Text',type:'text',defaultValue:F[key]},{key:'fontFamily',label:'Font',type:'text',defaultValue:F.fontFamily||''},number(key+'Size','Size',12,200),number(key+'X','Horizontal center',0,1080),number(key+'Y','Vertical center',0,1920)]});\n if(F.logoMode==='image'&&F.logoImage)parts.push({key:'logo',label:'Clip · \ud504\ub85c\uadf8\ub7a8 \ub85c\uace0',fields:[number('logoWidth','Width',50,1080),number('logoCenter','Vertical center',0,1920)]});\n for(const part of parts)await d.addMotionGraphic({label:part.label,tsxCode:FRAME_TSX,parameters:{...F,designElement:part.key},editableParameters:part.fields,within:await d.rangeAtFrames(0,endFrame)});\n}\n";
 const SCRIPT_BUILD: string = SCRIPT_SOURCE_READER + SCRIPT_DESIGN_ELEMENTS + "// run_script body: build one series clip as an editable Draft from a template.\n// The clip parameters are injected at runtime; the frame and caption templates at build time.\nconst P: any = __P__;\nconst FRAME_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nfunction Logo(_props: any) { return null; }\\n\\nexport default function SeriesFrame({ data }) {\\n  const part = String(data?.designElement ?? 'all');\\n  const show = (key) => part === 'all' || part === key;\\n  const series = String(data?.series ?? 'newsdirect');\\n  const W = 1080, H = 1920;\\n  const top = Number(data?.windowTop ?? 420);\\n  const bottom = Number(data?.windowBottom ?? 1255);\\n  const bg = String(data?.background ?? '#1E1F22');\\n  const h1 = String(data?.headline1 ?? '');\\n  const h2 = String(data?.headline2 ?? '');\\n  const size1 = Number(data?.headlineSize1 ?? 84);\\n  const size2 = Number(data?.headlineSize2 ?? size1);\\n  const color1 = String(data?.headlineColor1 ?? '#FFFFFF');\\n  const color2 = String(data?.headlineColor2 ?? '#FFFFFF');\\n  const box2 = String(data?.headline2Box ?? '');\\n  const italic = Boolean(data?.headlineItalic ?? false);\\n  const headlineCenter = Number(data?.headlineCenter ?? top / 2 + 40);\\n  const captionBar = Number(data?.captionBarHeight ?? 0);\\n  const logoCenter = Number(data?.logoCenter ?? (bottom + captionBar + H) / 2);\\n  const border = Boolean(data?.goldBorder ?? false);\\n  const shadow = String(data?.headlineShadow ?? '0 4px 10px rgba(0,0,0,.55)');\\n  const strokeColor = String(data?.headlineStrokeColor ?? '');\\n  const strokeWidth = data?.headlineStrokeOn && strokeColor ? Number(data?.headlineStrokeWidth ?? 12) : 0;\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const headFont = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const bgImage = String(data?.backgroundImage ?? '');\\n  const bgDim = Math.max(0, Math.min(90, Number(data?.backgroundDim ?? 0)));\\n  const borderColor = String(data?.borderColor ?? '#C9A45C');\\n  const logoMode = String(data?.logoMode ?? 'art');\\n  const logoImage = String(data?.logoImage ?? '');\\n  const logoWidth = Number(data?.logoWidth ?? 600);\\n  // A background image is one 1080x1920 picture shown only where the video window is not.\\n  const band = (y, h) =>\\n    bgImage ? (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, backgroundImage: `url(${bgImage})`, backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px` }}>\\n        {bgDim > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: h, background: `rgba(0,0,0,${bgDim / 100})` }} /> : null}\\n      </div>\\n    ) : (\\n      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, background: bg, ...(data?.backgroundCanvasAligned ? {backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px`} : {}) }} />\\n    );\\n  const est = (t) => Array.from(t).reduce((w, ch) => w + (/[\\\\uAC00-\\\\uD7A3\\\\u4E00-\\\\u9FFF]/.test(ch) ? Number(data?.headlineFitCjk ?? .93) : ch === ' ' ? Number(data?.headlineFitSpace ?? .27) : /[A-ZMW]/.test(ch) ? Number(data?.headlineFitWideLatin ?? .6) : /[0-9A-Za-z%]/.test(ch) ? Number(data?.headlineFitLatin ?? .6) : Number(data?.headlineFitOther ?? .4)), 0);\\n  const fit = (t, size, maxW) => Math.max(12, Math.min(size, Math.floor(maxW / Math.max(1, est(t)) - Number(data?.headlineFitPadding ?? 2))));\\n  const lineStyle = (size, color) => ({\\n    fontSize: size, fontWeight: Number(data?.headlineFontWeight ?? 900), color, lineHeight: Number(data?.headlineLineHeight ?? 1.16), letterSpacing: Number(data?.headlineLetterSpacing ?? -2),\\n    // Skew the selected face: native italic matching can replace a PostScript Hv face with Rg.\\n    fontStyle: 'normal', transform: italic ? 'skewX(-14deg)' : undefined, whiteSpace: 'nowrap', textShadow: shadow,\\n    WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : '0px transparent', paintOrder: 'stroke fill',\\n  });\\n  const s1 = fit(h1, size1, Number(data?.headlineFitWidth ?? 1010));\\n  const s2 = fit(h2, size2, box2 ? Number(data?.headlineFitWidth ?? 1010) - 40 : Number(data?.headlineFitWidth ?? 1010));\\n  const grad1 = String(data?.headlineGradient1 ?? '');\\n  const grad2 = String(data?.headlineGradient2 ?? '');\\n  // Text with an optional gradient fill: the outline and shadow are drawn by a copy underneath, because a\\n  // gradient clipped to the glyphs cannot carry a stroke of its own.\\n  const Deco = ({ text, style, grad, stroke, strokeW, shadowCss }) =>\\n    grad ? (\\n      <div style={{ position: 'relative', ...style }}>\\n        <div style={{ position: 'absolute', left: 0, top: 0, right: 0, color: stroke || 'transparent', WebkitTextStroke: strokeW > 0 ? `${strokeW}px ${stroke}` : '0px transparent', paintOrder: 'stroke fill', textShadow: shadowCss }}>{text}</div>\\n        <div style={{ position: 'relative', background: grad, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' }}>{text}</div>\\n      </div>\\n    ) : (\\n      <div style={{ ...style, WebkitTextStroke: strokeW > 0 ? `${strokeW}px ${stroke}` : style.WebkitTextStroke, paintOrder: 'stroke fill', textShadow: shadowCss }}>{text}</div>\\n    );\\n  const Line = ({ text, size, color, grad }) =>\\n    grad ? (\\n      <Deco text={text} style={{ ...lineStyle(size, color), WebkitTextStroke: undefined, textShadow: undefined }} grad={grad} stroke={strokeWidth > 0 ? strokeColor : color} strokeW={strokeWidth} shadowCss={shadow} />\\n    ) : (\\n      <div style={lineStyle(size, color)}>{text}</div>\\n    );\\n  const label = (key) => {\\n    const text = String(data?.[key] ?? '');\\n    if (!text) return null;\\n    const size = Number(data?.[key + 'Size'] ?? 40);\\n    const cx = Number(data?.[key + 'X'] ?? W / 2);\\n    const y = Number(data?.[key + 'Y'] ?? 100);\\n    const style = { fontSize: size, fontWeight: Number(data?.[key + 'Weight'] ?? 800), color: String(data?.[key + 'Color'] ?? '#FFFFFF'), lineHeight: 1.16, letterSpacing: '-1px', whiteSpace: 'nowrap', fontFamily: headFont };\\n    const sw = Number(data?.[key + 'StrokeWidth'] ?? 0);\\n    return (\\n      <div key={key} style={{ position: 'absolute', left: cx - 540, width: 1080, top: y, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        <Deco text={text} style={style} grad={String(data?.[key + 'Gradient'] ?? '')} stroke={String(data?.[key + 'StrokeColor'] ?? '#000000')} strokeW={sw} shadowCss={String(data?.[key + 'Shadow'] ?? 'none')} />\\n      </div>\\n    );\\n  };\\n  return (\\n    <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: H, fontFamily: FONT, pointerEvents: 'none' }}>\\n      {show('background') && band(0, top)}\\n      {show('background') && band(bottom, H - bottom)}\\n      {show('background') && captionBar > 0 ? <div style={{ position: 'absolute', left: 0, top: bottom, width: W, height: captionBar, background: '#000000' }} /> : null}\\n      {show('background') && border ? (\\n        <>\\n          <div style={{ position: 'absolute', left: 22, top: 22, width: W - 44, height: top - 22, borderTop: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n          <div style={{ position: 'absolute', left: 22, top: bottom, width: W - 44, height: H - bottom - 22, borderBottom: `3px solid ${borderColor}`, borderLeft: `3px solid ${borderColor}`, borderRight: `3px solid ${borderColor}` }} />\\n        </>\\n      ) : null}\\n      <div style={{ position: 'absolute', left: 30, width: W - 60, visibility: show('headline1') || show('headline2') ? 'visible' : 'hidden', top: headlineCenter + (data?.headlineRowGap != null ? (s2 - s1) * Number(data?.headlineLineHeight ?? 1.16) / 4 : 0), transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: data?.headlineRowGap != null ? Number(data.headlineRowGap) - (s1 + s2) * Number(data?.headlineLineHeight ?? 1.16) / 2 : box2 ? 14 : Number(data?.headlineGap ?? 2), textAlign: 'center', fontFamily: headFont }}>\\n        {h1 ? <div style={{visibility:show('headline1')?'visible':'hidden'}}><Line text={h1} size={s1} color={color1} grad={grad1} /></div> : null}\\n        {h2 ? (<div style={{visibility:show('headline2')?'visible':'hidden'}}>{\\n          box2 ? (\\n            <div style={{ background: box2, padding: '4px 18px 8px' }}><Line text={h2} size={s2} color={color2} grad={grad2} /></div>\\n          ) : (\\n            <Line text={h2} size={s2} color={color2} grad={grad2} />\\n          )\\n        }</div>) : null}\\n      </div>\\n      {show('topLabel') && label('topLabel')}\\n      {show('footer') && label('footer')}\\n      <div style={{ position: 'absolute', left: 0, width: W, top: logoCenter, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center' }}>\\n        {!show('logo') || logoMode === 'none' ? null : logoMode === 'image' && logoImage ? (\\n          <img src={logoImage} style={{ width: logoWidth, height: 'auto', display: 'block' }} />\\n        ) : (\\n          <Logo series={series} />\\n        )}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\nconst DATE_TSX: string = \"import React from 'react';\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\nexport default function FooterLabel({data}) {\\n const d=data||{},text=String(d.text??'');if(!text)return null;\\n const family=typeof d.fontFamily==='string'?d.fontFamily.trim():'';\\n const sw=Number(d.strokeWidth??0),stroke=String(d.strokeColor??'#000000'),gradient=String(d.gradient??''),shadow=String(d.shadow??'none');\\n const style={fontFamily:family?`\\\"${family}\\\", ${FONT}`:FONT,fontSize:Number(d.fontSize??55),fontWeight:Number(d.fontWeight??900),color:String(d.textColor??'#0C6E62'),lineHeight:1.16,letterSpacing:'-1px',whiteSpace:'nowrap'};\\n return <div style={{position:'absolute',left:Number(d.x??540)-540,width:1080,top:Number(d.y??1564),transform:'translateY(-50%)',display:'flex',justifyContent:'center',pointerEvents:'none'}}>\\n  {gradient ? <div style={{...style,position:'relative'}}>\\n   <div style={{position:'absolute',left:0,top:0,right:0,color:sw>0?stroke:'transparent',WebkitTextStroke:sw>0?`${sw}px ${stroke}`:'0px transparent',paintOrder:'stroke fill',textShadow:shadow}}>{text}</div>\\n   <div style={{position:'relative',background:gradient,WebkitBackgroundClip:'text',backgroundClip:'text',color:'transparent',WebkitTextFillColor:'transparent'}}>{text}</div>\\n  </div> : <div style={{...style,WebkitTextStroke:sw>0?`${sw}px ${stroke}`:'0px transparent',paintOrder:'stroke fill',textShadow:shadow}}>{text}</div>}\\n </div>;\\n}\\n\";\nconst CAPTION_TSX: string = \"import React from 'react';\\n\\nconst FONT = \\\"'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif\\\";\\n\\nexport default function ClipCaption({ data }) {\\n  const lines = String(data?.text ?? '').split('\\\\n');\\n  const mode = String(data?.mode ?? 'bar');\\n  const left = Number(data?.left ?? 40);\\n  const width = Number(data?.width ?? 1000);\\n  const requestedSize = Number(data?.fontSize ?? 66);\\n  const units = (text) => Array.from(text).reduce((w, ch) => w + (/[\uac00-\ud7a3\u4e00-\u9fff]/.test(ch) ? 1 : ch === ' ' ? .3 : .65), 0);\\n  // Apply fitting to the default width too; emphasis markers do not occupy visible space.\\n  const size = Math.max(1, Math.min(requestedSize, Math.floor((width - 52) / Math.max(1, ...lines.map(line => units(line.replace(/\\\\*/g, '')))))));\\n  const weight = Number(data?.fontWeight ?? 600);\\n  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';\\n  const font = family === '' ? FONT : `\\\"${family}\\\", ${FONT}`;\\n  const color = String(data?.textColor ?? '#FFFFFF');\\n  const mark = String(data?.highlightColor ?? '');\\n  // *word* is a highlighted word; without a highlight colour the asterisks are simply dropped.\\n  const rich = (line) =>\\n    line.split(/(\\\\*[^*]+\\\\*)/).map((part, j) =>\\n      /^\\\\*[^*]+\\\\*$/.test(part) ? <span key={j} style={mark ? { color: mark } : undefined}>{part.slice(1, -1)}</span> : part.replace(/\\\\*/g, '')\\n    );\\n  if (mode === 'bar') {\\n    const top = Number(data?.top ?? 1255);\\n    const height = Number(data?.height ?? 230);\\n    return (\\n      <div style={{ position: 'absolute', left, width, top, height, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: font, pointerEvents: 'none' }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.28, letterSpacing: '-1px', maxWidth: '100%', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', textAlign: 'center' }}>{rich(line)}</div>\\n        ))}\\n      </div>\\n    );\\n  }\\n  const bottom = Number(data?.bottom ?? 1440);\\n  const box = String(data?.boxColor ?? 'rgba(0,0,0,0.62)');\\n  return (\\n    <div style={{ position: 'absolute', left, width, top: 0, height: bottom, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', fontFamily: font, pointerEvents: 'none' }}>\\n      <div style={{ background: box, maxWidth: '100%', boxSizing: 'border-box', padding: '10px 26px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderRadius: 4 }}>\\n        {lines.map((line, i) => (\\n          <div key={i} style={{ fontSize: size, fontWeight: weight, color, lineHeight: 1.3, letterSpacing: '-1px', maxWidth: '100%', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', textAlign: 'center' }}>{rich(line)}</div>\\n        ))}\\n      </div>\\n    </div>\\n  );\\n}\\n\";\n\n// ---- Captions: one caption per thought ----\n// A caption ends where the speaker's sentence ends or another speaker starts, never in the middle of one.\n// A sentence too long for two lines is divided where a listener would pause (a comma, a breath, the end\n// of a clause), in pieces of similar length, and never between words that belong together (\"\uac08 \uc218 /\n// \uc788\uc744\uae4c\", \"\uadf8 / \uac00\uc218\", \"the / house\"). Each word is [text, startFrame, endFrame, sourceStartFrame,\n// speakerId, utteranceId].\n// Sounds a speaker makes while thinking; they are not captioned.\nconst FILLER = /^(\uc5b4|\uc74c|\uc544|\uc5d0|\uc73c|\ud760|uh|um|er|ah|hmm)[.,\u2026~]*$/i;\n// A word that leans on the next one: breaking after it leaves it stranded.\nconst LEANS_FORWARD =\n  /^(\uadf8|\uc774|\uc800|\ud55c|\ub450|\uc138|\ub124|\uba87|\uc5b4\ub5a4|\ubb34\uc2a8|\uc5b4\ub290|\uc774\ub7f0|\uadf8\ub7f0|\uc800\ub7f0|\ubaa8\ub4e0|\uac01|\uc0c8|\uccab|\ub2e4\ub978|\uc5ec\ub7ec|\uc57d|\ub354|\ub35c|\uac00\uc7a5|\uc81c\uc77c|\ub108\ubb34|\uc544\uc8fc|\ub9e4\uc6b0|\uc815\ub9d0|\uc9c4\uc9dc|\ucc38|\uc880|\uc798|\ubabb|\uc548|\uaf2d|\ub2e4\uc2dc|\uacc4\uc18d|\uac70\uc758|\uc774\ubbf8|\uc544\uc9c1|\ubc14\ub85c|\uadf8\ub0e5|\uadf8\ub9ac\uace0|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7f0\ub370|\uadfc\ub370|\uadf8\ub7ec\ub2c8\uae4c|\uadf8\ub7fc|\ud558\uc9c0\ub9cc|\uadf8\ub807\uc9c0\ub9cc|\uadf8\ub7ec\ub098|\ub610|\ub610\ub294|\ud639\uc740|\uc989|\uc65c\ub0d0\ud558\uba74|\uc608\ub97c|\ub9cc\uc57d|\uc5b4\ub5bb\uac8c|\uc774\ub807\uac8c|\uadf8\ub807\uac8c|\uc800\ub807\uac8c|\uc65c|\uc5bc\ub9c8\ub098|\ub9ce\uc774|\ube68\ub9ac|\uba3c\uc800|\ub2e4\uc74c|a|an|the|to|of|in|on|at|for|with|by|from|about|into|over|under|after|before|between|through|during|without|and|or|but|so|which|who|is|are|was|were|be|i|he|she|we|they|my|your|his|her|our|their|this|these|those|very|not|as|if|than)$/i;\n// A word that leans on the one before it: breaking before it cuts a phrase in two (\"\uac08 \uc218\", \"\ud560 \ub54c\ub3c4\",\n// \"\uc788\ub294 \uac78\ub85c\", \"\ubc15\uc9c4\uc601 \uc528\", \"\uc5d0\ub3c4 \ubd88\uad6c\ud558\uace0\"). These are dependent nouns with at most a particle after them;\n// an ordinary noun that merely starts the same way (\"\uc218\uc0c1\uc790\uac00\", \"\uac70\ub9ac\") does not match.\nconst PARTICLE =\n  \"(?:\uc774|\uac00|\uc740|\ub294|\uc744|\ub97c|\ub3c4|\ub9cc|\uc5d0|\uc758|\ub85c|\uc640|\uacfc|\uc73c\ub85c|\uc5d0\uc11c|\uc5d0\uac8c|\ud55c\ud14c|\uae4c\uc9c0|\ubd80\ud130|\ub9c8\ub2e4|\ucc98\ub7fc|\uc774\ub098|\ub77c\ub3c4|\ubc16\uc5d0|\uae4c\uc9c0\ub294|\uc5d0\ub294|\uc5d0\ub3c4|\ub85c\ub294|\ub85c\ub3c4|\uc5d0\uc11c\ub294|\uc774\ub791|\ub791|\ub791\uc740|\uc774\ub77c\uace0|\ub77c\uace0|\uc774\ub77c|\uc57c|\uc694|\uc8e0|\uc608\uc694|\uc774\uc5d0\uc694|\uc785\ub2c8\ub2e4|\uc774\ub2e4|\uc778\ub370|\uc774\uace0|\uc774\uc9c0|\uc774\uc8e0|\ub4e0|\ub098|\ub4e4)?\";\nconst LEANS_BACK = new RegExp(\n  \"^(?:(?:\uc218|\uac83|\uc904|\ub54c|\uc801|\ub370|\ubc14|\ubfd0|\ub4ef|\uc911|\ub4f1|\ub3d9\uc548|\uc815\ub3c4|\ub54c\ubb38|\ub9cc\ud07c|\uc528|\ub2d8|\uce21|\ucabd)\" +\n    PARTICLE +\n    \"|(?:\uc7a5\uad00|\ucc28\uad00|\uc758\uc6d0|\ub300\ud45c|\uc704\uc6d0\uc7a5|\uc704\uc6d0|\ud68c\uc7a5|\uc0ac\uc7a5|\uc758\uc7a5|\ub300\ud1b5\ub839|\ucd1d\ub9ac|\uad50\uc218|\ubc15\uc0ac|\uae30\uc790|\uac10\ub3c5|\uc120\uc218|\uc791\uac00|\ud300\uc7a5|\uc2e4\uc7a5|\ubd80\uc7a5|\uacfc\uc7a5|\uc774\uc0ac|\ud6c4\ubcf4|\ubcc0\ud638\uc0ac|\uac80\uc0ac|\ud310\uc0ac|\uc575\ucee4)\ub2d8?\" +\n    PARTICLE +\n    \"|(?:\uac70|\uac8c|\uac74|\uac78)(?:\uc608\uc694|\uc5d0\uc694|\uc8e0|\uc57c|\uc9c0|\uace0|\ub4e0\uc694|\ub77c|\ub77c\uace0|\ub77c\uc11c|\ub2c8\uae4c|\uc796\uc544\uc694|\ub2e4|\ub294|\ub97c|\ub85c|\ub3c4|\ub098|\ub4e0|\ub791|\uac00|\uba74)?|\uac81\ub2c8\ub2e4|\uac19\uc740|\uac19\uc774|\ucc98\ub7fc|\ubcf4\ub2e4|\ub300\ub85c|\ub9c8\ub2e4|\ubc16\uc5d0|\ubd88\uad6c\ud558\uace0|\ubabb[\uac00-\ud7a3]+|\uc544\ub2c8[\uac00-\ud7a3]+\" +\n    \"|(?:\ud558|\ud574|\ud588|\ud560|\ud55c\ub2e4|\ud569|\ub418|\ub3fc|\ub410|\ub420|\ub41c\ub2e4|\ub429)[\uac00-\ud7a3]{0,4})[.,?!]*$\"\n);\nconst NOT_A_VERB = /^(\ud558\ub098|\ud558\ub298|\ud558\ub8e8|\ud558\ubc18\uae30|\ud558\ub77d|\ud558\uc704|\ud574\uc678|\ud574\uacb0|\ud574\uc11d|\ud574\ub2f9|\ud574\uccb4|\ud574\uba85|\ud574\uc9c0|\ud574\uc124|\ud574\ub2f5|\ud560\uba38\ub2c8|\ud560\uc544\ubc84\uc9c0|\ud560\uc778|\ud569\uc758|\ud569\uaca9|\ud569\uacc4|\ud569\ub958|\ud569\uc791|\ub418\ub808)/;\n// A unit that follows a number (\"200\ub9cc \uc6d0\", \"4\uac1c\uc0ac\").\nconst COUNTER = /^(\uc6d0|\uba85|\uac1c|\ubc88|\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uc0b4|\uc5b5|\ub9cc|\ucc9c|\ubc31|\ubc30|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc704|\ucc28|\ud68c|\ub300|\uacf3|\uac00\uc9c0|\uac1c\uc0ac|\uac1c\uc6d4|\uc2dc\uac04|\uc8fc|\uc8fc\uc77c)[\uac00-\ud7a3]{0,2}[.,?!]*$/;\n// A word describing the next one (\"\uace0\ubc1c\ub420 \ud655\ub960\", \"\ub2f9\uc5f0\ud55c \uc758\uc2ec\", \"\ud558\uace0 \uc2f6\uc740 \ub9c8\uc74c\").\nconst DESCRIBES_NEXT = /(\ud558\ub294|\ub418\ub294|\uc788\ub294|\uc5c6\ub294|\ub77c\ub294|\ub2e4\ub294|\uc54a\ub294|\uac19\uc740|\uc2f6\uc740|\ub9ce\uc740|\uc88b\uc740|\ub192\uc740|\uc791\uc740|\ud070|\ub41c|\ub358|\uc788\uc744|\uc5c6\uc744|\ubc1b\uc744|\uac19\uc744|[\uac00-\ud7a3]\ud55c|[\ud560\ub420\uac08\uc62c\ubcfc\uc4f8\ub0bc\ube84\uafc0\ud0ac\ub9b4\ub084])$/;\n// Korean words normally end in a particle or an ending; one that does not is usually the first half of a\n// compound or an adverb, and belongs with what follows (\"\ubb38\uccb4\ubd80 \uc7a5\uad00\", \"\ud68c\uc0ac \uc77c\", \"\ub300\uad00 \ubd80\uc11c\").\nconst MARKED_END = /[\uc740\ub294\uc774\uac00\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\uc11c\uace0\uc694\ub2e4\uc8e0\uae4c\ub124\ub098\uba70\uba74\uc9c0\uac8c\ub370\uc57c\ub77c\uc790\ub2c8\uaed8\ub791\ub4e0\uc529\uc74c\uc784\uc5b4\uc544\ud574\ub3fc\ub798\ub300\uac78\uac74\uc918\ubd10\uc6cc\uc838\uc5ec]$/;\nconst HANGUL = /[\uac00-\ud7a3]/;\nconst NUMBER_WORD = /^([0-9]+|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+|\ud55c|\ub450|\uc138|\ub124|\ub2e4\uc12f|\uc5ec\uc12f|\uc77c\uacf1|\uc5ec\ub35f|\uc544\ud649|\uc5f4)$/;\nconst STARTS_NUMBER = /^([0-9]|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]|\ud55c |\ub450 |\uc138 |\ub124 )/;\n// The end of a clause in Korean, or a comma: a natural place to stop.\nconst CLAUSE_END = /(\uace0|\uba70|\uc11c|\uba74|\ub294\ub370|\uc740\ub370|\uc778\ub370|\ub2c8\uae4c|\uc9c0\ub9cc|\ub2e4\uac00|\uba74\uc11c|\ub824\uace0|\ub3c4\ub85d|\uac70\ub098|\ub354\ub2c8|\ub2e4\uba74|\ub77c\uba74)[,]?$/;\n// \"\uc788\ub2e4 / \uc5c6\ub2e4 / \uc54a\ub2e4 / \uc2f6\ub2e4\" finish a verb phrase (\"\uac08 \uc218 \uc788\uc744\uae4c\", \"\uc27d\uc9c0 \uc54a\uc796\uc544\uc694\", \"\ud558\uace0 \uc2f6\uc740\"); after a\n// plain subject (\"\ud655\ub960 \uc788\ub294\") they pull much less.\nconst FINISHES_VERB = /^(\uc788|\uc5c6|\uc54a|\uc2f6)[\uac00-\ud7a3]*[.,?!]*$/;\nconst OPENS_VERB = /((\uc218|\uc904|\uc801|\ub9ac|\ud544\uc694)(\uac00|\ub294|\uc740|\ub3c4|\ub97c|\uc774)?|\uace0|\uc9c0|\uc5b4|\uc544|\uac8c|\ud574|\uc57c|\uc11c|\ub3c4)$/;\n// A word a new clause opens with: breaking before it is natural (\"\uc544\ud2f0\uc2a4\ud2b8 / \ud639\uc740 \ud68c\uc0ac\ub4e4\uc744\").\nconst OPENS_CLAUSE = /^(\ud639\uc740|\ub610\ub294|\uadf8\ub9ac\uace0|\ubc0f|\uadfc\ub370|\uadf8\ub7f0\ub370|\ud558\uc9c0\ub9cc|\uadf8\ub798\uc11c|\uadf8\ub7ec\uba74|\uadf8\ub7ec\ub2c8\uae4c|\uc65c\ub0d0\ud558\uba74|and|or|but|so|because|we|they|i|he|she|which|who|when|where|while|if|although|though|then)$/i;\nconst SENTENCE_END = /[.?!\u3002\uff1f\uff01\u2026][\"'\u201d\u2019)]?$/;\n\n// Numbers said in Korean are shown in digits when a unit follows: \"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\" -> \"11\uac1c\uc6d4\uc9f8\",\n// \"\uc774\ucc9c\uc0bc\ub144\ub3c4\uc600\uc5b4\uc694\" -> \"2003\ub144\ub3c4\uc600\uc5b4\uc694\", \"\uce60\uc5b5\uc774\" -> \"7\uc5b5\uc774\". A numeral with no unit, or one that is also an\n// everyday word (\"\uc774\ubc88\", \"\uc2ed\ubd84\", \"\uc0ac\ud68c\", \"\uc624\ucc28\", \"\uc774\ucc9c\uc2dc\"), stays as it was said.\nconst KO_ONES: any = { \uc77c: 1, \uc774: 2, \uc0bc: 3, \uc0ac: 4, \uc624: 5, \uc721: 6, \uce60: 7, \ud314: 8, \uad6c: 9 };\nconst KO_PLACES: any = { \uc2ed: 10, \ubc31: 100, \ucc9c: 1000 };\nconst KO_NUMERAL = /^[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed\ubc31\ucc9c\ub9cc\uc5b5]+/;\nconst UNIT_LONG = /^(\uac1c\uc6d4|\ub144\ub3c4|\ub144\ub300|\ub144\uac04|\ub144\uc9f8|\ub144\uc0dd|\ub144\ucc28|\uc8fc\uc77c|\uc8fc\ub144|\uc8fc\uac04|\uc2dc\uac04|\ubd84\uac04|\ucd08\uac04|\ud37c\uc13c\ud2b8|\ud504\ub85c|\ub2ec\ub7ec|\uc720\ub85c|\ud0ac\ub85c|\ubbf8\ud130|\uc13c\ud2f0|\uadf8\ub7a8|\ub9ac\ud130|\ud559\ub144|\uc138\uae30|\ubd84\uae30|\uc778\ubd84|\uac1c\uad6d|\uac1c\uc0ac|\uac1c\ub144|\ud68c\ucc28|\ub4f1\uae09|\ub2e8\uacc4|\uc138\ub300)/;\nconst UNIT_SHORT = /^(\ub144|\uc6d4|\uc77c|\uc2dc|\ubd84|\ucd08|\uba85|\uac1c|\ubc88|\uc6d0|\uc704|\ub4f1|\ucc28|\ud68c|\uce35|\ud638|\ub300|\uc138|\uc778|\ubc30|\ud3b8|\uace1|\uc7a5|\uad8c|\ud300|\uc2b9|\ud328|\uace8|\uc810|\ud3c9|\uac74|\ud45c|\uc8fc|\uc0b4)/;\n// One-syllable numerals joined to a one-syllable unit are mostly other words (\"\uc774\ubc88\", \"\uc0ac\ud68c\", \"\uc624\ucc28\",\n// \"\uc77c\uba85\"); only these are numbers for certain.\nconst SURE_SHORT = /^([\uc77c\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\ub144|[\uc77c\uc0bc\uc0ac\uc624\uce60\ud314\uad6c]\uc6d4|[\uc77c\uc774\uc0bc]\ucc28|[\uc77c\uc774\uc0bc]\ub4f1|[\uc77c\uc774]\uc704|\uc2ed\ub300|[\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]\uce35|[\uc77c\uc0bc\uc624\uc2ed]\ucd08)/;\nconst MONTH_WORD: any = { \uc720\uc6d4: \"6\uc6d4\", \uc2dc\uc6d4: \"10\uc6d4\" };\n\nfunction koNumber(run: string): number | null {\n  let total = 0;\n  let group = 0;\n  let ones = 0;\n  let place = 10000;\n  let big = Infinity;\n  for (const ch of run) {\n    if (KO_ONES[ch]) {\n      if (ones) return null; // two digits in a row: \"\uc0bc\uc0ac\", \"\uc774\uc77c\"\n      ones = KO_ONES[ch];\n    } else if (KO_PLACES[ch]) {\n      if (KO_PLACES[ch] >= place) return null;\n      place = KO_PLACES[ch];\n      group += (ones || 1) * place;\n      ones = 0;\n    } else {\n      const unit = ch === \"\uc5b5\" ? 1e8 : 1e4;\n      if (unit >= big) return null;\n      big = unit;\n      total += (group + ones || 1) * unit;\n      group = 0;\n      ones = 0;\n      place = 10000;\n    }\n  }\n  return total + group + ones;\n}\n// 2003 -> \"2003\", 700000000 -> \"7\uc5b5\", 40000000 -> \"4\ucc9c\ub9cc\", 35000000 -> \"3500\ub9cc\".\nfunction koShown(n: number): string {\n  if (n < 10000) return String(n);\n  const part = (v: number, unit: string) => (v ? (v >= 1000 && v % 1000 === 0 ? v / 1000 + \"\ucc9c\" : String(v)) + unit : \"\");\n  const rest = n % 10000;\n  return part(Math.floor(n / 1e8), \"\uc5b5\") + part(Math.floor((n % 1e8) / 1e4), \"\ub9cc\") + (rest ? String(rest) : \"\");\n}\n// A unit ends the number only when the word stops there or goes on with a particle or an ending; \"\ud504\ub85c\" in\n// \"\ud504\ub85c\uc81d\ud2b8\" and \"\uc138\ub300\" in \"\uc138\ub300\uc8fc\" are other words.\nconst AFTER_UNIT = /^([\uc774\uac00\uc740\ub294\uc744\ub97c\uc5d0\uc758\ub3c4\ub9cc\ub85c\uc640\uacfc\ub098\ubd80\uae4c\uc11c\ubc16\ub9c8\uc9f8\uac04\ucbe4\uc529\uc9dc\uc5ec\uc600\uc785\uc608\uc778\ub3d9\uc804\ud6c4\ub4a4\uc815\uc548\ub54c\uc0dd][\uac00-\ud7a3]*)?[.,?!]*$/;\nconst unitIn = (units: RegExp, text: string): string | null => {\n  const m = units.exec(text);\n  return m && AFTER_UNIT.test(text.slice(m[1].length)) ? m[1] : null;\n};\n// What may follow a number of this size: a clock has 24 hours and a year 12 months (\"\uc774\ucc9c\uc2dc\" is a city).\nconst fitsUnit = (unit: string, n: number) => (unit === \"\uc2dc\" ? n <= 24 : unit === \"\uc6d4\" ? n <= 12 : true);\n\nfunction koDigits(word: string, next: string | null): string {\n  for (const m of Object.keys(MONTH_WORD)) if (word.startsWith(m) && !/^[\uac00-\ud7a3]{2,}/.test(word.slice(m.length).replace(/^(\uc5d0|\uc740|\ub294|\uc774|\uac00|\ub3c4|\ubd80\ud130|\uae4c\uc9c0|\ub2ec|\uc758|\uc5d0\ub294|\uc5d0\ub3c4)/, \"\"))) return MONTH_WORD[m] + word.slice(m.length);\n  const found = word.match(KO_NUMERAL);\n  if (!found) return word;\n  for (let len = found[0].length; len >= 1; len--) {\n    const run = found[0].slice(0, len);\n    const n = koNumber(run);\n    if (!n) continue;\n    const rest = word.slice(len);\n    const alone = /^[.,?!]*$/.test(rest);\n    // The unit is in this word (\"\uc2ed\uc77c\uac1c\uc6d4\uc9f8\"), or it is the next word (\"\uc774\uc2ed \uba85\").\n    const after = alone ? String(next || \"\") : rest;\n    const short = unitIn(UNIT_SHORT, after);\n    let ok = false;\n    if (unitIn(UNIT_LONG, after)) ok = run !== \"\uc774\" || !alone;\n    else if (short && fitsUnit(short, n)) ok = run.length >= 2 ? !/^[\uc5b5\ub9cc]$/.test(run.slice(-1)) || /^(\uc6d0|\uba85|\uac1c|\ub144|\ud3c9|\ub300|\uc7a5|\uac74|\ud45c|\ubc30)$/.test(short) : alone ? run !== \"\uc774\" && run !== \"\ub9cc\" && run !== \"\uc5b5\" : SURE_SHORT.test(run + after);\n    else if (!alone && run.length >= 2 && /\uc5b5$/.test(run) && n >= 1e8) ok = !/^[\uac00-\ud7a3]{3,}/.test(rest); // \"\uce60\uc5b5\uc774\", \"\uc2ed\uc5b5\uc744\"\n    if (ok && alone && !rest && /^,/.test(after)) ok = false;\n    if (ok) return koShown(n) + rest;\n  }\n  return word;\n}\n\nconst shown = (t: string) => t.replace(/\\./g, \"\");\nconst width = (ws: any[], a: number, b: number) => {\n  let n = b - a - 1;\n  for (let i = a; i < b; i++) n += shown(String(ws[i][0])).length;\n  return Math.max(0, n);\n};\n\n// How bad it is to break between word i and word i + 1 (lower is better).\nfunction joint(ws: any[], i: number, fps: number): number {\n  const cur = String(ws[i][0]);\n  const next = String(ws[i + 1][0]);\n  const bare = cur.replace(/[.,?!]+$/, \"\");\n  const stop = (k: number) => {\n    const w = String(ws[k][0]);\n    const b = w.replace(/[.,?!]+$/, \"\");\n    return /,$/.test(w) || (CLAUSE_END.test(w) && !LEANS_FORWARD.test(b)) || (ws[k + 1][1] - ws[k][2]) / fps >= 0.5;\n  };\n  let s = 0;\n  const predicate = FINISHES_VERB.test(next) && !LEANS_BACK.test(next);\n  if (OPENS_CLAUSE.test(next.replace(/[.,?!]+$/, \"\"))) s -= 2;\n  else if (LEANS_FORWARD.test(bare)) s += 8;\n  else if (cur === bare && HANGUL.test(next) && !predicate) {\n    if (DESCRIBES_NEXT.test(bare)) s += 4;\n    else if (!MARKED_END.test(bare)) s += 3.5;\n  }\n  if (LEANS_BACK.test(next) && !NOT_A_VERB.test(next)) s += 6;\n  else if (predicate) s += OPENS_VERB.test(bare) ? 6 : 3;\n  if (/[0-9]/.test(bare) && (COUNTER.test(next) || /[0-9%]$/.test(bare))) s += 6;\n  const pause = (ws[i + 1][1] - ws[i][2]) / fps;\n  if (pause >= 0.3) s -= 2 + Math.min(2, pause);\n  if (NUMBER_WORD.test(bare) && STARTS_NUMBER.test(next + \" \")) s += 8;\n  else if (/,$/.test(cur)) s -= 3;\n  else if (CLAUSE_END.test(cur) && !LEANS_FORWARD.test(bare)) s -= 3;\n  // One word past a natural stop (\"\ucd94\uc9c4\ud558\ub294\ub370 \ucc98\uc74c\uc5d0\ub294 / \uc6b0\ub9ac\") strands the word that opens the next clause.\n  if (i >= 1 && !stop(i) && stop(i - 1)) s += 3;\n  return s;\n}\n\n// The best place to fold words [a, b) into two lines: [index of the first word of line two, cost]. One\n// line when it fits. `at(i)` is the cost of breaking after word i.\nfunction fold(ws: any[], a: number, b: number, maxc: number, at: (i: number) => number): [number, number] {\n  if (width(ws, a, b) <= maxc || b - a < 2) return [b, 0];\n  let best: [number, number] = [b, Infinity];\n  let top = -1;\n  const all = width(ws, a, b);\n  for (let k = a + 1; k < b; k++) {\n    top += shown(String(ws[k - 1][0])).length + 1;\n    const bottom = all - top - 1;\n    const over = Math.max(0, top - maxc) + Math.max(0, bottom - maxc);\n    const c = Math.abs(top - bottom) * 0.35 + over * 6 + at(k - 1) + (top > bottom + 3 ? 1 : 0) + (Math.min(top, bottom) < 5 ? 3 : 0);\n    if (c < best[1]) best = [k, c];\n  }\n  return best;\n}\n\n// Divide one sentence into captions: [end index of each caption]. Every way of cutting it into the\n// fewest captions that fit, or one more, is scored: even lengths, natural cuts and folds, nothing too\n// short to read.\nfunction divide(ws: any[], a: number, b: number, maxc: number, fps: number): number[] {\n  const cap = maxc * 2 - 1;\n  const n = b - a;\n  const total = width(ws, a, b);\n  if (n < 2 || total <= maxc) return [b];\n  const cuts: number[] = [];\n  for (let i = a; i < b - 1; i++) cuts.push(joint(ws, i, fps));\n  const at = (i: number) => cuts[i - a];\n  const folds = new Map<number, number>();\n  const lines = (i: number, j: number) => {\n    const key = i * 100000 + j;\n    let v = folds.get(key);\n    if (v === undefined) {\n      v = fold(ws, i, j, maxc, at)[1];\n      folds.set(key, v);\n    }\n    return v;\n  };\n  // The fewest captions that can hold it, filling each as far as it goes.\n  let least = 0;\n  for (let i = a; i < b; least++) {\n    let j = i + 1;\n    while (j < b && width(ws, i, j + 1) <= cap) j++;\n    i = j;\n  }\n  let bestCost = Infinity;\n  let bestCuts: number[] = [b];\n  for (let k = least; k <= Math.min(n, least + 1); k++) {\n    const ideal = total / k;\n    // cost[p][j]: the first j words in p captions.\n    const cost: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(Infinity));\n    const from: number[][] = Array.from({ length: k + 1 }, () => new Array(n + 1).fill(-1));\n    cost[0][0] = 0;\n    for (let p = 1; p <= k; p++) {\n      for (let j = p; j <= n; j++) {\n        for (let i = j - 1; i >= p - 1; i--) {\n          const w = width(ws, a + i, a + j);\n          if (w > cap && j - i > 1) break;\n          if (cost[p - 1][i] === Infinity) continue;\n          const uneven = ((w - ideal) / ideal) ** 2 * 6;\n          // A caption on screen for well under a second cannot be read.\n          const seconds = ((j < n ? ws[a + j][1] : ws[b - 1][2] + 0.4 * fps) - ws[a + i][1]) / fps;\n          const stub = (w < 6 ? 8 : 0) + (seconds < 0.5 ? 12 : seconds < 0.8 ? 6 : 0);\n          const c = cost[p - 1][i] + uneven + stub + lines(a + i, a + j) + (j < n ? at(a + j - 1) : 0);\n          if (c < cost[p][j]) {\n            cost[p][j] = c;\n            from[p][j] = i;\n          }\n        }\n      }\n    }\n    // A further caption has to earn its place.\n    const c = cost[k][n] + k * 3;\n    if (c < bestCost) {\n      const ends: number[] = [];\n      for (let p = k, j = n; p > 0; p--) {\n        ends.unshift(a + j);\n        j = from[p][j];\n      }\n      bestCost = c;\n      bestCuts = ends;\n    }\n  }\n  return bestCuts;\n}\n\nfunction makeCues(words: any[], fps: number, maxc: number, total: number, fixes: any[]): [number, number, string][] {\n  const clean = (t: string) => t.replace(/[\"\u201c\u201d]/g, \"\");\n  const ws = words\n    .map((w: any) => [clean(String(w[0])), w[1], w[2], w[3], w[4] ?? null, w[5] ?? null])\n    .filter((w: any) => String(w[0]).trim().length > 0 && !FILLER.test(String(w[0]).trim()));\n  if (!ws.length) return [];\n  // A stumble said twice (\"\uc6b0\ud06c\ub77c\uc774\ub098\ub9cc \ub098\ub9cc\", \"\uadf8 \uadf8\") is shown once: a word that repeats the word just before\n  // it, or its ending, within half a second is left out of the captions (the cut itself keeps the speech).\n  const bare = (t: string) => t.replace(/[.,?!\u2026~]+$/, \"\");\n  for (let i = ws.length - 1; i > 0; i--) {\n    const cur = bare(String(ws[i][0])), prev = bare(String(ws[i - 1][0]));\n    const gap = (ws[i][1] - ws[i - 1][2]) / fps;\n    if (!cur || gap >= 0.5) continue;\n    if (cur === prev || (cur.length >= 2 && prev.length > cur.length && prev.endsWith(cur))) {\n      const mark = String(ws[i][0]).slice(cur.length);\n      if (mark && !/[.,?!\u2026~]$/.test(String(ws[i - 1][0]))) ws[i - 1][0] = String(ws[i - 1][0]) + mark;\n      ws[i - 1][2] = ws[i][2];\n      ws.splice(i, 1);\n    }\n  }\n  // Numbers in digits, including the first of a pair said together (\"\ud55c \uc721, \uce60\uc5b5\" -> \"\ud55c 6, 7\uc5b5\").\n  for (let i = 0; i < ws.length; i++) ws[i][0] = koDigits(String(ws[i][0]), i + 1 < ws.length ? String(ws[i + 1][0]) : null);\n  for (let i = 0; i + 1 < ws.length; i++) {\n    const pair = String(ws[i][0]).match(/^([\uc77c\uc774\uc0bc\uc0ac\uc624\uc721\uce60\ud314\uad6c\uc2ed]),$/);\n    if (pair && /^[0-9]/.test(String(ws[i + 1][0]))) ws[i][0] = String(koNumber(pair[1])) + \",\";\n  }\n  // 1. Sentences: a new one starts with another speaker, after a full stop, at a cut in the source, or\n  // after a long silence.\n  const starts: number[] = [0];\n  for (let i = 1; i < ws.length; i++) {\n    const prev = ws[i - 1];\n    const w = ws[i];\n    const silence = (w[1] - prev[2]) / fps;\n    const cutInSource = w[3] != null && prev[3] != null && Math.abs(w[3] - prev[3] - (w[1] - prev[1])) > fps * 3;\n    const otherSpeaker = w[4] != null && prev[4] != null && w[4] !== prev[4];\n    const otherUtterance = w[5] != null && prev[5] != null && w[5] !== prev[5] && SENTENCE_END.test(String(prev[0]));\n    if (otherSpeaker || otherUtterance || SENTENCE_END.test(String(prev[0])) || cutInSource || silence > 1.5) starts.push(i);\n  }\n  starts.push(ws.length);\n  // 2. Captions within each sentence.\n  const groups: [number, number][] = [];\n  for (let s = 0; s + 1 < starts.length; s++) {\n    let a = starts[s];\n    for (const b of divide(ws, a, starts[s + 1], maxc, fps)) {\n      groups.push([a, b]);\n      a = b;\n    }\n  }\n  // 3. A one-word reply (\"\uc608.\", \"Right.\") gets its own caption. Only when it would be gone before it can\n  // be read does it join the caption before it; it never joins the sentence that follows.\n  const merged: [number, number][] = [];\n  const replyAt = new Map<number, number>(); // caption start -> index where a joined reply begins\n  for (let g = 0; g < groups.length; g++) {\n    const [a, b] = groups[g];\n    const nextStart = g + 1 < groups.length ? ws[groups[g + 1][0]][1] : total;\n    const onScreen = (Math.min(nextStart, ws[b - 1][2] + Math.round(0.6 * fps)) - ws[a][1]) / fps;\n    const last = merged[merged.length - 1];\n    if (last && width(ws, a, b) <= 3 && onScreen < 0.35 && width(ws, last[0], b) <= maxc * 2 - 1 && (ws[a][1] - ws[last[1] - 1][2]) / fps < 0.8) {\n      if (!replyAt.has(last[0])) replyAt.set(last[0], a);\n      last[1] = b;\n      continue;\n    }\n    merged.push([a, b]);\n  }\n  // 4. Text and timing.\n  const out: [number, number, string][] = [];\n  for (let g = 0; g < merged.length; g++) {\n    const [a, b] = merged[g];\n    let piece: any[] = ws.slice(a, b);\n    let joined = piece.map((x: any) => String(x[0])).join(\" \");\n    for (const f of fixes || []) if (f && f.from) joined = joined.split(String(f.from)).join(String(f.to ?? \"\"));\n    const fixed = joined.split(\" \").filter((t: string) => shown(t).length > 0);\n    // Fold on the words as they will be shown; timing for pauses comes from the original words when the\n    // spelling fixes kept their number, otherwise from none.\n    const timed = fixed.length === piece.length ? fixed.map((t: string, i: number) => [t, piece[i][1], piece[i][2]]) : fixed.map((t: string) => [t, 0, 0]);\n    const reply = replyAt.get(a);\n    const own = reply !== undefined && fixed.length === piece.length && width(ws, a, reply) <= maxc ? reply - a : -1;\n    const k = own > 0 ? own : fold(timed, 0, timed.length, maxc, (i: number) => joint(timed, i, fps))[0];\n    const text = k >= timed.length ? fixed.map(shown).join(\" \") : fixed.slice(0, k).map(shown).join(\" \") + \"\\n\" + fixed.slice(k).map(shown).join(\" \");\n    const start = ws[a][1];\n    let end = g + 1 < merged.length ? ws[merged[g + 1][0]][1] : total;\n    if (g + 1 < merged.length && (ws[merged[g + 1][0]][1] - ws[b - 1][2]) / fps > 1.2) end = Math.min(end, ws[b - 1][2] + Math.round(0.6 * fps));\n    out.push([Math.round(start), Math.round(end), text]);\n  }\n  for (let i = 0; i < out.length - 1; i++) {\n    const g = out[i + 1][0] - out[i][1];\n    if (g > 0 && g < 8) out[i][1] = out[i + 1][0];\n  }\n  // 5. Every caption stays long enough to read: one that would flash by borrows the time from the\n  // silence after it, or from the start of a longer caption that follows.\n  const least = Math.round(0.6 * fps);\n  for (let i = 0; i < out.length; i++) {\n    const short = least - (out[i][1] - out[i][0]);\n    if (short <= 0) continue;\n    const next = out[i + 1];\n    if (!next) {\n      out[i][1] = Math.min(total, out[i][0] + least);\n      continue;\n    }\n    const silence = next[0] - out[i][1];\n    if (silence >= short) out[i][1] += short;\n    else if (next[1] - next[0] - (short - silence) >= Math.round(1.0 * fps)) {\n      out[i][1] += short;\n      next[0] = out[i][1];\n    } else out[i][1] = next[0];\n  }\n  if (out.length && out[0][0] < 10) out[0][0] = 0;\n  return out;\n}\n\nfunction cleanSpeechWords(words:any[],sourceFps:number,omissions:any[]){\n const norm=(x:any)=>String(x).replace(/[.,\uff0c!?\u3002\uff1f\uff01\u2026~]/g,'').trim();\n return words.filter((w:any,i:number)=>{\n  const t=norm(w[0]);if(/^(\uc73c\ud760|\uc73c\uc74c|\ud750\uc74c|\uc74c\uc74c)$/.test(t))return false;\n  if(t==='\uc774\ub140'&&norm(words[i+1]?.[0])==='\uc774'&&norm(words[i+2]?.[0]).startsWith('\ub140\uc11d'))return false;\n  const sec=w[3] == null ? NaN : w[3]/sourceFps;\n  return !(omissions||[]).some((o:any)=>Number.isFinite(o.startSeconds)&&Number.isFinite(o.endSeconds)&&o.endSeconds>o.startSeconds&&o.endSeconds-o.startSeconds<=20&&sec>=o.startSeconds-.08&&sec<=o.endSeconds+.08&&norm(o.text)===t);\n });\n}\n\n\nconst TIKTOK_PNG_ALIASES: string[] = [\"tiktok-preview-overlay.png\"];\nasync function addPreviewPngOverlay(d:any,P:any,endFrame:number){\n const project=selects.project(P.projectId);\n const resources=await project.resources();\n const image=resources.find((x:any)=>x.resourceId===P.overlayResourceId&&TIKTOK_PNG_ALIASES.includes(x.name))||resources.find((x:any)=>TIKTOK_PNG_ALIASES.includes(x.name));\n if(!image)throw Error('\ud2f1\ud1a1 PNG\ub97c \uc900\ube44\ud55c \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694. / Prepare the TikTok PNG first.');\n const imageIds=new Set(resources.filter((x:any)=>TIKTOK_PNG_ALIASES.includes(x.name)).map((x:any)=>x.resourceId));\n const imagePresent=(await d.clips({trackScope:'all'})).some((x:any)=>x.trackKind!=='main'&&imageIds.has(x.resourceId));\n if(!imagePresent)await d.overlayResource({resource:project.resource(image.resourceId),over:await d.rangeAtFrames(0,endFrame)});\n return {added:Number(!imagePresent)};\n}\n\nconst FRAME_ELEMENT = \"import React from 'react';export default function Element({data:d}){return d.kind==='logo'?<img src={d.image} style={{position:'absolute',left:540-d.width/2,top:d.center,transform:'translateY(-50%)',width:d.width,height:'auto'}}/>:<div style={{position:'absolute',left:0,top:d.y,width:1080,height:d.height,background:d.image?'url('+d.image+')':d.background,backgroundSize:'1080px 1920px',backgroundPosition:'0px '+(-d.y)+'px'}}/>;}\";\n\n// Resource ids are Project-scoped aliases; listing the resources first makes a saved id valid in this\n// session, and the file name finds the same video again if the alias changed.\nconst project = selects.project(P.projectId);\nconst input = await readShortformInput(project, P);\nconst { meta: sm, words: sourceWords } = input;\nconst sfps = sm.fps;\nconst sws = sourceWords.filter((w: any) => !w.nonSpeech && String(w.text).trim().length > 0);\nconst W: number[][] = sws.map((w: any) => [w.startFrame / sfps, w.endFrame / sfps]);\nif (!W.length) throw new Error(\"The source has no transcript words. Analyze it first.\");\n\n// Snap each requested range to whole words without catching the neighbouring word.\nfunction snap(a: number, b: number): number[] {\n  let i = 0;\n  let j = 0;\n  let bi = Infinity;\n  let bj = Infinity;\n  for (let k = 0; k < W.length; k++) {\n    const da = Math.abs(W[k][0] - a);\n    if (da < bi) {\n      bi = da;\n      i = k;\n    }\n    const db = Math.abs(W[k][1] - b);\n    if (db < bj) {\n      bj = db;\n      j = k;\n    }\n  }\n  if (j < i) j = i;\n  const prevEnd = i > 0 ? W[i - 1][1] : 0;\n  const nextStart = j + 1 < W.length ? W[j + 1][0] : W[j][1] + 1;\n  const start = Math.max(prevEnd + 0.03, W[i][0] - 0.15, 0);\n  const end = Math.min(nextStart - 0.04, W[j][1] + 0.22, sm.durationSeconds);\n  return [Math.round(start * 1000) / 1000, Math.round(end * 1000) / 1000];\n}\n\nconst segs = (P.segments as number[][]).map((s) => snap(Number(s[0]), Number(s[1]))).filter((s) => s[1] - s[0] > 0.5);\nif (!segs.length) throw new Error(\"No usable source range for this clip.\");\n\nconst d = await project.createDraft({ name: P.name });\nawait initializeShortformSettings(d, input);\nfor (const s of segs) {\n  await insertShortformRange(d, input, s[0], s[1]);\n}\nif (P.removeFillers) {\n  const fill = (await d.words()).filter((w: any) => w.filler && w.filler.removable);\n  if (fill.length) await d.remove(fill.map((w: any) => w.span), { tracks: \"all\" });\n}\nif (P.removeSilences) {\n  const sil = await d.silenceSpans({ preset: \"normal\" });\n  const cut = sil.flatMap((x: any) => x.cutSpans);\n  if (cut.length) await d.remove(cut, { tracks: \"all\" });\n}\nawait d.setFrameSize({ width: 1080, height: 1920 });\nconst readV = async () =>\n  (await d.clips({ trackScope: \"all\" })).filter((c: any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nconst nV = (await readV()).length;\nfor (let k = 0; k < nV; k++) {\n  const c = (await readV())[k];\n  await d.setClipTransform({\n    clip: c,\n    scale: { x: P.transform.scale, y: P.transform.scale },\n    position: { x: P.transform.posX, y: P.transform.posY },\n  });\n}\n// Speaker reframing: each shot pans (and for side-by-side faces, widens) the window to the faces it follows. Shots are in source seconds; the\n// Draft's words map them onto its own frames, after fillers and pauses were cut.\nif (Array.isArray(P.reframe) && P.reframe.length) {\n  try {\n    const fitScale = P.transform.scale * (1080 / 1920);\n    const srcW = Number(sm.frameSize?.width) || 1920;\n    // A shot with a width w shows that many source pixels across the window (two people side by side),\n    // centred in the window; other shots keep the template's crop and pan only.\n    const FIT = 1080 / srcW;\n    const winMid = (Number(P.frame.windowTop) + Number(P.frame.windowBottom)) / 2;\n    const r4 = (x: number) => Math.round(x * 10000) / 10000;\n    const placeOf = (shot: any) => {\n      const sc = shot.w ? 1080 / shot.w : fitScale;\n      const inset = Number(P.reframeInset) || 0;\n      const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;\n      const x = r4((Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc)) / 1920) * 100);\n      if (!shot.w) return { scale: P.transform.scale, x, y: P.transform.posY };\n      if (!shot.cy) return { scale: r4(sc / FIT), x, y: r4((-(winMid - 960) / 1920) * 100) };\n      // A close-up puts the face faceY of the way down the window (headroom above it) and keeps the picture\n      // covering the whole window.\n      const top = Number(P.frame.windowTop), bottom = Number(P.frame.windowBottom), half = (1080 / 2) * sc * (Number(sm.frameSize?.height) || 1080) / 1080;\n      const faceY = Number(P.reframeFaceY) || 0.4;\n      const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - shot.cy) * sc));\n      return { scale: r4(sc / FIT), x, y: r4((-(yc - 960) / 1920) * 100) };\n    };\n    const key = (shot: any) => JSON.stringify(placeOf(shot));\n    const shotAt = (sec: number) =>\n      P.reframe.find((r: any) => sec >= r.start && sec < r.end) || (sec < P.reframe[0].start ? P.reframe[0] : P.reframe[P.reframe.length - 1]);\n    const ws = (await d.words()).filter((w: any) => !w.nonSpeech).map((w: any) => [w.startFrame, P.sourceKind === \"draft\" || P.sourceKind === \"synced\" ? 0 : w.sourceStartFrame / sm.fps]);\n    for (let k = 1; k < ws.length; k++) {\n      if (key(shotAt(ws[k][1])) === key(shotAt(ws[k - 1][1]))) continue;\n      try {\n        await d.splitAt({ frame: ws[k][0] });\n      } catch (e) {\n        // Already a clip boundary.\n      }\n    }\n    const nM = (await d.clips({ trackScope: \"main\" })).length;\n    for (let k = 0; k < nM; k++) {\n      const mc = (await d.clips({ trackScope: \"main\" }))[k];\n      // Keep the preceding shot across wordless passage tails; use the next word for a leading gap.\n      const w = ws.find((x: any) => x[0] >= mc.startFrame && x[0] < mc.endFrame) || ws.filter((x: any) => x[0] < mc.startFrame).pop() || ws.find((x: any) => x[0] >= mc.endFrame);\n      if (!w) continue;\n      const pl = placeOf(shotAt(w[1]));\n      const vs = (await readV()).filter((c: any) => c.startFrame >= mc.startFrame && c.startFrame < mc.endFrame);\n      for (let v = 0; v < vs.length; v++) {\n        const c = (await readV()).filter((c2: any) => c2.startFrame >= mc.startFrame && c2.startFrame < mc.endFrame)[v];\n        await d.setClipTransform({ clip: c, scale: { x: pl.scale, y: pl.scale }, position: { x: pl.x, y: pl.y } });\n      }\n    }\n  } catch (e) {\n    // Reframing is optional: a clip keeps the fixed crop rather than failing.\n  }\n}\nconst mainClips = await d.clips({ trackScope: \"main\" });\nconst endFrame = mainClips.reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);\nconst meta = await d.meta();\nawait addTemplateDesignElements(d,P,endFrame);\n\n// Highlight phrases chosen with the passage are wrapped in *asterisks* for the caption graphic.\nconst markCue = (text: string) => {\n  const phrases = (Array.isArray(P.highlights) ? P.highlights : []).map((h: any) => String(h).trim()).filter((h: string) => h.length >= 2).sort((x: string, y: string) => y.length - x.length);\n  return text\n    .split(\"\\n\")\n    .map((line: string) => {\n      let out = line;\n      for (const h of phrases) {\n        const at = out.indexOf(h);\n        if (at < 0 || out.slice(0, at).split(\"*\").length % 2 === 0) continue;\n        out = out.slice(0, at) + \"*\" + h + \"*\" + out.slice(at + h.length);\n      }\n      return out;\n    })\n    .join(\"\\n\");\n};\n// The episode date is its own graphic, so its text and position can be changed in the Draft.\nif (P.dateLabel && String(P.dateLabel.text || \"\").trim()) {\n  await d.addMotionGraphic({\n    label: \"Date\",\n    tsxCode: DATE_TSX,\n    parameters: P.dateLabel,\n    editableParameters: P.editableDate,\n    within: await d.rangeAtFrames(0, endFrame),\n  });\n}\nlet cueCount = 0;\nif (P.captions && P.caption) {\n  const words = inputCaptionWords(await d.words(), input, segs, meta.fps)\n    .filter((w: any) => !w.nonSpeech)\n    .map((w: any) => [String(w.text), w.startFrame, w.endFrame, w.sourceStartFrame, w.speakerId ?? null, w.utteranceId ?? null]);\n  const cleanWords = P.cleanSpeechText ? cleanSpeechWords(words, sm.fps, P.captionOmissions) : words;\n  const cues = makeCues(cleanWords, meta.fps, P.lineMax, endFrame, P.fixes);\n  for (let k = 0; k < cues.length; k++) {\n    const a = cues[k][0];\n    const e = Math.min(cues[k][1], endFrame);\n    if (e <= a || !cues[k][2].trim()) continue;\n    await d.addMotionGraphic({\n      label: \"Caption \" + String(k + 1).padStart(2, \"0\"),\n      tsxCode: CAPTION_TSX,\n      parameters: { ...P.caption, text: markCue(cues[k][2]) },\n      editableParameters: P.editableCaption,\n      within: await d.rangeAtFrames(a, e),\n    });\n    cueCount++;\n  }\n}\nconst out: any = await d.commitAll(\"Shortform clip: \" + P.name);\nreturn { draftId: out.createdDraftId ?? null, seconds: Math.round((endFrame / meta.fps) * 10) / 10, captions: cueCount, segments: segs };\n";
 const SCRIPT_OVERLAY: string = "const P:any=__P__;\nconst TIKTOK_PNG_ALIASES: string[] = [\"tiktok-preview-overlay.png\"];\nasync function addPreviewPngOverlay(d:any,P:any,endFrame:number){\n const project=selects.project(P.projectId);\n const resources=await project.resources();\n const image=resources.find((x:any)=>x.resourceId===P.overlayResourceId&&TIKTOK_PNG_ALIASES.includes(x.name))||resources.find((x:any)=>TIKTOK_PNG_ALIASES.includes(x.name));\n if(!image)throw Error('\ud2f1\ud1a1 PNG\ub97c \uc900\ube44\ud55c \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694. / Prepare the TikTok PNG first.');\n const imageIds=new Set(resources.filter((x:any)=>TIKTOK_PNG_ALIASES.includes(x.name)).map((x:any)=>x.resourceId));\n const imagePresent=(await d.clips({trackScope:'all'})).some((x:any)=>x.trackKind!=='main'&&imageIds.has(x.resourceId));\n if(!imagePresent)await d.overlayResource({resource:project.resource(image.resourceId),over:await d.rangeAtFrames(0,endFrame)});\n return {added:Number(!imagePresent)};\n}\n\nconst LEGACY_NAMES:string[]=[\"TikTok \u00b7 Share\", \"TikTok \u00b7 \uccb4\ud06c \ud45c\uc2dc\", \"TikTok \u00b7 \uccb4\ud06c \ubc30\uc9c0 \ubc14\ud0d5\", \"TikTok \u00b7 \uacf5\uc720 \ud654\uc0b4\ud45c\", \"TikTok \u00b7 \ub4a4\ub85c\uac00\uae30\", \"TikTok \u00b7 \uac80\uc0c9\", \"TikTok \u00b7 \ud504\ub85c\ud544\", \"TikTok \u00b7 \uc88b\uc544\uc694\", \"TikTok \u00b7 \ub313\uae00\", \"TikTok \u00b7 \uc800\uc7a5\", \"TikTok \u00b7 \uc74c\uc6d0 \uc774\ubbf8\uc9c0\", \"TikTok \u00b7 \uc9c4\ud589 \ub9c9\ub300 \ubc14\ud0d5\", \"TikTok \u00b7 \uc9c4\ud589 \ub9c9\ub300\", \"TikTok \u00b7 \uc9c4\ud589 \ud45c\uc2dc\uc810\", \"TikTok \u00b7 \uc88b\uc544\uc694 \uc218\", \"TikTok \u00b7 \ub313\uae00 \uc218\", \"TikTok \u00b7 \uc800\uc7a5 \uc218\", \"TikTok \u00b7 \uacc4\uc815\uba85\", \"TikTok \u00b7 \uc5c5\ub85c\ub4dc \uc2dc\uc810\", \"TikTok \u00b7 \uc124\uba85\"];\nconst project=selects.project(P.projectId),pm=await project.meta(),state=await selects.editor.state();\nconst visible=state.projectId===P.projectId&&state.onScreenTab?.kind==='draft'?state.onScreenTab.sequenceId:null;\nconst id=P.sequenceId||visible;\nif(!id||!pm.draftIds.includes(id))throw Error('\ud604\uc7ac \ud504\ub85c\uc81d\ud2b8\uc758 \ub4dc\ub798\ud504\ud2b8\ub97c \uc5f4\uc5b4\uc8fc\uc138\uc694. / Open a Draft in this project.');\nif(P.requireVisible!==false&&id!==visible)throw Error('\uc5f4\ub9b0 \ub4dc\ub798\ud504\ud2b8\uac00 \ubc14\ub00c\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ud655\uc778\ud574\uc8fc\uc138\uc694. / Refresh the current Draft.');\nconst d=selects.draft(id),meta=await d.meta(),main=await d.clips({trackScope:'main'});\nconst endFrame=main.length?Math.max(...main.map(x=>x.endFrame)):meta.durationFrames;\nconst resources=await project.resources();\nconst imageIds=new Set(resources.filter(x=>TIKTOK_PNG_ALIASES.includes(x.name)).map(x=>x.resourceId));\nconst imageClips=(await d.clips({trackScope:'all'})).filter(x=>x.trackKind!=='main'&&imageIds.has(x.resourceId));\nconst graphics=await d.motionGraphics();\nconst mg=graphics.filter(x=>LEGACY_NAMES.includes(x.name));\nconst oldGraphics=mg;\nconst owned=[...imageClips,...mg.map(x=>x.clip)];\nconst signature=JSON.stringify(owned.map(x=>[x.clipId,x.startFrame,x.endFrame]));\nif(P.action==='inspect')return {id,name:meta.name,count:owned.length,signature,legacy:oldGraphics.length>0||imageClips.length>1};\nif(P.action==='remove'){\n if(P.signature!==signature)throw Error('\uc624\ubc84\ub808\uc774\uac00 \ubc14\ub00c\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ud655\uc778\ud574\uc8fc\uc138\uc694. / Refresh overlay.');\n if(owned.length){await d.removeClips(owned);await d.commitAll('Remove TikTok PNG overlay');}\n return {id,removed:owned.length};\n}\nif(P.action!=='add')throw Error('Unknown action');\nif(meta.frameSize.width!==1080||meta.frameSize.height!==1920||endFrame<=0)throw Error('1080\u00d71920 \uc138\ub85c \ub4dc\ub798\ud504\ud2b8\ub97c \uc0ac\uc6a9\ud574\uc8fc\uc138\uc694. / Use a portrait Draft.');\n// Remove separate legacy graphics and duplicate current PNGs only when explicitly enabled.\nconst obsolete=[...oldGraphics.map(x=>x.clip),...imageClips.slice(1)];\nif(obsolete.length)await d.removeClips(obsolete);\nconst result=await addPreviewPngOverlay(d,P,endFrame);\nif(result.added||obsolete.length)await d.commitAll('Add TikTok PNG overlay with fixed caption');\nreturn {id,added:result.added,converted:obsolete.length>0};\n";
-const STACKED_REFRAME_EFFECT = "import React from \"react\";\nimport {AbsoluteFill} from \"remotion\";\nexport default function ShortformPanels({Source,data}) {\n const {sourceW:W,sourceH:H,windowH,panels}=data;\n return <AbsoluteFill>{panels.map((p,i)=>{\n   const count=p.count || panels.length, slot=p.slot ?? i; const cell=H/count, outH=windowH/count;\n   const rect=p.fit === \"region\" ? p.rect : null;\n   const w=rect ? Math.max(rect.width,rect.height*1080/outH) : p.fit === \"contain\" ? Math.max(W,H*1080/outH) : Math.max(1,Math.min(W,p.w)), sc=1080/w;\n   const x=rect ? rect.x-(w-rect.width)/2 : p.fit === \"contain\" ? (W-w)/2 : Math.max(0,Math.min(W-w,p.cx-w/2));\n   const h=outH/sc, y=rect ? rect.y-(h-rect.height)/2 : p.fit === \"contain\" ? (H-h)/2 : h>H ? (H-h)/2 : Math.max(0,Math.min(H-h,p.cy-h*0.4));\n   return <div key={i} style={{position:\"absolute\",left:0,top:slot*cell,width:W,height:cell,overflow:\"hidden\",backgroundColor:\"black\"}}>\n    <div style={{position:\"absolute\",left:-x*W/w,top:-y*H/windowH*sc,width:W,height:H,clipPath:rect ? `inset(${rect.y/H*100}% ${(W-rect.x-rect.width)/W*100}% ${(H-rect.y-rect.height)/H*100}% ${rect.x/W*100}%)` : undefined,transformOrigin:\"0 0\",transform:`scale(${W/w},${H/windowH*sc})`}}><Source/></div>\n   </div>;\n })}</AbsoluteFill>;\n}";
-const SCRIPT_APPLY_REFRAME: string = SCRIPT_SOURCE_READER + "const P: any = __P__;\nconst project = selects.project(P.projectId);\nif (!(await project.meta()).draftIds.includes(P.draftId)) throw new Error(\"The output Draft is no longer in this project.\");\nif (!Array.isArray(P.reframe) || !P.reframe.length) throw new Error(\"No framing plan is available.\");\nconst input = await readShortformInput(project, P);\nconst sm = input.meta;\nconst d = selects.draft(P.draftId);\n// Remove only panel clips owned by this app on a retried/ack-lost apply.\nif (P.cameraPanels?.length) {\n  const previous = await d.clips({trackScope:\"all\"});\n  for (const row of previous.filter((c:any)=>c.trackKind === \"video\" && c.resourceId)) {\n    const live=(await d.clips({trackScope:\"all\"})).find((c:any)=>c.clipId===row.clipId&&c.trackId===row.trackId);\n    if ((await d.videoEffects(live)).some((e:any)=>e.name === \"Shortform camera panel\")) await d.removeClips(live);\n  }\n}\nfor (const shot of P.cameraShots || []) {\n  const changed=await d.setVideoAngle({target:await d.rangeAtFrames(shot.startFrame,shot.endFrame),videoIndex:shot.videoIndex});\n  if (changed.uncovered.length) throw new Error(\"The selected camera has a recording gap; no reframing changes were saved.\");\n}\n\nconst readV = async () => (await d.clips({trackScope:\"all\"})).filter((c:any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nif (Array.isArray(P.reframe) && P.reframe.length) {\n    const fitScale = P.transform.scale * (1080 / 1920);\n    const srcW = Number(sm.frameSize?.width) || 1920;\n    // A shot with a width w shows that many source pixels across the window (two people side by side),\n    // centred in the window; other shots keep the template's crop and pan only.\n    const FIT = 1080 / srcW;\n    const winMid = (Number(P.frame.windowTop) + Number(P.frame.windowBottom)) / 2;\n    const r4 = (x: number) => Math.round(x * 10000) / 10000;\n    const placeOf = (shot: any) => {\n      const sc = shot.w ? 1080 / shot.w : fitScale;\n      const inset = Number(P.reframeInset) || 0;\n      const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;\n      const x = r4((Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc)) / 1920) * 100);\n      if (!shot.w) return { scale: P.transform.scale, x, y: P.transform.posY };\n      if (!shot.cy) return { scale: r4(sc / FIT), x, y: r4((-(winMid - 960) / 1920) * 100) };\n      // A close-up puts the face faceY of the way down the window (headroom above it) and keeps the picture\n      // covering the whole window.\n      const top = Number(P.frame.windowTop), bottom = Number(P.frame.windowBottom), half = (1080 / 2) * sc * (Number(sm.frameSize?.height) || 1080) / 1080;\n      const faceY = Number(P.reframeFaceY) || 0.4;\n      const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - shot.cy) * sc));\n      return { scale: r4(sc / FIT), x, y: r4((-(yc - 960) / 1920) * 100) };\n    };\n    const key = (shot: any) => JSON.stringify([placeOf(shot),shot.panels]);\n    const shotAt = (sec: number) =>\n      P.reframe.find((r: any) => sec >= r.start && sec < r.end) || (sec < P.reframe[0].start ? P.reframe[0] : P.reframe[P.reframe.length - 1]);\n    const ws = (await d.words()).filter((w: any) => !w.nonSpeech).map((w: any) => [w.startFrame, P.sourceKind === \"draft\" || P.sourceKind === \"synced\" ? 0 : w.sourceStartFrame / sm.fps]);\n    for (let k = 1; k < ws.length; k++) {\n      if (key(shotAt(ws[k][1])) === key(shotAt(ws[k - 1][1]))) continue;\n      try {\n        await d.splitAt({ frame: ws[k][0] });\n      } catch (e) {\n        const current = await d.clips({trackScope:\"main\"});\n        if (!current.some((c:any)=>c.startFrame === ws[k][0] || c.endFrame === ws[k][0])) throw e;\n      }\n    }\n    const nM = (await d.clips({ trackScope: \"main\" })).length;\n    for (let k = 0; k < nM; k++) {\n      const mc = (await d.clips({ trackScope: \"main\" }))[k];\n      // Keep the preceding shot across wordless passage tails; use the next word for a leading gap.\n      const w = ws.find((x: any) => x[0] >= mc.startFrame && x[0] < mc.endFrame) || ws.filter((x: any) => x[0] < mc.startFrame).pop() || ws.find((x: any) => x[0] >= mc.endFrame);\n      if (!w) continue;\n      const shot = shotAt(w[1]);\n      const pl = placeOf(shot);\n      const vs = (await readV()).filter((c: any) => c.trackKind === \"main\" && c.startFrame >= mc.startFrame && c.startFrame < mc.endFrame);\n      for (let v = 0; v < vs.length; v++) {\n        const c = (await readV()).filter((c2: any) => c2.trackKind === \"main\" && c2.startFrame >= mc.startFrame && c2.startFrame < mc.endFrame)[v];\n        if (shot.panels?.length === 2 && P.stackEffect) {\n          const H = Number(sm.frameSize?.height) || 1080;\n          const windowH = Number(P.frame.windowBottom)-Number(P.frame.windowTop);\n          await d.setClipTransform({clip:c,scale:{x:1,y:windowH/(H*1080/srcW)},position:{x:0,y:(960-winMid)/1920*100}});\n          const fresh = () => d.clips({trackScope:\"main\"}).then((cs:any[])=>cs.find(x=>x.clipId===c.clipId && x.trackId===c.trackId));\n          const old = (await d.videoEffects(await fresh())).find((x:any)=>x.name === \"Shortform stacked framing\");\n          const parameters = {sourceW:srcW,sourceH:H,windowH,panels:shot.panels};\n          if (old) await d.replaceVideoEffect(old,{tsxCode:P.stackEffect,parameters});\n          else await d.addVideoEffect({clip:await fresh(),label:\"Shortform stacked framing\",tsxCode:P.stackEffect,parameters});\n          continue;\n        }\n        await d.setClipTransform({ clip: c, scale: { x: pl.scale, y: pl.scale }, position: { x: pl.x, y: pl.y } });\n      }\n    }\n}\nif (P.cameraPanels?.length) {\n  const windowH=Number(P.frame.windowBottom)-Number(P.frame.windowTop);\n  const winMid=(Number(P.frame.windowBottom)+Number(P.frame.windowTop))/2;\n  // Keep the existing template above newly added picture lanes. Recreate only\n  // this app's own graphics with their current editable values and exact ranges.\n  const graphics:any[]=[];\n  for (const g of await d.motionGraphics()) {\n    if (!(g.name === \"Series frame and headline\" || g.name === \"Date\" || /^Caption \\d+$/.test(g.name))) continue;\n    const program=await d.motionGraphicProgram(g.clip);\n    if (!program) throw new Error(\"Template graphic is unavailable.\");\n    graphics.push({name:g.name,start:g.clip.startFrame,end:g.clip.endFrame,program,transform:await d.clipTransform(g.clip)});\n  }\n  for (const panel of P.cameraPanels) {\n    const source=project.resource(panel.resourceId),meta=await source.meta();\n    const W=meta.frameSize?.width,H=meta.frameSize?.height;\n    if (!(W>0 && H>0)) throw new Error(\"Camera dimensions are unavailable.\");\n    const before=new Set((await d.clips({trackScope:\"all\"})).map((x:any)=>x.trackId+\":\"+x.clipId));\n    await d.overlayResource({resource:source,over:await d.rangeAtFrames(panel.startFrame,panel.endFrame),sourceStartSeconds:panel.sourceStartSeconds,playbackSpeed:panel.playbackSpeed,withSound:false});\n    let clip=(await d.clips({trackScope:\"all\"})).find((x:any)=>x.trackKind === \"video\" && !before.has(x.trackId+\":\"+x.clipId));\n    if (!clip) throw new Error(\"Camera placement did not produce a video clip.\");\n    const id=clip.clipId,track=clip.trackId;\n    const fresh=()=>d.clips({trackScope:\"all\"}).then((xs:any[])=>xs.find(x=>x.clipId===id&&x.trackId===track));\n    await d.setClipTransform({clip,scale:{x:1,y:windowH/(H*1080/W)},position:{x:0,y:(960-winMid)/1920*100}});\n    await d.addVideoEffect({clip:await fresh(),label:\"Shortform camera panel\",tsxCode:P.stackEffect,parameters:{sourceW:W,sourceH:H,windowH,panels:[{cx:W/2,cy:H/2,w:Math.min(W,H*1080/(windowH/panel.count)),...panel.crop,slot:panel.slot,count:panel.count}]}});\n  }\n  for (const g of graphics) {\n    const live=(await d.motionGraphics()).find((x:any)=>x.name===g.name&&x.clip.startFrame===g.start&&x.clip.endFrame===g.end);\n    if (!live) throw new Error(\"Template graphic changed during framing.\");\n    await d.removeClips(live.clip);\n    const placed=await d.addMotionGraphic({label:g.name,tsxCode:g.program.tsxCode,parameters:g.program.parameters,editableParameters:g.program.editableParameters,within:await d.rangeAtFrames(g.start,g.end)});\n    const clip=(await d.clips({trackScope:\"all\"})).find((x:any)=>x.clipId===placed.clipId);\n    const t=g.transform;\n    await d.setClipTransform({clip,position:t.positionKeys.length?undefined:t.position,positionKeys:t.positionKeys.length?t.positionKeys:undefined,\n      scale:t.scaleKeys.length?undefined:t.scale,scaleKeys:t.scaleKeys.length?t.scaleKeys:undefined,\n      rotation:t.rotationKeys.length?undefined:t.rotation,rotationKeys:t.rotationKeys.length?t.rotationKeys:undefined,anchor:t.anchor,flipHorizontal:t.flipHorizontal,flipVertical:t.flipVertical});\n  }\n}\n\nawait d.commitAll(\"Apply shortform reframing\");\nreturn {draftId:P.draftId, reframed:true};\n";
+const STACKED_REFRAME_EFFECT = "import React from \"react\";\nimport {AbsoluteFill} from \"remotion\";\nexport default function ShortformPanels({Source,data}) {\n const {sourceW:W,sourceH:H,windowH,panels}=data;\n return <AbsoluteFill>{panels.map((p,i)=>{\n   const count=p.count || panels.length, slot=p.slot ?? i; const r=p.destination||{x:0,y:slot/count,width:1,height:1/count}, outW=1080*r.width, outH=windowH*r.height;\n   const rect=p.fit === \"region\" ? p.rect : null;\n   const w=rect ? Math.max(rect.width,rect.height*outW/outH) : p.fit === \"contain\" ? Math.max(W,H*outW/outH) : Math.max(1,Math.min(W,p.w)), sc=outW/w;\n   const x=rect ? rect.x-(w-rect.width)/2 : p.fit === \"contain\" ? (W-w)/2 : Math.max(0,Math.min(W-w,p.cx-w/2));\n   const h=outH/sc, y=rect ? rect.y-(h-rect.height)/2 : p.fit === \"contain\" ? (H-h)/2 : h>H ? (H-h)/2 : Math.max(0,Math.min(H-h,p.cy-h*0.4));\n   return <div key={i} style={{position:\"absolute\",left:r.x*W,top:r.y*H,width:W*r.width,height:H*r.height,overflow:\"hidden\",backgroundColor:\"black\"}}>\n    <div style={{position:\"absolute\",left:-x*W*r.width/w,top:-y*H/windowH*sc,width:W,height:H,clipPath:rect ? `inset(${rect.y/H*100}% ${(W-rect.x-rect.width)/W*100}% ${(H-rect.y-rect.height)/H*100}% ${rect.x/W*100}%)` : undefined,transformOrigin:\"0 0\",transform:`scale(${W*r.width/w},${H/windowH*sc})`}}><Source/></div>\n   </div>;\n })}</AbsoluteFill>;\n}";
+const SCRIPT_APPLY_REFRAME: string = SCRIPT_SOURCE_READER + "const P: any = __P__;\nconst project = selects.project(P.projectId);\nif (!(await project.meta()).draftIds.includes(P.draftId)) throw new Error(\"The output Draft is no longer in this project.\");\nif (!Array.isArray(P.reframe) || !P.reframe.length) throw new Error(\"No framing plan is available.\");\nconst input = await readShortformInput(project, P);\nconst sm = input.meta;\nconst d = selects.draft(P.draftId);\n// Remove only panel clips owned by this app on a retried/ack-lost apply.\nif (P.cameraPanels?.length) {\n  const previous = await d.clips({trackScope:\"all\"});\n  for (const row of previous.filter((c:any)=>c.trackKind === \"video\" && c.resourceId)) {\n    const live=(await d.clips({trackScope:\"all\"})).find((c:any)=>c.clipId===row.clipId&&c.trackId===row.trackId);\n    if ((await d.videoEffects(live)).some((e:any)=>e.name === \"Shortform camera panel\")) await d.removeClips(live);\n  }\n}\nfor (const shot of P.cameraShots || []) {\n  const changed=await d.setVideoAngle({target:await d.rangeAtFrames(shot.startFrame,shot.endFrame),videoIndex:shot.videoIndex});\n  if (changed.uncovered.length) throw new Error(\"The selected camera has a recording gap; no reframing changes were saved.\");\n}\n\nconst readV = async () => (await d.clips({trackScope:\"all\"})).filter((c:any) => c.resourceId !== null && (c.trackKind === \"main\" || c.trackKind === \"video\"));\nif (Array.isArray(P.reframe) && P.reframe.length) {\n    const fitScale = P.transform.scale * (1080 / 1920);\n    const srcW = Number(sm.frameSize?.width) || 1920;\n    // A shot with a width w shows that many source pixels across the window (two people side by side),\n    // centred in the window; other shots keep the template's crop and pan only.\n    const FIT = 1080 / srcW;\n    const winMid = (Number(P.frame.windowTop) + Number(P.frame.windowBottom)) / 2;\n    const r4 = (x: number) => Math.round(x * 10000) / 10000;\n    const placeOf = (shot: any) => {\n      const sc = shot.w ? 1080 / shot.w : fitScale;\n      const inset = Number(P.reframeInset) || 0;\n      const roomX = Math.max(0, (srcW - 2 * inset) * sc - 1080) / 2;\n      const x = r4((Math.max(-roomX, Math.min(roomX, (srcW / 2 - shot.cx) * sc)) / 1920) * 100);\n      if (!shot.w) return { scale: P.transform.scale, x, y: P.transform.posY };\n      if (!shot.cy) return { scale: r4(sc / FIT), x, y: r4((-(winMid - 960) / 1920) * 100) };\n      // A close-up puts the face faceY of the way down the window (headroom above it) and keeps the picture\n      // covering the whole window.\n      const top = Number(P.frame.windowTop), bottom = Number(P.frame.windowBottom), half = (1080 / 2) * sc * (Number(sm.frameSize?.height) || 1080) / 1080;\n      const faceY = Number(P.reframeFaceY) || 0.4;\n      const yc = Math.max(bottom - half, Math.min(top + half, top + (bottom - top) * faceY + (540 - shot.cy) * sc));\n      return { scale: r4(sc / FIT), x, y: r4((-(yc - 960) / 1920) * 100) };\n    };\n    const key = (shot: any) => JSON.stringify([placeOf(shot),shot.panels]);\n    const shotAt = (sec: number) =>\n      P.reframe.find((r: any) => sec >= r.start && sec < r.end) || (sec < P.reframe[0].start ? P.reframe[0] : P.reframe[P.reframe.length - 1]);\n    const ws = (await d.words()).filter((w: any) => !w.nonSpeech).map((w: any) => [w.startFrame, P.sourceKind === \"draft\" || P.sourceKind === \"synced\" ? 0 : w.sourceStartFrame / sm.fps]);\n    for (let k = 1; k < ws.length; k++) {\n      if (key(shotAt(ws[k][1])) === key(shotAt(ws[k - 1][1]))) continue;\n      try {\n        await d.splitAt({ frame: ws[k][0] });\n      } catch (e) {\n        const current = await d.clips({trackScope:\"main\"});\n        if (!current.some((c:any)=>c.startFrame === ws[k][0] || c.endFrame === ws[k][0])) throw e;\n      }\n    }\n    const nM = (await d.clips({ trackScope: \"main\" })).length;\n    for (let k = 0; k < nM; k++) {\n      const mc = (await d.clips({ trackScope: \"main\" }))[k];\n      // Keep the preceding shot across wordless passage tails; use the next word for a leading gap.\n      const w = ws.find((x: any) => x[0] >= mc.startFrame && x[0] < mc.endFrame) || ws.filter((x: any) => x[0] < mc.startFrame).pop() || ws.find((x: any) => x[0] >= mc.endFrame);\n      if (!w) continue;\n      const shot = shotAt(w[1]);\n      const pl = placeOf(shot);\n      const vs = (await readV()).filter((c: any) => c.trackKind === \"main\" && c.startFrame >= mc.startFrame && c.startFrame < mc.endFrame);\n      for (let v = 0; v < vs.length; v++) {\n        const c = (await readV()).filter((c2: any) => c2.trackKind === \"main\" && c2.startFrame >= mc.startFrame && c2.startFrame < mc.endFrame)[v];\n        if (shot.panels?.length > 1 && P.stackEffect) {\n          const H = Number(sm.frameSize?.height) || 1080;\n          const windowH = Number(P.frame.windowBottom)-Number(P.frame.windowTop);\n          await d.setClipTransform({clip:c,scale:{x:1,y:windowH/(H*1080/srcW)},position:{x:0,y:(960-winMid)/1920*100}});\n          const fresh = () => d.clips({trackScope:\"main\"}).then((cs:any[])=>cs.find(x=>x.clipId===c.clipId && x.trackId===c.trackId));\n          const old = (await d.videoEffects(await fresh())).find((x:any)=>x.name === \"Shortform stacked framing\");\n          const parameters = {sourceW:srcW,sourceH:H,windowH,panels:shot.panels};\n          if (old) await d.replaceVideoEffect(old,{tsxCode:P.stackEffect,parameters});\n          else await d.addVideoEffect({clip:await fresh(),label:\"Shortform stacked framing\",tsxCode:P.stackEffect,parameters});\n          continue;\n        }\n        await d.setClipTransform({ clip: c, scale: { x: pl.scale, y: pl.scale }, position: { x: pl.x, y: pl.y } });\n      }\n    }\n}\nif (P.cameraPanels?.length) {\n  const windowH=Number(P.frame.windowBottom)-Number(P.frame.windowTop);\n  const winMid=(Number(P.frame.windowBottom)+Number(P.frame.windowTop))/2;\n  // Keep the existing template above newly added picture lanes. Recreate only\n  // this app's own graphics with their current editable values and exact ranges.\n  const graphics:any[]=[];\n  for (const g of await d.motionGraphics()) {\n    if (!(g.name === \"Series frame and headline\" || g.name === \"Date\" || /^Caption \\d+$/.test(g.name))) continue;\n    const program=await d.motionGraphicProgram(g.clip);\n    if (!program) throw new Error(\"Template graphic is unavailable.\");\n    graphics.push({name:g.name,start:g.clip.startFrame,end:g.clip.endFrame,program,transform:await d.clipTransform(g.clip)});\n  }\n  for (const panel of P.cameraPanels) {\n    const source=project.resource(panel.resourceId),meta=await source.meta();\n    const W=meta.frameSize?.width,H=meta.frameSize?.height;\n    if (!(W>0 && H>0)) throw new Error(\"Camera dimensions are unavailable.\");\n    const before=new Set((await d.clips({trackScope:\"all\"})).map((x:any)=>x.trackId+\":\"+x.clipId));\n    await d.overlayResource({resource:source,over:await d.rangeAtFrames(panel.startFrame,panel.endFrame),sourceStartSeconds:panel.sourceStartSeconds,playbackSpeed:panel.playbackSpeed,withSound:false});\n    let clip=(await d.clips({trackScope:\"all\"})).find((x:any)=>x.trackKind === \"video\" && !before.has(x.trackId+\":\"+x.clipId));\n    if (!clip) throw new Error(\"Camera placement did not produce a video clip.\");\n    const id=clip.clipId,track=clip.trackId;\n    const fresh=()=>d.clips({trackScope:\"all\"}).then((xs:any[])=>xs.find(x=>x.clipId===id&&x.trackId===track));\n    await d.setClipTransform({clip,scale:{x:1,y:windowH/(H*1080/W)},position:{x:0,y:(960-winMid)/1920*100}});\n    await d.addVideoEffect({clip:await fresh(),label:\"Shortform camera panel\",tsxCode:P.stackEffect,parameters:{sourceW:W,sourceH:H,windowH,panels:[{cx:W/2,cy:H/2,w:Math.min(W,H*1080/(windowH/panel.count)),...panel.crop,slot:panel.slot,count:panel.count,destination:panel.destination}]}});\n  }\n  for (const g of graphics) {\n    const live=(await d.motionGraphics()).find((x:any)=>x.name===g.name&&x.clip.startFrame===g.start&&x.clip.endFrame===g.end);\n    if (!live) throw new Error(\"Template graphic changed during framing.\");\n    await d.removeClips(live.clip);\n    const placed=await d.addMotionGraphic({label:g.name,tsxCode:g.program.tsxCode,parameters:g.program.parameters,editableParameters:g.program.editableParameters,within:await d.rangeAtFrames(g.start,g.end)});\n    const clip=(await d.clips({trackScope:\"all\"})).find((x:any)=>x.clipId===placed.clipId);\n    const t=g.transform;\n    await d.setClipTransform({clip,position:t.positionKeys.length?undefined:t.position,positionKeys:t.positionKeys.length?t.positionKeys:undefined,\n      scale:t.scaleKeys.length?undefined:t.scale,scaleKeys:t.scaleKeys.length?t.scaleKeys:undefined,\n      rotation:t.rotationKeys.length?undefined:t.rotation,rotationKeys:t.rotationKeys.length?t.rotationKeys:undefined,anchor:t.anchor,flipHorizontal:t.flipHorizontal,flipVertical:t.flipVertical});\n  }\n}\n\nawait d.commitAll(\"Apply shortform reframing\");\nreturn {draftId:P.draftId, reframed:true};\n";
 const SCRIPT_TRANSCRIPT: string = SCRIPT_SOURCE_READER + "// run_script body: return the source transcript as sentence lines with source-second timings, one page at a time.\nconst P: any = __P__;\n// Resource ids are Project-scoped aliases; listing the resources first makes a saved id valid in this\n// session, and the file name finds the same video again if the alias changed.\nconst project = selects.project(P.projectId);\nconst input = await readShortformInput(project, P);\nconst { meta: m, words } = input;\nconst ws = words.filter((w: any) => !w.nonSpeech && String(w.text).trim().length > 0);\nconst lines: any[][] = [];\nlet cur: any[] = [];\nfor (const w of ws) {\n  cur.push(w);\n  if (/[.?!]$/.test(String(w.text)) || cur.length >= 28) {\n    lines.push(cur);\n    cur = [];\n  }\n}\nif (cur.length) lines.push(cur);\nconst r1 = (x: number) => Math.round(x * 10) / 10;\nconst all = lines.map((l) => [r1(l[0].startFrame / m.fps), r1(l[l.length - 1].endFrame / m.fps), l.map((w: any) => String(w.text)).join(\" \")]);\nreturn { duration: m.durationSeconds, total: all.length, lines: all.slice(P.offset, P.offset + P.limit) };\n";
 const APP_ID = "shortform-clips";
 const IS_WIN =
@@ -1039,6 +1039,7 @@ function validateTemplate(t: any, runtime = false) {
     if(d.headline.shadowCss!==undefined) packAssert(typeof d.headline.shadowCss==="string", "Invalid headline shadow.");
     if (d.layout.cameraMode !== undefined) packAssert(["auto","speaker","preserve","stacked"].includes(d.layout.cameraMode), "Invalid camera style.");
     for (const [key,values] of Object.entries({reframePreset:['speaker','conversation','context','custom'],reframeFocus:['speaker','reactions','context'],splitPolicy:['never','selective','frequent'],widePolicy:['never','essential','free'],reframePacing:['calm','balanced','dynamic'],cropMotion:['fixed']})) if(d.layout[key]!==undefined) packAssert(values.includes(d.layout[key]),'Invalid reframing preference: '+key);
+    if(d.layout.allowedLayouts!==undefined)packAssert(Array.isArray(d.layout.allowedLayouts)&&new Set(d.layout.allowedLayouts).size===d.layout.allowedLayouts.length&&d.layout.allowedLayouts.every((x:any)=>SPLIT_LAYOUTS.includes(x)), 'Invalid allowed layouts');
     if (d.layout.reframeInstructions !== undefined) packAssert(typeof d.layout.reframeInstructions === "string" && d.layout.reframeInstructions.length <= 2000, "Invalid framing instructions.");
     for (const k of ["reframe"]) if (d.layout[k] !== undefined) packAssert(typeof d.layout[k] === "boolean", "Invalid layout option: " + k);
     for (const k of ["left", "width"]) if (d.captions[k] !== undefined) packAssert(typeof d.captions[k] === "number", "Invalid caption value: " + k);
@@ -2085,7 +2086,41 @@ function jobTokenLabel(job: any, R: any) {
   return reframingTokenLabel({reframeUsageCalls:calls}, R);
 }
 
-function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, store, jobId, projectId, busy, onRetry, coverContext }: any) {
+function CompositionEditor({context,ui,lang,busy,onApply,pending}:any) {
+  const ko=lang==='ko',labels=COMPOSITION_LABELS[lang]||COMPOSITION_LABELS.en;
+  const [open,setOpen]=React.useState(false),[index,setIndex]=React.useState(0),[draft,setDraft]=React.useState<any>(null),[message,setMessage]=React.useState('');
+  React.useEffect(()=>{setDraft(null);setIndex(context.pendingIndex??0);},[context]);
+  if(!context?.plan?.shots?.length)return null;
+  const original=context.plan.shots[index],shot=draft||original;
+  const change=(patch:any)=>setDraft({...shot,...patch,locked:true,compositionId:`manual-${shot.startFrame}-${shot.endFrame}`});
+  const candidates=compositionEditorCandidates(context,shot);
+  const panel=(i:number,value:any)=>change({panels:shot.panels.map((p:any,j:number)=>i===j?value:p)});
+  return <div style={{gridColumn:'1 / -1'}}>
+    <ui.Button variant="secondary" disabled={busy} onClick={()=>setOpen(!open)}>{ko?'\uad6c\uac04\ubcc4 \ud654\uba74 \uad6c\uc131 \uc218\uc815':'Edit shot framing'}</ui.Button>
+    {open&&<ui.Stack gap={12}>
+      {pending&&<ui.Message tone="warning">{ko?'\uc774\uc804 \uc801\uc6a9\uc758 \uc644\ub8cc \uc5ec\ubd80\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc800\uc7a5\ub41c \uc124\uc815\uc73c\ub85c \ub2e4\uc2dc \uc801\uc6a9\ud558\uc138\uc694.':'The previous apply was interrupted. Reapply the saved settings.'}</ui.Message>}
+      <small>{ko?'\uad00\uce21\ub41c \uc778\ubb3c\uc744 \uc120\ud0dd\ud558\uace0 \uc21c\uc11c·\ud06c\ub86d\uc744 \uc870\uc815\ud558\uc138\uc694. \uc800\uc7a5\ud55c \uad6c\uac04\uc740 \uc790\ub3d9 \uc7ac\uc0dd\uc131\uc5d0\uc11c \ubcf4\ud638\ub429\ub2c8\ub2e4.':'Select observed people, order and crop. Saved shots are protected from automatic reframing.'}</small>
+      <ui.Select label={ko?'\uad6c\uac04':'Shot'} value={String(index)} options={context.plan.shots.map((s:any,i:number)=>({value:String(i),label:`${(s.startFrame/context.fps).toFixed(2)}–${(s.endFrame/context.fps).toFixed(2)}s${s.locked?' 🔒':''}`}))} onChange={(v:string)=>{setIndex(Number(v));setDraft(null);setMessage('');}} disabled={busy}/>
+      <ui.Select label={ko?'\ubc30\uce58':'Layout'} value={shot.layout} options={[...Object.keys(labels).map(value=>({value,label:labels[value]})),...(!labels[shot.layout]?[{value:shot.layout,label:shot.layout}]:[])]} onChange={(v:string)=>setDraft(editCompositionShot(shot,v))} disabled={busy}/>
+      <div style={{position:'relative',height:160,background:'var(--panel-muted)',borderRadius:6}} aria-label={ko?'\uce78 \uc21c\uc11c \ubbf8\ub9ac\ubcf4\uae30':'Panel order preview'}>
+        {compositionRects(shot.layout).map((r:any,i:number)=><div key={i} style={{position:'absolute',left:`${r.x*100}%`,top:`${r.y*100}%`,width:`${r.width*100}%`,height:`${r.height*100}%`,border:'1px solid var(--panel-border)',display:'flex',alignItems:'center',justifyContent:'center'}}>{i+1}. {shot.panels[i]?.targets?.map((t:any)=>t.subjectId).join(' + ')||'—'}</div>)}
+      </div>
+      {shot.panels.map((p:any,i:number)=><ui.Stack key={i} gap={8}>
+        <ui.Select label={`${ko?'\uce78':'Panel'} ${i+1}`} value={p.targets?.length>1?'__group__':p.targets?.[0]?.refs?.[0]||''} options={[...(p.targets?.length>1?[{value:'__group__',label:p.targets.map((t:any)=>t.subjectId).join(' + ')}]:[]),{value:'',label:ko?'\uc778\ubb3c \uc120\ud0dd':'Choose a person'},...candidates.map((c:any)=>({value:c.key,label:c.label})),...(!candidates.some((c:any)=>c.key===p.targets?.[0]?.refs?.[0])&&p.targets?.length?[{value:p.targets[0].refs[0],label:p.targets[0].subjectId}]:[])]} onChange={(v:string)=>{const c=candidates.find((c:any)=>c.key===v);if(c)panel(i,{camera:c.camera,targets:c.targets,sourcePane:c.sourcePane});}} disabled={busy}/>
+        {i>0&&<ui.Button variant="secondary" disabled={busy} onClick={()=>{const ps=[...shot.panels];[ps[i-1],ps[i]]=[ps[i],ps[i-1]];change({panels:ps});}}>{ko?'\uc55e \uce78\uacfc \uad50\ud658':'Swap with previous'}</ui.Button>}
+        {(['dx','dy','zoom'] as const).map(key=><ui.NumberField key={key} label={key==='dx'?(ko?'\uac00\ub85c \uc774\ub3d9 (%)':'Horizontal offset (%)'):key==='dy'?(ko?'\uc138\ub85c \uc774\ub3d9 (%)':'Vertical offset (%)'):(ko?'\ud655\ub300 \ubc30\uc728':'Zoom')} value={key==='zoom'?(p.adjustment?.zoom??1):(p.adjustment?.[key]??0)*100} min={key==='zoom'?.5:-25} max={key==='zoom'?2:25} step={key==='zoom'?.05:1} onChange={(v:number)=>panel(i,{...p,adjustment:{...p.adjustment,[key]:key==='zoom'?v:v/100}})} disabled={busy}/>)}
+        {context.kind==='source'&&<details><summary>{ko?'\uc6d0\ubcf8 \ud654\uba74 \uacbd\uacc4 (\ubd84\ud560 \ubc29\uc1a1\uc6a9)':'Source pane boundaries'}</summary>
+          {['x','y','width','height'].map(key=><ui.NumberField key={key} label={`${key} (%)`} value={({...{x:0,y:0,width:1,height:1},...p.sourcePane} as any)[key]*100} min={0} max={100} step={1} onChange={(v:number)=>panel(i,{...p,sourcePane:{...{x:0,y:0,width:1,height:1},...p.sourcePane,[key]:v/100}})} disabled={busy}/>)}
+        </details>}
+      </ui.Stack>)}
+      <ui.Toggle label={ko?'\uc774 \uad6c\uac04 \uc790\ub3d9 \uc218\uc815 \ubc29\uc9c0':'Protect this shot from automatic changes'} value={shot.locked===true} onChange={(v:boolean)=>setDraft({...shot,locked:v})} disabled={busy}/>
+      {message&&<ui.Message tone="error">{message}</ui.Message>}
+      <ui.Actions><ui.Button disabled={busy||(!draft&&!pending)} onClick={async()=>{setMessage('');try {await onApply(index,shot);setDraft(null);}catch(e:any){setMessage(String(e.message||e));}}}>{ko?'\uc801\uc6a9':'Apply'}</ui.Button><ui.Button variant="secondary" disabled={busy} onClick={()=>{setDraft(null);setMessage('');}}>{ko?'\ubcc0\uacbd \ucde8\uc18c':'Discard changes'}</ui.Button></ui.Actions>
+    </ui.Stack>}
+  </div>;
+}
+
+function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, store, jobId, projectId, busy, onRetry, coverContext, onEditFraming }: any) {
   const ready=clipReady(d);
   const [expanded, setExpanded] = React.useState(false);
   const [overflow, setOverflow] = React.useState(false);
@@ -2110,7 +2145,7 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
       disabled={!ready || current || !!opening} onClick={()=>{if(clipReady(d))onOpen(d.draftId);}}
       style={{display:"block",position:"relative",width:"fit-content",height:"auto",maxHeight:"none",minWidth:0,minHeight:0,padding:0,border:0,borderRadius:6,background:"none",lineHeight:1,overflow:"hidden",opacity:1,
         cursor:current || opening ? "default" : "pointer",boxShadow:current ? "0 0 0 2px var(--panel-fg)" : "none"}}>
-      <DraftThumbnail sdk={sdk} store={store} jobId={jobId} projectId={projectId} draftId={d.draftId} R={R}/>
+      <DraftThumbnail key={d.thumbnailCapturedAt||d.draftId} sdk={sdk} store={store} jobId={jobId} projectId={projectId} draftId={d.draftId} R={R}/>
       {current ? <span style={{position:"absolute",bottom:5,left:4,right:4,padding:"4px 2px",borderRadius:3,background:"#000b",color:"#fff",fontSize:10,lineHeight:1.2}}>{R.viewing}</span>
         : <span className="clip-thumbnail-open" aria-hidden="true">{opening === d.draftId ? R.opening : <>{S.open} <span>↗</span></>}</span>}
     </button> : <div className="clip-result-thumbnail" aria-label={R.previewPending}><small>{d.error ? R.stages.failed : R.preparingClip}<br/>{R.previewPending}</small></div>}
@@ -2137,6 +2172,7 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
       </div>
     </div>
     <div className="clip-result-progress" style={{gridColumn:"1 / -1",borderTop:"1px solid var(--panel-border)",paddingTop:8}}><ClipCardProgress draft={d} R={R} S={S}/></div>
+    {d.reframeReport?.editContext&&onEditFraming&&<CompositionEditor pending={!!d.framingEditPending} context={d.framingEditPending||d.reframeReport.editContext} ui={ui} lang={R===RESULT_STRINGS.ko?'ko':'en'} busy={busy} onApply={(index:number,shot:any)=>onEditFraming(d,index,shot)}/>}
     {d.draftId&&coverContext&&<GeneratedCoverGallery sdk={sdk} store={store} clip={d} ui={ui} {...coverContext}/>}
   </div>;
 }
@@ -2160,7 +2196,7 @@ function ClipRunProgress({ui,S,R,job,busy,step,sub,statusLine,cancelling,onCance
   </div>;
 }
 
-function DraftResults({ drafts, template, visibleDraftId, opening, onOpen, overlayControl, overlayFeedback, ui, S, R, sdk, store, jobId, projectId, busy, onRetry, coverContext }: any) {
+function DraftResults({ drafts, template, visibleDraftId, opening, onOpen, overlayControl, overlayFeedback, ui, S, R, sdk, store, jobId, projectId, busy, onRetry, coverContext, onEditFraming }: any) {
   return <div style={{ display: "flex", flexDirection: "column", gap: 16,containerType:"inline-size" }}>
     <style>{`
       .clip-thumbnail-button[aria-current="true"] .clip-result-thumbnail {filter:brightness(0.5);}
@@ -2187,7 +2223,7 @@ function DraftResults({ drafts, template, visibleDraftId, opening, onOpen, overl
       {overlayFeedback}
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {rankDrafts(drafts).map((d: any, i: number) => <DraftResultCard key={d.draftId || d.name || i} draft={d} busy={busy} onRetry={onRetry} current={!!d.draftId && visibleDraftId === d.draftId} opening={opening} onOpen={onOpen} ui={ui} S={S} R={R} sdk={sdk} store={store} jobId={jobId} projectId={projectId} coverContext={coverContext} />)}
+      {rankDrafts(drafts).map((d: any, i: number) => <DraftResultCard key={d.draftId || d.name || i} draft={d} busy={busy} onRetry={onRetry} current={!!d.draftId && visibleDraftId === d.draftId} opening={opening} onOpen={onOpen} ui={ui} S={S} R={R} sdk={sdk} store={store} jobId={jobId} projectId={projectId} coverContext={coverContext} onEditFraming={onEditFraming} />)}
     </div>
   </div>;
 }
@@ -3125,7 +3161,7 @@ function cameraPanelPlacements(snapshot: any, manifests: any): any[] {
     for (let i=1;i<edges.length;i++) {
       const startFrame=edges[i-1],endFrame=edges[i];
       const available=candidates.filter(x=>x.start<=startFrame&&x.end>=endFrame).sort((a,b)=>a.videoIndex-b.videoIndex);
-      const unique=available.filter((x,j)=>available.findIndex(y=>y.videoIndex===x.videoIndex)===j).slice(0,3);
+      const unique=available.filter((x,j)=>available.findIndex(y=>y.videoIndex===x.videoIndex)===j);
       if (!unique.length) continue;
       unique.forEach((x,slot)=>out.push({startFrame,endFrame,slot,count:unique.length,resourceId:x.resourceId,videoIndex:x.videoIndex,
         sourceStartSeconds:c.sourceStartSeconds+(startFrame-c.startFrame)/fps*rate-x.window.offsetSec,
@@ -3215,9 +3251,64 @@ async function askReframingAI({sdk,guard,note}: any, request: any) {
   }
 }
 
+// Coordinates are fractions of the template VIDEO window, never of the whole canvas.
+// Keep this function self-contained: it is also serialized into run_script.
+function compositionRects(style:string):any[] {
+  const presets:any={
+    stacked:[[0,0,1,.5],[0,.5,1,.5]],
+    'side-by-side':[[0,0,.5,1],[.5,0,.5,1]],
+    'columns-3':[[0,0,1/3,1],[1/3,0,1/3,1],[2/3,0,1/3,1]],
+    'top-main-3':[[0,0,1,.5],[0,.5,.5,.5],[.5,.5,.5,.5]],
+    'left-main-3':[[0,0,.5,1],[.5,0,.5,.5],[.5,.5,.5,.5]],
+    'grid-4':[[0,0,.5,.5],[.5,0,.5,.5],[0,.5,.5,.5],[.5,.5,.5,.5]],
+    speaker:[[0,0,1,1]],'two-shot':[[0,0,1,1]],detail:[[0,0,1,1]],wide:[[0,0,1,1]],preserve:[[0,0,1,1]],
+  };
+  if(!presets[style])throw Error('Unknown composition layout: '+style);
+  return presets[style].map(([x,y,width,height]:number[])=>({x,y,width,height}));
+}
+const SPLIT_LAYOUTS=['stacked','side-by-side','columns-3','top-main-3','left-main-3','grid-4'];
+const COMPOSITION_LABELS:any={en:{speaker:'Single',stacked:'Top / bottom','side-by-side':'Left / right','columns-3':'Three · columns','top-main-3':'Three · main above','left-main-3':'Three · main left','grid-4':'Four · 2 × 2'},ko:{speaker:'\ub2e8\ub3c5',stacked:'\uc0c1\ud558 2\ubd84\ud560','side-by-side':'\uc88c\uc6b0 2\ubd84\ud560','columns-3':'\uc88c\uc6b0 3\ubd84\ud560','top-main-3':'3\ubd84\ud560 · \uc704\ucabd \ud06c\uac8c','left-main-3':'3\ubd84\ud560 · \uc67c\ucabd \ud06c\uac8c','grid-4':'4\ubd84\ud560 · 2 × 2'}};
+function permittedSplits(layout:any):string[] {
+  return layout.splitPolicy==='never'||layout.cameraMode==='speaker'?[]:(layout.allowedLayouts??['stacked']);
+}
+function assertCompositionLayout(style:string,layout:any) {
+  if(compositionRects(style).length>1&&!permittedSplits(layout).includes(style))throw Error('[composition:template] Template forbids layout: '+style);
+  if(layout.fixedLayout&&layout.fixedLayout!=='auto'&&style!==layout.fixedLayout)throw Error('[composition:fixed] Requested layout is unavailable; retain framing and explain why.');
+}
+function sourcePaneRect(p:any={}) {
+  const x=p.x??p.left??0,y=p.y??p.top??0,width=p.width??((p.right??1)-x),height=p.height??((p.bottom??1)-y);
+  if(![x,y,width,height].every(Number.isFinite)||x<0||y<0||width<=0||height<=0||x+width>1+1e-6||y+height>1+1e-6)throw Error('Invalid source pane');
+  return {x,y,width,height};
+}
+function containedDestination(dst:any,crop:any) {
+  const scale=Math.min(dst.width/crop.width,dst.height/crop.height);
+  return {x:dst.x+(dst.width-crop.width*scale)/2,y:dst.y+(dst.height-crop.height*scale)/2,width:crop.width*scale,height:crop.height*scale};
+}
+function compositionDestination(style:string,slot:number,layout:any) {
+  const r=compositionRects(style)[slot];
+  if(!r)throw Error('Invalid composition slot');
+  const top=Number(layout.windowTop??0),h=Number(layout.windowBottom??1920)-top;
+  return {x:r.x*1080,y:top+r.y*h,width:r.width*1080,height:r.height*h};
+}
+// Manual shot boundaries win over newly generated boundaries. Trim only time;
+// retain the chosen source identities and fixed composition geometry.
+function mergeLockedSourceShots(next:any[],previous:any[]):any[] {
+  const locks=(previous||[]).filter(s=>s.locked);
+  if(!locks.length)return next;
+  const end=next[next.length-1]?.endFrame;
+  if(locks.some(s=>s.startFrame<0||s.endFrame>end))throw Error('Locked framing no longer fits the Draft');
+  const edges=[...new Set([...next,...locks].flatMap(s=>[s.startFrame,s.endFrame]))].sort((a,b)=>a-b),out:any[]=[];
+  for(let i=1;i<edges.length;i++) {
+    const a=edges[i-1],b=edges[i],s=locks.find(s=>s.startFrame<=a&&s.endFrame>=b)||next.find(s=>s.startFrame<=a&&s.endFrame>=b);
+    if(!s)throw Error('Uncovered framing interval');
+    out.push({...s,startFrame:a,endFrame:b});
+  }
+  return out;
+}
+
 // One editorial contract for source clips and synchronized cameras. The agent
 // owns identity, shots and layouts; adapters only translate execution formats.
-const COMPOSITION_PLAN_SCHEMA = `This is a video composition task, not a coding task. This prompt defines the complete output contract. Do not inspect application source code, local logs, prior experiment outputs or other panels. Additional inspection is limited to missing media evidence through the documented Selects SDK. Return {version:1,draftId,status:"planned"|"blocked",summary,shots:[{startFrame,endFrame,compositionId,layout:"speaker"|"stacked"|"two-shot"|"detail"|"wide",panels:[{camera:string,targets:[{subjectId:string,refs:string[]}],region?:{x,y,width,height},sourcePane?:{left,right}}],reason}],speakerEvidence?:[],limitations:[]}. Panels are in display order. One target per speaker/stacked panel, two distinct targets in the single two-shot panel, no targets for detail/wide. camera is an exact supplied camera key, NOT a person ID. refs are observed references, NOT invented persistent identities; YOU assign subjectId and link refs by appearance. Reuse compositionId only for the same ordered subjects, cameras, layout and source pane. Include all relevant observations across its passage. Do not specify closeUp, framing or crop coordinates for people. Code computes size, placement and fixed crops; it never chooses different subjects or changes your layout. sourcePane describes an observed embedded camera boundary only, never a desired person crop. A blocked plan has no shots and states the missing evidence or conflicting constraints.`;
+const COMPOSITION_PLAN_SCHEMA = `This is a video composition task, not a coding task. This prompt defines the complete output contract. Do not inspect application source code, local logs, prior experiment outputs or other panels. Additional inspection is limited to missing media evidence through the documented Selects SDK. Return {version:1,draftId,status:"planned"|"blocked",summary,shots:[{startFrame,endFrame,compositionId,layout:"speaker"|"stacked"|"side-by-side"|"columns-3"|"top-main-3"|"left-main-3"|"grid-4"|"two-shot"|"detail"|"wide",panels:[{camera:string,targets:[{subjectId:string,refs:string[]}],region?:{x,y,width,height},sourcePane?:{x,y,width,height}}],reason}],speakerEvidence?:[],limitations:[]}. Panels are in display order. One target for speaker, one or more distinct targets per split panel, two distinct targets in the single two-shot panel, no targets for detail/wide. For automatic split grouping, omit panels and supply shot.people:[{camera,subjectId,refs,slot?:number,sourcePane?:{x,y,width,height}}] containing EVERY person to preserve. Code groups these people into the requested number of panels. slot is a zero-based optional user constraint; omit it unless the user explicitly requests placement. Partial slot constraints are supported. Explicit panels remain available for preserving an existing source split or fully specified grouping. Use columns-3 for three side-by-side columns. Never drop people just to match the number of panels. camera is an exact supplied camera key, NOT a person ID. refs are observed references, NOT invented persistent identities; YOU assign subjectId and link refs by appearance. Reuse compositionId only for the same ordered subjects, cameras, layout and source pane. Include all relevant observations across its passage. Do not specify closeUp, framing or crop coordinates for people. Code computes size, placement and fixed crops; it never chooses different subjects or changes your layout. sourcePane describes an observed embedded camera boundary only, never a desired person crop. A blocked plan has no shots and states the missing evidence or conflicting constraints.`;
 
 function validateCompositionPlan(plan:any,duration:number,layout:any,cameras:string[],styles:string[]) {
   const fail=(code:string,detail:string)=>{throw new Error(`[composition:${code}] ${detail}`);};
@@ -3228,18 +3319,18 @@ function validateCompositionPlan(plan:any,duration:number,layout:any,cameras:str
   for(const shot of plan.shots) {
     if(!Number.isInteger(shot.startFrame)||!Number.isInteger(shot.endFrame)||shot.startFrame!==cursor||shot.endFrame<=cursor||shot.endFrame>duration)fail('time',`Shots must cover [0,${duration}) exactly; invalid interval at ${cursor}`);
     cursor=shot.endFrame;
-    if(!styles.includes(shot.layout))fail('capability',`Unsupported layout ${shot.layout}`);
+    if(!styles.includes(shot.layout)&&!SPLIT_LAYOUTS.includes(shot.layout))fail('capability',`Unsupported layout ${shot.layout}`);
     if(shot.layout==='wide'&&(layout.widePolicy||'never')==='never')fail('template','Wide is forbidden');
-    if(shot.layout==='stacked'&&(layout.splitPolicy==='never'||layout.cameraMode==='speaker'))fail('template','Stacked is forbidden');
+    assertCompositionLayout(shot.layout,layout);
     if(typeof shot.compositionId!=='string'||!shot.compositionId.trim())fail('identity','Missing compositionId');
-    const count=shot.layout==='stacked'?2:1;
+    const count=compositionRects(shot.layout).length;
     if(!Array.isArray(shot.panels)||shot.panels.length!==count)fail('layout',`Expected ${count} panels`);
     const ids:string[]=[];
     for(const p of shot.panels) {
       if(!cameras.includes(p.camera))fail('camera',`Unknown camera ${p.camera}`);
       const n=['wide','detail'].includes(shot.layout)?0:shot.layout==='two-shot'?2:1;
       if(n===0&&p.targets==null)p.targets=[];
-      if(!Array.isArray(p.targets)||p.targets.length!==n)fail('target',`Expected ${n} targets in ${shot.layout}`);
+      if(!Array.isArray(p.targets)||(SPLIT_LAYOUTS.includes(shot.layout)?p.targets.length<1:p.targets.length!==n))fail('target',`Expected ${SPLIT_LAYOUTS.includes(shot.layout)?'one or more':n} targets in ${shot.layout}`);
       for(const t of p.targets) {
         if(typeof t.subjectId!=='string'||!t.subjectId.trim()||!Array.isArray(t.refs)||!t.refs.length||t.refs.some((r:any)=>typeof r!=='string'||!r))fail('target','Each subject needs an identity and observed refs');
         for(const ref of t.refs){const key=JSON.stringify([p.camera,ref]),owner=owners.get(key);if(owner&&owner!==t.subjectId)fail('identity',`Observed reference ${ref} is assigned to different subjects`);owners.set(key,t.subjectId);}
@@ -3249,7 +3340,7 @@ function validateCompositionPlan(plan:any,duration:number,layout:any,cameras:str
         const r=p.region;
         if(!r||![r.x,r.y,r.width,r.height].every(Number.isFinite)||r.x<0||r.y<0||r.width<=0||r.height<=0||r.x+r.width>1+1e-6||r.y+r.height>1+1e-6)fail('bounds','Detail region must lie inside its source');
       }
-      if(p.sourcePane&&(![p.sourcePane.left,p.sourcePane.right].every(Number.isFinite)||p.sourcePane.left<0||p.sourcePane.right>1||p.sourcePane.left>=p.sourcePane.right))fail('bounds','Invalid source pane');
+      if(p.sourcePane)sourcePaneRect(p.sourcePane);
     }
     if(new Set(ids).size!==ids.length)fail('identity','A multi-person composition repeats the same subject');
     const signature=JSON.stringify([shot.layout,shot.panels.map((p:any)=>[p.camera,p.targets.map((t:any)=>t.subjectId),p.sourcePane||null,p.region||null])]);
@@ -3260,20 +3351,171 @@ function validateCompositionPlan(plan:any,duration:number,layout:any,cameras:str
   return plan;
 }
 
+// User changes operate on one existing editorial interval. Never fabricate people
+// merely to reach a requested panel count: new slots stay empty until selected.
+function editCompositionShot(shot:any,style:string):any {
+  const count=compositionRects(style).length;
+  const panels=Array.from({length:count},(_,i)=>shot.panels[i]||{camera:'',targets:[]});
+  return {...shot,layout:style,panels,locked:true,compositionId:`manual-${shot.startFrame}-${shot.endFrame}`};
+}
+function compositionEditorCandidates(context:any,shot:any):any[] {
+  if(context.kind==='source') {
+    const source=context.segments.find((r:any)=>r.startFrame<=shot.startFrame&&r.endFrame>shot.startFrame)?.sourceResourceId||shot.panels[0]?.camera;
+    return context.catalog.filter((f:any)=>f.resourceId===source&&((f.draftFrame>=shot.startFrame&&f.draftFrame<shot.endFrame)||(f.draftStartFrame<shot.endFrame&&f.draftEndFrame>shot.startFrame))).map((f:any)=>{
+      const known=context.plan.shots.flatMap((s:any)=>s.panels).find((p:any)=>p.camera===f.resourceId&&p.targets.some((t:any)=>t.refs.includes(f.id)));
+      return {key:f.id,label:known?.targets.find((t:any)=>t.refs.includes(f.id))?.subjectId||f.id,camera:f.resourceId,targets:[{subjectId:known?.targets.find((t:any)=>t.refs.includes(f.id))?.subjectId||f.id,refs:[f.id]}],sourcePane:known?.sourcePane};
+    });
+  }
+  const available=context.observations.filter((o:any)=>o.unit.startFrame<shot.endFrame&&o.unit.endFrame>shot.startFrame);
+  if(!available.length)return [];
+  return available[0].options.map((f:any)=>{
+    const target=context.plan.shots.flatMap((s:any)=>s.panels).flatMap((p:any)=>p.targets).find((t:any)=>t.refs.includes(f.id));
+    return {key:f.id,label:target?.subjectId||f.id,camera:String(f.panel.videoIndex),targets:[{subjectId:target?.subjectId||f.id,refs:target?.refs||[f.id]}]};
+  });
+}
+function applyManualCrop(p:any,adjustment:any,W:number,H:number,windowH:number):any {
+  if(!adjustment)return p;
+  if(p.fit==='contain')throw Error('Select a person layout before adjusting the crop');
+  const {dx=0,dy=0,zoom=1}=adjustment;
+  if(![dx,dy,zoom].every(Number.isFinite)||Math.abs(dx)>.25||Math.abs(dy)>.25||zoom<.5||zoom>2)throw Error('Invalid crop adjustment');
+  if(p.fit==='region') {
+    const r=p.rect,width=r.width/zoom,height=r.height/zoom,x=r.x+(r.width-width)/2+dx*W,y=r.y+(r.height-height)/2+dy*H;
+    if(![x,y,width,height].every(Number.isFinite)||width<=0||height<=0||x< -1e-6||y< -1e-6||x+width>W+1e-6||y+height>H+1e-6)throw Error('Crop adjustment leaves the source');
+    return {...p,rect:{x,y,width,height},w:width,cx:x+width/2,cy:y+height*.4};
+  }
+  const d=p.destination||{width:1,height:1/(p.count||1)},h0=p.w*windowH*d.height/(1080*d.width),w=p.w/zoom,h=h0/zoom;
+  const cx=p.cx+dx*W,cy=p.cy-h0*.4+h0/2+dy*H-h/2+h*.4;
+  if(cx-w/2< -1e-6||cx+w/2>W+1e-6||cy-h*.4< -1e-6||cy+h*.6>H+1e-6)throw Error('Crop adjustment leaves the source');
+  return {...p,w,cx,cy};
+}
+function mergeLockedCameraRows(next:any[],previous:any[],fps:number):any[] {
+  const locks=previous.filter(r=>r.locked);
+  if(!locks.length)return next;
+  const edges=[...new Set([...next,...locks].flatMap(r=>[r.startFrame,r.endFrame]))].sort((a,b)=>a-b),out:any[]=[];
+  for(let i=1;i<edges.length;i++) {
+    const a=edges[i-1],b=edges[i],locked=locks.filter(r=>r.startFrame<=a&&r.endFrame>=b);
+    for(const row of locked.length?locked:next.filter(r=>r.startFrame<=a&&r.endFrame>=b)) {
+      const rate=row.playbackSpeed.numerator/row.playbackSpeed.denominator;
+      out.push({...row,startFrame:a,endFrame:b,sourceStartSeconds:row.sourceStartSeconds+(a-row.startFrame)/fps*rate});
+    }
+  }
+  return out;
+}
+// Ignore cuts introduced solely by reframing, but detect source replacement,
+// retiming, reordered footage and changed source in/out points.
+function framingMediaKey(snapshot:any):string {
+  const rows:any[]=[];
+  for(const c of snapshot.clips.filter((c:any)=>c.trackKind==='main').sort((a:any,b:any)=>a.startFrame-b.startFrame)) {
+    const speed=typeof c.playbackSpeed==='number'?c.playbackSpeed:c.playbackSpeed?.numerator/c.playbackSpeed?.denominator||1;
+    const row={resourceId:c.resourceId,start:c.startFrame,end:c.endFrame,source:c.sourceStartSeconds,sourceEnd:c.sourceEndSeconds,speed};
+    const prev=rows[rows.length-1];
+    if(prev&&prev.resourceId===row.resourceId&&prev.end===row.start&&prev.speed===speed&&Math.abs(prev.sourceEnd-row.source)<1e-6){prev.end=row.end;prev.sourceEnd=row.sourceEnd;}
+    else rows.push(row);
+  }
+  return JSON.stringify(rows.map(r=>({...r,source:Math.round(r.source*1e6),sourceEnd:Math.round(r.sourceEnd*1e6)})));
+}
+function retainLockedSourceContext(previous:any,catalog:any[],plan:any) {
+  if(!previous?.plan?.shots?.some((s:any)=>s.locked))return {catalog,plan};
+  const prefix='saved-'+Date.now()+':';
+  const old=JSON.parse(JSON.stringify(previous.plan.shots.filter((s:any)=>s.locked)));
+  for(const s of old)for(const p of s.panels)for(const t of p.targets)t.refs=t.refs.map((id:string)=>prefix+id);
+  return {catalog:[...catalog,...previous.catalog.map((f:any)=>({...f,id:prefix+f.id}))],plan:{...plan,shots:mergeLockedSourceShots(plan.shots,old)}};
+}
+function retainLockedCameraContext(previous:any,observations:any[],plan:any) {
+  const locks=previous?.plan?.shots?.filter((s:any)=>s.locked)||[];
+  if(!locks.length)return {observations,plan};
+  const prefix='saved-'+Date.now()+':',old=JSON.parse(JSON.stringify(locks));
+  for(const s of old)for(const p of s.panels)for(const t of p.targets)t.refs=t.refs.map((id:string)=>prefix+id);
+  const oldObservations=previous.observations.map((o:any)=>({...o,options:o.options.map((f:any)=>({...f,id:prefix+f.id}))}));
+  const edges=[...new Set([...observations,...oldObservations].flatMap((o:any)=>[o.unit.startFrame,o.unit.endFrame]).concat(locks.flatMap((s:any)=>[s.startFrame,s.endFrame])))].sort((a:any,b:any)=>a-b) as number[];
+  const merged=[];
+  for(let i=1;i<edges.length;i++) {
+    const a=edges[i-1],b=edges[i],locked=locks.some((s:any)=>s.startFrame<=a&&s.endFrame>=b);
+    const o=(locked?oldObservations:observations).find((o:any)=>o.unit.startFrame<=a&&o.unit.endFrame>=b);
+    if(o)merged.push({...o,unit:{...o.unit,startFrame:a,endFrame:b}});
+  }
+  return {observations:merged,plan:{...plan,shots:mergeLockedSourceShots(plan.shots,old)}};
+}
+function framingWordsKey(words:any[]) {
+  return JSON.stringify(normalizeReframeWords(words.map(({text,startFrame,endFrame,wordId,sourceResourceId,sourceStartFrame,sourceEndFrame}:any)=>({text,startFrame,endFrame,wordId,sourceResourceId,sourceStartFrame,sourceEndFrame}))));
+}
+function manualFramingLayout(layout:any) {
+  return {...layout,fixedLayout:'auto',allowedLayouts:SPLIT_LAYOUTS,splitPolicy:'selective',cameraMode:'auto'};
+}
+
+// Resolve optional agent placement constraints once per composition. The agent
+// identifies people; code only partitions that supplied set, never invents IDs.
+function resolveCompositionGroups(plan:any,evidence:any[],layout:any):any {
+  if(!Array.isArray(plan?.shots))return plan;
+  const cache=new Map<string,any[]>();
+  return {...plan,shots:plan.shots.map((shot:any)=>{
+    if(!shot.people)return shot;
+    if(!SPLIT_LAYOUTS.includes(shot.layout)||!Array.isArray(shot.people)||shot.panels?.length)throw Error('Automatic grouping needs split layout, people, and no explicit panels');
+    const count=compositionRects(shot.layout).length;
+    const occurrences=plan.shots.filter((s:any)=>s.compositionId===shot.compositionId);
+    const signature=(s:any)=>JSON.stringify((s.people||[]).map((p:any)=>[p.subjectId,p.camera,p.slot??null,p.sourcePane??null]).sort((a:any,b:any)=>String(a[0]).localeCompare(String(b[0]))));
+    if(occurrences.some((s:any)=>s.layout!==shot.layout||signature(s)!==signature(shot)))throw Error('Fixed composition changes grouping constraints');
+    if(cache.has(shot.compositionId))return {...shot,people:undefined,panels:cache.get(shot.compositionId)};
+    const seen=new Set<string>();
+    const people=shot.people.map((p:any)=>{
+      if(!p.subjectId||seen.has(p.subjectId))throw Error('Grouping requires distinct subject identities');seen.add(p.subjectId);
+      if(p.slot!=null&&(!Number.isInteger(p.slot)||p.slot<0||p.slot>=count))throw Error('Invalid requested panel slot');
+      const refs=[...new Set(occurrences.flatMap((s:any)=>s.people.filter((q:any)=>q.subjectId===p.subjectId).flatMap((q:any)=>q.refs||[])))];
+      if(!refs.length)throw Error('Grouping requires observed face references');
+      const boxes=refs.map(id=>{const f=evidence.find(f=>f.id===id&&f.camera===p.camera);if(!f)throw Error('Unknown grouping face reference');return f.envelope||f.box;});
+      const box={xmin:Math.min(...boxes.map(b=>b.xmin)),xmax:Math.max(...boxes.map(b=>b.xmax)),ymin:Math.min(...boxes.map(b=>b.ymin)),ymax:Math.max(...boxes.map(b=>b.ymax))};
+      if(!Object.values(box).every(Number.isFinite)||box.xmax<=box.xmin||box.ymax<=box.ymin)throw Error('Invalid grouping face bounds');
+      return {...p,refs,box,faceWidth:Math.max(...boxes.map(b=>b.xmax-b.xmin))};
+    }).sort((a:any,b:any)=>(a.box.xmin+a.box.xmax)-(b.box.xmin+b.box.xmax)||a.subjectId.localeCompare(b.subjectId));
+    if(people.length<count)throw Error('Not enough observed people for the requested panels');
+    const slots:any[][]=Array.from({length:count},()=>[]),free=people.filter((p:any)=>p.slot==null);
+    people.filter((p:any)=>p.slot!=null).forEach((p:any)=>slots[p.slot].push(p));
+    let best:any=null,bestScore=Infinity;
+    const score=()=>{
+      if(slots.some(g=>!g.length))return;
+      let cost=0;const scales:number[]=[];
+      for(const [i,g] of slots.entries()){
+        // A panel is one continuous camera pane, even when it holds many people.
+        if(g.some(p=>p.camera!==g[0].camera||JSON.stringify(sourcePaneRect(p.sourcePane))!==JSON.stringify(sourcePaneRect(g[0].sourcePane))))return;
+        const x0=Math.min(...g.map(p=>p.box.xmin)),x1=Math.max(...g.map(p=>p.box.xmax)),y0=Math.min(...g.map(p=>p.box.ymin)),y1=Math.max(...g.map(p=>p.box.ymax)),fw=Math.max(...g.map(p=>p.faceWidth));
+        const d=compositionDestination(shot.layout,i,layout),w=Math.max(x1-x0+fw*.5,(y1-y0+fw)*d.width/d.height);
+        const scale=d.width/w;scales.push(Math.log(scale*fw));
+        cost+=(w/(g.reduce((s,p)=>s+p.faceWidth,0)))*.2;
+      }
+      const mean=scales.reduce((a,b)=>a+b,0)/count;cost+=scales.reduce((a,b)=>a+(b-mean)**2,0)*4;
+      // Prefer balanced outer groups only as a tie-breaker, not a fixed 2+1+2 rule.
+      cost+=Math.abs(slots[0].length-slots[count-1].length)*.001;
+      if(cost<bestScore){bestScore=cost;best=slots.map(g=>g.slice().sort((a,b)=>a.box.xmin-b.box.xmin));}
+    };
+    // Unconstrained people retain left-to-right order. Explicit slots may
+    // override that order without forcing the remaining subjects into slots.
+    const visit=(index:number,minSlot:number)=>{
+      if(index===free.length){score();return;}
+      for(let slot=minSlot;slot<count;slot++){slots[slot].push(free[index]);visit(index+1,slot);slots[slot].pop();}
+    };
+    visit(0,0);
+    if(!best)throw Error('No valid grouping within the observed camera panes');
+    const panels=best.map((g:any[])=>({camera:g[0].camera,targets:g.map(p=>({subjectId:p.subjectId,refs:p.refs})),...(g[0].sourcePane?{sourcePane:g[0].sourcePane}:{})}));
+    cache.set(shot.compositionId,panels);return {...shot,people:undefined,panels};
+  })};
+}
+
 function sourceCompositionAdapter(plan:any,sources:any[],duration:number,layout:any,catalog:any[]) {
+  plan=resolveCompositionGroups(plan,catalog.map(f=>({...f,camera:f.resourceId})),layout);
   validateCompositionPlan(plan,duration,layout,sources.map(s=>s.resourceId),['speaker','stacked','two-shot','detail','wide']);
   return {...plan,shots:plan.shots.map((s:any)=>{
     const resourceId=s.panels[0].camera;
     if(s.panels.some((p:any)=>p.camera!==resourceId))throw Error('[composition:capability] A source shot cannot mix cameras; use a synchronized timeline');
-    const subjects=s.panels.flatMap((p:any)=>p.targets.map((t:any)=>{
+    const subjectGroups=s.panels.map((p:any)=>p.targets.map((t:any)=>{
       for(const ref of t.refs)if(!catalog.some(f=>f.id===ref&&f.resourceId===p.camera))throw Error(`[composition:reference] Unobserved reference ${ref} for ${p.camera}`);
-      return {faceId:t.refs[0],faceIds:t.refs.slice(1),left:p.sourcePane?.left,right:p.sourcePane?.right,subjectId:t.subjectId};
+      return {faceId:t.refs[0],faceIds:t.refs.slice(1),...(()=>{const r=sourcePaneRect(p.sourcePane);return {left:r.x,right:r.x+r.width,top:r.y,bottom:r.y+r.height};})(),subjectId:t.subjectId};
     }));
-    return {...s,resourceId,style:s.layout,autoFrame:true,subjects,regions:s.layout==='detail'?[{x:0,y:0,width:1,height:1,focus:s.panels[0].region}]:undefined};
+    return {...s,resourceId,style:s.layout,autoFrame:true,subjects:subjectGroups.flat(),subjectGroups,adjustments:s.panels.map((p:any)=>p.adjustment),regions:s.layout==='detail'?[{x:0,y:0,width:1,height:1,focus:s.panels[0].region}]:undefined};
   })};
 }
 
 function cameraCompositionAdapter(plan:any,observations:any[],layout:any) {
+  plan=resolveCompositionGroups(plan,observations.flatMap(o=>o.options.map(f=>({id:f.id,camera:String(f.panel.videoIndex),box:{xmin:f.x-f.w/2,xmax:f.x+f.w/2,ymin:f.y-f.h/2,ymax:f.y+f.h/2}}))),layout);
   const cameras=[...new Set(observations.flatMap(o=>o.available.map((p:any)=>String(p.videoIndex))))];
   validateCompositionPlan(plan,Math.max(...observations.map(o=>o.unit.endFrame)),layout,cameras,['speaker','stacked','two-shot','wide']);
   const links=new Map<string,Set<string>>();
@@ -3288,7 +3530,7 @@ function cameraCompositionAdapter(plan:any,observations:any[],layout:any) {
   }
   return {...plan,speakerMap:[...links].map(([speakerId,refs])=>({speakerId,candidateIds:[...refs]})),shots:plan.shots.map((s:any)=>{
     const ts=s.panels.flatMap((p:any)=>p.targets);
-    return {...s,style:s.layout,primary:ts[0]?.refs[0]??null,secondary:ts[1]?.refs[0]??null,camera:Number(s.panels[0].camera),distinctPeople:ts.length===2,confidence:0};
+    return {...s,style:s.layout,primary:ts[0]?.refs[0]??null,secondary:ts[1]?.refs[0]??null,camera:Number(s.panels[0].camera),distinctPeople:ts.length>=2,selectedIds:ts.map((t:any)=>t.refs[0]),selectedGroups:s.panels.map((p:any)=>p.targets.map((t:any)=>t.refs[0])),adjustments:s.panels.map((p:any)=>p.adjustment),confidence:0};
   })};
 }
 
@@ -3298,6 +3540,7 @@ function validateCompositionGeometry(rows:any[],layout:any) {
   const fixed=new Map<string,any>();
   for(const r of rows) {
     const {x,y,width:w,height:h}=r.crop,W=r.sourceWidth,H=r.sourceHeight;
+    if(r.sourcePane){const p=r.sourcePane;if(x<p.x*W-1e-6||y<p.y*H-1e-6||x+w>(p.x+p.width)*W+1e-6||y+h>(p.y+p.height)*H+1e-6)throw Error('[composition:bounds] Adjusted crop leaves source pane');}
     if(![x,y,w,h,W,H].every(Number.isFinite)||W<=0||H<=0||w<=0||h<=0||x< -1e-6||y< -1e-6||x+w>W+1e-6||y+h>H+1e-6)throw Error('[composition:bounds] Computed crop leaves source');
     for(const b of r.protectedRegions||[]) {
       if(![b.x,b.y,b.width,b.height].every(Number.isFinite)||b.width<=0||b.height<=0||x>b.x+1e-6||y>b.y+1e-6||x+w<b.x+b.width-1e-6||y+h<b.y+b.height-1e-6)throw Error(`[composition:target] Selected target cannot fit at [${r.startFrame},${r.endFrame})`);
@@ -3319,9 +3562,9 @@ function validateCompositionGeometry(rows:any[],layout:any) {
 }
 function checkSourceCompositionGeometry(compiled:any[],layout:any) {
   validateCompositionGeometry(compiled.flatMap(s=>s.panels.map((p:any,i:number)=>{
-    const h=p.w*s.windowH/p.count/1080,r=s.regions[i],focus=r.focus;
-    if(p.fit==='region'){const cellH=s.windowH/p.count,scale=Math.min(1080/p.rect.width,cellH/p.rect.height);return {compositionId:s.compositionId,slot:i,sourceKey:s.resourceId,sourceWidth:s.sourceW,sourceHeight:s.sourceH,crop:p.rect,protectedRegions:focus?[{x:focus.x*s.sourceW,y:focus.y*s.sourceH,width:focus.width*s.sourceW,height:focus.height*s.sourceH}]:[],destination:{x:(1080-p.rect.width*scale)/2,y:(layout.windowTop??0)+i*cellH+(cellH-p.rect.height*scale)/2,width:p.rect.width*scale,height:p.rect.height*scale}};}
-    return {startFrame:s.startFrame,endFrame:s.endFrame,compositionId:s.compositionId,slot:i,sourceKey:s.resourceId,sourceWidth:s.sourceW,sourceHeight:s.sourceH,crop:p.fit==='contain'?{x:0,y:0,width:s.sourceW,height:s.sourceH}:{x:p.cx-p.w/2,y:p.cy-h*.4,width:p.w,height:h},protectedRegions:focus?[{x:focus.x*s.sourceW,y:focus.y*s.sourceH,width:focus.width*s.sourceW,height:focus.height*s.sourceH}]:[],destination:{x:0,y:Number(layout.windowTop||0)+i*s.windowH/p.count,width:1080,height:s.windowH/p.count}};
+    const dst=compositionDestination(s.style,i,layout),h=p.w*dst.height/dst.width,r=s.regions[i],focus=r.focus;
+    const crop=p.fit==='region'?p.rect:p.fit==='contain'?{x:0,y:0,width:s.sourceW,height:s.sourceH}:{x:p.cx-p.w/2,y:p.cy-h*.4,width:p.w,height:h};
+    return {startFrame:s.startFrame,endFrame:s.endFrame,compositionId:s.compositionId,slot:i,sourceKey:s.resourceId,sourcePane:(s.subjectGroups?.[i]?.[0]||s.subjects?.[i])&&s.style!=='two-shot'?sourcePaneRect(s.subjectGroups?.[i]?.[0]||s.subjects[i]):null,sourceWidth:s.sourceW,sourceHeight:s.sourceH,crop,protectedRegions:focus?[{x:focus.x*s.sourceW,y:focus.y*s.sourceH,width:focus.width*s.sourceW,height:focus.height*s.sourceH}]:[],destination:p.fit?containedDestination(dst,crop):dst};
   })),layout);
   return compiled;
 }
@@ -3339,10 +3582,10 @@ function compileSourceCropPlan(shots:any[], sources:any[], duration:number, layo
     const W=source?.meta?.frameSize?.width,H=source?.meta?.frameSize?.height;
     if(![W,H].every(Number.isFinite)||!(W>0&&H>0)) throw new Error('Unknown source or source dimensions');
     if(shot.style==='preserve')return {...shot,regions:[],sourceW:W,sourceH:H,windowH,panels:[]};
-    if(!['speaker','stacked','two-shot','wide','detail'].includes(shot.style)) throw new Error('Unknown shot style');
+    if(!['speaker','two-shot','wide','detail',...SPLIT_LAYOUTS].includes(shot.style)) throw new Error('Unknown shot style');
     if(shot.style==='wide'&&(layout.widePolicy||'never')==='never') throw new Error('Template forbids wide shots');
-    if(shot.style==='stacked'&&((layout.splitPolicy||'selective')==='never'||layout.cameraMode==='speaker')) throw new Error('Template forbids stacked shots');
-    const count=shot.style==='stacked'?2:1;
+    assertCompositionLayout(shot.style,layout);
+    const count=compositionRects(shot.style).length;
     if(!Array.isArray(shot.regions)||shot.regions.length!==count) throw new Error('Wrong region count');
     if(typeof shot.compositionId!=='string'||!shot.compositionId.trim()) throw new Error('Missing stable composition ID');
     const proposed=shot.regions.map((r:any)=>{
@@ -3356,8 +3599,8 @@ function compileSourceCropPlan(shots:any[], sources:any[], duration:number, layo
     // A silence edit cannot introduce tiny independent zoom/position estimates.
     const regions=fixed.get(key)||proposed;fixed.set(key,regions);
     const panels=regions.map((r:any,slot:number)=>{
-      const outH=windowH/count,aspect=1080/outH;
-      if(r.letterbox)return {w:r.width*W,cx:(r.x+r.width/2)*W,cy:(r.y+r.height*.4)*H,slot,count,fit:'region',rect:{x:r.x*W,y:r.y*H,width:r.width*W,height:r.height*H}};
+      const destination=compositionRects(shot.style)[slot],outH=windowH*destination.height,aspect=1080*destination.width/outH;
+      if(r.letterbox)return applyManualCrop({w:r.width*W,cx:(r.x+r.width/2)*W,cy:(r.y+r.height*.4)*H,slot,count,destination,fit:'region',rect:{x:r.x*W,y:r.y*H,width:r.width*W,height:r.height*H}},shot.adjustments?.[slot],W,H,windowH);
       const w=Math.min(r.width*W,r.height*H*aspect),h=w/aspect;
       let x=r.x*W+(r.width*W-w)/2,y=r.y*H+(r.height*H-h)/2;
       if(r.focus && shot.style!=='wide'&&!r.exact) {
@@ -3374,7 +3617,7 @@ function compileSourceCropPlan(shots:any[], sources:any[], duration:number, layo
       // A reused composition must still contain this shot's measured head.
       const current=proposed[slot],f=current.focus;
       if(shot.style!=='wide'&&f&&(x>f.x*W+1e-6||y>f.y*H+1e-6||x+w<(f.x+f.width)*W-1e-6||y+h<(f.y+f.height)*H-1e-6)) throw new Error('Fixed composition clips the selected head');
-      return {w,cx:x+w/2,cy:y+h*.4,slot,count,...(shot.style==='wide'?{fit:'contain'}:{})};
+      return applyManualCrop({w,cx:x+w/2,cy:y+h*.4,slot,count,destination,...(shot.style==='wide'?{fit:'contain'}:{})},shot.adjustments?.[slot],W,H,windowH);
     });
     if(shot===shots[shots.length-1]&&end!==duration) throw new Error('Shots must cover the full Draft');
     return {...shot,regions,sourceW:W,sourceH:H,windowH,panels};
@@ -3403,12 +3646,27 @@ function resolveSourceComposition(shots:any[],catalog:any[],sources:any[],durati
 
 function sourceCropApplyScript(projectId:string,draftId:string,layout:any,sources:any[],duration:number) {
   return `const shots = __SHOTS__;
+const compositionRects=${compositionRects.toString()},permittedSplits=${permittedSplits.toString()},assertCompositionLayout=${assertCompositionLayout.toString()};
+const SPLIT_LAYOUTS=${JSON.stringify(SPLIT_LAYOUTS)};
+const applyManualCrop=${applyManualCrop.toString()};
 const compile = ${compileSourceCropPlan.toString()};
 const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(draftId)});
 const sources = ${JSON.stringify(sources)};
-const aliases = new Map();
+const aliases = new Map(),files=[];
+if(sources.some(s=>s.path)){
+ const walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else files.push(n);};
+ const inventory=await p.sourceFiles();
+ if('fileTree' in inventory)walk(inventory.fileTree);
+ else for(const folder of inventory.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree);}
+}
+const currentIds=new Set((await d.clips({trackScope:'main'})).map(c=>c.resourceId));
 for (const source of sources) {
- const id=(await p.resource(source.resourceId).rangeAtFrames(0,1)).resourceId;
+ let id;
+ if(source.path){
+  const matches=[...new Set(files.filter(f=>f.path===source.path&&currentIds.has(f.resourceId)).map(f=>f.resourceId))];
+  if(matches.length!==1)throw Error('Framing source file changed or is ambiguous');
+  id=matches[0];
+ }else id=(await p.resource(source.resourceId).rangeAtFrames(0,1)).resourceId;
  aliases.set(source.resourceId,id); source.resourceId=id;
 }
 const plan = compile(shots.map(s=>({...s,resourceId:aliases.get(s.resourceId)||s.resourceId})), sources, ${duration}, ${JSON.stringify(layout)});
@@ -3500,18 +3758,25 @@ function editorialPersonRegions(shots:any[],catalog:any[],sources:any[],layout:a
   for(const group of groups.values()) {
     const first=group[0],src=sources.find((s:any)=>s.resourceId===first.resourceId),W=src?.meta.frameSize.width,H=src?.meta.frameSize.height;
     if(!(W>0&&H>0))throw Error('Invalid source dimensions');
-    const count=first.style==='stacked'?2:1,panelH=(layout.windowBottom-layout.windowTop)/count;
-    const regions=Array.from({length:count},(_,slot)=>{
-      const subjects=group.flatMap(s=>first.style==='two-shot'?s.subjects:[s.subjects[slot]]);
+    const count=compositionRects(first.style).length;
+    const fits:any[]=[];
+    let regions=Array.from({length:count},(_,slot)=>{
+      const destination=layout.cellDestination||compositionDestination(first.style,slot,layout),aspect=destination.width/destination.height;
+      const subjects=group.flatMap(s=>s.subjectGroups?s.subjectGroups[slot]:first.style==='two-shot'?s.subjects:[s.subjects[slot]]);
       const ids=new Set(subjects.flatMap(q=>[q.faceId,...q.faceIds||[]]));
       const refs=[...ids].map(id=>{const f=catalog.find(f=>f.id===id&&f.resourceId===first.resourceId);if(!f)throw Error('Unknown selected person reference');return f;});
-      const left=Math.max(...subjects.map(q=>q.left??0))*W,right=Math.min(...subjects.map(q=>q.right??1))*W;
+      const left=Math.max(...subjects.map(q=>q.left??0))*W,right=Math.min(...subjects.map(q=>q.right??1))*W,top=Math.max(...subjects.map(q=>q.top??0))*H,bottom=Math.min(...subjects.map(q=>q.bottom??1))*H;
       const boxes=refs.map(f=>f.envelope||f.box),b={xmin:Math.min(...boxes.map(b=>b.xmin)),xmax:Math.max(...boxes.map(b=>b.xmax)),ymin:Math.min(...boxes.map(b=>b.ymin)),ymax:Math.max(...boxes.map(b=>b.ymax))};
-      if(b.xmin<left-1e-6||b.xmax>right+1e-6)throw Error('Selected person is outside the observed camera pane');
+      if(b.xmin<left-1e-6||b.xmax>right+1e-6||b.ymin<top-1e-6||b.ymax>bottom+1e-6)throw Error('Selected person is outside the observed camera pane');
       // One upper-body policy, shared across all occurrences. Padding estimates
       // hair/shoulders; it is not a claim that face detection tracks whole heads.
       const fw=Math.max(...refs.map(f=>f.box.xmax-f.box.xmin)),fh=Math.max(...refs.map(f=>f.box.ymax-f.box.ymin));
-      const head={xmin:Math.max(left,b.xmin-fw*.25),xmax:Math.min(right,b.xmax+fw*.25),ymin:Math.max(0,b.ymin-fh*.45),ymax:Math.min(H,b.ymax+fh*.2)};
+      // Split cells need shoulder room, not just a face-safe close-up. Treat
+      // this estimated upper-body envelope as mandatory even if that requires
+      // independent vertical placement or letterboxing. Source edges remain hard.
+      const split=SPLIT_LAYOUTS.includes(first.style);
+      const side=split?1.3:.25,below=split?1:.2;
+      const head={xmin:Math.max(left,b.xmin-fw*side),xmax:Math.min(right,b.xmax+fw*side),ymin:Math.max(top,b.ymin-fh*(split?.8:.45)),ymax:Math.min(bottom,b.ymax+fh*below)};
       // Multicam summaries carry extrema across samples separately from the
       // mean face center/size. Preserve that envelope during fitting too.
       for(const f of refs)if(f.headBounds){const q=f.headBounds;head.xmin=Math.min(head.xmin,q.xmin);head.xmax=Math.max(head.xmax,q.xmax);head.ymin=Math.min(head.ymin,q.ymin);head.ymax=Math.max(head.ymax,q.ymax);}
@@ -3520,25 +3785,84 @@ function editorialPersonRegions(shots:any[],catalog:any[],sources:any[],layout:a
         if(f.resourceId!==first.resourceId||ids.has(f.id)||!group.some(s=>f.draftFrame>=s.startFrame&&f.draftFrame<s.endFrame))continue;
         const q=f.box;if(q.xmax<head.xmin)safeLeft=Math.max(safeLeft,(q.xmax+head.xmin)/2);else if(q.xmin>head.xmax)safeRight=Math.min(safeRight,(q.xmin+head.xmax)/2);
       }
-      const options={W,H,left:safeLeft,right:safeRight,aspect:1080/panelH,boxes:[head],preferredWidth:Math.max(fw*2.2,(head.ymax-head.ymin+fh*.35)*1080/panelH,first.style==='two-shot'?head.xmax-head.xmin+fw*.8:0),faceY:.4,reservedAreas:layout.reservedAreas,destination:{x:0,y:layout.windowTop+slot*panelH,width:1080,height:panelH}};
+      const options={W,H,left:safeLeft,right:safeRight,top,bottom,aspect,boxes:[head],preferredWidth:Math.max(fw*(split?3.6:2.2),(head.ymax-head.ymin+fh*.35)*aspect,first.style==='two-shot'?head.xmax-head.xmin+fw*.8:0),faceY:.4,reservedAreas:layout.reservedAreas,destination};
       let crop:any;
       try {crop=fitPortraitCrop(options);} catch(error:any) {
         if(!/cannot fit/.test(String(error?.message)))throw error;
         // Preserve the selected camera and people with letterboxing, not a
         // different editorial layout. Keep actual source-pane boundaries.
-        if(layout.reservedAreas?.some((a:any)=>a.y<layout.windowTop+(slot+1)*panelH&&a.y+a.height>layout.windowTop+slot*panelH))throw error;
-        const x=safeLeft,y=Math.max(0,head.ymin);
-        crop={x,y,width:safeRight-x,height:Math.min(H,head.ymax+fh*.35)-y,letterbox:true};
+        if(layout.reservedAreas?.some((a:any)=>a.x<destination.x+destination.width&&a.x+a.width>destination.x&&a.y<destination.y+destination.height&&a.y+a.height>destination.y))throw error;
+        const x=split?head.xmin:safeLeft,y=Math.max(top,head.ymin);
+        crop={x,y,width:(split?head.xmax:safeRight)-x,height:Math.min(bottom,head.ymax+fh*.35)-y,letterbox:true};
       }
+      fits.push({options,crop,pane:[left,right,top,bottom]});
       return {x:crop.x/W,y:crop.y/H,width:crop.width/W,height:crop.height/H,exact:true,letterbox:!!crop.letterbox,focus:{x:head.xmin/W,y:head.ymin/H,width:(head.xmax-head.xmin)/W,height:(head.ymax-head.ymin)/H}};
     });
+    // Repacking one continuous camera view must not independently magnify
+    // single-person cells. Preserve the original relative person sizes by
+    // solving all cells at one source-pixels/output-pixel ratio. Embedded
+    // broadcast panes are independent cameras and retain their own framing.
+    if(count>1&&fits.every(f=>!f.crop.letterbox&&f.pane.every((n:number,i:number)=>n===fits[0].pane[i]))){
+      const lower=Math.max(...fits.map(({options:o})=>Math.max(...o.boxes.map((b:any)=>Math.max(b.xmax-b.xmin,(b.ymax-b.ymin)*o.aspect)))/o.destination.width));
+      const upper=Math.min(...fits.map(({options:o})=>Math.min(o.right-o.left,(o.bottom-o.top)*o.aspect)/o.destination.width));
+      if(lower<=upper+1e-9){
+        const ratio=Math.max(lower,Math.min(upper,Math.max(...fits.map(f=>f.crop.width/f.options.destination.width))));
+        try{
+          const shared=fits.map(({options:o})=>fitPortraitCrop({...o,preferredWidth:ratio*o.destination.width}));
+          // Reserved areas can narrow the feasible interval further. Accept
+          // only an actually common scale; otherwise keep the safe original fit.
+          if(shared.every((r,i)=>Math.abs(r.width/fits[i].options.destination.width-ratio)<1e-6)) {
+            // Side-by-side slices of a continuous shot share the source's
+            // vertical coordinate system too: preserve table/background heights,
+            // rather than independently centering each group's faces.
+            const row=fits.every(f=>f.options.destination.y===fits[0].options.destination.y&&f.options.destination.height===fits[0].options.destination.height);
+            if(row){
+              const h=shared[0].height;
+              const lo=Math.max(...fits.map(({options:o})=>Math.max(o.top,...o.boxes.map((b:any)=>b.ymax-h))));
+              const hi=Math.min(...fits.map(({options:o})=>Math.min(o.bottom-h,...o.boxes.map((b:any)=>b.ymin))));
+              if(lo<=hi){
+                const y=Math.max(lo,Math.min(hi,shared.reduce((sum,r)=>sum+r.y,0)/count));
+                try {
+                  const aligned=fits.map(({options:o},i)=>fitPortraitCrop({...o,top:y,bottom:y+h,preferredWidth:shared[i].width}));
+                  if(aligned.every((r,i)=>Math.abs(r.y-y)<1e-6&&Math.abs(r.width-shared[i].width)<1e-6))
+                    aligned.forEach((r,i)=>shared[i]=r);
+                }catch(error:any){if(!/cannot fit|outside its selected pane/.test(String(error?.message)))throw error;}
+              }
+            }
+            regions=regions.map((r,i)=>({...r,x:shared[i].x/W,y:shared[i].y/H,width:shared[i].width/W,height:shared[i].height/H}));
+          }
+        }catch(error:any){if(!/cannot fit/.test(String(error?.message)))throw error;}
+      }
+    }
+    // When fill cannot share a safe scale, try letterboxing at the widest
+    // required scale before accepting independent magnification. Never shrink
+    // the protected envelope merely to preserve alignment or fill a cell.
+    if(count>1&&fits.every(f=>f.pane.every((n:number,i:number)=>n===fits[0].pane[i]))){
+      const scales=regions.map((r,i)=>Math.max(r.width*W/fits[i].options.destination.width,r.height*H/fits[i].options.destination.height));
+      if(Math.max(...scales)-Math.min(...scales)>1e-6){
+        const ratio=Math.max(...scales);
+        try{
+          const padded=fits.map(({options:o})=>{
+            const w=Math.min(o.right-o.left,ratio*o.destination.width),h=Math.min(o.bottom-o.top,ratio*o.destination.height);
+            if(Math.abs(Math.max(w/o.destination.width,h/o.destination.height)-ratio)>1e-6)throw Error('Common scale cannot fit source');
+            // Reserved-area geometry assumes a filled destination; retain the
+            // original validated fit when padding would change that mapping.
+            if(o.reservedAreas?.length)throw Error('Common scale cannot fit reserved areas');
+            const r=fitPortraitCrop({...o,aspect:w/h,preferredWidth:w});
+            if(Math.abs(r.width-w)>1e-6)throw Error('Common scale cannot fit envelope');
+            return r;
+          });
+          regions=regions.map((r,i)=>({...r,x:padded[i].x/W,y:padded[i].y/H,width:padded[i].width/W,height:padded[i].height/H,letterbox:true}));
+        }catch(error:any){if(!/cannot fit/.test(String(error?.message)))throw error;}
+      }
+    }
     for(const shot of group)out.set(shot,{...shot,regions});
   }
   return shots.map(s=>out.get(s));
 }
 
 function measuredFaceShots(shots:any[],catalog:any[],sources:any[],layout:any) {
-  if(shots.every(s=>s.autoFrame&&['speaker','stacked','two-shot'].includes(s.style)))return editorialPersonRegions(shots,catalog,sources,layout);
+  if(shots.every(s=>s.autoFrame&&['speaker','two-shot',...SPLIT_LAYOUTS].includes(s.style)))return editorialPersonRegions(shots,catalog,sources,layout);
   if(!Array.isArray(shots)||!shots.length) throw new Error('Missing measured-face edit plan');
   const first=new Map<string,string>();
   const measured=shots.map((s:any)=>{
@@ -3546,7 +3870,7 @@ function measuredFaceShots(shots:any[],catalog:any[],sources:any[],layout:any) {
     if(![W,H].every(Number.isFinite)||!(W>0&&H>0)) throw new Error('Unknown measured-face source');
     if(s.style==='wide') return {...s,regions:[{x:0,y:0,width:1,height:1}]};
     if(s.style==='detail') {if(s.subjects?.length)throw Error('Detail region cannot claim measured subjects');return s;}
-    const count=s.style==='stacked'?2:1;
+    const count=compositionRects(s.style).length;
     if(!Array.isArray(s.subjects)||s.subjects.length!==count||new Set(s.subjects.map((q:any)=>q.faceId)).size!==count) throw new Error('Select one measured face per panel');
     const regions=s.subjects.map((q:any,slot:number)=>{
       const f=catalog.find((f:any)=>f.id===q.faceId);
@@ -3556,7 +3880,7 @@ function measuredFaceShots(shots:any[],catalog:any[],sources:any[],layout:any) {
       const observedInComposition=(v:any)=>matchingShots.some((other:any)=>(v.draftFrame>=other.startFrame&&v.draftFrame<other.endFrame)||(v.draftStartFrame<other.endFrame&&v.draftEndFrame>other.startFrame));
       if(!observedInComposition(f)&&!(f.draftFrame>=s.startFrame&&f.draftFrame<s.endFrame)&&!(f.draftStartFrame<s.endFrame&&f.draftEndFrame>s.startFrame)&&first.get(key)!==f.id) throw new Error('Choose a face measured within this shot');
       if(!first.has(key)) first.set(key,f.id);
-      const left=q.left??0,right=q.right??1;
+      const pane=sourcePaneRect(q),left=pane.x,right=pane.x+pane.width,paneTop=pane.y*H,paneBottom=(pane.y+pane.height)*H;
       if(![left,right].every(Number.isFinite)||left<0||right>1||left>=right) throw new Error('Invalid source pane bounds');
       const selected=[f,...(q.faceIds||[]).filter((id:string)=>id!==f.id).map((id:string)=>{const v=catalog.find((c:any)=>c.id===id);if(!v||v.resourceId!==s.resourceId||!observedInComposition(v))throw Error('Additional face reference is outside its shot');return v;})];
       // Only the agent links identities. Preserve the full observed local-track
@@ -3573,11 +3897,12 @@ function measuredFaceShots(shots:any[],catalog:any[],sources:any[],layout:any) {
         s={...s,geometryAdjustments:[...(s.geometryAdjustments||[]),{kind:'envelope-boundary',maxPixels:Math.max(0,left*W-b.xmin,b.xmax-right*W)}]};
         b.xmin=Math.max(left*W,b.xmin);b.xmax=Math.min(right*W,b.xmax);
       }
-      let x1=Math.max(left*W,b.xmin-fw*.18),x2=Math.min(right*W,b.xmax+fw*.18);let y1=Math.max(0,b.ymin-fh*.48),y2=Math.min(H,b.ymax+fh*.12);
-      const faceY=Math.max(.25,Math.min(.65,Number(layout.faceY??40)/100)),aspect=1080/((Number(layout.windowBottom??1920)-Number(layout.windowTop??0))/count);
+      if(b.ymin<paneTop-1e-6||b.ymax>paneBottom+1e-6)throw Error('Measured face is outside its selected pane');
+      let x1=Math.max(left*W,b.xmin-fw*.18),x2=Math.min(right*W,b.xmax+fw*.18);let y1=Math.max(paneTop,b.ymin-fh*.48),y2=Math.min(paneBottom,b.ymax+fh*.12);
+      const faceY=Math.max(.25,Math.min(.65,Number(layout.faceY??40)/100)),aspect=1080*compositionRects(s.style)[slot].width/((Number(layout.windowBottom??1920)-Number(layout.windowTop??0))*compositionRects(s.style)[slot].height);
       // Soft side margins may shrink on an already-tight source closeup;
       // the measured face itself must always remain inside the final crop.
-      const availableW=Math.min((right-left)*W,H*aspect);
+      const availableW=Math.min((right-left)*W,(paneBottom-paneTop)*aspect);
       if(x2-x1>availableW&&fw<=availableW){x1=Math.max(left*W,Math.min(right*W-availableW,cx-availableW/2));x2=x1+availableW;}
       // Head padding is a preference; never reject a fitting measured face just
       // because padding exceeds a narrow embedded pane by a few pixels.
@@ -3589,11 +3914,11 @@ function measuredFaceShots(shots:any[],catalog:any[],sources:any[],layout:any) {
       const closeUp=q.closeUp??layout.closeUp??4.5;
       if(!Number.isFinite(closeUp)||closeUp<2||closeUp>12) throw new Error('Invalid measured-face framing size');
       const wantedH=Math.max(y2-y1,(cy-y1)/faceY,(y2-cy)/(1-faceY));
-      const w=Math.min((right-left)*W,H*aspect,Math.max(fw*closeUp,wantedH*aspect,x2-x1)),h=w/aspect;
+      const w=Math.min((right-left)*W,(paneBottom-paneTop)*aspect,Math.max(fw*closeUp,wantedH*aspect,x2-x1)),h=w/aspect;
       if(w+1e-6<x2-x1||h+1e-6<y2-y1) throw new Error('Measured head cannot fit the selected pane');
       const clamp=(v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
       const x=clamp(cx-w/2,Math.max(left*W,x2-w),Math.min(right*W-w,x1));
-      const y=clamp(cy-h*faceY,Math.max(0,y2-h),Math.min(H-h,y1));
+      const y=clamp(cy-h*faceY,Math.max(paneTop,y2-h),Math.min(paneBottom-h,y1));
       return {x:x/W,y:y/H,width:w/W,height:h/H,focus:{x:x1/W,y:y1/H,width:(x2-x1)/W,height:(y2-y1)/H},anchor:{x:cx/W,y:cy/H}};
     });
     return {...s,regions};
@@ -3601,7 +3926,7 @@ function measuredFaceShots(shots:any[],catalog:any[],sources:any[],layout:any) {
   // Calculate fixed geometry from all agent-selected references before applying
   // any shot. Later silence fragments cannot cause a small crop/zoom jump.
   const groups=new Map<string,any[]>();
-  for(const shot of measured)if(shot.style==='speaker'||shot.style==='stacked'){
+  for(const shot of measured)if(shot.style==='speaker'||SPLIT_LAYOUTS.includes(shot.style)){
     const key=JSON.stringify([shot.resourceId,shot.style,shot.compositionId]);
     if(!groups.has(key))groups.set(key,[]);groups.get(key)!.push(shot);
   }
@@ -3610,11 +3935,12 @@ function measuredFaceShots(shots:any[],catalog:any[],sources:any[],layout:any) {
     const regions=group[0].regions.map((_:any,slot:number)=>{
       const rows=group.map((s:any)=>s.regions[slot]),left=Math.max(...group.map((s:any)=>s.subjects[slot].left??0))*W,right=Math.min(...group.map((s:any)=>s.subjects[slot].right??1))*W;
       const x1=Math.min(...rows.map((r:any)=>r.focus.x))*W,x2=Math.max(...rows.map((r:any)=>r.focus.x+r.focus.width))*W,y1=Math.min(...rows.map((r:any)=>r.focus.y))*H,y2=Math.max(...rows.map((r:any)=>r.focus.y+r.focus.height))*H;
-      const ratio=1080/((Number(layout.windowBottom??1920)-Number(layout.windowTop??0))/group[0].regions.length);
-      const w=Math.min(right-left,H*ratio,Math.max(...rows.map((r:any)=>r.width*W),x2-x1,(y2-y1)*ratio)),h=w/ratio;
+      const dst=compositionRects(group[0].style)[slot],ratio=1080*dst.width/((Number(layout.windowBottom??1920)-Number(layout.windowTop??0))*dst.height);
+      const paneTop=Math.max(...group.map((s:any)=>(s.subjects[slot].top??0)*H)),paneBottom=Math.min(...group.map((s:any)=>(s.subjects[slot].bottom??1)*H));
+      const w=Math.min(right-left,(paneBottom-paneTop)*ratio,Math.max(...rows.map((r:any)=>r.width*W),x2-x1,(y2-y1)*ratio)),h=w/ratio;
       if(w<x2-x1-1e-6||h<y2-y1-1e-6||x1<left-1e-6||x2>right+1e-6)throw Error('Selected head motion cannot fit one fixed composition');
       const cx=rows.reduce((n:number,r:any)=>n+r.anchor.x*W,0)/rows.length,cy=rows.reduce((n:number,r:any)=>n+r.anchor.y*H,0)/rows.length,faceY=Math.max(.25,Math.min(.65,Number(layout.faceY??40)/100));
-      const x=Math.max(Math.max(left,x2-w),Math.min(Math.min(right-w,x1),cx-w/2)),y=Math.max(Math.max(0,y2-h),Math.min(Math.min(H-h,y1),cy-h*faceY));
+      const x=Math.max(Math.max(left,x2-w),Math.min(Math.min(right-w,x1),cx-w/2)),y=Math.max(Math.max(paneTop,y2-h),Math.min(Math.min(paneBottom-h,y1),cy-h*faceY));
       return {x:x/W,y:y/H,width:w/W,height:h/H,focus:{x:x1/W,y:y1/H,width:(x2-x1)/W,height:(y2-y1)/H},anchor:{x:cx/W,y:cy/H}};
     });
     for(const shot of group)shot.regions=regions;
@@ -3869,18 +4195,43 @@ function sourceAppearanceChange(a:ArrayLike<number>,b:ArrayLike<number>) {
 
 // Survey the whole selected source, not just face-bearing instants. Pixel changes
 // are candidates for the agent to interpret; motion and flashes can also trigger.
-async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note}:any) {
+function rawSourceFrameArgs(source:any,frames:number[],output:string) {
+  if(!source.path||!Number.isFinite(source.meta?.fps)||source.meta.fps<=0||!frames.length||frames.length>12||frames.some(f=>!Number.isInteger(f)||f<0))throw Error('Invalid source frame request');
+  const width=640,height=Math.max(2,Math.round(width*source.meta.frameSize.height/source.meta.frameSize.width/2)*2);
+  const args=['-v','error','-y'];
+  for(const f of frames)args.push('-threads','1','-ss',(f/source.meta.fps).toFixed(9),'-i',source.path);
+  const filters=frames.map((_,i)=>`[${i}:v:0]scale=${width}:${height},setsar=1[v${i}]`);
+  filters.push(frames.length===1?'[v0]null[out]':frames.map((_,i)=>`[v${i}]`).join('')+`hstack=inputs=${frames.length}[out]`);
+  args.push('-filter_complex_threads','1','-filter_complex',filters.join(';'),'-map','[out]','-frames:v','1','-q:v','3',output);
+  return {args,width,height};
+}
+async function captureRawSourceFrames({sdk,guard,store,source,frames}:any) {
+  const read=async(script:string,allowCommit=false)=>{const r=await sdk.runScript({script,summary:'Capture original source frames',allowCommit});if(r.isError)throw Error(r.output||'Source frame capture failed');return r.result;};
+  const dir=store.join(store.root,'frames'),output=store.join(dir,`survey-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`);
+  const {args,width,height}=rawSourceFrameArgs(source,frames,output);
+  const state=async(id:string)=>String((await read(`return await selects.media.job(${JSON.stringify(id)}).status();`)).state);
+  try {
+    await guard(store.ensure(dir));
+    await runFrameJob({start:async()=>(await read(`return await selects.media.startFFmpeg({args:${JSON.stringify(args)}});`,true)).jobId,
+      state:id=>guard(state(id)),settled:state,cancel:async id=>{await read(`await selects.media.job(${JSON.stringify(id)}).cancel();`,true);},
+      wait:ms=>guard(sleep(ms)),idle:sleep,now:()=>Date.now(),limitMs:60000,stopped:()=>false,stopError:()=>new RunCancelled()});
+    const bytes=await guard(store.fs.readFile(output));
+    return {data:toBase64(bytes),frames:frames.map((frameNumber:number,i:number)=>({frameNumber,hasSourceImage:true,x:i*width,y:0,width,height}))};
+  } finally {await read(`await selects.files.remove(${JSON.stringify(output)},{force:true});`,true).catch(()=>{});}
+}
+
+async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note,store}:any) {
   const images:any[]=[],samples:any[]=[],boundaries:any[]=[];
   for(const source of before.sources) {
     const words=(before.segments||before.words).filter((w:any)=>w.sourceResourceId===source.resourceId&&Number.isFinite(w.sourceStartFrame));
     const ranges=cameraFaceRanges(words.map((w:any)=>[w.sourceStartFrame/source.meta.fps,w.sourceEndFrame/source.meta.fps]));
-    const core=await guard(sdk.call('getResourceAnalyzedSequence',projectId,source.resourceId));
-    if(core?.owner?.projectId!==projectId||!core.analyzedSequenceJson?.id)throw Error('Source survey ownership mismatch');
+    const core=source.path?null:await guard(sdk.call('getResourceAnalyzedSequence',projectId,source.resourceId));
+    if(!source.path&&(core?.owner?.projectId!==projectId||!core.analyzedSequenceJson?.id))throw Error('Source survey ownership mismatch');
     const cache=new Map<number,any>();
     const capture=async(frames:number[])=>{
       const missing=[...new Set(frames)].filter(f=>!cache.has(f));
       for(let i=0;i<missing.length;i+=12){note({plan:'stage',stage:'evidence'});const wanted=missing.slice(i,i+12);
-        const c=await guard(visualWork(()=>sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:core.analyzedSequenceJson.id,sequenceJson:core.analyzedSequenceJson,coordinate:'base',frames:wanted.map(frameNumber=>({frameNumber,view:'timeline_composite'})),includeOverlays:false})));
+        const c=await guard(visualWork(()=>source.path?captureRawSourceFrames({sdk,guard,store,source,frames:wanted}):sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:core.analyzedSequenceJson.id,sequenceJson:core.analyzedSequenceJson,coordinate:'base',frames:wanted.map(frameNumber=>({frameNumber,view:'timeline_composite'})),includeOverlays:false})));
         const image=new Image();image.src='data:image/jpeg;base64,'+c.data;await image.decode();
         for(const f of wanted){const tile=c.frames?.find((t:any)=>t.frameNumber===f);if(!tile?.hasSourceImage)throw Error('Missing source survey image');const cv=document.createElement('canvas');cv.width=640;cv.height=Math.round(640*source.meta.frameSize.height/source.meta.frameSize.width);const g=cv.getContext('2d')!;g.drawImage(image,tile.x,tile.y,tile.width,tile.height,0,0,cv.width,cv.height);const probe=document.createElement('canvas');probe.width=32;probe.height=18;const pg=probe.getContext('2d')!;pg.drawImage(cv,0,0,32,18);cache.set(f,{cv,pixels:pg.getImageData(0,0,32,18).data});}
       }
@@ -3906,15 +4257,17 @@ async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note}:any
   note({plan:'source-evidence',samples,boundaries,imageCount:images.length});return {images,samples,boundaries};
 }
 
-async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measureFaces,prepareEvidence,measureSpeakers,work}:any):Promise<any> {
+async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measureFaces,prepareEvidence,measureSpeakers,work,previousEdit,store}:any):Promise<any> {
   const inspect=async(preflight=false)=>{
-    const r=await guard(sdk.runScript({timeoutSeconds:120,script:`const p=selects.project(${JSON.stringify(projectId)}); if (!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)})) throw new Error("Draft ownership changed"); const d=selects.draft(${JSON.stringify(draftId)}); const words=(await d.words()).map(w=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,wordId:w.wordId,speakerId:w.speakerId,speakerName:w.speakerName,sourceResourceId:w.sourceResourceId,sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame})); const sources=${preflight ? 'await Promise.all([...new Set((await d.clips({trackScope:"main"})).map(c=>c.resourceId).filter(Boolean))].map(async resourceId=>({resourceId:(await p.resource(resourceId).rangeAtFrames(0,1)).resourceId,meta:await p.resource(resourceId).meta()})))' : '[]'}; return {meta:await d.meta(),words,sources};`,summary:'Verify reframing target'}));
+    const r=await guard(sdk.runScript({timeoutSeconds:120,script:SCRIPT_SOURCE_READER+`const p=selects.project(${JSON.stringify(projectId)}); if (!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)})) throw new Error("Draft ownership changed"); const d=selects.draft(${JSON.stringify(draftId)}); const words=(await d.words()).map(w=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,wordId:w.wordId,speakerId:w.speakerId,speakerName:w.speakerName,sourceResourceId:w.sourceResourceId,sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame})); const sources=${preflight ? 'await Promise.all([...new Set((await d.clips({trackScope:"main"})).map(c=>c.resourceId).filter(Boolean))].map(async id=>{const resourceId=await resolveResource(p,id,"");const inventory=await p.sourceFiles();const files=[];const walk=nodes=>{for(const n of nodes||[])if(n.type==="dir")walk(n.children);else files.push(n);};if("fileTree" in inventory)walk(inventory.fileTree);else for(const folder of inventory.folders){const detail=await p.sourceFiles({folder:folder.name});if("fileTree" in detail)walk(detail.fileTree);}const file=files.find(f=>f.resourceId===resourceId);if(file?.path&&file.frameRate>0&&file.frameSize?.width>0&&file.frameSize?.height>0)return {resourceId:id,path:file.path,meta:{fps:Number(file.frameRate),frameSize:file.frameSize}};return {resourceId:(await p.resource(resourceId).rangeAtFrames(0,1)).resourceId,meta:(await readClipSource(p,resourceId)).meta};}))' : '[]'}; return {meta:await d.meta(),words,sources};`,summary:'Verify reframing target'}));
     if(r.isError||!r.result?.meta) throw new Error(r.output||'Cannot verify reframing target');
     return r.result;
   };
   const before=await inspect(true);
+  if(previousEdit?.plan?.shots?.some((s:any)=>s.locked)&&(previousEdit.duration!==before.meta.durationFrames||previousEdit.layout.windowTop!==layout.windowTop||previousEdit.layout.windowBottom!==layout.windowBottom))throw Error('Unlock saved shots before changing timing or the video window.');
   if(!measureFaces){
     const snapshot=await guard(sdk.call('getDraftMediaSnapshot',projectId,draftId));
+    for(const source of before.sources)if(source.path){const ids=[...new Set(snapshot.clips.filter((c:any)=>c.trackKind==='main'&&c.media?.path===source.path).map((c:any)=>c.resourceId))];if(ids.length!==1)throw Error('Draft source file mapping mismatch');source.resourceId=ids[0];}
     before.segments=snapshot.clips.filter((c:any)=>c.trackKind==='main'&&c.resourceId).map((c:any)=>{
       const source=before.sources.find((s:any)=>s.resourceId===c.resourceId);if(!source)throw Error('Draft source mapping mismatch');
       return {startFrame:c.startFrame,endFrame:c.endFrame,sourceResourceId:c.resourceId,sourceStartFrame:c.sourceStartSeconds*source.meta.fps,sourceEndFrame:c.sourceEndSeconds*source.meta.fps};
@@ -3931,7 +4284,7 @@ async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measur
   catch(error:any){if(error instanceof RunCancelled)throw error;analysisLimitations.push(String(error?.message||error));note({plan:'analysis-limited',reason:analysisLimitations[0]});}
   const faceCatalog=observations.catalog;
   let evidence:any;
-  try{evidence=await (prepareEvidence||prepareSourceSurvey)({sdk,guard,projectId,before,catalog:faceCatalog,note});}
+  try{evidence=await (prepareEvidence||prepareSourceSurvey)({sdk,guard,projectId,before,catalog:faceCatalog,note,store});}
   catch(error:any){if(error instanceof RunCancelled)throw error;await unchanged();note({plan:'agent-reframe-failed',draftId,error:String(error?.message||error)});throw error;}
   const activeSpeakers=measureSpeakers?await measureSpeakers({sdk,guard,projectId,before,catalog:faceCatalog,samples:evidence.samples,note,work}):observations.activeSpeakers;
   const facts=reframingPlanningFacts(before,faceCatalog);
@@ -3942,19 +4295,20 @@ Choose people, reactions, layouts and exact cut boundaries for the whole clip. D
 
 EVIDENCE
 JSON below contains speaker timing without transcript text, source/Draft mappings, measured face references, source images, active-speaker scores and appearance-change candidates. Those candidates may be motion/flash rather than cuts: judge the pictures. When accepting a candidate as a cut, use its exact firstNewSourceFrame; do not substitute rounded seconds or a runtime track boundary. Never insert a tiny wide transition merely to bridge a source cut. Cover all source layout changes, including inside words. Source and Draft frame rates can differ. Map frames linearly within the matching source mapping range; never across removed silence.
-Use supplied UNCROPPED SOURCE images and measurements first. Only request a specific missing identity, subject or boundary. Aim for zero additional calls; do not repeat metadata, broad surveys or analyzed ranges. For missing source pixels: display(await selects.project(${JSON.stringify(projectId)}).resource(resourceId).captureFrames({frames:[integerSourceFrames]})); 1–12 frames per capture, at most 4 displayed artifacts per script. Use resource.captureFrames, not draft.captureCameraAngles. Transcript text is available via draft.words() only if semantics are genuinely needed.
+Use supplied UNCROPPED SOURCE images and measurements first. Only request a specific missing identity, subject or boundary. Aim for zero additional calls; do not repeat metadata, broad surveys or analyzed ranges. Source analysis may still be running. Use the supplied source images; do not call resource.captureFrames, resource.meta, resource.words or resource.rangeAtFrames, which require completed analysis. Do not wait for or start full-source analysis. Transcript text is available via draft.words() only if semantics are genuinely needed.
 
 GEOMETRY
-Choose only camera, people, layout and timing. Never return closeUp, framing or crop coordinates for people. The code owns person size, position, headroom and fitting to template overlays. speaker shows one person, two-shot shows two people together from ONE camera, stacked shows two ordered panels. When a group cannot fill the template, code may letterbox it; do not change the selected people or layout merely to fit. sourcePane describes only actual embedded-camera boundaries in the source image, not an aesthetic crop. Omit it for a continuous camera view. Link all observed refs of the same person across the composition; never merge different people. Reuse compositionId whenever returning to the same people/camera/layout, including across silence cuts. Observed track boundaries are not editorial cuts.
+sourcePane uses normalized {x,y,width,height}; for embedded 2x2 broadcasts, constrain both axes (top-left: {x:0,y:0,width:0.5,height:0.5}).
+Choose only camera, people, layout and timing. Never return closeUp, framing or crop coordinates for people. The code owns person size, position, headroom and fitting to template overlays. speaker shows one person, two-shot shows two people together from ONE camera, split layouts show 2, 3 or 4 ordered panels according to the preset. When a group cannot fill the template, code may letterbox it; do not change the selected people or layout merely to fit. sourcePane describes only actual embedded-camera boundaries in the source image, not an aesthetic crop. Omit it for a continuous camera view. Link all observed refs of the same person across the composition; never merge different people. Reuse compositionId whenever returning to the same people/camera/layout, including across silence cuts. Observed track boundaries are not editorial cuts.
 
-For non-person content use layout "detail" with targets:[] and one panel.region {x,y,width,height}, choosing the action/object yourself. region is the IMPORTANT AREA that must remain fully visible, not a rough full-image crop. Code fills the portrait window around it without cutting this area. Normalized region width must be <= min(1, sourceHeight * 1080 / (windowBottom-windowTop) / sourceWidth), and height <= min(1, sourceWidth * (windowBottom-windowTop) / 1080 / sourceHeight). For 1920x1080 into 1080x1920, width must be <=0.3164. Select the essential visual subject within that feasible area. If no supported plan is justified, report blocked only for missing essential evidence; the app will preserve existing framing and still deliver the clip. "wide" preserves the whole source and is allowed only by widePolicy. "stacked" has exactly two distinct subjects, in top/bottom order, and must be allowed by the template. Never invent a face when there is none. If important evidence is unavailable, report blocked with the specific reason.
+For non-person content use layout "detail" with targets:[] and one panel.region {x,y,width,height}, choosing the action/object yourself. region is the IMPORTANT AREA that must remain fully visible, not a rough full-image crop. Code fills the portrait window around it without cutting this area. Normalized region width must be <= min(1, sourceHeight * 1080 / (windowBottom-windowTop) / sourceWidth), and height <= min(1, sourceWidth * (windowBottom-windowTop) / 1080 / sourceHeight). For 1920x1080 into 1080x1920, width must be <=0.3164. Select the essential visual subject within that feasible area. If no supported plan is justified, report blocked only for missing essential evidence; the app will preserve existing framing and still deliver the clip. "wide" preserves the whole source and is allowed only by widePolicy. Split counts describe output panels, NOT people. columns-3 has three side-by-side columns; top-main-3 and left-main-3 have three (main first); grid-4 has four in reading order. For a wide shot requested as a split, provide all observed people via shot.people and let code group them. Only set optional slot constraints when the user specifies placement. For preserving an embedded split, use explicit panels retaining source boundaries and order. Apply subjectInstructions per scene; a whole-shot split request does not force single-person shots to split. Use only template-allowed layouts. Never invent a face when there is none. If important evidence is unavailable, report blocked with the specific reason.
 
 INPUT_JSON
-${JSON.stringify({version:1,capabilities:{layouts:['speaker','stacked','two-shot','detail','wide'],cameras:before.sources.map((s:any)=>s.resourceId),continuousTracking:false},projectId,draftId,durationFrames:before.meta.durationFrames,draftFps:before.meta.fps,template:{...layout,closeUp:undefined,faceY:undefined,edgeInset:undefined},sources:before.sources.map((s:any)=>({resourceId:s.resourceId,fps:s.meta.fps,frameSize:s.meta.frameSize})),analysisLimitations,speakerTurns:facts.turns.map(({text,...t}:any)=>t),sourceMapping:facts.mapping,faces:facts.faces,activeSpeakers,images:evidence.samples,appearanceChanges:evidence.boundaries||[]})}
+${JSON.stringify({version:1,capabilities:{layouts:['speaker',...permittedSplits(layout),'two-shot','detail','wide'],cameras:before.sources.map((s:any)=>s.resourceId),continuousTracking:false},projectId,draftId,durationFrames:before.meta.durationFrames,draftFps:before.meta.fps,template:{...layout,closeUp:undefined,faceY:undefined,edgeInset:undefined},sources:before.sources.map((s:any)=>({resourceId:s.resourceId,fps:s.meta.fps,frameSize:s.meta.frameSize})),analysisLimitations,speakerTurns:facts.turns.map(({text,...t}:any)=>t),sourceMapping:facts.mapping,faces:facts.faces,activeSpeakers,images:evidence.samples,appearanceChanges:evidence.boundaries||[]})}
 
 OUTPUT_JSON
 ${COMPOSITION_PLAN_SCHEMA}
-Use camera=resourceId. Supported layouts: speaker, stacked, two-shot, detail, wide. Each panel target uses subjectId and refs (the measured face IDs); Only use sourcePane for observed embedded-camera boundaries; omit all sizing controls. Include speakerEvidence rows {startFrame,endFrame,resourceId,sourceFrames,subject,basis,evidence}. basis is descriptive text, not an editing command; prefer audio-visual, offscreen, visual-content, or mouth-motion when applicable. draftId must be ${JSON.stringify(draftId)}.
+Use camera=resourceId. Supported layouts are exactly those in capabilities.layouts. Each panel target uses subjectId and refs (the measured face IDs); Only use sourcePane for observed embedded-camera boundaries; omit all sizing controls. Include speakerEvidence rows {startFrame,endFrame,resourceId,sourceFrames,subject,basis,evidence}. basis is descriptive text, not an editing command; prefer audio-visual, offscreen, visual-content, or mouth-motion when applicable. draftId must be ${JSON.stringify(draftId)}.
 Shots must cover [0,${before.meta.durationFrames}) contiguously with integer half-open intervals. Evidence must cover the clip. Use one evidence row per coherent shot, not per transcript turn; each row MUST cite at least one integer source frame actually supplied/inspected (never an empty array). A broad visual-content row can cover narration over an unchanged insert without redundant offscreen rows. Name the measured IDs used for people. Keep each reason/evidence/limitation under 25 words. Return syntactically valid JSON with every string quoted and closed. "audio-visual" cites runtime scores plus images, "offscreen" identifies the listener/narration, "visual-content" explains non-speaker material. Do not claim lip-sync verification from still images.
 ${reframingPreferencePrompt(layout)}`;
   note({plan:'stage',stage:'agent'});note({plan:'agent-reframe-start',draftId});
@@ -3989,8 +4343,12 @@ ${reframingPreferencePrompt(layout)}`;
     if(r.isError||!r.result?.applied) throw new Error(r.output||'Source crop application failed');
     await unchanged();
   };
+  resolved.shots=mergeLockedSourceShots(resolved.shots,previousEdit?.appliedShots||[]);
+  if(previousEdit?.appliedShots?.some((s:any)=>s.locked))layout=manualFramingLayout(layout);
   await apply(resolved.shots);
-  const report={...plan,appliedShots:resolved.shots,qualityStatus:resolved.limitations.length?"limited":"complete",preservedRanges:resolved.limitations,geometryAdjustments:resolved.adjustments,status:'complete',verification:{kind:'geometry-and-timing',status:'passed'},visualReview:{status:'not-run',reason:'Runtime visual review disabled; rendered output is checked in regression tests.'}};
+  const retained=retainLockedSourceContext(previousEdit,faceCatalog,plan),editPlan=retained.plan;
+  const mediaKey=measureFaces?undefined:framingMediaKey(await guard(sdk.call("getDraftMediaSnapshot",projectId,draftId)));
+  const report={...plan,editContext:{kind:'source',plan:editPlan,catalog:retained.catalog,mediaKey,sources:before.sources,segments:before.segments||before.words,duration:before.meta.durationFrames,fps:before.meta.fps,layout,appliedShots:resolved.shots,words:normalizeReframeWords(before.words)},appliedShots:resolved.shots,qualityStatus:resolved.limitations.length?"limited":"complete",preservedRanges:resolved.limitations,geometryAdjustments:resolved.adjustments,status:'complete',verification:{kind:'geometry-and-timing',status:'passed'},visualReview:{status:'not-run',reason:'Runtime visual review disabled; rendered output is checked in regression tests.'}};
   note({plan:'agent-reframe-result',draftId,report});return report;
 }
 
@@ -4018,7 +4376,7 @@ function reframingPreferences(layout:any={}) {
 }
 function reframingPreferencePrompt(layout:any) {
   const p=reframingPreferences(layout);
-  return `User reframing preferences: ${JSON.stringify(p)}. These override generic framing advice. Hard constraints: ${p.wide==='never'?'Never use wide or an intact-camera fallback, including when identity is uncertain.':'Wide is '+p.wide+'.'} ${p.split==='never'?'Never use stacked.':'Stacked is '+p.split+'.'} Fixed framing: keep crop position and scale unchanged throughout a continuous playback shot of the same subjects/camera/layout. Silence-removal cuts and forward source-time gaps do not start a new composition; keep the exact same crop position and scale across them. Never re-estimate zoom or centering independently for each surviving source fragment. Focus reactions means speaker-led editing with meaningful listener reactions, not constant listener coverage. Decide selective split from the conversation structure of the WHOLE clip before choosing individual shots. Use stacked framing when frequent substantive back-and-forth between the same two distinct people is a defining pattern across the clip, and keeping both visible helps follow that conversation. In that case keep stacked framing stable through coherent dialogue passages, or the whole clip when appropriate; do not toggle it on and off for each brief overlap or reaction. If one person delivers most of the explanation and others only briefly interject, keep speaker-led single-person framing. A momentary overlap, hesitation, ordinary listening, short acknowledgements, a single question-answer pair, uncertainty, or variety alone do not justify selective split. Do not add a brief split at the end of an otherwise single-speaker clip just because a second person starts speaking. Frequent split still requires relevant distinct people and coherent conversation passages. Explain the clip-wide exchange pattern supporting each split choice; do not invent numerical turn-count thresholds. Wide essential means only when group action or spatial context is necessary to understand the scene, never merely to break up a long answer. Pacing is a preference, not a fixed timer. If identification is uncertain, retain an evidence-supported allowed composition; if none exists explain the limitation instead of inventing a successful edit. Explain the specific evidence for every split or wide choice.`;
+  return `Allowed split layouts: ${JSON.stringify(permittedSplits(layout))}. ${layout.fixedLayout&&layout.fixedLayout!=='auto'?'FIXED layout required: '+layout.fixedLayout+'. Never silently substitute a different layout; report blocked if evidence or geometry cannot support it.':''} ${layout.subjectInstructions?'Scene composition instructions: '+layout.subjectInstructions+'. Apply these scene-specific rules before generic split-frequency advice. All-participant requests require all observed people. Supply shot.people for automatic grouping; optional slot constraints only for explicitly requested positions.':''} Keep the same person in the same slot throughout coherent conversation. Never duplicate a person or invent an offscreen participant to fill slots. Avoid automatic grids when faces would be too small to read in the template window. Additional split layouts follow the same conversational justification as stacked. User reframing preferences: ${JSON.stringify(p)}. These override generic framing advice. Hard constraints: ${p.wide==='never'?'Never use wide or an intact-camera fallback, including when identity is uncertain.':'Wide is '+p.wide+'.'} ${p.split==='never'?'Never use stacked or any other split layout.':'Split frequency is '+p.split+'.'} Fixed framing: keep crop position and scale unchanged throughout a continuous playback shot of the same subjects/camera/layout. Silence-removal cuts and forward source-time gaps do not start a new composition; keep the exact same crop position and scale across them. Never re-estimate zoom or centering independently for each surviving source fragment. Focus reactions means speaker-led editing with meaningful listener reactions, not constant listener coverage. Decide selective split from the conversation structure of the WHOLE clip before choosing individual shots. Use an allowed split layout when frequent substantive back-and-forth between the same two distinct people is a defining pattern across the clip, and keeping both visible helps follow that conversation. In that case keep split framing stable through coherent dialogue passages, or the whole clip when appropriate; do not toggle it on and off for each brief overlap or reaction. If one person delivers most of the explanation and others only briefly interject, keep speaker-led single-person framing. A momentary overlap, hesitation, ordinary listening, short acknowledgements, a single question-answer pair, uncertainty, or variety alone do not justify selective split. Do not add a brief split at the end of an otherwise single-speaker clip just because a second person starts speaking. Frequent split still requires relevant distinct people and coherent conversation passages. Explain the clip-wide exchange pattern supporting each split choice; do not invent numerical turn-count thresholds. Wide essential means only when group action or spatial context is necessary to understand the scene, never merely to break up a long answer. Pacing is a preference, not a fixed timer. If identification is uncertain, retain an evidence-supported allowed composition; if none exists explain the limitation instead of inventing a successful edit. Explain the specific evidence for every split or wide choice.`;
 }
 function reframingPreset(layout:any,preset:string) {
   const choices:any={speaker:{reframeFocus:'speaker',splitPolicy:'never',widePolicy:'never'},conversation:{reframeFocus:'reactions',splitPolicy:'selective',widePolicy:'never'},context:{reframeFocus:'context',splitPolicy:'selective',widePolicy:'essential'}};
@@ -4054,8 +4412,9 @@ function compileTemplateCameraPlan(plan:any, observations:any[], layout:any, fps
   observations=cameraIdentityObservations(plan,observations);
   const prefs=reframingPreferences(layout);
   const allowSplit=(layout.cameraMode||'auto')==='auto'&&prefs.split!=='never';
-  const allowed=new Set(['speaker','wide','two-shot',...(allowSplit?['stacked']:[])]);
+  const allowed=new Set(['speaker','wide','two-shot',...(allowSplit?permittedSplits(layout):[])]);
   const shots=(plan?.shots||[]).map((s:any)=>{
+    assertCompositionLayout(s.style,layout);
     if(!allowed.has(s.style)) throw new Error('Unsupported template style: '+s.style);
     if(!Number.isFinite(s.confidence)||s.confidence<0||s.confidence>1) throw new Error('Missing confidence');
     if(s.style==='wide'&&prefs.wide==='never') throw new Error('Template forbids wide shots; choose an evidence-supported allowed composition.');
@@ -4066,24 +4425,28 @@ function compileTemplateCameraPlan(plan:any, observations:any[], layout:any, fps
   validateCameraEditPlan({shots},observations,true);
   const out:any[]=[];
   for(const [shotIndex,s] of shots.entries()) {
-    if(s.style==='stacked'&&!allowSplit) throw new Error('Template forbids split');
-    if(['two-shot','stacked'].includes(s.style)&&(!s.secondary||!s.distinctPeople)) throw new Error('Two distinct observed people are required');
+    if(SPLIT_LAYOUTS.includes(s.style)&&!allowSplit) throw new Error('Template forbids split');
+    if(['two-shot',...SPLIT_LAYOUTS].includes(s.style)&&(!s.secondary||!s.distinctPeople)) throw new Error('Two distinct observed people are required');
     for(const o of observations.filter(o=>o.unit.startFrame<s.endFrame&&o.unit.endFrame>s.startFrame)) {
       const startFrame=Math.max(s.startFrame,o.unit.startFrame),endFrame=Math.min(s.endFrame,o.unit.endFrame);
       const a=o.options.find((f:any)=>f.id===s.primary),b=o.options.find((f:any)=>f.id===s.secondary);
       if(b&&a.identityKey&&a.identityKey===b.identityKey)throw new Error('Two-person composition selects the same mapped person twice');
       if(s.style==='two-shot'&&a.panel.videoIndex!==b.panel.videoIndex) throw new Error('Two-shot requires one camera');
-      const selected=s.style==='wide'?[{panel:o.available.find((p:any)=>p.videoIndex===s.camera)}]:s.style==='stacked'?[a,b]:[a];
-      if(!selected[0]?.panel) throw new Error('No camera covers the shot');
+      const selected=s.style==='wide'?[{panel:o.available.find((p:any)=>p.videoIndex===s.camera)}]:SPLIT_LAYOUTS.includes(s.style)?(s.selectedGroups?s.selectedGroups.map((g:any)=>g[0]):s.selectedIds||[s.primary,s.secondary]).map((id:string)=>o.options.find((f:any)=>f.id===id)):[a];
+      if(selected.some((f:any)=>!f?.panel)) throw new Error('No camera covers the shot');
+      if(new Set(selected.map((f:any)=>f.identityKey||f.id)).size!==selected.length)throw Error('Split repeats the same person');
       for(const [slot,f] of selected.entries()) {
+        const destination=compositionRects(s.style)[slot],panelH=(layout.windowBottom-layout.windowTop)*destination.height/destination.width;
+        const members=s.selectedGroups?.[slot]?.map((id:string)=>o.options.find((q:any)=>q.id===id))||[f];
+        if(members.some((q:any)=>!q||q.panel.videoIndex!==f.panel.videoIndex))throw Error('A grouped panel requires one observed camera');
         const p=f.panel,rate=p.playbackSpeed.numerator/p.playbackSpeed.denominator;
         let crop:any={fit:'contain'};
         if(!editorial&&s.style==='two-shot') crop=cameraHeadroom([a,b].map(q=>({xmin:q.x-q.w/2,xmax:q.x+q.w/2,ymin:q.headTop,ymax:q.headBottom})),p.observation.W,p.observation.H,layout.windowBottom-layout.windowTop);
-        else if(!editorial&&s.style!=='wide') crop=speakerCrop(f,(layout.windowBottom-layout.windowTop)/selected.length,layout);
+        else if(!editorial&&s.style!=='wide') crop=speakerCrop(f,panelH,layout);
         // Sampled envelopes retain room for motion instead of pretending that samples are exact tracking.
-        out.push({...p,observation:undefined,startFrame,endFrame,slot,count:selected.length,
+        out.push({...p,observation:undefined,startFrame,endFrame,slot,count:selected.length,destination,locked:s.locked,adjustment:s.adjustments?.[slot],
           sourceStartSeconds:p.sourceStartSeconds+(startFrame-p.startFrame)/fps*rate,crop,shotIndex,style:s.style,reason:s.reason,compositionId:s.compositionId,
-          framingKey:JSON.stringify([s.compositionId||null,s.style,a?.identityKey||s.primary,b?.identityKey||s.secondary]),framingFaces:s.style==='wide'?[]:s.style==='two-shot'?[a,b]:[f]});
+          framingKey:JSON.stringify([s.compositionId||null,s.style,selected.map((f:any)=>f.identityKey||f.id)]),framingFaces:s.style==='wide'?[]:s.style==='two-shot'?[a,b]:members});
       }
     }
   }
@@ -4113,7 +4476,7 @@ function compileTemplateCameraPlan(plan:any, observations:any[], layout:any, fps
   for(const group of groups) {
     const first=group[0],faces=group.flatMap(r=>r.framingFaces);
     if(!faces.length) continue;
-    const panel=faces[0].panel,windowH=(layout.windowBottom-layout.windowTop)/first.count;
+    const panel=faces[0].panel,windowH=(layout.windowBottom-layout.windowTop)*first.destination.height/first.destination.width;
     let crop:any;
     if(editorial) {
       const W=panel.observation.W,H=panel.observation.H;
@@ -4123,7 +4486,7 @@ function compileTemplateCameraPlan(plan:any, observations:any[], layout:any, fps
       // The merged references are the same person across time, except in an
       // explicit together shot. Use one target with all refs in single panels.
       if(shot.style==='speaker')shot.subjects=[{faceId:selected[0].id,faceIds:selected.slice(1).map(f=>f.id)} as any];
-      const r=editorialPersonRegions([shot],[...selected,...others],[{resourceId:first.resourceId,meta:{frameSize:{width:W,height:H}}}],{...layout,windowTop:layout.windowTop+first.slot*windowH,windowBottom:layout.windowTop+(first.slot+1)*windowH})[0].regions[0];
+      const r=editorialPersonRegions([shot],[...selected,...others],[{resourceId:first.resourceId,meta:{frameSize:{width:W,height:H}}}],{...layout,cellDestination:compositionDestination(first.style,first.slot,layout)})[0].regions[0];
       crop=r.letterbox?{fit:'region',rect:{x:r.x*W,y:r.y*H,width:r.width*W,height:r.height*H},sourceW:W,sourceH:H}:{cx:(r.x+r.width/2)*W,cy:(r.y+r.height*.4)*H,w:r.width*W,sourceW:W,sourceH:H};
     } else if(first.style==='two-shot') {
       crop=cameraHeadroom(faces.map(q=>({xmin:q.x-q.w/2,xmax:q.x+q.w/2,ymin:q.headTop,ymax:q.headBottom})),panel.observation.W,panel.observation.H,windowH);
@@ -4135,13 +4498,14 @@ function compileTemplateCameraPlan(plan:any, observations:any[], layout:any, fps
     }
     for(const row of group) row.crop={...crop};
   }
+  for(const row of out)if(row.adjustment)row.crop=applyManualCrop({...row.crop,destination:row.destination},row.adjustment,row.crop.sourceW,row.crop.sourceH,layout.windowBottom-layout.windowTop);
   validateCompositionGeometry(out.map(row=>{
     const panel=row.framingFaces[0]?.panel||observations.flatMap(o=>o.available).find(p=>p.videoIndex===row.videoIndex&&p.resourceId===row.resourceId);
-    const W=panel.observation.W,H=panel.observation.H,h=row.crop.w*(layout.windowBottom-layout.windowTop)/row.count/1080;
+    const W=panel.observation.W,H=panel.observation.H,dst=compositionDestination(row.style,row.slot,layout),h=row.crop.w*dst.height/dst.width;
     return {startFrame:row.startFrame,endFrame:row.endFrame,compositionId:row.compositionId,slot:row.slot,sourceKey:row.resourceId,sourceWidth:W,sourceHeight:H,
       crop:row.crop.fit==='region'?row.crop.rect:row.crop.fit==='contain'?{x:0,y:0,width:W,height:H}:{x:row.crop.cx-row.crop.w/2,y:row.crop.cy-h*.4,width:row.crop.w,height:h},
       protectedRegions:row.framingFaces.map(f=>({x:f.x-f.w/2,y:f.headTop,width:f.w,height:f.headBottom-f.headTop})),
-      destination:(()=>{const cellH=(layout.windowBottom-layout.windowTop)/row.count,top=layout.windowTop+row.slot*cellH,r=row.crop.fit==='region'?row.crop.rect:row.crop.fit==='contain'?{width:W,height:H}:null;if(!r)return {x:0,y:top,width:1080,height:cellH};const scale=Math.min(1080/r.width,cellH/r.height);return {x:(1080-r.width*scale)/2,y:top+(cellH-r.height*scale)/2,width:r.width*scale,height:r.height*scale};})()};
+      destination:row.crop.fit?containedDestination(dst,row.crop.fit==='region'?row.crop.rect:{width:W,height:H}):dst};
   }),layout);
   return out.map(({framingKey,framingFaces,...row})=>row);
 }
@@ -4320,12 +4684,12 @@ Reference IDs are local to an observation unit, NOT identities. A pan, zoom or s
 Identity-reference-only sheets provide appearance, not speech evidence. Light-ASD AVA scores are uncalibrated logits: positive supports speaking, negative opposes it; absence means unknown. Anchor speaker mapping in sustained evidence and pictures. Transcript speaker labels can be wrong. Do not claim full lip-sync verification from sampled observations.
 
 EXECUTION CONTRACT
-Only choose supplied camera keys and observed refs. speaker has one target; stacked has two ordered panels with distinct subjects; two-shot has one camera and two distinct targets; wide contains its camera and requires template permission. No duplicate person from two angles. Code computes geometry, never substitutes subjects or layouts.
+Only choose supplied camera keys and observed refs. speaker has one target; split layouts have 2, 3 or 4 ordered panels with distinct subjects according to their preset; two-shot has one camera and two distinct targets; wide contains its camera and requires template permission. No duplicate person from two angles. Code computes geometry, never substitutes subjects or layouts.
 Reuse compositionId when returning to the same ordered subjects/cameras/layout/source framing. A real source-layout change requires a new ID. Fixed geometry includes the whole composition, even across silence edits and reaction holds.
 Choose a together shot when the selected people belong in the same camera view. Code preserves both people, allowing letterboxing when filling the window would cut a head. Do not change your editorial layout just to fill the window. Never calculate crop coordinates or zoom. Do not insert tiny cuts to reset geometry.
 
 INPUT_JSON
-${JSON.stringify({version:1,draftId,durationFrames:Math.max(...units.map((u:any)=>u.endFrame)),draftFps:fps,capabilities:{layouts:['speaker','stacked','two-shot','wide'],cameras:[...new Set(observations.flatMap(o=>o.available.map((p:any)=>String(p.videoIndex))))],continuousTracking:false},template:{...layout,closeUp:undefined,faceY:undefined,edgeInset:undefined},referenceImages:motionEvidence,activeSpeakers,turns:cameraDialogueTurns(words),observations:evidence})}
+${JSON.stringify({version:1,draftId,durationFrames:Math.max(...units.map((u:any)=>u.endFrame)),draftFps:fps,capabilities:{layouts:['speaker',...permittedSplits(layout),'two-shot','wide'],cameras:[...new Set(observations.flatMap(o=>o.available.map((p:any)=>String(p.videoIndex))))],continuousTracking:false},template:{...layout,closeUp:undefined,faceY:undefined,edgeInset:undefined},referenceImages:motionEvidence,activeSpeakers,turns:cameraDialogueTurns(words),observations:evidence})}
 
 OUTPUT_JSON
 ${COMPOSITION_PLAN_SCHEMA}
@@ -4368,6 +4732,8 @@ async function requestTemplateCameraPlan({sdk,guard,draftId,prompt,images,observ
       continue;
     }
     await note({...response,status:'accepted',placements:result.length});
+    plan=resolveCompositionGroups(plan,replay.flatMap(o=>o.options.map(f=>({id:f.id,camera:String(f.panel.videoIndex),box:{xmin:f.x-f.w/2,xmax:f.x+f.w/2,ymin:f.y-f.h/2,ymax:f.y+f.h/2}}))),layout);
+    note({plan:'editable-camera-plan',planValue:plan,observations:replay,fps,layout});
     note({plan:'template-camera-plan',shots:plan.shots,speakerMap:plan.speakerMap,placements:result.length});
     return result;
   }
@@ -4453,7 +4819,7 @@ function validateCameraEditPlan(plan:any,observations:any[],allowSplit:boolean):
     if(shot.secondary!=null && (!allowSplit||shot.primary===null||shot.secondary===shot.primary||shot.distinctPeople!==true)) throw new Error('Split requires permission and two distinct observed people.');
     for(const key of ['closeUp','faceY']) if(shot[key]!==undefined && (!Number.isFinite(shot[key])||shot[key]<(key==='closeUp'?2:25)||shot[key]>(key==='closeUp'?12:65))) throw new Error('Crop settings must be closeUp 2-12 and faceY 25-65.');
     for(const o of observations.filter(o=>o.unit.startFrame<shot.endFrame&&o.unit.endFrame>shot.startFrame)) {
-      for(const id of [shot.primary,shot.secondary].filter(id=>id!=null)) if(!o.options.some(f=>f.id===id)) throw new Error(`Selected person is not observed throughout this shot: ${id} has no mapped reference in [${o.unit.startFrame},${o.unit.endFrame}). Available: ${o.options.map(f=>f.id).join(', ')}. Link the matching observed person in speakerMap for every overlapping unit, or choose a supported camera. Do not create a cut merely for a reference change.`);
+      for(const id of (shot.selectedIds||[shot.primary,shot.secondary]).filter((id:any)=>id!=null)) if(!o.options.some(f=>f.id===id)) throw new Error(`Selected person is not observed throughout this shot: ${id} has no mapped reference in [${o.unit.startFrame},${o.unit.endFrame}). Available: ${o.options.map(f=>f.id).join(', ')}. Link the matching observed person in speakerMap for every overlapping unit, or choose a supported camera. Do not create a cut merely for a reference change.`);
     }
     cursor=shot.endFrame;
   }
@@ -5466,10 +5832,13 @@ function TemplateFramingSection({ ui, S, lang, draft, profile }: any) {
         {profile.reframe && edit.layout.reframe ? num("layout.faceY", S.faceY, 25, 65, "%", 40) : null}
           {[
             ['reframeFocus','\ud654\uba74\uc5d0 \ub2f4\uc744 \ub300\uc0c1','Show',[['speaker','\ub9d0\ud558\ub294 \uc0ac\ub78c \uc704\uc8fc','Speaker'],['reactions','\ub4e3\ub294 \uc0ac\ub78c\uc758 \ubc18\uc751\ub3c4','Reactions'],['context','\ub300\ud654 \uc804\uccb4','Context']],'reactions'],
-            ['splitPolicy','\uc0c1\ud558 \ubd84\ud560','Stacked split',[['never','\uc0ac\uc6a9 \uc548 \ud568','Never'],['selective','\ud544\uc694\ud560 \ub54c','Selective'],['frequent','\uc801\uadf9 \ud65c\uc6a9','Frequent']],'selective'],
+            ['splitPolicy','\ubd84\ud560 \uc0ac\uc6a9','Split frequency',[['never','\uc0ac\uc6a9 \uc548 \ud568','Never'],['selective','\ud544\uc694\ud560 \ub54c','Selective'],['frequent','\uc801\uadf9 \ud65c\uc6a9','Frequent']],'selective'],
             ['widePolicy','\uc640\uc774\ub4dc\uc0f7','Wide shots',[['never','\uc0ac\uc6a9 \uc548 \ud568','Never'],['essential','\uaf2d \ud544\uc694\ud560 \ub54c','Essential'],['free','\uc790\uc720\ub86d\uac8c','Free']],'never'],
             ['reframePacing','\ud654\uba74 \uc804\ud658 \ube48\ub3c4','Pacing',[['calm','\ucc28\ubd84\ud558\uac8c','Calm'],['balanced','\ubcf4\ud1b5','Balanced'],['dynamic','\uc5ed\ub3d9\uc801\uc73c\ub85c','Dynamic']],'balanced'],
           ].map(([key,ko,en,options,fallback]:any)=><ui.Segmented key={key} label={lang==='ko'?ko:en} value={edit.layout[key]||fallback} onChange={(v:string)=>set('layout',{...edit.layout,[key]:v,reframePreset:'custom'})} options={options.map(([value,k,e]:any)=>({value,label:lang==='ko'?k:e}))} disabled={saving}/>)}
+          <ui.Section title={lang==='ko'?'\ud5c8\uc6a9\ud560 \ubd84\ud560 \ubc30\uce58':'Allowed split layouts'}>
+            {SPLIT_LAYOUTS.map(value=><ui.Toggle key={value} label={(COMPOSITION_LABELS[lang]||COMPOSITION_LABELS.en)[value]} value={(edit.layout.allowedLayouts??['stacked']).includes(value)} onChange={(enabled:boolean)=>set('layout',{...edit.layout,allowedLayouts:enabled?[...new Set([...(edit.layout.allowedLayouts??['stacked']),value])]:(edit.layout.allowedLayouts??['stacked']).filter((x:string)=>x!==value),reframePreset:'custom'})} disabled={saving||edit.layout.splitPolicy==='never'}/>)}
+          </ui.Section>
           {text("layout.reframeInstructions",lang === "ko" ? "\ud654\uba74 \uad6c\uc131 \uc9c0\uce68 (AI \ucc38\uace0)" : "Framing instructions (AI guidance)")}
 
         </>}
@@ -6821,6 +7190,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const [countMode, setCountMode] = React.useState<string>("auto");
   const [count, setCount] = React.useState<number>(4);
   const [note, setNote] = React.useState<string>("");
+  const [fixedLayout,setFixedLayout]=React.useState("auto");
+  const [subjectInstructions,setSubjectInstructions]=React.useState("");
   const [busy, setBusy] = React.useState<boolean>(false);
   const [step, setStep] = React.useState<number>(-1);
   const [status, setStatus] = React.useState<string>("");
@@ -7437,13 +7808,22 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     }
   }
 
-  async function runTemplateReframing(draftId:string,job:any,tpl:any,note:(e:any)=>void,work:ReturnType<typeof createReframeWork>) {
+  async function runTemplateReframing(draftId:string,job:any,tpl:any,note:(e:any)=>void,work:ReturnType<typeof createReframeWork>,previousEdit?:any) {
     const id=JSON.stringify(draftId);
     const before=await script(`const d=selects.draft(${id}); return {meta:await d.meta(),words:await d.words()};`,"Read framing baseline");
-    if(before.meta.videoAngles.length<2) return runAgentReframing({sdk,guard,projectId,draftId,layout:tpl.layout,note,work});
+    if(previousEdit?.plan?.shots?.some((s:any)=>s.locked)){
+      if(previousEdit.duration!==before.meta.durationFrames||previousEdit.fps!==before.meta.fps||previousEdit.words&&framingWordsKey(previousEdit.words)!==framingWordsKey(before.words))throw Error('Locked shots no longer match the Draft. Unlock or restore the original timing first.');
+      if(previousEdit.mediaKey&&previousEdit.mediaKey!==framingMediaKey(await guard(sdk.call('getDraftMediaSnapshot',projectId,draftId))))throw Error('Locked shots no longer match the source footage.');
+    }
+    if(before.meta.videoAngles.length<2) return runAgentReframing({sdk,guard,projectId,draftId,layout:tpl.layout,note,work,previousEdit,store});
+    if(previousEdit?.plan?.shots?.some((s:any)=>s.locked)&&(previousEdit.layout.windowTop!==tpl.layout.windowTop||previousEdit.layout.windowBottom!==tpl.layout.windowBottom))throw Error('Unlock saved shots before changing the video window.');
     note({plan:'template-reframe-start',draftId,preferences:reframingPreferences(tpl.layout)});
     if(tpl.layout.cameraMode==='preserve') return {draftId,status:'complete',summary:'Template preserves camera framing.',verifiedFrames:[],limitations:['No camera changes requested.']};
-    const camera=await prepareCameraFraming(draftId,tpl,note,work);
+    let editContext:any=null;
+    const captureNote=(e:any)=>{if(e.plan==='editable-camera-plan')editContext={kind:'camera',plan:e.planValue,observations:e.observations,fps:e.fps,layout:e.layout,duration:before.meta.durationFrames,words:before.words};else note(e);};
+    const camera=await prepareCameraFraming(draftId,tpl,captureNote,work);
+    camera.cameraPanels=mergeLockedCameraRows(camera.cameraPanels,previousEdit?.rows||[],before.meta.fps);
+    if(editContext){const retained=retainLockedCameraContext(previousEdit,editContext.observations,editContext.plan);editContext={...editContext,...retained,rows:camera.cameraPanels};}
     const P={projectId,draftId,sourceKind:job.sourceKind,sourceDraftId:job.sourceDraftId,resourceId:job.resourceId,resourceName:job.resourceName,
       transform:cropTransform(tpl.layout),frame:{windowTop:tpl.layout.windowTop,windowBottom:tpl.layout.windowBottom},
       reframe:[{start:0,end:1e9,cx:960,w:1920}],...camera,stackEffect:STACKED_REFRAME_EFFECT};
@@ -7467,7 +7847,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       const preview=await guard(visualWork(async()=>{work.check();await guard(Promise.resolve());note({plan:'stage',stage:'verify'});return sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:draftId,sequenceJson:core.sequenceJson,generatorJsons:core.generatorJsons,coordinate:'resolved',frames:batch.map(frameNumber=>({frameNumber,view:'timeline_composite'})),includeOverlays:true});}));
       if(!preview?.data||!batch.every(f=>preview.frames?.some((r:any)=>r.frameNumber===f&&r.hasSourceImage))) throw new Error('Template preview did not render every requested frame');
     }
-    const report={draftId,status:'complete',summary:'AI selected template camera layouts; code applied crops and silent camera panels.',verifiedFrames:frames,limitations:['Bounded audio-visual active-speaker samples and transcript labels; not continuous identity or lip-sync verification.','Preview frames were rendered; this is not an independent visual quality approval.']};
+    if(editContext)editContext.mediaKey=framingMediaKey(await guard(sdk.call('getDraftMediaSnapshot',projectId,draftId)));
+    const report={draftId,editContext,status:'complete',summary:'AI selected template camera layouts; code applied crops and silent camera panels.',verifiedFrames:frames,limitations:['Bounded audio-visual active-speaker samples and transcript labels; not continuous identity or lip-sync verification.','Preview frames were rendered; this is not an independent visual quality approval.']};
     note({plan:'template-reframe-result',draftId,report});return report;
   }
 
@@ -7878,9 +8259,59 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     return { clips, recommendedCount: j.recommendedCount ?? clips.length, countReason: j.countReason || "", fixes: Array.isArray(j.fixes) ? j.fixes : [], captionOmissions: (tpl.captions.cleanSpeechText === true) && Array.isArray(j.captionOmissions) ? j.captionOmissions : [] };
   }
 
+  async function editResultFraming(job:any,draft:any,index:number,shot:any) {
+    if(busy||overlayLock.current)throw Error('Another edit is in progress');
+    const context=draft.framingEditPending||draft.reframeReport?.editContext;
+    if(!context||job.projectId!==projectId)throw Error('Framing context is unavailable');
+    overlayLock.current=true;setBusy(true);
+    const read=`const p=selects.project(${JSON.stringify(projectId)});if(!(await p.meta()).draftIds.includes(${JSON.stringify(draft.draftId)}))throw Error('Draft ownership changed');const d=selects.draft(${JSON.stringify(draft.draftId)});return {meta:await d.meta(),words:await d.words()};`;
+    try {
+      const before=await script(read,'Check framing edit target');
+      if(before.meta.durationFrames!==context.duration||before.meta.fps!==context.fps)throw Error('Draft timing changed. Reframe before editing this shot.');
+      if(context.words&&framingWordsKey(before.words)!==framingWordsKey(context.words))throw Error('Draft dialogue changed. Reframe before editing this shot.');
+      if(context.mediaKey&&context.mediaKey!==framingMediaKey(await sdk.call('getDraftMediaSnapshot',projectId,draft.draftId)))throw Error('Draft source footage changed. Reframe before editing this shot.');
+      const layout=manualFramingLayout(context.layout),plan=JSON.parse(JSON.stringify(context.plan));
+      if(!plan.shots[index]||plan.shots[index].startFrame!==shot.startFrame||plan.shots[index].endFrame!==shot.endFrame)throw Error('Shot interval changed');
+      plan.shots[index]=shot;
+      const updated={...context,plan,pendingIndex:index};
+      let code:string;
+      if(context.kind==='source') {
+        const adapted=sourceCompositionAdapter(plan,context.sources,context.duration,layout,context.catalog);
+        const measured=measuredFaceShots([adapted.shots[index]],context.catalog,context.sources,layout);
+        // Retain already resolved geometry in every other interval, including
+        // limited/preserved ranges that the user has not chosen to change.
+        updated.appliedShots=context.appliedShots.flatMap((s:any)=>{if(s.endFrame<=shot.startFrame||s.startFrame>=shot.endFrame)return [s];return [...(s.startFrame<shot.startFrame?[{...s,endFrame:shot.startFrame}]:[]),...(s.startFrame<=shot.startFrame?measured:[]),...(s.endFrame>shot.endFrame?[{...s,startFrame:shot.endFrame}]:[])];});
+        checkSourceCompositionGeometry(compileSourceCropPlan(updated.appliedShots,context.sources,context.duration,layout),layout);
+        code=sourceCropApplyScript(projectId,draft.draftId,layout,context.sources,context.duration).replace('__SHOTS__',JSON.stringify(updated.appliedShots));
+      } else {
+        const rows=compileTemplateCameraPlan(plan,context.observations,layout,context.fps);
+        updated.rows=rows.filter((r:any)=>r.startFrame>=shot.startFrame&&r.endFrame<=shot.endFrame).concat(context.rows.filter((r:any)=>r.endFrame<=shot.startFrame||r.startFrame>=shot.endFrame)).sort((a:any,b:any)=>a.startFrame-b.startFrame||a.slot-b.slot);
+        const P={projectId,draftId:draft.draftId,sourceKind:job.sourceKind,sourceDraftId:job.sourceDraftId,resourceId:job.resourceId,resourceName:job.resourceName,transform:cropTransform(layout),frame:{windowTop:layout.windowTop,windowBottom:layout.windowBottom},reframe:[{start:0,end:1e9,cx:960,w:1920}],cameraPanels:updated.rows,stackEffect:STACKED_REFRAME_EFFECT};
+        code=SCRIPT_APPLY_REFRAME.replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
+      }
+      // Save the intent before host mutation: a transport timeout must not lose
+      // the user's edits or allow regeneration to overwrite them unnoticed.
+      const pending={...job,updated:new Date().toISOString(),built:job.built.map((d:any)=>d?.draftId===draft.draftId?{...d,framingEditPending:updated}:d)};
+      await saveJob(pending);
+      setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==pending.id),pending],projectId));
+      await visualWork(()=>script(code,'Apply shot framing',true));
+      const after=await script(read,'Verify shot framing timing');
+      if(after.meta.durationFrames!==before.meta.durationFrames||framingWordsKey(before.words)!==framingWordsKey(after.words))throw Error('Framing changed dialogue or timing. Inspect the Draft.');
+      updated.mediaKey=framingMediaKey(await sdk.call('getDraftMediaSnapshot',projectId,draft.draftId));
+      delete updated.pendingIndex;
+      let thumbnail:any=null;
+      try {thumbnail=await loadDraftThumbnail(store,sdk,projectId,job.id,draft.draftId,true);}catch {/* Geometry/timing verification remains valid if preview rendering fails. */}
+      const saved={...pending,built:pending.built.map((d:any)=>d?.draftId===draft.draftId?{...d,framingEditPending:null,thumbnailPath:thumbnail?.thumbnailPath,thumbnailCapturedAt:new Date().toISOString(),reframeReport:{...d.reframeReport,editContext:updated,verification:{kind:'geometry-and-timing',status:'passed'},visualReview:{status:'not-run'}}}:d)};
+      await saveJob(saved);
+      setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==saved.id),saved],projectId));
+      setDrafts(saved.built.filter(Boolean));
+    } finally {overlayLock.current=false;setBusy(false);}
+  }
+
   async function run(resume?: any, onlyDraftId?: string, forceReframe = false) {
     if(overlayLock.current||busy||packLock.current)return;
     if (templateDirty || templateSaving) { setTab("templates"); return; }
+    if(resume?.built?.some(d=>d?.framingEditPending)){setError('A previous framing edit was interrupted. Reapply that shot before regenerating.');return;}
     setError("");
     if (!projectId) return setError(S.noProject);
     if (!templates.length) return setError(K.empty);
@@ -7901,7 +8332,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       },
     };
     runRef.current = token;
-    let job: any = resume ?? { id: Date.now().toString(36), usageTracking: true, sharedUsageCalls: [], projectId, created: new Date().toISOString(), mode, url: url.trim(), pick, program, countMode, count, note };
+    let job: any = resume ?? { id: Date.now().toString(36), usageTracking: true, sharedUsageCalls: [], projectId, created: new Date().toISOString(), mode, url: url.trim(), pick, program, countMode, count, note, fixedLayout, subjectInstructions };
     setRunInfo(job);
     let revealedResults = false;
     // Snapshot at enqueue time and serialize disk writes across concurrent clips.
@@ -7970,9 +8401,13 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         if (!key) throw new Error(S.unsupported);
         await persist({ key, why });
       }
-      // Templates now always use the saved primary design, regardless of legacy platform choices.
-      const tpl = list.find((t: any) => t.id === job.key);
+      const baseTemplate = list.find((t: any) => t.id === job.key);
+      const tpl=baseTemplate?{...baseTemplate,layout:{...baseTemplate.layout,fixedLayout:job.fixedLayout||"auto",subjectInstructions:job.subjectInstructions||""}}:null;
       if (!tpl) throw new Error(S.templateGone);
+      if(tpl.layout.fixedLayout!=='auto'){
+        if(!tpl.layout.reframe)throw Error(lang==='ko'?'\uace0\uc815 \ubc30\uce58\ub294 \uc790\ub3d9 \ud654\uba74 \uad6c\uc131\uc744 \uc0ac\uc6a9\ud558\ub294 \ud15c\ud50c\ub9bf\uc5d0\uc11c \uc9c0\uc6d0\ud569\ub2c8\ub2e4.':'Fixed layouts require an automatic framing template.');
+        assertCompositionLayout(tpl.layout.fixedLayout,tpl.layout);
+      }
       await persist({templateName:nameOf(tpl,lang),coverConfig:job.coverConfig||coverSettings(tpl)});
       setInfo({ key: job.key, why: job.why });
       setStep(3);
@@ -8098,7 +8533,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             if (entry.plan === 'stage') void persist({built:made,choice:pickd,resultWarning}).catch(e=>{progressSaveError=e;});
           };
           try {
-            const report=await runTemplateReframing(made[i].draftId,job,tpl,note,work);
+            const report=await runTemplateReframing(made[i].draftId,job,tpl,note,work,made[i].reframeReport?.editContext);
             made[i] = {...made[i],reframeReport:report,reframeState:"done",progressStage:"thumbnail",progressAt:Date.now(),error:undefined};
           } catch (e: any) {
             if (e instanceof RunCancelled) throw e;
@@ -8261,6 +8696,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           }}
           options={countOptions}
         />
+        <ui.Select label={lang==='ko'?'\ud654\uba74 \ubc30\uce58':'Screen layout'} value={fixedLayout} onChange={setFixedLayout} options={[{value:'auto',label:lang==='ko'?'\uc790\ub3d9 · \ud15c\ud50c\ub9bf \uc124\uc815 \uc0ac\uc6a9':'Automatic · template settings'},...['speaker',...SPLIT_LAYOUTS].map(value=>({value,label:(COMPOSITION_LABELS[lang]||COMPOSITION_LABELS.en)[value]}))]}/>
+        <ui.TextField label={lang==='ko'?'\ud654\uba74 \uad6c\uc131 \ucd94\uac00 \uc9c0\uc2dc (\uc120\ud0dd)':'Composition instructions (optional)'} value={subjectInstructions} onChange={setSubjectInstructions} placeholder={lang==='ko'?'\uc608: \uc6d0\ubcf8 4\ubd84\ud560\uc740 \uc720\uc9c0\ud558\uace0 \uc804\uccb4\uc0f7\uc740 \ubaa8\ub4e0 \ucd9c\uc5f0\uc790\uac00 \ubcf4\uc774\ub3c4\ub85d \uc88c\uc6b0 3\ubd84\ud560\ub85c':'E.g. preserve existing four-way shots; arrange wide shots into three columns with everyone visible'}/>
         <ui.TextField label={S.note} value={note} onChange={setNote} placeholder={S.notePh} />
           </ui.Stack>
         </ui.Stack>
@@ -8352,7 +8789,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           options={[{value:"__latest__",label:`${R.latest} · ${resultJobLabel(history[0],lang,R)}`},
             ...history.slice(1).map(j=>({value:j.id,label:resultJobLabel(j,lang,R)}))]} /></div>
         <div style={{marginBottom:12}}><ui.Button variant="secondary" disabled={busy} onClick={()=>run(shownResult,undefined,true)}>{lang==="ko"?"\uc804\uccb4 \ud654\uba74 \uad6c\uc131 \ub2e4\uc2dc":"Reframe all clips"}</ui.Button></div>
-        <DraftResults coverContext={{job:shownResult,config:coverSettings(shownTemplate||{thumbnail:shownResult.coverConfig}),lang,disabled:busy}} drafts={shownDrafts} busy={busy} onRetry={(id:string)=>run(shownResult,id)} template={shownResult.templateName || (shownTemplate ? nameOf(shownTemplate,lang) : "")}
+        <DraftResults onEditFraming={(d:any,index:number,shot:any)=>editResultFraming(shownResult,d,index,shot)} coverContext={{job:shownResult,config:coverSettings(shownTemplate||{thumbnail:shownResult.coverConfig}),lang,disabled:busy}} drafts={shownDrafts} busy={busy} onRetry={(id:string)=>run(shownResult,id)} template={shownResult.templateName || (shownTemplate ? nameOf(shownTemplate,lang) : "")}
           sdk={sdk} store={store} jobId={shownResult.id} projectId={projectId} visibleDraftId={visibleDraftId} opening={openingDraft} onOpen={openDraft}
           overlayControl={<ui.Stack gap={4}><ui.Toggle
             label={O.title}
