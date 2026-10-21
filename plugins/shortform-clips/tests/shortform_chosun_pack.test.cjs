@@ -1,8 +1,8 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 test('Chosun migration preserves requested designs with explicit Premiere corrections and original image bytes',()=>{
  const root=path.join(__dirname,'../template-packs/chosun-ilbo'),manifest=JSON.parse(fs.readFileSync(path.join(root,'pack.json'))),baseline=require('./fixtures/chosun-legacy-template-summary.json');
- assert.equal(manifest.templates.length,6);assert.equal(manifest.assets.length,11);assert.equal(manifest.requiresApp.templateApi,2);
- assert.deepEqual(manifest.templates.map(x=>path.basename(x,'.json')).sort(),['health','heukbaek','history','money','panilgi','villain']);
+ assert.equal(manifest.templates.length,7);assert.equal(manifest.assets.length,12);assert.equal(manifest.requiresApp.templateApi,2);
+ assert.deepEqual(manifest.templates.map(x=>path.basename(x,'.json')).sort(),['health','heukbaek','history','money','panilgi','parenting','villain']);
  assert.equal(manifest.legacy.templateIds.kimkwangil,undefined);
  assert.ok(!manifest.assets.some(x=>x.includes('kimkwangil')));
  const corrections=require('./fixtures/chosun-premiere-corrections.json').overrides;
@@ -31,4 +31,23 @@ test('Heukbaek defaults enable automatic grouping without forcing splits on sing
  assert.deepEqual(t.layout.allowedLayouts,['columns-3','grid-4']);
  assert.equal(t.layout.cropMotion,'fixed');
  assert.ok(t.layout.reframeInstructions.length>0);
+});
+
+// Premiere active RSV title and the exact customer-supplied frame are the migration contract.
+test('Parenting preserves Premiere title metrics and the customer frame with its embedded logo',()=>{
+ const root=path.join(__dirname,'../template-packs/chosun-ilbo');
+ const t=JSON.parse(fs.readFileSync(path.join(root,'templates/parenting.json')));
+ assert.equal(t.headline.font,'OTRecipekoreaM');
+ assert.equal(t.headline.size1,74);assert.equal(t.headline.size2,73.83333587646484);
+ assert.equal(t.headline.color2,'#FFB7C8');assert.equal(t.headline.rowGap,102.40504575520754);
+ assert.equal(t.background.canvasAligned,true);assert.equal(t.logo.mode,'none');
+ assert.equal(t.captions.font,'Hakgyoansim Allimjang');
+ assert.equal(t.captions.fontWeight,400);
+ assert.equal(t.captions.boxColor,'#343434A6');
+ assert.equal(t.captions.boxPerLine,true);
+ assert.equal(t.captions.boxPaddingX,20);
+ assert.equal(t.captions.boxPaddingTop,5);
+ assert.equal(t.captions.boxPaddingBottom,5);
+ assert.equal(t.captions.highlight,false);
+ assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root,t.background.image))).digest('hex'),'64ed25a3c492d375bb172944b076963e8bb38fb8b4c552528f19efa968eddb78');
 });
