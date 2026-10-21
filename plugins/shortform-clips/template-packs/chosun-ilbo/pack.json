@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "chosun-ilbo",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "name": "Chosun Ilbo",
   "names": {
     "en": "Chosun Ilbo",
@@ -16,7 +16,8 @@
     "templates/panilgi.json",
     "templates/history.json",
     "templates/villain.json",
-    "templates/money.json"
+    "templates/money.json",
+    "templates/health.json"
   ],
   "assets": [
     "assets/heukbaek-background.webp",
@@ -28,7 +29,8 @@
     "assets/villain-background.webp",
     "assets/villain-logo.webp",
     "assets/money-background.webp",
-    "assets/money-logo.webp"
+    "assets/money-logo.webp",
+    "assets/health-frame.png"
   ],
   "legacy": {
     "appId": "chosun-clips",

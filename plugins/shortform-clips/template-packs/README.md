@@ -270,3 +270,23 @@ the runScript inline budget, the panel writes an ASCII JSON parameter file and t
 build script reads it through bounded SDK file reads. It does not compress images
 to fit the script argument limit. Older already-compressed saved images cannot be
 restored automatically; upload their original files again.
+
+Per-line caption backgrounds can opt into `captions.boxPerLine`. In this mode
+`boxPaddingX`, `boxPaddingTop`, `boxPaddingBottom`, `boxLineHeight`,
+`letterSpacing` and `shadowCss` control each line. `rowGap` is the desired
+baseline distance in pixels; boxes never overlap when their padding is larger
+than this distance. Existing templates retain the shared background by default.
+
+`headline.offsetX1` and `headline.offsetX2` are optional horizontal pixel offsets
+from the centered title layout (-540 to 540). They default to zero.
+
+For glyph-based backgrounds, set `captions.boxBounds: "ink"` together with
+`boxPerLine: true` and `baselineBottom` (0..1920). This measures loaded font
+ink bounds rather than CSS line boxes; `rowGap` sets fixed baseline spacing.
+Padding may overlap if it exceeds that spacing. Long lines fit measured width.
+
+`headline.shadowSpec` and `captions.shadowSpec` optionally specify `color`
+(hex RGB), `opacity` (0..1), `angle` (0..360; clockwise from up), `distance`,
+`size`, and `blur` in output pixels. The SVG shadow applies dilation radius
+`size / 2` and Gaussian sigma `blur / 6`; this is an approximate Premiere
+conversion. Existing templates keep their CSS shadows without this object.

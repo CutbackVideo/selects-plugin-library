@@ -1,8 +1,8 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 test('Chosun migration preserves requested designs with explicit Premiere corrections and original image bytes',()=>{
  const root=path.join(__dirname,'../template-packs/chosun-ilbo'),manifest=JSON.parse(fs.readFileSync(path.join(root,'pack.json'))),baseline=require('./fixtures/chosun-legacy-template-summary.json');
- assert.equal(manifest.templates.length,5);assert.equal(manifest.assets.length,10);assert.equal(manifest.requiresApp.templateApi,2);
- assert.deepEqual(manifest.templates.map(x=>path.basename(x,'.json')).sort(),['heukbaek','history','money','panilgi','villain']);
+ assert.equal(manifest.templates.length,6);assert.equal(manifest.assets.length,11);assert.equal(manifest.requiresApp.templateApi,2);
+ assert.deepEqual(manifest.templates.map(x=>path.basename(x,'.json')).sort(),['health','heukbaek','history','money','panilgi','villain']);
  assert.equal(manifest.legacy.templateIds.kimkwangil,undefined);
  assert.ok(!manifest.assets.some(x=>x.includes('kimkwangil')));
  const corrections=require('./fixtures/chosun-premiere-corrections.json').overrides;

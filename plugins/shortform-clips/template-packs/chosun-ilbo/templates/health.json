@@ -1,0 +1,146 @@
+{
+  "id": "health",
+  "version": 1,
+  "names": {
+    "ko": "\uc774\ub7ec\uba74 \ub0ab\ub294\ub2e4",
+    "en": "This Makes You Better"
+  },
+  "detect": {
+    "keywords": [
+      "\uc774\ub7ec\uba74 \ub0ab\ub294\ub2e4",
+      "\uc774\ub7ec\uba74\ub0ab\ub294\ub2e4"
+    ],
+    "exclude": [],
+    "host": "\uc774\ub7ec\uba74 \ub0ab\ub294\ub2e4 \u2014 \uac74\uac15\u00b7\uc758\ud559 \uc124\uba85"
+  },
+  "layout": {
+    "windowTop": 394,
+    "windowBottom": 1500,
+    "sourceTop": 0,
+    "sourceBottom": 1080,
+    "offsetX": 0,
+    "headlineCenter": 243.44930374145514,
+    "logoCenter": 1660,
+    "reframe": false
+  },
+  "background": {
+    "mode": "image",
+    "style": "#AFC3C4",
+    "color": "#AFC3C4",
+    "image": "assets/health-frame.png",
+    "imageName": "Customer-supplied health frame",
+    "dim": 0,
+    "canvasAligned": true
+  },
+  "border": {
+    "on": false,
+    "color": "#C9A45C"
+  },
+  "headline": {
+    "font": "SDGyeokdongG206Hv",
+    "size1": 76.8,
+    "size2": 76.8715118408203,
+    "color1": "#FFFFFF",
+    "color2": "#17F5E8",
+    "box2On": false,
+    "box2": "#000000",
+    "italic": false,
+    "shadow": true,
+    "shadowCss": "1.38px 1.16px 0 #27282B",
+    "fontWeight": 400,
+    "lineHeight": 1.16,
+    "letterSpacing": 1.8432,
+    "fitWidth": 1010,
+    "fitPadding": 2,
+    "fitCjk": 1,
+    "fitSpace": 0.3,
+    "fitLatin": 0.65,
+    "fitOther": 0.65,
+    "fitWideLatin": 0.65,
+    "strokeOn": true,
+    "strokeWidth": 9,
+    "strokeColor": "#27282B",
+    "rowGap": 104.4,
+    "offsetX1": -5.315624875947833,
+    "offsetX2": -4.778393697808497,
+    "shadowSpec": {
+      "color": "#27282B",
+      "opacity": 1,
+      "angle": 130,
+      "distance": 1.7999999999999998,
+      "size": 2.4,
+      "blur": 0
+    }
+  },
+  "logo": {
+    "mode": "none",
+    "image": "",
+    "imageName": "Logo embedded in customer frame",
+    "width": 354
+  },
+  "captions": {
+    "on": true,
+    "mode": "box",
+    "barHeight": 230,
+    "bottom": 1455.1339992824555,
+    "fontSize": 79.0305,
+    "fontWeight": 400,
+    "boxColor": "#33353A99",
+    "color": "#FFFFFF",
+    "font": "SDGyeokdongG204Rg",
+    "lineMax": 14,
+    "boxPaddingTop": 17.6595879573822,
+    "boxPaddingBottom": 17.6595879573822,
+    "boxLineHeight": 0.9409941845966016,
+    "boxPaddingX": 17.6595879573822,
+    "boxPerLine": true,
+    "rowGap": 129.2,
+    "letterSpacing": 0,
+    "shadowCss": "0 6.14px 17.28px rgba(0,0,0,0.598)",
+    "left": 37.47998510261823,
+    "width": 1000,
+    "boxBounds": "ink",
+    "baselineBottom": 1424,
+    "shadowSpec": {
+      "color": "#000000",
+      "opacity": 0.5981734848022461,
+      "angle": 135,
+      "distance": 6.142465841293335,
+      "size": 2.242,
+      "blur": 17.27568531227112
+    }
+  },
+  "editing": {
+    "removeFillers": true,
+    "removeSilences": true
+  },
+  "prompt": {
+    "role": "\uc870\uc120\uc77c\ubcf4 \uac74\uac15 \ud504\ub85c\uadf8\ub7a8\uc758 \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4.",
+    "format": "\uc758\ub8cc \uc804\ubb38\uac00\uc758 \uc124\uba85\uc744 \ubb38\ub9e5\uc774 \uc644\uacb0\ub418\ub294 \uc20f\ud3fc\uc73c\ub85c \uad6c\uc131\ud55c\ub2e4.",
+    "good": "\uc99d\uc0c1, \uce58\ub8cc, \ud68c\ubcf5\uc5d0 \uad00\ud55c \uc9c8\ubb38\uacfc \uadf8\uc5d0 \ub300\ud55c \uc124\uba85",
+    "bad": "\uc911\uc694\ud55c \uc870\uac74\uc774\ub098 \uc608\uc678\ub97c \uc0dd\ub7b5\ud55c \ub2e8\uc815\uc801\uc778 \uc758\ud559 \uc8fc\uc7a5",
+    "lengthGuide": "\uc124\uba85\uc774 \uc644\uacb0\ub418\ub294 \uae38\uc774",
+    "countGuide": "\uc911\ubcf5\ub418\uc9c0 \uc54a\ub294 \uc644\uacb0\ub41c \uc124\uba85 \ub2e8\uc704\ub85c \uc120\uc815\ud55c\ub2e4.",
+    "rules": "\uc6d0\ubcf8\uc758 \uc870\uac74\uacfc \uc8fc\uc758\uc0ac\ud56d\uc744 \uc720\uc9c0\ud55c\ub2e4. \uc601\uc0c1\uc5d0 \uc5c6\ub294 \ud6a8\ub2a5\uc774\ub098 \uce58\ub8cc \uacb0\uacfc\ub97c \ucd94\uac00\ud558\uc9c0 \uc54a\ub294\ub2e4.",
+    "headline": "headline1\uc740 \uc124\uba85\uc758 \ud575\uc2ec, headline2\ub294 \uc8fc\uc81c. \uc6d0\ubcf8\uc5d0\uc11c \ud655\uc778\ub418\ub294 \ub0b4\uc6a9\ub9cc \uc4f4\ub2e4."
+  },
+  "schemaVersion": 1,
+  "labels": {
+    "top": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 100,
+      "size": 40,
+      "weight": 800
+    },
+    "footer": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 1750,
+      "size": 40,
+      "weight": 800
+    }
+  }
+}
