@@ -57,3 +57,6 @@ its default behavior and has an additional explicit no-declarations mode for
 this regression. TypeScript 5.8.3 with prerequisite declarations and TypeScript
 5.9.3 with installed/absent declarations are verified; the latter focused suite
 passes 125 cases. Camera's only production change is that shared source guard.
+
+CI explicitly runs the bundled-Audio and source-window regression files (81
+cases) in addition to the existing durable-run and photo checks.
