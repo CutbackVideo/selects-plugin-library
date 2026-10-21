@@ -54,6 +54,10 @@ test('template pack update button follows the published catalog without the GitH
   await assert.rejects(api.readCatalogPackManifest('sbs-radio',commit,remote({manifestStatus:500}).fetcher),e=>e.code==='network');
   await assert.rejects(api.readCatalogPackManifest('sbs-radio',commit,async()=>{throw new TypeError('offline');}),e=>e.code==='network');
   await assert.rejects(api.readCatalogPackManifest('sbs-radio',commit,async()=>new Response(Buffer.alloc(70*1024))),e=>e.code==='tooLarge');
+  let pulled=0;const endless=new ReadableStream({pull(c){pulled++;c.enqueue(new Uint8Array(16*1024));}});
+  await assert.rejects(api.readCatalogPackManifest('sbs-radio',commit,async()=>new Response(endless)),e=>e.code==='tooLarge');
+  assert.ok(pulled<=6,'stops reading soon after the limit');
+  await assert.rejects(api.readCatalogPackManifest('sbs-radio',commit,async()=>new Response('{}',{headers:{'Content-Length':String(1<<20)}})),e=>e.code==='tooLarge');
   await assert.rejects(api.readCatalogPackManifest('sbs-radio',commit,async()=>new Response('{not json')),e=>e.code==='network');
   const other=JSON.parse(fs.readFileSync(path.join(realPack,'pack.json')));other.id='hankook-ilbo';
   await assert.rejects(api.readCatalogPackManifest('sbs-radio',commit,async()=>new Response(JSON.stringify(other))),e=>e.code==='notFound');

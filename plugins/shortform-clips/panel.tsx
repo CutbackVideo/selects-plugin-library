@@ -1204,8 +1204,22 @@ async function readCatalogPackManifest(packId: string, commit: string, fetcher: 
   catch { throw new PackLinkError("network"); }
   if (response.status === 404) { await response.body?.cancel(); return null; }
   if (!response.ok) { await response.body?.cancel(); throw new PackLinkError("network"); }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.length > PACK_MANIFEST_MAX_BYTES) throw new PackLinkError("tooLarge");
+  if (Number(response.headers.get("Content-Length")) > PACK_MANIFEST_MAX_BYTES) { await response.body?.cancel(); throw new PackLinkError("tooLarge"); }
+  // Stop reading as soon as the limit is passed instead of buffering an oversized body.
+  const reader = response.body?.getReader();
+  if (!reader) throw new PackLinkError("network");
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > PACK_MANIFEST_MAX_BYTES) throw new PackLinkError("tooLarge");
+      chunks.push(value);
+    }
+  } finally { await reader.cancel().catch(()=>{}); reader.releaseLock(); }
+  const bytes = joinBytes(chunks);
   let data: any;
   try { data = JSON.parse(dec(bytes)); } catch { throw new PackLinkError("network"); }
   const manifest = validatePackManifest(data);
