@@ -5,6 +5,10 @@ description: Build the beat-synced "stop motion" photo format - four photos cycl
 
 # Four Photo Stop Motion
 
+The bundled MP3 uses the generalized bundled-asset implementation through its
+existing Audio compatibility entry. MP3 paths, Resource-ID results, SDK summaries
+and Audio error codes remain compatible; Draft and timing rules are unchanged.
+
 Use this plugin when the user asks for this stop-motion photo format. The format is fixed; the four photos are the user's.
 
 **Format (measured from the reference at 30 fps; 3:4, 1080x1440, 11.57 s).** Frame numbers below are at 30 fps. New Drafts use the app's default frame rate (for example 23.976), and the plugin converts every time to that rate.

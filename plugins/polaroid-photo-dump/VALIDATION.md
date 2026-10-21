@@ -1,6 +1,12 @@
 # Validation
 
-## Current repair checkpoint: 0.1.8
+## Current repair checkpoint: 0.1.9
+
+The generalized bundled-asset feature adds manifest/hash/byte verification,
+content-addressed PNG/M4A publication and bounded confirmed Resource imports.
+These new compiled-panel checks supplement the input/connection repair below;
+they are not installed playback/export evidence. See
+`docs/template-repair/bundled-assets.md` in the source repository.
 
 The historical reference/export runs below belong to their stated older versions.
 They do not validate this shared input/connection repair in an installed app.

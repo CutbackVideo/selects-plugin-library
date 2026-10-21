@@ -52,6 +52,9 @@ export function loadPanelFunctions(source, names, globals = {}) {
     } };
   }
   const parts = [hostBlock(source) || ''];
+  // Load the actual cohesive asset feature when a named consumer is inspected.
+  // Serialized SDK readers are still executed independently by each test host.
+  if (source.includes('// bundled-assets:start')) parts.push(source.slice(source.indexOf('// bundled-assets:start'),source.indexOf('// bundled-assets:end')));
   if (source.includes('// sdk-selected-media:start') && !names.includes('sdkSelectedMedia')) parts.push(topLevel(source, 'sdkSelectedMedia'));
   if (source.includes('// sdk-media-path:start') && !names.includes('sdkMediaByPath')) parts.push(topLevel(source, 'sdkMediaByPath'));
   for (const name of ['generationApi', 'generationNeed']) if (source.includes('function ' + name + '(') && !names.includes(name)) parts.push(topLevel(source, name));

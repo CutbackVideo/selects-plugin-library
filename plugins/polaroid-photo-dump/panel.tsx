@@ -24,7 +24,8 @@ const SLOTS=17;
 // Photo n shows from CUTS[n] to CUTS[n+1]; the last one to the end. Cuts fall on
 // every second beat of the music (0.85 s).
 const CUTS=[0,21,71,122,174,224,274,326,376,428,479,530,581,633,683,736,786];
-const END=835;
+const END=835,MIN_DRAFT_FPS=10;
+export function minimumMusicSeconds(){return END/60+.5/MIN_DRAFT_FPS;}
 export const SLOT_COUNT=CUTS.length;
 // The whole scene (fabric, frame and photo) zooms in linearly about ZOOM_CENTER:
 // the frame is 579 px wide at 0 s and 668 px at 12 s. The caption does not zoom.
@@ -34,7 +35,7 @@ export const WINDOW={x:277,y:575,width:527,height:685};
 export const CAPTION={text:'\u201cphotos hold memories\u201d',top:333,size:58,fontFamily:'Helvetica Neue'};
 
 export function scenePlan(fps=30){
- if(!Number.isFinite(fps)||fps<10||fps>120)throw Error('Unsupported Draft frame rate');
+ if(!Number.isFinite(fps)||fps<MIN_DRAFT_FPS||fps>120)throw Error('Unsupported Draft frame rate');
  const at=f=>Math.round(f*fps/60),durationFrames=at(END);
  // Photos run 6 px under the frame border so no gap shows at the window edge.
  return {fps,canvas:{width:1080,height:1920},durationFrames,zoom:ZOOM,window:WINDOW,photoWindow:{x:WINDOW.x-6,y:WINDOW.y-6,width:WINDOW.width+12,height:WINDOW.height+12},caption:CAPTION,
@@ -135,34 +136,6 @@ export function buildFinishScript(raw){
  return `const input=${JSON.stringify(input)};const plan=${JSON.stringify(scenePlan(input.fps))};return await (${authorFinishSource})(selects,input,plan,${JSON.stringify({photo:PHOTO_EFFECT,frame:FRAME_EFFECT,caption:CAPTION_CODE})});`;
 }
 
-// The bundled files ship base64-encoded beside the Panel. They are decoded into
-// plugin-data with atob and checked with SHA-256 (no shell, no Node.js); a copy that
-// already matches is reused, and one checked this session (`seen`) is not read again.
-// The file calls come in the second argument: the host FileSystem, or a fake in tests.
-export async function unpackBundled(manifest,{source,store,join,exists,readBytes,readText,writeFile,rename=null,remove=async()=>{},seen=new Set()}){
- const entries=Object.entries(manifest||{});
- if(!entries.length)throw Error('Invalid bundled file manifest');
- for(const [,v] of entries)if(!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(v?.file||'')||!/^[0-9a-f]{64}$/.test(v?.sha256||''))throw Error('Invalid bundled file manifest');
- // Without WebCrypto only the length is checked.
- const digest=async(bytes,v)=>{const subtle=globalThis.crypto?.subtle;if(!subtle)return bytes.byteLength===v.bytes?v.sha256:'';return [...new Uint8Array(await subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('');};
- const out={};
- for(const [key,v] of entries){
-  const path=join(store,v.file),mark=v.sha256+' '+path;
-  out[key]={path};
-  if(seen.has(mark)&&await exists(path))continue;
-  let ok=false;try{ok=!!(await exists(path))&&await digest(await readBytes(path),v)===v.sha256;}catch{ok=false;}
-  if(!ok){
-   const raw=atob((await readText(join(source,v.file+'.b64'))).replace(/\s+/g,'')),bytes=new Uint8Array(raw.length);
-   for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
-   if(await digest(bytes,v)!==v.sha256)throw Error('Bundled asset does not match its manifest: '+v.file);
-   const tmp=join(store,'part-'+Date.now().toString(36)+'.tmp');
-   await writeFile(rename?tmp:path,bytes);
-   if(rename){await remove(path);await rename(tmp,path);}
-  }
-  seen.add(mark);
- }
- return out;
-}
 // @operation-end
 
 const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.resources();const types=new Map(resources.map(r=>[r.resourceId,r.type]));const nodes=[];const walk=tree=>{for(const n of tree||[])n.type==='dir'?walk(n.children):nodes.push(n)};const view=await p.sourceFiles();if('fileTree' in view)walk(view.fileTree);else if('folders' in view)for(const folder of view.folders){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree)}return nodes.filter(n=>n.path&&types.has(n.resourceId)&&(!scope.type||types.get(n.resourceId)===scope.type)&&(!scope.paths||scope.paths.includes(n.path))&&(!scope.ids||scope.ids.includes(n.resourceId))).map(n=>({resourceId:n.resourceId,type:types.get(n.resourceId),name:n.name,path:n.path}));`;
@@ -259,26 +232,90 @@ export async function placeNativeImages(prepared,draftId,plan,items,label) {
 // Decodes the bundled frame image and music into plugin-data through the host FileSystem
 // (no shell, so it runs on Windows too) and says where each one is.
 const HOST_TOO_OLD='Polaroid Photo Dump needs a newer version of Selects; update Selects, then try again.';
-const UNPACKED=new Set();
-async function unpackAssets(sdk){
-  hostUseSdk(sdk);
- try{
-  // An older host without these methods gets the "newer Selects" message, not "reinstall".
-  for(const m of ['join','homedir','exists','mkdir','readFile'])hostNeed('FileSystem',m);
-  const fs=hostNeed('FileSystem','writeFile'),move=hostApi('FileSystem','rename'),has=hostApi('FileSystem','exists');
-  const {plugin,data}=await hostRoots(sdk,'polaroid-photo-dump','assets/manifest.json');
-  if(!data)throw hostError('host-missing','no plugin-data folder','FileSystem.mkdir');
-  const manifest=JSON.parse(await hostReadText(hostJoin(plugin,'assets','manifest.json')));
-  return await unpackBundled(manifest,{source:hostJoin(plugin,'assets'),store:data,join:hostJoin,exists:async p=>!!(await has?.exists(p)),readBytes:hostReadBytes,readText:hostReadText,
-   writeFile:(p,b)=>fs.writeFile(p,b),rename:move?async (a,b)=>(await move.rename(a,b)):null,remove:hostRemove,seen:UNPACKED});
- }catch(error){
-  if(error?.code==='host-missing')throw templateIssue(HOST_TOO_OLD);
-  if(error?.code==='not-found')throw templateIssue('Polaroid Photo Dump is not fully installed; reinstall it, then try again.');
-  throw error;
- }
+// bundled-assets:start
+// Installed bytes -> verified owned data file -> one confirmed Project Resource.
+// File publication is delegated to the canonical asynchronous atomic client.
+function bundledAssetIssue(code,message,cause){
+ return Object.assign(Error(message),{code:'BUNDLED_ASSET_'+code,publicMessage:message,...cause?{cause}:{}});
 }
-// Host paths compare after NFC and \ to / (and case on Windows).
-const samePath=(a,b)=>{const n=s=>{const v=String(s||'').normalize('NFC').replace(/\\/g,'/');return hostIsWindows()?v.toLowerCase():v;};return n(a)===n(b);};
+async function readBundledAssetBytes(files,path,limit,current){
+ current();const stat=await files.stat(path);current();
+ if(!stat||stat.isDirectory!==false||!Number.isSafeInteger(stat.size)||stat.size<1||stat.size>limit)throw bundledAssetIssue('BYTES','The bundled file is missing, unreadable or exceeds its size limit.');
+ const raw=await files.readFile(path);current();
+ if(!ArrayBuffer.isView(raw)||raw.byteLength!==stat.size)throw bundledAssetIssue('CHANGED','The bundled file changed while reading. Start a new run.');
+ return Uint8Array.from(new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength));
+}
+async function readBundledAssetResource(selects,projectId,path,platform,normalizeUnicode=false){
+ const project=selects.project(projectId),resources=new Map(),matches=[];
+ for(const resource of await project.resources())resources.set(resource.resourceId,resource);
+ const key=value=>{const text=normalizeUnicode?String(value).normalize('NFC'):String(value);return platform==='win32'?text.replace(/\\/g,'/').toLowerCase():text;};
+ const visit=items=>{for(const n of items||[]){if(matches.length>=2)return;if(n.type==='dir')visit(n.children);else if(n.path&&key(n.path)===key(path)&&resources.has(n.resourceId)){const r=resources.get(n.resourceId);matches.push({resourceId:r.resourceId,path:n.path,type:r.type,durationSeconds:r.durationSeconds,...r.type==='Image'?{frameSize:n.frameSize}:{}});}}};
+ const tree=await project.sourceFiles();
+ if('fileTree' in tree)visit(tree.fileTree);
+ else for(const folder of tree.folders||[]){if(matches.length>=2)break;const detail=await project.sourceFiles({folder:folder.name});if('fileTree' in detail)visit(detail.fileTree);}
+ return {matches};
+}
+async function prepareBundledAsset(sdk,files,options){
+ const {projectId,pluginId,sourcePath,type,extension,encoding='binary',expectedBytes,expectedSha256,frameSize,platform='darwin',normalizeUnicode=false,minimumSeconds=0,label='asset',isCurrent=()=>true}=options??{};
+ let importStarted=false;
+ const current=()=>{if(!isCurrent())throw bundledAssetIssue('STOPPED',importStarted?'The template run ended after an asset import was requested. Check the Project files.':'The template run ended before importing the bundled asset.');};
+ try{
+  const pinned=expectedBytes!==undefined||expectedSha256!==undefined;
+  if(typeof projectId!=='string'||!projectId||projectId!==projectId.trim()||typeof pluginId!=='string'||pluginId.length>63||!/^[a-z0-9][a-z0-9-]*$/.test(pluginId)||typeof sourcePath!=='string'||!sourcePath||!['Image','Audio'].includes(type)||!(type==='Image'?extension==='png':['mp3','m4a','wav'].includes(extension))||!['binary','base64'].includes(encoding)||!['asset','frame','music'].includes(label)||!Number.isFinite(minimumSeconds)||minimumSeconds<0||type==='Image'&&minimumSeconds!==0||encoding==='base64'&&!pinned||pinned&&(!Number.isSafeInteger(expectedBytes)||expectedBytes<1||expectedBytes>32*1024*1024||typeof expectedSha256!=='string'||!/^[0-9a-f]{64}$/.test(expectedSha256)))throw bundledAssetIssue('INPUT','The bundled asset request is invalid.');
+  if(typeof normalizeUnicode!=='boolean'||typeof isCurrent!=='function'||frameSize&&(type!=='Image'||!Number.isSafeInteger(frameSize.width)||frameSize.width<1||!Number.isSafeInteger(frameSize.height)||frameSize.height<1))throw bundledAssetIssue('INPUT','The bundled asset comparison or Image dimensions are invalid.');
+  const subtle=globalThis.crypto?.subtle;
+  if(!subtle||encoding==='base64'&&typeof globalThis.atob!=='function'||['stat','readFile','writeFile','exists','mkdir','join','homedir'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to verify and prepare the bundled asset.');
+  const hash=async bytes=>{current();const digest=await subtle.digest('SHA-256',bytes);current();return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');};
+  const installed=async()=>{
+   // Base64 permits ordinary line wrapping, with bounded whitespace overhead.
+   const limit=encoding==='binary'?32*1024*1024:4*Math.ceil(expectedBytes/3)+Math.max(4096,Math.ceil(expectedBytes*.1));
+   const bytes=await readBundledAssetBytes(files,sourcePath,limit,current);
+   let decoded=bytes;
+   if(encoding==='base64'){
+    const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes).replace(/\s/g,'');
+    if(text.length!==4*Math.ceil(expectedBytes/3)||!/^[A-Za-z0-9+/]*={0,2}$/.test(text))throw bundledAssetIssue('ENCODING','The encoded bundled asset is invalid.');
+    const binary=globalThis.atob(text);current();decoded=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)decoded[i]=binary.charCodeAt(i);
+   }
+   if(pinned&&decoded.length!==expectedBytes)throw bundledAssetIssue('BYTES','The bundled asset byte count does not match its manifest.');
+   const digest=await hash(decoded);
+   if(pinned&&digest!==expectedSha256)throw bundledAssetIssue('HASH','The bundled asset does not match its manifest. Check the installed template files before starting again.');
+   return {bytes:decoded,digest};
+  };
+  current();const original=await installed();current();const home=await files.homedir();current();
+  const directory=files.join(home,'.selects','plugin-data',pluginId,'assets'),path=files.join(directory,original.digest+'.'+extension);
+  current();await files.mkdir(directory,{recursive:true});current();const exists=await files.exists(path);current();const stored=exists?await files.stat(path):null;current();
+  const have=stored?.isDirectory===false&&stored.size===original.bytes.length?await readBundledAssetBytes(files,path,32*1024*1024,current):null;
+  if(!have||await hash(have)!==original.digest){current();await files.writeFile(path,original.bytes);current();}
+  if(await hash(await readBundledAssetBytes(files,path,32*1024*1024,current))!==original.digest)throw bundledAssetIssue('COPY','The bundled asset data copy could not be confirmed.');
+  if((await installed()).digest!==original.digest)throw bundledAssetIssue('CHANGED','The installed asset changed during preparation. Start a new run.');
+  const read=async()=>{
+   current();const reply=await sdk.runScript({summary:'Find bundled '+label+' Resource',allowCommit:false,script:`return await (${readBundledAssetResource.toString()})(selects,${JSON.stringify(projectId)},${JSON.stringify(path)},${JSON.stringify(platform)},${JSON.stringify(normalizeUnicode)});`});current();
+   if(reply?.isError||!Array.isArray(reply?.result?.matches)||reply.result.matches.length>1)throw bundledAssetIssue('READ','The bundled asset in this Project could not be uniquely confirmed. Check the Project files.');
+   return reply.result.matches[0]??null;
+  };
+  const ready=row=>{
+   if(!row||typeof row.resourceId!=='string'||!row.resourceId||typeof row.path!=='string'||!row.path||row.type!==type)throw bundledAssetIssue('METADATA','The bundled Resource type, path or identity could not be confirmed. Check the Project files.');
+   if(type==='Audio'&&(!Number.isFinite(row.durationSeconds)||row.durationSeconds<=0||row.durationSeconds<minimumSeconds))throw bundledAssetIssue('METADATA','The bundled file could not be confirmed as full-length Audio. Check the Project files.');
+   const size=row.frameSize;
+   if(type==='Image'&&(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1||frameSize&&(size.width!==frameSize.width||size.height!==frameSize.height)))throw bundledAssetIssue('METADATA','The bundled Image dimensions could not be confirmed. Check the Project files.');
+   return {resourceId:row.resourceId,path:row.path,...type==='Image'?{width:size.width,height:size.height}:{durationSeconds:row.durationSeconds}};
+  };
+  const existing=await read();if(existing)return ready(existing);
+  current();let imported,importFailure;importStarted=true;
+  try{imported=await sdk.runScript({summary:'Import bundled '+label,allowCommit:true,script:`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:${JSON.stringify([path])}});`});}catch(error){importFailure=error;}
+  const ids=imported?.result?.addedResourceIds,row=await read();
+  if(row){if(Array.isArray(ids)&&ids.length&&(ids.length!==1||ids[0]!==row.resourceId))throw bundledAssetIssue('IMPORT_UNKNOWN','The added asset could not be confirmed. Check the Project files.');return ready(row);}
+  if(!imported?.isError&&Array.isArray(ids)&&!ids.length)throw bundledAssetIssue('SKIPPED','Selects did not add the bundled asset. Check the Project import result before starting again.');
+  throw bundledAssetIssue('IMPORT_UNKNOWN','The asset import outcome could not be confirmed. Inspect the Project before starting again.',importFailure);
+ }catch(error){if(/^BUNDLED_ASSET_/.test(error?.code||''))throw error;throw bundledAssetIssue('PREPARE','The bundled asset could not be prepared. Check the installed files and Project resources.',error);}
+}
+// Compatibility API: existing MP3 consumers retain IDs, summaries and codes.
+async function readBundledAudioResource(selects,projectId,path,platform){return readBundledAssetResource(selects,projectId,path,platform);}
+async function prepareBundledAudio(sdk,files,options){
+ try{const result=await prepareBundledAsset(sdk,files,{...options,type:'Audio',extension:'mp3',normalizeUnicode:false,label:'music'});return {resourceId:result.resourceId};}
+ catch(error){if(/^BUNDLED_ASSET_/.test(error?.code||''))error.code=error.code.replace('BUNDLED_ASSET_','BUNDLED_AUDIO_');throw error;}
+}
+// bundled-assets:end
 
 // The plugin-data namespace is reserved for generated template assets, not
 // user photo inputs. Compare its components independent of path separators/case;
@@ -294,19 +331,25 @@ function isPolaroidAssetPath(path){
 }
 
 // Registers the bundled frame image and music in the Project once, reusing earlier imports by path.
-async function ensureAssets(sdk,projectId){
- const files=await unpackAssets(sdk);
- const want={frame:'Image',music:'Audio'};
- let rows=await inventory(sdk,projectId,'Find polaroid assets');
- const missing=Object.entries(files).filter(([k,f])=>!rows.some(r=>samePath(r.path,f.path)&&r.type===want[k])).map(([,f])=>f.path);
- if(missing.length){
-  const r=await sdk.runScript({script:`return await selects.project(${JSON.stringify(projectId)}).importFiles({paths:${JSON.stringify(missing)}});`,summary:'Import polaroid frame and music',allowCommit:true});
-  if(r.isError)throw Error(r.output||'Could not import the polaroid frame and music.');
-  rows=await inventory(sdk,projectId,'Confirm polaroid assets');
- }
- const out={};
- for(const [key,f] of Object.entries(files)){const m=rows.filter(r=>samePath(r.path,f.path)&&r.type===want[key]);if(m.length<1)throw Error('The polaroid '+key+' is not ready in the Project yet. Try again in a moment.');out[key]={...m[0]};}
- return out;
+async function ensureAssets(sdk,projectId,isCurrent=()=>true){
+ hostUseSdk(sdk);const client=panelLocalClient(sdk),files=client.files;
+ const current=()=>{if(!isCurrent())throw bundledAssetIssue('STOPPED','The template run ended before preparing the next bundled asset.');};
+ try{
+  current();
+  if(!globalThis.crypto?.subtle||typeof globalThis.atob!=='function'||['stat','readFile','writeFile','exists','mkdir','join','homedir'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED',HOST_TOO_OLD);
+  const {plugin}=await hostRoots(sdk,'polaroid-photo-dump','assets/manifest.json');current();
+  const raw=await readBundledAssetBytes(files,hostJoin(plugin,'assets','manifest.json'),65536,current);
+  let manifest;try{manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(raw));}catch{throw bundledAssetIssue('MANIFEST','The polaroid asset manifest is invalid. Reinstall the template.');}
+  if(!manifest||Array.isArray(manifest)||Object.keys(manifest).length!==2||!manifest.frame||!manifest.music)throw bundledAssetIssue('MANIFEST','The polaroid asset manifest must contain its frame and music.');
+  for(const [key,v] of Object.entries(manifest))if(!v||typeof v.file!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(v.file)||!v.file.endsWith(key==='frame'?'.png':'.m4a')||typeof v.sha256!=='string'||!/^[0-9a-f]{64}$/.test(v.sha256)||!Number.isSafeInteger(v.bytes)||v.bytes<1||v.bytes>32*1024*1024)throw bundledAssetIssue('MANIFEST','The polaroid asset manifest contains an invalid file or digest.');
+  const out={};
+  for(const key of ['frame','music']){
+   current();const spec=manifest[key];
+   const asset=await prepareBundledAsset(sdk,files,{projectId,pluginId:'polaroid-photo-dump',sourcePath:hostJoin(plugin,'assets',spec.file+'.b64'),type:key==='frame'?'Image':'Audio',extension:key==='frame'?'png':'m4a',encoding:'base64',expectedBytes:spec.bytes,expectedSha256:spec.sha256,...key==='frame'?{frameSize:{width:1080,height:1920}}:{minimumSeconds:minimumMusicSeconds()},label:key,platform:client.environment.platform,normalizeUnicode:true,isCurrent});
+   current();out[key]={...asset,name:spec.file};
+  }
+  return out;
+ }catch(error){if(/^BUNDLED_ASSET_/.test(error?.code||''))throw error;throw bundledAssetIssue('PREPARE','The polaroid frame and music could not be prepared. Check the installed files and Project resources.',error);}
 }
 
 export const DEFAULT_DRAFT_NAME='Polaroid photo dump';
@@ -324,7 +367,7 @@ export async function createPhotoDraft(sdk,{projectId,selected,framing,name,capt
  await prepareNativeImages(sdk,projectId,selected,libraryId);
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
  say('Adding the polaroid frame and music to the Project…');
- const assets=await ensureAssets(sdk,projectId);
+ const assets=await ensureAssets(sdk,projectId,stillCurrent);
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
  const prepared=await prepareNativeImages(sdk,projectId,[...selected,assets.frame],libraryId);
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
@@ -506,7 +549,6 @@ function templateMessage(error){
  if(match)return match[1]+' is missing from this Project or matches more than one photo.';
  if(/^This Selects version does not support/.test(said))return TEMPLATE_UNSUPPORTED;
  if(/^The selected photos changed/.test(said))return 'The picked photos changed while the Draft was being made; try again.';
- if(/not ready in the Project yet/.test(said))return 'Polaroid Photo Dump is still adding its sounds to this Project; try again in a moment.';
  return TEMPLATE_FAILED;
 }
 // Nobody sees this frame, so it shows one status line. It starts once per run

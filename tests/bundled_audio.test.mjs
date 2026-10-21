@@ -35,6 +35,9 @@ function musicFixture(id,{platform='darwin',home='/user'}={}){
  return {...f,source,bytes,imported,writes,prepare,dataPath,setReply:reply=>{importReply=reply;},stopMusic:()=>{current=false;}};
 }
 for(const id of ids){
+ test(id+': the existing POSIX exact-path contract does not merge Unicode-distinct metadata',async()=>{
+  const f=musicFixture(id,{home:'/caf\u00e9'});await f.prepare();f.nodes.find(n=>n.resourceId.startsWith('music-')).path=f.dataPath().normalize('NFD');await f.prepare();assert.equal(f.imported.length,2);
+ });
  test(id+': music imports a verified content-addressed data copy',async()=>{
   const f=musicFixture(id);await f.prepare();assert.equal(f.imported.length,1);
   const digest=createHash('sha256').update(f.bytes).digest('hex');assert.match(f.imported[0],new RegExp('/plugin-data/'+id+'/assets/'+digest+'\\.mp3$'));assert.deepEqual(f.hostFiles.get(f.imported[0]),f.bytes);

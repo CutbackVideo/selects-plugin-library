@@ -2,11 +2,12 @@
   "schemaVersion": 1,
   "modules": [
     {
-      "id": "bundled-audio",
-      "source": "shared/bundled-audio.js",
+      "id": "bundled-assets",
+      "source": "shared/bundled-assets.js",
       "targets": [
         "plugins/no14-still-video/panel.tsx",
-        "plugins/four-photo-stop-motion/panel.tsx"
+        "plugins/four-photo-stop-motion/panel.tsx",
+        "plugins/polaroid-photo-dump/panel.tsx"
       ]
     },
     {

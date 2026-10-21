@@ -1,6 +1,10 @@
 # Validation
 
-## Current repair checkpoint: 0.1.10
+## Current repair checkpoint: 0.1.11
+
+The MP3 compatibility entry now delegates to the generalized bundled-asset
+feature with the existing IDs, paths, summaries and error codes. No design or
+save lifecycle change is introduced by this source synchronization.
 
 The historical reference/export runs below belong to their stated versions.
 They do not validate the current shared authoring/run migration in an installed

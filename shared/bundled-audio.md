@@ -1,7 +1,9 @@
-# Bundled Audio preparation
+# Bundled Audio compatibility entry
 
-`bundled-audio.js` is the canonical Panel feature used by Four Photo Reveal and
-Four Photo Stop Motion. It owns preparation of one installed MP3 as an owned
+The feature is now implemented in `bundled-assets.js`, through the existing
+`prepareBundledAudio` entry used by Four Photo Reveal and Four Photo Stop Motion.
+See the [generalized contract](bundled-assets.md) for Images and encoded files.
+The Audio entry owns preparation of one installed MP3 as an owned
 data-file/Project Audio Resource. It does not place clips, create Drafts or
 change either template's timing/music choice.
 
@@ -45,5 +47,5 @@ This affects new operations. Earlier Drafts/Resources that still reference an
 installation folder are not migrated. A resumed old saved template run is not
 rewritten. This feature does not prove decoding, playback, reference fidelity,
 export, or the original bytes of every already-saved Draft. Installed-app and
-Windows execution remain separate gates. Four Photo Stop Motion's multi-commit
-creation and other audit findings are still pending.
+Windows execution remain separate gates. Other audit findings and complete
+installed-output validation are still pending.

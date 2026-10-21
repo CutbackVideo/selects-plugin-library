@@ -36,7 +36,7 @@ jobs:
       - name: Test saved photo-template Audio receipts
         run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_audio_receipts.test.mjs
       - name: Test bundled Audio and source-window verification
-        run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/bundled_audio.test.mjs tests/photo_audio_source.test.mjs
+        run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/bundled_audio.test.mjs tests/bundled_assets.test.mjs tests/photo_audio_source.test.mjs
       - name: Test saved photo-template programs and evidence budget
         run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_program_receipts.test.mjs
       - name: Test durable template run recovery
