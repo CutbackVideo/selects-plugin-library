@@ -5,7 +5,7 @@ description: Create a 21-tile Photo Gallery Draft in Selects from ordered origin
 
 # Photo Grid Reveal
 
-Use this skill for the 3-column × 7-row format of [the reference TikTok](https://www.tiktok.com/@yana_zinooyoon/video/7487656824712350994). Recreate the grid, reveal order, and simultaneous grayscale-to-color switch; the 21 tile contents may differ. Each chosen JPG/PNG remains its original Image Resource and becomes a separate editable Image clip. Do not convert photos to MP4, flatten the gallery, or silently fill a missing slot. A black Main video is unnecessary: the shared operation creates a 853-frame gap-backed Draft.
+Use this skill for the 3-column × 7-row format of [the reference TikTok](https://www.tiktok.com/@yana_zinooyoon/video/7487656824712350994). Recreate the grid, reveal order, and simultaneous grayscale-to-color switch; the 21 tile contents may differ. Each chosen JPG/PNG remains its original Image Resource and becomes a separate editable Image clip. Do not convert photos to MP4, flatten the gallery, or silently fill a missing slot. A black Main video is unnecessary: the shared operation creates a gap-backed Draft whose default reference duration is 853/60 seconds, rounded onto the Project frame grid.
 
 The original has visible movement in tiles **4, 6, 11, 17, 19, and 21** (one-based, left-to-right then top-to-bottom). For a motion-faithful result, assign Video Resources to those six slots and Images to the other 15; the actual content may differ. The panel offers a reference-mix assignment button when the Project contains exactly 15 Images and 6 Videos, and warns if the selected complete set has still Images in moving slots. Users may deliberately choose another mix, but an all-Image output only validates the grid and timing, not the original movement.
 
@@ -26,6 +26,18 @@ An unknown publication is inspected rather than re-encoded inside the same call.
 Ending the run or unmounting the panel cancels active media preparation and stops
 later imports; already issued filesystem operations can finish. Old held-v2 files
 and published objects are retained because earlier Drafts may still use them.
+
+Coverage is measured in exact `durationSeconds` from current Project metadata,
+including after a held-video import. Rounded `durationFrames` alone cannot prove
+source coverage. Preparation and final operations use the same format planner:
+round the requested reference duration onto the Project grid, then cover those
+actual seconds with complete prepared 60 fps frames. Default 30/50/90 fps needs
+854 prepared frames, while the input reference duration remains 853. The panel
+checks known timing/BPM options before asset work. Pending automatic BPM may pass
+structural checks only; the full plan must pass after estimation. Standalone
+frame-only planner inputs remain supported, but live Project readers require
+exact duration facts. Preparation supports at most 36000 prepared frames.
+
 3. Unless the user selects another track or silence, use the bundled **Unexplored (long ver.) — TAD MILLER** excerpt, 39.650–53.866667 seconds, and manual timing BPM 113. This control preserves the reference events; do not call it a measured music BPM. Use the installed panel's Create path for bundled asset preparation: the existing common asset feature checks the release bytes/hash, atomically publishes an owned content-addressed copy, confirms Audio metadata, and returns its Project identity. Never register an installation-folder file directly. The low-level `importBundledMusic` compatibility operation now accepts only an already prepared owned asset path beneath `.selects/plugin-data/photo-gallery-no2/assets/<sha256>.mp3`; it does not replace byte verification/publication. The current agent SDK worker lacks browser hashing/file-client globals, so do not recreate this preparation there. Preserve the credits from [THIRD_PARTY.md](THIRD_PARTY.md) in shared outputs; B2 is CC BY 4.0, not CC0. With selected music and automatic BPM explicitly requested, use the panel's **Estimate music BPM** and accept only an estimated value. Without music, manual BPM is required. The music must cover the actual rounded Project duration: default 30 fps needs 14.233333 seconds and cannot use this 14.216667-second excerpt. Choose No music, another sufficient track, or an explicit shorter duration. Never silently change timing, loop or pad it.
 4. Use the shared `buildScript` operation through `sdk.runScript` for both Image and Video Resources. The existing `draft.overlayResource` holds original Images for an exact Draft interval without creating a still-video surrogate. Resolve the Project frame rate first with an unsaved `project.createDraft({name:"Gallery frame grid"})` and `draft.meta().fps`, and pass it as `fps` to the operation. Input durations and music offsets remain in the 60 fps reference clock; the plan converts them to the Project frame grid. The panel uses the same operation and verifies saved clips after placement. Example shape, to be extended to exactly 21 media entries:
 

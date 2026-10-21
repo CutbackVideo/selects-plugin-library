@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
-import { buildScript, SCRIPT_PREFIX, ORIGINAL_IMAGE_SOURCE } from './operation-builder.mjs';
+import { buildScript, SCRIPT_PREFIX, ORIGINAL_IMAGE_SOURCE, FORMAT_SOURCE } from './operation-builder.mjs';
 import { nativeImageSources as canonicalFacts } from '../../shared/native-image-input.mjs';
 import { nativeImageSources as packagedFacts } from './input-facts.generated.mjs';
 import { IMAGE_AUTHORING_SOURCE, PANEL_AUTHORING_SOURCE, TEMPLATE_RUN_SOURCE, PANEL_RUN_SOURCE, PANEL_ASSET_SOURCE } from './authoring.generated.mjs';
@@ -15,7 +15,7 @@ test('installed panel contains the exact shared operation prefix', () => {
   const installed = readFileSync(new URL('./panel.tsx', import.meta.url), 'utf8');
   const native = readFileSync(new URL('./native-image-runtime.js', import.meta.url), 'utf8');
   const expected = template.replace('/*__SHARED_SCRIPT_BUILDER__*/',
-    `const SCRIPT_PREFIX = ${JSON.stringify(SCRIPT_PREFIX)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';\nconst gallerySourceFacts = ${ORIGINAL_IMAGE_SOURCE};\n${PANEL_AUTHORING_SOURCE}\n${PANEL_RUN_SOURCE}\n${PANEL_ASSET_SOURCE}\n${native}`);
+    `const SCRIPT_PREFIX = ${JSON.stringify(SCRIPT_PREFIX)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';\n${FORMAT_SOURCE}\nconst gallerySourceFacts = ${ORIGINAL_IMAGE_SOURCE};\n${PANEL_AUTHORING_SOURCE}\n${PANEL_RUN_SOURCE}\n${PANEL_ASSET_SOURCE}\n${native}`);
   assert.notEqual(expected, template);
   assert.equal(installed, expected);
 });

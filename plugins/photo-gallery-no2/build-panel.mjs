@@ -30,9 +30,9 @@ const stdout = process.argv.includes('--stdout');
 // generated copy before importing it, so a normal rebuild also bootstraps it.
 if (!stdout) writeFileSync(new URL('./input-facts.generated.mjs', import.meta.url), '// Generated from shared/native-image-input.mjs; edit the canonical source.\nexport ' + originalImageSource + '\n');
 if (!stdout) writeFileSync(new URL('./authoring.generated.mjs', import.meta.url), '// Generated from existing shared authoring, run and asset features; edit the canonical sources.\nexport const IMAGE_AUTHORING_SOURCE = ' + JSON.stringify(sdkAuthoringSource) + ';\nexport const PANEL_AUTHORING_SOURCE = ' + JSON.stringify(panelAuthoringSource) + ';\nexport const TEMPLATE_RUN_SOURCE = ' + JSON.stringify(sdkRunSource) + ';\nexport const PANEL_RUN_SOURCE = ' + JSON.stringify(panelRunSource) + ';\nexport const PANEL_ASSET_SOURCE = ' + JSON.stringify(panelAssetSource) + ';\nexport const ASSET_RESOURCE_SOURCE = ' + JSON.stringify(assetResourceSource) + ';\n');
-const { createScriptPrefix } = await import('./operation-builder.mjs');
+const { createScriptPrefix, FORMAT_SOURCE } = await import('./operation-builder.mjs');
 const prefix = createScriptPrefix(originalImageSource, sdkAuthoringSource, sdkRunSource, assetResourceSource);
-const generated = template.replace(marker, `const SCRIPT_PREFIX = ${JSON.stringify(prefix)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';\nconst gallerySourceFacts = ${originalImageSource};\n${panelAuthoringSource}\n${panelRunSource}\n${panelAssetSource}\n${nativeSource}`);
+const generated = template.replace(marker, `const SCRIPT_PREFIX = ${JSON.stringify(prefix)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';\n${FORMAT_SOURCE}\nconst gallerySourceFacts = ${originalImageSource};\n${panelAuthoringSource}\n${panelRunSource}\n${panelAssetSource}\n${nativeSource}`);
 // `--stdout` prints the panel instead (tests compare it with the checked-in panel.tsx).
 if (stdout) process.stdout.write(generated);
 else writeFileSync(new URL('./panel.tsx', import.meta.url), generated);

@@ -753,7 +753,7 @@ const STRINGS = {
 // The packaged excerpt is pinned to this template release. Existing Drafts keep
 // their old content paths; installation paths are never newly registered.
 const GALLERY_MUSIC={bytes:457308,sha256:'70146fa3ee1829efc1fff40ffe93f4a6a40394bca094d9b69877756432d8b8f0',seconds:853/60};
-async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurrent, onImportStarted }) {
+async function prepareBundledMusic(sdk, t, { projectId, durationFrames, fps: knownFps, isCurrent, onImportStarted }) {
   if(typeof sdk?.runScript!=='function'){
     const message='Update Selects to prepare bundled music.';
     throw Object.assign(new Error(message),{publicMessage:message,safeNotSaved:true});
@@ -762,7 +762,7 @@ async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurren
   try {
     if(!Number.isSafeInteger(durationFrames)||durationFrames<1||durationFrames>36000)throw templateIssue('Music length must be an integer from 1 to 36000 frames.');
     if(!isCurrent())throw templateIssue(t.changed);
-    const fps=await readImageDraftFps(sdk,projectId),minimumSeconds=Math.round(durationFrames*fps/60)/fps;
+    const fps=knownFps??await readImageDraftFps(sdk,projectId),{minimumSeconds}=galleryFrameClock(durationFrames,fps);
     if(!isCurrent())throw templateIssue(t.changed);
     if(minimumSeconds<=0)throw templateIssue('The requested duration is shorter than one frame on the Project frame grid.');
     if(minimumSeconds>GALLERY_MUSIC.seconds+1e-9)throw templateIssue('Bundled music is too short for this result on the Project frame grid. Choose No music, another track or a shorter duration.');
@@ -800,12 +800,10 @@ async function verifyGalleryInputs(sdk, t, input, isCurrent) {
   return { ...input, media: reply.result.media, music: reply.result.music };
 }
 
-async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted, isCurrent) {
+async function prepareVisuals(sdk, t, media, clock, projectId, onImportStarted, isCurrent) {
+  const frames = clock.durationFrames;
   const videos = [...new Map(media.filter(item => item.kind === 'video').map(item => [item.resourceId, item])).values()];
-  if (videos.some(item => !Number.isSafeInteger(item.durationFrames) || item.durationFrames < 1)) {
-    throw new Error('A selected video has no verified duration.');
-  }
-  const shortVideos = videos.filter(item => item.durationFrames < frames);
+  const shortVideos = videos.filter(item => gallerySourceSeconds(item, 'Video') + 1e-9 < clock.minimumSeconds);
   const groups = [{ sources: shortVideos, key: 'videos' }];
   const requestPaths = [];
   for (const group of groups) {
@@ -862,10 +860,19 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
 // Project; `onDispatched` marks possible Draft persistence, while imports have
 // their own observer. `onDraft` gets the complete saved identity. `libraryId`
 // is a template run's library. A stale context stops before Draft dispatch.
+async function planGalleryPreparation(sdk,input,isCurrent,pendingBpm=false) {
+  const stopped=()=>Object.assign(new Error('The Gallery context changed before preparation.'),{contextChanged:true,safeNotSaved:true});
+  if(!isCurrent())throw stopped();
+  input.fps=await readImageDraftFps(sdk,input.projectId);
+  if(!isCurrent())throw stopped();
+  try{return planGallery(input,{preparing:true,pendingBpm});}
+  catch(error){error.safeNotSaved=true;throw error;}
+}
+
 async function buildGalleryDraft(sdk,t,{input,isCurrent,onDispatched,onDraft,libraryId=null,runReceipt=null,onImportStarted=()=>{}}) {
   Object.assign(input,await verifyGalleryInputs(sdk,t,input,isCurrent));
-  input.fps=await readImageDraftFps(sdk,input.projectId);
-  input.media=await prepareVisuals(sdk,t,input.media,input.durationFrames,input.projectId,onImportStarted,isCurrent);
+  const plan=await planGalleryPreparation(sdk,input,isCurrent);
+  input.media=await prepareVisuals(sdk,t,input.media,plan.preparation,input.projectId,onImportStarted,isCurrent);
   if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
   input.media=(await galleryNativeResources(sdk,input.projectId,input.media,libraryId)).selected;
   const preflight=await sdk.runScript({script:buildScript({...input,operation:'preflight'}),summary:'Check Photo Gallery media and timing',allowCommit:false});
@@ -1000,7 +1007,8 @@ function GalleryPanel({ sdk, context, ui }) {
       input = { operation: 'create', projectId, name: name.trim(), durationFrames,
         media: slots.map(item => ({ ...inventory.media.find(media => media.resourceId === item.resourceId), focusX: item.focusX, focusY: item.focusY })),
         music: selectedMusic ? { resourceId: selectedMusic.resourceId, path: selectedMusic.path,
-          durationFrames: selectedMusic.durationFrames, startFrame: 0 } : null };
+          durationFrames: selectedMusic.durationFrames, durationSeconds: selectedMusic.durationSeconds, startFrame: 0 } : null,
+        ...(manualEnabled?{manualBpm}:{}) };
       if (!input.name || input.media.some(item => !item.resourceId)) throw new Error(t.missing);
       if (input.media.some(item => !Number.isSafeInteger(item.width) || !Number.isSafeInteger(item.height))) throw new Error('A selected tile has no verified dimensions');
     } catch (error) { setStatus({ tone: 'error', text: String(error?.message || error) }); return; }
@@ -1009,9 +1017,10 @@ function GalleryPanel({ sdk, context, ui }) {
     const isCurrent = () => sameContext(projectId, sequenceId) && requestedKey === key;
     try {
       input = await verifyGalleryInputs(sdk, t, input, isCurrent);
+      await planGalleryPreparation(sdk,input,isCurrent,!manualEnabled);
       const audio = musicChoice === 'bundled' ? await prepareBundledMusic(sdk, t, { projectId,
-        durationFrames: input.durationFrames, isCurrent, onImportStarted: () => { dispatched = true; } }) : selectedMusic;
-      input.music = audio ? { resourceId: audio.resourceId, path: audio.path, durationFrames: audio.durationFrames, startFrame: 0 } : null;
+        durationFrames: input.durationFrames, fps:input.fps, isCurrent, onImportStarted: () => { dispatched = true; } }) : input.music;
+      input.music = audio ? { resourceId: audio.resourceId, path: audio.path, durationFrames: audio.durationFrames, durationSeconds: audio.durationSeconds, startFrame: 0 } : null;
       Object.assign(input, await resolveBpm(audio));
       if (!isCurrent()) { setStatus({ tone: 'error', text: t.changed }); return; }
       const built = await buildGalleryDraft(sdk, t, { input, isCurrent,
@@ -1243,10 +1252,11 @@ function GalleryTemplateRun({ sdk, context }) {
           if(!live())throw templateIssue('The template run ended before the Draft was made.');
           const input={operation:'create',projectId,name:TEMPLATE_NAME,durationFrames:request.durationFrames,media,music:null,manualBpm:request.bpm};
           Object.assign(input,await verifyGalleryInputs(sdk,t,input,live));
+          await planGalleryPreparation(sdk,input,live);
           if(request.music!=='none'){
             say('Adding the music…');
-            const audio=await prepareBundledMusic(sdk,t,{projectId,durationFrames:input.durationFrames,isCurrent:live,onImportStarted:()=>{}});
-            input.music={resourceId:audio.resourceId,path:audio.path,durationFrames:audio.durationFrames,startFrame:0};
+            const audio=await prepareBundledMusic(sdk,t,{projectId,durationFrames:input.durationFrames,fps:input.fps,isCurrent:live,onImportStarted:()=>{}});
+            input.music={resourceId:audio.resourceId,path:audio.path,durationFrames:audio.durationFrames,durationSeconds:audio.durationSeconds,startFrame:0};
           }
           say('Building the gallery…');
           return buildGalleryDraft(sdk,t,{input,isCurrent:live,libraryId,runReceipt,onDispatched:async()=>{await onDispatch();dispatched=true;},onDraft:id=>{draftId=id;}});

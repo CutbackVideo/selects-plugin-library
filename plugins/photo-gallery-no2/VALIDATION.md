@@ -1,6 +1,33 @@
 # Validation and limits
 
-## Current repair checkpoint: 0.3.15
+## Current repair checkpoint: 0.3.16
+
+The shared Gallery planner computes physical coverage from the rounded Project
+end. Default 30/50/90 fps outputs require 854 frames of prepared 60 fps video,
+while the reference request remains 853 frames. Inventory retains exact duration
+seconds; selected media, music and held imports cannot replace those facts with
+rounded frame counts. A valid sub-reference-frame Video can still be prepared.
+Panel pre-asset checks, final SDK operations and the agent builder consume one
+planner source. Known invalid BPM/timing inputs stop before music publication or
+video encoding. A pending automatic BPM cannot create a Draft.
+
+An isolated real SDK, renderer bridge and Storyboard probe reproduced a source
+window beyond an 853-frame source at 30/50/90 fps (three failures, four controls).
+Prepared-source probes pass all seven grids with zero repository saves. Real
+ffmpeg preparation/decode tests independently verify 854 frames and physical
+duration at the three affected grids. These are domain/file tests, not installed
+app playback/export or Windows execution. Music still stops without looping,
+padding or speed changes when insufficient. See
+`docs/template-repair/gallery-project-clock.md` in the source repository.
+
+The existing five-feature pool, ten consumers and shared call paths remain.
+Gallery's format module is reused within its panel/SDK/agent paths; timing across
+all 28 templates has not yet been unified. BPM job lifetime, late source changes,
+whole composition/playback/export, installed Selects/Windows, Inspector and
+reference/changed-input quality remain open. The full goal remains active and
+Chan's shortform apps stay excluded.
+
+## Earlier repair checkpoint: 0.3.15
 
 Short-video preparation now uses the existing shared asset feature's additive
 derived-file owner. Full source/output hashes replace size/mtime cache identity;

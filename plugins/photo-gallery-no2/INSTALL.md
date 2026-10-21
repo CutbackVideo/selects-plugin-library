@@ -1,6 +1,8 @@
 # Install Photo Grid Reveal
 
-This experimental Selects plugin builds an editable 1080×1920, 60 fps, 3×7 gallery. Each original JPG/PNG stays an Image Resource on its own Video track. Video tiles remain Video Resources; only a selected video shorter than the output is extended to a separate cached MP4 that holds its last frame. The gallery is never flattened.
+This experimental Selects plugin builds an editable 1080×1920, 3×7 gallery on the Project frame grid, with timing expressed on a 60 fps reference clock. Each original JPG/PNG stays an Image Resource on its own Video track. Video tiles remain Video Resources; only a selected video shorter than the actual output is extended to a separate cached MP4 that holds its last frame. The gallery is never flattened.
+
+The planner is shared by panel preparation and SDK/agent operations. It keeps exact source seconds separate from rounded reference-frame metadata. For the default duration, 30/50/90 fps Projects need 854 frames of prepared 60 fps video; 853 frames cannot cover their rounded output ends. Imported held videos are checked again using exact seconds. Structural input checks and known BPM timing checks run before bundled asset preparation/conversion. Automatic BPM remains pending until estimation; it must pass the full plan before video conversion or Draft dispatch.
 
 The reference's moving slots are 4, 6, 11, 17, 19, and 21. A matching motion pattern uses Videos in those slots and Images in the other 15. Other mixes are editable but do not reproduce that part of the reference format. If the Project has exactly 15 Images and 6 Videos, the panel can assign them to the observed slot types in one action.
 

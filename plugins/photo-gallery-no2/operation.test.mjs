@@ -33,6 +33,14 @@ function fixture({ shortVideo = false } = {}) {
   return { run, calls, nodes, resources, draft, project };
 }
 
+test('held import cannot round a physically short file up to the requested duration',async()=>{
+ const f=fixture({shortVideo:true});
+ f.resources.push({resourceId:'held',type:'Video'});
+ f.nodes.push({type:'video',resourceId:'held',path:'/cache/held.mp4',frameSize:{width:128,height:96},durationSeconds:854/60-.001});
+ const result=await f.run({operation:'importConverted',projectId:'project-1',durationFrames:854,converted:[{sourceResourceId:'r0',sourcePath:f.nodes[0].path,path:'/cache/held.mp4'}]});
+ assert.equal(result.status,'notSaved');assert.match(result.message,/length.*verified/i);assert.equal(f.calls.commit,0);
+});
+
 test('the effect identity readback matches the actual bundled source', () => {
   const source = readFileSync(new URL('./operation-runtime.js', import.meta.url), 'utf8');
   const match = source.match(/const TILE_EFFECT = (`[\s\S]*?`);/);

@@ -63,7 +63,7 @@ async function galleryInventory(project, paths = null) {
     if (!kind) continue;
     const durationSeconds = Number.isFinite(node.durationSeconds) ? node.durationSeconds : resource.durationSeconds;
     const durationFrames = Number.isFinite(durationSeconds) ? Math.round(durationSeconds * 60) : null;
-    const common = { resourceId: node.resourceId, name: node.name, path: node.path, durationFrames };
+    const common = { resourceId: node.resourceId, name: node.name, path: node.path, durationFrames, durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : null };
     if (kind === 'audio') audio.push(common);
     else if (kind === 'image' || (node.frameSize?.width > 0 && node.frameSize?.height > 0)) {
       media.push({ ...common, kind, width: node.frameSize?.width ?? null, height: node.frameSize?.height ?? null });
@@ -135,7 +135,7 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
     if(match.type!=='Video')galleryFail('Held video path is not a Video Resource');
     const rows=current.media.filter(row=>row.resourceId===match.resourceId&&gallerySamePath(row.path,path));
     const video=rows[0];
-    if(rows.length!==1||!Number.isSafeInteger(video.width)||video.width<1||!Number.isSafeInteger(video.height)||video.height<1||!Number.isSafeInteger(video.durationFrames)||video.durationFrames<requiredFrames)galleryFail('Held video import or length could not be verified; inspect Project files before retrying');
+    if(rows.length!==1||!Number.isSafeInteger(video.width)||video.width<1||!Number.isSafeInteger(video.height)||video.height<1||!Number.isSafeInteger(video.durationFrames)||video.durationFrames<requiredFrames||!Number.isFinite(video.durationSeconds)||video.durationSeconds+1e-9<requiredFrames/60)galleryFail('Held video import or length could not be verified; inspect Project files before retrying');
     return video;
   };
   const currentByPath=new Map();
@@ -172,7 +172,7 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
     return { sourceResourceId: item.sourceResourceId, resolvedSourceResourceId: source?.resourceId,
       resourceId: video.resourceId,
       // The Project's own spelling of the path, which native placement later compares exactly.
-      path: video.path, width: video.width, height: video.height, durationFrames: video.durationFrames };
+      path: video.path, width: video.width, height: video.height, durationFrames: video.durationFrames, durationSeconds: video.durationSeconds };
   });
   return { status: 'prepared', converted };
 }
@@ -206,6 +206,7 @@ async function galleryReadInputs(selects, project, input, inventory) {
     const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);
     if (item.kind !== fresh.kind) galleryFail(`Slot ${i + 1} media type changed`);
     const width = fresh.width, height = fresh.height;
+    if (fresh.kind === 'video' && (!Number.isFinite(fresh.durationSeconds) || fresh.durationSeconds <= 0)) galleryFail(`Slot ${i + 1} Video duration is unavailable`);
     if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {
       galleryFail(`Slot ${i + 1} photo dimensions are unavailable through the plugin SDK; no Draft was saved`);
     }
@@ -218,6 +219,7 @@ async function galleryReadInputs(selects, project, input, inventory) {
   const music = input.music == null ? null :
     galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');
   if (input.music != null && !music) galleryFail('Selected music is missing or moved');
+  if (music && (!Number.isFinite(music.durationSeconds) || music.durationSeconds <= 0)) galleryFail('Selected music duration is unavailable');
   const selectedMusic = music && { ...music, startFrame: input.music.startFrame ?? 0 };
   const media = validateMedia(chosen);
   const paths = [...new Set([...chosen.map((item) => item.path), ...(music ? [music.path] : [])])];

@@ -28,9 +28,10 @@ const galleryNativeResources = (...args) => globalThis.__native.resources(...arg
 const galleryNativeSetFps = (...args) => globalThis.__native.setFps(...args);
 const galleryNativePlace = (...args) => globalThis.__native.place(...args);`;
 const assetSource=fs.readFileSync(new URL('../../shared/bundled-assets.js',import.meta.url),'utf8');
+const formatSource=fs.readFileSync(new URL('./format.mjs',import.meta.url),'utf8').replace('export const REFERENCE','const REFERENCE').replace('export function planGallery','function planGallery');
 // These tests own Gallery interactions; the shared local SDK initializer has its own suite.
 const source = template.replace(/\/\/ local-sdk:start[\s\S]*?\/\/ local-sdk:end/, 'function panelLocalClient(sdk) { return sdk; }\nexport default Panel;').replace('/*__SHARED_SCRIPT_BUILDER__*/',
-  'const buildScript = input => JSON.stringify(input);' + nativeMock + '\n' + assetSource);
+  'const buildScript = input => JSON.stringify(input);' + nativeMock + '\n' + assetSource + '\n' + formatSource);
 assert.notEqual(source, template);
 const compiled = esbuild.transformSync(source, { loader: 'tsx', format: 'cjs', jsx: 'automatic' }).code;
 const compiledModule = new Module(path.join(appRoot, '__photo_gallery_panel_test__.cjs'));
@@ -142,7 +143,7 @@ function harness(media = photos, options = {}) {
       if (input.operation === 'verifyInputs') return options.inputFailure ? { result: { status: 'notSaved', message: 'The original photo file is missing: Tile 1', code: 'image-source-missing' } } : { result: { status: 'inputsReady', media: input.media, music: input.music } };
       if (input.operation === 'importBundledMusic') return options.musicResponse ?? { result: { status: 'musicReady', music: { resourceId: 'bundled-music', path: input.path, durationFrames: 853, startFrame: 0 } } };
       if (input.operation === 'importConverted') return { result: { status: 'prepared', converted: input.converted.map(item =>
-        ({ ...item, resourceId: 'held-1', width: 128, height: 96, durationFrames: 853 })) } };
+        ({ ...item, resourceId: 'held-1', width: 128, height: 96, durationFrames: input.durationFrames, durationSeconds: input.durationFrames/60 })) } };
       if (input.operation === 'preflight') return { result: { status: 'ready', plan: planGallery(input) } };
       if(input.operation==='create'){if(options.coldBudget&&request.timeoutSeconds!==120)return {isError:true,output:'Script deadline exceeded'};if(options.placeError)return {result:{status:'outcomeUnknown',message:options.placeError}};options.onPlace?.();return {result:{status:'saved',draftId:'draft-new'}};}
       if (input.operation === 'createBase') return { result: { status: 'baseCreated', draftId: 'draft-new' } };
@@ -389,6 +390,30 @@ test('selected-original failure stops before bundled music import or short-video
  fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));fireEvent.click(await waitFor(()=>h.view.getByRole('button',{name:'Assign all 21 in listed order'})));fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));
  await waitFor(()=>assert.match(h.view.container.textContent,/original photo file is missing|Saved and read back/));
  assert.equal(h.calls.some(call=>call.allowCommit),false);assert.equal(tools.some(call=>call[0]==='ffmpeg'),false);assert.equal(h.view.getByRole('button',{name:'Create Draft'}).disabled,false);
+});
+
+for(const fps of [30,50,90])test('Project grid '+fps+' prepares 854 actual video frames while retaining the reference request',async()=>{
+ const tools=[],media=[{resourceId:'short-1',name:'First moving tile',kind:'video',width:128,height:96,path:'/fixture/short.mp4',durationFrames:853,durationSeconds:853/60},...photos.slice(1)];
+ const h=harness(media,{fps,heldFrames:854,tools});
+ await assignAndCreate(h.view);
+ await waitFor(()=>assert.match(h.view.container.textContent,/Saved and read back all 21 tiles/));
+ const encode=tools.find(row=>row[0]==='ffmpeg'&&row.includes('-vf'));
+ assert.equal(encode[encode.indexOf('-frames:v')+1],'854');
+ const imported=h.calls.find(c=>c.input.operation==='importConverted');assert.equal(imported.input.durationFrames,854);
+ const created=h.calls.find(c=>c.input.operation==='create').input;
+ assert.equal(created.durationFrames,853);assert.equal(created.media[0].durationSeconds,854/60);
+ const plan=planGallery(created);assert.ok(created.media[0].durationSeconds>=plan.durationFrames/fps);
+});
+for(const bpm of [0,1,999999])test('invalid manual BPM '+bpm+' stops before bundled asset publication/import',async()=>{
+ const tools=[],h=harness(photos,{tools});
+ fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));
+ fireEvent.click(await waitFor(()=>h.view.getByRole('button',{name:'Assign all 21 in listed order'})));
+ fireEvent.change(h.view.getByLabelText('BPM'),{target:{value:String(bpm)}});
+ fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));
+ await waitFor(()=>assert.ok(h.view.container.textContent.match(/BPM|Color transition/)));
+ await waitFor(()=>assert.equal(h.view.getByRole('button',{name:'Create Draft'}).disabled,false));
+ assert.equal(h.calls.filter(c=>c.allowCommit).length,0);assert.equal(tools.length,0);
+ assert.equal(h.calls.filter(c=>c.input.operation==='preflight'||c.input.operation==='create').length,0);
 });
 
 test('an unsupported complete-authoring host stops before music import or video preparation',async()=>{

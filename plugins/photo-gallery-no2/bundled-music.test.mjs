@@ -21,7 +21,7 @@ function fixture({ existing = false, duration = 853 / 60, corrupt = false, lostR
 test('bundled B2 imports as one full-length Audio without creating a Draft', async () => {
   const f = fixture(), result = await f.run();
   assert.equal(result.status, 'musicReady', result.message);
-  assert.deepEqual(result.music, { resourceId: 'music', name: 'music.mp3', path, durationFrames: 853, startFrame: 0 });
+  assert.deepEqual(result.music, { resourceId: 'music', name: 'music.mp3', path, durationFrames: 853, durationSeconds:853/60, startFrame: 0 });
   assert.equal(f.calls.length, 1);
 });
 test('repeat preparation reuses the exact Project path without another import', async () => {
