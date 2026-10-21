@@ -6,7 +6,9 @@ test('scene visual evidence',{skip:!modulesRoot&&'Set SBS_PANEL_TEST_MODULES'},a
  const dep=createRequire(path.resolve(modulesRoot,'../package.json')),esbuild=dep('esbuild'),source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
  const start=source.indexOf('function sceneRuntimeScript('),end=source.indexOf('export interface ScenePreflightOptions {',start),base=source.slice(source.indexOf('function toBase64('),source.indexOf('function fromBase64('));
  const helper=base+source.slice(source.indexOf('async function pooled('),source.indexOf('const folderOf ='))+source.slice(start,end);
- const module={exports:{}};new Function('module','exports',esbuild.transformSync(helper+'\nexport {sceneEvidenceSheets,sceneEvidenceArgs,prepareSceneEvidence};',{loader:'ts',format:'cjs'}).code)(module,module.exports);const api=module.exports;
+ const document={createElement:()=>{let bytes;return {getContext:()=>({drawImage:bitmap=>{bytes=bitmap.bytes;},fillRect(){},fillText(){},measureText:text=>({width:text.length*8})}),toBlob:callback=>callback(new Blob([bytes]))};}};
+ const createImageBitmap=async blob=>({bytes:new Uint8Array(await blob.arrayBuffer()),close(){}});
+ const module={exports:{}};new Function('module','exports','document','createImageBitmap',esbuild.transformSync(helper+'\nexport {sceneEvidenceSheets,sceneEvidenceArgs,labelSceneEvidence,prepareSceneEvidence};',{loader:'ts',format:'cjs'}).code)(module,module.exports,document,createImageBitmap);const api=module.exports;
  const run=async(body,sdk)=>{const code=esbuild.transformSync('async function run(selects){'+body+'}',{loader:'ts',target:'es2022'}).code;return new Function(code+';return run;')()(sdk);};
  const actor=(name='actor.mov')=>({resourceId:name,name,path:'/'+name,type:'Video',hasTranscription:true,durationSeconds:100,fps:30,sourceWords:Array.from({length:20},(_,i)=>[i*4,i*4+2,'speech',1,'utterance-'+i,false])});
  await t.test('panel helpers typecheck with ES2022 and browser globals',()=>{
@@ -43,7 +45,7 @@ test('scene visual evidence',{skip:!modulesRoot&&'Set SBS_PANEL_TEST_MODULES'},a
    assert.match(source,/prepareSceneEvidence\(preflight,directory,[\s\S]*?\},job\.sceneStudy\?job\.sceneVisualEvidence:undefined\)/);
  });
  await t.test('changed original identity, clock, dimensions, stats or artifact bytes causes a fresh sheet',async()=>{
-   for(const change of ['resource','path','clock','dimensions','stat','corrupt','same-length-bytes','missing-hash','wrong-job','new-plan']){
+   for(const change of ['resource','path','clock','dimensions','stat','corrupt','same-length-bytes','missing-hash','unlabeled','wrong-job','new-plan']){
     const f=memoryIO();f.p.preparedMedia=[];const first=await api.prepareSceneEvidence(f.p,'/work',f.io);
     if(change==='resource')f.p.sources[1].resourceId='other';
     if(change==='path'){f.files.set('/other.png',f.files.get('/image.png'));f.p.sources[1].path='/other.png';}
@@ -54,6 +56,7 @@ test('scene visual evidence',{skip:!modulesRoot&&'Set SBS_PANEL_TEST_MODULES'},a
     if(change==='corrupt')f.files.set(sheet.path,Buffer.from('broken image'));
     if(change==='same-length-bytes')f.files.get(sheet.path)[3]=1;
     if(change==='missing-hash')delete sheet.sha256;
+    if(change==='unlabeled')delete sheet.labelVersion;
     const before=f.submitted.length;
     await api.prepareSceneEvidence(f.p,change==='wrong-job'?'/other-work':'/work',f.io,change==='new-plan'?undefined:first.visualEvidence);
     assert.equal(f.submitted.length-before,['wrong-job','new-plan'].includes(change)?2:1,change);
@@ -62,7 +65,7 @@ test('scene visual evidence',{skip:!modulesRoot&&'Set SBS_PANEL_TEST_MODULES'},a
  await t.test('a different valid JPEG of the same dimensions is not a cache hit',async()=>{
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'scene-cache-jpeg-'));try{
    const bytes=[];for(const color of ['red','blue']){const file=path.join(dir,color+'.jpg');cp.execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c='+color+':s=1280x240','-frames:v','1','-threads','1',file]);bytes.push(fs.readFileSync(file));}
-   const f=memoryIO();f.p.preparedMedia=[];let replacement=0;const read=f.io.readFile;f.io.readFile=async p=>p.endsWith('/original-images.jpg')?new Uint8Array(bytes[replacement]):read(p);
+   const f=memoryIO();f.p.preparedMedia=[];let replacement=0;const read=f.io.readFile;f.io.readFile=async p=>/\/original-images(?:-raw)?\.jpg$/.test(p)?new Uint8Array(bytes[replacement]):read(p);
    const first=await api.prepareSceneEvidence(f.p,'/work',f.io);replacement=1;const before=f.submitted.length;const result=await api.prepareSceneEvidence(f.p,'/work',f.io,first.visualEvidence);
    assert.equal(f.submitted.length-before,1);assert.equal(result.visualEvidence.sheets.find(s=>s.name==='original-images').reusedFrom,undefined);
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
@@ -109,5 +112,29 @@ test('scene visual evidence',{skip:!modulesRoot&&'Set SBS_PANEL_TEST_MODULES'},a
    const groups=api.sceneEvidenceSheets({sources:[{...actor(),path:video,durationSeconds:2,fps:10,sourceWords:[[1.2,1.8,'blue',1,'u',false]]},{type:'Image',resourceId:'image',name:'still.png',path:image}],preparedMedia:[{id:'head',resourceId:'head',path:video,sourceResourceName:'actor.mov',sourceStartFrame:100,sourceEndFrame:120,fps:10,kind:'prepared-head'}]}).groups;
    for(const group of groups){const output=path.join(dir,group.name+'.jpg');cp.execFileSync('ffmpeg',api.sceneEvidenceArgs(group.tiles,output));assert(fs.statSync(output).size>100);const meta=JSON.parse(cp.execFileSync('ffprobe',['-v','error','-show_entries','stream=width,height','-of','json',output]));assert.equal(meta.streams[0].width,1280);assert.equal(meta.streams[0].height,240);const rgb=cp.execFileSync('ffmpeg',['-v','error','-i',output,'-vf','crop=1:1:160:120:exact=1,format=rgb24','-frames:v','1','-f','rawvideo','-']);if(group.name==='original-video')assert(rgb[2]>200&&rgb[0]<30);if(group.name==='original-images')assert(rgb[1]>70&&rgb[0]<30);if(group.name==='prepared-media')assert(rgb[0]>200&&rgb[2]<30);}
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
+ });
+ await t.test('real browser labels exact tile identities without covering or swapping source images',async()=>{
+  const {chromium}=dep('playwright');
+  const browser=await chromium.launch(fs.existsSync('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')?{executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}:{});
+  try{
+   const page=await browser.newPage();
+   const code=esbuild.transformSync(source.slice(source.indexOf('async function labelSceneEvidence('),source.indexOf('async function prepareSceneEvidence(')),{loader:'ts'}).code;
+   const result=await page.evaluate(async code=>{
+    const label=new Function(code+';return labelSceneEvidence;')(),raw=document.createElement('canvas');raw.width=1280;raw.height=480;
+    const g=raw.getContext('2d');g.fillStyle='#ff0000';g.fillRect(0,0,1280,480);g.fillStyle='#0000ff';g.fillRect(0,240,320,240);
+    const bytes=new Uint8Array(await(await new Promise(resolve=>raw.toBlob(resolve,'image/jpeg'))).arrayBuffer());
+    const names=['\u110b\u1163\u11a81.png','green.png','paper.png','photo.jpg','\u110b\u1163\u11a8\u1107\u1162\u1109\u1169\u11bc \u1107\u1161\u11ab\u1103\u1162 \u1109\u1175\u110b\u1171\u1112\u1161\u1102\u1173\u11ab \u110b\u1163\u11a8\u1109\u1161_\u1102\u1172\u1109\u11731 (1).jpg'];
+    const tiles=names.map((name,i)=>({name,resourceId:'r'+i,tileIndex:i,row:Math.floor(i/4),column:i%4}));
+    const texts=[],fill=CanvasRenderingContext2D.prototype.fillText;CanvasRenderingContext2D.prototype.fillText=function(...args){texts.push(args);return fill.apply(this,args);};
+    let labeled;try{labeled=await label(bytes,tiles);}finally{CanvasRenderingContext2D.prototype.fillText=fill;}
+    const bitmap=await createImageBitmap(new Blob([labeled])),out=document.createElement('canvas');out.width=bitmap.width;out.height=bitmap.height;const ctx=out.getContext('2d');ctx.drawImage(bitmap,0,0);bitmap.close();
+    const pixel=(x,y)=>Array.from(ctx.getImageData(x,y,1,1).data);
+    const footer=ctx.getImageData(0,240,320,72).data;let colored=0;for(let i=0;i<footer.length;i+=4)if(footer[i]>150&&footer[i+1]>150)colored++;
+    return {width:out.width,height:out.height,first:pixel(160,120),fifth:pixel(160,432),colored,texts};
+   },code);
+   assert.equal(result.width,1280);assert.equal(result.height,624);assert(result.first[0]>230&&result.first[2]<20);assert(result.fifth[2]>230&&result.fifth[0]<20);assert(result.colored>100,'The real JPEG contains rendered footer text');
+   assert.deepEqual(result.texts.filter(x=>x[0].startsWith('[')).map(x=>[x[0],x[1],x[2]]),[['[0] r0',8,259],['[1] r1',328,259],['[2] r2',648,259],['[3] r3',968,259],['[4] r4',8,571]]);
+   assert(result.texts.some(x=>x[0]==='\uc57d1.png'));assert(result.texts.every(x=>x[0]===x[0].normalize('NFC')));
+  }finally{await browser.close();}
  });
 });
