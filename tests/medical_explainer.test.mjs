@@ -117,7 +117,7 @@ test('captions: at most 16 characters a line and 2 lines a card; long sentences 
   for (const l of en) assert.ok(l.length <= 30 && !/^\s|\s$/.test(l), l);
 });
 
-test('timed captions follow the word timing, never overlap, and end after the sentence', () => {
+test('timed captions follow the word timing, leave no gap between blocks, and hold until the next sentence', () => {
   const dur = 5.2;
   const words = op.medAlignWords(LONG, dur, [[0, 0.12], [2.4, 2.75], [5.05, null]], 'ko');
   const cues = op.medTimedCaptions(LONG, words, 10, dur, 16, 100);
@@ -126,10 +126,13 @@ test('timed captions follow the word timing, never overlap, and end after the se
     assert.ok(cues[i].start >= cues[i - 1].end - 1e-9, 'no overlap');
     assert.ok(cues[i].start > 10 && cues[i].start < 10 + dur);
   }
-  assert.ok(close(cues.at(-1).end, 10 + dur + 0.15, 1e-6));
+  for (let i = 1; i < cues.length; i++) assert.equal(cues[i].start, cues[i - 1].end, 'no gap between blocks');
+  const hold = 10 + dur + 0.8;
+  const held = op.medTimedCaptions(LONG, words, 10, dur, 16, hold);
+  assert.equal(held.at(-1).end, hold, 'the last block stays through the pause');
   for (const c of cues) assert.ok(c.text.split('\n').length <= 2);
-  const limited = op.medTimedCaptions(LONG, words, 10, dur, 16, 14);
-  assert.ok(limited.every((c) => c.end <= 14));
+  const early = op.medTimedCaptions(LONG, words, 10, dur, 16, 12);
+  assert.equal(early.at(-1).end, 10 + dur, 'never cut off before the sentence ends');
 });
 
 test('the plan keeps one split scene (left = an earlier scene) and one inset scene with two insets', () => {
@@ -512,4 +515,60 @@ test('the job list is read for this job only, with the fields the app needs', as
     {jobId: 'selects-7', status: 'succeeded', deliveryStatus: 'delivered', errorCode: null, outputs: [{status: 'delivered', path: '/p7'}]},
   ]);
   assert.ok(JSON.stringify(out).length < 1000);
+});
+
+// ---- live-run caption fixes: no orphan tails, no gaps ----
+// Sentences from the Staging run of 2026-10-22 whose last word ended up alone in a caption.
+const LIVE = [
+  '\uace0\ud608\uc555\uc740 \ud608\uad00 \ubcbd\uc744 \ub204\ub974\ub294 \uc555\ub825\uc774 \uc624\ub7ab\ub3d9\uc548 \ub192\uac8c \uc720\uc9c0\ub418\ub294 \uc0c1\ud0dc\uc785\ub2c8\ub2e4.',
+  '\ud608\uad00 \ubcbd\uc5d0 \uc313\uc778 \ud50c\ub77c\ud06c\ub294 \uc2dc\uac04\uc774 \uc9c0\ub0a0\uc218\ub85d \uc810\uc810 \ub354 \ub450\uaecd\uac8c \uc790\ub77c\ub0a9\ub2c8\ub2e4.',
+  '\ub192\uc740 \ud608\uc555\uc740 \ud608\uad00 \uc548\ucabd \ubcbd\uc5d0 \ub04a\uc784\uc5c6\uc774 \uc190\uc0c1\uc744 \uc90d\ub2c8\ub2e4.',
+  LONG,
+];
+const blockLen = (b) => op.medLen(b.tokens.join(' '));
+test('captions: a sentence that fits two lines is one block; longer ones split into balanced blocks, never a lone tail word', () => {
+  for (const text of LIVE) {
+    const blocks = op.medCaptionBlocks(text, 16, 2);
+    const words = text.split(/\s+/);
+    assert.deepEqual(blocks.flatMap((b) => b.tokens), words, 'every word once, in order');
+    for (const b of blocks) {
+      assert.ok(b.lines.length >= 1 && b.lines.length <= 2);
+      for (const l of b.lines) assert.ok(op.medLen(l) <= 16, l);
+      if (b.lines.length === 2) assert.ok(Math.abs(op.medLen(b.lines[0]) - op.medLen(b.lines[1])) <= 8, `unbalanced ${b.lines}`);
+    }
+    if (op.medBalancedLines(words, 16, 2)) assert.equal(blocks.length, 1, `fits one block: ${text}`);
+    if (blocks.length > 1) {
+      const lens = blocks.map(blockLen);
+      assert.ok(Math.min(...lens) >= 0.4 * Math.max(...lens), `balanced blocks ${lens}`);
+      for (const b of blocks) assert.ok(b.tokens.length > 1, `lone word ${b.tokens}`);
+    }
+  }
+  // The three orphan cases from the live run.
+  assert.equal(op.medCaptionBlocks(LIVE[2], 16, 2).length, 1);
+  assert.deepEqual(op.medCaptionCards(LIVE[2], 16, 2)[0].length, 2);
+  assert.ok(op.medCaptionBlocks(LIVE[0], 16, 2).at(-1).tokens.length > 1);
+  assert.ok(op.medCaptionBlocks(LIVE[1], 16, 2).at(-1).tokens.length > 1);
+  assert.deepEqual(op.medCaptionBlocks('\uc548\ub155\ud558\uc138\uc694.', 16, 2).map((b) => b.lines), [['\uc548\ub155\ud558\uc138\uc694.']]);
+  assert.deepEqual(op.medBalancedLines(['a', 'bb', 'ccc', 'dddd'], 8, 2), ['a bb', 'ccc dddd']);
+  assert.equal(op.medBalancedLines(['aaaaaaa', 'bbbbbbb', 'ccccccc'], 8, 2), null);
+});
+
+test('captions run without a gap from the first sentence to the end of the Draft, over pauses and transitions', async () => {
+  const {dir} = makeJob();
+  const io = stubIO(dir, {duration: async (p) => NARR[Number(/narr_(\d)_/.exec(p)[1]) - 1],
+    silences: async () => [[0, 0.1], [1.6, 1.9]]});
+  await op.medEngine('timeline', dir, [], io);
+  const tl = JSON.parse(fs.readFileSync(path.join(dir, 'timeline.json'), 'utf8'));
+  const caps = tl.captions;
+  assert.equal(caps[0].start, tl.narration[0].start);
+  for (let i = 1; i < caps.length; i++) assert.equal(caps[i].start, caps[i - 1].end, `gap before caption ${i + 1}`);
+  assert.equal(caps.at(-1).end, tl.total, 'the last caption holds to the end');
+  for (const [i, nr] of tl.narration.entries()) {
+    assert.ok(caps.some((c) => c.start === nr.start), `sentence ${i + 1} starts a caption with its narration`);
+    if (i + 1 < tl.narration.length) {
+      const b = tl.boundaries[i];
+      assert.ok(caps.some((c) => c.start <= b.start && c.end >= b.end - 1e-9 || c.start < b.center && c.end > b.center), `a caption covers transition ${i + 1}`);
+    }
+  }
+  fs.rmSync(dir, {recursive: true, force: true});
 });

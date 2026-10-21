@@ -669,59 +669,95 @@ export function medAlignWords(text, dur, sil, lang) {
   return out;
 }
 const PUNCT_END = /[.,!?;:\u3002\u3001\uff0c\uff01\uff1f]$/u;
-// Caption lines of at most `maxChars` characters, broken at spaces; a word longer than a line (CJK without spaces) is
-// cut at the line length.
-export function medCaptionLines(text, maxChars) {
-  const lines = [];
-  let cur = "";
+// A sentence's caption tokens: its words, a word longer than a line (CJK without spaces) cut at the line length.
+function captionTokens(text, maxChars) {
+  const out = [];
   for (let w of words(text)) {
-    while (medLen(w) > maxChars) {
-      if (cur) { lines.push(cur); cur = ""; }
-      lines.push(slice(w, 0, maxChars));
-      w = slice(w, maxChars);
-    }
-    if (!w) continue;
-    const next = cur ? cur + " " + w : w;
-    if (medLen(next) > maxChars && cur) { lines.push(cur); cur = w; } else cur = next;
+    while (medLen(w) > maxChars) { out.push(slice(w, 0, maxChars)); w = slice(w, maxChars); }
+    if (w) out.push(w);
   }
-  if (cur) lines.push(cur);
-  return lines;
+  return out;
 }
-// Lines grouped into caption cards of at most `maxLines` lines. A card closes early after a line ending in punctuation
-// when what is left would not fit in it anyway, so a long sentence switches captions at a natural pause.
-export function medCaptionCards(text, maxChars = 16, maxLines = 2) {
-  const lines = medCaptionLines(text, maxChars);
-  const cards = [];
-  let card = [];
-  lines.forEach((line, i) => {
-    card.push(line);
-    const left = lines.length - i - 1;
-    if (card.length >= maxLines || (left > 0 && PUNCT_END.test(line) && card.length + left > maxLines)) { cards.push(card); card = []; }
-  });
-  if (card.length) cards.push(card);
-  return cards.map((c) => c.map((l) => l.replace(/[,\u3001\uff0c]$/u, "")));
+const joinLen = (toks) => medLen(toks.join(" "));
+// Tokens as at most `maxLines` (1 or 2) lines of at most `maxChars`, broken at a word boundary and balanced: one line
+// when it fits, else the break that makes the longer line shortest (after punctuation on a tie). null when it cannot fit.
+export function medBalancedLines(toks, maxChars, maxLines = 2) {
+  if (!toks.length) return [];
+  if (joinLen(toks) <= maxChars) return [toks.join(" ")];
+  if (maxLines < 2) return null;
+  let best = null, score = null;
+  for (let i = 1; i < toks.length; i++) {
+    const a = joinLen(toks.slice(0, i)), b = joinLen(toks.slice(i));
+    if (a > maxChars || b > maxChars) continue;
+    const lone = toks.length > 2 && (i === 1 || i === toks.length - 1) ? 3 : 0; // a line of one word, on a tie
+    const sc = Math.max(a, b) * 10 - (PUNCT_END.test(toks[i - 1]) ? 5 : 0) + lone + (b > a ? 1 : 0);
+    if (score === null || sc < score) { best = i; score = sc; }
+  }
+  return best === null ? null : [toks.slice(0, best).join(" "), toks.slice(best).join(" ")];
 }
-// Timed caption cards for one sentence placed at `start`: each card starts at the time of its first character (from the
-// word timing) and ends where the next one starts, the last 0.15 s after the narration ends (never past `limit`).
-export function medTimedCaptions(text, aligned, start, dur, maxChars, limit) {
-  const cards = medCaptionCards(text, maxChars, 2);
-  // Character offset (spaces excluded) -> time, spreading each word's time evenly across its characters.
+// A sentence as caption blocks of up to two balanced lines. The whole sentence is one block whenever it fits; otherwise
+// it is cut into the fewest blocks that fit, at word boundaries, balanced: no block under 40% of the longest and no
+// block of a single word (unless the sentence is one word or a part cannot be shorter), breaks after punctuation
+// preferred. Returns [{tokens, lines}].
+export function medCaptionBlocks(text, maxChars = 16, maxLines = 2) {
+  const toks = captionTokens(text, maxChars);
+  if (!toks.length) return [];
+  const fits = (part) => medBalancedLines(part, maxChars, maxLines) !== null;
+  const n = toks.length;
+  for (let k = 1; k <= n; k++) {
+    let best = null, bestScore = null;
+    const cuts = [];
+    const visit = (from, left) => {
+      if (left === 1) {
+        if (!fits(toks.slice(from))) return;
+        const bounds = [0, ...cuts, n];
+        const parts = bounds.slice(0, -1).map((a, i) => toks.slice(a, bounds[i + 1]));
+        const lens = parts.map(joinLen);
+        const longest = Math.max(...lens), shortest = Math.min(...lens);
+        const soft = (shortest < 0.4 * longest ? 1000 : 0) + (n > 1 && parts.some((p) => p.length === 1) ? 1000 : 0);
+        const punct = cuts.filter((c) => PUNCT_END.test(toks[c - 1])).length;
+        const score = soft + (longest - shortest) * 2 + longest - punct * 4;
+        if (bestScore === null || score < bestScore) { best = parts; bestScore = score; }
+        return;
+      }
+      for (let c = from + 1; c <= n - left + 1; c++) {
+        if (!fits(toks.slice(from, c))) break;
+        cuts.push(c);
+        visit(c, left - 1);
+        cuts.pop();
+      }
+    };
+    visit(0, k);
+    if (best) return best.map((part) => ({ tokens: part, lines: medBalancedLines(part, maxChars, maxLines).map((l) => l.replace(/[,\u3001\uff0c]$/u, "")) }));
+  }
+  return toks.map((t) => ({ tokens: [t], lines: [t] }));
+}
+// Caption lines of one sentence, block after block (each block at most two lines of `maxChars`).
+export function medCaptionLines(text, maxChars) { return medCaptionBlocks(text, maxChars, 2).flatMap((b) => b.lines); }
+export function medCaptionCards(text, maxChars = 16, maxLines = 2) { return medCaptionBlocks(text, maxChars, maxLines).map((b) => b.lines); }
+// Timed caption blocks for one sentence whose narration starts at `start`: the first block appears with the narration,
+// each later block at the time of its first character (from the word timing), and every block stays until the next
+// one, the last until `hold` (the next sentence's first caption, or the end of the Draft). Captions may run over a
+// transition; only the scene's own overlays end before it.
+export function medTimedCaptions(text, aligned, start, dur, maxChars, hold) {
+  const blocks = medCaptionBlocks(text, maxChars, 2);
   const marks = [];
   for (const [w, a, b] of aligned) { const n = medLen(w); for (let c = 0; c < n; c++) marks.push(a + (b - a) * c / n); }
   const at = (offset) => (marks.length ? marks[Math.min(offset, marks.length - 1)] : 0);
-  const out = [];
   let offset = 0;
-  const starts = cards.map((card) => {
-    const s = at(offset);
-    for (const l of card) offset += medLen(l.replace(/\s+/gu, ""));
+  const starts = blocks.map((b, i) => {
+    const s = i === 0 ? start : Math.min(start + dur, start + at(offset));
+    for (const t of b.tokens) offset += medLen(t);
     return s;
   });
-  // Dropped trailing commas shift the offsets by at most a character per line; harmless at caption granularity.
-  cards.forEach((card, i) => {
-    const a = i === 0 ? start : start + starts[i];
-    const e = Math.min(limit, i + 1 < cards.length ? start + starts[i + 1] : start + dur + 0.15);
-    if (e - a > 0.2) out.push({ text: card.join("\n"), start: r3(a), end: r3(e) });
+  const end = Math.max(hold, start + dur);
+  const out = [];
+  blocks.forEach((b, i) => {
+    const a = i === 0 ? start : Math.max(starts[i], out.length ? out[out.length - 1].start + 0.4 : start);
+    const e = i + 1 < blocks.length ? Math.max(starts[i + 1], a + 0.4) : end;
+    out.push({ text: b.lines.join("\n"), start: r3(a), end: r3(Math.min(e, end)) });
   });
+  for (let i = 1; i < out.length; i++) out[i - 1].end = out[i].start;
   return out;
 }
 // Title size: the longer line fits 1000 px.
@@ -957,8 +993,10 @@ async function cmdTimeline(io, job) {
   const captions = [];
   plan.scenes.forEach((s, i) => {
     const nr = tl.narration[i];
-    const limit = i + 1 < plan.scenes.length ? tl.narration[i + 1].start - 0.05 : tl.total;
-    captions.push(...medTimedCaptions(s.narration, aligned[i].words, nr.start, nr.dur, L.cap, limit));
+    // The last caption of a sentence stays up through the pause (and any transition) until the next sentence's first
+    // caption; the final one to the end of the Draft.
+    const hold = i + 1 < plan.scenes.length ? tl.narration[i + 1].start : tl.total;
+    captions.push(...medTimedCaptions(s.narration, aligned[i].words, nr.start, nr.dur, L.cap, hold));
   });
   // Music bills by started minute: stay under the boundary.
   const needS = tl.total + 1;
