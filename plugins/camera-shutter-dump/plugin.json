@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "camera-shutter-dump",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "name": "Camera Shutter Dump",
   "summary": "Stack twelve photos into a collage on black, one per camera shutter sound, as editable Image clips with bundled shutter effects.",
   "status": "experimental",
@@ -26,7 +26,7 @@
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Needs the editor's existing original Image placement service (same as Four Photo Reveal), public clip effects and Audio overlays; no Node.js. Verified in Selects Staging and a local develop build on 2026-09-30: saved Draft readback and HD export. The Node-free panel (2026-10-01) passed its local tests but has not yet been run in the app. Windows (2026-10-02): the shutter sounds are decoded through the host FileSystem and Web Crypto, with no shell command; a Windows pass on the Staging build is pending."
+    "selects": "Requires a Selects build with original Image editing, editable effects/graphics and Audio source-window verification. This version's installed-app and Windows runtime, full playback and export checks remain pending."
   },
   "preview": {
     "video": "preview.mp4",

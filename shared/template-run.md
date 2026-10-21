@@ -30,7 +30,7 @@ must cover exactly the recorded Image/graphic identities and carry finite,
 well-formed values with positive scale. They remain optional for generic users;
 Image recovery requires the graphic and transform evidence its current verifier
 needs. Optional Audio receipts carry disjoint clip identities, Audio Resource IDs,
-Draft intervals, explicit source routing and level/key/fade settings. They have
+Draft intervals, explicit source routing and level/key/fade settings. Optional per-Audio `source` evidence adds immediate Resource start/end seconds and exact playback-rate/pitch intent. Legacy eight-field Audio rows remain valid for generic record readers, but current Image recovery requires source evidence before SDK dispatch. Source evidence requires finite increasing boundaries, bounded positive integer rate terms and a boolean pitch policy. They have
 bounded counts, valid frame intervals, routing indexes and finite SDK-domain
 settings. Current Image recovery also requires this evidence, including an empty
 array for Music Off. An older record without it is inspected without replay. Reads check file size

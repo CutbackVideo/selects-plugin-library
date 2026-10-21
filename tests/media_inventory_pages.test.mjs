@@ -101,8 +101,10 @@ for(const id of ['four-photo-stop-motion','polaroid-photo-dump','no14-still-vide
  const {prepareNativeImages}=loadPanelFunctions(panelSource(id),['nativeImageSources','nativeImageRun','prepareNativeImages']);
  const nodes=[{resourceId:'a',path:'/derived/a.jpg',originalPath:'/imports/a.heic',frameSize:{width:1920,height:1080}},{resourceId:'b',path:'/imports/b.jpg',frameSize:{width:1920,height:1080}}];
  const project={resources:async()=>nodes.map(n=>({resourceId:n.resourceId,type:'Image'})),sourceFiles:async()=>({fileTree:nodes})};
- const sdk={runScript:async({script})=>({result:await new Function('selects',`return (async()=>{${script}})()`)({project:()=>project})})};
- const photos=[0,1,0].map(i=>({name:`Photo ${i}`,path:nodes[i].path}));
+ const sdk={runScript:async({script})=>({result:await new Function('selects',`return (async()=>{${script}})()`)({project:()=>project,files:{stat:async()=>({size:32,isDirectory:false,mtimeMs:1,ino:1}),readRange:async()=>({bytesRead:1,base64:'iQ=='})}})})};
+ // No.14's current input contract binds the picked Resource ID to its path;
+ // path-only inputs remain the contract of the two unmigrated consumers.
+ const photos=[0,1,0].map(i=>({name:`Photo ${i}`,path:nodes[i].path,...id==='no14-still-video'?{resourceId:nodes[i].resourceId}:{}}));
  const ready=await prepareNativeImages(sdk,'p',photos);
  assert.deepEqual(Array.from(ready.sources,s=>s.resourceId),['a','b','a']);
  await assert.rejects(prepareNativeImages(sdk,'p',[{name:'Missing',path:'/missing.jpg'}]),/missing or ambiguous/);

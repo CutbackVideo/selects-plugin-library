@@ -60,7 +60,7 @@ effects, graphics and audio recipes remain template-owned.
   values enter the existing durable result, not a snapshot adopted from an
   unchecked host response. Working-copy and independent saved-state reads use
   the same contract. Music Off verifies an empty sound set and does not require
-  an unused `clipAudio` API. An unexpected Main sound or Audio-lane clip fails.
+  unused `clipAudio` or `clipSourceWindow` APIs. An unexpected Main sound or Audio-lane clip fails. Sound-bearing paths also verify intended immediate Resource source start/end and exact playback rate/pitch through fresh `clips()` targets and `clipSourceWindow`. These values enter the same receipt and independent saved readback. Source clocks use only floating-point arithmetic-noise tolerance (`8 * Number.EPSILON * max(1, abs(actual), abs(expected))`); the level/fade tolerance is not used. Missing source evidence refuses recovery before dispatch. Unsupported source reads stop before commit; private source-read diagnostics are replaced with a safe message. This depends on client PR #7828 and has not been validated in installed hosts.
 - `imageProgramsFeature` owns program inspection, canonical static-preset
   preparation, compact evidence and its pre-commit budget gate. Templates supply
   intended TSX, complete explicit/default parameter values, editable definitions
@@ -104,7 +104,7 @@ new one-commit operation.
 
 Persisted receipts do not verify every saved effect/graphic/audio property,
 including effect-internal time mappings, intrinsic Blend/Spatial Conform,
-layer order, sound source offsets or actual media bytes. Authored program TSX,
+layer order, parent-track Audio state or actual media bytes. Authored program TSX,
 parameters, editable definitions and effect order/enabled state are checked;
 that does not prove rendering or Inspector behavior. Missing old graphic,
 transform, Audio or program evidence requires inspection, not a save replay.
