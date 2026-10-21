@@ -323,6 +323,36 @@ export async function prepareNativeImages(sdk,projectId,photos,knownLibraryId=nu
  if(!Array.isArray(result.sources))throw Error('Original Image verification returned an incomplete result.');
  return {sdk,projectId,sources:result.sources};
 }
+
+// File contents are observations, not a filesystem lock. Keep the existing
+// Image availability contract unchanged; templates opt into complete identity.
+export function requireSourceFileSupport(files) {
+ if(typeof files?.fingerprint!=='function'){
+  const message='Update Selects to verify complete source file contents before creating this template.';
+  throw Object.assign(new Error(message),{code:'source-file-unsupported',publicMessage:message});
+ }
+}
+export async function observeSourceFiles(files,paths,expected=null) {
+ const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code,publicMessage:message,cause});
+ if(!Array.isArray(paths)||paths.some(path=>typeof path!=='string'||!path||path.includes('\0')))throw issue('source-file-input','The selected source paths are invalid.');
+ const selected=[...new Set(paths)];
+ const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256);
+ if(expected!==null&&(!Array.isArray(expected)||expected.length!==selected.length||new Set(expected.map(row=>row?.path)).size!==expected.length||expected.some(row=>!valid(row)||!selected.includes(row.path))))throw issue('source-file-input','The expected source observations do not match the selection.');
+ if(!selected.length)return [];
+ requireSourceFileSupport(files);
+ const observed=[];
+ for(const path of selected){
+  let fingerprint;
+  try{fingerprint=await files.fingerprint(path);}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
+  const row={...fingerprint,path};
+  if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
+  const before=expected?.find(row=>row.path===path);
+  if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');
+  observed.push({path,size:row.size,sha256:row.sha256});
+ }
+ return observed;
+}
 // native-image-input:end
 // native-image-authoring:start
 // Prepare editable Image occurrences in one working copy. The caller owns its
@@ -545,6 +575,7 @@ function validateTemplateRun(row,scope,digest) {
  const invalid=()=>templateRunIssue('TEMPLATE_RUN_INVALID','The saved run record could not be verified. Inspect the Project before starting a new run.');
  if(!row||row.version!==1||!row.scope||Object.keys(row.scope).length!==4||Object.keys(scope).some(key=>row.scope[key]!==scope[key])||row.requestDigest!==digest||
   typeof row.owner!=='string'||!/^[\da-f-]{36}$/i.test(row.owner)||!['claimed','saved','notSaved','outcomeUnknown'].includes(row.status))throw invalid();
+ if(row.savedDraftId!==undefined&&(row.status!=='outcomeUnknown'||typeof row.savedDraftId!=='string'||!row.savedDraftId||row.savedDraftId.length>1024||row.savedDraftId.includes('\0')))throw invalid();
  if(row.status==='saved'){
   const r=row.result;
   if(!r||typeof r.draftId!=='string'||!r.draftId||!Number.isFinite(r.fps)||r.fps<=0||!Number.isSafeInteger(r.durationFrames)||r.durationFrames<1||
@@ -609,7 +640,9 @@ async function writeTemplateRunResult(selects,claim,result,json,encode) {
    if(!('fps' in result)||!('durationFrames' in result)||!('frameSize' in result)||!('clips' in result)||typeof result.draftId!=='string'||!result.draftId)throw Error('Saved run receipt is incomplete');
    saved={draftId:result.draftId,fps:result.fps,durationFrames:result.durationFrames,frameSize:result.frameSize,clips:result.clips,...'graphics' in result?{graphics:result.graphics}:{},...'transforms' in result?{transforms:result.transforms}:{},...'audio' in result?{audio:result.audio}:{},...'programs' in result?{programs:result.programs}:{}};
   }
-  const next=json({...row,status,...saved?{result:saved}:{}});
+  const savedDraftId=status==='outcomeUnknown'?result.draftId:null;
+  if(savedDraftId!=null&&(typeof savedDraftId!=='string'||!savedDraftId||savedDraftId.length>1024||savedDraftId.includes('\0')))throw Error('Invalid saved Draft identity');
+  const next=json({...row,status,...saved?{result:saved}:{},...savedDraftId?{savedDraftId}:{}});
   const reply=await selects.files.compareAndReplace({path:claim.path,expectedBase64:encode(claim.expectedText),base64:encode(next)});
   return {...result,runReceiptSaved:reply?.replaced===true};
  }catch{return {...result,runReceiptSaved:false};}
@@ -645,6 +678,7 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
  const recover=async row=>{
   if(row.status==='saved'){await targetCheck();return verify({...row.result,status:'saved',projectId:scope.projectId});}
   if(row.status==='notSaved')fail('TEMPLATE_RUN_NOT_SAVED','This run stopped before saving a Draft. Start a new run to retry.');
+  if(row.status==='outcomeUnknown'&&row.savedDraftId)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The saved Draft '+row.savedDraftId+' could not be confirmed. Inspect it before starting another run.'),{draftId:row.savedDraftId});
   fail('TEMPLATE_RUN_PENDING','This run may still be saving or awaiting confirmation. Inspect the Project before starting another run.');
  };
  const existing=await read();if(existing)return recover(existing);

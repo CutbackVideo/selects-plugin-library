@@ -14,7 +14,7 @@ const saved={status:'saved',projectId:'project',draftId:'saved',fps:25,durationF
 function sourceAPI(){
  const context={crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array,btoa,atob,setTimeout,clearTimeout};
  vm.createContext(context);
- vm.runInContext(fs.readFileSync(new URL('../shared/template-run.js',import.meta.url),'utf8')+'\nthis.api={executeTemplateRun,writeTemplateRunResult,templateRunJSON,templateRunBase64};',context);
+ vm.runInContext(fs.readFileSync(new URL('../shared/template-run.js',import.meta.url),'utf8')+'\nthis.api={executeTemplateRun,writeTemplateRunResult,templateRunJSON,templateRunBase64,validateTemplateRun};',context);
  return context.api;
 }
 function localFactory(){
@@ -48,4 +48,16 @@ test('Main receipt encoding needs no browser globals and preserves Unicode JSON'
  const api=sourceAPI(),value={title:'\uacf5\uc8fc 🎬 café',path:'C:\\\uc0ac\uc9c4\\\uc5ec\ud589.png'};
  const text=api.templateRunJSON(value);assert.ok(!/[^\x00-\x7f]/.test(text));
  assert.deepEqual(JSON.parse(Buffer.from(api.templateRunBase64(text),'base64').toString('utf8')),value);
+});
+
+test('an unconfirmed post-save run durably preserves its acknowledged Draft identity',async()=>{
+ const api=sourceAPI(),row={version:1,scope,requestDigest:'digest',owner:randomUUID(),status:'claimed'},claim={path:'/run',expectedText:api.templateRunJSON(row)};let written;
+ const selects={files:{compareAndReplace:async input=>{written=JSON.parse(Buffer.from(input.base64,'base64'));return {replaced:true};}}};
+ const result=await api.writeTemplateRunResult(selects,claim,{status:'outcomeUnknown',draftId:'saved-but-unverified'},api.templateRunJSON,api.templateRunBase64);
+ assert.equal(result.runReceiptSaved,true);assert.equal(written.status,'outcomeUnknown');assert.equal(written.savedDraftId,'saved-but-unverified');
+ assert.equal(api.validateTemplateRun(written,scope,'digest').savedDraftId,'saved-but-unverified');
+});
+for(const savedDraftId of ['',4,'x'.repeat(1025)])test('unknown-run saved identity rejects malformed '+JSON.stringify(savedDraftId).slice(0,40),()=>{
+ const api=sourceAPI(),row={version:1,scope,requestDigest:'digest',owner:randomUUID(),status:'outcomeUnknown',savedDraftId};
+ assert.throws(()=>api.validateTemplateRun(row,scope,'digest'),/verified/i);
 });

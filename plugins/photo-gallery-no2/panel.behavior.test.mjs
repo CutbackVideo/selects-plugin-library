@@ -453,6 +453,14 @@ test('BPM UI verifies selected music before starting media work',async()=>{
  const tools=[],h=harness(photos,{audio:[{resourceId:'custom',name:'Custom',path:'/custom.wav',durationFrames:900}],pcm:clickPcm(110),tools,musicInputFailure:true});
  await openMusicEstimate(h);await waitFor(()=>assert.match(h.view.container.textContent,/Selected music changed/));assert.equal(tools.length,0);
 });
+test('BPM UI binds creation to the exact music contents actually estimated',async()=>{
+ const audio={resourceId:'custom',name:'Custom',path:'/custom.wav',durationFrames:900},h=harness(photos,{audio:[audio],pcm:clickPcm(110),tools:[]});
+ await openMusicEstimate(h);await waitFor(()=>assert.match(h.view.container.textContent,/Estimated BPM: 10[89]|Estimated BPM: 11[01]/));
+ fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));
+ await waitFor(()=>assert.ok(h.calls.some(call=>call.input.operation==='create')));
+ const made=h.calls.find(call=>call.input.operation==='create').input;
+ assert.equal(made.musicFingerprint?.path,audio.path);assert.equal(made.musicFingerprint.sha256,createHash('sha256').update(Buffer.from('fixture audio custom')).digest('hex'));
+});
 
 test('an unsupported complete-authoring host stops before music import or video preparation',async()=>{
  const tools=[],h=harness(photos,{maxScriptTimeoutSeconds:30,tools});

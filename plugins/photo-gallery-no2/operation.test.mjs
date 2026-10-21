@@ -9,7 +9,7 @@ const effectSha = 'bf1d24dab2ac13a45fcd5a1ce5ff0587de86be31f900ab03976cbbc1fc5eb
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const image = (i) => ({ resourceId: `r${i}`, name: `photo-${i}.png`, type: 'Image' });
 const file = (i) => ({ type: 'image', resourceId: `r${i}`, name: `photo-${i}.png`, path: `/test/photo-${i}.png`, frameSize: { width: 1080, height: 1920 } });
-const readableFiles = () => ({ stat: async () => ({ size: 32, isDirectory: false, mtimeMs: 1, ino: 1 }), readRange: async () => ({ bytesRead: 1, base64: 'iQ==' }) });
+const readableFiles = () => ({ stat: async () => ({ size: 32, isDirectory: false, mtimeMs: 1, ino: 1 }), readRange: async () => ({ bytesRead: 1, base64: 'iQ==' }), fingerprint:async()=>({size:32,sha256:'1'.repeat(64)}) });
 function fixture({ shortVideo = false } = {}) {
   const calls = { create: 0, commit: 0 };
   const resources = Array.from({ length: 21 }, (_, i) => shortVideo ? { resourceId: `r${i}`, name: `clip-${i}.mp4`, type: 'Video' } : image(i));

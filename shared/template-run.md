@@ -129,3 +129,12 @@ preparation failure can record `notSaved` without claiming that no Project asset
 was imported. Existing canonical bodies and four previous durable-run consumers
 are unchanged. The module pool remains five registered features across ten
 consumers; this does not certify full installed execution or all source clocks.
+
+An `outcomeUnknown` receipt can additionally contain `savedDraftId` when the
+host positively acknowledged that identity before a later verification failed.
+This optional identity is validated and retained for inspection, never treated
+as a successful receipt or permission to replay. Recovery raises a controlled
+pending error with `.draftId` and names the acknowledged Draft. Older unknown
+records without an ID retain their existing behavior. A malformed known identity
+cannot be used to write a receipt. The app's finishTemplate error contract stays
+unchanged; Gallery includes the identity in its existing failure message.

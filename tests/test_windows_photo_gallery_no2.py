@@ -124,7 +124,7 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         self.assertIn("TEMPO_RATE = 11025", tempo)
         self.assertIn("TEMPO_SECONDS = 30", tempo)
         estimate = body(self.runtime, "  async function estimateMusic(audio,scope) {", "\n  }\n")
-        self.assertIn("tempoOfFile(before.path,roots.data,scope)", estimate)
+        self.assertIn("analyzeMusicFile(before.path,roots.data,scope)", estimate)
         self.assertIn("operation:'verifyMusic'", estimate)
         self.assertNotIn("estimated?.resourceId", estimate)
         strings = json.loads(re.search(r"const STRINGS = (\{.*?\n\});\n", self.source, re.S).group(1))
@@ -161,7 +161,7 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("node"), "node runs operation-builder.mjs")
     def test_chat_skill_recipe_matches_the_panel_prefix(self):
-        facts = read(os.path.join(PLUGIN, "input-facts.generated.mjs")).split("export ", 1)[1].strip()
+        facts = read(os.path.join(PLUGIN, "input-facts.generated.mjs")).split("export ", 1)[1].strip().replace("\nexport ", "\n")
         packaged = read(os.path.join(PLUGIN, "authoring.generated.mjs"))
         authoring = json.loads(re.search(r"export const IMAGE_AUTHORING_SOURCE = (.*);", packaged).group(1))
         serializer = json.loads(re.search(r"export const TEMPLATE_RUN_SOURCE = (.*);", packaged).group(1))

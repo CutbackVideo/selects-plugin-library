@@ -240,7 +240,7 @@ function tempoEstimate(samples) {
 }
 // Analyze a verified private source through the existing derived-file owner.
 // No Resource-ID memo: every invocation checks source and cached PCM bytes.
-async function tempoOfFile(path, dataDir, options = {}) {
+async function analyzeMusicFile(path, dataDir, options = {}) {
   const client=options.client??hostSdk,files=client?.files;
   const issue=(message,code='tempo-invalid')=>Object.assign(new Error(message),{code,publicMessage:message,terminal:true,safeNotSaved:true});
   if(typeof options.isCurrent!=='undefined'&&typeof options.isCurrent!=='function')throw issue('The music analysis scope is invalid.');
@@ -280,12 +280,15 @@ async function tempoOfFile(path, dataDir, options = {}) {
     const result=tempoEstimate(samples);current();
     const after=await readAssetFileIdentity(files,path,hashFile,current);current();
     if(after.sha256!==source.sha256||after.bytes!==source.bytes)throw issue('The selected music source changed during analysis.','tempo-changed');
-    return result;
+    return {estimate:result,source:{size:source.bytes,sha256:source.sha256}};
   }catch(error){
-    current();if(decodeFailed&&!error?.terminal)return {status:'uncertain',reason:'Audio could not be decoded'};
+    current();if(decodeFailed&&!error?.terminal)return {estimate:{status:'uncertain',reason:'Audio could not be decoded'},source:null};
     if(error?.code==='host-missing'||typeof error?.publicMessage==='string'){error.safeNotSaved=true;throw error;}
     throw Object.assign(issue('Music analysis could not be completed. Check the source file and media tools.','tempo-read'),{cause:error});
   }
+}
+async function tempoOfFile(path,dataDir,options={}) {
+  return (await analyzeMusicFile(path,dataDir,options)).estimate;
 }
 // tempo:end
 
@@ -761,7 +764,8 @@ async function verifyGalleryInputs(sdk, t, input, isCurrent) {
   if (!isCurrent()) throw stopped();
   if (reply.isError || reply.result?.status !== 'inputsReady' || !Array.isArray(reply.result.media) || reply.result.media.length !== 21) {
     const result = reply.result, error = Object.assign(new Error(result?.message || reply.output || t.failed), { safeNotSaved: true });
-    if (['image-source-missing', 'image-source-unreadable', 'image-source-unknown', 'image-source-changed'].includes(result?.code)) error.publicMessage = result.message + '. Check the original file in the Project, then try again.';
+    if (/^source-file-/.test(result?.code??'')) error.publicMessage=result.message;
+    else if (['image-source-missing', 'image-source-unreadable', 'image-source-unknown', 'image-source-changed'].includes(result?.code)) error.publicMessage = result.message + '. Check the original file in the Project, then try again.';
     throw error;
   }
   return { ...input, media: reply.result.media, music: reply.result.music };
@@ -849,11 +853,11 @@ async function buildGalleryDraft(sdk,t,{input,isCurrent,onDispatched,onDraft,lib
   await onDispatched();
   if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
   const response=await sdk.runScript({script:buildScript({...input,operation:'create',...runReceipt?{runReceipt}:{}}),summary:'Create complete Photo Gallery Draft',allowCommit:true,timeoutSeconds:120});
+  if(typeof response.result?.draftId==='string'&&response.result.draftId)await onDraft(response.result.draftId);
   if(response.isError||response.result?.status!=='saved'||!response.result.draftId){
-    const result=response.result;throw Object.assign(new Error(result?.message||response.output||t.unknown),{safeNotSaved:result?.status==='notSaved'});
+    const result=response.result;throw Object.assign(new Error(result?.message||response.output||t.unknown),{safeNotSaved:result?.status==='notSaved',draftId:result?.draftId??null});
   }
   const result=response.result;
-  await onDraft(result.draftId);
   await verifyAtomicImageDraft(sdk,input.projectId,result);
   return {...result,verified:true,readReturned:true};
 }
@@ -961,19 +965,20 @@ function GalleryPanel({ sdk, context, ui }) {
       return response.result.music;
     };
     const before=await read(),roots=await hostRoots(sdk,'photo-gallery-no2','SKILL.md');current();
-    const value = await tempoOfFile(before.path,roots.data,scope);current();
+    const analysis=await analyzeMusicFile(before.path,roots.data,scope),value=analysis.estimate;current();
     if (value?.status !== 'estimated' || !Number.isFinite(value.bpm)) throw new Error(value?.reason || t.uncertain);
     const after=await read();current();
     if(before.resourceId!==after.resourceId||holdPathKey(before.path)!==holdPathKey(after.path)||before.durationSeconds!==after.durationSeconds)throw new Error('Selected music changed during analysis. Start a new estimate.');
-    setEstimated({ resourceId: after.resourceId, path:after.path, bpm: value.bpm });
-    return value.bpm;
+    const musicFingerprint={path:after.path,...analysis.source};
+    setEstimated({ resourceId: after.resourceId, path:after.path, bpm: value.bpm,musicFingerprint });
+    return {bpm:value.bpm,musicFingerprint};
   }
 
   async function estimateOnClick() {
     if (running.current || !selectedMusic) return;
     running.current = true; setBusy(true); setStatus(null);
     let scope;
-    try { scope=beginMusicScope();const bpm = await estimateMusic(selectedMusic,scope);if(scope.isCurrent())setStatus({ tone: 'success', text: t.estimated + ': ' + bpm }); }
+    try { scope=beginMusicScope();const {bpm} = await estimateMusic(selectedMusic,scope);if(scope.isCurrent())setStatus({ tone: 'success', text: t.estimated + ': ' + bpm }); }
     catch (error) { if(!scope||scope.isCurrent())setStatus({ tone: 'error', text: t.uncertain + ' ' + String(error?.publicMessage||error?.message || error) }); }
     finally { running.current = false;if(alive.current)setBusy(false); }
   }
@@ -984,7 +989,7 @@ function GalleryPanel({ sdk, context, ui }) {
       return { manualBpm };
     }
     if (audio) {
-      try{return { estimatedBpm: await estimateMusic(audio,beginMusicScope(isCurrent)) };}
+      try{const analysis=await estimateMusic(audio,beginMusicScope(isCurrent));return {estimatedBpm:analysis.bpm,musicFingerprint:analysis.musicFingerprint};}
       catch(error){if(error&&typeof error==='object')error.safeNotSaved=true;throw error;}
     }
     throw new Error(t.bpmMissing);
@@ -1196,7 +1201,7 @@ function galleryRunRequest(template) {
 // the readers used to independently verify the persisted result.
 async function requireGalleryRunReaders(sdk,projectId,music) {
   const methods=['motionGraphics','motionGraphicProgram','clipTransform','videoEffects','videoEffectProgram',...music==='none'?[]:['clipAudio','clipSourceWindow']];
-  const reply=await sdk.runScript({summary:'Check Gallery saved-result support',allowCommit:false,script:`const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:'Gallery support check'});return {supported:${JSON.stringify(methods)}.every(name=>typeof d[name]==='function')};`});
+  const reply=await sdk.runScript({summary:'Check Gallery saved-result support',allowCommit:false,script:`if(typeof selects.files?.fingerprint!=='function')return {supported:false};const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:'Gallery support check'});return {supported:${JSON.stringify(methods)}.every(name=>typeof d[name]==='function')};`});
   if(reply.isError||reply.result?.supported!==true)throw templateIssue('Update Selects to create and verify Photo Grid Reveal safely.');
 }
 
@@ -1258,9 +1263,10 @@ function GalleryTemplateRun({ sdk, context }) {
         say('Done.');
         finish({ sequenceId: built.draftId });
       } catch (error) {
+        if(!draftId&&typeof error?.draftId==='string'&&error.draftId)draftId=error.draftId;
         console.warn('[photo-gallery-no2] template run failed:', error?.message || String(error), { draftId, dispatched });
         say('Stopped.');
-        finish({ error: draftId ? TEMPLATE_PARTIAL : dispatched && !error?.safeNotSaved ? TEMPLATE_UNCERTAIN : templateMessage(error) });
+        finish({ error: draftId ? TEMPLATE_PARTIAL+' ('+draftId+')' : dispatched && !error?.safeNotSaved ? TEMPLATE_UNCERTAIN : templateMessage(error) });
       } finally {
         finish({ error: TEMPLATE_FAILED });
       }

@@ -136,3 +136,17 @@ for(const damage of ['duplicate','omitted','oversized','unreadable'])test('Galle
  if(damage==='unreadable'){const read=f.local.files.readRange;f.local.files.readRange=(name,...args)=>{if(name===p)throw Error('EACCES');return read(name,...args);};}
  await f.mount();await settle(f,2);assert.ok(f.finishes[1].error);assert.equal(f.commits.length,1);
 });
+
+for(const minify of [false,true])test('Gallery run: a source change after save retains the Draft ID and never replays (minify='+minify+')',async()=>{
+ const f=fixture({minify}),project=f.selects.project('p'),create=project.createDraft;
+ project.createDraft=async options=>{const d=await create(options),commit=d.commitAll;d.commitAll=async reason=>{const r=await commit(reason);const file=f.nodes.find(n=>n.type==='video').path;f.sourceBytes.set(file,Buffer.alloc(32,99));return r;};return d;};
+ await f.mount();await settle(f);assert.ok(f.finishes[0].error);assert.equal(f.commits.length,1);
+ const row=JSON.parse(f.files.get(records(f)[0]));assert.equal(row.status,'outcomeUnknown');
+ assert.equal(row.savedDraftId,[...f.saved.keys()][0]);
+ assert.ok(f.finishes[0].error.includes(row.savedDraftId));
+ await f.mount();await settle(f,2);assert.ok(f.finishes[1].error.includes(row.savedDraftId));assert.equal(f.commits.length,1);
+});
+test('Gallery run: unsupported file fingerprint stops before ownership or assets',async()=>{
+ const f=fixture();delete f.selects.files.fingerprint;await f.mount();await settle(f);
+ assert.match(f.finishes[0].error,/Update Selects/);assert.equal(records(f).length,0);assert.equal(f.requests.some(r=>r.allowCommit),false);assert.equal(f.commits.length,0);
+});

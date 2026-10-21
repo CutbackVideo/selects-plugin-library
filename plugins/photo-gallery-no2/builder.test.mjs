@@ -6,8 +6,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { buildScript, SCRIPT_PREFIX, ORIGINAL_IMAGE_SOURCE, FORMAT_SOURCE } from './operation-builder.mjs';
-import { nativeImageSources as canonicalFacts } from '../../shared/native-image-input.mjs';
-import { nativeImageSources as packagedFacts } from './input-facts.generated.mjs';
+import { nativeImageSources as canonicalFacts, observeSourceFiles as canonicalObserve, requireSourceFileSupport as canonicalSupport } from '../../shared/native-image-input.mjs';
+import { nativeImageSources as packagedFacts, observeSourceFiles as packagedObserve, requireSourceFileSupport as packagedSupport } from './input-facts.generated.mjs';
 import { IMAGE_AUTHORING_SOURCE, PANEL_AUTHORING_SOURCE, TEMPLATE_RUN_SOURCE, PANEL_RUN_SOURCE, PANEL_ASSET_SOURCE } from './authoring.generated.mjs';
 
 test('installed panel contains the exact shared operation prefix', () => {
@@ -38,6 +38,7 @@ test('an isolated installed package builds the same SDK script without repositor
 });
 test('installed input facts are an exact generated copy of the canonical feature',()=>{
  assert.equal(packagedFacts.toString(),canonicalFacts.toString());
+ assert.equal(packagedObserve.toString(),canonicalObserve.toString());assert.equal(packagedSupport.toString(),canonicalSupport.toString());
 });
 
 test('packaged authoring helpers match existing canonical sources without browser ownership code',()=>{

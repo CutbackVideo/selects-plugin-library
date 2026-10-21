@@ -32,7 +32,7 @@ jobs:
       - name: Test complete Image Draft authoring
         run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_atomic_authoring.test.mjs tests/photo_atomic_compiled.test.mjs tests/polaroid_atomic.test.mjs
       - name: Test Gallery complete authoring and input/compiled ordering
-        run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test --test-concurrency=2 tests/gallery_input.test.mjs tests/gallery_atomic.test.mjs tests/gallery_run.test.mjs tests/gallery_assets.test.mjs tests/gallery_held_cache.test.mjs tests/gallery_timing.test.mjs tests/gallery_tempo.test.mjs tests/gallery_music_inputs.test.mjs tests/bundled_media_tool.test.mjs plugins/photo-gallery-no2/*.test.mjs
+        run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test --test-concurrency=2 tests/gallery_input.test.mjs tests/gallery_atomic.test.mjs tests/gallery_run.test.mjs tests/gallery_assets.test.mjs tests/gallery_held_cache.test.mjs tests/gallery_timing.test.mjs tests/gallery_tempo.test.mjs tests/gallery_music_inputs.test.mjs tests/gallery_source_guard.test.mjs tests/source_file_observations.test.mjs tests/bundled_media_tool.test.mjs plugins/photo-gallery-no2/*.test.mjs
       - name: Test Project title and saved visual receipts
         run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/camera_project_title.test.mjs tests/photo_graphic_receipts.test.mjs tests/photo_transform_receipts.test.mjs
       - name: Test saved photo-template Audio receipts

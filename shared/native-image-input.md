@@ -93,3 +93,28 @@ exercise real temporary PNG files, removal with retained metadata, both source
 tree response shapes, Windows/UNC paths, repeated picks, placement-time deletion,
 SDK TypeScript compatibility and existing reference plans. These are not an
 installed-app end-to-end or Windows playback claim.
+
+## Opt-in full content observations
+
+`requireSourceFileSupport(files)` requires the co-shipped read-only fingerprint
+method and otherwise exposes a safe update message. `observeSourceFiles(files,
+paths, expected = null)` deduplicates paths in selection order and returns
+`{path,size,sha256}` for complete nonempty media. Providing expected observations
+requires the exact selected path set and compares every size and SHA-256.
+Missing, unsupported, invalid, changed and unknown results have separate
+`source-file-*` codes. Private reader diagnostics remain an Error cause, outside
+the public message. An empty selection requires no file capability.
+
+Gallery opts into this feature during composition. Its selected Project facts
+are refreshed separately with `resources({fresh:true})` and
+`sourceFiles({fresh:true})`; default reads retain SDK caching. The source file
+observer owns no metadata policy, asset snapshot, Draft mutation or persistence.
+Original `nativeImageSources` and `prepareNativeImages` bodies are unchanged;
+the four older consumers receive additive unused definitions and do not acquire
+a new runtime requirement. Gallery's installed input-facts artifact now exports
+all three SDK-safe functions; its generator serializes their declarations.
+
+`fingerprint` is a bounded-memory observation, not a file lock. Changes after
+its final read, or changes across distinct observations without an observable
+content difference, are not excluded. Unknown observations must not authorize
+creation. Post-save failure cannot undo a saved Draft and must retain its ID.

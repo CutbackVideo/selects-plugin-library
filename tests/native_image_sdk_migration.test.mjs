@@ -10,7 +10,7 @@ function fixture(plugin, { duplicate = false, wrongOwner = false, moved = false 
   const start = source.indexOf('// native-sdk:start');
   assert.ok(start >= 0, 'panel contains the public SDK placement implementation');
   const end = source.indexOf('// native-sdk:end', start);
-  const api = vm.runInThisContext(`(()=>{${source.slice(start,end).replaceAll('export async function','async function')}\nreturn {prepareNativeImages:typeof prepareNativeImages!=='undefined'?prepareNativeImages:prepareVideos,placeNativeImages:typeof placeNativeImages!=='undefined'?placeNativeImages:placeVideos};})()`);
+  const api = vm.runInThisContext(`(()=>{${source.slice(start,end).replace(/^export (?=(?:async )?function\b)/gm,'')}\nreturn {prepareNativeImages:typeof prepareNativeImages!=='undefined'?prepareNativeImages:prepareVideos,placeNativeImages:typeof placeNativeImages!=='undefined'?placeNativeImages:placeVideos};})()`);
   const photos = Array.from({length:24},(_,i)=>['A','B','C','D','frame'][i]??String(i)).map((slot,i)=>({resourceId:`r${i}`,name:slot,path:`/photos/${slot}.png`}));
   const rows = photos.map(photo=>({...photo,type:plugin==='six-clip-velocity'?'Video':'Image',frameSize:{width:640,height:960}}));
   if(duplicate) rows.push({...rows[0],resourceId:'duplicate'});

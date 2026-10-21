@@ -1,6 +1,36 @@
 # Validation and limits
 
-## Current repair checkpoint: 0.3.17
+## Current repair checkpoint: 0.3.18
+
+Selected source metadata and complete file contents are reobserved before and
+after the single Draft commit. The actual SDK cached resources/sourceFiles per
+script, so repeated default reads were insufficient; the paired client change
+adds explicit `fresh:true` reads while preserving defaults. Its read-only file
+fingerprint streams bounded chunks through existing stat/readRange and checks
+size/mtime/inode around the read. No new IPC, shell or media effect is needed.
+The existing common input module adds opt-in complete-content observations;
+older consumers keep their original availability/dimension contract.
+
+The initial 19 composition tests failed 18 on the parent with one unrelated-change
+control. Expanded cases include same-size/same-time real-file replacement,
+selected metadata changes with simulated SDK caching, unsupported SDKs, automatic
+BPM-to-create content binding, and post-save changes. Precommit failures save
+nothing. Postcommit failures retain the acknowledged Draft ID, report an
+unconfirmed result and do not replay through the durable run path. See
+`docs/template-repair/gallery-source-guard.md` in the source repository for
+verification receipts and the separate client prerequisite #7866.
+
+Local related Node verification passes 1392 cases, 47 more than the parent.
+Python passes 285 with six existing skips; focused SDK tests pass 32. Full client
+checks, remote CI and installed runtime gates are recorded separately.
+
+Full-file observations are not locks or Resource revisions. Large input reads
+can exceed script budgets; no latency benchmark or installed-host/Windows
+claim is made. Complete decoding, Inspector, whole AV/playback/export,
+reference/changed-input quality and the rest of the 28-template goal stay open.
+Chan's shortform apps remain excluded.
+
+## Earlier repair checkpoint: 0.3.17
 
 Music analysis now has an invocation scope, a captured client and a 45-second
 budget. Context change/unmount aborts it; changing away and back does not revive

@@ -4,7 +4,7 @@ const {buildScript}=await import(process.env.GALLERY_MUSIC_BUILDER||new URL('../
 function fixture(){
  const resources=[{resourceId:'audio',type:'Audio',durationSeconds:15}],nodes=[{resourceId:'audio',type:'audio',name:'Music',path:'/music.wav',durationSeconds:15}],hooks={};let writes=0;
  const project={resources:async()=>resources,sourceFiles:async()=>{await hooks.inventory?.();return {fileTree:nodes};},createDraft:async()=>{writes++;throw Error('Unexpected Draft');},importFiles:async()=>{writes++;throw Error('Unexpected import');}};
- const selects={project:()=>project,media:{probe:async()=>{await hooks.probe?.();return hooks.result??{files:[{path:'/music.wav',type:'audio'}],errors:[],summary:{failed:0}};}}};
+ const selects={project:()=>project,files:{fingerprint:async()=>{throw Error('Music metadata preflight must not hash');}},media:{probe:async()=>{await hooks.probe?.();return hooks.result??{files:[{path:'/music.wav',type:'audio'}],errors:[],summary:{failed:0}};}}};
  const run=(music={resourceId:'audio',path:'/music.wav'})=>new Function('selects','return (async()=>{'+buildScript({operation:'verifyMusic',projectId:'p',music})+'})()')(selects);
  return {resources,nodes,hooks,run,get writes(){return writes;}};
 }

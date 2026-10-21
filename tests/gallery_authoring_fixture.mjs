@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {fixture as photoProject} from './photo_authoring_fixture.mjs';
 
@@ -17,6 +18,13 @@ export function galleryFixture({minify=false,mix='mixed',music=true,...faults}={
  const input={operation:'create',projectId:'p',name:'Photo Grid Reveal',durationFrames:853,manualBpm:113,media,music:music?{resourceId:'a0',path:'/audio/Sound 0.wav',durationFrames:3600,startFrame:0}:null};
  f.selects.media={probe:async({filePaths})=>({files:filePaths.map(path=>({path})),errors:[],summary:{failed:0}})};
  f.sdk.maxScriptTimeoutSeconds=120;
+ const sourceBytes=new Map([...f.photos,...videos].map(item=>[item.path,Buffer.alloc(32,7)]));
+ const stat=f.selects.files.stat;
+ f.selects.files.fingerprint=async path=>{
+  const info=await (f.selects.files.stat??stat)(path);if(info===null)return null;
+  const bytes=sourceBytes.get(path)??Buffer.alloc(info.size,11);
+  return {size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};
+ };
  const observed=[],key=String(minify),filename=process.env.GALLERY_AUTHORING_PANEL||new URL('../plugins/photo-gallery-no2/panel.tsx',import.meta.url);
  if(!cache.has(key)){
   const source=fs.readFileSync(filename,'utf8')+`\nexport function __create(sdk,input,options){return buildGalleryDraft(sdk,STRINGS.en,{input,...options});}`;
@@ -24,5 +32,5 @@ export function galleryFixture({minify=false,mix='mixed',music=true,...faults}={
   cache.set(key,module.exports.__create);
  }
  const create=async(options={})=>cache.get(key)(f.sdk,structuredClone(options.input||input),{isCurrent:f.args.stillCurrent,onDispatched:()=>{},onDraft:draftId=>observed.push({draftId,visuals:f.saved.get(draftId)?.clips.filter(c=>c.trackKind==='video'&&c.resourceId).length}),...options});
- return {...f,input,create,observed};
+ return {...f,input,create,observed,sourceBytes};
 }

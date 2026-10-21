@@ -35,10 +35,10 @@ function galleryResolveResource(items, resourceId, path, label) {
 }
 
 async function galleryInventory(project, paths = null) {
-  const resources = await project.resources();
+  const resources = await project.resources({fresh:true});
   const byId = new Map();
   for (const row of resources) byId.set(row.resourceId, row);
-  const overview = await project.sourceFiles();
+  const overview = await project.sourceFiles({fresh:true});
   const nodes = [];
   const visit = (items) => {
     for (const item of items || []) {
@@ -200,7 +200,7 @@ async function galleryImportBundledMusic(selects, project, input, inventory, onI
   return { status: 'musicReady', music: { ...audio[0], startFrame: 0 } };
 }
 
-async function galleryReadInputs(selects, project, input, inventory) {
+function gallerySelectedInputs(input, inventory) {
   const chosen = input.media.map((item, i) => {
     if (!item || typeof item.resourceId !== 'string' || !item.resourceId.trim()) galleryFail(`Slot ${i + 1} Resource ID is required`);
     const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);
@@ -222,7 +222,12 @@ async function galleryReadInputs(selects, project, input, inventory) {
   if (music && (!Number.isFinite(music.durationSeconds) || music.durationSeconds <= 0)) galleryFail('Selected music duration is unavailable');
   const selectedMusic = music && { ...music, startFrame: input.music.startFrame ?? 0 };
   const media = validateMedia(chosen);
-  const paths = [...new Set([...chosen.map((item) => item.path), ...(music ? [music.path] : [])])];
+  return {chosen:media,music:selectedMusic};
+}
+
+async function galleryReadInputs(selects, project, input, inventory) {
+  const {chosen:media,music}=gallerySelectedInputs(input,inventory);
+  const paths = [...new Set([...media.map((item) => item.path), ...(music ? [music.path] : [])])];
   const probe = await selects.media.probe({ filePaths: paths });
   const confirmed = new Set((probe.files || []).map((file) => galleryPathKey(file.path)));
   if (probe.error || (probe.errors || []).length || (probe.summary?.failed || 0) || paths.some((path) => !confirmed.has(galleryPathKey(path)))) {
@@ -238,11 +243,12 @@ async function galleryReadInputs(selects, project, input, inventory) {
       throw Object.assign(new Error(`A selected Image changed while checking inputs: ${images[index].name}`), { code: 'image-source-changed', resourceId: images[index].resourceId });
     }
   }
-  return { chosen: media, music: selectedMusic };
+  return { chosen: media, music };
 }
 
 async function galleryReadMusic(selects, project, input, inventory) {
   try {
+  requireSourceFileSupport(selects.files);
   const read=rows=>{
     const music=galleryResolveResource(rows.audio,input.music?.resourceId,input.music?.path,'Music');
     if(!Number.isFinite(music.durationSeconds)||music.durationSeconds<=0)galleryFail('Selected music duration is unavailable');
@@ -270,11 +276,31 @@ async function galleryPreflight(selects, project, input, inventory) {
 
 async function galleryAtomicSources(selects, projectId, sources) {
   const project=selects.project(projectId),inventory=await galleryInventory(project);
-  return (await galleryReadInputs(selects,project,{projectId,media:sources,music:null},inventory)).chosen;
+  const fresh=(await galleryReadInputs(selects,project,{projectId,media:sources,music:null},inventory)).chosen;
+  if(gallerySourceSignature(sources,null)!==gallerySourceSignature(fresh,null))galleryFail('Selected Gallery source facts changed before placement');
+  return fresh;
+}
+
+function gallerySourceSignature(media,music) {
+  return JSON.stringify({media:media.map(item=>[item.resourceId,item.path,item.kind,item.width,item.height,item.kind==='video'?item.durationSeconds:null]),music:music?[music.resourceId,music.path,music.durationSeconds]:null});
+}
+
+async function galleryCheckSourceMetadata(selects,projectId,guard) {
+  try{
+    const inventory=await galleryInventory(selects.project(projectId));
+    const {chosen,music}=gallerySelectedInputs({media:guard.media,music:guard.music},inventory);
+    if(gallerySourceSignature(chosen,music)!==guard.signature)galleryFail('Selected Gallery source facts changed during composition');
+  }catch(error){if(error?.galleryPublic)throw error;galleryFail('Selected Gallery source metadata could not be confirmed. Reload the Project inputs.');}
+}
+
+async function galleryVerifySourceGuard(selects,projectId,guard) {
+  await galleryCheckSourceMetadata(selects,projectId,guard);
+  await observeSourceFiles(selects.files,guard.files.map(file=>file.path),guard.files);
+  await galleryCheckSourceMetadata(selects,projectId,guard);
 }
 
 async function galleryAtomicFinish(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio,programs) {
-  let commitStarted=false;
+  let commitStarted=false,savedId=null;
   try {
     const {plan,projectId}=config,project=selects.project(projectId),expectedTransforms=[],expectedPrograms=[];
     const controls=[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:.5,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:.5,min:0,max:1,step:.01}];
@@ -299,16 +325,27 @@ async function galleryAtomicFinish(selects,config,draft,native,inspectGraphics,i
     const wantedAudio=plan.music?[{clipId:audioRows[0]?.clipId,trackId:audioRows[0]?.trackId,trackKind:'audio',resourceId:plan.music.resourceId,startFrame:0,endFrame:plan.durationFrames,audioSourceIndexes:null,settings:{},source:{startSeconds:plan.music.startSeconds,endSeconds:plan.music.startSeconds+plan.durationFrames/plan.fps}}]:[];
     const audio=await inspectAudio(draft,wantedAudio,project),programSnapshot=await programs.inspect(draft,expectedPrograms);
     const receipts={graphics,transforms,audio,programs:programSnapshot};programs.confirm(receipts);
+    await galleryVerifySourceGuard(selects,projectId,config.sourceGuard);
     config.onCommitStarted();commitStarted=true;
     const saved=await draft.commitAll('Create complete Photo Gallery Draft');
     if(!saved?.createdDraftId)throw Error('Gallery save outcome is unknown; inspect the Project before retrying');
+    savedId=saved.createdDraftId;
+    await galleryVerifySourceGuard(selects,projectId,config.sourceGuard);
     return {status:'saved',draftId:saved.createdDraftId,...receipts};
-  }catch(error){return {status:commitStarted?'outcomeUnknown':'notSaved',message:String(error?.message||error)};}
+  }catch(error){return {status:commitStarted?'outcomeUnknown':'notSaved',...savedId?{draftId:savedId}:{},message:savedId?'The Gallery was saved, but its source files changed or could not be confirmed. Inspect the saved Draft before retrying.':String(error?.message||error)};}
 }
 
 async function galleryCreate(selects,project,input,inventory,onCommitStarted) {
-  const {plan,chosen}=await galleryPreflight(selects,project,input,inventory);
-  const config={projectId:input.projectId,name:typeof input.name==='string'&&input.name.trim()?input.name.trim():'Photo Gallery',plan:{...plan,canvas:plan.frameSize},sources:chosen,items:plan.tiles.map((tile,index)=>({key:tile.slotKey,slot:index,source:index,startFrame:tile.revealFrame,endFrame:tile.endFrame})),runReceipt:input.runReceipt,onCommitStarted};
+  requireSourceFileSupport(selects.files);
+  const {plan,chosen,music}=await galleryPreflight(selects,project,input,inventory);
+  const files=await observeSourceFiles(selects.files,[...chosen.map(item=>item.path),...music?[music.path]:[]]);
+  const sourceGuard={media:chosen,music,files,signature:gallerySourceSignature(chosen,music)};
+  await galleryCheckSourceMetadata(selects,input.projectId,sourceGuard);
+  if(input.musicFingerprint){
+    const expected=input.musicFingerprint,actual=music&&files.find(file=>gallerySamePath(file.path,music.path));
+    if(!actual||!gallerySamePath(expected.path,music.path)||expected.size!==actual.size||expected.sha256!==actual.sha256)galleryFail('Selected music changed after the BPM estimate. Run a new estimate before creating the Gallery.');
+  }
+  const config={projectId:input.projectId,name:typeof input.name==='string'&&input.name.trim()?input.name.trim():'Photo Gallery',plan:{...plan,canvas:plan.frameSize},sources:chosen,sourceGuard,items:plan.tiles.map((tile,index)=>({key:tile.slotKey,slot:index,source:index,startFrame:tile.revealFrame,endFrame:tile.endFrame})),runReceipt:input.runReceipt,onCommitStarted};
   const result=await authorAtomicImageDraft(selects,config,galleryAtomicFinish,placeWorkingCopyImages,galleryAtomicSources,inspectImageGraphics,inspectImageTransforms,inspectImageAudio,imageProgramsFeature,templateRunJSON);
   return result.status==='saved'?{...result,tileCount:21,colorFrame:plan.colorFrame}:result;
 }
@@ -581,6 +618,7 @@ async function galleryOperationBody(selects, raw) {
       return { status: 'inspected', projectId: input.projectId, media: inventory.media.filter(unique), audio: inventory.audio.filter(unique), unavailable: [...unavailable.values()] };
     }
     if (input.operation === 'verifyInputs') {
+      requireSourceFileSupport(selects.files);
       const { chosen, music } = await galleryReadInputs(selects, project, input, inventory);
       return { status: 'inputsReady', media: chosen, music };
     }
@@ -603,6 +641,6 @@ async function galleryOperationBody(selects, raw) {
     galleryFail('Unknown gallery action');
   } catch (error) {
     const message=raw?.operation==='verifyMusic'&&!error?.galleryPublic?'Selected music could not be verified. Check the Project file and try again.':String(error?.message||error);
-    return { status: commitStarted ? 'outcomeUnknown' : 'notSaved', message, .../^image-source-/.test(error?.code || '') ? { code: error.code, resourceId: error.resourceId } : {} };
+    return { status: commitStarted ? 'outcomeUnknown' : 'notSaved', message, .../^(?:image-source-|source-file-)/.test(error?.code || '') ? { code: error.code, resourceId: error.resourceId } : {} };
   }
 }
