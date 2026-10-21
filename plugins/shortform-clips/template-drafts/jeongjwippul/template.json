@@ -1,0 +1,138 @@
+{
+  "id": "jeongjwippul-draft",
+  "version": 3,
+  "names": {
+    "ko": "\uc815\uc950\ubfd4 (\uc790\ub8cc \ubbf8\uc644\uc131 \ucd08\uc548)",
+    "en": "Jeongjwippul (incomplete draft)"
+  },
+  "detect": {
+    "keywords": [
+      "\uc815\uc950\ubfd4"
+    ],
+    "exclude": [],
+    "host": "\uc815\uc950\ubfd4"
+  },
+  "layout": {
+    "windowTop": 541.2499809265137,
+    "windowBottom": 1148.7499809265137,
+    "sourceTop": 0,
+    "sourceBottom": 1080,
+    "offsetX": 0,
+    "headlineCenter": 391.4747406005859,
+    "logoCenter": 1379.000015258789,
+    "reframe": false
+  },
+  "background": {
+    "mode": "color",
+    "style": "#000000",
+    "color": "#000000",
+    "image": "",
+    "imageName": "",
+    "dim": 0
+  },
+  "border": {
+    "on": false,
+    "color": "#000000"
+  },
+  "headline": {
+    "font": "SDMyeongjo-cBd",
+    "size1": 95,
+    "size2": 95.16839599609375,
+    "color1": "#FFFFFF",
+    "color2": "#FFE400",
+    "box2On": false,
+    "box2": "#000000",
+    "italic": true,
+    "shadow": false,
+    "fontWeight": 400,
+    "lineHeight": 1.2,
+    "letterSpacing": -3.8,
+    "fitWidth": 1010,
+    "fitPadding": 2,
+    "fitCjk": 1,
+    "fitSpace": 0.3,
+    "fitLatin": 0.65,
+    "fitWideLatin": 0.65,
+    "fitOther": 0.65,
+    "strokeOn": true,
+    "strokeWidth": 2,
+    "strokeColor": "currentColor",
+    "rowGap": 107.94947834014891,
+    "offsetX1": -7.9505835101008415,
+    "offsetX2": -2.918890386354182,
+    "letterSpacing1": -3.8000000000000003,
+    "letterSpacing2": -3.80673583984375
+  },
+  "logo": {
+    "mode": "none",
+    "image": "",
+    "imageName": "",
+    "width": 354
+  },
+  "captions": {
+    "on": true,
+    "mode": "bar",
+    "barHeight": 1,
+    "bottom": 1097.9999542236328,
+    "fontSize": 58.944522857666016,
+    "fontWeight": 400,
+    "boxColor": "#00000000",
+    "color": "#FFFFFF",
+    "font": "SDMyeongjo-bMd",
+    "lineMax": 16,
+    "left": 135,
+    "width": 810,
+    "boxPaddingTop": 0,
+    "boxPaddingBottom": 0,
+    "boxPaddingX": 0,
+    "boxLineHeight": 1.2,
+    "boxPerLine": true,
+    "rowGap": 70.73342742919922,
+    "letterSpacing": 0,
+    "shadowSpec": {
+      "color": "#000000",
+      "opacity": 1,
+      "angle": 135,
+      "distance": 5.217391014099121,
+      "size": 6.956521511077881,
+      "blur": 73.91304779052734
+    },
+    "baselineTop": 1097.9999542236328,
+    "strokeOn": true,
+    "strokeWidth": 7,
+    "strokeColor": "#000000"
+  },
+  "editing": {
+    "removeFillers": true,
+    "removeSilences": true
+  },
+  "prompt": {
+    "role": "\uc870\uc120\uc77c\ubcf4 \uc815\uc950\ubfd4 \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4.",
+    "format": "\uc81c\uacf5\ub41c \uc601\uc0c1\uacfc \uc804\uc0ac\uc5d0\uc11c \ud558\ub098\uc758 \uc644\uacb0\ub41c \ubc1c\uc5b8\u00b7\ub17c\uc810\uc744 \uace0\ub978\ub2e4.",
+    "good": "\ub9e5\ub77d\uc744 \ubcf4\uc874\ud55c \uc644\uacb0\ub41c \ubc1c\uc5b8",
+    "bad": "\uc55e\ub4a4 \ub9e5\ub77d\uc744 \uc81c\uac70\ud574 \ubc1c\uc5b8\uc758 \uc758\ubbf8\ub97c \ubc14\uafb8\ub294 \ud3b8\uc9d1",
+    "lengthGuide": "\uc6d0\ubb38 \ub9e5\ub77d\uc744 \ubcf4\uc874\ud558\ub294 \uae38\uc774. \uace0\uac1d \uc9c0\uc815 \uae38\uc774\ub294 \ubbf8\ud655\uc778.",
+    "countGuide": "\uc694\uccad\ud55c \uac1c\uc218. \uace0\uac1d \uae30\ubcf8 \uac1c\uc218\ub294 \ubbf8\ud655\uc778.",
+    "rules": "\uc804\uc0ac\uc5d0 \uc5c6\ub294 \uc0ac\uc2e4\u00b7\uc778\ubb3c\u00b7\ubc1c\uc5b8\uc744 \ucd94\uac00\ud558\uc9c0 \uc54a\ub294\ub2e4. \uace0\uac1d \ud3b8\uc9d1 \uaddc\uce59\uc740 \uc544\uc9c1 \ubbf8\ud655\uc778\uc774\ub2e4.",
+    "headline": "\ub450 \uc904. \ud504\ub85c\uc81d\ud2b8 \uc608\uc2dc\ucc98\ub7fc \uccab \uc904\uc740 \ubc1c\uc5b8 \ub300\uc0c1\uc774\ub098 \ub17c\uc810, \ub458\uc9f8 \uc904\uc740 \ud575\uc2ec \ubc1c\uc5b8\uc744 \uc694\uc57d\ud55c\ub2e4. \uc778\uc6a9\uc740 \uc2e4\uc81c \ubc1c\uc5b8\uc77c \ub54c\ub9cc \uc4f4\ub2e4. \uc904 \uae38\uc774 \uc81c\ud55c\uc740 \uace0\uac1d \ud655\uc778 \uc804 \uc784\uc2dc \uc6b4\uc601 \uae30\uc900\uc774\uba70, \ub118\uce60 \uacbd\uc6b0 \uc758\ubbf8\ub97c \ubcf4\uc874\ud574 \uc904\uc778\ub2e4."
+  },
+  "schemaVersion": 1,
+  "labels": {
+    "top": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 100,
+      "size": 40,
+      "weight": 800
+    },
+    "footer": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 1750,
+      "size": 40,
+      "weight": 800
+    }
+  }
+}
