@@ -108,6 +108,8 @@ jobs:
         run: node plugins/vlog-opening/tests/reference.test.cjs
       - name: Test Mini Vlog
         run: |
+          node plugins/mini-vlog/operation-builder.mjs --check
+          node --test tests/mini_audio_identity.test.mjs
           node plugins/mini-vlog/tests/allocate.test.cjs
           node plugins/mini-vlog/tests/beat-detect.test.cjs
           node plugins/mini-vlog/tests/cues.test.cjs

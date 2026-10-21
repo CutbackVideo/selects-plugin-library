@@ -159,12 +159,13 @@ class MiniVlogWindowsTest(unittest.TestCase):
         self.assertIn("hostRemove(out)", src)
         self.assertNotIn('" + "/"', tokens(src)[0])
 
-    def test_ensure_audio_compares_normalised_paths(self):
+    def test_ensure_audio_uses_shared_normalised_path_reader(self):
         src = read(os.path.join(PLUGIN, "scripts", "ensure-audio.js"))
         self.assertIn(".normalize('NFC')", src)
-        self.assertIn(".replace(/\\\\/g, '/')", src)
+        self.assertIn("readBundledAssetResource(selects, cfg.projectId, cfg.path", src)
+        self.assertIn("win ? 'win32' : 'darwin', true", src)
         self.assertIn("toLowerCase()", src)
-        self.assertIn("DURATION_TOLERANCE = 0.25", src)
+        self.assertNotIn("DURATION_TOLERANCE", src)
 
     def test_korean_stacks_name_windows_faces(self):
         lockup = read(os.path.join(PLUGIN, "assets", "title-lockup.tsx"))

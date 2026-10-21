@@ -193,14 +193,13 @@ const keepAlive = setInterval(() => {}, 50);
   await load('search.js', { projectId: 'p', rids: ['a'], queries: { street: 'q1' }, pageSize: 4, checkAnalysis: false })({ project: () => ({ resources: async () => { reads++; return mixRes; }, resource: selS(mixRes).project().resource }) });
   assert.equal(reads, 0);
 
-  // ensure-audio.js: host paths compared normalised (NFC, backslashes, case on Windows), never as raw strings; a bundled
-  // cue also matches by file name, but only with the manifest length (within 0.25 s), so a user's same-named file never
-  // passes for the cue. Otherwise the file is imported.
+  // Own music and bundled cues both use their selected Project path. Matching
+  // names and approximate lengths cannot identify the bytes of a cue.
   {
     const ensureSel = (audio, tree) => {
       const imported = [];
       return { imported, sel: { project: () => ({ sourceFiles: async () => ({ fileTree: tree }), resources: async () => audio,
-        importFiles: async ({ paths }) => { imported.push(...paths); return { addedResourceIds: ['new1'] }; } }) } };
+        importFiles: async ({ paths }) => { imported.push(...paths);audio.push({resourceId:'new1',type:'Audio',durationSeconds:60.029});tree.push({resourceId:'new1',type:'audio',path:paths[0]});return { addedResourceIds: ['new1'] }; } }) } };
     };
     const node = (rid, p) => ({ type: 'file', resourceId: rid, path: p });
     // The Project stores the decomposed (NFD) Hangul folder name with backslashes; the panel asks with the composed
@@ -212,10 +211,10 @@ const keepAlive = setInterval(() => {}, 50);
     // macOS keeps case: a differently cased path is another file, imported.
     e = ensureSel([{ resourceId: 'a1', type: 'Audio', name: 'x', durationSeconds: 3 }], [node('a1', '/Volumes/Media/Music/Song.mp3')]);
     assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/Volumes/Media/Music/song.mp3' })(e.sel), { resourceId: 'new1', imported: true });
-    // A cue matched by file name with the manifest length; a same-named file of another length is not the cue.
+    // A same-named cue at another path remains a different file, even at the same length.
     const cuePath = '/Volumes/Home/.selects/skills/mini-vlog/assets/cues/bedroom-pop-108.mp3';
     e = ensureSel([{ resourceId: 'a2', type: 'Audio', name: 'bedroom-pop-108.mp3', durationSeconds: 60.1 }], [node('a2', '/Volumes/Copy/bedroom-pop-108.mp3')]);
-    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: cuePath, duration: 60.029 })(e.sel), { resourceId: 'a2', imported: false }, 'name + length');
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: cuePath, duration: 60.029 })(e.sel), { resourceId: 'new1', imported: true }, 'name and length cannot substitute another file');
     e = ensureSel([{ resourceId: 'a3', type: 'Audio', name: 'bedroom-pop-108.mp3', durationSeconds: 61 }], [node('a3', '/Volumes/Media/Music/bedroom-pop-108.mp3')]);
     assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: cuePath, duration: 60.029 })(e.sel), { resourceId: 'new1', imported: true }, 'same name, other length');
     assert.deepEqual(e.imported, [cuePath]);

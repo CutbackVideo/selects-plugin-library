@@ -34,6 +34,17 @@ an unrelated workflow. A passing unit suite alone is not completion.
   See [gallery-index-observation.md](gallery-index-observation.md). The pool and
   28-template completion gates remain unchanged.
 
+- Mini Vlog 0.1.0-alpha.11 fixes wrong-cue reuse by filename/approximate length
+  and confirms its one music import through an independent Project read. It
+  reuses the existing asset reader, generated into the installed operation:
+  five features / eleven consumers. The initial eighteen scenarios fail fourteen
+  against the parent; nineteen focused checks pass after repair, and the Mini
+  Vlog run passes 35 checks. Four actual SDK cases reproduce the wrong content
+  and verify correct selection/reuse/lost-reply recovery in new disposable
+  Projects, preserving the earlier Gallery Project. See
+  [mini-audio-identity.md](mini-audio-identity.md). X12 content-owned music,
+  C-09 alias errors and whole-template/platform/AV gates remain open.
+
 - The existing bundled-asset reader now uses its first size observation as a
   bounded read budget and checks metadata afterward. No.14, Stop Motion,
   Polaroid and Gallery receive regenerated active consumers and patch versions.
@@ -150,7 +161,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `four-photo-stop-motion` | Shared bundled Audio/input/bootstrap + single complete commit + durable run recovery and saved-state receipts; client #7828 prerequisite | Full contract and runtime completion gates above |
 | `gongju-gallery` | Duration regression + draft #258; CI pass | Full contract and runtime completion gates above |
 | `jude-kinetic-style` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
-| `mini-vlog` | Source audit only | Full contract and runtime completion gates above |
+| `mini-vlog` | Shared exact-path Audio reader / generated operation, one observed import; source RED/GREEN and actual SDK wrong-cue/reuse/lost-reply cases | Owned cue bytes/X12, alias errors/C-09, lifetime/recovery/partial saves and full contract/runtime completion gates above |
 | `no14-still-video` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
 | `photo-gallery-no2` | Shared input/run/assets, source-content guards, real SDK/browser rendering; dev-app SQLite/playback/native and codec evidence; shared late-cancellation, lost-reply reservation and bounded asset-read RED/GREEN | Complete image/AV quality, crash/unknown-operation recovery, cleanup failures/GC, installed app, Windows, Inspector, reference/changed-input quality and full contract gates above |
 | `place-count` | Canonical authoring check + draft #260; automated regressions pass | Full contract and runtime completion gates above |

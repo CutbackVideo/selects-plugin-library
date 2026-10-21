@@ -200,6 +200,10 @@ Project while it runs, it stops without writing anything more.
 
 ## Music
 
+Music preparation uses the selected file's Project path. Another file with
+the same name and duration is not substituted. If Selects cannot confirm an
+import, check the Project files before starting another build.
+
 Choose a **Track**. The list shows the reference tracks, then the
 alternatives under an "Alternatives" heading, each with its tempo (for example
 "112 bpm"), then **Your own music** and **No music**:

@@ -5,7 +5,8 @@
       "id": "bundled-assets",
       "source": "shared/bundled-assets.js",
       "buildTimeTargets": [
-        "plugins/photo-gallery-no2/build-panel.mjs"
+        "plugins/photo-gallery-no2/build-panel.mjs",
+        "plugins/mini-vlog/operation-builder.mjs"
       ],
       "targets": [
         "plugins/no14-still-video/panel.tsx",

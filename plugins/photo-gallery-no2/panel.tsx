@@ -518,7 +518,7 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
   throw cause;
  }
 }
-function bundledAssetIssue(code,message,cause){
+function bundledAssetIssue(code,message,cause=undefined){
  return Object.assign(Error(message),{code:'BUNDLED_ASSET_'+code,publicMessage:message,...cause?{cause}:{}});
 }
 async function readBundledAssetBytes(files,path,limit,current){

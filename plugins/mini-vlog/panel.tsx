@@ -1869,7 +1869,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.10";
+const PLUGIN_VERSION = "0.1.0-alpha.11";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -4541,7 +4541,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? hostJoin(roots.plugin, "assets", "cues", cue.file) : null,
       sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,
       draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),
-      // A bundled cue's length (manifest): ensure-audio.js may then match the cue by file name and length.
+      // Keep the cue's duration as build metadata; Audio identity uses its exact Project path.
       musicDuration: musicKind === "cue" && typeof cue?.duration === "number" ? cue.duration : null,
     });
     busyRef.current = true;

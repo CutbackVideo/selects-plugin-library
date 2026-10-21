@@ -1,6 +1,6 @@
 // Installed bytes -> verified owned data file -> one confirmed Project Resource.
 // File publication is delegated to the canonical asynchronous atomic client.
-function bundledAssetIssue(code,message,cause){
+function bundledAssetIssue(code,message,cause=undefined){
  return Object.assign(Error(message),{code:'BUNDLED_ASSET_'+code,publicMessage:message,...cause?{cause}:{}});
 }
 async function readBundledAssetBytes(files,path,limit,current){
