@@ -63,6 +63,9 @@
     "GalleryPanel": "busy || loading",
     "TemplateRun": "true"
   },
+  "huick-cardnews": {
+    "ProjectPanel": "busy || pageBusy || !!promptDraft"
+  },
   "imessage-generator": {
     "IMessageGenerator": "busy || setupBusy || voiceBusy || voicesLoading || audioLoading || scriptFocused || !!pane"
   },

@@ -41,6 +41,7 @@ Plugins for editable Selects Drafts. Download individual plugins without a GitHu
 | [Jared Vox Editorial](plugins/jared-vox-editorial) — archival paper explainers with editable evidence cards | Experimental |
 | [Tang Poetry Explainer](plugins/tang-poetry-explainer) — historical ink and woodblock collage explainers | Experimental |
 | [Card News Maker](plugins/card-news-maker) — editable 4:5 card news from a news article | Experimental |
+| [Huick Inside Card News](plugins/huick-cardnews) — Hankook Ilbo Huick Inside newsletter to a 4:5 three-perspectives card set with hand-drawn pictures | Experimental |
 
 | [Photo Grid Reveal](plugins/photo-gallery-no2) — editable 21-tile photo/video grid with sequential reveals and a shared monochrome-to-color switch | Experimental |
 | [Cinema Vlog Studio](plugins/cinema-vlog-studio) — 21-second cinematic street vlog with marker-driven cuts, a scramble title and inset cards | Experimental |

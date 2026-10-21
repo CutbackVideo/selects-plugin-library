@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "huick-cardnews",
+  "version": "0.1.0-alpha.4",
+  "name": "Huick Inside Card News",
+  "summary": "Turn an issue of Hankook Ilbo's Huick Inside newsletter into an editable 3:4 card news Draft in Huick's three-perspectives format, then export each card as an image.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS"
+    ],
+    "selects": "Requires Panel SDK runScript/runShell/askAI, Draft setFrameSize, setClipTransform and addMotionGraphic, Project createFolder and moveToFolder, and the panel runtime services FileSystem, MediaGeneration and RemotionOverlay."
+  },
+  "localized": {
+    "en": {
+      "name": "Huick Inside Card News",
+      "summary": "Turn an issue of Hankook Ilbo's Huick Inside newsletter into an editable 3:4 card news Draft in Huick's three-perspectives format, then export each card as an image."
+    },
+    "ko": {
+      "name": "\ud719\uc778\uc0ac\uc774\ub4dc \uce74\ub4dc\ub274\uc2a4",
+      "summary": "\ud55c\uad6d\uc77c\ubcf4 \ud719\uc778\uc0ac\uc774\ub4dc \ub274\uc2a4\ub808\ud130 \ud55c \ud638\ub97c \ud719\uc758 \uc138 \uac00\uc9c0 \uad00\uc810 \ud615\uc2dd\uc73c\ub85c \ud3b8\uc9d1\ud560 \uc218 \uc788\ub294 3:4 \uce74\ub4dc\ub274\uc2a4 Draft\ub85c \ub9cc\ub4e4\uace0, \uce74\ub4dc\ub9c8\ub2e4 \uc774\ubbf8\uc9c0\ub85c \ub0b4\ubcf4\ub0c5\ub2c8\ub2e4."
+    }
+  }
+}
