@@ -32,6 +32,19 @@ Normal panel creation requires numeric `sdk.maxScriptTimeoutSeconds >= 120` befo
 
 ## Editing and uncertainty
 
+App-supplied template run IDs use the existing durable run feature before
+preparing selected media or bundled music. A saved receipt returns its original
+Draft only after independent persisted readback; concurrent/remounted clients
+cannot author it again. The same ID with changed picks/music is refused. Start
+an explicit new app run to retry a proven failure; never delete or replace the
+run journal to force another save. SDK-side conditional receipt publication
+precedes the authoring reply. Pending/unknown/corrupt records require inspection.
+This does not deduplicate ordinary panel Create or separate agent-created
+operations without an app run ID, and does not make reusable asset imports part
+of the Draft transaction. `PANEL_RUN_SOURCE` in the generated artifact is for the
+panel only; SDK scripts use `TEMPLATE_RUN_SOURCE`, which contains no browser
+hashing, file-adapter or ownership functions.
+
 The current plugin does not yet automate one-slot replacement in an existing Draft. Do not rebuild a Draft as an undisclosed substitute or claim manual effects/crop are preserved. The 21 individual clips can be edited directly in the Selects timeline. Existing-Draft `update` requests are rejected before mutation until the native Image replacement and semantic slot-binding APIs pass this plugin's tests.
 
 `notSaved` means a check failed before Draft commit. `outcomeUnknown`, a transport error after import/commit, or a missing response requires Project/Draft inspection before retry; a blind retry may duplicate media or Drafts. A repaired run does not count as first-pass success. Report creation, saved readback, live playback, and native export separately.

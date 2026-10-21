@@ -115,10 +115,17 @@ by this feature. Other template migrations, audio-import ownership, complete
 design readback, installed execution, playback/export and Windows execution
 remain separate acceptance gates.
 
-## Gallery serialization-only build dependency
+## Gallery mixed visual consumer
 
-Gallery currently consumes only `templateRunJSON` to bound pre-commit receipt
-evidence. Its generator excludes browser-owned run/file functions from SDK
-requests. This registry dependency does not mean Gallery has adopted durable
-claims or run recovery; that migration is still pending. The module pool
-remains five registered features across ten consumers.
+Gallery now uses the same durable app-run owner and receipt recovery for its
+15-photo/6-video contract. Its normalized request records ordered IDs/kinds and
+effective music, duration and BPM. Host deadline and saved-result readers are
+checked before claiming or preparing media. Its generator keeps browser-owned
+hashing/file functions in the panel and serializes only JSON, ASCII Base64 and
+the SDK-side receipt writer into SDK requests. The Gallery working-copy recipe
+passes the claim envelope into the existing pre-commit program-size check.
+Preparation/import dispatch is distinct from possible Draft persistence, so a
+preparation failure can record `notSaved` without claiming that no Project asset
+was imported. Existing canonical bodies and four previous durable-run consumers
+are unchanged. The module pool remains five registered features across ten
+consumers; this does not certify full installed execution or all source clocks.

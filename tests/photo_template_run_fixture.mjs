@@ -3,11 +3,12 @@ import vm from 'node:vm';
 import {createRequire} from 'node:module';
 import {webcrypto} from 'node:crypto';
 import {fixture} from './photo_authoring_fixture.mjs';
+import {galleryFixture} from './gallery_authoring_fixture.mjs';
 const require=createRequire(import.meta.url);
 const esbuild=require(process.env.SELECTS_ESBUILD||(process.env.SBS_PANEL_TEST_MODULES?process.env.SBS_PANEL_TEST_MODULES+'/esbuild':'esbuild'));
 const compiled=new Map();
 export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}){
- const f=fixture(id,options),files=new Map(),finishes=[],hooks={},requests=[];
+ const f=id==='photo-gallery-no2'?galleryFixture(options):fixture(id,options),files=new Map(),finishes=[],hooks={},requests=[];
  const watchers=new Set(),notify=()=>{for(const watcher of watchers)watcher();};
  const plugin='/user/.selects/skills/'+id,data='/user/.selects/plugin-data/'+id;
  if(id==='camera-shutter-dump'){
@@ -23,6 +24,7 @@ export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}
   files.set(plugin+'/assets/manifest.json',Buffer.from(JSON.stringify(manifest)));
   for(const entry of Object.values(manifest))files.set(plugin+'/assets/'+entry.file+'.b64',fs.readFileSync(new URL('../plugins/'+id+'/assets/'+entry.file+'.b64',import.meta.url)));
  }else files.set(plugin+'/assets/music.mp3',Buffer.from('installed music'));
+ if(id==='photo-gallery-no2')files.set(plugin+'/SKILL.md',Buffer.from('installed fixture'));
  const local={environment:{platform:'darwin'},files:{join:(...p)=>p.join('/'),homedir:()=>'/user',exists:async p=>files.has(p),mkdir:async()=>{},stat:async p=>files.has(p)?{size:files.get(p).length,isDirectory:false}:null,
   readRange:async(p,offset,length)=>{if(!files.has(p))throw Error('ENOENT');return new Uint8Array(files.get(p).subarray(offset,offset+length));},
   readFile:async(p,encoding)=>{if(!files.has(p))throw Error('ENOENT');return encoding==='utf8'?files.get(p).toString('utf8'):new Uint8Array(files.get(p));},
@@ -39,15 +41,20 @@ export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}
  const original=f.sdk.runScript;f.sdk.runScript=async input=>{requests.push(input);const result=await original(input);notify();await hooks.afterReply?.(input,result);return result;};
  let effects,cleanups,cells,cursor;
  const React={useState:value=>{cursor++;return [value,()=>{}];},useRef:value=>{const index=cursor++;return cells[index]??(cells[index]={current:value});},useEffect:fn=>effects.push(fn)};
- const name=id==='no14-still-video'?'No14TemplateRun':'PhotoTemplateRun';
+ const name=id==='photo-gallery-no2'?'GalleryTemplateRun':id==='no14-still-video'?'No14TemplateRun':'PhotoTemplateRun';
  const key=id+':'+minify;
  if(!compiled.has(key)){
-  const source=fs.readFileSync(id==='polaroid-photo-dump'&&process.env.PHOTO_TEMPLATE_PANEL||new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
+  const source=fs.readFileSync(id==='photo-gallery-no2'&&process.env.GALLERY_TEMPLATE_PANEL||id==='polaroid-photo-dump'&&process.env.PHOTO_TEMPLATE_PANEL||new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
   // Only expose private entry points; the app-update guard has separate tests.
-  const extra=`\nexport function __mount(props){useAppUpdateGuard=()=>{};return ${name}(props);}export function __bind(sdk,local){panelLocalClients.set(sdk,local);}`;
+  const extra=`\nexport function __mount(props){useAppUpdateGuard=()=>{};${id==='photo-gallery-no2'?'hostUseSdk(props.sdk);':''}return ${name}(props);}export function __bind(sdk,local){panelLocalClients.set(sdk,local);}`;
   compiled.set(key,esbuild.transformSync(source+extra,{loader:'tsx',format:'cjs',target:'es2022',jsx:'automatic',minify}).code);
  }
  const context={projectId:'p',template:{runId:id+':fixture',libraryId:'library',inputs:{photos:f.photos.map(p=>({resourceId:p.resourceId,name:p.name,kind:'image'}))}}};
+ if(id==='photo-gallery-no2'){
+  context.template.inputs.photos=context.template.inputs.photos.slice(0,15);
+  context.template.inputs.clips=f.resources.filter(r=>r.type==='Video').map(r=>({resourceId:r.resourceId,name:r.name,kind:'video'}));
+  context.template.options={music:'none'};
+ }
  const mount=async(changes={},capabilities={})=>{
   const module={exports:{}};
   const fault=capabilities.cryptoFault??cryptoFault;

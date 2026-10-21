@@ -104,7 +104,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `jude-kinetic-style` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `mini-vlog` | Source audit only | Full contract and runtime completion gates above |
 | `no14-still-video` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
-| `photo-gallery-no2` | Shared input/bootstrap and complete working-copy save with independent receipts; client deadline/source-window prerequisites; durable run migration pending | Full contract and runtime completion gates above |
+| `photo-gallery-no2` | Shared input/bootstrap, complete working-copy save and durable app-run ownership/recovery with independent receipts; client deadline/source-window prerequisites | Owned assets, full source-clock/composition and runtime completion gates above |
 | `place-count` | Canonical authoring check + draft #260; automated regressions pass | Full contract and runtime completion gates above |
 | `polaroid-photo-dump` | Shared input/bootstrap + generated-frame exclusion + verified bundled assets + one complete save, durable app-run ownership/recovery and independent receipts; client #7828 prerequisite | Full contract and runtime completion gates above |
 | `portrait-beat-montage` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |

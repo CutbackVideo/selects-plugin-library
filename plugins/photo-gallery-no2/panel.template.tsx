@@ -781,7 +781,8 @@ async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurren
   } catch (error) { if (error?.code === 'host-missing') throw error; musicPath = null; }
   if (!musicPath) throw new Error('Bundled music could not be located. Reinstall Photo Grid Reveal.');
   if (!isCurrent()) throw new Error(t.changed);
-  onImportStarted();
+  await onImportStarted();
+  if (!isCurrent()) throw Object.assign(new Error(t.changed), { contextChanged: true, safeNotSaved: true });
   const response = await sdk.runScript({ summary: 'Prepare bundled Photo Grid Reveal music', allowCommit: true,
     script: buildScript({ operation: 'importBundledMusic', projectId, path: musicPath, durationFrames }) });
   if (response.result?.status === 'notSaved') throw Object.assign(new Error(response.result.message), { safeNotSaved: true });
@@ -869,27 +870,27 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
 
 // Builds the Draft once its inputs are settled (21 tiles, music, BPM), shared by
 // the Panel and a template run. `isCurrent` says the run still belongs to its
-// Project; `onDispatched` marks the first step that may save; `onDraft` gets the
-// new Draft. `libraryId` is a template run's library. A context change before
-// anything is created throws with `contextChanged`.
-async function buildGalleryDraft(sdk,t,{input,isCurrent,onDispatched,onDraft,libraryId=null}) {
+// Project; `onDispatched` marks possible Draft persistence, while imports have
+// their own observer. `onDraft` gets the complete saved identity. `libraryId`
+// is a template run's library. A stale context stops before Draft dispatch.
+async function buildGalleryDraft(sdk,t,{input,isCurrent,onDispatched,onDraft,libraryId=null,runReceipt=null,onImportStarted=()=>{}}) {
   Object.assign(input,await verifyGalleryInputs(sdk,t,input,isCurrent));
   input.fps=await readImageDraftFps(sdk,input.projectId);
-  input.media=await prepareVisuals(sdk,t,input.media,input.durationFrames,input.projectId,onDispatched,isCurrent);
+  input.media=await prepareVisuals(sdk,t,input.media,input.durationFrames,input.projectId,onImportStarted,isCurrent);
   if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
   input.media=(await galleryNativeResources(sdk,input.projectId,input.media,libraryId)).selected;
   const preflight=await sdk.runScript({script:buildScript({...input,operation:'preflight'}),summary:'Check Photo Gallery media and timing',allowCommit:false});
   if(preflight.isError||preflight.result?.status!=='ready')throw Object.assign(new Error(preflight.result?.message||preflight.output||t.failed),{safeNotSaved:true});
   await onDispatched();
   if(!isCurrent())throw Object.assign(new Error(t.changed),{contextChanged:true,safeNotSaved:true});
-  const response=await sdk.runScript({script:buildScript({...input,operation:'create'}),summary:'Create complete Photo Gallery Draft',allowCommit:true,timeoutSeconds:120});
+  const response=await sdk.runScript({script:buildScript({...input,operation:'create',...runReceipt?{runReceipt}:{}}),summary:'Create complete Photo Gallery Draft',allowCommit:true,timeoutSeconds:120});
   if(response.isError||response.result?.status!=='saved'||!response.result.draftId){
     const result=response.result;throw Object.assign(new Error(result?.message||response.output||t.unknown),{safeNotSaved:result?.status==='notSaved'});
   }
   const result=response.result;
   await onDraft(result.draftId);
   await verifyAtomicImageDraft(sdk,input.projectId,result);
-  return {draftId:result.draftId,verified:true,readReturned:true};
+  return {...result,verified:true,readReturned:true};
 }
 
 // A template run gets its own component, so it never touches the Panel's state.
@@ -1023,7 +1024,7 @@ function GalleryPanel({ sdk, context, ui }) {
       Object.assign(input, await resolveBpm(audio));
       if (!isCurrent()) { setStatus({ tone: 'error', text: t.changed }); return; }
       const built = await buildGalleryDraft(sdk, t, { input, isCurrent,
-        onDispatched: () => { dispatched = true; }, onDraft: draftId => setSavedTarget({ projectId, draftId }) });
+        onDispatched: () => { dispatched = true; }, onImportStarted: () => { dispatched = true; }, onDraft: draftId => setSavedTarget({ projectId, draftId }) });
       // Selects may open the just-created Draft while its readback runs. That
       // expected sequence change must not turn a verified save into an error.
       if (built.verified) {
@@ -1185,6 +1186,28 @@ async function templateTiles(sdk, app, projectId, libraryId, inputs) {
   return native.selected.map(({ nativeResource, ...item }) => ({ ...item, focusX: 0.5, focusY: 0.5 }));
 }
 
+// Identity uses effective input choices, never display names or transient paths.
+// Validate before a durable claim; invalid input cannot reserve an app run.
+function galleryRunRequest(template) {
+  const group=(key,count,kind)=>{
+    const rows=template?.inputs?.[key];
+    if(!Array.isArray(rows)||rows.length!==count||rows.some(p=>p?.kind!==kind||typeof p.resourceId!=='string'||!p.resourceId))throw templateIssue(`Pick exactly ${count} ${key==='photos'?'photos':'videos'}, then try again.`);
+    return rows.map(({resourceId,kind})=>({resourceId,kind}));
+  };
+  const music=template?.options?.music??'bundled';
+  if(!['none','bundled'].includes(music))throw templateIssue('Choose bundled music or no music, then try again.');
+  return {photos:group('photos',15,'image'),clips:group('clips',6,'video'),music,durationFrames:TEMPLATE_DURATION_FRAMES,bpm:TEMPLATE_BPM};
+}
+
+// Read-only, unsaved capability probe before claiming or preparing Project assets.
+// Music Off has no Audio reader dependency. Existing saved receipts still need
+// the readers used to independently verify the persisted result.
+async function requireGalleryRunReaders(sdk,projectId,music) {
+  const methods=['motionGraphics','motionGraphicProgram','clipTransform','videoEffects','videoEffectProgram',...music==='none'?[]:['clipAudio','clipSourceWindow']];
+  const reply=await sdk.runScript({summary:'Check Gallery saved-result support',allowCommit:false,script:`const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:'Gallery support check'});return {supported:${JSON.stringify(methods)}.every(name=>typeof d[name]==='function')};`});
+  if(reply.isError||reply.result?.supported!==true)throw templateIssue('Update Selects to create and verify Photo Grid Reveal safely.');
+}
+
 // One plain sentence for the person, from a failure before anything was saved.
 function templateMessage(error) {
   if (error?.publicMessage) return error.publicMessage;
@@ -1196,9 +1219,8 @@ function templateMessage(error) {
   return TEMPLATE_FAILED;
 }
 
-// Nobody sees this frame, so it shows one status line. It starts once per run id
-// and reports once, unless a newer run replaced it; a save that began is reported
-// as a possibly incomplete Draft and never retried.
+// The shared durable owner survives a new panel realm. Save receipts are read
+// back independently; an unknown run is inspected rather than authored again.
 function GalleryTemplateRun({ sdk, context }) {
   useAppUpdateGuard(sdk, context?.language, () => !!(true));
   const t = STRINGS[context.language] || STRINGS.en;
@@ -1210,34 +1232,36 @@ function GalleryTemplateRun({ sdk, context }) {
   React.useEffect(() => {
     if (!runId || started.current === runId) return;
     started.current = runId;
-    const live = () => alive.current && latest.current.template?.runId === runId;
+    const projectId = context.projectId, template = context.template;
+    const live = () => alive.current && latest.current.template?.runId === runId && latest.current.projectId === projectId && latest.current.template?.libraryId === template?.libraryId;
     let ended = false;
     const finish = result => { if (ended) return; ended = true; if (!live()) return; try { sdk.finishTemplate(result); } catch {} };
     const say = text => { if (live()) setStatus(text); };
     preparing.say = say;
-    const projectId = context.projectId, template = context.template;
     let dispatched = false, draftId = null;
     (async () => {
       try {
         if (!projectId) throw templateIssue('Open a Project, then try again.');
         requireGalleryAuthoringHost(sdk);
         const app = window.parent, libraryId = templateLibrary(app, projectId, template);
-        say('Finding your photos and videos…');
-        const media = await templateTiles(sdk, app, projectId, libraryId, template?.inputs);
-        if (!live()) throw templateIssue('The template run ended before the Draft was made.');
-        const input = { operation: 'create', projectId, name: TEMPLATE_NAME, durationFrames: TEMPLATE_DURATION_FRAMES,
-          media, music: null, manualBpm: TEMPLATE_BPM };
-        Object.assign(input, await verifyGalleryInputs(sdk, t, input, live));
-        if (template?.options?.music !== 'none') {
-          say('Adding the music…');
-          const audio = await prepareBundledMusic(sdk, t, { projectId, durationFrames: input.durationFrames,
-            isCurrent: live, onImportStarted: () => { dispatched = true; } });
-          input.music = { resourceId: audio.resourceId, path: audio.path, durationFrames: audio.durationFrames, startFrame: 0 };
-        }
-        say('Building the gallery…');
-        const built = await buildGalleryDraft(sdk, t, { input, isCurrent: live, libraryId,
-          onDispatched: () => { dispatched = true; }, onDraft: id => { draftId = id; } });
-        if (!built.verified) console.warn('[photo-gallery-no2] the saved Draft was not read back:', built.draftId);
+        const request=galleryRunRequest(template);
+        await requireGalleryRunReaders(sdk,projectId,request.music);
+        const built=await executeTemplateRun(sdk,panelLocalClient(sdk).files,{pluginId:'photo-gallery-no2',libraryId,projectId,runId},request,live,async(runReceipt,onDispatch)=>{
+          say('Finding your photos and videos…');
+          const media=await templateTiles(sdk,app,projectId,libraryId,template?.inputs);
+          if(!live())throw templateIssue('The template run ended before the Draft was made.');
+          const input={operation:'create',projectId,name:TEMPLATE_NAME,durationFrames:request.durationFrames,media,music:null,manualBpm:request.bpm};
+          Object.assign(input,await verifyGalleryInputs(sdk,t,input,live));
+          if(request.music!=='none'){
+            say('Adding the music…');
+            const audio=await prepareBundledMusic(sdk,t,{projectId,durationFrames:input.durationFrames,isCurrent:live,onImportStarted:()=>{}});
+            input.music={resourceId:audio.resourceId,path:audio.path,durationFrames:audio.durationFrames,startFrame:0};
+          }
+          say('Building the gallery…');
+          return buildGalleryDraft(sdk,t,{input,isCurrent:live,libraryId,runReceipt,onDispatched:async()=>{await onDispatch();dispatched=true;},onDraft:id=>{draftId=id;}});
+        },result=>verifyAtomicImageDraft(sdk,projectId,result));
+        draftId=built.draftId;
+        if(!draftId||!Array.isArray(built.clips)||built.clips.length!==21)throw templateIssue('The saved Gallery could not be confirmed. Inspect the Project before starting a new run.');
         say('Done.');
         finish({ sequenceId: built.draftId });
       } catch (error) {

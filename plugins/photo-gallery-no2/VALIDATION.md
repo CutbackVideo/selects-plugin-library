@@ -1,6 +1,24 @@
 # Validation and limits
 
-## Current repair checkpoint: 0.3.12
+## Current repair checkpoint: 0.3.13
+
+The hidden app-run now uses the existing shared durable run feature. Its request
+identity includes ordered photo/video IDs and kinds, effective music, duration
+and BPM, excluding display names. It claims before selected-media/asset work,
+pins run/Project/library, writes a conditional result receipt inside the same
+authoring SDK invocation and independently verifies saved recovery. Lost or
+unknown outcomes are never replayed automatically. The initial 26-case parent
+suite failed 24 with two controls; the expanded current 50-case suite passes,
+including real compiled/minified panel entry points. See
+`docs/template-repair/gallery-run.md` in the source repository.
+
+No new shared feature or public client surface was introduced; the other four
+durable-run consumers and canonical function bodies are unchanged. Current
+installed-host/actual Windows, whole AV/playback/export, owned assets and complete
+source-clock/composition acceptance remain pending. Earlier evidence below is
+historical, including the live preview failure.
+
+## Earlier repair checkpoint: 0.3.12
 
 Normal creation now uses the existing shared working-copy authoring and receipt
 checks. It authors all 21 Image/Video tiles and optional music before its only
@@ -13,7 +31,7 @@ failed before its fix. Current evidence and remaining work are recorded in
 
 Client #7847's panel deadline contract is required; sound-bearing verification
 also requires #7828's source-window reader. No binary was installed or deployed.
-The hidden app-run still needs durable ownership/recovery, asset ownership,
+At this earlier checkpoint the hidden app-run still needed durable ownership/recovery, asset ownership,
 source-clock completion and installed/actual Windows/whole AV/export checks.
 Explicit legacy low-level staged repair operations retain their old contract;
 they are not the normal new-creation route.

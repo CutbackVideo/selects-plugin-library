@@ -265,7 +265,7 @@ async function galleryAtomicFinish(selects,config,draft,native,inspectGraphics,i
 
 async function galleryCreate(selects,project,input,inventory,onCommitStarted) {
   const {plan,chosen}=await galleryPreflight(selects,project,input,inventory);
-  const config={projectId:input.projectId,name:typeof input.name==='string'&&input.name.trim()?input.name.trim():'Photo Gallery',plan:{...plan,canvas:plan.frameSize},sources:chosen,items:plan.tiles.map((tile,index)=>({key:tile.slotKey,slot:index,source:index,startFrame:tile.revealFrame,endFrame:tile.endFrame})),onCommitStarted};
+  const config={projectId:input.projectId,name:typeof input.name==='string'&&input.name.trim()?input.name.trim():'Photo Gallery',plan:{...plan,canvas:plan.frameSize},sources:chosen,items:plan.tiles.map((tile,index)=>({key:tile.slotKey,slot:index,source:index,startFrame:tile.revealFrame,endFrame:tile.endFrame})),runReceipt:input.runReceipt,onCommitStarted};
   const result=await authorAtomicImageDraft(selects,config,galleryAtomicFinish,placeWorkingCopyImages,galleryAtomicSources,inspectImageGraphics,inspectImageTransforms,inspectImageAudio,imageProgramsFeature,templateRunJSON);
   return result.status==='saved'?{...result,tileCount:21,colorFrame:plan.colorFrame}:result;
 }
@@ -515,6 +515,15 @@ async function galleryVerifyCreated(selects, project, input, inventory) {
 }
 
 async function galleryOperation(selects, raw) {
+  const result = await galleryOperationBody(selects, raw);
+  // Publish in the SDK invocation before its response can be lost. The same
+  // exclusive owner is the only writer; neither a remount nor a timeout retries.
+  return raw?.operation === 'create' && raw.runReceipt
+    ? await writeTemplateRunResult(selects, raw.runReceipt, result, templateRunJSON, templateRunBase64)
+    : result;
+}
+
+async function galleryOperationBody(selects, raw) {
   let commitStarted = false;
   try {
     const input = assertGalleryInput(raw);
