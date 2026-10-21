@@ -284,7 +284,13 @@ const samePath=(a,b)=>{const n=s=>{const v=String(s||'').normalize('NFC').replac
 // user photo inputs. Compare its components independent of path separators/case;
 // this policy does not change Resource/path identity matching for original files.
 function isPolaroidAssetPath(path){
- return /(?:^|\/)\.selects\/plugin-data\/polaroid-photo-dump(?:\/|$)/i.test(String(path||'').normalize('NFC').replace(/\\/g,'/'));
+ const parts=[];
+ for(const part of String(path||'').normalize('NFC').replace(/\\/g,'/').split('/')){
+  if(!part||part==='.')continue;
+  if(part==='..'){parts.pop();continue;}
+  parts.push(part);
+ }
+ return parts.some((_,index)=>['.selects','plugin-data','polaroid-photo-dump'].every((part,offset)=>parts[index+offset]?.toLowerCase()===part));
 }
 
 // Registers the bundled frame image and music in the Project once, reusing earlier imports by path.

@@ -16,6 +16,8 @@ const locations=[
  ['Windows forward slashes','win32','C:/Profiles/Fixture/.selects/plugin-data/Polaroid-Photo-Dump/frame-v1.png'],
  ['UNC','win32','\\\\studio\\share\\.selects\\plugin-data\\polaroid-photo-dump\\frame-v1.png'],
  ['POSIX','darwin','/user/.selects/plugin-data/polaroid-photo-dump/frame-v1.png'],
+ ['repeated separators','win32','C:/Profiles/Fixture//.selects//plugin-data///polaroid-photo-dump/frame-v1.png'],
+ ['parent segments','win32','C:\\Profiles\\Fixture\\.selects\\plugin-data\\temporary\\..\\polaroid-photo-dump\\frame-v1.png'],
 ];
 function fixture(ownedPath){
  const rows=[{resourceId:'frame',name:'Bundled frame',path:ownedPath,type:'Image'},...Array.from({length:17},(_,i)=>({resourceId:'photo'+i,name:i?'Photo '+i:'frame-v1.png',path:i===0?'/photos/frame-v1.png':i===1?'/photos/.selects/plugin-data/polaroid-photo-dump-copy/photo.png':'/photos/'+i+'.png',type:'Image'}))];
@@ -26,6 +28,18 @@ function fixture(ownedPath){
  }};
  return {rows,sdk,calls};
 }
+test('Polaroid path navigation outside its reserved namespace remains a user photo in the browser',async t=>{
+ const f=fixture(locations[3][2]);f.rows[2].path='/user/.selects/plugin-data/polaroid-photo-dump/../user-photo.png';
+ const document=await panel(t,'darwin',f),select=document.querySelector('select');
+ assert.ok([...select.options].some(o=>o.value==='photo1'));assert.equal(select.options.length,18);
+});
+test('Polaroid path navigation outside its reserved namespace remains valid app input',async()=>{
+ const f=fixture(locations[3][2]);f.rows[2].path='/user/.selects/plugin-data/polaroid-photo-dump/../user-photo.png';
+ const api=loadPanelFunctions(source,['readMediaPages','INVENTORY','inventory','SLOTS','templateIssue','templateSelection','isPolaroidAssetPath']);
+ const photos=f.rows.slice(1).map(r=>({resourceId:'app-'+r.resourceId,name:r.name,kind:'image'}));
+ const selected=await api.templateSelection(f.sdk,null,'p',null,{photos});
+ assert.deepEqual(Array.from(selected,r=>r.resourceId),f.rows.slice(1).map(r=>r.resourceId));
+});
 async function panel(t,platform,f){
  const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'}),previous={};
  for(const [key,value] of Object.entries({window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true})){

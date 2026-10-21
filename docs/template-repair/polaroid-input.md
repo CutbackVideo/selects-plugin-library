@@ -25,6 +25,12 @@ also accepted it, including POSIX. Seven cases failed and one POSIX browser
 control passed before the repair. Same-named photos outside the reserved data
 namespace and lookalike folder names remain valid.
 
+Six additional failing mounted/app-input cases then exposed repeated separators,
+parent-directory aliases into the reserved namespace and navigation back out of
+it. Resolve lexical empty/dot/parent segments before classifying the namespace.
+This avoids both admitting generated frames and rejecting valid user photos.
+It is not filesystem realpath/symlink attestation or a security boundary.
+
 Twelve mounted bootstrap cases then reproduced the consumer's obsolete wrapper:
 hidden connection failures/timeouts were not safely completed, and late results
 could cross SDK/run/Project/library changes. Reuse the canonical wrapper.
@@ -42,7 +48,8 @@ could cross SDK/run/Project/library changes. Reuse the canonical wrapper.
   boundary. This does not cancel already dispatched asset operations.
 - One template-owned reserved-namespace predicate is used by the actual browser,
   app-picked selection and direct create validation. Normalize Unicode/separators
-  and compare reserved namespace components without case sensitivity. This is
+  resolve lexical path navigation, and compare reserved namespace components
+  without case sensitivity. This is
   generated-asset input policy, not a new case-insensitive identity rule for user
   files. Filename-only matching is not used.
 - Synchronize only Polaroid with the existing canonical local client. CI now
@@ -51,8 +58,8 @@ could cross SDK/run/Project/library changes. Reuse the canonical wrapper.
 
 ## Verification and unresolved work
 
-Focused input/reference/native-placement/mounted UI/bootstrap run: 192 pass.
-Full related regression run: 795 pass, no skips. Python discovery: 285 pass,
+Focused input/reference/native-placement/mounted UI/bootstrap run: 198 pass.
+Full related regression run: 801 pass, no skips. Python discovery: 285 pass,
 six skip. TypeScript 5.9 with installed SDK declarations passes all 76 input
 cases; the broad run uses 5.8.3 with prerequisite SDK declarations. Tests include
 real temporary file removal and simulated Windows/UNC;
