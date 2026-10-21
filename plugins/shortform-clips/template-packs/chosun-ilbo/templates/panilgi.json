@@ -1,6 +1,6 @@
 {
   "id": "panilgi",
-  "version": 1,
+  "version": 2,
   "names": {
     "ko": "\ud310\uc77d\uae30",
     "en": "Court Ruling Reader"
@@ -24,7 +24,7 @@
     "sourceTop": 0,
     "sourceBottom": 854,
     "offsetX": 0,
-    "headlineCenter": 320,
+    "headlineCenter": 301.24685766601556,
     "logoCenter": 1688,
     "reframe": false
   },
@@ -44,15 +44,15 @@
     "font": "SDGyeokdongG206Hv",
     "size1": 75.04,
     "size2": 75.3828564453125,
-    "color1": "#FAEF09",
+    "color1": "#FFE400",
     "color2": "#FFFFFF",
     "box2On": false,
     "box2": "#D7263D",
     "italic": true,
-    "shadow": true,
+    "shadow": false,
     "fontWeight": 400,
     "lineHeight": 1.16,
-    "letterSpacing": -2,
+    "letterSpacing": 0,
     "fitWidth": 1010,
     "fitPadding": 2,
     "fitCjk": 0.93,
@@ -63,7 +63,11 @@
     "strokeOn": true,
     "strokeWidth": 4.48,
     "strokeColor": "#000000",
-    "gap": 2
+    "gap": 2,
+    "letterSpacing1": 0,
+    "letterSpacing2": -0.9045942773437501,
+    "rowGap": 90.45942773437501,
+    "measureFit": true
   },
   "logo": {
     "mode": "image",
@@ -78,10 +82,20 @@
     "bottom": 1465,
     "fontSize": 55.71999740600586,
     "fontWeight": 400,
-    "boxColor": "#000000D9",
+    "boxColor": "#000000",
     "color": "#FFFFFF",
     "font": "TTOmniGothicM",
-    "lineMax": 17
+    "lineMax": 17,
+    "boxBounds": "ink",
+    "boxPerLine": false,
+    "baselineBottom": 1373.0000839233398,
+    "rowGap": 66.86399688720702,
+    "letterSpacing": 0,
+    "boxPaddingX": 13.962264060974121,
+    "boxPaddingTop": 13.962264060974121,
+    "boxPaddingBottom": 13.962264060974121,
+    "left": 135,
+    "width": 810
   },
   "editing": {
     "removeFillers": true,

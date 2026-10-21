@@ -128,6 +128,19 @@ test('templates use independent settings without renderer families',{skip:!modul
    }
   }
  });
+ await t.test('Panilgi preserves independent tracking and paragraph geometry',()=>{
+  const t=require('../template-packs/chosun-ilbo/templates/panilgi.json');
+  const params=api.radioFrameParams(t,'First','Second');
+  assert.equal(params.headlineLetterSpacing1,0);
+  assert.equal(params.headlineLetterSpacing2,-12*67.30612182617188*1.12/1000);
+  const html=renderGraphic('FRAME_TSX',params);
+  assert.match(html,/letter-spacing:0/);
+  assert.ok(html.includes('letter-spacing:'+params.headlineLetterSpacing2+'px'));
+  assert.equal(params.headlineColor1,'#FFE400');assert.equal(params.headlineShadow,'none');
+  assert.equal(t.captions.boxPerLine,false);assert.equal(t.captions.boxBounds,'ink');
+  assert.equal(t.captions.baselineBottom,(.65000003576278687*1920+576-960)+.26510417461395264*1920);
+  for(const field of ['letterSpacing1','letterSpacing2']) assert.throws(()=>api.validateTemplate({...t,headline:{...t.headline,[field]:NaN}}),/finite/);
+ });
  await t.test('all shipped presets retain only the original TikTok design and identity',()=>{
   const root=path.join(__dirname,'../template-packs');
   const files=fs.readdirSync(root).flatMap(pack=>{
