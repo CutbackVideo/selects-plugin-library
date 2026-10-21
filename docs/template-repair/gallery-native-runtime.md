@@ -81,8 +81,13 @@ clocks, shared program density, idempotence and explicit texture-budget failure.
 The related regression run before the final two additional controls passed
 299 cases in 35 files. The separate WASM browser regression passes 19 tests in
 five files after moving the unchanged affine calculation to the shared module.
-Final normal pre-push and remote CI results are recorded in the paired PR;
-earlier commit test counts are not attributed to this commit.
+Final client commit `1005791a5` passes its normal pre-push hook: both TypeScript
+targets, all three ratchets and 38,950 unit tests (38 existing skips; 4,055
+passing files and five skipped files). No hook was bypassed. The 19 browser
+tests are a separate run, not added to the unit count. The client branch reports
+no remote checks; this is not a remote CI pass. Library #300's prior probe
+checkpoint passed both remote jobs; the new documentation checkpoint's jobs
+are pending and must be tracked separately.
 
 This is a renderer producer/consumer change. The unchanged native host forwards
 program metadata opaquely into the matching renderer assets; the Rust scene
