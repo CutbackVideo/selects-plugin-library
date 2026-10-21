@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "id": "medical-explainer",
+  "version": "0.1.0",
+  "name": "Medical Explainer",
+  "summary": "Turns a topic, text or link into a vertical medical explainer with 3D medical animation, narration, captions and pointer labels.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS",
+      "Windows x64"
+    ],
+    "selects": "Selects 2.0.512 or later with media generation for plug-in panels and plug-in storage. Uses askAI and runScript, and the host's FileSystem (files and downloads) and bundled ffmpeg/ffprobe; no shell, no Python. Generation uses Seedream 5.0 Pro (keyframes), Kling v3 Standard 720p (video), ElevenLabs v3 or MiniMax Speech 2.8 HD (voice), billed to the user's Selects credits. The engine runs inside the panel on macOS and Windows (a Windows pass on the Staging build is pending)."
+  },
+  "localized": {
+    "de": {
+      "name": "Medizinisches Erkl\u00e4rvideo",
+      "summary": "Aus einem Thema, einem Text oder einem Link entsteht ein Kurzvideo mit 3D-Medizinanimation, Sprecher, Untertiteln und Beschriftungen."
+    },
+    "en": {
+      "name": "Medical Explainer",
+      "summary": "Turns a topic, text or link into a vertical medical explainer with 3D medical animation, narration, captions and pointer labels."
+    },
+    "es": {
+      "name": "V\u00eddeo explicativo m\u00e9dico",
+      "summary": "Convierte un tema, un texto o un enlace en un v\u00eddeo m\u00e9dico vertical con animaci\u00f3n 3D, narraci\u00f3n, subt\u00edtulos y etiquetas."
+    },
+    "fr": {
+      "name": "Vid\u00e9o explicative m\u00e9dicale",
+      "summary": "Transforme un sujet, un texte ou un lien en vid\u00e9o m\u00e9dicale verticale avec animation 3D, narration, sous-titres et l\u00e9gendes."
+    },
+    "it": {
+      "name": "Video esplicativo medico",
+      "summary": "Trasforma un argomento, un testo o un link in un video medico verticale con animazione 3D, voce narrante, sottotitoli ed etichette."
+    },
+    "ja": {
+      "name": "\u533b\u7642\u89e3\u8aac\u30b7\u30e7\u30fc\u30c8",
+      "summary": "\u30c6\u30fc\u30de\u3001\u6587\u7ae0\u3001\u30ea\u30f3\u30af\u304b\u3089\u30013D\u533b\u7642\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u3068\u30ca\u30ec\u30fc\u30b7\u30e7\u30f3\u3001\u5b57\u5e55\u3001\u30e9\u30d9\u30eb\u4ed8\u304d\u306e\u7e26\u578b\u533b\u7642\u89e3\u8aac\u52d5\u753b\u3092\u4f5c\u308a\u307e\u3059\u3002"
+    },
+    "ko": {
+      "name": "\uc758\ud559 \uc124\uba85 \uc1fc\uce20",
+      "summary": "\uc8fc\uc81c\ub098 \uae00, \ub9c1\ud06c\ub85c 3D \uc758\ud559 \uc560\ub2c8\uba54\uc774\uc158\uacfc \ub0b4\ub808\uc774\uc158, \uc790\ub9c9, \uac00\ub9ac\ud0b4 \ub77c\ubca8\uc774 \ub4e4\uc5b4\uac04 \uc138\ub85c\ud615 \uc758\ud559 \uc124\uba85 \uc601\uc0c1\uc744 \ub9cc\ub4ed\ub2c8\ub2e4."
+    },
+    "pt": {
+      "name": "V\u00eddeo explicativo m\u00e9dico",
+      "summary": "Transforma um tema, um texto ou um link num v\u00eddeo m\u00e9dico vertical com anima\u00e7\u00e3o 3D, narra\u00e7\u00e3o, legendas e r\u00f3tulos."
+    },
+    "tr": {
+      "name": "T\u0131bbi a\u00e7\u0131klama videosu",
+      "summary": "Bir konu, metin ya da ba\u011flant\u0131dan 3D t\u0131bbi animasyon, seslendirme, altyaz\u0131 ve etiketlerle dikey bir t\u0131bbi a\u00e7\u0131klama videosu yapar."
+    },
+    "zh": {
+      "name": "\u533b\u5b66\u89e3\u8bf4\u77ed\u89c6\u9891",
+      "summary": "\u5c06\u4e00\u4e2a\u4e3b\u9898\u3001\u4e00\u6bb5\u6587\u5b57\u6216\u4e00\u4e2a\u94fe\u63a5\u505a\u6210\u5e26\u6709 3D \u533b\u5b66\u52a8\u753b\u3001\u65c1\u767d\u3001\u5b57\u5e55\u548c\u6807\u6ce8\u7684\u7ad6\u5c4f\u533b\u5b66\u89e3\u8bf4\u89c6\u9891\u3002"
+    }
+  }
+}

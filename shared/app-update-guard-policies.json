@@ -73,6 +73,9 @@
     "StylePanel": "busy",
     "TemplateRun": "true"
   },
+  "medical-explainer": {
+    "Panel": "busy"
+  },
   "mini-vlog": {
     "MiniVlogPanel": "busy || busyRef.current || invLoadingRef.current",
     "TemplateRun": "true"
