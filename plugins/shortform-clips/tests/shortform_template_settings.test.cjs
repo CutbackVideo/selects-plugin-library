@@ -132,7 +132,13 @@ test('templates use independent settings without renderer families',{skip:!modul
    for(const design of api.independentTemplateDesigns(before)){
     const file=design.id+'.json';expectedFiles.push(pack+'/'+file);
     const current=JSON.parse(fs.readFileSync(path.join(root,pack,'templates',file),'utf8'));
-    assert.deepEqual(current,design,key+': explicit settings preserve the complete resolved preset');
+    const expected=structuredClone(design);
+    // These presets intentionally opt into conversation framing after migration.
+    if(pack==='hankook-ilbo'&&['issue-broadcast','knowledge-exchange'].includes(design.id)){
+     expected.version+=1;
+     Object.assign(expected.layout,{reframe:true,reframePreset:'conversation',reframeFocus:'reactions',splitPolicy:'never',widePolicy:'never',reframePacing:'balanced',cropMotion:'fixed',cameraMode:'auto',closeUp:4.5,faceY:40});
+    }
+    assert.deepEqual(current,expected,key+': preserve the design and apply explicit framing preferences');
     assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
     assert.deepEqual(api.validateTemplate(structuredClone(current)),current,key+': no migration needed');
     const platform='tiktok';

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "knowledge-exchange",
-  "version": 3,
+  "version": 4,
   "names": {
     "ko": "\uc9c0\uc2dd\ud658\uc804\uc18c",
     "en": "Knowledge Exchange"
@@ -14,7 +14,16 @@
     "offsetX": 0,
     "headlineCenter": 400,
     "logoCenter": 1504,
-    "reframe": false
+    "reframe": true,
+    "reframePreset": "conversation",
+    "reframeFocus": "reactions",
+    "splitPolicy": "never",
+    "widePolicy": "never",
+    "reframePacing": "balanced",
+    "cropMotion": "fixed",
+    "cameraMode": "auto",
+    "closeUp": 4.5,
+    "faceY": 40
   },
   "background": {
     "mode": "image",
