@@ -1,6 +1,12 @@
 # Validation and current limits
 
-## Current repair checkpoint: 0.5.12
+## Current repair checkpoint: 0.5.13
+
+The shared run feature now checks hashing/text codecs and callable new-claim
+capabilities before preparing assets or authoring. Read-only recovery preserves
+the prior ability to reuse a saved run without a new UUID or SDK file writes.
+Four-consumer regression is recorded in `docs/template-repair/polaroid-run.md`.
+The recipe, saved request identity and receipt format do not change.
 
 The current source uses public original-Image placement, complete working-copy
 authoring, durable app-run recovery and independent saved-state receipts. Its

@@ -36,3 +36,7 @@ The bundled music is now prepared through the shared bundled-Audio feature. It v
 After creation, read back 21 Image clips at the frames above, 21 clip effects, the outro graphic from frame 325 and one music clip from frame 0. If the user asks for the video, export it, wait for completion, and check the MP4 through its final frame. A saved Draft alone is not export verification. If the panel reports a partial Draft or unknown save, inspect that Draft before retrying; never create duplicate Drafts blindly.
 
 Each photo's visible area can be moved later with the Horizontal/Vertical focus of its clip effects. To use a different photo, keep the other choices and create a revised Draft: the crop is computed from the original photo's size.
+
+## Runtime support checkpoint
+
+The shared durable-run feature checks hashing/text codecs before recording and callable UUID/SDK writes before a new claim. Saved recovery does not require a new UUID or SDK file writes. See `docs/template-repair/polaroid-run.md` in the source repository; design, request identity and record schema are unchanged.

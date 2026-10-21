@@ -2,13 +2,15 @@
 
 `template-run.js` owns one app-supplied `runId` across panel remounts. Its first
 consumers are Four Photo Reveal and Camera Shutter Dump, now also used by Four
-Photo Stop Motion. It reuses the existing
+Photo Stop Motion and Polaroid Photo Dump. It reuses the existing
 `shared/local-client.ts` file adapter and public SDK; no new client IPC, SDK
 capability, global runtime module loader or cross-plugin file import is added.
-Polaroid Photo Dump also embeds this feature for the atomic Image author's shared
-receipt formatter and optional script contract. Its hidden app-run launcher has
-not yet migrated to durable claims/recovery; embedding the code alone does not
-make its app-run invocations deduplicated.
+Polaroid's app-run launcher now claims the run before selected-media/asset
+preparation, passes the claim into its single complete authoring request and
+verifies the persisted receipt on recovery. Its normalized request includes the
+ordered picked IDs/kinds and effective framing/caption/grade defaults. Display
+names are not request identity. Its liveness predicate pins run, Project and
+library, including a same-run context replacement.
 
 ## Input and lifetime contract
 
@@ -55,7 +57,11 @@ Source text in the record is compared with live SDK programs, never evaluated.
 1. Read an existing record. A valid saved receipt gets independent persisted
    readback and returns the same Draft. Active, failed, unknown, mismatched,
    unreadable or corrupt records never cause a fresh authoring write.
-2. Check existing SDK file capabilities, then create a claim using
+2. Check hashing and encoding/decoding support before the first claim or read.
+   New claims additionally require a callable UUID generator and callable SDK
+   `writeChunk`/`compareAndReplace`; property presence alone is insufficient.
+   Saved-result recovery does not require a new UUID or SDK write capability.
+   Check existing SDK file capabilities, then create a claim using
    `files.writeFile(..., {flag:'wx'})`. The canonical adapter sends one SDK
    `writeChunk` in exclusive mode. Filesystem exclusive creation, rather than a
    per-panel mutex or check-then-write, admits one owner across local clients.

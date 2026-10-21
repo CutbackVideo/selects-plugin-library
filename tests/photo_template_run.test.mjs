@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {templateFixture} from './photo_template_run_fixture.mjs';
 import {checkScriptTypes} from './run_script_types.mjs';
-const ids=['no14-still-video','camera-shutter-dump','four-photo-stop-motion'];
+const ids=['no14-still-video','camera-shutter-dump','four-photo-stop-motion','polaroid-photo-dump'];
 const records=f=>[...f.files.keys()].filter(p=>p.includes('/template-runs/'));
 test('template completion waits for delayed host I/O instead of counting event-loop turns',{timeout:4000},async()=>{
  const f=templateFixture('no14-still-video');
@@ -16,6 +16,12 @@ test(id+': remounting the same run reuses one complete saved Draft',{timeout:400
  await f.mount();await f.until(()=>f.finishes.length===2);
  assert.equal(f.commits.length,1,'a new React mount must recover its saved run receipt');
  assert.equal(f.finishes[1].sequenceId,f.finishes[0].sequenceId);
+});
+test(id+': saved recovery does not need a new-claim UUID or SDK file writes',{timeout:4000},async()=>{
+ const f=templateFixture(id);await f.mount();await f.until(()=>f.finishes.length===1);assert.ok(f.finishes[0].sequenceId);
+ delete f.selects.files.writeChunk;delete f.selects.files.compareAndReplace;const before=f.requests.length;
+ await f.mount({},{cryptoFault:'missing UUID'});await f.until(()=>f.finishes.length===2);
+ assert.equal(f.finishes[1].sequenceId,f.finishes[0].sequenceId);assert.equal(f.commits.length,1);assert.equal(f.requests.slice(before).some(r=>r.allowCommit),false);
 });
 test(id+': separate concurrent panel realms cannot both author the same run',{timeout:4000},async()=>{
  const f=templateFixture(id);await Promise.all([f.mount(),f.mount()]);await f.until(()=>f.finishes.length===2);
@@ -60,8 +66,13 @@ test(id+': foreign library ownership stops before importing or saving',{timeout:
  assert.ok(f.finishes[0].error);assert.equal(f.commits.length,0);assert.equal(f.requests.some(r=>/Import/.test(r.summary)),false);assert.equal(records(f).length,0);
 });
 test(id+': a lost exclusive-claim reply is read before dispatching once',{timeout:4000},async()=>{
- const f=templateFixture(id);f.hooks.afterWrite=path=>{if(path.includes('/template-runs/'))throw Error('claim reply lost');};
+ const f=templateFixture(id);let lost=0;f.hooks.afterWrite=path=>{if(path.includes('/template-runs/')){lost++;throw Error('claim reply lost');}};
  await f.mount();await f.until(()=>f.finishes.length===1);assert.ok(f.finishes[0].sequenceId);assert.equal(f.commits.length,1);
+ assert.equal(lost,1);assert.equal(JSON.parse(f.files.get(records(f)[0])).status,'saved');
+});
+for(const cryptoFault of ['absent crypto','missing digest','missing UUID','noncallable UUID','missing encoder','missing decoder'])test(id+': '+cryptoFault+' asks for host support before recording/importing/authoring',{timeout:4000},async()=>{
+ const f=templateFixture(id,{cryptoFault});await f.mount();await f.until(()=>f.finishes.length===1);
+ assert.match(f.finishes[0].error,/Update Selects/);assert.equal(f.commits.length,0);assert.equal(records(f).length,0);assert.equal(f.requests.some(r=>r.allowCommit),false);
 });
 test(id+': explicitly starting a new run can create a revised Draft',{timeout:4000},async()=>{
  const f=templateFixture(id);await f.mount();await f.until(()=>f.finishes.length===1);
@@ -101,6 +112,10 @@ test(id+': unsupported file capabilities stop before Project imports or saves',{
  await f.mount();await f.until(()=>f.finishes.length===1);assert.ok(f.finishes[0].error);assert.equal(f.commits.length,0);assert.equal(records(f).length,0);
  assert.equal(f.requests.some(r=>/Import/.test(r.summary)),false);
 });
+for(const member of ['compareAndReplace','writeChunk'])test(id+': noncallable SDK '+member+' stops before claiming or preparing assets',{timeout:4000},async()=>{
+ const f=templateFixture(id);f.selects.files[member]={};await f.mount();await f.until(()=>f.finishes.length===1);
+ assert.match(f.finishes[0].error,/Update Selects/);assert.equal(f.commits.length,0);assert.equal(records(f).length,0);assert.equal(f.requests.some(r=>r.allowCommit),false);
+});
 for(const damage of ['duplicate','omitted'])test(id+': a '+damage+' saved Image receipt cannot claim successful recovery',{timeout:4000},async()=>{
  const f=templateFixture(id);await f.mount();await f.until(()=>f.finishes.length===1);const path=records(f)[0],row=JSON.parse(f.files.get(path));
  if(damage==='duplicate')row.result.clips[1]=row.result.clips[0];else row.result.clips.pop();
@@ -130,4 +145,26 @@ test('complete durable-run scripts typecheck and fit the default script budget',
   for(const input of f.requests){assert.ok(Buffer.byteLength(input.script)<256*1024);scripts.push({name:id+' '+input.summary,script:input.script});}
  }
  assert.ok(checkScriptTypes(scripts).scripts>10);
+});
+
+for(const change of ['Project','library'])test('polaroid-photo-dump: same-run '+change+' context replacement stops later preparation',{timeout:4000},async()=>{
+ const f=templateFixture('polaroid-photo-dump');let release,enter;
+ const held=new Promise(resolve=>{release=resolve;}),entered=new Promise(resolve=>{enter=resolve;});let reached=false;
+ f.hooks.afterReply=async input=>{if(input.summary==='Verify original Project Images'&&!reached){reached=true;enter();await held;}};
+ const close=await f.mount();await entered;
+ close.rerender(change==='Project'?{projectId:'replacement'}:{template:{...f.context.template,libraryId:'replacement'}});
+ release();await f.until(()=>f.finishes.length>0||records(f).some(p=>JSON.parse(f.files.get(p)).status==='notSaved'));
+ assert.equal(f.commits.length,0);assert.equal(f.requests.some(r=>/^Import bundled/.test(r.summary)),false);assert.equal(f.finishes.length,0,'old scope cannot report completion into replacement context');
+ close();
+});
+for(const field of ['graphics','transforms','audio','programs'])test('polaroid-photo-dump: missing legacy '+field+' evidence is inspected without authoring',{timeout:4000},async()=>{
+ const f=templateFixture('polaroid-photo-dump');await f.mount();await f.until(()=>f.finishes.length===1);assert.ok(f.finishes[0].sequenceId);
+ const path=records(f)[0],record=JSON.parse(f.files.get(path));delete record.result[field];f.files.set(path,Buffer.from(JSON.stringify(record)));const before=Buffer.from(f.files.get(path)),requests=f.requests.length;
+ await f.mount();await f.until(()=>f.finishes.length===2);assert.ok(f.finishes[1].error);assert.equal(f.commits.length,1);assert.equal(f.requests.length,requests);assert.deepEqual(f.files.get(path),before);
+});
+test('polaroid-photo-dump: display-name changes do not change effective input identity',{timeout:4000},async()=>{
+ const f=templateFixture('polaroid-photo-dump');await f.mount();await f.until(()=>f.finishes.length===1);
+ const path=records(f)[0],before=Buffer.from(f.files.get(path));
+ await f.mount({template:{...f.context.template,inputs:{photos:f.context.template.inputs.photos.map(p=>({...p,name:'Renamed '+p.name}))}}});await f.until(()=>f.finishes.length===2);
+ assert.equal(f.finishes[1].sequenceId,f.finishes[0].sequenceId);assert.equal(f.commits.length,1);assert.deepEqual(f.files.get(path),before);
 });

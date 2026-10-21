@@ -1,6 +1,11 @@
 # Validation
 
-## Current repair checkpoint: 0.1.11
+## Current repair checkpoint: 0.1.12
+
+The shared run feature now checks hashing/text codecs and callable new-claim
+capabilities before preparation. Saved recovery still needs no new UUID or SDK
+file writes. The four-consumer regression checkpoint is
+`docs/template-repair/polaroid-run.md`; timing, design and receipt format remain.
 
 The MP3 compatibility entry now delegates to the generalized bundled-asset
 feature with the existing IDs, paths, summaries and error codes. No design or

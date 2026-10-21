@@ -30,3 +30,7 @@ The create path now prepares Images, effects, graphics and audio in one unsaved 
 After creation, read back (converted to the Draft's frame rate): twelve Image clips with the start frames above, all ending at the Draft end (250 at 25 fps), each on its own track with later photos above earlier ones; ten crop effects (photos 1-10); the Burst and Text graphics at 216-250; twelve Audio clips starting at frames 0, 19, 36, 55, 71, 88, 108, 127, 147, 162, 181, 198. If the user asks for the video, export it, wait for completion, and check the MP4 through its final frame. A saved Draft alone is not export verification. If the panel reports a partial Draft or unknown save, inspect that Draft before retrying; never create duplicate Drafts blindly.
 
 The visible area of photos 1-10 can be moved later with the Horizontal/Vertical focus of their clip effect (photos 11-12 have no crop). To use a different photo in a slot, keep the other slot choices and create a revised Draft: the slot's scale and crop are computed from the original photo's size, so swapping media inside the clip is not supported. The previous Draft stays available.
+
+## Runtime support checkpoint
+
+The shared durable-run feature checks hashing/text codecs before recording and callable UUID/SDK writes before a new claim. Saved recovery does not require a new UUID or SDK file writes. See `docs/template-repair/polaroid-run.md` in the source repository; design, request identity and record schema are unchanged.

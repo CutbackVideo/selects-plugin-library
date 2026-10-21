@@ -1,6 +1,18 @@
 # Validation
 
-## Current repair checkpoint: 0.1.10
+## Current repair checkpoint: 0.1.11
+
+The hidden app-run launcher now uses shared durable ownership, SDK-side result
+receipts and independent persisted recovery. Same-run Project/library replacement
+stops later work. Unsupported codecs/claim capabilities stop before preparation;
+already saved recovery does not need a new UUID or SDK file writes. The initial
+23 Polaroid cases failed 22 with one control against unchanged preceding source;
+four-consumer capability regressions also failed before the shared fix. Full
+current regression, TypeScript, source/package and pre-push evidence is recorded
+in `docs/template-repair/polaroid-run.md`. This is not installed-app/Windows or
+whole AV/export verification; client #7828 remains a publication prerequisite.
+
+## Earlier repair checkpoint: 0.1.10
 
 Normal creation now uses the existing atomic Image authoring feature, with one
 complete commit and a separate persisted readback. The initial 18 cases produced

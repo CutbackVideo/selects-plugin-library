@@ -669,6 +669,7 @@ function templateReport(output){
 // That step failed without a Draft id: a report with an error and no committed
 // edit means nothing was saved; anything else may have saved.
 function templateSeedMessage(error,name){
+ if(error?.outcome==='notSaved')return 'No Draft was created. The operation stopped before saving the Draft.';
  const report=templateReport(error?.seedOutput);
  const edits=Array.isArray(report?.edits)?report.edits:[];
  if(typeof report?.error!=='string'||edits.some(edit=>edit?.committed!==false))return templateUncertain(name);
@@ -748,9 +749,8 @@ function templateMessage(error){
  if(/^The selected photos changed/.test(said))return 'The picked photos changed while the Draft was being made; try again.';
  return TEMPLATE_FAILED;
 }
-// Nobody sees this frame, so it shows one status line. It starts once per run
-// id and reports once, unless a newer run replaced it; a save that began is
-// reported as a possibly incomplete Draft and never retried.
+// Durable ownership survives a new panel realm. Unknown authoring is inspected,
+// never replayed, and a replaced run/Project/library cannot receive old results.
 function PhotoTemplateRun({sdk,context}){
   useAppUpdateGuard(sdk, context?.language, () => !!(true));
  const runId=context.template?.runId,[status,setStatus]=React.useState('Making your Draft…');
@@ -758,22 +758,25 @@ function PhotoTemplateRun({sdk,context}){
  React.useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
  React.useEffect(()=>{
   if(!runId||started.current===runId)return;started.current=runId;
-  const live=()=>alive.current&&latest.current.template?.runId===runId;
+  const projectId=context.projectId,template=context.template;
+  const live=()=>alive.current&&latest.current.template?.runId===runId&&latest.current.projectId===projectId&&latest.current.template?.libraryId===template?.libraryId;
   let ended=false;
   const finish=result=>{if(ended)return;ended=true;if(!live())return;try{sdk.finishTemplate(result);}catch{}};
   const say=text=>{if(live())setStatus(text);};
-  const projectId=context.projectId,template=context.template;
   let seeding=false,draftId=null;
   (async()=>{
    try{
     if(!projectId)throw templateIssue('Open a Project, then try again.');
     const app=window.parent,libraryId=templateLibrary(app,projectId,template);
     say('Finding your photos…');
-    const selected=await templateSelection(sdk,app,projectId,libraryId,template?.inputs);
-    if(!live())throw Error('The template run ended before the Draft was made.');
-    const done=await createPhotoDraft(sdk,{projectId,selected,framing:[],name:DEFAULT_DRAFT_NAME,caption:DEFAULT_CAPTION,grade:DEFAULT_GRADE,libraryId,stillCurrent:live,say,
-     onSeed:()=>{if(!live())throw Error('The template run ended before the Draft was made.');seeding=true;},onDraft:id=>{draftId=id;}});
-    if(!done?.draftId||done.draftId!==draftId)throw Error('The saved Draft did not report its id.');
+    const done=await executeTemplateRun(sdk,panelLocalClient(sdk).files,{pluginId:'polaroid-photo-dump',libraryId,projectId,runId},{photos:template?.inputs?.photos?.map(({resourceId,kind})=>({resourceId,kind})),framing:[],caption:DEFAULT_CAPTION,grade:DEFAULT_GRADE},live,async(runReceipt,onDispatch)=>{
+     const selected=await templateSelection(sdk,app,projectId,libraryId,template?.inputs);
+     if(!live())throw Error('The template run ended before the Draft was made.');
+     return createPhotoDraft(sdk,{projectId,selected,runReceipt,onDispatch,framing:[],name:DEFAULT_DRAFT_NAME,caption:DEFAULT_CAPTION,grade:DEFAULT_GRADE,libraryId,stillCurrent:live,say,
+      onSeed:()=>{if(!live())throw Error('The template run ended before the Draft was made.');seeding=true;},onDraft:id=>{draftId=id;}});
+    },result=>verifyAtomicImageDraft(sdk,projectId,result));
+    draftId=done.draftId;
+    if(!draftId||!Array.isArray(done.clips)||done.clips.length!==18)throw Error('The saved Draft did not report its id.');
     say('Done.');
     finish({sequenceId:done.draftId});
    }catch(error){
@@ -894,6 +897,7 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
  };
  await targetCheck();
  if(!files||!['join','homedir','exists','stat','readRange','writeFile','compareAndReplace','mkdir'].every(key=>typeof files[key]==='function'))fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ if(typeof globalThis.crypto?.subtle?.digest!=='function'||typeof globalThis.TextEncoder!=='function'||typeof globalThis.TextDecoder!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
  const digest=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(templateRunJSON(value)))),n=>n.toString(16).padStart(2,'0')).join('');
  const key=await digest(scope),requestDigest=await digest(request);
  const directory=files.join(files.homedir(),'.selects','plugin-data',scope.pluginId,'template-runs'),path=files.join(directory,key+'.json');
@@ -914,7 +918,8 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
   fail('TEMPLATE_RUN_PENDING','This run may still be saving or awaiting confirmation. Inspect the Project before starting another run.');
  };
  const existing=await read();if(existing)return recover(existing);
- const capability=await sdk.runScript({summary:'Check durable template run support',allowCommit:false,script:"return {supported:'files' in selects&&'compareAndReplace' in selects.files&&'writeChunk' in selects.files};"});
+ if(typeof globalThis.crypto?.randomUUID!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ const capability=await sdk.runScript({summary:'Check durable template run support',allowCommit:false,script:"return {supported:'files' in selects&&typeof selects.files?.compareAndReplace==='function'&&typeof selects.files?.writeChunk==='function'};"});
  if(capability.isError||capability.result?.supported!==true)fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
  await files.mkdir(directory,{recursive:true});check();
  const owner=crypto.randomUUID(),expectedText=templateRunJSON({version:1,scope,requestDigest,owner,status:'claimed'}),claim={path,expectedText};
