@@ -60,6 +60,31 @@ The formal E2E repository was unavailable locally; no E2E-suite pass is claimed.
 
 ## Codec control: do not manufacture a green pixel verdict
 
+The follow-up now captures the actual native compositor's BGRA bytes immediately
+before FFmpeg. The same persisted mixed Draft at pre-density client `b87220fea`
+has 3,600 unencoded border observations above RGB 3, with a maximum of 141.
+At fixed combined client `0e4f7a595`, all 341 frames pass the unencoded point
+contract: every sampled gap is exactly RGB zero. Music Off and Music On both
+pass and all 341 raw frame hashes match. Reveal, grayscale and Image-color
+checks pass too. This covers the declared points, not every pixel in the picture.
+
+The observer forwards the original bytes unchanged to the real encoder and
+stores a bounded-memory lossless gzip archive. Reencoding each before/after
+archive outside the app verifies every raw frame hash first and uses the exact
+recorded encoder arguments, changing only the new output path and refusing
+overwrites. All 341 decoded video frame hashes match the corresponding actual
+app export in both phases. Observed outputs also match the earlier unobserved
+exports, so this instrumentation did not change the delivered video.
+
+The old encoded RGB-16 gate still reports 3,585 before and 230 after. Every
+post-fix failure was exactly black at that point before encoding and is
+reproduced identically by the independent encoder replay. The 230 observations
+therefore arise downstream of native composition in this fixture; they are not
+remaining source-raster failures. The raw RGB-3 and encoded RGB-16 counts have
+different thresholds and must not be interpreted as identical bug counts.
+The old failure reports and their thresholds are retained rather than relabeled
+as passes. Full delivered-picture and audiovisual quality still require acceptance.
+
 An independent exact four-pixel-gutter RGB grid is black at every tested gap.
 The native encoder's RGB-to-YUV420/BT709 filter alone produces four RGB maximum
 16 failures among 18 horizontal samples, before H.264 encoding. Black luma
@@ -67,11 +92,39 @@ remains Y=16, while neighboring chroma contributes reconstructed RGB color.
 This demonstrates that the original RGB gate can fail a correct gap after
 subsampling. It does not prove every residual in native output is harmless.
 
-Preserve both original reports and the same thresholds. A next acceptance
-step must compare native pre-encode pixels and an independently encoded control
-under a justified codec-aware contract. Neither increasing RGB tolerance nor
-thickening Gallery's gaps establishes that result. The 230 remaining failures
-are recorded rather than relabeled as success.
+This earlier ideal-grid control alone was insufficient to attribute every real
+residual. The actual BGRA capture and byte-verified encoder replay above now
+provide that causal evidence for all 230 observations in the fixture. Neither
+RGB tolerance nor Gallery's gap widths were changed. Original-reference,
+changed-input and complete encoded-image quality are still separate gates.
+
+## Reproduce the pre-encode observation
+
+`tools/observe_native_export.py` is an optional POSIX development diagnostic,
+not installed panel code or a new runtime feature. Prepare a private JSON with
+an absolute real `encoder` path, existing `directory`, unique `tag`, actual
+`sourceRevision`, the independent `reference-oracle.json` as `oracle`, original
+fixture photo RGB values by one-based slot as `originalColors`, and the expected
+341 frames. It deliberately requires the declared 1080x1920 Gallery fixture.
+
+Place a private `ffmpeg` symlink to this executable tool in a private directory.
+Set `SELECTS_NATIVE_OBSERVER_CONFIG` to the JSON and prepend that directory to
+PATH only for the owned isolated dev-session launch. Ordinary FFmpeg calls exec
+the real binary with the same literal arguments and unread stdin. Do not edit
+global PATH or replace an installed encoder. Export through the real panel/SDK;
+the observation directory contains `report.json` and `frames.bgra.gz` per run.
+
+Replay to a new, absolute output path:
+
+```sh
+python3 tools/observe_native_export.py --reencode /absolute/private/run/report.json /absolute/private/control.mp4
+```
+
+Compare all decoded video frame hashes with the real app export, preserving
+the encoded and unencoded observations separately. The tool verifies raw hashes
+and never overwrites a control output. Restore the owned app with its normal
+environment afterward; this was done and its saved Drafts were reobserved.
+Windows capture/replay and complete natural-content quality are not claimed.
 
 ## Tests, compatibility and remaining work
 
@@ -101,7 +154,11 @@ maximum-texture behavior beyond the explicit budget guard are unbenchmarked.
 
 The library module pool remains five features and ten registered consumers;
 Gallery's runtime version remains 0.3.18. The extra shared raster code belongs
-to the client's existing renderer, not a duplicate template feature. Remaining
-gates include native pixel acceptance, installed app, Windows, Inspector,
+to the client's existing renderer, not a duplicate template feature. The new
+observer/replay tests first failed, then all eight passed; the full Python suite
+runs 299 cases (293 pass, six existing skips). Public-source, package-file and
+five-module/ten-consumer sync checks pass. Client production code is unchanged
+from its fully checked commit; its full suite was not rerun just for tool/docs.
+Remaining gates include full native image-quality acceptance, installed app, Windows, Inspector,
 whole-video/audio quality, original-reference reproduction and changed-input
 quality, plus all other unresolved template contracts.

@@ -1,5 +1,29 @@
 # Validation and limits
 
+## Native pre-encode and codec follow-up
+
+The actual native compositor now has causal point-sample evidence. At the same
+saved mixed Draft, the pre-density version fails 3600 unencoded border samples
+across 341 frames; the fixed version passes all sampled reveal/grayscale/color
+and border checks. Sampled gaps are exactly RGB zero with Music Off and On,
+and all 341 raw frame hashes match across music settings.
+
+The optional `tools/observe_native_export.py` forwards bytes unchanged into the
+real encoder and stores a lossless bounded-memory capture. Independent replay
+verifies every archived raw hash and reproduces all decoded frames before and
+after. It also reproduces the 230 post-fix encoded RGB residuals exactly; all
+those points were black before encoding. Thus those residuals arise after
+composition for this fixture. The earlier encoded RGB-16 failure reports remain
+unchanged, and no threshold or template gap was widened. This is point-contract
+evidence on synthetic media, not all-pixel or whole-AV/reference acceptance.
+The normal isolated app environment was restored after observation.
+
+The new observer/replay tests pass eight cases after their initial failures.
+The complete Python run executes 299 cases (293 pass, six existing skips).
+No template runtime, module consumer, package version or client production
+code changed in this follow-up. Detailed procedure and remaining gates are in
+`docs/template-repair/gallery-native-runtime.md`.
+
 ## Isolated native runtime checkpoint
 
 The real macOS development app now creates and independently reads two mixed
