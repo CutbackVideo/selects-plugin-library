@@ -12,8 +12,13 @@ Remaining legacy series typography is recorded explicitly; the old per-line colo
 stroke uses CSS `currentColor`. Stroke width is fixed from the declared title
 size; unlike the old renderer it does not shrink when a long title is fitted.
 
-AI framing stays **off** by default, matching the old fixed-crop app.
-This pack uses the existing template API and does not require new split layouts.
+Heukbaek enables AI framing by default: wide shots group all participants into
+three columns, existing four-way shots retain their order and boundaries, and
+single shots stay single. Its allowlist contains only `columns-3` and `grid-4`;
+frequent split permits these scene-based instructions without requiring sustained
+back-and-forth dialogue. Group counts are computed automatically.
+The other four templates keep AI framing **off**, matching the old fixed-crop app.
+Heukbaek requires the split-layout support in Shortform Clips 0.5.0 or later.
 The manifest migrates saved `chosun-clips` template IDs through the shared
 pack installer; it never modifies the old app's files.
 
