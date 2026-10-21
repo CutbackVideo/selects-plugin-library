@@ -36,12 +36,33 @@
         "size2": 75.3828564453125,
         "fontWeight": 400,
         "strokeWidth": 4.48,
-        "strokeColor": "#000000"
+        "strokeColor": "#000000",
+        "color1": "#FFE400",
+        "shadow": false,
+        "letterSpacing": 0,
+        "letterSpacing1": 0,
+        "letterSpacing2": -0.9045942773437501,
+        "rowGap": 90.45942773437501,
+        "measureFit": true
       },
       "captions": {
         "font": "TTOmniGothicM",
         "fontSize": 55.71999740600586,
-        "fontWeight": 400
+        "fontWeight": 400,
+        "boxColor": "#000000",
+        "boxBounds": "ink",
+        "boxPerLine": false,
+        "baselineBottom": 1373.0000839233398,
+        "rowGap": 66.86399688720702,
+        "letterSpacing": 0,
+        "boxPaddingX": 13.962264060974121,
+        "boxPaddingTop": 13.962264060974121,
+        "boxPaddingBottom": 13.962264060974121,
+        "left": 135,
+        "width": 810
+      },
+      "layout": {
+        "headlineCenter": 301.24685766601556
       }
     },
     "history": {
