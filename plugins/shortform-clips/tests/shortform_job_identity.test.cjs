@@ -18,7 +18,7 @@ test('independent panels use collision-resistant run identities', {skip: !module
     constructor(...args) { super(...(args.length ? args : [stamp])); }
     static now() { return stamp; }
   }
-  const panel = (projectId, crypto = webcrypto) => vm.createContext({Date: FixedDate, crypto, projectId, resume: undefined, mode:'project', contentMode:'speech', url:'', pick:'source', program:'template', countMode:'manual', count:1, note:'brief', platform:'shorts'});
+  const panel = (projectId, crypto = webcrypto) => vm.createContext({Date: FixedDate, crypto, projectId, resume: undefined, mode:'project', contentMode:'speech', url:'', pick:'source', program:'template', countMode:'manual', count:1, note:'brief', platform:'shorts', fixedLayout:'grid-4', subjectInstructions:'Keep all four people visible'});
   const create = context => vm.runInContext('(' + initializer + ')', context);
   const module = {exports:{}};
   const code = dep('esbuild').transformSync(source + '\nexport {makeStore,thumbnailPath};', {loader:'tsx',format:'cjs'}).code;
@@ -30,7 +30,11 @@ test('independent panels use collision-resistant run identities', {skip: !module
     const jobs = Array.from({length:1000}, (_, i) => create(i % 2 ? a : b));
     assert.equal(new Set(jobs.map(j => j.created)).size,1);
     assert.equal(new Set(jobs.map(j => j.id)).size,jobs.length);
-    for (const j of jobs) assert.match(j.id,/^[a-f0-9]{32}$/);
+    for (const j of jobs) {
+      assert.match(j.id,/^[a-f0-9]{32}$/);
+      assert.equal(j.fixedLayout,'grid-4');
+      assert.equal(j.subjectInstructions,'Keep all four people visible');
+    }
   });
 
   await t.test('same-clock projects retain separate shared job files, workspaces and thumbnails', async () => {

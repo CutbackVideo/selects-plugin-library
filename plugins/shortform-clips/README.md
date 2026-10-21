@@ -72,7 +72,7 @@ Saved runs retain the input kind and Draft identity when resumed.
 For face-following series templates, the app saves the edited Draft before
 reframing. For single-source footage, the existing Selects Agent inspects raw
 source imagery through read-only SDK tools and returns the editorial plan:
-measured face IDs, shot boundaries, coarse source panes, and solo/stacked/wide layouts.
+measured face IDs, shot boundaries, coarse source panes, and solo, two-way, three-way, four-way and wide layouts.
 The supplied transcript retains speaker labels so the agent can target visual
 checks at speech-turn changes. Labels are cues, not verified visual identities.
 Template preferences constrain those choices. The panel validates the plan,
@@ -239,11 +239,11 @@ TypeScript, React, react-dom and jsdom. These are not installed-panel dependenci
 ### Template-directed multicam reframing (experimental)
 
 Multicam drafts now use sampled camera face observations and one bounded visual
-planning pass. The AI selects `speaker`, `wide`, `two-shot`, or `stacked` shots;
+planning pass. The AI selects `speaker`, `wide`, `two-shot`, or an allowed split preset;
 code validates exact coverage and candidate availability, derives crop geometry,
 and atomically applies silent camera overlays while retaining the audio and
 editable template graphics. Low-confidence plans use an intact camera view;
-`cameraMode: speaker` disallows stacked layouts and `preserve` leaves framing alone.
+`cameraMode: speaker` disallows split layouts and `preserve` leaves framing alone.
 Plan/evidence/application events are recorded in the job reframing log. Invalid
 plans receive at most one correction request. Existing single-camera drafts still
 use the autonomous reframing path.
@@ -437,3 +437,26 @@ failed rollback retains the install lock and requires manual recovery. This lock
 coordinates this updater's instances; it is not shared with the host's separate
 native installer. Manual installations without an official installation receipt display an instruction to install the app from the library once. The first opted-in version must be installed once. Releases
 that remove `updates.protocol=1` or the updater are refused during installation.
+
+### Scene composition instructions and grouped splits
+
+The optional composition instruction field in Make clips applies scene-specific rules:
+for example, retain existing 2x2 shots, turn wide shots into three columns containing
+every participant, and preserve single-person shots. Templates control the allowed
+presets: `stacked`, `side-by-side`, `columns-3`, `top-main-3`, `left-main-3`, and `grid-4`.
+A fixed generation layout overrides automatic layout selection.
+
+Split counts describe panels, not people. Code groups all selected people by their
+source positions, while optional agent slot constraints express explicit placement
+requests. Panels from the same continuous shot share magnification where feasible;
+side-by-side panels also share a source-height band to align the table. Existing
+embedded camera panes retain their own bounds. The shot editor supports group
+selection, order and crop adjustments; locked shots survive automatic regeneration.
+
+For direct video sources, framing reads file metadata and extracts frames with the
+bundled FFmpeg, then applies the plan using current Draft/source-file mappings. It
+can finish after transcription without waiting for whole-resource visual analysis.
+Synced timeline inputs retain their existing merged-analysis requirements.
+
+The Chosun Ilbo pack under `template-packs/chosun-ilbo/` restores six legacy designs.
+See `tests/regression/README.md` for repeatable real-footage cases and local HTML runs.

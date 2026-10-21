@@ -21,7 +21,7 @@ The pack lives at `plugins/shortform-clips/template-packs/hankook-ilbo/`.
 Use a published branch or commit containing that path; a GitHub `pack.json`
 page or raw file URL also works. Installing the app does not install this pack.
 
-Use Shortform Clips 0.5.0 or later with Template API 5 support. Each template has
+Use Shortform Clips 0.5.1 or later with Template API 5 support. Each template has
 one design; there is no separate platform selection. Existing Knowledge Exchange
 and Issue Broadcast designs are retained. Re-add the published pack link to import
 the update; the app asks how to handle any conflicting local edits.

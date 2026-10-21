@@ -318,8 +318,9 @@ test('production scene runtime',{skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULE
     return{...f,events,aiCalls,result,original,tpl,localFiles,run:()=>f.run(tpl)};
   }
   await t.test('two AI stages share visual evidence, implement the confirmed plan and export without a third review call',async()=>{
-    const f=readyCaller();await f.run();assert.equal(f.aiCalls.length,2);assert.deepEqual(f.aiCalls[0].images,f.aiCalls[1].images);
+    const f=readyCaller();Object.assign(f.job,{note:'Episode concept',subjectInstructions:'Keep the two characters together',fixedLayout:'auto'});await f.run();assert.equal(f.aiCalls.length,2);assert.deepEqual(f.aiCalls[0].images,f.aiCalls[1].images);
     const context=prompt=>JSON.parse(prompt.slice(prompt.lastIndexOf('\n')+1)),planInput=context(f.aiCalls[0].prompt),buildInput=context(f.aiCalls[1].prompt);
+    assert.equal(planInput.brief,'Episode concept\n\nKeep the two characters together');assert.equal(buildInput.brief,planInput.brief);
     assert.equal(planInput.sourceEvidence[0].sourceWords.length,2);assert.equal(buildInput.sourceEvidence[0].sourceWords,undefined);
     assert.equal(buildInput.clip.beats[0].captions[1].text,'\uc5f4\ub9b0\ub2e4.');assert.deepEqual(buildInput.headlineDefaults,planInput.headlineDefaults);
     assert.match(f.aiCalls[1].prompt,/run_script/);assert.match(f.aiCalls[1].prompt,/WHOLE episode first/);assert(!f.aiCalls[1].prompt.includes('at most three primary beats'));
@@ -327,6 +328,11 @@ test('production scene runtime',{skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULE
     for(const call of f.aiCalls)assert.equal(call.prompt.split('FIXED TEMPLATE POLICY').length-1,1);
     const built=f.patches.find(p=>p.built)?.built[0];assert.equal(built.reframeState,'skipped');assert.equal(built.compositionKey,'same-composition');assert.equal(built.review.status,'pending');assert.equal(built.review.fullPlayback,false);assert.equal(built.review.audio,false);assert.deepEqual(built.review.frames,[]);
     assert.equal(f.patches.at(-1).done,true);assert(f.events.indexOf('build')<f.events.indexOf('Place planned dialogue captions'));assert(f.events.includes('Verify exported composition'));
+  });
+  await t.test('scene execution rejects unsupported fixed framing before source preparation or AI calls',async()=>{
+    const f=readyCaller();f.job.fixedLayout='grid-4';
+    await assert.rejects(f.run(),/Fixed layouts require an automatic framing template/);
+    assert.equal(f.aiCalls.length,0);assert.equal(f.events.length,0);assert.equal(f.patches.length,0);
   });
   await t.test('scene usage persists before parsing and retains failed calls without extra AI requests',async()=>{
     const previous={stage:'earlier',usage:{input_tokens:10,output_tokens:2}},usage=[{input_tokens:100,output_tokens:20},{input_tokens:300,output_tokens:40}];
