@@ -5,7 +5,7 @@ test('landscape source-video template',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),mod={exports:{}};
  const root=path.join(__dirname,'..'),source=fs.readFileSync(path.join(root,'panel.tsx'),'utf8');
  new Function('require','module','exports',dep('esbuild').transformSync(source+'\nexport {encodeSharedTemplate,decodeSharedTemplate,landscapeTransform,landscapeSpeakerCues,radioFrameParams,radioCaptionParams,LANDSCAPE_GRAPHIC_TSX,SCRIPT_BUILD};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
- const a=mod.exports,T=JSON.parse(fs.readFileSync(path.join(root,'template-drafts/politics-landscape/template.json')));
+ const a=mod.exports,T=JSON.parse(fs.readFileSync(path.join(root,'template-packs/chosun-ilbo/templates/politics-landscape.json')));
  await t.test('portable roundtrip preserves landscape geometry and explicit speaker mappings',()=>{
   T.landscape.speakers=[{label:'Speaker 1',name:'Example',role:'Chair',color:'#FFFF00'}];
   const bytes=a.encodeSharedTemplate(T);assert.equal(JSON.parse(new TextDecoder().decode(bytes)).templateApi,6);

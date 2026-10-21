@@ -1,10 +1,11 @@
-# Jeongjwippul — Premiere-derived draft
+# Jeongjwippul — Premiere-derived template
 
-`template.json` is a standalone design, deliberately outside the published pack
-until exact fonts and native comparison are available. Import it with a runtime
-that includes the caption-stroke changes in this branch. Local comparison copies
-also embed the bumper captured from the customer-selected official Short; those
-images, reports and embedded-image JSON copies are not committed.
+`templates/jeongjwippul.json` is included in Chosun Ilbo pack 1.4.0.
+Use Shortform Clips 0.6.0 or later (template API 6). Missing fonts and artwork
+are limitations of the current design, not reasons to exclude it from installation.
+The pack preserves the requested font identifiers but does not bundle font software.
+Local comparisons used a bumper crop from the customer-selected official Short;
+that temporary crop is not included in the pack, so the separate bumper/logo is absent.
 
 ## Customer Premiere values applied
 
