@@ -4,10 +4,14 @@ function bundledAssetIssue(code,message,cause){
  return Object.assign(Error(message),{code:'BUNDLED_ASSET_'+code,publicMessage:message,...cause?{cause}:{}});
 }
 async function readBundledAssetBytes(files,path,limit,current){
- current();const stat=await files.stat(path);current();
+ current();if(typeof files?.readRange!=='function')throw bundledAssetIssue('UNSUPPORTED','Update Selects to verify and prepare the bundled asset.');
+ const stat=await files.stat(path);current();
  if(!stat||stat.isDirectory!==false||!Number.isSafeInteger(stat.size)||stat.size<1||stat.size>limit)throw bundledAssetIssue('BYTES','The bundled file is missing, unreadable or exceeds its size limit.');
- const raw=await files.readFile(path);current();
- if(!ArrayBuffer.isView(raw)||raw.byteLength!==stat.size)throw bundledAssetIssue('CHANGED','The bundled file changed while reading. Start a new run.');
+ // Freeze the observation as a read budget. readFile would stat again and could
+ // allocate a larger, changed file before this feature gets to reject it.
+ const raw=await files.readRange(path,0,stat.size);current();
+ const after=await files.stat(path);current();
+ if(!ArrayBuffer.isView(raw)||raw.byteLength!==stat.size||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))throw bundledAssetIssue('CHANGED','The bundled file changed while reading. Start a new run.');
  return Uint8Array.from(new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength));
 }
 async function readBundledAssetResource(selects,projectId,path,platform,normalizeUnicode=false){
@@ -29,7 +33,7 @@ async function prepareBundledAsset(sdk,files,options){
   if(typeof projectId!=='string'||!projectId||projectId!==projectId.trim()||typeof pluginId!=='string'||pluginId.length>63||!/^[a-z0-9][a-z0-9-]*$/.test(pluginId)||typeof sourcePath!=='string'||!sourcePath||!['Image','Audio'].includes(type)||!(type==='Image'?extension==='png':['mp3','m4a','wav'].includes(extension))||!['binary','base64'].includes(encoding)||!['asset','frame','music'].includes(label)||!Number.isFinite(minimumSeconds)||minimumSeconds<0||type==='Image'&&minimumSeconds!==0||encoding==='base64'&&!pinned||pinned&&(!Number.isSafeInteger(expectedBytes)||expectedBytes<1||expectedBytes>32*1024*1024||typeof expectedSha256!=='string'||!/^[0-9a-f]{64}$/.test(expectedSha256)))throw bundledAssetIssue('INPUT','The bundled asset request is invalid.');
   if(typeof normalizeUnicode!=='boolean'||typeof isCurrent!=='function'||frameSize&&(type!=='Image'||!Number.isSafeInteger(frameSize.width)||frameSize.width<1||!Number.isSafeInteger(frameSize.height)||frameSize.height<1))throw bundledAssetIssue('INPUT','The bundled asset comparison or Image dimensions are invalid.');
   const subtle=globalThis.crypto?.subtle;
-  if(!subtle||encoding==='base64'&&typeof globalThis.atob!=='function'||['stat','readFile','writeFile','exists','mkdir','join','homedir'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to verify and prepare the bundled asset.');
+  if(!subtle||encoding==='base64'&&typeof globalThis.atob!=='function'||['stat','readRange','writeFile','exists','mkdir','join','homedir'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to verify and prepare the bundled asset.');
   const hash=async bytes=>{current();const digest=await subtle.digest('SHA-256',bytes);current();return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');};
   const installed=async()=>{
    // Base64 permits ordinary line wrapping, with bounded whitespace overhead.

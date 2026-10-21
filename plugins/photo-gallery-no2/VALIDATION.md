@@ -1,6 +1,23 @@
 # Validation and limits
 
-## Current repair checkpoint: 0.3.20
+## Current repair checkpoint: 0.3.21
+
+The existing shared asset reader now freezes its first valid size as a bounded
+readRange budget and checks metadata again after reading. Growth can no longer
+expand that budget through readFile's second size lookup; short, replaced or
+disappeared files cannot be accepted solely because a returned prefix has the
+old length. Content/hash, import, cache and cancellation contracts remain.
+
+The exact parent fails ten of sixteen new reader cases; all sixteen now pass.
+The related 32-file suite passes 847 cases, and the final reader/Audio oracle
+checks pass 60 (overlapping counts). Seven actual development-app SDK scenarios
+confirm both parent failures and fixed bounded reads with zero Project mutations.
+This is a shared-reader probe, not a whole installed-panel/platform verdict.
+No.14, Stop Motion and Polaroid also receive regenerated active consumers and
+patch versions. Pool size stays five features / ten consumers. See
+`docs/template-repair/bundled-read-bound.md` for evidence and remaining gates.
+
+## Previous reservation checkpoint: 0.3.20
 
 Private source/output reservations now use exact per-file ownership markers,
 bounded independent readback and one existing compare-and-replace operation to

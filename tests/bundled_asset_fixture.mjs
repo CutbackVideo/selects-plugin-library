@@ -23,6 +23,7 @@ export function assetFixture({plugin='polaroid-photo-dump',platform='darwin',hom
  const files={join,homedir:()=>home,exists:async p=>filesOnDisk.has(p),mkdir:async()=>{},
   stat:async p=>filesOnDisk.has(p)?{size:filesOnDisk.get(p).length,isDirectory:false}:null,
   readFile:async(p,encoding)=>{reads.push(p);await hooks.beforeRead?.(p);if(!filesOnDisk.has(p))throw Error('ENOENT');const b=filesOnDisk.get(p);return encoding==='utf8'?b.toString('utf8'):new Uint8Array(b);},
+  readRange:async(p,offset,length)=>{reads.push(p);await hooks.beforeRead?.(p);if(!filesOnDisk.has(p))throw Error('ENOENT');return new Uint8Array(filesOnDisk.get(p).subarray(offset,offset+length));},
   writeFile:async(p,bytes)=>{await hooks.beforeWrite?.(p);writes.push(p);filesOnDisk.set(p,Buffer.from(bytes));await hooks.afterWrite?.(p);},
   rename:async(a,b)=>{filesOnDisk.set(b,filesOnDisk.get(a));filesOnDisk.delete(a);},
   rm:async p=>{filesOnDisk.delete(p);},removeFile:async({filePath})=>{filesOnDisk.delete(filePath);},

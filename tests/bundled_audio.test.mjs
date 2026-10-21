@@ -94,15 +94,15 @@ for(const id of ids){
   await f.prepare();assert.equal(replies.length,2);assert.ok(replies.every(n=>n<1000));assert.equal(f.imported.length,1);
  });
  test(id+': an oversized installed asset is refused before reading its bytes',async()=>{
-  const f=musicFixture(id),stat=f.sdk.files.stat,read=f.sdk.files.readFile;let reads=0;
+  const f=musicFixture(id),stat=f.sdk.files.stat,read=f.sdk.files.readRange;let reads=0;
   f.sdk.files.stat=async p=>p===f.source?{size:32*1024*1024+1,isDirectory:false}:stat(p);
-  f.sdk.files.readFile=async(...args)=>{reads++;return read(...args);};
+  f.sdk.files.readRange=async(...args)=>{reads++;return read(...args);};
   await assert.rejects(f.prepare(),e=>e.code==='BUNDLED_AUDIO_BYTES');assert.equal(reads,0);assert.equal(f.imported.length,0);
  });
  test(id+': an oversized corrupt data copy is repaired without loading its bytes',async()=>{
-  const f=musicFixture(id);await f.prepare();const target=f.imported[0],stat=f.sdk.files.stat,read=f.sdk.files.readFile,write=f.sdk.files.writeFile;let repaired=false;
+  const f=musicFixture(id);await f.prepare();const target=f.imported[0],stat=f.sdk.files.stat,read=f.sdk.files.readRange,write=f.sdk.files.writeFile;let repaired=false;
   f.sdk.files.stat=async p=>p===target&&!repaired?{size:32*1024*1024+1,isDirectory:false}:stat(p);
-  f.sdk.files.readFile=async p=>{if(p===target&&!repaired)throw Error('must not load oversized data');return read(p);};
+  f.sdk.files.readRange=async(...args)=>{if(args[0]===target&&!repaired)throw Error('must not load oversized data');return read(...args);};
   f.sdk.files.writeFile=async(...args)=>{await write(...args);repaired=true;};
   await f.prepare();assert.ok(repaired);assert.equal(f.imported.length,1);
  });
