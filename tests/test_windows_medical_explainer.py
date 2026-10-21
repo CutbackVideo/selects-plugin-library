@@ -83,11 +83,31 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('sdk.storage.setItem(storageKey, value)', self.panel)
         self.assertIn('`job:${projectId}`', self.panel)
         # The request is recorded before the paid call and its job id right after, both persisted.
-        submit = self.panel[self.panel.index('phase: "submitting"'):self.panel.index('pending.push(q);\n    }\n    const failed')]
-        self.assertLess(submit.index('await persist(st)'), submit.index('await m.submit('))
-        self.assertIn('jobId: res.jobIds[0]', submit)
+        run = self.panel[self.panel.index('export async function medRunGenerations('):self.panel.index('// ---- Draft step')]
+        submit = run[run.index('phase: "submitting"'):run.index('pending.push(q);')]
+        self.assertLess(submit.index('await o.persist()'), submit.index('await api.submit(q)'))
+        self.assertIn('gen[q.gen] = { key: q.key, attempt: q.attempt, jobId };', submit)
+        # Nothing in the observer submits under a new key, and a deadline never marks a job failed.
+        self.assertNotIn('failed: "timeout"', self.panel)
+        self.assertIn('reason: "still running"', run)
         self.assertNotIn('localStorage', self.runtime)
         self.assertIn('if (!storageReady) return;', self.panel)
+
+    def test_new_attempts_only_for_known_failures_or_the_users_choice(self):
+        kind = self.panel[self.panel.index('async function generateKind('):self.panel.index('function unresolvedError(')]
+        self.assertIn('if (first.unresolved.length) throw unresolvedError(first.unresolved);', kind)
+        self.assertIn('for (const f of first.failed)', kind)
+        # The only other path to a new attempt is the explicit "Resubmit (may charge again)" button.
+        self.assertEqual(self.panel.count('failed: "resubmitted_by_user"'), 1)
+        self.assertIn('onClick={() => produce(job, false, undefined, unresolved)}', self.panel)
+        self.assertIn('generateKind(st, sc, dir, "narration", sceneIds, S.steps[0])', self.panel)
+        self.assertNotIn('"keep"', self.panel)
+
+    def test_job_list_and_music_are_scoped_to_this_job(self):
+        self.assertIn('if (r?.isError || !Array.isArray(r?.result)) throw new Error(', self.panel)
+        self.assertIn('if (!st.stopped && recovery.current?.jobId === st.id) await saveRecovery(', self.panel)
+        self.assertIn('if (st) st.stopped = true;', self.panel)
+        self.assertLess(self.panel.index('await openReview(dir, p);'), self.panel.index('generateKind(st, sc, dir, "music"'))
 
     def test_update_guard_policy_and_hook(self):
         policies = json.loads((ROOT / 'shared' / 'app-update-guard-policies.json').read_text(encoding='utf-8'))
@@ -100,7 +120,7 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('{noHost && <ui.Message>{S.noHost}</ui.Message>}', self.panel)
         langs = re.findall(r'^  (\w\w): \{$', self.panel, flags=re.M)
         self.assertEqual(sorted(langs), ['en', 'ko'])
-        for key in ['noHost', 'noGeneration', 'noStorage', 'review']:
+        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged']:
             self.assertEqual(len(re.findall(r'\b%s: "' % key, self.panel)), len(langs), key)
 
     def test_korean_fallback_fonts_in_every_overlay(self):

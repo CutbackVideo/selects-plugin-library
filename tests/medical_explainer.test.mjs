@@ -216,7 +216,7 @@ function makeJob(settings = {}) {
   fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify({version: '1', lang: 'ko', title: ['T1', 'T2'], scenes}));
   const gen = {};
   for (const s of scenes) {
-    const f = path.join(dir, `narr_${s.n}.mp3`); fs.writeFileSync(f, ''); gen[`narr:${s.n}`] = {path: f};
+    const f = path.join(dir, `mxT_narr_${s.n}_1.mp3`); fs.writeFileSync(f, ''); gen[`narr:${s.n}`] = {path: f};
     for (const c of 'AB') { const k = path.join(dir, `kf_${s.n}${c}.png`); fs.writeFileSync(k, ''); gen[`kf:${s.n}:${c}`] = {path: k}; }
   }
   fs.writeFileSync(path.join(dir, 'gen.json'), JSON.stringify(gen));
@@ -226,7 +226,7 @@ const NARR = [5.2, 3.1, 2.6, 3.4];
 
 test('requests: scene clips start from the keyframe only; transitions bind start and end frames, no unused slot', async () => {
   const {dir} = makeJob();
-  const io = stubIO(dir, {duration: async (p) => NARR[Number(/narr_(\d)/.exec(p)[1]) - 1]});
+  const io = stubIO(dir, {duration: async (p) => NARR[Number(/narr_(\d)_/.exec(p)[1]) - 1]});
   assert.equal((await op.medEngine('timeline', dir, [], io)).ok, true);
   fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'B', 2: 'A', 3: 'A', 4: 'A'}, clip: {1: 'A', 2: 'B', 3: 'A'}}));
   const kf = (await op.medEngine('requests', dir, ['keyframes', '1,3'], io)).requests;
@@ -237,6 +237,10 @@ test('requests: scene clips start from the keyframe only; transitions bind start
   assert.equal(kf[2].modelId, op.MED_MODEL.edit);
   assert.deepEqual(kf[2].input.image_urls, ['selects-input:ref']);
   assert.deepEqual(Object.keys(kf[2].uploads), ['ref']);
+  // Only fields the Seedream 5.0 Pro text-to-image / edit schemas define (models.schema, 2026-10-22).
+  const SEEDREAM = ['prompt', 'image_size', 'num_images', 'output_format', 'image_urls', 'enhance_prompt_mode', 'enable_safety_checker', 'sync_mode'];
+  for (const r of kf) for (const k of Object.keys(r.input)) assert.ok(SEEDREAM.includes(k), k);
+  assert.ok(['jpeg', 'png'].includes(kf[0].input.output_format));
   assert.match(kf[2].uploads.ref, /kf_1B\.png$/, 'scene 1\'s chosen keyframe is the style reference');
   assert.match(kf[2].key, /-rB$/);
   assert.ok(kf[2].input.prompt.endsWith(op.MED_STYLE + '.'));
@@ -278,7 +282,7 @@ test('requests: scene clips start from the keyframe only; transitions bind start
 
 test('assembly: Main clips tile the program; scene overlays end before transitions; captions fit', async () => {
   const {dir} = makeJob({titleLines: {line1: 'Edited 1', line2: 'Edited 2'}});
-  const io = stubIO(dir, {duration: async (p) => NARR[Number(/narr_(\d)/.exec(p)[1]) - 1]});
+  const io = stubIO(dir, {duration: async (p) => NARR[Number(/narr_(\d)_/.exec(p)[1]) - 1]});
   await op.medEngine('timeline', dir, [], io);
   const tl = JSON.parse(fs.readFileSync(path.join(dir, 'timeline.json'), 'utf8'));
   const segments = [];
@@ -368,4 +372,144 @@ test('the last used frame is one frame before the out-point on the 24 fps grid',
   assert.equal(op.medLastFrameTime(0), 0);
   const args = op.medFrameArgs('s.mp4', op.medLastFrameTime(2.25), 'out.png');
   assert.deepEqual(args.slice(3, 7), ['-ss', '2.208', '-i', 's.mp4']);
+});
+
+// ---- review fixes: job-scoped imports, scene-check sampling, generation recovery ----
+test('every file the Draft imports carries the job id, so a second run never reuses the first run\'s clips', async () => {
+  const {dir} = makeJob();
+  const calls = [];
+  const io = stubIO(dir, {duration: async (p) => (/narr_(\d)_/.test(p) ? NARR[Number(/narr_(\d)_/.exec(p)[1]) - 1] : 3.04),
+    ffmpeg: async (args) => { calls.push(args); fs.writeFileSync(args.at(-1), 'x'); }});
+  await op.medEngine('timeline', dir, [], io);
+  const strips = {};
+  for (const n of [1, 2, 3, 4]) strips[n] = {strip: path.join(dir, 'work', `strip_${n}.mp4`), dur: 8};
+  fs.writeFileSync(path.join(dir, 'work', 'strips.json'), JSON.stringify({strips, fallback: []}));
+  const trFile = path.join(dir, 'mxT_tr_1_A_1.mp4'); fs.writeFileSync(trFile, '');
+  const gen = JSON.parse(fs.readFileSync(path.join(dir, 'gen.json'), 'utf8'));
+  gen['tr:1:A'] = {path: trFile};
+  fs.writeFileSync(path.join(dir, 'gen.json'), JSON.stringify(gen));
+  fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'A', 2: 'A', 3: 'A', 4: 'A'}, tr: {1: 'A', 2: 'none'}}));
+  const comp = await op.medEngine('compose', dir, [], io);
+  assert.equal(comp.ok, true, comp.error);
+  assert.deepEqual(comp.dissolves, [2, 3]);
+  const a = await op.medEngine('assembly', dir, [], io);
+  assert.notEqual(a.ok, false, a.error);
+  assert.equal(a.segments.length, 7);
+  for (const f of a.files) assert.match(op.medBaseName(f), /^mxT_/, f);
+  assert.equal(op.medWorkName('mx1', 'card', 3), 'mx1_card_3.mp4');
+  assert.notEqual(op.medWorkName('mx1', 'card', 3), op.medWorkName('mx2', 'card', 3));
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('the scene check samples start, middle and end inside each scene clip, never in a transition slot', () => {
+  const tl = op.medTimeline(DURS);
+  for (const sc of tl.scenes) {
+    const times = op.medVerifyTimes(sc);
+    assert.equal(times.length, 3);
+    for (const t of times) {
+      assert.ok(t >= sc.start && t < sc.end, `scene ${sc.n}: ${t}`);
+      for (const b of tl.boundaries) assert.ok(!(t >= b.start && t < b.end), `scene ${sc.n}: ${t} is in slot ${b.after}`);
+    }
+    assert.ok(times[0] < times[1] && times[1] < times[2]);
+  }
+});
+
+test('job snapshots: only a terminal provider failure counts as failed; a lost delivery is a delivery problem', () => {
+  const c = op.medClassifyJob;
+  assert.deepEqual(c({deliveryStatus: 'delivered', status: 'succeeded', outputs: [{path: '/x.mp4'}]}), {state: 'delivered', path: '/x.mp4'});
+  for (const status of ['failed', 'cancelled', 'input_failed', 'submission_rejected']) assert.equal(c({status, deliveryStatus: status, outputs: []}).state, 'failed', status);
+  for (const deliveryStatus of ['download_failed', 'result_collection_failed', 'import_failed']) assert.equal(c({status: 'succeeded', deliveryStatus, outputs: []}).state, 'delivery_failed');
+  assert.equal(c({status: 'succeeded', deliveryStatus: 'delivered', outputs: []}).state, 'delivery_failed');
+  for (const s of [{status: 'in_progress', deliveryStatus: 'waiting'}, {status: 'unknown', deliveryStatus: 'waiting'}, {status: 'succeeded', deliveryStatus: 'downloading'},
+    {status: 'succeeded', deliveryStatus: 'collecting_result'}, {status: 'handoff_pending', deliveryStatus: 'x'}, undefined]) assert.equal(c(s).state, 'pending', JSON.stringify(s));
+});
+
+function fakeHost(script) {
+  const log = {submits: [], lists: 0, retries: []};
+  let clock = 0;
+  const api = {
+    submit: async (q) => { log.submits.push(q.key); return 'selects-' + q.key; },
+    list: async (ids) => { log.lists++; return ids.map((id) => ({jobId: id, ...script(id, log.lists)})); },
+    retryDelivery: async (id) => { log.retries.push(id); },
+  };
+  const opts = {persist: async () => {}, sleep: async (ms) => { clock += ms; }, now: () => clock};
+  return {api, opts, log};
+}
+const REQ = (gen, attempt = 1) => ({gen, attempt, key: `mxT-${gen.replace(/:/g, '-')}-${attempt}`});
+
+test('generation: a known failure is reported without polling or resubmitting; a new attempt has a new key', async () => {
+  const gen = {'narr:1': {key: REQ('narr:1').key, attempt: 1, jobId: 'selects-old', failed: 'failed'}};
+  const h = fakeHost(() => ({status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: '/n2.mp3'}]}));
+  const r = await op.medRunGenerations([REQ('narr:1')], gen, h.api, h.opts);
+  assert.deepEqual(r, {failed: [{gen: 'narr:1', code: 'failed'}], unresolved: []});
+  assert.deepEqual(h.log.submits, []);
+  const r2 = await op.medRunGenerations([REQ('narr:1', 2)], gen, h.api, h.opts);
+  assert.deepEqual(r2, {failed: [], unresolved: []});
+  assert.deepEqual(h.log.submits, [REQ('narr:1', 2).key]);
+  assert.deepEqual(gen['narr:1'], {key: REQ('narr:1', 2).key, attempt: 2, jobId: 'selects-' + REQ('narr:1', 2).key, path: '/n2.mp3'});
+});
+
+test('generation: a host-reported failure while polling is marked and returned, once', async () => {
+  const gen = {};
+  const h = fakeHost((id, n) => (n < 3 ? {status: 'in_progress', deliveryStatus: 'waiting'} : {status: 'failed', deliveryStatus: 'failed', errorCode: 'provider_error'}));
+  const r = await op.medRunGenerations([REQ('kf:2:A')], gen, h.api, h.opts);
+  assert.deepEqual(r.failed, [{gen: 'kf:2:A', code: 'provider_error'}]);
+  assert.equal(gen['kf:2:A'].failed, 'provider_error');
+  assert.equal(h.log.submits.length, 1);
+});
+
+test('generation: a job still running at the deadline is unresolved, never failed and never resubmitted', async () => {
+  const gen = {};
+  const h = fakeHost(() => ({status: 'in_progress', deliveryStatus: 'waiting'}));
+  const r = await op.medRunGenerations([REQ('clip:1:A'), REQ('clip:1:B')], gen, h.api, {...h.opts, deadlineMs: 60000});
+  assert.deepEqual(r.failed, []);
+  assert.deepEqual(r.unresolved.map((u) => [u.gen, u.reason]), [['clip:1:A', 'still running'], ['clip:1:B', 'still running']]);
+  assert.equal(h.log.submits.length, 2);
+  assert.ok(!gen['clip:1:A'].failed && gen['clip:1:A'].jobId);
+  // Resuming reconnects to the same jobs; nothing is submitted again.
+  const h2 = fakeHost(() => ({status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: '/c.mp4'}]}));
+  assert.deepEqual(await op.medRunGenerations([REQ('clip:1:A'), REQ('clip:1:B')], gen, h2.api, h2.opts), {failed: [], unresolved: []});
+  assert.deepEqual(h2.log.submits, []);
+});
+
+test('generation: a lost delivery gets bounded retryDelivery calls, then is surfaced, never repaid', async () => {
+  const gen = {};
+  const h = fakeHost(() => ({status: 'succeeded', deliveryStatus: 'download_failed', errorCode: 'download_failed', outputs: []}));
+  const r = await op.medRunGenerations([REQ('tr:1:A')], gen, h.api, h.opts);
+  assert.equal(h.log.retries.length, op.MED_DELIVERY_RETRIES);
+  assert.deepEqual(r.unresolved.map((u) => u.reason), ['delivery download_failed']);
+  assert.deepEqual(r.failed, []);
+  assert.equal(h.log.submits.length, 1);
+  // A retry that works delivers the file.
+  const gen2 = {};
+  const h2 = fakeHost((id, n) => (n === 1 ? {status: 'succeeded', deliveryStatus: 'download_failed', outputs: []} : {status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: '/t.mp4'}]}));
+  assert.deepEqual(await op.medRunGenerations([REQ('tr:1:A')], gen2, h2.api, h2.opts), {failed: [], unresolved: []});
+  assert.equal(gen2['tr:1:A'].path, '/t.mp4');
+});
+
+test('generation: an unacknowledged submission is submitted again under the same key; a failed list read is an error', async () => {
+  const gen = {'kf:1:A': {key: REQ('kf:1:A').key, attempt: 1, phase: 'submitting'}};
+  const persisted = [];
+  const h = fakeHost(() => ({status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: '/k.png'}]}));
+  await op.medRunGenerations([REQ('kf:1:A')], gen, h.api, {...h.opts, persist: async () => { persisted.push(JSON.parse(JSON.stringify(gen))); }});
+  assert.deepEqual(h.log.submits, [REQ('kf:1:A').key]);
+  assert.equal(persisted[0]['kf:1:A'].phase, 'submitting', 'recorded before the paid call');
+  assert.ok(persisted[1]['kf:1:A'].jobId, 'job id recorded right after');
+  const broken = fakeHost(() => ({}));
+  broken.api.list = async () => { throw new Error('result clipped'); };
+  await assert.rejects(op.medRunGenerations([REQ('kf:1:B')], {}, broken.api, broken.opts), /result clipped/);
+  const stopped = fakeHost(() => ({status: 'in_progress'}));
+  await assert.rejects(op.medRunGenerations([REQ('music')], {}, stopped.api, {...stopped.opts, stopped: () => true}), /stopped/);
+});
+
+test('the job list is read for this job only, with the fields the app needs', async () => {
+  const rows = Array.from({length: 500}, (_, i) => ({jobId: `selects-${i}`, status: 'succeeded', deliveryStatus: 'delivered', prompt: 'x'.repeat(2000),
+    errorCode: undefined, outputs: [{outputIndex: 0, status: 'delivered', path: `/p${i}`}]}));
+  const src = op.medJobsScript('p1', ['selects-3', 'selects-7']).replace(/: any/g, '');
+  const out = await new Function('selects', `return (async () => {${src}})();`)({generation: {jobs: async (pid) => { assert.equal(pid, 'p1'); return rows; }}});
+  assert.deepEqual(out, [
+    {jobId: 'selects-3', status: 'succeeded', deliveryStatus: 'delivered', errorCode: null, outputs: [{status: 'delivered', path: '/p3'}]},
+    {jobId: 'selects-7', status: 'succeeded', deliveryStatus: 'delivered', errorCode: null, outputs: [{status: 'delivered', path: '/p7'}]},
+  ]);
+  assert.ok(JSON.stringify(out).length < 1000);
 });

@@ -221,6 +221,7 @@ type Strings = {
   pointersDropped: string; noProject: string; needUrl: string; needText: string; needTopic: string; noHost: string; noGeneration: string;
   noStorage: string; recent: string; resume: string; dismiss: string; retry: string; elapsed: string; noMusic: string;
   notReady: (names: string) => string; errors: Record<string, string>;
+  unresolved: (names: string) => string; keepWaiting: string; resubmit: string; styleChanged: string;
 };
 
 const STRINGS: Record<string, Strings> = {
@@ -251,6 +252,9 @@ const STRINGS: Record<string, Strings> = {
     recent: "Unfinished jobs", resume: "Resume", dismiss: "Remove from list", retry: "Try again", elapsed: "Elapsed",
     noMusic: "The music could not be made; the Draft has no music.",
     notReady: (n) => `Selects has not finished adding some media to the Project yet (${n}). Wait a moment, then press Resume.`,
+    unresolved: (n) => `These generations have not finished, or their files could not be delivered: ${n}. Keep waiting to check them again; resubmit only if they are stuck (a resubmitted generation may be charged again).`,
+    keepWaiting: "Keep waiting", resubmit: "Resubmit (may charge again)",
+    styleChanged: "Scene 1's pick changed: scenes 2 onward were drawn with the earlier scene 1 as their style reference, so their look may differ a little.",
     errors: { FETCH_FAILED: "The link could not be opened.", NO_TEXT: "No text was found at the link. Paste the text instead.",
       TEXT_TOO_SHORT: "The source text is too short.", NO_JSON: "The script could not be read from the AI answer. Try again." },
   },
@@ -283,6 +287,9 @@ const STRINGS: Record<string, Strings> = {
     recent: "\uc9c4\ud589 \uc911\uc778 \uc791\uc5c5", resume: "\uc774\uc5b4\uc11c \ub9cc\ub4e4\uae30", dismiss: "\ubaa9\ub85d\uc5d0\uc11c \uc9c0\uc6b0\uae30", retry: "\ub2e4\uc2dc \uc2dc\ub3c4", elapsed: "\uacbd\uacfc",
     noMusic: "\ubc30\uacbd\uc74c\uc545\uc744 \ub9cc\ub4e4\uc9c0 \ubabb\ud574 \uc74c\uc545 \uc5c6\uc774 \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.",
     notReady: (n) => `Selects\uac00 \uc544\uc9c1 \uc77c\ubd80 \ubbf8\ub514\uc5b4\ub97c \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ud558\ub294 \uc911\uc785\ub2c8\ub2e4(${n}). \uc7a0\uc2dc \ud6c4 \uc774\uc5b4\uc11c \ub9cc\ub4e4\uae30\ub97c \ub20c\ub7ec \uc8fc\uc138\uc694.`,
+    unresolved: (n) => `\uc544\uc9c1 \ub05d\ub098\uc9c0 \uc54a\uc558\uac70\ub098 \ud30c\uc77c\uc744 \ubc1b\uc9c0 \ubabb\ud55c \uc0dd\uc131 \uc791\uc5c5: ${n}. \uacc4\uc18d \uae30\ub2e4\ub9ac\uba74 \ub2e4\uc2dc \ud655\uc778\ud569\ub2c8\ub2e4. \uba48\ucd98 \uacbd\uc6b0\uc5d0\ub9cc \ub2e4\uc2dc \uc694\uccad\ud558\uc138\uc694(\ub2e4\uc2dc \uc694\uccad\ud558\uba74 \ud06c\ub808\ub527\uc774 \ub2e4\uc2dc \ucc28\uac10\ub420 \uc218 \uc788\uc2b5\ub2c8\ub2e4).`,
+    keepWaiting: "\uacc4\uc18d \uae30\ub2e4\ub9ac\uae30", resubmit: "\ub2e4\uc2dc \uc694\uccad(\ud06c\ub808\ub527 \ub2e4\uc2dc \ucc28\uac10 \uac00\ub2a5)",
+    styleChanged: "\uc7a5\uba74 1 \uc120\ud0dd\uc774 \ubc14\ub00c\uc5c8\uc2b5\ub2c8\ub2e4. \uc7a5\uba74 2\ubd80\ud130\ub294 \uc774\uc804 \uc7a5\uba74 1\uc744 \uc2a4\ud0c0\uc77c \uae30\uc900\uc73c\ub85c \uadf8\ub838\uc73c\ubbc0\ub85c \ub290\ub08c\uc774 \uc870\uae08 \ub2e4\ub97c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     errors: { FETCH_FAILED: "\ub9c1\ud06c\ub97c \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.", NO_TEXT: "\ub9c1\ud06c\uc5d0\uc11c \ubcf8\ubb38\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ud14d\uc2a4\ud2b8\ub85c \ubd99\uc5ec\ub123\uc5b4 \uc8fc\uc138\uc694.",
       TEXT_TOO_SHORT: "\uc6d0\ubb38 \ud14d\uc2a4\ud2b8\uac00 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4.", NO_JSON: "AI \uc751\ub2f5\uc5d0\uc11c \ub300\ubcf8\uc744 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694." },
   },
@@ -1177,7 +1184,7 @@ async function cmdSheet(io, job, kind, only) {
       const s = asm.segments[asm.segments.length - 1];
       return { file: s.file, t: Math.max(0, s.dur - 0.05) };
     };
-    const rows = asm.narration.map((nr, i) => ({ n: i + 1, times: [nr.start + 0.3, nr.start + nr.dur / 2, nr.start + nr.dur - 0.3] }));
+    const rows = asm.scenes.map((sc) => ({ n: sc.n, times: medVerifyTimes(sc) }));
     for (let part = 0; part < rows.length; part += 4) {
       const chunk = rows.slice(part, part + 4);
       const cells = [];
@@ -1188,6 +1195,13 @@ async function cmdSheet(io, job, kind, only) {
     throw medFail("unknown sheet " + kind);
   }
   return { ok: true, sheets };
+}
+
+// Scene check sample times: start, middle and end of the scene clip's own span (after the incoming transition ends,
+// before the outgoing one starts), never inside a transition slot.
+export function medVerifyTimes(scene) {
+  const inset = Math.min(0.3, (scene.end - scene.start) * 0.15);
+  return [scene.start + inset, (scene.start + scene.end) / 2, scene.end - inset - 1 / MED_FPS].map(r3);
 }
 
 // ---- strips: the chosen clips as 1080x608 strips, and the frames the transitions start and end on ----
@@ -1233,6 +1247,9 @@ async function cmdStrips(io, job) {
 }
 
 // ---- compose: every Main clip on the card, plus pointer frames and inset crops ----
+// The Draft step imports by file name and skips names the Project already has, so every file it imports carries the
+// job id (as the generated narration and music do): a second video in the same Project never reuses the first's clips.
+export function medWorkName(jobId, kind, n) { return `${jobId}_${kind}_${n}.mp4`; }
 async function cmdCompose(io, job) {
   const plan = await job.plan();
   const tl = await job.timeline();
@@ -1243,12 +1260,12 @@ async function cmdCompose(io, job) {
   for (const s of plan.scenes) {
     const st = strips.strips[s.n];
     if (!st) throw medFail("strip missing: scene " + s.n);
-    const dest = job.p("work", `card_${s.n}.mp4`);
+    const dest = job.p("work", medWorkName(job.id, "card", s.n));
     await io.ffmpeg(medCardArgs(st.strip, dest, bg));
     segments.push({ kind: "scene", n: s.n, file: dest, dur: tl.scenes[s.n - 1].span });
     if (s.n < plan.scenes.length) {
       const b = tl.boundaries[s.n - 1];
-      const tdest = job.p("work", `tr_${s.n}.mp4`);
+      const tdest = job.p("work", medWorkName(job.id, "tr", s.n));
       const pick = picks.tr[String(s.n)];
       const src = pick && pick !== "none" ? await job.file(`tr:${s.n}:${pick}`) : null;
       if (src) await io.ffmpeg(medTransitionCardArgs(src, tdest, bg, b.slot, await io.duration(src)));
@@ -1322,7 +1339,7 @@ async function cmdAssembly(io, job) {
       const items = [];
       for (const [i, x] of s.insets.entries()) {
         const f = comp.insetFiles.find((y) => y.scene === s.n && y.index === i);
-        items.push({ label: x.label, image: f ? "data:image/jpeg;base64," + await io.readB64(f.path) : "" });
+        items.push({ label: x.label, image: f && await io.exists(f.path) ? "data:image/jpeg;base64," + await io.readB64(f.path) : "" });
       }
       insets.push({ scene: s.n, items, ...span });
     }
@@ -1332,6 +1349,7 @@ async function cmdAssembly(io, job) {
   const files = [...segs.map((s) => s.file), ...narration.map((n) => n.file), ...(music ? [music] : [])];
   const res = {
     draftName: `${slice((title[0] + " " + title[1]).trim() || "Medical explainer", 0, 60)} \u00b7 Medical`, total: tl.total, files, segments: segs, narration, music,
+    scenes: tl.scenes.map((sc) => ({ n: sc.n, start: sc.start, end: sc.end })),
     title: { line1: title[0], line2: title[1], color1: medHex(tpl.color1, MED_TITLE_COLORS[0]), color2: medHex(tpl.color2, MED_TITLE_COLORS[1]), size: medTitleSize(title[0], title[1]) },
     wordmark: strip(tpl.wordmark || ""), labels, captions: tl.captions, pointers, splits, insets, dropped,
   };
@@ -1366,6 +1384,89 @@ export async function medEngine(cmd, dir, args, io) {
     if (e instanceof MedEngineError) return { ok: false, error: e.message };
     return { ok: false, error: `${(e && e.name) || "Error"}: ${(e && e.message) || e}` };
   }
+}
+
+// ---- observing paid generations ----
+// One host job snapshot, as this app acts on it. Only a terminal provider failure is "failed" (safe to try again
+// under a new request key); a provider success whose file did not arrive is a delivery problem (retryDelivery, never
+// a new job); everything else, including a status the host cannot currently read, is still pending.
+const MED_FAILED = ["failed", "cancelled", "input_failed", "submission_rejected"];
+const MED_DELIVERY_FAILED = ["download_failed", "result_collection_failed", "import_failed"];
+export function medClassifyJob(j) {
+  if (!j) return { state: "pending" };
+  const path = (Array.isArray(j.outputs) ? j.outputs : []).map((o) => o && o.path).find(Boolean);
+  if (j.deliveryStatus === "delivered" && path) return { state: "delivered", path };
+  if (MED_FAILED.includes(String(j.status))) return { state: "failed", code: String(j.errorCode || j.status) };
+  if (MED_DELIVERY_FAILED.includes(String(j.deliveryStatus)) || (j.deliveryStatus === "delivered" && !path))
+    return { state: "delivery_failed", code: String(j.errorCode || j.deliveryStatus) };
+  return { state: "pending" };
+}
+// run_script source listing this job's generations only, with the fields medClassifyJob reads.
+export function medJobsScript(projectId, jobIds) {
+  return `const want = new Set(${JSON.stringify(jobIds)});
+const rows = await selects.generation.jobs(${JSON.stringify(projectId)});
+return rows.filter((j: any) => want.has(j.jobId)).map((j: any) => ({ jobId: j.jobId, status: j.status, deliveryStatus: j.deliveryStatus,
+  errorCode: j.errorCode ?? null, outputs: (j.outputs || []).map((o: any) => ({ status: o.status, path: o.path ?? null })) }));`;
+}
+export const MED_GEN_DEADLINE_MS = 45 * 60 * 1000;
+export const MED_GEN_POLL_MS = 4000;
+export const MED_DELIVERY_RETRIES = 3;
+// Submits each request that has no acknowledged job under its key (an unacknowledged submission is submitted again
+// under the SAME key, which the host resolves to the same job), records the job id before and after, and observes
+// until every job is delivered, failed, or unresolved. `gen` is the job's request map (mutated); `api` is
+// { submit(q) -> jobId, list(jobIds) -> snapshots, retryDelivery(jobId) }; `opts` carries persist, sleep, now,
+// stopped and progress. Returns { failed: [{gen, code}], unresolved: [{gen, reason}] }. Nothing here ever submits
+// under a new key: that is the caller's decision, for known failures only.
+export async function medRunGenerations(reqs, gen, api, opts) {
+  const o = { deadlineMs: MED_GEN_DEADLINE_MS, pollMs: MED_GEN_POLL_MS, deliveryRetries: MED_DELIVERY_RETRIES, stopped: () => false, progress: () => {}, ...opts };
+  const failed = [], unresolved = [], pending = [];
+  let done = 0;
+  for (const q of reqs) {
+    const cur = gen[q.gen];
+    const same = cur && cur.key === q.key;
+    if (same && cur.path) { done++; continue; }
+    if (same && cur.failed) { failed.push({ gen: q.gen, code: cur.failed }); continue; }
+    if (!same || !cur.jobId) {
+      if (o.stopped()) throw new Error("stopped");
+      gen[q.gen] = { key: q.key, attempt: q.attempt, phase: "submitting" };
+      await o.persist();
+      const jobId = await api.submit(q);
+      if (!jobId) throw new Error("Generation submission is unknown. Resume to reconnect with the same request key.");
+      gen[q.gen] = { key: q.key, attempt: q.attempt, jobId };
+      await o.persist();
+    }
+    pending.push(q);
+  }
+  const retries = new Map();
+  const deadline = o.now() + o.deadlineMs;
+  let left = pending;
+  while (left.length) {
+    if (o.stopped()) throw new Error("stopped");
+    if (o.now() > deadline) {
+      for (const q of left) unresolved.push({ gen: q.gen, reason: "still running" });
+      break;
+    }
+    const rows = await api.list(left.map((q) => gen[q.gen].jobId));
+    if (!Array.isArray(rows)) throw new Error("Generation progress could not be read.");
+    const byId = new Map(rows.map((j) => [j.jobId, j]));
+    const next = [];
+    for (const q of left) {
+      const entry = gen[q.gen];
+      const c = medClassifyJob(byId.get(entry.jobId));
+      if (c.state === "delivered") { gen[q.gen] = { ...entry, path: c.path }; done++; }
+      else if (c.state === "failed") { gen[q.gen] = { ...entry, failed: c.code }; failed.push({ gen: q.gen, code: c.code }); }
+      else if (c.state === "delivery_failed") {
+        const n = retries.get(entry.jobId) || 0;
+        if (n < o.deliveryRetries) { retries.set(entry.jobId, n + 1); await api.retryDelivery(entry.jobId); next.push(q); }
+        else unresolved.push({ gen: q.gen, reason: "delivery " + c.code });
+      } else next.push(q);
+    }
+    await o.persist();
+    o.progress(done, reqs.length);
+    left = next;
+    if (left.length) await o.sleep(o.pollMs);
+  }
+  return { failed, unresolved };
 }
 
 // ---- Draft step: import the media, then wait until Selects can place it ----
@@ -1667,7 +1768,8 @@ function Panel({ sdk, context, ui }: any) {
   const [job, setJob] = React.useState<any>(null); // { id, dir }
   const [plan, setPlan] = React.useState<any>(null);
   const [check, setCheck] = React.useState<any>(null);
-  const [review, setReview] = React.useState<any>(null); // keyframe review: { scenes: [{ n, label, options, pick, img }] }
+  const [review, setReview] = React.useState<any>(null); // keyframe review: { dir, firstPick, scenes: [{ n, label, options, pick, img }] }
+  const [unresolved, setUnresolved] = React.useState<string[] | null>(null); // request keys left unresolved
   const [result, setResult] = React.useState<any>(null);
   const [jobs, setJobs] = React.useState<any[]>([]);
   const [storageReady, setStorageReady] = React.useState(false);
@@ -1781,87 +1883,78 @@ function Panel({ sdk, context, ui }: any) {
     return { libraryId: r.result.libraryId, projectId: r.result.projectId };
   }
   // gen.json lists every request (by key) with its job id and delivered file; the same map is mirrored into the
-  // recovery record. Writes are queued so parallel generations never overwrite each other.
-  type Store = { dir: string; id: string; gen: any; chain: Promise<void> };
+  // recovery record while this job owns it. Writes are queued so parallel generations never overwrite each other.
+  type Store = { dir: string; id: string; gen: any; chain: Promise<void>; stopped: boolean };
   const persist = (st: Store) => (st.chain = st.chain.then(async () => {
     await writeJson(hostJoin(st.dir, "gen.json"), st.gen);
-    await saveRecovery({ jobId: st.id, dir: st.dir, gen: st.gen });
+    // A generation still polling for an earlier job (or after the panel moved on) never overwrites another job's record.
+    if (!st.stopped && recovery.current?.jobId === st.id) await saveRecovery({ jobId: st.id, dir: st.dir, gen: st.gen });
   }));
-  async function generate(st: Store, sc: any, reqs: any[], label: string, onFail: "throw" | "keep" = "throw") {
+  // This job's generations only, a few fields each: the Project's whole job list grows past what one script result
+  // can carry. A read that fails or comes back clipped is an error, never "no jobs".
+  async function listJobs(sc: any, ids: string[]) {
+    const rows: any[] = [];
+    for (let i = 0; i < ids.length; i += 60) {
+      const r: any = await sdk.runScript({ summary: "Read generation progress", script: medJobsScript(sc.projectId, ids.slice(i, i + 60)) });
+      if (r?.isError || !Array.isArray(r?.result)) throw new Error("Generation progress could not be read. " + String(r?.output || "").slice(0, 300));
+      rows.push(...r.result);
+    }
+    return rows;
+  }
+  // Submits what has no job yet (or only a recorded, unacknowledged submission: the same key resolves to the same
+  // job), then observes. Returns { failed, unresolved }: failed = the host reports a terminal failure; unresolved =
+  // still running at the deadline, or delivered nowhere after bounded delivery retries. Neither is resubmitted here.
+  async function generate(st: Store, sc: any, reqs: any[], label: string) {
     const m = generation();
     if (!m) throw new Error(S.noGeneration);
-    const gen = st.gen;
-    const pending: any[] = [];
-    for (const q of reqs) {
-      const cur = gen[q.gen];
-      if (cur && (cur.attempt || 1) > (q.attempt || 1)) {
-        if (!cur.path && !cur.failed) pending.push(q); // a newer remake is in flight; wait for that one
-        continue;
-      }
-      if (cur && cur.key === q.key && cur.path) continue;
-      if (!cur || cur.key !== q.key || !cur.jobId) {
-        // Recorded before the paid call; the same key resolves a resubmit after a reload to the same job.
-        gen[q.gen] = { key: q.key, attempt: q.attempt, phase: "submitting" };
-        await persist(st);
-        const res = await m.submit({
-          origin: { tool: q.tool, tab: "plugin", recipeId: APP_ID }, scope: sc, key: q.key, modelId: q.modelId, input: q.input,
-          uploads: Object.fromEntries(Object.entries(q.uploads || {}).map(([k, p]) => [k, { pluginFile: p }])),
-          outputName: q.outputName, batch: 1, delivery: { pluginFolder: q.folder },
-        });
-        gen[q.gen] = { key: q.key, attempt: q.attempt, jobId: res.jobIds[0] };
-        await persist(st);
-      }
-      pending.push(q);
-    }
-    const failed: any[] = [];
-    const retried = new Set<string>();
-    const deadline = Date.now() + 45 * 60 * 1000;
-    let left = pending.slice();
-    while (left.length) {
-      if (Date.now() > deadline) {
-        for (const q of left) {
-          failed.push({ ...q, errorCode: "timeout" });
-          gen[q.gen] = { ...gen[q.gen], failed: "timeout" };
-        }
-        break;
-      }
-      const list: any[] = (await m.list(sc)) || [];
-      const byId = new Map(list.map((j: any) => [j.jobId, j]));
-      const next: any[] = [];
-      for (const q of left) {
-        const entry = gen[q.gen];
-        const j: any = byId.get(entry.jobId);
-        const path = j?.outputs?.find((o: any) => o.path)?.path;
-        if (j && j.deliveryStatus === "delivered" && path) {
-          gen[q.gen] = { ...entry, path };
-        } else if (j && j.deliveryStatus === "download_failed" && !retried.has(entry.jobId) && typeof m.retryDelivery === "function") {
-          retried.add(entry.jobId);
-          await m.retryDelivery(sc, entry.jobId);
-          next.push(q);
-        } else if (j && /fail|error|reject|cancel|refus|block/i.test(String(j.status)) && j.deliveryStatus !== "downloading") {
-          failed.push({ ...q, errorCode: j.errorCode || j.status });
-          gen[q.gen] = { ...entry, failed: j.errorCode || j.status };
-        } else {
-          next.push(q);
-        }
-      }
-      await persist(st);
-      if (label) setStatus(`${label} · ${pending.length - next.length - failed.length + (reqs.length - pending.length)}/${reqs.length}`);
-      left = next;
-      if (left.length) await sleep(4000);
-    }
-    await persist(st);
-    if (failed.length && onFail === "throw") throw new Error(`${label}: ${failed.map((f) => `${idOf(f.gen) || f.gen} ${f.errorCode}`).join(", ")}`);
-    return failed;
+    return await medRunGenerations(reqs, st.gen, {
+      submit: async (q: any) => (await m.submit({
+        origin: { tool: q.tool, tab: "plugin", recipeId: APP_ID }, scope: sc, key: q.key, modelId: q.modelId, input: q.input,
+        uploads: Object.fromEntries(Object.entries(q.uploads || {}).map(([k, p]) => [k, { pluginFile: p }])),
+        outputName: q.outputName, batch: 1, delivery: { pluginFolder: q.folder },
+      })).jobIds[0],
+      list: (ids: string[]) => listJobs(sc, ids),
+      retryDelivery: (id: string) => m.retryDelivery(sc, id),
+    }, {
+      persist: () => persist(st), sleep, now: () => Date.now(), stopped: () => st.stopped,
+      progress: (done: number, total: number) => { if (label && !st.stopped) setStatus(`${label} · ${done}/${total}`); },
+    });
   }
-  // One kind of request for `only` ids, with one more attempt for whatever failed. Returns what still failed.
+  // The engine's requests for `only`, each at the attempt its record is on (a recorded request is never re-keyed).
+  async function requestsAt(st: Store, dir: string, kind: string, only: string[]) {
+    const base = (await run("requests", dir, [kind, only.join(",")], kind)).requests;
+    const byAttempt = new Map<number, string[]>();
+    for (const q of base) {
+      const a = st.gen[q.gen]?.attempt || 1;
+      byAttempt.set(a, [...(byAttempt.get(a) || []), idOf(q.gen)]);
+    }
+    const out: any[] = [];
+    for (const [a, ids] of byAttempt) {
+      if (a === 1) out.push(...base.filter((q: any) => ids.includes(idOf(q.gen))));
+      else out.push(...(await run("requests", dir, [kind, ids.join(","), "--attempt", String(a)], kind)).requests.filter((q: any) => ids.includes(idOf(q.gen))));
+    }
+    return out;
+  }
+  // One kind of request for `only` ids. A request the host reports as failed gets one new attempt (a new request key,
+  // a new paid job); an unresolved one stops the run for the user to decide. Returns what failed again.
   async function generateKind(st: Store, sc: any, dir: string, kind: string, only: string[], label: string) {
     if (!only.length) return [];
-    const first = await generate(st, sc, (await run("requests", dir, [kind, only.join(",")], kind)).requests, label, "keep");
-    if (!first.length) return [];
-    const ids = first.map((f) => idOf(f.gen));
-    const attempt = Math.max(...first.map((f) => st.gen[f.gen]?.attempt || 1)) + 1;
-    return await generate(st, sc, (await run("requests", dir, [kind, ids.join(","), "--attempt", String(attempt)], kind)).requests, label, "keep");
+    const first = await generate(st, sc, await requestsAt(st, dir, kind, only), label);
+    if (first.unresolved.length) throw unresolvedError(first.unresolved);
+    if (!first.failed.length) return [];
+    const groups = new Map<number, string[]>();
+    for (const f of first.failed) {
+      const a = (st.gen[f.gen]?.attempt || 1) + 1;
+      groups.set(a, [...(groups.get(a) || []), idOf(f.gen)]);
+    }
+    const again: any[] = [];
+    for (const [a, ids] of groups) again.push(...(await run("requests", dir, [kind, ids.join(","), "--attempt", String(a)], kind)).requests.filter((q: any) => ids.includes(idOf(q.gen))));
+    const second = await generate(st, sc, again, label);
+    if (second.unresolved.length) throw unresolvedError(second.unresolved);
+    return second.failed;
+  }
+  function unresolvedError(list: any[]) {
+    return Object.assign(new Error(S.unresolved(list.map((u) => `${u.gen} (${u.reason})`).join(", "))), { unresolved: list.map((u) => u.gen) });
   }
 
   const readPicks = async (dir: string) => ({ kf: {}, clip: {}, tr: {}, ...((await readJson(hostJoin(dir, "picks.json"))) || {}) });
@@ -2000,7 +2093,7 @@ function Panel({ sdk, context, ui }: any) {
       const sc = p.scenes[s.scene - 1];
       scenes.push({ n: s.scene, label: sc?.label || "", visual: sc?.visual || "", options: s.options, pick: picks.kf[String(s.scene)] || s.options[0], img: await sheetImage(s.path) });
     }
-    setReview({ dir, scenes });
+    setReview({ dir, scenes, firstPick: picks.kf["1"] || scenes[0]?.pick });
   }
   async function approveReview() {
     if (!review || !job) return;
@@ -2013,8 +2106,11 @@ function Panel({ sdk, context, ui }: any) {
   }
 
   // ---- 3. Everything else, resumable ----
-  async function produce(target?: any, fromList = false, titleOverride?: any) {
+  // `resubmit`: request keys the user chose to give up on after they stayed unresolved; each gets a new attempt (a new
+  // paid job). Nothing else is ever resubmitted under a new key except a request the host reports as failed.
+  async function produce(target?: any, fromList = false, titleOverride?: any, resubmit?: string[]) {
     setError("");
+    setUnresolved(null);
     if (fromList) fresh.current = false;
     const j0 = target || job;
     if (!j0) return;
@@ -2025,6 +2121,7 @@ function Panel({ sdk, context, ui }: any) {
     setT0(Date.now());
     setJob(j0);
     const dir = j0.dir;
+    let st: Store | null = null;
     try {
       if (!generation()) throw new Error(S.noGeneration);
       let pj = (await readJson(hostJoin(dir, "panel.json"))) || {};
@@ -2045,18 +2142,18 @@ function Panel({ sdk, context, ui }: any) {
       const set = jd.settings;
       const sc = await scope();
       const rec = recovery.current && recovery.current.jobId === j0.id ? recovery.current.gen : null;
-      const st: Store = { dir, id: j0.id, gen: mergeGen((await readJson(hostJoin(dir, "gen.json"))) || {}, rec || {}), chain: Promise.resolve() };
+      st = { dir, id: j0.id, gen: mergeGen((await readJson(hostJoin(dir, "gen.json"))) || {}, rec || {}), chain: Promise.resolve(), stopped: false };
+      for (const k of resubmit || []) if (st.gen[k] && !st.gen[k].path) st.gen[k] = { ...st.gen[k], failed: "resubmitted_by_user" };
       await saveRecovery({ jobId: j0.id, dir, phase: "make", gen: st.gen, done: false });
+      await persist(st);
       const sceneIds = p.scenes.map((s: any) => String(s.n));
       const describe = (n: number) => ({ description: p.scenes[n - 1]?.visual || "" });
 
       setStep(0);
       setStatus(S.steps[0]);
-      await generate(st, sc, (await run("requests", dir, ["narration"], "Narration requests")).requests, S.steps[0]);
+      const narrFailed = await generateKind(st, sc, dir, "narration", sceneIds, S.steps[0]);
+      if (narrFailed.length) throw new Error(`${S.steps[0]}: ${narrFailed.map((f: any) => `${idOf(f.gen)} ${f.code}`).join(", ")}`);
       if (!pj.timed) pj = await savePanel(dir, { timed: (await run("timeline", dir, [], "Narration timing")).seconds });
-      const musicDone = set.music
-        ? generate(st, sc, (await run("requests", dir, ["music"], "Music request")).requests, "", "keep").catch(() => [{ gen: "music" }])
-        : Promise.resolve([]);
 
       if (!pj.kfDone) {
         setStep(1);
@@ -2074,6 +2171,12 @@ function Panel({ sdk, context, ui }: any) {
         await openReview(dir, p);
         return;
       }
+
+      // The optional music bed starts after the keyframe review, runs beside the video and belongs to this run: it stops
+      // when this run ends, and an unresolved or failed bed means a Draft without music, never a second paid bed.
+      const musicDone: Promise<any[]> = set.music && !pj.draftId
+        ? generateKind(st, sc, dir, "music", [""], "").catch(() => [{ gen: "music" }])
+        : Promise.resolve([]);
 
       if (!pj.clipsDone) {
         setStep(2);
@@ -2166,7 +2269,9 @@ function Panel({ sdk, context, ui }: any) {
       loadJobs();
     } catch (err: any) {
       setError(errText(err));
+      if (err?.unresolved?.length) setUnresolved(err.unresolved);
     } finally {
+      if (st) st.stopped = true;
       setBusy(null);
     }
   }
@@ -2263,6 +2368,7 @@ function Panel({ sdk, context, ui }: any) {
       {review && (
         <ui.Section title={S.kfTitle}>
           <ui.Message tone="muted">{S.kfHint}</ui.Message>
+          {review.scenes.length > 1 && review.scenes[0]?.n === 1 && review.scenes[0].pick !== review.firstPick && <ui.Message tone="error">{S.styleChanged}</ui.Message>}
           {review.scenes.map((s: any) => (
             <ui.Stack key={s.n} gap={4}>
               <img src={s.img} alt={S.kfScene(s.n, s.label)} style={{ width: "100%", borderRadius: 6 }} />
@@ -2307,7 +2413,17 @@ function Panel({ sdk, context, ui }: any) {
       {error && (
         <ui.Section title="⚠">
           <ui.Message tone="error">{error}</ui.Message>
-          {job && !busy && (
+          {job && !busy && unresolved && (
+            <ui.Actions>
+              <ui.Button variant="danger" disabled={blocked} onClick={() => produce(job, false, undefined, unresolved)}>
+                {S.resubmit}
+              </ui.Button>
+              <ui.Button variant="secondary" disabled={blocked} onClick={() => produce(job)}>
+                {S.keepWaiting}
+              </ui.Button>
+            </ui.Actions>
+          )}
+          {job && !busy && !unresolved && (
             <ui.Actions>
               <ui.Button variant="secondary" disabled={blocked} onClick={() => (plan ? produce(job) : makePlan())}>
                 {S.retry}
