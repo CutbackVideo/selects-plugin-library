@@ -25,6 +25,13 @@ Install the `selects-ai-runtime` dependency for speaker framing. Without an
 available runtime, the app warns and uses fixed crops. The YouTube downloader
 (yt-dlp) is downloaded on first use and refreshed if a download fails.
 
+Template API 5 scene templates, including Huick Alpha in the Hankook Ilbo pack,
+also use the runtime for new foreground preparation. They require a host exposing
+`selects.ai` person matting and `prepareMatte`, local media capture/probe/FFmpeg,
+AI requests with images, SDK scripts and editable Draft overlays/text. See
+[Scene templates](README.md#scene-templates). Install the matching app update before
+adding a pack that requires API 5; older panels reject that pack version.
+
 App updates preserve runtime data under `~/.selects/plugin-data/shortform-clips/`.
 Pack updates preserve user overrides and independent template copies.
 The SBS pack copies legacy template edits on its first installation; it never

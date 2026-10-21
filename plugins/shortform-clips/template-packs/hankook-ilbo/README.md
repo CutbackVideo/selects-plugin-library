@@ -1,12 +1,14 @@
 # Hankook Ilbo template pack
 
-Two TikTok layouts for the shared Shortform Clips app. This pack contains no
-YouTube-specific layout, customer app fork, demo overlay or sample video.
+Three templates for the shared Shortform Clips app: two layouts adapted from
+TikTok references and Huick Alpha's scene-based news format. No customer app fork
+or sample episode media is included.
 
 | Template | Layout |
 | --- | --- |
 | Knowledge Exchange | Original green background and logo, white/red two-line headline, black speech caption box; video window y=622..1378 |
 | Issue Broadcast | Portrait video with face-following enabled, fluorescent yellow headline and second-line box, original logo over the video; full-height video window y=0..1920 |
+| Huick Alpha | Dialogue-led news scenes with composited characters, contextual backgrounds, timed source images and article excerpts; white dialogue captions on gray boxes |
 
 ## Install
 
@@ -19,10 +21,10 @@ The pack lives at `plugins/shortform-clips/template-packs/hankook-ilbo/`.
 Use a published branch or commit containing that path; a GitHub `pack.json`
 page or raw file URL also works. Installing the app does not install this pack.
 
-Select **TikTok** when making clips. Template API 1 does not restrict platform
-choices per pack: these are single TikTok designs stored as the base layout, with
-no alternate Shorts variant. Choosing Shorts in the common app will therefore use
-the same design; it will not select a separately authored YouTube template.
+Use Shortform Clips 0.5.1 or later with Template API 5 support. Each template has
+one design; there is no separate platform selection. Existing Knowledge Exchange
+and Issue Broadcast designs are retained. Re-add the published pack link to import
+the update; the app asks how to handle any conflicting local edits.
 
 The reference uses Black Han Sans for headlines and Issue Broadcast captions,
 and Pretendard for Knowledge Exchange captions. Issue Broadcast headlines use
@@ -31,6 +33,32 @@ small black text in the reference typeface. Other font names are retained. Fonts
 are not bundled or installed by a template pack; if unavailable on the editing
 machine, the shared renderer uses its system Korean font fallback. Install the
 font separately through the normal font workflow for closer typography.
+Huick Alpha uses Pretendard, including 54px white dialogue captions with weight
+500 on gray (`#787878FF`) boxes. These are editable template defaults.
+
+## Huick Alpha
+
+The template owns channel-level editing instructions, dialogue and evidence
+styling, the supplied logo, and a six-frame visual guide from three channel
+references. The guide demonstrates composition and hierarchy; its episode claims,
+images and wording are not sources for a new video.
+
+- [Medicine delivery reference](https://www.youtube.com/shorts/DAD8V3Uv7EI)
+- [Channel reference 2](https://www.youtube.com/shorts/YK-Tv0BW5A0)
+- [Channel reference 3](https://www.youtube.com/shorts/w870zDhhUU8)
+
+Import the episode's footage and supporting images into the Project and wait for
+source transcription. Extra instructions can provide a concept, cast treatment,
+required scenes or supplied quotations and credits. Supplied choices override the
+template's defaults; the planning AI fills in unspecified choices from the source
+evidence. Medicine-specific props, dialogue and article excerpts are not bundled.
+
+The planning AI chooses source ranges, scene intent, information reveals and
+caption timing. A separate production AI builds editable layers using the common
+app tools; the host applies dialogue captions from the plan and template settings.
+Foreground preparation uses the shared AI Runtime when the selected concept needs
+it. See the [scene workflow](../../README.md#scene-templates) for host requirements,
+checkpoints, timing and review limitations.
 
 ## Reference and adaptations
 
@@ -67,7 +95,7 @@ These are editable adaptations, not pixel-identical replicas:
 Prompts use the research's editorial observations about concrete subjects,
 self-contained explanations and preserving context. They make no claim that a
 layout causes higher views. Other program categories and proposed card-news
-layouts on the research site are outside this pack's two video templates.
+layouts on the research site are outside the two layouts adapted from that site.
 
 ## Validation
 
@@ -76,7 +104,7 @@ SBS_PANEL_TEST_MODULES=/path/to/node_modules node --test plugins/shortform-clips
 python3 tools/check_public.py
 ```
 
-During authoring, both JSONs were also installed using the actual app repository
+During their original authoring, the Knowledge Exchange and Issue Broadcast JSONs were installed using the actual app repository
 loader in temporary memory, then passed through the production build script with
 a transcribed-but-still-analyzing mock source. All generated graphic components
 compiled and exposed editable parameters. This does not exercise live Selects

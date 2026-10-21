@@ -5,7 +5,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('portable template files',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),mod={exports:{}};
  const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
- new Function('require','module','exports',dep('esbuild').transformSync(source+'\nexport {encodeSharedTemplate,decodeSharedTemplate,importSharedTemplate,readTemplatePack,makeTemplateRepository};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ new Function('require','module','exports',dep('esbuild').transformSync(source+'\nexport {encodeSharedTemplate,decodeSharedTemplate,importSharedTemplate,readTemplatePack,makeTemplateRepository,cleanTemplate};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
  const api=mod.exports;
  const fileService={join:path.join,size:async p=>fs.statSync(p).size,readFile:async p=>new Uint8Array(fs.readFileSync(p))};
  const pack=await api.readTemplatePack(fileService,path.join(__dirname,'../template-packs/sbs-radio/pack.json'));
@@ -13,7 +13,7 @@ test('portable template files',{skip:!modules},async t=>{
  original.id='sbs-radio/private-template';original.builtIn=true;original.packId='private-pack';original.baseId='private-source';original.projectId='private-project';original.sourcePath='/private/video.mp4';
  original.thumbnail={enabled:true,mode:'preserve',instructions:'Keep the original title',references:[]};
  original.name='My edited template';original.layout.splitPolicy='never';original.prompt.rules='Keep clips under 60 seconds';
- function repo(){const rows=new Map();const storage={list:async kind=>[...rows].filter(([k])=>k.startsWith(kind+'/')).map(([,v])=>structuredClone(v)),put:async(k,id,v)=>rows.set(k+'/'+id,structuredClone(v)),del:async(k,id)=>rows.delete(k+'/'+id)};return {rows,repository:api.makeTemplateRepository(storage)};}
+ function repo(){const rows=new Map();const storage={fs:fileService,list:async kind=>[...rows].filter(([k])=>k.startsWith(kind+'/')).map(([,v])=>structuredClone(v)),put:async(k,id,v)=>rows.set(k+'/'+id,structuredClone(v)),del:async(k,id)=>rows.delete(k+'/'+id)};return {rows,storage,repository:api.makeTemplateRepository(storage)};}
  await t.test('new exports require API 2 while API 1 shared files remain readable',()=>{
   const bytes=api.encodeSharedTemplate(original);
   const envelope=JSON.parse(new TextDecoder().decode(bytes));
@@ -35,6 +35,31 @@ test('portable template files',{skip:!modules},async t=>{
   assert.equal(a.id,b.id);assert.deepEqual([...r.rows],before);
   const loaded=await r.repository.load();assert.equal(loaded.templates.length,1);assert.deepEqual(loaded.errors,[]);
   assert.equal(loaded.templates[0].layout.splitPolicy,'never');assert.equal(loaded.templates[0].builtIn,false);
+ });
+
+ await t.test('Huick scene instructions and visual guide survive pack install, edits, duplication and JSON transfer',async()=>{
+  const r=repo(),packPath=path.join(__dirname,'../template-packs/hankook-ilbo/pack.json');
+  const installed=await api.readTemplatePack(fileService,packPath);
+  const expected=installed.templates.find(t=>t.id==='huick-alpha');assert.ok(expected);
+  await r.repository.install(packPath);
+  const load=async()=>{const result=await api.makeTemplateRepository(r.storage).load();assert.deepEqual(result.errors,[]);return result.templates;};
+  const id='hankook-ilbo/huick-alpha',current=(await load()).find(t=>t.id===id);assert.ok(current);
+  assert.deepEqual(current.editorial,expected.editorial);
+  assert.ok(current.editorial.visualGuide.image.startsWith('data:image/jpeg;base64,'));
+  const bytes=api.encodeSharedTemplate(current),envelope=JSON.parse(new TextDecoder().decode(bytes));
+  assert.equal(envelope.templateApi,5);assert.deepEqual(api.decodeSharedTemplate(bytes).editorial,current.editorial);
+  const ordinary=(await load()).find(t=>t.editorial?.mode!=='scenes');assert.ok(ordinary);
+  assert.equal(JSON.parse(new TextDecoder().decode(api.encodeSharedTemplate(ordinary))).templateApi,2);
+  const edited=api.cleanTemplate(structuredClone(current));edited.editorial.instructions+='\nPrefer a supplied episode concept.';edited.captions.color='#EEEEEE';
+  await r.repository.put('templates',id,edited);
+  const saved=(await load()).find(t=>t.id===id);assert.deepEqual(saved.editorial,edited.editorial);assert.equal(saved.captions.color,'#EEEEEE');assert.equal(saved.modified,true);
+  const copy={...api.cleanTemplate(structuredClone(saved)),id:'custom/huick-copy',name:'Huick copy'};
+  await r.repository.put('templates',copy.id,copy);
+  const duplicated=(await load()).find(t=>t.id===copy.id);assert.deepEqual(duplicated.editorial,saved.editorial);assert.deepEqual(duplicated.captions,saved.captions);assert.equal(duplicated.builtIn,false);
+  const guideRecords=[...r.rows].filter(([key,value])=>key.startsWith('template-assets/')&&value.data===current.editorial.visualGuide.image);assert.equal(guideRecords.length,1);
+  const imported=repo(),result=await api.importSharedTemplate(imported.repository,api.encodeSharedTemplate(duplicated));
+  const transferred=(await imported.repository.load()).templates.find(t=>t.id===result.id);
+  assert.deepEqual(transferred.editorial,duplicated.editorial);assert.deepEqual(transferred.captions,duplicated.captions);
  });
  await t.test('unsupported, malformed and oversized files never write to storage',async()=>{
   const r=repo();const bytes=api.encodeSharedTemplate(original),data=JSON.parse(new TextDecoder().decode(bytes));

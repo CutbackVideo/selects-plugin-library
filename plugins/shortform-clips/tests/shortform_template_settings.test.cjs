@@ -165,6 +165,12 @@ test('templates use independent settings without renderer families',{skip:!modul
    assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
    assert.deepEqual(api.validateTemplate(structuredClone(current)),current,id+': no migration needed');
   }
+  // Scene templates are new designs, not migrations of the legacy presets.
+  expectedFiles.push('hankook-ilbo/huick-alpha.json');
+  const scene=JSON.parse(fs.readFileSync(path.join(root,'hankook-ilbo','templates','huick-alpha.json'),'utf8'));
+  assert.equal(scene.id,'huick-alpha');assert.equal(scene.editorial.mode,'scenes');
+  assert.equal(scene.variants,undefined);assert.equal(scene.platformLayouts,undefined);
+  assert.deepEqual(api.validateTemplate(structuredClone(scene)),scene,'Huick: no migration needed');
   assert.deepEqual(files.sort(),expectedFiles.sort());
  });
  await t.test('footer gradient, font, shadow and stroke survive date extraction and render',()=>{
