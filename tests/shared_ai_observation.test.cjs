@@ -111,6 +111,17 @@ test('detaching interrupts a long polling delay',{timeout:1000},async()=>{
  await assert.rejects(f.make().run(request,{pollMs:60000,signal:c.signal,onProgress:()=>queueMicrotask(()=>c.abort())}),{code:'SHARED_AI_DETACHED'});
  assert.equal(f.calls.status,1);assert.equal(f.calls.cancel,0);
 });
+test('prompt detach does not pretend an independent cancellation write has settled',{timeout:1000},async()=>{
+ const f=fixture(['running']),controller=new AbortController(),client=f.make();
+ let release,started,cancel;
+ const held=new Promise(resolve=>{release=resolve;}),cancelStarted=new Promise(resolve=>{started=resolve;});
+ f.hooks.save=async journal=>{if(journal.records.some(r=>r.cancelRequested&&!r.status?.includes('canceled'))){started();await held;}};
+ controller.signal.addEventListener('abort',()=>{cancel=client.cancel();},{once:true});
+ await assert.rejects(client.run(request,{signal:controller.signal,pollMs:60000,onProgress:()=>controller.abort()}),{code:'SHARED_AI_DETACHED'});
+ await cancelStarted;assert.equal(f.calls.cancel,0);
+ release();await cancel;
+ assert.equal(f.calls.cancel,1);assert.equal(f.journal.records[0].status,'canceled');
+});
 for(const options of [{maxWaitMs:0},{maxWaitMs:Infinity},{maxWaitMs:NaN},{pollMs:-1},{readTimeoutMs:0},{readRetryMs:-1}])test('invalid observation timing stops before submitting: '+JSON.stringify(options),async()=>{
  const f=fixture();await assert.rejects(f.make().run(request,options),{code:'SHARED_AI_INVALID'});assert.equal(f.calls.submit,0);
 });

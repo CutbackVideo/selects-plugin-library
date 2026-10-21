@@ -1,5 +1,23 @@
 # Shared AI observation repair checkpoint
 
+## Existing cancellation consumer regression
+
+The first remote CI runs for PR #262 failed the existing EO cancellation test.
+Immediate observation detach exposed a test ordering assumption: the consumer
+starts `client.cancel()` as a separate background promise, but the test asserted
+its write count immediately after the observation promise rejected. That
+rejection no longer waits for the old polling delay. It is not a cancellation
+receipt.
+
+The compatibility fixture now waits for the canceled journal receipt before
+asserting one cancellation and a fresh attempt after explicit Cancel. Ordinary
+panel detach still asserts zero cancellations and reuse of the original job.
+A shared-module regression deliberately holds the cancellation journal write,
+proves observation can detach first, then releases it and verifies the canceled
+receipt. No EO or Chan production source is changed. All seven existing source
+adapter tests and 39 shared observation/job-client tests pass locally; remote CI
+must be checked independently after this correction.
+
 Scope: the shared AI client's part of audit X8. All 28 template completion gates
 remain active; other process waits, run-lifetime bounds and other X8 consumers
 are not declared repaired by this checkpoint. Chan's apps remain excluded.
