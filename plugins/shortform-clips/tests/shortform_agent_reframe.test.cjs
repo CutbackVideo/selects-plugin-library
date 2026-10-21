@@ -5,10 +5,10 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild'),m={exports:{}};
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
  new Function('require','module','exports',esbuild.transformSync(src+'\nexport {runAgentReframing,parseAgentReframeReport,normalizeReframeWords,validateSpeakerEvidence};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
- const baseline={meta:{durationFrames:90,fps:30},words:[{text:'Hello',startFrame:0,endFrame:30}],sources:[{resourceId:'r',meta:{frameSize:{width:1920,height:1080}}}]};
+ const baseline={meta:{durationFrames:90,fps:30,frameSize:{width:1080,height:1920}},words:[{text:'Hello',startFrame:0,endFrame:30,wordId:'w1',sourceResourceId:'r',sourceStartFrame:100,sourceEndFrame:130}],sources:[{resourceId:'r',meta:{frameSize:{width:1920,height:1080}}}]};
  const shot={startFrame:0,endFrame:90,resourceId:'r',style:'speaker',compositionId:'person',subjects:[{faceId:'F1'}]};
  const valid={version:1,draftId:'d',status:'planned',shots:[{startFrame:0,endFrame:90,compositionId:'person',layout:'speaker',panels:[{camera:'r',targets:[{subjectId:'person',refs:['F1']}]}]}],speakerEvidence:[{startFrame:0,endFrame:90,resourceId:'r',sourceFrames:[0,8,16],subject:'right person',basis:'mouth-motion',evidence:'sustained articulation'}]};
- async function run({transcriptOnly=false,after=baseline,report=valid,failRead=false,failAi=false,review={status:'complete',summary:'Acceptable'},missingFrame=false,failEvidence=false,raw,repairText}={}){
+ async function run({transcriptOnly=false,after=baseline,report=valid,failRead=false,failAi=false,review={status:'complete',summary:'Acceptable'},missingFrame=false,failEvidence=false,raw,repairText,afterApply}={}){
   let reads=0,calls=0,applies=0;const notes=[];
   const sdk={runScript:async input=>{
     if(input.summary==='Apply agent-selected source crops'){applies++;return {result:{applied:[shot]}};}
@@ -22,7 +22,7 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
       const code=esbuild.transformSync('return (async()=>{'+input.script+'})();',{loader:'ts'}).code;
       return {result:await new Function('selects',code)({project:()=>project,draft:()=>draft})};
     }
-    return {result:reads===1?baseline:after,isError:failRead};
+    return {result:reads===1?baseline:(applies&&afterApply?afterApply:after),isError:failRead};
    },
    call:async(method)=>{throw Error('Unexpected analyzed read or preview: '+method);},
    askAI:async input=>{
@@ -80,7 +80,40 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
   }
  });
  await t.test('rejects speech edits and timing changes outside framing scope',async()=>{
-  for(const after of [{...baseline,meta:{...baseline.meta,durationFrames:80}},{...baseline,words:[]}]){const r=await run({after});await assert.rejects(r.execute,/outside reframing scope/);}
+  for(const after of [{...baseline,meta:{...baseline.meta,durationFrames:80}},{...baseline,words:[]}]){const r=await run({after});await assert.rejects(r.execute,/dialogue or timing changed/);}
+ });
+ await t.test('canvas and fps changes remain blocked; object key order is not a change',async()=>{
+  for(const change of [{fps:24},{frameSize:{width:1920,height:1080}}]) {
+   const r=await run({after:{...baseline,meta:{...baseline.meta,...change}}});
+   await assert.rejects(r.execute,/dialogue or timing changed/);assert.equal(r.state().applies,0);
+  }
+  const r=await run({after:{...baseline,meta:{...baseline.meta,frameSize:{height:1920,width:1080}}}});
+  assert.equal((await r.execute()).status,'complete');
+ });
+ await t.test('crop-induced word fragments are not annotation changes',async()=>{
+  const w=baseline.words[0],afterApply={...baseline,words:[{...w,endFrame:15,sourceEndFrame:115},{...w,startFrame:15,sourceStartFrame:115}]};
+  const r=await run({afterApply});assert.equal((await r.execute()).status,'complete');
+  assert.ok(!r.state().notes.some(n=>n.plan==='reframe-speaker-annotations-updated'));
+ });
+ await t.test('background speaker annotations do not count as dialogue edits',async()=>{
+  for(const change of [{speakerName:'Speaker 2'},{speakerId:9,speakerName:'Updated name'}]) {
+   const r=await run({after:{...baseline,words:baseline.words.map(w=>({...w,...change}))}});
+   assert.equal((await r.execute()).status,'complete');assert.equal(r.state().applies,1);
+   assert.ok(r.state().notes.some(n=>n.plan==='reframe-speaker-annotations-updated'));
+  }
+ });
+ await t.test('every dialogue/source field remains protected before and after applying crops',async()=>{
+  for(const change of [{text:'Changed'},{wordId:'other'},{startFrame:1},{endFrame:29},{sourceResourceId:'other'},{sourceStartFrame:101},{sourceEndFrame:129}]) {
+   const altered={...baseline,words:baseline.words.map(w=>({...w,...change}))};
+   for(const postApply of [false,true]) {
+    const r=await run(postApply?{afterApply:altered}:{after:altered});
+    await assert.rejects(r.execute,/dialogue or timing changed/);
+    assert.equal(r.state().applies,postApply?1:0);
+    const diagnostic=r.state().notes.find(n=>n.plan==='reframe-integrity-mismatch');
+    assert.deepEqual(diagnostic.changedFields,['words']);assert.equal(diagnostic.firstMismatch,0);
+    assert.deepEqual(diagnostic.afterWord,{...baseline.words[0],...change});
+   }
+  }
  });
  await t.test('does not automatically replay an agent turn after partial failure',async()=>{const r=await run({failAi:true});await assert.rejects(r.execute);assert.equal(r.state().calls,1);assert.equal(r.state().applies,0);});
  await t.test('missing evidence reports failure without marking unchanged framing complete',async()=>{

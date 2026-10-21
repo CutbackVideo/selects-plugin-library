@@ -4511,7 +4511,21 @@ async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measur
   }
   const unchanged=async()=>{
     const after=await inspect();
-    if(after.meta.durationFrames!==before.meta.durationFrames||after.meta.fps!==before.meta.fps||JSON.stringify(after.meta.frameSize)!==JSON.stringify(before.meta.frameSize)||JSON.stringify(normalizeReframeWords(after.words))!==JSON.stringify(normalizeReframeWords(before.words))) throw new Error('Agent changed speech or timing outside reframing scope. Inspect the saved Draft before resuming.');
+    // Speaker annotations can finish loading after transcription is ready. They
+    // inform composition, but are not edits to dialogue or its source timing.
+    const beforeWords=JSON.parse(framingWordsKey(before.words)),afterWords=JSON.parse(framingWordsKey(after.words));
+    const metaFields=['durationFrames','fps'] as const;
+    const changedFields:string[]=metaFields.filter(key=>after.meta[key]!==before.meta[key]);
+    if(after.meta.frameSize?.width!==before.meta.frameSize?.width||after.meta.frameSize?.height!==before.meta.frameSize?.height)changedFields.push('frameSize');
+    if(JSON.stringify(beforeWords)!==JSON.stringify(afterWords))changedFields.push('words');
+    if(changedFields.length) {
+      const firstMismatch=beforeWords.findIndex((w:any,i:number)=>JSON.stringify(w)!==JSON.stringify(afterWords[i]));
+      const index=firstMismatch<0?Math.min(beforeWords.length,afterWords.length):firstMismatch;
+      note({plan:'reframe-integrity-mismatch',draftId,changedFields,beforeMeta:before.meta,afterMeta:after.meta,beforeCount:beforeWords.length,afterCount:afterWords.length,firstMismatch:index,beforeWord:beforeWords[index],afterWord:afterWords[index]});
+      throw new Error('Draft dialogue or timing changed during reframing ('+changedFields.join(', ')+'). Inspect the saved Draft before resuming.');
+    }
+    const speakers=(words:any[])=>normalizeReframeWords(words).map(w=>[w.wordId,w.speakerId,w.speakerName]);
+    if(JSON.stringify(speakers(before.words))!==JSON.stringify(speakers(after.words)))note({plan:'reframe-speaker-annotations-updated',draftId});
   };
   const analysisLimitations:string[]=[];
   let observations:any={catalog:[],activeSpeakers:[]};
