@@ -30,6 +30,21 @@ claim is made. Complete decoding, Inspector, whole AV/playback/export,
 reference/changed-input quality and the rest of the 28-template goal stay open.
 Chan's shortform apps remain excluded.
 
+### Isolated real SDK contract validation
+
+The combined prerequisite SDK tree now passes ten complete authoring contract
+cases across Image/Video/mixed selections, music on/off and real short-ID
+translation, followed by saved structural and common full receipt readback.
+The pre-guard parent passes seven stable controls and fails all three source-change
+cases. The fixed version passes all ten. This uses real VM/SDK/domain/renderer
+bridge/Storyboard, actual TSX compilation and disposable media files with
+in-memory repository/history ports. It is not installed-app, SQLite, visual
+rendering, playback/export, Windows or original-reference evidence. Run
+`SELECTS_DEV_REPO=/path/to/combined-selects node tools/check_gallery_sdk.mjs` in
+the source repository; see `docs/template-repair/gallery-sdk-contract.md`.
+The paired standalone client now passes all required checks, including 38939 unit
+cases with 38 existing skips. Generated SDK documentation drift was corrected.
+
 ## Earlier repair checkpoint: 0.3.17
 
 Music analysis now has an invocation scope, a captured client and a 45-second
