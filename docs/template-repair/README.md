@@ -24,6 +24,15 @@ an unrelated workflow. A passing unit suite alone is not completion.
 
 ## Current checkpoint
 
+- Gallery now has isolated macOS development-app panel/save/SQLite-reload,
+  Driver playback and native MP4 evidence. Actual export exposed an additional
+  source-resolution atlas defect after the WASM fix; client #7876 now shares
+  presentation-density geometry across the two renderers. The unchanged RGB
+  border gate still has 230 residual observations per output and remains open;
+  an independent YUV420 control also fails that gate. See
+  [gallery-native-runtime.md](gallery-native-runtime.md) for the repair, codec
+  counterevidence and precise remaining acceptance steps. No template is complete.
+
 - Gongju/Recap duration preflight: draft PR #258; CI success observed on
   2026-10-21. The original reported Gongju cause, full installed-template run,
   playback/export and supported-platform checks are still pending.
@@ -104,7 +113,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `jude-kinetic-style` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `mini-vlog` | Source audit only | Full contract and runtime completion gates above |
 | `no14-still-video` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
-| `photo-gallery-no2` | Shared input/bootstrap, complete save/durable recovery, verified owned music and additive shared derived-file ownership; held-v3 content/snapshot/publication/liveness checks | Safe cleanup/crash staging, all option/BPM lifetime checks, full source-clock/composition and runtime completion gates above |
+| `photo-gallery-no2` | Shared input/run/assets, source-content guards, actual SDK and browser rendering; isolated dev-app SQLite reload/playback and native export; shared raster-density repair | Native pixel gate still open; safe cleanup/crash staging, installed app, Windows, Inspector, whole AV/reference/changed-input quality and full contract gates above |
 | `place-count` | Canonical authoring check + draft #260; automated regressions pass | Full contract and runtime completion gates above |
 | `polaroid-photo-dump` | Shared input/bootstrap + generated-frame exclusion + verified bundled assets + one complete save, durable app-run ownership/recovery and independent receipts; client #7828 prerequisite | Full contract and runtime completion gates above |
 | `portrait-beat-montage` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |

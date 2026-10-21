@@ -1,5 +1,22 @@
 # Validation and limits
 
+## Isolated native runtime checkpoint
+
+The real macOS development app now creates and independently reads two mixed
+Drafts, preserves the first when creating the second, and retains both after
+a cold SQLite reload. Driver playback advances to the final frame. Both native
+MP4 exports contain 341 frames; the videos match across Music Off/On, decoded
+silence is exact and the selected synthetic tone is preserved.
+
+Native export exposed a further source-resolution atlas defect. Client #7876
+now shares presentation-density math with WASM, preserving logical geometry
+and clocks. The original RGB border gate improves from 3585 to 230 failing
+observations per output but is still OPEN. An independent perfect-gap YUV420
+control also fails that gate; thresholds were not relaxed. This is evidence
+of progress, not full native pixel or audiovisual acceptance. Installed app,
+Windows, Inspector, original/reference and changed-input quality remain open.
+See `docs/template-repair/gallery-native-runtime.md` for exact scope and tests.
+
 ## Isolated browser export-frame validation
 
 The real SDK-saved mixed Gallery is now projected and rendered through the
