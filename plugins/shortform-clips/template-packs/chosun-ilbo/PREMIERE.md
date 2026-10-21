@@ -56,9 +56,8 @@ padding, producing a 142 px separation.
 
 Premiere text origins are not HTML line-box centers. The existing headline
 centers, caption positions, video windows and logo placements are retained
-pending a render comparison with the actual fonts and linked assets. In
-particular, Panilgi's paragraph-text origin and enclosing group transform must
-not be converted as if they were a centered HTML text box.
+pending a render comparison with the actual fonts and linked assets. Panilgi now uses the paragraph geometry described in the native-reference
+follow-up below; it must not be treated as a centered point-text object.
 
 The stored font names are the exact PostScript face identifiers from Premiere.
 Installed-font resolution must be checked in the target renderer; a machine
@@ -189,6 +188,44 @@ for the second title and both caption lines. This is not pixel identity. The
 native reference has missing-media placeholders over the title background and
 logo: first-title full bounds, original assets, and the complete composition
 remain unverified. Do not substitute the legacy WebPs as verified original files.
+
+## Panilgi native reference follow-up
+
+The local Premiere Pro PNG at 00:00:01:00 uses the customer project unchanged
+except for relinking the shared logo candidate (1920x1080, matching the stored
+stream dimensions). Original episode footage and music remain offline. The
+missing SDDolTTF-aLt face belongs to the end-card text, not the compared title
+or dialogue. End-card fidelity is not verified.
+
+- Title component 2894 uses a 810x576 paragraph box at (135,201), centered
+  horizontally. Its enclosing graphic transform has scale 112%, anchor
+  (540,960), position (540,574). The last baseline is
+  `(201+576-960)*1.12+574 = 369.04`. Auto-leading is
+  `67.30612182617188*1.12*1.2 = 90.459427734375`. Converting the baseline
+  midpoint with the installed face's .8/.2 em metrics gives headlineCenter
+  301.24685766601556.
+- First-line fill is #FFE400 (omitted red channel defaults to 255), second-line
+  fill is white. Shadow is disabled. Enabled 4px stroke becomes 4.48px.
+  First-line tracking is 0; the second line uses -12/1000 em, or
+  -0.9045942773437501px. Separate tracking options preserve these run values.
+- Caption component 2795 uses a 810x576 paragraph box. Its text position is
+  (135,1248.0000687), parent position (540,509.0000153), anchor (540,960).
+  Last baseline is 1373.0000839233398; auto-leading is 66.86399688720703.
+  Tracking is 0. Background is enabled, opaque black, padding 13.962264px.
+  Both lines share one enclosing rectangle, rather than separate rectangles.
+- Glyph-width measurement fits long titles inside the configured safe width,
+  including the synthetic italic overhang and outline. It is opt-in and does
+  not change other templates' existing headline fit behavior. Ink captions use
+  the requested source size before their existing measured-width fit, avoiding
+  a second heuristic shrink before actual measurement.
+
+Actual Selects PNG comparison: title vertical fill bounds differ by <=1px;
+caption bounds by <=2px vertically and match horizontally in this fixture.
+Title horizontal bounds still differ by up to 6px with the existing synthetic
+italic renderer. This is not pixel identity. The published comparison Short
+Ds3CgUHfvWM uses different headline sizing/placement; its pixels do not override
+customer project values. The local comparison uses the published wording and a
+still from a different episode for context, not a matched-video export test.
 
 ## Smart Parenting
 
