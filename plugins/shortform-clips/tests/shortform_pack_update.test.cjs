@@ -6,10 +6,12 @@ test('template pack update button follows the published catalog without the GitH
  const dep=createRequire(path.resolve(modules,'../package.json')),mod={exports:{}};
  const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
  const esbuild=dep('esbuild');
- new Function('require','module','exports',esbuild.transformSync(source+'\nexport {readGitHubTemplatePack,makeTemplateRepository,isOfficialPackSource,officialPackUrl,readCatalogPackManifest,comparePackVersions,PACK_STRINGS,TemplatePackUpdates};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ new Function('require','module','exports',esbuild.transformSync(source+'\nexport {readGitHubTemplatePack,makeTemplateRepository,isOfficialPackSource,officialPackUrl,readCatalogPackManifest,comparePackVersions,PACK_STRINGS,TemplatePackUpdates,packUpdateEligibility};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
  const api=mod.exports,realPack=path.join(__dirname,'../template-packs/sbs-radio');
  const commit='b'.repeat(40),repo='CutbackVideo/selects-plugin-library';
  const official=ref=>`https://github.com/${repo}/tree/${ref}/plugins/shortform-clips/template-packs/sbs-radio`;
+ function memoryStore(){const rows=new Map();return {rows,store:{fs:null,list:async kind=>[...rows].filter(([k])=>k.startsWith(kind+'/')).map(([,v])=>structuredClone(v)),get:async(k,id)=>structuredClone(rows.get(k+'/'+id)||null),put:async(k,id,v)=>rows.set(k+'/'+id,structuredClone(v)),del:async(k,id)=>rows.delete(k+'/'+id)}};}
+ async function withRemote(fn){const r=remote(),previous=global.fetch;global.fetch=r.fetcher;try{return await fn(r);}finally{global.fetch=previous;}}
  function remote({version,manifestStatus=200}={}){
   const calls=[];
   const fetcher=async(url,options)=>{
@@ -58,22 +60,60 @@ test('template pack update button follows the published catalog without the GitH
   assert.ok(api.comparePackVersions('1.10.0','1.9.9')>0);assert.equal(api.comparePackVersions('1.2.3','1.2.3'),0);assert.ok(api.comparePackVersions('1.2.3','2.0.0')<0);
  });
 
- await t.test('loaded packs expose the link they were installed from',async()=>{
-  const rows=new Map();
-  const store={fs:null,list:async kind=>[...rows].filter(([k])=>k.startsWith(kind+'/')).map(([,v])=>structuredClone(v)),get:async(k,id)=>structuredClone(rows.get(k+'/'+id)||null),put:async(k,id,v)=>rows.set(k+'/'+id,structuredClone(v)),del:async(k,id)=>rows.delete(k+'/'+id)};
-  const repository=api.makeTemplateRepository(store),r=remote(),previous=global.fetch;global.fetch=r.fetcher;
-  try{await repository.install(official(commit),true);}finally{global.fetch=previous;}
-  const {packs}=await repository.load();
-  assert.equal(packs.length,1);assert.equal(packs[0].id,'sbs-radio');assert.equal(packs[0].sourceUrl,official(commit));
-  // A template kept from an older install must not hide the newest pack link.
-  const index=structuredClone(rows.get('template-library/index'));
-  index.records[0].source={...index.records[0].source,packVersion:'0.0.1',url:'https://github.com/someone/fork/tree/main/plugins/shortform-clips/template-packs/sbs-radio'};
-  index.records.push(index.records.splice(0,1)[0]);rows.set('template-library/index',index);
-  assert.equal((await api.makeTemplateRepository(store).load()).packs[0].sourceUrl,official(commit));
+ await t.test('the pack entry records how it was installed: pasted link, catalog link, local folder',async()=>{
+  const {rows,store}=memoryStore(),repository=api.makeTemplateRepository(store);
+  await withRemote(()=>repository.install(official(commit),true));
+  let pack=(await repository.load()).packs[0];
+  assert.deepEqual(pack.installSource,{kind:'link',url:official(commit),commit});
+  await withRemote(()=>repository.install(official(commit),true,{},{},'catalog'));
+  pack=(await repository.load()).packs[0];
+  assert.deepEqual(pack.installSource,{kind:'catalog',url:official(commit),commit},'same content, new origin is still recorded');
+  const tpl=(await repository.load()).templates[0];assert.equal(tpl.modified,false);assert.equal(tpl.historyCount,0,'settings untouched');
+  const local=memoryStore(),folder=api.makeTemplateRepository({...local.store,fs:{join:path.join,size:async p=>fs.statSync(p).size,readFile:async p=>new Uint8Array(fs.readFileSync(p))}});
+  await folder.install(path.join(realPack,'pack.json'));
+  assert.deepEqual((await folder.load()).packs[0].installSource,{kind:'folder'});
+ });
+
+ await t.test('restore, delete and copy of templates keep the pack install source',async()=>{
+  const {rows,store}=memoryStore();
+  await withRemote(()=>api.makeTemplateRepository(store).install(official(commit),true,{},{},'catalog'));
+  // Give one template a history entry from a different source, as an older install would.
+  const index=structuredClone(rows.get('template-library/index')),first=index.records[0];
+  first.history=[{baseline:first.baseline,working:first.working,source:{...first.source,url:official('main').replace('CutbackVideo/selects-plugin-library','someone/fork')},at:'2026-01-01T00:00:00.000Z'}];
+  rows.set('template-library/index',index);
+  const repository=api.makeTemplateRepository(store),[a,b]=(await repository.load()).templates;
+  await repository.restore(a.id,0);
+  assert.match(JSON.stringify(rows.get('template-library/index').records.find(r=>r.id===a.id).source),/someone\/fork/,'the template source really changed');
+  await repository.remove(b.id);
+  await repository.put('templates','tcopy',{...structuredClone(a),id:'tcopy',baseId:a.id});
+  assert.deepEqual((await repository.load()).packs[0].installSource,{kind:'catalog',url:official(commit),commit});
+ });
+
+ await t.test('legacy packs keep a link only when every template agrees, and never become catalog',async()=>{
+  const {rows,store}=memoryStore();
+  await withRemote(()=>api.makeTemplateRepository(store).install(official(commit),true,{},{},'catalog'));
+  const strip=edit=>{const index=structuredClone(rows.get('template-library/index'));index.packs=index.packs.map(({installSource,...m})=>m);index.records.forEach(edit);rows.set('template-library/index',index);};
+  strip(()=>{});
+  assert.deepEqual((await api.makeTemplateRepository(store).load()).packs[0].installSource,{kind:'link',url:official(commit)});
+  strip((r,i)=>{if(i===0)r.source={...r.source,url:official('main')};});
+  assert.equal((await api.makeTemplateRepository(store).load()).packs[0].installSource,null,'conflicting links are not guessed');
+  strip((r,i)=>{if(i===0){const {url,...rest}=r.source;r.source=rest;}});
+  assert.equal((await api.makeTemplateRepository(store).load()).packs[0].installSource,null,'a template without a link makes it ambiguous');
+ });
+
+ await t.test('only catalog installs and official main links follow the catalog; commit links stay pinned',()=>{
+  const e=(installSource,id='sbs-radio')=>api.packUpdateEligibility({id,installSource});
+  assert.equal(e({kind:'catalog',url:official(commit)}),'catalog');
+  assert.equal(e({kind:'link',url:official('main')}),'catalog');
+  assert.equal(e({kind:'link',url:official(commit)}),'pinned');
+  assert.equal(e({kind:'link',url:official('codex/feature')}),'none');
+  assert.equal(e({kind:'link',url:official(commit).replace('CutbackVideo/selects-plugin-library','someone/fork')}),'none');
+  assert.equal(e({kind:'catalog',url:official(commit)},'hankook-ilbo'),'none');
+  for(const none of [{kind:'folder'},null,undefined])assert.equal(e(none),'none');
  });
 
  // The panel's handlers, run against a fake host that re-checks the catalog on each registration.
- function harness({latest=commit,installedVersion='1.0.0',sourceUrl=official('a'.repeat(40)),hostAnswers=true,catalogVersion='2.0.0',dirty=false,registers=true,becomesBusy=false}={}){
+ function harness({latest=commit,installedVersion='1.0.0',installSource={kind:'catalog',url:official('a'.repeat(40))},hostAnswers=true,catalogVersion='2.0.0',dirty=false,registers=true,becomesBusy=false}={}){
   const start=source.indexOf('  const catalogWaiters = React.useRef');
   const end=source.indexOf('  React.useEffect(() => {\n    if (!sdk.updates?.register || !sdk.runShell) return;',start);
   const updStart=source.indexOf('  const [packUpdate, setPackUpdate]');
@@ -89,19 +129,19 @@ test('template pack update button follows the published catalog without the GitH
   }];}};
   const env={updateBlocked:{current:false},React,sdk:registers?{updates:{register(){}},runShell(){}}:{},K:api.PACK_STRINGS.ko,lang:'ko',packLock:{current:false},busy:false,templateDirty:dirty,templateSaving:false,
    setPackError:()=>{},setPackMessage:m=>state.messages.push(m),
-   isOfficialPackSource:api.isOfficialPackSource,officialPackUrl:api.officialPackUrl,comparePackVersions:api.comparePackVersions,
+   packUpdateEligibility:api.packUpdateEligibility,officialPackUrl:api.officialPackUrl,comparePackVersions:api.comparePackVersions,
    readCatalogPackManifest:async(id,c)=>{state.manifestCommit=c;return {version:catalogVersion};},
-   installPack:async url=>{state.installs.push(url);return {name:'SBS',version:catalogVersion};},
+   installPack:async(url,requestId,origin)=>{state.installs.push(url);state.origin=origin;return {name:'SBS',version:catalogVersion};},
    CATALOG_CHECK_TIMEOUT_MS:50};
   const handlers=new Function(...Object.keys(env),code)(...Object.values(env));
-  return {handlers,state,pack:{id:'sbs-radio',name:'SBS',version:installedVersion,sourceUrl}};
+  return {handlers,state,pack:{id:'sbs-radio',name:'SBS',version:installedVersion,installSource}};
  }
 
  await t.test('a newer catalog pack is installed from the catalog commit after a fresh host check',async()=>{
   const h=harness();await h.handlers.updatePack(h.pack);
   assert.equal(h.state.registrations,1,'one re-registration asks the host to read the catalog again');
   assert.equal(h.state.manifestCommit,commit);
-  assert.deepEqual(h.state.installs,[official(commit)]);
+  assert.deepEqual(h.state.installs,[official(commit)]);assert.equal(h.state.origin,'catalog','an update from the catalog is recorded as a catalog install');
   assert.match(h.state.messages.at(-1),/v2\.0\.0/);
  });
 
@@ -122,8 +162,10 @@ test('template pack update button follows the published catalog without the GitH
  });
 
  await t.test('non-official packs and unsaved edits do not start a check',async()=>{
-  let h=harness({sourceUrl:''});await h.handlers.updatePack(h.pack);
+  let h=harness({installSource:null});await h.handlers.updatePack(h.pack);
   assert.equal(h.state.status.message,api.PACK_STRINGS.ko.notUpdatable);assert.equal(h.state.registrations,0);
+  h=harness({installSource:{kind:'link',url:official(commit)}});await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.status.message,api.PACK_STRINGS.ko.pinned);assert.equal(h.state.registrations,0);
   h=harness({becomesBusy:true});await h.handlers.updatePack(h.pack);
   assert.equal(h.state.status.message,api.PACK_STRINGS.ko.blocked,'edits or a job started while waiting stop the install');assert.deepEqual(h.state.installs,[]);
   h=harness({dirty:true});await h.handlers.updatePack(h.pack);
@@ -156,21 +198,17 @@ test('template pack update button follows the published catalog without the GitH
   await provider.checkUpdate({installed:null,latest:null});
  });
 
- await t.test('re-adding the same pack from a link records its source for legacy installs',async()=>{
-  const rows=new Map();
-  const store={fs:null,list:async kind=>[...rows].filter(([k])=>k.startsWith(kind+'/')).map(([,v])=>structuredClone(v)),get:async(k,id)=>structuredClone(rows.get(k+'/'+id)||null),put:async(k,id,v)=>rows.set(k+'/'+id,structuredClone(v)),del:async(k,id)=>rows.delete(k+'/'+id)};
-  const repository=api.makeTemplateRepository(store),r=remote(),previous=global.fetch;global.fetch=r.fetcher;
-  try{
-   await repository.install(official(commit),true);
-   // Simulate a migrated legacy install: same content, no link recorded.
-   const index=structuredClone(rows.get('template-library/index'));
-   for(const record of index.records)record.source={kind:'pack',packId:'sbs-radio',packVersion:record.source.packVersion};
-   rows.set('template-library/index',index);
-   assert.equal((await api.makeTemplateRepository(store).load()).packs[0].sourceUrl,'');
-   const again=api.makeTemplateRepository(store);await again.install(official(commit),true);
-   const loaded=await again.load();
-   assert.equal(loaded.packs[0].sourceUrl,official(commit));
-   assert.ok(loaded.templates.every(t=>!t.modified),'relinking does not touch settings');
-  }finally{global.fetch=previous;}
+ await t.test('re-adding the same pack link records the pack source without touching settings',async()=>{
+  const {rows,store}=memoryStore();
+  await withRemote(()=>api.makeTemplateRepository(store).install(official(commit),true));
+  const index=structuredClone(rows.get('template-library/index'));
+  index.packs=index.packs.map(({installSource,...m})=>m);
+  for(const record of index.records)record.source={kind:'pack',packId:'sbs-radio',packVersion:record.source.packVersion};
+  rows.set('template-library/index',index);
+  assert.equal((await api.makeTemplateRepository(store).load()).packs[0].installSource,null);
+  const again=api.makeTemplateRepository(store);await withRemote(()=>again.install(official(commit),true));
+  const loaded=await again.load();
+  assert.deepEqual(loaded.packs[0].installSource,{kind:'link',url:official(commit),commit});
+  assert.ok(loaded.templates.every(t=>!t.modified&&t.historyCount===0),'relinking does not touch settings');
  });
 });

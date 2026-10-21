@@ -279,7 +279,7 @@ test('legacy pack reader and source installation compatibility', {skip:!modulesR
       await render();assert.equal(document.querySelector('dialog').open,true);assert.equal(button('Add').disabled,true);
       await act(async()=>input.onChange(folderLink));assert.equal(button('Add').disabled,false);
       await act(async()=>{button('Add').click();button('Add').click();});
-      assert.deepEqual(calls,[[folderLink,true]]);assert.equal(file,undefined);assert.equal(input.disabled,true);
+      assert.deepEqual(calls,[[folderLink,true,{},{},'link']]);assert.equal(file,undefined);assert.equal(input.disabled,true);
       await act(async()=>resolveInstall({name:'SBS Radio'}));assert.equal(reloads,1);assert.equal(document.querySelector('dialog').open,false);assert.equal(input.value,'');assert.match(document.body.textContent,/Templates added. SBS Radio/);
       await act(async()=>input.onChange(folderLink));await render({templateDirty:true});assert.equal(button('Add').disabled,true);assert.equal(file,undefined);assert.match(document.body.textContent,/Save or discard/);
       await render({templateSaving:true});assert.equal(button('Add').disabled,true);
@@ -313,7 +313,7 @@ test('legacy pack reader and source installation compatibility', {skip:!modulesR
       global.fetch=remoteFetch().fetcher;
       await render({templatesLoading:true});await render({busy:true});await render({templateDirty:true});await render({templateSaving:true});assert.equal(calls.length,0);
       await render();
-      assert.deepEqual(calls,[[folderLink,true]]);assert.deepEqual(finished,['pack-1']);
+      assert.deepEqual(calls,[[folderLink,true,{},{},'catalog']]);assert.deepEqual(finished,['pack-1']);
       assert.equal(state.tab,'templates');assert.ok(state.tplSel.startsWith('sbs-radio/'));assert.equal(state.program,state.tplSel);assert.equal(state.packDialogOpen,false);
       await render();assert.equal(calls.length,1);
       const saved=structuredClone([...store.rows]);

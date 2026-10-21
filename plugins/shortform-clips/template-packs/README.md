@@ -42,9 +42,20 @@ not download these directories. A full repository clone or ZIP includes them.
 
 ### Update button
 
-**Templates** lists each installed pack with an **Update** button. Packs installed
-from this repository's `plugins/shortform-clips/template-packs/<pack-id>`, by
-catalog link or pasted link, update to the latest published catalog:
+**Templates** lists each installed pack with an **Update** button. The pack entry in
+`template-library/index.json` records how it was installed (`installSource`):
+`catalog` for host catalog links and updates made with this button, `link` for pasted
+links (with the URL and resolved commit), or `folder`. Template history, deletion and
+copies do not change it. These packs update to the latest published catalog:
+
+- `catalog` installs of this repository's `plugins/shortform-clips/template-packs/<pack-id>`.
+- Pasted links to that folder on `main`, which is what the catalog publishes.
+
+A pasted link pinned to a commit stays on that version, and other branches or
+repositories are updated by adding their link again. Packs installed before
+`installSource` existed keep their link as `link` only when every template from the
+pack recorded the same one; otherwise adding the link once records it. A shared
+official URL alone is never treated as a catalog install.
 
 1. The app registers its update provider again, so the host reads this app's entry
    from the Selects plugin catalog and passes its commit. The GitHub API is not used.
@@ -56,10 +67,8 @@ catalog link or pasted link, update to the latest published catalog:
 
 Unsaved edits or a running job must finish first. A host that does not answer
 within 45 seconds, or a catalog without the pack, is reported as a failed check,
-never as up to date. Packs from other repositories or files are updated by adding
-their link again. Adding the same official link again records it for packs installed
-before links were kept, without changing their settings. Bump the pack `version`
-with every published change.
+never as up to date. Adding a pack link again records its source without changing
+template settings. Bump the pack `version` with every published change.
 
 Branch and tag links resolve to one commit before downloading; commit links are used
 as given, without a GitHub API request. Links with branch

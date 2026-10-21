@@ -927,8 +927,8 @@ const TEMPLATE_SCHEMA = 1;
 const PACK_FILE_MAX_BYTES = 20 * 1024 * 1024;
 const PACK_MAX_BYTES = 100 * 1024 * 1024;
 const PACK_STRINGS: any = {
-  en: {"link": "Template link", "linkPlaceholder": "Paste the template link you received", "installLink": "Add", "invalidLink": "Check the template link you received.", "notFound": "Templates not found. Check the link.", "rateLimit": "Downloads are temporarily limited. Try again later.", "network": "Could not download the templates. Check your connection and try again.", "tooLarge": "The download exceeds the template pack size limit.", "title": "Add templates", "add": "Adding templates...", "empty": "Add a template pack in the Templates tab first.", "installed": "Templates added.", "noFiles": "File access is required to install template packs.", "blocked": "Save or discard template edits before updating a pack.", "loading": "Loading templates...", "failed": "Could not install the template pack.", "packsTitle": "Installed template packs", "update": "Update", "checking": "Checking for updates\u2026", "upToDate": "Up to date (v{v}).", "updated": "Updated", "checkFailed": "Could not check for updates. Try again in a moment.", "unsupported": "This version of Selects cannot check for template pack updates. Update Selects, or add the pack link again.", "notUpdatable": "This pack was not installed from the official library, so it cannot be updated here. Add its link again instead.", "notInCatalog": "The published library no longer has this pack."},
-  ko: {"link": "\ud15c\ud50c\ub9bf \ub9c1\ud06c", "linkPlaceholder": "\uc804\ub2ec\ubc1b\uc740 \ud15c\ud50c\ub9bf \ub9c1\ud06c\ub97c \ubd99\uc5ec\ub123\uc73c\uc138\uc694", "installLink": "\ucd94\uac00", "invalidLink": "\uc804\ub2ec\ubc1b\uc740 \ud15c\ud50c\ub9bf \ub9c1\ud06c\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "notFound": "\ud15c\ud50c\ub9bf\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \ub9c1\ud06c\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "rateLimit": "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \uc77c\uc2dc\uc801\uc73c\ub85c \uc81c\ud55c\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "network": "\ud15c\ud50c\ub9bf\uc744 \ub0b4\ub824\ubc1b\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc5f0\uacb0\uc744 \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "tooLarge": "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \ud15c\ud50c\ub9bf \ud329 \uc6a9\ub7c9 \uc81c\ud55c\uc744 \ucd08\uacfc\ud588\uc2b5\ub2c8\ub2e4.", "title": "\ud15c\ud50c\ub9bf \ucd94\uac00", "add": "\ud15c\ud50c\ub9bf\uc744 \ucd94\uac00\ud558\ub294 \uc911\uc785\ub2c8\ub2e4.", "empty": "\ud15c\ud50c\ub9bf \ud0ed\uc5d0\uc11c \ud15c\ud50c\ub9bf \ud329\uc744 \uba3c\uc800 \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", "installed": "\ud15c\ud50c\ub9bf\uc744 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4.", "noFiles": "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\ub824\uba74 \ud30c\uc77c \uc811\uadfc\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.", "blocked": "\uc218\uc815 \uc911\uc778 \ud15c\ud50c\ub9bf\uc744 \uc800\uc7a5\ud558\uac70\ub098 \ucde8\uc18c\ud55c \ub4a4 \ud329\uc744 \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.", "loading": "\ud15c\ud50c\ub9bf\uc744 \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.", "failed": "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.", "packsTitle": "\uc124\uce58\ub41c \ud15c\ud50c\ub9bf \ud329", "update": "\uc5c5\ub370\uc774\ud2b8", "checking": "\uc5c5\ub370\uc774\ud2b8 \ud655\uc778 \uc911\u2026", "upToDate": "\ucd5c\uc2e0 \ubc84\uc804\uc785\ub2c8\ub2e4 (v{v}).", "updated": "\uc5c5\ub370\uc774\ud2b8\ud588\uc2b5\ub2c8\ub2e4:", "checkFailed": "\uc5c5\ub370\uc774\ud2b8\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "unsupported": "\uc774 \ubc84\uc804\uc758 Selects\uc5d0\uc11c\ub294 \ud15c\ud50c\ub9bf \ud329 \uc5c5\ub370\uc774\ud2b8\ub97c \ud655\uc778\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud558\uac70\ub098 \ud329 \ub9c1\ud06c\ub97c \ub2e4\uc2dc \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", "notUpdatable": "\uacf5\uc2dd \ub77c\uc774\ube0c\ub7ec\ub9ac\uc5d0\uc11c \uc124\uce58\ud55c \ud329\uc774 \uc544\ub2c8\uc5b4\uc11c \uc5ec\uae30\uc11c \uc5c5\ub370\uc774\ud2b8\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \ud329 \ub9c1\ud06c\ub97c \ub2e4\uc2dc \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", "notInCatalog": "\uac8c\uc2dc\ub41c \ub77c\uc774\ube0c\ub7ec\ub9ac\uc5d0 \uc774 \ud329\uc774 \uc5c6\uc2b5\ub2c8\ub2e4."},
+  en: {"link": "Template link", "linkPlaceholder": "Paste the template link you received", "installLink": "Add", "invalidLink": "Check the template link you received.", "notFound": "Templates not found. Check the link.", "rateLimit": "Downloads are temporarily limited. Try again later.", "network": "Could not download the templates. Check your connection and try again.", "tooLarge": "The download exceeds the template pack size limit.", "title": "Add templates", "add": "Adding templates...", "empty": "Add a template pack in the Templates tab first.", "installed": "Templates added.", "noFiles": "File access is required to install template packs.", "blocked": "Save or discard template edits before updating a pack.", "loading": "Loading templates...", "failed": "Could not install the template pack.", "packsTitle": "Installed template packs", "update": "Update", "checking": "Checking for updates\u2026", "upToDate": "Up to date (v{v}).", "updated": "Updated", "checkFailed": "Could not check for updates. Try again in a moment.", "unsupported": "This version of Selects cannot check for template pack updates. Update Selects, or add the pack link again.", "notUpdatable": "This pack was not installed from the official library, so it cannot be updated here. Add its link again instead.", "notInCatalog": "The published library no longer has this pack.", "pinned": "This pack was installed from a link pinned to one commit, so it stays on that version. Add the pack's main link to receive updates."},
+  ko: {"link": "\ud15c\ud50c\ub9bf \ub9c1\ud06c", "linkPlaceholder": "\uc804\ub2ec\ubc1b\uc740 \ud15c\ud50c\ub9bf \ub9c1\ud06c\ub97c \ubd99\uc5ec\ub123\uc73c\uc138\uc694", "installLink": "\ucd94\uac00", "invalidLink": "\uc804\ub2ec\ubc1b\uc740 \ud15c\ud50c\ub9bf \ub9c1\ud06c\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "notFound": "\ud15c\ud50c\ub9bf\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \ub9c1\ud06c\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "rateLimit": "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \uc77c\uc2dc\uc801\uc73c\ub85c \uc81c\ud55c\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "network": "\ud15c\ud50c\ub9bf\uc744 \ub0b4\ub824\ubc1b\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc5f0\uacb0\uc744 \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "tooLarge": "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \ud15c\ud50c\ub9bf \ud329 \uc6a9\ub7c9 \uc81c\ud55c\uc744 \ucd08\uacfc\ud588\uc2b5\ub2c8\ub2e4.", "title": "\ud15c\ud50c\ub9bf \ucd94\uac00", "add": "\ud15c\ud50c\ub9bf\uc744 \ucd94\uac00\ud558\ub294 \uc911\uc785\ub2c8\ub2e4.", "empty": "\ud15c\ud50c\ub9bf \ud0ed\uc5d0\uc11c \ud15c\ud50c\ub9bf \ud329\uc744 \uba3c\uc800 \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", "installed": "\ud15c\ud50c\ub9bf\uc744 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4.", "noFiles": "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\ub824\uba74 \ud30c\uc77c \uc811\uadfc\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.", "blocked": "\uc218\uc815 \uc911\uc778 \ud15c\ud50c\ub9bf\uc744 \uc800\uc7a5\ud558\uac70\ub098 \ucde8\uc18c\ud55c \ub4a4 \ud329\uc744 \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.", "loading": "\ud15c\ud50c\ub9bf\uc744 \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.", "failed": "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.", "packsTitle": "\uc124\uce58\ub41c \ud15c\ud50c\ub9bf \ud329", "update": "\uc5c5\ub370\uc774\ud2b8", "checking": "\uc5c5\ub370\uc774\ud2b8 \ud655\uc778 \uc911\u2026", "upToDate": "\ucd5c\uc2e0 \ubc84\uc804\uc785\ub2c8\ub2e4 (v{v}).", "updated": "\uc5c5\ub370\uc774\ud2b8\ud588\uc2b5\ub2c8\ub2e4:", "checkFailed": "\uc5c5\ub370\uc774\ud2b8\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "unsupported": "\uc774 \ubc84\uc804\uc758 Selects\uc5d0\uc11c\ub294 \ud15c\ud50c\ub9bf \ud329 \uc5c5\ub370\uc774\ud2b8\ub97c \ud655\uc778\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud558\uac70\ub098 \ud329 \ub9c1\ud06c\ub97c \ub2e4\uc2dc \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", "notUpdatable": "\uacf5\uc2dd \ub77c\uc774\ube0c\ub7ec\ub9ac\uc5d0\uc11c \uc124\uce58\ud55c \ud329\uc774 \uc544\ub2c8\uc5b4\uc11c \uc5ec\uae30\uc11c \uc5c5\ub370\uc774\ud2b8\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \ud329 \ub9c1\ud06c\ub97c \ub2e4\uc2dc \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", "notInCatalog": "\uac8c\uc2dc\ub41c \ub77c\uc774\ube0c\ub7ec\ub9ac\uc5d0 \uc774 \ud329\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.", "pinned": "\ud2b9\uc815 \ucee4\ubc0b\uc5d0 \uace0\uc815\ub41c \ub9c1\ud06c\ub85c \uc124\uce58\ud55c \ud329\uc774\ub77c \uadf8 \ubc84\uc804\uc744 \uc720\uc9c0\ud569\ub2c8\ub2e4. \uc5c5\ub370\uc774\ud2b8\ub97c \ubc1b\uc73c\ub824\uba74 \ud329\uc758 main \ub9c1\ud06c\ub97c \ub2e4\uc2dc \ucd94\uac00\ud574 \uc8fc\uc138\uc694."},
 };
 function packAssert(ok: any, message: string): asserts ok { if (!ok) throw new Error(message); }
 function plainObject(v: any) { return v !== null && typeof v === "object" && !Array.isArray(v); }
@@ -1184,6 +1184,16 @@ function isOfficialPackSource(url: unknown, packId: string) {
     const tail = link.rest.slice(-4).join("/");
     return `${link.owner}/${link.repo}`.toLowerCase() === PLUGIN_LIBRARY_REPOSITORY.toLowerCase() && link.rest.length >= 5 && tail === `plugins/${APP_ID}/template-packs/${packId}`;
   } catch { return false; }
+}
+// Catalog installs follow the catalog. A pasted official main link follows it too, since main is
+// what the catalog publishes; other branches need the GitHub API and commit links stay pinned.
+function packUpdateEligibility(pack: any): "catalog" | "pinned" | "none" {
+  const source = pack?.installSource;
+  if (!source?.url || !isOfficialPackSource(source.url, pack.id)) return "none";
+  if (source.kind === "catalog") return "catalog";
+  if (source.kind !== "link") return "none";
+  const ref = parsePackLink(source.url).rest[0];
+  return ref === "main" ? "catalog" : /^[a-f0-9]{40}$/i.test(ref) ? "pinned" : "none";
 }
 // Reads only pack.json at a catalog commit to compare versions before a full install.
 async function readCatalogPackManifest(packId: string, commit: string, fetcher: typeof fetch = fetch) {
@@ -1618,19 +1628,19 @@ function makeTemplateRepository(storage:any) {
     await storage.put('template-library','index',{...next,revision:next.revision+1});
     pendingSnapshots.clear();pendingAssets.clear();
   }
-  // The pack's latest install link, kept per template record; legacy and file installs have none.
-  const packSourceUrl=(index:any,packId:string)=>{
-    const sources=index.records.map((r:any)=>r.source).filter((x:any)=>x?.kind==='pack'&&x.packId===packId&&typeof x.url==='string'&&x.url);
-    // The newest pack version wins: kept or restored templates may still hold an older link.
-    const valid=(v:any)=>typeof v==='string'&&/^\d+\.\d+\.\d+$/.test(v);
-    sources.sort((a:any,b:any)=>valid(a.packVersion)&&valid(b.packVersion)?comparePackVersions(a.packVersion,b.packVersion):0);
-    return sources.at(-1)?.url||'';
+  // Packs installed before installSource existed: keep their link only when every template agrees.
+  // A shared official URL is still only a 'link'; 'catalog' needs a recorded catalog install.
+  const legacyInstallSource=(index:any,packId:string)=>{
+    const sources=index.records.map((r:any)=>r.source).filter((x:any)=>x?.kind==='pack'&&x.packId===packId);
+    const urls=new Set(sources.map((x:any)=>typeof x.url==='string'?x.url:''));
+    const url=urls.size===1?[...urls][0]:'';
+    return url?{kind:'link',url}:null;
   };
   const remember=(record:any)=>({...record,history:[...(record.history||[]),{baseline:record.baseline,working:record.working,source:record.source,at:new Date().toISOString()}]});
   async function view(record:any){return {...await getSnapshot(record.working),id:record.id,builtIn:record.source?.kind==='pack',modified:record.working!==record.baseline,packId:record.source?.packId,packVersion:record.source?.packVersion,historyCount:record.history?.length||0};}
   const api:any={
     fs:storage.fs,
-    async load(){try{const index=await state();return {templates:await Promise.all(index.records.filter((r:any)=>!r.removed).map(view)),packs:index.packs.map((m:any)=>({...m,sourceUrl:packSourceUrl(index,m.id)})),errors:[]};}catch(e:any){return {templates:[],packs:[],errors:[e.message]};}},
+    async load(){try{const index=await state();return {templates:await Promise.all(index.records.filter((r:any)=>!r.removed).map(view)),packs:index.packs.map((m:any)=>({...m,installSource:m.installSource||legacyInstallSource(index,m.id)})),errors:[]};}catch(e:any){return {templates:[],packs:[],errors:[e.message]};}},
     put(kind:string,id:string,value:any){return serial(async()=>{
       packAssert(kind==='templates','Invalid template collection.');validateTemplate(cleanTemplate(value),true);
       const index=await state(),hash=await snapshot(value),at=index.records.findIndex((r:any)=>r.id===id);
@@ -1687,14 +1697,23 @@ function makeTemplateRepository(storage:any) {
           const at=index.records.findIndex((r:any)=>r.id===old.id);index.records[at]={...remember(old),baseline:hash,working:hash,source,removed:false};result.push(old.id);
         }else{index.records.push({id:next.id,baseline:hash,working:hash,source,history:[],removed:false});result.push(next.id);}
       }
-      if(source?.manifest){index.packs=index.packs.filter((p:any)=>p.id!==source.manifest.id);index.packs.push(source.manifest);}
-      if(actions.length)await persist(index);
+      // The pack entry records how the pack was installed, independent of each template's history.
+      let packChanged=false;
+      if(source?.manifest){
+        const entry={...source.manifest,...(source.install?{installSource:source.install}:{})};
+        const previous=index.packs.find((p:any)=>p.id===entry.id);
+        packChanged=templateCanonical(previous??null)!==templateCanonical(entry);
+        index.packs=index.packs.filter((p:any)=>p.id!==entry.id);index.packs.push(entry);
+      }
+      if(actions.length||packChanged)await persist(index);
       return {ids:result.length?result:incoming.map(t=>t.id),unchanged:!actions.length};
     });},
-    async install(input:string,fromLink=false,choices:any={},expected:any={}){
+    // origin 'catalog' is only for host catalog links and catalog updates; pasted links are 'link'.
+    async install(input:string,fromLink=false,choices:any={},expected:any={},origin:'catalog'|'link'='link'){
       const pack=fromLink?await readGitHubTemplatePack(input):await readTemplatePack(storage.fs,input);
       const incoming=pack.templates.map((t:any)=>independentTemplateDesigns(templateIdentity(pack,t))[0]);
-      const source={kind:'pack',packId:pack.manifest.id,packVersion:pack.manifest.version,manifest:pack.manifest,url:pack.source?.url};
+      const install=fromLink?{kind:origin,url:pack.source?.url,commit:pack.source?.commit}:{kind:'folder'};
+      const source={kind:'pack',packId:pack.manifest.id,packVersion:pack.manifest.version,manifest:pack.manifest,url:pack.source?.url,install};
       try{await api.importTemplates(incoming,source,choices,expected);}catch(e:any){if(e instanceof TemplateImportConflict)e.retry=(c:any,t:any)=>api.importTemplates(incoming,source,c,t).then(()=>pack.manifest);throw e;}
       return pack.manifest;
     },
@@ -9034,12 +9053,12 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       return resolveTemplateImport(()=>e.retry(choices,expected));
     }
   }
-  async function installPack(link = packLink, requestId?: string): Promise<any> {
+  async function installPack(link = packLink, requestId?: string, origin: "catalog" | "link" = requestId ? "catalog" : "link"): Promise<any> {
     if (!link.trim() || packLock.current || busy || templateDirty || templateSaving) return null;
     packLock.current = true;
     setPackBusy(true); setPackError(""); setPackMessage("");
     try {
-      const installed = await resolveTemplateImport(()=>repository.install(link.trim(), true));
+      const installed = await resolveTemplateImport(()=>repository.install(link.trim(), true, {}, {}, origin));
       if(!installed)return null;
       setPackLink("");
       const loaded = await loadTemplates();
@@ -9060,7 +9079,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const [packUpdate, setPackUpdate] = React.useState<{id: string; message: string; tone: string} | null>(null);
   async function updatePack(pack: any) {
     if (packLock.current || busy || templateDirty || templateSaving) return setPackUpdate({id: pack.id, tone: "error", message: K.blocked});
-    if (!isOfficialPackSource(pack.sourceUrl, pack.id)) return setPackUpdate({id: pack.id, tone: "error", message: K.notUpdatable});
+    const eligibility = packUpdateEligibility(pack);
+    if (eligibility !== "catalog") return setPackUpdate({id: pack.id, tone: "error", message: eligibility === "pinned" ? K.pinned : K.notUpdatable});
     setPackError(""); setPackMessage("");
     setPackUpdate({id: pack.id, tone: "info", message: K.checking});
     try {
@@ -9072,7 +9092,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       if (!manifest) return setPackUpdate({id: pack.id, tone: "error", message: K.notInCatalog});
       if (comparePackVersions(manifest.version, pack.version) <= 0) return setPackUpdate({id: pack.id, tone: "success", message: K.upToDate.replace("{v}", pack.version)});
       setPackUpdate(null);
-      const installed = await installPack(officialPackUrl(pack.id, latest.commit));
+      const installed = await installPack(officialPackUrl(pack.id, latest.commit), undefined, "catalog");
       if (installed) setPackMessage(`${K.updated} ${installed.names?.[lang] || installed.name} v${installed.version}`);
     } catch (e: any) {
       setPackUpdate({id: pack.id, tone: "error", message: K[e?.code] || String(e?.message || e)});
