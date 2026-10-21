@@ -104,11 +104,13 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         self.assertIn("hostNeed('Runtime', kind)", hold)
         for tool in ("'runFFmpeg'", "'runFFprobe'"):
             self.assertIn(tool, hold, tool)
-        self.assertIn("hostJoin(dataDir, 'held-v2')", hold)
+        self.assertIn("hostJoin(dataDir, 'held-v3')", hold)
+        self.assertIn("prepareDerivedAsset(", hold)
+        self.assertIn("readAssetFileIdentity(", hold)
         self.assertNotIn("pattern_type", hold)
         self.assertNotIn("runShell", hold)
         visuals = body(self.runtime, "async function prepareVisuals(")
-        self.assertIn("holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data)", visuals)
+        self.assertIn("holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data, {isCurrent})", visuals)
         self.assertNotIn("hold_video", self.runtime)
         self.assertNotIn("shortMacOnly", self.source, "short videos work on Windows")
 

@@ -462,6 +462,75 @@ async function prepareBundledAsset(sdk,files,options){
   throw bundledAssetIssue('IMPORT_UNKNOWN','The asset import outcome could not be confirmed. Inspect the Project before starting again.',importFailure);
  }catch(error){if(/^BUNDLED_ASSET_/.test(error?.code||''))throw error;throw bundledAssetIssue('PREPARE','The bundled asset could not be prepared. Check the installed files and Project resources.',error);}
 }
+async function readAssetFileIdentity(files,path,hashFile,current){
+ current();const before=await files.stat(path);current();
+ if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<1)throw bundledAssetIssue('SOURCE','The media file is missing or unreadable.');
+ const sha256=await hashFile(path);current();const after=await files.stat(path);current();
+ if(typeof sha256!=='string'||!/^[0-9a-f]{64}$/.test(sha256)||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))throw bundledAssetIssue('CHANGED','The media file changed while its contents were checked. Start a new run.');
+ return {sha256,bytes:before.size};
+}
+async function prepareDerivedAsset(files,options){
+ const {directory,key,sourcePath,source,extension='mp4',isCurrent=()=>true,hashFile,produce,verify}=options??{};
+ const current=()=>{if(!isCurrent())throw bundledAssetIssue('STOPPED','The template run ended before prepared media could be published.');};
+ const same=(a,b)=>a?.sha256===b?.sha256&&a?.bytes===b?.bytes;
+ const valid=value=>value&&typeof value.sha256==='string'&&/^[0-9a-f]{64}$/.test(value.sha256)&&Number.isSafeInteger(value.bytes)&&value.bytes>0;
+ const freshSource=async()=>{if(!same(await readAssetFileIdentity(files,sourcePath,hashFile,current),source))throw bundledAssetIssue('CHANGED','A source video changed during preparation. Start a new run.');};
+ current();
+ if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!valid(source)||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png'].includes(extension)||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
+ if(['join','stat','readFile','exists','mkdir','writeFile','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
+ const indexDirectory=files.join(directory,'index'),objectDirectory=files.join(directory,'objects',key),indexPath=files.join(indexDirectory,key+'.json');
+ const cached=async()=>{
+  current();let candidate;
+  try{
+   if(!await files.exists(indexPath)){current();return null;}
+   const bytes=await readBundledAssetBytes(files,indexPath,49152,current),row=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+   if(row?.version!==1||row.key!==key||!same(row.source,source)||!valid(row.output))return null;
+   const path=files.join(objectDirectory,row.output.sha256+'.'+extension);
+   if(!same(await readAssetFileIdentity(files,path,hashFile,current),row.output))return null;
+   await verify(path);current();candidate={path,output:row.output,reused:true};
+  }catch(error){current();if(error?.terminal||error?.code==='host-missing')throw error;return null;}
+  await freshSource();return candidate;
+ };
+ const previous=await cached();if(previous)return previous;
+ if(typeof globalThis.crypto?.randomUUID!=='function')throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
+ const owner=crypto.randomUUID();
+ if(typeof owner!=='string'||!/^[0-9a-f-]{36}$/i.test(owner))throw bundledAssetIssue('UNSUPPORTED','The media preparation owner could not be created.');
+ current();await files.mkdir(directory,{recursive:true});current();
+ const snapshot=files.join(directory,'.source-'+owner),temporary=files.join(directory,'.output-'+owner+'.'+extension+'.tmp');
+ const owned=[];
+ try{
+  // Reserve each private path exclusively before copying/encoding over it.
+  for(const path of [snapshot,temporary]){current();await files.writeFile(path,'',{flag:'wx'});owned.push(path);current();}
+  await files.copyFile(sourcePath,snapshot);current();
+  if(!same(await readAssetFileIdentity(files,snapshot,hashFile,current),source))throw bundledAssetIssue('CHANGED','A source video changed while its working copy was prepared. Start a new run.');
+  await produce(snapshot,temporary);current();await freshSource();
+  await verify(temporary);current();const output=await readAssetFileIdentity(files,temporary,hashFile,current);
+  current();await files.mkdir(objectDirectory,{recursive:true});current();
+  const path=files.join(objectDirectory,output.sha256+'.'+extension);
+  let have=false;
+  try{have=same(await readAssetFileIdentity(files,path,hashFile,current),output);}catch{current();}
+  if(!have){
+   // A lost rename reply is observed, never retried or implemented as delete+move.
+   try{current();await files.rename(temporary,path);}catch{}
+   current();let confirmed=false;
+   try{confirmed=same(await readAssetFileIdentity(files,path,hashFile,current),output);}catch(error){current();if(error?.terminal||error?.code==='host-missing')throw error;}
+   if(!confirmed)throw bundledAssetIssue('PUBLISH','The prepared media publication could not be confirmed. Inspect the cache before starting again.');
+  }
+  await freshSource();current();await files.mkdir(indexDirectory,{recursive:true});current();
+  const text=JSON.stringify({version:1,key,source,output});
+  try{await files.writeFile(indexPath,text);}catch{/* Observe an acknowledged or concurrent complete index below. */}
+  current();const confirmed=await cached();
+  if(!confirmed)throw bundledAssetIssue('PUBLISH','The prepared media index could not be confirmed. Inspect the cache before starting again.');
+  return {...confirmed,reused:false};
+ }catch(error){
+  if(error?.terminal||error?.code==='host-missing'||typeof error?.publicMessage==='string'||/^BUNDLED_ASSET_/.test(error?.code??''))throw error;
+  throw bundledAssetIssue('DERIVED','Prepared media could not be completed. Check the source, available storage and media tools.',error);
+ }finally{
+  // Only this invocation's reserved staging paths are disposable. Published
+  // objects/indexes may already be referenced by a different run or old Draft.
+  for(const path of owned)await files.removeFile({filePath:path}).catch(()=>{});
+ }
+}
 // Domain reads and editable Image placement use the public Project/Draft SDK.
 async function galleryNativeResources(sdk, projectId, media, libraryId = null) {
   const result = await sdk.runScript({
@@ -507,7 +576,7 @@ async function galleryNativePlace(sdk, projectId, draftId, media, plan, libraryI
 // Local files and media tools use the public async SDK. Paths remain host-native.
 let hostSdk = null;
 function hostUseSdk(sdk) { hostSdk = panelLocalClient(sdk); }
-function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member }); }
+function hostError(code, message, member = "") { return Object.assign(new Error(message), { code, member,...code==='host-missing'?{publicMessage:message}:{} }); }
 // A host service when it has every named method, else null.
 function hostApi(name, ...methods) {
   const s = name === "FileSystem" ? hostSdk?.files : name === "Runtime" ? hostSdk?.media : null;
@@ -603,38 +672,49 @@ async function hostProbeSeconds(path) {
 // hold:start
 // Short-video hold (formerly hold_video.py), plain JS on the av-host helpers so tests can run it in node:vm. A selected
 // video shorter than the result is re-encoded once at 60 fps with its last frame cloned to the full length, by the
-// host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v2. Long videos are never touched. A cache
-// entry is keyed by the source path, size and modification time; it is reused only when its metadata matches and
-// ffprobe still counts the expected frames. Result: { status: 'converted', fps: 60, durationFrames, videos: [{
+// host's bundled ffmpeg/ffprobe (argv arrays, no shell), into <data>/held-v3. Long videos are never touched. Full
+// source/output hashes and private source snapshots belong to the shared asset owner. Domain callbacks own
+// the encoding and whole-output validation. Result: { status: 'converted', fps: 60, durationFrames, videos: [{
 // inputIndex, sourcePath, outputPath, sourceWidth, sourceHeight, outputWidth, outputHeight, cacheHit }] }; source sizes
 // are upright (a source with a +-90 degree display rotation reports its height as width), as the held clip is.
 const HOLD_FPS = 60, HOLD_MAX_EDGE = 1920, HOLD_MAX_FRAMES = 36000, HOLD_MAX_VIDEOS = 21;
-const HOLD_ALGORITHM = 'photo-gallery-hold-v2-max1920-h264-crf18';
-function holdError(message) { return Object.assign(new Error(message), { code: 'hold-failed' }); }
+const HOLD_ALGORITHM = 'photo-gallery-hold-v3-sha256-frozen-max1920-h264-crf18';
+function holdError(message) { return Object.assign(new Error(message), { code: 'hold-failed',publicMessage:message }); }
 // Host paths compared as keys: NFC; a Windows path also gets / separators and is case-folded.
 function holdPathKey(path) {
   const text = String(path ?? '').normalize('NFC');
   return /^[A-Za-z]:(?:[\\/]|$)/.test(text) || text.includes('\\') ? text.replace(/\\/g, '/').toLowerCase() : text;
 }
 // Runs Runtime.runFFmpeg/runFFprobe with a deadline. The host rejects with a JSON string, not an Error.
-async function holdTool(kind, argv, seconds) {
+async function holdTool(kind, argv, seconds, options = {}) {
   const rt = hostNeed('Runtime', kind);
-  const controller = typeof AbortController === 'undefined' ? null : new AbortController();
-  const timer = controller ? setTimeout(() => controller.abort(), seconds * 1000) : null;
-  try { return await rt[kind](argv, true, controller ? controller.signal : undefined); }
+  if(typeof AbortController!=='function')throw hostError('host-missing','Update Selects to cancel media preparation safely.','AbortController');
+  const controller = new AbortController();let timedOut=false,stopped=false,watch;
+  const stop=()=>{stopped=true;controller.abort();};
+  const check=()=>{let live=false;try{live=options.isCurrent?.()??true;}catch{}if(!live||options.signal?.aborted)stop();else watch=setTimeout(check,50);};
+  const timer=setTimeout(()=>{timedOut=true;controller.abort();},seconds*1000);
+  options.signal?.addEventListener('abort',stop,{once:true});check();
+  try {
+    if(stopped)throw holdError('The template run ended during media preparation');
+    const result=await rt[kind](argv,true,controller.signal);
+    if(stopped||controller.signal.aborted)throw holdError('The template run ended during media preparation');
+    return result;
+  }
   catch (error) {
-    if (controller?.signal.aborted) throw holdError('Media conversion timed out');
+    if(stopped)throw Object.assign(holdError('The template run ended during media preparation'),{publicMessage:'The template run ended before media preparation completed.',terminal:true});
+    if(timedOut)throw Object.assign(holdError('Media conversion timed out'),{terminal:true});
+    if(error?.terminal)throw error;
     if (error?.code === 'host-missing') throw error;
     throw Object.assign(holdError(kind + ' failed'), { detail: String(error?.message ?? error).slice(0, 600) });
-  } finally { if (timer) clearTimeout(timer); }
+  } finally { clearTimeout(timer);clearTimeout(watch);options.signal?.removeEventListener('abort',stop); }
 }
-async function holdProbe(path, countFrames = false) {
+async function holdProbe(path, countFrames = false, options = {}) {
   let result;
   try {
     result = await holdTool('runFFprobe', ['-v', 'error', ...(countFrames ? ['-count_frames'] : []), '-show_entries',
       'stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,nb_read_frames:stream_side_data=rotation:stream_tags=rotate',
-      '-of', 'json', path], 45);
-  } catch (error) { if (error.code === 'host-missing' || /timed out/.test(error.message)) throw error; throw holdError('Video cannot be decoded'); }
+      '-of', 'json', path], 45, options);
+  } catch (error) { if (error.code === 'host-missing' || error.terminal) throw error; throw holdError('Video cannot be decoded'); }
   let streams, video;
   try { streams = JSON.parse(String(result?.stdout || '')).streams; video = streams.find(item => item?.codec_type === 'video'); } catch { video = null; }
   if (!video) throw holdError('Media has no readable picture stream');
@@ -663,30 +743,23 @@ function holdDimensions(width, height) {
   const w = Math.max(1, round(width * factor)), h = Math.max(1, round(height * factor));
   return [w + w % 2, h + h % 2];
 }
-async function holdValidate(path, frames, dimensions, decode = false) {
-  const { video, streams } = await holdProbe(path, true);
+async function holdValidate(path, frames, dimensions, decode = false, options = {}) {
+  const { video, streams } = await holdProbe(path, true, options);
   if (streams.length !== 1 || video.codec_name !== 'h264') throw holdError('Cached video has the wrong stream format');
   if (video.r_frame_rate !== '60/1' || video.avg_frame_rate !== '60/1') throw holdError('Cached video has the wrong frame rate');
   if (video.nb_read_frames !== String(frames)) throw holdError('Cached video has the wrong frame count');
   if (video.width !== dimensions[0] || video.height !== dimensions[1]) throw holdError('Cached video has the wrong dimensions');
   if (decode) {
-    try { await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-xerror', '-i', path, '-f', 'null', '-'], Math.max(60, Math.floor(frames / HOLD_FPS) * 5 + 30)); }
-    catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('Generated video contains undecodable frames'); }
+    try { await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-xerror', '-i', path, '-f', 'null', '-'], Math.max(60, Math.floor(frames / HOLD_FPS) * 5 + 30), options); }
+    catch (error) { if (error.terminal) throw error; throw holdError('Generated video contains undecodable frames'); }
   }
   return video;
-}
-// { size, mtimeMs } of a file (FileSystem.stat crosses IPC, so only its plain fields are used), or null.
-async function holdStat(path) {
-  try {
-    const stat = (await hostNeed('FileSystem', 'stat').stat(path));
-    return stat && Number.isFinite(stat.size) ? { size: stat.size, mtimeMs: Number(stat.mtimeMs) || 0 } : null;
-  } catch (error) { if (error?.code === 'host-missing') throw error; return null; }
 }
 async function holdKey(text) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
-async function holdEncode(source, target, frames) {
+async function holdEncode(source, target, frames, options = {}) {
   const scale = 'scale=w=\'min(iw,' + HOLD_MAX_EDGE + ')\':h=\'min(ih,' + HOLD_MAX_EDGE + ')\':' +
     'force_original_aspect_ratio=decrease:flags=lanczos,pad=ceil(iw/2)*2:ceil(ih/2)*2:0:0:black,setsar=1';
   // -write_tmcd 0: a source's timecode tag would otherwise add a tmcd data track, failing the one-stream check.
@@ -694,73 +767,50 @@ async function holdEncode(source, target, frames) {
   try {
     await holdTool('runFFmpeg', ['-nostdin', '-v', 'error', '-y', '-i', source, '-vf', filters, '-an', '-frames:v', String(frames),
       '-r', String(HOLD_FPS), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p',
-      '-movflags', '+faststart', '-write_tmcd', '0', '-metadata', 'creation_time=', '-f', 'mp4', target], Math.max(90, Math.min(900, Math.floor(frames / HOLD_FPS) * 8 + 60)));
-  } catch (error) { if (/timed out/.test(error.message)) throw error; throw holdError('ffmpeg could not extend the short video'); }
+      '-movflags', '+faststart', '-write_tmcd', '0', '-metadata', 'creation_time=', '-f', 'mp4', target], Math.max(90, Math.min(900, Math.floor(frames / HOLD_FPS) * 8 + 60)), options);
+  } catch (error) { if (error.terminal) throw error; throw holdError('ffmpeg could not extend the short video'); }
 }
-async function holdCached(videoPath, metaPath, identity, frames, dimensions) {
-  const fs = hostNeed('FileSystem', 'exists');
-  try {
-    if (!(await fs.exists(videoPath)) || !(await fs.exists(metaPath))) return false;
-    const data = JSON.parse(await hostReadText(metaPath));
-    const stat = (await holdStat(videoPath));
-    if (data?.algorithm !== HOLD_ALGORITHM || data.sourceSize !== identity.size || data.sourceMtimeMs !== identity.mtimeMs ||
-        data.durationFrames !== frames || JSON.stringify(data.outputDimensions) !== JSON.stringify(dimensions) ||
-        !stat || data.outputSize !== stat.size) return false;
-    await holdValidate(videoPath, frames, dimensions);
-    return true;
-  } catch (error) { if (error?.code === 'host-missing') throw error; return false; }
+async function holdFileHash(path,options) {
+  const result=await holdTool('runFFmpeg',['-nostdin','-v','error','-f','data','-i',path,'-map','0:0','-c','copy','-f','hash','-hash','sha256','-'],900,options);
+  const match=String(result?.stdout??'').trim().match(/^SHA256=([0-9a-f]{64})$/i);
+  if(!match)throw holdError('The complete media file hash could not be confirmed');
+  return match[1].toLowerCase();
 }
-async function holdConvertOne(source, identity, sourceDimensions, frames, cacheRoot) {
-  const key = await holdKey([HOLD_ALGORITHM, holdPathKey(source), identity.size, identity.mtimeMs, frames, HOLD_FPS].join('\0'));
-  const videoPath = hostJoin(cacheRoot, key + '.mp4'), metaPath = hostJoin(cacheRoot, key + '.json');
+async function holdConvertOne(source, identity, sourceDimensions, frames, cacheRoot, options) {
+  const key = await holdKey([HOLD_ALGORITHM,holdPathKey(source),identity.sha256,identity.bytes,frames,HOLD_FPS,...sourceDimensions].join('\0'));
   const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
-  if (await holdCached(videoPath, metaPath, identity, frames, dimensions)) return { videoPath, dimensions, reused: true };
-  const fs = hostNeed('FileSystem', 'rename');
-  const writer = hostNeed('FileSystem', 'writeFile');
-  const stamp = Date.now() + '-' + Math.floor(Math.random() * 1e6);
-  const temporary = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.mp4.tmp');
-  const temporaryMeta = hostJoin(cacheRoot, '.' + key + '-' + stamp + '.json.tmp');
-  const unchanged = async () => { const now = (await holdStat(source)); return !!now && now.size === identity.size && now.mtimeMs === identity.mtimeMs; };
-  try {
-    await holdEncode(source, temporary, frames);
-    if (!(await unchanged())) throw holdError('A video changed during extension');
-    await holdValidate(temporary, frames, dimensions, true);
-    const output = (await holdStat(temporary));
-    if (!output) throw holdError('ffmpeg could not extend the short video');
-    await writer.writeFile(temporaryMeta, JSON.stringify({ algorithm: HOLD_ALGORITHM, sourceSize: identity.size,
-      sourceMtimeMs: identity.mtimeMs, durationFrames: frames, outputDimensions: dimensions, outputSize: output.size }));
-    (await fs.rename(temporary, videoPath));
-    (await fs.rename(temporaryMeta, metaPath));
-  } finally {
-    await hostRemove(temporary);
-    await hostRemove(temporaryMeta);
-  }
-  return { videoPath, dimensions, reused: false };
+  const result=await prepareDerivedAsset(hostSdk.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,hashFile:path=>holdFileHash(path,options),
+    produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,true,options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options);},
+    verify:path=>holdValidate(path,frames,dimensions,true,options)});
+  return {videoPath:result.path,dimensions,reused:result.reused};
 }
 // `request` is { videos: [{ path }], durationFrames }; `dataDir` is the plugin's data folder.
-async function holdVideos(request, dataDir) {
+async function holdVideos(request, dataDir, options = {}) {
   const videos = request?.videos, frames = request?.durationFrames;
   if (!Array.isArray(videos) || videos.length < 1 || videos.length > HOLD_MAX_VIDEOS) throw holdError('Provide between 1 and 21 short videos');
   if (!Number.isSafeInteger(frames) || frames < 1 || frames > HOLD_MAX_FRAMES) throw holdError('durationFrames must be a positive integer at most 36000');
   if (!dataDir) throw holdError('The plugin data folder is unavailable');
+  if(!options||typeof options!=='object'||Array.isArray(options)||options.isCurrent!==undefined&&typeof options.isCurrent!=='function')throw holdError('Media preparation options need a callable liveness predicate');
+  options={...options,isCurrent:options.isCurrent??(()=>true)};
+  const current=()=>{if(!options.isCurrent()||options.signal?.aborted)throw holdError('The template run ended during media preparation');};
+  const paths=videos.map((item,index)=>{const path=item?.path;if(typeof path!=='string')throw holdError('Video '+(index+1)+' needs a file path');if(!path||path.includes('\0')||path.length>8192)throw holdError('Video '+(index+1)+' has an invalid path');return path;});
   hostNeed('Runtime', 'runFFmpeg'); hostNeed('Runtime', 'runFFprobe');
-  const cacheRoot = hostJoin(dataDir, 'held-v2');
-  (await hostNeed('FileSystem', 'mkdir').mkdir(cacheRoot, { recursive: true }));
-  const exists = hostNeed('FileSystem', 'exists');
+  hostNeed('FileSystem','copyFile');hostNeed('FileSystem','rename');
+  if(typeof globalThis.crypto?.subtle?.digest!=='function')throw holdError('Update Selects to verify complete source media contents');
+  const cacheRoot = hostJoin(dataDir, 'held-v3'),selected=new Map();
+  // Observe every requested source before generating any derived file.
+  for(const raw of paths){current();const key=holdPathKey(raw);if(selected.has(key))continue;
+    const identity=await readAssetFileIdentity(hostSdk.files,raw,path=>holdFileHash(path,options),current);
+    const {video}=await holdProbe(raw,true,options);if(!(Number(video.nb_read_frames)>=1))throw holdError('Video has no readable frames');selected.set(key,{identity,sourceDimensions:holdUpright(video)});
+  }
   const completed = new Map(), output = [];
   for (let index = 0; index < videos.length; index++) {
-    const raw = videos[index]?.path;
-    if (typeof raw !== 'string') throw holdError('Video ' + (index + 1) + ' needs a file path');
-    if (!raw || raw.includes('\0') || raw.length > 8192) throw holdError('Video ' + (index + 1) + ' has an invalid path');
+    const raw = paths[index];
     try {
-      const identity = (await exists.exists(raw)) ? (await holdStat(raw)) : null;
-      if (!identity) throw holdError('Video is missing');
-      const id = holdPathKey(raw) + '\0' + identity.size + '\0' + identity.mtimeMs;
+      current();const {identity,sourceDimensions}=selected.get(holdPathKey(raw));
+      const id = holdPathKey(raw) + '\0' + identity.sha256;
       if (!completed.has(id)) {
-        const { video } = await holdProbe(raw, true);
-        if (!(Number(video.nb_read_frames) >= 1)) throw holdError('Video has no readable frames');
-        const sourceDimensions = holdUpright(video);
-        const done = await holdConvertOne(raw, identity, sourceDimensions, frames, cacheRoot);
+        const done = await holdConvertOne(raw, identity, sourceDimensions, frames, cacheRoot, options);
         completed.set(id, { ...done, sourceDimensions });
       }
       const done = completed.get(id);
@@ -768,7 +818,7 @@ async function holdVideos(request, dataDir) {
         sourceHeight: done.sourceDimensions[1], outputWidth: done.dimensions[0], outputHeight: done.dimensions[1], cacheHit: done.reused });
     } catch (error) {
       if (error?.code === 'host-missing') throw error;
-      throw Object.assign(holdError('Video ' + (index + 1) + ': ' + String(error?.message || error)), { detail: error?.detail });
+      throw Object.assign(holdError('Video ' + (index + 1) + ': ' + String(error?.message || error)), { detail: error?.detail,...error?.publicMessage?{publicMessage:error.publicMessage}:{} });
     }
   }
   return { status: 'converted', fps: HOLD_FPS, durationFrames: frames, videos: output };
@@ -1318,8 +1368,8 @@ async function prepareVisuals(sdk, t, media, frames, projectId, onImportStarted,
     const request = { [group.key]: group.sources.map(item => ({ path: item.path })), durationFrames: frames };
     preparing.say?.('Extending short videos…');
     let converted;
-    try { converted = await holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data); }
-    catch (error) { throw new Error(String(error?.message || error) || 'Media conversion failed.'); }
+    try { converted = await holdVideos(request, (await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')).data, {isCurrent}); }
+    catch (error) { if(error?.publicMessage)throw error;throw new Error(String(error?.message || error) || 'Media conversion failed.'); }
     const output = converted[group.key];
     if (converted.status !== 'converted' || output?.length !== group.sources.length) {
       throw new Error(converted.message || 'Media conversion failed.');
@@ -1409,11 +1459,13 @@ function GalleryPanel({ sdk, context, ui }) {
   const [status, setStatus] = React.useState(null);
   const [savedTarget, setSavedTarget] = React.useState(null);
   const running = React.useRef(false);
+  const alive = React.useRef(true);
   const current = React.useRef({ projectId: context.projectId, sequenceId: context.sequenceId });
   React.useEffect(() => {
+    alive.current = true;
     const say = text => setStatus({ tone: 'muted', text });
     preparing.say = say;
-    return () => { if (preparing.say === say) preparing.say = null; };
+    return () => { alive.current = false;if (preparing.say === say) preparing.say = null; };
   }, []);
   current.current = { projectId: context.projectId, sequenceId: context.sequenceId };
   const key = JSON.stringify([context.projectId, context.sequenceId]);
@@ -1428,7 +1480,7 @@ function GalleryPanel({ sdk, context, ui }) {
   const canAssignReferenceMix = inventory?.media?.length === 21 && photos.length === 15 && videos.length === 6;
   const missingMotion = assigned === 21 ? [...REFERENCE_VIDEO_SLOTS].filter(number =>
     inventory.media.find(item => item.resourceId === slots[number - 1].resourceId)?.kind !== 'video') : [];
-  const sameContext = (projectId, sequenceId) => current.current.projectId === projectId && current.current.sequenceId === sequenceId;
+  const sameContext = (projectId, sequenceId) => alive.current && current.current.projectId === projectId && current.current.sequenceId === sequenceId;
 
   React.useEffect(() => {
     // The host opens this new Draft during Create. Retain its frozen inputs

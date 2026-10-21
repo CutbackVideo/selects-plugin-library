@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import Module, { createRequire } from 'node:module';
 import path from 'node:path';
+import {createHash} from 'node:crypto';
 import { test } from 'node:test';
 import { planGallery } from './format.mjs';
 
@@ -102,12 +103,18 @@ function harness(media = photos, options = {}) {
   dom.window.__DI__ = {
     FileSystem: { join: (...parts) => parts.join(sep), homedir: () => home, mkdirSync: () => {},
       existsSync: path => disk.has(path) || (!options.musicMissing && path.endsWith('SKILL.md')) || /short\.mp4$/.test(path),
-      statSync: p => ({ size: disk.get(p)?.length??1000, mtimeMs: 1, isDirectory:false }), renameSync: (from, to) => tools.push(['rename', from, to]),
+      statSync: p => disk.has(p)||/short\.mp4$/.test(p)?{size:disk.get(p)?.length??1000,mtimeMs:1,isDirectory:false}:null, renameSync: (from, to) => {tools.push(['rename', from, to]);disk.set(to,disk.get(from));disk.delete(from);},
+      copyFile:async(from,to)=>{disk.set(to,Buffer.from(disk.get(from)??Buffer.alloc(1000)));},
       writeFile: async (p,bytes) => {disk.set(p,Buffer.from(bytes));}, removeFile: async () => {},
       readFile: async p => disk.get(p)??(options.pcm ? Buffer.from(options.pcm.buffer) : Buffer.alloc(0)) },
     Runtime: { getPlatform: () => options.platform || 'darwin',
       runFFprobe: async args => { tools.push(['ffprobe', ...args]); return { stdout: probed(args.at(-1)), stderr: '' }; },
-      runFFmpeg: async args => { tools.push(['ffmpeg', ...args]); return { stdout: '', stderr: '' }; } },
+      runFFmpeg: async (args,quiet,signal) => {
+        tools.push(['ffmpeg', ...args]);await options.onMediaProcess?.(args,signal);
+        if(args.includes('-hash'))return {stdout:'SHA256='+createHash('sha256').update(disk.get(args[args.indexOf('-i')+1])??Buffer.alloc(1000)).digest('hex'),stderr:''};
+        if(args.includes('-vf'))disk.set(args.at(-1),Buffer.alloc(1000));
+        return { stdout: '', stderr: '' };
+      } },
   };
   const sdk = {
     maxScriptTimeoutSeconds:options.maxScriptTimeoutSeconds??120,
@@ -211,11 +218,12 @@ for (const platform of ['darwin', 'win32']) {
     await assignAndCreate(h.view);
     await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
     const encode = tools.find(call => call[0] === 'ffmpeg' && call.includes('libx264'));
-    assert.equal(encode[encode.indexOf('-i') + 1], source);
+    assert.notEqual(encode[encode.indexOf('-i') + 1], source);
+    assert.match(encode[encode.indexOf('-i') + 1],/\.source-/);
     assert.equal(encode[encode.indexOf('-frames:v') + 1], '853');
     const held = tools.find(call => call[0] === 'rename' && call[2].endsWith('.mp4'))[2];
     const sep = platform === 'win32' ? '\\' : '/';
-    assert.ok(held.includes(['.selects', 'plugin-data', 'photo-gallery-no2', 'held-v2', ''].join(sep)), held);
+    assert.ok(held.includes(['.selects', 'plugin-data', 'photo-gallery-no2', 'held-v3', 'objects', ''].join(sep)), held);
     assert.deepEqual(h.calls.slice(0, 5).map(call => call.input.operation), ['inspect', 'verifyInputs', 'verifyInputs', 'importConverted', 'preflight']);
     assert.deepEqual(h.calls.find(call => call.input.operation === 'importConverted').input.converted, [{ sourceResourceId: 'short-1', sourcePath: source, path: held }]);
     assert.equal(h.calls.find(call => call.input.operation === 'create').input.media[20].resourceId, 'held-1');
@@ -230,6 +238,14 @@ test('a held video that fails its frame check stops before any import or Draft',
   await waitFor(() => assert.match(h.view.container.textContent, /Video 1: Cached video has the wrong frame count/));
   assert.deepEqual(h.calls.map(call => call.input.operation), ['inspect', 'verifyInputs', 'verifyInputs']);
   assert.equal(h.view.getByRole('button', { name: 'Create Draft' }).disabled, false);
+});
+
+test('unmounting the standalone panel cancels held preparation before import or Draft creation',async()=>{
+  let enter,release,signal;const entered=new Promise(r=>{enter=r;}),gate=new Promise(r=>{release=r;});
+  const media=[...photos.slice(0,20),{resourceId:'short-1',name:'Short tile',kind:'video',width:128,height:96,durationFrames:60,path:'/fixture/short.mp4'}];
+  const h=harness(media,{onMediaProcess:async(args,current)=>{if(args.includes('-vf')){signal=current;enter();await Promise.race([gate,new Promise(r=>current.addEventListener('abort',r,{once:true}))]);}}});
+  await assignAndCreate(h.view);await entered;h.view.unmount();await new Promise(r=>setTimeout(r,160));const aborted=signal.aborted;release();await new Promise(r=>setTimeout(r,30));
+  assert.equal(aborted,true);assert.equal(h.calls.some(c=>['importConverted','create'].includes(c.input.operation)),false);
 });
 
 test('Windows: the default build finds the bundled music through the host FileSystem, with no shell', async () => {

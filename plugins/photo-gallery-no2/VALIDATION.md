@@ -1,6 +1,33 @@
 # Validation and limits
 
-## Current repair checkpoint: 0.3.14
+## Current repair checkpoint: 0.3.15
+
+Short-video preparation now uses the existing shared asset feature's additive
+derived-file owner. Full source/output hashes replace size/mtime cache identity;
+encoding consumes an exclusively reserved, verified private source copy. Complete
+validated outputs are content addressed before an atomic bounded cache index is
+published. Lost publication replies are observed without a second encode. Active
+media work observes run liveness/cancellation, and standalone unmount ends its
+scope before import. Source mapping and the existing 60 fps hold recipe remain.
+
+The first nine parent-source real-file cases failed eight with one control.
+Additional regressions first failed for terminal timeout handling, noncallable
+liveness, A-B-A source changes during encode, standalone unmount, public errors
+and failed publication. Current real-file cache suite: 21 passing cases. It uses
+the canonical file client, independently persisted bytes and local ffmpeg, both
+normal/minified panels, concurrent realms and a source above 32 MiB. Old hold
+decode/frame/Python parity checks remain. See
+`docs/template-repair/gallery-held-cache.md` in the source repository.
+
+Existing shared asset functions are unchanged. No.14, Stop Motion and Polaroid
+receive regenerated additive helper definitions; their call paths are unchanged.
+The registered pool remains five features across ten consumers. Old cache files
+and user data were not migrated/deleted. Garbage collection/crash recovery, all
+option checks, the separate BPM lifetime, complete source-clock/composition,
+actual installed Selects/Windows, Inspector, whole AV/playback/export and
+reference/changed-input quality remain open.
+
+## Earlier repair checkpoint: 0.3.14
 
 Normal panel and app-run bundled music now uses the existing shared verified
 asset feature. Release bytes/hash are pinned, bounded and reobserved; the owned

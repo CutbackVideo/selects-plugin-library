@@ -17,7 +17,7 @@ const section = (start, end) => {
   assert.ok(from >= 0 && to > from, start);
   return template.slice(from, to + end.length);
 };
-const blocks = section('// av-host:start', '// av-host:end') + '\n' + section('// hold:start', '// hold:end');
+const blocks = fs.readFileSync(new URL('../../shared/bundled-assets.js',import.meta.url),'utf8')+'\n'+section('// av-host:start', '// av-host:end') + '\n' + section('// hold:start', '// hold:end');
 const has = tool => spawnSync(tool, ['-version']).status === 0;
 const tools = has('ffmpeg') && has('ffprobe');
 
@@ -31,8 +31,8 @@ function host({ calls = [] } = {}) {
   });
   const FileSystem = {
     join: (...parts) => path.join(...parts), homedir: () => os.homedir(), existsSync: p => fs.existsSync(p),
-    mkdirSync: (p, o) => fs.mkdirSync(p, o), statSync: p => { try { return { ...fs.statSync(p) }; } catch { return null; } },
-    renameSync: (a, b) => fs.renameSync(a, b), writeFile: async (p, d) => fs.writeFileSync(p, d),
+    mkdirSync: (p, o) => fs.mkdirSync(p, o), statSync: p => { try {const s=fs.statSync(p);return {size:s.size,mtimeMs:s.mtimeMs,ino:s.ino,isDirectory:s.isDirectory()}; } catch { return null; } },
+    renameSync: (a, b) => fs.renameSync(a, b), copyFile:async(a,b)=>fs.copyFileSync(a,b),writeFile: async (p, d, o) => fs.writeFileSync(p, d, o),
     readFile: async p => fs.readFileSync(p), removeFile: async ({ filePath }) => fs.rmSync(filePath, { force: true }),
   };
   const Runtime = { getPlatform: () => process.platform, runFFmpeg: run('ffmpeg'), runFFprobe: run('ffprobe') };
@@ -87,7 +87,7 @@ test('the last frame is cloned to an exact 60 fps output in the data folder', { 
   assert.equal(result.status, 'converted'); assert.equal(result.fps, 60); assert.equal(result.durationFrames, 18);
   const item = result.videos[0];
   assert.equal(item.inputIndex, 0); assert.equal(item.sourcePath, source); assert.equal(item.cacheHit, false);
-  assert.equal(path.dirname(item.outputPath), path.join(dir, 'data', 'held-v2'));
+  assert.equal(item.outputPath.startsWith(path.join(dir,'data','held-v3','objects')+path.sep),true);
   assert.match(path.basename(item.outputPath), /^[0-9a-f]{64}\.mp4$/);
   const [stream] = probe(item.outputPath);
   assert.deepEqual([stream.codec_name, stream.width, stream.height, stream.r_frame_rate, stream.nb_read_frames], ['h264', 128, 96, '60/1', '18']);
@@ -95,7 +95,7 @@ test('the last frame is cloned to an exact 60 fps output in the data folder', { 
   assert.equal(frames.length, 18 * stride);
   assert.deepEqual(frames.subarray(-stride), frames.subarray(-2 * stride, -stride));
   assert.notDeepEqual(frames.subarray(0, stride), frames.subarray(4 * stride, 5 * stride));
-  assert.deepEqual(fs.readdirSync(path.join(dir, 'data', 'held-v2')).filter(name => name.endsWith('.tmp')), []);
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'data', 'held-v3')).filter(name => name.startsWith('.source-')||name.startsWith('.output-')), []);
 });
 
 test('identical requests reuse the cache and a corrupt cache entry is rebuilt', { skip: !tools && 'ffmpeg/ffprobe required' }, async () => {
@@ -145,9 +145,9 @@ test('a source with a +-90 degree display rotation is held at its upright size',
 
 test('a missing or non-video source is rejected', { skip: !tools && 'ffmpeg/ffprobe required' }, async () => {
   const dir = scratch(), { holdVideos } = load(host());
-  await assert.rejects(holdVideos({ videos: [{ path: path.join(dir, 'missing.mp4') }], durationFrames: 18 }, dir), /Video 1: Video is missing/);
+  await assert.rejects(holdVideos({ videos: [{ path: path.join(dir, 'missing.mp4') }], durationFrames: 18 }, dir), /media file is missing/);
   fs.writeFileSync(path.join(dir, 'bad.mp4'), 'not video');
-  await assert.rejects(holdVideos({ videos: [{ path: path.join(dir, 'bad.mp4') }], durationFrames: 18 }, dir), /Video 1: /);
+  await assert.rejects(holdVideos({ videos: [{ path: path.join(dir, 'bad.mp4') }], durationFrames: 18 }, dir), /Video cannot be decoded/);
 });
 
 const python = spawnSync('python3', ['--version']).status === 0;

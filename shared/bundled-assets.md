@@ -65,3 +65,37 @@ owned data. Required Audio duration is based on the rounded Project grid. The
 14.216667-second excerpt cannot cover the default 30 fps rounded 14.233333-second
 result; Gallery refuses this before asset work instead of changing timing or
 padding music. Older installation-path Resources/Drafts remain untouched.
+
+## Derived media publication
+
+Additive `readAssetFileIdentity` and `prepareDerivedAsset` also serve Gallery's
+short-video cache. Existing bundled Image/Audio function bodies and call paths
+are unchanged; the three direct panel copies are regenerated with the new unused
+helper definitions. No sixth registry feature or new public SDK is added.
+
+The caller supplies a recipe key, observed whole-file source identity, a streaming
+hash callback, a producer and a domain verifier. The owner reads stat/hash/stat,
+reserves source/output paths with exclusive file creation, copies and verifies a
+private source snapshot, and gives that snapshot to the producer. This prevents
+an A-B-A source replacement during encoding from changing the frozen picture.
+Large source/output bytes stay outside the browser; Gallery uses the existing
+cancellable FFmpeg data demuxer/hash muxer through argv arrays, never a shell.
+
+Objects live under `objects/<recipe-key>/<output-sha256>.<extension>`; a 48 KiB
+bounded `index/<recipe-key>.json` carries only version/key and source/output
+digests/byte counts. Valid published objects are reused without replacement.
+Corrupt objects may be repaired by atomically renaming a fully validated private
+output; delete-before-rename is forbidden. Media is complete before an atomic
+index write can point at it. Concurrent complete writers can win the same index
+without combining different media/metadata. Replies lost after rename/index
+publication are reread without resubmission or another encode. Positive cache
+recovery rehashes/validates output and reobserves the source.
+
+Callbacks own codec/clock/visual policy; terminal media errors and safe public
+errors survive the generic owner. Detachment cancels active Gallery media jobs
+and prevents later stages. Only exclusively reserved private paths are cleaned
+up. Already issued filesystem calls, process crashes, externally modified files
+and independent Project imports are not a database transaction or a distributed
+lock. Published/unindexed objects and crash staging are not garbage-collected
+automatically; old Drafts or another active run may still reference them. Actual
+Windows and installed-host cancellation remain runtime acceptance gates.
