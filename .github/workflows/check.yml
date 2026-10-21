@@ -17,6 +17,9 @@ jobs:
       - run: python3 tools/check_public.py
       - run: python3 tools/check_templates.py
       - run: python3 tools/plugin_files.py check
+      - run: node tools/sync_panel_modules.mjs --check
+      - name: Test original Image input preflight and module consumers
+        run: node --test tests/native_image_preflight.test.mjs tests/panel_modules.test.mjs tests/native_image_sdk_migration.test.mjs
       - run: python3 tools/sync_app_update_guards.py --check
       - run: python3 -m unittest discover -s tests
       - name: Test Shortform Clips and template packs

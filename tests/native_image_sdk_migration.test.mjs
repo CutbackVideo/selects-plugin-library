@@ -25,9 +25,14 @@ function fixture(plugin, { duplicate = false, wrongOwner = false, moved = false 
   };
   const project={meta:async()=>({draftIds:wrongOwner?[]:['draft']}), resources:async()=>rows,
     sourceFiles:async()=>({fileTree:rows.map(r=>({...r,type:'video'}))}),resource:id=>({id})};
-  const selects={project:id=>{assert.equal(id,'project');return project;},draft:id=>{assert.equal(id,'draft');return draft;}};
+  // The migrated consumers now require actual original-file observations, not
+  // just the retained resource metadata. Other consumers keep their contract.
+  const filePaths=new Set(photos.map(photo=>photo.path));
+  const files={stat:async path=>filePaths.has(path)?{size:32,isDirectory:false,mtimeMs:123,ino:5}:null,
+    readRange:async({path})=>{if(!filePaths.has(path))throw Error('missing');return {bytesRead:1,base64:'iQ=='};}};
+  const selects={files,project:id=>{assert.equal(id,'project');return project;},draft:id=>{assert.equal(id,'draft');return draft;}};
   const sdk={runScript:async input=>{calls.push(input);return {result:await new Function('selects',`return (async()=>{${input.script}})()`)(selects)};}};
-  return {api,sdk,photos,plan,rows,calls,get clips(){return clips;},get commits(){return commits;}};
+  return {api,sdk,photos,plan,rows,calls,filePaths,get clips(){return clips;},get commits(){return commits;}};
 }
 for(const plugin of plugins){
   test(`${plugin}: native Image placement preserves long holds and independent occurrences through runScript`,async()=>{
@@ -79,4 +84,11 @@ test('six-clip-velocity: all 114 source offsets, exact durations and speed rates
  assert.equal(result.placements.length,114);
  assert.deepEqual(f.calls.filter(c=>c.overlay).map(c=>[c.overlay.sourceStartSeconds,c.overlay.playbackSpeed.numerator/c.overlay.playbackSpeed.denominator]),pieces.map(p=>[p.inSec,p.speed]));
  assert.deepEqual(result.placements.map(c=>[c.startFrame,c.endFrame]),pieces.map(p=>[p.startFrame,p.startFrame+p.frames]));
+});
+
+for(const plugin of ['no14-still-video','camera-shutter-dump'])test(`${plugin}: an original disappearing after prepare is rejected before placement`,async()=>{
+ const f=fixture(plugin),ready=await f.api.prepareNativeImages(f.sdk,'project',f.photos);
+ f.filePaths.delete(f.photos[0].path);
+ await assert.rejects(f.api.placeNativeImages(ready,'draft',f.plan),/original photo file is missing/i);
+ assert.equal(f.clips.length,0);assert.equal(f.commits,0);
 });

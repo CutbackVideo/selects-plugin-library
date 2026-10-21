@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "modules": [
+    {
+      "id": "native-image-input",
+      "source": "shared/native-image-input.js",
+      "targets": [
+        "plugins/no14-still-video/panel.tsx",
+        "plugins/camera-shutter-dump/panel.tsx"
+      ]
+    }
+  ]
+}
