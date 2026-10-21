@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "huick-cardnews",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "name": "Huick Inside Card News",
   "summary": "Turn an issue of Hankook Ilbo's Huick Inside newsletter into an editable 3:4 card news Draft in Huick's three-perspectives format, then export each card as an image.",
   "status": "experimental",

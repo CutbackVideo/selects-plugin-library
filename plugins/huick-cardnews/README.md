@@ -12,6 +12,13 @@ accepts. Text stays out of the bottom 240 px, where TikTok lays its caption
 over a post, and out of the right 130 px, where its buttons sit; the picture
 credit is in the top corner.
 
+**Design** picks the look before planning. **Huick** is lime on charcoal with a
+picture across the top of each card. **Magazine** follows the Slide-to-ticket
+card news template the Huick team pointed to: white pages and black ink with
+lime tags and highlights, the cover picture full bleed (drawn 3:4), each body
+picture in a ruled frame (drawn 3:2) between a title bar and a ruled text box,
+and a pull quote to close. A set keeps the design it was planned with.
+
 ## Using the panel
 
 Open **Huick Inside Card News** from the Plugin list with a Project open. A
