@@ -7139,9 +7139,8 @@ export function scenePreflightScript(options: ScenePreflightOptions): string {
 }
 
 async function scenePreflightRuntime(options: ScenePreflightOptions, readSource: any) {
-  const sdk = selects;
-  const files = sdk.files;
-  const project = sdk.project(options.projectId);
+  const files = selects.files;
+  const project = selects.project(options.projectId);
   const warnings: any[] = [];
   const normalized = (p: string) => p.normalize("NFC").replace(/\\/g, "/").replace(/\/$/, "");
   const dirname = (p: string) => p.slice(0, p.lastIndexOf("/"));
@@ -7412,7 +7411,6 @@ export function sceneLogoPreparationScript(options: SceneLogoPreparationOptions)
 }
 
 async function sceneLogoPreparationRuntime(options: SceneLogoPreparationOptions) {
-  const sdk = selects;
   const match = options.imageBase64.match(/^(?:data:image\/png;base64,)?([A-Za-z0-9+/]+={0,2})$/);
   if (!match || !match[1].startsWith("iVBORw0KGgo")) throw new Error("Template logo must be a PNG base64 payload");
   const payload = match[1];
@@ -7427,12 +7425,12 @@ async function sceneLogoPreparationRuntime(options: SceneLogoPreparationOptions)
   const width = uint32(16); const height = uint32(20);
   if (!(width > 0 && height > 0)) throw new Error("Template PNG has no valid dimensions");
   const path = `${options.directory.replace(/\/$/, "")}/template-logo.png`;
-  await sdk.files.mkdir(options.directory, { recursive: true });
-  const stat = await sdk.files.stat(path);
+  await selects.files.mkdir(options.directory, { recursive: true });
+  const stat = await selects.files.stat(path);
   if (stat) {
     let current = "";
     for (let offset = 0; offset < stat.size;) {
-      const part = await sdk.files.readRange({ path, offset, length: Math.min(49152, stat.size - offset) });
+      const part = await selects.files.readRange({ path, offset, length: Math.min(49152, stat.size - offset) });
       if (!part.bytesRead) throw new Error("Cannot verify existing template logo");
       current += part.base64; offset += part.bytesRead;
     }
@@ -7441,11 +7439,11 @@ async function sceneLogoPreparationRuntime(options: SceneLogoPreparationOptions)
     let offset = 0;
     for (let i = 0; i < payload.length; i += 65536) {
       const chunk = payload.slice(i, i + 65536);
-      const written = await sdk.files.writeChunk({ path, offset, base64: chunk, ...(offset === 0 ? { mode: "exclusive" } : {}) });
+      const written = await selects.files.writeChunk({ path, offset, base64: chunk, ...(offset === 0 ? { mode: "exclusive" } : {}) });
       offset += written.bytesWritten;
     }
   }
-  const project = sdk.project(options.projectId);
+  const project = selects.project(options.projectId);
   const flatten = (nodes: any[]): any[] => nodes.flatMap(n => n.children ? flatten(n.children) : [n]);
   let files = await project.sourceFiles(); let items = flatten("fileTree" in files ? files.fileTree : []);
   if ("mode" in files && files.mode === "summary") for (const folder of files.folders || []) {
