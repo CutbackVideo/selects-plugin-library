@@ -2287,6 +2287,7 @@ function Panel({ sdk, context, ui }: any) {
   // Scenes Kling refused for content policy, waiting for the user's choice: { dir, scenes: [{ n, label, model }] }.
   const [policy, setPolicy] = React.useState<any>(null);
   const [jobStarted, setJobStarted] = React.useState<string | null>(null); // the started job's keyframe model
+  const [jobSettings, setJobSettings] = React.useState<any>(null); // the started job's saved settings
   const [result, setResult] = React.useState<any>(null);
   const [jobs, setJobs] = React.useState<any[]>([]);
   const [storageReady, setStorageReady] = React.useState(false);
@@ -2526,6 +2527,7 @@ function Panel({ sdk, context, ui }: any) {
     setLocked(false);
     setPolicy(null);
     setJobStarted(null);
+    setJobSettings(null);
     if (!projectId) return setError(S.noProject);
     if (!sdk?.storage) return setError(S.noStorage);
     if (mode === "topic" && topic.trim().length < 2) return setError(S.needTopic);
@@ -2653,6 +2655,7 @@ function Panel({ sdk, context, ui }: any) {
       } else if (jd.settings?.titleLines) setTitleLines(jd.settings.titleLines);
       pj = await savePanel(dir, { started: true });
       setJobStarted(jd.settings?.kfModel || MED_KF_DEFAULT);
+      setJobSettings(jd.settings || {});
       let p = await readJson(hostJoin(dir, "plan.json"));
       if (!p?.scenes?.length) throw new Error("plan.json missing");
       // Script edits (before any keyframe): the edited sentences get a new revision, so only they are narrated again,
@@ -2888,7 +2891,7 @@ function Panel({ sdk, context, ui }: any) {
         <ui.Section title={S.planTitle}>
           <ui.Message tone="error">{S.review}{plan.reviewNote ? " " + plan.reviewNote : ""}</ui.Message>
           {check && <p>{S.summary(check.seconds, check.scenes, languageName(plan.lang, uiLang))}</p>}
-          {(() => { const st = medStyleFor({ art: artSet, layout: layoutSet }, plan); return <ui.Message tone="muted">{S.chosen(S.modeNames[st.mode], S.artNames[st.art], S.layoutNames[st.layout])}</ui.Message>; })()}
+          {(() => { const st = medStyleFor(jobSettings || { art: artSet, layout: layoutSet }, plan); return <ui.Message tone="muted">{S.chosen(S.modeNames[st.mode], S.artNames[st.art], S.layoutNames[st.layout])}</ui.Message>; })()}
           <ui.TextField label={S.title1} value={titleLines.line1} onChange={(v: string) => setTitleLines((t) => ({ ...t, line1: v }))} disabled={!!busy} />
           <ui.TextField label={S.title2} value={titleLines.line2} onChange={(v: string) => setTitleLines((t) => ({ ...t, line2: v }))} disabled={!!busy} />
           <div style={{ overflowX: "auto" }}>
