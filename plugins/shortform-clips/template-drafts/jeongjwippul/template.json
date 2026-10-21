@@ -1,0 +1,138 @@
+{
+  "id": "jeongjwippul-draft",
+  "version": 3,
+  "names": {
+    "ko": "정쥐뿔 (자료 미완성 초안)",
+    "en": "Jeongjwippul (incomplete draft)"
+  },
+  "detect": {
+    "keywords": [
+      "정쥐뿔"
+    ],
+    "exclude": [],
+    "host": "정쥐뿔"
+  },
+  "layout": {
+    "windowTop": 541.2499809265137,
+    "windowBottom": 1148.7499809265137,
+    "sourceTop": 0,
+    "sourceBottom": 1080,
+    "offsetX": 0,
+    "headlineCenter": 391.4747406005859,
+    "logoCenter": 1379.000015258789,
+    "reframe": false
+  },
+  "background": {
+    "mode": "color",
+    "style": "#000000",
+    "color": "#000000",
+    "image": "",
+    "imageName": "",
+    "dim": 0
+  },
+  "border": {
+    "on": false,
+    "color": "#000000"
+  },
+  "headline": {
+    "font": "SDMyeongjo-cBd",
+    "size1": 95,
+    "size2": 95.16839599609375,
+    "color1": "#FFFFFF",
+    "color2": "#FFE400",
+    "box2On": false,
+    "box2": "#000000",
+    "italic": true,
+    "shadow": false,
+    "fontWeight": 400,
+    "lineHeight": 1.2,
+    "letterSpacing": -3.8,
+    "fitWidth": 1010,
+    "fitPadding": 2,
+    "fitCjk": 1,
+    "fitSpace": 0.3,
+    "fitLatin": 0.65,
+    "fitWideLatin": 0.65,
+    "fitOther": 0.65,
+    "strokeOn": true,
+    "strokeWidth": 2,
+    "strokeColor": "currentColor",
+    "rowGap": 107.94947834014891,
+    "offsetX1": -7.9505835101008415,
+    "offsetX2": -2.918890386354182,
+    "letterSpacing1": -3.8000000000000003,
+    "letterSpacing2": -3.80673583984375
+  },
+  "logo": {
+    "mode": "none",
+    "image": "",
+    "imageName": "",
+    "width": 354
+  },
+  "captions": {
+    "on": true,
+    "mode": "bar",
+    "barHeight": 1,
+    "bottom": 1097.9999542236328,
+    "fontSize": 58.944522857666016,
+    "fontWeight": 400,
+    "boxColor": "#00000000",
+    "color": "#FFFFFF",
+    "font": "SDMyeongjo-bMd",
+    "lineMax": 16,
+    "left": 135,
+    "width": 810,
+    "boxPaddingTop": 0,
+    "boxPaddingBottom": 0,
+    "boxPaddingX": 0,
+    "boxLineHeight": 1.2,
+    "boxPerLine": true,
+    "rowGap": 70.73342742919922,
+    "letterSpacing": 0,
+    "shadowSpec": {
+      "color": "#000000",
+      "opacity": 1,
+      "angle": 135,
+      "distance": 5.217391014099121,
+      "size": 6.956521511077881,
+      "blur": 73.91304779052734
+    },
+    "baselineTop": 1097.9999542236328,
+    "strokeOn": true,
+    "strokeWidth": 7,
+    "strokeColor": "#000000"
+  },
+  "editing": {
+    "removeFillers": true,
+    "removeSilences": true
+  },
+  "prompt": {
+    "role": "조선일보 정쥐뿔 숏폼 편집자다.",
+    "format": "제공된 영상과 전사에서 하나의 완결된 발언·논점을 고른다.",
+    "good": "맥락을 보존한 완결된 발언",
+    "bad": "앞뒤 맥락을 제거해 발언의 의미를 바꾸는 편집",
+    "lengthGuide": "원문 맥락을 보존하는 길이. 고객 지정 길이는 미확인.",
+    "countGuide": "요청한 개수. 고객 기본 개수는 미확인.",
+    "rules": "전사에 없는 사실·인물·발언을 추가하지 않는다. 고객 편집 규칙은 아직 미확인이다.",
+    "headline": "두 줄. 프로젝트 예시처럼 첫 줄은 발언 대상이나 논점, 둘째 줄은 핵심 발언을 요약한다. 인용은 실제 발언일 때만 쓴다. 줄 길이 제한은 고객 확인 전 임시 운영 기준이며, 넘칠 경우 의미를 보존해 줄인다."
+  },
+  "schemaVersion": 1,
+  "labels": {
+    "top": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 100,
+      "size": 40,
+      "weight": 800
+    },
+    "footer": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 1750,
+      "size": 40,
+      "weight": 800
+    }
+  }
+}
