@@ -13,7 +13,7 @@ scope before import. Source mapping and the existing 60 fps hold recipe remain.
 The first nine parent-source real-file cases failed eight with one control.
 Additional regressions first failed for terminal timeout handling, noncallable
 liveness, A-B-A source changes during encode, standalone unmount, public errors
-and failed publication. Current real-file cache suite: 21 passing cases. It uses
+and failed publication. Current real-file cache suite: 22 passing cases. It uses
 the canonical file client, independently persisted bytes and local ffmpeg, both
 normal/minified panels, concurrent realms and a source above 32 MiB. Old hold
 decode/frame/Python parity checks remain. See
@@ -26,6 +26,11 @@ and user data were not migrated/deleted. Garbage collection/crash recovery, all
 option checks, the separate BPM lifetime, complete source-clock/composition,
 actual installed Selects/Windows, Inspector, whole AV/playback/export and
 reference/changed-input quality remain open.
+
+Parent #290's remote CI also exposed an unsupported-SDK entry ordering failure.
+Follow-up f2a6180811afdcc0f630748ce50bc8b511359d14 rejects a missing `runScript`
+before the music helper chain; that dependency fix is integrated here. The
+original common-async regression is retained in the expanded verification.
 
 ## Earlier repair checkpoint: 0.3.14
 

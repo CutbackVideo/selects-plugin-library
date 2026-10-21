@@ -729,10 +729,11 @@ async function readAssetFileIdentity(files,path,hashFile,current){
 // writers may publish different valid generations; neither mixes media/metadata.
 async function prepareDerivedAsset(files,options){
  const {directory,key,sourcePath,source,extension='mp4',isCurrent=()=>true,hashFile,produce,verify}=options??{};
+ if(typeof isCurrent!=='function')throw bundledAssetIssue('INPUT','The derived media liveness check must be callable.');
  const current=()=>{if(!isCurrent())throw bundledAssetIssue('STOPPED','The template run ended before prepared media could be published.');};
  const same=(a,b)=>a?.sha256===b?.sha256&&a?.bytes===b?.bytes;
  const valid=value=>value&&typeof value.sha256==='string'&&/^[0-9a-f]{64}$/.test(value.sha256)&&Number.isSafeInteger(value.bytes)&&value.bytes>0;
- const freshSource=async()=>{if(!same(await readAssetFileIdentity(files,sourcePath,hashFile,current),source))throw bundledAssetIssue('CHANGED','A source video changed during preparation. Start a new run.');};
+ const freshSource=async()=>{if(!same(await readAssetFileIdentity(files,sourcePath,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');};
  current();
  if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!valid(source)||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png'].includes(extension)||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
  if(['join','stat','readFile','exists','mkdir','writeFile','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
@@ -760,7 +761,7 @@ async function prepareDerivedAsset(files,options){
   // Reserve each private path exclusively before copying/encoding over it.
   for(const path of [snapshot,temporary]){current();await files.writeFile(path,'',{flag:'wx'});owned.push(path);current();}
   await files.copyFile(sourcePath,snapshot);current();
-  if(!same(await readAssetFileIdentity(files,snapshot,hashFile,current),source))throw bundledAssetIssue('CHANGED','A source video changed while its working copy was prepared. Start a new run.');
+  if(!same(await readAssetFileIdentity(files,snapshot,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed while its working copy was prepared. Start a new run.');
   await produce(snapshot,temporary);current();await freshSource();
   await verify(temporary);current();const output=await readAssetFileIdentity(files,temporary,hashFile,current);
   current();await files.mkdir(objectDirectory,{recursive:true});current();

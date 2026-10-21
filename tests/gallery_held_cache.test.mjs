@@ -93,3 +93,6 @@ test('Gallery hold: non-ASCII and shell-looking file names remain argv data',asy
 test('Gallery hold: large sources are streamed without reading them into browser byte buffers',async t=>{
  const f=await holdFixture(t);fs.appendFileSync(f.source,Buffer.alloc(33*1024*1024));const r=await f.run();assert.ok(fs.statSync(f.source).size>32*1024*1024);assert.equal(r.status,'converted');assert.ok(f.reads.every(x=>x.path.endsWith('.json')&&x.length<=49152));
 });
+test('Gallery shared owner: invalid liveness is a structured input failure before file I/O',async t=>{
+ const f=await holdFixture(t);await assert.rejects(f.derive({isCurrent:false}),e=>e.code==='BUNDLED_ASSET_INPUT'&&typeof e.publicMessage==='string');assert.equal(f.writes.length,0);assert.equal(f.calls.length,0);
+});

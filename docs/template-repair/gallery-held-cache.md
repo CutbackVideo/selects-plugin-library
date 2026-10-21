@@ -3,6 +3,10 @@
 Photo Grid Reveal (`photo-gallery-no2`) 0.3.15, based on
 c3879e32f399070ab347f9ccaa60b94a959e0af0 (draft PR #290). Chan's shortform plugins
 and template packs remain excluded. The full 28-template goal remains active.
+It also integrates parent follow-up f2a6180811afdcc0f630748ce50bc8b511359d14:
+remote CI's isolated unsupported-SDK music entry test now receives the existing
+update instruction before any helper/file/media work. The original regression
+and expanded SDK compatibility vector remain in verification.
 
 ## Reproduced failures
 
@@ -18,7 +22,8 @@ its `sameContext` predicate.
 The initial nine real-file parent cases failed eight with one control. Further
 red cases covered terminal cache-validation timeout, a noncallable liveness
 predicate, A-B-A replacement, standalone unmount, actionable public errors and
-failed output publication. The expanded real-file suite passes 21 cases.
+failed output publication and shared-owner input validation. The expanded
+real-file suite passes 22 cases.
 
 ## Shared owner and Gallery policy
 
@@ -64,6 +69,12 @@ and a source over 32 MiB without browser byte reads. Separate React tests verify
 standalone unmount and macOS/Windows argv/ownership integration. Actual Windows
 is still a separate gate; the local filesystem/media evidence is not installed
 Selects execution or whole-output AV acceptance.
+
+Final related Node verification passed 1,264 cases without skips, including the
+SDK compatibility vector that caught the parent failure. The exact Gallery CI
+command passed 277 without skips. Python passed 285 with six skips. Public-source,
+28-template normal pre-push, 48-package, five-module/ten-consumer, six-local-SDK and
+47-app-guard checks passed. Counts overlap and must not be added together.
 
 Already dispatched filesystem calls may finish after detachment. Process crashes
 can leave private staging or unindexed complete objects; automatic age-based
