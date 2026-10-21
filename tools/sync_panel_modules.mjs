@@ -17,15 +17,18 @@ try{
  for(const module of registry.modules){
   requireValue(typeof module.id==='string'&&/^[a-z][a-z0-9-]*$/.test(module.id)&&!ids.has(module.id),'Invalid or duplicate module ID');ids.add(module.id);
   requireValue(typeof module.source==='string'&&/^shared\/[a-z0-9-]+\.(?:js|cjs|mjs|ts)$/.test(module.source),'Invalid module source path');
-  requireValue(Array.isArray(module.targets)&&module.targets.length>0&&new Set(module.targets).size===module.targets.length,'Invalid module targets');
+  const compatibility=module.compatibilityTargets??[];
+  requireValue(Array.isArray(module.targets)&&module.targets.length>0&&Array.isArray(compatibility),'Invalid module targets');
+  const targets=[...module.targets,...compatibility];
+  requireValue(new Set(targets).size===targets.length,'Duplicate module targets');
   const source=readFileSync(path.join(root,module.source),'utf8').trimEnd();
   const start='// '+module.id+':start',end='// '+module.id+':end';
   requireValue(!source.includes(start)&&!source.includes(end),'Module source contains its own markers');
-  for(const target of module.targets){
+  for(const target of targets){
    const match=typeof target==='string'&&/^plugins\/([a-z0-9-]+)\/panel\.tsx$/.exec(target);
    requireValue(match&&!excluded.has(match[1]),'Invalid or excluded module consumer');
    const manifest=JSON.parse(readFileSync(path.join(root,'plugins',match[1],'plugin.json'),'utf8'));
-   requireValue(manifest.id===match[1]&&manifest.collection==='visual-highlights','Module consumer is not a Clip highlights template');
+   requireValue(manifest.id===match[1]&&(manifest.collection==='visual-highlights'||compatibility.includes(target)),'Module consumer is not a declared template or compatibility dependency');
    const filename=path.join(root,target),entry=updates.get(filename)||{before:readFileSync(filename,'utf8')};
    const current=entry.after??entry.before;
    const starts=[...current.matchAll(new RegExp('^'+start+'\\r?$','gm'))],ends=[...current.matchAll(new RegExp('^'+end+'\\r?$','gm'))];

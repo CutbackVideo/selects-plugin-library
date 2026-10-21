@@ -28,8 +28,16 @@ an unrelated workflow. A passing unit suite alone is not completion.
   2026-10-21. The original reported Gongju cause, full installed-template run,
   playback/export and supported-platform checks are still pending.
 - Four Photo Reveal/Camera Shutter Dump: original Image source preflight in
-  progress. Read-only checks must precede sounds/music import and Draft creation.
+  draft PR #259. Read-only checks precede sounds/music import and Draft creation.
+  Both remote CI checks passed on 2026-10-21; installed-template gates remain open.
   Preserve their existing reference timing, Image editing and partial-save rules.
+- Place Count's obsolete named capability query: independent draft PR #260;
+  canonical Draft-method checks and automated regressions pass. Installed-app
+  save/playback/export and the other six audited findings remain pending.
+- Shared AI observation: read-only bounded retries and recovery identity in
+  progress on the existing module; Depth/Travel pilots expanded to Jude/Portrait
+  with existing Cutout Gallery/a16z compatibility consumers. See the checkpoint
+  document; live inference and complete template outcomes remain pending.
 - Existing `shared/media-duration.js`, `shared/local-client.ts`, shared AI client,
   resource adapters, update guards and template-specific planners are reused
   where their contracts match. Do not add overlapping helpers by default.
@@ -64,18 +72,18 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `cinema-vlog-studio` | Source audit only | Full contract and runtime completion gates above |
 | `city-weekend-vlog` | Source audit only | Full contract and runtime completion gates above |
 | `daily-vlog-8` | Source audit only | Full contract and runtime completion gates above |
-| `depth-type-captions` | Source audit only | Full contract and runtime completion gates above |
+| `depth-type-captions` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `doac-style` | Source audit only | Full contract and runtime completion gates above |
 | `fast-switching-stopmotion` | Source audit only | Full contract and runtime completion gates above |
 | `four-photo-stop-motion` | Source audit only | Full contract and runtime completion gates above |
 | `gongju-gallery` | Duration regression + draft #258; CI pass | Full contract and runtime completion gates above |
-| `jude-kinetic-style` | Source audit only | Full contract and runtime completion gates above |
+| `jude-kinetic-style` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `mini-vlog` | Source audit only | Full contract and runtime completion gates above |
 | `no14-still-video` | Original-file RED/GREEN + shared input feature in progress | Full contract and runtime completion gates above |
 | `photo-gallery-no2` | Source audit only | Full contract and runtime completion gates above |
-| `place-count` | Source audit only | Full contract and runtime completion gates above |
+| `place-count` | Canonical authoring check + draft #260; automated regressions pass | Full contract and runtime completion gates above |
 | `polaroid-photo-dump` | Source audit only | Full contract and runtime completion gates above |
-| `portrait-beat-montage` | Source audit only | Full contract and runtime completion gates above |
+| `portrait-beat-montage` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `postcard-cutout-studio` | Source audit only | Full contract and runtime completion gates above |
 | `recap-2026` | Duration regression + draft #258; CI pass | Full contract and runtime completion gates above |
 | `selfie-aesthetic` | Source audit only | Full contract and runtime completion gates above |
@@ -83,5 +91,5 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `thank-you-recap` | Source audit only | Full contract and runtime completion gates above |
 | `the-end-credits` | Source audit only | Full contract and runtime completion gates above |
 | `torn-paper-love` | Source audit only | Full contract and runtime completion gates above |
-| `travel-beat-vlog` | Source audit only | Full contract and runtime completion gates above |
+| `travel-beat-vlog` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `vlog-opening` | Source audit only | Full contract and runtime completion gates above |

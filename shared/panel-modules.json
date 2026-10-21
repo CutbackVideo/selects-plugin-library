@@ -8,6 +8,19 @@
         "plugins/no14-still-video/panel.tsx",
         "plugins/camera-shutter-dump/panel.tsx"
       ]
+    },
+    {
+      "id": "ai-job-client",
+      "source": "shared/ai-job-client.cjs",
+      "targets": [
+        "plugins/depth-type-captions/panel.tsx",
+        "plugins/travel-beat-vlog/panel.tsx",
+        "plugins/jude-kinetic-style/panel.tsx",
+        "plugins/portrait-beat-montage/panel.tsx"
+      ],
+      "compatibilityTargets": [
+        "plugins/cutout-beat-gallery/panel.tsx"
+      ]
     }
   ]
 }
