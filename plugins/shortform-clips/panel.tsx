@@ -2415,13 +2415,15 @@ function SeriesFrame({ data }) {
   const logoImage = String(data?.logoImage ?? '');
   const logoWidth = Number(data?.logoWidth ?? 600);
   // A background image is one 1080x1920 picture shown only where the video window is not.
+  // Remount when the async image arrives: removing the fallback background shorthand
+  // otherwise resets unchanged backgroundSize/backgroundPosition longhands in React.
   const band = (y, h) =>
     bgImage ? (
-      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, backgroundImage: `url(${bgImage})`, backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px` }}>
+      <div key={`image-${y}`} style={{ position: 'absolute', left: 0, top: y, width: W, height: h, backgroundImage: `url(${bgImage})`, backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px` }}>
         {bgDim > 0 ? <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: h, background: `rgba(0,0,0,${bgDim / 100})` }} /> : null}
       </div>
     ) : (
-      <div style={{ position: 'absolute', left: 0, top: y, width: W, height: h, background: bg, ...(data?.backgroundCanvasAligned ? {backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px`} : {}) }} />
+      <div key={`fill-${y}`} style={{ position: 'absolute', left: 0, top: y, width: W, height: h, background: bg, ...(data?.backgroundCanvasAligned ? {backgroundSize: `${W}px ${H}px`, backgroundPosition: `0px ${-y}px`} : {}) }} />
     );
   const est = (t) => Array.from(t).reduce((w, ch) => w + (/[\uAC00-\uD7A3\u4E00-\u9FFF]/.test(ch) ? Number(data?.headlineFitCjk ?? .93) : ch === ' ' ? Number(data?.headlineFitSpace ?? .27) : /[A-ZMW]/.test(ch) ? Number(data?.headlineFitWideLatin ?? .6) : /[0-9A-Za-z%]/.test(ch) ? Number(data?.headlineFitLatin ?? .6) : Number(data?.headlineFitOther ?? .4)), 0);
   const fit = (t, size, maxW) => Math.max(12, Math.min(size, Math.floor(maxW / Math.max(1, est(t)) - Number(data?.headlineFitPadding ?? 2))));
