@@ -70,6 +70,55 @@ test('templates use independent settings without renderer families',{skip:!modul
   new Function('require','module','exports',esbuild.transformSync(JSON.parse(literal[1]),{loader:'tsx',format:'cjs'}).code)(dep,graphic,graphic.exports);
   return dep('react-dom/server').renderToStaticMarkup(dep('react').createElement(graphic.exports.default,{data:parameters}));
  }
+ await t.test('caption fitting uses the same safe width when omitted or explicitly supplied',()=>{
+  for(const mode of ['bar','box']){
+   const params={mode,fontSize:75,text:'\ub3d9\uc77c\ud55c \uc790\ub9c9\uc73c\ub85c \ud06c\uae30\uc640 \ud3f0\ud2b8\ub97c \ube44\uad50\ud569\ub2c8\ub2e4'};
+   const implicit=renderGraphic('CAPTION_TSX',params);
+   const explicit=renderGraphic('CAPTION_TSX',{...params,width:1000});
+   assert.equal(implicit,explicit);
+   assert.ok(Number(implicit.match(/font-size:([\d.]+)px/)[1])<75);
+   assert.ok(implicit.includes('overflow-wrap:anywhere'));
+   assert.ok(renderGraphic('CAPTION_TSX',{...params,text:'\uc9e7\uc740 \uc790\ub9c9'}).includes('font-size:75px'));
+   const emphasized=renderGraphic('CAPTION_TSX',{...params,text:'*\ub3d9\uc77c\ud55c \uc790\ub9c9\uc73c\ub85c \ud06c\uae30\uc640 \ud3f0\ud2b8\ub97c \ube44\uad50\ud569\ub2c8\ub2e4*'});
+   assert.equal(emphasized.match(/font-size:([\d.]+)px/)[1],implicit.match(/font-size:([\d.]+)px/)[1]);
+  }
+ });
+ await t.test('italic headlines retain the chosen face and tilt both gradient and plain text',()=>{
+  for(const headlineGradient1 of ['', 'linear-gradient(red,blue)']){
+   const params={headline1:'\ud310\uc77d\uae30 \uc81c\ubaa9',fontFamily:'SDGyeokdongG206Hv',headlineFontWeight:400,headlineItalic:true,headlineGradient1};
+   const html=renderGraphic('FRAME_TSX',params);
+   assert.ok(html.includes('SDGyeokdongG206Hv'));
+   assert.ok(html.includes('transform:skewX(-14deg)'));
+   assert.ok(!html.includes('font-style:italic'));
+   assert.ok(!renderGraphic('FRAME_TSX',{...params,headlineItalic:false}).includes('skewX'));
+  }
+ });
+ await t.test('Premiere typography survives template normalization and export rendering',()=>{
+  const expected=require('./fixtures/chosun-premiere-corrections.json').overrides;
+  for(const [id,correction] of Object.entries(expected)){
+   const template=api.validateTemplate(JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/chosun-ilbo/templates',id+'.json'),'utf8')));
+   const frame=api.radioFrameParams(template,'First','Second');
+   assert.equal(frame.fontFamily,correction.headline.font);
+   assert.equal(frame.headlineSize1,correction.headline.size1 ?? template.headline.size1);
+   assert.equal(frame.headlineSize2,correction.headline.size2 ?? template.headline.size2);
+   const html=renderGraphic('FRAME_TSX',frame);
+   assert.ok(html.includes(correction.headline.font),id+': selected face reaches export');
+   assert.ok(html.includes('font-size:'+template.headline.size1+'px'),id+': no size lost');
+   assert.ok(html.includes('font-weight:400'),id+': no synthetic bold');
+   if(id==='history'||id==='villain'){
+    assert.equal(frame.headlineStrokeOn,false);
+    assert.ok(html.includes('gap:14px'));
+    assert.ok(html.includes('padding:4px 18px 8px'));
+    assert.equal(frame.headlineSize1*frame.headlineLineHeight+6+14,136);
+   }
+   if(correction.captions){
+    const params=api.radioCaptionParams(template);
+    assert.equal(params.fontFamily,correction.captions.font);
+    assert.equal(params.fontSize,correction.captions.fontSize);
+    assert.ok(renderGraphic('CAPTION_TSX',{...params,text:'Caption'}).includes(correction.captions.font));
+   }
+  }
+ });
  await t.test('all shipped presets retain only the original TikTok design and identity',()=>{
   const root=path.join(__dirname,'../template-packs');
   const files=fs.readdirSync(root).flatMap(pack=>{
@@ -104,7 +153,7 @@ test('templates use independent settings without renderer families',{skip:!modul
    }
   }
   // These presets were migrated separately from the customer-specific app.
-  for(const id of ['heukbaek','history','kimkwangil','money','panilgi','villain']){
+  for(const id of ['heukbaek','history','money','panilgi','villain']){
    expectedFiles.push('chosun-ilbo/'+id+'.json');
    const current=JSON.parse(fs.readFileSync(path.join(root,'chosun-ilbo','templates',id+'.json'),'utf8'));
    assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);

@@ -13,7 +13,6 @@
   },
   "templates": [
     "templates/heukbaek.json",
-    "templates/kimkwangil.json",
     "templates/panilgi.json",
     "templates/history.json",
     "templates/villain.json",
@@ -22,8 +21,6 @@
   "assets": [
     "assets/heukbaek-background.webp",
     "assets/heukbaek-logo.webp",
-    "assets/kimkwangil-background.webp",
-    "assets/kimkwangil-logo.webp",
     "assets/panilgi-background.webp",
     "assets/panilgi-logo.webp",
     "assets/history-background.webp",
@@ -37,7 +34,6 @@
     "appId": "chosun-clips",
     "templateIds": {
       "heukbaek": "heukbaek",
-      "kimkwangil": "kimkwangil",
       "panilgi": "panilgi",
       "history": "history",
       "villain": "villain",
