@@ -1,0 +1,136 @@
+{
+  "id": "parenting",
+  "version": 2,
+  "names": {
+    "ko": "\uc721\uc544\ub611\ub611\ub611",
+    "en": "Parenting Knock Knock Knock"
+  },
+  "detect": {
+    "keywords": [
+      "\uc721\uc544\ub611\ub611\ub611",
+      "\uc721\uc544 \ub611\ub611\ub611"
+    ],
+    "exclude": [],
+    "host": "\uc721\uc544\ub611\ub611\ub611 \u2014 \uc18c\uc544\uccad\uc18c\ub144\uacfc \uc804\ubb38\uc758\uc640 \uc721\uc544 \uc0c1\ub2f4"
+  },
+  "layout": {
+    "windowTop": 394,
+    "windowBottom": 1500,
+    "sourceTop": 0,
+    "sourceBottom": 1080,
+    "offsetX": 0,
+    "headlineCenter": 263.8491938911378,
+    "logoCenter": 1660,
+    "reframe": false
+  },
+  "background": {
+    "mode": "image",
+    "style": "#FFF69B",
+    "color": "#FFF69B",
+    "image": "assets/parenting-frame.png",
+    "imageName": "Customer-supplied parenting frame",
+    "dim": 0,
+    "canvasAligned": true
+  },
+  "border": {
+    "on": false,
+    "color": "#C9A45C"
+  },
+  "headline": {
+    "font": "OTRecipekoreaM",
+    "size1": 74,
+    "size2": 73.83333587646484,
+    "color1": "#FFFFFF",
+    "color2": "#FFB7C8",
+    "box2On": false,
+    "box2": "#000000",
+    "italic": false,
+    "shadow": true,
+    "fontWeight": 400,
+    "lineHeight": 1.16,
+    "letterSpacing": -0.74,
+    "fitWidth": 1010,
+    "fitPadding": 0,
+    "fitCjk": 1,
+    "fitSpace": 0.28,
+    "fitLatin": 0.7,
+    "fitOther": 0.5,
+    "fitWideLatin": 0.8,
+    "strokeOn": true,
+    "strokeWidth": 12,
+    "strokeColor": "#000000",
+    "rowGap": 102.40504575520754,
+    "offsetX1": -1.024988770485038,
+    "offsetX2": -0.245936036110038,
+    "shadowSpec": {
+      "color": "#000000",
+      "opacity": 0.1,
+      "angle": 118,
+      "distance": 5,
+      "size": 0,
+      "blur": 20
+    }
+  },
+  "logo": {
+    "mode": "none",
+    "image": "",
+    "imageName": "Logo embedded in customer frame",
+    "width": 354
+  },
+  "captions": {
+    "on": true,
+    "mode": "box",
+    "barHeight": 230,
+    "bottom": 1400,
+    "fontSize": 88,
+    "fontWeight": 400,
+    "boxColor": "#343434A6",
+    "color": "#FFFFFF",
+    "font": "Hakgyoansim Allimjang",
+    "lineMax": 18,
+    "highlight": false,
+    "highlightColor": "#FFFF60",
+    "boxPerLine": true,
+    "boxPaddingTop": 5,
+    "boxPaddingBottom": 5,
+    "boxPaddingX": 20,
+    "boxLineHeight": 1.12,
+    "rowGap": 118.56,
+    "letterSpacing": 0,
+    "width": 1000,
+    "left": 40
+  },
+  "editing": {
+    "removeFillers": true,
+    "removeSilences": true
+  },
+  "prompt": {
+    "role": "\uc18c\uc544\uccad\uc18c\ub144\uacfc \uc804\ubb38\uc758\uc758 \uc721\uc544 \uc0c1\ub2f4\uc744 \ud3b8\uc9d1\ud558\ub294 \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4.",
+    "format": "\ubd80\ubaa8\uc758 \uc9c8\ubb38\uacfc \uc804\ubb38\uac00\uc758 \ub2f5\ubcc0\uc744 \ubb38\ub9e5\uc774 \uc644\uacb0\ub418\ub3c4\ub85d \uad6c\uc131\ud55c\ub2e4.",
+    "good": "\uc218\uc720\u00b7\uc218\uba74\u00b7\uc131\uc7a5\u00b7\uc608\ubc29\uc811\uc885\u00b7\uc544\uc774 \uac74\uac15\uc5d0 \uad00\ud55c \uad6c\uccb4\uc801\uc778 \uc9c8\ubb38\uacfc \ub2f5\ubcc0.",
+    "lengthGuide": "\uc9c8\ubb38\uacfc \ub2f5\ubcc0\uc774 \uc644\uacb0\ub418\ub294 \uae38\uc774",
+    "countGuide": "\uc11c\ub85c \uc911\ubcf5\ub418\uc9c0 \uc54a\ub294 \uc9c8\ubb38 \ub2e8\uc704\ub85c \uc120\uc815\ud55c\ub2e4.",
+    "rules": "\uc6d0\ubcf8\uc758 \ub300\uc0c1 \uc5f0\ub839\u00b7\uc99d\uc0c1\u00b7\uc8fc\uc758\uc0ac\ud56d\uc744 \uc720\uc9c0\ud55c\ub2e4. \uc601\uc0c1\uc5d0 \uc5c6\ub294 \ud6a8\ub2a5\u00b7\uc9c4\ub2e8\u00b7\uce58\ub8cc \uacb0\uacfc\ub97c \ucd94\uac00\ud558\uc9c0 \uc54a\ub294\ub2e4.",
+    "headline": "\ub450 \uc904 \uc81c\ubaa9\uc73c\ub85c \uc4f4\ub2e4. \uccab \uc904\uc5d0\ub294 \ubd80\ubaa8\uac00 \uad81\uae08\ud574\ud560 \uc0c1\ud669\uc774\ub098 \uc9c8\ubb38\uc744, \ub458\uc9f8 \uc904\uc5d0\ub294 \uc601\uc0c1\uc5d0\uc11c \ub2f5\ud558\ub294 \uad6c\uccb4\uc801\uc778 \uc721\uc544 \uc8fc\uc81c\ub97c \ub2f4\ub294\ub2e4. \uac19\uc740 \ub0b4\uc6a9\uc744 \ubc18\ubcf5\ud558\uc9c0 \uc54a\ub294\ub2e4. \uc6d0\ubcf8\uc758 \uc911\uc694\ud55c \uc5f0\ub839\u00b7\uc870\uac74\uc744 \uc0dd\ub7b5\ud558\uc9c0 \uc54a\uace0 \uc704\ud5d8\uc774\ub098 \ud6a8\uacfc\ub97c \uacfc\uc7a5\ud558\uc9c0 \uc54a\ub294\ub2e4. \uae34 \ubb38\uc7a5\ubcf4\ub2e4 \ud55c\ub208\uc5d0 \uc77d\ud788\ub294 \uc9e7\uc740 \ubb38\uad6c\ub97c \uc6b0\uc120\ud55c\ub2e4.",
+    "bad": "\uc778\uc0ac, \uad11\uace0, \ubc18\ubcf5, \ub2f5\ubcc0\uc758 \ub300\uc0c1 \uc5f0\ub839\uc774\ub098 \uc870\uac74\uc774 \ube60\uc9c4 \ubd80\ubd84."
+  },
+  "schemaVersion": 1,
+  "labels": {
+    "top": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 100,
+      "size": 40,
+      "weight": 800
+    },
+    "footer": {
+      "on": false,
+      "text": "",
+      "x": 540,
+      "y": 1750,
+      "size": 40,
+      "weight": 800
+    }
+  }
+}

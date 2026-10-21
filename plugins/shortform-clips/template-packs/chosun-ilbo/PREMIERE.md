@@ -189,3 +189,58 @@ for the second title and both caption lines. This is not pixel identity. The
 native reference has missing-media placeholders over the title background and
 logo: first-title full bounds, original assets, and the complete composition
 remain unverified. Do not substitute the legacy WebPs as verified original files.
+
+## Smart Parenting
+
+Source: `customer-supplied Smart Parenting Premiere project (.prproj)` from the supplied folder.
+The active RSV example uses AE.ADBE Text components 206/207:
+
+- PostScript font `OTRecipekoreaM`, sizes 74 / 73.83333587646484.
+- Fill white / #FFB7C8; black stroke width 6; tracking -10 (−0.01 em).
+- Baselines 223.73417120426893 / 326.13921695947647 on a 1080×1920 canvas.
+- Row gap 102.40504575520754; X offsets −1.024988770485038 / −0.245936036110038.
+- CSS center accounts for the local OTF hhea ascent/descent (800 / −500).
+- Shadow black, opacity .25, angle 118°, distance 5, size 9, blur 141.42462158203125.
+- Customer `KakaoTalk_Photo_2026-10-19-20-19-42-6.png` is preserved byte-for-byte;
+  it includes the bottom program logo. Original linked name: `Parenting Shorts frame dated 2026-06-24 (.png)`.
+
+The muted flu example uses 66.2631607055664 for both rows, a 92 px row gap,
+and an additional −3 px parent transform. Local comparisons retain that variant
+explicitly; the installed default uses the active RSV example.
+
+Dialogue captions use the customer-requested Hakgyoansim Allimjang R, registered
+as the CSS typographic family `Hakgyoansim Allimjang` at weight 400
+(PostScript face: `HakgyoansimAllimjang-Regular`). The supplied Premiere
+project has no matching dialogue layer. The default now uses the per-line
+translucent gray boxes from official Short `q3AIJHoqg4Q` at 9 seconds:
+88 px text, white fill, #343434A6 background, 20 px horizontal and 5 px
+vertical padding, 1.12 line height, 118.56 px row pitch, bottom 1400.
+Each line has its own content-width box. Automatic yellow emphasis and the
+previous soft shadow are disabled. Box geometry is a **video-reference
+approximation**, not a Premiere extraction; the requested font takes priority
+over inferring the font from the reference. The gray-box caption is part of
+the template, not a separately distributed custom overlay.
+
+Premiere Pro 2026 successfully exported the reference at 00:00:14:07 in the
+follow-up run. Only the customer frame was relinked; missing audio/name media
+were offline. Recipekorea was available (only the unused name-graphic fonts
+were reported missing). Native PNG and real Selects exports were compared.
+Premiere's outward 6px outline is represented by a 12px centered CSS stroke
+painted behind the fill. The raw shadow values above produced too broad a
+halo in SVG; parenting alone now uses an empirically calibrated effective
+opacity .10, size 0 and blur 20, retaining angle 118 and distance 5.
+This is a renderer approximation, not a change to the recorded source values.
+Title-band RGB MAE against native Premiere fell from 15.94 to 7.20 (0–255,
+1080×394 pixels). Remaining glyph rasterization and shadow differences mean
+this is not a pixel-identical result. Other templates retain their shadows.
+The video window 394–1500 is now also visible in the native reference export.
+
+Ink-bound captions measure the requested font size directly before fitting;
+the previous character-count pre-shrink could make otherwise fitting text
+unnecessarily small. This path is shared with the health template.
+
+Missing referenced media: `Jo Gi-hye name graphic (.png)`, `male label (.png)`, `female label (.png)`,
+`cute-caption heart R (.png)`, `cute-caption heart L (.png)`,
+`Paper Planes - Morning Color.mp3`, `Ty Simon - Tea Time.mp3`,
+`Young Rich Pixies - Cartoon Ukulele - Loop.mp3`. These are not silently replaced
+or bundled. Local videos, font files and comparison reports stay outside Git.
