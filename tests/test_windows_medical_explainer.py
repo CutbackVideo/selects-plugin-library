@@ -89,7 +89,7 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('gen[q.gen] = { key: q.key, attempt: q.attempt, jobId };', submit)
         # Nothing in the observer submits under a new key, and a deadline never marks a job failed.
         self.assertNotIn('failed: "timeout"', self.panel)
-        self.assertIn('reason: "still running"', run)
+        self.assertIn('reason: "still " + statusOf(q)', run)
         self.assertNotIn('localStorage', self.runtime)
         self.assertIn('if (!storageReady) return;', self.panel)
 

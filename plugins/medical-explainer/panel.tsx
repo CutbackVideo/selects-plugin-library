@@ -310,7 +310,7 @@ type Strings = {
   estimate: (images: number, clips: number, clipSeconds: number, transitions: number, narrations: number, music: boolean, kfModel: string) => string;
   kfModel: string; fluxNote: string; kfModelUsed: (label: string) => string; policyScenes: string; policyTransitions: string;
   policyTitle: string; policyScene: (n: number, label: string) => string; policyRegen: (model: string) => string; policyUseStill: string;
-  policyRegenFailed: string; policyStill: string; modelFixed: (model: string) => string;
+  policyRegenFailed: string; policyStill: string; ignoredUnresolved: string; modelFixed: (model: string) => string;
   produceKf: string; produce: string; producing: string; steps: string[];
   kfTitle: string; kfHint: string; kfScene: (n: number, label: string) => string; approveKf: string;
   done: string; openHint: string; fallbackClips: string; dissolves: string; mismatches: string; verifyOk: string; verifySkipped: string;
@@ -365,6 +365,7 @@ const STRINGS: Record<string, Strings> = {
     policyTransitions: "Transitions the video model refused for content policy (shown as a dissolve)",
     policyTitle: "Refused by the video model", policyScene: (n, l) => `Scene ${n}${l ? " \u00b7 " + l : ""}: the video model (Kling) refused this keyframe for its content policy. Nothing was charged for the refusal.`,
     policyRegen: (m) => `Regenerate this scene's keyframe with ${m} (uses credits)`, policyUseStill: "Use still image",
+    ignoredUnresolved: "Extra candidates left unfinished by Selects and not used (never resubmitted; other candidates were used)",
     policyRegenFailed: "The new keyframe could not be made; choose again.", policyStill: "Scenes shown as a still image after a policy refusal",
     modelFixed: (m) => `This job keeps ${m}. A different keyframe model applies to a new job: write the script again.`,
     styleChanged: "Scene 1's pick changed: scenes 2 onward were drawn with the earlier scene 1 as their style reference, so their look may differ a little.",
@@ -414,6 +415,7 @@ const STRINGS: Record<string, Strings> = {
     kfModelUsed: (l) => `\ud0a4\ud504\ub808\uc784: ${l}`, policyScenes: "\uc601\uc0c1 \ubaa8\ub378 \uc815\ucc45 \uac70\ubd80 \ud6c4 \ud0a4\ud504\ub808\uc784\uc744 \ub2e4\uc2dc \ub9cc\ub4e0 \uc7a5\uba74",
     policyTitle: "\uc601\uc0c1 \ubaa8\ub378\uc774 \uac70\ubd80\ud55c \uc7a5\uba74", policyScene: (n, l) => `\uc7a5\uba74 ${n}${l ? " \u00b7 " + l : ""}: \uc601\uc0c1 \ubaa8\ub378(Kling)\uc774 \ucf58\ud150\uce20 \uc815\ucc45\uc73c\ub85c \uc774 \ud0a4\ud504\ub808\uc784\uc744 \uac70\ubd80\ud588\uc2b5\ub2c8\ub2e4. \uac70\ubd80\ub41c \uc791\uc5c5\uc5d0\ub294 \ud06c\ub808\ub527\uc774 \ucc28\uac10\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.`,
     policyRegen: (m) => `${m}(\uc73c)\ub85c \uc774 \uc7a5\uba74 \ud0a4\ud504\ub808\uc784 \ub2e4\uc2dc \ub9cc\ub4e4\uae30(\ud06c\ub808\ub527 \uc0ac\uc6a9)`, policyUseStill: "\uc815\uc9c0 \uc774\ubbf8\uc9c0 \uc0ac\uc6a9",
+    ignoredUnresolved: "Selects\uc5d0\uc11c \ub05d\ub098\uc9c0 \uc54a\uc544 \uc4f0\uc9c0 \uc54a\uc740 \ucd94\uac00 \ud6c4\ubcf4(\ub2e4\uc2dc \uc694\uccad\ud558\uc9c0 \uc54a\uc74c, \ub2e4\ub978 \ud6c4\ubcf4 \uc0ac\uc6a9)",
     policyRegenFailed: "\uc0c8 \ud0a4\ud504\ub808\uc784\uc744 \ub9cc\ub4e4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc120\ud0dd\ud558\uc138\uc694.", policyStill: "\uc815\ucc45 \uac70\ubd80 \ud6c4 \uc815\uc9c0 \uc774\ubbf8\uc9c0\ub85c \ubcf4\uc5ec\uc8fc\ub294 \uc7a5\uba74",
     modelFixed: (m) => `\uc774 \uc791\uc5c5\uc740 ${m}\uc744(\ub97c) \uacc4\uc18d \uc501\ub2c8\ub2e4. \ub2e4\ub978 \ud0a4\ud504\ub808\uc784 \ubaa8\ub378\uc740 \uc0c8 \uc791\uc5c5\uc5d0 \uc801\uc6a9\ub429\ub2c8\ub2e4. \ub300\ubcf8\uc744 \ub2e4\uc2dc \ub9cc\ub4dc\uc138\uc694.`,
     policyTransitions: "\uc601\uc0c1 \ubaa8\ub378\uc774 \ucf58\ud150\uce20 \uc815\ucc45\uc73c\ub85c \uac70\ubd80\ud55c \uc804\ud658(\ub514\uc878\ube0c\ub85c \ud45c\uc2dc)",
@@ -1814,15 +1816,26 @@ export const MED_DELIVERY_RETRIES = 3;
 // { submit(q) -> jobId, list(jobIds) -> snapshots, retryDelivery(jobId) }; `opts` carries persist, sleep, now,
 // stopped and progress. Returns { failed: [{gen, code}], unresolved: [{gen, reason}] }. Nothing here ever submits
 // under a new key: that is the caller's decision, for known failures only.
+// Multi-candidate stages (keyframe candidates, scene clip takes, transition takes): a scene needs one delivered
+// candidate. Once every scene that can still deliver has one, and only non-terminal jobs are left (for example the
+// host's submission_unknown, which the host recovers by itself and which is never resubmitted), the stage waits
+// MED_GEN_GRACE_MS after its last delivery and then goes on without them. They are not cancelled or resubmitted: the
+// record is marked ignored ("unresolved"), listed in the run summary, and a late result is not used.
+export const MED_GEN_GRACE_MS = 3 * 60 * 1000;
+const groupOf = (g) => g.split(":").slice(0, 2).join(":");
 export async function medRunGenerations(reqs, gen, api, opts) {
-  const o = { deadlineMs: MED_GEN_DEADLINE_MS, pollMs: MED_GEN_POLL_MS, deliveryRetries: MED_DELIVERY_RETRIES, stopped: () => false, progress: () => {}, ...opts };
-  const failed = [], unresolved = [], pending = [];
-  let done = 0;
+  const o = { deadlineMs: MED_GEN_DEADLINE_MS, pollMs: MED_GEN_POLL_MS, deliveryRetries: MED_DELIVERY_RETRIES, graceMs: MED_GEN_GRACE_MS,
+    multi: false, stopped: () => false, progress: () => {}, ...opts };
+  const failed = [], unresolved = [], ignored = [], pending = [];
+  const delivered = new Set();
+  let done = 0, lastDelivery = null;
+  const ignore = (q, reason) => { gen[q.gen] = { ...gen[q.gen], ignored: reason }; ignored.push({ gen: q.gen, reason }); };
   for (const q of reqs) {
     const cur = gen[q.gen];
     const same = cur && cur.key === q.key;
-    if (same && cur.path) { done++; continue; }
+    if (same && cur.path) { done++; delivered.add(groupOf(q.gen)); continue; }
     if (same && cur.failed) { failed.push({ gen: q.gen, code: cur.failed, ...(cur.policy ? { policy: true } : {}) }); continue; }
+    if (same && cur.ignored && o.multi) { ignored.push({ gen: q.gen, reason: cur.ignored }); continue; }
     if (!same || !cur.jobId) {
       if (o.stopped()) throw new Error("stopped");
       gen[q.gen] = { key: q.key, attempt: q.attempt, phase: "submitting" };
@@ -1843,13 +1856,20 @@ export async function medRunGenerations(reqs, gen, api, opts) {
     }
     pending.push(q);
   }
-  const retries = new Map();
+  if (delivered.size) lastDelivery = o.now();
+  const retries = new Map(), status = new Map();
   const deadline = o.now() + o.deadlineMs;
+  const statusOf = (q) => status.get(q.gen) || "running";
+  // Every scene that can still deliver (not all of its candidates failed) has a delivered candidate.
+  const allServed = (left) => [...new Set([...left.map((q) => groupOf(q.gen))])].every((g) => delivered.has(g));
   let left = pending;
   while (left.length) {
     if (o.stopped()) throw new Error("stopped");
     if (o.now() > deadline) {
-      for (const q of left) unresolved.push({ gen: q.gen, reason: "still running" });
+      for (const q of left) {
+        if (o.multi && delivered.has(groupOf(q.gen))) ignore(q, "unresolved");
+        else unresolved.push({ gen: q.gen, reason: "still " + statusOf(q) });
+      }
       break;
     }
     const rows = await api.list(left.map((q) => gen[q.gen].jobId));
@@ -1858,8 +1878,10 @@ export async function medRunGenerations(reqs, gen, api, opts) {
     const next = [];
     for (const q of left) {
       const entry = gen[q.gen];
-      const c = medClassifyJob(byId.get(entry.jobId));
-      if (c.state === "delivered") { gen[q.gen] = { ...entry, path: c.path }; done++; }
+      const row = byId.get(entry.jobId);
+      if (row) status.set(q.gen, [row.status, row.deliveryStatus].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(" / "));
+      const c = medClassifyJob(row);
+      if (c.state === "delivered") { gen[q.gen] = { ...entry, path: c.path }; done++; delivered.add(groupOf(q.gen)); lastDelivery = o.now(); }
       else if (c.state === "failed") {
         gen[q.gen] = { ...entry, failed: c.code, ...(c.policy ? { policy: true } : {}) };
         failed.push({ gen: q.gen, code: c.code, ...(c.policy ? { policy: true } : {}) });
@@ -1867,15 +1889,21 @@ export async function medRunGenerations(reqs, gen, api, opts) {
       else if (c.state === "delivery_failed") {
         const n = retries.get(entry.jobId) || 0;
         if (n < o.deliveryRetries) { retries.set(entry.jobId, n + 1); await api.retryDelivery(entry.jobId); next.push(q); }
+        else if (o.multi && delivered.has(groupOf(q.gen))) ignore(q, "delivery " + c.code);
         else unresolved.push({ gen: q.gen, reason: "delivery " + c.code });
       } else next.push(q);
+    }
+    // The grace period: every scene served, only non-terminal jobs left, 3 minutes since the last delivery.
+    if (o.multi && next.length && allServed(next) && lastDelivery !== null && o.now() - lastDelivery >= o.graceMs) {
+      for (const q of next) ignore(q, "unresolved");
+      next.length = 0;
     }
     await o.persist();
     o.progress(done, reqs.length);
     left = next;
     if (left.length) await o.sleep(o.pollMs);
   }
-  return { failed, unresolved };
+  return { failed, unresolved, ignored };
 }
 
 // One kind of request for `only` ids, each at the attempt its record is on (a recorded request is never re-keyed).
@@ -1894,11 +1922,12 @@ export async function medGenerateKind(ctx, kind, only) {
     return out;
   };
   const base = await ctx.requests(kind, only, 1);
-  const first = await ctx.generate(await atAttempts(base.map((q) => [genId(q.gen), (ctx.gen[q.gen] && ctx.gen[q.gen].attempt) || 1])));
+  const multi = ["keyframes", "clips", "transitions"].includes(kind);
+  const first = await ctx.generate(await atAttempts(base.map((q) => [genId(q.gen), (ctx.gen[q.gen] && ctx.gen[q.gen].attempt) || 1])), { multi });
   if (first.unresolved.length) throw ctx.unresolved(first.unresolved);
   const retry = first.failed.filter((f) => !f.policy);
   if (!retry.length) return first.failed;
-  const second = await ctx.generate(await atAttempts(retry.map((f) => [genId(f.gen), ((ctx.gen[f.gen] && ctx.gen[f.gen].attempt) || 1) + 1])));
+  const second = await ctx.generate(await atAttempts(retry.map((f) => [genId(f.gen), ((ctx.gen[f.gen] && ctx.gen[f.gen].attempt) || 1) + 1])), { multi });
   if (second.unresolved.length) throw ctx.unresolved(second.unresolved);
   return [...first.failed.filter((f) => f.policy), ...second.failed];
 }
@@ -2439,7 +2468,7 @@ function Panel({ sdk, context, ui }: any) {
   // Submits what has no job yet (or only a recorded, unacknowledged submission: the same key resolves to the same
   // job), then observes. Returns { failed, unresolved }: failed = the host reports a terminal failure; unresolved =
   // still running at the deadline, or delivered nowhere after bounded delivery retries. Neither is resubmitted here.
-  async function generate(st: Store, sc: any, reqs: any[], label: string) {
+  async function generate(st: Store, sc: any, reqs: any[], label: string, extra: any = {}) {
     const m = generation();
     if (!m) throw new Error(S.noGeneration);
     return await medRunGenerations(reqs, st.gen, {
@@ -2451,7 +2480,7 @@ function Panel({ sdk, context, ui }: any) {
       list: (ids: string[]) => listJobs(sc, ids),
       retryDelivery: (id: string) => m.retryDelivery(sc, id),
     }, {
-      persist: () => persist(st), sleep, now: () => Date.now(), stopped: () => st.stopped,
+      ...extra, persist: () => persist(st), sleep, now: () => Date.now(), stopped: () => st.stopped,
       progress: (done: number, total: number) => { if (label && !st.stopped) setStatus(`${label} · ${done}/${total}`); },
     });
   }
@@ -2461,7 +2490,7 @@ function Panel({ sdk, context, ui }: any) {
       gen: st.gen,
       requests: async (kind: string, ids: string[], attempt: number) =>
         (await run("requests", dir, [kind, ids.join(","), ...(attempt > 1 ? ["--attempt", String(attempt)] : [])], kind)).requests,
-      generate: (reqs: any[]) => generate(st, sc, reqs, label),
+      generate: (reqs: any[], extra?: any) => generate(st, sc, reqs, label, extra),
       unresolved: (list: any[]) => unresolvedError(list),
       readPicks: () => readPicks(dir),
       writePicks: (picks: any) => writePicks(dir, picks),
@@ -2832,6 +2861,7 @@ function Panel({ sdk, context, ui }: any) {
       }
       await saveRecovery({ jobId: j0.id, dir, phase: "done", done: true });
       setResult({ seconds: pj.seconds, fallback: pj.fallback || [], dissolves: pj.dissolves || [], mismatches: pj.mismatches || [],
+        ignored: Object.entries(st.gen).filter(([, v]: any) => v && v.ignored && !v.path).map(([k]) => k),
         kfModel: medKfModel(set.kfModel).label, policyScenes: pj.policyScenes || [], policyStill: pj.policyStill || [], policyTransitions: pj.policyTransitions || [],
         verifySkipped: !!pj.verifySkipped, noMusic: !!pj.noMusic, dropped: sel.dropped || [] });
       setStep(6);
@@ -3011,6 +3041,7 @@ function Panel({ sdk, context, ui }: any) {
           {result.dropped.length > 0 && <small>{S.pointersDropped}: {result.dropped.join(", ")}</small>}
           <small>{S.kfModelUsed(result.kfModel)}</small>
           {result.policyScenes.length > 0 && <small>{S.policyScenes}: {result.policyScenes.join(", ")}</small>}
+          {result.ignored.length > 0 && <small>{S.ignoredUnresolved}: {result.ignored.join(", ")}</small>}
           {result.policyStill.length > 0 && <small>{S.policyStill}: {result.policyStill.join(", ")}</small>}
           {result.policyTransitions.length > 0 && <small>{S.policyTransitions}: {result.policyTransitions.map((n: string) => `${n}\u2192${Number(n) + 1}`).join(", ")}</small>}
           {result.noMusic && <small>{S.noMusic}</small>}

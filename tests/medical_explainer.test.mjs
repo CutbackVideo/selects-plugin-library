@@ -444,10 +444,10 @@ test('generation: a known failure is reported without polling or resubmitting; a
   const gen = {'narr:1': {key: REQ('narr:1').key, attempt: 1, jobId: 'selects-old', failed: 'failed'}};
   const h = fakeHost(() => ({status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: '/n2.mp3'}]}));
   const r = await op.medRunGenerations([REQ('narr:1')], gen, h.api, h.opts);
-  assert.deepEqual(r, {failed: [{gen: 'narr:1', code: 'failed'}], unresolved: []});
+  assert.deepEqual(r, {failed: [{gen: 'narr:1', code: 'failed'}], unresolved: [], ignored: []});
   assert.deepEqual(h.log.submits, []);
   const r2 = await op.medRunGenerations([REQ('narr:1', 2)], gen, h.api, h.opts);
-  assert.deepEqual(r2, {failed: [], unresolved: []});
+  assert.deepEqual(r2, {failed: [], unresolved: [], ignored: []});
   assert.deepEqual(h.log.submits, [REQ('narr:1', 2).key]);
   assert.deepEqual(gen['narr:1'], {key: REQ('narr:1', 2).key, attempt: 2, jobId: 'selects-' + REQ('narr:1', 2).key, path: '/n2.mp3'});
 });
@@ -466,12 +466,12 @@ test('generation: a job still running at the deadline is unresolved, never faile
   const h = fakeHost(() => ({status: 'in_progress', deliveryStatus: 'waiting'}));
   const r = await op.medRunGenerations([REQ('clip:1:A'), REQ('clip:1:B')], gen, h.api, {...h.opts, deadlineMs: 60000});
   assert.deepEqual(r.failed, []);
-  assert.deepEqual(r.unresolved.map((u) => [u.gen, u.reason]), [['clip:1:A', 'still running'], ['clip:1:B', 'still running']]);
+  assert.deepEqual(r.unresolved.map((u) => [u.gen, u.reason]), [['clip:1:A', 'still in_progress / waiting'], ['clip:1:B', 'still in_progress / waiting']], 'the host status is shown');
   assert.equal(h.log.submits.length, 2);
   assert.ok(!gen['clip:1:A'].failed && gen['clip:1:A'].jobId);
   // Resuming reconnects to the same jobs; nothing is submitted again.
   const h2 = fakeHost(() => ({status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: '/c.mp4'}]}));
-  assert.deepEqual(await op.medRunGenerations([REQ('clip:1:A'), REQ('clip:1:B')], gen, h2.api, h2.opts), {failed: [], unresolved: []});
+  assert.deepEqual(await op.medRunGenerations([REQ('clip:1:A'), REQ('clip:1:B')], gen, h2.api, h2.opts), {failed: [], unresolved: [], ignored: []});
   assert.deepEqual(h2.log.submits, []);
 });
 
@@ -486,7 +486,7 @@ test('generation: a lost delivery gets bounded retryDelivery calls, then is surf
   // A retry that works delivers the file.
   const gen2 = {};
   const h2 = fakeHost((id, n) => (n === 1 ? {status: 'succeeded', deliveryStatus: 'download_failed', outputs: []} : {status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: '/t.mp4'}]}));
-  assert.deepEqual(await op.medRunGenerations([REQ('tr:1:A')], gen2, h2.api, h2.opts), {failed: [], unresolved: []});
+  assert.deepEqual(await op.medRunGenerations([REQ('tr:1:A')], gen2, h2.api, h2.opts), {failed: [], unresolved: [], ignored: []});
   assert.equal(gen2['tr:1:A'].path, '/t.mp4');
 });
 
@@ -1100,7 +1100,72 @@ test('the failed Staging job resumes: a recorded submission under the rejected k
   const submits = [];
   const api = {submit: async (q) => { submits.push(q.key); return 'selects-x'; }, list: async (ids) => ids.map((id) => ({jobId: id, status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: '/k.png'}]})), retryDelivery: async () => {}};
   const r = await op.medRunGenerations(reqs, gen, api, {persist: async () => {}, sleep: async () => {}, now: () => 0});
-  assert.deepEqual(r, {failed: [], unresolved: []});
+  assert.deepEqual(r, {failed: [], unresolved: [], ignored: []});
   assert.deepEqual(submits, [reqs[0].key]);
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+// ---- a candidate stuck at the host (Staging: kf:6:A "submission_unknown" while 6B was delivered) ----
+function stuckHost(stuck) {
+  const log = {submits: [], lists: 0};
+  let clock = 0;
+  const api = {
+    submit: async (q) => { log.submits.push(q.gen); return 'selects-' + q.key; },
+    list: async (ids) => { log.lists++; clock += 4000; return ids.map((id) => stuck.some((g) => id.includes(g))
+      ? {jobId: id, status: 'submission_unknown', deliveryStatus: 'submission_unknown', errorCode: 'submission_unknown', outputs: []}
+      : {jobId: id, status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: '/' + id}]}); },
+    retryDelivery: async () => {},
+  };
+  return {api, log, opts: {persist: async () => {}, sleep: async (ms) => { clock += ms; }, now: () => clock}};
+}
+const KF = (n, c) => ({gen: `kf:${n}:${c}`, attempt: 1, key: `mxT-kf-${n}-${c}-1`});
+
+test('a candidate stuck at the host: once every scene has one, the stage goes on after the grace period, never resubmitting', async () => {
+  const gen = {};
+  const h = stuckHost(['kf-6-A']);
+  const reqs = [KF(5, 'A'), KF(5, 'B'), KF(6, 'A'), KF(6, 'B')];
+  const r = await op.medRunGenerations(reqs, gen, h.api, {...h.opts, multi: true});
+  assert.deepEqual(r, {failed: [], unresolved: [], ignored: [{gen: 'kf:6:A', reason: 'unresolved'}]});
+  assert.equal(h.log.submits.length, 4, 'submitted once each, never again');
+  assert.equal(gen['kf:6:A'].ignored, 'unresolved');
+  assert.ok(gen['kf:6:A'].jobId && !gen['kf:6:A'].failed && !gen['kf:6:A'].path, 'not cancelled, not failed');
+  const polls = h.log.lists;
+  assert.ok(polls * 8000 >= op.MED_GEN_GRACE_MS && polls * 8000 < op.MED_GEN_DEADLINE_MS / 4, `waited about the grace period (${polls} polls)`);
+  // Resume: the ignored record is not polled or submitted again, and a late result does not change it.
+  const h2 = stuckHost([]);
+  const again = await op.medRunGenerations(reqs, gen, h2.api, {...h2.opts, multi: true});
+  assert.deepEqual(again.ignored, [{gen: 'kf:6:A', reason: 'unresolved'}]);
+  assert.deepEqual(h2.log.submits, []);
+  assert.equal(h2.log.lists, 0);
+  assert.ok(!gen['kf:6:A'].path);
+});
+
+test('a scene with no delivered candidate keeps the deadline: unresolved with the host status, never ignored or resubmitted', async () => {
+  const gen = {};
+  const h = stuckHost(['kf-6-A', 'kf-6-B']);
+  const r = await op.medRunGenerations([KF(5, 'A'), KF(6, 'A'), KF(6, 'B')], gen, h.api, {...h.opts, multi: true});
+  assert.deepEqual(r.ignored, []);
+  assert.deepEqual(r.unresolved.map((u) => [u.gen, u.reason]), [['kf:6:A', 'still submission_unknown'], ['kf:6:B', 'still submission_unknown']]);
+  assert.equal(h.log.submits.length, 3);
+  // Single-candidate needs (narration, music) never use the grace period.
+  const g2 = {};
+  const h3 = stuckHost(['narr-2']);
+  const n = await op.medRunGenerations([{gen: 'narr:1', attempt: 1, key: 'mxT-narr-1-1'}, {gen: 'narr:2', attempt: 1, key: 'mxT-narr-2-1'}], g2, h3.api, h3.opts);
+  assert.deepEqual(n.unresolved.map((u) => u.gen), ['narr:2']);
+  assert.deepEqual(n.ignored, []);
+});
+
+test('the keyframe stage proceeds with the delivered candidate (scene 6 uses B)', async () => {
+  const {dir} = makeJob({kfModel: 'nano-banana-2.1'});
+  const gen = {};
+  const h = stuckHost(['kf-2-A']);
+  const ctx = {gen, requests: async (kind, ids, attempt) => (await op.medEngine('requests', dir, [kind, ids.join(','), ...(attempt > 1 ? ['--attempt', String(attempt)] : [])], stubIO(dir))).requests,
+    generate: (reqs, extra) => op.medRunGenerations(reqs, gen, h.api, {...h.opts, ...extra}), unresolved: (l) => Object.assign(new Error('unresolved'), {unresolved: l})};
+  fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'A'}}));
+  const failed = await op.medGenerateKind(ctx, 'keyframes', ['2', '3']);
+  assert.deepEqual(failed, []);
+  assert.equal(gen['kf:2:A'].ignored, 'unresolved');
+  assert.ok(gen['kf:2:B'].path);
+  assert.equal(h.log.submits.filter((g) => g === 'kf:2:A').length, 1);
   fs.rmSync(dir, {recursive: true, force: true});
 });
