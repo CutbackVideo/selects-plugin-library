@@ -107,7 +107,19 @@ function harness(media = photos, options = {}) {
       existsSync: path => disk.has(path) || (!options.musicMissing && path.endsWith('SKILL.md')) || /short\.mp4$/.test(path),
       statSync: p => disk.has(p)||/short\.mp4$/.test(p)?{size:disk.get(p)?.length??1000,mtimeMs:1,isDirectory:false}:null, renameSync: (from, to) => {tools.push(['rename', from, to]);disk.set(to,disk.get(from));disk.delete(from);},
       copyFile:async(from,to)=>{disk.set(to,Buffer.from(disk.get(from)??Buffer.alloc(1000)));},
-      writeFile: async (p,bytes) => {disk.set(p,Buffer.from(bytes));}, removeFile: async ({filePath}) => {disk.delete(filePath);},
+      writeFile: async (p,bytes,options) => {
+        if(options?.flag==='wx'&&disk.has(p))throw Object.assign(Error('EEXIST'),{code:'EEXIST'});
+        disk.set(p,Buffer.from(bytes));
+      }, removeFile: async ({filePath}) => {disk.delete(filePath);},
+      readRange: async (p,offset,length) => {
+        if(!disk.has(p))throw Object.assign(Error('ENOENT'),{code:'ENOENT'});
+        return disk.get(p).subarray(offset,offset+length);
+      },
+      compareAndReplace: async (p,expected,replacement) => {
+        if(!disk.has(p))throw Object.assign(Error('ENOENT'),{code:'ENOENT'});
+        if(!disk.get(p).equals(Buffer.from(expected)))return false;
+        disk.set(p,Buffer.from(replacement));return true;
+      },
       readFile: async p => disk.get(p)??(options.pcm ? Buffer.from(options.pcm.buffer) : Buffer.alloc(0)) },
     Runtime: { getPlatform: () => options.platform || 'darwin',
       runFFprobe: async args => { tools.push(['ffprobe', ...args]); return { stdout: probed(args.at(-1)), stderr: '' }; },

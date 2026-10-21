@@ -952,7 +952,7 @@ async function prepareDerivedAsset(files,options){
  const freshSource=async()=>{if(!same(await readAssetFileIdentity(files,sourcePath,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');};
  current();
  if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!valid(source)||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png','f32'].includes(extension)||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
- if(['join','stat','readFile','exists','mkdir','writeFile','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
+ if(['join','stat','readFile','readRange','exists','mkdir','writeFile','compareAndReplace','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
  const indexDirectory=files.join(directory,'index'),objectDirectory=files.join(directory,'objects',key),indexPath=files.join(indexDirectory,key+'.json');
  const cached=async()=>{
   current();let candidate;
@@ -972,10 +972,38 @@ async function prepareDerivedAsset(files,options){
  if(typeof owner!=='string'||!/^[0-9a-f-]{36}$/i.test(owner))throw bundledAssetIssue('UNSUPPORTED','The media preparation owner could not be created.');
  current();await files.mkdir(directory,{recursive:true});current();
  const snapshot=files.join(directory,'.source-'+owner),temporary=files.join(directory,'.output-'+owner+'.'+extension+'.tmp');
- const owned=[];let result;
+ const owned=new Set(),tokens=new Set();let result;
+ const reservationUnknown=cause=>Object.assign(bundledAssetIssue('RESERVATION_UNKNOWN','The media file reservation could not be confirmed. Inspect the preparation workspace before starting again.',cause),{terminal:true});
+ // Ownership observations are bounded and can run after cancellation so only
+ // positively identified reservations enter cleanup. A filename alone is not proof.
+ const observe=async path=>{
+  try{
+   const before=await files.stat(path);
+   if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<0||before.size>1024)return null;
+   const bytes=await files.readRange(path,0,before.size),after=await files.stat(path);
+   if(!(bytes instanceof Uint8Array)||bytes.length!==before.size||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))return null;
+   return new TextDecoder('utf-8',{fatal:true}).decode(bytes);
+  }catch{return null;}
+ };
+ const reserve=async(path,role)=>{
+  current();const token=crypto.randomUUID();
+  if(typeof token!=='string'||!/^[0-9a-f-]{36}$/i.test(token)||token===owner||tokens.has(token))throw bundledAssetIssue('UNSUPPORTED','The media reservation owner could not be created.');
+  tokens.add(token);const marker=JSON.stringify({version:1,kind:'derived-reservation',owner,token,role});let creationFailure;
+  try{await files.writeFile(path,marker,{flag:'wx'});}catch(error){creationFailure=error;}
+  if(await observe(path)!==marker)throw reservationUnknown(creationFailure);
+  owned.add(path);current();
+  // Consume exactly this marker to retain the established empty-output contract.
+  // During an unobserved replacement, cleanup must not race a late rename.
+  owned.delete(path);let replaced,clearFailure;
+  try{replaced=await files.compareAndReplace(path,marker,'');}catch(error){clearFailure=error;}
+  const cleared=await observe(path);
+  if(replaced===false){if(cleared===marker)owned.add(path);throw reservationUnknown(clearFailure);}
+  if(cleared!=='')throw reservationUnknown(clearFailure);
+  owned.add(path);current();
+ };
  try{
   // Reserve each private path exclusively before copying/encoding over it.
-  for(const path of [snapshot,temporary]){current();await files.writeFile(path,'',{flag:'wx'});owned.push(path);current();}
+  await reserve(snapshot,'source');await reserve(temporary,'output');
   await files.copyFile(sourcePath,snapshot);current();
   if(!same(await readAssetFileIdentity(files,snapshot,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed while its working copy was prepared. Start a new run.');
   await produce(snapshot,temporary);current();await freshSource();

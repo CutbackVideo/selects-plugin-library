@@ -1,4 +1,4 @@
-import { asyncSdk } from '../../tests/windows_host.mjs';
+import { asyncSdk, realFileReservationMethods } from '../../tests/windows_host.mjs';
 // The panel's short-video hold (the `// hold:start` block of panel.template.tsx) run in node:vm on the av-host
 // helpers, with an initialized async SDK fixture backed by node fs and local ffmpeg/ffprobe (the bundled tools in
 // Selects). It replaces hold_video.py; dev/hold_video.py stays as the parity reference on a dev Mac.
@@ -34,6 +34,7 @@ function host({ calls = [] } = {}) {
     mkdirSync: (p, o) => fs.mkdirSync(p, o), statSync: p => { try {const s=fs.statSync(p);return {size:s.size,mtimeMs:s.mtimeMs,ino:s.ino,isDirectory:s.isDirectory()}; } catch { return null; } },
     renameSync: (a, b) => fs.renameSync(a, b), copyFile:async(a,b)=>fs.copyFileSync(a,b),writeFile: async (p, d, o) => fs.writeFileSync(p, d, o),
     readFile: async p => fs.readFileSync(p), removeFile: async ({ filePath }) => fs.rmSync(filePath, { force: true }),
+    ...realFileReservationMethods(),
   };
   const Runtime = { getPlatform: () => process.platform, runFFmpeg: run('ffmpeg'), runFFprobe: run('ffprobe') };
   return { FileSystem, Runtime };
@@ -41,7 +42,7 @@ function host({ calls = [] } = {}) {
 function load(di) {
   const window = { parent: { __DI__: new Proxy(di, { get() { throw Error("Unexpected DI access"); } }) } };
   const context = vm.createContext({ panelLocalClient: sdk => sdk, sdk: asyncSdk(di), window, navigator: {}, crypto: globalThis.crypto, TextEncoder, TextDecoder,
-    AbortController, setTimeout, clearTimeout, console });
+    AbortController, Uint8Array, setTimeout, clearTimeout, console });
   vm.runInContext(blocks + '\nhostUseSdk(sdk); this.holdVideos = holdVideos; this.holdDimensions = holdDimensions;', context);
   return context;
 }

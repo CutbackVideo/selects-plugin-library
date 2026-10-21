@@ -1,6 +1,24 @@
 # Validation and limits
 
-## Current repair checkpoint: 0.3.19
+## Current repair checkpoint: 0.3.20
+
+Private source/output reservations now use exact per-file ownership markers,
+bounded independent readback and one existing compare-and-replace operation to
+preserve the empty-output producer contract. A lost completed response does not
+cause a blind retry or an untracked staging file. Unknown/foreign reservations
+and pending replacements are retained rather than raced by cleanup.
+
+The initial ten cases fail seven against the exact parent, retaining three
+controls; the expanded nineteen pass. Six actual development-app SDK scenarios
+also reproduce the old physical orphan and confirm the fixed recovery, foreign
+file preservation and legacy append contract with no Project mutations. This
+is direct shared-owner execution, not a full panel or Windows verdict. The
+related 31-file run passes 831 cases with no skips; Python runs 299 cases
+(293 pass, six existing skips). Existing consumer and generation checks pass.
+See `docs/template-repair/gallery-stage-ownership.md` for limits, prerequisite
+SDK contracts and remaining crash/cleanup/bounded-reader work.
+
+## Previous lifetime checkpoint: 0.3.19
 
 The existing derived-file owner now observes the optional AbortSignal through
 file checks and checks liveness again after asynchronous private-path cleanup.

@@ -1,4 +1,4 @@
-import { asyncSdk } from '../../tests/windows_host.mjs';
+import { asyncSdk, realFileReservationMethods } from '../../tests/windows_host.mjs';
 // The panel's BPM estimate (the `// tempo:start` block of panel.template.tsx) run in node:vm on the av-host helpers,
 // with an initialized async SDK fixture backed by node fs and local ffmpeg (the bundled ffmpeg in Selects). It replaces
 // tempo.py; dev/tempo.py stays as the parity reference on a dev Mac, on the fixtures of dev/tempo_test.py.
@@ -26,7 +26,8 @@ function load({ calls = [], withFFmpeg = true } = {}) {
     exists:async p=>fs.existsSync(p),mkdir:async(p,o)=>fs.mkdirSync(p,o),
     stat:async p=>{try{const s=fs.statSync(p);return {size:s.size,mtimeMs:s.mtimeMs,ino:s.ino,isDirectory:s.isDirectory()};}catch(e){if(e.code==='ENOENT')return null;throw e;}},
     copyFile:async(a,b)=>fs.copyFileSync(a,b),rename:async(a,b)=>fs.renameSync(a,b),writeFile:async(p,d,o)=>fs.writeFileSync(p,d,o),
-    readFile: async p => fs.readFileSync(p), removeFile: async ({ filePath }) => fs.rmSync(filePath, { force: true }) };
+    readFile: async p => fs.readFileSync(p), removeFile: async ({ filePath }) => fs.rmSync(filePath, { force: true }),
+    ...realFileReservationMethods() };
   const Runtime = { getPlatform: () => process.platform };
   if (withFFmpeg) Runtime.runFFmpeg = (args, _quiet, signal) => new Promise((resolve, reject) => {
     calls.push([...args]);

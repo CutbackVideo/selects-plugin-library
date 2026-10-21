@@ -31,6 +31,16 @@ export async function holdFixture(t,{minify=false,sourceName='source.mp4'}={}){
   readRange:async({path:p,offset,length})=>{reads.push({path:p,offset,length});await hooks.beforeRead?.(p,offset,length);const handle=await fsp.open(p,'r');try{const bytes=Buffer.alloc(length),{bytesRead}=await handle.read(bytes,0,length,offset);return {bytesRead,base64:bytes.subarray(0,bytesRead).toString('base64')};}finally{await handle.close();}},
   writeChunk:async input=>{writes.push(input.path);await hooks.beforeWrite?.(input);const bytes=Buffer.from(input.base64,'base64');if(input.mode==='exclusive')await fsp.writeFile(input.path,bytes,{flag:'wx'});else if(input.mode==='append')await fsp.appendFile(input.path,bytes);else{const current=await fsp.stat(input.path);if(current.size!==input.offset)throw Error('Bad append offset');await fsp.appendFile(input.path,bytes);}await hooks.afterWrite?.(input);return {bytesWritten:bytes.length};},
   rename:async(from,to)=>{renames.push({from,to});await hooks.beforeRename?.(from,to);await fsp.rename(from,to);await hooks.afterRename?.(from,to);},copy:async(from,to)=>{await hooks.beforeCopy?.(from,to);await fsp.copyFile(from,to);await hooks.afterCopy?.(from,to);},
+  compareAndReplace:async input=>{
+   await hooks.beforeCompareAndReplace?.(input);
+   const expected=input.expectedBase64===null?null:Buffer.from(input.expectedBase64,'base64');
+   const actual=fs.existsSync(input.path)?await fsp.readFile(input.path):null;
+   if(expected===null?actual!==null:actual===null||!actual.equals(expected))return {replaced:false};
+   const temporary=input.path+'.fixture-cas-'+webcrypto.randomUUID();let created=false;
+   try{await fsp.writeFile(temporary,Buffer.from(input.base64,'base64'),{flag:'wx'});created=true;await fsp.rename(temporary,input.path);}
+   finally{if(created)await fsp.rm(temporary,{force:true});}
+   await hooks.afterCompareAndReplace?.(input);return {replaced:true};
+  },
  };
  const sdk={runScript:async input=>{try{return {result:await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects:{files}})};}catch(e){return {isError:true,output:e.message};}}};
  const run=bin=>async(args,quiet,signal)=>{

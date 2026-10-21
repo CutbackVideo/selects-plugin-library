@@ -97,7 +97,17 @@ test('Gallery hold: non-ASCII and shell-looking file names remain argv data',asy
  const f=await holdFixture(t,{sourceName:"source $() 'quote' \uc601\uc0c1.mp4"}),before=hash(f.source),r=await f.run();assert.equal(r.videos[0].sourcePath,f.source);assert.equal(hash(f.source),before);assert.equal(path.basename(r.videos[0].outputPath,'.mp4'),hash(r.videos[0].outputPath));
 });
 test('Gallery hold: large sources are streamed without reading them into browser byte buffers',async t=>{
- const f=await holdFixture(t);fs.appendFileSync(f.source,Buffer.alloc(33*1024*1024));const r=await f.run();assert.ok(fs.statSync(f.source).size>32*1024*1024);assert.equal(r.status,'converted');assert.ok(f.reads.every(x=>x.path.endsWith('.json')&&x.length<=49152));
+ const f=await holdFixture(t);fs.appendFileSync(f.source,Buffer.alloc(33*1024*1024));
+ f.hooks.beforeRead=(file,offset,length)=>{
+  assert.notEqual(file,f.source,'source media stays in the streaming hash/encoder path');
+  if(file.endsWith('.json')){assert.ok(length<=49152);return;}
+  assert.equal(path.dirname(file),path.join(f.data,'held-v3'));
+  assert.match(path.basename(file),/^\.(source-|output-)/);
+  assert.equal(offset,0);assert.ok(length<=1024);assert.ok(fs.statSync(file).size<=1024);
+  assert.equal(JSON.parse(fs.readFileSync(file,'utf8')).kind,'derived-reservation','only bounded ownership metadata may be read');
+ };
+ const r=await f.run();assert.ok(fs.statSync(f.source).size>32*1024*1024);assert.equal(r.status,'converted');
+ assert.ok(f.reads.every(x=>x.path.endsWith('.json')?x.length<=49152:x.length<=1024));
 });
 test('Gallery shared owner: invalid liveness is a structured input failure before file I/O',async t=>{
  const f=await holdFixture(t);await assert.rejects(f.derive({isCurrent:false}),e=>e.code==='BUNDLED_ASSET_INPUT'&&typeof e.publicMessage==='string');assert.equal(f.writes.length,0);assert.equal(f.calls.length,0);
