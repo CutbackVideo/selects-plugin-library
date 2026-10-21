@@ -3,7 +3,7 @@
 Five requested designs migrated from `plugins/chosun-clips` on branch
 `chosun-ilbo`, commit `2938989c4f647fdb2d0fef685a91f39174cb39ac`.
 
-Templates: heukbaek, panilgi, history, villain, money, health.
+Templates: heukbaek, panilgi, history, villain, money, health, parenting.
 The health design is newly transcribed from the supplied Premiere project and
 customer frame; it was not migrated from the old app.
 The ten background/logo WebP files are decoded byte-for-byte from the old
@@ -34,7 +34,7 @@ an explicit, field-by-field list of Premiere corrections.
 ## Customer requirement coverage
 
 The supplied team requirements identify nine programs. This migration includes
-the five legacy designs and the newly transcribed health design:
+the five legacy designs and the newly transcribed health and parenting designs:
 
 | Program | Pack ID | Status |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ the five legacy designs and the newly transcribed health design:
 | Villain Story | `villain` | Legacy design included; supplied Premiere project available for comparison |
 | Money Watch | `money` | Legacy design included; no matching Premiere project in the supplied folder |
 | This Makes You Better | `health` | Supplied frame, Premiere typography/transforms; actual Premiere PNG and same-text official Short compared locally |
-| Smart Parenting | — | Requested; Premiere project supplied, pack template not yet implemented |
+| Smart Parenting | `parenting` | Supplied frame and Premiere title values; two official Shorts compared locally. Dialogue captions calibrated to the official flu Short, retaining the requested Allimjang R face; title checked against native Premiere render. |
 | Jeongjwippul | — | Requested; Premiere project supplied, pack template not yet implemented |
 | Today's One Minute | — | Requested; Premiere project supplied, pack template not yet implemented |
 
@@ -63,3 +63,8 @@ Several original linked assets were not supplied.
 The extracted legacy images must not be represented as verified replacements
 for those missing Premiere assets. Customer projects, screenshots, font files
 and visual inspection reports stay in the local inspection workspace.
+
+Parenting requires locally available `OTRecipekoreaM` (Recipekorea) and
+`HakgyoansimAllimjang-Regular` (KERIS Allimjang R). Fonts are not bundled.
+Its logo is embedded in the customer frame, so the separate logo layer is off.
+See PREMIERE.md for source-backed title values and video-derived caption settings.
