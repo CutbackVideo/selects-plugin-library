@@ -94,9 +94,9 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('if (!storageReady) return;', self.panel)
 
     def test_new_attempts_only_for_known_failures_or_the_users_choice(self):
-        kind = self.panel[self.panel.index('async function generateKind('):self.panel.index('function unresolvedError(')]
-        self.assertIn('if (first.unresolved.length) throw unresolvedError(first.unresolved);', kind)
-        self.assertIn('for (const f of first.failed)', kind)
+        kind = self.panel[self.panel.index('export async function medGenerateKind('):self.panel.index('const takeLetters = ')]
+        self.assertIn('if (first.unresolved.length) throw ctx.unresolved(first.unresolved);', kind)
+        self.assertIn('const retry = first.failed.filter((f) => !f.policy);', kind)
         # The only other path to a new attempt is the explicit "Resubmit (may charge again)" button.
         self.assertEqual(self.panel.count('failed: "resubmitted_by_user"'), 1)
         self.assertIn('onClick={() => produce(job, false, undefined, unresolved)}', self.panel)
@@ -109,6 +109,12 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('if (st) st.stopped = true;', self.panel)
         self.assertLess(self.panel.index('await openReview(dir, p);'), self.panel.index('generateKind(st, sc, dir, "music"'))
 
+    def test_keyframe_model_choice_is_a_setting(self):
+        self.assertIn('<ui.Select label={S.kfModel} value={kfModel} onChange={setKfModel}', self.panel)
+        self.assertIn('{!medKfModel(kfModel).edit && <ui.Message tone="muted">{S.fluxNote}</ui.Message>}', self.panel)
+        self.assertIn('export const MED_KF_DEFAULT = "seedream";', self.panel)
+        self.assertIn('const stage = await medClipsStage(kindCtx(st, sc, dir, S.steps[2]), sceneIds);', self.panel)
+
     def test_update_guard_policy_and_hook(self):
         policies = json.loads((ROOT / 'shared' / 'app-update-guard-policies.json').read_text(encoding='utf-8'))
         self.assertEqual(policies['medical-explainer'], {'Panel': 'busy'})
@@ -120,7 +126,7 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('{noHost && <ui.Message>{S.noHost}</ui.Message>}', self.panel)
         langs = re.findall(r'^  (\w\w): \{$', self.panel, flags=re.M)
         self.assertEqual(sorted(langs), ['en', 'ko'])
-        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged']:
+        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged', 'kfModel', 'fluxNote', 'policyScenes', 'policyTransitions']:
             self.assertEqual(len(re.findall(r'\b%s: "' % key, self.panel)), len(langs), key)
 
     def test_korean_fallback_fonts_in_every_overlay(self):

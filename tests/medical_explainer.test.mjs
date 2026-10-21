@@ -511,8 +511,8 @@ test('the job list is read for this job only, with the fields the app needs', as
   const src = op.medJobsScript('p1', ['selects-3', 'selects-7']).replace(/: any/g, '');
   const out = await new Function('selects', `return (async () => {${src}})();`)({generation: {jobs: async (pid) => { assert.equal(pid, 'p1'); return rows; }}});
   assert.deepEqual(out, [
-    {jobId: 'selects-3', status: 'succeeded', deliveryStatus: 'delivered', errorCode: null, outputs: [{status: 'delivered', path: '/p3'}]},
-    {jobId: 'selects-7', status: 'succeeded', deliveryStatus: 'delivered', errorCode: null, outputs: [{status: 'delivered', path: '/p7'}]},
+    {jobId: 'selects-3', status: 'succeeded', deliveryStatus: 'delivered', errorCode: null, issues: [], outputs: [{status: 'delivered', path: '/p3'}]},
+    {jobId: 'selects-7', status: 'succeeded', deliveryStatus: 'delivered', errorCode: null, issues: [], outputs: [{status: 'delivered', path: '/p7'}]},
   ]);
   assert.ok(JSON.stringify(out).length < 1000);
 });
@@ -571,4 +571,165 @@ test('captions run without a gap from the first sentence to the end of the Draft
     }
   }
   fs.rmSync(dir, {recursive: true, force: true});
+});
+
+// ---- keyframe model choice and the content-policy fallback ----
+// Input fields each model's schema defines (models.schema on the live catalog, 2026-10-22).
+const KF_SCHEMA = {
+  'bytedance/seedream/v5/pro/text-to-image': ['prompt', 'image_size', 'num_images', 'output_format', 'enhance_prompt_mode', 'enable_safety_checker', 'sync_mode'],
+  'bytedance/seedream/v5/pro/edit': ['prompt', 'image_urls', 'image_size', 'num_images', 'output_format', 'enhance_prompt_mode', 'enable_safety_checker', 'sync_mode'],
+  'google/nano-banana-2.1': ['prompt', 'seed', 'sync_mode', 'safety_tolerance', 'num_images', 'resolution', 'aspect_ratio', 'thinking_level', 'limit_generations', 'system_prompt', 'enable_web_search', 'output_format'],
+  'google/nano-banana-2.1/edit': ['prompt', 'image_urls', 'output_format', 'resolution', 'pdf_url', 'thinking_level', 'enable_web_search', 'seed', 'safety_tolerance', 'video_url', 'aspect_ratio', 'system_prompt', 'sync_mode', 'limit_generations', 'num_images'],
+  'fal-ai/nano-banana-pro': ['prompt', 'resolution', 'safety_tolerance', 'output_format', 'sync_mode', 'num_images', 'aspect_ratio', 'enable_web_search', 'system_prompt', 'seed', 'limit_generations'],
+  'fal-ai/nano-banana-pro/edit': ['prompt', 'image_urls', 'resolution', 'safety_tolerance', 'output_format', 'sync_mode', 'num_images', 'aspect_ratio', 'enable_web_search', 'system_prompt', 'seed', 'limit_generations'],
+  'openai/gpt-image-2.5/flare/text-to-image': ['prompt', 'image_size', 'background', 'sync_mode', 'output_format', 'quality', 'output_compression', 'enable_safety_checker', 'num_images'],
+  'openai/gpt-image-2.5/flare/edit': ['prompt', 'image_urls', 'image_size', 'mask_url', 'background', 'sync_mode', 'output_format', 'quality', 'output_compression', 'enable_safety_checker', 'num_images'],
+  'blackforestlabs/flux-3/text-to-image': ['prompt', 'resolution', 'safety_tolerance', 'aspect_ratio', 'output_format', 'sync_mode', 'version', 'enable_prompt_expansion'],
+};
+const KF_ENUMS = {aspect_ratio: ['16:9'], resolution: ['2K', '2k'], image_size: ['landscape_16_9'], output_format: ['png']};
+const KF_ENDPOINTS = {
+  seedream: ['bytedance/seedream/v5/pro/text-to-image', 'bytedance/seedream/v5/pro/edit'],
+  'nano-banana-2.1': ['google/nano-banana-2.1', 'google/nano-banana-2.1/edit'],
+  'nano-banana-pro': ['fal-ai/nano-banana-pro', 'fal-ai/nano-banana-pro/edit'],
+  'gpt-image-2.5': ['openai/gpt-image-2.5/flare/text-to-image', 'openai/gpt-image-2.5/flare/edit'],
+  'flux-3': ['blackforestlabs/flux-3/text-to-image', null],
+};
+
+test('keyframe models: scene 1 from text, scenes 2-N as edits of scene 1, only schema fields, 16:9', async () => {
+  assert.equal(op.MED_KF_DEFAULT, 'seedream');
+  assert.deepEqual(Object.keys(op.MED_KF_MODELS), Object.keys(KF_ENDPOINTS));
+  for (const [id, [t2i, edit]] of Object.entries(KF_ENDPOINTS)) {
+    const m = op.MED_KF_MODELS[id];
+    assert.equal(decode(m.t2i), t2i, id);
+    assert.equal(m.edit ? decode(m.edit) : null, edit, id);
+    const {dir} = makeJob({kfModel: id});
+    fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'A'}}));
+    const reqs = (await op.medEngine('requests', dir, ['keyframes', '1,2'], stubIO(dir))).requests;
+    assert.deepEqual(reqs.map((r) => r.gen), ['kf:1:A', 'kf:1:B', 'kf:2:A', 'kf:2:B'], id);
+    for (const r of reqs) {
+      const endpoint = decode(r.modelId);
+      const scene1 = r.gen.startsWith('kf:1:');
+      assert.equal(endpoint, scene1 || !edit ? t2i : edit, `${id} ${r.gen}`);
+      for (const k of Object.keys(r.input)) assert.ok(KF_SCHEMA[endpoint].includes(k), `${endpoint} has no ${k}`);
+      for (const [k, allowed] of Object.entries(KF_ENUMS)) if (typeof r.input[k] === 'string') assert.ok(allowed.includes(r.input[k]), `${id} ${k}=${r.input[k]}`);
+      assert.ok(r.input.aspect_ratio === '16:9' || r.input.image_size === 'landscape_16_9' || r.input.image_size?.width / r.input.image_size?.height === 16 / 9, id);
+      assert.ok(r.input.prompt.includes(op.MED_STYLE));
+      if (!scene1 && edit) { assert.deepEqual(r.input.image_urls, ['selects-input:ref']); assert.deepEqual(Object.keys(r.uploads), ['ref']); }
+      else { assert.ok(!('image_urls' in r.input)); assert.deepEqual(r.uploads, {}); }
+      if (id !== 'seedream') assert.match(r.key, new RegExp(`-m${id.replace('.', '\\.')}`), 'a model choice is part of the request key');
+    }
+    fs.rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+// A fake Selects host for the clip stage: Kling refuses keyframes listed in `refuse` for content policy, delivers
+// everything else; `pending` keeps a job running forever.
+function policyHost(dir, {refuse = new Set(), pending = new Set(), submitRefuse = false} = {}) {
+  const jobs = new Map();
+  const log = {submits: [], kfPolicy: []};
+  const api = {
+    submit: async (q) => {
+      log.submits.push(q);
+      if (q.gen.startsWith('kf:') && q.gen.endsWith(':S')) log.kfPolicy.push(q);
+      const kf = q.uploads.start ? path.basename(q.uploads.start) : '';
+      const refused = q.gen.startsWith('clip:') && [...refuse].some((x) => kf.includes(x));
+      if (refused && submitRefuse) throw new Error('generation_api_422:content_policy_violation');
+      jobs.set('selects-' + q.key, {refused, pending: pending.has(q.gen), out: path.join(dir, `${q.outputName}.${q.tool === 'image' ? 'png' : 'mp4'}`)});
+      return 'selects-' + q.key;
+    },
+    list: async (ids) => ids.map((id) => {
+      const j = jobs.get(id);
+      if (j.pending) return {jobId: id, status: 'in_progress', deliveryStatus: 'waiting', outputs: []};
+      if (j.refused) return {jobId: id, status: 'failed', deliveryStatus: 'failed', errorCode: 'provider_failed', issues: ['content_policy_violation'], outputs: []};
+      fs.writeFileSync(j.out, 'x');
+      return {jobId: id, status: 'succeeded', deliveryStatus: 'delivered', outputs: [{status: 'delivered', path: j.out}]};
+    }),
+    retryDelivery: async () => {},
+  };
+  return {api, log};
+}
+async function clipStageFixture(hostOpts) {
+  const {dir} = makeJob({kfModel: 'nano-banana-2.1'});
+  const io = stubIO(dir, {duration: async (p) => NARR[Number(/narr_(\d)_/.exec(p)[1]) - 1]});
+  await op.medEngine('timeline', dir, [], io);
+  fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'A', 2: 'B', 3: 'A', 4: 'A'}, clip: {}, tr: {}}));
+  const gen = JSON.parse(fs.readFileSync(path.join(dir, 'gen.json'), 'utf8'));
+  const host = policyHost(dir, hostOpts);
+  let clock = 0;
+  const ctx = {
+    gen,
+    requests: async (kind, ids, attempt) => {
+      fs.writeFileSync(path.join(dir, 'gen.json'), JSON.stringify(gen));
+      const r = await op.medEngine('requests', dir, [kind, ids.join(','), ...(attempt > 1 ? ['--attempt', String(attempt)] : [])], io);
+      assert.notEqual(r.ok, false, r.error);
+      return r.requests;
+    },
+    generate: (reqs) => op.medRunGenerations(reqs, gen, host.api, {persist: async () => {}, sleep: async (ms) => { clock += ms; }, now: () => clock, deadlineMs: 60000}),
+    unresolved: (list) => Object.assign(new Error('unresolved'), {unresolved: list.map((u) => u.gen)}),
+    readPicks: async () => JSON.parse(fs.readFileSync(path.join(dir, 'picks.json'), 'utf8')),
+    writePicks: async (p) => fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify(p)),
+  };
+  return {dir, io, gen, host, ctx};
+}
+
+test('policy rejection of a clip: Seedream keyframe for that scene, clips again under new keys, success', async () => {
+  const {dir, io, gen, host, ctx} = await clipStageFixture({refuse: new Set(['kf_2B'])});
+  const out = await op.medClipsStage(ctx, ['1', '2', '3', '4']);
+  assert.deepEqual(out, {replaced: ['2'], still: []});
+  assert.equal(host.log.kfPolicy.length, 1);
+  const kf = host.log.kfPolicy[0];
+  assert.equal(decode(kf.modelId), 'bytedance/seedream/v5/pro/edit', 'Seedream 5.0 Pro, whatever the chosen model');
+  assert.equal(kf.input.prompt, op.medKeyframePrompt(JSON.parse(fs.readFileSync(path.join(dir, 'plan.json'), 'utf8')).scenes[1], true), 'same prompt');
+  assert.match(kf.uploads.ref, /kf_1A\.png$/, 'scene 1 is still the style reference');
+  const picks = JSON.parse(fs.readFileSync(path.join(dir, 'picks.json'), 'utf8'));
+  assert.equal(picks.kf['2'], 'S');
+  assert.deepEqual(picks.policy, {2: true});
+  const clip2 = host.log.submits.filter((q) => q.gen.startsWith('clip:2:'));
+  assert.equal(clip2.length, 4, 'two refused takes, then two new ones');
+  assert.notEqual(clip2[2].key, clip2[0].key);
+  assert.match(clip2[2].key, /-kS$/);
+  assert.match(clip2[2].uploads.start, /kf_2_S_1\.png$/);
+  assert.ok(gen['clip:2:A'].path && !gen['clip:2:A'].failed);
+  // Refusals are not retried with the same keyframe: no third attempt of the refused takes.
+  assert.ok(clip2.every((q) => q.attempt === 1));
+  void io;
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('a second policy rejection falls back to the still zoom and marks the scene; a refused submission counts too', async () => {
+  for (const submitRefuse of [false, true]) {
+    const {dir, io, host, ctx} = await clipStageFixture({refuse: new Set(['kf_3A', 'kf_3_S']), submitRefuse});
+    const out = await op.medClipsStage(ctx, ['1', '2', '3', '4']);
+    assert.deepEqual(out, {replaced: ['3'], still: ['3']}, `submitRefuse=${submitRefuse}`);
+    assert.equal(host.log.kfPolicy.length, 1, 'one Seedream keyframe, never a second');
+    // The strip step uses the replacement keyframe for the still zoom.
+    const strips = [];
+    fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({...JSON.parse(fs.readFileSync(path.join(dir, 'picks.json'), 'utf8')), clip: {1: 'A', 2: 'A', 4: 'A'}}));
+    const r = await op.medEngine('strips', dir, [], {...io, ffmpeg: async (a) => { strips.push(a); fs.writeFileSync(a.at(-1), 'x'); }, duration: async () => 6});
+    assert.deepEqual(r.fallback, [3]);
+    const still = strips.find((a) => a.includes('-loop'));
+    assert.match(still[still.indexOf('-i') + 1], /kf_3_S_1\.png$/);
+    fs.rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('an unknown or unresolved clip job never triggers the policy fallback', async () => {
+  const {dir, host, ctx} = await clipStageFixture({pending: new Set(['clip:2:A', 'clip:2:B'])});
+  await assert.rejects(op.medClipsStage(ctx, ['1', '2', '3', '4']), (e) => e.unresolved?.includes('clip:2:A'));
+  assert.equal(host.log.kfPolicy.length, 0);
+  assert.equal(op.medIsPolicyRejection({status: 'unknown', errorCode: undefined}), false);
+  assert.equal(op.medClassifyJob({status: 'unknown', deliveryStatus: 'waiting', issues: ['content_policy_violation']}).state, 'pending', 'only a terminal failure');
+  assert.equal(op.medClassifyJob({status: 'failed', errorCode: 'provider_failed', errorIssues: [{code: 'content_policy_violation'}]}).policy, true);
+  assert.equal(op.medClassifyJob({status: 'failed', errorCode: 'content_policy_violation'}).policy, true);
+  assert.ok(!op.medClassifyJob({status: 'failed', errorCode: 'provider_failed'}).policy);
+  assert.deepEqual(op.medPolicyScenes(['1'], {'clip:1:A': {failed: 'provider_failed'}, 'clip:1:B': {failed: 'provider_failed'}}, {kf: {}}), [], 'ordinary failures keep the normal retry');
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('the chosen keyframe model shows in the usage line and the run summary', () => {
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
+  assert.match(panel, /check\.counts\.narrations, music, medKfModel\(kfModel\)\.label\)/);
+  assert.match(panel, /S\.kfModelUsed\(result\.kfModel\)/);
+  assert.match(panel, /kfModel: medKfModel\(set\.kfModel\)\.label/);
+  assert.match(panel, /voice: now\.voice, music: now\.music, kfModel: now\.kfModel/);
 });

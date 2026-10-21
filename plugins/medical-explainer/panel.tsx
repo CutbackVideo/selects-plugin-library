@@ -214,7 +214,8 @@ type Strings = {
   music: string; gateScript: string; gateKf: string;
   makePlan: string; planning: string; planTitle: string; redo: string; review: string; title1: string; title2: string;
   summary: (s: number, n: number, lang: string) => string;
-  estimate: (images: number, clips: number, clipSeconds: number, transitions: number, narrations: number, music: boolean) => string;
+  estimate: (images: number, clips: number, clipSeconds: number, transitions: number, narrations: number, music: boolean, kfModel: string) => string;
+  kfModel: string; fluxNote: string; kfModelUsed: (label: string) => string; policyScenes: string; policyTransitions: string;
   produceKf: string; produce: string; producing: string; steps: string[];
   kfTitle: string; kfHint: string; kfScene: (n: number, label: string) => string; approveKf: string;
   done: string; openHint: string; fallbackClips: string; dissolves: string; mismatches: string; verifyOk: string; verifySkipped: string;
@@ -236,7 +237,7 @@ const STRINGS: Record<string, Strings> = {
     review: "Medical review needed: check every statement with a qualified reviewer before publishing.",
     title1: "Title line 1", title2: "Title line 2",
     summary: (s, n, l) => `About ${s}s · ${n} sentences · ${l}`,
-    estimate: (i, c, cs, t, n, m) => `Uses Selects credits for: ${i} images, ${c} scene clips (${cs}s of video), ${t} transition clips, ${n} narrations${m ? ", music" : ""}. Credits are charged per generation.`,
+    estimate: (i, c, cs, t, n, m, k) => `Uses Selects credits for: ${i} images (${k}), ${c} scene clips (${cs}s of video), ${t} transition clips, ${n} narrations${m ? ", music" : ""}. Credits are charged per generation.`,
     produceKf: "Make keyframes", produce: "Make the video", producing: "Making…",
     steps: ["Narration", "Keyframes", "Scene clips", "Transitions", "Labels & check", "Draft"],
     kfTitle: "Keyframes", kfHint: "The AI picked one candidate per scene. Change any pick, then continue.",
@@ -254,6 +255,9 @@ const STRINGS: Record<string, Strings> = {
     notReady: (n) => `Selects has not finished adding some media to the Project yet (${n}). Wait a moment, then press Resume.`,
     unresolved: (n) => `These generations have not finished, or their files could not be delivered: ${n}. Keep waiting to check them again; resubmit only if they are stuck (a resubmitted generation may be charged again).`,
     keepWaiting: "Keep waiting", resubmit: "Resubmit (may charge again)",
+    kfModel: "Keyframe model", fluxNote: "FLUX 3 has no edit model: scenes 2 onward are drawn from text with the style description only, without scene 1 as a reference.",
+    kfModelUsed: (l) => `Keyframes: ${l}`, policyScenes: "Keyframe replaced due to video model policy (Seedream 5.0 Pro)",
+    policyTransitions: "Transitions the video model refused for content policy (shown as a dissolve)",
     styleChanged: "Scene 1's pick changed: scenes 2 onward were drawn with the earlier scene 1 as their style reference, so their look may differ a little.",
     errors: { FETCH_FAILED: "The link could not be opened.", NO_TEXT: "No text was found at the link. Paste the text instead.",
       TEXT_TOO_SHORT: "The source text is too short.", NO_JSON: "The script could not be read from the AI answer. Try again." },
@@ -271,7 +275,7 @@ const STRINGS: Record<string, Strings> = {
     review: "\uc758\ud559 \uac80\uc218 \ud544\uc694: \uac8c\uc2dc \uc804\uc5d0 \ubaa8\ub4e0 \ub0b4\uc6a9\uc744 \uc804\ubb38\uac00\uc5d0\uac8c \ud655\uc778\ubc1b\uc73c\uc138\uc694.",
     title1: "\uc81c\ubaa9 1\uc904", title2: "\uc81c\ubaa9 2\uc904",
     summary: (s, n, l) => `\uc57d ${s}\ucd08 · ${n}\ubb38\uc7a5 · ${l}`,
-    estimate: (i, c, cs, t, n, m) => `Selects \ud06c\ub808\ub527 \uc0ac\uc6a9: \uc774\ubbf8\uc9c0 ${i}\uac1c, \uc7a5\uba74 \ud074\ub9bd ${c}\uac1c(\uc601\uc0c1 ${cs}\ucd08), \uc804\ud658 \ud074\ub9bd ${t}\uac1c, \ub0b4\ub808\uc774\uc158 ${n}\uac1c${m ? ", \ubc30\uacbd\uc74c\uc545" : ""}. \ud06c\ub808\ub527\uc740 \uc0dd\uc131\ub9c8\ub2e4 \ucc28\uac10\ub429\ub2c8\ub2e4.`,
+    estimate: (i, c, cs, t, n, m, k) => `Selects \ud06c\ub808\ub527 \uc0ac\uc6a9: \uc774\ubbf8\uc9c0 ${i}\uac1c(${k}), \uc7a5\uba74 \ud074\ub9bd ${c}\uac1c(\uc601\uc0c1 ${cs}\ucd08), \uc804\ud658 \ud074\ub9bd ${t}\uac1c, \ub0b4\ub808\uc774\uc158 ${n}\uac1c${m ? ", \ubc30\uacbd\uc74c\uc545" : ""}. \ud06c\ub808\ub527\uc740 \uc0dd\uc131\ub9c8\ub2e4 \ucc28\uac10\ub429\ub2c8\ub2e4.`,
     produceKf: "\ud0a4\ud504\ub808\uc784 \ub9cc\ub4e4\uae30", produce: "\uc601\uc0c1 \ub9cc\ub4e4\uae30", producing: "\ub9cc\ub4dc\ub294 \uc911…",
     steps: ["\ub0b4\ub808\uc774\uc158", "\ud0a4\ud504\ub808\uc784", "\uc7a5\uba74 \ud074\ub9bd", "\uc804\ud658", "\ub77c\ubca8·\uc810\uac80", "\ub4dc\ub798\ud504\ud2b8"],
     kfTitle: "\ud0a4\ud504\ub808\uc784", kfHint: "AI\uac00 \uc7a5\uba74\ub9c8\ub2e4 \ud558\ub098\ub97c \uace8\ub790\uc2b5\ub2c8\ub2e4. \ubc14\uafb8\uace0 \uc2f6\uc740 \uc7a5\uba74\uc744 \uace0\ub978 \ub4a4 \uacc4\uc18d\ud558\uc138\uc694.",
@@ -289,6 +293,9 @@ const STRINGS: Record<string, Strings> = {
     notReady: (n) => `Selects\uac00 \uc544\uc9c1 \uc77c\ubd80 \ubbf8\ub514\uc5b4\ub97c \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ud558\ub294 \uc911\uc785\ub2c8\ub2e4(${n}). \uc7a0\uc2dc \ud6c4 \uc774\uc5b4\uc11c \ub9cc\ub4e4\uae30\ub97c \ub20c\ub7ec \uc8fc\uc138\uc694.`,
     unresolved: (n) => `\uc544\uc9c1 \ub05d\ub098\uc9c0 \uc54a\uc558\uac70\ub098 \ud30c\uc77c\uc744 \ubc1b\uc9c0 \ubabb\ud55c \uc0dd\uc131 \uc791\uc5c5: ${n}. \uacc4\uc18d \uae30\ub2e4\ub9ac\uba74 \ub2e4\uc2dc \ud655\uc778\ud569\ub2c8\ub2e4. \uba48\ucd98 \uacbd\uc6b0\uc5d0\ub9cc \ub2e4\uc2dc \uc694\uccad\ud558\uc138\uc694(\ub2e4\uc2dc \uc694\uccad\ud558\uba74 \ud06c\ub808\ub527\uc774 \ub2e4\uc2dc \ucc28\uac10\ub420 \uc218 \uc788\uc2b5\ub2c8\ub2e4).`,
     keepWaiting: "\uacc4\uc18d \uae30\ub2e4\ub9ac\uae30", resubmit: "\ub2e4\uc2dc \uc694\uccad(\ud06c\ub808\ub527 \ub2e4\uc2dc \ucc28\uac10 \uac00\ub2a5)",
+    kfModel: "\ud0a4\ud504\ub808\uc784 \ubaa8\ub378", fluxNote: "FLUX 3\uc5d0\ub294 \ud3b8\uc9d1 \ubaa8\ub378\uc774 \uc5c6\uc5b4 \uc7a5\uba74 2\ubd80\ud130\ub294 \uc7a5\uba74 1\uc744 \ucc38\uace0\ud558\uc9c0 \uc54a\uace0 \uc2a4\ud0c0\uc77c \uc124\uba85\ub9cc\uc73c\ub85c \uadf8\ub9bd\ub2c8\ub2e4.",
+    kfModelUsed: (l) => `\ud0a4\ud504\ub808\uc784: ${l}`, policyScenes: "\uc601\uc0c1 \ubaa8\ub378 \uc815\ucc45\uc73c\ub85c \ud0a4\ud504\ub808\uc784\uc744 \uad50\uccb4\ud55c \uc7a5\uba74(Seedream 5.0 Pro)",
+    policyTransitions: "\uc601\uc0c1 \ubaa8\ub378\uc774 \ucf58\ud150\uce20 \uc815\ucc45\uc73c\ub85c \uac70\ubd80\ud55c \uc804\ud658(\ub514\uc878\ube0c\ub85c \ud45c\uc2dc)",
     styleChanged: "\uc7a5\uba74 1 \uc120\ud0dd\uc774 \ubc14\ub00c\uc5c8\uc2b5\ub2c8\ub2e4. \uc7a5\uba74 2\ubd80\ud130\ub294 \uc774\uc804 \uc7a5\uba74 1\uc744 \uc2a4\ud0c0\uc77c \uae30\uc900\uc73c\ub85c \uadf8\ub838\uc73c\ubbc0\ub85c \ub290\ub08c\uc774 \uc870\uae08 \ub2e4\ub97c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     errors: { FETCH_FAILED: "\ub9c1\ud06c\ub97c \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.", NO_TEXT: "\ub9c1\ud06c\uc5d0\uc11c \ubcf8\ubb38\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ud14d\uc2a4\ud2b8\ub85c \ubd99\uc5ec\ub123\uc5b4 \uc8fc\uc138\uc694.",
       TEXT_TOO_SHORT: "\uc6d0\ubb38 \ud14d\uc2a4\ud2b8\uac00 \ub108\ubb34 \uc9e7\uc2b5\ub2c8\ub2e4.", NO_JSON: "AI \uc751\ub2f5\uc5d0\uc11c \ub300\ubcf8\uc744 \uc77d\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694." },
@@ -451,6 +458,25 @@ export const MED_VOICES = [
 export const MED_STYLE = "photorealistic 3D medical animation still, clean subsurface-scattered tissue, dark navy background with " +
   "soft rim light, warm skin tones, deep red blood vessels, glossy cells, shallow depth of field, cinematic 16:9, no text, no labels, no watermark";
 export const MED_KF_SIZE = { width: 2560, height: 1440 }; // Seedream 5 Pro's own 16:9 size in the Selects image tool
+// Keyframe image models. Scene 1 is drawn from text (`t2i`); scenes 2-N are edits with scene 1's chosen keyframe as
+// the style reference (`edit`), or, for a model without an edit endpoint in the catalog, drawn from text with the same
+// style suffix. Each `input` sends only fields the model's schema defines (models.schema, 2026-10-22), at 16:9.
+const png = { num_images: 1, output_format: "png" };
+export const MED_KF_MODELS = {
+  seedream: { label: "Seedream 5.0 Pro", t2i: MED_MODEL.t2i, edit: MED_MODEL.edit, // bytedance/seedream/v5/pro/{text-to-image,edit}
+    input: (prompt) => ({ prompt, image_size: { ...MED_KF_SIZE }, ...png }) },
+  "nano-banana-2.1": { label: "Nano Banana 2.1", t2i: "model_v1_Z29vZ2xlL25hbm8tYmFuYW5hLTIuMQ", edit: "model_v1_Z29vZ2xlL25hbm8tYmFuYW5hLTIuMS9lZGl0", // google/nano-banana-2.1{,/edit}
+    input: (prompt) => ({ prompt, aspect_ratio: "16:9", resolution: "2K", ...png }) },
+  "nano-banana-pro": { label: "Nano Banana Pro", t2i: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLXBybw", edit: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLXByby9lZGl0", // fal-ai/nano-banana-pro{,/edit}
+    input: (prompt) => ({ prompt, aspect_ratio: "16:9", resolution: "2K", ...png }) },
+  "gpt-image-2.5": { label: "GPT Image 2.5", t2i: "model_v1_b3BlbmFpL2dwdC1pbWFnZS0yLjUvZmxhcmUvdGV4dC10by1pbWFnZQ", edit: "model_v1_b3BlbmFpL2dwdC1pbWFnZS0yLjUvZmxhcmUvZWRpdA", // openai/gpt-image-2.5/flare/{text-to-image,edit}
+    input: (prompt) => ({ prompt, image_size: "landscape_16_9", ...png }) },
+  "flux-3": { label: "FLUX 3", t2i: "model_v1_YmxhY2tmb3Jlc3RsYWJzL2ZsdXgtMy90ZXh0LXRvLWltYWdl", edit: null, // blackforestlabs/flux-3/text-to-image (no edit endpoint)
+    input: (prompt) => ({ prompt, aspect_ratio: "16:9", resolution: "2k", output_format: "png" }) },
+};
+export const MED_KF_DEFAULT = "seedream";
+// The keyframe that replaces a scene's chosen one after Kling refuses it for content policy: Seedream 5.0 Pro.
+export const MED_POLICY_LETTER = "S";
 export const MED_KF_CANDIDATES = 2, MED_TAKES = 2, MED_LETTERS = "ABC";
 export const MED_SCALES = ["body", "organ", "tissue", "cell", "molecule"];
 export const MED_CAMERA = {
@@ -896,7 +922,8 @@ async function medJob(io, dir) {
   };
   return job;
 }
-const settingsOf = (job) => ({ voice: "eleven-daniel", music: false, template: { ...MED_PRESETS.generic }, ...asObj(job.data.settings) });
+const settingsOf = (job) => ({ voice: "eleven-daniel", music: false, kfModel: MED_KF_DEFAULT, template: { ...MED_PRESETS.generic }, ...asObj(job.data.settings) });
+export const medKfModel = (id) => MED_KF_MODELS[id] || MED_KF_MODELS[MED_KF_DEFAULT];
 
 // ---- fetch ----
 export function medExtractArticle(url, s) {
@@ -1026,20 +1053,29 @@ async function cmdRequests(io, job, kind, only, attempt) {
       const r = medNarrationInput(s.narration, set.voice, plan.lang);
       reqs.push(spec(`narr:${s.n}`, "audio", r.model, r.input, null, "narration"));
     }
-  } else if (kind === "keyframes") {
+  } else if (kind === "keyframes" || kind === "kfpolicy") {
     // Scene 1 is drawn from text; every later scene is an edit with scene 1's chosen keyframe as the style reference.
+    // `kfpolicy`: one Seedream 5.0 Pro keyframe (letter S) for each scene Kling refused, same prompt and reference.
     const picks = await job.picks();
+    const policy = kind === "kfpolicy";
+    const modelId = policy ? MED_KF_DEFAULT : set.kfModel;
+    const model = medKfModel(modelId);
+    const letters = policy ? [MED_POLICY_LETTER] : Array.from(MED_LETTERS.slice(0, MED_KF_CANDIDATES));
     for (const s of plan.scenes) {
-      for (let c = 0; c < MED_KF_CANDIDATES; c++) {
-        const id = `${s.n}${letter(c)}`;
-        if (only && !only.has(id) && !only.has(String(s.n))) continue;
-        const input = { prompt: medKeyframePrompt(s, s.n > 1), image_size: { ...MED_KF_SIZE }, num_images: 1, output_format: "png" };
-        if (s.n === 1) { reqs.push(spec(`kf:${s.n}:${letter(c)}`, "image", "t2i", input, null, "keyframes")); continue; }
+      for (const c of letters) {
+        const id = `${s.n}${c}`;
+        if (policy ? !only || !(only.has(id) || only.has(String(s.n))) : only && !only.has(id) && !only.has(String(s.n))) continue;
+        const gen = `kf:${s.n}:${c}`;
+        const styled = s.n > 1 && !!model.edit;
+        const input = model.input(medKeyframePrompt(s, styled));
+        const key = policy || set.kfModel !== MED_KF_DEFAULT ? `-m${modelId}` : "";
+        const make = (mid, inp, uploads, extra) => ({ ...spec(gen, "image", "t2i", inp, uploads, "keyframes", key + extra), modelId: mid });
+        if (!styled) { reqs.push(make(model.t2i, input, null, "")); continue; }
         const ref = picks.kf["1"];
         const refPath = ref ? await job.file(`kf:1:${ref}`) : null;
         if (!refPath) throw medFail("scene 1 keyframe not chosen");
         input.image_urls = ["selects-input:ref"];
-        reqs.push(spec(`kf:${s.n}:${letter(c)}`, "image", "edit", input, { ref: refPath }, "keyframes", `-r${ref}`));
+        reqs.push(make(model.edit, input, { ref: refPath }, `-r${ref}`));
       }
     }
   } else if (kind === "clips") {
@@ -1430,11 +1466,22 @@ export async function medEngine(cmd, dir, args, io) {
 // a new job); everything else, including a status the host cannot currently read, is still pending.
 const MED_FAILED = ["failed", "cancelled", "input_failed", "submission_rejected"];
 const MED_DELIVERY_FAILED = ["download_failed", "result_collection_failed", "import_failed"];
+// A content-policy refusal is recognised the way Selects' own generation history does (GenerationHistory.tsx):
+// errorCode "content_policy_violation", or an errorIssues entry with that code. Only on a terminal failure.
+export const MED_POLICY_CODE = "content_policy_violation";
+export function medIsPolicyRejection(j) {
+  if (!j) return false;
+  const issues = Array.isArray(j.errorIssues) ? j.errorIssues : Array.isArray(j.issues) ? j.issues.map((code) => ({ code })) : [];
+  return j.errorCode === MED_POLICY_CODE || issues.some((i) => i && i.code === MED_POLICY_CODE);
+}
 export function medClassifyJob(j) {
   if (!j) return { state: "pending" };
   const path = (Array.isArray(j.outputs) ? j.outputs : []).map((o) => o && o.path).find(Boolean);
   if (j.deliveryStatus === "delivered" && path) return { state: "delivered", path };
-  if (MED_FAILED.includes(String(j.status))) return { state: "failed", code: String(j.errorCode || j.status) };
+  if (MED_FAILED.includes(String(j.status))) {
+    const code = medIsPolicyRejection(j) ? MED_POLICY_CODE : String(j.errorCode || j.status);
+    return { state: "failed", code, policy: code === MED_POLICY_CODE };
+  }
   if (MED_DELIVERY_FAILED.includes(String(j.deliveryStatus)) || (j.deliveryStatus === "delivered" && !path))
     return { state: "delivery_failed", code: String(j.errorCode || j.deliveryStatus) };
   return { state: "pending" };
@@ -1444,7 +1491,8 @@ export function medJobsScript(projectId, jobIds) {
   return `const want = new Set(${JSON.stringify(jobIds)});
 const rows = await selects.generation.jobs(${JSON.stringify(projectId)});
 return rows.filter((j: any) => want.has(j.jobId)).map((j: any) => ({ jobId: j.jobId, status: j.status, deliveryStatus: j.deliveryStatus,
-  errorCode: j.errorCode ?? null, outputs: (j.outputs || []).map((o: any) => ({ status: o.status, path: o.path ?? null })) }));`;
+  errorCode: j.errorCode ?? null, issues: (j.errorIssues || []).map((i: any) => i.code),
+  outputs: (j.outputs || []).map((o: any) => ({ status: o.status, path: o.path ?? null })) }));`;
 }
 export const MED_GEN_DEADLINE_MS = 45 * 60 * 1000;
 export const MED_GEN_POLL_MS = 4000;
@@ -1463,12 +1511,21 @@ export async function medRunGenerations(reqs, gen, api, opts) {
     const cur = gen[q.gen];
     const same = cur && cur.key === q.key;
     if (same && cur.path) { done++; continue; }
-    if (same && cur.failed) { failed.push({ gen: q.gen, code: cur.failed }); continue; }
+    if (same && cur.failed) { failed.push({ gen: q.gen, code: cur.failed, ...(cur.policy ? { policy: true } : {}) }); continue; }
     if (!same || !cur.jobId) {
       if (o.stopped()) throw new Error("stopped");
       gen[q.gen] = { key: q.key, attempt: q.attempt, phase: "submitting" };
       await o.persist();
-      const jobId = await api.submit(q);
+      let jobId;
+      try { jobId = await api.submit(q); } catch (e) {
+        // A submission the host refused, naming the content policy, never became a job: a known rejection. Any other
+        // error leaves the recorded submission unresolved (the same key is used again on resume).
+        if (!new RegExp(`\\b${MED_POLICY_CODE}\\b`).test(String(e && e.message || e))) throw e;
+        gen[q.gen] = { key: q.key, attempt: q.attempt, failed: MED_POLICY_CODE, policy: true };
+        await o.persist();
+        failed.push({ gen: q.gen, code: MED_POLICY_CODE, policy: true });
+        continue;
+      }
       if (!jobId) throw new Error("Generation submission is unknown. Resume to reconnect with the same request key.");
       gen[q.gen] = { key: q.key, attempt: q.attempt, jobId };
       await o.persist();
@@ -1492,7 +1549,10 @@ export async function medRunGenerations(reqs, gen, api, opts) {
       const entry = gen[q.gen];
       const c = medClassifyJob(byId.get(entry.jobId));
       if (c.state === "delivered") { gen[q.gen] = { ...entry, path: c.path }; done++; }
-      else if (c.state === "failed") { gen[q.gen] = { ...entry, failed: c.code }; failed.push({ gen: q.gen, code: c.code }); }
+      else if (c.state === "failed") {
+        gen[q.gen] = { ...entry, failed: c.code, ...(c.policy ? { policy: true } : {}) };
+        failed.push({ gen: q.gen, code: c.code, ...(c.policy ? { policy: true } : {}) });
+      }
       else if (c.state === "delivery_failed") {
         const n = retries.get(entry.jobId) || 0;
         if (n < o.deliveryRetries) { retries.set(entry.jobId, n + 1); await api.retryDelivery(entry.jobId); next.push(q); }
@@ -1505,6 +1565,64 @@ export async function medRunGenerations(reqs, gen, api, opts) {
     if (left.length) await o.sleep(o.pollMs);
   }
   return { failed, unresolved };
+}
+
+// One kind of request for `only` ids, each at the attempt its record is on (a recorded request is never re-keyed).
+// A request the host reports as failed gets one new attempt (a new request key, a new paid job) unless it was refused
+// for content policy (the same input would be refused again); an unresolved one stops the run for the user to decide.
+// `ctx`: { gen, requests(kind, ids, attempt) -> requests, generate(requests) -> {failed, unresolved}, unresolved(list)
+// -> Error }. Returns what is still failed: [{gen, code, policy?}].
+const genId = (g) => g.split(":").slice(1).join("");
+export async function medGenerateKind(ctx, kind, only) {
+  if (!only.length) return [];
+  const atAttempts = async (pairs) => {
+    const groups = new Map();
+    for (const [id, a] of pairs) groups.set(a, [...(groups.get(a) || []), id]);
+    const out = [];
+    for (const [a, ids] of groups) out.push(...(await ctx.requests(kind, ids, a)).filter((q) => ids.includes(genId(q.gen))));
+    return out;
+  };
+  const base = await ctx.requests(kind, only, 1);
+  const first = await ctx.generate(await atAttempts(base.map((q) => [genId(q.gen), (ctx.gen[q.gen] && ctx.gen[q.gen].attempt) || 1])));
+  if (first.unresolved.length) throw ctx.unresolved(first.unresolved);
+  const retry = first.failed.filter((f) => !f.policy);
+  if (!retry.length) return first.failed;
+  const second = await ctx.generate(await atAttempts(retry.map((f) => [genId(f.gen), ((ctx.gen[f.gen] && ctx.gen[f.gen].attempt) || 1) + 1])));
+  if (second.unresolved.length) throw ctx.unresolved(second.unresolved);
+  return [...first.failed.filter((f) => f.policy), ...second.failed];
+}
+const takeLetters = () => Array.from(MED_LETTERS.slice(0, MED_TAKES));
+// Scenes whose clip no take delivered because Kling refused it for content policy, not yet given a Seedream keyframe.
+export function medPolicyScenes(sceneIds, gen, picks) {
+  return sceneIds.filter((n) => {
+    const takes = takeLetters().map((c) => gen[`clip:${n}:${c}`]).filter(Boolean);
+    return !takes.some((t) => t.path) && takes.some((t) => t.policy) && picks.kf[n] !== MED_POLICY_LETTER;
+  });
+}
+// The scene-clip stage with the content-policy fallback: clips (two takes) -> for each scene Kling refused for content
+// policy, one Seedream 5.0 Pro keyframe (scene 1 first: it is the others' style reference) chosen in its place, and
+// its clips again under new request keys -> a scene still without a clip uses the still-zoom path. Only a terminal,
+// policy-coded rejection triggers this; an unresolved job stops the run (medGenerateKind) and never counts.
+// `ctx` adds readPicks() and writePicks(picks). Returns { replaced: scene ids, still: scene ids }.
+export async function medClipsStage(ctx, sceneIds) {
+  await medGenerateKind(ctx, "clips", sceneIds);
+  const todo = medPolicyScenes(sceneIds, ctx.gen, await ctx.readPicks());
+  const replaced = [];
+  for (const batch of [todo.filter((n) => n === "1"), todo.filter((n) => n !== "1")]) {
+    if (!batch.length) continue;
+    await medGenerateKind(ctx, "kfpolicy", batch);
+    const picks = await ctx.readPicks();
+    for (const n of batch) {
+      if (!(ctx.gen[`kf:${n}:${MED_POLICY_LETTER}`] || {}).path) continue;
+      picks.kf[n] = MED_POLICY_LETTER;
+      picks.policy = { ...(picks.policy || {}), [n]: true };
+      replaced.push(n);
+    }
+    await ctx.writePicks(picks);
+  }
+  if (replaced.length) await medGenerateKind(ctx, "clips", replaced);
+  const still = sceneIds.filter((n) => !takeLetters().some((c) => (ctx.gen[`clip:${n}:${c}`] || {}).path));
+  return { replaced, still };
 }
 
 // ---- Draft step: import the media, then wait until Selects can place it ----
@@ -1792,6 +1910,7 @@ function Panel({ sdk, context, ui }: any) {
   const [text, setText] = React.useState("");
   const [lang, setLang] = React.useState("auto");
   const [voice, setVoice] = React.useState(MED_VOICES[0].id);
+  const [kfModel, setKfModel] = React.useState<string>(MED_KF_DEFAULT);
   const [preset, setPreset] = React.useState<string>("generic");
   const [tpl, setTpl] = React.useState<any>({ ...MED_PRESETS.generic });
   const [music, setMusic] = React.useState(false);
@@ -1958,39 +2077,19 @@ function Panel({ sdk, context, ui }: any) {
       progress: (done: number, total: number) => { if (label && !st.stopped) setStatus(`${label} · ${done}/${total}`); },
     });
   }
-  // The engine's requests for `only`, each at the attempt its record is on (a recorded request is never re-keyed).
-  async function requestsAt(st: Store, dir: string, kind: string, only: string[]) {
-    const base = (await run("requests", dir, [kind, only.join(",")], kind)).requests;
-    const byAttempt = new Map<number, string[]>();
-    for (const q of base) {
-      const a = st.gen[q.gen]?.attempt || 1;
-      byAttempt.set(a, [...(byAttempt.get(a) || []), idOf(q.gen)]);
-    }
-    const out: any[] = [];
-    for (const [a, ids] of byAttempt) {
-      if (a === 1) out.push(...base.filter((q: any) => ids.includes(idOf(q.gen))));
-      else out.push(...(await run("requests", dir, [kind, ids.join(","), "--attempt", String(a)], kind)).requests.filter((q: any) => ids.includes(idOf(q.gen))));
-    }
-    return out;
+  // medGenerateKind / medClipsStage (operation section) over this job's engine, host and records.
+  function kindCtx(st: Store, sc: any, dir: string, label: string) {
+    return {
+      gen: st.gen,
+      requests: async (kind: string, ids: string[], attempt: number) =>
+        (await run("requests", dir, [kind, ids.join(","), ...(attempt > 1 ? ["--attempt", String(attempt)] : [])], kind)).requests,
+      generate: (reqs: any[]) => generate(st, sc, reqs, label),
+      unresolved: (list: any[]) => unresolvedError(list),
+      readPicks: () => readPicks(dir),
+      writePicks: (picks: any) => writePicks(dir, picks),
+    };
   }
-  // One kind of request for `only` ids. A request the host reports as failed gets one new attempt (a new request key,
-  // a new paid job); an unresolved one stops the run for the user to decide. Returns what failed again.
-  async function generateKind(st: Store, sc: any, dir: string, kind: string, only: string[], label: string) {
-    if (!only.length) return [];
-    const first = await generate(st, sc, await requestsAt(st, dir, kind, only), label);
-    if (first.unresolved.length) throw unresolvedError(first.unresolved);
-    if (!first.failed.length) return [];
-    const groups = new Map<number, string[]>();
-    for (const f of first.failed) {
-      const a = (st.gen[f.gen]?.attempt || 1) + 1;
-      groups.set(a, [...(groups.get(a) || []), idOf(f.gen)]);
-    }
-    const again: any[] = [];
-    for (const [a, ids] of groups) again.push(...(await run("requests", dir, [kind, ids.join(","), "--attempt", String(a)], kind)).requests.filter((q: any) => ids.includes(idOf(q.gen))));
-    const second = await generate(st, sc, again, label);
-    if (second.unresolved.length) throw unresolvedError(second.unresolved);
-    return second.failed;
-  }
+  const generateKind = (st: Store, sc: any, dir: string, kind: string, only: string[], label: string) => medGenerateKind(kindCtx(st, sc, dir, label), kind, only);
   function unresolvedError(list: any[]) {
     return Object.assign(new Error(S.unresolved(list.map((u) => `${u.gen} (${u.reason})`).join(", "))), { unresolved: list.map((u) => u.gen) });
   }
@@ -2055,7 +2154,7 @@ function Panel({ sdk, context, ui }: any) {
     setPreset(id);
     setTpl({ ...(MED_PRESETS as any)[id] });
   }
-  const settingsNow = () => ({ lang, voice, music, template: { ...tpl }, gates: { script: gateScript, keyframes: gateKf } });
+  const settingsNow = () => ({ lang, voice, music, kfModel, template: { ...tpl }, gates: { script: gateScript, keyframes: gateKf } });
 
   // ---- 1. Script ----
   async function makePlan() {
@@ -2169,7 +2268,7 @@ function Panel({ sdk, context, ui }: any) {
       if (fresh.current) {
         const now = settingsNow();
         const titles = titleOverride || titleLines;
-        jd.settings = { ...(jd.settings || {}), ...(pj.started ? {} : { voice: now.voice, music: now.music }), template: now.template,
+        jd.settings = { ...(jd.settings || {}), ...(pj.started ? {} : { voice: now.voice, music: now.music, kfModel: now.kfModel }), template: now.template,
           ...(titles.line1 || titles.line2 ? { titleLines: titles } : {}) };
         await writeJson(hostJoin(dir, "job.json"), jd);
       } else if (jd.settings?.titleLines) setTitleLines(jd.settings.titleLines);
@@ -2218,7 +2317,9 @@ function Panel({ sdk, context, ui }: any) {
 
       if (!pj.clipsDone) {
         setStep(2);
-        await generateKind(st, sc, dir, "clips", sceneIds, S.steps[2]);
+        // Kling's content-policy refusals: a Seedream keyframe for that scene, then its clips again (see medClipsStage).
+        const stage = await medClipsStage(kindCtx(st, sc, dir, S.steps[2]), sceneIds);
+        pj = await savePanel(dir, { policyScenes: stage.replaced });
         const picks = await readPicks(dir);
         await aiPick(dir, "clips", sceneIds.filter((n: string) => !picks.clip[n]), describe);
         pj = await savePanel(dir, { clipsDone: true });
@@ -2232,7 +2333,11 @@ function Panel({ sdk, context, ui }: any) {
       }
       if (!pj.trDone) {
         const boundaries = sceneIds.slice(0, -1);
-        await generateKind(st, sc, dir, "transitions", boundaries, S.steps[3]);
+        // A transition refused for content policy is not asked again with the same frames: it becomes the dissolve.
+        const trFailed = await generateKind(st, sc, dir, "transitions", boundaries, S.steps[3]);
+        const policyTr = boundaries.filter((n: string) => trFailed.some((f: any) => f.policy && f.gen.split(":")[1] === n) &&
+          !Array.from(MED_LETTERS.slice(0, MED_TAKES)).some((c) => st.gen[`tr:${n}:${c}`]?.path));
+        pj = await savePanel(dir, { policyTransitions: policyTr });
         const picks = await readPicks(dir);
         await aiPick(dir, "transitions", boundaries.filter((n: string) => !picks.tr[n]),
           (n: number) => ({ from: p.scenes[n - 1]?.visual || "", to: p.scenes[n]?.visual || "" }));
@@ -2301,6 +2406,7 @@ function Panel({ sdk, context, ui }: any) {
       }
       await saveRecovery({ jobId: j0.id, dir, phase: "done", done: true });
       setResult({ seconds: pj.seconds, fallback: pj.fallback || [], dissolves: pj.dissolves || [], mismatches: pj.mismatches || [],
+        kfModel: medKfModel(set.kfModel).label, policyScenes: pj.policyScenes || [], policyTransitions: pj.policyTransitions || [],
         verifySkipped: !!pj.verifySkipped, noMusic: !!pj.noMusic, dropped: sel.dropped || [] });
       setStep(6);
       setStatus("");
@@ -2344,6 +2450,8 @@ function Panel({ sdk, context, ui }: any) {
       </ui.Section>
       <ui.Section title={S.settingsTitle}>
         <ui.Select label={S.language} value={lang} onChange={setLang} options={langOptions} disabled={!!busy} />
+        <ui.Select label={S.kfModel} value={kfModel} onChange={setKfModel} options={Object.entries(MED_KF_MODELS).map(([id, m]: any) => ({ value: id, label: m.label }))} disabled={!!busy} />
+        {!medKfModel(kfModel).edit && <ui.Message tone="muted">{S.fluxNote}</ui.Message>}
         <ui.Select label={S.voice} value={voice} onChange={setVoice} options={MED_VOICES.map((v) => ({ value: v.id, label: v.label }))} disabled={!!busy} />
         <ui.Select label={S.quality} value="standard" onChange={() => {}} options={[{ value: "standard", label: S.qualityStd }]} disabled={!!busy} />
         <ui.Toggle label={S.music} value={music} onChange={setMusic} disabled={!!busy} />
@@ -2392,7 +2500,7 @@ function Panel({ sdk, context, ui }: any) {
           {check?.warnings?.length > 0 && <ui.Message tone="muted">{check.warnings.join(" / ")}</ui.Message>}
           {check?.counts && (
             <ui.Message tone="muted">
-              {S.estimate(check.counts.images, check.counts.clips, check.counts.clipSeconds, check.counts.transitions, check.counts.narrations, music)}
+              {S.estimate(check.counts.images, check.counts.clips, check.counts.clipSeconds, check.counts.transitions, check.counts.narrations, music, medKfModel(kfModel).label)}
             </ui.Message>
           )}
           <ui.Actions>
@@ -2444,6 +2552,9 @@ function Panel({ sdk, context, ui }: any) {
           {result.fallback.length > 0 && <small>{S.fallbackClips}: {result.fallback.join(", ")}</small>}
           {result.dissolves.length > 0 && <small>{S.dissolves}: {result.dissolves.map((n: number) => `${n}→${n + 1}`).join(", ")}</small>}
           {result.dropped.length > 0 && <small>{S.pointersDropped}: {result.dropped.join(", ")}</small>}
+          <small>{S.kfModelUsed(result.kfModel)}</small>
+          {result.policyScenes.length > 0 && <small>{S.policyScenes}: {result.policyScenes.join(", ")}</small>}
+          {result.policyTransitions.length > 0 && <small>{S.policyTransitions}: {result.policyTransitions.map((n: string) => `${n}\u2192${Number(n) + 1}`).join(", ")}</small>}
           {result.noMusic && <small>{S.noMusic}</small>}
         </ui.Section>
       )}

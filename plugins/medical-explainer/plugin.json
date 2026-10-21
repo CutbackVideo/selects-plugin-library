@@ -17,7 +17,7 @@
       "macOS",
       "Windows x64"
     ],
-    "selects": "Selects 2.0.512 or later with media generation for plug-in panels and plug-in storage. Uses askAI and runScript, and the host's FileSystem (files and downloads) and bundled ffmpeg/ffprobe; no shell, no Python. Generation uses Seedream 5.0 Pro (keyframes), Kling v3 Standard 720p (video), ElevenLabs v3 or MiniMax Speech 2.8 HD (voice), billed to the user's Selects credits. The engine runs inside the panel on macOS and Windows (a Windows pass on the Staging build is pending)."
+    "selects": "Selects 2.0.512 or later with media generation for plug-in panels and plug-in storage. Uses askAI and runScript, and the host's FileSystem (files and downloads) and bundled ffmpeg/ffprobe; no shell, no Python. Generation uses Seedream 5.0 Pro, Nano Banana 2.1, Nano Banana Pro, GPT Image 2.5 or FLUX 3 (keyframes, user choice; Seedream by default), Kling v3 Standard 720p (video), ElevenLabs v3 or MiniMax Speech 2.8 HD (voice), billed to the user's Selects credits. The engine runs inside the panel on macOS and Windows (a Windows pass on the Staging build is pending)."
   },
   "localized": {
     "de": {
