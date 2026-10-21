@@ -1,11 +1,16 @@
 # Huick Inside Card News
 
 Turns an issue of Hankook Ilbo's **Huick Inside** newsletter into an editable
-4:5 card news set in Huick's three-perspectives format: a cover, what
+3:4 card news set in Huick's three-perspectives format: a cover, what
 happened, the perspectives at a glance, one card per perspective and a closing
 quote. Every card but the quote gets a hand-drawn picture of its own content,
 in Huick's lime and charcoal. It is a copy of
 [Card News Maker](../card-news-maker) for the Huick alpha test.
+
+Cards are 1080 x 1440 (3:4) for TikTok photo posts, which Instagram also
+accepts. Text stays out of the bottom 240 px, where TikTok lays its caption
+over a post, and out of the right 130 px, where its buttons sit; the picture
+credit is in the top corner.
 
 ## Using the panel
 
@@ -35,7 +40,7 @@ set takes three steps.
    and fix its copy or its picture scene (the image prompt).
 3. **Make the cards.** One button draws every picture with Selects image
    generation (Selects credits, about six pictures a set), builds a
-   1080 x 1350 Draft whose texts stay editable, and exports one PNG per card
+   1080 x 1440 Draft whose texts stay editable, and exports one PNG per card
    with the caption and hashtags in `caption.txt`. The finished cards are also
    added to the set's Project folder, beside its pictures and Draft. After
    editing the Draft in Selects, **Export the images again**: the new cards
