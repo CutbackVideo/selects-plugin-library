@@ -1,9 +1,10 @@
 # Original Image input contract
 
-`native-image-input.js` owns the existing `nativeImageSources`, `nativeImageRun`
+`native-image-input.mjs` owns the existing `nativeImageSources`, `nativeImageRun`
 and `prepareNativeImages` input feature extracted from Four Photo Reveal and
 Camera Shutter Dump, now reused by Four Photo Stop Motion and Polaroid Photo
-Dump as well. It does not
+Dump as well. Photo Grid Reveal now uses the same exported source-facts function
+through its existing script generator. It does not
 own their plans, music, layout or save policy.
 Other native-SDK consumers retain their previous implementation until their own
 migration tests pass.
@@ -61,6 +62,26 @@ not a full module bundler or runtime cross-plugin import.
 
 The registry excludes Chan's Shortform Clips and template packs. No other
 plugin's installation is read. Existing generators and modules remain intact.
+
+The explicit `.mjs` source is a build input; runtime panels still do not import
+repository files. Gallery's `buildTimeTargets` entry identifies its generator's
+canonical import. After a source change, run both the module sync and
+`node plugins/photo-gallery-no2/build-panel.mjs`. The latter emits the panel and
+`input-facts.generated.mjs`, a small self-contained copy included in the installed
+package. Its operation builder reads that local artifact. Builder tests compare
+both generated artifacts with the canonical function and execute an isolated
+installation with no repository-wide shared directory. `--stdout` does not
+rewrite either file. The registry checks declared import edges; the generator
+tests own artifact-freshness verification.
+
+Gallery retains its frozen-path binding contract: it resolves a supplied alias
+to the unique current Project row, then supplies that observed ID/path to this
+strict Image feature. It does not loosen the four existing consumers' identity
+checks. Gallery also rejects changed kinds, missing native dimensions and
+ambiguous source nodes rather than trusting caller metadata or an ID shortcut.
+The media probe runs first, followed by original Image checks and comparison of
+the returned dimensions. Gallery checks only picked originals before asset
+preparation; browsing unrelated files does not perform original-file reads.
 
 ## Evidence
 

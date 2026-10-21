@@ -1,8 +1,31 @@
 # Validation and limits
 
+## Current repair checkpoint: 0.3.11
+
+Selected originals are verified before bundled-music import or short-video
+preparation. The shared original-Image feature supplies stat/read-one-byte/stat
+and fresh dimensions, with no caller-size fallback. Kind changes, path ambiguity
+and missing IDs stop before mutation; intentional reuse and frozen-path alias
+binding remain. Browsing excludes ambiguous candidates without reading unrelated
+original files. Placement rechecks source facts within its mutating SDK call.
+The canonical connection wrapper now handles initialization failure/timeout.
+
+The existing generator emits a self-contained installed input-facts artifact;
+isolated-package tests ensure the installed builder does not import repository
+paths. The original 23-case source suite failed 22 with one control before the
+fix, with further failing identity/reobservation/packaging/bootstrap checks.
+The new CI step runs all Gallery tests, including React ordering and local
+ffmpeg/Python parity. See `docs/template-repair/gallery-input.md` in the source
+repository for current evidence. Old records below remain historical evidence.
+
+Multiple staged Draft commits, durable app-run recovery, asset ownership, source
+clock boundaries and complete saved-property verification still need migration.
+Installed-app/actual Windows, full playback/export and changed-input quality
+remain unverified for this version.
+
 This experimental version creates a new editable Draft with 21 independent visual clips. The 3-by-7 grid, reveal order, and shared grayscale-to-color event follow `reference-oracle.json`. Photos remain original Image Resources; the output is not flattened.
 
-## Verified in Selects Staging
+## Historical Selects Staging records
 
 - A single panel Create action using 21 original photos saved 21 separate clips. Native export produced H.264, 1080x1920, 60 fps, 853 frames.
 - After correcting a Video overlay boundary mismatch, a fresh panel Create action using 15 Images and 6 demonstration Videos saved all 21 clips with exact reveal frames and a shared end at frame 853, without source-audio clips. That earlier repaired attempt remains a first-pass failure. The demonstration Draft played, persisted after app restart, and exported natively.
@@ -16,7 +39,7 @@ This experimental version creates a new editable Draft with 21 independent visua
 ## Remaining limitations
 
 - Live app playback of both the silent AI sample and the B2 sample failed acceptance. The B2 preview displayed `00:00:00 / 00:00:00` and the playhead stayed at frame zero after transport attempts and explicit reopening. Reloading did not resolve the observed preview state. Post-restart playback still needs a separate check. A successful saved readback or export is not a passing preview result. The library preview uses the verified native export; live editor playback remains a separate limitation.
-- Native Image placement uses an app-owned panel service and requires a compatible panel host. It is not a stable public SDK method; retest after Selects updates.
+- The earlier internal Image-service route described in historical records is replaced by public original-Image placement. The current source/input/connection repair still needs installed-host validation.
 - Automated single-slot replacement in an existing Draft is unavailable. Edit individual clips in the Selects timeline; do not imply the plugin preserves manual edits through an unsupported replacement.
 - Bundled B2 import, placement, and native export are verified. The Windows build (version 0.3.5 onward: no shell or Python) has automated coverage only and still needs a live pass on Windows. Automatic BPM, other music inputs, short-video completion, and duplicate-click/transport-loss behavior need additional live acceptance runs. Automated tests alone do not certify these cases.
 - Continuous visual review of natural AI motion remains a separate acceptance check. AI generation is source preparation, not a dependency or an automatic generation feature of this plugin.

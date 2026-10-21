@@ -153,10 +153,11 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("node"), "node runs operation-builder.mjs")
     def test_chat_skill_recipe_matches_the_panel_prefix(self):
+        facts = read(os.path.join(PLUGIN, "input-facts.generated.mjs")).split("export ", 1)[1].strip()
         recipe = (
             read(os.path.join(PLUGIN, "format.mjs")).replace("export const REFERENCE", "const REFERENCE", 1)
             .replace("export function planGallery", "function planGallery", 1)
-            + "\n" + read(os.path.join(PLUGIN, "operation-runtime.js")) + "\nreturn await galleryOperation(selects, "
+            + "\n" + facts + "\n" + read(os.path.join(PLUGIN, "operation-runtime.js")) + "\nreturn await galleryOperation(selects, "
         )
         out = subprocess.run(
             ["node", "--input-type=module", "-e",

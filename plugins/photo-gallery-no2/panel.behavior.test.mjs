@@ -6,7 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { planGallery } from './format.mjs';
 
-const appRoot = process.env.SELECTS_DEV_REPO;
+const appRoot = process.env.SELECTS_DEV_REPO || (process.env.SBS_PANEL_TEST_MODULES ? path.dirname(process.env.SBS_PANEL_TEST_MODULES) : null);
 assert.ok(appRoot, 'Set SELECTS_DEV_REPO to an installed Selects development checkout');
 const appRequire = createRequire(path.join(appRoot, 'package.json'));
 const React = appRequire('react');
@@ -19,7 +19,7 @@ Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.
 const { render, fireEvent, waitFor, cleanup } = appRequire('@testing-library/react');
 test.afterEach(() => cleanup());
 
-const template = fs.readFileSync(path.join(import.meta.dirname, 'panel.template.tsx'), 'utf8');
+const template = fs.readFileSync(process.env.GALLERY_PANEL_TEMPLATE || path.join(import.meta.dirname, 'panel.template.tsx'), 'utf8');
 const nativeMock = `
 const galleryNativeResources = (...args) => globalThis.__native.resources(...args);
 const galleryNativeSetFps = (...args) => globalThis.__native.setFps(...args);
@@ -114,6 +114,7 @@ function harness(media = photos, options = {}) {
         const value = { status: 'inspected', projectId: 'project-1', media, audio: options.audio ?? [] };
         return { result: paged ? { array: false, page: value, total: Math.max(media.length, value.audio.length) } : value };
       }
+      if (input.operation === 'verifyInputs') return options.inputFailure ? { result: { status: 'notSaved', message: 'The original photo file is missing: Tile 1', code: 'image-source-missing' } } : { result: { status: 'inputsReady', media: input.media, music: input.music } };
       if (input.operation === 'importBundledMusic') return options.musicResponse ?? { result: { status: 'musicReady', music: { resourceId: 'bundled-music', path: input.path, durationFrames: 853, startFrame: 0 } } };
       if (input.operation === 'importConverted') return { result: { status: 'prepared', converted: input.converted.map(item =>
         ({ ...item, resourceId: 'held-1', width: 128, height: 96, durationFrames: 853 })) } };
@@ -144,7 +145,7 @@ test('21 original photos follow one panel action through preflight, native place
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
   assert.match(h.view.container.textContent, /reference moves in these tiles.*4, 6, 11, 17, 19, 21/);
   assert.deepEqual(h.calls.map(call => call.input.operation),
-    ['inspect', 'preflight', 'createBase', ...Array(7).fill('styleExisting'), 'verifyCreated']);
+    ['inspect', 'verifyInputs', 'verifyInputs', 'preflight', 'createBase', ...Array(7).fill('styleExisting'), 'verifyCreated']);
   assert.deepEqual(h.nativeCalls, ['resources', 'resources', 'place']);
   assert.equal(h.calls.find(call => call.input.operation === 'createBase').allowCommit, true);
   assert.deepEqual(h.calls.find(call => call.input.operation === 'styleExisting').input.media.map(item => item.path), photos.map(item => item.path));
@@ -196,8 +197,8 @@ for (const platform of ['darwin', 'win32']) {
     const held = tools.find(call => call[0] === 'rename' && call[2].endsWith('.mp4'))[2];
     const sep = platform === 'win32' ? '\\' : '/';
     assert.ok(held.includes(['.selects', 'plugin-data', 'photo-gallery-no2', 'held-v2', ''].join(sep)), held);
-    assert.deepEqual(h.calls.slice(0, 3).map(call => call.input.operation), ['inspect', 'importConverted', 'preflight']);
-    assert.deepEqual(h.calls[1].input.converted, [{ sourceResourceId: 'short-1', sourcePath: source, path: held }]);
+    assert.deepEqual(h.calls.slice(0, 5).map(call => call.input.operation), ['inspect', 'verifyInputs', 'verifyInputs', 'importConverted', 'preflight']);
+    assert.deepEqual(h.calls.find(call => call.input.operation === 'importConverted').input.converted, [{ sourceResourceId: 'short-1', sourcePath: source, path: held }]);
     assert.equal(h.calls.find(call => call.input.operation === 'styleExisting').input.media[20].resourceId, 'held-1');
   });
 }
@@ -208,7 +209,7 @@ test('a held video that fails its frame check stops before any import or Draft',
   const h = harness(media, { heldFrames: 852 });
   await assignAndCreate(h.view);
   await waitFor(() => assert.match(h.view.container.textContent, /Video 1: Cached video has the wrong frame count/));
-  assert.deepEqual(h.calls.map(call => call.input.operation), ['inspect']);
+  assert.deepEqual(h.calls.map(call => call.input.operation), ['inspect', 'verifyInputs', 'verifyInputs']);
   assert.equal(h.view.getByRole('button', { name: 'Create Draft' }).disabled, false);
 });
 
@@ -354,4 +355,11 @@ test('a 30 fps Project keeps reference seconds while creating and styling on its
   const style=h.calls.find(call=>call.input.operation==='styleExisting').input;
   assert.equal(style.fps,30);
   assert.equal(planGallery(style).durationFrames,427);
+});
+test('selected-original failure stops before bundled music import or short-video conversion',async()=>{
+ const tools=[],media=[...photos.slice(0,20),{resourceId:'short-1',name:'Short tile',kind:'video',width:128,height:96,durationFrames:60,path:'/fixture/short.mp4'}];
+ const h=harness(media,{inputFailure:true,tools});
+ fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));fireEvent.click(await waitFor(()=>h.view.getByRole('button',{name:'Assign all 21 in listed order'})));fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));
+ await waitFor(()=>assert.match(h.view.container.textContent,/original photo file is missing|Saved and read back/));
+ assert.equal(h.calls.some(call=>call.allowCommit),false);assert.equal(tools.some(call=>call[0]==='ffmpeg'),false);assert.equal(h.view.getByRole('button',{name:'Create Draft'}).disabled,false);
 });

@@ -275,7 +275,7 @@ const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.res
 // Read verified Project resources and place editable images through the Draft working copy.
 // native-image-input:start
 // Read-only original Image facts. Canonical input feature for photo templates.
-async function nativeImageSources(selects, projectId, photos) {
+export async function nativeImageSources(selects, projectId, photos) {
  const project=selects.project(projectId), resources=await project.resources(), nodes=[];
  const visit=items=>{for(const item of items||[])item.type==='dir'?visit(item.children):nodes.push(item);};
  const overview=await project.sourceFiles();

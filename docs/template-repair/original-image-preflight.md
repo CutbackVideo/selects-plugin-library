@@ -18,7 +18,7 @@ Dump then passed the same contract using the extracted source. Two additional
 tests reproduced loss of the filename in the final user error; the structured
 SDK result now retains error code, Resource ID and the safe public message.
 
-`shared/native-image-input.js` is the canonical source. The explicit registry
+`shared/native-image-input.mjs` is the canonical source. The explicit registry
 and generic synchronization tool embed it into the two reviewed consumers.
 Existing placement rules and other native Image consumers remain compatible.
 

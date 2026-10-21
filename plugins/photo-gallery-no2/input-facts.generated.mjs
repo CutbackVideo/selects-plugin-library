@@ -1,5 +1,5 @@
-// Read-only original Image facts. Canonical input feature for photo templates.
-async function nativeImageSources(selects, projectId, photos) {
+// Generated from shared/native-image-input.mjs; edit the canonical source.
+export async function nativeImageSources(selects, projectId, photos) {
  const project=selects.project(projectId), resources=await project.resources(), nodes=[];
  const visit=items=>{for(const item of items||[])item.type==='dir'?visit(item.children):nodes.push(item);};
  const overview=await project.sourceFiles();
@@ -31,19 +31,4 @@ async function nativeImageSources(selects, projectId, photos) {
   checked.add(photo.path);
  }
  return sources;
-}
-async function nativeImageRun(sdk,script,summary,allowCommit=false) {
- const response=await sdk.runScript({script,summary,allowCommit,timeoutSeconds:120});
- if(response.isError||response.result==null)throw Error(response.output||'Image placement could not be confirmed. Inspect the Draft before retrying.');
- return response.result;
-}
-export async function prepareNativeImages(sdk,projectId,photos,knownLibraryId=null) {
- const result=await nativeImageRun(sdk,`try{return {sources:await (${nativeImageSources.toString()})(selects,${JSON.stringify(projectId)},${JSON.stringify(photos)})};}catch(error){const issue=Object(error);return {sourceError:{code:typeof issue.code==='string'?issue.code:'image-source-invalid',message:String(issue.message||error),resourceId:issue.resourceId??null}};}`,'Verify original Project Images');
- if(result.sourceError){
-  const error=Object.assign(new Error(result.sourceError.message),result.sourceError);
-  if(['image-source-missing','image-source-unreadable','image-source-unknown','image-source-changed'].includes(error.code))error.publicMessage=error.message+'. Check the original file in the Project, then try again.';
-  throw error;
- }
- if(!Array.isArray(result.sources))throw Error('Original Image verification returned an incomplete result.');
- return {sdk,projectId,sources:result.sources};
 }

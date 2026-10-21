@@ -71,3 +71,20 @@ test('excluded compatibility consumers stop synchronization before any file is c
  assert.notEqual(run().status,0);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
  assert.equal(fs.readFileSync(file('shortform-clips'),'utf8'),'excluded sentinel');
 }));
+test('declared build-time consumers import the same source without rewriting their builder',()=>fixture(({dir,run})=>{
+ const folder=path.join(dir,'plugins/photo-gallery-no2');fs.mkdirSync(folder);
+ fs.writeFileSync(path.join(folder,'plugin.json'),JSON.stringify({id:'photo-gallery-no2',collection:'visual-highlights'}));
+ const builder=path.join(folder,'operation-builder.mjs'),source="import {sourceFact} from '../../shared/example.js';\n";fs.writeFileSync(builder,source);
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath,'utf8'));registry.modules[0].buildTimeTargets=['plugins/photo-gallery-no2/operation-builder.mjs'];fs.writeFileSync(registryPath,JSON.stringify(registry));
+ const result=run('--check');assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/3 consumers/);assert.equal(fs.readFileSync(builder,'utf8'),source);
+}));
+test('a missing build-time import refuses sync before rewriting any panel',()=>fixture(({dir,file,run})=>{
+ const folder=path.join(dir,'plugins/photo-gallery-no2');fs.mkdirSync(folder);fs.writeFileSync(path.join(folder,'plugin.json'),JSON.stringify({id:'photo-gallery-no2',collection:'visual-highlights'}));fs.writeFileSync(path.join(folder,'operation-builder.mjs'),"import {sourceFact} from '../../shared/other.js';\n");
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath,'utf8'));registry.modules[0].buildTimeTargets=['plugins/photo-gallery-no2/operation-builder.mjs'];fs.writeFileSync(registryPath,JSON.stringify(registry));
+ fs.writeFileSync(path.join(dir,'shared/example.js'),'function sourceFact(){return 20;}\n');const before=fs.readFileSync(file('no14-still-video'),'utf8');
+ assert.notEqual(run().status,0);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
+}));
+test('excluded build-time consumers cannot be registered',()=>fixture(({dir,run})=>{
+ const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath,'utf8'));registry.modules[0].buildTimeTargets=['plugins/shortform-clips/operation-builder.mjs'];fs.writeFileSync(registryPath,JSON.stringify(registry));
+ assert.notEqual(run('--check').status,0);
+}));

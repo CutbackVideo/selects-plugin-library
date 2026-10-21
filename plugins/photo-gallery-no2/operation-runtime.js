@@ -28,9 +28,7 @@ function galleryPathKey(path) {
 function gallerySamePath(a, b) { return typeof a === 'string' && typeof b === 'string' && galleryPathKey(a) === galleryPathKey(b); }
 
 function galleryResolveResource(items, resourceId, path, label) {
-  const byId = items.find((item) => item.resourceId === resourceId);
   if (!galleryAbsolute(path)) galleryFail(`${label} path is required`);
-  if (gallerySamePath(byId?.path, path)) return byId;
   const matches = items.filter((item) => gallerySamePath(item.path, path));
   if (matches.length !== 1) galleryFail(`${label} path is missing or ambiguous in this Project`);
   return matches[0];
@@ -57,10 +55,9 @@ async function galleryInventory(project, paths = null) {
     }
   } else galleryFail('Media inventory is unavailable');
   const media = [], audio = [];
-  const seen = new Set();
   for (const node of nodes) {
     const resource = byId.get(node.resourceId);
-    if (!resource || seen.has(node.resourceId) || typeof node.path !== 'string' || (paths && !paths.includes(node.path))) continue;
+    if (!resource || typeof node.path !== 'string' || (paths && !paths.includes(node.path))) continue;
     const type = String(resource.type).toLowerCase();
     const kind = type === 'image' ? 'image' : type === 'video' ? 'video' : type === 'audio' ? 'audio' : null;
     if (!kind) continue;
@@ -71,13 +68,13 @@ async function galleryInventory(project, paths = null) {
     else if (kind === 'image' || (node.frameSize?.width > 0 && node.frameSize?.height > 0)) {
       media.push({ ...common, kind, width: node.frameSize?.width ?? null, height: node.frameSize?.height ?? null });
     }
-    seen.add(node.resourceId);
   }
+  const readyIds = new Set([...media, ...audio].map(item => item.resourceId));
+  const scopedIds = paths && new Set(nodes.filter(node => paths.includes(node.path)).map(node => node.resourceId));
   const unavailable = resources.filter((resource) =>
-    (!paths || nodes.some(n => n.resourceId === resource.resourceId && paths.includes(n.path))) &&
+    (!scopedIds || scopedIds.has(resource.resourceId)) &&
     ['image', 'video', 'audio'].includes(String(resource.type).toLowerCase()) &&
-    !media.some((item) => item.resourceId === resource.resourceId) &&
-    !audio.some((item) => item.resourceId === resource.resourceId));
+    !readyIds.has(resource.resourceId));
   return { media, audio, unavailable: unavailable.map((item) => ({ resourceId: item.resourceId, name: item.name })) };
 }
 
@@ -106,8 +103,8 @@ function galleryGeometry(tile, source, colorFrame) {
 function assertGalleryInput(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) galleryFail('Gallery input is required');
   if (typeof input.projectId !== 'string' || !input.projectId) galleryFail('Select a Project');
-  if (!['inspect', 'importBundledMusic', 'importConverted', 'create', 'preflight', 'createBase', 'fillBase', 'placeVideosExisting', 'styleExisting', 'verifyCreated'].includes(input.operation)) galleryFail('Unknown gallery action');
-  if (['create', 'preflight', 'createBase', 'placeVideosExisting', 'styleExisting'].includes(input.operation) && (!Array.isArray(input.media) || input.media.length !== 21)) galleryFail('Select exactly 21 visual slots');
+  if (!['inspect', 'verifyInputs', 'importBundledMusic', 'importConverted', 'create', 'preflight', 'createBase', 'fillBase', 'placeVideosExisting', 'styleExisting', 'verifyCreated'].includes(input.operation)) galleryFail('Unknown gallery action');
+  if (['create', 'verifyInputs', 'preflight', 'createBase', 'placeVideosExisting', 'styleExisting'].includes(input.operation) && (!Array.isArray(input.media) || input.media.length !== 21)) galleryFail('Select exactly 21 visual slots');
   return input;
 }
 
@@ -181,10 +178,12 @@ async function galleryImportBundledMusic(selects, project, input, inventory, onI
   return { status: 'musicReady', music: { ...audio[0], startFrame: 0 } };
 }
 
-async function galleryPreflight(selects, project, input, inventory) {
+async function galleryReadInputs(selects, project, input, inventory) {
   const chosen = input.media.map((item, i) => {
+    if (!item || typeof item.resourceId !== 'string' || !item.resourceId.trim()) galleryFail(`Slot ${i + 1} Resource ID is required`);
     const fresh = galleryResolveResource(inventory.media, item.resourceId, item.path, `Slot ${i + 1}`);
-    const width = fresh.width ?? item.width, height = fresh.height ?? item.height;
+    if (item.kind !== fresh.kind) galleryFail(`Slot ${i + 1} media type changed`);
+    const width = fresh.width, height = fresh.height;
     if (!Number.isSafeInteger(width) || width < 1 || !Number.isSafeInteger(height) || height < 1) {
       galleryFail(`Slot ${i + 1} photo dimensions are unavailable through the plugin SDK; no Draft was saved`);
     }
@@ -198,16 +197,32 @@ async function galleryPreflight(selects, project, input, inventory) {
     galleryResolveResource(inventory.audio, input.music.resourceId, input.music.path, 'Music');
   if (input.music != null && !music) galleryFail('Selected music is missing or moved');
   const selectedMusic = music && { ...music, startFrame: input.music.startFrame ?? 0 };
-  const plan = planGallery({ media: chosen, music: selectedMusic, manualBpm: input.manualBpm, estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames, fps: input.fps });
+  const media = validateMedia(chosen);
   const paths = [...new Set([...chosen.map((item) => item.path), ...(music ? [music.path] : [])])];
   const probe = await selects.media.probe({ filePaths: paths });
   const confirmed = new Set((probe.files || []).map((file) => galleryPathKey(file.path)));
   if (probe.error || (probe.errors || []).length || (probe.summary?.failed || 0) || paths.some((path) => !confirmed.has(galleryPathKey(path)))) {
     galleryFail('A selected media file is missing, unreadable, or corrupt; no Draft was saved');
   }
+  // A probe can outlive its file snapshot. Reuse the same post-probe original
+  // Image checks as other photo templates; Video-only inputs need no unused
+  // Image file capability. Current aliases come from frozen selected paths.
+  const images = media.map((item, index) => ({ ...item, name: `Tile ${index + 1}` })).filter(item => item.kind === 'image');
+  if (images.length) {
+    const facts = await nativeImageSources(selects, input.projectId, images);
+    for (let index = 0; index < images.length; index++) if (facts[index].width !== images[index].width || facts[index].height !== images[index].height) {
+      throw Object.assign(new Error(`A selected Image changed while checking inputs: ${images[index].name}`), { code: 'image-source-changed', resourceId: images[index].resourceId });
+    }
+  }
+  return { chosen: media, music: selectedMusic };
+}
+
+async function galleryPreflight(selects, project, input, inventory) {
+  const { chosen, music } = await galleryReadInputs(selects, project, input, inventory);
+  const plan = planGallery({ media: chosen, music, manualBpm: input.manualBpm, estimatedBpm: input.estimatedBpm, durationFrames: input.durationFrames, fps: input.fps });
   const meta = await project.meta();
   if (!Array.isArray(meta.draftIds)) galleryFail('Project Draft list is unavailable');
-  return { plan, chosen, music: selectedMusic };
+  return { plan, chosen, music };
 }
 
 async function galleryCreate(selects, project, input, inventory, onCommitStarted) {
@@ -515,7 +530,18 @@ async function galleryOperation(selects, raw) {
     const input = assertGalleryInput(raw);
     const project = selects.project(input.projectId);
     const inventory = await galleryInventory(project, input.operation === 'inspect' ? input.paths : null);
-    if (input.operation === 'inspect') return { status: 'inspected', projectId: input.projectId, ...inventory };
+    if (input.operation === 'inspect') {
+      const rows = [...inventory.media, ...inventory.audio];
+      const counts = new Map();
+      for (const row of rows) { const key = galleryPathKey(row.path); counts.set(key, (counts.get(key) || 0) + 1); }
+      const unique = row => counts.get(galleryPathKey(row.path)) === 1;
+      const unavailable = new Map([...inventory.unavailable, ...rows.filter(row => !unique(row))].map(row => [row.resourceId, { resourceId: row.resourceId, name: row.name }]));
+      return { status: 'inspected', projectId: input.projectId, media: inventory.media.filter(unique), audio: inventory.audio.filter(unique), unavailable: [...unavailable.values()] };
+    }
+    if (input.operation === 'verifyInputs') {
+      const { chosen, music } = await galleryReadInputs(selects, project, input, inventory);
+      return { status: 'inputsReady', media: chosen, music };
+    }
     if (input.operation === 'importBundledMusic') return await galleryImportBundledMusic(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'importConverted') return await galleryImportConverted(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'create') return await galleryCreate(selects, project, input, inventory, () => { commitStarted = true; });
@@ -523,13 +549,16 @@ async function galleryOperation(selects, raw) {
       const { plan } = await galleryPreflight(selects, project, input, inventory);
       return { status: 'ready', plan };
     }
-    if (input.operation === 'createBase') return await galleryCreateBase(project, input, () => { commitStarted = true; });
+    if (input.operation === 'createBase') {
+      await galleryReadInputs(selects, project, input, inventory);
+      return await galleryCreateBase(project, input, () => { commitStarted = true; });
+    }
     if (input.operation === 'fillBase') return await galleryFillBase(selects, project, input, () => { commitStarted = true; });
     if (input.operation === 'placeVideosExisting') return await galleryPlaceVideosExisting(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'styleExisting') return await galleryStyleExisting(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'verifyCreated') return await galleryVerifyCreated(selects, project, input, inventory);
     galleryFail('Unknown gallery action');
   } catch (error) {
-    return { status: commitStarted ? 'outcomeUnknown' : 'notSaved', message: String(error?.message || error) };
+    return { status: commitStarted ? 'outcomeUnknown' : 'notSaved', message: String(error?.message || error), .../^image-source-/.test(error?.code || '') ? { code: error.code, resourceId: error.resourceId } : {} };
   }
 }

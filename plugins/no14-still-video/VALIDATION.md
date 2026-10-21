@@ -1,6 +1,14 @@
 # Validation and current limits
 
-## Current repair checkpoint: 0.5.13
+## Current repair checkpoint: 0.5.14
+
+The canonical original-Image source is now an explicit `.mjs` build input
+shared with Photo Grid Reveal. This panel has only the synchronized function
+export prefix; its source-check behavior, public interface and recipe are
+unchanged. See `docs/template-repair/gallery-input.md` for packaging and
+existing-consumer regressions.
+
+## Earlier repair checkpoint: 0.5.13
 
 The shared run feature now checks hashing/text codecs and callable new-claim
 capabilities before preparing assets or authoring. Read-only recovery preserves

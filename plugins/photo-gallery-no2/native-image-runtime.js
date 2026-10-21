@@ -21,6 +21,9 @@ async function galleryNativePlace(sdk, projectId, draftId, media, plan, libraryI
     script: `const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(draftId)}),plan=${JSON.stringify(plan)},media=${JSON.stringify(selected)};
       if(!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)}))throw Error('Target Draft does not belong to this Project');
       const meta=await d.meta();if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames)throw Error('Gallery Draft clock or duration changed');
+      const images=media.map((item,index)=>({...item,name:'Tile '+(index+1)})).filter(item=>item.kind==='image');
+      const facts=images.length?await (${gallerySourceFacts.toString()})(selects,${JSON.stringify(projectId)},images):[];
+      if(facts.some((row,index)=>row.width!==images[index].width||row.height!==images[index].height))throw Error('Selected Gallery Images changed before placement');
       const placements=[];for(let index=0;index<plan.tiles.length;index++){const tile=plan.tiles[index];if(tile.kind!=='image')continue;
         const before=new Set((await d.clips({trackScope:'all'})).map(c=>c.clipId));
         await d.overlayResource({resource:p.resource(media[index].resourceId),over:await d.rangeAtFrames(tile.revealFrame,tile.endFrame)});
