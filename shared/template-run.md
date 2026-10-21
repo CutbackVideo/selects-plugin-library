@@ -23,8 +23,10 @@ observations, not a host transaction locking a Project against relocation.
 The record is under the existing installation-independent plugin data root:
 `.selects/plugin-data/<pluginId>/template-runs/<scope-sha256>.json`. It contains
 version, scope, normalized request digest, unique owner and status. A saved record
-adds only the Draft ID, fps, duration, canvas and Image clip receipts, not original
-paths, image bytes, full recipes or private diagnostics. Reads check file size
+adds only the Draft ID, fps, duration, canvas, Image clip receipts and optional
+graphic clip/parameter receipts, not original paths, image bytes, full TSX/recipes
+or private diagnostics. Image recovery requires the graphic evidence its current
+verifier needs; an older record without it is inspected without replay. Reads check file size
 before loading and are limited to 48 KiB, matching the existing atomic file API.
 
 ## Exclusive claim and SDK-side completion

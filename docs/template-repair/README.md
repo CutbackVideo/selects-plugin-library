@@ -38,6 +38,10 @@ an unrelated workflow. A passing unit suite alone is not completion.
   The local SDK bootstrap now finishes hidden-run connection failures with a
   bounded observation and safe message at both photo consumers; a16z is rebuilt
   for shared-source compatibility. See [template-bootstrap.md](template-bootstrap.md).
+  Camera now reads the authoritative Project title; both photo create paths
+  check working-copy and persisted graphic receipts. See
+  [camera-project-title.md](camera-project-title.md); transforms/effects/audio
+  and the full runtime/platform gates remain open.
 - Place Count's obsolete named capability query: independent draft PR #260;
   canonical Draft-method checks and both remote CI checks pass. Installed-app
   save/playback/export and the other six audited findings remain pending.

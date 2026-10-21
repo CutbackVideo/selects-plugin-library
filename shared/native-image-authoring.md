@@ -31,6 +31,13 @@ effects, graphics and audio recipes remain template-owned.
   the persisted Project/Draft, fps, canvas, duration and Image clip IDs, tracks,
   Resource IDs and intervals. Only the minimal receipt enters this query; source
   paths and template recipes are not sent again. Verification never replays a save.
+- `inspectImageGraphics` compares the procedural clip count, live identities,
+  tracks, intervals and explicit parameter values using the existing
+  `motionGraphics`/`motionGraphicProgram` SDK reads. Normal create paths invoke
+  it before commit and in the independent saved readback. Parameter object key
+  order does not matter; extra host-supplied defaults are preserved. Minimal
+  graphic receipts pass through the existing durable run record. Missing old
+  Image graphic evidence requires inspection rather than another save.
 - A legacy empty seed may continue in one commit if it belongs to the Project
   and matches the plan. Any preexisting non-Main clip, including a manual graphic
   without a Resource ID, is refused. A configured Main Audio must match the
@@ -54,6 +61,7 @@ does not roll those imports back. Legacy compatibility helpers can still commit
 their individual operations when explicitly called; normal create paths use the
 new one-commit operation.
 
-Persisted Image receipts do not verify every saved effect/graphic/audio property,
-actual image decoding, playback, visual fidelity or export. Those acceptance
+Persisted receipts do not verify every saved effect/graphic/audio property,
+including graphic transforms, TSX identity or editable definitions. They do not
+prove actual image decoding, playback, visual fidelity or export. Those acceptance
 gates remain separate. See the [checkpoint](../docs/template-repair/photo-atomic-authoring.md).
