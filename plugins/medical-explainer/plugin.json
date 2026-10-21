@@ -3,7 +3,7 @@
   "id": "medical-explainer",
   "version": "0.1.0",
   "name": "Medical Explainer",
-  "summary": "Turns a topic, text or link into a vertical medical explainer with 3D medical animation, narration, captions and pointer labels.",
+  "summary": "Turns a topic, text or link into a vertical health explainer in a fitting style: zoom, myth or fact, timeline or steps, with generated pictures, narration, captions and cards.",
   "status": "experimental",
   "entrypoint": "README.md",
   "installation": "INSTALL.md",
@@ -22,43 +22,43 @@
   "localized": {
     "de": {
       "name": "Medizinisches Erkl\u00e4rvideo",
-      "summary": "Aus einem Thema, einem Text oder einem Link entsteht ein Kurzvideo mit 3D-Medizinanimation, Sprecher, Untertiteln und Beschriftungen."
+      "summary": "Aus einem Thema, einem Text oder einem Link entsteht ein Gesundheits-Kurzvideo mit passendem Erkl\u00e4rstil, generierten Bildern, Sprecher, Untertiteln und Einblendungen."
     },
     "en": {
       "name": "Medical Explainer",
-      "summary": "Turns a topic, text or link into a vertical medical explainer with 3D medical animation, narration, captions and pointer labels."
+      "summary": "Turns a topic, text or link into a vertical health explainer in a fitting style: zoom, myth or fact, timeline or steps, with generated pictures, narration, captions and cards."
     },
     "es": {
       "name": "V\u00eddeo explicativo m\u00e9dico",
-      "summary": "Convierte un tema, un texto o un enlace en un v\u00eddeo m\u00e9dico vertical con animaci\u00f3n 3D, narraci\u00f3n, subt\u00edtulos y etiquetas."
+      "summary": "Convierte un tema, un texto o un enlace en un v\u00eddeo vertical de salud con el estilo adecuado, im\u00e1genes generadas, narraci\u00f3n, subt\u00edtulos y tarjetas."
     },
     "fr": {
       "name": "Vid\u00e9o explicative m\u00e9dicale",
-      "summary": "Transforme un sujet, un texte ou un lien en vid\u00e9o m\u00e9dicale verticale avec animation 3D, narration, sous-titres et l\u00e9gendes."
+      "summary": "Transforme un sujet, un texte ou un lien en vid\u00e9o sant\u00e9 verticale au style adapt\u00e9, avec images g\u00e9n\u00e9r\u00e9es, narration, sous-titres et cartes."
     },
     "it": {
       "name": "Video esplicativo medico",
-      "summary": "Trasforma un argomento, un testo o un link in un video medico verticale con animazione 3D, voce narrante, sottotitoli ed etichette."
+      "summary": "Trasforma un argomento, un testo o un link in un video verticale sulla salute nello stile adatto, con immagini generate, voce narrante, sottotitoli e schede."
     },
     "ja": {
       "name": "\u533b\u7642\u89e3\u8aac\u30b7\u30e7\u30fc\u30c8",
-      "summary": "\u30c6\u30fc\u30de\u3001\u6587\u7ae0\u3001\u30ea\u30f3\u30af\u304b\u3089\u30013D\u533b\u7642\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u3068\u30ca\u30ec\u30fc\u30b7\u30e7\u30f3\u3001\u5b57\u5e55\u3001\u30e9\u30d9\u30eb\u4ed8\u304d\u306e\u7e26\u578b\u533b\u7642\u89e3\u8aac\u52d5\u753b\u3092\u4f5c\u308a\u307e\u3059\u3002"
+      "summary": "\u30c6\u30fc\u30de\u3001\u6587\u7ae0\u3001\u30ea\u30f3\u30af\u304b\u3089\u3001\u5185\u5bb9\u306b\u5408\u3063\u305f\u69cb\u6210\u3068\u753b\u9762\u3067\u3001\u751f\u6210\u753b\u50cf\u3068\u30ca\u30ec\u30fc\u30b7\u30e7\u30f3\u3001\u5b57\u5e55\u3001\u30ab\u30fc\u30c9\u4ed8\u304d\u306e\u7e26\u578b\u5065\u5eb7\u89e3\u8aac\u52d5\u753b\u3092\u4f5c\u308a\u307e\u3059\u3002"
     },
     "ko": {
       "name": "\uc758\ud559 \uc124\uba85 \uc1fc\uce20",
-      "summary": "\uc8fc\uc81c\ub098 \uae00, \ub9c1\ud06c\ub85c 3D \uc758\ud559 \uc560\ub2c8\uba54\uc774\uc158\uacfc \ub0b4\ub808\uc774\uc158, \uc790\ub9c9, \uac00\ub9ac\ud0b4 \ub77c\ubca8\uc774 \ub4e4\uc5b4\uac04 \uc138\ub85c\ud615 \uc758\ud559 \uc124\uba85 \uc601\uc0c1\uc744 \ub9cc\ub4ed\ub2c8\ub2e4."
+      "summary": "\uc8fc\uc81c\ub098 \uae00, \ub9c1\ud06c\ub85c \ub0b4\uc6a9\uc5d0 \ub9de\ub294 \uc804\uac1c\uc640 \ud654\uba74 \uad6c\uc131\uc758 \uc138\ub85c\ud615 \uac74\uac15 \uc124\uba85 \uc601\uc0c1\uc744 \ub9cc\ub4ed\ub2c8\ub2e4. \uc0dd\uc131 \uc774\ubbf8\uc9c0, \ub0b4\ub808\uc774\uc158, \uc790\ub9c9, \uce74\ub4dc\uac00 \ub4e4\uc5b4\uac11\ub2c8\ub2e4."
     },
     "pt": {
       "name": "V\u00eddeo explicativo m\u00e9dico",
-      "summary": "Transforma um tema, um texto ou um link num v\u00eddeo m\u00e9dico vertical com anima\u00e7\u00e3o 3D, narra\u00e7\u00e3o, legendas e r\u00f3tulos."
+      "summary": "Transforma um tema, um texto ou um link num v\u00eddeo vertical de sa\u00fade com o estilo certo, imagens geradas, narra\u00e7\u00e3o, legendas e cart\u00f5es."
     },
     "tr": {
       "name": "T\u0131bbi a\u00e7\u0131klama videosu",
-      "summary": "Bir konu, metin ya da ba\u011flant\u0131dan 3D t\u0131bbi animasyon, seslendirme, altyaz\u0131 ve etiketlerle dikey bir t\u0131bbi a\u00e7\u0131klama videosu yapar."
+      "summary": "Bir konu, metin ya da ba\u011flant\u0131dan uygun anlat\u0131m bi\u00e7iminde, \u00fcretilmi\u015f g\u00f6rseller, seslendirme, altyaz\u0131 ve kartlarla dikey bir sa\u011fl\u0131k a\u00e7\u0131klama videosu yapar."
     },
     "zh": {
       "name": "\u533b\u5b66\u89e3\u8bf4\u77ed\u89c6\u9891",
-      "summary": "\u5c06\u4e00\u4e2a\u4e3b\u9898\u3001\u4e00\u6bb5\u6587\u5b57\u6216\u4e00\u4e2a\u94fe\u63a5\u505a\u6210\u5e26\u6709 3D \u533b\u5b66\u52a8\u753b\u3001\u65c1\u767d\u3001\u5b57\u5e55\u548c\u6807\u6ce8\u7684\u7ad6\u5c4f\u533b\u5b66\u89e3\u8bf4\u89c6\u9891\u3002"
+      "summary": "\u5c06\u4e00\u4e2a\u4e3b\u9898\u3001\u4e00\u6bb5\u6587\u5b57\u6216\u4e00\u4e2a\u94fe\u63a5\u505a\u6210\u7ed3\u6784\u4e0e\u753b\u9762\u5951\u5408\u5185\u5bb9\u7684\u7ad6\u5c4f\u5065\u5eb7\u89e3\u8bf4\u89c6\u9891\uff0c\u5e26\u6709\u751f\u6210\u753b\u9762\u3001\u65c1\u767d\u3001\u5b57\u5e55\u548c\u5361\u7247\u3002"
     }
   }
 }

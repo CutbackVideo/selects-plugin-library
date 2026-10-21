@@ -120,6 +120,13 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('onClick={() => choosePolicy(s.n, "regen", s.model)}', self.panel)
         self.assertNotIn('kfpolicy', self.panel)
 
+    def test_mode_art_and_layout_are_settings(self):
+        for needle in ['<ui.Select label={S.mode} value={modeSet}', '<ui.Select label={S.art} value={artSet}', '<ui.Select label={S.layout} value={layoutSet}',
+                       'mode: modeSet, art: artSet, layout: layoutSet', 'await ask(medScriptPrompt(art, f, modeSet))']:
+            self.assertIn(needle, self.panel)
+        self.assertNotIn('MED_STYLE', self.panel)
+        self.assertNotIn('gentle blood flow', self.panel)
+
     def test_update_guard_policy_and_hook(self):
         policies = json.loads((ROOT / 'shared' / 'app-update-guard-policies.json').read_text(encoding='utf-8'))
         self.assertEqual(policies['medical-explainer'], {'Panel': 'busy'})
@@ -131,12 +138,12 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('{noHost && <ui.Message>{S.noHost}</ui.Message>}', self.panel)
         langs = re.findall(r'^  (\w\w): \{$', self.panel, flags=re.M)
         self.assertEqual(sorted(langs), ['en', 'ko'])
-        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged', 'kfModel', 'fluxNote', 'policyScenes', 'policyTransitions', 'editHint', 'policyTitle', 'policyUseStill', 'policyRegenFailed', 'policyStill']:
+        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged', 'kfModel', 'fluxNote', 'policyScenes', 'policyTransitions', 'editHint', 'policyTitle', 'policyUseStill', 'policyRegenFailed', 'policyStill', 'autoMode', 'autoStyle']:
             self.assertEqual(len(re.findall(r'\b%s: "' % key, self.panel)), len(langs), key)
 
     def test_korean_fallback_fonts_in_every_overlay(self):
         self.assertEqual(self.panel.count("'Apple SD Gothic Neo','Malgun Gothic',"), 1)
-        self.assertEqual(self.panel.count('"const FALLBACK = " + FALLBACK_SANS'), 6)
+        self.assertEqual(self.panel.count('"const FALLBACK = " + FALLBACK_SANS'), 9)
         self.assertEqual(self.panel.count('"const FALLBACK = " + FALLBACK_SERIF'), 1)
 
     def test_only_the_korean_name_header_is_literal_korean(self):

@@ -216,7 +216,7 @@ function makeJob(settings = {}) {
     {n: 4, narration: 'It can block blood to the heart or brain.', visual: 'clot', camera: 'pull_back', scale: 'cell', label: 'L4', pointers: [], split: null, insets: [{sourceScene: 1, label: 'Heart'}, {sourceScene: 2, label: 'Brain'}]},
   ];
   fs.writeFileSync(path.join(dir, 'job.json'), JSON.stringify({id: 'mxT', settings: {voice: 'eleven-daniel', template: {wordmark: 'Health Explainer', color1: '#FFE14D', color2: '#9BE15D', bg: '#1f1f22'}, ...settings}}));
-  fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify({version: '1', lang: 'ko', title: ['T1', 'T2'], scenes}));
+  fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify({version: op.MED_VERSION, lang: 'ko', mode: 'zoom', title: ['T1', 'T2'], scenes}));
   const gen = {};
   for (const s of scenes) {
     const f = path.join(dir, `mxT_narr_${s.n}_1.mp3`); fs.writeFileSync(f, ''); gen[`narr:${s.n}`] = {path: f};
@@ -246,7 +246,7 @@ test('requests: scene clips start from the keyframe only; transitions bind start
   assert.ok(['jpeg', 'png'].includes(kf[0].input.output_format));
   assert.match(kf[2].uploads.ref, /kf_1B\.png$/, 'scene 1\'s chosen keyframe is the style reference');
   assert.match(kf[2].key, /-rB$/);
-  assert.ok(kf[2].input.prompt.endsWith(op.MED_STYLE + '.'));
+  assert.ok(kf[2].input.prompt.endsWith(op.medStyleSuffix('medical', 'strip') + '.'));
   const clips = (await op.medEngine('requests', dir, ['clips'], io)).requests;
   assert.equal(clips.length, 8);
   const tl = JSON.parse(fs.readFileSync(path.join(dir, 'timeline.json'), 'utf8'));
@@ -613,7 +613,7 @@ test('keyframe models: scene 1 from text, scenes 2-N as edits of scene 1, only s
       for (const k of Object.keys(r.input)) assert.ok(KF_SCHEMA[endpoint].includes(k), `${endpoint} has no ${k}`);
       for (const [k, allowed] of Object.entries(KF_ENUMS)) if (typeof r.input[k] === 'string') assert.ok(allowed.includes(r.input[k]), `${id} ${k}=${r.input[k]}`);
       assert.ok(r.input.aspect_ratio === '16:9' || r.input.image_size === 'landscape_16_9' || r.input.image_size?.width / r.input.image_size?.height === 16 / 9, id);
-      assert.ok(r.input.prompt.includes(op.MED_STYLE));
+      assert.ok(r.input.prompt.includes(op.medStyleSuffix('medical', 'strip')));
       if (!scene1 && edit) { assert.deepEqual(r.input.image_urls, ['selects-input:ref']); assert.deepEqual(Object.keys(r.uploads), ['ref']); }
       else { assert.ok(!('image_urls' in r.input)); assert.deepEqual(r.uploads, {}); }
       if (id !== 'seedream') assert.match(r.key, new RegExp(`-m${id.replace('.', '\\.')}`), 'a model choice is part of the request key');
@@ -806,5 +806,226 @@ test('an edited sentence is narrated again under a new key; the others keep thei
   assert.deepEqual(after.map((r, i) => r.key === before[i].key), [true, false, true, true]);
   assert.match(after[1].key, /-v1$/);
   assert.equal(after[1].input.text, 'A shorter sentence.');
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+// ---- topic-dependent flow and screen composition (PR review item 2) ----
+const ANATOMY = /blood|vessel|arter|\bcells?\b|molecul|anatom|plaque|tissue|\borgans?\b|cholesterol|glossy/i;
+const F = {budget: op.medBudget('ko'), language: 'Korean', style: 'formal', lang: 'ko', titleChars: 10, labelChars: 12};
+const ART = {title: 'topic', method: 'topic'};
+
+test('script prompts: one per mode, no forced anatomy terms, only that mode\'s fields; auto describes all four', () => {
+  const fields = {zoom: ['pointers', 'split', 'insets', 'scale'], myth: ['mythIndex', 'verdict', 'reasonCard'], timeline: ['timeChip'], list: ['stepNumber', 'stepCard']};
+  for (const mode of ['zoom', 'myth', 'timeline', 'list', 'auto']) {
+    const prompt = op.medScriptPrompt(ART, F, mode);
+    assert.doesNotMatch(prompt, ANATOMY, mode);
+    for (const [m, list] of Object.entries(fields)) for (const f of list) {
+      if (mode === 'auto' || mode === m) assert.ok(prompt.includes(f), `${mode} lacks ${f}`);
+      else if (!['zoom'].includes(mode) || !['split', 'insets'].includes(f)) assert.ok(!prompt.includes(f + ' ('), `${mode} has ${m}'s ${f}`);
+    }
+    for (const t of ['cut', 'flash', 'dissolve', 'push', 'pull', 'subject', 'motion', 'transitionOut']) assert.ok(prompt.includes(t), `${mode}: ${t}`);
+    assert.equal(prompt.includes('set "mode"'), mode === 'auto');
+  }
+});
+
+test('plan schema per mode: subject, motion and transitionOut on every scene; mode fields only for their mode', () => {
+  const sc = (extra) => ({narration: 'A sentence.', subject: 'a person at a kitchen table', motion: 'steam rises from a cup', camera: 'push_in', label: 'L', ...extra});
+  const raw = (mode) => ({mode, title_lines: ['A', 'B'], scenes: [
+    sc({transitionOut: 'flash', verdict: 'X', mythIndex: 1, reasonCard: 'reason one', timeChip: '07:00', stepNumber: 1, stepCard: 'step one'}),
+    sc({transitionOut: 'nonsense', verdict: 'o', mythIndex: 5, reasonCard: 'reason two', timeChip: '12:00', stepNumber: 2, stepCard: 'step two'}),
+    sc({verdict: 'X', reasonCard: 'three'}), sc({verdict: 'X', reasonCard: 'four'}), sc({}),
+  ]});
+  for (const mode of ['zoom', 'myth', 'timeline', 'list']) {
+    const {plan} = op.medNormalizePlan(raw(mode), 'en', 'T');
+    assert.equal(plan.mode, mode);
+    assert.equal(plan.version, op.MED_VERSION);
+    for (const s of plan.scenes) {
+      assert.equal(s.subject, 'a person at a kitchen table');
+      assert.equal(s.motion, 'steam rises from a cup');
+      assert.ok(s.n === plan.scenes.length ? s.transitionOut === null : op.MED_TRANSITIONS.includes(s.transitionOut));
+      if ('verdict' in s) assert.equal(mode, 'myth');
+      if ('timeChip' in s) assert.equal(mode, 'timeline');
+      if ('stepNumber' in s) assert.equal(mode, 'list');
+    }
+    assert.equal(plan.scenes[0].transitionOut, 'flash');
+    if (mode === 'timeline') assert.deepEqual(plan.scenes.map((x) => x.timeChip || null), ['07:00', '12:00', null, null, null]);
+    if (mode === 'list') assert.deepEqual(plan.scenes.map((x) => x.stepNumber || null), [1, 2, null, null, null]);
+    assert.equal(plan.scenes[1].transitionOut, op.MED_MODES[mode].transition === 'push' ? 'push' : op.MED_MODES[mode].transition, 'an unknown boundary takes the mode default');
+  }
+  const myth = op.medNormalizePlan(raw('myth'), 'en', 'T').plan;
+  assert.deepEqual(myth.scenes.map((s) => s.mythIndex || null), [1, 2, 3, null, null], 'at most three myths, numbered in order');
+  assert.deepEqual(myth.scenes.slice(0, 2).map((s) => s.verdict), ['X', 'O']);
+  // The user's mode overrides the script's.
+  assert.equal(op.medNormalizePlan(raw('myth'), 'en', 'T', 'list').plan.mode, 'list');
+  assert.equal(op.medNormalizePlan({scenes: raw('x').scenes}, 'en', 'T').plan.mode, 'zoom');
+});
+
+test('art presets are style only and go into the keyframe suffix; motion comes from the plan', () => {
+  for (const [art, a] of Object.entries(op.MED_ARTS)) {
+    for (const layout of ['strip', 'fullbleed']) {
+      const suffix = op.medStyleSuffix(art, layout);
+      assert.ok(suffix.startsWith(a.style), art);
+      assert.ok(suffix.endsWith('no text, no labels, no watermark'));
+      assert.match(suffix, layout === 'strip' ? /16:9/ : /9:16/);
+      assert.doesNotMatch(suffix, ANATOMY, `${art} ${layout}`);
+    }
+  }
+  const scene = {subject: 'a runner tying a shoe', motion: 'the laces tighten', camera: 'lateral'};
+  const m = op.medMotionPrompt(scene, 'everyday');
+  assert.ok(m.startsWith(op.MED_ARTS.everyday.motion));
+  assert.match(m, /MOTION: the laces tighten\./);
+  assert.doesNotMatch(m, /blood|drifting cells|pulsing/);
+  assert.match(op.medMotionPrompt({subject: 'x', camera: 'push_in'}), /subtle natural motion/);
+  assert.equal(op.medKeyframePrompt(scene, false, op.medStyleSuffix('infographic', 'fullbleed')), `a runner tying a shoe. ${op.medStyleSuffix('infographic', 'fullbleed')}.`);
+  // Defaults follow the mode; the user's art/layout choice wins.
+  assert.deepEqual(['zoom', 'myth', 'timeline', 'list'].map((mode) => { const st = op.medStyleFor({}, {mode}); return [st.art, st.layout]; }),
+    [['medical', 'strip'], ['everyday', 'fullbleed'], ['character', 'fullbleed'], ['infographic', 'fullbleed']]);
+  assert.deepEqual((({art, layout}) => [art, layout])(op.medStyleFor({art: 'character', layout: 'strip'}, {mode: 'myth'})), ['character', 'strip']);
+});
+
+test('fullbleed layout: 9:16 keyframes for every model, the picture fills 1080x1920, title band and caption box placed', async () => {
+  const want = {seedream: ['image_size', {width: 1440, height: 2560}], 'nano-banana-2.1': ['aspect_ratio', '9:16'], 'nano-banana-pro': ['aspect_ratio', '9:16'],
+    'gpt-image-2.5': ['image_size', 'portrait_16_9'], 'flux-3': ['aspect_ratio', '9:16']};
+  for (const [id, [k, v]] of Object.entries(want)) {
+    const {dir} = makeJob({kfModel: id, layout: 'fullbleed'});
+    fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'A'}}));
+    const reqs = (await op.medEngine('requests', dir, ['keyframes', '1,2'], stubIO(dir))).requests;
+    for (const r of reqs) {
+      assert.deepEqual(r.input[k], v, id);
+      assert.match(r.input.prompt, /vertical 9:16 frame/);
+      for (const f of Object.keys(r.input)) assert.ok(KF_SCHEMA[decode(r.modelId)].includes(f), `${id}: ${f}`);
+    }
+    fs.rmSync(dir, {recursive: true, force: true});
+  }
+  const g = op.MED_LAYOUTS.fullbleed;
+  assert.deepEqual(g.frame, {x: 0, y: 0, w: 1080, h: 1920});
+  assert.deepEqual([g.title.top, g.title.top + g.title.height, g.title.band], [120, 300, true]);
+  assert.deepEqual([g.caption.top, g.caption.top + g.caption.height], [1450, 1600]);
+  assert.equal(g.wordmark.centerY, 1780);
+  assert.ok(g.label.top >= 300 && g.chip.top >= 300 && g.card.top + 80 <= g.caption.top, 'overlays clear of the title band and the captions');
+  const args = op.medStripArgs('a.mp4', 'b.mp4', g.frame);
+  assert.match(args[args.indexOf('-filter_complex') + 1], /scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920/);
+  const card = op.medCardArgs('s.mp4', 'c.mp4', '#1f1f22', g.frame);
+  assert.match(card[card.indexOf('-filter_complex') + 1], /overlay=0:0:shortest=1/);
+  // The strip layout is unchanged.
+  assert.deepEqual(op.MED_LAYOUTS.strip.frame, op.MED_STRIP);
+  for (const l of Object.values(op.MED_LAYOUTS)) assert.equal(typeof l.label.top, 'number', 'layout geometry keys are not shadowed');
+});
+
+test('transitions: only push and pull are generated clips; cut is a hard cut, flash 3 frames, dissolve 0.5 s', async () => {
+  const types = ['cut', 'flash', 'dissolve', 'pull'];
+  const tl = op.medTimeline([4.2, 5.1, 3.9, 6.0, 4.4], types);
+  assert.deepEqual(tl.boundaries.map((b) => b.type), types);
+  assert.deepEqual(tl.boundaries.map((b) => b.generated), [false, false, false, true]);
+  assert.equal(tl.boundaries[0].slot, 0);
+  assert.ok(close(tl.boundaries[1].slot, 3 / 24, 1e-9));
+  assert.ok(close(tl.boundaries[2].slot, 0.5, 1 / 24));
+  assert.ok(close(tl.boundaries[3].slot, 1.8, 1 / 24));
+  let sum = 0;
+  for (const s of tl.scenes) sum += s.span;
+  for (const b of tl.boundaries) sum += b.slot;
+  assert.ok(close(sum, tl.total, 1e-6));
+  for (const s of tl.scenes) assert.ok(s.clipSeconds >= s.span, `scene ${s.n} covered`);
+  // The engine asks for transition clips at push/pull boundaries only, and composes the rest locally.
+  const {dir} = makeJob();
+  const plan = JSON.parse(fs.readFileSync(path.join(dir, 'plan.json'), 'utf8'));
+  ['cut', 'flash', 'push'].forEach((t, i) => { plan.scenes[i].transitionOut = t; });
+  fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify(plan));
+  const calls = [];
+  const io = stubIO(dir, {duration: async (p) => (/narr_(\d)_/.test(p) ? NARR[Number(/narr_(\d)_/.exec(p)[1]) - 1] : 3.04), ffmpeg: async (a) => { calls.push(a); fs.writeFileSync(a.at(-1), 'x'); }});
+  await op.medEngine('timeline', dir, [], io);
+  fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'A', 2: 'A', 3: 'A', 4: 'A'}, clip: {}, tr: {}}));
+  for (const n of [1, 2, 3, 4]) { fs.writeFileSync(path.join(dir, 'work', `out_${n}.png`), ''); fs.writeFileSync(path.join(dir, 'work', `in_${n}.png`), ''); }
+  const tr = (await op.medEngine('requests', dir, ['transitions'], io)).requests;
+  assert.deepEqual([...new Set(tr.map((r) => r.gen.split(':')[1]))], ['3']);
+  const strips = {};
+  for (const n of [1, 2, 3, 4]) strips[n] = {strip: path.join(dir, 'work', `strip_${n}.mp4`), dur: 8};
+  fs.writeFileSync(path.join(dir, 'work', 'strips.json'), JSON.stringify({strips, fallback: []}));
+  const comp = await op.medEngine('compose', dir, [], io);
+  assert.equal(comp.ok, true, comp.error);
+  const c = JSON.parse(fs.readFileSync(path.join(dir, 'work', 'compose.json'), 'utf8'));
+  assert.deepEqual(c.segments.map((s) => s.kind), ['scene', 'scene', 'flash', 'scene', 'transition', 'scene']);
+  assert.deepEqual(c.dissolves, [3], 'only the generated boundary without a take falls back');
+  assert.ok(calls.some((a) => a.join(' ').includes('color=c=white')));
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('ffmpeg: a 3-frame flash and a 0.5 s planned dissolve on both layouts', {skip: !ffmpeg && 'ffmpeg is unavailable'}, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'medexp-tr-'));
+  const p = (n) => path.join(dir, n);
+  const run = (args) => { const r = spawnSync('ffmpeg', args, {encoding: 'utf8'}); assert.equal(r.status, 0, r.stderr); };
+  run(['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=720x1280', '-frames:v', '1', p('a.png')]);
+  run(['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=720x1280', '-frames:v', '1', p('b.png')]);
+  for (const layout of ['strip', 'fullbleed']) {
+    const fr = op.MED_LAYOUTS[layout].frame;
+    run(op.medFlashCardArgs(p(`f_${layout}.mp4`), '#1f1f22', 3 / 24, fr));
+    let r = probe(p(`f_${layout}.mp4`));
+    assert.deepEqual([r.streams[0].width, r.streams[0].height], [1080, 1920]);
+    assert.ok(close(Number(r.format.duration), 0.125, 1 / 24));
+    run(op.medDissolveCardArgs(p('a.png'), p('b.png'), p(`d_${layout}.mp4`), '#1f1f22', 0.5, fr));
+    assert.ok(close(Number(probe(p(`d_${layout}.mp4`)).format.duration), 0.5, 1 / 24));
+    run(op.medStripArgs(p('a.png'), p(`s_${layout}.mp4`), fr));
+    r = probe(p(`s_${layout}.mp4`));
+    assert.deepEqual([r.streams[0].width, r.streams[0].height], [fr.w, fr.h]);
+  }
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('mode overlays: myth chip over its scene; X/O stamp from 0.8 s before the sentence ends to the next sentence; never into a generated transition', () => {
+  const durs = [4, 5, 4.5, 5, 4];
+  const mythPlan = {mode: 'myth', scenes: [{n: 1}, {n: 2, verdict: 'X', mythIndex: 1, reasonCard: 'R1'}, {n: 3, verdict: 'O', mythIndex: 2, reasonCard: 'R2'}, {n: 4, timeChip: 'x', stepNumber: 1}, {n: 5}]};
+  const tl = op.medTimeline(durs, ['cut', 'cut', 'push', 'cut']);
+  const o = op.medModeOverlays(mythPlan, tl, 'ko');
+  assert.deepEqual(o.chips.map((c) => c.text), ['\uc624\ud574 1', '\uc624\ud574 2']);
+  for (const c of o.chips) { const sc = tl.scenes[c.scene - 1]; assert.ok(c.start >= sc.start && c.end < sc.end); }
+  assert.deepEqual(o.verdicts.map((v) => v.mark), ['X', 'O']);
+  const [v2, v3] = o.verdicts;
+  const nr2 = tl.narration[1];
+  assert.ok(close(v2.start, nr2.start + nr2.dur - 0.8, 1e-3));
+  assert.equal(v2.end, tl.narration[2].start, 'over a cut: until the next sentence');
+  assert.ok(v3.end < tl.boundaries[2].start, 'before a generated transition');
+  assert.ok(v3.end - v3.start >= 0.8 - 1e-9, 'still on screen for 0.8 s');
+  assert.deepEqual(o.reasons.map((r) => [r.text, r.start, r.end]), [['R1', v2.start, v2.end], ['R2', v3.start, v3.end]]);
+  assert.deepEqual(o.steps, []);
+  const t = op.medModeOverlays({mode: 'timeline', scenes: [{n: 1, timeChip: '07:00'}, {n: 2}, {n: 3, timeChip: '12:00'}, {n: 4}, {n: 5}]}, tl, 'en');
+  assert.deepEqual(t.chips.map((c) => c.text), ['07:00', '12:00']);
+  const l = op.medModeOverlays({mode: 'list', scenes: [{n: 1}, {n: 2, stepNumber: 1, stepCard: 'Wash'}, {n: 3, stepNumber: 2, stepCard: 'Rest'}, {n: 4}, {n: 5}]}, tl, 'en');
+  assert.deepEqual(l.steps.map((s) => [s.number, s.text]), [[1, 'Wash'], [2, 'Rest']]);
+  for (const x of [...t.chips, ...l.steps]) { const b = tl.boundaries[x.scene - 1]; if (b) assert.ok(x.end < b.start + 1e-9); }
+});
+
+test('assembly in myth mode: full-frame geometry, mode overlays, and no scene label under a chip', async () => {
+  const {dir} = makeJob({layout: 'auto'});
+  const plan = JSON.parse(fs.readFileSync(path.join(dir, 'plan.json'), 'utf8'));
+  plan.mode = 'myth';
+  Object.assign(plan.scenes[1], {verdict: 'X', mythIndex: 1, reasonCard: 'Antibiotics do not kill viruses', pointers: []});
+  plan.scenes.forEach((s) => { s.transitionOut = 'cut'; s.split = null; s.insets = null; });
+  fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify(plan));
+  const io = stubIO(dir, {duration: async (p) => NARR[Number(/narr_(\d)_/.exec(p)[1]) - 1]});
+  await op.medEngine('timeline', dir, [], io);
+  const tl = JSON.parse(fs.readFileSync(path.join(dir, 'timeline.json'), 'utf8'));
+  assert.ok(tl.boundaries.every((b) => b.type === 'cut' && b.slot === 0));
+  fs.writeFileSync(path.join(dir, 'work', 'compose.json'), JSON.stringify({segments: tl.scenes.map((s) => ({kind: 'scene', n: s.n, file: path.join(dir, `mxT_card_${s.n}.mp4`), dur: s.span})), dissolves: [], pointerFrames: [], insetFiles: []}));
+  const a = await op.medEngine('assembly', dir, [], io);
+  assert.notEqual(a.ok, false, a.error);
+  assert.deepEqual([a.mode, a.art, a.layout], ['myth', 'everyday', 'fullbleed']);
+  assert.deepEqual(a.geo.title, op.MED_LAYOUTS.fullbleed.title);
+  assert.ok(a.title.size <= 72);
+  assert.equal(a.chips.length, 1);
+  assert.equal(a.verdicts[0].mark, 'X');
+  assert.ok(!a.labels.some((l) => l.scene === 2), 'the chip replaces the scene label');
+  let sum = 0;
+  for (const s of a.segments) sum += s.dur;
+  assert.ok(close(sum, a.total, 1e-6), 'cuts leave no transition segments and no gap');
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('an older plan is not continued with the new prompts', async () => {
+  const {dir} = makeJob();
+  const plan = JSON.parse(fs.readFileSync(path.join(dir, 'plan.json'), 'utf8'));
+  plan.version = '1.0.0';
+  fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify(plan));
+  assert.deepEqual(await op.medEngine('requests', dir, ['keyframes', '1'], stubIO(dir)), {ok: false, error: 'OLD_PLAN'});
+  assert.equal((await op.medEngine('requests', dir, ['narration'], stubIO(dir))).ok, true, 'narration keys are unchanged');
   fs.rmSync(dir, {recursive: true, force: true});
 });

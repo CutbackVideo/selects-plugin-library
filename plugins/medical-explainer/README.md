@@ -1,10 +1,19 @@
 # Medical Explainer
 
-Turns a topic, pasted text or a link into a vertical (9:16) medical explainer: a 16:9 photorealistic 3D medical
-animation strip between a two-line title and a brand wordmark, one generated shot per narrated sentence, continuous
-camera-move transitions between sentences, and editable scene labels, captions and pointer labels.
+Turns a topic, pasted text or a link into a vertical (9:16) health explainer. The script step picks how to explain
+the topic, and the pictures and screen follow it:
 
-Medical facts stay general and textbook-level, but every video still needs a medical review before it is published.
+- **Zoom** — from the big picture down to the detail, on a 16:9 strip card between a two-line title and a brand
+  wordmark, with continuous camera-move transitions, pointer labels, a split comparison and circular insets.
+- **Myth or fact** — two or three common beliefs, each with a big X or O stamp and a one-line reason card, on a full
+  9:16 frame.
+- **Timeline** — a day or a sequence of steps with time chips, on a full 9:16 frame.
+- **Steps or list** — the conclusion first, then numbered step cards, on a full 9:16 frame.
+
+The explanation mode, the art style (3D medical CG, photoreal everyday, stylized 3D character, clean infographic) and
+the layout can also be chosen in the settings. Every title, label, caption and card is its own editable graphic clip.
+
+Medical facts stay general and well established, but every video still needs a medical review before it is published.
 
 ## Use
 
@@ -33,6 +42,9 @@ Medical facts stay general and textbook-level, but every video still needs a med
   change; a different model means a new job.
 - Scene clips: Kling v3 Standard (720p), start frame only, `max(5, ceil(length + 0.5))` seconds, two takes per scene.
   Each clip plays from its first frame at normal speed.
-- Transitions: Kling v3 Standard, 3 seconds from the last frame a scene shows to the first frame of the next, two takes
-  per boundary, played whole at about 1.7x in a 1.8-second slot centred in the 0.8-second pause between sentences. A
-  transition that melts or jumps becomes a 0.5-second cross-dissolve.
+- Transitions follow the script: a hard cut, a three-frame white flash, a 0.5-second dissolve, or (push and pull only)
+  a generated Kling v3 Standard clip of 3 seconds from the last frame a scene shows to the first frame of the next, two
+  takes per boundary, played whole at about 1.7x in a 1.8-second slot centred in the 0.8-second pause between
+  sentences. A generated transition that melts or jumps becomes a 0.5-second dissolve.
+- A sentence too long for one video clip (more than 14.5 seconds on screen) stops the run after narration, before any
+  keyframe or clip is made; split or shorten it in the script list and try again.
