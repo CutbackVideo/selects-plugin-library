@@ -57,7 +57,9 @@ catalog link or pasted link, update to the latest published catalog:
 Unsaved edits or a running job must finish first. A host that does not answer
 within 45 seconds, or a catalog without the pack, is reported as a failed check,
 never as up to date. Packs from other repositories or files are updated by adding
-their link again. Bump the pack `version` with every published change.
+their link again. Adding the same official link again records it for packs installed
+before links were kept, without changing their settings. Bump the pack `version`
+with every published change.
 
 Branch and tag links resolve to one commit before downloading; commit links are used
 as given, without a GitHub API request. Links with branch

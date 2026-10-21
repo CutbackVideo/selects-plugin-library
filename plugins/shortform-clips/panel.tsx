@@ -1660,7 +1660,11 @@ function makeTemplateRepository(storage:any) {
         const oldPack=old.source?.packVersion,newPack=source?.packVersion;
         const cmp=(a:string,b:string)=>{const x=a.split('.').map(Number),y=b.split('.').map(Number);return x[0]-y[0]||x[1]-y[1]||x[2]-y[2];};
         if(hash===old.working&&!old.removed){
-          if(old.working===old.baseline&&old.source?.packId===source?.packId&&oldPack&&newPack&&cmp(newPack,oldPack)>0)actions.push({next,hash,old,metadataOnly:true});
+          const samePack=old.working===old.baseline&&source?.kind==='pack'&&old.source?.packId===source.packId;
+          const newer=oldPack&&newPack&&cmp(newPack,oldPack)>0;
+          // Re-adding identical content still records where it came from, so legacy installs become updatable.
+          const relinked=source?.url&&old.source?.url!==source.url&&(!oldPack||!newPack||cmp(newPack,oldPack)>=0);
+          if(samePack&&(newer||relinked))actions.push({next,hash,old,metadataOnly:true});
           continue;
         }
         if(expected[next.id]&&expected[next.id]!==templateCanonical(old))reason='changed';
@@ -9063,6 +9067,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       const latest = await readCatalogLatest();
       if (!latest?.commit || !/^[a-f0-9]{40}$/.test(latest.commit)) throw new Error(K.checkFailed);
       const manifest = await readCatalogPackManifest(pack.id, latest.commit);
+      // Edits or a job may have started while waiting; this closure's busy/dirty values are stale.
+      if (updateBlocked.current || packLock.current) return setPackUpdate({id: pack.id, tone: "error", message: K.blocked});
       if (!manifest) return setPackUpdate({id: pack.id, tone: "error", message: K.notInCatalog});
       if (comparePackVersions(manifest.version, pack.version) <= 0) return setPackUpdate({id: pack.id, tone: "success", message: K.upToDate.replace("{v}", pack.version)});
       setPackUpdate(null);

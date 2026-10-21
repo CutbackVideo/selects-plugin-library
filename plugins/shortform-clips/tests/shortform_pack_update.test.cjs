@@ -73,7 +73,7 @@ test('template pack update button follows the published catalog without the GitH
  });
 
  // The panel's handlers, run against a fake host that re-checks the catalog on each registration.
- function harness({latest=commit,installedVersion='1.0.0',sourceUrl=official('a'.repeat(40)),hostAnswers=true,catalogVersion='2.0.0',dirty=false,registers=true}={}){
+ function harness({latest=commit,installedVersion='1.0.0',sourceUrl=official('a'.repeat(40)),hostAnswers=true,catalogVersion='2.0.0',dirty=false,registers=true,becomesBusy=false}={}){
   const start=source.indexOf('  const catalogWaiters = React.useRef');
   const end=source.indexOf('  React.useEffect(() => {\n    if (!sdk.updates?.register || !sdk.runShell) return;',start);
   const updStart=source.indexOf('  const [packUpdate, setPackUpdate]');
@@ -84,10 +84,10 @@ test('template pack update button follows the published catalog without the GitH
   const refs=[];
   const React={useRef:v=>{const r={current:v};refs.push(r);return r;},useState:v=>{let value=v;return [value,f=>{
    value=typeof f==='function'?f(value):f;
-   if(typeof value==='number'){state.registrations++;if(hostAnswers)setTimeout(()=>{for(const w of refs[0].current.splice(0))w(latest?{commit:latest}:null);},1);}
+   if(typeof value==='number'){state.registrations++;if(hostAnswers)setTimeout(()=>{if(becomesBusy)env.updateBlocked.current=true;for(const w of refs[0].current.splice(0))w(latest?{commit:latest}:null);},1);}
    else state.status=value;
   }];}};
-  const env={React,sdk:registers?{updates:{register(){}},runShell(){}}:{},K:api.PACK_STRINGS.ko,lang:'ko',packLock:{current:false},busy:false,templateDirty:dirty,templateSaving:false,
+  const env={updateBlocked:{current:false},React,sdk:registers?{updates:{register(){}},runShell(){}}:{},K:api.PACK_STRINGS.ko,lang:'ko',packLock:{current:false},busy:false,templateDirty:dirty,templateSaving:false,
    setPackError:()=>{},setPackMessage:m=>state.messages.push(m),
    isOfficialPackSource:api.isOfficialPackSource,officialPackUrl:api.officialPackUrl,comparePackVersions:api.comparePackVersions,
    readCatalogPackManifest:async(id,c)=>{state.manifestCommit=c;return {version:catalogVersion};},
@@ -124,6 +124,8 @@ test('template pack update button follows the published catalog without the GitH
  await t.test('non-official packs and unsaved edits do not start a check',async()=>{
   let h=harness({sourceUrl:''});await h.handlers.updatePack(h.pack);
   assert.equal(h.state.status.message,api.PACK_STRINGS.ko.notUpdatable);assert.equal(h.state.registrations,0);
+  h=harness({becomesBusy:true});await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.status.message,api.PACK_STRINGS.ko.blocked,'edits or a job started while waiting stop the install');assert.deepEqual(h.state.installs,[]);
   h=harness({dirty:true});await h.handlers.updatePack(h.pack);
   assert.equal(h.state.status.message,api.PACK_STRINGS.ko.blocked);assert.equal(h.state.registrations,0);assert.deepEqual(h.state.installs,[]);
  });
@@ -152,5 +154,23 @@ test('template pack update button follows the published catalog without the GitH
   assert.equal(await provider2.checkUpdate({installed:null,latest:{commit}}),null);
   assert.deepEqual(seen,[{commit},{commit}]);assert.equal(ref.current.length,0,'each waiter resolves once');
   await provider.checkUpdate({installed:null,latest:null});
+ });
+
+ await t.test('re-adding the same pack from a link records its source for legacy installs',async()=>{
+  const rows=new Map();
+  const store={fs:null,list:async kind=>[...rows].filter(([k])=>k.startsWith(kind+'/')).map(([,v])=>structuredClone(v)),get:async(k,id)=>structuredClone(rows.get(k+'/'+id)||null),put:async(k,id,v)=>rows.set(k+'/'+id,structuredClone(v)),del:async(k,id)=>rows.delete(k+'/'+id)};
+  const repository=api.makeTemplateRepository(store),r=remote(),previous=global.fetch;global.fetch=r.fetcher;
+  try{
+   await repository.install(official(commit),true);
+   // Simulate a migrated legacy install: same content, no link recorded.
+   const index=structuredClone(rows.get('template-library/index'));
+   for(const record of index.records)record.source={kind:'pack',packId:'sbs-radio',packVersion:record.source.packVersion};
+   rows.set('template-library/index',index);
+   assert.equal((await api.makeTemplateRepository(store).load()).packs[0].sourceUrl,'');
+   const again=api.makeTemplateRepository(store);await again.install(official(commit),true);
+   const loaded=await again.load();
+   assert.equal(loaded.packs[0].sourceUrl,official(commit));
+   assert.ok(loaded.templates.every(t=>!t.modified),'relinking does not touch settings');
+  }finally{global.fetch=previous;}
  });
 });
