@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "jwonder-edit-prep",
+  "version": "0.1.0",
+  "name": "JWONDER Edit preparation",
+  "summary": "Prepare a shoot: analyze, organize, classify Main and Insert, sync, create drafts, translate and export transcripts.",
+  "status": "experimental",
+  "entrypoint": "README.md",
+  "installation": "INSTALL.md",
+  "files": [
+    "README.md",
+    "INSTALL.md",
+    "panel.tsx"
+  ],
+  "compatibility": {
+    "platforms": [
+      "macOS",
+      "Windows x64"
+    ],
+    "selects": "Requires the preparation SDK (sdk.jwonder.preparation.v1)."
+  },
+  "localized": {
+    "ko": {
+      "name": "JWONDER \ud3b8\uc9d1 \uc900\ube44",
+      "summary": "\ucd2c\uc601\ubd84 \ubd84\uc11d, \ud3f4\ub354 \uc815\ub9ac, \uba54\uc778\u00b7\uc778\uc11c\ud2b8 \ubd84\ub958, \uc2f1\ud06c, \ub4dc\ub798\ud504\ud2b8 \uc0dd\uc131\uacfc \uc790\ub9c9 \ubc88\uc5ed\u00b7\ub0b4\ubcf4\ub0b4\uae30."
+    }
+  }
+}

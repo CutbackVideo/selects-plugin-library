@@ -45,7 +45,11 @@ def inspect(name, data):
         text = data.decode('utf-8')
     except UnicodeDecodeError:
         return findings + ['binary file requires review']
-    findings.extend(label for label, pattern in RULES.items() if pattern.search(text))
+    # A panel's localized `@name:<lang>` header lines carry that language's
+    # own script by design (the app reads them from the source text), so they
+    # are not the stray non-English text the rule guards against.
+    scanned = re.sub(r'(?m)^[ \t]*//[ \t]*@name:[a-z]{2}[ \t]+[^\n]*$', '', text)
+    findings.extend(label for label, pattern in RULES.items() if pattern.search(scanned))
     return findings
 
 
