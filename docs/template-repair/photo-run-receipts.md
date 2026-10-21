@@ -24,7 +24,7 @@ Image working-copy feature remain their own owners.
 
 ## Automated evidence
 
-- 43 complete template-run cases include both compiled panels, fresh realms,
+- 44 complete template-run cases include both compiled panels, fresh realms,
   concurrent ownership, lost complete-save/claim replies, close-before-reply,
   manual edits, changed inputs/target ownership, corrupt/unreadable/oversized
   records, known/unknown commits, failed receipt persistence, capability refusal,
@@ -32,8 +32,8 @@ Image working-copy feature remain their own owners.
 - Two additional file/encoding cases reuse the real canonical local client with
   independent clients and actual temporary files/exclusive creation. Unicode
   receipt JSON round-trips without SDK browser globals. No user data is changed.
-- The combined focused suite has 81 cases, including the previous 36 atomic
-  authoring cases; the broader photo/reference/SDK suite has 229 cases. Counts
+- The combined focused suite has 82 cases, including the previous 36 atomic
+  authoring cases; the broader photo/reference/SDK suite has 230 cases. Counts
   overlap and must not be added together. CI results are reported separately.
 
 These execute SDK scripts against a test host with persisted-state separation;
@@ -51,3 +51,14 @@ documents these limits and the explicit-new-run recovery policy.
 Other audited photo defects (including Camera's Project-title source), complete
 effect/graphic/audio readback, standalone action recovery, remaining template
 migrations and all installed-app/full AV/export/platform gates remain open.
+
+## CI fixture wait correction
+
+The first remote CI attempt failed one Camera case while it was still running.
+The fixture waited 1,000 event-loop turns rather than a completion event, so
+slower asynchronous host/crypto I/O could outlive that CPU-dependent counter.
+A 40 ms delayed-host test reproduced the failure locally before correction.
+The fixture now observes SDK reply/template-finish events with a three-second
+test timeout; it does not add a production delay or change authoring behavior.
+The corrected focused suite passes 82 tests; the broader suite passes 230.
+Remote CI after this correction remains a separate gate.

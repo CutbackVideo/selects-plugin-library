@@ -8,6 +8,7 @@ const esbuild=require(process.env.SELECTS_ESBUILD||(process.env.SBS_PANEL_TEST_M
 const compiled=new Map();
 export function templateFixture(id,{minify=false,...options}={}){
  const f=fixture(id,options),files=new Map(),finishes=[],hooks={},requests=[];
+ const watchers=new Set(),notify=()=>{for(const watcher of watchers)watcher();};
  const plugin='/user/.selects/skills/'+id,data='/user/.selects/plugin-data/'+id;
  if(id==='camera-shutter-dump'){
   const manifest=JSON.parse(fs.readFileSync(new URL('../plugins/'+id+'/sfx/manifest.json',import.meta.url),'utf8'));
@@ -25,13 +26,13 @@ export function templateFixture(id,{minify=false,...options}={}){
   compareAndReplace:async(p,expected,next)=>{const actual=files.has(p)?files.get(p).toString('utf8'):null;if(actual!==expected)return false;files.set(p,Buffer.from(next));return true;},
  }};
  f.sdk.call=async(method,pid)=>{if(method==='getProjectDraftScaffold')return {owner:{libraryId:'library',projectId:pid}};if(method==='listProjectResources')return f.resources;throw Error('Unexpected SDK call '+method);};
- f.sdk.finishTemplate=result=>{finishes.push(result);};
+ f.sdk.finishTemplate=result=>{finishes.push(result);notify();};
  f.selects.files.writeChunk=async input=>{if(input.mode==='exclusive'&&files.has(input.path))throw Error('EEXIST');const bytes=Buffer.from(input.base64,'base64');files.set(input.path,bytes);return {bytesWritten:bytes.length};};
  f.selects.files.compareAndReplace=async input=>{
   const expected=input.expectedBase64===null?null:Buffer.from(input.expectedBase64,'base64').toString('utf8');
   const replaced=await local.files.compareAndReplace(input.path,expected,Buffer.from(input.base64,'base64').toString('utf8'));return {replaced};
  };
- const original=f.sdk.runScript;f.sdk.runScript=async input=>{requests.push(input);const result=await original(input);await hooks.afterReply?.(input,result);return result;};
+ const original=f.sdk.runScript;f.sdk.runScript=async input=>{requests.push(input);const result=await original(input);notify();await hooks.afterReply?.(input,result);return result;};
  let effects,cleanups;
  const React={useState:value=>[value,()=>{}],useRef:value=>({current:value}),useEffect:fn=>effects.push(fn)};
  const name=id==='no14-still-video'?'No14TemplateRun':'PhotoTemplateRun';
@@ -51,6 +52,11 @@ export function templateFixture(id,{minify=false,...options}={}){
   for(const effect of effects){const cleanup=effect();if(typeof cleanup==='function')cleanups.push(cleanup);}
   const ownCleanups=cleanups;return()=>{for(const cleanup of ownCleanups)cleanup();};
  };
- const until=async predicate=>{for(let i=0;i<1000;i++){if(predicate())return;await new Promise(r=>setImmediate(r));}throw Error('Template did not settle: '+JSON.stringify(finishes));};
+ const until=predicate=>new Promise((resolve,reject)=>{
+  const finish=(fn,value)=>{clearTimeout(timer);watchers.delete(check);fn(value);};
+  const check=()=>{try{if(predicate())finish(resolve);}catch(error){finish(reject,error);}};
+  const timer=setTimeout(()=>finish(reject,Error('Template did not settle: '+JSON.stringify(finishes))),3000);
+  watchers.add(check);check();
+ });
  return {...f,files,local,finishes,hooks,requests,context,mount,until};
 }

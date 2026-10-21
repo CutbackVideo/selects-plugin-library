@@ -4,6 +4,11 @@ import {templateFixture} from './photo_template_run_fixture.mjs';
 import {checkScriptTypes} from './run_script_types.mjs';
 const ids=['no14-still-video','camera-shutter-dump'];
 const records=f=>[...f.files.keys()].filter(p=>p.includes('/template-runs/'));
+test('template completion waits for delayed host I/O instead of counting event-loop turns',{timeout:4000},async()=>{
+ const f=templateFixture('no14-still-video');
+ f.hooks.beforeWrite=()=>new Promise(resolve=>setTimeout(resolve,40));
+ await f.mount();await f.until(()=>f.finishes.length===1);assert.ok(f.finishes[0].sequenceId);assert.equal(f.commits.length,1);
+});
 for(const id of ids){
 test(id+': remounting the same run reuses one complete saved Draft',{timeout:4000},async()=>{
  const f=templateFixture(id);const close=await f.mount();await f.until(()=>f.finishes.length===1);
