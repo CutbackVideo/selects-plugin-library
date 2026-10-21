@@ -5,7 +5,12 @@ import path from 'node:path';
 import {webcrypto,createHash} from 'node:crypto';
 import {fixture} from './photo_authoring_fixture.mjs';
 import {loadPanelFunctions} from './windows_host.mjs';
+import {checkScriptTypes} from './run_script_types.mjs';
 const ids=['no14-still-video','four-photo-stop-motion'];
+test('bundled music scripts typecheck without an installed SDK declaration set',async()=>{
+ const f=musicFixture('no14-still-video');await f.prepare();
+ assert.equal(checkScriptTypes(f.calls.map(c=>({name:c.summary,script:c.script})),{sdkTypes:false}).sdkTypings,false);
+});
 test('a missing plugin owner cannot publish an unscoped data file',async()=>{
  const f=fixture('no14-still-video');
  await assert.rejects(f.api.prepareBundledAudio(f.sdk,f.sdk.files,{projectId:'p',sourcePath:'/user/.selects/skills/no14-still-video/assets/music.mp3'}),e=>e.code==='BUNDLED_AUDIO_INPUT');

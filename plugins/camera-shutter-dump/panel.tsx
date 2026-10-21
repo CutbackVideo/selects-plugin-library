@@ -321,7 +321,7 @@ async function inspectImageAudio(draft,expected,project){
  if(!Array.isArray(expected)||rows.length!==expected.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw Error('Audio clip count could not be confirmed.');
  if(!expected.length)return [];
  if(!('clipAudio' in draft))throw Error('Update Selects to verify Audio settings.');
- if(!('clipSourceWindow' in draft))throw Error('Update Selects to verify Audio source timing.');
+ if(!('clipSourceWindow' in draft)||typeof draft.clipSourceWindow!=='function')throw Error('Update Selects to verify Audio source timing.');
  const types=new Map((await project.resources()).map(row=>[row.resourceId,row.type])),receipts=[];
  const same=(a,b)=>{
   if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));

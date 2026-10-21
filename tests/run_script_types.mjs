@@ -6,14 +6,14 @@ import path from 'node:path';
 import {createRequire} from 'node:module';
 import {spawnSync} from 'node:child_process';
 
-export function checkScriptTypes(scripts){
+export function checkScriptTypes(scripts,{sdkTypes=true}={}){
  const require=createRequire(import.meta.url);
  const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'panel-script-types-'));
  try{
   const files=[];
   const sdk=process.env.SELECTS_SDK_TYPES??path.join(os.homedir(),'.selects-staging','resources','sdk');
-  const hasSdk=fs.existsSync(path.join(sdk,'core.d.ts'));
-  if(process.env.SELECTS_SDK_TYPES&&!hasSdk)throw Error('SELECTS_SDK_TYPES does not contain core.d.ts');
+  const hasSdk=sdkTypes&&fs.existsSync(path.join(sdk,'core.d.ts'));
+  if(sdkTypes&&process.env.SELECTS_SDK_TYPES&&!hasSdk)throw Error('SELECTS_SDK_TYPES does not contain core.d.ts');
   if(hasSdk){
    for(const filename of fs.readdirSync(sdk).filter(name=>name.endsWith('.d.ts'))){
     fs.copyFileSync(path.join(sdk,filename),path.join(temporary,filename));

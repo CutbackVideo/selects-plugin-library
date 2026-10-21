@@ -1,7 +1,8 @@
 // Panel-owned preparation; host files and Project imports keep their existing
 // canonical transports. SDK inventory is bounded before leaving the worker.
 async function readBundledAudioResource(selects,projectId,path,platform){
- const project=selects.project(projectId),resources=new Map((await project.resources()).map(r=>[r.resourceId,r])),matches=[];
+ const project=selects.project(projectId),resources=new Map(),matches=[];
+ for(const resource of await project.resources())resources.set(resource.resourceId,resource);
  const key=value=>platform==='win32'?String(value).replace(/\\/g,'/').toLowerCase():String(value);
  const visit=items=>{for(const n of items||[]){if(n.type==='dir')visit(n.children);else if(n.path&&key(n.path)===key(path)&&resources.has(n.resourceId)){const r=resources.get(n.resourceId);matches.push({resourceId:r.resourceId,type:r.type,durationSeconds:r.durationSeconds});}}};
  const tree=await project.sourceFiles();

@@ -29,6 +29,11 @@ for(const id of ids){
  test(id+': unsupported source reads refuse a sound-bearing commit',async()=>{
   const f=fixture(id,{sourceReadSupported:false});await assert.rejects(f.create(options(id)),/Selects|source|sound|audio/i);assert.equal(f.commits.length,0);
  });
+ test(id+': a non-callable source capability asks for an update before commit',async()=>{
+  const f=fixture(id),p=f.selects.project('p'),create=p.createDraft;
+  p.createDraft=async input=>({...await create(input),clipSourceWindow:{}});
+  await assert.rejects(f.create(options(id)),/Update Selects/);assert.equal(f.commits.length,0);
+ });
  test(id+': an ignored source offset is detected before the sole commit',async()=>{
   const f=fixture(id),p=f.selects.project('p'),create=p.createDraft;
   p.createDraft=async input=>{const d=await create(input),read=d.clipSourceWindow;d.clipSourceWindow=async clip=>{const s=await read(clip);return s?{...s,startSeconds:s.startSeconds+1}:s;};return d;};

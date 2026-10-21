@@ -28,7 +28,7 @@ order and music time origin are unchanged.
 
 TDD began with all 24 consumer behavior cases failing. Four recovery cases and
 four bounded-read cases and one missing-owner case then failed before their
-respective fixes. All 41 feature cases and the broader 593-case regression
+respective fixes. All 42 bundled-Audio cases and the broader 596-case regression
 suite pass. Python: 285 pass, 6 skipped. Coverage
 includes source/install deletion, same-size changes, corrupt data repair,
 unknown/skipped import, lost acknowledgment, concurrent ownership, cancellation,
@@ -43,3 +43,17 @@ still has pending Image file preflight, multi-commit creation, durable-run and
 other audit work. Installed-app/Windows, real persistence/readback, full AV
 playback/export, media content and changed-input/reference comparisons remain
 required. No merge, catalog publication or installation is performed here.
+
+
+CI follow-up: the SDK-free TypeScript 5.9.3 check exposed `unknown` Map values
+when the SDK inventory was passed to the Map constructor as one inferred tuple
+array. Explicit resource insertion preserves the same linear lookup without
+that constructor inference. A new SDK-free regression first reproduced the
+CI diagnostics. An old-SDK-declaration run also exposed a non-callable narrowed
+source property; the shared source-time capability guard now checks presence
+and function type. Both photo consumers refuse a non-callable capability before
+commit, with two failing-first regressions. The standalone SDK check retains
+its default behavior and has an additional explicit no-declarations mode for
+this regression. TypeScript 5.8.3 with prerequisite declarations and TypeScript
+5.9.3 with installed/absent declarations are verified; the latter focused suite
+passes 125 cases. Camera's only production change is that shared source guard.

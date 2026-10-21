@@ -389,7 +389,7 @@ async function inspectImageAudio(draft,expected,project){
  if(!Array.isArray(expected)||rows.length!==expected.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw Error('Audio clip count could not be confirmed.');
  if(!expected.length)return [];
  if(!('clipAudio' in draft))throw Error('Update Selects to verify Audio settings.');
- if(!('clipSourceWindow' in draft))throw Error('Update Selects to verify Audio source timing.');
+ if(!('clipSourceWindow' in draft)||typeof draft.clipSourceWindow!=='function')throw Error('Update Selects to verify Audio source timing.');
  const types=new Map((await project.resources()).map(row=>[row.resourceId,row.type])),receipts=[];
  const same=(a,b)=>{
   if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));
@@ -807,7 +807,8 @@ async function hostProbeSeconds(path) {
 // Panel-owned preparation; host files and Project imports keep their existing
 // canonical transports. SDK inventory is bounded before leaving the worker.
 async function readBundledAudioResource(selects,projectId,path,platform){
- const project=selects.project(projectId),resources=new Map((await project.resources()).map(r=>[r.resourceId,r])),matches=[];
+ const project=selects.project(projectId),resources=new Map(),matches=[];
+ for(const resource of await project.resources())resources.set(resource.resourceId,resource);
  const key=value=>platform==='win32'?String(value).replace(/\\/g,'/').toLowerCase():String(value);
  const visit=items=>{for(const n of items||[]){if(n.type==='dir')visit(n.children);else if(n.path&&key(n.path)===key(path)&&resources.has(n.resourceId)){const r=resources.get(n.resourceId);matches.push({resourceId:r.resourceId,type:r.type,durationSeconds:r.durationSeconds});}}};
  const tree=await project.sourceFiles();
