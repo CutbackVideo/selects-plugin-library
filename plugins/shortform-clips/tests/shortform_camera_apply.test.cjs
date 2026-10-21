@@ -18,7 +18,7 @@ test('camera layouts apply atomically to an editable Draft',{skip:!modules},asyn
    setClipTransform:async p=>{changed.push(p);if(options.fail)throw Error('placement failed');},
    addVideoEffect:async p=>effects.set(p.clip.clipId,[{name:p.label}]),commitAll:async()=>{commits++;}};
   const project={meta:async()=>({draftIds:['d']}),resources:async()=>[{resourceId:'v',name:'Video',hasAnalysis:true}],resource:id=>({id,meta:async()=>({fps:30,frameSize:{width:1920,height:1080}}),words:async()=>[]})};
-  const params={...P,cameraShots:options.gap?[{startFrame:0,endFrame:90,videoIndex:1}]:[]};
+  const params={...P,...(options.four?{cameraPanels:Array.from({length:4},(_,slot)=>({...P.cameraPanels[0],resourceId:'cam'+slot,slot,count:4,destination:{x:slot%2*.5,y:Math.floor(slot/2)*.5,width:.5,height:.5}}))}:{}),cameraShots:options.gap?[{startFrame:0,endFrame:90,videoIndex:1}]:[]};
   const script=mod.exports.SCRIPT_APPLY_REFRAME.replace('const P: any = __P__;','const P: any = '+JSON.stringify(params)+';');
   const execute=()=>new Function('selects',esbuild.transformSync('return (async()=>{'+script+'})();',{loader:'ts'}).code)({project:()=>project,draft:()=>d});
   return {execute,state:()=>({commits,clips,overlays,changed})};
@@ -29,6 +29,11 @@ test('camera layouts apply atomically to an editable Draft',{skip:!modules},asyn
   assert.equal(s.clips.filter(c=>c.trackKind==='audio').length,1);
   assert.ok(s.overlays.every(x=>x.withSound===false&&x.sourceStartSeconds===5));
   assert.ok(s.clips.every(c=>c.startFrame===0&&c.endFrame===90));
+ });
+ await t.test('four camera panels reapply without duplicating overlays or audio',async()=>{
+  const r=await run({four:true});await r.execute();await r.execute();const s=r.state();
+  assert.equal(s.clips.filter(c=>c.trackKind==='video').length,4);assert.equal(s.clips.filter(c=>c.trackKind==='audio').length,1);
+  assert.ok(s.overlays.every(o=>o.withSound===false));assert.equal(s.commits,2);
  });
  await t.test('camera gaps and placement failures never commit a partial layout',async()=>{
   for(const opts of [{gap:true},{fail:true}]){const r=await run(opts);await assert.rejects(r.execute);assert.equal(r.state().commits,0);}

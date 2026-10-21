@@ -8,14 +8,27 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
  const baseline={meta:{durationFrames:90,fps:30},words:[{text:'Hello',startFrame:0,endFrame:30}],sources:[{resourceId:'r',meta:{frameSize:{width:1920,height:1080}}}]};
  const shot={startFrame:0,endFrame:90,resourceId:'r',style:'speaker',compositionId:'person',subjects:[{faceId:'F1'}]};
  const valid={version:1,draftId:'d',status:'planned',shots:[{startFrame:0,endFrame:90,compositionId:'person',layout:'speaker',panels:[{camera:'r',targets:[{subjectId:'person',refs:['F1']}]}]}],speakerEvidence:[{startFrame:0,endFrame:90,resourceId:'r',sourceFrames:[0,8,16],subject:'right person',basis:'mouth-motion',evidence:'sustained articulation'}]};
- async function run({after=baseline,report=valid,failRead=false,failAi=false,review={status:'complete',summary:'Acceptable'},missingFrame=false,failEvidence=false,raw,repairText}={}){
+ async function run({transcriptOnly=false,after=baseline,report=valid,failRead=false,failAi=false,review={status:'complete',summary:'Acceptable'},missingFrame=false,failEvidence=false,raw,repairText}={}){
   let reads=0,calls=0,applies=0;const notes=[];
-  const sdk={runScript:async input=>input.summary==='Apply agent-selected source crops'?(applies++,{result:{applied:[shot]}}):({result:++reads===1?baseline:after,isError:failRead}),
-   call:async()=>{throw Error('Runtime review must not capture previews');},
+  const sdk={runScript:async input=>{
+    if(input.summary==='Apply agent-selected source crops'){applies++;return {result:{applied:[shot]}};}
+    reads++;
+    if(transcriptOnly && reads===1){
+      const project={meta:async()=>({draftIds:['d']}),resources:async()=>[{resourceId:'r',name:'source.mp4',status:'sampling',hasAnalysis:false,hasTranscription:true}],
+        resource:()=>{throw Error('resource_not_analyzed');},
+        sourceFiles:async()=>({fileTree:[{type:'file',resourceId:'r',path:'/source.mp4',frameRate:30,durationSeconds:3,frameSize:{width:1920,height:1080}}]}),
+        transcription:async()=>({utterances:[]})};
+      const draft={meta:async()=>baseline.meta,words:async()=>baseline.words,clips:async()=>[{resourceId:'r'}]};
+      const code=esbuild.transformSync('return (async()=>{'+input.script+'})();',{loader:'ts'}).code;
+      return {result:await new Function('selects',code)({project:()=>project,draft:()=>draft})};
+    }
+    return {result:reads===1?baseline:after,isError:failRead};
+   },
+   call:async(method)=>{throw Error('Unexpected analyzed read or preview: '+method);},
    askAI:async input=>{
-    calls++;if(calls===1){assert.equal(input.timeoutMs,600000);assert.equal(input.ephemeral,false);assert.ok(input.prompt.includes("Light-ASD AVA"));assert.ok(input.prompt.includes('"score":1.5'));
+    calls++;if(calls===1){assert.equal(input.timeoutMs,600000);assert.equal(input.ephemeral,false);assert.ok(input.prompt.includes('"cameras":["r"]'));assert.ok(input.prompt.includes("Light-ASD AVA"));assert.ok(input.prompt.includes('"score":1.5'));
      assert.ok(input.prompt.includes('Use your existing Selects SDK tools READ-ONLY'));assert.ok(!input.prompt.includes('"closeUp":6'));
-     assert.ok(input.prompt.includes('UNCROPPED SOURCE'));assert.ok(input.prompt.includes('speakerTurns'));assert.ok(!input.prompt.includes('Hello'));assert.ok(src.includes('speakerId:w.speakerId,speakerName:w.speakerName'));assert.ok(input.prompt.includes('Do not specify closeUp'));assert.ok(input.prompt.includes('not draft.captureCameraAngles'));assert.ok(!input.prompt.includes('SOURCE-CROP SCRIPT'));
+     assert.ok(input.prompt.includes('UNCROPPED SOURCE'));assert.ok(input.prompt.includes('speakerTurns'));assert.ok(!input.prompt.includes('Hello'));assert.ok(src.includes('speakerId:w.speakerId,speakerName:w.speakerName'));assert.ok(input.prompt.includes('Do not specify closeUp'));assert.ok(input.prompt.includes('do not call resource.captureFrames'));assert.ok(!input.prompt.includes('SOURCE-CROP SCRIPT'));
      if(failAi)throw Error('timeout');return {text:raw??JSON.stringify(report)};
     }
     if(raw!==undefined){assert.equal(input.images,undefined);assert.equal(input.timeoutMs,120000);assert.ok(input.prompt.includes('Repair JSON syntax only'));return {text:repairText??JSON.stringify(report)};}
@@ -23,6 +36,10 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
    }};
   return {execute:()=>m.exports.runAgentReframing({sdk,guard:p=>p,projectId:'p',draftId:'d',layout:{closeUp:6,faceY:35,cameraMode:'speaker'},note:e=>notes.push(e),measureSpeakers:async()=>[{resourceId:"r",rows:[{faceId:"F1",score:1.5}]}],prepareEvidence:async()=>{if(failEvidence)throw Error('capture unavailable');return ({images:[{dataUrl:"data:image/jpeg;base64,test"}],samples:[]});},measureFaces:async()=>[{id:'F1',resourceId:'r',draftFrame:20,box:{xmin:800,xmax:1000,ymin:250,ymax:500}}]}),state:()=>({reads,calls,applies,notes})};
  }
+ await t.test('transcript-ready sampling source reaches framing without an analyzed Resource read',async()=>{
+  const r=await run({transcriptOnly:true});
+  assert.equal((await r.execute()).status,'complete');assert.equal(r.state().applies,1);
+ });
  await t.test('repairs a malformed plan once then applies through normal validation',async()=>{
   const raw=JSON.stringify(valid).replace('"shots":','"shots"::');
   const r=await run({raw});assert.equal((await r.execute()).status,'complete');assert.equal(r.state().calls,2);assert.equal(r.state().applies,1);
