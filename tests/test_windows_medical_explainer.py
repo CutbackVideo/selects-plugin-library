@@ -126,7 +126,7 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('{noHost && <ui.Message>{S.noHost}</ui.Message>}', self.panel)
         langs = re.findall(r'^  (\w\w): \{$', self.panel, flags=re.M)
         self.assertEqual(sorted(langs), ['en', 'ko'])
-        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged', 'kfModel', 'fluxNote', 'policyScenes', 'policyTransitions']:
+        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged', 'kfModel', 'fluxNote', 'policyScenes', 'policyTransitions', 'editHint']:
             self.assertEqual(len(re.findall(r'\b%s: "' % key, self.panel)), len(langs), key)
 
     def test_korean_fallback_fonts_in_every_overlay(self):

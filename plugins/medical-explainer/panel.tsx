@@ -222,6 +222,7 @@ type Strings = {
   pointersDropped: string; noProject: string; needUrl: string; needText: string; needTopic: string; noHost: string; noGeneration: string;
   noStorage: string; recent: string; resume: string; dismiss: string; retry: string; elapsed: string; noMusic: string;
   notReady: (names: string) => string; errors: Record<string, string>;
+  tooLong: (list: string) => string; editHint: string; sentence: (n: number) => string;
   unresolved: (names: string) => string; keepWaiting: string; resubmit: string; styleChanged: string;
 };
 
@@ -255,6 +256,8 @@ const STRINGS: Record<string, Strings> = {
     notReady: (n) => `Selects has not finished adding some media to the Project yet (${n}). Wait a moment, then press Resume.`,
     unresolved: (n) => `These generations have not finished, or their files could not be delivered: ${n}. Keep waiting to check them again; resubmit only if they are stuck (a resubmitted generation may be charged again).`,
     keepWaiting: "Keep waiting", resubmit: "Resubmit (may charge again)",
+    tooLong: (l) => `Too long for one video clip (at most 14.5 s on screen): ${l}. Split or shorten these sentences below, then press Try again. Nothing was spent on keyframes or video.`,
+    editHint: "Edit a sentence to split or shorten it. Only edited sentences are narrated again.", sentence: (n) => `Sentence ${n}`,
     kfModel: "Keyframe model", fluxNote: "FLUX 3 has no edit model: scenes 2 onward are drawn from text with the style description only, without scene 1 as a reference.",
     kfModelUsed: (l) => `Keyframes: ${l}`, policyScenes: "Keyframe replaced due to video model policy (Seedream 5.0 Pro)",
     policyTransitions: "Transitions the video model refused for content policy (shown as a dissolve)",
@@ -293,6 +296,8 @@ const STRINGS: Record<string, Strings> = {
     notReady: (n) => `Selects\uac00 \uc544\uc9c1 \uc77c\ubd80 \ubbf8\ub514\uc5b4\ub97c \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ud558\ub294 \uc911\uc785\ub2c8\ub2e4(${n}). \uc7a0\uc2dc \ud6c4 \uc774\uc5b4\uc11c \ub9cc\ub4e4\uae30\ub97c \ub20c\ub7ec \uc8fc\uc138\uc694.`,
     unresolved: (n) => `\uc544\uc9c1 \ub05d\ub098\uc9c0 \uc54a\uc558\uac70\ub098 \ud30c\uc77c\uc744 \ubc1b\uc9c0 \ubabb\ud55c \uc0dd\uc131 \uc791\uc5c5: ${n}. \uacc4\uc18d \uae30\ub2e4\ub9ac\uba74 \ub2e4\uc2dc \ud655\uc778\ud569\ub2c8\ub2e4. \uba48\ucd98 \uacbd\uc6b0\uc5d0\ub9cc \ub2e4\uc2dc \uc694\uccad\ud558\uc138\uc694(\ub2e4\uc2dc \uc694\uccad\ud558\uba74 \ud06c\ub808\ub527\uc774 \ub2e4\uc2dc \ucc28\uac10\ub420 \uc218 \uc788\uc2b5\ub2c8\ub2e4).`,
     keepWaiting: "\uacc4\uc18d \uae30\ub2e4\ub9ac\uae30", resubmit: "\ub2e4\uc2dc \uc694\uccad(\ud06c\ub808\ub527 \ub2e4\uc2dc \ucc28\uac10 \uac00\ub2a5)",
+    tooLong: (l) => `\uc601\uc0c1 \ud074\ub9bd \ud558\ub098\uc5d0 \ub2f4\uae30\uc5d0 \ub108\ubb34 \uae41\ub2c8\ub2e4(\ud654\uba74 \ucd5c\ub300 14.5\ucd08): ${l}. \uc544\ub798\uc5d0\uc11c \uc774 \ubb38\uc7a5\uc744 \ub098\ub204\uac70\ub098 \uc904\uc778 \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ub97c \ub20c\ub7ec \uc8fc\uc138\uc694. \ud0a4\ud504\ub808\uc784\uacfc \uc601\uc0c1\uc5d0\ub294 \ud06c\ub808\ub527\uc744 \uc4f0\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.`,
+    editHint: "\ubb38\uc7a5\uc744 \uace0\uccd0 \ub098\ub204\uac70\ub098 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uace0\uce5c \ubb38\uc7a5\ub9cc \ub2e4\uc2dc \ub179\uc74c\ud569\ub2c8\ub2e4.", sentence: (n) => `\ubb38\uc7a5 ${n}`,
     kfModel: "\ud0a4\ud504\ub808\uc784 \ubaa8\ub378", fluxNote: "FLUX 3\uc5d0\ub294 \ud3b8\uc9d1 \ubaa8\ub378\uc774 \uc5c6\uc5b4 \uc7a5\uba74 2\ubd80\ud130\ub294 \uc7a5\uba74 1\uc744 \ucc38\uace0\ud558\uc9c0 \uc54a\uace0 \uc2a4\ud0c0\uc77c \uc124\uba85\ub9cc\uc73c\ub85c \uadf8\ub9bd\ub2c8\ub2e4.",
     kfModelUsed: (l) => `\ud0a4\ud504\ub808\uc784: ${l}`, policyScenes: "\uc601\uc0c1 \ubaa8\ub378 \uc815\ucc45\uc73c\ub85c \ud0a4\ud504\ub808\uc784\uc744 \uad50\uccb4\ud55c \uc7a5\uba74(Seedream 5.0 Pro)",
     policyTransitions: "\uc601\uc0c1 \ubaa8\ub378\uc774 \ucf58\ud150\uce20 \uc815\ucc45\uc73c\ub85c \uac70\ubd80\ud55c \uc804\ud658(\ub514\uc878\ube0c\ub85c \ud45c\uc2dc)",
@@ -604,7 +609,17 @@ export function medBudget(lang, target = 50) {
 
 // ---- the timing rules ----
 // A scene clip is generated long enough to cover its sentence: max(5, ceil(L + 0.5)) s (Kling v3 takes 3-15 s).
-export function medSceneClipSeconds(L) { return Math.min(15, Math.max(5, Math.ceil(L + 0.5))); }
+export function medSceneClipSeconds(L) { return Math.min(MED_KLING_MAX, Math.max(5, Math.ceil(L + 0.5))); }
+// Kling v3 makes at most 15 s; a scene span must stay half a second under it.
+export const MED_KLING_MAX = 15;
+export const MED_SPAN_MARGIN = 0.5;
+// Scenes whose sentence is too long for one generated clip: the span is over the cap, or the clip length the rules
+// give does not cover the span. The run stops here, after narration and before any keyframe or clip is paid for;
+// nothing is sped up or cut.
+export function medLengthProblems(tl) {
+  return tl.scenes.filter((s) => s.span > MED_KLING_MAX - MED_SPAN_MARGIN || s.clipSeconds < s.span)
+    .map((s) => ({ scene: s.n, span: r3(s.span), clipSeconds: s.clipSeconds, narration: r3(tl.narration[s.n - 1].dur) }));
+}
 // The whole 3 s transition clip plays inside its slot, so it runs at clip length / slot length (about 1.7x).
 export function medTransitionSpeed(clipSeconds, slotSeconds) { return clipSeconds / slotSeconds; }
 // The program from the measured narration lengths: narration starts, transition slots and scene spans. Sentences are
@@ -634,7 +649,8 @@ export function medTimeline(durs, t = MED_TIMING) {
   const scenes = durs.map((L, i) => {
     const start = i === 0 ? 0 : boundaries[i - 1].end;
     const end = i === n - 1 ? total : boundaries[i].start;
-    return { n: i + 1, start, end, span: medFrame(end - start), clipSeconds: medSceneClipSeconds(L) };
+    const span = medFrame(end - start);
+    return { n: i + 1, start, end, span, clipSeconds: Math.min(MED_KLING_MAX, Math.max(medSceneClipSeconds(L), Math.ceil(span - 1e-9))) };
   });
   return { total, narration, boundaries, scenes };
 }
@@ -1034,7 +1050,7 @@ async function cmdTimeline(io, job) {
   await job.save();
   let video = 0;
   for (const s of tl.scenes) video += s.clipSeconds;
-  return { ok: true, seconds: tl.total, scenes: tl.scenes.length, videoSeconds: video };
+  return { ok: true, seconds: tl.total, scenes: tl.scenes.length, videoSeconds: video, tooLong: medLengthProblems(tl) };
 }
 
 // ---- generation requests ----
@@ -1051,7 +1067,8 @@ async function cmdRequests(io, job, kind, only, attempt) {
   if (kind === "narration") {
     for (const s of plan.scenes) if (want(s.n)) {
       const r = medNarrationInput(s.narration, set.voice, plan.lang);
-      reqs.push(spec(`narr:${s.n}`, "audio", r.model, r.input, null, "narration"));
+      // An edited sentence (rev > 0) is a different request: its text is part of the key.
+      reqs.push(spec(`narr:${s.n}`, "audio", r.model, r.input, null, "narration", s.rev ? `-v${s.rev}` : ""));
     }
   } else if (kind === "keyframes" || kind === "kfpolicy") {
     // Scene 1 is drawn from text; every later scene is an edit with scene 1's chosen keyframe as the style reference.
@@ -1917,6 +1934,9 @@ function Panel({ sdk, context, ui }: any) {
   const [gateScript, setGateScript] = React.useState(true);
   const [gateKf, setGateKf] = React.useState(true);
   const [titleLines, setTitleLines] = React.useState({ line1: "", line2: "" });
+  // Script edits (scene number -> narration) and whether the job still allows them (no keyframe made yet).
+  const [edits, setEdits] = React.useState<Record<string, string>>({});
+  const [locked, setLocked] = React.useState(false);
   const [busy, setBusy] = React.useState<string | null>(null);
   useAppUpdateGuard(sdk, context?.language, () => !!busy);
   const [error, setError] = React.useState("");
@@ -2162,6 +2182,8 @@ function Panel({ sdk, context, ui }: any) {
     setResult(null);
     setPlan(null);
     setReview(null);
+    setEdits({});
+    setLocked(false);
     if (!projectId) return setError(S.noProject);
     if (!sdk?.storage) return setError(S.noStorage);
     if (mode === "topic" && topic.trim().length < 2) return setError(S.needTopic);
@@ -2273,8 +2295,18 @@ function Panel({ sdk, context, ui }: any) {
         await writeJson(hostJoin(dir, "job.json"), jd);
       } else if (jd.settings?.titleLines) setTitleLines(jd.settings.titleLines);
       pj = await savePanel(dir, { started: true });
-      const p = await readJson(hostJoin(dir, "plan.json"));
+      let p = await readJson(hostJoin(dir, "plan.json"));
       if (!p?.scenes?.length) throw new Error("plan.json missing");
+      // Script edits (before any keyframe): the edited sentences get a new revision, so only they are narrated again,
+      // and the timing is measured again.
+      const changed = Object.entries(edits).filter(([n, t]) => !pj.kfDone && p.scenes[Number(n) - 1] && String(t).trim() && String(t).trim() !== p.scenes[Number(n) - 1].narration);
+      if (changed.length) {
+        for (const [n, t] of changed) { const sc = p.scenes[Number(n) - 1]; sc.narration = String(t).trim().replace(/\s+/g, " "); sc.rev = (sc.rev || 0) + 1; }
+        await writeJson(hostJoin(dir, "plan.json"), p);
+        pj = await savePanel(dir, { timed: null });
+      }
+      setEdits({});
+      setLocked(!!pj.kfDone);
       setPlan(p);
       const set = jd.settings;
       const sc = await scope();
@@ -2290,7 +2322,14 @@ function Panel({ sdk, context, ui }: any) {
       setStatus(S.steps[0]);
       const narrFailed = await generateKind(st, sc, dir, "narration", sceneIds, S.steps[0]);
       if (narrFailed.length) throw new Error(`${S.steps[0]}: ${narrFailed.map((f: any) => `${idOf(f.gen)} ${f.code}`).join(", ")}`);
-      if (!pj.timed) pj = await savePanel(dir, { timed: (await run("timeline", dir, [], "Narration timing")).seconds });
+      if (!pj.timed) {
+        const t = await run("timeline", dir, [], "Narration timing");
+        if (t.tooLong?.length) {
+          setLocked(false);
+          throw new Error(S.tooLong(t.tooLong.map((x: any) => `${S.sentence(x.scene)} (${x.narration}s)`).join(", ")));
+        }
+        pj = await savePanel(dir, { timed: t.seconds });
+      }
 
       if (!pj.kfDone) {
         setStep(1);
@@ -2302,6 +2341,7 @@ function Panel({ sdk, context, ui }: any) {
         if (missing.length) throw new Error(`${S.steps[1]}: ${missing.join(", ")}`);
         await aiPick(dir, "keyframes", sceneIds.filter((n: string) => !picks.kf[n]), describe);
         pj = await savePanel(dir, { kfDone: true });
+        setLocked(true);
       }
       if (gateKf && !pj.kfApproved) {
         setStatus("");
@@ -2485,7 +2525,10 @@ function Panel({ sdk, context, ui }: any) {
                     <td style={{ verticalAlign: "top" }}>
                       <b>{s.n}. {s.label}</b>
                       <br />
-                      <small>{s.narration}</small>
+                      {!locked && !result ? (
+                        <ui.TextField label={S.sentence(s.n)} value={edits[s.n] ?? s.narration} multiline disabled={!!busy}
+                          onChange={(v: string) => setEdits((e) => ({ ...e, [s.n]: v }))} />
+                      ) : <small>{s.narration}</small>}
                       <br />
                       <small style={{ opacity: 0.7 }}>{s.visual}</small>
                     </td>
@@ -2497,6 +2540,7 @@ function Panel({ sdk, context, ui }: any) {
               </tbody>
             </table>
           </div>
+          {!locked && !result && <ui.Message tone="muted">{S.editHint}</ui.Message>}
           {check?.warnings?.length > 0 && <ui.Message tone="muted">{check.warnings.join(" / ")}</ui.Message>}
           {check?.counts && (
             <ui.Message tone="muted">

@@ -733,3 +733,44 @@ test('the chosen keyframe model shows in the usage line and the run summary', ()
   assert.match(panel, /kfModel: medKfModel\(set\.kfModel\)\.label/);
   assert.match(panel, /voice: now\.voice, music: now\.music, kfModel: now\.kfModel/);
 });
+
+// ---- length cap (PR review P2) ----
+test('a sentence too long for one Kling clip stops the run after narration, before any keyframe or clip', async () => {
+  const tl = op.medTimeline([20, 4, 4]);
+  assert.ok(tl.scenes[0].span > op.MED_KLING_MAX - op.MED_SPAN_MARGIN);
+  assert.equal(tl.scenes[0].clipSeconds, 15);
+  assert.deepEqual(op.medLengthProblems(tl).map((x) => x.scene), [1]);
+  assert.deepEqual(op.medLengthProblems(op.medTimeline(DURS)), []);
+  // Just under the cap passes; every passing span is covered by its clip.
+  for (const L of [10, 12, 13.5, 14]) {
+    const t = op.medTimeline([4, L, 4]);
+    const bad = op.medLengthProblems(t).length > 0;
+    assert.equal(bad, t.scenes[1].span > 14.5, `L=${L}`);
+    if (!bad) for (const s of t.scenes) assert.ok(s.clipSeconds >= s.span);
+  }
+  // The engine reports it from the measured narration.
+  const {dir} = makeJob();
+  const io = stubIO(dir, {duration: async (p) => [20, 4, 4, 4][Number(/narr_(\d)_/.exec(p)[1]) - 1]});
+  const out = await op.medEngine('timeline', dir, [], io);
+  assert.deepEqual(out.tooLong.map((x) => x.scene), [1]);
+  fs.rmSync(dir, {recursive: true, force: true});
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
+  const timing = panel.indexOf('if (t.tooLong?.length) {');
+  assert.ok(timing > 0 && timing < panel.indexOf('if (!pj.kfDone) {'), 'checked before the keyframe stage');
+  assert.doesNotMatch(panel.slice(timing, timing + 400), /setpts|atempo|playbackSpeed/);
+});
+
+test('an edited sentence is narrated again under a new key; the others keep theirs', async () => {
+  const {dir} = makeJob();
+  const io = stubIO(dir);
+  const before = (await op.medEngine('requests', dir, ['narration'], io)).requests;
+  const plan = JSON.parse(fs.readFileSync(path.join(dir, 'plan.json'), 'utf8'));
+  plan.scenes[1].narration = 'A shorter sentence.';
+  plan.scenes[1].rev = 1;
+  fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify(plan));
+  const after = (await op.medEngine('requests', dir, ['narration'], io)).requests;
+  assert.deepEqual(after.map((r, i) => r.key === before[i].key), [true, false, true, true]);
+  assert.match(after[1].key, /-v1$/);
+  assert.equal(after[1].input.text, 'A shorter sentence.');
+  fs.rmSync(dir, {recursive: true, force: true});
+});
