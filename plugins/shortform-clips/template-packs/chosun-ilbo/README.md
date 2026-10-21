@@ -3,7 +3,9 @@
 Five requested designs migrated from `plugins/chosun-clips` on branch
 `chosun-ilbo`, commit `2938989c4f647fdb2d0fef685a91f39174cb39ac`.
 
-Templates: heukbaek, panilgi, history, villain, money.
+Templates: heukbaek, panilgi, history, villain, money, health.
+The health design is newly transcribed from the supplied Premiere project and
+customer frame; it was not migrated from the old app.
 The ten background/logo WebP files are decoded byte-for-byte from the old
 embedded data URLs. Window/crop positions, images, editing settings and editorial
 prompts retain their original values. Typography corrections from customer requirements and supplied
@@ -32,7 +34,7 @@ an explicit, field-by-field list of Premiere corrections.
 ## Customer requirement coverage
 
 The supplied team requirements identify nine programs. This migration includes
-only the five that also have an existing design in the legacy app:
+the five legacy designs and the newly transcribed health design:
 
 | Program | Pack ID | Status |
 | --- | --- | --- |
@@ -41,7 +43,7 @@ only the five that also have an existing design in the legacy app:
 | History War | `history` | Legacy design included; supplied Premiere project available for comparison |
 | Villain Story | `villain` | Legacy design included; supplied Premiere project available for comparison |
 | Money Watch | `money` | Legacy design included; no matching Premiere project in the supplied folder |
-| This Makes You Better | — | Requested; Premiere project supplied, pack template not yet implemented |
+| This Makes You Better | `health` | Supplied frame, Premiere typography/transforms; actual Premiere PNG and same-text official Short compared locally |
 | Smart Parenting | — | Requested; Premiere project supplied, pack template not yet implemented |
 | Jeongjwippul | — | Requested; Premiere project supplied, pack template not yet implemented |
 | Today's One Minute | — | Requested; Premiere project supplied, pack template not yet implemented |

@@ -125,7 +125,7 @@ test('templates use independent settings without renderer families',{skip:!modul
    const dir=path.join(root,pack,'templates');
    return fs.existsSync(dir)?fs.readdirSync(dir).filter(f=>f.endsWith('.json')).map(f=>pack+'/'+f):[];
   });
-  const expectedFiles=[];
+  const expectedFiles=["chosun-ilbo/health.json"];
   for(const [key,legacy] of Object.entries(legacyPacks)){
    const [pack]=key.split('/');
    const before=api.validateTemplate(structuredClone(legacy));
@@ -201,6 +201,36 @@ test('templates use independent settings without renderer families',{skip:!modul
   let markup=renderGraphic('CAPTION_TSX',{...p,text:'Caption'});assert.ok(markup.includes('left:120px'));
   template.captions.left=0;template.captions.width=840;p=api.radioCaptionParams(template);
   markup=renderGraphic('CAPTION_TSX',{...p,text:'Caption'});assert.ok(markup.includes('left:0'));assert.ok(markup.includes('width:840px'));
+ });
+
+ await t.test('health template preserves customer faces and separate caption boxes in export',()=>{
+  const health=api.validateTemplate(JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/chosun-ilbo/templates/health.json'),'utf8')));
+  assert.equal(health.headline.font,'SDGyeokdongG206Hv');
+  assert.equal(health.captions.font,'SDGyeokdongG204Rg');
+  assert.equal(health.headline.size1,128*.5*1.2);
+  // Text subgroup is 24px above its anchor before the outer 120% transform.
+  const baseline1=(233-24-960)*1.2+0.58098959922790527*1920;
+  const baseline2=(320-24-960)*1.2+0.58098959922790527*1920;
+  assert.ok(Math.abs(health.layout.headlineCenter-((baseline1+baseline2)/2-(health.headline.size1+health.headline.size2)/2*.3))<1e-8);
+  const frame=api.radioFrameParams(health,'Title one','Title two');
+  assert.ok(frame.headlineOffsetX1 < -5 && frame.headlineOffsetX1 > -6);
+  assert.ok(renderGraphic('FRAME_TSX',frame).includes('translateX('+frame.headlineOffsetX1+'px)'));
+  assert.throws(()=>api.validateTemplate({...health,headline:{...health.headline,offsetX1:541}}),/Invalid headline/);
+
+  assert.equal(health.layout.windowTop,394);assert.equal(health.layout.windowBottom,1500);
+  assert.equal(health.logo.mode,'none');assert.equal(health.background.canvasAligned,true);
+  const params=api.radioCaptionParams(health);
+  assert.equal(params.rowGap,129.2);assert.equal(params.boxPerLine,true);
+  assert.equal(params.boxBounds,'ink');assert.equal(params.baselineBottom,1424);
+  assert.equal(params.shadowSpec.size,4*.59*.95);
+  assert.equal(params.shadowSpec.angle,135);
+  assert.throws(()=>api.validateTemplate({...health,captions:{...health.captions,shadowSpec:{...params.shadowSpec,size:-1}}}),/Invalid native shadow/);
+  const html=renderGraphic('CAPTION_TSX',{...params,boxBounds:undefined,text:'First line\nSecond line'});
+  assert.equal((html.match(/background:/g)||[]).length,2);
+  assert.ok(html.includes('SDGyeokdongG204Rg'));assert.ok(html.includes('51, 53, 58') || html.includes('#33353A99'));
+  assert.equal(health.captions.boxColor,'#33353A99');
+  assert.ok(health.captions.bottom>1455 && health.captions.bottom<1456);
+  assert.throws(()=>api.validateTemplate({...health,captions:{...health.captions,rowGap:NaN}}),/finite/);
  });
 
 });
