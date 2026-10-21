@@ -74,7 +74,8 @@ class PolaroidPhotoDumpWindowsTest(unittest.TestCase):
         self.assertNotIn("const UNPACKED=", self.source)
         create = body_of(self.runtime, "export async function createPhotoDraft(")
         self.assertLess(create.index("prepareNativeImages("), create.index("ensureAssets("))
-        self.assertLess(create.index("ensureAssets("), create.index("createDraft("))
+        self.assertLess(create.index("ensureAssets("), create.index("buildAtomicImageDraftScript("))
+        self.assertNotIn("commitAll(", create)
 
     def test_imports_match_through_the_bounded_resource_reader(self):
         ensure = body_of(self.runtime, "async function ensureAssets(")

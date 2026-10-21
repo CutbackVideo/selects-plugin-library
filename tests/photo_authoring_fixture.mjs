@@ -9,12 +9,12 @@ import {loadPanelOperation} from './panel_operation.mjs';
 const presetSnapshot=JSON.parse(fs.readFileSync(new URL('./fixtures/photo-program-presets.json',import.meta.url),'utf8'));
 
 export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceiptOnly=false,commitReplyLost=false,projectTitle='Fixture Project',graphicsReadSupported=true,transformReadSupported=true,audioReadSupported=true,sourceReadSupported=true,programReadSupported=true}={}){
- const count=id==='camera-shutter-dump'?12:4,photos=Array.from({length:count},(_,i)=>({resourceId:'r'+i,name:'Photo '+i,path:'/photos/'+i+'.png'}));
+ const count=id==='polaroid-photo-dump'?17:id==='camera-shutter-dump'?12:4,photos=Array.from({length:count},(_,i)=>({resourceId:'r'+i,name:'Photo '+i,path:'/photos/'+i+'.png'}));
  const resources=[...photos.map(p=>({...p,type:'Image'})),...Array.from({length:6},(_,i)=>({resourceId:'a'+i,name:'Sound '+i,type:'Audio',durationSeconds:10}))];
  const nodes=resources.map(r=>({...r,type:r.type.toLowerCase(),path:r.path||'/audio/'+r.name+'.wav',frameSize:{width:640,height:960},durationSeconds:10}));
  const saved=new Map(),calls=[],commits=[],hooks={},receipts=[];let serial=0,live=true,imports=0;
  const project={resources:async()=>resources,sourceFiles:async()=>({fileTree:nodes}),meta:async()=>({id:'p',title:projectTitle,draftIds:[...saved.keys()]}),resource:id=>({id}),
-  importFiles:async({paths})=>{imports++;resources.push({resourceId:'music',name:'Music',type:'Audio',durationSeconds:60});nodes.push({resourceId:'music',type:'audio',path:paths[0],durationSeconds:60});return {addedResourceIds:['music']};},
+  importFiles:async({paths})=>{imports++;const image=/\.png$/.test(paths[0]),resourceId=image?'frame':'music',type=image?'Image':'Audio';resources.push({resourceId,name:image?'Frame':'Music',type,durationSeconds:60});nodes.push({resourceId,type:type.toLowerCase(),path:paths[0],durationSeconds:60,...image?{frameSize:{width:1080,height:1920}}:{}});return {addedResourceIds:[resourceId]};},
   createDraft:async({name})=>handle('draft-'+ ++serial,{name,fps,durationFrames:0,frameSize:{width:720,height:1280},clips:[]})};
  function handle(draftId,state){
   const clips=state.clips;
@@ -41,12 +41,15 @@ export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceipt
   files:{stat:async()=>({size:32,isDirectory:false,mtimeMs:1,ino:1}),readRange:async()=>({bytesRead:1,base64:'iQ=='})},effectPresets:{get:async presetId=>{const {referenceSource,...definition}=presetSnapshot.presets.find(p=>p.id===presetId);return structuredClone({...definition,tsxCode:null});}}};
  const hostFiles=new Map([['/user/.selects/skills/'+id+'/assets/music.mp3',Buffer.from('fixture music')]]);
  const sdk={environment:{platform:'darwin'},files:{join:(...parts)=>parts.join('/'),homedir:()=>'/user',exists:async path=>hostFiles.has(path),mkdir:async()=>{},stat:async path=>hostFiles.has(path)?{size:hostFiles.get(path).length,isDirectory:false}:null,readFile:async(path,encoding)=>{if(!hostFiles.has(path))throw Error('ENOENT');return encoding==='utf8'?hostFiles.get(path).toString():new Uint8Array(hostFiles.get(path));},writeFile:async(path,bytes)=>{hostFiles.set(path,Buffer.from(bytes));}},runScript:async input=>{calls.push(input);try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.afterScript?.(input);return {result};}catch(error){return {isError:true,output:error.message};}}};
- const source=fs.readFileSync(new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
+ const source=fs.readFileSync(id==='polaroid-photo-dump'&&process.env.PHOTO_AUTHORING_PANEL||new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
  const common=['nativeImageSources','nativeImageRun','prepareNativeImages','nativeImagePlacement','placeNativeImages','readMediaPages'];
- const extra=id==='no14-still-video'?['INVENTORY','DECORATION_CODE','readProjectFps','createNo14Draft']:id==='four-photo-stop-motion'?['INVENTORY','EFFECT_CODE','OUTRO_CODE','inventory','ensureMusic','templateIssue','createPhotoDraft']:['INVENTORY','EFFECT_CODE','BURST_CODE','TEXT_CODE','samePath','inventory','createPhotoDraft'];
+ const extra=id==='no14-still-video'?['INVENTORY','DECORATION_CODE','readProjectFps','createNo14Draft']:id==='four-photo-stop-motion'?['INVENTORY','EFFECT_CODE','OUTRO_CODE','inventory','ensureMusic','templateIssue','createPhotoDraft']:id==='polaroid-photo-dump'?['INVENTORY','PHOTO_EFFECT','FRAME_EFFECT','CAPTION_CODE','inventory','isPolaroidAssetPath','templateIssue','createPhotoDraft',...source.includes('function normalizeFinishForPlan(')?['normalizeFinishForPlan']:[]]:['INVENTORY','EFFECT_CODE','BURST_CODE','TEXT_CODE','samePath','inventory','createPhotoDraft'];
  const future=['placeWorkingCopyImages','authorAtomicImageDraft','buildAtomicImageDraftScript','verifyAtomicImageDraft','readImageDraftFps','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature','templateRunJSON','prepareBundledAudio','readBundledAudioResource'];
  const api=loadPanelFunctions(source,[...common,...extra,...future.filter(name=>source.includes('function '+name+'('))],{
   ...loadPanelOperation(id),crypto:webcrypto,SLOTS:count,DEFAULT_MUSIC:'off',ensureSounds:async()=>{imports++;return Object.fromEntries(Array.from({length:6},(_,i)=>['shutter.'+(i+1),'a'+i]));},
+  // Asset preparation has separate compiled byte/import tests. This fixture
+  // isolates Draft authoring with already prepared, typed Project assets.
+  ensureAssets:async()=>{imports+=2;const path='/assets/frame.png';if(!resources.some(r=>r.resourceId==='frame')){resources.push({resourceId:'frame',type:'Image'},{resourceId:'music',type:'Audio',durationSeconds:60});nodes.push({resourceId:'frame',type:'image',path,frameSize:{width:1080,height:1920}});}return {frame:{resourceId:'frame',path,name:'Frame',width:1080,height:1920},music:{resourceId:'music',path:'/assets/music.m4a',name:'Music',durationSeconds:60}};},
  });
  const args={projectId:'p',selected:photos,decoration:{shape:'none',color:'#ffffff'},framing:id==='no14-still-video'?{}:[],music:'off',name:'Fixture',stillCurrent:()=>live,say:()=>{},onDraft:async draftId=>{await Promise.resolve();receipts.push({draftId,images:saved.get(draftId).clips.filter(c=>c.trackKind==='video'&&c.resourceId).length});}};
  const invoke=(fn,options={})=>fn(sdk,{...args,...options});

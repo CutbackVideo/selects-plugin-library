@@ -5,6 +5,10 @@ consumers are Four Photo Reveal and Camera Shutter Dump, now also used by Four
 Photo Stop Motion. It reuses the existing
 `shared/local-client.ts` file adapter and public SDK; no new client IPC, SDK
 capability, global runtime module loader or cross-plugin file import is added.
+Polaroid Photo Dump also embeds this feature for the atomic Image author's shared
+receipt formatter and optional script contract. Its hidden app-run launcher has
+not yet migrated to durable claims/recovery; embedding the code alone does not
+make its app-run invocations deduplicated.
 
 ## Input and lifetime contract
 

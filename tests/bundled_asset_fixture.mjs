@@ -45,7 +45,7 @@ export function assetFixture({platform='darwin',home='/profile',cryptoSupported=
  const module={exports:{}};
  vm.runInNewContext(compiled.get(key),{module,exports:module.exports,require:()=>({}),console,crypto:cryptoSupported?webcrypto:undefined,atob,btoa,TextEncoder,TextDecoder,Uint8Array,setTimeout,clearTimeout});
  module.exports.__bind(sdk,{files,environment:{platform}});
- return {prepare:()=>module.exports.__prepare(sdk,'p',()=>current),stop:()=>{current=false;},files,filesOnDisk,manifest,manifestPath,root,join,decoded,saveManifest,reads,writes,imports,requests,rows,nodes,add,hooks,sdk,
+ return {api:module.exports,prepare:()=>module.exports.__prepare(sdk,'p',()=>current),stop:()=>{current=false;},files,filesOnDisk,manifest,manifestPath,root,join,decoded,saveManifest,reads,writes,imports,requests,rows,nodes,add,hooks,sdk,
   dataPath:key=>join(home,'.selects','plugin-data',plugin,'assets',manifest[key].sha256+path.extname(manifest[key].file)),
   sourcePath:key=>join(root,manifest[key].file+'.b64'),
   updateMusic:()=>{const bytes=Buffer.concat([decoded.music,Buffer.from([0,0,0,8,102,114,101,101])]);manifest.music.bytes=bytes.length;manifest.music.sha256=createHash('sha256').update(bytes).digest('hex');filesOnDisk.set(join(root,manifest.music.file+'.b64'),Buffer.from(bytes.toString('base64')));saveManifest();return bytes;},

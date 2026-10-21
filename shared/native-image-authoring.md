@@ -2,7 +2,7 @@
 
 `native-image-authoring.js` owns working-copy creation, original Image placement
 and saved Image receipt verification. Four Photo Reveal, Camera Shutter Dump and
-Four Photo Stop Motion share it through `panel-modules.json`. Their existing plans, reference timing,
+Four Photo Stop Motion and Polaroid Photo Dump share it through `panel-modules.json`. Their existing plans, reference timing,
 effects, graphics and audio recipes remain template-owned.
 
 ## Contract

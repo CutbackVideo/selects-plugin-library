@@ -1,6 +1,19 @@
 # Validation
 
-## Current repair checkpoint: 0.1.9
+## Current repair checkpoint: 0.1.10
+
+Normal creation now uses the existing atomic Image authoring feature, with one
+complete commit and a separate persisted readback. The initial 18 cases produced
+16 failures and two controls on unchanged preceding source; ten additional
+missing-capability/ignored-mutation/stale-dispatch regressions also failed there.
+The current 30-case suite includes whole-panel compilation and real minification
+with the actual bundled PNG/M4A bytes, simulated Project/Draft state, repeated
+photos and independent framing at supported integer/fractional frame rates.
+This is not installed-app or playback/export evidence. Durable app-run recovery
+remains pending, and Audio verification requires client #7828 before publication.
+See `docs/template-repair/polaroid-atomic.md` in the source repository.
+
+## Earlier repair checkpoint: 0.1.9
 
 The generalized bundled-asset feature adds manifest/hash/byte verification,
 content-addressed PNG/M4A publication and bounded confirmed Resource imports.

@@ -39,7 +39,8 @@ function fixture(plugin,{platform='darwin',fault=null,folderSummary=false,assets
   }};
   const common=['nativeImageSources','nativeImageRun','prepareNativeImages','templateMessage','TEMPLATE_FAILED','TEMPLATE_UNSUPPORTED'];
   const extra=plugin==='no14-still-video'?['INVENTORY','readMediaPages','readImageDraftFps','readProjectFps','createNo14Draft']:['INVENTORY','readMediaPages','inventory','createPhotoDraft',...(plugin==='camera-shutter-dump'?['samePath']:['SLOTS','templateIssue'])];
-  const api=loadPanelFunctions(source,[...common,...extra,...(plugin==='polaroid-photo-dump'?['isPolaroidAssetPath']:[])],{
+  const authoring=plugin==='polaroid-photo-dump'?['isPolaroidAssetPath','PHOTO_EFFECT','FRAME_EFFECT','CAPTION_CODE','readImageDraftFps','buildAtomicImageDraftScript','authorAtomicImageDraft','placeWorkingCopyImages','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature','templateRunJSON']:[];
+  const api=loadPanelFunctions(source,[...common,...extra,...authoring],{
     ...loadPanelOperation(plugin),
     DEFAULT_MUSIC:'off',ensureSounds:async()=>{writes.push('sounds');throw Error('WRITE_REACHED');},
     ensureMusic:async()=>{writes.push('music');throw Error('WRITE_REACHED');},
@@ -133,7 +134,7 @@ test('polaroid-photo-dump: a missing frame is rejected after asset preparation a
 test('polaroid-photo-dump: healthy originals and the generated frame are checked at their separate preparation boundaries',async()=>{
  const f=fixture('polaroid-photo-dump',{assetsReady:true}),before=JSON.stringify(f.photos);
  await assert.rejects(f.create(),/WRITE_REACHED/);
- assert.equal(f.writes[0],'assets');assert.equal(f.writes.length,2);assert.equal(f.writes[1].summary,'Create polaroid Draft');
+ assert.equal(f.writes[0],'assets');assert.equal(f.writes.length,2);assert.equal(f.writes[1].summary,'Create complete polaroid Draft');
  assert.equal(f.fileCalls.filter(c=>c[0]==='readRange').length,35,'17 before asset preparation, then the 17 originals plus frame');
  assert.equal(JSON.stringify(f.photos),before);
 });

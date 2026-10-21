@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "polaroid-photo-dump",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "name": "Polaroid Photo Dump",
   "summary": "Switch seventeen photos inside an instant-film frame on satin, one every two beats of a bundled CC0 track, with a slow zoom, film grade and editable caption.",
   "status": "experimental",
@@ -22,7 +22,7 @@
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Needs public original Image placement, transparent PNG clips, effects, graphics, Audio overlays and asynchronous file stat/readRange. The current shared input/connection repair passes local tests; installed-app/Windows and full playback/export remain unverified. Historical saved/export checks in VALIDATION.md belong to their stated older versions. No Node.js or new SDK capability."
+    "selects": "Needs public original Image placement, transparent PNG clips, effects, graphics, Audio overlays, asynchronous file stat/readRange and saved-program/transform/Audio timing verification. Requires the pending Audio source-timing host capability before publication. Local tests do not prove installed-app/Windows or full playback/export. Historical checks in VALIDATION.md belong to their stated older versions. No Node.js."
   },
   "preview": {
     "video": "preview.mp4",

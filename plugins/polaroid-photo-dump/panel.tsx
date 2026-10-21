@@ -68,34 +68,35 @@ const CAPTION_CODE=`export default function PolaroidCaption({data}) {
  return <div style={{position:'absolute',left:0,right:0,top:data.top,textAlign:'center',color:data.color,fontFamily:(data.fontFamily?'"'+data.fontFamily+'", ':'')+'Helvetica, "Segoe UI", Arial, sans-serif',fontWeight:500,fontSize:data.size,lineHeight:1.1,letterSpacing:-0.3,textShadow:'0 1px 6px rgba(0,0,0,0.25)',whiteSpace:'pre-wrap',padding:'0 60px'}}>{data.text}</div>;
 }`;
 
-export function normalizeFinish(raw){
+export function normalizeFinishForPlan(raw,plan,workingCopy=false){
  const keys=['mode','projectId','draftId','fps','photos','placements','frame','framing','caption','grade','assets'];
  if(!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).some(k=>!keys.includes(k))||raw.mode!=='finish')throw Error('Unsupported request');
  const clean=(value,label,max=1000)=>{if(typeof value!=='string'||!value.trim()||value!==value.trim()||value.length>max||/[\u0000-\u001f]/u.test(value))throw Error(label+' is required');return value;};
- const projectId=clean(raw.projectId,'Project ID'),draftId=clean(raw.draftId,'Draft ID',120);
- const plan=scenePlan(raw.fps??30);
+ const projectId=clean(raw.projectId,'Project ID'),draftId=workingCopy&&raw.draftId==null?null:clean(raw.draftId,'Draft ID',120);
+ const slots=plan.occurrences.length;
  const size=(o,label)=>{if(!o||!Number.isSafeInteger(o.width)||o.width<1||!Number.isSafeInteger(o.height)||o.height<1)throw Error('Invalid '+label+' dimensions');return {width:o.width,height:o.height};};
- if(!Array.isArray(raw.photos)||raw.photos.length!==SLOT_COUNT)throw Error('Choose exactly '+SLOT_COUNT+' photos');
+ if(!Array.isArray(raw.photos)||raw.photos.length!==slots)throw Error('Choose exactly '+slots+' photos');
  const photos=raw.photos.map(p=>({resourceId:clean(p?.resourceId,'Image Resource ID'),...size(p,'photo')}));
  const clip=(row,o,label)=>{if(!row||!Number.isSafeInteger(row.clipId)||row.clipId<0||typeof row.trackId!=='string'||!row.trackId||row.startFrame!==o.startFrame||row.endFrame!==o.endFrame)throw Error(label+' placement differs from the reference plan');return {clipId:row.clipId,trackId:row.trackId,startFrame:row.startFrame,endFrame:row.endFrame};};
- if(!Array.isArray(raw.placements)||raw.placements.length!==SLOT_COUNT)throw Error('Expected '+SLOT_COUNT+' photo clips');
+ if(!Array.isArray(raw.placements)||raw.placements.length!==slots)throw Error('Expected '+slots+' photo clips');
  const placements=raw.placements.map((row,i)=>({slot:i+1,...clip(row,plan.occurrences[i],'Photo '+(i+1))}));
  const frame={...clip(raw.frame,{startFrame:0,endFrame:plan.durationFrames},'Frame'),resourceId:clean(raw.frame?.resourceId,'Frame Resource ID'),...size(raw.frame,'frame')};
- if(new Set([...placements,frame].map(p=>p.clipId)).size!==SLOT_COUNT+1)throw Error('Clips must be independent');
- const framing=Array.from({length:SLOT_COUNT},(_,i)=>{const p=raw.framing?.[i]??{},x=p.x??.5,y=p.y??.5;if(!Number.isFinite(x)||x<0||x>1||!Number.isFinite(y)||y<0||y>1)throw Error('Photo framing must be between 0 and 1');return {x,y};});
- const caption=raw.caption??CAPTION.text;
+ if(new Set([...placements,frame].map(p=>p.clipId)).size!==slots+1)throw Error('Clips must be independent');
+ const framing=Array.from({length:slots},(_,i)=>{const p=raw.framing?.[i]??{},x=p.x??.5,y=p.y??.5;if(!Number.isFinite(x)||x<0||x>1||!Number.isFinite(y)||y<0||y>1)throw Error('Photo framing must be between 0 and 1');return {x,y};});
+ const caption=raw.caption??plan.caption.text;
  if(typeof caption!=='string'||caption.length>120||/[\u0000-\u0009\u000b-\u001f]/u.test(caption))throw Error('Caption must be at most 120 characters');
  const grade=raw.grade??1;
  if(!Number.isFinite(grade)||grade<0||grade>2)throw Error('Film grade must be between 0 and 2');
  const music=clean(raw.assets?.music,'Music Resource ID');
  return {projectId,draftId,fps:plan.fps,photos,placements,frame,framing,caption,grade,assets:{music}};
 }
+export function normalizeFinish(raw){return normalizeFinishForPlan(raw,scenePlan(raw?.fps??30));}
 
-export const authorFinishSource=String.raw`async function authorFinish(selects,input,plan,code){
+export const authorFinishSource=String.raw`async function authorFinish(selects,input,plan,code,workingDraft=null,inspectGraphics=null,inspectTransforms=null,inspectAudio=null,programs=null){
  let commitStarted=false,stage='read';
  try{
-  const project=selects.project(input.projectId),d=selects.draft(input.draftId);
-  if(!(await project.meta()).draftIds?.includes(input.draftId))throw Error('Draft is not in the selected Project');
+  const project=selects.project(input.projectId),d=workingDraft||selects.draft(input.draftId);
+  if(!workingDraft&&!(await project.meta()).draftIds?.includes(input.draftId))throw Error('Draft is not in the selected Project');
   const meta=await d.meta();
   if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames||meta.frameSize?.width!==plan.canvas.width||meta.frameSize?.height!==plan.canvas.height)throw Error('Draft frame grid changed');
   const types=new Map((await project.resources()).map(r=>[r.resourceId,r.type]));
@@ -103,31 +104,43 @@ export const authorFinishSource=String.raw`async function authorFinish(selects,i
   const rows=await d.clips({trackScope:'all'});
   const layers=[...input.placements.map((p,i)=>({...p,...input.photos[i],kind:'photo',focus:input.framing[i]})),{...input.frame,slot:0,kind:'frame',focus:{x:.5,y:.5}}];
   for(const l of layers){const c=rows.find(r=>r.clipId===l.clipId&&r.trackId===l.trackId);if(!c||c.startFrame!==l.startFrame||c.endFrame!==l.endFrame||c.resourceId!==l.resourceId||types.get(c.resourceId)!=='Image')throw Error('Image clip readback differs from the plan ('+(l.kind==='frame'?'frame':'photo '+l.slot)+')');}
+  const expectedTransforms=[],expectedPrograms=[];
   for(const l of layers){
    const clip=(await d.clips({trackScope:'all'})).find(r=>r.clipId===l.clipId&&r.trackId===l.trackId);
    const fit=Math.min(plan.canvas.width/l.width,plan.canvas.height/l.height),m=Math.max(plan.canvas.width/l.width,plan.canvas.height/l.height);
    const name=l.kind==='frame'?'frame':'photo '+l.slot;
    stage='transform '+name;
    // The editor fits the image inside the canvas; scale it up to cover the canvas.
-   await d.setClipTransform({clip,enabled:true,scale:{x:m/fit,y:m/fit},position:{x:0,y:0},anchor:{x:0,y:0},rotation:0});
+   const transform={enabled:true,scale:{x:m/fit,y:m/fit},position:{x:0,y:0},anchor:{x:0,y:0},rotation:0};
+   await d.setClipTransform({clip,...transform});expectedTransforms.push({clipId:l.clipId,trackId:l.trackId,transform});
    const current=(await d.clips({trackScope:'all'})).find(r=>r.clipId===l.clipId&&r.trackId===l.trackId);
    const base={w:l.width,h:l.height,m,fps:plan.fps,startFrame:l.startFrame,zoom:plan.zoom.perSecond,cx:plan.zoom.center.x,cy:plan.zoom.center.y};
    stage='effect '+name;
-   if(l.kind==='frame')await d.addVideoEffect({clip:current,label:'Polaroid zoom',tsxCode:code.frame,parameters:base});
-   else{
-    await d.addVideoEffect({clip:current,label:'Photo '+l.slot+' in polaroid',tsxCode:code.photo,parameters:{...base,win:plan.photoWindow,focusX:l.focus.x,focusY:l.focus.y,grade:input.grade},editableParameters:[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:l.focus.x,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:l.focus.y,min:0,max:1,step:.01},{key:'grade',label:'Film grade',type:'number',defaultValue:input.grade,min:0,max:2,step:.05}]});
-   }
+   const effect=l.kind==='frame'?{label:'Polaroid zoom',tsxCode:code.frame,parameters:base,editableParameters:[]}:{label:'Photo '+l.slot+' in polaroid',tsxCode:code.photo,parameters:{...base,win:plan.photoWindow,focusX:l.focus.x,focusY:l.focus.y,grade:input.grade},editableParameters:[{key:'focusX',label:'Horizontal focus',type:'number',defaultValue:l.focus.x,min:0,max:1,step:.01},{key:'focusY',label:'Vertical focus',type:'number',defaultValue:l.focus.y,min:0,max:1,step:.01},{key:'grade',label:'Film grade',type:'number',defaultValue:input.grade,min:0,max:2,step:.05}]};
+   await d.addVideoEffect({clip:current,...effect});const {label,...program}=effect;
+   expectedPrograms.push({clipId:l.clipId,trackId:l.trackId,effects:[{name:label,...program}],graphic:null});
   }
   stage='caption';
-  await d.addMotionGraphic({label:'Polaroid caption',within:await d.rangeAtFrames(0,plan.durationFrames),tsxCode:code.caption,parameters:{text:input.caption,top:plan.caption.top,size:plan.caption.size,color:'#ffffff',fontFamily:plan.caption.fontFamily},editableParameters:[{key:'text',label:'Caption',type:'text',defaultValue:input.caption},{key:'fontFamily',label:'Font',type:'text',defaultValue:plan.caption.fontFamily},{key:'size',label:'Size',type:'number',defaultValue:plan.caption.size,min:10,max:200,step:1},{key:'top',label:'Vertical position',type:'number',defaultValue:plan.caption.top,min:0,max:1800,step:1},{key:'color',label:'Color',type:'color',defaultValue:'#ffffff'}]});
+  const captionProgram={tsxCode:code.caption,parameters:{text:input.caption,top:plan.caption.top,size:plan.caption.size,color:'#ffffff',fontFamily:plan.caption.fontFamily},editableParameters:[{key:'text',label:'Caption',type:'text',defaultValue:input.caption},{key:'fontFamily',label:'Font',type:'text',defaultValue:plan.caption.fontFamily},{key:'size',label:'Size',type:'number',defaultValue:plan.caption.size,min:10,max:200,step:1},{key:'top',label:'Vertical position',type:'number',defaultValue:plan.caption.top,min:0,max:1800,step:1},{key:'color',label:'Color',type:'color',defaultValue:'#ffffff'}]};
+  const caption=await d.addMotionGraphic({label:'Polaroid caption',within:await d.rangeAtFrames(0,plan.durationFrames),...captionProgram});
   stage='music';
   await d.overlayResource({resource:project.resource(input.assets.music),over:await d.rangeAtFrames(0,plan.durationFrames)});
   stage='readback';
   const after=await d.clips({trackScope:'all'});
-  if(after.filter(r=>r.resourceId===input.assets.music).length!==1)throw Error('Music clip was not placed');
+  const sounds=after.filter(r=>r.resourceId===input.assets.music);if(sounds.length!==1)throw Error('Music clip was not placed');
+  let receipts={};
+  if(workingDraft){
+   const graphics=[{clipId:caption.clipId,trackId:caption.trackId,startFrame:0,endFrame:plan.durationFrames,parameters:captionProgram.parameters}];
+   expectedTransforms.push({clipId:caption.clipId,trackId:caption.trackId,transform:{}});
+   expectedPrograms.push({clipId:caption.clipId,trackId:caption.trackId,effects:[],graphic:captionProgram});
+   await inspectGraphics(d,graphics);const transforms=await inspectTransforms(d,expectedTransforms),sound=sounds[0];
+   const audio=await inspectAudio(d,[{clipId:sound.clipId,trackId:sound.trackId,trackKind:'audio',resourceId:input.assets.music,startFrame:0,endFrame:plan.durationFrames,audioSourceIndexes:null,settings:{},source:{startSeconds:0,endSeconds:plan.durationFrames/plan.fps}}],project);
+   const snapshot=await programs.inspect(d,expectedPrograms);receipts={graphics,transforms,audio,programs:snapshot};programs.confirm(receipts);
+  }
   commitStarted=true;const saved=await d.commitAll('Finish Polaroid Photo Dump Draft');
-  if(!saved?.commitId)throw Error('Draft save response did not include its commit ID');
-  return {status:'saved',projectId:input.projectId,draftId:input.draftId,clips:input.placements,frame:input.frame};
+  const draftId=input.draftId||saved?.createdDraftId;
+  if(!draftId||!saved?.commitId&&!saved?.createdDraftId)throw Error('Draft save response did not include its identity');
+  return {status:'saved',projectId:input.projectId,draftId,clips:input.placements,frame:input.frame,...receipts};
  }catch(error){return {status:commitStarted?'outcomeUnknown':'notSaved',stage,message:String(error?.message||error),draftId:input?.draftId};}
 }`;
 
@@ -228,6 +241,203 @@ export async function placeNativeImages(prepared,draftId,plan,items,label) {
  return {...result,placements:result.placements.slice(0,-1),frame:{...result.placements.at(-1),...result.photos.at(-1)},photos:result.photos.slice(0,-1)};
 }
 // native-sdk:end
+// native-image-authoring:start
+// Prepare editable Image occurrences in one working copy. The caller owns its
+// trusted Project/Draft handle and the sole final commit.
+async function placeWorkingCopyImages(selects,projectId,draft,plan,sources,items,sourceFacts){
+ const project=selects.project(projectId),meta=await draft.meta();
+ if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames||meta.frameSize.width!==plan.canvas.width||meta.frameSize.height!==plan.canvas.height)throw Error('The Draft frame grid differs from the plan.');
+ const fresh=await sourceFacts(selects,projectId,sources);
+ if(fresh.length!==sources.length||fresh.some((source,index)=>source.resourceId!==sources[index].resourceId||source.width!==sources[index].width||source.height!==sources[index].height))throw Error('A selected Image changed. Prepare the Images again.');
+ const placements=[];
+ for(const item of items){
+  const source=fresh[item.source];if(!source)throw Error('An Image occurrence has no source.');
+  const before=new Set((await draft.clips({trackScope:'all'})).map(clip=>clip.clipId));
+  await draft.overlayResource({resource:project.resource(source.resourceId),over:await draft.rangeAtFrames(item.startFrame,item.endFrame)});
+  const added=(await draft.clips({trackScope:'all'})).filter(clip=>!before.has(clip.clipId));
+  if(added.length!==1||added[0].resourceId!==source.resourceId||added[0].startFrame!==item.startFrame||added[0].endFrame!==item.endFrame)throw Error('The Image interval changed during placement.');
+  placements.push({...item,clipId:added[0].clipId,trackId:added[0].trackId,resourceId:source.resourceId});
+ }
+ if((await draft.meta()).durationFrames!==plan.durationFrames)throw Error('Image placement changed the Draft duration.');
+ return {placements,photos:fresh.map(source=>({width:source.width,height:source.height}))};
+}
+async function inspectImageGraphics(draft,expected){
+ if(!('motionGraphics' in draft)||!('motionGraphicProgram' in draft))throw Error('Update Selects to verify editable graphics.');
+ const same=(a,b)=>{
+  if(a===b)return true;
+  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(key=>Object.prototype.hasOwnProperty.call(b,key)&&same(a[key],b[key]));
+ };
+ const graphics=await draft.motionGraphics();
+ if(!Array.isArray(graphics)||graphics.length!==expected.length)throw Error('Graphic count could not be confirmed.');
+ for(const wanted of expected){
+  const actual=graphics.find(g=>g.clip.clipId===wanted.clipId&&g.clip.trackId===wanted.trackId)?.clip;
+  if(!actual||actual.startFrame!==wanted.startFrame||actual.endFrame!==wanted.endFrame)throw Error('Graphic placement could not be confirmed.');
+  const program=await draft.motionGraphicProgram(actual);
+  if(!program||!program.parameters||typeof program.parameters!=='object'||Array.isArray(program.parameters)||!Object.entries(wanted.parameters).every(([key,value])=>Object.prototype.hasOwnProperty.call(program.parameters,key)&&same(program.parameters[key],value)))throw Error('Graphic parameters could not be confirmed.');
+ }
+}
+async function inspectImageTransforms(draft,expected){
+ // Both consumers author fixed intrinsic transforms; motion belongs to their
+ // separate effects. Never adopt an observed transform as the expected value.
+ if(!('clipTransform' in draft))throw Error('Update Selects to verify Image transforms.');
+ const rows=(await draft.clips({trackScope:'all'})).filter(clip=>clip.trackKind==='video');
+ if(!Array.isArray(expected)||expected.length!==rows.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw Error('Visual transform count could not be confirmed.');
+ const same=(a,b)=>{
+  // Converting domain coordinates to the SDK may introduce floating-point noise.
+  if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));
+  if(a===b)return true;
+  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
+ };
+ const receipts=[];
+ for(const wanted of expected){
+  const clip=rows.find(row=>row.clipId===wanted.clipId&&row.trackId===wanted.trackId);
+  if(!clip)throw Error('Visual transform target could not be confirmed.');
+  const patch=wanted.transform,transform={enabled:true,rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[],...patch,position:{x:0,y:0,...patch.position},scale:{x:1,y:1,...patch.scale},anchor:{x:0,y:0,...patch.anchor}};
+  const actual=await draft.clipTransform(clip);
+  if(!actual||!Object.entries(transform).every(([key,value])=>same(actual[key],value)))throw Error('Visual transform could not be confirmed.');
+  receipts.push({clipId:wanted.clipId,trackId:wanted.trackId,transform});
+ }
+ return receipts;
+}
+async function inspectImageAudio(draft,expected,project){
+ const rows=(await draft.clips({trackScope:'all'})).filter(row=>row.trackKind==='audio'||row.trackKind==='main'&&row.resourceId);
+ if(!Array.isArray(expected)||rows.length!==expected.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw Error('Audio clip count could not be confirmed.');
+ if(!expected.length)return [];
+ if(!('clipAudio' in draft))throw Error('Update Selects to verify Audio settings.');
+ if(!('clipSourceWindow' in draft)||typeof draft.clipSourceWindow!=='function')throw Error('Update Selects to verify Audio source timing.');
+ const types=new Map((await project.resources()).map(row=>[row.resourceId,row.type])),receipts=[];
+ const same=(a,b)=>{
+  if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));
+  if(a===b)return true;
+  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
+ };
+ for(const wanted of expected){
+  const row=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);
+  if(!row||row.trackKind!==wanted.trackKind||row.resourceId!==wanted.resourceId||row.startFrame!==wanted.startFrame||row.endFrame!==wanted.endFrame||types.get(row.resourceId)!=='Audio'||!same(row.audioSourceIndexes,wanted.audioSourceIndexes))throw Error('Audio placement or routing could not be confirmed.');
+  const settings={volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:0,...wanted.settings},actual=await draft.clipAudio(row);
+  if(!actual||actual.clipId!==row.clipId||!Object.entries(settings).every(([key,value])=>same(actual[key],value)))throw Error('Audio volume or fades could not be confirmed.');
+  if(!wanted.source||!Number.isFinite(wanted.source.startSeconds)||wanted.source.startSeconds<0||!Number.isFinite(wanted.source.endSeconds)||wanted.source.endSeconds<=wanted.source.startSeconds)throw Error('Audio source evidence is unavailable.');
+  const source={startSeconds:wanted.source.startSeconds,endSeconds:wanted.source.endSeconds,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true,...wanted.source};
+  // Time uses floating-point arithmetic noise only, not the relative tolerance
+  // used for level/fades. A small changed source instant must remain detectable.
+  const timeSame=(a,b)=>Number.isFinite(a)&&Math.abs(a-b)<=8*Number.EPSILON*Math.max(1,Math.abs(a),Math.abs(b));
+  let observed;try{observed=await draft.clipSourceWindow(row);}catch(cause){throw Object.assign(Error('Audio source timing could not be confirmed.'),{cause});}
+  if(!observed||observed.clipId!==row.clipId||!timeSame(observed.startSeconds,source.startSeconds)||!timeSame(observed.endSeconds,source.endSeconds)||row.playbackSpeed?.numerator!==source.playbackSpeed.numerator||row.playbackSpeed?.denominator!==source.playbackSpeed.denominator||row.preserveAudioPitch!==source.preserveAudioPitch)throw Error('Audio source timing or playback policy could not be confirmed.');
+  receipts.push({clipId:wanted.clipId,trackId:wanted.trackId,trackKind:wanted.trackKind,resourceId:wanted.resourceId,startFrame:wanted.startFrame,endFrame:wanted.endFrame,audioSourceIndexes:wanted.audioSourceIndexes,settings,source});
+ }
+ return receipts;
+}
+function imageProgramsFeature(selects,config=null,format=null){
+ const issue=message=>Object.assign(Error(message),{code:'IMAGE_PROGRAM_INVALID',publicMessage:message});
+ const guarded=fn=>async(...args)=>{try{return await fn(...args);}catch(cause){if(cause?.code==='IMAGE_PROGRAM_INVALID')throw cause;throw Object.assign(issue('Image program state could not be confirmed.'),{cause});}};
+ const same=(a,b)=>{
+  if(a===b)return true;
+  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
+ };
+ const normalized=program=>({tsxCode:program.tsxCode,editableParameters:program.editableParameters,parameters:{...Object.fromEntries(program.editableParameters.map(d=>[d.key,d.defaultValue])),...program.parameters}});
+ const matches=(actual,wanted)=>actual&&actual.tsxCode===wanted.tsxCode&&same(actual.editableParameters,wanted.editableParameters)&&same(actual.parameters,wanted.parameters);
+ const inspect=async(draft,expected)=>{
+  if(!('videoEffects' in draft)||!('videoEffectProgram' in draft)||!('motionGraphicProgram' in draft))throw issue('Update Selects to verify Image programs.');
+  const rows=(await draft.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
+  if(!Array.isArray(expected)||expected.length!==rows.length||new Set(expected.map(c=>c.clipId)).size!==expected.length)throw issue('Visual program count could not be confirmed.');
+  const sources=[],clips=[];
+  const pack=program=>{const p=normalized(program);let source=sources.indexOf(p.tsxCode);if(source<0){source=sources.length;sources.push(p.tsxCode);}return {source,parameters:p.parameters,editableParameters:p.editableParameters};};
+  for(const wanted of expected){
+   const clip=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);if(!clip)throw issue('Visual program target could not be confirmed.');
+   const effects=await draft.videoEffects(clip);
+   if(!Array.isArray(effects)||effects.length!==wanted.effects.length)throw issue('Effect stack could not be confirmed.');
+   const checked=[];
+   for(const [index,entry] of wanted.effects.entries()){
+    const actual=effects[index],program=normalized(entry);
+    if(actual.effectIndex!==index||actual.name!==entry.name||actual.enabled!==true||!matches(await draft.videoEffectProgram(actual),program))throw issue('Effect program, order or controls could not be confirmed.');
+    checked.push({name:entry.name,...pack(program)});
+   }
+   const graphic=await draft.motionGraphicProgram(clip);
+   if(wanted.graphic?!matches(graphic,normalized(wanted.graphic)):graphic!==null)throw issue('Graphic program or controls could not be confirmed.');
+   clips.push({clipId:clip.clipId,trackId:clip.trackId,effects:checked,graphic:wanted.graphic?pack(wanted.graphic):null});
+  }
+  return {sources,clips};
+ };
+ const presets=new Map();
+ const preset=async id=>{
+  if(!config)throw issue('Effect preset preparation requires an authoring target.');
+  if(presets.has(id))return presets.get(id);
+  const definition=await selects.effectPresets.get(id);
+  if(definition?.id!==id||definition.kind!=='effect'||typeof definition.label!=='string'||!Array.isArray(definition.editableParameters)||!definition.parameters)throw issue('Effect preset definition could not be confirmed.');
+  // The public preset definition omits effect TSX. Resolve a canonical program
+  // in an isolated unsaved reference, never by adopting the target's output.
+  const project=selects.project(config.projectId),probe=await project.createDraft({name:'Image preset reference'});
+  await probe.insertGap({seconds:config.plan.durationFrames/config.plan.fps});await probe.setFrameSize(config.plan.canvas);
+  await probe.overlayResource({resource:project.resource(config.sources[0].resourceId),over:await probe.rangeAtFrames(0,config.plan.durationFrames)});
+  if(!('videoEffects' in probe)||!('videoEffectProgram' in probe))throw issue('Update Selects to verify effect presets.');
+  let clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');if(clips.length!==1)throw issue('Effect preset reference could not be confirmed.');
+  const applied=await probe.applyEffectPreset({clip:clips[0],presetId:id,parameters:definition.parameters});
+  if(applied?.presetId!==id)throw issue('Effect preset identity could not be confirmed.');
+  clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
+  const effects=await probe.videoEffects(clips[0]);if(effects.length!==1||effects[0].enabled!==true||effects[0].name!==definition.label)throw issue('Effect preset reference stack could not be confirmed.');
+  const program=await probe.videoEffectProgram(effects[0]),expected=normalized({tsxCode:program?.tsxCode,parameters:definition.parameters,editableParameters:definition.editableParameters});
+  if(typeof program?.tsxCode!=='string'||!program.tsxCode||!matches(program,expected))throw issue('Effect preset reference program could not be confirmed.');
+  const value={name:definition.label,...expected};presets.set(id,value);return value;
+ };
+ const confirm=details=>{
+  if(!config||!format)throw issue('Program receipt confirmation requires an authoring target.');
+  const result={draftId:config.partialDraftId||'x'.repeat(120),fps:config.plan.fps,durationFrames:config.plan.durationFrames,frameSize:config.plan.canvas,clips:config.clips,...details};
+  // Reserve more than a UUID for the post-commit identity. Check the actual
+  // journal envelope and ASCII encoding before the only persistence boundary.
+  try{format(config.runReceipt?{...JSON.parse(config.runReceipt.expectedText),status:'saved',result}:result);}catch(cause){throw Object.assign(issue('The Image program receipt exceeds its limit or could not be prepared.'),{cause});}
+ };
+ const verify=(draft,receipt)=>inspect(draft,receipt.clips.map(c=>{const expand=p=>({tsxCode:receipt.sources[p.source],parameters:p.parameters,editableParameters:p.editableParameters});return {...c,effects:c.effects.map(e=>({name:e.name,...expand(e)})),graphic:c.graphic?expand(c.graphic):null};}));
+ return {inspect:guarded(inspect),preset:guarded(preset),confirm,verify:guarded(verify)};
+}
+async function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFacts,inspectGraphics,inspectTransforms,inspectAudio,programFeature,format){
+ let stage='read';
+ try{
+  const {projectId,plan,sources,items,partialDraftId}=config,project=selects.project(projectId);
+  if(partialDraftId&&!(await project.meta()).draftIds.includes(partialDraftId))throw Error('Partial Draft is not in this Project.');
+  const draft=partialDraftId?selects.draft(partialDraftId):await project.createDraft({name:config.name});
+  if(!('motionGraphics' in draft)||!('motionGraphicProgram' in draft))throw Error('Update Selects to verify editable graphics.');
+  if(!('clipTransform' in draft))throw Error('Update Selects to verify Image transforms.');
+  if(!partialDraftId){
+   stage='working copy';
+   if(config.main){await draft.insertResource({resourceId:config.main.resourceId,sourceRange:{startSeconds:config.main.startSeconds,endSeconds:config.main.startSeconds+plan.durationFrames/plan.fps}});}
+   else await draft.insertGap({seconds:plan.durationFrames/plan.fps});
+   await draft.setFrameSize(plan.canvas);
+  }else{
+   const rows=await draft.clips({trackScope:'all'});
+   if(rows.some(row=>row.trackKind!=='main'||(config.main?row.resourceId!==config.main.resourceId:Boolean(row.resourceId)))||config.main&&rows.length!==1)throw Error('Partial Draft is not empty; inspect it before retrying.');
+  }
+  stage='placement';const native=await placeImages(selects,projectId,draft,plan,sources,items,sourceFacts);
+  const clips=native.placements.map(({key,slot,appearance,clipId,trackId,resourceId,startFrame,endFrame})=>({key,slot,appearance,clipId,trackId,resourceId,startFrame,endFrame}));
+  stage='finish';const result=await finish(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio,programFeature(selects,{...config,clips},format));
+  return {...result,fps:plan.fps,durationFrames:plan.durationFrames,frameSize:plan.canvas,clips};
+ }catch(error){return {status:stage==='finish'?'outcomeUnknown':'notSaved',stage,message:String(error?.message||error),draftId:config.partialDraftId||null};}
+}
+function buildAtomicImageDraftScript(config,finishSource){
+ const receipt=config.runReceipt?`await (${writeTemplateRunResult.toString()})(selects,config.runReceipt,result,${templateRunJSON.toString()},${templateRunBase64.toString()})`:'result';
+ return `const config=${JSON.stringify(config)};const result=await (${authorAtomicImageDraft.toString()})(selects,config,${finishSource},${placeWorkingCopyImages.toString()},${nativeImageSources.toString()},${inspectImageGraphics.toString()},${inspectImageTransforms.toString()},${inspectImageAudio.toString()},${imageProgramsFeature.toString()},${templateRunJSON.toString()});return ${receipt};`;
+}
+async function verifyAtomicImageDraft(sdk,projectId,result){
+ const {draftId,fps,durationFrames,frameSize,clips,graphics,transforms,audio,programs}=result,expected={draftId,fps,durationFrames,frameSize,clips,graphics,transforms,audio,programs};
+ const unverified=cause=>{const message='The saved Image Draft, graphics or sound could not be confirmed. Inspect the Draft before starting a new run.';return Object.assign(Error(message),{code:'IMAGE_SAVE_UNVERIFIED',draftId,publicMessage:message,cause});};
+ if(!Array.isArray(graphics))throw Object.assign(Error('Saved graphic receipts are unavailable. Inspect the existing Draft before starting a new run.'),{code:'IMAGE_SAVE_UNVERIFIED',draftId});
+ if(!Array.isArray(transforms))throw unverified('Saved transform receipts are unavailable.');
+ if(!Array.isArray(audio))throw unverified('Saved Audio receipts are unavailable.');
+ if(audio.some(row=>!row?.source))throw unverified('Saved Audio source evidence is unavailable.');
+ if(!programs)throw unverified('Saved program receipts are unavailable.');
+ let response;try{response=await sdk.runScript({summary:'Verify complete saved Image Draft',allowCommit:false,script:`const expected=${JSON.stringify(expected)};const project=selects.project(${JSON.stringify(projectId)});if(!(await project.meta()).draftIds.includes(expected.draftId))throw Error('Saved Draft is not in this Project');const draft=selects.draft(expected.draftId),meta=await draft.meta(),rows=await draft.clips({trackScope:'all'});if(meta.fps!==expected.fps||meta.durationFrames!==expected.durationFrames||meta.frameSize.width!==expected.frameSize.width||meta.frameSize.height!==expected.frameSize.height)throw Error('Saved Draft frame grid could not be confirmed');if(rows.filter(row=>row.trackKind==='video'&&row.resourceId).length!==expected.clips.length)throw Error('Saved Image count could not be confirmed');for(const wanted of expected.clips){const actual=rows.find(row=>row.clipId===wanted.clipId&&row.trackId===wanted.trackId);if(!actual||actual.resourceId!==wanted.resourceId||actual.startFrame!==wanted.startFrame||actual.endFrame!==wanted.endFrame)throw Error('Saved Image placement could not be confirmed');}await (${inspectImageGraphics.toString()})(draft,expected.graphics);await (${inspectImageTransforms.toString()})(draft,expected.transforms);await (${inspectImageAudio.toString()})(draft,expected.audio,project);await (${imageProgramsFeature.toString()})(selects).verify(draft,expected.programs);return {verified:true};`});}catch(cause){throw unverified(cause);}
+ if(response?.isError||response?.result?.verified!==true)throw unverified(response?.output);
+ return result;
+}
+async function readImageDraftFps(sdk,projectId,draftId=null){
+ const response=await sdk.runScript({summary:'Read the Project frame rate',allowCommit:false,script:`const p=selects.project(${JSON.stringify(projectId)}),id=${JSON.stringify(draftId)};if(id&&!(await p.meta()).draftIds.includes(id))throw Error('Partial Draft is not in this Project.');const d=id?selects.draft(id):await p.createDraft({name:'Image frame rate check'});return {fps:(await d.meta()).fps};`});
+ if(response.isError||!Number.isFinite(response.result?.fps)||response.result.fps<=0)throw Error('Could not read the Project frame rate.');
+ return response.result.fps;
+}
+// native-image-authoring:end
 
 // Decodes the bundled frame image and music into plugin-data through the host FileSystem
 // (no shell, so it runs on Windows too) and says where each one is.
@@ -355,15 +565,12 @@ async function ensureAssets(sdk,projectId,isCurrent=()=>true){
 export const DEFAULT_DRAFT_NAME='Polaroid photo dump';
 export const DEFAULT_CAPTION='\u201cphotos hold memories\u201d',DEFAULT_GRADE=1;
 
-// The create steps, shared by the Panel and a template run. `stillCurrent` says the
-// run still belongs to its Project; `onSeed` runs just before the first save and
-// `onDraft` with the Draft the later steps fill. Returns the saved result.
-export async function createPhotoDraft(sdk,{projectId,selected,framing,name,caption,grade,partialDraftId=null,libraryId=null,stillCurrent,say,onSeed=()=>{},onDraft=_id=>{}}){
+// Prepare inputs/assets first, then author the complete working copy in one
+// save. Observers receive only an acknowledged complete Draft identity.
+export async function createPhotoDraft(sdk,{projectId,selected,framing,name,caption,grade,partialDraftId=null,libraryId=null,stillCurrent,say,onSeed=()=>{},onDraft=_id=>{},runReceipt=null,onDispatch=()=>{}}){
  if(!Array.isArray(selected)||selected.length!==SLOTS)throw templateIssue('Pick exactly 17 photos, then try again.');
  if(selected.some(photo=>isPolaroidAssetPath(photo?.path)))throw templateIssue('Choose your own photos; the bundled polaroid frame is not an input photo.');
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
- // Check user originals before file publication or Project asset imports. After
- // asset preparation, check them again together with the generated frame.
  await prepareNativeImages(sdk,projectId,selected,libraryId);
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
  say('Adding the polaroid frame and music to the Project…');
@@ -371,33 +578,23 @@ export async function createPhotoDraft(sdk,{projectId,selected,framing,name,capt
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
  const prepared=await prepareNativeImages(sdk,projectId,[...selected,assets.frame],libraryId);
  if(!stillCurrent())throw Error('The Project changed. Start again in the selected Project.');
- say('Creating the Draft…');
- // New Drafts take the app's default frame rate; the plan is converted to it.
- const grid=`const m=await d.meta(),want=Math.round(835*m.fps/60);if(m.durationFrames!==want||m.frameSize?.width!==1080||m.frameSize?.height!==1920)throw Error('Draft frame grid differs from the reference.');`;
- let draftId,fps;
- if(partialDraftId){
-  const check=await sdk.runScript({script:`const p=selects.project(${JSON.stringify(projectId)}),id=${JSON.stringify(partialDraftId)};if(!(await p.meta()).draftIds.includes(id))throw Error('Partial Draft is not in this Project.');const d=selects.draft(id);${grid}if((await d.clips({trackScope:'all'})).some(x=>x.resourceId))throw Error('Partial Draft is not empty; inspect it before retrying.');return {draftId:id,fps:m.fps};`,summary:'Inspect partial Draft',allowCommit:false});
-  if(check.isError||check.result?.draftId!==partialDraftId)throw Error(check.output||'The partial Draft cannot be safely continued.');
-  ({draftId,fps}=check.result);
- }else{
-  onSeed();
-  const seed=await sdk.runScript({script:`const p=selects.project(${JSON.stringify(projectId)});const d=await p.createDraft({name:${JSON.stringify(name)}});await d.insertGap({seconds:835/60});await d.setFrameSize({width:1080,height:1920});${grid}const saved=await d.commitAll('Start Polaroid Photo Dump Draft');return {draftId:saved.createdDraftId,fps:m.fps};`,summary:'Create polaroid Draft',allowCommit:true});
-  if(seed.isError||!seed.result?.draftId){const error=Error(seed.output||'Could not create the Draft. Check the Project before retrying.');error.seedOutput=seed.output;throw error;}
-  ({draftId,fps}=seed.result);
- }
- const plan=scenePlan(fps);
- if(plan.fps!==fps||plan.occurrences?.length!==SLOTS)throw Error('The reference plan is incomplete.');
- onDraft(draftId);
- say('Placing 17 photos and the frame…');
- const native=await placeNativeImages(prepared,draftId,plan);
- const request={mode:'finish',projectId,draftId,fps,photos:selected.map((p,i)=>({resourceId:p.resourceId,width:native.photos[i].width,height:native.photos[i].height})),placements:native.placements,frame:{...native.frame,resourceId:assets.frame.resourceId},framing:Array.from({length:SLOTS},(_,i)=>framing[i]||{x:.5,y:.5}),caption,grade,assets:{music:assets.music.resourceId}};
- const script=buildFinishScript(request);
- say('Adding the zoom, film grade, caption and music…');
- const result=await sdk.runScript({script,summary:'Finish polaroid Draft',allowCommit:true,timeoutSeconds:120});
- if(result.isError||!result.result)throw Error(result.output||'Could not confirm the save. Check the Project before retrying.');
- if(result.result.status==='outcomeUnknown')throw Error('Save outcome is unknown. Check the Project Draft list before retrying.');
- if(result.result.status!=='saved')throw Error(result.result.message||'Could not save the Draft.');
- return result.result;
+ const fps=await readImageDraftFps(sdk,projectId,partialDraftId),plan=scenePlan(fps);
+ if(!stillCurrent())throw Error('The template run ended before the Draft was saved.');
+ const config={projectId,name,partialDraftId,runReceipt,plan,sources:prepared.sources,items:[...plan.occurrences.map((item,source)=>({...item,source})),{slot:'frame',startFrame:0,endFrame:plan.durationFrames,source:SLOTS}],main:null,
+  finishRequest:{mode:'finish',projectId,draftId:partialDraftId,fps,framing,caption,grade,assets:{music:assets.music.resourceId}}};
+ const finishSource=`async function(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio,programs){const photos=config.sources.slice(0,17).map(({resourceId,width,height})=>({resourceId,width,height})),frame={...native.placements[17],...config.sources[17]};const input=(${normalizeFinishForPlan.toString()})({...config.finishRequest,photos,placements:native.placements.slice(0,17),frame},config.plan,true);return await (${authorFinishSource})(selects,input,config.plan,${JSON.stringify({photo:PHOTO_EFFECT,frame:FRAME_EFFECT,caption:CAPTION_CODE})},draft,inspectGraphics,inspectTransforms,inspectAudio,programs);}`;
+ say('Creating the complete editable Draft…');
+ if(!partialDraftId)await onSeed();
+ if(!stillCurrent())throw Error('The template run ended before the Draft was saved.');
+ const script=buildAtomicImageDraftScript(config,finishSource);
+ await onDispatch();
+ if(!stillCurrent())throw Error('The template run ended before the Draft was saved.');
+ const reply=await sdk.runScript({summary:'Create complete polaroid Draft',allowCommit:true,timeoutSeconds:120,script});
+ if(reply.isError||!reply.result)throw Object.assign(Error(reply.output||'Could not confirm the saved Draft. Inspect the Project before retrying.'),{seedOutput:reply.output});
+ const result=reply.result;
+ if(result.status!=='saved'||!result.draftId)throw Object.assign(Error(result.message||'Could not confirm the saved Draft. Inspect the Project before retrying.'),{outcome:result.status,draftId:result.draftId});
+ await onDraft(result.draftId);
+ return verifyAtomicImageDraft(sdk,projectId,result);
 }
 
 // A template run gets its own component, so it never touches the Panel's state.
@@ -590,6 +787,163 @@ function PhotoTemplateRun({sdk,context}){
  },[runId]);
  return <p role="status" style={{margin:0,fontSize:12,color:'var(--panel-muted-fg)'}}>{status}</p>;
 }
+
+// template-run:start
+// Durable ownership of one app-supplied template run. Original source is embedded
+// into its declared consumers; no cross-plugin runtime import is required.
+function templateRunJSON(value) {
+ const text=JSON.stringify(value).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));
+ if(text.length>49152)throw Error('The template run receipt exceeds the local file limit.');
+ return text;
+}
+// SDK scripts have no browser/Node encoding globals. The JSON above is ASCII.
+function templateRunBase64(text) {
+ const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';let out='';
+ for(let i=0;i<text.length;i+=3){
+  const a=text.charCodeAt(i),b=text.charCodeAt(i+1),c=text.charCodeAt(i+2);
+  out+=alphabet[a>>2]+alphabet[((a&3)<<4)|(Number.isNaN(b)?0:b>>4)]+(Number.isNaN(b)?'=':alphabet[((b&15)<<2)|(Number.isNaN(c)?0:c>>6)])+(Number.isNaN(c)?'=':alphabet[c&63]);
+ }
+ return out;
+}
+function templateRunIssue(code,message) {
+ return Object.assign(Error(message),{code,publicMessage:message});
+}
+function validateTemplateRun(row,scope,digest) {
+ const invalid=()=>templateRunIssue('TEMPLATE_RUN_INVALID','The saved run record could not be verified. Inspect the Project before starting a new run.');
+ if(!row||row.version!==1||!row.scope||Object.keys(row.scope).length!==4||Object.keys(scope).some(key=>row.scope[key]!==scope[key])||row.requestDigest!==digest||
+  typeof row.owner!=='string'||!/^[\da-f-]{36}$/i.test(row.owner)||!['claimed','saved','notSaved','outcomeUnknown'].includes(row.status))throw invalid();
+ if(row.status==='saved'){
+  const r=row.result;
+  if(!r||typeof r.draftId!=='string'||!r.draftId||!Number.isFinite(r.fps)||r.fps<=0||!Number.isSafeInteger(r.durationFrames)||r.durationFrames<1||
+   !Number.isSafeInteger(r.frameSize?.width)||r.frameSize.width<1||!Number.isSafeInteger(r.frameSize?.height)||r.frameSize.height<1||!Array.isArray(r.clips)||!r.clips.length||r.clips.length>256||
+   r.clips.some(c=>!c||!Number.isSafeInteger(c.clipId)||typeof c.trackId!=='string'||!c.trackId||typeof c.resourceId!=='string'||!c.resourceId||!Number.isSafeInteger(c.startFrame)||!Number.isSafeInteger(c.endFrame)||c.startFrame<0||c.endFrame<=c.startFrame||c.endFrame>r.durationFrames))throw invalid();
+  if(new Set(r.clips.map(c=>c.clipId)).size!==r.clips.length)throw invalid();
+  if(r.graphics!==undefined){
+   if(!Array.isArray(r.graphics)||r.graphics.length>256||r.graphics.some(g=>!g||!Number.isSafeInteger(g.clipId)||g.clipId<0||typeof g.trackId!=='string'||!g.trackId||!Number.isSafeInteger(g.startFrame)||!Number.isSafeInteger(g.endFrame)||g.startFrame<0||g.endFrame<=g.startFrame||g.endFrame>r.durationFrames||!g.parameters||typeof g.parameters!=='object'||Array.isArray(g.parameters)||'tsxCode' in g))throw invalid();
+   if(new Set(r.graphics.map(g=>g.clipId)).size!==r.graphics.length||r.graphics.some(g=>r.clips.some(c=>c.clipId===g.clipId)))throw invalid();
+  }
+  if(r.transforms!==undefined){
+   const visual=[...r.clips,...(r.graphics??[])],point=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y);
+   if(!Array.isArray(r.transforms)||r.transforms.length!==visual.length||new Set(r.transforms.map(t=>t?.clipId)).size!==r.transforms.length)throw invalid();
+   for(const row of r.transforms){
+    const t=row?.transform;
+    if(!row||!visual.some(c=>c.clipId===row.clipId&&c.trackId===row.trackId)||Object.keys(row).length!==3||!t||Object.keys(t).length!==10||typeof t.enabled!=='boolean'||typeof t.flipHorizontal!=='boolean'||typeof t.flipVertical!=='boolean'||!point(t.position)||!point(t.scale)||t.scale.x<=0||t.scale.y<=0||!point(t.anchor)||!Number.isFinite(t.rotation))throw invalid();
+    for(const key of ['positionKeys','scaleKeys','rotationKeys'])if(!Array.isArray(t[key])||t[key].length>256||t[key].some(k=>!k||!Number.isFinite(k.atSeconds)||k.atSeconds<0||(key==='positionKeys'?!point(k):!Number.isFinite(k[key==='scaleKeys'?'scale':'rotation']))))throw invalid();
+   }
+  }
+  if(r.audio!==undefined){
+   if(!Array.isArray(r.audio)||r.audio.length>256||new Set(r.audio.map(a=>a?.clipId)).size!==r.audio.length)throw invalid();
+   const db=value=>Number.isFinite(value)&&value>=-60&&value<=12,visual=[...r.clips,...(r.graphics??[])];
+   for(const a of r.audio){
+    const s=a?.settings;
+    if(!a||Object.keys(a).length!==(a.source===undefined?8:9)||!Number.isSafeInteger(a.clipId)||a.clipId<0||typeof a.trackId!=='string'||!a.trackId||!['main','audio'].includes(a.trackKind)||typeof a.resourceId!=='string'||!a.resourceId||!Number.isSafeInteger(a.startFrame)||!Number.isSafeInteger(a.endFrame)||a.startFrame<0||a.endFrame<=a.startFrame||a.endFrame>r.durationFrames||visual.some(c=>c.clipId===a.clipId)||!s||Object.keys(s).length!==4)throw invalid();
+    if(a.source!==undefined){
+     const t=a.source,rate=t?.playbackSpeed;
+     if(!t||Object.keys(t).length!==4||!Number.isFinite(t.startSeconds)||t.startSeconds<0||!Number.isFinite(t.endSeconds)||t.endSeconds<=t.startSeconds||!rate||Object.keys(rate).length!==2||!Number.isSafeInteger(rate.numerator)||rate.numerator<1||!Number.isSafeInteger(rate.denominator)||rate.denominator<1||rate.numerator/rate.denominator<.01||rate.numerator/rate.denominator>100||typeof t.preserveAudioPitch!=='boolean')throw invalid();
+    }
+    if(a.audioSourceIndexes!==null&&(!Array.isArray(a.audioSourceIndexes)||a.audioSourceIndexes.length>256||new Set(a.audioSourceIndexes).size!==a.audioSourceIndexes.length||a.audioSourceIndexes.some(i=>!Number.isSafeInteger(i)||i<0)))throw invalid();
+    const duration=(a.endFrame-a.startFrame)/r.fps;
+    if(!Array.isArray(s.volumeKeys)||s.volumeKeys.length>256||(s.volumeKeys.length?s.volumeDb!==null:!db(s.volumeDb))||s.volumeKeys.some(k=>!k||!Number.isFinite(k.atSeconds)||k.atSeconds<0||k.atSeconds>duration||!db(k.volumeDb))||!Number.isFinite(s.fadeInSeconds)||s.fadeInSeconds<0||s.fadeInSeconds>duration||!Number.isFinite(s.fadeOutSeconds)||s.fadeOutSeconds<0||s.fadeOutSeconds>duration)throw invalid();
+   }
+  }
+  if(r.programs!==undefined){
+   const p=r.programs,visual=[...r.clips,...(r.graphics??[])],used=new Set();
+   if(!p||Object.keys(p).length!==2||!Array.isArray(p.sources)||p.sources.length>256||p.sources.some(s=>typeof s!=='string'||!s||s.length>49152)||new Set(p.sources).size!==p.sources.length||!Array.isArray(p.clips)||p.clips.length!==visual.length||new Set(p.clips.map(c=>c?.clipId)).size!==p.clips.length)throw invalid();
+   const entry=(e,effect)=>{
+    if(!e||Object.keys(e).length!==(effect?4:3)||!Number.isSafeInteger(e.source)||e.source<0||e.source>=p.sources.length||!e.parameters||typeof e.parameters!=='object'||Array.isArray(e.parameters)||!Array.isArray(e.editableParameters)||e.editableParameters.length>256||effect&&(typeof e.name!=='string'||!e.name))throw invalid();
+    if(new Set(e.editableParameters.map(d=>d?.key)).size!==e.editableParameters.length||e.editableParameters.some(d=>!d||typeof d.key!=='string'||!d.key||typeof d.label!=='string'||!['text','number','color','boolean','select'].includes(d.type)||!Object.prototype.hasOwnProperty.call(e.parameters,d.key)))throw invalid();
+    used.add(e.source);
+   };
+   for(const c of p.clips){
+    if(!c||Object.keys(c).length!==4||!visual.some(v=>v.clipId===c.clipId&&v.trackId===c.trackId)||!Array.isArray(c.effects)||c.effects.length>64)throw invalid();
+    c.effects.forEach(e=>entry(e,true));
+    const graphic=(r.graphics??[]).some(g=>g.clipId===c.clipId);
+    if(graphic)entry(c.graphic,false);else if(c.graphic!==null)throw invalid();
+   }
+   if(used.size!==p.sources.length)throw invalid();
+  }
+ }
+ return row;
+}
+// Called inside the SAME Main SDK invocation after authoring, before the reply.
+// Only the exclusive claim's owner can publish this receipt; no save is retried.
+async function writeTemplateRunResult(selects,claim,result,json,encode) {
+ try{
+  const row=JSON.parse(claim.expectedText),status=result.status;
+  if(row.status!=='claimed'||!['saved','notSaved','outcomeUnknown'].includes(status))throw Error('Invalid run receipt state');
+  let saved;
+  if(status==='saved'){
+   if(!('fps' in result)||!('durationFrames' in result)||!('frameSize' in result)||!('clips' in result)||typeof result.draftId!=='string'||!result.draftId)throw Error('Saved run receipt is incomplete');
+   saved={draftId:result.draftId,fps:result.fps,durationFrames:result.durationFrames,frameSize:result.frameSize,clips:result.clips,...'graphics' in result?{graphics:result.graphics}:{},...'transforms' in result?{transforms:result.transforms}:{},...'audio' in result?{audio:result.audio}:{},...'programs' in result?{programs:result.programs}:{}};
+  }
+  const next=json({...row,status,...saved?{result:saved}:{}});
+  const reply=await selects.files.compareAndReplace({path:claim.path,expectedBase64:encode(claim.expectedText),base64:encode(next)});
+  return {...result,runReceiptSaved:reply?.replaced===true};
+ }catch{return {...result,runReceiptSaved:false};}
+}
+async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,verify) {
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};
+ check();
+ if(!scope||!['pluginId','libraryId','projectId','runId'].every(key=>typeof scope[key]==='string'&&scope[key].length>0&&scope[key].length<=1024)||!/^[a-z0-9-]+$/.test(scope.pluginId))fail('TEMPLATE_RUN_INVALID','The template run target is incomplete. Start again from the Project.');
+ scope={pluginId:scope.pluginId,libraryId:scope.libraryId,projectId:scope.projectId,runId:scope.runId};
+ const targetCheck=async()=>{
+  const target=await sdk.call('getProjectDraftScaffold',scope.projectId);
+  if(target?.owner?.libraryId!==scope.libraryId||target.owner.projectId!==scope.projectId)fail('TEMPLATE_RUN_TARGET','The template run belongs to a different Project or library. Start again from the intended Project.');
+  check();
+ };
+ await targetCheck();
+ if(!files||!['join','homedir','exists','stat','readRange','writeFile','compareAndReplace','mkdir'].every(key=>typeof files[key]==='function'))fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ const digest=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(templateRunJSON(value)))),n=>n.toString(16).padStart(2,'0')).join('');
+ const key=await digest(scope),requestDigest=await digest(request);
+ const directory=files.join(files.homedir(),'.selects','plugin-data',scope.pluginId,'template-runs'),path=files.join(directory,key+'.json');
+ const read=async()=>{
+  if(!await files.exists(path))return null;
+  let row;
+  try{
+   const stat=await files.stat(path);if(!stat||stat.isDirectory!==false||!Number.isSafeInteger(stat.size)||stat.size<1||stat.size>49152)throw Error('Invalid record size');
+   const bytes=await files.readRange(path,0,stat.size),after=await files.stat(path);
+   if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]'||bytes.byteLength!==stat.size||!after||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))throw Error('Run record changed while reading');
+   row=JSON.parse(new TextDecoder().decode(bytes));
+  }catch{fail('TEMPLATE_RUN_INVALID','The saved run record could not be read. Inspect the Project before starting a new run.');}
+  return validateTemplateRun(row,scope,requestDigest);
+ };
+ const recover=async row=>{
+  if(row.status==='saved'){await targetCheck();return verify({...row.result,status:'saved',projectId:scope.projectId});}
+  if(row.status==='notSaved')fail('TEMPLATE_RUN_NOT_SAVED','This run stopped before saving a Draft. Start a new run to retry.');
+  fail('TEMPLATE_RUN_PENDING','This run may still be saving or awaiting confirmation. Inspect the Project before starting another run.');
+ };
+ const existing=await read();if(existing)return recover(existing);
+ const capability=await sdk.runScript({summary:'Check durable template run support',allowCommit:false,script:"return {supported:'files' in selects&&'compareAndReplace' in selects.files&&'writeChunk' in selects.files};"});
+ if(capability.isError||capability.result?.supported!==true)fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ await files.mkdir(directory,{recursive:true});check();
+ const owner=crypto.randomUUID(),expectedText=templateRunJSON({version:1,scope,requestDigest,owner,status:'claimed'}),claim={path,expectedText};
+ // Exclusive creation is a filesystem operation, including across app windows.
+ // compareAndReplace alone serializes only one renderer bridge's own writes.
+ try{await files.writeFile(path,expectedText,{flag:'wx'});}catch(cause){
+  const row=await read();
+  if(!row)fail('TEMPLATE_RUN_STORAGE','The run could not be recorded. Nothing was dispatched. Check local file access and start a new run.');
+  if(row.owner!==owner)return recover(row);
+  // A lost claim ACK is safe to recover here: authoring has not been dispatched.
+ }
+ let dispatched=false;
+ try{
+  check();
+  return await perform(claim,async()=>{await targetCheck();dispatched=true;});
+ }catch(cause){
+  if(!dispatched){
+   // No authoring was dispatched. Never overwrite a later Main-side receipt.
+   await files.compareAndReplace(path,expectedText,templateRunJSON({...JSON.parse(expectedText),status:'notSaved'})).catch(()=>{});
+   if(cause&&typeof cause==='object')Object.assign(cause,{outcome:'notSaved'});
+  }else{
+   // Main may finish after the transport failed. Keep its expected claim intact
+   // so the late receipt can land. A positively saved receipt permits readback.
+   const row=await read();if(row?.status==='saved')return recover(row);
+  }
+  throw cause;
+ }
+}
+// template-run:end
 
 // av-host:start
 // Local files and media tools use the public async SDK. Paths remain host-native.
