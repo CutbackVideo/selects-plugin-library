@@ -35,6 +35,9 @@ an unrelated workflow. A passing unit suite alone is not completion.
   and SDK-side receipts now pass two-consumer regression checks; see
   [photo-run-receipts.md](photo-run-receipts.md). Other photo defects and all
   installed save/playback/export/platform verification remain open.
+  The local SDK bootstrap now finishes hidden-run connection failures with a
+  bounded observation and safe message at both photo consumers; a16z is rebuilt
+  for shared-source compatibility. See [template-bootstrap.md](template-bootstrap.md).
 - Place Count's obsolete named capability query: independent draft PR #260;
   canonical Draft-method checks and both remote CI checks pass. Installed-app
   save/playback/export and the other six audited findings remain pending.

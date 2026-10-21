@@ -282,25 +282,53 @@ function panelLocalClient(sdk: any): any {
 function withPanelLocalClient(Component: any) {
   return function LocalSdkPanel(props: any) {
     const [state, setState] = React.useState<any>(null);
+    const reported = React.useRef(new WeakMap<object, Set<string>>());
+    const key = JSON.stringify([props.context?.projectId ?? null,
+      props.context?.template?.libraryId ?? props.context?.libraryId ?? null,
+      props.context?.template?.runId ?? null]);
     React.useEffect(() => {
-      let active = true;
+      let active = true, settled = false;
       let client: any;
+      const fail = (timeout: boolean, cause?: unknown) => {
+        if (!active || settled) return;
+        settled = true; clearTimeout(timer);
+        const error = timeout
+          ? "Connecting to Selects took too long. Reopen the Project and try again."
+          : "Could not connect to Selects. Reopen the Project and try again; update Selects if the problem continues.";
+        // Diagnostics stay private; neither the DOM nor finishTemplate receives
+        // raw SDK output, paths or an exception stack.
+        setState({sdk: props.sdk, key, error, cause});
+      };
+      // This is a read-only bootstrap observation, not a mutation retry or cancel.
+      const timer = setTimeout(() => fail(true), 30000);
       createPanelLocalClient(props.sdk).then(value => {
         client = {...props.sdk, ...value};
-        if (!active) { value.dispose(); return; }
+        if (!active || settled) { value.dispose(); return; }
+        settled = true; clearTimeout(timer);
         panelLocalClients.set(props.sdk, client);
-        setState({sdk: props.sdk});
-      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+        setState({sdk: props.sdk, key});
+      }).catch(error => fail(false, error));
       return () => {
-        active = false;
+        active = false; clearTimeout(timer);
         if (client) {
           if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
           client.dispose();
         }
       };
-    }, [props.sdk]);
+    }, [props.sdk, key]);
+    React.useEffect(() => {
+      if (!props.context?.template || state?.sdk !== props.sdk || state?.key !== key || !state?.error) return;
+      if (typeof props.sdk?.finishTemplate !== "function") return;
+      const seen = reported.current.get(props.sdk) ?? new Set<string>();
+      if (seen.has(key)) return;
+      seen.add(key); reported.current.set(props.sdk, seen);
+      // A failed connection never mounts the child, so the wrapper must finish
+      // a hidden app run itself. Visible standalone panels keep an alert only.
+      try { Promise.resolve(props.sdk.finishTemplate({error: state.error})).catch(() => {}); }
+      catch { /* Do not replay completion or expose a transport exception. */ }
+    }, [props.sdk, key, state, !!props.context?.template]);
+    if (state?.sdk !== props.sdk || state?.key !== key) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
     if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
     return React.createElement(Component, props);
   };
 }

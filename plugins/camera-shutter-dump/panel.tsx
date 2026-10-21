@@ -895,33 +895,64 @@ function panelLocalPaths(platform: string) {
 
 /** Plugin-private composition of canonical SDK methods, not a public SDK surface. */
 async function createPanelLocalClient(sdk: any) {
-  const run = async (method: string, args: unknown[], write = false) => {
-    // method names below are fixed implementation constants; values always use JSON encoding.
-    // Direct arguments keep object literals contextually typed by the SDK signature.
+  const SCRIPT_BYTES = 256 * 1024;
+  const runSource = async (script: string, write = false) => {
+    if (new TextEncoder().encode(script).byteLength > SCRIPT_BYTES) throw new Error("The local file script exceeds the 256 KiB limit.");
     const response = await sdk.runScript({
       summary: "Use local media workspace",
       allowCommit: write,
-      script: "return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");",
+      script,
     });
     if (response.isError) throw new Error(response.output || "Local SDK operation failed.");
     // A clipped report has no result. Every read returning data rejects that case below.
     return response.result;
   };
+  // Direct arguments keep object literals contextually typed by the SDK signature.
+  const run = (method: string, args: unknown[], write = false) =>
+    runSource("return await selects." + method + "(" + JSON.stringify(args).slice(1, -1) + ");", write);
   const environment = await run("files.environment", []);
   if (!environment || typeof environment.platform !== "string" || !environment.homedir)
     throw new Error("Update Selects to use this plugin's local media workspace.");
   const paths = panelLocalPaths(environment.platform);
   const CHUNK_BYTES = 48 * 1024;
+  // Three encoded chunks occupy 192 KiB, below the Panel's default 256 KiB result
+  // budget. The same script still awaits each canonical file operation in order.
+  const fileBatch = async (method: "readRange" | "writeChunk", inputs: unknown[], lengths: number[]) => {
+    let count = Math.min(3, inputs.length), script = "";
+    while (count > 0) {
+      script = "const rows=[];" + inputs.slice(0, count).map((input, index) => {
+        const call = "{const result=await selects.files." + method + "(" + JSON.stringify(input) + ");";
+        if (method === "writeChunk")
+          return call + "if(result?.bytesWritten!==" + lengths[index] + ")throw Error('The file write returned an incomplete result. Check the file before retrying.');rows.push(result);}";
+        return call + "if(!result||typeof result.base64!=='string'||!Number.isSafeInteger(result.bytesRead)||result.bytesRead<0||result.bytesRead>" + lengths[index] + ")throw Error('The file read returned an incomplete result.');rows.push(result);if(result.bytesRead<" + lengths[index] + ")return rows;}";
+      }).join("") + "return rows;";
+      if (new TextEncoder().encode(script).byteLength <= SCRIPT_BYTES) break;
+      count--;
+    }
+    if (!count) throw new Error("The local file script exceeds the 256 KiB limit.");
+    return { count, rows: await runSource(script, method === "writeChunk") };
+  };
   const readRange = async (path: string, offset: number, length: number) => {
     const parts: Uint8Array[] = [];
     let total = 0;
     while (total < length) {
-      const result = await run("files.readRange", [{ path, offset: offset + total, length: Math.min(CHUNK_BYTES, length - total) }]);
-      if (!result || typeof result.base64 !== "string" || !Number.isInteger(result.bytesRead)) throw new Error("The file read returned an incomplete result.");
-      const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
-      if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
-      parts.push(bytes); total += bytes.length;
-      if (bytes.length < Math.min(CHUNK_BYTES, length - (total - bytes.length))) break;
+      const inputs = Array.from({ length: Math.min(3, Math.ceil((length - total) / CHUNK_BYTES)) }, (_, index) =>
+        ({ path, offset: offset + total + index * CHUNK_BYTES, length: Math.min(CHUNK_BYTES, length - total - index * CHUNK_BYTES) }));
+      const lengths = inputs.map(input => input.length);
+      const { rows, count } = await fileBatch("readRange", inputs, lengths);
+      if (!Array.isArray(rows) || rows.length < 1 || rows.length > count) throw new Error("The file read returned an incomplete result.");
+      let short = false;
+      for (let index = 0; index < rows.length; index++) {
+        const result = rows[index];
+        if (!result || typeof result.base64 !== "string" || !Number.isSafeInteger(result.bytesRead) || result.bytesRead < 0 || result.bytesRead > lengths[index]) throw new Error("The file read returned an incomplete result.");
+        const bytes = Uint8Array.from(atob(result.base64), (character) => character.charCodeAt(0));
+        if (bytes.length !== result.bytesRead) throw new Error("The file read returned invalid bytes.");
+        short = bytes.length < lengths[index];
+        if (short && index !== rows.length - 1) throw new Error("The file read returned invalid bytes.");
+        parts.push(bytes); total += bytes.length;
+      }
+      if (rows.length !== count && !short) throw new Error("The file read returned an incomplete result.");
+      if (short) break;
     }
     const output = new Uint8Array(total);
     let position = 0;
@@ -957,18 +988,31 @@ async function createPanelLocalClient(sdk: any) {
       const destination = replacement ? path + ".tmp-" + crypto.randomUUID() : path;
       let published = false;
       try {
-        for (let offset = 0; offset < bytes.length || offset === 0; offset += CHUNK_BYTES) {
-          const chunk = bytes.subarray(offset, offset + CHUNK_BYTES);
-          let binary = "";
-          for (const byte of chunk) binary += String.fromCharCode(byte);
-          const mode = offset === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
-          const result = await run("files.writeChunk", [{ path: destination, offset, base64: btoa(binary), ...(mode ? { mode } : {}) }], true);
-          if (result?.bytesWritten !== chunk.length) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
-        }
+        let offset = 0;
+        do {
+          const inputs = [], lengths = [];
+          for (let index = 0; index < (replacement ? 3 : 1) && (offset + index * CHUNK_BYTES < bytes.length || index === 0); index++) {
+            const position = offset + index * CHUNK_BYTES, chunk = bytes.subarray(position, position + CHUNK_BYTES);
+            let binary = "";
+            for (const byte of chunk) binary += String.fromCharCode(byte);
+            const mode = position === 0 ? (flag === "a" ? "append" : "exclusive") : undefined;
+            inputs.push({ path: destination, offset: position, base64: btoa(binary), ...(mode ? { mode } : {}) });
+            lengths.push(chunk.length);
+          }
+          if (!replacement) {
+            const result = await run("files.writeChunk", [inputs[0]], true);
+            if (result?.bytesWritten !== lengths[0]) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+          } else {
+            const { rows, count } = await fileBatch("writeChunk", inputs, lengths);
+            if (!Array.isArray(rows) || rows.length !== count || rows.some((row, index) => row?.bytesWritten !== lengths[index])) throw new Error("The file write returned an incomplete result. Check the file before retrying.");
+            lengths.length = count;
+          }
+          offset += lengths.reduce((sum, size) => sum + size, 0);
+        } while (offset < bytes.length);
         if (replacement) await run("files.rename", [destination, path], true);
         published = true;
       } finally {
-        if (replacement && !published) await run("files.remove", [destination, { force: true }], true).catch(() => {});
+        if (replacement && !published) await run("files.remove", [destination, { recursive: false, force: true }], true).catch(() => {});
       }
     },
     async compareAndReplace(path: string, expectedText: string | null, text: string) {
@@ -984,8 +1028,8 @@ async function createPanelLocalClient(sdk: any) {
       return result.replaced;
     },
     mkdir: (path: string, options?: { recursive?: boolean }) => run("files.mkdir", [path, options ?? {}], true),
-    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, options ?? {}], true),
-    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { force: true }], true),
+    rm: (path: string, options?: { recursive?: boolean; force?: boolean }) => run("files.remove", [path, { recursive: options?.recursive ?? false, force: options?.force ?? false }], true),
+    removeFile: ({ filePath }: { filePath: string }) => run("files.remove", [filePath, { recursive: false, force: true }], true),
     rename: (from: string, to: string) => run("files.rename", [from, to], true),
     copyFile: (from: string, to: string) => run("files.copy", [from, to], true),
     downloadFile: (url: string, path: string) => run("files.download", [url, path], true),
@@ -1060,25 +1104,53 @@ function panelLocalClient(sdk: any): any {
 function withPanelLocalClient(Component: any) {
   return function LocalSdkPanel(props: any) {
     const [state, setState] = React.useState<any>(null);
+    const reported = React.useRef(new WeakMap<object, Set<string>>());
+    const key = JSON.stringify([props.context?.projectId ?? null,
+      props.context?.template?.libraryId ?? props.context?.libraryId ?? null,
+      props.context?.template?.runId ?? null]);
     React.useEffect(() => {
-      let active = true;
+      let active = true, settled = false;
       let client: any;
+      const fail = (timeout: boolean, cause?: unknown) => {
+        if (!active || settled) return;
+        settled = true; clearTimeout(timer);
+        const error = timeout
+          ? "Connecting to Selects took too long. Reopen the Project and try again."
+          : "Could not connect to Selects. Reopen the Project and try again; update Selects if the problem continues.";
+        // Diagnostics stay private; neither the DOM nor finishTemplate receives
+        // raw SDK output, paths or an exception stack.
+        setState({sdk: props.sdk, key, error, cause});
+      };
+      // This is a read-only bootstrap observation, not a mutation retry or cancel.
+      const timer = setTimeout(() => fail(true), 30000);
       createPanelLocalClient(props.sdk).then(value => {
         client = {...props.sdk, ...value};
-        if (!active) { value.dispose(); return; }
+        if (!active || settled) { value.dispose(); return; }
+        settled = true; clearTimeout(timer);
         panelLocalClients.set(props.sdk, client);
-        setState({sdk: props.sdk});
-      }).catch(error => { if (active) setState({error: String(error?.message || error)}); });
+        setState({sdk: props.sdk, key});
+      }).catch(error => fail(false, error));
       return () => {
-        active = false;
+        active = false; clearTimeout(timer);
         if (client) {
           if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
           client.dispose();
         }
       };
-    }, [props.sdk]);
+    }, [props.sdk, key]);
+    React.useEffect(() => {
+      if (!props.context?.template || state?.sdk !== props.sdk || state?.key !== key || !state?.error) return;
+      if (typeof props.sdk?.finishTemplate !== "function") return;
+      const seen = reported.current.get(props.sdk) ?? new Set<string>();
+      if (seen.has(key)) return;
+      seen.add(key); reported.current.set(props.sdk, seen);
+      // A failed connection never mounts the child, so the wrapper must finish
+      // a hidden app run itself. Visible standalone panels keep an alert only.
+      try { Promise.resolve(props.sdk.finishTemplate({error: state.error})).catch(() => {}); }
+      catch { /* Do not replay completion or expose a transport exception. */ }
+    }, [props.sdk, key, state, !!props.context?.template]);
+    if (state?.sdk !== props.sdk || state?.key !== key) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
     if (state?.error) return React.createElement("div", {role: "alert"}, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", {role: "status"}, "Connecting to Selects…");
     return React.createElement(Component, props);
   };
 }

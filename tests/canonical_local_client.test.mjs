@@ -71,7 +71,7 @@ for (const directory of [process.cwd(), process.env.SELECTS_DEV_REPO,
   catch { /* Try the next local installation. */ }
 }
 
-test('shared, Card News Maker and a16z file scripts pass the host SDK TypeScript check', {
+test('shared, Card News Maker, a16z and both photo consumers pass the host SDK TypeScript check', {
   skip: !typescript || !sdkTypes ? 'requires local TypeScript and Selects SDK declarations' : false,
 }, async () => {
   const panel = fs.readFileSync(new URL('../plugins/card-news-maker/panel.tsx', import.meta.url), 'utf8');
@@ -84,7 +84,9 @@ test('shared, Card News Maker and a16z file scripts pass the host SDK TypeScript
   const directory = fs.mkdtempSync(path.join(tmpdir(), 'local-client-types-'));
   try {
     const scripts = [];
-    for (const clientSource of [source, embedded, a16zClient]) {
+    const photoClients=['no14-still-video','camera-shutter-dump'].map(id=>fs.readFileSync(new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8')
+      .split('// local-sdk:start\n')[1].split('// local-sdk:end')[0].replace(/^export default withPanelLocalClient\(\w+\);\s*$/m,''));
+    for (const clientSource of [source, embedded, a16zClient,...photoClients]) {
       const h = host(), client = await load({}, clientSource).createPanelLocalClient(h.sdk);
       const file = '/tmp/\ud55c\uae00 "quoted"\\file.bin';
       await client.files.writeFile(file, new Uint8Array(100000));
@@ -236,7 +238,7 @@ test('a signal already aborted never starts the host process',async()=>{
   assert.equal(h.jobs.size,0);
 });
 test('wrapper waits for environment, keeps original public sdk, and removes the private client on unmount',async()=>{
-  let state=null,effect,cleanup;const React={useState:()=>[state,value=>{state=value;}],useEffect:fn=>{effect??=fn;},createElement:(type,props,...children)=>({type,props,children})};
+  let state=null,effect,cleanup;const React={useState:()=>[state,value=>{state=value;}],useRef:value=>({current:value}),useEffect:fn=>{effect??=fn;},createElement:(type,props,...children)=>({type,props,children})};
   const api=load(React),h=host();let release;
   const original=h.sdk.runScript;
   h.sdk.runScript=async input=>{if(input.script.includes('environment'))await new Promise(resolve=>{release=resolve;});return original(input);};

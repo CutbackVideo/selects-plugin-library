@@ -688,30 +688,58 @@ function panelLocalClient(sdk) {
 function withPanelLocalClient(Component) {
   return function LocalSdkPanel(props) {
     const [state, setState] = React.useState(null);
+    const reported = React.useRef(/* @__PURE__ */ new WeakMap());
+    const key = JSON.stringify([
+      props.context?.projectId ?? null,
+      props.context?.template?.libraryId ?? props.context?.libraryId ?? null,
+      props.context?.template?.runId ?? null
+    ]);
     React.useEffect(() => {
-      let active = true;
+      let active = true, settled = false;
       let client;
+      const fail = (timeout, cause) => {
+        if (!active || settled) return;
+        settled = true;
+        clearTimeout(timer);
+        const error = timeout ? "Connecting to Selects took too long. Reopen the Project and try again." : "Could not connect to Selects. Reopen the Project and try again; update Selects if the problem continues.";
+        setState({ sdk: props.sdk, key, error, cause });
+      };
+      const timer = setTimeout(() => fail(true), 3e4);
       createPanelLocalClient(props.sdk).then((value) => {
         client = { ...props.sdk, ...value };
-        if (!active) {
+        if (!active || settled) {
           value.dispose();
           return;
         }
+        settled = true;
+        clearTimeout(timer);
         panelLocalClients.set(props.sdk, client);
-        setState({ sdk: props.sdk });
-      }).catch((error) => {
-        if (active) setState({ error: String(error?.message || error) });
-      });
+        setState({ sdk: props.sdk, key });
+      }).catch((error) => fail(false, error));
       return () => {
         active = false;
+        clearTimeout(timer);
         if (client) {
           if (panelLocalClients.get(props.sdk) === client) panelLocalClients.delete(props.sdk);
           client.dispose();
         }
       };
-    }, [props.sdk]);
+    }, [props.sdk, key]);
+    React.useEffect(() => {
+      if (!props.context?.template || state?.sdk !== props.sdk || state?.key !== key || !state?.error) return;
+      if (typeof props.sdk?.finishTemplate !== "function") return;
+      const seen = reported.current.get(props.sdk) ?? /* @__PURE__ */ new Set();
+      if (seen.has(key)) return;
+      seen.add(key);
+      reported.current.set(props.sdk, seen);
+      try {
+        Promise.resolve(props.sdk.finishTemplate({ error: state.error })).catch(() => {
+        });
+      } catch {
+      }
+    }, [props.sdk, key, state, !!props.context?.template]);
+    if (state?.sdk !== props.sdk || state?.key !== key) return React.createElement("div", { role: "status" }, "Connecting to Selects\u2026");
     if (state?.error) return React.createElement("div", { role: "alert" }, state.error);
-    if (state?.sdk !== props.sdk) return React.createElement("div", { role: "status" }, "Connecting to Selects\u2026");
     return React.createElement(Component, props);
   };
 }

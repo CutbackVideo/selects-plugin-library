@@ -1,0 +1,60 @@
+# Plugin-private local SDK client
+
+`local-client.ts` composes existing public `runScript`/`call` methods into local
+files, media jobs and editor helpers. It is not a new public SDK, renderer IPC or
+cross-plugin runtime import. `panelLocalClient` keeps the private composition in
+a WeakMap keyed by the original SDK object; a child still receives that original
+SDK. Do not replace its identity with a cloned object.
+
+## Connection lifetime and template completion
+
+`withPanelLocalClient(Component)` observes the read-only `files.environment`
+bootstrap before mounting its child. A connection belongs to one SDK object,
+Project, library and app template run. A scope change disposes the old private
+client and starts a fresh connection; stale state never mounts the new child.
+
+- A thrown request, an SDK error reply or an unusable environment enters a safe
+  connection error state. Raw output/paths/stacks remain private diagnostics.
+- A 30-second observation deadline reports a timeout. It does not repeat or
+  cancel the underlying read. Late successes are disposed without binding or
+  mounting the child, and late failures cannot report for a replaced scope.
+- A visible standalone panel shows an alert. A hidden app template run also
+  calls `finishTemplate({error})`, since its child will never mount to finish it.
+  Reports are deduplicated by SDK and run scope within the wrapper, including
+  React StrictMode/effect replay and rerenders. Failed completion transport is
+  contained and not automatically replayed; delivery is not inferred from a call.
+- An explicit new run may reconnect after a prior failure. A successful
+  connection clears the observation timer, registers the private client before
+  mounting the child and removes only its own binding during cleanup.
+
+This does not catch every possible child render/operation failure, guarantee
+delivery over a broken completion channel, or cancel already dispatched Draft
+writes. Existing template-run ownership and saved receipts remain responsible
+for mutations and their recovery.
+
+## File/process transport and distribution
+
+The existing client keeps 48 KiB file operations and 256 KiB script/result
+budgets explicit. Complete replacement writes use a private sibling file before
+rename; exclusive creation and append remain single bounded operations. Unknown
+write outcomes are not automatically retried. Local job disposal/cancellation
+continues to use the existing media job contract.
+
+The existing `tools/sync_panel_local_client.mjs` now supports a scoped migration:
+
+```sh
+node tools/sync_panel_local_client.mjs --only=no14-still-video,camera-shutter-dump
+node tools/sync_panel_local_client.mjs --only=no14-still-video,camera-shutter-dump --check
+```
+
+The check is read-only. All requested consumers/markers/wrappers are validated
+before any replacement, unknown/invalid scopes fail, and explicitly excluded
+Shortform/EO consumers are refused. Windows line endings are accepted. With no
+scope the legacy full-repository synchronization behavior remains available;
+do not invoke it for a scoped repair. Multiple file replacements are not one
+filesystem transaction; final drift checks remain required before publishing.
+
+The photo consumers previously had older file batching/cleanup copies. Their
+scoped synchronization now uses the existing canonical implementation as well
+as the new connection behavior. a16z imports the canonical source directly and
+uses its existing bundler. Other embedded copies are not silently migrated.
