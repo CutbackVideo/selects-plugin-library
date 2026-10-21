@@ -1,6 +1,9 @@
 # Politics source video (16:9)
 
-Draft based on the supplied 1280x720, 51.375-second KakaoTalk reference, not a Premiere project. Requires the landscape-capable panel (template API 6). Export through `encodeSharedTemplate` for a portable import file; this directory is not yet published in a template pack.
+`templates/politics-landscape.json` is included in Chosun Ilbo pack 1.4.0.
+It is based on the supplied 1280x720, 51.375-second KakaoTalk reference, not a Premiere project.
+Requires Shortform Clips 0.6.0 or later (template API 6). The approximations below
+remain explicit while the template is available through ordinary pack installation.
 
 - Preserve source aspect ratio and camera cuts, with no automatic portrait crops or splits.
 - Enter event title/date and source credit in Framing. Blank credits remain blank.

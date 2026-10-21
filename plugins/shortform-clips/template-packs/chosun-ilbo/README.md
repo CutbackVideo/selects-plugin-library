@@ -3,7 +3,8 @@
 Five requested designs migrated from `plugins/chosun-clips` on branch
 `chosun-ilbo`, commit `2938989c4f647fdb2d0fef685a91f39174cb39ac`.
 
-Templates: heukbaek, panilgi, history, villain, money, health, parenting.
+Templates: heukbaek, panilgi, history, villain, money, health, parenting,
+jeongjwippul, politics-landscape.
 The health design is newly transcribed from the supplied Premiere project and
 customer frame; it was not migrated from the old app.
 The ten background/logo WebP files are decoded byte-for-byte from the old
@@ -25,7 +26,7 @@ The manifest migrates saved `chosun-clips` template IDs through the shared
 pack installer; it never modifies the old app's files.
 
 Install this folder through Shortform Clips → Templates → Add templates after
-publishing. Requires template API 2. No separate customer app is needed.
+publishing. Pack 1.4.0 requires Shortform Clips 0.6.0 or later (template API 6). No separate customer app is needed.
 
 The shared validator and the Chosun migration regression test cover this pack.
 The migration test checks original image hashes and legacy design settings with
@@ -34,7 +35,8 @@ an explicit, field-by-field list of Premiere corrections.
 ## Customer requirement coverage
 
 The supplied team requirements identify nine programs. This migration includes
-the five legacy designs and the newly transcribed health and parenting designs:
+the five legacy designs, health, parenting and Jeongjwippul, plus a generic
+16:9 politics source-video layout:
 
 | Program | Pack ID | Status |
 | --- | --- | --- |
@@ -45,7 +47,8 @@ the five legacy designs and the newly transcribed health and parenting designs:
 | Money Watch | `money` | Legacy design included; no matching Premiere project in the supplied folder |
 | This Makes You Better | `health` | Supplied frame, Premiere typography/transforms; actual Premiere PNG and same-text official Short compared locally |
 | Smart Parenting | `parenting` | Supplied frame and Premiere title values; two official Shorts compared locally. Dialogue captions calibrated to the official flu Short, retaining the requested Allimjang R face; title checked against native Premiere render. |
-| Jeongjwippul | — | Requested; Premiere project supplied, pack template not yet implemented |
+| Jeongjwippul | `jeongjwippul` | Premiere typography, positions and outline included; requested fonts must be installed, original bumper/logo absent. See [details](JEONGJWIPPUL.md). |
+| Politics source video · 16:9 | `politics-landscape` | Editable landscape frame, captions and mapped nameplates; measured geometry, gradient and Pretendard substitutes pending original project/assets. See [details](POLITICS-LANDSCAPE.md). |
 | Today's One Minute | — | Requested; Premiere project supplied, pack template not yet implemented |
 
 Kim Kwang-il's Mouth is excluded: it was present in the legacy app but is not

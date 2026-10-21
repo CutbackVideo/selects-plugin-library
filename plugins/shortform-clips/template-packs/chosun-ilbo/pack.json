@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "chosun-ilbo",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "name": "Chosun Ilbo",
   "names": {
     "en": "Chosun Ilbo",
@@ -9,7 +9,7 @@
   },
   "requiresApp": {
     "id": "shortform-clips",
-    "templateApi": 2
+    "templateApi": 6
   },
   "templates": [
     "templates/heukbaek.json",
@@ -18,7 +18,9 @@
     "templates/villain.json",
     "templates/money.json",
     "templates/health.json",
-    "templates/parenting.json"
+    "templates/parenting.json",
+    "templates/jeongjwippul.json",
+    "templates/politics-landscape.json"
   ],
   "assets": [
     "assets/heukbaek-background.webp",

@@ -13,7 +13,7 @@ test('portable template files',{skip:!modules},async t=>{
  original.id='sbs-radio/private-template';original.builtIn=true;original.packId='private-pack';original.baseId='private-source';original.projectId='private-project';original.sourcePath='/private/video.mp4';
  original.thumbnail={enabled:true,mode:'preserve',instructions:'Keep the original title',references:[]};
  original.name='My edited template';original.layout.splitPolicy='never';original.prompt.rules='Keep clips under 60 seconds';
- function repo(){const rows=new Map();const storage={fs:fileService,list:async kind=>[...rows].filter(([k])=>k.startsWith(kind+'/')).map(([,v])=>structuredClone(v)),put:async(k,id,v)=>rows.set(k+'/'+id,structuredClone(v)),del:async(k,id)=>rows.delete(k+'/'+id)};return {rows,storage,repository:api.makeTemplateRepository(storage)};}
+ function repo(fsApi=fileService){const rows=new Map();const storage={fs:fsApi,list:async kind=>[...rows].filter(([k])=>k.startsWith(kind+'/')).map(([,v])=>structuredClone(v)),put:async(k,id,v)=>rows.set(k+'/'+id,structuredClone(v)),del:async(k,id)=>rows.delete(k+'/'+id)};return {rows,storage,repository:api.makeTemplateRepository(storage)};}
  await t.test('new exports require API 2 while API 1 shared files remain readable',()=>{
   const bytes=api.encodeSharedTemplate(original);
   const envelope=JSON.parse(new TextDecoder().decode(bytes));
@@ -60,6 +60,34 @@ test('portable template files',{skip:!modules},async t=>{
   const imported=repo(),result=await api.importSharedTemplate(imported.repository,api.encodeSharedTemplate(duplicated));
   const transferred=(await imported.repository.load()).templates.find(t=>t.id===result.id);
   assert.deepEqual(transferred.editorial,duplicated.editorial);assert.deepEqual(transferred.captions,duplicated.captions);
+ });
+ await t.test('Chosun installation and upgrade expose both politics templates without losing edits',async()=>{
+  const packPath=path.join(__dirname,'../template-packs/chosun-ilbo/pack.json');
+  const currentManifest=JSON.parse(fs.readFileSync(packPath,'utf8'));
+  const previous={...currentManifest,version:'1.3.1',requiresApp:{id:'shortform-clips',templateApi:2},templates:currentManifest.templates.filter(p=>!p.includes('jeongjwippul')&&!p.includes('politics-landscape'))};
+  for(const upgrade of [false,true]) {
+   let old=upgrade;
+   const r=repo({...fileService,readFile:async p=>old&&p===packPath?new TextEncoder().encode(JSON.stringify(previous)):fileService.readFile(p)});
+   if(upgrade){
+    await r.repository.install(packPath);
+    const before=await r.repository.load();assert.equal(before.templates.length,7);
+    const edited=api.cleanTemplate(structuredClone(before.templates.find(t=>t.id==='chosun-ilbo/panilgi')));
+    edited.prompt.rules='Keep my editorial settings';await r.repository.put('templates',edited.id,edited);
+    old=false;
+   }
+   if(upgrade){
+    let conflict;try{await r.repository.install(packPath);}catch(e){conflict=e;}
+    assert.ok(conflict);assert.equal(conflict.conflicts[0].id,'chosun-ilbo/panilgi');assert.equal(conflict.conflicts[0].reason,'modified');
+    await conflict.retry({'chosun-ilbo/panilgi':'copy'},{'chosun-ilbo/panilgi':conflict.conflicts[0].token});
+   }else await r.repository.install(packPath);
+   const loaded=await api.makeTemplateRepository(r.storage).load();assert.deepEqual(loaded.errors,[]);
+   const jeong=loaded.templates.find(t=>t.id==='chosun-ilbo/jeongjwippul');assert.ok(jeong);
+   assert.equal(jeong.headline.font,'SDMyeongjo-cBd');assert.equal(jeong.captions.font,'SDMyeongjo-bMd');
+   const wide=loaded.templates.find(t=>t.id==='chosun-ilbo/politics-landscape');assert.ok(wide);
+   assert.equal(wide.landscape.version,1);assert.equal(wide.layout.reframe,false);
+   assert.deepEqual(api.decodeSharedTemplate(api.encodeSharedTemplate(wide)).landscape,wide.landscape);
+   if(upgrade)assert.equal(loaded.templates.find(t=>t.id==='chosun-ilbo/panilgi').prompt.rules,'Keep my editorial settings');
+  }
  });
  await t.test('unsupported, malformed and oversized files never write to storage',async()=>{
   const r=repo();const bytes=api.encodeSharedTemplate(original),data=JSON.parse(new TextDecoder().decode(bytes));

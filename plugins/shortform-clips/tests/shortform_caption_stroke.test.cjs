@@ -3,7 +3,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('Premiere outline and baseline survive import, sharing and export parameters',{skip:!modules},()=>{
  const dep=require('node:module').createRequire(path.resolve(modules,'../package.json')),m={exports:{}};
  new Function('require','module','exports',dep('esbuild').transformSync(fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8')+'\nexport {validateTemplate,portableTemplate,radioCaptionParams,radioFrameParams};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
- const api=m.exports,raw=JSON.parse(fs.readFileSync(path.join(__dirname,'../template-drafts/jeongjwippul/template.json')));
+ const api=m.exports,raw=JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/chosun-ilbo/templates/jeongjwippul.json')));
  const t=api.validateTemplate(api.portableTemplate(api.validateTemplate(raw))),p=api.radioCaptionParams(t);
  const f=api.radioFrameParams(t,"first","second");assert.equal(f.headlineLetterSpacing1,-95*.04);assert.equal(f.headlineLetterSpacing2,-95.16839599609375*.04);
  assert.equal(p.strokeWidth,7);assert.equal(p.strokeOn,true);assert.equal(p.strokeColor,'#000000');assert.ok(Math.abs(p.baselineTop-1098)<.001);assert.equal(p.fontSize,58.944522857666016);assert.equal(p.fontFamily,'SDMyeongjo-bMd');
@@ -16,7 +16,7 @@ test('Premiere outline and baseline survive import, sharing and export parameter
 test('templates never apply clip-specific blur, including older imported settings',{skip:!modules},async()=>{
  const dep=require('node:module').createRequire(path.resolve(modules,'../package.json')),m={exports:{}};
  new Function('require','module','exports',dep('esbuild').transformSync(fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8')+'\nexport {SCRIPT_DESIGN_ELEMENTS,radioFrameParams};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
- const raw=JSON.parse(fs.readFileSync(path.join(__dirname,'../template-drafts/jeongjwippul/template.json')));
+ const raw=JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/chosun-ilbo/templates/jeongjwippul.json')));
  assert.equal(raw.layout.sourceMaskBlur,undefined);
  raw.layout.sourceMaskBlur={enabled:true};
  const frame=m.exports.radioFrameParams(raw,'title','subtitle');

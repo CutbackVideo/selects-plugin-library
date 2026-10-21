@@ -1,9 +1,9 @@
 {
-  "id": "jeongjwippul-draft",
+  "id": "jeongjwippul",
   "version": 3,
   "names": {
-    "ko": "\uc815\uc950\ubfd4 (\uc790\ub8cc \ubbf8\uc644\uc131 \ucd08\uc548)",
-    "en": "Jeongjwippul (incomplete draft)"
+    "ko": "\uc815\uc950\ubfd4",
+    "en": "Jeongjwippul"
   },
   "detect": {
     "keywords": [
