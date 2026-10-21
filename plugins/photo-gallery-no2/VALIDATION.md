@@ -13,7 +13,7 @@ scope before import. Source mapping and the existing 60 fps hold recipe remain.
 The first nine parent-source real-file cases failed eight with one control.
 Additional regressions first failed for terminal timeout handling, noncallable
 liveness, A-B-A source changes during encode, standalone unmount, public errors
-and failed publication. Current real-file cache suite: 22 passing cases. It uses
+and failed publication. Current real-file cache suite: 23 passing cases. It uses
 the canonical file client, independently persisted bytes and local ffmpeg, both
 normal/minified panels, concurrent realms and a source above 32 MiB. Old hold
 decode/frame/Python parity checks remain. See

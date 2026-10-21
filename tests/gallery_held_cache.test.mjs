@@ -96,3 +96,6 @@ test('Gallery hold: large sources are streamed without reading them into browser
 test('Gallery shared owner: invalid liveness is a structured input failure before file I/O',async t=>{
  const f=await holdFixture(t);await assert.rejects(f.derive({isCurrent:false}),e=>e.code==='BUNDLED_ASSET_INPUT'&&typeof e.publicMessage==='string');assert.equal(f.writes.length,0);assert.equal(f.calls.length,0);
 });
+test('Gallery hold: source I/O failures preserve safe public context without private diagnostics',async t=>{
+ const f=await holdFixture(t);f.files.stat=async()=>{throw Error('private access details');};await assert.rejects(f.run(),e=>/media file/.test(e.publicMessage??'')&&!e.publicMessage.includes('private access details'));assert.equal(f.calls.length,0);
+});

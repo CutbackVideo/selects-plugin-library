@@ -463,11 +463,16 @@ async function prepareBundledAsset(sdk,files,options){
  }catch(error){if(/^BUNDLED_ASSET_/.test(error?.code||''))throw error;throw bundledAssetIssue('PREPARE','The bundled asset could not be prepared. Check the installed files and Project resources.',error);}
 }
 async function readAssetFileIdentity(files,path,hashFile,current){
+ try{
  current();const before=await files.stat(path);current();
  if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<1)throw bundledAssetIssue('SOURCE','The media file is missing or unreadable.');
  const sha256=await hashFile(path);current();const after=await files.stat(path);current();
  if(typeof sha256!=='string'||!/^[0-9a-f]{64}$/.test(sha256)||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))throw bundledAssetIssue('CHANGED','The media file changed while its contents were checked. Start a new run.');
  return {sha256,bytes:before.size};
+ }catch(error){
+  if(error?.terminal||error?.code==='host-missing'||typeof error?.publicMessage==='string'||/^BUNDLED_ASSET_/.test(error?.code??''))throw error;
+  throw bundledAssetIssue('SOURCE','The media file could not be read. Check the selected source and file access.',error);
+ }
 }
 async function prepareDerivedAsset(files,options){
  const {directory,key,sourcePath,source,extension='mp4',isCurrent=()=>true,hashFile,produce,verify}=options??{};

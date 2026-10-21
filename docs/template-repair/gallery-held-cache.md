@@ -23,7 +23,7 @@ The initial nine real-file parent cases failed eight with one control. Further
 red cases covered terminal cache-validation timeout, a noncallable liveness
 predicate, A-B-A replacement, standalone unmount, actionable public errors and
 failed output publication and shared-owner input validation. The expanded
-real-file suite passes 22 cases.
+real-file suite passes 23 cases, including safe source I/O error handling.
 
 ## Shared owner and Gallery policy
 
@@ -70,9 +70,9 @@ standalone unmount and macOS/Windows argv/ownership integration. Actual Windows
 is still a separate gate; the local filesystem/media evidence is not installed
 Selects execution or whole-output AV acceptance.
 
-Final related Node verification passed 1,264 cases without skips, including the
+Final related Node verification passed 1,265 cases without skips, including the
 SDK compatibility vector that caught the parent failure. The exact Gallery CI
-command passed 277 without skips. Python passed 285 with six skips. Public-source,
+command passed 278 without skips. Python passed 285 with six skips. Public-source,
 28-template normal pre-push, 48-package, five-module/ten-consumer, six-local-SDK and
 47-app-guard checks passed. Counts overlap and must not be added together.
 
