@@ -89,6 +89,13 @@ HTTP errors. The ordinary real-SDK authoring suite still passes ten cases.
 Review the library probe in draft PR #300 and the paired renderer repair in
 client draft PR #7876; neither is a merged or deployed release.
 
+Final standalone client fa425968e passes the normal pre-push hook: both
+TypeScript targets, all three ratchets and 38,939 unit tests (38 existing
+skips; 4,053 passing files and five skipped files). No hook was bypassed. The
+19 browser tests are a separate run; they are not added to that unit count.
+The library passes public-source, package-file, module-sync and all 28 template
+manifest checks. Remote CI remains a separate, pending result at this checkpoint.
+
 The final pixel run used combined client HEAD d3e146c0c with the owned renderer
 patch applied. Its summary records all three production renderer hashes and
 the WASM hash; the production source hashes match committed fix 9ef36e4db.
