@@ -6,12 +6,27 @@
         "size1": 74,
         "size2": 74,
         "fontWeight": 400,
-        "letterSpacing": -1.48
+        "letterSpacing": -1.48,
+        "shadow": false,
+        "strokeOn": false,
+        "color2": "#FF29B8",
+        "rowGap": 88.8,
+        "offsetX1": -0.555044151961,
+        "offsetX2": -0.555044151961,
+        "ideographFont": "MPLUS1p-Medium"
       },
       "captions": {
         "font": "SDGyeokdongG204Rg",
         "fontSize": 75,
-        "fontWeight": 400
+        "fontWeight": 400,
+        "letterSpacing": -3.3,
+        "baselineTop": 1329.90234375,
+        "rowGap": 90,
+        "left": 36.6217041015625,
+        "width": 1000
+      },
+      "layout": {
+        "headlineCenter": 293.342578125
       }
     },
     "panilgi": {

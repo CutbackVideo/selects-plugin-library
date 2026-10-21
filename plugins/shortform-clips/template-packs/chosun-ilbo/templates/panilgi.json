@@ -33,7 +33,7 @@
     "style": "#000000",
     "color": "#000000",
     "image": "assets/panilgi-background.webp",
-    "imageName": "TikTok @_chosunilbo_",
+    "imageName": "panilgi-background.webp",
     "dim": 0
   },
   "border": {
@@ -68,7 +68,7 @@
   "logo": {
     "mode": "image",
     "image": "assets/panilgi-logo.webp",
-    "imageName": "TikTok @_chosunilbo_",
+    "imageName": "panilgi-logo.webp",
     "width": 354
   },
   "captions": {

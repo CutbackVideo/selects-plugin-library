@@ -16,6 +16,10 @@ shadow-opacity field (which also commonly contains 100).
 
 - `heukbaek`: title and graphic-group scales are 100%. Tracking is -20/1000 em,
   converted to -1.48 px at 74 px. Captions use `SDGyeokdongG204Rg` at 75.
+  Caption tracking is -44/1000 em, converted to -3.3 px; bar captions now
+  retain that optional tracking in both preview and export. The legacy default
+  remains -1 px when a template does not specify tracking. This correction is
+  source-verified; native Premiere render comparison is still pending.
 - `panilgi`: run sizes 67 and 67.30612182617188 are multiplied by the enclosing
   Graphic Group's 112% scale. The enabled black 4 px title stroke becomes
   4.48 px. Captions use `TTOmniGothicM` at 55.71999740600586.
@@ -61,9 +65,10 @@ Installed-font resolution must be checked in the target renderer; a machine
 without a matching face can silently use a fallback. This pack supplies no font
 files. Tests verify settings and parameter propagation, not installed glyphs.
 
-The Heukbaek reference also uses `Mplus1p-Medium` for a CJK ideograph within a
-title. The current single-font title setting cannot reproduce that per-run face
-assignment. Panilgi has per-run tracking differences, and History/Villain vary
+The Heukbaek reference uses `Mplus1p-Medium` for its CJK ideograph.
+`headline.ideographFont` now explicitly selects the installed `MPLUS1p-Medium`
+face for Han characters; Korean and punctuation retain the primary Hv face.
+The separately acquired font is not included in the pack. Panilgi has per-run tracking differences, and History/Villain vary
 tracking by the particular headline. Those are not generalized into a single
 guessed template value.
 
@@ -161,3 +166,26 @@ The matched health fixture now has <=2px glyph/box boundary differences.
 Caption shadow-region alpha MAE decreased from 17.30 to 2.92 (0..255). Native
 PNG exports, synthetic text/width/highlight checks and reports remain local.
 Other templates keep their existing rendering unless they opt into these fields.
+
+## Heukbaek native reference follow-up
+
+Actual Premiere PNG at 00:00:00:15 confirms title stroke and shadow are disabled.
+The second title fill is #FF29B8 (the absent red channel has default 255; a
+parser that requires all RGB fields incorrectly reports no color). The title
+text origin is y=.1412200927734375*1920, auto leading 1.2*74=88.8. The outer
+graphic group translates x by -33px. Headline center is 293.342578125, and the
+resulting horizontal offset is -0.555044151961px.
+
+Captions have first baseline .692657470703125*1920=1329.90234375 and auto
+leading 1.2*75=90px. `baselineTop` anchors the first line regardless of the
+number of lines; optional bar-caption tracking is -3.3px. Their source center
+is .4968719482421875*1080, with a source-derived -3.3783px horizontal offset.
+The template retains the existing full-width black band. Native text background
+padding is 18.579235076904297px, fully inside that opaque band for the checked
+sample; it is not separately replicated by this bar-caption renderer.
+
+The actual Selects still with matching text has <=2px fill-bound differences
+for the second title and both caption lines. This is not pixel identity. The
+native reference has missing-media placeholders over the title background and
+logo: first-title full bounds, original assets, and the complete composition
+remain unverified. Do not substitute the legacy WebPs as verified original files.

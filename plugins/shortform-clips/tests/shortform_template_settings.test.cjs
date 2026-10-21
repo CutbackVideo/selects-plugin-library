@@ -105,6 +105,15 @@ test('templates use independent settings without renderer families',{skip:!modul
    assert.ok(html.includes(correction.headline.font),id+': selected face reaches export');
    assert.ok(html.includes('font-size:'+template.headline.size1+'px'),id+': no size lost');
    assert.ok(html.includes('font-weight:400'),id+': no synthetic bold');
+   if(id==='heukbaek'){
+    assert.equal(frame.headlineColor2,'#FF29B8');
+    assert.equal(frame.headlineStrokeOn,false);
+    assert.equal(frame.headlineShadow,'none');
+    assert.equal(frame.headlineIdeographFont,'MPLUS1p-Medium');
+    const mixed=renderGraphic('FRAME_TSX',{...frame,headline1:'與 한국어',headline2:'질문?'});
+    assert.match(mixed,/MPLUS1p-Medium/);
+    assert.match(mixed,/>與<\/span>/);
+   }
    if(id==='history'||id==='villain'){
     assert.equal(frame.headlineStrokeOn,false);
     assert.ok(html.includes('gap:14px'));

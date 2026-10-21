@@ -28,7 +28,7 @@
     "style": "linear-gradient(180deg,#702126 0%,#5A181C 100%)",
     "color": "#702126",
     "image": "assets/villain-background.webp",
-    "imageName": "TikTok @_chosunilbo_",
+    "imageName": "villain-background.webp",
     "dim": 0
   },
   "border": {
@@ -63,7 +63,7 @@
   "logo": {
     "mode": "image",
     "image": "assets/villain-logo.webp",
-    "imageName": "TikTok @_chosunilbo_",
+    "imageName": "villain-logo.webp",
     "width": 920
   },
   "captions": {
