@@ -211,4 +211,25 @@ test('template pack update button follows the published catalog without the GitH
   assert.deepEqual(loaded.packs[0].installSource,{kind:'link',url:official(commit),commit});
   assert.ok(loaded.templates.every(t=>!t.modified&&t.historyCount===0),'relinking does not touch settings');
  });
+
+ await t.test('a clear legacy source is settled into the pack entry before any write, so restore cannot erase it',async()=>{
+  const {rows,store}=memoryStore();
+  await withRemote(()=>api.makeTemplateRepository(store).install(official(commit),true));
+  const index=structuredClone(rows.get('template-library/index')),first=index.records[0];
+  index.packs=index.packs.map(({installSource,...m})=>m);
+  for(const record of index.records)record.source={kind:'pack',packId:'sbs-radio',packVersion:record.source.packVersion,url:official('main')};
+  first.history=[{baseline:first.baseline,working:first.working,source:{...first.source,url:official(commit)},at:'2026-01-01T00:00:00.000Z'}];
+  rows.set('template-library/index',index);
+  const repository=api.makeTemplateRepository(store);
+  assert.deepEqual((await repository.load()).packs[0].installSource,{kind:'link',url:official('main')});
+  await repository.restore(first.id,0);
+  assert.deepEqual(rows.get('template-library/index').packs[0].installSource,{kind:'link',url:official('main')},'settled in storage');
+  assert.deepEqual((await api.makeTemplateRepository(store).load()).packs[0].installSource,{kind:'link',url:official('main')});
+  // Ambiguous legacy data is still not guessed on write.
+  const mixed=structuredClone(rows.get('template-library/index'));
+  mixed.packs=mixed.packs.map(({installSource,...m})=>m);mixed.records[1].source={...mixed.records[1].source,url:official(commit)};
+  rows.set('template-library/index',mixed);
+  const again=api.makeTemplateRepository(store);await again.remove(mixed.records[2].id);
+  assert.equal(rows.get('template-library/index').packs[0].installSource,undefined);
+ });
 });

@@ -1636,6 +1636,13 @@ function makeTemplateRepository(storage:any) {
     const url=urls.size===1?[...urls][0]:'';
     return url?{kind:'link',url}:null;
   };
+  // Every write first settles a clear legacy source into the pack entry, so later template
+  // history (restore, edits) can no longer change which source the pack updates from.
+  async function mutableState(){
+    const index=await state();
+    for(const pack of index.packs||[])if(!pack.installSource){const settled=legacyInstallSource(index,pack.id);if(settled)pack.installSource=settled;}
+    return index;
+  }
   const remember=(record:any)=>({...record,history:[...(record.history||[]),{baseline:record.baseline,working:record.working,source:record.source,at:new Date().toISOString()}]});
   async function view(record:any){return {...await getSnapshot(record.working),id:record.id,builtIn:record.source?.kind==='pack',modified:record.working!==record.baseline,packId:record.source?.packId,packVersion:record.source?.packVersion,historyCount:record.history?.length||0};}
   const api:any={
@@ -1643,24 +1650,24 @@ function makeTemplateRepository(storage:any) {
     async load(){try{const index=await state();return {templates:await Promise.all(index.records.filter((r:any)=>!r.removed).map(view)),packs:index.packs.map((m:any)=>({...m,installSource:m.installSource||legacyInstallSource(index,m.id)})),errors:[]};}catch(e:any){return {templates:[],packs:[],errors:[e.message]};}},
     put(kind:string,id:string,value:any){return serial(async()=>{
       packAssert(kind==='templates','Invalid template collection.');validateTemplate(cleanTemplate(value),true);
-      const index=await state(),hash=await snapshot(value),at=index.records.findIndex((r:any)=>r.id===id);
+      const index=await mutableState(),hash=await snapshot(value),at=index.records.findIndex((r:any)=>r.id===id);
       if(at<0)index.records.push({id,baseline:hash,working:hash,source:{kind:'local'},history:[],removed:false});
       else index.records[at]={...index.records[at],working:hash,removed:false};
       await persist(index);
     });},
     del(kind:string,id:string){return serial(async()=>{
-      packAssert(kind==='templates','Invalid template collection.');const index=await state(),at=index.records.findIndex((r:any)=>r.id===id);packAssert(at>=0,'Unknown template.');
+      packAssert(kind==='templates','Invalid template collection.');const index=await mutableState(),at=index.records.findIndex((r:any)=>r.id===id);packAssert(at>=0,'Unknown template.');
       const old=index.records[at];index.records[at]={...remember(old),working:old.baseline};await persist(index);
     });},
-    remove(id:string){return serial(async()=>{const index=await state(),at=index.records.findIndex((r:any)=>r.id===id);packAssert(at>=0,'Unknown template.');index.records[at]={...index.records[at],removed:true};await persist(index);});},
+    remove(id:string){return serial(async()=>{const index=await mutableState(),at=index.records.findIndex((r:any)=>r.id===id);packAssert(at>=0,'Unknown template.');index.records[at]={...index.records[at],removed:true};await persist(index);});},
     async history(id:string){const index=await state();return clone(index.records.find((r:any)=>r.id===id)?.history||[]);},
     restore(id:string,position:number){return serial(async()=>{
-      const index=await state(),at=index.records.findIndex((r:any)=>r.id===id);packAssert(at>=0,'Unknown template.');const old=index.records[at],entry=old.history?.[position];packAssert(entry,'Unknown template history.');
+      const index=await mutableState(),at=index.records.findIndex((r:any)=>r.id===id);packAssert(at>=0,'Unknown template.');const old=index.records[at],entry=old.history?.[position];packAssert(entry,'Unknown template history.');
       await getSnapshot(entry.baseline);await getSnapshot(entry.working);
       index.records[at]={...remember(old),baseline:entry.baseline,working:entry.working,source:entry.source,removed:false};await persist(index);
     });},
     importTemplates(incoming:any[],source:any,choices:any={},expected:any={}){return serial(async()=>{
-      const index=await state(),conflicts:any[]=[],actions:any[]=[];
+      const index=await mutableState(),conflicts:any[]=[],actions:any[]=[];
       for(const input of incoming){
         validateTemplate(input,true);const next=independentTemplateDesigns(input)[0],hash=await snapshot(next);
         const old=index.records.find((r:any)=>r.id===next.id);
