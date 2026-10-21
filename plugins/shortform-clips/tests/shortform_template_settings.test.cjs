@@ -188,7 +188,9 @@ test('templates use independent settings without renderer families',{skip:!modul
    assert.deepEqual(api.validateTemplate(structuredClone(current)),current,id+': no migration needed');
   }
   // Scene templates are new designs, not migrations of the legacy presets.
-  expectedFiles.push('hankook-ilbo/huick-alpha.json');
+  expectedFiles.push('hankook-ilbo/huick-alpha.json','chosun-ilbo/parenting.json');
+  const parenting=JSON.parse(fs.readFileSync(path.join(root,'chosun-ilbo','templates','parenting.json'),'utf8'));
+  assert.deepEqual(api.validateTemplate(structuredClone(parenting)),parenting,'Parenting: source values survive validation');
   const scene=JSON.parse(fs.readFileSync(path.join(root,'hankook-ilbo','templates','huick-alpha.json'),'utf8'));
   assert.equal(scene.id,'huick-alpha');assert.equal(scene.editorial.mode,'scenes');
   assert.equal(scene.variants,undefined);assert.equal(scene.platformLayouts,undefined);
@@ -225,6 +227,18 @@ test('templates use independent settings without renderer families',{skip:!modul
   markup=renderGraphic('CAPTION_TSX',{...p,text:'Caption'});assert.ok(markup.includes('left:0'));assert.ok(markup.includes('width:840px'));
  });
 
+ await t.test('ink captions measure the requested size instead of applying an estimated pre-shrink',()=>{
+  const literal=api.SCRIPT_BUILD.match(/const CAPTION_TSX: string = (".*");/);const graphic={exports:{}};
+  new Function('require','module','exports',esbuild.transformSync(JSON.parse(literal[1]),{loader:'tsx',format:'cjs'}).code)(dep,graphic,graphic.exports);
+  const template=JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/chosun-ilbo/templates/health.json')));
+  const params=api.radioCaptionParams(api.validateTemplate(template));
+  assert.equal(params.boxBounds,'ink');
+  for(const fontSize of [60,88]){
+   const element=graphic.exports.default({data:{...params,fontSize,text:'\ub3c5\uac10 \ubc31\uc2e0\uc744 \ub9de\uc544\ub3c4 \ub3c5\uac10\uc5d0 \uac78\ub9b4 \uc218 \uc788\uc9c0\ub9cc\n\uac78\ub9b4 \ud655\ub960\uacfc \ud569\ubcd1\uc99d·\uc785\uc6d0 \uc704\ud5d8\uc744 \ub0ae\ucdb0\uc918\uc694'}});
+   assert.equal(element.props.size,fontSize,'measure the chosen font size before fitting actual overflow');
+   assert.equal(element.props.width,1000);
+  }
+ });
  await t.test('health template preserves customer faces and separate caption boxes in export',()=>{
   const health=api.validateTemplate(JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/chosun-ilbo/templates/health.json'),'utf8')));
   assert.equal(health.headline.font,'SDGyeokdongG206Hv');
