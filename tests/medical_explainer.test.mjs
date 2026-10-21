@@ -630,7 +630,7 @@ function policyHost(dir, {refuse = new Set(), pending = new Set(), submitRefuse 
   const api = {
     submit: async (q) => {
       log.submits.push(q);
-      if (q.gen.startsWith('kf:') && q.gen.endsWith(':S')) log.kfPolicy.push(q);
+      if (/^kf:\d+:R\d+$/.test(q.gen)) log.kfPolicy.push(q);
       const kf = q.uploads.start ? path.basename(q.uploads.start) : '';
       const refused = q.gen.startsWith('clip:') && [...refuse].some((x) => kf.includes(x));
       if (refused && submitRefuse) throw new Error('generation_api_422:content_policy_violation');
@@ -672,45 +672,78 @@ async function clipStageFixture(hostOpts) {
   return {dir, io, gen, host, ctx};
 }
 
-test('policy rejection of a clip: Seedream keyframe for that scene, clips again under new keys, success', async () => {
-  const {dir, io, gen, host, ctx} = await clipStageFixture({refuse: new Set(['kf_2B'])});
+test('a clip refused for content policy is shown for the user; nothing is regenerated or resubmitted on its own', async () => {
+  const {dir, host, ctx} = await clipStageFixture({refuse: new Set(['kf_2B'])});
   const out = await op.medClipsStage(ctx, ['1', '2', '3', '4']);
-  assert.deepEqual(out, {replaced: ['2'], still: []});
-  assert.equal(host.log.kfPolicy.length, 1);
-  const kf = host.log.kfPolicy[0];
-  assert.equal(decode(kf.modelId), 'bytedance/seedream/v5/pro/edit', 'Seedream 5.0 Pro, whatever the chosen model');
-  assert.equal(kf.input.prompt, op.medKeyframePrompt(JSON.parse(fs.readFileSync(path.join(dir, 'plan.json'), 'utf8')).scenes[1], true), 'same prompt');
-  assert.match(kf.uploads.ref, /kf_1A\.png$/, 'scene 1 is still the style reference');
-  const picks = JSON.parse(fs.readFileSync(path.join(dir, 'picks.json'), 'utf8'));
-  assert.equal(picks.kf['2'], 'S');
-  assert.deepEqual(picks.policy, {2: true});
-  const clip2 = host.log.submits.filter((q) => q.gen.startsWith('clip:2:'));
-  assert.equal(clip2.length, 4, 'two refused takes, then two new ones');
-  assert.notEqual(clip2[2].key, clip2[0].key);
-  assert.match(clip2[2].key, /-kS$/);
-  assert.match(clip2[2].uploads.start, /kf_2_S_1\.png$/);
-  assert.ok(gen['clip:2:A'].path && !gen['clip:2:A'].failed);
-  // Refusals are not retried with the same keyframe: no third attempt of the refused takes.
-  assert.ok(clip2.every((q) => q.attempt === 1));
-  void io;
+  assert.deepEqual(out, {blocked: ['2'], regenFailed: [], still: []});
+  assert.equal(host.log.kfPolicy.length, 0, 'no keyframe without the user asking');
+  assert.equal(host.log.submits.filter((q) => q.gen.startsWith('clip:2:')).length, 2, 'the refused takes are not retried');
+  // Running the stage again (Resume) changes nothing: still blocked, no new submission.
+  const n = host.log.submits.length;
+  assert.deepEqual(await op.medClipsStage(ctx, ['1', '2', '3', '4']), out);
+  assert.equal(host.log.submits.length, n);
   fs.rmSync(dir, {recursive: true, force: true});
 });
 
-test('a second policy rejection falls back to the still zoom and marks the scene; a refused submission counts too', async () => {
-  for (const submitRefuse of [false, true]) {
-    const {dir, io, host, ctx} = await clipStageFixture({refuse: new Set(['kf_3A', 'kf_3_S']), submitRefuse});
-    const out = await op.medClipsStage(ctx, ['1', '2', '3', '4']);
-    assert.deepEqual(out, {replaced: ['3'], still: ['3']}, `submitRefuse=${submitRefuse}`);
-    assert.equal(host.log.kfPolicy.length, 1, 'one Seedream keyframe, never a second');
-    // The strip step uses the replacement keyframe for the still zoom.
-    const strips = [];
-    fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({...JSON.parse(fs.readFileSync(path.join(dir, 'picks.json'), 'utf8')), clip: {1: 'A', 2: 'A', 4: 'A'}}));
-    const r = await op.medEngine('strips', dir, [], {...io, ffmpeg: async (a) => { strips.push(a); fs.writeFileSync(a.at(-1), 'x'); }, duration: async () => 6});
-    assert.deepEqual(r.fallback, [3]);
-    const still = strips.find((a) => a.includes('-loop'));
-    assert.match(still[still.indexOf('-i') + 1], /kf_3_S_1\.png$/);
-    fs.rmSync(dir, {recursive: true, force: true});
-  }
+test('the user regenerates a refused scene\'s keyframe with a chosen model: new keys, then success', async () => {
+  const {dir, gen, host, ctx} = await clipStageFixture({refuse: new Set(['kf_2B'])});
+  await op.medClipsStage(ctx, ['1', '2', '3', '4']);
+  // What the panel's "Regenerate this scene's keyframe with Seedream 5.0 Pro" button records.
+  const picks = await ctx.readPicks();
+  picks.regen = {2: {model: 'seedream', k: 1}};
+  await ctx.writePicks(picks);
+  const out = await op.medClipsStage(ctx, ['1', '2', '3', '4']);
+  assert.deepEqual(out, {blocked: [], regenFailed: [], still: []});
+  assert.equal(host.log.kfPolicy.length, 1);
+  const kf = host.log.kfPolicy[0];
+  assert.equal(kf.gen, 'kf:2:R1');
+  assert.equal(decode(kf.modelId), 'bytedance/seedream/v5/pro/edit', 'the model the user chose');
+  assert.match(kf.key, /-mseedream-rA$/);
+  assert.equal(kf.input.prompt, op.medKeyframePrompt(JSON.parse(fs.readFileSync(path.join(dir, 'plan.json'), 'utf8')).scenes[1], true));
+  assert.match(kf.uploads.ref, /kf_1A\.png$/, 'scene 1 stays the style reference');
+  assert.equal((await ctx.readPicks()).kf['2'], 'R1');
+  const clip2 = host.log.submits.filter((q) => q.gen.startsWith('clip:2:'));
+  assert.equal(clip2.length, 4);
+  assert.notEqual(clip2[2].key, clip2[0].key);
+  assert.match(clip2[2].key, /-kR1$/);
+  assert.ok(gen['clip:2:A'].path);
+  // A second click for the same scene is a second request (k=2) with the other model, never a reused key.
+  const picks2 = await ctx.readPicks();
+  picks2.regen = {2: {model: 'nano-banana-2.1', k: 2}};
+  await ctx.writePicks(picks2);
+  const reqs = (await op.medEngine('requests', dir, ['kfregen', '2'], stubIO(dir))).requests;
+  assert.deepEqual(reqs.map((r) => [r.gen, decode(r.modelId)]), [['kf:2:R2', 'google/nano-banana-2.1/edit']]);
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('refused again after regenerating: shown again; "Use still image" falls back to the still zoom', async () => {
+  const {dir, io, host, ctx} = await clipStageFixture({refuse: new Set(['kf_3A', 'kf_3_R1'])});
+  await op.medClipsStage(ctx, ['1', '2', '3', '4']);
+  let picks = await ctx.readPicks();
+  picks.regen = {3: {model: 'seedream', k: 1}};
+  await ctx.writePicks(picks);
+  assert.deepEqual((await op.medClipsStage(ctx, ['1', '2', '3', '4'])).blocked, ['3']);
+  assert.equal(host.log.kfPolicy.length, 1, 'one keyframe per click');
+  picks = await ctx.readPicks();
+  picks.still = {3: true};
+  await ctx.writePicks(picks);
+  const n = host.log.submits.length;
+  assert.deepEqual(await op.medClipsStage(ctx, ['1', '2', '3', '4']), {blocked: [], regenFailed: [], still: ['3']});
+  assert.equal(host.log.submits.length, n, 'choosing the still submits nothing');
+  const strips = [];
+  fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({...(await ctx.readPicks()), clip: {1: 'A', 2: 'A', 4: 'A'}}));
+  const r = await op.medEngine('strips', dir, [], {...io, ffmpeg: async (a) => { strips.push(a); fs.writeFileSync(a.at(-1), 'x'); }, duration: async () => 6});
+  assert.deepEqual(r.fallback, [3]);
+  const still = strips.find((a) => a.includes('-loop'));
+  assert.match(still[still.indexOf('-i') + 1], /kf_3_R1_1\.png$/);
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('a refused submission (no job) is shown the same way', async () => {
+  const {dir, host, ctx} = await clipStageFixture({refuse: new Set(['kf_4A']), submitRefuse: true});
+  assert.deepEqual((await op.medClipsStage(ctx, ['1', '2', '3', '4'])).blocked, ['4']);
+  assert.equal(host.log.kfPolicy.length, 0);
+  fs.rmSync(dir, {recursive: true, force: true});
 });
 
 test('an unknown or unresolved clip job never triggers the policy fallback', async () => {
@@ -723,6 +756,7 @@ test('an unknown or unresolved clip job never triggers the policy fallback', asy
   assert.equal(op.medClassifyJob({status: 'failed', errorCode: 'content_policy_violation'}).policy, true);
   assert.ok(!op.medClassifyJob({status: 'failed', errorCode: 'provider_failed'}).policy);
   assert.deepEqual(op.medPolicyScenes(['1'], {'clip:1:A': {failed: 'provider_failed'}, 'clip:1:B': {failed: 'provider_failed'}}, {kf: {}}), [], 'ordinary failures keep the normal retry');
+  assert.deepEqual(op.medPolicyScenes(['1'], {'clip:1:A': {failed: 'content_policy_violation', policy: true}}, {kf: {}, still: {1: true}}), [], 'the user chose the still');
   fs.rmSync(dir, {recursive: true, force: true});
 });
 

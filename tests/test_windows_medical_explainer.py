@@ -114,6 +114,11 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('{!medKfModel(kfModel).edit && <ui.Message tone="muted">{S.fluxNote}</ui.Message>}', self.panel)
         self.assertIn('export const MED_KF_DEFAULT = "seedream";', self.panel)
         self.assertIn('const stage = await medClipsStage(kindCtx(st, sc, dir, S.steps[2]), sceneIds);', self.panel)
+        # A policy refusal waits for the user; the only regeneration path is the explicit per-scene button.
+        self.assertIn('if (stage.blocked.length) {', self.panel)
+        self.assertEqual(self.panel.count('picks.regen = { ...asObj(picks.regen), [n]:'), 1)
+        self.assertIn('onClick={() => choosePolicy(s.n, "regen", s.model)}', self.panel)
+        self.assertNotIn('kfpolicy', self.panel)
 
     def test_update_guard_policy_and_hook(self):
         policies = json.loads((ROOT / 'shared' / 'app-update-guard-policies.json').read_text(encoding='utf-8'))
@@ -126,7 +131,7 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('{noHost && <ui.Message>{S.noHost}</ui.Message>}', self.panel)
         langs = re.findall(r'^  (\w\w): \{$', self.panel, flags=re.M)
         self.assertEqual(sorted(langs), ['en', 'ko'])
-        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged', 'kfModel', 'fluxNote', 'policyScenes', 'policyTransitions', 'editHint']:
+        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged', 'kfModel', 'fluxNote', 'policyScenes', 'policyTransitions', 'editHint', 'policyTitle', 'policyUseStill', 'policyRegenFailed', 'policyStill']:
             self.assertEqual(len(re.findall(r'\b%s: "' % key, self.panel)), len(langs), key)
 
     def test_korean_fallback_fonts_in_every_overlay(self):

@@ -216,6 +216,8 @@ type Strings = {
   summary: (s: number, n: number, lang: string) => string;
   estimate: (images: number, clips: number, clipSeconds: number, transitions: number, narrations: number, music: boolean, kfModel: string) => string;
   kfModel: string; fluxNote: string; kfModelUsed: (label: string) => string; policyScenes: string; policyTransitions: string;
+  policyTitle: string; policyScene: (n: number, label: string) => string; policyRegen: (model: string) => string; policyUseStill: string;
+  policyRegenFailed: string; policyStill: string; modelFixed: (model: string) => string;
   produceKf: string; produce: string; producing: string; steps: string[];
   kfTitle: string; kfHint: string; kfScene: (n: number, label: string) => string; approveKf: string;
   done: string; openHint: string; fallbackClips: string; dissolves: string; mismatches: string; verifyOk: string; verifySkipped: string;
@@ -259,8 +261,12 @@ const STRINGS: Record<string, Strings> = {
     tooLong: (l) => `Too long for one video clip (at most 14.5 s on screen): ${l}. Split or shorten these sentences below, then press Try again. Nothing was spent on keyframes or video.`,
     editHint: "Edit a sentence to split or shorten it. Only edited sentences are narrated again.", sentence: (n) => `Sentence ${n}`,
     kfModel: "Keyframe model", fluxNote: "FLUX 3 has no edit model: scenes 2 onward are drawn from text with the style description only, without scene 1 as a reference.",
-    kfModelUsed: (l) => `Keyframes: ${l}`, policyScenes: "Keyframe replaced due to video model policy (Seedream 5.0 Pro)",
+    kfModelUsed: (l) => `Keyframes: ${l}`, policyScenes: "Keyframe regenerated after a video model policy refusal",
     policyTransitions: "Transitions the video model refused for content policy (shown as a dissolve)",
+    policyTitle: "Refused by the video model", policyScene: (n, l) => `Scene ${n}${l ? " \u00b7 " + l : ""}: the video model (Kling) refused this keyframe for its content policy. Nothing was charged for the refusal.`,
+    policyRegen: (m) => `Regenerate this scene's keyframe with ${m} (uses credits)`, policyUseStill: "Use still image",
+    policyRegenFailed: "The new keyframe could not be made; choose again.", policyStill: "Scenes shown as a still image after a policy refusal",
+    modelFixed: (m) => `This job keeps ${m}. A different keyframe model applies to a new job: write the script again.`,
     styleChanged: "Scene 1's pick changed: scenes 2 onward were drawn with the earlier scene 1 as their style reference, so their look may differ a little.",
     errors: { FETCH_FAILED: "The link could not be opened.", NO_TEXT: "No text was found at the link. Paste the text instead.",
       TEXT_TOO_SHORT: "The source text is too short.", NO_JSON: "The script could not be read from the AI answer. Try again." },
@@ -299,7 +305,11 @@ const STRINGS: Record<string, Strings> = {
     tooLong: (l) => `\uc601\uc0c1 \ud074\ub9bd \ud558\ub098\uc5d0 \ub2f4\uae30\uc5d0 \ub108\ubb34 \uae41\ub2c8\ub2e4(\ud654\uba74 \ucd5c\ub300 14.5\ucd08): ${l}. \uc544\ub798\uc5d0\uc11c \uc774 \ubb38\uc7a5\uc744 \ub098\ub204\uac70\ub098 \uc904\uc778 \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ub97c \ub20c\ub7ec \uc8fc\uc138\uc694. \ud0a4\ud504\ub808\uc784\uacfc \uc601\uc0c1\uc5d0\ub294 \ud06c\ub808\ub527\uc744 \uc4f0\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.`,
     editHint: "\ubb38\uc7a5\uc744 \uace0\uccd0 \ub098\ub204\uac70\ub098 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uace0\uce5c \ubb38\uc7a5\ub9cc \ub2e4\uc2dc \ub179\uc74c\ud569\ub2c8\ub2e4.", sentence: (n) => `\ubb38\uc7a5 ${n}`,
     kfModel: "\ud0a4\ud504\ub808\uc784 \ubaa8\ub378", fluxNote: "FLUX 3\uc5d0\ub294 \ud3b8\uc9d1 \ubaa8\ub378\uc774 \uc5c6\uc5b4 \uc7a5\uba74 2\ubd80\ud130\ub294 \uc7a5\uba74 1\uc744 \ucc38\uace0\ud558\uc9c0 \uc54a\uace0 \uc2a4\ud0c0\uc77c \uc124\uba85\ub9cc\uc73c\ub85c \uadf8\ub9bd\ub2c8\ub2e4.",
-    kfModelUsed: (l) => `\ud0a4\ud504\ub808\uc784: ${l}`, policyScenes: "\uc601\uc0c1 \ubaa8\ub378 \uc815\ucc45\uc73c\ub85c \ud0a4\ud504\ub808\uc784\uc744 \uad50\uccb4\ud55c \uc7a5\uba74(Seedream 5.0 Pro)",
+    kfModelUsed: (l) => `\ud0a4\ud504\ub808\uc784: ${l}`, policyScenes: "\uc601\uc0c1 \ubaa8\ub378 \uc815\ucc45 \uac70\ubd80 \ud6c4 \ud0a4\ud504\ub808\uc784\uc744 \ub2e4\uc2dc \ub9cc\ub4e0 \uc7a5\uba74",
+    policyTitle: "\uc601\uc0c1 \ubaa8\ub378\uc774 \uac70\ubd80\ud55c \uc7a5\uba74", policyScene: (n, l) => `\uc7a5\uba74 ${n}${l ? " \u00b7 " + l : ""}: \uc601\uc0c1 \ubaa8\ub378(Kling)\uc774 \ucf58\ud150\uce20 \uc815\ucc45\uc73c\ub85c \uc774 \ud0a4\ud504\ub808\uc784\uc744 \uac70\ubd80\ud588\uc2b5\ub2c8\ub2e4. \uac70\ubd80\ub41c \uc791\uc5c5\uc5d0\ub294 \ud06c\ub808\ub527\uc774 \ucc28\uac10\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.`,
+    policyRegen: (m) => `${m}(\uc73c)\ub85c \uc774 \uc7a5\uba74 \ud0a4\ud504\ub808\uc784 \ub2e4\uc2dc \ub9cc\ub4e4\uae30(\ud06c\ub808\ub527 \uc0ac\uc6a9)`, policyUseStill: "\uc815\uc9c0 \uc774\ubbf8\uc9c0 \uc0ac\uc6a9",
+    policyRegenFailed: "\uc0c8 \ud0a4\ud504\ub808\uc784\uc744 \ub9cc\ub4e4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc120\ud0dd\ud558\uc138\uc694.", policyStill: "\uc815\ucc45 \uac70\ubd80 \ud6c4 \uc815\uc9c0 \uc774\ubbf8\uc9c0\ub85c \ubcf4\uc5ec\uc8fc\ub294 \uc7a5\uba74",
+    modelFixed: (m) => `\uc774 \uc791\uc5c5\uc740 ${m}\uc744(\ub97c) \uacc4\uc18d \uc501\ub2c8\ub2e4. \ub2e4\ub978 \ud0a4\ud504\ub808\uc784 \ubaa8\ub378\uc740 \uc0c8 \uc791\uc5c5\uc5d0 \uc801\uc6a9\ub429\ub2c8\ub2e4. \ub300\ubcf8\uc744 \ub2e4\uc2dc \ub9cc\ub4dc\uc138\uc694.`,
     policyTransitions: "\uc601\uc0c1 \ubaa8\ub378\uc774 \ucf58\ud150\uce20 \uc815\ucc45\uc73c\ub85c \uac70\ubd80\ud55c \uc804\ud658(\ub514\uc878\ube0c\ub85c \ud45c\uc2dc)",
     styleChanged: "\uc7a5\uba74 1 \uc120\ud0dd\uc774 \ubc14\ub00c\uc5c8\uc2b5\ub2c8\ub2e4. \uc7a5\uba74 2\ubd80\ud130\ub294 \uc774\uc804 \uc7a5\uba74 1\uc744 \uc2a4\ud0c0\uc77c \uae30\uc900\uc73c\ub85c \uadf8\ub838\uc73c\ubbc0\ub85c \ub290\ub08c\uc774 \uc870\uae08 \ub2e4\ub97c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     errors: { FETCH_FAILED: "\ub9c1\ud06c\ub97c \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.", NO_TEXT: "\ub9c1\ud06c\uc5d0\uc11c \ubcf8\ubb38\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ud14d\uc2a4\ud2b8\ub85c \ubd99\uc5ec\ub123\uc5b4 \uc8fc\uc138\uc694.",
@@ -480,8 +490,9 @@ export const MED_KF_MODELS = {
     input: (prompt) => ({ prompt, aspect_ratio: "16:9", resolution: "2k", output_format: "png" }) },
 };
 export const MED_KF_DEFAULT = "seedream";
-// The keyframe that replaces a scene's chosen one after Kling refuses it for content policy: Seedream 5.0 Pro.
-export const MED_POLICY_LETTER = "S";
+// A keyframe the user asked to regenerate for one scene (after Kling refused that scene's clips for content policy)
+// is "R<k>": picks.regen[scene] = { model, k }, k counting the user's requests for that scene.
+export const medRegenLetter = (k) => `R${k}`;
 export const MED_KF_CANDIDATES = 2, MED_TAKES = 2, MED_LETTERS = "ABC";
 export const MED_SCALES = ["body", "organ", "tissue", "cell", "molecule"];
 export const MED_CAMERA = {
@@ -1070,22 +1081,24 @@ async function cmdRequests(io, job, kind, only, attempt) {
       // An edited sentence (rev > 0) is a different request: its text is part of the key.
       reqs.push(spec(`narr:${s.n}`, "audio", r.model, r.input, null, "narration", s.rev ? `-v${s.rev}` : ""));
     }
-  } else if (kind === "keyframes" || kind === "kfpolicy") {
+  } else if (kind === "keyframes" || kind === "kfregen") {
     // Scene 1 is drawn from text; every later scene is an edit with scene 1's chosen keyframe as the style reference.
-    // `kfpolicy`: one Seedream 5.0 Pro keyframe (letter S) for each scene Kling refused, same prompt and reference.
+    // `kfregen`: the keyframe the user asked for, per scene, with the model they chose (picks.regen); never automatic.
     const picks = await job.picks();
-    const policy = kind === "kfpolicy";
-    const modelId = policy ? MED_KF_DEFAULT : set.kfModel;
-    const model = medKfModel(modelId);
-    const letters = policy ? [MED_POLICY_LETTER] : Array.from(MED_LETTERS.slice(0, MED_KF_CANDIDATES));
+    const regen = kind === "kfregen";
     for (const s of plan.scenes) {
+      const ask = regen ? asObj(asObj(picks.regen)[String(s.n)]) : null;
+      if (regen && !(ask.k >= 1)) continue;
+      const modelId = regen ? (MED_KF_MODELS[ask.model] ? ask.model : set.kfModel) : set.kfModel;
+      const model = medKfModel(modelId);
+      const letters = regen ? [medRegenLetter(ask.k)] : Array.from(MED_LETTERS.slice(0, MED_KF_CANDIDATES));
       for (const c of letters) {
         const id = `${s.n}${c}`;
-        if (policy ? !only || !(only.has(id) || only.has(String(s.n))) : only && !only.has(id) && !only.has(String(s.n))) continue;
+        if (only && !only.has(id) && !only.has(String(s.n))) continue;
         const gen = `kf:${s.n}:${c}`;
         const styled = s.n > 1 && !!model.edit;
         const input = model.input(medKeyframePrompt(s, styled));
-        const key = policy || set.kfModel !== MED_KF_DEFAULT ? `-m${modelId}` : "";
+        const key = regen || modelId !== MED_KF_DEFAULT ? `-m${modelId}` : "";
         const make = (mid, inp, uploads, extra) => ({ ...spec(gen, "image", "t2i", inp, uploads, "keyframes", key + extra), modelId: mid });
         if (!styled) { reqs.push(make(model.t2i, input, null, "")); continue; }
         const ref = picks.kf["1"];
@@ -1609,37 +1622,38 @@ export async function medGenerateKind(ctx, kind, only) {
   return [...first.failed.filter((f) => f.policy), ...second.failed];
 }
 const takeLetters = () => Array.from(MED_LETTERS.slice(0, MED_TAKES));
-// Scenes whose clip no take delivered because Kling refused it for content policy, not yet given a Seedream keyframe.
+// Scenes whose clip no take delivered because Kling refused it for content policy, and for which the user has not
+// chosen the still image: the run stops and shows them, one by one, with the user's two choices.
 export function medPolicyScenes(sceneIds, gen, picks) {
   return sceneIds.filter((n) => {
     const takes = takeLetters().map((c) => gen[`clip:${n}:${c}`]).filter(Boolean);
-    return !takes.some((t) => t.path) && takes.some((t) => t.policy) && picks.kf[n] !== MED_POLICY_LETTER;
+    return !takes.some((t) => t.path) && takes.some((t) => t.policy) && !asObj(picks.still)[n];
   });
 }
-// The scene-clip stage with the content-policy fallback: clips (two takes) -> for each scene Kling refused for content
-// policy, one Seedream 5.0 Pro keyframe (scene 1 first: it is the others' style reference) chosen in its place, and
-// its clips again under new request keys -> a scene still without a clip uses the still-zoom path. Only a terminal,
-// policy-coded rejection triggers this; an unresolved job stops the run (medGenerateKind) and never counts.
-// `ctx` adds readPicks() and writePicks(picks). Returns { replaced: scene ids, still: scene ids }.
+// The scene-clip stage. First, any keyframe the user explicitly asked to regenerate (picks.regen, set only by the
+// panel's "Regenerate this scene's keyframe" button) is made and chosen; then every scene's clips are generated (a
+// changed keyframe changes the clip request key). Nothing here replaces a keyframe or resubmits on its own.
+// `ctx` adds readPicks() and writePicks(picks). Returns { blocked: scenes refused for content policy and waiting for
+// the user, regenFailed: asked-for keyframes that did not arrive, still: scenes without a clip }.
 export async function medClipsStage(ctx, sceneIds) {
-  await medGenerateKind(ctx, "clips", sceneIds);
-  const todo = medPolicyScenes(sceneIds, ctx.gen, await ctx.readPicks());
-  const replaced = [];
-  for (const batch of [todo.filter((n) => n === "1"), todo.filter((n) => n !== "1")]) {
-    if (!batch.length) continue;
-    await medGenerateKind(ctx, "kfpolicy", batch);
+  const picks0 = await ctx.readPicks();
+  const regen = asObj(picks0.regen);
+  const asked = sceneIds.filter((n) => regen[n] && regen[n].k >= 1 && picks0.kf[n] !== medRegenLetter(regen[n].k));
+  const regenFailed = [];
+  if (asked.length) {
+    await medGenerateKind(ctx, "kfregen", asked);
     const picks = await ctx.readPicks();
-    for (const n of batch) {
-      if (!(ctx.gen[`kf:${n}:${MED_POLICY_LETTER}`] || {}).path) continue;
-      picks.kf[n] = MED_POLICY_LETTER;
-      picks.policy = { ...(picks.policy || {}), [n]: true };
-      replaced.push(n);
+    for (const n of asked) {
+      const c = medRegenLetter(regen[n].k);
+      if ((ctx.gen[`kf:${n}:${c}`] || {}).path) picks.kf[n] = c;
+      else regenFailed.push(n);
     }
     await ctx.writePicks(picks);
   }
-  if (replaced.length) await medGenerateKind(ctx, "clips", replaced);
-  const still = sceneIds.filter((n) => !takeLetters().some((c) => (ctx.gen[`clip:${n}:${c}`] || {}).path));
-  return { replaced, still };
+  await medGenerateKind(ctx, "clips", sceneIds);
+  const blocked = medPolicyScenes(sceneIds, ctx.gen, await ctx.readPicks());
+  const still = sceneIds.filter((n) => !blocked.includes(n) && !takeLetters().some((c) => (ctx.gen[`clip:${n}:${c}`] || {}).path));
+  return { blocked, regenFailed, still };
 }
 
 // ---- Draft step: import the media, then wait until Selects can place it ----
@@ -1947,6 +1961,9 @@ function Panel({ sdk, context, ui }: any) {
   const [check, setCheck] = React.useState<any>(null);
   const [review, setReview] = React.useState<any>(null); // keyframe review: { dir, firstPick, scenes: [{ n, label, options, pick, img }] }
   const [unresolved, setUnresolved] = React.useState<string[] | null>(null); // request keys left unresolved
+  // Scenes Kling refused for content policy, waiting for the user's choice: { dir, scenes: [{ n, label, model }] }.
+  const [policy, setPolicy] = React.useState<any>(null);
+  const [jobStarted, setJobStarted] = React.useState<string | null>(null); // the started job's keyframe model
   const [result, setResult] = React.useState<any>(null);
   const [jobs, setJobs] = React.useState<any[]>([]);
   const [storageReady, setStorageReady] = React.useState(false);
@@ -2184,6 +2201,8 @@ function Panel({ sdk, context, ui }: any) {
     setReview(null);
     setEdits({});
     setLocked(false);
+    setPolicy(null);
+    setJobStarted(null);
     if (!projectId) return setError(S.noProject);
     if (!sdk?.storage) return setError(S.noStorage);
     if (mode === "topic" && topic.trim().length < 2) return setError(S.needTopic);
@@ -2264,12 +2283,27 @@ function Panel({ sdk, context, ui }: any) {
     await produce(job);
   }
 
+  // ---- Content-policy refusals: the user's explicit choice per scene ----
+  // Regenerating a keyframe is a new paid request with its own key; it is made only from this button.
+  async function choosePolicy(n: string, action: "regen" | "still", model?: string) {
+    if (!policy || !job) return;
+    const picks = await readPicks(policy.dir);
+    if (action === "regen") {
+      const prev = asObj(asObj(picks.regen)[n]);
+      picks.regen = { ...asObj(picks.regen), [n]: { model: MED_KF_MODELS[model || ""] ? model : MED_KF_DEFAULT, k: (prev.k || 0) + 1 } };
+    } else picks.still = { ...asObj(picks.still), [n]: true };
+    await writePicks(policy.dir, picks);
+    setPolicy(null);
+    await produce(job);
+  }
+
   // ---- 3. Everything else, resumable ----
   // `resubmit`: request keys the user chose to give up on after they stayed unresolved; each gets a new attempt (a new
   // paid job). Nothing else is ever resubmitted under a new key except a request the host reports as failed.
   async function produce(target?: any, fromList = false, titleOverride?: any, resubmit?: string[]) {
     setError("");
     setUnresolved(null);
+    setPolicy(null);
     if (fromList) fresh.current = false;
     const j0 = target || job;
     if (!j0) return;
@@ -2295,6 +2329,7 @@ function Panel({ sdk, context, ui }: any) {
         await writeJson(hostJoin(dir, "job.json"), jd);
       } else if (jd.settings?.titleLines) setTitleLines(jd.settings.titleLines);
       pj = await savePanel(dir, { started: true });
+      setJobStarted(jd.settings?.kfModel || MED_KF_DEFAULT);
       let p = await readJson(hostJoin(dir, "plan.json"));
       if (!p?.scenes?.length) throw new Error("plan.json missing");
       // Script edits (before any keyframe): the edited sentences get a new revision, so only they are narrated again,
@@ -2357,10 +2392,17 @@ function Panel({ sdk, context, ui }: any) {
 
       if (!pj.clipsDone) {
         setStep(2);
-        // Kling's content-policy refusals: a Seedream keyframe for that scene, then its clips again (see medClipsStage).
+        // Scenes Kling refused for content policy wait for the user's choice (regenerate that keyframe, or the still).
         const stage = await medClipsStage(kindCtx(st, sc, dir, S.steps[2]), sceneIds);
-        pj = await savePanel(dir, { policyScenes: stage.replaced });
+        if (stage.blocked.length) {
+          setStatus("");
+          setPolicy({ dir, scenes: stage.blocked.map((n: string) => ({ n, label: p.scenes[Number(n) - 1]?.label || "", model: set.kfModel || MED_KF_DEFAULT,
+            failedRegen: stage.regenFailed.includes(n) })) });
+          return;
+        }
         const picks = await readPicks(dir);
+        pj = await savePanel(dir, { policyScenes: Object.keys(asObj(picks.regen)).filter((n) => String(picks.kf[n] || "").startsWith("R")),
+          policyStill: Object.keys(asObj(picks.still)) });
         await aiPick(dir, "clips", sceneIds.filter((n: string) => !picks.clip[n]), describe);
         pj = await savePanel(dir, { clipsDone: true });
       }
@@ -2446,7 +2488,7 @@ function Panel({ sdk, context, ui }: any) {
       }
       await saveRecovery({ jobId: j0.id, dir, phase: "done", done: true });
       setResult({ seconds: pj.seconds, fallback: pj.fallback || [], dissolves: pj.dissolves || [], mismatches: pj.mismatches || [],
-        kfModel: medKfModel(set.kfModel).label, policyScenes: pj.policyScenes || [], policyTransitions: pj.policyTransitions || [],
+        kfModel: medKfModel(set.kfModel).label, policyScenes: pj.policyScenes || [], policyStill: pj.policyStill || [], policyTransitions: pj.policyTransitions || [],
         verifySkipped: !!pj.verifySkipped, noMusic: !!pj.noMusic, dropped: sel.dropped || [] });
       setStep(6);
       setStatus("");
@@ -2492,6 +2534,7 @@ function Panel({ sdk, context, ui }: any) {
         <ui.Select label={S.language} value={lang} onChange={setLang} options={langOptions} disabled={!!busy} />
         <ui.Select label={S.kfModel} value={kfModel} onChange={setKfModel} options={Object.entries(MED_KF_MODELS).map(([id, m]: any) => ({ value: id, label: m.label }))} disabled={!!busy} />
         {!medKfModel(kfModel).edit && <ui.Message tone="muted">{S.fluxNote}</ui.Message>}
+        {jobStarted && <ui.Message tone="muted">{S.modelFixed(medKfModel(jobStarted).label)}</ui.Message>}
         <ui.Select label={S.voice} value={voice} onChange={setVoice} options={MED_VOICES.map((v) => ({ value: v.id, label: v.label }))} disabled={!!busy} />
         <ui.Select label={S.quality} value="standard" onChange={() => {}} options={[{ value: "standard", label: S.qualityStd }]} disabled={!!busy} />
         <ui.Toggle label={S.music} value={music} onChange={setMusic} disabled={!!busy} />
@@ -2575,7 +2618,25 @@ function Panel({ sdk, context, ui }: any) {
         </ui.Section>
       )}
 
-      {(busy || (step >= 0 && !error)) && step < 6 && !review && (
+      {policy && (
+        <ui.Section title={S.policyTitle}>
+          {policy.scenes.map((s: any) => (
+            <ui.Stack key={s.n} gap={4}>
+              <ui.Message tone="error">{S.policyScene(Number(s.n), s.label)}</ui.Message>
+              {s.failedRegen && <ui.Message tone="muted">{S.policyRegenFailed}</ui.Message>}
+              <ui.Select label={S.kfModel} value={s.model} disabled={!!busy}
+                options={Object.entries(MED_KF_MODELS).map(([id, m]: any) => ({ value: id, label: m.label }))}
+                onChange={(v: string) => setPolicy((cur: any) => ({ ...cur, scenes: cur.scenes.map((x: any) => (x.n === s.n ? { ...x, model: v } : x)) }))} />
+              <ui.Actions>
+                <ui.Button variant="secondary" disabled={blocked} onClick={() => choosePolicy(s.n, "still")}>{S.policyUseStill}</ui.Button>
+                <ui.Button variant="primary" disabled={blocked} onClick={() => choosePolicy(s.n, "regen", s.model)}>{S.policyRegen(medKfModel(s.model).label)}</ui.Button>
+              </ui.Actions>
+            </ui.Stack>
+          ))}
+        </ui.Section>
+      )}
+
+      {(busy || (step >= 0 && !error)) && step < 6 && !review && !policy && (
         <ui.Section title={S.producing}>
           <ui.Progress steps={S.steps} current={Math.max(0, step)} />
           {status && (
@@ -2598,6 +2659,7 @@ function Panel({ sdk, context, ui }: any) {
           {result.dropped.length > 0 && <small>{S.pointersDropped}: {result.dropped.join(", ")}</small>}
           <small>{S.kfModelUsed(result.kfModel)}</small>
           {result.policyScenes.length > 0 && <small>{S.policyScenes}: {result.policyScenes.join(", ")}</small>}
+          {result.policyStill.length > 0 && <small>{S.policyStill}: {result.policyStill.join(", ")}</small>}
           {result.policyTransitions.length > 0 && <small>{S.policyTransitions}: {result.policyTransitions.map((n: string) => `${n}\u2192${Number(n) + 1}`).join(", ")}</small>}
           {result.noMusic && <small>{S.noMusic}</small>}
         </ui.Section>

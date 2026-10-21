@@ -27,9 +27,10 @@ Medical facts stay general and textbook-level, but every video still needs a med
 - Keyframes: the keyframe model you choose (Seedream 5.0 Pro by default, or Nano Banana 2.1, Nano Banana Pro, GPT
   Image 2.5, FLUX 3), 16:9, two candidates per scene; scenes 2 onward are edits with scene 1 as the style reference.
   FLUX 3 has no edit model, so its later scenes are drawn from the text and style description alone.
-- If Kling refuses a scene's keyframe for its content policy, that scene gets one Seedream 5.0 Pro keyframe (same
-  prompt, scene 1 as reference) and its clips are asked for again; if Kling refuses that too, the scene is shown as a
-  slow zoom on the keyframe. The run summary lists the scenes whose keyframe was replaced.
+- If Kling refuses a scene's keyframe for its content policy, the run stops and shows that scene. You choose: regenerate
+  that scene's keyframe with a model you pick (a new paid request), or use the still image (a slow zoom on the
+  keyframe). Nothing is regenerated or resubmitted without that choice. The keyframe model of a started job does not
+  change; a different model means a new job.
 - Scene clips: Kling v3 Standard (720p), start frame only, `max(5, ceil(length + 0.5))` seconds, two takes per scene.
   Each clip plays from its first frame at normal speed.
 - Transitions: Kling v3 Standard, 3 seconds from the last frame a scene shows to the first frame of the next, two takes
