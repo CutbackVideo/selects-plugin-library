@@ -12,8 +12,8 @@ const dep=createRequire(path.resolve(modules,'../package.json'));
 const React=dep('react'),{createRoot}=dep('react-dom/client'),{JSDOM}=dep('jsdom'),esbuild=dep('esbuild');
 const source=fs.readFileSync(new URL('../plugins/polaroid-photo-dump/panel.tsx',import.meta.url),'utf8');
 const locations=[
- ['Windows mixed case','win32','C:\\Users\\Mano\\.SELECTS\\PLUGIN-DATA\\POLAROID-PHOTO-DUMP\\frame-v1.png'],
- ['Windows forward slashes','win32','C:/Users/Mano/.selects/plugin-data/Polaroid-Photo-Dump/frame-v1.png'],
+ ['Windows mixed case','win32','C:\\Profiles\\Fixture\\.SELECTS\\PLUGIN-DATA\\POLAROID-PHOTO-DUMP\\frame-v1.png'],
+ ['Windows forward slashes','win32','C:/Profiles/Fixture/.selects/plugin-data/Polaroid-Photo-Dump/frame-v1.png'],
  ['UNC','win32','\\\\studio\\share\\.selects\\plugin-data\\polaroid-photo-dump\\frame-v1.png'],
  ['POSIX','darwin','/user/.selects/plugin-data/polaroid-photo-dump/frame-v1.png'],
 ];
