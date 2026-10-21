@@ -2,7 +2,8 @@
 
 `native-image-input.js` owns the existing `nativeImageSources`, `nativeImageRun`
 and `prepareNativeImages` input feature extracted from Four Photo Reveal and
-Camera Shutter Dump. It does not own their plans, music, layout or save policy.
+Camera Shutter Dump, now reused by Four Photo Stop Motion as well. It does not
+own their plans, music, layout or save policy.
 Other native-SDK consumers retain their previous implementation until their own
 migration tests pass.
 

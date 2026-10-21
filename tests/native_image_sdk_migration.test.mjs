@@ -86,7 +86,7 @@ test('six-clip-velocity: all 114 source offsets, exact durations and speed rates
  assert.deepEqual(result.placements.map(c=>[c.startFrame,c.endFrame]),pieces.map(p=>[p.startFrame,p.startFrame+p.frames]));
 });
 
-for(const plugin of ['no14-still-video','camera-shutter-dump'])test(`${plugin}: an original disappearing after prepare is rejected before placement`,async()=>{
+for(const plugin of ['no14-still-video','camera-shutter-dump','four-photo-stop-motion'])test(`${plugin}: an original disappearing after prepare is rejected before placement`,async()=>{
  const f=fixture(plugin),ready=await f.api.prepareNativeImages(f.sdk,'project',f.photos);
  f.filePaths.delete(f.photos[0].path);
  await assert.rejects(f.api.placeNativeImages(ready,'draft',f.plan),/original photo file is missing/i);

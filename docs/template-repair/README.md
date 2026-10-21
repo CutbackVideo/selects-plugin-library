@@ -99,7 +99,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `depth-type-captions` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `doac-style` | Source audit only | Full contract and runtime completion gates above |
 | `fast-switching-stopmotion` | Source audit only | Full contract and runtime completion gates above |
-| `four-photo-stop-motion` | Source audit only | Full contract and runtime completion gates above |
+| `four-photo-stop-motion` | Shared bundled Audio + original-file preflight + canonical bootstrap; working-copy/save lifecycle migration still pending | Full contract and runtime completion gates above |
 | `gongju-gallery` | Duration regression + draft #258; CI pass | Full contract and runtime completion gates above |
 | `jude-kinetic-style` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `mini-vlog` | Source audit only | Full contract and runtime completion gates above |

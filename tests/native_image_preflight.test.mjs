@@ -8,11 +8,11 @@ import test from 'node:test';
 import {loadPanelFunctions} from './windows_host.mjs';
 import {loadPanelOperation} from './panel_operation.mjs';
 
-const plugins=['no14-still-video','camera-shutter-dump'];
+const plugins=['no14-still-video','camera-shutter-dump','four-photo-stop-motion'];
 const paths={darwin:'/photos/Family trip/\uc0ac\uc9c4 \'A\'.png',win32:'C:\\Users\\Mano\\\uc0ac\uc9c4 \'A\'.png',unc:'\\\\studio\\share\\\uc0ac\uc9c4 A.png'};
 function fixture(plugin,{platform='darwin',fault=null,folderSummary=false}={}) {
   const source=fs.readFileSync(new URL(`../plugins/${plugin}/panel.tsx`,import.meta.url),'utf8');
-  const count=plugin==='no14-still-video'?4:12;
+  const count=plugin==='camera-shutter-dump'?12:4;
   const photos=Array.from({length:count},(_,i)=>({resourceId:'r'+i,name:`Photo ${i}.png`,path:i?paths[platform]+i:paths[platform]}));
   const rows=photos.map(p=>({...p,type:'Image',frameSize:{width:640,height:960}}));
   const fileCalls=[],writes=[],creates=[],scripts=[];
@@ -38,12 +38,13 @@ function fixture(plugin,{platform='darwin',fault=null,folderSummary=false}={}) {
     catch(error){return {isError:true,output:String(error?.message||error)};}
   }};
   const common=['nativeImageSources','nativeImageRun','prepareNativeImages','templateMessage','TEMPLATE_FAILED','TEMPLATE_UNSUPPORTED'];
-  const extra=plugin==='no14-still-video'?['INVENTORY','readMediaPages','readImageDraftFps','readProjectFps','createNo14Draft']:['INVENTORY','readMediaPages','samePath','inventory','createPhotoDraft'];
+  const extra=plugin==='no14-still-video'?['INVENTORY','readMediaPages','readImageDraftFps','readProjectFps','createNo14Draft']:['INVENTORY','readMediaPages','inventory','createPhotoDraft',...(plugin==='camera-shutter-dump'?['samePath']:['SLOTS','templateIssue'])];
   const api=loadPanelFunctions(source,[...common,...extra],{
     ...loadPanelOperation(plugin),
     DEFAULT_MUSIC:'off',ensureSounds:async()=>{writes.push('sounds');throw Error('WRITE_REACHED');},
+    ensureMusic:async()=>{writes.push('music');throw Error('WRITE_REACHED');},
   });
-  const create=()=>api[plugin==='no14-still-video'?'createNo14Draft':'createPhotoDraft'](sdk,{projectId:'p',selected:photos,decoration:{shape:'none',color:'#fff'},framing:[],music:'off',name:'Fixture',stillCurrent:()=>true,say:()=>{}});
+  const create=(options={})=>api[plugin==='no14-still-video'?'createNo14Draft':'createPhotoDraft'](sdk,{projectId:'p',selected:photos,decoration:{shape:'none',color:'#fff'},framing:[],music:'off',name:'Fixture',stillCurrent:()=>true,say:()=>{},...options});
   return {api,sdk,photos,rows,files,fileCalls,writes,creates,scripts,create};
 }
 for(const plugin of plugins){
@@ -96,7 +97,20 @@ test('generated input scripts typecheck against the installed SDK',async()=>{
   const f=fixture(plugin);await f.api.prepareNativeImages(f.sdk,'p',f.photos);
   scripts.push(...f.scripts.map(script=>({name:plugin+' original Image preflight',script})));
  }
- const result=checkScriptTypes(scripts);assert.equal(result.scripts,2);
+ const result=checkScriptTypes(scripts);assert.equal(result.scripts,plugins.length);
+});
+
+for(const selected of [null,[],Array(3).fill({}),Array(5).fill({})])test(`four-photo-stop-motion: invalid photo count ${selected?.length??'null'} cannot start music or a Draft`,async()=>{
+ const f=fixture('four-photo-stop-motion');
+ await assert.rejects(f.create({selected}),/four|exactly 4/i);
+ assert.equal(f.writes.length,0);assert.equal(f.scripts.length,0);assert.equal(f.creates.length,0);
+});
+for(const timing of ['before checking','during checking'])test(`four-photo-stop-motion: an ended run ${timing} cannot start music or a Draft`,async()=>{
+ const f=fixture('four-photo-stop-motion');let current=timing!=='before checking';
+ const stat=f.files.stat;f.files.stat=async filename=>{const result=await stat(filename);current=false;return result;};
+ await assert.rejects(f.create({stillCurrent:()=>current}),/Project changed|run ended/i);
+ assert.equal(f.writes.length,0);assert.equal(f.creates.length,0);
+ if(timing==='before checking')assert.equal(f.scripts.length,0);
 });
 for(const plugin of plugins)test(`${plugin}: real original deletion leaves retained metadata but prevents any Project write`,async()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'original-photo-preflight-'));

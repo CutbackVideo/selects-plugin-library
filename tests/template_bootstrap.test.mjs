@@ -7,7 +7,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 if(!modules)throw Error('Set SBS_PANEL_TEST_MODULES to the React/esbuild/jsdom dependency directory.');
 const dep=createRequire(path.resolve(modules,'../package.json'));
 const React=dep('react'),{createRoot}=dep('react-dom/client'),{JSDOM}=dep('jsdom'),esbuild=dep('esbuild');
-const sources=['shared','no14-still-video','camera-shutter-dump','a16z-style-captions'];
+const sources=['shared','no14-still-video','camera-shutter-dump','a16z-style-captions','four-photo-stop-motion'];
 const context=(runId='run-a')=>({projectId:'project',language:'en',template:{runId,libraryId:'library'}});
 async function harness(t,source='shared'){
  const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'}),previous={};
