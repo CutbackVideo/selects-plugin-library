@@ -42,6 +42,10 @@ an unrelated workflow. A passing unit suite alone is not completion.
   check working-copy and persisted graphic receipts. See
   [camera-project-title.md](camera-project-title.md); transforms/effects/audio
   and the full runtime/platform gates remain open.
+  Both now verify every Image/graphic intrinsic transform before commit and
+  independently after saving, including durable remount readback. See
+  [photo-transform-readback.md](photo-transform-readback.md); effect programs,
+  editable definitions, full Audio properties and runtime/platform gates remain.
 - Place Count's obsolete named capability query: independent draft PR #260;
   canonical Draft-method checks and both remote CI checks pass. Installed-app
   save/playback/export and the other six audited findings remain pending.

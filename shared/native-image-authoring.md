@@ -38,6 +38,19 @@ effects, graphics and audio recipes remain template-owned.
   order does not matter; extra host-supplied defaults are preserved. Minimal
   graphic receipts pass through the existing durable run record. Missing old
   Image graphic evidence requires inspection rather than another save.
+- `inspectImageTransforms` checks every visual Image/graphic occurrence through
+  fresh `clips` targets and the public `clipTransform` read. Desired transforms
+  come from each template's own recipe, not from the observed SDK mutation
+  response. It checks position, per-axis scale, rotation, anchor, enablement,
+  both flips and all intrinsic motion-key groups. These two recipes use fixed
+  transforms; animation in their separate effects is not an intrinsic key.
+  Omitted recipe fields mean the documented SDK identity defaults. Coordinate
+  conversion roundoff is tolerated at `1e-8 * max(1, abs(expected))`; nonfinite
+  values, missing fields, unexpected motion keys or visible changes fail verification.
+  It returns normalized expected receipts after verification. The finish path
+  calls it before the sole commit, and a separate SDK invocation verifies the
+  same expected receipts from persisted state. Reopening the same app run uses
+  those receipts without adopting manual changes or replaying a save.
 - A legacy empty seed may continue in one commit if it belongs to the Project
   and matches the plan. Any preexisting non-Main clip, including a manual graphic
   without a Resource ID, is refused. A configured Main Audio must match the
@@ -62,6 +75,7 @@ their individual operations when explicitly called; normal create paths use the
 new one-commit operation.
 
 Persisted receipts do not verify every saved effect/graphic/audio property,
-including graphic transforms, TSX identity or editable definitions. They do not
-prove actual image decoding, playback, visual fidelity or export. Those acceptance
+including TSX identity, editable definitions, effect stacks or Audio properties.
+Missing old graphic/transform evidence requires inspection, not a save replay.
+They do not prove actual image decoding, playback, visual fidelity or export. Those acceptance
 gates remain separate. See the [checkpoint](../docs/template-repair/photo-atomic-authoring.md).
