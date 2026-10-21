@@ -629,15 +629,15 @@ export const MED_KF_SIZE_PORTRAIT = { width: 1440, height: 2560 }; // and its 9:
 // aspect (16:9 strip or 9:16 full frame).
 const png = { num_images: 1, output_format: "png" };
 export const MED_KF_MODELS = {
-  seedream: { label: "Seedream 5.0 Pro", t2i: MED_MODEL.t2i, edit: MED_MODEL.edit, // bytedance/seedream/v5/pro/{text-to-image,edit}
+  seedream: { tag: "sd5p", label: "Seedream 5.0 Pro", t2i: MED_MODEL.t2i, edit: MED_MODEL.edit, // bytedance/seedream/v5/pro/{text-to-image,edit}
     input: (prompt, aspect = "16:9") => ({ prompt, image_size: { ...(aspect === "9:16" ? MED_KF_SIZE_PORTRAIT : MED_KF_SIZE) }, ...png }) },
-  "nano-banana-2.1": { label: "Nano Banana 2.1", t2i: "model_v1_Z29vZ2xlL25hbm8tYmFuYW5hLTIuMQ", edit: "model_v1_Z29vZ2xlL25hbm8tYmFuYW5hLTIuMS9lZGl0", // google/nano-banana-2.1{,/edit}
+  "nano-banana-2.1": { tag: "nb21", label: "Nano Banana 2.1", t2i: "model_v1_Z29vZ2xlL25hbm8tYmFuYW5hLTIuMQ", edit: "model_v1_Z29vZ2xlL25hbm8tYmFuYW5hLTIuMS9lZGl0", // google/nano-banana-2.1{,/edit}
     input: (prompt, aspect = "16:9") => ({ prompt, aspect_ratio: aspect, resolution: "2K", ...png }) },
-  "nano-banana-pro": { label: "Nano Banana Pro", t2i: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLXBybw", edit: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLXByby9lZGl0", // fal-ai/nano-banana-pro{,/edit}
+  "nano-banana-pro": { tag: "nbpro", label: "Nano Banana Pro", t2i: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLXBybw", edit: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLXByby9lZGl0", // fal-ai/nano-banana-pro{,/edit}
     input: (prompt, aspect = "16:9") => ({ prompt, aspect_ratio: aspect, resolution: "2K", ...png }) },
-  "gpt-image-2.5": { label: "GPT Image 2.5", t2i: "model_v1_b3BlbmFpL2dwdC1pbWFnZS0yLjUvZmxhcmUvdGV4dC10by1pbWFnZQ", edit: "model_v1_b3BlbmFpL2dwdC1pbWFnZS0yLjUvZmxhcmUvZWRpdA", // openai/gpt-image-2.5/flare/{text-to-image,edit}
+  "gpt-image-2.5": { tag: "gpt25", label: "GPT Image 2.5", t2i: "model_v1_b3BlbmFpL2dwdC1pbWFnZS0yLjUvZmxhcmUvdGV4dC10by1pbWFnZQ", edit: "model_v1_b3BlbmFpL2dwdC1pbWFnZS0yLjUvZmxhcmUvZWRpdA", // openai/gpt-image-2.5/flare/{text-to-image,edit}
     input: (prompt, aspect = "16:9") => ({ prompt, image_size: aspect === "9:16" ? "portrait_16_9" : "landscape_16_9", ...png }) },
-  "flux-3": { label: "FLUX 3", t2i: "model_v1_YmxhY2tmb3Jlc3RsYWJzL2ZsdXgtMy90ZXh0LXRvLWltYWdl", edit: null, // blackforestlabs/flux-3/text-to-image (no edit endpoint)
+  "flux-3": { tag: "flux3", label: "FLUX 3", t2i: "model_v1_YmxhY2tmb3Jlc3RsYWJzL2ZsdXgtMy90ZXh0LXRvLWltYWdl", edit: null, // blackforestlabs/flux-3/text-to-image (no edit endpoint)
     input: (prompt, aspect = "16:9") => ({ prompt, aspect_ratio: aspect, resolution: "2k", output_format: "png" }) },
 };
 export const MED_KF_DEFAULT = "seedream";
@@ -1270,12 +1270,28 @@ async function cmdTimeline(io, job) {
 
 // ---- generation requests ----
 const letter = (i) => MED_LETTERS[i];
+// Selects accepts a requestKey of 8-64 characters from [A-Za-z0-9_-]. A key that already fits is used as it is (so
+// existing jobs keep their keys); any other is made to fit: other characters become "_", and a stable hash of the
+// original is appended (shortening the readable part if needed), so two different keys never collide.
+export const MED_KEY_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+function fnv(str, seed) {
+  let h = seed >>> 0;
+  for (const ch of String(str)) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  return h.toString(36).padStart(7, "0");
+}
+export function medRequestKey(raw) {
+  const s = String(raw);
+  if (MED_KEY_PATTERN.test(s)) return s;
+  const hash = fnv(s, 2166136261) + fnv(s, 3323198485);
+  const head = s.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 64 - hash.length - 1);
+  return `${head || "mx"}-${hash}`.padEnd(8, "0");
+}
 async function cmdRequests(io, job, kind, only, attempt) {
   const plan = await job.plan();
   const set = settingsOf(job);
   const reqs = [];
   const spec = (gen, tool, model, input, uploads, folder, extraKey = "") => ({
-    key: `${job.id}-${gen.replace(/:/g, "-")}-${attempt}${extraKey}`, gen, attempt, tool, modelId: MED_MODEL[model], input, uploads: uploads || {},
+    key: medRequestKey(`${job.id}-${gen.replace(/:/g, "-")}-${attempt}${extraKey}`), gen, attempt, tool, modelId: MED_MODEL[model], input, uploads: uploads || {},
     outputName: `${job.id}_${gen.replace(/:/g, "_")}_${attempt}`, folder: io.join(job.dir, "gen", folder),
   });
   const want = (id) => !only || only.has(String(id));
@@ -1305,7 +1321,8 @@ async function cmdRequests(io, job, kind, only, attempt) {
         const gen = `kf:${s.n}:${c}`;
         const styled = s.n > 1 && !!model.edit;
         const input = model.input(medKeyframePrompt(s, styled, style.suffix), style.geo.aspect);
-        const key = regen || modelId !== MED_KF_DEFAULT ? `-m${modelId}` : "";
+        // The model's short tag (never its id, which may hold "."), so the key stays within the host's pattern.
+        const key = regen || modelId !== MED_KF_DEFAULT ? `-m${model.tag}` : "";
         const make = (mid, inp, uploads, extra) => ({ ...spec(gen, "image", "t2i", inp, uploads, "keyframes", key + extra), modelId: mid });
         if (!styled) { reqs.push(make(model.t2i, input, null, "")); continue; }
         const ref = picks.kf["1"];

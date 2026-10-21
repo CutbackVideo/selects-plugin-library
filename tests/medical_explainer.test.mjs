@@ -616,7 +616,8 @@ test('keyframe models: scene 1 from text, scenes 2-N as edits of scene 1, only s
       assert.ok(r.input.prompt.includes(op.medStyleSuffix('medical', 'strip')));
       if (!scene1 && edit) { assert.deepEqual(r.input.image_urls, ['selects-input:ref']); assert.deepEqual(Object.keys(r.uploads), ['ref']); }
       else { assert.ok(!('image_urls' in r.input)); assert.deepEqual(r.uploads, {}); }
-      if (id !== 'seedream') assert.match(r.key, new RegExp(`-m${id.replace('.', '\\.')}`), 'a model choice is part of the request key');
+      if (id !== 'seedream') assert.match(r.key, new RegExp(`-m${op.MED_KF_MODELS[id].tag}`), 'a model choice is part of the request key');
+      assert.match(r.key, op.MED_KEY_PATTERN);
     }
     fs.rmSync(dir, {recursive: true, force: true});
   }
@@ -698,7 +699,7 @@ test('the user regenerates a refused scene\'s keyframe with a chosen model: new 
   const kf = host.log.kfPolicy[0];
   assert.equal(kf.gen, 'kf:2:R1');
   assert.equal(decode(kf.modelId), 'bytedance/seedream/v5/pro/edit', 'the model the user chose');
-  assert.match(kf.key, /-mseedream-rA$/);
+  assert.match(kf.key, /-msd5p-rA$/);
   assert.equal(kf.input.prompt, op.medKeyframePrompt(JSON.parse(fs.readFileSync(path.join(dir, 'plan.json'), 'utf8')).scenes[1], true));
   assert.match(kf.uploads.ref, /kf_1A\.png$/, 'scene 1 stays the style reference');
   assert.equal((await ctx.readPicks()).kf['2'], 'R1');
@@ -1027,5 +1028,79 @@ test('an older plan is not continued with the new prompts', async () => {
   fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify(plan));
   assert.deepEqual(await op.medEngine('requests', dir, ['keyframes', '1'], stubIO(dir)), {ok: false, error: 'OLD_PLAN'});
   assert.equal((await op.medEngine('requests', dir, ['narration'], stubIO(dir))).ok, true, 'narration keys are unchanged');
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+// ---- request keys always fit the host's pattern (Staging: "requestKey must match /^[A-Za-z0-9_-]{8,64}$/") ----
+test('every request key, for every model, mode, scene, attempt and revision, matches the host pattern', async () => {
+  const PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+  assert.equal(String(op.MED_KEY_PATTERN), String(PATTERN));
+  const seen = new Map();
+  let count = 0;
+  for (const jobId of ['mxmvindeea', 'mx' + 'z'.repeat(14)]) {
+    for (const model of Object.keys(op.MED_KF_MODELS)) {
+      assert.match(op.MED_KF_MODELS[model].tag, /^[a-z0-9]{3,6}$/);
+      for (const mode of ['zoom', 'myth', 'timeline', 'list']) {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'medexp-keys-'));
+        const n = 12;
+        const scenes = Array.from({length: n}, (_, i) => ({n: i + 1, narration: `Sentence ${i + 1}.`, subject: 's', visual: 's', motion: 'm', camera: 'push_in', scale: 'tissue',
+          transitionOut: i + 1 < n ? 'push' : null, label: 'L', pointers: [], split: null, insets: null, rev: 20}));
+        fs.writeFileSync(path.join(dir, 'job.json'), JSON.stringify({id: jobId, settings: {kfModel: model, voice: 'minimax-calm-lady', music: true}}));
+        fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify({version: op.MED_VERSION, lang: 'ko', mode, title: ['a', 'b'], scenes}));
+        const gen = {}, picks = {kf: {}, clip: {}, tr: {}, regen: {}};
+        for (const s of scenes) {
+          for (const c of ['A', 'B', 'R20']) { const f = path.join(dir, `kf_${s.n}${c}.png`); fs.writeFileSync(f, ''); gen[`kf:${s.n}:${c}`] = {path: f}; }
+          picks.kf[s.n] = 'R20'; picks.clip[s.n] = 'B'; picks.regen[s.n] = {model, k: 20};
+          fs.mkdirSync(path.join(dir, 'work'), {recursive: true});
+          fs.writeFileSync(path.join(dir, 'work', `out_${s.n}.png`), ''); fs.writeFileSync(path.join(dir, 'work', `in_${s.n}.png`), '');
+        }
+        fs.writeFileSync(path.join(dir, 'gen.json'), JSON.stringify(gen));
+        fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify(picks));
+        const tl = op.medTimeline(scenes.map(() => 4), scenes.slice(0, -1).map(() => 'push'));
+        fs.writeFileSync(path.join(dir, 'timeline.json'), JSON.stringify({...tl, music_ms: 59000}));
+        for (const kind of ['narration', 'keyframes', 'kfregen', 'clips', 'transitions', 'music']) {
+          for (const attempt of ['1', '99']) {
+            const out = await op.medEngine('requests', dir, [kind, '', '--attempt', attempt], stubIO(dir));
+            assert.notEqual(out.ok, false, `${kind}: ${out.error}`);
+            assert.ok(out.requests.length > 0, kind);
+            for (const r of out.requests) {
+              count++;
+              assert.match(r.key, PATTERN, `${model} ${mode} ${kind}: ${r.key}`);
+              const prior = seen.get(r.key);
+              assert.ok(!prior || prior === `${jobId}|${r.gen}|${JSON.stringify(r.input)}|${JSON.stringify(r.uploads).replace(/medexp-keys-[^/]+/g, '')}` || prior.startsWith(`${jobId}|${r.gen}|`),
+                `key reused across different requests: ${r.key}`);
+              seen.set(r.key, `${jobId}|${r.gen}|${JSON.stringify(r.input)}|${JSON.stringify(r.uploads).replace(/medexp-keys-[^/]+/g, '')}`);
+            }
+          }
+        }
+        fs.rmSync(dir, {recursive: true, force: true});
+      }
+    }
+  }
+  assert.ok(count > 5000, String(count));
+});
+
+test('the key helper keeps fitting keys as they are and makes any other fit, stably and without collisions', () => {
+  const k = 'mxabc123-kf-2-A-1-rB';
+  assert.equal(op.medRequestKey(k), k, 'existing Seedream keys are unchanged');
+  const bad = ['mxabc-kf-1-A-1-mnano-banana-2.1', 'mxabc-kf-1-A-1-mnano_banana_2_1', 'x'.repeat(80), 'x'.repeat(80) + 'y', 'a.b', 'a_b'];
+  const out = bad.map(op.medRequestKey);
+  for (const o of out) assert.match(o, op.MED_KEY_PATTERN);
+  assert.equal(new Set(out).size, out.length, 'no collisions');
+  assert.deepEqual(bad.map(op.medRequestKey), out, 'stable');
+  assert.equal(op.medRequestKey('mxabc-kf-1-A-1-mnano_banana_2_1'), 'mxabc-kf-1-A-1-mnano_banana_2_1', 'an already valid key is untouched');
+});
+
+test('the failed Staging job resumes: a recorded submission under the rejected key is submitted under the fitting key', async () => {
+  const gen = {'kf:1:A': {key: 'mxmvindeea-kf-1-A-1-mnano-banana-2.1', attempt: 1, phase: 'submitting'}};
+  const {dir} = makeJob({kfModel: 'nano-banana-2.1'});
+  const reqs = (await op.medEngine('requests', dir, ['keyframes', '1A'], stubIO(dir))).requests;
+  assert.equal(reqs.length, 1);
+  assert.match(reqs[0].key, /-mnb21$/);
+  const submits = [];
+  const api = {submit: async (q) => { submits.push(q.key); return 'selects-x'; }, list: async (ids) => ids.map((id) => ({jobId: id, status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: '/k.png'}]})), retryDelivery: async () => {}};
+  const r = await op.medRunGenerations(reqs, gen, api, {persist: async () => {}, sleep: async () => {}, now: () => 0});
+  assert.deepEqual(r, {failed: [], unresolved: []});
+  assert.deepEqual(submits, [reqs[0].key]);
   fs.rmSync(dir, {recursive: true, force: true});
 });
