@@ -33,6 +33,8 @@ jobs:
         run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_atomic_authoring.test.mjs tests/photo_atomic_compiled.test.mjs
       - name: Test Project title and saved visual receipts
         run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/camera_project_title.test.mjs tests/photo_graphic_receipts.test.mjs tests/photo_transform_receipts.test.mjs
+      - name: Test saved photo-template Audio receipts
+        run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_audio_receipts.test.mjs
       - name: Test durable template run recovery
         run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_template_run.test.mjs tests/template_run_files.test.mjs
       - name: Test template bootstrap and scoped local SDK copies

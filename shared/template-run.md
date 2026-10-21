@@ -29,7 +29,11 @@ paths, image bytes, full TSX/recipes or private diagnostics. Transform records
 must cover exactly the recorded Image/graphic identities and carry finite,
 well-formed values with positive scale. They remain optional for generic users;
 Image recovery requires the graphic and transform evidence its current verifier
-needs. An older record without it is inspected without replay. Reads check file size
+needs. Optional Audio receipts carry disjoint clip identities, Audio Resource IDs,
+Draft intervals, explicit source routing and level/key/fade settings. They have
+bounded counts, valid frame intervals, routing indexes and finite SDK-domain
+settings. Current Image recovery also requires this evidence, including an empty
+array for Music Off. An older record without it is inspected without replay. Reads check file size
 before loading and are limited to 48 KiB, matching the existing atomic file API.
 
 ## Exclusive claim and SDK-side completion

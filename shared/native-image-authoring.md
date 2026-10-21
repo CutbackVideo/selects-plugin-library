@@ -51,6 +51,15 @@ effects, graphics and audio recipes remain template-owned.
   calls it before the sole commit, and a separate SDK invocation verifies the
   same expected receipts from persisted state. Reopening the same app run uses
   those receipts without adopting manual changes or replaying a save.
+- `inspectImageAudio` verifies the complete Main/Audio-lane sound set. Each
+  template supplies intended Audio Resource IDs, clip/track identities, Draft
+  intervals and default source routing; the helper checks the Resource type
+  and reads the level, volume keys and edge fades through `clipAudio`. Both
+  recipes intend 0 dB, no volume keys and no fades. The normalized expected
+  values enter the existing durable result, not a snapshot adopted from an
+  unchecked host response. Working-copy and independent saved-state reads use
+  the same contract. Music Off verifies an empty sound set and does not require
+  an unused `clipAudio` API. An unexpected Main sound or Audio-lane clip fails.
 - A legacy empty seed may continue in one commit if it belongs to the Project
   and matches the plan. Any preexisting non-Main clip, including a manual graphic
   without a Resource ID, is refused. A configured Main Audio must match the
@@ -75,7 +84,9 @@ their individual operations when explicitly called; normal create paths use the
 new one-commit operation.
 
 Persisted receipts do not verify every saved effect/graphic/audio property,
-including TSX identity, editable definitions, effect stacks or Audio properties.
-Missing old graphic/transform evidence requires inspection, not a save replay.
+including TSX identity, editable definitions, effect stacks, sound source offsets
+or actual source bytes. Audio identity, Draft placement, explicit routing and
+level/fade properties are checked; actual audible content is not proved.
+Missing old graphic/transform/Audio evidence requires inspection, not a save replay.
 They do not prove actual image decoding, playback, visual fidelity or export. Those acceptance
 gates remain separate. See the [checkpoint](../docs/template-repair/photo-atomic-authoring.md).
