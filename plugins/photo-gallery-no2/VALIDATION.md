@@ -1,5 +1,26 @@
 # Validation and limits
 
+## Current repair checkpoint: 0.3.19
+
+The existing derived-file owner now observes the optional AbortSignal through
+file checks and checks liveness again after asynchronous private-path cleanup.
+Gallery passes the signal from held-video and PCM preparation and fences its
+conversion result handoff. A stopped request cannot return a late conversion
+success after those boundaries. Earlier production errors retain their identity.
+
+The exact parent fails ten of twelve focused real-file/compiled-panel cases,
+with healthy reuse and earlier-error controls retained. The fixed version passes
+all twelve; the held-video/tempo/media-tool group passes 71 cases. A complete
+published object/index is preserved when stopping during cleanup, and a distinct
+live request can reuse it. No published media or older Draft resource is deleted.
+See `docs/template-repair/gallery-derived-lifetime.md` for scope and verification.
+
+The five-feature/ten-consumer pool is retained. No.14, Stop Motion and Polaroid
+receive synchronized helper definitions with their existing call paths unchanged.
+This is source/real-file fault injection, not installed-app cancellation or actual
+Windows evidence. Crash/lost-reply recovery, cleanup failures, garbage collection,
+full AV/reference/changed-input quality and all remaining template gates stay open.
+
 ## Native pre-encode and codec follow-up
 
 The actual native compositor now has causal point-sample evidence. At the same
@@ -61,7 +82,7 @@ This uses synthetic media, one grid, no Audio and an isolated browser, not an
 installed app or encoded native export. The runtime, complete AV, Windows,
 original-reference and changed-input acceptance gates below remain open.
 
-## Current repair checkpoint: 0.3.18
+## Earlier repair checkpoint: 0.3.18
 
 Selected source metadata and complete file contents are reobserved before and
 after the single Draft commit. The actual SDK cached resources/sourceFiles per

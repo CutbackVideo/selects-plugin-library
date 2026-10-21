@@ -149,7 +149,7 @@ async function holdFileHash(path,options) {
 async function holdConvertOne(source, identity, sourceDimensions, frames, cacheRoot, options) {
   const key = await holdKey([HOLD_ALGORITHM,holdPathKey(source),identity.sha256,identity.bytes,frames,HOLD_FPS,...sourceDimensions].join('\0'));
   const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
-  const result=await prepareDerivedAsset(options.client.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,hashFile:path=>holdFileHash(path,options),
+  const result=await prepareDerivedAsset(options.client.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,signal:options.signal,hashFile:path=>holdFileHash(path,options),
     produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,true,options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options);},
     verify:path=>holdValidate(path,frames,dimensions,true,options)});
   return {videoPath:result.path,dimensions,reused:result.reused};
@@ -183,6 +183,7 @@ async function holdVideos(request, dataDir, options = {}) {
       const id = holdPathKey(raw) + '\0' + identity.sha256;
       if (!completed.has(id)) {
         const done = await holdConvertOne(raw, identity, sourceDimensions, frames, cacheRoot, options);
+        current();
         completed.set(id, { ...done, sourceDimensions });
       }
       const done = completed.get(id);
@@ -193,7 +194,7 @@ async function holdVideos(request, dataDir, options = {}) {
       throw Object.assign(holdError('Video ' + (index + 1) + ': ' + String(error?.message || error)), { detail: error?.detail,...error?.publicMessage?{publicMessage:error.publicMessage}:{} });
     }
   }
-  return { status: 'converted', fps: HOLD_FPS, durationFrames: frames, videos: output };
+  current();return { status: 'converted', fps: HOLD_FPS, durationFrames: frames, videos: output };
 }
 // hold:end
 
@@ -271,7 +272,7 @@ async function analyzeMusicFile(path, dataDir, options = {}) {
       for(let i=0;i<values.length;i++){values[i]=view.getFloat32(i*4,true);if(!Number.isFinite(values[i]))throw issue('The decoded music PCM contains an invalid sample.','tempo-pcm');}
       return values;
     };
-    const prepared=await prepareDerivedAsset(files,{directory:files.join(dataDir,'tempo-v1'),key,sourcePath:path,source,extension:'f32',isCurrent:()=>{current();return true;},hashFile,
+    const prepared=await prepareDerivedAsset(files,{directory:files.join(dataDir,'tempo-v1'),key,sourcePath:path,source,extension:'f32',isCurrent:()=>{current();return true;},signal:options.signal,hashFile,
       produce:async(snapshot,target)=>{
         try{await holdTool('runFFmpeg',['-nostdin','-v','error','-y','-t',String(TEMPO_SECONDS),'-i',snapshot,'-vn','-ac','1','-ar',String(TEMPO_RATE),'-f','f32le',target],45,work);}
         catch(error){if(!error?.terminal&&error?.code==='hold-failed')decodeFailed=true;throw error;}

@@ -605,9 +605,10 @@ async function readAssetFileIdentity(files,path,hashFile,current){
  }
 }
 async function prepareDerivedAsset(files,options){
- const {directory,key,sourcePath,source,extension='mp4',isCurrent=()=>true,hashFile,produce,verify}=options??{};
+ const {directory,key,sourcePath,source,extension='mp4',isCurrent=()=>true,signal,hashFile,produce,verify}=options??{};
  if(typeof isCurrent!=='function')throw bundledAssetIssue('INPUT','The derived media liveness check must be callable.');
- const current=()=>{if(!isCurrent())throw bundledAssetIssue('STOPPED','The template run ended before prepared media could be published.');};
+ if(signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw bundledAssetIssue('INPUT','The derived media cancellation signal is invalid.');
+ const current=()=>{if(signal?.aborted||!isCurrent())throw bundledAssetIssue('STOPPED','The template run ended before media preparation completed.');};
  const same=(a,b)=>a?.sha256===b?.sha256&&a?.bytes===b?.bytes;
  const valid=value=>value&&typeof value.sha256==='string'&&/^[0-9a-f]{64}$/.test(value.sha256)&&Number.isSafeInteger(value.bytes)&&value.bytes>0;
  const freshSource=async()=>{if(!same(await readAssetFileIdentity(files,sourcePath,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');};
@@ -627,13 +628,13 @@ async function prepareDerivedAsset(files,options){
   }catch(error){current();if(error?.terminal||error?.code==='host-missing')throw error;return null;}
   await freshSource();return candidate;
  };
- const previous=await cached();if(previous)return previous;
+ const previous=await cached();current();if(previous)return previous;
  if(typeof globalThis.crypto?.randomUUID!=='function')throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
  const owner=crypto.randomUUID();
  if(typeof owner!=='string'||!/^[0-9a-f-]{36}$/i.test(owner))throw bundledAssetIssue('UNSUPPORTED','The media preparation owner could not be created.');
  current();await files.mkdir(directory,{recursive:true});current();
  const snapshot=files.join(directory,'.source-'+owner),temporary=files.join(directory,'.output-'+owner+'.'+extension+'.tmp');
- const owned=[];
+ const owned=[];let result;
  try{
   // Reserve each private path exclusively before copying/encoding over it.
   for(const path of [snapshot,temporary]){current();await files.writeFile(path,'',{flag:'wx'});owned.push(path);current();}
@@ -657,7 +658,7 @@ async function prepareDerivedAsset(files,options){
   try{await files.writeFile(indexPath,text);}catch{/* Observe an acknowledged or concurrent complete index below. */}
   current();const confirmed=await cached();
   if(!confirmed)throw bundledAssetIssue('PUBLISH','The prepared media index could not be confirmed. Inspect the cache before starting again.');
-  return {...confirmed,reused:false};
+  result={...confirmed,reused:false};
  }catch(error){
   if(error?.terminal||error?.code==='host-missing'||typeof error?.publicMessage==='string'||/^BUNDLED_ASSET_/.test(error?.code??''))throw error;
   throw bundledAssetIssue('DERIVED','Prepared media could not be completed. Check the source, available storage and media tools.',error);
@@ -666,6 +667,8 @@ async function prepareDerivedAsset(files,options){
   // objects/indexes may already be referenced by a different run or old Draft.
   for(const path of owned)await files.removeFile({filePath:path}).catch(()=>{});
  }
+ // Cleanup is asynchronous too: a detached owner must not receive a late success.
+ current();return result;
 }
 async function runAssetMediaTool(media,kind,args,options={}){
  if(!options||typeof options!=='object'||Array.isArray(options))throw bundledAssetIssue('INPUT','The media process options are invalid.');
@@ -871,7 +874,7 @@ async function holdFileHash(path,options) {
 async function holdConvertOne(source, identity, sourceDimensions, frames, cacheRoot, options) {
   const key = await holdKey([HOLD_ALGORITHM,holdPathKey(source),identity.sha256,identity.bytes,frames,HOLD_FPS,...sourceDimensions].join('\0'));
   const dimensions = holdDimensions(sourceDimensions[0], sourceDimensions[1]);
-  const result=await prepareDerivedAsset(options.client.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,hashFile:path=>holdFileHash(path,options),
+  const result=await prepareDerivedAsset(options.client.files,{directory:cacheRoot,key,sourcePath:source,source:identity,extension:'mp4',isCurrent:options.isCurrent,signal:options.signal,hashFile:path=>holdFileHash(path,options),
     produce:async(snapshot,target)=>{const {video}=await holdProbe(snapshot,true,options);if(JSON.stringify(holdUpright(video))!==JSON.stringify(sourceDimensions))throw holdError('A video changed before extension');await holdEncode(snapshot,target,frames,options);},
     verify:path=>holdValidate(path,frames,dimensions,true,options)});
   return {videoPath:result.path,dimensions,reused:result.reused};
@@ -905,6 +908,7 @@ async function holdVideos(request, dataDir, options = {}) {
       const id = holdPathKey(raw) + '\0' + identity.sha256;
       if (!completed.has(id)) {
         const done = await holdConvertOne(raw, identity, sourceDimensions, frames, cacheRoot, options);
+        current();
         completed.set(id, { ...done, sourceDimensions });
       }
       const done = completed.get(id);
@@ -915,7 +919,7 @@ async function holdVideos(request, dataDir, options = {}) {
       throw Object.assign(holdError('Video ' + (index + 1) + ': ' + String(error?.message || error)), { detail: error?.detail,...error?.publicMessage?{publicMessage:error.publicMessage}:{} });
     }
   }
-  return { status: 'converted', fps: HOLD_FPS, durationFrames: frames, videos: output };
+  current();return { status: 'converted', fps: HOLD_FPS, durationFrames: frames, videos: output };
 }
 // hold:end
 
@@ -993,7 +997,7 @@ async function analyzeMusicFile(path, dataDir, options = {}) {
       for(let i=0;i<values.length;i++){values[i]=view.getFloat32(i*4,true);if(!Number.isFinite(values[i]))throw issue('The decoded music PCM contains an invalid sample.','tempo-pcm');}
       return values;
     };
-    const prepared=await prepareDerivedAsset(files,{directory:files.join(dataDir,'tempo-v1'),key,sourcePath:path,source,extension:'f32',isCurrent:()=>{current();return true;},hashFile,
+    const prepared=await prepareDerivedAsset(files,{directory:files.join(dataDir,'tempo-v1'),key,sourcePath:path,source,extension:'f32',isCurrent:()=>{current();return true;},signal:options.signal,hashFile,
       produce:async(snapshot,target)=>{
         try{await holdTool('runFFmpeg',['-nostdin','-v','error','-y','-t',String(TEMPO_SECONDS),'-i',snapshot,'-vn','-ac','1','-ar',String(TEMPO_RATE),'-f','f32le',target],45,work);}
         catch(error){if(!error?.terminal&&error?.code==='hold-failed')decodeFailed=true;throw error;}

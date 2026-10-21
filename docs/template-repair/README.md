@@ -24,6 +24,14 @@ an unrelated workflow. A passing unit suite alone is not completion.
 
 ## Current checkpoint
 
+- Gallery 0.3.19 repairs a late conversion-success result when the owner stops
+  during private-file cleanup or the final source-stat response. The existing
+  bundled-assets owner now observes an optional AbortSignal through file I/O and
+  rechecks liveness after asynchronous cleanup; Gallery fences its result handoff.
+  Complete objects/indexes remain available to a new live request. See
+  [gallery-derived-lifetime.md](gallery-derived-lifetime.md). Crash reconciliation,
+  lost-reply ownership, full installed/platform/AV and other contract gates remain.
+
 - Gallery now has isolated macOS development-app panel/save/SQLite-reload,
   Driver playback and native MP4 evidence. Actual export exposed an additional
   source-resolution atlas defect after the WASM fix; client #7876 now shares
@@ -115,7 +123,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `jude-kinetic-style` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `mini-vlog` | Source audit only | Full contract and runtime completion gates above |
 | `no14-still-video` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
-| `photo-gallery-no2` | Shared input/run/assets, source-content guards, real SDK/browser rendering; isolated dev-app SQLite reload/playback/native export; pre-encode point RED/GREEN and byte-verified codec controls | Complete image/AV quality, safe cleanup/crash staging, installed app, Windows, Inspector, reference/changed-input quality and full contract gates above |
+| `photo-gallery-no2` | Shared input/run/assets, source-content guards, real SDK/browser rendering; dev-app SQLite/playback/native and codec evidence; shared derived-owner late-cancellation RED/GREEN | Complete image/AV quality, crash/lost-reply staging and cleanup failures, installed app, Windows, Inspector, reference/changed-input quality and full contract gates above |
 | `place-count` | Canonical authoring check + draft #260; automated regressions pass | Full contract and runtime completion gates above |
 | `polaroid-photo-dump` | Shared input/bootstrap + generated-frame exclusion + verified bundled assets + one complete save, durable app-run ownership/recovery and independent receipts; client #7828 prerequisite | Full contract and runtime completion gates above |
 | `portrait-beat-montage` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
