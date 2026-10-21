@@ -2,15 +2,15 @@
   "id": "jeongjwippul-draft",
   "version": 3,
   "names": {
-    "ko": "정쥐뿔 (자료 미완성 초안)",
+    "ko": "\uc815\uc950\ubfd4 (\uc790\ub8cc \ubbf8\uc644\uc131 \ucd08\uc548)",
     "en": "Jeongjwippul (incomplete draft)"
   },
   "detect": {
     "keywords": [
-      "정쥐뿔"
+      "\uc815\uc950\ubfd4"
     ],
     "exclude": [],
-    "host": "정쥐뿔"
+    "host": "\uc815\uc950\ubfd4"
   },
   "layout": {
     "windowTop": 541.2499809265137,
@@ -107,14 +107,14 @@
     "removeSilences": true
   },
   "prompt": {
-    "role": "조선일보 정쥐뿔 숏폼 편집자다.",
-    "format": "제공된 영상과 전사에서 하나의 완결된 발언·논점을 고른다.",
-    "good": "맥락을 보존한 완결된 발언",
-    "bad": "앞뒤 맥락을 제거해 발언의 의미를 바꾸는 편집",
-    "lengthGuide": "원문 맥락을 보존하는 길이. 고객 지정 길이는 미확인.",
-    "countGuide": "요청한 개수. 고객 기본 개수는 미확인.",
-    "rules": "전사에 없는 사실·인물·발언을 추가하지 않는다. 고객 편집 규칙은 아직 미확인이다.",
-    "headline": "두 줄. 프로젝트 예시처럼 첫 줄은 발언 대상이나 논점, 둘째 줄은 핵심 발언을 요약한다. 인용은 실제 발언일 때만 쓴다. 줄 길이 제한은 고객 확인 전 임시 운영 기준이며, 넘칠 경우 의미를 보존해 줄인다."
+    "role": "\uc870\uc120\uc77c\ubcf4 \uc815\uc950\ubfd4 \uc20f\ud3fc \ud3b8\uc9d1\uc790\ub2e4.",
+    "format": "\uc81c\uacf5\ub41c \uc601\uc0c1\uacfc \uc804\uc0ac\uc5d0\uc11c \ud558\ub098\uc758 \uc644\uacb0\ub41c \ubc1c\uc5b8\u00b7\ub17c\uc810\uc744 \uace0\ub978\ub2e4.",
+    "good": "\ub9e5\ub77d\uc744 \ubcf4\uc874\ud55c \uc644\uacb0\ub41c \ubc1c\uc5b8",
+    "bad": "\uc55e\ub4a4 \ub9e5\ub77d\uc744 \uc81c\uac70\ud574 \ubc1c\uc5b8\uc758 \uc758\ubbf8\ub97c \ubc14\uafb8\ub294 \ud3b8\uc9d1",
+    "lengthGuide": "\uc6d0\ubb38 \ub9e5\ub77d\uc744 \ubcf4\uc874\ud558\ub294 \uae38\uc774. \uace0\uac1d \uc9c0\uc815 \uae38\uc774\ub294 \ubbf8\ud655\uc778.",
+    "countGuide": "\uc694\uccad\ud55c \uac1c\uc218. \uace0\uac1d \uae30\ubcf8 \uac1c\uc218\ub294 \ubbf8\ud655\uc778.",
+    "rules": "\uc804\uc0ac\uc5d0 \uc5c6\ub294 \uc0ac\uc2e4\u00b7\uc778\ubb3c\u00b7\ubc1c\uc5b8\uc744 \ucd94\uac00\ud558\uc9c0 \uc54a\ub294\ub2e4. \uace0\uac1d \ud3b8\uc9d1 \uaddc\uce59\uc740 \uc544\uc9c1 \ubbf8\ud655\uc778\uc774\ub2e4.",
+    "headline": "\ub450 \uc904. \ud504\ub85c\uc81d\ud2b8 \uc608\uc2dc\ucc98\ub7fc \uccab \uc904\uc740 \ubc1c\uc5b8 \ub300\uc0c1\uc774\ub098 \ub17c\uc810, \ub458\uc9f8 \uc904\uc740 \ud575\uc2ec \ubc1c\uc5b8\uc744 \uc694\uc57d\ud55c\ub2e4. \uc778\uc6a9\uc740 \uc2e4\uc81c \ubc1c\uc5b8\uc77c \ub54c\ub9cc \uc4f4\ub2e4. \uc904 \uae38\uc774 \uc81c\ud55c\uc740 \uace0\uac1d \ud655\uc778 \uc804 \uc784\uc2dc \uc6b4\uc601 \uae30\uc900\uc774\uba70, \ub118\uce60 \uacbd\uc6b0 \uc758\ubbf8\ub97c \ubcf4\uc874\ud574 \uc904\uc778\ub2e4."
   },
   "schemaVersion": 1,
   "labels": {

@@ -8,7 +8,7 @@ images, reports and embedded-image JSON copies are not committed.
 
 ## Customer Premiere values applied
 
-Source: `정쥐뿔 쇼츠 (1).prproj`, 1080×1920.
+Source: `customer-supplied Jeongjwippul Shorts Premiere project`, 1080×1920.
 
 | Element | Source and value |
 | --- | --- |
@@ -33,14 +33,14 @@ in the multi-episode source project.
 ## Official Short supplementation
 
 Customer-specified reference: https://www.youtube.com/shorts/6iL0pNQCEwY
-(Chosun Ilbo, “다음 중 교체해야 할 사람은? [정쥐뿔]”).
+(Chosun Ilbo, “Which of these people should be replaced? [Jeongjwippul]”).
 
 - Black surrounding frame confirmed visually.
 - Lower bumper extracted directly as a 112×174 browser crop, including black
   margins. Local template displays it at 262.9565px width at the Premiere center.
-  This is a compressed low-resolution substitute, not the original `범퍼.png`.
+  This is a compressed low-resolution substitute, not the original `bumper PNG`.
 - The small upper-left program logo is present in the reference video itself;
-  the comparison scene retains it. A separate transparent `로고.png` has not been
+  the comparison scene retains it. A separate transparent `logo PNG` has not been
   reconstructed or falsely supplied as an original asset.
 
 ## Optional region blur
@@ -68,7 +68,7 @@ verification does not override the requested font names.
   fallback currently changes the glyph shapes/weight on this Mac.
   Font software cannot be recovered from raster video frames.
 - Original bumper and transparent logo remain missing. The disabled working
-  guide `자막 길이 컷.png` is optional (component 1280 in the sampled graphic).
+  guide `caption length guide PNG` is optional (component 1280 in the sampled graphic).
 - Headline metric conversion, shadow-angle default, paragraph variants and
   source-video blur require native Premiere comparison; do not label them exact.
 - Editorial duration/count defaults remain customer-unconfirmed.
