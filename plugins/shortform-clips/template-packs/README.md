@@ -104,6 +104,28 @@ The shared app validates all templates and images before activation. Its rendere
 features bound what a JSON file can express. New graphics behavior belongs in the
 shared app and a future compatible template API.
 
+## Template API 5 scene settings
+
+Packs containing scene templates require Template API 5, even when they also
+contain API 1/2 layouts. The app continues to read older layout packs. The
+[Hankook Ilbo pack](hankook-ilbo) includes Huick Alpha alongside its existing
+Knowledge Exchange and Issue Broadcast templates.
+
+Scene templates retain the usual design, caption and prompt settings and add:
+
+- `editorial.mode: "scenes"` and `editorial.execution: "layers"` select the
+  planning-AI then production-AI workflow.
+- `editorial.instructions` defines the channel's editing criteria and style.
+- Optional `editorial.visualGuide.image` references a declared raster asset;
+  `description` explains how to interpret it as style evidence rather than
+  episode source material.
+
+Keep channel criteria in the template and episode-specific requirements in the
+creation brief. Declare the logo and visual guide in the containing pack's assets;
+do not include source footage, generated cutouts, evaluation logs or test briefs.
+See [Scene templates](../README.md#scene-templates) for runtime requirements and
+the boundary between template defaults and AI decisions.
+
 ## Updates and local storage
 
 All templates use one repository regardless of whether they arrived by link,

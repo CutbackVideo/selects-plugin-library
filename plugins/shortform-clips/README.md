@@ -4,6 +4,46 @@ A shared app for turning a YouTube link, project video, synced timeline, or exis
 Draft into editable vertical Drafts. Customer designs, detection keywords and passage-selection instructions
 are delivered separately as template packs. The app has no bundled customer templates.
 
+## Scene templates
+
+Template API 5 adds an editable scene workflow, used by Huick Alpha in the
+[Hankook Ilbo pack](template-packs/hankook-ilbo). Existing API 1/2 layout templates
+retain their settings-based generation. Scene templates set `editorial.mode` to
+`scenes` and `editorial.execution` to `layers`.
+
+The host gathers original transcripts, companion media and shared source overview
+images. The planning AI combines that evidence with the selected template and
+Extra instructions to choose source ranges, scene intent, composition, visual
+reveals and caption timing. A separate production AI implements the plan using
+editable Draft layers and common media, text and article helpers. Original source
+audio remains on Main; prepared foregrounds are silent overlays. The host checks
+saved source mappings and creates dialogue captions using the template styles.
+
+Channel-wide editing criteria, typography, logo and visual guide belong in the
+template. Episode-specific concepts, cast treatments, required scenes, excerpts
+and credits belong in Extra instructions; explicit supplied choices override
+defaults, and the planner fills unspecified choices from the available sources.
+Neither AI introduces a second channel style outside the template.
+
+This path requires an imported Project with transcription, `sourceFiles`, AI
+requests with images, SDK scripts, media capture/probe/FFmpeg, and editable Draft
+overlays and text graphics. New foreground preparation also requires the installed
+`selects-ai-runtime` with `person.matte` and host `selects.ai.prepareMatte` support.
+Preparation operates on selected source intervals and retains original-frame
+lineage so compatible media can be reused. A prepared foreground does not remove
+the need to inspect and arrange its face, edges and occlusion in the actual scene.
+
+Each AI call retains the host's 600-second limit. A timed-out job saves progress;
+use **Resume** to continue the same Draft and reuse completed processing. The
+scene workflow has no separate overall generation deadline. Stage timing includes
+foreground preparation, with fresh and reused media recorded separately. Export
+and development evaluation are separate from generation time. Model and reasoning
+effort remain controlled by the host/account, not the template.
+
+Saved-layer and timing checks do not certify visual or audio quality. Review the
+completed Draft for source selection, readability, continuity and compositing.
+The development evaluation harness is not shipped or run as another AI stage.
+
 ## Use
 
 1. Open **Shortform Clips** from Apps with a Project open.
