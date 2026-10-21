@@ -1,6 +1,6 @@
 {
   "id": "heukbaek",
-  "version": 2,
+  "version": 3,
   "names": {
     "ko": "\ud751\ubc31\uc5ec\uc758\ub3c4",
     "en": "Black & White Yeouido"
@@ -19,7 +19,7 @@
     "sourceTop": 0,
     "sourceBottom": 807,
     "offsetX": 0,
-    "headlineCenter": 292,
+    "headlineCenter": 293.342578125,
     "logoCenter": 1670,
     "reframe": true,
     "reframePreset": "custom",
@@ -38,7 +38,7 @@
     "style": "linear-gradient(160deg,#3A3C42 0%,#26272B 42%,#1A1B1E 100%)",
     "color": "#3A3C42",
     "image": "assets/heukbaek-background.webp",
-    "imageName": "TikTok @_chosunilbo_",
+    "imageName": "heukbaek-background.webp",
     "dim": 0
   },
   "border": {
@@ -50,11 +50,11 @@
     "size1": 74,
     "size2": 74,
     "color1": "#FFFFFF",
-    "color2": "#EC09B2",
+    "color2": "#FF29B8",
     "box2On": false,
     "box2": "#D7263D",
     "italic": false,
-    "shadow": true,
+    "shadow": false,
     "fontWeight": 400,
     "lineHeight": 1.16,
     "letterSpacing": -1.48,
@@ -65,15 +65,19 @@
     "fitLatin": 0.6,
     "fitOther": 0.4,
     "fitWideLatin": 0.6,
-    "strokeOn": true,
+    "strokeOn": false,
     "strokeWidth": 3,
     "strokeColor": "currentColor",
-    "gap": 2
+    "gap": 2,
+    "rowGap": 88.8,
+    "offsetX1": -0.555044151961,
+    "offsetX2": -0.555044151961,
+    "ideographFont": "MPLUS1p-Medium"
   },
   "logo": {
     "mode": "image",
     "image": "assets/heukbaek-logo.webp",
-    "imageName": "TikTok @_chosunilbo_",
+    "imageName": "heukbaek-logo.webp",
     "width": 432
   },
   "captions": {
@@ -86,7 +90,12 @@
     "boxColor": "#0000009E",
     "color": "#FFFFFF",
     "font": "SDGyeokdongG204Rg",
-    "lineMax": 14
+    "lineMax": 14,
+    "letterSpacing": -3.3,
+    "baselineTop": 1329.90234375,
+    "rowGap": 90,
+    "left": 36.6217041015625,
+    "width": 1000
   },
   "editing": {
     "removeFillers": true,

@@ -57,6 +57,22 @@ test('template-owned caption box layout',{skip:!modulesRoot && 'Set SBS_PANEL_TE
     assert.notEqual(html,renderCaption(series,{...params,boxPaddingTop:6,boxPaddingBottom:6,boxLineHeight:1.05}));
   });
 
+  await t.test('Premiere caption tracking reaches both bar renderers without changing legacy defaults',()=>{
+    const heukbaek=require('../template-packs/chosun-ilbo/templates/heukbaek.json');
+    const params={...api.radioCaptionParams(heukbaek),text:'\uc7a5\uc724\uae30 \uc0ac\uac74\uc774\n\ud130\uc84c\uc744 \ub54c\ub294'};
+    assert.equal(params.letterSpacing,75*(-44/1000));
+    assert.equal(params.baselineTop,1329.90234375);
+    assert.equal(params.rowGap,90);
+    const barParams={...params,baselineTop:undefined};
+    const actual=renderCaption(series,barParams);
+    assert.equal(actual,renderCaption(api.RadioPreviewCaption,barParams));
+    assert.equal((actual.match(/letter-spacing:-3\.3px/g)||[]).length,2);
+    for(const Component of [series,api.RadioPreviewCaption]){
+      assert.match(renderCaption(Component,{...params,baselineTop:undefined,letterSpacing:undefined}),/letter-spacing:-1px/);
+      assert.match(renderCaption(Component,{...params,baselineTop:undefined,letterSpacing:0}),/letter-spacing:0/);
+    }
+  });
+
   await t.test('optional box values validate and survive saved template edits and variants',()=>{
     assert.equal(api.validateTemplate(legacyTemplate),legacyTemplate);
     assert.equal(api.validateTemplate(template),template);

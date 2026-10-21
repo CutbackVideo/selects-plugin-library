@@ -28,7 +28,7 @@
     "style": "radial-gradient(ellipse at 50% 45%,#F1F0EC 0%,#DCDBD6 55%,#B5B4AE 100%)",
     "color": "#F1F0EC",
     "image": "assets/history-background.webp",
-    "imageName": "TikTok @_chosunilbo_",
+    "imageName": "history-background.webp",
     "dim": 0
   },
   "border": {
@@ -63,7 +63,7 @@
   "logo": {
     "mode": "image",
     "image": "assets/history-logo.webp",
-    "imageName": "TikTok @_chosunilbo_",
+    "imageName": "history-logo.webp",
     "width": 952
   },
   "captions": {
