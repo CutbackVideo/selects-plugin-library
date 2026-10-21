@@ -31,8 +31,10 @@ an unrelated workflow. A passing unit suite alone is not completion.
   draft PR #259. Read-only checks precede sounds/music import and Draft creation.
   Both remote CI checks passed on 2026-10-21; installed-template gates remain open.
   Their subsequent one-commit working-copy repair is described in
-  [photo-atomic-authoring.md](photo-atomic-authoring.md); durable run claims and
-  installed save/playback/export verification remain open.
+  [photo-atomic-authoring.md](photo-atomic-authoring.md). Durable app-run claims
+  and SDK-side receipts now pass two-consumer regression checks; see
+  [photo-run-receipts.md](photo-run-receipts.md). Other photo defects and all
+  installed save/playback/export/platform verification remain open.
 - Place Count's obsolete named capability query: independent draft PR #260;
   canonical Draft-method checks and both remote CI checks pass. Installed-app
   save/playback/export and the other six audited findings remain pending.
@@ -69,7 +71,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | --- | --- | --- |
 | `ali-abdaal-style` | Source audit only | Full contract and runtime completion gates above |
 | `archive-vlog` | Source audit only | Full contract and runtime completion gates above |
-| `camera-shutter-dump` | Original-file preflight + single complete Draft commit; lifecycle still in progress | Full contract and runtime completion gates above |
+| `camera-shutter-dump` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
 | `chris-williamson-style` | Source audit only | Full contract and runtime completion gates above |
 | `cinema-vlog-studio` | Source audit only | Full contract and runtime completion gates above |
 | `city-weekend-vlog` | Source audit only | Full contract and runtime completion gates above |
@@ -81,7 +83,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `gongju-gallery` | Duration regression + draft #258; CI pass | Full contract and runtime completion gates above |
 | `jude-kinetic-style` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `mini-vlog` | Source audit only | Full contract and runtime completion gates above |
-| `no14-still-video` | Original-file preflight + single complete Draft commit; lifecycle still in progress | Full contract and runtime completion gates above |
+| `no14-still-video` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
 | `photo-gallery-no2` | Source audit only | Full contract and runtime completion gates above |
 | `place-count` | Canonical authoring check + draft #260; automated regressions pass | Full contract and runtime completion gates above |
 | `polaroid-photo-dump` | Source audit only | Full contract and runtime completion gates above |

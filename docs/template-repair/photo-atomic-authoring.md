@@ -1,5 +1,8 @@
 # Photo Draft save checkpoint
 
+Historical save checkpoint. The subsequent [run recovery checkpoint](photo-run-receipts.md)
+implements durable app-run ownership at these two consumers; other open gates remain.
+
 Consumers: Four Photo Reveal (`no14-still-video` 0.5.3) and Camera Shutter Dump
 (`camera-shutter-dump` 0.1.10). This is part of ordered lifecycle repair, not
 completion of either template or the 28-template objective.

@@ -4,13 +4,13 @@ import vm from 'node:vm';
 import {loadPanelFunctions} from './windows_host.mjs';
 import {loadPanelOperation} from './panel_operation.mjs';
 
-export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceiptOnly=false}={}){
+export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceiptOnly=false,commitReplyLost=false}={}){
  const count=id==='no14-still-video'?4:12,photos=Array.from({length:count},(_,i)=>({resourceId:'r'+i,name:'Photo '+i,path:'/photos/'+i+'.png'}));
  const resources=[...photos.map(p=>({...p,type:'Image'})),...Array.from({length:6},(_,i)=>({resourceId:'a'+i,name:'Sound '+i,type:'Audio',durationSeconds:10}))];
  const nodes=resources.map(r=>({...r,type:r.type.toLowerCase(),path:r.path||'/audio/'+r.name+'.wav',frameSize:{width:640,height:960},durationSeconds:10}));
  const saved=new Map(),calls=[],commits=[],hooks={},receipts=[];let serial=0,live=true,imports=0;
  const project={resources:async()=>resources,sourceFiles:async()=>({fileTree:nodes}),meta:async()=>({draftIds:[...saved.keys()]}),resource:id=>({id}),
-  importFiles:async()=>{imports++;resources.push({resourceId:'music',name:'Music',type:'Audio',durationSeconds:60});nodes.push({resourceId:'music',type:'audio',path:'/installed/assets/music.mp3',durationSeconds:60});return {addedResourceIds:['music']};},
+  importFiles:async({paths})=>{imports++;resources.push({resourceId:'music',name:'Music',type:'Audio',durationSeconds:60});nodes.push({resourceId:'music',type:'audio',path:paths[0],durationSeconds:60});return {addedResourceIds:['music']};},
   createDraft:async({name})=>handle('draft-'+ ++serial,{name,fps,durationFrames:0,frameSize:{width:720,height:1280},clips:[]})};
  function handle(draftId,state){
   const clips=state.clips;
@@ -21,7 +21,7 @@ export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceipt
    overlayResource:async({resource,over})=>add(resources.find(r=>r.resourceId===resource.id)?.type==='Audio'?'audio':'video',resource.id,over),
    setClipTransform:async()=>{},addVideoEffect:async()=>{if(failEffect)throw Error('effect compiler failed');},applyEffectPreset:async()=>{},
    addMotionGraphic:async({within})=>add('video',null,within),
-   commitAll:async reason=>{const isNew=!saved.has(draftId);saved.set(draftId,structuredClone(state));commits.push({draftId,reason});if(tamperSaved&&/Finish/.test(reason))saved.get(draftId).frameSize.width=123;return isNew?{createdDraftId:draftId,...newReceiptOnly?{}:{commitId:'c'+commits.length}}:{commitId:'c'+commits.length};},
+   commitAll:async reason=>{const isNew=!saved.has(draftId);saved.set(draftId,structuredClone(state));commits.push({draftId,reason});if(commitReplyLost)throw Error('commit reply lost');if(tamperSaved&&/Finish/.test(reason))saved.get(draftId).frameSize.width=123;return isNew?{createdDraftId:draftId,...newReceiptOnly?{}:{commitId:'c'+commits.length}}:{commitId:'c'+commits.length};},
   };
  }
  const selects={project:()=>project,draft:draftId=>{assert.ok(saved.has(draftId),'only persisted IDs may be reopened');return handle(draftId,structuredClone(saved.get(draftId)));},
@@ -37,5 +37,5 @@ export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceipt
  const args={projectId:'p',selected:photos,decoration:{shape:'none',color:'#ffffff'},framing:id==='no14-still-video'?{}:[],music:'off',name:'Fixture',stillCurrent:()=>live,say:()=>{},onDraft:async draftId=>{await Promise.resolve();receipts.push({draftId,images:saved.get(draftId).clips.filter(c=>c.trackKind==='video'&&c.resourceId).length});}};
  const invoke=(fn,options={})=>fn(sdk,{...args,...options});
  const create=(options={})=>invoke(api[id==='no14-still-video'?'createNo14Draft':'createPhotoDraft'],options);
- return {create,invoke,commits,saved,calls,hooks,receipts,api,stop:()=>{live=false;},get imports(){return imports;}};
+ return {create,invoke,commits,saved,calls,hooks,receipts,api,sdk,selects,photos,resources,nodes,args,stop:()=>{live=false;},get imports(){return imports;}};
 }

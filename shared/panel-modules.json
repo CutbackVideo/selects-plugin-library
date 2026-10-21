@@ -29,6 +29,14 @@
         "plugins/no14-still-video/panel.tsx",
         "plugins/camera-shutter-dump/panel.tsx"
       ]
+    },
+    {
+      "id": "template-run",
+      "source": "shared/template-run.js",
+      "targets": [
+        "plugins/no14-still-video/panel.tsx",
+        "plugins/camera-shutter-dump/panel.tsx"
+      ]
     }
   ]
 }

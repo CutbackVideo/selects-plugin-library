@@ -43,8 +43,10 @@ browser global is assumed inside `runScript`.
 
 ## Limits
 
-One complete Draft commit does not deduplicate remounts or lost acknowledgments
-across invocations. Durable run claims and receipts are the next lifecycle step.
+An optional `runReceipt` composes this feature with [durable template run
+ownership](template-run.md). Its conditional saved receipt is written inside
+the same SDK script after authoring, before the reply. Without that run contract,
+the standalone create functions do not deduplicate separate invocations.
 An already dispatched commit cannot be undone by closing the panel. A failed
 response may still mean a complete Draft was saved: inspect before retrying.
 Preparation may import reusable Project audio before authoring; this contract
