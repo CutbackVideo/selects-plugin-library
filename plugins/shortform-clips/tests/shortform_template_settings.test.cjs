@@ -110,7 +110,7 @@ test('templates use independent settings without renderer families',{skip:!modul
     assert.equal(frame.headlineStrokeOn,false);
     assert.equal(frame.headlineShadow,'none');
     assert.equal(frame.headlineIdeographFont,'MPLUS1p-Medium');
-    const mixed=renderGraphic('FRAME_TSX',{...frame,headline1:'與 한국어',headline2:'질문?'});
+    const mixed=renderGraphic('FRAME_TSX',{...frame,headline1:'與 \ud55c\uad6d\uc5b4',headline2:'\uc9c8\ubb38?'});
     assert.match(mixed,/MPLUS1p-Medium/);
     assert.match(mixed,/>與<\/span>/);
    }

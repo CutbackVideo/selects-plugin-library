@@ -59,7 +59,7 @@ test('template-owned caption box layout',{skip:!modulesRoot && 'Set SBS_PANEL_TE
 
   await t.test('Premiere caption tracking reaches both bar renderers without changing legacy defaults',()=>{
     const heukbaek=require('../template-packs/chosun-ilbo/templates/heukbaek.json');
-    const params={...api.radioCaptionParams(heukbaek),text:'장윤기 사건이\n터졌을 때는'};
+    const params={...api.radioCaptionParams(heukbaek),text:'\uc7a5\uc724\uae30 \uc0ac\uac74\uc774\n\ud130\uc84c\uc744 \ub54c\ub294'};
     assert.equal(params.letterSpacing,75*(-44/1000));
     assert.equal(params.baselineTop,1329.90234375);
     assert.equal(params.rowGap,90);
