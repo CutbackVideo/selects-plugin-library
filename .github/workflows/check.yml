@@ -43,9 +43,9 @@ jobs:
         run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_template_run.test.mjs tests/template_run_files.test.mjs
       - name: Test template bootstrap and scoped local SDK copies
         run: |
-          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_bootstrap.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_bootstrap.test.mjs tests/polaroid_input_paths.test.mjs
           node --test tests/local_client_sync.test.mjs
-          node tools/sync_panel_local_client.mjs --only=no14-still-video,camera-shutter-dump --check
+          node tools/sync_panel_local_client.mjs --only=no14-still-video,camera-shutter-dump,four-photo-stop-motion,polaroid-photo-dump --check
       - name: Test Place Count
         run: |
           node plugins/place-count/tests/core.test.cjs

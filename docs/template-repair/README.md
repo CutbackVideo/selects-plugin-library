@@ -106,7 +106,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `no14-still-video` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
 | `photo-gallery-no2` | Source audit only | Full contract and runtime completion gates above |
 | `place-count` | Canonical authoring check + draft #260; automated regressions pass | Full contract and runtime completion gates above |
-| `polaroid-photo-dump` | Source audit only | Full contract and runtime completion gates above |
+| `polaroid-photo-dump` | Shared original-file preflight/bootstrap + generated-frame input exclusion; asset and complete-save/run migration pending | Full contract and runtime completion gates above |
 | `portrait-beat-montage` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `postcard-cutout-studio` | Source audit only | Full contract and runtime completion gates above |
 | `recap-2026` | Duration regression + draft #258; CI pass | Full contract and runtime completion gates above |

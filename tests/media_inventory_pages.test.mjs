@@ -85,6 +85,7 @@ for(const [id,count] of [['four-photo-stop-motion',4],['polaroid-photo-dump',17]
  const f=fixture();
  const source=panelSource(id),names=['readMediaPages','INVENTORY','inventory','templateIssue','TEMPLATE_UNSUPPORTED','templateSelection'];
  if(id!=='no14-still-video')names.push('SLOTS');
+ if(id==='polaroid-photo-dump')names.push('isPolaroidAssetPath');
  const {templateSelection}=loadPanelFunctions(source,names);
  const app={__DI__:{ProjectRepository:{findById:async()=>({getResources:()=>f.rows.map(r=>'app-'+r.resourceId)})},ResourceRepository:{findById:async(lib,id)=>{
   const index=Number(id.replace('app-r',''));return {getType:()=>f.rows[index].type,getMedia:()=>({path:f.nodes[index].path,...(converted&&index%2===0?{originalPath:`/imports/${index}.heic`}:{})})};

@@ -1,5 +1,16 @@
 # Validation
 
+## Current repair checkpoint: 0.1.8
+
+The historical reference/export runs below belong to their stated older versions.
+They do not validate this shared input/connection repair in an installed app.
+The current version checks original-photo availability before asset preparation,
+checks originals plus the frame before Draft creation and rejects generated
+assets as user inputs on all entry paths. Mounted-panel Windows/UNC/POSIX and
+bootstrap tests are simulated-host evidence. Installed-app/Windows, full saved
+output, playback/export and original-versus-changed-input quality remain open.
+See `docs/template-repair/polaroid-input.md` in the source repository.
+
 ## Reference
 
 A trending "polaroid photo dump" short-form template (1080x1920, 60 fps, 835 frames), measured with ffmpeg and librosa:

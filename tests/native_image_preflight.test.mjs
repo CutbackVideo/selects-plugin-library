@@ -8,16 +8,16 @@ import test from 'node:test';
 import {loadPanelFunctions} from './windows_host.mjs';
 import {loadPanelOperation} from './panel_operation.mjs';
 
-const plugins=['no14-still-video','camera-shutter-dump','four-photo-stop-motion'];
+const plugins=['no14-still-video','camera-shutter-dump','four-photo-stop-motion','polaroid-photo-dump'];
 const paths={darwin:'/photos/Family trip/\uc0ac\uc9c4 \'A\'.png',win32:'C:\\Users\\Mano\\\uc0ac\uc9c4 \'A\'.png',unc:'\\\\studio\\share\\\uc0ac\uc9c4 A.png'};
-function fixture(plugin,{platform='darwin',fault=null,folderSummary=false}={}) {
+function fixture(plugin,{platform='darwin',fault=null,folderSummary=false,assetsReady=false,frameMissing=false}={}) {
   const source=fs.readFileSync(new URL(`../plugins/${plugin}/panel.tsx`,import.meta.url),'utf8');
-  const count=plugin==='camera-shutter-dump'?12:4;
+  const count=plugin==='camera-shutter-dump'?12:plugin==='polaroid-photo-dump'?17:4;
   const photos=Array.from({length:count},(_,i)=>({resourceId:'r'+i,name:`Photo ${i}.png`,path:i?paths[platform]+i:paths[platform]}));
   const rows=photos.map(p=>({...p,type:'Image',frameSize:{width:640,height:960}}));
   const fileCalls=[],writes=[],creates=[],scripts=[];
   const files={
-    stat:async path=>{fileCalls.push(['stat',path]);if(path===photos[0].path){
+    stat:async path=>{fileCalls.push(['stat',path]);if(frameMissing&&path==='/data/frame.png')return null;if(path===photos[0].path){
       if(fault==='missing')return null;
       if(fault==='unknown')throw Error('transport unavailable');
       if(fault==='directory')return {size:32,isDirectory:true,mtimeMs:123,ino:5};
@@ -39,10 +39,11 @@ function fixture(plugin,{platform='darwin',fault=null,folderSummary=false}={}) {
   }};
   const common=['nativeImageSources','nativeImageRun','prepareNativeImages','templateMessage','TEMPLATE_FAILED','TEMPLATE_UNSUPPORTED'];
   const extra=plugin==='no14-still-video'?['INVENTORY','readMediaPages','readImageDraftFps','readProjectFps','createNo14Draft']:['INVENTORY','readMediaPages','inventory','createPhotoDraft',...(plugin==='camera-shutter-dump'?['samePath']:['SLOTS','templateIssue'])];
-  const api=loadPanelFunctions(source,[...common,...extra],{
+  const api=loadPanelFunctions(source,[...common,...extra,...(plugin==='polaroid-photo-dump'?['isPolaroidAssetPath']:[])],{
     ...loadPanelOperation(plugin),
     DEFAULT_MUSIC:'off',ensureSounds:async()=>{writes.push('sounds');throw Error('WRITE_REACHED');},
     ensureMusic:async()=>{writes.push('music');throw Error('WRITE_REACHED');},
+    ensureAssets:async()=>{writes.push('assets');if(!assetsReady)throw Error('WRITE_REACHED');const frame={resourceId:'frame',type:'Image',name:'Bundled frame.png',path:'/data/frame.png',frameSize:{width:1080,height:1920}};rows.push(frame);return {frame,music:{resourceId:'music'}};},
   });
   const create=(options={})=>api[plugin==='no14-still-video'?'createNo14Draft':'createPhotoDraft'](sdk,{projectId:'p',selected:photos,decoration:{shape:'none',color:'#fff'},framing:[],music:'off',name:'Fixture',stillCurrent:()=>true,say:()=>{},...options});
   return {api,sdk,photos,rows,files,fileCalls,writes,creates,scripts,create};
@@ -111,6 +112,35 @@ for(const timing of ['before checking','during checking'])test(`four-photo-stop-
  await assert.rejects(f.create({stillCurrent:()=>current}),/Project changed|run ended/i);
  assert.equal(f.writes.length,0);assert.equal(f.creates.length,0);
  if(timing==='before checking')assert.equal(f.scripts.length,0);
+});
+for(const selected of [null,[],Array(16).fill({}),Array(18).fill({})])test(`polaroid-photo-dump: invalid photo count ${selected?.length??'null'} cannot prepare bundled assets or a Draft`,async()=>{
+ const f=fixture('polaroid-photo-dump');
+ await assert.rejects(f.create({selected}),/17|seventeen/i);
+ assert.equal(f.writes.length,0);assert.equal(f.scripts.length,0);assert.equal(f.creates.length,0);
+});
+for(const timing of ['before checking','during checking'])test(`polaroid-photo-dump: an ended run ${timing} cannot prepare bundled assets or a Draft`,async()=>{
+ const f=fixture('polaroid-photo-dump');let current=timing!=='before checking';
+ const stat=f.files.stat;f.files.stat=async filename=>{const result=await stat(filename);current=false;return result;};
+ await assert.rejects(f.create({stillCurrent:()=>current}),/Project changed|run ended/i);
+ assert.equal(f.writes.length,0);assert.equal(f.creates.length,0);
+ if(timing==='before checking')assert.equal(f.scripts.length,0);
+});
+test('polaroid-photo-dump: a missing frame is rejected after asset preparation and before Draft creation',async()=>{
+ const f=fixture('polaroid-photo-dump',{assetsReady:true,frameMissing:true});
+ await assert.rejects(f.create(),/original photo file is missing.*Bundled frame/i);
+ assert.deepEqual(f.writes,['assets']);assert.equal(f.creates.length,0);
+});
+test('polaroid-photo-dump: healthy originals and the generated frame are checked at their separate preparation boundaries',async()=>{
+ const f=fixture('polaroid-photo-dump',{assetsReady:true}),before=JSON.stringify(f.photos);
+ await assert.rejects(f.create(),/WRITE_REACHED/);
+ assert.equal(f.writes[0],'assets');assert.equal(f.writes.length,2);assert.equal(f.writes[1].summary,'Create polaroid Draft');
+ assert.equal(f.fileCalls.filter(c=>c[0]==='readRange').length,35,'17 before asset preparation, then the 17 originals plus frame');
+ assert.equal(JSON.stringify(f.photos),before);
+});
+test('polaroid-photo-dump: a direct create cannot treat a generated frame as a user input',async()=>{
+ const f=fixture('polaroid-photo-dump');f.photos[0].path='C:\\Users\\Mano\\.selects\\plugin-data\\polaroid-photo-dump\\frame-v1.png';
+ await assert.rejects(f.create(),/bundled polaroid frame/i);
+ assert.equal(f.writes.length,0);assert.equal(f.scripts.length,0);
 });
 for(const plugin of plugins)test(`${plugin}: real original deletion leaves retained metadata but prevents any Project write`,async()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'original-photo-preflight-'));

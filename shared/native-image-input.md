@@ -2,7 +2,8 @@
 
 `native-image-input.js` owns the existing `nativeImageSources`, `nativeImageRun`
 and `prepareNativeImages` input feature extracted from Four Photo Reveal and
-Camera Shutter Dump, now reused by Four Photo Stop Motion as well. It does not
+Camera Shutter Dump, now reused by Four Photo Stop Motion and Polaroid Photo
+Dump as well. It does not
 own their plans, music, layout or save policy.
 Other native-SDK consumers retain their previous implementation until their own
 migration tests pass.
@@ -38,6 +39,15 @@ structured data so the SDK transport does not discard the code/Resource ID.
 The panel reconstructs the error and exposes the safe, photo-specific message.
 Unexpected Project/metadata failures keep their existing generic diagnostics.
 No Project import, Draft creation/commit, media job or shell call occurs here.
+
+Polaroid Photo Dump calls this input feature twice across distinct preparation
+boundaries: first for its 17 user photos before any asset publication/import,
+then for those originals plus the generated frame before creating the Draft.
+This deliberately reobserves the originals after asset preparation; it does not
+turn those read-only queries into persistence. The existing placement path
+rechecks them before editing. Polaroid's separate input policy reserves its
+plugin-data namespace for generated assets, preserving same-named user photos
+elsewhere and deliberate repeated selections. The shared source is unchanged.
 
 ## Distribution
 
