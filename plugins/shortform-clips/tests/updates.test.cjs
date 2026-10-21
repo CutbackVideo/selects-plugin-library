@@ -72,7 +72,7 @@ test('busy or unsaved app still discovers updates while refusing installation', 
   const prepare = source.slice(end, prepareEnd).trim().replace('id: string', 'id').replace(/,$/, '');
   let calls = 0;
   const sdk = {runShell: async () => { calls++; return {exitCode: 0, stdout: JSON.stringify({id: latest, version: 'new'})}; }};
-  const provider = new Function('sdk', 'updateBlocked', 'shortformUpdateCommand', 'shortformUpdateText', 'lang', 'IS_WIN', 'selectedUpdateContext', `return {${check},${prepare}};`)(sdk, {current: true}, mode => mode, (lang,key) => key === 'busy' ? 'Finish the current operation' : key, 'en', false, {current:null});
+  const provider = new Function('sdk', 'updateBlocked', 'shortformUpdateCommand', 'shortformUpdateText', 'lang', 'IS_WIN', 'selectedUpdateContext', 'catalogWaiters', `return {${check},${prepare}};`)(sdk, {current: true}, mode => mode, (lang,key) => key === 'busy' ? 'Finish the current operation' : key, 'en', false, {current:null});
   assert.equal((await provider.checkUpdate({installed:{commit:old,version:'0.4.1'},latest:{commit:latest,version:'0.4.2'}})).id, latest);
   assert.equal(calls, 1);
   await assert.rejects(provider.prepareUpdate(latest), /Finish the current operation/);
@@ -201,7 +201,7 @@ test('language-driven provider re-registration retains the checked release for i
   const end=source.indexOf('      async prepareUpdate(id: string) {',start);
   const check=source.slice(start,end).trim().replace(/,$/,'').replace('checkContext: any','checkContext').replace('let offer: any','let offer');
   const prepare=source.slice(end,source.indexOf('\n    }, { checkOnMount: true });',end)).trim().replace('id: string','id').replace(/,$/,'');
-  const create=new Function('sdk','updateBlocked','shortformUpdateCommand','shortformUpdateText','lang','IS_WIN','selectedUpdateContext',`return {${check},${prepare}};`);
+  const create=new Function('sdk','updateBlocked','shortformUpdateCommand','shortformUpdateText','lang','IS_WIN','selectedUpdateContext','catalogWaiters',`return {${check},${prepare}};`);
   const state={current:null},commands=[];
   const sdk={runShell:async()=>({exitCode:0,stdout:JSON.stringify({id:latest,version:'0.4.2'})})};
   const command=(...args)=>{commands.push(args);return args[0];};
@@ -217,12 +217,12 @@ test('language-driven provider re-registration retains the checked release for i
 test('opts into a host-managed opening nudge without initiating installation or shell work', async () => {
   const source=await fs.readFile(path.join(__dirname,'../panel.tsx'),'utf8');
   const register=source.indexOf('    return sdk.updates.register({');
-  const end=source.indexOf('\n  }, [sdk, lang]);',register);
+  const end=source.indexOf('\n  }, [sdk, lang, updateRegistration]);',register);
   const code=source.slice(register,end).replaceAll(': any','').replaceAll(': string','');
   let options,provider,called=0;
   const cleanup=()=>{};
   const sdk={updates:{register:(p,o)=>{provider=p;options=o;return cleanup;}},runShell:()=>{called++;}};
-  const result=new Function('sdk','lang','selectedUpdateContext','updateBlocked','IS_WIN',code)(sdk,'ko',{current:null},{current:false},false);
+  const result=new Function('sdk','lang','selectedUpdateContext','updateBlocked','IS_WIN','catalogWaiters','updateRegistration',code)(sdk,'ko',{current:null},{current:false},false);
   assert.equal(result,cleanup);
   assert.deepEqual(options,{checkOnMount:true});
   assert.equal(typeof provider.checkUpdate,'function');
@@ -234,9 +234,9 @@ test('legacy hosts without updates remain inert and legacy register ignores nudg
   const source=await fs.readFile(path.join(__dirname,'../panel.tsx'),'utf8');
   const register=source.indexOf('    return sdk.updates.register({');
   const guard=source.lastIndexOf('    if (!sdk.updates?.register || !sdk.runShell) return;',register);
-  const end=source.indexOf('\n  }, [sdk, lang]);',register);
+  const end=source.indexOf('\n  }, [sdk, lang, updateRegistration]);',register);
   const code=source.slice(guard,end).replaceAll(': any','').replaceAll(': string','');
-  const effect=new Function('sdk','lang','selectedUpdateContext','updateBlocked','IS_WIN',code);
+  const effect=new Function('sdk','lang','selectedUpdateContext','updateBlocked','IS_WIN','catalogWaiters','updateRegistration',code);
   let calls=0,provider;
   const runShell=()=>{calls++;throw Error('legacy host must not execute update work on registration');};
   for(const sdk of [{runShell},{updates:{},runShell},{updates:{register:()=>{throw Error('missing shell');}}}]) {

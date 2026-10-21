@@ -261,7 +261,7 @@ test('legacy pack reader and source installation compatibility', {skip:!modulesR
     const markupStart=source.indexOf('            {!templates.length && <ui.Actions>');
     const markup=source.slice(markupStart,source.indexOf('            {templates.length > 0 && <TemplateEditor',markupStart));
     const code=dep('esbuild').transformSync(`function Harness({ui,repository,loadTemplates,templateDirty=false,templateSaving=false,busy=false}){
-      const K=${JSON.stringify(api.PACK_STRINGS.en)}, lang='en',files={},templates=[],templatesLoading=false,S={cancel:'Cancel'};
+      const K=${JSON.stringify(api.PACK_STRINGS.en)}, lang='en',files={},templates=[],packs=[],templatesLoading=false,S={cancel:'Cancel'};
       const [packDialogOpen,setPackDialogOpen]=React.useState(true);
       const [packLink,setPackLink]=React.useState(''),[packBusy,setPackBusy]=React.useState(false),[packMessage,setPackMessage]=React.useState(''),[packError,setPackError]=React.useState('');
       const packLock=React.useRef(false);

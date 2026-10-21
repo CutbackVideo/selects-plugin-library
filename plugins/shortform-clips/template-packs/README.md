@@ -40,7 +40,27 @@ Opening a link never starts clip generation. Older hosts retain manual link impo
 Packs are excluded from the app manifest's `files` list. Installing the app does
 not download these directories. A full repository clone or ZIP includes them.
 
-Branch and tag links resolve to one commit before downloading. Links with branch
+### Update button
+
+**Templates** lists each installed pack with an **Update** button. Packs installed
+from this repository's `plugins/shortform-clips/template-packs/<pack-id>`, by
+catalog link or pasted link, update to the latest published catalog:
+
+1. The app registers its update provider again, so the host reads this app's entry
+   from the Selects plugin catalog and passes its commit. The GitHub API is not used.
+2. The app reads only `pack.json` at that commit from `raw.githubusercontent.com`.
+3. A higher pack `version` installs through the same importer as **Add templates**:
+   unmodified templates are replaced, saved edits ask to replace or add a copy, and
+   templates missing from the new version are kept. Otherwise it reports the pack
+   is up to date.
+
+Unsaved edits or a running job must finish first. A host that does not answer
+within 45 seconds, or a catalog without the pack, is reported as a failed check,
+never as up to date. Packs from other repositories or files are updated by adding
+their link again. Bump the pack `version` with every published change.
+
+Branch and tag links resolve to one commit before downloading; commit links are used
+as given, without a GitHub API request. Links with branch
 names containing slashes are supported. The app downloads only the manifest and
 its declared JSON/image files, validates the full pack, and installs a self-contained
 snapshot. It stores the source URL and resolved commit with that snapshot. Repeat

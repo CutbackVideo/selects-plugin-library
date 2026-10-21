@@ -1,0 +1,156 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {createRequire}=require('node:module');
+const modules=process.env.SBS_PANEL_TEST_MODULES;
+test('template pack update button follows the published catalog without the GitHub API',{skip:!modules},async t=>{
+ const dep=createRequire(path.resolve(modules,'../package.json')),mod={exports:{}};
+ const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
+ const esbuild=dep('esbuild');
+ new Function('require','module','exports',esbuild.transformSync(source+'\nexport {readGitHubTemplatePack,makeTemplateRepository,isOfficialPackSource,officialPackUrl,readCatalogPackManifest,comparePackVersions,PACK_STRINGS,TemplatePackUpdates};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ const api=mod.exports,realPack=path.join(__dirname,'../template-packs/sbs-radio');
+ const commit='b'.repeat(40),repo='CutbackVideo/selects-plugin-library';
+ const official=ref=>`https://github.com/${repo}/tree/${ref}/plugins/shortform-clips/template-packs/sbs-radio`;
+ function remote({version,manifestStatus=200}={}){
+  const calls=[];
+  const fetcher=async(url,options)=>{
+   calls.push(url);assert.equal(options.credentials,'omit');assert.equal(options.redirect,'error');
+   const prefix=`https://raw.githubusercontent.com/${repo}/${commit}/plugins/shortform-clips/template-packs/sbs-radio/`;
+   assert.ok(url.startsWith(prefix),'Only raw files at the catalog commit are read: '+url);
+   const file=url.slice(prefix.length);
+   if(file==='pack.json'&&manifestStatus!==200)return new Response('',{status:manifestStatus});
+   let bytes=fs.readFileSync(path.join(realPack,file));
+   if(file==='pack.json'&&version)bytes=Buffer.from(JSON.stringify({...JSON.parse(bytes),version}));
+   return new Response(bytes);
+  };
+  return {fetcher,calls};
+ }
+
+ await t.test('a commit-pinned link installs from raw files only',async()=>{
+  const r=remote();const pack=await api.readGitHubTemplatePack(official(commit),r.fetcher);
+  assert.equal(pack.source.commit,commit);assert.equal(pack.templates.length,4);
+  assert.equal(r.calls.filter(u=>u.startsWith('https://api.github.com/')).length,0);
+ });
+
+ await t.test('only official library pack links are updatable from the catalog',()=>{
+  assert.equal(api.isOfficialPackSource(official(commit),'sbs-radio'),true);
+  assert.equal(api.isOfficialPackSource(official('main'),'sbs-radio'),true);
+  assert.equal(api.isOfficialPackSource(`https://raw.githubusercontent.com/${repo}/${commit}/plugins/shortform-clips/template-packs/sbs-radio/pack.json`,'sbs-radio'),true);
+  assert.equal(api.isOfficialPackSource(official(commit),'hankook-ilbo'),false);
+  assert.equal(api.isOfficialPackSource(official(commit).replace(repo,'someone/fork'),'sbs-radio'),false);
+  assert.equal(api.isOfficialPackSource(official(commit).replace('/shortform-clips/','/other-app/'),'sbs-radio'),false);
+  for(const none of ['',undefined,'not a link'])assert.equal(api.isOfficialPackSource(none,'sbs-radio'),false);
+  assert.equal(api.officialPackUrl('sbs-radio',commit),official(commit));
+  assert.throws(()=>api.officialPackUrl('sbs-radio','main'),/Invalid catalog pack reference/);
+  assert.throws(()=>api.officialPackUrl('../x',commit),/Invalid catalog pack reference/);
+ });
+
+ await t.test('version check reads one pack.json at the catalog commit',async()=>{
+  const r=remote({version:'9.0.0'});
+  const manifest=await api.readCatalogPackManifest('sbs-radio',commit,r.fetcher);
+  assert.equal(manifest.version,'9.0.0');assert.deepEqual(r.calls.map(u=>u.split('/').pop()),['pack.json']);
+  assert.equal(await api.readCatalogPackManifest('sbs-radio',commit,remote({manifestStatus:404}).fetcher),null);
+  await assert.rejects(api.readCatalogPackManifest('sbs-radio',commit,remote({manifestStatus:500}).fetcher),e=>e.code==='network');
+  await assert.rejects(api.readCatalogPackManifest('sbs-radio',commit,async()=>{throw new TypeError('offline');}),e=>e.code==='network');
+  await assert.rejects(api.readCatalogPackManifest('sbs-radio',commit,async()=>new Response(Buffer.alloc(70*1024))),e=>e.code==='tooLarge');
+  await assert.rejects(api.readCatalogPackManifest('sbs-radio',commit,async()=>new Response('{not json')),e=>e.code==='network');
+  const other=JSON.parse(fs.readFileSync(path.join(realPack,'pack.json')));other.id='hankook-ilbo';
+  await assert.rejects(api.readCatalogPackManifest('sbs-radio',commit,async()=>new Response(JSON.stringify(other))),e=>e.code==='notFound');
+  assert.ok(api.comparePackVersions('1.10.0','1.9.9')>0);assert.equal(api.comparePackVersions('1.2.3','1.2.3'),0);assert.ok(api.comparePackVersions('1.2.3','2.0.0')<0);
+ });
+
+ await t.test('loaded packs expose the link they were installed from',async()=>{
+  const rows=new Map();
+  const store={fs:null,list:async kind=>[...rows].filter(([k])=>k.startsWith(kind+'/')).map(([,v])=>structuredClone(v)),get:async(k,id)=>structuredClone(rows.get(k+'/'+id)||null),put:async(k,id,v)=>rows.set(k+'/'+id,structuredClone(v)),del:async(k,id)=>rows.delete(k+'/'+id)};
+  const repository=api.makeTemplateRepository(store),r=remote(),previous=global.fetch;global.fetch=r.fetcher;
+  try{await repository.install(official(commit),true);}finally{global.fetch=previous;}
+  const {packs}=await repository.load();
+  assert.equal(packs.length,1);assert.equal(packs[0].id,'sbs-radio');assert.equal(packs[0].sourceUrl,official(commit));
+  // A template kept from an older install must not hide the newest pack link.
+  const index=structuredClone(rows.get('template-library/index'));
+  index.records[0].source={...index.records[0].source,packVersion:'0.0.1',url:'https://github.com/someone/fork/tree/main/plugins/shortform-clips/template-packs/sbs-radio'};
+  index.records.push(index.records.splice(0,1)[0]);rows.set('template-library/index',index);
+  assert.equal((await api.makeTemplateRepository(store).load()).packs[0].sourceUrl,official(commit));
+ });
+
+ // The panel's handlers, run against a fake host that re-checks the catalog on each registration.
+ function harness({latest=commit,installedVersion='1.0.0',sourceUrl=official('a'.repeat(40)),hostAnswers=true,catalogVersion='2.0.0',dirty=false,registers=true}={}){
+  const start=source.indexOf('  const catalogWaiters = React.useRef');
+  const end=source.indexOf('  React.useEffect(() => {\n    if (!sdk.updates?.register || !sdk.runShell) return;',start);
+  const updStart=source.indexOf('  const [packUpdate, setPackUpdate]');
+  const updEnd=source.indexOf('  async function transferTemplate(',updStart);
+  const code=esbuild.transformSync(source.slice(start,end)+source.slice(updStart,updEnd)+';return {readCatalogLatest,updatePack};',{loader:'tsx'}).code;
+  const state={installs:[],registrations:0,status:null,messages:[]};
+  // useRef holds the catalog waiters; useState covers setUpdateRegistration (a number) and setPackUpdate.
+  const refs=[];
+  const React={useRef:v=>{const r={current:v};refs.push(r);return r;},useState:v=>{let value=v;return [value,f=>{
+   value=typeof f==='function'?f(value):f;
+   if(typeof value==='number'){state.registrations++;if(hostAnswers)setTimeout(()=>{for(const w of refs[0].current.splice(0))w(latest?{commit:latest}:null);},1);}
+   else state.status=value;
+  }];}};
+  const env={React,sdk:registers?{updates:{register(){}},runShell(){}}:{},K:api.PACK_STRINGS.ko,lang:'ko',packLock:{current:false},busy:false,templateDirty:dirty,templateSaving:false,
+   setPackError:()=>{},setPackMessage:m=>state.messages.push(m),
+   isOfficialPackSource:api.isOfficialPackSource,officialPackUrl:api.officialPackUrl,comparePackVersions:api.comparePackVersions,
+   readCatalogPackManifest:async(id,c)=>{state.manifestCommit=c;return {version:catalogVersion};},
+   installPack:async url=>{state.installs.push(url);return {name:'SBS',version:catalogVersion};},
+   CATALOG_CHECK_TIMEOUT_MS:50};
+  const handlers=new Function(...Object.keys(env),code)(...Object.values(env));
+  return {handlers,state,pack:{id:'sbs-radio',name:'SBS',version:installedVersion,sourceUrl}};
+ }
+
+ await t.test('a newer catalog pack is installed from the catalog commit after a fresh host check',async()=>{
+  const h=harness();await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.registrations,1,'one re-registration asks the host to read the catalog again');
+  assert.equal(h.state.manifestCommit,commit);
+  assert.deepEqual(h.state.installs,[official(commit)]);
+  assert.match(h.state.messages.at(-1),/v2\.0\.0/);
+ });
+
+ await t.test('same or older catalog version reports up to date without installing',async()=>{
+  for(const catalogVersion of ['1.0.0','0.9.0']){
+   const h=harness({catalogVersion});await h.handlers.updatePack(h.pack);
+   assert.deepEqual(h.state.installs,[]);assert.equal(h.state.status.tone,'success');assert.match(h.state.status.message,/1\.0\.0/);
+  }
+ });
+
+ await t.test('a silent host, missing catalog entry or unsupported host never claims up to date',async()=>{
+  let h=harness({hostAnswers:false});await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.status.tone,'error');assert.equal(h.state.status.message,api.PACK_STRINGS.ko.checkFailed);assert.deepEqual(h.state.installs,[]);
+  h=harness({latest:null});await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.status.tone,'error');assert.deepEqual(h.state.installs,[]);
+  h=harness({registers:false});await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.status.message,api.PACK_STRINGS.ko.unsupported);assert.equal(h.state.registrations,0);
+ });
+
+ await t.test('non-official packs and unsaved edits do not start a check',async()=>{
+  let h=harness({sourceUrl:''});await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.status.message,api.PACK_STRINGS.ko.notUpdatable);assert.equal(h.state.registrations,0);
+  h=harness({dirty:true});await h.handlers.updatePack(h.pack);
+  assert.equal(h.state.status.message,api.PACK_STRINGS.ko.blocked);assert.equal(h.state.registrations,0);assert.deepEqual(h.state.installs,[]);
+ });
+ await t.test('the Templates tab lists each pack with its version, an Update button and its status',async()=>{
+  const React=dep('react'),{renderToStaticMarkup}=dep('react-dom/server'),h=React.createElement;
+  const ui={Button:p=>h('button',{disabled:p.disabled},p.children),Message:p=>h('p',{'data-tone':p.tone||'info'},p.children)};
+  const K=api.PACK_STRINGS.ko,packs=[{id:'sbs-radio',name:'SBS',names:{ko:'SBS \ub77c\ub514\uc624'},version:'1.2.0'},{id:'huick',name:'Huick',version:'0.1.0'}];
+  const html=renderToStaticMarkup(h(api.TemplatePackUpdates,{ui,K,lang:'ko',packs,status:{id:'huick',tone:'success',message:'ok'},disabled:false,onUpdate(){}}));
+  assert.ok(html.includes('SBS \ub77c\ub514\uc624'),'localized pack name');assert.ok(html.includes('Huick'));
+  assert.ok(html.includes('v1.2.0')&&html.includes('v0.1.0'));
+  assert.equal((html.match(/<button>/g)||[]).length,2);
+  assert.ok(html.includes('data-tone="success">ok'));
+  const busy=renderToStaticMarkup(h(api.TemplatePackUpdates,{ui,K,lang:'ko',packs,status:null,disabled:true,onUpdate(){}}));
+  assert.equal((busy.match(/disabled=""/g)||[]).length,2);
+ });
+
+ await t.test('the real checkUpdate hands the host catalog commit to waiting pack checks',async()=>{
+  const start=source.indexOf('      async checkUpdate(checkContext: any) {');
+  const end=source.indexOf('      async prepareUpdate(id: string) {',start);
+  const check=source.slice(start,end).trim().replace(/,$/,'').replace('checkContext: any','checkContext').replace('let offer: any','let offer');
+  const provider=new Function('sdk','catalogWaiters','selectedUpdateContext','shortformUpdateCommand','shortformUpdateText','lang','IS_WIN',`return {${check}};`)(
+   {runShell:async()=>({exitCode:0,stdout:'null'})},{current:[]},{current:null},()=>'check',(l,k)=>k,'ko',false);
+  const seen=[];const ref={current:[l=>seen.push(l),l=>seen.push(l)]};
+  const provider2=new Function('sdk','catalogWaiters','selectedUpdateContext','shortformUpdateCommand','shortformUpdateText','lang','IS_WIN',`return {${check}};`)(
+   {runShell:async()=>({exitCode:0,stdout:'null'})},ref,{current:null},()=>'check',(l,k)=>k,'ko',false);
+  assert.equal(await provider2.checkUpdate({installed:null,latest:{commit}}),null);
+  assert.deepEqual(seen,[{commit},{commit}]);assert.equal(ref.current.length,0,'each waiter resolves once');
+  await provider.checkUpdate({installed:null,latest:null});
+ });
+});

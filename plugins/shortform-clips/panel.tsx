@@ -927,8 +927,8 @@ const TEMPLATE_SCHEMA = 1;
 const PACK_FILE_MAX_BYTES = 20 * 1024 * 1024;
 const PACK_MAX_BYTES = 100 * 1024 * 1024;
 const PACK_STRINGS: any = {
-  en: {"link": "Template link", "linkPlaceholder": "Paste the template link you received", "installLink": "Add", "invalidLink": "Check the template link you received.", "notFound": "Templates not found. Check the link.", "rateLimit": "Downloads are temporarily limited. Try again later.", "network": "Could not download the templates. Check your connection and try again.", "tooLarge": "The download exceeds the template pack size limit.", "title": "Add templates", "add": "Adding templates...", "empty": "Add a template pack in the Templates tab first.", "installed": "Templates added.", "noFiles": "File access is required to install template packs.", "blocked": "Save or discard template edits before updating a pack.", "loading": "Loading templates...", "failed": "Could not install the template pack."},
-  ko: {"link": "\ud15c\ud50c\ub9bf \ub9c1\ud06c", "linkPlaceholder": "\uc804\ub2ec\ubc1b\uc740 \ud15c\ud50c\ub9bf \ub9c1\ud06c\ub97c \ubd99\uc5ec\ub123\uc73c\uc138\uc694", "installLink": "\ucd94\uac00", "invalidLink": "\uc804\ub2ec\ubc1b\uc740 \ud15c\ud50c\ub9bf \ub9c1\ud06c\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "notFound": "\ud15c\ud50c\ub9bf\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \ub9c1\ud06c\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "rateLimit": "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \uc77c\uc2dc\uc801\uc73c\ub85c \uc81c\ud55c\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "network": "\ud15c\ud50c\ub9bf\uc744 \ub0b4\ub824\ubc1b\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc5f0\uacb0\uc744 \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "tooLarge": "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \ud15c\ud50c\ub9bf \ud329 \uc6a9\ub7c9 \uc81c\ud55c\uc744 \ucd08\uacfc\ud588\uc2b5\ub2c8\ub2e4.", "title": "\ud15c\ud50c\ub9bf \ucd94\uac00", "add": "\ud15c\ud50c\ub9bf\uc744 \ucd94\uac00\ud558\ub294 \uc911\uc785\ub2c8\ub2e4.", "empty": "\ud15c\ud50c\ub9bf \ud0ed\uc5d0\uc11c \ud15c\ud50c\ub9bf \ud329\uc744 \uba3c\uc800 \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", "installed": "\ud15c\ud50c\ub9bf\uc744 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4.", "noFiles": "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\ub824\uba74 \ud30c\uc77c \uc811\uadfc\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.", "blocked": "\uc218\uc815 \uc911\uc778 \ud15c\ud50c\ub9bf\uc744 \uc800\uc7a5\ud558\uac70\ub098 \ucde8\uc18c\ud55c \ub4a4 \ud329\uc744 \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.", "loading": "\ud15c\ud50c\ub9bf\uc744 \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.", "failed": "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4."},
+  en: {"link": "Template link", "linkPlaceholder": "Paste the template link you received", "installLink": "Add", "invalidLink": "Check the template link you received.", "notFound": "Templates not found. Check the link.", "rateLimit": "Downloads are temporarily limited. Try again later.", "network": "Could not download the templates. Check your connection and try again.", "tooLarge": "The download exceeds the template pack size limit.", "title": "Add templates", "add": "Adding templates...", "empty": "Add a template pack in the Templates tab first.", "installed": "Templates added.", "noFiles": "File access is required to install template packs.", "blocked": "Save or discard template edits before updating a pack.", "loading": "Loading templates...", "failed": "Could not install the template pack.", "packsTitle": "Installed template packs", "update": "Update", "checking": "Checking for updates\u2026", "upToDate": "Up to date (v{v}).", "updated": "Updated", "checkFailed": "Could not check for updates. Try again in a moment.", "unsupported": "This version of Selects cannot check for template pack updates. Update Selects, or add the pack link again.", "notUpdatable": "This pack was not installed from the official library, so it cannot be updated here. Add its link again instead.", "notInCatalog": "The published library no longer has this pack."},
+  ko: {"link": "\ud15c\ud50c\ub9bf \ub9c1\ud06c", "linkPlaceholder": "\uc804\ub2ec\ubc1b\uc740 \ud15c\ud50c\ub9bf \ub9c1\ud06c\ub97c \ubd99\uc5ec\ub123\uc73c\uc138\uc694", "installLink": "\ucd94\uac00", "invalidLink": "\uc804\ub2ec\ubc1b\uc740 \ud15c\ud50c\ub9bf \ub9c1\ud06c\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "notFound": "\ud15c\ud50c\ub9bf\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \ub9c1\ud06c\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", "rateLimit": "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \uc77c\uc2dc\uc801\uc73c\ub85c \uc81c\ud55c\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "network": "\ud15c\ud50c\ub9bf\uc744 \ub0b4\ub824\ubc1b\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc5f0\uacb0\uc744 \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "tooLarge": "\ub2e4\uc6b4\ub85c\ub4dc\uac00 \ud15c\ud50c\ub9bf \ud329 \uc6a9\ub7c9 \uc81c\ud55c\uc744 \ucd08\uacfc\ud588\uc2b5\ub2c8\ub2e4.", "title": "\ud15c\ud50c\ub9bf \ucd94\uac00", "add": "\ud15c\ud50c\ub9bf\uc744 \ucd94\uac00\ud558\ub294 \uc911\uc785\ub2c8\ub2e4.", "empty": "\ud15c\ud50c\ub9bf \ud0ed\uc5d0\uc11c \ud15c\ud50c\ub9bf \ud329\uc744 \uba3c\uc800 \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", "installed": "\ud15c\ud50c\ub9bf\uc744 \ucd94\uac00\ud588\uc2b5\ub2c8\ub2e4.", "noFiles": "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\ub824\uba74 \ud30c\uc77c \uc811\uadfc\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.", "blocked": "\uc218\uc815 \uc911\uc778 \ud15c\ud50c\ub9bf\uc744 \uc800\uc7a5\ud558\uac70\ub098 \ucde8\uc18c\ud55c \ub4a4 \ud329\uc744 \uc5c5\ub370\uc774\ud2b8\ud574 \uc8fc\uc138\uc694.", "loading": "\ud15c\ud50c\ub9bf\uc744 \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.", "failed": "\ud15c\ud50c\ub9bf \ud329\uc744 \uc124\uce58\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.", "packsTitle": "\uc124\uce58\ub41c \ud15c\ud50c\ub9bf \ud329", "update": "\uc5c5\ub370\uc774\ud2b8", "checking": "\uc5c5\ub370\uc774\ud2b8 \ud655\uc778 \uc911\u2026", "upToDate": "\ucd5c\uc2e0 \ubc84\uc804\uc785\ub2c8\ub2e4 (v{v}).", "updated": "\uc5c5\ub370\uc774\ud2b8\ud588\uc2b5\ub2c8\ub2e4:", "checkFailed": "\uc5c5\ub370\uc774\ud2b8\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.", "unsupported": "\uc774 \ubc84\uc804\uc758 Selects\uc5d0\uc11c\ub294 \ud15c\ud50c\ub9bf \ud329 \uc5c5\ub370\uc774\ud2b8\ub97c \ud655\uc778\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. Selects\ub97c \uc5c5\ub370\uc774\ud2b8\ud558\uac70\ub098 \ud329 \ub9c1\ud06c\ub97c \ub2e4\uc2dc \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", "notUpdatable": "\uacf5\uc2dd \ub77c\uc774\ube0c\ub7ec\ub9ac\uc5d0\uc11c \uc124\uce58\ud55c \ud329\uc774 \uc544\ub2c8\uc5b4\uc11c \uc5ec\uae30\uc11c \uc5c5\ub370\uc774\ud2b8\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \ud329 \ub9c1\ud06c\ub97c \ub2e4\uc2dc \ucd94\uac00\ud574 \uc8fc\uc138\uc694.", "notInCatalog": "\uac8c\uc2dc\ub41c \ub77c\uc774\ube0c\ub7ec\ub9ac\uc5d0 \uc774 \ud329\uc774 \uc5c6\uc2b5\ub2c8\ub2e4."},
 };
 function packAssert(ok: any, message: string): asserts ok { if (!ok) throw new Error(message); }
 function plainObject(v: any) { return v !== null && typeof v === "object" && !Array.isArray(v); }
@@ -1166,6 +1166,47 @@ async function hydrateTemplatePack(readFile: (path: string) => Promise<Uint8Arra
   packAssert(new Set(templates.map(t => t.id)).size === templates.length, "Duplicate template ID in pack.");
   return validateInstalledPack({ manifest, templates });
 }
+// Official packs update to the plugin catalog's latest published commit. The commit comes from
+// the Selects catalog (through the host's update check); only the pack files come from GitHub.
+const PLUGIN_LIBRARY_REPOSITORY = "CutbackVideo/selects-plugin-library";
+const PACK_MANIFEST_MAX_BYTES = 64 * 1024;
+// The host reads the catalog with a 30 s limit before it calls checkUpdate.
+const CATALOG_CHECK_TIMEOUT_MS = 45000;
+function officialPackUrl(packId: string, commit: string) {
+  packAssert(packSlug(packId) && /^[a-f0-9]{40}$/.test(commit), "Invalid catalog pack reference.");
+  return `https://github.com/${PLUGIN_LIBRARY_REPOSITORY}/tree/${commit}/plugins/${APP_ID}/template-packs/${packId}`;
+}
+// True when a pack was installed from the official library, by catalog link or a pasted link.
+function isOfficialPackSource(url: unknown, packId: string) {
+  if (typeof url !== "string" || !url) return false;
+  try {
+    const link = parsePackLink(url);
+    const tail = link.rest.slice(-4).join("/");
+    return `${link.owner}/${link.repo}`.toLowerCase() === PLUGIN_LIBRARY_REPOSITORY.toLowerCase() && link.rest.length >= 5 && tail === `plugins/${APP_ID}/template-packs/${packId}`;
+  } catch { return false; }
+}
+// Reads only pack.json at a catalog commit to compare versions before a full install.
+async function readCatalogPackManifest(packId: string, commit: string, fetcher: typeof fetch = fetch) {
+  officialPackUrl(packId, commit);
+  const url = `https://raw.githubusercontent.com/${PLUGIN_LIBRARY_REPOSITORY}/${commit}/plugins/${APP_ID}/template-packs/${packId}/pack.json`;
+  let response: Response;
+  try { response = await fetcher(url, {credentials:"omit", redirect:"error", cache:"no-store", signal:AbortSignal.timeout(30000)}); }
+  catch { throw new PackLinkError("network"); }
+  if (response.status === 404) { await response.body?.cancel(); return null; }
+  if (!response.ok) { await response.body?.cancel(); throw new PackLinkError("network"); }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length > PACK_MANIFEST_MAX_BYTES) throw new PackLinkError("tooLarge");
+  let data: any;
+  try { data = JSON.parse(dec(bytes)); } catch { throw new PackLinkError("network"); }
+  const manifest = validatePackManifest(data);
+  // A folder holding a different pack id must not be compared or installed as this pack.
+  if (manifest.id !== packId) throw new PackLinkError("notFound");
+  return manifest;
+}
+function comparePackVersions(a: string, b: string) {
+  const x = a.split(".").map(Number), y = b.split(".").map(Number);
+  return x[0]-y[0] || x[1]-y[1] || x[2]-y[2];
+}
 class PackLinkError extends Error {
   constructor(public code: string) { super(code); }
 }
@@ -1223,8 +1264,10 @@ async function readGitHubTemplatePack(input: string, fetcher: typeof fetch = fet
   }
   try {
     let commit = "", folder: string[] = [];
+    // A commit-pinned link needs no ref lookup, so it never calls the rate-limited GitHub API.
+    if (/^[a-f0-9]{40}$/i.test(link.rest[0])) { commit = link.rest[0].toLowerCase(); folder = link.rest.slice(1); }
     // Longest match also supports branch names containing slashes.
-    for (let n = link.rest.length; n >= 1; n--) {
+    else for (let n = link.rest.length; n >= 1; n--) {
       const ref = link.rest.slice(0,n).join("/");
       if (/^[a-f0-9]{40}$/i.test(ref)) commit = ref.toLowerCase();
       else {
@@ -1575,11 +1618,19 @@ function makeTemplateRepository(storage:any) {
     await storage.put('template-library','index',{...next,revision:next.revision+1});
     pendingSnapshots.clear();pendingAssets.clear();
   }
+  // The pack's latest install link, kept per template record; legacy and file installs have none.
+  const packSourceUrl=(index:any,packId:string)=>{
+    const sources=index.records.map((r:any)=>r.source).filter((x:any)=>x?.kind==='pack'&&x.packId===packId&&typeof x.url==='string'&&x.url);
+    // The newest pack version wins: kept or restored templates may still hold an older link.
+    const valid=(v:any)=>typeof v==='string'&&/^\d+\.\d+\.\d+$/.test(v);
+    sources.sort((a:any,b:any)=>valid(a.packVersion)&&valid(b.packVersion)?comparePackVersions(a.packVersion,b.packVersion):0);
+    return sources.at(-1)?.url||'';
+  };
   const remember=(record:any)=>({...record,history:[...(record.history||[]),{baseline:record.baseline,working:record.working,source:record.source,at:new Date().toISOString()}]});
   async function view(record:any){return {...await getSnapshot(record.working),id:record.id,builtIn:record.source?.kind==='pack',modified:record.working!==record.baseline,packId:record.source?.packId,packVersion:record.source?.packVersion,historyCount:record.history?.length||0};}
   const api:any={
     fs:storage.fs,
-    async load(){try{const index=await state();return {templates:await Promise.all(index.records.filter((r:any)=>!r.removed).map(view)),packs:index.packs,errors:[]};}catch(e:any){return {templates:[],packs:[],errors:[e.message]};}},
+    async load(){try{const index=await state();return {templates:await Promise.all(index.records.filter((r:any)=>!r.removed).map(view)),packs:index.packs.map((m:any)=>({...m,sourceUrl:packSourceUrl(index,m.id)})),errors:[]};}catch(e:any){return {templates:[],packs:[],errors:[e.message]};}},
     put(kind:string,id:string,value:any){return serial(async()=>{
       packAssert(kind==='templates','Invalid template collection.');validateTemplate(cleanTemplate(value),true);
       const index=await state(),hash=await snapshot(value),at=index.records.findIndex((r:any)=>r.id===id);
@@ -6082,6 +6133,19 @@ function TemplatePicker({ui, label, value, templates, lang, disabled, onChange, 
     onChange={(id: string)=>id === "__add_templates__" ? onAdd?.() : onChange(id)} />;
 }
 
+// One row per installed pack. Updating checks the published library on each click.
+function TemplatePackUpdates({ui, K, lang, packs, status, disabled, onUpdate}: any) {
+  return <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+    <small style={{color:"var(--panel-muted-fg)"}}>{K.packsTitle}</small>
+    {packs.map((pack:any)=><div key={pack.id} style={{display:"flex",flexDirection:"column",gap:6}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0}}>
+        <span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pack.names?.[lang] || pack.name} <small>v{pack.version}</small></span>
+        <div style={{flexShrink:0}}><ui.Button variant="secondary" disabled={disabled} onClick={()=>onUpdate(pack)}>{K.update}</ui.Button></div>
+      </div>
+      {status?.id === pack.id && <ui.Message tone={status.tone === "info" ? undefined : status.tone}>{status.message}</ui.Message>}
+    </div>)}
+  </div>;
+}
 function TemplatePackDialog({ui, open, title, closeLabel, busy, onClose, children, compact=false, previewLayout=false}: any) {
   const ref = React.useRef<HTMLDialogElement>(null);
   React.useEffect(()=>{
@@ -8915,10 +8979,29 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const updateBlocked = React.useRef(false);
   const selectedUpdateContext = React.useRef<any>(null);
   updateBlocked.current = !!(busy || packBusy || templateSaving || templateDirty);
+  // Pack updates read the catalog through the host's update check. Registering again makes
+  // the host read the Selects catalog afresh and call checkUpdate with its latest commit.
+  const catalogWaiters = React.useRef<((latest: any) => void)[]>([]);
+  const [updateRegistration, setUpdateRegistration] = React.useState(0);
+  const canReadCatalog = !!(sdk.updates?.register && sdk.runShell);
+  function readCatalogLatest(): Promise<any> {
+    if (!canReadCatalog) return Promise.reject(new Error(K.unsupported));
+    return new Promise((resolve, reject) => {
+      const waiter = (latest: any) => { clearTimeout(timer); resolve(latest); };
+      // A failed or skipped host check never calls back, so silence means failure.
+      const timer = setTimeout(() => {
+        catalogWaiters.current = catalogWaiters.current.filter(w => w !== waiter);
+        reject(new Error(K.checkFailed));
+      }, CATALOG_CHECK_TIMEOUT_MS);
+      catalogWaiters.current.push(waiter);
+      setUpdateRegistration(n => n + 1);
+    });
+  }
   React.useEffect(() => {
     if (!sdk.updates?.register || !sdk.runShell) return;
     return sdk.updates.register({
       async checkUpdate(checkContext: any) {
+        for (const waiter of catalogWaiters?.current.splice(0) || []) waiter(checkContext?.latest || null);
         selectedUpdateContext.current = null;
         const result = await sdk.runShell({summary: "Check Shortform Clips update", command: shortformUpdateCommand("check", "", checkContext, IS_WIN, lang), timeoutMs: 60000, maxOutputBytes: 8192});
         if (result.isError || result.exitCode !== 0) throw new Error(result.stderr?.trim() || shortformUpdateText(lang, "check"));
@@ -8934,7 +9017,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         return {summary: "Update Shortform Clips", command: shortformUpdateCommand("apply", id, selectedUpdateContext.current, IS_WIN, lang), timeoutMs: 300000};
       },
     }, { checkOnMount: true });
-  }, [sdk, lang]);
+  }, [sdk, lang, updateRegistration]);
 
   const [importConflict,setImportConflict]=React.useState<any>(null);
   const [importChoices,setImportChoices]=React.useState<any>({});
@@ -8947,13 +9030,13 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       return resolveTemplateImport(()=>e.retry(choices,expected));
     }
   }
-  async function installPack(link = packLink, requestId?: string) {
-    if (!link.trim() || packLock.current || busy || templateDirty || templateSaving) return;
+  async function installPack(link = packLink, requestId?: string): Promise<any> {
+    if (!link.trim() || packLock.current || busy || templateDirty || templateSaving) return null;
     packLock.current = true;
     setPackBusy(true); setPackError(""); setPackMessage("");
     try {
       const installed = await resolveTemplateImport(()=>repository.install(link.trim(), true));
-      if(!installed)return;
+      if(!installed)return null;
       setPackLink("");
       const loaded = await loadTemplates();
       if (requestId) {
@@ -8962,10 +9045,31 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       }
       setPackMessage(K.installed + " " + (installed.names?.[lang] || installed.name));
       setPackDialogOpen(false);
-    } catch (e: any) { setPackError(K.failed + " " + (K[e?.code] || String(e?.message || e))); }
+      setPackUpdate(null);
+      return installed;
+    } catch (e: any) { setPackError(K.failed + " " + (K[e?.code] || String(e?.message || e))); return null; }
     finally {
       packLock.current = false; setPackBusy(false);
       if (requestId) sdk.finishTemplatePackInstall?.(requestId);
+    }
+  }
+  const [packUpdate, setPackUpdate] = React.useState<{id: string; message: string; tone: string} | null>(null);
+  async function updatePack(pack: any) {
+    if (packLock.current || busy || templateDirty || templateSaving) return setPackUpdate({id: pack.id, tone: "error", message: K.blocked});
+    if (!isOfficialPackSource(pack.sourceUrl, pack.id)) return setPackUpdate({id: pack.id, tone: "error", message: K.notUpdatable});
+    setPackError(""); setPackMessage("");
+    setPackUpdate({id: pack.id, tone: "info", message: K.checking});
+    try {
+      const latest = await readCatalogLatest();
+      if (!latest?.commit || !/^[a-f0-9]{40}$/.test(latest.commit)) throw new Error(K.checkFailed);
+      const manifest = await readCatalogPackManifest(pack.id, latest.commit);
+      if (!manifest) return setPackUpdate({id: pack.id, tone: "error", message: K.notInCatalog});
+      if (comparePackVersions(manifest.version, pack.version) <= 0) return setPackUpdate({id: pack.id, tone: "success", message: K.upToDate.replace("{v}", pack.version)});
+      setPackUpdate(null);
+      const installed = await installPack(officialPackUrl(pack.id, latest.commit));
+      if (installed) setPackMessage(`${K.updated} ${installed.names?.[lang] || installed.name} v${installed.version}`);
+    } catch (e: any) {
+      setPackUpdate({id: pack.id, tone: "error", message: K[e?.code] || String(e?.message || e)});
     }
   }
   async function transferTemplate(direction: "import" | "export", selected?: any) {
@@ -10673,6 +10777,9 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             {!templates.length && <ui.Actions><ui.Button variant="secondary"
               disabled={busy || packBusy || templatesLoading}
               onClick={()=>{setPackError("");setPackMessage("");setPackDialogOpen(true);}}>{K.title}</ui.Button></ui.Actions>}
+            {packs.length > 0 && <TemplatePackUpdates ui={ui} K={K} lang={lang} packs={packs} status={packUpdate}
+              disabled={!files || busy || packBusy || templateDirty || templateSaving || packUpdate?.tone === "info"}
+              onUpdate={(pack:any)=>void updatePack(pack)} />}
             {packMessage && <ui.Message tone="success">{packMessage}</ui.Message>}
             {!packDialogOpen && packError && <ui.Message tone="error">{packError}</ui.Message>}
             <TemplatePackDialog ui={ui} open={packDialogOpen} title={K.title} closeLabel={S.cancel}
