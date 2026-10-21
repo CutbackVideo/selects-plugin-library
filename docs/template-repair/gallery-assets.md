@@ -83,6 +83,12 @@ passed 254 without skips; Python passed 285 with six skips. Public-source,
 47-app-guard checks passed. Test source uses Unicode escapes while preserving
 the actual non-ASCII Windows/UNC path values required by the public-source rule.
 
+Remote CI additionally exposed the existing isolated unsupported-SDK test: the
+new preparation path reached its frame-grid helper before rejecting an SDK
+without `runScript`. An explicit entry precondition now rejects that SDK with
+the existing update instruction before helper/file/media work. The original
+common-async test and the full compiled asset paths are both retained.
+
 Owned-file garbage collection is deliberately unimplemented: older Drafts may
 still reference earlier content files. Held cache `held-v2` still uses its own
 source path/size/mtime identity and temporary file publication; full content
