@@ -4,6 +4,9 @@
     {
       "id": "bundled-assets",
       "source": "shared/bundled-assets.js",
+      "buildTimeTargets": [
+        "plugins/photo-gallery-no2/build-panel.mjs"
+      ],
       "targets": [
         "plugins/no14-still-video/panel.tsx",
         "plugins/four-photo-stop-motion/panel.tsx",

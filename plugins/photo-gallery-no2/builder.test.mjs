@@ -8,14 +8,14 @@ import test from 'node:test';
 import { buildScript, SCRIPT_PREFIX, ORIGINAL_IMAGE_SOURCE } from './operation-builder.mjs';
 import { nativeImageSources as canonicalFacts } from '../../shared/native-image-input.mjs';
 import { nativeImageSources as packagedFacts } from './input-facts.generated.mjs';
-import { IMAGE_AUTHORING_SOURCE, PANEL_AUTHORING_SOURCE, TEMPLATE_RUN_SOURCE, PANEL_RUN_SOURCE } from './authoring.generated.mjs';
+import { IMAGE_AUTHORING_SOURCE, PANEL_AUTHORING_SOURCE, TEMPLATE_RUN_SOURCE, PANEL_RUN_SOURCE, PANEL_ASSET_SOURCE } from './authoring.generated.mjs';
 
 test('installed panel contains the exact shared operation prefix', () => {
   const template = readFileSync(new URL('./panel.template.tsx', import.meta.url), 'utf8');
   const installed = readFileSync(new URL('./panel.tsx', import.meta.url), 'utf8');
   const native = readFileSync(new URL('./native-image-runtime.js', import.meta.url), 'utf8');
   const expected = template.replace('/*__SHARED_SCRIPT_BUILDER__*/',
-    `const SCRIPT_PREFIX = ${JSON.stringify(SCRIPT_PREFIX)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';\nconst gallerySourceFacts = ${ORIGINAL_IMAGE_SOURCE};\n${PANEL_AUTHORING_SOURCE}\n${PANEL_RUN_SOURCE}\n${native}`);
+    `const SCRIPT_PREFIX = ${JSON.stringify(SCRIPT_PREFIX)};\nconst buildScript = input => SCRIPT_PREFIX + JSON.stringify(input) + ');';\nconst gallerySourceFacts = ${ORIGINAL_IMAGE_SOURCE};\n${PANEL_AUTHORING_SOURCE}\n${PANEL_RUN_SOURCE}\n${PANEL_ASSET_SOURCE}\n${native}`);
   assert.notEqual(expected, template);
   assert.equal(installed, expected);
 });
@@ -48,4 +48,7 @@ test('packaged authoring helpers match existing canonical sources without browse
  for(const name of ['templateRunJSON','templateRunBase64','writeTemplateRunResult'])assert.ok(TEMPLATE_RUN_SOURCE.includes(new Function(run+';return '+name+'.toString()')()));
  for(const name of ['templateRunJSON','templateRunBase64','writeTemplateRunResult','templateRunIssue','validateTemplateRun','executeTemplateRun'])assert.ok(PANEL_RUN_SOURCE.includes(new Function(run+';return '+name+'.toString()')()));
  assert.ok(!TEMPLATE_RUN_SOURCE.includes('executeTemplateRun'));assert.ok(!IMAGE_AUTHORING_SOURCE.includes('buildAtomicImageDraftScript'));
+ const assets=readFileSync(new URL('../../shared/bundled-assets.js',import.meta.url),'utf8');
+ for(const name of ['bundledAssetIssue','readBundledAssetBytes','readBundledAssetResource','prepareBundledAsset'])assert.ok(PANEL_ASSET_SOURCE.includes(new Function(assets+';return '+name+'.toString()')()));
+ assert.ok(!SCRIPT_PREFIX.includes('async function prepareBundledAsset('),'browser asset publication must not enter SDK requests');
 });

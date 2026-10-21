@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "photo-gallery-no2",
-  "version": "0.3.13",
+  "version": "0.3.14",
   "name": "Photo Grid Reveal",
   "summary": "Build an editable 3-by-7 photo and video gallery with sequential reveals and a shared monochrome-to-color switch.",
   "status": "experimental",
@@ -28,7 +28,7 @@
       "macOS Selects Staging",
       "Windows x64"
     ],
-    "selects": "Requires public original Image placement, Project Image dimensions, file stat/readRange, media probes, Video/Audio overlays, effects/transforms and gap-backed Draft persistence. Requires the extended panel deadline contract (client #7847) and, for music verification, clipSourceWindow (client #7828). App runs also require existing exclusive file creation/compareAndReplace and browser hashing/encoding for durable ownership and saved recovery. Local automated checks pass; installed-app/Windows and full playback/export remain unverified. No internal TimelineMutation or DI access is used."
+    "selects": "Requires public original Image placement, Project Image dimensions, file stat/readRange, media probes, Video/Audio overlays, effects/transforms and gap-backed Draft persistence. Requires the extended panel deadline contract (client #7847) and, for music verification, clipSourceWindow (client #7828). App runs need existing exclusive file creation/compareAndReplace and browser hashing/encoding. Bundled music uses SHA-256 verified owned files through the initialized async file client; its pinned excerpt must cover the rounded Project duration. Local automated checks pass; installed-app/Windows and full playback/export remain unverified. No internal TimelineMutation or DI access is used."
   },
   "localized": {
     "de": {

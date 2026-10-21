@@ -77,10 +77,12 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
 
     def test_bundled_music_is_found_through_the_host(self):
         music = body(self.runtime, "async function prepareBundledMusic(")
-        self.assertIn("hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md')", music)
-        self.assertIn("hostJoin(plugin, 'assets', 'music.mp3')", music)
-        self.assertIn("exists(", music)
-        self.assertLess(music.index("exists("), music.index("onImportStarted()"))
+        self.assertIn("hostRoots(sdk,'photo-gallery-no2','SKILL.md')", music)
+        self.assertIn("hostJoin(plugin,'assets','music.mp3')", music)
+        self.assertIn("prepareBundledAsset(", music)
+        self.assertIn("expectedSha256:GALLERY_MUSIC.sha256", music)
+        self.assertIn("minimumSeconds", music)
+        self.assertIn("await onImportStarted()", music)
         manifest = json.loads(read(os.path.join(PLUGIN, "plugin.json")))
         self.assertIn("SKILL.md", manifest["files"])
         self.assertIn("assets/music.mp3", manifest["files"])
@@ -157,10 +159,11 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
         packaged = read(os.path.join(PLUGIN, "authoring.generated.mjs"))
         authoring = json.loads(re.search(r"export const IMAGE_AUTHORING_SOURCE = (.*);", packaged).group(1))
         serializer = json.loads(re.search(r"export const TEMPLATE_RUN_SOURCE = (.*);", packaged).group(1))
+        asset_reader = json.loads(re.search(r"export const ASSET_RESOURCE_SOURCE = (.*);", packaged).group(1))
         recipe = (
             read(os.path.join(PLUGIN, "format.mjs")).replace("export const REFERENCE", "const REFERENCE", 1)
             .replace("export function planGallery", "function planGallery", 1)
-            + "\n" + facts + "\n" + authoring + "\n" + serializer + "\n" + read(os.path.join(PLUGIN, "operation-runtime.js")) + "\nreturn await galleryOperation(selects, "
+            + "\n" + facts + "\n" + authoring + "\n" + serializer + "\n" + asset_reader + "\n" + read(os.path.join(PLUGIN, "operation-runtime.js")) + "\nreturn await galleryOperation(selects, "
         )
         out = subprocess.run(
             ["node", "--input-type=module", "-e",

@@ -1,6 +1,32 @@
 # Validation and limits
 
-## Current repair checkpoint: 0.3.13
+## Current repair checkpoint: 0.3.14
+
+Normal panel and app-run bundled music now uses the existing shared verified
+asset feature. Release bytes/hash are pinned, bounded and reobserved; the owned
+content file is verified before Project registration, then type/duration/identity
+are independently confirmed. Installation paths are refused by the old music
+import operation; earlier user files/Resources/Drafts are not migrated or deleted.
+Held-video imports reuse the shared bounded Resource reader, reject ambiguous or
+wrong-kind targets, confirm added IDs, recover positively observed lost replies,
+and reread metadata after probing even when no import was needed.
+
+The first 25 parent-source tests failed 24 with one control. Further regressions
+first failed for changed metadata during probing, installation-path registration
+and sub-frame durations. The new suite passes 45 cases, including pinned bytes,
+actual ffprobe excerpt duration, compiled/minified preparation, Windows/UNC paths,
+publication/import faults, source changes, Project grids and observer detachment.
+The default 30 fps result exceeds the real excerpt after frame rounding; this
+combination stops before publication/import, rather than padding or silently
+altering timing. See `docs/template-repair/gallery-assets.md` in the source repo.
+
+Owned asset garbage collection and the held-video cache's content/publication
+lifecycle still need work. Existing low-level explicit repair operations retain
+their separate contract. Installed Selects/actual Windows, complete source clocks,
+Inspector/composition, whole video/audio playback/export and changed-input quality
+remain pending. Historical preview failures below remain unresolved.
+
+## Earlier repair checkpoint: 0.3.13
 
 The hidden app-run now uses the existing shared durable run feature. Its request
 identity includes ordered photo/video IDs and kinds, effective music, duration

@@ -118,7 +118,7 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
   }
   const seenSources = new Set();
   for (const item of input.converted) {
-    const source = galleryResolveResource(inventory.media, item?.sourceResourceId, item?.sourcePath, 'Selected source');
+    const source = galleryResolveResource([...inventory.media,...inventory.audio], item?.sourceResourceId, item?.sourcePath, 'Selected source');
     if (source.kind !== 'video' || seenSources.has(source.resourceId) ||
         !galleryAbsolute(item.path) || !/\.mp4$/i.test(item.path)) {
       galleryFail('A held clip must match one distinct Project video and absolute MP4 path');
@@ -126,28 +126,49 @@ async function galleryImportConverted(selects, project, input, inventory, onImpo
     seenSources.add(source.resourceId);
   }
   const paths = [...new Map(input.converted.map((item) => [galleryPathKey(item.path), item.path])).values()];
+  if(paths.length!==input.converted.length)galleryFail('Each distinct source needs its own held video path');
+  const target=async(path,current)=>{
+    const platform=/^[A-Za-z]:[\\/]|\\/.test(path)?'win32':'darwin';
+    const result=await readBundledAssetResource(selects,input.projectId,path,platform,true);
+    if(result.matches.length>1)galleryFail('Held video path is ambiguous in this Project');
+    const match=result.matches[0];if(!match)return null;
+    if(match.type!=='Video')galleryFail('Held video path is not a Video Resource');
+    const rows=current.media.filter(row=>row.resourceId===match.resourceId&&gallerySamePath(row.path,path));
+    const video=rows[0];
+    if(rows.length!==1||!Number.isSafeInteger(video.width)||video.width<1||!Number.isSafeInteger(video.height)||video.height<1||!Number.isSafeInteger(video.durationFrames)||video.durationFrames<requiredFrames)galleryFail('Held video import or length could not be verified; inspect Project files before retrying');
+    return video;
+  };
+  const currentByPath=new Map();
+  for(const path of paths){const row=await target(path,inventory);if(row)currentByPath.set(galleryPathKey(path),row);}
   const probe = await selects.media.probe({ filePaths: paths });
   const probed = new Set((probe.files || []).filter((file) => !file.type || /video/i.test(file.type)).map((file) => galleryPathKey(file.path)));
   if (probe.error || probe.errors?.length || probe.summary?.failed || paths.some((path) => !probed.has(galleryPathKey(path)))) {
     galleryFail('A held video file is missing or unreadable; no Project media was imported');
   }
-  const currentByPath = new Map();
-  for (const item of inventory.media) if (item.kind === 'video') currentByPath.set(galleryPathKey(item.path), item);
   const missing = paths.filter((path) => !currentByPath.has(galleryPathKey(path)));
+  let imported;
   if (missing.length) {
     if (typeof project.importFiles !== 'function') galleryFail('This Selects version cannot import held videos');
     onImportStarted();
-    await project.importFiles({ paths: missing });
+    try{imported=await project.importFiles({ paths: missing });}catch{/* A lost reply is resolved from independent registered state below. */}
   }
-  const fresh = missing.length ? await galleryInventory(project) : inventory;
+  // Probing is asynchronous even when every target was already registered.
+  // Reobserve metadata before reusing it; a cached pre-probe row is not proof.
+  const fresh = await galleryInventory(project);
   const importedByPath = new Map();
-  for (const item of fresh.media) if (item.kind === 'video') importedByPath.set(galleryPathKey(item.path), item);
+  for(const path of paths){const row=await target(path,fresh);if(!row)galleryFail('Held video import outcome could not be confirmed; inspect Project files before retrying');importedByPath.set(galleryPathKey(path),row);}
+  const ids=imported?.addedResourceIds;
+  if(Array.isArray(ids)&&ids.length){
+    const confirmed=missing.map(path=>importedByPath.get(galleryPathKey(path)).resourceId);
+    if(ids.length!==confirmed.length||new Set(ids).size!==ids.length||ids.some(id=>!confirmed.includes(id)))galleryFail('Added held video identities could not be confirmed; inspect Project files before retrying');
+  }
   const converted = input.converted.map((item) => {
     const video = importedByPath.get(galleryPathKey(item.path));
     if (!video || video.durationFrames == null || video.durationFrames < requiredFrames) {
       galleryFail('Held video import or length could not be verified; inspect Project files before retrying');
     }
-    const source = galleryResolveResource(fresh.media, item.sourceResourceId, item.sourcePath, 'Selected source');
+    const source = galleryResolveResource([...fresh.media,...fresh.audio], item.sourceResourceId, item.sourcePath, 'Selected source');
+    if(source.kind!=='video')galleryFail('Selected source changed during held video import');
     return { sourceResourceId: item.sourceResourceId, resolvedSourceResourceId: source?.resourceId,
       resourceId: video.resourceId,
       // The Project's own spelling of the path, which native placement later compares exactly.
@@ -160,6 +181,7 @@ async function galleryImportBundledMusic(selects, project, input, inventory, onI
   const frames = input.durationFrames ?? 853;
   if (!Number.isSafeInteger(frames) || frames < 1 || frames > 36000) galleryFail('Music length must be an integer from 1 to 36000 frames');
   if (!galleryAbsolute(input.path) || !/\.mp3$/i.test(input.path)) galleryFail('Bundled music requires an absolute MP3 path');
+  if(!/\/\.selects\/plugin-data\/photo-gallery-no2\/assets\/[0-9a-f]{64}\.mp3$/.test(galleryPathKey(input.path)))galleryFail('Prepare bundled music through the installed panel first. Only its verified owned asset path may be registered; installation paths cannot be used.');
   const probe = await selects.media.probe({ filePaths: [input.path] });
   if (probe.error || probe.errors?.length || probe.summary?.failed ||
       !(probe.files || []).some(file => gallerySamePath(file.path, input.path) && (!file.type || /audio/i.test(file.type)))) {

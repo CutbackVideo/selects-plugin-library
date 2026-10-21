@@ -8,7 +8,7 @@ const require=createRequire(import.meta.url);
 const esbuild=require(process.env.SELECTS_ESBUILD||(process.env.SBS_PANEL_TEST_MODULES?process.env.SBS_PANEL_TEST_MODULES+'/esbuild':'esbuild'));
 const compiled=new Map();
 export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}){
- const f=id==='photo-gallery-no2'?galleryFixture(options):fixture(id,options),files=new Map(),finishes=[],hooks={},requests=[];
+ const f=id==='photo-gallery-no2'?galleryFixture({fps:60,...options}):fixture(id,options),files=new Map(),finishes=[],hooks={},requests=[];
  const watchers=new Set(),notify=()=>{for(const watcher of watchers)watcher();};
  const plugin='/user/.selects/skills/'+id,data='/user/.selects/plugin-data/'+id;
  if(id==='camera-shutter-dump'){
@@ -24,7 +24,12 @@ export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}
   files.set(plugin+'/assets/manifest.json',Buffer.from(JSON.stringify(manifest)));
   for(const entry of Object.values(manifest))files.set(plugin+'/assets/'+entry.file+'.b64',fs.readFileSync(new URL('../plugins/'+id+'/assets/'+entry.file+'.b64',import.meta.url)));
  }else files.set(plugin+'/assets/music.mp3',Buffer.from('installed music'));
- if(id==='photo-gallery-no2')files.set(plugin+'/SKILL.md',Buffer.from('installed fixture'));
+ if(id==='photo-gallery-no2'){
+  files.set(plugin+'/SKILL.md',Buffer.from('installed fixture'));
+  files.set(plugin+'/assets/music.mp3',fs.readFileSync(new URL('../plugins/photo-gallery-no2/assets/music.mp3',import.meta.url)));
+  const project=f.selects.project('p'),importFiles=project.importFiles;
+  project.importFiles=async input=>{const result=await importFiles(input);for(const rid of result.addedResourceIds??[]){const resource=f.resources.find(r=>r.resourceId===rid),node=f.nodes.find(n=>n.resourceId===rid);if(resource?.type==='Audio'){resource.durationSeconds=853/60;node.durationSeconds=853/60;}}return result;};
+ }
  const local={environment:{platform:'darwin'},files:{join:(...p)=>p.join('/'),homedir:()=>'/user',exists:async p=>files.has(p),mkdir:async()=>{},stat:async p=>files.has(p)?{size:files.get(p).length,isDirectory:false}:null,
   readRange:async(p,offset,length)=>{if(!files.has(p))throw Error('ENOENT');return new Uint8Array(files.get(p).subarray(offset,offset+length));},
   readFile:async(p,encoding)=>{if(!files.has(p))throw Error('ENOENT');return encoding==='utf8'?files.get(p).toString('utf8'):new Uint8Array(files.get(p));},

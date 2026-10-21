@@ -769,25 +769,29 @@ const STRINGS = {
   }
 };
 
-// The bundled track, imported into the Project once; `durationFrames` is the
-// length it must cover.
+// The packaged excerpt is pinned to this template release. Existing Drafts keep
+// their old content paths; installation paths are never newly registered.
+const GALLERY_MUSIC={bytes:457308,sha256:'70146fa3ee1829efc1fff40ffe93f4a6a40394bca094d9b69877756432d8b8f0',seconds:853/60};
 async function prepareBundledMusic(sdk, t, { projectId, durationFrames, isCurrent, onImportStarted }) {
-  // The installed asset through the host FileSystem (no shell), the same on macOS and Windows.
-  let musicPath = null;
+  let importStarted=false;
   try {
-    const { plugin } = await hostRoots(sdk, 'photo-gallery-no2', 'SKILL.md');
-    const path = hostJoin(plugin, 'assets', 'music.mp3');
-    if ((await hostNeed('FileSystem', 'exists').exists(path))) musicPath = path;
-  } catch (error) { if (error?.code === 'host-missing') throw error; musicPath = null; }
-  if (!musicPath) throw new Error('Bundled music could not be located. Reinstall Photo Grid Reveal.');
-  if (!isCurrent()) throw new Error(t.changed);
-  await onImportStarted();
-  if (!isCurrent()) throw Object.assign(new Error(t.changed), { contextChanged: true, safeNotSaved: true });
-  const response = await sdk.runScript({ summary: 'Prepare bundled Photo Grid Reveal music', allowCommit: true,
-    script: buildScript({ operation: 'importBundledMusic', projectId, path: musicPath, durationFrames }) });
-  if (response.result?.status === 'notSaved') throw Object.assign(new Error(response.result.message), { safeNotSaved: true });
-  if (response.isError || response.result?.status !== 'musicReady') throw new Error(response.result?.message || response.output || t.unknown);
-  return response.result.music;
+    if(!Number.isSafeInteger(durationFrames)||durationFrames<1||durationFrames>36000)throw templateIssue('Music length must be an integer from 1 to 36000 frames.');
+    if(!isCurrent())throw templateIssue(t.changed);
+    const fps=await readImageDraftFps(sdk,projectId),minimumSeconds=Math.round(durationFrames*fps/60)/fps;
+    if(!isCurrent())throw templateIssue(t.changed);
+    if(minimumSeconds<=0)throw templateIssue('The requested duration is shorter than one frame on the Project frame grid.');
+    if(minimumSeconds>GALLERY_MUSIC.seconds+1e-9)throw templateIssue('Bundled music is too short for this result on the Project frame grid. Choose No music, another track or a shorter duration.');
+    const {plugin}=await hostRoots(sdk,'photo-gallery-no2','SKILL.md'),client=panelLocalClient(sdk);
+    const observe={runScript:async request=>{
+      if(request.allowCommit){await onImportStarted();if(!isCurrent())throw templateIssue(t.changed);importStarted=true;}
+      return sdk.runScript(request);
+    }};
+    const music=await prepareBundledAsset(observe,client.files,{projectId,pluginId:'photo-gallery-no2',sourcePath:hostJoin(plugin,'assets','music.mp3'),type:'Audio',extension:'mp3',expectedBytes:GALLERY_MUSIC.bytes,expectedSha256:GALLERY_MUSIC.sha256,minimumSeconds,platform:client.environment.platform,normalizeUnicode:true,label:'music',isCurrent});
+    return {...music,durationFrames:Math.round(music.durationSeconds*60),startFrame:0};
+  }catch(error){
+    if(error?.code==='not-found')throw templateIssue('Bundled music could not be located. Reinstall Photo Grid Reveal.');
+    if(error&&typeof error==='object')error.safeNotSaved=!importStarted;throw error;
+  }
 }
 
 function requireGalleryAuthoringHost(sdk) {

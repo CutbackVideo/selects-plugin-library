@@ -26,9 +26,10 @@ const verifyAtomicImageDraft = (...args) => globalThis.__native.verify(...args);
 const galleryNativeResources = (...args) => globalThis.__native.resources(...args);
 const galleryNativeSetFps = (...args) => globalThis.__native.setFps(...args);
 const galleryNativePlace = (...args) => globalThis.__native.place(...args);`;
+const assetSource=fs.readFileSync(new URL('../../shared/bundled-assets.js',import.meta.url),'utf8');
 // These tests own Gallery interactions; the shared local SDK initializer has its own suite.
 const source = template.replace(/\/\/ local-sdk:start[\s\S]*?\/\/ local-sdk:end/, 'function panelLocalClient(sdk) { return sdk; }\nexport default Panel;').replace('/*__SHARED_SCRIPT_BUILDER__*/',
-  'const buildScript = input => JSON.stringify(input);' + nativeMock);
+  'const buildScript = input => JSON.stringify(input);' + nativeMock + '\n' + assetSource);
 assert.notEqual(source, template);
 const compiled = esbuild.transformSync(source, { loader: 'tsx', format: 'cjs', jsx: 'automatic' }).code;
 const compiledModule = new Module(path.join(appRoot, '__photo_gallery_panel_test__.cjs'));
@@ -85,6 +86,14 @@ function harness(media = photos, options = {}) {
   // The host's renderer services: the bundled music is found through FileSystem, the platform through Runtime.
   const sep = options.platform === 'win32' ? '\\' : '/';
   const home = options.platform === 'win32' ? 'C:\\Users\\tester' : '/installed';
+  const disk=new Map();
+  if(!options.musicMissing)disk.set([home,'.selects','skills','photo-gallery-no2','assets','music.mp3'].join(sep),fs.readFileSync(new URL('./assets/music.mp3',import.meta.url)));
+  const assetResources=[],assetNodes=[];
+  const assetProject={resources:async()=>assetResources,sourceFiles:async()=>({fileTree:assetNodes}),importFiles:async({paths})=>{
+    calls.push({input:{operation:'importOwnedMusic',path:paths[0]},allowCommit:true});
+    for(const path of paths){assetResources.push({resourceId:'bundled-music',type:'Audio',durationSeconds:853/60});assetNodes.push({resourceId:'bundled-music',type:'audio',path});}
+    return {addedResourceIds:['bundled-music']};
+  }};
   // Short videos are held by the host's ffmpeg/ffprobe: a source probes at 30 fps, a held output at 60 fps.
   const tools = options.tools || [];
   const probed = path => JSON.stringify({ streams: [/\.tmp$|[0-9a-f]{64}\.mp4$/.test(path)
@@ -92,10 +101,10 @@ function harness(media = photos, options = {}) {
     : { codec_type: 'video', codec_name: 'h264', width: 128, height: 96, r_frame_rate: '30/1', avg_frame_rate: '30/1', nb_read_frames: '30' }] });
   dom.window.__DI__ = {
     FileSystem: { join: (...parts) => parts.join(sep), homedir: () => home, mkdirSync: () => {},
-      existsSync: path => (!options.musicMissing && (path.endsWith('SKILL.md') || path.endsWith('music.mp3'))) || /short\.mp4$/.test(path),
-      statSync: () => ({ size: 1000, mtimeMs: 1 }), renameSync: (from, to) => tools.push(['rename', from, to]),
-      writeFile: async () => {}, removeFile: async () => {},
-      readFile: async () => options.pcm ? Buffer.from(options.pcm.buffer) : Buffer.alloc(0) },
+      existsSync: path => disk.has(path) || (!options.musicMissing && path.endsWith('SKILL.md')) || /short\.mp4$/.test(path),
+      statSync: p => ({ size: disk.get(p)?.length??1000, mtimeMs: 1, isDirectory:false }), renameSync: (from, to) => tools.push(['rename', from, to]),
+      writeFile: async (p,bytes) => {disk.set(p,Buffer.from(bytes));}, removeFile: async () => {},
+      readFile: async p => disk.get(p)??(options.pcm ? Buffer.from(options.pcm.buffer) : Buffer.alloc(0)) },
     Runtime: { getPlatform: () => options.platform || 'darwin',
       runFFprobe: async args => { tools.push(['ffprobe', ...args]); return { stdout: probed(args.at(-1)), stderr: '' }; },
       runFFmpeg: async args => { tools.push(['ffmpeg', ...args]); return { stdout: '', stderr: '' }; } },
@@ -108,6 +117,10 @@ function harness(media = photos, options = {}) {
       throw new Error('Unexpected media conversion');
     },
     runScript: async request => {
+      if(['Find bundled music Resource','Import bundled music'].includes(request.summary)){
+        if(request.allowCommit&&options.musicResponse)return options.musicResponse;
+        const result=await new Function('selects','return (async()=>{'+request.script+'})()')({project:()=>assetProject});return {result};
+      }
       if(request.script.includes("name:'Gallery frame grid'"))return {result:{fps:options.fps??60}};
       const paged = request.script.startsWith('const value=await(async()=>{');
       const input = JSON.parse(paged ? request.script.slice('const value=await(async()=>{'.length, request.script.indexOf('\n})();const array')) : request.script);
@@ -225,8 +238,8 @@ test('Windows: the default build finds the bundled music through the host FileSy
   fireEvent.click(await waitFor(() => h.view.getByRole('button', { name: 'Assign all 21 in listed order' })));
   fireEvent.click(h.view.getByRole('button', { name: 'Create Draft' }));
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
-  assert.equal(h.calls.find(c => c.input.operation === 'importBundledMusic').input.path,
-    'C:\\Users\\tester\\.selects\\skills\\photo-gallery-no2\\assets\\music.mp3');
+  assert.equal(h.calls.find(c => c.input.operation === 'importOwnedMusic').input.path,
+    'C:\\Users\\tester\\.selects\\plugin-data\\photo-gallery-no2\\assets\\70146fa3ee1829efc1fff40ffe93f4a6a40394bca094d9b69877756432d8b8f0.mp3');
 });
 
 for (const platform of ['darwin', 'win32']) {
@@ -320,7 +333,7 @@ test('one Create action uses bundled B2 by default with reference timing and cre
   const styled = h.calls.find(c => c.input.operation === 'create').input;
   assert.equal(styled.music.resourceId, 'bundled-music');
   assert.equal(styled.manualBpm, 113);
-  assert.equal(h.calls.filter(c => c.input.operation === 'importBundledMusic').length, 1);
+  assert.equal(h.calls.filter(c => c.input.operation === 'importOwnedMusic').length, 1);
 });
 test('custom Project music uses its exact resource without importing B2', async () => {
   const audio = [{ resourceId: 'custom', name: 'Custom', path: '/custom.mp3', durationFrames: 900 }];

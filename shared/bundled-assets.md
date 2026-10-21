@@ -1,8 +1,8 @@
 # Verified bundled asset preparation
 
 This is the former bundled-Audio feature extended for PNG Images and encoded
-M4A music. One implementation serves No.14, Four Photo Stop Motion and Polaroid
-Photo Dump. The pool still has five registered modules. `panel-modules.json`
+M4A music. One implementation serves No.14, Four Photo Stop Motion, Polaroid
+Photo Dump and Gallery. The pool still has five registered modules. `panel-modules.json`
 embeds the source into independent panels; no runtime shared-file loader or
 cross-plugin installation dependency is introduced.
 
@@ -54,5 +54,14 @@ The unsafe private `unpackBundled`/`unpackAssets` implementation is retired;
 compiled active-path tests retain decoded PNG/M4A/header/hash, corrupt-copy and
 bad-source checks. Historical fixed/installation paths are not migrated or
 deleted. Full decoding, installed-app/Windows, whole AV/Inspector/export and
-reference quality remain unverified. Polaroid still needs complete-save/durable
-run migration; existing No.14/Stop Motion lifecycle and SDK prerequisites remain.
+reference quality remain unverified. Current consumers retain their complete-save
+and durable-run checks and their documented SDK prerequisites.
+
+Gallery selects these canonical functions at build time. Its panel publishes the
+unchanged binary MP3 with pinned 457,308 bytes and SHA-256; SDK operation scripts
+include only the bounded Resource reader, also reused for held Videos. Its legacy
+music import helper refuses installation paths and requires already prepared
+owned data. Required Audio duration is based on the rounded Project grid. The
+14.216667-second excerpt cannot cover the default 30 fps rounded 14.233333-second
+result; Gallery refuses this before asset work instead of changing timing or
+padding music. Older installation-path Resources/Drafts remain untouched.
