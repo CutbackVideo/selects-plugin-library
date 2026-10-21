@@ -481,6 +481,10 @@ const CW = 1080;
 const CH = 1440;
 // Selects' own image model: "model_v1_" + base64url("fal-ai/nano-banana-pro").
 const IMAGE_MODEL = { id: "model_v1_ZmFsLWFpL25hbm8tYmFuYW5hLXBybw", recipe: "nano-banana-pro" };
+// The same model drawing after reference images: Selects sends a request that carries images to its edit endpoint.
+const IMAGE_MODEL_EDIT = "model_v1_" + "ZmFsLWFpL25hbm8tYmFuYW5hLXByby9lZGl0";
+// What a picture-style reference may lend: how it is drawn, never what it shows.
+const STYLE_REF_LEAD = "Use the reference image only for its drawing style: line work, shapes, colour treatment and texture. Do not copy its subject, characters, objects, layout, text, letters or logos. Draw this scene:";
 
 const STRINGS: any = {
   en: {
@@ -591,6 +595,13 @@ const STRINGS: any = {
     exportNotInProject: "Saved the card images and the caption, but they could not be added to the Project. Open the folder to find them.",
     promptsTranslating: "Putting the picture style into English\u2026",
     promptStyleSent: (t: string) => `The image model is given: ${t}`,
+    styleRef: "Picture style reference (optional)",
+    styleRefHint: "Every picture is drawn in this image's style: its lines, shapes, colours and texture, not its content or text. Use an image you may use. It applies from the next plan.",
+    styleRefUrl: "Image address (ends in .jpg, .png or .webp)",
+    styleRefLoad: "Load",
+    styleRefRemove: "Remove",
+    styleRefSaved: "Saved the reference. The next plan draws its pictures in its style.",
+    styleRefBad: "That is not an image. A post link (such as Instagram) will not load: save the image and drop it here, or paste an address that ends in .jpg, .png or .webp.",
     promptsSave: "Save",
     promptsReset: "Back to the defaults",
     promptsSaved: "Saved. The next plan uses these instructions.",
@@ -879,6 +890,13 @@ const STRINGS: any = {
     exportNotInProject: "\uce74\ub4dc \uc774\ubbf8\uc9c0\uc640 \uc124\uba85\uae00\uc740 \uc800\uc7a5\ud588\uc9c0\ub9cc \ud504\ub85c\uc81d\ud2b8\uc5d0\ub294 \ub123\uc9c0 \ubabb\ud588\uc5b4\uc694. \ud3f4\ub354 \uc5f4\uae30\ub85c \ud655\uc778\ud558\uc138\uc694.",
     promptsTranslating: "\uadf8\ub9bc\uccb4\ub97c \uc601\uc5b4\ub85c \uc62e\uae30\ub294 \uc911\u2026",
     promptStyleSent: (t: string) => `\uc774\ubbf8\uc9c0 \ubaa8\ub378\uc5d0\ub294 \uc774\ub807\uac8c \ub4e4\uc5b4\uac00\uc694: ${t}`,
+    styleRef: "\uadf8\ub9bc\uccb4 \ucc38\uace0 \uc774\ubbf8\uc9c0 (\uc120\ud0dd)",
+    styleRefHint: "\ubaa8\ub4e0 \uadf8\ub9bc\uc744 \uc774 \uc774\ubbf8\uc9c0\uc758 \uadf8\ub9bc\uccb4(\uc120, \ubaa8\uc591, \uc0c9\uac10, \uc9c8\uac10)\ub85c \uadf8\ub824\uc694. \ub0b4\uc6a9\uc774\ub098 \uae00\uc790\ub294 \ub530\ub77c \ud558\uc9c0 \uc54a\uc544\uc694. \uc368\ub3c4 \ub418\ub294 \uc774\ubbf8\uc9c0\ub97c \ub123\uc5b4 \uc8fc\uc138\uc694. \ub2e4\uc74c \uae30\ud68d\ubd80\ud130 \uc801\uc6a9\ub3fc\uc694.",
+    styleRefUrl: "\uc774\ubbf8\uc9c0 \uc8fc\uc18c (.jpg, .png, .webp\ub85c \ub05d\ub098\ub294 \uc8fc\uc18c)",
+    styleRefLoad: "\ubd88\ub7ec\uc624\uae30",
+    styleRefRemove: "\ube7c\uae30",
+    styleRefSaved: "\ucc38\uace0 \uc774\ubbf8\uc9c0\ub97c \uc800\uc7a5\ud588\uc5b4\uc694. \ub2e4\uc74c \uae30\ud68d\ubd80\ud130 \uc774 \uadf8\ub9bc\uccb4\ub85c \uadf8\ub824\uc694.",
+    styleRefBad: "\uc774\ubbf8\uc9c0\uac00 \uc544\ub2c8\uc5d0\uc694. \uc778\uc2a4\ud0c0\uadf8\ub7a8 \uac19\uc740 \uac8c\uc2dc\ubb3c \ub9c1\ud06c\ub294 \ubd88\ub7ec\uc62c \uc218 \uc5c6\uc5b4\uc694. \uc774\ubbf8\uc9c0\ub97c \uc800\uc7a5\ud574\uc11c \uc5ec\uae30\uc5d0 \ub04c\uc5b4\ub2e4 \ub193\uac70\ub098, .jpg\u00b7.png\u00b7.webp\ub85c \ub05d\ub098\ub294 \uc8fc\uc18c\ub97c \ub123\uc5b4 \uc8fc\uc138\uc694.",
     promptsSave: "\uc800\uc7a5",
     promptsReset: "\uae30\ubcf8\uac12\uc73c\ub85c",
     promptsSaved: "\uc800\uc7a5\ud588\uc5b4\uc694. \ub2e4\uc74c \uae30\ud68d\ubd80\ud130 \uc774 \uc9c0\uc2dc\ubb38\uc744 \uc501\ub2c8\ub2e4.",
@@ -4207,6 +4225,7 @@ function ProjectPanel({ sdk, context, ui }: any) {
   const [promptDraft, setPromptDraft] = React.useState<any>(null);
   const [openPrompts, setOpenPrompts] = React.useState<boolean>(false);
   const [promptMsg, setPromptMsg] = React.useState<string>("");
+  const [styleRefUrl, setStyleRefUrl] = React.useState<string>("");
   // Every Huick card but the closing quote gets its own picture, whatever the template says.
   const [illusTouched, setIllusTouched] = React.useState<boolean>(true);
   const [openParts, setOpenParts] = React.useState<boolean>(false);
@@ -4349,10 +4368,35 @@ function ProjectPanel({ sdk, context, ui }: any) {
       setPromptMsg(S.promptsTranslating);
       next = { ...next, style: hasHangul(next.styleKo) ? await englishStyle(next.styleKo) : next.styleKo };
     }
-    const value = { ...next, id: "prompts" };
+    const value = { ...next, styleRef: next.styleRef === undefined ? prompts?.styleRef || null : next.styleRef, id: "prompts" };
     await store.put("settings", "prompts", value);
     setPrompts(value);
     setPromptMsg(S.promptsSaved);
+  }
+  // A picture-style reference is copied into this app's data folder, which is where generation can upload it
+  // from, and saved with the instructions; it applies from the next plan.
+  async function keepStyleRef(read: (to: string) => Promise<boolean>, ext: string, name: string) {
+    if (!store.fs) throw new Error(S.noFileAccess);
+    const dir = store.join(store.root, "settings");
+    await store.ensure(dir);
+    const to = store.join(dir, `style-ref-${Date.now().toString(36)}.${ext}`);
+    if (!(await read(to)) || !(await imageSize(store.fs, to).catch(() => null))) throw new Error(S.styleRefBad);
+    await savePrompts({ ...(prompts || defaultPrompts()), styleRef: { path: to, name } });
+    setPromptMsg(S.styleRefSaved);
+  }
+  async function pickStyleRef(f: any) {
+    const from = String(f?.path || "");
+    if (!from) return;
+    const ext = ((from.match(/\.(png|jpe?g|webp)$/i) || [, "png"])[1] as string).toLowerCase();
+    await keepStyleRef(async (to) => { await store.fs.writeFile(to, await readFileFast(store.fs, from)); return true; }, ext, f?.name || from.split(/[\\/]/).pop() || "");
+  }
+  async function loadStyleRef(u: string) {
+    const url = u.trim();
+    // A post page (Instagram and the like) is not an image; its image addresses also expire.
+    if (!/^https?:\/\//.test(url) || /instagram\.com\/(p|reel)\//.test(url)) throw new Error(S.styleRefBad);
+    const ext = ((url.split("?")[0].match(/\.(png|jpe?g|webp)$/i) || [, "jpg"])[1] as string).toLowerCase();
+    await keepStyleRef((to) => download(url, to), ext, url.split("?")[0].split("/").pop() || url);
+    setStyleRefUrl("");
   }
   React.useEffect(() => {
     if (!illusTouched) setIllus(defaultIllustrations(tplOf(tplId)));
@@ -4574,14 +4618,15 @@ function ProjectPanel({ sdk, context, ui }: any) {
       const card = j.plan.cards[i];
       // The card's own subject leads; a set-wide metaphor only joins in templates made entirely of AI images that keep one.
       const metaphor = t.images.source === "generate" && t.images.metaphor !== false && j.plan.metaphor ? `Visual metaphor for the whole set: ${j.plan.metaphor}.` : "";
-      const prompt = [card.picture.prompt, metaphor, t.images.style].filter(Boolean).join(" ");
+      const ref = j.prompts?.styleRef?.path || "";
+      const prompt = [ref ? STYLE_REF_LEAD : "", card.picture.prompt, metaphor, t.images.style].filter(Boolean).join(" ");
       const { jobIds } = await mg.submit({
         origin: { tool: "image", tab: "image", recipeId: IMAGE_MODEL.recipe },
         scope,
         key: `cnm-${j.id}-${i}-${card.picture.attempt || 0}`,
-        modelId: IMAGE_MODEL.id,
-        input: { prompt, aspect_ratio: imageAspect(t, card.role), resolution: "2K", num_images: 1 },
-        uploads: {},
+        modelId: ref ? IMAGE_MODEL_EDIT : IMAGE_MODEL.id,
+        input: { prompt, aspect_ratio: imageAspect(t, card.role), resolution: "2K", num_images: 1, ...(ref ? { image_urls: ["selects-input:style"] } : {}) },
+        uploads: ref ? { style: { pluginFile: ref } } : {},
         outputName: genName(j.id, i),
         batch: 1,
       });
@@ -4596,7 +4641,9 @@ function ProjectPanel({ sdk, context, ui }: any) {
       for (const i of need) {
         const row = rows.find((r: any) => r.jobId === pics[i].genJobId);
         if (!row) continue;
-        if (row.errorCode || /fail|cancel/i.test(String(row.status))) throw new Error(S.genFailed(i + 1, row.errorCode || row.status));
+        // Only a finished failure counts: a job the server turned away before dispatch keeps its error code
+        // while Selects retries it (status "preparing"), and it may still succeed.
+        if (/fail|cancel|reject/i.test(String(row.status))) throw new Error(S.genFailed(i + 1, row.errorCode || row.status));
         const out = (row.outputs || []).find((o: any) => o.resourceId);
         if (out && !pics[i].resourceName) {
           const hit = await findByPrefix(genName(j.id, i));
@@ -4943,6 +4990,8 @@ return ids.length;`,
   const why = tplTouched ? descOf(t || {}, lang) : rec.why === "views" ? S.whyViews(rec.n) : rec.why === "questions" ? S.whyQuestions(rec.n) : S.whyDefault;
   // One line of the summary: what it is, a short detail under it, and a button that opens it for changes.
   const shownPrompts: any = { ...defaultPrompts(), ...(promptDraft || prompts || {}) };
+  const styleRef: any = prompts?.styleRef || null;
+  const styleRefThumb = useBlobUrl(styleRef?.path || "", store.fs);
   const promptField = (key: string, label: string) => (
     <ui.TextField
       label={label}
@@ -5030,6 +5079,28 @@ return ids.length;`,
                   {promptField("end", S.promptEnd)}
                   {promptField("styleKo", S.promptStyle)}
                   {!promptDraft && shownPrompts.style && <small style={{ opacity: 0.6 }}>{S.promptStyleSent(shownPrompts.style)}</small>}
+                  <ui.Stack gap={6}>
+                    <small style={{ fontWeight: 600 }}>{S.styleRef}</small>
+                    <small style={{ opacity: 0.7 }}>{S.styleRefHint}</small>
+                    {styleRef ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                        {styleRefThumb ? <img src={styleRefThumb} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid var(--panel-border)", flex: "none" }} /> : null}
+                        <small style={{ flex: "1 1 auto", minWidth: 0, opacity: 0.8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{styleRef.name}</small>
+                        <ui.Button variant="ghost" onClick={() => savePrompts({ ...(prompts || defaultPrompts()), styleRef: null }).catch((e: any) => setPromptMsg(String(e?.message || e)))} disabled={busy}>
+                          {S.styleRefRemove}
+                        </ui.Button>
+                      </div>
+                    ) : null}
+                    <ui.FileDrop accept={["image"]} value={null} onChange={(f: any) => pickStyleRef(f).catch((e: any) => setPromptMsg(String(e?.message || e)))} disabled={busy} />
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+                        <ui.TextField value={styleRefUrl} onChange={setStyleRefUrl} placeholder={S.styleRefUrl} />
+                      </div>
+                      <ui.Button onClick={() => loadStyleRef(styleRefUrl).catch((e: any) => setPromptMsg(String(e?.message || e)))} disabled={busy || !styleRefUrl.trim()}>
+                        {S.styleRefLoad}
+                      </ui.Button>
+                    </div>
+                  </ui.Stack>
                   <ui.Actions>
                     <ui.Button variant="ghost" onClick={() => { setPromptDraft(defaultPrompts()); setPromptMsg(""); }}>
                       {S.promptsReset}
