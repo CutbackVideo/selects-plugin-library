@@ -758,9 +758,13 @@ export default function Preparation({sdk, context, ui}) {
     // Wide enough for the list beside the video; hosts before the size option open it at their usual size.
     if (!context.inWindow && typeof sdk.openInWindow === "function") await sdk.openInWindow({width: 1200, height: 800}).catch(() => {});
   }
+  // Leaving the classifier in its own window closes that window: the panel
+  // comes back to its tab, at the steps, as remembered just before. A host
+  // without the call leaves the window open, at the steps.
   async function leaveClassifier() {
     await remember(shoot?.name || shootName, timelineId);
     setView("steps");
+    if (context.inWindow && typeof sdk.closeWindow === "function") await sdk.closeWindow().catch(() => {});
   }
   // The reviewer's classes and the rule's settled ones build the timelines;
   // both open, Main last so it is the one on screen.
