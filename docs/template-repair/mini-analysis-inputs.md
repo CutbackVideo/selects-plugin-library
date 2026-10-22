@@ -91,3 +91,12 @@ cancel failure after a status-read exception, while native cancel acknowledges
 the abort request without waiting for process exit. Ordinary cancellation is
 covered above; simultaneous status/cancel transport loss is queued for its own
 reproduction and lifetime repair. It is not evidence of confirmed job settlement.
+
+## Existing compiled-client consumer
+
+CI identified the existing A16z `src/Panel.tsx` import of the canonical private
+client: its generated panel had not been rebuilt with the additive fingerprint
+method. The source import was already present. Regenerate the shipped panel,
+bump A16z to 0.20.7 and run its existing tests; do not broaden scoped raw-client
+synchronization into excluded apps. Existing A16z authoring policy remains
+unchanged. Future private-client edits must also build this existing consumer.

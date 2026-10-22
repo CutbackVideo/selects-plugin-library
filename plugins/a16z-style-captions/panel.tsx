@@ -537,6 +537,7 @@ async function createPanelLocalClient(sdk) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path) => run2("files.exists", [path]),
     stat: (path) => run2("files.stat", [path]),
+    fingerprint: (path) => run2("files.fingerprint", [path]),
     readdir: (path) => run2("files.readdir", [path]),
     readRange,
     async readFile(path, encoding) {
