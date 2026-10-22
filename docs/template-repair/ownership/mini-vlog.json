@@ -1318,12 +1318,12 @@
     },
     {
       "path": "plugins/mini-vlog/tests/panel.test.cjs",
-      "sha256": "da34b4c651ca4ee6fcbd149d3df4ebd1732004115a3516448892a7beba0abc97",
+      "sha256": "e2f2aadb99d770bdcc5d6e507b85e99b25aeb834309a1e28db6d7de3033165d3",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 630,
+          "endLine": 631,
           "feature": "test-harness"
         }
       ],

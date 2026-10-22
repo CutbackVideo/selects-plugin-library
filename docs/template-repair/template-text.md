@@ -37,6 +37,14 @@ no diagnostics. Public/package and ownership checks pass. Outside the text
 declarations, all seven complete panels retain identical AST tokens after
 normalizing the intentional version bump; manifests change only their version.
 
+Final-source CI then exposed a missed Mini test update: after an explanatory
+comment was renamed, its legacy panel test still required that old kit-copy
+comment and optionally compared an external machine's kit file. It now requires
+one ordered canonical boundary after STRINGS and compares its entire content to
+shared/template-text.ts on every machine. The previous language/field assertions
+remain. All seven panel suites and all seven i18n suites pass on the final source.
+This follow-up changes the test boundary, not the runtime or dictionaries.
+
 No Electron is launched for this pure runtime change. Source/adapter and package
 evidence remain separate from installed-panel, complete saved output, full-video
 playback/audio, export and Windows acceptance. The existing two Draft PRs remain

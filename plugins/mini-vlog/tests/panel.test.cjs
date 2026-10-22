@@ -186,17 +186,18 @@ for (const s of ['label={t(L, "length")}', 'label={t(L, "pace")}', 'value: "quic
 for (const [k, v] of [['pace.quick', 'Quick'], ['pace.relaxed', 'Relaxed'], ['pace.groove', 'Groove'], ['length.short', 'Short'], ['length.standard', 'Standard'], ['length.long', 'Long'],
   ['sound.off', 'Off'], ['sound.ambient', 'Ambient'], ['sound.full', 'Full']]) says(k, v);
 // The UI language: context.language on every render (before the early return), the Build-time language for Inspector
-// labels, the kit runtime pasted unchanged, and no literal UI text left in JSX.
+// labels, the canonical text runtime, and no literal UI text left in JSX.
 // The panel UI is MiniVlogPanel; Panel only hands a Clip highlights run to TemplateRun.
 assert.ok(ui.includes('function MiniVlogPanel({ sdk, context, ui }: any) {\n  // The UI language, read on every render: Selects can switch languages while the panel is open.\n  const L = uiLang(context);'), 'L first in the component');
 assert.ok(ui.includes('const langRef = React.useRef(L);\n  langRef.current = L;') && ui.includes('language: Lang') && ui.includes('bl = assets.language'), 'Build-time language');
 {
-  // Compared with the kit copy when it is available (SELECTS_APP_KIT, else ~/Workspaces/selects-app-kit); CI checks the markers only.
-  const kit = path.join(process.env.SELECTS_APP_KIT || path.join(require('node:os').homedir(), 'Workspaces', 'selects-app-kit'), 'tools', 'i18n', 'i18n-runtime.ts');
-  const marker = '// i18n runtime for style-app panels (selects-app-kit tools/i18n/i18n-runtime.ts). Paste it below the STRINGS block.';
-  assert.ok(panel.includes(marker) && panel.indexOf(marker) > panel.indexOf('// STRINGS:END'), 'kit runtime below the STRINGS block');
+  const marker = '// template-text:start', end = '// template-text:end';
+  assert.equal(panel.split(marker).length, 2, 'one canonical runtime start');
+  assert.equal(panel.split(end).length, 2, 'one canonical runtime end');
+  assert.ok(panel.indexOf(marker) > panel.indexOf('// STRINGS:END') && panel.indexOf(end) > panel.indexOf(marker), 'canonical runtime below the STRINGS block');
   for (const s of ['function uiLang(context?: { language?: string | null } | null): Lang {', 'function t(lang: Lang, key: string, vars: Vars = {}): string {', 'function tOr(lang: Lang, key: string, fallback: string, vars: Vars = {}): string {', 'function fieldLen(text: string): number {']) assert.ok(panel.includes(s), s);
-  if (fs.existsSync(kit)) assert.ok(panel.includes(fs.readFileSync(kit, 'utf8').trimEnd()), 'runtime identical to the kit copy');
+  assert.equal(panel.slice(panel.indexOf(marker) + marker.length + 1, panel.indexOf(end)).trimEnd(),
+    fs.readFileSync(path.join(root, '..', '..', 'shared', 'template-text.ts'), 'utf8').trimEnd(), 'runtime identical to its canonical owner');
 }
 assert.ok(!/<[A-Za-z][\w.]*\b[^>]*>[ \t]*[A-Z][a-z]+(?: [a-z]+)*[.…]?[ \t]*<\//.test(ui), 'no literal English text between JSX tags');
 assert.ok(!/(?:label|title|aria-label|busyLabel)="[A-Z]/.test(ui), 'no literal English UI props');
