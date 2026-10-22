@@ -61,8 +61,13 @@ test('Polaroid independent persisted readback carries bounded receipts without o
 test('Polaroid complete scripts typecheck against available SDK declarations',async()=>{
  const f=fixture(id);await f.create();assert.ok(checkScriptTypes(f.calls).scripts>=3);assert.ok(checkScriptTypes(f.calls,{sdkTypes:false}).scripts>=3);
 });
-for(const capability of ['graphicsReadSupported','transformReadSupported','audioReadSupported','sourceReadSupported','programReadSupported'])test('Polaroid missing '+capability+' stops before the sole save',async()=>{
+for(const capability of ['graphicsReadSupported','transformReadSupported','audioReadSupported','programReadSupported'])test('Polaroid missing '+capability+' stops before the sole save',async()=>{
  const f=fixture(id,{[capability]:false});await assert.rejects(f.create(),/update|verify|confirm/i);assert.equal(f.commits.length,0);assert.equal(f.saved.size,0);
+});
+test('Polaroid verifies music using existing saved-Draft reads without clipSourceWindow',async()=>{
+ const f=fixture(id,{sourceReadSupported:false});delete f.sdk.maxScriptTimeoutSeconds;delete f.selects.files.fingerprint;
+ const result=await f.create();assert.equal(result.status,'saved');assert.equal(f.commits.length,1);assert.equal(f.saved.size,1);
+ assert.equal(f.saved.get(result.draftId).clips.filter(clip=>clip.trackKind==='audio').length,1);
 });
 for(const fault of ['transform','program','caption','sound'])test('Polaroid ignored '+fault+' mutation cannot become a completed save',async()=>{
  const f=fixture(id),project=f.selects.project('p'),original=project.createDraft;

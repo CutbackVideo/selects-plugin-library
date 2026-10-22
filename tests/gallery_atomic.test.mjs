@@ -20,8 +20,9 @@ for(const mix of ['image','video'])test('Gallery '+mix+'-only repeated inputs re
  const f=galleryFixture({mix,music:false}),r=await f.create();assert.equal(r.verified,true);assert.equal(f.commits.length,1);
  assert.deepEqual(f.saved.get(r.draftId).clips.filter(c=>c.trackKind==='video').map(c=>c.resourceId),f.input.media.map(m=>m.resourceId));
 });
-for(const limit of [undefined,30])test('Gallery unsupported extended deadline '+limit+' stops before any script or save',async()=>{
- const f=galleryFixture();f.sdk.maxScriptTimeoutSeconds=limit;await assert.rejects(f.create(),/update|support|version/i);assert.equal(f.calls.length,0);assert.equal(f.commits.length,0);
+for(const limit of [undefined,30])test('Gallery completes one save without the added deadline capability ('+limit+')',async()=>{
+ const f=galleryFixture();if(limit===undefined)delete f.sdk.maxScriptTimeoutSeconds;else f.sdk.maxScriptTimeoutSeconds=limit;
+ const result=await f.create();assert.equal(result.verified,true);assert.equal(f.commits.length,1);assert.equal(f.saved.size,1);
 });
 test('Gallery awaits dispatch and rechecks liveness before authoring',async()=>{
  const f=galleryFixture();await assert.rejects(f.create({onDispatched:async()=>{await Promise.resolve();f.stop();}}),/changed|ended|stopped/i);assert.equal(f.commits.length,0);
@@ -34,15 +35,20 @@ test('Gallery persisted tampering is rejected without another save',async()=>{
 test('Gallery unknown commit result is not replayed',async()=>{
  const f=galleryFixture({commitReplyLost:true});await assert.rejects(f.create(),/unknown|lost|confirm|save/i);assert.equal(f.commits.length,1);assert.equal(f.saved.size,1);
 });
-for(const limit of ['120',Infinity,NaN,{}])test('Gallery refuses malformed host deadline fact '+String(limit),async()=>{
- const f=galleryFixture();f.sdk.maxScriptTimeoutSeconds=limit;await assert.rejects(f.create(),/update|support|version/i);assert.equal(f.calls.length,0);assert.equal(f.commits.length,0);
+for(const limit of ['120',Infinity,NaN,{}])test('Gallery does not depend on an unknown host deadline field '+String(limit),async()=>{
+ const f=galleryFixture();f.sdk.maxScriptTimeoutSeconds=limit;const result=await f.create();assert.equal(result.verified,true);assert.equal(f.commits.length,1);assert.equal(f.saved.size,1);
 });
 for(const fps of [25,30,60,24000/1001,120])test('Gallery authors one complete Draft on its Project grid '+fps,async()=>{
  const f=galleryFixture({fps}),r=await f.create();assert.equal(r.verified,true);assert.equal(f.commits.length,1);
  assert.equal(f.saved.get(r.draftId).durationFrames,Math.round(853*fps/60));assert.deepEqual(f.saved.get(r.draftId).frameSize,{width:1080,height:1920});
 });
-for(const capability of ['graphicsReadSupported','transformReadSupported','audioReadSupported','sourceReadSupported','programReadSupported'])test('Gallery missing '+capability+' stops before persistence',async()=>{
+for(const capability of ['graphicsReadSupported','transformReadSupported','audioReadSupported','programReadSupported'])test('Gallery missing '+capability+' stops before persistence',async()=>{
  const f=galleryFixture({[capability]:false});await assert.rejects(f.create(),/update|verify|confirm/i);assert.equal(f.commits.length,0);assert.equal(f.saved.size,0);
+});
+test('Gallery music source verification uses existing saved-Draft reads without clipSourceWindow',async()=>{
+ const f=galleryFixture({sourceReadSupported:false});delete f.sdk.maxScriptTimeoutSeconds;delete f.selects.files.fingerprint;
+ f.input.music.startFrame=60;const result=await f.create();assert.equal(result.verified,true);assert.equal(f.commits.length,1);assert.equal(f.saved.size,1);
+ const sound=f.saved.get(result.draftId).clips.find(clip=>clip.trackKind==='audio');assert.equal(sound._source.startSeconds,1);
 });
 test('Gallery Music Off does not need an unused Audio source-window reader',async()=>{
  const f=galleryFixture({music:false,sourceReadSupported:false}),r=await f.create();assert.equal(r.verified,true);assert.equal(f.commits.length,1);
