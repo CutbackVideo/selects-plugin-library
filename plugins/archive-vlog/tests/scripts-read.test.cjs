@@ -63,8 +63,8 @@ const keepAlive = setInterval(() => {}, 50);
   const inv2 = await load('inventory.js', { projectId: 'p', only: null })(sel2);
   assert.deepEqual(inv2.resources.map(r => [r.rid, r.kind]), [['r0', 'video'], ['r3', 'video']]);
   assert.deepEqual(inv2.photos, [
-    { rid: 'r4', name: 'IMG_1.jpeg', width: null, height: null, recordedAt: '2026-09-27T10:00:00Z', kind: 'photo' },
-    { rid: 'r5', name: 'IMG_2.jpeg', width: null, height: null, recordedAt: null, kind: 'photo' }]);
+    { rid: 'r4', name: 'IMG_1.jpeg', width: null, height: null, recordedAt: '2026-09-27T10:00:00Z', kind: 'photo', path: '/p/1.jpeg' },
+    { rid: 'r5', name: 'IMG_2.jpeg', width: null, height: null, recordedAt: null, kind: 'photo', path: '/p/2.jpeg' }]);
   assert.equal(inv2.skipped.unanalysed, 1, 'photos never count as unanalysed');
   assert.ok(!('latestYear' in inv2), 'no latestYear with photos either');
   assert.equal(drafts.length, 0, 'inventory creates no measurement Drafts');
@@ -108,7 +108,7 @@ const keepAlive = setInterval(() => {}, 50);
   const invQ = await load('inventory.js', { projectId: 'p', only: null, measureMs: 0 })(selL({ resources: async () => partial, sourceFiles: async () => ({ fileTree: [] }) }));
   assert.deepEqual(invQ.resources, [{ rid: 'q0', name: 'q0', duration: 8, width: null, height: null, recordedAt: null, kind: 'video', analysed: true, path: null }], 'missing name and recording');
   assert.equal(invQ.skipped.missing, 1, 'a non-numeric duration counts as missing');
-  assert.deepEqual(invQ.photos, [{ rid: 'q2', name: 'q2', width: null, height: null, recordedAt: null, kind: 'photo' }]);
+  assert.deepEqual(invQ.photos, [{ rid: 'q2', name: 'q2', width: null, height: null, recordedAt: null, kind: 'photo', path: null }]);
   assert.equal(invQ.incomplete, false, 'malformed entries are dropped, not a loading Project');
   // resources() itself failing still throws: with nothing read, the panel retries instead of showing an empty Project.
   await assert.rejects(load('inventory.js', { projectId: 'p', only: null })(selL({ resources: async () => { throw Error('bridge not ready'); } })), /bridge not ready/);

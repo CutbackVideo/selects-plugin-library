@@ -34,8 +34,9 @@ jobs:
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/app_update_guards.test.cjs
       - name: Test feature ownership inventory boundaries
         run: |
-          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_ownership_audit.test.mjs tests/feature_ownership_coverage.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_ownership_audit.test.mjs tests/feature_ownership_coverage.test.mjs tests/archive_feature_ownership.test.mjs
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node tools/check_feature_ownership.mjs docs/template-repair/ownership/mini-vlog.json > "$RUNNER_TEMP/mini-feature-ownership.json"
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node tools/check_feature_ownership.mjs docs/template-repair/ownership/archive-vlog.json > "$RUNNER_TEMP/archive-feature-ownership.json"
       - name: Test Music
         run: |
           node --test tests/music.test.mjs tests/music-preview.test.mjs tests/audio_beat_engine.test.mjs tests/project_audio.test.mjs tests/archive_audio_adoption.test.mjs
@@ -102,7 +103,7 @@ jobs:
           node plugins/torn-paper-love/tests/windows.test.cjs
       - name: Test Archive Vlog
         run: |
-          SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/archive_input_admission.test.mjs tests/archive_video_analysis.test.mjs
+          SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/archive_input_admission.test.mjs tests/archive_mixed_inventory.test.mjs tests/archive_video_analysis.test.mjs
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/archive_owned_cues.test.mjs tests/archive_own_music_analysis.test.mjs tests/archive_own_music_sources.test.mjs tests/archive_assembly_intent.test.mjs tests/archive_assembly_verification.test.mjs tests/archive_decoration_config.test.mjs tests/archive_program_intent.test.mjs tests/archive_save_recovery.test.mjs tests/archive_look_recovery.test.mjs tests/archive_request_budget.test.mjs tests/archive_finish_admission.test.mjs
           node plugins/archive-vlog/operation-builder.mjs --check
           node plugins/archive-vlog/tests/allocate.test.cjs

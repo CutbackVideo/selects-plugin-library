@@ -1,5 +1,17 @@
 # Sequential template repair: active
 
+## Archive mixed-photo input and source ownership checkpoint
+
+Archive alpha.21 preserves two distinct required videos and optional photos,
+and fixes the real inventory-to-hidden-entry photo path omission. The same
+original photo is checked again during recovery. See
+[archive-ownership-review.md](archive-ownership-review.md) for the 32 feature
+decisions, exact source coverage and remaining findings, and
+[archive-scene-provenance.md](archive-scene-provenance.md) for the actual app
+analysis/relink evidence. Existing common owners remain unchanged; source coverage
+does not promote semantic ownership or whole-template acceptance beyond 0/28.
+Chan remains excluded.
+
 ## Mini own-music and common engine checkpoint
 
 Mini alpha.28 binds own-music analysis to confirmed complete contents and exact

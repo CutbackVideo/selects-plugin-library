@@ -75,14 +75,34 @@ and all shipped data/contracts to 27 explicit decisions, including anonymous
 callbacks and four embedded-program producers. Hashes reject stale attribution.
 The added checker never turns structural coverage into semantic or runtime success.
 
-Current map: 12 template-specific, 9 existing-owner reuse, 3 existing-owner extensions,
-and 3 extraction decisions representing only two prospective feature owners. Those
-planned owners are not implemented. The private transport and app guard are listed
-as existing owners outside the partial marker registry. Four open findings include
-valid own-music source replacement/missing-file dispatch, native probe uncertainty,
-capability wording, and configured install-root discovery. Complete semantic
+Current Mini map: 12 template-specific, five existing-owner reuse, eight existing-owner extensions,
+and two extraction decisions sharing one prospective text owner. Those
+planned text owner is not implemented. The private transport and app guard are listed
+as existing owners outside the partial marker registry. The map retains three
+repaired findings (own-music source dispatch, native probe uncertainty and capability
+wording) and the open configured install-root question. Complete semantic
 ownership reviews remain 0/28. The map supplies concrete remaining work rather than
 allowing repetitive helper groups to be silently assigned to template-specific code.
+
+## Archive source-to-decision coverage, semantic review still open
+
+[ownership/archive-vlog.json](ownership/archive-vlog.json) links all 32 shipped
+executable/test files, five operation build sources, ten canonical shared sources
+and five repository checks/fixtures: 52 source files plus 21 exact-byte assets.
+Its 32 decisions include 16 local policies, five reuse, nine existing-owner
+extensions and two planned text entries sharing the same prospective text owner
+as Mini. Scene admission, script dispatch and preview are planned extensions,
+not implemented migrations. See [archive-ownership-review.md](archive-ownership-review.md).
+
+The map exposed the actual mixed-photo path omission: inventory already knew the
+native path but dropped it from photo output before the hidden entry's original
+binding check. This packet carries that value through existing catalog/input/run
+owners, preserves two-video admission and records the repaired preparation wording.
+Two repaired findings and six source-based reproduction questions stay separate.
+The actual app has existing sampled analysis fingerprints and intentionally keeps
+analysis on relink; [archive-scene-provenance.md](archive-scene-provenance.md) records
+the limits without inferring a new SDK from declaration gaps. Coverage passes;
+semantic ownership and whole-template acceptance remain 0/28, Chan excluded.
 
 ## Initial reviewed decisions, with separate implementation status
 

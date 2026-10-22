@@ -1,0 +1,2217 @@
+{
+  "schemaVersion": 1,
+  "template": "archive-vlog",
+  "auditedBase": "ec44bb85f8a5afbdb1a6993bb2dfae697faf08b5",
+  "includeAllShippedAssets": true,
+  "semanticReviewComplete": false,
+  "existingOwners": [
+    {
+      "id": "local-client",
+      "source": "shared/local-client.ts"
+    },
+    {
+      "id": "app-update-guard",
+      "source": "shared/app-update-guard.ts"
+    }
+  ],
+  "features": [
+    {
+      "id": "copy-and-package",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "Names, localized copy, presets, media choices and distribution promises describe this template rather than reusable execution.",
+      "contract": {
+        "input": "Manifest, ten language dictionaries, cue/font metadata, package documents and licensed binary assets.",
+        "output": "Gallery metadata, text labels and declared template options.",
+        "identity": "Plugin archive-vlog, cue id, preset id and package-relative path are separate domains.",
+        "dependencies": "English source copy plus translations; cue SHA-256/byte/duration records and font metric tables.",
+        "effects": "Repository/package reads only; installation and publication are separate external stages.",
+        "lifetime": "Package version lifetime; content snapshots used by a run belong to existing asset/workflow owners.",
+        "cleanup": "Do not delete installed assets when a run ends.",
+        "outcomes": "The handoff requires two distinct videos, permits optional photos, max 50 total. Preparation/hint must match this policy. Released compatibility remains unverified.",
+        "retry": "Rebuild or reinstall only through an explicit package operation; no production mutation here.",
+        "distribution": "plugin.json, README, INSTALL, THIRD_PARTY, dictionaries, assets/cues and assets/fonts.",
+        "validation": "Existing public/package, cue/font/i18n tests; released-version/Windows acceptance and provenance remain open."
+      },
+      "evidence": [
+        "plugins/archive-vlog/plugin.json",
+        "plugins/archive-vlog/README.md",
+        "plugins/archive-vlog/INSTALL.md",
+        "plugins/archive-vlog/assets/cues/manifest.json",
+        "plugins/archive-vlog/assets/fonts/presets.json",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "text-runtime",
+      "decision": "extract",
+      "owner": "template-text",
+      "reason": "Seven audited panels carry identical language normalization, plural lookup and field-width functions. Keep their dictionaries local; extract one pure text owner rather than a general utility bag.",
+      "contract": {
+        "input": "Supported locale codes, per-template string table, message key, count/variables, fallback label and Unicode text/max width.",
+        "output": "Localized strings, plural form, display-width count and clipped title text.",
+        "identity": "Locale and dictionary belong to one template instance; message key is not a host SDK identifier.",
+        "dependencies": "Intl.PluralRules/NumberFormat, ten supported locales, explicit English fallback and wide-character policy.",
+        "effects": "Pure formatting; navigator/context language selection remains a caller environment adapter.",
+        "lifetime": "Synchronous formatting on each render; no shared mutable dictionary or cross-panel cache.",
+        "cleanup": "No resources allocated; renderer text-script classification can reuse a pure helper at build time.",
+        "outcomes": "Undefined keys and placeholders retain current fallback semantics; invalid table/locale admission needs TDD before extraction.",
+        "retry": "No IO retry or mutation.",
+        "distribution": "Future canonical template-text runtime plus generated independent panel copies; not implemented by this review.",
+        "validation": "Identical-token inventory plus existing seven-family i18n tests; planned parity, locale-switch and dictionary-isolation checks."
+      },
+      "evidence": [
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/archive-vlog/dev/i18n-check.cjs",
+        "plugins/archive-vlog/tests/i18n.test.cjs"
+      ],
+      "implementation": "planned"
+    },
+    {
+      "id": "text-checker",
+      "decision": "extract",
+      "owner": "template-text",
+      "reason": "The copied developer checker validates the same text contract as the runtime; it belongs to that feature with a separate Node-only entry.",
+      "contract": {
+        "input": "Panel source STRINGS and t/tOr usage plus optional plugin.json.",
+        "output": "Errors, warnings and developer CLI exit status.",
+        "identity": "One inspected package path; locale/key sets stay specific to its input table.",
+        "dependencies": "Node fs/path/vm, CLDR form categories and public-source policy.",
+        "effects": "Reads supplied source and evaluates only the extracted literal dictionary in a bounded VM.",
+        "lifetime": "One developer command; dictionary VM timeout is 1000 ms.",
+        "cleanup": "No installed data is written or removed.",
+        "outcomes": "Malformed dictionary, missing forms or header/manifest mismatch reject validation.",
+        "retry": "Read-only check may rerun on changed source; never a production authoring call.",
+        "distribution": "Current shipped dev/i18n-check.cjs; planned shared source with generated compatibility copies.",
+        "validation": "Existing i18n test invokes this exact checker; extraction must retain CLI and usage behavior."
+      },
+      "evidence": [
+        "plugins/archive-vlog/dev/i18n-check.cjs",
+        "plugins/archive-vlog/tests/i18n.test.cjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "planned"
+    },
+    {
+      "id": "montage-policy",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "Archive bookends, role fallback, two-video requirement, photo share and beat/onset cut allocation are authored policy, separate from measurement/IO.",
+      "contract": {
+        "input": "Scene/local/photo candidates with Resource ids/source seconds, source dimensions, beat/onset/music section seconds, requested8/16/24 shots, pace, planning fps and deterministic seed.",
+        "output": "Opening6beats, credit2beats, montage and held final; picks/cuts/photo motions/progress or structured failure with bounded shortening attempts.",
+        "identity": "Two distinct video Resource ids; photos only in montage. Source seconds, music seconds and destination Draft frames stay separate.",
+        "dependencies": "70..160 BPM acceptance, approximate/fallback72 BPM, <=110 slow threshold, role reuse/head/tail/photo-share and onset-snap constants in planner.js.",
+        "effects": "Synchronous data planning only; actual source placement and persistence are separate owners.",
+        "lifetime": "One complete plan calculation; bounded filler/candidate loops and deterministic seed are part of its contract.",
+        "cleanup": "No native/worker resources; input mutation and extreme-input budgets remain separate semantic review gates.",
+        "outcomes": "ok plan, retryable/terminal reason and shortened attempts; do not infer visual quality from allocation tests.",
+        "retry": "Re-plan with explicit new seed only; never re-dispatch an uncertain assembly.",
+        "distribution": "planner.js/verbatim av-planner block, avPhotoMotions, musicFit and readiness projections.",
+        "validation": "Existing allocate/planner/input-admission tests exercise policy. Extreme numeric/malformed raw planner data and full rendered editing quality still need semantic review."
+      },
+      "evidence": [
+        "plugins/archive-vlog/planner.js",
+        "plugins/archive-vlog/tests/planner.test.cjs",
+        "plugins/archive-vlog/tests/allocate.test.cjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "candidate-policy",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "Archive role-score scaling, motion tie-break and local windows express shot choice; common clip-analysis owns frame measurements.",
+      "contract": {
+        "input": "Server role hits, local score windows/cuts, source durations, beat tempo/pace and role queries.",
+        "output": "Source-second planner candidates with normalized scores, motion bonus and video-motion assignment.",
+        "identity": "Resource id plus source-second interval, never a clip occurrence or Draft frame.",
+        "dependencies": "AV_MOTION_BONUS=.2, reach=.75, local max10, moving threshold=.01, AV roles/query strings.",
+        "effects": "Pure data projection; no search or decode starts in this feature.",
+        "lifetime": "One Build or preview-plan projection.",
+        "cleanup": "No allocated resource; source-bound score ownership remains with clip-analysis.",
+        "outcomes": "Invalid/incomplete candidates and cross-query score interpretation require the remaining scene protocol review.",
+        "retry": "New plans may use confirmed cached observations; no mutation replay.",
+        "distribution": "av-hook, AV_QUERIES, photo candidate/size helpers and caller plan inputs.",
+        "validation": "Existing planner/quick-score tests. Server score comparability, source-coordinate and candidate validity remain explicit review gates."
+      },
+      "evidence": [
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "title-policy",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "Archive decoding glyph order, cap-height layout, ghost characters, timing/hold and scrim are design policy. Do not merge them with persistence or width-based credit clipping.",
+      "contract": {
+        "input": "kicker/title/tagline fields, font family/metrics/base64, canvas pixels, size60..160%, x/y20..80% (divided by100 internally), clip-local seconds/fps. Renderer limits are24/16/48 graphemes; panel fields additionally use declared display-width caps.",
+        "output": "Layout/glyph states/SVG preview and title MotionGraphic parameters.",
+        "identity": "Field key/font role are local design identities; canvas pixels, percent size60..160 and x/y20..80 percent are explicit, not 0..1 input fractions.",
+        "dependencies": "AV_TITLE/av-decode, deterministic hash, Intl.Segmenter (code-point fallback), canvas/system wide glyphs, Anton/Oswald/Inter metrics.",
+        "effects": "DOM/canvas/font rendering only; durable source/parameter reconciliation belongs to existing program/workflow owners.",
+        "lifetime": "Per frame/render; Remotion delayRender/continueRender once on initial font preparation and unmount.",
+        "cleanup": "Release owned render gate once; late state is ignored after unmount. Font promise is not cancelled; readiness on changed Adjust data remains open.",
+        "outcomes": "Missing metrics/fonts can use fallback; malformed provided metrics and never-settling font promise require reproduction.",
+        "retry": "Render can repeat; uncertain saved effects cannot be replayed based on label.",
+        "distribution": "assets/decode-title.tsx, verbatim pure av-decode panel copy, preview helpers and preset data.",
+        "validation": "Existing title/font/source parity tests; changed-font Adjust, invalid metrics, multiple instances, CJK/emoji and actual export are open."
+      },
+      "evidence": [
+        "plugins/archive-vlog/tests/title.test.cjs",
+        "plugins/archive-vlog/tests/fonts.test.cjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "host-bootstrap",
+      "decision": "extend",
+      "owner": "local-client",
+      "reason": "Legacy host wrappers still duplicate paths, text reads and root discovery. Extend the existing captured client/bootstrap owner rather than create another filesystem module.",
+      "contract": {
+        "input": "SDK instance, plugin id, package-relative text/font/script paths and host environment.",
+        "output": "Bound files/media facade, plugin/data roots and decoded asset text/bytes.",
+        "identity": "Host-native absolute path and one captured SDK realm; plugin install root differs from run data directory.",
+        "dependencies": "Existing private local-client, environment, TextDecoder and declared install roots.",
+        "effects": "Reads installed assets and can mkdir plugin-data; legacy global hostSdk and fallback roots remain incomplete migration work.",
+        "lifetime": "Mount/startup or one asset load; every await must retain its original SDK and mounted generation.",
+        "cleanup": "Preserve installed sources/profiles; temporary output belongs to bundled-assets, not hostRemove best-effort cleanup.",
+        "outcomes": "Installed lookup uses ~/.selects/skills/archive-vlog and planner.js as marker; data mkdir failure produces null. Alternate configured roots and mutable hostSdk scope remain review work.",
+        "retry": "Read-only retries may be bounded; mkdir failure does not grant file ownership or authorize guessed roots.",
+        "distribution": "av-host block, readText/locateRoots and font reader adapters; canonical private client remains the existing transport owner.",
+        "validation": "Existing local-client/bootstrap and captured-client tests; exact installed custom-root discovery and remaining wrappers are open."
+      },
+      "evidence": [
+        "shared/local-client.ts",
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/archive-vlog/INSTALL.md",
+        "tests/template_bootstrap.test.mjs"
+      ],
+      "implementation": "partial"
+    },
+    {
+      "id": "local-sdk",
+      "decision": "reuse",
+      "owner": "local-client",
+      "reason": "The complete async file/media bridge already has one canonical source; its embedded functions are managed compatibility delivery, not new module candidates.",
+      "contract": {
+        "input": "Bound SDK runScript/call, host-native file paths, bounded file chunks/media argv and AbortSignal.",
+        "output": "Typed file facts, content fingerprints, native media output or structured transport/lifetime errors.",
+        "identity": "Captured client, exact job id and exact source/output paths; cancellation acknowledgement is not exit.",
+        "dependencies": "shared/local-client.ts, SDK environment, file/media primitives and fixed protocol budgets.",
+        "effects": "Explicit SDK file reads/writes/media jobs with allowCommit only where needed.",
+        "lifetime": "Bound client lifetime; bounded start/status/exit observation, one cancel and disposal.",
+        "cleanup": "Unconfirmed media producer lifetime retains workspace through the asset owner; no broad cleanup.",
+        "outcomes": "Known success/failure/cancel differs from unknown start/exit and protocol error.",
+        "retry": "No media start replay; late identity can cancel that original job once.",
+        "distribution": "Scoped mirrored local-sdk block; sync_panel_local_client verifies delivery.",
+        "validation": "Canonical client, local media settlement and actual native fault proofs; installed whole-template acceptance remains separate."
+      },
+      "evidence": [
+        "shared/local-client.ts",
+        "tests/canonical_local_client.test.mjs",
+        "tests/local_media_settlement.test.mjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "existing"
+    },
+    {
+      "id": "audio-beat-engine",
+      "decision": "reuse",
+      "owner": "audio-beat-analysis",
+      "reason": "Mini, Archive, Selfie and City carry byte-identical beat engines. Audio signal estimation is separate from Worker lifetime and frame scoring.",
+      "contract": {
+        "input": "Mono Float32 samples, sample rate in Hz and engine policy constants. The development CLI accepts a raw float32 PCM path, sample rate and optional JSON output path.",
+        "output": "BPM, accepted/approximate/none grid, firstBeat/duration seconds, beat energy, peaks and band onset data.",
+        "identity": "Sample clock is file-relative, not Draft frames or a Resource id; file provenance must be supplied by the caller/asset owner.",
+        "dependencies": "FFT/onset/confidence/consistency thresholds; caller OWN_RATE 22050 Hz, own-music maximum 240 seconds and worker protocol.",
+        "effects": "analyze is numerical work. The require.main CLI reads raw float32 PCM, emits JSON, and can write the explicitly supplied output path. The browser worker supplies inert require so that CLI branch cannot run.",
+        "lifetime": "One worker request; time/cancel/resources belong to analysis-worker, not the engine.",
+        "cleanup": "No original source deletion. CLI output follows its explicit development command; PCM/native staging in the panel belongs to bundled-assets.",
+        "outcomes": "Accepted and approximate grids differ from no usable grid; invalid/silent/short/time-varying input behavior needs preserved parity.",
+        "retry": "Deterministic analysis may rerun only on confirmed input; no host mutation.",
+        "distribution": "Canonical shared/audio-beat-analysis.cjs; registry fileTargets generate four independent beat-detect.cjs copies. Existing raw Float32 CLI and browser Worker contracts are retained.",
+        "validation": "Canonical/copy numerical parity, inert Worker VM and raw PCM CLI guards; each affected consumer beat suite. Native Archive decoder/Worker proof is recorded separately from installed/full-template acceptance."
+      },
+      "evidence": [
+        "plugins/archive-vlog/beat-detect.cjs",
+        "plugins/selfie-aesthetic/beat-detect.cjs",
+        "plugins/city-weekend-vlog/beat-detect.cjs",
+        "plugins/archive-vlog/tests/beat-detect.test.cjs",
+        "shared/audio-beat-analysis.cjs",
+        "shared/panel-modules.json",
+        "tests/audio_beat_engine.test.mjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "implemented"
+    },
+    {
+      "id": "worker-owner",
+      "decision": "reuse",
+      "owner": "analysis-worker",
+      "reason": "Worker/timer/Blob URL/message-subscription ownership has already been extracted. The beat algorithm and caller fallback do not belong in that lifetime owner.",
+      "contract": {
+        "input": "Worker source, serializable samples/rate payload, deadline, AbortSignal, isCurrent and transfer options.",
+        "output": "One observed reply or structured start/message/timeout/stop/cleanup error.",
+        "identity": "One transient Worker instance and one mounted caller generation.",
+        "dependencies": "Browser Worker/Blob/URL/timer primitives and explicit caller protocol.",
+        "effects": "Creates/terminates Worker, object URL, event and timer subscriptions; no Project changes.",
+        "lifetime": "One request through confirmed cleanup, bounded by deadline/current owner.",
+        "cleanup": "Release only its Worker/URL/timers/listeners, and report unknown cleanup as terminal.",
+        "outcomes": "Late success cannot revive an ended scope; payload reply semantics remain caller/engine policy.",
+        "retry": "No replay inside the owner.",
+        "distribution": "shared/analysis-worker.js and checked mirrored blocks.",
+        "validation": "Actual adapter RED/GREEN, existing consumer tests and real Chromium proofs; remaining consumer migrations are open."
+      },
+      "evidence": [
+        "shared/analysis-worker.js",
+        "tests/analysis_worker.test.mjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "existing"
+    },
+    {
+      "id": "music-policy",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "Archive supplies cue/own/none choice, section/beat fallback and user-visible state; byte identity/cache/PCM and Worker lifetime already have common owners.",
+      "contract": {
+        "input": "Chosen cue or own-music path, verified source digest/size, selected section seconds, max duration, Worker source and captured Project/run generation.",
+        "output": "Source-bound ownGrid state, section choices, preview Audio, status, and content/path observations carried into assembly and saved-look continuation.",
+        "identity": "Music source path, imported Audio id, preview token and own-job generation are distinct.",
+        "dependencies": "OWN_RATE=22050Hz, OWN_MAX_SECONDS=240, bundled-assets snapshot/cache/PCM, analysis-worker, audio-beat-analysis and captured local-client.",
+        "effects": "Owned decode/probe/Worker work and selection state; preview playback has its own explicit composition row; Audio adoption/save are delegated.",
+        "lifetime": "Cancel on new music, Project switch and unmount; one captured client and current own-job token.",
+        "cleanup": "Existing asset owner removes only owned staging after confirmed settlement; terminal/preserve failures stop selection and retain unknown native workspaces. Ordinary failed analysis is not cached.",
+        "outcomes": "Accepted/approximate/no-grid analysis differs from a transient fixed-timing fallback with confirmed duration. Changed/missing/unknown originals or Project links stop Build/recovery; restored original input resumes the same saved workflow.",
+        "retry": "Repeat read/analysis only under current generation; do not replay unknown save or decode start.",
+        "distribution": "cueGrid/musicFit, decodeOwnMusic/prepareArchiveOwnMusic/analyseBeat/prepareArchiveCue and the own-track UI handlers.",
+        "validation": "Inherited Archive music caller, exact source-replacement, duration/fallback, unknown-native, saved-Audio and recovery fixtures/native records. Full panel/browser playback/export remains open."
+      },
+      "evidence": [
+        "plugins/archive-vlog/panel.tsx",
+        "tests/analysis_worker.test.mjs"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "asset-owner",
+      "decision": "extend",
+      "owner": "bundled-assets",
+      "reason": "One existing owner already controls verified assets, publication, exclusive reservations, derived results and native PCM/preview lifetimes. Selected Audio adoption now has this same canonical owner rather than a second copied import/readback procedure. The source-bound beat-analysis JSON procedure is also canonical here; Mini and Archive retain decoder/fallback and Worker adapters while file identity, verified snapshots/cache, result admission and cleanup reuse this owner.",
+      "contract": {
+        "input": "Captured file/media client, bounded byte/hash/duration contract, source identity, target directory, current owner and producer callback. Selected Audio also receives Project ID/path, an optional minimum duration and optional provenance response. Beat-analysis derivation receives source hashing, decode/analyze/probe adapters, a Worker revision and sampling policy.",
+        "output": "Verified published asset, derived cache result or transient decoded bytes with cleanup outcome. Beat grids carry independently observed source contents; transient fixed-timing fallback is never cached.",
+        "identity": "Content digest, exact path, exclusive owner token and native job identity.",
+        "dependencies": "Existing private client, SDK read/write/CAS/media primitives and explicit policy budgets.",
+        "effects": "Owned file reservations/copies/imports/cache publication and media producers; never edits original assets.",
+        "lifetime": "One captured invocation; actual native exit is required before releasing output.",
+        "cleanup": "Only exclusively owned paths; preserve previous results and unknown producer workspaces.",
+        "outcomes": "Known success/failure differs from unresolved creation/publication/cleanup; nested diagnostics remain private. Opt-in complete-catalog reads distinguish unavailable source/Resource facts from confirmed absence before any import.",
+        "retry": "Never replay unknown mutation; readback can recover exact outcomes.",
+        "distribution": "shared/bundled-assets.js, registered panel copies and Mini/Archive generated ensure-audio operations; legacy asset-reader callers retain their default contract.",
+        "validation": "Existing asset/cue/PCM/lifetime tests and actual native SDK cases; persisted uncertain-workspace reconciliation remains open. Shared selected-Audio regressions cover incomplete catalogs, invalid inputs, path/type/duration/ID confirmation and one-attempt lost-reply recovery; existing asset consumers remain in the affected suite. Actual Mini/Archive caller fixtures cover source/Worker changes, original uncertainty, invalid cache, decoder/Worker fallback and terminal/preserve propagation."
+      },
+      "evidence": [
+        "shared/bundled-assets.js",
+        "tests/bundled_assets.test.mjs",
+        "tests/media_unconfirmed_workspace.test.mjs",
+        "tests/project_audio.test.mjs",
+        "plugins/archive-vlog/scripts/ensure-audio.js",
+        "plugins/archive-vlog/operation-builder.mjs",
+        "tests/mini_own_music_analysis.test.mjs",
+        "tests/archive_own_music_analysis.test.mjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "implemented-extension"
+    },
+    {
+      "id": "source-input",
+      "decision": "extend",
+      "owner": "native-image-input",
+      "reason": "The existing input owner normalizes video/photo handoff and optionally observes current Project kinds. Mini preserves alias-only defaults; Archive opts into kind evidence and owns its two-video requirement.",
+      "contract": {
+        "input": "Selected original ids/kinds, projectId, expected paths/content snapshots and private unsaved probe options.",
+        "output": "Confirmed SDK aliases, original dimensions/clocks, exact source links and full-content observations.",
+        "identity": "Original external id versus Project short id; source timebase versus Draft frames; physical file path/digest.",
+        "dependencies": "Current SDK files.fingerprint/sourceFiles/resources and nonpersistent insertion probes.",
+        "effects": "Read-only observations and private unsaved Draft probes; no saved Draft or original file rewrite.",
+        "lifetime": "Bounded batches/deadlines/current caller; exact observations repeated around assembly and look recovery.",
+        "cleanup": "Do not delete user originals or infer absence from a failed placement.",
+        "outcomes": "Missing, changed, unsupported and unknown sources are explicit; data presence is not server-index provenance.",
+        "retry": "Read-only checks may retry; unknown private placement is observed without replay.",
+        "distribution": "shared/native-image-input.mjs, managed panel copy, TEMPLATE_ALIAS_JS and generated assembly/verifier helpers; confirmArchiveSourceBindings is caller batching.",
+        "validation": "Inherited handed-input/kind/default-consumer checks, source/frame/path/hash native reads and same-workflow restoration. Archive keeps two distinct videos; current-file existence/full hash does not establish past server-index provenance."
+      },
+      "evidence": [
+        "shared/native-image-input.mjs",
+        "tests/mini_video_sources.test.mjs",
+        "tests/source_file_bindings.test.mjs",
+        "tests/template_media_selection.test.mjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "implemented-extension"
+    },
+    {
+      "id": "catalog-read",
+      "decision": "reuse",
+      "owner": "media-inventory",
+      "reason": "Paged Project catalog aggregation/admission already has an owner; the inventory script supplies Archive-specific Video/Image projection and counters.",
+      "contract": {
+        "input": "SDK read runner, inventory script/config, selected ids, row/byte/time budgets and current Project generation.",
+        "output": "Reobserved catalog snapshot with resources/photos/counts/incomplete status and explicit admission.",
+        "identity": "Resource short id and exact snapshot object tied to the mounted Project.",
+        "dependencies": "SDK resources/sourceFiles, read-only native image/video facts and Archive projection/counters.",
+        "effects": "Read-only catalog/media facts; UI can keep old displayed rows without build permission.",
+        "lifetime": "One bounded observation plus scoped polling/retry at the caller.",
+        "cleanup": "Clear only its timers/waits; no source or Project cleanup.",
+        "outcomes": "Complete, incomplete, changed, invalid and stopped catalogs stay separate.",
+        "retry": "Bounded safe-read retry only; exact projected values are reobserved.",
+        "distribution": "shared/media-inventory.js, panel block, inventory.js and loadInventory; nonconcurrent UI refresh/polling stays at caller.",
+        "validation": "Existing catalog/selected-inventory/caller tests and native read scenarios; five other catalog consumers remain pending."
+      },
+      "evidence": [
+        "shared/media-inventory.js",
+        "plugins/archive-vlog/scripts/inventory.js",
+        "tests/media_inventory_observation.test.mjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "existing"
+    },
+    {
+      "id": "local-video-analysis",
+      "decision": "extend",
+      "owner": "clip-analysis",
+      "reason": "Archive adopted the existing source-bound evaluator and optional expected-source admission; Mini defaults and existing consumers remain preserved. Role/ranking remains local policy.",
+      "contract": {
+        "input": "Video rid/path/durationSeconds, captured client, data root, optional expectedSources, AbortSignal/current owner; one aggregate 25s budget, concurrency3 and batches up to256.",
+        "output": "Source-bound gray-frame statistics, cuts/windows, cache/fallback flags and content observations.",
+        "identity": "Exact original content digest and evaluation policy version; source seconds rather than Draft frames.",
+        "dependencies": "Existing bundled-assets source snapshot/publication/media lifetime and numerical frame/cut evaluator.",
+        "effects": "Owned temporary decode/cache writes only; no Project edits.",
+        "lifetime": "One captured analysis scope, shared cancellation/deadline and observed producer cleanup.",
+        "cleanup": "Asset owner releases its reservations after exit; unknown lifetime retains files.",
+        "outcomes": "Known decode fallback differs from source uncertainty, stop, timeout and cleanup failure.",
+        "retry": "Only confirmed cache entries reuse; no unobserved original or replay of uncertain producer.",
+        "distribution": "shared/clip-analysis.js, managed Archive block, analyseArchiveClips adapter and scoreLocal.",
+        "validation": "Inherited 18 analysis RED/GREEN cases, 181 disjoint affected checks and real FFmpeg/native cache-replacement proof in archive-video-analysis.md. All evidence remains narrower than installed-template semantic acceptance."
+      },
+      "evidence": [
+        "shared/clip-analysis.js",
+        "tests/clip_analysis.test.mjs",
+        "tests/mini_analysis_inputs.test.mjs",
+        "tests/clip_analysis_sources.test.mjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "implemented-extension"
+    },
+    {
+      "id": "scene-observation",
+      "decision": "extend",
+      "owner": "media-inventory",
+      "reason": "Extend media-inventory for bounded result admission and current Project ownership; query/role/ranking stays Archive policy. Existing app fingerprints and normal relink policy must be understood before proposing new public SDK.",
+      "contract": {
+        "input": "Analyzed selected rids, role queries, pageSize, concurrency/budget/retry policy and current Build.",
+        "output": "Candidate observations, failed selected ids and rate-limit/time statistics.",
+        "identity": "Project/Resource identity, search hit source coordinate, in-run original observations and server analysis generation are distinct.",
+        "dependencies": "source.resource(rid).searchScenes, current Resource analysis linkage, source/Draft coordinate metadata and Archive role queries; backend index-generation provenance remains unconfirmed.",
+        "effects": "Read-only backend queries; no analysis start or saved Project mutation.",
+        "lifetime": "Batched SDK calls under fixed host limit; ongoing cancellation and aggregate result budget need complete review.",
+        "cleanup": "No local file cleanup; in-flight safe reads must settle/stop observing on detachment.",
+        "outcomes": "failed/partial queries and unsupported coordinates differ from no hits. Current-file pre/post full hash only confirms in-run content; it cannot attest which bytes produced a past server index.",
+        "retry": "Only declared safe read failures may retry; never interpret missing results as successful authoring.",
+        "distribution": "scripts/search.js, findCandidates, in-memory sceneInputs and hidden-run search; no new shared module or SDK is implemented by this decision.",
+        "validation": "Search/read/planner tests plus source path in archive-scene-provenance.md. Actual server stale-hit behavior, all pagination/coordinate boundaries and semantic ranking remain open."
+      },
+      "evidence": [
+        "plugins/archive-vlog/scripts/search.js",
+        "plugins/archive-vlog/panel.tsx",
+        "tests/mini_execution_ownership.test.mjs"
+      ],
+      "implementation": "planned"
+    },
+    {
+      "id": "script-dispatch",
+      "decision": "extend",
+      "owner": "local-client",
+      "reason": "The existing client already owns SDK transport and captured request values. Consolidate duplicated read retry/deadline adapters there while durable owners retain mutation replay policy.",
+      "contract": {
+        "input": "Captured SDK, summary, frozen script or safe read-attempt factory, allowCommit and deadline/liveness/wait hooks.",
+        "output": "Exactly decoded result or classified read/session/timeout/unknown error.",
+        "identity": "One request attempt; read retries are not permission to replay a saved authoring operation.",
+        "dependencies": "SDK runScript and fixed transport byte/time limits; template error localization remains external.",
+        "effects": "Read-only calls may retry under budget; mutating calls must be single-dispatch and durable-owner mediated.",
+        "lifetime": "Mounted Project/run generation plus common deadline; retry waits must end on stop.",
+        "cleanup": "Release caller timers; no filesystem or native process cleanup belongs here.",
+        "outcomes": "Pre-start busy/read-session failures differ from unknown started mutation; typed/scoped result validation remains required.",
+        "retry": "No allowCommit replay from generic catch; retain current source string for any definitely safe retry.",
+        "distribution": "Current panel run/runTemplateStep/fill and selected-entry helpers; canonical extension is planned.",
+        "validation": "Existing inventory/execution/owned assembly tests; dedicated common transport migration/parity remains open."
+      },
+      "evidence": [
+        "shared/local-client.ts",
+        "plugins/archive-vlog/panel.tsx",
+        "tests/mini_execution_ownership.test.mjs"
+      ],
+      "implementation": "planned"
+    },
+    {
+      "id": "authoring-owner",
+      "decision": "extend",
+      "owner": "native-image-authoring",
+      "reason": "Occurrence binding, native frame cover, transforms/Audio and saved program normalization already have one canonical owner; Mini and Archive keep separate editing policies.",
+      "contract": {
+        "input": "Native Draft handles, intended placement/programs, frozen source clocks/dimensions and saved-state evidence. Native windows take explicit source/Draft fps, a chosen whole-frame destination interval, requested source start, optional duration and still-image policy.",
+        "output": "Verified occurrences/transforms/Audio/program content and safe serialized programs. A source-native cover plus its measured Draft-frame surplus; callers must verify insertion and trim only that declared surplus.",
+        "identity": "Opaque clip occurrence/track ids and source/draft timebases; labels alone are not content identity.",
+        "dependencies": "Current SDK Draft primitives and canonical program normalization/representability rules.",
+        "effects": "Private working Draft edits and independent saved readback as requested by durable owner.",
+        "lifetime": "One declared authoring/verification operation before/after save.",
+        "cleanup": "No user source cleanup; unconfirmed mutations remain with durable owner.",
+        "outcomes": "Known mismatch differs from unavailable verification; no acknowledgement-only success.",
+        "retry": "Do not replay unknown writes; verify original saved target.",
+        "distribution": "shared/native-image-authoring.js serialized into assembly/decorate operations.",
+        "validation": "Existing source-clock/placement/program/Audio receipt suites and actual SDK save/readback evidence; full playback/export remains open."
+      },
+      "evidence": [
+        "shared/native-image-authoring.js",
+        "tests/mini_assembly_intent.test.mjs",
+        "tests/mini_program_intent.test.mjs",
+        "tests/archive_assembly_intent.test.mjs",
+        "tests/archive_assembly_verification.test.mjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "implemented-extension"
+    },
+    {
+      "id": "workflow-owner",
+      "decision": "extend",
+      "owner": "template-run",
+      "reason": "Existing durable ownership is retained. Optional bounded request/continuation budgets separate large captured inputs from unchanged 48 KiB receipt envelopes and unchanged SDK transport limits.",
+      "contract": {
+        "input": "Plugin/project/run scope, frozen config/source/digest, captured files and liveness plus perform/verify callbacks. Optional requestLimit up to 128 KiB and continuation stateLimit up to 512 KiB; existing defaults and digest bytes preserved.",
+        "output": "Confirmed assembly/decorated result or durable pending/notSaved/mismatch/retired state.",
+        "identity": "Exact runId/request digest/owner token and saved sequence id; no guessed name lookup.",
+        "dependencies": "SDK file CAS/readback, native-image-authoring facts and template admission callbacks.",
+        "effects": "Own journal/receipt files and exactly scoped saved assembly/look mutations.",
+        "lifetime": "Through observed save/recovery across reload; terminal tombstones prevent replay.",
+        "cleanup": "Preserve unresolved/saved results; retire only definitely unstarted historical work under owner checks.",
+        "outcomes": "Known no-save, unknown save, confirmed save, target mismatch and verification unavailable stay distinct.",
+        "retry": "No unknown mutation replay; original frozen source is never substituted under the same digest.",
+        "distribution": "shared/template-run.js and checked generated panel block.",
+        "validation": "Existing claims/receipts/restart/look-state and historical recovery tests plus native save/reload proofs; full template acceptance is separate."
+      },
+      "evidence": [
+        "shared/template-run.js",
+        "tests/mini_assembly_receipts.test.mjs",
+        "tests/mini_frozen_recovery.test.mjs",
+        "tests/template_run_budget.test.mjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "implemented-extension"
+    },
+    {
+      "id": "assembly-policy",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "30-fps planning to native insertion clocks, Archive cover/trim/music alignment and exact saved cut admission are template policy on top of shared mechanics.",
+      "contract": {
+        "input": "Validated avAssembleConfig with picks/source seconds/crop dimensions, monotone second boundaries, exact source bindings/content, optional Audio section and sound policy.",
+        "output": "Native source-window/whole Draft-frame placement plan, exact saved assembly facts, read-only verification and optional ambient Audio.",
+        "identity": "Source seconds/native source frames versus planned and actual Draft frames; per-occurrence target identity.",
+        "dependencies": "dev/assembly-policy.js, existing nativeMediaWindow/bindMediaPlacement/transform+Audio inspection; actual source insertion fps and actual Draft fps.",
+        "effects": "Private timing probes and declared working Draft insert/transform/Audio changes; commit only after exact rechecks.",
+        "lifetime": "One frozen assembly operation with source admission at entry and precommit.",
+        "cleanup": "Do not replace original source or modify an unrelated saved Draft.",
+        "outcomes": "Invalid plan, source change, unsupported representation, known failure and unknown saved outcome stay distinct.",
+        "retry": "Mutation dispatch is solely through template-run; no script-level blind retry.",
+        "distribution": "dev/assembly-policy.js, dev/assemble.template.js, dev/verify-assembly.template.js and generated scripts; assembly/verifier share the same policy.",
+        "validation": "Existing native clock, source binding, plan and read-only saved-verifier tests; installed AV and later external source changes remain open."
+      },
+      "evidence": [
+        "plugins/archive-vlog/dev/assembly-policy.js",
+        "plugins/archive-vlog/dev/assemble.template.js",
+        "plugins/archive-vlog/dev/verify-assembly.template.js",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "program-policy",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "Decode title, Archived-by credit, cinematic look, reveal, photo/video motion, fade, mute and naming are Archive policy; equality/lifetime/save are existing common owners.",
+      "contract": {
+        "input": "Frozen six TSX sources, presets/fonts/language labels plus saved assembly facts and source dimensions.",
+        "output": "Exact title/credit MotionGraphics, opening reveal, per-clip look/motion and final fade config, then verified effect/Audio reconciliation.",
+        "identity": "Original saved assembly sequence and immutable finish recipe; font/preset keys are local design ids.",
+        "dependencies": "avDecorateConfig, prepare-decoration.js frozen transitive pure helpers, exact imageProgramsFeature and durable template-run.",
+        "effects": "Snapshot reads and declared target decoration; no new assembly when finishing the same saved run.",
+        "lifetime": "Frozen at first Build through confirmed look save; UI may change without altering that recipe.",
+        "cleanup": "Keep result-owned source/font data; only owned transient effects belong to current operation.",
+        "outcomes": "Assembly saved and look saved are distinct. A newer installed program is never substituted for the frozen continuation; feature/parameter mismatch is explicit.",
+        "retry": "Finish retries use the durable original recipe and saved-state checks.",
+        "distribution": "av-build builders, snapshotArchiveFinishAssets/prepareArchiveDecoration and generated prepare-decoration/decorate scripts.",
+        "validation": "Existing exact/minified/historical program checks and saved-look state tests; installation-update font/source binding and full render remain open."
+      },
+      "evidence": [
+        "plugins/archive-vlog/dev/decorate.template.js",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "workflow-policy",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "The Archive coordinator chooses steps, freeze points, photo/music/planning options and historical semantic admission; common owners execute their respective lifetimes.",
+      "contract": {
+        "input": "Mounted Project/runId, validated videos/photos, frozen music/design choices, source observations and original pending continuation.",
+        "output": "New editable Draft identity, same-run recovered assembly/Finish result or classified known/unknown error.",
+        "identity": "One Project/run generation and original saved target; UI state is not a durable receipt.",
+        "dependencies": "Existing input/catalog/assets/analysis/durable owners; Archive two-video and hidden-run defaults. Standalone locally scores unanalysed videos; hidden search supplies evenly spaced candidates for usable unanalysed input, without running local frame scoring.",
+        "effects": "Coordinates reads, analysis, import and save through declared owners; user navigation only follows confirmed result.",
+        "lifetime": "Recovery is admitted before new selections; one run epoch/single-flight. Parallel scene/local jobs settle/cancel before error returns.",
+        "cleanup": "Stop only this run’s preview/workers/files; retain saved/unknown runs for exact recovery.",
+        "outcomes": "Success, shortened/partial search, known failure and unknown save/cleanup have different continuation rules.",
+        "retry": "Build another is a new explicit run/seed; same-run recovery never creates a second assembly.",
+        "distribution": "build/buildAnother/finishTitle/decorate, runArchiveVlogTemplate, archiveRecoveryOptions/archiveWorkflowResult.",
+        "validation": "Both-entry source/Audio/assembly/Finish/recovery evidence is inherited; hidden/visible input-policy differences and installed full video/audio acceptance remain open."
+      },
+      "evidence": [
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "panel-ui",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "React inputs, canvases, selection lists and lifecycle listeners are Archive presentation/composition, not a filesystem or durable module.",
+      "contract": {
+        "input": "SDK/context, current language/project, user selections, peaks/grid and status/results from owners.",
+        "output": "Visible controls, previews, selection options and button admission.",
+        "identity": "Mounted React instance, Project generation, preview/own-track tokens and document font registrations.",
+        "dependencies": "React/browser canvas/Audio/FontFace and template policy; context can change after awaits.",
+        "effects": "UI state, pointer/window/document listeners, timers, preview playback/font registration and confirmed-result navigation.",
+        "lifetime": "Mount/Project effect scopes; cancel work on switch/unmount and detach listeners/timers.",
+        "cleanup": "Revoke owned Audio URLs, stop preview/analysis and prevent late state updates; document font lifetime needs runtime confirmation.",
+        "outcomes": "Preview failure can degrade display; creation permission needs independently admitted inputs/results.",
+        "retry": "UI render/retry does not authorize save replay or cleanup of prior results.",
+        "distribution": "Panel/ArchiveVlogPanel/TemplateRun, SectionSlider/LockupSvg and nested controls/listeners; owner calls are attributed by nested ranges.",
+        "validation": "Source-backed callbacks are captured; actual keyboard/pointer/font/Audio/visibility and loaded installed UI acceptance remain open."
+      },
+      "evidence": [
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/archive-vlog/tests/panel.test.cjs"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "app-guard",
+      "decision": "reuse",
+      "owner": "app-update-guard",
+      "reason": "The standardized app lock/guard is already generated from a shared owner and policy file; do not fork its code in a template.",
+      "contract": {
+        "input": "Current SDK app-run ownership context and template-specific allowed state refs.",
+        "output": "Read-only/update guard state and guarded callback wrappers.",
+        "identity": "Calling app run/instance; mounted Project alone is insufficient.",
+        "dependencies": "shared/app-update-guard.ts and app-update-guard-policies.json generation.",
+        "effects": "Allows/refuses template actions under host-provided ownership; no filesystem cleanup.",
+        "lifetime": "Bound to current host app-run scope; stale callbacks cannot regain permission.",
+        "cleanup": "Generator/host owns subscription lifetime; preserve unrelated app runs.",
+        "outcomes": "Locked, own-run and unrecognized states remain distinct; installed contract still needs runtime acceptance.",
+        "retry": "No bypass/retry of protected mutation based on a stale guard.",
+        "distribution": "Generated app-update-guard block and withPanelLocalClient wrapper.",
+        "validation": "Existing app_update_guards tests and sync tool; no new guard behavior in this review."
+      },
+      "evidence": [
+        "shared/app-update-guard.ts",
+        "shared/app-update-guard-policies.json",
+        "tools/sync_app_update_guards.py",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "existing"
+    },
+    {
+      "id": "build-delivery",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "Build scripts bind canonical shared mechanics to Archive local operation/style templates; they are reproducible package generation rather than another runtime module.",
+      "contract": {
+        "input": "Canonical input/authoring/asset sources, planner.js, av-hook/av-build dependency declarations and Archive operation templates/policy.",
+        "output": "Self-contained ensure-audio, assembly, verifier, decoration and frozen decoration-config scripts.",
+        "identity": "Exact source bytes and generated installed path; generated file is not a second hand-edited owner.",
+        "dependencies": "operation-builder.mjs, imported shared functions, vm.Script declaration admission and regex-derived transitive helper selection.",
+        "effects": "Repository generated-file writes only in build mode; --check reads and compares.",
+        "lifetime": "One developer build/check invocation.",
+        "cleanup": "Never removes user libraries/media or launches a Panel/Electron.",
+        "outcomes": "Missing dependency/source or drift rejects generation/check.",
+        "retry": "Rebuild after relevant canonical/local changes; do not edit installed generated functions as canonical code.",
+        "distribution": "operation-builder.mjs and generated scripts; registry records build-time dependencies.",
+        "validation": "Operation --check and actual SDK declaration checks catch drift. Regex dependency closure is not a complete general JS dependency graph; retained original frozen source is required for recovery."
+      },
+      "evidence": [
+        "plugins/archive-vlog/operation-builder.mjs",
+        "shared/panel-modules.json",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "test-harness",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "Archive reference cases and mocks encode its own promises. Common-owner tests remain at repository level; shipped regression scripts are not application features.",
+      "contract": {
+        "input": "Archive planner/render/script sources, numerical fixtures, declared SDK types and test doubles.",
+        "output": "Assertions, developer diagnostics and test exit status.",
+        "identity": "Disposable fixture/client/VM scopes; no production Project identities.",
+        "dependencies": "Node built-ins, FFmpeg, TypeScript and explicit fixture ownership.",
+        "effects": "Local test-only processes/temporary files and VM evaluation; some scripts deliberately inspect package bytes.",
+        "lifetime": "One test process; fixture cleanup belongs to test harness.",
+        "cleanup": "Remove only owned fixture paths after producers exit; never treat a failed assertion as permission to delete user data.",
+        "outcomes": "Pass/failure/skip are scoped evidence, not full runtime quality or module completion.",
+        "retry": "Repeat only after affected changes/new failure evidence.",
+        "distribution": "tests/*.test.cjs and dev checker references; repository-level source/owner tests are separate.",
+        "validation": "All fifteen shipped Archive CJS suites and repository fixture sources are captured. Earlier results live in the three Archive repair packets; this map does not claim a new full runtime pass."
+      },
+      "evidence": [
+        "plugins/archive-vlog/tests/panel.test.cjs",
+        "plugins/archive-vlog/tests/scripts-types.test.cjs",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "credit-policy",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "Small centered Archived-by credit and width-unit clipping are Archive style; title grapheme truncation has a different contract.",
+      "contract": {
+        "identity": "One rendered clip occurrence; clip-local frame/fps differs from source seconds and Draft timeline frames.",
+        "effects": "React/Remotion rendering only; no SDK, file, Project or process mutation.",
+        "lifetime": "Initial font preparation owns delayRender and one continueRender; unmount releases it and prevents late state.",
+        "cleanup": "No font-promise cancellation; owned render gate releases once. Same-instance Adjust font changes remain unverified.",
+        "outcomes": "Missing metrics uses generic fallback; invalid supplied metrics and font failure readiness need reproduction.",
+        "retry": "Repeat frame rendering freely; uncertain persistence is never replayed by this policy.",
+        "validation": "Existing effects/look/motion/title tests are inherited evidence. Actual changed-parameter rendering, playback/export and supported-platform quality remain open.",
+        "input": "prefix/name: each24 display-width units (wide code point2), uppercased; size60..200%, x/y10..90%, shadow0..1, font metrics/base64.",
+        "output": "Static text width/cap-height layout; empty full text renders nothing.",
+        "dependencies": "Oswald Bold, React/Remotion, canvas/system wide glyphs and document.fonts.",
+        "distribution": "plugins/archive-vlog/assets/archived-credit.tsx"
+      },
+      "evidence": [
+        "plugins/archive-vlog/assets/archived-credit.tsx",
+        "plugins/archive-vlog/dev/decorate.template.js",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "look-policy",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "Archive green/cyan suppression, orange knee and shadow/highlight curve are local appearance choices, not a generic color module.",
+      "contract": {
+        "identity": "One rendered clip occurrence; clip-local frame/fps differs from source seconds and Draft timeline frames.",
+        "effects": "React/Remotion rendering only; no SDK, file, Project or process mutation.",
+        "lifetime": "One frame/render; no allocated Worker, native job or staging.",
+        "cleanup": "React owns DOM removal; no original/installed file deletion.",
+        "outcomes": "Current numeric defaults/clamps are policy, not evidence all malformed inputs are admitted safely.",
+        "retry": "Repeat frame rendering freely; uncertain persistence is never replayed by this policy.",
+        "validation": "Existing effects/look/motion/title tests are inherited evidence. Actual changed-parameter rendering, playback/export and supported-platform quality remain open.",
+        "input": "strength0..1 (default.3), warmth0..2(default1); sRGB channel0..1.",
+        "output": "SVG/CSS 33-point tone/filter chain; strength0 returns Source directly.",
+        "dependencies": "Local hue masks/tone tables and React/Remotion.",
+        "distribution": "plugins/archive-vlog/assets/cinematic-look.tsx"
+      },
+      "evidence": [
+        "plugins/archive-vlog/assets/cinematic-look.tsx",
+        "plugins/archive-vlog/dev/decorate.template.js",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "reveal-policy",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "The .22..2.35s opening reveal and cover-visible ratio are Archive opening rhythm.",
+      "contract": {
+        "identity": "One rendered clip occurrence; clip-local frame/fps differs from source seconds and Draft timeline frames.",
+        "effects": "React/Remotion rendering only; no SDK, file, Project or process mutation.",
+        "lifetime": "One frame/render; no allocated Worker, native job or staging.",
+        "cleanup": "React owns DOM removal; no original/installed file deletion.",
+        "outcomes": "Current numeric defaults/clamps are policy, not evidence all malformed inputs are admitted safely.",
+        "retry": "Repeat frame rendering freely; uncertain persistence is never replayed by this policy.",
+        "validation": "Existing effects/look/motion/title tests are inherited evidence. Actual changed-parameter rendering, playback/export and supported-platform quality remain open.",
+        "input": "clip-local frame/fps, enabled, reveal start/end or revealSeconds; source-box visible ratio: only .01<visible<1 is used; otherwise1.",
+        "output": "CSS inset clipping while keeping the same Source tree.",
+        "dependencies": "React/Remotion; fps>0 is used as-is, otherwise30; caller finite-fps admission remains open. end>=start.",
+        "distribution": "plugins/archive-vlog/assets/letterbox-reveal.tsx"
+      },
+      "evidence": [
+        "plugins/archive-vlog/assets/letterbox-reveal.tsx",
+        "plugins/archive-vlog/dev/decorate.template.js",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "photo-motion-policy",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "Push7%, drift3%, tilt2.5deg and safe overhang are Archive motion design; shared authoring verifies actual occurrence/data.",
+      "contract": {
+        "identity": "One rendered clip occurrence; clip-local frame/fps differs from source seconds and Draft timeline frames.",
+        "effects": "React/Remotion rendering only; no SDK, file, Project or process mutation.",
+        "lifetime": "One frame/render; no allocated Worker, native job or staging.",
+        "cleanup": "React owns DOM removal; no original/installed file deletion.",
+        "outcomes": "Unknown motion returns identity. holdSeconds/cover finite admission depends on caller and needs reproduction.",
+        "retry": "Repeat frame rendering freely; uncertain persistence is never replayed by this policy.",
+        "validation": "Existing effects/look/motion/title tests are inherited evidence. Actual changed-parameter rendering, playback/export and supported-platform quality remain open.",
+        "input": "motion enum, strength0..2, direction=-1 or1, axis x/y, cover and holdSeconds; progress denominator=max(1,(Number(holdSeconds)||1)*fps-1); zero/absent hold defaults1second.",
+        "output": "Pure eased scale, percent position and degree rotation plus CSS wrapper.",
+        "dependencies": "React/Remotion, local motion constants and caller native dimensions/cover.",
+        "distribution": "plugins/archive-vlog/assets/photo-motion.tsx"
+      },
+      "evidence": [
+        "plugins/archive-vlog/assets/photo-motion.tsx",
+        "plugins/archive-vlog/dev/decorate.template.js",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "fade-policy",
+      "decision": "keep-template-specific",
+      "owner": "archive-vlog",
+      "reason": "Black fade on final clip is Archive finishing design; the caller supplies actual Draft-frame duration.",
+      "contract": {
+        "identity": "One rendered clip occurrence; clip-local frame/fps differs from source seconds and Draft timeline frames.",
+        "effects": "React/Remotion rendering only; no SDK, file, Project or process mutation.",
+        "lifetime": "One frame/render; no allocated Worker, native job or staging.",
+        "cleanup": "React owns DOM removal; no original/installed file deletion.",
+        "outcomes": "Nonfinite frame or nonpositive duration/fade returns zero; frame0 may already be the final frame for a one-frame clip; Infinity is not explicitly rejected and remains a caller-boundary question.",
+        "retry": "Repeat frame rendering freely; uncertain persistence is never replayed by this policy.",
+        "validation": "Existing effects/look/motion/title tests are inherited evidence. Actual changed-parameter rendering, playback/export and supported-platform quality remain open.",
+        "input": "clip-local frame/fps, durationFrames, fadeSeconds(default1;0 off).",
+        "output": "Black overlay alpha limited to clip duration and reaching1 on last frame.",
+        "dependencies": "React/Remotion; fps>0 is used as-is, otherwise30. Infinity finiteness depends on caller admission.",
+        "distribution": "plugins/archive-vlog/assets/fade-out.tsx"
+      },
+      "evidence": [
+        "plugins/archive-vlog/assets/fade-out.tsx",
+        "plugins/archive-vlog/dev/decorate.template.js",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "implementation": "specific"
+    },
+    {
+      "id": "audio-preview",
+      "decision": "extend",
+      "owner": "bundled-assets",
+      "reason": "Reuse existing bounded read/transient ownership for preview preparation; Archive keeps seek/fade policy. This is planned caller migration, not a new module.",
+      "contract": {
+        "input": "Selected whole-track path, Audio metadata, chosen section seconds/videoSeconds, preview token and mounted Project.",
+        "output": "Blob URL/HTMLAudioElement playback with40ms fade/stop updates and idle/loading/playing state.",
+        "identity": "One previewToken, exact Audio object and Blob URL; not saved Audio Resource identity.",
+        "dependencies": "Current readBytes/Audio/Blob/URL/timer implementation; existing bundled-assets has bounded readers but this caller is not migrated.",
+        "effects": "Reads entire track into memory, registers Audio handlers, plays/seeks and creates object URL/timer.",
+        "lifetime": "Stops on track/section/length/pace change, Build, Project switch or unmount; metadata wait currently has no local deadline.",
+        "cleanup": "stopPreview pauses/detaches onended, revokes owned URL and clears timer. onloadedmetadata/onerror await settlement and strict cancellation remain open.",
+        "outcomes": "Playback/read failures display status; abandoned metadata and oversized track are explicit unverified candidate defects.",
+        "retry": "New preview starts under new token; late result cannot change current playback. No save/import replay.",
+        "distribution": "stopPreview/preview/audioType and UI Audio refs.",
+        "validation": "Source-only lifecycle review now; actual pending-metadata, large-track, same-tick cancellation and browser cleanup tests required before migration."
+      },
+      "evidence": [
+        "plugins/archive-vlog/panel.tsx",
+        "shared/bundled-assets.js"
+      ],
+      "implementation": "planned"
+    }
+  ],
+  "files": [
+    {
+      "path": "plugins/archive-vlog/panel.tsx",
+      "sha256": "12e4332c6b8a7a0c2dda68e29e9cb957b6d82b8508ccda26d95f518648539ad7",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 7651,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 19,
+          "endLine": 1852,
+          "feature": "copy-and-package"
+        },
+        {
+          "startLine": 1854,
+          "endLine": 1893,
+          "feature": "text-runtime"
+        },
+        {
+          "startLine": 1912,
+          "endLine": 1916,
+          "feature": "text-runtime"
+        },
+        {
+          "startLine": 1918,
+          "endLine": 1949,
+          "feature": "copy-and-package"
+        },
+        {
+          "startLine": 1951,
+          "endLine": 2708,
+          "feature": "montage-policy"
+        },
+        {
+          "startLine": 2710,
+          "endLine": 2834,
+          "feature": "candidate-policy"
+        },
+        {
+          "startLine": 2836,
+          "endLine": 3020,
+          "feature": "program-policy"
+        },
+        {
+          "startLine": 3517,
+          "endLine": 3528,
+          "feature": "audio-beat-engine"
+        },
+        {
+          "startLine": 3530,
+          "endLine": 3830,
+          "feature": "local-video-analysis"
+        },
+        {
+          "startLine": 3561,
+          "endLine": 3808,
+          "feature": "local-video-analysis"
+        },
+        {
+          "startLine": 3831,
+          "endLine": 4274,
+          "feature": "asset-owner"
+        },
+        {
+          "startLine": 4276,
+          "endLine": 4354,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 4402,
+          "endLine": 4468,
+          "feature": "worker-owner"
+        },
+        {
+          "startLine": 4491,
+          "endLine": 5074,
+          "feature": "workflow-owner"
+        },
+        {
+          "startLine": 6613,
+          "endLine": 6862,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 7088,
+          "endLine": 7202,
+          "feature": "catalog-read"
+        },
+        {
+          "startLine": 7204,
+          "endLine": 7603,
+          "feature": "local-sdk"
+        },
+        {
+          "startLine": 7605,
+          "endLine": 7650,
+          "feature": "app-guard"
+        },
+        {
+          "startLine": 3024,
+          "endLine": 3411,
+          "feature": "title-policy"
+        },
+        {
+          "startLine": 3413,
+          "endLine": 3516,
+          "feature": "credit-policy"
+        },
+        {
+          "startLine": 2843,
+          "endLine": 2858,
+          "feature": "candidate-policy"
+        },
+        {
+          "startLine": 2949,
+          "endLine": 2954,
+          "feature": "assembly-policy"
+        },
+        {
+          "startLine": 4357,
+          "endLine": 4360,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 4366,
+          "endLine": 4401,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 4469,
+          "endLine": 4484,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 4486,
+          "endLine": 4489,
+          "feature": "audio-preview"
+        },
+        {
+          "startLine": 5078,
+          "endLine": 5091,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5093,
+          "endLine": 5118,
+          "feature": "program-policy"
+        },
+        {
+          "startLine": 5119,
+          "endLine": 5133,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 5134,
+          "endLine": 5151,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 5156,
+          "endLine": 5164,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 5166,
+          "endLine": 5179,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 5184,
+          "endLine": 5208,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5210,
+          "endLine": 5217,
+          "feature": "candidate-policy"
+        },
+        {
+          "startLine": 5238,
+          "endLine": 5248,
+          "feature": "copy-and-package"
+        },
+        {
+          "startLine": 5261,
+          "endLine": 5265,
+          "feature": "catalog-read"
+        },
+        {
+          "startLine": 5544,
+          "endLine": 5567,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 5568,
+          "endLine": 5586,
+          "feature": "title-policy"
+        },
+        {
+          "startLine": 5622,
+          "endLine": 5655,
+          "feature": "catalog-read"
+        },
+        {
+          "startLine": 5658,
+          "endLine": 5658,
+          "feature": "catalog-read"
+        },
+        {
+          "startLine": 5661,
+          "endLine": 5711,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 5750,
+          "endLine": 5791,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5800,
+          "endLine": 5891,
+          "feature": "title-policy"
+        },
+        {
+          "startLine": 5894,
+          "endLine": 5924,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5929,
+          "endLine": 5981,
+          "feature": "audio-preview"
+        },
+        {
+          "startLine": 5984,
+          "endLine": 5996,
+          "feature": "scene-observation"
+        },
+        {
+          "startLine": 6002,
+          "endLine": 6011,
+          "feature": "local-video-analysis"
+        },
+        {
+          "startLine": 6013,
+          "endLine": 6211,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6242,
+          "endLine": 6270,
+          "feature": "montage-policy"
+        },
+        {
+          "startLine": 6549,
+          "endLine": 6562,
+          "feature": "montage-policy"
+        },
+        {
+          "startLine": 6571,
+          "endLine": 6573,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6582,
+          "endLine": 6609,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 6863,
+          "endLine": 6873,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 6881,
+          "endLine": 7041,
+          "feature": "workflow-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/scripts-types.test.cjs",
+      "sha256": "baa3b56e8a38c8a546b645b9f21926cdb3f6cbaeea262c9ddc42d38a124a0fc8",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 52,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/assets/fade-out.tsx",
+      "sha256": "09352ca3eb60a8791439c25b98fef40590ea2917e06c66644dc27a18fb01342a",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 46,
+          "feature": "fade-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/assets/archived-credit.tsx",
+      "sha256": "d32c1e78905ab337b57d0afb5c83cb9f7c4a28ea766e6a63d3ddcd9cde3dda0d",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 156,
+          "feature": "credit-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/i18n.test.cjs",
+      "sha256": "ae94ba8942bf084ce9d7624a0d8c147233c5a296fef1a2be86a596dd74d942cf",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 22,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/scripts/prepare-decoration.js",
+      "sha256": "5a3aa8d19479a45d3d929814cec95a991585289053c549abfd61299d1218db14",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 281,
+          "feature": "program-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/scripts/assemble.js",
+      "sha256": "70d7f468ff3b7de9b22bb59a9cf25f778f6cee59b38cb997df5b0b80d0317351",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 363,
+          "feature": "assembly-policy"
+        },
+        {
+          "startLine": 1,
+          "endLine": 161,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 162,
+          "endLine": 234,
+          "feature": "authoring-owner"
+        },
+        {
+          "startLine": 235,
+          "endLine": 268,
+          "feature": "assembly-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/scripts/search.js",
+      "sha256": "16bccf2e9b29778e6ebcb774ecced35dc3b86c7a600eb0e8d879b2e2ae47d65f",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 71,
+          "feature": "scene-observation"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/dev/i18n-check.cjs",
+      "sha256": "88b11e2320b68a942261192cd9206c0e1dd50c5c5c95f4c6e3788a70bc51369d",
+      "hashMode": "lf-text",
+      "role": "validation-tool",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 167,
+          "feature": "text-checker"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/scripts/ensure-audio.js",
+      "sha256": "2c6ea3976012a62ab4c38af9570bb1fa913f9a274a7e8a9c00a1e1be900d41a0",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 69,
+          "feature": "asset-owner"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/beat-detect.test.cjs",
+      "sha256": "1644b0034693f7191e1be4032f94200a18de4adccda09c340d90c5e6014b49ec",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 275,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/planner.js",
+      "sha256": "6766ebcf5e4fb031af010ec5252bb6e6602ca41bd614c6d8c263ca57c0092184",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 757,
+          "feature": "montage-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/scripts/decorate.js",
+      "sha256": "75e4ab774ac129ec8d8b0c8fe5823bd95d40454c838ce587c479ee7ae63b65d3",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 184,
+          "feature": "program-policy"
+        },
+        {
+          "startLine": 1,
+          "endLine": 135,
+          "feature": "authoring-owner"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/cues.test.cjs",
+      "sha256": "853fc1e530e72e942e377a17a410feea2c1c8d0bd2e20455ea2a1d3d282b0494",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 181,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/planner.test.cjs",
+      "sha256": "48d7d3e65fe5d5ffcc75c9f467f78be68b8e0b0c3cc55b4a9f42c2762185e23f",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 386,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/assets/photo-motion.tsx",
+      "sha256": "74d123c2d5eea6e5922df0437b4c6db6e13cc2767002aa6e2d3e663b094b4657",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 53,
+          "feature": "photo-motion-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/allocate.test.cjs",
+      "sha256": "97894f2a5b01d37578e4231a5d3d506d8bb5b43252805291e2d49463fbbef1f8",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 445,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/scripts-edit.test.cjs",
+      "sha256": "a5a1ad222c79dc4a3488e06d18f699eb36437fa876b009d699d0e9a8a8fdf9c3",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 493,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/title.test.cjs",
+      "sha256": "2888fe4f88b019aca091ab9c6043d772fe9e4a7ad7b320c28d3fca1fd529ed47",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 527,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/quick-score.test.cjs",
+      "sha256": "d4f2c29dffbdabd26e1658f88caf605dd430ff7fa35c00a9446fecb8c96d9840",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 139,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/motion.test.cjs",
+      "sha256": "3bdfcb0d051bfad200e3501f99ec6964333be53cebc431689e935ab2812d0920",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 104,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/scripts/verify-assembly.js",
+      "sha256": "e9e697d90455e62157df8f387eb2e445b23a8746e55210eb05417d5cf431ca36",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 215,
+          "feature": "assembly-policy"
+        },
+        {
+          "startLine": 1,
+          "endLine": 101,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 102,
+          "endLine": 140,
+          "feature": "authoring-owner"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/scripts-read.test.cjs",
+      "sha256": "0a919e842fa2db895ebd97216216a94cc2a9fc9e3357e265ae6d137ad3b7d7f9",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 224,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/fonts.test.cjs",
+      "sha256": "12dce0cd9fe9dcb2d26da39edc27c7d2b00e70af81f86f65745c0b196e0cec93",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 157,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/effects.test.cjs",
+      "sha256": "c6b78716f8cc30407bb169ddce1557499fc016e5fcfe454a22d05a46f30c1ea5",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 119,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/assets/decode-title.tsx",
+      "sha256": "ef11fab0c5c85965b113e13f325ee53e311e07ac5620967aa33cbd2f79b9a42d",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 470,
+          "feature": "title-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/scripts/inventory.js",
+      "sha256": "73c1a25d6f1ef132318e5cca102bb95955b1017cbcd5f8e5fa4b3f08fdd9a81b",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 73,
+          "feature": "catalog-read"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/look.test.cjs",
+      "sha256": "b09f99cb8ed51e94a3f8a4f5768d8259c75d6519da6f505a67c499887bd76b80",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 175,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/assets/cinematic-look.tsx",
+      "sha256": "2d9b8802d87912f5e7fb56f803fa1dbd9370d5c57552fe329fb98c056ac25397",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 222,
+          "feature": "look-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/beat-detect.cjs",
+      "sha256": "0ae347181e05700cd48ab541039e1e7d0c3cf41f16a21fe6de48dc3298fbfa12",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 446,
+          "feature": "audio-beat-engine"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/tests/panel.test.cjs",
+      "sha256": "eb8586a73c8104fd84874402c29b794740f269ea9516afd140bae772f88ca925",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 754,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/assets/letterbox-reveal.tsx",
+      "sha256": "8e36512920a0bd95957b0dbd2fb17ae070119e0747e332005effec7784b31d1c",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 67,
+          "feature": "reveal-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/operation-builder.mjs",
+      "sha256": "2e555c3bffb8b48bbf592f0d2105e70fdb0227ff544d9f985d710f22fbdb9f97",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 60,
+          "feature": "build-delivery"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/dev/assembly-policy.js",
+      "sha256": "88624ba7f28fa90ead2d05e1210ceeb0f878e32246b2f5a50bbdfa041d7f323d",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 35,
+          "feature": "assembly-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/dev/assemble.template.js",
+      "sha256": "33613b12d5974aed86703f65ebf91a2708191c02daff1466c10882fc989e3198",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 94,
+          "feature": "assembly-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/dev/verify-assembly.template.js",
+      "sha256": "aab40c4504d46e61174562a821e054772b6262f4537ed437570962487b8a9fea",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 40,
+          "feature": "assembly-policy"
+        }
+      ]
+    },
+    {
+      "path": "plugins/archive-vlog/dev/decorate.template.js",
+      "sha256": "32dae462a5c0b902bd69ba9a511f282cfb7a0210e0637fed4f837efd930753f1",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 49,
+          "feature": "program-policy"
+        }
+      ]
+    },
+    {
+      "path": "shared/local-client.ts",
+      "sha256": "c0b31ccf92fa5f08cf8caa90a9fb40db87036c86328e3af1b023228e0d4531bf",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 400,
+          "feature": "local-sdk"
+        }
+      ]
+    },
+    {
+      "path": "shared/app-update-guard.ts",
+      "sha256": "c79616cefa493ddc0108c10c7d6e105dade50c56473919c81436e19e097ea8d5",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 45,
+          "feature": "app-guard"
+        }
+      ]
+    },
+    {
+      "path": "shared/bundled-assets.js",
+      "sha256": "cddb83d4fdd1ff53bf5df102b45b4760a533b9e296f8895f9f1e519c0c6b8736",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 443,
+          "feature": "asset-owner"
+        }
+      ]
+    },
+    {
+      "path": "shared/native-image-input.mjs",
+      "sha256": "eba2f12f69a693205c43a2b06e32107cc6c0efc4a9c2c33a79e7175ffa1d92e6",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 249,
+          "feature": "source-input"
+        }
+      ]
+    },
+    {
+      "path": "shared/native-image-authoring.js",
+      "sha256": "2ede41ddfd8899d1105d1208f0af009d9b9e6bb06d1e905baece7e11a55a1416",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 288,
+          "feature": "authoring-owner"
+        }
+      ]
+    },
+    {
+      "path": "shared/analysis-worker.js",
+      "sha256": "001877b94060ec82cad06ab12946b023b3bc49023bc7e64566cae917126bdc45",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 66,
+          "feature": "worker-owner"
+        }
+      ]
+    },
+    {
+      "path": "shared/template-run.js",
+      "sha256": "9e5501dc8176635521678543849602da11c2f85cdf17466134f20dd0c8e59343",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 583,
+          "feature": "workflow-owner"
+        }
+      ]
+    },
+    {
+      "path": "shared/media-inventory.js",
+      "sha256": "120439ff4a1f8fa3c43e8a20bfd072ff47da9521c4ac187bb0f3368dbc6b4682",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 114,
+          "feature": "catalog-read"
+        }
+      ]
+    },
+    {
+      "path": "shared/clip-analysis.js",
+      "sha256": "572d132c96ca7aa303e21f30ef924a95f5d66ca8561d8a0c8bbb191d7311522c",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 247,
+          "feature": "local-video-analysis"
+        }
+      ]
+    },
+    {
+      "path": "shared/audio-beat-analysis.cjs",
+      "sha256": "0ae347181e05700cd48ab541039e1e7d0c3cf41f16a21fe6de48dc3298fbfa12",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 446,
+          "feature": "audio-beat-engine"
+        }
+      ]
+    },
+    {
+      "path": "tests/archive_mixed_inventory.test.mjs",
+      "sha256": "528d54684a2beec97c840ef47fbdfc9ef381317e15e2542a3f2715d8e937f7dd",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 75,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/archive_feature_ownership.test.mjs",
+      "sha256": "d9b457c3ac307097d389e205a8846866f9960417c9654c0630e529e76abd15c5",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 47,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/archive_input_admission.test.mjs",
+      "sha256": "985df1607b888a093da34d3535abf934cae9fd66da96ffd7e5c87856eaac5065",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 44,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/archive_music_fixture.mjs",
+      "sha256": "7e6ad311438ff1e9c0e6b88eca98f55456be50385a28580e9dddd2253ce532cf",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 79,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/archive_video_analysis.test.mjs",
+      "sha256": "c41c782079fcb382722370911a1a7aa4b1a548b8f5cf22cfa3efaefcf1732e53",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 91,
+          "feature": "test-harness"
+        }
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "path": "plugins/archive-vlog/README.md",
+      "sha256": "666ed64bb81f670c07f8593409c5da3734f674c8339ebe46894d1892422a7277",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/INSTALL.md",
+      "sha256": "d65632f6f35d2c4fba04fae448fcffca9f057aef6f8ed042d7d780aa26f00478",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/THIRD_PARTY.md",
+      "sha256": "fe2004f4699b122a41b69ca50e9abdaa87ca0d4375df4e76bb78be7a811c8179",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/cues/LICENSES.csv",
+      "sha256": "499d8240419c276b2c22e83de2923a430f44fa177d780d68dac8e6ae88a03a4f",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/cues/before-everything.mp3",
+      "sha256": "544d03f2ae70679e4978ad00f15f1c10a65d3cc6aed649c13a3fc650f0e1dceb",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/cues/fractured.mp3",
+      "sha256": "daa4595b21f4408f82920a6728b612da0922931d2b3f0818c61bc36dedab7371",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/cues/manifest.json",
+      "sha256": "965a7a9ca64da90e03d273b5c4c74297c76f22671186f8dd9c5dcd41b9709cf3",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/cues/marimba-motif.mp3",
+      "sha256": "772f2aeabe45927753f5dad439558757f37da956a46a14e9db5342bbbfe851d9",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/cues/peaceful-drift.mp3",
+      "sha256": "241de16eb4f0e81c909000570f736f4df7bafcabfabf90c70cc1dab49cfdcac7",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/cues/theta-frequency.mp3",
+      "sha256": "0997175424c5299f3f8b157c1d55072b5fad452c8cec0283e9c70f1201369751",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/fonts/anton.woff2.b64",
+      "sha256": "5091ea368a4a4f9c1808d9f44e6306df9f3b66c139e7bd142fd98749251bb1b4",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/fonts/inter-medium.woff2.b64",
+      "sha256": "ed212367a5758b0f2324f5cc1334db0d6ca4c3a4f2338eadf49fb99e1f43c94c",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/fonts/inter-regular.woff2.b64",
+      "sha256": "1f28ed2337cee2ad2dc4aa68c02f878de6144557af73fd088a68d39d49e1310c",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/fonts/licenses/anton-OFL.txt",
+      "sha256": "ee67e6ee22790b7929f1a3769ca2801d565c64b5a9096942c1adf5596de9c9e4",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/fonts/licenses/inter-OFL.txt",
+      "sha256": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/fonts/licenses/oswald-OFL.txt",
+      "sha256": "0fd731a904b729a4e02eaf5e8ebd06783edd9abe400e8882760160230675b652",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/fonts/oswald-bold.woff2.b64",
+      "sha256": "be66ed1d15d2e6ba1b84587f948ee04937a95cf5976ad93e62a52f31a315f743",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/assets/fonts/presets.json",
+      "sha256": "0149251cc7ac68711ca3e99718efcc930f421c39f5034a7f2437900187188c00",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/plugin.json",
+      "sha256": "87b9669f1cf1ab02523faaa37022663fbe9a64a5bc8e81e1807e94271ed0c6f9",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/poster.webp",
+      "sha256": "a3d0af57ea7c1234e467f74e7ef1e909b13ed5dbf158a484fe37b38929e01a6c",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    },
+    {
+      "path": "plugins/archive-vlog/preview.mp4",
+      "sha256": "f9ef7224f959e92c3cac604a09d2cb8b8d8e469839e5b24009417fa6b5f2e94f",
+      "hashMode": "bytes",
+      "feature": "copy-and-package",
+      "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
+    }
+  ],
+  "embeddedPrograms": [
+    {
+      "file": "plugins/archive-vlog/panel.tsx",
+      "feature": "audio-beat-engine",
+      "producer": "avBeatWorkerSource",
+      "description": "Builds a worker program around the exact installed beat-detect.cjs. Worker require is inert so CLI branches cannot run.",
+      "input": "One {samples:Float32Array,rate:Hz} message.",
+      "output": "{ok:analyze result} or {error:string}.",
+      "lifetime": "One Worker invocation; shared analysis-worker owns URL, events, timer and terminate.",
+      "sourceFiles": [
+        "plugins/archive-vlog/beat-detect.cjs"
+      ]
+    },
+    {
+      "file": "plugins/archive-vlog/panel.tsx",
+      "feature": "local-sdk",
+      "producer": "createPanelLocalClient",
+      "description": "Serializes file/media SDK bridge requests from the canonical private client, with captured environment and process identity.",
+      "input": "Validated file paths/chunks/media argv.",
+      "output": "Typed facts/media-job identity and status or classified errors.",
+      "lifetime": "Captured client, bounded requests and observed native settlement.",
+      "sourceFiles": [
+        "shared/local-client.ts"
+      ]
+    },
+    {
+      "file": "plugins/archive-vlog/panel.tsx",
+      "feature": "source-input",
+      "producer": "TEMPLATE_ALIAS_JS",
+      "description": "Serializes canonical original Resource resolution into an independent run_script body for handed template input.",
+      "input": "Project id plus selected original Resource ids/kinds.",
+      "output": "Observed aliases/native dimensions or explicit failed phases.",
+      "lifetime": "One bounded input call; scratch placement is private/unsaved, no unknown replay.",
+      "sourceFiles": [
+        "shared/native-image-input.mjs"
+      ]
+    },
+    {
+      "file": "plugins/archive-vlog/panel.tsx",
+      "feature": "workflow-owner",
+      "producer": "executeTemplateAssembly",
+      "description": "Canonical durable owner wraps frozen installed authoring source with exclusive receipt and saved-state observation.",
+      "input": "Immutable config/source/scope/digest and current owner.",
+      "output": "Confirmed saved assembly or durable unknown/no-save/mismatch state.",
+      "lifetime": "Original run/phase through recovery, including reload; no substituted source.",
+      "sourceFiles": [
+        "shared/template-run.js",
+        "plugins/archive-vlog/scripts/assemble.js",
+        "plugins/archive-vlog/scripts/decorate.js",
+        "plugins/archive-vlog/scripts/prepare-decoration.js",
+        "plugins/archive-vlog/scripts/verify-assembly.js"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "mixed-photo-path",
+      "status": "fixed-fixture",
+      "feature": "catalog-read",
+      "title": "Shipped photo inventory omitted path required by hidden source binding.",
+      "sources": [
+        {
+          "file": "plugins/archive-vlog/scripts/inventory.js",
+          "line": 70
+        },
+        {
+          "file": "plugins/archive-vlog/panel.tsx",
+          "line": 6976
+        }
+      ],
+      "repairOwner": "media-inventory",
+      "mechanism": "Actual shipped inventory plus two videos and one photo reached invalid source binding before search. Previous music fixtures projected videos only and missed this path.",
+      "acceptance": "Carry the exact native photo path through reobserved inventory, current Project binding, full-content admission and original saved continuation.",
+      "evidence": [
+        "plugins/archive-vlog/scripts/inventory.js",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "resolution": "Photo inventory now includes its exact observed path (null when unavailable). Existing input and durable owners remain unchanged. Actual-script mixed-entry and restoration regression cover the seam.",
+      "validationLimits": "Actual panel entry + shipped inventory + canonical input owner in isolated fixtures; assembly verifier is an explicit readback boundary. No actual saved mixed Draft, installed UI, playback/export or Windows verdict.",
+      "reproducer": "tests/archive_mixed_inventory.test.mjs"
+    },
+    {
+      "id": "preparation-two-video-policy",
+      "status": "fixed-source",
+      "feature": "copy-and-package",
+      "title": "Preparation still promised one video while both entry policies require two.",
+      "sources": [
+        {
+          "file": "plugins/archive-vlog/plugin.json",
+          "line": 202
+        },
+        {
+          "file": "plugins/archive-vlog/panel.tsx",
+          "line": 2561
+        }
+      ],
+      "repairOwner": "archive-vlog",
+      "mechanism": "prepare[0] said at least one video despite hint/runtime requiring two distinct videos.",
+      "acceptance": "Preparation, hint and both runtime entries preserve the chosen two-video/optional-photo design.",
+      "evidence": [
+        "plugins/archive-vlog/plugin.json",
+        "plugins/archive-vlog/panel.tsx"
+      ],
+      "resolution": "Preparation now requires at least two different video clips, optional photos, max50 total; source-contract RED/GREEN captures the old mismatch.",
+      "validationLimits": "Wording/source admission checks; no installed gallery rendering, playback or export verdict."
+    },
+    {
+      "id": "scene-index-original-generation",
+      "status": "needs-reproduction",
+      "feature": "scene-observation",
+      "title": "Current file observations do not attest the original bytes of the past server scene index.",
+      "sources": [
+        {
+          "file": "plugins/archive-vlog/scripts/search.js",
+          "line": 1
+        },
+        {
+          "file": "plugins/archive-vlog/panel.tsx",
+          "line": 6080
+        }
+      ],
+      "repairOwner": "media-inventory",
+      "mechanism": "Search sends the Resource/index owner; current in-run full hashes only bind current bytes. Actual app sampled analysis fingerprint is best-effort; normal relink intentionally preserves analysis.",
+      "acceptance": "Establish existing backend index-generation identity/reuse policy and same-content relink behavior before designing any new SDK or invalidation; reproduce actual stale hits separately.",
+      "evidence": [
+        "plugins/archive-vlog/scripts/search.js",
+        "plugins/archive-vlog/panel.tsx"
+      ]
+    },
+    {
+      "id": "preview-byte-budget-and-metadata",
+      "status": "needs-reproduction",
+      "feature": "audio-preview",
+      "title": "Whole-track preview reads unbounded bytes and can await metadata without a local deadline.",
+      "sources": [
+        {
+          "file": "plugins/archive-vlog/panel.tsx",
+          "line": 5939
+        },
+        {
+          "file": "plugins/archive-vlog/panel.tsx",
+          "line": 5929
+        }
+      ],
+      "repairOwner": "bundled-assets",
+      "mechanism": "readBytes loads the whole track; metadata promise owns handlers but stopPreview clears only onended and playback URL/timer. No local settlement/deadline is declared.",
+      "acceptance": "Reproduce pending metadata/cancel/large track and reuse bounded existing owner without altering seek/fade design.",
+      "evidence": [
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/archive-vlog/panel.tsx"
+      ]
+    },
+    {
+      "id": "font-adjust-readiness-and-metrics",
+      "status": "needs-reproduction",
+      "feature": "title-policy",
+      "title": "Adjust font changes and malformed supplied metrics have not been admitted at the render boundary.",
+      "sources": [
+        {
+          "file": "plugins/archive-vlog/assets/decode-title.tsx",
+          "line": 158
+        },
+        {
+          "file": "plugins/archive-vlog/assets/decode-title.tsx",
+          "line": 407
+        },
+        {
+          "file": "plugins/archive-vlog/assets/archived-credit.tsx",
+          "line": 118
+        }
+      ],
+      "repairOwner": "archive-vlog",
+      "mechanism": "Initial font readiness effect depends on ready, not changed font/text parameters; present-but-invalid metrics bypass absent-metrics fallback.",
+      "acceptance": "Actual same-instance Adjust/font failure/invalid metrics must settle owned render gate once and preserve reliable layout; compare title graphemes with credit width policy.",
+      "evidence": [
+        "plugins/archive-vlog/assets/decode-title.tsx",
+        "plugins/archive-vlog/assets/decode-title.tsx",
+        "plugins/archive-vlog/assets/archived-credit.tsx"
+      ]
+    },
+    {
+      "id": "simultaneous-render-ids",
+      "status": "needs-reproduction",
+      "feature": "look-policy",
+      "title": "Title scrim and near-equal look values can share SVG IDs across instances.",
+      "sources": [
+        {
+          "file": "plugins/archive-vlog/assets/decode-title.tsx",
+          "line": 443
+        },
+        {
+          "file": "plugins/archive-vlog/assets/cinematic-look.tsx",
+          "line": 179
+        }
+      ],
+      "repairOwner": "archive-vlog",
+      "mechanism": "Title uses fixed av-title-scrim; look id rounds parameter values while filter computations use original values.",
+      "acceptance": "Reproduce simultaneous distinct settings in one render document before changing instance-ID policy.",
+      "evidence": [
+        "plugins/archive-vlog/assets/decode-title.tsx",
+        "plugins/archive-vlog/assets/cinematic-look.tsx"
+      ]
+    },
+    {
+      "id": "render-numeric-boundaries",
+      "status": "needs-reproduction",
+      "feature": "photo-motion-policy",
+      "title": "Motion/fade raw parameters rely partly on caller finiteness.",
+      "sources": [
+        {
+          "file": "plugins/archive-vlog/assets/photo-motion.tsx",
+          "line": 16
+        },
+        {
+          "file": "plugins/archive-vlog/assets/fade-out.tsx",
+          "line": 18
+        }
+      ],
+      "repairOwner": "archive-vlog",
+      "mechanism": "holdSeconds/cover and duration Infinity are not comprehensively rejected in render functions; normal builder inputs may already constrain them.",
+      "acceptance": "Verify normal and Adjust caller admission, then reproduce invalid render parameters without changing valid-input appearance.",
+      "evidence": [
+        "plugins/archive-vlog/assets/photo-motion.tsx",
+        "plugins/archive-vlog/assets/fade-out.tsx"
+      ]
+    },
+    {
+      "id": "configured-install-root",
+      "status": "needs-reproduction",
+      "feature": "host-bootstrap",
+      "title": "Legacy root wrapper only probes the default skill folder.",
+      "sources": [
+        {
+          "file": "plugins/archive-vlog/panel.tsx",
+          "line": 4328
+        },
+        {
+          "file": "plugins/archive-vlog/INSTALL.md",
+          "line": 1
+        }
+      ],
+      "repairOwner": "local-client",
+      "mechanism": "hostRoots derives ~/.selects/skills/id and mutable hostSdk wrapper; actual alternate configured installation and concurrent realm need verification.",
+      "acceptance": "Reuse canonical client/bootstrap and discover configured roots while preserving installed bytes and current default-root consumers.",
+      "evidence": [
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/archive-vlog/INSTALL.md"
+      ]
+    }
+  ]
+}

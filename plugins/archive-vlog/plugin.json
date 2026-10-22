@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "archive-vlog",
-  "version": "0.1.0-alpha.20",
+  "version": "0.1.0-alpha.21",
   "name": "Archive Vlog",
   "summary": "Turn city and travel clips and photos into a 16:9 cinematic vlog: a letterbox opening with a decoding title, an archived-by credit, a montage cut on the beat and a fade to black, as a new editable Draft.",
   "status": "experimental",
@@ -199,7 +199,7 @@
     }
   ],
   "prepare": [
-    "City or travel clips and photos, at least 2 different ones, including at least one video",
+    "At least 2 different video clips of city or travel moments; photos are optional. Up to 50 files total.",
     "Videos analyzed, so the scene search can find their shots"
   ]
 }

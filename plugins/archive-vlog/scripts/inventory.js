@@ -67,6 +67,6 @@ const photos = [];
 for (const r of all.filter(r => r.type === 'Image' && wanted(r) && inPage(r))) {
   const size = sizes[r.resourceId] || null;
   const ok = Number.isSafeInteger(size?.width) && size.width > 0 && Number.isSafeInteger(size?.height) && size.height > 0;
-  photos.push({ rid: r.resourceId, name: nameOf(r), width: ok ? size.width : null, height: ok ? size.height : null, recordedAt: recordedAt(r), kind: 'photo' });
+  photos.push({ rid: r.resourceId, name: nameOf(r), width: ok ? size.width : null, height: ok ? size.height : null, recordedAt: recordedAt(r), kind: 'photo', path: paths[r.resourceId] || null });
 }
 return { ...(page ? { page: { total: all.length, elapsedMs: Date.now() - started } } : {}), resources, photos, skipped: { unanalysed, missing, notAnalysed, analysing }, incomplete };
