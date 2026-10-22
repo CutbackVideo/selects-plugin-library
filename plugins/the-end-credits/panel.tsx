@@ -1699,7 +1699,9 @@ const STRINGS = {
   },
 };
 // STRINGS:END
-// i18n runtime for style-app panels (selects-app-kit tools/i18n/i18n-runtime.ts). Paste it below the STRINGS block.
+// Generated text mechanics from shared/template-text.ts; STRINGS stays template-specific.
+// template-text:start
+// Template text mechanics; STRINGS remains the independently installed panel dictionary.
 const LANGS = ["de", "en", "es", "fr", "it", "ja", "ko", "pt", "tr", "zh"] as const;
 type Lang = (typeof LANGS)[number];
 type Msg = string | { [category: string]: string };
@@ -1716,22 +1718,25 @@ function uiLang(context?: { language?: string | null } | null): Lang {
   return normLang(context?.language) ?? normLang(nav) ?? "en";
 }
 // Plural messages pick their form from vars.count; numbers are formatted for the language.
+function textMessage(table: Record<string, Msg> | undefined, key: string): Msg | undefined {
+  return table && Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
 function t(lang: Lang, key: string, vars: Vars = {}): string {
-  let msg: Msg | undefined = I18N_TABLE[lang]?.[key] ?? I18N_TABLE.en[key];
+  let msg: Msg | undefined = textMessage(I18N_TABLE[lang], key) ?? textMessage(I18N_TABLE.en, key);
   if (msg === undefined) return key;
   if (typeof msg !== "string") {
-    const n = Number(vars.count);
+    const n = Number(Object.prototype.hasOwnProperty.call(vars, "count") ? vars.count : undefined);
     msg = msg[new Intl.PluralRules(lang).select(Number.isFinite(n) ? n : 0)] ?? msg.other ?? "";
   }
   const nf = new Intl.NumberFormat(lang);
   return msg.replace(/\{(\w+)\}/g, (whole: string, name: string) => {
-    const v = vars[name];
+    const v = Object.prototype.hasOwnProperty.call(vars, name) ? vars[name] : undefined;
     return v === undefined ? whole : typeof v === "number" ? nf.format(v) : v;
   });
 }
 // Optional keys (preset/look labels by id): the English label from the JSON is the fallback.
 function tOr(lang: Lang, key: string, fallback: string, vars: Vars = {}): string {
-  return I18N_TABLE.en[key] === undefined ? fallback : t(lang, key, vars);
+  return textMessage(I18N_TABLE.en, key) === undefined ? fallback : t(lang, key, vars);
 }
 // Field limits count Hangul, kana, CJK and fullwidth characters as 2.
 const WIDE_RE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
@@ -1740,6 +1745,14 @@ function fieldLen(text: string): number {
   for (const ch of text) n += WIDE_RE.test(ch) ? 2 : 1;
   return n;
 }
+
+// Field clipping uses the same wide-character units as fieldLen.
+function fieldClip(text: string, max: number) {
+  let out = "", n = 0;
+  for (const ch of text) { const w = fieldLen(ch); if (n + w > max) break; out += ch; n += w; }
+  return out;
+}
+// template-text:end
 
 // A message that follows the UI language: state keeps the function and every render calls it with the current language.
 type Say = (lang: Lang) => string;

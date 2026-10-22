@@ -2,10 +2,22 @@
 
 ## Consolidated review units
 
-The existing session repair PRs are grouped into six plugin-library PRs and two
-app companion PRs, preserving commits, branches, worktrees and validation history.
+The existing session repair PRs are grouped into one plugin-library PR (#346) and
+one app companion PR (#7876), preserving commits, branches, worktrees and validation history.
 See [pr-consolidation.md](pr-consolidation.md) for the replacement map and review
 order. New connected Archive work updates #346.
+
+## Shared text runtime checkpoint
+
+Seven existing templates now reuse the same language, translation, plural,
+number-formatting and field-width mechanics. Missing message keys and placeholder
+variables cannot read inherited JavaScript properties. Template dictionaries and
+wording remain local and byte-identical. All 54,750 comparisons of existing
+messages across ten languages and five counts retain the original result.
+See [template-text.md](template-text.md). The registry contains thirteen modules
+and eighteen plugin consumers (seventeen templates plus Medical compatibility).
+The separate developer dictionary checkers are still local; complete semantic
+ownership and full-template acceptance remain 0/28.
 
 ## Archive original-file preview lifetime checkpoint
 

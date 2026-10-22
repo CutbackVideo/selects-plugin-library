@@ -44,28 +44,30 @@
     },
     {
       "id": "text-runtime",
-      "decision": "extract",
+      "decision": "reuse",
       "owner": "template-text",
-      "reason": "Seven audited panels carry identical language normalization, plural lookup and field-width functions. Keep their dictionaries local; extract one pure text owner rather than a general utility bag.",
+      "reason": "Seven identical language/translation/width runtimes now share canonical source. Dictionary contents remain template-specific; own-property admission prevents missing keys from reading Object.prototype.",
       "contract": {
-        "input": "Supported locale codes, per-template string table, message key, count/variables, fallback label and Unicode text/max width.",
+        "input": "Template-local STRINGS dictionary, ten fixed locale codes, current context/browser locale, message key and string/number variables, text and field-width limit.",
         "output": "Localized strings, plural form, display-width count and clipped title text.",
         "identity": "Locale and dictionary belong to one template instance; message key is not a host SDK identifier.",
-        "dependencies": "Intl.PluralRules/NumberFormat, ten supported locales, explicit English fallback and wide-character policy.",
+        "dependencies": "Per-panel STRINGS binding, Intl.PluralRules/NumberFormat, browser navigator when available; no shared mutable dictionary.",
         "effects": "Pure formatting; navigator/context language selection remains a caller environment adapter.",
         "lifetime": "Synchronous formatting on each render; no shared mutable dictionary or cross-panel cache.",
         "cleanup": "No resources allocated; renderer text-script classification can reuse a pure helper at build time.",
         "outcomes": "Undefined keys and placeholders retain current fallback semantics; invalid table/locale admission needs TDD before extraction.",
         "retry": "No IO retry or mutation.",
-        "distribution": "Future canonical template-text runtime plus generated independent panel copies; not implemented by this review.",
-        "validation": "Identical-token inventory plus existing seven-family i18n tests; planned parity, locale-switch and dictionary-isolation checks."
+        "distribution": "shared/template-text.ts embedded by the existing module generator into seven independently installed panels.",
+        "validation": "Actual-source RED/GREEN for inherited keys plus locale switching, interpolation/plurals, dictionary isolation, code-point width/clipping and original/current dictionary parity. Installed/full-template acceptance remains separate."
       },
       "evidence": [
         "plugins/mini-vlog/panel.tsx",
         "plugins/mini-vlog/dev/i18n-check.cjs",
-        "plugins/mini-vlog/tests/i18n.test.cjs"
+        "plugins/mini-vlog/tests/i18n.test.cjs",
+        "shared/template-text.ts",
+        "tests/template_text.test.mjs"
       ],
-      "implementation": "planned"
+      "implementation": "implemented"
     },
     {
       "id": "text-checker",
@@ -778,12 +780,12 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "276ec100e9325497827a78813b4135c93c02dd7218522a16061070eb06050114",
+      "sha256": "39968c4afbf009a3361d28a1def0f27fcfb23566c147943fff1f77af48ac6fce",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7419,
+          "endLine": 7427,
           "feature": "panel-ui"
         },
         {
@@ -792,239 +794,234 @@
           "feature": "copy-and-package"
         },
         {
-          "startLine": 1801,
-          "endLine": 1843,
-          "feature": "text-runtime"
-        },
-        {
-          "startLine": 1844,
-          "endLine": 1853,
+          "startLine": 1857,
+          "endLine": 1866,
           "feature": "panel-ui"
         },
         {
-          "startLine": 1854,
-          "endLine": 1859,
-          "feature": "text-runtime"
-        },
-        {
-          "startLine": 1860,
-          "endLine": 1934,
+          "startLine": 1869,
+          "endLine": 1943,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 1935,
-          "endLine": 2682,
+          "startLine": 1944,
+          "endLine": 2691,
           "feature": "montage-policy"
         },
         {
-          "startLine": 2683,
-          "endLine": 2846,
+          "startLine": 2692,
+          "endLine": 2855,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 2847,
-          "endLine": 3096,
+          "startLine": 2856,
+          "endLine": 3105,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 3097,
-          "endLine": 3493,
+          "startLine": 3106,
+          "endLine": 3502,
           "feature": "title-policy"
         },
         {
-          "startLine": 3494,
-          "endLine": 3589,
+          "startLine": 3503,
+          "endLine": 3598,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3590,
-          "endLine": 3603,
+          "startLine": 3599,
+          "endLine": 3612,
           "feature": "audio-beat-engine"
         },
         {
-          "startLine": 3604,
-          "endLine": 3618,
+          "startLine": 3613,
+          "endLine": 3627,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3619,
-          "endLine": 3626,
+          "startLine": 3628,
+          "endLine": 3635,
           "feature": "music-policy"
         },
         {
-          "startLine": 3627,
-          "endLine": 3693,
+          "startLine": 3636,
+          "endLine": 3702,
           "feature": "worker-owner"
         },
         {
-          "startLine": 3694,
-          "endLine": 3716,
+          "startLine": 3703,
+          "endLine": 3725,
           "feature": "music-policy"
         },
         {
-          "startLine": 3717,
-          "endLine": 3729,
+          "startLine": 3726,
+          "endLine": 3738,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 3730,
-          "endLine": 3792,
+          "startLine": 3739,
+          "endLine": 3801,
           "feature": "panel-ui"
         },
         {
-          "startLine": 3793,
-          "endLine": 3806,
+          "startLine": 3802,
+          "endLine": 3815,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3807,
-          "endLine": 3956,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 3957,
+          "startLine": 3816,
           "endLine": 3965,
-          "feature": "host-bootstrap"
+          "feature": "panel-ui"
         },
         {
           "startLine": 3966,
-          "endLine": 4503,
-          "feature": "asset-owner"
-        },
-        {
-          "startLine": 4504,
-          "endLine": 5087,
-          "feature": "workflow-owner"
-        },
-        {
-          "startLine": 5088,
-          "endLine": 5107,
-          "feature": "music-policy"
-        },
-        {
-          "startLine": 5131,
-          "endLine": 5137,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 5138,
-          "endLine": 5148,
-          "feature": "music-policy"
-        },
-        {
-          "startLine": 5149,
-          "endLine": 5166,
-          "feature": "source-input"
-        },
-        {
-          "startLine": 5167,
-          "endLine": 5192,
-          "feature": "workflow-policy"
-        },
-        {
-          "startLine": 5193,
-          "endLine": 5261,
-          "feature": "program-policy"
-        },
-        {
-          "startLine": 5262,
-          "endLine": 6326,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 6327,
-          "endLine": 6376,
-          "feature": "script-dispatch"
-        },
-        {
-          "startLine": 6377,
-          "endLine": 6626,
-          "feature": "source-input"
-        },
-        {
-          "startLine": 6627,
-          "endLine": 6645,
-          "feature": "workflow-policy"
-        },
-        {
-          "startLine": 6646,
-          "endLine": 6812,
-          "feature": "workflow-policy"
-        },
-        {
-          "startLine": 6813,
-          "endLine": 6855,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 6856,
-          "endLine": 6971,
-          "feature": "catalog-read"
-        },
-        {
-          "startLine": 6972,
-          "endLine": 7371,
-          "feature": "local-sdk"
-        },
-        {
-          "startLine": 7372,
-          "endLine": 7418,
-          "feature": "app-guard"
-        },
-        {
-          "startLine": 7418,
-          "endLine": 7418,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 5337,
-          "endLine": 5360,
-          "feature": "script-dispatch"
-        },
-        {
-          "startLine": 5361,
-          "endLine": 5368,
+          "endLine": 3974,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5406,
-          "endLine": 5442,
-          "feature": "catalog-read"
+          "startLine": 3975,
+          "endLine": 4512,
+          "feature": "asset-owner"
         },
         {
-          "startLine": 5632,
-          "endLine": 5726,
+          "startLine": 4513,
+          "endLine": 5096,
+          "feature": "workflow-owner"
+        },
+        {
+          "startLine": 5097,
+          "endLine": 5116,
           "feature": "music-policy"
         },
         {
-          "startLine": 5729,
-          "endLine": 5747,
-          "feature": "scene-observation"
+          "startLine": 5140,
+          "endLine": 5146,
+          "feature": "panel-ui"
         },
         {
-          "startLine": 5753,
-          "endLine": 5785,
-          "feature": "local-video-analysis"
+          "startLine": 5147,
+          "endLine": 5157,
+          "feature": "music-policy"
         },
         {
-          "startLine": 5788,
-          "endLine": 6014,
+          "startLine": 5158,
+          "endLine": 5175,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 5176,
+          "endLine": 5201,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6051,
-          "endLine": 6055,
-          "feature": "montage-policy"
+          "startLine": 5202,
+          "endLine": 5270,
+          "feature": "program-policy"
         },
         {
-          "startLine": 5110,
-          "endLine": 5130,
+          "startLine": 5271,
+          "endLine": 6335,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 6336,
+          "endLine": 6385,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 6386,
+          "endLine": 6635,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 6636,
+          "endLine": 6654,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6655,
+          "endLine": 6821,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6822,
+          "endLine": 6864,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 6865,
+          "endLine": 6980,
+          "feature": "catalog-read"
+        },
+        {
+          "startLine": 6981,
+          "endLine": 7380,
+          "feature": "local-sdk"
+        },
+        {
+          "startLine": 7381,
+          "endLine": 7427,
+          "feature": "app-guard"
+        },
+        {
+          "startLine": 7427,
+          "endLine": 7427,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 5346,
+          "endLine": 5369,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 5370,
+          "endLine": 5377,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 5415,
+          "endLine": 5451,
+          "feature": "catalog-read"
+        },
+        {
+          "startLine": 5641,
+          "endLine": 5735,
           "feature": "music-policy"
         },
         {
-          "startLine": 3507,
-          "endLine": 3568,
+          "startLine": 5738,
+          "endLine": 5756,
+          "feature": "scene-observation"
+        },
+        {
+          "startLine": 5762,
+          "endLine": 5794,
+          "feature": "local-video-analysis"
+        },
+        {
+          "startLine": 5797,
+          "endLine": 6023,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6060,
+          "endLine": 6064,
+          "feature": "montage-policy"
+        },
+        {
+          "startLine": 5119,
+          "endLine": 5139,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 3516,
+          "endLine": 3577,
           "feature": "host-file-facade"
+        },
+        {
+          "startLine": 1803,
+          "endLine": 1855,
+          "feature": "text-runtime"
         }
       ],
       "hashMode": "lf-text"
@@ -1771,6 +1768,32 @@
           "feature": "host-file-facade"
         }
       ]
+    },
+    {
+      "path": "shared/template-text.ts",
+      "sha256": "047146d51a220183eb4f6ee099dacf75556f3a612796d51e49b1efb654545055",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 52,
+          "feature": "text-runtime"
+        }
+      ]
+    },
+    {
+      "path": "tests/template_text.test.mjs",
+      "sha256": "5570efab2703aa38b40b0267c89f5831b42c2e512375187f85d44c4a2fbbd813",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 60,
+          "feature": "text-runtime"
+        }
+      ]
     }
   ],
   "assets": [
@@ -1916,7 +1939,7 @@
     },
     {
       "path": "plugins/mini-vlog/plugin.json",
-      "sha256": "10094dd2fe6cf852942c37d52ab74dad837bb2cbb820b62a87654e1eff0e2d41",
+      "sha256": "866297324555d649b848f7c74e30ca8859ecb53bf59ab33d5050bc11bb04bc60",
       "feature": "copy-and-package",
       "reason": "Declared package inputs/compatibility/options and release metadata.",
       "hashMode": "lf-text"
@@ -1991,15 +2014,15 @@
       "sources": [
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5098
+          "line": 5107
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5808
+          "line": 5817
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5109
+          "line": 5118
         }
       ],
       "repairOwner": "mini-vlog",
@@ -2026,11 +2049,11 @@
       "sources": [
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 3574
+          "line": 3583
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5104
+          "line": 5113
         }
       ],
       "repairOwner": "local-client",
@@ -2084,11 +2107,11 @@
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 3556
+          "line": 3565
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 3609
+          "line": 3618
         }
       ],
       "repairOwner": "local-client",
@@ -2135,7 +2158,7 @@
       "sources": [
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 3507
+          "line": 3516
         },
         {
           "file": "shared/host-files.js",
@@ -2151,6 +2174,28 @@
         "tests/host_files_adapter.test.mjs",
         "tests/test_windows_medical_explainer.py",
         "docs/template-repair/host-adapter-boundary.md"
+      ]
+    },
+    {
+      "id": "text-dictionary-prototype-keys",
+      "status": "fixed-fixture",
+      "feature": "text-runtime",
+      "title": "Missing translation keys inherited JavaScript prototype entries and returned empty labels.",
+      "sources": [
+        {
+          "file": "shared/template-text.ts",
+          "line": 18
+        }
+      ],
+      "repairOwner": "template-text",
+      "mechanism": "constructor, toString and __proto__ are absent from STRINGS but ordinary indexed lookup still reads their inherited values. t returns an empty message and tOr bypasses its supplied fallback. Missing interpolation variables could also read inherited constructor/toString values instead of preserving placeholders.",
+      "acceptance": "Only registered own dictionary messages resolve; missing keys preserve the key or caller fallback, while explicit own messages, existing translation forms and template isolation retain behavior.",
+      "resolution": "One canonical runtime checks own dictionary entries for both locale/English lookup and optional-key admission. All seven original implementations reproduce the failure.",
+      "validationLimits": "Actual-source translation calls and compiled runtime/legacy checks; no claimed installed UI symptom, full playback/export or Windows acceptance.",
+      "reproducer": "tests/template_text.test.mjs",
+      "evidence": [
+        "shared/template-text.ts",
+        "tests/template_text.test.mjs"
       ]
     }
   ]

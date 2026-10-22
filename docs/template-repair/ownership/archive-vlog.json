@@ -45,28 +45,30 @@
     },
     {
       "id": "text-runtime",
-      "decision": "extract",
+      "decision": "reuse",
       "owner": "template-text",
-      "reason": "Seven audited panels carry identical language normalization, plural lookup and field-width functions. Keep their dictionaries local; extract one pure text owner rather than a general utility bag.",
+      "reason": "Seven identical language/translation/width runtimes now share canonical source. Dictionary contents remain template-specific; own-property admission prevents missing keys from reading Object.prototype.",
       "contract": {
-        "input": "Supported locale codes, per-template string table, message key, count/variables, fallback label and Unicode text/max width.",
+        "input": "Template-local STRINGS dictionary, ten fixed locale codes, current context/browser locale, message key and string/number variables, text and field-width limit.",
         "output": "Localized strings, plural form, display-width count and clipped title text.",
         "identity": "Locale and dictionary belong to one template instance; message key is not a host SDK identifier.",
-        "dependencies": "Intl.PluralRules/NumberFormat, ten supported locales, explicit English fallback and wide-character policy.",
+        "dependencies": "Per-panel STRINGS binding, Intl.PluralRules/NumberFormat, browser navigator when available; no shared mutable dictionary.",
         "effects": "Pure formatting; navigator/context language selection remains a caller environment adapter.",
         "lifetime": "Synchronous formatting on each render; no shared mutable dictionary or cross-panel cache.",
         "cleanup": "No resources allocated; renderer text-script classification can reuse a pure helper at build time.",
         "outcomes": "Undefined keys and placeholders retain current fallback semantics; invalid table/locale admission needs TDD before extraction.",
         "retry": "No IO retry or mutation.",
-        "distribution": "Future canonical template-text runtime plus generated independent panel copies; not implemented by this review.",
-        "validation": "Identical-token inventory plus existing seven-family i18n tests; planned parity, locale-switch and dictionary-isolation checks."
+        "distribution": "shared/template-text.ts embedded by the existing module generator into seven independently installed panels.",
+        "validation": "Actual-source RED/GREEN for inherited keys plus locale switching, interpolation/plurals, dictionary isolation, code-point width/clipping and original/current dictionary parity. Installed/full-template acceptance remains separate."
       },
       "evidence": [
         "plugins/archive-vlog/panel.tsx",
         "plugins/archive-vlog/dev/i18n-check.cjs",
-        "plugins/archive-vlog/tests/i18n.test.cjs"
+        "plugins/archive-vlog/tests/i18n.test.cjs",
+        "shared/template-text.ts",
+        "tests/template_text.test.mjs"
       ],
-      "implementation": "planned"
+      "implementation": "implemented"
     },
     {
       "id": "text-checker",
@@ -922,13 +924,13 @@
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "471e0d682a780a3f6b45b9f882c46fb7cd3fd6adcc32f4fbf3bf7650f30b38bb",
+      "sha256": "b8ea4f2137ebe8e6a47ceb269c5ba87a08b7a65f43581ba99c5f51747300bcd2",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7720,
+          "endLine": 7728,
           "feature": "panel-ui"
         },
         {
@@ -937,284 +939,279 @@
           "feature": "copy-and-package"
         },
         {
-          "startLine": 1844,
-          "endLine": 1883,
-          "feature": "text-runtime"
-        },
-        {
-          "startLine": 1902,
-          "endLine": 1906,
-          "feature": "text-runtime"
-        },
-        {
-          "startLine": 1908,
-          "endLine": 1937,
+          "startLine": 1917,
+          "endLine": 1946,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 1942,
-          "endLine": 2699,
+          "startLine": 1951,
+          "endLine": 2708,
           "feature": "montage-policy"
         },
         {
-          "startLine": 2701,
-          "endLine": 2825,
+          "startLine": 2710,
+          "endLine": 2834,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 2827,
-          "endLine": 3011,
+          "startLine": 2836,
+          "endLine": 3020,
           "feature": "program-policy"
         },
         {
-          "startLine": 3508,
-          "endLine": 3519,
+          "startLine": 3517,
+          "endLine": 3528,
           "feature": "audio-beat-engine"
         },
         {
-          "startLine": 3521,
-          "endLine": 3821,
+          "startLine": 3530,
+          "endLine": 3830,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 3552,
-          "endLine": 3799,
+          "startLine": 3561,
+          "endLine": 3808,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 3822,
-          "endLine": 4358,
+          "startLine": 3831,
+          "endLine": 4367,
           "feature": "asset-owner"
         },
         {
-          "startLine": 4360,
-          "endLine": 4440,
+          "startLine": 4369,
+          "endLine": 4449,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 4488,
-          "endLine": 4554,
+          "startLine": 4497,
+          "endLine": 4563,
           "feature": "worker-owner"
         },
         {
-          "startLine": 4577,
-          "endLine": 5160,
+          "startLine": 4586,
+          "endLine": 5169,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 6682,
-          "endLine": 6931,
+          "startLine": 6691,
+          "endLine": 6940,
           "feature": "source-input"
         },
         {
-          "startLine": 7157,
-          "endLine": 7271,
+          "startLine": 7166,
+          "endLine": 7280,
           "feature": "catalog-read"
         },
         {
-          "startLine": 7273,
-          "endLine": 7672,
+          "startLine": 7282,
+          "endLine": 7681,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7674,
-          "endLine": 7719,
+          "startLine": 7683,
+          "endLine": 7728,
           "feature": "app-guard"
         },
         {
-          "startLine": 3015,
-          "endLine": 3402,
+          "startLine": 3024,
+          "endLine": 3411,
           "feature": "title-policy"
         },
         {
-          "startLine": 3404,
-          "endLine": 3507,
+          "startLine": 3413,
+          "endLine": 3516,
           "feature": "credit-policy"
         },
         {
-          "startLine": 2834,
-          "endLine": 2849,
+          "startLine": 2843,
+          "endLine": 2858,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 2940,
-          "endLine": 2945,
+          "startLine": 2949,
+          "endLine": 2954,
           "feature": "assembly-policy"
         },
         {
-          "startLine": 4443,
-          "endLine": 4446,
+          "startLine": 4452,
+          "endLine": 4455,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 4452,
-          "endLine": 4487,
+          "startLine": 4461,
+          "endLine": 4496,
           "feature": "music-policy"
         },
         {
-          "startLine": 4555,
-          "endLine": 4570,
+          "startLine": 4564,
+          "endLine": 4579,
           "feature": "music-policy"
         },
         {
-          "startLine": 4572,
-          "endLine": 4575,
+          "startLine": 4581,
+          "endLine": 4584,
           "feature": "audio-preview"
         },
         {
-          "startLine": 5164,
-          "endLine": 5177,
+          "startLine": 5173,
+          "endLine": 5186,
           "feature": "music-policy"
         },
         {
-          "startLine": 5179,
-          "endLine": 5204,
+          "startLine": 5188,
+          "endLine": 5213,
           "feature": "program-policy"
         },
         {
-          "startLine": 5205,
-          "endLine": 5219,
+          "startLine": 5214,
+          "endLine": 5228,
           "feature": "source-input"
         },
         {
-          "startLine": 5220,
-          "endLine": 5237,
+          "startLine": 5229,
+          "endLine": 5246,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5242,
-          "endLine": 5250,
+          "startLine": 5251,
+          "endLine": 5259,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5252,
-          "endLine": 5265,
+          "startLine": 5261,
+          "endLine": 5274,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5270,
-          "endLine": 5294,
+          "startLine": 5279,
+          "endLine": 5303,
           "feature": "music-policy"
         },
         {
-          "startLine": 5296,
-          "endLine": 5303,
+          "startLine": 5305,
+          "endLine": 5312,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 5324,
-          "endLine": 5334,
+          "startLine": 5333,
+          "endLine": 5343,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 5347,
-          "endLine": 5351,
+          "startLine": 5356,
+          "endLine": 5360,
           "feature": "catalog-read"
         },
         {
-          "startLine": 5630,
-          "endLine": 5653,
+          "startLine": 5639,
+          "endLine": 5662,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5654,
-          "endLine": 5672,
+          "startLine": 5663,
+          "endLine": 5681,
           "feature": "title-policy"
         },
         {
-          "startLine": 5708,
-          "endLine": 5741,
+          "startLine": 5717,
+          "endLine": 5750,
           "feature": "catalog-read"
         },
         {
-          "startLine": 5744,
-          "endLine": 5744,
+          "startLine": 5753,
+          "endLine": 5753,
           "feature": "catalog-read"
         },
         {
-          "startLine": 5747,
-          "endLine": 5797,
+          "startLine": 5756,
+          "endLine": 5806,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5836,
-          "endLine": 5877,
+          "startLine": 5845,
+          "endLine": 5886,
           "feature": "music-policy"
         },
         {
-          "startLine": 5886,
-          "endLine": 5977,
+          "startLine": 5895,
+          "endLine": 5986,
           "feature": "title-policy"
         },
         {
-          "startLine": 5980,
-          "endLine": 6010,
+          "startLine": 5989,
+          "endLine": 6019,
           "feature": "music-policy"
         },
         {
-          "startLine": 6053,
-          "endLine": 6065,
+          "startLine": 6062,
+          "endLine": 6074,
           "feature": "scene-observation"
         },
         {
-          "startLine": 6071,
-          "endLine": 6080,
+          "startLine": 6080,
+          "endLine": 6089,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 6082,
-          "endLine": 6280,
+          "startLine": 6091,
+          "endLine": 6289,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6311,
-          "endLine": 6339,
+          "startLine": 6320,
+          "endLine": 6348,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6618,
-          "endLine": 6631,
+          "startLine": 6627,
+          "endLine": 6640,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6640,
-          "endLine": 6642,
+          "startLine": 6649,
+          "endLine": 6651,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6651,
-          "endLine": 6678,
+          "startLine": 6660,
+          "endLine": 6687,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 6932,
-          "endLine": 6942,
+          "startLine": 6941,
+          "endLine": 6951,
           "feature": "source-input"
         },
         {
-          "startLine": 6950,
-          "endLine": 7110,
+          "startLine": 6959,
+          "endLine": 7119,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 1938,
-          "endLine": 1940,
+          "startLine": 1947,
+          "endLine": 1949,
           "feature": "audio-preview"
         },
         {
-          "startLine": 5621,
-          "endLine": 5626,
+          "startLine": 5630,
+          "endLine": 5635,
           "feature": "audio-preview"
         },
         {
-          "startLine": 6012,
-          "endLine": 6050,
+          "startLine": 6021,
+          "endLine": 6059,
           "feature": "audio-preview"
         },
         {
-          "startLine": 4361,
-          "endLine": 4422,
+          "startLine": 4370,
+          "endLine": 4431,
           "feature": "host-file-facade"
+        },
+        {
+          "startLine": 1844,
+          "endLine": 1896,
+          "feature": "text-runtime"
         }
       ]
     },
@@ -1642,7 +1639,7 @@
     },
     {
       "path": "plugins/archive-vlog/tests/panel.test.cjs",
-      "sha256": "a1cca8082042fa10444deb6ee715bbbf8078b80d12193809f9b8a9b791b6a991",
+      "sha256": "cdc059631e55c04cf320a906471e6bcfa199a48bcd1f4db574f0236558136d9f",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
@@ -2029,6 +2026,32 @@
           "feature": "host-file-facade"
         }
       ]
+    },
+    {
+      "path": "shared/template-text.ts",
+      "sha256": "047146d51a220183eb4f6ee099dacf75556f3a612796d51e49b1efb654545055",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 52,
+          "feature": "text-runtime"
+        }
+      ]
+    },
+    {
+      "path": "tests/template_text.test.mjs",
+      "sha256": "5570efab2703aa38b40b0267c89f5831b42c2e512375187f85d44c4a2fbbd813",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 60,
+          "feature": "text-runtime"
+        }
+      ]
     }
   ],
   "assets": [
@@ -2160,7 +2183,7 @@
     },
     {
       "path": "plugins/archive-vlog/plugin.json",
-      "sha256": "83baf4db0efb354425021c4eab1fb246e70cc25d0923bfe650d882c9d06fe00b",
+      "sha256": "fba8f23262601ba4df476d13b83e9d35ce62f0189e96c827b8d36dc5dc7bede6",
       "hashMode": "bytes",
       "feature": "copy-and-package",
       "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
@@ -2247,7 +2270,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 7045
+          "line": 7054
         }
       ],
       "repairOwner": "media-inventory",
@@ -2273,7 +2296,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 2552
+          "line": 2561
         }
       ],
       "repairOwner": "archive-vlog",
@@ -2298,7 +2321,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 6149
+          "line": 6158
         }
       ],
       "repairOwner": "media-inventory",
@@ -2317,7 +2340,7 @@
       "sources": [
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 6014
+          "line": 6023
         },
         {
           "file": "shared/bundled-assets.js",
@@ -2409,7 +2432,7 @@
       "sources": [
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 4413
+          "line": 4422
         },
         {
           "file": "plugins/archive-vlog/INSTALL.md",
@@ -2488,7 +2511,7 @@
       "sources": [
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 4361
+          "line": 4370
         },
         {
           "file": "shared/host-files.js",
@@ -2504,6 +2527,28 @@
         "tests/host_files_adapter.test.mjs",
         "tests/test_windows_medical_explainer.py",
         "docs/template-repair/host-adapter-boundary.md"
+      ]
+    },
+    {
+      "id": "text-dictionary-prototype-keys",
+      "status": "fixed-fixture",
+      "feature": "text-runtime",
+      "title": "Missing translation keys inherited JavaScript prototype entries and returned empty labels.",
+      "sources": [
+        {
+          "file": "shared/template-text.ts",
+          "line": 18
+        }
+      ],
+      "repairOwner": "template-text",
+      "mechanism": "constructor, toString and __proto__ are absent from STRINGS but ordinary indexed lookup still reads their inherited values. t returns an empty message and tOr bypasses its supplied fallback. Missing interpolation variables could also read inherited constructor/toString values instead of preserving placeholders.",
+      "acceptance": "Only registered own dictionary messages resolve; missing keys preserve the key or caller fallback, while explicit own messages, existing translation forms and template isolation retain behavior.",
+      "resolution": "One canonical runtime checks own dictionary entries for both locale/English lookup and optional-key admission. All seven original implementations reproduce the failure.",
+      "validationLimits": "Actual-source translation calls and compiled runtime/legacy checks; no claimed installed UI symptom, full playback/export or Windows acceptance.",
+      "reproducer": "tests/template_text.test.mjs",
+      "evidence": [
+        "shared/template-text.ts",
+        "tests/template_text.test.mjs"
       ]
     }
   ]

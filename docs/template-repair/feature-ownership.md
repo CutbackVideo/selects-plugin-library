@@ -5,6 +5,13 @@ Clip Highlights templates. The current panel-module registry is a
 partial distribution registry, not a finished account of every reusable feature.
 Chan's apps and template packs remain excluded.
 
+Current text checkpoint: the planned text runtime is now canonical in seven
+templates, with prototype-key/variable admission and unchanged real dictionaries.
+The separate developer checker remains a planned extraction. See template-text.md.
+The managed registry now has thirteen modules and eighteen consumers (seventeen
+templates plus Medical compatibility); historical counts below describe their
+earlier captured snapshots. Semantic and whole-template acceptance remain 0/28.
+
 ## Required decisions
 
 Every feature must receive exactly one evidenced decision:

@@ -144,6 +144,19 @@
       "compatibilityTargets": [
         "plugins/medical-explainer/panel.tsx"
       ]
+    },
+    {
+      "id": "template-text",
+      "source": "shared/template-text.ts",
+      "targets": [
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/city-weekend-vlog/panel.tsx",
+        "plugins/selfie-aesthetic/panel.tsx",
+        "plugins/summer-trip/panel.tsx",
+        "plugins/the-end-credits/panel.tsx",
+        "plugins/torn-paper-love/panel.tsx"
+      ]
     }
   ]
 }

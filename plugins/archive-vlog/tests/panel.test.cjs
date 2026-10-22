@@ -491,8 +491,8 @@ for (const p of presets.presets) {
 assert.ok(ui.includes('label={t(L, "fieldCount", { label: fieldLabel(L, fl.key), used: fieldLen(fieldText(fl)), max: fl.max })}'));
 assert.ok(ui.includes('const v = fieldClip(String(value), fl.max);'));
 {
-  const runtime = panel.slice(panel.indexOf('// Field limits count Hangul'), panel.indexOf('// A message that follows the UI language'));
-  const clip = panel.slice(panel.indexOf('function fieldClip('), panel.indexOf('const PLUGIN_ID'));
+  const runtime = panel.match(/^const WIDE_RE =.*$/m)[0] + '\n' + panel.match(/^function fieldLen\([\s\S]*?^\}/m)[0];
+  const clip = panel.match(/^function fieldClip\([\s\S]*?^\}/m)[0];
   const F = new Function(runtime.replace(/: string|: number/g, '') + clip.replace(/: string|: number/g, '') + '\nreturn { fieldLen, fieldClip };')();
   assert.equal(F.fieldLen('MINI'), 4); assert.equal(F.fieldLen(ga + na), 4); assert.equal(F.fieldLen('a' + ga), 3);
   assert.equal(F.fieldClip(ga.repeat(13), 24), ga.repeat(12)); assert.equal(F.fieldClip('ab' + ga + na, 5), 'ab' + ga);
