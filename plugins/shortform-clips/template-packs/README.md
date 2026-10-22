@@ -197,6 +197,12 @@ Independent settings include:
 - `captions.cleanSpeechText`: text-only caption omissions; never trims audio.
 - `captions.highlight`, `highlightColor`, `left`, `width`: emphasis and placement
   supported together, regardless of template origin.
+- `captions.fontSizing`: `"fixed"` (default when omitted) keeps `fontSize` for
+  every caption and lowers characters per line to what fits the width at that
+  size, measured with the caption font, so long speech becomes more captions.
+  Only a single word wider than the caption still shrinks. `"auto"` keeps
+  `lineMax` and shrinks a caption whose longest line is wider than the caption
+  area. Portrait templates only.
 - `labels.top` / `labels.footer`: optional text; default disabled. Each has its
   own position, typography and on/off setting.
 - `layout.reframe` and the existing framing preferences: AI framing can be
