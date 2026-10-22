@@ -167,6 +167,13 @@ and can be exported as JSON without reinstalling them.
 GitHub packs continue to use `pack.json`, template JSON files, and separate image
 assets. GitHub links and folder-based pack installation are unchanged.
 
+## Optional background music
+
+A template may add `"music": {"path": "<absolute path or ~/...>"}`. The app adds
+that file under every generated clip (see [Background music](../README.md#background-music)).
+Only the path is stored: audio files are not part of a pack, so the file has to exist
+at that path on each computer. Apps without this field ignore it.
+
 ## Settings-based generation
 
 New templates do not need a `renderer` field. All templates use the same Draft

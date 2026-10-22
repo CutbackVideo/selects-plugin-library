@@ -401,6 +401,35 @@ Token counters remain actual SDK-reported usage. The SDK does not currently
 return an attributable charged-credit receipt; do not label a token-to-cost
 estimate or a change in account balance as this clip's actual credit charge.
 
+## Background music
+
+A template can name one audio file under **Content → Background music**, or in pack
+JSON:
+
+```json
+"music": { "path": "/mnt/audio/Music/bed.mp3" }
+```
+
+`path` is an absolute path on the computer running the app, or starts with `~/`.
+Templates without `music` generate exactly as before.
+
+- After framing, every Draft gets the file as an audio clip from 0 to the end of
+  the main timeline. A longer file is trimmed; a shorter one repeats. The last
+  piece fades out for 2 s.
+- The level is a fixed `-5 dB` (`MUSIC_LEVEL_DB`), the same value as
+  `MUSIC.levelDb` in `plugins/jude-kinetic-style`. Dialogue is not ducked, so
+  listen to a result and adjust the constant if it is too loud.
+- The file is imported into the project once per run. A resume, a retry or
+  **redo framing** finds the project resource by path, and a Draft that already
+  holds the same music layout is left unchanged, so a Draft never has two music
+  layers.
+- If the file is missing, cannot be imported or is shorter than 2 s, the clips
+  are still created without music and a warning is shown (and saved in the job as
+  `musicWarning`).
+- Limits: installing a pack does not bring the file. The path must exist on each
+  computer, and the pack must not ship licensed audio. Scene templates
+  (`editorial`) do not add music.
+
 ## Generated thumbnails
 
 Create thumbnails manually from My Clips after choosing a clip. The Create dialog
