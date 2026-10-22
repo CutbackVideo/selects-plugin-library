@@ -110,4 +110,19 @@ test('existing LLM caption omissions preserve source words and timing',{skip:!mo
   assert.match(transcript,/transcriptLines\(words, m\.fps\)/);
   assert.doesNotMatch(transcript,/lines\.push\(cur\)/);
  });
+
+ await t.test('transcript-only sources (no analysis metadata) still map output words to input words',()=>{
+  // readClipSource() words carry only text and frames: no sourceStartFrame, sourceResourceId or wordId.
+  const inputWords=[{text:'\uc74c,',startFrame:300,endFrame:312},{text:'\uc911\uc694\ud55c',startFrame:320,endFrame:340},{text:'\ub0b4\uc6a9\uc785\ub2c8\ub2e4.',startFrame:345,endFrame:370}];
+  const input={timeline:true,draft:null,resourceId:'r',meta:{fps:30},words:inputWords};
+  const output=inputWords.map((w,i)=>({text:w.text,startFrame:i*15,endFrame:i*15+12,sourceStartFrame:w.startFrame,sourceResourceId:'r'}));
+  const mapped=inputCaptionWords(output,input,[[10,12.4]],30);
+  assert.deepEqual(mapped.map(w=>w.sourceStartFrame),[300,320,345]);
+  const [line]=transcriptLines(inputWords,30);
+  const tuples=line.words.map(w=>[w.text,w.startFrame,w.endFrame,w.startFrame,null,null,'','r']);
+  const cleaned=rawClean(tuples,30,[{startSeconds:line.startSeconds,endSeconds:line.endSeconds,text:'\uc74c,',occurrence:0,reason:'filler'}],[{startSeconds:line.startSeconds,endSeconds:line.endSeconds,from:0,to:3}]);
+  const omitted=tuples.filter(w=>!cleaned.includes(w));
+  const kept=mapped.filter(w=>!omitted.some(o=>w.sourceStartFrame!=null&&Math.abs(w.sourceStartFrame-o[3])<.01&&w.text===o[0]));
+  assert.deepEqual(kept.map(w=>w.text),['\uc911\uc694\ud55c','\ub0b4\uc6a9\uc785\ub2c8\ub2e4.']);
+ });
 });
