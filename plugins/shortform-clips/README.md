@@ -344,7 +344,10 @@ contiguous source placements with unchanged subjects/camera/layout.
 After Draft creation, all pending shorts run reframing concurrently, each against
 its own Draft. There is no two-worker limit. Failures remain per clip; retry
 reuses the failed Draft. Job writes use immutable snapshots in a serialized queue
-so concurrent completions cannot overwrite each other. Progress counts completed
+so concurrent completions cannot overwrite each other. While a write is in flight,
+later saves share one queued write that carries the newest snapshot. Framing stage
+changes update the cards at once and reach disk at most every five seconds; each
+clip's result is saved as soon as it finishes. Progress counts completed
 reframing rather than merely created Drafts.
 
 Result cards show SDK-reported reframing input/output/cache token counters,
@@ -371,6 +374,18 @@ path; tools invoked inside an autonomous single-camera agent are owned by the
 agent runtime, not by this scheduler. Each clip records its actual phase and
 phase-start time. Queued run work checks its original cancellation token before
 starting, even after another run begins.
+
+Every host file operation is a script call with a large fixed cost, so the source
+survey keeps them few. A batch of original-source frames is one script that starts
+FFmpeg and returns the capture's `local://` URL: up to 24 frames within 12 seconds
+of source, decoded by one FFmpeg run. Job status is read with
+`getLocalMediaJobStatus`, and the capture is drawn straight from its local URL.
+When a host refuses either, the panel polls with scripts or reads the capture's
+bytes for the rest of the session. Captures stay on disk until the survey ends and
+are removed together, along with any capture older than a day. Frames chosen
+without looking at pixels (face-track references and speaker turns) are taken with
+the coarse pass, and every changed coarse interval is refined in one capture. A
+retried clip with the same segments, speakers and face catalog reuses its survey.
 
 Each job also records `stageLog`: wall-clock marks for start or resume, source
 ready (imported), source analyzed (transcript job finished), transcript read,
