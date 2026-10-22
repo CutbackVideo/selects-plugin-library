@@ -3,12 +3,15 @@ import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
+import {fileURLToPath} from 'node:url';
 import {execFile,execFileSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {webcrypto,createHash} from 'node:crypto';
 const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS_ESBUILD||process.env.SBS_PANEL_TEST_MODULES+'/esbuild');
 const compiled=new Map();
-const localCode=esbuild.transformSync(fs.readFileSync(new URL('../shared/local-client.ts',import.meta.url),'utf8'),{loader:'ts',format:'cjs',target:'es2022'}).code;
+// Bundle the local client's real shared dependencies too: a stub require would
+// erase its file observer and stop callers before their controlled media gate.
+const localCode=esbuild.buildSync({entryPoints:[fileURLToPath(new URL('../shared/local-client.ts',import.meta.url))],bundle:true,external:['react'],platform:'node',format:'cjs',target:'es2022',write:false}).outputFiles[0].text;
 export const hash=p=>createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 export function picture(file,color='red'){
  execFileSync('ffmpeg',['-nostdin','-v','error','-y','-f','lavfi','-i','color=c='+color+':size=128x96:rate=30:duration=0.1','-an','-c:v','libx264','-pix_fmt','yuv420p',file]);

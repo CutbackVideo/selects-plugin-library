@@ -86,5 +86,5 @@ test('Archive Build: failed scene search waits for owned local cleanup before en
  f.box.findCandidates=async()=>{await begun;throw Error('controlled scene failure');};
  f.box.scoreLocal=async()=>{f.box.localAbortRef.current=new AbortController();started();await cleanup;return [];};
  let settled=false;const work=f.run().finally(()=>{settled=true;});
- try{await begun;await new Promise(r=>setTimeout(r,20));assert.equal(settled,false,'busy must remain until sibling cleanup settles');}finally{release();await work;}
+ try{await Promise.race([begun,work.then(()=>{throw Error('Build settled before its controlled local analysis started.');})]);await new Promise(r=>setTimeout(r,20));assert.equal(settled,false,'busy must remain until sibling cleanup settles');}finally{release();await work;}
 });

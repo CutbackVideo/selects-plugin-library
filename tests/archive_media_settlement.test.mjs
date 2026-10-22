@@ -20,6 +20,6 @@ test('Archive shared batch: failure waits for sibling settlement and retains onl
  let release,started,index=0;const secondStarted=new Promise(r=>started=r),hold=new Promise(r=>release=r),error=Object.assign(Error('native settlement unknown'),{terminal:true,preserveTemporaryFiles:true});
  const f=await fixture(t,async()=>{if(++index===1){await secondStarted;throw error;}started();await hold;});
  let settled=false;const work=f.batch().then(()=>{settled=true;},()=>{settled=true;});
- try{await secondStarted;await new Promise(r=>setImmediate(r));assert.equal(settled,false);}finally{release();await work;}
+ try{await Promise.race([secondStarted,work.then(()=>{throw Error('Analysis settled before its controlled sibling started.');})]);await new Promise(r=>setImmediate(r));assert.equal(settled,false);}finally{release();await work;}
  assert.equal(f.outputs.size,1);for(const p of f.outputs.keys())assert.ok(fs.existsSync(p));
 });

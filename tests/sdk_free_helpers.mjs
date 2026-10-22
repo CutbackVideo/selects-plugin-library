@@ -13,10 +13,12 @@ export function vlogOperation(plugin,kind){
  if(at<0)throw Error('Missing operation template marker');
  // Generated dependencies are replaced only in memory; installed files belong
  // to the parent. The source observer is SDK-safe and imported as a function.
- const helpers=sdkFreeHelpersSource(),start=helpers.indexOf('function templateObservedSource('),end=helpers.indexOf('\n}',start)+2;
+ const observer=topLevel(sdkFreeHelpersSource(),'templateObservedSource');
  let dependencies=installed.slice(0,at);
  const authoring=read(process.env.SDK_FREE_AUTHORING_SOURCE||new URL('../shared/native-image-authoring.js',import.meta.url));
  if(dependencies.includes('function inspectImageAudio('))dependencies=dependencies.replace(topLevel(dependencies,'inspectImageAudio'),topLevel(authoring,'inspectImageAudio'));
- return dependencies+helpers.slice(start,end)+'\n'+body;
+ if(dependencies.includes('function templateObservedSource('))dependencies=dependencies.replace(topLevel(dependencies,'templateObservedSource'),observer);
+ else dependencies+=observer+'\n';
+ return dependencies+body;
 }
 export function savedSourceObservation(rows){return {revision:'fixture-observation',clips:rows.filter(r=>r.resourceId).map(r=>({clipId:r.clipId,trackId:r.trackId,trackKind:r.trackKind,resourceId:r.resourceId,startFrame:r.startFrame,endFrame:r.endFrame,source:{clipId:r.clipId,...r._source},playbackSpeed:r.playbackSpeed.numerator/r.playbackSpeed.denominator}))};}

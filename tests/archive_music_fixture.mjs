@@ -9,7 +9,7 @@ const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS
 const panel=fs.readFileSync(new URL('../plugins/archive-vlog/panel.tsx',import.meta.url),'utf8');
 const plain=esbuild.transformSync(panel,{loader:'tsx',format:'esm',target:'es2022',jsx:'preserve'}).code;
 const nested=plain.replace(/^  /gm,'');
-const names=['templateStateJSON','templateRunIssue','avLookStrength','avVideoRequirement','readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','avSizesOf','avAssembleConfig','fontFiles','snapshotArchiveFinishAssets','prepareArchiveDecoration','archiveRecoveryOptions','confirmArchiveSourceBindings','archiveWorkflowResult','runArchiveVlogTemplate'];
+const names=['templateStateJSON','templateRunIssue','templateLegacySavedDraft','templateObservationScript','avLookStrength','avVideoRequirement','readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','avSizesOf','avAssembleConfig','fontFiles','snapshotArchiveFinishAssets','prepareArchiveDecoration','archiveRecoveryOptions','confirmArchiveSourceBindings','archiveWorkflowResult','runArchiveVlogTemplate'];
 const source=names.map(name=>topLevel(plain,name)).join('\n')+'\n'+['inventoryCurrent','runLive','endRun','run','openAssemblyContinuations','finishAssembly','decorate','finishTitle','build'].map(name=>topLevel(nested,name)).join('\n');
 const block=name=>panel.slice(panel.indexOf('// '+name+':start'),panel.indexOf('// '+name+':end')).replace(/^export /gm,'');
 const adapter=plain.includes('function prepareArchiveCue(')?topLevel(plain,'prepareArchiveCue'):'';
@@ -68,7 +68,7 @@ export async function archiveMusicFixture(t,{entry='template',own=false,silent=f
  // storage and saved-state readback run in Archive workflow fixtures.
  globals.openTemplateAssemblyContinuations=async()=>({read:async(runId=null)=>{const p=globals.assemblyPendingRef.current.p;return p&&(runId===null||p.scope.runId===runId)?p:null;},
   workflow:async pending=>{globals.assemblyPendingRef.current.p=pending;const reply=await sdk.runScript({summary:'Assemble Archive Vlog',allowCommit:true,script:pending.source.replace('__CONFIG__',()=>JSON.stringify(pending.config))});if(reply.isError)throw Error(reply.output);return reply.result;}});
- const box=vm.createContext(globals);vm.runInContext(block('native-image-input')+'\n'+block('bundled-assets')+'\n'+adapter+'\n'+source+'\nthis.api={runArchiveVlogTemplate,build,decorate,finishTitle,snapshotArchiveFinishAssets,prepareArchiveDecoration};',box);
+ const box=vm.createContext(globals);vm.runInContext(block('file-observation')+'\n'+block('draft-observation')+'\n'+block('native-image-input')+'\n'+block('bundled-assets')+'\n'+adapter+'\n'+source+'\nthis.api={runArchiveVlogTemplate,build,decorate,finishTitle,snapshotArchiveFinishAssets,prepareArchiveDecoration};',box);
  const run=async()=>{
   if(entry==='panel'){await box.api.build(1);return saved.at(-1);}
   try{await box.api.runArchiveVlogTemplate(sdk,{projectId:'p',template:{runId:webcrypto.randomUUID(),inputs:{footage:[{resourceId:'original-0',kind:'video'},{resourceId:'original-1',kind:'video'}]},options:{}}},check,noop);}catch(error){if(!error.boundary)throw error;}
