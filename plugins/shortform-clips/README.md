@@ -4,6 +4,21 @@ A shared app for turning a YouTube link, project video, synced timeline, or exis
 Draft into editable vertical Drafts. Customer designs, detection keywords and passage-selection instructions
 are delivered separately as template packs. The app has no bundled customer templates.
 
+## Apply a template manually
+
+The **Edit manually** tab applies template graphics to the currently open editable
+Draft, across its existing duration. It does not create a new timeline, select
+footage, transcribe, run AI, reframe video or alter existing cuts and audio.
+Enter the title, landscape source credit and optional three-second sample caption.
+The input form stays visible after applying. A different canvas size requires an
+explicit confirmation; original footage transforms remain unchanged.
+
+Reapplying replaces only graphics tagged by this action (including manual edits to
+those graphics). Other graphics and media remain untouched. Existing graphics may
+overlap; adjust footage placement and layer lengths manually. Empty Drafts require
+footage or a gap first. The live editor target is checked before editing and before
+saving, preventing a project/tab change from silently applying to another Draft.
+
 ## Scene templates
 
 Template API 5 adds an editable scene workflow, used by Huick Alpha in the
@@ -503,3 +518,5 @@ Synced timeline inputs retain their existing merged-analysis requirements.
 
 The Chosun Ilbo pack under `template-packs/chosun-ilbo/` restores six legacy designs.
 See `tests/regression/README.md` for repeatable real-footage cases and local HTML runs.
+
+Reapplying remembers template-owned tracks per project and Draft. If their clips were deleted, empty owned tracks are removed before graphics are added again; occupied tracks and unrelated empty tracks are preserved. Tracks left empty before this ownership record existed cannot be identified automatically.
