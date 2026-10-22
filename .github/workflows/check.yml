@@ -25,7 +25,7 @@ jobs:
           printf 'MV_TSC=node "%s/shortform-test/node_modules/typescript/bin/tsc"\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'AV_TSC=node "%s/shortform-test/node_modules/typescript/bin/tsc"\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Test original Image input preflight and module consumers
-        run: SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/native_image_preflight.test.mjs tests/source_file_bindings.test.mjs tests/panel_modules.test.mjs tests/native_image_sdk_migration.test.mjs
+        run: SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/template_media_selection.test.mjs tests/native_image_preflight.test.mjs tests/source_file_bindings.test.mjs tests/panel_modules.test.mjs tests/native_image_sdk_migration.test.mjs
       - run: python3 tools/sync_app_update_guards.py --check
       - run: python3 -m unittest discover -s tests
       - name: Test Shortform Clips and template packs
@@ -102,6 +102,7 @@ jobs:
           node plugins/torn-paper-love/tests/windows.test.cjs
       - name: Test Archive Vlog
         run: |
+          SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/archive_input_admission.test.mjs
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/archive_owned_cues.test.mjs tests/archive_own_music_analysis.test.mjs tests/archive_own_music_sources.test.mjs tests/archive_assembly_intent.test.mjs tests/archive_assembly_verification.test.mjs tests/archive_decoration_config.test.mjs tests/archive_program_intent.test.mjs tests/archive_save_recovery.test.mjs tests/archive_look_recovery.test.mjs tests/archive_request_budget.test.mjs tests/archive_finish_admission.test.mjs
           node plugins/archive-vlog/operation-builder.mjs --check
           node plugins/archive-vlog/tests/allocate.test.cjs

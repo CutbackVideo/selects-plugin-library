@@ -36,7 +36,7 @@ The video follows a fixed template, counted in beats of the music:
   shorter than the reference's 5.6 s.
 - The opening, credit and final shots are always video clips. Photos fill
   about a third of the montage, never more than two in a row.
-- So a build needs at least two video clips, one of them long enough for the
+- So a build needs at least two different video clips, one of them long enough for the
   opening shot; photos alone cannot make one. When the clips fall short, the
   panel says what is missing (for example how long the opening clip must be).
 - The opening shot prefers a moving moment (people walking, traffic, a moving
@@ -44,6 +44,13 @@ The video follows a fixed template, counted in beats of the music:
 - Every video clip after the opening gets a gentle **Shot motion** (a slow
   push-in or a sideways drift, alternating), every photo a **Photo motion**
   (push, pull, drift, tilt or push and drift).
+
+For a selected-file template run, choose at least **2 different video clips** and
+up to **50 files in total**; photos are optional. The selection is checked before
+loading the template assets, and the actual Project Resource kinds are confirmed
+before inventory/scene analysis or music import. Repeated entries of one Resource
+do not count as different clips. An existing unresolved saved run is confirmed
+using its original inputs before a new selection is considered.
 
 ## Default path
 

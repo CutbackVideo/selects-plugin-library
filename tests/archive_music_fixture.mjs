@@ -9,7 +9,7 @@ const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS
 const panel=fs.readFileSync(new URL('../plugins/archive-vlog/panel.tsx',import.meta.url),'utf8');
 const plain=esbuild.transformSync(panel,{loader:'tsx',format:'esm',target:'es2022',jsx:'preserve'}).code;
 const nested=plain.replace(/^  /gm,'');
-const names=['templateStateJSON','templateRunIssue','avLookStrength','readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','avSizesOf','avAssembleConfig','fontFiles','snapshotArchiveFinishAssets','prepareArchiveDecoration','archiveRecoveryOptions','confirmArchiveSourceBindings','archiveWorkflowResult','runArchiveVlogTemplate'];
+const names=['templateStateJSON','templateRunIssue','avLookStrength','avVideoRequirement','readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','avSizesOf','avAssembleConfig','fontFiles','snapshotArchiveFinishAssets','prepareArchiveDecoration','archiveRecoveryOptions','confirmArchiveSourceBindings','archiveWorkflowResult','runArchiveVlogTemplate'];
 const source=names.map(name=>topLevel(plain,name)).join('\n')+'\n'+['inventoryCurrent','runLive','endRun','run','openAssemblyContinuations','finishAssembly','decorate','finishTitle','build'].map(name=>topLevel(nested,name)).join('\n');
 const block=name=>panel.slice(panel.indexOf('// '+name+':start'),panel.indexOf('// '+name+':end')).replace(/^export /gm,'');
 const adapter=plain.includes('function prepareArchiveCue(')?topLevel(plain,'prepareArchiveCue'):'';
@@ -36,7 +36,7 @@ export async function archiveMusicFixture(t,{entry='template',own=false,silent=f
  const selects={project:()=>project,files:f.files};
  const sdk={files:f.local.files,environment:{platform:process.platform},runScript:async input=>{
   scripts.push(input);
-  if(input.summary==='Find the chosen files')return {result:{resolved:[{rid:'original-0',alias:'r0',size:null},{rid:'original-1',alias:'r1',size:null}],failed:[]}};
+  if(input.summary==='Find the chosen files')return {result:{resolved:[{rid:'original-0',alias:'r0',kind:'video',size:null},{rid:'original-1',alias:'r1',kind:'video',size:null}],failed:[]}};
   if(input.summary==='Read footage'){
    const cfg=await new Function('return (async()=>{'+input.script+'})();')();
    const all=inventory.resources.map(row=>({...row,kind:'video'})),rows=cfg.page?all.slice(cfg.page.offset,cfg.page.offset+cfg.page.size):all;

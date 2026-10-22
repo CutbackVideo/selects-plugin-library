@@ -43,11 +43,11 @@ function caller(plugin){
  const name=plugin==='mini-vlog'?'runMiniVlogTemplate':'runArchiveVlogTemplate';
  const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS_ESBUILD||process.env.SBS_PANEL_TEST_MODULES+'/esbuild');
  const plain=esbuild.transformSync(panel,{loader:'tsx',format:'esm',target:'es2022',jsx:'preserve'}).code;
- const source=['TEMPLATE_ALIAS_JS','EMPTY_READ','runTemplateStep','nativeImageRun','templateFootage','templateIssue','fill',name].map(n=>topLevel(plain,n)).join('\n')+'\nexport {runTemplateStep,nativeImageRun,'+name+' as run};';
+ const source=[...plugin==='archive-vlog'?['avVideoRequirement']:[],'TEMPLATE_ALIAS_JS','EMPTY_READ','runTemplateStep','nativeImageRun','templateFootage','templateIssue','fill',name].map(n=>topLevel(plain,n)).join('\n')+'\nexport {runTemplateStep,nativeImageRun,'+name+' as run};';
  const module={exports:{}};
  const cue={id:'cue'},presets={presets:[{id:'preset',label:'Preset'}]},manifest={cues:[cue]};
  vm.runInNewContext(esbuild.transformSync(source,{loader:'ts',format:'cjs',target:'es2022'}).code,{
-  module,exports:module.exports,openTemplateAssemblyContinuations:async()=>({read:async()=>null}),panelLocalClient:()=>({files:{}}),PLUGIN_ID:plugin,resolveTemplateMedia:inputFeature.resolveTemplateMedia,validateTemplateMediaResult:inputFeature.validateTemplateMediaResult,nativeImageSources:inputFeature.nativeImageSources,nativeImageSourcesById:inputFeature.nativeImageSourcesById,
+  module,exports:module.exports,openTemplateAssemblyContinuations:async()=>({read:async()=>null}),panelLocalClient:()=>({files:{}}),PLUGIN_ID:plugin,templateMediaSelection:inputFeature.templateMediaSelection,resolveTemplateMedia:inputFeature.resolveTemplateMedia,validateTemplateMediaResult:inputFeature.validateTemplateMediaResult,nativeImageSources:inputFeature.nativeImageSources,nativeImageSourcesById:inputFeature.nativeImageSourcesById,
   setTimeout:fn=>fn(),console:{warn(){}},DEFAULT_CUE:'cue',PREFERRED_CUE:'cue',DEFAULT_PRESET:'preset',DEFAULT_LENGTH:'standard',TEMPLATE_ALIAS_BATCH:6,
   uiLang:()=> 'en',locateRoots:async()=>({plugin:'/installed'}),avPreset:()=>presets.presets[0],
   loadAssets:async()=>({manifest,presets,scripts:{inventoryJs:'inventory'}}),
@@ -65,8 +65,8 @@ for(const plugin of ['mini-vlog','archive-vlog']){
   const api=caller(plugin);let calls=0;const r=await api.runTemplateStep({runScript:async()=>++calls===1?{result:undefined}:{result:{observed:true}}},'read','read-script');assert.equal(r.observed,true);assert.equal(calls,2);
  });
  for(const clipped of [false,true])test(plugin+': template caller rejects source failure without replay or a missing-file diagnosis (clipped='+clipped+')',async()=>{
-  const api=caller(plugin);let calls=0;const context={projectId:'p',template:{runId:'fixture-run',inputs:{footage:[{resourceId:'original-video',kind:'video'}]},options:{}}};
-  const sdk={runScript:async()=>{calls++;return {result:{resolved:[],failed:clipped?[]:[{rid:'original-video',phase:'insert',code:'source-resolution-failed',error:'sequence_settings_mismatch'}]}};}};
+  const api=caller(plugin);let calls=0;const chosen=[{resourceId:'original-video',kind:'video'},...plugin==='archive-vlog'?[{resourceId:'original-other-video',kind:'video'}]:[]],context={projectId:'p',template:{runId:'fixture-run',inputs:{footage:chosen},options:{}}};
+  const sdk={runScript:async()=>{calls++;return {result:{resolved:[],failed:clipped?[]:chosen.map(row=>({rid:row.resourceId,phase:'insert',code:'source-resolution-failed',error:'sequence_settings_mismatch'}))}};}};
   const error=await api.run(sdk,context,()=>{},()=>{}).then(()=>null,error=>error);
   assert.ok(error);assert.equal(calls,1);assert.doesNotMatch(error.message,/could be found|not found/i);assert.equal(error.code,clipped?'source-resolution-unknown':'source-resolution-failed');
   if(!clipped)assert.equal(error.failures[0].error,'sequence_settings_mismatch');
@@ -89,10 +89,10 @@ for(const plugin of ['mini-vlog','archive-vlog']){
   const f=fixture(plugin,'many-clips'),r=await f.run([f.files[0]]);assert.equal(r.resolved.length,0);assert.equal(r.failed[0].phase,'readback');
  });
  test(plugin+': a completed insertion whose reply is lost is not inserted again',async()=>{
-  const f=fixture(plugin,'lost-reply'),r=await f.run([f.files[0]]);assert.deepEqual(r.resolved,[{rid:'original-video',alias:'r0',size:null}]);assert.equal(f.calls.insert,1);assert.deepEqual(r.failed,[]);
+  const f=fixture(plugin,'lost-reply'),r=await f.run([f.files[0]]);assert.deepEqual(r.resolved,[{rid:'original-video',alias:'r0',size:null,...plugin==='archive-vlog'?{kind:'video'}:{}}]);assert.equal(f.calls.insert,1);assert.deepEqual(r.failed,[]);
  });
  test(plugin+': a known non-mutating short-range failure retains the whole-source fallback',async()=>{
-  const f=fixture(plugin,'fallback'),r=await f.run([f.files[0]]);assert.deepEqual(r.resolved,[{rid:'original-video',alias:'r0',size:null}]);assert.equal(f.calls.insert,2);assert.equal(f.calls.commit,0);
+  const f=fixture(plugin,'fallback'),r=await f.run([f.files[0]]);assert.deepEqual(r.resolved,[{rid:'original-video',alias:'r0',size:null,...plugin==='archive-vlog'?{kind:'video'}:{}}]);assert.equal(f.calls.insert,2);assert.equal(f.calls.commit,0);
  });
  test(plugin+': an unknown readback cannot authorize another insertion',async()=>{
   const f=fixture(plugin,'unknown-readback'),r=await f.run([f.files[0]]);assert.equal(r.resolved.length,0);assert.equal(r.failed[0].phase,'readback');assert.equal(f.calls.insert,1);
@@ -101,7 +101,7 @@ for(const plugin of ['mini-vlog','archive-vlog']){
   const f=fixture(plugin,'dimensions-failure'),r=await f.run([f.files[1]]);assert.equal(r.resolved.length,0);assert.equal(r.failed[0].phase,'dimensions');assert.match(r.failed[0].error,/frame metadata unavailable/);assert.ok(r.failed[0].error.length<=300);
  });
  test(plugin+': healthy video and image inputs retain aliases, native sizes and zero commits',async()=>{
-  const f=fixture(plugin),r=await f.run();assert.deepEqual(r.resolved,[{rid:'original-video',alias:'r0',size:null},{rid:'original-image',alias:'r1',size:{width:96,height:160}}]);assert.equal(f.calls.create,2);assert.equal(f.calls.insert,2);assert.equal(f.calls.commit,0);
+  const f=fixture(plugin),r=await f.run();assert.deepEqual(r.resolved,[{rid:'original-video',alias:'r0',size:null,...plugin==='archive-vlog'?{kind:'video'}:{}},{rid:'original-image',alias:'r1',size:{width:96,height:160},...plugin==='archive-vlog'?{kind:'image'}:{}}]);assert.equal(f.calls.create,2);assert.equal(f.calls.insert,2);assert.equal(f.calls.commit,0);
  });
  test(plugin+': a Project/Draft creation failure is not converted to file absence',async()=>{
   const f=fixture(plugin,'create-failure'),r=await f.run([f.files[0]]);assert.equal(r.resolved.length,0);assert.equal(r.failed[0].phase,'create');assert.match(r.failed[0].error,/database/);assert.equal(f.calls.insert,0);

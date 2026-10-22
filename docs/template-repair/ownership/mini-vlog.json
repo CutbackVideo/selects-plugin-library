@@ -356,9 +356,9 @@
     },
     {
       "id": "source-input",
-      "decision": "reuse",
+      "decision": "extend",
       "owner": "native-image-input",
-      "reason": "Identity resolution, native Image facts, source clocks, current Project path bindings and complete physical observations already share an input owner.",
+      "reason": "The existing input owner now also normalizes handed video/photo records and optionally confirms current Project kinds. Mini retains legacy alias-only behavior; Archive owns its two-video requirement.",
       "contract": {
         "input": "Selected original ids/kinds, projectId, expected paths/content snapshots and private unsaved probe options.",
         "output": "Confirmed SDK aliases, original dimensions/clocks, exact source links and full-content observations.",
@@ -370,14 +370,15 @@
         "outcomes": "Missing, changed, unsupported and unknown sources are explicit; data presence is not server-index provenance.",
         "retry": "Read-only checks may retry; unknown private placement is observed without replay.",
         "distribution": "shared/native-image-input.mjs, panel block and generated assembly/verifier helpers; confirmMiniSourceBindings is thin caller batching.",
-        "validation": "Both-entry source RED/GREEN, native-clock/path/content SDK reads and restoration of the same assembly; server-index provenance and post-observation changes remain open."
+        "validation": "Both-entry source RED/GREEN, native-clock/path/content SDK reads and restoration of the same assembly; server-index provenance and post-observation changes remain open. Handed-input deduplication/bounds and opt-in kind observation are covered; existing consumers retain default result shapes and no added Resource read."
       },
       "evidence": [
         "shared/native-image-input.mjs",
         "tests/mini_video_sources.test.mjs",
-        "tests/source_file_bindings.test.mjs"
+        "tests/source_file_bindings.test.mjs",
+        "tests/template_media_selection.test.mjs"
       ],
-      "implementation": "existing"
+      "implementation": "implemented-extension"
     },
     {
       "id": "catalog-read",
@@ -723,7 +724,7 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "56f376cc562e80f8608b68491dd81a1f56223b929ac213a4fc54690bdd657e84",
+      "sha256": "3fb19ce694921442281f6ce1b1d99089982e2205c9bf9f7a3ed8bb56c13a0427",
       "role": "runtime",
       "ranges": [
         {
@@ -883,42 +884,42 @@
         },
         {
           "startLine": 6279,
-          "endLine": 6501,
+          "endLine": 6528,
           "feature": "source-input"
         },
         {
-          "startLine": 6502,
-          "endLine": 6520,
+          "startLine": 6529,
+          "endLine": 6547,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6521,
-          "endLine": 6687,
+          "startLine": 6548,
+          "endLine": 6714,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6688,
-          "endLine": 6730,
+          "startLine": 6715,
+          "endLine": 6757,
           "feature": "panel-ui"
         },
         {
-          "startLine": 6731,
-          "endLine": 6846,
+          "startLine": 6758,
+          "endLine": 6873,
           "feature": "catalog-read"
         },
         {
-          "startLine": 6847,
-          "endLine": 7246,
+          "startLine": 6874,
+          "endLine": 7273,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7247,
-          "endLine": 7293,
+          "startLine": 7274,
+          "endLine": 7320,
           "feature": "app-guard"
         },
         {
-          "startLine": 7293,
-          "endLine": 7293,
+          "startLine": 7320,
+          "endLine": 7320,
           "feature": "panel-ui"
         },
         {
@@ -1049,22 +1050,22 @@
     },
     {
       "path": "plugins/mini-vlog/scripts/assemble.js",
-      "sha256": "a1def1c052a04eea5c4b95fb8eed88afb2923316f90bd1a847adf4099638d947",
+      "sha256": "83abd8bd1640b09bc7321cd854c112fcdf98f0c7e3a42a2e1c0a919cda933e0c",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 151,
+          "endLine": 161,
           "feature": "source-input"
         },
         {
-          "startLine": 152,
-          "endLine": 224,
+          "startLine": 162,
+          "endLine": 234,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 225,
-          "endLine": 351,
+          "startLine": 235,
+          "endLine": 361,
           "feature": "assembly-policy"
         }
       ],
@@ -1072,22 +1073,22 @@
     },
     {
       "path": "plugins/mini-vlog/scripts/verify-assembly.js",
-      "sha256": "573e3918f680308cae7de7b705dc0717e4450ff9963b38e345287b1c5b0439c3",
+      "sha256": "dd2d506c8c3bbc88bf783d6dfe069c759f457c47b0c51e57e00c312629a1df93",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 91,
+          "endLine": 101,
           "feature": "source-input"
         },
         {
-          "startLine": 92,
-          "endLine": 130,
+          "startLine": 102,
+          "endLine": 140,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 131,
-          "endLine": 210,
+          "startLine": 141,
+          "endLine": 220,
           "feature": "assembly-policy"
         }
       ],
@@ -1602,6 +1603,32 @@
           "feature": "workflow-owner"
         }
       ]
+    },
+    {
+      "path": "shared/native-image-input.mjs",
+      "role": "build-source",
+      "hashMode": "lf-text",
+      "sha256": "eba2f12f69a693205c43a2b06e32107cc6c0efc4a9c2c33a79e7175ffa1d92e6",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 249,
+          "feature": "source-input"
+        }
+      ]
+    },
+    {
+      "path": "tests/template_media_selection.test.mjs",
+      "role": "validation",
+      "hashMode": "lf-text",
+      "sha256": "1f67b2ee0395bc9427d02168c27797d0030f2804094a6ad6236a596b8dc6c9b5",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 47,
+          "feature": "source-input"
+        }
+      ]
     }
   ],
   "assets": [
@@ -1747,7 +1774,7 @@
     },
     {
       "path": "plugins/mini-vlog/plugin.json",
-      "sha256": "7c4f89e237eec175c80e835e16b6a249e8dda7ef062321426a97caa6688d8efe",
+      "sha256": "49aaa09c674bc5de2e27c4869205e4f1406d22bcdfd6a11b42c7bc39f6c2e9d9",
       "feature": "copy-and-package",
       "reason": "Declared package inputs/compatibility/options and release metadata.",
       "hashMode": "lf-text"

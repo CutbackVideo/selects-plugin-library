@@ -48,9 +48,9 @@ async function nativeImageSourcesById(selects,projectId,photos) {
  return nativeImageSources(selects,projectId,selected,{matchById:true});
 }
 async function resolveTemplateMedia(selects,projectId,files,scratchName='Template source check',options={}) {
- if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>!['includeTiming','dimensions'].includes(key))||['includeTiming','dimensions'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean'))throw Error('The source observation options are invalid.');
+ if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>!['includeTiming','dimensions','includeKind'].includes(key))||['includeTiming','dimensions','includeKind'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean'))throw Error('The source observation options are invalid.');
  if(!Array.isArray(files)||!files.length||files.length>50||files.some(file=>!file||typeof file.rid!=='string'||!file.rid||!['video','image'].includes(file.kind))||new Set(files.map(file=>file.rid)).size!==files.length)throw Error('The selected template source request is invalid.');
- const project=selects.project(projectId),resolved=[],failed=[];let shared=null;
+ const project=selects.project(projectId),resolved=[],failed=[];let shared=null,catalogRead=null;
  const text=error=>String(Object(error).message||error||'Source preparation could not be confirmed.').slice(0,300);
  const unknown=message=>Object.assign(Error(message),{code:'source-resolution-unknown'});
  for(const file of files){
@@ -79,13 +79,23 @@ async function resolveTemplateMedia(selects,projectId,files,scratchName='Templat
     phase='readback';clip=await observe();
    }
    if(!clip){if(insertionError){phase='insert';throw insertionError;}throw unknown('Source placement returned no confirmed clip.');}
+   let kind=null;
+   if(Object(options).includeKind){
+    phase='kind';
+    const rows=await (catalogRead??=project.resources());
+    if(!Array.isArray(rows)||rows.some(row=>!row||typeof row.resourceId!=='string'||!row.resourceId||typeof row.type!=='string')||new Set(rows.map(row=>row.resourceId)).size!==rows.length)throw unknown('The current Project Resource kinds could not be confirmed.');
+    const row=rows.find(row=>row.resourceId===clip.resourceId);
+    if(!row)throw unknown('The placed source has no confirmed Project Resource kind.');
+    kind=row.type==='Video'?'video':row.type==='Image'?'image':null;
+    if(kind!==file.kind)throw Object.assign(Error('The selected source kind differs from the handed video/photo declaration.'),{code:'source-kind-mismatch'});
+   }
    let size=null;
    if(photo&&Object(options).dimensions!==false){phase='dimensions';const sources=await nativeImageSourcesById(selects,projectId,[{resourceId:clip.resourceId,name:file.rid}]);size={width:sources[0].width,height:sources[0].height};}
    let timing=null;
    if(Object(options).includeTiming){phase='timing';const meta=await draft.meta();if(!Number.isFinite(meta.fps)||meta.fps<=0)throw unknown('The source frame grid could not be confirmed.');timing={insertionFps:meta.fps};}
-   resolved.push({rid:file.rid,alias:clip.resourceId,size,...timing?{timing}:{}});
+   resolved.push({rid:file.rid,alias:clip.resourceId,size,...kind?{kind}:{},...timing?{timing}:{}});
   }catch(error){
-   const code=typeof Object(error).code==='string'?Object(error).code.slice(0,80):phase==='readback'?'source-resolution-unknown':'source-resolution-failed';
+   const code=typeof Object(error).code==='string'?Object(error).code.slice(0,80):['readback','kind'].includes(phase)?'source-resolution-unknown':'source-resolution-failed';
    failed.push({rid:file.rid,phase,code,error:text(error),...insertionError&&insertionError!==error?{insertionError:text(insertionError)}:{}});
   }
  }

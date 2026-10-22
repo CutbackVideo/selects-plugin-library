@@ -275,6 +275,21 @@ const INVENTORY=`const p=selects.project(PROJECT_ID);const resources=await p.res
 // Read verified Project resources and place editable images through the Draft working copy.
 // native-image-input:start
 // Original source facts and private unsaved identity checks. Canonical input feature.
+// Normalize the app's handed Resource records without silently discarding malformed
+// inputs or allowing conflicting kinds for one identity. Template role/count policy
+// remains with the template; the public handoff supports at most 50 records.
+export function templateMediaSelection(inputs) {
+ const invalid=()=>{throw Object.assign(Error('The handed video/photo selection is invalid. Choose up to 50 valid Resources.'),{code:'template-input-invalid'});};
+ if(!Array.isArray(inputs)||inputs.length>50)invalid();
+ const selected=new Map();
+ for(const input of inputs){
+  const id=input?.resourceId,kind=input?.kind;
+  if(typeof id!=='string'||!id||id!==id.trim()||id.length>1024||id.includes('\0')||!['video','image'].includes(kind))invalid();
+  if(selected.has(id)&&selected.get(id).kind!==kind)invalid();
+  if(!selected.has(id))selected.set(id,{rid:id,kind});
+ }
+ return [...selected.values()];
+}
 export async function nativeImageSources(selects, projectId, photos, { matchById=false }={}) {
  const project=selects.project(projectId), resources=await project.resources(), nodes=[];
  const visit=items=>{for(const item of items||[])item.type==='dir'?visit(item.children):nodes.push(item);};
@@ -441,9 +456,9 @@ export async function confirmProjectSourcePaths(selects,projectId,bindings) {
 // Persistent handed IDs -> SDK aliases, observed only on private unsaved Drafts.
 // Placement failures are not evidence that a source file is absent.
 export async function resolveTemplateMedia(selects,projectId,files,scratchName='Template source check',options={}) {
- if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>!['includeTiming','dimensions'].includes(key))||['includeTiming','dimensions'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean'))throw Error('The source observation options are invalid.');
+ if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>!['includeTiming','dimensions','includeKind'].includes(key))||['includeTiming','dimensions','includeKind'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean'))throw Error('The source observation options are invalid.');
  if(!Array.isArray(files)||!files.length||files.length>50||files.some(file=>!file||typeof file.rid!=='string'||!file.rid||!['video','image'].includes(file.kind))||new Set(files.map(file=>file.rid)).size!==files.length)throw Error('The selected template source request is invalid.');
- const project=selects.project(projectId),resolved=[],failed=[];let shared=null;
+ const project=selects.project(projectId),resolved=[],failed=[];let shared=null,catalogRead=null;
  const text=error=>String(Object(error).message||error||'Source preparation could not be confirmed.').slice(0,300);
  const unknown=message=>Object.assign(Error(message),{code:'source-resolution-unknown'});
  for(const file of files){
@@ -472,13 +487,23 @@ export async function resolveTemplateMedia(selects,projectId,files,scratchName='
     phase='readback';clip=await observe();
    }
    if(!clip){if(insertionError){phase='insert';throw insertionError;}throw unknown('Source placement returned no confirmed clip.');}
+   let kind=null;
+   if(Object(options).includeKind){
+    phase='kind';
+    const rows=await (catalogRead??=project.resources());
+    if(!Array.isArray(rows)||rows.some(row=>!row||typeof row.resourceId!=='string'||!row.resourceId||typeof row.type!=='string')||new Set(rows.map(row=>row.resourceId)).size!==rows.length)throw unknown('The current Project Resource kinds could not be confirmed.');
+    const row=rows.find(row=>row.resourceId===clip.resourceId);
+    if(!row)throw unknown('The placed source has no confirmed Project Resource kind.');
+    kind=row.type==='Video'?'video':row.type==='Image'?'image':null;
+    if(kind!==file.kind)throw Object.assign(Error('The selected source kind differs from the handed video/photo declaration.'),{code:'source-kind-mismatch'});
+   }
    let size=null;
    if(photo&&Object(options).dimensions!==false){phase='dimensions';const sources=await nativeImageSourcesById(selects,projectId,[{resourceId:clip.resourceId,name:file.rid}]);size={width:sources[0].width,height:sources[0].height};}
    let timing=null;
    if(Object(options).includeTiming){phase='timing';const meta=await draft.meta();if(!Number.isFinite(meta.fps)||meta.fps<=0)throw unknown('The source frame grid could not be confirmed.');timing={insertionFps:meta.fps};}
-   resolved.push({rid:file.rid,alias:clip.resourceId,size,...timing?{timing}:{}});
+   resolved.push({rid:file.rid,alias:clip.resourceId,size,...kind?{kind}:{},...timing?{timing}:{}});
   }catch(error){
-   const code=typeof Object(error).code==='string'?Object(error).code.slice(0,80):phase==='readback'?'source-resolution-unknown':'source-resolution-failed';
+   const code=typeof Object(error).code==='string'?Object(error).code.slice(0,80):['readback','kind'].includes(phase)?'source-resolution-unknown':'source-resolution-failed';
    failed.push({rid:file.rid,phase,code,error:text(error),...insertionError&&insertionError!==error?{insertionError:text(insertionError)}:{}});
   }
  }
@@ -486,12 +511,14 @@ export async function resolveTemplateMedia(selects,projectId,files,scratchName='
 }
 
 // A clipped or contradictory response cannot silently drop handed sources.
-export function validateTemplateMediaResult(result,files) {
+export function validateTemplateMediaResult(result,files,options={}) {
  const invalid=()=>{throw Object.assign(Error('The selected source resolution could not be confirmed. Check the Project inputs and try again.'),{code:'source-resolution-unknown'});};
+ if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>key!=='includeKind')||options.includeKind!==undefined&&typeof options.includeKind!=='boolean')invalid();
  if(!result||!Array.isArray(result.resolved)||!Array.isArray(result.failed))invalid();
  const wanted=new Set(files.map(file=>file.rid)),rows=[...result.resolved,...result.failed];
  if(rows.length!==wanted.size||new Set(rows.map(row=>row?.rid)).size!==wanted.size||rows.some(row=>!wanted.has(row?.rid)))invalid();
  if(result.resolved.some(row=>typeof row.alias!=='string'||!row.alias||row.size!==null&&(!Number.isSafeInteger(row.size?.width)||row.size.width<1||!Number.isSafeInteger(row.size?.height)||row.size.height<1)))invalid();
+ if(options.includeKind&&result.resolved.some(row=>!['video','image'].includes(row.kind)||row.kind!==files.find(file=>file.rid===row.rid)?.kind))invalid();
  if(result.failed.some(row=>typeof row.phase!=='string'||typeof row.code!=='string'||typeof row.error!=='string'||row.error.length>300))invalid();
  return result;
 }

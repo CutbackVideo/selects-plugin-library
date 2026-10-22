@@ -605,6 +605,12 @@ function avAllocate(opts) {
 // the montage asked for (the ladder's top), musicShots: the montage the music fits (avFitShots), slots: all slots,
 // fittedByMusic, pace, montageBeats, finalBeats, tempo, beatSeconds, gridded, approxBpm (the approximate tempo the
 // fixed timing used, else null), fillerShots, photoShots, attempt, notes ([], kept for the panel) }.
+// Opening, credit and final shots share this template-owned video requirement.
+// Count identities rather than repeated handed entries or aliases.
+function avVideoRequirement(videoRids) {
+  const count = new Set(videoRids).size;
+  return count < 2 ? count ? 'one-video' : 'no-video' : null;
+}
 function avPlanBuild(opts) {
   const pace = opts.pace === 'quick' ? 'quick' : 'cinematic';
   // The tempo the template follows: the grid's, else an approximate one, else AV_FALLBACK_BPM (fixed timing).
@@ -623,8 +629,8 @@ function avPlanBuild(opts) {
     else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) videos[c.rid] = Math.max(videos[c.rid] || 0, c.sourceDuration);
   }
   const videoRids = Object.keys(videos);
-  if (!videoRids.length) return fail('no-video');
-  if (videoRids.length < 2) return fail('one-video');
+  const videoRequirement = avVideoRequirement(videoRids);
+  if (videoRequirement) return fail(videoRequirement);
   const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
   const scheduleOf = tpl => avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, shotSeconds: beatSeconds, ...snapOpts });
   // Bookend preflight: a video source must hold the opening and the final shot whole (avAllocate's own test).

@@ -191,7 +191,7 @@ const STRINGS = {
     "tpl.files": "Reading the chosen files",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Done",
-    "tpl.noFootage": "Choose videos or photos for the footage, then try again.",
+    "tpl.noFootage": "Choose at least 2 different video clips and up to 50 files in total. Photos are optional.",
     "tpl.noMusic": "Archive Vlog's music is missing. Reinstall the plugin and try again.",
     "tpl.noStyles": "Archive Vlog's title styles are missing. Reinstall the plugin and try again.",
     "tpl.notFoundDetail": "Selects said: {detail}",
@@ -374,7 +374,7 @@ const STRINGS = {
     "tpl.files": "Ausgewählte Dateien lesen",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Fertig",
-    "tpl.noFootage": "Wähle Videos oder Fotos als Material aus und versuche es dann erneut.",
+    "tpl.noFootage": "W\u00e4hle mindestens 2 verschiedene Videoclips und insgesamt h\u00f6chstens 50 Dateien. Fotos sind optional.",
     "tpl.noMusic": "Die Musik von Archive Vlog fehlt. Installiere das Plugin neu und versuche es erneut.",
     "tpl.noStyles": "Die Titelstile von Archive Vlog fehlen. Installiere das Plugin neu und versuche es erneut.",
     "tpl.notFoundDetail": "Selects meldet: {detail}",
@@ -557,7 +557,7 @@ const STRINGS = {
     "tpl.files": "Leyendo los archivos elegidos",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Listo",
-    "tpl.noFootage": "Elige vídeos o fotos como material y vuelve a intentarlo.",
+    "tpl.noFootage": "Elige al menos 2 v\u00eddeos distintos y un m\u00e1ximo de 50 archivos en total. Las fotos son opcionales.",
     "tpl.noMusic": "Falta la música de Archive Vlog. Reinstala el plugin y vuelve a intentarlo.",
     "tpl.noStyles": "Faltan los estilos de título de Archive Vlog. Reinstala el plugin y vuelve a intentarlo.",
     "tpl.notFoundDetail": "Selects indica: {detail}",
@@ -740,7 +740,7 @@ const STRINGS = {
     "tpl.files": "Lecture des fichiers choisis",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Terminé",
-    "tpl.noFootage": "Choisissez des vidéos ou des photos comme images, puis réessayez.",
+    "tpl.noFootage": "Choisissez au moins 2 vid\u00e9os diff\u00e9rentes et 50 fichiers au maximum au total. Les photos sont facultatives.",
     "tpl.noMusic": "La musique d'Archive Vlog est introuvable. Réinstallez le plugin, puis réessayez.",
     "tpl.noStyles": "Les styles de titre d'Archive Vlog sont introuvables. Réinstallez le plugin, puis réessayez.",
     "tpl.notFoundDetail": "Selects indique : {detail}",
@@ -923,7 +923,7 @@ const STRINGS = {
     "tpl.files": "Lettura dei file scelti",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Fatto",
-    "tpl.noFootage": "Scegli video o foto come materiale, poi riprova.",
+    "tpl.noFootage": "Scegli almeno 2 video diversi e non pi\u00f9 di 50 file in totale. Le foto sono facoltative.",
     "tpl.noMusic": "Manca la musica di Archive Vlog. Reinstalla il plugin e riprova.",
     "tpl.noStyles": "Mancano gli stili del titolo di Archive Vlog. Reinstalla il plugin e riprova.",
     "tpl.notFoundDetail": "Selects segnala: {detail}",
@@ -1106,7 +1106,7 @@ const STRINGS = {
     "tpl.files": "選んだファイルを読み込み",
     "tpl.stepDetail": "{name}（{detail}）",
     "tpl.done": "完了",
-    "tpl.noFootage": "素材にする動画または写真を選んでから、もう一度お試しください。",
+    "tpl.noFootage": "\u7570\u306a\u308b\u52d5\u753b\u30922\u672c\u4ee5\u4e0a\u3001\u5408\u8a0850\u30d5\u30a1\u30a4\u30eb\u4ee5\u5185\u3067\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002\u5199\u771f\u306e\u8ffd\u52a0\u306f\u4efb\u610f\u3067\u3059\u3002",
     "tpl.noMusic": "Archive Vlog の音楽が見つかりません。プラグインを再インストールしてから、もう一度お試しください。",
     "tpl.noStyles": "Archive Vlog のタイトルスタイルが見つかりません。プラグインを再インストールしてから、もう一度お試しください。",
     "tpl.notFoundDetail": "Selects からの理由: {detail}",
@@ -1289,7 +1289,7 @@ const STRINGS = {
     "tpl.files": "\uc120\ud0dd\ud55c \ud30c\uc77c \uc77d\uae30",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "\uc644\ub8cc",
-    "tpl.noFootage": "\uc601\uc0c1\uc73c\ub85c \uc4f8 \ub3d9\uc601\uc0c1\uc774\ub098 \uc0ac\uc9c4\uc744 \uc120\ud0dd\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    "tpl.noFootage": "\uc11c\ub85c \ub2e4\ub978 \uc601\uc0c1 2\uac1c \uc774\uc0c1\uc744 \uc120\ud0dd\ud574\uc8fc\uc138\uc694. \uc0ac\uc9c4\uc740 \uc120\ud0dd \uc0ac\ud56d\uc774\uba70 \uc804\uccb4 \ud30c\uc77c\uc740 \ucd5c\ub300 50\uac1c\uc785\ub2c8\ub2e4.",
     "tpl.noMusic": "Archive Vlog\uc758 \uc74c\uc545\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.noStyles": "Archive Vlog\uc758 \ud0c0\uc774\ud2c0 \uc2a4\ud0c0\uc77c\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ud50c\ub7ec\uadf8\uc778\uc744 \ub2e4\uc2dc \uc124\uce58\ud55c \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.notFoundDetail": "Selects \uba54\uc2dc\uc9c0: {detail}",
@@ -1472,7 +1472,7 @@ const STRINGS = {
     "tpl.files": "Lendo os arquivos escolhidos",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Pronto",
-    "tpl.noFootage": "Escolha vídeos ou fotos como material e tente de novo.",
+    "tpl.noFootage": "Escolha pelo menos 2 v\u00eddeos diferentes e no m\u00e1ximo 50 arquivos no total. As fotos s\u00e3o opcionais.",
     "tpl.noMusic": "A música do Archive Vlog está faltando. Reinstale o plugin e tente de novo.",
     "tpl.noStyles": "Os estilos de título do Archive Vlog estão faltando. Reinstale o plugin e tente de novo.",
     "tpl.notFoundDetail": "O Selects informou: {detail}",
@@ -1655,7 +1655,7 @@ const STRINGS = {
     "tpl.files": "Seçilen dosyalar okunuyor",
     "tpl.stepDetail": "{name} ({detail})",
     "tpl.done": "Tamamlandı",
-    "tpl.noFootage": "Görüntü olarak video veya fotoğraf seçin, ardından yeniden deneyin.",
+    "tpl.noFootage": "En az 2 farkl\u0131 video ve toplamda en fazla 50 dosya se\u00e7in. Foto\u011fraflar iste\u011fe ba\u011fl\u0131d\u0131r.",
     "tpl.noMusic": "Archive Vlog'un müziği eksik. Eklentiyi yeniden yükleyip tekrar deneyin.",
     "tpl.noStyles": "Archive Vlog'un başlık stilleri eksik. Eklentiyi yeniden yükleyip tekrar deneyin.",
     "tpl.notFoundDetail": "Selects şunu bildirdi: {detail}",
@@ -1838,7 +1838,7 @@ const STRINGS = {
     "tpl.files": "读取所选文件",
     "tpl.stepDetail": "{name}（{detail}）",
     "tpl.done": "完成",
-    "tpl.noFootage": "请选择用作素材的视频或照片，然后重试。",
+    "tpl.noFootage": "\u8bf7\u9009\u62e9\u81f3\u5c11 2 \u4e2a\u4e0d\u540c\u7684\u89c6\u9891\u7247\u6bb5\uff0c\u603b\u6587\u4ef6\u6570\u4e0d\u8d85\u8fc7 50 \u4e2a\u3002\u7167\u7247\u53ef\u9009\u3002",
     "tpl.noMusic": "缺少 Archive Vlog 的音乐。请重新安装插件后重试。",
     "tpl.noStyles": "缺少 Archive Vlog 的标题样式。请重新安装插件后重试。",
     "tpl.notFoundDetail": "Selects 提示：{detail}",
@@ -1916,7 +1916,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.18";
+const PLUGIN_VERSION = "0.1.0-alpha.19";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -2556,6 +2556,12 @@ function avAllocate(opts) {
 // the montage asked for (the ladder's top), musicShots: the montage the music fits (avFitShots), slots: all slots,
 // fittedByMusic, pace, montageBeats, finalBeats, tempo, beatSeconds, gridded, approxBpm (the approximate tempo the
 // fixed timing used, else null), fillerShots, photoShots, attempt, notes ([], kept for the panel) }.
+// Opening, credit and final shots share this template-owned video requirement.
+// Count identities rather than repeated handed entries or aliases.
+function avVideoRequirement(videoRids) {
+  const count = new Set(videoRids).size;
+  return count < 2 ? count ? 'one-video' : 'no-video' : null;
+}
 function avPlanBuild(opts) {
   const pace = opts.pace === 'quick' ? 'quick' : 'cinematic';
   // The tempo the template follows: the grid's, else an approximate one, else AV_FALLBACK_BPM (fixed timing).
@@ -2574,8 +2580,8 @@ function avPlanBuild(opts) {
     else if (finite(c.t) && finite(c.score) && finite(c.sourceDuration) && c.sourceDuration > 0) videos[c.rid] = Math.max(videos[c.rid] || 0, c.sourceDuration);
   }
   const videoRids = Object.keys(videos);
-  if (!videoRids.length) return fail('no-video');
-  if (videoRids.length < 2) return fail('one-video');
+  const videoRequirement = avVideoRequirement(videoRids);
+  if (videoRequirement) return fail(videoRequirement);
   const snapOpts = { sectionStart: opts.sectionStart, onsets: opts.onsets, onsetThresholds: opts.onsetThresholds, lowConfidence: opts.lowConfidence };
   const scheduleOf = tpl => avSchedule({ bpm: gridded ? opts.bpm : null, fps: opts.fps, beatsList: tpl.beatsList, roles: tpl.roles, parts: tpl.parts, shotSeconds: beatSeconds, ...snapOpts });
   // Bookend preflight: a video source must hold the opening and the final shot whole (avAllocate's own test).
@@ -6254,8 +6260,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     : musicKind === "own" && !ownDuration ? (l) => t(l, "musicLengthUnread")
     : musicKind !== "none" && (!fitted || start == null) ? (l) => t(l, "fail.music-too-short")
     // The opening, credit and final shots are video only (planner preflight), so photos never make up for a video.
-    : selectedRids.length === 0 ? (l) => t(l, "fail.no-video")
-    : selectedRids.length === 1 ? (l) => t(l, "fail.one-video")
+    : avVideoRequirement(selectedRids) ? (l) => t(l, "fail." + avVideoRequirement(selectedRids))
     : null;
   const blockFor = (plan: any): Say | null => baseBlock || (plan && !plan.ok && !plan.retryable ? (l) => failText(l, plan.reason, plan) : null);
   const blockReason = blockFor(readyPlan);
@@ -6604,6 +6609,21 @@ async function runTemplateStep(sdk: any, summary: string, script: string | ((att
 // Private alias placement remains single-dispatch and is never inventory verification.
 // native-image-input:start
 // Original source facts and private unsaved identity checks. Canonical input feature.
+// Normalize the app's handed Resource records without silently discarding malformed
+// inputs or allowing conflicting kinds for one identity. Template role/count policy
+// remains with the template; the public handoff supports at most 50 records.
+export function templateMediaSelection(inputs) {
+ const invalid=()=>{throw Object.assign(Error('The handed video/photo selection is invalid. Choose up to 50 valid Resources.'),{code:'template-input-invalid'});};
+ if(!Array.isArray(inputs)||inputs.length>50)invalid();
+ const selected=new Map();
+ for(const input of inputs){
+  const id=input?.resourceId,kind=input?.kind;
+  if(typeof id!=='string'||!id||id!==id.trim()||id.length>1024||id.includes('\0')||!['video','image'].includes(kind))invalid();
+  if(selected.has(id)&&selected.get(id).kind!==kind)invalid();
+  if(!selected.has(id))selected.set(id,{rid:id,kind});
+ }
+ return [...selected.values()];
+}
 export async function nativeImageSources(selects, projectId, photos, { matchById=false }={}) {
  const project=selects.project(projectId), resources=await project.resources(), nodes=[];
  const visit=items=>{for(const item of items||[])item.type==='dir'?visit(item.children):nodes.push(item);};
@@ -6770,9 +6790,9 @@ export async function confirmProjectSourcePaths(selects,projectId,bindings) {
 // Persistent handed IDs -> SDK aliases, observed only on private unsaved Drafts.
 // Placement failures are not evidence that a source file is absent.
 export async function resolveTemplateMedia(selects,projectId,files,scratchName='Template source check',options={}) {
- if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>!['includeTiming','dimensions'].includes(key))||['includeTiming','dimensions'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean'))throw Error('The source observation options are invalid.');
+ if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>!['includeTiming','dimensions','includeKind'].includes(key))||['includeTiming','dimensions','includeKind'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean'))throw Error('The source observation options are invalid.');
  if(!Array.isArray(files)||!files.length||files.length>50||files.some(file=>!file||typeof file.rid!=='string'||!file.rid||!['video','image'].includes(file.kind))||new Set(files.map(file=>file.rid)).size!==files.length)throw Error('The selected template source request is invalid.');
- const project=selects.project(projectId),resolved=[],failed=[];let shared=null;
+ const project=selects.project(projectId),resolved=[],failed=[];let shared=null,catalogRead=null;
  const text=error=>String(Object(error).message||error||'Source preparation could not be confirmed.').slice(0,300);
  const unknown=message=>Object.assign(Error(message),{code:'source-resolution-unknown'});
  for(const file of files){
@@ -6801,13 +6821,23 @@ export async function resolveTemplateMedia(selects,projectId,files,scratchName='
     phase='readback';clip=await observe();
    }
    if(!clip){if(insertionError){phase='insert';throw insertionError;}throw unknown('Source placement returned no confirmed clip.');}
+   let kind=null;
+   if(Object(options).includeKind){
+    phase='kind';
+    const rows=await (catalogRead??=project.resources());
+    if(!Array.isArray(rows)||rows.some(row=>!row||typeof row.resourceId!=='string'||!row.resourceId||typeof row.type!=='string')||new Set(rows.map(row=>row.resourceId)).size!==rows.length)throw unknown('The current Project Resource kinds could not be confirmed.');
+    const row=rows.find(row=>row.resourceId===clip.resourceId);
+    if(!row)throw unknown('The placed source has no confirmed Project Resource kind.');
+    kind=row.type==='Video'?'video':row.type==='Image'?'image':null;
+    if(kind!==file.kind)throw Object.assign(Error('The selected source kind differs from the handed video/photo declaration.'),{code:'source-kind-mismatch'});
+   }
    let size=null;
    if(photo&&Object(options).dimensions!==false){phase='dimensions';const sources=await nativeImageSourcesById(selects,projectId,[{resourceId:clip.resourceId,name:file.rid}]);size={width:sources[0].width,height:sources[0].height};}
    let timing=null;
    if(Object(options).includeTiming){phase='timing';const meta=await draft.meta();if(!Number.isFinite(meta.fps)||meta.fps<=0)throw unknown('The source frame grid could not be confirmed.');timing={insertionFps:meta.fps};}
-   resolved.push({rid:file.rid,alias:clip.resourceId,size,...timing?{timing}:{}});
+   resolved.push({rid:file.rid,alias:clip.resourceId,size,...kind?{kind}:{},...timing?{timing}:{}});
   }catch(error){
-   const code=typeof Object(error).code==='string'?Object(error).code.slice(0,80):phase==='readback'?'source-resolution-unknown':'source-resolution-failed';
+   const code=typeof Object(error).code==='string'?Object(error).code.slice(0,80):['readback','kind'].includes(phase)?'source-resolution-unknown':'source-resolution-failed';
    failed.push({rid:file.rid,phase,code,error:text(error),...insertionError&&insertionError!==error?{insertionError:text(insertionError)}:{}});
   }
  }
@@ -6815,31 +6845,28 @@ export async function resolveTemplateMedia(selects,projectId,files,scratchName='
 }
 
 // A clipped or contradictory response cannot silently drop handed sources.
-export function validateTemplateMediaResult(result,files) {
+export function validateTemplateMediaResult(result,files,options={}) {
  const invalid=()=>{throw Object.assign(Error('The selected source resolution could not be confirmed. Check the Project inputs and try again.'),{code:'source-resolution-unknown'});};
+ if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>key!=='includeKind')||options.includeKind!==undefined&&typeof options.includeKind!=='boolean')invalid();
  if(!result||!Array.isArray(result.resolved)||!Array.isArray(result.failed))invalid();
  const wanted=new Set(files.map(file=>file.rid)),rows=[...result.resolved,...result.failed];
  if(rows.length!==wanted.size||new Set(rows.map(row=>row?.rid)).size!==wanted.size||rows.some(row=>!wanted.has(row?.rid)))invalid();
  if(result.resolved.some(row=>typeof row.alias!=='string'||!row.alias||row.size!==null&&(!Number.isSafeInteger(row.size?.width)||row.size.width<1||!Number.isSafeInteger(row.size?.height)||row.size.height<1)))invalid();
+ if(options.includeKind&&result.resolved.some(row=>!['video','image'].includes(row.kind)||row.kind!==files.find(file=>file.rid===row.rid)?.kind))invalid();
  if(result.failed.some(row=>typeof row.phase!=='string'||typeof row.code!=='string'||typeof row.error!=='string'||row.error.length>300))invalid();
  return result;
 }
 // native-image-input:end
 const TEMPLATE_ALIAS_JS = `${nativeImageSources.toString()}
 ${nativeImageSourcesById.toString()}
+${resolveTemplateMedia.toString()}
 const cfg = __CONFIG__;
-return await (${resolveTemplateMedia.toString()})(selects, cfg.projectId, cfg.files, "Archive Vlog id check");`;
+return await resolveTemplateMedia(selects, cfg.projectId, cfg.files, "Archive Vlog id check", {includeKind:true});`;
 
 // The handed videos and photos, each once, in the order they were picked.
 function templateFootage(context: any) {
-  const seen = new Set<string>();
-  const files: Array<{ rid: string; kind: string }> = [];
-  for (const input of context?.template?.inputs?.footage ?? []) {
-    if (!input || (input.kind !== "video" && input.kind !== "image") || !input.resourceId || seen.has(input.resourceId)) continue;
-    seen.add(input.resourceId);
-    files.push({ rid: String(input.resourceId), kind: input.kind });
-  }
-  return files;
+  const handed = context?.template?.inputs?.footage;
+  return templateMediaSelection(handed === undefined ? [] : handed);
 }
 
 // A template run's step (its status line and the "stopped at" message): "files" (reading the chosen files) or a build
@@ -6861,8 +6888,11 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
     const completed = await continuations.workflow(previous, (value: any, assembly: any) => prepareArchiveDecoration(sdk, value, assembly, check), () => { check(); }, archiveRecoveryOptions(sdk, previous, check));
     check(); return { sequenceId: completed.sequenceId };
   }
-  const files = templateFootage(context);
-  if (!files.length) throw templateIssue(t(bl, "tpl.noFootage"));
+  let files: Array<{ rid: string; kind: string }>;
+  try { files = templateFootage(context); }
+  catch (cause: any) { throw Object.assign(templateIssue(t(bl, "tpl.noFootage")), { code: cause.code || "template-input-invalid", cause }); }
+  const requirement = avVideoRequirement(files.filter(file => file.kind === "video").map(file => file.rid));
+  if (requirement) throw Object.assign(templateIssue(t(bl, "fail." + requirement)), { code: "archive-video-required", reason: requirement });
   const run = (summary: string, script: string, allowCommit = false) => runTemplateStep(sdk, summary, script, allowCommit);
   const options = context?.template?.options || {};
 
@@ -6880,7 +6910,7 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
   if (!chosen) throw templateIssue(t(bl, "tpl.noStyles"));
 
   // Private scratch placement is observed once; an unknown result does not authorize replay.
-  const resolved: Array<{ rid: string; alias: string; size: { width: number; height: number } | null }> = [];
+  const resolved: Array<{ rid: string; alias: string; kind: string; size: { width: number; height: number } | null }> = [];
   const resolutionFailures: Array<{ rid: string; phase: string; code: string; error: string }> = [];
   // The observed SDK reason per file, for the message below.
   const failures = new Map<string, string>();
@@ -6889,7 +6919,7 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
       const batch = list.slice(i, i + TEMPLATE_ALIAS_BATCH);
       const raw = await nativeImageRun(sdk, fill(TEMPLATE_ALIAS_JS, { projectId: pid, files: batch }), "Find the chosen files", false, t(bl, "stepFailed"));
       check();
-      const r = validateTemplateMediaResult(raw, batch);
+      const r = validateTemplateMediaResult(raw, batch, { includeKind: true });
       resolved.push(...r.resolved);
       resolutionFailures.push(...r.failed);
       for (const f of r.failed || []) if (f && f.rid) failures.set(String(f.rid), String(f.error || ""));
@@ -6897,6 +6927,7 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
   };
   await resolveFiles(files);
 
+  if (resolutionFailures.some(row => row.code === "source-kind-mismatch")) throw Object.assign(templateIssue(t(bl, "tpl.noFootage")), { code: "source-kind-mismatch", failures: resolutionFailures });
   const aliases = [...new Set(resolved.map((r) => r.alias))];
   const known: Record<string, { width: number; height: number }> = {};
   for (const r of resolved) if (r.size) known[r.alias] = r.size;
@@ -6913,6 +6944,11 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
     const notLocal = /analyzed sequence not found|placement_source_unavailable|no local source timeline/i.test(reason);
     if (notLocal) throw templateIssue(t(bl, "tpl.notLocal"));
     throw Object.assign(templateIssue(reason ? [t(bl, "stepFailed"), t(bl, "tpl.notFoundDetail", { detail: reason })].join(t(bl, "gap")) : t(bl, "stepFailed")), { code: "source-resolution-failed", failures: resolutionFailures });
+  }
+  const observedRequirement = avVideoRequirement(resolved.filter(row => row.kind === "video").map(row => row.alias));
+  if (observedRequirement) {
+    if (resolutionFailures.length) throw Object.assign(templateIssue(t(bl, "stepFailed") + t(bl, "gap") + t(bl, "tpl.notFoundDetail", { detail: resolutionFailures[0].error })), { code: "source-resolution-failed", failures: resolutionFailures });
+    throw Object.assign(templateIssue(t(bl, "fail." + observedRequirement)), { code: "archive-video-required", reason: observedRequirement });
   }
   // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.
   // Selected-file builds use the same bounded, reobserved catalog as the panel.
