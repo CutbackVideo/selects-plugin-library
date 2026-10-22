@@ -39,7 +39,7 @@ function fixture(plugin,{platform='darwin',fault=null,folderSummary=false,assets
   }};
   const common=['nativeImageSources','nativeImageRun','prepareNativeImages','templateMessage','TEMPLATE_FAILED','TEMPLATE_UNSUPPORTED'];
   const extra=plugin==='no14-still-video'?['INVENTORY','readMediaPages','readImageDraftFps','readProjectFps','createNo14Draft']:['INVENTORY','readMediaPages','inventory','createPhotoDraft',...(plugin==='camera-shutter-dump'?['samePath']:['SLOTS','templateIssue'])];
-  const authoring=plugin==='polaroid-photo-dump'?['isPolaroidAssetPath','PHOTO_EFFECT','FRAME_EFFECT','CAPTION_CODE','readImageDraftFps','buildAtomicImageDraftScript','authorAtomicImageDraft','placeWorkingCopyImages','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature','templateRunJSON']:[];
+  const authoring=plugin==='polaroid-photo-dump'?['isPolaroidAssetPath','PHOTO_EFFECT','FRAME_EFFECT','CAPTION_CODE','readImageDraftFps','buildAtomicImageDraftScript','authorAtomicImageDraft','bindMediaPlacement','placeWorkingCopyImages','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature','templateRunJSON']:[];
   const api=loadPanelFunctions(source,[...common,...extra,...authoring],{
     ...loadPanelOperation(plugin),
     DEFAULT_MUSIC:'off',ensureSounds:async()=>{writes.push('sounds');throw Error('WRITE_REACHED');},

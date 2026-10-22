@@ -21,15 +21,15 @@ import {holdFixture} from './gallery_hold_fixture.mjs';
 const runSource=fs.readFileSync(new URL('../shared/template-run.js',import.meta.url),'utf8');
 const assembly=fs.readFileSync(new URL('../plugins/mini-vlog/scripts/assemble.js',import.meta.url),'utf8');
 async function receiptFixture(t,{minify=false}={}){
- const f=await holdFixture(t),hooks={},requests=[],saved=new Map(),pending=[];let created=0,commits=0;
+ const f=await holdFixture(t),hooks={},requests=[],saved=new Map(),pending=[];let created=0,commits=0,probeSerial=0;
  const unrelated={id:'unrelated',name:'Same name',fps:30,frameSize:{width:1920,height:1080},clips:[{clipId:0,trackId:'main',resourceId:'foreign',startFrame:0,endFrame:30}]};saved.set(unrelated.id,unrelated);
  const project={meta:async()=>({draftIds:[...saved.keys()]}),createDraft:async({name})=>{
-  const data={id:'owned-'+(++created),name,fps:30,frameSize:{width:1920,height:1080},clips:[]};
+  const data={id:name==='Mini source timing check'?'probe-'+ ++probeSerial:'owned-'+(++created),name,fps:30,durationFrames:0,frameSize:{width:1920,height:1080},clips:[]};
   return {...reader(data),meta:async()=>data,setFrameSize:async size=>{data.frameSize=size;},clips:async()=>data.clips,
-   insertResource:async({resourceId,sourceRange})=>{const startFrame=data.clips.at(-1)?.endFrame??0;data.clips.push({clipId:data.clips.length,trackId:'main',resourceId,startFrame,endFrame:startFrame+Math.round((sourceRange.endSeconds-sourceRange.startSeconds)*data.fps)});},
-   setClipTransform:async()=>{},setClipAudio:async()=>{},commitAll:async()=>{commits++;saved.set(data.id,data);await hooks.commit?.(data);return {createdDraftId:data.id};}};
+   insertResource:async({resourceId,sourceRange})=>{const startFrame=data.clips.at(-1)?.endFrame??0;data.clips.push({clipId:data.clips.length,trackId:'main',trackKind:'main',resourceId,sourceStartSeconds:sourceRange.startSeconds,startFrame,endFrame:startFrame+Math.round((sourceRange.endSeconds-sourceRange.startSeconds)*data.fps)});data.durationFrames=data.clips.at(-1).endFrame;},
+   setClipTransform:async({clip,scale})=>{data.clips.find(c=>c.clipId===clip.clipId).scale=scale.x;},setClipAudio:async()=>{},commitAll:async()=>{commits++;saved.set(data.id,data);await hooks.commit?.(data);return {createdDraftId:data.id};}};
  }};
- const reader=row=>({meta:async()=>row,clips:async()=>row.clips,clipSourceWindow:async clip=>({startSeconds:clip.sourceStartSeconds??0,endSeconds:(clip.sourceStartSeconds??0)+(clip.endFrame-clip.startFrame)/30,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true}),clipTransform:async clip=>hooks.transform?hooks.transform():({enabled:true,scale:{x:clip.scale??1,y:1}}),clipAudio:async()=>({volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:0})});
+ const reader=row=>({meta:async()=>row,clips:async()=>row.clips,clipSourceWindow:async clip=>({startSeconds:clip.sourceStartSeconds??0,endSeconds:(clip.sourceStartSeconds??0)+(clip.endFrame-clip.startFrame)/30,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true}),clipTransform:async clip=>hooks.transform?hooks.transform():({enabled:true,scale:{x:clip.scale??1,y:clip.scale??1},position:{x:0,y:0},anchor:{x:0,y:0},rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[]}),clipAudio:async()=>({volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:0})});
  const selects={files:f.files,project:id=>{assert.equal(id,'p');return project;},draft:id=>{const row=saved.get(id);assert.ok(row);return reader(row);}};
  const sdk={call:async(method,id)=>{assert.equal(method,'getProjectDraftScaffold');assert.equal(id,'p');return {owner:{projectId:'p',libraryId:hooks.library??'library'}};},runScript:async input=>{
   requests.push(input);
@@ -96,7 +96,7 @@ test('Mini assembly receipt: a regenerated display name cannot prevent recovery 
 });
 test('Mini assembly receipt: oversized confirmation state stops before the save',async t=>{
  const f=await receiptFixture(t);f.config.picks=Array.from({length:8},()=>({rid:'r0',startSeconds:0,sourceDuration:20}));f.config.boundaries=Array.from({length:9},(_,i)=>i);
- f.hooks.transform=()=>({enabled:true,scale:{x:1,y:1},scaleKeys:Array.from({length:256},(_,i)=>({atSeconds:i/256,scale:1+i/256}))});
+ f.hooks.transform=()=>({enabled:true,scale:{x:1,y:1},position:{x:0,y:0},anchor:{x:0,y:0},rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:Array.from({length:256},(_,i)=>({atSeconds:i/256,rotation:1+i/256}))});
  await assert.rejects(f.run(),e=>e.code==='TEMPLATE_RUN_NOT_SAVED'&&/receipt.*limit/i.test(e.cause?.cause?.message??''));assert.equal(f.commits(),0,'receipt representability is a pre-save requirement');
 });
 

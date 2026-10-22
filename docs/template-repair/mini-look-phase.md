@@ -83,8 +83,9 @@ Audio change.
 
 These are observations exposed by the SDK, not physical source-content or nested
 resource attestation. Installed PanelHost interaction, whole-video playback/export,
-Windows, original-file semantics, analysis/cache budgets and per-occurrence photo
-motion remain open. Mini's current `byRid` policy still needs separate review.
+Windows, original-file semantics, analysis/cache budgets and remaining source/planner policy remain open. The later `mini-assembly-intent.md` checkpoint
+reviews `byRid` against the allocator's one-photo-use rule and enforces that
+precondition at assembly admission; it does not establish a repeated-photo bug.
 Archive and the remaining template flows require their own complete ownership
 classification and verification. This checkpoint does not complete Mini or the
 28-template objective.

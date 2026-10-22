@@ -1,110 +1,269 @@
 // @template-assembly 1
+// @template-assembly-intent 1
+// Generated from canonical input/placement checks and the Mini assembly policy.
+async function nativeImageSources(selects, projectId, photos, { matchById=false }={}) {
+ const project=selects.project(projectId), resources=await project.resources(), nodes=[];
+ const visit=items=>{for(const item of items||[])item.type==='dir'?visit(item.children):nodes.push(item);};
+ const overview=await project.sourceFiles();
+ if('fileTree' in overview)visit(overview.fileTree);
+ else for(const folder of overview.folders||[]){const detail=await project.sourceFiles({folder:folder.name});if('fileTree' in detail)visit(detail.fileTree);}
+ const sources=photos.map(photo=>{
+  const matches=nodes.filter(node=>node.path===photo.path&&(!matchById||node.resourceId===photo.resourceId)&&resources.some(resource=>resource.resourceId===node.resourceId&&resource.type==='Image'));
+  if(matches.length!==1||matches[0].resourceId!==photo.resourceId)throw Error('A selected Image is missing or ambiguous in the Project: '+photo.name);
+  const row=matches[0],size=row.frameSize;
+  if(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1)throw Error('A selected Image has no verified native dimensions: '+photo.name);
+  return {resourceId:row.resourceId,path:row.path,name:photo.name,width:size.width,height:size.height};
+ });
+ const fail=(code,photo,message)=>{throw Object.assign(new Error(message+': '+photo.name),{code,resourceId:photo.resourceId});};
+ if(typeof selects.files?.stat!=='function'||typeof selects.files?.readRange!=='function')throw Error('This Selects version does not support original photo file checks.');
+ const checked=new Set();
+ for(const photo of sources){
+  if(checked.has(photo.path))continue;
+  let before;
+  try{before=await selects.files.stat(photo.path);}catch{fail('image-source-unknown',photo,'Could not confirm the original photo file');}
+  if(before===null)fail('image-source-missing',photo,'The original photo file is missing');
+  if(!before||!Number.isSafeInteger(before.size)||before.size<0||typeof before.isDirectory!=='boolean')fail('image-source-unknown',photo,'Could not confirm the original photo file');
+  if(before.isDirectory||before.size===0)fail('image-source-unreadable',photo,'The original photo file is not readable');
+  let first;
+  try{first=await selects.files.readRange({path:photo.path,offset:0,length:1});}catch{fail('image-source-unreadable',photo,'Could not read the original photo file');}
+  if(!first||first.bytesRead!==1||typeof first.base64!=='string'||!/^[A-Za-z0-9+/]{2}==$/.test(first.base64))fail('image-source-unknown',photo,'Could not confirm reading the original photo file');
+  let after;
+  try{after=await selects.files.stat(photo.path);}catch{fail('image-source-unknown',photo,'Could not confirm the original photo file after reading');}
+  if(!after||after.isDirectory||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))fail('image-source-changed',photo,'The original photo file changed while reading');
+  checked.add(photo.path);
+ }
+ return sources;
+}
+async function nativeImageSourcesById(selects,projectId,photos) {
+ const project=selects.project(projectId),nodes=[];
+ const visit=items=>{for(const item of items||[]){if(!item)continue;item.type==='dir'?visit(item.children):nodes.push(item);}};
+ const overview=await project.sourceFiles();
+ if('fileTree' in overview)visit(overview.fileTree);
+ else for(const folder of overview.folders||[]){const detail=await project.sourceFiles({folder:folder.name});if('fileTree' in detail)visit(detail.fileTree);}
+ const selected=photos.map(photo=>{
+  const matches=nodes.filter(node=>node.resourceId===photo.resourceId&&typeof node.path==='string'&&node.path);
+  if(matches.length!==1)throw Error('The selected Image path is missing or ambiguous in the Project: '+photo.name);
+  return {...photo,path:matches[0].path};
+ });
+ return nativeImageSources(selects,projectId,selected,{matchById:true});
+}
+async function resolveTemplateMedia(selects,projectId,files,scratchName='Template source check',options={}) {
+ if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>!['includeTiming','dimensions'].includes(key))||['includeTiming','dimensions'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean'))throw Error('The source observation options are invalid.');
+ if(!Array.isArray(files)||!files.length||files.length>50||files.some(file=>!file||typeof file.rid!=='string'||!file.rid||!['video','image'].includes(file.kind))||new Set(files.map(file=>file.rid)).size!==files.length)throw Error('The selected template source request is invalid.');
+ const project=selects.project(projectId),resolved=[],failed=[];let shared=null;
+ const text=error=>String(Object(error).message||error||'Source preparation could not be confirmed.').slice(0,300);
+ const unknown=message=>Object.assign(Error(message),{code:'source-resolution-unknown'});
+ for(const file of files){
+  let phase='create',insertionError;
+  try{
+   const photo=file.kind==='image',draft=photo||Object(options).includeTiming||!shared?await project.createDraft({name:scratchName}):shared;
+   if(!photo)shared=draft;
+   phase='readback';const before=await draft.clips({trackScope:'main'});
+   if(!Array.isArray(before)||before.some(row=>!Number.isSafeInteger(row?.clipId))||new Set(before.map(row=>row.clipId)).size!==before.length)throw unknown('The private source check could not be observed before placement.');
+   const ids=new Set(before.map(row=>row.clipId));
+   const observe=async()=>{
+    const rows=await draft.clips({trackScope:'main'});
+    if(!Array.isArray(rows)||rows.some(row=>!Number.isSafeInteger(row?.clipId))||new Set(rows.map(row=>row.clipId)).size!==rows.length)throw unknown('The private source check returned invalid clips.');
+    const added=rows.filter(row=>!ids.has(row.clipId));
+    if(added.length>1||added.length===1&&(typeof added[0].resourceId!=='string'||!added[0].resourceId))throw unknown('The placed source alias could not be uniquely confirmed.');
+    return added[0]??null;
+   };
+   phase='insert';
+   try{await draft.insertResource({resourceId:file.rid,sourceRange:{startSeconds:0,endSeconds:0.5}});}catch(error){insertionError=error;}
+   phase='readback';let clip=await observe();
+   // Only the SDK's pre-mutation range validation authorizes the old short-file
+   // fallback. An empty observation after an arbitrary transport error does not.
+   if(!clip&&insertionError&&/^invalid_source_range(?::|$)/.test(text(insertionError))){
+    phase='insert';insertionError=null;
+    try{await draft.insertResource({resourceId:file.rid});}catch(error){insertionError=error;}
+    phase='readback';clip=await observe();
+   }
+   if(!clip){if(insertionError){phase='insert';throw insertionError;}throw unknown('Source placement returned no confirmed clip.');}
+   let size=null;
+   if(photo&&Object(options).dimensions!==false){phase='dimensions';const sources=await nativeImageSourcesById(selects,projectId,[{resourceId:clip.resourceId,name:file.rid}]);size={width:sources[0].width,height:sources[0].height};}
+   let timing=null;
+   if(Object(options).includeTiming){phase='timing';const meta=await draft.meta();if(!Number.isFinite(meta.fps)||meta.fps<=0)throw unknown('The source frame grid could not be confirmed.');timing={insertionFps:meta.fps};}
+   resolved.push({rid:file.rid,alias:clip.resourceId,size,...timing?{timing}:{}});
+  }catch(error){
+   const code=typeof Object(error).code==='string'?Object(error).code.slice(0,80):phase==='readback'?'source-resolution-unknown':'source-resolution-failed';
+   failed.push({rid:file.rid,phase,code,error:text(error),...insertionError&&insertionError!==error?{insertionError:text(insertionError)}:{}});
+  }
+ }
+ return {resolved,failed};
+}
+function bindMediaPlacement(before,rows,wanted) {
+ const fail=()=>{throw Error('The media placement differs from its requested interval or source.');};
+ const valid=list=>Array.isArray(list)&&list.length<=1024&&list.every(row=>row&&Number.isSafeInteger(row.clipId)&&row.clipId>=0&&typeof row.trackId==='string'&&row.trackId)&&new Set(list.map(row=>row.clipId)).size===list.length;
+ if(!valid(before)||!valid(rows)||!wanted||typeof wanted.resourceId!=='string'||!wanted.resourceId)fail();
+ const keys=['trackId','trackKind','resourceId','startFrame','endFrame'],ids=new Set(before.map(row=>row.clipId)),added=rows.filter(row=>!ids.has(row.clipId));
+ if(rows.length!==before.length+1||added.length!==1||before.some(old=>{const current=rows.find(row=>row.clipId===old.clipId);return !current||keys.some(key=>current[key]!==old[key]);}))fail();
+ const row=added[0];if(!Number.isSafeInteger(row.startFrame)||row.startFrame<0||!Number.isSafeInteger(row.endFrame)||row.endFrame<=row.startFrame)fail();
+ for(const key of ['resourceId','trackKind','startFrame','endFrame'])if(wanted[key]!==undefined&&row[key]!==wanted[key])fail();
+ return row;
+}
+async function inspectImageTransforms(draft,expected,includeMain=false){
+ // Both consumers author fixed intrinsic transforms; motion belongs to their
+ // separate effects. Never adopt an observed transform as the expected value.
+ if(!('clipTransform' in draft))throw Error('Update Selects to verify Image transforms.');
+ const rows=(await draft.clips({trackScope:'all'})).filter(clip=>clip.trackKind==='video'||includeMain&&clip.trackKind==='main'&&clip.resourceId!=null);
+ if(!Array.isArray(expected)||expected.length!==rows.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw Error('Visual transform count could not be confirmed.');
+ const same=(a,b)=>{
+  // Converting domain coordinates to the SDK may introduce floating-point noise.
+  if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));
+  if(a===b)return true;
+  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
+ };
+ const receipts=[];
+ for(const wanted of expected){
+  const clip=rows.find(row=>row.clipId===wanted.clipId&&row.trackId===wanted.trackId);
+  if(!clip)throw Error('Visual transform target could not be confirmed.');
+  const patch=wanted.transform,transform={enabled:true,rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[],...patch,position:{x:0,y:0,...patch.position},scale:{x:1,y:1,...patch.scale},anchor:{x:0,y:0,...patch.anchor}};
+  const actual=await draft.clipTransform(clip);
+  if(!actual||!Object.entries(transform).every(([key,value])=>same(actual[key],value)))throw Error('Visual transform could not be confirmed.');
+  receipts.push({clipId:wanted.clipId,trackId:wanted.trackId,transform});
+ }
+ return receipts;
+}
+async function inspectImageAudio(draft,expected,project,overlayOnly=false){
+ const rows=(await draft.clips({trackScope:'all'})).filter(row=>row.trackKind==='audio'||!overlayOnly&&row.trackKind==='main'&&row.resourceId);
+ if(!Array.isArray(expected)||rows.length!==expected.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw Error('Audio clip count could not be confirmed.');
+ if(!expected.length)return [];
+ if(!('clipAudio' in draft))throw Error('Update Selects to verify Audio settings.');
+ if(!('clipSourceWindow' in draft)||typeof draft.clipSourceWindow!=='function')throw Error('Update Selects to verify Audio source timing.');
+ const types=new Map((await project.resources()).map(row=>[row.resourceId,row.type])),receipts=[];
+ const same=(a,b)=>{
+  if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));
+  if(a===b)return true;
+  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
+ };
+ for(const wanted of expected){
+  const row=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);
+  if(!row||row.trackKind!==wanted.trackKind||row.resourceId!==wanted.resourceId||row.startFrame!==wanted.startFrame||row.endFrame!==wanted.endFrame||types.get(row.resourceId)!=='Audio'||!same(row.audioSourceIndexes,wanted.audioSourceIndexes))throw Error('Audio placement or routing could not be confirmed.');
+  const settings={volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:0,...wanted.settings},actual=await draft.clipAudio(row);
+  if(!actual||actual.clipId!==row.clipId||!Object.entries(settings).every(([key,value])=>same(actual[key],value)))throw Error('Audio volume or fades could not be confirmed.');
+  if(!wanted.source||!Number.isFinite(wanted.source.startSeconds)||wanted.source.startSeconds<0||!Number.isFinite(wanted.source.endSeconds)||wanted.source.endSeconds<=wanted.source.startSeconds)throw Error('Audio source evidence is unavailable.');
+  const source={startSeconds:wanted.source.startSeconds,endSeconds:wanted.source.endSeconds,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true,...wanted.source};
+  // Time uses floating-point arithmetic noise only, not the relative tolerance
+  // used for level/fades. A small changed source instant must remain detectable.
+  const timeSame=(a,b)=>Number.isFinite(a)&&Math.abs(a-b)<=8*Number.EPSILON*Math.max(1,Math.abs(a),Math.abs(b));
+  let observed;try{observed=await draft.clipSourceWindow(row);}catch(cause){throw Object.assign(Error('Audio source timing could not be confirmed.'),{cause});}
+  if(!observed||observed.clipId!==row.clipId||!timeSame(observed.startSeconds,source.startSeconds)||!timeSame(observed.endSeconds,source.endSeconds)||row.playbackSpeed?.numerator!==source.playbackSpeed.numerator||row.playbackSpeed?.denominator!==source.playbackSpeed.denominator||row.preserveAudioPitch!==source.preserveAudioPitch)throw Error('Audio source timing or playback policy could not be confirmed.');
+  receipts.push({clipId:wanted.clipId,trackId:wanted.trackId,trackKind:wanted.trackKind,resourceId:wanted.resourceId,startFrame:wanted.startFrame,endFrame:wanted.endFrame,audioSourceIndexes:wanted.audioSourceIndexes,settings,source});
+ }
+ return receipts;
+}
 const cfg = __CONFIG__;
-const p = selects.project(cfg.projectId);
-const notes = [];
-const W = 1920, H = 1080;
-// Native Image facts are a checked caller input, independent of the Draft canvas.
-// Reject missing facts before even creating an unsaved working Draft.
-for (const pick of cfg.picks) {
-  if (pick.kind !== 'photo') continue;
-  const size = cfg.crops && cfg.crops[pick.rid];
-  if (!Number.isSafeInteger(size?.width) || size.width < 1 || !Number.isSafeInteger(size?.height) || size.height < 1) throw Error('The selected photo has no verified native dimensions: ' + pick.rid);
+function validateMiniAssemblyConfig(cfg) {
+ const invalid=()=>{throw Error('The Mini assembly plan is incomplete or invalid.');};
+ const id=value=>typeof value==='string'&&value.length>0&&value.length<=1024&&!value.includes('\0');
+ const finite=value=>typeof value==='number'&&Number.isFinite(value);
+ if(!cfg||!id(cfg.projectId)||!id(cfg.draftName)||!Array.isArray(cfg.picks)||cfg.picks.length<1||cfg.picks.length>256||!Array.isArray(cfg.boundaries)||cfg.boundaries.length!==cfg.picks.length+1||cfg.boundaries[0]!==0||cfg.boundaries.some((value,index)=>!finite(value)||value<0||index>0&&value<=cfg.boundaries[index-1]))invalid();
+ if(cfg.clipSound!==undefined&&!['off','ambient','full'].includes(cfg.clipSound)||cfg.ambientDb!==undefined&&(!finite(cfg.ambientDb)||cfg.ambientDb< -60||cfg.ambientDb>12))invalid();
+ const photoIds=new Set();
+ for(const pick of cfg.picks){
+  if(!pick||!id(pick.rid)||pick.kind!==undefined&&!['photo','video'].includes(pick.kind))invalid();
+  if(pick.kind!=='photo'&&(!finite(pick.startSeconds)||pick.startSeconds<0)||pick.sourceDuration!==undefined&&(!finite(pick.sourceDuration)||pick.sourceDuration<=0))invalid();
+  if(pick.kind==='photo'){if(photoIds.has(pick.rid))invalid();photoIds.add(pick.rid);}
+  const size=cfg.crops?.[pick.rid];
+  if(pick.kind==='photo'&&(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1))invalid();
+  if(size&&[size.width,size.height].some(value=>value!=null&&(!Number.isSafeInteger(value)||value<1)))invalid();
+ }
+ if(cfg.music!=null&&(!id(cfg.music.resourceId)||!finite(cfg.music.sectionStart)||cfg.music.sectionStart<0||cfg.music.tailSeconds!==undefined&&(!finite(cfg.music.tailSeconds)||cfg.music.tailSeconds<0)||cfg.music.referenceCuts!==undefined&&typeof cfg.music.referenceCuts!=='boolean'))invalid();
 }
-let d, fps, endFrame;
-const main = async () => (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null);
-// Selects snaps the music's source start to a frame, which shifts the whole track by up to half a frame; every cut
-// moves with it so it stays on the beat (planner.js mvMusicOffset, same expression). A reference edit's cuts
-// (music.referenceCuts) take no offset: they are whole frames at 25 fps, round(f * fps / 25) at any rate.
-const offset = f => (cfg.music && !cfg.music.referenceCuts ? cfg.music.sectionStart - Math.round(cfg.music.sectionStart * f) / f : 0);
-// Lays the Main clips on a new Draft, aiming every boundary at `rate` (or the new Draft's own rate).
-// A new Draft adopts its first clip's rate and frame size on the first insert. When the rate changes there, the clips
-// were aimed at the wrong rate, so this returns the real rate unless `final`; the caller then lays them again on a
-// fresh Draft. The discarded Draft is never committed, so it is not saved.
-const lay = async (rate, final) => {
-  d = await p.createDraft({ name: cfg.draftName });
-  await d.setFrameSize({ width: W, height: H });
-  fps = rate || (await d.meta()).fps;
-  endFrame = 0;
-  for (let i = 0; i < cfg.picks.length; i++) {
-    const pick = cfg.picks[i];
-    // Aim each clip's end at its planned boundary frame at the Draft's real rate so rounding never drifts.
-    // cfg.boundaries are seconds from the start of the music section: the beat grid (beat * 60 / bpm), with the cuts the
-    // planner snapped to music onsets (planner.js mvSnapCuts) moved onto them.
-    const want = Math.round((cfg.boundaries[i + 1] + offset(fps)) * fps) - endFrame;
-    // Selects snaps each end of a source range to a Draft frame on its own (round(end * fps) - round(start * fps)
-    // frames), so a start on a half frame would lose or gain a frame. The window is aimed at whole Draft frames: it
-    // starts on the frame nearest the planned start and lasts exactly `want` frames. A photo holds for the slot from
-    // the start of its (5 s) image source.
-    // At the real rate a slot can be a frame or two longer than planned, and Selects caps a source at its whole frames
-    // (an end past floor(duration * fps) / fps is invalid_source_range), so a window planned near the end of its source
-    // slides back to end inside it (pick.sourceDuration, from the planner).
-    const cap = pick.sourceDuration > 0 ? Math.floor(pick.sourceDuration * fps + 1e-6) - want : Infinity;
-    const k = pick.kind === 'photo' ? 0 : Math.max(0, Math.min(Math.round(pick.startSeconds * fps), cap));
-    await d.insertResource({ resourceId: pick.rid, sourceRange: { startSeconds: k / fps, endSeconds: (k + want) / fps } });
-    endFrame = (await main()).reduce((a, c) => Math.max(a, c.endFrame), 0);
-    if (i === 0) {
-      // The first insert adopted the clip's frame size, so the 16:9 canvas is set again before the rate is read.
-      const size0 = (await d.meta()).frameSize;
-      if (size0.width !== W || size0.height !== H) await d.setFrameSize({ width: W, height: H });
-      const real = (await d.meta()).fps;
-      if (real !== fps) {
-        if (!final) return real;
-        fps = real;
-      }
-    }
-  }
-  return null;
+validateMiniAssemblyConfig(cfg);
+const p=selects.project(cfg.projectId),notes=[],W=1920,H=1080;
+// Observe each source on its own native grid. Never infer an original clock
+// from a resized output canvas or from the previous probe's first source.
+const seenSources=new Set(),unique=[],timing=new Map();
+for(const pick of cfg.picks)if(!seenSources.has(pick.rid)){seenSources.add(pick.rid);unique.push({rid:pick.rid,kind:pick.kind==='photo'?'image':'video'});}
+for(let offset=0;offset<unique.length;offset+=50){
+ const batch=unique.slice(offset,offset+50),facts=await resolveTemplateMedia(selects,cfg.projectId,batch,'Mini source timing check',{includeTiming:true,dimensions:false});
+ if(facts.failed.length||facts.resolved.length!==batch.length||facts.resolved.some((row,i)=>row.rid!==batch[i].rid||row.alias!==batch[i].rid||!Number.isFinite(row.timing?.insertionFps)||row.timing.insertionFps<=0))throw Error('The planned source frame grid or identity could not be confirmed.');
+ for(const row of facts.resolved)timing.set(row.rid,row.timing.insertionFps);
+}
+const same=(a,b)=>{
+ if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));
+ if(a===b)return true;if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+ const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
 };
-const real = await lay(null, false);
-if (real) await lay(real, true);
-// The caller has already verified native photo dimensions. Never substitute an
-// unsaved Draft's canvas for an unknown original during assembly.
-const crops = Object.assign({}, cfg.crops);
-const rows = await main();
-for (let i = 0; i < rows.length; i++) {
-  const size = crops[rows[i].resourceId];
-  if (!size || !size.width || !size.height) continue;
-  // Clips are conformed to fit the canvas; scaling by fill/fit makes them cover it with a centre crop.
-  const fit = Math.min(W / size.width, H / size.height), fill = Math.max(W / size.width, H / size.height);
-  const scale = fill / fit;
-  if (scale <= 1.001) continue;
-  const clip = (await main())[i];
-  await d.setClipTransform({ clip, scale: { x: scale, y: scale }, position: { x: 0, y: 0 } });
-}
-// Clip sound: 'ambient' keeps the clips' own sound under the music at cfg.ambientDb (default -18 dB), 'full' leaves
-// it at 0 dB, and 'off' mutes it in decorate.js after this commit (muting needs the saved Draft's audio inventory).
-// Photos have no sound and are skipped. A clip whose level cannot be set keeps full sound and is reported in notes.
-let ambientClips = 0;
-if (cfg.clipSound === 'ambient') {
-  const db = typeof cfg.ambientDb === 'number' ? cfg.ambientDb : -18;
-  const photoRids = new Set(cfg.picks.filter(k => k.kind === 'photo').map(k => k.rid));
-  let failed = 0;
-  const count = (await main()).length;
-  for (let i = 0; i < count; i++) {
-    // Re-read each time: a sound edit makes earlier rows stale.
-    const clip = (await main())[i];
-    if (!clip || photoRids.has(clip.resourceId)) continue;
-    try { await d.setClipAudio({ clip, volumeDb: db }); ambientClips++; } catch (e) { failed++; }
+let d,fps,endFrame,bindings;
+const all=()=>d.clips({trackScope:'all'}),meta=()=>d.meta();
+const media=async()=> (await all()).filter(row=>['main','video','audio'].includes(row.trackKind));
+const find=async binding=>{const rows=await all(),row=rows.find(c=>c.clipId===binding.clipId&&c.trackId===binding.trackId);if(!row||row.resourceId!==binding.resourceId||row.startFrame!==binding.startFrame||row.endFrame!==binding.endFrame)throw Error('The planned placement changed.');return row;};
+const timeSame=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=8*Number.EPSILON*Math.max(1,Math.abs(a),Math.abs(b));
+const sourceMatches=async(binding,startSeconds)=>{
+ const row=await find(binding),source=await d.clipSourceWindow(row),speed=row.playbackSpeed;
+ if(speed&&(speed.numerator!==speed.denominator)||!source||!timeSame(source.startSeconds,startSeconds)||!timeSame(source.endSeconds,startSeconds+(row.endFrame-row.startFrame)/fps))throw Error('The planned source window changed during placement.');
+};
+const offset=f=>cfg.music&&!cfg.music.referenceCuts?cfg.music.sectionStart-Math.round(cfg.music.sectionStart*f)/f:0;
+const lay=async(rate,final)=>{
+ d=await p.createDraft({name:cfg.draftName});if((await media()).length)throw Error('The new assembly working Draft is not empty.');await d.setFrameSize({width:W,height:H});fps=rate||(await meta()).fps;
+ if(!Number.isFinite(fps)||fps<=0)throw Error('The assembly frame grid is unavailable.');endFrame=0;bindings=[];
+ for(let i=0;i<cfg.picks.length;i++){
+  const pick=cfg.picks[i],sourceFps=timing.get(pick.rid),targetEnd=Math.round((cfg.boundaries[i+1]+offset(fps))*fps),want=targetEnd-endFrame;
+  if(!Number.isSafeInteger(targetEnd)||!Number.isSafeInteger(want)||want<1)throw Error('The assembly plan has no positive whole-frame interval.');
+  // Insert a native-frame-aligned cover of the intended playback interval.
+  // Then explicitly trim that known conformance surplus on the Draft grid;
+  // never retime footage or trim an unexpected/unchecked insertion.
+  const count=Math.max(1,Math.ceil(want/fps*sourceFps-1e-8)),cap=pick.sourceDuration>0?Math.floor(pick.sourceDuration*sourceFps+1e-6)-count:Infinity;
+  if(!Number.isSafeInteger(count)||count<1||cap!==Infinity&&(!Number.isSafeInteger(cap)||cap<0))throw Error('The planned source cannot cover its playback interval.');
+  const start=pick.kind==='photo'?0:Math.max(0,Math.min(Math.round(pick.startSeconds*sourceFps),cap)),before=await media();
+  if(!Number.isSafeInteger(start)||start<0||!Number.isSafeInteger(start+count))throw Error('The planned source interval cannot be represented.');
+  await d.insertResource({resourceId:pick.rid,sourceRange:{startSeconds:start/sourceFps,endSeconds:(start+count)/sourceFps}});
+  const actualRate=(await meta()).fps;
+  if(i===0&&actualRate!==fps){bindMediaPlacement(before,await media(),{resourceId:pick.rid,trackKind:'main'});if(final)throw Error('The source changed the assembly frame grid twice.');return actualRate;}
+  const insertedFrames=Math.round(count/sourceFps*fps);
+  if(!Number.isSafeInteger(insertedFrames)||insertedFrames<want)throw Error('The native source interval cannot cover the plan.');
+  const added=bindMediaPlacement(before,await media(),{resourceId:pick.rid,trackKind:'main',startFrame:endFrame,endFrame:endFrame+insertedFrames});
+  await sourceMatches(added,start/sourceFps);
+  if(insertedFrames>want){
+   if(typeof d.trimBoundary!=='function')throw Error('Update Selects to trim a native interval to the planned cut.');
+   await d.trimBoundary({frame:added.endFrame,side:'before',byFrames:want-insertedFrames});
   }
-  if (failed) notes.push('the sound of ' + failed + (failed === 1 ? ' clip' : ' clips') + ' could not be lowered under the music');
+  const placed=bindMediaPlacement(before,await media(),{resourceId:pick.rid,trackKind:'main',startFrame:endFrame,endFrame:targetEnd});
+  await sourceMatches(placed,start/sourceFps);bindings.push({clipId:placed.clipId,trackId:placed.trackId,resourceId:placed.resourceId,startFrame:placed.startFrame,endFrame:placed.endFrame,sourceStart:start/sourceFps});endFrame=targetEnd;
+ }
+ return null;
+};
+const real=await lay(null,false);if(real)await lay(real,true);
+await d.setFrameSize({width:W,height:H});
+const transforms=[];
+for(const binding of bindings){
+ const original=await d.clipTransform(await find(binding)),size=cfg.crops?.[binding.resourceId];
+ const scale=size?.width>0&&size?.height>0?Math.max(W/size.width,H/size.height)/Math.min(W/size.width,H/size.height):1;
+ const patch={scale:{x:scale,y:scale},position:{x:0,y:0}},expected={...original,...patch,positionKeys:[],scaleKeys:[]};
+ if(!same(original,expected))await d.setClipTransform({clip:await find(binding),...patch});transforms.push({clipId:binding.clipId,trackId:binding.trackId,transform:expected});
 }
-if (cfg.music) {
-  const audioBefore = new Set((await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'audio').map(c => c.clipId));
-  // tailSeconds: a reference edit's music runs on past the last cut (Buant Hook: 0.68 s). Blank time appended after the
-  // last clip holds it, since an overlay cannot reach past the timeline's end.
-  // The music ends where the reference edit's does, on its own frame (round((last cut + tail) * fps)), not last cut +
-  // round(tail * fps): at 23.976 fps the two differ by a frame.
-  const tail = cfg.music.tailSeconds > 0 ? Math.max(0, Math.round((cfg.boundaries[cfg.boundaries.length - 1] + offset(fps) + cfg.music.tailSeconds) * fps) - endFrame) : 0;
-  if (tail) await d.insertGap({ seconds: tail / fps });
-  await d.overlayResource({ resource: p.resource(cfg.music.resourceId), over: await d.rangeAtFrames(0, endFrame + tail), sourceStartSeconds: cfg.music.sectionStart });
-  // Find the clip the overlay just created: new audio clips only, preferring the music resource.
-  const added = (await d.clips({ trackScope: 'all' })).filter(c => c.trackKind === 'audio' && !audioBefore.has(c.clipId));
-  const music = added.find(c => c.resourceId === cfg.music.resourceId) || added[0];
-  if (music) await d.setClipAudio({ clip: music, fadeInSeconds: 0, fadeOutSeconds: 0.12 });
-  else notes.push('music fade not applied');
+await inspectImageTransforms(d,transforms,true);
+let ambientClips=0;
+if(cfg.clipSound==='ambient'){
+ let failed=0;
+ for(let i=0;i<bindings.length;i++){
+  if(cfg.picks[i].kind==='photo')continue;const binding=bindings[i],db=cfg.ambientDb??-18;
+  try{await d.setClipAudio({clip:await find(binding),volumeDb:db});const observed=await d.clipAudio(await find(binding));if(!same(observed.volumeDb,db)||observed.volumeKeys.length)throw Error('The sound level was not applied.');ambientClips++;}catch{failed++;}
+ }
+ if(failed)notes.push('the sound of '+failed+(failed===1?' clip':' clips')+' could not be lowered under the music');
 }
-// The durable owner checks the complete representable state before this save.
-const beforeCommit = Object(cfg).__beforeCommit;
-if (typeof beforeCommit === 'function') await beforeCommit(d);
-const commit = await d.commitAll('Mini Vlog: assemble');
-return { sequenceId: commit.createdDraftId, fps, totalFrames: endFrame, placed: rows.length, ambientClips, notes };
+let durationFrames=endFrame;
+if(cfg.music){
+ const tail=cfg.music.tailSeconds>0?Math.max(0,Math.round((cfg.boundaries.at(-1)+offset(fps)+cfg.music.tailSeconds)*fps)-endFrame):0;
+ if(tail)await d.insertGap({seconds:tail/fps});durationFrames=endFrame+tail;
+ const before=await media();
+ await d.overlayResource({resource:p.resource(cfg.music.resourceId),over:await d.rangeAtFrames(0,durationFrames),sourceStartSeconds:cfg.music.sectionStart,playbackSpeed:{numerator:1,denominator:1}});
+ const added=bindMediaPlacement(before,await media(),{resourceId:cfg.music.resourceId,trackKind:'audio',startFrame:0,endFrame:durationFrames}),prior=await d.clipAudio(added);
+ const sourceStart=Math.round(cfg.music.sectionStart*fps)/fps;
+ const audio=[{clipId:added.clipId,trackId:added.trackId,trackKind:'audio',resourceId:cfg.music.resourceId,startFrame:0,endFrame:durationFrames,audioSourceIndexes:null,settings:{volumeDb:prior.volumeDb,volumeKeys:prior.volumeKeys,fadeInSeconds:0,fadeOutSeconds:Math.min(durationFrames,Math.round(.12*fps))/fps},source:{startSeconds:sourceStart,endSeconds:sourceStart+durationFrames/fps,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true}}];
+ const current=(await all()).find(row=>row.clipId===added.clipId&&row.trackId===added.trackId);
+ await d.setClipAudio({clip:current,fadeInSeconds:0,fadeOutSeconds:audio[0].settings.fadeOutSeconds});
+ await inspectImageAudio(d,audio,p,true);
+}
+// Bind the final working state to intent again, after every styling/sound edit.
+const finalRows=await all(),main=finalRows.filter(row=>row.trackKind==='main'&&row.resourceId!=null),finalMeta=await meta();
+if(main.length!==bindings.length||finalMeta.fps!==fps||finalMeta.durationFrames!==durationFrames||finalMeta.frameSize.width!==W||finalMeta.frameSize.height!==H)throw Error('The final assembly frame grid or placement differs from the plan.');
+for(const binding of bindings)await sourceMatches(binding,binding.sourceStart);
+await inspectImageTransforms(d,transforms,true);
+const beforeCommit=Object(cfg).__beforeCommit;if(typeof beforeCommit==='function')await beforeCommit(d);
+const commit=await d.commitAll('Mini Vlog: assemble');
+return {sequenceId:commit.createdDraftId,fps,totalFrames:endFrame,placed:bindings.length,ambientClips,notes};

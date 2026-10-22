@@ -1,3 +1,4 @@
+import {assemblyIntentFixture} from './mini_assembly_intent_fixture.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,6 +50,7 @@ for(const plugin of ['mini-vlog','archive-vlog'])test(plugin+': inventory must k
  assert.equal(result.photos[0].width,null);assert.equal(result.photos[0].height,null);assert.equal(scratch,0,'a Draft canvas is not an Image measurement');
 });
 for(const plugin of ['mini-vlog','archive-vlog'])for(const known of [false,true])test(plugin+': assembly '+(known?'uses native photo dimensions':'rejects missing native photo facts before creating a Draft'),async()=>{
+ if(plugin==='mini-vlog'){const f=assemblyIntentFixture();f.cfg.picks=[{rid:'photo',kind:'photo',startSeconds:0}];f.cfg.boundaries=[0,1];if(!known)f.cfg.crops={};if(known){await f.run();assert.equal(f.calls.commits,1);assert.equal(f.calls.transforms,1);assert.ok(Math.abs(f.drafts.at(-1).rows()[0]._transform.scale.x-80/27)<1e-9);}else{await assert.rejects(f.run(),/plan|native|dimension|photo|Image/i);assert.equal(f.calls.creates,0);assert.equal(f.calls.commits,0);}return;}
  const source=fs.readFileSync(new URL('../plugins/'+plugin+'/scripts/assemble.js',import.meta.url),'utf8'),calls={drafts:0,commits:0,transforms:[]};
  const project={createDraft:async()=>{calls.drafts++;const clips=[];return {setFrameSize:async()=>{},meta:async()=>({fps:30,frameSize:{width:1920,height:1080}}),
   clips:async()=>clips,insertResource:async()=>{clips.push({clipId:clips.length+1,resourceId:'portrait',startFrame:0,endFrame:30});},

@@ -28,8 +28,11 @@ if (cfg.punch) {
     const clip=main[i],pick=picks[i];
     if (!pick || pick.rid !== clip.resourceId) { punchSkipped++;continue; }
     if (pick.kind === 'photo' || photoIds.has(clip.resourceId)) continue;
-    const want=clip.endFrame-clip.startFrame,cap=pick.sourceDuration>0?Math.floor(pick.sourceDuration*fps+1e-6)-want:Infinity;
-    const sourceStartFrame=Math.max(0,Math.min(Math.round((Number(pick.startSeconds)||0)*fps),cap));
+    const want=clip.endFrame-clip.startFrame;
+    if(typeof d.clipSourceWindow!=='function')throw Error('Update Selects to read the placed source window before applying Beat punch.');
+    const source=await d.clipSourceWindow(clip);
+    if(!source||!Number.isFinite(source.startSeconds)||source.startSeconds<0)throw Error('The placed source window is unavailable for Beat punch.');
+    const sourceStartFrame=Math.round(source.startSeconds*fps);
     const punches=frames.map(f=>f-clip.startFrame).filter(t=>t>-.5*beat&&t<want);
     planOf(clip).effects.push({name:PUNCH_LABEL,tsxCode:cfg.punch.tsx,
       parameters:{strength:cfg.punch.strength,push:cfg.punch.push,punches,beatFrames:beat,sourceStartFrame,durationFrames:want},

@@ -124,3 +124,15 @@ test('Known source alias: another Resource at the same file path does not replac
 test('Existing Image consumers: their strict path ambiguity contract remains unchanged',async()=>{
  await assert.rejects(inputFeature.nativeImageSources(duplicatePathImageSdk(),'p',[{resourceId:'r1',name:'chosen',path:'/original.png'}]),/ambiguous/);
 });
+
+for(const includeTiming of [false,true])test('Source clocks: independent native probes preserve legacy alias-only callers (timing='+includeTiming+')',async()=>{
+ let creates=0;const selects={project:()=>({createDraft:async()=>{creates++;let fps=30;const rows=[];return {insertResource:async({resourceId})=>{if(!rows.length)fps=resourceId==='r25'?25:30;rows.push({clipId:rows.length+1,resourceId});},clips:async()=>rows,meta:async()=>({fps})};}})};
+ const result=await inputFeature.resolveTemplateMedia(selects,'p',[{rid:'r25',kind:'video'},{rid:'r30',kind:'video'}],'Clock fixture',{includeTiming,dimensions:false});
+ assert.equal(result.failed.length,0);assert.equal(creates,includeTiming?2:1);assert.equal(result.resolved.length,2);
+ if(includeTiming)assert.deepEqual(result.resolved.map(r=>r.timing.insertionFps),[25,30]);else assert.ok(result.resolved.every(r=>!('timing' in r)));
+});
+test('Source clocks: unreadable clock is an explicit timing failure, never a fabricated fallback rate',async()=>{
+ const selects={project:()=>({createDraft:async()=>({insertResource:async()=>{},clips:async()=>[{clipId:1,resourceId:'r'}],meta:async()=>({fps:NaN})})})};let reads=0;
+ selects.project=()=>({createDraft:async()=>{const rows=[];return {insertResource:async()=>rows.push({clipId:1,resourceId:'r'}),clips:async()=>rows,meta:async()=>{reads++;return {fps:NaN};}};}});
+ const r=await inputFeature.resolveTemplateMedia(selects,'p',[{rid:'r',kind:'video'}],'Clock fixture',{includeTiming:true,dimensions:false});assert.equal(r.resolved.length,0);assert.equal(r.failed[0].phase,'timing');assert.equal(reads,1);
+});

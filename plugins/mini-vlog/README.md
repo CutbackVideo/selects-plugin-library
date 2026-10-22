@@ -67,7 +67,7 @@ everything uses what Selects brings.
 - The clips' own sound plays quietly under the music by default (**Clip
   sound**: Ambient, see [Advanced](#advanced)).
 - No transitions and no end card. The picture stops on the last beat, and
-  the music ends there with a short 0.12 s fade.
+  the music ends there with a short 0.12 s fade, rounded to the Draft frame grid.
 
 The video lasts (shots x beats per shot) beats and is always whole groups of
 four shots. **Length** Short, Standard (the default) or Long asks for 12, 24
@@ -492,6 +492,25 @@ Edit it in the Inspector's **Adjust** tab:
 - **Music**: select the music clip to change its volume.
 
 Finished videos are exported from the Draft with **Handoff → Export**.
+
+## Assembly verification
+
+New assembly operations observe each selected source on an independent, unsaved
+Draft before laying out the edit. A 25 fps or 30 fps source and the output Draft
+can use different frame grids. The operation inserts a source-frame-aligned cover,
+checks its source and interval, and trims only the declared surplus to the planned
+output cut. Unexpected writes stop before saving. Source windows, crop, canvas,
+Audio routing and music fades are checked against the plan before the sole
+assembly commit. Ambient volume remains best effort, with only confirmed writes
+counted. Music overlays explicitly request normal (1x) speed; their source start
+and fade use the output Draft grid. Beat punch uses the placed source window.
+
+The allocator uses each photo Resource at most once; assembly now also rejects a
+plan that violates that rule. Video Resources may repeat. Older pending workflows
+retain their original operation code: updating the plugin does not silently
+replace that frozen code or repair historical Drafts. Migration remains pending.
+See [the assembly checkpoint](../../docs/template-repair/mini-assembly-intent.md)
+for the test scope and remaining acceptance work.
 
 ## Limitations
 

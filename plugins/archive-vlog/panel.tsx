@@ -1936,7 +1936,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.12";
+const PLUGIN_VERSION = "0.1.0-alpha.13";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -5963,7 +5963,8 @@ export async function observeSourceFiles(files,paths,expected=null) {
 
 // Persistent handed IDs -> SDK aliases, observed only on private unsaved Drafts.
 // Placement failures are not evidence that a source file is absent.
-export async function resolveTemplateMedia(selects,projectId,files,scratchName='Template source check') {
+export async function resolveTemplateMedia(selects,projectId,files,scratchName='Template source check',options={}) {
+ if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>!['includeTiming','dimensions'].includes(key))||['includeTiming','dimensions'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean'))throw Error('The source observation options are invalid.');
  if(!Array.isArray(files)||!files.length||files.length>50||files.some(file=>!file||typeof file.rid!=='string'||!file.rid||!['video','image'].includes(file.kind))||new Set(files.map(file=>file.rid)).size!==files.length)throw Error('The selected template source request is invalid.');
  const project=selects.project(projectId),resolved=[],failed=[];let shared=null;
  const text=error=>String(Object(error).message||error||'Source preparation could not be confirmed.').slice(0,300);
@@ -5971,7 +5972,7 @@ export async function resolveTemplateMedia(selects,projectId,files,scratchName='
  for(const file of files){
   let phase='create',insertionError;
   try{
-   const photo=file.kind==='image',draft=photo||!shared?await project.createDraft({name:scratchName}):shared;
+   const photo=file.kind==='image',draft=photo||Object(options).includeTiming||!shared?await project.createDraft({name:scratchName}):shared;
    if(!photo)shared=draft;
    phase='readback';const before=await draft.clips({trackScope:'main'});
    if(!Array.isArray(before)||before.some(row=>!Number.isSafeInteger(row?.clipId))||new Set(before.map(row=>row.clipId)).size!==before.length)throw unknown('The private source check could not be observed before placement.');
@@ -5995,8 +5996,10 @@ export async function resolveTemplateMedia(selects,projectId,files,scratchName='
    }
    if(!clip){if(insertionError){phase='insert';throw insertionError;}throw unknown('Source placement returned no confirmed clip.');}
    let size=null;
-   if(photo){phase='dimensions';const sources=await nativeImageSourcesById(selects,projectId,[{resourceId:clip.resourceId,name:file.rid}]);size={width:sources[0].width,height:sources[0].height};}
-   resolved.push({rid:file.rid,alias:clip.resourceId,size});
+   if(photo&&Object(options).dimensions!==false){phase='dimensions';const sources=await nativeImageSourcesById(selects,projectId,[{resourceId:clip.resourceId,name:file.rid}]);size={width:sources[0].width,height:sources[0].height};}
+   let timing=null;
+   if(Object(options).includeTiming){phase='timing';const meta=await draft.meta();if(!Number.isFinite(meta.fps)||meta.fps<=0)throw unknown('The source frame grid could not be confirmed.');timing={insertionFps:meta.fps};}
+   resolved.push({rid:file.rid,alias:clip.resourceId,size,...timing?{timing}:{}});
   }catch(error){
    const code=typeof Object(error).code==='string'?Object(error).code.slice(0,80):phase==='readback'?'source-resolution-unknown':'source-resolution-failed';
    failed.push({rid:file.rid,phase,code,error:text(error),...insertionError&&insertionError!==error?{insertionError:text(insertionError)}:{}});

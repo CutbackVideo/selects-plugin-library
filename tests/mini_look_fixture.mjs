@@ -3,7 +3,7 @@ import {holdFixture} from './gallery_hold_fixture.mjs';
 const source=fs.readFileSync(new URL('../shared/template-run.js',import.meta.url),'utf8'),assemble=fs.readFileSync(new URL('../plugins/mini-vlog/scripts/assemble.js',import.meta.url),'utf8'),decorate=fs.readFileSync(new URL('../plugins/mini-vlog/scripts/decorate.js',import.meta.url),'utf8');
 const clone=v=>JSON.parse(JSON.stringify(v));
 export async function lookPhaseFixture(t){
- const f=await holdFixture(t),hooks=f.hooks,saved=new Map(),requests=[],pending=[];let serial=0,commits=0,epoch=0;
+ const f=await holdFixture(t),hooks=f.hooks,saved=new Map(),requests=[],pending=[];let serial=0,commits=0,epoch=0,probeSerial=0;
  saved.set('unrelated',{name:'Unrelated',clips:[{clipId:44,trackId:'main',trackKind:'main',resourceId:'foreign',startFrame:0,endFrame:60}]});
  f.files.readdir=p=>fsp.readdir(p);f.files.fingerprint=async p=>{try{const b=await fsp.readFile(p);return {size:b.length,sha256:createHash('sha256').update(b).digest('hex')};}catch(e){if(e.code==='ENOENT')return null;throw e;}};
  function handle(id,state){
@@ -22,7 +22,7 @@ export async function lookPhaseFixture(t){
    commitAll:async reason=>{assert.equal(committed,false);committed=true;commits++;saved.set(id,clone(state));await hooks.commit?.(id,reason);return {createdDraftId:id};}};
  }
  const sdk={call:async()=>({owner:{projectId:'p',libraryId:hooks.library??'library'}}),runScript:async input=>{
-  requests.push(input);hooks.currentInput=input.summary;const selects={files:f.files,project:()=>({meta:async()=>({draftIds:[...saved.keys()]}),createDraft:async({name})=>handle('d'+ ++serial,{name,clips:[]})}),draft:id=>{assert.ok(saved.has(id));return handle(id,clone(saved.get(id)));}};
+  requests.push(input);hooks.currentInput=input.summary;const selects={files:f.files,project:()=>({meta:async()=>({draftIds:[...saved.keys()]}),createDraft:async({name})=>handle(name==='Mini source timing check'?'probe-'+ ++probeSerial:'d'+ ++serial,{name,clips:[]})}),draft:id=>{assert.ok(saved.has(id));return handle(id,clone(saved.get(id)));}};
   const work=(async()=>{try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.reply?.(input,result);return {result};}catch(error){return {isError:true,output:error.message};}})();
   if(hooks.lostEarly&&input.summary==='Decorate template with owned receipt'){pending.push(work);return {isError:true,output:'channel lost while Main is running'};}return work;
  }};

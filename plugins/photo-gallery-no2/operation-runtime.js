@@ -346,7 +346,7 @@ async function galleryCreate(selects,project,input,inventory,onCommitStarted) {
     if(!actual||!gallerySamePath(expected.path,music.path)||expected.size!==actual.size||expected.sha256!==actual.sha256)galleryFail('Selected music changed after the BPM estimate. Run a new estimate before creating the Gallery.');
   }
   const config={projectId:input.projectId,name:typeof input.name==='string'&&input.name.trim()?input.name.trim():'Photo Gallery',plan:{...plan,canvas:plan.frameSize},sources:chosen,sourceGuard,items:plan.tiles.map((tile,index)=>({key:tile.slotKey,slot:index,source:index,startFrame:tile.revealFrame,endFrame:tile.endFrame})),runReceipt:input.runReceipt,onCommitStarted};
-  const result=await authorAtomicImageDraft(selects,config,galleryAtomicFinish,placeWorkingCopyImages,galleryAtomicSources,inspectImageGraphics,inspectImageTransforms,inspectImageAudio,imageProgramsFeature,templateRunJSON);
+  const result=await authorAtomicImageDraft(selects,config,galleryAtomicFinish,placeWorkingCopyImages,galleryAtomicSources,inspectImageGraphics,inspectImageTransforms,inspectImageAudio,imageProgramsFeature,templateRunJSON,bindMediaPlacement);
   return result.status==='saved'?{...result,tileCount:21,colorFrame:plan.colorFrame}:result;
 }
 

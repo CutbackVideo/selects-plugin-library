@@ -1,6 +1,18 @@
+// Bind one authoring mutation to its requested occurrence. Existing rows may
+// not move or change identity; SDK array order is never a placement identity.
+function bindMediaPlacement(before,rows,wanted) {
+ const fail=()=>{throw Error('The media placement differs from its requested interval or source.');};
+ const valid=list=>Array.isArray(list)&&list.length<=1024&&list.every(row=>row&&Number.isSafeInteger(row.clipId)&&row.clipId>=0&&typeof row.trackId==='string'&&row.trackId)&&new Set(list.map(row=>row.clipId)).size===list.length;
+ if(!valid(before)||!valid(rows)||!wanted||typeof wanted.resourceId!=='string'||!wanted.resourceId)fail();
+ const keys=['trackId','trackKind','resourceId','startFrame','endFrame'],ids=new Set(before.map(row=>row.clipId)),added=rows.filter(row=>!ids.has(row.clipId));
+ if(rows.length!==before.length+1||added.length!==1||before.some(old=>{const current=rows.find(row=>row.clipId===old.clipId);return !current||keys.some(key=>current[key]!==old[key]);}))fail();
+ const row=added[0];if(!Number.isSafeInteger(row.startFrame)||row.startFrame<0||!Number.isSafeInteger(row.endFrame)||row.endFrame<=row.startFrame)fail();
+ for(const key of ['resourceId','trackKind','startFrame','endFrame'])if(wanted[key]!==undefined&&row[key]!==wanted[key])fail();
+ return row;
+}
 // Prepare editable Image occurrences in one working copy. The caller owns its
 // trusted Project/Draft handle and the sole final commit.
-async function placeWorkingCopyImages(selects,projectId,draft,plan,sources,items,sourceFacts){
+async function placeWorkingCopyImages(selects,projectId,draft,plan,sources,items,sourceFacts,bindPlacement){
  const project=selects.project(projectId),meta=await draft.meta();
  if(meta.fps!==plan.fps||meta.durationFrames!==plan.durationFrames||meta.frameSize.width!==plan.canvas.width||meta.frameSize.height!==plan.canvas.height)throw Error('The Draft frame grid differs from the plan.');
  const fresh=await sourceFacts(selects,projectId,sources);
@@ -8,11 +20,10 @@ async function placeWorkingCopyImages(selects,projectId,draft,plan,sources,items
  const placements=[];
  for(const item of items){
   const source=fresh[item.source];if(!source)throw Error('An Image occurrence has no source.');
-  const before=new Set((await draft.clips({trackScope:'all'})).map(clip=>clip.clipId));
+  const before=await draft.clips({trackScope:'all'});
   await draft.overlayResource({resource:project.resource(source.resourceId),over:await draft.rangeAtFrames(item.startFrame,item.endFrame)});
-  const added=(await draft.clips({trackScope:'all'})).filter(clip=>!before.has(clip.clipId));
-  if(added.length!==1||added[0].resourceId!==source.resourceId||added[0].startFrame!==item.startFrame||added[0].endFrame!==item.endFrame)throw Error('The Image interval changed during placement.');
-  placements.push({...item,clipId:added[0].clipId,trackId:added[0].trackId,resourceId:source.resourceId});
+  const added=bindPlacement(before,await draft.clips({trackScope:'all'}),{resourceId:source.resourceId,trackKind:'video',startFrame:item.startFrame,endFrame:item.endFrame});
+  placements.push({...item,clipId:added.clipId,trackId:added.trackId,resourceId:source.resourceId});
  }
  if((await draft.meta()).durationFrames!==plan.durationFrames)throw Error('Image placement changed the Draft duration.');
  return {placements,photos:fresh.map(source=>({width:source.width,height:source.height}))};
@@ -33,11 +44,11 @@ async function inspectImageGraphics(draft,expected){
   if(!program||!program.parameters||typeof program.parameters!=='object'||Array.isArray(program.parameters)||!Object.entries(wanted.parameters).every(([key,value])=>Object.prototype.hasOwnProperty.call(program.parameters,key)&&same(program.parameters[key],value)))throw Error('Graphic parameters could not be confirmed.');
  }
 }
-async function inspectImageTransforms(draft,expected){
+async function inspectImageTransforms(draft,expected,includeMain=false){
  // Both consumers author fixed intrinsic transforms; motion belongs to their
  // separate effects. Never adopt an observed transform as the expected value.
  if(!('clipTransform' in draft))throw Error('Update Selects to verify Image transforms.');
- const rows=(await draft.clips({trackScope:'all'})).filter(clip=>clip.trackKind==='video');
+ const rows=(await draft.clips({trackScope:'all'})).filter(clip=>clip.trackKind==='video'||includeMain&&clip.trackKind==='main'&&clip.resourceId!=null);
  if(!Array.isArray(expected)||expected.length!==rows.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw Error('Visual transform count could not be confirmed.');
  const same=(a,b)=>{
   // Converting domain coordinates to the SDK may introduce floating-point noise.
@@ -57,8 +68,8 @@ async function inspectImageTransforms(draft,expected){
  }
  return receipts;
 }
-async function inspectImageAudio(draft,expected,project){
- const rows=(await draft.clips({trackScope:'all'})).filter(row=>row.trackKind==='audio'||row.trackKind==='main'&&row.resourceId);
+async function inspectImageAudio(draft,expected,project,overlayOnly=false){
+ const rows=(await draft.clips({trackScope:'all'})).filter(row=>row.trackKind==='audio'||!overlayOnly&&row.trackKind==='main'&&row.resourceId);
  if(!Array.isArray(expected)||rows.length!==expected.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw Error('Audio clip count could not be confirmed.');
  if(!expected.length)return [];
  if(!('clipAudio' in draft))throw Error('Update Selects to verify Audio settings.');
@@ -218,7 +229,7 @@ function imageProgramsFeature(selects,config=null,format=null){
  const verify=(draft,receipt)=>inspect(draft,receipt.clips.map(c=>{const expand=p=>({tsxCode:receipt.sources[p.source],parameters:p.parameters,editableParameters:p.editableParameters});return {...c,effects:c.effects.map(e=>({name:e.name,...expand(e)})),graphic:c.graphic?expand(c.graphic):null};}));
  return {inspect:guarded(inspect),preset:guarded(preset),confirm,verify:guarded(verify),reconcile};
 }
-async function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFacts,inspectGraphics,inspectTransforms,inspectAudio,programFeature,format){
+async function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFacts,inspectGraphics,inspectTransforms,inspectAudio,programFeature,format,bindPlacement){
  let stage='read';
  try{
   const {projectId,plan,sources,items,partialDraftId}=config,project=selects.project(projectId);
@@ -235,7 +246,7 @@ async function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFa
    const rows=await draft.clips({trackScope:'all'});
    if(rows.some(row=>row.trackKind!=='main'||(config.main?row.resourceId!==config.main.resourceId:Boolean(row.resourceId)))||config.main&&rows.length!==1)throw Error('Partial Draft is not empty; inspect it before retrying.');
   }
-  stage='placement';const native=await placeImages(selects,projectId,draft,plan,sources,items,sourceFacts);
+  stage='placement';const native=await placeImages(selects,projectId,draft,plan,sources,items,sourceFacts,bindPlacement);
   const clips=native.placements.map(({key,slot,appearance,clipId,trackId,resourceId,startFrame,endFrame})=>({key,slot,appearance,clipId,trackId,resourceId,startFrame,endFrame}));
   stage='finish';const result=await finish(selects,config,draft,native,inspectGraphics,inspectTransforms,inspectAudio,programFeature(selects,{...config,clips},format));
   return {...result,fps:plan.fps,durationFrames:plan.durationFrames,frameSize:plan.canvas,clips};
@@ -243,7 +254,7 @@ async function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFa
 }
 function buildAtomicImageDraftScript(config,finishSource){
  const receipt=config.runReceipt?`await (${writeTemplateRunResult.toString()})(selects,config.runReceipt,result,${templateRunJSON.toString()},${templateRunBase64.toString()})`:'result';
- return `const config=${JSON.stringify(config)};const result=await (${authorAtomicImageDraft.toString()})(selects,config,${finishSource},${placeWorkingCopyImages.toString()},${nativeImageSources.toString()},${inspectImageGraphics.toString()},${inspectImageTransforms.toString()},${inspectImageAudio.toString()},${imageProgramsFeature.toString()},${templateRunJSON.toString()});return ${receipt};`;
+ return `const config=${JSON.stringify(config)};const result=await (${authorAtomicImageDraft.toString()})(selects,config,${finishSource},${placeWorkingCopyImages.toString()},${nativeImageSources.toString()},${inspectImageGraphics.toString()},${inspectImageTransforms.toString()},${inspectImageAudio.toString()},${imageProgramsFeature.toString()},${templateRunJSON.toString()},${bindMediaPlacement.toString()});return ${receipt};`;
 }
 async function verifyAtomicImageDraft(sdk,projectId,result){
  const {draftId,fps,durationFrames,frameSize,clips,graphics,transforms,audio,programs}=result,expected={draftId,fps,durationFrames,frameSize,clips,graphics,transforms,audio,programs};

@@ -16,7 +16,7 @@ const panelAssetSource = assetNames.map(name => assetFunctions[name].toString())
 const assetResourceSource = assetFunctions.readBundledAssetResource.toString();
 // Serialize only SDK-safe functions into SDK requests. Browser-side ownership
 // and file-client functions remain outside the script worker.
-const sdkNames = ['placeWorkingCopyImages','authorAtomicImageDraft','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature'];
+const sdkNames = ['bindMediaPlacement','placeWorkingCopyImages','authorAtomicImageDraft','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature'];
 const panelNames = [...sdkNames,'verifyAtomicImageDraft','readImageDraftFps'];
 const functions = await import('data:text/javascript;base64,' + Buffer.from(authoringSource + '\nexport {' + panelNames.join(',') + '};').toString('base64'));
 const sdkRunNames = ['templateRunJSON','templateRunBase64','writeTemplateRunResult'];
