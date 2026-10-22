@@ -1,6 +1,7 @@
 # Mini source-to-feature decision map
 
-The current map follows Mini alpha.31 over feature-review base `a07a1ace`.
+The current map follows Mini alpha.32; the preview packet is based on `a269d350`
+and refreshes its generated asset block without changing Mini preview calls.
 The original review was created over `2e730ab8`; source locations and full content
 hashes are refreshed for the current implementation rather than retained as stale
 evidence. `ownership/mini-vlog.json` is the canonical source/decision record and
@@ -9,8 +10,8 @@ evidence. `ownership/mini-vlog.json` is the canonical source/decision record and
 ## Coverage and limits
 
 The current index captures 53 files, including all 30 shipped executable/test files,
-21 declared assets/data records, 27 feature decisions, 2,901 callable units
-(1,875 anonymous callbacks), 2,239 top-level statements and four embedded programs.
+21 declared assets/data records, 27 feature decisions, 2,969 callable units
+(1,915 anonymous callbacks), 2,243 top-level statements and four embedded programs.
 It also captures the new regression sources, canonical build-time audio engine,
 and the canonical asset owner/selected-Audio regression shared with Archive.
 The asset owner also now supplies source-bound Audio beat-analysis snapshots,
@@ -25,6 +26,9 @@ Archive opts into kind observation and keeps its two-video policy; Mini retains 
 legacy alias-only result and does not add a Resource read.
 The shared video evaluator and its expected-source admission regression are now
 captured as canonical source and validation, with unchanged Mini defaults.
+The asset owner now also supplies Archive original-file browser preview; Mini
+retains its existing preview path. Mini and legacy consumers are in the affected
+regression suite. See [archive-preview-lifetime.md](archive-preview-lifetime.md).
 Source hashes explicitly normalize checkout line endings; binary identities stay exact.
 
 The checker reports `coverageComplete:true`, `semanticReviewComplete:false` and

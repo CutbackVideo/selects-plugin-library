@@ -304,17 +304,17 @@
       "owner": "bundled-assets",
       "reason": "One existing owner already controls verified assets, publication, exclusive reservations, derived results and native PCM/preview lifetimes. Selected Audio adoption now has this same canonical owner rather than a second copied import/readback procedure. The source-bound beat-analysis JSON procedure is also canonical here; Mini and Archive retain decoder/fallback and Worker adapters while file identity, verified snapshots/cache, result admission and cleanup reuse this owner.",
       "contract": {
-        "input": "Captured file/media client, bounded byte/hash/duration contract, source identity, target directory, current owner and producer callback. Selected Audio also receives Project ID/path, an optional minimum duration and optional provenance response. Beat-analysis derivation receives source hashing, decode/analyze/probe adapters, a Worker revision and sampling policy.",
-        "output": "Verified published asset, derived cache result or transient decoded bytes with cleanup outcome. Beat grids carry independently observed source contents; transient fixed-timing fallback is never cached.",
+        "input": "Captured file/media client, bounded byte/hash/duration contract, source identity, target directory, current owner and producer callback. Selected Audio also receives Project ID/path, an optional minimum duration and optional provenance response. Beat-analysis derivation receives source hashing, decode/analyze/probe adapters, a Worker revision and sampling policy. Browser preview additionally accepts a captured local client, original path/current predicate, AbortSignal, absolute source section, fade and deadline policy.",
+        "output": "Verified published asset, derived cache result or transient decoded bytes with cleanup outcome. Beat grids carry independently observed source contents; transient fixed-timing fallback is never cached. Browser preparation returns a case-preserving local URL only after independent reverse mapping; playback settles once with its owned Audio fully detached or explicit cleanup uncertainty.",
         "identity": "Content digest, exact path, exclusive owner token and native job identity.",
         "dependencies": "Existing private client, SDK read/write/CAS/media primitives and explicit policy budgets.",
-        "effects": "Owned file reservations/copies/imports/cache publication and media producers; never edits original assets.",
-        "lifetime": "One captured invocation; actual native exit is required before releasing output.",
-        "cleanup": "Only exclusively owned paths; preserve previous results and unknown producer workspaces.",
+        "effects": "Owned file reservations/copies/imports/cache publication and media producers; never edits original assets. Browser preview streams the original through the existing local protocol without a whole-track renderer Blob or preview-file publication.",
+        "lifetime": "One captured invocation; actual native exit is required before releasing output. Browser Audio readiness, seek, play and no-progress waits are bounded; cancellation settles pending waits and the parent retains single-flight until finalization.",
+        "cleanup": "Only exclusively owned paths; preserve previous results and unknown producer workspaces. Browser subscriptions, timers and src belong to one Audio; failure attempts all release steps, retains the media diagnostic and blocks replacement in the caller.",
         "outcomes": "Known success/failure differs from unresolved creation/publication/cleanup; nested diagnostics remain private. Opt-in complete-catalog reads distinguish unavailable source/Resource facts from confirmed absence before any import.",
         "retry": "Never replay unknown mutation; readback can recover exact outcomes.",
         "distribution": "shared/bundled-assets.js, registered panel copies and Mini/Archive generated ensure-audio operations; legacy asset-reader callers retain their default contract.",
-        "validation": "Existing asset/cue/PCM/lifetime tests and actual native SDK cases; persisted uncertain-workspace reconciliation remains open. Shared selected-Audio regressions cover incomplete catalogs, invalid inputs, path/type/duration/ID confirmation and one-attempt lost-reply recovery; existing asset consumers remain in the affected suite. Actual Mini/Archive caller fixtures cover source/Worker changes, original uncertainty, invalid cache, decoder/Worker fallback and terminal/preserve propagation."
+        "validation": "Existing asset/cue/PCM/lifetime tests and actual native SDK cases; persisted uncertain-workspace reconciliation remains open. Shared selected-Audio regressions cover incomplete catalogs, invalid inputs, path/type/duration/ID confirmation and one-attempt lost-reply recovery; existing asset consumers remain in the affected suite. Actual Mini/Archive caller fixtures cover source/Worker changes, original uncertainty, invalid cache, decoder/Worker fallback and terminal/preserve propagation. Archive actual-callback preview regressions and final-source native sandbox/Audio replay cover normal completion, Stop and retained cleanup failure; Mini/legacy preview callers are unchanged."
       },
       "evidence": [
         "shared/bundled-assets.js",
@@ -816,308 +816,321 @@
       "id": "audio-preview",
       "decision": "extend",
       "owner": "bundled-assets",
-      "reason": "Reuse existing bounded read/transient ownership for preview preparation; Archive keeps seek/fade policy. This is planned caller migration, not a new module.",
+      "reason": "Extend the existing asset/lifetime owner for original-file URL preparation and one browser Audio scope; Archive retains original seek/section/fade policy and React ownership refs. No additional module.",
       "contract": {
-        "input": "Selected whole-track path, Audio metadata, chosen section seconds/videoSeconds, preview token and mounted Project.",
-        "output": "Blob URL/HTMLAudioElement playback with40ms fade/stop updates and idle/loading/playing state.",
-        "identity": "One previewToken, exact Audio object and Blob URL; not saved Audio Resource identity.",
-        "dependencies": "Current readBytes/Audio/Blob/URL/timer implementation; existing bundled-assets has bounded readers but this caller is not migrated.",
-        "effects": "Reads entire track into memory, registers Audio handlers, plays/seeks and creates object URL/timer.",
-        "lifetime": "Stops on track/section/length/pace change, Build, Project switch or unmount; metadata wait currently has no local deadline.",
-        "cleanup": "stopPreview pauses/detaches onended, revokes owned URL and clears timer. onloadedmetadata/onerror await settlement and strict cancellation remain open.",
-        "outcomes": "Playback/read failures display status; abandoned metadata and oversized track are explicit unverified candidate defects.",
-        "retry": "New preview starts under new token; late result cannot change current playback. No save/import replay.",
-        "distribution": "stopPreview/preview/audioType and UI Audio refs.",
-        "validation": "Source-only lifecycle review now; actual pending-metadata, large-track, same-tick cancellation and browser cleanup tests required before migration."
+        "input": "Captured client, selected exact original path and source digest/bytes, absolute start/duration/fade seconds, 60-second readiness/no-progress policy, AbortSignal and mounted Project/current-preview predicate.",
+        "output": "A single native HTMLAudioElement plays the admitted source interval, retains the absolute source-time playhead, fades and settles idle; no preview file or Blob is created.",
+        "identity": "One controller/token/client/Project and exact Audio. Original content is observed before URL preparation and again after metadata/seek; URL path reverse mapping must match, including POSIX case and reserved delimiters.",
+        "dependencies": "Existing private async files client, native-image-input original admission, bundled-assets readAssetPlaybackURL/playAssetAudioPreview, browser Audio and existing local media protocol. No new public SDK/IPC capability.",
+        "effects": "Read-only original stat/fingerprint/local URL methods; one Audio, event handlers and timer subscriptions. Chromium buffering is not a strict range-read or disk-cache byte guarantee.",
+        "lifetime": "One invocation; same-render reentry aborts without starting another scope. Preparation/readiness/seek/play deadline and no-progress/overall playback watch; Stop/input changes/Build/Project replacement/unmount abort. Ref remains occupied until its own finally.",
+        "cleanup": "Settle all waits and attempt every owned listener/timer/pause/src/load release. Do not delete originals, installed assets, local URLs or foreign resources. Retain cleanup errors/media privately and block subsequent preview until panel reopen.",
+        "outcomes": "Known completion and explicit stopped/source/unsupported/timeout/playback/cleanup outcomes. Late source or play replies cannot start replacement playback or write stale Project UI; cleanup uncertainty survives Stop.",
+        "retry": "Known readiness/playback failure may retry after finalization. Unknown cleanup is terminal for this panel instance; no automatic replacement playback and no save/import replay.",
+        "distribution": "Canonical bundled-assets source embedded in five registered consumers; Archive alone calls the new helpers. Mini and legacy asset calls/defaults and operation-builder selected procedures remain unchanged.",
+        "validation": "23 actual-callback/owner fixtures and 261 affected cases. Final-source development Electron sandbox/CSP replay with real Audio and generated 3-second reserved-character WAV: complete, Stop and injected native pause cleanup failure, read-only SDK and unchanged source/Project/two Drafts. Native Windows, installed full panel UI, real Draft playback/export and whole-template acceptance remain open."
       },
       "evidence": [
         "plugins/archive-vlog/panel.tsx",
-        "shared/bundled-assets.js"
+        "shared/bundled-assets.js",
+        "tests/archive_preview_fixture.mjs",
+        "tests/archive_preview_lifetime.test.mjs",
+        "docs/template-repair/archive-preview-lifetime.md"
       ],
-      "implementation": "planned"
+      "implementation": "implemented-extension"
     }
   ],
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "12e4332c6b8a7a0c2dda68e29e9cb957b6d82b8508ccda26d95f518648539ad7",
+      "sha256": "08b475f69c69c55a653ea197c78ef1ac5cf956338e19f438c6e2ce954f31b3cd",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7651,
+          "endLine": 7718,
           "feature": "panel-ui"
         },
         {
           "startLine": 19,
-          "endLine": 1852,
+          "endLine": 1842,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 1854,
-          "endLine": 1893,
+          "startLine": 1844,
+          "endLine": 1883,
           "feature": "text-runtime"
         },
         {
-          "startLine": 1912,
-          "endLine": 1916,
+          "startLine": 1902,
+          "endLine": 1906,
           "feature": "text-runtime"
         },
         {
-          "startLine": 1918,
-          "endLine": 1949,
+          "startLine": 1908,
+          "endLine": 1937,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 1951,
-          "endLine": 2708,
+          "startLine": 1942,
+          "endLine": 2699,
           "feature": "montage-policy"
         },
         {
-          "startLine": 2710,
-          "endLine": 2834,
+          "startLine": 2701,
+          "endLine": 2825,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 2836,
-          "endLine": 3020,
+          "startLine": 2827,
+          "endLine": 3011,
           "feature": "program-policy"
         },
         {
-          "startLine": 3517,
-          "endLine": 3528,
+          "startLine": 3508,
+          "endLine": 3519,
           "feature": "audio-beat-engine"
         },
         {
-          "startLine": 3530,
-          "endLine": 3830,
+          "startLine": 3521,
+          "endLine": 3821,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 3561,
-          "endLine": 3808,
+          "startLine": 3552,
+          "endLine": 3799,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 3831,
-          "endLine": 4274,
+          "startLine": 3822,
+          "endLine": 4358,
           "feature": "asset-owner"
         },
         {
-          "startLine": 4276,
-          "endLine": 4354,
+          "startLine": 4360,
+          "endLine": 4438,
           "feature": "host-bootstrap"
-        },
-        {
-          "startLine": 4402,
-          "endLine": 4468,
-          "feature": "worker-owner"
-        },
-        {
-          "startLine": 4491,
-          "endLine": 5074,
-          "feature": "workflow-owner"
-        },
-        {
-          "startLine": 6613,
-          "endLine": 6862,
-          "feature": "source-input"
-        },
-        {
-          "startLine": 7088,
-          "endLine": 7202,
-          "feature": "catalog-read"
-        },
-        {
-          "startLine": 7204,
-          "endLine": 7603,
-          "feature": "local-sdk"
-        },
-        {
-          "startLine": 7605,
-          "endLine": 7650,
-          "feature": "app-guard"
-        },
-        {
-          "startLine": 3024,
-          "endLine": 3411,
-          "feature": "title-policy"
-        },
-        {
-          "startLine": 3413,
-          "endLine": 3516,
-          "feature": "credit-policy"
-        },
-        {
-          "startLine": 2843,
-          "endLine": 2858,
-          "feature": "candidate-policy"
-        },
-        {
-          "startLine": 2949,
-          "endLine": 2954,
-          "feature": "assembly-policy"
-        },
-        {
-          "startLine": 4357,
-          "endLine": 4360,
-          "feature": "host-bootstrap"
-        },
-        {
-          "startLine": 4366,
-          "endLine": 4401,
-          "feature": "music-policy"
-        },
-        {
-          "startLine": 4469,
-          "endLine": 4484,
-          "feature": "music-policy"
         },
         {
           "startLine": 4486,
-          "endLine": 4489,
-          "feature": "audio-preview"
+          "endLine": 4552,
+          "feature": "worker-owner"
         },
         {
-          "startLine": 5078,
-          "endLine": 5091,
-          "feature": "music-policy"
+          "startLine": 4575,
+          "endLine": 5158,
+          "feature": "workflow-owner"
         },
         {
-          "startLine": 5093,
-          "endLine": 5118,
-          "feature": "program-policy"
-        },
-        {
-          "startLine": 5119,
-          "endLine": 5133,
+          "startLine": 6680,
+          "endLine": 6929,
           "feature": "source-input"
         },
         {
-          "startLine": 5134,
-          "endLine": 5151,
-          "feature": "workflow-policy"
+          "startLine": 7155,
+          "endLine": 7269,
+          "feature": "catalog-read"
         },
         {
-          "startLine": 5156,
-          "endLine": 5164,
-          "feature": "script-dispatch"
+          "startLine": 7271,
+          "endLine": 7670,
+          "feature": "local-sdk"
         },
         {
-          "startLine": 5166,
-          "endLine": 5179,
-          "feature": "host-bootstrap"
+          "startLine": 7672,
+          "endLine": 7717,
+          "feature": "app-guard"
         },
         {
-          "startLine": 5184,
-          "endLine": 5208,
-          "feature": "music-policy"
+          "startLine": 3015,
+          "endLine": 3402,
+          "feature": "title-policy"
         },
         {
-          "startLine": 5210,
-          "endLine": 5217,
+          "startLine": 3404,
+          "endLine": 3507,
+          "feature": "credit-policy"
+        },
+        {
+          "startLine": 2834,
+          "endLine": 2849,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 5238,
-          "endLine": 5248,
-          "feature": "copy-and-package"
+          "startLine": 2940,
+          "endLine": 2945,
+          "feature": "assembly-policy"
         },
         {
-          "startLine": 5261,
-          "endLine": 5265,
-          "feature": "catalog-read"
+          "startLine": 4441,
+          "endLine": 4444,
+          "feature": "host-bootstrap"
         },
         {
-          "startLine": 5544,
-          "endLine": 5567,
-          "feature": "script-dispatch"
-        },
-        {
-          "startLine": 5568,
-          "endLine": 5586,
-          "feature": "title-policy"
-        },
-        {
-          "startLine": 5622,
-          "endLine": 5655,
-          "feature": "catalog-read"
-        },
-        {
-          "startLine": 5658,
-          "endLine": 5658,
-          "feature": "catalog-read"
-        },
-        {
-          "startLine": 5661,
-          "endLine": 5711,
-          "feature": "workflow-policy"
-        },
-        {
-          "startLine": 5750,
-          "endLine": 5791,
+          "startLine": 4450,
+          "endLine": 4485,
           "feature": "music-policy"
         },
         {
-          "startLine": 5800,
-          "endLine": 5891,
-          "feature": "title-policy"
-        },
-        {
-          "startLine": 5894,
-          "endLine": 5924,
+          "startLine": 4553,
+          "endLine": 4568,
           "feature": "music-policy"
         },
         {
-          "startLine": 5929,
-          "endLine": 5981,
+          "startLine": 4570,
+          "endLine": 4573,
           "feature": "audio-preview"
         },
         {
-          "startLine": 5984,
-          "endLine": 5996,
-          "feature": "scene-observation"
+          "startLine": 5162,
+          "endLine": 5175,
+          "feature": "music-policy"
         },
         {
-          "startLine": 6002,
-          "endLine": 6011,
-          "feature": "local-video-analysis"
+          "startLine": 5177,
+          "endLine": 5202,
+          "feature": "program-policy"
         },
         {
-          "startLine": 6013,
-          "endLine": 6211,
-          "feature": "workflow-policy"
-        },
-        {
-          "startLine": 6242,
-          "endLine": 6270,
-          "feature": "montage-policy"
-        },
-        {
-          "startLine": 6549,
-          "endLine": 6562,
-          "feature": "montage-policy"
-        },
-        {
-          "startLine": 6571,
-          "endLine": 6573,
-          "feature": "workflow-policy"
-        },
-        {
-          "startLine": 6582,
-          "endLine": 6609,
-          "feature": "script-dispatch"
-        },
-        {
-          "startLine": 6863,
-          "endLine": 6873,
+          "startLine": 5203,
+          "endLine": 5217,
           "feature": "source-input"
         },
         {
-          "startLine": 6881,
-          "endLine": 7041,
+          "startLine": 5218,
+          "endLine": 5235,
           "feature": "workflow-policy"
+        },
+        {
+          "startLine": 5240,
+          "endLine": 5248,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 5250,
+          "endLine": 5263,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 5268,
+          "endLine": 5292,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5294,
+          "endLine": 5301,
+          "feature": "candidate-policy"
+        },
+        {
+          "startLine": 5322,
+          "endLine": 5332,
+          "feature": "copy-and-package"
+        },
+        {
+          "startLine": 5345,
+          "endLine": 5349,
+          "feature": "catalog-read"
+        },
+        {
+          "startLine": 5628,
+          "endLine": 5651,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 5652,
+          "endLine": 5670,
+          "feature": "title-policy"
+        },
+        {
+          "startLine": 5706,
+          "endLine": 5739,
+          "feature": "catalog-read"
+        },
+        {
+          "startLine": 5742,
+          "endLine": 5742,
+          "feature": "catalog-read"
+        },
+        {
+          "startLine": 5745,
+          "endLine": 5795,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 5834,
+          "endLine": 5875,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5884,
+          "endLine": 5975,
+          "feature": "title-policy"
+        },
+        {
+          "startLine": 5978,
+          "endLine": 6008,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 6051,
+          "endLine": 6063,
+          "feature": "scene-observation"
+        },
+        {
+          "startLine": 6069,
+          "endLine": 6078,
+          "feature": "local-video-analysis"
+        },
+        {
+          "startLine": 6080,
+          "endLine": 6278,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6309,
+          "endLine": 6337,
+          "feature": "montage-policy"
+        },
+        {
+          "startLine": 6616,
+          "endLine": 6629,
+          "feature": "montage-policy"
+        },
+        {
+          "startLine": 6638,
+          "endLine": 6640,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6649,
+          "endLine": 6676,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 6930,
+          "endLine": 6940,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 6948,
+          "endLine": 7108,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 1938,
+          "endLine": 1940,
+          "feature": "audio-preview"
+        },
+        {
+          "startLine": 5619,
+          "endLine": 5624,
+          "feature": "audio-preview"
+        },
+        {
+          "startLine": 6010,
+          "endLine": 6048,
+          "feature": "audio-preview"
         }
       ]
     },
@@ -1530,13 +1543,13 @@
     },
     {
       "path": "plugins/archive-vlog/tests/panel.test.cjs",
-      "sha256": "eb8586a73c8104fd84874402c29b794740f269ea9516afd140bae772f88ca925",
+      "sha256": "a1cca8082042fa10444deb6ee715bbbf8078b80d12193809f9b8a9b791b6a991",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 754,
+          "endLine": 753,
           "feature": "test-harness"
         }
       ]
@@ -1647,13 +1660,13 @@
     },
     {
       "path": "shared/bundled-assets.js",
-      "sha256": "cddb83d4fdd1ff53bf5df102b45b4760a533b9e296f8895f9f1e519c0c6b8736",
+      "sha256": "96c3859e85676419fba660e13c8e7e2efafde328bf208d2eb4cabbfb0a188f07",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 443,
+          "endLine": 536,
           "feature": "asset-owner"
         }
       ]
@@ -1813,19 +1826,45 @@
           "feature": "test-harness"
         }
       ]
+    },
+    {
+      "path": "tests/archive_preview_fixture.mjs",
+      "sha256": "5cb26783738d948b4e4ea5f6d5387d03cd922126aca5b26ac319616291fb5e6e",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 50,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/archive_preview_lifetime.test.mjs",
+      "sha256": "16763acab830e0882446611fc2bc674ce20c88de7c01b2667eeabd39cfc28e8a",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 103,
+          "feature": "test-harness"
+        }
+      ]
     }
   ],
   "assets": [
     {
       "path": "plugins/archive-vlog/README.md",
-      "sha256": "666ed64bb81f670c07f8593409c5da3734f674c8339ebe46894d1892422a7277",
+      "sha256": "b2a3228c1a14f86d6687465193b99fb165054949025d15cc3b37caf3db7d6c50",
       "hashMode": "bytes",
       "feature": "copy-and-package",
       "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
     },
     {
       "path": "plugins/archive-vlog/INSTALL.md",
-      "sha256": "d65632f6f35d2c4fba04fae448fcffca9f057aef6f8ed042d7d780aa26f00478",
+      "sha256": "2af8ce09b9bfd7296e2961adfec68932378810548afa3454ac20148d2a54a11b",
       "hashMode": "bytes",
       "feature": "copy-and-package",
       "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
@@ -1944,7 +1983,7 @@
     },
     {
       "path": "plugins/archive-vlog/plugin.json",
-      "sha256": "87b9669f1cf1ab02523faaa37022663fbe9a64a5bc8e81e1807e94271ed0c6f9",
+      "sha256": "1338e9605e767ec3fdaa40133add712b27e804a0c39261a99bd5efcc5b6f6f78",
       "hashMode": "bytes",
       "feature": "copy-and-package",
       "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
@@ -2031,7 +2070,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 6976
+          "line": 7043
         }
       ],
       "repairOwner": "media-inventory",
@@ -2057,7 +2096,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 2561
+          "line": 2552
         }
       ],
       "repairOwner": "archive-vlog",
@@ -2082,7 +2121,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 6080
+          "line": 6147
         }
       ],
       "repairOwner": "media-inventory",
@@ -2095,26 +2134,29 @@
     },
     {
       "id": "preview-byte-budget-and-metadata",
-      "status": "needs-reproduction",
+      "status": "fixed-fixture",
       "feature": "audio-preview",
-      "title": "Whole-track preview reads unbounded bytes and can await metadata without a local deadline.",
+      "title": "Original-file preview owns readiness, cancellation and teardown without a whole-track browser Blob.",
       "sources": [
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 5939
+          "line": 6012
         },
         {
-          "file": "plugins/archive-vlog/panel.tsx",
-          "line": 5929
+          "file": "shared/bundled-assets.js",
+          "line": 470
         }
       ],
       "repairOwner": "bundled-assets",
-      "mechanism": "readBytes loads the whole track; metadata promise owns handlers but stopPreview clears only onended and playback URL/timer. No local settlement/deadline is declared.",
+      "mechanism": "The former full-file read/Blob and metadata-only promise could outlive Stop and admit same-render duplicate Audio. Existing asset ownership now controls local URL preparation, one cancelable browser Audio, deadline/progress and observed cleanup.",
       "acceptance": "Reproduce pending metadata/cancel/large track and reuse bounded existing owner without altering seek/fade design.",
       "evidence": [
-        "plugins/archive-vlog/panel.tsx",
-        "plugins/archive-vlog/panel.tsx"
-      ]
+        "tests/archive_preview_fixture.mjs",
+        "tests/archive_preview_lifetime.test.mjs",
+        "docs/template-repair/archive-preview-lifetime.md"
+      ],
+      "resolution": "Original-file streaming preserves section/fade design and source admission; Stop settles waits, same-tick ref admission prevents overlap, and cleanup uncertainty is retained before any replacement.",
+      "validationLimits": "Actual-callback fixtures and final-source native Audio under production sandbox/CSP with fixture React refs/UI setters and generated WAV. No installed full PanelHost UI, native Windows, strict browser buffering bound or real Draft playback/export verdict."
     },
     {
       "id": "font-adjust-readiness-and-metrics",
@@ -2198,7 +2240,7 @@
       "sources": [
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 4328
+          "line": 4412
         },
         {
           "file": "plugins/archive-vlog/INSTALL.md",

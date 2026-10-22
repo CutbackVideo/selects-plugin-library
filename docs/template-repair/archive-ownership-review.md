@@ -1,9 +1,13 @@
-# Archive source-to-feature review and optional-photo repair
+# Archive source-to-feature review
 
-Review base: `ec44bb85f8a5afbdb1a6993bb2dfae697faf08b5` (PR #345).
-Current package: Archive alpha.21. Parent is the sole editor; the three parallel
-investigations were read-only. No app source, shared runtime module or other
-template has changed in this packet. Chan remains excluded.
+Current map: Archive alpha.22, preview packet over `a269d350` (PR #346). The
+optional-photo repair below was reviewed over `ec44bb85` (PR #345). Parent remains
+the sole editor; parallel investigations are read-only. Chan remains excluded.
+
+The browser preview finding is now repaired through the existing `bundled-assets`
+owner: original-file streaming preserves seek/fade design and owns cancellation,
+readiness and cleanup. See [archive-preview-lifetime.md](archive-preview-lifetime.md)
+for final-source native evidence, affected checks and exact acceptance limits.
 
 ## Confirmed defect and repair
 
@@ -39,18 +43,18 @@ established. New tests first failed on the real path omission and old wording.
 
 ## Source coverage and decisions
 
-[ownership/archive-vlog.json](ownership/archive-vlog.json) captures 52 source files:
+[ownership/archive-vlog.json](ownership/archive-vlog.json) captures 54 source files:
 all 32 shipped executable/test files, five operation build sources, ten canonical
-shared sources and five repository regression/fixture sources. It also captures
+shared sources and seven repository regression/fixture sources. It also captures
 21 exact-byte assets/contracts, including the package's gallery preview/poster.
-The AST index covers 3,193 callable units, including 2,021 anonymous callbacks,
-2,026 top-level statements and four embedded-program producers. These are source
+The AST index covers 3,352 callable units, including 2,134 anonymous callbacks,
+2,060 top-level statements and four embedded-program producers. These are source
 counts, not counts of independent modules or features implemented by this patch.
 
 There are 32 feature decisions: 16 template-specific, five reuse, nine existing-owner
 extensions and two planned text-extraction entries sharing one prospective owner.
-Of the nine extensions, scene observation, script dispatch and browser preview
-remain planned migrations. The registry remains nine modules/fourteen partial
+Of the nine extensions, scene observation and script dispatch remain planned
+migrations. Browser preview is an implemented extension of the existing owner. The registry remains nine modules/fourteen partial
 consumers. This map does not add a runtime module or finish that pool.
 
 | Responsibility | Owner/decision | Policy retained by Archive |
@@ -65,7 +69,7 @@ consumers. This map does not add a runtime module or finish that pool.
 | Saved assembly/Finish/recovery | Existing `template-run` extension | Freeze points, hidden defaults and new-seed action |
 | Text mechanics/runtime checker | Two extraction entries, one planned `template-text` owner | Ten dictionaries and template wording stay local |
 | Six render programs | Six explicit template-specific policies | Decode title, credit, look, reveal, photo motion and final fade |
-| Browser music preview | Planned extension of existing bounded asset/lifetime owner | Whole-track seek and fade presentation; no speculative new module |
+| Browser music preview | Implemented extension of existing asset/lifetime owner | Original-file seek and fade, 60-second readiness/no-progress policy and retained cleanup uncertainty |
 | Delivery, UI and validation | Explicit local composition/build/test responsibilities | Generated sources are checked against canonical owners |
 
 Generated assembly/decorate/verifier helper ranges retain their canonical owners.
@@ -77,18 +81,17 @@ must not be collapsed into one convenient text/time helper.
 
 ## Remaining source findings and next order
 
-Eight findings are linked to captured source: the preparation mismatch is
-`fixed-source`, the mixed-photo defect is `fixed-fixture`, and six require further
-reproduction/contract work. None promotes whole-template acceptance.
+Eight findings are linked to captured source: preparation wording is
+`fixed-source`, mixed-photo admission and preview are `fixed-fixture`, and five
+require further reproduction/contract work. Native preview proof supplements its
+fixture result; no finding promotes whole-template acceptance.
 
-1. Browser preview: reproduce full-file byte budget, never-settling metadata and
-   stop/unmount handler settlement, then extend the existing asset owner.
-2. Scene observation: establish the actual backend analysis-generation identity
+1. Scene observation: establish the actual backend analysis-generation identity
    and source-time contract. Preserve normal same-content relink and existing
    analysis reuse; see [archive-scene-provenance.md](archive-scene-provenance.md).
-3. Renderer: changed-font Adjust, malformed metrics, concurrent SVG IDs and raw
+2. Renderer: changed-font Adjust, malformed metrics, concurrent SVG IDs and raw
    numeric boundaries need actual render tests. Preserve the six valid styles.
-4. Bootstrap: verify configured install roots and concurrent client realms before
+3. Bootstrap: verify configured install roots and concurrent client realms before
    consolidating legacy `hostSdk` wrappers into the existing client.
 
 These are additional findings, not replacements for existing Mini/Archive repair
@@ -98,7 +101,11 @@ not claimed as a fully indexed developer-tool surface. They are not manifest
 runtime dependencies of this package; external asset-generation provenance and
 manual non-JS review remain explicit work.
 
-## Verification boundary
+## Optional-photo packet verification (PR #346)
+
+The current preview packet verification is recorded separately in
+[archive-preview-lifetime.md](archive-preview-lifetime.md). The following results
+remain scoped to the preceding optional-photo packet.
 
 Three new source/ownership checks and five mixed-input/recovery regressions are
 added to CI. The existing ownership checker enforces exact source identity,

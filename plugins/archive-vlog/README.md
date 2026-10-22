@@ -219,7 +219,13 @@ Selects:
   `beat-detect.cjs` in a background worker inside the panel; no shell
   commands, Node.js or ffmpeg install are needed. The decoded audio is a
   temporary file in the plugin's data folder, deleted right after decoding.
-- Section previews play the track's own file; nothing is written to disk.
+- Section previews stream the track's own file through the existing local media
+  URL, preserving the original section position and fade; nothing is written to
+  disk or copied into a whole-track browser Blob. Preparation (source checks,
+  metadata, seek and play) has a 60-second deadline. Stop, Project replacement
+  and closing the panel settle its waits and detach only its Audio source.
+  Unconfirmed browser cleanup stops further previews in that panel until it is
+  closed and reopened. Chromium buffering is not a strict disk-read-byte budget.
 
 If the Selects build is too old for the panel's file access, the panel says
 "Archive Vlog needs a newer version of Selects." instead of failing.

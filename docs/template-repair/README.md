@@ -1,5 +1,23 @@
 # Sequential template repair: active
 
+## Consolidated review units
+
+The existing session repair PRs are grouped into six plugin-library PRs and two
+app companion PRs, preserving commits, branches, worktrees and validation history.
+See [pr-consolidation.md](pr-consolidation.md) for the replacement map and review
+order. New connected Archive work updates #346.
+
+## Archive original-file preview lifetime checkpoint
+
+Archive alpha.22 preserves original-file seek/fade while the existing asset owner
+now controls local URL preparation, readiness, cancellation and Audio teardown.
+Same-render reentry and cleanup uncertainty cannot start replacement playback.
+See [archive-preview-lifetime.md](archive-preview-lifetime.md) for 23 focused /
+261 affected checks and final-source native completion, Stop and cleanup-failure
+proof. Mini and legacy asset callers retain their behavior. The refreshed source
+maps remain structural coverage, with semantic/whole-template acceptance at0/28.
+Chan remains excluded.
+
 ## Archive mixed-photo input and source ownership checkpoint
 
 Archive alpha.21 preserves two distinct required videos and optional photos,
@@ -315,7 +333,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | Template | Current evidence | Remaining |
 | --- | --- | --- |
 | `ali-abdaal-style` | Source audit only | Full contract and runtime completion gates above |
-| `archive-vlog` | Shared source identity/native Image facts; canonical async adapter and invocation-owned PCM; caller RED/GREEN and actual SDK UUID/alias/photo/audio checks | Whole-file preview/WebAudio fallback budget and source attestation; original C-09 environment/availability, lifecycle/partial saves and full contract/runtime gates |
+| `archive-vlog` | Shared source identity/native Image facts; canonical async adapter, invocation-owned PCM and original-file browser preview; actual-callback RED/GREEN and native source/Audio/cleanup cases | Scene-index provenance, renderer/bootstrap findings, original C-09 availability, full installed/save/playback/export and platform acceptance |
 | `camera-shutter-dump` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
 | `chris-williamson-style` | Source audit only | Full contract and runtime completion gates above |
 | `cinema-vlog-studio` | Source audit only | Full contract and runtime completion gates above |

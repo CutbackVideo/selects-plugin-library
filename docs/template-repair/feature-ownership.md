@@ -88,17 +88,20 @@ allowing repetitive helper groups to be silently assigned to template-specific c
 
 [ownership/archive-vlog.json](ownership/archive-vlog.json) links all 32 shipped
 executable/test files, five operation build sources, ten canonical shared sources
-and five repository checks/fixtures: 52 source files plus 21 exact-byte assets.
+and seven repository checks/fixtures: 54 source files plus 21 exact-byte assets.
 Its 32 decisions include 16 local policies, five reuse, nine existing-owner
 extensions and two planned text entries sharing the same prospective text owner
-as Mini. Scene admission, script dispatch and preview are planned extensions,
-not implemented migrations. See [archive-ownership-review.md](archive-ownership-review.md).
+as Mini. Scene admission and script dispatch remain planned extensions. Browser
+preview now extends the existing asset/lifetime owner; its section/fade policy
+stays in Archive. See [archive-ownership-review.md](archive-ownership-review.md).
 
 The map exposed the actual mixed-photo path omission: inventory already knew the
 native path but dropped it from photo output before the hidden entry's original
 binding check. This packet carries that value through existing catalog/input/run
 owners, preserves two-video admission and records the repaired preparation wording.
-Two repaired findings and six source-based reproduction questions stay separate.
+Three repaired findings and five source-based reproduction questions stay separate.
+The preview packet adds bounded cancellation/cleanup and actual native Audio
+evidence; see [archive-preview-lifetime.md](archive-preview-lifetime.md).
 The actual app has existing sampled analysis fingerprints and intentionally keeps
 analysis on relink; [archive-scene-provenance.md](archive-scene-provenance.md) records
 the limits without inferring a new SDK from declaration gaps. Coverage passes;
@@ -113,7 +116,7 @@ semantic ownership and whole-template acceptance remain 0/28, Chan excluded.
 | Mini bundled cue preservation | Reuse `bundled-assets` | Pin cue bytes/hash, publish owned data and independently confirm Audio; Mini supplies cue policy and the planned required interval | Both caller paths, 31 boundary tests and eight initial actual SDK cases in `mini-owned-cues.md`; existing installation-linked Draft recovery open |
 | Mini and Archive local files/media transport and bootstrap | Reuse `shared/local-client.ts` unchanged | Canonical async file/media primitives and scoped connection lifetime already exist; no competing file module or public SDK change | Both generated adapters migrated and checked; wrapper/transport regressions and exact embedded-client actual SDK cases in `mini-media-scope.md`. Remaining legacy file/scoring callers still need their own ownership review |
 | Mini and Archive temporary PCM / Mini preview staging | Extend `bundled-assets` | Reuse exclusive reservation, bounded byte reader and media process scope; own one captured client, declared read budget, cancellation/deadline and cleanup outcome | 26 focused TDD cases, existing-consumer checks and nine actual SDK scenarios in `mini-media-scope.md`. Temporary source-content attestation and crash recovery remain open |
-| Mini preview encoding and Archive playback/fallback policy | Keep template-specific policy | Mini encodes a bounded MP3 section; Archive seeks/fades a whole-track Blob and supports ordinary decode failure through WebAudio. Sharing the owner does not require silently changing those user contracts | Mini's actual Stop aborts the common producer. Archive preserves healthy fallback but stops on terminal ownership errors. Whole-file budget and fallback/source analysis remain open |
+| Mini preview encoding and Archive playback policy | Keep template-specific policy; extend `bundled-assets` for browser lifetime | Mini keeps its bounded MP3 section. Archive now streams the original through the existing local URL and keeps absolute seek/fade policy; one cancelable Audio owns readiness, subscriptions and teardown | 23 preview and 261 affected cases, plus final-source native sandbox/Audio completion, Stop and cleanup-failure blocking in [archive-preview-lifetime.md](archive-preview-lifetime.md). No whole-track Blob; browser buffering is not a strict read-byte budget. Installed UI/Windows/full-template proof remain open |
 | Mini and Archive browser beat analysis execution | Extract `analysis-worker`; keep rate, algorithm and protocol with callers | No existing owner handles browser Workers/Blob URLs/event/timer subscriptions. One transient scope owns dispatch through observed cleanup, bounded by signal, actual caller liveness and one deadline; no Project or media mutation | 27 actual-adapter cases and eight real Chromium scenarios in `analysis-worker.md`, including parent leaks, exact unchanged-detector/PCM parity and execution under the actual client sandbox document policy. Four other beat adapters and installed-panel/full-template execution remain pending |
 | Mini UI execution generation and scene/local callback scope | Keep coordinator-specific state; reuse existing asynchronous owners and current predicates | React busy/progress/controller state belongs to the caller; durable/media/input owners receive its current-run callback. Adopt Archive's generation pattern, rather than adding a module for a counter or storing React refs in the common durable owner | Six actual-callback RED/GREEN cases in `mini_execution_ownership.test.mjs`; wider scene/local budget, result and cache review remains open |
 | Mini assembly dispatch and lost-response adoption | Extend/reuse `template-run`; retain Mini config/style policy | Exclusive run ownership, frozen content request, SDK capability/pre-save representability barrier, same-invocation owned receipt and independent Main source/transform/audio readback. No name lookup or unknown-save replay | Real callback RED, twenty-three focused receipt/execution cases, existing photo/Gallery consumer checks and actual SDK save/recovery in `mini-assembly-receipts.md`. Standalone remount discovery is now an extension of the same owner, with immutable pending inputs and completed-run tombstones; see `mini-pending-discovery.md` (43 focused / 520 related cases and actual Electron-restart readback). Title/Finish ownership is extended in `mini-look-phase.md`; whole-template verification remains open |

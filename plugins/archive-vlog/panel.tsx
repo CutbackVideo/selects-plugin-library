@@ -142,7 +142,6 @@ const STRINGS = {
     beatFailed: "beat detection failed",
     beatTimeout: "beat detection took too long",
     previewFailed: "Could not play a preview: {detail}.",
-    noAudio: "no audio came back",
     finishFailed: "The Draft was created, but its title, look and clip sound are not applied yet: {detail}. Press Finish title and look to try again.",
     openFailed: "The Draft is ready, but it could not be opened: {detail}. Use the link below or open it from the Drafts list.",
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
@@ -325,7 +324,6 @@ const STRINGS = {
     beatFailed: "Beat-Erkennung fehlgeschlagen",
     beatTimeout: "Beat-Erkennung hat zu lange gedauert",
     previewFailed: "Die Vorschau konnte nicht abgespielt werden: {detail}.",
-    noAudio: "es kam kein Audio zurück",
     finishFailed: "Der Draft wurde erstellt, aber Titel, Look und Clip-Ton sind noch nicht angewendet: {detail}. Klicke auf „Titel und Look fertigstellen“, um es erneut zu versuchen.",
     openFailed: "Der Draft ist fertig, konnte aber nicht geöffnet werden: {detail}. Nutze den Link unten oder öffne ihn in der Draft-Liste.",
     draftCreated: "Draft erstellt. Wähle den Titel oder den Credit, um Wörter, Farben, Größe oder Entschlüsselungstempo zu bearbeiten, einen Clip, um Zuschnitt, Look oder Bewegung anzupassen, und die Musik, um ihre Lautstärke zu ändern. Ein neuer Build erstellt einen neuen Draft und übernimmt keine Änderungen aus dem Inspektor.",
@@ -508,7 +506,6 @@ const STRINGS = {
     beatFailed: "falló la detección del ritmo",
     beatTimeout: "la detección del ritmo tardó demasiado",
     previewFailed: "No se pudo reproducir la vista previa: {detail}.",
-    noAudio: "no se recibió audio",
     finishFailed: "El Draft se creó, pero aún no se aplicaron el título, el look ni el sonido de los clips: {detail}. Pulsa «Terminar título y look» para intentarlo de nuevo.",
     openFailed: "El Draft está listo, pero no se pudo abrir: {detail}. Usa el enlace de abajo o ábrelo desde la lista de Drafts.",
     draftCreated: "Draft creado. Selecciona el título o el crédito para editar sus palabras, colores, tamaño o velocidad de descifrado; un clip para ajustar su encuadre, look o movimiento; y la música para cambiar su volumen. Volver a crear genera un nuevo Draft y no conserva los cambios del Inspector.",
@@ -691,7 +688,6 @@ const STRINGS = {
     beatFailed: "la détection du rythme a échoué",
     beatTimeout: "la détection du rythme a pris trop de temps",
     previewFailed: "Impossible de lire l'aperçu : {detail}.",
-    noAudio: "aucun son n'a été renvoyé",
     finishFailed: "Le Draft a été créé, mais le titre, le look et le son des clips ne sont pas encore appliqués : {detail}. Appuyez sur « Terminer le titre et le look » pour réessayer.",
     openFailed: "Le Draft est prêt, mais n'a pas pu être ouvert : {detail}. Utilisez le lien ci-dessous ou ouvrez-le depuis la liste des Drafts.",
     draftCreated: "Draft créé. Sélectionnez le titre ou le crédit pour modifier leurs mots, leurs couleurs, leur taille ou leur vitesse de déchiffrage, un clip pour ajuster son cadrage, son look ou son mouvement, et la musique pour changer son volume. Recréer génère un nouveau Draft et ne conserve pas les modifications de l'Inspecteur.",
@@ -874,7 +870,6 @@ const STRINGS = {
     beatFailed: "rilevamento del ritmo non riuscito",
     beatTimeout: "il rilevamento del ritmo ha richiesto troppo tempo",
     previewFailed: "Impossibile riprodurre l'anteprima: {detail}.",
-    noAudio: "non è stato restituito alcun audio",
     finishFailed: "Il Draft è stato creato, ma titolo, look e audio delle clip non sono ancora applicati: {detail}. Premi «Completa titolo e look» per riprovare.",
     openFailed: "Il Draft è pronto, ma non è stato possibile aprirlo: {detail}. Usa il link qui sotto o aprilo dall'elenco dei Draft.",
     draftCreated: "Draft creato. Seleziona il titolo o il credito per modificarne parole, colori, dimensione o velocità di decifrazione, una clip per regolarne inquadratura, look o movimento, e la musica per cambiarne il volume. Ricreare genera un nuovo Draft e non mantiene le modifiche dell'Inspector.",
@@ -1057,7 +1052,6 @@ const STRINGS = {
     beatFailed: "ビートの検出に失敗しました",
     beatTimeout: "ビートの検出に時間がかかりすぎました",
     previewFailed: "プレビューを再生できませんでした: {detail}。",
-    noAudio: "音声が返されませんでした",
     finishFailed: "Draft は作成されましたが、タイトル・ルック・クリップの音はまだ適用されていません: {detail}。「タイトルとルックを仕上げる」を押して再試行してください。",
     openFailed: "Draft の準備はできましたが、開けませんでした: {detail}。下のリンクを使うか、Draft 一覧から開いてください。",
     draftCreated: "Draft を作成しました。タイトルやクレジットを選ぶと文字・色・サイズ・デコード速度を、クリップを選ぶと切り抜き・ルック・モーションを、音楽を選ぶと音量を変更できます。作り直すと新しい Draft が作成され、インスペクタでの編集は引き継がれません。",
@@ -1240,7 +1234,6 @@ const STRINGS = {
     beatFailed: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4",
     beatTimeout: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2dc\uac04\uc774 \ub108\ubb34 \uc624\ub798 \uac78\ub838\uc2b5\ub2c8\ub2e4",
     previewFailed: "\ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}.",
-    noAudio: "\uc624\ub514\uc624\uac00 \ub3cc\uc544\uc624\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
     finishFailed: "Draft\ub294 \ub9cc\ub4e4\uc5c8\uc9c0\ub9cc \ud0c0\uc774\ud2c0, \uc0c9\uac10, \ud074\ub9bd \uc18c\ub9ac\uac00 \uc544\uc9c1 \uc801\uc6a9\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4: {detail}. ‘\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac’\ub97c \ub20c\ub7ec \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     openFailed: "Draft\ub294 \uc900\ube44\ub418\uc5c8\uc9c0\ub9cc \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \uc544\ub798 \ub9c1\ud06c\ub97c \uc4f0\uac70\ub098 Draft \ubaa9\ub85d\uc5d0\uc11c \uc5ec\uc138\uc694.",
     draftCreated: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uc774\ub098 \ud06c\ub808\ub527\uc744 \uc120\ud0dd\ud558\uba74 \uae00\uc790, \uc0c9, \ud06c\uae30, \ub514\ucf54\ub529 \uc18d\ub3c4\ub97c, \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uba74 \ud06c\ub86d, \uc0c9\uac10, \ubaa8\uc158\uc744, \uc74c\uc545\uc744 \uc120\ud0dd\ud558\uba74 \ubcfc\ub968\uc744 \ubc14\uafc0 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc0c8 Draft\uac00 \uc0dd\uae30\uace0 \uc778\uc2a4\ud399\ud130\uc5d0\uc11c \ud55c \ud3b8\uc9d1\uc740 \uc720\uc9c0\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
@@ -1423,7 +1416,6 @@ const STRINGS = {
     beatFailed: "a detecção da batida falhou",
     beatTimeout: "a detecção da batida demorou demais",
     previewFailed: "Não foi possível reproduzir a prévia: {detail}.",
-    noAudio: "nenhum áudio foi retornado",
     finishFailed: "O Draft foi criado, mas o título, o look e o som dos clipes ainda não foram aplicados: {detail}. Pressione “Concluir título e look” para tentar de novo.",
     openFailed: "O Draft está pronto, mas não pôde ser aberto: {detail}. Use o link abaixo ou abra-o pela lista de Drafts.",
     draftCreated: "Draft criado. Selecione o título ou o crédito para editar as palavras, as cores, o tamanho ou a velocidade de decifração; um clipe para ajustar o enquadramento, o look ou o movimento; e a música para mudar o volume. Criar de novo gera um novo Draft e não mantém as edições do Inspetor.",
@@ -1606,7 +1598,6 @@ const STRINGS = {
     beatFailed: "ritim algılama başarısız oldu",
     beatTimeout: "ritim algılama çok uzun sürdü",
     previewFailed: "Önizleme oynatılamadı: {detail}.",
-    noAudio: "ses geri gelmedi",
     finishFailed: "Draft oluşturuldu ama başlık, görünüm ve klip sesi henüz uygulanmadı: {detail}. Yeniden denemek için “Başlığı ve görünümü tamamla”ya basın.",
     openFailed: "Draft hazır ama açılamadı: {detail}. Aşağıdaki bağlantıyı kullanın veya Draft listesinden açın.",
     draftCreated: "Draft oluşturuldu. Kelimelerini, renklerini, boyutunu veya çözülme hızını düzenlemek için başlığı ya da jeneriği; kırpmasını, görünümünü veya hareketini ayarlamak için bir klibi; ses seviyesini değiştirmek için müziği seçin. Yeniden oluşturmak yeni bir Draft oluşturur ve Denetçi düzenlemelerini korumaz.",
@@ -1789,7 +1780,6 @@ const STRINGS = {
     beatFailed: "节拍识别失败",
     beatTimeout: "节拍识别耗时过长",
     previewFailed: "无法播放试听：{detail}。",
-    noAudio: "没有返回音频",
     finishFailed: "Draft 已创建，但标题、色调和片段原声尚未应用：{detail}。点击“完成标题和色调”重试。",
     openFailed: "Draft 已就绪，但无法打开：{detail}。请使用下方链接，或从 Draft 列表中打开。",
     draftCreated: "Draft 已创建。选中标题或署名可编辑文字、颜色、大小或解码速度；选中片段可调整裁切、色调或运动；选中音乐可调整其音量。重新生成会创建新的 Draft，不会保留在检查器中的编辑。",
@@ -1916,7 +1906,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.21";
+const PLUGIN_VERSION = "0.1.0-alpha.22";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -1947,6 +1937,7 @@ const OWN_MAX_SECONDS = 240;
 const OWN_RATE = 22050;
 // The section preview fades out over its last PREVIEW_FADE seconds, then stops.
 const PREVIEW_FADE = 0.4;
+const PREVIEW_TIMEOUT_MS = 60000;
 
 // av-planner:start
 // Archive Vlog planner. A plain script: panel.tsx embeds it verbatim and the tests load it in node:vm.
@@ -4271,6 +4262,99 @@ async function runAssetMediaTool(media,kind,args,options={}){
   throw bundledAssetIssue('MEDIA','Media preparation could not be completed. Check the source file and media tools.',cause);
  }finally{clearTimeout(timer);clearTimeout(watch);signal?.removeEventListener('abort',stop);}
 }
+
+// A host local URL names the original without transferring it into a renderer
+// Blob. Older POSIX hosts leave literal #/? in that path; encode those delimiters
+// and independently confirm the host's reverse mapping before a browser uses it.
+async function readAssetPlaybackURL(client,path,current){
+ const files=client?.files,platform=client?.environment?.platform;
+ if(typeof path!=='string'||!path||path.includes('\0')||typeof current!=='function')throw bundledAssetIssue('INPUT','The media preview source is invalid.');
+ if(['stat','pathToLocalURL','localURLToPath'].some(key=>typeof files?.[key]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to preview local media.');
+ const key=value=>{const normalized=typeof files.normalize==='function'?files.normalize(value):value;return platform==='win32'?normalized.replace(/\\/g,'/').toLowerCase():normalized;};
+ current();const before=await files.stat(path);current();
+ if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<1)throw bundledAssetIssue('SOURCE','The media preview source is unavailable.');
+ const raw=await files.pathToLocalURL(path);current();
+ if(typeof raw!=='string'||!raw.startsWith('local://'))throw bundledAssetIssue('SOURCE','The local media preview URL could not be confirmed.');
+ // Electron's standard custom-scheme parser otherwise makes the first POSIX
+ // directory a lower-cased host. A dot authority preserves path case, and the
+ // existing host reverse mapping normalizes that dot out independently below.
+ const addressed=platform!=='win32'&&raw.startsWith('local:///')?'local://.'+raw.slice('local://'.length):raw;
+ const url=addressed.replace(/[?#]/g,char=>encodeURIComponent(char)),observed=await files.localURLToPath(url);current();
+ const after=await files.stat(path);current();
+ if(typeof observed!=='string'||key(observed)!==key(path)||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))throw bundledAssetIssue('CHANGED','The media preview source changed while preparing playback.');
+ return url;
+}
+
+// One browser media request, its readiness/seek/play waits and its subscriptions.
+// The caller supplies source admission and section/fade policy. No originals,
+// native producers, installed assets or local URLs are removed by this owner.
+async function playAssetAudioPreview(options){
+ const {prepare,startSeconds,durationSeconds,fadeSeconds=0,timeoutMs=60000,signal,isCurrent=()=>true,onPlaying=()=>{},createMedia=()=>new Audio()}=options??{};
+ if(typeof prepare!=='function'||typeof createMedia!=='function'||typeof isCurrent!=='function'||typeof onPlaying!=='function'||
+  !Number.isFinite(startSeconds)||startSeconds<0||!Number.isFinite(durationSeconds)||durationSeconds<=0||!Number.isFinite(startSeconds+durationSeconds)||
+  !Number.isFinite(fadeSeconds)||fadeSeconds<0||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||
+  !signal||typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function')throw bundledAssetIssue('INPUT','The media preview request is invalid.');
+ const expires=Date.now()+timeoutMs,end=startSeconds+durationSeconds;
+ const volumeAt=at=>fadeSeconds>0?Math.max(0,Math.min(1,(end-at)/fadeSeconds)):1;
+ let media,closed=false,playing=false,timer,watch,lastAt=startSeconds,lastProgress=Date.now(),playStarted=0;
+ const pending=new Set(),subscriptions=[];
+ const live=()=>{try{return !signal.aborted&&isCurrent();}catch{return false;}};
+ const current=()=>{if(closed||!live())throw bundledAssetIssue('STOPPED','The media preview ended.');if(!playing&&Date.now()>=expires)throw bundledAssetIssue('TIMEOUT','The media preview timed out.');};
+ return new Promise((resolve,reject)=>{
+  const close=(failure=null)=>{
+   if(closed)return;closed=true;const cleanup=[];
+   for(const id of [timer,watch])try{clearTimeout(id);}catch(error){cleanup.push(error);}
+   try{signal.removeEventListener('abort',abort);}catch(error){cleanup.push(error);}
+   for(const finish of [...pending])try{finish(failure||bundledAssetIssue('STOPPED','The media preview ended.'));}catch(error){cleanup.push(error);}
+   for(const [name,fn] of subscriptions)try{media.removeEventListener(name,fn);}catch(error){cleanup.push(error);}
+   if(media)for(const release of [()=>media.pause(),()=>media.removeAttribute('src'),()=>media.load()])try{release();}catch(error){cleanup.push(error);}
+   if(cleanup.length){failure=Object.assign(bundledAssetIssue('CLEANUP','Media preview cleanup could not be confirmed. Close and reopen the panel before previewing again.',failure||cleanup[0]),{terminal:true,cleanupFailures:cleanup,ownedMedia:media});}
+   failure?reject(failure):resolve(undefined);
+  };
+  const abort=()=>close(bundledAssetIssue('STOPPED','The media preview ended.'));
+  const listen=(name,fn)=>{media.addEventListener(name,fn);subscriptions.push([name,fn]);};
+  const waitFor=(name,action,ready)=>new Promise((ok,fail)=>{
+   let done=false;
+   const finish=error=>{if(done)return;done=true;pending.delete(finish);try{media.removeEventListener(name,heard);}catch(cause){error=Object.assign(bundledAssetIssue('CLEANUP','Media preview cleanup could not be confirmed.',error||cause),{terminal:true});}error?fail(error):ok(undefined);};
+   const heard=()=>{try{current();if(ready())finish();}catch(error){finish(error);}};
+   pending.add(finish);listen(name,heard);
+   try{current();action();heard();}catch(error){finish(error);}
+  });
+  const tick=()=>{
+   try{
+    current();
+    if(playing){
+     const at=media.currentTime,now=Date.now();
+     if(!Number.isFinite(at)||at<startSeconds-.05)throw bundledAssetIssue('PLAYBACK','The media preview position is invalid.');
+     if(at>=end){close();return;}
+     if(at>lastAt+.001){lastAt=at;lastProgress=now;}
+     if(now-lastProgress>=timeoutMs||now-playStarted>=durationSeconds*1000+timeoutMs)throw bundledAssetIssue('TIMEOUT','The media preview stopped making progress.');
+     media.volume=volumeAt(at);
+    }
+    watch=setTimeout(tick,40);
+   }catch(error){close(error);}
+  };
+  signal.addEventListener('abort',abort,{once:true});
+  timer=setTimeout(()=>close(bundledAssetIssue('TIMEOUT','The media preview timed out.')),Math.max(0,expires-Date.now()));
+  tick();
+  const run=async()=>{
+   current();const source=await prepare(current);current();
+   if(!source||typeof source.url!=='string'||!source.url||source.verify!==undefined&&typeof source.verify!=='function')throw bundledAssetIssue('SOURCE','The media preview source could not be confirmed.');
+   media=createMedia();current();
+   if(!media||['addEventListener','removeEventListener','play','pause','removeAttribute','load'].some(key=>typeof media[key]!=='function'))throw bundledAssetIssue('UNSUPPORTED','This browser cannot preview the media.');
+   listen('error',()=>close(bundledAssetIssue('PLAYBACK','The selected media could not be played.')));
+   listen('ended',()=>playing&&media.currentTime>=end-.05?close():close(bundledAssetIssue('PLAYBACK','The media preview ended before the selected section.')));
+   media.preload='metadata';
+   await waitFor('loadedmetadata',()=>{media.src=source.url;media.load();},()=>media.readyState>=1);
+   current();if(!Number.isFinite(media.duration)||media.duration<=0||end>media.duration+.05)throw bundledAssetIssue('SOURCE','The selected preview section is outside the media duration.');
+   if(Math.abs(media.currentTime-startSeconds)>.001)await waitFor('seeked',()=>{media.currentTime=startSeconds;},()=>!media.seeking&&Math.abs(media.currentTime-startSeconds)<=.05);
+   current();if(source.verify)await source.verify(current);current();
+   media.volume=volumeAt(media.currentTime);await media.play();if(closed){media.pause();return;}current();
+   playing=true;clearTimeout(timer);lastAt=media.currentTime;lastProgress=playStarted=Date.now();onPlaying(media);current();
+  };
+  run().catch(error=>{if(!closed)close(/^BUNDLED_ASSET_/.test(error?.code||'')?error:bundledAssetIssue('PLAYBACK','The selected media could not be played.',error));});
+ });
+}
 // bundled-assets:end
 
 // av-host:start
@@ -5534,8 +5618,8 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   const replayRef = React.useRef(0);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const previewTokenRef = React.useRef(0);
-  const previewUrlRef = React.useRef<string | null>(null);
-  const previewTimerRef = React.useRef<any>(null);
+  const previewAbortRef = React.useRef<AbortController | null>(null);
+  const previewCleanupRef = React.useRef<any>(null);
   const [playState, setPlayState] = React.useState<"idle" | "loading" | "playing">("idle");
   const [playingAudio, setPlayingAudio] = React.useState<HTMLAudioElement | null>(null);
 
@@ -5923,61 +6007,44 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     }
   }
 
-  // Section preview: "idle" -> "loading" (reading the file) -> "playing". The whole track plays from a blob: URL of its
-  // bytes, seeked to the section start; it fades out over the section's last PREVIEW_FADE seconds and stops at its end.
-  // Every start or stop bumps the token, so a late result from a cancelled preparation is dropped.
+  // Original-file streaming keeps the playhead in absolute music seconds.
+  // The common owner settles metadata/seek/play waits and releases only its Audio.
   function stopPreview() {
     previewTokenRef.current++;
-    if (previewTimerRef.current) { clearInterval(previewTimerRef.current); previewTimerRef.current = null; }
-    const a = audioRef.current;
+    const abort = previewAbortRef.current;
+    abort?.abort();
     audioRef.current = null;
-    if (a) { a.onended = null; a.pause(); }
-    if (previewUrlRef.current) { try { URL.revokeObjectURL(previewUrlRef.current); } catch { /* gone */ } previewUrlRef.current = null; }
     if (mountedRef.current) { setPlayState("idle"); setPlayingAudio(null); }
   }
 
   async function preview() {
-    if (playState !== "idle") { stopPreview(); return; }
+    // A ref also sees a second click before React publishes the loading state.
+    if (previewAbortRef.current || playState !== "idle") { stopPreview(); return; }
+    if (previewCleanupRef.current) { setStatus({ tone: "error", say: errorSay(previewCleanupRef.current, (l, detail) => t(l, "previewFailed", { detail })) }); return; }
     if ((!ownMusic && !cue) || !roots || start == null || musicKind === "none") return;
     stopPreview();
-    const token = previewTokenRef.current;
-    const live = () => previewTokenRef.current === token && mountedRef.current;
+    const token = previewTokenRef.current, pid = projectRef.current, abort = new AbortController();
+    const client = panelLocalClient(sdk);
+    const file = musicKind === "own" ? ownMusic!.path : client.files.join(roots.plugin, "assets", "cues", cue.file);
+    const expected = musicKind === "own" ? (ownGrid?.sourceObservation ? { ...ownGrid.sourceObservation } : null) : { path: file, size: cue.bytes, sha256: cue.sha256 };
+    previewAbortRef.current = abort;
+    const live = () => previewTokenRef.current === token && mountedRef.current && projectRef.current === pid && !abort.signal.aborted;
     setPlayState("loading");
     try {
-      const file = musicKind === "own" ? ownMusic!.path : pjoin(roots.plugin, "assets", "cues", cue.file);
-      const bytes = await readBytes(file);
-      if (!live()) return;
-      if (!bytes.byteLength) throw uiError((l) => t(l, "noAudio"));
-      const url = URL.createObjectURL(new Blob([bytes as any], { type: audioType(file) }));
-      previewUrlRef.current = url;
-      const audio = new Audio(url);
-      audio.preload = "auto";
-      audioRef.current = audio;
-      // Seek once the length is known, then play.
-      await new Promise<void>((ok, fail) => {
-        audio.onloadedmetadata = () => ok();
-        audio.onerror = () => fail(uiError((l) => t(l, "noAudio")));
+      await playAssetAudioPreview({
+        signal: abort.signal, isCurrent: live, timeoutMs: PREVIEW_TIMEOUT_MS,
+        startSeconds: start, durationSeconds: videoSeconds, fadeSeconds: PREVIEW_FADE,
+        prepare: async (current: () => void) => {
+          const observed = await observeSourceFiles(client.files, [file], expected ? [expected] : null); current();
+          const url = await readAssetPlaybackURL(client, file, current); current();
+          return { url, verify: async (check: () => void) => { await observeSourceFiles(client.files, [file], observed); check(); } };
+        },
+        onPlaying: (audio: HTMLAudioElement) => { if (live()) { audioRef.current = audio; setPlayState("playing"); setPlayingAudio(audio); } },
       });
-      if (!live() || audioRef.current !== audio) return;
-      const from = start, end = start + videoSeconds;
-      audio.currentTime = from;
-      audio.volume = 1;
-      audio.onended = () => { if (audioRef.current === audio) stopPreview(); };
-      await audio.play();
-      if (!live() || audioRef.current !== audio) { audio.pause(); return; }
-      // The fade and the stop at the section's end.
-      previewTimerRef.current = setInterval(() => {
-        if (audioRef.current !== audio) return;
-        const at = audio.currentTime;
-        if (at >= end) { stopPreview(); return; }
-        audio.volume = Math.max(0, Math.min(1, (end - at) / PREVIEW_FADE));
-      }, 40);
-      setPlayState("playing"); setPlayingAudio(audio);
     } catch (e: any) {
-      if (!live()) return;
-      stopPreview();
-      setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "previewFailed", { detail })) });
-    }
+      if (e?.code === "BUNDLED_ASSET_CLEANUP") previewCleanupRef.current = e;
+      if (live() || (e?.code === "BUNDLED_ASSET_CLEANUP" && mountedRef.current && projectRef.current === pid && previewAbortRef.current === abort)) setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "previewFailed", { detail })) });
+    } finally { if (previewAbortRef.current === abort) { stopPreview(); previewAbortRef.current = null; } }
   }
 
   // Scene search over the analysed videos. `onDone(n)` reports how many of them were searched so far.

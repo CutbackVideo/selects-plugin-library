@@ -440,3 +440,96 @@ async function runAssetMediaTool(media,kind,args,options={}){
   throw bundledAssetIssue('MEDIA','Media preparation could not be completed. Check the source file and media tools.',cause);
  }finally{clearTimeout(timer);clearTimeout(watch);signal?.removeEventListener('abort',stop);}
 }
+
+// A host local URL names the original without transferring it into a renderer
+// Blob. Older POSIX hosts leave literal #/? in that path; encode those delimiters
+// and independently confirm the host's reverse mapping before a browser uses it.
+async function readAssetPlaybackURL(client,path,current){
+ const files=client?.files,platform=client?.environment?.platform;
+ if(typeof path!=='string'||!path||path.includes('\0')||typeof current!=='function')throw bundledAssetIssue('INPUT','The media preview source is invalid.');
+ if(['stat','pathToLocalURL','localURLToPath'].some(key=>typeof files?.[key]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to preview local media.');
+ const key=value=>{const normalized=typeof files.normalize==='function'?files.normalize(value):value;return platform==='win32'?normalized.replace(/\\/g,'/').toLowerCase():normalized;};
+ current();const before=await files.stat(path);current();
+ if(!before||before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<1)throw bundledAssetIssue('SOURCE','The media preview source is unavailable.');
+ const raw=await files.pathToLocalURL(path);current();
+ if(typeof raw!=='string'||!raw.startsWith('local://'))throw bundledAssetIssue('SOURCE','The local media preview URL could not be confirmed.');
+ // Electron's standard custom-scheme parser otherwise makes the first POSIX
+ // directory a lower-cased host. A dot authority preserves path case, and the
+ // existing host reverse mapping normalizes that dot out independently below.
+ const addressed=platform!=='win32'&&raw.startsWith('local:///')?'local://.'+raw.slice('local://'.length):raw;
+ const url=addressed.replace(/[?#]/g,char=>encodeURIComponent(char)),observed=await files.localURLToPath(url);current();
+ const after=await files.stat(path);current();
+ if(typeof observed!=='string'||key(observed)!==key(path)||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))throw bundledAssetIssue('CHANGED','The media preview source changed while preparing playback.');
+ return url;
+}
+
+// One browser media request, its readiness/seek/play waits and its subscriptions.
+// The caller supplies source admission and section/fade policy. No originals,
+// native producers, installed assets or local URLs are removed by this owner.
+async function playAssetAudioPreview(options){
+ const {prepare,startSeconds,durationSeconds,fadeSeconds=0,timeoutMs=60000,signal,isCurrent=()=>true,onPlaying=()=>{},createMedia=()=>new Audio()}=options??{};
+ if(typeof prepare!=='function'||typeof createMedia!=='function'||typeof isCurrent!=='function'||typeof onPlaying!=='function'||
+  !Number.isFinite(startSeconds)||startSeconds<0||!Number.isFinite(durationSeconds)||durationSeconds<=0||!Number.isFinite(startSeconds+durationSeconds)||
+  !Number.isFinite(fadeSeconds)||fadeSeconds<0||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||
+  !signal||typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function')throw bundledAssetIssue('INPUT','The media preview request is invalid.');
+ const expires=Date.now()+timeoutMs,end=startSeconds+durationSeconds;
+ const volumeAt=at=>fadeSeconds>0?Math.max(0,Math.min(1,(end-at)/fadeSeconds)):1;
+ let media,closed=false,playing=false,timer,watch,lastAt=startSeconds,lastProgress=Date.now(),playStarted=0;
+ const pending=new Set(),subscriptions=[];
+ const live=()=>{try{return !signal.aborted&&isCurrent();}catch{return false;}};
+ const current=()=>{if(closed||!live())throw bundledAssetIssue('STOPPED','The media preview ended.');if(!playing&&Date.now()>=expires)throw bundledAssetIssue('TIMEOUT','The media preview timed out.');};
+ return new Promise((resolve,reject)=>{
+  const close=(failure=null)=>{
+   if(closed)return;closed=true;const cleanup=[];
+   for(const id of [timer,watch])try{clearTimeout(id);}catch(error){cleanup.push(error);}
+   try{signal.removeEventListener('abort',abort);}catch(error){cleanup.push(error);}
+   for(const finish of [...pending])try{finish(failure||bundledAssetIssue('STOPPED','The media preview ended.'));}catch(error){cleanup.push(error);}
+   for(const [name,fn] of subscriptions)try{media.removeEventListener(name,fn);}catch(error){cleanup.push(error);}
+   if(media)for(const release of [()=>media.pause(),()=>media.removeAttribute('src'),()=>media.load()])try{release();}catch(error){cleanup.push(error);}
+   if(cleanup.length){failure=Object.assign(bundledAssetIssue('CLEANUP','Media preview cleanup could not be confirmed. Close and reopen the panel before previewing again.',failure||cleanup[0]),{terminal:true,cleanupFailures:cleanup,ownedMedia:media});}
+   failure?reject(failure):resolve(undefined);
+  };
+  const abort=()=>close(bundledAssetIssue('STOPPED','The media preview ended.'));
+  const listen=(name,fn)=>{media.addEventListener(name,fn);subscriptions.push([name,fn]);};
+  const waitFor=(name,action,ready)=>new Promise((ok,fail)=>{
+   let done=false;
+   const finish=error=>{if(done)return;done=true;pending.delete(finish);try{media.removeEventListener(name,heard);}catch(cause){error=Object.assign(bundledAssetIssue('CLEANUP','Media preview cleanup could not be confirmed.',error||cause),{terminal:true});}error?fail(error):ok(undefined);};
+   const heard=()=>{try{current();if(ready())finish();}catch(error){finish(error);}};
+   pending.add(finish);listen(name,heard);
+   try{current();action();heard();}catch(error){finish(error);}
+  });
+  const tick=()=>{
+   try{
+    current();
+    if(playing){
+     const at=media.currentTime,now=Date.now();
+     if(!Number.isFinite(at)||at<startSeconds-.05)throw bundledAssetIssue('PLAYBACK','The media preview position is invalid.');
+     if(at>=end){close();return;}
+     if(at>lastAt+.001){lastAt=at;lastProgress=now;}
+     if(now-lastProgress>=timeoutMs||now-playStarted>=durationSeconds*1000+timeoutMs)throw bundledAssetIssue('TIMEOUT','The media preview stopped making progress.');
+     media.volume=volumeAt(at);
+    }
+    watch=setTimeout(tick,40);
+   }catch(error){close(error);}
+  };
+  signal.addEventListener('abort',abort,{once:true});
+  timer=setTimeout(()=>close(bundledAssetIssue('TIMEOUT','The media preview timed out.')),Math.max(0,expires-Date.now()));
+  tick();
+  const run=async()=>{
+   current();const source=await prepare(current);current();
+   if(!source||typeof source.url!=='string'||!source.url||source.verify!==undefined&&typeof source.verify!=='function')throw bundledAssetIssue('SOURCE','The media preview source could not be confirmed.');
+   media=createMedia();current();
+   if(!media||['addEventListener','removeEventListener','play','pause','removeAttribute','load'].some(key=>typeof media[key]!=='function'))throw bundledAssetIssue('UNSUPPORTED','This browser cannot preview the media.');
+   listen('error',()=>close(bundledAssetIssue('PLAYBACK','The selected media could not be played.')));
+   listen('ended',()=>playing&&media.currentTime>=end-.05?close():close(bundledAssetIssue('PLAYBACK','The media preview ended before the selected section.')));
+   media.preload='metadata';
+   await waitFor('loadedmetadata',()=>{media.src=source.url;media.load();},()=>media.readyState>=1);
+   current();if(!Number.isFinite(media.duration)||media.duration<=0||end>media.duration+.05)throw bundledAssetIssue('SOURCE','The selected preview section is outside the media duration.');
+   if(Math.abs(media.currentTime-startSeconds)>.001)await waitFor('seeked',()=>{media.currentTime=startSeconds;},()=>!media.seeking&&Math.abs(media.currentTime-startSeconds)<=.05);
+   current();if(source.verify)await source.verify(current);current();
+   media.volume=volumeAt(media.currentTime);await media.play();if(closed){media.pause();return;}current();
+   playing=true;clearTimeout(timer);lastAt=media.currentTime;lastProgress=playStarted=Date.now();onPlaying(media);current();
+  };
+  run().catch(error=>{if(!closed)close(/^BUNDLED_ASSET_/.test(error?.code||'')?error:bundledAssetIssue('PLAYBACK','The selected media could not be played.',error));});
+ });
+}

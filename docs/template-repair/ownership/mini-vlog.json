@@ -330,17 +330,17 @@
       "owner": "bundled-assets",
       "reason": "One existing owner already controls verified assets, publication, exclusive reservations, derived results and native PCM/preview lifetimes. Selected Audio adoption now has this same canonical owner rather than a second copied import/readback procedure. The source-bound beat-analysis JSON procedure is also canonical here; Mini and Archive retain decoder/fallback and Worker adapters while file identity, verified snapshots/cache, result admission and cleanup reuse this owner.",
       "contract": {
-        "input": "Captured file/media client, bounded byte/hash/duration contract, source identity, target directory, current owner and producer callback. Selected Audio also receives Project ID/path, an optional minimum duration and optional provenance response. Beat-analysis derivation receives source hashing, decode/analyze/probe adapters, a Worker revision and sampling policy.",
-        "output": "Verified published asset, derived cache result or transient decoded bytes with cleanup outcome. Beat grids carry independently observed source contents; transient fixed-timing fallback is never cached.",
+        "input": "Captured file/media client, bounded byte/hash/duration contract, source identity, target directory, current owner and producer callback. Selected Audio also receives Project ID/path, an optional minimum duration and optional provenance response. Beat-analysis derivation receives source hashing, decode/analyze/probe adapters, a Worker revision and sampling policy. Browser preview additionally accepts a captured local client, original path/current predicate, AbortSignal, absolute source section, fade and deadline policy.",
+        "output": "Verified published asset, derived cache result or transient decoded bytes with cleanup outcome. Beat grids carry independently observed source contents; transient fixed-timing fallback is never cached. Browser preparation returns a case-preserving local URL only after independent reverse mapping; playback settles once with its owned Audio fully detached or explicit cleanup uncertainty.",
         "identity": "Content digest, exact path, exclusive owner token and native job identity.",
         "dependencies": "Existing private client, SDK read/write/CAS/media primitives and explicit policy budgets.",
-        "effects": "Owned file reservations/copies/imports/cache publication and media producers; never edits original assets.",
-        "lifetime": "One captured invocation; actual native exit is required before releasing output.",
-        "cleanup": "Only exclusively owned paths; preserve previous results and unknown producer workspaces.",
+        "effects": "Owned file reservations/copies/imports/cache publication and media producers; never edits original assets. Browser preview streams the original through the existing local protocol without a whole-track renderer Blob or preview-file publication.",
+        "lifetime": "One captured invocation; actual native exit is required before releasing output. Browser Audio readiness, seek, play and no-progress waits are bounded; cancellation settles pending waits and the parent retains single-flight until finalization.",
+        "cleanup": "Only exclusively owned paths; preserve previous results and unknown producer workspaces. Browser subscriptions, timers and src belong to one Audio; failure attempts all release steps, retains the media diagnostic and blocks replacement in the caller.",
         "outcomes": "Known success/failure differs from unresolved creation/publication/cleanup; nested diagnostics remain private. Opt-in complete-catalog reads distinguish unavailable source/Resource facts from confirmed absence before any import.",
         "retry": "Never replay unknown mutation; readback can recover exact outcomes.",
         "distribution": "shared/bundled-assets.js, registered panel copies and Mini/Archive generated ensure-audio operations; legacy asset-reader callers retain their default contract.",
-        "validation": "Existing asset/cue/PCM/lifetime tests and actual native SDK cases; persisted uncertain-workspace reconciliation remains open. Shared selected-Audio regressions cover incomplete catalogs, invalid inputs, path/type/duration/ID confirmation and one-attempt lost-reply recovery; existing asset consumers remain in the affected suite. Actual Mini/Archive caller fixtures cover source/Worker changes, original uncertainty, invalid cache, decoder/Worker fallback and terminal/preserve propagation."
+        "validation": "Existing asset/cue/PCM/lifetime tests and actual native SDK cases; persisted uncertain-workspace reconciliation remains open. Shared selected-Audio regressions cover incomplete catalogs, invalid inputs, path/type/duration/ID confirmation and one-attempt lost-reply recovery; existing asset consumers remain in the affected suite. Actual Mini/Archive caller fixtures cover source/Worker changes, original uncertainty, invalid cache, decoder/Worker fallback and terminal/preserve propagation. Archive actual-callback preview regressions and final-source native sandbox/Audio replay cover normal completion, Stop and retained cleanup failure; Mini/legacy preview callers are unchanged."
       },
       "evidence": [
         "shared/bundled-assets.js",
@@ -597,7 +597,7 @@
         "dependencies": "Input/catalog/analysis/asset/authoring/durable owners plus Mini montage and style policies.",
         "effects": "Coordinates reads, analysis, import and save through declared owners; user navigation only follows confirmed result.",
         "lifetime": "Reject stale generations; cancel parallel producer work and await settlement before releasing busy state.",
-        "cleanup": "Stop only this run\u2019s preview/workers/files; retain saved/unknown runs for exact recovery.",
+        "cleanup": "Stop only this run’s preview/workers/files; retain saved/unknown runs for exact recovery.",
         "outcomes": "Success, shortened/partial search, known failure and unknown save/cleanup have different continuation rules.",
         "retry": "Build another is a new explicit run/seed; same-run recovery never creates a second assembly.",
         "distribution": "Build/BuildAnother/Finish handlers and runMiniVlogTemplate; root callbacks remain template-specific composition.",
@@ -725,7 +725,7 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "bd89f7a89ac112d537aa3f096b379282f89a62807daa0212102ad19d1b2d8798",
+      "sha256": "9d1505f484e7b7b4ba1a0ea4f4cbb687e1b3b3c6a4549f27381ca40f9028e59c",
       "role": "runtime",
       "ranges": [
         {
@@ -835,137 +835,137 @@
         },
         {
           "startLine": 3964,
-          "endLine": 4408,
+          "endLine": 4501,
           "feature": "asset-owner"
         },
         {
-          "startLine": 4409,
-          "endLine": 4992,
+          "startLine": 4502,
+          "endLine": 5085,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 4993,
-          "endLine": 5012,
+          "startLine": 5086,
+          "endLine": 5105,
           "feature": "music-policy"
         },
         {
-          "startLine": 5036,
-          "endLine": 5042,
+          "startLine": 5129,
+          "endLine": 5135,
           "feature": "panel-ui"
         },
         {
-          "startLine": 5043,
-          "endLine": 5053,
+          "startLine": 5136,
+          "endLine": 5146,
           "feature": "music-policy"
         },
         {
-          "startLine": 5054,
-          "endLine": 5071,
+          "startLine": 5147,
+          "endLine": 5164,
           "feature": "source-input"
         },
         {
-          "startLine": 5072,
-          "endLine": 5097,
+          "startLine": 5165,
+          "endLine": 5190,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5098,
-          "endLine": 5166,
+          "startLine": 5191,
+          "endLine": 5259,
           "feature": "program-policy"
         },
         {
-          "startLine": 5167,
-          "endLine": 6231,
+          "startLine": 5260,
+          "endLine": 6324,
           "feature": "panel-ui"
         },
         {
-          "startLine": 6232,
-          "endLine": 6281,
+          "startLine": 6325,
+          "endLine": 6374,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 6282,
-          "endLine": 6531,
+          "startLine": 6375,
+          "endLine": 6624,
           "feature": "source-input"
         },
         {
-          "startLine": 6532,
-          "endLine": 6550,
+          "startLine": 6625,
+          "endLine": 6643,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6551,
-          "endLine": 6717,
+          "startLine": 6644,
+          "endLine": 6810,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6718,
-          "endLine": 6760,
+          "startLine": 6811,
+          "endLine": 6853,
           "feature": "panel-ui"
         },
         {
-          "startLine": 6761,
-          "endLine": 6876,
+          "startLine": 6854,
+          "endLine": 6969,
           "feature": "catalog-read"
         },
         {
-          "startLine": 6877,
-          "endLine": 7276,
+          "startLine": 6970,
+          "endLine": 7369,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7277,
-          "endLine": 7323,
+          "startLine": 7370,
+          "endLine": 7416,
           "feature": "app-guard"
         },
         {
-          "startLine": 7323,
-          "endLine": 7323,
+          "startLine": 7416,
+          "endLine": 7416,
           "feature": "panel-ui"
         },
         {
-          "startLine": 5242,
-          "endLine": 5265,
+          "startLine": 5335,
+          "endLine": 5358,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5266,
-          "endLine": 5273,
+          "startLine": 5359,
+          "endLine": 5366,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5311,
-          "endLine": 5347,
+          "startLine": 5404,
+          "endLine": 5440,
           "feature": "catalog-read"
         },
         {
-          "startLine": 5537,
-          "endLine": 5631,
+          "startLine": 5630,
+          "endLine": 5724,
           "feature": "music-policy"
         },
         {
-          "startLine": 5634,
-          "endLine": 5652,
+          "startLine": 5727,
+          "endLine": 5745,
           "feature": "scene-observation"
         },
         {
-          "startLine": 5658,
-          "endLine": 5690,
+          "startLine": 5751,
+          "endLine": 5783,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 5693,
-          "endLine": 5919,
+          "startLine": 5786,
+          "endLine": 6012,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5956,
-          "endLine": 5960,
+          "startLine": 6049,
+          "endLine": 6053,
           "feature": "montage-policy"
         },
         {
-          "startLine": 5015,
-          "endLine": 5035,
+          "startLine": 5108,
+          "endLine": 5128,
           "feature": "music-policy"
         }
       ],
@@ -1518,13 +1518,13 @@
     },
     {
       "path": "shared/bundled-assets.js",
-      "sha256": "cddb83d4fdd1ff53bf5df102b45b4760a533b9e296f8895f9f1e519c0c6b8736",
+      "sha256": "96c3859e85676419fba660e13c8e7e2efafde328bf208d2eb4cabbfb0a188f07",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 443,
+          "endLine": 536,
           "feature": "asset-owner"
         }
       ]
@@ -1801,7 +1801,7 @@
     },
     {
       "path": "plugins/mini-vlog/plugin.json",
-      "sha256": "cb3c669ce0306733587e6853567547253ffd46b1add51abee6176a9f625954bf",
+      "sha256": "f9b5da2e3b6e482a19ed2141ee45a11b21848fc61a74ca2486a8eea2401f643a",
       "feature": "copy-and-package",
       "reason": "Declared package inputs/compatibility/options and release metadata.",
       "hashMode": "lf-text"
@@ -1876,15 +1876,15 @@
       "sources": [
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5003
+          "line": 5096
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5713
+          "line": 5806
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5014
+          "line": 5107
         }
       ],
       "repairOwner": "mini-vlog",
@@ -1915,7 +1915,7 @@
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5009
+          "line": 5102
         }
       ],
       "repairOwner": "local-client",

@@ -572,10 +572,9 @@ for (const c of manifest.cues) {
     assert.equal(box3.P.avIntroSection({ introStart: c.introStart, firstBeat: c.firstBeat, bpm: c.bpm, usableEnd: c.usableEnd, videoSeconds, beatEnergy: c.beatEnergy }), c.introStart, c.id + ' ' + length + ' ' + pace);
   }
 }
-// The section preview plays a blob of the track's bytes from the section start and fades out at its end (no shell).
-for (const s of ['const bytes = await readBytes(file);', 'URL.createObjectURL(new Blob([bytes as any], { type: audioType(file) }))', 'audio.currentTime = from;',
-  'audio.volume = Math.max(0, Math.min(1, (end - at) / PREVIEW_FADE));', 'if (at >= end) { stopPreview(); return; }', 'URL.revokeObjectURL(previewUrlRef.current)',
-  'const file = musicKind === "own" ? ownMusic!.path : pjoin(roots.plugin, "assets", "cues", cue.file);']) assert.ok(ui.includes(s), s);
+// Original-file section seek/fade, cancellation and teardown are exercised through
+// the actual callback/common owner in tests/archive_preview_lifetime.test.mjs.
+// Whole-track Blob allocation is no longer the preview contract.
 // Own music: decoded by the host's ffmpeg (WebAudio without it), analysed in a worker only, cancellable, stale results
 // dropped. The shared content-bound analysis owner admits ordinary fallback;
 // actual caller failures/changed sources are covered by archive_own_music_analysis.
