@@ -1388,3 +1388,32 @@ test('the logo asset ships with the plugin, is white SVG with its provenance, an
   assert.equal(r.status, 0, r.stderr);
   assert.equal(JSON.parse(r.stdout)[0].files, 5);
 });
+
+// ---- first-screen summary line ----
+test('the summary line keeps "automatic" for untouched choices and names the changed ones', () => {
+  const L = {mode: 'M', art: 'A', layout: 'Y', inside: 'I', voice: 'V', autoWord: 'Auto', kfWord: 'K',
+    modeNames: {myth: 'Myth or fact'}, artNames: {character: 'Character'}, layoutNames: {strip: 'Strip'}, insideNames: {on: 'Use them', off: 'None'}};
+  const base = {mode: 'auto', art: 'auto', layout: 'auto', inside: 'auto'};
+  assert.equal(op.medSettingsSummary(base, {...L, kfLabel: 'Seedream 5.0 Pro', voiceLabel: 'Daniel'}), 'Auto: M·A·Y · K Seedream 5.0 Pro · V Daniel');
+  assert.equal(op.medSettingsSummary({...base, mode: 'myth'}, {...L, kfLabel: 'Nano Banana 2.1', voiceLabel: 'Daniel'}),
+    'Auto: A·Y · M Myth or fact · K Nano Banana 2.1 · V Daniel');
+  assert.equal(op.medSettingsSummary({mode: 'myth', art: 'character', layout: 'strip', inside: 'off'}, {...L, kfLabel: 'FLUX 3', voiceLabel: 'Korean_CalmLady'}),
+    'M Myth or fact · A Character · Y Strip · I None · K FLUX 3 · V Korean_CalmLady');
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
+  assert.match(panel, /autoWord: "\\uc790\\ub3d9", kfWord: "\\ud0a4\\ud504\\ub808\\uc784"/);
+  assert.match(panel, /\{medSettingsSummary\(adv, \{ \.\.\.S, kfLabel: medKfModel\(adv\.kfModel\)\.label,/);
+});
+
+test('compatibility and README describe the verified scope and the current behaviour', () => {
+  const root = path.resolve(import.meta.dirname, '../plugins/medical-explainer');
+  const compat = JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf8')).compatibility.selects;
+  assert.match(compat, /macOS \(Selects Staging 2\.0\.736/);
+  assert.match(compat, /Windows x64 \(Selects Staging 2\.0\.715/);
+  assert.match(compat, /Not yet verified on Windows: .*Korean characters or spaces, the strip layout, resuming after an app restart/);
+  assert.doesNotMatch(compat, /pending/);
+  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  assert.doesNotMatch(readme, /scenes 2 onward are edits with scene 1 as the style reference/);
+  assert.doesNotMatch(readme, /^- Keyframes:.*\b16:9, two candidates/m);
+  for (const needle of ['two\n  style families', 'first inside scene', 'full 9:16 frame', 'Inside-the-body shots', 'Advanced settings', 'Chosun Ilbo logo', '## Platforms'])
+    assert.ok(readme.includes(needle), needle);
+});

@@ -12,18 +12,21 @@ the topic, and the pictures and screen follow it:
 
 In the myth, timeline and steps modes the script can add a short inside-the-body dive (2-4 scenes in 3D medical CG,
 entered with a push and left with a pull) for the explanation; the "Inside-the-body shots" setting turns this on,
-leaves it to the script (default) or turns it off. Inside scenes have their own style reference.
+leaves it to the script (default) or turns it off.
 
-The explanation mode, the art style (3D medical CG, photoreal everyday, stylized 3D character, clean infographic) and
-the layout can also be chosen in the settings. Every title, label, caption and card is its own editable graphic clip.
+The layout decides the picture's shape: the **16:9 strip card** (zoom by default) or the **full 9:16 frame** (the other
+modes by default), with keyframes and video generated at that aspect. The explanation mode, the art style (3D medical
+CG, photoreal everyday, stylized 3D character, clean infographic), the layout and the keyframe model can also be chosen
+under Advanced settings. Every title, label, caption and card is its own editable graphic clip.
 
 Medical facts stay general and well established, but every video still needs a medical review before it is published.
 
 ## Use
 
 1. Open a Project, then open **Medical Explainer** from Apps.
-2. Enter a topic, a link, or paste the text, and choose the brand preset (Generic or Chosun Ilbo Health). The line
-   under the button shows the automatic defaults. Everything else (narration language and voice, keyframe model,
+2. Enter a topic, a link, or paste the text, and choose the brand preset (Generic or Chosun Ilbo Health; the Chosun
+   preset shows the Chosun Ilbo logo). The line under the button summarises the settings: what is automatic, what you
+   changed, the keyframe model and the voice. Everything else (narration language and voice, keyframe model,
    explanation mode, art style, inside-the-body shots, layout, music, the review steps, the wordmark and colours) is
    under **Advanced settings**, closed by default; its header counts the values you changed.
 3. Press **Write the script**. Read the 8-10 sentences, the scene labels and the pointer labels, and edit the two title
@@ -39,8 +42,10 @@ Medical facts stay general and well established, but every video still needs a m
 - Narration per sentence: ElevenLabs v3 (Daniel) by default, or MiniMax Speech 2.8 HD (Korean Calm Lady, Korean Gentle
   Woman). The measured sentence lengths set all timing.
 - Keyframes: the keyframe model you choose (Seedream 5.0 Pro by default, or Nano Banana 2.1, Nano Banana Pro, GPT
-  Image 2.5, FLUX 3), 16:9, two candidates per scene; scenes 2 onward are edits with scene 1 as the style reference.
-  FLUX 3 has no edit model, so its later scenes are drawn from the text and style description alone.
+  Image 2.5, FLUX 3), at the layout's aspect (16:9 strip or 9:16 full frame), two candidates per scene. There are two
+  style families, each with its own reference: everyday scenes follow scene 1's chosen keyframe, inside-the-body scenes
+  follow the first inside scene's. The first scene of each family is drawn from text and the rest are edits of it. FLUX
+  3 has no edit model, so its later scenes are drawn from the text and style description alone.
 - If Kling refuses a scene's keyframe for its content policy, the run stops and shows that scene. You choose: regenerate
   that scene's keyframe with a model you pick (a new paid request), or use the still image (a slow zoom on the
   keyframe). Nothing is regenerated or resubmitted without that choice. The keyframe model of a started job does not
@@ -61,3 +66,11 @@ Medical facts stay general and well established, but every video still needs a m
 logo, and a trademark of Chosun Media Group (author: Chosun Media Group). Its fill is white here. It is installed with
 the plugin beneath `SELECTS_USER_SKILLS_ROOT/medical-explainer/assets/` and used only by the Chosun Ilbo Health preset,
 where **Advanced settings → Show the logo** turns it off; the other preset shows its text wordmark.
+
+## Platforms
+
+Verified on macOS (Selects Staging 2.0.736: zoom with the strip card, myth on the full frame, myth with inside-the-body
+shots) and on Windows x64 (Selects Staging 2.0.715: timeline on the full frame, installed by the plugin installer, a
+Draft with Korean captions). Not yet verified on Windows: user folders whose path has Korean characters or spaces, the
+strip layout, and resuming after an app restart. On Windows a working path of 240 characters or more stops the run with
+a message; long paths are not supported beyond that.

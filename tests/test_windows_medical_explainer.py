@@ -131,7 +131,7 @@ class MedicalExplainerTest(unittest.TestCase):
     def test_first_screen_and_advanced_settings(self):
         first = self.panel[self.panel.index('<ui.Section title={S.sourceTitle}>'):self.panel.index('<ui.Section title={S.advanced')]
         # The first screen: source, brand preset, "Write the script" and the defaults line; nothing else.
-        for needle in ['<ui.Tabs', 'label={S.preset}', 'onClick={makePlan}', 'S.defaultsLine(']:
+        for needle in ['<ui.Tabs', 'label={S.preset}', 'onClick={makePlan}', 'medSettingsSummary(adv, ']:
             self.assertIn(needle, first)
         for gone in ['S.language', 'S.kfModel', 'S.mode', 'S.art', 'S.inside', 'S.layout', 'S.voice', 'S.quality', 'S.music', 'S.gateScript', 'S.gateKf', 'S.wordmark', 'S.color1', 'S.bg']:
             self.assertNotIn('label={%s}' % gone, first, gone)

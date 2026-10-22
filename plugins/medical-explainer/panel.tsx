@@ -326,7 +326,7 @@ type Strings = {
   mode: string; art: string; layout: string; autoMode: string; autoStyle: string; modeNames: Record<string, string>; artNames: Record<string, string>; layoutNames: Record<string, string>;
   chosen: (mode: string, art: string, layout: string) => string;
   inside: string; insideNames: Record<string, string>; insideCount: (n: number) => string;
-  advanced: string; showLogo: string; changed: (n: number) => string; defaultsLine: (kf: string, voice: string) => string; jobFixed: string;
+  advanced: string; showLogo: string; changed: (n: number) => string; autoWord: string; kfWord: string; jobFixed: string;
   unresolved: (names: string) => string; keepWaiting: string; resubmit: string; styleChanged: string;
 };
 
@@ -367,7 +367,7 @@ const STRINGS: Record<string, Strings> = {
     layoutNames: { strip: "16:9 strip card", fullbleed: "Full-frame 9:16" },
     chosen: (m, a, l) => `Explanation: ${m} \u00b7 Art: ${a} \u00b7 Layout: ${l}`,
     advanced: "Advanced settings", showLogo: "Show the logo", changed: (n) => `${n} changed`, jobFixed: "These are the settings saved with this job.",
-    defaultsLine: (k, v) => `Automatic: explanation, art style and layout \u00b7 Keyframes ${k} \u00b7 Voice ${v}`,
+    autoWord: "Automatic", kfWord: "Keyframes",
     inside: "Inside-the-body shots", insideNames: { auto: "When they help", on: "Use them", off: "None" },
     insideCount: (n) => `${n} inside-the-body scene${n === 1 ? "" : "s"} (3D medical CG)`,
     editHint: "Edit a sentence to split or shorten it. Only edited sentences are narrated again.", sentence: (n) => `Sentence ${n}`,
@@ -422,7 +422,7 @@ const STRINGS: Record<string, Strings> = {
     layoutNames: { strip: "16:9 \ub760 \uce74\ub4dc", fullbleed: "\uc804\uccb4 \ud654\uba74 9:16" },
     chosen: (m, a, l) => `\uc124\uba85: ${m} \u00b7 \ud654\ud48d: ${a} \u00b7 \ud654\uba74: ${l}`,
     advanced: "\uace0\uae09 \uc124\uc815", showLogo: "\ub85c\uace0 \ud45c\uc2dc", changed: (n) => `${n}\uac1c \ubcc0\uacbd\ub428`, jobFixed: "\uc774 \uc791\uc5c5\uc5d0 \uc800\uc7a5\ub41c \uc124\uc815\uc785\ub2c8\ub2e4.",
-    defaultsLine: (k, v) => `\uc790\ub3d9: \uc124\uba85 \ubc29\uc2dd\u00b7\ud654\ud48d\u00b7\ud654\uba74 \u00b7 \ud0a4\ud504\ub808\uc784 ${k} \u00b7 \ubaa9\uc18c\ub9ac ${v}`,
+    autoWord: "\uc790\ub3d9", kfWord: "\ud0a4\ud504\ub808\uc784",
     inside: "\ubab8\uc18d \uc7a5\uba74", insideNames: { auto: "\ud544\uc694\ud560 \ub54c", on: "\uc0ac\uc6a9", off: "\uc0ac\uc6a9 \uc548 \ud568" },
     insideCount: (n) => `\ubab8\uc18d \uc7a5\uba74 ${n}\uac1c(3D \uc758\ud559 CG)`,
     editHint: "\ubb38\uc7a5\uc744 \uace0\uccd0 \ub098\ub204\uac70\ub098 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uace0\uce5c \ubb38\uc7a5\ub9cc \ub2e4\uc2dc \ub179\uc74c\ud569\ub2c8\ub2e4.", sentence: (n) => `\ubb38\uc7a5 ${n}`,
@@ -2090,6 +2090,18 @@ export function medScriptPrompt(art, f, mode = "auto", inside = "auto") {
 export const MED_ADV_DEFAULTS = { lang: "auto", kfModel: MED_KF_DEFAULT, mode: "auto", art: "auto", inside: "auto", layout: "auto",
   voice: MED_VOICES[0].id, music: false, gateScript: true, gateKf: true };
 export const MED_ADV_STORAGE_KEY = "ui:advancedOpen";
+// The first screen's one-line summary: untouched explanation/art/layout as "Automatic: ...", each changed one by
+// name and value, inside-the-body shots when changed, then the keyframe model and the voice. `L` carries the panel's
+// words (mode, art, layout, inside, autoWord, kfWord, voice, the *Names maps, kfLabel, voiceLabel).
+export function medSettingsSummary(adv, L) {
+  const a = asObj(adv), auto = [], parts = [];
+  for (const [k, names] of [["mode", L.modeNames], ["art", L.artNames], ["layout", L.layoutNames]]) {
+    if (!a[k] || a[k] === "auto") auto.push(L[k]);
+    else parts.push(`${L[k]} ${asObj(names)[a[k]] || a[k]}`);
+  }
+  if (a.inside && a.inside !== "auto") parts.push(`${L.inside} ${asObj(L.insideNames)[a.inside] || a.inside}`);
+  return [...(auto.length ? [`${L.autoWord}: ${auto.join("\u00b7")}`] : []), ...parts, `${L.kfWord} ${L.kfLabel}`, `${L.voice} ${L.voiceLabel}`].join(" \u00b7 ");
+}
 // The wordmark overlay's data: the preset's logo (a data URL the panel read from the plugin folder) with its small
 // text when the template shows the logo and the file was found; the text wordmark otherwise (no error).
 export function medWordmarkOverlay(template, logoDataUrl) {
@@ -3056,7 +3068,7 @@ function Panel({ sdk, context, ui }: any) {
             {plan ? S.redo : S.makePlan}
           </ui.Button>
         </ui.Actions>
-        <ui.Message tone="muted">{S.defaultsLine(medKfModel(adv.kfModel).label, (MED_VOICES.find((v) => v.id === adv.voice) || MED_VOICES[0]).voice)}</ui.Message>
+        <ui.Message tone="muted">{medSettingsSummary(adv, { ...S, kfLabel: medKfModel(adv.kfModel).label, voiceLabel: (MED_VOICES.find((v) => v.id === adv.voice) || MED_VOICES[0]).voice })}</ui.Message>
       </ui.Section>
       <ui.Section title={S.advanced + (advChanged.length ? ` \u00b7 ${S.changed(advChanged.length)}` : "")}
         actions={<ui.IconButton icon={advOpen ? "chevron-down" : "chevron-right"} label={S.advanced} onClick={toggleAdvanced} />}>
