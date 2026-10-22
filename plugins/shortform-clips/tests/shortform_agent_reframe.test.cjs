@@ -6,7 +6,7 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
  new Function('require','module','exports',esbuild.transformSync(src+'\nexport {FRAMING_WORDS_SCRIPT,runAgentReframing,parseAgentReframeReport,normalizeReframeWords,validateSpeakerEvidence};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
  await t.test('long framing reads omit editing spans while retaining timing and speaker facts',async()=>{
-  const word={text:'이유식',startFrame:0,endFrame:30,wordId:'w1',speakerId:1,speakerName:'Speaker',sourceResourceId:'source',sourceStartFrame:100,sourceEndFrame:130};
+  const word={text:'babyfood',startFrame:0,endFrame:30,wordId:'w1',speakerId:1,speakerName:'Speaker',sourceResourceId:'source',sourceStartFrame:100,sourceEndFrame:130};
   const words=Array.from({length:400},(_,i)=>({...word,wordId:'w'+i,span:{owner:'x'.repeat(2000)},within:{owner:'y'.repeat(2000)}}));
   const execute=new Function('d','return (async()=>'+m.exports.FRAMING_WORDS_SCRIPT+')()');
   const compact=await execute({words:async()=>words});
