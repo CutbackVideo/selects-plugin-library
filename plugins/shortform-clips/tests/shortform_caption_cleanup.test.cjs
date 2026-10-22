@@ -5,11 +5,13 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('existing LLM caption omissions preserve source words and timing',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild');
  const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8'),mod={exports:{}};
- new Function('require','module','exports',esbuild.transformSync(source+'\nexport {normalizeTemplateSettings,SCRIPT_BUILD,CAPTION_CLEANUP_PROMPT};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ new Function('require','module','exports',esbuild.transformSync(source+'\nexport {normalizeTemplateSettings,SCRIPT_BUILD,SCRIPT_TRANSCRIPT,CAPTION_CLEANUP_PROMPT};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
  const api=mod.exports,build=api.SCRIPT_BUILD;
  const prefix=build.slice(0,build.indexOf('const project = selects.project(P.projectId);'));
- const run=esbuild.transformSync('function helpers(){const __P__={frame:{},caption:{fontSizing:"auto"}};'+prefix+'\nreturn {cleanSpeechWords,makeCues,inputCaptionWords};}\nreturn helpers();',{loader:'ts'}).code;
- const {cleanSpeechWords,makeCues,inputCaptionWords}=new Function(run)();
+ const run=esbuild.transformSync('function helpers(){const __P__={frame:{},caption:{fontSizing:"auto"}};'+prefix+'\nreturn {cleanSpeechWords,makeCues,inputCaptionWords,transcriptLines};}\nreturn helpers();',{loader:'ts'}).code;
+ const {cleanSpeechWords:rawClean,makeCues,inputCaptionWords,transcriptLines}=new Function(run)();
+ // Legacy fixtures place every word in the single transcript line [10, 20].
+ const cleanSpeechWords=(words,fps,omissions,lines)=>rawClean(words,fps,omissions,lines??[{startSeconds:10,endSeconds:20,from:0,to:Array.isArray(words)?words.length:0}]);
  const fixtures=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/caption-cleanup.json'),'utf8'));
  const tuplesFor=f=>f.before.map((text,i)=>[text,20+i*15,32+i*15,300+i*15,'doctor','answer','Doctor','source']);
  const omission=(words,index,reason='filler',occurrence=0)=>({startSeconds:10,endSeconds:20,text:words[index][0],reason,occurrence});
@@ -77,7 +79,35 @@ test('existing LLM caption omissions preserve source words and timing',{skip:!mo
    const mapped=inputCaptionWords(output,{[kind]:true,meta:{fps:30},words:inputWords},[[10,10.4],[20,20.4]],30);
    assert.deepEqual(mapped.map(w=>w.sourceStartFrame),[300,600]);
    const tuples=mapped.map(w=>[w.text,w.startFrame,w.endFrame,w.sourceStartFrame,null,null,'',w.sourceResourceId]);
-   assert.deepEqual(cleanSpeechWords(tuples,30,[{startSeconds:10,endSeconds:10.4,text:'um',reason:'filler',occurrence:0}]),[tuples[1]]);
+   assert.deepEqual(cleanSpeechWords(tuples,30,[{startSeconds:10,endSeconds:20.4,text:'um',reason:'filler',occurrence:0}],[{startSeconds:10,endSeconds:20.4,from:0,to:2}]),[tuples[1]]);
   }
+ });
+
+ await t.test('occurrence counts inside the transcript line the model saw, even when word times round differently',()=>{
+  // Line start 2/30s rounds to 0.1 while the second word (12/30s) starts after the rounded window start.
+  const inputWords=[['\uadf8',2,8],['\uadf8',12,20],['\uc57d\uc740',24,30],['\ud6a8\uacfc\uac00',34,40],['\uc788\uc5b4\uc694.',44,48]]
+   .map(([text,startFrame,endFrame])=>({text,startFrame,endFrame}));
+  const [line]=transcriptLines(inputWords,30);
+  assert.deepEqual([line.startSeconds,line.endSeconds],[0.1,1.6]);
+  const tuples=line.words.map(w=>[w.text,w.startFrame,w.endFrame,w.startFrame,null,null,'','r']);
+  const lines=[{startSeconds:line.startSeconds,endSeconds:line.endSeconds,from:0,to:tuples.length}];
+  const cleaned=rawClean(tuples,30,[{startSeconds:0.1,endSeconds:1.6,text:'\uadf8',occurrence:0,reason:'accidental-repeat'}],lines);
+  assert.deepEqual(cleaned,tuples.slice(1));
+  assert.deepEqual(rawClean(tuples,30,[{startSeconds:0.1,endSeconds:1.5,text:'\uadf8',occurrence:0,reason:'accidental-repeat'}],lines),tuples,'a window that is not a transcript line is rejected');
+ });
+ await t.test('occurrence is scoped to its own transcript line',()=>{
+  const words=['\uadf8','\ub124.','\uadf8','\uadf8','\uc57d\uc774\uc5d0\uc694.'].map((text,i)=>({text,startFrame:i*30,endFrame:i*30+20}));
+  const lines=transcriptLines(words,30);
+  assert.equal(lines.length,2);
+  const tuples=lines.flatMap(l=>l.words).map(w=>[w.text,w.startFrame,w.endFrame,w.startFrame,null,null,'','r']);
+  const meta=lines.map((l,i)=>({startSeconds:l.startSeconds,endSeconds:l.endSeconds,from:i?2:0,to:i?5:2}));
+  const cleaned=rawClean(tuples,30,[{...meta[1],text:'\uadf8',occurrence:0,reason:'accidental-repeat'}],meta);
+  assert.deepEqual(cleaned.map(w=>w[0]),['\uadf8','\ub124.','\uadf8','\uc57d\uc774\uc5d0\uc694.']);
+  assert.strictEqual(cleaned[0],tuples[0],'the earlier line is untouched');
+ });
+ await t.test('transcript text and caption cleanup share one line builder',()=>{
+  const transcript=api.SCRIPT_TRANSCRIPT.slice(api.SCRIPT_TRANSCRIPT.indexOf('// run_script body'));
+  assert.match(transcript,/transcriptLines\(words, m\.fps\)/);
+  assert.doesNotMatch(transcript,/lines\.push\(cur\)/);
  });
 });
