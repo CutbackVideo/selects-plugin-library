@@ -41,7 +41,7 @@ test('agent composition plans deliver the clip when one composition is unusable'
   assert.equal(r.state().applies,1);
   assert.equal(report.qualityStatus,'limited');
   assert.equal(report.preservedAll,false);
-  assert.match(renderCard(report),/일부 구도 유지/);
+  assert.match(renderCard(report),/\uc77c\ubd80 \uad6c\ub3c4 \uc720\uc9c0/);
   assert.deepEqual(report.appliedShots.map(s=>[s.startFrame,s.endFrame,s.style]),[[0,45,'speaker'],[45,90,'preserve']]);
   const preserved=report.preservedRanges.find(p=>p.startFrame===45&&p.endFrame===90);
   assert.ok(preserved,'the unusable composition is reported as a preserved range');
@@ -57,8 +57,8 @@ test('agent composition plans deliver the clip when one composition is unusable'
   assert.deepEqual(report.appliedShots.map(s=>s.style),['preserve','preserve']);
   assert.equal(report.preservedAll,true);
   const card=renderCard(report);
-  assert.match(card,/기본 구도 유지/);
-  assert.doesNotMatch(card,/일부 구도 유지/);
+  assert.match(card,/\uae30\ubcf8 \uad6c\ub3c4 \uc720\uc9c0/);
+  assert.doesNotMatch(card,/\uc77c\ubd80 \uad6c\ub3c4 \uc720\uc9c0/);
   assert.doesNotMatch(card, /disabled=""/);
  });
 
@@ -85,7 +85,7 @@ test('agent composition plans deliver the clip when one composition is unusable'
   const report=await r.execute();
   assert.equal(report.qualityStatus,'complete');
   assert.equal(report.preservedAll,false);
-  assert.doesNotMatch(renderCard(report),/기본 구도 유지|일부 구도 유지/);
+  assert.doesNotMatch(renderCard(report),/\uae30\ubcf8 \uad6c\ub3c4 \uc720\uc9c0|\uc77c\ubd80 \uad6c\ub3c4 \uc720\uc9c0/);
   assert.deepEqual(report.appliedShots.map(s=>s.style),['speaker','speaker']);
   assert.ok(!r.state().notes.some(n=>n.plan==='composition-preserved'));
  });
