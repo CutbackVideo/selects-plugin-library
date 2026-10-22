@@ -2041,6 +2041,11 @@ const folder = inventory.folders.find(f => f.folderId === ${JSON.stringify(folde
   || inventory.folders.find(f => f.name === ${JSON.stringify(name)});
 return folder ? {folderId: folder.folderId} : await project.createFolder({name: ${JSON.stringify(name)}});`;
 }
+// A run resumes from its saved record, never from a list entry that later edits (such as deletion) left behind.
+async function latestSavedJob(store: any, job: any) {
+  if (!job?.id || !store?.get) return job;
+  try { return (await store.get("jobs", job.id)) ?? job; } catch { return job; }
+}
 async function ensureRunFolder(job: any, script: any, persist: any) {
   const folderName = job.folderName || runFolderName(job);
   // Save the deterministic name first, so a crash after creation can recover it.
@@ -10594,6 +10599,7 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
       const at=new Date().toISOString();
       const saved={...job,updated:at,built:job.built.map((d:any)=>d?.draftId&&ids.includes(d.draftId)?{...d,deleted:true,deletedAt:at}:d)};
       await saveJob(saved);
+      setJobs((rows:any[])=>rows.map(j=>j.id===saved.id?saved:j));
       setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==saved.id),saved],projectId));
     } catch(e:any) {setError(String(e?.message||e));}
     finally {overlayLock.current=false;setBusy(false);}
@@ -10623,6 +10629,7 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
       },
     };
     runRef.current = token;
+    resume = await latestSavedJob(store, resume);
     let job: any = resume ?? { id: crypto.randomUUID().replace(/-/g, ''), usageTracking: true, sharedUsageCalls: [], projectId, created: new Date().toISOString(), mode, url: url.trim(), pick, program, countMode, count, note, fixedLayout, subjectInstructions, ...(framing ? {} : {skipFraming: true}) };
     setRunInfo(job);
     let revealedResults = false;
