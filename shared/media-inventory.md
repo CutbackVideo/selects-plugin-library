@@ -1,7 +1,7 @@
 # Bounded Project inventory observations
 
 `readInventoryPages(run, script, config, fill, wanted, options)` owns one read-only
-catalog observation across pages. Mini and Archive Vlog are its first consumers.
+catalog observation across pages. Mini and Archive Vlog use it from both the panel and selected-file entry.
 It extends their existing pager into one canonical source, not a module per
 helper. Their existing script runner, error localization and busy/session read
 retry policies remain in use. The runner now accepts the owner's deadline and
@@ -70,6 +70,15 @@ result for a later Finish action.
 ## Budgets, lifetime and errors
 
 Default overall deadline is 120,000 ms; an override must be finite 1..120,000 ms.
+`options.requireComplete` is boolean, default false: a display may retain a
+confirmed partial observation. Selected-file builds set true and reject a stable
+partial observation with `MEDIA_INVENTORY_INCOMPLETE` before planning or effects.
+This policy does not retry the private original-ID resolution.
+The selected-entry runner keeps its existing bounded empty/session read retries,
+but its waits and dispatches now use the same owner/deadline, regenerate attempt
+source, request remaining seconds capped at 90 and reject late replies. Ordinary
+unscoped requests retain their old shape; committing calls do not consult catalog
+clocks/liveness or retry on an unconfirmed response.
 A 50 ms watcher observes owner replacement while a query is pending. One deadline
 covers collection, reobservation and retries. The existing runner receives the
 remaining time, capped by its existing 90-second query limit, and checks liveness
@@ -90,7 +99,7 @@ invalid counters and contradictory totals reject. Caller work budgets are reduce
 across collection pages; retry and verification measurement are disabled.
 
 Own errors carry safe `publicMessage` and `MEDIA_INVENTORY_INPUT`, `INVALID`,
-`BUDGET`, `CHANGED`, `STOPPED`, `TIMEOUT` or `CLEANUP` codes. Underlying caller read errors
+`BUDGET`, `CHANGED`, `STOPPED`, `TIMEOUT`, `INCOMPLETE` or `CLEANUP` codes. Underlying caller read errors
 retain their existing diagnostics/type. No mutation, import, Draft, filesystem,
 worker or media process belongs here. Committing requests are neither retried nor
 coupled to the read deadline. A changed observation is not automatically restarted.

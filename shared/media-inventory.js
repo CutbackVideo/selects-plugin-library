@@ -1,8 +1,8 @@
 // Bounded, read-only inventory observations. This is not a Project snapshot lock.
 async function readInventoryPages(run, script, config, fill, wanted = () => true, options = {}) {
  const issue=(code,message,cause=undefined)=>Object.assign(Error(message),{code:'MEDIA_INVENTORY_'+code,publicMessage:message,...cause===undefined?{}:{cause}});
- const {timeoutMs=120000}=options??{};
- if(typeof run!=='function'||typeof script!=='string'||!script||typeof fill!=='function'||typeof wanted!=='function'||!config||typeof config.projectId!=='string'||!config.projectId||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>120000)throw issue('INPUT','The Project media observation request is invalid.');
+ const {timeoutMs=120000,requireComplete=false}=options??{};
+ if(typeof requireComplete!=='boolean'||typeof run!=='function'||typeof script!=='string'||!script||typeof fill!=='function'||typeof wanted!=='function'||!config||typeof config.projectId!=='string'||!config.projectId||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>120000)throw issue('INPUT','The Project media observation request is invalid.');
  const encode=value=>{
   const seen=new Set();
   const visit=(value,depth)=>{
@@ -87,6 +87,7 @@ async function readInventoryPages(run, script, config, fill, wanted = () => true
    if(data.months){if(!result.months)throw issue('INVALID','Project media changed its month shape.');result.months=result.months.map((n,i)=>n+data.months[i]);}
    result.incomplete=result.incomplete||data.incomplete;
   }
+  if(requireComplete&&result.incomplete)throw issue('INCOMPLETE','The Project media observation is incomplete. Try again when its source metadata is available.');
   check();return result;
  };
  let value,failure,failed=false;

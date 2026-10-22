@@ -9,7 +9,7 @@ const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS
 const panel=fs.readFileSync(process.env.MINI_MUSIC_PANEL||new URL('../plugins/mini-vlog/panel.tsx',import.meta.url),'utf8');
 const plain=esbuild.transformSync(panel,{loader:'tsx',format:'esm',target:'es2022',jsx:'preserve'}).code;
 const nested=plain.replace(/^  /gm,'');
-const names=['isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','runMiniVlogTemplate'];
+const names=['readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','runMiniVlogTemplate'];
 const source=names.map(name=>topLevel(plain,name)).join('\n')+'\n'+topLevel(nested,'inventoryCurrent')+'\n'+topLevel(nested,'run')+'\n'+topLevel(nested,'build');
 const feature=panel.includes('// bundled-assets:start')?panel.slice(panel.indexOf('// bundled-assets:start'),panel.indexOf('// bundled-assets:end')):'';
 const inputFeature=panel.slice(panel.indexOf('// native-image-input:start'),panel.indexOf('// native-image-input:end')).replace(/^export /gm,'');
@@ -30,7 +30,12 @@ export async function miniMusicFixture(t,{entry='template',own=false,silent=fals
  const sdk={files:f.local.files,environment:{platform:process.platform},runScript:async input=>{
   scripts.push(input);
   if(input.summary==='Find the chosen files')return {result:{resolved:[{rid:'original-0',alias:'r0',size:null},{rid:'original-1',alias:'r1',size:null}],failed:[]}};
-  if(input.summary==='Read footage')return {result:inventory};
+  if(input.summary==='Read footage'){
+   const cfg=await new Function('return (async()=>{'+input.script+'})();')();
+   const all=[...inventory.resources.map(row=>({...row,kind:'video'})),...inventory.photos.map(row=>({...row,kind:'photo'}))];
+   const rows=cfg.page?all.slice(cfg.page.offset,cfg.page.offset+cfg.page.size):all;
+   return {result:{...inventory,incomplete:inventory.incomplete??false,resources:rows.filter(row=>row.kind==='video'),photos:rows.filter(row=>row.kind==='photo'),...(cfg.page?{page:{total:all.length,elapsedMs:0}}:{})}};
+  }
   if(input.summary==='Search shots')return {result:{candidates:[],failed:[]}};
   if(input.summary.startsWith('Assemble')){saved.push(await new Function('return (async()=>{'+input.script+'})();')());throw boundary;}
   try{return {result:await new Function('selects','return (async()=>{'+input.script+'})();')(selects)};}catch(error){return {isError:true,output:error.message};}

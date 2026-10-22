@@ -1,5 +1,14 @@
 # Sequential template repair: active
 
+## Selected-file inventory checkpoint
+
+Mini alpha.18 and Archive alpha.12 now reuse the existing catalog owner from both
+entry paths. Changed/incomplete selected observations stop before planning;
+read retries use the owner's remaining deadline and lifetime. Twenty-five focused
+/ 287 related cases and twelve actual SDK read scenarios pass. See
+[selected-inventory.md](selected-inventory.md). Original-ID resolution and assets
+are separate test boundaries; full installed-panel acceptance is still open.
+
 ## Objective and non-negotiable completion gates
 
 Repair all 28 audited Clip highlights templates while converging on a small,

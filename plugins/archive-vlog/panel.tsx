@@ -1936,7 +1936,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.11";
+const PLUGIN_VERSION = "0.1.0-alpha.12";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -5796,25 +5796,40 @@ function templateIssue(message: string) { const e: any = new Error(message); e.f
 // Error text for the hidden frame's log (an Error logged as an object shows as {}).
 function errorText(e: any) { return String(e?.message || e); }
 
+// Catalog reads additionally share their owner's deadline/liveness/retry wait.
 // Ordinary reads retain bounded session/empty-response retries. Private source
 // checks use the shared single-dispatch input runner below instead.
 const EMPTY_READ = /Cannot read properties of (undefined|null)|is not iterable/;
-async function runTemplateStep(sdk: any, summary: string, script: string, allowCommit = false) {
+async function runTemplateStep(sdk: any, summary: string, script: string | ((attempt: number) => string), allowCommit = false, opts: { wanted?: () => boolean; deadline?: number; wait?(ms: number): Promise<void> } = {}) {
+  const scoped = !allowCommit && (opts.wanted || opts.deadline !== undefined || opts.wait);
+  const check = () => {
+    if (allowCommit) return;
+    if (opts.wanted && !opts.wanted()) throw Object.assign(uiError((l) => t(l, "stepFailed")), { code: "MEDIA_INVENTORY_STOPPED" });
+    if (opts.deadline !== undefined && Date.now() >= opts.deadline) throw Object.assign(uiError((l) => t(l, "stepFailed")), { code: "MEDIA_INVENTORY_TIMEOUT" });
+  };
+  const pause = (ms: number) => opts.wait ? opts.wait(ms) : new Promise<void>((done) => setTimeout(done, ms));
+  const send = async (attempt: number) => {
+    check();
+    const source = typeof script === "string" ? script : script(allowCommit ? 0 : attempt);
+    const reply = await sdk.runScript({ summary, script: source, allowCommit, ...(scoped ? {
+      timeoutSeconds: Math.max(1, Math.min(90, Math.ceil(((opts.deadline ?? Infinity) - Date.now()) / 1000)))
+    } : {}) });
+    check();
+    return reply;
+  };
   for (let attempt = 0; ; attempt++) {
-    let r = await sdk.runScript({ summary, script, allowCommit });
-    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await new Promise((d) => setTimeout(d, 1500)); r = await sdk.runScript({ summary, script, allowCommit }); }
+    let r = await send(attempt);
+    if (r.isError && !allowCommit && /No valid session ID/.test(r.output || "")) { await pause(1500); r = await send(attempt); }
     if (!r.isError && r.result != null) return r.result as any;
     const text = String(r.output || "Selects could not complete this step.");
     if (allowCommit || attempt >= 2 || !(EMPTY_READ.test(text) || (r.result == null && !r.isError))) throw new Error(text);
     console.warn("[archive-vlog] " + summary + " came back empty, reading again:", text);
-    await new Promise((d) => setTimeout(d, 1500));
+    await pause(1500);
   }
 }
 
-// Handed files carry the app's own Resource ids, but resources() and a Draft's clips report the Project's short
-// aliases (r0, r1, ...), which inventory.js filters on and assemble.js / decorate.js match clips by. So each handed
-// file is placed once on an unsaved scratch Draft, whose new clip reports the file's alias; a photo gets a Draft of its
-// own, whose frame size is the photo's. Nothing is committed. A file that cannot be placed is left out.
+// Handed Resource UUIDs resolve through the shared original-media input feature.
+// Private alias placement remains single-dispatch and is never inventory verification.
 // native-image-input:start
 // Original source facts and private unsaved identity checks. Canonical input feature.
 export async function nativeImageSources(selects, projectId, photos, { matchById=false }={}) {
@@ -6083,7 +6098,18 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
     throw Object.assign(templateIssue(reason ? [t(bl, "stepFailed"), t(bl, "tpl.notFoundDetail", { detail: reason })].join(t(bl, "gap")) : t(bl, "stepFailed")), { code: "source-resolution-failed", failures: resolutionFailures });
   }
   // The panel's inventory limited to the handed files: analysed videos with their length and frame size, and photos.
-  const inventory = await run("Read footage", fill(assets.scripts.inventoryJs, { projectId: pid, only: aliases, known, measureMs: INVENTORY_MEASURE_MS }));
+  // Selected-file builds use the same bounded, reobserved catalog as the panel.
+  // A display may retain a partial list; a new build requires complete facts.
+  let inventory: any;
+  try {
+    inventory = await readInventoryPages(
+      (summary, source, commit, scope) => runTemplateStep(sdk, summary, source, commit, scope),
+      assets.scripts.inventoryJs, { projectId: pid, only: aliases, measureMs: INVENTORY_MEASURE_MS }, fill,
+      () => { check(); return true; }, { requireComplete: true });
+  } catch (error: any) {
+    check();
+    throw Object.assign(templateIssue(t(bl, "stepFailed")), { code: error?.code || "MEDIA_INVENTORY_READ", cause: error });
+  }
   check();
   inventory.resources = inventory.resources || [];
   inventory.photos = inventory.photos || [];
@@ -6223,8 +6249,8 @@ function TemplateRun({ sdk, context }: any) {
 // Bounded, read-only inventory observations. This is not a Project snapshot lock.
 async function readInventoryPages(run, script, config, fill, wanted = () => true, options = {}) {
  const issue=(code,message,cause=undefined)=>Object.assign(Error(message),{code:'MEDIA_INVENTORY_'+code,publicMessage:message,...cause===undefined?{}:{cause}});
- const {timeoutMs=120000}=options??{};
- if(typeof run!=='function'||typeof script!=='string'||!script||typeof fill!=='function'||typeof wanted!=='function'||!config||typeof config.projectId!=='string'||!config.projectId||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>120000)throw issue('INPUT','The Project media observation request is invalid.');
+ const {timeoutMs=120000,requireComplete=false}=options??{};
+ if(typeof requireComplete!=='boolean'||typeof run!=='function'||typeof script!=='string'||!script||typeof fill!=='function'||typeof wanted!=='function'||!config||typeof config.projectId!=='string'||!config.projectId||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>120000)throw issue('INPUT','The Project media observation request is invalid.');
  const encode=value=>{
   const seen=new Set();
   const visit=(value,depth)=>{
@@ -6309,6 +6335,7 @@ async function readInventoryPages(run, script, config, fill, wanted = () => true
    if(data.months){if(!result.months)throw issue('INVALID','Project media changed its month shape.');result.months=result.months.map((n,i)=>n+data.months[i]);}
    result.incomplete=result.incomplete||data.incomplete;
   }
+  if(requireComplete&&result.incomplete)throw issue('INCOMPLETE','The Project media observation is incomplete. Try again when its source metadata is available.');
   check();return result;
  };
  let value,failure,failed=false;
