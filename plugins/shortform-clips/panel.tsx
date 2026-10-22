@@ -3942,11 +3942,17 @@ function wideShotScript(projectId:string,draftId:string,layout:any) {
   const top=Number(layout.windowTop??0),bottom=Number(layout.windowBottom??1920);
   return `const p=selects.project(${JSON.stringify(projectId)}),d=selects.draft(${JSON.stringify(draftId)});
 if (!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)})) throw new Error("Draft ownership changed");
-const windowH=${bottom-top},sizes=new Map();
+const windowH=${bottom-top};
 const keys=(await d.clips({trackScope:"main"})).filter(c=>c.resourceId).map(c=>({clipId:c.clipId,trackId:c.trackId,resourceId:c.resourceId}));
+// Frame sizes come from the source inventory, which needs no visual analysis (transcribed-only sources work).
+const files=[],walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.children);else files.push(n);};
+const inventory=await p.sourceFiles();
+if('fileTree' in inventory)walk(inventory.fileTree);
+else for(const folder of inventory.folders||[]){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree);}
+const sizeOf=id=>{const f=files.find(f=>f.resourceId===id)?.frameSize,W=Number(f?.width),H=Number(f?.height);if(!(W>0&&H>0))throw new Error("Source frame size is unavailable for the wide shot");return {W,H};};
+for (const key of keys) sizeOf(key.resourceId);
 for (const key of keys) {
- if(!sizes.has(key.resourceId)){const f=(await p.resource(key.resourceId).meta()).frameSize;sizes.set(key.resourceId,{W:Number(f?.width)||1920,H:Number(f?.height)||1080});}
- const {W,H}=sizes.get(key.resourceId);
+ const {W,H}=sizeOf(key.resourceId);
  const fresh=async()=> (await d.clips({trackScope:"main"})).find(c=>c.clipId===key.clipId&&c.trackId===key.trackId);
  await d.setClipTransform({clip:await fresh(),scale:{x:1,y:windowH/(H*1080/W)},position:{x:0,y:(960-${(top+bottom)/2})/1920*100}});
  const parameters={sourceW:W,sourceH:H,windowH,panels:[{fit:"contain",backdrop:"blur",w:W,cx:W/2,cy:H/2}]};

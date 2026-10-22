@@ -30,7 +30,9 @@ test('clips without framing show the whole source over a blurred copy',{skip:!mo
   let clips=[{clipId:'c1',trackId:'t',resourceId:'r1'},{clipId:'c2',trackId:'t',resourceId:'r1'},{clipId:'g',trackId:'t',resourceId:null}];
   const effects={c1:[{name:'Shortform stacked framing'}],c2:[]};
   const selects={
-   project:id=>({meta:async()=>({draftIds:id==='project'?['draft']:[]}),resource:()=>({meta:async()=>({frameSize:{width:1920,height:1080}})})}),
+   // Analysis is not required: frame sizes come from the source file inventory, as for framing.
+   project:id=>({meta:async()=>({draftIds:id==='project'?['draft']:[]}),resource:()=>({meta:async()=>{throw Error('resource_not_analyzed: hasAnalysis=false');}}),
+    sourceFiles:async()=>({fileTree:[{type:'dir',children:[{type:'file',resourceId:'r1',path:'/a/source.mp4',frameSize:{width:1920,height:1080}}]}]})}),
    draft:()=>({clips:async()=>clips,videoEffects:async c=>effects[c.clipId],
     setClipTransform:async o=>calls.push(['transform',o.clip.clipId,o.scale,o.position]),
     replaceVideoEffect:async(old,o)=>calls.push(['replace',o.parameters]),
@@ -48,5 +50,15 @@ test('clips without framing show the whole source over a blurred copy',{skip:!mo
   assert.deepEqual(calls.find(c=>c[0]==='add').slice(1),['c2','Shortform stacked framing',{sourceW:1920,sourceH:1080,windowH:1106,panels}]);
   assert.deepEqual(calls.at(-1),['commit','Place the full source as a wide shot']);
   await assert.rejects(run({...selects,project:()=>({meta:async()=>({draftIds:[]})})}),/Draft ownership changed/);
+  // Large projects list sources per folder; a source without a known size is never placed with a guessed size.
+  calls.length=0;
+  const byFolder={...selects,project:()=>({meta:async()=>({draftIds:['draft']}),resource:()=>{throw Error('resource_not_analyzed');},
+   sourceFiles:async(o)=>o?.folder==='B'?{fileTree:[{type:'file',resourceId:'r1',frameSize:{width:1280,height:720}}]}:{mode:'summary',folders:[{name:'A'},{name:'B'}]}})};
+  assert.deepEqual(await run(byFolder),{clips:2});
+  assert.deepEqual(calls[0][2],{x:1,y:1106/607.5});
+  calls.length=0;
+  const unknown={...selects,project:()=>({meta:async()=>({draftIds:['draft']}),sourceFiles:async()=>({fileTree:[]})})};
+  await assert.rejects(run(unknown),/frame size/);
+  assert.equal(calls.length,0);
  });
 });
