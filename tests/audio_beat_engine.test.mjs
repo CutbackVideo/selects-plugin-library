@@ -9,6 +9,14 @@ test('common beat engine: four shipped consumers deliver the exact canonical eng
 test('common beat engine: browser worker evaluation has no Node CLI filesystem effect',()=>{
  const source=fs.readFileSync(path.join(root,'shared/audio-beat-analysis.cjs'),'utf8');let calls=0;const module={exports:{}};const require=()=>{calls++;throw Error('Node IO cannot run in the worker');};vm.runInNewContext('(function(module,exports,require){'+source+'\n})(module,module.exports,require)',{module,require,Float32Array});assert.equal(calls,0);const grid=module.exports.analyze(samples(),22050);assert.equal(grid.accepted,true);assert.ok(Math.abs(grid.bpm-120)<.2);
 });
+test('common beat engine: the Selfie main-thread fallback embeds the canonical module with the same numerical result and no Node IO',()=>{
+ const source=fs.readFileSync(path.join(root,'shared/audio-beat-analysis.cjs'),'utf8'),panel=fs.readFileSync(path.join(root,'plugins/selfie-aesthetic/panel.tsx'),'utf8');
+ const start=panel.indexOf('// sae-beat:start\n'),end=panel.indexOf('// sae-beat:end',start);assert.ok(start>=0&&end>start);
+ const region=panel.slice(start,end);assert.ok(region.includes('// audio-beat-analysis:start\n'+source.trimEnd()+'\n// audio-beat-analysis:end'),'the embedded fallback is an actual canonical consumer');
+ const box=vm.createContext({Float32Array,require:()=>{throw Error('external Node IO cannot run');}});
+ vm.runInContext(region+'\nthis.inline=saeBeat;',box);assert.deepEqual(Object.keys(box.inline),['analyze']);
+ const input=samples();assert.deepEqual(serial(box.inline.analyze(input,22050)),serial(require('../shared/audio-beat-analysis.cjs').analyze(input,22050)));
+});
 test('common beat engine: the inherited raw float32 PCM CLI remains usable in each standalone copy',t=>{
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'beat-engine-cli-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));const file=path.join(directory,'samples.f32'),input=samples();fs.writeFileSync(file,Buffer.from(input.buffer));
  for(const relative of ['shared/audio-beat-analysis.cjs',...consumers.map(id=>'plugins/'+id+'/beat-detect.cjs')]){const child=spawnSync(process.execPath,[path.join(root,relative),file,'22050'],{encoding:'utf8',timeout:30000,maxBuffer:1024*1024});assert.equal(child.status,0,relative+': '+child.stderr);const result=JSON.parse(child.stdout);assert.equal(result.accepted,true);assert.ok(Math.abs(result.bpm-120)<.2);}

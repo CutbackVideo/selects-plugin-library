@@ -587,7 +587,7 @@
         "dependencies": "Input/catalog/analysis/asset/authoring/durable owners plus Mini montage and style policies.",
         "effects": "Coordinates reads, analysis, import and save through declared owners; user navigation only follows confirmed result.",
         "lifetime": "Reject stale generations; cancel parallel producer work and await settlement before releasing busy state.",
-        "cleanup": "Stop only this run’s preview/workers/files; retain saved/unknown runs for exact recovery.",
+        "cleanup": "Stop only this run\u2019s preview/workers/files; retain saved/unknown runs for exact recovery.",
         "outcomes": "Success, shortened/partial search, known failure and unknown save/cleanup have different continuation rules.",
         "retry": "Build another is a new explicit run/seed; same-run recovery never creates a second assembly.",
         "distribution": "Build/BuildAnother/Finish handlers and runMiniVlogTemplate; root callbacks remain template-specific composition.",
@@ -1495,13 +1495,13 @@
     },
     {
       "path": "tests/audio_beat_engine.test.mjs",
-      "sha256": "8b1727f46182688bdedf20f44c58b830ff13888fecd3aba64be53e3ab8fc7195",
+      "sha256": "01fe92ec8cfdeb2326e96f58ff15fdf07df46c1ba6d1d3df884346b25870ca50",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 16,
+          "endLine": 24,
           "feature": "test-harness"
         }
       ]
@@ -1710,10 +1710,10 @@
   ],
   "openGates": [
     "Source decision coverage does not establish semantic module completion or runtime acceptance.",
-    "Own-music input content binding and legacy terminal probe propagation need TDD repair.",
-    "INSTALL/manifest capability and configured installation-root claims contradict current fallback/bootstrap behavior.",
+    "Own-music content binding and terminal probe propagation pass feature fixtures and a development SDK checkpoint; installed import/save/playback/export remain open.",
+    "Configured installation-root compatibility needs reproduction and a versioned host contract; current host-source composition agrees with Mini lookup.",
     "Server-index content provenance is not exposed by the SDK.",
-    "Planned text/audio engine extraction and scene/transport owner extensions are not implemented.",
+    "Planned text extraction and scene/transport owner extensions are not implemented; numerical audio engine delivery is implemented.",
     "Whole installed Mini UI, source/Audio playback, export, Windows and every declared input permutation remain open."
   ],
   "findings": [
@@ -1808,9 +1808,9 @@
     },
     {
       "id": "MINI-CONFIGURED-INSTALL-ROOT",
-      "status": "source-mismatch",
+      "status": "needs-reproduction",
       "feature": "host-bootstrap",
-      "title": "Configured installation-root promises are not implemented by the current root lookup.",
+      "title": "Configured installation-root compatibility needs a reproduced host contract.",
       "sources": [
         {
           "file": "plugins/mini-vlog/INSTALL.md",
@@ -1826,8 +1826,8 @@
         }
       ],
       "repairOwner": "local-client",
-      "mechanism": "INSTALL describes environment-provided panels/skills roots. hostRoots constructs home/.selects/skills and mvFolders has no implemented alternate root despite its comment. The current public environment facade exposes home/temp/platform/version, so a reliable configured-root contract must be traced before repair.",
-      "acceptance": "Trace actual host installation/environment API and old-host capability policy, reproduce default/nondefault roots with captured SDKs, then implement supported-root lookup. Do not claim other installations work or narrow the declared promise merely to make the check pass.",
+      "mechanism": "INSTALL describes environment-provided panels/skills roots while Mini derives them from the SDK host home. Additional tracing found that the current host installer derives those same paths and exports them to shell children; their scratch HOME is separate. Real-source in-memory composition agrees for macOS, Windows drive and UNC homes. An arbitrary-root override or actual failing installation was not established; this is not a confirmed source mismatch.",
+      "acceptance": "Identify a supported host/version with a reproducible installation-root mismatch before designing a change. Preserve current installer/SDK-home behavior; verify released/native Windows contracts separately. Do not introduce a roots API or change lookup solely to resolve an unproven defect.",
       "evidence": [
         "plugins/mini-vlog/INSTALL.md",
         "plugins/mini-vlog/panel.tsx",

@@ -42,12 +42,11 @@ test('the quick-score block is identical to dev/quick-score-block.ts (the kit fi
   assert.equal(between(panel, '// quick-score:start', '// quick-score:end'), between(qs, '// quick-score:start', '// quick-score:end'));
   assert.ok(qs.startsWith('// quick-score:start\n') && qs.trimEnd().endsWith('// quick-score:end'), 'the dev file is the whole kit file');
 });
-const beatCore = beatSrc.slice(0, beatSrc.search(/^module\.exports\b/m));
-test('the beat block wraps beat-detect.cjs up to its module.exports line', () => {
+test('the fallback wraps the complete canonical beat module with an inert Node CLI and the same analyze API', () => {
   const region = between(panel, '// sae-beat:start\n', '// sae-beat:end');
-  assert.ok(region.startsWith('const saeBeat = (function () {\n'), 'IIFE head');
-  assert.ok(region.endsWith('return { analyze };\n})();\n'), 'IIFE tail');
-  assert.equal(between(region, 'const saeBeat = (function () {\n', 'return { analyze };\n})();'), beatCore);
+  assert.ok(region.startsWith("const saeBeat = (function () {\n'use strict';\nconst module = { exports: {} };\nconst require = () => ({});\n"), 'private CommonJS shim');
+  assert.ok(region.endsWith('return { analyze: module.exports.analyze };\n})();\n'), 'only analyze is exposed');
+  assert.equal(between(region, '// audio-beat-analysis:start\n', '\n// audio-beat-analysis:end'), beatSrc.trimEnd());
 });
 
 // ---- i18n ----

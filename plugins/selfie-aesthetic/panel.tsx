@@ -2774,10 +2774,16 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
 }
 // quick-score:end
 
-// Beat detection for "Your own music": the kit's beat-detect.cjs (pure JS) up to its module.exports line, wrapped
-// so its helpers stay private. Used on the main thread only when a Web Worker cannot run (see saeBeatWorkerSource).
+// Beat detection for "Your own music": the canonical pure-JS engine, in a private CommonJS shim.
+// Used on the main thread only when a Web Worker cannot run (see saeBeatWorkerSource).
+// The local require has no main module, so the standalone Node CLI remains inactive.
 // sae-beat:start
 const saeBeat = (function () {
+'use strict';
+const module = { exports: {} };
+const require = () => ({});
+// audio-beat-analysis:start
+// Canonical numerical audio beat engine. Generated consumer copies; edit this shared source.
 'use strict';
 // Beat grid for Selects style apps (shared kit copy). Spectral-flux onsets, then the tempo and phase whose grid best meets them.
 // CLI: node beat-detect.cjs <mono-f32le-file> <sampleRate> [<out.json>]  -> one JSON line on stdout, or, with
@@ -3207,7 +3213,23 @@ function analyze(samples, sampleRate, opts) {
   };
 }
 
-return { analyze };
+module.exports = { analyze, sixteenthRatio, bandOnsets, bandFlux, takeFlip };
+
+if (require.main === module) {
+  try {
+    const [file, rate, out] = process.argv.slice(2);
+    const fs = require('node:fs');
+    const buf = fs.readFileSync(file);
+    const samples = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4));
+    const json = JSON.stringify(analyze(samples, Number(rate) || 22050)) + '\n';
+    if (out) { fs.writeFileSync(out, json); process.stdout.write('{"ok":true}\n'); } else process.stdout.write(json);
+  } catch (e) {
+    process.stdout.write(JSON.stringify({ error: String(e && e.message || e) }) + '\n');
+    process.exit(1);
+  }
+}
+// audio-beat-analysis:end
+return { analyze: module.exports.analyze };
 })();
 // sae-beat:end
 

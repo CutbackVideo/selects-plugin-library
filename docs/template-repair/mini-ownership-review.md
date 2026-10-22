@@ -9,8 +9,8 @@ evidence. `ownership/mini-vlog.json` is the canonical source/decision record and
 ## Coverage and limits
 
 The current index captures 42 files, including all 30 shipped executable/test files,
-21 declared assets/data records, 27 feature decisions, 2,316 callable units
-(1,493 anonymous callbacks), 2,133 top-level statements and four embedded programs.
+21 declared assets/data records, 27 feature decisions, 2,318 callable units
+(1,495 anonymous callbacks), 2,134 top-level statements and four embedded programs.
 It also captures the new regression sources and canonical build-time audio engine.
 Source hashes explicitly normalize checkout line endings; binary identities stay exact.
 
@@ -74,10 +74,12 @@ registry and are still counted explicitly; the registry is not the final module 
   now require native full-content identities for selected videos and music and
   distinguish optional video analysis from mandatory physical source admission.
   The wording does not establish released-build or Windows compatibility.
-- Configured install roots: **still open**. INSTALL promises environment-provided
-  roots while bootstrap builds default home/.selects paths. Trace the actual host
-  capability and reproduce default/nondefault roots before fixing; do not narrow
-  the promise merely to satisfy a checker.
+- Configured install roots: **needs reproduction, not a confirmed mismatch**.
+  The current host installer and SDK home resolve the same `.selects` roots as
+  Mini. Real-source in-memory composition agrees for macOS, Windows drive and
+  UNC homes even with a separate shell HOME. Arbitrary-root support and a failing
+  supported installation were not established; no new roots API is justified.
+  Released/native Windows installation proof remains open.
 
 The development SDK checkpoint exercises actual native decoding and actual Electron
 Workers using only generated owned WAVs, with no Project/Draft/import creation.

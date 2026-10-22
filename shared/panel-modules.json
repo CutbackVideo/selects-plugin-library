@@ -102,7 +102,9 @@
     {
       "id": "audio-beat-analysis",
       "source": "shared/audio-beat-analysis.cjs",
-      "targets": [],
+      "targets": [
+        "plugins/selfie-aesthetic/panel.tsx"
+      ],
       "fileTargets": [
         "plugins/mini-vlog/beat-detect.cjs",
         "plugins/archive-vlog/beat-detect.cjs",

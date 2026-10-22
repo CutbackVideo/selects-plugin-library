@@ -39,8 +39,9 @@ and selection generation own the whole operation. Selection imports/saves nothin
 ## Module boundary and compatibility
 
 `shared/audio-beat-analysis.cjs` owns numerical analysis and its inherited explicit
-raw Float32 development CLI. `shared/panel-modules.json` declares four `fileTargets`;
-the existing sync tool generates standalone `beat-detect.cjs` consumers, verifies
+raw Float32 development CLI. `shared/panel-modules.json` declares four `fileTargets`
+and Selfie’s inline main-thread fallback. The existing sync tool generates
+standalone `beat-detect.cjs` and marked panel consumers, verifies
 manifest inclusion, rejects excluded/invalid consumers and checks all targets before
 writing. Runtime packages remain independent of repository imports. The original
 numerical body is unchanged. Summer/End Credits variants are not substituted.
@@ -61,7 +62,10 @@ identities, optional video analysis, cache storage and retained unknown workspac
   fallback, terminal/preserved workspaces, assembly precommit and saved Audio
   content/path restoration through both entry paths.
 - Canonical/copy equality, numerical output, browser Worker VM and raw Float32 CLI
-  guards preserve all four engines. Each existing consumer's beat suite passes.
+  guards preserve all four engines. Selfie’s inline fallback also embeds the complete
+  canonical source in a private CommonJS shim, exposes only `analyze` and keeps
+  the Node CLI inactive. A dedicated numerical/Node-IO regression covers this
+  additional consumer, which the initial file-only extraction missed.
 - A separate real development SDK run executes five scenarios using generated
   owned WAVs, actual native decoding and actual Electron browser Workers. It
   confirms 120/100 BPM invalidation, cache reuse, changed-during-Worker refusal,
