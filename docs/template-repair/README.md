@@ -22,6 +22,14 @@ Unknown observations must not be converted to success or guessed source facts.
 Unsupported environments must fail explicitly rather than silently substituting
 an unrelated workflow. A passing unit suite alone is not completion.
 
+Completion also requires a complete feature-ownership review for **all 28**
+templates: reuse, extend, extract, or keep template-specific with reasons.
+Input/output contracts, captured dependencies, lifetime/cleanup, side effects,
+errors and existing-consumer compatibility must accompany each decision.
+The current module registry is a partial distribution mechanism, not a completed
+module-pool inventory. See [feature-ownership.md](feature-ownership.md) for the
+current source inventory, initial decisions, all-template ledger and full gate.
+
 ## Current checkpoint
 
 - Mini Vlog 0.1.0-alpha.13 prepares verified, content-addressed bundled music
@@ -149,6 +157,9 @@ an unrelated workflow. A passing unit suite alone is not completion.
   where their contracts match. Do not add overlapping helpers by default.
 
 ## Ordered work
+
+Maintain the all-template feature-ownership ledger throughout every step below;
+do not defer it until bugs are fixed or call the module list complete early.
 
 1. Finish the current Gongju/Recap and original-photo preflight verification.
 2. Repair Place Count's unsupported capability call through the actual SDK.

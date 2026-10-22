@@ -18,6 +18,8 @@ jobs:
       - run: python3 tools/check_templates.py
       - run: python3 tools/plugin_files.py check
       - run: node tools/sync_panel_modules.mjs --check
+      - name: Test feature ownership inventory boundaries
+        run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_ownership_audit.test.mjs
       - name: Test original Image input preflight and module consumers
         run: node --test tests/native_image_preflight.test.mjs tests/panel_modules.test.mjs tests/native_image_sdk_migration.test.mjs
       - run: python3 tools/sync_app_update_guards.py --check
