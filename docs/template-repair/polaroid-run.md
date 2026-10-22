@@ -1,5 +1,8 @@
 # Durable Polaroid app-run ownership and recovery
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 Polaroid keeps its 17 ordered original photos, frame, zoom/grade, caption and
 music recipe. Its preceding single-commit implementation still guarded app
 runs only with a component-local ref. A fresh panel realm lost that state and

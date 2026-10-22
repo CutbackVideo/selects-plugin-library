@@ -32,7 +32,11 @@ try{
   requireValue(Array.isArray(module.targets)&&Array.isArray(compatibility)&&Array.isArray(buildTime)&&Array.isArray(fileTargets)&&module.targets.length+compatibility.length+buildTime.length+fileTargets.length>0,'Invalid module targets');
   const targets=[...module.targets,...compatibility];
   requireValue(new Set(targets).size===targets.length,'Duplicate module targets');
-  const source=readFileSync(path.join(root,module.source),'utf8').trimEnd();
+  let source=readFileSync(path.join(root,module.source),'utf8').trimEnd();
+  // Repository ESM imports are replaced by the explicitly delivered canonical
+  // dependency in standalone panels. Never leave a repository import at runtime.
+  if(module.id==='native-image-input')source=source.replace(/^import\s*\{\s*fingerprintTemplateFile\s*\}\s*from\s*['"]\.\/file-observation\.js['"];?\r?\n/m,'');
+  if(['file-observation','draft-observation'].includes(module.id))source=source.replace(/^export (async function|function)/gm,'$1').replace(/^export \{[^\n]+\};?\s*$/m,'').trimEnd();
   const start='// '+module.id+':start',end='// '+module.id+':end';
   requireValue(!source.includes(start)&&!source.includes(end),'Module source contains its own markers');
   requireValue(new Set(buildTime).size===buildTime.length,'Duplicate build-time module targets');

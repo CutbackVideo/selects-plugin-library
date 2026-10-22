@@ -1,5 +1,8 @@
 # Four Photo Stop Motion: complete save and durable app runs
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 Version 0.1.10 follows draft #277. The template remains one of 28 incomplete
 acceptance contracts; this checkpoint is not installation or AV validation.
 

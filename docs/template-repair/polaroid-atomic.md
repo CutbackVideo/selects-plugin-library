@@ -1,5 +1,8 @@
 # Complete Polaroid working-copy authoring
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 Polaroid Photo Dump combines 17 ordered original Images, one bundled transparent
 frame, per-photo focus/film grade, a shared-clock zoom, an editable caption and
 one bundled music clip. Keep its 835-frame/60-fps reference plan, source TSX,

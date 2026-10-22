@@ -1,5 +1,8 @@
 # Gallery durable app-run ownership and recovery
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 Photo Grid Reveal (`photo-gallery-no2`) 0.3.13, based on the complete working-copy
 checkpoint 5a3e15ce75729c7cd3088d055984324c1ff161ce (draft PR #287). Chan's
 `shortform-clips`, `shortform-cloner`, `eo-shorts` and `template-packs` are excluded.

@@ -1,6 +1,15 @@
 // @template-decoration 1
 // @template-decoration-intent 1
 // Generated from the existing program owner and Archive decoration policy.
+function templateObservedSource(observation,row){
+ const invalid=()=>{throw Error('Saved source target could not be confirmed.');};
+ if(!Array.isArray(observation?.clips)||!row||!Number.isSafeInteger(row.clipId)||typeof row.trackId!=='string')invalid();
+ const found=observation.clips.filter(c=>c.clipId===row.clipId&&c.trackId===row.trackId);
+ if(found.length!==1)invalid();
+ const actual=found[0],source=actual.source;
+ if(actual.trackKind!==row.trackKind||actual.startFrame!==row.startFrame||actual.endFrame!==row.endFrame||source?.clipId!==row.clipId||!Number.isFinite(source.startSeconds)||source.startSeconds<0||!Number.isFinite(source.endSeconds)||source.endSeconds<=source.startSeconds)invalid();
+ return {clipId:row.clipId,startSeconds:source.startSeconds,endSeconds:source.endSeconds};
+}
 function imageProgramsFeature(selects,config=null,format=null){
  const issue=message=>Object.assign(Error(message),{code:'IMAGE_PROGRAM_INVALID',publicMessage:message});
  const guarded=fn=>async(...args)=>{try{return await fn(...args);}catch(cause){if(cause?.code==='IMAGE_PROGRAM_INVALID')throw cause;throw Object.assign(issue('Image program state could not be confirmed.'),{cause});}};

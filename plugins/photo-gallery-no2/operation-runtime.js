@@ -35,10 +35,10 @@ function galleryResolveResource(items, resourceId, path, label) {
 }
 
 async function galleryInventory(project, paths = null) {
-  const resources = await project.resources({fresh:true});
+  const resources = await project.resources();
   const byId = new Map();
   for (const row of resources) byId.set(row.resourceId, row);
-  const overview = await project.sourceFiles({fresh:true});
+  const overview = await project.sourceFiles();
   const nodes = [];
   const visit = (items) => {
     for (const item of items || []) {
@@ -103,7 +103,7 @@ function galleryGeometry(tile, source, colorFrame) {
 function assertGalleryInput(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) galleryFail('Gallery input is required');
   if (typeof input.projectId !== 'string' || !input.projectId) galleryFail('Select a Project');
-  if (!['inspect', 'verifyInputs', 'verifyMusic', 'importBundledMusic', 'importConverted', 'create', 'preflight', 'createBase', 'fillBase', 'placeVideosExisting', 'styleExisting', 'verifyCreated'].includes(input.operation)) galleryFail('Unknown gallery action');
+  if (!['inspect', 'verifyInputs', 'verifyMusic', 'importBundledMusic', 'importConverted', 'create', 'preflight', 'createBase', 'fillBase', 'placeVideosExisting', 'styleExisting', 'verifyCreated', 'verifySourceFiles', 'verifySourceMetadata'].includes(input.operation)) galleryFail('Unknown gallery action');
   if (['create', 'verifyInputs', 'preflight', 'createBase', 'placeVideosExisting', 'styleExisting'].includes(input.operation) && (!Array.isArray(input.media) || input.media.length !== 21)) galleryFail('Select exactly 21 visual slots');
   return input;
 }
@@ -324,7 +324,7 @@ async function galleryAtomicFinish(selects,config,draft,native,inspectGraphics,i
     const transforms=await inspectTransforms(draft,expectedTransforms),audioRows=rows.filter(row=>row.trackKind==='audio');
     const wantedAudio=plan.music?[{clipId:audioRows[0]?.clipId,trackId:audioRows[0]?.trackId,trackKind:'audio',resourceId:plan.music.resourceId,startFrame:0,endFrame:plan.durationFrames,audioSourceIndexes:null,settings:{},source:{startSeconds:plan.music.startSeconds,endSeconds:plan.music.startSeconds+plan.durationFrames/plan.fps}}]:[];
     const audio=await inspectAudio(draft,wantedAudio,project),programSnapshot=await programs.inspect(draft,expectedPrograms);
-    const receipts={graphics,transforms,audio,programs:programSnapshot};programs.confirm(receipts);
+    const receipts={graphics,transforms,audio,programs:programSnapshot,sourceGuard:config.sourceReceipt??config.sourceGuard};programs.confirm(config.runReceipt?receipts:{graphics,transforms,audio,programs:programSnapshot});
     await galleryVerifySourceGuard(selects,projectId,config.sourceGuard);
     config.onCommitStarted();commitStarted=true;
     const saved=await draft.commitAll('Create complete Photo Gallery Draft');
@@ -345,7 +345,14 @@ async function galleryCreate(selects,project,input,inventory,onCommitStarted) {
     const expected=input.musicFingerprint,actual=music&&files.find(file=>gallerySamePath(file.path,music.path));
     if(!actual||!gallerySamePath(expected.path,music.path)||expected.size!==actual.size||expected.sha256!==actual.sha256)galleryFail('Selected music changed after the BPM estimate. Run a new estimate before creating the Gallery.');
   }
-  const config={projectId:input.projectId,name:typeof input.name==='string'&&input.name.trim()?input.name.trim():'Photo Gallery',plan:{...plan,canvas:plan.frameSize},sources:chosen,sourceGuard,items:plan.tiles.map((tile,index)=>({key:tile.slotKey,slot:index,source:index,startFrame:tile.revealFrame,endFrame:tile.endFrame})),runReceipt:input.runReceipt,onCommitStarted};
+  let sourceReceipt=null;
+  if(input.runReceipt){
+    const claim=JSON.parse(input.runReceipt.expectedText);
+    if(claim.status!=='claimed'||claim.scope?.pluginId!=='photo-gallery-no2'||claim.scope.projectId!==input.projectId||typeof claim.owner!=='string'||!/^[a-f0-9-]{36}$/i.test(claim.owner)||typeof input.runReceipt.path!=='string')galleryFail('Gallery source evidence owner is invalid.');
+    const path=input.runReceipt.path+'.gallery-sources-'+claim.owner+'.json';
+    sourceReceipt={version:2,...await templateStateFile(selects,path,templateStateJSON(sourceGuard),templateRunBase64,null,fingerprintTemplateFile)};
+  }
+  const config={sourceReceipt,projectId:input.projectId,name:typeof input.name==='string'&&input.name.trim()?input.name.trim():'Photo Gallery',plan:{...plan,canvas:plan.frameSize},sources:chosen,sourceGuard,items:plan.tiles.map((tile,index)=>({key:tile.slotKey,slot:index,source:index,startFrame:tile.revealFrame,endFrame:tile.endFrame})),runReceipt:input.runReceipt,onCommitStarted};
   const result=await authorAtomicImageDraft(selects,config,galleryAtomicFinish,placeWorkingCopyImages,galleryAtomicSources,inspectImageGraphics,inspectImageTransforms,inspectImageAudio,imageProgramsFeature,templateRunJSON,bindMediaPlacement);
   return result.status==='saved'?{...result,tileCount:21,colorFrame:plan.colorFrame}:result;
 }
@@ -626,6 +633,18 @@ async function galleryOperationBody(selects, raw) {
     if (input.operation === 'importBundledMusic') return await galleryImportBundledMusic(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'importConverted') return await galleryImportConverted(selects, project, input, inventory, () => { commitStarted = true; });
     if (input.operation === 'create') return await galleryCreate(selects, project, input, inventory, () => { commitStarted = true; });
+    // These reads run in a new SDK invocation after the sole save. Project
+    // caches belong to that invocation; no fresh option or new SDK is needed.
+    if (input.operation === 'verifySourceFiles') {
+      if(!input.sourceGuard||!Array.isArray(input.sourceGuard.media)||!Array.isArray(input.sourceGuard.files))galleryFail('Saved Gallery source evidence is unavailable.');
+      await galleryVerifySourceGuard(selects,input.projectId,input.sourceGuard);
+      return {status:'verified'};
+    }
+    if (input.operation === 'verifySourceMetadata') {
+      if(!input.sourceGuard||!Array.isArray(input.sourceGuard.media))galleryFail('Saved Gallery source evidence is unavailable.');
+      await galleryCheckSourceMetadata(selects,input.projectId,input.sourceGuard);
+      return {status:'verified'};
+    }
     if (input.operation === 'preflight') {
       const { plan } = await galleryPreflight(selects, project, input, inventory);
       return { status: 'ready', plan };

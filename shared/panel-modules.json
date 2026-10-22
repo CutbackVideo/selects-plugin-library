@@ -32,6 +32,9 @@
         "plugins/polaroid-photo-dump/panel.tsx",
         "plugins/mini-vlog/panel.tsx",
         "plugins/archive-vlog/panel.tsx"
+      ],
+      "requires": [
+        "file-observation"
       ]
     },
     {
@@ -60,6 +63,9 @@
         "plugins/photo-gallery-no2/build-panel.mjs",
         "plugins/mini-vlog/operation-builder.mjs",
         "plugins/archive-vlog/operation-builder.mjs"
+      ],
+      "requires": [
+        "draft-observation"
       ]
     },
     {
@@ -75,6 +81,10 @@
       ],
       "buildTimeTargets": [
         "plugins/photo-gallery-no2/build-panel.mjs"
+      ],
+      "requires": [
+        "file-observation",
+        "draft-observation"
       ]
     },
     {
@@ -156,6 +166,42 @@
         "plugins/summer-trip/panel.tsx",
         "plugins/the-end-credits/panel.tsx",
         "plugins/torn-paper-love/panel.tsx"
+      ]
+    },
+    {
+      "id": "file-observation",
+      "source": "shared/file-observation.js",
+      "targets": [
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/no14-still-video/panel.tsx",
+        "plugins/camera-shutter-dump/panel.tsx",
+        "plugins/four-photo-stop-motion/panel.tsx",
+        "plugins/photo-gallery-no2/panel.tsx",
+        "plugins/polaroid-photo-dump/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/archive-vlog/operation-builder.mjs",
+        "plugins/mini-vlog/operation-builder.mjs",
+        "plugins/photo-gallery-no2/build-panel.mjs"
+      ]
+    },
+    {
+      "id": "draft-observation",
+      "source": "shared/draft-observation.js",
+      "targets": [
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/no14-still-video/panel.tsx",
+        "plugins/camera-shutter-dump/panel.tsx",
+        "plugins/four-photo-stop-motion/panel.tsx",
+        "plugins/photo-gallery-no2/panel.tsx",
+        "plugins/polaroid-photo-dump/panel.tsx"
+      ],
+      "buildTimeTargets": [
+        "plugins/archive-vlog/operation-builder.mjs",
+        "plugins/mini-vlog/operation-builder.mjs",
+        "plugins/photo-gallery-no2/build-panel.mjs"
       ]
     }
   ]

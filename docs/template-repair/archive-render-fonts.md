@@ -1,5 +1,8 @@
 # Archive render fonts and authored readiness
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 The original title and credit prepared fonts only on initial mount. A valid
 same-instance Latin-to-Hangul edit could immediately measure new glyphs without
 preparing their font request. Native preview/export also checked images and

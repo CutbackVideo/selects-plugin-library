@@ -1,5 +1,8 @@
 # Gallery source observations at composition and save boundaries
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 Photo Grid Reveal 0.3.18, based on 1c05875813abe5e729a5f55d02e6f95b8b3a7293
 (draft library PR #296). Chan's shortform apps and template packs stay excluded.
 The full 28-template repair goal remains active.

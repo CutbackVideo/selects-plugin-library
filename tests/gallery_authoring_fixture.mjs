@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {createHash} from 'node:crypto';
+import {createHash,webcrypto} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {fixture as photoProject} from './photo_authoring_fixture.mjs';
 
@@ -25,10 +25,16 @@ export function galleryFixture({minify=false,mix='mixed',music=true,...faults}={
   const bytes=sourceBytes.get(path)??Buffer.alloc(info.size,11);
   return {size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};
  };
+ // Model the existing native file contract, rather than a fingerprint-only host.
+ f.selects.files.readRange=async({path,offset,length})=>{
+  const info=await f.selects.files.stat(path);if(!info)throw Error('ENOENT');
+  const bytes=(sourceBytes.get(path)??Buffer.alloc(info.size,11)).subarray(offset,offset+length);
+  return {bytesRead:bytes.length,base64:bytes.toString('base64')};
+ };
  const observed=[],key=String(minify),filename=process.env.GALLERY_AUTHORING_PANEL||new URL('../plugins/photo-gallery-no2/panel.tsx',import.meta.url);
  if(!cache.has(key)){
   const source=fs.readFileSync(filename,'utf8')+`\nexport function __create(sdk,input,options){return buildGalleryDraft(sdk,STRINGS.en,{input,...options});}`;
-  const module={exports:{}};vm.runInNewContext(esbuild.transformSync(source,{loader:'tsx',format:'cjs',target:'es2022',jsx:'automatic',minify}).code,{module,exports:module.exports,require:name=>name==='react'?{}:{jsx:()=>null},console,TextEncoder,TextDecoder,Uint8Array,setTimeout,clearTimeout});
+  const module={exports:{}};vm.runInNewContext(esbuild.transformSync(source,{loader:'tsx',format:'cjs',target:'es2022',jsx:'automatic',minify}).code,{module,exports:module.exports,require:name=>name==='react'?{}:{jsx:()=>null},console,crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array,setTimeout,clearTimeout});
   cache.set(key,module.exports.__create);
  }
  const create=async(options={})=>cache.get(key)(f.sdk,structuredClone(options.input||input),{isCurrent:f.args.stillCurrent,onDispatched:()=>{},onDraft:draftId=>observed.push({draftId,visuals:f.saved.get(draftId)?.clips.filter(c=>c.trackKind==='video'&&c.resourceId).length}),...options});

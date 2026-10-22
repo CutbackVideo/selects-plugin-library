@@ -20,7 +20,7 @@ also the music previews, your own music (beat detection runs inside the panel)
 and the quick check of clips without analysis, which use the ffmpeg built into
 Selects through the host. No package manager, Node.js or shell commands are needed.
 
-This development package requires native `files.fingerprint` for every selected
+This development package computes full SHA-256 using existing `files.stat` and `files.readRange` for every selected
 video original and music file. A missing, changed or unconfirmed source stops
 Build and saved-workflow continuation. A complete byte identity is mandatory;
 file size, modification time and analysis status do not replace it. Released

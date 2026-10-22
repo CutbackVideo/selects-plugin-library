@@ -1,3 +1,4 @@
+import {fingerprintTemplateFile} from '../shared/file-observation.js';
 // The same embedded consumer source runs here; no model or private app DI is mocked.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -149,8 +150,8 @@ test('first-run face analysis creates its journal through the canonical file rea
     },
   };
   const source = fs.readFileSync(new URL('../shared/local-client.ts', import.meta.url), 'utf8')
-    .replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, '');
-  const context = vm.createContext({React: {}, atob, btoa, Uint8Array, TextEncoder, TextDecoder});
+    .replace(/^import \{fingerprintTemplateFile\} from '\.\/file-observation\.js';\n/m, '').replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, '');
+  const context = vm.createContext({React: {}, fingerprintTemplateFile, atob, btoa, Uint8Array, TextEncoder, TextDecoder});
   vm.runInContext(stripTypeScriptTypes(source, {mode: 'strip'}) + '\nthis.createClient=createPanelLocalClient;', context);
   const client = await context.createClient({runScript: async ({script, summary, allowCommit}) =>
     ({isError: false, result: await h.env.runScript(script, summary, allowCommit)})});

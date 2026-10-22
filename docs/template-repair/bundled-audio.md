@@ -1,5 +1,8 @@
 # Stable bundled music sources
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 Four Photo Reveal 0.5.11 and Four Photo Stop Motion 0.1.8 use one new cohesive
 bundled-Audio feature, registered only for these two consumers. Existing native
 Image authoring/input and run modules keep their ownership and consumers.

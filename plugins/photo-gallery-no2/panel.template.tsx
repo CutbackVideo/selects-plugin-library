@@ -13,6 +13,10 @@
 // @icon image
 // Build a native, editable 3×7 photo/video gallery in the current Selects project.
 import React from 'react';
+// file-observation:start
+// file-observation:end
+// draft-observation:start
+// draft-observation:end
 /*__SHARED_SCRIPT_BUILDER__*/
 
 // av-host:start
@@ -751,7 +755,7 @@ async function prepareBundledMusic(sdk, t, { projectId, durationFrames, fps: kno
 }
 
 function requireGalleryAuthoringHost(sdk) {
-  if(!Number.isSafeInteger(sdk.maxScriptTimeoutSeconds)||sdk.maxScriptTimeoutSeconds<120){
+  if(typeof sdk?.runScript!=='function'){
     const message='Update Selects to create a complete Photo Grid Reveal Draft.';
     throw Object.assign(new Error(message),{safeNotSaved:true,publicMessage:message});
   }
@@ -859,8 +863,33 @@ async function buildGalleryDraft(sdk,t,{input,isCurrent,onDispatched,onDraft,lib
     const result=response.result;throw Object.assign(new Error(result?.message||response.output||t.unknown),{safeNotSaved:result?.status==='notSaved',draftId:result?.draftId??null});
   }
   const result=response.result;
-  await verifyAtomicImageDraft(sdk,input.projectId,result);
+  await verifyGallerySavedDraft(sdk,input.projectId,result);
   return {...result,verified:true,readReturned:true};
+}
+
+// Independent post-save source reads use separate invocations so the original
+// Project cache cannot masquerade as fresh facts. Keep saved identity on failure.
+async function verifyGallerySavedDraft(sdk,projectId,result){
+ const unverified=cause=>Object.assign(Error('The Gallery was saved, but its sources could not be confirmed. Inspect the saved Draft before retrying.'),{code:'IMAGE_SAVE_UNVERIFIED',draftId:result?.draftId,cause});
+ try{
+  await verifyAtomicImageDraft(sdk,projectId,result);
+  let sourceGuard=result.sourceGuard;
+  if(!sourceGuard)throw Error('Saved Gallery source evidence is unavailable.');
+  if(sourceGuard.version===2){
+   const files=panelLocalClient(sdk).files,before=await files.stat(sourceGuard.path);
+   if(!before||before.isDirectory!==false||before.size!==sourceGuard.size||before.size<1||before.size>8388608)throw Error('Saved Gallery source evidence is unavailable.');
+   const bytes=await files.readRange(sourceGuard.path,0,before.size),after=await files.stat(sourceGuard.path);
+   if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]'||bytes.byteLength!==before.size||!after||['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))throw Error('Saved Gallery source evidence changed.');
+   const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),n=>n.toString(16).padStart(2,'0')).join('');
+   if(digest!==sourceGuard.sha256)throw Error('Saved Gallery source evidence changed.');
+   sourceGuard=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+  }
+  for(const operation of ['verifySourceFiles','verifySourceMetadata']){
+   const response=await sdk.runScript({summary:'Verify saved Gallery original sources',allowCommit:false,script:buildScript({operation,projectId,sourceGuard})});
+   if(response.isError||response.result?.status!=='verified')throw Error('Saved Gallery sources changed or could not be read.');
+  }
+ }catch(cause){throw unverified(cause);}
+ return result;
 }
 
 // A template run gets its own component, so it never touches the Panel's state.
@@ -1201,8 +1230,8 @@ function galleryRunRequest(template) {
 // Music Off has no Audio reader dependency. Existing saved receipts still need
 // the readers used to independently verify the persisted result.
 async function requireGalleryRunReaders(sdk,projectId,music) {
-  const methods=['motionGraphics','motionGraphicProgram','clipTransform','videoEffects','videoEffectProgram',...music==='none'?[]:['clipAudio','clipSourceWindow']];
-  const reply=await sdk.runScript({summary:'Check Gallery saved-result support',allowCommit:false,script:`if(typeof selects.files?.fingerprint!=='function')return {supported:false};const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:'Gallery support check'});return {supported:${JSON.stringify(methods)}.every(name=>typeof d[name]==='function')};`});
+  const methods=['motionGraphics','motionGraphicProgram','clipTransform','videoEffects','videoEffectProgram',...music==='none'?[]:['clipAudio']];
+  const reply=await sdk.runScript({summary:'Check Gallery saved-result support',allowCommit:false,script:`if(typeof selects.files?.stat!=='function'||typeof selects.files?.readRange!=='function')return {supported:false};const d=await selects.project(${JSON.stringify(projectId)}).createDraft({name:'Gallery support check'});return {supported:${JSON.stringify(methods)}.every(name=>typeof d[name]==='function')};`});
   if(reply.isError||reply.result?.supported!==true)throw templateIssue('Update Selects to create and verify Photo Grid Reveal safely.');
 }
 
@@ -1258,7 +1287,7 @@ function GalleryTemplateRun({ sdk, context }) {
           }
           say('Building the gallery…');
           return buildGalleryDraft(sdk,t,{input,isCurrent:live,libraryId,runReceipt,onDispatched:async()=>{await onDispatch();dispatched=true;},onDraft:id=>{draftId=id;}});
-        },result=>verifyAtomicImageDraft(sdk,projectId,result));
+        },result=>verifyGallerySavedDraft(sdk,projectId,result));
         draftId=built.draftId;
         if(!draftId||!Array.isArray(built.clips)||built.clips.length!==21)throw templateIssue('The saved Gallery could not be confirmed. Inspect the Project before starting a new run.');
         say('Done.');
@@ -1437,9 +1466,13 @@ async function createPanelLocalClient(sdk: any) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
-    fingerprint: (path: string) => run("files.fingerprint", [path]),
+    // One script owns every read and its deadline; only the compact digest returns.
+    fingerprint: (path: string) => runSource("return await (" + fingerprintTemplateFile.toString() + ")(selects.files," + JSON.stringify(path) + ");"),
     readdir: (path: string) => run("files.readdir", [path]),
-    readRange,
+    // SDK-shaped requests support the same shared observation in SDK scripts and
+    // the panel. Positional reads retain their existing byte/partial-EOF contract.
+    readRange: (path: string | {path: string; offset: number; length: number}, offset?: number, length?: number) =>
+      typeof path === "string" ? readRange(path, offset!, length!) : run("files.readRange", [path]),
     async readFile(path: string, encoding?: string) {
       const stat = await run("files.stat", [path]);
       if (!stat || !Number.isSafeInteger(stat.size) || stat.size < 0) throw new Error("The file is unavailable.");

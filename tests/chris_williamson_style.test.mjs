@@ -1,3 +1,4 @@
+import {fingerprintTemplateFile} from '../shared/file-observation.js';
 import {asyncSdk} from './windows_host.mjs';
 // Chris Williamson Style: host path keys, and the panel's port of engine.mjs (shots, candidates, assets on
 // the host's ffmpeg) checked against engine.mjs itself on the same inputs. The panel code runs in node:vm with a
@@ -49,10 +50,10 @@ test('treePaths finds every path in a Project file tree', () => {
 
 test('a Draft without a run record starts fresh when the SDK file client reports the file missing', async () => {
   const client = fs.readFileSync(path.resolve(import.meta.dirname, '../shared/local-client.ts'), 'utf8')
-    .replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, '');
+    .replace(/^import \{fingerprintTemplateFile\} from '\.\/file-observation\.js';\n/m, '').replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, '');
   const start = PANEL.indexOf('\nconst stateFile =');
   const end = PANEL.indexOf('\n}\n', PANEL.indexOf('async function readState(', start)) + 3;
-  const context = vm.createContext({React: {}, atob, btoa, Uint8Array, TextEncoder, TextDecoder, hostJoin: (...parts) => parts.join('/')});
+  const context = vm.createContext({React: {}, fingerprintTemplateFile, atob, btoa, Uint8Array, TextEncoder, TextDecoder, hostJoin: (...parts) => parts.join('/')});
   vm.runInContext(stripTypeScriptTypes(client + PANEL.slice(start, end), {mode: 'strip'}) + '\nthis.api={createPanelLocalClient,readState};', context);
   const selects = {files: {environment: async () => ({platform: 'darwin', homedir: '/user', tempDirectory: '/tmp'}), stat: async () => null}};
   const sdk = {runScript: async ({script}) => ({isError: false, result: await new Function('selects', `return (async()=>{${script}})()`)(selects)})};

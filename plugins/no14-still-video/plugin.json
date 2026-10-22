@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "no14-still-video",
-  "version": "0.5.27",
+  "version": "0.5.28",
   "name": "Four Photo Reveal",
   "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat.",
   "status": "experimental",
@@ -20,7 +20,7 @@
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Requires a Selects build with original Image editing, editable effects/graphics and Audio source-window verification. This version's installed-app and Windows runtime, full playback and export checks remain pending."
+    "selects": "Uses existing Panel saved-Draft reads and SDK stat/readRange for plugin-private source verification; no SDK/client change is required. Working-copy checks precede one save; independent saved-source verification follows it. Unconfirmed reads retain the saved Draft ID without replay. Installed-app/Windows, playback and export remain unverified."
   },
   "preview": {
     "video": "preview.mp4",

@@ -161,7 +161,14 @@ class PhotoGalleryNo2WindowsTest(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("node"), "node runs operation-builder.mjs")
     def test_chat_skill_recipe_matches_the_panel_prefix(self):
-        facts = read(os.path.join(PLUGIN, "input-facts.generated.mjs")).split("export ", 1)[1].strip().replace("\nexport ", "\n")
+        facts_source = read(os.path.join(PLUGIN, "input-facts.generated.mjs"))
+        facts = facts_source.split("export ", 1)[1].strip().replace("\nexport ", "\n")
+        # The installed recipe follows the same explicit declaration order as the builder.
+        boundary = facts.index("\nasync function nativeImageSources(")
+        fingerprint, rest = facts[:boundary], facts[boundary + 1:]
+        boundary = rest.index("\nfunction requireSourceFileSupport(")
+        image, support = rest[:boundary], rest[boundary + 1:]
+        facts = image + "\n" + fingerprint + "\n" + support
         packaged = read(os.path.join(PLUGIN, "authoring.generated.mjs"))
         authoring = json.loads(re.search(r"export const IMAGE_AUTHORING_SOURCE = (.*);", packaged).group(1))
         serializer = json.loads(re.search(r"export const TEMPLATE_RUN_SOURCE = (.*);", packaged).group(1))

@@ -1,5 +1,8 @@
 # Gallery native runtime: repair in progress
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 This checkpoint extends the isolated SDK/Chrome evidence in
 [gallery-render-contract.md](gallery-render-contract.md) with the real macOS
 development app, its public SDK, SQLite repository, Driver and native exporter.

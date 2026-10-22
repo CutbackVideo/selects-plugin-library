@@ -155,8 +155,8 @@ search that finds drinks, streets, food and the other shot roles.
   dispatch can use uncached evenly spaced moments, then try analysis on the
   next Build. This requires confirmed original contents. Unknown source access,
   changed contents, cancellation, an active decoder timeout or unconfirmed
-  temporary cleanup stops the build. A Selects build without complete file
-  fingerprint support must be updated.
+  temporary cleanup stops the build. Existing file stat/readRange support is required; the plugin computes the full
+  fingerprint itself. No new SDK method is required.
 - **Clip highlights** (the selected-file template run) uses the same local
   check, persistent source-bound cache and original-file checks.
 

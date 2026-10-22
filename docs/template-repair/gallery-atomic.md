@@ -1,5 +1,8 @@
 # Gallery complete working-copy authoring
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 Photo Grid Reveal keeps its 21 editable tiles, 3-by-7 grid, reveal ordering,
 shared grayscale-to-color event and optional music. App runs still select
 15 Images and six Videos at slots 4, 6, 11, 17, 19 and 21; the standalone panel

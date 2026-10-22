@@ -1,4 +1,13 @@
 // @template-assembly-verification 1
+function templateObservedSource(observation,row){
+ const invalid=()=>{throw Error('Saved source target could not be confirmed.');};
+ if(!Array.isArray(observation?.clips)||!row||!Number.isSafeInteger(row.clipId)||typeof row.trackId!=='string')invalid();
+ const found=observation.clips.filter(c=>c.clipId===row.clipId&&c.trackId===row.trackId);
+ if(found.length!==1)invalid();
+ const actual=found[0],source=actual.source;
+ if(actual.trackKind!==row.trackKind||actual.startFrame!==row.startFrame||actual.endFrame!==row.endFrame||source?.clipId!==row.clipId||!Number.isFinite(source.startSeconds)||source.startSeconds<0||!Number.isFinite(source.endSeconds)||source.endSeconds<=source.startSeconds)invalid();
+ return {clipId:row.clipId,startSeconds:source.startSeconds,endSeconds:source.endSeconds};
+}
 async function nativeImageSources(selects, projectId, photos, { matchById=false }={}) {
  const project=selects.project(projectId), resources=await project.resources(), nodes=[];
  const visit=items=>{for(const item of items||[])item.type==='dir'?visit(item.children):nodes.push(item);};
@@ -108,13 +117,12 @@ function nativeMediaWindow({startFrame,endFrame,draftFps,sourceFps,sourceStartSe
  if(!Number.isSafeInteger(start)||start<0||!Number.isSafeInteger(start+count))throw Error('The planned source interval cannot be represented.');
  return {startFrame,endFrame,frames,sourceStart:start/sourceFps,sourceEnd:(start+count)/sourceFps,insertedFrames:Math.round(count/sourceFps*draftFps)};
 }
-async function inspectImageAudio(draft,expected,project,overlayOnly=false){
+async function inspectImageAudio(draft,expected,project,overlayOnly=false,observedSources=null,readSource=null){
  const mismatch=message=>Object.assign(Error(message),{code:'IMAGE_AUDIO_MISMATCH'});
  const rows=(await draft.clips({trackScope:'all'})).filter(row=>row.trackKind==='audio'||!overlayOnly&&row.trackKind==='main'&&row.resourceId);
  if(!Array.isArray(expected)||rows.length!==expected.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw mismatch('Audio clip count could not be confirmed.');
  if(!expected.length)return [];
  if(!('clipAudio' in draft))throw Error('Update Selects to verify Audio settings.');
- if(!('clipSourceWindow' in draft)||typeof draft.clipSourceWindow!=='function')throw Error('Update Selects to verify Audio source timing.');
  const types=new Map((await project.resources()).map(row=>[row.resourceId,row.type])),receipts=[];
  const same=(a,b)=>{
   if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));
@@ -129,11 +137,19 @@ async function inspectImageAudio(draft,expected,project,overlayOnly=false){
   if(!actual||actual.clipId!==row.clipId||!Object.entries(settings).every(([key,value])=>same(actual[key],value)))throw mismatch('Audio volume or fades could not be confirmed.');
   if(!wanted.source||!Number.isFinite(wanted.source.startSeconds)||wanted.source.startSeconds<0||!Number.isFinite(wanted.source.endSeconds)||wanted.source.endSeconds<=wanted.source.startSeconds)throw Error('Audio source evidence is unavailable.');
   const source={startSeconds:wanted.source.startSeconds,endSeconds:wanted.source.endSeconds,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true,...wanted.source};
+  if(!Number.isSafeInteger(source.playbackSpeed?.numerator)||source.playbackSpeed.numerator<1||!Number.isSafeInteger(source.playbackSpeed?.denominator)||source.playbackSpeed.denominator<1||typeof source.preserveAudioPitch!=='boolean')throw Error('Audio source evidence is invalid.');
+  if(row.playbackSpeed?.numerator!==source.playbackSpeed.numerator||row.playbackSpeed?.denominator!==source.playbackSpeed.denominator||row.preserveAudioPitch!==source.preserveAudioPitch)throw mismatch('Audio playback policy could not be confirmed.');
   // Time uses floating-point arithmetic noise only, not the relative tolerance
   // used for level/fades. A small changed source instant must remain detectable.
   const timeSame=(a,b)=>Number.isFinite(a)&&Math.abs(a-b)<=8*Number.EPSILON*Math.max(1,Math.abs(a),Math.abs(b));
-  let observed;try{observed=await draft.clipSourceWindow(row);}catch(cause){throw Object.assign(Error('Audio source timing could not be confirmed.'),{cause});}
-  if(!observed||observed.clipId!==row.clipId||!timeSame(observed.startSeconds,source.startSeconds)||!timeSame(observed.endSeconds,source.endSeconds)||row.playbackSpeed?.numerator!==source.playbackSpeed.numerator||row.playbackSpeed?.denominator!==source.playbackSpeed.denominator||row.preserveAudioPitch!==source.preserveAudioPitch)throw mismatch('Audio source timing or playback policy could not be confirmed.');
+  // An unsaved working copy has no persisted source read. Keep the requested
+  // interval as intent; only saved verification supplies independently read
+  // sources. Never infer the source offset from timeline placement.
+  if(observedSources!==null){
+   if(typeof readSource!=='function')throw Error('Audio source observation is unavailable.');
+   let observed;try{observed=readSource(observedSources,row);}catch(cause){throw Object.assign(Error('Audio source timing could not be confirmed.'),{cause});}
+   if(!observed||observed.clipId!==row.clipId||!timeSame(observed.startSeconds,source.startSeconds)||!timeSame(observed.endSeconds,source.endSeconds))throw mismatch('Audio source timing could not be confirmed.');
+  }
   receipts.push({clipId:wanted.clipId,trackId:wanted.trackId,trackKind:wanted.trackKind,resourceId:wanted.resourceId,startFrame:wanted.startFrame,endFrame:wanted.endFrame,audioSourceIndexes:wanted.audioSourceIndexes,settings,source});
  }
  return receipts;
@@ -194,7 +210,7 @@ const near=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Ma
 for(let i=0;i<main.length;i++){
  const row=main[i],pick=cfg.picks[i],intent=archiveAssemblyShot(cfg,i,fps,timing.get(pick.rid));
  if(row.resourceId!==pick.rid||row.startFrame!==intent.startFrame||row.endFrame!==intent.endFrame)refuse('The saved assembly cut differs from the original plan.');
- const source=await d.clipSourceWindow(row),speed=row.playbackSpeed;
+ const source=templateObservedSource(input.__sources,row),speed=row.playbackSpeed;
  if(!source||!speed||speed.numerator!==speed.denominator||!timeSame(source.startSeconds,intent.sourceStart)||!timeSame(source.endSeconds,intent.sourceStart+intent.frames/fps))refuse('The saved assembly source window differs from the original plan.');
  const size=cfg.crops?.[pick.rid],scale=size?.width>0&&size?.height>0?Math.max(1920/size.width,1080/size.height)/Math.min(1920/size.width,1080/size.height):1,transform=await d.clipTransform(row);
  if(!near(transform.scale.x,scale)||!near(transform.scale.y,scale)||!near(transform.position.x,0)||!near(transform.position.y,0)||transform.positionKeys.length||transform.scaleKeys.length)refuse('The saved assembly crop differs from the original plan.');
@@ -207,7 +223,7 @@ const audio=rows.filter(row=>row.trackKind==='audio');
 if(cfg.music){
  if(audio.length!==1)refuse('The saved assembly music count differs from the original plan.');
  const row=audio[0],start=Math.round(cfg.music.sectionStart*fps)/fps;
- await inspectImageAudio(d,[{clipId:row.clipId,trackId:row.trackId,trackKind:'audio',resourceId:cfg.music.resourceId,startFrame:0,endFrame:durationFrames,audioSourceIndexes:null,settings:{volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:Math.min(durationFrames,Math.round((cfg.musicFadeOut??1)*fps))/fps},source:{startSeconds:start,endSeconds:start+durationFrames/fps,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true}}],p,true);
+ await inspectImageAudio(d,[{clipId:row.clipId,trackId:row.trackId,trackKind:'audio',resourceId:cfg.music.resourceId,startFrame:0,endFrame:durationFrames,audioSourceIndexes:null,settings:{volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:Math.min(durationFrames,Math.round((cfg.musicFadeOut??1)*fps))/fps},source:{startSeconds:start,endSeconds:start+durationFrames/fps,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true}}],p,true,input.__sources,templateObservedSource);
 }else if(audio.length)refuse('The saved assembly has unexpected music.');
 return {verified:true,draftId:input.draftId,mainEnd:endFrame,fps,durationFrames};
 }catch(error){return {verified:false,status:['ARCHIVE_PLAN_MISMATCH','IMAGE_AUDIO_MISMATCH'].includes(error?.code)?'mismatch':'unavailable',detail:String(error?.message||'The saved assembly could not be read.').slice(0,300)};}

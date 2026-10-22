@@ -1,5 +1,8 @@
 # Photo Audio source-window verification
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 Four Photo Reveal 0.5.10 and Camera Shutter Dump 0.1.17 extend the existing
 native Image authoring and durable-run modules. No production module is added.
 Chan's apps, template packs and excluded compatibility production code remain

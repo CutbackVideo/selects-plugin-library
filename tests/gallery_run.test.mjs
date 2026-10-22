@@ -3,7 +3,7 @@ import test from 'node:test';
 import {templateFixture} from './photo_template_run_fixture.mjs';
 import {checkScriptTypes} from './run_script_types.mjs';
 const fixture=options=>templateFixture('photo-gallery-no2',options);
-const records=f=>[...f.files.keys()].filter(p=>p.includes('/template-runs/'));
+const records=f=>[...f.files.keys()].filter(p=>p.includes('/template-runs/')&&!p.includes('.gallery-sources-'));
 const settle=async(f,n=1)=>f.until(()=>f.finishes.length===n);
 const success=f=>assert.ok(f.finishes.at(-1)?.sequenceId,JSON.stringify(f.finishes));
 
@@ -53,7 +53,7 @@ for(const change of ['Project','library'])test('Gallery run: same-run '+change+'
  await f.until(()=>f.finishes.length>0||records(f).some(p=>JSON.parse(f.files.get(p)).status==='notSaved'));
  assert.equal(f.commits.length,0);assert.equal(f.finishes.length,0);close();
 });
-for(const capability of ['graphicsReadSupported','transformReadSupported','audioReadSupported','sourceReadSupported','programReadSupported'])test('Gallery run: absent '+capability+' stops before claim or music import',async()=>{
+for(const capability of ['graphicsReadSupported','transformReadSupported','audioReadSupported','programReadSupported'])test('Gallery run: absent '+capability+' stops before claim or music import',async()=>{
  const f=fixture({[capability]:false});await f.mount({template:{...f.context.template,options:{music:'bundled'}}});await settle(f);
  assert.match(f.finishes[0].error,/Update Selects/);assert.equal(records(f).length,0);assert.equal(f.requests.some(r=>r.allowCommit),false);assert.equal(f.commits.length,0);
 });
@@ -93,7 +93,7 @@ test('Gallery run: known saved ID survives receipt disk failure and remount neve
  await f.mount();await settle(f,2);assert.ok(f.finishes[1].error);assert.equal(f.commits.length,1);
 });
 test('Gallery run: a lost exclusive claim acknowledgment is reread before one authoring',async()=>{
- const f=fixture();let n=0;f.hooks.afterWrite=p=>{if(p.includes('/template-runs/')){n++;throw Error('claim reply lost');}};
+ const f=fixture();let n=0;f.hooks.afterWrite=p=>{if(p.includes('/template-runs/')&&!p.includes('.gallery-sources-')){n++;throw Error('claim reply lost');}};
  await f.mount();await settle(f);success(f);assert.equal(n,1);assert.equal(f.commits.length,1);assert.equal(JSON.parse(f.files.get(records(f)[0])).status,'saved');
 });
 test('Gallery run: default and explicit bundled music recover without reimporting',async()=>{
@@ -122,8 +122,8 @@ for(const cryptoFault of ['absent crypto','missing digest','missing UUID','nonca
  const f=fixture({cryptoFault});await f.mount({template:{...f.context.template,options:{music:'bundled'}}});await settle(f);
  assert.match(f.finishes[0].error,/Update Selects/);assert.equal(records(f).length,0);assert.equal(f.requests.some(r=>r.allowCommit),false);
 });
-for(const limit of [undefined,30,'120',Infinity])test('Gallery run: invalid deadline support '+limit+' stops before probing or claiming',async()=>{
- const f=fixture();f.sdk.maxScriptTimeoutSeconds=limit;await f.mount();await settle(f);assert.match(f.finishes[0].error,/Update Selects/);assert.equal(f.requests.length,0);assert.equal(records(f).length,0);
+for(const limit of [undefined,30,'120',Infinity])test('Gallery run: unused deadline fact '+limit+' does not block the existing SDK',async()=>{
+ const f=fixture();f.sdk.maxScriptTimeoutSeconds=limit;await f.mount();await settle(f);success(f);assert.equal(f.commits.length,1);
 });
 for(const damage of ['photos','clips','option'])test('Gallery run: malformed '+damage+' cannot reserve a run or prepare assets',async()=>{
  const f=fixture(),template=structuredClone(f.context.template);if(damage==='option')template.options.music='unknown';else template.inputs[damage].pop();
@@ -146,7 +146,19 @@ for(const minify of [false,true])test('Gallery run: a source change after save r
  assert.ok(f.finishes[0].error.includes(row.savedDraftId));
  await f.mount();await settle(f,2);assert.ok(f.finishes[1].error.includes(row.savedDraftId));assert.equal(f.commits.length,1);
 });
-test('Gallery run: unsupported file fingerprint stops before ownership or assets',async()=>{
- const f=fixture();delete f.selects.files.fingerprint;await f.mount();await settle(f);
+test('Gallery run: missing existing file read support stops before ownership or assets',async()=>{
+ const f=fixture();delete f.selects.files.readRange;await f.mount();await settle(f);
  assert.match(f.finishes[0].error,/Update Selects/);assert.equal(records(f).length,0);assert.equal(f.requests.some(r=>r.allowCommit),false);assert.equal(f.commits.length,0);
+});
+
+test('Gallery durable sources retain long Unicode paths outside the small receipt and recover unchanged',async()=>{
+ const f=fixture();
+ for(const [index,node]of f.nodes.entries())if(['image','video'].includes(node.type)){
+  const previous=node.path;node.path='/originals/'+'x'.repeat(20)+'/'+'\uD55C'.repeat(80)+'/'+'\uAE00'.repeat(80)+'/'+index;
+  f.sourceBytes.set(node.path,f.sourceBytes.get(previous));f.sourceBytes.delete(previous);
+ }
+ await f.mount();await settle(f);success(f);const journal=JSON.parse(f.files.get(records(f)[0]));
+ assert.equal(journal.result.sourceGuard.version,2);assert.ok(f.files.get(journal.result.sourceGuard.path).length>49152);assert.ok(f.files.get(records(f)[0]).length<49152);
+ const before=Buffer.from(f.files.get(journal.result.sourceGuard.path));await f.mount();await settle(f,2);success(f);assert.equal(f.commits.length,1);assert.deepEqual(f.files.get(journal.result.sourceGuard.path),before);
+ f.files.set(journal.result.sourceGuard.path,Buffer.alloc(before.length,32));await f.mount();await settle(f,3);assert.ok(f.finishes[2].error);assert.equal(f.commits.length,1);
 });

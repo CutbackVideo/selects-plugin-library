@@ -20,10 +20,14 @@ jobs:
       - run: node tools/sync_panel_modules.mjs --check
       - name: Install shared JavaScript test dependencies
         run: |
-          npm install --prefix "$RUNNER_TEMP/shortform-test" --no-package-lock --ignore-scripts typescript@5.8.3 esbuild@0.25.0 react@18.3.1 react-dom@18.3.1 jsdom@24.1.3 @testing-library/react@16.3.0
+          npm install --prefix "$RUNNER_TEMP/shortform-test" --no-package-lock --ignore-scripts typescript@5.8.3 esbuild@0.25.0 @noble/hashes@2.2.0 react@18.3.1 react-dom@18.3.1 jsdom@24.1.3 @testing-library/react@16.3.0
           printf 'SELECTS_TSC=%s/shortform-test/node_modules/typescript/bin/tsc\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'MV_TSC=node "%s/shortform-test/node_modules/typescript/bin/tsc"\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'AV_TSC=node "%s/shortform-test/node_modules/typescript/bin/tsc"\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Test SDK-free template observation and saved-result compatibility
+        run: |
+          SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" node tools/build_file_observation.mjs --check
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_DEV_REPO="$RUNNER_TEMP/shortform-test" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/file_observation.test.mjs tests/draft_observation.test.mjs tests/photo_sdk_free_sources.test.mjs tests/gallery_sdk_free.test.mjs tests/sdk_free_vlog_state.test.mjs tests/sdk_free_template_run.test.mjs
       - name: Test original Image input preflight and module consumers
         run: SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/template_media_selection.test.mjs tests/native_image_preflight.test.mjs tests/source_file_bindings.test.mjs tests/panel_modules.test.mjs tests/native_image_sdk_migration.test.mjs
       - run: python3 tools/sync_app_update_guards.py --check

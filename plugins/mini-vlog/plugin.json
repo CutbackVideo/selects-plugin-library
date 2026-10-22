@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "mini-vlog",
-  "version": "0.1.0-alpha.34",
+  "version": "0.1.0-alpha.35",
   "name": "Mini Vlog",
   "summary": "Turn everyday clips and photos into a 16:9 mini vlog cut to the beat, with a pale pink title, as a new editable Draft.",
   "status": "experimental",
@@ -64,7 +64,7 @@
       "macOS arm64",
       "Windows x64"
     ],
-    "selects": "Development build only. Released-version compatibility is unverified. Requires Panel runScript, Draft authoring and native files.fingerprint for all selected video originals, own music and the published cue Audio; music previews, your own music and clips without analysis use the ffmpeg built into Selects (Runtime.runFFmpeg / runFFprobe) and its FileSystem. No shell, Node.js or other tools to install, on macOS or Windows."
+    "selects": "Uses existing Panel saved-Draft reads and SDK stat/readRange for plugin-private source verification; no SDK/client change is required. Working-copy checks precede one save; independent saved-source verification follows it. Unconfirmed reads retain the saved Draft ID without replay. Installed-app/Windows, playback and export remain unverified. Existing Runtime FFmpeg/FFprobe and FileSystem are required for optional native analysis; no additional tools to install."
   },
   "localized": {
     "de": {

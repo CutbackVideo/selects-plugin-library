@@ -1,5 +1,8 @@
 # Gallery verified owned music and held-Resource confirmation
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 Photo Grid Reveal (`photo-gallery-no2`) 0.3.14, based on
 25a9e756a907a13145f506883d17d6609cca95f1 (draft PR #289). Chan's shortform plugins
 and template packs are excluded. This is a further checkpoint in the 28-template

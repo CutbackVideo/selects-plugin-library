@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
 import test from 'node:test';
 const modules=process.env.SBS_PANEL_TEST_MODULES;
 if(!modules)throw Error('Set SBS_PANEL_TEST_MODULES to the React/esbuild/jsdom dependency directory.');
@@ -15,7 +16,7 @@ async function harness(t,source='shared'){
   previous[key]=Object.getOwnPropertyDescriptor(globalThis,key);Object.defineProperty(globalThis,key,{configurable:true,writable:true,value});
  }
  const file=source==='shared'?'shared/local-client.ts':'plugins/'+source+'/panel.tsx';
- const code=esbuild.transformSync(fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),{loader:'tsx',format:'cjs',target:'es2022',jsx:'automatic'}).code;
+ const code=source==='shared'?esbuild.buildSync({entryPoints:[fileURLToPath(new URL('../'+file,import.meta.url))],bundle:true,external:['react'],platform:'node',format:'cjs',target:'es2022',write:false}).outputFiles[0].text:esbuild.transformSync(fs.readFileSync(new URL('../'+file,import.meta.url),'utf8'),{loader:'tsx',format:'cjs',target:'es2022',jsx:'automatic'}).code;
  const module={exports:{}},timers=new Map(),childSdks=[];let timerId=0,children=0,removed=false;
  new Function('require','module','exports','setTimeout','clearTimeout',code)(dep,module,module.exports,(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},id=>timers.delete(id));
  const Child=props=>{children++;childSdks.push(props.sdk);return React.createElement('p',null,'Connected child');};

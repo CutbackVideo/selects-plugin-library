@@ -40,7 +40,10 @@ export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}
  const readBridge=f.sdk.call;
  f.sdk.call=async(method,...args)=>{if(method==='listProjectResources')return f.resources;return readBridge(method,...args);};
  f.sdk.finishTemplate=result=>{finishes.push(result);notify();};
- f.selects.files.writeChunk=async input=>{if(input.mode==='exclusive'&&files.has(input.path))throw Error('EEXIST');const bytes=Buffer.from(input.base64,'base64');files.set(input.path,bytes);return {bytesWritten:bytes.length};};
+ const nativeStat=f.selects.files.stat,nativeRead=f.selects.files.readRange;
+ f.selects.files.stat=async path=>files.has(path)?{size:files.get(path).length,isDirectory:false,mtimeMs:0,ino:1}:nativeStat(path);
+ f.selects.files.readRange=async request=>{if(!files.has(request.path))return nativeRead(request);const bytes=files.get(request.path).subarray(request.offset,request.offset+request.length);return {bytesRead:bytes.length,base64:bytes.toString('base64')};};
+ f.selects.files.writeChunk=async input=>{if(input.mode==='exclusive'&&files.has(input.path))throw Error('EEXIST');const bytes=Buffer.from(input.base64,'base64'),old=files.get(input.path)??Buffer.alloc(0),next=Buffer.alloc(Math.max(old.length,input.offset+bytes.length));old.copy(next);bytes.copy(next,input.offset);files.set(input.path,next);return {bytesWritten:bytes.length};};
  f.selects.files.compareAndReplace=async input=>{
   const expected=input.expectedBase64===null?null:Buffer.from(input.expectedBase64,'base64').toString('utf8');
   const replaced=await local.files.compareAndReplace(input.path,expected,Buffer.from(input.base64,'base64').toString('utf8'));return {replaced};

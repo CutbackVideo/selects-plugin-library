@@ -10,7 +10,7 @@ const presetSnapshot=JSON.parse(fs.readFileSync(new URL('./fixtures/photo-progra
 export function canonicalPhotoPanel(source){
  const authoring=fs.readFileSync(new URL('../shared/native-image-authoring.js',import.meta.url),'utf8');
  const observation=fs.readFileSync(process.env.PHOTO_OBSERVATION_SOURCE||new URL('../shared/draft-observation.js',import.meta.url),'utf8');
- return source.replace(/\/\/ native-image-authoring:start\n[\s\S]*?\/\/ native-image-authoring:end/,'// native-image-authoring:start\n'+authoring+'// native-image-authoring:end')+'\n'+observation;
+ return source.replace(/\/\/ native-image-authoring:start\n[\s\S]*?\/\/ native-image-authoring:end/,'// native-image-authoring:start\n'+authoring+'// native-image-authoring:end')+(source.includes('function readTemplateDraftSources(')?'':'\n'+observation);
 }
 
 export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceiptOnly=false,commitReplyLost=false,projectTitle='Fixture Project',graphicsReadSupported=true,transformReadSupported=true,audioReadSupported=true,sourceReadSupported=true,programReadSupported=true,canonicalAuthoring=process.env.PHOTO_CANONICAL_AUTHORING==='1'}={}){

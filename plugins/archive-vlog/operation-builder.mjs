@@ -1,6 +1,8 @@
 // Installed operations use the canonical asset owner without repository imports.
 import {readFileSync,writeFileSync} from 'node:fs';
 import {Script} from 'node:vm';
+import {fingerprintTemplateFile} from '../../shared/file-observation.js';
+import {templateObservedSource} from '../../shared/draft-observation.js';
 const source=readFileSync(new URL('../../shared/bundled-assets.js',import.meta.url),'utf8');
 const names=['bundledAssetIssue','readBundledAssetResource','ensureProjectAudio'];
 const functions=await import('data:text/javascript;base64,'+Buffer.from(source+'\nexport {'+names.join(',')+'};').toString('base64'));
@@ -17,14 +19,14 @@ const authoring=await import('data:text/javascript;base64,'+Buffer.from(authorin
 const input=await import(new URL('../../shared/native-image-input.mjs',import.meta.url));
 const policy=readFileSync(new URL('./dev/assembly-policy.js',import.meta.url),'utf8');
 const assemblyTemplate=readFileSync(new URL('./dev/assemble.template.js',import.meta.url),'utf8');
-const assembly='// @template-assembly 1\n// @template-assembly-intent 1\n// Generated from canonical input/placement checks and the Archive assembly policy.\n'+[input.nativeImageSources,input.nativeImageSourcesById,input.resolveTemplateMedia,input.requireSourceFileSupport,input.observeSourceFiles,input.confirmProjectSourcePaths,authoring.nativeMediaWindow,authoring.bindMediaPlacement,authoring.inspectImageTransforms,authoring.inspectImageAudio].map(fn=>fn.toString()).join('\n')+'\n'+policy+'\n'+assemblyTemplate;
+const assembly='// @template-assembly 1\n// @template-assembly-intent 1\n// Generated from canonical input/placement checks and the Archive assembly policy.\n'+[fingerprintTemplateFile,templateObservedSource,input.nativeImageSources,input.nativeImageSourcesById,input.resolveTemplateMedia,input.requireSourceFileSupport,input.observeSourceFiles,input.confirmProjectSourcePaths,authoring.nativeMediaWindow,authoring.bindMediaPlacement,authoring.inspectImageTransforms,authoring.inspectImageAudio].map(fn=>fn.toString()).join('\n')+'\n'+policy+'\n'+assemblyTemplate;
 const assemblyTarget=new URL('./scripts/assemble.js',import.meta.url);
 if(process.argv.includes('--check')){
  if(readFileSync(assemblyTarget,'utf8')!==assembly){console.error('Out-of-date Archive Vlog assembly operation');process.exitCode=1;}
 }else writeFileSync(assemblyTarget,assembly);
 
 const decorateTemplate=readFileSync(new URL('./dev/decorate.template.js',import.meta.url),'utf8');
-const decoration='// @template-decoration 1\n// @template-decoration-intent 1\n// Generated from the existing program owner and Archive decoration policy.\n'+authoring.imageProgramsFeature.toString()+'\n'+decorateTemplate;
+const decoration='// @template-decoration 1\n// @template-decoration-intent 1\n// Generated from the existing program owner and Archive decoration policy.\n'+templateObservedSource.toString()+'\n'+authoring.imageProgramsFeature.toString()+'\n'+decorateTemplate;
 const decorateTarget=new URL('./scripts/decorate.js',import.meta.url);
 if(process.argv.includes('--check')){
  if(readFileSync(decorateTarget,'utf8')!==decoration){console.error('Out-of-date Archive Vlog decoration operation');process.exitCode=1;}
@@ -52,7 +54,7 @@ if(process.argv.includes('--check')){
 }else writeFileSync(prepareTarget,prepare);
 
 const verifyTemplate=readFileSync(new URL('./dev/verify-assembly.template.js',import.meta.url),'utf8');
-const verification='// @template-assembly-verification 1\n'+[input.nativeImageSources,input.nativeImageSourcesById,input.resolveTemplateMedia,authoring.nativeMediaWindow,authoring.inspectImageAudio].map(fn=>fn.toString()).join('\n')+'\n'+policy+'\n'+verifyTemplate;
+const verification='// @template-assembly-verification 1\n'+[templateObservedSource,input.nativeImageSources,input.nativeImageSourcesById,input.resolveTemplateMedia,authoring.nativeMediaWindow,authoring.inspectImageAudio].map(fn=>fn.toString()).join('\n')+'\n'+policy+'\n'+verifyTemplate;
 const verifyTarget=new URL('./scripts/verify-assembly.js',import.meta.url);
 if(process.argv.includes('--check')){
  if(readFileSync(verifyTarget,'utf8')!==verification){console.error('Out-of-date Archive Vlog assembly verification');process.exitCode=1;}

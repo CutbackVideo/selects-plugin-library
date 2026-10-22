@@ -1,5 +1,8 @@
 # Gallery original-input verification and portable generation
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 Photo Grid Reveal (`photo-gallery-no2`) preserves its 21-slot, three-column by
 seven-row reveal, shared grayscale-to-color event, optional music and editable
 original Images. The app-run contract selects 15 Images and six Videos at slots

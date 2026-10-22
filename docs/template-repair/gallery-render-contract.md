@@ -1,5 +1,8 @@
 # Gallery pixels through the product export renderer
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 Photo Grid Reveal 0.3.18 now has a reproducible check from its real SDK
 authoring operation through product export projection to browser pixels. This
 is another gate in the 28-template repair, not completion of that goal. Chan's

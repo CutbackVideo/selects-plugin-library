@@ -1,5 +1,8 @@
 # Generalize the existing asset feature without adding a module
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 This checkpoint extends draft #279 and keeps the complete 28-template objective
 active. No template is complete. No.14 0.5.12 and Stop Motion 0.1.11 retain the
 Audio compatibility interface; Polaroid 0.1.9 uses the generalized PNG/M4A feature.

@@ -2,8 +2,7 @@
 
 ## Consolidated review units
 
-The existing session repair PRs are grouped into one plugin-library PR (#346) and
-one app companion PR (#7876), preserving commits, branches, worktrees and validation history.
+The current review unit is plugin-library PR #346. App PR #7876 is closed at the user’s request; its branches, commits and unfinished integration are preserved. No SDK change is included. See [sdk-free-compatibility.md](sdk-free-compatibility.md) for the replacement source/file verification and its post-save limits. Earlier checkpoints below describe historical implementations.
 See [pr-consolidation.md](pr-consolidation.md) for the replacement map and review
 order. New connected Archive work updates #346.
 
@@ -354,14 +353,14 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `depth-type-captions` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `doac-style` | Source audit only | Full contract and runtime completion gates above |
 | `fast-switching-stopmotion` | Source audit only | Full contract and runtime completion gates above |
-| `four-photo-stop-motion` | Shared bundled Audio/input/bootstrap + single complete commit + durable run recovery and saved-state receipts; client #7828 prerequisite | Full contract and runtime completion gates above |
+| `four-photo-stop-motion` | Shared bundled Audio/input/bootstrap + single complete commit + durable run recovery and saved-state receipts; existing-SDK saved-source verification; see sdk-free-compatibility.md | Full contract and runtime completion gates above |
 | `gongju-gallery` | Duration regression + draft #258; CI pass | Full contract and runtime completion gates above |
 | `jude-kinetic-style` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `mini-vlog` | Shared verified cue bytes in both entries; exact-path own Audio / observed import; source identity/native photo facts; canonical async adapter, invocation-owned PCM and actual preview Stop; caller RED/GREEN and actual SDK cases | Existing installation-linked Draft recovery and full X12 acceptance; remaining source attestation, worker/other feature ownership, original C-09 runtime/availability and full lifetime/recovery/save/runtime gates |
 | `no14-still-video` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
 | `photo-gallery-no2` | Shared input/run/assets, source-content guards, real SDK/browser rendering; dev-app SQLite/playback/native and codec evidence; shared late-cancellation, lost-reply reservation and bounded asset-read RED/GREEN | Complete image/AV quality, crash/unknown-operation recovery, cleanup failures/GC, installed app, Windows, Inspector, reference/changed-input quality and full contract gates above |
 | `place-count` | Canonical authoring check + draft #260; automated regressions pass | Full contract and runtime completion gates above |
-| `polaroid-photo-dump` | Shared input/bootstrap + generated-frame exclusion + verified bundled assets + one complete save, durable app-run ownership/recovery and independent receipts; client #7828 prerequisite | Full contract and runtime completion gates above |
+| `polaroid-photo-dump` | Shared input/bootstrap + generated-frame exclusion + verified bundled assets + one complete save, durable app-run ownership/recovery and independent receipts; existing-SDK saved-source verification; see sdk-free-compatibility.md | Full contract and runtime completion gates above |
 | `portrait-beat-montage` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
 | `postcard-cutout-studio` | Source audit only | Full contract and runtime completion gates above |
 | `recap-2026` | Duration regression + draft #258; CI pass | Full contract and runtime completion gates above |

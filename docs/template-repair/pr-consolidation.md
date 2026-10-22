@@ -1,3 +1,13 @@
+# Current review scope: templates only
+
+User decision (2026-10-23): close app/SDK PR #7876 and update existing plugin PR #346 so its templates use existing SDK capabilities. No new PR, SDK API, app merge, deployment, branch deletion or history rewrite. Original commits, dirty workspaces and the unfinished app consolidation remain preserved. The app rendering changes are deferred with that closed branch.
+
+See [sdk-free-compatibility.md](sdk-free-compatibility.md) for the implementation, saved-result limits and verification scope. Whole-template acceptance remains 0/28. Chan remains excluded.
+
+The following is the preserved historical consolidation record; its SDK rollout dependencies are superseded by the decision above.
+
+---
+
 # Template repair: one PR per repository
 
 The review surface is now two Draft PRs. This packages existing repairs; it does

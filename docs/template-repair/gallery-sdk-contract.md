@@ -1,5 +1,8 @@
 # Gallery contract through the real Selects SDK
 
+> Current SDK-free decision: [sdk-free-compatibility.md](sdk-free-compatibility.md) supersedes the pending SDK/app prerequisites below. Historical code and validation records are preserved; they do not establish current installed-app acceptance.
+
+
 This validates Photo Grid Reveal 0.3.18 from library commit
 bdceaf6ea06f09f9e20f9062acd98a9832487844 (draft PR #298). The complete
 28-template goal remains active; Chan's shortform apps and packs are excluded.
