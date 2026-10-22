@@ -1244,3 +1244,69 @@ test('keyframes: per-scene style suffix by look, and two reference families (sce
   assert.match(tr[2].input.prompt, /pull-back/);
   fs.rmSync(dir, {recursive: true, force: true});
 });
+
+// ---- review P2: a retry pass counts the scene's already-delivered sibling (same request only) ----
+test('kf:1:A delivered, kf:1:B fails, attempt 2 of B stays submission_unknown: the stage goes on after the grace period', async () => {
+  const {dir} = makeJob({kfModel: 'nano-banana-2.1'});
+  const gen = {};
+  const log = {submits: [], lists: 0};
+  let clock = 0;
+  const api = {
+    submit: async (q) => { log.submits.push(`${q.gen}@${q.attempt}`); return 'selects-' + q.key; },
+    list: async (ids) => { log.lists++; clock += 4000; return ids.map((id) => {
+      if (id.includes('-kf-1-B-1-')) return {jobId: id, status: 'failed', deliveryStatus: 'failed', errorCode: 'provider_failed', outputs: []};
+      if (id.includes('-kf-1-B-2-')) return {jobId: id, status: 'submission_unknown', deliveryStatus: 'submission_unknown', errorCode: 'submission_unknown', outputs: []};
+      return {jobId: id, status: 'succeeded', deliveryStatus: 'delivered', outputs: [{path: '/' + id}]};
+    }); },
+    retryDelivery: async () => {},
+  };
+  const ctx = {gen,
+    requests: async (kind, ids, attempt) => (await op.medEngine('requests', dir, [kind, ids.join(','), ...(attempt > 1 ? ['--attempt', String(attempt)] : [])], stubIO(dir))).requests,
+    generate: (reqs, extra) => op.medRunGenerations(reqs, gen, api, {persist: async () => {}, sleep: async (ms) => { clock += ms; }, now: () => clock, ...extra}),
+    unresolved: (l) => Object.assign(new Error('unresolved'), {unresolved: l.map((u) => u.gen)})};
+  const failed = await op.medGenerateKind(ctx, 'keyframes', ['1']);
+  assert.deepEqual(failed, []);
+  assert.deepEqual(log.submits, ['kf:1:A@1', 'kf:1:B@1', 'kf:1:B@2'], 'one retry for the known failure, nothing for the unknown one');
+  assert.ok(gen['kf:1:A'].path);
+  assert.equal(gen['kf:1:B'].ignored, 'unresolved');
+  assert.equal(gen['kf:1:B'].attempt, 2);
+  assert.ok(clock < op.MED_GEN_DEADLINE_MS / 4, `went on after about the grace period, not the deadline (${clock} ms)`);
+  assert.ok(clock >= op.MED_GEN_GRACE_MS);
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('only a sibling of the same request counts: not an older model, reference, chosen keyframe, clip pair or regeneration', async () => {
+  const sig = op.medKeySignature;
+  assert.equal(sig('mxT-kf-1-A-1-mnb21'), sig('mxT-kf-1-B-2-mnb21'));
+  assert.notEqual(sig('mxT-kf-1-A-1'), sig('mxT-kf-1-B-2-mnb21'), 'another keyframe model');
+  assert.notEqual(sig('mxT-kf-2-A-1-rA'), sig('mxT-kf-2-B-1-rB'), 'another style reference');
+  assert.notEqual(sig('mxT-kf-2-R1-1-msd5p-rA'), sig('mxT-kf-2-A-1-rA'), 'a regeneration is its own request');
+  assert.notEqual(sig('mxT-kf-2-R1-1-msd5p-rA'), sig('mxT-kf-2-R2-1-msd5p-rA'));
+  assert.notEqual(sig('mxT-clip-3-A-1-kA'), sig('mxT-clip-3-B-1-kB'), 'clips of another keyframe');
+  assert.equal(sig('mxT-clip-3-A-1-kA'), sig('mxT-clip-3-B-2-kA'));
+  assert.notEqual(sig('mxT-tr-3-A-1-cAB'), sig('mxT-tr-3-B-1-cBA'), 'transitions between other clips');
+  assert.equal(sig('mxT-narr-1-1-v2'), null, 'narration is never a candidate');
+  // Through the observer: a stuck B with a stale sibling waits for the deadline (unresolved); with a current one it goes on.
+  for (const [aKey, want] of [['mxT-kf-1-A-1', 'unresolved'], ['mxT-kf-1-A-1-mnb21', 'ignored']]) {
+    const gen = {'kf:1:A': {key: aKey, attempt: 1, jobId: 'selects-a', path: '/a.png'}};
+    let clock = 0;
+    const api = {submit: async (q) => 'selects-' + q.key, retryDelivery: async () => {},
+      list: async (ids) => { clock += 4000; return ids.map((id) => ({jobId: id, status: 'submission_unknown', deliveryStatus: 'submission_unknown', outputs: []})); }};
+    const r = await op.medRunGenerations([{gen: 'kf:1:B', attempt: 2, key: 'mxT-kf-1-B-2-mnb21'}], gen, api,
+      {persist: async () => {}, sleep: async (ms) => { clock += ms; }, now: () => clock, multi: true});
+    assert.equal(want === 'ignored' ? r.ignored.length : r.unresolved.length, 1, aKey);
+    assert.equal(want === 'ignored' ? r.unresolved.length : r.ignored.length, 0, aKey);
+  }
+});
+
+test('Windows: an output path of 240 characters or more stops with a clear message; normal paths and other systems are untouched', () => {
+  const long = 'C:\\Users\\' + 'x'.repeat(230) + '\\card.mp4';
+  assert.throws(() => op.medCheckPathLength(long, true), /PATH_TOO_LONG: .* \(\d+ characters; Windows needs under 240\)/);
+  assert.equal(op.medCheckPathLength(long, false), long);
+  const normal = 'C:\\Users\\me\\.selects\\plugin-data\\medical-explainer\\jobs\\mxmvindeea\\work\\mxmvindeea_card_9.mp4';
+  assert.equal(op.medCheckPathLength(normal, true), normal);
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
+  assert.match(panel, /medCheckPathLength\(args\[args\.length - 1\], hostIsWindows\(\)\);/);
+  assert.match(panel, /medCheckPathLength\(path, hostIsWindows\(\)\);/);
+  assert.match(panel, /medCheckPathLength\(hostJoin\(q\.folder, q\.outputName \+ "\.png"\), hostIsWindows\(\)\)/);
+});

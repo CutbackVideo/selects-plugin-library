@@ -1402,6 +1402,16 @@ async function cmdRequests(io, job, kind, only, attempt) {
   return { ok: true, requests: reqs };
 }
 
+// ---- Windows path length ----
+// Paths of 240 characters or more fail in many Windows tools (MAX_PATH is 260). Every file the engine writes is checked
+// first on Windows; normal paths are untouched.
+export const MED_WIN_PATH_MAX = 240;
+export function medCheckPathLength(path, windows) {
+  if (windows && String(path).length >= MED_WIN_PATH_MAX)
+    throw new Error(`PATH_TOO_LONG: ${path} (${String(path).length} characters; Windows needs under ${MED_WIN_PATH_MAX}). Move the Selects data folder to a shorter path.`);
+  return path;
+}
+
 // ---- ffprobe / silencedetect (the host runs them; these build the argv and read the output) ----
 export function medDurationArgs(path) { return ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path]; }
 export function medParseDuration(stdout, path) {
@@ -1849,6 +1859,14 @@ export const MED_DELIVERY_RETRIES = 3;
 // MED_GEN_GRACE_MS after its last delivery and then goes on without them. They are not cancelled or resubmitted: the
 // record is marked ignored ("unresolved"), listed in the run summary, and a late result is not used.
 export const MED_GEN_GRACE_MS = 3 * 60 * 1000;
+// What a candidate request shares with its siblings: its key without the candidate letter and the attempt, i.e. job,
+// stage, scene and every choice in the key (model tag, reference, chosen keyframe or clips, revision). A regenerated
+// keyframe (R<k>) keeps its letter, so only the same regeneration matches. null for a key that had to be hashed.
+export function medKeySignature(key) {
+  const m = /^(.+-(?:kf|clip|tr)-\d+)-([A-C]|R\d+)-\d+(.*)$/.exec(String(key || ""));
+  if (!m) return null;
+  return `${m[1]}|${/^R/.test(m[2]) ? m[2] : "C"}|${m[3]}`;
+}
 const groupOf = (g) => g.split(":").slice(0, 2).join(":");
 export async function medRunGenerations(reqs, gen, api, opts) {
   const o = { deadlineMs: MED_GEN_DEADLINE_MS, pollMs: MED_GEN_POLL_MS, deliveryRetries: MED_DELIVERY_RETRIES, graceMs: MED_GEN_GRACE_MS,
@@ -1882,6 +1900,15 @@ export async function medRunGenerations(reqs, gen, api, opts) {
       await o.persist();
     }
     pending.push(q);
+  }
+  // A scene already served by a delivered sibling candidate in this job's records counts as served, whichever pass or
+  // call delivered it (a retry pass asks only for the failed candidate) — but only a sibling of the same request: the
+  // same scene, keyframe model, reference, chosen keyframe or clips and sentence revision (medKeySignature); outputs
+  // of an older model or revision never count.
+  for (const q of reqs) {
+    const g = groupOf(q.gen), sig = medKeySignature(q.key);
+    if (delivered.has(g) || !sig) continue;
+    if (Object.entries(gen).some(([k, v]) => k !== q.gen && groupOf(k) === g && v && v.path && medKeySignature(v.key) === sig)) delivered.add(g);
   }
   if (delivered.size) lastDelivery = o.now();
   const retries = new Map(), status = new Map();
@@ -1949,7 +1976,7 @@ export async function medGenerateKind(ctx, kind, only) {
     return out;
   };
   const base = await ctx.requests(kind, only, 1);
-  const multi = ["keyframes", "clips", "transitions"].includes(kind);
+  const multi = ["keyframes", "kfregen", "clips", "transitions"].includes(kind);
   const first = await ctx.generate(await atAttempts(base.map((q) => [genId(q.gen), (ctx.gen[q.gen] && ctx.gen[q.gen].attempt) || 1])), { multi });
   if (first.unresolved.length) throw ctx.unresolved(first.unresolved);
   const retry = first.failed.filter((f) => !f.policy);
@@ -2100,6 +2127,7 @@ function medHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; 
     duration: (p: string) => medMediaDuration(p),
     silences: (p: string) => medSilences(p),
     ffmpeg: async (args: string[]) => {
+      medCheckPathLength(args[args.length - 1], hostIsWindows());
       const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 280000);
       let log = "";
       try {
@@ -2429,6 +2457,7 @@ function Panel({ sdk, context, ui }: any) {
   }
   async function writeBytes(path: string, bytes: Uint8Array) {
     if (!fs) throw new Error(S.noHost);
+    medCheckPathLength(path, hostIsWindows());
     const dir = path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
     if (!(await fs.exists(dir))) (await fs.mkdir(dir, { recursive: true }));
     await fs.writeFile(path, bytes);
@@ -2507,7 +2536,7 @@ function Panel({ sdk, context, ui }: any) {
     const m = generation();
     if (!m) throw new Error(S.noGeneration);
     return await medRunGenerations(reqs, st.gen, {
-      submit: async (q: any) => (await m.submit({
+      submit: async (q: any) => (medCheckPathLength(hostJoin(q.folder, q.outputName + ".png"), hostIsWindows()), await m.submit({
         origin: { tool: q.tool, tab: "plugin", recipeId: APP_ID }, scope: sc, key: q.key, modelId: q.modelId, input: q.input,
         uploads: Object.fromEntries(Object.entries(q.uploads || {}).map(([k, p]) => [k, { pluginFile: p }])),
         outputName: q.outputName, batch: 1, delivery: { pluginFolder: q.folder },
