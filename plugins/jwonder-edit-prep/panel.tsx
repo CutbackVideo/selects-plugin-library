@@ -571,10 +571,10 @@ function Classifier({t, shoot, inWindow, script, confirm, onBuild, onClose, buil
   const count = value => [...classes.values()].filter(v => v === value).length;
   const badge = (clip, chosen) => {const done = reviewed.has(clip.resourceId); const main = classes.get(clip.resourceId) === "main";
     return <span title={done ? undefined : clip.suggestedBy === "timeline" ? c.suggestedByTimeline : c.suggested} style={{fontSize:11,lineHeight:"16px",padding:"1px 8px",borderRadius:999,border:`1px ${done ? "solid" : "dashed"} ${main ? "#60a5fa" : "#facc15"}`,color: main ? "#93c5fd" : "#fde68a",flexShrink:0}}>{main ? c.main : c.insert}</span>;};
-  const button = (label, onClick, primary = false, disabled = false) => <button type="button" disabled={disabled || building} onClick={onClick} style={{font:"inherit",fontSize:12,padding:"6px 12px",borderRadius:8,border:"1px solid var(--border)",background: primary ? "var(--primary, #fff)" : "transparent",color: primary ? "var(--primary-foreground, #000)" : "inherit",cursor: disabled ? "default" : "pointer",opacity: disabled ? 0.5 : 1}}>{label}</button>;
+  const button = (label, onClick, primary = false, disabled = false) => <button type="button" disabled={disabled || building} onClick={onClick} style={{display:"inline-flex",alignItems:"center",width:"auto",flex:"0 0 auto",font:"inherit",fontSize:12,lineHeight:"16px",padding:"6px 12px",borderRadius:8,border:"1px solid var(--border)",background: primary ? "var(--primary, #fff)" : "transparent",color: primary ? "var(--primary-foreground, #000)" : "inherit",cursor: disabled ? "default" : "pointer",opacity: disabled ? 0.5 : 1}}>{label}</button>;
   return <div style={{display:"flex",flexDirection:"column",height:"100vh",minHeight:0}}>
     <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderBottom:"1px solid var(--border)"}}>
-      <div style={{flex:1,minWidth:0}}>
+      <div style={{flex:"1 1 0%",minWidth:0}}>
         <div style={{fontSize:14,fontWeight:500,lineHeight:"20px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{interpolate(c.modalTitle,{name:shoot})}</div>
         <div style={muted}>{loaded?.review ? interpolate(c.counts,{main:count("main"),insert:count("insert"),done:reviewed.size,total:clips.length}) : c.loading}</div>
       </div>
@@ -601,7 +601,7 @@ function Classifier({t, shoot, inWindow, script, confirm, onBuild, onClose, buil
               : <video key={src} ref={el => {video.current = el; if (el) el.muted = mute.current;}} src={src} autoPlay controls playsInline onClick={toggle} onVolumeChange={e => {mute.current = e.currentTarget.muted;}} onError={() => setUnplayable(true)} style={{width:"100%",height:"100%",objectFit:"contain"}}/>}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderTop:"1px solid var(--border)"}}>
-            <div style={{flex:1,minWidth:0}}>
+            <div style={{flex:"1 1 0%",minWidth:0}}>
               <div style={{fontSize:13,lineHeight:"18px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{current.name}</div>
               <div style={muted}>{current.source} · {index + 1} / {clips.length}</div>
             </div>
@@ -670,7 +670,13 @@ export default function Preparation({sdk, context, ui}) {
     const generation = epoch.current;
     sdk.storage.getItem(key).then(raw => {
       if (epoch.current !== generation) return;
-      if (raw) {const s = JSON.parse(raw); setShoot(s.shoot || ""); setTimeline(s.timeline || ""); if (s.view === "classify" && s.shoot) setView("classify");}
+      if (raw) {
+        const s = JSON.parse(raw); setShoot(s.shoot || ""); setTimeline(s.timeline || "");
+        // The classifier carries over only into its own window. Back in the
+        // column, its window was closed: that leaves it, like its Close button.
+        if (s.view === "classify" && s.shoot && context.inWindow) setView("classify");
+        else if (s.view === "classify") sdk.storage.setItem(key, JSON.stringify({shoot: s.shoot || "", timeline: s.timeline || ""})).catch(() => {});
+      }
     }).catch(e => say("top", String(e.message || e), "error"));
     void refresh();
     const timer = setInterval(refresh, 3000);
