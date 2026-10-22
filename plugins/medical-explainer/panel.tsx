@@ -1347,9 +1347,60 @@ export function medExtractArticle(url, s) {
     art.body = paras.filter((p) => medLen(p) > 40 && !/^(Share|Save|Advertisement|Related)\b/.test(p)).join("\n");
     art.method = "paragraphs";
   }
+  // Pages whose text sits in a body container rather than <p> paragraphs (health.chosun.com: div.par with <div> lines).
+  if (medLen(art.body) < 200) {
+    const block = medMainTextBlock(s);
+    if (medLen(block) > medLen(art.body)) { art.body = block; art.method = "container"; }
+  }
   art.body = slice(art.body, 0, 20000);
   art.lang = medDetectLang(art.title + " " + art.body);
   return art;
+}
+// The text of the article's body container: the largest of the usual ones (id news_body_id, class par / news_body /
+// article-body / article_body / view_txt / articleBody, itemprop articleBody), with scripts, styles, figures,
+// captions, asides, iframes and comments removed and line breaks kept; copyright and "reporter" lines dropped.
+const BODY_CONTAINER = /<(div|section)\b[^>]*(?:id=["']news_body_id["']|itemprop=["']articleBody["']|class=["'][^"']*\b(?:par|news_body|article-body|article_body|view_txt|articleBody)\b[^"']*["'])[^>]*>/gi;
+const JUNK_LINE = /(copyright|\u00a9|\u24d2|\ubb34\ub2e8\s*\uc804\uc7ac|\uc7ac\ubc30\ud3ec\s*\uae08\uc9c0|^[^.!?]{0,24}\uae30\uc790\s*\]?\s*$)/i;
+function containerHtml(s, start, tag) {
+  const re = new RegExp(`<(/?)${tag}\\b[^>]*>`, "gi");
+  re.lastIndex = start;
+  let depth = 0, m;
+  while ((m = re.exec(s))) {
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) return s.slice(start, m.index);
+  }
+  return s.slice(start);
+}
+// The most specific container wins (the article text itself, not a wrapper that also holds related links):
+// itemprop articleBody, then class par / article-body / article_body / view_txt / articleBody, then the wrappers.
+const CONTAINER_RANK = (tag) => (/itemprop=/i.test(tag) ? 0 : /\b(?:par|article-body|article_body|view_txt|articleBody)\b/.test(tag) ? 1 : 2);
+export function medMainTextBlock(html) {
+  const s = String(html || "");
+  let best = "", bestRank = 9;
+  for (const m of s.matchAll(BODY_CONTAINER)) {
+    const rank = CONTAINER_RANK(m[0]);
+    const inner = containerHtml(s, m.index, m[1].toLowerCase())
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      .replace(/<(script|style|figure|figcaption|aside|iframe|noscript|button|nav)\b[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<br\s*\/?>|<\/(?:p|div|li|h[1-6])>/gi, "\n");
+    const text = inner.split("\n").map((l) => stripTags(l)).filter((l) => medLen(l) > 1 && !JUNK_LINE.test(l)).join("\n");
+    // A specific container with at least a few sentences beats a wrapper; otherwise the longest text.
+    const enough = medLen(text) >= 100;
+    if ((enough && (rank < bestRank || medLen(best) < 100)) || (!enough && medLen(best) < 100 && medLen(text) > medLen(best))) { best = text; bestRank = enough ? rank : 9; }
+  }
+  return best;
+}
+// Page bytes as text: UTF-8, or EUC-KR (CP949) when the page says so in its first bytes.
+export function medDecodeHtml(bytes) {
+  const u = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let head = "";
+  for (let i = 0; i < Math.min(u.length, 4096); i++) head += String.fromCharCode(u[i]);
+  const m = /charset\s*=\s*["']?\s*([\w-]+)/i.exec(head);
+  const cs = m ? m[1].toLowerCase() : "utf-8";
+  if (/^(euc-kr|ks_c_5601-1987|cp949|x-windows-949|ms949)$/.test(cs)) {
+    try { return new TextDecoder("euc-kr").decode(u); } catch { /* no EUC-KR decoder: UTF-8 below */ }
+  }
+  return new TextDecoder().decode(u);
 }
 async function cmdFetch(io, job) {
   const inp = asObj(job.data.input);
@@ -2330,7 +2381,7 @@ function medHostIO(dir: string, files: { readJson: (p: string) => Promise<any>; 
       const dest = tmp();
       try {
         await hostNeed("FileSystem", "downloadFile").downloadFile(url, dest);
-        return { code: 200, text: new TextDecoder().decode(await hostReadBytes(dest)) };
+        return { code: 200, text: medDecodeHtml(await hostReadBytes(dest)) };
       } catch (e) {
         return { code: 599, text: "" };
       } finally { await hostRemove(dest); }

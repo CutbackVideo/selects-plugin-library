@@ -1619,3 +1619,59 @@ test('the panel captures the preview with the Shortform Clips calls, caches it, 
   assert.match(panel, /\{result\.draftId && <DraftCard /);
   assert.match(panel, /doneJobs\.map\(\(j\) => \(/);
 });
+
+// ---- the link tab with Korean news pages (saved fixtures; no network) ----
+const FIX = (n) => fs.readFileSync(path.resolve(import.meta.dirname, 'fixtures/medical-explainer', n));
+test('a health.chosun.com-style page: the body container text, without figures, ads, scripts, related links or copyright', () => {
+  const a = op.medExtractArticle('https://health.chosun.com/site/data/html_dir/2026/10/22/x.html', op.medDecodeHtml(FIX('health_article.html')));
+  assert.equal(a.method, 'container');
+  assert.equal(a.lang, 'ko');
+  assert.equal(a.title, '\uac10\uae30\uc5d0 \ud56d\uc0dd\uc81c, \uba39\uc5b4\uc57c \ud560\uae4c?');
+  const lines = a.body.split('\n');
+  assert.equal(lines.length, 6, a.body);
+  assert.match(lines[0], /^\uac10\uae30\ub294 \ub300\ubd80\ubd84 \ubc14\uc774\ub7ec\uc2a4\uac00/);
+  assert.match(lines[4], /\ucda9\ubd84\ud55c \ud734\uc2dd/);
+  for (const gone of ['\uc0ac\uc9c4 \uc124\uba85', 'googletag', 'adsbygoogle', '\ub2e4\ub978 \uae30\uc0ac', 'Copyright', '\uae30\uc790', '\ud68c\uc0ac \uc18c\uac1c', '\ub274\uc2a4'])
+    assert.ok(!a.body.includes(gone), gone);
+  assert.ok(op.medLen(a.body) >= 150);
+});
+
+test('a www.chosun.com (Arc) page: the article text elements in order', () => {
+  const a = op.medExtractArticle('https://www.chosun.com/national/health/2026/10/22/ABC/', op.medDecodeHtml(FIX('chosun_arc_article.html')));
+  assert.equal(a.method, 'arc');
+  assert.equal(a.body.split('\n').length, 5);
+  assert.ok(!a.body.includes('<b>'));
+});
+
+test('an EUC-KR page decodes; UTF-8 stays UTF-8', () => {
+  const head = new TextEncoder().encode('<meta http-equiv="Content-Type" content="text/html; charset=euc-kr"><p>');
+  const bytes = new Uint8Array([...head, 0xb0, 0xc7, 0xb0, 0xad]);
+  assert.ok(op.medDecodeHtml(bytes).endsWith('\uac74\uac15'));
+  assert.equal(op.medDecodeHtml(new TextEncoder().encode('<meta charset="utf-8">\uac74\uac15')), '<meta charset="utf-8">\uac74\uac15');
+});
+
+test('link fetch: a page that will not open or has no article text stops with a clear message; the script is grounded in the article', async () => {
+  const mk = (http) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'medexp-link-'));
+    fs.writeFileSync(path.join(dir, 'job.json'), JSON.stringify({id: 'mxL', input: {kind: 'link', url: 'https://health.chosun.com/x.html'}, settings: {lang: 'auto'}}));
+    return {dir, io: stubIO(dir, {http})};
+  };
+  let j = mk(async () => ({code: 599, text: ''}));
+  assert.deepEqual(await op.medEngine('fetch', j.dir, [], j.io), {ok: false, error: 'FETCH_FAILED'});
+  j = mk(async () => ({code: 200, text: '<html><body><nav>menu</nav><p>short</p></body></html>'}));
+  assert.deepEqual(await op.medEngine('fetch', j.dir, [], j.io), {ok: false, error: 'NO_TEXT'});
+  j = mk(async (url) => { assert.equal(url, 'https://health.chosun.com/x.html'); return {code: 200, text: op.medDecodeHtml(FIX('health_article.html'))}; });
+  const f = await op.medEngine('fetch', j.dir, [], j.io);
+  assert.equal(f.ok, true);
+  assert.equal(f.lang, 'ko');
+  assert.equal(f.method, 'container');
+  const art = JSON.parse(fs.readFileSync(path.join(j.dir, 'article.json'), 'utf8'));
+  const prompt = op.medScriptPrompt(art, {...f, budget: f.budget}, 'auto', 'on');
+  assert.ok(prompt.includes(art.body.slice(0, 60)), 'the article text is in the prompt');
+  assert.ok(prompt.includes('title: ' + art.title));
+  assert.match(prompt, /Only general, well-established health facts that agree with the source/);
+  assert.doesNotMatch(prompt, /No source text/);
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
+  assert.match(panel, /return \{ code: 200, text: medDecodeHtml\(await hostReadBytes\(dest\)\) \};/, 'pages come through selects.files.download and are decoded by charset');
+  assert.match(panel, /FETCH_FAILED: "\\ub9c1\\ud06c\\ub97c \\uc5f4\\uc9c0 \\ubabb\\ud588\\uc2b5\\ub2c8\\ub2e4\."/);
+});

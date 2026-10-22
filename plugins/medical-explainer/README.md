@@ -29,7 +29,9 @@ Medical facts stay general and well established, but every video still needs a m
 ## Use
 
 1. Open a Project, then open **Medical Explainer** from Apps.
-2. Enter a topic, a link, or paste the text, and choose the brand preset (Generic or Chosun Ilbo Health; the Chosun
+2. Enter a topic, a link (news article pages such as www.chosun.com or health.chosun.com: the article text is read
+   from the page, without menus, photos, ads or related links; a page that cannot be opened or read asks you to paste
+   the text instead), or paste the text, and choose the brand preset (Generic or Chosun Ilbo Health; the Chosun
    preset shows the Chosun Ilbo logo). The line under the button summarises the settings: what is automatic, what you
    changed, the keyframe model and the voice. Everything else (narration language and voice, keyframe model,
    explanation mode, art style, inside-the-body shots, layout, music, the review steps, the wordmark and colours) is
