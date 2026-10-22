@@ -1,6 +1,6 @@
 {
   "id": "parenting",
-  "version": 2,
+  "version": 3,
   "names": {
     "ko": "\uc721\uc544\ub611\ub611\ub611",
     "en": "Parenting Knock Knock Knock"
@@ -21,7 +21,14 @@
     "offsetX": 0,
     "headlineCenter": 263.8491938911378,
     "logoCenter": 1660,
-    "reframe": false
+    "reframe": true,
+    "reframePreset": "speaker",
+    "reframeFocus": "speaker",
+    "splitPolicy": "never",
+    "widePolicy": "never",
+    "reframePacing": "balanced",
+    "cropMotion": "fixed",
+    "cameraMode": "auto"
   },
   "background": {
     "mode": "image",

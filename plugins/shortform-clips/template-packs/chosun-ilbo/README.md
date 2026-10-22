@@ -20,13 +20,13 @@ three columns, existing four-way shots retain their order and boundaries, and
 single shots stay single. Its allowlist contains only `columns-3` and `grid-4`;
 frequent split permits these scene-based instructions without requiring sustained
 back-and-forth dialogue. Group counts are computed automatically.
-The other four templates keep AI framing **off**, matching the old fixed-crop app.
+All other portrait templates now enable AI framing with the Speaker focus preset: follow the speaker, with split and wide shots disabled. Heukbaek also prioritizes the speaker while retaining its explicit grouping rules. The 16:9 source-video template preserves the original framing and does not run portrait reframing.
 Heukbaek requires the split-layout support in Shortform Clips 0.5.0 or later.
 The manifest migrates saved `chosun-clips` template IDs through the shared
 pack installer; it never modifies the old app's files.
 
 Install this folder through Shortform Clips → Templates → Add templates after
-publishing. Pack 1.4.0 requires Shortform Clips 0.6.0 or later (template API 6). No separate customer app is needed.
+publishing. Pack 1.4.1 requires Shortform Clips 0.6.0 or later (template API 6). No separate customer app is needed.
 
 The shared validator and the Chosun migration regression test cover this pack.
 The migration test checks original image hashes and legacy design settings with

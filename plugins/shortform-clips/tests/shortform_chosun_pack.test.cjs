@@ -9,8 +9,8 @@ test('Chosun migration preserves requested designs with explicit Premiere correc
  for(const legacy of baseline.templates){
   const old=structuredClone(legacy);
   for(const [section,fields] of Object.entries(corrections[old.id]||{}))Object.assign(old[section],fields);const t=JSON.parse(fs.readFileSync(path.join(root,'templates',old.id+'.json')));
-  assert.equal(manifest.legacy.templateIds[old.id],old.id);assert.equal(t.renderer,undefined);assert.equal(t.layout.reframe,old.id==='heukbaek');
-  if(old.id==='heukbaek')old.layout.reframe=true;
+  assert.equal(manifest.legacy.templateIds[old.id],old.id);assert.equal(t.renderer,undefined);assert.equal(t.layout.reframe,true);
+  old.layout.reframe=true;
   for(const [key,value] of Object.entries(old.layout))assert.deepEqual(t.layout[key],value,old.id+': '+key);
   for(const key of ['names','captions','editing','detect','prompt','border'])assert.deepEqual(t[key],old[key],old.id+': '+key);
   for(const [key,value] of Object.entries(old.headline))assert.deepEqual(t.headline[key],value,old.id+': headline '+key);
@@ -22,9 +22,10 @@ test('Chosun migration preserves requested designs with explicit Premiere correc
 
 test('Heukbaek defaults enable automatic grouping without forcing splits on single shots',()=>{
  const t=require('../template-packs/chosun-ilbo/templates/heukbaek.json');
- assert.equal(t.version,3);
+ assert.equal(t.version,4);
  assert.equal(t.layout.reframe,true);
  assert.equal(t.layout.reframePreset,'custom');
+ assert.equal(t.layout.reframeFocus,'speaker');
  assert.equal(t.layout.cameraMode,'auto');
  assert.equal(t.layout.fixedLayout,'auto');
  assert.equal(t.layout.splitPolicy,'frequent');

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "issue-broadcast",
-  "version": 5,
+  "version": 6,
   "names": {
     "ko": "\uc774\uc288\uc804\ud30c\uc0ac",
     "en": "Issue Broadcast"
@@ -17,8 +17,8 @@
     "reframe": true,
     "closeUp": 4.5,
     "edgeInset": 0,
-    "reframePreset": "conversation",
-    "reframeFocus": "reactions",
+    "reframePreset": "speaker",
+    "reframeFocus": "speaker",
     "splitPolicy": "never",
     "widePolicy": "never",
     "reframePacing": "balanced",

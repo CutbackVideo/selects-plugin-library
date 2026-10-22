@@ -10,6 +10,8 @@ or sample episode media is included.
 | Issue Broadcast | Portrait video with face-following enabled, fluorescent yellow headline and second-line box, original logo over the video; full-height video window y=0..1920 |
 | Huick Alpha | Dialogue-led news scenes with composited characters, contextual backgrounds, timed source images and article excerpts; white dialogue captions on gray boxes |
 
+Knowledge Exchange and Issue Broadcast enable AI framing with the Speaker focus preset. Split and wide shots are disabled. Huick Alpha keeps its separate scene-based workflow.
+
 ## Install
 
 Install the shared [Shortform Clips app](../..). In **Templates**, choose
