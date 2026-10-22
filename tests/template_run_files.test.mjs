@@ -73,3 +73,10 @@ test('Gallery source guard survives its durable receipt and validates metadata/f
   const bad=JSON.parse(JSON.stringify(written));change(bad.result.sourceGuard);assert.throws(()=>api.validateTemplateRun(bad,galleryScope,'digest'),/verified/);
  }
 });
+
+test('Gallery v2 source sidecar pointer is bound to its exclusive run owner and a bounded hash receipt',()=>{
+ const api=sourceAPI(),galleryScope={...scope,pluginId:'photo-gallery-no2'},owner=randomUUID(),path='/run';
+ const row={version:1,scope:galleryScope,requestDigest:'digest',owner,status:'saved',result:{...saved,sourceGuard:{version:2,path:path+'.gallery-sources-'+owner+'.json',size:180000,sha256:'a'.repeat(64)}}};
+ assert.equal(api.validateTemplateRun(row,galleryScope,'digest',path).result.sourceGuard.size,180000);
+ for(const change of [g=>g.path+='other',g=>g.size=8388609,g=>g.sha256='bad',g=>g.owner=owner]){const bad=JSON.parse(JSON.stringify(row));change(bad.result.sourceGuard);assert.throws(()=>api.validateTemplateRun(bad,galleryScope,'digest',path),/verified/);}
+});

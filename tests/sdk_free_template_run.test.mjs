@@ -69,3 +69,12 @@ test('SDK-free legacy verifier: only the observed saved target gains a local rea
  row.startFrame=1;await assert.rejects(run(script),/placement changed/);
  assert.throws(()=>f.box.templateObservationScript(frozen,null,'saved'),/independently observed/);
 });
+
+test('SDK-free source guard: file evidence publication is explicitly authorized while saved Draft observations remain read-only',async()=>{
+ const f=runFixture(),a=await f.run({captureState:true});
+ const pending={scope:f.scope,config:f.config,source:assembly};await f.box.executeTemplateDecoration(f.sdk,f.raw,pending,{projectId:'p',sequenceId:a.sequenceId},decoration,()=>true);
+ const guards=f.requests.filter(input=>input.summary.includes('source guard'));assert.equal(guards.length,2);
+ for(const request of guards){assert.equal(request.allowCommit,true);assert.match(request.script,/files\.writeChunk/);assert.doesNotMatch(request.script,/selects\.draft\(|\.commitAll\(/);}
+ for(const request of f.requests.filter(input=>input.summary.startsWith('Confirm ')))assert.equal(request.allowCommit,false);
+ assert.equal(f.commits(),2,'file evidence publication never makes another Draft commit');
+});

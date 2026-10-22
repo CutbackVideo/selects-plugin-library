@@ -82,6 +82,8 @@ function validateTemplateRun(row,scope,digest,recordPath=null) {
    const g=r.sourceGuard;if(!g||typeof g!=='object'||Array.isArray(g))throw invalid();
    if(g.version===1){
     if(g.owner!==row.owner||!recordPath||g.path!==recordPath+'.sources-'+row.owner+'.json'||!Array.isArray(g.intent)||!g.intent.length||g.intent.length>1000)throw invalid();
+   }else if(g.version===2){
+    if(scope.pluginId!=='photo-gallery-no2'||Object.keys(g).length!==4||!recordPath||g.path!==recordPath+'.gallery-sources-'+row.owner+'.json'||!Number.isSafeInteger(g.size)||g.size<1||g.size>8388608||typeof g.sha256!=='string'||!/^[a-f0-9]{64}$/.test(g.sha256))throw invalid();
    }else{
     // Gallery guards source metadata/files; Vlog's versioned guard binds saved
     // clip windows to a separately retained planner intent. Keep both contracts.
@@ -365,7 +367,7 @@ async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent,o
  const target=await sdk.call('getProjectDraftScaffold',scope.projectId);check();
  if(target?.owner?.projectId!==scope.projectId||typeof target.owner.libraryId!=='string'||!target.owner.libraryId||scope.libraryId!=null&&scope.libraryId!==target.owner.libraryId)fail('TEMPLATE_RUN_TARGET','The assembly belongs to a different Project or library.');
  scope={pluginId:scope.pluginId,libraryId:target.owner.libraryId,projectId:scope.projectId,runId:scope.runId};
- const query=async script=>{check();const reply=await sdk.runScript({summary:'Confirm owned assembly Draft',allowCommit:false,script});check();if(reply.isError||!reply.result)fail('TEMPLATE_RUN_INVALID','The owned Draft could not be read back. Inspect it before starting another run.');return reply.result;};
+ const query=async(script,allowCommit=false,summary='Confirm owned assembly Draft')=>{check();const reply=await sdk.runScript({summary,allowCommit,script});check();if(reply.isError||!reply.result)fail('TEMPLATE_RUN_INVALID','The owned Draft could not be read back. Inspect it before starting another run.');return reply.result;};
  const verify=async receipt=>{
   if(options.receiptOnly)return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,stateFile:receipt.stateFile??null,sourceGuard:receipt.sourceGuard??null,assemblyConfirmed:false};
   check();const target=await sdk.call('getProjectDraftScaffold',scope.projectId);check();
@@ -378,7 +380,7 @@ async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent,o
    if(templateRunJSON(receipt.sourceGuard?templatePendingSourceState(observed):observed)!==templateRunJSON(expected))fail('TEMPLATE_RUN_INVALID','The saved Draft has changed since its assembly receipt. Inspect it before starting another run.');
    if(options.captureState&&!receipt.stateFile)fail('TEMPLATE_RUN_INVALID','This assembly has no complete state receipt. Inspect it before finishing.');
    if(receipt.stateFile)await query(`${templateObservationScript()}const actual=await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(receipt.draftId)}),${templateStateJSON(sources)},templateObservedSource);await (${templateStateFile.toString()})(selects,${JSON.stringify(receipt.stateFile.path)},(${templateStateJSON.toString()})(${receipt.sourceGuard?`(${templatePendingSourceState.toString()})(actual)`:'actual'}),${templateRunBase64.toString()},${JSON.stringify(receipt.stateFile)},fingerprintTemplateFile);return {verified:true};`);
-   if(receipt.sourceGuard)await query(`${templateObservationScript()}await (${templateSourceGuardFile.toString()})(selects,${templateStateJSON(receipt.sourceGuard)},${templateStateJSON(sourceClips)},${templateStateFile.toString()},${templateStateJSON.toString()},${templateRunBase64.toString()},fingerprintTemplateFile);return {verified:true};`);
+   if(receipt.sourceGuard)await query(`${templateObservationScript()}await (${templateSourceGuardFile.toString()})(selects,${templateStateJSON(receipt.sourceGuard)},${templateStateJSON(sourceClips)},${templateStateFile.toString()},${templateStateJSON.toString()},${templateRunBase64.toString()},fingerprintTemplateFile);return {verified:true};`,true,'Publish owned assembly source guard');
    return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,notes:[],assemblyConfirmed:true,...receipt.stateFile?{stateFile:receipt.stateFile}:{},...receipt.sourceGuard?{sourceGuard:receipt.sourceGuard}:{}};
   });
  };
@@ -446,14 +448,14 @@ async function executeTemplateDecoration(sdk,files,pending,config,source,isCurre
  const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),n=>n.toString(16).padStart(2,'0')).join('');
  const rootScope={pluginId:pending.scope.pluginId,libraryId:target.owner.libraryId,projectId:pending.scope.projectId,runId:pending.scope.runId};
  const scope={...rootScope,runId:'look-'+await digest(templateRunJSON(rootScope))},request={phase:'decoration',draftId:base.sequenceId,recipeDigest:await digest(recipe),assemblyState:base.stateFile};
- const query=async(script,summary)=>{check();const reply=await sdk.runScript({summary,allowCommit:false,script});check();if(reply.isError||reply.result?.verified!==true)fail('TEMPLATE_RUN_INVALID','The saved title/look state has changed or could not be read. Inspect the Draft before another run.');return reply.result;};
+ const query=async(script,summary,allowCommit=false)=>{check();const reply=await sdk.runScript({summary,allowCommit,script});check();if(reply.isError||reply.result?.verified!==true)fail('TEMPLATE_RUN_INVALID','The saved title/look state has changed or could not be read. Inspect the Draft before another run.');return reply.result;};
  const verify=async receipt=>{
   check();if(receipt.draftId!==frozen.sequenceId||!receipt.stateFile)fail('TEMPLATE_RUN_INVALID','The title/look receipt could not be verified.');
   return templateStableSavedRead(sdk,scope.projectId,receipt.draftId,scope.libraryId,check,async sources=>{
    let sourceClips;
    if(receipt.sourceGuard){try{sourceClips=templateSourceIntentState(receipt.sourceGuard.intent,sources,templateObservedSource);}catch(cause){throw Object.assign(templateRunIssue('TEMPLATE_RUN_INVALID','The saved title/look source differs from the original assembly.'),{cause});}}
    await query(`${templateObservationScript()}const p=selects.project(${JSON.stringify(scope.projectId)});if(!(await p.meta()).draftIds.includes(${JSON.stringify(receipt.draftId)}))throw Error('The title/look Draft is not in its Project.');const actual=await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(receipt.draftId)}),${templateStateJSON(sources)},templateObservedSource);await (${templateStateFile.toString()})(selects,${JSON.stringify(receipt.stateFile.path)},(${templateStateJSON.toString()})(${receipt.sourceGuard?`(${templatePendingSourceState.toString()})(actual)`:'actual'}),${templateRunBase64.toString()},${JSON.stringify(receipt.stateFile)},fingerprintTemplateFile);return {verified:true};`,'Confirm owned title and look');
-   if(receipt.sourceGuard)await query(`${templateObservationScript()}await (${templateSourceGuardFile.toString()})(selects,${templateStateJSON(receipt.sourceGuard)},${templateStateJSON(sourceClips)},${templateStateFile.toString()},${templateStateJSON.toString()},${templateRunBase64.toString()},fingerprintTemplateFile);return {verified:true};`,'Confirm owned title/look sources');
+   if(receipt.sourceGuard)await query(`${templateObservationScript()}await (${templateSourceGuardFile.toString()})(selects,${templateStateJSON(receipt.sourceGuard)},${templateStateJSON(sourceClips)},${templateStateFile.toString()},${templateStateJSON.toString()},${templateRunBase64.toString()},fingerprintTemplateFile);return {verified:true};`,'Publish owned title/look source guard',true);
    return {sequenceId:receipt.draftId,fps:base.fps,totalFrames:base.totalFrames,decorationConfirmed:true};
   });
  };
