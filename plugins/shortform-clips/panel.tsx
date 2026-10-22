@@ -3907,7 +3907,7 @@ function resolveSourceComposition(shots:any[],catalog:any[],sources:any[],durati
       for(const shot of measured)checkSourceCompositionGeometry(compileSourceCropPlan([{...shot,startFrame:0,endFrame:shot.endFrame-shot.startFrame}],sources,shot.endFrame-shot.startFrame,layout),layout);
       group.forEach((shot,i)=>resolved.set(shot,measured[i]));
     } catch(error:any) {
-      if(group.some(s=>s.autoFrame))throw error;
+      if(group.some(s=>s.autoFrame)&&!String(error?.message||error).startsWith('Selected person is outside the observed camera pane'))throw error;
       for(const shot of group){resolved.set(shot,{...shot,style:'preserve',regions:[]});limitations.push({startFrame:shot.startFrame,endFrame:shot.endFrame,compositionId:shot.compositionId,reason:String(error?.message||error)});}
     }
   }
@@ -4031,7 +4031,7 @@ function editorialPersonRegions(shots:any[],catalog:any[],sources:any[],layout:a
     const first=group[0],src=sources.find((s:any)=>s.resourceId===first.resourceId),W=src?.meta.frameSize.width,H=src?.meta.frameSize.height;
     if(!(W>0&&H>0))throw Error('Invalid source dimensions');
     const count=compositionRects(first.style).length;
-    const fits:any[]=[];
+    const fits:any[]=[],adjustments:any[]=[];
     let regions=Array.from({length:count},(_,slot)=>{
       const destination=layout.cellDestination||compositionDestination(first.style,slot,layout),aspect=destination.width/destination.height;
       const subjects=group.flatMap(s=>s.subjectGroups?s.subjectGroups[slot]:first.style==='two-shot'?s.subjects:[s.subjects[slot]]);
@@ -4039,7 +4039,19 @@ function editorialPersonRegions(shots:any[],catalog:any[],sources:any[],layout:a
       const refs=[...ids].map(id=>{const f=catalog.find(f=>f.id===id&&f.resourceId===first.resourceId);if(!f)throw Error('Unknown selected person reference');return f;});
       const left=Math.max(...subjects.map(q=>q.left??0))*W,right=Math.min(...subjects.map(q=>q.right??1))*W,top=Math.max(...subjects.map(q=>q.top??0))*H,bottom=Math.min(...subjects.map(q=>q.bottom??1))*H;
       const boxes=refs.map(f=>f.envelope||f.box),b={xmin:Math.min(...boxes.map(b=>b.xmin)),xmax:Math.max(...boxes.map(b=>b.xmax)),ymin:Math.min(...boxes.map(b=>b.ymin)),ymax:Math.max(...boxes.map(b=>b.ymax))};
-      if(b.xmin<left-1e-6||b.xmax>right+1e-6||b.ymin<top-1e-6||b.ymax>bottom+1e-6)throw Error('Selected person is outside the observed camera pane');
+      // Detectors may extend beyond the physical image. Inside an embedded
+      // camera pane, only tolerate small track-envelope noise, never a face
+      // belonging to a different pane. Apply the same rule on both axes.
+      for(const [lo,hi,min,max,extent] of [['xmin','xmax',left,right,W],['ymin','ymax',top,bottom,H]] as const){
+        const tolerance=Math.min((max-min)*.02,Math.max(...refs.map(f=>f.box[hi]-f.box[lo]))*.05);
+        for(const f of refs){
+          if(![f.box[lo],f.box[hi],(f.envelope||f.box)[lo],(f.envelope||f.box)[hi]].every(Number.isFinite)||f.box[hi]<=min||f.box[lo]>=max||f.box[hi]<=f.box[lo])throw Error('Selected person is outside the observed camera pane: '+f.id);
+          if((min>0&&(f.box[lo]<min-1e-6||(f.envelope||f.box)[lo]<min-tolerance))||(max<extent&&(f.box[hi]>max+1e-6||(f.envelope||f.box)[hi]>max+tolerance)))throw Error('Selected person is outside the observed camera pane: '+f.id);
+        }
+        const overshoot=Math.max(0,min-b[lo],b[hi]-max);
+        if(overshoot>0)adjustments.push({kind:'envelope-boundary',axis:lo==='xmin'?'x':'y',maxPixels:overshoot});
+        b[lo]=Math.max(min,b[lo]);b[hi]=Math.min(max,b[hi]);
+      }
       // One upper-body policy, shared across all occurrences. Padding estimates
       // hair/shoulders; it is not a claim that face detection tracks whole heads.
       const fw=Math.max(...refs.map(f=>f.box.xmax-f.box.xmin)),fh=Math.max(...refs.map(f=>f.box.ymax-f.box.ymin));
@@ -4131,7 +4143,7 @@ function editorialPersonRegions(shots:any[],catalog:any[],sources:any[],layout:a
         }catch(error:any){if(!/cannot fit/.test(String(error?.message)))throw error;}
       }
     }
-    for(const shot of group)out.set(shot,{...shot,regions});
+    for(const shot of group)out.set(shot,{...shot,regions,...(adjustments.length?{geometryAdjustments:[...(shot.geometryAdjustments||[]),...adjustments]}:{})});
   }
   return shots.map(s=>out.get(s));
 }
@@ -4473,10 +4485,15 @@ function sourceAppearanceChange(a:ArrayLike<number>,b:ArrayLike<number>) {
 function rawSourceFrameArgs(source:any,frames:number[],output:string) {
   if(!source.path||!Number.isFinite(source.meta?.fps)||source.meta.fps<=0||!frames.length||frames.length>12||frames.some(f=>!Number.isInteger(f)||f<0))throw Error('Invalid source frame request');
   const width=640,height=Math.max(2,Math.round(width*source.meta.frameSize.height/source.meta.frameSize.width/2)*2);
-  const args=['-v','error','-y'];
-  for(const f of frames)args.push('-threads','1','-ss',(f/source.meta.fps).toFixed(9),'-i',source.path);
-  const filters=frames.map((_,i)=>`[${i}:v:0]scale=${width}:${height},setsar=1[v${i}]`);
-  filters.push(frames.length===1?'[v0]null[out]':frames.map((_,i)=>`[v${i}]`).join('')+`hstack=inputs=${frames.length}[out]`);
+  // Seek once and decode the batch sequentially. A separate input per frame
+  // repeatedly decodes the same GOP, especially during exact-cut refinement.
+  // Trim each branch by frame index and reset timestamps before stacking;
+  // this preserves request order (including duplicates) at fractional FPS.
+  const first=Math.min(...frames);
+  const args=['-v','error','-y','-threads','1','-ss',(first/source.meta.fps).toFixed(9),'-i',source.path];
+  const filters=[frames.length===1?'[0:v:0]null[s0]':`[0:v:0]split=${frames.length}`+frames.map((_,i)=>`[s${i}]`).join('')];
+  filters.push(...frames.map((f,i)=>`[s${i}]trim=start_frame=${f-first}:end_frame=${f-first+1},setpts=PTS-STARTPTS,scale=${width}:${height},setsar=1[v${i}]`));
+  filters.push(frames.length===1?'[v0]null[out]':frames.map((_,i)=>`[v${i}]`).join('')+`hstack=inputs=${frames.length}:shortest=1[out]`);
   args.push('-filter_complex_threads','1','-filter_complex',filters.join(';'),'-map','[out]','-frames:v','1','-q:v','3',output);
   return {args,width,height};
 }
@@ -4496,6 +4513,7 @@ async function captureRawSourceFrames({sdk,guard,store,source,frames}:any) {
 }
 
 async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note,store}:any) {
+  const started=performance.now(),metrics={batches:0,frames:0,captureMs:0};
   const images:any[]=[],samples:any[]=[],boundaries:any[]=[];
   for(const source of before.sources) {
     const words=(before.segments||before.words).filter((w:any)=>w.sourceResourceId===source.resourceId&&Number.isFinite(w.sourceStartFrame));
@@ -4505,8 +4523,9 @@ async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note,stor
     const cache=new Map<number,any>();
     const capture=async(frames:number[])=>{
       const missing=[...new Set(frames)].filter(f=>!cache.has(f));
-      for(let i=0;i<missing.length;i+=12){note({plan:'stage',stage:'evidence'});const wanted=missing.slice(i,i+12);
+      for(let i=0;i<missing.length;i+=12){note({plan:'stage',stage:'evidence'});const wanted=missing.slice(i,i+12),captureStarted=performance.now();
         const c=await guard(visualWork(()=>source.path?captureRawSourceFrames({sdk,guard,store,source,frames:wanted}):sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:core.analyzedSequenceJson.id,sequenceJson:core.analyzedSequenceJson,coordinate:'base',frames:wanted.map(frameNumber=>({frameNumber,view:'timeline_composite'})),includeOverlays:false})));
+        metrics.batches++;metrics.frames+=wanted.length;metrics.captureMs+=performance.now()-captureStarted;
         const image=new Image();image.src='data:image/jpeg;base64,'+c.data;await image.decode();
         for(const f of wanted){const tile=c.frames?.find((t:any)=>t.frameNumber===f);if(!tile?.hasSourceImage)throw Error('Missing source survey image');const cv=document.createElement('canvas');cv.width=640;cv.height=Math.round(640*source.meta.frameSize.height/source.meta.frameSize.width);const g=cv.getContext('2d')!;g.drawImage(image,tile.x,tile.y,tile.width,tile.height,0,0,cv.width,cv.height);const probe=document.createElement('canvas');probe.width=32;probe.height=18;const pg=probe.getContext('2d')!;pg.drawImage(cv,0,0,32,18);cache.set(f,{cv,pixels:pg.getImageData(0,0,32,18).data});}
       }
@@ -4529,7 +4548,9 @@ async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note,stor
     }
     samples.push({resourceId:source.resourceId,sourceFrames:frames});
   }
-  note({plan:'source-evidence',samples,boundaries,imageCount:images.length});return {images,samples,boundaries};
+  const timing={...metrics,captureMs:Math.round(metrics.captureMs),elapsedMs:Math.round(performance.now()-started)};
+  console.info('[shortform:source-survey]',timing);
+  note({plan:'source-evidence',samples,boundaries,imageCount:images.length,timing});return {images,samples,boundaries};
 }
 
 async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measureFaces,prepareEvidence,measureSpeakers,work,previousEdit,store}:any):Promise<any> {
