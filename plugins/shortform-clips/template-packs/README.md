@@ -201,7 +201,11 @@ Independent settings include:
   records these values to preserve title size without a named renderer preset.
 - `background.canvasAligned`: align gradient coordinates to the full canvas
   instead of restarting them inside each background band.
-- `captions.cleanSpeechText`: text-only caption omissions; never trims audio.
+- `captions.cleanSpeechText`: LLM-selected text-only filler, stutter and accidental
+  repetition omissions; defaults to true when absent and respects explicit false.
+  One validated original word occurrence is hidden per omission. Invalid/ambiguous
+  candidates are ignored; an empty list keeps all words. Never trims audio/video.
+  The existing `editing.removeFillers` setting independently controls video edits.
 - `captions.highlight`, `highlightColor`, `left`, `width`: emphasis and placement
   supported together, regardless of template origin.
 - `captions.fontSizing`: `"fixed"` (default when omitted) keeps `fontSize` for

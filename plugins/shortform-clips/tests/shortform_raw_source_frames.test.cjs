@@ -7,7 +7,8 @@ test('raw source capture works without a Resource analysis',{skip:!modules},asyn
  new Function('require','module','exports',esbuild.transformSync(source+'\nexport {rawSourceFrameArgs};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
  const input={path:'/source with spaces.mp4',meta:{fps:30000/1001,frameSize:{width:1920,height:1080}}};
  await t.test('rejects out-of-range batch sizes and noninteger source frames',()=>{
-  for(const frames of [[],[-1],[1.5],Array.from({length:13},(_,i)=>i)])assert.throws(()=>m.exports.rawSourceFrameArgs(input,frames,'/out.jpg'));
+  for(const frames of [[],[-1],[1.5],Array.from({length:25},(_,i)=>i)])assert.throws(()=>m.exports.rawSourceFrameArgs(input,frames,'/out.jpg'));
+  assert.equal(m.exports.rawSourceFrameArgs(input,Array.from({length:24},(_,i)=>i),'/out.jpg').args.filter(x=>x===input.path).length,1);
  });
  await t.test('one decoder preserves the requested source clock and literal file paths',()=>{
   const r=m.exports.rawSourceFrameArgs(input,[0,66,156],'/out.jpg');
