@@ -24,6 +24,17 @@ an unrelated workflow. A passing unit suite alone is not completion.
 
 ## Current checkpoint
 
+- Mini Vlog 0.1.0-alpha.13 prepares verified, content-addressed bundled music
+  outside the plugin installation in both entry points. It reuses the existing
+  asset feature; own music/silence retain their contracts, and earlier cue bytes
+  survive a new generation. Initial RED fails twelve of thirteen; all 31 expanded
+  cases pass, with 75 Mini/source/identity and 284 related asset/photo checks.
+  Eight actual SDK scenarios use one new disposable Project and create no
+  Drafts, preserving the earlier Gallery Project. See
+  [mini-owned-cues.md](mini-owned-cues.md). The pool stays five features / twelve
+  consumers. Existing installation-linked Drafts are not migrated; full template
+  and supported-platform/AV gates remain open.
+
 - Gallery 0.3.22 fixes a concurrent cache-index observation race revealed by
   remote Video/PCM checks. The existing derived-file owner reobserves only a
   changed index, at most three times, without replaying a write or encode.

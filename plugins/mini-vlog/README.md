@@ -225,6 +225,12 @@ bundled tracks are instrumentals at -11 LUFS integrated, about as loud as
 short-form reference edits, with a fixed gain and a true-peak limiter at
 -1 dBTP (not a dynamic leveller, so the swells keep their shape).
 
+Build verifies a bundled track against its recorded byte count and content
+hash, then uses a preserved copy outside the installation folder. Updating or
+removing the template's installed music does not replace that copy in newly
+created Drafts. Earlier Drafts that already referenced installation files are
+not migrated. Your own music continues to use the file you selected.
+
 **Beat and bar.** Bedroom Pop, Acoustic Pop, Sunny Soul Strut and Easy
 Sunday Lo-fi have clear bars: the first beat of a bar is 1.70, 1.71, 3.09
 and 3.14 times as strong as the others, where 1.5 is needed. Their videos

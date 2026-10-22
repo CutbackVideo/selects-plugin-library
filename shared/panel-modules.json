@@ -9,6 +9,7 @@
         "plugins/mini-vlog/operation-builder.mjs"
       ],
       "targets": [
+        "plugins/mini-vlog/panel.tsx",
         "plugins/no14-still-video/panel.tsx",
         "plugins/four-photo-stop-motion/panel.tsx",
         "plugins/polaroid-photo-dump/panel.tsx"
