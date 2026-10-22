@@ -522,7 +522,7 @@ function Classifier({t, shoot, inWindow, script, confirm, audio, onBuild, onClos
   const current = clips[index];
   useEffect(() => {
     let live = true;
-    audio.load().then(known => script(`const SHOOT = ${JSON.stringify(shoot)}; const KNOWN_AUDIO = ${JSON.stringify(known)};\n${CLASSIFY}`, false, 120)).then(review => {
+    audio.load().then(known => script(`const SHOOT = ${JSON.stringify(shoot)}; const KNOWN_AUDIO = ${JSON.stringify(known)};\n${CLASSIFY}`, false)).then(review => {
       if (!live) return;
       if (review.audio) void audio.save(review.audio);
       setClasses(new Map(review.clips.map(clip => [clip.resourceId, clip.suggested])));
@@ -645,8 +645,9 @@ export default function Preparation({sdk, context, ui}) {
   // Every script works on this project with the steps' rules in scope. A
   // step that builds timelines or a draft from a long shoot needs more than
   // the default half minute; a host without the option keeps it.
-  async function script(body, commit = false, seconds = undefined) {
-    const response = await sdk.runScript({summary: t.summary, script: `const p = selects.project(${q(pid)});\n${RULES}\n${body}`, allowCommit: commit, ...(seconds ? {timeoutSeconds: seconds} : {})});
+  // The host gives a panel's script run_script's maximum, 120 s.
+  async function script(body, commit = false) {
+    const response = await sdk.runScript({summary: t.summary, script: `const p = selects.project(${q(pid)});\n${RULES}\n${body}`, allowCommit: commit});
     if (response.isError) throw new Error(response.output);
     return response.result;
   }
@@ -781,7 +782,7 @@ export default function Preparation({sdk, context, ui}) {
   // both open, Main last so it is the one on screen.
   async function build(classes) {
     await act("classify", async () => {
-      const made = await script(`const SHOOT = ${q(shootName)}; const CLASSES = ${q(classes)};\n${BUILD}`, true, 120);
+      const made = await script(`const SHOOT = ${q(shootName)}; const CLASSES = ${q(classes)};\n${BUILD}`, true);
       for (const sequenceId of [...made.sequenceIds].reverse())
         await script(`return await selects.editor.openSyncedTimeline({projectId:${q(pid)},sequenceId:${q(sequenceId)}});`, true);
       await leaveClassifier();
@@ -790,7 +791,7 @@ export default function Preparation({sdk, context, ui}) {
   // A draft of the same name is asked about first; declined, nothing is made.
   async function makeDraft() {
     if (existingDraft && !(await confirm(t.draft.overwrite, {name: existingDraft.name}))) return;
-    const result = await script(`const RESOURCE_ID = ${q(source.resourceId)}; const KIND = String(${q(source.kind)});\n${MAKE_DRAFT}`, true, 120);
+    const result = await script(`const RESOURCE_ID = ${q(source.resourceId)}; const KIND = String(${q(source.kind)});\n${MAKE_DRAFT}`, true);
     await select(shoot.name, `d:${result.sequenceId}`);
     await script(`return await selects.editor.openDraft(${q(result.sequenceId)});`, true);
   }
@@ -811,7 +812,7 @@ export default function Preparation({sdk, context, ui}) {
   }
   // Reading a long draft's transcript takes longer than the default limit.
   async function exportTranscript() {
-    await script(`return await selects.export.draftTranscript(${q({projectId:pid,draftSequenceId:draft.sequenceId,includeTranslation:true,includeChapters:true,includeSubchapters:true})});`,true,120);
+    await script(`return await selects.export.draftTranscript(${q({projectId:pid,draftSequenceId:draft.sequenceId,includeTranslation:true,includeChapters:true,includeSubchapters:true})});`,true);
     say("draft", t.draft.exported, "success");
   }
   const exportFailure = e => {
@@ -843,7 +844,7 @@ export default function Preparation({sdk, context, ui}) {
     </Step>
     <Step number={2} title={t.organize.title} description={t.organize.description} actions={
       <Explain why={t.organize.description} onClick={()=>{if (shoot?.alreadyOrganized && !busy) say("organize", interpolate(t.alreadyOrganized,{name:shoot.name}));}}>
-        {run(t.run, !shoot?.unorganizedFolderId || !!analysis.length, ()=>act("organize", ()=>script(`const FOLDER_ID = ${q(shoot.unorganizedFolderId)};\n${ORGANIZE}`,true,120), e => `${t.organize.failed} ${e.message || e}`))}
+        {run(t.run, !shoot?.unorganizedFolderId || !!analysis.length, ()=>act("organize", ()=>script(`const FOLDER_ID = ${q(shoot.unorganizedFolderId)};\n${ORGANIZE}`,true), e => `${t.organize.failed} ${e.message || e}`))}
       </Explain>}>
       <Note step="organize"/>
     </Step>
