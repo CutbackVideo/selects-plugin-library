@@ -130,6 +130,20 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   env.script=placeScript;env.tpl.music={path:'/x/bed.mp3'};
   musicCalls.length=0;musicReply={status:'ready',resourceId:'r',durationSeconds:1,path:'/x/bed.mp3'};job=done(2);await attempt();
   assert.deepEqual(musicCalls,['import']);assert.equal(job.musicWarning,'short /x/bed.mp3');
+  // Framing several selected clips passes a list of Drafts; those Drafts, and only live ones, get their music checked.
+  env.runTemplateReframing=async()=>({status:'complete'});
+  const placedIn=[];env.script=async code=>{if(code.includes('overlayResource'))placedIn.push(code.match(/selects\.draft\("([^"]+)"\)/)[1]);return placeScript(code);};
+  musicReply={status:'ready',resourceId:'r',durationSeconds:12,path:'/x/bed.mp3'};
+  pickd.clips=[{name:'A',segments:[[1,5]]},{name:'B',segments:[[1,5]]},{name:'C',segments:[[1,5]]}];
+  job=done(3);env.onlyDraftId=['m0','m2'];await attempt();
+  assert.deepEqual(placedIn,['m0','m2'],'a list of selected clips gets music');
+  placedIn.length=0;job=done(3);env.onlyDraftId='m1';await attempt();
+  assert.deepEqual(placedIn,['m1'],'a single retried clip still gets music');
+  placedIn.length=0;job=done(3);job.built[1].deleted=true;env.onlyDraftId=undefined;await attempt();
+  assert.deepEqual(placedIn,['m0','m2'],'deleted clips get no music');
+  placedIn.length=0;job=done(3);job.built[0].deleted=true;env.onlyDraftId=['m0','m1'];await attempt();
+  assert.deepEqual(placedIn,['m1'],'a deleted clip stays without music even when listed');
+  env.script=placeScript;env.onlyDraftId=undefined;pickd.clips=[{name:'A',segments:[[1,5]]},{name:'B',segments:[[1,5]]}];
  });
  await t.test('generation saves the Draft before reframing and captures thumbnails afterwards',()=>{
   const build=src.indexOf('made[i] = { ...c, name, draftId: r?.draftId');

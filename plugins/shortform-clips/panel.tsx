@@ -10966,7 +10966,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         const problems: string[] = [];
         let music: any = null;
         for (let i = 0; i < made.length; i++) {
-          if (!made[i]?.draftId || made[i].reframeState === "failed" || (onlyDraftId && made[i].draftId !== onlyDraftId)) continue;
+          // onlyDraftId may list several selected clips; deleted clips keep their index but get no music.
+          if (!made[i]?.draftId || made[i].deleted || made[i].reframeState === "failed" || (onlyDraftId && ![onlyDraftId].flat().includes(made[i].draftId))) continue;
           try {
             music = music || await script(musicImportScript(projectId, musicFile), "Find the background music", true);
             if (music.status === "missing") { problems.push(S.musicMissing(music.path)); break; }
