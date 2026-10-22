@@ -115,8 +115,8 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   assert.deepEqual(r3.notes, []);
 
 
-  // Photos: placed from 0 for the slot's frame-snapped hold, cover-cropped like videos; an unmeasured photo is measured
-  // on an unsaved scratch Draft (it adopts the photo's size) and nothing but the real Draft is committed.
+  // Photos use the caller's verified native dimensions, preserve frame-snapped
+  // holds and centre crops, and never create a scratch measurement Draft.
   const mp = mockDraft(30, { unsaved: true, adopt: { width: 898, height: 898 }, photos: ['p1', 'p2', 'p3'] });
   const scratch = [];
   const selP = { project: () => ({ createDraft: async ({ name }) => {
@@ -129,14 +129,13 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   const rp = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: [
     { slot: 0, rid: 'p1', kind: 'photo', holdSeconds: 1.0667 }, { slot: 1, rid: 'r0', kind: 'video', startSeconds: 5, endSeconds: 5.9 },
     { slot: 2, rid: 'p2', kind: 'photo', holdSeconds: 0.6 }, { slot: 3, rid: 'p3', kind: 'photo', holdSeconds: 1.2 }],
-    boundaries: pb, crops: { p1: { width: 898, height: 898 }, r0: { width: 1080, height: 1920 }, p3: { width: 1920, height: 1080 } }, music: null })(selP);
+    boundaries: pb, crops: { p1: { width: 898, height: 898 }, p2: { width: 756, height: 1008 }, r0: { width: 1080, height: 1920 }, p3: { width: 1920, height: 1080 } }, music: null })(selP);
   assert.equal(rp.placed, 4);
   assert.deepEqual(mp.clips.map(c => [c.resourceId, c.startFrame, c.endFrame]), [['p1', 0, 32], ['r0', 32, 59], ['p2', 59, 77], ['p3', 77, 113]]);
   const ins = mp.log.filter(x => x[0] === 'insert');
   assert.deepEqual(ins.filter(x => x[1] !== 'r0').map(x => x[2].startSeconds), [0, 0, 0], 'photos start at 0');
   assert.ok(Math.abs(ins[0][2].endSeconds - 32 / 30) < 1e-9, 'hold = frame-snapped slot length');
-  assert.equal(scratch.length, 1, 'only the unmeasured photo is measured');
-  assert.equal(scratch[0].commits, 0, 'the scratch Draft is never committed');
+  assert.equal(scratch.length, 0, 'native Image facts never come from a Draft canvas');
   const tp = Object.fromEntries(mp.log.filter(x => x[0] === 'transform').map(x => [mp.clips.find(c => c.clipId === x[1]).resourceId, x[2].x]));
   assert.deepEqual(Object.keys(tp).sort(), ['p1', 'p2', 'r0'], 'the square, 3:4 and 9:16 clips are cropped; the 16:9 photo is not');
   assert.ok(Math.abs(tp.p1 - (1920 / 898) / (1080 / 898)) < 1e-9);
@@ -197,7 +196,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   const sound = async (clipSound, extra = {}) => {
     const ms = mockDraft(30, { photos: ['p1'] });
     const sel = { project: () => ({ createDraft: async () => ms.d, resource: id => ({ id }) }) };
-    const out = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: soundPicks, boundaries: [0, 1, 2, 3], crops: {}, music: { resourceId: 'r9', sectionStart: 0 }, clipSound, ...extra })(sel);
+    const out = await load('assemble.js', { projectId: 'p', draftName: 'x', picks: soundPicks, boundaries: [0, 1, 2, 3], crops: { p1: { width: 1920, height: 1080 } }, music: { resourceId: 'r9', sectionStart: 0 }, clipSound, ...extra })(sel);
     return { ms, out };
   };
   const amb = await sound('ambient', { ambientDb: -18 });

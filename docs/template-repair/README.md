@@ -32,6 +32,15 @@ current source inventory, initial decisions, all-template ledger and full gate.
 
 ## Current checkpoint
 
+- Mini alpha.15 / Archive alpha.9 verify standalone original Image identities,
+  dimensions and availability through the existing input feature before music.
+  Unknown size no longer becomes a scratch Draft canvas, and Finish consumes the
+  build's owned facts. Actual unsaved SDK transform readback reproduces the parent
+  defect and confirms both fixed cover scales, with no persistent Project changes.
+  See [mini-native-facts.md](mini-native-facts.md). Large selections are bounded
+  by input batches, one deadline and liveness. Full ownership and template gates
+  stay open; the partial registry remains five entries / twelve consumers.
+
 - Mini alpha.14 / Archive alpha.8 capture the originating async client for audio
   decoding and reuse the existing asset owner for bounded temporary media,
   cancellation and observed cleanup. Mini's actual preview Stop now aborts its

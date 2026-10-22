@@ -120,7 +120,8 @@ test('paging keeps one photo-measurement budget and measures no photo twice',asy
   f.project.createDraft=async()=>({insertResource:async({resourceId})=>{measured.push(resourceId);now+=1000},meta:async()=>({frameSize:{width:1920,height:1080}})});
   const script=fs.readFileSync(new URL(`../plugins/${id}/scripts/inventory.js`,import.meta.url),'utf8');
   await readInventoryPages(async(summary,make)=>vm.runInNewContext(`(async()=>{${make(0)}})()`,{selects:{project:()=>f.project},Date:{now:()=>now}}),script,cfg,fill);
-  assert.equal(measured.length,8,id);assert.equal(new Set(measured).size,8,id);
+  const expected = ['mini-vlog','archive-vlog'].includes(id) ? 0 : 8;
+  assert.equal(measured.length,expected,id);assert.equal(new Set(measured).size,expected,id);
  }
 });
 test('Summer Trip shares its capture-date probe limit across pages',async()=>{

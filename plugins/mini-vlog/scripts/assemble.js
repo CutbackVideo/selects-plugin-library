@@ -2,6 +2,13 @@ const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
 const notes = [];
 const W = 1920, H = 1080;
+// Native Image facts are a checked caller input, independent of the Draft canvas.
+// Reject missing facts before even creating an unsaved working Draft.
+for (const pick of cfg.picks) {
+  if (pick.kind !== 'photo') continue;
+  const size = cfg.crops && cfg.crops[pick.rid];
+  if (!Number.isSafeInteger(size?.width) || size.width < 1 || !Number.isSafeInteger(size?.height) || size.height < 1) throw Error('The selected photo has no verified native dimensions: ' + pick.rid);
+}
 let d, fps, endFrame;
 const main = async () => (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null);
 // Selects snaps the music's source start to a frame, which shifts the whole track by up to half a frame; every cut
@@ -49,17 +56,9 @@ const lay = async (rate, final) => {
 };
 const real = await lay(null, false);
 if (real) await lay(real, true);
-// Photo sizes the inventory could not measure: an unsaved scratch Draft adopts the photo's frame size.
+// The caller has already verified native photo dimensions. Never substitute an
+// unsaved Draft's canvas for an unknown original during assembly.
 const crops = Object.assign({}, cfg.crops);
-for (const pick of cfg.picks) {
-  const size = crops[pick.rid];
-  if (pick.kind !== 'photo' || (size && size.width > 0 && size.height > 0)) continue;
-  try {
-    const scratch = await p.createDraft({ name: 'Mini Vlog size check' });
-    await scratch.insertResource({ resourceId: pick.rid, sourceRange: { startSeconds: 0, endSeconds: 0.5 } });
-    crops[pick.rid] = (await scratch.meta()).frameSize;
-  } catch (e) { notes.push('a photo could not be measured, so it may show bars'); }
-}
 const rows = await main();
 for (let i = 0; i < rows.length; i++) {
   const size = crops[rows[i].resourceId];

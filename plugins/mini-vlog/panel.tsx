@@ -1859,7 +1859,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.14";
+const PLUGIN_VERSION = "0.1.0-alpha.15";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -4862,6 +4862,11 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     setBusy(true); setStatus(null); setResult(null);
     advance("shots", 0);
     try {
+      const selectedPhotos = selectedPhotoRidsOf(inventory, onlyPhotos, usePhotos)
+        .map((rid) => ({ resourceId: rid, name: (inventory.photos || []).find((photo: any) => photo.rid === rid)?.name || rid }));
+      const verified = selectedPhotos.length ? await prepareNativeImagesById(sdk, pid, selectedPhotos, { isCurrent: () => mountedRef.current && projectRef.current === pid }) : { sources: [] };
+      check();
+      const photoSizes = Object.freeze(Object.fromEntries(verified.sources.map((photo: any) => [photo.resourceId, Object.freeze({ width: photo.width, height: photo.height })])));
       // The scene search is cached per Project, clip selection and query set (the motion query runs only with Beat punch).
       const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");
       const chosenVideos: any[] = inventory.resources.filter((r: any) => !only || only.includes(r.rid));
@@ -4943,9 +4948,9 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       const boundaries: number[] = plan.schedule.cuts;
       advance("music", 1);
       advance("draft", 0);
-      // Photo sizes the inventory has not measured yet stay out; assemble.js measures those itself.
-      const crops = Object.fromEntries([...inventory.resources, ...(inventory.photos || []).filter((r: any) => r.width > 0 && r.height > 0)]
-        .map((r: any) => [r.rid, { width: r.width, height: r.height }]));
+      // Verified native Image facts override display/cache dimensions. The same
+      // frozen facts survive into Finish title and look, even after a refresh.
+      const crops = { ...Object.fromEntries(inventory.resources.map((r: any) => [r.rid, { width: r.width, height: r.height }])), ...photoSizes };
       let a: any = null, lost: any = null;
       try {
         a = await run("Assemble Mini Vlog", fill(assets.scripts.assembleJs, {
@@ -4965,7 +4970,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       // The planner drops shots when the footage cannot fill them; tell the user the real length at the Draft fps.
       const shortened = planShort(plan) ? { shots: plan.shots, of: fitted, seconds: a.totalFrames / a.fps } : null;
       advance("draft", 1);
-      const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, plan, notes: a.notes || [], link: null, shortened, unchecked: found.failed.length,
+      const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, photoSizes, plan, notes: a.notes || [], link: null, shortened, unchecked: found.failed.length,
         quickUnavailable: !!found.local?.unavailable };
       setResult(res);
       await decorate(res, check);
@@ -5032,7 +5037,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), punch: t(bl, "param.punch"), softness: t(bl, "param.softness") };
       // Photos in this Draft and a planned motion for each of them (the title restricts none).
       const photoRids = [...new Set(res.plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
-      const sizes: Record<string, { width: number; height: number }> = { ...photoSizesRef.current };
+      const sizes: Record<string, { width: number; height: number }> = res.photoSizes;
       const moves: any[] = mvPhotoMotions(res.plan.picks, String(f.seed), sizes);
       const byRid: Record<string, any> = {};
       res.plan.picks.forEach((k: any, i: number) => {
@@ -5468,20 +5473,54 @@ export async function nativeImageSourcesById(selects,projectId,photos) {
  return nativeImageSources(selects,projectId,selected,{matchById:true});
 }
 // A source step is dispatched once, independently of persistence permission.
-export async function nativeImageRun(sdk,script,summary,allowCommit=false,fallbackMessage='Image placement could not be confirmed. Inspect the Draft before retrying.') {
- const response=await sdk.runScript({script,summary,allowCommit,timeoutSeconds:120});
+export async function nativeImageRun(sdk,script,summary,allowCommit=false,fallbackMessage='Image placement could not be confirmed. Inspect the Draft before retrying.',timeoutSeconds=120) {
+ const response=await sdk.runScript({script,summary,allowCommit,timeoutSeconds});
  if(response.isError||response.result==null)throw Error(response.output||fallbackMessage);
  return response.result;
 }
-export async function prepareNativeImages(sdk,projectId,photos,knownLibraryId=null) {
- const result=await nativeImageRun(sdk,`try{return {sources:await (${nativeImageSources.toString()})(selects,${JSON.stringify(projectId)},${JSON.stringify(photos)})};}catch(error){const issue=Object(error);return {sourceError:{code:typeof issue.code==='string'?issue.code:'image-source-invalid',message:String(issue.message||error),resourceId:issue.resourceId??null}};}`,'Verify original Project Images');
+export async function prepareNativeImages(sdk,projectId,photos,knownLibraryId=null,byId=false,timeoutSeconds=120) {
+ if(typeof byId!=='boolean')throw Error('The Image source matching mode is invalid.');
+ if(byId&&(!Array.isArray(photos)||photos.some(photo=>!photo||typeof photo.resourceId!=='string'||!photo.resourceId||typeof photo.name!=='string')))throw Error('The selected Image identities are invalid.');
+ const reader=byId?nativeImageSourcesById:nativeImageSources;
+ const support=byId?nativeImageSources.toString()+'\n':'';
+ const result=await nativeImageRun(sdk,support+`try{return {sources:await (${reader.toString()})(selects,${JSON.stringify(projectId)},${JSON.stringify(photos)})};}catch(error){const issue=Object(error);return {sourceError:{code:typeof issue.code==='string'?issue.code:'image-source-invalid',message:String(issue.message||error),resourceId:issue.resourceId??null}};}`,'Verify original Project Images',false,undefined,timeoutSeconds);
  if(result.sourceError){
   const error=Object.assign(new Error(result.sourceError.message),result.sourceError);
   if(['image-source-missing','image-source-unreadable','image-source-unknown','image-source-changed'].includes(error.code))error.publicMessage=error.message+'. Check the original file in the Project, then try again.';
   throw error;
  }
  if(!Array.isArray(result.sources))throw Error('Original Image verification returned an incomplete result.');
+ if(byId&&(result.sources.length!==photos.length||result.sources.some((source,i)=>source?.resourceId!==photos[i].resourceId||source.name!==photos[i].name||typeof source.path!=='string'||!source.path||!Number.isSafeInteger(source.width)||source.width<1||!Number.isSafeInteger(source.height)||source.height<1)))throw Error('Original Image verification did not confirm the selected identities and dimensions.');
  return {sdk,projectId,sources:result.sources};
+}
+// Standalone inventories already hold SDK aliases. Resolve their current native
+// facts by exact identity without guessing a source path or using a Draft canvas.
+export async function prepareNativeImagesById(sdk,projectId,photos,options={}) {
+ const {isCurrent=()=>true,timeoutMs=120000}=options??{};
+ if(!Array.isArray(photos)||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>120000)throw Error('The selected Image request or scope is invalid.');
+ const deadline=Date.now()+timeoutMs,issue=(code,message)=>Object.assign(Error(message),{code,publicMessage:message});
+ const check=()=>{
+  let live=false;try{live=isCurrent();}catch{}
+  if(!live)throw issue('image-source-stopped','The template run ended before original Images were confirmed.');
+  if(Date.now()>=deadline)throw issue('image-source-timeout','Original Image verification timed out.');
+ };
+ check();const batches=[];let batch=[];
+ // A large candidate set must not become one clipped SDK request/result. Bound
+ // both the row count and serialized input before starting any read.
+ for(const photo of photos){
+  if(!photo||typeof photo.resourceId!=='string'||!photo.resourceId||typeof photo.name!=='string')throw Error('The selected Image identities are invalid.');
+  const row={resourceId:photo.resourceId,name:photo.name};
+  if(new TextEncoder().encode(JSON.stringify([row])).length>16384)throw Error('The selected Image input exceeds its 16 KiB selection budget.');
+  if(batch.length>=16||new TextEncoder().encode(JSON.stringify([...batch,row])).length>16384){batches.push(batch);batch=[];}
+  batch.push(row);
+ }
+ if(batch.length)batches.push(batch);
+ const sources=[];
+ for(const selected of batches){
+  check();const prepared=await prepareNativeImages(sdk,projectId,selected,null,true,Math.max(1,Math.ceil((deadline-Date.now())/1000)));
+  check();sources.push(...prepared.sources);
+ }
+ check();return {sdk,projectId,sources};
 }
 
 // File contents are observations, not a filesystem lock. Keep the existing

@@ -18,6 +18,17 @@ matches the selection. A different Resource at the same path is not accepted.
 Native positive integer width/height remain required. The returned rows retain
 identity, path, name, dimensions, order and duplicate occurrences.
 
+Mini/Archive's standalone path uses `prepareNativeImagesById` with the inventory's
+SDK aliases and names. It resolves paths through the existing exact-ID reader;
+it never treats an unsaved Draft's canvas or a cached size as a native dimension.
+An optional liveness callback and overall timeout (at most 120 seconds) bound the
+read sequence. Each request contains at most sixteen rows / 16 KiB of serialized
+selected input; large selections are assembled in order without mutation retries.
+The remaining deadline is passed to each existing SDK call. Contradictory or
+partial results, stopped owners and late success reject before facts are returned.
+This facade does not accept persistent handed UUIDs in place of SDK aliases.
+The original path-based API, ambiguity rules and default timeout remain compatible.
+
 For each distinct original path, in this invocation only:
 
 1. Read `selects.files.stat`. A null observation means missing. A thrown or
@@ -33,6 +44,13 @@ can still fail rendering, and a failure after an earlier commit remains a partia
 or uncertain result under the caller's existing save policy. No auto-deletion or
 write retry is introduced. Reading one byte establishes local availability, not
 full decode validity, media identity by checksum, playback or export success.
+
+Batching the ID facade deliberately makes separate availability observations;
+duplicates retain their occurrences and may be reobserved across batch boundaries.
+It does not establish one atomic Project/filesystem snapshot. Mini/Archive retain
+the confirmed dimensions on the build result for Finish, independently of later
+inventory caches. See `docs/template-repair/mini-native-facts.md` for the actual
+working-Draft counterexample and the precise remaining acceptance gates.
 
 Known errors use `image-source-missing`, `image-source-unreadable`,
 `image-source-unknown` or `image-source-changed`. The query returns these as plain

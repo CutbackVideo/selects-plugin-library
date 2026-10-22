@@ -357,8 +357,10 @@ analysis and are never scene-searched.
   crop. Frame previews made with Selects' frame capture tool can fail or show
   bars on photos with effects; the exported video is correct.
 
-Selects reports no frame size for some photos. The size of such a photo is
-read once, by placing it on an unsaved scratch Draft; nothing is saved.
+The source Image metadata supplies its native dimensions. Build independently
+checks the selected originals before importing music or creating a Draft. A
+missing/unreadable original or unknown native size stops the build; a Draft's
+canvas size and cached preview dimensions cannot replace that source fact.
 
 **Beat punch.** With **Beat punch** on (in Advanced, on by default), every
 video clip gets a "Beat punch" Video Effect: on the strong beats (the

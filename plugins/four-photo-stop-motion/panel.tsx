@@ -239,20 +239,54 @@ export async function nativeImageSourcesById(selects,projectId,photos) {
  return nativeImageSources(selects,projectId,selected,{matchById:true});
 }
 // A source step is dispatched once, independently of persistence permission.
-export async function nativeImageRun(sdk,script,summary,allowCommit=false,fallbackMessage='Image placement could not be confirmed. Inspect the Draft before retrying.') {
- const response=await sdk.runScript({script,summary,allowCommit,timeoutSeconds:120});
+export async function nativeImageRun(sdk,script,summary,allowCommit=false,fallbackMessage='Image placement could not be confirmed. Inspect the Draft before retrying.',timeoutSeconds=120) {
+ const response=await sdk.runScript({script,summary,allowCommit,timeoutSeconds});
  if(response.isError||response.result==null)throw Error(response.output||fallbackMessage);
  return response.result;
 }
-export async function prepareNativeImages(sdk,projectId,photos,knownLibraryId=null) {
- const result=await nativeImageRun(sdk,`try{return {sources:await (${nativeImageSources.toString()})(selects,${JSON.stringify(projectId)},${JSON.stringify(photos)})};}catch(error){const issue=Object(error);return {sourceError:{code:typeof issue.code==='string'?issue.code:'image-source-invalid',message:String(issue.message||error),resourceId:issue.resourceId??null}};}`,'Verify original Project Images');
+export async function prepareNativeImages(sdk,projectId,photos,knownLibraryId=null,byId=false,timeoutSeconds=120) {
+ if(typeof byId!=='boolean')throw Error('The Image source matching mode is invalid.');
+ if(byId&&(!Array.isArray(photos)||photos.some(photo=>!photo||typeof photo.resourceId!=='string'||!photo.resourceId||typeof photo.name!=='string')))throw Error('The selected Image identities are invalid.');
+ const reader=byId?nativeImageSourcesById:nativeImageSources;
+ const support=byId?nativeImageSources.toString()+'\n':'';
+ const result=await nativeImageRun(sdk,support+`try{return {sources:await (${reader.toString()})(selects,${JSON.stringify(projectId)},${JSON.stringify(photos)})};}catch(error){const issue=Object(error);return {sourceError:{code:typeof issue.code==='string'?issue.code:'image-source-invalid',message:String(issue.message||error),resourceId:issue.resourceId??null}};}`,'Verify original Project Images',false,undefined,timeoutSeconds);
  if(result.sourceError){
   const error=Object.assign(new Error(result.sourceError.message),result.sourceError);
   if(['image-source-missing','image-source-unreadable','image-source-unknown','image-source-changed'].includes(error.code))error.publicMessage=error.message+'. Check the original file in the Project, then try again.';
   throw error;
  }
  if(!Array.isArray(result.sources))throw Error('Original Image verification returned an incomplete result.');
+ if(byId&&(result.sources.length!==photos.length||result.sources.some((source,i)=>source?.resourceId!==photos[i].resourceId||source.name!==photos[i].name||typeof source.path!=='string'||!source.path||!Number.isSafeInteger(source.width)||source.width<1||!Number.isSafeInteger(source.height)||source.height<1)))throw Error('Original Image verification did not confirm the selected identities and dimensions.');
  return {sdk,projectId,sources:result.sources};
+}
+// Standalone inventories already hold SDK aliases. Resolve their current native
+// facts by exact identity without guessing a source path or using a Draft canvas.
+export async function prepareNativeImagesById(sdk,projectId,photos,options={}) {
+ const {isCurrent=()=>true,timeoutMs=120000}=options??{};
+ if(!Array.isArray(photos)||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>120000)throw Error('The selected Image request or scope is invalid.');
+ const deadline=Date.now()+timeoutMs,issue=(code,message)=>Object.assign(Error(message),{code,publicMessage:message});
+ const check=()=>{
+  let live=false;try{live=isCurrent();}catch{}
+  if(!live)throw issue('image-source-stopped','The template run ended before original Images were confirmed.');
+  if(Date.now()>=deadline)throw issue('image-source-timeout','Original Image verification timed out.');
+ };
+ check();const batches=[];let batch=[];
+ // A large candidate set must not become one clipped SDK request/result. Bound
+ // both the row count and serialized input before starting any read.
+ for(const photo of photos){
+  if(!photo||typeof photo.resourceId!=='string'||!photo.resourceId||typeof photo.name!=='string')throw Error('The selected Image identities are invalid.');
+  const row={resourceId:photo.resourceId,name:photo.name};
+  if(new TextEncoder().encode(JSON.stringify([row])).length>16384)throw Error('The selected Image input exceeds its 16 KiB selection budget.');
+  if(batch.length>=16||new TextEncoder().encode(JSON.stringify([...batch,row])).length>16384){batches.push(batch);batch=[];}
+  batch.push(row);
+ }
+ if(batch.length)batches.push(batch);
+ const sources=[];
+ for(const selected of batches){
+  check();const prepared=await prepareNativeImages(sdk,projectId,selected,null,true,Math.max(1,Math.ceil((deadline-Date.now())/1000)));
+  check();sources.push(...prepared.sources);
+ }
+ check();return {sdk,projectId,sources};
 }
 
 // File contents are observations, not a filesystem lock. Keep the existing

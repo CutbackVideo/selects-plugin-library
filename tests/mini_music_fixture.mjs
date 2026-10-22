@@ -9,9 +9,10 @@ const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS
 const panel=fs.readFileSync(process.env.MINI_MUSIC_PANEL||new URL('../plugins/mini-vlog/panel.tsx',import.meta.url),'utf8');
 const plain=esbuild.transformSync(panel,{loader:'tsx',format:'esm',target:'es2022',jsx:'preserve'}).code;
 const nested=plain.replace(/^  /gm,'');
-const names=['fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','runMiniVlogTemplate'];
+const names=['selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','runMiniVlogTemplate'];
 const source=names.map(name=>topLevel(plain,name)).join('\n')+'\n'+topLevel(nested,'run')+'\n'+topLevel(nested,'build');
 const feature=panel.includes('// bundled-assets:start')?panel.slice(panel.indexOf('// bundled-assets:start'),panel.indexOf('// bundled-assets:end')):'';
+const inputFeature=panel.slice(panel.indexOf('// native-image-input:start'),panel.indexOf('// native-image-input:end')).replace(/^export /gm,'');
 const adapter=plain.includes('function prepareMiniCue(')?topLevel(plain,'prepareMiniCue'):'';
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
 const boundary=Object.assign(Error('Assembly intentionally outside this music-boundary fixture'),{boundary:true});
@@ -25,7 +26,7 @@ export async function miniMusicFixture(t,{entry='template',own=false,silent=fals
  const inventory={resources:[{rid:'r0',duration:20,analysed:true},{rid:'r1',duration:20,analysed:true}],photos:[],skipped:{}};
  const scriptsByName={inventoryJs:'return __CONFIG__;',searchJs:'return __CONFIG__;',ensureJs:fs.readFileSync(new URL('../plugins/mini-vlog/scripts/ensure-audio.js',import.meta.url),'utf8'),assembleJs:'return __CONFIG__;',decorateJs:'return __CONFIG__;'};
  const presets={presets:[{id:'preset',label:'Preset'}]},manifest={cues:[cue]},plan={ok:true,picks:[{rid:'r0'},{rid:'r1'}],shots:2,schedule:{cuts:[0,1,2]}};
- const selects={project:()=>project};
+ const selects={project:()=>project,files:f.files};
  const sdk={files:f.local.files,environment:{platform:process.platform},runScript:async input=>{
   scripts.push(input);
   if(input.summary==='Find the chosen files')return {result:{resolved:[{rid:'original-0',alias:'r0',size:null},{rid:'original-1',alias:'r1',size:null}],failed:[]}};
@@ -48,11 +49,11 @@ export async function miniMusicFixture(t,{entry='template',own=false,silent=fals
   candidates:{key:'p|null|motion',failed:[],scene:[],list:[],local:{results:[],unavailable:false}},
   setBusy:noop,setStatus:value=>{if(value?.tone==='error')errors.push(value.say('en'));},setResult:noop,stopPreview:noop,advance:noop,stopAt:error=>()=>{errors.push(error);return error.message;},endRun:()=>{busyRef.current=false;},CANCELLED:Symbol('cancelled'),STALE:stopped,
  };
- const box=vm.createContext(globals);vm.runInContext(feature+'\n'+adapter+'\n'+source+'\nthis.api={runMiniVlogTemplate,build};',box);
+ const box=vm.createContext(globals);vm.runInContext(inputFeature+'\n'+feature+'\n'+adapter+'\n'+source+'\nthis.api={runMiniVlogTemplate,build};',box);
  const run=async()=>{
   if(entry==='panel'){await box.api.build(1);return saved.at(-1);}
   try{await box.api.runMiniVlogTemplate(sdk,{projectId:'p',template:{inputs:{footage:[{resourceId:'original-0',kind:'video'},{resourceId:'original-1',kind:'video'}]},options:{}}},check,noop);}catch(error){if(!error.boundary)throw error;}
   return saved.at(-1);
  };
- return {...f,run,cue,file,bytes,imports,resources,nodes,scripts,saved,errors,hooks,digest,stop:()=>{live=false;globals.projectRef.current='detached';},ownedPath:()=>path.join(f.root,'.selects','plugin-data','mini-vlog','assets',cue.sha256+'.mp3')};
+ return {...f,run,cue,file,bytes,imports,resources,nodes,scripts,saved,errors,hooks,digest,inventory,plan,box,project,stop:()=>{live=false;globals.projectRef.current='detached';},ownedPath:()=>path.join(f.root,'.selects','plugin-data','mini-vlog','assets',cue.sha256+'.mp3')};
 }

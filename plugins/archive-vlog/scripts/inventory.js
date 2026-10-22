@@ -59,25 +59,14 @@ for (const r of video.filter(inPage)) {
   resources.push({ rid: r.resourceId, name: nameOf(r), duration: r.durationSeconds, width: size ? size.width : null, height: size ? size.height : null, recordedAt: recordedAt(r),
     kind: 'video', analysed, path });
 }
-// Photos (Image resources) have no analysis and no scene search; they are placed whole. sourceFiles() reports no
-// frameSize for them, so an unsaved scratch Draft measures each one: a new Draft adopts its first clip's frame size.
-// Nothing is committed. Sizes the panel already knows (cfg.known) are reused, and measuring stops after
-// cfg.measureMs (default 8 s) so the call stays well inside run_script's deadline; the rest stay null for now
-// and assemble.js measures any photo it places without a size.
-const known = cfg.known || {};
-const budget = cfg.measureMs == null ? 8000 : cfg.measureMs;
+// Native Image dimensions come from source metadata. A Draft's frameSize is its
+// canvas, so it cannot measure an unknown original. Build independently verifies
+// selected originals through the shared input feature before persistent effects.
 const started = Date.now();
 const photos = [];
 for (const r of all.filter(r => r.type === 'Image' && wanted(r) && inPage(r))) {
-  let size = sizes[r.resourceId] || known[r.resourceId] || null;
-  if (!(size && size.width > 0 && size.height > 0) && Date.now() - started < budget) {
-    try {
-      const scratch = await p.createDraft({ name: 'Archive Vlog size check' });
-      await scratch.insertResource({ resourceId: r.resourceId, sourceRange: { startSeconds: 0, endSeconds: 0.5 } });
-      size = ((await scratch.meta()) || {}).frameSize;
-    } catch (e) { size = null; }
-  }
-  const ok = size && size.width > 0 && size.height > 0;
+  const size = sizes[r.resourceId] || null;
+  const ok = Number.isSafeInteger(size?.width) && size.width > 0 && Number.isSafeInteger(size?.height) && size.height > 0;
   photos.push({ rid: r.resourceId, name: nameOf(r), width: ok ? size.width : null, height: ok ? size.height : null, recordedAt: recordedAt(r), kind: 'photo' });
 }
 return { ...(page ? { page: { total: all.length, elapsedMs: Date.now() - started } } : {}), resources, photos, skipped: { unanalysed, missing, notAnalysed, analysing }, incomplete };
