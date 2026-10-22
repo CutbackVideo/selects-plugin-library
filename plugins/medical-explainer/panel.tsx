@@ -321,6 +321,7 @@ type Strings = {
   mode: string; art: string; layout: string; autoMode: string; autoStyle: string; modeNames: Record<string, string>; artNames: Record<string, string>; layoutNames: Record<string, string>;
   chosen: (mode: string, art: string, layout: string) => string;
   inside: string; insideNames: Record<string, string>; insideCount: (n: number) => string;
+  advanced: string; changed: (n: number) => string; defaultsLine: (kf: string, voice: string) => string; jobFixed: string;
   unresolved: (names: string) => string; keepWaiting: string; resubmit: string; styleChanged: string;
 };
 
@@ -360,6 +361,8 @@ const STRINGS: Record<string, Strings> = {
     artNames: { medical: "3D medical CG", everyday: "Photoreal everyday", character: "Stylized 3D character", infographic: "Clean infographic" },
     layoutNames: { strip: "16:9 strip card", fullbleed: "Full-frame 9:16" },
     chosen: (m, a, l) => `Explanation: ${m} \u00b7 Art: ${a} \u00b7 Layout: ${l}`,
+    advanced: "Advanced settings", changed: (n) => `${n} changed`, jobFixed: "These are the settings saved with this job.",
+    defaultsLine: (k, v) => `Automatic: explanation, art style and layout \u00b7 Keyframes ${k} \u00b7 Voice ${v}`,
     inside: "Inside-the-body shots", insideNames: { auto: "When they help", on: "Use them", off: "None" },
     insideCount: (n) => `${n} inside-the-body scene${n === 1 ? "" : "s"} (3D medical CG)`,
     editHint: "Edit a sentence to split or shorten it. Only edited sentences are narrated again.", sentence: (n) => `Sentence ${n}`,
@@ -413,6 +416,8 @@ const STRINGS: Record<string, Strings> = {
     artNames: { medical: "3D \uc758\ud559 CG", everyday: "\uc77c\uc0c1 \uc2e4\uc0ac", character: "3D \uce90\ub9ad\ud130", infographic: "\uc778\ud3ec\uadf8\ub798\ud53d" },
     layoutNames: { strip: "16:9 \ub760 \uce74\ub4dc", fullbleed: "\uc804\uccb4 \ud654\uba74 9:16" },
     chosen: (m, a, l) => `\uc124\uba85: ${m} \u00b7 \ud654\ud48d: ${a} \u00b7 \ud654\uba74: ${l}`,
+    advanced: "\uace0\uae09 \uc124\uc815", changed: (n) => `${n}\uac1c \ubcc0\uacbd\ub428`, jobFixed: "\uc774 \uc791\uc5c5\uc5d0 \uc800\uc7a5\ub41c \uc124\uc815\uc785\ub2c8\ub2e4.",
+    defaultsLine: (k, v) => `\uc790\ub3d9: \uc124\uba85 \ubc29\uc2dd\u00b7\ud654\ud48d\u00b7\ud654\uba74 \u00b7 \ud0a4\ud504\ub808\uc784 ${k} \u00b7 \ubaa9\uc18c\ub9ac ${v}`,
     inside: "\ubab8\uc18d \uc7a5\uba74", insideNames: { auto: "\ud544\uc694\ud560 \ub54c", on: "\uc0ac\uc6a9", off: "\uc0ac\uc6a9 \uc548 \ud568" },
     insideCount: (n) => `\ubab8\uc18d \uc7a5\uba74 ${n}\uac1c(3D \uc758\ud559 CG)`,
     editHint: "\ubb38\uc7a5\uc744 \uace0\uccd0 \ub098\ub204\uac70\ub098 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uace0\uce5c \ubb38\uc7a5\ub9cc \ub2e4\uc2dc \ub179\uc74c\ud569\ub2c8\ub2e4.", sentence: (n) => `\ubb38\uc7a5 ${n}`,
@@ -2070,6 +2075,20 @@ export function medScriptPrompt(art, f, mode = "auto", inside = "auto") {
   ].join("\n\n");
 }
 
+// ---- Advanced settings: defaults, and what differs from them ----
+// The first screen shows the source, the brand preset and "Write the script"; everything else is under a collapsed
+// "Advanced settings" header that counts the values changed from these defaults (template values compare with the
+// chosen preset's), so a non-default choice is never hidden silently.
+export const MED_ADV_DEFAULTS = { lang: "auto", kfModel: MED_KF_DEFAULT, mode: "auto", art: "auto", inside: "auto", layout: "auto",
+  voice: MED_VOICES[0].id, music: false, gateScript: true, gateKf: true };
+export const MED_ADV_STORAGE_KEY = "ui:advancedOpen";
+export function medAdvancedChanges(values, template, preset) {
+  const v = asObj(values), t = asObj(template), p = MED_PRESETS[preset] || MED_PRESETS.generic;
+  const changed = Object.keys(MED_ADV_DEFAULTS).filter((k) => k in v && v[k] !== MED_ADV_DEFAULTS[k]);
+  for (const k of ["wordmark", "color1", "color2", "bg"]) if (k in t && String(t[k]).toLowerCase() !== String(p[k]).toLowerCase()) changed.push(k);
+  return changed;
+}
+
 // ---- Draft step: import the media, then wait until Selects can place it ----
 export function medBaseName(path) { return String(path).split(/[\\/]/).pop(); }
 export function medImportScript(projectId, files) {
@@ -2374,6 +2393,19 @@ function Panel({ sdk, context, ui }: any) {
   const [artSet, setArtSet] = React.useState<string>("auto");
   const [layoutSet, setLayoutSet] = React.useState<string>("auto");
   const [insideSet, setInsideSet] = React.useState<string>("auto"); // inside-the-body shots: auto | on | off
+  // "Advanced settings" is closed by default; whether it is open is remembered in plugin storage.
+  const [advOpen, setAdvOpen] = React.useState(false);
+  React.useEffect(() => {
+    let live = true;
+    if (!sdk?.storage) return () => { live = false; };
+    sdk.storage.getItem(MED_ADV_STORAGE_KEY).then((v: string | null) => { if (live) setAdvOpen(v === "1"); }).catch(() => {});
+    return () => { live = false; };
+  }, [sdk]);
+  function toggleAdvanced() {
+    const next = !advOpen;
+    setAdvOpen(next);
+    if (sdk?.storage) sdk.storage.setItem(MED_ADV_STORAGE_KEY, next ? "1" : "0").catch(() => {});
+  }
   const [preset, setPreset] = React.useState<string>("generic");
   const [tpl, setTpl] = React.useState<any>({ ...MED_PRESETS.generic });
   const [music, setMusic] = React.useState(false);
@@ -2956,6 +2988,14 @@ function Panel({ sdk, context, ui }: any) {
   const blocked = !!busy || noHost || noStorage || !storageReady;
   const langOptions = [{ value: "auto", label: S.auto }, ...Object.keys(MED_LANG).map((k) => ({ value: k, label: languageName(k, uiLang) }))];
   const field = (key: string) => (v: string) => setTpl((cur: any) => ({ ...cur, [key]: v }));
+  // Advanced values on screen: the started job's saved settings (read-only), else the panel's choices.
+  const fixed = !!busy || !!jobSettings;
+  const js: any = jobSettings || {};
+  const adv = jobSettings
+    ? { lang: js.lang ?? "auto", kfModel: js.kfModel ?? MED_KF_DEFAULT, mode: js.mode ?? "auto", art: js.art ?? "auto", inside: js.inside ?? "auto",
+      layout: js.layout ?? "auto", voice: js.voice ?? MED_VOICES[0].id, music: !!js.music }
+    : { lang, kfModel, mode: modeSet, art: artSet, inside: insideSet, layout: layoutSet, voice, music };
+  const advChanged = medAdvancedChanges({ ...adv, gateScript, gateKf }, tpl, preset);
   const recoverable = recovery.current && !recovery.current.done && recovery.current.dir && !jobs.some((j) => j.id === recovery.current.jobId) ? recovery.current : null;
 
   return (
@@ -2973,36 +3013,43 @@ function Panel({ sdk, context, ui }: any) {
           ]}
         />
       </ui.Section>
-      <ui.Section title={S.settingsTitle}>
-        <ui.Select label={S.language} value={lang} onChange={setLang} options={langOptions} disabled={!!busy} />
-        <ui.Select label={S.kfModel} value={kfModel} onChange={setKfModel} options={Object.entries(MED_KF_MODELS).map(([id, m]: any) => ({ value: id, label: m.label }))} disabled={!!busy} />
-        {!medKfModel(kfModel).edit && <ui.Message tone="muted">{S.fluxNote}</ui.Message>}
-        {jobStarted && <ui.Message tone="muted">{S.modelFixed(medKfModel(jobStarted).label)}</ui.Message>}
-        <ui.Select label={S.mode} value={modeSet} onChange={setModeSet} disabled={!!busy}
-          options={[{ value: "auto", label: S.autoMode }, ...Object.keys(MED_MODES).map((k) => ({ value: k, label: S.modeNames[k] }))]} />
-        <ui.Select label={S.art} value={artSet} onChange={setArtSet} disabled={!!busy}
-          options={[{ value: "auto", label: S.autoStyle }, ...Object.keys(MED_ARTS).map((k) => ({ value: k, label: S.artNames[k] }))]} />
-        <ui.Select label={S.inside} value={insideSet} onChange={setInsideSet} disabled={!!busy}
-          options={["auto", "on", "off"].map((k) => ({ value: k, label: S.insideNames[k] }))} />
-        <ui.Select label={S.layout} value={layoutSet} onChange={setLayoutSet} disabled={!!busy}
-          options={[{ value: "auto", label: S.autoStyle }, ...Object.keys(MED_LAYOUTS).map((k) => ({ value: k, label: S.layoutNames[k] }))]} />
-        <ui.Select label={S.voice} value={voice} onChange={setVoice} options={MED_VOICES.map((v) => ({ value: v.id, label: v.label }))} disabled={!!busy} />
-        <ui.Select label={S.quality} value="standard" onChange={() => {}} options={[{ value: "standard", label: S.qualityStd }]} disabled={!!busy} />
-        <ui.Toggle label={S.music} value={music} onChange={setMusic} disabled={!!busy} />
-        <ui.Toggle label={S.gateScript} value={gateScript} onChange={setGateScript} disabled={!!busy} />
-        <ui.Toggle label={S.gateKf} value={gateKf} onChange={setGateKf} disabled={!!busy} />
-      </ui.Section>
       <ui.Section title={S.templateTitle}>
         <ui.Select label={S.preset} value={preset} onChange={choosePreset} options={[{ value: "generic", label: S.presetGeneric }, { value: "chosun", label: S.presetChosun }]} disabled={!!busy} />
-        <ui.TextField label={S.wordmark} value={tpl.wordmark} onChange={field("wordmark")} disabled={!!busy} />
-        <ui.ColorField label={S.color1} value={tpl.color1} onChange={field("color1")} disabled={!!busy} />
-        <ui.ColorField label={S.color2} value={tpl.color2} onChange={field("color2")} disabled={!!busy} />
-        <ui.ColorField label={S.bg} value={tpl.bg} onChange={field("bg")} disabled={!!busy} />
         <ui.Actions>
           <ui.Button variant={plan ? "secondary" : "primary"} busy={busy === "plan"} busyLabel={S.planning} disabled={blocked} onClick={makePlan}>
             {plan ? S.redo : S.makePlan}
           </ui.Button>
         </ui.Actions>
+        <ui.Message tone="muted">{S.defaultsLine(medKfModel(adv.kfModel).label, (MED_VOICES.find((v) => v.id === adv.voice) || MED_VOICES[0]).voice)}</ui.Message>
+      </ui.Section>
+      <ui.Section title={S.advanced + (advChanged.length ? ` \u00b7 ${S.changed(advChanged.length)}` : "")}
+        actions={<ui.IconButton icon={advOpen ? "chevron-down" : "chevron-right"} label={S.advanced} onClick={toggleAdvanced} />}>
+        {advOpen && (
+          <ui.Stack gap={8}>
+            {jobSettings && <ui.Message tone="muted">{S.jobFixed}</ui.Message>}
+            <ui.Select label={S.language} value={adv.lang} onChange={setLang} options={langOptions} disabled={fixed} />
+            <ui.Select label={S.kfModel} value={adv.kfModel} onChange={setKfModel} options={Object.entries(MED_KF_MODELS).map(([id, m]: any) => ({ value: id, label: m.label }))} disabled={fixed} />
+            {!medKfModel(adv.kfModel).edit && <ui.Message tone="muted">{S.fluxNote}</ui.Message>}
+            {jobStarted && <ui.Message tone="muted">{S.modelFixed(medKfModel(jobStarted).label)}</ui.Message>}
+            <ui.Select label={S.mode} value={adv.mode} onChange={setModeSet} disabled={fixed}
+              options={[{ value: "auto", label: S.autoMode }, ...Object.keys(MED_MODES).map((k) => ({ value: k, label: S.modeNames[k] }))]} />
+            <ui.Select label={S.art} value={adv.art} onChange={setArtSet} disabled={fixed}
+              options={[{ value: "auto", label: S.autoStyle }, ...Object.keys(MED_ARTS).map((k) => ({ value: k, label: S.artNames[k] }))]} />
+            <ui.Select label={S.inside} value={adv.inside} onChange={setInsideSet} disabled={fixed}
+              options={["auto", "on", "off"].map((k) => ({ value: k, label: S.insideNames[k] }))} />
+            <ui.Select label={S.layout} value={adv.layout} onChange={setLayoutSet} disabled={fixed}
+              options={[{ value: "auto", label: S.autoStyle }, ...Object.keys(MED_LAYOUTS).map((k) => ({ value: k, label: S.layoutNames[k] }))]} />
+            <ui.Select label={S.voice} value={adv.voice} onChange={setVoice} options={MED_VOICES.map((v) => ({ value: v.id, label: v.label }))} disabled={fixed} />
+            <ui.Select label={S.quality} value="standard" onChange={() => {}} options={[{ value: "standard", label: S.qualityStd }]} disabled={!!busy} />
+            <ui.Toggle label={S.music} value={adv.music} onChange={setMusic} disabled={fixed} />
+            <ui.Toggle label={S.gateScript} value={gateScript} onChange={setGateScript} disabled={!!busy} />
+            <ui.Toggle label={S.gateKf} value={gateKf} onChange={setGateKf} disabled={!!busy} />
+            <ui.TextField label={S.wordmark} value={tpl.wordmark} onChange={field("wordmark")} disabled={!!busy} />
+            <ui.ColorField label={S.color1} value={tpl.color1} onChange={field("color1")} disabled={!!busy} />
+            <ui.ColorField label={S.color2} value={tpl.color2} onChange={field("color2")} disabled={!!busy} />
+            <ui.ColorField label={S.bg} value={tpl.bg} onChange={field("bg")} disabled={!!busy} />
+          </ui.Stack>
+        )}
       </ui.Section>
 
       {plan && (

@@ -22,9 +22,10 @@ Medical facts stay general and well established, but every video still needs a m
 ## Use
 
 1. Open a Project, then open **Medical Explainer** from Apps.
-2. Enter a topic, a link, or paste the text. Choose the narration language and voice, and the template: the brand
-   preset (Generic or Chosun Ilbo Health), the wordmark, the two title colours and the background. Turn on the music bed
-   if you want one.
+2. Enter a topic, a link, or paste the text, and choose the brand preset (Generic or Chosun Ilbo Health). The line
+   under the button shows the automatic defaults. Everything else (narration language and voice, keyframe model,
+   explanation mode, art style, inside-the-body shots, layout, music, the review steps, the wordmark and colours) is
+   under **Advanced settings**, closed by default; its header counts the values you changed.
 3. Press **Write the script**. Read the 8-10 sentences, the scene labels and the pointer labels, and edit the two title
    lines. The panel shows what will be generated (and paid for with Selects credits) before anything is made.
 4. Press **Make keyframes**. Two candidate keyframes are drawn per scene and the AI picks one; change any pick, then

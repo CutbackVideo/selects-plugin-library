@@ -110,8 +110,8 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertLess(self.panel.index('await openReview(dir, p);'), self.panel.index('generateKind(st, sc, dir, "music"'))
 
     def test_keyframe_model_choice_is_a_setting(self):
-        self.assertIn('<ui.Select label={S.kfModel} value={kfModel} onChange={setKfModel}', self.panel)
-        self.assertIn('{!medKfModel(kfModel).edit && <ui.Message tone="muted">{S.fluxNote}</ui.Message>}', self.panel)
+        self.assertIn('<ui.Select label={S.kfModel} value={adv.kfModel} onChange={setKfModel}', self.panel)
+        self.assertIn('{!medKfModel(adv.kfModel).edit && <ui.Message tone="muted">{S.fluxNote}</ui.Message>}', self.panel)
         self.assertIn('export const MED_KF_DEFAULT = "seedream";', self.panel)
         self.assertIn('const stage = await medClipsStage(kindCtx(st, sc, dir, S.steps[2]), sceneIds);', self.panel)
         # A policy refusal waits for the user; the only regeneration path is the explicit per-scene button.
@@ -121,12 +121,32 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertNotIn('kfpolicy', self.panel)
 
     def test_mode_art_and_layout_are_settings(self):
-        for needle in ['<ui.Select label={S.mode} value={modeSet}', '<ui.Select label={S.art} value={artSet}', '<ui.Select label={S.layout} value={layoutSet}',
+        for needle in ['<ui.Select label={S.mode} value={adv.mode} onChange={setModeSet}', '<ui.Select label={S.art} value={adv.art} onChange={setArtSet}', '<ui.Select label={S.layout} value={adv.layout} onChange={setLayoutSet}',
                        'mode: modeSet, art: artSet, layout: layoutSet, inside: insideSet', 'await ask(medScriptPrompt(art, f, modeSet, insideSet))',
-                       '<ui.Select label={S.inside} value={insideSet}']:
+                       '<ui.Select label={S.inside} value={adv.inside} onChange={setInsideSet}']:
             self.assertIn(needle, self.panel)
         self.assertNotIn('MED_STYLE', self.panel)
         self.assertNotIn('gentle blood flow', self.panel)
+
+    def test_first_screen_and_advanced_settings(self):
+        first = self.panel[self.panel.index('<ui.Section title={S.sourceTitle}>'):self.panel.index('<ui.Section title={S.advanced')]
+        # The first screen: source, brand preset, "Write the script" and the defaults line; nothing else.
+        for needle in ['<ui.Tabs', 'label={S.preset}', 'onClick={makePlan}', 'S.defaultsLine(']:
+            self.assertIn(needle, first)
+        for gone in ['S.language', 'S.kfModel', 'S.mode', 'S.art', 'S.inside', 'S.layout', 'S.voice', 'S.quality', 'S.music', 'S.gateScript', 'S.gateKf', 'S.wordmark', 'S.color1', 'S.bg']:
+            self.assertNotIn('label={%s}' % gone, first, gone)
+        adv = self.panel[self.panel.index('<ui.Section title={S.advanced'):self.panel.index('{plan && (', self.panel.index('<ui.Section title={S.advanced'))]
+        for needle in ['label={S.language}', 'label={S.kfModel}', 'label={S.mode}', 'label={S.art}', 'label={S.inside}', 'label={S.layout}', 'label={S.voice}',
+                       'label={S.quality}', 'label={S.music}', 'label={S.gateScript}', 'label={S.gateKf}', 'label={S.wordmark}', 'label={S.color1}', 'label={S.color2}', 'label={S.bg}']:
+            self.assertIn(needle, adv, needle)
+        # Closed by default, remembered in plugin storage, a changed-count on the header, read-only once a job started.
+        self.assertIn('const [advOpen, setAdvOpen] = React.useState(false);', self.panel)
+        self.assertIn('sdk.storage.getItem(MED_ADV_STORAGE_KEY).then((v: string | null) => { if (live) setAdvOpen(v === "1"); })', self.panel)
+        self.assertIn('sdk.storage.setItem(MED_ADV_STORAGE_KEY, next ? "1" : "0")', self.panel)
+        self.assertIn('{advOpen && (', adv)
+        self.assertIn('S.advanced + (advChanged.length ? ` \\u00b7 ${S.changed(advChanged.length)}` : "")', self.panel)
+        self.assertIn('const fixed = !!busy || !!jobSettings;', self.panel)
+        self.assertEqual(adv.count('disabled={fixed}'), 8, 'every job-fixed setting')
 
     def test_update_guard_policy_and_hook(self):
         policies = json.loads((ROOT / 'shared' / 'app-update-guard-policies.json').read_text(encoding='utf-8'))
@@ -139,7 +159,7 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('{noHost && <ui.Message>{S.noHost}</ui.Message>}', self.panel)
         langs = re.findall(r'^  (\w\w): \{$', self.panel, flags=re.M)
         self.assertEqual(sorted(langs), ['en', 'ko'])
-        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged', 'kfModel', 'fluxNote', 'policyScenes', 'policyTransitions', 'editHint', 'policyTitle', 'policyUseStill', 'policyRegenFailed', 'policyStill', 'autoMode', 'autoStyle', 'inside']:
+        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged', 'kfModel', 'fluxNote', 'policyScenes', 'policyTransitions', 'editHint', 'policyTitle', 'policyUseStill', 'policyRegenFailed', 'policyStill', 'autoMode', 'autoStyle', 'advanced', 'jobFixed']:
             self.assertEqual(len(re.findall(r'\b%s: "' % key, self.panel)), len(langs), key)
 
     def test_korean_fallback_fonts_in_every_overlay(self):

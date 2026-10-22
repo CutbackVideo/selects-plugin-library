@@ -1310,3 +1310,41 @@ test('Windows: an output path of 240 characters or more stops with a clear messa
   assert.match(panel, /medCheckPathLength\(path, hostIsWindows\(\)\);/);
   assert.match(panel, /medCheckPathLength\(hostJoin\(q\.folder, q\.outputName \+ "\.png"\), hostIsWindows\(\)\)/);
 });
+
+// ---- first screen and the collapsed advanced settings ----
+test('advanced settings: the changed count compares with the defaults and the chosen preset', () => {
+  const d = {...op.MED_ADV_DEFAULTS};
+  assert.deepEqual(op.medAdvancedChanges(d, op.MED_PRESETS.generic, 'generic'), []);
+  assert.deepEqual(op.medAdvancedChanges(d, op.MED_PRESETS.chosun, 'chosun'), [], 'the Chosun preset wordmark is not a change');
+  assert.deepEqual(op.medAdvancedChanges(d, op.MED_PRESETS.chosun, 'generic'), ['wordmark']);
+  assert.deepEqual(op.medAdvancedChanges({...d, kfModel: 'nano-banana-2.1', gateKf: false}, {...op.MED_PRESETS.generic, bg: '#000000'}, 'generic'), ['kfModel', 'gateKf', 'bg']);
+  assert.deepEqual(op.medAdvancedChanges({...d}, {...op.MED_PRESETS.generic, color1: '#ffe14d'}, 'generic'), [], 'colours compare without case');
+  assert.equal(op.MED_ADV_DEFAULTS.kfModel, 'seedream');
+  assert.equal(op.MED_ADV_DEFAULTS.voice, 'eleven-daniel');
+  assert.equal(op.MED_ADV_STORAGE_KEY, 'ui:advancedOpen');
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
+  assert.match(panel, /const \[advOpen, setAdvOpen\] = React\.useState\(false\);/, 'closed by default');
+  assert.match(panel, /changed: \(n\) => `\$\{n\}\\uac1c \\ubcc0\\uacbd\\ub428`/, 'the Korean badge reads "N\uac1c \ubcc0\uacbd\ub428"');
+});
+
+test('advanced settings open state is read from and written to plugin storage', async () => {
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
+  const a = panel.indexOf('  const [advOpen, setAdvOpen]'), b = panel.indexOf('  }', panel.indexOf('function toggleAdvanced()')) + 3;
+  const src = panel.slice(a, b).replace(/: string \| null/g, '');
+  const store = new Map([['ui:advancedOpen', '1']]);
+  const writes = [];
+  const sdk = {storage: {getItem: async (k) => store.get(k) ?? null, setItem: async (k, v) => { writes.push([k, v]); store.set(k, v); }}};
+  let state, effects = [];
+  const React = {useState: (v) => [state === undefined ? (state = v) : state, (n) => { state = n; }], useEffect: (fn) => { effects.push(fn); }};
+  // One render of the hook's source: the state as it is now, and its toggle.
+  const render = () => new Function('React', 'sdk', 'MED_ADV_STORAGE_KEY', src + '\nreturn {open: advOpen, toggle: toggleAdvanced};')(React, sdk, 'ui:advancedOpen');
+  assert.equal(render().open, false, 'closed until storage answers');
+  effects[0]();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(render().open, true, 'restored open');
+  render().toggle();
+  assert.equal(render().open, false);
+  assert.deepEqual(writes, [['ui:advancedOpen', '0']]);
+  render().toggle();
+  assert.deepEqual(writes.at(-1), ['ui:advancedOpen', '1']);
+});
