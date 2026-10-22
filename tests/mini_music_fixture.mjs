@@ -10,12 +10,12 @@ const panel=fs.readFileSync(process.env.MINI_MUSIC_PANEL||new URL('../plugins/mi
 const plain=esbuild.transformSync(panel,{loader:'tsx',format:'esm',target:'es2022',jsx:'preserve'}).code;
 const nested=plain.replace(/^  /gm,'');
 const names=['readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','runMiniVlogTemplate'];
-const source=names.map(name=>topLevel(plain,name)).join('\n')+'\n'+topLevel(nested,'inventoryCurrent')+'\n'+topLevel(nested,'run')+'\n'+topLevel(nested,'build');
+const source=names.map(name=>topLevel(plain,name)).join('\n')+'\n'+topLevel(nested,'inventoryCurrent')+'\n'+topLevel(nested,'runLive')+'\n'+topLevel(nested,'endRun')+'\n'+topLevel(nested,'run')+'\n'+topLevel(nested,'finishAssembly')+'\n'+topLevel(nested,'build');
 const feature=panel.includes('// bundled-assets:start')?panel.slice(panel.indexOf('// bundled-assets:start'),panel.indexOf('// bundled-assets:end')):'';
 const inputFeature=panel.slice(panel.indexOf('// native-image-input:start'),panel.indexOf('// native-image-input:end')).replace(/^export /gm,'');
 const adapter=plain.includes('function prepareMiniCue(')?topLevel(plain,'prepareMiniCue'):'';
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
-const boundary=Object.assign(Error('Assembly intentionally outside this music-boundary fixture'),{boundary:true});
+const boundary=Object.assign(Error('Assembly intentionally outside this music-boundary fixture'),{boundary:true,outcome:'notSaved'});
 export async function miniMusicFixture(t,{entry='template',own=false,silent=false}={}){
  const f=await holdFixture(t),plugin=path.join(f.root,'installed','mini-vlog'),file=path.join(plugin,'assets','cues','cue.mp3');fs.mkdirSync(path.dirname(file),{recursive:true});
  const bytes=Buffer.from('selected cue bytes'),cue={id:'cue',file:'cue.mp3',bytes:bytes.length,sha256:digest(bytes),duration:60,bpm:110};fs.writeFileSync(file,bytes);
@@ -43,21 +43,28 @@ export async function miniMusicFixture(t,{entry='template',own=false,silent=fals
  const check=()=>{if(!live)throw stopped;},stopped=Object.assign(Error('run detached'),{stopped:true});
  const noop=()=>{},busyRef={current:false};
  const globals={console:{warn:noop,info:noop},TextDecoder,TextEncoder,Uint8Array,crypto:webcrypto,setTimeout,clearTimeout,
+  // This music/native boundary fixture stops at assembly dispatch. The real
+  // durable owner and actual assembly script run in mini_assembly_receipts.
+  executeTemplateAssembly:async(sdk,_files,_scope,config,source,current)=>{
+   if(!current())throw Error('run detached');
+   const reply=await sdk.runScript({summary:'Assemble Mini Vlog',allowCommit:true,script:source.replace('__CONFIG__',()=>JSON.stringify(config))});
+   if(reply.isError)throw Error(reply.output);return reply.result;
+  },
   panelLocalClient:value=>value,PLUGIN_ID:'mini-vlog',DEFAULT_CUE:'cue',PREFERRED_CUE:'cue',DEFAULT_PRESET:'preset',DEFAULT_LENGTH:'standard',DEFAULT_PACE:'quick',DEFAULT_PUNCH:true,DEFAULT_HOOK:false,
   TEMPLATE_ALIAS_BATCH:6,TEMPLATE_ALIAS_JS:'return __CONFIG__;',EMPTY_READ:/never/,TEMPLATE_SEED:1,INVENTORY_MEASURE_MS:1,SEARCH_BATCH:6,MV_QUERIES:[],MV_LENGTHS:{standard:2},MV_FAIL:{},AMBIENT_DB:-18,
   hostJoin:path.join,uiLang:()=> 'en',t:(_lang,key)=>key,uiError:say=>Error(say('en')),locateRoots:async()=>({plugin,data:f.data}),
   readText:async(_root,rel)=>rel==='assets/cues/manifest.json'?JSON.stringify(manifest):rel==='assets/fonts/presets.json'?JSON.stringify(presets):rel==='scripts/ensure-audio.js'?scriptsByName.ensureJs:'return __CONFIG__;',
   cueGrid:()=>({bpm:110,accepted:true,firstBeat:0,usableEnd:59}),mvGridUsable:()=>true,mvApproxTempo:()=>null,mvBeatsPerShot:()=>({beats:2}),mvShotSeconds:()=>1,mvFitShots:()=>2,mvSnapSection:({value})=>value,mvDefaultSection:()=>0,
   mvSearchQueries:()=>[],mvMotionBonus:value=>value,photoCandsOf:()=>[],mvPlanBuild:()=>plan,stamp:()=> 'fixture',
-  sdk,context:{projectId:'p'},busyRef,assets:{scripts:scriptsByName},inventory,roots:{plugin,data:f.data},chosen:presets.presets[0],seed:1,blockReason:null,anotherBlock:null,projectId:'p',projectRef:{current:'p'},mountedRef:{current:true},inventorySnapshotRef:{current:{projectId:'p',inventory}},invLoadingRef:{current:null},
-  preset:'preset',titleFields:{},musicKind:silent?'none':own?'own':'cue',ownMusic:own?{path:file}:null,cueId:'cue',cue,musicStart:0,pace:'quick',length:'standard',requested:2,clipSound:'ambient',soft:true,beatPunch:true,hook:false,gridded:true,grid:{bpm:110,accepted:true},usePhotos:true,only:null,onlyPhotos:null,snapCuts:{},
+  runEpochRef:{current:0},setStep:noop,setProgress:noop,progressRef:{current:null},sdk,context:{projectId:'p'},busyRef,assets:{scripts:scriptsByName},inventory,roots:{plugin,data:f.data},chosen:presets.presets[0],seed:1,blockReason:null,anotherBlock:null,projectId:'p',projectRef:{current:'p'},mountedRef:{current:true},inventorySnapshotRef:{current:{projectId:'p',inventory}},invLoadingRef:{current:null},
+  preset:'preset',titleFields:{},musicKind:silent?'none':own?'own':'cue',ownMusic:own?{path:file}:null,cueId:'cue',cue,musicStart:0,pace:'quick',length:'standard',requested:2,fitted:2,planShort:()=>false,assemblyPendingRef:{current:{}},clipSound:'ambient',soft:true,beatPunch:true,hook:false,gridded:true,grid:{bpm:110,accepted:true},usePhotos:true,only:null,onlyPhotos:null,snapCuts:{},
   candidates:{key:'p|null|motion',failed:[],scene:[],list:[],local:{results:[],unavailable:false}},
   setBusy:noop,setStatus:value=>{if(value?.tone==='error')errors.push(value.say('en'));},setResult:noop,stopPreview:noop,advance:noop,stopAt:error=>()=>{errors.push(error);return error.message;},endRun:()=>{busyRef.current=false;},CANCELLED:Symbol('cancelled'),STALE:stopped,
  };
  const box=vm.createContext(globals);vm.runInContext(inputFeature+'\n'+feature+'\n'+adapter+'\n'+source+'\nthis.api={runMiniVlogTemplate,build};',box);
  const run=async()=>{
   if(entry==='panel'){await box.api.build(1);return saved.at(-1);}
-  try{await box.api.runMiniVlogTemplate(sdk,{projectId:'p',template:{inputs:{footage:[{resourceId:'original-0',kind:'video'},{resourceId:'original-1',kind:'video'}]},options:{}}},check,noop);}catch(error){if(!error.boundary)throw error;}
+  try{await box.api.runMiniVlogTemplate(sdk,{projectId:'p',template:{runId:'fixture-run',inputs:{footage:[{resourceId:'original-0',kind:'video'},{resourceId:'original-1',kind:'video'}]},options:{}}},check,noop);}catch(error){if(!error.boundary)throw error;}
   return saved.at(-1);
  };
  return {...f,run,cue,file,bytes,imports,resources,nodes,scripts,saved,errors,hooks,digest,inventory,plan,box,project,stop:()=>{live=false;globals.projectRef.current='detached';},ownedPath:()=>path.join(f.root,'.selects','plugin-data','mini-vlog','assets',cue.sha256+'.mp3')};

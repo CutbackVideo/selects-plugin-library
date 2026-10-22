@@ -154,7 +154,92 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
    // Main may finish after the transport failed. Keep its expected claim intact
    // so the late receipt can land. A positively saved receipt permits readback.
    const row=await read();if(row?.status==='saved')return recover(row);
+   if(row?.status==='notSaved')throw Object.assign(templateRunIssue('TEMPLATE_RUN_NOT_SAVED','This run stopped before saving a Draft. Start a new run to retry.'),{cause});
   }
   throw cause;
  }
+}
+
+// SDK-safe projection for an assembly receipt. Main media identity and frame
+// intervals, routing, source windows, transforms and Main audio are confirmed
+// here; this is not title/effect or other-track semantic approval.
+async function readTemplateAssemblyState(draft){
+ const meta=await draft.meta(),rows=await draft.clips({trackScope:'main'});
+ if(!Number.isFinite(meta.fps)||meta.fps<=0||!Number.isSafeInteger(meta.frameSize?.width)||meta.frameSize.width<1||!Number.isSafeInteger(meta.frameSize?.height)||meta.frameSize.height<1||!Array.isArray(rows))throw Error('The assembled Draft metadata is incomplete.');
+ const clips=[];
+ for(const row of rows.filter(row=>row.resourceId!=null))clips.push({clipId:row.clipId,trackId:row.trackId,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,
+  videoIndex:row.videoIndex??null,audioSourceIndexes:row.audioSourceIndexes??null,playbackSpeed:row.playbackSpeed??null,preserveAudioPitch:row.preserveAudioPitch??null,
+  source:await draft.clipSourceWindow(row),transform:await draft.clipTransform(row),audio:await draft.clipAudio(row)});
+ clips.sort((a,b)=>a.clipId-b.clipId);
+ if(!clips.length||clips.length>256||new Set(clips.map(c=>c.clipId)).size!==clips.length||clips.some(c=>!Number.isSafeInteger(c.clipId)||c.clipId<0||typeof c.trackId!=='string'||!c.trackId||typeof c.resourceId!=='string'||!c.resourceId||!Number.isSafeInteger(c.startFrame)||!Number.isSafeInteger(c.endFrame)||c.startFrame<0||c.endFrame<=c.startFrame))throw Error('The assembled Draft clips could not be confirmed.');
+ const state={fps:meta.fps,durationFrames:Math.max(...clips.map(c=>c.endFrame)),frameSize:{width:meta.frameSize.width,height:meta.frameSize.height},clips};
+ JSON.stringify(state,(_key,value)=>{if(typeof value==='number'&&!Number.isFinite(value)||['bigint','function','symbol'].includes(typeof value))throw Error('The assembly returned an invalid nonfinite or unsupported value.');return value;});
+ return state;
+}
+
+async function readTemplateAssemblyFacts(selects,projectId,draftId,readState){
+ if(typeof draftId!=='string'||!draftId)throw Error('The assembly returned no Draft identity.');
+ const ids=(await selects.project(projectId).meta()).draftIds;
+ if(!Array.isArray(ids)||!ids.includes(draftId))throw Error('The assembled Draft is not in its Project.');
+ return {draftId,...await readState(selects.draft(draftId))};
+}
+
+// Extend the existing durable run owner for templates whose assembly script
+// commits before a separate title/look step. A name never proves ownership.
+async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent){
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ if(typeof isCurrent!=='function'||!scope||typeof scope.projectId!=='string'||!scope.projectId||typeof scope.runId!=='string'||!scope.runId||!config||config.projectId!==scope.projectId||typeof source!=='string'||source.split('__CONFIG__').length!==2||!source.startsWith('// @template-assembly 1\n'))fail('TEMPLATE_RUN_INVALID','The assembly request is incomplete.');
+ if(typeof globalThis.TextEncoder!=='function'||typeof sdk?.call!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ if(new TextEncoder().encode(source).length>131072)fail('TEMPLATE_RUN_INVALID','The assembly script exceeds its input limit.');
+ scope={pluginId:scope.pluginId,projectId:scope.projectId,runId:scope.runId,libraryId:scope.libraryId};
+ const frozen=JSON.parse(templateRunJSON(config));
+ // A display label can be regenerated on remount; it is never run identity.
+ const {draftName:displayName,...contentConfig}=frozen;
+ const request={config:contentConfig,source};templateRunJSON(request);
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};check();
+ const target=await sdk.call('getProjectDraftScaffold',scope.projectId);check();
+ if(target?.owner?.projectId!==scope.projectId||typeof target.owner.libraryId!=='string'||!target.owner.libraryId||scope.libraryId!=null&&scope.libraryId!==target.owner.libraryId)fail('TEMPLATE_RUN_TARGET','The assembly belongs to a different Project or library.');
+ scope={pluginId:scope.pluginId,libraryId:target.owner.libraryId,projectId:scope.projectId,runId:scope.runId};
+ const query=async script=>{check();const reply=await sdk.runScript({summary:'Confirm owned assembly Draft',allowCommit:false,script});check();if(reply.isError||!reply.result)fail('TEMPLATE_RUN_INVALID','The owned Draft could not be read back. Inspect it before starting another run.');return reply.result;};
+ const verify=async receipt=>{
+  check();const target=await sdk.call('getProjectDraftScaffold',scope.projectId);check();
+  if(target?.owner?.projectId!==scope.projectId||target.owner.libraryId!==scope.libraryId)fail('TEMPLATE_RUN_TARGET','The assembly belongs to a different Project or library.');
+  const observed=await query(`return await (${readTemplateAssemblyFacts.toString()})(selects,${JSON.stringify(scope.projectId)},${JSON.stringify(receipt.draftId)},${readTemplateAssemblyState.toString()});`);
+  const expected={draftId:receipt.draftId,fps:receipt.fps,durationFrames:receipt.durationFrames,frameSize:receipt.frameSize,clips:receipt.clips};
+  if(templateRunJSON(observed)!==templateRunJSON(expected))fail('TEMPLATE_RUN_INVALID','The saved Draft has changed since its assembly receipt. Inspect it before starting another run.');
+  return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,notes:[],assemblyConfirmed:true};
+ };
+ return executeTemplateRun(sdk,files,scope,request,isCurrent,async(claim,onDispatch)=>{
+  const capability=await sdk.runScript({summary:'Check assembly recovery support',allowCommit:false,script:`const p=selects.project(${JSON.stringify(scope.projectId)});const ids=(await p.meta()).draftIds;const d=ids?.length?selects.draft(ids[0]):await p.createDraft({name:'Template recovery support check'});return {supported:typeof d.clipSourceWindow==='function'&&typeof d.clipTransform==='function'&&typeof d.clipAudio==='function'};`});
+  check();if(capability.isError||capability.result?.supported!==true)fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to confirm saved assembly state before retrying.');
+  const body=source.replace('__CONFIG__',()=>`Object.assign(JSON.parse(${JSON.stringify(templateRunJSON(frozen))}),{__beforeCommit:__templateBeforeCommit})`);
+  const script=`return await(async(assemble,readFacts,readState,publish,json,encode)=>{
+   let result,preparedState,maySave=false;
+   try{
+    result=await assemble(async draft=>{
+     if(maySave)throw Error('The assembly pre-save hook ran more than once.');
+     preparedState=await readState(draft);
+     json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:'x'.repeat(1024),...preparedState}});
+     maySave=true;
+    });
+    if(!maySave)throw Error('The assembly skipped its pre-save confirmation.');
+    const facts=await readFacts(selects,${JSON.stringify(scope.projectId)},result?.sequenceId,readState);
+    const {draftId,...savedState}=facts;
+    if(json(savedState)!==json(preparedState))throw Error('The saved Draft disagrees with its prepared state.');
+    if(facts.fps!==result.fps||facts.durationFrames!==result.totalFrames)throw Error('The assembly result disagrees with its saved Draft.');
+    const receipt=await publish(selects,${templateRunJSON(claim)},{status:'saved',...facts},json,encode);
+    if(receipt.runReceiptSaved!==true)throw Error('The assembly receipt could not be confirmed.');
+    return {assembly:result,facts};
+   }catch(error){
+    if(typeof result?.sequenceId==='string'&&result.sequenceId)await publish(selects,${templateRunJSON(claim)},{status:'outcomeUnknown',draftId:result.sequenceId},json,encode);
+    else if(!maySave)await publish(selects,${templateRunJSON(claim)},{status:'notSaved'},json,encode);
+    throw error;
+   }
+  })(async(__templateBeforeCommit)=>{${body}},${readTemplateAssemblyFacts.toString()},${readTemplateAssemblyState.toString()},${writeTemplateRunResult.toString()},${templateRunJSON.toString()},${templateRunBase64.toString()});`;
+  if(new TextEncoder().encode(script).length>256*1024)fail('TEMPLATE_RUN_INVALID','The assembly request exceeds the SDK transport limit.');
+  await onDispatch();const reply=await sdk.runScript({summary:'Assemble template with owned receipt',allowCommit:true,script});
+  if(reply.isError||!reply.result?.facts||!reply.result?.assembly)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The assembly response could not be confirmed. Inspect the Project before starting another run.'),{cause:Error(String(reply.output||'The SDK returned no complete assembly result.'))});
+  const confirmed=await verify(reply.result.facts);
+  return {...reply.result.assembly,...confirmed,notes:reply.result.assembly.notes??[]};
+ },verify);
 }

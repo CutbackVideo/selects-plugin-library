@@ -514,6 +514,7 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
    // Main may finish after the transport failed. Keep its expected claim intact
    // so the late receipt can land. A positively saved receipt permits readback.
    const row=await read();if(row?.status==='saved')return recover(row);
+   if(row?.status==='notSaved')throw Object.assign(templateRunIssue('TEMPLATE_RUN_NOT_SAVED','This run stopped before saving a Draft. Start a new run to retry.'),{cause});
   }
   throw cause;
  }

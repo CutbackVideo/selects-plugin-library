@@ -1,3 +1,4 @@
+// @template-assembly 1
 const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
 const notes = [];
@@ -102,5 +103,8 @@ if (cfg.music) {
   if (music) await d.setClipAudio({ clip: music, fadeInSeconds: 0, fadeOutSeconds: 0.12 });
   else notes.push('music fade not applied');
 }
+// The durable owner checks the complete representable state before this save.
+const beforeCommit = Object(cfg).__beforeCommit;
+if (typeof beforeCommit === 'function') await beforeCommit(d);
 const commit = await d.commitAll('Mini Vlog: assemble');
 return { sequenceId: commit.createdDraftId, fps, totalFrames: endFrame, placed: rows.length, ambientClips, notes };

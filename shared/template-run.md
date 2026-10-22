@@ -138,3 +138,50 @@ pending error with `.draftId` and names the acknowledged Draft. Older unknown
 records without an ID retain their existing behavior. A malformed known identity
 cannot be used to write a receipt. The app's finishTemplate error contract stays
 unchanged; Gallery includes the identity in its existing failure message.
+
+## Staged assembly adapter
+
+`executeTemplateAssembly(sdk, files, scope, config, source, isCurrent)` reuses the
+same durable run owner for a script which commits an assembly before a separate
+title/look phase. Mini Vlog is its first consumer. Scope binds plugin, current
+Project/library and run ID. The module checks the actual scaffold owner; a
+standalone caller mints one run ID and retains its frozen attempt in its current
+panel realm, while the hidden entry uses the app-supplied run ID. Full standalone
+realm-remount discovery remains open.
+
+The request captures JSON config and script source before awaits. `draftName` is
+a display label and is excluded from the request digest: regenerating a timestamp
+must not defeat recovery or rename an existing result. All other assembly config
+and source changes under one run ID reject. The existing 49,152-character ASCII
+request/record limit applies; source and final SDK requests are separately bounded
+at 128 KiB and 256 KiB.
+
+Scripts using this adapter declare `// @template-assembly 1` and await
+`Object(cfg).__beforeCommit(draft)` once immediately before their only persistent
+commit. This is a reviewed internal authoring contract, not a security sandbox
+for arbitrary scripts. Direct legacy/development script execution without the
+adapter retains its existing optional-hook behavior. The adapter passes all
+serialized dependencies explicitly, including after minification.
+
+Before dispatch it checks SDK file/readback capabilities, using an existing Draft
+handle or an uncommitted capability probe. Before save the hook reads and validates
+Main media identities, intervals, routing, playback rate/pitch, source windows,
+transforms and Main audio. It proves that an owned saved record, including a
+worst-case Draft ID, fits the existing record budget. An oversized state cannot
+commit first and discover the record limit afterward.
+
+After save the same SDK invocation reads the actual created Draft's Project
+membership and state, compares it with the prepared state and conditionally
+publishes the exact owner receipt before replying. A failure proven before save
+publishes `notSaved`; a known saved identity with incomplete confirmation publishes
+`outcomeUnknown`. Otherwise keep the unresolved claim so a late Main receipt can
+still land. The core owner now recognizes a positively recorded `notSaved` after
+dispatch and preserves its private cause. No unknown outcome authorizes replay.
+
+A positive saved receipt is independently read back before returning or recovery.
+Different same-name Drafts are never searched or adopted. Changed owned Main
+state rejects without rewriting it. This is assembly ownership/readback, not
+approval of other tracks, original-file content, title/effect completion, playback
+or export. Existing image authoring consumers retain their API and generated
+source; see `docs/template-repair/mini-assembly-receipts.md` for caller and SDK
+evidence and remaining phase/discovery work.

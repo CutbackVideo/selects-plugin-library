@@ -23,7 +23,7 @@ function fixture(plugin){
   nativeImageRun:async()=>({resolved:selected.map((row,i)=>({rid:row.resourceId,alias:hooks.aliases?.[i]??'r'+i,size:null})),failed:[]}),
   validateTemplateMediaResult:value=>value,cueGrid:()=>{throw boundary;}});
  vm.runInContext(['fill','runTemplateStep','templateFootage','templateIssue','readInventoryPages',name].map(n=>topLevel(plain,n)).join('\n')+'\nthis.run='+name+';',box);
- const run=()=>box.run(sdk,{projectId:'p',template:{inputs:{footage:selected}}},()=>{if(!live)throw Error('Run detached');},()=>{});
+ const run=()=>box.run(sdk,{projectId:'p',template:{runId:'fixture-run',inputs:{footage:selected}}},()=>{if(!live)throw Error('Run detached');},()=>{});
  return {box,hooks,calls,rows,boundary,run,stop:()=>{live=false;}};
 }
 for(const plugin of ['mini-vlog','archive-vlog']){

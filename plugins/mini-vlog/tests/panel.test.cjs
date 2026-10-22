@@ -120,11 +120,11 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
   assert.equal(panel.split('// quick-score:start').length, 2, 'one quick-score block');
   assert.ok(panel.indexOf('// quick-score:end') > panel.indexOf('// quick-score:start'), 'quick-score markers');
   assert.ok(panel.indexOf('// mv-local:start') > hEnd && panel.indexOf('// quick-score:end') < lStart, 'mv-local and quick-score blocks between the hook block and the lockup');
-  const fnStart = ui.indexOf('async function checkLocalClips('), fnEnd = ui.indexOf('// Looks for the Draft a lost assemble reply');
+  const fnStart = ui.indexOf('async function checkLocalClips('), fnEnd = ui.indexOf('// A confirmed owned receipt is required');
   assert.ok(fnStart > 0 && fnEnd > fnStart, 'checkLocalClips');
   const check = ui.slice(fnStart, fnEnd);
   for (const s of ['quickScoreAll(', 'concurrency: MV_LOCAL_CONCURRENCY, budgetMs: MV_LOCAL_BUDGET_MS, dataDir, signal: controller.signal', 'say(0)', 'say(p.done)',
-    'if (controller.signal.aborted) throw CANCELLED;', 'if (projectRef.current !== pid) throw STALE;']) assert.ok(check.includes(s), 'checkLocalClips: ' + s);
+    'if (controller.signal.aborted) throw CANCELLED;', 'if (!mountedRef.current || projectRef.current !== pid) throw STALE;']) assert.ok(check.includes(s), 'checkLocalClips: ' + s);
   for (const s of ['const rids: string[] = chosenVideos.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);', 'const localClips: any[] = chosenVideos.filter((r: any) => r.analysed === false);',
     'const localKept: any[] = cached ? cached.local.results.filter((r: any) => r.scores && !r.scores.fallback) : [];',
     'if (!cached || cached.failed.length || localTodo.length) {', '[fresh, checked] = await Promise.all([sceneRun, localRun]);', 'const localRun = checkLocalClips(localTodo, pid, controller,',
@@ -132,7 +132,7 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
     't(l, "checkingClipsN", { done, count: localTodo.length })', 'share.at = Math.max(share.at, n ? (share.scene + share.local) / n : 0);',
     'list: mvWithLocal(scene, local.results, frozen.punch)',
     'queries, pageSize: 4, checkAnalysis: false }', 'localAbortRef.current?.abort()', '{checking ? <ui.Button variant="primary" onClick={() => localAbortRef.current?.abort()}>{t(L, "cancel")}</ui.Button>',
-    'if (e === CANCELLED && projectRef.current === pid) setStatus({ tone: "muted", say: (l: Lang) => t(l, "cancelled") });', '{result?.quickUnavailable ? <ui.Message tone="muted">{t(L, "quickUnavailable")}</ui.Message> : null}'])
+    'if (e === CANCELLED && runLive(pid, epoch)) setStatus({ tone: "muted", say: (l: Lang) => t(l, "cancelled") });', '{result?.quickUnavailable ? <ui.Message tone="muted">{t(L, "quickUnavailable")}</ui.Message> : null}'])
     assert.ok(ui.includes(s), s);
   says('checkingClipsN', 'Checking clips {done}/{count}'); says('cancel', 'Cancel'); says('stopping', 'Stopping'); says('cancelled', 'Nothing was saved'); says('quickUnavailable', 'A newer Selects picks better shots');
   says('betterPicks', 'analysed clips give better picks'); says('unusable', "can't be used yet"); says('unusableWait', 'This updates automatically');
@@ -358,7 +358,7 @@ assert.deepEqual(H.mvSearchQueries(QUERIES, true), { ...QUERIES, motion: 'hands 
 // Beat punch cfg (punch-report contract), from the frozen Build inputs at the Draft's real fps.
 for (const s of ['const PUNCH_STRENGTH = 1;', 'const PUNCH_PUSH = 1;']) assert.ok(panel.includes(s), s);
 
-// Orchestration: frozen inputs, project guard after every await, Draft id kept, recovery by name, one assemble call.
+// Orchestration: frozen inputs, project guard after every await, Draft id kept, recovery by owned receipt, one authoring dispatch.
 const build = ui.slice(ui.indexOf('async function build('), ui.indexOf('function buildAnother('));
 const decorate = ui.slice(ui.indexOf('async function decorate('), ui.indexOf('// Clip selection'));
 const finish = ui.slice(ui.indexOf('async function finishTitle('), ui.indexOf('async function decorate('));
@@ -368,18 +368,16 @@ for (const body of [build, decorate]) {
   lines.forEach((l, i) => {
     if (!/\bawait\b/.test(l) || /await decorate\(/.test(l)) return;
     const next = lines.slice(i, i + 5).join('\n');
-    assert.ok(/check\(\)|findCandidates\(|throw e|\/\/ no project write/.test(next), 'project check after: ' + l.trim());
+    assert.ok(/check\(\)|findCandidates\(|finishAssembly\(|throw e|\/\/ no project write/.test(next), 'project check after: ' + l.trim());
   });
 }
-assert.equal((ui.match(/run\("Assemble Mini Vlog"/g) || []).length, 1, 'assemble is called once and never resent');
-assert.ok(build.includes('findDraftByName(pid, frozen.draftName)'), 'lost assemble reply -> look the Draft up by name');
-assert.ok(ui.includes('(await p.meta()).draftIds') && ui.includes('m.name !== name'), 'lookup reads the Drafts by name');
-assert.ok(ui.includes('.slice(-" + DRAFT_LOOKUP_MAX + ").reverse()') && panel.includes('const DRAFT_LOOKUP_MAX = 50;'), 'lookup reads at most the 50 most recent Drafts, newest first');
-assert.ok(/if \(m\.name !== name\) continue;[^]*?return \{ sequenceId: id/.test(ui), 'first match returns');
+assert.equal((ui.match(/await executeTemplateAssembly\(/g) || []).length, 2, 'panel and selected-file entry each delegate assembly to the shared owner');
+assert.ok(build.includes('assemblyPendingRef.current[pid] = pending;') && build.includes('finishAssembly(pending, check)'), 'assembly dispatch belongs to its retained execution receipt');
+assert.ok(!ui.includes('findDraftByName'), 'Draft names never prove assembly ownership');
 // The readiness gate uses the seed each button builds with: Build = seed, Try other shots = seed + 1.
 assert.ok(ui.includes('planAt(seed)') && ui.includes('planAt(seed + 1)'), 'gates for both seeds');
 assert.ok(ui.includes('onClick={buildAnother} disabled={busy || !canBuildAnother}'), 'another version gated with seed + 1');
-assert.ok(build.includes('draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),'), 'Draft name (English: the lost-reply lookup finds it by name)');
+assert.ok(build.includes('draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),'), 'Draft display name remains readable and independent of recovery identity');
 assert.ok(finish.includes('decorate(result, check)') && decorate.includes('const f = res.frozen;'), 'Finish title and look reuses the frozen inputs');
 says('draftNotFinished', 'title, look and clip sound are not applied yet'); says('finishFailed', 'Press Finish title and look to try again');
 assert.match(panel, /No valid session ID/);
@@ -421,7 +419,7 @@ assert.ok(/needsPoll = !!inventory && \(\(!!inventory\.incomplete && !incomplete
 // next to Build (blockReason), and build() refuses it; a later complete read clears the block.
 says('sizesLoading', 'Clip sizes are still loading\u2026');
 assert.ok(/const baseBlock: Say \| null = !inventory \|\| !assets \? null\s*: inventory\.incomplete \? \(l\) => t\(l, "sizesLoading"\)\s*:/.test(ui), 'incomplete blocks both buttons first');
-assert.ok(ui.includes('const canBuild = ready && !blockReason;') && ui.includes('const canBuildAnother = ready && !anotherBlock;') && ui.includes('{blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}'), 'the block disables Build / another version and shows the hint');
+assert.ok(ui.includes('const canBuild = !!pendingAssembly || (ready && !blockReason);') && ui.includes('const canBuildAnother = !pendingAssembly && ready && !anotherBlock;') && ui.includes('{blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}'), 'the block disables Build / another version and shows the hint');
 assert.ok(build.includes('!inventory || inventory.incomplete ||'), 'build() refuses an incomplete inventory');
 // Incomplete polling is capped: INCOMPLETE_POLL_MAX (6) consecutive incomplete reads stop it with a Refresh hint;
 // a complete read, a Project switch or Refresh restart the count.
@@ -433,10 +431,10 @@ assert.ok(ui.includes('invSigRef.current = null; incompleteReadsRef.current = 0;
 assert.ok(ui.includes(': inventory.incomplete && incompleteStalled ? t(L, "invPartial")'), 'stalled readiness message');
 assert.ok(ui.indexOf('inventory.incomplete ? t(L, "stillReading")') > 0 && ui.indexOf('inventory.incomplete ? t(L, "stillReading")') < ui.indexOf('t(L, "noFootage")'), 'incomplete before "no footage"');
 says('stillReading', "Still reading this Project's clips"); says('noFootage', 'No videos or photos in this Project yet');
-assert.ok(/run\("Search shots"[^\n]*\{ wanted: \(\) => projectRef\.current === pid \}\)/.test(ui), 'search retries stop for a stale Project');
+assert.ok(ui.includes('checkAnalysis: false }), false, { wanted })') && ui.includes('const wanted = () => { try { check(); return true; } catch { return false; } };'), 'scene retries retain the caller run/cancel predicate');
 // Refresh stays available after a failure; a later successful read clears the error (Build is gated only by the inventory).
 assert.ok(ui.includes('disabled={busy || !assets} onClick={refreshInventory}>{t(L, "refresh")}<') && ui.includes('setInventory(inv); setInvError(null);'), 'Refresh stays enabled; success clears the error');
-for (const s of ['run("Assemble Mini Vlog"', 'run("Add title and look"', 'run("Add music to the project"']) assert.ok(new RegExp(s.replace(/[()]/g, '\\$&') + '[^;]*, true\\);').test(ui), s + ' is a commit call');
+for (const s of ['run("Add title and look"', 'run("Add music to the project"']) assert.ok(new RegExp(s.replace(/[()]/g, '\\$&') + '[^;]*, true\\);').test(ui), s + ' is a commit call');
 // decorate cfg (scripts lane contract).
 assert.ok(decorate.includes('fill(assets.scripts.decorateJs, { sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, '
   + 'soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch, labels })'), 'decorate cfg');
@@ -462,7 +460,7 @@ for (const s of ['presets.metrics[x.family]', '...flat', 'fields: { ...flat }', 
 for (const m of ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift']) assert.ok(panel.includes('value: "' + m + '"'), 'motion option ' + m);
 assert.ok(ui.includes('clipSound: frozen.clipSound, ambientDb: AMBIENT_DB'), 'assemble gets the clip sound mode and level');
 assert.ok(ui.includes('const boundaries: number[] = plan.schedule.cuts;') && ui.includes('picks: plan.picks, boundaries, crops,'), 'assemble gets the planned cuts');
-assert.ok(build.includes('videoEnd: a.totalFrames'), 'the title ends at the last clip end');
+assert.ok(ui.includes('videoEnd: a.totalFrames') && ui.includes('async function finishAssembly('), 'the title uses the confirmed assembly end');
 
 // Inventory refresh: poll while pending, focus / visibility, Refresh button; project switch drops the cache.
 says('unusableWait', 'This updates automatically.'); says('noFootage', 'this updates automatically'); says('refresh', 'Refresh');

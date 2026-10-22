@@ -1,5 +1,14 @@
 # Sequential template repair: active
 
+## Mini owned assembly checkpoint
+
+Mini alpha.19 replaces name-based save recovery with the existing durable run
+owner, pre-save state/record-budget checks and independent Main readback. Twenty-three
+focused cases and real SDK lost-response recovery cover this slice. Existing
+photo/Gallery run consumers are checked together. See
+[mini-assembly-receipts.md](mini-assembly-receipts.md); standalone realm-remount
+discovery, title/Finish phases and full template acceptance remain open.
+
 ## Selected-file inventory checkpoint
 
 Mini alpha.18 and Archive alpha.12 now reuse the existing catalog owner from both

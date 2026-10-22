@@ -64,7 +64,8 @@
         "plugins/no14-still-video/panel.tsx",
         "plugins/camera-shutter-dump/panel.tsx",
         "plugins/four-photo-stop-motion/panel.tsx",
-        "plugins/polaroid-photo-dump/panel.tsx"
+        "plugins/polaroid-photo-dump/panel.tsx",
+        "plugins/mini-vlog/panel.tsx"
       ],
       "buildTimeTargets": [
         "plugins/photo-gallery-no2/build-panel.mjs"

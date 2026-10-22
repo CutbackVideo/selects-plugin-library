@@ -65,7 +65,7 @@ for(const plugin of ['mini-vlog','archive-vlog']){
   const api=caller(plugin);let calls=0;const r=await api.runTemplateStep({runScript:async()=>++calls===1?{result:undefined}:{result:{observed:true}}},'read','read-script');assert.equal(r.observed,true);assert.equal(calls,2);
  });
  for(const clipped of [false,true])test(plugin+': template caller rejects source failure without replay or a missing-file diagnosis (clipped='+clipped+')',async()=>{
-  const api=caller(plugin);let calls=0;const context={projectId:'p',template:{inputs:{footage:[{resourceId:'original-video',kind:'video'}]},options:{}}};
+  const api=caller(plugin);let calls=0;const context={projectId:'p',template:{runId:'fixture-run',inputs:{footage:[{resourceId:'original-video',kind:'video'}]},options:{}}};
   const sdk={runScript:async()=>{calls++;return {result:{resolved:[],failed:clipped?[]:[{rid:'original-video',phase:'insert',code:'source-resolution-failed',error:'sequence_settings_mismatch'}]}};}};
   const error=await api.run(sdk,context,()=>{},()=>{}).then(()=>null,error=>error);
   assert.ok(error);assert.equal(calls,1);assert.doesNotMatch(error.message,/could be found|not found/i);assert.equal(error.code,clipped?'source-resolution-unknown':'source-resolution-failed');
