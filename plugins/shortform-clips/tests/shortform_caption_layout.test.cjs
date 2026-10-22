@@ -61,7 +61,7 @@ test('template-owned caption box layout',{skip:!modulesRoot && 'Set SBS_PANEL_TE
     const heukbaek=require('../template-packs/chosun-ilbo/templates/heukbaek.json');
     const params={...api.radioCaptionParams(heukbaek),text:'\uc7a5\uc724\uae30 \uc0ac\uac74\uc774\n\ud130\uc84c\uc744 \ub54c\ub294'};
     assert.equal(params.letterSpacing,75*(-44/1000));
-    assert.equal(params.baselineTop,1329.90234375);
+    assert.equal(params.baselineTop,1344.90234375);
     assert.equal(params.rowGap,90);
     const barParams={...params,baselineTop:undefined};
     const actual=renderCaption(series,barParams);

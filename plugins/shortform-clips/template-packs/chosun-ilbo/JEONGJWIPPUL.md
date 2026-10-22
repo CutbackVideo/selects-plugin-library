@@ -4,8 +4,9 @@
 Use Shortform Clips 0.6.0 or later (template API 6). Missing fonts and artwork
 are limitations of the current design, not reasons to exclude it from installation.
 The pack preserves the requested font identifiers but does not bundle font software.
-Local comparisons used a bumper crop from the customer-selected official Short;
-that temporary crop is not included in the pack, so the separate bumper/logo is absent.
+The original customer bumper received on 2026-10-22 is now bundled byte-for-byte.
+The new project places its 1920×1080 canvas at 40% (768px wide), y=1379.000015.
+The separate missing `logo.png` has no SubClip in the supplied project; all 20 caption-length guide components are bypassed. Neither blocks this template.
 
 ## Customer Premiere values applied
 
@@ -21,7 +22,7 @@ Source: `customer-supplied Jeongjwippul Shorts Premiere project`, 1080×1920.
 | Caption placement | Component 9588 is point text at normalized y=.57187497615814209 → baseline=1097.9999542236328. This is an explicit source baseline, not an inferred paragraph-box bottom |
 | Caption area | Related paragraph component 11297: x=135, width=810. Its paragraph box starts at y=792 with height=576; these dimensions alone do not mean baseline y=1368 |
 | Caption shadow | Enabled black, opacity 100%, distance 5.217391, size 6.956522, blur 73.913048. Serialized angle absent; 135° remains the assumed Premiere default, not a measured value |
-| Bumper placement | Component 1283: center y=1379.000015258789, scale 56%. It is a separate image component, not a parent transform on the headline |
+| Bumper placement | Component 1283: center y=1379.000015258789, scale 40% in the new project (the earlier project used 56%). It is a separate image component, not a parent transform on the headline |
 
 The caption renderer now applies stroke behind the fill, retains source baseline
 positions using measured font metrics, and includes stroke width in width fitting.
@@ -68,8 +69,7 @@ verification does not override the requested font names.
   template and current comparison draft preserve these identifiers. System
   fallback currently changes the glyph shapes/weight on this Mac.
   Font software cannot be recovered from raster video frames.
-- Original bumper and transparent logo remain missing. The disabled working
-  guide `caption length guide PNG` is optional (component 1280 in the sampled graphic).
+- Original bumper is supplied. The unused logo and bypassed caption guide remain optional.
 - Headline metric conversion, shadow-angle default, paragraph variants and
   source-video blur require native Premiere comparison; do not label them exact.
 - Editorial duration/count defaults remain customer-unconfirmed.

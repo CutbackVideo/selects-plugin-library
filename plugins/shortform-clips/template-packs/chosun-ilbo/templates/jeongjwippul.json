@@ -1,6 +1,6 @@
 {
   "id": "jeongjwippul",
-  "version": 5,
+  "version": 6,
   "names": {
     "ko": "\uc815\uc950\ubfd4",
     "en": "Jeongjwippul"
@@ -72,10 +72,10 @@
     "letterSpacing2": -3.80673583984375
   },
   "logo": {
-    "mode": "none",
-    "image": "",
-    "imageName": "",
-    "width": 354
+    "mode": "image",
+    "image": "assets/jeongjwippul-bumper-original.png",
+    "imageName": "jeongjwippul-bumper-original.png",
+    "width": 768.0
   },
   "captions": {
     "on": true,

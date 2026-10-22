@@ -15,6 +15,7 @@ test('Chosun migration preserves requested designs with explicit Premiere correc
   for(const key of ['names','captions','editing','detect','prompt','border'])assert.deepEqual(t[key],old[key],old.id+': '+key);
   for(const [key,value] of Object.entries(old.headline))assert.deepEqual(t.headline[key],value,old.id+': headline '+key);
   for(const section of ['background','logo']){
+   if(!t[section].image){assert.equal(t[section].mode,'color');assert.equal(old[section].imageSha256,null);continue;}
    assert.ok(manifest.assets.includes(t[section].image));assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(root,t[section].image))).digest('hex'),old[section].imageSha256);
   }
  }
@@ -22,7 +23,7 @@ test('Chosun migration preserves requested designs with explicit Premiere correc
 
 test('Heukbaek defaults enable automatic grouping without forcing splits on single shots',()=>{
  const t=require('../template-packs/chosun-ilbo/templates/heukbaek.json');
- assert.equal(t.version,5);
+ assert.equal(t.version,6);
  assert.equal(t.layout.reframe,true);
  assert.equal(t.layout.reframePreset,'custom');
  assert.equal(t.layout.reframeFocus,'speaker');

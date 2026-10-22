@@ -3,30 +3,40 @@
     "heukbaek": {
       "headline": {
         "font": "SDGyeokdongG206Hv",
-        "size1": 74,
-        "size2": 74,
+        "size1": 68.061135864258,
+        "size2": 73.7328971862795,
         "fontWeight": 400,
         "letterSpacing": -1.48,
         "shadow": false,
         "strokeOn": false,
         "color2": "#FF29B8",
-        "rowGap": 88.8,
-        "offsetX1": -0.555044151961,
-        "offsetX2": -0.555044151961,
-        "ideographFont": "MPLUS1p-Medium"
+        "rowGap": 88.4794766235354,
+        "offsetX1": 1.9940185546875,
+        "offsetX2": 1.9940185546875,
+        "ideographFont": "ChosunBg",
+        "color1": "#FFFFFF",
+        "letterSpacing1": -4.900401782226576,
+        "letterSpacing2": -5.308768597412124
       },
       "captions": {
         "font": "SDGyeokdongG204Rg",
         "fontSize": 75,
         "fontWeight": 400,
         "letterSpacing": -3.3,
-        "baselineTop": 1329.90234375,
+        "baselineTop": 1344.90234375,
         "rowGap": 90,
         "left": 36.6217041015625,
         "width": 1000
       },
       "layout": {
-        "headlineCenter": 293.342578125
+        "headlineCenter": 297.1014927291871,
+        "logoCenter": 1715.000004768372
+      },
+      "background": {
+        "imageSha256": "74399503a00fbefd67a45e2972eaa067984b35dd23f3ec74f7745a5d5f9bcfd3"
+      },
+      "logo": {
+        "imageSha256": "7c123f605cfeded22b9a6cd2c4923463713cb342a3d33e83d2633e2371b29a7d"
       }
     },
     "panilgi": {
@@ -43,7 +53,8 @@
         "letterSpacing1": 0,
         "letterSpacing2": -0.9045942773437501,
         "rowGap": 90.45942773437501,
-        "measureFit": true
+        "measureFit": true,
+        "color2": "#FFFFFF"
       },
       "captions": {
         "font": "TTOmniGothicM",
@@ -62,7 +73,14 @@
         "width": 810
       },
       "layout": {
-        "headlineCenter": 301.24685766601556
+        "headlineCenter": 301.24685766601556,
+        "logoCenter": 1687.2800000000002
+      },
+      "background": {
+        "imageSha256": null
+      },
+      "logo": {
+        "imageSha256": "655f94aa0b298de6d3ce4a85f1013b322097981b77e66122927a534d8749d57b"
       }
     },
     "history": {

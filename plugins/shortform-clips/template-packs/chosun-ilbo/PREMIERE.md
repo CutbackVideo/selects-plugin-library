@@ -281,3 +281,9 @@ Missing referenced media: `Jo Gi-hye name graphic (.png)`, `male label (.png)`, 
 `Paper Planes - Morning Color.mp3`, `Ty Simon - Tea Time.mp3`,
 `Young Rich Pixies - Cartoon Ukulele - Loop.mp3`. These are not silently replaced
 or bundled. Local videos, font files and comparison reports stay outside Git.
+
+## Superseding politics delivery — 2026-10-22
+
+For Heukbaek, Panilgi and Jeongjwippul, the new project/image corrections and
+remaining limitations in [RECEIVED-POLITICS.md](RECEIVED-POLITICS.md) supersede
+older asset-missing statements and the earlier Heukbaek headline/Han-font values.
