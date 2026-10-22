@@ -7,9 +7,11 @@ Templates: heukbaek, panilgi, history, villain, money, health, parenting,
 jeongjwippul, politics-landscape.
 The health design is newly transcribed from the supplied Premiere project and
 customer frame; it was not migrated from the old app.
-The ten background/logo WebP files are decoded byte-for-byte from the old
-embedded data URLs. Window/crop positions, images, editing settings and editorial
-prompts retain their original values. Typography corrections from customer requirements and supplied
+Remaining legacy WebPs were decoded byte-for-byte from the old embedded data URLs.
+Pack 1.4.3 replaces Heukbaek and Panilgi artwork with the supplied original files,
+adds the original Jeongjwippul bumper, and uses a solid black Panilgi background.
+New project transforms are documented in [RECEIVED-POLITICS.md](RECEIVED-POLITICS.md).
+Use Shortform Clips 0.6.2 for background-region placement and horizontal logo offsets. Typography corrections from customer requirements and supplied
 Premiere projects are recorded in [PREMIERE.md](PREMIERE.md).
 Remaining legacy series typography is recorded explicitly; the old per-line colored
 stroke uses CSS `currentColor`. Stroke width is fixed from the declared title

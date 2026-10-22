@@ -1,6 +1,6 @@
 {
   "id": "panilgi",
-  "version": 4,
+  "version": 5,
   "names": {
     "ko": "\ud310\uc77d\uae30",
     "en": "Court Ruling Reader"
@@ -25,7 +25,7 @@
     "sourceBottom": 854,
     "offsetX": 0,
     "headlineCenter": 301.24685766601556,
-    "logoCenter": 1688,
+    "logoCenter": 1687.2800000000002,
     "reframe": true,
     "reframePreset": "speaker",
     "reframeFocus": "speaker",
@@ -37,11 +37,11 @@
     "closeUp": 3.35
   },
   "background": {
-    "mode": "image",
+    "mode": "color",
     "style": "#000000",
     "color": "#000000",
-    "image": "assets/panilgi-background.webp",
-    "imageName": "panilgi-background.webp",
+    "image": "",
+    "imageName": "",
     "dim": 0
   },
   "border": {
@@ -79,9 +79,9 @@
   },
   "logo": {
     "mode": "image",
-    "image": "assets/panilgi-logo.webp",
-    "imageName": "panilgi-logo.webp",
-    "width": 354
+    "image": "assets/panilgi-logo-original.png",
+    "imageName": "panilgi-logo-original.png",
+    "width": 806.4000000000001
   },
   "captions": {
     "on": true,

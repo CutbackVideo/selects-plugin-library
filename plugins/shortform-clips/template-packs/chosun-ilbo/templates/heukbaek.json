@@ -1,6 +1,6 @@
 {
   "id": "heukbaek",
-  "version": 5,
+  "version": 6,
   "names": {
     "ko": "\ud751\ubc31\uc5ec\uc758\ub3c4",
     "en": "Black & White Yeouido"
@@ -19,8 +19,8 @@
     "sourceTop": 0,
     "sourceBottom": 807,
     "offsetX": 0,
-    "headlineCenter": 293.342578125,
-    "logoCenter": 1670,
+    "headlineCenter": 297.1014927291871,
+    "logoCenter": 1715.000004768372,
     "reframe": true,
     "reframePreset": "custom",
     "cameraMode": "auto",
@@ -39,9 +39,23 @@
     "mode": "image",
     "style": "linear-gradient(160deg,#3A3C42 0%,#26272B 42%,#1A1B1E 100%)",
     "color": "#3A3C42",
-    "image": "assets/heukbaek-background.webp",
-    "imageName": "heukbaek-background.webp",
-    "dim": 0
+    "image": "assets/heukbaek-background-original.jpg",
+    "imageName": "heukbaek-background-original.jpg",
+    "dim": 0,
+    "imagePlacement": {
+      "top": {
+        "x": -378.00003004074097,
+        "y": -252.0000057220459,
+        "width": 2304,
+        "height": 1296
+      },
+      "bottom": {
+        "x": -801.0000014305115,
+        "y": 863.9999771118164,
+        "width": 1920,
+        "height": 1080
+      }
+    }
   },
   "border": {
     "on": false,
@@ -49,8 +63,8 @@
   },
   "headline": {
     "font": "SDGyeokdongG206Hv",
-    "size1": 74,
-    "size2": 74,
+    "size1": 68.061135864258,
+    "size2": 73.7328971862795,
     "color1": "#FFFFFF",
     "color2": "#FF29B8",
     "box2On": false,
@@ -71,16 +85,19 @@
     "strokeWidth": 3,
     "strokeColor": "currentColor",
     "gap": 2,
-    "rowGap": 88.8,
-    "offsetX1": -0.555044151961,
-    "offsetX2": -0.555044151961,
-    "ideographFont": "MPLUS1p-Medium"
+    "rowGap": 88.4794766235354,
+    "offsetX1": 1.9940185546875,
+    "offsetX2": 1.9940185546875,
+    "ideographFont": "ChosunBg",
+    "letterSpacing1": -4.900401782226576,
+    "letterSpacing2": -5.308768597412124
   },
   "logo": {
     "mode": "image",
-    "image": "assets/heukbaek-logo.webp",
-    "imageName": "heukbaek-logo.webp",
-    "width": 432
+    "image": "assets/heukbaek-logo-original.png",
+    "imageName": "heukbaek-logo-original.png",
+    "width": 544.899941883087,
+    "offsetX": 10.000026226043701
   },
   "captions": {
     "on": true,
@@ -94,7 +111,7 @@
     "font": "SDGyeokdongG204Rg",
     "lineMax": 14,
     "letterSpacing": -3.3,
-    "baselineTop": 1329.90234375,
+    "baselineTop": 1344.90234375,
     "rowGap": 90,
     "left": 36.6217041015625,
     "width": 1000

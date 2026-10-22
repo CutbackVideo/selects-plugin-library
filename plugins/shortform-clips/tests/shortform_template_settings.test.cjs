@@ -93,6 +93,17 @@ test('templates use independent settings without renderer families',{skip:!modul
    assert.ok(!renderGraphic('FRAME_TSX',{...params,headlineItalic:false}).includes('skewX'));
   }
  });
+ await t.test('original background bands and logo canvas offsets survive validation and rendering',()=>{
+  const raw=JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/chosun-ilbo/templates/heukbaek.json')));
+  const tpl=api.validateTemplate(raw),frame=api.radioFrameParams(tpl,'A','B');
+  assert.deepEqual(frame.backgroundImagePlacement,raw.background.imagePlacement);
+  assert.ok(Math.abs(frame.logoOffsetX-10)<.001);
+  const html=renderGraphic('FRAME_TSX',{...frame,backgroundImage:'test.jpg',logoImage:'test.png'});
+  assert.match(html,/background-size:2304px 1296px/);assert.match(html,/background-size:1920px 1080px/);
+  assert.match(html,/background-repeat:no-repeat/);
+  for(const patch of [{top:{x:0,y:0,width:0,height:10},bottom:raw.background.imagePlacement.bottom},{top:{x:Infinity,y:0,width:10,height:10},bottom:raw.background.imagePlacement.bottom}])assert.throws(()=>api.validateTemplate({...raw,background:{...raw.background,imagePlacement:patch}}),/placement|finite/);
+  assert.throws(()=>api.validateTemplate({...raw,logo:{...raw.logo,offsetX:Infinity}}),/offset|finite/);
+ });
  await t.test('Premiere typography survives template normalization and export rendering',()=>{
   const expected=require('./fixtures/chosun-premiere-corrections.json').overrides;
   for(const [id,correction] of Object.entries(expected)){
@@ -106,12 +117,14 @@ test('templates use independent settings without renderer families',{skip:!modul
    assert.ok(html.includes('font-size:'+template.headline.size1+'px'),id+': no size lost');
    assert.ok(html.includes('font-weight:400'),id+': no synthetic bold');
    if(id==='heukbaek'){
+    assert.equal(frame.headlineColor1,'#FFFFFF');
     assert.equal(frame.headlineColor2,'#FF29B8');
+    assert.match(html,/color:#FF29B8/i);
     assert.equal(frame.headlineStrokeOn,false);
     assert.equal(frame.headlineShadow,'none');
-    assert.equal(frame.headlineIdeographFont,'MPLUS1p-Medium');
+    assert.equal(frame.headlineIdeographFont,'ChosunBg');
     const mixed=renderGraphic('FRAME_TSX',{...frame,headline1:'與 \ud55c\uad6d\uc5b4',headline2:'\uc9c8\ubb38?'});
-    assert.match(mixed,/MPLUS1p-Medium/);
+    assert.match(mixed,/ChosunBg/);
     assert.match(mixed,/>與<\/span>/);
    }
    if(id==='history'||id==='villain'){
