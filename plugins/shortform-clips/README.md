@@ -131,6 +131,9 @@ In **My clips**, tick the clips to keep and choose **Frame selected clips**. Onl
 those clips run speaker/face analysis and framing, which replaces their wide shot
 in place and refreshes their previews. Other clips stay wide. **Reframe all clips**
 frames every clip of the run. A failed framing keeps its retry as framing.
+A clip is saved as waiting for its wide shot until the wide shot is placed, so an
+interrupted or failed placement resumes or retries just the wide shot, without
+analysis. Resuming a run always starts from its saved record.
 
 **Delete selected** asks for confirmation, removes the clips from My clips and
 moves their Drafts to the project folder **Deleted shorts** (named in the

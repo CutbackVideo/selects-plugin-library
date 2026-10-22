@@ -10598,7 +10598,7 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
         if(!moved||moved.skipped?.length)throw new Error("Some shorts could not be moved. Try again.");
       }
       const at=new Date().toISOString();
-      const saved={...job,updated:at,built:job.built.map((d:any)=>d?.draftId&&ids.includes(d.draftId)?{...d,deleted:true,deletedAt:at}:d)};
+      const saved={...job,updated:at,built:job.built.map((d:any)=>d?.draftId&&ids.includes(d.draftId)?{...d,deleted:true,deletedAt:at,framingEditPending:null}:d)};
       await saveJob(saved);
       setJobs((rows:any[])=>rows.map(j=>j.id===saved.id?saved:j));
       setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==saved.id),saved],projectId));
@@ -10609,7 +10609,7 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
   async function run(resume?: any, onlyDraftId?: string | string[], forceReframe = false) {
     if(overlayLock.current||busy||packLock.current)return;
     if (templateDirty || templateSaving) { setTab("templates"); return; }
-    if(resume?.built?.some(d=>d?.framingEditPending)){setError('A previous framing edit was interrupted. Reapply that shot before regenerating.');return;}
+    if(resume?.built?.some(d=>d?.framingEditPending&&!d.deleted)){setError('A previous framing edit was interrupted. Reapply that shot before regenerating.');return;}
     setError("");
     if (!projectId) return setError(S.noProject);
     if (!templates.length) return setError(K.empty);
