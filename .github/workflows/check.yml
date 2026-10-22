@@ -37,7 +37,7 @@ jobs:
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_ownership_audit.test.mjs tests/feature_ownership_coverage.test.mjs
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node tools/check_feature_ownership.mjs docs/template-repair/ownership/mini-vlog.json > "$RUNNER_TEMP/mini-feature-ownership.json"
       - name: Test Music
-        run: node --test tests/music.test.mjs tests/music-preview.test.mjs
+        run: node --test tests/music.test.mjs tests/music-preview.test.mjs tests/audio_beat_engine.test.mjs
       - name: Test complete Image Draft authoring
         run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_atomic_authoring.test.mjs tests/photo_atomic_compiled.test.mjs tests/polaroid_atomic.test.mjs
       - name: Test Gallery complete authoring and input/compiled ordering
@@ -118,7 +118,7 @@ jobs:
         run: node plugins/vlog-opening/tests/reference.test.cjs
       - name: Test Mini Vlog
         run: |
-          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/template_source_resolution.test.mjs tests/mini_owned_cues.test.mjs tests/mini_media_scope.test.mjs tests/mini_native_facts.test.mjs tests/analysis_worker.test.mjs tests/media_inventory_observation.test.mjs tests/media_inventory_consumer.test.mjs tests/selected_inventory_scope.test.mjs tests/mini_assembly_receipts.test.mjs tests/mini_execution_ownership.test.mjs tests/mini_pending_discovery.test.mjs tests/mini_program_intent.test.mjs tests/mini_look_phase.test.mjs tests/mini_assembly_intent.test.mjs tests/mini_assembly_verification.test.mjs tests/mini_frozen_recovery.test.mjs tests/mini_analysis_inputs.test.mjs tests/mini_video_sources.test.mjs tests/clip_analysis.test.mjs tests/analysis_asset_lifetime.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/template_source_resolution.test.mjs tests/mini_owned_cues.test.mjs tests/mini_media_scope.test.mjs tests/mini_native_facts.test.mjs tests/analysis_worker.test.mjs tests/media_inventory_observation.test.mjs tests/media_inventory_consumer.test.mjs tests/selected_inventory_scope.test.mjs tests/mini_assembly_receipts.test.mjs tests/mini_execution_ownership.test.mjs tests/mini_pending_discovery.test.mjs tests/mini_program_intent.test.mjs tests/mini_look_phase.test.mjs tests/mini_assembly_intent.test.mjs tests/mini_assembly_verification.test.mjs tests/mini_frozen_recovery.test.mjs tests/mini_analysis_inputs.test.mjs tests/mini_video_sources.test.mjs tests/mini_own_music_sources.test.mjs tests/mini_own_music_analysis.test.mjs tests/mini_own_music_recovery.test.mjs tests/clip_analysis.test.mjs tests/analysis_asset_lifetime.test.mjs
           node plugins/mini-vlog/operation-builder.mjs --check
           node --test tests/mini_audio_identity.test.mjs
           node plugins/mini-vlog/tests/allocate.test.cjs

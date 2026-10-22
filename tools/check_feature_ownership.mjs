@@ -104,7 +104,8 @@ export function checkFeatureOwnership(root,document){
  }
  const findingIds=new Set(),knownOwners=new Set([document.template,...owners,...document.features.map(row=>row.owner)]);
  for(const finding of document.findings??[]){
-  if(!text(finding?.id)||findingIds.has(finding.id)||!['source-mismatch','confirmed-fixture','needs-reproduction'].includes(finding.status)||!features.has(finding.feature)||!text(finding.title)||!text(finding.mechanism)||!text(finding.acceptance)||!knownOwners.has(finding.repairOwner)||!Array.isArray(finding.sources)||!finding.sources.length||!Array.isArray(finding.evidence)||!finding.evidence.length)fail('Invalid source ownership finding');
+  if(!text(finding?.id)||findingIds.has(finding.id)||!['source-mismatch','confirmed-fixture','needs-reproduction','fixed-fixture','fixed-source'].includes(finding.status)||!features.has(finding.feature)||!text(finding.title)||!text(finding.mechanism)||!text(finding.acceptance)||!knownOwners.has(finding.repairOwner)||!Array.isArray(finding.sources)||!finding.sources.length||!Array.isArray(finding.evidence)||!finding.evidence.length)fail('Invalid source ownership finding');
+  if(/^fixed-/.test(finding.status)){if(!text(finding.resolution))fail('Fixed finding needs a resolution');if(!text(finding.validationLimits))fail('Fixed finding needs validation limits');}
   findingIds.add(finding.id);
   for(const source of finding.sources){
    if(!records.has(source?.file)&&!assetRecords.has(source?.file))fail('Finding source is outside the captured review');

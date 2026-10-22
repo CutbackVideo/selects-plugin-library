@@ -23,7 +23,7 @@ for(const entry of ['panel','template']){
  });
  test('Mini video sources: '+entry+' freezes every selected video identity into recovery config',async t=>{
   const f=await fixture(t,entry);await f.run();assert.equal(f.saved.length,1);const rows=f.saved[0].analysisSources;
-  assert.deepEqual(Array.from(rows||[],r=>r.path).sort(),[f.source,f.other].sort());for(const r of rows)assert.equal(r.sha256,hash(r.path));
+  assert.deepEqual(Array.from(rows||[],r=>r.path).filter(p=>p===f.source||p===f.other).sort(),[f.source,f.other].sort());for(const r of rows)assert.equal(r.sha256,hash(r.path));
  });
  test('Mini video sources: '+entry+' detects replacement while scene search is in flight',async t=>{
   const f=await fixture(t,entry);f.onSearch(()=>replaceSameFacts(f.source,f.other));try{await f.run();}catch{}

@@ -20,11 +20,17 @@ also the music previews, your own music (beat detection runs inside the panel)
 and the quick check of clips without analysis, which use the ffmpeg built into
 Selects through the host. No package manager, Node.js or shell commands are needed.
 
-If this Selects lacks one of the host functions the panel uses, the panel
-says so ("This Selects build needs an updated … adapter.", or for music
-"Previewing music and using your own track need a newer Selects.") and
-everything else keeps working: without the music functions **Your own music**
-is hidden, and clips without analysis get evenly spaced moments.
+This development package requires native `files.fingerprint` for every selected
+video original and music file. A missing, changed or unconfirmed source stops
+Build and saved-workflow continuation. A complete byte identity is mandatory;
+file size, modification time and analysis status do not replace it. Released
+Selects compatibility is not yet verified.
+
+When native decoding or Worker analysis fails normally, a confirmed source can
+use fixed timing if its real duration is known. Unconfirmed process exit,
+workspace cleanup, source identity or Project source links stop the operation.
+No fallback bypasses those checks. Video analysis is optional: analysed clips use
+scene search; unanalysed clips use the bounded local check.
 
 ## Windows
 
@@ -44,11 +50,20 @@ Project and importing the chosen music into that Project. Its temporary audio
 files go in `.selects/plugin-data/mini-vlog` in your home folder,
 never in either install folder:
 
-- `pcm-<time>-<n>.f32`: your own music decoded for beat detection (the first
-  4 minutes, up to about 21 MB). It is deleted as soon as it is read back; the
-  detected beat is kept only while the panel is open.
-- `preview-<n>-<time>.mp3`: the section preview, deleted as soon as it is read
-  back.
+- Owned `sbs-*.f32` / `sbs-*.mp3` staging: own-music PCM (first four minutes,
+  up to about 21 MB) and section previews. Files are removed after their native
+  producer settles and the bounded output is read. Unknown producer exit retains
+  its workspace for inspection.
+- `own-music/index` and `own-music/objects`: verified JSON beat results, keyed by
+  complete source contents, Worker code and analysis policy. Cache hits verify
+  both the published JSON and the current original. Private `.source-*` and
+  `.output-*` staging is removed after analysis. A transient analysis failure is
+  not cached. Selection never imports music or saves a Project.
+- `assets/<sha256>.mp3`: verified bundled cue Audio kept independently of the
+  installation. Own music retains its selected original path. Build binds the
+  imported Resource's actual Project path to the planned contents and sufficient
+  Audio duration; assembly and later Finish title/look recheck those contents
+  and links. Restoring the original can resume the same saved workflow.
 - `quick-score-v3/index` and `quick-score-v3/objects`: source-bound local video
   scores, keyed by complete file contents and evaluation policy. Cache hits
   recheck the original and cached output. Legacy `quick-score` files are retained

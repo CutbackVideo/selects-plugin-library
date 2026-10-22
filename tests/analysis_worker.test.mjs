@@ -99,6 +99,7 @@ function callerFixture(plugin,terminal){
  const box=vm.createContext({AbortController,Float32Array,OWN_RATE:22050,OWN_MAX_SECONDS:240,BEAT_TIMEOUT_MS:60000,
   busyRef:{current:false},roots:{data:'/scratch'},assets:{beatWorker:'source'},sdk:{},panelLocalClient:sdk=>sdk,
   cancelOwnMusic:()=>{},stopPreview:()=>{},ownJobRef:{current:{id:1,abort:null}},projectRef:{current:'p'},mountedRef:{current:true},
+  prepareMiniOwnMusic:async()=>{if(terminal)throw failure;return {accepted:false,grid:'none',failed:true,durationSeconds:1,peaks:[]};},
   hostDecodePcm:async()=>new Float32Array(22050),decodeOwnMusic:async()=>new Float32Array(22050),analyseBeat:async()=>{throw failure;},
   hostProbeSeconds:async()=>{state.probes++;return 1;},setOwnMusic:value=>state.music=value,setOwnGrid:value=>state.grid=value,setStatus:value=>state.status=value,
   setBusy:()=>{},setStep:()=>{},setListening:()=>{},sayError:()=>failure.message,errorSay:()=>()=>failure.message,t:(_lang,key)=>key});

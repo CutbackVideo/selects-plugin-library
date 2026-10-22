@@ -51,3 +51,9 @@ test('ownership source identity can explicitly normalize checkout line endings w
  const f=fixture(t),file=path.join(f.root,'plugins/a/panel.tsx');f.document.files[0].hashMode='lf-text';fs.writeFileSync(file,fs.readFileSync(file,'utf8').replace(/\n/g,'\r\n'));assert.equal(checkFeatureOwnership(f.root,f.document).coverageComplete,true);
  const asset='plugins/a/blob.bin';fs.writeFileSync(path.join(f.root,asset),Buffer.from([13,10]));f.document.assets=[{path:asset,hashMode:'bytes',sha256:createHash('sha256').update(Buffer.from([10])).digest('hex'),feature:'ui',reason:'Binary bytes remain exact.'}];assert.throws(()=>checkFeatureOwnership(f.root,f.document),/stale.*asset/i);
 });
+test('ownership repair status requires a concrete resolution and validation limits without implying template acceptance',t=>{
+ const f=fixture(t),finding={id:'fixed',status:'fixed-fixture',feature:'ui',title:'Captured defect repaired in fixtures.',sources:[{file:'plugins/a/panel.tsx',line:2}],repairOwner:'a',mechanism:'Previous input was not bound to its consumer.',acceptance:'Actual callback and restoration exercise the same identity.',evidence:['plugins/a/panel.tsx']};
+ f.document.findings=[finding];assert.throws(()=>checkFeatureOwnership(f.root,f.document),/resolution/i);
+ finding.resolution='The input and consumer share a verified identity.';assert.throws(()=>checkFeatureOwnership(f.root,f.document),/limits/i);
+ finding.validationLimits='Only fixture proof; no installed runtime acceptance.';const result=checkFeatureOwnership(f.root,f.document);assert.equal(result.templateAcceptanceComplete,false);assert.equal(result.findings[0].status,'fixed-fixture');
+});

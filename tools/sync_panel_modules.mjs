@@ -20,22 +20,32 @@ try{
   for(const id of required){
    const dependency=registered.get(id);
    requireValue(typeof id==='string'&&id!==module.id&&dependency,'Missing required module dependency: '+id);
-   const delivered=new Set([...(dependency.targets??[]),...(dependency.compatibilityTargets??[]),...(dependency.buildTimeTargets??[])]);
-   for(const target of [...(module.targets??[]),...(module.compatibilityTargets??[]),...(module.buildTimeTargets??[])])requireValue(delivered.has(target),'Required runtime module is not delivered to '+target+': '+id);
+   const delivered=new Set([...(dependency.targets??[]),...(dependency.compatibilityTargets??[]),...(dependency.buildTimeTargets??[]),...(dependency.fileTargets??[])]);
+   for(const target of [...(module.targets??[]),...(module.compatibilityTargets??[]),...(module.buildTimeTargets??[]),...(module.fileTargets??[])])requireValue(delivered.has(target),'Required runtime module is not delivered to '+target+': '+id);
   }
  }
  const ids=new Set(),updates=new Map(),consumers=new Set();
  for(const module of registry.modules){
   requireValue(typeof module.id==='string'&&/^[a-z][a-z0-9-]*$/.test(module.id)&&!ids.has(module.id),'Invalid or duplicate module ID');ids.add(module.id);
   requireValue(typeof module.source==='string'&&/^shared\/[a-z0-9-]+\.(?:js|cjs|mjs|ts)$/.test(module.source),'Invalid module source path');
-  const compatibility=module.compatibilityTargets??[],buildTime=module.buildTimeTargets??[];
-  requireValue(Array.isArray(module.targets)&&module.targets.length>0&&Array.isArray(compatibility)&&Array.isArray(buildTime),'Invalid module targets');
+  const compatibility=module.compatibilityTargets??[],buildTime=module.buildTimeTargets??[],fileTargets=module.fileTargets??[];
+  requireValue(Array.isArray(module.targets)&&Array.isArray(compatibility)&&Array.isArray(buildTime)&&Array.isArray(fileTargets)&&module.targets.length+compatibility.length+buildTime.length+fileTargets.length>0,'Invalid module targets');
   const targets=[...module.targets,...compatibility];
   requireValue(new Set(targets).size===targets.length,'Duplicate module targets');
   const source=readFileSync(path.join(root,module.source),'utf8').trimEnd();
   const start='// '+module.id+':start',end='// '+module.id+':end';
   requireValue(!source.includes(start)&&!source.includes(end),'Module source contains its own markers');
   requireValue(new Set(buildTime).size===buildTime.length,'Duplicate build-time module targets');
+  requireValue(new Set(fileTargets).size===fileTargets.length,'Duplicate standalone module targets');
+  for(const target of fileTargets){
+   const match=typeof target==='string'&&/^plugins\/([a-z0-9-]+)\/([a-z0-9-]+\.(?:js|cjs|mjs))$/.exec(target);
+   requireValue(match&&!excluded.has(match[1]),'Invalid or excluded standalone module consumer');
+   const manifest=JSON.parse(readFileSync(path.join(root,'plugins',match[1],'plugin.json'),'utf8'));
+   requireValue(manifest.id===match[1]&&manifest.collection==='visual-highlights'&&manifest.files?.includes(match[2]),'Standalone module consumer is not a declared shipped template file');
+   const filename=path.join(root,target);
+   requireValue(!updates.has(filename),'Conflicting standalone module source owners');
+   updates.set(filename,{before:readFileSync(filename,'utf8'),after:source+'\n'});consumers.add(match[1]);
+  }
   for(const target of buildTime){
    const match=typeof target==='string'&&/^plugins\/([a-z0-9-]+)\/(?:operation-builder|build-panel)\.mjs$/.exec(target);
    requireValue(match&&!excluded.has(match[1]),'Invalid or excluded build-time module consumer');

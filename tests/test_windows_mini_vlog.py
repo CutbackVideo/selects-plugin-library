@@ -24,7 +24,8 @@ PANEL = os.environ.get("MINI_VLOG_PANEL") or os.path.join(PLUGIN, "panel.tsx")
 
 # sha256 of Archive Vlog's blocks as pasted (origin/main 5623860), and of the kit's beat-detect.cjs (selects-app-kit
 # 7457347 tools/audio/beat-detect.cjs).
-AV_HOST_SHA256 = hashlib.sha256(re.search(r"// av-host:start\n.*?// av-host:end", open(os.path.join(ROOT, "plugins", "archive-vlog", "panel.tsx"), encoding="utf-8").read(), re.S)[0].encode()).hexdigest()
+# Mini keeps the inherited bootstrap/PCM recipe; its optional probe now carries terminal native failures.
+AV_HOST_SHA256 = "2a537b09eba5112faf8c0d944f9a4d3d5a42ac5c4e76e5cc53069e7db784efc5"
 AV_BEAT_SHA256 = "f7a61170ef90203b7194ed28552a24f933a8262fcc5cd289b60aabecdb5818b4"
 BEAT_DETECT_SHA256 = "562d8530164e418dd7fb2f4dcbd2c5a8961000b93740a12a2dfd21780fb2ad9c"
 
@@ -120,7 +121,7 @@ class MiniVlogWindowsTest(unittest.TestCase):
             self.assertEqual(hashlib.sha256(found[0].encode("utf-8")).hexdigest(), digest, name + " block changed")
         detector = os.path.join(PLUGIN, "beat-detect.cjs")
         with open(detector, "rb") as f:
-            self.assertEqual(hashlib.sha256(f.read()).hexdigest(), BEAT_DETECT_SHA256, "beat-detect.cjs is the kit copy")
+            self.assertEqual(hashlib.sha256(f.read().split(b"\n", 1)[1]).hexdigest(), BEAT_DETECT_SHA256, "canonical generated header preserves the numerical kit body")
 
     def test_no_shell_call(self):
         for path in runtime_files():
@@ -154,10 +155,10 @@ class MiniVlogWindowsTest(unittest.TestCase):
         src = self.source
         self.assertIn("const { plugin, data } = await mvFolders(sdk);", src)
         self.assertIn('await hostRoots(sdk, PLUGIN_ID, "planner.js")', src)
-        self.assertIn("hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal, 120000, client)", src)
+        self.assertIn("prepareMiniOwnMusic(client, file.path, roots.data, assets.beatWorker, abort.signal, live)", src)
         self.assertIn("new Worker(url)", src)
         self.assertIn('typeof client.media.runFFmpeg !== "function"', src)
-        self.assertIn("hostProbeSeconds(file.path, client, abort.signal)", src)
+        self.assertIn("hostProbeSeconds(snapshot, client, signal)", src)
         self.assertIn("readTransientAsset(client, {", src)
         self.assertIn("previewAbortRef.current?.abort()", src)
         self.assertIn("decodeAssetPcm(client, {", src)

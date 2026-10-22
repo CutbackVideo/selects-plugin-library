@@ -14,6 +14,9 @@ async function readBundledAssetResource(selects,projectId,path,platform,normaliz
 }
 const cfg = __CONFIG__;
 const p = selects.project(cfg.projectId);
+const minimumSeconds = cfg.minimumSeconds ?? 0;
+if (!Number.isFinite(minimumSeconds) || minimumSeconds < 0 || cfg.withPath !== undefined && typeof cfg.withPath !== 'boolean') throw bundledAssetIssue('INPUT', 'The music import requirements are invalid.');
+const result = (row, imported) => ({ resourceId: row.resourceId, imported, ...(cfg.withPath ? {path: row.path, durationSeconds: row.durationSeconds} : {}) });
 // A filename and approximate duration are not identity. Own music and installed
 // cues both resolve by their observed Project path, with the old normalization.
 const win = /^[a-z]:[\\/]/i.test(String(cfg.path || '')) || String(cfg.path || '').startsWith('\\\\');
@@ -23,11 +26,11 @@ const read = async () => {
   catch (cause) { throw bundledAssetIssue('READ', 'The selected music in this Project could not be confirmed. Check the Project files.', cause); }
   if (!result || !Array.isArray(result.matches) || result.matches.length > 1) throw bundledAssetIssue('READ', 'The selected music in this Project could not be uniquely confirmed. Check the Project files.');
   const row = result.matches[0];
-  if (row && (typeof row.resourceId !== 'string' || !row.resourceId || typeof row.path !== 'string' || !row.path || row.type !== 'Audio' || !Number.isFinite(row.durationSeconds) || row.durationSeconds <= 0)) throw bundledAssetIssue('METADATA', 'The selected file could not be confirmed as Audio. Check the Project files.');
+  if (row && (typeof row.resourceId !== 'string' || !row.resourceId || typeof row.path !== 'string' || !row.path || row.type !== 'Audio' || !Number.isFinite(row.durationSeconds) || row.durationSeconds <= 0 || row.durationSeconds < minimumSeconds)) throw bundledAssetIssue('METADATA', 'The selected file could not be confirmed as Audio. Check the Project files.');
   return row;
 };
 const existing = await read();
-if (existing) return { resourceId: existing.resourceId, imported: false };
+if (existing) return result(existing, false);
 let imported, importFailure;
 try { imported = await p.importFiles({ paths: [cfg.path] }); }
 catch (cause) { importFailure = cause; }
@@ -35,7 +38,7 @@ catch (cause) { importFailure = cause; }
 const row = await read(), ids = imported?.addedResourceIds;
 if (row) {
   if (Array.isArray(ids) && ids.length && (ids.length !== 1 || ids[0] !== row.resourceId)) throw bundledAssetIssue('IMPORT_UNKNOWN', 'The selected music import could not be confirmed. Inspect the Project before starting again.');
-  return { resourceId: row.resourceId, imported: true };
+  return result(row, true);
 }
 if (Array.isArray(ids) && !ids.length) throw bundledAssetIssue('SKIPPED', 'The music file was not imported.');
 throw bundledAssetIssue('IMPORT_UNKNOWN', 'The selected music import could not be confirmed. Inspect the Project before starting again.', importFailure);

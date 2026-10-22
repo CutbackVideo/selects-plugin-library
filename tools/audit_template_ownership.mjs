@@ -52,7 +52,7 @@ export function auditTemplateOwnership(root){
    if(!fs.existsSync(absolute)||!fs.statSync(absolute).isFile())return {path:file,sha256:null,analysis:'missing',decision:null};
    const text=fs.readFileSync(absolute,'utf8');return {path:file,sha256:hash(text),analysis:parsed.test(rel)?'indexed-not-reviewed':'manual-required',decision:null};
   });
-  const declaredModules=registry.modules.filter(m=>[...(m.targets??[]),...(m.compatibilityTargets??[]),...(m.buildTimeTargets??[])].some(target=>target.startsWith('plugins/'+entry.name+'/'))).map(m=>m.id);
+  const declaredModules=registry.modules.filter(m=>[...(m.targets??[]),...(m.compatibilityTargets??[]),...(m.buildTimeTargets??[]),...(m.fileTargets??[])].some(target=>target.startsWith('plugins/'+entry.name+'/'))).map(m=>m.id);
   templates.push({id:entry.name,version:manifest.version??null,declaredModules,files,functions:[],ownershipReviewed:false});
  }
  const canonicalFiles=[...new Set(registry.modules.map(m=>m.source))];
@@ -76,7 +76,7 @@ export function auditTemplateOwnership(root){
   const count=node=>{if((ts.isArrowFunction(node)||ts.isFunctionExpression(node))&&!functionName(node))anonymous++;ts.forEachChild(node,count);};count(source);
   for(const {node,name} of declarations(source)){
    const fingerprint=hash(JSON.stringify(tokens(node,source))),start=node.getStart(source),line=source.getLineAndCharacterOfPosition(start).line+1;
-   const managed=blocks.find(b=>b.start>=0&&start>b.start&&node.end<=b.end&&canonical.get(b.id)?.has(fingerprint));
+   const managed=registry.modules.find(m=>m.fileTargets?.includes(file.path)&&canonical.get(m.id)?.has(fingerprint))??blocks.find(b=>b.start>=0&&start>b.start&&node.end<=b.end&&canonical.get(b.id)?.has(fingerprint));
    const row={template:template.id,file:file.path,name,kind:ts.SyntaxKind[node.kind],line,endLine:source.getLineAndCharacterOfPosition(node.end).line+1,fingerprint,managedModule:managed?.id??null,externalReferences:references(node,checker),decision:null};
    template.functions.push(row);if(!groups.has(fingerprint))groups.set(fingerprint,[]);groups.get(fingerprint).push(row);
   }

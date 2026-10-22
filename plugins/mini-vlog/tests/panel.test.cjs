@@ -485,10 +485,12 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
     return source.slice(a, b + ('// ' + name + ':end').length);
   };
   const avHost = blockOf('av-host'), avBeat = blockOf('av-beat-worker');
-  assert.equal(avHost, blockOf('av-host', fs.readFileSync(path.join(root, '../archive-vlog/panel.tsx'), 'utf8')), 'SDK host block matches the shared Archive copy');
+  // Mini's optional probe now preserves terminal failures; the bootstrap/PCM compatibility block remains shared.
+  const beforeProbe = source => source.slice(0, source.indexOf('// An audio or video'));
+  assert.equal(beforeProbe(avHost), beforeProbe(blockOf('av-host', fs.readFileSync(path.join(root, '../archive-vlog/panel.tsx'), 'utf8'))), 'bootstrap and PCM adapters retain the Archive contract');
   assert.equal(sha(avBeat), 'f7a61170ef90203b7194ed28552a24f933a8262fcc5cd289b60aabecdb5818b4', 'av-beat-worker block equals Archive Vlog\'s (origin/main 5623860)');
   const detector = fs.readFileSync(path.join(root, 'beat-detect.cjs'), 'utf8');
-  assert.equal(sha(detector), '562d8530164e418dd7fb2f4dcbd2c5a8961000b93740a12a2dfd21780fb2ad9c', 'beat-detect.cjs is the kit copy (selects-app-kit 7457347 tools/audio/beat-detect.cjs)');
+  assert.equal(sha(detector.slice(detector.indexOf('\n') + 1)), '562d8530164e418dd7fb2f4dcbd2c5a8961000b93740a12a2dfd21780fb2ad9c', 'beat-detect.cjs is the kit copy (selects-app-kit 7457347 tools/audio/beat-detect.cjs)');
   // No shell, no node, no POSIX syntax anywhere in the runtime (comments aside).
   const code = (x) => x.replace(/^\s*\/\/.*$/gm, '');
   assert.equal((panel.match(/runShell\(/g) || []).length, 0, 'no runShell in the panel');
@@ -505,11 +507,11 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
   // One generic "needs a newer Selects" key for every missing host member (kit windows.md).
   assert.ok(!/adapterNeeded|newerSelectsMusic/.test(panel), 'no per-member or per-feature host messages');
   // Own music: host ffmpeg -> f32le 22.05 kHz, first 240 s, in the data folder; the kit detector in a blob worker with
-  // a 60 s timeout; cancel = abort + terminate + request id; any failure -> fixed timing with the probed length.
+  // a 60 s timeout; cancel = abort + terminate + request id; ordinary failure may use confirmed snapshot duration.
   for (const s of ['const OWN_MAX_SECONDS = 240;', 'const OWN_RATE = 22050;', 'const BEAT_TIMEOUT_MS = 60000;', 'read("beat-detect.cjs")]);', 'beatWorker: avBeatWorkerSource(beatDetect)',
-    'samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal, 120000, client);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal, BEAT_TIMEOUT_MS, live);',
+    'const g = await prepareMiniOwnMusic(client, file.path, roots.data, assets.beatWorker, abort.signal, live);', 'const result = await analyseBeat(worker, samples, signal, BEAT_TIMEOUT_MS, () => { current(); return true; });',
     'const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;', 'cancelOwnMusic(); };', 'if (v !== "own") { cancelOwnMusic();',
-    'const v = await hostProbeSeconds(file.path, client, abort.signal); if (v) duration = Math.min(v, OWN_MAX_SECONDS);', 'runPanelWorker(source, { samples, rate: OWN_RATE }, { signal, timeoutMs, isCurrent })'])
+    'const duration = decoded ?? await hostProbeSeconds(snapshot, client, signal);', 'runPanelWorker(source, { samples, rate: OWN_RATE }, { signal, timeoutMs, isCurrent })'])
     assert.ok(panel.includes(s), s);
   // Only the current own-music job clears busy and the step (a cancelled one must not end a build started since).
   {

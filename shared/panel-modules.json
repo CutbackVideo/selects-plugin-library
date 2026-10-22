@@ -98,6 +98,17 @@
       "targets": [
         "plugins/mini-vlog/panel.tsx"
       ]
+    },
+    {
+      "id": "audio-beat-analysis",
+      "source": "shared/audio-beat-analysis.cjs",
+      "targets": [],
+      "fileTargets": [
+        "plugins/mini-vlog/beat-detect.cjs",
+        "plugins/archive-vlog/beat-detect.cjs",
+        "plugins/selfie-aesthetic/beat-detect.cjs",
+        "plugins/city-weekend-vlog/beat-detect.cjs"
+      ]
     }
   ]
 }

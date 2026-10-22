@@ -124,6 +124,14 @@ test('Mini preview caller: Stop aborts the producer and waits before cleaning it
 for(const value of ['Infinity','19extra','0','-1','N/A'])test('Music duration observation: invalid stdout is unknown '+value,async()=>{
  const f=fixture();f.hooks.probe=value;assert.equal(await f.api.hostProbeSeconds('/music.wav'),null);
 });
+for(const flag of ['terminal','preserveTemporaryFiles'])test('Mini duration probe: '+flag+' native failure cannot become an ordinary unknown duration',async()=>{
+ const f=fixture(),failure=Object.assign(Error('native exit unconfirmed'),{[flag]:true});
+ f.clients[0].media.runFFprobe=async()=>{throw failure;};
+ await assert.rejects(f.api.hostProbeSeconds('/music.wav'),error=>error===failure||error.terminal||error.preserveTemporaryFiles);
+});
+test('Mini duration probe: ordinary native failure still returns unknown',async()=>{
+ const f=fixture();f.clients[0].media.runFFprobe=async()=>{throw Error('unsupported codec');};assert.equal(await f.api.hostProbeSeconds('/music.wav'),null);
+});
 test('Shared PCM decoder: real FFmpeg and canonical asynchronous files preserve requested samples and remove staging',async t=>{
  const {holdFixture}=await import('./gallery_hold_fixture.mjs'),f=await holdFixture(t),rate=22050,frames=2205;
  const file=path.join(f.root,"music 'quote' $() \uc74c\uc545.wav"),wav=Buffer.alloc(44+frames*2);wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(rate,24);wav.writeUInt32LE(rate*2,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(frames*2,40);

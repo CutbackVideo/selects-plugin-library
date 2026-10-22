@@ -1,12 +1,22 @@
 # Sequential template repair: active
 
+## Mini own-music and common engine checkpoint
+
+Mini alpha.28 binds own-music analysis to confirmed complete contents and exact
+imported Audio paths through planning/import/assembly and saved-look restoration.
+The existing asset/input/Worker/run owners retain IO and lifetime ownership. The
+identical Mini/Archive/Selfie/City engine now has one canonical CJS source with
+independent generated packages. See [mini-own-music.md](mini-own-music.md).
+Registry: nine modules / fourteen partial consumers; this remains a partial pool,
+not a complete semantic classification. Whole-template acceptance remains 0/28.
+
 ## Mini source-to-feature coverage checkpoint
 
 [mini-ownership-review.md](mini-ownership-review.md) links every captured Mini source
 unit, including anonymous callbacks/build sources and package data, to 27 explicit
-feature decisions. Planned extraction is separate from implemented owners. A valid
-120-to-100 BPM own-music replacement and a missing track still reach Build dispatch;
-that source/engine feature is the next repair. Coverage is not semantic acceptance:
+feature decisions. Planned extraction is separate from implemented owners. The earlier valid
+120-to-100 BPM replacement and missing-track counterexamples are now repaired by
+the source/engine checkpoint above. Coverage is not semantic acceptance:
 full ownership and whole-template acceptance remain 0/28, with Chan excluded.
 
 ## Mini all-video original admission checkpoint

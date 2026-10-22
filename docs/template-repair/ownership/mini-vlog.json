@@ -244,7 +244,7 @@
     },
     {
       "id": "audio-beat-engine",
-      "decision": "extract",
+      "decision": "reuse",
       "owner": "audio-beat-analysis",
       "reason": "Mini, Archive, Selfie and City carry byte-identical beat engines. Audio signal/beat estimation is a distinct responsibility from Worker lifetime and video frame scoring.",
       "contract": {
@@ -257,17 +257,20 @@
         "cleanup": "No original source deletion. CLI output follows its explicit development command; PCM/native staging in the panel belongs to bundled-assets.",
         "outcomes": "Accepted and approximate grids differ from no usable grid; invalid/silent/short/time-varying input behavior needs preserved parity.",
         "retry": "Deterministic analysis may rerun only on confirmed input; no host mutation.",
-        "distribution": "Current beat-detect.cjs plus avBeatWorkerSource; planned canonical engine with generated standalone/browser compatibility.",
-        "validation": "Identical SHA-256 in four templates and existing beat-detect/worker parity tests; extraction and own-music content binding still pending."
+        "distribution": "Canonical shared/audio-beat-analysis.cjs; registry fileTargets generate four independent beat-detect.cjs copies. Existing raw Float32 CLI and browser Worker contracts are retained.",
+        "validation": "Canonical/copy numerical parity, inert Worker VM and raw PCM CLI guards; each affected consumer beat suite. Native Mini decoder/Worker proof is recorded separately from installed/full-template acceptance."
       },
       "evidence": [
         "plugins/mini-vlog/beat-detect.cjs",
         "plugins/archive-vlog/beat-detect.cjs",
         "plugins/selfie-aesthetic/beat-detect.cjs",
         "plugins/city-weekend-vlog/beat-detect.cjs",
-        "plugins/mini-vlog/tests/beat-detect.test.cjs"
+        "plugins/mini-vlog/tests/beat-detect.test.cjs",
+        "shared/audio-beat-analysis.cjs",
+        "shared/panel-modules.json",
+        "tests/audio_beat_engine.test.mjs"
       ],
-      "implementation": "planned"
+      "implementation": "implemented"
     },
     {
       "id": "worker-owner",
@@ -299,22 +302,25 @@
       "owner": "mini-vlog",
       "reason": "Music selection, section preview, own-track fallback and user-visible state compose common owners but are Mini UI/workflow policy.",
       "contract": {
-        "input": "Chosen cue or own-music path, selected section seconds, max analysis duration, samples/grid and current Project/run refs.",
-        "output": "Music/ownGrid state, section choices, preview Audio, status and frozen cue metadata for Build.",
+        "input": "Chosen cue or own-music path, verified source digest/size, selected section seconds, max duration, Worker source and captured Project/run generation.",
+        "output": "Source-bound ownGrid state, section choices, preview Audio, status, and content/path observations carried into assembly and saved-look continuation.",
         "identity": "Music source path, imported Audio id, preview token and own-job generation are distinct.",
         "dependencies": "bundled-assets PCM/preview lifetimes, analysis-worker, beat engine, cue manifest and shared private client.",
         "effects": "Starts owned decode/probe/preview work and Audio playback; creation/import/save is delegated.",
         "lifetime": "Cancel on new music, Project switch and unmount; one captured client and current own-job token.",
-        "cleanup": "Stop/revoke owned preview resources and retain unknown native workspaces. Legacy hostProbeSeconds can conceal terminal errors and is queued.",
-        "outcomes": "Reliable beat, approximate/no-grid timing and unreadable source are different. Own-grid physical input identity is not currently bound through Build.",
+        "cleanup": "Existing asset owner removes only owned staging after confirmed settlement; terminal/preserve failures stop selection and retain unknown native workspaces. Ordinary failed analysis is not cached.",
+        "outcomes": "Accepted/approximate/no-grid analysis differs from a transient fixed-timing fallback with confirmed duration. Changed/missing/unknown originals or Project links stop Build/recovery; restored original input resumes the same saved workflow.",
         "retry": "Repeat read/analysis only under current generation; do not replay unknown save or decode start.",
-        "distribution": "Mini cueGrid/analyseBeat/prepareMiniCue plus own-track and preview handlers.",
-        "validation": "Existing PCM, Worker and preview cancellation proofs; own-music source replacement, probe uncertainty and installed Audio playback are open defects/gates."
+        "distribution": "Mini cueGrid/analyseBeat/prepareMiniCue/prepareMiniOwnMusic/admitMiniMusic plus own-track and preview handlers; byte and cache owners remain existing modules.",
+        "validation": "Valid 30s 120/100 BPM WAV source replacement, missing/unknown source, native probe flags, PCM/Worker, cancellation, import-duration and actual saved-Audio restoration fixtures. Installed panel/playback/export/Windows acceptance remains open."
       },
       "evidence": [
         "plugins/mini-vlog/panel.tsx",
         "tests/mini_media_scope.test.mjs",
-        "tests/analysis_worker.test.mjs"
+        "tests/analysis_worker.test.mjs",
+        "tests/mini_own_music_sources.test.mjs",
+        "tests/mini_own_music_analysis.test.mjs",
+        "tests/mini_own_music_recovery.test.mjs"
       ],
       "implementation": "specific"
     },
@@ -696,12 +702,12 @@
   "files": [
     {
       "path": "plugins/mini-vlog/beat-detect.cjs",
-      "sha256": "562d8530164e418dd7fb2f4dcbd2c5a8961000b93740a12a2dfd21780fb2ad9c",
+      "sha256": "0ae347181e05700cd48ab541039e1e7d0c3cf41f16a21fe6de48dc3298fbfa12",
       "role": "runtime",
       "ranges": [
         {
-          "startLine": 1,
-          "endLine": 445,
+          "startLine": 2,
+          "endLine": 446,
           "feature": "audio-beat-engine"
         }
       ],
@@ -709,7 +715,7 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "8ee685fb7b0c3e85f842f7a4d734729dfec70cb12c82a975983d1c840a687ab4",
+      "sha256": "da62d04e87d156e494dd017072d7fe63812a7224863c243c4a89970d4c83be8e",
       "role": "runtime",
       "ranges": [
         {
@@ -764,188 +770,193 @@
         },
         {
           "startLine": 3491,
-          "endLine": 3581,
+          "endLine": 3584,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3582,
-          "endLine": 3595,
+          "startLine": 3585,
+          "endLine": 3598,
           "feature": "audio-beat-engine"
         },
         {
-          "startLine": 3596,
-          "endLine": 3610,
+          "startLine": 3599,
+          "endLine": 3613,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3611,
-          "endLine": 3618,
+          "startLine": 3614,
+          "endLine": 3621,
           "feature": "music-policy"
         },
         {
-          "startLine": 3619,
-          "endLine": 3685,
+          "startLine": 3622,
+          "endLine": 3688,
           "feature": "worker-owner"
         },
         {
-          "startLine": 3686,
-          "endLine": 3708,
+          "startLine": 3689,
+          "endLine": 3711,
           "feature": "music-policy"
         },
         {
-          "startLine": 3709,
-          "endLine": 3721,
+          "startLine": 3712,
+          "endLine": 3724,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 3722,
-          "endLine": 3784,
+          "startLine": 3725,
+          "endLine": 3787,
           "feature": "panel-ui"
         },
         {
-          "startLine": 3785,
-          "endLine": 3798,
+          "startLine": 3788,
+          "endLine": 3801,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3799,
-          "endLine": 3948,
+          "startLine": 3802,
+          "endLine": 3951,
           "feature": "panel-ui"
         },
         {
-          "startLine": 3949,
-          "endLine": 3957,
+          "startLine": 3952,
+          "endLine": 3960,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3958,
-          "endLine": 4295,
+          "startLine": 3961,
+          "endLine": 4298,
           "feature": "asset-owner"
         },
         {
-          "startLine": 4296,
-          "endLine": 4870,
+          "startLine": 4299,
+          "endLine": 4873,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 4871,
-          "endLine": 4890,
+          "startLine": 4874,
+          "endLine": 4893,
           "feature": "music-policy"
         },
         {
-          "startLine": 4891,
-          "endLine": 4897,
+          "startLine": 4976,
+          "endLine": 4982,
           "feature": "panel-ui"
         },
         {
-          "startLine": 4898,
-          "endLine": 4908,
+          "startLine": 4983,
+          "endLine": 4993,
           "feature": "music-policy"
         },
         {
-          "startLine": 4909,
-          "endLine": 4926,
+          "startLine": 4994,
+          "endLine": 5011,
           "feature": "source-input"
         },
         {
-          "startLine": 4927,
-          "endLine": 4952,
+          "startLine": 5012,
+          "endLine": 5037,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 4953,
-          "endLine": 5021,
+          "startLine": 5038,
+          "endLine": 5106,
           "feature": "program-policy"
         },
         {
-          "startLine": 5022,
-          "endLine": 6092,
+          "startLine": 5107,
+          "endLine": 6171,
           "feature": "panel-ui"
         },
         {
-          "startLine": 6093,
-          "endLine": 6142,
+          "startLine": 6172,
+          "endLine": 6221,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 6143,
-          "endLine": 6365,
+          "startLine": 6222,
+          "endLine": 6444,
           "feature": "source-input"
         },
         {
-          "startLine": 6366,
-          "endLine": 6384,
+          "startLine": 6445,
+          "endLine": 6463,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6385,
-          "endLine": 6550,
+          "startLine": 6464,
+          "endLine": 6630,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6551,
-          "endLine": 6593,
+          "startLine": 6631,
+          "endLine": 6673,
           "feature": "panel-ui"
         },
         {
-          "startLine": 6594,
-          "endLine": 6709,
+          "startLine": 6674,
+          "endLine": 6789,
           "feature": "catalog-read"
         },
         {
-          "startLine": 6710,
-          "endLine": 7109,
+          "startLine": 6790,
+          "endLine": 7189,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7110,
-          "endLine": 7156,
+          "startLine": 7190,
+          "endLine": 7236,
           "feature": "app-guard"
         },
         {
-          "startLine": 7157,
-          "endLine": 7157,
+          "startLine": 7237,
+          "endLine": 7237,
           "feature": "panel-ui"
         },
         {
-          "startLine": 5097,
-          "endLine": 5120,
+          "startLine": 5182,
+          "endLine": 5205,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5121,
-          "endLine": 5128,
+          "startLine": 5206,
+          "endLine": 5213,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5166,
-          "endLine": 5202,
+          "startLine": 5251,
+          "endLine": 5287,
           "feature": "catalog-read"
         },
         {
-          "startLine": 5392,
-          "endLine": 5503,
+          "startLine": 5477,
+          "endLine": 5571,
           "feature": "music-policy"
         },
         {
-          "startLine": 5506,
-          "endLine": 5524,
+          "startLine": 5574,
+          "endLine": 5592,
           "feature": "scene-observation"
         },
         {
-          "startLine": 5530,
-          "endLine": 5562,
+          "startLine": 5598,
+          "endLine": 5630,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 5565,
-          "endLine": 5780,
+          "startLine": 5633,
+          "endLine": 5859,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5817,
-          "endLine": 5821,
+          "startLine": 5896,
+          "endLine": 5900,
           "feature": "montage-policy"
+        },
+        {
+          "startLine": 4896,
+          "endLine": 4975,
+          "feature": "music-policy"
         }
       ],
       "hashMode": "lf-text"
@@ -1094,12 +1105,12 @@
     },
     {
       "path": "plugins/mini-vlog/scripts/ensure-audio.js",
-      "sha256": "1727e40046ce9ea950ef5a068212fb8ebe036298f8ae4910a5fb831ee78acaf0",
+      "sha256": "153593377d773e775029d7019b8b9a45bb1664f9f7eeee4fff2034f2221f10ec",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 42,
+          "endLine": 45,
           "feature": "asset-owner"
         }
       ],
@@ -1237,12 +1248,12 @@
     },
     {
       "path": "plugins/mini-vlog/tests/panel.test.cjs",
-      "sha256": "6048384ac17a1fcf4922820aca4dc531f784472d77849268e87e377ea62041d5",
+      "sha256": "9a1daf3b724130ae134803c6f2f5370f340266b4f1a7211d440f6e0223dc0f5c",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 628,
+          "endLine": 630,
           "feature": "test-harness"
         }
       ],
@@ -1406,7 +1417,7 @@
     },
     {
       "path": "tools/repro_mini_own_music.mjs",
-      "sha256": "ca05d8199f31bcd2ac7d2ba515dbb590b116454a241358c0131dd5d47f28dbc7",
+      "sha256": "8977d1ae351efafac258cd63272f04ef1714d5de50e7124fa1326dd205b12a17",
       "role": "validation",
       "ranges": [
         {
@@ -1416,6 +1427,84 @@
         }
       ],
       "hashMode": "lf-text"
+    },
+    {
+      "path": "plugins/mini-vlog/dev/ensure-audio.template.js",
+      "sha256": "539785e198e6c53dc1e6717ef6e3f8668646cdf25033c8ebe8348546eeaf777a",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 31,
+          "feature": "music-policy"
+        }
+      ]
+    },
+    {
+      "path": "shared/audio-beat-analysis.cjs",
+      "sha256": "0ae347181e05700cd48ab541039e1e7d0c3cf41f16a21fe6de48dc3298fbfa12",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 446,
+          "feature": "audio-beat-engine"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_own_music_sources.test.mjs",
+      "sha256": "d738bd441f91c02ee9a50a1ca50005d3f823a40b677d8df46d1dd74133db1afe",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 47,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_own_music_analysis.test.mjs",
+      "sha256": "deb13ba50c82d2a0e9bd5bd206e13b2be3044f34ddb4cbed080840b8e087cc4f",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 67,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_own_music_recovery.test.mjs",
+      "sha256": "f9a906c939760c53b24959cba89d9978c087de1ea998c5a33c98d8f5efb76e9e",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 39,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/audio_beat_engine.test.mjs",
+      "sha256": "8b1727f46182688bdedf20f44c58b830ff13888fecd3aba64be53e3ab8fc7195",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 16,
+          "feature": "test-harness"
+        }
+      ]
     }
   ],
   "assets": [
@@ -1428,7 +1517,7 @@
     },
     {
       "path": "plugins/mini-vlog/INSTALL.md",
-      "sha256": "28fb83685d623c76f08e14262de8ec59fa2f9aa202edbebd6776b1b69801cef4",
+      "sha256": "46389db27ba9c0f7d64b8911f9b2f1536650940e73506f0d9004ca37d2fe0899",
       "feature": "copy-and-package",
       "reason": "Template-specific package contract, cue/font data or licensed media; not executable application logic.",
       "hashMode": "lf-text"
@@ -1561,7 +1650,7 @@
     },
     {
       "path": "plugins/mini-vlog/plugin.json",
-      "sha256": "f2661fd4930047af94ec37b6211c0a0e2626f44bd10a677824948eb1d7a28af5",
+      "sha256": "b31566747d771f2636467e435833407116bc9822ed0a000b049929eb5ea20eb4",
       "feature": "copy-and-package",
       "reason": "Declared package inputs/compatibility/options and release metadata.",
       "hashMode": "lf-text"
@@ -1630,32 +1719,42 @@
   "findings": [
     {
       "id": "MINI-OWN-AUDIO-SOURCE",
-      "status": "confirmed-fixture",
+      "status": "fixed-fixture",
       "feature": "music-policy",
       "title": "An analyzed own track can change or disappear before another Build.",
       "sources": [
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5400
+          "line": 4912
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5683
+          "line": 5665
+        },
+        {
+          "file": "plugins/mini-vlog/panel.tsx",
+          "line": 4966
         }
       ],
-      "repairOwner": "audio-beat-analysis",
+      "repairOwner": "mini-vlog",
       "mechanism": "Own-grid state is retained by a path and UI generation, without a complete file identity carried into the assembly/recovery request. A valid 30-second 120-BPM WAV replaced by an equal-size/equal-mtime 100-BPM WAV still gives the second actual Build planner 119.99 BPM; removing the track also reaches the assembly dispatch boundary.",
       "acceptance": "Use the existing asset/input owners to bind own-track analysis and persisted Audio to confirmed bytes through Build, commit and recovery. Preserve the same original plan or reject changed/missing/unknown input; test unchanged reuse, replacement, cancellation and saved-look restoration. Extract the identical numerical engine with parity rather than add another file/cache owner.",
       "evidence": [
         "tools/repro_mini_own_music.mjs",
         "tests/mini_music_fixture.mjs",
-        "plugins/mini-vlog/beat-detect.cjs"
+        "plugins/mini-vlog/beat-detect.cjs",
+        "tests/mini_own_music_sources.test.mjs",
+        "tests/mini_own_music_analysis.test.mjs",
+        "tests/mini_own_music_recovery.test.mjs",
+        "tests/audio_beat_engine.test.mjs"
       ],
-      "reproducer": "tools/repro_mini_own_music.mjs"
+      "reproducer": "tools/repro_mini_own_music.mjs",
+      "resolution": "Reuse existing source, asset, Worker and durable owners: analyze a verified snapshot, bind the grid to full original contents, recheck before import/dispatch/commit and on saved-look continuation, and validate the actual Audio path and planned minimum duration. The four identical engines now share one canonical CJS source.",
+      "validationLimits": "Source/real-media fixtures prove admission and saved-Audio restoration. Native decoder/Worker proof is a separate development checkpoint; installed UI, real Project save/playback/export, released builds and Windows remain open."
     },
     {
       "id": "MINI-PROBE-UNCERTAINTY",
-      "status": "source-mismatch",
+      "status": "fixed-fixture",
       "feature": "host-bootstrap",
       "title": "The own-track duration fallback hides terminal native media uncertainty.",
       "sources": [
@@ -1665,7 +1764,7 @@
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5430
+          "line": 4946
         }
       ],
       "repairOwner": "local-client",
@@ -1674,26 +1773,26 @@
       "evidence": [
         "plugins/mini-vlog/panel.tsx",
         "tests/mini_media_scope.test.mjs",
-        "tests/local_media_settlement.test.mjs"
-      ]
+        "tests/local_media_settlement.test.mjs",
+        "tests/mini_media_scope.test.mjs",
+        "tests/mini_own_music_analysis.test.mjs"
+      ],
+      "resolution": "The Mini native duration adapter propagates terminal and preserveTemporaryFiles failures. Ordinary optional probe failure remains null; the snapshot analysis adapter alone decides fallback and selection clears on source/lifetime uncertainty.",
+      "validationLimits": "Actual adapter terminal/preserve and ordinary-failure controls pass in fixtures; production/Windows proof remains open."
     },
     {
       "id": "MINI-DECLARED-SOURCE-CAPABILITY",
-      "status": "source-mismatch",
+      "status": "fixed-source",
       "feature": "copy-and-package",
       "title": "Package preparation/compatibility text understates mandatory original-video checks.",
       "sources": [
         {
           "file": "plugins/mini-vlog/plugin.json",
-          "line": 61
+          "line": 67
         },
         {
           "file": "plugins/mini-vlog/INSTALL.md",
-          "line": 23
-        },
-        {
-          "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5620
+          "line": 24
         }
       ],
       "repairOwner": "mini-vlog",
@@ -1703,7 +1802,9 @@
         "plugins/mini-vlog/plugin.json",
         "plugins/mini-vlog/INSTALL.md",
         "tests/mini_video_sources.test.mjs"
-      ]
+      ],
+      "resolution": "Manifest and INSTALL now require complete native identities for all selected video originals and music. Analysis is optional; decoder fallback never bypasses source confirmation. Storage/cache and unknown-workspace behavior are documented.",
+      "validationLimits": "Declared contract reconciled to the current source and regression behavior; this wording does not prove released-version, installed-root or Windows compatibility."
     },
     {
       "id": "MINI-CONFIGURED-INSTALL-ROOT",
@@ -1721,7 +1822,7 @@
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 3604
+          "line": 3607
         }
       ],
       "repairOwner": "local-client",

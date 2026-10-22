@@ -13,7 +13,7 @@ const {analyze}=require('../plugins/mini-vlog/beat-detect.cjs');
 const rate=22050,seconds=30;
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
 
-function clickAudio(bpm){
+export function clickAudio(bpm){
  const samples=new Float32Array(rate*seconds);
  for(let time=.5;time<seconds;time+=60/bpm){
   const first=Math.round(time*rate);
@@ -42,7 +42,7 @@ export async function reproduceMiniOwnMusic(){
    const file=path.join(fixture.root,'own-track.wav'),planned=[];
    fs.writeFileSync(file,original.wav);fs.utimesSync(file,946684800,946684800);
    fixture.hooks.duration=seconds;
-   Object.assign(fixture.box,{ownMusic:{path:file,name:'own-track.wav'},ownGrid:original.grid,ownDuration:seconds,grid:{...original.grid,usableEnd:seconds-.5},musicStart:original.grid.firstBeat});
+   Object.assign(fixture.box,{ownMusic:{path:file,name:'own-track.wav'},ownGrid:{...original.grid,sourceObservation:{path:file,size:original.wav.length,sha256:digest(original.wav)}},ownDuration:seconds,grid:{...original.grid,usableEnd:seconds-.5},musicStart:original.grid.firstBeat});
    const plan=fixture.box.mvPlanBuild;
    fixture.box.mvPlanBuild=options=>{planned.push(options.bpm);return plan(options);};
    await fixture.run();assert.equal(fixture.saved.length,1,JSON.stringify(fixture.errors));

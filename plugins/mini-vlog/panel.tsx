@@ -1859,7 +1859,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.27";
+const PLUGIN_VERSION = "0.1.0-alpha.28";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -3576,7 +3576,10 @@ async function hostProbeSeconds(path, client = hostSdk, signal) {
     const r = await runAssetMediaTool(rt, "runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], { signal, timeoutMs: 30000 });
     const v = Number(String(r?.stdout || "").trim());
     return Number.isFinite(v) && v > 0 ? v : null;
-  } catch { return null; }
+  } catch (error) {
+    if (error?.terminal || error?.preserveTemporaryFiles) throw error;
+    return null;
+  }
 }
 // av-host:end
 // The source of the own-music beat worker: Archive Vlog's av-beat-worker block, pasted verbatim (the kit's
@@ -4888,6 +4891,88 @@ async function prepareMiniCue(sdk: any, projectId: string, plugin: string, cue: 
   } catch (error) { check(); throw error; }
 }
 
+// Policy adapter only: the existing asset owner owns snapshots/cache/cleanup;
+// the existing Worker owner owns execution, and the CJS engine owns the maths.
+function validateMiniOwnGrid(value: any) {
+  const number = (v: any, max = Number.MAX_VALUE) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= max;
+  const vector = (v: any, max: number) => Array.isArray(v) && v.length <= max && v.every((x: any) => number(x));
+  if (!value || typeof value !== "object" || !number(value.durationSeconds, OWN_MAX_SECONDS) || value.durationSeconds <= 0 || !number(value.bpm, 600) || value.bpm <= 0 ||
+    !number(value.firstBeat, value.durationSeconds) || !number(value.lastOnsetSeconds, value.durationSeconds + .1) || !number(value.hitRate, 1) ||
+    !(value.residualMedianMs === null || number(value.residualMedianMs)) || !(value.sixteenthRatio === null || number(value.sixteenthRatio)) ||
+    !["accepted", "approximate", "none"].includes(value.grid) || value.accepted !== (value.grid === "accepted") ||
+    !vector(value.peaks, 400) || !vector(value.beatEnergy, 2400) || !Array.isArray(value.onsets) || value.onsets.length > 40000 ||
+    value.onsets.some((row: any) => !Array.isArray(row) || row.length !== 3 || !number(row[0], value.durationSeconds + .1) || !["l", "m", "h"].includes(row[1]) || !number(row[2])) ||
+    !["l", "m", "h"].every(key => number(value.onsetThresholds?.[key]))) {
+    throw bundledAssetIssue("ANALYSIS_RESULT", "The music analysis result could not be confirmed. Select the music again.");
+  }
+  // Never let a Worker/cache response supply a filesystem identity or extra state.
+  return Object.fromEntries(["durationSeconds", "bpm", "firstBeat", "lastOnsetSeconds", "hitRate", "residualMedianMs", "sixteenthRatio", "grid", "accepted", "peaks", "beatEnergy", "onsets", "onsetThresholds"].map(key => [key, value[key]]));
+}
+
+async function prepareMiniOwnMusic(client: any, path: string, data: string, worker: string, signal: AbortSignal, isCurrent: () => boolean) {
+  const deadline = Date.now() + 240000, files = client?.files;
+  const current = () => {
+    if (signal.aborted || !isCurrent()) throw bundledAssetIssue("STOPPED", "Music analysis ended before completion.");
+    if (Date.now() >= deadline) throw bundledAssetIssue("TIMEOUT", "Music analysis timed out. Select the music again.");
+  };
+  current();
+  if (typeof worker !== "string" || !worker || typeof data !== "string" || !data) throw bundledAssetIssue("INPUT", "The music analysis inputs are incomplete.");
+  const hashFile = async (file: string) => { current(); const [row] = await observeSourceFiles(files, [file]); current(); return row.sha256; };
+  const source = await readAssetFileIdentity(files, path, hashFile, current);
+  const observation = { path, size: source.bytes, sha256: source.sha256 };
+  const keyBytes = new TextEncoder().encode(JSON.stringify(["mini-own-music-v1", source, worker, OWN_RATE, OWN_MAX_SECONDS]));
+  const key = [...new Uint8Array(await crypto.subtle.digest("SHA-256", keyBytes))].map(v => v.toString(16).padStart(2, "0")).join(""); current();
+  let grid: any, fallback: any, fallbackFailure: any;
+  const verify = async (file: string) => {
+    const bytes = await readBundledAssetBytes(files, file, 4 * 1024 * 1024, current);
+    grid = validateMiniOwnGrid(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes))); current();
+  };
+  try {
+    await prepareDerivedAsset(files, { directory: files.join(data, "own-music"), key, sourcePath: path, source, extension: "json", cleanupRequired: true, signal,
+      isCurrent: () => { current(); return true; }, hashFile, verify,
+      produce: async (snapshot: string, target: string) => {
+        let samples: Float32Array | null = null;
+        try {
+          samples = await decodeAssetPcm(client, { path: snapshot, directory: data, rate: OWN_RATE, maxSeconds: OWN_MAX_SECONDS, signal, timeoutMs: 120000, isCurrent: () => { current(); return true; } }); current();
+          const result = await analyseBeat(worker, samples, signal, BEAT_TIMEOUT_MS, () => { current(); return true; }); current();
+          grid = validateMiniOwnGrid(result);
+          if (Math.abs(grid.durationSeconds - samples.length / OWN_RATE) > .001) throw bundledAssetIssue("ANALYSIS_RESULT", "The music analysis duration does not match its samples.");
+        } catch (error: any) {
+          current();
+          if (error?.terminal || error?.preserveTemporaryFiles || error?.code === "host-missing") throw error;
+          // Fixed timing is allowed only with a known duration of this verified
+          // snapshot. A transient decoder/Worker failure is never cached.
+          const decoded = samples?.length ? samples.length / OWN_RATE : null;
+          const duration = decoded ?? await hostProbeSeconds(snapshot, client, signal); current();
+          if (!Number.isFinite(duration) || duration <= 0) throw error;
+          fallback = { accepted: false, grid: "none", failed: true, durationSeconds: Math.min(duration, OWN_MAX_SECONDS), peaks: [] };
+          fallbackFailure = bundledAssetIssue("ANALYSIS_FALLBACK", "Music analysis is unavailable; use fixed timing.", error);
+          throw fallbackFailure;
+        }
+        current(); await files.writeFile(target, JSON.stringify(grid)); current();
+      },
+    });
+  } catch (error) {
+    current();
+    if (error !== fallbackFailure) throw error;
+    grid = fallback;
+  }
+  await observeSourceFiles(files, [path], [observation]); current();
+  return { ...grid, sourceObservation: observation };
+}
+
+// The Resource reader returns the actual Project path (including its native
+// case/Unicode representation). Verify that path against the planned contents.
+async function admitMiniMusic(client: any, music: any, expected: any, sources: any[], bindings: any[], check: () => void) {
+  check();
+  if (typeof music?.resourceId !== "string" || !music.resourceId || typeof music?.path !== "string" || !music.path || !expected) throw bundledAssetIssue("METADATA", "The music source could not be confirmed.");
+  const [row] = await observeSourceFiles(client.files, [music.path], [{ ...expected, path: music.path }]); check();
+  const before = sources.find(value => value.path === row.path);
+  if (before && (before.size !== row.size || before.sha256 !== row.sha256)) throw bundledAssetIssue("CHANGED", "The selected music contents changed. Select the music again.");
+  if (!before) sources.push(row);
+  bindings.push({ resourceId: music.resourceId, path: music.path });
+}
+
 // A template run (Clip highlights hands the footage over in `context.template`) builds out of sight; anything else is
 // the panel.
 function Panel(props: any) {
@@ -5406,37 +5491,20 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;
     busyRef.current = true;
     setOwnMusic(file); setOwnGrid(null); setBusy(true); setStep("listening");
-    let samples: Float32Array | null = null;
     try {
-      samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal, 120000, client);
-      if (!samples) throw hostError("host-missing", "this Selects build cannot decode audio", "Runtime.runFFmpeg");
+      const g = await prepareMiniOwnMusic(client, file.path, roots.data, assets.beatWorker, abort.signal, live);
       if (!live()) return;
-      const g = await analyseBeat(assets.beatWorker, samples, abort.signal, BEAT_TIMEOUT_MS, live);
-      if (!live()) return;
-      if (!g || typeof g !== "object") throw uiError((l) => t(l, "beatFailed"));
       setOwnGrid(g);
-      // What was found is shown under the file (ownBeatLine), next to where the music was chosen.
-      setStatus(null);
+      setStatus(g.failed ? { tone: "info", say: (l: Lang) => t(l, "musicApprox", { detail: t(l, "beatFailed") }) } : null);
     } catch (e: any) {
       if (!live()) return;
-      // Unconfirmed cleanup cannot leave this track available for another build.
-      if (e?.terminal) {
-        setOwnMusic(null); setOwnGrid(null);
-        setStatus({ tone: "error", say: (l: Lang) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
-        return;
-      }
-      // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
-      let duration: number | null = samples && samples.length ? Math.round((samples.length / OWN_RATE) * 1000) / 1000 : null;
-      if (!duration) { const v = await hostProbeSeconds(file.path, client, abort.signal); if (v) duration = Math.min(v, OWN_MAX_SECONDS); }
-      if (!live()) return;
-      setOwnGrid({ accepted: false, grid: "none", failed: true, durationSeconds: duration, peaks: [] });
-      setStatus(duration
-        ? { tone: "info", say: (l: Lang) => t(l, "musicApprox", { detail: sayError(l, e) }) }
-        : { tone: "error", say: (l: Lang) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
+      // Source uncertainty and unconfirmed native cleanup cannot leave a track
+      // available for Build. Ordinary analysis fallback is resolved on the
+      // verified snapshot inside prepareMiniOwnMusic, before this handoff.
+      setOwnMusic(null); setOwnGrid(null);
+      setStatus({ tone: "error", say: (l: Lang) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
     } finally {
-      // The decoded samples (about 21 MB at most) are dropped with this call. Only the current job clears busy and the
-      // step: a cancelled one (Project switch, which resets them itself) must not end a build that started since.
-      samples = null;
+      // Only the current generation may release the UI after cancellation.
       if (ownJobRef.current.id === id) {
         ownJobRef.current.abort = null;
         busyRef.current = false; if (mountedRef.current) { setBusy(false); setStep(""); }
@@ -5594,6 +5662,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       const frozen = Object.freeze({
         pid, seed: nextSeed, preset, presetLabel: chosen.label, fields: { ...titleFields },
         music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? hostJoin(roots.plugin, "assets", "cues", cue.file) : null,
+        musicObservation: musicKind === "own" && ownGrid?.sourceObservation ? { ...ownGrid.sourceObservation } : null,
         musicCue: musicKind === "cue" ? { file: cue.file, bytes: cue.bytes, sha256: cue.sha256, duration: cue.duration } : null,
         sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,
         draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),
@@ -5618,6 +5687,11 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       const sourceBindings = chosenVideos.map((r: any) => ({ resourceId: r.rid, path: r.path }));
       await confirmMiniSourceBindings(sdk, pid, sourceBindings, check);
       const analysisSources = await observeSourceFiles(analysisClient.files, chosenVideos.map((r: any) => r.path)); check();
+      if (frozen.music === "own") {
+        if (frozen.musicObservation?.path !== frozen.musicPath) throw bundledAssetIssue("SOURCE", "Select the music again to confirm its analyzed contents.");
+        await observeSourceFiles(analysisClient.files, [frozen.musicPath], [frozen.musicObservation]); check();
+        if (!analysisSources.some(row => row.path === frozen.musicPath)) analysisSources.push(frozen.musicObservation);
+      }
       // Analysed clips get the scene search; clips without analysis the quick local check (build without analysis).
       const rids: string[] = chosenVideos.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);
       const localClips: any[] = chosenVideos.filter((r: any) => r.analysed === false);
@@ -5689,10 +5763,15 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
           failed ? t(l, "retryUnchecked", { count: failed }) : ""].filter(Boolean).join(t(l, "gap")));
       }
       advance("music", 0);
+      // Planning is synchronous but may be followed by a replaced source before
+      // the one import. Reconfirm the exact selection at this write boundary.
+      await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
+      const minimumSeconds = (frozen.sectionStart ?? 0) + plan.schedule.cuts.at(-1) + (plan.referenceCuts ? grid.referenceTail || 0 : 0);
       const music = frozen.musicPath == null ? null
-        : frozen.musicCue ? await prepareMiniCue(sdk, pid, roots.plugin, frozen.musicCue, (frozen.sectionStart ?? 0) + plan.schedule.cuts.at(-1) + (plan.referenceCuts ? grid.referenceTail || 0 : 0), check)
-        : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath, duration: frozen.musicDuration }), true);
+        : frozen.musicCue ? await prepareMiniCue(sdk, pid, roots.plugin, frozen.musicCue, minimumSeconds, check)
+        : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath, minimumSeconds, withPath: true }), true);
       check();
+      if (music) await admitMiniMusic(analysisClient, music, frozen.musicObservation ?? { size: frozen.musicCue.bytes, sha256: frozen.musicCue.sha256 }, analysisSources, sourceBindings, check); check();
       // Cut seconds from the section start: the grid, or the onset-snapped cuts (planner mvSchedule `cuts`).
       const boundaries: number[] = plan.schedule.cuts;
       advance("music", 1);
@@ -6533,6 +6612,7 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   say("Adding music");
   const music = await prepareMiniCue(sdk, pid, roots.plugin, cue, musicStart + plan.schedule.cuts.at(-1) + (plan.referenceCuts ? grid.referenceTail || 0 : 0), check);
   check();
+  await admitMiniMusic(analysisClient, music, { size: cue.bytes, sha256: cue.sha256 }, analysisSources, sourceBindings, check); check();
   say("Making the Draft");
   const crops = Object.fromEntries([...inventory.resources, ...inventory.photos.filter((r: any) => r.width > 0 && r.height > 0)]
     .map((r: any) => [r.rid, { width: r.width, height: r.height }]));

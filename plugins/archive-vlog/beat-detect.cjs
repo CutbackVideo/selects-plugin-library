@@ -1,3 +1,4 @@
+// Canonical numerical audio beat engine. Generated consumer copies; edit this shared source.
 'use strict';
 // Beat grid for Selects style apps (shared kit copy). Spectral-flux onsets, then the tempo and phase whose grid best meets them.
 // CLI: node beat-detect.cjs <mono-f32le-file> <sampleRate> [<out.json>]  -> one JSON line on stdout, or, with
