@@ -67,8 +67,10 @@ for(const plugin of ['mini-vlog','archive-vlog'])test(plugin+': Finish uses the 
   photoSizesRef:{current:{'selected-image':{width:1920,height:1080}}},
   mvPhotoMotions:(_picks,_seed,sizes)=>{seen.push(sizes);return [];},allFonts:async()=>({}),
   avDecorateConfig:options=>{seen.push(options.sizes);return {};},run:async()=>({link:null,openError:null}),sayError:(_lang,error)=>error.message});
- vm.runInContext(topLevel(plain,'decorate')+'\nthis.finish=decorate;',f.box);
- await f.box.finish({sequenceId:'result',videoEnd:60,fps:30,plan:f.plan,photoSizes:Object.freeze({'selected-image':Object.freeze({width:96,height:160})}),frozen:{seed:1,preset:'preset',fields:{},clipSound:'full',punch:false,soft:false,music:'none',look:{on:false},credit:{on:false}}},()=>{});
+ vm.runInContext(topLevel(plain,plugin==='mini-vlog'?'prepareMiniDecoration':'decorate')+'\nthis.finish='+(plugin==='mini-vlog'?'prepareMiniDecoration':'decorate')+';',f.box);
+ const result={sequenceId:'result',videoEnd:60,fps:30,plan:f.plan,photoSizes:Object.freeze({'selected-image':Object.freeze({width:96,height:160})}),frozen:{seed:1,preset:'preset',fields:{},clipSound:'full',punch:false,soft:false,music:'none',look:{on:false},credit:{on:false}}};
+ if(plugin==='mini-vlog'){const finishAssets=await f.box.snapshotMiniFinishAssets(f.box.assets,{preset:'preset'},'en',async()=>'',()=>{});await f.box.finish({...result,finishAssets}, {sequenceId:'result',totalFrames:60,fps:30},()=>{});}
+ else await f.box.finish(result,()=>{});
  assert.equal(seen.length,1);assert.deepEqual(JSON.parse(JSON.stringify(seen[0]['selected-image'])),{width:96,height:160});
 });
 for(const sources of [[],[{resourceId:'other',name:'Portrait',path:'/photo.png',width:96,height:160}],[{resourceId:'selected',name:'Portrait',path:'/photo.png',width:Infinity,height:160}]])test('Shared ID preflight: a partial or contradictory response cannot supply Image facts '+JSON.stringify(sources),async()=>{

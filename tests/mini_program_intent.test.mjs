@@ -56,13 +56,18 @@ test('Mini Finish: capability failure stops before any authoring',async()=>{
 });
 
 import {miniMusicFixture} from './mini_music_fixture.mjs';
-test('Mini selected entry: a lost decoration reply is never dispatched a second time',async t=>{
- const f=await miniMusicFixture(t),read=f.box.readText;let attempts=0;
- Object.assign(f.box,{PLUGIN_VERSION:'fixture',errorText:e=>e.message,executeTemplateAssembly:async()=>({sequenceId:'owned',fps:30,totalFrames:60}),presetFonts:()=>[],mvCurrentYear:()=>2026,TITLE_LOOK:{shadow:0,size:100,x:50,y:50},MOTION_OPTIONS:[],MOTION_STRENGTH:.5,SOFT_STRENGTH:.35,PUNCH_STRENGTH:.5,PUNCH_PUSH:.4,mvPunchFrames:()=>[],mvPhotoMotions:()=>[],tOr:(_lang,_key,label)=>label});
- f.box.readText=async(root,rel)=>rel==='assets/fonts/presets.json'?JSON.stringify({presets:[{id:'preset',label:'Preset',fields:[],colors:{primary:'#fff',secondary:'#000'}}],metrics:{}}):read(root,rel);
- const original=f.box.sdk.runScript;f.box.sdk.runScript=async input=>{if(input.summary==='Add title and look'){attempts++;return {isError:true,output:'transport disconnected after dispatch'};}return original(input);};
- let caught;try{await f.box.api.runMiniVlogTemplate(f.box.sdk,{projectId:'p',template:{runId:'lost-decoration',inputs:{footage:[{resourceId:'original-0',kind:'video'},{resourceId:'original-1',kind:'video'}]},options:{}}},()=>{},()=>{});}catch(error){caught=error;}
- assert.equal(attempts,1,'a missing reply does not prove the first save stopped');assert.equal(caught?.code,'TEMPLATE_DECORATION_PENDING');assert.equal(caught?.draftId,'owned');assert.ok(caught.cause);
+import {lookPhaseFixture} from './mini_look_fixture.mjs';
+test('Mini selected entry: restart observes a late look save without importing or dispatching it again',async t=>{
+ const f=await miniMusicFixture(t),phase=await lookPhaseFixture(t),log=await phase.open();await log.store(phase.root);
+ let release;const hold=new Promise(resolve=>release=resolve);phase.hooks.commit=(_id,reason)=>/title and look/.test(reason)?hold:null;phase.hooks.lostEarly=true;
+ f.box.openTemplateAssemblyContinuations=()=>phase.open();f.box.prepareMiniDecoration=phase.prepare;
+ const context={projectId:'p',template:{runId:phase.root.scope.runId}};
+ await assert.rejects(f.box.api.runMiniVlogTemplate(f.box.sdk,context,()=>{},()=>{}),e=>e.code==='TEMPLATE_RUN_PENDING'&&e.phase==='decoration'&&e.draftId==='d1');
+ await assert.rejects(f.box.api.runMiniVlogTemplate(f.box.sdk,context,()=>{},()=>{}),e=>e.code==='TEMPLATE_RUN_PENDING');
+ assert.equal(phase.requests.filter(r=>r.summary==='Decorate template with owned receipt').length,1);
+ assert.equal(phase.commits(),2);assert.equal(f.imports.length,0);assert.equal(f.scripts.length,0);
+ release();await Promise.all(phase.pending);phase.hooks.lostEarly=false;
+ const done=await f.box.api.runMiniVlogTemplate(f.box.sdk,context,()=>{},()=>{});assert.equal(done.sequenceId,'d1');assert.equal(phase.commits(),2);
 });
 test('Mini programs: unrelated effect content and order are preserved',async()=>{
  const f=fixture(),foreign={name:'User blur',effectName:'User blur',enabled:true,program:null};f.effects.set(1,[clone(foreign)]);f.soft();await f.run();assert.deepEqual(f.effects.get(1)[0],foreign);assert.equal(f.effects.get(1)[1].name,'Soft look');await f.run();assert.equal(f.commits(),1);

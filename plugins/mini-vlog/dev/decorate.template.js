@@ -60,6 +60,7 @@ const motions=applied.effects[MOTION_LABEL].added,motionsKept=applied.effects[MO
 const punchAdded=applied.effects[PUNCH_LABEL].added,punchKept=applied.effects[PUNCH_LABEL].kept;
 const hasTitle=applied.graphicsKept===1;
 const committed=muted||!hasTitle||effects>0||motions>0||punchAdded>0;
+if(typeof cfg.__beforeCommit==='function')await cfg.__beforeCommit(d,committed);
 if(committed)await d.commitAll('Mini Vlog: title and look');
 const out={title:true,titleAdded:!hasTitle,effects,effectsKept,muted,muteKept,committed,alreadyDone:!committed,
   ...(cfg.punch?{punch:{added:punchAdded,kept:punchKept,skipped:punchSkipped}}:{})};

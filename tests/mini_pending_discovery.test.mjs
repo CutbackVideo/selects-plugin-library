@@ -6,7 +6,7 @@ test('Mini remount: Build finds the original durable attempt before planning or 
  const f=await miniMusicFixture(t,{entry:'panel',silent:true}),calls=[];
  const original={scope:{pluginId:'mini-vlog',libraryId:'library',projectId:'p',runId:'original-run'},config:{projectId:'p'},source:'original',frozen:{pid:'p',seed:7},photoSizes:{},plan:{shots:2},fitted:2,unchecked:0,quickUnavailable:false};
  f.box.assemblyPendingRef.current={};
- Object.assign(f.box,{openAssemblyContinuations:async()=>({read:async()=>{calls.push('discover');return original;},run:async pending=>{calls.push('confirm');assert.equal(pending,original);return {sequenceId:'owned-before-close',totalFrames:60,fps:30,notes:[]};}}),decorate:async res=>calls.push(['decorate',res.sequenceId,res.frozen.seed])});
+ Object.assign(f.box,{openAssemblyContinuations:async()=>({read:async()=>{calls.push('discover');return original;},workflow:async (pending,prepare)=>{calls.push('confirm');assert.equal(pending,original);const a={sequenceId:'owned-before-close',totalFrames:60,fps:30,notes:[]};await prepare(pending,a);return a;}}),prepareMiniDecoration:async (pending,res)=>{calls.push(['decorate',res.sequenceId,pending.frozen.seed]);return {};}});
  await f.box.api.build(99);
  assert.deepEqual(calls,['discover','confirm',['decorate','owned-before-close',7]]);
  assert.equal(f.saved.length,0,'no new assembly dispatch');assert.equal(f.imports.length,0,'no new music import');

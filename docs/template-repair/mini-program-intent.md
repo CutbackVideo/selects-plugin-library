@@ -67,6 +67,9 @@ locales. No missing reply authorizes an automatic second save.
 
 ## Still required
 
+Later checkpoint: `mini-look-phase.md` addresses the phase ownership/restart gaps
+below. This section preserves the limits of the original #321 evidence.
+
 This is program-intent reconciliation, not durable look-phase ownership.
 Standalone Finish still needs an owned phase receipt, exact original recipe,
 post-save confirmation and restart/partial-failure handling. Its old failure text

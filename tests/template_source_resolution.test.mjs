@@ -47,7 +47,7 @@ function caller(plugin){
  const module={exports:{}};
  const cue={id:'cue'},presets={presets:[{id:'preset',label:'Preset'}]},manifest={cues:[cue]};
  vm.runInNewContext(esbuild.transformSync(source,{loader:'ts',format:'cjs',target:'es2022'}).code,{
-  module,exports:module.exports,resolveTemplateMedia:inputFeature.resolveTemplateMedia,validateTemplateMediaResult:inputFeature.validateTemplateMediaResult,nativeImageSources:inputFeature.nativeImageSources,nativeImageSourcesById:inputFeature.nativeImageSourcesById,
+  module,exports:module.exports,openTemplateAssemblyContinuations:async()=>({read:async()=>null}),panelLocalClient:()=>({files:{}}),PLUGIN_ID:plugin,resolveTemplateMedia:inputFeature.resolveTemplateMedia,validateTemplateMediaResult:inputFeature.validateTemplateMediaResult,nativeImageSources:inputFeature.nativeImageSources,nativeImageSourcesById:inputFeature.nativeImageSourcesById,
   setTimeout:fn=>fn(),console:{warn(){}},DEFAULT_CUE:'cue',PREFERRED_CUE:'cue',DEFAULT_PRESET:'preset',DEFAULT_LENGTH:'standard',TEMPLATE_ALIAS_BATCH:6,
   uiLang:()=> 'en',locateRoots:async()=>({plugin:'/installed'}),avPreset:()=>presets.presets[0],
   loadAssets:async()=>({manifest,presets,scripts:{inventoryJs:'inventory'}}),

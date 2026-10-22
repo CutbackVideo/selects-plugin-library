@@ -190,7 +190,7 @@ for (const [k, v] of [['pace.quick', 'Quick'], ['pace.relaxed', 'Relaxed'], ['pa
 // labels, the kit runtime pasted unchanged, and no literal UI text left in JSX.
 // The panel UI is MiniVlogPanel; Panel only hands a Clip highlights run to TemplateRun.
 assert.ok(ui.includes('function MiniVlogPanel({ sdk, context, ui }: any) {\n  // The UI language, read on every render: Selects can switch languages while the panel is open.\n  const L = uiLang(context);'), 'L first in the component');
-assert.ok(ui.includes('const langRef = React.useRef(L);\n  langRef.current = L;') && ui.includes('const bl = langRef.current;'), 'Build-time language');
+assert.ok(ui.includes('const langRef = React.useRef(L);\n  langRef.current = L;') && ui.includes('language: Lang') && ui.includes('bl = assets.language'), 'Build-time language');
 {
   // Compared with the kit copy when it is available (SELECTS_APP_KIT, else ~/Workspaces/selects-app-kit); CI checks the markers only.
   const kit = path.join(process.env.SELECTS_APP_KIT || path.join(require('node:os').homedir(), 'Workspaces', 'selects-app-kit'), 'tools', 'i18n', 'i18n-runtime.ts');
@@ -199,7 +199,7 @@ assert.ok(ui.includes('const langRef = React.useRef(L);\n  langRef.current = L;'
   for (const s of ['function uiLang(context?: { language?: string | null } | null): Lang {', 'function t(lang: Lang, key: string, vars: Vars = {}): string {', 'function tOr(lang: Lang, key: string, fallback: string, vars: Vars = {}): string {', 'function fieldLen(text: string): number {']) assert.ok(panel.includes(s), s);
   if (fs.existsSync(kit)) assert.ok(panel.includes(fs.readFileSync(kit, 'utf8').trimEnd()), 'runtime identical to the kit copy');
 }
-assert.ok(!/>[ \t]*[A-Z][a-z]+(?: [a-z]+)*[.…]?[ \t]*</.test(ui), 'no literal English text between JSX tags');
+assert.ok(!/<[A-Za-z][\w.]*\b[^>]*>[ \t]*[A-Z][a-z]+(?: [a-z]+)*[.…]?[ \t]*<\//.test(ui), 'no literal English text between JSX tags');
 assert.ok(!/(?:label|title|aria-label|busyLabel)="[A-Z]/.test(ui), 'no literal English UI props');
 // Korean breaks between words; other languages keep their own line breaking (keep-all would stop ja/zh wrapping).
 assert.ok(ui.includes('<div style={{ wordBreak: L === "ko" ? "keep-all" : undefined }}>'), 'keep-all for Korean');
@@ -298,7 +298,7 @@ for (const s of ['const grooved = pace === "groove" && (tempo ? !!guard.groove :
   't(L, "grooveOneBeat", { bpm: Math.round(tempo) })', 't(L, "grooveTwoBeats", { bpm: Math.round(tempo) })']) assert.ok(ui.includes(s), s);
 says('grooveOneBeat', 'Groove opens phrases with 1 beat'); says('grooveTwoBeats', 'Groove uses 2 beats per shot');
 assert.ok(!/fitted \* shotSeconds\)\.toFixed|requested \* shotSeconds\)\.toFixed|readyPlan\.shots \* shotSeconds|plannedShots \* shotSeconds/.test(ui), 'no shots x shotSeconds lines left');
-assert.ok(ui.includes('const shortened = planShort(plan) ?') && ui.includes('readyPlan && readyPlan.ok && planShort(readyPlan)'), 'footage shortfall compares Groove beat spans');
+assert.ok(ui.includes('shortened: planShort(plan)') && ui.includes('const shortened = pending.shortened ?') && ui.includes('readyPlan && readyPlan.ok && planShort(readyPlan)'), 'footage shortfall compares Groove beat spans');
 // Start at the hook (spec 15.3): the default section is the hook window when the toggle is on and the cue has scores.
 assert.ok(ui.includes('hookBars: cue.hookBars || null') && ui.includes('const hookSection = () => (hook && gridded && musicKind === "cue" ? mvHookSection({ hookBars: grid.hookBars, hookBar: grid.hookBar, firstBeat: grid.firstBeat, bpm: grid.bpm, usableEnd: grid.usableEnd, videoSeconds, barPhaseBeats: cue?.barPhaseBeats }) : null);'), 'hook section from the manifest');
 assert.ok(/const hookAt = hookSection\(\);\s*setSection\(hookAt \?\? mvDefaultSection\(/.test(ui), 'falls back to the energy default');
@@ -361,6 +361,7 @@ for (const s of ['const PUNCH_STRENGTH = 1;', 'const PUNCH_PUSH = 1;']) assert.o
 // Orchestration: frozen inputs, project guard after every await, Draft id kept, recovery by owned receipt, one authoring dispatch.
 const build = ui.slice(ui.indexOf('async function build('), ui.indexOf('function buildAnother('));
 const decorate = ui.slice(ui.indexOf('async function decorate('), ui.indexOf('// Clip selection'));
+const decorationRecipe = ui.slice(ui.indexOf('async function prepareMiniDecoration('), ui.indexOf('function miniWorkflowResult('));
 const finish = ui.slice(ui.indexOf('async function finishTitle('), ui.indexOf('async function decorate('));
 assert.ok(build.includes('const frozen = Object.freeze({'), 'inputs frozen at Build');
 for (const body of [build, decorate]) {
@@ -371,15 +372,15 @@ for (const body of [build, decorate]) {
     assert.ok(/check\(\)|findCandidates\(|finishAssembly\(|throw e|\/\/ no project write/.test(next), 'project check after: ' + l.trim());
   });
 }
-assert.ok(ui.includes('const a = await continuations.run(pending);') && ui.includes('const a = await executeTemplateAssembly(sdk, panelLocalClient(sdk).files,'), 'standalone discovery and the selected-file entry both delegate to the shared owner');
+assert.ok(ui.includes('log.workflow(pending,') && ui.includes('continuations.workflow(pending,'), 'standalone discovery and the selected-file entry both delegate to the shared owner');
 assert.ok(build.includes('assemblyPendingRef.current[pid] = pending;') && build.includes('finishAssembly(pending, check, continuations)'), 'assembly dispatch belongs to its durable execution continuation');
 assert.ok(!ui.includes('findDraftByName'), 'Draft names never prove assembly ownership');
 // The readiness gate uses the seed each button builds with: Build = seed, Try other shots = seed + 1.
 assert.ok(ui.includes('planAt(seed)') && ui.includes('planAt(seed + 1)'), 'gates for both seeds');
 assert.ok(ui.includes('onClick={buildAnother} disabled={busy || !canBuildAnother}'), 'another version gated with seed + 1');
 assert.ok(build.includes('draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),'), 'Draft display name remains readable and independent of recovery identity');
-assert.ok(finish.includes('decorate(result, check)') && decorate.includes('const f = res.frozen;'), 'Finish title and look reuses the frozen inputs');
-says('draftNotFinished', 'title, look and clip sound are not applied yet'); says('finishFailed', 'Press Finish title and look to try again');
+assert.ok(finish.includes('decorate(result, check)') && decorate.includes('const pending = res.pending;') && decorationRecipe.includes('f = pending.frozen'), 'Finish title and look reuses the frozen inputs');
+says('draftNotFinished', 'awaiting confirmation'); assert.ok(en.finishFailed.includes('stopped before saving') && ui.includes('knownNoSave ? t(l, "finishFailed"'), 'only known pre-save failures invite Finish retry');
 assert.match(panel, /No valid session ID/);
 assert.ok(ui.includes('!allowCommit && /No valid session ID/'), 'only non-committing calls are resent');
 // A busy app: read-only calls ask for a longer deadline and retry host-busy / deadline failures after 5 s and 15 s,
@@ -419,7 +420,7 @@ assert.ok(/needsPoll = !!inventory && \(\(!!inventory\.incomplete && !incomplete
 // next to Build (blockReason), and build() refuses it; a later complete read clears the block.
 says('sizesLoading', 'Clip sizes are still loading\u2026');
 assert.ok(/const baseBlock: Say \| null = !inventory \|\| !assets \? null\s*: inventory\.incomplete \? \(l\) => t\(l, "sizesLoading"\)\s*:/.test(ui), 'incomplete blocks both buttons first');
-assert.ok(ui.includes('const canBuild = (assemblyDiscovery === "ready" && !!pendingAssembly && !!assets && !!roots) || (ready && !blockReason);') && ui.includes('const canBuildAnother = !pendingAssembly && ready && !anotherBlock;') && ui.includes('{blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}'), 'the block disables Build / another version and shows the hint');
+assert.ok(ui.includes('const canBuild = (assemblyDiscovery === "ready" && !!pendingAssembly) || (ready && !blockReason);') && ui.includes('const canBuildAnother = !pendingAssembly && ready && !anotherBlock;') && ui.includes('{blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}'), 'the block disables Build / another version and shows the hint');
 assert.ok(build.includes('!inventory || inventory.incomplete ||'), 'build() refuses an incomplete inventory');
 // Incomplete polling is capped: INCOMPLETE_POLL_MAX (6) consecutive incomplete reads stop it with a Refresh hint;
 // a complete read, a Project switch or Refresh restart the count.
@@ -434,27 +435,26 @@ says('stillReading', "Still reading this Project's clips"); says('noFootage', 'N
 assert.ok(ui.includes('checkAnalysis: false }), false, { wanted })') && ui.includes('const wanted = () => { try { check(); return true; } catch { return false; } };'), 'scene retries retain the caller run/cancel predicate');
 // Refresh stays available after a failure; a later successful read clears the error (Build is gated only by the inventory).
 assert.ok(ui.includes('disabled={busy || !assets} onClick={refreshInventory}>{t(L, "refresh")}<') && ui.includes('setInventory(inv); setInvError(null);'), 'Refresh stays enabled; success clears the error');
-for (const s of ['run("Add title and look"', 'run("Add music to the project"']) assert.ok(new RegExp(s.replace(/[()]/g, '\\$&') + '[^;]*, true\\);').test(ui), s + ' is a commit call');
-// decorate cfg (scripts lane contract).
-assert.ok(decorate.includes('fill(assets.scripts.decorateJs, { sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, '
-  + 'soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch, labels })'), 'decorate cfg');
+assert.ok(/run\("Add music to the project"[^;]*, true\)/.test(ui), 'music import is a commit call');
+assert.ok(decorationRecipe.includes('config: { projectId: f.pid, sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd,'), 'decoration recipe binds Project, Draft, mute and exact duration');
+assert.ok(decorationRecipe.includes('photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch, labels'), 'decoration recipe retains photo/effect policy');
 // Inspector labels in the Build-time language (bl): title parameters, motion options and the effects' labels (decorate.js
 // cfg.labels). The effect and graphic names stay English in decorate.js.
-assert.ok(decorate.includes('const motionOptions = MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }));'), 'motion options by value');
-assert.ok(decorate.includes('const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), punch: t(bl, "param.punch"), softness: t(bl, "param.softness") };'), 'effect labels');
+assert.ok(decorationRecipe.includes('const motionOptions = MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }));'), 'motion options by value');
+assert.ok(decorationRecipe.includes('const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), punch: t(bl, "param.punch"), softness: t(bl, "param.softness") };'), 'effect labels');
 for (const [k, v] of [['param.mainColor', 'Main color'], ['param.secondColor', 'Second color'], ['param.shadow', 'Shadow'], ['param.size', 'Size (%)'], ['param.x', 'Horizontal position (%)'],
   ['param.y', 'Vertical position (%)'], ['param.sparkles', 'Sparkles'], ['param.stars', 'Stars'], ['param.motion', 'Motion'], ['param.motionStrength', 'Motion strength'], ['param.punch', 'Punch'], ['param.softness', 'Softness']]) says(k, v);
-assert.ok(decorate.includes('label: tOr(bl, "field." + p.id + "." + fl.key, fl.label)'), 'field labels in the Build-time language');
+assert.ok(decorationRecipe.includes('label: tOr(bl, "field." + p.id + "." + fl.key, fl.label)'), 'field labels in the Build-time language');
 family('motion', { 'push-in': 'Push in', 'pull-out': 'Pull out', 'drift-left': 'Drift left', 'drift-right': 'Drift right', 'drift-up': 'Drift up', 'drift-down': 'Drift down', tilt: 'Tilt', 'push-drift': 'Push and drift' });
 for (const o of /const MOTION_OPTIONS = (\[[^]*?\]);/.exec(panel)[1].match(/\{ label: "[^"]+", value: "[^"]+" \}/g)) { const m = /label: "([^"]+)", value: "([^"]+)"/.exec(o); assert.equal(en['motion.' + m[2]], m[1], 'motion.' + m[2] + ' matches MOTION_OPTIONS'); }
-assert.ok(decorate.includes('const punch = f.punch ? { tsx: assets.punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: f.bpm ? 60 / f.bpm * res.fps : 0,')
-  && decorate.includes('punchFrames: mvPunchFrames({ bpm: f.bpm, fps: res.fps, sectionStart: f.sectionStart, videoEnd: res.videoEnd }), picks: res.plan.picks } : null;'), 'Beat punch cfg at the real fps, off -> null');
+assert.ok(decorationRecipe.includes('const punch = f.punch ? { tsx: assets.punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: f.bpm ? 60 / f.bpm * res.fps : 0,')
+  && decorationRecipe.includes('punchFrames: mvPunchFrames({ bpm: f.bpm, fps: res.fps, sectionStart: f.sectionStart, videoEnd: res.videoEnd }), picks: res.plan.picks } : null;'), 'Beat punch cfg at the real fps, off -> null');
 assert.ok(build.includes('sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,'), 'punch, hook (bundled tracks only) and the grid tempo are frozen');
-assert.ok(decorate.includes('seed: f.seed, clipSound: f.clipSound, punch: f.punch, hook: f.hook, groove: res.plan.groove || null, picks: res.plan.picks } };'), 'A/B provenance');
+assert.ok(decorationRecipe.includes('seed: f.seed, clipSound: f.clipSound, punch: f.punch, hook: f.hook, groove: res.plan.groove || null, picks: res.plan.picks } };'), 'A/B provenance');
 assert.ok(!/titleEnd|warm/i.test(ui), 'no titleEnd / warm');
 assert.ok(!/titleSlots|montageShots|burst|line1|connector/.test(ui), 'no CWV title burst or lines');
-assert.ok(decorate.includes('mvPhotoMotions(res.plan.picks, String(f.seed), sizes)'), 'photo motions without titleSlots');
-assert.ok(decorate.includes('Math.max(MV_W / sz.width, MV_H / sz.height) / Math.min(MV_W / sz.width, MV_H / sz.height)'), '16:9 cover scale');
+assert.ok(decorationRecipe.includes('mvPhotoMotions(res.plan.picks, String(f.seed), sizes)'), 'photo motions without titleSlots');
+assert.ok(decorationRecipe.includes('Math.max(MV_W / sz.width, MV_H / sz.height) / Math.min(MV_W / sz.width, MV_H / sz.height)'), '16:9 cover scale');
 // Title parameters: flat keys, fonts with metrics (only the preset's), editable Adjust items.
 for (const s of ['presets.metrics[x.family]', '...flat', 'fields: { ...flat }', 'type: "boolean"', 'key: "sparkles"', 'key: "primary"', 'key: "secondary"', 'key: "shadow"', 'key: "size"', 'key: "x"', 'key: "y"']) assert.ok(ui.includes(s), s);
 for (const m of ['push-in', 'pull-out', 'drift-left', 'drift-right', 'drift-up', 'drift-down', 'tilt', 'push-drift']) assert.ok(panel.includes('value: "' + m + '"'), 'motion option ' + m);

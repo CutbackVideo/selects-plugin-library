@@ -5,7 +5,7 @@ import {miniMusicFixture} from './mini_music_fixture.mjs';
 test('Mini Build: a lost assembly reply cannot adopt a same-name unrelated Draft',async t=>{
  const f=await miniMusicFixture(t,{entry:'panel',silent:true}),adopted=[];let lookups=0;
  Object.assign(f.box,{findDraftByName:async()=>{lookups++;return {sequenceId:'unrelated-draft',fps:30,totalFrames:60};},planShort:()=>false,
-  decorate:async result=>{adopted.push(result.sequenceId);},setResult:()=>{}});
+  prepareMiniDecoration:async (_pending,result)=>{adopted.push(result.sequenceId);return {};},setResult:()=>{}});
  await f.box.api.build(1);
  assert.equal(f.saved.length,1,'the actual Build reached assembly dispatch');
  assert.deepEqual(adopted,[],'never decorate a Draft identified only by its name');
@@ -71,12 +71,12 @@ test('Mini assembly receipt: a late Main receipt completes an unknown dispatch w
 
 test('Mini Build: receipt-confirmed ID alone reaches decoration',async t=>{
  const f=await miniMusicFixture(t,{entry:'panel',silent:true}),seen=[];
- Object.assign(f.box,{executeTemplateAssembly:async(_sdk,_files,scope,config,_source,current)=>{assert.equal(scope.projectId,'p');assert.match(scope.runId,/^[a-f0-9-]{36}$/);assert.equal(config.picks.length,2);assert.equal(current(),true);return {sequenceId:'owned',fps:30,totalFrames:60,notes:[]};},decorate:async r=>seen.push(r)});
+ Object.assign(f.box,{executeTemplateAssembly:async(_sdk,_files,scope,config,_source,current)=>{assert.equal(scope.projectId,'p');assert.match(scope.runId,/^[a-f0-9-]{36}$/);assert.equal(config.picks.length,2);assert.equal(current(),true);return {sequenceId:'owned',fps:30,totalFrames:60,notes:[]};},prepareMiniDecoration:async (pending,r)=>{seen.push({...r,pending});return {};}});
  await f.box.api.build(1);assert.equal(seen.length,1);assert.equal(seen[0].sequenceId,'owned');assert.equal(Object.keys(f.box.assemblyPendingRef.current).length,0);
 });
 test('Mini Build: pending confirmation retries the same owner and frozen request without new planning',async t=>{
  const f=await miniMusicFixture(t,{entry:'panel',silent:true}),seen=[],decorated=[];
- Object.assign(f.box,{executeTemplateAssembly:async(_sdk,_files,scope,config)=>{seen.push({scope,config});if(seen.length===1)throw Object.assign(Error('pending'),{code:'TEMPLATE_RUN_PENDING'});return {sequenceId:'owned',fps:30,totalFrames:60,notes:[]};},decorate:async r=>decorated.push(r)});
+ Object.assign(f.box,{executeTemplateAssembly:async(_sdk,_files,scope,config)=>{seen.push({scope,config});if(seen.length===1)throw Object.assign(Error('pending'),{code:'TEMPLATE_RUN_PENDING'});return {sequenceId:'owned',fps:30,totalFrames:60,notes:[]};},prepareMiniDecoration:async (pending,r)=>{decorated.push({...r,frozen:pending.frozen});return {};}});
  await f.box.api.build(1);assert.equal(seen.length,1);const before=f.scripts.length;f.box.inventorySnapshotRef.current=null;await f.box.api.build(2);
  assert.equal(seen.length,2);assert.equal(seen[0].scope,seen[1].scope);assert.equal(seen[0].config,seen[1].config);assert.equal(f.scripts.length,before);assert.equal(decorated[0].frozen.seed,1);assert.equal(Object.keys(f.box.assemblyPendingRef.current).length,0);
 });

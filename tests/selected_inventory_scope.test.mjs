@@ -16,7 +16,7 @@ function fixture(plugin){
  const cue={id:'cue'},presets={presets:[{id:'preset',label:'Preset'}]},manifest={cues:[cue]};
  const selected=[{resourceId:'original-0',kind:'video'},{resourceId:'original-1',kind:'video'}];
  const sdk={runScript:async input=>{calls.push(input);assert.equal(input.allowCommit,false,'catalog must never commit');await hooks.before?.(calls.length);const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects:{project:()=>project}});await hooks.after?.(calls.length,result);return {result};}};
- const box=vm.createContext({TextEncoder,setTimeout,clearTimeout,console:{warn(){}},sdk,DEFAULT_CUE:'cue',PREFERRED_CUE:'cue',DEFAULT_PRESET:'preset',DEFAULT_LENGTH:'standard',DEFAULT_PACE:'quick',DEFAULT_PUNCH:true,TEMPLATE_ALIAS_BATCH:6,INVENTORY_MEASURE_MS:0,
+ const box=vm.createContext({openTemplateAssemblyContinuations:async()=>({read:async()=>null}),panelLocalClient:()=>({files:{}}),PLUGIN_ID:plugin,TextEncoder,setTimeout,clearTimeout,console:{warn(){}},sdk,DEFAULT_CUE:'cue',PREFERRED_CUE:'cue',DEFAULT_PRESET:'preset',DEFAULT_LENGTH:'standard',DEFAULT_PACE:'quick',DEFAULT_PUNCH:true,TEMPLATE_ALIAS_BATCH:6,INVENTORY_MEASURE_MS:0,
   TEMPLATE_ALIAS_JS:'resolve original inputs',EMPTY_READ:/Cannot read properties of (undefined|null)|is not iterable/,
   locateRoots:async()=>({plugin:'/installed'}),uiLang:()=> 'en',t:(_lang,key)=>key,uiError:say=>Error(say('en')),avPreset:()=>presets.presets[0],
   loadAssets:async()=>({manifest,presets,scripts:{inventoryJs:script}}),readText:async(_root,rel)=>rel==='scripts/inventory.js'?script:JSON.stringify(rel.includes('presets')?presets:manifest),

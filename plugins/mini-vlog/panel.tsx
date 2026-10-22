@@ -156,12 +156,12 @@ const STRINGS = {
     beatFailed: "beat detection failed",
     previewFailed: "Could not play a preview: {detail}.",
     noAudio: "no audio came back",
-    finishFailed: "The Draft was created, but its title, look and clip sound are not applied yet: {detail}. Press Finish title and look to try again.",
+    finishFailed: "This title, look and clip sound attempt stopped before saving: {detail}. Press Finish title and look to try again.",
     finishUnconfirmed: "The Draft exists, but its title and look could not be confirmed. Inspect the Draft before starting another run.",
     openFailed: "The Draft is ready, but it could not be opened: {detail}. Use the link below or open it from the Drafts list.",
     draftCreated: "Draft created. Select the title to edit its words, colors, size or position, a clip to adjust its crop, softness, motion or sound level, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft created; adding title and look…",
-    draftNotFinished: "Draft created, but its title, look and clip sound are not applied yet.",
+    draftNotFinished: "Draft created; title, look and clip sound are awaiting confirmation.",
     openDraft: "Open the new Draft",
     copyLink: "Copy the link to the new Draft",
     shortened: { one: "Your footage fits {fitted} of {count} shot, so this video is about {seconds} s. Add more clips or photos for the full length.", other: "Your footage fits {fitted} of {count} shots, so this video is about {seconds} s. Add more clips or photos for the full length." },
@@ -334,12 +334,12 @@ const STRINGS = {
     beatFailed: "Beat-Erkennung fehlgeschlagen",
     previewFailed: "Die Vorschau konnte nicht abgespielt werden: {detail}.",
     noAudio: "es kam kein Audio zurück",
-    finishFailed: "Der Draft wurde erstellt, aber Titel, Look und Clip-Ton sind noch nicht angewendet: {detail}. Klicke auf „Titel und Look fertigstellen“, um es erneut zu versuchen.",
+    finishFailed: "Dieser Versuch für Titel, Look und Clip-Ton wurde vor dem Speichern beendet: {detail}. Klicke auf „Titel und Look fertigstellen“, um es erneut zu versuchen.",
     finishUnconfirmed: "Der Draft ist vorhanden, aber Titel und Look konnten nicht bestätigt werden. Prüfe den Draft, bevor du einen weiteren Durchlauf startest.",
     openFailed: "Der Draft ist fertig, konnte aber nicht geöffnet werden: {detail}. Nutze den Link unten oder öffne ihn in der Draft-Liste.",
     draftCreated: "Draft erstellt. Wähle den Titel, um Wörter, Farben, Größe oder Position zu bearbeiten, einen Clip, um Zuschnitt, Weichheit, Bewegung oder Lautstärke anzupassen, und die Musik, um ihre Lautstärke zu ändern. Ein neuer Build erstellt einen neuen Draft und übernimmt keine Änderungen aus dem Inspektor.",
     draftCreatedAdding: "Draft erstellt; Titel und Look werden hinzugefügt …",
-    draftNotFinished: "Draft erstellt, aber Titel, Look und Clip-Ton sind noch nicht angewendet.",
+    draftNotFinished: "Draft erstellt; Titel, Look und Clip-Ton warten auf Bestätigung.",
     openDraft: "Neuen Draft öffnen",
     copyLink: "Link zum neuen Draft kopieren",
     shortened: { one: "Dein Material reicht für {fitted} von {count} Einstellung, daher ist dieses Video etwa {seconds} s lang. Füge mehr Clips oder Fotos für die volle Länge hinzu.", other: "Dein Material reicht für {fitted} von {count} Einstellungen, daher ist dieses Video etwa {seconds} s lang. Füge mehr Clips oder Fotos für die volle Länge hinzu." },
@@ -512,12 +512,12 @@ const STRINGS = {
     beatFailed: "falló la detección del ritmo",
     previewFailed: "No se pudo reproducir la vista previa: {detail}.",
     noAudio: "no se recibió audio",
-    finishFailed: "El Draft se creó, pero aún no se aplicaron el título, el look ni el sonido de los clips: {detail}. Pulsa «Terminar título y look» para intentarlo de nuevo.",
+    finishFailed: "Este intento de título, look y sonido se detuvo antes de guardar: {detail}. Pulsa «Terminar título y look» para reintentarlo.",
     finishUnconfirmed: "El Draft existe, pero no se pudieron confirmar el título y el look. Revisa el Draft antes de iniciar otra ejecución.",
     openFailed: "El Draft está listo, pero no se pudo abrir: {detail}. Usa el enlace de abajo o ábrelo desde la lista de Drafts.",
     draftCreated: "Draft creado. Selecciona el título para editar sus palabras, colores, tamaño o posición; un clip para ajustar su encuadre, suavidad, movimiento o volumen; y la música para cambiar su volumen. Volver a crear genera un nuevo Draft y no conserva los cambios del Inspector.",
     draftCreatedAdding: "Draft creado; añadiendo título y look…",
-    draftNotFinished: "Draft creado, pero aún no se aplicaron el título, el look ni el sonido de los clips.",
+    draftNotFinished: "Draft creado; título, look y sonido pendientes de confirmación.",
     openDraft: "Abrir el nuevo Draft",
     copyLink: "Copiar el enlace al nuevo Draft",
     shortened: { one: "Tu material alcanza para {fitted} de {count} plano, así que este vídeo dura unos {seconds} s. Añade más clips o fotos para la duración completa.", many: "Tu material alcanza para {fitted} de {count} de planos, así que este vídeo dura unos {seconds} s. Añade más clips o fotos para la duración completa.", other: "Tu material alcanza para {fitted} de {count} planos, así que este vídeo dura unos {seconds} s. Añade más clips o fotos para la duración completa." },
@@ -690,12 +690,12 @@ const STRINGS = {
     beatFailed: "la détection du rythme a échoué",
     previewFailed: "Impossible de lire l'aperçu : {detail}.",
     noAudio: "aucun son n'a été renvoyé",
-    finishFailed: "Le Draft a été créé, mais le titre, le look et le son des clips ne sont pas encore appliqués : {detail}. Appuyez sur « Terminer le titre et le look » pour réessayer.",
+    finishFailed: "Cette tentative de titre, look et son des clips s’est arrêtée avant l’enregistrement : {detail}. Appuyez sur « Terminer le titre et le look » pour réessayer.",
     finishUnconfirmed: "Le Draft existe, mais le titre et le look n’ont pas pu être confirmés. Vérifiez le Draft avant de lancer une autre exécution.",
     openFailed: "Le Draft est prêt, mais n'a pas pu être ouvert : {detail}. Utilisez le lien ci-dessous ou ouvrez-le depuis la liste des Drafts.",
     draftCreated: "Draft créé. Sélectionnez le titre pour modifier ses mots, ses couleurs, sa taille ou sa position, un clip pour ajuster son cadrage, sa douceur, son mouvement ou son volume, et la musique pour changer son volume. Recréer génère un nouveau Draft et ne conserve pas les modifications de l'Inspecteur.",
     draftCreatedAdding: "Draft créé ; ajout du titre et du look…",
-    draftNotFinished: "Draft créé, mais le titre, le look et le son des clips ne sont pas encore appliqués.",
+    draftNotFinished: "Draft créé ; titre, look et son des clips en attente de confirmation.",
     openDraft: "Ouvrir le nouveau Draft",
     copyLink: "Copier le lien vers le nouveau Draft",
     shortened: { one: "Vos images suffisent pour {fitted} sur {count} plan : cette vidéo dure donc environ {seconds} s. Ajoutez des clips ou des photos pour la durée complète.", many: "Vos images suffisent pour {fitted} sur {count} de plans : cette vidéo dure donc environ {seconds} s. Ajoutez des clips ou des photos pour la durée complète.", other: "Vos images suffisent pour {fitted} sur {count} plans : cette vidéo dure donc environ {seconds} s. Ajoutez des clips ou des photos pour la durée complète." },
@@ -868,12 +868,12 @@ const STRINGS = {
     beatFailed: "rilevamento del ritmo non riuscito",
     previewFailed: "Impossibile riprodurre l'anteprima: {detail}.",
     noAudio: "non è stato restituito alcun audio",
-    finishFailed: "Il Draft è stato creato, ma titolo, look e audio delle clip non sono ancora applicati: {detail}. Premi «Completa titolo e look» per riprovare.",
+    finishFailed: "Questo tentativo di titolo, look e audio si è fermato prima del salvataggio: {detail}. Premi «Completa titolo e look» per riprovare.",
     finishUnconfirmed: "Il Draft esiste, ma titolo e look non sono stati confermati. Controlla il Draft prima di avviare una nuova esecuzione.",
     openFailed: "Il Draft è pronto, ma non è stato possibile aprirlo: {detail}. Usa il link qui sotto o aprilo dall'elenco dei Draft.",
     draftCreated: "Draft creato. Seleziona il titolo per modificarne parole, colori, dimensione o posizione, una clip per regolarne inquadratura, morbidezza, movimento o volume, e la musica per cambiarne il volume. Ricreare genera un nuovo Draft e non mantiene le modifiche dell'Inspector.",
     draftCreatedAdding: "Draft creato; aggiunta di titolo e look…",
-    draftNotFinished: "Draft creato, ma titolo, look e audio delle clip non sono ancora applicati.",
+    draftNotFinished: "Draft creato; titolo, look e audio in attesa di conferma.",
     openDraft: "Apri il nuovo Draft",
     copyLink: "Copia il link al nuovo Draft",
     shortened: { one: "Il tuo materiale basta per {fitted} di {count} inquadratura, quindi questo video dura circa {seconds} s. Aggiungi altre clip o foto per la durata completa.", many: "Il tuo materiale basta per {fitted} di {count} di inquadrature, quindi questo video dura circa {seconds} s. Aggiungi altre clip o foto per la durata completa.", other: "Il tuo materiale basta per {fitted} di {count} inquadrature, quindi questo video dura circa {seconds} s. Aggiungi altre clip o foto per la durata completa." },
@@ -1046,12 +1046,12 @@ const STRINGS = {
     beatFailed: "ビートの検出に失敗しました",
     previewFailed: "プレビューを再生できませんでした: {detail}。",
     noAudio: "音声が返されませんでした",
-    finishFailed: "Draft は作成されましたが、タイトル・ルック・クリップの音はまだ適用されていません: {detail}。「タイトルとルックを仕上げる」を押して再試行してください。",
+    finishFailed: "今回のタイトル・ルック・クリップ音の処理は保存前に停止しました: {detail}。「タイトルとルックを仕上げる」で再試行できます。",
     finishUnconfirmed: "Draft は存在しますが、タイトルとルックを確認できませんでした。次の実行を始める前に Draft を確認してください。",
     openFailed: "Draft の準備はできましたが、開けませんでした: {detail}。下のリンクを使うか、Draft 一覧から開いてください。",
     draftCreated: "Draft を作成しました。タイトルを選ぶと文字・色・サイズ・位置を、クリップを選ぶと切り抜き・ソフトさ・モーション・音量を、音楽を選ぶと音量を変更できます。作り直すと新しい Draft が作成され、インスペクタでの編集は引き継がれません。",
     draftCreatedAdding: "Draft を作成しました。タイトルとルックを追加中…",
-    draftNotFinished: "Draft は作成されましたが、タイトル・ルック・クリップの音はまだ適用されていません。",
+    draftNotFinished: "Draft は作成済みです。タイトル・ルック・クリップ音の保存結果を確認しています。",
     openDraft: "新しい Draft を開く",
     copyLink: "新しい Draft へのリンクをコピー",
     shortened: { other: "素材で作れるのは {count} ショット中 {fitted} ショットのため、この動画は約 {seconds} 秒です。フルの長さにするにはクリップか写真を追加してください。" },
@@ -1224,12 +1224,12 @@ const STRINGS = {
     beatFailed: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4",
     previewFailed: "\ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}.",
     noAudio: "\uc624\ub514\uc624\uac00 \ub3cc\uc544\uc624\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
-    finishFailed: "Draft\ub294 \ub9cc\ub4e4\uc5c8\uc9c0\ub9cc \ud0c0\uc774\ud2c0, \uc0c9\uac10, \ud074\ub9bd \uc18c\ub9ac\uac00 \uc544\uc9c1 \uc801\uc6a9\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4: {detail}. ‘\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac’\ub97c \ub20c\ub7ec \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    finishFailed: "\uc774\ubc88 \ud0c0\uc774\ud2c0·\uc0c9\uac10·\ud074\ub9bd \uc18c\ub9ac \uc791\uc5c5\uc740 \uc800\uc7a5 \uc804\uc5d0 \uba48\ucdc4\uc2b5\ub2c8\ub2e4: {detail}. ‘\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac’\ub97c \ub20c\ub7ec \uc6d0\ub798 \uc785\ub825\uc73c\ub85c \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     finishUnconfirmed: "Draft\ub294 \uc788\uc9c0\ub9cc \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc758 \uc800\uc7a5 \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc0c8 \uc791\uc5c5\uc744 \uc2dc\uc791\ud558\uae30 \uc804\uc5d0 Draft\ub97c \ud655\uc778\ud558\uc138\uc694.",
     openFailed: "Draft\ub294 \uc900\ube44\ub418\uc5c8\uc9c0\ub9cc \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \uc544\ub798 \ub9c1\ud06c\ub97c \uc4f0\uac70\ub098 Draft \ubaa9\ub85d\uc5d0\uc11c \uc5ec\uc138\uc694.",
     draftCreated: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uc744 \uc120\ud0dd\ud558\uba74 \uae00\uc790, \uc0c9, \ud06c\uae30, \uc704\uce58\ub97c, \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uba74 \ud06c\ub86d, \ubd80\ub4dc\ub7ec\uc6c0, \ubaa8\uc158, \uc18c\ub9ac \ud06c\uae30\ub97c, \uc74c\uc545\uc744 \uc120\ud0dd\ud558\uba74 \ubcfc\ub968\uc744 \ubc14\uafc0 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc0c8 Draft\uac00 \uc0dd\uae30\uace0 \uc778\uc2a4\ud399\ud130\uc5d0\uc11c \ud55c \ud3b8\uc9d1\uc740 \uc720\uc9c0\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     draftCreatedAdding: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\ub294 \uc911…",
-    draftNotFinished: "Draft\ub294 \ub9cc\ub4e4\uc5c8\uc9c0\ub9cc \ud0c0\uc774\ud2c0, \uc0c9\uac10, \ud074\ub9bd \uc18c\ub9ac\uac00 \uc544\uc9c1 \uc801\uc6a9\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
+    draftNotFinished: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0·\uc0c9\uac10·\ud074\ub9bd \uc18c\ub9ac\uc758 \uc800\uc7a5 \uacb0\uacfc\ub97c \ud655\uc778\ud574\uc57c \ud569\ub2c8\ub2e4.",
     openDraft: "\uc0c8 Draft \uc5f4\uae30",
     copyLink: "\uc0c8 Draft \ub9c1\ud06c \ubcf5\uc0ac",
     shortened: { other: "\uc601\uc0c1\uc73c\ub85c {count}\uc0f7 \uc911 {fitted}\uc0f7\ub9cc \ub9cc\ub4e4 \uc218 \uc788\uc5b4 \uc774 \ub3d9\uc601\uc0c1\uc740 \uc57d {seconds}\ucd08\uc785\ub2c8\ub2e4. \uc804\uccb4 \uae38\uc774\ub85c \ub9cc\ub4e4\ub824\uba74 \ud074\ub9bd\uc774\ub098 \uc0ac\uc9c4\uc744 \ub354 \ucd94\uac00\ud558\uc138\uc694." },
@@ -1402,12 +1402,12 @@ const STRINGS = {
     beatFailed: "a detecção da batida falhou",
     previewFailed: "Não foi possível reproduzir a prévia: {detail}.",
     noAudio: "nenhum áudio foi retornado",
-    finishFailed: "O Draft foi criado, mas o título, o look e o som dos clipes ainda não foram aplicados: {detail}. Pressione “Concluir título e look” para tentar de novo.",
+    finishFailed: "Esta tentativa de título, look e som parou antes de salvar: {detail}. Pressione “Concluir título e look” para tentar de novo.",
     finishUnconfirmed: "O Draft existe, mas não foi possível confirmar o título e o look. Confira o Draft antes de iniciar outra execução.",
     openFailed: "O Draft está pronto, mas não pôde ser aberto: {detail}. Use o link abaixo ou abra-o pela lista de Drafts.",
     draftCreated: "Draft criado. Selecione o título para editar as palavras, as cores, o tamanho ou a posição; um clipe para ajustar o enquadramento, a suavidade, o movimento ou o volume; e a música para mudar o volume. Criar de novo gera um novo Draft e não mantém as edições do Inspetor.",
     draftCreatedAdding: "Draft criado; adicionando título e look…",
-    draftNotFinished: "Draft criado, mas o título, o look e o som dos clipes ainda não foram aplicados.",
+    draftNotFinished: "Draft criado; título, look e som aguardam confirmação.",
     openDraft: "Abrir o novo Draft",
     copyLink: "Copiar o link do novo Draft",
     shortened: { one: "Seu material dá para {fitted} de {count} plano, então este vídeo tem cerca de {seconds} s. Adicione mais clipes ou fotos para a duração completa.", many: "Seu material dá para {fitted} de {count} de planos, então este vídeo tem cerca de {seconds} s. Adicione mais clipes ou fotos para a duração completa.", other: "Seu material dá para {fitted} de {count} planos, então este vídeo tem cerca de {seconds} s. Adicione mais clipes ou fotos para a duração completa." },
@@ -1580,12 +1580,12 @@ const STRINGS = {
     beatFailed: "ritim algılama başarısız oldu",
     previewFailed: "Önizleme oynatılamadı: {detail}.",
     noAudio: "ses geri gelmedi",
-    finishFailed: "Draft oluşturuldu ama başlık, görünüm ve klip sesi henüz uygulanmadı: {detail}. Yeniden denemek için “Başlığı ve görünümü tamamla”ya basın.",
+    finishFailed: "Bu başlık, görünüm ve klip sesi denemesi kaydetmeden önce durdu: {detail}. Yeniden denemek için “Başlığı ve görünümü tamamla”ya basın.",
     finishUnconfirmed: "Draft mevcut ancak başlık ve görünüm doğrulanamadı. Yeni bir çalıştırma başlatmadan önce Draft’ı inceleyin.",
     openFailed: "Draft hazır ama açılamadı: {detail}. Aşağıdaki bağlantıyı kullanın veya Draft listesinden açın.",
     draftCreated: "Draft oluşturuldu. Kelimelerini, renklerini, boyutunu veya konumunu düzenlemek için başlığı; kırpmasını, yumuşaklığını, hareketini veya ses düzeyini ayarlamak için bir klibi; ses seviyesini değiştirmek için müziği seçin. Yeniden oluşturmak yeni bir Draft oluşturur ve Denetçi düzenlemelerini korumaz.",
     draftCreatedAdding: "Draft oluşturuldu; başlık ve görünüm ekleniyor…",
-    draftNotFinished: "Draft oluşturuldu ama başlık, görünüm ve klip sesi henüz uygulanmadı.",
+    draftNotFinished: "Draft oluşturuldu; başlık, görünüm ve klip sesi onay bekliyor.",
     openDraft: "Yeni Draft'ı aç",
     copyLink: "Yeni Draft'ın bağlantısını kopyala",
     shortened: { one: "Görüntüleriniz {count} çekimden {fitted} tanesine yetiyor, bu yüzden bu video yaklaşık {seconds} sn. Tam uzunluk için daha fazla klip veya fotoğraf ekleyin.", other: "Görüntüleriniz {count} çekimden {fitted} tanesine yetiyor, bu yüzden bu video yaklaşık {seconds} sn. Tam uzunluk için daha fazla klip veya fotoğraf ekleyin." },
@@ -1758,12 +1758,12 @@ const STRINGS = {
     beatFailed: "节拍识别失败",
     previewFailed: "无法播放试听：{detail}。",
     noAudio: "没有返回音频",
-    finishFailed: "Draft 已创建，但标题、色调和片段原声尚未应用：{detail}。点击“完成标题和色调”重试。",
+    finishFailed: "本次标题、色调和片段原声处理在保存前停止：{detail}。点击“完成标题和色调”，使用原始输入重试。",
     finishUnconfirmed: "Draft 已存在，但无法确认标题和色调的保存结果。开始新的运行前，请检查 Draft。",
     openFailed: "Draft 已就绪，但无法打开：{detail}。请使用下方链接，或从 Draft 列表中打开。",
     draftCreated: "Draft 已创建。选中标题可编辑文字、颜色、大小或位置；选中片段可调整裁切、柔和度、运动或音量；选中音乐可调整其音量。重新生成会创建新的 Draft，不会保留在检查器中的编辑。",
     draftCreatedAdding: "Draft 已创建；正在添加标题和色调…",
-    draftNotFinished: "Draft 已创建，但标题、色调和片段原声尚未应用。",
+    draftNotFinished: "Draft 已创建；标题、色调和片段原声的保存结果待确认。",
     openDraft: "打开新的 Draft",
     copyLink: "复制新 Draft 的链接",
     shortened: { other: "你的素材只够 {count} 个镜头中的 {fitted} 个，所以这个视频约 {seconds} 秒。添加更多片段或照片即可达到完整时长。" },
@@ -1859,7 +1859,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.21";
+const PLUGIN_VERSION = "0.1.0-alpha.22";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -4349,7 +4349,52 @@ function templateRunBase64(text) {
 function templateRunIssue(code,message) {
  return Object.assign(Error(message),{code,publicMessage:message});
 }
-function validateTemplateRun(row,scope,digest) {
+// A canonical, bounded JSON value for snapshots/recipes. Unlike the small run
+// envelope, state can include fonts/programs; it is stored in chunked files.
+function templateStateJSON(value,limit=8388608){
+ const text=JSON.stringify(value,(_key,item)=>{
+  if(typeof item==='number'&&!Number.isFinite(item)||['function','symbol','bigint'].includes(typeof item))throw Error('Template state contains an unsupported value.');
+  return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item;
+ }).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));
+ if(text.length>limit)throw Error('Template state exceeds its input limit.');return text;
+}
+// SDK-safe state of every exposed timeline row. Read-only targets never cross
+// edits or script calls; source windows, programs and sound come from SDK reads.
+async function readTemplateSavedState(draft){
+ const meta=await draft.meta(),graphics=await draft.motionGraphics(),rows=await draft.clips({trackScope:'all'});
+ if(!Number.isFinite(meta.fps)||meta.fps<=0||!Number.isSafeInteger(meta.durationFrames)||meta.durationFrames<1||!Number.isSafeInteger(meta.frameSize?.width)||meta.frameSize.width<1||!Number.isSafeInteger(meta.frameSize?.height)||meta.frameSize.height<1||!Array.isArray(rows)||rows.length>1024||new Set(rows.map(r=>r.clipId)).size!==rows.length||!Array.isArray(graphics))throw Error('The Draft state is incomplete.');
+ const clips=[];
+ for(const row of rows){
+  if(!Number.isSafeInteger(row.clipId)||typeof row.trackId!=='string'||!row.trackId||!Number.isSafeInteger(row.startFrame)||row.startFrame<0||!Number.isSafeInteger(row.endFrame)||row.endFrame<=row.startFrame)throw Error('The Draft row is incomplete.');
+  const graphic=graphics.find(g=>g.clip.clipId===row.clipId&&g.clip.trackId===row.trackId),media=row.resourceId!=null&&['main','video','audio'].includes(row.trackKind),visual=['main','video'].includes(row.trackKind)&&(media||!!graphic);
+  const effects=[];
+  if(visual)for(const effect of await draft.videoEffects(row))effects.push({effectIndex:effect.effectIndex,name:effect.name,effectName:effect.effectName,enabled:effect.enabled,program:await draft.videoEffectProgram(effect)});
+  clips.push({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId??null,startFrame:row.startFrame,endFrame:row.endFrame,videoIndex:row.videoIndex??null,audioSourceIndexes:row.audioSourceIndexes??null,color:row.color??null,playbackSpeed:row.playbackSpeed??null,preserveAudioPitch:row.preserveAudioPitch??null,text:row.text??null,
+   source:media?await draft.clipSourceWindow(row):null,audio:media?await draft.clipAudio(row):null,transform:visual?await draft.clipTransform(row):null,effects,graphic:graphic?{name:graphic.name,program:await draft.motionGraphicProgram(row)}:null});
+ }
+ clips.sort((a,b)=>a.clipId-b.clipId);
+ return {fps:meta.fps,durationFrames:meta.durationFrames,frameSize:{width:meta.frameSize.width,height:meta.frameSize.height},clips};
+}
+// SDK-safe immutable snapshot publication and comparison. Compare actual bytes
+// in bounded chunks as well as their native fingerprint; no SDK encoding global
+// or handwritten hash implementation is required.
+async function templateStateFile(selects,path,text,encode,expected=null){
+ const files=selects.files;
+ if(!files||!['fingerprint','readRange','writeChunk'].every(key=>typeof files[key]==='function')||typeof text!=='string'||!text.length||text.length>8388608)throw Error('Update Selects to confirm template state files.');
+ if(!expected){
+  for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.writeChunk({path,offset,base64:encode(chunk),...offset===0?{mode:'exclusive'}:{}});if(reply?.bytesWritten!==chunk.length)throw Error('Template state file write was incomplete.');}
+  const fingerprint=await files.fingerprint(path);
+  if(!fingerprint||fingerprint.size!==text.length||typeof fingerprint.sha256!=='string'||!/^[a-f0-9]{64}$/.test(fingerprint.sha256))throw Error('Template state file could not be fingerprinted.');
+  expected={path,...fingerprint};
+ }
+ if(expected.path!==path||expected.size!==text.length)throw Error('The saved template state has changed.');
+ const before=await files.fingerprint(path);
+ if(!before||before.size!==expected.size||before.sha256!==expected.sha256)throw Error('The template state file has changed.');
+ for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.readRange({path,offset,length:chunk.length});if(reply?.bytesRead!==chunk.length||reply.base64!==encode(chunk))throw Error('The saved Draft differs from its owned state.');}
+ const after=await files.fingerprint(path);if(!after||after.size!==expected.size||after.sha256!==expected.sha256)throw Error('The template state file changed while reading.');
+ return expected;
+}
+function validateTemplateRun(row,scope,digest,recordPath=null) {
  const invalid=()=>templateRunIssue('TEMPLATE_RUN_INVALID','The saved run record could not be verified. Inspect the Project before starting a new run.');
  if(!row||row.version!==1||!row.scope||Object.keys(row.scope).length!==4||Object.keys(scope).some(key=>row.scope[key]!==scope[key])||row.requestDigest!==digest||
   typeof row.owner!=='string'||!/^[\da-f-]{36}$/i.test(row.owner)||!['claimed','saved','notSaved','outcomeUnknown'].includes(row.status))throw invalid();
@@ -4360,6 +4405,7 @@ function validateTemplateRun(row,scope,digest) {
    !Number.isSafeInteger(r.frameSize?.width)||r.frameSize.width<1||!Number.isSafeInteger(r.frameSize?.height)||r.frameSize.height<1||!Array.isArray(r.clips)||!r.clips.length||r.clips.length>256||
    r.clips.some(c=>!c||!Number.isSafeInteger(c.clipId)||typeof c.trackId!=='string'||!c.trackId||typeof c.resourceId!=='string'||!c.resourceId||!Number.isSafeInteger(c.startFrame)||!Number.isSafeInteger(c.endFrame)||c.startFrame<0||c.endFrame<=c.startFrame||c.endFrame>r.durationFrames))throw invalid();
   if(new Set(r.clips.map(c=>c.clipId)).size!==r.clips.length)throw invalid();
+  if(r.stateFile!==undefined){const file=r.stateFile;if(!file||Object.keys(file).length!==3||typeof file.path!=='string'||!recordPath||file.path!==recordPath+'.state-'+row.owner+'.json'||typeof file.sha256!=='string'||!/^[a-f0-9]{64}$/.test(file.sha256)||!Number.isSafeInteger(file.size)||file.size<1||file.size>8388608)throw invalid();}
   if(r.graphics!==undefined){
    if(!Array.isArray(r.graphics)||r.graphics.length>256||r.graphics.some(g=>!g||!Number.isSafeInteger(g.clipId)||g.clipId<0||typeof g.trackId!=='string'||!g.trackId||!Number.isSafeInteger(g.startFrame)||!Number.isSafeInteger(g.endFrame)||g.startFrame<0||g.endFrame<=g.startFrame||g.endFrame>r.durationFrames||!g.parameters||typeof g.parameters!=='object'||Array.isArray(g.parameters)||'tsxCode' in g))throw invalid();
    if(new Set(r.graphics.map(g=>g.clipId)).size!==r.graphics.length||r.graphics.some(g=>r.clips.some(c=>c.clipId===g.clipId)))throw invalid();
@@ -4416,7 +4462,7 @@ async function writeTemplateRunResult(selects,claim,result,json,encode) {
   let saved;
   if(status==='saved'){
    if(!('fps' in result)||!('durationFrames' in result)||!('frameSize' in result)||!('clips' in result)||typeof result.draftId!=='string'||!result.draftId)throw Error('Saved run receipt is incomplete');
-   saved={draftId:result.draftId,fps:result.fps,durationFrames:result.durationFrames,frameSize:result.frameSize,clips:result.clips,...'graphics' in result?{graphics:result.graphics}:{},...'transforms' in result?{transforms:result.transforms}:{},...'audio' in result?{audio:result.audio}:{},...'programs' in result?{programs:result.programs}:{}};
+   saved={draftId:result.draftId,fps:result.fps,durationFrames:result.durationFrames,frameSize:result.frameSize,clips:result.clips,...'graphics' in result?{graphics:result.graphics}:{},...'transforms' in result?{transforms:result.transforms}:{},...'audio' in result?{audio:result.audio}:{},...'programs' in result?{programs:result.programs}:{},...'stateFile' in result?{stateFile:result.stateFile}:{}};
   }
   const savedDraftId=status==='outcomeUnknown'?result.draftId:null;
   if(savedDraftId!=null&&(typeof savedDraftId!=='string'||!savedDraftId||savedDraftId.length>1024||savedDraftId.includes('\0')))throw Error('Invalid saved Draft identity');
@@ -4425,10 +4471,11 @@ async function writeTemplateRunResult(selects,claim,result,json,encode) {
   return {...result,runReceiptSaved:reply?.replaced===true};
  }catch{return {...result,runReceiptSaved:false};}
 }
-async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,verify) {
+async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,verify,options={}) {
  const fail=(code,message)=>{throw templateRunIssue(code,message);};
  const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};
  check();
+ if(!options||['existingOnly','retryNotSaved'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean')||options.existingOnly&&options.retryNotSaved)fail('TEMPLATE_RUN_INVALID','Invalid run recovery options.');
  if(!scope||!['pluginId','libraryId','projectId','runId'].every(key=>typeof scope[key]==='string'&&scope[key].length>0&&scope[key].length<=1024)||!/^[a-z0-9-]+$/.test(scope.pluginId))fail('TEMPLATE_RUN_INVALID','The template run target is incomplete. Start again from the Project.');
  scope={pluginId:scope.pluginId,libraryId:scope.libraryId,projectId:scope.projectId,runId:scope.runId};
  const targetCheck=async()=>{
@@ -4442,6 +4489,7 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
  const digest=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(templateRunJSON(value)))),n=>n.toString(16).padStart(2,'0')).join('');
  const key=await digest(scope),requestDigest=await digest(request);
  const directory=files.join(files.homedir(),'.selects','plugin-data',scope.pluginId,'template-runs'),path=files.join(directory,key+'.json');
+ let lastReadText=null;
  const read=async()=>{
   if(!await files.exists(path))return null;
   let row;
@@ -4455,11 +4503,11 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
    // Retry bounded observations; never parse a mixture or retry authoring.
    if(!after||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))continue;
    if(bytes.byteLength!==stat.size)throw Error('Invalid run record bytes');
-   row=JSON.parse(new TextDecoder().decode(bytes));break;
+   lastReadText=new TextDecoder().decode(bytes);row=JSON.parse(lastReadText);break;
    }
    if(row===undefined)fail('TEMPLATE_RUN_PENDING','The run record is changing. Check its saved result again.');
   }catch(error){if(error?.code==='TEMPLATE_RUN_PENDING')throw error;fail('TEMPLATE_RUN_INVALID','The saved run record could not be read. Inspect the Project before starting a new run.');}
-  return validateTemplateRun(row,scope,requestDigest);
+  return validateTemplateRun(row,scope,requestDigest,path);
  };
  const recover=async row=>{
   if(row.status==='saved'){await targetCheck();return verify({...row.result,status:'saved',projectId:scope.projectId});}
@@ -4467,7 +4515,9 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
   if(row.status==='outcomeUnknown'&&row.savedDraftId)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The saved Draft '+row.savedDraftId+' could not be confirmed. Inspect it before starting another run.'),{draftId:row.savedDraftId});
   fail('TEMPLATE_RUN_PENDING','This run may still be saving or awaiting confirmation. Inspect the Project before starting another run.');
  };
- const existing=await read();if(existing)return recover(existing);
+ const existing=await read(),retryText=lastReadText;
+ if(existing&&!(options.retryNotSaved&&existing.status==='notSaved'))return recover(existing);
+ if(options.existingOnly)fail('TEMPLATE_RUN_MISSING','The owned assembly record is missing. Inspect the Project before starting another run.');
  if(typeof globalThis.crypto?.randomUUID!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
  const capability=await sdk.runScript({summary:'Check durable template run support',allowCommit:false,script:"return {supported:'files' in selects&&typeof selects.files?.compareAndReplace==='function'&&typeof selects.files?.writeChunk==='function'};"});
  if(capability.isError||capability.result?.supported!==true)fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
@@ -4475,7 +4525,19 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
  const owner=crypto.randomUUID(),expectedText=templateRunJSON({version:1,scope,requestDigest,owner,status:'claimed'}),claim={path,expectedText};
  // Exclusive creation is a filesystem operation, including across app windows.
  // compareAndReplace alone serializes only one renderer bridge's own writes.
- try{await files.writeFile(path,expectedText,{flag:'wx'});}catch(cause){
+ if(existing){
+  // Only a positive no-save is eligible. The exclusive generation lock covers
+  // other renderer bridges too; a CAS alone does not provide that guarantee.
+  const lock=path+'.retry-'+existing.owner;
+  try{await files.writeFile(lock,owner,{flag:'wx'});}catch(cause){
+   const stat=await files.stat(lock),bytes=stat?.size===owner.length?await files.readRange(lock,0,stat.size):null;
+   if(!bytes||new TextDecoder().decode(bytes)!==owner)fail('TEMPLATE_RUN_PENDING','A retry of this known no-save run is awaiting confirmation.');
+  }
+  try{
+   const replaced=await files.compareAndReplace(path,retryText,expectedText);
+   if(!replaced){const row=await read();if(row?.owner!==owner)return recover(row);}
+  }catch(cause){const row=await read();if(row?.owner!==owner)throw cause;}
+ }else try{await files.writeFile(path,expectedText,{flag:'wx'});}catch(cause){
   const row=await read();
   if(!row)fail('TEMPLATE_RUN_STORAGE','The run could not be recorded. Nothing was dispatched. Check local file access and start a new run.');
   if(row.owner!==owner)return recover(row);
@@ -4526,7 +4588,7 @@ async function readTemplateAssemblyFacts(selects,projectId,draftId,readState){
 
 // Extend the existing durable run owner for templates whose assembly script
 // commits before a separate title/look step. A name never proves ownership.
-async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent){
+async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent,options={}){
  const fail=(code,message)=>{throw templateRunIssue(code,message);};
  if(typeof isCurrent!=='function'||!scope||typeof scope.projectId!=='string'||!scope.projectId||typeof scope.runId!=='string'||!scope.runId||!config||config.projectId!==scope.projectId||typeof source!=='string'||source.split('__CONFIG__').length!==2||!source.startsWith('// @template-assembly 1\n'))fail('TEMPLATE_RUN_INVALID','The assembly request is incomplete.');
  if(typeof globalThis.TextEncoder!=='function'||typeof sdk?.call!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
@@ -4542,24 +4604,33 @@ async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent){
  scope={pluginId:scope.pluginId,libraryId:target.owner.libraryId,projectId:scope.projectId,runId:scope.runId};
  const query=async script=>{check();const reply=await sdk.runScript({summary:'Confirm owned assembly Draft',allowCommit:false,script});check();if(reply.isError||!reply.result)fail('TEMPLATE_RUN_INVALID','The owned Draft could not be read back. Inspect it before starting another run.');return reply.result;};
  const verify=async receipt=>{
+  if(options.receiptOnly)return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,stateFile:receipt.stateFile??null,assemblyConfirmed:false};
   check();const target=await sdk.call('getProjectDraftScaffold',scope.projectId);check();
   if(target?.owner?.projectId!==scope.projectId||target.owner.libraryId!==scope.libraryId)fail('TEMPLATE_RUN_TARGET','The assembly belongs to a different Project or library.');
   const observed=await query(`return await (${readTemplateAssemblyFacts.toString()})(selects,${JSON.stringify(scope.projectId)},${JSON.stringify(receipt.draftId)},${readTemplateAssemblyState.toString()});`);
   const expected={draftId:receipt.draftId,fps:receipt.fps,durationFrames:receipt.durationFrames,frameSize:receipt.frameSize,clips:receipt.clips};
   if(templateRunJSON(observed)!==templateRunJSON(expected))fail('TEMPLATE_RUN_INVALID','The saved Draft has changed since its assembly receipt. Inspect it before starting another run.');
-  return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,notes:[],assemblyConfirmed:true};
+  if(options.captureState&&!receipt.stateFile)fail('TEMPLATE_RUN_INVALID','This assembly has no complete state receipt. Inspect it before finishing.');
+  if(receipt.stateFile)await query(`await (${templateStateFile.toString()})(selects,${JSON.stringify(receipt.stateFile.path)},(${templateStateJSON.toString()})(await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(receipt.draftId)}))),${templateRunBase64.toString()},${JSON.stringify(receipt.stateFile)});return {verified:true};`);
+  return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,notes:[],assemblyConfirmed:true,...receipt.stateFile?{stateFile:receipt.stateFile}:{}};
  };
  return executeTemplateRun(sdk,files,scope,request,isCurrent,async(claim,onDispatch)=>{
   const capability=await sdk.runScript({summary:'Check assembly recovery support',allowCommit:false,script:`const p=selects.project(${JSON.stringify(scope.projectId)});const ids=(await p.meta()).draftIds;const d=ids?.length?selects.draft(ids[0]):await p.createDraft({name:'Template recovery support check'});return {supported:typeof d.clipSourceWindow==='function'&&typeof d.clipTransform==='function'&&typeof d.clipAudio==='function'};`});
   check();if(capability.isError||capability.result?.supported!==true)fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to confirm saved assembly state before retrying.');
   const body=source.replace('__CONFIG__',()=>`Object.assign(JSON.parse(${JSON.stringify(templateRunJSON(frozen))}),{__beforeCommit:__templateBeforeCommit})`);
-  const script=`return await(async(assemble,readFacts,readState,publish,json,encode)=>{
-   let result,preparedState,maySave=false;
+  const script=`return await(async(assemble,readFacts,readState,publish,json,encode,readFull,stateJSON,stateFile)=>{
+   let result,preparedState,preparedFull,snapshot,maySave=false;
    try{
     result=await assemble(async draft=>{
      if(maySave)throw Error('The assembly pre-save hook ran more than once.');
      preparedState=await readState(draft);
      json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:'x'.repeat(1024),...preparedState}});
+     if(${options.captureState===true}){
+      preparedFull=stateJSON(await readFull(draft));
+      const path=${JSON.stringify(claim.path)}+'.state-'+JSON.parse(${templateRunJSON(claim)}.expectedText).owner+'.json';
+      json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:'x'.repeat(1024),...preparedState,stateFile:{path,size:preparedFull.length,sha256:'x'.repeat(64)}}});
+      snapshot=await stateFile(selects,path,preparedFull,encode);
+     }
      maySave=true;
     });
     if(!maySave)throw Error('The assembly skipped its pre-save confirmation.');
@@ -4567,21 +4638,83 @@ async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent){
     const {draftId,...savedState}=facts;
     if(json(savedState)!==json(preparedState))throw Error('The saved Draft disagrees with its prepared state.');
     if(facts.fps!==result.fps||facts.durationFrames!==result.totalFrames)throw Error('The assembly result disagrees with its saved Draft.');
-    const receipt=await publish(selects,${templateRunJSON(claim)},{status:'saved',...facts},json,encode);
+    if(snapshot)await stateFile(selects,snapshot.path,stateJSON(await readFull(selects.draft(facts.draftId))),encode,snapshot);
+    const receipt=await publish(selects,${templateRunJSON(claim)},{status:'saved',...facts,...snapshot?{stateFile:snapshot}:{}},json,encode);
     if(receipt.runReceiptSaved!==true)throw Error('The assembly receipt could not be confirmed.');
-    return {assembly:result,facts};
+    return {assembly:result,facts:{...facts,...snapshot?{stateFile:snapshot}:{}}};
    }catch(error){
     if(typeof result?.sequenceId==='string'&&result.sequenceId)await publish(selects,${templateRunJSON(claim)},{status:'outcomeUnknown',draftId:result.sequenceId},json,encode);
     else if(!maySave)await publish(selects,${templateRunJSON(claim)},{status:'notSaved'},json,encode);
     throw error;
    }
-  })(async(__templateBeforeCommit)=>{${body}},${readTemplateAssemblyFacts.toString()},${readTemplateAssemblyState.toString()},${writeTemplateRunResult.toString()},${templateRunJSON.toString()},${templateRunBase64.toString()});`;
+  })(async(__templateBeforeCommit)=>{${body}},${readTemplateAssemblyFacts.toString()},${readTemplateAssemblyState.toString()},${writeTemplateRunResult.toString()},${templateRunJSON.toString()},${templateRunBase64.toString()},${readTemplateSavedState.toString()},${templateStateJSON.toString()},${templateStateFile.toString()});`;
   if(new TextEncoder().encode(script).length>256*1024)fail('TEMPLATE_RUN_INVALID','The assembly request exceeds the SDK transport limit.');
   await onDispatch();const reply=await sdk.runScript({summary:'Assemble template with owned receipt',allowCommit:true,script});
   if(reply.isError||!reply.result?.facts||!reply.result?.assembly)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The assembly response could not be confirmed. Inspect the Project before starting another run.'),{cause:Error(String(reply.output||'The SDK returned no complete assembly result.'))});
   const confirmed=await verify(reply.result.facts);
   return {...reply.result.assembly,...confirmed,notes:reply.result.assembly.notes??[]};
- },verify);
+ },verify,{existingOnly:options.receiptOnly===true});
+}
+
+// The base assembly record proves which Draft belongs to this workflow. A phase
+// receipt supersedes its earlier state for recovery; unknown outcomes never save
+// again. Only positively recorded pre-save failures permit a new phase attempt.
+async function executeTemplateDecoration(sdk,files,pending,config,source,isCurrent){
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};check();
+ if(!pending?.scope||!config||config.projectId!==pending.scope.projectId||typeof config.sequenceId!=='string'||!config.sequenceId||typeof source!=='string'||!source.startsWith('// @template-decoration 1\n')||source.split('__CONFIG__').length!==2)fail('TEMPLATE_RUN_INVALID','The title/look request is incomplete.');
+ templateStateJSON(pending,262144);
+ pending=JSON.parse(JSON.stringify(pending));
+ const frozen=JSON.parse(templateStateJSON(config,262144)),recipe=templateStateJSON({config:frozen,source},262144);
+ const base=await executeTemplateAssembly(sdk,files,pending.scope,pending.config,pending.source,isCurrent,{receiptOnly:true});check();
+ if(base.sequenceId!==frozen.sequenceId||!base.stateFile)fail('TEMPLATE_RUN_INVALID','The title/look target has no complete owned assembly receipt.');
+ const target=await sdk.call('getProjectDraftScaffold',pending.scope.projectId);check();
+ if(target?.owner?.projectId!==pending.scope.projectId||typeof target.owner.libraryId!=='string')fail('TEMPLATE_RUN_TARGET','The title/look target belongs to a different Project.');
+ const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),n=>n.toString(16).padStart(2,'0')).join('');
+ const rootScope={pluginId:pending.scope.pluginId,libraryId:target.owner.libraryId,projectId:pending.scope.projectId,runId:pending.scope.runId};
+ const scope={...rootScope,runId:'look-'+await digest(templateRunJSON(rootScope))},request={phase:'decoration',draftId:base.sequenceId,recipeDigest:await digest(recipe),assemblyState:base.stateFile};
+ const verify=async receipt=>{
+  check();if(receipt.draftId!==frozen.sequenceId||!receipt.stateFile)fail('TEMPLATE_RUN_INVALID','The title/look receipt could not be verified.');
+  const script=`const p=selects.project(${JSON.stringify(scope.projectId)});if(!(await p.meta()).draftIds.includes(${JSON.stringify(receipt.draftId)}))throw Error('The title/look Draft is not in its Project.');await (${templateStateFile.toString()})(selects,${JSON.stringify(receipt.stateFile.path)},(${templateStateJSON.toString()})(await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(receipt.draftId)}))),${templateRunBase64.toString()},${JSON.stringify(receipt.stateFile)});return {verified:true};`;
+  const reply=await sdk.runScript({summary:'Confirm owned title and look',allowCommit:false,script});check();
+  if(reply.isError||reply.result?.verified!==true)fail('TEMPLATE_RUN_INVALID','The saved title/look state has changed or could not be read. Inspect the Draft before another run.');
+  return {sequenceId:receipt.draftId,fps:base.fps,totalFrames:base.totalFrames,decorationConfirmed:true};
+ };
+ const work=executeTemplateRun(sdk,files,scope,request,isCurrent,async(claim,onDispatch)=>{
+  const body=source.replace('__CONFIG__',()=>`Object.assign(JSON.parse(${JSON.stringify(templateStateJSON(frozen,262144))}),{__beforeCommit:__templateBeforeCommit})`);
+  const script=`return await(async(decorate,readFull,stateJSON,stateFile,publish,json,encode)=>{
+   let prepared,snapshot,maySave=false,preparedOnce=false;
+   try{
+    const original=selects.draft(${JSON.stringify(frozen.sequenceId)});
+    if(!(await selects.project(${JSON.stringify(scope.projectId)}).meta()).draftIds.includes(${JSON.stringify(frozen.sequenceId)}))throw Error('The title/look target is not in its Project.');
+    await stateFile(selects,${JSON.stringify(base.stateFile.path)},stateJSON(await readFull(original)),encode,${JSON.stringify(base.stateFile)});
+    const result=await decorate(async(draft,committing)=>{
+     if(preparedOnce)throw Error('The title/look pre-save hook ran more than once.');preparedOnce=true;
+     prepared=await readFull(draft);const text=stateJSON(prepared),path=${JSON.stringify(claim.path)}+'.state-'+JSON.parse(${templateRunJSON(claim)}.expectedText).owner+'.json';
+     snapshot=await stateFile(selects,path,text,encode);
+     const clips=prepared.clips.filter(c=>c.trackKind==='main'&&c.resourceId).map(({clipId,trackId,resourceId,startFrame,endFrame})=>({clipId,trackId,resourceId,startFrame,endFrame}));
+     json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:${JSON.stringify(frozen.sequenceId)},fps:prepared.fps,durationFrames:prepared.durationFrames,frameSize:prepared.frameSize,clips,stateFile:snapshot}});
+     maySave=committing===true;
+    });
+    if(!preparedOnce)throw Error('The title/look operation skipped its pre-save hook.');
+    const observed=await readFull(selects.draft(${JSON.stringify(frozen.sequenceId)}));
+    await stateFile(selects,snapshot.path,stateJSON(observed),encode,snapshot);
+    const clips=observed.clips.filter(c=>c.trackKind==='main'&&c.resourceId).map(({clipId,trackId,resourceId,startFrame,endFrame})=>({clipId,trackId,resourceId,startFrame,endFrame}));
+    const facts={draftId:${JSON.stringify(frozen.sequenceId)},fps:observed.fps,durationFrames:observed.durationFrames,frameSize:observed.frameSize,clips,stateFile:snapshot};
+    const receipt=await publish(selects,${templateRunJSON(claim)},{status:'saved',...facts},json,encode);if(!receipt.runReceiptSaved)throw Error('The title/look receipt could not be confirmed.');return {facts,result};
+   }catch(error){await publish(selects,${templateRunJSON(claim)},{status:maySave?'outcomeUnknown':'notSaved',...maySave?{draftId:${JSON.stringify(frozen.sequenceId)}}:{}},json,encode);throw error;}
+  })(async(__templateBeforeCommit)=>{${body}},${readTemplateSavedState.toString()},${templateStateJSON.toString()},${templateStateFile.toString()},${writeTemplateRunResult.toString()},${templateRunJSON.toString()},${templateRunBase64.toString()});`;
+  if(new TextEncoder().encode(script).length>262144)fail('TEMPLATE_RUN_INVALID','The title/look request exceeds the SDK transport limit.');
+  await onDispatch();const reply=await sdk.runScript({summary:'Decorate template with owned receipt',allowCommit:true,script});
+  if(reply.isError||!reply.result?.facts)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The title/look save is awaiting confirmation. Check the same run again.'),{draftId:frozen.sequenceId,cause:Error(String(reply.output||'No complete title/look result.'))});
+  return verify(reply.result.facts);
+ },verify,{retryNotSaved:true});
+ return work.catch(cause=>{
+  check();
+  const known=cause?.outcome==='notSaved'||cause?.code==='TEMPLATE_RUN_NOT_SAVED';
+  const message=known?'The title/look attempt stopped before saving. Retry its original inputs.':cause?.publicMessage||'The title/look save is awaiting confirmation. Check the same run again.';
+  throw Object.assign(templateRunIssue(cause?.code||'TEMPLATE_RUN_PENDING',message),{phase:'decoration',draftId:base.sequenceId,cause,...known?{outcome:'notSaved'}:{}});
+ });
 }
 
 // Discover an uncertain standalone assembly after its renderer realm is gone.
@@ -4630,38 +4763,59 @@ async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
   const text=await readText(files.join(completed,key+'.json'),49152);if(text===null)return false;
   const end=parse(text);if(!end||!['saved','notSaved'].includes(end.status)||json(end.record)!==json(row))invalid();return true;
  };
- const validate=(value,row)=>{
-  if(!value||json(value.scope)!==json(row.scope)||value.config?.projectId!==target.projectId||typeof value.source!=='string'||!value.source.startsWith('// @template-assembly 1\n')||value.source.split('__CONFIG__').length!==2)invalid();
+ const validate=(value,row,kind='assembly')=>{
+  if(!value||json(value.scope)!==json(row.scope)||value.config?.projectId!==target.projectId||typeof value.source!=='string'||!value.source.startsWith(kind==='look'?'// @template-decoration 1\n':'// @template-assembly 1\n')||value.source.split('__CONFIG__').length!==2)invalid();
   // Match the existing assembly adapter's request budget before any new save.
-  const {draftName,...content}=value.config;templateRunJSON({config:content,source:value.source});
+  if(kind==='look'){
+   if(typeof value.config.sequenceId!=='string'||value.assembly?.sequenceId!==value.config.sequenceId)invalid();
+   templateStateJSON({config:value.config,source:value.source},262144);
+  }else{const {draftName,...content}=value.config;templateRunJSON({config:content,source:value.source});}
   return value;
  };
- const load=async(row,key)=>{
+ const load=async(row,key,kind='assembly')=>{
   if(await manifest(row)!==key)invalid();
-  const text=await readText(files.join(directory,key+'-'+row.digest+'.data'),262144);
+  const name=key+(kind==='look'?'.look':'')+'-'+row.digest+'.data';
+  const text=await readText(files.join(directory,name),262144)??await readText(files.join(completed,name),262144);
   if(text===null)invalid();if(await hash(text)!==row.digest)invalid();
-  return validate(parse(text),row);
+  return validate(parse(text),row,kind);
  };
- const recordOf=async pending=>{
+ const recordOf=async(pending,kind='assembly')=>{
   if(!pending?.scope||Object.keys(target).some(key=>key==='libraryId'?pending.scope[key]!=null&&pending.scope[key]!==target[key]:pending.scope[key]!==target[key]))invalid();
   const scope={...target,runId:pending.scope.runId},text=json({...pending,scope}),row={version:1,scope,digest:await hash(text)},key=await manifest(row);
-  return {row,key,text,value:validate(parse(text),row)};
+  return {row,key,text,value:validate(parse(text),row,kind)};
  };
- const store=async pending=>{
-  await current();const item=await recordOf(pending),{row,key,text}=item;
-  if(await done(row,key))fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');
+ const store=async(pending,kind='assembly',allowCompleted=false)=>{
+  pending=JSON.parse(json(pending));
+  await current();const item=await recordOf(pending,kind),{row,key,text}=item,name=key+(kind==='look'?'.look':'');
+  if(kind==='assembly'&&await done(row,key)){
+   if(allowCompleted)return load(row,key);
+   fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');
+  }
   await files.mkdir(directory,{recursive:true});check();
-  const dataPath=files.join(directory,key+'-'+row.digest+'.data');
+  const file=files.join(directory,name+'.json'),expected=templateRunJSON(row),prior=await readText(file,49152);
+  if(prior!==null&&prior!==expected)invalid();
+  const dataPath=files.join(directory,name+'-'+row.digest+'.data');
   if(await files.exists(dataPath)){if(await readText(dataPath,262144)!==text)invalid();}
   else{check();await files.writeFile(dataPath,text);check();}
-  const file=files.join(directory,key+'.json'),expected=templateRunJSON(row);
   try{check();await files.writeFile(file,expected,{flag:'wx'});}catch(error){
    const actual=await readText(file,49152);if(actual===null)throw error;if(actual!==expected)invalid();
   }
-  check();if(await done(row,key))fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');
-  try{return await load(row,key);}catch(error){if(await done(row,key))fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');throw error;}
+  check();if(kind==='assembly'&&await done(row,key)){
+   if(allowCompleted)return load(row,key);
+   fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');
+  }
+  try{return await load(row,key,kind);}catch(error){if(kind==='assembly'&&await done(row,key))fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');throw error;}
  };
- const read=async()=>{
+ const read=async(runId=null,includeCompleted=false)=>{
+  if(runId!==null){
+   await current();if(typeof runId!=='string'||!runId||runId.length>1024)invalid();
+   const key=await hash(json({...target,runId})),text=await readText(files.join(directory,key+'.json'),49152);
+   let row=text===null?null:parse(text);
+   if(!row&&includeCompleted){const end=await readText(files.join(completed,key+'.json'),49152);if(end!==null){const value=parse(end);if(!['saved','notSaved'].includes(value?.status))invalid();row=value.record;}}
+   if(!row)return null;if(await manifest(row)!==key)invalid();
+   if(!includeCompleted&&await done(row,key))return null;
+   return load(row,key);
+  }
   await current();if(!await files.exists(directory)){check();return null;}
   const names=await files.readdir(directory);check();
   if(!Array.isArray(names)||names.length>4096||names.some(name=>typeof name!=='string'||name.includes('/')||name.includes('\\')))invalid();
@@ -4678,15 +4832,27 @@ async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
   if(found.length>1)fail('TEMPLATE_RUN_AMBIGUOUS','Several unfinished assemblies belong to this Project. Inspect their run records before starting another run.');
   return found[0]??null;
  };
- const acknowledge=async(pending,status)=>{
-  await current();const {row,key}=await recordOf(pending);
+ const lookFor=async pending=>{
+  const {row:root,key}=await recordOf(pending);
+  const text=await readText(files.join(directory,key+'.look.json'),49152)??await readText(files.join(completed,key+'.look.json'),49152);
+  if(text===null)return null;const row=parse(text);if(await manifest(row)!==key||json(row.scope)!==json(root.scope))invalid();return load(row,key,'look');
+ };
+ const acknowledge=async(pending,status,retain=false)=>{
+  await current();const {row,key,text:rootText}=await recordOf(pending);
   await files.mkdir(completed,{recursive:true});check();
+  let look=null,lookRow=null;
+  if(retain){
+   await files.writeFile(files.join(completed,key+'-'+row.digest+'.data'),rootText);check();
+   look=await lookFor(pending);
+   if(look){lookRow=await recordOf(look,'look');await files.writeFile(files.join(completed,key+'.look-'+lookRow.row.digest+'.data'),lookRow.text);check();await files.writeFile(files.join(completed,key+'.look.json'),templateRunJSON(lookRow.row));check();}
+  }
   const path=files.join(completed,key+'.json'),text=templateRunJSON({record:row,status});
   try{await files.writeFile(path,text,{flag:'wx'});}catch(error){if(await readText(path,49152)!==text)throw error;}
   check();
   // Only this immutable run's files are removed. Its tombstone is retained.
   await files.rm(files.join(directory,key+'.json'),{force:true}).catch(()=>{});check();
   await files.rm(files.join(directory,key+'-'+row.digest+'.data'),{force:true}).catch(()=>{});check();
+  if(lookRow){await files.rm(files.join(directory,key+'.look.json'),{force:true}).catch(()=>{});check();await files.rm(files.join(directory,key+'.look-'+lookRow.row.digest+'.data'),{force:true}).catch(()=>{});check();}
  };
  const resumeAssembly=async pending=>{
   const value=await store(pending);
@@ -4696,7 +4862,22 @@ async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
   check();if(result?.assemblyConfirmed!==true)invalid();
   await acknowledge(value,'saved');return result;
  };
- return {read,store,run:resumeAssembly};
+ const workflow=async(pending,prepareLook,onAssembly=()=>{})=>{
+  const value=await store(pending,'assembly',true);let look=await lookFor(value);
+  if(!look){
+   let assembly;
+   try{assembly=await executeTemplateAssembly(sdk,files,value.scope,value.config,value.source,()=>{check();return true;},{captureState:true});}
+   catch(error){if(error?.outcome==='notSaved'||error?.code==='TEMPLATE_RUN_NOT_SAVED')await acknowledge(value,'notSaved',true);throw error;}
+   check();let prepared;
+   try{prepared=await prepareLook(JSON.parse(json(value)),{...assembly});check();}catch(cause){check();throw Object.assign(templateRunIssue('TEMPLATE_LOOK_PREPARATION','The original title/look inputs could not be prepared. Check this run again.'),{phase:'decoration',draftId:assembly.sequenceId,cause});}
+   look=await store({...prepared,scope:value.scope,assembly},'look');
+  }
+  await onAssembly(JSON.parse(json(value)),{...look.assembly});check();
+  const result=await executeTemplateDecoration(sdk,files,value,look.config,look.source,()=>{check();return true;});check();
+  await acknowledge(value,'saved',true);
+  return {...look.assembly,...result};
+ };
+ return {read,store:pending=>store(pending),run:resumeAssembly,workflow};
 }
 // template-run:end
 
@@ -4735,6 +4916,77 @@ function cueGrid(cue: any) {
     beatEnergy: cue.beatEnergy || [], peaks: cue.peaks || [], onsets: cue.onsets || NO_ONSETS, onsetThresholds: cue.onsetThresholds, hookBars: cue.hookBars || null,
     hookBar: cue.hookBar ?? null, referenceStart: ref ? cue.referenceStart : null, referenceCuts: ref ? cue.referenceCuts || null : null,
     referenceTail: ref ? cue.referenceTail || 0 : 0 };
+}
+
+// Template policy stays here; the common run owner stores and verifies its exact recipe.
+async function snapshotMiniFinishAssets(assets: any, frozen: any, language: Lang, readFont: (file: string) => Promise<string>, check: () => void) {
+  const invalid = (message: string) => Object.assign(uiError((l) => t(l, "stepFailed")), { cause: Error(message) });
+  const preset = assets.presets.presets.find((p: any) => p.id === frozen.preset);
+  if (!preset || [assets.titleTsx, assets.softTsx, assets.motionTsx, assets.punchTsx, assets.scripts?.decorateJs].some((source) => typeof source !== "string" || !source.trim()) || !assets.scripts.decorateJs.startsWith("// @template-decoration 1\n")) throw invalid("The title/look operation is incomplete. Reinstall this template.");
+  const fonts = Object.fromEntries(await Promise.all(presetFonts(preset, assets.presets).map(async (font: any) => {
+    const text = (await readFont(font.file)).replace(/\s+/g, "");
+    check(); if (!text || text.length % 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text)) throw invalid("A title font is incomplete.");
+    return [font.file, text];
+  })));
+  check();
+  return JSON.parse(templateStateJSON({ presets: assets.presets, scripts: { decorateJs: assets.scripts.decorateJs }, titleTsx: assets.titleTsx, softTsx: assets.softTsx, motionTsx: assets.motionTsx, punchTsx: assets.punchTsx, fonts, language, version: PLUGIN_VERSION,
+    constants: { TITLE_LOOK, MOTION_OPTIONS, MOTION_STRENGTH, SOFT_STRENGTH, PUNCH_STRENGTH, PUNCH_PUSH, MV_W, MV_H } }, 262144));
+}
+async function prepareMiniDecoration(pending: any, assembly: any, check: () => void) {
+  const assets = pending.finishAssets, f = pending.frozen, bl = assets.language;
+  const res = { sequenceId: assembly.sequenceId, videoEnd: assembly.totalFrames, fps: assembly.fps, plan: pending.plan, photoSizes: pending.photoSizes };
+  const { TITLE_LOOK, MOTION_OPTIONS, MOTION_STRENGTH, SOFT_STRENGTH, PUNCH_STRENGTH, PUNCH_PUSH, MV_W, MV_H } = assets.constants;
+  const p = assets.presets.presets.find((x: any) => x.id === f.preset);
+  if (!p) throw new Error("the title preset " + f.preset + " is missing");
+  // Only the chosen preset's fonts travel with the title, each with its advance metrics.
+  const fonts = await Promise.all(presetFonts(p, assets.presets).map(async (x: any) => {
+    const { file, ...face } = x;
+    return { ...face, metrics: assets.presets.metrics[x.family] || null, b64: assets.fonts[file] };
+  }));
+  check();
+  // Text fields are flat Adjust keys (the layout reads data[key] first); `fields` keeps the Build-time text too.
+  const flat: Record<string, string> = {};
+  for (const fl of p.fields) flat[fl.key] = String(f.fields[fl.key] ?? "");
+  const parameters = { preset: f.preset, ...flat, fields: { ...flat }, primary: p.colors.primary, secondary: p.colors.secondary, ...TITLE_LOOK, fonts,
+    provenance: { plugin: PLUGIN_ID, version: assets.version, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart, pace: f.pace, length: f.length,
+      seed: f.seed, clipSound: f.clipSound, punch: f.punch, hook: f.hook, groove: res.plan.groove || null, picks: res.plan.picks } };
+  const editableParameters = [
+    ...p.fields.map((fl: any) => ({ key: fl.key, label: tOr(bl, "field." + p.id + "." + fl.key, fl.label), type: "text", defaultValue: flat[fl.key] })),
+    { key: "primary", label: t(bl, "param.mainColor"), type: "color", defaultValue: p.colors.primary },
+    { key: "secondary", label: t(bl, "param.secondColor"), type: "color", defaultValue: p.colors.secondary },
+    { key: "shadow", label: t(bl, "param.shadow"), type: "number", defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
+    { key: "size", label: t(bl, "param.size"), type: "number", defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },
+    { key: "x", label: t(bl, "param.x"), type: "number", defaultValue: TITLE_LOOK.x, min: 20, max: 80, step: 1 },
+    { key: "y", label: t(bl, "param.y"), type: "number", defaultValue: TITLE_LOOK.y, min: 20, max: 80, step: 1 },
+    { key: "sparkles", label: f.preset === "mini-vlog" ? t(bl, "param.sparkles") : t(bl, "param.stars"), type: "boolean", defaultValue: TITLE_LOOK.sparkles },
+  ];
+  const motionOptions = MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }));
+  const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), punch: t(bl, "param.punch"), softness: t(bl, "param.softness") };
+  // Photos in this Draft and a planned motion for each of them (the title restricts none).
+  const photoRids = [...new Set(res.plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
+  const sizes: Record<string, { width: number; height: number }> = res.photoSizes;
+  const moves: any[] = mvPhotoMotions(res.plan.picks, String(f.seed), sizes);
+  const byRid: Record<string, any> = {};
+  res.plan.picks.forEach((k: any, i: number) => {
+    if (!moves[i]) return;
+    const sz = sizes[k.rid];
+    // The clip's cover-crop scale, so the motion's drift stays inside the photo.
+    const cover = sz ? Math.max(MV_W / sz.width, MV_H / sz.height) / Math.min(MV_W / sz.width, MV_H / sz.height) : 1;
+    byRid[k.rid] = { ...moves[i], cover };
+  });
+  // Beat punch (spec 15.2 b/c) on every video clip: punches on the bar downbeats at the Draft's real fps, or the
+  // push-in only without a beat grid. decorate.js matches Main clip i to picks[i] and works out each clip's frames.
+  const punch = f.punch ? { tsx: assets.punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: f.bpm ? 60 / f.bpm * res.fps : 0,
+    punchFrames: mvPunchFrames({ bpm: f.bpm, fps: res.fps, sectionStart: f.sectionStart, videoEnd: res.videoEnd }), picks: res.plan.picks } : null;
+  check();
+  return { source: assets.scripts.decorateJs, config: { projectId: f.pid, sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd,
+    title: { tsx: assets.titleTsx, parameters, editableParameters }, soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null,
+    photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch, labels } };
+}
+function miniWorkflowResult(pending: any, a: any, decorated = false) {
+  const { frozen, photoSizes, plan, fitted, unchecked, quickUnavailable } = pending;
+  const shortened = pending.shortened ? { shots: plan.shots, of: fitted, seconds: a.totalFrames / a.fps } : null;
+  return { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated, frozen, photoSizes, plan, notes: a.notes || [], link: null, shortened, unchecked, quickUnavailable, pending, lookOutcome: decorated ? "saved" : "unknown" };
 }
 
 function MiniVlogPanel({ sdk, context, ui }: any) {
@@ -5286,15 +5538,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     return openTemplateAssemblyContinuations(sdk, panelLocalClient(sdk).files, { pluginId: PLUGIN_ID, projectId: pid }, () => { check(); return true; });
   }
   async function finishAssembly(pending: any, check: () => void, continuations: any) {
-    const a = await continuations.run(pending);
-    check();
-    if (assemblyPendingRef.current[pending.scope.projectId] === pending) delete assemblyPendingRef.current[pending.scope.projectId];
-    const { frozen, photoSizes, plan, fitted, unchecked, quickUnavailable } = pending;
-    const shortened = planShort(plan) ? { shots: plan.shots, of: fitted, seconds: a.totalFrames / a.fps } : null;
-    advance("draft", 1);
-    const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, photoSizes, plan, notes: a.notes || [], link: null, shortened, unchecked, quickUnavailable };
-    setResult(res);
-    await decorate(res, check);
+    await decorate({ pending }, check, continuations);
   }
 
   async function build(nextSeed: number) {
@@ -5302,12 +5546,13 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     const pid = projectId, epoch = ++runEpochRef.current;
     const check = () => { if (!runLive(pid, epoch)) throw STALE; };
     busyRef.current = true; stopPreview(); setBusy(true); setStatus(null);
+    let attempt: any = null;
     try {
       const continuations = await openAssemblyContinuations(pid, check);
       const previous = await continuations.read();
       check();
       if (previous) {
-        assemblyPendingRef.current[pid] = previous;
+        attempt = previous; assemblyPendingRef.current[pid] = previous;
         advance("draft", 0);
         await finishAssembly(previous, check, continuations);
         return;
@@ -5328,6 +5573,8 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         musicDuration: musicKind === "cue" && typeof cue?.duration === "number" ? cue.duration : null,
       });
       setResult(null);
+      const finishAssets = await snapshotMiniFinishAssets(assets, frozen, langRef.current, (file) => fontB64(roots.plugin, file), check);
+      check();
       advance("shots", 0);
       const selectedPhotos = selectedPhotoRidsOf(inventory, onlyPhotos, usePhotos)
         .map((rid) => ({ resourceId: rid, name: (inventory.photos || []).find((photo: any) => photo.rid === rid)?.name || rid }));
@@ -5421,11 +5668,11 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       const pending = { scope: { pluginId: PLUGIN_ID, projectId: pid, runId: crypto.randomUUID() },
         config: { projectId: pid, draftName: frozen.draftName, picks: plan.picks, boundaries, crops,
           music: music ? { resourceId: music.resourceId, sectionStart: frozen.sectionStart ?? 0, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound: frozen.clipSound, ambientDb: AMBIENT_DB },
-        source: assets.scripts.assembleJs, frozen, photoSizes, plan, fitted, unchecked: found.failed.length, quickUnavailable: !!found.local?.unavailable };
-      assemblyPendingRef.current[pid] = pending;
+        source: assets.scripts.assembleJs, finishAssets, frozen, photoSizes, plan, fitted, shortened: planShort(plan), unchecked: found.failed.length, quickUnavailable: !!found.local?.unavailable };
+      attempt = pending; assemblyPendingRef.current[pid] = pending;
       await finishAssembly(pending, check, continuations);
     } catch (e: any) {
-      if (e?.outcome === "notSaved" || e?.code === "TEMPLATE_RUN_NOT_SAVED") delete assemblyPendingRef.current[pid];
+      if (attempt && e?.phase !== "decoration" && (e?.outcome === "notSaved" || e?.code === "TEMPLATE_RUN_NOT_SAVED") && assemblyPendingRef.current[pid]?.scope.runId === attempt.scope.runId) delete assemblyPendingRef.current[pid];
       if (e === CANCELLED && runLive(pid, epoch)) setStatus({ tone: "muted", say: (l: Lang) => t(l, "cancelled") });
       else if (e !== STALE && runLive(pid, epoch)) setStatus({ tone: "error", say: stopAt(e) });
     } finally { endRun(pid, epoch); }
@@ -5441,7 +5688,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   }
 
   async function finishTitle() {
-    if (busyRef.current || !result || !assets || !roots) return;
+    if (busyRef.current || !result?.pending) return;
     const pid = projectId;
     if (result.frozen.pid !== pid) return;
     const epoch = ++runEpochRef.current;
@@ -5454,62 +5701,30 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
 
   // Commit 2 (mute the clips' own sound when Clip sound is Off, the title lockup, Soft look and photo motion), then
   // open the Draft. Existing programs must match the exact intended contents before reuse.
-  async function decorate(res: any, check: () => void) {
-    advance("look", 0);
-    const f = res.frozen;
-    // Inspector labels are written into the Draft in the UI language at build time; they do not follow a later switch.
-    const bl = langRef.current;
+  async function decorate(res: any, check: () => void, continuations: any = null) {
+    const pending = res.pending;
+    if (!pending) throw uiError((l) => t(l, "finishUnconfirmed"));
+    const log = continuations || await openAssemblyContinuations(pending.scope.projectId, check);
+    const observeAssembly = (value: any, a: any) => {
+      check(); setResult(miniWorkflowResult(value, a)); advance("draft", 1); advance("look", 0);
+    };
+    let completed: any;
     try {
-      const p = assets.presets.presets.find((x: any) => x.id === f.preset);
-      if (!p) throw new Error("the title preset " + f.preset + " is missing");
-      // Only the chosen preset's fonts travel with the title, each with its advance metrics.
-      const fonts = await Promise.all(presetFonts(p, assets.presets).map(async (x: any) => {
-        const { file, ...face } = x;
-        return { ...face, metrics: assets.presets.metrics[x.family] || null, b64: await fontB64(roots!.plugin, file) };
-      }));
-      check();
-      // Text fields are flat Adjust keys (the layout reads data[key] first); `fields` keeps the Build-time text too.
-      const flat: Record<string, string> = {};
-      for (const fl of p.fields) flat[fl.key] = String(f.fields[fl.key] ?? "");
-      const parameters = { preset: f.preset, ...flat, fields: { ...flat }, primary: p.colors.primary, secondary: p.colors.secondary, ...TITLE_LOOK, fonts,
-        provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart, pace: f.pace, length: f.length,
-          seed: f.seed, clipSound: f.clipSound, punch: f.punch, hook: f.hook, groove: res.plan.groove || null, picks: res.plan.picks } };
-      const editableParameters = [
-        ...p.fields.map((fl: any) => ({ key: fl.key, label: tOr(bl, "field." + p.id + "." + fl.key, fl.label), type: "text", defaultValue: flat[fl.key] })),
-        { key: "primary", label: t(bl, "param.mainColor"), type: "color", defaultValue: p.colors.primary },
-        { key: "secondary", label: t(bl, "param.secondColor"), type: "color", defaultValue: p.colors.secondary },
-        { key: "shadow", label: t(bl, "param.shadow"), type: "number", defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
-        { key: "size", label: t(bl, "param.size"), type: "number", defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },
-        { key: "x", label: t(bl, "param.x"), type: "number", defaultValue: TITLE_LOOK.x, min: 20, max: 80, step: 1 },
-        { key: "y", label: t(bl, "param.y"), type: "number", defaultValue: TITLE_LOOK.y, min: 20, max: 80, step: 1 },
-        { key: "sparkles", label: f.preset === "mini-vlog" ? t(bl, "param.sparkles") : t(bl, "param.stars"), type: "boolean", defaultValue: TITLE_LOOK.sparkles },
-      ];
-      const motionOptions = MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }));
-      const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), punch: t(bl, "param.punch"), softness: t(bl, "param.softness") };
-      // Photos in this Draft and a planned motion for each of them (the title restricts none).
-      const photoRids = [...new Set(res.plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
-      const sizes: Record<string, { width: number; height: number }> = res.photoSizes;
-      const moves: any[] = mvPhotoMotions(res.plan.picks, String(f.seed), sizes);
-      const byRid: Record<string, any> = {};
-      res.plan.picks.forEach((k: any, i: number) => {
-        if (!moves[i]) return;
-        const sz = sizes[k.rid];
-        // The clip's cover-crop scale, so the motion's drift stays inside the photo.
-        const cover = sz ? Math.max(MV_W / sz.width, MV_H / sz.height) / Math.min(MV_W / sz.width, MV_H / sz.height) : 1;
-        byRid[k.rid] = { ...moves[i], cover };
-      });
-      // Beat punch (spec 15.2 b/c) on every video clip: punches on the bar downbeats at the Draft's real fps, or the
-      // push-in only without a beat grid. decorate.js matches Main clip i to picks[i] and works out each clip's frames.
-      const punch = f.punch ? { tsx: assets.punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: f.bpm ? 60 / f.bpm * res.fps : 0,
-        punchFrames: mvPunchFrames({ bpm: f.bpm, fps: res.fps, sectionStart: f.sectionStart, videoEnd: res.videoEnd }), picks: res.plan.picks } : null;
-      await run("Add title and look", fill(assets.scripts.decorateJs, { sequenceId: res.sequenceId, mute: f.clipSound === "off", videoEnd: res.videoEnd, title: { tsx: assets.titleTsx, parameters, editableParameters }, soft: f.soft ? { tsx: assets.softTsx, strength: SOFT_STRENGTH } : null, photos: photoRids, motion: { tsx: assets.motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch, labels }), true);
+      completed = await log.workflow(pending, async (value: any, a: any) => {
+        observeAssembly(value, a);
+        return prepareMiniDecoration(value, a, check);
+      }, observeAssembly);
       check();
     } catch (e: any) {
-      if (e === STALE) throw e;
-      throw uiError((l) => t(l, "finishFailed", { detail: sayError(l, e) }));
+      check();
+      if (e?.phase !== "decoration") throw e;
+      const knownNoSave = e?.outcome === "notSaved" || e?.code === "TEMPLATE_RUN_NOT_SAVED";
+      setResult((current: any) => current?.pending?.scope?.runId === pending.scope.runId ? { ...current, lookOutcome: knownNoSave ? "notSaved" : "unknown" } : current);
+      throw Object.assign(uiError((l) => knownNoSave ? t(l, "finishFailed", { detail: sayError(l, e) }) : t(l, "finishUnconfirmed")), { code: e.code, phase: "decoration", draftId: e.draftId, cause: e });
     }
-    // The title is saved from here on, so a failed open must not offer the retry.
-    setResult((r: any) => ({ ...r, decorated: true }));
+    res = miniWorkflowResult(pending, completed, true);
+    setResult(res); advance("look", 1);
+    if (assemblyPendingRef.current[pending.scope.projectId]?.scope.runId === pending.scope.runId) delete assemblyPendingRef.current[pending.scope.projectId];
     advance("open", 0);
     try {
       const openScript = "const id = " + JSON.stringify(res.sequenceId) + ";\n"
@@ -5586,7 +5801,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const anotherBlock = blockFor(readyPlans.another);
   const ready = assemblyDiscovery === "ready" && inventoryCurrent() && !!assets && !!roots;
   const pendingAssembly = projectId ? assemblyPendingRef.current[projectId] : null;
-  const canBuild = (assemblyDiscovery === "ready" && !!pendingAssembly && !!assets && !!roots) || (ready && !blockReason);
+  const canBuild = (assemblyDiscovery === "ready" && !!pendingAssembly) || (ready && !blockReason);
   const canBuildAnother = !pendingAssembly && ready && !anotherBlock;
 
   // Clips that cannot be used yet, as a sentence for the lines that have nothing else to say.
@@ -5829,7 +6044,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       {blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}
       <ui.Message tone="muted">{t(L, "createsDraft")}</ui.Message>
       <ui.Actions>
-        {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>{t(L, "finishTitle")}</ui.Button> : null}
+        {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>{result.lookOutcome === "unknown" ? t(L, "confirmDraft") : t(L, "finishTitle")}</ui.Button> : null}
         {result ? <ui.Button onClick={buildAnother} disabled={busy || !canBuildAnother}>{t(L, "anotherVersion")}</ui.Button> : null}
         {/* While the quick local check runs, the same slot is its Cancel button (no layout jump). */}
         {checking ? <ui.Button variant="primary" onClick={() => localAbortRef.current?.abort()}>{t(L, "cancel")}</ui.Button>
@@ -6101,6 +6316,13 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   if (!pid) throw templateIssue(t(bl, "openProject"));
   const assemblyRunId = context?.template?.runId;
   if (typeof assemblyRunId !== "string" || !assemblyRunId) throw templateIssue(t(bl, "stepFailed"));
+  const continuations = await openTemplateAssemblyContinuations(sdk, panelLocalClient(sdk).files, { pluginId: PLUGIN_ID, projectId: pid, libraryId: context?.template?.libraryId }, () => { check(); return true; });
+  const previous = await continuations.read(assemblyRunId, true);
+  check();
+  if (previous) {
+    const completed = await continuations.workflow(previous, (value: any, a: any) => prepareMiniDecoration(value, a, check));
+    check(); return { sequenceId: completed.sequenceId };
+  }
   const files = templateFootage(context);
   if (!files.length) throw templateIssue("Choose videos or photos for the footage, then try again.");
   const run = (summary: string, script: string, allowCommit = false) => runTemplateStep(sdk, summary, script, allowCommit);
@@ -6213,6 +6435,12 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
     throw templateIssue((MV_FAIL[plan.reason] ? t(bl, "fail." + plan.reason) : t(bl, "noPlan")) + waiting);
   }
 
+  const fields: Record<string, string> = {};
+  for (const field of chosen.fields) { const value = field.initial ?? ""; fields[field.key] = String(value === "@year" ? mvCurrentYear() : value).slice(0, field.max); }
+  const frozen = { pid, seed: TEMPLATE_SEED, preset: chosen.id, fields, music: "cue", cueId: cue.id, sectionStart: musicStart, pace, length, requested,
+    clipSound: "ambient", soft: true, punch, hook: DEFAULT_HOOK, bpm: gridded ? grid.bpm : null };
+  const finishAssets = await snapshotMiniFinishAssets({ presets, scripts: { decorateJs }, titleTsx, softTsx, motionTsx, punchTsx }, frozen, bl, (file) => read("assets/fonts/" + file), check);
+  check();
   // Commit 1: the music, then the clips on a new Draft.
   say("Adding music");
   const music = await prepareMiniCue(sdk, pid, roots.plugin, cue, musicStart + plan.schedule.cuts.at(-1) + (plan.referenceCuts ? grid.referenceTail || 0 : 0), check);
@@ -6222,62 +6450,14 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
     .map((r: any) => [r.rid, { width: r.width, height: r.height }]));
   const draftName = "Mini Vlog " + chosen.label + " " + stamp(new Date());
   const clipSound = "ambient";
-  // Never resent: the reply may be lost after the Draft was saved.
-  const a = await executeTemplateAssembly(sdk, panelLocalClient(sdk).files,
-    { pluginId: PLUGIN_ID, projectId: pid, runId: assemblyRunId, libraryId: context?.template?.libraryId }, {
-    projectId: pid, draftName, picks: plan.picks, boundaries: plan.schedule.cuts, crops,
-    music: music ? { resourceId: music.resourceId, sectionStart: musicStart, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound, ambientDb: AMBIENT_DB }, assembleJs, () => { check(); return true; });
+  const pending = { scope: { pluginId: PLUGIN_ID, projectId: pid, runId: assemblyRunId, libraryId: context?.template?.libraryId },
+    config: { projectId: pid, draftName, picks: plan.picks, boundaries: plan.schedule.cuts, crops,
+      music: music ? { resourceId: music.resourceId, sectionStart: musicStart, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound, ambientDb: AMBIENT_DB },
+    source: assembleJs, finishAssets, frozen, photoSizes: sizes, plan, fitted, shortened: false, unchecked: found.failed.length, quickUnavailable: false };
+  const completed = await continuations.workflow(pending, (value: any, a: any) => prepareMiniDecoration(value, a, check));
   check();
-  if (!a.sequenceId || !(a.totalFrames > 0)) throw templateIssue("The Draft \"" + draftName + "\" may have been saved without its title. Open it from the Drafts list, or try again.");
-
-  // Commit 2: the title lockup, Soft look, photo motion and Beat punch, as the panel's Finish step adds them.
-  say("Adding title and look");
-  const fonts = await Promise.all(presetFonts(chosen, presets).map(async (x: any) => {
-    const { file, ...face } = x;
-    return { ...face, metrics: presets.metrics[x.family] || null, b64: (await readText(roots.plugin, "assets/fonts/" + file)).replace(/\s+/g, "") };
-  }));
-  check();
-  const flat: Record<string, string> = {};
-  for (const fl of chosen.fields) { const v = fl.initial ?? ""; flat[fl.key] = String(v === "@year" ? mvCurrentYear() : v).slice(0, fl.max); }
-  const bpm = gridded ? grid.bpm : null;
-  const parameters = { preset: chosen.id, ...flat, fields: { ...flat }, primary: chosen.colors.primary, secondary: chosen.colors.secondary, ...TITLE_LOOK, fonts,
-    provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: chosen.id, cue: cue.id, sectionStart: musicStart, pace, length,
-      seed: TEMPLATE_SEED, clipSound, punch, hook: DEFAULT_HOOK, groove: plan.groove || null, picks: plan.picks } };
-  const editableParameters = [
-    ...chosen.fields.map((fl: any) => ({ key: fl.key, label: tOr(bl, "field." + chosen.id + "." + fl.key, fl.label), type: "text", defaultValue: flat[fl.key] })),
-    { key: "primary", label: t(bl, "param.mainColor"), type: "color", defaultValue: chosen.colors.primary },
-    { key: "secondary", label: t(bl, "param.secondColor"), type: "color", defaultValue: chosen.colors.secondary },
-    { key: "shadow", label: t(bl, "param.shadow"), type: "number", defaultValue: TITLE_LOOK.shadow, min: 0, max: 1, step: 0.05 },
-    { key: "size", label: t(bl, "param.size"), type: "number", defaultValue: TITLE_LOOK.size, min: 60, max: 160, step: 5 },
-    { key: "x", label: t(bl, "param.x"), type: "number", defaultValue: TITLE_LOOK.x, min: 20, max: 80, step: 1 },
-    { key: "y", label: t(bl, "param.y"), type: "number", defaultValue: TITLE_LOOK.y, min: 20, max: 80, step: 1 },
-    { key: "sparkles", label: chosen.id === "mini-vlog" ? t(bl, "param.sparkles") : t(bl, "param.stars"), type: "boolean", defaultValue: TITLE_LOOK.sparkles },
-  ];
-  const motionOptions = MOTION_OPTIONS.map((o) => ({ label: tOr(bl, "motion." + o.value, o.label), value: o.value }));
-  const labels = { motion: t(bl, "param.motion"), motionStrength: t(bl, "param.motionStrength"), punch: t(bl, "param.punch"), softness: t(bl, "param.softness") };
-  const photoRids = [...new Set(plan.picks.filter((k: any) => k && k.kind === "photo").map((k: any) => k.rid as string))];
-  const moves: any[] = mvPhotoMotions(plan.picks, String(TEMPLATE_SEED), sizes);
-  const byRid: Record<string, any> = {};
-  plan.picks.forEach((k: any, i: number) => {
-    if (!moves[i]) return;
-    const sz = sizes[k.rid];
-    const cover = sz ? Math.max(MV_W / sz.width, MV_H / sz.height) / Math.min(MV_W / sz.width, MV_H / sz.height) : 1;
-    byRid[k.rid] = { ...moves[i], cover };
-  });
-  const punchCfg = punch ? { tsx: punchTsx, strength: PUNCH_STRENGTH, push: PUNCH_PUSH, beatFrames: bpm ? 60 / bpm * a.fps : 0,
-    punchFrames: mvPunchFrames({ bpm, fps: a.fps, sectionStart: musicStart, videoEnd: a.totalFrames }), picks: plan.picks } : null;
-  const finish = () => run("Add title and look", fill(decorateJs, { sequenceId: a.sequenceId, mute: false, videoEnd: a.totalFrames, title: { tsx: titleTsx, parameters, editableParameters },
-    soft: { tsx: softTsx, strength: SOFT_STRENGTH }, photos: photoRids, motion: { tsx: motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch: punchCfg, labels }), true);
-  // A failed reply does not prove that the first commit stopped. Preserve its
-  // Draft identity and cause; phase-receipt recovery must precede another save.
-  try { await finish(); }
-  catch (cause) {
-    check();
-    throw Object.assign(templateIssue(t(bl, "finishUnconfirmed")), { code: "TEMPLATE_DECORATION_PENDING", draftId: a.sequenceId, cause });
-  }
-  check();
-  // Nobody sees this frame, so the Draft is not opened: the app takes the person to it.
-  return { sequenceId: a.sequenceId };
+  // Opening is caller policy: the app takes the person to this verified Draft.
+  return { sequenceId: completed.sequenceId };
 }
 
 // What the app mounts out of sight for a template run: one status line. It starts once per runId and ends the run
