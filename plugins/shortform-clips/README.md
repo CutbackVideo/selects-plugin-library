@@ -133,7 +133,8 @@ in place and refreshes their previews. Other clips stay wide. **Reframe all clip
 frames every clip of the run. A failed framing keeps its retry as framing.
 
 **Delete selected** asks for confirmation, removes the clips from My clips and
-moves their Drafts to the project folder **Deleted shorts** (삭제한 숏폼); delete
+moves their Drafts to the project folder **Deleted shorts** (named in the
+panel's language); delete
 them there. The panel SDK has no Draft deletion. The run keeps each deleted clip
 at its index, so resuming or reframing never rebuilds or refiles it.
 
