@@ -24,6 +24,16 @@ an unrelated workflow. A passing unit suite alone is not completion.
 
 ## Current checkpoint
 
+- Gallery 0.3.22 fixes a concurrent cache-index observation race revealed by
+  remote Video/PCM checks. The existing derived-file owner reobserves only a
+  changed index, at most three times, without replaying a write or encode.
+  A persistently changing index stays unknown and cannot trigger replacement
+  production. Eight deterministic cases pass after six parent failures; existing
+  Gallery contracts pass 440 cases and related photo/asset contracts pass 284.
+  Seven actual file-only development-app SDK scenarios confirm the behavior.
+  See [gallery-index-observation.md](gallery-index-observation.md). The pool and
+  28-template completion gates remain unchanged.
+
 - The existing bundled-asset reader now uses its first size observation as a
   bounded read budget and checks metadata afterward. No.14, Stop Motion,
   Polaroid and Gallery receive regenerated active consumers and patch versions.

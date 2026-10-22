@@ -1,6 +1,20 @@
 # Validation and limits
 
-## Current repair checkpoint: 0.3.21
+## Current repair checkpoint: 0.3.22
+
+The existing shared derived-file owner now distinguishes a concurrently replaced
+complete cache index from a cache miss. It reobserves only changed index reads,
+at most three times, then reports an unknown publication without another encode.
+Generic bounded reads, source/output hashes, publication and cancellation checks
+remain. Eight deterministic ordinary/minified cases pass after six parent
+failures. Existing Gallery contracts pass 440 cases; related asset/photo
+contracts pass 284. Seven actual file-only development-app SDK scenarios confirm
+the parent failure, fixed reuse, bounded unknown state and cancellation. These
+use a synthetic binary producer, not installed-panel playback. See
+`docs/template-repair/gallery-index-observation.md` for precise scope and limits.
+No template's full acceptance gates are declared complete.
+
+## Previous bounded-read checkpoint: 0.3.21
 
 The existing shared asset reader now freezes its first valid size as a bounded
 readRange budget and checks metadata again after reading. Growth can no longer

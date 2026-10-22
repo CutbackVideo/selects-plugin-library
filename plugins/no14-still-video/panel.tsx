@@ -962,7 +962,19 @@ async function prepareDerivedAsset(files,options){
   current();let candidate;
   try{
    if(!await files.exists(indexPath)){current();return null;}
-   const bytes=await readBundledAssetBytes(files,indexPath,49152,current),row=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
+   // A different live writer may atomically replace a complete index between
+   // our stat/read/stat observations. Reobserve only this read; never replay
+   // publication or treat an unconfirmed, changing index as a cache miss.
+   let bytes;
+   for(let attempt=0;attempt<3;attempt++){
+    current();
+    try{bytes=await readBundledAssetBytes(files,indexPath,49152,current);break;}
+    catch(error){
+     current();if(error?.code!=='BUNDLED_ASSET_CHANGED')throw error;
+     if(attempt===2)throw Object.assign(bundledAssetIssue('PUBLISH','The prepared media index could not be confirmed. Inspect the cache before starting again.',error),{terminal:true});
+    }
+   }
+   const row=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
    if(row?.version!==1||row.key!==key||!same(row.source,source)||!valid(row.output))return null;
    const path=files.join(objectDirectory,row.output.sha256+'.'+extension);
    if(!same(await readAssetFileIdentity(files,path,hashFile,current),row.output))return null;
