@@ -4198,10 +4198,12 @@ const files=[],walk=nodes=>{for(const n of nodes||[])if(n.type==='dir')walk(n.ch
 const inventory=await p.sourceFiles();
 if('fileTree' in inventory)walk(inventory.fileTree);
 else for(const folder of inventory.folders||[]){const detail=await p.sourceFiles({folder:folder.name});if('fileTree' in detail)walk(detail.fileTree);}
-const sizeOf=id=>{const f=files.find(f=>f.resourceId===id)?.frameSize,W=Number(f?.width),H=Number(f?.height);if(!(W>0&&H>0))throw new Error("Source frame size is unavailable for the wide shot");return {W,H};};
-for (const key of keys) sizeOf(key.resourceId);
+// A synced timeline is listed without a frame size; its resource metadata has one.
+const sizes=new Map();
+const readSize=async id=>{let f=files.find(f=>f.resourceId===id)?.frameSize;if(!(Number(f?.width)>0&&Number(f?.height)>0))f=await p.resource(id).meta().then((m:any)=>m?.frameSize,()=>null);const W=Number(f?.width),H=Number(f?.height);if(!(W>0&&H>0))throw new Error("Source frame size is unavailable for the wide shot");return {W,H};};
+for (const key of keys) if(!sizes.has(key.resourceId))sizes.set(key.resourceId,await readSize(key.resourceId));
 for (const key of keys) {
- const {W,H}=sizeOf(key.resourceId);
+ const {W,H}=sizes.get(key.resourceId);
  const fresh=async()=> (await d.clips({trackScope:"main"})).find(c=>c.clipId===key.clipId&&c.trackId===key.trackId);
  await d.setClipTransform({clip:await fresh(),scale:{x:1,y:windowH/(H*1080/W)},position:{x:0,y:(960-${(top+bottom)/2})/1920*100}});
  const parameters={sourceW:W,sourceH:H,windowH,panels:[{fit:"contain",backdrop:"blur",w:W,cx:W/2,cy:H/2}]};

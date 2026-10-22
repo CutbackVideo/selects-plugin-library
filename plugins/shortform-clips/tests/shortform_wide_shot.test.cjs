@@ -57,8 +57,19 @@ test('clips without framing show the whole source over a blurred copy',{skip:!mo
   assert.deepEqual(await run(byFolder),{clips:2});
   assert.deepEqual(calls[0][2],{x:1,y:1106/607.5});
   calls.length=0;
-  const unknown={...selects,project:()=>({meta:async()=>({draftIds:['draft']}),sourceFiles:async()=>({fileTree:[]})})};
+  const unknown={...selects,project:()=>({meta:async()=>({draftIds:['draft']}),sourceFiles:async()=>({fileTree:[]}),resource:()=>({meta:async()=>{throw Error('resource_not_analyzed');}})})};
   await assert.rejects(run(unknown),/frame size/);
   assert.equal(calls.length,0);
+  // A Draft made from a synced timeline holds the timeline itself: the inventory lists it without a frame
+  // size, so its resource metadata supplies the size. Sources with an inventory size never read metadata.
+  calls.length=0;let metaReads=0;
+  const synced={...selects,project:()=>({meta:async()=>({draftIds:['draft']}),resource:()=>({meta:async()=>{metaReads++;return {frameSize:{width:1920,height:1080}};}}),
+   sourceFiles:async()=>({fileTree:[{type:'file',resourceId:'r1',name:'Synced timeline'}]})})};
+  assert.deepEqual(await run(synced),{clips:2});
+  assert.equal(metaReads,1,'one metadata read per resource');
+  assert.deepEqual(calls[0][2],{x:1,y:1106/607.5});
+  metaReads=0;calls.length=0;
+  assert.deepEqual(await run({...selects,project:()=>({...synced.project(),sourceFiles:async()=>({fileTree:[{type:'file',resourceId:'r1',frameSize:{width:1920,height:1080}}]})})}),{clips:2});
+  assert.equal(metaReads,0,'inventory sizes need no analysis metadata');
  });
 });
