@@ -2202,8 +2202,10 @@ Object.assign(RESULT_STRINGS.ko,{stages:{"speakers-wait":"\ubc1c\ud654 \uc778\ub
 Object.assign(RESULT_STRINGS.en,{stages:{"speakers-wait":"Waiting for speaker analysis",speakers:"Analyzing audio and mouth motion","faces-wait":"Waiting for face analysis",faces:"Analyzing faces","evidence-wait":"Waiting for evidence",evidence:"Preparing evidence",ai:"AI composition planning",agent:"AI source analysis and composition","apply-wait":"Waiting to apply edits",apply:"Applying edits","verify-wait":"Waiting for verification",verify:"Verifying output",thumbnail:"Creating thumbnail",done:"Complete",failed:"Failed",pending:"Preparing"}});
 Object.assign(RESULT_STRINGS.ko,{preparingClip:"\ud654\uba74 \uad6c\uc131 \uc911",thumbnailPending:"\ubbf8\ub9ac\ubcf4\uae30 \uc900\ube44 \uc911",previewPending:"\uc644\ub8cc \ud6c4 \uc5f4 \uc218 \uc788\uc5b4\uc694",retryClip:"\uc774 \ud074\ub9bd \uc7ac\uc2dc\ub3c4",failureDetails:"\uc624\ub958 \uc0c1\uc138",failedAt:(stage:string)=>`${stage} \ub2e8\uacc4\uc5d0\uc11c \uc2e4\ud328`});
 Object.assign(RESULT_STRINGS.en,{preparingClip:"Composing",thumbnailPending:"Preparing preview",previewPending:"Available when complete",retryClip:"Retry this clip",failureDetails:"Error details",failedAt:(stage:string)=>`Failed at: ${stage}`});
+Object.assign(RESULT_STRINGS.ko.stages,{"wide-pending":"\uc640\uc774\ub4dc \ubc30\uce58 \ub300\uae30",wide:"\uc640\uc774\ub4dc \ubc30\uce58"});
+Object.assign(RESULT_STRINGS.en.stages,{"wide-pending":"Waiting for wide shot",wide:"Wide shot"});
 function clipReady(d:any) {
-  return !!d.draftId && !d.error && d.reframeState !== "pending" && d.reframeState !== "failed" && (!d.progressStage || d.progressStage === "done");
+  return !!d.draftId && !d.error && d.reframeState !== "pending" && d.reframeState !== "failed" && d.reframeState !== "wide-pending" && (!d.progressStage || d.progressStage === "done");
 }
 function ClipCardProgress({draft:d,R,S}:any) {
   const [now,setNow]=React.useState(Date.now());
@@ -2233,7 +2235,7 @@ function jobTokenLabel(job: any, R: any) {
   // Older jobs may have already completed shared stages without telemetry.
   if (job.usageTracking !== true) calls.push(null);
   for (const clip of job.built || []) {
-    if (!clip || clip.reframeState === "skipped") continue;
+    if (!clip || clip.reframeState === "skipped" || clip.reframeState === "wide-pending") continue;
     calls.push(...(clip.reframeUsageCalls?.length ? clip.reframeUsageCalls : [null]));
   }
   return reframingTokenLabel({reframeUsageCalls:calls}, R);
@@ -2309,7 +2311,6 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
         <strong>{d.headline1}</strong>
       </label> : <strong>{d.headline1}</strong>}
       {d.wide && d.reframeState === "skipped" && <small style={{color:"var(--panel-muted-fg)"}}>{ko?'\uc640\uc774\ub4dc \u00b7 \ud654\uba74 \uad6c\uc131 \uc804':'Wide · not framed yet'}</small>}
-      {d.wideError && <small style={{color:"var(--panel-danger)"}}>{(ko?'\uc640\uc774\ub4dc \ubc30\uce58 \uc2e4\ud328: ':'Wide shot failed: ')+d.wideError}</small>}
       {(d.headline2 || d.seconds != null) && <small style={{lineHeight:1.5}}>{[d.headline2,d.seconds != null ? S.seconds(d.seconds) : null].filter(Boolean).join(" · ")}</small>}
       {d.why && <>
         <small ref={description} style={{ lineHeight: 1.5, whiteSpace: "pre-wrap", ...(expanded ? {} : { ...CLAMP2, WebkitLineClamp: 3 }) }}>{d.why}</small>
@@ -10832,10 +10833,12 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
         if(forceReframe && made[i]?.draftId) made[i]={...made[i],reframeState:"pending",progressStage:"pending",error:undefined};
         // Completed legacy drafts already contain their framing; new drafts persist
         // an explicit pending state so interruption resumes the same output.
-        if (made[i]?.draftId && made[i].reframeState !== "pending" && made[i].reframeState !== "failed") continue;
+        if (made[i]?.draftId && made[i].reframeState !== "pending" && made[i].reframeState !== "failed" && made[i].reframeState !== "wide-pending") continue;
         // A run without framing leaves clips wide until the user frames them; an unfinished or failed
         // framing request stays a framing request when resumed or retried.
         const needsReframe = framingOn && (!job.skipFraming || forceReframe || made[i]?.reframeState === "pending" || made[i]?.reframeState === "failed");
+        // Saved before its wide shot is placed, so an interruption in between resumes the wide shot.
+        const unframed = framingOn && job.skipFraming ? "wide-pending" : "skipped";
         const buildStarted = Date.now();
         setStatus(S.building(i + 1, pickd.clips.length));
         setSub(i / pickd.clips.length);
@@ -10846,7 +10849,7 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
           "Check for an existing draft"
         );
         if (found?.draftId) {
-          made[i] = { ...c, ...found, name, draftId: found.draftId, seconds: found.seconds, error:undefined, progressStage:"pending", progressAt:Date.now(), reframeState: needsReframe ? "pending" : "skipped" };
+          made[i] = { ...c, ...found, name, draftId: found.draftId, seconds: found.seconds, error:undefined, progressStage:"pending", progressAt:Date.now(), reframeState: needsReframe ? "pending" : unframed };
         } else {
           const P = {
             projectId,
@@ -10889,7 +10892,7 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
               P.removeSilences = false;
               r = await script(await templateBuildScript(buildScript,P,store,paramsPath), `Build ${name}`, true);
             }
-            made[i] = { ...c, name, draftId: r?.draftId, seconds: r?.seconds, reframeState: needsReframe ? "pending" : "skipped" };
+            made[i] = { ...c, name, draftId: r?.draftId, seconds: r?.seconds, reframeState: needsReframe ? "pending" : unframed };
           } catch (e: any) {
             if (e instanceof RunCancelled) throw e;
             made[i] = { ...c, name, error: String(e?.message || e).slice(0, 300) };
@@ -10930,7 +10933,7 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
           };
           try {
             const report=await runTemplateReframing(made[i].draftId,job,tpl,note,work,made[i].reframeReport?.editContext);
-            made[i] = {...made[i],reframeReport:report,reframeState:"done",progressStage:"done",progressAt:Date.now(),error:undefined,previewPending:true,wide:false,wideError:undefined};
+            made[i] = {...made[i],reframeReport:report,reframeState:"done",progressStage:"done",progressAt:Date.now(),error:undefined,previewPending:true,wide:false};
           } catch (e: any) {
             if (e instanceof RunCancelled) throw e;
             made[i] = {...made[i], reframeState:"failed", failedStage:made[i].progressStage, progressStage:"failed",progressAt:Date.now(), error:String(e?.message || e).slice(0,300)};
@@ -10938,16 +10941,19 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
           setDrafts(made.filter((d:any)=>d && !d.deleted));
           await persist({built:made, choice:pickd, resultWarning});
           await mark("reframed", {clip: i, ms: Date.now() - reframeStarted, ok: made[i].reframeState === "done"});
-        } else if (made[i]?.draftId && made[i].reframeState !== "failed" && made[i].progressStage !== "done") {
-          if (framingOn && job.skipFraming && !made[i].wide) {
+        } else if (made[i]?.draftId && made[i].reframeState !== "failed" && (made[i].reframeState === "wide-pending" || made[i].progressStage !== "done")) {
+          if (made[i].reframeState === "wide-pending") {
             try {
               await script(wideShotScript(projectId,made[i].draftId,tpl.layout),"Place the full source as a wide shot",true);
-              made[i] = {...made[i],wide:true,wideError:undefined};
+              made[i] = {...made[i],reframeState:"skipped",wide:true,error:undefined,failedStage:undefined};
               await mark("wide", {clip: i});
             } catch (e: any) {
               if (e instanceof RunCancelled) throw e;
-              // The Draft stays editable with the template crop; framing it later still works.
-              made[i] = {...made[i],wideError:String(e?.message || e).slice(0,300)};
+              // Still waiting for its wide shot: resuming or retrying places it, without any analysis.
+              made[i] = {...made[i],progressStage:"failed",failedStage:"wide",progressAt:Date.now(),error:String(e?.message || e).slice(0,300)};
+              setDrafts(made.filter((d:any)=>d && !d.deleted));
+              await persist({built:made,resultWarning});
+              return;
             }
           }
           made[i] = {...made[i],progressStage:"done",progressAt:Date.now(),previewPending:true};
@@ -10976,7 +10982,7 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
       await mark("thumbnails-done");
       await mark("done");
 
-      const allBuilt = made.length === pickd.clips.length && made.every((m) => m && (m.deleted || (m.draftId && m.reframeState !== "failed" && m.reframeState !== "pending")));
+      const allBuilt = made.length === pickd.clips.length && made.every((m) => m && (m.deleted || (m.draftId && m.reframeState !== "failed" && m.reframeState !== "pending" && m.reframeState !== "wide-pending")));
       await persist({ done: allBuilt });
       setStatus(S.done(made.filter((m) => m && m.draftId && !m.deleted).length));
       if (!allBuilt) setError(made.filter((m) => m && m.error).map((m) => m.error).join(" / ").slice(0, 600) + " " + S.resumeHint);
