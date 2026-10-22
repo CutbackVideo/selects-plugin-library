@@ -7,7 +7,7 @@ test('passage selection requests distinct source intervals with a maximum count'
  const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
  const start=source.indexOf('  async function choose('),end=source.indexOf('\n  }',start)+4;
  const mod={exports:{}};
- const code=`const S={},nameOf=()=> 'Test',CLIP_SCORE_PROMPT='',extractJson=JSON.parse,clipAssessment=x=>x;${source.slice(start,end)}\nexport {choose};`;
+ const code=`const S={},nameOf=()=> 'Test',CLIP_SCORE_PROMPT='',CAPTION_CLEANUP_PROMPT='caption cleanup',extractJson=JSON.parse,clipAssessment=x=>x;${source.slice(start,end)}\nexport {choose};`;
  new Function('module','exports',dep('esbuild').transformSync(code,{loader:'ts',format:'cjs'}).code)(mod,mod.exports);
  const template={prompt:{},captions:{cleanSpeechText:true}};
  const clip=(...segments)=>({headline1:'Title',segments});
@@ -36,6 +36,17 @@ test('passage selection requests distinct source intervals with a maximum count'
   const {result,prompts}=await run([{clips:[]}],5);
   assert.equal(result.clips.length,0);assert.equal(prompts.length,1);
   assert.match(source,/if \(!pickd.clips.length\) \{\s*await persist\(\{choice:pickd,done:true\}\)/);
+ });
+ await t.test('malformed cleanup cannot fail valid passage selection and opt-out ignores omissions',async()=>{
+  for(const captionOmissions of [undefined,null,{},'bad',[null,{text:'missing location'}]]){
+   const {result}=await run([{clips:[clip([0,10])],captionOmissions}]);
+   assert.equal(result.clips.length,1);assert.deepEqual(result.captionOmissions,[]);
+  }
+  const omission={startSeconds:0,endSeconds:2,text:'um',occurrence:0,reason:'filler'};
+  let result=await mod.exports.choose(template,'Video',[[0,2,'um hello']],100,'manual',1,'',async()=>({text:JSON.stringify({clips:[clip([0,10])],captionOmissions:[omission,{...omission,endSeconds:3}]})}));
+  assert.deepEqual(result.captionOmissions,[omission]);
+  result=await mod.exports.choose({...template,captions:{cleanSpeechText:false}},'Video',[[0,2,'um hello']],100,'manual',1,'',async()=>({text:JSON.stringify({clips:[clip([0,10])],captionOmissions:[omission]})}));
+  assert.deepEqual(result.captionOmissions,[]);
  });
  await t.test('transport failures are not disguised as a valid empty selection',async()=>{
   await assert.rejects(run([new Error('Cancelled')]),/Cancelled/);
