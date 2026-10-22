@@ -28,8 +28,10 @@ test('Mini old standalone: a self-consistent saved receipt for the wrong cut can
  ui.box.sdk=f.sdk;ui.box.openAssemblyContinuations=()=>f.open();ui.box.prepareMiniDecoration=f.prepare;ui.box.readText=async(_root,rel)=>fs.readFileSync(new URL('../plugins/mini-vlog/'+rel,import.meta.url),'utf8');
  await ui.box.api.build(3);assert.ok(f.requests.some(r=>r.summary==='Verify original Mini assembly plan'),'the actual read-only admission operation must run');assert.equal(f.commits(),1,'the frozen owner receipt is not evidence of the original 60-frame plan');assert.equal(f.requests.filter(r=>r.summary==='Decorate template with owned receipt').length,0);
 });
-import vm from 'node:vm';import {execFileSync} from 'node:child_process';
-const oldOwner=execFileSync('git',['show','bb58bcd:shared/template-run.js'],{cwd:new URL('..',import.meta.url),encoding:'utf8'});
+import vm from 'node:vm';import {createHash} from 'node:crypto';
+// Frozen verbatim bb58bcde33d396afb13f65d745c61fe4104bc124; CI needs no Git history.
+const oldOwner=fs.readFileSync(new URL('./fixtures/mini-owner-alpha23.js',import.meta.url),'utf8');
+assert.equal(createHash('sha256').update(oldOwner).digest('hex'),'aeb582d8776f4506e9e17dc0a2e68bde7362d80ec1747bbebea1b2110c109e61');
 test('retired assembly: an actual older owner cannot validate it as a retryable failure',async t=>{
  const f=await fixture(t);await assert.rejects(run(f),e=>e.code==='TEMPLATE_RUN_RETIRED');const box=f.mount();vm.runInContext(oldOwner,box);
  await assert.rejects(box.executeTemplateAssembly(f.sdk,f.local.files,f.root.scope,f.root.config,f.root.source,()=>true),e=>e.code==='TEMPLATE_RUN_INVALID');assert.equal(f.commits(),0);

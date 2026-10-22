@@ -94,6 +94,9 @@ media/asset preparation. Current-contract runs keep their existing path.
   CJS suites, twenty-four Audio/Gallery builder cases and Python 299 tests (six
   existing skips) pass. Public-source/package/module/generator checks pass.
   Builder tests also confirm stale verifier output is detected and regenerated.
+  The old owner is a hash-checked verbatim fixture: a Git-history-free environment
+  reproduces the initial missing-history failure and passes after that correction,
+  so CI does not need the parent commit objects.
 - Actual macOS SDK uses exact historical `8fe2f3a` operations and the current
   recovery helper/verifier. The real mixed-clock old Draft ends `[25, 57]` for a
   `[25, 56]` plan: it remains unchanged and receives no look commit. An unstarted
