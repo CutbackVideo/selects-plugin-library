@@ -144,6 +144,53 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       assert.ok(captions.every(g=>g.within.b>g.within.a));
     }
   });
+  // Real Selects returned Draft words whose sourceResourceId is a UUID while the Project
+  // resource, its words and the Draft's main clip use the Project id ("r725").
+  const runCleanupBuild=async({P,inputWords,outputWords,mainClips,sourceKind})=>{
+    const graphics=[];
+    const meta=async()=>({fps:30,durationSeconds:4,frameSize:{width:1920,height:1080}});
+    const draft={meta,words:async()=>outputWords,insertResource:async()=>{},insert:async()=>{},setSettings:async()=>{},setFrameSize:async()=>{},
+      clips:async()=>mainClips,setClipTransform:async()=>{},rangeAtFrames:async(a,b)=>({a,b}),
+      addMotionGraphic:async g=>graphics.push(g),commitAll:async()=>({createdDraftId:'cleanup-id-form'})};
+    const inputDraft={meta,words:async()=>inputWords,rangeAtFrames:async(a,b)=>({a,b})};
+    const project={meta:async()=>({draftIds:['input-draft']}),resources:async()=>[{resourceId:'r725'}],
+      resource:()=>({meta,words:async()=>inputWords}),createDraft:async()=>draft};
+    const selects={project:()=>project,draft:()=>inputDraft};
+    const code=api.SCRIPT_BUILD.replace('const P: any = __P__;','const P: any = '+JSON.stringify({...P,sourceKind,sourceDraftId:'input-draft'})+';');
+    const wrapped=esbuild.transformSync('async function build(selects){'+code+'}\nreturn build;',{loader:'ts'}).code;
+    await new Function(wrapped)()(selects);
+    return graphics.filter(g=>g.label.startsWith('Caption ')).map(g=>g.parameters.text).join(' ').replace(/[*.]/g,'').replace(/\s+/g,' ').trim();
+  };
+  const cleanupParams=omissions=>{
+    const P=api.buildParams(template('news-direct'),{...clip,segments:[[0,3]]},title);
+    P.cleanSpeechText=true;P.removeFillers=false;P.removeSilences=false;P.resourceId='r725';P.resourceName='';P.captionOmissions=omissions;
+    return P;
+  };
+  // A filler, a stutter fragment, then the claim, all in one transcript line [0, 2.4].
+  const spoken=['\ubb50','\uc54c,','\uc54c','\uc218','\uc788\uc5b4\uc694.'];
+  const realOmissions=[{startSeconds:0,endSeconds:2.4,text:'\ubb50',occurrence:0,reason:'filler'},{startSeconds:0,endSeconds:2.4,text:'\uc54c,',occurrence:0,reason:'stutter'}];
+  await t.test('caption cleanup applies when Draft words name the source with a different id form',async()=>{
+    const inputWords=spoken.map((text,i)=>({text,startFrame:i*15,endFrame:i*15+12,sourceStartFrame:i*15,sourceResourceId:'r725',wordId:String(60+i),speakerId:1,utteranceId:'u'}));
+    const outputWords=inputWords.map(w=>({...w,sourceResourceId:'83d0e980-99d3-432e-90a3-1cdfd9ac9ac9'}));
+    const mainClips=[{resourceId:'r725',trackKind:'main',startFrame:0,endFrame:90}];
+    assert.equal(await runCleanupBuild({P:cleanupParams(realOmissions),inputWords,outputWords,mainClips}),'\uc54c \uc218 \uc788\uc5b4\uc694');
+    assert.equal(await runCleanupBuild({P:cleanupParams([]),inputWords,outputWords,mainClips}),'\ubb50 \uc54c, \uc54c \uc218 \uc788\uc5b4\uc694','no omissions keeps every word');
+    // A word that matches neither the input id nor the main clip under it keeps its caption text.
+    assert.equal(await runCleanupBuild({P:cleanupParams(realOmissions),inputWords,outputWords,mainClips:[{...mainClips[0],resourceId:'other-video'}]}),'\ubb50 \uc54c, \uc54c \uc218 \uc788\uc5b4\uc694');
+  });
+  await t.test('caption cleanup for one source never removes the same word from another source',async()=>{
+    // Draft input with two sources: the same filler at the same source time in each.
+    const word=(text,i,resource)=>({text,startFrame:i*15,endFrame:i*15+12,sourceStartFrame:300,sourceResourceId:resource,speakerId:1,utteranceId:'u-'+resource});
+    const inputWords=[word('\ubb50',0,'r725'),word('\uc911\uc694\ud574\uc694.',1,'r725'),word('\ubb50',2,'r726'),word('\uc911\uc694\ud574\uc694.',3,'r726')]
+      .map((w,i)=>({...w,sourceStartFrame:300+(i%2)*15}));
+    const outputWords=inputWords.map(w=>({...w,sourceResourceId:w.sourceResourceId==='r725'?'83d0e980-99d3-432e-90a3-1cdfd9ac9ac9':'5b1c2d3e-0000-4000-8000-000000000726'}));
+    const mainClips=[{resourceId:'r725',trackKind:'main',startFrame:0,endFrame:30},{resourceId:'r726',trackKind:'main',startFrame:30,endFrame:60}];
+    // transcriptLines splits after each sentence: line 1 is [0, 0.9] (r725), line 2 is [1, 1.9] (r726).
+    const first=[{startSeconds:0,endSeconds:0.9,text:'\ubb50',occurrence:0,reason:'filler'}];
+    assert.equal(await runCleanupBuild({P:cleanupParams(first),inputWords,outputWords,mainClips,sourceKind:'draft'}),'\uc911\uc694\ud574\uc694 \ubb50 \uc911\uc694\ud574\uc694');
+    const second=[{startSeconds:1,endSeconds:1.9,text:'\ubb50',occurrence:0,reason:'filler'}];
+    assert.equal(await runCleanupBuild({P:cleanupParams(second),inputWords,outputWords,mainClips,sourceKind:'draft'}),'\ubb50 \uc911\uc694\ud574\uc694 \uc911\uc694\ud574\uc694');
+  });
   await t.test('all four templates build before visual analysis completes',async()=>{
     for(const id of api.BUILTIN_TEMPLATES.map(t=>t.id)) {
       const tpl=structuredClone(template(id));
