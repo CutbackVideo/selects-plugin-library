@@ -1,0 +1,17 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{createRequire}=require('node:module');
+const modulesRoot=process.env.SBS_PANEL_TEST_MODULES;
+test('scene fixed branding uses the shared template renderer',{skip:!modulesRoot},async t=>{
+ const dep=createRequire(path.resolve(modulesRoot,'../package.json')),esbuild=dep('esbuild'),source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8'),mod={exports:{}};
+ new Function('require','module','exports',esbuild.transformSync(source+'\nexport {sceneBrandScript,radioFrameParams,RadioPreviewFrame};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ const api=mod.exports,tpl=JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/hankook-ilbo/templates/huick-alpha.json'))),S={editable:{}};
+ tpl.logo.image='data:image/png;base64,iVBORw0KGgo=';tpl.captions.on=false;
+ const clip={name:'Owned draft',headline1:'Topic',headline2:''},calls=[],graphics=[];
+ const d={meta:async()=>({name:clip.name,durationFrames:180}),rangeAtFrames:async(a,b)=>({a,b}),motionGraphics:async()=>graphics,motionGraphicProgram:async c=>({parameters:graphics.find(g=>g.clip===c).parameters}),addMotionGraphic:async o=>{calls.push(o);graphics.push({name:o.label,clip:{startFrame:o.within.a,endFrame:o.within.b},parameters:o.parameters});},commitAll:async()=>{}};
+ const sdk={project:()=>({meta:async()=>({draftIds:['d']})}),draft:()=>d};
+ const script=api.sceneBrandScript('p','d',clip,tpl,S),run=new Function(esbuild.transformSync('async function run(selects){'+script+'}',{loader:'ts'}).code+';return run;')();
+ await t.test('fixed logo and topic appear once with template dimensions and no background band',async()=>{await run(sdk);assert.equal(calls.length,2);assert.deepEqual(calls.map(o=>o.parameters.designElement),['headline1','logo']);for(const o of calls){assert.deepEqual(o.within,{a:0,b:180});assert.equal(o.parameters.logoWidth,1080);assert.equal(o.parameters.logoCenter,120);assert.equal(o.parameters.headlineX,234);assert.equal(o.parameters.headlineCenter,190);}await run(sdk);assert.equal(calls.length,2);});
+ await t.test('resume refuses changed fixed settings',async()=>{graphics[1].parameters={...graphics[1].parameters,logoWidth:260};await assert.rejects(run(sdk),/Saved template design differs/);});
+  await t.test('resume refreshes remaining graphic handles after inserting a missing earlier element',async()=>{graphics[1].parameters.logoWidth=1080;graphics.splice(0,1);let revision=0;d.motionGraphics=async()=>graphics.map(g=>({...g,clip:{...g.clip,revision}}));const add=d.addMotionGraphic;d.addMotionGraphic=async o=>{await add(o);revision++;};d.motionGraphicProgram=async c=>{assert.equal(c.revision,revision,'stale clip handle');return {parameters:graphics.find(g=>g.name==='Clip · \ud504\ub85c\uadf8\ub7a8 \ub85c\uace0').parameters};};await run(sdk);assert.equal(graphics.length,2);});
+ await t.test('shared preview and generated brand preserve horizontal center with legacy center default',()=>{const React=dep('react'),render=dep('react-dom/server').renderToStaticMarkup;const p=api.radioFrameParams(tpl,'Topic','');const preview=render(React.createElement(api.RadioPreviewFrame,{data:{...p,designElement:'headline1'}}));assert(preview.includes('left:-276px'));const old=structuredClone(tpl);delete old.layout.headlineX;assert.equal(api.radioFrameParams(old,'Topic','').headlineX,540);});
+});

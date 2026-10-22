@@ -6,8 +6,31 @@ test('shared article flow',{skip:!modulesRoot&&'Set SBS_PANEL_TEST_MODULES'},asy
  const factory=source.slice(source.indexOf('async function createSceneMediaTools('),source.indexOf('\nfunction sceneBuildPrompt('));
  const create=new Function(esbuild.transformSync(factory,{loader:'ts'}).code+';return createSceneMediaTools;')();
  const style={fontFamily:'Arial',fontSize:42,color:'#000000',sourceFontSize:22,sourceColor:'#ffffff',padding:28,gap:12,backgroundColor:'#ffffff',lineHeight:1.35,sourceLineHeight:1.3,textAlign:'left'};
- async function fixture(){const calls=[],clips=[];const d={meta:async()=>({frameSize:{width:1080,height:1920},fps:30}),rangeAtFrames:async(a,b)=>({a,b}),clips:async()=>clips.map(c=>({...c})),addMotionGraphic:async o=>{calls.push(['add',o]);const c={clipId:clips.length+1,trackKind:'video',startFrame:o.within.a,endFrame:o.within.b};clips.push(c);return c;},setClipTransform:async o=>calls.push(['transform',o])};return{calls,clips,media:await create({},{sourceFiles:async()=>({fileTree:[]}),resources:async()=>[]},d,[])};}
+ async function fixture(styles={}){const calls=[],clips=[];const d={meta:async()=>({frameSize:{width:1080,height:1920},fps:30}),rangeAtFrames:async(a,b)=>({a,b}),clips:async()=>clips.map(c=>({...c})),addMotionGraphic:async o=>{calls.push(['add',o]);const c={clipId:clips.length+1,trackKind:'video',startFrame:o.within.a,endFrame:o.within.b};clips.push(c);return c;},setClipTransform:async o=>calls.push(['transform',o])};return{calls,clips,media:await create({},{sourceFiles:async()=>({fileTree:[]}),resources:async()=>[]},d,[],styles)};}
+ await t.test('template article style owns appearance while content and placement remain variable',async()=>{
+  const f=await fixture({article:style});
+  await f.media.article('Evidence',{startFrame:10,endFrame:70},{body:'Supplied excerpt',source:'Supplied source',fontSize:99,color:'#ff0000'},{x:400,y:600,width:700});
+  const o=f.calls[0][1];assert.equal(o.parameters.fontSize,42);assert.equal(o.parameters.color,'#000000');assert.equal(o.parameters.body,'Supplied excerpt');assert.equal(o.parameters.source,'Supplied source');assert.equal(o.parameters.width,700);assert.deepEqual(o.within,{a:10,b:70});
+ });
  function markup(o){const React=dep('react'),component={exports:{}};const compiled=esbuild.transformSync(o.tsxCode,{loader:'tsx',format:'cjs',jsx:'transform'}).code;new Function('module','exports','require','React',compiled)(component,component.exports,n=>n==='remotion'?{AbsoluteFill:({children,style})=>React.createElement('div',{style:{position:'absolute',inset:0,...style}},children)}:dep(n),React);return dep('react-dom/server').renderToStaticMarkup(React.createElement(component.exports.default,{data:o.parameters}));}
+ await t.test('document style keeps attribution readable on supplied light paper without a second panel',async()=>{
+  const f=await fixture({article:style,articleStyles:{document:{backgroundColor:'#00000000',sourceColor:'#000000',textAlign:'center'}}});
+  await f.media.article('Statement',{startFrame:0,endFrame:180},{body:'Provided statement',source:'Provided attribution',style:'document'},{x:540,y:600,width:800});
+  const o=f.calls[0][1];assert.equal(o.parameters.backgroundColor,'#00000000');assert.equal(o.parameters.sourceColor,'#000000');assert.equal(o.parameters.fontSize,42);assert.equal(o.parameters.textAlign,'center');assert(markup(o).includes('word-break:keep-all'));
+  await assert.rejects(f.media.article('Unknown',{startFrame:0,endFrame:180},{body:'Text',style:'missing'},{x:540,y:600,width:800}),/Unknown template article style/);
+ });
+ await t.test('top-anchored articles grow below the chosen origin while legacy center placement remains unchanged',async()=>{
+  for(const anchor of [undefined,'top']){
+   const f=await fixture({article:style});
+   await f.media.article('Evidence',{startFrame:0,endFrame:100},{body:'Long evidence\nSecond line',source:'Attribution'},{x:540,y:250,width:750,...anchor?{anchor}:{}});
+   const o=f.calls[0][1];assert.equal(o.parameters.anchor,anchor??'center');
+   assert.equal(markup(o).includes('translateY(50%)'),anchor==='top');
+   assert.equal(f.calls[1][1].position.y,(960-250)/19.2);
+  }
+  const f=await fixture({article:style});
+  await assert.rejects(f.media.article('Invalid',{startFrame:0,endFrame:100},{body:'Body'},{x:540,y:250,width:750,anchor:'bottom'}),/Article anchor/);
+  assert.equal(f.calls.length,0);
+ });
  let example;
  await t.test('one editable graphic owns wrapped body, source and exact common lifetime',async()=>{
   const f=await fixture(),parameters={...style,body:'A longer article paragraph with several lines that can wrap naturally.\nA second paragraph remains inside the same block.',source:'Source: supplied publication, date and title'},before=structuredClone(parameters);
@@ -43,6 +66,6 @@ test('shared article flow',{skip:!modulesRoot&&'Set SBS_PANEL_TEST_MODULES'},asy
    const oldTransparent={...o,parameters:{...o.parameters,sourceBackgroundColor:'transparent'}};assert.throws(()=>validate(oldTransparent),/sourceBackgroundColor.*does not match/);
   }
  });
- await t.test('builder uses one flow graphic instead of independent article coordinates',()=>{assert(source.includes('For article/excerpt body and its attribution use media.article'));assert(!source.includes('Place article body and source separately when they need independent editing or timing.'));assert(source.includes('return {asset,position,transform,imageCrop,coverage,place,text,article}'));});
+ await t.test('builder uses one flow graphic instead of independent article coordinates',()=>{assert(source.includes('For article/excerpt body and its attribution use media.article'));assert(!source.includes('Place article body and source separately when they need independent editing or timing.'));assert(source.includes('return {asset,position,transform,group,imageCrop,coverage,place,text,article}'));});
  if(process.env.SBS_ARTICLE_PREVIEW_DIR){const dir=process.env.SBS_ARTICLE_PREVIEW_DIR;fs.mkdirSync(dir,{recursive:true});const cases=[['short','A short article paragraph.','Source: publication'],['long','The article body wraps according to the supplied width. '.repeat(12),'Source: supplied publication; original title, reporting date and attribution. '.repeat(3)],['no-source','Body with no supplied attribution.','']];for(const [name,body,source]of cases){const o={...example,parameters:{...example.parameters,body,source}};const html='<!doctype html><meta charset="utf-8"><style>body{margin:0;background:#253340}.canvas{position:relative;width:1080px;height:1920px;transform:scale(0.3333333333);transform-origin:0 0}.graphic{position:relative;width:1080px;height:1920px;transform:translateY(-240px)}</style><div class="canvas"><div class="graphic">'+markup(o)+'</div></div>';fs.writeFileSync(path.join(dir,name+'.html'),html);}fs.writeFileSync(path.join(dir,'graphic-options.json'),JSON.stringify(example,null,2));}
 });

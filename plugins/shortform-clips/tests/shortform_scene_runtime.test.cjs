@@ -91,6 +91,19 @@ test('production scene runtime',{skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULE
     assert.throws(()=>tools.asset('image'),/path mismatch/);
     assert.throws(()=>tools.asset('image',{path:'/wide.png'}),/dimensions missing/);
   });
+  await t.test('group geometry keeps related parts registered across scene placements without mutating the design',async()=>{
+    const f=mediaToolsFixture(),tools=await f.tools();
+    const design={width:400,height:800,parts:{body:{x:200,y:400,width:400,height:800},face:{x:230,y:250,width:180,height:220,fit:'contain'}}};
+    const before=structuredClone(design);
+    const a=tools.group(design,{x:700,y:1000,width:400,height:800});
+    const b=tools.group(design,{x:300,y:700,width:200,height:600});
+    assert.deepEqual(a.face,{x:730,y:850,width:180,height:220,fit:'contain'});
+    assert.deepEqual(b.face,{x:315,y:625,width:90,height:110,fit:'contain'});
+    assert.equal((a.face.x-a.body.x)/a.body.width,(b.face.x-b.body.x)/b.body.width);
+    assert.deepEqual(design,before);assert.equal(f.calls.length,0);
+    for(const bad of [{...design,width:0},{...design,parts:{face:{x:NaN,y:0,width:1,height:1}}}])assert.throws(()=>tools.group(bad,{x:0,y:0,width:400,height:800}),/group/);
+    assert.throws(()=>tools.group(design,{x:0,y:0,width:-1,height:800}),/group/);
+  });
   await t.test('shared geometry preserves visible subject placement and exposes unsupported scale without clamping',async()=>{
     const f=mediaToolsFixture(),tools=await f.tools(),item=tools.asset('head');
     const normal=tools.transform(item,{x:540,y:960,width:600,height:640});
@@ -307,10 +320,10 @@ test('production scene runtime',{skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULE
     const actual={owned:true,meta:{name:clip.name,durationSeconds:1,durationFrames:30,fps:30,frameSize:{width:1080,height:1920}},visualLayers:2,main:[{startFrame:0,endFrame:30}],graphics:[{name:'HA caption 0:0',text:'\ubb38\uc774',startFrame:0,endFrame:15},{name:'HA caption 0:1',text:'\uc5f4\ub9b0\ub2e4.',startFrame:15,endFrame:30}]};
     const base=f.context.script;f.context.script=async(code,summary,...args)=>{events.push(summary);
       if(summary==='Read original evidence and prepared media')return{sources:[{resourceId:'a',type:'Video',name:'A.mov',path:'/a',fps:30,durationSeconds:10,sourceWords:original.words['A.mov'].map(w=>[...w,0,0,false])}],authoredDocuments:[],preparedMedia:[]};
-      if(summary==='Verify builder Draft ownership')return{owned:true,meta:{name:clip.name,fps:30},main:[{clipId:1,trackId:'main',resourceId:'a'}]};if(summary==='Place planned dialogue captions')return{added:2};if(summary==='Check saved scene structure')return actual;
+      if(summary==='Verify builder Draft ownership')return{owned:true,meta:{name:clip.name,fps:30},main:[{clipId:1,trackId:'main',resourceId:'a'}]};if(summary==='Apply fixed template branding')return{};if(summary==='Place planned dialogue captions')return{added:2};if(summary==='Check saved scene structure')return actual;
       if(['Record export composition','Verify exported composition'].includes(summary))return{key:'same-composition'};
       if(summary==='Check final export')return{status:'succeeded'};return base(code,summary,...args);};
-    Object.assign(f.context,{sceneStudyPrompt:api.sceneStudyPrompt,sceneBuildPrompt:api.sceneBuildPrompt,parseSceneStudy:api.parseSceneStudy,validateSceneSourcePlan:api.validateSceneSourcePlan,extractJson:JSON.parse,nameOf:()=> 'Test',sceneCaptionScript:()=>'caption-script',validateSceneDraft:api.validateSceneDraft,S:{done:n=>'done '+n},setDrafts:()=>{},loadResources:()=>{}});
+    Object.assign(f.context,{sceneStudyPrompt:api.sceneStudyPrompt,sceneBuildPrompt:api.sceneBuildPrompt,parseSceneStudy:api.parseSceneStudy,validateSceneSourcePlan:api.validateSceneSourcePlan,extractJson:JSON.parse,nameOf:()=> 'Test',sceneBrandScript:()=>'brand-script',sceneCaptionScript:()=>'caption-script',validateSceneDraft:api.validateSceneDraft,S:{done:n=>'done '+n},setDrafts:()=>{},loadResources:()=>{}});
     f.context.sdk.call=async method=>{assert.equal(method,'getDraftMediaSnapshot');return{fps:30,durationFrames:30,clips:[{clipId:1,trackId:'main',trackKind:'main',startFrame:0,endFrame:30,sourceStartSeconds:2,sourceEndSeconds:3,playbackSpeed:1,media:{path:'/a'}}]};};
     f.context.sdk.askAI=async options=>{aiCalls.push(options);events.push(aiCalls.length===1?'plan':'build');return{text:JSON.stringify(aiCalls.length===1?original.plan:result)};};
     f.setReply(async input=>{events.push(input.summary);if(input.summary==='Export full episode'){assert.match(input.script,/resolution:'FHD'/);return{result:{workflowId:'export-job'}};}throw Error(input.summary);});
@@ -334,6 +347,17 @@ test('production scene runtime',{skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULE
     await assert.rejects(f.run(),/Fixed layouts require an automatic framing template/);
     assert.equal(f.aiCalls.length,0);assert.equal(f.events.length,0);assert.equal(f.patches.length,0);
   });
+  await t.test('planning failure is saved and Resume receives the failed plan and reason',async()=>{
+    const failed=readyCaller();failed.original.plan.clips[0].beats[0].anchor='Unsupported';failed.context.parseSceneStudy=()=>{throw Error('Correction is outside selected speech');};
+    await assert.rejects(failed.run(),/Correction is outside selected speech/);
+    const previousAttempt=failed.patches.find(p=>p.sceneAttempt)?.sceneAttempt,validationError=failed.patches.find(p=>p.sceneError)?.sceneError;
+    assert.deepEqual(previousAttempt,failed.original.plan);assert.equal(validationError,'Correction is outside selected speech');assert.equal(failed.aiCalls.length,3);
+    const resumed=readyCaller();Object.assign(resumed.job,{sceneAttempt:previousAttempt,sceneError:validationError});await resumed.run();
+    const prompt=resumed.aiCalls[0].prompt,input=JSON.parse(prompt.slice(prompt.lastIndexOf('\n')+1));assert.deepEqual(input.previousAttempt,previousAttempt);assert.match(input.validationError,/opening anchor/);assert.match(prompt,/Repair the saved plan/);assert.equal(resumed.aiCalls.length,2);
+  });
+  await t.test('Resume reuses a saved plan that passes current source validation without another planning call',async()=>{
+    const f=readyCaller();f.job.sceneAttempt=structuredClone(f.original.plan);f.context.sdk.askAI=async options=>{f.aiCalls.push(options);return{text:JSON.stringify(f.result)};};await f.run();assert.equal(f.aiCalls.length,1);assert.match(f.aiCalls[0].prompt,/Implement the confirmed plan/);assert(f.patches.some(p=>p.sceneStudy));
+  });
   await t.test('scene usage persists before parsing and retains failed calls without extra AI requests',async()=>{
     const previous={stage:'earlier',usage:{input_tokens:10,output_tokens:2}},usage=[{input_tokens:100,output_tokens:20},{input_tokens:300,output_tokens:40}];
     for(const outcome of ['success','invalid-json','unavailable']){
@@ -349,7 +373,7 @@ test('production scene runtime',{skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULE
       assert.equal(calls,2,outcome);
       const snapshots=f.patches.filter(p=>p.sharedUsageCalls).map(p=>p.sharedUsageCalls);
       assert.deepEqual(snapshots[0],[previous,{stage:'scene-plan',usage:null}]);
-      assert.deepEqual(snapshots.at(-1),[previous,{stage:'scene-plan',usage:usage[0]},{stage:'scene-build',usage:outcome==='unavailable'?null:usage[1]}]);
+      assert.deepEqual(snapshots.at(-1),[previous,{stage:'scene-plan',usage:usage[0]},{stage:'scene-build',usage:outcome==='unavailable'?null:usage[1],...(outcome==='unavailable'?{error:'Provider unavailable'}:{})}]);
       if(outcome!=='success')assert(!f.events.includes('Export full episode'));
     }
   });
@@ -436,9 +460,9 @@ test('production scene runtime',{skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULE
     const snapshot={fps:30,durationFrames:length,clips:[{clipId:1,trackId:'main',trackKind:'main',startFrame:0,endFrame:length,sourceStartSeconds:start,sourceEndSeconds:end,playbackSpeed:1,media:{path:'/original.mov'}}]},saved={owned:true,meta:{name:'Action',fps:30},main:[{clipId:1,trackId:'main',resourceId:'r8'}]};
     assert.equal(api.validateSceneSourcePlan(snapshot,saved,clip,sources),snapshot);saved.main[0].resourceId='r9';assert.throws(()=>api.validateSceneSourcePlan(snapshot,saved,clip,sources),/source identity/);
   });
-  await t.test('builder timeout preserves the confirmed plan and never exports or starts another AI turn',async()=>{
-    const f=readyCaller(),ask=f.context.sdk.askAI;let n=0;f.context.sdk.askAI=async o=>{if(++n===2){f.setTime(510000);throw Error('Selects AI did not finish within 360000ms.');}return ask(o);};
-    await assert.rejects(f.run(),/Selects AI did not finish/);assert.equal(n,2);assert(f.patches.some(p=>p.sceneStudy));assert(!f.events.includes('Export full episode'));assert.equal(f.patches.at(-1).done,false);
+  await t.test('repeated builder timeouts preserve the confirmed plan and stop after two continuations',async()=>{
+    const f=readyCaller(),ask=f.context.sdk.askAI;let n=0;f.context.sdk.askAI=async o=>{if(++n>=2){f.setTime(510000);throw Error('Selects AI did not finish within 360000ms.');}return ask(o);};
+    await assert.rejects(f.run(),/Selects AI did not finish/);assert.equal(n,4);assert(f.patches.some(p=>p.sceneStudy));assert(!f.events.includes('Export full episode'));assert.equal(f.patches.at(-1).done,false);
   });
   await t.test('the actual builder runs shared preparation concurrently and preserves its native job on AI timeout',async()=>{
     const f=readyCaller(),ask=f.context.sdk.askAI,scriptNow=f.context.scriptNow,req={id:'foreground',resourceName:'A.mov',startSeconds:2,endSeconds:3,cutout:{mode:'person',crop:{x:0,y:0,width:100,height:100}}};let n=0,steps=0;
@@ -457,8 +481,22 @@ test('production scene runtime',{skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULE
     };
     await assert.rejects(f.run(),/Selects AI did not finish/);
     const preparation=f.patches.at(-1).scenePreparations[0];assert.equal(preparation.state.workflowId,'same-native');assert.equal(preparation.state.phase,'native');
-    assert.equal(f.canceled.length,0);assert.equal(n,2);assert(!f.events.includes('Export full episode'));
+    assert.equal(f.canceled.length,0);assert.equal(n,4);assert(!f.events.includes('Export full episode'));
     const before=steps;await tick();await tick();assert.equal(steps,before);
+  });
+  await t.test('invalid planning is repaired automatically using the saved attempt, with two repairs maximum',async()=>{
+    for(const persistent of [false,true]){
+      const f=readyCaller(),invalid=structuredClone(f.original.plan),calls=[];invalid.sourceReview[0].excluded=[{startSeconds:2,endSeconds:3,reason:'Excluded take'}];
+      f.context.sdk.askAI=async options=>{calls.push(options);if(calls.length===1||persistent)return{text:JSON.stringify(invalid)};if(calls.length===2){const input=JSON.parse(options.prompt.slice(options.prompt.lastIndexOf('\n')+1));assert.deepEqual(input.previousAttempt,invalid);assert.match(input.validationError,/overlaps sourceReview.excluded/);return{text:JSON.stringify(f.original.plan)};}return{text:JSON.stringify(f.result)};};
+      if(persistent){await assert.rejects(f.run(),/overlaps sourceReview.excluded/);assert(!f.events.includes('Export full episode'));}else{await f.run();assert.equal(f.patches.at(-1).done,true);}
+      assert.equal(calls.length,3);
+    }
+  });
+  await t.test('a builder timeout continues the same checkpoint without replanning, while access failures and cancel stop',async()=>{
+    for(const error of ['Selects AI did not finish within 600000ms.','AGENT_PROJECT_BOUNDARY','Authentication failed','cancel']){
+      const f=readyCaller(),calls=[];f.context.sdk.askAI=async options=>{calls.push(options);if(calls.length===1)return{text:JSON.stringify(f.original.plan)};if(calls.length===2){if(error==='cancel')f.cancel();throw Error(error==='cancel'?'Selects AI did not finish within 600000ms.':error);}return{text:JSON.stringify(f.result)};};
+      if(error.startsWith('Selects AI')){await f.run();assert.equal(calls.length,3);assert.equal(calls[1].prompt,calls[2].prompt);assert.equal(f.patches.at(-1).done,true);}else{await assert.rejects(f.run());assert.equal(calls.length,2);assert(!f.events.includes('Export full episode'));}
+    }
   });
   await t.test('an incomplete builder response is checkpoint evidence, never successful output or automatic continuation',async()=>{
     const f=readyCaller(),ask=f.context.sdk.askAI;let n=0;f.context.sdk.askAI=async o=>++n===2?{text:JSON.stringify({status:'in_progress',draftId:'partial',nextStep:'missing closing'})}:ask(o);
@@ -511,7 +549,7 @@ test('production scene runtime',{skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULE
       let input,prompt;f.context.sceneStudyPrompt=api.sceneStudyPrompt;f.context.sceneVision=api.sceneVision;
       f.context.sdk.askAI=async options=>{prompt=options.prompt;input=JSON.parse(prompt.slice(prompt.lastIndexOf('\n')+1));throw Error('captured planner input');};
       await assert.rejects(f.run(tpl),/captured planner input/);
-      assert.deepEqual(input.layoutDefaults,{logoCenter:layout?.logoCenter??120,headlineCenter:layout?.headlineCenter??300});
+      assert.deepEqual(input.layoutDefaults,{logoCenter:layout?.logoCenter??120,headlineCenter:layout?.headlineCenter??300,headlineX:layout?.headlineX??540});
       assert.deepEqual(input.brandLogo,{provided:true,name:'Channel logo',width:500});
       for(const key of ['windowTop','windowBottom','sourceTop','sourceBottom','offsetX','reframe','splitHalves'])assert(!Object.hasOwn(input.layoutDefaults,key));
       assert.match(prompt,/1080x1920/);assert.match(prompt,/attached original-video/);assert.match(prompt,/tile-to-file mapping/);
@@ -541,13 +579,16 @@ test('production scene runtime',{skip:!modulesRoot && 'Set SBS_PANEL_TEST_MODULE
   await t.test('bounded planner contracts preserve asset namespaces, processing choices, fixed brand and editor-only metadata',()=>{
     const prompt=api.sceneStudyPrompt({bounded:true,instructions:'Channel-owned style',brandLogo:{provided:true,name:'Configured logo',width:1080}});
     assert.match(prompt,/exact ORIGINAL inventory names only/);assert.match(prompt,/preparedMedia\[\]\.id is an implementation handle/);
-    assert.match(prompt,/supported crop, alpha\/occlusion and selected-interval matte processing/);assert.match(prompt,/fixed template logo that the builder receives exactly/);
+    assert.match(prompt,/supported crop, alpha\/occlusion and selected-interval matte processing/);assert.match(prompt,/fixed template logo that the host renders exactly/);
     assert.match(prompt,/inspection limitations are editor-only metadata/);assert.match(api.sceneBuildPrompt({bounded:true,instructions:'Channel-owned style'}),/render only the viewer-facing wording explicitly planned/);
     assert.match(prompt,/leaving scene-specific pixel dimensions, coordinates, movement distances, crop rectangles and mask implementation to the builder/);
     assert.match(prompt,/put inspection limitations and evidence observations in sourceReview or assetReview/);
     assert.match(prompt,/Preserve numerical settings supplied by the template and explicit user requirements/);
     const builder=api.sceneBuildPrompt({bounded:true,instructions:'Channel-owned style'});
     assert.match(builder,/you determine scene-specific pixel dimensions/);
+    assert.match(prompt,/Use captionDefaults\.lineMax to group short readable phrases/);
+    assert.match(builder,/first resolve one representative integrated arrangement/);
+    assert.match(builder,/not another AI planning or review stage/);
     assert.match(builder,/not in another planning response or approval stage/);
     assert.match(builder,/source ranges, caption wording\/timing and visual reveal timing/);
     assert.equal(prompt.split('Channel-owned style').length-1,1);

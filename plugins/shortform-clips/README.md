@@ -25,6 +25,44 @@ and credits belong in Extra instructions; explicit supplied choices override
 defaults, and the planner fills unspecified choices from the available sources.
 Neither AI introduces a second channel style outside the template.
 
+Optional `editorial.components.article` holds reusable article appearance;
+`editorial.components.articleStyles` supplies named variants selected by article
+content's `style`, such as transparent text on an existing document image.
+`editorial.components.text` maps visual-style names to text preset appearance. Production receives these styles once when initializing
+`createSceneMediaTools`; configured values take precedence over per-call styles.
+Article content, attribution, timing and placement remain per-scene inputs.
+`media.group(design, placement)` scales related face/body/occluder boxes from
+one local design; compatible shots reuse that design and base placement.
+Article placement accepts `anchor: "top"` to keep its upper edge stable as
+body and attribution wrap. Existing callers keep centered placement. Neither
+helper chooses a composition or detects overlap: the builder allocates complete
+reading and character areas together and uses its existing rendered check.
+`media.text(..., {body, style: "plain-white"}, placement)` explicitly selects a
+configured visual style. Text without `style` retains explicit preset parameters;
+unknown style names fail rather than silently changing the design. Content,
+timing and placement remain per-scene inputs. Templates without component
+styles retain explicit per-call styling. Dialogue captions continue to use the
+existing host-generated caption component.
+Scene-layer results also receive fixed logo and persistent titles from the shared
+template renderer. The builder reserves their region but does not recreate them.
+Optional `layout.headlineX` changes the topic's horizontal center; omitted values
+retain the existing centered layout.
+
+See [Huick Alpha reference audit](template-packs/hankook-ilbo/huick-style-audit.md)
+for the observations, counterexamples and approximation limits behind its styles.
+
+The common input selector includes **All project sources** alongside YouTube and
+individual project inputs. This option requires a template with the scene-layer
+executor, such as Huick Alpha. It enumerates imported source files across folders
+without requiring a single anchor video; it does not enumerate Drafts or import
+unselected files from neighboring disk folders. Known derived files from saved
+production lineage and files inside the scene-run workspace are excluded.
+The first successful preflight saves source resource IDs on the job. Resume
+reuses that membership; missing originals stop the run instead of silently
+replacing them. Filenames must be unique because the scene plan identifies
+sources by name. Source speech timing must already exist. Existing YouTube,
+single-source and same-folder scene behavior is unchanged.
+
 This path requires an imported Project with transcription, `sourceFiles`, AI
 requests with images, SDK scripts, media capture/probe/FFmpeg, and editable Draft
 overlays and text graphics. New foreground preparation also requires the installed
@@ -33,9 +71,14 @@ Preparation operates on selected source intervals and retains original-frame
 lineage so compatible media can be reused. A prepared foreground does not remove
 the need to inspect and arrange its face, edges and occlusion in the actual scene.
 
-Each AI call retains the host's 600-second limit. A timed-out job saves progress;
-use **Resume** to continue the same Draft and reuse completed processing. The
-scene workflow has no separate overall generation deadline. Stage timing includes
+Each AI call retains the host's 600-second limit. The scene/layer executor
+automatically continues a timed-out AI call up to twice with the same work
+directory and preparation worker. Invalid source plans receive up to two repair
+requests containing the saved plan and validation error. Cancellation, access,
+authentication and other errors stop rather than triggering these continuations.
+After the limit, use **Resume** to continue saved work. Existing non-scene
+templates retain their execution behavior. The scene workflow has no separate
+overall generation deadline. Stage timing includes
 foreground preparation, with fresh and reused media recorded separately. Export
 and development evaluation are separate from generation time. Model and reasoning
 effort remain controlled by the host/account, not the template.
