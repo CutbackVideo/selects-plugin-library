@@ -417,10 +417,6 @@ for (const kind of ["main", "insert"]) {
   if (!latest) continue;
   for (const c of (await p.syncedTimeline(latest.sequenceId).layout()).placements) if (c.resourceId) previous.set(c.resourceId, kind);
 }
-// Whether a video carries an audio track: probed from the files themselves.
-const hasAudio = new Map();
-const videoPaths = cameraIds.filter((id) => P.resourceById.get(id) && P.resourceById.get(id).type === "Video" && paths.has(id)).map((id) => paths.get(id));
-if (videoPaths.length) { const probed = await selects.media.probe({ filePaths: videoPaths }); for (const f of probed.files || []) hasAudio.set(f.path, f.hasAudioStream); }
 // Recordings on the camera side stay Main; photos and the rule's other settled cases are fixed below.
 const classes = new Map();
 const pending = [];
@@ -428,6 +424,14 @@ for (const id of cameraIds) { const r = P.resourceById.get(id); if (r && r.type 
 const transcription = await p.transcription();
 const utterancesOf = new Map();
 for (const u of transcription.utterances) { if (!u.resourceId) continue; if (!utterancesOf.has(u.resourceId)) utterancesOf.set(u.resourceId, []); utterancesOf.get(u.resourceId).push(u); }
+// Whether a video carries an audio track. A transcribed word is proof of one;
+// only the videos with no words are probed, and only those no earlier run
+// probed (KNOWN_AUDIO, by path), since the probe reads every file (about
+// 50 ms each) and the app runs one script at a time.
+const hasAudio = new Map(Object.entries(KNOWN_AUDIO));
+const spokenIn = (id) => (utterancesOf.get(id) || []).some((u) => (u.transcript || "").trim());
+const videoPaths = cameraIds.filter((id) => P.resourceById.get(id) && P.resourceById.get(id).type === "Video" && paths.has(id) && !spokenIn(id) && !hasAudio.has(paths.get(id))).map((id) => paths.get(id));
+if (videoPaths.length) { const probed = await selects.media.probe({ filePaths: videoPaths }); for (const f of probed.files || []) hasAudio.set(f.path, f.hasAudioStream); }
 const recorderGrams = koreanGrams(recorderIds.flatMap((id) => (utterancesOf.get(id) || []).map((u) => u.transcript || "")).join(" "));
 const recorderTexts = recorderIds.flatMap((id) => { const ix = textIndex(transcriptWords(utterancesOf.get(id) || [])); return ix ? [ix] : []; });
 const classifiable = new Set();
@@ -456,7 +460,7 @@ const clips = cameras.flatMap((source) => orderClips(source.resourceIds.filter((
   return { resourceId, name: r.name, source: source.name, path: paths.get(resourceId) || "", durationSeconds: r.durationSeconds || 0, suggested: previous.get(resourceId) || classes.get(resourceId), suggestedBy: previous.has(resourceId) ? "timeline" : "rule" };
 }));
 const fixed = [...classes].filter(([id]) => !classifiable.has(id)).map(([resourceId, kind]) => ({ resourceId, kind }));
-return { clips, fixed };
+return { clips, fixed, audio: Object.fromEntries(hasAudio) };
 `;
 const MAKE_DRAFT = `// Step 6: a draft holding one synced timeline from Synced Timelines/<shoot>,
 // named like it, in the folder of the step that makes it: 03. main/<shoot>
@@ -505,7 +509,7 @@ const Step = ({number,title,description,actions,children}) => <section style={{b
 // current video Main or Insert and go to the next. Every video starts with
 // its class in the latest timelines, else the rule's, shown dashed until
 // someone sets it. Shown in the panel's own window when it can be.
-function Classifier({t, shoot, inWindow, script, confirm, onBuild, onClose, building}) {
+function Classifier({t, shoot, inWindow, script, confirm, audio, onBuild, onClose, building}) {
   const c = t.classify;
   const [loaded, setLoaded] = useState(null);
   const [index, setIndex] = useState(0);
@@ -518,8 +522,9 @@ function Classifier({t, shoot, inWindow, script, confirm, onBuild, onClose, buil
   const current = clips[index];
   useEffect(() => {
     let live = true;
-    script(`const SHOOT = ${JSON.stringify(shoot)};\n${CLASSIFY}`, false, 120).then(review => {
+    audio.load().then(known => script(`const SHOOT = ${JSON.stringify(shoot)}; const KNOWN_AUDIO = ${JSON.stringify(known)};\n${CLASSIFY}`, false, 120)).then(review => {
       if (!live) return;
+      if (review.audio) void audio.save(review.audio);
       setClasses(new Map(review.clips.map(clip => [clip.resourceId, clip.suggested])));
       setLoaded({review});
     }, e => live && setLoaded({error: String(e.message || e)}));
@@ -688,6 +693,12 @@ export default function Preparation({sdk, context, ui}) {
     setNote({step, text, tone});
     if (tone !== "error") noteTimer.current = setTimeout(() => setNote(current => current && current.text === text ? null : current), 4000);
   }
+  // Which camera files carry an audio track, as the classifier's probe found
+  // them, by path: a later run skips the files already known.
+  const audioCache = {
+    load: async () => {try {return JSON.parse((await sdk.storage.getItem(`audio:${pid}`)) || "{}");} catch(e) {return {};}},
+    save: async (known) => {try {await sdk.storage.setItem(`audio:${pid}`, JSON.stringify(known));} catch(e) {}},
+  };
   async function remember(shoot, timeline, nextView = "steps") {
     try {await sdk.storage.setItem(key, JSON.stringify({shoot, timeline, ...(nextView === "classify" ? {view: "classify"} : {})}));} catch(e) {say("top", String(e.message || e), "error");}
   }
@@ -813,7 +824,7 @@ export default function Preparation({sdk, context, ui}) {
   const Explain = ({children, why, onClick}) => <span title={why} style={{display:"inline-flex",gap:6}} onClick={onClick}>{children}</span>;
   const run = (label, disabled, onClick) => <ui.Button variant="secondary" disabled={busy || disabled} onClick={onClick}>{label}</ui.Button>;
   const sourceCount = count => interpolate(count === 1 ? t.sourceCount_one : t.sourceCount_other, {count});
-  if (view === "classify" && shootName) return <Classifier t={t} shoot={shootName} inWindow={!!context.inWindow} script={script} confirm={confirm} onBuild={build} onClose={leaveClassifier} building={busy}/>;
+  if (view === "classify" && shootName) return <Classifier t={t} shoot={shootName} inWindow={!!context.inWindow} script={script} confirm={confirm} audio={audioCache} onBuild={build} onClose={leaveClassifier} building={busy}/>;
   return <ui.Stack gap={4}>
     <label title={t.description} style={muted}>{t.folder}</label>
     <ui.Select label="" value={shoot?.name || null} placeholder={t.chooseFolder} options={shoots.map(s => ({value:s.name,label:s.name}))} disabled={busy || !shoots.length} onChange={s => void select(s)} />
