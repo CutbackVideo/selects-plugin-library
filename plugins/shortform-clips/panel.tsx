@@ -607,6 +607,7 @@ function editableCaption(S: any) {
 // result, a shell command (16 KB) and a shell's output (48 KB). A file is written beside its destination
 // and renamed into place, so a save that fails halfway leaves the earlier file as it was.
 const SDK_PIECE = 48 * 1024; // selects.files.readRange and writeChunk: 49,152 bytes at most
+const SDK_WRITE_PIECES = 3; // Three base64 pieces keep one save script under the 256 KiB script cap.
 const SHELL_READ_PIECE = 32768; // 43,692 base64 characters, under the 48 KB output cap
 const SHELL_WRITE_PIECE = 9000; // 12,000 base64 characters, under the 16 KB command cap
 const SHELL_COMMAND_ROOM = 12000; // paths listed in one shell command
@@ -704,17 +705,21 @@ async function sdkFiles(sdk: any): Promise<any> {
       try {
         let at = 0;
         do {
-          const part = bytes.subarray(at, at + SDK_PIECE);
-          const last = at + part.length >= bytes.length;
+          const first = at, parts: { at: number; base64: string; length: number }[] = [];
+          do {
+            const part = bytes.subarray(at, at + SDK_PIECE);
+            parts.push({ at, base64: toBase64(part), length: part.length });
+            at += part.length;
+          } while (at < bytes.length && parts.length < SDK_WRITE_PIECES);
+          const last = at >= bytes.length, want = at - first;
           const wrote = await run(
-            (at === 0 ? `await selects.files.mkdir(${J(folderOf(path))}, { recursive: true }); ` : "") +
-              `const w = await selects.files.writeChunk({ path: ${J(tmp)}, offset: ${at}, base64: ${J(toBase64(part))} }); ` +
-              (last ? `if (w.bytesWritten === ${part.length}) await selects.files.rename(${J(tmp)}, ${J(path)}); ` : "") +
-              `return w.bytesWritten;`,
+            (first === 0 ? `await selects.files.mkdir(${J(folderOf(path))}, { recursive: true }); ` : "") +
+              `let wrote = 0; for (const p of ${J(parts)}) { const w = await selects.files.writeChunk({ path: ${J(tmp)}, offset: p.at, base64: p.base64 }); if (w.bytesWritten !== p.length) return -1; wrote += w.bytesWritten; } ` +
+              (last ? `await selects.files.rename(${J(tmp)}, ${J(path)}); ` : "") +
+              `return wrote;`,
             true
           );
-          if (wrote !== part.length) throw new Error("Could not save " + path);
-          at += part.length;
+          if (wrote !== want) throw new Error("Could not save " + path);
         } while (at < bytes.length);
       } catch (e) {
         await run(`const p = ${J(tmp)}; const s = await selects.files.stat(p); if (s && !s.isDirectory) await selects.files.remove(p, { recursive: true, force: true });`, true).catch(() => {});
@@ -2093,6 +2098,21 @@ function createWorkQueue() {
   };
 }
 const visualWork = createWorkQueue();
+const PROGRESS_SAVE_MS = 5000;
+// A burst of progress saves becomes one save per window.
+function throttledSave(save: () => Promise<void>, ms: number, onError: (e: any) => void) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return {
+    soon() {
+      if (timer) return;
+      timer = setTimeout(() => { timer = null; save().catch(onError); }, ms);
+    },
+    cancel() {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    },
+  };
+}
 function createReframeWork(check: () => void = () => {}) {
   const faces = createWorkQueue();
   const cache = new Map<string,Promise<any>>();
@@ -2318,7 +2338,7 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
           style={{alignSelf:"flex-start",width:"auto",minHeight:0,border:0,borderRadius:0,boxShadow:"none",background:"none",padding:0,color:"var(--panel-muted-fg)",font:"inherit",fontSize:12,textDecoration:"underline",textUnderlineOffset:2,cursor:"pointer"}}
           onClick={() => setExpanded(true)}>{R.more}</button>}
       </>}
-      {d.reframeReport?.qualityStatus==="limited" && <details><summary>{R===RESULT_STRINGS.ko?"\uc77c\ubd80 \uad6c\ub3c4 \uc720\uc9c0":"Some framing retained"}</summary><small>{(d.reframeReport.preservedRanges||[]).map((r:any)=>r.reason).filter((v:any,i:number,a:any[])=>a.indexOf(v)===i).join(" · ")}</small></details>}
+      {d.reframeReport?.qualityStatus==="limited" && <details><summary>{d.reframeReport.preservedAll?(R===RESULT_STRINGS.ko?"\uae30\ubcf8 \uad6c\ub3c4 \uc720\uc9c0":"Existing framing kept"):(R===RESULT_STRINGS.ko?"\uc77c\ubd80 \uad6c\ub3c4 \uc720\uc9c0":"Some framing retained")}</summary><small>{(d.reframeReport.preservedRanges||[]).map((r:any)=>r.reason).filter((v:any,i:number,a:any[])=>a.indexOf(v)===i).join(" · ")}</small></details>}
       {d.error && <><details><summary>{R.failureDetails}</summary><ui.Message tone="error">{d.error}</ui.Message></details>{onRetry && <ui.Button variant="secondary" disabled={busy} onClick={()=>onRetry(d.draftId)}>{R.retryClip}</ui.Button>}</>}
     </div>
     <div className="clip-result-actions" style={{display:"flex",flexDirection:"column",gap:8,alignItems:"flex-end",minWidth:0}}>
@@ -3548,7 +3568,7 @@ function compositionRects(style:string):any[] {
     'top-main-3':[[0,0,1,.5],[0,.5,.5,.5],[.5,.5,.5,.5]],
     'left-main-3':[[0,0,.5,1],[.5,0,.5,.5],[.5,.5,.5,.5]],
     'grid-4':[[0,0,.5,.5],[.5,0,.5,.5],[0,.5,.5,.5],[.5,.5,.5,.5]],
-    speaker:[[0,0,1,1]],'two-shot':[[0,0,1,1]],detail:[[0,0,1,1]],wide:[[0,0,1,1]],preserve:[[0,0,1,1]],
+    speaker:[[0,0,1,1]],'two-shot':[[0,0,1,1]],insert:[[0,0,1,1]],detail:[[0,0,1,1]],wide:[[0,0,1,1]],preserve:[[0,0,1,1]],
   };
   if(!presets[style])throw Error('Unknown composition layout: '+style);
   return presets[style].map(([x,y,width,height]:number[])=>({x,y,width,height}));
@@ -3596,17 +3616,21 @@ function mergeLockedSourceShots(next:any[],previous:any[]):any[] {
 
 // One editorial contract for source clips and synchronized cameras. The agent
 // owns identity, shots and layouts; adapters only translate execution formats.
-const COMPOSITION_PLAN_SCHEMA = `This is a video composition task, not a coding task. This prompt defines the complete output contract. Do not inspect application source code, local logs, prior experiment outputs or other panels. Additional inspection is limited to missing media evidence through the documented Selects SDK. Return {version:1,draftId,status:"planned"|"blocked",summary,shots:[{startFrame,endFrame,compositionId,layout:"speaker"|"stacked"|"side-by-side"|"columns-3"|"top-main-3"|"left-main-3"|"grid-4"|"two-shot"|"detail"|"wide",panels:[{camera:string,targets:[{subjectId:string,refs:string[]}],region?:{x,y,width,height},sourcePane?:{x,y,width,height}}],reason}],speakerEvidence?:[],limitations:[]}. Panels are in display order. One target for speaker, one or more distinct targets per split panel, two distinct targets in the single two-shot panel, no targets for detail/wide. For automatic split grouping, omit panels and supply shot.people:[{camera,subjectId,refs,slot?:number,sourcePane?:{x,y,width,height}}] containing EVERY person to preserve. Code groups these people into the requested number of panels. slot is a zero-based optional user constraint; omit it unless the user explicitly requests placement. Partial slot constraints are supported. Explicit panels remain available for preserving an existing source split or fully specified grouping. Use columns-3 for three side-by-side columns. Never drop people just to match the number of panels. camera is an exact supplied camera key, NOT a person ID. refs are observed references, NOT invented persistent identities; YOU assign subjectId and link refs by appearance. Reuse compositionId only for the same ordered subjects, cameras, layout and source pane. Include all relevant observations across its passage. Do not specify closeUp, framing or crop coordinates for people. Code computes size, placement and fixed crops; it never chooses different subjects or changes your layout. sourcePane describes an observed embedded camera boundary only, never a desired person crop. A blocked plan has no shots and states the missing evidence or conflicting constraints.`;
+const COMPOSITION_PLAN_SCHEMA = `This is a video composition task, not a coding task. This prompt defines the complete output contract. Do not inspect application source code, local logs, prior experiment outputs or other panels. Additional inspection is limited to missing media evidence through the documented Selects SDK. Return {version:1,draftId,status:"planned"|"blocked",summary,shots:[{startFrame,endFrame,compositionId,layout:"speaker"|"stacked"|"side-by-side"|"columns-3"|"top-main-3"|"left-main-3"|"grid-4"|"two-shot"|"insert"|"wide",panels:[{camera:string,targets:[{subjectId:string,refs:string[]}],region?:{x,y,width,height},sourcePane?:{x,y,width,height}}],reason}],speakerEvidence?:[],limitations:[]}. Panels are in display order. One target for speaker, one or more distinct targets per split panel, two distinct targets in the single two-shot panel, no targets for insert/wide. For automatic split grouping, omit panels and supply shot.people:[{camera,subjectId,refs,slot?:number,sourcePane?:{x,y,width,height}}] containing every person to preserve who has an observed ref. Code groups these people into the requested number of panels. slot is a zero-based optional user constraint; omit it unless the user explicitly requests placement. Partial slot constraints are supported. Explicit panels remain available for preserving an existing source split or fully specified grouping. Use columns-3 for three side-by-side columns. Never drop people just to match the number of panels. Every target and every people entry needs non-empty refs of observed reference IDs. A visible person with no observed ref cannot be framed: omit that person and choose the layout for the people you can cite. camera is an exact supplied camera key, NOT a person ID. refs are observed references, NOT invented persistent identities; YOU assign subjectId and link refs by appearance. Reuse compositionId only for the same ordered subjects, cameras, layout and source pane. Include all relevant observations across its passage. Do not specify closeUp, framing or crop coordinates for people. Code computes size, placement and fixed crops; it never chooses different subjects or changes your layout. sourcePane describes an observed embedded camera boundary only, never a desired person crop. A blocked plan has no shots and states the missing evidence or conflicting constraints.`;
 
-function validateCompositionPlan(plan:any,duration:number,layout:any,cameras:string[],styles:string[]) {
+// 'structure' checks status and timeline coverage only; 'shots' checks the
+// given shots and their identities without requiring them to cover the clip.
+function validateCompositionPlan(plan:any,duration:number,layout:any,cameras:string[],styles:string[],mode:'full'|'structure'|'shots'='full') {
   const fail=(code:string,detail:string)=>{throw new Error(`[composition:${code}] ${detail}`);};
   if(plan?.version!==1)fail('schema','Expected version 1');
   if(plan.status==='blocked')fail('blocked',String(plan.summary||'Agent could not resolve the requested composition'));
   if(plan.status!=='planned'||!Array.isArray(plan.shots)||!plan.shots.length)fail('schema','Missing planned shots');
   const compositions=new Map<string,string>(),owners=new Map<string,string>();let cursor=0;
   for(const shot of plan.shots) {
-    if(!Number.isInteger(shot.startFrame)||!Number.isInteger(shot.endFrame)||shot.startFrame!==cursor||shot.endFrame<=cursor||shot.endFrame>duration)fail('time',`Shots must cover [0,${duration}) exactly; invalid interval at ${cursor}`);
+    if(mode==='shots'){if(!Number.isInteger(shot.startFrame)||!Number.isInteger(shot.endFrame)||shot.startFrame<0||shot.endFrame<=shot.startFrame||shot.endFrame>duration)fail('time',`Invalid shot interval at ${shot.startFrame}`);}
+    else if(!Number.isInteger(shot.startFrame)||!Number.isInteger(shot.endFrame)||shot.startFrame!==cursor||shot.endFrame<=cursor||shot.endFrame>duration)fail('time',`Shots must cover [0,${duration}) exactly; invalid interval at ${cursor}`);
     cursor=shot.endFrame;
+    if(mode==='structure')continue;
     if(!styles.includes(shot.layout)&&!SPLIT_LAYOUTS.includes(shot.layout))fail('capability',`Unsupported layout ${shot.layout}`);
     if(shot.layout==='wide'&&(layout.widePolicy||'never')==='never')fail('template','Wide is forbidden');
     assertCompositionLayout(shot.layout,layout);
@@ -3616,7 +3640,7 @@ function validateCompositionPlan(plan:any,duration:number,layout:any,cameras:str
     const ids:string[]=[];
     for(const p of shot.panels) {
       if(!cameras.includes(p.camera))fail('camera',`Unknown camera ${p.camera}`);
-      const n=['wide','detail'].includes(shot.layout)?0:shot.layout==='two-shot'?2:1;
+      const n=['wide','insert'].includes(shot.layout)?0:shot.layout==='two-shot'?2:1;
       if(n===0&&p.targets==null)p.targets=[];
       if(!Array.isArray(p.targets)||(SPLIT_LAYOUTS.includes(shot.layout)?p.targets.length<1:p.targets.length!==n))fail('target',`Expected ${SPLIT_LAYOUTS.includes(shot.layout)?'one or more':n} targets in ${shot.layout}`);
       for(const t of p.targets) {
@@ -3624,7 +3648,7 @@ function validateCompositionPlan(plan:any,duration:number,layout:any,cameras:str
         for(const ref of t.refs){const key=JSON.stringify([p.camera,ref]),owner=owners.get(key);if(owner&&owner!==t.subjectId)fail('identity',`Observed reference ${ref} is assigned to different subjects`);owners.set(key,t.subjectId);}
         ids.push(t.subjectId);
       }
-      if(shot.layout==='detail') {
+      if(shot.layout==='insert') {
         const r=p.region;
         if(!r||![r.x,r.y,r.width,r.height].every(Number.isFinite)||r.x<0||r.y<0||r.width<=0||r.height<=0||r.x+r.width>1+1e-6||r.y+r.height>1+1e-6)fail('bounds','Detail region must lie inside its source');
       }
@@ -3635,7 +3659,7 @@ function validateCompositionPlan(plan:any,duration:number,layout:any,cameras:str
     if(compositions.has(shot.compositionId)&&compositions.get(shot.compositionId)!==signature)fail('continuity',`Composition ${shot.compositionId} changes subjects, camera or layout`);
     compositions.set(shot.compositionId,signature);
   }
-  if(cursor!==duration)fail('time',`Plan ends at ${cursor}, expected ${duration}`);
+  if(mode!=='shots'&&cursor!==duration)fail('time',`Plan ends at ${cursor}, expected ${duration}`);
   return plan;
 }
 
@@ -3792,18 +3816,66 @@ function resolveCompositionGroups(plan:any,evidence:any[],layout:any):any {
   })};
 }
 
+const SOURCE_COMPOSITION_STYLES=['speaker','stacked','two-shot','insert','wide'];
+function sourceCompositionShot(s:any,catalog:any[]) {
+  const resourceId=s.panels[0].camera;
+  if(s.panels.some((p:any)=>p.camera!==resourceId))throw Error('[composition:capability] A source shot cannot mix cameras; use a synchronized timeline');
+  const subjectGroups=s.panels.map((p:any)=>p.targets.map((t:any)=>{
+    for(const ref of t.refs)if(!catalog.some(f=>f.id===ref&&f.resourceId===p.camera))throw Error(`[composition:reference] Unobserved reference ${ref} for ${p.camera}`);
+    return {faceId:t.refs[0],faceIds:t.refs.slice(1),...(()=>{const r=sourcePaneRect(p.sourcePane);return {left:r.x,right:r.x+r.width,top:r.y,bottom:r.y+r.height};})(),subjectId:t.subjectId};
+  }));
+  return {...s,resourceId,style:s.layout,autoFrame:true,subjects:subjectGroups.flat(),subjectGroups,adjustments:s.panels.map((p:any)=>p.adjustment),regions:s.layout==='insert'?[{x:0,y:0,width:1,height:1,focus:s.panels[0].region}]:undefined};
+}
+// Plans saved before the rename call an insert shot "detail".
+function withInsertLayout(plan:any) {
+  return Array.isArray(plan?.shots)?{...plan,shots:plan.shots.map((s:any)=>s?.layout==='detail'?{...s,layout:'insert'}:s)}:plan;
+}
 function sourceCompositionAdapter(plan:any,sources:any[],duration:number,layout:any,catalog:any[]) {
-  plan=resolveCompositionGroups(plan,catalog.map(f=>({...f,camera:f.resourceId})),layout);
-  validateCompositionPlan(plan,duration,layout,sources.map(s=>s.resourceId),['speaker','stacked','two-shot','detail','wide']);
-  return {...plan,shots:plan.shots.map((s:any)=>{
-    const resourceId=s.panels[0].camera;
-    if(s.panels.some((p:any)=>p.camera!==resourceId))throw Error('[composition:capability] A source shot cannot mix cameras; use a synchronized timeline');
-    const subjectGroups=s.panels.map((p:any)=>p.targets.map((t:any)=>{
-      for(const ref of t.refs)if(!catalog.some(f=>f.id===ref&&f.resourceId===p.camera))throw Error(`[composition:reference] Unobserved reference ${ref} for ${p.camera}`);
-      return {faceId:t.refs[0],faceIds:t.refs.slice(1),...(()=>{const r=sourcePaneRect(p.sourcePane);return {left:r.x,right:r.x+r.width,top:r.y,bottom:r.y+r.height};})(),subjectId:t.subjectId};
-    }));
-    return {...s,resourceId,style:s.layout,autoFrame:true,subjects:subjectGroups.flat(),subjectGroups,adjustments:s.panels.map((p:any)=>p.adjustment),regions:s.layout==='detail'?[{x:0,y:0,width:1,height:1,focus:s.panels[0].region}]:undefined};
-  })};
+  plan=resolveCompositionGroups(withInsertLayout(plan),catalog.map(f=>({...f,camera:f.resourceId})),layout);
+  validateCompositionPlan(plan,duration,layout,sources.map(s=>s.resourceId),SOURCE_COMPOSITION_STYLES);
+  return {...plan,shots:plan.shots.map((s:any)=>sourceCompositionShot(s,catalog))};
+}
+// Keep every composition the plan can execute and the existing framing for
+// the rest. Plan structure (status, timeline coverage) still fails the clip.
+function salvageSourceComposition(plan:any,sources:any[],duration:number,layout:any,catalog:any[]):{plan:any,preserved:any[]} {
+  const cameras=sources.map(s=>s.resourceId);
+  plan=withInsertLayout(plan);
+  validateCompositionPlan(plan,duration,layout,cameras,SOURCE_COMPOSITION_STYLES,'structure');
+  try {return {plan:sourceCompositionAdapter(plan,sources,duration,layout,catalog),preserved:[]};}
+  catch {}
+  const evidence=catalog.map(f=>({...f,camera:f.resourceId})),groups=new Map<string,number[]>();
+  plan.shots.forEach((s:any,i:number)=>{const key=typeof s.compositionId==='string'&&s.compositionId.trim()?'c:'+s.compositionId:'s:'+i;groups.set(key,[...(groups.get(key)||[]),i]);});
+  const shots:any[]=new Array(plan.shots.length),reasons=new Map<string,string>();
+  for(const [key,indices] of groups) {
+    try {
+      const part=resolveCompositionGroups({...plan,shots:indices.map(i=>plan.shots[i])},evidence,layout);
+      validateCompositionPlan(part,duration,layout,cameras,SOURCE_COMPOSITION_STYLES,'shots');
+      part.shots.forEach((s:any,j:number)=>{shots[indices[j]]=sourceCompositionShot(s,catalog);});
+    } catch(error:any) {reasons.set(key,String(error?.message||error));}
+  }
+  // One observed face belongs to one person across every composition.
+  const owners=new Map<string,Map<string,string[]>>();
+  for(const [key,indices] of groups)if(!reasons.has(key))for(const i of indices)for(const p of shots[i].panels)for(const t of p.targets)for(const ref of t.refs) {
+    const face=JSON.stringify([p.camera,ref]),subjects=owners.get(face)||new Map<string,string[]>();
+    subjects.set(t.subjectId,[...(subjects.get(t.subjectId)||[]),key]);owners.set(face,subjects);
+  }
+  for(const [face,subjects] of owners)if(subjects.size>1)for(const keys of subjects.values())for(const key of keys)reasons.set(key,`[composition:identity] Observed reference ${JSON.parse(face)[1]} is assigned to different subjects`);
+  const preserved:any[]=[];
+  for(const [key,indices] of groups) {
+    const reason=reasons.get(key);
+    if(!reason)continue;
+    for(const i of indices) {
+      const s=plan.shots[i];
+      shots[i]=existingFramingShot(s.startFrame,s.endFrame,typeof s.compositionId==='string'&&s.compositionId.trim()?s.compositionId:`existing-${i}`);
+      preserved.push({startFrame:s.startFrame,endFrame:s.endFrame,compositionId:shots[i].compositionId,reason});
+    }
+  }
+  return {plan:{...plan,shots},preserved:preserved.sort((a,b)=>a.startFrame-b.startFrame)};
+}
+// A shot that keeps the Draft's current framing; editable later like any shot.
+// It names no source: it may span several source clips and is never applied.
+function existingFramingShot(startFrame:number,endFrame:number,compositionId:string) {
+  return {startFrame,endFrame,compositionId,layout:'preserve',panels:[],resourceId:null,style:'preserve',autoFrame:false,subjects:[],subjectGroups:[],regions:[]};
 }
 
 function cameraCompositionAdapter(plan:any,observations:any[],layout:any) {
@@ -3870,11 +3942,11 @@ function compileSourceCropPlan(shots:any[], sources:any[], duration:number, layo
   return shots.map((shot:any)=>{
     if(!Number.isInteger(shot.startFrame)||shot.startFrame!==end||!Number.isInteger(shot.endFrame)||shot.endFrame<=end||shot.endFrame>duration) throw new Error('Shots must cover the Draft exactly, without gaps or overlaps');
     end=shot.endFrame;
+    if(shot.style==='preserve')return {...shot,regions:[],windowH,panels:[]};
     const source=sources.find((s:any)=>s.resourceId===shot.resourceId);
     const W=source?.meta?.frameSize?.width,H=source?.meta?.frameSize?.height;
     if(![W,H].every(Number.isFinite)||!(W>0&&H>0)) throw new Error('Unknown source or source dimensions');
-    if(shot.style==='preserve')return {...shot,regions:[],sourceW:W,sourceH:H,windowH,panels:[]};
-    if(!['speaker','two-shot','wide','detail',...SPLIT_LAYOUTS].includes(shot.style)) throw new Error('Unknown shot style');
+    if(!['speaker','two-shot','wide','insert','detail',...SPLIT_LAYOUTS].includes(shot.style)) throw new Error('Unknown shot style');
     if(shot.style==='wide'&&(layout.widePolicy||'never')==='never') throw new Error('Template forbids wide shots');
     assertCompositionLayout(shot.style,layout);
     const count=compositionRects(shot.style).length;
@@ -3922,6 +3994,7 @@ function resolveSourceComposition(shots:any[],catalog:any[],sources:any[],durati
   const groups=new Map<string,any[]>(),resolved=new Map<any,any>(),limitations:any[]=[];
   for(const shot of shots){const key=JSON.stringify([shot.resourceId,shot.style,shot.compositionId]);if(!groups.has(key))groups.set(key,[]);groups.get(key)!.push(shot);}
   for(const group of groups.values()) {
+    if(group.every(s=>s.style==='preserve')){group.forEach(s=>resolved.set(s,s));continue;}
     try {
       const measured=measuredFaceShots(group,catalog,sources,layout);
       for(const shot of measured)checkSourceCompositionGeometry(compileSourceCropPlan([{...shot,startFrame:0,endFrame:shot.endFrame-shot.startFrame}],sources,shot.endFrame-shot.startFrame,layout),layout);
@@ -3995,7 +4068,7 @@ if ((await d.meta()).durationFrames!==${duration}) throw new Error("Draft durati
 // Validate source ownership before any edit.
 for (const c of await d.clips({trackScope:"main"})) {
  if (!c.resourceId) continue;
- for (const s of plan.filter(s=>s.startFrame<c.endFrame && s.endFrame>c.startFrame))
+ for (const s of plan.filter(s=>s.style!=="preserve" && s.startFrame<c.endFrame && s.endFrame>c.startFrame))
   if (s.resourceId!==c.resourceId) throw new Error("Shot source does not match its clip");
 }
 for (const s of plan.slice(1)) {
@@ -4204,7 +4277,7 @@ function measuredFaceShots(shots:any[],catalog:any[],sources:any[],layout:any) {
     const src=sources.find((r:any)=>r.resourceId===s.resourceId),W=src?.meta?.frameSize?.width,H=src?.meta?.frameSize?.height;
     if(![W,H].every(Number.isFinite)||!(W>0&&H>0)) throw new Error('Unknown measured-face source');
     if(s.style==='wide') return {...s,regions:[{x:0,y:0,width:1,height:1}]};
-    if(s.style==='detail') {if(s.subjects?.length)throw Error('Detail region cannot claim measured subjects');return s;}
+    if(s.style==='insert'||s.style==='detail') {if(s.subjects?.length)throw Error('Insert region cannot claim measured subjects');return s;}
     const count=compositionRects(s.style).length;
     if(!Array.isArray(s.subjects)||s.subjects.length!==count||new Set(s.subjects.map((q:any)=>q.faceId)).size!==count) throw new Error('Select one measured face per panel');
     const regions=s.subjects.map((q:any,slot:number)=>{
@@ -4530,65 +4603,138 @@ function sourceAppearanceChange(a:ArrayLike<number>,b:ArrayLike<number>) {
 
 // Survey the whole selected source, not just face-bearing instants. Pixel changes
 // are candidates for the agent to interpret; motion and flashes can also trigger.
+// Each capture costs a host script round trip, so raw source batches are twice
+// the size of sequence-frame batches. A batch spans at most RAW_BATCH_SPAN_SECONDS
+// of source, because one decoder reads everything from its first frame to its last.
+const RAW_FRAME_BATCH=24,SEQUENCE_FRAME_BATCH=12,RAW_BATCH_SPAN_SECONDS=12;
+function surveyBatches(frames:number[],size:number,span:number) {
+  const out:number[][]=[];
+  for(const f of frames){const last=out[out.length-1];if(last&&last.length<size&&f-last[0]<=span)last.push(f);else out.push([f]);}
+  return out;
+}
 function rawSourceFrameArgs(source:any,frames:number[],output:string) {
-  if(!source.path||!Number.isFinite(source.meta?.fps)||source.meta.fps<=0||!frames.length||frames.length>12||frames.some(f=>!Number.isInteger(f)||f<0))throw Error('Invalid source frame request');
+  if(!source.path||!Number.isFinite(source.meta?.fps)||source.meta.fps<=0||!frames.length||frames.length>RAW_FRAME_BATCH||frames.some(f=>!Number.isInteger(f)||f<0))throw Error('Invalid source frame request');
   const width=640,height=Math.max(2,Math.round(width*source.meta.frameSize.height/source.meta.frameSize.width/2)*2);
   // Seek once and decode the batch sequentially. A separate input per frame
   // repeatedly decodes the same GOP, especially during exact-cut refinement.
   // Trim each branch by frame index and reset timestamps before stacking;
   // this preserves request order (including duplicates) at fractional FPS.
   const first=Math.min(...frames);
-  const args=['-v','error','-y','-threads','1','-ss',(first/source.meta.fps).toFixed(9),'-i',source.path];
+  const args=['-v','error','-y','-threads','2','-ss',(first/source.meta.fps).toFixed(9),'-i',source.path];
   const filters=[frames.length===1?'[0:v:0]null[s0]':`[0:v:0]split=${frames.length}`+frames.map((_,i)=>`[s${i}]`).join('')];
   filters.push(...frames.map((f,i)=>`[s${i}]trim=start_frame=${f-first}:end_frame=${f-first+1},setpts=PTS-STARTPTS,scale=${width}:${height},setsar=1[v${i}]`));
   filters.push(frames.length===1?'[v0]null[out]':frames.map((_,i)=>`[v${i}]`).join('')+`hstack=inputs=${frames.length}:shortest=1[out]`);
   args.push('-filter_complex_threads','1','-filter_complex',filters.join(';'),'-map','[out]','-frames:v','1','-q:v','3',output);
   return {args,width,height};
 }
-async function captureRawSourceFrames({sdk,guard,store,source,frames}:any) {
+// What this panel session learned about the host: whether job status can be read
+// without a script, and whether a capture can be drawn straight from its local URL.
+const surveyHosts=new WeakMap<object,{statusCall:boolean;localImages:boolean}>();
+function surveyHost(sdk:any){let h=surveyHosts.get(sdk);if(!h)surveyHosts.set(sdk,h={statusCall:true,localImages:true});return h;}
+const surveyDirs=new WeakMap<object,Map<string,Promise<void>>>();
+function ensureSurveyDir(store:any,dir:string){
+  let dirs=surveyDirs.get(store);if(!dirs)surveyDirs.set(store,dirs=new Map());
+  let ready=dirs.get(dir);
+  if(!ready){const made=Promise.resolve(store.ensure(dir));ready=made;dirs.set(dir,made);made.catch(()=>{if(dirs!.get(dir)===made)dirs!.delete(dir);});}
+  return ready;
+}
+// One script per batch: start FFmpeg and get the output's local URL together. The
+// output stays on disk until the survey ends (`outputs`), so a failed local draw
+// can still read its bytes.
+async function captureRawSourceFrames({sdk,guard,store,source,frames,outputs}:any) {
+  const J=JSON.stringify,host=surveyHost(sdk);
   const read=async(script:string,allowCommit=false)=>{const r=await sdk.runScript({script,summary:'Capture original source frames',allowCommit});if(r.isError)throw Error(r.output||'Source frame capture failed');return r.result;};
   const dir=store.join(store.root,'frames'),output=store.join(dir,`survey-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`);
   const {args,width,height}=rawSourceFrameArgs(source,frames,output);
-  const state=async(id:string)=>String((await read(`return await selects.media.job(${JSON.stringify(id)}).status();`)).state);
-  try {
-    await guard(store.ensure(dir));
-    await runFrameJob({start:async()=>(await read(`return await selects.media.startFFmpeg({args:${JSON.stringify(args)}});`,true)).jobId,
-      state:id=>guard(state(id)),settled:state,cancel:async id=>{await read(`await selects.media.job(${JSON.stringify(id)}).cancel();`,true);},
-      wait:ms=>guard(sleep(ms)),idle:sleep,now:()=>Date.now(),limitMs:60000,stopped:()=>false,stopError:()=>new RunCancelled()});
-    const bytes=await guard(store.fs.readFile(output));
-    return {data:toBase64(bytes),frames:frames.map((frameNumber:number,i:number)=>({frameNumber,hasSourceImage:true,x:i*width,y:0,width,height}))};
-  } finally {await read(`await selects.files.remove(${JSON.stringify(output)},{force:true});`,true).catch(()=>{});}
+  const state=async(id:string)=>{
+    if(host.statusCall){try{return String((await sdk.call('getLocalMediaJobStatus',id,{cursor:0})).state);}catch(e){host.statusCall=false;}}
+    return String((await read(`return await selects.media.job(${J(id)}).status();`)).state);
+  };
+  await guard(ensureSurveyDir(store,dir));
+  outputs.push(output);
+  let url:string|null=null;
+  await runFrameJob({start:async()=>{
+      const started=await read(host.localImages?`const job = await selects.media.startFFmpeg({args:${J(args)}}); return { jobId: job.jobId, url: await selects.files.localUrl(${J(output)}) };`:`return await selects.media.startFFmpeg({args:${J(args)}});`,true);
+      url=typeof started?.url==='string'?started.url:null;return started.jobId;},
+    state:id=>guard(state(id)),settled:state,cancel:async id=>{await read(`await selects.media.job(${J(id)}).cancel();`,true);},
+    wait:ms=>guard(sleep(ms)),idle:sleep,now:()=>Date.now(),limitMs:60000,pollMs:150,stopped:()=>false,stopError:()=>new RunCancelled()});
+  return {url,output,frames:frames.map((frameNumber:number,i:number)=>({frameNumber,hasSourceImage:true,x:i*width,y:0,width,height}))};
+}
+// Captures are removed together when the survey ends. Earlier versions of this panel
+// left every capture behind, so captures older than a day go in the same script.
+async function removeSurveyCaptures(sdk:any,paths:string[]) {
+  if(!paths.length)return;
+  const J=JSON.stringify,dir=folderOf(paths[0]),sep=paths[0].charAt(dir.length);
+  await sdk.runScript({allowCommit:true,summary:'Remove original source frame captures',script:
+    `const paths: string[] = ${J(paths)}; const dir = ${J(dir)}; const d = await selects.files.stat(dir); `+
+    `if (d && d.isDirectory) for (const name of await selects.files.readdir(dir)) { if (!/^survey-.*\\.jpg$/.test(String(name))) continue; const p = dir + ${J(sep)} + String(name); const s = await selects.files.stat(p); if (s && !s.isDirectory && s.mtimeMs < Date.now() - 86400000 && !paths.includes(p)) paths.push(p); } `+
+    `for (const p of paths) { try { const s = await selects.files.stat(p); if (s && !s.isDirectory) await selects.files.remove(p, { recursive: true, force: true }); } catch (e) {} }`,
+  }).catch(()=>{});
+}
+async function loadSurveyImage(src:string,crossOrigin:boolean) {
+  const image=new Image();if(crossOrigin)image.crossOrigin='anonymous';image.src=src;await image.decode();return image;
 }
 
-async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note,store}:any) {
+async function prepareSourceSurvey(input:any) {
+  const {projectId,before,catalog,note}=input;
+  // A retried clip asks for the same survey; its frames and pages do not change.
+  const key=keyHash(JSON.stringify({projectId,sources:before.sources.map((s:any)=>[s.resourceId,s.path??null,s.meta?.fps,s.meta?.frameSize]),
+    segments:(before.segments||before.words).map((w:any)=>[w.sourceResourceId,w.startFrame,w.endFrame,w.sourceStartFrame,w.sourceEndFrame]),
+    speakers:(before.words||[]).map((w:any)=>[w.speakerId,w.sourceResourceId,w.startFrame,w.endFrame]),catalog:catalog.map((f:any)=>[f.id,f.resourceId,f.sourceFrame])}));
+  const known=surveyMemo.get(key);
+  if(known){
+    const r=await known;
+    note({plan:'source-evidence',samples:r.samples,boundaries:r.boundaries,imageCount:r.images.length,timing:{cached:true}});
+    return {...r,images:r.images.slice()};
+  }
+  const pending=surveySourceFrames(input);
+  surveyMemo.set(key,pending);
+  while(surveyMemo.size>8)surveyMemo.delete(surveyMemo.keys().next().value!);
+  pending.catch(()=>{if(surveyMemo.get(key)===pending)surveyMemo.delete(key);});
+  return pending;
+}
+const surveyMemo=new Map<string,Promise<any>>();
+
+async function surveySourceFrames({sdk,guard,projectId,before,catalog,note,store}:any) {
   const started=performance.now(),metrics={batches:0,frames:0,captureMs:0};
-  const images:any[]=[],samples:any[]=[],boundaries:any[]=[];
+  const images:any[]=[],samples:any[]=[],boundaries:any[]=[],outputs:string[]=[];
+  const host=surveyHost(sdk);
+  try {
   for(const source of before.sources) {
     const words=(before.segments||before.words).filter((w:any)=>w.sourceResourceId===source.resourceId&&Number.isFinite(w.sourceStartFrame));
     const ranges=cameraFaceRanges(words.map((w:any)=>[w.sourceStartFrame/source.meta.fps,w.sourceEndFrame/source.meta.fps]));
     const core=source.path?null:await guard(sdk.call('getResourceAnalyzedSequence',projectId,source.resourceId));
     if(!source.path&&(core?.owner?.projectId!==projectId||!core.analyzedSequenceJson?.id))throw Error('Source survey ownership mismatch');
     const cache=new Map<number,any>();
+    const tiles=(image:any,c:any,wanted:number[])=>wanted.map(f=>{const tile=c.frames?.find((t:any)=>t.frameNumber===f);if(!tile?.hasSourceImage)throw Error('Missing source survey image');const cv=document.createElement('canvas');cv.width=640;cv.height=Math.round(640*source.meta.frameSize.height/source.meta.frameSize.width);const g=cv.getContext('2d')!;g.drawImage(image,tile.x,tile.y,tile.width,tile.height,0,0,cv.width,cv.height);const probe=document.createElement('canvas');probe.width=32;probe.height=18;const pg=probe.getContext('2d')!;pg.drawImage(cv,0,0,32,18);return [f,{cv,pixels:pg.getImageData(0,0,32,18).data}] as [number,any];});
     const capture=async(frames:number[])=>{
-      const missing=[...new Set(frames)].filter(f=>!cache.has(f));
-      for(let i=0;i<missing.length;i+=12){note({plan:'stage',stage:'evidence'});const wanted=missing.slice(i,i+12),captureStarted=performance.now();
-        const c=await guard(visualWork(()=>source.path?captureRawSourceFrames({sdk,guard,store,source,frames:wanted}):sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:core.analyzedSequenceJson.id,sequenceJson:core.analyzedSequenceJson,coordinate:'base',frames:wanted.map(frameNumber=>({frameNumber,view:'timeline_composite'})),includeOverlays:false})));
+      const missing=[...new Set(frames)].filter(f=>!cache.has(f)).sort((a,b)=>a-b);
+      const batches=source.path?surveyBatches(missing,RAW_FRAME_BATCH,Math.round(source.meta.fps*RAW_BATCH_SPAN_SECONDS)):surveyBatches(missing,SEQUENCE_FRAME_BATCH,Infinity);
+      for(const wanted of batches){note({plan:'stage',stage:'evidence'});const captureStarted=performance.now();
+        const c=await guard(visualWork(()=>source.path?captureRawSourceFrames({sdk,guard,store,source,frames:wanted,outputs}):sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:core.analyzedSequenceJson.id,sequenceJson:core.analyzedSequenceJson,coordinate:'base',frames:wanted.map(frameNumber=>({frameNumber,view:'timeline_composite'})),includeOverlays:false})));
         metrics.batches++;metrics.frames+=wanted.length;metrics.captureMs+=performance.now()-captureStarted;
-        const image=new Image();image.src='data:image/jpeg;base64,'+c.data;await image.decode();
-        for(const f of wanted){const tile=c.frames?.find((t:any)=>t.frameNumber===f);if(!tile?.hasSourceImage)throw Error('Missing source survey image');const cv=document.createElement('canvas');cv.width=640;cv.height=Math.round(640*source.meta.frameSize.height/source.meta.frameSize.width);const g=cv.getContext('2d')!;g.drawImage(image,tile.x,tile.y,tile.width,tile.height,0,0,cv.width,cv.height);const probe=document.createElement('canvas');probe.width=32;probe.height=18;const pg=probe.getContext('2d')!;pg.drawImage(cv,0,0,32,18);cache.set(f,{cv,pixels:pg.getImageData(0,0,32,18).data});}
+        let entries:[number,any][]|null=null;
+        if(c.url&&host.localImages){
+          try{entries=tiles(await loadSurveyImage(c.url,true),c,wanted);}
+          catch(e:any){host.localImages=false;console.info('[shortform:source-survey]',{localImages:'unavailable',error:String(e?.message||e)});}
+        }
+        if(!entries)entries=tiles(await loadSurveyImage('data:image/jpeg;base64,'+(c.data??toBase64(await guard(store.fs.readFile(c.output)))),false),c,wanted);
+        for(const [f,value] of entries)cache.set(f,value);
       }
     };
-    const selected=new Set<number>();
-    for(const [a,b] of ranges){const start=Math.round(a*source.meta.fps),end=Math.ceil(b*source.meta.fps)-1,step=Math.max(1,Math.round(source.meta.fps*.5)),coarse:number[]=[];for(let f=start;f<=end;f+=step)coarse.push(f);coarse.push(end);await capture(coarse);selected.add(start);selected.add(end);
-      for(let i=1;i<coarse.length;i++)if(sourceAppearanceChange(cache.get(coarse[i-1]).pixels,cache.get(coarse[i]).pixels)){
-        const frames=Array.from({length:coarse[i]-coarse[i-1]+1},(_,j)=>coarse[i-1]+j);await capture(frames);
-        for(let j=1;j<frames.length;j++)if(sourceAppearanceChange(cache.get(frames[j-1]).pixels,cache.get(frames[j]).pixels)){boundaries.push({resourceId:source.resourceId,lastOldSourceFrame:frames[j-1],firstNewSourceFrame:frames[j],kind:'appearance-change-candidate'});selected.add(frames[j-1]);selected.add(frames[j]);}
-      }
-    }
+    // Frames chosen regardless of what the pixels show are taken with the coarse pass.
+    const selected=new Set<number>(),spans:{coarse:number[]}[]=[],chosen:number[]=[];
+    for(const f of catalog.filter((f:any)=>f.resourceId===source.resourceId))chosen.push(f.sourceFrame);
+    for(const t of reframingPlanningFacts(before,[]).turns.filter((t:any)=>before.sources[t.source]?.resourceId===source.resourceId)){const w=words.find((w:any)=>w.startFrame<=t.startFrame&&w.endFrame>t.startFrame);if(w)chosen.push(Math.round(w.sourceStartFrame));}
+    for(const [a,b] of ranges){const start=Math.round(a*source.meta.fps),end=Math.ceil(b*source.meta.fps)-1,step=Math.max(1,Math.round(source.meta.fps*.5)),coarse:number[]=[];for(let f=start;f<=end;f+=step)coarse.push(f);coarse.push(end);spans.push({coarse});selected.add(start);selected.add(end);}
+    await capture([...spans.flatMap(s=>s.coarse),...chosen]);
+    // Every changed coarse interval is refined frame by frame, all in one capture.
+    const changed=spans.flatMap(({coarse})=>coarse.slice(1).flatMap((f,i)=>sourceAppearanceChange(cache.get(coarse[i]).pixels,cache.get(f).pixels)?[Array.from({length:f-coarse[i]+1},(_,j)=>coarse[i]+j)]:[]));
+    await capture(changed.flat());
+    for(const frames of changed)for(let j=1;j<frames.length;j++)if(sourceAppearanceChange(cache.get(frames[j-1]).pixels,cache.get(frames[j]).pixels)){boundaries.push({resourceId:source.resourceId,lastOldSourceFrame:frames[j-1],firstNewSourceFrame:frames[j],kind:'appearance-change-candidate'});selected.add(frames[j-1]);selected.add(frames[j]);}
     // Every local face track receives an actual raw reference image. This lets
     // the agent connect identities across windows instead of trusting track IDs.
-    for(const f of catalog.filter((f:any)=>f.resourceId===source.resourceId))selected.add(f.sourceFrame);
-    for(const t of reframingPlanningFacts(before,[]).turns.filter((t:any)=>before.sources[t.source]?.resourceId===source.resourceId)){const w=words.find((w:any)=>w.startFrame<=t.startFrame&&w.endFrame>t.startFrame);if(w)selected.add(Math.round(w.sourceStartFrame));}
+    for(const f of chosen)selected.add(f);
     const frames=[...selected].sort((a,b)=>a-b);await capture(frames);
     for(let i=0;i<frames.length;i+=6){const page=frames.slice(i,i+6),cv=document.createElement('canvas');cv.width=1280;const h=cache.get(page[0]).cv.height+40;cv.height=h*Math.ceil(page.length/2);const g=cv.getContext('2d')!;g.fillStyle='#15191f';g.fillRect(0,0,cv.width,cv.height);
       page.forEach((f,j)=>{const x=j%2*640,y=Math.floor(j/2)*h;g.drawImage(cache.get(f).cv,x,y+40);g.fillStyle='white';g.font='16px sans-serif';const ids=catalog.filter((c:any)=>c.resourceId===source.resourceId&&c.sourceFrame===f).map((c:any)=>c.id);g.fillText(`source frame ${f} · ${ids.join(', ')||'context'}`,x+8,y+26);});
@@ -4596,9 +4742,105 @@ async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note,stor
     }
     samples.push({resourceId:source.resourceId,sourceFrames:frames});
   }
-  const timing={...metrics,captureMs:Math.round(metrics.captureMs),elapsedMs:Math.round(performance.now()-started)};
+  } finally {await removeSurveyCaptures(sdk,outputs);}
+  const timing={...metrics,captureMs:Math.round(metrics.captureMs),elapsedMs:Math.round(performance.now()-started),localImages:host.localImages,statusCall:host.statusCall};
   console.info('[shortform:source-survey]',timing);
   note({plan:'source-evidence',samples,boundaries,imageCount:images.length,timing});return {images,samples,boundaries};
+}
+
+// The Draft frame where a source frame plays, or null when the Draft omits it.
+function draftFrameOfSource(rows:any[],resourceId:string,sourceFrame:number):number|null {
+  const row=rows.find((r:any)=>r.sourceResourceId===resourceId&&r.sourceStartFrame<=sourceFrame&&sourceFrame<r.sourceEndFrame);
+  return row?Math.round(row.startFrame+(sourceFrame-row.sourceStartFrame)*(row.endFrame-row.startFrame)/(row.sourceEndFrame-row.sourceStartFrame)):null;
+}
+// Gaps or overlaps of a few frames between agent shots are rounding, not editing.
+function snapShotBoundaries(plan:any,duration:number,tolerance:number):{plan:any,snapped:number} {
+  if(!Array.isArray(plan?.shots)||!plan.shots.length||plan.shots.some((s:any)=>!Number.isFinite(Number(s?.startFrame))||!Number.isFinite(Number(s?.endFrame))))return {plan,snapped:0};
+  const shots=plan.shots.map((s:any)=>({...s,startFrame:Math.round(Number(s.startFrame)),endFrame:Math.round(Number(s.endFrame))})).sort((a:any,b:any)=>a.startFrame-b.startFrame);
+  let snapped=plan.shots.filter((s:any,i:number)=>s!==plan.shots[i]||s.startFrame!==Math.round(s.startFrame)||s.endFrame!==Math.round(s.endFrame)).length;
+  const near=(a:number,b:number)=>a!==b&&Math.abs(a-b)<=tolerance;
+  if(near(shots[0].startFrame,0)){shots[0].startFrame=0;snapped++;}
+  for(let i=1;i<shots.length;i++)if(near(shots[i].startFrame,shots[i-1].endFrame)){shots[i].startFrame=shots[i-1].endFrame;snapped++;}
+  if(near(shots[shots.length-1].endFrame,duration)){shots[shots.length-1].endFrame=duration;snapped++;}
+  if(shots.some((s:any)=>s.endFrame<=s.startFrame))return {plan,snapped:0};
+  return {plan:{...plan,shots},snapped};
+}
+// Layouts a source composition plan may use with this template.
+function sourceCompositionLayouts(layout:any):string[] {
+  if(layout.fixedLayout&&layout.fixedLayout!=='auto')return [layout.fixedLayout];
+  return ['speaker',...permittedSplits(layout).filter(l=>SELECTABLE_SPLIT_LAYOUTS.includes(l)),'two-shot','insert',...((layout.widePolicy||'never')==='never'?[]:['wide'])];
+}
+function sourceCompositionPreferences(layout:any):string[] {
+  const p=reframingPreferences(layout),lines:string[]=[];
+  lines.push(p.focus==='reactions'?'Focus on reactions: speaker-led framing with meaningful listener reactions, not constant listener coverage.':`Focus: ${p.focus}.`);
+  if(permittedSplits(layout).length)lines.push(`Splits (${p.split}): decide from the conversation structure of the whole clip. Split only when substantive back-and-forth between the same distinct people defines a passage and seeing them together helps${p.split==='frequent'?', and this template welcomes a split whenever that holds':''}; keep the split stable through that passage. One question and answer, a short acknowledgement, an overlap, a hesitation or variety alone is not enough. When one person mostly explains, keep single-speaker framing. Keep each person in the same slot through a conversation, and avoid grids when faces would be too small to read.`);
+  if(p.wide==='essential')lines.push('Use wide only when group action or spatial context is needed to understand the scene, never to break up a long answer.');
+  lines.push(`Pacing (${p.pacing}) is a preference, not a fixed timer.`);
+  if(layout.fixedLayout&&layout.fixedLayout!=='auto')lines.push(`Every shot uses the fixed layout ${layout.fixedLayout}; if the evidence cannot support it, return blocked.`);
+  if(layout.subjectInstructions)lines.push(`Scene instructions, applied before the split advice above: ${layout.subjectInstructions}. When they ask for all participants, include every person with an observed ref.`);
+  return lines;
+}
+const SOURCE_LAYOUT_DESCRIPTIONS:any={speaker:'one panel with one person','two-shot':'one panel with two people from one camera',stacked:'2 panels, top and bottom','side-by-side':'2 panels, left and right','columns-3':'3 side-by-side columns','top-main-3':'3 panels, main on top','left-main-3':'3 panels, main on the left','grid-4':'4 panels in reading order',insert:'a non-person area (a graphic, object or action) with no people',wide:'the whole source frame'};
+function sourceCompositionPrompt({draftId,layout,sources,duration,input}:any):string {
+  const layouts=sourceCompositionLayouts(layout),splits=layouts.some(l=>SPLIT_LAYOUTS.includes(l)),wide=layouts.includes('wide');
+  const targets=[layouts.includes('speaker')&&'speaker has 1 target',layouts.includes('two-shot')&&'two-shot 2',splits&&'each split panel at least 1',...['insert','wide'].filter(l=>layouts.includes(l)).map(l=>l+' 0')].filter(Boolean).join(', ');
+  const windowH=Number(layout.windowBottom??1920)-Number(layout.windowTop??0),cap=(v:number)=>Math.floor(Math.min(1,v)*10000)/10000;
+  const detail=sources.map((s:any)=>`${s.resourceId}: width ≤ ${cap(s.meta.frameSize.height*1080/windowH/s.meta.frameSize.width)}, height ≤ ${cap(s.meta.frameSize.width*windowH/1080/s.meta.frameSize.height)}`).join('; ');
+  return `You plan the screen composition of one vertical short-form clip. Read the evidence, decide who is on screen and how, and return one JSON plan. The app validates and applies the plan; you never edit, commit or export, and you do not ask questions.
+
+## Tools
+- This is a composition task, not a coding task: do not inspect application source code, logs or other panels.
+- Use your existing Selects SDK tools READ-ONLY, and only for a specific missing identity, subject or boundary; aim for zero calls.
+- Source analysis may still be running, so do not call resource.captureFrames, resource.meta, resource.words or resource.rangeAtFrames, and do not start or wait for analysis. Use draft.words() only if you truly need transcript text.
+
+## Priorities (highest first)
+1. Keep speech and timing intact. Never invent a person, face or identity.
+2. Show the people and content the evidence supports. If identity is uncertain, keep an evidence-supported composition.
+3. Follow the user's focus and the template's layout rules.
+4. Cosmetic preferences.
+If preferences conflict, choose the closest feasible composition and record the compromise in limitations.
+
+## Reading the evidence
+The input JSON is at the end; the source images are attached.
+- faces: measured face tracks. A ref is one track on one camera, observed between its draftStartFrame and draftEndFrame; it is not a persistent identity. You assign subjectId and link refs of the same person by appearance; never merge different people. observedRefs lists the refs you may cite, per camera.
+- activeSpeakers: Light-ASD AVA scores, uncalibrated logits; missing means unknown. Do not infer speaking from one open mouth. A camera cut is not a speaker change. A visible listener may stay on screen during offscreen speech.
+- appearanceChanges: candidate source cuts; some are motion or flashes, so judge the images. If you accept one, start the new shot at its firstNewDraftFrame (already converted to Draft frames). Cover every source layout change, even inside a word${wide?', and do not bridge a source cut with a tiny wide shot':''}.
+- sourceMapping: Draft frames to source frames, for reading the images and faces. Frame rates can differ; map linearly within one row, never across removed silence.
+- speakerTurns: speaker timing without transcript text.
+- Images: UNCROPPED SOURCE frames. Use them and the measurements before any tool.
+
+## Composing
+- A panel is one picture area of the vertical frame; each panel shows one camera.
+- Layouts this template allows (use no other): ${layouts.map(l=>`${l} = ${SOURCE_LAYOUT_DESCRIPTIONS[l]||l}`).join('; ')}.${splits?' Split panels are in display order.':''}
+- Do not specify closeUp, framing or crop values; code computes every crop, size and position${splits?', and may letterbox a group':''}.
+${splits?'- Grouping: for a split you may give shot.people (each person with an observed ref, once) instead of panels; code groups them into the panels. Give at least as many people as the layout has panels; if fewer people have observed refs, choose a layout with fewer panels. Set slot only when the user asked for a placement. To keep a split that already exists in the source, give explicit panels in source order.\n':''}- sourcePane: only for an embedded camera boundary visible in the source, e.g. one quadrant of a 2x2 broadcast {x:0,y:0,width:0.5,height:0.5}. Omit it for a continuous camera view.
+${layouts.includes('insert')?`- insert: panel.region (normalized) is the area that must stay fully visible. Size limit per camera: ${detail}.\n`:''}- compositionId: reuse it whenever you return to the same people, camera, layout and sourcePane, including across silence cuts; the crop then stays fixed.
+${splits||wide?`- Explain the evidence behind every ${[splits&&'split',wide&&'wide'].filter(Boolean).join(' or ')} choice in reason.\n`:''}${sourceCompositionPreferences(layout).map(line=>'- '+line).join('\n')}
+
+## Output
+Return JSON only:
+{version:1, draftId:${JSON.stringify(draftId)}, status:"planned"|"blocked", summary,
+ shots:[{startFrame, endFrame, compositionId, layout, reason, panels:[{camera, targets:[{subjectId, refs}], region?, sourcePane?}]}],
+ speakerEvidence:[{startFrame, endFrame, resourceId, sourceFrames, subject, basis, evidence}],
+ limitations:[]}
+${splits?'For a split, a shot may carry people:[{camera, subjectId, refs, slot?, sourcePane?}] instead of panels.\n':''}
+Rules the app enforces; shots that break one are not applied and keep the existing framing:
+1. shots cover [0,${duration}) with integer half-open intervals, no gap or overlap.
+2. layout is one of capabilities.layouts (the layouts listed above), and the number of panels matches it.
+3. camera is a key from capabilities.cameras, never a person ID.
+4. Every target and people entry has non-empty refs from observedRefs for its camera. Leave out a person you cannot cite, and choose the layout for the people you can cite. Targets: ${targets}.
+5. A ref belongs to one subject in the whole plan, and a subject appears once per shot.
+6. A reused compositionId keeps the same subjects, cameras, layout and sourcePane.
+
+status "blocked" means no shots: use it only when essential evidence is missing, and state what is missing. The app then keeps the existing framing for the whole clip.
+
+speakerEvidence is diagnostic: one row per coherent shot, the rows together covering the clip. Each row cites at least one integer source frame you used (three for mouth-motion); basis is audio-visual, offscreen, visual-content or mouth-motion. Do not claim lip-sync from still images. Keep each reason, evidence and limitation under 25 words, and return syntactically valid JSON.
+
+## Final check
+This is a checklist, not a second review: confirm rules 1-6 and fix any violation before you answer.
+
+## Input
+${input}`;
 }
 
 async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measureFaces,prepareEvidence,measureSpeakers,work,previousEdit,store}:any):Promise<any> {
@@ -4641,43 +4883,40 @@ async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measur
   try {observations=measureFaces?{catalog:await measureFaces({sdk,guard,projectId,before,note}),activeSpeakers:[]}:await collectSourceObservations({sdk,guard,projectId,before,note});}
   catch(error:any){if(error instanceof RunCancelled)throw error;analysisLimitations.push(String(error?.message||error));note({plan:'analysis-limited',reason:analysisLimitations[0]});}
   const faceCatalog=observations.catalog;
-  let evidence:any;
-  try{evidence=await (prepareEvidence||prepareSourceSurvey)({sdk,guard,projectId,before,catalog:faceCatalog,note,store});}
-  catch(error:any){if(error instanceof RunCancelled)throw error;await unchanged();note({plan:'agent-reframe-failed',draftId,error:String(error?.message||error)});throw error;}
+  // Composition problems keep the Draft's existing framing for the whole clip;
+  // cancellation and edits to dialogue or timing still stop the run.
+  const keepExistingFraming=async(error:any)=>{
+    if(error instanceof RunCancelled)throw error;
+    const reason=String(error?.message||error),duration=before.meta.durationFrames;
+    await unchanged();
+    note({plan:'agent-reframe-preserved',draftId,reason});
+    // Locked shots are already on the Draft; keep them so regeneration still protects them.
+    const kept=[existingFramingShot(0,duration,'existing-framing')];
+    const appliedShots=mergeLockedSourceShots(kept,previousEdit?.appliedShots||[]);
+    const retained=retainLockedSourceContext(previousEdit,faceCatalog,{version:1,draftId,status:'planned',shots:kept});
+    const ranges=appliedShots.filter((s:any)=>s.style==='preserve').map((s:any)=>({startFrame:s.startFrame,endFrame:s.endFrame,compositionId:s.compositionId,reason}));
+    let mediaKey:any;
+    if(!measureFaces)try{mediaKey=framingMediaKey(await guard(sdk.call("getDraftMediaSnapshot",projectId,draftId)));}catch(e:any){if(e instanceof RunCancelled)throw e;}
+    return {version:1,draftId,status:'complete',summary:'Existing framing kept: '+reason,shots:retained.plan.shots,limitations:[reason],
+      editContext:{kind:'source',plan:retained.plan,catalog:retained.catalog,mediaKey,sources:before.sources,segments:before.segments||before.words,duration,fps:before.meta.fps,layout,appliedShots,words:normalizeReframeWords(before.words)},
+      appliedShots,qualityStatus:'limited',preservedAll:ranges.length===appliedShots.length,preservedRanges:ranges,geometryAdjustments:[],
+      verification:{kind:'geometry-and-timing',status:'not-run',reason},visualReview:{status:'not-run',reason:'No framing was applied.'}};
+  };
+  let plan:any,resolved:any,preserved:any[]=[];
+  try {
+  const evidence=await (prepareEvidence||prepareSourceSurvey)({sdk,guard,projectId,before,catalog:faceCatalog,note,store});
   const activeSpeakers=measureSpeakers?await measureSpeakers({sdk,guard,projectId,before,catalog:faceCatalog,samples:evidence.samples,note,work}):observations.activeSpeakers;
   const facts=reframingPlanningFacts(before,faceCatalog);
-  const prompt=`You are the editorial agent for shortform screen composition. Use your existing Selects SDK tools READ-ONLY for missing evidence. The app applies your JSON plan; you do not edit or commit. No questions, export, effect code, or second review pass.
-
-DECISIONS
-Choose people, reactions, layouts and exact cut boundaries for the whole clip. Deliver the best feasible plan. Priority: preserve speech/timing and choose evidence-supported subjects, then the user-selected focus, then layout preferences, then original graphics and cosmetic framing. If preferences conflict, choose the closest feasible composition and disclose the compromise in limitations; do not block the whole clip for cosmetic conflicts. Never invent identity or change speech. Obey the template where feasible. Group speaker turns into a consistent person mapping using source images and Light-ASD AVA scores. Scores are uncalibrated logits, not probabilities; missing means unknown. A visible listener can remain during offscreen speech. A camera cut is not a speaker change. Do not infer speaking from one open mouth. Local tracks expire at their source ranges and are NOT persistent identities. Connect them by appearance. Never force a person into scenery, maps, sports or silent action.
-
-EVIDENCE
-JSON below contains speaker timing without transcript text, source/Draft mappings, measured face references, source images, active-speaker scores and appearance-change candidates. Those candidates may be motion/flash rather than cuts: judge the pictures. When accepting a candidate as a cut, use its exact firstNewSourceFrame; do not substitute rounded seconds or a runtime track boundary. Never insert a tiny wide transition merely to bridge a source cut. Cover all source layout changes, including inside words. Source and Draft frame rates can differ. Map frames linearly within the matching source mapping range; never across removed silence.
-Use supplied UNCROPPED SOURCE images and measurements first. Only request a specific missing identity, subject or boundary. Aim for zero additional calls; do not repeat metadata, broad surveys or analyzed ranges. Source analysis may still be running. Use the supplied source images; do not call resource.captureFrames, resource.meta, resource.words or resource.rangeAtFrames, which require completed analysis. Do not wait for or start full-source analysis. Transcript text is available via draft.words() only if semantics are genuinely needed.
-
-GEOMETRY
-sourcePane uses normalized {x,y,width,height}; for embedded 2x2 broadcasts, constrain both axes (top-left: {x:0,y:0,width:0.5,height:0.5}).
-Choose only camera, people, layout and timing. Never return closeUp, framing or crop coordinates for people. The code owns person size, position, headroom and fitting to template overlays. speaker shows one person, two-shot shows two people together from ONE camera, split layouts show 2, 3 or 4 ordered panels according to the preset. When a group cannot fill the template, code may letterbox it; do not change the selected people or layout merely to fit. sourcePane describes only actual embedded-camera boundaries in the source image, not an aesthetic crop. Omit it for a continuous camera view. Link all observed refs of the same person across the composition; never merge different people. Reuse compositionId whenever returning to the same people/camera/layout, including across silence cuts. Observed track boundaries are not editorial cuts.
-
-For non-person content use layout "detail" with targets:[] and one panel.region {x,y,width,height}, choosing the action/object yourself. region is the IMPORTANT AREA that must remain fully visible, not a rough full-image crop. Code fills the portrait window around it without cutting this area. Normalized region width must be <= min(1, sourceHeight * 1080 / (windowBottom-windowTop) / sourceWidth), and height <= min(1, sourceWidth * (windowBottom-windowTop) / 1080 / sourceHeight). For 1920x1080 into 1080x1920, width must be <=0.3164. Select the essential visual subject within that feasible area. If no supported plan is justified, report blocked only for missing essential evidence; the app will preserve existing framing and still deliver the clip. "wide" preserves the whole source and is allowed only by widePolicy. Split counts describe output panels, NOT people. columns-3 has three side-by-side columns; top-main-3 and left-main-3 have three (main first); grid-4 has four in reading order. For a wide shot requested as a split, provide all observed people via shot.people and let code group them. Only set optional slot constraints when the user specifies placement. For preserving an embedded split, use explicit panels retaining source boundaries and order. Apply subjectInstructions per scene; a whole-shot split request does not force single-person shots to split. Use only template-allowed layouts. Never invent a face when there is none. If important evidence is unavailable, report blocked with the specific reason.
-
-INPUT_JSON
-${JSON.stringify({version:1,capabilities:{layouts:['speaker',...permittedSplits(layout),'two-shot','detail','wide'],cameras:before.sources.map((s:any)=>s.resourceId),continuousTracking:false},projectId,draftId,durationFrames:before.meta.durationFrames,draftFps:before.meta.fps,template:{...layout,closeUp:undefined,faceY:undefined,edgeInset:undefined},sources:before.sources.map((s:any)=>({resourceId:s.resourceId,fps:s.meta.fps,frameSize:s.meta.frameSize})),analysisLimitations,speakerTurns:facts.turns.map(({text,...t}:any)=>t),sourceMapping:facts.mapping,faces:facts.faces,activeSpeakers,images:evidence.samples,appearanceChanges:evidence.boundaries||[]})}
-
-OUTPUT_JSON
-${COMPOSITION_PLAN_SCHEMA}
-Use camera=resourceId. Supported layouts are exactly those in capabilities.layouts. Each panel target uses subjectId and refs (the measured face IDs); Only use sourcePane for observed embedded-camera boundaries; omit all sizing controls. Include speakerEvidence rows {startFrame,endFrame,resourceId,sourceFrames,subject,basis,evidence}. basis is descriptive text, not an editing command; prefer audio-visual, offscreen, visual-content, or mouth-motion when applicable. draftId must be ${JSON.stringify(draftId)}.
-Shots must cover [0,${before.meta.durationFrames}) contiguously with integer half-open intervals. Evidence must cover the clip. Use one evidence row per coherent shot, not per transcript turn; each row MUST cite at least one integer source frame actually supplied/inspected (never an empty array). A broad visual-content row can cover narration over an unchanged insert without redundant offscreen rows. Name the measured IDs used for people. Keep each reason/evidence/limitation under 25 words. Return syntactically valid JSON with every string quoted and closed. "audio-visual" cites runtime scores plus images, "offscreen" identifies the listener/narration, "visual-content" explains non-speaker material. Do not claim lip-sync verification from still images.
-${reframingPreferencePrompt(layout)}`;
+  const prompt=sourceCompositionPrompt({draftId,layout,sources:before.sources,duration:before.meta.durationFrames,input:JSON.stringify({version:1,capabilities:{layouts:sourceCompositionLayouts(layout),cameras:before.sources.map((s:any)=>s.resourceId),continuousTracking:false},projectId,draftId,durationFrames:before.meta.durationFrames,draftFps:before.meta.fps,template:{...layout,closeUp:undefined,faceY:undefined,edgeInset:undefined},sources:before.sources.map((s:any)=>({resourceId:s.resourceId,fps:s.meta.fps,frameSize:s.meta.frameSize})),analysisLimitations,speakerTurns:facts.turns.map(({text,...t}:any)=>t),sourceMapping:facts.mapping,faces:facts.faces,observedRefs:Object.fromEntries(before.sources.map((s:any)=>[s.resourceId,faceCatalog.filter((f:any)=>f.resourceId===s.resourceId).map((f:any)=>f.id)])),activeSpeakers,images:evidence.samples,appearanceChanges:(evidence.boundaries||[]).map((b:any)=>({...b,firstNewDraftFrame:draftFrameOfSource(before.segments||before.words,b.resourceId,b.firstNewSourceFrame)}))})});
   note({plan:'stage',stage:'agent'});note({plan:'agent-reframe-start',draftId});
-  let plan:any,resolved:any;
-  const jsonRepair={used:false};
-  try {
   const response=await askReframingAI({sdk,guard,note},{prompt,images:evidence.images,timeoutMs:600000,ephemeral:false});
-  plan=await parseReframePlanWithRepair({sdk,guard,note,text:String(response.text||''),draftId,budget:jsonRepair});
+  plan=await parseReframePlanWithRepair({sdk,guard,note,text:String(response.text||''),draftId,budget:{used:false}});
   if(plan.draftId!==draftId||plan.status!=='planned') throw new Error(plan.summary||'Agent could not plan reframing');
   note({plan:"agent-source-plan",draftId,report:plan});
-  plan=sourceCompositionAdapter(plan,before.sources,before.meta.durationFrames,layout,faceCatalog);
+  const snap=snapShotBoundaries(plan,before.meta.durationFrames,Math.max(2,Math.round(before.meta.fps*0.2)));
+  if(snap.snapped){plan=snap.plan;note({plan:'shot-boundaries-snapped',draftId,count:snap.snapped});}
+  ({plan,preserved}=salvageSourceComposition(plan,before.sources,before.meta.durationFrames,layout,faceCatalog));
+  if(preserved.length)note({plan:'composition-preserved',draftId,preserved});
   // Descriptive evidence is diagnostic, not an executable crop instruction.
   // Keep malformed/incomplete reports visible without discarding a valid plan.
   const evidenceWarnings:string[]=[];
@@ -4686,10 +4925,9 @@ ${reframingPreferencePrompt(layout)}`;
   plan={...plan,evidenceReview:{status:evidenceWarnings.length?'incomplete':'reported',warnings:evidenceWarnings}};
   if(evidenceWarnings.length)note({plan:'source-evidence-warning',draftId,warnings:evidenceWarnings});
   resolved=resolveSourceComposition(plan.shots,faceCatalog,before.sources,before.meta.durationFrames,layout);
+  resolved.limitations=[...preserved,...resolved.limitations].sort((a:any,b:any)=>a.startFrame-b.startFrame);
   } catch(error:any) {
-    if(error instanceof RunCancelled)throw error;
-    await unchanged();
-    note({plan:'agent-reframe-failed',draftId,error:String(error?.message||error)});throw error;
+    return keepExistingFraming(error);
   }
   await unchanged();
   note({plan:'agent-reframe-plan',draftId,report:plan});
@@ -4706,7 +4944,7 @@ ${reframingPreferencePrompt(layout)}`;
   await apply(resolved.shots);
   const retained=retainLockedSourceContext(previousEdit,faceCatalog,plan),editPlan=retained.plan;
   const mediaKey=measureFaces?undefined:framingMediaKey(await guard(sdk.call("getDraftMediaSnapshot",projectId,draftId)));
-  const report={...plan,editContext:{kind:'source',plan:editPlan,catalog:retained.catalog,mediaKey,sources:before.sources,segments:before.segments||before.words,duration:before.meta.durationFrames,fps:before.meta.fps,layout,appliedShots:resolved.shots,words:normalizeReframeWords(before.words)},appliedShots:resolved.shots,qualityStatus:resolved.limitations.length?"limited":"complete",preservedRanges:resolved.limitations,geometryAdjustments:resolved.adjustments,status:'complete',verification:{kind:'geometry-and-timing',status:'passed'},visualReview:{status:'not-run',reason:'Runtime visual review disabled; rendered output is checked in regression tests.'}};
+  const report={...plan,editContext:{kind:'source',plan:editPlan,catalog:retained.catalog,mediaKey,sources:before.sources,segments:before.segments||before.words,duration:before.meta.durationFrames,fps:before.meta.fps,layout,appliedShots:resolved.shots,words:normalizeReframeWords(before.words)},appliedShots:resolved.shots,qualityStatus:resolved.limitations.length?"limited":"complete",preservedAll:resolved.shots.length>0&&resolved.shots.every((s:any)=>s.style==='preserve'),preservedRanges:resolved.limitations,geometryAdjustments:resolved.adjustments,status:'complete',verification:{kind:'geometry-and-timing',status:'passed'},visualReview:{status:'not-run',reason:'Runtime visual review disabled; rendered output is checked in regression tests.'}};
   note({plan:'agent-reframe-result',draftId,report});return report;
 }
 
@@ -5698,7 +5936,7 @@ async function settleFaceJob(io: { submit(): Promise<any>; status(cancel: boolea
 // started it (up to ten minutes), so whenever this ends without success (too slow, a status check failing, the
 // user cancelling, even before the start was answered) the job is cancelled and its end awaited before the error
 // goes on. io.start and io.cancel/io.settled must not be raced with the user's cancel; io.wait is.
-async function runFrameJob(io: { start(): Promise<string>; state(id: string): Promise<string>; settled(id: string): Promise<string>; cancel(id: string): Promise<void>; wait(ms: number): Promise<void>; idle(ms: number): Promise<void>; now(): number; limitMs: number; stopped(): boolean; stopError(): any }): Promise<void> {
+async function runFrameJob(io: { start(): Promise<string>; state(id: string): Promise<string>; settled(id: string): Promise<string>; cancel(id: string): Promise<void>; wait(ms: number): Promise<void>; idle(ms: number): Promise<void>; now(): number; limitMs: number; pollMs?: number; stopped(): boolean; stopError(): any }): Promise<void> {
   const id = await io.start();
   const t0 = io.now();
   let state = "running";
@@ -5709,7 +5947,7 @@ async function runFrameJob(io: { start(): Promise<string>; state(id: string): Pr
       state = await io.state(id);
       if (state !== "running") break;
       if (io.now() - t0 > io.limitMs) throw Object.assign(new Error("Taking frames took too long."), { code: "TIMEOUT" });
-      await io.wait(250);
+      await io.wait(io.pollMs ?? 250);
     }
   } catch (e: any) {
     failure = e;
@@ -10554,8 +10792,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       const updated={...context,plan,pendingIndex:index};
       let code:string;
       if(context.kind==='source') {
-        const adapted=sourceCompositionAdapter(plan,context.sources,context.duration,layout,context.catalog);
-        const measured=measuredFaceShots([adapted.shots[index]],context.catalog,context.sources,layout);
+        const adapted=salvageSourceComposition(plan,context.sources,context.duration,layout,context.catalog);
+        const edited=adapted.preserved.find((p:any)=>p.startFrame===shot.startFrame&&p.endFrame===shot.endFrame);
+        if(edited)throw Error(edited.reason);
+        const measured=measuredFaceShots([adapted.plan.shots[index]],context.catalog,context.sources,layout);
         // Retain already resolved geometry in every other interval, including
         // limited/preserved ranges that the user has not chosen to change.
         updated.appliedShots=context.appliedShots.flatMap((s:any)=>{if(s.endFrame<=shot.startFrame||s.startFrame>=shot.endFrame)return [s];return [...(s.startFrame<shot.startFrame?[{...s,endFrame:shot.startFrame}]:[]),...(s.startFrame<=shot.startFrame?measured:[]),...(s.endFrame>shot.endFrame?[{...s,startFrame:shot.endFrame}]:[])];});
@@ -10640,25 +10880,43 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
     let job: any = resume ?? { id: crypto.randomUUID().replace(/-/g, ''), usageTracking: true, sharedUsageCalls: [], projectId, created: new Date().toISOString(), mode, url: url.trim(), pick, program, countMode, count, note, fixedLayout, subjectInstructions, ...(framing ? {} : {skipFraming: true}) };
     setRunInfo(job);
     let revealedResults = false;
-    // Snapshot at enqueue time and serialize disk writes across concurrent clips.
-    let saveQueue: Promise<void> = Promise.resolve();
-    const persist = (patch: any) => {
+    // Snapshot at enqueue time and serialize disk writes across concurrent clips. Every save is the whole job,
+    // so saves made while one is writing share a single queued write that carries the newest snapshot.
+    let saveQueue: { snapshot: any; done: Promise<void>; resolve: () => void; reject: (e: any) => void } | null = null;
+    let saving = false;
+    const writeSnapshot = async (snapshot: any) => {
+      await saveJob(snapshot);
+      if (resultProject.current===snapshot.projectId && snapshot.built?.some((d: any)=>d?.draftId || d?.error)) {
+        setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==snapshot.id),snapshot],snapshot.projectId));
+        if (!revealedResults && snapshot.built.some((d: any)=>d?.draftId)) {
+          revealedResults = true;
+          setResultSelection(snapshot.id);
+          setTab("results");
+        }
+      }
+    };
+    const drainSaves = () => {
+      const queued = saveQueue;
+      saveQueue = null;
+      if (!queued) { saving = false; return; }
+      writeSnapshot(queued.snapshot).then(queued.resolve, queued.reject).finally(drainSaves);
+    };
+    const persist = (patch: any): Promise<void> => {
       job = { ...job, ...patch, updated: new Date().toISOString() };
       const snapshot = clone(job);
       setRunInfo(snapshot);
-      const write = saveQueue.then(async () => {
-        await saveJob(snapshot);
-        if (resultProject.current===snapshot.projectId && snapshot.built?.some((d: any)=>d?.draftId || d?.error)) {
-          setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==snapshot.id),snapshot],snapshot.projectId));
-          if (!revealedResults && snapshot.built.some((d: any)=>d?.draftId)) {
-            revealedResults = true;
-            setResultSelection(snapshot.id);
-            setTab("results");
-          }
-        }
-      });
-      saveQueue = write.catch(() => {});
-      return write;
+      if (!saving) {
+        saving = true;
+        return writeSnapshot(snapshot).finally(drainSaves);
+      }
+      if (saveQueue) {
+        saveQueue.snapshot = snapshot;
+        return saveQueue.done;
+      }
+      let resolve: () => void = () => {}, reject: (e: any) => void = () => {};
+      const done = new Promise<void>((y, n) => { resolve = y; reject = n; });
+      saveQueue = { snapshot, done, resolve, reject };
+      return done;
     };
     // Wall-clock stage marks so slow runs can be diagnosed from the saved job alone.
     const mark = (stage: string, extra: any = {}) => persist({stageLog:[...(job.stageLog || []), {stage, at:new Date().toISOString(), ...extra}].slice(-200)});
@@ -10914,6 +11172,8 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
         }
         await mark("built", {clip: i, ms: Date.now() - buildStarted});
       }
+      // Stage changes show at once; on disk they are kept at most once per window.
+      const progressSaves = throttledSave(() => persist({built:made,choice:pickd,resultWarning}), PROGRESS_SAVE_MS, e=>{progressSaveError=e;});
       // Every clip has its own Draft and agent session. Do not cap concurrency.
       const outcomes = await Promise.allSettled(pending.map(async (i) => {
         if (made[i].reframeState === "pending") {
@@ -10935,7 +11195,7 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
               made[i] = {...made[i], reframeUsageCalls:calls};
             }
             pickd.reframeLog = [...(pickd.reframeLog || []), { at: new Date().toISOString(), ...entry, clip: i }].slice(-300);
-            if (entry.plan === 'stage') void persist({built:made,choice:pickd,resultWarning}).catch(e=>{progressSaveError=e;});
+            if (entry.plan === 'stage') progressSaves.soon();
           };
           try {
             const report=await runTemplateReframing(made[i].draftId,job,tpl,note,work,made[i].reframeReport?.editContext);
@@ -10967,6 +11227,7 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
           await persist({built:made,resultWarning});
         }
       }));
+      progressSaves.cancel();
       const rejected = outcomes.find((outcome) => outcome.status === "rejected");
       if (rejected?.status === "rejected") throw rejected.reason;
       if (progressSaveError) throw progressSaveError;

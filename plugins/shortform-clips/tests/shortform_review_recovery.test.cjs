@@ -6,14 +6,14 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('runs reviewed before framing recover from interruptions',{skip:!modules&&'Set SBS_PANEL_TEST_MODULES'},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild');
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8'),mod={exports:{}};
- new Function('require','module','exports',esbuild.transformSync(src+'\nexport {createReframeWork,templateBuildScript,captionLineMax,wideShotScript,savedDraftResults,latestSavedJob};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ new Function('require','module','exports',esbuild.transformSync(src+'\nexport {createReframeWork,templateBuildScript,captionLineMax,wideShotScript,savedDraftResults,latestSavedJob,throttledSave,PROGRESS_SAVE_MS};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
  const start=src.indexOf('      const made: any[] =');
  const body=esbuild.transformSync(src.slice(start,src.indexOf('      setStatus(S.done(',start)),{loader:'ts'}).code;
  const clone=x=>JSON.parse(JSON.stringify(x));
  function harness(initial) {
   let saved=clone(initial),stopAfterBuild=false;
   const calls={wide:0,framing:[],moves:[],builds:0};
-  const env={createReframeWork:mod.exports.createReframeWork,templateBuildScript:mod.exports.templateBuildScript,captionLineMax:mod.exports.captionLineMax,wideShotScript:mod.exports.wideShotScript,findRunDraftScript:()=>'LOOKUP',withoutRunSuffix:n=>n,
+  const env={createReframeWork:mod.exports.createReframeWork,templateBuildScript:mod.exports.templateBuildScript,captionLineMax:mod.exports.captionLineMax,wideShotScript:mod.exports.wideShotScript,throttledSave:mod.exports.throttledSave,PROGRESS_SAVE_MS:mod.exports.PROGRESS_SAVE_MS,findRunDraftScript:()=>'LOOKUP',withoutRunSuffix:n=>n,
    ensureRunFolder:async()=>'run-folder',moveRunDrafts:async(p,f,ids)=>{calls.moves.push(ids);},
    forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},pickd:{clips:[{name:'A',segments:[[1,5]]}]},
    tpl:{layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},STACKED_REFRAME_EFFECT:'effect',projectId:'p',
