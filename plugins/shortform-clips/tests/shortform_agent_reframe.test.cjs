@@ -6,7 +6,7 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
  new Function('require','module','exports',esbuild.transformSync(src+'\nexport {FRAMING_WORDS_SCRIPT,runAgentReframing,parseAgentReframeReport,normalizeReframeWords,validateSpeakerEvidence};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
  await t.test('long framing reads omit editing spans while retaining timing and speaker facts',async()=>{
-  const word={text:'이유식',startFrame:0,endFrame:30,wordId:'w1',speakerId:1,speakerName:'Speaker',sourceResourceId:'source',sourceStartFrame:100,sourceEndFrame:130};
+  const word={text:'babyfood',startFrame:0,endFrame:30,wordId:'w1',speakerId:1,speakerName:'Speaker',sourceResourceId:'source',sourceStartFrame:100,sourceEndFrame:130};
   const words=Array.from({length:400},(_,i)=>({...word,wordId:'w'+i,span:{owner:'x'.repeat(2000)},within:{owner:'y'.repeat(2000)}}));
   const execute=new Function('d','return (async()=>'+m.exports.FRAMING_WORDS_SCRIPT+')()');
   const compact=await execute({words:async()=>words});
@@ -54,15 +54,17 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
   const raw=JSON.stringify(valid).replace('"shots":','"shots"::');
   const r=await run({raw});assert.equal((await r.execute()).status,'complete');assert.equal(r.state().calls,2);assert.equal(r.state().applies,1);
  });
- await t.test('failed syntax repair is not reported as completed baseline framing',async()=>{
+ await t.test('failed syntax repair keeps the existing framing and reports it as limited',async()=>{
   const raw=JSON.stringify(valid).replace('"shots":','"shots"::');
   for(const repairText of [raw,JSON.stringify({...valid,draftId:'other'})]){
-   const r=await run({raw,repairText});await assert.rejects(r.execute,/JSON repair/);assert.equal(r.state().calls,2);assert.equal(r.state().applies,0);
+   const r=await run({raw,repairText}),result=await r.execute();
+   assert.equal(result.preservedAll,true);assert.equal(result.qualityStatus,'limited');assert.match(result.preservedRanges[0].reason,/JSON repair/);
+   assert.equal(r.state().calls,2);assert.equal(r.state().applies,0);
   }
  });
  await t.test('repaired JSON still has to pass the existing composition validator',async()=>{
   const report={...valid,shots:[]},raw=JSON.stringify(report).replace('"shots":','"shots"::');
-  const r=await run({report,raw});await assert.rejects(r.execute);assert.equal(r.state().calls,2);assert.equal(r.state().applies,0);
+  const r=await run({report,raw}),result=await r.execute();assert.equal(result.preservedAll,true);assert.match(result.preservedRanges[0].reason,/composition:schema/);assert.equal(r.state().calls,2);assert.equal(r.state().applies,0);
  });
  await t.test('reads fenced reports even when the agent adds a completion note',()=>{
   const report={draftId:'d',status:'complete',verifiedFrames:[1]};
@@ -125,9 +127,11 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
    }
   }
  });
- await t.test('does not automatically replay an agent turn after partial failure',async()=>{const r=await run({failAi:true});await assert.rejects(r.execute);assert.equal(r.state().calls,1);assert.equal(r.state().applies,0);});
- await t.test('missing evidence reports failure without marking unchanged framing complete',async()=>{
-  const r=await run({failEvidence:true});await assert.rejects(r.execute,/capture unavailable/);
+ await t.test('does not automatically replay an agent turn after partial failure',async()=>{const r=await run({failAi:true}),result=await r.execute();assert.equal(result.preservedAll,true);assert.equal(r.state().calls,1);assert.equal(r.state().applies,0);});
+ await t.test('keeping the existing framing still rejects dialogue or timing edits made meanwhile',async()=>{const r=await run({failAi:true,after:{...baseline,words:[]}});await assert.rejects(r.execute,/dialogue or timing changed/);assert.equal(r.state().applies,0);});
+ await t.test('missing evidence keeps the existing framing without claiming it was framed',async()=>{
+  const r=await run({failEvidence:true}),result=await r.execute();
+  assert.equal(result.preservedAll,true);assert.equal(result.qualityStatus,'limited');assert.equal(result.verification.status,'not-run');assert.match(result.preservedRanges[0].reason,/capture unavailable/);
   assert.equal(r.state().applies,0);assert.equal(r.state().calls,0);
  });
  await t.test('rejects missing, fabricated-shaped and uncovered opening evidence',()=>{
@@ -146,8 +150,8 @@ test('autonomous reframing contract',{skip:!modules},async t=>{
   assert.throws(()=>m.exports.validateSpeakerEvidence({speakerEvidence:[row,{...row,startFrame:31,endFrame:90}]},90),/uncovered interval/);
   m.exports.validateSpeakerEvidence({speakerEvidence:[{...row,startFrame:30,endFrame:90},row]},90);
  });
- await t.test('blocked, wrong-target and invalid plans never reach application',async()=>{
-  for(const report of [{...valid,draftId:'x'},{draftId:'d',status:'blocked'},{...valid,shots:[]},{...valid,shots:[{...shot,endFrame:80}]}]){const r=await run({report});await assert.rejects(r.execute);assert.equal(r.state().applies,0);}
+ await t.test('blocked, wrong-target and invalid plans never reach application and keep the existing framing',async()=>{
+  for(const report of [{...valid,draftId:'x'},{draftId:'d',status:'blocked'},{...valid,shots:[]},{...valid,shots:[{...shot,endFrame:80}]}]){const r=await run({report}),result=await r.execute();assert.equal(result.preservedAll,true);assert.equal(result.qualityStatus,'limited');assert.equal(r.state().applies,0);}
  });
  await t.test('completion reports geometry checks without claiming visual verification',async()=>{
   const r=await run();const result=await r.execute();assert.equal(result.visualReview.status,'not-run');assert.equal(result.verification.kind,'geometry-and-timing');assert.equal(result.verifiedFrames,undefined);
