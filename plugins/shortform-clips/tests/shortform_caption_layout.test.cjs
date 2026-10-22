@@ -114,31 +114,35 @@ test('template-owned caption box layout',{skip:!modulesRoot && 'Set SBS_PANEL_TE
     assert.deepEqual(await run(sdk),{added:0});assert.equal(graphics.length,1);
   });
 
-  await t.test('fixed caption sizing keeps the template size and shortens lines instead',()=>{
+  await t.test('fixed caption sizing is the default and auto sizing remains available',()=>{
     const parenting=require('../template-packs/chosun-ilbo/templates/parenting.json');
+    const auto=structuredClone(parenting);auto.captions.fontSizing='auto';
     const fixed=structuredClone(parenting);fixed.captions.fontSizing='fixed';
-    // Auto sizing and omitted settings keep the template's characters per line and parameters.
-    assert.equal(api.captionLineMax(parenting),18);
-    assert.equal(api.captionLineMax({...parenting,captions:{...parenting.captions,fontSizing:'auto'}}),18);
-    assert.equal(Object.hasOwn(api.radioCaptionParams(parenting),'fontSizing'),false);
-    assert.equal(api.radioCaptionParams(fixed).fontSizing,'fixed');
-    // Without a canvas a glyph is one em: (1000 - 2 * 20 padding) / 88px holds 10 characters.
+    // Auto sizing keeps the template's characters per line and is the only value forwarded to renderers.
+    assert.equal(api.captionLineMax(auto),18);
+    assert.equal(api.radioCaptionParams(auto).fontSizing,'auto');
+    for(const t of [parenting,fixed])assert.equal(Object.hasOwn(api.radioCaptionParams(t),'fontSizing'),false);
+    // Omitted and explicit fixed sizing agree. Without a canvas a glyph is one em:
+    // (1000 - 2 * 20 padding) / 88px holds 10 characters.
+    assert.equal(api.captionLineMax(parenting),10);
     assert.equal(api.captionLineMax(fixed),10);
-    assert.equal(api.captionLineMax({...fixed,captions:{...fixed.captions,fontSize:400}}),4);
-    assert.equal(api.captionLineMax({...fixed,landscape:{}}),18);
+    assert.equal(api.captionLineMax({...parenting,captions:{...parenting.captions,fontSize:400}}),4);
+    assert.equal(api.captionLineMax({...parenting,landscape:{}}),18);
     const long='\uc544\uc774\uac00 \uc7a0\ub4e4\uae30 \uc804\uc5d0 \ud56d\uc0c1 \uc6b8\uc5b4\uc694';
     for(const Component of [series,api.RadioPreviewCaption]){
       for(const mode of ['bar','box']){
         const params={...api.radioCaptionParams(parenting),mode,text:long};
-        assert.doesNotMatch(renderCaption(Component,params),/font-size:88px/);
-        assert.match(renderCaption(Component,{...params,fontSizing:'fixed'}),/font-size:88px/);
+        assert.match(renderCaption(Component,params),/font-size:88px/);
+        assert.doesNotMatch(renderCaption(Component,{...params,fontSizing:'auto'}),/font-size:88px/);
         // A single word wider than the caption still shrinks as a last resort.
-        assert.doesNotMatch(renderCaption(Component,{...params,fontSizing:'fixed',text:'\uac00'.repeat(14)}),/font-size:88px/);
+        assert.doesNotMatch(renderCaption(Component,{...params,text:'\uac00'.repeat(14)}),/font-size:88px/);
       }
-      const params={...api.radioCaptionParams(fixed),text:long};
-      assert.equal(renderCaption(series,params),renderCaption(api.RadioPreviewCaption,params));
+      for(const t of [parenting,auto]){
+        const params={...api.radioCaptionParams(t),text:long};
+        assert.equal(renderCaption(series,params),renderCaption(api.RadioPreviewCaption,params));
+      }
     }
-    assert.equal(api.validateTemplate(fixed),fixed);
+    for(const t of [auto,fixed])assert.equal(api.validateTemplate(t),t);
     for(const value of ['Fixed','',true,null]){
       const bad=structuredClone(parenting);bad.captions.fontSizing=value;
       assert.throws(()=>api.validateTemplate(bad),/font sizing/);

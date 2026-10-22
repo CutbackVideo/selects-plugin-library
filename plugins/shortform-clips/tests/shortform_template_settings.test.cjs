@@ -72,11 +72,13 @@ test('templates use independent settings without renderer families',{skip:!modul
  }
  await t.test('caption fitting uses the same safe width when omitted or explicitly supplied',()=>{
   for(const mode of ['bar','box']){
-   const params={mode,fontSize:75,text:'\ub3d9\uc77c\ud55c \uc790\ub9c9\uc73c\ub85c \ud06c\uae30\uc640 \ud3f0\ud2b8\ub97c \ube44\uad50\ud569\ub2c8\ub2e4'};
+   const params={mode,fontSize:75,fontSizing:'auto',text:'\ub3d9\uc77c\ud55c \uc790\ub9c9\uc73c\ub85c \ud06c\uae30\uc640 \ud3f0\ud2b8\ub97c \ube44\uad50\ud569\ub2c8\ub2e4'};
    const implicit=renderGraphic('CAPTION_TSX',params);
    const explicit=renderGraphic('CAPTION_TSX',{...params,width:1000});
    assert.equal(implicit,explicit);
    assert.ok(Number(implicit.match(/font-size:([\d.]+)px/)[1])<75);
+   // Fixed sizing is the default: captions are split to fit beforehand, so the same text keeps its size.
+   assert.ok(renderGraphic('CAPTION_TSX',{...params,fontSizing:undefined}).includes('font-size:75px'));
    assert.ok(implicit.includes('overflow-wrap:anywhere'));
    assert.ok(renderGraphic('CAPTION_TSX',{...params,text:'\uc9e7\uc740 \uc790\ub9c9'}).includes('font-size:75px'));
    const emphasized=renderGraphic('CAPTION_TSX',{...params,text:'*\ub3d9\uc77c\ud55c \uc790\ub9c9\uc73c\ub85c \ud06c\uae30\uc640 \ud3f0\ud2b8\ub97c \ube44\uad50\ud569\ub2c8\ub2e4*'});
