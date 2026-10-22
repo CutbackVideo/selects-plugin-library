@@ -32,6 +32,7 @@ tab.
 | Speaker changes in captions (median) | 2 | 10 | 0 | 0 |
 | Captions with laughter | 7 of 19 | 12 of 15 | 3 of 20 | 0 of 20 |
 | Titles with a double-quoted quote | 17 | 8 | 14 | 7 |
+| Titles with a single-quoted key term | 4 | 1 | 8 | 9 |
 | Titles with an ellipsis | 18 | 9 | 4 | 9 |
 | Titles that are questions | 11 | 5 | 4 | 0 |
 
