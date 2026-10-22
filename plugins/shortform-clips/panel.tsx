@@ -9233,7 +9233,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const [resultSelection,setResultSelection]=React.useState("__latest__");
   // Clips chosen in My clips, kept per saved run.
   const [clipSelection,setClipSelection]=React.useState<{job:string,ids:string[]}>({job:"",ids:[]});
-  const [confirmDelete,setConfirmDelete]=React.useState(false);
+  // The run whose deletion awaits confirmation.
+  const [confirmDelete,setConfirmDelete]=React.useState("");
   const resultProject=React.useRef(projectId);
   resultProject.current=projectId;
   const [runInfo, setRunInfo] = React.useState<any>(null);
@@ -10579,8 +10580,11 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     if(overlayLock.current||busy||packLock.current||!ids.length)return;
     overlayLock.current=true;setBusy(true);setError("");
     try {
-      const name=lang==='ko'?'\uc0ad\uc81c\ud55c \uc20f\ud3fc':'Deleted shorts';
-      const folder=await script(runFolderScript(job.projectId,undefined,name),"Prepare deleted shorts folder",true);
+      // One folder per project whichever language created it.
+      const names=['\uc0ad\uc81c\ud55c \uc20f\ud3fc','Deleted shorts'],name=lang==='ko'?names[0]:names[1];
+      const folder=await script(`const p=selects.project(${JSON.stringify(job.projectId)});
+const hit=(await p.readFootage()).folders.find(f=>${JSON.stringify(names)}.includes(f.name));
+return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(name)}});`,"Prepare deleted shorts folder",true);
       if(!folder?.folderId)throw new Error("Could not create the deleted shorts folder");
       const present=await script(`const live=(await selects.project(${JSON.stringify(job.projectId)}).meta()).draftIds;return ${JSON.stringify(ids)}.filter(id=>live.includes(id));`,"Check shorts to delete");
       if(present?.length){
@@ -11204,12 +11208,12 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         {!shownResult.sceneStudy && <div style={{marginBottom:12,display:"flex",flexWrap:"wrap",gap:8}}>
           <ui.Button disabled={busy||!selectedClips.length} onClick={()=>{const ids=selectedClips;setClipSelection({job:"",ids:[]});run(shownResult,ids,true);}}>{lang==="ko"?`\uc120\ud0dd\ud55c \ud074\ub9bd \ud654\uba74 \uad6c\uc131 (${selectedClips.length})`:`Frame selected clips (${selectedClips.length})`}</ui.Button>
           <ui.Button variant="secondary" disabled={busy} onClick={()=>run(shownResult,undefined,true)}>{lang==="ko"?"\uc804\uccb4 \ud654\uba74 \uad6c\uc131 \ub2e4\uc2dc":"Reframe all clips"}</ui.Button>
-          {!confirmDelete ? <ui.Button variant="ghost" disabled={busy||!selectedClips.length} onClick={()=>setConfirmDelete(true)}>{lang==="ko"?`\uc120\ud0dd\ud55c \ud074\ub9bd \uc9c0\uc6b0\uae30 (${selectedClips.length})`:`Delete selected (${selectedClips.length})`}</ui.Button>
+          {confirmDelete!==shownResult.id||!selectedClips.length ? <ui.Button variant="ghost" disabled={busy||!selectedClips.length} onClick={()=>setConfirmDelete(shownResult.id)}>{lang==="ko"?`\uc120\ud0dd\ud55c \ud074\ub9bd \uc9c0\uc6b0\uae30 (${selectedClips.length})`:`Delete selected (${selectedClips.length})`}</ui.Button>
             : <div role="alertdialog" style={{flex:"1 1 100%",display:"flex",flexDirection:"column",gap:8}}>
               <small>{lang==="ko"?`\ud074\ub9bd ${selectedClips.length}\uac1c\ub97c \ubaa9\ub85d\uc5d0\uc11c \uc9c0\uc6b0\uace0 Draft\ub97c "\uc0ad\uc81c\ud55c \uc20f\ud3fc" \ud3f4\ub354\ub85c \uc62e\uaca8\uc694. Draft\ub294 \uadf8 \ud3f4\ub354\uc5d0\uc11c \uc9c1\uc811 \uc0ad\uc81c\ud574 \uc8fc\uc138\uc694.`:`Removes ${selectedClips.length} clips from this list and moves their Drafts to the "Deleted shorts" folder. Delete the Drafts there.`}</small>
               <div style={{display:"flex",gap:8}}>
-                <ui.Button variant="danger" disabled={busy||!selectedClips.length} onClick={()=>{const ids=selectedClips;setConfirmDelete(false);setClipSelection({job:"",ids:[]});void deleteResultClips(shownResult,ids);}}>{lang==="ko"?"\uc9c0\uc6b0\uae30":"Delete"}</ui.Button>
-                <ui.Button variant="secondary" onClick={()=>setConfirmDelete(false)}>{lang==="ko"?"\ucde8\uc18c":"Cancel"}</ui.Button>
+                <ui.Button variant="danger" disabled={busy||!selectedClips.length} onClick={()=>{const ids=selectedClips;setConfirmDelete("");setClipSelection({job:"",ids:[]});void deleteResultClips(shownResult,ids);}}>{lang==="ko"?"\uc9c0\uc6b0\uae30":"Delete"}</ui.Button>
+                <ui.Button variant="secondary" onClick={()=>setConfirmDelete("")}>{lang==="ko"?"\ucde8\uc18c":"Cancel"}</ui.Button>
               </div>
             </div>}
         </div>}

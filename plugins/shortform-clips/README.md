@@ -132,6 +132,11 @@ those clips run speaker/face analysis and framing, which replaces their wide sho
 in place and refreshes their previews. Other clips stay wide. **Reframe all clips**
 frames every clip of the run. A failed framing keeps its retry as framing.
 
+**Delete selected** asks for confirmation, removes the clips from My clips and
+moves their Drafts to the project folder **Deleted shorts** (삭제한 숏폼); delete
+them there. The panel SDK has no Draft deletion. The run keeps each deleted clip
+at its index, so resuming or reframing never rebuilds or refiles it.
+
 The Project picker includes videos, synced timelines, and Drafts, including inputs
 shorter than two minutes. Refresh the list after creating a timeline. Synced inputs
 use their merged transcript; Draft inputs use their playback transcript, excluding
