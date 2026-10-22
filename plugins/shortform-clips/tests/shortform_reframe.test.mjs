@@ -375,7 +375,10 @@ test('user cancellation propagates without saving a fallback',async()=>{
 const buildLiteral = panel.match(/^const SCRIPT_BUILD: string = SCRIPT_SOURCE_READER \+ SCRIPT_DESIGN_ELEMENTS \+ (".*");$/m);
 assert.ok(buildLiteral);
 const build = JSON.parse(buildLiteral[1]);
-const framing = build.slice(build.indexOf('if (Array.isArray(P.reframe)'), build.indexOf('\nconst mainClips ='));
+const framingStart = build.indexOf('if (!P.frame.landscape && Array.isArray(P.reframe)');
+const framingEnd = build.indexOf('\nconst mainClips =', framingStart);
+assert.ok(framingStart >= 0 && framingEnd > framingStart, 'portrait framing block must be found');
+const framing = build.slice(framingStart, framingEnd);
 test('a wordless tail inherits the previous shot instead of reverting to the fixed crop',async()=>{
   const transforms = [];
   const clips = [{startFrame:0,endFrame:30},{startFrame:30,endFrame:60}];

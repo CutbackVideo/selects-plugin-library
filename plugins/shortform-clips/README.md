@@ -4,6 +4,21 @@ A shared app for turning a YouTube link, project video, synced timeline, or exis
 Draft into editable vertical Drafts. Customer designs, detection keywords and passage-selection instructions
 are delivered separately as template packs. The app has no bundled customer templates.
 
+## Apply a template manually
+
+The **Edit manually** tab applies template graphics to the currently open editable
+Draft, across its existing duration. It does not create a new timeline, select
+footage, transcribe, run AI, reframe video or alter existing cuts and audio.
+Enter the title, landscape source credit and optional three-second sample caption.
+The input form stays visible after applying. A different canvas size requires an
+explicit confirmation; original footage transforms remain unchanged.
+
+Reapplying replaces only graphics tagged by this action (including manual edits to
+those graphics). Other graphics and media remain untouched. Existing graphics may
+overlap; adjust footage placement and layer lengths manually. Empty Drafts require
+footage or a gap first. The live editor target is checked before editing and before
+saving, preventing a project/tab change from silently applying to another Draft.
+
 ## Scene templates
 
 Template API 5 adds an editable scene workflow, used by Huick Alpha in the
@@ -25,6 +40,44 @@ and credits belong in Extra instructions; explicit supplied choices override
 defaults, and the planner fills unspecified choices from the available sources.
 Neither AI introduces a second channel style outside the template.
 
+Optional `editorial.components.article` holds reusable article appearance;
+`editorial.components.articleStyles` supplies named variants selected by article
+content's `style`, such as transparent text on an existing document image.
+`editorial.components.text` maps visual-style names to text preset appearance. Production receives these styles once when initializing
+`createSceneMediaTools`; configured values take precedence over per-call styles.
+Article content, attribution, timing and placement remain per-scene inputs.
+`media.group(design, placement)` scales related face/body/occluder boxes from
+one local design; compatible shots reuse that design and base placement.
+Article placement accepts `anchor: "top"` to keep its upper edge stable as
+body and attribution wrap. Existing callers keep centered placement. Neither
+helper chooses a composition or detects overlap: the builder allocates complete
+reading and character areas together and uses its existing rendered check.
+`media.text(..., {body, style: "plain-white"}, placement)` explicitly selects a
+configured visual style. Text without `style` retains explicit preset parameters;
+unknown style names fail rather than silently changing the design. Content,
+timing and placement remain per-scene inputs. Templates without component
+styles retain explicit per-call styling. Dialogue captions continue to use the
+existing host-generated caption component.
+Scene-layer results also receive fixed logo and persistent titles from the shared
+template renderer. The builder reserves their region but does not recreate them.
+Optional `layout.headlineX` changes the topic's horizontal center; omitted values
+retain the existing centered layout.
+
+See [Huick Alpha reference audit](template-packs/hankook-ilbo/huick-style-audit.md)
+for the observations, counterexamples and approximation limits behind its styles.
+
+The common input selector includes **All project sources** alongside YouTube and
+individual project inputs. This option requires a template with the scene-layer
+executor, such as Huick Alpha. It enumerates imported source files across folders
+without requiring a single anchor video; it does not enumerate Drafts or import
+unselected files from neighboring disk folders. Known derived files from saved
+production lineage and files inside the scene-run workspace are excluded.
+The first successful preflight saves source resource IDs on the job. Resume
+reuses that membership; missing originals stop the run instead of silently
+replacing them. Filenames must be unique because the scene plan identifies
+sources by name. Source speech timing must already exist. Existing YouTube,
+single-source and same-folder scene behavior is unchanged.
+
 This path requires an imported Project with transcription, `sourceFiles`, AI
 requests with images, SDK scripts, media capture/probe/FFmpeg, and editable Draft
 overlays and text graphics. New foreground preparation also requires the installed
@@ -33,9 +86,14 @@ Preparation operates on selected source intervals and retains original-frame
 lineage so compatible media can be reused. A prepared foreground does not remove
 the need to inspect and arrange its face, edges and occlusion in the actual scene.
 
-Each AI call retains the host's 600-second limit. A timed-out job saves progress;
-use **Resume** to continue the same Draft and reuse completed processing. The
-scene workflow has no separate overall generation deadline. Stage timing includes
+Each AI call retains the host's 600-second limit. The scene/layer executor
+automatically continues a timed-out AI call up to twice with the same work
+directory and preparation worker. Invalid source plans receive up to two repair
+requests containing the saved plan and validation error. Cancellation, access,
+authentication and other errors stop rather than triggering these continuations.
+After the limit, use **Resume** to continue saved work. Existing non-scene
+templates retain their execution behavior. The scene workflow has no separate
+overall generation deadline. Stage timing includes
 foreground preparation, with fresh and reused media recorded separately. Export
 and development evaluation are separate from generation time. Model and reasoning
 effort remain controlled by the host/account, not the template.
@@ -148,10 +206,11 @@ info icon beside AI score for its reason. These are content recommendations, not
 predictions or finished-video quality scores. Older or malformed assessments show
 **Unrated** and sort after scored clips, without re-running AI. Thumbnails capture
 one composited Draft frame at one second (or the last frame for shorter clips),
-including its template and captions. New clips save this JPEG after framing;
-reframing again refreshes the saved JPEG. Cards show their own stage and elapsed
-time at the bottom and cannot open until composition and thumbnail processing
-finish. Failed clips expose details and individual retry. The overall progress
+including its template and captions. New clips save this JPEG after every clip
+in the run has finished framing, so preview capture never waits ahead of another
+clip's framing work in the visual queue; reframing again refreshes the saved JPEG.
+Cards show their own stage and elapsed time at the bottom and can open as soon as
+their composition finishes, before the preview is saved. Failed clips expose details and individual retry. The overall progress
 shows only the batch count. Older results capture the current Draft on their first visit. Subsequent edits
 or opening a Draft do not refresh the saved image. Capture does not change the
 open Draft. A failed preview leaves the editable clip and its history intact.
@@ -313,6 +372,14 @@ agent runtime, not by this scheduler. Each clip records its actual phase and
 phase-start time. Queued run work checks its original cancellation token before
 starting, even after another run begins.
 
+Each job also records `stageLog`: wall-clock marks for start or resume, source
+ready (imported), source analyzed (transcript job finished), transcript read,
+template identified, clip selection, each Draft build and each clip's framing
+(with elapsed milliseconds), framing done, thumbnails done, and done, failed or
+cancelled. Scene-built templates mark each Draft build and done. Framing-internal
+stages (speaker, face, evidence, AI, apply, verify) stay in `choice.reframeLog`.
+Use them together to see which stage made a slow run slow.
+
 Fixed composition follows playback continuity, not uninterrupted source time.
 For adjacent output placements of the same subjects, camera, source, layout and
 speed, forward source gaps (including removed silence) share one crop envelope.
@@ -460,3 +527,5 @@ Synced timeline inputs retain their existing merged-analysis requirements.
 
 The Chosun Ilbo pack under `template-packs/chosun-ilbo/` restores six legacy designs.
 See `tests/regression/README.md` for repeatable real-footage cases and local HTML runs.
+
+Reapplying remembers template-owned tracks per project and Draft. If their clips were deleted, empty owned tracks are removed before graphics are added again; occupied tracks and unrelated empty tracks are preserved. Tracks left empty before this ownership record existed cannot be identified automatically.

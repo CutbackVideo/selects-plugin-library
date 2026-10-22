@@ -176,7 +176,7 @@
         "input": "SDK instance, plugin id, package-relative text/font/script paths and host environment.",
         "output": "Bound files/media facade, plugin/data roots and decoded asset text/bytes.",
         "identity": "Host-native absolute path and one captured SDK realm; plugin install root differs from run data directory.",
-        "dependencies": "Existing private local-client, environment, TextDecoder and declared install roots.",
+        "dependencies": "Existing private local-client, environment, TextDecoder and declared install roots. Identical file/capability/path facade now comes from host-files; bounded media adapters stay local.",
         "effects": "Reads installed assets and can mkdir plugin-data; legacy global hostSdk and fallback roots remain incomplete migration work.",
         "lifetime": "Mount/startup or one asset load; every await must retain its original SDK and mounted generation.",
         "cleanup": "Preserve installed sources/profiles; temporary output belongs to bundled-assets, not hostRemove best-effort cleanup.",
@@ -890,18 +890,45 @@
         "docs/template-repair/render-color-filter.md",
         "tests/color_filter_opaque.json"
       ]
+    },
+    {
+      "id": "host-file-facade",
+      "decision": "reuse",
+      "owner": "host-files",
+      "implementation": "implemented",
+      "reason": "Eleven identical panel-private host binding/capability/file/path helpers are shared by Archive, Mini and the Medical compatibility consumer. Media adapters remain with their existing distinct owners.",
+      "contract": {
+        "input": "Initialized panel-local SDK composition, host platform/native path strings, byte/text file results and explicit plugin marker/id or removal path.",
+        "output": "Existing capability errors, native paths, byte views/text and plugin/data roots; unavailable data directory remains null.",
+        "identity": "One lexical binding per independently installed panel, never a cross-plugin host singleton. File paths and plugin ids retain their original domains.",
+        "dependencies": "Existing panelLocalClient composition and public async files/environment services. No new public SDK/IPC or transport.",
+        "effects": "Explicit async reads, existence/mkdir and best-effort removal; no automatic process, staging, Worker or render gate allocation.",
+        "lifetime": "Caller-owned panel SDK binding and async file operations. Critical captured-client media execution stays with bundled-assets.",
+        "cleanup": "hostRemove attempts only the supplied path and preserves its current best-effort policy. Caller owns that path; stronger media staging cleanup is not delegated here.",
+        "outcomes": "Missing capability, invalid byte shape, missing plugin marker and unavailable data root retain original distinctions; facade reads are not claimed newly bounded.",
+        "retry": "No hidden retries or imports. Existing application/run policy owns persistence and replay decisions.",
+        "distribution": "Canonical shared/host-files.js nested within av-host in Archive/Mini; Medical is explicitly compatibilityTargets outside the template collection.",
+        "validation": "88 affected JavaScript cases, 19 Medical Python checks; original merged-tree and missing-canonical RED. Full emitted JavaScript for all three panels is identical before/after. Installed full-template acceptance remains open."
+      },
+      "evidence": [
+        "shared/host-files.js",
+        "shared/host-files.md",
+        "tests/host_files_adapter.test.mjs",
+        "tests/test_windows_medical_explainer.py",
+        "docs/template-repair/host-adapter-boundary.md"
+      ]
     }
   ],
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "55185f468188a454d36e2f80166ad9a0713a84fe3c6032b18e0c705d95268e3e",
+      "sha256": "471e0d682a780a3f6b45b9f882c46fb7cd3fd6adcc32f4fbf3bf7650f30b38bb",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 7718,
+          "endLine": 7720,
           "feature": "panel-ui"
         },
         {
@@ -961,37 +988,37 @@
         },
         {
           "startLine": 4360,
-          "endLine": 4438,
+          "endLine": 4440,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 4486,
-          "endLine": 4552,
+          "startLine": 4488,
+          "endLine": 4554,
           "feature": "worker-owner"
         },
         {
-          "startLine": 4575,
-          "endLine": 5158,
+          "startLine": 4577,
+          "endLine": 5160,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 6680,
-          "endLine": 6929,
+          "startLine": 6682,
+          "endLine": 6931,
           "feature": "source-input"
         },
         {
-          "startLine": 7155,
-          "endLine": 7269,
+          "startLine": 7157,
+          "endLine": 7271,
           "feature": "catalog-read"
         },
         {
-          "startLine": 7271,
-          "endLine": 7670,
+          "startLine": 7273,
+          "endLine": 7672,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7672,
-          "endLine": 7717,
+          "startLine": 7674,
+          "endLine": 7719,
           "feature": "app-guard"
         },
         {
@@ -1015,158 +1042,158 @@
           "feature": "assembly-policy"
         },
         {
-          "startLine": 4441,
-          "endLine": 4444,
+          "startLine": 4443,
+          "endLine": 4446,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 4450,
-          "endLine": 4485,
+          "startLine": 4452,
+          "endLine": 4487,
           "feature": "music-policy"
         },
         {
-          "startLine": 4553,
-          "endLine": 4568,
+          "startLine": 4555,
+          "endLine": 4570,
           "feature": "music-policy"
         },
         {
-          "startLine": 4570,
-          "endLine": 4573,
+          "startLine": 4572,
+          "endLine": 4575,
           "feature": "audio-preview"
         },
         {
-          "startLine": 5162,
-          "endLine": 5175,
+          "startLine": 5164,
+          "endLine": 5177,
           "feature": "music-policy"
         },
         {
-          "startLine": 5177,
-          "endLine": 5202,
+          "startLine": 5179,
+          "endLine": 5204,
           "feature": "program-policy"
         },
         {
-          "startLine": 5203,
-          "endLine": 5217,
+          "startLine": 5205,
+          "endLine": 5219,
           "feature": "source-input"
         },
         {
-          "startLine": 5218,
-          "endLine": 5235,
+          "startLine": 5220,
+          "endLine": 5237,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5240,
-          "endLine": 5248,
+          "startLine": 5242,
+          "endLine": 5250,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5250,
-          "endLine": 5263,
+          "startLine": 5252,
+          "endLine": 5265,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5268,
-          "endLine": 5292,
+          "startLine": 5270,
+          "endLine": 5294,
           "feature": "music-policy"
         },
         {
-          "startLine": 5294,
-          "endLine": 5301,
+          "startLine": 5296,
+          "endLine": 5303,
           "feature": "candidate-policy"
         },
         {
-          "startLine": 5322,
-          "endLine": 5332,
+          "startLine": 5324,
+          "endLine": 5334,
           "feature": "copy-and-package"
         },
         {
-          "startLine": 5345,
-          "endLine": 5349,
+          "startLine": 5347,
+          "endLine": 5351,
           "feature": "catalog-read"
         },
         {
-          "startLine": 5628,
-          "endLine": 5651,
+          "startLine": 5630,
+          "endLine": 5653,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5652,
-          "endLine": 5670,
+          "startLine": 5654,
+          "endLine": 5672,
           "feature": "title-policy"
         },
         {
-          "startLine": 5706,
-          "endLine": 5739,
+          "startLine": 5708,
+          "endLine": 5741,
           "feature": "catalog-read"
         },
         {
-          "startLine": 5742,
-          "endLine": 5742,
+          "startLine": 5744,
+          "endLine": 5744,
           "feature": "catalog-read"
         },
         {
-          "startLine": 5745,
-          "endLine": 5795,
+          "startLine": 5747,
+          "endLine": 5797,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5834,
-          "endLine": 5875,
+          "startLine": 5836,
+          "endLine": 5877,
           "feature": "music-policy"
         },
         {
-          "startLine": 5884,
-          "endLine": 5975,
+          "startLine": 5886,
+          "endLine": 5977,
           "feature": "title-policy"
         },
         {
-          "startLine": 5978,
-          "endLine": 6008,
+          "startLine": 5980,
+          "endLine": 6010,
           "feature": "music-policy"
         },
         {
-          "startLine": 6051,
-          "endLine": 6063,
+          "startLine": 6053,
+          "endLine": 6065,
           "feature": "scene-observation"
         },
         {
-          "startLine": 6069,
-          "endLine": 6078,
+          "startLine": 6071,
+          "endLine": 6080,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 6080,
-          "endLine": 6278,
+          "startLine": 6082,
+          "endLine": 6280,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6309,
-          "endLine": 6337,
+          "startLine": 6311,
+          "endLine": 6339,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6616,
-          "endLine": 6629,
+          "startLine": 6618,
+          "endLine": 6631,
           "feature": "montage-policy"
         },
         {
-          "startLine": 6638,
-          "endLine": 6640,
+          "startLine": 6640,
+          "endLine": 6642,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6649,
-          "endLine": 6676,
+          "startLine": 6651,
+          "endLine": 6678,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 6930,
-          "endLine": 6940,
+          "startLine": 6932,
+          "endLine": 6942,
           "feature": "source-input"
         },
         {
-          "startLine": 6948,
-          "endLine": 7108,
+          "startLine": 6950,
+          "endLine": 7110,
           "feature": "workflow-policy"
         },
         {
@@ -1175,14 +1202,19 @@
           "feature": "audio-preview"
         },
         {
-          "startLine": 5619,
-          "endLine": 5624,
+          "startLine": 5621,
+          "endLine": 5626,
           "feature": "audio-preview"
         },
         {
-          "startLine": 6010,
-          "endLine": 6048,
+          "startLine": 6012,
+          "endLine": 6050,
           "feature": "audio-preview"
+        },
+        {
+          "startLine": 4361,
+          "endLine": 4422,
+          "feature": "host-file-facade"
         }
       ]
     },
@@ -1971,6 +2003,32 @@
           "feature": "render-color-surface"
         }
       ]
+    },
+    {
+      "path": "shared/host-files.js",
+      "sha256": "1ecabda0d39ce8561a0ef18151df4e19f2ac4ed712beae75dbaa9874d046ce27",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 61,
+          "feature": "host-file-facade"
+        }
+      ]
+    },
+    {
+      "path": "tests/host_files_adapter.test.mjs",
+      "sha256": "feee771e7c3a14755a205c003021245866b35635f780604efd4bd11f394e9026",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 78,
+          "feature": "host-file-facade"
+        }
+      ]
     }
   ],
   "assets": [
@@ -2189,7 +2247,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 7043
+          "line": 7045
         }
       ],
       "repairOwner": "media-inventory",
@@ -2240,7 +2298,7 @@
         },
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 6147
+          "line": 6149
         }
       ],
       "repairOwner": "media-inventory",
@@ -2259,7 +2317,7 @@
       "sources": [
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 6012
+          "line": 6014
         },
         {
           "file": "shared/bundled-assets.js",
@@ -2351,7 +2409,7 @@
       "sources": [
         {
           "file": "plugins/archive-vlog/panel.tsx",
-          "line": 4412
+          "line": 4413
         },
         {
           "file": "plugins/archive-vlog/INSTALL.md",
@@ -2421,6 +2479,32 @@
       "remaining": "Installed full-app, saved Draft, whole-video/audio playback, encoded export and Windows acceptance remain open.",
       "resolution": "The common useColorFilter keeps fixed source slots, opaque RGB input, final original-alpha coverage, and unique stable per-mount identities. The three template designs retain their original math.",
       "validationLimits": "Unit/standard-model and isolated Chromium evidence only; installed app, whole-video/audio playback, encoded export, Windows and overall template acceptance remain open."
+    },
+    {
+      "id": "shared-host-source-coupling",
+      "status": "fixed-source",
+      "feature": "host-file-facade",
+      "title": "Shared file helpers have one source without conflating distinct media policies.",
+      "sources": [
+        {
+          "file": "plugins/archive-vlog/panel.tsx",
+          "line": 4361
+        },
+        {
+          "file": "shared/host-files.js",
+          "line": 1
+        }
+      ],
+      "repairOwner": "host-files",
+      "mechanism": "A whole copied av-host equality check coupled another app to Archive media adapters despite different dependencies and execution policies.",
+      "acceptance": "Canonical shared helpers match across declared consumers; adapters retain behavior and complete emitted runtime stays unchanged.",
+      "resolution": "Extract common facade only, keep media owners, enforce strict canonical boundary checks and real adapter tests.",
+      "validationLimits": "Source/unit adapter compatibility; installed app, save/playback/export and Windows acceptance remain open.",
+      "evidence": [
+        "tests/host_files_adapter.test.mjs",
+        "tests/test_windows_medical_explainer.py",
+        "docs/template-repair/host-adapter-boundary.md"
+      ]
     }
   ]
 }

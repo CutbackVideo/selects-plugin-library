@@ -11,7 +11,7 @@ test('template-owned caption box layout',{skip:!modulesRoot && 'Set SBS_PANEL_TE
   const esbuild=dep('esbuild'),React=dep('react'),render=dep('react-dom/server').renderToStaticMarkup;
   const source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
   const loaded={exports:{}};
-  const exports='radioCaptionParams,RadioPreviewCaption,RADIO_SCRIPT_BUILD,SCRIPT_BUILD,sceneCaptionScript,validateTemplate,templatePatch,merge,cleanTemplate';
+  const exports='radioCaptionParams,RadioPreviewCaption,RADIO_SCRIPT_BUILD,SCRIPT_BUILD,sceneCaptionScript,validateTemplate,templatePatch,merge,cleanTemplate,captionLineMax';
   new Function('require','module','exports',esbuild.transformSync(source+'\nexport {'+exports+'};',{loader:'tsx',format:'cjs'}).code)(dep,loaded,loaded.exports);
   const api=loaded.exports;
   const template=JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/hankook-ilbo/templates/huick-alpha.json')));
@@ -57,6 +57,22 @@ test('template-owned caption box layout',{skip:!modulesRoot && 'Set SBS_PANEL_TE
     assert.notEqual(html,renderCaption(series,{...params,boxPaddingTop:6,boxPaddingBottom:6,boxLineHeight:1.05}));
   });
 
+  await t.test('Premiere caption tracking reaches both bar renderers without changing legacy defaults',()=>{
+    const heukbaek=require('../template-packs/chosun-ilbo/templates/heukbaek.json');
+    const params={...api.radioCaptionParams(heukbaek),text:'\uc7a5\uc724\uae30 \uc0ac\uac74\uc774\n\ud130\uc84c\uc744 \ub54c\ub294'};
+    assert.equal(params.letterSpacing,75*(-44/1000));
+    assert.equal(params.baselineTop,1344.90234375);
+    assert.equal(params.rowGap,90);
+    const barParams={...params,baselineTop:undefined};
+    const actual=renderCaption(series,barParams);
+    assert.equal(actual,renderCaption(api.RadioPreviewCaption,barParams));
+    assert.equal((actual.match(/letter-spacing:-3\.3px/g)||[]).length,2);
+    for(const Component of [series,api.RadioPreviewCaption]){
+      assert.match(renderCaption(Component,{...params,baselineTop:undefined,letterSpacing:undefined}),/letter-spacing:-1px/);
+      assert.match(renderCaption(Component,{...params,baselineTop:undefined,letterSpacing:0}),/letter-spacing:0/);
+    }
+  });
+
   await t.test('optional box values validate and survive saved template edits and variants',()=>{
     assert.equal(api.validateTemplate(legacyTemplate),legacyTemplate);
     assert.equal(api.validateTemplate(template),template);
@@ -96,5 +112,40 @@ test('template-owned caption box layout',{skip:!modulesRoot && 'Set SBS_PANEL_TE
     assert.match(html,/height:1404px/);assert.match(html,/padding:6px 26px 6px/);
     assert.match(html,/line-height:1\.05/);assert.match(html,/white-space:pre-wrap/);
     assert.deepEqual(await run(sdk),{added:0});assert.equal(graphics.length,1);
+  });
+
+  await t.test('fixed caption sizing is the default and auto sizing remains available',()=>{
+    const parenting=require('../template-packs/chosun-ilbo/templates/parenting.json');
+    const auto=structuredClone(parenting);auto.captions.fontSizing='auto';
+    const fixed=structuredClone(parenting);fixed.captions.fontSizing='fixed';
+    // Auto sizing keeps the template's characters per line and is the only value forwarded to renderers.
+    assert.equal(api.captionLineMax(auto),18);
+    assert.equal(api.radioCaptionParams(auto).fontSizing,'auto');
+    for(const t of [parenting,fixed])assert.equal(Object.hasOwn(api.radioCaptionParams(t),'fontSizing'),false);
+    // Omitted and explicit fixed sizing agree. Without a canvas a glyph is one em:
+    // (1000 - 2 * 20 padding) / 88px holds 10 characters.
+    assert.equal(api.captionLineMax(parenting),10);
+    assert.equal(api.captionLineMax(fixed),10);
+    assert.equal(api.captionLineMax({...parenting,captions:{...parenting.captions,fontSize:400}}),4);
+    assert.equal(api.captionLineMax({...parenting,landscape:{}}),18);
+    const long='\uc544\uc774\uac00 \uc7a0\ub4e4\uae30 \uc804\uc5d0 \ud56d\uc0c1 \uc6b8\uc5b4\uc694';
+    for(const Component of [series,api.RadioPreviewCaption]){
+      for(const mode of ['bar','box']){
+        const params={...api.radioCaptionParams(parenting),mode,text:long};
+        assert.match(renderCaption(Component,params),/font-size:88px/);
+        assert.doesNotMatch(renderCaption(Component,{...params,fontSizing:'auto'}),/font-size:88px/);
+        // A single word wider than the caption still shrinks as a last resort.
+        assert.doesNotMatch(renderCaption(Component,{...params,text:'\uac00'.repeat(14)}),/font-size:88px/);
+      }
+      for(const t of [parenting,auto]){
+        const params={...api.radioCaptionParams(t),text:long};
+        assert.equal(renderCaption(series,params),renderCaption(api.RadioPreviewCaption,params));
+      }
+    }
+    for(const t of [auto,fixed])assert.equal(api.validateTemplate(t),t);
+    for(const value of ['Fixed','',true,null]){
+      const bad=structuredClone(parenting);bad.captions.fontSizing=value;
+      assert.throws(()=>api.validateTemplate(bad),/font sizing/);
+    }
   });
 });

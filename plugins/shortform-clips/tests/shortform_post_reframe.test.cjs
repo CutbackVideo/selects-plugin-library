@@ -5,7 +5,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild');
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8'),mod={exports:{}};
- new Function('require','module','exports',esbuild.transformSync(src+'\nexport {SCRIPT_APPLY_REFRAME,createReframeWork,templateBuildScript};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ new Function('require','module','exports',esbuild.transformSync(src+'\nexport {SCRIPT_APPLY_REFRAME,createReframeWork,templateBuildScript,captionLineMax};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
  const P={projectId:'p',draftId:'d',resourceId:'v',resourceName:'Video',sourceKind:'video',transform:{scale:2,posX:0,posY:0},frame:{windowTop:450,windowBottom:1300},reframe:[{start:0,end:10,cx:450,w:800},{start:10,end:30,cx:1400,w:800}]};
  async function run({fail=false,owned=true}={}){
   let committed=0,transforms=[],splits=[];
@@ -34,7 +34,7 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   const body=esbuild.transformSync(loop,{loader:'ts'}).code;
   let job={built:[]},builds=0,applies=0,thumbnails=0,fail=true;const events=[];
   const pickd={clips:[{name:'One',segments:[[1,5]]}]};
-  const env={templateBuildScript:mod.exports.templateBuildScript,findRunDraftScript:()=>"LOOKUP",withoutRunSuffix:(name)=>name,ensureRunFolder:async()=>"run-folder",moveRunDrafts:async()=>{},forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
+  const env={templateBuildScript:mod.exports.templateBuildScript,captionLineMax:mod.exports.captionLineMax,findRunDraftScript:()=>"LOOKUP",withoutRunSuffix:(name)=>name,ensureRunFolder:async()=>"run-folder",moveRunDrafts:async()=>{},forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
    STACKED_REFRAME_EFFECT:'effect',projectId:'p',S:{building:()=>'',reframing:'framing'},lang:'en',transform:{scale:1},buildLogo:'',SCRIPT_APPLY_REFRAME:'APPLY const P: any = __P__;',
    RADIO_SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_LIMIT:1e7,RunCancelled:class extends Error{},
    setStatus:()=>{},setSub:()=>{},setDrafts:()=>{},setWarn:()=>{},nameOf:()=>'',radioFrameParams:()=>({}),
@@ -44,7 +44,8 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
    runTemplateReframing:async()=>{applies++;events.push(['apply']);if(fail)throw Error('agent failed');return {status:'complete'};},
    prepareCameraFraming:async()=>({cameraShots:[],cameraPanels:[]}),
    reframeClips:async clips=>{clips[0].reframe=[{start:0,end:9,cx:500,w:1000}];},
-   guard:p=>p,loadDraftThumbnail:async()=>{thumbnails++;return {thumbnailPath:'thumb.jpg'};},store:{},sdk:{}};
+   guard:p=>p,loadDraftThumbnail:async()=>{thumbnails++;events.push(['thumbnail',job.built.map(d=>d?.progressStage)]);return {thumbnailPath:'thumb.jpg'};},store:{},sdk:{},
+   mark:async stage=>{events.push(['mark',stage]);}};
   async function attempt(){const keys=Object.keys(env);return new Function(...keys,'job','return (async()=>{let resultWarning="";'+body+';return made;})();')(...Object.values(env),job);}
   await attempt();assert.equal(builds,1);assert.equal(job.built[0].draftId,'d');assert.equal(job.built[0].reframeState,'failed');assert.equal(job.done,false);assert.equal(thumbnails,0);
   assert.ok(events.findIndex(x=>x[0]==='save'&&x[1]==='pending')<events.findIndex(x=>x[0]==='apply'));
@@ -71,6 +72,11 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   }
   await parallel;
   assert.deepEqual(job.built.map(d=>d.reframeState),['done','done','failed','done','done']);
+  // Previews wait until every clip is editable, so they never delay another clip's framing.
+  const shots=events.slice(events.findLastIndex(x=>x[0]==='mark'&&x[1]==='reframing-done')).filter(x=>x[0]==='thumbnail');
+  assert.equal(shots.length,4);
+  for(const [,stages] of shots)assert.deepEqual(stages,['done','done','failed','done','done']);
+  assert.ok(job.built.every(d=>!d.previewPending));
   assert.deepEqual(job.built.map(d=>d.reframeUsageCalls[0].input_tokens),[100,101,102,103,104]);
   assert.equal(job.done,false);
   // Retrying one card must leave other failed cards untouched.

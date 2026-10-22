@@ -17,7 +17,7 @@ test('shared scene text helper', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MODU
     parameters:{body:'Text', fontFamily:'Preset font', fontSize:72, color:'#fff', enterStyle:'instant', exitStyle:'instant'},
     editableParameters:[{key:'body', label:'Text', type:'text', defaultValue:'Text'}]
   };
-  function fixture(value = structuredClone(preset)) {
+  function fixture(value = structuredClone(preset), styles = {}) {
     const calls = [], clips = [];
     const d = {
       meta:async () => ({frameSize:{width:1080,height:1920},fps:30}),
@@ -31,8 +31,24 @@ test('shared scene text helper', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MODU
       setClipTransform:async options => { calls.push(['transform',options]); }
     };
     const sdk = {effectPresets:{get:async id => {calls.push(['preset',id]);return value;}}};
-    return {calls, clips, make:() => create(sdk,{sourceFiles:async()=>({fileTree:[]}),resources:async()=>[]},d,[])};
+    return {calls, clips, make:() => create(sdk,{sourceFiles:async()=>({fileTree:[]}),resources:async()=>[]},d,[],styles)};
   }
+  await t.test('template text appearance is reused without changing content or timing', async () => {
+    const f=fixture(structuredClone(preset),{text:{'plain-white':{fontFamily:'Channel font',fontSize:96,fontWeight:700,color:'#FFFFFF'}}}),media=await f.make();
+    await media.text('Label',{startFrame:5,endFrame:40},{body:'Subject',style:'plain-white',fontSize:99},{x:540,y:500});
+    const o=f.calls.find(c=>c[0]==='add')[1];assert.equal(o.parameters.body,'Subject');assert.equal(o.parameters.fontSize,96);assert.equal(o.parameters.fontWeight,'700');assert.equal(o.parameters.style,undefined);assert.equal(o.parameters.fontFamily,'Channel font');assert.deepEqual(o.within,{a:5,b:40});
+  });
+  await t.test('visual styles are selected explicitly, not inferred from a question or label', async () => {
+    const styles={text:{'lime-tag':{fontSize:64,color:'#000000',backgroundColor:'#D7FF00'}}};
+    const f=fixture(structuredClone(preset),styles),media=await f.make();
+    await media.text('question',{startFrame:0,endFrame:20},{body:'Why?',fontSize:90},{x:540,y:500});
+    await media.text('subject',{startFrame:20,endFrame:40},{body:'Subject',style:'lime-tag'},{x:540,y:500});
+    const rows=f.calls.filter(c=>c[0]==='add').map(c=>c[1].parameters);
+    assert.equal(rows[0].fontSize,90);assert.equal(rows[0].color,'#fff');
+    assert.equal(rows[1].fontSize,64);assert.equal(rows[1].backgroundColor,'#D7FF00');
+    await assert.rejects(media.text('label',{startFrame:0,endFrame:20},{body:'Why?',style:'question'},{x:540,y:500}),/Unknown template text style/);
+    assert.equal(f.clips.length,2);
+  });
   await t.test('body and attribution reuse one preset but remain independently editable and timed', async () => {
     const f=fixture(), media=await f.make();
     const params={body:'\uae30\uc0ac \ubcf8\ubb38\n\ub450 \ubc88\uc9f8 \uc904',fontFamily:'Template font',fontSize:56,color:'#123456',backgroundColor:'#fff',textAlign:'left'};

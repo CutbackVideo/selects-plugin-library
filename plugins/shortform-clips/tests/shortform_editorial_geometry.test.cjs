@@ -8,9 +8,29 @@ test('editorial choices drive shared person geometry',{skip:!modules},async t=>{
  const L={windowTop:570,windowBottom:1178,widePolicy:'never',splitPolicy:'selective'},target=id=>({subjectId:id,refs:[id]});
  const plan=(style='speaker')=>({version:1,status:'planned',shots:[{startFrame:0,endFrame:90,compositionId:'fixed',layout:style,panels:style==='stacked'?['A','B'].map(id=>({camera:'0',targets:[target(id)]})):[{camera:'0',targets:style==='two-shot'?['A','B'].map(target):[target('A')]}]}]});
  const run=(p,layout=L,catalog=faces)=>{const a=f.sourceCompositionAdapter(p,[source],90,layout,catalog),r=f.resolveSourceComposition(a.shots,catalog,[source],90,layout);assert.deepEqual(r.limitations,[]);return f.checkSourceCompositionGeometry(f.compileSourceCropPlan(r.shots,[source],90,layout),layout);};
- await t.test('legacy zoom numbers do not influence agent-selected people geometry',()=>{
+ await t.test('physical frame-edge detections are clipped to visible pixels without failing the clip',()=>{
+  const catalog=[{...faces[0],box:{xmin:-2,xmax:210,ymin:0,ymax:240},envelope:{xmin:-12,xmax:230,ymin:-9,ymax:260}}];
+  const a=f.sourceCompositionAdapter(plan(),[source],90,L,catalog),r=f.resolveSourceComposition(a.shots,catalog,[source],90,L);
+  assert.deepEqual(r.limitations,[]);assert.ok(r.adjustments.length===2);
+  f.checkSourceCompositionGeometry(f.compileSourceCropPlan(r.shots,[source],90,L),L);
+ });
+ await t.test('small envelope noise is tolerated on both axes at an embedded pane boundary',()=>{
+  const p=plan();p.shots[0].panels[0].sourcePane={x:0,y:0,width:.5,height:.5};
+  const catalog=[{...faces[0],box:{xmin:750,xmax:950,ymin:290,ymax:530},envelope:{xmin:740,xmax:962,ymin:280,ymax:542}}];
+  const a=f.sourceCompositionAdapter(p,[source],90,L,catalog),r=f.resolveSourceComposition(a.shots,catalog,[source],90,L);
+  assert.deepEqual(r.limitations,[]);assert.equal(r.adjustments.length,2);
+  f.checkSourceCompositionGeometry(f.compileSourceCropPlan(r.shots,[source],90,L),L);
+ });
+ await t.test('a genuinely wrong pane preserves only that composition and reports the limitation',()=>{
+  const p=plan();p.shots[0].endFrame=45;p.shots[0].panels[0].sourcePane={x:.5,y:0,width:.5,height:1};
+  p.shots.push({...plan().shots[0],startFrame:45,compositionId:'valid'});
+  const a=f.sourceCompositionAdapter(p,[source],90,L,faces),r=f.resolveSourceComposition(a.shots,faces,[source],90,L);
+  assert.equal(r.shots[0].style,'preserve');assert.equal(r.shots[1].style,'speaker');
+  assert.equal(r.limitations.length,1);assert.match(r.limitations[0].reason,/outside the observed camera pane: A/);
+ });
+ await t.test('agent zoom overrides remain ignored; template zoom controls single-person geometry',()=>{
   const expected=run(plan())[0].panels;
-  for(const closeUp of [2,4.5,12]){const p=plan();p.shots[0].panels[0].closeUp=closeUp;assert.deepEqual(run(p,{...L,closeUp,faceY:65})[0].panels,expected);}
+  for(const closeUp of [2,4.5,12]){const p=plan();p.shots[0].panels[0].closeUp=closeUp;assert.deepEqual(run(p,{...L,faceY:65})[0].panels,expected);}
  });
  await t.test('speaker excludes the distant neighbour while retaining measured head',()=>{
   const p=run(plan())[0].panels[0];assert.ok(p.cx+p.w/2<faces[1].box.xmin);assert.ok(p.cx-p.w/2<faces[0].box.xmin);

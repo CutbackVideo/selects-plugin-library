@@ -118,7 +118,11 @@ class MiniVlogWindowsTest(unittest.TestCase):
         for pattern, digest, name in ((AV_HOST, AV_HOST_SHA256, "av-host"), (AV_BEAT, AV_BEAT_SHA256, "av-beat-worker")):
             found = pattern.findall(self.source)
             self.assertEqual(len(found), 1, "one " + name + " block")
-            self.assertEqual(hashlib.sha256(found[0].encode("utf-8")).hexdigest(), digest, name + " block changed")
+            # Ignore only the generated common-source boundary comments; keep
+            # the original executable-code hash frozen. Canonical synchronization
+            # separately validates the shared block and its markers.
+            block = re.sub(r"^// host-files:(?:start|end)\n", "", found[0], flags=re.M) if name == "av-host" else found[0]
+            self.assertEqual(hashlib.sha256(block.encode("utf-8")).hexdigest(), digest, name + " block changed")
         detector = os.path.join(PLUGIN, "beat-detect.cjs")
         with open(detector, "rb") as f:
             self.assertEqual(hashlib.sha256(f.read().split(b"\n", 1)[1]).hexdigest(), BEAT_DETECT_SHA256, "canonical generated header preserves the numerical kit body")

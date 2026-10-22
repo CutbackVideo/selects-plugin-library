@@ -40,6 +40,8 @@ jobs:
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_ownership_audit.test.mjs tests/feature_ownership_coverage.test.mjs tests/archive_feature_ownership.test.mjs
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node tools/check_feature_ownership.mjs docs/template-repair/ownership/mini-vlog.json > "$RUNNER_TEMP/mini-feature-ownership.json"
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node tools/check_feature_ownership.mjs docs/template-repair/ownership/archive-vlog.json > "$RUNNER_TEMP/archive-feature-ownership.json"
+      - name: Test shared host files and independent media adapters
+        run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/host_files_adapter.test.mjs tests/mini_media_scope.test.mjs tests/common_async_sdk.test.mjs
       - name: Test shared RGB color-filter rendering
         run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/render_color_filter.test.mjs
       - name: Test Music
@@ -241,6 +243,8 @@ jobs:
         run: |
           node --test tests/vox_explainer.test.mjs
           node --test tests/vox_explainer_engine.test.mjs
+      - name: Test Medical Explainer
+        run: node --test tests/medical_explainer.test.mjs
       - name: Test A16z Style Captions
         run: |
           node plugins/a16z-style-captions/build.cjs "$RUNNER_TEMP/shortform-test/node_modules/esbuild"

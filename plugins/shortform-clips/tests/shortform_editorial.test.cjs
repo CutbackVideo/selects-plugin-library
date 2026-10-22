@@ -99,6 +99,8 @@ test('speech-aligned editorial placements',{skip:!modulesRoot && 'Set SBS_PANEL_
     const correction={resourceName:'camera.mov',sourceSeconds:10,original:'\ud72b',corrected:'\ud719',evidence:{source:'/provided/script.txt',quote:'\ud719 \uce5c\uad6c\ub4e4\uc740'}};
     const plan={episode:'A question',sourceReview:[{resourceName:'camera.mov',role:'actor',observed:'Script-backed spelling',excluded:[]}],assetReview:[],transcriptCorrections:[correction],clips:[{headline1:'Topic',headline2:'',beats:[{resourceName:'camera.mov',startSeconds:10,endSeconds:12,kind:'speech',anchor:'\ud719',intent:'question',focus:'face',composition:'Readable face and caption',assets:[],captions:[{startSeconds:10,endSeconds:11,text:'\ud719'},{startSeconds:11,endSeconds:12,text:'\ud72b'}],disclosures:[{sourceSeconds:10,anchor:'\ud719',token:'\ud719'}]}]}]};
     const before=structuredClone(words);assert.equal(api.parseSceneStudy(plan,inventory,1,words),plan);assert.deepEqual(words,before);
+    const originalAnchors=structuredClone(plan);originalAnchors.clips[0].beats[0].anchor='\ud72b';originalAnchors.clips[0].beats[0].disclosures[0].anchor='\ud72b';assert.equal(api.parseSceneStudy(originalAnchors,inventory,1,words),originalAnchors);
+    const wrongTime=structuredClone(plan);wrongTime.clips[0].beats[0].disclosures[0].sourceSeconds=11;assert.throws(()=>api.parseSceneStudy(wrongTime,inventory,1,words),/disclosure anchor/);
     for(const patch of [{sourceSeconds:9},{original:'different'},{corrected:'\ud719 \uce5c\uad6c\ub4e4'},{evidence:null},{evidence:{source:'',quote:'\ud719'}},{evidence:{source:'script',quote:'unrelated'}}]){const bad=structuredClone(plan);Object.assign(bad.transcriptCorrections[0],patch);assert.throws(()=>api.parseSceneStudy(bad,inventory,1,words),/transcript correction/);}
     const duplicate=structuredClone(plan);duplicate.transcriptCorrections.push(correction);assert.throws(()=>api.parseSceneStudy(duplicate,inventory,1,words),/duplicated/);
     const outside=structuredClone(plan);outside.clips[0].beats[0].startSeconds=10.9;assert.throws(()=>api.parseSceneStudy(outside,inventory,1,words),/outside selected/);
@@ -112,6 +114,7 @@ test('speech-aligned editorial placements',{skip:!modulesRoot && 'Set SBS_PANEL_
       const contract=text.match(/If an ASR word is misspelled,[\s\S]*?Never modify Project transcription or an existing Draft in planning\./)?.[0];
       assert.ok(contract);
       assert.match(contract,/configured brand identity/);
+      assert.match(contract,/within the selected source intervals/);
       assert.match(contract,/transcriptCorrections:\[\{resourceName,sourceSeconds,original,corrected,evidence:\{source,quote\}\}\]/);
       assert.match(contract,/Uncertain spelling alone is not a reason to cut meaningful dialogue/);
       assert.match(contract,/Do not rewrite grammar/);

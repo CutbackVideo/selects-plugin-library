@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "chosun-ilbo",
-  "version": "1.1.0",
+  "version": "1.4.3",
   "name": "Chosun Ilbo",
   "names": {
     "en": "Chosun Ilbo",
@@ -9,26 +9,32 @@
   },
   "requiresApp": {
     "id": "shortform-clips",
-    "templateApi": 2
+    "templateApi": 6
   },
   "templates": [
     "templates/heukbaek.json",
     "templates/panilgi.json",
     "templates/history.json",
     "templates/villain.json",
-    "templates/money.json"
+    "templates/money.json",
+    "templates/health.json",
+    "templates/parenting.json",
+    "templates/jeongjwippul.json",
+    "templates/politics-landscape.json"
   ],
   "assets": [
-    "assets/heukbaek-background.webp",
-    "assets/heukbaek-logo.webp",
-    "assets/panilgi-background.webp",
-    "assets/panilgi-logo.webp",
     "assets/history-background.webp",
     "assets/history-logo.webp",
     "assets/villain-background.webp",
     "assets/villain-logo.webp",
     "assets/money-background.webp",
-    "assets/money-logo.webp"
+    "assets/money-logo.webp",
+    "assets/health-frame.png",
+    "assets/parenting-frame.png",
+    "assets/heukbaek-logo-original.png",
+    "assets/heukbaek-background-original.jpg",
+    "assets/panilgi-logo-original.png",
+    "assets/jeongjwippul-bumper-original.png"
   ],
   "legacy": {
     "appId": "chosun-clips",

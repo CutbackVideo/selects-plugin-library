@@ -133,6 +133,17 @@
         "plugins/mini-vlog/assets/soft-look.tsx",
         "plugins/the-end-credits/assets/cinematic-look.tsx"
       ]
+    },
+    {
+      "id": "host-files",
+      "source": "shared/host-files.js",
+      "targets": [
+        "plugins/archive-vlog/panel.tsx",
+        "plugins/mini-vlog/panel.tsx"
+      ],
+      "compatibilityTargets": [
+        "plugins/medical-explainer/panel.tsx"
+      ]
     }
   ]
 }
