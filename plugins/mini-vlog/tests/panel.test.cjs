@@ -92,7 +92,7 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
   for (const phrase of ['const unusableText = !invFootage.unusable ? "" : waitStalled ? t(L, "unusableRefresh", { count: invFootage.unusable }) : t(L, "unusableWait", { count: invFootage.unusable });',
     '(unusableText || (waitStalled ? t(L, "noFootageRefresh") : t(L, "noFootage")))',
     '[unusableText, t(L, "turnOnPhotos")].filter(Boolean).join(t(L, "gap"))', '...mvFootageNotes(L, invFootage)]',
-    'inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",") + "|" + [sk.unanalysed, sk.notAnalysed]']) assert.ok(panel.includes(phrase), phrase);
+    'JSON.stringify(inv.resources) + "|" + [sk.unanalysed, sk.notAnalysed]']) assert.ok(panel.includes(phrase), phrase);
   // Polling: only while clips cannot be used yet (still importing), while a read is partial, or with no footage at all.
   const poll = (panel.match(/const needsPoll = ([^\n]*);/) || [])[1];
   assert.ok(poll, 'needsPoll');
@@ -429,7 +429,7 @@ assert.ok(panel.includes('const INCOMPLETE_POLL_MAX = 6;'), 'cap constant'); say
 assert.ok(loadInv.includes('if (inv.incomplete) { incompleteReadsRef.current++; if (incompleteReadsRef.current >= INCOMPLETE_POLL_MAX) setIncompleteStalled(true); }')
   && loadInv.includes('else { incompleteReadsRef.current = 0; setIncompleteStalled(false); }'), 'consecutive count, reset by a complete read');
 assert.ok(ui.includes('const refreshInventory = () => { incompleteReadsRef.current = 0; setIncompleteStalled(false); waitReadsRef.current = 0; setWaitStalled(false); loadInventory(); };'), 'Refresh restarts the cycle');
-assert.ok(ui.includes('photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false);'), 'Project switch resets the cycle');
+assert.ok(ui.includes('invSigRef.current = null; incompleteReadsRef.current = 0; setIncompleteStalled(false);'), 'Project switch resets the cycle');
 assert.ok(ui.includes(': inventory.incomplete && incompleteStalled ? t(L, "invPartial")'), 'stalled readiness message');
 assert.ok(ui.indexOf('inventory.incomplete ? t(L, "stillReading")') > 0 && ui.indexOf('inventory.incomplete ? t(L, "stillReading")') < ui.indexOf('t(L, "noFootage")'), 'incomplete before "no footage"');
 says('stillReading', "Still reading this Project's clips"); says('noFootage', 'No videos or photos in this Project yet');

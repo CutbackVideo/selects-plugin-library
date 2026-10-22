@@ -9,8 +9,8 @@ const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS
 const panel=fs.readFileSync(process.env.MINI_MUSIC_PANEL||new URL('../plugins/mini-vlog/panel.tsx',import.meta.url),'utf8');
 const plain=esbuild.transformSync(panel,{loader:'tsx',format:'esm',target:'es2022',jsx:'preserve'}).code;
 const nested=plain.replace(/^  /gm,'');
-const names=['selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','runMiniVlogTemplate'];
-const source=names.map(name=>topLevel(plain,name)).join('\n')+'\n'+topLevel(nested,'run')+'\n'+topLevel(nested,'build');
+const names=['isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','runMiniVlogTemplate'];
+const source=names.map(name=>topLevel(plain,name)).join('\n')+'\n'+topLevel(nested,'inventoryCurrent')+'\n'+topLevel(nested,'run')+'\n'+topLevel(nested,'build');
 const feature=panel.includes('// bundled-assets:start')?panel.slice(panel.indexOf('// bundled-assets:start'),panel.indexOf('// bundled-assets:end')):'';
 const inputFeature=panel.slice(panel.indexOf('// native-image-input:start'),panel.indexOf('// native-image-input:end')).replace(/^export /gm,'');
 const adapter=plain.includes('function prepareMiniCue(')?topLevel(plain,'prepareMiniCue'):'';
@@ -44,7 +44,7 @@ export async function miniMusicFixture(t,{entry='template',own=false,silent=fals
   readText:async(_root,rel)=>rel==='assets/cues/manifest.json'?JSON.stringify(manifest):rel==='assets/fonts/presets.json'?JSON.stringify(presets):rel==='scripts/ensure-audio.js'?scriptsByName.ensureJs:'return __CONFIG__;',
   cueGrid:()=>({bpm:110,accepted:true,firstBeat:0,usableEnd:59}),mvGridUsable:()=>true,mvApproxTempo:()=>null,mvBeatsPerShot:()=>({beats:2}),mvShotSeconds:()=>1,mvFitShots:()=>2,mvSnapSection:({value})=>value,mvDefaultSection:()=>0,
   mvSearchQueries:()=>[],mvMotionBonus:value=>value,photoCandsOf:()=>[],mvPlanBuild:()=>plan,stamp:()=> 'fixture',
-  sdk,context:{projectId:'p'},busyRef,assets:{scripts:scriptsByName},inventory,roots:{plugin,data:f.data},chosen:presets.presets[0],seed:1,blockReason:null,anotherBlock:null,projectId:'p',projectRef:{current:'p'},mountedRef:{current:true},
+  sdk,context:{projectId:'p'},busyRef,assets:{scripts:scriptsByName},inventory,roots:{plugin,data:f.data},chosen:presets.presets[0],seed:1,blockReason:null,anotherBlock:null,projectId:'p',projectRef:{current:'p'},mountedRef:{current:true},inventorySnapshotRef:{current:{projectId:'p',inventory}},invLoadingRef:{current:null},
   preset:'preset',titleFields:{},musicKind:silent?'none':own?'own':'cue',ownMusic:own?{path:file}:null,cueId:'cue',cue,musicStart:0,pace:'quick',length:'standard',requested:2,clipSound:'ambient',soft:true,beatPunch:true,hook:false,gridded:true,grid:{bpm:110,accepted:true},usePhotos:true,only:null,onlyPhotos:null,snapCuts:{},
   candidates:{key:'p|null|motion',failed:[],scene:[],list:[],local:{results:[],unavailable:false}},
   setBusy:noop,setStatus:value=>{if(value?.tone==='error')errors.push(value.say('en'));},setResult:noop,stopPreview:noop,advance:noop,stopAt:error=>()=>{errors.push(error);return error.message;},endRun:()=>{busyRef.current=false;},CANCELLED:Symbol('cancelled'),STALE:stopped,

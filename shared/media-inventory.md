@@ -41,6 +41,32 @@ a read. The Mini/Archive inventory scripts used here only read SDK metadata.
   membership/metadata observations do not establish original-file availability,
   content identity, full decode validity or saved-output correctness.
 
+## Caller admission and candidate ownership
+
+`isInventorySnapshotCurrent(snapshot, inventory, projectId, currentProjectId,
+loadingProjectId, mounted)` binds permission to start a build to the exact object
+confirmed by a successful observation, its current mounted Project, and no read
+in flight for that Project. This is a local admission predicate, not a revision
+lock or security token. A previously rendered list may stay visible after an
+error without granting permission to build. A new confirmation object cannot
+approve an older React render still holding the previous inventory object.
+
+Both callers revoke confirmation synchronously before awaiting a refresh; only
+a live successful read installs a new confirmation and displayed inventory.
+A stale Project callback stops before revoking another Project's confirmation or
+dispatching a read. Build and Another Version check the same predicate as the
+button/readiness state. Build owns result clearing after its other input gates;
+Another Version does not erase an existing result before delegating admission.
+Finish title/look still uses its build-owned facts and result, independently of
+a catalog refresh failure. No saved Draft is deleted by observation failure.
+
+Candidate reuse compares the complete normalized video row values, including
+same-ID duration, dimensions, path, name and availability changes. Mini retains
+its additional waiting counters for its existing polling policy. Unchanged rows
+retain candidate reuse. The unused merged photo-size cache has been removed;
+selected-original verification supplies dimensions per build, retained per
+result for a later Finish action.
+
 ## Budgets, lifetime and errors
 
 Default overall deadline is 120,000 ms; an override must be finite 1..120,000 ms.

@@ -1,4 +1,4 @@
-# Mini / Archive: reject mixed paged inventories
+# Mini / Archive: confirm catalogs before starting builds
 
 Scope: Mini `0.1.0-alpha.17`, Archive `0.1.0-alpha.11`, stacked on #313's
 `04fc621f32bae98b551375e2769811318d6b77ae`. Chan's apps remain excluded.
@@ -47,10 +47,37 @@ for types, ID domains, time units, numeric limits, errors and distribution.
   timers; healthy 90-second cap, one session retry and 5/15-second busy backoff;
   committing-call isolation/non-replay; work budgets and readback failure.
 - Related paging, existing photo/source, asset, module and structural inventory
-  checks pass 230 cases across eight files. Stable 4,000-row inventory outputs and
+  checks pass 262 cases across nine files, including 32 caller-admission cases. Stable 4,000-row inventory outputs and
   the five unmigrated custom pagers keep their existing contracts. The old Mini
   spelling assertions now point to executed runner contracts rather than require
   the removed unscoped wait/deadline implementation.
+
+## Caller lifecycle follow-through
+
+Tracing the actual load, button, Build and Another Version callbacks exposed a
+second false-success boundary: failed/pending refreshes kept the previous catalog
+and still permitted a new build. The cache signature considered IDs/analysis only,
+so same-ID metadata changes could reuse candidates derived from old source facts.
+Another Version also cleared a held result before Build's independent gates.
+
+The initial caller fixture executed real callbacks: 26 failures / 28 cases,
+including a dead merged photo-size cache. Remove that unused cache instead of
+introducing another owner. Two more RED cases demonstrated stale Project refresh
+callbacks revoking a newer confirmation; two RED cases demonstrated early result
+clearing when a preset was absent. Final caller coverage is 32 passing cases,
+with stable reuse, successful refresh, and admitted Another Version controls.
+The 45 pager/runner cases plus 32 caller cases total 77 focused checks; the related
+nine-file suite totals 262. Existing Mini/Archive panel checks also pass. Legacy
+signature/reset spelling assertions now match the complete-observation signature
+and cache removal; actual behavior is exercised by the new consumer suite.
+
+One predicate in the existing module binds permission to the exact confirmed
+inventory object, mounted Project and no pending read. Refresh revokes it before
+await; only current successful reads restore it. Failed refresh keeps the last
+list and already-created result visible without permitting another build. Finish
+still consumes build-owned facts. Full video row observations invalidate changed
+candidates; stable observations reuse them. This local binding does not prevent
+later Project/file mutation or replace build-stage native preflight.
 
 ## Actual SDK evidence
 
@@ -78,3 +105,11 @@ This establishes actual SDK data/alias and runner behavior under controlled view
 not a reproduced customer mutation, installed PanelHost UI, full template build/
 save/playback/export or Windows acceptance. Hidden selected-file inventory calls
 and all remaining template function/side-effect owners still require review.
+
+The subsequent caller-admission change does not rerun the app. Exact transpiled
+pager/runner bodies and SDK inventory scripts were compared against the recorded
+ten-scenario execution and are unchanged. New caller admission/cache behavior is
+verified separately in `tests/media_inventory_consumer.test.mjs`; this is not an
+installed-panel UI or whole-template acceptance claim. The task's old Electron,
+descendants, owned ports and runtime app directory were cleaned after that SDK
+execution; persistent Project/media/evidence state remains preserved.

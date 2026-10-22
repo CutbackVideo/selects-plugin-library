@@ -102,3 +102,11 @@ async function readInventoryPages(run, script, config, fill, wanted = () => true
  }
  if(failed)throw failure;return value;
 }
+
+// Bind admission to the exact confirmed observation and its mounted Project.
+// Displayed old rows may survive a refresh failure; permission to build may not.
+function isInventorySnapshotCurrent(snapshot, inventory, projectId, currentProjectId, loadingProjectId, mounted) {
+ return mounted === true && typeof projectId === 'string' && projectId.length > 0
+  && currentProjectId === projectId && snapshot?.projectId === projectId
+  && !!inventory && snapshot.inventory === inventory && loadingProjectId !== projectId;
+}

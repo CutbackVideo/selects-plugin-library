@@ -4490,10 +4490,10 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   // Inventory bookkeeping: the inventory script, the last clip set seen and a load in flight.
   const inventoryJsRef = React.useRef<string | null>(null);
   const invSigRef = React.useRef<string | null>(null);
-  // Photo sizes measured by earlier inventory reads, passed back so a refresh does not measure them again.
-  const photoSizesRef = React.useRef<Record<string, { width: number; height: number }>>({});
   const invLoadingRef = React.useRef<string | null>(null);
   const mountedRef = React.useRef(true);
+  const inventorySnapshotRef = React.useRef<{ projectId: string; inventory: any } | null>(null);
+  const inventoryCurrent = () => isInventorySnapshotCurrent(inventorySnapshotRef.current, inventory, projectId, projectRef.current, invLoadingRef.current, mountedRef.current);
   // The last inventory read's failure (busy: Selects did not answer in time).
   const [invError, setInvError] = React.useState<{ busy?: boolean; say: Say } | null>(null);
   const [invLoading, setInvLoading] = React.useState(false);
@@ -4511,6 +4511,8 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     // One read per Project at a time; a read for another Project never blocks this one.
     if (!pid || !script || busyRef.current || invLoadingRef.current === pid) return "skipped";
     const live = () => mountedRef.current && alive() && projectRef.current === pid;
+    if (!live()) return "skipped";
+    inventorySnapshotRef.current = null;
     invLoadingRef.current = pid; setInvLoading(true);
     try {
       const inv = await readInventoryPages(run, script, { projectId: pid, only: null, measureMs: INVENTORY_MEASURE_MS }, fill, live);
@@ -4518,10 +4520,9 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       if (!live() || busyRef.current) return "skipped";
       inv.resources = inv.resources || [];
       inv.photos = inv.photos || [];
-      for (const ph of inv.photos) if (ph.width > 0 && ph.height > 0) photoSizesRef.current[ph.rid] = { width: ph.width, height: ph.height };
       const sk = inv.skipped || {};
-      // A clip that finishes analysis moves from the quick local check to the scene search, so `analysed` is part of it.
-      const sig = inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",") + "|" + [sk.unanalysed, sk.notAnalysed].map((x) => String(x ?? "")).join(",");
+      // Candidates depend on complete video observations, including metadata changes under the same ID.
+      const sig = JSON.stringify(inv.resources) + "|" + [sk.unanalysed, sk.notAnalysed].map((x) => String(x ?? "")).join(",");
       // A changed clip set drops the cached shot candidates so a build never uses stale ones.
       const sameSet = invSigRef.current === sig;
       if (invSigRef.current !== sig) { if (invSigRef.current !== null) setCandidates(null); invSigRef.current = sig; }
@@ -4530,6 +4531,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       const waiting = mvFootageCounts(inv.skipped).unusable > 0 || (inv.resources.length === 0 && !inv.photos.length);
       if (waiting && sameSet && waitReadsRef.current > 0) { waitReadsRef.current++; if (waitReadsRef.current >= WAIT_POLL_MAX) setWaitStalled(true); }
       else { waitReadsRef.current = waiting ? 1 : 0; setWaitStalled(false); }
+      inventorySnapshotRef.current = { projectId: pid, inventory: inv };
       setInventory(inv); setInvError(null);
       return "ok";
     } catch (e: any) {
@@ -4550,7 +4552,8 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     // Drop everything tied to the previous Project so a build never mixes Projects.
     setCandidates(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
     setOnly(null); setOnlyPhotos(null);
-    invSigRef.current = null; photoSizesRef.current = {}; incompleteReadsRef.current = 0; setIncompleteStalled(false); waitReadsRef.current = 0; setWaitStalled(false);
+    inventorySnapshotRef.current = null;
+    invSigRef.current = null; incompleteReadsRef.current = 0; setIncompleteStalled(false); waitReadsRef.current = 0; setWaitStalled(false);
     busyRef.current = false; setBusy(false); setStep(""); setProgress(null); progressRef.current = null;
     if (!projectId) return;
     let alive = true;
@@ -4909,7 +4912,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   }
 
   async function build(nextSeed: number) {
-    if (busyRef.current || !assets || !inventory || inventory.incomplete || !roots || !chosen) return;
+    if (busyRef.current || !inventoryCurrent() || !assets || !inventory || inventory.incomplete || !roots || !chosen) return;
     // The gate for the seed this build uses (Build: seed; Try other shots: seed + 1).
     const gate = nextSeed === seed ? blockReason : anotherBlock;
     if (gate) { setStatus({ tone: "error", say: gate }); return; }
@@ -5048,11 +5051,10 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     } finally { endRun(pid); }
   }
 
-  // Another version: same clips and cached scene search, a new seed. The previous result goes first, then the
-  // build shows its steps from the start, like Build.
+  // Another version delegates result ownership to Build after selecting a new seed.
   function buildAnother() {
-    if (busyRef.current) return;
-    setResult(null); setStatus(null);
+    if (busyRef.current || !inventoryCurrent()) return;
+    // Build clears the previous result only after all admission checks pass.
     const s = seed + 1;
     setSeed(s);
     build(s);
@@ -5201,7 +5203,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     ? (l) => (MV_FAIL[plan.reason] ? t(l, "fail." + plan.reason) : t(l, "noPlan")) : null);
   const blockReason = blockFor(readyPlan);
   const anotherBlock = blockFor(readyPlans.another);
-  const ready = !!inventory && !!assets && !!roots;
+  const ready = inventoryCurrent() && !!assets && !!roots;
   const canBuild = ready && !blockReason;
   const canBuildAnother = ready && !anotherBlock;
 
@@ -5213,7 +5215,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     usePhotos && allPhotoRids.length ? (onlyPhotos ? t(L, "photosSelected", { selected: selectedPhotoRids.length, count: allPhotoRids.length }) : t(L, "photos", { count: allPhotoRids.length })) : "",
   ].filter(Boolean).join(" · ");
   const plannedSeconds = readyPlan && readyPlan.ok ? planSeconds(readyPlan) : videoSeconds;
-  const readiness = !inventory ? (invError ? (invError.busy ? invError.say(L) : t(L, "invFailed")) : t(L, "checkingClipsNow"))
+  const readiness = !inventoryCurrent() ? (invLoading ? t(L, "refreshing") : invError ? (invError.busy ? invError.say(L) : t(L, "invFailed")) : t(L, "checkingClipsNow"))
     : inventory.incomplete && incompleteStalled ? t(L, "invPartial")
     : inventory.resources.length === 0 && !allPhotoRids.length && inventory.incomplete ? t(L, "stillReading")
     : inventory.resources.length === 0 && !allPhotoRids.length ? (unusableText || (waitStalled ? t(L, "noFootageRefresh") : t(L, "noFootage")))
@@ -6017,6 +6019,14 @@ async function readInventoryPages(run, script, config, fill, wanted = () => true
   failure=Object.assign(issue(code,failure?.publicMessage??'Project media read cleanup could not be confirmed.',failed?failure:cleanupFailures[0]),{terminal:true,cleanupFailures});failed=true;
  }
  if(failed)throw failure;return value;
+}
+
+// Bind admission to the exact confirmed observation and its mounted Project.
+// Displayed old rows may survive a refresh failure; permission to build may not.
+function isInventorySnapshotCurrent(snapshot, inventory, projectId, currentProjectId, loadingProjectId, mounted) {
+ return mounted === true && typeof projectId === 'string' && projectId.length > 0
+  && currentProjectId === projectId && snapshot?.projectId === projectId
+  && !!inventory && snapshot.inventory === inventory && loadingProjectId !== projectId;
 }
 // media-inventory:end
 

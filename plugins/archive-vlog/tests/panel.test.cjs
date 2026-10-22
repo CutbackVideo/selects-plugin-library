@@ -530,7 +530,7 @@ assert.ok(ui.includes('t(L, "ready", { summary: clipCount })'), 'readiness: inve
 // counts usable clips; a small note (never a gate) says analysed clips give better picks; clips still being added poll.
 for (const s of ['const localNote = facts.local > 0 ? t(L, "localNote", { count: facts.local }) : null;', '{localNote ? <ui.Message tone="muted">{localNote}</ui.Message> : null}',
   ': inventory.resources.length === 0 ? (facts.waiting ? t(L, "stillAdding", { count: facts.waiting }) : t(L, "noFootage"))',
-  'invFacts.analysing > 0 || (invFacts.waiting > 0 && !waitingStalled)', 'if (waitingReadsRef.current >= WAITING_POLL_MAX) setWaitingStalled(true);', 'const sig = inv.resources.map((r: any) => r.rid + (r.analysed === false ? "~" : "")).sort().join(",");']) assert.ok(ui.includes(s), s);
+  'invFacts.analysing > 0 || (invFacts.waiting > 0 && !waitingStalled)', 'if (waitingReadsRef.current >= WAITING_POLL_MAX) setWaitingStalled(true);', 'const sig = JSON.stringify(inv.resources);']) assert.ok(ui.includes(s), s);
 assert.ok(!/avAnalysis|notAnalysedAnalyse|statusKnown/.test(ui), 'no analysis gate left');
 // The block reasons never mention analysis: only footage, music and the title gate a build.
 {

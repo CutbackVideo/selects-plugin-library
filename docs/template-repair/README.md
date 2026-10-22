@@ -36,7 +36,7 @@ current source inventory, initial decisions, all-template ledger and full gate.
   Same-count reorder, prior-page metadata changes and ended owners cannot return
   a partial/mixed success. The actual runner carries remaining deadlines and
   owned retry waits; committing calls retain their independent request shape.
-  Forty-five focused / 230 related checks and ten actual SDK scenarios pass. See
+  Seventy-seven focused / 262 related checks pass, including actual caller admission and candidate cache behavior. Ten prior actual SDK scenarios cover unchanged pager/runner code. See
   [media-inventory.md](media-inventory.md). The registry is partial: seven entries /
   twelve consumers; complete feature ownership and template acceptance stay 0/28.
 
