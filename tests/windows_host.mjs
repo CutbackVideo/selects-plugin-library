@@ -56,6 +56,10 @@ export function loadPanelFunctions(source, names, globals = {}) {
   // Load the actual cohesive asset feature when a named consumer is inspected.
   // Serialized SDK readers are still executed independently by each test host.
   if (source.includes('// bundled-assets:start')) parts.push(source.slice(source.indexOf('// bundled-assets:start'),source.indexOf('// bundled-assets:end')));
+  // Production panels inline this canonical helper; execute that same block in fixtures.
+  if (source.includes('// media-duration:start')) {
+    parts.push(source.slice(source.indexOf('// media-duration:start'), source.indexOf('// media-duration:end')));
+  }
   if (source.includes('// sdk-selected-media:start') && !names.includes('sdkSelectedMedia')) parts.push(topLevel(source, 'sdkSelectedMedia'));
   if (source.includes('// sdk-media-path:start') && !names.includes('sdkMediaByPath')) parts.push(topLevel(source, 'sdkMediaByPath'));
   for (const name of ['generationApi', 'generationNeed']) if (source.includes('function ' + name + '(') && !names.includes(name)) parts.push(topLevel(source, name));
