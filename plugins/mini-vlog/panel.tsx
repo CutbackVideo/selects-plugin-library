@@ -1859,7 +1859,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.24";
+const PLUGIN_VERSION = "0.1.0-alpha.25";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -2843,38 +2843,12 @@ function mvWithLocal(list, results, punch) {
 }
 // mv-local:end
 
-// The kit's quick local shot score (selects-app-kit tools/panel/quick-score.js), pasted verbatim: change it in the kit.
+// Local clip evaluation is distributed from shared/clip-analysis.js.
 // quick-score:start
-// Quick local shot score for clips Selects has not analysed (no scene search). Plain JS and self-contained: it reaches
-// the host through the public SDK files and media namespaces, or through
-// `opts.io` (tests, other hosts), so it can be pasted into any style-app panel and kept as one kit file
-// (tools/panel/quick-score.ts). No shell, no node: the host's bundled ffmpeg decodes a small grey preview
-// (QS_FPS frames a second, QS_W x QS_H pixels) of the part of the clip the planner could use into a temporary file in
-// the data folder, which is read back and removed. Paths are joined by the host; generated names are ASCII.
-//
-// API
-//   quickScore(resource, { windows, budgetMs, signal, onProgress, dataDir, io, fps })
-//       resource: { rid, path, durationSeconds, mtimeMs? }. windows: optional [{ start, end }] to score; without them the
-//       clip is scored in QS_BIN-second bins from QS_HEAD on (at most QS_SPAN seconds). Returns
-//       { rid, windows: [{ start, end, motion, sharp, luma, clipped, flags }], sceneCuts: [seconds], ms, fallback,
-//         cached, duration }
-//       flags: { black, fade, flash, blur, dark, bright, cut } (booleans). motion = mean absolute frame difference
-//       (0-1), sharp = mean absolute Laplacian (0-1), luma = mean luma (0-1), clipped = share of pixels near black or
-//       white. When ffmpeg is missing or fails (or the budget runs out) it never throws for that: it returns evenly
-//       spaced, unflagged windows from QS_HEAD on with `fallback: true`, so a build still goes ahead. It throws only
-//       when `signal` aborts.
-//   quickScoreAll(resources, { concurrency, budgetMs, signal, onProgress, ... }) -> Map rid -> result. Bounded
-//       concurrency; onProgress({ done, total, rid }) after each clip; the budget is shared (clips not started in time get
-//       the fallback).
-//   pickWindowsLocal(scores, role, durationNeeded) -> [{ start, end, score, motion, flags }] best first, every window
-//       starting at or after QS_HEAD and ending inside the clip. role: 'steady' (opening, credit, ending: steadier,
-//       well-exposed), 'montage' (varied motion; moving windows rank higher), 'still' (the lowest motion). Windows with
-//       black, fade or flash frames, or a scene cut inside, are left out while any other window fits; blur, dark and
-//       bright windows rank lower. score is 0-1 (comparable across clips and roles).
-//   qsCandidates(scores, role, durationNeeded, max) -> planner candidates [{ t, score, motion }] (t = window centre).
-// Cache: one JSON per clip in <dataDir>/quick-score/, keyed by the resource id, the file's modification time and
-// QS_VERSION, so a rebuild does not decode the same clip twice.
-var QS_VERSION = 2;
+// clip-analysis:start
+// Source-bound local clip evaluation. File snapshots, cache publication,
+// media jobs and transient cleanup belong to bundled-assets. No Project is edited.
+var QS_VERSION = 3;
 // One decode pass at the settings Selfie Aesthetic Edit measured (sae-host saeMotionArgs: fps 8, gray rawvideo,
 // 0.25-0.65 s for 120 s of source) gives every per-frame figure below.
 var QS_FPS = 8;
@@ -2889,36 +2863,6 @@ var QS_BUDGET_MS = 30000;
 // Frame thresholds (luma 0-1).
 var QS_BLACK = 0.07, QS_DARK = 0.16, QS_CLIP_LO = 16 / 255, QS_CLIP_HI = 240 / 255, QS_BRIGHT_SHARE = 0.45;
 var QS_FLASH_JUMP = 0.25, QS_CUT_DIFF = 0.12, QS_CUT_RATIO = 4;
-
-function qsTag(x) { return Object.prototype.toString.call(x); }
-function qsBytes(v) {
-  if (qsTag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
-  if (v && typeof v.byteLength === "number" && v.buffer && qsTag(v.buffer) === "[object ArrayBuffer]") return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
-  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
-  return null;
-}
-// The host's services for this module: runFFmpeg(args, signal), readBytes(path), remove(path), join(...parts),
-// mkdir(dir), mtimeMs(path), readText(path), writeText(path, text). Members the host lacks are null.
-function qsHostIO() {
-  var rt = hostSdk?.media, fs = hostSdk?.files;
-  var fn = function (o, m) { return !!o && typeof o[m] === "function"; };
-  return {
-    runFFmpeg: fn(rt, "runFFmpeg") ? function (args, signal) { return rt.runFFmpeg(args, true, signal); } : null,
-    readBytes: fn(fs, "readFile") ? async function (p) { return qsBytes(await fs.readFile(p)); } : null,
-    remove: fs ? async function (p) {
-      var tries = ["removeFile"];
-      for (var i = 0; i < tries.length; i++) {
-        if (!fn(fs, tries[i])) continue;
-        try { await (tries[i] === "removeFile" ? fs.removeFile({ filePath: p }) : fs[tries[i]](p)); return; } catch (e) { /* the next one */ }
-      }
-    } : null,
-    join: fn(fs, "join") ? function () { return String(fs.join.apply(fs, arguments)); } : null,
-    mkdir: fn(fs, "mkdir") ? async function (d) { (await fs.mkdir(d, { recursive: true })); } : null,
-    mtimeMs: fn(fs, "stat") ? async function (p) { var s = (await fs.stat(p)); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
-    readText: fn(fs, "readFile") ? async function (p) { var v = await fs.readFile(p, "utf8"); return typeof v === "string" ? v : new TextDecoder().decode(qsBytes(v)); } : null,
-    writeText: fn(fs, "writeFile") ? async function (p, t) { await fs.writeFile(p, t); } : null,
-  };
-}
 
 // Pure: per-frame statistics of QS_W x QS_H grey frames packed in `bytes`.
 function qsFrameStats(bytes, w, h) {
@@ -3012,81 +2956,71 @@ function qsFallback(resource, ms, windows) {
 }
 function qsAbortError() { var e = new Error("cancelled"); e.name = "AbortError"; return e; }
 
-async function quickScore(resource, opts) {
-  opts = opts || {};
-  var t0 = Date.now(), io = opts.io || qsHostIO(), signal = opts.signal, fps = opts.fps || QS_FPS;
-  var dur = Number(resource.durationSeconds) || 0;
-  var deadline = t0 + (opts.budgetMs == null ? QS_BUDGET_MS : opts.budgetMs);
-  if (signal && signal.aborted) throw qsAbortError();
-  var dataDir = opts.dataDir || null;
-  if (!(dur > 0) || !resource.path || !io.runFFmpeg || !io.readBytes || !io.join || !dataDir) return qsFallback(resource, Date.now() - t0, opts.windows);
-  // The decoded span: the given windows, else QS_HEAD .. QS_HEAD + QS_SPAN.
-  var ws = opts.windows && opts.windows.length ? opts.windows : null;
-  var a = ws ? Math.max(0, Math.min.apply(null, ws.map(function (x) { return x.start; }))) : Math.min(QS_HEAD, Math.max(0, dur - QS_BIN));
-  var b = ws ? Math.min(dur, Math.max.apply(null, ws.map(function (x) { return x.end; }))) : Math.min(dur, a + QS_SPAN);
-  var dir = io.join(dataDir, "quick-score");
-  var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
-  var mtime = 0;
-  try { mtime = io.mtimeMs ? Math.round((await io.mtimeMs(resource.path)) || 0) : 0; } catch (e) { mtime = 0; }
-  // mtime is 0 when the host lacks FileSystem.stat, so the duration also keys the cache (a file replaced at the same
-  // path with different media is not served stale scores; Mini Vlog review).
-  var durKey = Number(resource.durationSeconds || 0).toFixed(3);
-  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
-  var cacheFile = io.join(dir, safe + ".json");
-  if (io.readText && !ws) {
-    try {
-      var c = JSON.parse(await io.readText(cacheFile));
-      if (c && c.key === key && c.result) return Object.assign({}, c.result, { cached: true, ms: Date.now() - t0 });
-    } catch (e) { /* no cache yet */ }
-  }
-  if (Date.now() > deadline) return qsFallback(resource, Date.now() - t0, opts.windows);
-  try { if (io.mkdir) await io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
-  var tmp = io.join(dir, safe + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".gray");
-  var controller = typeof AbortController === "undefined" ? null : new AbortController();
-  var relay = function () { if (controller) controller.abort(); };
-  var timer = controller ? setTimeout(relay, Math.max(1000, deadline - Date.now())) : null;
-  if (signal) signal.addEventListener("abort", relay);
-  try {
-    await io.runFFmpeg(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", a.toFixed(3), "-t", (b - a).toFixed(3), "-i", resource.path,
-      "-an", "-vf", "fps=" + fps + ",scale=" + QS_W + ":" + QS_H + ",setsar=1,format=gray", "-f", "rawvideo", tmp], controller ? controller.signal : undefined);
-    var bytes = await io.readBytes(tmp);
-    if (!bytes || bytes.length < QS_W * QS_H) throw new Error("no frames");
-    var stats = qsFrameStats(bytes, QS_W, QS_H);
-    var cuts = qsSceneCuts(stats, fps, a);
-    var windows = qsWindowScores(stats, fps, a, ws || qsBins(dur, a, b - a), cuts);
-    var result = { rid: resource.rid, windows: windows, sceneCuts: cuts, ms: Date.now() - t0, fallback: false, cached: false, duration: dur };
-    if (io.writeText && !ws) { try { await io.writeText(cacheFile, JSON.stringify({ key: key, result: result })); } catch (e) { /* no cache, no harm */ } }
-    return result;
-  } catch (e) {
-    if (signal && signal.aborted) throw qsAbortError();
-    return qsFallback(resource, Date.now() - t0, opts.windows);
-  } finally {
-    if (timer) clearTimeout(timer);
-    if (signal) signal.removeEventListener("abort", relay);
-    if (io.remove) { try { await io.remove(tmp); } catch (e) { /* left behind */ } }
-  }
-}
 
-async function quickScoreAll(resources, opts) {
-  opts = opts || {};
-  var results = new Map(), total = resources.length, done = 0, next = 0;
-  var conc = Math.max(1, Math.min(opts.concurrency || 3, total || 1));
-  var t0 = Date.now(), budget = opts.budgetMs == null ? QS_BUDGET_MS : opts.budgetMs;
-  async function worker() {
-    while (next < total) {
-      var r = resources[next++];
-      if (opts.signal && opts.signal.aborted) throw qsAbortError();
-      var left = budget - (Date.now() - t0);
-      var res = left > 0 ? await quickScore(r, Object.assign({}, opts, { budgetMs: left, onProgress: null })) : qsFallback(r, 0, null);
-      results.set(r.rid, res);
-      done++;
-      if (opts.onProgress) { try { opts.onProgress({ done: done, total: total, rid: r.rid }); } catch (e) { /* the UI only */ } }
-    }
-  }
-  var workers = [];
-  for (var i = 0; i < conc; i++) workers.push(worker());
-  await Promise.all(workers);
-  return results;
+function clipAnalysisIssue(code,message,cause){return Object.assign(Error(message),{code:'CLIP_ANALYSIS_'+code,publicMessage:message,...cause?{cause}:{}});}
+function clipAnalysisResource(resource){
+ if(!resource||typeof resource.rid!=='string'||!resource.rid||resource.rid.length>1024||typeof resource.path!=='string'||!resource.path||resource.path.length>8192||resource.path.includes('\0')||!Number.isFinite(resource.durationSeconds)||resource.durationSeconds<=0)throw clipAnalysisIssue('INPUT','The local video analysis input is invalid.');
+ return {rid:resource.rid,path:resource.path,durationSeconds:resource.durationSeconds};
+}
+function clipAnalysisScope(opts){
+ if(!opts||typeof opts!=='object'||Array.isArray(opts)||typeof opts.dataDir!=='string'||!opts.dataDir||opts.dataDir.length>8192||opts.dataDir.includes('\0')||opts.onProgress!==undefined&&typeof opts.onProgress!=='function'||opts.isCurrent!==undefined&&typeof opts.isCurrent!=='function'||opts.budgetMs!==undefined&&(!Number.isFinite(opts.budgetMs)||opts.budgetMs<0||opts.budgetMs>300000)||opts.deadline!==undefined&&!Number.isFinite(opts.deadline))throw clipAnalysisIssue('INPUT','The local video analysis scope is invalid.');
+ const signal=opts.signal,isCurrent=opts.isCurrent||(()=>true);
+ if(signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw clipAnalysisIssue('INPUT','The local video analysis cancellation signal is invalid.');
+ return ()=>{if(signal?.aborted||!isCurrent())throw clipAnalysisIssue('STOPPED','Local video analysis ended before completion.');};
+}
+async function quickScore(resource,opts={}){
+ const current=clipAnalysisScope(opts),input=clipAnalysisResource(resource);opts={...opts};current();
+ const client=opts.client??(typeof hostSdk!=='undefined'?hostSdk:null),files=client?.files,media=client?.media,t0=Date.now(),fps=opts.fps??QS_FPS,dur=input.durationSeconds;
+ if(!Number.isSafeInteger(fps)||fps<1||fps>60||typeof opts.dataDir!=='string'||!opts.dataDir||typeof files?.fingerprint!=='function')throw clipAnalysisIssue('UNSUPPORTED','Update Selects to verify original video contents before local analysis.');
+ if(opts.windows!=null&&!Array.isArray(opts.windows))throw clipAnalysisIssue('INPUT','The local video analysis windows are invalid.');
+ const ws=opts.windows==null?null:opts.windows.map(w=>({start:w?.start,end:w?.end}));
+ if(ws&&(!Array.isArray(opts.windows)||!ws.length||ws.length>256||ws.some(w=>!Number.isFinite(w.start)||!Number.isFinite(w.end)||w.start<0||w.end<=w.start||w.end>dur)))throw clipAnalysisIssue('INPUT','The local video analysis windows are invalid.');
+ const a=ws?Math.min(...ws.map(w=>w.start)):Math.min(QS_HEAD,Math.max(0,dur-QS_BIN)),b=ws?Math.max(...ws.map(w=>w.end)):Math.min(dur,a+QS_SPAN);
+ if(b-a>QS_SPAN)throw clipAnalysisIssue('INPUT','The local video analysis span exceeds its limit.');
+ const windows=ws||qsBins(dur,a,b-a),deadline=Math.min(t0+(opts.budgetMs??QS_BUDGET_MS),opts.deadline??Infinity);
+ const hashFile=async path=>{current();const row=await files.fingerprint(path);current();if(!row||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))throw clipAnalysisIssue('SOURCE','The original video content could not be confirmed.');return row.sha256;};
+ const source=await readAssetFileIdentity(files,input.path,hashFile,current);current();
+ const observation={path:input.path,size:source.bytes,sha256:source.sha256};
+ const fallback=()=>({...qsFallback(input,Date.now()-t0,windows),sourceObservation:observation});
+ if(typeof media?.runFFmpeg!=='function'||Date.now()>=deadline)return fallback();
+ const policy=[QS_VERSION,fps,QS_W,QS_H,QS_HEAD,QS_BIN,QS_SPAN,QS_BLACK,QS_DARK,QS_CLIP_LO,QS_CLIP_HI,QS_BRIGHT_SHARE,QS_FLASH_JUMP,QS_CUT_DIFF,QS_CUT_RATIO];
+ const bytes=new TextEncoder().encode(JSON.stringify([input,source,policy,windows])),digest=await crypto.subtle.digest('SHA-256',bytes);current();
+ const key=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join(''),directory=files.join(opts.dataDir,'quick-score-v3');
+ const valid=result=>{
+  if(!result||result.rid!==input.rid||result.duration!==dur||result.fallback!==false||result.cached!==false||!Number.isFinite(result.ms)||result.ms<0||!Array.isArray(result.windows)||result.windows.length!==windows.length||!Array.isArray(result.sceneCuts)||result.sceneCuts.length>Math.ceil((b-a)*fps)||result.sceneCuts.some(t=>!Number.isFinite(t)||t<a||t>b))return false;
+  return result.windows.every((w,i)=>w&&w.start===windows[i].start&&w.end===windows[i].end&&['motion','sharp','luma','clipped'].every(k=>Number.isFinite(w[k])&&w[k]>=0&&w[k]<=1)&&w.flags&&Object.keys(w.flags).length===7&&['black','fade','flash','blur','dark','bright','cut'].every(k=>typeof w.flags[k]==='boolean')&&(w.empty===undefined||w.empty===true));
+ };
+ const read=async path=>{const bytes=await readBundledAssetBytes(files,path,262144,current);current();const result=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));if(!valid(result))throw clipAnalysisIssue('CACHE','The local analysis result does not match its original input and policy.');return result;};
+ let result;
+ try{
+  const prepared=await prepareDerivedAsset(files,{directory,key,sourcePath:input.path,source,extension:'json',cleanupRequired:true,signal:opts.signal,isCurrent:()=>{current();return true;},hashFile,
+   produce:async(snapshot,target)=>{
+    const maximum=(Math.ceil((b-a)*fps)+2)*QS_W*QS_H;
+    const frames=await readTransientAsset(client,{directory,extension:'gray',maxBytes:maximum,deadline,timeoutMs:Math.max(1,deadline-Date.now()),signal:opts.signal,isCurrent:()=>{current();return true;},
+     produce:async({path,current:live})=>{live();await runAssetMediaTool(media,'runFFmpeg',['-hide_banner','-loglevel','error','-nostdin','-y','-ss',a.toFixed(3),'-t',(b-a).toFixed(3),'-i',snapshot,'-an','-vf','fps='+fps+',scale='+QS_W+':'+QS_H+',setsar=1,format=gray','-f','rawvideo',path],{signal:opts.signal,isCurrent:()=>{current();return true;},deadline,timeoutMs:Math.max(1,deadline-Date.now())});}});
+    current();if(frames.length<QS_W*QS_H||frames.length%(QS_W*QS_H))throw bundledAssetIssue('MEDIA','A complete video preview could not be decoded.');
+    const stats=qsFrameStats(frames,QS_W,QS_H),cuts=qsSceneCuts(stats,fps,a),score={rid:input.rid,windows:qsWindowScores(stats,fps,a,windows,cuts),sceneCuts:cuts,ms:0,fallback:false,cached:false,duration:dur};
+    if(!valid(score))throw clipAnalysisIssue('RESULT','The decoded analysis result is invalid.');current();await files.writeFile(target,JSON.stringify(score));current();
+   },verify:read});
+  current();result={...await read(prepared.path),cached:prepared.reused,ms:Date.now()-t0,sourceObservation:observation};
+ }catch(error){
+  current();
+  if(error?.terminal||!['BUNDLED_ASSET_MEDIA','BUNDLED_ASSET_PREPARE'].includes(error?.code))throw error;
+  const after=await readAssetFileIdentity(files,input.path,hashFile,current);if(after.sha256!==source.sha256||after.bytes!==source.bytes)throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed during local analysis. Reload the Project inputs.');
+  return fallback();
+ }
+ current();return result;
+}
+async function quickScoreAll(resources,opts={}){
+ const current=clipAnalysisScope(opts);opts={...opts};current();
+ if(!Array.isArray(resources)||resources.length>256||new Set(resources.map(r=>r?.rid)).size!==resources.length)throw clipAnalysisIssue('INPUT','The local analysis selection is invalid.');
+ if(opts.concurrency!==undefined&&(!Number.isSafeInteger(opts.concurrency)||opts.concurrency<1||opts.concurrency>3))throw clipAnalysisIssue('INPUT','The local analysis concurrency is invalid.');
+ const inputs=resources.map(clipAnalysisResource),results=new Map(),total=inputs.length,deadline=Math.min(Date.now()+(opts.budgetMs??QS_BUDGET_MS),opts.deadline??Infinity),controller=new AbortController();
+ const onAbort=()=>controller.abort();opts.signal?.addEventListener('abort',onAbort,{once:true});
+ let next=0,done=0,failure;
+ const worker=async()=>{try{while(next<total){current();const input=inputs[next++],score=await quickScore(input,{...opts,signal:controller.signal,deadline,budgetMs:Math.max(0,deadline-Date.now())});current();results.set(input.rid,score);done++;try{opts.onProgress?.({done,total,rid:input.rid});}catch{}current();}}catch(error){failure??=error;controller.abort();}};
+ try{await Promise.all(Array.from({length:Math.min(3,Math.max(1,opts.concurrency??3),total||1)},worker));if(failure)throw failure;current();return results;}
+ finally{opts.signal?.removeEventListener('abort',onAbort);}
 }
 
 // Pure: windows of `durationNeeded` seconds for `role`, best first (see the API above).
@@ -3143,6 +3077,19 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
   }
   return out;
 }
+
+function clipAnalysisSources(results){
+ if(!Array.isArray(results)||results.length>256)throw clipAnalysisIssue('RESULT','The local analysis source observations are incomplete.');
+ const seen=new Map();
+ for(const result of results){
+  const row=result?.scores?.sourceObservation;
+  if(!row||typeof row.path!=='string'||!row.path||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))throw clipAnalysisIssue('RESULT','The local analysis source observation could not be confirmed.');
+  const before=seen.get(row.path);if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed between analysis observations.');
+  seen.set(row.path,{path:row.path,size:row.size,sha256:row.sha256});
+ }
+ return [...seen.values()];
+}
+// clip-analysis:end
 // quick-score:end
 
 // The title layout, embedded verbatim from assets/title-lockup.tsx (tests/panel.test.cjs checks it), so the preview
@@ -3833,22 +3780,20 @@ function mvFootageCounts(skipped: any) {
 function mvFootageNotes(lang: Lang, c: any) {
   return [c.notAnalysed ? t(lang, "betterPicks", { count: c.notAnalysed }) : "", c.unusable ? t(lang, "unusable", { count: c.unusable }) : ""];
 }
-// The plugin's data folder (<home>/.selects/plugin-data/<id>) through the host's FileSystem (paths joined by the host,
-// so Windows works), created when missing; the quick local check caches its scores there. null when this host lacks
-// the members: the check then gives evenly spaced windows and the panel says a newer Selects checks clips better.
-async function mvHostDataDir(id: string): Promise<string | null> {
+// Resolve the analysis workspace through the captured client. A missing workspace
+// stops source-bound evaluation; it cannot authorize unobserved cached results.
+async function mvHostDataDir(id: string, client: any = hostSdk): Promise<string | null> {
   try {
-    const fs = hostSdk?.files;
+    const fs = client?.files;
     if (!fs || typeof fs.join !== "function" || typeof fs.homedir !== "function") return null;
     const dir = String(fs.join(fs.homedir(), ".selects", "plugin-data", id));
     if (typeof fs.mkdir === "function") (await fs.mkdir(dir, { recursive: true }));
     return dir;
   } catch { return null; }
 }
-// Whether this host can run the quick local check at all (qsHostIO: the host's ffmpeg and file reads).
-function mvQuickCheckAvailable(dataDir: string | null) {
-  const io: any = qsHostIO();
-  return !!(dataDir && io.runFFmpeg && io.readBytes && io.join);
+// Decoder availability is separate from mandatory original-content observation.
+function mvQuickCheckAvailable(dataDir: string | null, client: any = hostSdk) {
+  return !!(dataDir && client?.media?.runFFmpeg && client?.files?.fingerprint);
 }
 
 function SectionSlider({ lang, peaks, total, section, videoSeconds, barSeconds, snap, onChange, disabled, audio }: {
@@ -4165,7 +4110,7 @@ function reserveAssetFiles(files,current,owner){
 }
 
 async function prepareDerivedAsset(files,options){
- const {directory,key,sourcePath,source,extension='mp4',isCurrent=()=>true,signal,hashFile,produce,verify}=options??{};
+ const {directory,key,sourcePath,source,extension='mp4',cleanupRequired=false,isCurrent=()=>true,signal,hashFile,produce,verify}=options??{};
  if(typeof isCurrent!=='function')throw bundledAssetIssue('INPUT','The derived media liveness check must be callable.');
  if(signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw bundledAssetIssue('INPUT','The derived media cancellation signal is invalid.');
  const current=()=>{if(signal?.aborted||!isCurrent())throw bundledAssetIssue('STOPPED','The template run ended before media preparation completed.');};
@@ -4173,7 +4118,7 @@ async function prepareDerivedAsset(files,options){
  const valid=value=>value&&typeof value.sha256==='string'&&/^[0-9a-f]{64}$/.test(value.sha256)&&Number.isSafeInteger(value.bytes)&&value.bytes>0;
  const freshSource=async()=>{if(!same(await readAssetFileIdentity(files,sourcePath,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');};
  current();
- if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!valid(source)||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png','f32'].includes(extension)||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
+ if(typeof directory!=='string'||!directory||typeof sourcePath!=='string'||!sourcePath||!valid(source)||typeof key!=='string'||!/^[0-9a-f]{64}$/.test(key)||!['mp4','m4a','wav','mp3','png','f32','json'].includes(extension)||typeof cleanupRequired!=='boolean'||[isCurrent,hashFile,produce,verify].some(fn=>typeof fn!=='function'))throw bundledAssetIssue('INPUT','The derived media request is invalid.');
  if(['join','stat','readFile','readRange','exists','mkdir','writeFile','compareAndReplace','copyFile','rename','removeFile'].some(name=>typeof files?.[name]!=='function'))throw bundledAssetIssue('UNSUPPORTED','Update Selects to prepare media files safely.');
  const indexDirectory=files.join(directory,'index'),objectDirectory=files.join(directory,'objects',key),indexPath=files.join(indexDirectory,key+'.json');
  const cached=async()=>{
@@ -4206,7 +4151,7 @@ async function prepareDerivedAsset(files,options){
  if(typeof owner!=='string'||!/^[0-9a-f-]{36}$/i.test(owner))throw bundledAssetIssue('UNSUPPORTED','The media preparation owner could not be created.');
  current();await files.mkdir(directory,{recursive:true});current();
  const snapshot=files.join(directory,'.source-'+owner),temporary=files.join(directory,'.output-'+owner+'.'+extension+'.tmp');
- let result;const reservations=reserveAssetFiles(files,current,owner);
+ let result,preparationFailure;const reservations=reserveAssetFiles(files,current,owner);
 
  try{
   // Reserve each private path exclusively before copying/encoding over it.
@@ -4233,12 +4178,14 @@ async function prepareDerivedAsset(files,options){
   if(!confirmed)throw bundledAssetIssue('PUBLISH','The prepared media index could not be confirmed. Inspect the cache before starting again.');
   result={...confirmed,reused:false};
  }catch(error){
+  preparationFailure=error;
   if(error?.terminal||error?.code==='host-missing'||typeof error?.publicMessage==='string'||/^BUNDLED_ASSET_/.test(error?.code??''))throw error;
   throw bundledAssetIssue('DERIVED','Prepared media could not be completed. Check the source, available storage and media tools.',error);
  }finally{
   // Only this invocation's reserved staging paths are disposable. Published
   // objects/indexes may already be referenced by a different run or old Draft.
-  await reservations.cleanup();
+  const cleanupFailures=await reservations.cleanup({observeFailure:cleanupRequired});
+  if(cleanupRequired&&cleanupFailures.length)throw Object.assign(bundledAssetIssue('CLEANUP','Analysis workspace cleanup could not be confirmed. Inspect the preparation workspace before starting again.',preparationFailure),{terminal:true,cleanupFailures});
  }
  // Cleanup is asynchronous too: a detached owner must not receive a late success.
  current();return result;
@@ -4250,7 +4197,7 @@ async function prepareDerivedAsset(files,options){
 async function readTransientAsset(client,options){
  const {directory,extension,maxBytes,produce,signal,timeoutMs=120000,deadline:requestedDeadline,isCurrent=()=>true}=options??{};
  const files=client?.files,media=client?.media;
- if(typeof directory!=='string'||!directory||!['f32','mp3'].includes(extension)||!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>32*1024*1024||typeof produce!=='function'||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||requestedDeadline!==undefined&&!Number.isFinite(requestedDeadline)||signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw bundledAssetIssue('INPUT','The temporary media request is invalid.');
+ if(typeof directory!=='string'||!directory||!['f32','mp3','gray'].includes(extension)||!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>32*1024*1024||typeof produce!=='function'||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||requestedDeadline!==undefined&&!Number.isFinite(requestedDeadline)||signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw bundledAssetIssue('INPUT','The temporary media request is invalid.');
  const deadline=Math.min(Date.now()+timeoutMs,requestedDeadline??Infinity);
  const live=()=>{try{return !signal?.aborted&&isCurrent();}catch{return false;}};
  const current=()=>{if(!live())throw bundledAssetIssue('STOPPED','Media preparation ended before completion.');if(Date.now()>=deadline)throw bundledAssetIssue('TIMEOUT','Media preparation timed out.');};
@@ -4947,9 +4894,13 @@ function cueGrid(cue: any) {
 // authoring code under that identity; only confirm an existing result or retire
 // a definitely unstarted operation through the durable owner.
 function miniAssemblyRecoveryOptions(sdk: any, pending: any, check: () => void) {
-  if (pending?.source?.startsWith("// @template-assembly 1\n// @template-assembly-intent 1\n")) return {};
-  return { retireUnstarted: true, verifyAssembly: async (value: any, assembly: any, look: any) => {
+  const legacy = !pending?.source?.startsWith("// @template-assembly 1\n// @template-assembly-intent 1\n");
+  if (!legacy && !pending?.config?.analysisSources?.length) return {};
+  return { retireUnstarted: legacy, verifyAssembly: async (value: any, assembly: any, look: any) => {
     check();
+    const sources = value.config.analysisSources;
+    if (sources !== undefined) { await observeSourceFiles(panelLocalClient(sdk).files, Array.isArray(sources) ? sources.map(row => row.path) : null, sources); check(); }
+    if (!legacy) return;
     const roots = await locateRoots(sdk); check();
     const source = await readText(roots.plugin, "scripts/verify-assembly.js"); check();
     if (!source.startsWith("// @template-assembly-verification 1\n") || source.split("__CONFIG__").length !== 2 || new TextEncoder().encode(source).length > 131072) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The updated Mini assembly verifier could not be confirmed.");
@@ -5536,21 +5487,18 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     return { list, failed };
   }
 
-  // The quick local check of clips without analysis (the kit's quickScoreAll, host ffmpeg, no shell):
-  // MV_LOCAL_CONCURRENCY clips at a time within a shared MV_LOCAL_BUDGET_MS, cached by the kit in the data folder per
-  // clip and file time. The progress line says "Checking clips N/M"; Cancel (in the Build button's slot) and a Project
-  // switch abort it. A clip it cannot decode (no host ffmpeg, an error, the budget spent) gets evenly spaced windows
-  // (mvLocalCandidates), so the build goes ahead; the next Build checks such a clip again. Throws only CANCELLED or
-  // STALE. `unavailable`: this host lacks the members the check needs (the result then says a newer Selects picks
-  // better). `controller` is the build's: Cancel aborts it, which also stops the scene search running alongside.
-  // `onProgress(done)`: how many clips the check has finished.
+  // The shared evaluator owns source-bound scores; bundled-assets owns its
+  // snapshot, cache and settled media/cleanup lifetime. Ordinary decode fallback
+  // is separate from source uncertainty, cancellation and cleanup failures.
+  // `controller` belongs to this Build; progress and UI state stay here.
   async function checkLocalClips(clips: any[], pid: string, controller: AbortController, onProgress: (done: number) => void, check: () => void = () => { if (!mountedRef.current || projectRef.current !== pid) throw STALE; }): Promise<{ results: any[]; unavailable: boolean }> {
     const current = () => { check(); if (controller.signal.aborted) throw CANCELLED; };
     current();
     if (!clips.length) return { results: [], unavailable: false };
-    const dataDir = (await mvHostDataDir(PLUGIN_ID));
+    const client = panelLocalClient(sdk);
+    const dataDir = (await mvHostDataDir(PLUGIN_ID, client));
     current();
-    const unavailable = !mvQuickCheckAvailable(dataDir);
+    const unavailable = !mvQuickCheckAvailable(dataDir, client);
     localAbortRef.current = controller;
     setChecking(true);
     const total = clips.length, started = Date.now();
@@ -5558,7 +5506,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     say(0);
     try {
       const scored: Map<string, any> = await quickScoreAll(clips.map((r: any) => ({ rid: r.rid, path: r.path, durationSeconds: r.duration })), {
-        concurrency: MV_LOCAL_CONCURRENCY, budgetMs: MV_LOCAL_BUDGET_MS, dataDir, signal: controller.signal,
+        client, isCurrent: () => { current(); return true; }, concurrency: MV_LOCAL_CONCURRENCY, budgetMs: MV_LOCAL_BUDGET_MS, dataDir, signal: controller.signal,
         onProgress: (p: any) => { try { current(); say(p.done); } catch { controller.abort(); } } });
       current();
       const results = clips.map((r: any) => ({ rid: r.rid, duration: r.duration, scores: scored.get(r.rid) || null }));
@@ -5637,11 +5585,9 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       const shotsDetail: Say | undefined = chosenVideos.length ? undefined : (l) => t(l, "photosOnly");
       if (shotsDetail) advance("shots", 0, shotsDetail);
       let found = cached;
-      // The quick local check's results are kept with the scene search; a clip it could not decode (fallback windows)
-      // is checked again by the next Build, the others are reused.
-      const localKept: any[] = cached ? cached.local.results.filter((r: any) => r.scores && !r.scores.fallback) : [];
-      const localTodo: any[] = localClips.filter((r: any) => !localKept.some((k: any) => k.rid === r.rid));
-      if (!cached || cached.failed.length || localTodo.length) {
+      // Scene requests can reuse catalog observations; local scores are always
+      // confirmed through the one source-bound file cache before planning.
+      if (!cached || cached.failed.length || localClips.length) {
         // Search everything the first time; afterwards retry only the clips whose search failed.
         const todo: string[] = cached ? cached.failed : rids;
         // The scene search and the quick local check run side by side. The step's share counts both (searched videos
@@ -5650,7 +5596,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         let stopping = false;
         const shareOf = (detail: Say) => {
           if (stopping) return;
-          const n = todo.length + localTodo.length;
+          const n = todo.length + localClips.length;
           share.at = Math.max(share.at, n ? (share.scene + share.local) / n : 0);
           advance("shots", share.at, detail);
         };
@@ -5660,8 +5606,8 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
           (done) => { share.scene = done; if (todo.length) shareOf((l) => t(l, "videosChecked", { done, count: todo.length })); })
           // A failed search stops the local check too, so nothing keeps running after the build ends.
           .catch((e) => { controller.abort(); throw e; });
-        const localRun = checkLocalClips(localTodo, pid, controller,
-          (done) => { share.local = done; shareOf((l) => t(l, "checkingClipsN", { done, count: localTodo.length })); }, check);
+        const localRun = checkLocalClips(localClips, pid, controller,
+          (done) => { share.local = done; shareOf((l) => t(l, "checkingClipsN", { done, count: localClips.length })); }, check);
         let fresh: any, checked: any;
         try {
           [fresh, checked] = await Promise.all([sceneRun, localRun]);
@@ -5678,8 +5624,8 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         const retried = new Set(todo);
         const scene = [...(cached ? cached.scene.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))];
         // `list` is what the planner gets: the scene hits unchanged plus the local candidates on their scale (mvWithLocal).
-        const results = localClips.map((r: any) => localKept.find((k: any) => k.rid === r.rid) || checked.results.find((k: any) => k.rid === r.rid)).filter(Boolean);
-        const local = { results, unavailable: localTodo.length ? checked.unavailable : !!cached?.local?.unavailable };
+        const results = checked.results;
+        const local = { results, unavailable: checked.unavailable };
         found = { key, failed: fresh.failed, scene, local, list: mvWithLocal(scene, local.results, frozen.punch) };
         setCandidates(found);
       }
@@ -5709,9 +5655,11 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       // Verified native Image facts override display/cache dimensions. The same
       // frozen facts survive into Finish title and look, even after a refresh.
       const crops = { ...Object.fromEntries(inventory.resources.map((r: any) => [r.rid, { width: r.width, height: r.height }])), ...photoSizes };
+      const analysisSources = clipAnalysisSources(found.local?.results || []);
+      await observeSourceFiles(panelLocalClient(sdk).files, analysisSources.map(row => row.path), analysisSources); check();
       const pending = { scope: { pluginId: PLUGIN_ID, projectId: pid, runId: crypto.randomUUID() },
         config: { projectId: pid, draftName: frozen.draftName, picks: plan.picks, boundaries, crops,
-          music: music ? { resourceId: music.resourceId, sectionStart: frozen.sectionStart ?? 0, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound: frozen.clipSound, ambientDb: AMBIENT_DB },
+          music: music ? { resourceId: music.resourceId, sectionStart: frozen.sectionStart ?? 0, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound: frozen.clipSound, ambientDb: AMBIENT_DB, ...(analysisSources.length ? { analysisSources } : {}) },
         source: assets.scripts.assembleJs, finishAssets, frozen, photoSizes, plan, fitted, shortened: planShort(plan), unchecked: found.failed.length, quickUnavailable: !!found.local?.unavailable };
       attempt = pending; assemblyPendingRef.current[pid] = pending;
       await finishAssembly(pending, check, continuations);
@@ -5825,7 +5773,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     const planAt = (s: number) => {
       const p: any = mvPlanBuild({ candidates: scored.concat(photoCandsOf(inventory, onlyPhotos, usePhotos)), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(s) });
       // A search with failed clips is retried by Build, so its shortfall does not block Build yet.
-      return { ...p, retryable: !!(searched && searched.failed.length) };
+      return { ...p, retryable: !!(searched && searched.failed.length) || inventory.resources.some((r: any) => r.analysed === false && (!only || only.includes(r.rid))) };
     };
     return { build: planAt(seed), another: planAt(seed + 1) };
   }, [candidates, candKey, inventory, onlyPhotos, usePhotos, grid.bpm, grid.accepted, grid.approxBpm, grid.usableEnd, grid.onsets, pace, requested, musicStart, seed, fitted, selectedRids.length, beatPunch]);
@@ -6431,7 +6379,6 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   inventory.photos = inventory.photos || [];
   const sizes: Record<string, { width: number; height: number }> = { ...known };
   for (const ph of inventory.photos) if (ph.width > 0 && ph.height > 0) sizes[ph.rid] = { width: ph.width, height: ph.height };
-  const unanalysed = inventory.skipped?.unanalysed || 0;
 
   // Music, length and pace as the panel works them out for a bundled track at its defaults (Quick pace, Beat punch
   // and Start at the hook on).
@@ -6455,7 +6402,8 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   // Scene search over the handed videos (with the motion query, as Beat punch is on). Nobody can press Build again, so
   // videos whose search failed get one more try.
   say("Choosing shots");
-  const rids: string[] = inventory.resources.map((r: any) => r.rid);
+  const rids: string[] = inventory.resources.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);
+  const localClips: any[] = inventory.resources.filter((r: any) => r.analysed === false);
   const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
   const search = async (todo: string[]) => {
     const list: any[] = []; const failed: string[] = [];
@@ -6467,19 +6415,30 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
     }
     return { list, failed };
   };
-  let found = await search(rids);
-  if (found.failed.length) {
-    const retried = new Set(found.failed);
-    const again = await search(found.failed);
-    found = { list: [...found.list.filter((c: any) => !retried.has(c.rid)), ...again.list], failed: again.failed };
-  }
+  const controller = new AbortController(),analysisClient = panelLocalClient(sdk);
+  const current = () => { check(); if (controller.signal.aborted) throw templateIssue(t(bl, "stepFailed")); return true; };
+  const sceneRun = (async () => {
+    let value = await search(rids); current();
+    if (value.failed.length) {
+      const retried = new Set(value.failed), again = await search(value.failed); current();
+      value = { list: [...value.list.filter((c: any) => !retried.has(c.rid)), ...again.list], failed: again.failed };
+    }
+    return value;
+  })().catch(error => { controller.abort(); throw error; });
+  const localRun = quickScoreAll(localClips.map((r: any) => ({ rid: r.rid, path: r.path, durationSeconds: r.duration })), {
+    client: analysisClient, dataDir: roots.data, signal: controller.signal, isCurrent: current, concurrency: MV_LOCAL_CONCURRENCY, budgetMs: MV_LOCAL_BUDGET_MS,
+    onProgress: (p: any) => { current(); say(t(bl, "checkingClipsN", { done: p.done, count: p.total })); }
+  }).catch(error => { controller.abort(); throw error; });
+  let found: any,scored: Map<string, any>;
+  try { [found,scored] = await Promise.all([sceneRun, localRun]); current(); }
+  catch (error) { controller.abort(); await Promise.allSettled([sceneRun, localRun]); check(); throw error; }
+  const localResults = localClips.map((r: any) => ({ rid: r.rid, duration: r.duration, scores: scored.get(r.rid) }));
   if (found.failed.length) console.info("[mini-vlog] template run: scene search failed for", found.failed.join(", "));
-  const candidates = found.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }));
+  const candidates = mvWithLocal(found.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 })), localResults, punch);
   const photoCands = photoCandsOf(inventory, null, true);
   const plan: any = mvPlanBuild({ candidates: mvMotionBonus(candidates).concat(photoCands), bpm: grid.bpm, accepted: grid.accepted, approxBpm: grid.approxBpm, fps: 30, pace, requested, sectionStart: musicStart, usableEnd: grid.usableEnd, ...snapCuts, seed: String(TEMPLATE_SEED) });
   if (!plan.ok) {
-    const waiting = unanalysed ? " " + unanalysed + (unanalysed === 1 ? " video is" : " videos are") + " not analyzed yet, so it could not be used." : "";
-    throw templateIssue((MV_FAIL[plan.reason] ? t(bl, "fail." + plan.reason) : t(bl, "noPlan")) + waiting);
+    throw templateIssue(MV_FAIL[plan.reason] ? t(bl, "fail." + plan.reason) : t(bl, "noPlan"));
   }
 
   const fields: Record<string, string> = {};
@@ -6497,11 +6456,13 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
     .map((r: any) => [r.rid, { width: r.width, height: r.height }]));
   const draftName = "Mini Vlog " + chosen.label + " " + stamp(new Date());
   const clipSound = "ambient";
+  const analysisSources = clipAnalysisSources(localResults);
+  await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
   const pending = { scope: { pluginId: PLUGIN_ID, projectId: pid, runId: assemblyRunId, libraryId: context?.template?.libraryId },
     config: { projectId: pid, draftName, picks: plan.picks, boundaries: plan.schedule.cuts, crops,
-      music: music ? { resourceId: music.resourceId, sectionStart: musicStart, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound, ambientDb: AMBIENT_DB },
-    source: assembleJs, finishAssets, frozen, photoSizes: sizes, plan, fitted, shortened: false, unchecked: found.failed.length, quickUnavailable: false };
-  const completed = await continuations.workflow(pending, (value: any, a: any) => prepareMiniDecoration(value, a, check));
+      music: music ? { resourceId: music.resourceId, sectionStart: musicStart, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound, ambientDb: AMBIENT_DB, ...(analysisSources.length ? { analysisSources } : {}) },
+    source: assembleJs, finishAssets, frozen, photoSizes: sizes, plan, fitted, shortened: false, unchecked: found.failed.length, quickUnavailable: !!localClips.length && typeof analysisClient.media?.runFFmpeg !== "function" };
+  const completed = await continuations.workflow(pending, (value: any, a: any) => prepareMiniDecoration(value, a, check), () => {}, miniAssemblyRecoveryOptions(sdk, pending, check));
   check();
   // Opening is caller policy: the app takes the person to this verified Draft.
   return { sequenceId: completed.sequenceId };
@@ -6810,6 +6771,7 @@ async function createPanelLocalClient(sdk: any) {
     getOrCreateTmpDirPath: async () => environment.tempDirectory,
     exists: (path: string) => run("files.exists", [path]),
     stat: (path: string) => run("files.stat", [path]),
+    fingerprint: (path: string) => run("files.fingerprint", [path]),
     readdir: (path: string) => run("files.readdir", [path]),
     readRange,
     async readFile(path: string, encoding?: string) {

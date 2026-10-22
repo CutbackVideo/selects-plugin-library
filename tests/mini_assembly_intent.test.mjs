@@ -44,3 +44,10 @@ test('Mini music clock: explicit normal-speed overlay aligns to the declared Dra
 test('Mini plan contract: repeating one photo Resource rejects before authoring while repeated video Resources remain supported',async()=>{
  const f=fixture();f.cfg.picks.push({...f.cfg.picks[0]});f.cfg.boundaries.push(3.42);await assert.rejects(f.run(),/plan|photo|invalid/i);assert.equal(f.calls.creates,0);
 });
+test('Mini analysis source: content change after placement prevents the assembly commit',async()=>{
+ const f=fixture();f.cfg.analysisSources=[{path:'/analysis-original',size:4,sha256:'a'.repeat(64)}];let reads=0;f.files.fingerprint=async()=>({size:4,sha256:(++reads===1?'a':'b').repeat(64)});
+ await assert.rejects(f.run(),e=>e.code==='source-file-changed');assert.equal(f.calls.commits,0);assert.equal(reads,2);
+});
+test('Mini analysis source: unavailable original stops before any source probe or working Draft',async()=>{
+ const f=fixture();f.cfg.analysisSources=[{path:'/analysis-original',size:4,sha256:'a'.repeat(64)}];f.files.fingerprint=async()=>null;await assert.rejects(f.run(),e=>e.code==='source-file-missing');assert.equal(f.calls.creates,0);assert.equal(f.calls.commits,0);
+});

@@ -91,6 +91,33 @@ async function resolveTemplateMedia(selects,projectId,files,scratchName='Templat
  }
  return {resolved,failed};
 }
+function requireSourceFileSupport(files) {
+ if(typeof files?.fingerprint!=='function'){
+  const message='Update Selects to verify complete source file contents before creating this template.';
+  throw Object.assign(new Error(message),{code:'source-file-unsupported',publicMessage:message});
+ }
+}
+async function observeSourceFiles(files,paths,expected=null) {
+ const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code,publicMessage:message,cause});
+ if(!Array.isArray(paths)||paths.some(path=>typeof path!=='string'||!path||path.includes('\0')))throw issue('source-file-input','The selected source paths are invalid.');
+ const selected=[...new Set(paths)];
+ const valid=row=>row&&typeof row.path==='string'&&Number.isSafeInteger(row.size)&&row.size>0&&typeof row.sha256==='string'&&/^[0-9a-f]{64}$/.test(row.sha256);
+ if(expected!==null&&(!Array.isArray(expected)||expected.length!==selected.length||new Set(expected.map(row=>row?.path)).size!==expected.length||expected.some(row=>!valid(row)||!selected.includes(row.path))))throw issue('source-file-input','The expected source observations do not match the selection.');
+ if(!selected.length)return [];
+ requireSourceFileSupport(files);
+ const observed=[];
+ for(const path of selected){
+  let fingerprint;
+  try{fingerprint=await files.fingerprint(path);}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
+  const row={...fingerprint,path};
+  if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
+  const before=expected?.find(row=>row.path===path);
+  if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw issue('source-file-changed','The selected source file changed. Reload the Project inputs before trying again.');
+  observed.push({path,size:row.size,sha256:row.sha256});
+ }
+ return observed;
+}
 function bindMediaPlacement(before,rows,wanted) {
  const fail=()=>{throw Error('The media placement differs from its requested interval or source.');};
  const valid=list=>Array.isArray(list)&&list.length<=1024&&list.every(row=>row&&Number.isSafeInteger(row.clipId)&&row.clipId>=0&&typeof row.trackId==='string'&&row.trackId)&&new Set(list.map(row=>row.clipId)).size===list.length;
@@ -196,6 +223,12 @@ for(let offset=0;offset<unique.length;offset+=50){
 
 const cfg = __CONFIG__;
 validateMiniAssemblyConfig(cfg);
+const analysisSources=Object(cfg).analysisSources;
+const confirmAnalysisSources=async()=>{
+ if(analysisSources!==undefined)await observeSourceFiles(selects.files,Array.isArray(analysisSources)?analysisSources.map(row=>row?.path):null,analysisSources);
+};
+await confirmAnalysisSources();
+
 const p=selects.project(cfg.projectId),notes=[],W=1920,H=1080;
 // Observe each source on its own native grid. Never infer an original clock
 // from a resized output canvas or from the previous probe's first source.
@@ -274,6 +307,7 @@ const finalRows=await all(),main=finalRows.filter(row=>row.trackKind==='main'&&r
 if(main.length!==bindings.length||finalMeta.fps!==fps||finalMeta.durationFrames!==durationFrames||finalMeta.frameSize.width!==W||finalMeta.frameSize.height!==H)throw Error('The final assembly frame grid or placement differs from the plan.');
 for(const binding of bindings)await sourceMatches(binding,binding.sourceStart);
 await inspectImageTransforms(d,transforms,true);
+await confirmAnalysisSources();
 const beforeCommit=Object(cfg).__beforeCommit;if(typeof beforeCommit==='function')await beforeCommit(d);
 const commit=await d.commitAll('Mini Vlog: assemble');
 return {sequenceId:commit.createdDraftId,fps,totalFrames:endFrame,placed:bindings.length,ambientClips,notes};

@@ -13,6 +13,17 @@ try{
  requireValue(process.argv.slice(2).every(arg=>arg==='--check'),'Usage: node tools/sync_panel_modules.mjs [--check]');
  const registry=JSON.parse(readFileSync(path.join(root,'shared/panel-modules.json'),'utf8'));
  requireValue(registry.schemaVersion===1&&Array.isArray(registry.modules),'Invalid panel module registry');
+ const registered=new Map(registry.modules.map(module=>[module.id,module]));
+ for(const module of registry.modules){
+  const required=module.requires??[];
+  requireValue(Array.isArray(required)&&new Set(required).size===required.length,'Invalid required module dependencies');
+  for(const id of required){
+   const dependency=registered.get(id);
+   requireValue(typeof id==='string'&&id!==module.id&&dependency,'Missing required module dependency: '+id);
+   const delivered=new Set([...(dependency.targets??[]),...(dependency.compatibilityTargets??[]),...(dependency.buildTimeTargets??[])]);
+   for(const target of [...(module.targets??[]),...(module.compatibilityTargets??[]),...(module.buildTimeTargets??[])])requireValue(delivered.has(target),'Required runtime module is not delivered to '+target+': '+id);
+  }
+ }
  const ids=new Set(),updates=new Map(),consumers=new Set();
  for(const module of registry.modules){
   requireValue(typeof module.id==='string'&&/^[a-z][a-z0-9-]*$/.test(module.id)&&!ids.has(module.id),'Invalid or duplicate module ID');ids.add(module.id);

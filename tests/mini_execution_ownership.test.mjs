@@ -13,7 +13,7 @@ test('Mini run ownership: A to B to A cannot revive an old assembly callback',as
 });
 function local(){
  const checking=[],controller=new AbortController(),calls={score:0},hooks={};let release;const done=new Promise(resolve=>release=resolve);
- const box=vm.createContext({mountedRef:{current:true},projectRef:{current:'p'},localAbortRef:{current:null},PLUGIN_ID:'mini-vlog',MV_LOCAL_CONCURRENCY:2,MV_LOCAL_BUDGET_MS:1000,CANCELLED:Symbol('cancelled'),STALE:Symbol('stale'),
+ const box=vm.createContext({sdk:{},panelLocalClient:()=>({}),mountedRef:{current:true},projectRef:{current:'p'},localAbortRef:{current:null},PLUGIN_ID:'mini-vlog',MV_LOCAL_CONCURRENCY:2,MV_LOCAL_BUDGET_MS:1000,CANCELLED:Symbol('cancelled'),STALE:Symbol('stale'),
   mvHostDataDir:async()=>hooks.folder?hooks.folder():'/data',mvQuickCheckAvailable:()=>true,setChecking:v=>checking.push(v),console:{info(){}},
   quickScoreAll:async()=>{calls.score++;return hooks.hold?done:new Map();}});
  vm.runInContext(topLevel(nested,'checkLocalClips')+'\nthis.local=checkLocalClips;',box);

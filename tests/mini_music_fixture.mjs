@@ -9,9 +9,10 @@ const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS
 const panel=fs.readFileSync(process.env.MINI_MUSIC_PANEL||new URL('../plugins/mini-vlog/panel.tsx',import.meta.url),'utf8');
 const plain=esbuild.transformSync(panel,{loader:'tsx',format:'esm',target:'es2022',jsx:'preserve'}).code;
 const nested=plain.replace(/^  /gm,'');
-const names=['readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','templateStateJSON','presetFonts','snapshotMiniFinishAssets','prepareMiniDecoration','miniWorkflowResult','miniAssemblyRecoveryOptions','runMiniVlogTemplate'];
+const names=['readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','templateStateJSON','presetFonts','snapshotMiniFinishAssets','prepareMiniDecoration','miniWorkflowResult','miniAssemblyRecoveryOptions','mvWithLocal','MV_LOCAL_CONCURRENCY','MV_LOCAL_BUDGET_MS','runMiniVlogTemplate'];
 const source=names.filter(name=>!['templateStateJSON','snapshotMiniFinishAssets','prepareMiniDecoration','miniWorkflowResult','miniAssemblyRecoveryOptions'].includes(name)||plain.includes('function '+name+'(')).map(name=>topLevel(plain,name)).join('\n')+'\n'+topLevel(nested,'inventoryCurrent')+'\n'+topLevel(nested,'runLive')+'\n'+topLevel(nested,'endRun')+'\n'+topLevel(nested,'run')+'\n'+topLevel(nested,'finishAssembly')+'\n'+topLevel(nested,'decorate')+'\n'+topLevel(nested,'finishTitle')+'\n'+topLevel(nested,'build');
 const feature=panel.includes('// bundled-assets:start')?panel.slice(panel.indexOf('// bundled-assets:start'),panel.indexOf('// bundled-assets:end')):'';
+const analysisFeature=panel.includes('// clip-analysis:start')?panel.slice(panel.indexOf('// clip-analysis:start'),panel.indexOf('// clip-analysis:end')):'';
 const inputFeature=panel.slice(panel.indexOf('// native-image-input:start'),panel.indexOf('// native-image-input:end')).replace(/^export /gm,'');
 const adapter=plain.includes('function prepareMiniCue(')?topLevel(plain,'prepareMiniCue'):'';
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -42,7 +43,7 @@ export async function miniMusicFixture(t,{entry='template',own=false,silent=fals
  }};
  const check=()=>{if(!live)throw stopped;},stopped=Object.assign(Error('run detached'),{stopped:true});
  const noop=()=>{},busyRef={current:false};
- const globals={console:{warn:noop,info:noop},TextDecoder,TextEncoder,Uint8Array,crypto:webcrypto,setTimeout,clearTimeout,
+ const globals={AbortController,console:{warn:noop,info:noop},TextDecoder,TextEncoder,Uint8Array,crypto:webcrypto,setTimeout,clearTimeout,
   // This music/native boundary fixture stops at assembly dispatch. The real
   // durable owner and actual assembly script run in mini_assembly_receipts.
   executeTemplateAssembly:async(sdk,_files,_scope,config,source,current)=>{
@@ -70,7 +71,7 @@ export async function miniMusicFixture(t,{entry='template',own=false,silent=fals
   candidates:{key:'p|null|motion',failed:[],scene:[],list:[],local:{results:[],unavailable:false}},
   setBusy:noop,setStatus:value=>{if(value?.tone==='error')errors.push(value.say('en'));},setResult:noop,stopPreview:noop,advance:noop,stopAt:error=>()=>{errors.push(error);return error.message;},endRun:()=>{busyRef.current=false;},CANCELLED:Symbol('cancelled'),STALE:stopped,
  };
- const box=vm.createContext(globals);vm.runInContext(inputFeature+'\n'+feature+'\n'+adapter+'\n'+source+'\nthis.api={runMiniVlogTemplate,build,finishTitle,decorate,prepareMiniDecoration:typeof prepareMiniDecoration==="function"?prepareMiniDecoration:undefined,snapshotMiniFinishAssets:typeof snapshotMiniFinishAssets==="function"?snapshotMiniFinishAssets:undefined};',box);
+ const box=vm.createContext(globals);vm.runInContext(inputFeature+'\n'+feature+'\n'+analysisFeature+'\n'+adapter+'\n'+source+'\nthis.api={runMiniVlogTemplate,build,finishTitle,decorate,prepareMiniDecoration:typeof prepareMiniDecoration==="function"?prepareMiniDecoration:undefined,snapshotMiniFinishAssets:typeof snapshotMiniFinishAssets==="function"?snapshotMiniFinishAssets:undefined};',box);
  const run=async()=>{
   if(entry==='panel'){await box.api.build(1);return saved.at(-1);}
   try{await box.api.runMiniVlogTemplate(sdk,{projectId:'p',template:{runId:webcrypto.randomUUID(),inputs:{footage:[{resourceId:'original-0',kind:'video'},{resourceId:'original-1',kind:'video'}]},options:{}}},check,noop);}catch(error){if(!error.boundary)throw error;}

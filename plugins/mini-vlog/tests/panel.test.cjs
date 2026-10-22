@@ -68,7 +68,7 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
 {
   const vm = require('node:vm');
   const strings = require(path.join(root, 'dev', 'i18n-check.cjs')).extractStrings(panel).strings;
-  const start = panel.indexOf('function mvFootageCounts('), end = panel.indexOf('// The plugin\'s data folder (<home>');
+  const start = panel.indexOf('function mvFootageCounts('), end = panel.indexOf('async function mvHostDataDir(');
   assert.ok(start > 0 && end > start, 'the footage wording helpers exist');
   const js = panel.slice(start, end).replace(/(\w)\??: (?:any|number|string|Lang)\b/g, '$1');
   // The panel's t() over its STRINGS block (plural by count; plain numbers are enough for these sentences).
@@ -113,7 +113,7 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
   assert.ok(panel.includes('const WAIT_POLL_MAX = 30;') && panel.includes('if (waitReadsRef.current >= WAIT_POLL_MAX) setWaitStalled(true);')
     && panel.includes('waitReadsRef.current = 0; setWaitStalled(false); loadInventory(); };'), 'wait cap, reset by Refresh');
 }
-// The quick local check: the kit block between its markers (tests/quick-score.test.cjs), our mv-local block
+// The quick local check: canonical clip-analysis (tests/quick-score.test.cjs), our mv-local block
 // (tests/no-analysis.test.cjs), and the build path: analysed clips to the scene search, the others to quickScoreAll with
 // bounded concurrency, a shared budget, the data folder, progress, Cancel and a Project switch aborting it.
 {
@@ -126,17 +126,16 @@ for (const lang of Object.keys(require(path.join(root, 'dev', 'i18n-check.cjs'))
   for (const s of ['quickScoreAll(', 'concurrency: MV_LOCAL_CONCURRENCY, budgetMs: MV_LOCAL_BUDGET_MS, dataDir, signal: controller.signal', 'say(0)', 'say(p.done)',
     'if (controller.signal.aborted) throw CANCELLED;', 'if (!mountedRef.current || projectRef.current !== pid) throw STALE;']) assert.ok(check.includes(s), 'checkLocalClips: ' + s);
   for (const s of ['const rids: string[] = chosenVideos.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);', 'const localClips: any[] = chosenVideos.filter((r: any) => r.analysed === false);',
-    'const localKept: any[] = cached ? cached.local.results.filter((r: any) => r.scores && !r.scores.fallback) : [];',
-    'if (!cached || cached.failed.length || localTodo.length) {', '[fresh, checked] = await Promise.all([sceneRun, localRun]);', 'const localRun = checkLocalClips(localTodo, pid, controller,',
+    'if (!cached || cached.failed.length || localClips.length) {', '[fresh, checked] = await Promise.all([sceneRun, localRun]);', 'const localRun = checkLocalClips(localClips, pid, controller,',
     'controller.abort();\n          stopping = true;\n          advance("shots", share.at, (l) => t(l, "stopping"));\n          await Promise.allSettled([sceneRun, localRun]);\n          throw e;', 'if (stopping) return;',
-    't(l, "checkingClipsN", { done, count: localTodo.length })', 'share.at = Math.max(share.at, n ? (share.scene + share.local) / n : 0);',
+    't(l, "checkingClipsN", { done, count: localClips.length })', 'share.at = Math.max(share.at, n ? (share.scene + share.local) / n : 0);',
     'list: mvWithLocal(scene, local.results, frozen.punch)',
     'queries, pageSize: 4, checkAnalysis: false }', 'localAbortRef.current?.abort()', '{checking ? <ui.Button variant="primary" onClick={() => localAbortRef.current?.abort()}>{t(L, "cancel")}</ui.Button>',
     'if (e === CANCELLED && runLive(pid, epoch)) setStatus({ tone: "muted", say: (l: Lang) => t(l, "cancelled") });', '{result?.quickUnavailable ? <ui.Message tone="muted">{t(L, "quickUnavailable")}</ui.Message> : null}'])
     assert.ok(ui.includes(s), s);
   says('checkingClipsN', 'Checking clips {done}/{count}'); says('cancel', 'Cancel'); says('stopping', 'Stopping'); says('cancelled', 'Nothing was saved'); says('quickUnavailable', 'A newer Selects picks better shots');
   says('betterPicks', 'analysed clips give better picks'); says('unusable', "can't be used yet"); says('unusableWait', 'This updates automatically');
-  // Windows: the new path reaches the host only through the SDK (the kit's qsHostIO, mvHostDataDir); no shell, no POSIX.
+  // Windows: captured canonical client and native SDK argv; no shell or POSIX commands.
   const dataDirFn = panel.slice(panel.indexOf('function mvHostDataDir('), panel.indexOf('function mvQuickCheckAvailable('));
   const newPath = [check, dataDirFn, panel.slice(panel.indexOf('// mv-local:start'), panel.indexOf('// quick-score:end'))].join('\n');
   for (const posix of ['runShell', 'TOOL_PATH', 'mkdir -p', 'printf', '$HOME', 'rm -f', 'base64 ', 'export PATH', 'dq(', 'sq(', '" + "/"']) assert.ok(!(posix === "base64 " ? /(?<![\w.])base64\s/.test(newPath) : newPath.includes(posix)), 'no POSIX shell in the quick check path: ' + posix);

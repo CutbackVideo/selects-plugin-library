@@ -397,3 +397,7 @@ test('file cleanup succeeds when the host forwards optional flags to Node',async
     assert(calls.filter(c=>c.script.includes('files.remove')).every(c=>c.allowCommit===true));
   }finally{await fs.promises.rm(directory,{recursive:true,force:true});}
 });
+test('local client streams original content identity through the existing read-only SDK fingerprint API',async()=>{
+ const h=host(),original=h.sdk.runScript,seen=[];h.sdk.runScript=async input=>{if(input.script.includes('files.fingerprint')){seen.push(input);return {result:input.script.includes('/missing')?null:{size:123456789,sha256:'a'.repeat(64)}};}return original(input);};
+ const client=await load().createPanelLocalClient(h.sdk);assert.deepEqual(JSON.parse(JSON.stringify(await client.files.fingerprint('/large-original'))),{size:123456789,sha256:'a'.repeat(64)});assert.equal(await client.files.fingerprint('/missing'),null);assert.equal(seen.length,2);assert.ok(seen.every(input=>input.allowCommit===false));assert.ok(!h.calls.some(input=>input.script.includes('readRange')));
+});

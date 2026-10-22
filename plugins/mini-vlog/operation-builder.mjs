@@ -25,7 +25,7 @@ if(process.argv.includes('--check')){
 const input=await import(new URL('../../shared/native-image-input.mjs',import.meta.url));
 const policy=readFileSync(new URL('./dev/assembly-policy.js',import.meta.url),'utf8');
 const assemblyTemplate=readFileSync(new URL('./dev/assemble.template.js',import.meta.url),'utf8');
-const assembly='// @template-assembly 1\n// @template-assembly-intent 1\n// Generated from canonical input/placement checks and the Mini assembly policy.\n'+[input.nativeImageSources,input.nativeImageSourcesById,input.resolveTemplateMedia,bindMediaPlacement,inspectImageTransforms,inspectImageAudio].map(fn=>fn.toString()).join('\n')+'\n'+policy+'\n'+assemblyTemplate;
+const assembly='// @template-assembly 1\n// @template-assembly-intent 1\n// Generated from canonical input/placement checks and the Mini assembly policy.\n'+[input.nativeImageSources,input.nativeImageSourcesById,input.resolveTemplateMedia,input.requireSourceFileSupport,input.observeSourceFiles,bindMediaPlacement,inspectImageTransforms,inspectImageAudio].map(fn=>fn.toString()).join('\n')+'\n'+policy+'\n'+assemblyTemplate;
 const assemblyTarget=new URL('./scripts/assemble.js',import.meta.url);
 if(process.argv.includes('--check')){
  if(readFileSync(assemblyTarget,'utf8')!==assembly){console.error('Out-of-date Mini Vlog assembly operation');process.exitCode=1;}

@@ -116,3 +116,13 @@ and independent Project imports are not a database transaction or a distributed
 lock. Published/unindexed objects and crash staging are not garbage-collected
 automatically; old Drafts or another active run may still reference them. Actual
 Windows and installed-host cancellation remain runtime acceptance gates.
+
+## Local video score storage
+
+Mini's canonical `clip-analysis` evaluator reuses this owner with JSON derived
+results, gray transient output and opt-in `cleanupRequired:true`. Default derived
+callers keep existing best-effort cleanup. Strict analysis cleanup observes a lost
+delete reply and reports a terminal failure if a private reservation remains; it
+never deletes published objects or returns a fallback over unconfirmed cleanup.
+See [clip-analysis.md](clip-analysis.md) for bounded I/O, exact original identities,
+policy ownership and decoder-versus-filesystem deadline boundaries.

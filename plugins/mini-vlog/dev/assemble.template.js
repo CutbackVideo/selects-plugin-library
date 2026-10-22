@@ -1,5 +1,11 @@
 const cfg = __CONFIG__;
 validateMiniAssemblyConfig(cfg);
+const analysisSources=Object(cfg).analysisSources;
+const confirmAnalysisSources=async()=>{
+ if(analysisSources!==undefined)await observeSourceFiles(selects.files,Array.isArray(analysisSources)?analysisSources.map(row=>row?.path):null,analysisSources);
+};
+await confirmAnalysisSources();
+
 const p=selects.project(cfg.projectId),notes=[],W=1920,H=1080;
 // Observe each source on its own native grid. Never infer an original clock
 // from a resized output canvas or from the previous probe's first source.
@@ -78,6 +84,7 @@ const finalRows=await all(),main=finalRows.filter(row=>row.trackKind==='main'&&r
 if(main.length!==bindings.length||finalMeta.fps!==fps||finalMeta.durationFrames!==durationFrames||finalMeta.frameSize.width!==W||finalMeta.frameSize.height!==H)throw Error('The final assembly frame grid or placement differs from the plan.');
 for(const binding of bindings)await sourceMatches(binding,binding.sourceStart);
 await inspectImageTransforms(d,transforms,true);
+await confirmAnalysisSources();
 const beforeCommit=Object(cfg).__beforeCommit;if(typeof beforeCommit==='function')await beforeCommit(d);
 const commit=await d.commitAll('Mini Vlog: assemble');
 return {sequenceId:commit.createdDraftId,fps,totalFrames:endFrame,placed:bindings.length,ambientClips,notes};

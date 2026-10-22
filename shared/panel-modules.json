@@ -88,6 +88,16 @@
         "plugins/mini-vlog/panel.tsx",
         "plugins/archive-vlog/panel.tsx"
       ]
+    },
+    {
+      "id": "clip-analysis",
+      "source": "shared/clip-analysis.js",
+      "requires": [
+        "bundled-assets"
+      ],
+      "targets": [
+        "plugins/mini-vlog/panel.tsx"
+      ]
     }
   ]
 }

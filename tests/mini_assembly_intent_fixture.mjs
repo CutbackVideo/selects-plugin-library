@@ -3,6 +3,7 @@ import {checkScriptTypes} from './run_script_types.mjs';
 export const script=fs.readFileSync(process.env.MINI_ASSEMBLY_INTENT_SCRIPT||new URL('../plugins/mini-vlog/scripts/assemble.js',import.meta.url),'utf8'),clone=v=>JSON.parse(JSON.stringify(v));
 export function assemblyIntentFixture({rate=30,adopt=null,reverse=false,fault=null,sourceRates={}}={}){
  sourceRates={music:120,...sourceRates};
+ const files={};
  const calls={creates:0,inserts:0,commits:0,transforms:0,audio:0,trims:0},drafts=[];let epoch=0;
  const cfg={projectId:'p',draftName:'Intent fixture',picks:[{rid:'photo',kind:'photo',startSeconds:0},{rid:'video',kind:'video',startSeconds:3.21,sourceDuration:20}],boundaries:[0,1.03,2.17],crops:{photo:{width:96,height:160},video:{width:1920,height:1080}},music:null,clipSound:'full',ambientDb:-18};
  const fresh=r=>({...clone(r),_epoch:epoch}),valid=r=>assert.equal(r._epoch,epoch,'stale target'),transform=()=>({enabled:true,position:{x:0,y:0},scale:{x:1,y:1},anchor:{x:0,y:0},rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[]});
@@ -31,5 +32,5 @@ export function assemblyIntentFixture({rate=30,adopt=null,reverse=false,fault=nu
    commitAll:async()=>{calls.commits++;return {createdDraftId:'d'+calls.creates};},
   };drafts.push({d,probe,rows:()=>clips});return d;
  }};
- return {cfg,calls,drafts,project:p,run:()=>vm.runInNewContext('(async()=>{'+script+'})()',{selects:{project:()=>p},__CONFIG__:cfg})};
+ return {cfg,calls,drafts,project:p,files,run:()=>vm.runInNewContext('(async()=>{'+script+'})()',{selects:{project:()=>p,files},__CONFIG__:cfg})};
 }

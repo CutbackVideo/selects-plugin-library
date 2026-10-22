@@ -96,3 +96,6 @@ test('a declared canonical URL read is a valid build-time source edge',()=>fixtu
  registry.modules[0].buildTimeTargets=['plugins/photo-gallery-no2/build-panel.mjs'];fs.writeFileSync(registryPath,JSON.stringify(registry));
  assert.equal(run('--check').status,0);
 }));
+test('a required runtime module must exist before any source copy is rewritten',()=>fixture(({dir,file,run})=>{
+ const registry=path.join(dir,'shared/panel-modules.json'),row=JSON.parse(fs.readFileSync(registry));row.modules[0].requires=['missing-runtime'];fs.writeFileSync(registry,JSON.stringify(row));const before=fs.readFileSync(file('no14-still-video'),'utf8');const r=run();assert.notEqual(r.status,0);assert.match(r.stderr,/required|dependency/i);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
+}));

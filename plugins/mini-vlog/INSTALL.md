@@ -49,9 +49,11 @@ never in either install folder:
   detected beat is kept only while the panel is open.
 - `preview-<n>-<time>.mp3`: the section preview, deleted as soon as it is read
   back.
-- `quick-score/<clip>.json`: the quick check of a clip without analysis (a few
-  KB each), reused while the file is unchanged. The decoded preview
-  (`quick-score/<clip>-<n>.gray`, under 1 MB) is deleted as soon as it is read.
+- `quick-score-v3/index` and `quick-score-v3/objects`: source-bound local video
+  scores, keyed by complete file contents and evaluation policy. Cache hits
+  recheck the original and cached output. Legacy `quick-score` files are retained
+  but not reused. Private source copies and gray/output files are removed after
+  processing settles; published cache objects stay available for reuse.
 
 ## Verify
 

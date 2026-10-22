@@ -1,5 +1,14 @@
 # Sequential template repair: active
 
+## Mini source-bound local evaluation checkpoint
+
+Mini alpha.25 uses one local evaluator from both entries and reobserves complete
+original contents before cache reuse, assembly save and saved-result look recovery.
+Existing asset/input/run owners retain file/lifetime/commit ownership. Eight native
+SDK scenarios pass with no Project/Draft/import creation. See
+[mini-analysis-inputs.md](mini-analysis-inputs.md). The registry is partial: eight
+features / twelve unique consumers; ownership and acceptance stay 0/28.
+
 ## Mini title/effect intent checkpoint
 
 Mini alpha.21 reuses the existing program feature to verify exact title/effect

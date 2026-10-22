@@ -58,3 +58,9 @@ The photo consumers previously had older file batching/cleanup copies. Their
 scoped synchronization now uses the existing canonical implementation as well
 as the new connection behavior. a16z imports the canonical source directly and
 uses its existing bundler. Other embedded copies are not silently migrated.
+
+The additive read-only `files.fingerprint(path)` forwards the existing native SDK
+response `{size,sha256}` or `null`. File contents stream in the native host rather
+than through browser read chunks. Analysis callers validate the returned identity
+and do not interpret thrown/incomplete replies as absence. No new public SDK or
+Electron capability is introduced; released-version compatibility remains unverified.

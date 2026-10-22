@@ -132,14 +132,15 @@ search that finds drinks, streets, food and the other shot roles.
   Build ("Checking clips N/M" on the progress line; **Cancel** takes the Build
   button's place while it runs and stops the build, nothing saved). The
   check decodes a small grey preview of each clip with the ffmpeg built into
-  Selects, three clips at a time, all within 20 s, while the analysed clips
+  Selects, three clips at a time, with a shared 20 s decoder budget, while the analysed clips
   are searched, and finds the moments that
   are sharp and well exposed, with movement, and free of black or fading
   frames, flashes and cuts. Moments start at least half a second into a clip.
-  The result is kept per clip in the data folder (see INSTALL.md), so the next
-  build reads it instead of decoding again. Measured on a Mac with the same
-  decode outside Selects: 20 clips of 1080p (10 to 20 s each) took 1.9 s in
-  all (0.2 to 0.4 s per clip), and no time at all the second time.
+  The result is kept in the data folder (see INSTALL.md). Each Build confirms
+  complete original file contents before reusing scores. Replacing a file at the
+  same path, size and modification time triggers a new check. A missing or
+  unreadable original stops the build. File confirmation and private copying are
+  separate from the decoder budget and can take longer on large or slow files.
 - Their moments have no shot role, so they rank after a moment that matches
   the shot's role but before an evenly spaced filler moment, and an unused
   clip without analysis still comes before reusing any clip. Their scores are
@@ -150,15 +151,14 @@ search that finds drinks, streets, food and the other shot roles.
   can open it).
 - The moments are picked as montage shots, moving ones first, not steady
   ones, on purpose: Mini Vlog opens on movement.
-- If this Selects lacks what the check needs, or a clip cannot be decoded in
-  time, that clip's moments are evenly spaced (one a second, the first
-  starting half a second in) and the build still goes ahead; the next Build
-  checks that clip again. After such a build the panel says "This Selects can't check
-  clips without analysis, so their shots are evenly spaced. A newer Selects
-  picks better shots."
-- **Clip highlights** (the template run) builds from clips without analysis
-  too, with evenly spaced moments that start half a second in (it does not
-  run the quick check).
+- An ordinary decode failure, unavailable decoder, or budget exhausted before
+  dispatch can use uncached evenly spaced moments, then try analysis on the
+  next Build. This requires confirmed original contents. Unknown source access,
+  changed contents, cancellation, an active decoder timeout or unconfirmed
+  temporary cleanup stops the build. A Selects build without complete file
+  fingerprint support must be updated.
+- **Clip highlights** (the selected-file template run) uses the same local
+  check, persistent source-bound cache and original-file checks.
 
 **What blocks Build.** The build needs at least **4 shots from 2 different
 clips or photos**; each photo counts as one shot. When it cannot run, Build is
