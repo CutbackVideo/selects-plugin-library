@@ -31,6 +31,15 @@ test('apply templates to current timeline',{skip:!modules},async t=>{
   assert.deepEqual(deleted,first.trackIds.slice(1));
   assert.equal(second.trackIds.length,first.trackIds.length);
  });
+ await t.test('already removed tracks are skipped, but other track errors abort',async()=>{
+  for(const message of ['stale_track_target: trackId must come from clips({ trackScope: "all" }) of this draft.','TRACK_NOT_FOUND']){
+   const f=fixture();f.host.draft().deleteTrack=async()=>{throw Error(message)};
+   const r=await run(params({previousTrackIds:['deleted']}),f.host);assert.ok(r.trackIds.length);
+  }
+  const f=fixture();f.host.draft().deleteTrack=async()=>{throw Error('unsupported_track_target')};
+  await assert.rejects(run(params({previousTrackIds:['bad']}),f.host),/unsupported_track_target/);
+  assert.ok(!f.log.some(x=>x[0]==='commit'));
+ });
  await t.test('canvas mismatch requires confirmation of actual original size before mutation',async()=>{
   const f=fixture({size:{width:1920,height:1080}});const r=await run(params(),f.host);assert.equal(r.needsConfirmation,true);assert.deepEqual(f.log,[]);await run(params({confirmSize:r.from}),f.host);assert.ok(f.log.some(x=>x[0]==='size'));
   const stale=fixture({size:{width:1280,height:720}});assert.equal((await run(params({confirmSize:r.from}),stale.host)).needsConfirmation,true);assert.deepEqual(stale.log,[]);
