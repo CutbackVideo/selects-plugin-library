@@ -1384,7 +1384,7 @@ test('the logo asset ships with the plugin, is white SVG with its provenance, an
   assert.match(panel, /sel\.wordmarkOverlay = medWordmarkOverlay\(tplNow, tplNow\.logo \? await loadLogo\(/);
   assert.match(panel, /<ui\.Toggle label=\{S\.showLogo\}/);
   // The overlay draws the logo with a soft shadow at about 60 px.
-  assert.match(panel, /logoHeight: 60, logoTextSize: 38/);
+  assert.match(panel, /logoHeight: \$\{JSON\.stringify\(sel\.logoHeight \|\| 60\)\}/);
   assert.match(panel, /drop-shadow\(0 /);
   const r = spawnSync('python3', ['tools/plugin_files.py', 'check', 'medical-explainer'], {cwd: path.resolve(import.meta.dirname, '..'), encoding: 'utf8'});
   assert.equal(r.status, 0, r.stderr);
@@ -1526,7 +1526,7 @@ test('shortform geometry: black bars, the middle band near 1080x1080, overlays i
   const custom = op.medLayoutGeo('shortform', {top: 300, bottom: 500, offset: -120, titleSize: 90});
   assert.deepEqual(custom.view, {x: 0, y: 300, w: 1080, h: 1120});
   assert.equal(custom.frame.y, -120);
-  assert.equal(custom.title.maxSize, 90);
+  assert.equal(custom.titleSize, 90);
   const clamped = op.medLayoutGeo('shortform', {top: 5000, bottom: -3, offset: 9999, titleSize: 'x'});
   assert.deepEqual([clamped.bars.top, clamped.bars.bottom, clamped.frame.y, clamped.titleSize], [700, 200, 400, 0]);
   // Pointer labels: an element hidden behind a bar is not labelled; others stay inside the band.
@@ -1674,4 +1674,50 @@ test('link fetch: a page that will not open or has no article text stops with a 
   const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
   assert.match(panel, /return \{ code: 200, text: medDecodeHtml\(await hostReadBytes\(dest\)\) \};/, 'pages come through selects.files.download and are decoded by charset');
   assert.match(panel, /FETCH_FAILED: "\\ub9c1\\ud06c\\ub97c \\uc5f4\\uc9c0 \\ubabb\\ud588\\uc2b5\\ub2c8\\ub2e4\."/);
+});
+
+// ---- shortform at the extreme bar sizes: everything inside the frame, nothing overlapping (PR review P2) ----
+const within = ([a, b], [lo, hi]) => a >= lo - 1e-9 && b <= hi + 1e-9;
+const apart = ([a, b], [c, d]) => b <= c + 1e-9 || d <= a + 1e-9;
+test('shortform at the minimum and maximum bars: title, captions and logo fit inside the frame and do not overlap', () => {
+  const [tmin, tmax] = op.MED_SHORTFORM_BOUNDS.top, [bmin, bmax] = op.MED_SHORTFORM_BOUNDS.bottom;
+  assert.deepEqual([tmin, bmin], [200, 200]);
+  for (const top of [tmin, 260, 420, tmax]) for (const bottom of [bmin, 240, 255, 256, 420, bmax]) for (const titleSize of [0, 140]) {
+    const g = op.medLayoutGeo('shortform', {top, bottom, titleSize});
+    // A long two-line title at the largest automatic size, the Chosun logo and a two-line caption.
+    const box = op.medShortformBoxes(g, 100);
+    const tag = `top ${top} bottom ${bottom} title ${titleSize}`;
+    for (const [k, v] of Object.entries(box)) assert.ok(within(v, [0, 1920]), `${tag}: ${k} ${v}`);
+    assert.ok(within(box.title, box.topBar), `${tag}: title in the top bar ${box.title}`);
+    assert.ok(within(box.wordmark, box.bottomBar), `${tag}: logo in the bottom bar ${box.wordmark}`);
+    assert.ok(apart(box.caption, box.wordmark), `${tag}: caption ${box.caption} / logo ${box.wordmark}`);
+    assert.ok(apart(box.caption, box.title), `${tag}: caption / title`);
+    assert.ok(apart(box.card, box.caption), `${tag}: card ${box.card} / caption ${box.caption}`);
+    assert.ok(within(box.card, box.band) && within(box.chip, box.band), `${tag}: cards and chips in the band`);
+    assert.ok(g.caption.inBar ? within(box.caption, box.bottomBar) : within(box.caption, box.band), `${tag}: caption placement`);
+    assert.ok(g.wordmark.logoHeight >= 40, `${tag}: logo still readable (${g.wordmark.logoHeight}px)`);
+  }
+  // At the minimum top bar the automatic title is 68 px (two lines + gap = 158 px inside 200 px); an explicit 140 px is capped there too.
+  assert.equal(op.medLayoutGeo('shortform', {top: 200}).title.maxSize, 68);
+  assert.equal(op.medLayoutGeo('shortform', {top: 200, titleSize: 140}).titleSize, 68);
+  // Captions stay in the bottom bar from 256 px up; below that they sit at the bottom edge of the video band.
+  assert.equal(op.medLayoutGeo('shortform', {bottom: 256}).caption.inBar, true);
+  assert.equal(op.medLayoutGeo('shortform', {bottom: 255}).caption.inBar, false);
+});
+
+test('evidence: a drawbox render of the shortform boxes at the minimum and default bars', {skip: !ffmpeg && 'ffmpeg is unavailable'}, () => {
+  const out = path.join(os.tmpdir(), 'medexp-shortform-boxes.png');
+  const panels = [{top: 200, bottom: 200}, {top: 420, bottom: 420}, {top: 700, bottom: 700}];
+  const colors = {topBar: '0x333333', bottomBar: '0x333333', band: '0x2266aa', title: 'yellow', caption: 'white', wordmark: 'red', card: 'green', chip: 'orange'};
+  const inputs = [], filters = [];
+  panels.forEach((o, i) => {
+    const box = op.medShortformBoxes(op.medLayoutGeo('shortform', o), 100);
+    inputs.push('-f', 'lavfi', '-i', 'color=c=black:s=1080x1920:d=1');
+    const draws = Object.entries(colors).map(([k, c]) => `drawbox=x=${k === 'chip' ? 60 : k === 'card' ? 240 : 30}:y=${Math.round(box[k][0])}:w=${k === 'chip' ? 160 : k === 'card' ? 600 : 1020}:h=${Math.max(2, Math.round(box[k][1] - box[k][0]))}:color=${c}@${['topBar', 'bottomBar', 'band'].includes(k) ? '0.6' : '0.85'}:t=${['topBar', 'bottomBar', 'band'].includes(k) ? 'fill' : 6}`);
+    filters.push(`[${i}:v]${draws.join(',')}[p${i}]`);
+  });
+  const graph = filters.join(';') + ';' + panels.map((_, i) => `[p${i}]`).join('') + `hstack=inputs=${panels.length},scale=1080:-1[v]`;
+  const r = spawnSync('ffmpeg', ['-y', '-v', 'error', ...inputs, '-filter_complex', graph, '-map', '[v]', '-frames:v', '1', out], {encoding: 'utf8'});
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(fs.statSync(out).size > 1000);
 });

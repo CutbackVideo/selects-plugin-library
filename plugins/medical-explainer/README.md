@@ -16,7 +16,9 @@ leaves it to the script (default) or turns it off.
 
 New jobs use the **shortform** layout: solid black, a black top bar with the big two-line title, a black bottom bar
 with the captions and the wordmark or logo, and the generated 9:16 video in the middle band (about 1080x1080 by
-default). Bar heights, the video's vertical position and the title size are in Advanced settings, and the bars and the
+default). Bar heights (200-700 px each), the video's vertical position and the title size are in Advanced settings; the title
+always fits two lines in the top bar (its size is capped to the bar), and a bottom bar under 256 px keeps the logo or
+wordmark and moves the captions to the bottom edge of the video band, and the bars and the
 title stay editable graphics in the Draft; the video fills the whole frame behind the bars, so changing them never
 needs new generations. The other layouts are the **16:9 strip card** and the **full 9:16 frame** (with "match the
 explanation", zoom uses the strip and the other modes the full frame); keyframes and video are generated at the

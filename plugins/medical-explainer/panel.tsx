@@ -663,21 +663,53 @@ export const MED_LAYOUTS = {
 export const MED_SHORTFORM_DEFAULTS = { top: 420, bottom: 420, offset: 0, titleSize: 0 };
 export const MED_SHORTFORM_BOUNDS = { top: [200, 700], bottom: [200, 700], offset: [-400, 400], titleSize: [0, 140] };
 MED_LAYOUTS.shortform = { name: "Shortform (black bars)", aspect: "9:16", frame: { x: 0, y: 0, w: 1080, h: 1920 } };
+// Overlay metrics the shortform layout fits around (the overlay components' own sizes): title lines at 1.12 line
+// height with a 6 px gap; a two-line caption box at 56 px and 1.22 line height plus its padding; a 60 px logo.
+export const MED_SHORTFORM_METRICS = { titlePad: 20, titleGap: 6, titleLine: 1.12, captionBox: 160, captionPad: 16, logo: 60, logoMargin: 10, bandMargin: 24 };
+// The title size that fits two lines inside a top bar of `top` px with padding.
+export function medTitleFit(top) {
+  const m = MED_SHORTFORM_METRICS;
+  return Math.max(24, Math.floor((top - 2 * m.titlePad - m.titleGap) / (2 * m.titleLine)));
+}
 export function medLayoutGeo(layout, opts) {
   if (layout !== "shortform") { const g = MED_LAYOUTS[layout] || MED_LAYOUTS.strip; return { ...g, view: g.frame }; }
   const o = { ...MED_SHORTFORM_DEFAULTS, ...(opts && typeof opts === "object" && !Array.isArray(opts) ? opts : {}) };
   const clamp = (k) => { const [a, b] = MED_SHORTFORM_BOUNDS[k]; const v = Math.round(Number(o[k])); return Number.isFinite(v) ? Math.max(a, Math.min(b, v)) : MED_SHORTFORM_DEFAULTS[k]; };
-  const top = clamp("top"), bottom = clamp("bottom"), offset = clamp("offset"), titleSize = clamp("titleSize");
+  const top = clamp("top"), bottom = clamp("bottom"), offset = clamp("offset");
+  const m = MED_SHORTFORM_METRICS;
+  // The title always fits two lines in the top bar: the automatic size and an explicit one are both capped to it.
+  const fit = Math.min(100, medTitleFit(top));
+  const titleSize = clamp("titleSize") ? Math.min(clamp("titleSize"), medTitleFit(top)) : 0;
   const band = { x: 0, y: top, w: MED_W, h: MED_H - top - bottom };
-  const capTop = MED_H - bottom + 16;
+  // Bottom bar: captions on top, then the logo or wordmark, when both fit; a smaller bar keeps the logo/wordmark and
+  // moves the captions up to the bottom edge of the video band (the card row moves above them).
+  const fullBottom = m.captionPad + m.captionBox + 2 * m.logoMargin + m.logo; // 256 px
+  const captionsInBar = bottom >= fullBottom;
+  const capTop = captionsInBar ? MED_H - bottom + m.captionPad : band.y + band.h - m.bandMargin - m.captionBox;
+  const logoHeight = Math.min(m.logo, Math.max(24, (captionsInBar ? MED_H - (capTop + m.captionBox) : bottom) - 2 * m.logoMargin));
+  const wordmarkCenter = captionsInBar ? Math.round((capTop + m.captionBox + MED_H) / 2) : Math.round(MED_H - bottom / 2);
+  const cardTop = captionsInBar ? band.y + band.h - 110 : capTop - 110;
   return {
     name: MED_LAYOUTS.shortform.name, aspect: "9:16", shortform: true, frame: { x: 0, y: offset, w: MED_W, h: MED_H }, view: band,
     bars: { top, bottom, color: "#000000" }, titleSize,
-    title: { top: 0, height: top, band: false, maxSize: titleSize || 100 },
-    caption: { top: capTop, height: 150 }, wordmark: { centerY: Math.round((capTop + 150 + MED_H) / 2) },
-    label: { top: band.y + 24 }, chip: { top: band.y + 24 }, card: { top: band.y + band.h - 110 },
-    stamp: { cy: Math.round(band.y + band.h / 2), size: Math.round(Math.min(420, band.h * 0.5)) }, insets: { top: band.y + 30 }, split: { top: band.y + band.h - 60 },
+    title: { top: 0, height: top, band: false, maxSize: fit },
+    caption: { top: capTop, height: m.captionBox, inBar: captionsInBar }, wordmark: { centerY: wordmarkCenter, logoHeight },
+    label: { top: band.y + 24 }, chip: { top: band.y + 24 }, card: { top: cardTop },
+    stamp: { cy: Math.round(band.y + band.h / 2), size: Math.round(Math.min(420, band.h * 0.5)) }, insets: { top: band.y + 30 }, split: { top: cardTop + 50 },
     tiles: MED_LAYOUTS.fullbleed.tiles,
+  };
+}
+// The boxes the shortform overlays occupy (y ranges on the 1920 px canvas) for a title size: used by the tests and the
+// layout evidence render.
+export function medShortformBoxes(geo, titleSizePx) {
+  const m = MED_SHORTFORM_METRICS;
+  const size = geo.titleSize || Math.min(geo.title.maxSize, titleSizePx || geo.title.maxSize);
+  const th = 2 * size * m.titleLine + m.titleGap;
+  const tTop = geo.title.top + (geo.title.height - th) / 2;
+  return {
+    title: [tTop, tTop + th], band: [geo.view.y, geo.view.y + geo.view.h], caption: [geo.caption.top, geo.caption.top + geo.caption.height],
+    wordmark: [geo.wordmark.centerY - geo.wordmark.logoHeight / 2, geo.wordmark.centerY + geo.wordmark.logoHeight / 2],
+    card: [geo.card.top, geo.card.top + 80], chip: [geo.chip.top, geo.chip.top + 64], topBar: [0, geo.bars.top], bottomBar: [MED_H - geo.bars.bottom, MED_H],
   };
 }
 Object.assign(MED_LAYOUTS.shortform, medLayoutGeo("shortform", {}));
@@ -1966,6 +1998,7 @@ async function cmdAssembly(io, job) {
       ...(geo.bars ? { bars: geo.bars } : {}) },
     title: { line1: title[0], line2: title[1], color1: medHex(tpl.color1, MED_TITLE_COLORS[0]), color2: medHex(tpl.color2, MED_TITLE_COLORS[1]),
       size: geo.titleSize ? geo.titleSize : Math.min(geo.title.maxSize, medTitleSize(title[0], title[1])) },
+    logoHeight: geo.wordmark && geo.wordmark.logoHeight ? geo.wordmark.logoHeight : 60,
     wordmark: strip(tpl.wordmark || ""), labels, captions: tl.captions, pointers, splits, insets, dropped, ...mode,
   };
   await io.writeJson(job.p("selects.json"), res);
@@ -2573,7 +2606,7 @@ if (G.bars) await g("Bars", ${JSON.stringify(TPL.bars)}, { topHeight: G.bars.top
 await g("Title", ${JSON.stringify(TPL.title)}, { line1: t.line1, line2: t.line2, color1: t.color1, color2: t.color2, fontSize: t.size, fontFamily: "",
   top: at("title", "top", 180), height: at("title", "height", 240), band: !!(G.title && G.title.band), bandColor: "#000000A6" }, ${JSON.stringify(EDIT_TITLE)}, 0, total / fps);
 const wm = ${JSON.stringify(sel.wordmarkOverlay || { text: sel.wordmark, logo: "", logoText: "" })};
-if (wm.text || wm.logo) await g("Wordmark", ${JSON.stringify(TPL.wordmark)}, { text: wm.text, logo: wm.logo, logoText: wm.logoText, logoHeight: 60, logoTextSize: 38,
+if (wm.text || wm.logo) await g("Wordmark", ${JSON.stringify(TPL.wordmark)}, { text: wm.text, logo: wm.logo, logoText: wm.logoText, logoHeight: ${JSON.stringify(sel.logoHeight || 60)}, logoTextSize: Math.round(38 * ${JSON.stringify(sel.logoHeight || 60)} / 60),
   color: "#FFFFFF", fontSize: 46, fontFamily: "", centerY: at("wordmark", "centerY", 1760) }, ${JSON.stringify(EDIT_WORDMARK)}, 0, total / fps);
 for (const l of ${JSON.stringify(sel.labels)}) await g("Scene label " + l.scene, ${JSON.stringify(TPL.label)}, { text: l.text, color: "#FFE14D", fontSize: 38, fontFamily: "", top: at("label", "top", 1290) }, ${JSON.stringify(EDIT_LABEL)}, l.start, l.end);
 for (const s of ${JSON.stringify(sel.splits)}) await g("Split labels " + s.scene, ${JSON.stringify(TPL.split)}, { left: s.left, right: s.right, fontSize: 36, fontFamily: "", top: at("split", "top", 1200) }, ${JSON.stringify(EDIT_SPLIT)}, s.start, s.end);
