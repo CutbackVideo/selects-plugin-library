@@ -155,10 +155,10 @@ test('templates use independent settings without renderer families',{skip:!modul
     const file=design.id+'.json';expectedFiles.push(pack+'/'+file);
     const current=JSON.parse(fs.readFileSync(path.join(root,pack,'templates',file),'utf8'));
     const expected=structuredClone(design);
-    // These presets intentionally opt into conversation framing after migration.
+    // These presets intentionally opt into speaker-focused framing after migration.
     if(pack==='hankook-ilbo'&&['issue-broadcast','knowledge-exchange'].includes(design.id)){
-     expected.version+=1;
-     Object.assign(expected.layout,{reframe:true,reframePreset:'conversation',reframeFocus:'reactions',splitPolicy:'never',widePolicy:'never',reframePacing:'balanced',cropMotion:'fixed',cameraMode:'auto',closeUp:4.5,faceY:40});
+     expected.version+=2;
+     Object.assign(expected.layout,{reframe:true,reframePreset:'speaker',reframeFocus:'speaker',splitPolicy:'never',widePolicy:'never',reframePacing:'balanced',cropMotion:'fixed',cameraMode:'auto',closeUp:4.5,faceY:40});
     }
     assert.deepEqual(current,expected,key+': preserve the design and apply explicit framing preferences');
     assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
