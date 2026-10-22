@@ -9,7 +9,8 @@ function fixture(run){
  try{
   fs.mkdirSync(path.join(root,'tools'));fs.mkdirSync(path.join(root,'shared'));
   fs.copyFileSync(new URL('../tools/sync_panel_local_client.mjs',import.meta.url),path.join(root,'tools/sync_panel_local_client.mjs'));
-  fs.writeFileSync(path.join(root,'shared/local-client.ts'),'import React from "react";\nfunction feature(){return 19;}\nexport {feature};\n');
+  fs.copyFileSync(new URL('../shared/file-observation.js',import.meta.url),path.join(root,'shared/file-observation.js'));
+  fs.writeFileSync(path.join(root,'shared/local-client.ts'),'import React from "react";\nimport {fingerprintTemplateFile} from \'./file-observation.js\';\nfunction feature(){return 19;}\nexport {feature};\n');
   const ids=['no14-still-video','camera-shutter-dump','other-template','shortform-clips'];
   for(const id of ids){const dir=path.join(root,'plugins',id);fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'panel.tsx'),'// HEADER\n// local-sdk:start\nfunction old(){}\nexport default withPanelLocalClient(Panel);\n// local-sdk:end\n// TAIL\n');}
   const file=id=>path.join(root,'plugins',id,'panel.tsx');
@@ -42,6 +43,6 @@ test('scoped sync accepts Windows line endings without copying module imports',(
  const shared=path.join(root,'shared/local-client.ts');fs.writeFileSync(shared,fs.readFileSync(shared,'utf8').replaceAll('\n','\r\n'));
  fs.writeFileSync(file('no14-still-video'),fs.readFileSync(file('no14-still-video'),'utf8').replaceAll('\n','\r\n'));
  assert.equal(call('--only=no14-still-video').status,0);
- const result=fs.readFileSync(file('no14-still-video'),'utf8');assert.match(result,/return 19/);assert.doesNotMatch(result,/import React/);
+ const result=fs.readFileSync(file('no14-still-video'),'utf8');assert.match(result,/return 19/);assert.doesNotMatch(result,/\bimport\s/);assert.match(result,/async function fingerprintTemplateFile/);assert.match(result,/Copyright \(c\) 2022 Paul Miller/);
  assert.equal(call('--only=no14-still-video','--check').status,0);
 }));

@@ -3,10 +3,12 @@
 import {readFileSync,writeFileSync,readdirSync,statSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
+import {fingerprintTemplateFile} from '../shared/file-observation.js';
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const shared=readFileSync(path.join(root,'shared/local-client.ts'),'utf8')
+const shared=fingerprintTemplateFile.toString()+'\n'+readFileSync(path.join(root,'shared/local-client.ts'),'utf8')
   .replace(/\r\n/g,'\n')
-  .replace(/^import React from "react";\n/,'')
+  .replace(/^import React from "react";\n/m,'')
+  .replace(/^import \{fingerprintTemplateFile\} from '\.\/file-observation\.js';\n/m,'')
   .replace(/\nexport \{[^}]+\};\s*$/,'');
 const changes=[];
 function visit(directory,required=false) {

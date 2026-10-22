@@ -6,11 +6,12 @@ import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { createRequire, stripTypeScriptTypes } from 'node:module';
+import {fingerprintTemplateFile} from '../shared/file-observation.js';
 
 const source = fs.readFileSync(new URL('../shared/local-client.ts', import.meta.url), 'utf8');
 function load(React = {}, clientSource = source) {
-  const plain = stripTypeScriptTypes(clientSource.replace(/^import React from "react";\n/, '').replace(/^export \{[^\n]+\};?\s*$/m, ''), {mode:'strip'});
-  const context = vm.createContext({React, console, crypto:webcrypto, Uint8Array, TextEncoder, TextDecoder, AbortController, DOMException, atob, btoa, setTimeout, clearTimeout});
+  const plain = stripTypeScriptTypes(clientSource.replace(/^import React from "react";\n/, '').replace(/^import \{fingerprintTemplateFile\} from ['"]\.\/file-observation\.js['"];\n/m, '').replace(/^export \{[^\n]+\};?\s*$/m, ''), {mode:'strip'});
+  const context = vm.createContext({React, fingerprintTemplateFile, console, crypto:webcrypto, Uint8Array, TextEncoder, TextDecoder, AbortController, DOMException, atob, btoa, setTimeout, clearTimeout});
   vm.runInContext(plain + '\nthis.api={createPanelLocalClient,panelLocalClient,withPanelLocalClient};', context);
   return context.api;
 }
@@ -18,7 +19,7 @@ function host({platform='darwin', clipRead=false, onStart}={}) {
   const files = new Map(), calls=[], jobs=new Map(), fileCalls=[];
   const fileService={
     environment:async()=>({platform,version:'test',homedir:platform==='win32'?'C:\\Users\\\ud64d\uae38\ub3d9':'/user',tempDirectory:platform==='win32'?'C:\\temp':'/tmp'}),
-    stat:async path=>files.has(path)?{size:files.get(path).length}:null,
+    stat:async path=>files.has(path)?{size:files.get(path).length,mtimeMs:1,ino:2,isDirectory:false}:null,
     exists:async path=>files.has(path),
     readRange:async({path,offset,length})=>{
       fileCalls.push({method:'readRange',path,offset,length});
@@ -397,7 +398,19 @@ test('file cleanup succeeds when the host forwards optional flags to Node',async
     assert(calls.filter(c=>c.script.includes('files.remove')).every(c=>c.allowCommit===true));
   }finally{await fs.promises.rm(directory,{recursive:true,force:true});}
 });
-test('local client streams original content identity through the existing read-only SDK fingerprint API',async()=>{
- const h=host(),original=h.sdk.runScript,seen=[];h.sdk.runScript=async input=>{if(input.script.includes('files.fingerprint')){seen.push(input);return {result:input.script.includes('/missing')?null:{size:123456789,sha256:'a'.repeat(64)}};}return original(input);};
- const client=await load().createPanelLocalClient(h.sdk);assert.deepEqual(JSON.parse(JSON.stringify(await client.files.fingerprint('/large-original'))),{size:123456789,sha256:'a'.repeat(64)});assert.equal(await client.files.fingerprint('/missing'),null);assert.equal(seen.length,2);assert.ok(seen.every(input=>input.allowCommit===false));assert.ok(!h.calls.some(input=>input.script.includes('readRange')));
+test('local client observes full originals in one read-only SDK script without a fingerprint API',async()=>{
+ const h=host(),bytes=Buffer.alloc(3*49152+7,23);h.files.set('/large-original',bytes);
+ const client=await load().createPanelLocalClient(h.sdk),before=h.calls.length;
+ const row=await client.files.fingerprint('/large-original');
+ assert.deepEqual(JSON.parse(JSON.stringify(row)),{size:bytes.length,sha256:(await import('node:crypto')).createHash('sha256').update(bytes).digest('hex')});
+ assert.equal(h.calls.length-before,1,'all chunks share one script deadline');
+ assert.equal(await client.files.fingerprint('/missing'),null);
+ const calls=h.calls.slice(before);assert(calls.every(call=>call.allowCommit===false));assert(calls.every(call=>!call.script.includes('files.fingerprint')));
+ assert.equal(h.fileCalls.filter(call=>call.method==='readRange').length,4);
+});
+test('the private canonical read overload supports source observations without changing positional EOF reads',async()=>{
+ const h=host();h.files.set('/a',Buffer.from('alpha'));const client=await load().createPanelLocalClient(h.sdk);
+ const sdkRead=await client.files.readRange({path:'/a',offset:1,length:2});assert.deepEqual(sdkRead,{bytesRead:2,base64:'bHA='});
+ assert.equal(Buffer.from(await client.files.readRange('/a',3,10)).toString(),'ha');
+ const {observeSourceFiles}=await import('../shared/native-image-input.mjs');const rows=await observeSourceFiles(client.files,['/a']);assert.equal(rows[0].sha256,(await import('node:crypto')).createHash('sha256').update('alpha').digest('hex'));
 });

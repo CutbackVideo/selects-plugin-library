@@ -1,3 +1,4 @@
+import {fingerprintTemplateFile} from './file-observation.js';
 // Original source facts and private unsaved identity checks. Canonical input feature.
 // Normalize the app's handed Resource records without silently discarding malformed
 // inputs or allowing conflicting kinds for one identity. Template role/count policy
@@ -116,7 +117,7 @@ export async function prepareNativeImagesById(sdk,projectId,photos,options={}) {
 // File contents are observations, not a filesystem lock. Keep the existing
 // Image availability contract unchanged; templates opt into complete identity.
 export function requireSourceFileSupport(files) {
- if(typeof files?.fingerprint!=='function'){
+ if(typeof files?.stat!=='function'||typeof files?.readRange!=='function'){
   const message='Update Selects to verify complete source file contents before creating this template.';
   throw Object.assign(new Error(message),{code:'source-file-unsupported',publicMessage:message});
  }
@@ -132,7 +133,7 @@ export async function observeSourceFiles(files,paths,expected=null) {
  const observed=[];
  for(const path of selected){
   let fingerprint;
-  try{fingerprint=await files.fingerprint(path);}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
+  try{fingerprint=await fingerprintTemplateFile(files,path);}catch(cause){throw issue('source-file-unknown','The selected source file could not be confirmed. Check the Project file and try again.',cause);}
   if(fingerprint===null)throw issue('source-file-missing','The selected source file is missing. Check the Project file and try again.');
   const row={...fingerprint,path};
   if(!valid(row))throw issue('source-file-unknown','The selected source file has no complete, nonempty content identity.');
