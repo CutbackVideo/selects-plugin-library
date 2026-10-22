@@ -40,7 +40,38 @@ Opening a link never starts clip generation. Older hosts retain manual link impo
 Packs are excluded from the app manifest's `files` list. Installing the app does
 not download these directories. A full repository clone or ZIP includes them.
 
-Branch and tag links resolve to one commit before downloading. Links with branch
+### Update button
+
+**Templates** lists each installed pack with an **Update** button. The pack entry in
+`template-library/index.json` records how it was installed (`installSource`):
+`catalog` for host catalog links and updates made with this button, `link` for pasted
+links (with the URL and resolved commit), or `folder`. Template history, deletion and
+copies do not change it. These packs update to the latest published catalog:
+
+- `catalog` installs of this repository's `plugins/shortform-clips/template-packs/<pack-id>`.
+- Pasted links to that folder on `main`, which is what the catalog publishes.
+
+A pasted link pinned to a commit stays on that version, and other branches or
+repositories are updated by adding their link again. Packs installed before
+`installSource` existed keep their link as `link` only when every template from the
+pack recorded the same one; otherwise adding the link once records it. A shared
+official URL alone is never treated as a catalog install.
+
+1. The app registers its update provider again, so the host reads this app's entry
+   from the Selects plugin catalog and passes its commit. The GitHub API is not used.
+2. The app reads only `pack.json` at that commit from `raw.githubusercontent.com`.
+3. A higher pack `version` installs through the same importer as **Add templates**:
+   unmodified templates are replaced, saved edits ask to replace or add a copy, and
+   templates missing from the new version are kept. Otherwise it reports the pack
+   is up to date.
+
+Unsaved edits or a running job must finish first. A host that does not answer
+within 45 seconds, or a catalog without the pack, is reported as a failed check,
+never as up to date. Adding a pack link again records its source without changing
+template settings. Bump the pack `version` with every published change.
+
+Branch and tag links resolve to one commit before downloading; commit links are used
+as given, without a GitHub API request. Links with branch
 names containing slashes are supported. The app downloads only the manifest and
 its declared JSON/image files, validates the full pack, and installs a self-contained
 snapshot. It stores the source URL and resolved commit with that snapshot. Repeat
