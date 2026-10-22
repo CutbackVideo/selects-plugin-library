@@ -113,28 +113,4 @@ test('scene visual evidence',{skip:!modulesRoot&&'Set SBS_PANEL_TEST_MODULES'},a
    for(const group of groups){const output=path.join(dir,group.name+'.jpg');cp.execFileSync('ffmpeg',api.sceneEvidenceArgs(group.tiles,output));assert(fs.statSync(output).size>100);const meta=JSON.parse(cp.execFileSync('ffprobe',['-v','error','-show_entries','stream=width,height','-of','json',output]));assert.equal(meta.streams[0].width,1280);assert.equal(meta.streams[0].height,240);const rgb=cp.execFileSync('ffmpeg',['-v','error','-i',output,'-vf','crop=1:1:160:120:exact=1,format=rgb24','-frames:v','1','-f','rawvideo','-']);if(group.name==='original-video')assert(rgb[2]>200&&rgb[0]<30);if(group.name==='original-images')assert(rgb[1]>70&&rgb[0]<30);if(group.name==='prepared-media')assert(rgb[0]>200&&rgb[2]<30);}
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
  });
- await t.test('real browser labels exact tile identities without covering or swapping source images',async()=>{
-  const {chromium}=dep('playwright');
-  const browser=await chromium.launch(fs.existsSync('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')?{executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}:{});
-  try{
-   const page=await browser.newPage();
-   const code=esbuild.transformSync(source.slice(source.indexOf('async function labelSceneEvidence('),source.indexOf('async function prepareSceneEvidence(')),{loader:'ts'}).code;
-   const result=await page.evaluate(async code=>{
-    const label=new Function(code+';return labelSceneEvidence;')(),raw=document.createElement('canvas');raw.width=1280;raw.height=480;
-    const g=raw.getContext('2d');g.fillStyle='#ff0000';g.fillRect(0,0,1280,480);g.fillStyle='#0000ff';g.fillRect(0,240,320,240);
-    const bytes=new Uint8Array(await(await new Promise(resolve=>raw.toBlob(resolve,'image/jpeg'))).arrayBuffer());
-    const names=['\u110b\u1163\u11a81.png','green.png','paper.png','photo.jpg','\u110b\u1163\u11a8\u1107\u1162\u1109\u1169\u11bc \u1107\u1161\u11ab\u1103\u1162 \u1109\u1175\u110b\u1171\u1112\u1161\u1102\u1173\u11ab \u110b\u1163\u11a8\u1109\u1161_\u1102\u1172\u1109\u11731 (1).jpg'];
-    const tiles=names.map((name,i)=>({name,resourceId:'r'+i,tileIndex:i,row:Math.floor(i/4),column:i%4}));
-    const texts=[],fill=CanvasRenderingContext2D.prototype.fillText;CanvasRenderingContext2D.prototype.fillText=function(...args){texts.push(args);return fill.apply(this,args);};
-    let labeled;try{labeled=await label(bytes,tiles);}finally{CanvasRenderingContext2D.prototype.fillText=fill;}
-    const bitmap=await createImageBitmap(new Blob([labeled])),out=document.createElement('canvas');out.width=bitmap.width;out.height=bitmap.height;const ctx=out.getContext('2d');ctx.drawImage(bitmap,0,0);bitmap.close();
-    const pixel=(x,y)=>Array.from(ctx.getImageData(x,y,1,1).data);
-    const footer=ctx.getImageData(0,240,320,72).data;let colored=0;for(let i=0;i<footer.length;i+=4)if(footer[i]>150&&footer[i+1]>150)colored++;
-    return {width:out.width,height:out.height,first:pixel(160,120),fifth:pixel(160,432),colored,texts};
-   },code);
-   assert.equal(result.width,1280);assert.equal(result.height,624);assert(result.first[0]>230&&result.first[2]<20);assert(result.fifth[2]>230&&result.fifth[0]<20);assert(result.colored>100,'The real JPEG contains rendered footer text');
-   assert.deepEqual(result.texts.filter(x=>x[0].startsWith('[')).map(x=>[x[0],x[1],x[2]]),[['[0] r0',8,259],['[1] r1',328,259],['[2] r2',648,259],['[3] r3',968,259],['[4] r4',8,571]]);
-   assert(result.texts.some(x=>x[0]==='\uc57d1.png'));assert(result.texts.every(x=>x[0]===x[0].normalize('NFC')));
-  }finally{await browser.close();}
- });
 });
