@@ -1496,3 +1496,84 @@ test('a video model without an end frame turns push/pull boundaries into dissolv
   }
   fs.rmSync(dir, {recursive: true, force: true});
 });
+
+// ---- new defaults and the shortform layout ----
+test('new jobs default to 3D medical CG, inside shots on and the shortform layout; saved jobs keep theirs', () => {
+  assert.deepEqual([op.MED_ADV_DEFAULTS.art, op.MED_ADV_DEFAULTS.inside, op.MED_ADV_DEFAULTS.layout], ['medical', 'on', 'shortform']);
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
+  assert.match(panel, /const \[artSet, setArtSet\] = React\.useState<string>\("medical"\);/);
+  assert.match(panel, /const \[insideSet, setInsideSet\] = React\.useState<string>\("on"\);/);
+  assert.match(panel, /const \[layoutSet, setLayoutSet\] = React\.useState<string>\("shortform"\);/);
+  // A job saved with "auto" still resolves from its mode, as before.
+  assert.deepEqual((({art, layout}) => [art, layout])(op.medStyleFor({art: 'auto', layout: 'auto'}, {mode: 'myth'})), ['everyday', 'fullbleed']);
+  assert.equal(op.medStyleFor({}, {mode: 'zoom'}).layout, 'strip');
+  // The badge baseline: defaults are not changes; "auto" now is.
+  const d = {...op.MED_ADV_DEFAULTS, layoutOpts: {...op.MED_SHORTFORM_DEFAULTS}};
+  assert.deepEqual(op.medAdvancedChanges(d, op.MED_PRESETS.generic, 'generic'), []);
+  assert.deepEqual(op.medAdvancedChanges({...d, art: 'auto', layoutOpts: {...op.MED_SHORTFORM_DEFAULTS, top: 360}}, op.MED_PRESETS.generic, 'generic'), ['art', 'top']);
+});
+
+test('shortform geometry: black bars, the middle band near 1080x1080, overlays inside the band, bounded options', () => {
+  const g = op.medLayoutGeo('shortform', {});
+  assert.equal(g.aspect, '9:16');
+  assert.deepEqual(g.bars, {top: 420, bottom: 420, color: '#000000'});
+  assert.deepEqual(g.view, {x: 0, y: 420, w: 1080, h: 1080});
+  assert.deepEqual(g.frame, {x: 0, y: 0, w: 1080, h: 1920}, 'the whole 9:16 picture sits behind the bars');
+  assert.deepEqual([g.title.top, g.title.height], [0, 420], 'title centred in the top bar');
+  assert.ok(g.caption.top >= 1500 && g.caption.top + g.caption.height <= 1920 && g.wordmark.centerY > g.caption.top + g.caption.height, 'captions then wordmark in the bottom bar');
+  const inBand = (y) => y >= g.view.y && y <= g.view.y + g.view.h;
+  for (const y of [g.label.top, g.chip.top, g.card.top, g.card.top + 80, g.stamp.cy - g.stamp.size / 2, g.stamp.cy + g.stamp.size / 2, g.insets.top, g.insets.top + 280, g.split.top]) assert.ok(inBand(y), `overlay at ${y}`);
+  const custom = op.medLayoutGeo('shortform', {top: 300, bottom: 500, offset: -120, titleSize: 90});
+  assert.deepEqual(custom.view, {x: 0, y: 300, w: 1080, h: 1120});
+  assert.equal(custom.frame.y, -120);
+  assert.equal(custom.title.maxSize, 90);
+  const clamped = op.medLayoutGeo('shortform', {top: 5000, bottom: -3, offset: 9999, titleSize: 'x'});
+  assert.deepEqual([clamped.bars.top, clamped.bars.bottom, clamped.frame.y, clamped.titleSize], [700, 200, 400, 0]);
+  // Pointer labels: an element hidden behind a bar is not labelled; others stay inside the band.
+  assert.equal(op.medPointerPlacement(0.5, 0.05, 0, g.frame, g.view), null);
+  const p = op.medPointerPlacement(0.5, 0.5, 0, g.frame, g.view);
+  assert.ok(inBand(p.y) && inBand(p.labelY));
+  assert.equal(op.medLayoutGeo('strip').view, op.MED_LAYOUTS.strip.frame);
+});
+
+test('shortform pipeline: 9:16 keyframes, the picture composed full-frame on black, the Draft gets bars and band geometry', async () => {
+  const {dir} = makeJob({layout: 'shortform', layoutOpts: {top: 400, bottom: 440, offset: 40}});
+  fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'A'}}));
+  const kf = (await op.medEngine('requests', dir, ['keyframes', '1,2'], stubIO(dir))).requests;
+  assert.ok(kf.every((r) => r.input.image_size?.width === 1440 && r.input.image_size?.height === 2560));
+  const calls = [];
+  const io = stubIO(dir, {duration: async (p) => (/narr_(\d)_/.test(p) ? NARR[Number(/narr_(\d)_/.exec(p)[1]) - 1] : 3.04), ffmpeg: async (a) => { calls.push(a); fs.writeFileSync(a.at(-1), 'x'); }});
+  await op.medEngine('timeline', dir, [], io);
+  const strips = {};
+  for (const n of [1, 2, 3, 4]) strips[n] = {strip: path.join(dir, 'work', `strip_${n}.mp4`), dur: 8};
+  fs.writeFileSync(path.join(dir, 'work', 'strips.json'), JSON.stringify({strips, fallback: []}));
+  for (const n of [1, 2, 3, 4]) { fs.writeFileSync(path.join(dir, 'work', `out_${n}.png`), ''); fs.writeFileSync(path.join(dir, 'work', `in_${n}.png`), ''); }
+  fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'A', 2: 'A', 3: 'A', 4: 'A'}, tr: {}}));
+  await op.medEngine('compose', dir, [], io);
+  const card = calls.find((a) => a.at(-1).endsWith('mxT_card_1.mp4'));
+  const graph = card[card.indexOf('-filter_complex') + 1];
+  assert.match(graph, /color=c=0x000000:s=1080x1920/, 'solid black');
+  assert.match(graph, /overlay=0:40:shortest=1/, 'the picture moved by the offset');
+  const a = await op.medEngine('assembly', dir, [], io);
+  assert.deepEqual(a.geo.bars, {top: 400, bottom: 440, color: '#000000'});
+  assert.deepEqual([a.geo.title.top, a.geo.title.height], [0, 400]);
+  assert.equal(a.layout, 'shortform');
+  fs.rmSync(dir, {recursive: true, force: true});
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
+  assert.ok(panel.indexOf('if (G.bars) await g("Bars"') < panel.indexOf('await g("Title"'), 'bars below the title');
+});
+
+test('ffmpeg: a shortform card is 1080x1920 with the offset picture', {skip: !ffmpeg && 'ffmpeg is unavailable'}, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'medexp-sf-'));
+  const p = (n) => path.join(dir, n);
+  const run = (args) => { const r = spawnSync('ffmpeg', args, {encoding: 'utf8'}); assert.equal(r.status, 0, r.stderr); };
+  run(['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=720x1280:rate=24:duration=2', '-pix_fmt', 'yuv420p', p('c.mp4')]);
+  const g = op.medLayoutGeo('shortform', {offset: -100});
+  run(op.medStripArgs(p('c.mp4'), p('s.mp4'), g.frame));
+  run(op.medCardArgs(p('s.mp4'), p('card.mp4'), '#000000', g.frame));
+  const r = probe(p('card.mp4'));
+  assert.deepEqual([r.streams[0].width, r.streams[0].height], [1080, 1920]);
+  const px = spawnSync('ffmpeg', ['-v', 'error', '-i', p('card.mp4'), '-vf', 'crop=2:2:10:1900', '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']).stdout;
+  assert.ok(px[0] < 20 && px[1] < 20 && px[2] < 20, 'the gap below the moved picture is black');
+  fs.rmSync(dir, {recursive: true, force: true});
+});

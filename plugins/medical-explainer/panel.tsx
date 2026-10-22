@@ -210,6 +210,25 @@ const TPL: Record<string, string> = {
     "}",
     "",
   ].join("\n"),
+  bars: [
+    "import React from 'react';",
+    "import { useVideoConfig } from 'remotion';",
+    "",
+    "// The shortform layout's black top and bottom bars (editable heights and colour); the video shows between them.",
+    "export default function Bars({ data }) {",
+    "  const { width, height } = useVideoConfig();",
+    "  const k = width / 1080;",
+    "  const color = String(data?.color ?? '#000000');",
+    "  const top = Number(data?.topHeight ?? 420), bottom = Number(data?.bottomHeight ?? 420);",
+    "  return (",
+    "    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>",
+    "      <div style={{ position: 'absolute', left: 0, top: 0, width, height: top * k, background: color }} />",
+    "      <div style={{ position: 'absolute', left: 0, top: height - bottom * k, width, height: bottom * k, background: color }} />",
+    "    </div>",
+    "  );",
+    "}",
+    "",
+  ].join("\n"),
   chip: [
     "import React from 'react';",
     "import { useCurrentFrame, useVideoConfig, interpolate } from 'remotion';",
@@ -326,6 +345,7 @@ type Strings = {
   tooLong: (list: string) => string; editHint: string; sentence: (n: number) => string;
   mode: string; art: string; layout: string; autoMode: string; autoStyle: string; modeNames: Record<string, string>; artNames: Record<string, string>; layoutNames: Record<string, string>;
   chosen: (mode: string, art: string, layout: string) => string;
+  shortformOpts: Record<string, string>;
   inside: string; insideNames: Record<string, string>; insideCount: (n: number) => string;
   advanced: string; showLogo: string; changed: (n: number) => string; autoWord: string; kfWord: string; jobFixed: string;
   unresolved: (names: string) => string; keepWaiting: string; resubmit: string; styleChanged: string;
@@ -368,7 +388,8 @@ const STRINGS: Record<string, Strings> = {
     mode: "Explanation", art: "Art style", layout: "Layout", autoMode: "Chosen by the script", autoStyle: "From the explanation",
     modeNames: { zoom: "Zoom (big picture to detail)", myth: "Myth or fact", timeline: "Timeline", list: "Steps or list" },
     artNames: { medical: "3D medical CG", everyday: "Photoreal everyday", character: "Stylized 3D character", infographic: "Clean infographic" },
-    layoutNames: { strip: "16:9 strip card", fullbleed: "Full-frame 9:16" },
+    layoutNames: { strip: "16:9 strip card", fullbleed: "Full-frame 9:16", shortform: "Shortform (black bars)" },
+    shortformOpts: { top: "Top bar height", bottom: "Bottom bar height", offset: "Video vertical offset", titleSize: "Title size (0 = automatic)" },
     chosen: (m, a, l) => `Explanation: ${m} \u00b7 Art: ${a} \u00b7 Layout: ${l}`,
     advanced: "Advanced settings", showLogo: "Show the logo", changed: (n) => `${n} changed`, jobFixed: "These are the settings saved with this job.",
     autoWord: "Automatic", kfWord: "Keyframes",
@@ -426,7 +447,8 @@ const STRINGS: Record<string, Strings> = {
     mode: "\uc124\uba85 \ubc29\uc2dd", art: "\ud654\ud48d", layout: "\ud654\uba74 \uad6c\uc131", autoMode: "\ub300\ubcf8\uc774 \uace0\ub984", autoStyle: "\uc124\uba85 \ubc29\uc2dd\uc5d0 \ub9de\ucda4",
     modeNames: { zoom: "\uc90c(\uc804\uccb4\uc5d0\uc11c \uc138\ubd80\ub85c)", myth: "\uc624\ud574\uc640 \uc0ac\uc2e4", timeline: "\uc2dc\uac04 \uc21c\uc11c", list: "\ub2e8\uacc4\u00b7\ubaa9\ub85d" },
     artNames: { medical: "3D \uc758\ud559 CG", everyday: "\uc77c\uc0c1 \uc2e4\uc0ac", character: "3D \uce90\ub9ad\ud130", infographic: "\uc778\ud3ec\uadf8\ub798\ud53d" },
-    layoutNames: { strip: "16:9 \ub760 \uce74\ub4dc", fullbleed: "\uc804\uccb4 \ud654\uba74 9:16" },
+    layoutNames: { strip: "16:9 \ub760 \uce74\ub4dc", fullbleed: "\uc804\uccb4 \ud654\uba74 9:16", shortform: "\uc219\ud3fc(\uac80\uc740 \ub760)" },
+    shortformOpts: { top: "\uc704 \ub760 \ub192\uc774", bottom: "\uc544\ub798 \ub760 \ub192\uc774", offset: "\uc601\uc0c1 \uc138\ub85c \uc704\uce58", titleSize: "\uc81c\ubaa9 \ud06c\uae30(0 = \uc790\ub3d9)" },
     chosen: (m, a, l) => `\uc124\uba85: ${m} \u00b7 \ud654\ud48d: ${a} \u00b7 \ud654\uba74: ${l}`,
     advanced: "\uace0\uae09 \uc124\uc815", showLogo: "\ub85c\uace0 \ud45c\uc2dc", changed: (n) => `${n}\uac1c \ubcc0\uacbd\ub428`, jobFixed: "\uc774 \uc791\uc5c5\uc5d0 \uc800\uc7a5\ub41c \uc124\uc815\uc785\ub2c8\ub2e4.",
     autoWord: "\uc790\ub3d9", kfWord: "\ud0a4\ud504\ub808\uc784",
@@ -630,6 +652,31 @@ export const MED_LAYOUTS = {
     label: { top: 330 }, caption: { top: 1450, height: 150 }, wordmark: { centerY: 1780 }, chip: { top: 330 }, card: { top: 1270 },
     stamp: { cy: 860, size: 420 }, insets: { top: 420 }, split: { top: 1360 }, tiles: { kf: [270, 480], take: [180, 320], verify: [216, 384] } },
 };
+// The shortform layout (the default for new jobs): solid black, a black top bar with the big two-line title, a black
+// bottom bar with the captions and the wordmark, and the generated 9:16 picture behind them, so the video shows in the
+// middle band. The picture fills the whole frame (moved by `offset`), so changing the bars never needs regeneration;
+// the bars and the title are editable graphics in the Draft.
+export const MED_SHORTFORM_DEFAULTS = { top: 420, bottom: 420, offset: 0, titleSize: 0 };
+export const MED_SHORTFORM_BOUNDS = { top: [200, 700], bottom: [200, 700], offset: [-400, 400], titleSize: [0, 140] };
+MED_LAYOUTS.shortform = { name: "Shortform (black bars)", aspect: "9:16", frame: { x: 0, y: 0, w: 1080, h: 1920 } };
+export function medLayoutGeo(layout, opts) {
+  if (layout !== "shortform") { const g = MED_LAYOUTS[layout] || MED_LAYOUTS.strip; return { ...g, view: g.frame }; }
+  const o = { ...MED_SHORTFORM_DEFAULTS, ...(opts && typeof opts === "object" && !Array.isArray(opts) ? opts : {}) };
+  const clamp = (k) => { const [a, b] = MED_SHORTFORM_BOUNDS[k]; const v = Math.round(Number(o[k])); return Number.isFinite(v) ? Math.max(a, Math.min(b, v)) : MED_SHORTFORM_DEFAULTS[k]; };
+  const top = clamp("top"), bottom = clamp("bottom"), offset = clamp("offset"), titleSize = clamp("titleSize");
+  const band = { x: 0, y: top, w: MED_W, h: MED_H - top - bottom };
+  const capTop = MED_H - bottom + 16;
+  return {
+    name: MED_LAYOUTS.shortform.name, aspect: "9:16", shortform: true, frame: { x: 0, y: offset, w: MED_W, h: MED_H }, view: band,
+    bars: { top, bottom, color: "#000000" }, titleSize,
+    title: { top: 0, height: top, band: false, maxSize: titleSize || 100 },
+    caption: { top: capTop, height: 150 }, wordmark: { centerY: Math.round((capTop + 150 + MED_H) / 2) },
+    label: { top: band.y + 24 }, chip: { top: band.y + 24 }, card: { top: band.y + band.h - 110 },
+    stamp: { cy: Math.round(band.y + band.h / 2), size: Math.round(Math.min(420, band.h * 0.5)) }, insets: { top: band.y + 30 }, split: { top: band.y + band.h - 60 },
+    tiles: MED_LAYOUTS.fullbleed.tiles,
+  };
+}
+Object.assign(MED_LAYOUTS.shortform, medLayoutGeo("shortform", {}));
 export const MED_TRANSITIONS = ["cut", "flash", "dissolve", "push", "pull"];
 export const medGeneratedTransition = (type) => type === "push" || type === "pull";
 // The style suffix of every keyframe prompt.
@@ -646,7 +693,7 @@ export function medStyleFor(settings, plan) {
   const mode = MED_MODES[asObj(plan).mode] ? plan.mode : "zoom";
   const art = MED_ARTS[st.art] ? st.art : MED_MODES[mode].art;
   const layout = MED_LAYOUTS[st.layout] ? st.layout : MED_MODES[mode].layout;
-  return { mode, art, layout, geo: MED_LAYOUTS[layout], suffix: medStyleSuffix(art, layout) };
+  return { mode, art, layout, geo: medLayoutGeo(layout, st.layoutOpts), suffix: medStyleSuffix(art, layout) };
 }
 // Per scene: an inside-the-body scene uses the 3D medical CG preset, any other scene the job's art preset.
 export const medSceneArt = (style, scene) => (asObj(scene).look === "inside" ? "medical" : style.art);
@@ -1600,7 +1647,7 @@ async function makeGrid(io, cells, cols, tileW, tileH, dest) {
 async function cmdSheet(io, job, kind, only) {
   const plan = await job.plan();
   const geo = medStyleFor(settingsOf(job), plan).geo;
-  const fr = geo.frame;
+  const fr = geo.view || geo.frame; // the part of the picture the viewer sees
   const stamp = Math.trunc(io.now());
   const sheets = [];
   const want = (n) => !only || only.has(String(n));
@@ -1715,8 +1762,9 @@ async function cmdCompose(io, job) {
   const plan = await job.plan();
   const tl = await job.timeline();
   const picks = await job.picks();
-  const bg = medHex(settingsOf(job).template.bg, MED_DEFAULT_BG);
-  const fr = medStyleFor(settingsOf(job), plan).geo.frame;
+  const geoC = medStyleFor(settingsOf(job), plan).geo;
+  const bg = geoC.shortform ? "#000000" : medHex(settingsOf(job).template.bg, MED_DEFAULT_BG);
+  const fr = geoC.frame;
   const strips = (await io.readJson(job.p("work", "strips.json"), null)) || { strips: {}, fallback: [] };
   const segments = [], dissolves = [];
   for (const s of plan.scenes) {
@@ -1773,11 +1821,13 @@ async function cmdCompose(io, job) {
 
 // ---- assembly: what the Draft step places ----
 // A pointer label sits above its element in the lower half of the picture, below it in the upper half, inside the frame.
-export function medPointerPlacement(nx, ny, k, fr = MED_STRIP) {
+// `view` is the visible part (the shortform middle band); an element outside it is not labelled (null).
+export function medPointerPlacement(nx, ny, k, fr = MED_STRIP, view = fr) {
   const x = fr.x + Math.max(0.03, Math.min(0.97, nx)) * fr.w;
   const y = fr.y + Math.max(0.03, Math.min(0.97, ny)) * fr.h;
-  const below = y < fr.y + fr.h / 2;
-  const labelY = below ? Math.min(y + 120 + 40 * k, fr.y + fr.h - 40) : Math.max(y - 120 - 40 * k, fr.y + 40);
+  if (y < view.y + 30 || y > view.y + view.h - 30) return null;
+  const below = y < view.y + view.h / 2;
+  const labelY = below ? Math.min(y + 120 + 40 * k, view.y + view.h - 40) : Math.max(y - 120 - 40 * k, view.y + 40);
   return { x: Math.round(x), y: Math.round(y), labelX: Math.round(Math.max(170, Math.min(MED_W - 170, x))), labelY: Math.round(labelY) };
 }
 // Mode overlays and their windows. A myth scene: its chip ("Myth 1") over the scene like a label; the X/O verdict stamp
@@ -1835,7 +1885,9 @@ async function cmdAssembly(io, job) {
       if (!win) return;
       if (pt.visible === false) { dropped.push(`${s.n}: ${text}`); return; }
       const nx = typeof pt.x === "number" ? pt.x : k === 0 ? 0.4 : 0.6, ny = typeof pt.y === "number" ? pt.y : 0.5;
-      pointers.push({ scene: s.n, text, ...medPointerPlacement(nx, ny, k, fr), ...win });
+      const place = medPointerPlacement(nx, ny, k, fr, geo.view || fr);
+      if (!place) { dropped.push(`${s.n}: ${text}`); return; }
+      pointers.push({ scene: s.n, text, ...place, ...win });
     });
     const span = { start: sc.start, end: r3(sc.end - 0.05) };
     if (s.split) splits.push({ scene: s.n, left: s.split.leftLabel, right: s.split.rightLabel, ...span });
@@ -1855,9 +1907,10 @@ async function cmdAssembly(io, job) {
     draftName: `${slice((title[0] + " " + title[1]).trim() || "Medical explainer", 0, 60)} \u00b7 Medical`, total: tl.total, files, segments: segs, narration, music,
     scenes: tl.scenes.map((sc) => ({ n: sc.n, start: sc.start, end: sc.end })),
     mode: style.mode, art: style.art, layout: style.layout,
-    geo: { title: geo.title, label: geo.label, caption: geo.caption, wordmark: geo.wordmark, chip: geo.chip, card: geo.card, stamp: geo.stamp, insets: geo.insets, split: geo.split },
+    geo: { title: geo.title, label: geo.label, caption: geo.caption, wordmark: geo.wordmark, chip: geo.chip, card: geo.card, stamp: geo.stamp, insets: geo.insets, split: geo.split,
+      ...(geo.bars ? { bars: geo.bars } : {}) },
     title: { line1: title[0], line2: title[1], color1: medHex(tpl.color1, MED_TITLE_COLORS[0]), color2: medHex(tpl.color2, MED_TITLE_COLORS[1]),
-      size: Math.min(geo.title.maxSize, medTitleSize(title[0], title[1])) },
+      size: geo.titleSize ? geo.titleSize : Math.min(geo.title.maxSize, medTitleSize(title[0], title[1])) },
     wordmark: strip(tpl.wordmark || ""), labels, captions: tl.captions, pointers, splits, insets, dropped, ...mode,
   };
   await io.writeJson(job.p("selects.json"), res);
@@ -2157,7 +2210,8 @@ export function medScriptPrompt(art, f, mode = "auto", inside = "auto") {
 // The first screen shows the source, the brand preset and "Write the script"; everything else is under a collapsed
 // "Advanced settings" header that counts the values changed from these defaults (template values compare with the
 // chosen preset's), so a non-default choice is never hidden silently.
-export const MED_ADV_DEFAULTS = { lang: "auto", kfModel: MED_KF_DEFAULT, video: MED_VIDEO_DEFAULT, quality: "standard", mode: "auto", art: "auto", inside: "auto", layout: "auto",
+// New jobs: 3D medical CG, inside-the-body shots on, the shortform layout. Jobs already saved keep their settings.
+export const MED_ADV_DEFAULTS = { lang: "auto", kfModel: MED_KF_DEFAULT, video: MED_VIDEO_DEFAULT, quality: "standard", mode: "auto", art: "medical", inside: "on", layout: "shortform",
   voice: MED_VOICES[0].id, music: false, gateScript: true, gateKf: true };
 export const MED_ADV_STORAGE_KEY = "ui:advancedOpen";
 // The first screen's one-line summary: untouched explanation/art/layout as "Automatic: ...", each changed one by
@@ -2185,6 +2239,8 @@ export function medAdvancedChanges(values, template, preset) {
   const changed = Object.keys(MED_ADV_DEFAULTS).filter((k) => k in v && v[k] !== MED_ADV_DEFAULTS[k]);
   for (const k of ["wordmark", "color1", "color2", "bg"]) if (k in t && String(t[k]).toLowerCase() !== String(p[k]).toLowerCase()) changed.push(k);
   if (p.logoFile && "logo" in t && !!t.logo !== !!p.logo) changed.push("logo");
+  const lo = asObj(v.layoutOpts);
+  for (const k of Object.keys(MED_SHORTFORM_DEFAULTS)) if (k in lo && Number(lo[k]) !== MED_SHORTFORM_DEFAULTS[k]) changed.push(k);
   return changed;
 }
 
@@ -2370,6 +2426,11 @@ const EDIT_SPLIT = [
   { key: "fontSize", label: "Size", type: "number", defaultValue: 36, min: 20, max: 72, step: 1 },
   { key: "fontFamily", label: "Font", type: "text", defaultValue: "" },
 ];
+const EDIT_BARS = [
+  { key: "topHeight", label: "Top bar height", type: "number", defaultValue: 420, min: 0, max: 900, step: 2 },
+  { key: "bottomHeight", label: "Bottom bar height", type: "number", defaultValue: 420, min: 0, max: 900, step: 2 },
+  { key: "color", label: "Bar color", type: "color", defaultValue: "#000000" },
+];
 const EDIT_CHIP = [
   { key: "text", label: "Chip", type: "text", defaultValue: "" },
   { key: "color", label: "Color", type: "color", defaultValue: "#FFE14D" },
@@ -2441,6 +2502,7 @@ const g = async (label: string, tsxCode: string, parameters: any, editableParame
 const t = ${JSON.stringify(sel.title)};
 const G: any = ${JSON.stringify(sel.geo || {})};
 const at = (k: string, f: string, d: number) => (G[k] && typeof G[k][f] === "number" ? G[k][f] : d);
+if (G.bars) await g("Bars", ${JSON.stringify(TPL.bars)}, { topHeight: G.bars.top, bottomHeight: G.bars.bottom, color: G.bars.color }, ${JSON.stringify(EDIT_BARS)}, 0, total / fps);
 await g("Title", ${JSON.stringify(TPL.title)}, { line1: t.line1, line2: t.line2, color1: t.color1, color2: t.color2, fontSize: t.size, fontFamily: "",
   top: at("title", "top", 180), height: at("title", "height", 240), band: !!(G.title && G.title.band), bandColor: "#000000A6" }, ${JSON.stringify(EDIT_TITLE)}, 0, total / fps);
 const wm = ${JSON.stringify(sel.wordmarkOverlay || { text: sel.wordmark, logo: "", logoText: "" })};
@@ -2495,9 +2557,10 @@ function Panel({ sdk, context, ui }: any) {
   const [quality, setQuality] = React.useState<string>("standard");
   // Explanation mode, art preset and layout: "auto" follows the script's mode.
   const [modeSet, setModeSet] = React.useState<string>("auto");
-  const [artSet, setArtSet] = React.useState<string>("auto");
-  const [layoutSet, setLayoutSet] = React.useState<string>("auto");
-  const [insideSet, setInsideSet] = React.useState<string>("auto"); // inside-the-body shots: auto | on | off
+  const [artSet, setArtSet] = React.useState<string>("medical");
+  const [layoutSet, setLayoutSet] = React.useState<string>("shortform");
+  const [layoutOpts, setLayoutOpts] = React.useState<any>({ ...MED_SHORTFORM_DEFAULTS });
+  const [insideSet, setInsideSet] = React.useState<string>("on"); // inside-the-body shots: auto | on | off
   // "Advanced settings" is closed by default; whether it is open is remembered in plugin storage.
   const [advOpen, setAdvOpen] = React.useState(false);
   React.useEffect(() => {
@@ -2775,7 +2838,7 @@ function Panel({ sdk, context, ui }: any) {
     setPreset(id);
     setTpl({ ...(MED_PRESETS as any)[id] });
   }
-  const settingsNow = () => ({ lang, voice, music, kfModel, video: videoSet, quality, mode: modeSet, art: artSet, layout: layoutSet, inside: insideSet, template: { ...tpl }, gates: { script: gateScript, keyframes: gateKf } });
+  const settingsNow = () => ({ lang, voice, music, kfModel, video: videoSet, quality, mode: modeSet, art: artSet, layout: layoutSet, layoutOpts: { ...layoutOpts }, inside: insideSet, template: { ...tpl }, gates: { script: gateScript, keyframes: gateKf } });
 
   // ---- 1. Script ----
   async function makePlan() {
@@ -2909,7 +2972,7 @@ function Panel({ sdk, context, ui }: any) {
       if (fresh.current) {
         const now = settingsNow();
         const titles = titleOverride || titleLines;
-        jd.settings = { ...(jd.settings || {}), ...(pj.started ? {} : { voice: now.voice, music: now.music, kfModel: now.kfModel, video: now.video, quality: now.quality, art: now.art, layout: now.layout, inside: now.inside }), template: now.template,
+        jd.settings = { ...(jd.settings || {}), ...(pj.started ? {} : { voice: now.voice, music: now.music, kfModel: now.kfModel, video: now.video, quality: now.quality, art: now.art, layout: now.layout, layoutOpts: now.layoutOpts, inside: now.inside }), template: now.template,
           ...(titles.line1 || titles.line2 ? { titleLines: titles } : {}) };
         await writeJson(hostJoin(dir, "job.json"), jd);
       } else if (jd.settings?.titleLines) setTitleLines(jd.settings.titleLines);
@@ -3115,8 +3178,8 @@ function Panel({ sdk, context, ui }: any) {
   const js: any = jobSettings || {};
   const adv = jobSettings
     ? { lang: js.lang ?? "auto", kfModel: js.kfModel ?? MED_KF_DEFAULT, mode: js.mode ?? "auto", art: js.art ?? "auto", inside: js.inside ?? "auto",
-      layout: js.layout ?? "auto", voice: js.voice ?? MED_VOICES[0].id, music: !!js.music, video: js.video ?? MED_VIDEO_DEFAULT, quality: js.quality ?? "standard" }
-    : { lang, kfModel, mode: modeSet, art: artSet, inside: insideSet, layout: layoutSet, voice, music, video: videoSet, quality };
+      layout: js.layout ?? "auto", voice: js.voice ?? MED_VOICES[0].id, music: !!js.music, video: js.video ?? MED_VIDEO_DEFAULT, quality: js.quality ?? "standard", layoutOpts: { ...MED_SHORTFORM_DEFAULTS, ...(js.layoutOpts || {}) } }
+    : { lang, kfModel, mode: modeSet, art: artSet, inside: insideSet, layout: layoutSet, voice, music, video: videoSet, quality, layoutOpts };
   const advChanged = medAdvancedChanges({ ...adv, gateScript, gateKf }, tpl, preset);
   const recoverable = recovery.current && !recovery.current.done && recovery.current.dir && !jobs.some((j) => j.id === recovery.current.jobId) ? recovery.current : null;
 
@@ -3161,6 +3224,11 @@ function Panel({ sdk, context, ui }: any) {
               options={["auto", "on", "off"].map((k) => ({ value: k, label: S.insideNames[k] }))} />
             <ui.Select label={S.layout} value={adv.layout} onChange={setLayoutSet} disabled={fixed}
               options={[{ value: "auto", label: S.autoStyle }, ...Object.keys(MED_LAYOUTS).map((k) => ({ value: k, label: S.layoutNames[k] }))]} />
+            {adv.layout === "shortform" && (Object.keys(MED_SHORTFORM_DEFAULTS) as string[]).map((k) => (
+              <ui.NumberField key={k} label={S.shortformOpts[k]} value={Number(adv.layoutOpts?.[k] ?? (MED_SHORTFORM_DEFAULTS as any)[k])} disabled={fixed}
+                min={(MED_SHORTFORM_BOUNDS as any)[k][0]} max={(MED_SHORTFORM_BOUNDS as any)[k][1]} step={k === "titleSize" ? 2 : 10} unit="px"
+                onChange={(v: number) => setLayoutOpts((cur: any) => ({ ...cur, [k]: v }))} />
+            ))}
             <ui.Select label={S.voice} value={adv.voice} onChange={setVoice} options={MED_VOICES.map((v) => ({ value: v.id, label: v.label }))} disabled={fixed} />
             <ui.Select label={S.videoModel} value={adv.video} onChange={setVideoSet} disabled={fixed}
               options={Object.entries(MED_VIDEO_MODELS).map(([id, m]: any) => ({ value: id, label: m.label }))} />

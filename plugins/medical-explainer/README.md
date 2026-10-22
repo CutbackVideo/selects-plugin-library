@@ -14,8 +14,13 @@ In the myth, timeline and steps modes the script can add a short inside-the-body
 entered with a push and left with a pull) for the explanation; the "Inside-the-body shots" setting turns this on,
 leaves it to the script (default) or turns it off.
 
-The layout decides the picture's shape: the **16:9 strip card** (zoom by default) or the **full 9:16 frame** (the other
-modes by default), with keyframes and video generated at that aspect. The explanation mode, the art style (3D medical
+New jobs use the **shortform** layout: solid black, a black top bar with the big two-line title, a black bottom bar
+with the captions and the wordmark or logo, and the generated 9:16 video in the middle band (about 1080x1080 by
+default). Bar heights, the video's vertical position and the title size are in Advanced settings, and the bars and the
+title stay editable graphics in the Draft; the video fills the whole frame behind the bars, so changing them never
+needs new generations. The other layouts are the **16:9 strip card** and the **full 9:16 frame** (with "match the
+explanation", zoom uses the strip and the other modes the full frame); keyframes and video are generated at the
+layout's aspect. New jobs also default to the 3D medical CG art style with inside-the-body shots on. The explanation mode, the art style (3D medical
 CG, photoreal everyday, stylized 3D character, clean infographic), the layout and the keyframe model can also be chosen
 under Advanced settings. Every title, label, caption and card is its own editable graphic clip.
 

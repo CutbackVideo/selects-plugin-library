@@ -122,7 +122,7 @@ class MedicalExplainerTest(unittest.TestCase):
 
     def test_mode_art_and_layout_are_settings(self):
         for needle in ['<ui.Select label={S.mode} value={adv.mode} onChange={setModeSet}', '<ui.Select label={S.art} value={adv.art} onChange={setArtSet}', '<ui.Select label={S.layout} value={adv.layout} onChange={setLayoutSet}',
-                       'mode: modeSet, art: artSet, layout: layoutSet, inside: insideSet', 'await ask(medScriptPrompt(art, f, modeSet, insideSet))',
+                       'mode: modeSet, art: artSet, layout: layoutSet, layoutOpts: { ...layoutOpts }, inside: insideSet', 'await ask(medScriptPrompt(art, f, modeSet, insideSet))',
                        '<ui.Select label={S.inside} value={adv.inside} onChange={setInsideSet}']:
             self.assertIn(needle, self.panel)
         self.assertNotIn('MED_STYLE', self.panel)
@@ -146,7 +146,7 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('{advOpen && (', adv)
         self.assertIn('S.advanced + (advChanged.length ? ` \\u00b7 ${S.changed(advChanged.length)}` : "")', self.panel)
         self.assertIn('const fixed = !!busy || !!jobSettings;', self.panel)
-        self.assertEqual(adv.count('disabled={fixed}'), 10, 'every job-fixed setting')
+        self.assertEqual(adv.count('disabled={fixed}'), 11, 'every job-fixed setting')
 
     def test_update_guard_policy_and_hook(self):
         policies = json.loads((ROOT / 'shared' / 'app-update-guard-policies.json').read_text(encoding='utf-8'))
