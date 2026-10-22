@@ -5,7 +5,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild');
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8'),mod={exports:{}};
- new Function('require','module','exports',esbuild.transformSync(src+'\nexport {SCRIPT_APPLY_REFRAME,createReframeWork,templateBuildScript,captionLineMax,wideShotScript,STACKED_REFRAME_EFFECT};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ new Function('require','module','exports',esbuild.transformSync(src+'\nexport {SCRIPT_APPLY_REFRAME,createReframeWork,templateBuildScript,captionLineMax,wideShotScript,STACKED_REFRAME_EFFECT,savedDraftResults};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
  const P={projectId:'p',draftId:'d',resourceId:'v',resourceName:'Video',sourceKind:'video',transform:{scale:2,posX:0,posY:0},frame:{windowTop:450,windowBottom:1300},reframe:[{start:0,end:10,cx:450,w:800},{start:10,end:30,cx:1400,w:800}]};
  async function run({fail=false,owned=true}={}){
   let committed=0,transforms=[],splits=[];
@@ -116,6 +116,15 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   await attempt();
   assert.deepEqual(framed,['w1','w0']);assert.equal(wide.length,2);assert.equal(job.built[0].reframeState,'done');
   env.onlyDraftId=undefined;
+  // Deleted clips keep their index: resuming neither rebuilds nor re-files them, and the run still completes.
+  const moves=[];env.moveRunDrafts=async(p,f,ids)=>{moves.push(ids);};
+  job={...job,done:false,built:job.built.map((d,i)=>i===0?{...d,deleted:true}:{...d,reframeState:'pending'})};
+  await attempt();
+  assert.equal(made,2);assert.deepEqual(moves[0],[null,'w1']);assert.deepEqual(framed,['w1','w0','w1']);
+  assert.equal(job.built[0].deleted,true);assert.equal(job.done,true);
+  const listed=mod.exports.savedDraftResults([{...job,projectId:'p'}],'p');
+  assert.equal(listed.length,1);
+  assert.equal(mod.exports.savedDraftResults([{...job,projectId:'p',built:job.built.map(d=>({...d,deleted:true}))}],'p').length,0);
 
  });
  await t.test('generation saves the Draft before reframing and captures thumbnails afterwards',()=>{

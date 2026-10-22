@@ -153,7 +153,7 @@ const STRINGS: any = {
     resumeHint: "Progress is saved; press Resume to continue.",
     stage: (j: any) =>
       j.choice
-        ? `${(j.built || []).filter((b: any) => b && b.draftId).length}/${j.choice.clips.length} drafts built`
+        ? `${(j.built || []).filter((b: any) => b && b.draftId && !b.deleted).length}/${j.choice.clips.length - (j.built || []).filter((b: any) => b?.deleted).length} drafts built`
         : j.key
           ? "before choosing passages"
           : (j.transcriptReady || j.analyzed)
@@ -352,7 +352,7 @@ const STRINGS: any = {
     resumeHint: "\uc9c4\ud589 \uc0c1\ud669\uc740 \uc800\uc7a5\ub3fc \uc788\uc5b4 \"\uc774\uc5b4\uc11c \ud558\uae30\"\ub85c \ub2e4\uc2dc \uc2dc\uc791\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     stage: (j: any) =>
       j.choice
-        ? `\ucd08\uc548 ${(j.built || []).filter((b: any) => b && b.draftId).length}/${j.choice.clips.length}\uac1c \uc644\ub8cc`
+        ? `\ucd08\uc548 ${(j.built || []).filter((b: any) => b && b.draftId && !b.deleted).length}/${j.choice.clips.length - (j.built || []).filter((b: any) => b?.deleted).length}\uac1c \uc644\ub8cc`
         : j.key
           ? "\uad6c\uac04 \uc120\ud0dd \uc804"
           : (j.transcriptReady || j.analyzed)
@@ -1997,17 +1997,17 @@ RESULT_STRINGS.ko.title = (n: number) => `\uc0dd\uc131\ub41c \ud074\ub9bd ${n}\u
 RESULT_STRINGS.en.createdCount = (done: number,total: number) => `${done}/${total} clips created`;
 RESULT_STRINGS.ko.createdCount = (done: number,total: number) => `\ud074\ub9bd ${done}/${total}\uac1c \uc0dd\uc131 \uc644\ub8cc`;
 function savedDraftResults(jobs: any[], projectId: string) {
-  return jobs.filter(j=>j?.projectId === projectId && !j.dismissed && Array.isArray(j.built) && j.built.some((d: any)=>d?.draftId || d?.error))
+  return jobs.filter(j=>j?.projectId === projectId && !j.dismissed && Array.isArray(j.built) && j.built.some((d: any)=>!d?.deleted && (d?.draftId || d?.error)))
     .sort((a,b)=>String(b.created || b.updated || "").localeCompare(String(a.created || a.updated || "")) || String(b.id || "").localeCompare(String(a.id || "")));
 }
 function latestDraftResult(jobs: any[], projectId: string) { return savedDraftResults(jobs,projectId)[0] || null; }
 function resultJobLabel(job: any, lang: string, R: any) {
   const sourceName=String(job.title || job.resourceName || "");
   const source=sourceName && !/^[\w-]{11}\.(mp4|mov|mkv|webm)$/i.test(sourceName)
-    ? sourceName : String(job.built?.find((d: any)=>d?.headline1)?.headline1 || R.untitled);
+    ? sourceName : String(job.built?.find((d: any)=>d?.headline1 && !d.deleted)?.headline1 || R.untitled);
   const date=new Date(job.created || job.updated);
   const stamp=Number.isNaN(date.getTime()) ? R.unknownDate : new Intl.DateTimeFormat(lang === "ko" ? "ko-KR" : "en-US",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(date);
-  return `${source} · ${stamp} · ${R.title(job.built.filter(clipReady).length)}`;
+  return `${source} · ${stamp} · ${R.title(job.built.filter((d: any)=>d && !d.deleted && clipReady(d)).length)}`;
 }
 // A fixed rubric and deterministic mean keep the displayed score independent of AI arithmetic.
 const CLIP_SCORE_PROMPT = `For each clip, assess only the selected transcript content, not visuals, audio delivery or predicted views.
@@ -2333,8 +2333,9 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
 
 function ClipRunProgress({ui,S,R,job,busy,step,sub,statusLine,cancelling,onCancel}: any) {
   if (!busy) return null;
-  const total = job?.choice?.clips?.length || 0;
-  const completed = job?.built?.filter((d: any)=>clipReady(d)).length || 0;
+  const removed = job?.built?.filter((d: any)=>d?.deleted).length || 0;
+  const total = (job?.choice?.clips?.length || 0) - removed;
+  const completed = job?.built?.filter((d: any)=>d && !d.deleted && clipReady(d)).length || 0;
   const value = step === 4 && total ? completed / total : Math.max(0,Math.min(1,(step+sub)/S.steps.length));
   const label = step === 4 && total ? R.createdCount(completed,total) : S.steps[step] || S.thisRun;
   return <div style={{...CARD,marginBottom:16}} role="status" aria-live="polite">
@@ -2857,7 +2858,7 @@ const RADIO_STRINGS: any = {
     resumeHint: "Progress is saved; press Resume to continue.",
     stage: (j: any) =>
       j.choice
-        ? `${(j.built || []).filter((b: any) => b && b.draftId).length}/${j.choice.clips.length} drafts built`
+        ? `${(j.built || []).filter((b: any) => b && b.draftId && !b.deleted).length}/${j.choice.clips.length - (j.built || []).filter((b: any) => b?.deleted).length} drafts built`
         : j.key
           ? "before choosing passages"
           : (j.transcriptReady || j.analyzed)
@@ -3069,7 +3070,7 @@ const RADIO_STRINGS: any = {
     resumeHint: "\uc9c4\ud589 \uc0c1\ud669\uc740 \uc800\uc7a5\ub3fc \uc788\uc5b4 \"\uc774\uc5b4\uc11c \ud558\uae30\"\ub85c \ub2e4\uc2dc \uc2dc\uc791\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
     stage: (j: any) =>
       j.choice
-        ? `\ucd08\uc548 ${(j.built || []).filter((b: any) => b && b.draftId).length}/${j.choice.clips.length}\uac1c \uc644\ub8cc`
+        ? `\ucd08\uc548 ${(j.built || []).filter((b: any) => b && b.draftId && !b.deleted).length}/${j.choice.clips.length - (j.built || []).filter((b: any) => b?.deleted).length}\uac1c \uc644\ub8cc`
         : j.key
           ? "\uad6c\uac04 \uc120\ud0dd \uc804"
           : (j.transcriptReady || j.analyzed)
@@ -9232,6 +9233,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const [resultSelection,setResultSelection]=React.useState("__latest__");
   // Clips chosen in My clips, kept per saved run.
   const [clipSelection,setClipSelection]=React.useState<{job:string,ids:string[]}>({job:"",ids:[]});
+  const [confirmDelete,setConfirmDelete]=React.useState(false);
   const resultProject=React.useRef(projectId);
   resultProject.current=projectId;
   const [runInfo, setRunInfo] = React.useState<any>(null);
@@ -9506,7 +9508,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       if (resultsRevision.current !== revision || runRef.current) return;
       const job = latestDraftResult(rows, projectId);
       if (!job) return;
-      setDrafts(job.built.filter(Boolean));
+      setDrafts(job.built.filter((d: any)=>d && !d.deleted));
       setInfo({ key: job.key, why: job.why, recommended: job.choice?.recommendedCount, countReason: job.choice?.countReason });
       setWarn(job.resultWarning || "");
       setStep(5);
@@ -10571,6 +10573,28 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     } finally {overlayLock.current=false;setBusy(false);}
   }
 
+  // The panel SDK cannot delete Drafts: deleted clips move to one project folder for the user to remove,
+  // and stay recorded at their index so the run neither lists nor rebuilds them.
+  async function deleteResultClips(job: any, ids: string[]) {
+    if(overlayLock.current||busy||packLock.current||!ids.length)return;
+    overlayLock.current=true;setBusy(true);setError("");
+    try {
+      const name=lang==='ko'?'\uc0ad\uc81c\ud55c \uc20f\ud3fc':'Deleted shorts';
+      const folder=await script(runFolderScript(job.projectId,undefined,name),"Prepare deleted shorts folder",true);
+      if(!folder?.folderId)throw new Error("Could not create the deleted shorts folder");
+      const present=await script(`const live=(await selects.project(${JSON.stringify(job.projectId)}).meta()).draftIds;return ${JSON.stringify(ids)}.filter(id=>live.includes(id));`,"Check shorts to delete");
+      if(present?.length){
+        const moved=await script(`return await selects.project(${JSON.stringify(job.projectId)}).moveToFolder(${JSON.stringify({targetFolderId:folder.folderId,draftIds:present})});`,"Move deleted shorts",true);
+        if(!moved||moved.skipped?.length)throw new Error("Some shorts could not be moved. Try again.");
+      }
+      const at=new Date().toISOString();
+      const saved={...job,updated:at,built:job.built.map((d:any)=>d?.draftId&&ids.includes(d.draftId)?{...d,deleted:true,deletedAt:at}:d)};
+      await saveJob(saved);
+      setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==saved.id),saved],projectId));
+    } catch(e:any) {setError(String(e?.message||e));}
+    finally {overlayLock.current=false;setBusy(false);}
+  }
+
   async function run(resume?: any, onlyDraftId?: string | string[], forceReframe = false) {
     if(overlayLock.current||busy||packLock.current)return;
     if (templateDirty || templateSaving) { setTab("templates"); return; }
@@ -10730,7 +10754,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           await script(sceneCaptionScript(projectId,result.draftId,clip,tpl,S),'Place planned dialogue captions',true);
           const actual=await script(`const p=selects.project(${JSON.stringify(projectId)}),id=${JSON.stringify(result.draftId)},owned=(await p.meta()).draftIds.includes(id);if(!owned)return {owned};const d=selects.draft(id),graphics=[];for(const g of await d.motionGraphics()){const program=await d.motionGraphicProgram(g.clip);graphics.push({name:g.name,startFrame:g.clip.startFrame,endFrame:g.clip.endFrame,text:program?.parameters?.text,bottom:program?.parameters?.bottom,top:program?.parameters?.top,height:program?.parameters?.height,mode:program?.parameters?.mode});}return {owned,meta:await d.meta(),visualLayers:(await d.clips({trackScope:'all'})).filter(c=>c.trackKind==='video').length,graphics};`,'Verify saved scenes and caption timing');
           made[i]={...clip,...validateSceneDraft(result,actual,clip,clip.name,{captions:tpl.captions.on}),workDirectory};
-          setDrafts(made.filter(Boolean));await persist({built:made});
+          setDrafts(made.filter((d:any)=>d && !d.deleted));await persist({built:made});
           await mark("built",{clip:i,ms:Date.now()-buildStarted});
           try {
             const thumbnail=await guard(loadDraftThumbnail(store,sdk,projectId,job.id,made[i].draftId));
@@ -10783,7 +10807,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       if (tpl.captions.on && tpl.captions.fontSizing !== "auto") await document.fonts.load(captionFont(tpl.captions)).catch(() => {});
       const made: any[] = Array.isArray(job.built) ? job.built.slice() : [];
       const folderId = await ensureRunFolder(job, script, persist);
-      await moveRunDrafts(job.projectId, folderId, made.map(d => d?.draftId), script, job.id);
+      // Deleted clips stay recorded at their index so resuming never rebuilds them.
+      await moveRunDrafts(job.projectId, folderId, made.map(d => d?.deleted ? null : d?.draftId), script, job.id);
       for (const d of made) if (d?.name) d.name = withoutRunSuffix(d.name, job.id);
       const pending: number[] = [];
       const work = createReframeWork(() => {if(token.cancelled) throw new RunCancelled();});
@@ -10791,13 +10816,15 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       const framingOn = !tpl.landscape && !!tpl.layout.reframe;
       for (let i = 0; i < pickd.clips.length; i++) {
         const c = pickd.clips[i];
+        if (made[i]?.deleted) continue;
         if (onlyDraftId && ![onlyDraftId].flat().includes(made[i]?.draftId)) continue;
         if(forceReframe && made[i]?.draftId) made[i]={...made[i],reframeState:"pending",progressStage:"pending",error:undefined};
         // Completed legacy drafts already contain their framing; new drafts persist
         // an explicit pending state so interruption resumes the same output.
         if (made[i]?.draftId && made[i].reframeState !== "pending" && made[i].reframeState !== "failed") continue;
-        // A run without framing leaves clips wide until the user frames them; a failed framing retry stays framed.
-        const needsReframe = framingOn && (!job.skipFraming || forceReframe || made[i]?.reframeState === "failed");
+        // A run without framing leaves clips wide until the user frames them; an unfinished or failed
+        // framing request stays a framing request when resumed or retried.
+        const needsReframe = framingOn && (!job.skipFraming || forceReframe || made[i]?.reframeState === "pending" || made[i]?.reframeState === "failed");
         const buildStarted = Date.now();
         setStatus(S.building(i + 1, pickd.clips.length));
         setSub(i / pickd.clips.length);
@@ -10857,7 +10884,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             made[i] = { ...c, name, error: String(e?.message || e).slice(0, 300) };
           }
         }
-        setDrafts(made.filter(Boolean));
+        setDrafts(made.filter((d:any)=>d && !d.deleted));
         await persist({ built: made, resultWarning });
         if (made[i]?.draftId) {
           await moveRunDrafts(job.projectId, folderId, [made[i].draftId], script, job.id);
@@ -10881,7 +10908,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             }
             if (entry.plan === 'stage') {
               made[i] = {...made[i], progressStage:entry.stage, progressAt:Date.now()};
-              setDrafts(made.filter(Boolean));
+              setDrafts(made.filter((d:any)=>d && !d.deleted));
             }
             if (entry.plan === 'reframe-usage') {
               const calls = [...(made[i].reframeUsageCalls || []), entry.usage ?? null];
@@ -10897,7 +10924,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             if (e instanceof RunCancelled) throw e;
             made[i] = {...made[i], reframeState:"failed", failedStage:made[i].progressStage, progressStage:"failed",progressAt:Date.now(), error:String(e?.message || e).slice(0,300)};
           }
-          setDrafts(made.filter(Boolean));
+          setDrafts(made.filter((d:any)=>d && !d.deleted));
           await persist({built:made, choice:pickd, resultWarning});
           await mark("reframed", {clip: i, ms: Date.now() - reframeStarted, ok: made[i].reframeState === "done"});
         } else if (made[i]?.draftId && made[i].reframeState !== "failed" && made[i].progressStage !== "done") {
@@ -10913,7 +10940,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             }
           }
           made[i] = {...made[i],progressStage:"done",progressAt:Date.now(),previewPending:true};
-          setDrafts(made.filter(Boolean));
+          setDrafts(made.filter((d:any)=>d && !d.deleted));
           await persist({built:made,resultWarning});
         }
       }));
@@ -10932,15 +10959,15 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           } catch (e) { if (e instanceof RunCancelled) throw e; /* A preview failure leaves the editable clip intact. */ }
         }
         made[i] = {...made[i],previewPending:false};
-        setDrafts(made.filter(Boolean));
+        setDrafts(made.filter((d:any)=>d && !d.deleted));
         await persist({built:made,resultWarning});
       }
       await mark("thumbnails-done");
       await mark("done");
 
-      const allBuilt = made.length === pickd.clips.length && made.every((m) => m && m.draftId && m.reframeState !== "failed" && m.reframeState !== "pending");
+      const allBuilt = made.length === pickd.clips.length && made.every((m) => m && (m.deleted || (m.draftId && m.reframeState !== "failed" && m.reframeState !== "pending")));
       await persist({ done: allBuilt });
-      setStatus(S.done(made.filter((m) => m && m.draftId).length));
+      setStatus(S.done(made.filter((m) => m && m.draftId && !m.deleted).length));
       if (!allBuilt) setError(made.filter((m) => m && m.error).map((m) => m.error).join(" / ").slice(0, 600) + " " + S.resumeHint);
       setStep(5);
       loadResources();
@@ -10992,7 +11019,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     .map((r) => ({ value: r.id, label: `${r.name}${r.kind === "synced" ? (lang === "ko" ? " · \uc2f1\ud06c \ud0c0\uc784\ub77c\uc778" : " · Synced timeline") : r.kind === "draft" ? " · Draft" : ""} · ${r.sec < 60 ? S.seconds(r.sec) : S.minutes(Math.floor(r.sec / 60))}${r.transcribed || r.analyzed ? "" : " · " + S.notAnalyzed}` }));
   const history=savedDraftResults(resultJobs,projectId || "");
   const shownResult=(resultSelection === "__latest__" ? history[0] : history.find(j=>j.id===resultSelection)) || history[0];
-  const shownDrafts=shownResult?.built?.filter(Boolean) || [];
+  const shownDrafts=shownResult?.built?.filter((d:any)=>d && !d.deleted) || [];
   const selectedClips=clipSelection.job===shownResult?.id?clipSelection.ids.filter(id=>shownDrafts.some((d:any)=>d.draftId===id)):[];
   const selectClip=(id:string,on:boolean)=>setClipSelection({job:shownResult?.id||"",ids:on?[...selectedClips.filter(x=>x!==id),id]:selectedClips.filter(x=>x!==id)});
   const shownTemplate=templates.find(t=>t.id===shownResult?.key);
@@ -11177,6 +11204,14 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         {!shownResult.sceneStudy && <div style={{marginBottom:12,display:"flex",flexWrap:"wrap",gap:8}}>
           <ui.Button disabled={busy||!selectedClips.length} onClick={()=>{const ids=selectedClips;setClipSelection({job:"",ids:[]});run(shownResult,ids,true);}}>{lang==="ko"?`\uc120\ud0dd\ud55c \ud074\ub9bd \ud654\uba74 \uad6c\uc131 (${selectedClips.length})`:`Frame selected clips (${selectedClips.length})`}</ui.Button>
           <ui.Button variant="secondary" disabled={busy} onClick={()=>run(shownResult,undefined,true)}>{lang==="ko"?"\uc804\uccb4 \ud654\uba74 \uad6c\uc131 \ub2e4\uc2dc":"Reframe all clips"}</ui.Button>
+          {!confirmDelete ? <ui.Button variant="ghost" disabled={busy||!selectedClips.length} onClick={()=>setConfirmDelete(true)}>{lang==="ko"?`\uc120\ud0dd\ud55c \ud074\ub9bd \uc9c0\uc6b0\uae30 (${selectedClips.length})`:`Delete selected (${selectedClips.length})`}</ui.Button>
+            : <div role="alertdialog" style={{flex:"1 1 100%",display:"flex",flexDirection:"column",gap:8}}>
+              <small>{lang==="ko"?`\ud074\ub9bd ${selectedClips.length}\uac1c\ub97c \ubaa9\ub85d\uc5d0\uc11c \uc9c0\uc6b0\uace0 Draft\ub97c "\uc0ad\uc81c\ud55c \uc20f\ud3fc" \ud3f4\ub354\ub85c \uc62e\uaca8\uc694. Draft\ub294 \uadf8 \ud3f4\ub354\uc5d0\uc11c \uc9c1\uc811 \uc0ad\uc81c\ud574 \uc8fc\uc138\uc694.`:`Removes ${selectedClips.length} clips from this list and moves their Drafts to the "Deleted shorts" folder. Delete the Drafts there.`}</small>
+              <div style={{display:"flex",gap:8}}>
+                <ui.Button variant="danger" disabled={busy||!selectedClips.length} onClick={()=>{const ids=selectedClips;setConfirmDelete(false);setClipSelection({job:"",ids:[]});void deleteResultClips(shownResult,ids);}}>{lang==="ko"?"\uc9c0\uc6b0\uae30":"Delete"}</ui.Button>
+                <ui.Button variant="secondary" onClick={()=>setConfirmDelete(false)}>{lang==="ko"?"\ucde8\uc18c":"Cancel"}</ui.Button>
+              </div>
+            </div>}
         </div>}
         <DraftResults onEditFraming={(d:any,index:number,shot:any)=>editResultFraming(shownResult,d,index,shot)} coverContext={{job:shownResult,config:coverSettings(shownTemplate||{thumbnail:shownResult.coverConfig}),lang,disabled:busy}} drafts={shownDrafts} busy={busy} onRetry={(id:string)=>run(shownResult,id)} selection={shownResult.sceneStudy?undefined:selectedClips} onSelect={shownResult.sceneStudy?undefined:selectClip} template={shownResult.templateName || (shownTemplate ? nameOf(shownTemplate,lang) : "")}
           sdk={sdk} store={store} jobId={shownResult.id} projectId={projectId} visibleDraftId={visibleDraftId} opening={openingDraft} onOpen={openDraft}
