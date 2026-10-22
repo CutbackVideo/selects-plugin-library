@@ -108,7 +108,7 @@ const STRINGS: any = {
     refresh: "Refresh list",
     program: "Template",
     auto: "Detect automatically",
-    count: "Number of clips",
+    count: "Maximum clips",
     countAuto: "Recommended",
     countManual: "Set",
     howMany: "Clips",
@@ -307,7 +307,7 @@ const STRINGS: any = {
     refresh: "\ubaa9\ub85d \uc0c8\ub85c\uace0\uce68",
     program: "\ud15c\ud50c\ub9bf",
     auto: "\uc790\ub3d9 \ud310\ubcc4",
-    count: "\ud074\ub9bd \uc218",
+    count: "\ucd5c\ub300 \ud074\ub9bd \uc218",
     countAuto: "\ucd94\ucc9c\ub300\ub85c",
     countManual: "\uc9c1\uc811 \uc9c0\uc815",
     howMany: "\ub9cc\ub4e4 \uac1c\uc218",
@@ -2793,7 +2793,7 @@ const RADIO_STRINGS: any = {
     refresh: "Refresh list",
     program: "Template",
     auto: "Detect automatically",
-    count: "Number of clips",
+    count: "Maximum clips",
     countAuto: "Recommended",
     countManual: "Set",
     howMany: "Clips",
@@ -3005,7 +3005,7 @@ const RADIO_STRINGS: any = {
     refresh: "\ubaa9\ub85d \uc0c8\ub85c\uace0\uce68",
     program: "\ud15c\ud50c\ub9bf",
     auto: "\uc790\ub3d9 \ud310\ubcc4",
-    count: "\ud074\ub9bd \uc218",
+    count: "\ucd5c\ub300 \ud074\ub9bd \uc218",
     countAuto: "\ucd94\ucc9c\ub300\ub85c",
     countManual: "\uc9c1\uc811 \uc9c0\uc815",
     howMany: "\ub9cc\ub4e4 \uac1c\uc218",
@@ -10140,7 +10140,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       tx = tx.slice(0, 90000);
       truncated = true;
     }
-    const want = cMode === "manual" ? `\uc815\ud655\ud788 ${cNum}\uac1c\ub97c \ub9cc\ub4e0\ub2e4.` : `\uba87 \uac1c\ub97c \ub9cc\ub4e4\uc9c0 \ucd94\ucc9c\ud558\ub77c. ${p.countGuide} \uae30\uc900\uc744 \ub118\ub294 \uad6c\uac04\uc774 \ubd80\uc871\ud558\uba74 \uc801\uac8c \ub9cc\ub4e0\ub2e4. \uc57d\ud55c \ud074\ub9bd\uc73c\ub85c \ucc44\uc6b0\uc9c0 \ub9c8\ub77c.`;
+    const want = cMode === "manual" ? `Select up to ${cNum} complete, non-overlapping clips. This is a maximum, not a quota. Select as many worthwhile passages as the source supports within this limit; return fewer when necessary. Never reuse speech, split one coherent passage into weak fragments, or pad the selection to reach the limit. Explain a smaller selection in countReason.` : `Recommend as many complete, distinct clips as the source supports. ${p.countGuide} Return fewer rather than padding with weak or overlapping passages.`;
     const prompt = [
       `${p.role} \uc544\ub798 \uc785\ub825(${nameOf(tpl, "ko")}, \uae38\uc774 ${Math.round(duration)}\ucd08)\uc5d0\uc11c \ud2f1\ud1a1\uc6a9 \uc138\ub85c \ud074\ub9bd \uad6c\uac04\uc744 \uace0\ub978\ub2e4.`,
       `\uc81c\ubaa9/\ud30c\uc77c\uba85: ${title}`,
@@ -10150,6 +10150,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       `\uaddc\uce59: ${p.rules} \uc6d0\ubcf8 \uae30\uc900 \uae38\uc774 ${p.lengthGuide}.`,
       `\ud5e4\ub4dc\ub77c\uc778 \ub450 \uc904: ${p.headline}`,
       want,
+      "Every clip must use distinct source-time intervals. No segment may overlap another segment in the same clip or any other clip. Adjacent intervals may share an endpoint.",
       CLIP_SCORE_PROMPT,
       tpl.captions.highlight ? `\uc790\ub9c9 \uac15\uc870: \ud074\ub9bd\ub9c8\ub2e4 \uc790\ub9c9\uc5d0\uc11c \ub178\ub780\uc0c9\uc73c\ub85c \uac15\uc870\ud560 \ud575\uc2ec\uc5b4 3-6\uac1c\ub97c highlights\uc5d0 \ub123\uc5b4\ub77c. \uadf8 \ud074\ub9bd \uad6c\uac04\uc758 \uc804\uc0ac\uc5d0 \uadf8\ub300\ub85c \ub098\uc624\ub294 1-3\uc5b4\uc808 \ud45c\ud604\ub9cc \uc4f4\ub2e4(\uc22b\uc790, \uc885\ubaa9·\uae30\uc5c5\uba85, \ud575\uc2ec \uc8fc\uc7a5). \uc870\uc0ac\ub294 \ube7c\uace0 \uc9e7\uac8c.` : "",
       cNote ? `\uc0ac\uc6a9\uc790 \ucd94\uac00 \uc694\uccad: ${cNote}` : "",
@@ -10174,8 +10175,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           .sort((a: any, b: any) => a[0] - b[0]),
       }))
       .filter((c: any) => c.segments.length);
-    if (cMode === "manual") clips = clips.slice(0, cNum);
-    return { clips, recommendedCount: j.recommendedCount ?? clips.length, countReason: j.countReason || "", fixes: Array.isArray(j.fixes) ? j.fixes : [], captionOmissions: (tpl.captions.cleanSpeechText === true) && Array.isArray(j.captionOmissions) ? j.captionOmissions : [] };
+    return { clips, recommendedCount: clips.length, countReason: typeof j.countReason === "string" ? j.countReason : "", fixes: Array.isArray(j.fixes) ? j.fixes : [], captionOmissions: tpl.captions.cleanSpeechText === true && Array.isArray(j.captionOmissions) ? j.captionOmissions : [] };
   }
 
   async function runLayerScenes(initialJob:any,persistOuter:(patch:any)=>Promise<void>,tpl:any) {
@@ -10624,7 +10624,11 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       setStatus(S.choosing);
       if (!job.choice) {
         const pickd = await choose(tpl, job.title || "", lines, duration, job.countMode, job.count, job.note, askShared("choose"));
-        if (!pickd.clips.length) throw new Error(S.noPassage);
+        if (!pickd.clips.length) {
+          await persist({choice:pickd,done:true});
+          setInfo({key:job.key,why:job.why,recommended:0,countReason:pickd.countReason});
+          setStatus(S.noPassage);setStep(5);return;
+        }
         // Names are fixed here so a resumed job finds the drafts it already made, whatever the app language.
         pickd.clips = pickd.clips.map((c: any, i: number) => ({
           ...c,
