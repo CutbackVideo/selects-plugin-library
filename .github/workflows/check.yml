@@ -37,7 +37,10 @@ jobs:
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_ownership_audit.test.mjs tests/feature_ownership_coverage.test.mjs
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node tools/check_feature_ownership.mjs docs/template-repair/ownership/mini-vlog.json > "$RUNNER_TEMP/mini-feature-ownership.json"
       - name: Test Music
-        run: node --test tests/music.test.mjs tests/music-preview.test.mjs tests/audio_beat_engine.test.mjs
+        run: |
+          node --test tests/music.test.mjs tests/music-preview.test.mjs tests/audio_beat_engine.test.mjs tests/project_audio.test.mjs tests/archive_audio_adoption.test.mjs
+          node plugins/mini-vlog/operation-builder.mjs --check
+          node plugins/archive-vlog/operation-builder.mjs --check
       - name: Test complete Image Draft authoring
         run: SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" node --test tests/photo_atomic_authoring.test.mjs tests/photo_atomic_compiled.test.mjs tests/polaroid_atomic.test.mjs
       - name: Test Gallery complete authoring and input/compiled ordering

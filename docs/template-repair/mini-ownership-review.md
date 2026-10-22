@@ -1,6 +1,6 @@
 # Mini source-to-feature decision map
 
-The current map follows Mini alpha.28 over feature-review base `a07a1ace`.
+The current map follows Mini alpha.29 over feature-review base `a07a1ace`.
 The original review was created over `2e730ab8`; source locations and full content
 hashes are refreshed for the current implementation rather than retained as stale
 evidence. `ownership/mini-vlog.json` is the canonical source/decision record and
@@ -8,10 +8,11 @@ evidence. `ownership/mini-vlog.json` is the canonical source/decision record and
 
 ## Coverage and limits
 
-The current index captures 42 files, including all 30 shipped executable/test files,
-21 declared assets/data records, 27 feature decisions, 2,318 callable units
-(1,495 anonymous callbacks), 2,134 top-level statements and four embedded programs.
-It also captures the new regression sources and canonical build-time audio engine.
+The current index captures 44 files, including all 30 shipped executable/test files,
+21 declared assets/data records, 27 feature decisions, 2,390 callable units
+(1,528 anonymous callbacks), 2,128 top-level statements and four embedded programs.
+It also captures the new regression sources, canonical build-time audio engine,
+and the canonical asset owner/selected-Audio regression shared with Archive.
 Source hashes explicitly normalize checkout line endings; binary identities stay exact.
 
 The checker reports `coverageComplete:true`, `semanticReviewComplete:false` and
@@ -22,7 +23,7 @@ source nor fixed fixture status promotes a whole template to accepted.
 
 ## Feature decisions
 
-Twelve rows keep Mini policy/data specific, ten reuse existing owners, three extend
+Twelve rows keep Mini policy/data specific, nine reuse existing owners, four extend
 existing owners and two remain planned text extraction (runtime plus checker share
 one prospective owner). The audio engine has now moved from planned extraction to
 implemented reuse: four standalone consumers share one canonical CJS source.
@@ -43,7 +44,7 @@ registry and are still counted explicitly; the registry is not the final module 
 | audio-beat-engine | reuse | audio-beat-analysis | implemented |
 | worker-owner | reuse | analysis-worker | existing |
 | music-policy | keep-template-specific | mini-vlog | specific |
-| asset-owner | reuse | bundled-assets | existing |
+| asset-owner | extend | bundled-assets | implemented-extension |
 | source-input | reuse | native-image-input | existing |
 | catalog-read | reuse | media-inventory | existing |
 | local-video-analysis | reuse | clip-analysis | existing |

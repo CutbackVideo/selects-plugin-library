@@ -1936,7 +1936,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.17";
+const PLUGIN_VERSION = "0.1.0-alpha.18";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -3865,15 +3865,70 @@ async function readBundledAssetBytes(files,path,limit,current){
  if(!ArrayBuffer.isView(raw)||raw.byteLength!==stat.size||!after||after.isDirectory!==false||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))throw bundledAssetIssue('CHANGED','The bundled file changed while reading. Start a new run.');
  return Uint8Array.from(new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength));
 }
-async function readBundledAssetResource(selects,projectId,path,platform,normalizeUnicode=false){
+async function readBundledAssetResource(selects,projectId,path,platform,normalizeUnicode=false,requireComplete=false){
  const project=selects.project(projectId),resources=new Map(),matches=[];
- for(const resource of await project.resources())resources.set(resource.resourceId,resource);
+ const rows=await project.resources();
+ if(requireComplete&&!Array.isArray(rows))throw Error('The Project Resource catalog is incomplete.');
+ for(const resource of rows){
+  if(requireComplete&&(!resource||typeof resource.resourceId!=='string'||!resource.resourceId||resources.has(resource.resourceId)))throw Error('The Project Resource catalog is contradictory.');
+  resources.set(resource.resourceId,resource);
+ }
  const key=value=>{const text=normalizeUnicode?String(value).normalize('NFC'):String(value);return platform==='win32'?text.replace(/\\/g,'/').toLowerCase():text;};
- const visit=items=>{for(const n of items||[]){if(matches.length>=2)return;if(n.type==='dir')visit(n.children);else if(n.path&&key(n.path)===key(path)&&resources.has(n.resourceId)){const r=resources.get(n.resourceId);matches.push({resourceId:r.resourceId,path:n.path,type:r.type,durationSeconds:r.durationSeconds,...r.type==='Image'?{frameSize:n.frameSize}:{}});}}};
+ const visit=items=>{
+  if(requireComplete&&!Array.isArray(items))throw Error('The Project file tree is incomplete.');
+  for(const n of items||[]){
+   if(matches.length>=2)return;
+   if(requireComplete&&(!n||typeof n!=='object'))throw Error('The Project file tree is incomplete.');
+   if(n.type==='dir')visit(n.children);
+   else if(n.path&&key(n.path)===key(path)){
+    if(requireComplete&&!resources.has(n.resourceId))throw Error('The selected Project file has no Resource metadata.');
+    if(resources.has(n.resourceId)){const r=resources.get(n.resourceId);matches.push({resourceId:r.resourceId,path:n.path,type:r.type,durationSeconds:r.durationSeconds,...r.type==='Image'?{frameSize:n.frameSize}:{}});}
+   }
+  }
+ };
  const tree=await project.sourceFiles();
  if('fileTree' in tree)visit(tree.fileTree);
- else for(const folder of tree.folders||[]){if(matches.length>=2)break;const detail=await project.sourceFiles({folder:folder.name});if('fileTree' in detail)visit(detail.fileTree);}
+ else{
+  if(requireComplete&&(!Array.isArray(tree.folders)||!tree.folders.length&&tree.fileCount!==0))throw Error('The Project file overview is incomplete.');
+  const seen=new Set();
+  for(const folder of tree.folders||[]){
+   if(matches.length>=2)break;
+   if(requireComplete&&(!folder||typeof folder.name!=='string'||!folder.name||seen.has(folder.name)))throw Error('The Project folder overview is contradictory.');
+   seen.add(folder.name);const detail=await project.sourceFiles({folder:folder.name});
+   if('fileTree' in detail)visit(detail.fileTree);
+   else if(requireComplete)throw Error('The Project folder detail is incomplete.');
+  }
+ }
  return {matches};
+}
+// Selected Audio adoption owns one import attempt and its Project readback.
+// Physical content and run lifetime remain the caller's input/run contracts.
+async function ensureProjectAudio(selects,cfg){
+ const minimumSeconds=cfg?.minimumSeconds??0,path=cfg?.path;
+ const win=typeof path==='string'&&(/^[a-z]:[\\/]/i.test(path)||path.startsWith('\\\\'));
+ if(!cfg||typeof cfg.projectId!=='string'||!cfg.projectId||typeof path!=='string'||!path||!win&&!path.startsWith('/')||!Number.isFinite(minimumSeconds)||minimumSeconds<0||cfg.withPath!==undefined&&typeof cfg.withPath!=='boolean')throw bundledAssetIssue('INPUT','The music import requirements are invalid.');
+ const p=selects.project(cfg.projectId),result=(row,imported)=>({resourceId:row.resourceId,imported,...cfg.withPath?{path:row.path,durationSeconds:row.durationSeconds}:{}});
+ const read=async()=>{
+  let result;
+  try{result=await readBundledAssetResource(selects,cfg.projectId,path,win?'win32':'darwin',true,true);}
+  catch(cause){throw bundledAssetIssue('READ','The selected music in this Project could not be confirmed. Check the Project files.',cause);}
+  if(!result||!Array.isArray(result.matches)||result.matches.length>1)throw bundledAssetIssue('READ','The selected music in this Project could not be uniquely confirmed. Check the Project files.');
+  const row=result.matches[0];
+  if(row&&(typeof row.resourceId!=='string'||!row.resourceId||typeof row.path!=='string'||!row.path||row.type!=='Audio'||!Number.isFinite(row.durationSeconds)||row.durationSeconds<=0||row.durationSeconds<minimumSeconds))throw bundledAssetIssue('METADATA','The selected file could not be confirmed as Audio. Check the Project files.');
+  return row;
+ };
+ const existing=await read();if(existing)return result(existing,false);
+ let imported,importFailure;
+ try{imported=await p.importFiles({paths:[path]});}catch(cause){importFailure=cause;}
+ // The SDK invalidates read snapshots on a dispatched write, including a lost
+ // reply. Observe the actual Resource/path after that one attempt; never resend.
+ const row=await read(),ids=imported?.addedResourceIds;
+ if(row){
+  if(Array.isArray(ids)&&ids.length&&(ids.length!==1||ids[0]!==row.resourceId))throw bundledAssetIssue('IMPORT_UNKNOWN','The selected music import could not be confirmed. Inspect the Project before starting again.');
+  return result(row,true);
+ }
+ if(Array.isArray(ids)&&!ids.length)throw bundledAssetIssue('SKIPPED','The music file was not imported.');
+ throw bundledAssetIssue('IMPORT_UNKNOWN','The selected music import could not be confirmed. Inspect the Project before starting again.',importFailure);
 }
 async function prepareBundledAsset(sdk,files,options){
  const {projectId,pluginId,sourcePath,type,extension,encoding='binary',expectedBytes,expectedSha256,frameSize,platform='darwin',normalizeUnicode=false,minimumSeconds=0,label='asset',isCurrent=()=>true}=options??{};

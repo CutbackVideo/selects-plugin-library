@@ -326,28 +326,31 @@
     },
     {
       "id": "asset-owner",
-      "decision": "reuse",
+      "decision": "extend",
       "owner": "bundled-assets",
-      "reason": "One existing owner already controls verified assets, publication, exclusive reservations, derived results and native PCM/preview lifetimes.",
+      "reason": "One existing owner already controls verified assets, publication, exclusive reservations, derived results and native PCM/preview lifetimes. Selected Audio adoption now has this same canonical owner rather than a second copied import/readback procedure.",
       "contract": {
-        "input": "Captured file/media client, bounded byte/hash/duration contract, source identity, target directory, current owner and producer callback.",
+        "input": "Captured file/media client, bounded byte/hash/duration contract, source identity, target directory, current owner and producer callback. Selected Audio also receives Project ID/path, an optional minimum duration and optional provenance response.",
         "output": "Verified published asset, derived cache result or transient decoded bytes with cleanup outcome.",
         "identity": "Content digest, exact path, exclusive owner token and native job identity.",
         "dependencies": "Existing private client, SDK read/write/CAS/media primitives and explicit policy budgets.",
         "effects": "Owned file reservations/copies/imports/cache publication and media producers; never edits original assets.",
         "lifetime": "One captured invocation; actual native exit is required before releasing output.",
         "cleanup": "Only exclusively owned paths; preserve previous results and unknown producer workspaces.",
-        "outcomes": "Known success/failure differs from unresolved creation/publication/cleanup; nested diagnostics remain private.",
+        "outcomes": "Known success/failure differs from unresolved creation/publication/cleanup; nested diagnostics remain private. Opt-in complete-catalog reads distinguish unavailable source/Resource facts from confirmed absence before any import.",
         "retry": "Never replay unknown mutation; readback can recover exact outcomes.",
-        "distribution": "shared/bundled-assets.js, panel block and generated ensure-audio helpers.",
-        "validation": "Existing asset/cue/PCM/lifetime tests and actual native SDK cases; persisted uncertain-workspace reconciliation remains open."
+        "distribution": "shared/bundled-assets.js, registered panel copies and Mini/Archive generated ensure-audio operations; legacy asset-reader callers retain their default contract.",
+        "validation": "Existing asset/cue/PCM/lifetime tests and actual native SDK cases; persisted uncertain-workspace reconciliation remains open. Shared selected-Audio regressions cover incomplete catalogs, invalid inputs, path/type/duration/ID confirmation and one-attempt lost-reply recovery; existing asset consumers remain in the affected suite."
       },
       "evidence": [
         "shared/bundled-assets.js",
         "tests/bundled_assets.test.mjs",
-        "tests/media_unconfirmed_workspace.test.mjs"
+        "tests/media_unconfirmed_workspace.test.mjs",
+        "tests/project_audio.test.mjs",
+        "plugins/mini-vlog/scripts/ensure-audio.js",
+        "plugins/mini-vlog/operation-builder.mjs"
       ],
-      "implementation": "existing"
+      "implementation": "implemented-extension"
     },
     {
       "id": "source-input",
@@ -715,7 +718,7 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "da62d04e87d156e494dd017072d7fe63812a7224863c243c4a89970d4c83be8e",
+      "sha256": "6d55b164cbb4f62213bbfbf5902600d04247683ca287006a2ae5abf8ed84e96d",
       "role": "runtime",
       "ranges": [
         {
@@ -825,137 +828,137 @@
         },
         {
           "startLine": 3961,
-          "endLine": 4298,
+          "endLine": 4353,
           "feature": "asset-owner"
         },
         {
-          "startLine": 4299,
-          "endLine": 4873,
+          "startLine": 4354,
+          "endLine": 4928,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 4874,
-          "endLine": 4893,
+          "startLine": 4929,
+          "endLine": 4948,
           "feature": "music-policy"
         },
         {
-          "startLine": 4976,
-          "endLine": 4982,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 4983,
-          "endLine": 4993,
-          "feature": "music-policy"
-        },
-        {
-          "startLine": 4994,
-          "endLine": 5011,
-          "feature": "source-input"
-        },
-        {
-          "startLine": 5012,
+          "startLine": 5031,
           "endLine": 5037,
-          "feature": "workflow-policy"
+          "feature": "panel-ui"
         },
         {
           "startLine": 5038,
-          "endLine": 5106,
-          "feature": "program-policy"
-        },
-        {
-          "startLine": 5107,
-          "endLine": 6171,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 6172,
-          "endLine": 6221,
-          "feature": "script-dispatch"
-        },
-        {
-          "startLine": 6222,
-          "endLine": 6444,
-          "feature": "source-input"
-        },
-        {
-          "startLine": 6445,
-          "endLine": 6463,
-          "feature": "workflow-policy"
-        },
-        {
-          "startLine": 6464,
-          "endLine": 6630,
-          "feature": "workflow-policy"
-        },
-        {
-          "startLine": 6631,
-          "endLine": 6673,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 6674,
-          "endLine": 6789,
-          "feature": "catalog-read"
-        },
-        {
-          "startLine": 6790,
-          "endLine": 7189,
-          "feature": "local-sdk"
-        },
-        {
-          "startLine": 7190,
-          "endLine": 7236,
-          "feature": "app-guard"
-        },
-        {
-          "startLine": 7237,
-          "endLine": 7237,
-          "feature": "panel-ui"
-        },
-        {
-          "startLine": 5182,
-          "endLine": 5205,
-          "feature": "script-dispatch"
-        },
-        {
-          "startLine": 5206,
-          "endLine": 5213,
-          "feature": "host-bootstrap"
-        },
-        {
-          "startLine": 5251,
-          "endLine": 5287,
-          "feature": "catalog-read"
-        },
-        {
-          "startLine": 5477,
-          "endLine": 5571,
+          "endLine": 5048,
           "feature": "music-policy"
         },
         {
-          "startLine": 5574,
-          "endLine": 5592,
-          "feature": "scene-observation"
+          "startLine": 5049,
+          "endLine": 5066,
+          "feature": "source-input"
         },
         {
-          "startLine": 5598,
-          "endLine": 5630,
-          "feature": "local-video-analysis"
-        },
-        {
-          "startLine": 5633,
-          "endLine": 5859,
+          "startLine": 5067,
+          "endLine": 5092,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5896,
-          "endLine": 5900,
+          "startLine": 5093,
+          "endLine": 5161,
+          "feature": "program-policy"
+        },
+        {
+          "startLine": 5162,
+          "endLine": 6226,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 6227,
+          "endLine": 6276,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 6277,
+          "endLine": 6499,
+          "feature": "source-input"
+        },
+        {
+          "startLine": 6500,
+          "endLine": 6518,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6519,
+          "endLine": 6685,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 6686,
+          "endLine": 6728,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 6729,
+          "endLine": 6844,
+          "feature": "catalog-read"
+        },
+        {
+          "startLine": 6845,
+          "endLine": 7244,
+          "feature": "local-sdk"
+        },
+        {
+          "startLine": 7245,
+          "endLine": 7291,
+          "feature": "app-guard"
+        },
+        {
+          "startLine": 7292,
+          "endLine": 7292,
+          "feature": "panel-ui"
+        },
+        {
+          "startLine": 5237,
+          "endLine": 5260,
+          "feature": "script-dispatch"
+        },
+        {
+          "startLine": 5261,
+          "endLine": 5268,
+          "feature": "host-bootstrap"
+        },
+        {
+          "startLine": 5306,
+          "endLine": 5342,
+          "feature": "catalog-read"
+        },
+        {
+          "startLine": 5532,
+          "endLine": 5626,
+          "feature": "music-policy"
+        },
+        {
+          "startLine": 5629,
+          "endLine": 5647,
+          "feature": "scene-observation"
+        },
+        {
+          "startLine": 5653,
+          "endLine": 5685,
+          "feature": "local-video-analysis"
+        },
+        {
+          "startLine": 5688,
+          "endLine": 5914,
+          "feature": "workflow-policy"
+        },
+        {
+          "startLine": 5951,
+          "endLine": 5955,
           "feature": "montage-policy"
         },
         {
-          "startLine": 4896,
-          "endLine": 4975,
+          "startLine": 4951,
+          "endLine": 5030,
           "feature": "music-policy"
         }
       ],
@@ -1105,12 +1108,12 @@
     },
     {
       "path": "plugins/mini-vlog/scripts/ensure-audio.js",
-      "sha256": "153593377d773e775029d7019b8b9a45bb1664f9f7eeee4fff2034f2221f10ec",
+      "sha256": "5416997986129bfbae977b18c5edad4d8efe5d28cd2702e7d546e680d5459ce9",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 45,
+          "endLine": 69,
           "feature": "asset-owner"
         }
       ],
@@ -1352,7 +1355,7 @@
     },
     {
       "path": "plugins/mini-vlog/operation-builder.mjs",
-      "sha256": "b5343c33a51d947d8e507f1bfea925ec74634254c45f94f2f3412a777ab1da2a",
+      "sha256": "2369a45a9f4aba0939e96c3767f04119fb7fe24addda6765a2db2bd21187f2db",
       "role": "build-source",
       "ranges": [
         {
@@ -1430,13 +1433,13 @@
     },
     {
       "path": "plugins/mini-vlog/dev/ensure-audio.template.js",
-      "sha256": "539785e198e6c53dc1e6717ef6e3f8668646cdf25033c8ebe8348546eeaf777a",
+      "sha256": "6692cab0ae5460f78899300651a835f3a2f9423f25e756e1ece4d78574bb0643",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 31,
+          "endLine": 2,
           "feature": "music-policy"
         }
       ]
@@ -1502,6 +1505,32 @@
         {
           "startLine": 1,
           "endLine": 24,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "shared/bundled-assets.js",
+      "sha256": "115d34b1febb279143979d526a5f6879e9d846540debbf0be99c21e474df29e9",
+      "hashMode": "lf-text",
+      "role": "build-source",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 391,
+          "feature": "asset-owner"
+        }
+      ]
+    },
+    {
+      "path": "tests/project_audio.test.mjs",
+      "sha256": "418c56406d93e8935b9318c086b39463a2dd62ec572e0437f60694649fc614dc",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 30,
           "feature": "test-harness"
         }
       ]
@@ -1650,7 +1679,7 @@
     },
     {
       "path": "plugins/mini-vlog/plugin.json",
-      "sha256": "b31566747d771f2636467e435833407116bc9822ed0a000b049929eb5ea20eb4",
+      "sha256": "7c4f89e237eec175c80e835e16b6a249e8dda7ef062321426a97caa6688d8efe",
       "feature": "copy-and-package",
       "reason": "Declared package inputs/compatibility/options and release metadata.",
       "hashMode": "lf-text"
@@ -1725,15 +1754,15 @@
       "sources": [
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 4912
+          "line": 4967
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 5665
+          "line": 5720
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 4966
+          "line": 5021
         }
       ],
       "repairOwner": "mini-vlog",
@@ -1764,7 +1793,7 @@
         },
         {
           "file": "plugins/mini-vlog/panel.tsx",
-          "line": 4946
+          "line": 5001
         }
       ],
       "repairOwner": "local-client",

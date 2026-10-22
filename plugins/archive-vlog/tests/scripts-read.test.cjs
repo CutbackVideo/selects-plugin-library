@@ -164,13 +164,19 @@ const keepAlive = setInterval(() => {}, 50);
   }
 
   // ensure-audio.js: the cue's path matches the host's stored path after normalising (NFC, backslashes as slashes,
-  // case-folded), else by file name; only a cue the Project lacks is imported.
+  // case-folded on Windows). A basename/length match cannot identify selected Audio.
   const audioProject = (stored, name, durationSeconds = 152.3) => {
-    const imports = [];
+    const imports = [], nodes = [{ type: 'audio', name, resourceId: 'a1', path: stored }];
+    const rows = [{ resourceId: 'v1', type: 'Video', name: 'x.mov' }, { resourceId: 'a1', type: 'Audio', name, durationSeconds }];
     return { imports, sel: { project: () => ({
-      sourceFiles: async () => ({ fileTree: [{ type: 'dir', name: 'cues', children: [{ type: 'audio', name, resourceId: 'a1', path: stored }] }] }),
-      resources: async () => [{ resourceId: 'v1', type: 'Video', name: 'x.mov' }, { resourceId: 'a1', type: 'Audio', name, durationSeconds }],
-      importFiles: async ({ paths }) => { imports.push(...paths); return { addedResourceIds: ['a9'] }; },
+      sourceFiles: async () => ({ fileTree: [{ type: 'dir', name: 'cues', children: nodes }] }),
+      resources: async () => rows,
+      importFiles: async ({ paths }) => {
+        imports.push(...paths);
+        rows.push({ resourceId: 'a9', type: 'Audio', name: paths[0].split(/[\\/]/).pop(), durationSeconds: 152.3 });
+        nodes.push({ type: 'audio', resourceId: 'a9', path: paths[0] });
+        return { addedResourceIds: ['a9'] };
+      },
     }) } };
   };
   const winCue = 'D:\\Data\\AppData\\Selects\\skills\\archive-vlog\\assets\\cues\\peaceful-drift.mp3';
@@ -187,11 +193,12 @@ const keepAlive = setInterval(() => {}, 50);
     assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: '/x/cues/' + ko })(a.sel), { resourceId: 'a1', imported: false });
   }
   {
-    // Same cue file in another folder (the plugin moved): matched by its file name when its length is the cue's
-    // (cfg.duration from the manifest, within 0.5 s).
+    // A same-name, same-length file at another path is not the selected cue.
+    // Confirm the actual imported path; a repeated read reuses that Resource.
     const a = audioProject('/old/place/peaceful-drift.mp3', 'peaceful-drift.mp3');
-    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCue, duration: 152 })(a.sel), { resourceId: 'a1', imported: false });
-    assert.deepEqual(a.imports, []);
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCue, duration: 152 })(a.sel), { resourceId: 'a9', imported: true });
+    assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCue, duration: 152 })(a.sel), { resourceId: 'a9', imported: false });
+    assert.deepEqual(a.imports, [winCue]);
   }
   for (const [label, cfgDuration, stored] of [['another length', 152, 160], ['no cue length in cfg', undefined, 152.3], ['an unknown resource length', 152, null]]) {
     // A file that only shares the cue's name is not the cue: imported.
@@ -200,7 +207,7 @@ const keepAlive = setInterval(() => {}, 50);
     assert.deepEqual(a.imports, [winCue], label);
   }
   {
-    // The exact path needs no length check.
+    // The exact path uses positive Audio metadata, without approximate name/length identity.
     const a = audioProject(winCue, 'peaceful-drift.mp3', 999);
     assert.deepEqual(await load('ensure-audio.js', { projectId: 'p', path: winCue, duration: 152 })(a.sel), { resourceId: 'a1', imported: false });
   }
