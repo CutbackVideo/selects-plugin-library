@@ -28,7 +28,12 @@ for (const id of common) test(`${id}: roots and media use the asynchronous SDK w
   assert.deepEqual(calls, ['exists', 'mkdir']);
   assert.equal(roots.plugin, sdk.files.dirname ? sdk.files.dirname(marker) : marker.slice(0, -11));
   assert.equal(functions.hostIsWindows(), true);
-  if(id==='photo-gallery-no2')assert.deepEqual(Array.from(await functions.readBundledAssetBytes(sdk.files,marker,1,()=>{})),[65]);
+  if(id==='photo-gallery-no2'){
+    const ranges=[],read=sdk.files.readRange;sdk.files.readRange=async(...args)=>{ranges.push(args);return read(...args);};
+    sdk.files.readFile=async()=>{throw Error('The bounded reader must not load a whole file.');};
+    assert.deepEqual(Array.from(await functions.readBundledAssetBytes(sdk.files,marker,1,()=>{})),[65]);
+    assert.deepEqual(ranges,[[marker,0,1]],'the async fixture observes the exact bounded request');
+  }
   else assert.equal(await functions.hostReadText(marker), 'A');
   await assert.rejects(functions.hostRoots(sdk, 'missing-plugin', 'planner.js'), { code: 'not-found' });
   const signal = new AbortController().signal;

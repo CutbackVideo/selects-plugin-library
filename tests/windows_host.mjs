@@ -117,6 +117,7 @@ export function fakeHost({ platform = 'win32', home = 'C:\\Users\\\uD64D\uAE38\u
     stat: async p => store.has(p)?{size:store.get(p).byteLength,isDirectory:false}:null,
     mkdirSync: p => { dirs.add(p); },
     readFile: async p => { if (!store.has(p)) throw Error('ENOENT ' + p); return store.get(p); },
+    readRange: async (p, offset, length) => { if (!store.has(p)) throw Error('ENOENT ' + p); return RealmBytes.from(store.get(p).subarray(offset, offset + length)); },
     writeFile: async (p, data) => { calls.push(['writeFile', p]); store.set(p, RealmBytes.from(typeof data === 'string' ? Buffer.from(data) : data)); },
     removeFile: async ({ filePath }) => { store.delete(filePath); },
   };
