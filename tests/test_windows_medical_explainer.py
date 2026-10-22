@@ -146,7 +146,7 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('{advOpen && (', adv)
         self.assertIn('S.advanced + (advChanged.length ? ` \\u00b7 ${S.changed(advChanged.length)}` : "")', self.panel)
         self.assertIn('const fixed = !!busy || !!jobSettings;', self.panel)
-        self.assertEqual(adv.count('disabled={fixed}'), 8, 'every job-fixed setting')
+        self.assertEqual(adv.count('disabled={fixed}'), 10, 'every job-fixed setting')
 
     def test_update_guard_policy_and_hook(self):
         policies = json.loads((ROOT / 'shared' / 'app-update-guard-policies.json').read_text(encoding='utf-8'))
@@ -178,7 +178,9 @@ class MedicalExplainerTest(unittest.TestCase):
 
     def test_default_video_is_kling_v3_standard(self):
         self.assertIn('i2v: "model_v1_ZmFsLWFpL2tsaW5nLXZpZGVvL3YzL3N0YW5kYXJkL2ltYWdlLXRvLXZpZGVv"', self.panel)
-        self.assertNotIn('L3Byby9pbWFnZS10by12aWRlbw', self.panel)  # .../pro/image-to-video
+        # Kling v3 Pro (1080p) is offered under Video quality, never the default.
+        self.assertIn('export const MED_VIDEO_DEFAULT = "kling";', self.panel)
+        self.assertIn('const [quality, setQuality] = React.useState<string>("standard");', self.panel)
 
     def test_manifest_and_docs(self):
         m = self.manifest

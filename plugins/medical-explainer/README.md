@@ -50,10 +50,14 @@ Medical facts stay general and well established, but every video still needs a m
   that scene's keyframe with a model you pick (a new paid request), or use the still image (a slow zoom on the
   keyframe). Nothing is regenerated or resubmitted without that choice. The keyframe model of a started job does not
   change; a different model means a new job.
-- Scene clips: Kling v3 Standard (720p), start frame only, `max(5, ceil(length + 0.5))` seconds, two takes per scene.
-  Each clip plays from its first frame at normal speed.
+- Scene clips: the video model you choose under Advanced settings — Kling v3 (default; Standard 720p, or Pro for high
+  quality 1080p), Gemini Omni Flash 1.1 (720p or 1080p) or Veo 3 Fast (720p or 1080p) — start frame only,
+  `max(5, ceil(length + 0.5))` seconds rounded up to a length the model makes, two takes per scene. Each clip plays
+  from its first frame at normal speed. A sentence longer than the model's longest clip stops the run before payment.
+  Veo 3 Fast cannot end on a given frame, so with it every camera-move transition becomes a 0.5-second dissolve.
+  Seedance 2.5 is not offered: it takes reference images rather than a first frame.
 - Transitions follow the script: a hard cut, a three-frame white flash, a 0.5-second dissolve, or (push and pull only)
-  a generated Kling v3 Standard clip of 3 seconds from the last frame a scene shows to the first frame of the next, two
+  a generated clip of 3 seconds from the last frame a scene shows to the first frame of the next, two
   takes per boundary, played whole at about 1.7x in a 1.8-second slot centred in the 0.8-second pause between
   sentences. A generated transition that melts or jumps becomes a 0.5-second dissolve.
 - A sentence too long for one video clip (more than 14.5 seconds on screen) stops the run after narration, before any

@@ -763,7 +763,7 @@ test('an unknown or unresolved clip job never triggers the policy fallback', asy
 
 test('the chosen keyframe model shows in the usage line and the run summary', () => {
   const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
-  assert.match(panel, /check\.counts\.narrations, music, medKfModel\(kfModel\)\.label\)/);
+  assert.match(panel, /check\.counts\.narrations, music, medKfModel\(adv\.kfModel\)\.label,/);
   assert.match(panel, /S\.kfModelUsed\(result\.kfModel\)/);
   assert.match(panel, /kfModel: medKfModel\(set\.kfModel\)\.label/);
   assert.match(panel, /voice: now\.voice, music: now\.music, kfModel: now\.kfModel/);
@@ -1045,7 +1045,9 @@ test('every request key, for every model, mode, scene, attempt and revision, mat
         const n = 12;
         const scenes = Array.from({length: n}, (_, i) => ({n: i + 1, narration: `Sentence ${i + 1}.`, subject: 's', visual: 's', motion: 'm', camera: 'push_in', scale: 'tissue',
           transitionOut: i + 1 < n ? 'push' : null, label: 'L', pointers: [], split: null, insets: null, rev: 20}));
-        fs.writeFileSync(path.join(dir, 'job.json'), JSON.stringify({id: jobId, settings: {kfModel: model, voice: 'minimax-calm-lady', music: true}}));
+        const vi = Object.keys(op.MED_KF_MODELS).indexOf(model) + ['zoom', 'myth', 'timeline', 'list'].indexOf(mode);
+        const video = Object.keys(op.MED_VIDEO_MODELS)[vi % 3], quality = vi % 2 ? 'pro' : 'standard';
+        fs.writeFileSync(path.join(dir, 'job.json'), JSON.stringify({id: jobId, settings: {kfModel: model, voice: 'minimax-calm-lady', music: true, video, quality}}));
         fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify({version: op.MED_VERSION, lang: 'ko', mode, title: ['a', 'b'], scenes}));
         const gen = {}, picks = {kf: {}, clip: {}, tr: {}, regen: {}};
         for (const s of scenes) {
@@ -1062,7 +1064,7 @@ test('every request key, for every model, mode, scene, attempt and revision, mat
           for (const attempt of ['1', '99']) {
             const out = await op.medEngine('requests', dir, [kind, '', '--attempt', attempt], stubIO(dir));
             assert.notEqual(out.ok, false, `${kind}: ${out.error}`);
-            assert.ok(out.requests.length > 0, kind);
+            assert.ok(out.requests.length > 0 || (kind === 'transitions' && !op.MED_VIDEO_MODELS[JSON.parse(fs.readFileSync(path.join(dir, 'job.json'), 'utf8')).settings.video].endFrame), kind);
             for (const r of out.requests) {
               count++;
               assert.match(r.key, PATTERN, `${model} ${mode} ${kind}: ${r.key}`);
@@ -1416,4 +1418,81 @@ test('compatibility and README describe the verified scope and the current behav
   assert.doesNotMatch(readme, /^- Keyframes:.*\b16:9, two candidates/m);
   for (const needle of ['two\n  style families', 'first inside scene', 'full 9:16 frame', 'Inside-the-body shots', 'Advanced settings', 'Chosun Ilbo logo', '## Platforms'])
     assert.ok(readme.includes(needle), needle);
+});
+
+// ---- video model choice and quality ----
+const VIDEO_SCHEMA = {
+  'fal-ai/kling-video/v3/standard/image-to-video': ['prompt', 'negative_prompt', 'start_image_url', 'end_image_url', 'duration', 'generate_audio', 'multi_prompt', 'elements', 'cfg_scale', 'shot_type', 'enable_safety_checker'],
+  'fal-ai/kling-video/v3/pro/image-to-video': ['prompt', 'negative_prompt', 'start_image_url', 'end_image_url', 'duration', 'generate_audio', 'multi_prompt', 'elements', 'cfg_scale', 'shot_type', 'enable_safety_checker'],
+  'google/gemini-omni-flash/v1.1/image-to-video': ['prompt', 'image_url', 'end_image_url', 'duration', 'resolution', 'aspect_ratio'],
+  'fal-ai/veo3/fast/image-to-video': ['prompt', 'image_url', 'negative_prompt', 'duration', 'resolution', 'aspect_ratio', 'generate_audio', 'safety_tolerance', 'auto_fix', 'seed'],
+};
+test('video models: each request sends only schema fields, at the layout aspect, with the quality tier', () => {
+  const want = {
+    kling: {standard: ['fal-ai/kling-video/v3/standard/image-to-video', ''], pro: ['fal-ai/kling-video/v3/pro/image-to-video', '-vkp']},
+    'gemini-omni': {standard: ['google/gemini-omni-flash/v1.1/image-to-video', '-vgo7'], pro: ['google/gemini-omni-flash/v1.1/image-to-video', '-vgo10']},
+    veo3fast: {standard: ['fal-ai/veo3/fast/image-to-video', '-vve7'], pro: ['fal-ai/veo3/fast/image-to-video', '-vve10']},
+  };
+  assert.deepEqual(Object.keys(op.MED_VIDEO_MODELS), Object.keys(want));
+  assert.equal(op.MED_VIDEO_DEFAULT, 'kling');
+  for (const [id, tiers] of Object.entries(want)) for (const [q, [ep, tag]] of Object.entries(tiers)) {
+    for (const end of [false, true]) {
+      const r = op.medVideoRequest(id, q, {prompt: 'p', negative: 'n', seconds: 6, end, aspect: '9:16'});
+      assert.equal(decode(r.modelId), ep);
+      assert.equal(r.tag, tag);
+      for (const k of Object.keys(r.input)) assert.ok(VIDEO_SCHEMA[ep].includes(k), `${id}: ${k}`);
+      const uploads = Object.values(r.input).filter((v) => typeof v === 'string' && v.startsWith('selects-input:'));
+      assert.deepEqual(uploads, end && op.MED_VIDEO_MODELS[id].endFrame ? ['selects-input:start', 'selects-input:end'] : ['selects-input:start'], 'no unused upload slot');
+      if (id !== 'kling') { assert.equal(r.input.aspect_ratio, '9:16'); assert.equal(r.input.resolution, q === 'pro' ? '1080p' : '720p'); }
+    }
+  }
+  assert.equal(op.medVideoRequest('kling', 'standard', {prompt: 'p', negative: 'n', seconds: 7}).input.duration, '7');
+  assert.equal(op.medVideoRequest('gemini-omni', 'standard', {prompt: 'p', seconds: 7}).input.duration, 7);
+  assert.equal(op.medVideoRequest('veo3fast', 'standard', {prompt: 'p', seconds: 6}).input.duration, '6s');
+  assert.equal(op.medVideoRequest('kling', 'standard', {prompt: 'p', negative: 'n', seconds: 5}).input.generate_audio, false);
+});
+
+test('clip lengths round up to each model\'s allowed values; the length stop follows each model\'s maximum', () => {
+  assert.equal(op.medVideoSeconds('kling', 5), 5);
+  assert.equal(op.medVideoSeconds('veo3fast', 5), 6);
+  assert.equal(op.medVideoSeconds('veo3fast', 7), 8);
+  assert.equal(op.medVideoSeconds('veo3fast', 9), null);
+  assert.equal(op.medVideoSeconds('gemini-omni', 11), null);
+  const tl = op.medTimeline([4.2, 6.6, 4]);
+  for (const [id, allowed] of [['kling', op.MED_VIDEO_MODELS.kling.durations], ['gemini-omni', op.MED_VIDEO_MODELS['gemini-omni'].durations], ['veo3fast', [4, 6, 8]]]) {
+    const t = op.medApplyVideoModel(tl, id);
+    for (const s of t.scenes) { assert.ok(allowed.includes(s.clipSeconds), `${id} ${s.clipSeconds}`); assert.ok(s.clipSeconds >= s.span); }
+  }
+  assert.deepEqual(op.medApplyVideoModel(tl, 'veo3fast').scenes.map((s) => s.clipSeconds), [6, 8, 6]);
+  // A 9-second sentence is fine for Kling and Gemini but stops before payment for Veo 3 Fast (max 8 s).
+  const long = op.medTimeline([4, 9, 4]);
+  assert.deepEqual(op.medLengthProblems(op.medApplyVideoModel(long, 'kling'), 'kling'), []);
+  assert.deepEqual(op.medLengthProblems(op.medApplyVideoModel(long, 'veo3fast'), 'veo3fast').map((x) => x.scene), [2]);
+  assert.deepEqual(op.medLengthProblems(op.medApplyVideoModel(op.medTimeline([4, 11, 4]), 'gemini-omni'), 'gemini-omni').map((x) => x.scene), [2]);
+});
+
+test('a video model without an end frame turns push/pull boundaries into dissolves (no transition requests)', async () => {
+  const plan = {lang: 'en', scenes: [{n: 1, narration: 'One two three.', transitionOut: 'push'}, {n: 2, narration: 'Four five.', transitionOut: 'cut'}, {n: 3, narration: 'Six.', transitionOut: 'pull'}, {n: 4, narration: 'Seven.'}]};
+  assert.deepEqual(op.medTransitionTypes(plan, 'kling'), ['push', 'cut', 'pull']);
+  assert.deepEqual(op.medTransitionTypes(plan, 'veo3fast'), ['dissolve', 'cut', 'dissolve']);
+  const k = op.medGenerationCounts(plan, false, 'kling'), v = op.medGenerationCounts(plan, false, 'veo3fast');
+  assert.deepEqual([k.transitions, k.dissolveFallback], [4, 0]);
+  assert.deepEqual([v.transitions, v.dissolveFallback], [0, 2]);
+  const {dir} = makeJob({video: 'veo3fast', quality: 'pro'});
+  const io = stubIO(dir, {duration: async (p) => NARR[Number(/narr_(\d)_/.exec(p)[1]) - 1]});
+  await op.medEngine('timeline', dir, [], io);
+  const tl = JSON.parse(fs.readFileSync(path.join(dir, 'timeline.json'), 'utf8'));
+  assert.ok(tl.boundaries.every((b) => b.type === 'dissolve' && !b.generated));
+  for (const n of [1, 2, 3, 4]) { fs.writeFileSync(path.join(dir, 'work', `out_${n}.png`), ''); fs.writeFileSync(path.join(dir, 'work', `in_${n}.png`), ''); }
+  fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'A', 2: 'A', 3: 'A', 4: 'A'}, clip: {}}));
+  assert.deepEqual((await op.medEngine('requests', dir, ['transitions'], io)).requests, []);
+  const clips = (await op.medEngine('requests', dir, ['clips'], io)).requests;
+  for (const r of clips) {
+    assert.equal(decode(r.modelId), 'fal-ai/veo3/fast/image-to-video');
+    assert.equal(r.input.resolution, '1080p');
+    assert.match(r.key, /-kA-vve10$/, 'model and quality are in the key');
+    assert.match(r.key, op.MED_KEY_PATTERN);
+    assert.ok(['4s', '6s', '8s'].includes(r.input.duration));
+  }
+  fs.rmSync(dir, {recursive: true, force: true});
 });

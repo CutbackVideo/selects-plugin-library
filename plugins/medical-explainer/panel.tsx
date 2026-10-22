@@ -312,7 +312,8 @@ type Strings = {
   music: string; gateScript: string; gateKf: string;
   makePlan: string; planning: string; planTitle: string; redo: string; review: string; title1: string; title2: string;
   summary: (s: number, n: number, lang: string) => string;
-  estimate: (images: number, clips: number, clipSeconds: number, transitions: number, narrations: number, music: boolean, kfModel: string) => string;
+  estimate: (images: number, clips: number, clipSeconds: number, transitions: number, narrations: number, music: boolean, kfModel: string, video?: string) => string;
+  videoModel: string; qualityPro: string; noEndFrame: (n: number) => string; videoUsed: (v: string) => string; videoWord: string;
   kfModel: string; fluxNote: string; kfModelUsed: (label: string) => string; policyScenes: string; policyTransitions: string;
   policyTitle: string; policyScene: (n: number, label: string) => string; policyRegen: (model: string) => string; policyUseStill: string;
   policyRegenFailed: string; policyStill: string; ignoredUnresolved: string; modelFixed: (model: string) => string;
@@ -342,7 +343,10 @@ const STRINGS: Record<string, Strings> = {
     review: "Medical review needed: check every statement with a qualified reviewer before publishing.",
     title1: "Title line 1", title2: "Title line 2",
     summary: (s, n, l) => `About ${s}s · ${n} sentences · ${l}`,
-    estimate: (i, c, cs, t, n, m, k) => `Uses Selects credits for: ${i} images (${k}), ${c} scene clips (${cs}s of video), ${t} transition clips, ${n} narrations${m ? ", music" : ""}. Credits are charged per generation.`,
+    videoModel: "Video model", qualityPro: "High (1080p)", videoWord: "Video",
+    noEndFrame: (n) => `This video model cannot end on a given frame: ${n} camera-move transition(s) become a 0.5 s dissolve.`,
+    videoUsed: (v) => `Video: ${v}`,
+    estimate: (i, c, cs, t, n, m, k, v) => `Uses Selects credits for: ${i} images (${k}), ${c} scene clips${v ? " (" + v + ")" : ""} (${cs}s of video), ${t} transition clips, ${n} narrations${m ? ", music" : ""}. Credits are charged per generation.`,
     produceKf: "Make keyframes", produce: "Make the video", producing: "Making…",
     steps: ["Narration", "Keyframes", "Scene clips", "Transitions", "Labels & check", "Draft"],
     kfTitle: "Keyframes", kfHint: "The AI picked one candidate per scene. Change any pick, then continue.",
@@ -397,7 +401,10 @@ const STRINGS: Record<string, Strings> = {
     review: "\uc758\ud559 \uac80\uc218 \ud544\uc694: \uac8c\uc2dc \uc804\uc5d0 \ubaa8\ub4e0 \ub0b4\uc6a9\uc744 \uc804\ubb38\uac00\uc5d0\uac8c \ud655\uc778\ubc1b\uc73c\uc138\uc694.",
     title1: "\uc81c\ubaa9 1\uc904", title2: "\uc81c\ubaa9 2\uc904",
     summary: (s, n, l) => `\uc57d ${s}\ucd08 · ${n}\ubb38\uc7a5 · ${l}`,
-    estimate: (i, c, cs, t, n, m, k) => `Selects \ud06c\ub808\ub527 \uc0ac\uc6a9: \uc774\ubbf8\uc9c0 ${i}\uac1c(${k}), \uc7a5\uba74 \ud074\ub9bd ${c}\uac1c(\uc601\uc0c1 ${cs}\ucd08), \uc804\ud658 \ud074\ub9bd ${t}\uac1c, \ub0b4\ub808\uc774\uc158 ${n}\uac1c${m ? ", \ubc30\uacbd\uc74c\uc545" : ""}. \ud06c\ub808\ub527\uc740 \uc0dd\uc131\ub9c8\ub2e4 \ucc28\uac10\ub429\ub2c8\ub2e4.`,
+    videoModel: "\uc601\uc0c1 \ubaa8\ub378", qualityPro: "\uace0\ud654\uc9c8 (1080p)", videoWord: "\uc601\uc0c1",
+    noEndFrame: (n) => `\uc774 \uc601\uc0c1 \ubaa8\ub378\uc740 \ub05d \ud504\ub808\uc784\uc744 \uc9c0\uc815\ud560 \uc218 \uc5c6\uc5b4 \uce74\uba54\ub77c \uc774\ub3d9 \uc804\ud658 ${n}\uac1c\ub97c 0.5\ucd08 \ub514\uc878\ube0c\ub85c \ubc14\uafc9\ub2c8\ub2e4.`,
+    videoUsed: (v) => `\uc601\uc0c1: ${v}`,
+    estimate: (i, c, cs, t, n, m, k, v) => `Selects \ud06c\ub808\ub527 \uc0ac\uc6a9: \uc774\ubbf8\uc9c0 ${i}\uac1c(${k}), \uc7a5\uba74 \ud074\ub9bd ${c}\uac1c${v ? "(" + v + ")" : ""}(\uc601\uc0c1 ${cs}\ucd08), \uc804\ud658 \ud074\ub9bd ${t}\uac1c, \ub0b4\ub808\uc774\uc158 ${n}\uac1c${m ? ", \ubc30\uacbd\uc74c\uc545" : ""}. \ud06c\ub808\ub527\uc740 \uc0dd\uc131\ub9c8\ub2e4 \ucc28\uac10\ub429\ub2c8\ub2e4.`,
     produceKf: "\ud0a4\ud504\ub808\uc784 \ub9cc\ub4e4\uae30", produce: "\uc601\uc0c1 \ub9cc\ub4e4\uae30", producing: "\ub9cc\ub4dc\ub294 \uc911…",
     steps: ["\ub0b4\ub808\uc774\uc158", "\ud0a4\ud504\ub808\uc784", "\uc7a5\uba74 \ud074\ub9bd", "\uc804\ud658", "\ub77c\ubca8·\uc810\uac80", "\ub4dc\ub798\ud504\ud2b8"],
     kfTitle: "\ud0a4\ud504\ub808\uc784", kfHint: "AI\uac00 \uc7a5\uba74\ub9c8\ub2e4 \ud558\ub098\ub97c \uace8\ub790\uc2b5\ub2c8\ub2e4. \ubc14\uafb8\uace0 \uc2f6\uc740 \uc7a5\uba74\uc744 \uace0\ub978 \ub4a4 \uacc4\uc18d\ud558\uc138\uc694.",
@@ -809,9 +816,63 @@ export const MED_SPAN_MARGIN = 0.5;
 // Scenes whose sentence is too long for one generated clip: the span is over the cap, or the clip length the rules
 // give does not cover the span. The run stops here, after narration and before any keyframe or clip is paid for;
 // nothing is sped up or cut.
-export function medLengthProblems(tl) {
-  return tl.scenes.filter((s) => s.span > MED_KLING_MAX - MED_SPAN_MARGIN || s.clipSeconds < s.span)
+export function medLengthProblems(tl, videoId = MED_VIDEO_DEFAULT) {
+  const v = medVideoModel(videoId);
+  const max = v.durations[v.durations.length - 1];
+  return tl.scenes.filter((s) => s.span > max - MED_SPAN_MARGIN || s.clipSeconds < s.span)
     .map((s) => ({ scene: s.n, span: r3(s.span), clipSeconds: s.clipSeconds, narration: r3(tl.narration[s.n - 1].dur) }));
+}
+// Video models (models.schema on the live catalog, 2026-10-22). Each has its allowed clip lengths, whether it takes an
+// end frame (needed for the generated push/pull transitions; without it those boundaries become the 0.5 s dissolve),
+// its tiers for "Video quality" (standard 720p, high 1080p) and a builder that sends only schema fields. Kling v3 at
+// standard quality keeps the earlier request keys (empty tag). Seedance 2.5 is not offered: it takes reference images,
+// not a first frame.
+const medRange = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+export const MED_VIDEO_MODELS = {
+  kling: { label: "Kling v3", durations: medRange(3, 15), endFrame: true, transitionSeconds: 3,
+    tiers: { standard: { tag: "", modelId: "model_v1_ZmFsLWFpL2tsaW5nLXZpZGVvL3YzL3N0YW5kYXJkL2ltYWdlLXRvLXZpZGVv" }, // fal-ai/kling-video/v3/standard/image-to-video
+      pro: { tag: "-vkp", modelId: "model_v1_ZmFsLWFpL2tsaW5nLXZpZGVvL3YzL3Byby9pbWFnZS10by12aWRlbw" } }, // fal-ai/kling-video/v3/pro/image-to-video
+    input: ({ prompt, negative, seconds, end }) => ({ prompt, negative_prompt: negative, start_image_url: "selects-input:start",
+      ...(end ? { end_image_url: "selects-input:end" } : {}), duration: String(seconds), generate_audio: false }) },
+  "gemini-omni": { label: "Gemini Omni Flash 1.1", durations: medRange(3, 10), endFrame: true, transitionSeconds: 3,
+    tiers: { standard: { tag: "-vgo7", modelId: "model_v1_Z29vZ2xlL2dlbWluaS1vbW5pLWZsYXNoL3YxLjEvaW1hZ2UtdG8tdmlkZW8", resolution: "720p" }, // google/gemini-omni-flash/v1.1/image-to-video
+      pro: { tag: "-vgo10", modelId: "model_v1_Z29vZ2xlL2dlbWluaS1vbW5pLWZsYXNoL3YxLjEvaW1hZ2UtdG8tdmlkZW8", resolution: "1080p" } },
+    input: ({ prompt, seconds, end, aspect, resolution }) => ({ prompt, image_url: "selects-input:start", ...(end ? { end_image_url: "selects-input:end" } : {}),
+      duration: seconds, resolution, aspect_ratio: aspect }) },
+  veo3fast: { label: "Veo 3 Fast", durations: [4, 6, 8], endFrame: false, transitionSeconds: 0,
+    tiers: { standard: { tag: "-vve7", modelId: "model_v1_ZmFsLWFpL3ZlbzMvZmFzdC9pbWFnZS10by12aWRlbw", resolution: "720p" }, // fal-ai/veo3/fast/image-to-video
+      pro: { tag: "-vve10", modelId: "model_v1_ZmFsLWFpL3ZlbzMvZmFzdC9pbWFnZS10by12aWRlbw", resolution: "1080p" } },
+    input: ({ prompt, negative, seconds, aspect, resolution }) => ({ prompt, negative_prompt: negative, image_url: "selects-input:start", duration: `${seconds}s`,
+      resolution, aspect_ratio: aspect, generate_audio: false }) },
+};
+export const MED_VIDEO_DEFAULT = "kling";
+export const MED_QUALITIES = ["standard", "pro"];
+export const medVideoModel = (id) => MED_VIDEO_MODELS[id] || MED_VIDEO_MODELS[MED_VIDEO_DEFAULT];
+// The clip length a model makes for a needed length: the smallest allowed value at least that long (null over its max).
+export function medVideoSeconds(videoId, need) {
+  const v = medVideoModel(videoId);
+  const s = v.durations.find((d) => d >= need - 1e-9);
+  return s === undefined ? null : s;
+}
+// One video request's model and input for a model and quality ("standard" | "pro"); `end` adds the end frame.
+export function medVideoRequest(videoId, quality, { prompt, negative, seconds, end = false, aspect = "16:9" }) {
+  const v = medVideoModel(videoId);
+  const tier = v.tiers[quality] || v.tiers.standard;
+  return { modelId: tier.modelId, tag: tier.tag, input: v.input({ prompt, negative, seconds, end, aspect, resolution: tier.resolution }) };
+}
+// Clip lengths for one model: the base rule (max(5, ceil(L + 0.5)), covering the span) rounded up to an allowed value.
+export function medApplyVideoModel(tl, videoId = MED_VIDEO_DEFAULT) {
+  const v = medVideoModel(videoId);
+  const max = v.durations[v.durations.length - 1];
+  return { ...tl, scenes: tl.scenes.map((s, i) => {
+    const need = Math.max(5, Math.ceil(tl.narration[i].dur + 0.5), Math.ceil(s.span - 1e-9));
+    return { ...s, clipSeconds: medVideoSeconds(videoId, need) ?? max };
+  }) };
+}
+// Boundaries that are generated transition clips: push or pull, with a video model that takes an end frame.
+export function medTransitionTypes(plan, videoId = MED_VIDEO_DEFAULT) {
+  const end = medVideoModel(videoId).endFrame;
+  return plan.scenes.slice(0, -1).map((s) => { const t = s.transitionOut || "push"; return medGeneratedTransition(t) && !end ? "dissolve" : t; });
 }
 // The whole 3 s transition clip plays inside its slot, so it runs at clip length / slot length (about 1.7x).
 export function medTransitionSpeed(clipSeconds, slotSeconds) { return clipSeconds / slotSeconds; }
@@ -1115,14 +1176,20 @@ export function medEstimateSeconds(plan) {
   return Math.round(s * 10) / 10;
 }
 // What one full run generates (before narration lengths are known the scene lengths are estimated from the text).
-export function medGenerationCounts(plan, music) {
+export function medGenerationCounts(plan, music, videoId = MED_VIDEO_DEFAULT) {
   const n = plan.scenes.length;
+  const v = medVideoModel(videoId);
   let clipSeconds = 0;
-  for (const sc of plan.scenes) clipSeconds += medSceneClipSeconds(medSpeechSeconds(sc.narration, plan.lang)) * MED_TAKES;
-  // Only push/pull boundaries are generated clips.
-  const generated = plan.scenes.slice(0, -1).filter((sc) => medGeneratedTransition(sc.transitionOut || "push")).length;
-  return { images: n * MED_KF_CANDIDATES, clips: n * MED_TAKES, clipSeconds: clipSeconds + generated * MED_TAKES * MED_TIMING.transitionSeconds,
-    transitions: generated * MED_TAKES, narrations: n, music: !!music };
+  for (const sc of plan.scenes) {
+    const need = medSceneClipSeconds(medSpeechSeconds(sc.narration, plan.lang));
+    clipSeconds += (medVideoSeconds(videoId, need) ?? v.durations[v.durations.length - 1]) * MED_TAKES;
+  }
+  // Only push/pull boundaries are generated clips, and only with a model that takes an end frame; the others dissolve.
+  const types = medTransitionTypes(plan, videoId);
+  const generated = types.filter(medGeneratedTransition).length;
+  const fallback = plan.scenes.slice(0, -1).filter((s, i) => medGeneratedTransition(s.transitionOut || "push") && !medGeneratedTransition(types[i])).length;
+  return { images: n * MED_KF_CANDIDATES, clips: n * MED_TAKES, clipSeconds: clipSeconds + generated * MED_TAKES * v.transitionSeconds,
+    transitions: generated * MED_TAKES, dissolveFallback: fallback, narrations: n, music: !!music };
 }
 
 // ---- generation inputs ----
@@ -1193,7 +1260,7 @@ async function medJob(io, dir) {
   };
   return job;
 }
-const settingsOf = (job) => ({ voice: "eleven-daniel", music: false, kfModel: MED_KF_DEFAULT, template: { ...MED_PRESETS.generic }, ...asObj(job.data.settings) });
+const settingsOf = (job) => ({ voice: "eleven-daniel", music: false, kfModel: MED_KF_DEFAULT, video: MED_VIDEO_DEFAULT, quality: "standard", template: { ...MED_PRESETS.generic }, ...asObj(job.data.settings) });
 export const medKfModel = (id) => MED_KF_MODELS[id] || MED_KF_MODELS[MED_KF_DEFAULT];
 
 // ---- fetch ----
@@ -1271,7 +1338,7 @@ async function cmdValidate(io, job) {
   await io.writeJson(job.p("plan.json"), plan);
   job.data.stage = errors.length ? "plan_error" : "planned";
   await job.save();
-  return { ok: !errors.length, errors, warnings, lang, seconds: medEstimateSeconds(plan), scenes: plan.scenes.length, counts: medGenerationCounts(plan, settingsOf(job).music) };
+  return { ok: !errors.length, errors, warnings, lang, seconds: medEstimateSeconds(plan), scenes: plan.scenes.length, counts: medGenerationCounts(plan, settingsOf(job).music, settingsOf(job).video) };
 }
 
 // ---- timeline ----
@@ -1286,7 +1353,8 @@ async function cmdTimeline(io, job) {
     durs.push(d);
     aligned.push({ file: path, words: medAlignWords(s.narration, d, await io.silences(path), lang) });
   }
-  const tl = medTimeline(durs, plan.scenes.slice(0, -1).map((s) => s.transitionOut || "push"));
+  const videoId = settingsOf(job).video;
+  const tl = medApplyVideoModel(medTimeline(durs, medTransitionTypes(plan, videoId)), videoId);
   const L = MED_LANG[lang];
   const captions = [];
   plan.scenes.forEach((s, i) => {
@@ -1305,7 +1373,7 @@ async function cmdTimeline(io, job) {
   await job.save();
   let video = 0;
   for (const s of tl.scenes) video += s.clipSeconds;
-  return { ok: true, seconds: tl.total, scenes: tl.scenes.length, videoSeconds: video, tooLong: medLengthProblems(tl) };
+  return { ok: true, seconds: tl.total, scenes: tl.scenes.length, videoSeconds: video, tooLong: medLengthProblems(tl, videoId) };
 }
 
 // ---- generation requests ----
@@ -1384,15 +1452,17 @@ async function cmdRequests(io, job, kind, only, attempt) {
       for (let t = 0; t < MED_TAKES; t++) {
         const id = `${s.n}${letter(t)}`;
         if (only && !only.has(id) && !only.has(String(s.n))) continue;
-        reqs.push(spec(`clip:${s.n}:${letter(t)}`, "video", "i2v", { prompt: medMotionPrompt(s, medSceneArt(style, s)), negative_prompt: NEGATIVE, start_image_url: "selects-input:start",
-          duration: String(tl.scenes[s.n - 1].clipSeconds), generate_audio: false }, { start: kf }, "clips", `-k${pick}`));
+        const vr = medVideoRequest(set.video, set.quality, { prompt: medMotionPrompt(s, medSceneArt(style, s)), negative: NEGATIVE,
+          seconds: tl.scenes[s.n - 1].clipSeconds, aspect: style.geo.aspect });
+        reqs.push({ ...spec(`clip:${s.n}:${letter(t)}`, "video", "i2v", vr.input, { start: kf }, "clips", `-k${pick}${vr.tag}`), modelId: vr.modelId });
       }
     }
   } else if (kind === "transitions") {
     // Start: the last frame scene i shows; end: the first frame of scene i+1 (both written by `strips`).
     const picks = await job.picks();
     // Only push and pull boundaries are generated clips; cut, flash and dissolve are made locally.
-    for (const s of plan.scenes.slice(0, -1).filter((x) => medGeneratedTransition(x.transitionOut || "push"))) {
+    const types = medTransitionTypes(plan, set.video);
+    for (const s of plan.scenes.slice(0, -1).filter((x, i) => medGeneratedTransition(types[i]))) {
       const next = plan.scenes[s.n];
       // The frames depend on both scenes' chosen clips; a different choice is a different request.
       const pair = `-c${picks.clip[String(s.n)] || "K"}${picks.clip[String(next.n)] || "K"}`;
@@ -1401,9 +1471,9 @@ async function cmdRequests(io, job, kind, only, attempt) {
       for (let t = 0; t < MED_TAKES; t++) {
         const id = `${s.n}${letter(t)}`;
         if (only && !only.has(id) && !only.has(String(s.n))) continue;
-        reqs.push(spec(`tr:${s.n}:${letter(t)}`, "video", "i2v", { prompt: medTransitionPrompt(s, next, s.look === "inside" || next.look === "inside" ? "medical" : style.art), negative_prompt: NEGATIVE,
-          start_image_url: "selects-input:start", end_image_url: "selects-input:end", duration: String(MED_TIMING.transitionSeconds), generate_audio: false },
-          { start, end }, "transitions", pair));
+        const vr = medVideoRequest(set.video, set.quality, { prompt: medTransitionPrompt(s, next, s.look === "inside" || next.look === "inside" ? "medical" : style.art),
+          negative: NEGATIVE, seconds: medVideoModel(set.video).transitionSeconds, end: true, aspect: style.geo.aspect });
+        reqs.push({ ...spec(`tr:${s.n}:${letter(t)}`, "video", "i2v", vr.input, { start, end }, "transitions", pair + vr.tag), modelId: vr.modelId });
       }
     }
   } else if (kind === "music") {
@@ -2087,7 +2157,7 @@ export function medScriptPrompt(art, f, mode = "auto", inside = "auto") {
 // The first screen shows the source, the brand preset and "Write the script"; everything else is under a collapsed
 // "Advanced settings" header that counts the values changed from these defaults (template values compare with the
 // chosen preset's), so a non-default choice is never hidden silently.
-export const MED_ADV_DEFAULTS = { lang: "auto", kfModel: MED_KF_DEFAULT, mode: "auto", art: "auto", inside: "auto", layout: "auto",
+export const MED_ADV_DEFAULTS = { lang: "auto", kfModel: MED_KF_DEFAULT, video: MED_VIDEO_DEFAULT, quality: "standard", mode: "auto", art: "auto", inside: "auto", layout: "auto",
   voice: MED_VOICES[0].id, music: false, gateScript: true, gateKf: true };
 export const MED_ADV_STORAGE_KEY = "ui:advancedOpen";
 // The first screen's one-line summary: untouched explanation/art/layout as "Automatic: ...", each changed one by
@@ -2100,7 +2170,7 @@ export function medSettingsSummary(adv, L) {
     else parts.push(`${L[k]} ${asObj(names)[a[k]] || a[k]}`);
   }
   if (a.inside && a.inside !== "auto") parts.push(`${L.inside} ${asObj(L.insideNames)[a.inside] || a.inside}`);
-  return [...(auto.length ? [`${L.autoWord}: ${auto.join("\u00b7")}`] : []), ...parts, `${L.kfWord} ${L.kfLabel}`, `${L.voice} ${L.voiceLabel}`].join(" \u00b7 ");
+  return [...(auto.length ? [`${L.autoWord}: ${auto.join("\u00b7")}`] : []), ...parts, `${L.kfWord} ${L.kfLabel}`, ...(L.videoLabel ? [`${L.videoWord} ${L.videoLabel}`] : []), `${L.voice} ${L.voiceLabel}`].join(" \u00b7 ");
 }
 // The wordmark overlay's data: the preset's logo (a data URL the panel read from the plugin folder) with its small
 // text when the template shows the logo and the file was found; the text wordmark otherwise (no error).
@@ -2405,6 +2475,7 @@ function mergeGen(a: any, b: any): any {
   return out;
 }
 const idOf = (gen: string) => gen.split(":").slice(1).join("");
+const medVideoLabel = (video: string, quality: string, S: any) => `${medVideoModel(video).label} ${quality === "pro" ? S.qualityPro : S.qualityStd}`;
 
 function Panel({ sdk, context, ui }: any) {
   hostUseSdk(sdk);
@@ -2420,6 +2491,8 @@ function Panel({ sdk, context, ui }: any) {
   const [lang, setLang] = React.useState("auto");
   const [voice, setVoice] = React.useState(MED_VOICES[0].id);
   const [kfModel, setKfModel] = React.useState<string>(MED_KF_DEFAULT);
+  const [videoSet, setVideoSet] = React.useState<string>(MED_VIDEO_DEFAULT);
+  const [quality, setQuality] = React.useState<string>("standard");
   // Explanation mode, art preset and layout: "auto" follows the script's mode.
   const [modeSet, setModeSet] = React.useState<string>("auto");
   const [artSet, setArtSet] = React.useState<string>("auto");
@@ -2702,7 +2775,7 @@ function Panel({ sdk, context, ui }: any) {
     setPreset(id);
     setTpl({ ...(MED_PRESETS as any)[id] });
   }
-  const settingsNow = () => ({ lang, voice, music, kfModel, mode: modeSet, art: artSet, layout: layoutSet, inside: insideSet, template: { ...tpl }, gates: { script: gateScript, keyframes: gateKf } });
+  const settingsNow = () => ({ lang, voice, music, kfModel, video: videoSet, quality, mode: modeSet, art: artSet, layout: layoutSet, inside: insideSet, template: { ...tpl }, gates: { script: gateScript, keyframes: gateKf } });
 
   // ---- 1. Script ----
   async function makePlan() {
@@ -2836,7 +2909,7 @@ function Panel({ sdk, context, ui }: any) {
       if (fresh.current) {
         const now = settingsNow();
         const titles = titleOverride || titleLines;
-        jd.settings = { ...(jd.settings || {}), ...(pj.started ? {} : { voice: now.voice, music: now.music, kfModel: now.kfModel, art: now.art, layout: now.layout }), template: now.template,
+        jd.settings = { ...(jd.settings || {}), ...(pj.started ? {} : { voice: now.voice, music: now.music, kfModel: now.kfModel, video: now.video, quality: now.quality, art: now.art, layout: now.layout, inside: now.inside }), template: now.template,
           ...(titles.line1 || titles.line2 ? { titleLines: titles } : {}) };
         await writeJson(hostJoin(dir, "job.json"), jd);
       } else if (jd.settings?.titleLines) setTitleLines(jd.settings.titleLines);
@@ -2933,7 +3006,8 @@ function Panel({ sdk, context, ui }: any) {
       }
       if (!pj.trDone) {
         // Only push and pull boundaries are generated; cut, flash and dissolve are made locally at compose.
-        const boundaries = p.scenes.slice(0, -1).filter((x: any) => medGeneratedTransition(x.transitionOut || "push")).map((x: any) => String(x.n));
+        const trTypes = medTransitionTypes(p, set.video);
+        const boundaries = p.scenes.slice(0, -1).filter((x: any, i: number) => medGeneratedTransition(trTypes[i])).map((x: any) => String(x.n));
         // A transition refused for content policy is not asked again with the same frames: it becomes the dissolve.
         const trFailed = await generateKind(st, sc, dir, "transitions", boundaries, S.steps[3]);
         const policyTr = boundaries.filter((n: string) => trFailed.some((f: any) => f.policy && f.gen.split(":")[1] === n) &&
@@ -3011,7 +3085,7 @@ function Panel({ sdk, context, ui }: any) {
       await saveRecovery({ jobId: j0.id, dir, phase: "done", done: true });
       setResult({ seconds: pj.seconds, fallback: pj.fallback || [], dissolves: pj.dissolves || [], mismatches: pj.mismatches || [],
         ignored: Object.entries(st.gen).filter(([, v]: any) => v && v.ignored && !v.path).map(([k]) => k),
-        kfModel: medKfModel(set.kfModel).label, policyScenes: pj.policyScenes || [], policyStill: pj.policyStill || [], policyTransitions: pj.policyTransitions || [],
+        kfModel: medKfModel(set.kfModel).label, video: medVideoLabel(set.video, set.quality, S), policyScenes: pj.policyScenes || [], policyStill: pj.policyStill || [], policyTransitions: pj.policyTransitions || [],
         verifySkipped: !!pj.verifySkipped, noMusic: !!pj.noMusic, dropped: sel.dropped || [] });
       setStep(6);
       setStatus("");
@@ -3041,8 +3115,8 @@ function Panel({ sdk, context, ui }: any) {
   const js: any = jobSettings || {};
   const adv = jobSettings
     ? { lang: js.lang ?? "auto", kfModel: js.kfModel ?? MED_KF_DEFAULT, mode: js.mode ?? "auto", art: js.art ?? "auto", inside: js.inside ?? "auto",
-      layout: js.layout ?? "auto", voice: js.voice ?? MED_VOICES[0].id, music: !!js.music }
-    : { lang, kfModel, mode: modeSet, art: artSet, inside: insideSet, layout: layoutSet, voice, music };
+      layout: js.layout ?? "auto", voice: js.voice ?? MED_VOICES[0].id, music: !!js.music, video: js.video ?? MED_VIDEO_DEFAULT, quality: js.quality ?? "standard" }
+    : { lang, kfModel, mode: modeSet, art: artSet, inside: insideSet, layout: layoutSet, voice, music, video: videoSet, quality };
   const advChanged = medAdvancedChanges({ ...adv, gateScript, gateKf }, tpl, preset);
   const recoverable = recovery.current && !recovery.current.done && recovery.current.dir && !jobs.some((j) => j.id === recovery.current.jobId) ? recovery.current : null;
 
@@ -3068,7 +3142,7 @@ function Panel({ sdk, context, ui }: any) {
             {plan ? S.redo : S.makePlan}
           </ui.Button>
         </ui.Actions>
-        <ui.Message tone="muted">{medSettingsSummary(adv, { ...S, kfLabel: medKfModel(adv.kfModel).label, voiceLabel: (MED_VOICES.find((v) => v.id === adv.voice) || MED_VOICES[0]).voice })}</ui.Message>
+        <ui.Message tone="muted">{medSettingsSummary(adv, { ...S, kfLabel: medKfModel(adv.kfModel).label, videoLabel: medVideoLabel(adv.video, adv.quality, S), voiceLabel: (MED_VOICES.find((v) => v.id === adv.voice) || MED_VOICES[0]).voice })}</ui.Message>
       </ui.Section>
       <ui.Section title={S.advanced + (advChanged.length ? ` \u00b7 ${S.changed(advChanged.length)}` : "")}
         actions={<ui.IconButton icon={advOpen ? "chevron-down" : "chevron-right"} label={S.advanced} onClick={toggleAdvanced} />}>
@@ -3088,7 +3162,11 @@ function Panel({ sdk, context, ui }: any) {
             <ui.Select label={S.layout} value={adv.layout} onChange={setLayoutSet} disabled={fixed}
               options={[{ value: "auto", label: S.autoStyle }, ...Object.keys(MED_LAYOUTS).map((k) => ({ value: k, label: S.layoutNames[k] }))]} />
             <ui.Select label={S.voice} value={adv.voice} onChange={setVoice} options={MED_VOICES.map((v) => ({ value: v.id, label: v.label }))} disabled={fixed} />
-            <ui.Select label={S.quality} value="standard" onChange={() => {}} options={[{ value: "standard", label: S.qualityStd }]} disabled={!!busy} />
+            <ui.Select label={S.videoModel} value={adv.video} onChange={setVideoSet} disabled={fixed}
+              options={Object.entries(MED_VIDEO_MODELS).map(([id, m]: any) => ({ value: id, label: m.label }))} />
+            <ui.Select label={S.quality} value={adv.quality} onChange={setQuality} disabled={fixed}
+              options={MED_QUALITIES.filter((q) => medVideoModel(adv.video).tiers[q]).map((q) => ({ value: q, label: q === "pro" ? S.qualityPro : S.qualityStd }))} />
+            {!medVideoModel(adv.video).endFrame && <ui.Message tone="muted">{S.noEndFrame(plan ? medGenerationCounts(plan, false, adv.video).dissolveFallback : 0)}</ui.Message>}
             <ui.Toggle label={S.music} value={adv.music} onChange={setMusic} disabled={fixed} />
             <ui.Toggle label={S.gateScript} value={gateScript} onChange={setGateScript} disabled={!!busy} />
             <ui.Toggle label={S.gateKf} value={gateKf} onChange={setGateKf} disabled={!!busy} />
@@ -3136,7 +3214,9 @@ function Panel({ sdk, context, ui }: any) {
           {check?.warnings?.length > 0 && <ui.Message tone="muted">{check.warnings.join(" / ")}</ui.Message>}
           {check?.counts && (
             <ui.Message tone="muted">
-              {S.estimate(check.counts.images, check.counts.clips, check.counts.clipSeconds, check.counts.transitions, check.counts.narrations, music, medKfModel(kfModel).label)}
+              {S.estimate(check.counts.images, check.counts.clips, check.counts.clipSeconds, check.counts.transitions, check.counts.narrations, music, medKfModel(adv.kfModel).label,
+                medVideoLabel(adv.video, adv.quality, S))}
+              {check.counts.dissolveFallback ? " " + S.noEndFrame(check.counts.dissolveFallback) : ""}
             </ui.Message>
           )}
           <ui.Actions>
@@ -3207,6 +3287,7 @@ function Panel({ sdk, context, ui }: any) {
           {result.dissolves.length > 0 && <small>{S.dissolves}: {result.dissolves.map((n: number) => `${n}→${n + 1}`).join(", ")}</small>}
           {result.dropped.length > 0 && <small>{S.pointersDropped}: {result.dropped.join(", ")}</small>}
           <small>{S.kfModelUsed(result.kfModel)}</small>
+          <small>{S.videoUsed(result.video)}</small>
           {result.policyScenes.length > 0 && <small>{S.policyScenes}: {result.policyScenes.join(", ")}</small>}
           {result.ignored.length > 0 && <small>{S.ignoredUnresolved}: {result.ignored.join(", ")}</small>}
           {result.policyStill.length > 0 && <small>{S.policyStill}: {result.policyStill.join(", ")}</small>}
