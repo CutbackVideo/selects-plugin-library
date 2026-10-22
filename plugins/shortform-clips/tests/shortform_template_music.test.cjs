@@ -45,10 +45,9 @@ test('template background music',{skip:!modules},async t=>{
   const padded=template();padded.music={path:' /music/bed.mp3 ',extra:1};assert.deepEqual(api.cleanTemplate(padded).music,{path:'/music/bed.mp3'});
   for(const id of ['health','parenting','heukbaek','jeongjwippul','panilgi'])assert.equal(pack(id).music,undefined,id+' ships without a music path');
  });
- await t.test('the volume is the jude-kinetic-style music level',()=>{
-  const jude=fs.readFileSync(path.join(__dirname,'../../jude-kinetic-style/panel.tsx'),'utf8');
-  assert.equal(api.MUSIC_LEVEL_DB,Number(/levelDb:(-?\d+(?:\.\d+)?)/.exec(jude)[1]));
-  assert.ok(api.MUSIC_LEVEL_DB<0);
+ await t.test('the volume sits well under dialogue, at the panel\'s other audio level',()=>{
+  assert.equal(api.MUSIC_LEVEL_DB,-18);
+  assert.equal(api.MUSIC_LEVEL_DB,Number(/setClipAudio\(\{clip:placed\[0\],volumeDb:(-?\d+)/.exec(source)[1]));
  });
  await t.test('a missing file is reported without importing anything',async()=>{
   const w=world({files:[]});

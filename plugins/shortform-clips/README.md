@@ -467,9 +467,10 @@ Templates without `music` generate exactly as before.
 - After framing, every Draft gets the file as an audio clip from 0 to the end of
   the main timeline. A longer file is trimmed; a shorter one repeats. The last
   piece fades out for 2 s.
-- The level is a fixed `-5 dB` (`MUSIC_LEVEL_DB`), the same value as
-  `MUSIC.levelDb` in `plugins/jude-kinetic-style`. Dialogue is not ducked, so
-  listen to a result and adjust the constant if it is too loud.
+- The level is a fixed `-18 dB` (`MUSIC_LEVEL_DB`), the same level as the panel's
+  other audio under dialogue. Measured on Staging with a -14 LUFS bed, `-5 dB`
+  left the music only about 2 LU under speech (-19.7 vs -17.6 LUFS). Dialogue is
+  not ducked, so listen to a result and adjust the constant if needed.
 - The file is imported into the project once per run. A resume, a retry or
   **redo framing** finds the project resource by path, and a Draft that already
   holds the same music layout is left unchanged, so a Draft never has two music

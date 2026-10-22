@@ -2598,8 +2598,9 @@ async function templateBuildScript(build:string,params:any,store:any,path:string
 }
 
 // ---- Template background music ----
-// Volume of the music bed under dialogue. Same value as MUSIC.levelDb in plugins/jude-kinetic-style.
-const MUSIC_LEVEL_DB = -5;
+// Volume of the music bed under dialogue. Same level as the panel's other audio under dialogue
+// (editorial audio beats); at -5 dB a -14 LUFS bed sat only about 2 LU under speech.
+const MUSIC_LEVEL_DB = -18;
 const MUSIC_FADE_OUT_SECONDS = 2;
 const MUSIC_MIN_TRACK_SECONDS = 2;
 function musicPath(template: any): string {
