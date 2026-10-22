@@ -28,12 +28,16 @@ export function archivePreviewFixture(t){
   load(){calls.push(['load',this.src]);}
  }
  const file='/music space \ud55c\uae00.wav',sha256='a'.repeat(64),files={
-  join:(...parts)=>parts.join('/'),stat:async()=>({size:2**31+17,isDirectory:false,mtimeMs:1,ino:1}),
-  fingerprint:async path=>{calls.push(['fingerprint',path]);return hooks.fingerprint?hooks.fingerprint(path):{size:2**31+17,sha256};},
+  join:(...parts)=>parts.join('/'),readRange:async()=>{calls.push(['binary-read']);throw Error('Full-byte source observation is outside this playback fixture.');},stat:async()=>({size:2**31+17,isDirectory:false,mtimeMs:1,ino:1}),
   pathToLocalURL:async path=>{calls.push(['localURL',path]);return hooks.url?.(path)??'local://'+encodeURI(path);},
   localURLToPath:async url=>{calls.push(['fromURL',url]);return decodeURIComponent(url.replace('local://.','').replace('local://',''));},
  };
- const globals={TextEncoder,TextDecoder,Uint8Array,AbortController,Blob,Audio:Media,console,queueMicrotask,
+ // This is a playback lifetime/streaming fixture. Its >2 GiB size is synthetic;
+ // the full source fingerprint is an explicit observation boundary, not a native
+ // SDK method or a claim that these tests hashed a multi-gigabyte file. The real
+ // observeSourceFiles comparison remains in the caller; other suites hash bytes.
+ const fingerprintTemplateFile=async(_files,path,check=()=>{})=>{check();calls.push(['fingerprint',path]);const value=await(hooks.fingerprint?hooks.fingerprint(path):{size:2**31+17,sha256});check();return value;};
+ const globals={fingerprintTemplateFile,TextEncoder,TextDecoder,Uint8Array,AbortController,Blob,Audio:Media,console,queueMicrotask,
   Date:class extends Date{static now(){return clock;}},setTimeout:(f,ms)=>schedule(f,ms),clearTimeout:clear,setInterval:(f,ms)=>schedule(f,ms,true),clearInterval:clear,
   URL:{createObjectURL:()=>{calls.push(['blob']);return 'blob:whole-track';},revokeObjectURL:url=>calls.push(['revoke',url])},
   sdk:{files,environment:{platform:'darwin'}},panelLocalClient:value=>value,PREVIEW_TIMEOUT_MS:1000,PREVIEW_FADE:.4,

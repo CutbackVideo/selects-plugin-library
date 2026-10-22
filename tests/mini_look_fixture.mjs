@@ -1,12 +1,12 @@
 import {sdkFreeHelpersSource,vlogOperation} from './sdk_free_helpers.mjs';
-import assert from 'node:assert/strict';import fs from 'node:fs';import fsp from 'node:fs/promises';import vm from 'node:vm';import {webcrypto,createHash} from 'node:crypto';
+import assert from 'node:assert/strict';import fs from 'node:fs';import fsp from 'node:fs/promises';import vm from 'node:vm';import {webcrypto} from 'node:crypto';
 import {holdFixture} from './gallery_hold_fixture.mjs';
 const source=sdkFreeHelpersSource()+'\n'+fs.readFileSync(new URL('../shared/template-run.js',import.meta.url),'utf8'),assemble=vlogOperation('mini-vlog','assemble'),decorate=vlogOperation('mini-vlog','decorate');
 const clone=v=>JSON.parse(JSON.stringify(v));
 export async function lookPhaseFixture(t,{pluginId='mini-vlog',assemblySource=assemble,decorationSource=decorate,probeName='Mini source timing check'}={}){
  const f=await holdFixture(t),hooks=f.hooks,saved=new Map(),requests=[],pending=[];let serial=0,commits=0,epoch=0,probeSerial=0;
  saved.set('unrelated',{name:'Unrelated',clips:[{clipId:44,trackId:'main',trackKind:'main',resourceId:'foreign',startFrame:0,endFrame:60}]});
- f.files.readdir=p=>fsp.readdir(p);f.files.fingerprint=async p=>{try{const b=await fsp.readFile(p);return {size:b.length,sha256:createHash('sha256').update(b).digest('hex')};}catch(e){if(e.code==='ENOENT')return null;throw e;}};
+ f.files.readdir=p=>fsp.readdir(p);
  function handle(id,state){
   let committed=false;const fresh=r=>({...clone(r),_epoch:epoch}),valid=r=>assert.equal(r._epoch,epoch,'opaque target is stale'),rows=()=>state.clips;
   return {meta:async()=>({name:state.name,fps:30,durationFrames:Math.max(0,...rows().map(r=>r.endFrame)),frameSize:{width:1920,height:1080}}),setFrameSize:async()=>{},
@@ -36,6 +36,6 @@ export async function lookPhaseFixture(t,{pluginId='mini-vlog',assemblySource=as
  const mount=()=>{const box=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array});vm.runInContext(source,box);return box;};
  const root={scope:{pluginId,projectId:'p',runId:'original'},config:{projectId:'p',draftName:'Owned',picks:[{rid:'r0',startSeconds:0,sourceDuration:20}],boundaries:[0,2],crops:{},music:null,clipSound:'full'},source:assemblySource,frozen:{pid:'p',seed:7},plan:{picks:[{rid:'r0'}]}};
  const prepare=async(value,a)=>({source:decorationSource,config:{projectId:'p',sequenceId:a.sequenceId,videoEnd:a.totalFrames,mute:true,title:{tsx:'export default function Title(){return null}',parameters:{text:'Saturday'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'Saturday'}]},soft:null,photos:[]}});
- const open=async()=>mount().openTemplateAssemblyContinuations(sdk,f.local.files,{pluginId,projectId:'p'},()=>hooks.live!==false);
+ const open=async()=>mount().openTemplateAssemblyContinuations(sdk,f.local.files,{pluginId,projectId:'p',requestLimit:98304},()=>hooks.live!==false);
  return {...f,sdk,hooks,saved,requests,pending,root,prepare,open,mount,commits:()=>commits};
 }

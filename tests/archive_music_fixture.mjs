@@ -21,7 +21,6 @@ const boundary=Object.assign(Error('Assembly intentionally outside this music-bo
 // the fixture stops before a Draft is created or saved.
 export async function archiveMusicFixture(t,{entry='template',own=false,silent=false}={}){
  const f=await holdFixture(t);
- f.files.fingerprint=async p=>fs.existsSync(p)?{size:fs.statSync(p).size,sha256:digest(fs.readFileSync(p))}:null;
  const manifest=JSON.parse(fs.readFileSync(new URL('../plugins/archive-vlog/assets/cues/manifest.json',import.meta.url),'utf8'));
  const cue={...manifest.cues[0]},bytes=fs.readFileSync(new URL('../plugins/archive-vlog/assets/cues/'+cue.file,import.meta.url));
  cue.bytes=bytes.length;manifest.cues=[cue];

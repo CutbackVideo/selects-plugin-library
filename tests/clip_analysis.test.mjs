@@ -29,7 +29,7 @@ for(const opts of [{concurrency:0},{concurrency:4},{concurrency:1.5},{budgetMs:N
  const f=await fixture(t);await assert.rejects(f.scoreAll(undefined,opts),e=>e.code==='CLIP_ANALYSIS_INPUT');assert.equal(f.writes.length,0);
 });
 test('clip analysis batch: failed source aborts its sibling and waits for decoder and cleanup settlement',async t=>{
- const f=await fixture(t);let reached;const started=new Promise(r=>reached=r);f.files.fingerprint=async p=>{if(p===f.other){await started;return null;}const b=fs.readFileSync(p);return {size:b.length,sha256:(await import('node:crypto')).createHash('sha256').update(b).digest('hex')};};
+ const f=await fixture(t);let reached;const started=new Promise(r=>reached=r);f.local.files.fingerprint=async p=>{if(p===f.other){await started;return null;}const b=fs.readFileSync(p);return {size:b.length,sha256:(await import('node:crypto')).createHash('sha256').update(b).digest('hex')};};
  let settled=false;f.hooks.beforeTool=async(_bin,_args,signal)=>{reached();await new Promise(resolve=>signal.aborted?resolve():signal.addEventListener('abort',resolve,{once:true}));settled=true;};
  await assert.rejects(f.scoreAll([f.input,{rid:'r1',path:f.other,durationSeconds:4}],{concurrency:2}),e=>/SOURCE/.test(e.code));assert.equal(settled,true);assert.deepEqual(privateFiles(f),[]);
 });

@@ -49,14 +49,14 @@ async function receiptFixture(t,{minify=false}={}){
   Object.assign(box,{module,exports:module.exports});vm.runInContext(esbuild.transformSync(runSource+'\nexport {executeTemplateAssembly,openTemplateAssemblyContinuations};',{loader:'js',format:'cjs',minify:true}).code,box);box.execute=module.exports.executeTemplateAssembly;box.openTemplateAssemblyContinuations=module.exports.openTemplateAssemblyContinuations;
  }else vm.runInContext(runSource+'\nthis.execute=executeTemplateAssembly;',box);
  const scope={pluginId:'mini-vlog',projectId:'p',runId:'run-1'},config={projectId:'p',draftName:'Same name',picks:[{rid:'r0',startSeconds:0,sourceDuration:20},{rid:'r1',startSeconds:0,sourceDuration:20}],boundaries:[0,1,2],crops:{},music:null,clipSound:'full'};
- const run=()=>box.execute(sdk,f.local.files,scope,config,assembly,()=>true);
+ const run=()=>box.execute(sdk,f.local.files,scope,config,assembly,()=>true,{requestLimit:98304});
  return {...f,fileHooks:f.hooks,sdk,box,hooks,requests,saved,scope,config,run,unrelated,pending,commits:()=>commits};
 }
 test('Mini assembly receipt: healthy save and retry use one exact owned Draft',async t=>{
  const f=await receiptFixture(t),a=await f.run(),b=await f.run();assert.equal(a.sequenceId,'owned-1');assert.equal(b.sequenceId,a.sequenceId);assert.equal(f.commits(),1);assert.equal(a.totalFrames,60);assert.equal(b.assemblyConfirmed,true);
 });
 test('Mini assembly receipt: reply lost after save recovers without a name lookup or second commit',async t=>{
- const f=await receiptFixture(t);f.hooks.reply=input=>{if(input.allowCommit)throw Error('save response lost');};const a=await f.run();assert.equal(a.sequenceId,'owned-1');assert.equal(f.commits(),1);assert.equal(f.requests.filter(r=>r.allowCommit).length,1);
+ const f=await receiptFixture(t);f.hooks.reply=input=>{if(input.summary==='Assemble template with owned receipt')throw Error('save response lost');};const a=await f.run();assert.equal(a.sequenceId,'owned-1');assert.equal(f.commits(),1);assert.equal(f.requests.filter(r=>r.summary==='Assemble template with owned receipt'||r.summary==='Decorate template with owned receipt').length,1);
 });
 test('Mini assembly receipt: an edited owned Draft is rejected and unrelated same-name data stays untouched',async t=>{
  const f=await receiptFixture(t),before=JSON.stringify(f.unrelated),a=await f.run();f.saved.get(a.sequenceId).clips[0].resourceId='user-edit';await assert.rejects(f.run(),e=>e.code==='TEMPLATE_RUN_INVALID');assert.equal(f.commits(),1);assert.equal(JSON.stringify(f.unrelated),before);
@@ -108,7 +108,7 @@ test('Mini assembly receipt: oversized confirmation state stops before the save'
 });
 
 test('Mini assembly receipt: minified distribution preserves serialized SDK dependencies',async t=>{
- const f=await receiptFixture(t,{minify:true});f.hooks.reply=input=>{if(input.allowCommit)throw Error('save response lost');};const a=await f.run(),b=await f.run();assert.equal(a.sequenceId,b.sequenceId);assert.equal(f.commits(),1);
+ const f=await receiptFixture(t,{minify:true});f.hooks.reply=input=>{if(input.summary==='Assemble template with owned receipt')throw Error('save response lost');};const a=await f.run(),b=await f.run();assert.equal(a.sequenceId,b.sequenceId);assert.equal(f.commits(),1);
 });
 test('Mini assembly receipt: a nonfinite SDK observation cannot become a null-valued saved fact',async t=>{
  const f=await receiptFixture(t);f.hooks.transform=()=>({enabled:true,scale:{x:NaN,y:1}});await assert.rejects(f.run(),e=>e.code==='TEMPLATE_RUN_NOT_SAVED');assert.equal(f.commits(),0);
@@ -116,7 +116,7 @@ test('Mini assembly receipt: a nonfinite SDK observation cannot become a null-va
 
 test('Mini continuation: a remounted realm confirms a late real assembly without a second commit',async t=>{
  const f=await receiptFixture(t);f.files.readdir=async p=>fs.readdirSync(p);
- const open=async()=>{const box=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array});vm.runInContext(runSource,box);return box.openTemplateAssemblyContinuations(f.sdk,f.local.files,{pluginId:'mini-vlog',projectId:'p'},()=>true);};
+ const open=async()=>{const box=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array});vm.runInContext(runSource,box);return box.openTemplateAssemblyContinuations(f.sdk,f.local.files,{pluginId:'mini-vlog',projectId:'p',requestLimit:98304},()=>true);};
  const original={scope:f.scope,config:f.config,source:assembly,frozen:{pid:'p',seed:7},plan:{picks:f.config.picks}};
  let release;const held=new Promise(resolve=>release=resolve);f.hooks.commit=()=>held;f.hooks.lostEarly=true;
  await assert.rejects((await open()).run(original),e=>e.code==='TEMPLATE_RUN_PENDING');assert.equal(f.commits(),1);
@@ -127,7 +127,7 @@ test('Mini continuation: a remounted realm confirms a late real assembly without
 
 test('Mini continuation: concurrent remounted callers share the existing exclusive assembly claim',async t=>{
  const f=await receiptFixture(t);f.files.readdir=async p=>fs.readdirSync(p);
- const log=await f.box.openTemplateAssemblyContinuations(f.sdk,f.local.files,{pluginId:'mini-vlog',projectId:'p'},()=>true),pending={scope:f.scope,config:f.config,source:assembly,frozen:{seed:7}};
+ const log=await f.box.openTemplateAssemblyContinuations(f.sdk,f.local.files,{pluginId:'mini-vlog',projectId:'p',requestLimit:98304},()=>true),pending={scope:f.scope,config:f.config,source:assembly,frozen:{seed:7}};
  const results=await Promise.allSettled([log.run(pending),log.run(pending)]);
  assert.equal(f.commits(),1);assert.ok(results.some(r=>r.status==='fulfilled'));assert.ok(results.every(r=>r.status==='fulfilled'||['TEMPLATE_RUN_PENDING','TEMPLATE_RUN_COMPLETED'].includes(r.reason.code)),JSON.stringify(results.map(r=>r.reason&&{code:r.reason.code,message:r.reason.message,stack:r.reason.stack})));
 });
@@ -144,7 +144,7 @@ test('Mini run record: sustained replacement is a bounded pending observation ra
 });
 test('Mini continuation: minified distribution keeps discovery and real serialized save dependencies',async t=>{
  const f=await receiptFixture(t,{minify:true});f.files.readdir=async p=>fs.readdirSync(p);
- const log=await f.box.openTemplateAssemblyContinuations(f.sdk,f.local.files,{pluginId:'mini-vlog',projectId:'p'},()=>true),pending={scope:f.scope,config:f.config,source:assembly,frozen:{seed:7}};
+ const log=await f.box.openTemplateAssemblyContinuations(f.sdk,f.local.files,{pluginId:'mini-vlog',projectId:'p',requestLimit:98304},()=>true),pending={scope:f.scope,config:f.config,source:assembly,frozen:{seed:7}};
  await log.store(pending);const resumed=await log.read();assert.equal(resumed.frozen.seed,7);assert.equal((await log.run(resumed)).sequenceId,'owned-1');assert.equal(f.commits(),1);assert.equal(await log.read(),null);
 });
 test('Mini run record: stable JSON null is invalid rather than an indefinitely changing record',async t=>{

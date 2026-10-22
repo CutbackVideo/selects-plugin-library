@@ -23,7 +23,7 @@ test('Archive save: another Build click confirms the same unknown request withou
  f.hooks.lostAssembly=false;await f.build(100);assert.equal(f.result()?.decorated,true);assert.equal(f.result().frozen.seed,1);assert.equal(f.commits(),2);
 });
 test('Archive save control: one returned assembly reaches its own confirmed Finish',async t=>{
- const f=await fixture(t);await f.build();assert.equal(f.result()?.sequenceId,'d1');assert.equal(f.result().decorated,true);assert.equal(f.commits(),2);assert.equal(f.requests.filter(r=>r.allowCommit).length,2);assert.equal(await(await f.open()).read(),null);
+ const f=await fixture(t);await f.build();assert.equal(f.result()?.sequenceId,'d1');assert.equal(f.result().decorated,true);assert.equal(f.commits(),2);assert.equal(f.requests.filter(r=>r.summary==='Assemble template with owned receipt'||r.summary==='Decorate template with owned receipt').length,2);assert.equal(await(await f.open()).read(),null);
 });
 test('Archive save: real bundled title/fonts/effects fit the frozen request and saved-state protocol',async t=>{
  const f=await fixture(t,{realFinish:true});await f.build();assert.equal(f.result()?.decorated,true,JSON.stringify(f.ui.errors));assert.equal(f.commits(),2);assert.ok(f.requests.every(r=>Buffer.byteLength(r.script)<262144));

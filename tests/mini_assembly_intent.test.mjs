@@ -45,11 +45,11 @@ test('Mini plan contract: repeating one photo Resource rejects before authoring 
  const f=fixture();f.cfg.picks.push({...f.cfg.picks[0]});f.cfg.boundaries.push(3.42);await assert.rejects(f.run(),/plan|photo|invalid/i);assert.equal(f.calls.creates,0);
 });
 test('Mini analysis source: content change after placement prevents the assembly commit',async()=>{
- const f=fixture();f.cfg.analysisSources=[{path:'/analysis-original',size:4,sha256:'a'.repeat(64)}];let reads=0;f.files.fingerprint=async()=>({size:4,sha256:(++reads===1?'a':'b').repeat(64)});
- await assert.rejects(f.run(),e=>e.code==='source-file-changed');assert.equal(f.calls.commits,0);assert.equal(reads,2);
+ const f=fixture(),file=f.addFile('/analysis-original'),create=f.project.createDraft;f.cfg.analysisSources=[file.observation];f.project.createDraft=async input=>{const d=await create(input);file.entry.bytes=Buffer.from('changed fixture bytes');return d;};
+ await assert.rejects(f.run(),e=>e.code==='source-file-changed');assert.equal(f.calls.commits,0);assert.equal(file.entry.reads,2);
 });
 test('Mini analysis source: unavailable original stops before any source probe or working Draft',async()=>{
- const f=fixture();f.cfg.analysisSources=[{path:'/analysis-original',size:4,sha256:'a'.repeat(64)}];f.files.fingerprint=async()=>null;await assert.rejects(f.run(),e=>e.code==='source-file-missing');assert.equal(f.calls.creates,0);assert.equal(f.calls.commits,0);
+ const f=fixture();f.cfg.analysisSources=[{path:'/analysis-original',size:4,sha256:'a'.repeat(64)}];await assert.rejects(f.run(),e=>e.code==='source-file-missing');assert.equal(f.calls.creates,0);assert.equal(f.calls.commits,0);
 });
 test('Mini source binding: a relink during assembly refuses commit even while the old file remains',async()=>{
  const f=fixture();f.cfg.sourceBindings=[{resourceId:'video',path:'/original.mp4'}];let reads=0;f.project.sourceFiles=async()=>({fileTree:[{type:'video',resourceId:'video',path:++reads===1?'/original.mp4':'/relinked.mp4'}]});

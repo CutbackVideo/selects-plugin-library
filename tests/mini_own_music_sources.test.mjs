@@ -22,7 +22,7 @@ for(const change of ['same-size same-mtime','missing','unknown','no provenance']
  const f=await selected(t);
  if(change==='same-size same-mtime'){f.replace();assert.equal(fs.statSync(f.music).size,original.wav.length);assert.equal(fs.statSync(f.music).mtimeMs,946684800000);}
  if(change==='missing')fs.unlinkSync(f.music);
- if(change==='unknown'){const fingerprint=f.files.fingerprint;f.files.fingerprint=p=>p===f.music?null:fingerprint(p);}
+ if(change==='unknown'){const readRange=f.files.readRange;f.files.readRange=input=>{if(input.path===f.music)throw Error('controlled source read failure');return readRange(input);};}
  if(change==='no provenance')delete f.box.ownGrid.sourceObservation;
  let planned=0;const plan=f.box.mvPlanBuild;f.box.mvPlanBuild=(...args)=>{planned++;return plan(...args);};
  await f.run();assert.equal(planned,0);assert.equal(f.imports.length,0);assert.equal(f.saved.length,0);assert.ok(f.errors.length);

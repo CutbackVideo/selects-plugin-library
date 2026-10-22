@@ -41,8 +41,8 @@ test('Archive assembly: failed pre-save confirmation cannot dispatch a commit',a
  const f=fixture();f.cfg.__beforeCommit=async()=>{throw Error('prepared state refused');};await assert.rejects(f.run(),/prepared state refused/);assert.equal(f.calls.commits,0);
 });
 for(const missing of ['source path','file contents'])test('Archive assembly: '+missing+' changed before admission prevents save',async()=>{
- const f=fixture();f.cfg.analysisSources=[{path:'/source.wav',size:4,sha256:'a'.repeat(64)}];f.cfg.sourceBindings=[{resourceId:'music',path:'/source.wav'}];
- f.project.sourceFiles=async()=>({fileTree:[{resourceId:'music',type:'audio',path:missing==='source path'?'/other.wav':'/source.wav'}]});f.files.fingerprint=async()=>({size:4,sha256:missing==='file contents'?'b'.repeat(64):'a'.repeat(64)});
+ const f=fixture(),file=f.addFile('/source.wav');f.cfg.analysisSources=[file.observation];f.cfg.sourceBindings=[{resourceId:'music',path:'/source.wav'}];
+ f.project.sourceFiles=async()=>({fileTree:[{resourceId:'music',type:'audio',path:missing==='source path'?'/other.wav':'/source.wav'}]});if(missing==='file contents')file.entry.bytes=Buffer.from('changed fixture bytes');
  await assert.rejects(f.run());assert.equal(f.calls.commits,0);
 });
 test('Archive assembly: generated operation matches actual SDK declarations',()=>{

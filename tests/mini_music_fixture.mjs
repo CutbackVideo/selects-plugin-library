@@ -13,14 +13,13 @@ const names=['readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRid
 const source=names.filter(name=>!['templateStateJSON','snapshotMiniFinishAssets','prepareMiniDecoration','miniWorkflowResult','miniAssemblyRecoveryOptions','confirmMiniSourceBindings','admitMiniMusic'].includes(name)||plain.includes('function '+name+'(')).map(name=>topLevel(plain,name)).join('\n')+'\n'+topLevel(nested,'inventoryCurrent')+'\n'+topLevel(nested,'runLive')+'\n'+topLevel(nested,'endRun')+'\n'+topLevel(nested,'run')+'\n'+topLevel(nested,'finishAssembly')+'\n'+topLevel(nested,'decorate')+'\n'+topLevel(nested,'finishTitle')+'\n'+topLevel(nested,'build');
 const feature=panel.includes('// bundled-assets:start')?panel.slice(panel.indexOf('// bundled-assets:start'),panel.indexOf('// bundled-assets:end')):'';
 const analysisFeature=panel.includes('// clip-analysis:start')?panel.slice(panel.indexOf('// clip-analysis:start'),panel.indexOf('// clip-analysis:end')):'';
+const observationFeatures=['file-observation','draft-observation'].map(name=>panel.slice(panel.indexOf('// '+name+':start'),panel.indexOf('// '+name+':end')).replace(/^export /gm,'')).join('\n');
 const inputFeature=panel.slice(panel.indexOf('// native-image-input:start'),panel.indexOf('// native-image-input:end')).replace(/^export /gm,'');
 const adapter=plain.includes('function prepareMiniCue(')?topLevel(plain,'prepareMiniCue'):'';
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
 const boundary=Object.assign(Error('Assembly intentionally outside this music-boundary fixture'),{boundary:true,outcome:'notSaved'});
 export async function miniMusicFixture(t,{entry='template',own=false,silent=false}={}){
  const f=await holdFixture(t);
- // This fixture supplies the existing native content observation contract.
- f.files.fingerprint=async p=>fs.existsSync(p)?{size:fs.statSync(p).size,sha256:digest(fs.readFileSync(p))}:null;
  const plugin=path.join(f.root,'installed','mini-vlog'),file=path.join(plugin,'assets','cues','cue.mp3');fs.mkdirSync(path.dirname(file),{recursive:true});
  const bytes=Buffer.from('selected cue bytes'),cue={id:'cue',file:'cue.mp3',bytes:bytes.length,sha256:digest(bytes),duration:60,bpm:110};fs.writeFileSync(file,bytes);
  const resources=[],nodes=[],imports=[],scripts=[],saved=[],errors=[],hooks=f.hooks;let live=true;
@@ -76,7 +75,7 @@ export async function miniMusicFixture(t,{entry='template',own=false,silent=fals
   candidates:{key:'p|null|motion',failed:[],scene:[],sceneSources:inventory.resources.map(r=>({path:r.path,size:fs.statSync(r.path).size,sha256:digest(fs.readFileSync(r.path))})),list:[],local:{results:[],unavailable:false}},
   setBusy:noop,setStatus:value=>{if(value?.tone==='error')errors.push(value.say('en'));},setResult:noop,stopPreview:noop,advance:noop,stopAt:error=>()=>{errors.push(error);return error.message;},endRun:()=>{busyRef.current=false;},CANCELLED:Symbol('cancelled'),STALE:stopped,
  };
- const box=vm.createContext(globals);vm.runInContext(inputFeature+'\n'+feature+'\n'+analysisFeature+'\n'+adapter+'\n'+source+'\nthis.api={runMiniVlogTemplate,build,finishTitle,decorate,prepareMiniDecoration:typeof prepareMiniDecoration==="function"?prepareMiniDecoration:undefined,snapshotMiniFinishAssets:typeof snapshotMiniFinishAssets==="function"?snapshotMiniFinishAssets:undefined};',box);
+ const box=vm.createContext(globals);vm.runInContext(observationFeatures+'\n'+inputFeature+'\n'+feature+'\n'+analysisFeature+'\n'+adapter+'\n'+source+'\nthis.api={runMiniVlogTemplate,build,finishTitle,decorate,prepareMiniDecoration:typeof prepareMiniDecoration==="function"?prepareMiniDecoration:undefined,snapshotMiniFinishAssets:typeof snapshotMiniFinishAssets==="function"?snapshotMiniFinishAssets:undefined};',box);
  const run=async()=>{
   if(entry==='panel'){await box.api.build(1);return saved.at(-1);}
   try{await box.api.runMiniVlogTemplate(sdk,{projectId:'p',template:{runId:webcrypto.randomUUID(),inputs:{footage:[{resourceId:'original-0',kind:'video'},{resourceId:'original-1',kind:'video'}]},options:{}}},check,noop);}catch(error){if(!error.boundary)throw error;}

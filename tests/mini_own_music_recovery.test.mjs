@@ -10,8 +10,8 @@ import {hash} from './gallery_hold_fixture.mjs';
 const original=clickAudio(120),replacement=clickAudio(100);
 for(const change of ['content','Project link'])test('Mini music precommit: '+change+' after placement refuses assembly commit',async()=>{
  const f=assemblyIntentFixture();f.cfg.music={resourceId:'music',sectionStart:0,tailSeconds:0,referenceCuts:false};
- f.cfg.analysisSources=[{path:'/selected.wav',size:4,sha256:'a'.repeat(64)}];f.cfg.sourceBindings=[{resourceId:'music',path:'/selected.wav'}];let contentReads=0,pathReads=0;
- f.files.fingerprint=async()=>({size:4,sha256:(change==='content'&&++contentReads>1?'b':'a').repeat(64)});
+ const file=f.addFile('/selected.wav'),create=f.project.createDraft;f.cfg.analysisSources=[file.observation];f.cfg.sourceBindings=[{resourceId:'music',path:'/selected.wav'}];let pathReads=0;
+ f.project.createDraft=async input=>{const d=await create(input);if(change==='content')file.entry.bytes=Buffer.from('changed fixture bytes');return d;};
  f.project.sourceFiles=async()=>({fileTree:[{type:'audio',resourceId:'music',path:change==='Project link'&&++pathReads>1?'/relinked.wav':'/selected.wav'}]});
  await assert.rejects(f.run(),e=>e.code===(change==='content'?'source-file-changed':'source-path-changed'));
  assert.ok(f.calls.inserts>0);assert.equal(f.calls.commits,0);
@@ -23,7 +23,7 @@ for(const entry of ['panel','template'])for(const change of ['content','missing'
  f.hooks.sourceFiles=sources;f.hooks.resources=[{resourceId:'r0',type:'Video'},{resourceId:'music',type:'Audio',durationSeconds:30}];
  f.root.config.music={resourceId:'music',sectionStart:.5,tailSeconds:0,referenceCuts:false};
  f.root.config.analysisSources=[{path:file,size:original.wav.length,sha256:hash(file)}];f.root.config.sourceBindings=[{resourceId:'music',path:file}];
- const saved=await f.mount().executeTemplateAssembly(f.sdk,f.local.files,f.root.scope,f.root.config,f.root.source,()=>true,{captureState:true});
+ const saved=await f.mount().executeTemplateAssembly(f.sdk,f.local.files,f.root.scope,f.root.config,f.root.source,()=>true,{captureState:true,requestLimit:98304});
  await(await f.open()).store(f.root);assert.equal(f.commits(),1);assert.ok(f.saved.get(saved.sequenceId).clips.some(row=>row.resourceId==='music'&&row.trackKind==='audio'));
  if(change==='content')fs.writeFileSync(file,replacement.wav);
  if(change==='missing')fs.unlinkSync(file);

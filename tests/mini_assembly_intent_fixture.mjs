@@ -1,10 +1,13 @@
 import {vlogOperation} from './sdk_free_helpers.mjs';
 import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';
+import {createHash} from 'node:crypto';
 import {checkScriptTypes} from './run_script_types.mjs';
 export const script=(process.env.MINI_ASSEMBLY_INTENT_SCRIPT?fs.readFileSync(process.env.MINI_ASSEMBLY_INTENT_SCRIPT,'utf8'):vlogOperation('mini-vlog','assemble')),clone=v=>JSON.parse(JSON.stringify(v));
 export function assemblyIntentFixture({rate=30,adopt=null,reverse=false,fault=null,sourceRates={},scriptSource=script,probeName='Mini source timing check'}={}){
  sourceRates={music:120,...sourceRates};
- const files={};
+ const sourceFiles=new Map();
+ const files={stat:async path=>sourceFiles.has(path)?{isDirectory:false,size:sourceFiles.get(path).bytes.length,mtimeMs:1,ino:1}:null,readRange:async({path,offset,length})=>{const entry=sourceFiles.get(path);if(!entry)throw Error('missing fixture source');entry.reads++;const bytes=entry.bytes.subarray(offset,offset+length);return {bytesRead:bytes.length,base64:bytes.toString('base64')};}};
+ const addFile=(path,bytes=Buffer.from('original fixture bytes'))=>{const entry={bytes:Buffer.from(bytes),reads:0};sourceFiles.set(path,entry);return {entry,observation:{path,size:entry.bytes.length,sha256:createHash('sha256').update(entry.bytes).digest('hex')}};};
  const calls={creates:0,inserts:0,commits:0,transforms:0,audio:0,trims:0},drafts=[];let epoch=0;
  const cfg={projectId:'p',draftName:'Intent fixture',picks:[{rid:'photo',kind:'photo',startSeconds:0},{rid:'video',kind:'video',startSeconds:3.21,sourceDuration:20}],boundaries:[0,1.03,2.17],crops:{photo:{width:96,height:160},video:{width:1920,height:1080}},music:null,clipSound:'full',ambientDb:-18};
  const fresh=r=>({...clone(r),_epoch:epoch}),valid=r=>assert.equal(r._epoch,epoch,'stale target'),transform=()=>({enabled:true,position:{x:0,y:0},scale:{x:1,y:1},anchor:{x:0,y:0},rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[]});
@@ -33,5 +36,5 @@ export function assemblyIntentFixture({rate=30,adopt=null,reverse=false,fault=nu
    commitAll:async()=>{calls.commits++;return {createdDraftId:'d'+calls.creates};},
   };drafts.push({d,probe,rows:()=>clips});return d;
  }};
- return {cfg,calls,drafts,project:p,files,run:()=>vm.runInNewContext('(async()=>{'+scriptSource+'})()',{selects:{project:()=>p,files},__CONFIG__:cfg})};
+ return {cfg,calls,drafts,project:p,files,addFile,run:()=>vm.runInNewContext('(async()=>{'+scriptSource+'})()',{selects:{project:()=>p,files},__CONFIG__:cfg})};
 }

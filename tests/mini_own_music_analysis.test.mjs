@@ -10,6 +10,7 @@ import {topLevel} from './windows_host.mjs';
 import {clickAudio} from '../tools/repro_mini_own_music.mjs';
 const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS_ESBUILD||process.env.SBS_PANEL_TEST_MODULES+'/esbuild'),engine=require('../shared/audio-beat-analysis.cjs');
 const panel=fs.readFileSync(new URL('../plugins/mini-vlog/panel.tsx',import.meta.url),'utf8'),plain=esbuild.transformSync(panel,{loader:'tsx',format:'esm',jsx:'preserve'}).code;
+const fileObservation=panel.slice(panel.indexOf('// file-observation:start'),panel.indexOf('// file-observation:end')).replace(/^export /gm,'');
 const input=panel.slice(panel.indexOf('// native-image-input:start'),panel.indexOf('// native-image-input:end')).replace(/^export /gm,'');
 const assets=panel.slice(panel.indexOf('// bundled-assets:start'),panel.indexOf('// bundled-assets:end'));
 const helpers=['hostProbeSeconds','prepareMiniOwnMusic'].map(name=>topLevel(plain,name)).join('\n');
@@ -17,10 +18,9 @@ const music=clickAudio(120),replacement=clickAudio(100);
 async function fixture(t){
  const f=await holdFixture(t),file=path.join(f.root,"own 'quote' $() \uc74c\uc545.wav"),hooks={},abort=new AbortController();let live=true,runs=0;
  fs.writeFileSync(file,music.wav);
- f.files.fingerprint=async p=>fs.existsSync(p)?{size:fs.statSync(p).size,sha256:createHash('sha256').update(fs.readFileSync(p)).digest('hex')}:null;
  const box=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array,Float32Array,DataView,AbortController,setTimeout,clearTimeout,OWN_RATE:22050,OWN_MAX_SECONDS:240,BEAT_TIMEOUT_MS:60000,
   analyseBeat:async(_source,samples)=>{runs++;await hooks.worker?.(samples);return engine.analyze(samples,22050);}});
- vm.runInContext(input+'\n'+assets+'\n'+helpers+'\nthis.prepare=prepareMiniOwnMusic;',box);
+ vm.runInContext(fileObservation+'\n'+input+'\n'+assets+'\n'+helpers+'\nthis.prepare=prepareMiniOwnMusic;',box);
  return {...f,file,box,abort,analysisHooks:hooks,workerRuns:()=>runs,stopAnalysis:()=>{live=false;},analyze:(worker='source-v1')=>box.prepare(f.local,file,f.data,worker,abort.signal,()=>live),replace:()=>fs.writeFileSync(file,replacement.wav)};
 }
 test('Mini own analysis: real PCM and engine bind a validated grid to original contents, reuse verified JSON and leave no staging',async t=>{

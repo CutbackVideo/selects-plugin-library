@@ -60,7 +60,11 @@ test('Archive mixed original is required again when recovering the same frozen a
  const f=await mixed(t);await assert.rejects(f.run(),error=>error.boundary===true);
  const pending=f.box.assemblyPendingRef.current.p,original=fs.readFileSync(f.photo),saved=f.saved.length,imports=f.imports.length;
  const recovery=f.box.archiveRecoveryOptions(f.box.sdk,pending,()=>{});
- const ordinary=f.box.sdk.runScript,assembly={sequenceId:'saved-mixed',totalFrames:90,fps:30};let verifications=0;
+ // Saved observation/semantic admission is a controlled boundary here. This
+ // inventory-path test neither creates a real mixed Draft nor parses its JSON.
+ const assembly={sequenceId:'saved-mixed',totalFrames:90,fps:30};let verifications=0,sourceReads=0;
+ f.box.readTemplateDraftSources=async()=>{sourceReads++;return {owner:{projectId:'p',libraryId:'fixture'},revision:'unchanged-saved-mixed',clips:[]};};
+ const ordinary=f.box.sdk.runScript;
  f.box.sdk.runScript=async input=>{
   if(input.summary==='Verify original Archive assembly plan'){verifications++;return {result:{verified:true,draftId:assembly.sequenceId,mainEnd:90,fps:30}};}
   return ordinary(input);
@@ -68,7 +72,7 @@ test('Archive mixed original is required again when recovering the same frozen a
  fs.writeFileSync(f.photo,Buffer.from('changed photo contents'));
  await assert.rejects(recovery.verifyAssembly(pending,assembly),error=>error.code==='source-file-changed');assert.equal(verifications,0);
  fs.writeFileSync(f.photo,original);
- await recovery.verifyAssembly(pending,assembly);assert.equal(verifications,1);
+ await recovery.verifyAssembly(pending,assembly);assert.equal(verifications,1);assert.equal(sourceReads,2,'actual caller brackets the controlled saved read');
  assert.equal(f.saved.length,saved);assert.equal(f.imports.length,imports);
  assert.equal(pending.config.sourceBindings.find(row=>row.resourceId==='p0').path,f.photo);
 });

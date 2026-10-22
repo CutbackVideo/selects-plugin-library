@@ -17,12 +17,11 @@ const music=clickAudio(120),replacement=clickAudio(100),digest=bytes=>createHash
 async function fixture(t){
  const f=await holdFixture(t),file=path.join(f.root,"own 'quote' $() \uc74c\uc545.wav"),hooks={},errors=[];let runs=0,grid=null,selected=null,status=null;
  fs.writeFileSync(file,music.wav);
- f.files.fingerprint=async p=>fs.existsSync(p)?{size:fs.statSync(p).size,sha256:digest(fs.readFileSync(p))}:null;
  const globals={crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array,Float32Array,DataView,AbortController,setTimeout,clearTimeout,window:{},OWN_RATE:22050,OWN_MAX_SECONDS:240,BEAT_TIMEOUT_MS:60000,
   analyseBeat:async(_source,samples)=>{runs++;await hooks.worker?.(samples);return engine.analyze(samples,22050);},panelLocalClient:()=>f.local,sdk:{},busyRef:{current:false},roots:{data:f.data},assets:{beatWorker:'source-v1'},ownJobRef:{current:{id:0,abort:null}},mountedRef:{current:true},projectRef:{current:'p'},stopPreview:()=>{},setListening:()=>{},setOwnMusic:value=>{selected=value;},setOwnGrid:value=>{grid=value;},setStatus:value=>{status=value;},
   errorSay:(error,format)=>{errors.push(error);return lang=>format(lang,error.message);},t:(_lang,key)=>key,uiError:say=>Error(say('en')),
  };
- const box=vm.createContext(globals);vm.runInContext(block('native-image-input')+'\n'+block('bundled-assets')+'\n'+helpers+'\n'+callers+'\nthis.detect=detectOwnMusic;',box);
+ const box=vm.createContext(globals);vm.runInContext(block('file-observation')+'\n'+block('native-image-input')+'\n'+block('bundled-assets')+'\n'+helpers+'\n'+callers+'\nthis.detect=detectOwnMusic;',box);
  return {...f,file,box,analysisHooks:hooks,errors,workerRuns:()=>runs,selected:()=>selected,
   analyze:async()=>{await box.detect({path:file,name:path.basename(file)});if(status?.tone==='error')throw errors.at(-1)||Error('analysis refused');return grid;},
   replace:()=>fs.writeFileSync(file,replacement.wav)};
@@ -49,7 +48,7 @@ test('Archive own analysis: an unconfirmed probe exit propagates instead of beco
  const f=await fixture(t);f.local.media.runFFmpeg=async()=>{throw Error('decoder unavailable');};f.local.media.runFFprobe=async()=>{throw Object.assign(Error('probe exit unknown'),{preserveTemporaryFiles:true});};await assert.rejects(f.analyze());assert.equal(f.selected(),null);
 });
 test('Archive own analysis: source uncertainty clears the track before decoding',async t=>{
- const f=await fixture(t);f.files.fingerprint=async()=>null;await assert.rejects(f.analyze());assert.equal(f.workerRuns(),0);assert.equal(f.calls.length,0);assert.equal(f.selected(),null);
+ const f=await fixture(t);f.files.readRange=async()=>{throw Error('original read unavailable');};await assert.rejects(f.analyze());assert.equal(f.workerRuns(),0);assert.equal(f.calls.length,0);assert.equal(f.selected(),null);
 });
 test('Archive own analysis: corrupt published JSON is recomputed using the same source owner',async t=>{
  const f=await fixture(t);await f.analyze();const object=jsonFiles(f.data).find(p=>p.includes(path.sep+'objects'+path.sep));assert.ok(object);fs.writeFileSync(object,'{}');assert.equal((await f.analyze()).accepted,true);assert.equal(f.workerRuns(),2);

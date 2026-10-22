@@ -3,10 +3,9 @@ const script=fs.readFileSync(new URL('../plugins/mini-vlog/scripts/decorate.js',
 const clone=value=>JSON.parse(JSON.stringify(value));
 const textProgram={tsxCode:'export default function Title(){return null}',parameters:{text:'Saturday'},editableParameters:[{key:'text',label:'Text',type:'text',defaultValue:'Saturday'}]};
 function fixture({minify=false}={}){
- const hooks={},log=[],rows=[{clipId:1,trackId:'main',trackKind:'main',resourceId:'v0',startFrame:0,endFrame:60,audioSourceIndexes:[0]}],graphics=[],effects=new Map();let epoch=0,commits=0;
+ const hooks={},log=[],rows=[{clipId:1,trackId:'main',trackKind:'main',resourceId:'v0',startFrame:0,endFrame:60,audioSourceIndexes:[0],_source:{startSeconds:0,endSeconds:2}}],graphics=[],effects=new Map();let epoch=0,commits=0;
  const fresh=row=>({...clone(row),_epoch:epoch}),target=row=>{assert.equal(row._epoch,epoch,'SDK targets must be reread after every edit');},changed=()=>{epoch++;};
  const d={meta:async()=>({fps:30,durationFrames:60,frameSize:{width:1920,height:1080}}),clips:async({trackScope}={})=>rows.filter(r=>trackScope!=='main'||r.trackKind==='main').map(fresh),rangeAtFrames:async(a,b)=>({startFrame:a,endFrame:b,_epoch:epoch}),
-  clipSourceWindow:async row=>({clipId:row.clipId,startSeconds:row.sourceStartSeconds??0,endSeconds:(row.sourceStartSeconds??0)+(row.endFrame-row.startFrame)/30}),
   motionGraphics:async()=>graphics.map(g=>({name:g.name,clip:fresh(g.clip)})),motionGraphicProgram:async clip=>{target(clip);if(hooks.unavailable)throw Error('private TOKEN=secret');return clone(graphics.find(g=>g.clip.clipId===clip.clipId)?.program??null);},
   videoEffects:async clip=>{target(clip);return (effects.get(clip.clipId)??[]).map((e,i)=>({...clone(e),clipId:clip.clipId,trackId:clip.trackId,effectIndex:i,_epoch:epoch}));},
   videoEffectProgram:async effect=>{target(effect);return clone((effects.get(effect.clipId)??[])[effect.effectIndex]?.program??null);},
@@ -16,6 +15,8 @@ function fixture({minify=false}={}){
   commitAll:async()=>{commits++;log.push('commit');if(hooks.lost)throw Error('reply lost after save');return {createdDraftId:'d'};}};
  const cfg={sequenceId:'d',videoEnd:60,mute:false,title:{tsx:textProgram.tsxCode,parameters:clone(textProgram.parameters),editableParameters:clone(textProgram.editableParameters)},soft:null,photos:[]};
  const run=()=>{
+  // Actual saved-source observation is supplied independently of punch intent.
+  cfg.__sources={revision:'fixture-saved-source',clips:rows.map(row=>({...row,source:{clipId:row.clipId,...row._source},playbackSpeed:1}))};
   const selects={draft:id=>{assert.equal(id,'d');return d;}};
   if(!minify)return vm.runInNewContext('(async()=>{'+script+'})()',{__CONFIG__:cfg,selects});
   const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS_ESBUILD||process.env.SBS_PANEL_TEST_MODULES+'/esbuild'),module={exports:{}};
@@ -85,7 +86,6 @@ test('Mini programs: minified generated operation retains verification and fresh
  const f=fixture({minify:true});f.soft();await f.run();assert.equal((await f.run()).alreadyDone,true);assert.equal(f.commits(),1);
 });
 test('Mini punch intent: effect origin uses the actual placed source window instead of repeating old crop arithmetic',async()=>{
- const f=fixture();f.rows[0].sourceStartSeconds=3.2;f.cfg.punch={tsx:'export default function Punch(){return null}',strength:.5,push:.4,beatFrames:20,punchFrames:[],picks:[{rid:'v0',kind:'video',startSeconds:3.219,sourceDuration:20}]};
- f.d.clipSourceWindow=async clip=>{assert.equal(clip.clipId,1);return {clipId:1,startSeconds:3.2,endSeconds:5.2};};
+ const f=fixture();f.rows[0]._source={startSeconds:3.2,endSeconds:5.2};f.cfg.punch={tsx:'export default function Punch(){return null}',strength:.5,push:.4,beatFrames:20,punchFrames:[],picks:[{rid:'v0',kind:'video',startSeconds:3.219,sourceDuration:20}]};
  await f.run();assert.equal(f.effects.get(1)[0].program.parameters.sourceStartFrame,96);
 });
