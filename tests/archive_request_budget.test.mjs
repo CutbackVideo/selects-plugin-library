@@ -4,8 +4,9 @@ import path from 'node:path';
 import test from 'node:test';
 import {archiveWorkflowFixture} from './archive_workflow_fixture.mjs';
 
-// The template declares no maximum footage count. Many selected originals must
-// not exceed a receipt-envelope limit before a small valid plan can be saved.
+// The standalone panel can inspect a whole Project inventory. Its input count
+// is separate from the headless manifest limit (50 handed files). A small plan
+// must not exceed a receipt-envelope limit merely by retaining that inventory.
 for(const realFinish of [false,true])test('Archive request budget: 100 selected originals retain '+(realFinish?'real bundled Finish assets':'the selected-source contract'),async t=>{
  const f=await archiveWorkflowFixture(t,{realFinish}),rows=f.ui.inventory.resources;
  for(let i=2;i<100;i++){

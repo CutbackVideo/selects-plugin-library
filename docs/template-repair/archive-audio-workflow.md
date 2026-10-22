@@ -130,13 +130,15 @@ There is no new registry module: nine owners, fourteen partial consumers.
 
 ### Bounds and admission
 
-A real 100-selected-originals/two-shot plan reproduced two distinct limits: the
+A standalone-panel 100-original inventory/two-shot plan reproduced two distinct limits: the
 48 KiB receipt-envelope budget was also applied to the request, and original
 Finish assets plus selected-source observations exceeded the 256 KiB continuation
 limit. The durable owner now offers explicit requestLimit (maximum 128 KiB) and
 stateLimit (maximum 512 KiB) opt-ins. Existing defaults, request ordering/hash
 bytes, receipt/CAS limits and the separate 256 KiB SDK transport cap are retained.
 Only Archive opts in. The canonical file client already chunks these state files.
+The headless handoff manifest separately limits footage to 50 files; the
+100-original regression covers the standalone Project panel, not that handoff.
 All six TSX keys and the four generated script markers/placeholders/source bounds
 are validated before assembly, so incomplete Finish inputs cannot leave a saved
 base Draft.
