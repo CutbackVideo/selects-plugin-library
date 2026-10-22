@@ -755,7 +755,8 @@ export default function Preparation({sdk, context, ui}) {
     if (names.length && !(await confirm(t.classify.overwrite, {name: shoot.name, names: names.join(", ")}))) return;
     await remember(shoot.name, timelineId, "classify");
     setView("classify");
-    if (!context.inWindow && typeof sdk.openInWindow === "function") await sdk.openInWindow().catch(() => {});
+    // Wide enough for the list beside the video; hosts before the size option open it at their usual size.
+    if (!context.inWindow && typeof sdk.openInWindow === "function") await sdk.openInWindow({width: 1200, height: 800}).catch(() => {});
   }
   async function leaveClassifier() {
     await remember(shoot?.name || shootName, timelineId);
