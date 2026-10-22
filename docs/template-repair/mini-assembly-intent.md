@@ -90,6 +90,12 @@ resolver's compatible generated copy only; its assembly is not migrated here.
   tests already verify actual tail placement. Twenty-four Audio/Gallery builder
   cases pass. Python: 299 tests, six pre-existing skips. Public-source, package,
   module and generated-operation checks pass; normal pre-push checks are required.
+- CI also exercised retained placement entry points outside the initial focused
+  suite. Six cases exposed missing explicit binder injection in the Camera Shutter
+  and No.14 legacy wrappers. The unchanged migration suite reproduces those six
+  failures locally; both serialized wrappers now pass the dependency. The full
+  migration suite and directly affected preflight, compiled, Windows-path and title
+  consumers pass. This is a real integration correction, not a relaxed fixture.
 - Actual macOS SDK probes show parent `[25, 57]` and corrected `[25, 56]` cuts.
   A saved mixed-Video/music/ambient Draft independently reads back the intended
   cuts, Audio range and fades. A controlled lost assembly reply recovers that

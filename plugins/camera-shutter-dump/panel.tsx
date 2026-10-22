@@ -1222,10 +1222,10 @@ async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
  return {read,store:pending=>store(pending),run:resumeAssembly,workflow};
 }
 // template-run:end
-async function nativeImagePlacement(selects,input,placeImages,sourceFacts) {
+async function nativeImagePlacement(selects,input,placeImages,sourceFacts,bindPlacement) {
  const {projectId,draftId,plan,items,sources}=input,project=selects.project(projectId),draft=selects.draft(draftId);
  if(!(await project.meta()).draftIds.includes(draftId))throw Error('The Draft is not owned by the selected Project.');
- const result=await placeImages(selects,projectId,draft,plan,sources,items,sourceFacts);
+ const result=await placeImages(selects,projectId,draft,plan,sources,items,sourceFacts,bindPlacement);
  await draft.commitAll('Place original editable Images');
  return {...result,status:'committed'};
 }
@@ -1233,7 +1233,7 @@ export async function placeNativeImages(prepared,draftId,plan,items,label) {
  const {sdk,projectId,sources}=prepared;
  items=plan.occurrences.map((item,index)=>({...item,source:index}));
  const input={projectId,draftId,plan,items,sources};
- const result=await nativeImageRun(sdk,`return await (${nativeImagePlacement.toString()})(selects,${JSON.stringify(input)},${placeWorkingCopyImages.toString()},${nativeImageSources.toString()});`,'Place original editable Images',true);
+ const result=await nativeImageRun(sdk,`return await (${nativeImagePlacement.toString()})(selects,${JSON.stringify(input)},${placeWorkingCopyImages.toString()},${nativeImageSources.toString()},${bindMediaPlacement.toString()});`,'Place original editable Images',true);
  // A separate script reads persisted state, rather than verifying the same working copy.
  await nativeImageRun(sdk,`const d=selects.draft(${JSON.stringify(draftId)}),clips=await d.clips({trackScope:'all'});for(const expected of ${JSON.stringify(result.placements)}){const actual=clips.find(c=>c.clipId===expected.clipId);if(!actual||actual.trackId!==expected.trackId||actual.startFrame!==expected.startFrame||actual.endFrame!==expected.endFrame)throw Error('Saved Image placement could not be read back.');}if((await d.meta()).durationFrames!==${JSON.stringify(plan.durationFrames)})throw Error('Saved Image Draft duration changed.');return {ok:true};`,'Verify saved Image placement');
  return result;
