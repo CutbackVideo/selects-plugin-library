@@ -11,6 +11,8 @@ Remaining legacy WebPs were decoded byte-for-byte from the old embedded data URL
 Pack 1.4.3 replaces Heukbaek and Panilgi artwork with the supplied original files,
 adds the original Jeongjwippul bumper, and uses a solid black Panilgi background.
 New project transforms are documented in [RECEIVED-POLITICS.md](RECEIVED-POLITICS.md).
+Pack 1.4.4 publishes clip-selection and headline rules derived from each
+program's published Shorts (health, parenting, heukbaek, jeongjwippul, panilgi).
 Use Shortform Clips 0.6.2 for background-region placement and horizontal logo offsets. Typography corrections from customer requirements and supplied
 Premiere projects are recorded in [PREMIERE.md](PREMIERE.md).
 Remaining legacy series typography is recorded explicitly; the old per-line colored
