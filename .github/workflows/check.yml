@@ -33,7 +33,9 @@ jobs:
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test plugins/shortform-clips/tests/*.test.cjs plugins/shortform-clips/tests/*.test.mjs plugins/selects-ai-runtime/tests/*.test.cjs
           SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/app_update_guards.test.cjs
       - name: Test feature ownership inventory boundaries
-        run: SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_ownership_audit.test.mjs
+        run: |
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node --test tests/template_ownership_audit.test.mjs tests/feature_ownership_coverage.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" node tools/check_feature_ownership.mjs docs/template-repair/ownership/mini-vlog.json > "$RUNNER_TEMP/mini-feature-ownership.json"
       - name: Test Music
         run: node --test tests/music.test.mjs tests/music-preview.test.mjs
       - name: Test complete Image Draft authoring

@@ -1,5 +1,14 @@
 # Sequential template repair: active
 
+## Mini source-to-feature coverage checkpoint
+
+[mini-ownership-review.md](mini-ownership-review.md) links every captured Mini source
+unit, including anonymous callbacks/build sources and package data, to 27 explicit
+feature decisions. Planned extraction is separate from implemented owners. A valid
+120-to-100 BPM own-music replacement and a missing track still reach Build dispatch;
+that source/engine feature is the next repair. Coverage is not semantic acceptance:
+full ownership and whole-template acceptance remain 0/28, with Chan excluded.
+
 ## Mini all-video original admission checkpoint
 
 Mini alpha.27 confirms every selected video’s current Project path and complete

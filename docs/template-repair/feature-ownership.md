@@ -66,6 +66,24 @@ unmanaged copies, external constants, string-safe fingerprints, shipped scripts
 and explicitly retained unparseable templates. Their passing result validates
 those inventory behaviors, not semantic completeness of this table.
 
+## Mini complete source-to-decision coverage, semantic review still open
+
+The first per-template source map is [ownership/mini-vlog.json](ownership/mini-vlog.json),
+explained in [mini-ownership-review.md](mini-ownership-review.md). It links all 30
+shipped executable/test files, five local build sources, a reproducible diagnostic,
+and all shipped data/contracts to 27 explicit decisions, including anonymous
+callbacks and four embedded-program producers. Hashes reject stale attribution.
+The added checker never turns structural coverage into semantic or runtime success.
+
+Current map: 12 template-specific, 9 existing-owner reuse, 3 existing-owner extensions,
+and 3 extraction decisions representing only two prospective feature owners. Those
+planned owners are not implemented. The private transport and app guard are listed
+as existing owners outside the partial marker registry. Four open findings include
+valid own-music source replacement/missing-file dispatch, native probe uncertainty,
+capability wording, and configured install-root discovery. Complete semantic
+ownership reviews remain 0/28. The map supplies concrete remaining work rather than
+allowing repetitive helper groups to be silently assigned to template-specific code.
+
 ## Initial reviewed decisions, with separate implementation status
 
 | Template/feature | Decision and owner | Boundary and reason | Implementation/evidence |
