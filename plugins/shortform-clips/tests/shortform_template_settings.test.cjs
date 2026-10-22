@@ -175,9 +175,12 @@ test('templates use independent settings without renderer families',{skip:!modul
      expected.version+=3;
      Object.assign(expected.layout,{reframe:true,reframePreset:'speaker',reframeFocus:'speaker',splitPolicy:'never',widePolicy:'never',reframePacing:'balanced',cropMotion:'fixed',cameraMode:'auto',closeUp:design.id==='issue-broadcast'?2.7:6.2,faceY:40});
     }
+    // Existing explicit opt-outs survive; missing values now default on at runtime.
+    expected.captions.cleanSpeechText=current.captions.cleanSpeechText ?? true;
+    if(current.captions.cleanSpeechText===undefined)delete expected.captions.cleanSpeechText;
     assert.deepEqual(current,expected,key+': preserve the design and apply explicit framing preferences');
     assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
-    assert.deepEqual(api.validateTemplate(structuredClone(current)),current,key+': no migration needed');
+    assert.deepEqual(api.validateTemplate(structuredClone(current)),{...current,captions:{...current.captions,cleanSpeechText:current.captions.cleanSpeechText??true}},key+': no migration needed');
     const platform='tiktok';
     if(platform==='tiktok'){assert.equal(file,key.split('/')[1]);assert.deepEqual(current.names,legacy.names);assert.equal(current.id,legacy.id);}
     const a=api.forPlatform(before,platform),b=current;
@@ -200,12 +203,12 @@ test('templates use independent settings without renderer families',{skip:!modul
    expectedFiles.push('chosun-ilbo/'+id+'.json');
    const current=JSON.parse(fs.readFileSync(path.join(root,'chosun-ilbo','templates',id+'.json'),'utf8'));
    assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
-   assert.deepEqual(api.validateTemplate(structuredClone(current)),current,id+': no migration needed');
+   assert.deepEqual(api.validateTemplate(structuredClone(current)),{...current,captions:{...current.captions,cleanSpeechText:current.captions.cleanSpeechText??true}},id+': no migration needed');
   }
   // Scene templates are new designs, not migrations of the legacy presets.
   expectedFiles.push('hankook-ilbo/huick-alpha.json','chosun-ilbo/parenting.json','chosun-ilbo/jeongjwippul.json','chosun-ilbo/politics-landscape.json');
   const parenting=JSON.parse(fs.readFileSync(path.join(root,'chosun-ilbo','templates','parenting.json'),'utf8'));
-  assert.deepEqual(api.validateTemplate(structuredClone(parenting)),parenting,'Parenting: source values survive validation');
+  assert.deepEqual(api.validateTemplate(structuredClone(parenting)),{...parenting,captions:{...parenting.captions,cleanSpeechText:parenting.captions.cleanSpeechText??true}},'Parenting: source values survive validation');
   const scene=JSON.parse(fs.readFileSync(path.join(root,'hankook-ilbo','templates','huick-alpha.json'),'utf8'));
   assert.equal(scene.id,'huick-alpha');assert.equal(scene.editorial.mode,'scenes');
   assert.equal(scene.variants,undefined);assert.equal(scene.platformLayouts,undefined);

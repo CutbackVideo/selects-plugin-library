@@ -215,6 +215,20 @@ shows only the batch count. Older results capture the current Draft on their fir
 or opening a Draft do not refresh the saved image. Capture does not change the
 open Draft. A failed preview leaves the editable clip and its history intact.
 
+Caption settings include **Clean fillers, stutters and repetitions**, enabled when
+no explicit preference has been saved. Existing disabled preferences stay disabled.
+The passage-selection AI proposes text-only omissions; the app matches each to one
+original word occurrence, preserving surviving word times before line wrapping and
+fixed-size caption layout. Ambiguous or invalid omissions are ignored. An empty or
+malformed cleanup list preserves the original caption words; it does not fail valid
+clip selection. The existing video filler/silence editing switches remain independent.
+Negation, numeric tokens and conditional expressions have conservative deletion
+vetoes. Model judgment still needs review for context and meaningful emphasis.
+An attached fragment such as a stutter inside one transcript token stays intact:
+cleanup cannot rewrite that token. To adjust a result manually, open its Draft,
+select the caption graphic and edit its text. Toggle cleanup off in Templates
+before generating clips when every transcribed word should be retained.
+
 The Templates tab edits design, captions, editing options, program detection and
 AI instructions. Controls depend on the template renderer. TikTok/Shorts layout
 variants keep separate design values and share detection and AI instructions.
