@@ -107,3 +107,16 @@ test('standalone engine files are explicit shipped consumers, checked read-only 
 for(const invalid of ['excluded','undeclared'])test('a '+invalid+' standalone consumer prevents every earlier pending panel write',()=>fixture(({dir,file,run})=>{
  const registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath));fs.writeFileSync(path.join(dir,'shared/example.js'),'function sourceFact(){return 20;}\n');fs.writeFileSync(path.join(dir,'shared/engine.cjs'),'module.exports = {};\n');const target=invalid==='excluded'?'plugins/shortform-clips/beat-detect.cjs':'plugins/no14-still-video/beat-detect.cjs';registry.modules.push({id:'engine',source:'shared/engine.cjs',targets:[],fileTargets:[target]});fs.writeFileSync(registryPath,JSON.stringify(registry));const before=fs.readFileSync(file('no14-still-video'),'utf8');const result=run();assert.notEqual(result.status,0);assert.match(result.stderr,invalid==='excluded'?/excluded/i:/shipped|declared/i);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
 }));
+
+test('declared standalone render programs share managed source without importing repository paths',()=>fixture(({dir,run})=>{
+ const target='plugins/no14-still-video/assets/title.tsx',file=path.join(dir,target),registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath));
+ fs.mkdirSync(path.dirname(file));fs.writeFileSync(file,'// render-fonts:start\nold\n// render-fonts:end\nexport default function Title(){}\n');
+ fs.writeFileSync(path.join(dir,'plugins/no14-still-video/plugin.json'),JSON.stringify({id:'no14-still-video',collection:'visual-highlights',files:['panel.tsx','assets/title.tsx']}));
+ fs.writeFileSync(path.join(dir,'shared/render-fonts.js'),'function prepareFonts() { return true; }\n');registry.modules.push({id:'render-fonts',source:'shared/render-fonts.js',targets:[target]});fs.writeFileSync(registryPath,JSON.stringify(registry));
+ assert.equal(run('--check').status,1);const result=run();assert.equal(result.status,0,result.stderr);assert.ok(fs.readFileSync(file,'utf8').includes('function prepareFonts()'));assert.ok(fs.readFileSync(file,'utf8').endsWith('export default function Title(){}\n'));assert.equal(run('--check').status,0);
+}));
+test('unshipped render programs cannot be managed and prevent every earlier pending write',()=>fixture(({dir,file,run})=>{
+ const target='plugins/no14-still-video/assets/unshipped.tsx',registryPath=path.join(dir,'shared/panel-modules.json'),registry=JSON.parse(fs.readFileSync(registryPath));
+ fs.mkdirSync(path.dirname(path.join(dir,target)));fs.writeFileSync(path.join(dir,target),'// example:start\nold\n// example:end\n');registry.modules[0].targets.push(target);fs.writeFileSync(registryPath,JSON.stringify(registry));fs.writeFileSync(path.join(dir,'shared/example.js'),'function sourceFact(){return 20;}\n');
+ const before=fs.readFileSync(file('no14-still-video'),'utf8');assert.notEqual(run().status,0);assert.equal(fs.readFileSync(file('no14-still-video'),'utf8'),before);
+}));
