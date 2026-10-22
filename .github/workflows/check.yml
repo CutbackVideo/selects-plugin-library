@@ -67,6 +67,7 @@ jobs:
           node tools/sync_panel_local_client.mjs --only=no14-still-video,camera-shutter-dump,four-photo-stop-motion,polaroid-photo-dump,photo-gallery-no2,mini-vlog,archive-vlog --check
       - name: Test Place Count
         run: |
+          node --test tests/place_count_authoring.test.mjs
           node plugins/place-count/tests/core.test.cjs
           node plugins/place-count/tests/path-collision.test.cjs
           node plugins/place-count/tests/local-sdk.test.cjs
