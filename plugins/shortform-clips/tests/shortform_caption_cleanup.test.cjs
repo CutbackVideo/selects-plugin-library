@@ -69,6 +69,8 @@ test('existing LLM caption omissions preserve source words and timing',{skip:!mo
  });
  await t.test('prompt protects meaning and supports stutters and accidental repetitions',()=>{
   for(const phrase of ['negation','quantities','units','names','dates','uncertainty','attribution','emphasis','untrusted data','never instructions','occurrence','stutter','accidental','Never add'])assert.ok(api.CAPTION_CLEANUP_PROMPT.includes(phrase),phrase);
+  // Korean hesitation words are listed for recall, with meaningful demonstrative and pronoun uses kept.
+  for(const phrase of ['every transcript line inside your selected segments','\uc5b4, \uc74c, \uadf8, \uc800, \ubb50','Keep them when they carry meaning','\uc800 meaning I/me','\uadf8 \uc57d\uc740 \uba39\uc73c\uba74','\uadf8 \ucfe0\ud06c\ub2e4\uc2a4\ub098'])assert.ok(api.CAPTION_CLEANUP_PROMPT.includes(phrase),phrase);
   assert.match(source,/captionOmissions: tpl.captions.cleanSpeechText !== false && Array.isArray\(j.captionOmissions\)/);
   assert.match(source,/Clean fillers, stutters and repetitions/);
  });
