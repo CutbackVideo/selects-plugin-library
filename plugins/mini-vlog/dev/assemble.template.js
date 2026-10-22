@@ -1,32 +1,9 @@
 const cfg = __CONFIG__;
-function validateMiniAssemblyConfig(cfg) {
- const invalid=()=>{throw Error('The Mini assembly plan is incomplete or invalid.');};
- const id=value=>typeof value==='string'&&value.length>0&&value.length<=1024&&!value.includes('\0');
- const finite=value=>typeof value==='number'&&Number.isFinite(value);
- if(!cfg||!id(cfg.projectId)||!id(cfg.draftName)||!Array.isArray(cfg.picks)||cfg.picks.length<1||cfg.picks.length>256||!Array.isArray(cfg.boundaries)||cfg.boundaries.length!==cfg.picks.length+1||cfg.boundaries[0]!==0||cfg.boundaries.some((value,index)=>!finite(value)||value<0||index>0&&value<=cfg.boundaries[index-1]))invalid();
- if(cfg.clipSound!==undefined&&!['off','ambient','full'].includes(cfg.clipSound)||cfg.ambientDb!==undefined&&(!finite(cfg.ambientDb)||cfg.ambientDb< -60||cfg.ambientDb>12))invalid();
- const photoIds=new Set();
- for(const pick of cfg.picks){
-  if(!pick||!id(pick.rid)||pick.kind!==undefined&&!['photo','video'].includes(pick.kind))invalid();
-  if(pick.kind!=='photo'&&(!finite(pick.startSeconds)||pick.startSeconds<0)||pick.sourceDuration!==undefined&&(!finite(pick.sourceDuration)||pick.sourceDuration<=0))invalid();
-  if(pick.kind==='photo'){if(photoIds.has(pick.rid))invalid();photoIds.add(pick.rid);}
-  const size=cfg.crops?.[pick.rid];
-  if(pick.kind==='photo'&&(!Number.isSafeInteger(size?.width)||size.width<1||!Number.isSafeInteger(size?.height)||size.height<1))invalid();
-  if(size&&[size.width,size.height].some(value=>value!=null&&(!Number.isSafeInteger(value)||value<1)))invalid();
- }
- if(cfg.music!=null&&(!id(cfg.music.resourceId)||!finite(cfg.music.sectionStart)||cfg.music.sectionStart<0||cfg.music.tailSeconds!==undefined&&(!finite(cfg.music.tailSeconds)||cfg.music.tailSeconds<0)||cfg.music.referenceCuts!==undefined&&typeof cfg.music.referenceCuts!=='boolean'))invalid();
-}
 validateMiniAssemblyConfig(cfg);
 const p=selects.project(cfg.projectId),notes=[],W=1920,H=1080;
 // Observe each source on its own native grid. Never infer an original clock
 // from a resized output canvas or from the previous probe's first source.
-const seenSources=new Set(),unique=[],timing=new Map();
-for(const pick of cfg.picks)if(!seenSources.has(pick.rid)){seenSources.add(pick.rid);unique.push({rid:pick.rid,kind:pick.kind==='photo'?'image':'video'});}
-for(let offset=0;offset<unique.length;offset+=50){
- const batch=unique.slice(offset,offset+50),facts=await resolveTemplateMedia(selects,cfg.projectId,batch,'Mini source timing check',{includeTiming:true,dimensions:false});
- if(facts.failed.length||facts.resolved.length!==batch.length||facts.resolved.some((row,i)=>row.rid!==batch[i].rid||row.alias!==batch[i].rid||!Number.isFinite(row.timing?.insertionFps)||row.timing.insertionFps<=0))throw Error('The planned source frame grid or identity could not be confirmed.');
- for(const row of facts.resolved)timing.set(row.rid,row.timing.insertionFps);
-}
+const timing=await miniAssemblyTiming(selects,cfg,resolveTemplateMedia);
 const same=(a,b)=>{
  if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));
  if(a===b)return true;if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
@@ -41,33 +18,26 @@ const sourceMatches=async(binding,startSeconds)=>{
  const row=await find(binding),source=await d.clipSourceWindow(row),speed=row.playbackSpeed;
  if(speed&&(speed.numerator!==speed.denominator)||!source||!timeSame(source.startSeconds,startSeconds)||!timeSame(source.endSeconds,startSeconds+(row.endFrame-row.startFrame)/fps))throw Error('The planned source window changed during placement.');
 };
-const offset=f=>cfg.music&&!cfg.music.referenceCuts?cfg.music.sectionStart-Math.round(cfg.music.sectionStart*f)/f:0;
+const offset=f=>miniAssemblyOffset(cfg,f);
 const lay=async(rate,final)=>{
  d=await p.createDraft({name:cfg.draftName});if((await media()).length)throw Error('The new assembly working Draft is not empty.');await d.setFrameSize({width:W,height:H});fps=rate||(await meta()).fps;
  if(!Number.isFinite(fps)||fps<=0)throw Error('The assembly frame grid is unavailable.');endFrame=0;bindings=[];
  for(let i=0;i<cfg.picks.length;i++){
-  const pick=cfg.picks[i],sourceFps=timing.get(pick.rid),targetEnd=Math.round((cfg.boundaries[i+1]+offset(fps))*fps),want=targetEnd-endFrame;
-  if(!Number.isSafeInteger(targetEnd)||!Number.isSafeInteger(want)||want<1)throw Error('The assembly plan has no positive whole-frame interval.');
-  // Insert a native-frame-aligned cover of the intended playback interval.
-  // Then explicitly trim that known conformance surplus on the Draft grid;
-  // never retime footage or trim an unexpected/unchecked insertion.
-  const count=Math.max(1,Math.ceil(want/fps*sourceFps-1e-8)),cap=pick.sourceDuration>0?Math.floor(pick.sourceDuration*sourceFps+1e-6)-count:Infinity;
-  if(!Number.isSafeInteger(count)||count<1||cap!==Infinity&&(!Number.isSafeInteger(cap)||cap<0))throw Error('The planned source cannot cover its playback interval.');
-  const start=pick.kind==='photo'?0:Math.max(0,Math.min(Math.round(pick.startSeconds*sourceFps),cap)),before=await media();
-  if(!Number.isSafeInteger(start)||start<0||!Number.isSafeInteger(start+count))throw Error('The planned source interval cannot be represented.');
-  await d.insertResource({resourceId:pick.rid,sourceRange:{startSeconds:start/sourceFps,endSeconds:(start+count)/sourceFps}});
+  const pick=cfg.picks[i],intent=miniAssemblyShot(cfg,i,fps,timing.get(pick.rid)),targetEnd=intent.endFrame,want=intent.frames,before=await media();
+  // Insert and verify a native-frame cover before trimming its declared surplus.
+  await d.insertResource({resourceId:pick.rid,sourceRange:{startSeconds:intent.sourceStart,endSeconds:intent.sourceEnd}});
   const actualRate=(await meta()).fps;
   if(i===0&&actualRate!==fps){bindMediaPlacement(before,await media(),{resourceId:pick.rid,trackKind:'main'});if(final)throw Error('The source changed the assembly frame grid twice.');return actualRate;}
-  const insertedFrames=Math.round(count/sourceFps*fps);
+  const insertedFrames=intent.insertedFrames;
   if(!Number.isSafeInteger(insertedFrames)||insertedFrames<want)throw Error('The native source interval cannot cover the plan.');
   const added=bindMediaPlacement(before,await media(),{resourceId:pick.rid,trackKind:'main',startFrame:endFrame,endFrame:endFrame+insertedFrames});
-  await sourceMatches(added,start/sourceFps);
+  await sourceMatches(added,intent.sourceStart);
   if(insertedFrames>want){
    if(typeof d.trimBoundary!=='function')throw Error('Update Selects to trim a native interval to the planned cut.');
    await d.trimBoundary({frame:added.endFrame,side:'before',byFrames:want-insertedFrames});
   }
   const placed=bindMediaPlacement(before,await media(),{resourceId:pick.rid,trackKind:'main',startFrame:endFrame,endFrame:targetEnd});
-  await sourceMatches(placed,start/sourceFps);bindings.push({clipId:placed.clipId,trackId:placed.trackId,resourceId:placed.resourceId,startFrame:placed.startFrame,endFrame:placed.endFrame,sourceStart:start/sourceFps});endFrame=targetEnd;
+  await sourceMatches(placed,intent.sourceStart);bindings.push({clipId:placed.clipId,trackId:placed.trackId,resourceId:placed.resourceId,startFrame:placed.startFrame,endFrame:placed.endFrame,sourceStart:intent.sourceStart});endFrame=targetEnd;
  }
  return null;
 };

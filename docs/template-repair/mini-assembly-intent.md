@@ -124,3 +124,8 @@ Physical file-content/nested-source attestation, installed PanelHost interaction
 whole-video/audio playback, export, Windows, remaining planner/analysis/cache
 behavior and the other template flows remain open. Full ownership and whole-
 template acceptance remain **0/28**.
+
+The later [`mini-frozen-recovery.md`](mini-frozen-recovery.md) checkpoint implements
+historical-run semantic admission and terminal retirement. It retains the original
+source/digest and does not repair old Drafts in place. The evidence/counts above
+remain those of this assembly checkpoint.

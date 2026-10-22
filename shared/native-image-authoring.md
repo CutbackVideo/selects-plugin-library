@@ -146,3 +146,9 @@ before returning. Return graphic added/kept counts and per-name effect counts;
 the caller still owns its sole final commit and save recovery. This is not proof
 of run ownership or post-save persistence. Mini's generated decoration operation
 is its first consumer; see [the checkpoint](../docs/template-repair/mini-program-intent.md).
+
+Historical Mini admission also reuses the Audio inspector. Its own exact-value
+mismatch assertions carry `IMAGE_AUDIO_MISMATCH`; missing SDK capabilities and
+thrown API read failures keep their unavailable/error outcome. Existing messages
+and receipt return shapes are unchanged. This distinction lets a caller refuse a
+confirmed wrong plan without retiring a valid run on a transient read failure.

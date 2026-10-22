@@ -31,5 +31,5 @@ export function assemblyIntentFixture({rate=30,adopt=null,reverse=false,fault=nu
    commitAll:async()=>{calls.commits++;return {createdDraftId:'d'+calls.creates};},
   };drafts.push({d,probe,rows:()=>clips});return d;
  }};
- return {cfg,calls,drafts,run:()=>vm.runInNewContext('(async()=>{'+script+'})()',{selects:{project:()=>p},__CONFIG__:cfg})};
+ return {cfg,calls,drafts,project:p,run:()=>vm.runInNewContext('(async()=>{'+script+'})()',{selects:{project:()=>p},__CONFIG__:cfg})};
 }

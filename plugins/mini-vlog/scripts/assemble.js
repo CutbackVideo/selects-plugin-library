@@ -126,8 +126,9 @@ async function inspectImageTransforms(draft,expected,includeMain=false){
  return receipts;
 }
 async function inspectImageAudio(draft,expected,project,overlayOnly=false){
+ const mismatch=message=>Object.assign(Error(message),{code:'IMAGE_AUDIO_MISMATCH'});
  const rows=(await draft.clips({trackScope:'all'})).filter(row=>row.trackKind==='audio'||!overlayOnly&&row.trackKind==='main'&&row.resourceId);
- if(!Array.isArray(expected)||rows.length!==expected.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw Error('Audio clip count could not be confirmed.');
+ if(!Array.isArray(expected)||rows.length!==expected.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw mismatch('Audio clip count could not be confirmed.');
  if(!expected.length)return [];
  if(!('clipAudio' in draft))throw Error('Update Selects to verify Audio settings.');
  if(!('clipSourceWindow' in draft)||typeof draft.clipSourceWindow!=='function')throw Error('Update Selects to verify Audio source timing.');
@@ -140,21 +141,20 @@ async function inspectImageAudio(draft,expected,project,overlayOnly=false){
  };
  for(const wanted of expected){
   const row=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);
-  if(!row||row.trackKind!==wanted.trackKind||row.resourceId!==wanted.resourceId||row.startFrame!==wanted.startFrame||row.endFrame!==wanted.endFrame||types.get(row.resourceId)!=='Audio'||!same(row.audioSourceIndexes,wanted.audioSourceIndexes))throw Error('Audio placement or routing could not be confirmed.');
+  if(!row||row.trackKind!==wanted.trackKind||row.resourceId!==wanted.resourceId||row.startFrame!==wanted.startFrame||row.endFrame!==wanted.endFrame||types.get(row.resourceId)!=='Audio'||!same(row.audioSourceIndexes,wanted.audioSourceIndexes))throw mismatch('Audio placement or routing could not be confirmed.');
   const settings={volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:0,...wanted.settings},actual=await draft.clipAudio(row);
-  if(!actual||actual.clipId!==row.clipId||!Object.entries(settings).every(([key,value])=>same(actual[key],value)))throw Error('Audio volume or fades could not be confirmed.');
+  if(!actual||actual.clipId!==row.clipId||!Object.entries(settings).every(([key,value])=>same(actual[key],value)))throw mismatch('Audio volume or fades could not be confirmed.');
   if(!wanted.source||!Number.isFinite(wanted.source.startSeconds)||wanted.source.startSeconds<0||!Number.isFinite(wanted.source.endSeconds)||wanted.source.endSeconds<=wanted.source.startSeconds)throw Error('Audio source evidence is unavailable.');
   const source={startSeconds:wanted.source.startSeconds,endSeconds:wanted.source.endSeconds,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true,...wanted.source};
   // Time uses floating-point arithmetic noise only, not the relative tolerance
   // used for level/fades. A small changed source instant must remain detectable.
   const timeSame=(a,b)=>Number.isFinite(a)&&Math.abs(a-b)<=8*Number.EPSILON*Math.max(1,Math.abs(a),Math.abs(b));
   let observed;try{observed=await draft.clipSourceWindow(row);}catch(cause){throw Object.assign(Error('Audio source timing could not be confirmed.'),{cause});}
-  if(!observed||observed.clipId!==row.clipId||!timeSame(observed.startSeconds,source.startSeconds)||!timeSame(observed.endSeconds,source.endSeconds)||row.playbackSpeed?.numerator!==source.playbackSpeed.numerator||row.playbackSpeed?.denominator!==source.playbackSpeed.denominator||row.preserveAudioPitch!==source.preserveAudioPitch)throw Error('Audio source timing or playback policy could not be confirmed.');
+  if(!observed||observed.clipId!==row.clipId||!timeSame(observed.startSeconds,source.startSeconds)||!timeSame(observed.endSeconds,source.endSeconds)||row.playbackSpeed?.numerator!==source.playbackSpeed.numerator||row.playbackSpeed?.denominator!==source.playbackSpeed.denominator||row.preserveAudioPitch!==source.preserveAudioPitch)throw mismatch('Audio source timing or playback policy could not be confirmed.');
   receipts.push({clipId:wanted.clipId,trackId:wanted.trackId,trackKind:wanted.trackKind,resourceId:wanted.resourceId,startFrame:wanted.startFrame,endFrame:wanted.endFrame,audioSourceIndexes:wanted.audioSourceIndexes,settings,source});
  }
  return receipts;
 }
-const cfg = __CONFIG__;
 function validateMiniAssemblyConfig(cfg) {
  const invalid=()=>{throw Error('The Mini assembly plan is incomplete or invalid.');};
  const id=value=>typeof value==='string'&&value.length>0&&value.length<=1024&&!value.includes('\0');
@@ -172,17 +172,34 @@ function validateMiniAssemblyConfig(cfg) {
  }
  if(cfg.music!=null&&(!id(cfg.music.resourceId)||!finite(cfg.music.sectionStart)||cfg.music.sectionStart<0||cfg.music.tailSeconds!==undefined&&(!finite(cfg.music.tailSeconds)||cfg.music.tailSeconds<0)||cfg.music.referenceCuts!==undefined&&typeof cfg.music.referenceCuts!=='boolean'))invalid();
 }
+// Mini policy only: source/draft clocks remain explicit arguments.
+function miniAssemblyOffset(cfg,fps){return cfg.music&&!cfg.music.referenceCuts?cfg.music.sectionStart-Math.round(cfg.music.sectionStart*fps)/fps:0;}
+function miniAssemblyShot(cfg,index,fps,sourceFps){
+ const pick=cfg.picks[index],startFrame=index?Math.round((cfg.boundaries[index]+miniAssemblyOffset(cfg,fps))*fps):0,endFrame=Math.round((cfg.boundaries[index+1]+miniAssemblyOffset(cfg,fps))*fps),frames=endFrame-startFrame;
+ if(!Number.isFinite(fps)||fps<=0||!Number.isFinite(sourceFps)||sourceFps<=0||!Number.isSafeInteger(startFrame)||!Number.isSafeInteger(endFrame)||!Number.isSafeInteger(frames)||frames<1)throw Error('The assembly plan has no positive whole-frame interval.');
+ const count=Math.max(1,Math.ceil(frames/fps*sourceFps-1e-8)),cap=pick.sourceDuration>0?Math.floor(pick.sourceDuration*sourceFps+1e-6)-count:Infinity;
+ if(!Number.isSafeInteger(count)||count<1||cap!==Infinity&&(!Number.isSafeInteger(cap)||cap<0))throw Error('The planned source cannot cover its playback interval.');
+ const start=pick.kind==='photo'?0:Math.max(0,Math.min(Math.round(pick.startSeconds*sourceFps),cap));
+ if(!Number.isSafeInteger(start)||start<0||!Number.isSafeInteger(start+count))throw Error('The planned source interval cannot be represented.');
+ return {startFrame,endFrame,frames,sourceStart:start/sourceFps,sourceEnd:(start+count)/sourceFps,insertedFrames:Math.round(count/sourceFps*fps)};
+}
+async function miniAssemblyTiming(selects,cfg,resolveMedia){
+const seenSources=new Set(),unique=[],timing=new Map();
+for(const pick of cfg.picks)if(!seenSources.has(pick.rid)){seenSources.add(pick.rid);unique.push({rid:pick.rid,kind:pick.kind==='photo'?'image':'video'});}
+for(let offset=0;offset<unique.length;offset+=50){
+ const batch=unique.slice(offset,offset+50),facts=await resolveMedia(selects,cfg.projectId,batch,'Mini source timing check',{includeTiming:true,dimensions:false});
+ if(facts.failed.length||facts.resolved.length!==batch.length||facts.resolved.some((row,i)=>row.rid!==batch[i].rid||row.alias!==batch[i].rid||!Number.isFinite(row.timing?.insertionFps)||row.timing.insertionFps<=0))throw Error('The planned source frame grid or identity could not be confirmed.');
+ for(const row of facts.resolved)timing.set(row.rid,row.timing.insertionFps);
+}
+ return timing;
+}
+
+const cfg = __CONFIG__;
 validateMiniAssemblyConfig(cfg);
 const p=selects.project(cfg.projectId),notes=[],W=1920,H=1080;
 // Observe each source on its own native grid. Never infer an original clock
 // from a resized output canvas or from the previous probe's first source.
-const seenSources=new Set(),unique=[],timing=new Map();
-for(const pick of cfg.picks)if(!seenSources.has(pick.rid)){seenSources.add(pick.rid);unique.push({rid:pick.rid,kind:pick.kind==='photo'?'image':'video'});}
-for(let offset=0;offset<unique.length;offset+=50){
- const batch=unique.slice(offset,offset+50),facts=await resolveTemplateMedia(selects,cfg.projectId,batch,'Mini source timing check',{includeTiming:true,dimensions:false});
- if(facts.failed.length||facts.resolved.length!==batch.length||facts.resolved.some((row,i)=>row.rid!==batch[i].rid||row.alias!==batch[i].rid||!Number.isFinite(row.timing?.insertionFps)||row.timing.insertionFps<=0))throw Error('The planned source frame grid or identity could not be confirmed.');
- for(const row of facts.resolved)timing.set(row.rid,row.timing.insertionFps);
-}
+const timing=await miniAssemblyTiming(selects,cfg,resolveTemplateMedia);
 const same=(a,b)=>{
  if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));
  if(a===b)return true;if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
@@ -197,33 +214,26 @@ const sourceMatches=async(binding,startSeconds)=>{
  const row=await find(binding),source=await d.clipSourceWindow(row),speed=row.playbackSpeed;
  if(speed&&(speed.numerator!==speed.denominator)||!source||!timeSame(source.startSeconds,startSeconds)||!timeSame(source.endSeconds,startSeconds+(row.endFrame-row.startFrame)/fps))throw Error('The planned source window changed during placement.');
 };
-const offset=f=>cfg.music&&!cfg.music.referenceCuts?cfg.music.sectionStart-Math.round(cfg.music.sectionStart*f)/f:0;
+const offset=f=>miniAssemblyOffset(cfg,f);
 const lay=async(rate,final)=>{
  d=await p.createDraft({name:cfg.draftName});if((await media()).length)throw Error('The new assembly working Draft is not empty.');await d.setFrameSize({width:W,height:H});fps=rate||(await meta()).fps;
  if(!Number.isFinite(fps)||fps<=0)throw Error('The assembly frame grid is unavailable.');endFrame=0;bindings=[];
  for(let i=0;i<cfg.picks.length;i++){
-  const pick=cfg.picks[i],sourceFps=timing.get(pick.rid),targetEnd=Math.round((cfg.boundaries[i+1]+offset(fps))*fps),want=targetEnd-endFrame;
-  if(!Number.isSafeInteger(targetEnd)||!Number.isSafeInteger(want)||want<1)throw Error('The assembly plan has no positive whole-frame interval.');
-  // Insert a native-frame-aligned cover of the intended playback interval.
-  // Then explicitly trim that known conformance surplus on the Draft grid;
-  // never retime footage or trim an unexpected/unchecked insertion.
-  const count=Math.max(1,Math.ceil(want/fps*sourceFps-1e-8)),cap=pick.sourceDuration>0?Math.floor(pick.sourceDuration*sourceFps+1e-6)-count:Infinity;
-  if(!Number.isSafeInteger(count)||count<1||cap!==Infinity&&(!Number.isSafeInteger(cap)||cap<0))throw Error('The planned source cannot cover its playback interval.');
-  const start=pick.kind==='photo'?0:Math.max(0,Math.min(Math.round(pick.startSeconds*sourceFps),cap)),before=await media();
-  if(!Number.isSafeInteger(start)||start<0||!Number.isSafeInteger(start+count))throw Error('The planned source interval cannot be represented.');
-  await d.insertResource({resourceId:pick.rid,sourceRange:{startSeconds:start/sourceFps,endSeconds:(start+count)/sourceFps}});
+  const pick=cfg.picks[i],intent=miniAssemblyShot(cfg,i,fps,timing.get(pick.rid)),targetEnd=intent.endFrame,want=intent.frames,before=await media();
+  // Insert and verify a native-frame cover before trimming its declared surplus.
+  await d.insertResource({resourceId:pick.rid,sourceRange:{startSeconds:intent.sourceStart,endSeconds:intent.sourceEnd}});
   const actualRate=(await meta()).fps;
   if(i===0&&actualRate!==fps){bindMediaPlacement(before,await media(),{resourceId:pick.rid,trackKind:'main'});if(final)throw Error('The source changed the assembly frame grid twice.');return actualRate;}
-  const insertedFrames=Math.round(count/sourceFps*fps);
+  const insertedFrames=intent.insertedFrames;
   if(!Number.isSafeInteger(insertedFrames)||insertedFrames<want)throw Error('The native source interval cannot cover the plan.');
   const added=bindMediaPlacement(before,await media(),{resourceId:pick.rid,trackKind:'main',startFrame:endFrame,endFrame:endFrame+insertedFrames});
-  await sourceMatches(added,start/sourceFps);
+  await sourceMatches(added,intent.sourceStart);
   if(insertedFrames>want){
    if(typeof d.trimBoundary!=='function')throw Error('Update Selects to trim a native interval to the planned cut.');
    await d.trimBoundary({frame:added.endFrame,side:'before',byFrames:want-insertedFrames});
   }
   const placed=bindMediaPlacement(before,await media(),{resourceId:pick.rid,trackKind:'main',startFrame:endFrame,endFrame:targetEnd});
-  await sourceMatches(placed,start/sourceFps);bindings.push({clipId:placed.clipId,trackId:placed.trackId,resourceId:placed.resourceId,startFrame:placed.startFrame,endFrame:placed.endFrame,sourceStart:start/sourceFps});endFrame=targetEnd;
+  await sourceMatches(placed,intent.sourceStart);bindings.push({clipId:placed.clipId,trackId:placed.trackId,resourceId:placed.resourceId,startFrame:placed.startFrame,endFrame:placed.endFrame,sourceStart:intent.sourceStart});endFrame=targetEnd;
  }
  return null;
 };

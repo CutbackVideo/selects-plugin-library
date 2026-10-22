@@ -97,6 +97,11 @@ Functions are passed explicitly when serialized, preserving real minification.
 - `notSaved`: no Draft commit was confirmed or started by that operation. Start
   a new app run to explicitly retry; remount is not a retry command. Preparation
   may still have registered reusable Project audio.
+- `retired`: an opt-in retirement exclusively claimed a never-dispatched or
+  positively no-save operation and revoked it permanently. This is not a
+  retryable failure. Earlier owners reject the unrecognized terminal status,
+  preventing an obsolete look from retrying. Saved/claimed/unknown operations
+  are never relabeled as retired. Start a new app run for corrected code.
 - `outcomeUnknown`: commit may have happened without a usable receipt. Inspect
   the Project; do not automatically re-author.
 
@@ -207,3 +212,19 @@ most three times. Continued replacement remains pending, never an authoring
 retry. Stable malformed records still fail. Existing Image callers keep their
 public API. See [the discovery checkpoint](../docs/template-repair/mini-pending-discovery.md) for TDD, consumer, actual restart
 readback evidence and the explicit title/Finish phase boundary.
+
+## Historical staged-run admission
+
+Mini now opts into `workflow(pending, prepareLook, onAssembly, options)` with
+`retireUnstarted` and an asynchronous `verifyAssembly` policy. Defaults for
+assembly-only and photo/Gallery consumers remain unchanged. Options are copied
+before awaits. The original source/request identity and frozen finish recipe
+remain immutable. A known saved historical assembly is compared with Mini's
+original plan before any look mutation, including on remount with a saved look
+recipe. Only a declared `TEMPLATE_ASSEMBLY_MISMATCH` permits terminal retirement of a
+rejected unstarted/retryable look. Read/transport failures preserve the phase for
+read-only retry; saved or
+unknown phases keep their actual status. See
+[`mini-frozen-recovery.md`](../docs/template-repair/mini-frozen-recovery.md) for
+I/O, side effects, exclusive retirement races, old-client refusal and runtime
+boundaries. This is not a generic migration engine or a whole-template verdict.

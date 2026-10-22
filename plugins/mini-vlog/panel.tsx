@@ -1859,7 +1859,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.23";
+const PLUGIN_VERSION = "0.1.0-alpha.24";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -4397,7 +4397,7 @@ async function templateStateFile(selects,path,text,encode,expected=null){
 function validateTemplateRun(row,scope,digest,recordPath=null) {
  const invalid=()=>templateRunIssue('TEMPLATE_RUN_INVALID','The saved run record could not be verified. Inspect the Project before starting a new run.');
  if(!row||row.version!==1||!row.scope||Object.keys(row.scope).length!==4||Object.keys(scope).some(key=>row.scope[key]!==scope[key])||row.requestDigest!==digest||
-  typeof row.owner!=='string'||!/^[\da-f-]{36}$/i.test(row.owner)||!['claimed','saved','notSaved','outcomeUnknown'].includes(row.status))throw invalid();
+  typeof row.owner!=='string'||!/^[\da-f-]{36}$/i.test(row.owner)||!['claimed','saved','notSaved','outcomeUnknown','retired'].includes(row.status))throw invalid();
  if(row.savedDraftId!==undefined&&(row.status!=='outcomeUnknown'||typeof row.savedDraftId!=='string'||!row.savedDraftId||row.savedDraftId.length>1024||row.savedDraftId.includes('\0')))throw invalid();
  if(row.status==='saved'){
   const r=row.result;
@@ -4475,7 +4475,7 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
  const fail=(code,message)=>{throw templateRunIssue(code,message);};
  const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};
  check();
- if(!options||['existingOnly','retryNotSaved'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean')||options.existingOnly&&options.retryNotSaved)fail('TEMPLATE_RUN_INVALID','Invalid run recovery options.');
+ if(!options||['existingOnly','retryNotSaved','retireUnstarted'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean')||options.existingOnly&&(options.retryNotSaved||options.retireUnstarted)||options.retryNotSaved&&options.retireUnstarted)fail('TEMPLATE_RUN_INVALID','Invalid run recovery options.');
  if(!scope||!['pluginId','libraryId','projectId','runId'].every(key=>typeof scope[key]==='string'&&scope[key].length>0&&scope[key].length<=1024)||!/^[a-z0-9-]+$/.test(scope.pluginId))fail('TEMPLATE_RUN_INVALID','The template run target is incomplete. Start again from the Project.');
  scope={pluginId:scope.pluginId,libraryId:scope.libraryId,projectId:scope.projectId,runId:scope.runId};
  const targetCheck=async()=>{
@@ -4511,12 +4511,13 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
  };
  const recover=async row=>{
   if(row.status==='saved'){await targetCheck();return verify({...row.result,status:'saved',projectId:scope.projectId});}
+  if(row.status==='retired')throw Object.assign(templateRunIssue('TEMPLATE_RUN_RETIRED','This old operation was retired before saving. Start a new template run with the updated version.'),{outcome:'notSaved'});
   if(row.status==='notSaved')fail('TEMPLATE_RUN_NOT_SAVED','This run stopped before saving a Draft. Start a new run to retry.');
   if(row.status==='outcomeUnknown'&&row.savedDraftId)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The saved Draft '+row.savedDraftId+' could not be confirmed. Inspect it before starting another run.'),{draftId:row.savedDraftId});
   fail('TEMPLATE_RUN_PENDING','This run may still be saving or awaiting confirmation. Inspect the Project before starting another run.');
  };
  const existing=await read(),retryText=lastReadText;
- if(existing&&!(options.retryNotSaved&&existing.status==='notSaved'))return recover(existing);
+ if(existing&&!((options.retryNotSaved||options.retireUnstarted)&&existing.status==='notSaved'))return recover(existing);
  if(options.existingOnly)fail('TEMPLATE_RUN_MISSING','The owned assembly record is missing. Inspect the Project before starting another run.');
  if(typeof globalThis.crypto?.randomUUID!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
  const capability=await sdk.runScript({summary:'Check durable template run support',allowCommit:false,script:"return {supported:'files' in selects&&typeof selects.files?.compareAndReplace==='function'&&typeof selects.files?.writeChunk==='function'};"});
@@ -4542,6 +4543,14 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
   if(!row)fail('TEMPLATE_RUN_STORAGE','The run could not be recorded. Nothing was dispatched. Check local file access and start a new run.');
   if(row.owner!==owner)return recover(row);
   // A lost claim ACK is safe to recover here: authoring has not been dispatched.
+ }
+ if(options.retireUnstarted){
+  // An exclusive claim excludes older windows too. A distinct terminal state
+  // cannot be mistaken for their retryable pre-save failure.
+  const retired=templateRunJSON({...JSON.parse(expectedText),status:'retired'});
+  try{await files.compareAndReplace(path,expectedText,retired);}catch{}
+  const row=await read();if(row?.status==='retired')return recover(row);
+  fail('TEMPLATE_RUN_PENDING','Retirement of this old operation could not be confirmed. Check the same run again.');
  }
  let dispatched=false;
  try{
@@ -4653,13 +4662,13 @@ async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent,o
   if(reply.isError||!reply.result?.facts||!reply.result?.assembly)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The assembly response could not be confirmed. Inspect the Project before starting another run.'),{cause:Error(String(reply.output||'The SDK returned no complete assembly result.'))});
   const confirmed=await verify(reply.result.facts);
   return {...reply.result.assembly,...confirmed,notes:reply.result.assembly.notes??[]};
- },verify,{existingOnly:options.receiptOnly===true});
+ },verify,{existingOnly:options.receiptOnly===true,retireUnstarted:options.retireUnstarted===true});
 }
 
 // The base assembly record proves which Draft belongs to this workflow. A phase
 // receipt supersedes its earlier state for recovery; unknown outcomes never save
 // again. Only positively recorded pre-save failures permit a new phase attempt.
-async function executeTemplateDecoration(sdk,files,pending,config,source,isCurrent){
+async function executeTemplateDecoration(sdk,files,pending,config,source,isCurrent,options={}){
  const fail=(code,message)=>{throw templateRunIssue(code,message);};
  const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};check();
  if(!pending?.scope||!config||config.projectId!==pending.scope.projectId||typeof config.sequenceId!=='string'||!config.sequenceId||typeof source!=='string'||!source.startsWith('// @template-decoration 1\n')||source.split('__CONFIG__').length!==2)fail('TEMPLATE_RUN_INVALID','The title/look request is incomplete.');
@@ -4708,11 +4717,11 @@ async function executeTemplateDecoration(sdk,files,pending,config,source,isCurre
   await onDispatch();const reply=await sdk.runScript({summary:'Decorate template with owned receipt',allowCommit:true,script});
   if(reply.isError||!reply.result?.facts)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The title/look save is awaiting confirmation. Check the same run again.'),{draftId:frozen.sequenceId,cause:Error(String(reply.output||'No complete title/look result.'))});
   return verify(reply.result.facts);
- },verify,{retryNotSaved:true});
+ },verify,options.retireUnstarted?{retireUnstarted:true}:{retryNotSaved:true});
  return work.catch(cause=>{
   check();
   const known=cause?.outcome==='notSaved'||cause?.code==='TEMPLATE_RUN_NOT_SAVED';
-  const message=known?'The title/look attempt stopped before saving. Retry its original inputs.':cause?.publicMessage||'The title/look save is awaiting confirmation. Check the same run again.';
+  const message=cause?.code==='TEMPLATE_RUN_RETIRED'?cause.publicMessage:known?'The title/look attempt stopped before saving. Retry its original inputs.':cause?.publicMessage||'The title/look save is awaiting confirmation. Check the same run again.';
   throw Object.assign(templateRunIssue(cause?.code||'TEMPLATE_RUN_PENDING',message),{phase:'decoration',draftId:base.sequenceId,cause,...known?{outcome:'notSaved'}:{}});
  });
 }
@@ -4862,17 +4871,32 @@ async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
   check();if(result?.assemblyConfirmed!==true)invalid();
   await acknowledge(value,'saved');return result;
  };
- const workflow=async(pending,prepareLook,onAssembly=()=>{})=>{
-  const value=await store(pending,'assembly',true);let look=await lookFor(value);
+ const workflow=async(pending,prepareLook,onAssembly=()=>{},options={})=>{
+  if(!options||typeof options!=='object'||options.retireUnstarted!==undefined&&typeof options.retireUnstarted!=='boolean'||options.verifyAssembly!==undefined&&typeof options.verifyAssembly!=='function')invalid();
+  options={retireUnstarted:options.retireUnstarted===true,verifyAssembly:options.verifyAssembly};
+ const value=await store(pending,'assembly',true);let look=await lookFor(value);
   if(!look){
    let assembly;
-   try{assembly=await executeTemplateAssembly(sdk,files,value.scope,value.config,value.source,()=>{check();return true;},{captureState:true});}
+   try{assembly=await executeTemplateAssembly(sdk,files,value.scope,value.config,value.source,()=>{check();return true;},{captureState:true,retireUnstarted:options.retireUnstarted===true});}
    catch(error){if(error?.outcome==='notSaved'||error?.code==='TEMPLATE_RUN_NOT_SAVED')await acknowledge(value,'notSaved',true);throw error;}
    check();let prepared;
    try{prepared=await prepareLook(JSON.parse(json(value)),{...assembly});check();}catch(cause){check();throw Object.assign(templateRunIssue('TEMPLATE_LOOK_PREPARATION','The original title/look inputs could not be prepared. Check this run again.'),{phase:'decoration',draftId:assembly.sequenceId,cause});}
    look=await store({...prepared,scope:value.scope,assembly},'look');
   }
   await onAssembly(JSON.parse(json(value)),{...look.assembly});check();
+  if(options.verifyAssembly){
+   try{await options.verifyAssembly(JSON.parse(json(value)),{...look.assembly},JSON.parse(json(look)));check();}
+   catch(cause){
+    check();
+    if(options.retireUnstarted&&cause?.code==='TEMPLATE_ASSEMBLY_MISMATCH'){
+     // Revoke an unstarted/retryable old look as well. A claimed/unknown or
+     // already-saved phase cannot be relabeled as a no-save.
+     try{await executeTemplateDecoration(sdk,files,value,look.config,look.source,()=>{check();return true;},{retireUnstarted:true});}
+     catch(error){throw Object.assign(error,{cause});}
+    }
+    throw cause;
+   }
+  }
   const result=await executeTemplateDecoration(sdk,files,value,look.config,look.source,()=>{check();return true;});check();
   await acknowledge(value,'saved',true);
   return {...look.assembly,...result};
@@ -4919,6 +4943,26 @@ function cueGrid(cue: any) {
 }
 
 // Template policy stays here; the common run owner stores and verifies its exact recipe.
+// Old frozen operations keep their exact request digest. Never substitute new
+// authoring code under that identity; only confirm an existing result or retire
+// a definitely unstarted operation through the durable owner.
+function miniAssemblyRecoveryOptions(sdk: any, pending: any, check: () => void) {
+  if (pending?.source?.startsWith("// @template-assembly 1\n// @template-assembly-intent 1\n")) return {};
+  return { retireUnstarted: true, verifyAssembly: async (value: any, assembly: any, look: any) => {
+    check();
+    const roots = await locateRoots(sdk); check();
+    const source = await readText(roots.plugin, "scripts/verify-assembly.js"); check();
+    if (!source.startsWith("// @template-assembly-verification 1\n") || source.split("__CONFIG__").length !== 2 || new TextEncoder().encode(source).length > 131072) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The updated Mini assembly verifier could not be confirmed.");
+    const config = { config: value.config, draftId: assembly.sequenceId, legacyPunch: look.source.startsWith("// @template-decoration 1\n// @template-decoration-intent 1\n") ? null : look.config.punch?.picks ?? null };
+    let result: any;
+    try { result = await runTemplateStep(sdk, "Verify original Mini assembly plan", fill(source, config), false, { wanted: () => { check(); return true; }, deadline: Date.now() + 90000 }); }
+    catch (cause) { check(); throw Object.assign(templateRunIssue("TEMPLATE_RUN_PENDING", "The original Mini plan could not be read. Check the same run again."), { cause }); }
+    check();
+    if (result?.verified === false && result.status === "mismatch") throw templateRunIssue("TEMPLATE_ASSEMBLY_MISMATCH", "The saved Mini assembly differs from its original plan. Inspect that Draft and start a new template run.");
+    if (result?.verified !== true || result.draftId !== assembly.sequenceId || result.mainEnd !== assembly.totalFrames || result.fps !== assembly.fps) throw templateRunIssue("TEMPLATE_RUN_PENDING", "The original Mini plan could not be confirmed. Check the same run again.");
+  } };
+}
+
 async function snapshotMiniFinishAssets(assets: any, frozen: any, language: Lang, readFont: (file: string) => Promise<string>, check: () => void) {
   const invalid = (message: string) => Object.assign(uiError((l) => t(l, "stepFailed")), { cause: Error(message) });
   const preset = assets.presets.presets.find((p: any) => p.id === frozen.preset);
@@ -5713,7 +5757,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       completed = await log.workflow(pending, async (value: any, a: any) => {
         observeAssembly(value, a);
         return prepareMiniDecoration(value, a, check);
-      }, observeAssembly);
+      }, observeAssembly, miniAssemblyRecoveryOptions(sdk, pending, check));
       check();
     } catch (e: any) {
       check();
@@ -6323,7 +6367,7 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   const previous = await continuations.read(assemblyRunId, true);
   check();
   if (previous) {
-    const completed = await continuations.workflow(previous, (value: any, a: any) => prepareMiniDecoration(value, a, check));
+    const completed = await continuations.workflow(previous, (value: any, a: any) => prepareMiniDecoration(value, a, check), () => {}, miniAssemblyRecoveryOptions(sdk, previous, check));
     check(); return { sequenceId: completed.sequenceId };
   }
   const files = templateFootage(context);

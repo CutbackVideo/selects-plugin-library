@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "mini-vlog",
-  "version": "0.1.0-alpha.23",
+  "version": "0.1.0-alpha.24",
   "name": "Mini Vlog",
   "summary": "Turn everyday clips and photos into a 16:9 mini vlog cut to the beat, with a pale pink title, as a new editable Draft.",
   "status": "experimental",
@@ -37,6 +37,7 @@
     "assets/title-lockup.tsx",
     "assets/soft-look.tsx",
     "scripts/assemble.js",
+    "scripts/verify-assembly.js",
     "scripts/decorate.js",
     "scripts/ensure-audio.js",
     "scripts/inventory.js",

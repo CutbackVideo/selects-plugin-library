@@ -508,7 +508,10 @@ and fade use the output Draft grid. Beat punch uses the placed source window.
 The allocator uses each photo Resource at most once; assembly now also rejects a
 plan that violates that rule. Video Resources may repeat. Older pending workflows
 retain their original operation code: updating the plugin does not silently
-replace that frozen code or repair historical Drafts. Migration remains pending.
+replace that frozen code or repair historical Drafts. Historical unstarted runs
+are terminally retired; saved assemblies must match their original cut/source/
+crop/music plan before finishing. Unknown saves are only checked, never replayed.
+See [historical recovery](../../docs/template-repair/mini-frozen-recovery.md).
 See [the assembly checkpoint](../../docs/template-repair/mini-assembly-intent.md)
 for the test scope and remaining acceptance work.
 
