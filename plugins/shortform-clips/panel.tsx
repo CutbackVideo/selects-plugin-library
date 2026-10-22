@@ -2496,8 +2496,9 @@ if(!(seconds>0))return {status:'failed',path:want};
 return {status:'ready',resourceId:id,durationSeconds:seconds,path:want};`;
 }
 // Lays the music from 0 to the end of the main timeline, repeating a short file. A Draft that already holds exactly that layout is left alone.
-function musicPlaceScript(projectId: string, draftId: string, resourceId: string, trackSeconds: number) {
-  return `const p=selects.project(${JSON.stringify(projectId)}),rid=${JSON.stringify(resourceId)};
+// previousResourceIds are music resources an earlier run placed in this Draft (for example before the path changed); their clips are replaced too.
+function musicPlaceScript(projectId: string, draftId: string, resourceId: string, trackSeconds: number, previousResourceIds: string[] = []) {
+  return `const p=selects.project(${JSON.stringify(projectId)}),rid=${JSON.stringify(resourceId)},stale=new Set(${JSON.stringify(previousResourceIds)}.filter((x:any)=>x&&x!==rid));
 if(!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)}))throw Error('Draft project mismatch');
 const d=selects.draft(${JSON.stringify(draftId)}),fps=(await d.meta()).fps;
 let clips=await d.clips({trackScope:'all'});
@@ -2506,9 +2507,9 @@ if(end<=0)return {segments:0,placed:false};
 const trackFrames=Math.floor(${trackSeconds}*fps),segs:number[][]=[];
 if(trackFrames<=0)throw Error('The music file has no usable length.');
 for(let s=0;s<end;s+=trackFrames)segs.push([s,Math.min(end,s+trackFrames)]);
-const old=clips.filter((c:any)=>c.trackKind==='audio'&&c.resourceId===rid);
-if(old.length===segs.length&&segs.every(([s,e]:number[])=>old.some((c:any)=>c.startFrame===s&&c.endFrame===e)))return {segments:segs.length,placed:false};
-if(old.length)await d.removeClips(old);
+const old=clips.filter((c:any)=>c.trackKind==='audio'&&c.resourceId===rid),prior=clips.filter((c:any)=>c.trackKind==='audio'&&stale.has(c.resourceId));
+if(!prior.length&&old.length===segs.length&&segs.every(([s,e]:number[])=>old.some((c:any)=>c.startFrame===s&&c.endFrame===e)))return {segments:segs.length,placed:false};
+if(old.length||prior.length)await d.removeClips([...old,...prior]);
 for(let i=0;i<segs.length;i++){
  const [s,e]=segs[i],before=new Set((await d.clips({trackScope:'all'})).map((c:any)=>c.clipId));
  await d.overlayResource({resource:p.resource(rid),over:await d.rangeAtFrames(s,e),sourceStartSeconds:0});
@@ -10971,7 +10972,10 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             if (music.status === "missing") { problems.push(S.musicMissing(music.path)); break; }
             if (music.status !== "ready") { problems.push(S.musicImportFailed(music.path)); break; }
             if (music.durationSeconds < MUSIC_MIN_TRACK_SECONDS) { problems.push(S.musicTooShort(music.path)); break; }
-            await script(musicPlaceScript(projectId, made[i].draftId, music.resourceId, music.durationSeconds), "Place the background music", true);
+            await script(musicPlaceScript(projectId, made[i].draftId, music.resourceId, music.durationSeconds, made[i].musicResourceId ? [made[i].musicResourceId] : []), "Place the background music", true);
+            // Remember which resource this Draft holds so a later run with another path removes it.
+            made[i] = { ...made[i], musicResourceId: music.resourceId };
+            await persist({ built: made });
           } catch (e: any) {
             if (e instanceof RunCancelled) throw e;
             problems.push(S.musicFailed(i + 1, String(e?.message || e).slice(0, 160)));
@@ -10979,7 +10983,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         }
         const musicWarning = problems.join(" ");
         setWarn([resultWarning, musicWarning].filter(Boolean).join(" "));
-        await persist({ musicWarning });
+        await persist({ built: made, musicWarning });
         await mark("music", { ok: !problems.length });
       }
       // Previews run after every clip is editable: they share the serialized visual

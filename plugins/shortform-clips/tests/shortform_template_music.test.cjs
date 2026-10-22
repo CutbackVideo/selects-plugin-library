@@ -95,6 +95,23 @@ test('template background music',{skip:!modules},async t=>{
   assert.equal((await place(w,10)).placed,true);
   assert.deepEqual(w.clips.filter(c=>c.trackKind==='audio').map(c=>[c.startFrame,c.endFrame]).sort((a,b)=>a[0]-b[0]),[[0,300],[300,450]]);
  });
+ await t.test('after the path changes, placing again leaves one music layer',async()=>{
+  // An earlier run placed 'm0' (the old path); the template now points at a file imported as 'm1'.
+  const w=world({mainEnd:750});
+  w.clips.push({clipId:'old1',trackKind:'audio',resourceId:'m0',startFrame:0,endFrame:600},{clipId:'old2',trackKind:'audio',resourceId:'m0',startFrame:600,endFrame:750});
+  assert.deepEqual(await exec(api.musicPlaceScript('p','d1','m1',10,['m0']),w.selects),{segments:3,placed:true});
+  const music=w.clips.filter(c=>c.trackKind==='audio');
+  assert.ok(music.every(c=>c.resourceId==='m1'),'the old music is removed');
+  assert.deepEqual(music.map(c=>[c.startFrame,c.endFrame]).sort((a,b)=>a[0]-b[0]),[[0,300],[300,600],[600,750]]);
+  // Running again with the same record changes nothing.
+  const before=JSON.stringify(w.clips),commits=w.commits;
+  assert.deepEqual(await exec(api.musicPlaceScript('p','d1','m1',10,['m0']),w.selects),{segments:3,placed:false});
+  assert.equal(JSON.stringify(w.clips),before);assert.equal(w.commits,commits);
+  // The current resource is never treated as stale, and other audio is kept.
+  w.clips.push({clipId:'sfx',trackKind:'audio',resourceId:'sfx',startFrame:10,endFrame:40});
+  assert.deepEqual(await exec(api.musicPlaceScript('p','d1','m1',10,['m1']),w.selects),{segments:3,placed:false});
+  assert.ok(w.clips.some(c=>c.clipId==='sfx'));
+ });
  await t.test('other audio and the dialogue are left alone',async()=>{
   const w=world({mainEnd:300});w.clips.push({clipId:'other',trackKind:'audio',resourceId:'sfx',startFrame:10,endFrame:40});
   await place(w,30);
@@ -112,7 +129,7 @@ test('template background music',{skip:!modules},async t=>{
   assert.equal((block.match(/musicImportScript\(/g)||[]).length>=1,true);
   const loop=block.slice(block.indexOf('for (let i'),block.indexOf('const musicWarning'));
   assert.equal((loop.match(/musicImportScript\(/g)||[]).length,1);assert.match(loop,/music = music \|\| await script\(musicImportScript/,'one import shared by every clip');
-  assert.match(block,/S\.musicMissing\(/);assert.match(block,/persist\(\{ musicWarning \}\)/);
+  assert.match(block,/S\.musicMissing\(/);assert.match(block,/persist\(\{ built: made, musicWarning \}\)/);
  });
  await t.test('warnings and editor labels exist in both languages',()=>{
   for(const lang of ['en','ko']){

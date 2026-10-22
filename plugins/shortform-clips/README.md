@@ -422,7 +422,9 @@ Templates without `music` generate exactly as before.
 - The file is imported into the project once per run. A resume, a retry or
   **redo framing** finds the project resource by path, and a Draft that already
   holds the same music layout is left unchanged, so a Draft never has two music
-  layers.
+  layers. Each Draft records the music resource it holds (`musicResourceId` in the
+  job), so after the path changes a rerun replaces the old music instead of adding
+  a second layer.
 - If the file is missing, cannot be imported or is shorter than 2 s, the clips
   are still created without music and a warning is shown (and saved in the job as
   `musicWarning`).

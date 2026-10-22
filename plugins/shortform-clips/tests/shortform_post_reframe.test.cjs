@@ -117,6 +117,17 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   env.runTemplateReframing=async id=>{if(id==='m0')throw Error('agent failed');return {status:'complete'};};
   musicCalls.length=0;job={built:[{draftId:'m0',reframeState:'failed'},{draftId:'m1',reframeState:'done',progressStage:'done'}]};await attempt();
   assert.deepEqual(musicCalls,['import','place'],'failed clips get no music');
+  // Each Draft records its music resource, and a rerun after the path changed asks the place script to remove the old one.
+  const placeCodes=[];const placeScript=env.script;env.script=async code=>{if(code.includes('overlayResource'))placeCodes.push(code);return placeScript(code);};
+  musicCalls.length=0;musicReply={status:'ready',resourceId:'r',durationSeconds:12,path:'/x/bed.mp3'};job=done(2);await attempt();
+  assert.deepEqual(job.built.map(d=>d.musicResourceId),['r','r'],'the placed resource is saved per Draft');
+  assert.ok(placeCodes.every(c=>c.includes('stale=new Set([].filter')),'a first placement has nothing to remove');
+  placeCodes.length=0;env.tpl.music={path:'/x/other.mp3'};musicReply={status:'ready',resourceId:'r2',durationSeconds:12,path:'/x/other.mp3'};await attempt();
+  assert.equal(placeCodes.length,2);assert.ok(placeCodes.every(c=>c.includes('stale=new Set(["r"].filter')),'the old resource is passed for removal');
+  assert.deepEqual(job.built.map(d=>d.musicResourceId),['r2','r2']);
+  placeFails=1;env.tpl.music={path:'/x/third.mp3'};musicReply={status:'ready',resourceId:'r3',durationSeconds:12,path:'/x/third.mp3'};await attempt();
+  assert.deepEqual(job.built.map(d=>d.musicResourceId),['r2','r3'],'a failed placement keeps the old record so the next run still removes it');
+  env.script=placeScript;env.tpl.music={path:'/x/bed.mp3'};
   musicCalls.length=0;musicReply={status:'ready',resourceId:'r',durationSeconds:1,path:'/x/bed.mp3'};job=done(2);await attempt();
   assert.deepEqual(musicCalls,['import']);assert.equal(job.musicWarning,'short /x/bed.mp3');
  });
