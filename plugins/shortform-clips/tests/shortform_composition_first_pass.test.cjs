@@ -4,7 +4,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('agent composition plans deliver the clip when one composition is unusable',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild'),m={exports:{}};
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
- new Function('require','module','exports',esbuild.transformSync(src+'\nexport {runAgentReframing,sourceCompositionAdapter,sourceCompositionPrompt};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
+ new Function('require','module','exports',esbuild.transformSync(src+'\nexport {runAgentReframing,sourceCompositionAdapter,sourceCompositionPrompt,salvageSourceComposition,resolveSourceComposition,sourceCropApplyScript};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
  const baseline={meta:{durationFrames:90,fps:30,frameSize:{width:1080,height:1920}},words:[{text:'Hello',startFrame:0,endFrame:30,wordId:'w1',sourceResourceId:'r',sourceStartFrame:100,sourceEndFrame:130}],sources:[{resourceId:'r',meta:{frameSize:{width:1920,height:1080}}}]};
  const faces=[
   {id:'F1',resourceId:'r',draftFrame:20,draftStartFrame:0,draftEndFrame:90,box:{xmin:300,xmax:420,ymin:250,ymax:400}},
@@ -15,7 +15,7 @@ test('agent composition plans deliver the clip when one composition is unusable'
  const speaker=(startFrame,endFrame,compositionId,subjectId,ref)=>({startFrame,endFrame,compositionId,layout:'speaker',panels:[{camera:'r',targets:[{subjectId,refs:[ref]}]}]});
  const plan=shots=>({version:1,draftId:'d',status:'planned',shots,speakerEvidence:evidence});
  const missingRefs={startFrame:45,endFrame:90,compositionId:'pair',layout:'stacked',people:[{camera:'r',subjectId:'left',refs:['F1']},{camera:'r',subjectId:'right',refs:[]}]};
- async function run(report,{boundaries=[]}={}){
+ async function run(report,{boundaries=[],previousEdit,failAi=false}={}){
   let applies=0,prompt='';const notes=[],applied=[];
   const sdk={
    runScript:async input=>{
@@ -23,9 +23,9 @@ test('agent composition plans deliver the clip when one composition is unusable'
     return {result:baseline};
    },
    call:async method=>{throw Error('Unexpected analyzed read or preview: '+method);},
-   askAI:async input=>{prompt=input.prompt;return {text:JSON.stringify(report)};},
+   askAI:async input=>{prompt=input.prompt;if(failAi)throw Error('timeout');return {text:JSON.stringify(report)};},
   };
-  const execute=()=>m.exports.runAgentReframing({sdk,guard:p=>p,projectId:'p',draftId:'d',layout,note:e=>notes.push(e),
+  const execute=()=>m.exports.runAgentReframing({sdk,guard:p=>p,projectId:'p',draftId:'d',layout,previousEdit,note:e=>notes.push(e),
    measureSpeakers:async()=>[],prepareEvidence:async()=>({images:[{dataUrl:'data:image/jpeg;base64,test'}],samples:[],boundaries}),measureFaces:async()=>faces});
   return {execute,state:()=>({applies,prompt,notes,applied})};
  }
@@ -144,5 +144,37 @@ test('agent composition plans deliver the clip when one composition is unusable'
   await r.execute();
   assert.ok(r.state().prompt.includes('"firstNewDraftFrame":15'));
   assert.match(r.state().prompt,/firstNewDraftFrame/);
+ });
+ await t.test('keeping the existing framing also keeps manually locked shots for the next regeneration',async()=>{
+  const locked={startFrame:0,endFrame:45,compositionId:'manual-0-45',layout:'speaker',panels:[{camera:'r',targets:[{subjectId:'left',refs:['F1']}]}],locked:true};
+  const previousEdit={kind:'source',duration:90,layout,catalog:faces,
+   plan:{version:1,draftId:'d',status:'planned',shots:[locked,speaker(45,90,'right-solo','right','F2')]},
+   appliedShots:[{...locked,style:'speaker',resourceId:'r',autoFrame:true},{startFrame:45,endFrame:90,compositionId:'right-solo',style:'speaker',resourceId:'r',autoFrame:true}]};
+  const r=await run(plan([]),{previousEdit,failAi:true});
+  const report=await r.execute();
+  assert.equal(r.state().applies,0);
+  assert.deepEqual(report.appliedShots.map(s=>[s.startFrame,s.endFrame,s.style,!!s.locked]),[[0,45,'speaker',true],[45,90,'preserve',false]]);
+  assert.ok(report.editContext.plan.shots.some(s=>s.locked&&s.startFrame===0&&s.endFrame===45),'the lock survives in the saved edit context');
+  assert.ok(report.editContext.appliedShots.some(s=>s.locked),'applied locked framing is kept');
+  assert.deepEqual(report.preservedRanges.map(p=>[p.startFrame,p.endFrame]),[[45,90]]);
+  assert.equal(report.preservedAll,false);
+ });
+
+ await t.test('a kept range in a multi-source Draft does not guess its source and applies cleanly',async()=>{
+  const sources=[{resourceId:'a',meta:{fps:30,frameSize:{width:1920,height:1080}}},{resourceId:'b',meta:{fps:30,frameSize:{width:1920,height:1080}}}];
+  const catalog=[{id:'FA',resourceId:'a',draftFrame:10,draftStartFrame:0,draftEndFrame:45,box:{xmin:800,xmax:1000,ymin:250,ymax:500}}];
+  const bad={version:1,draftId:'d',status:'planned',shots:[{startFrame:0,endFrame:45,compositionId:'a1',layout:'speaker',panels:[{camera:'a',targets:[{subjectId:'host',refs:['FA']}]}]},{startFrame:45,endFrame:90,compositionId:'b1',layout:'speaker',panels:[{camera:'unknown',targets:[{subjectId:'guest',refs:['FB']}]}]}]};
+  const salvaged=m.exports.salvageSourceComposition(bad,sources,90,layout,catalog);
+  assert.equal(salvaged.preserved.length,1);
+  const resolved=m.exports.resolveSourceComposition(salvaged.plan.shots,catalog,sources,90,layout);
+  const script=m.exports.sourceCropApplyScript('p','d',layout,sources,90).replace('__SHOTS__',JSON.stringify(resolved.shots));
+  const clips=[{clipId:'c1',trackId:'t',resourceId:'a',startFrame:0,endFrame:45},{clipId:'c2',trackId:'t',resourceId:'b',startFrame:45,endFrame:90}];
+  const touched=[];let committed=false;
+  const draft={meta:async()=>({durationFrames:90}),clips:async()=>clips,splitAt:async()=>{},setClipTransform:async({clip})=>touched.push(clip.clipId),videoEffects:async()=>[],addVideoEffect:async({clip})=>touched.push(clip.clipId),replaceVideoEffect:async()=>{},commitAll:async()=>{committed=true;}};
+  const project={meta:async()=>({draftIds:['d']}),resource:id=>({rangeAtFrames:async()=>({resourceId:id})}),sourceFiles:async()=>({fileTree:[]})};
+  const code=esbuild.transformSync('return (async()=>{'+script+'})();',{loader:'ts'}).code;
+  await new Function('selects',code)({project:()=>project,draft:()=>draft});
+  assert.ok(committed);
+  assert.ok(!touched.includes('c2'),'the kept range is left untouched');
  });
 });
