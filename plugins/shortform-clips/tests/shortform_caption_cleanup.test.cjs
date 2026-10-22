@@ -125,4 +125,31 @@ test('existing LLM caption omissions preserve source words and timing',{skip:!mo
   const kept=mapped.filter(w=>!omitted.some(o=>w.sourceStartFrame!=null&&Math.abs(w.sourceStartFrame-o[3])<.01&&w.text===o[0]));
   assert.deepEqual(kept.map(w=>w.text),['\uc911\uc694\ud55c','\ub0b4\uc6a9\uc785\ub2c8\ub2e4.']);
  });
+
+ await t.test('only allow-listed fillers and adjacent repeats may be omitted; every other model proposal is discarded',()=>{
+  const attempt=(before,index)=>{
+   const words=tuplesFor({before});
+   for(const reason of ['filler','stutter','accidental-repeat'])assert.deepEqual(cleanSpeechWords(words,30,[omission(words,index,reason)]),words,before[index]+' '+reason);
+  };
+  attempt(['\uc5f4\uc774','\ub098\uba74','\uc57d\uc744','\ub4dc\uc138\uc694.'],1);
+  attempt(['\uba39\uc9c0','\ub9c8\uc138\uc694.'],1);
+  attempt(['\ud558\ub8e8','\uc138','\ubc88','\ubcf5\uc6a9\ud569\ub2c8\ub2e4.'],1);
+  attempt(['\uc774','\uc57d\uc740','\uc548','\uc804\ud569\ub2c8\ub2e4.'],2);
+ });
+ await t.test('standalone fillers on the short list are omitted, longer words are not',()=>{
+  for(const filler of ['\uc5b4','\uc74c,','\uc73c\ud760','\uc544...','\uadf8','\uc800','\ubb50','um,','Uh']){
+   const words=tuplesFor({before:[filler,'\uc911\uc694\ud569\ub2c8\ub2e4.']});
+   assert.deepEqual(cleanSpeechWords(words,30,[omission(words,0)]),words.slice(1),filler);
+  }
+  const words=tuplesFor({before:['\uadf8\ub7ec\ub2c8\uae4c','\uc911\uc694\ud569\ub2c8\ub2e4.']});
+  assert.deepEqual(cleanSpeechWords(words,30,[omission(words,0)]),words);
+ });
+ await t.test('stutter fragments and adjacent repeats are omitted by position',()=>{
+  const repeated=tuplesFor({before:['\uadf8','\uadf8','\uc57d\uc740','\uba39\uc73c\uba74','\uc548','\ub3fc\uc694.']});
+  assert.deepEqual(cleanSpeechWords(repeated,30,[omission(repeated,0,'accidental-repeat',0)]).map(w=>w[0]),['\uadf8','\uc57d\uc740','\uba39\uc73c\uba74','\uc548','\ub3fc\uc694.']);
+  const stutter=tuplesFor({before:['\uadf8-','\uadf8\ub7ec\ub2c8\uae4c','\uc57d\uc740']});
+  assert.deepEqual(cleanSpeechWords(stutter,30,[omission(stutter,0,'stutter')]).map(w=>w[0]),['\uadf8\ub7ec\ub2c8\uae4c','\uc57d\uc740']);
+  const apart=tuplesFor({before:['\ud6a8\uacfc','\uc57d\uc740','\ud6a8\uacfc','\uc788\uc5b4\uc694.']});
+  assert.deepEqual(cleanSpeechWords(apart,30,[omission(apart,2,'accidental-repeat',1)]),apart,'a repeat must be adjacent');
+ });
 });

@@ -123,9 +123,9 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
     for(const mode of ['clean','disabled','invalid','after-video-edit']){
       const P=api.buildParams(template('news-direct'),clip,title);
       P.cleanSpeechText=mode!=='disabled';P.removeFillers=mode==='after-video-edit';P.removeSilences=false;
-      P.captionOmissions=[{startSeconds:0,endSeconds:1.8,text:'um',occurrence:1,reason:'filler'}];
+      P.captionOmissions=[{startSeconds:0,endSeconds:1.4,text:'um',occurrence:1,reason:'filler'}];
       if(mode==='invalid')P.captionOmissions[0].occurrence=999;
-      const words=['um','um','important'].map((text,i)=>({text,startFrame:i*15,endFrame:i*15+12,sourceStartFrame:i*15,speakerId:'a',utteranceId:'u',filler:i===0?{removable:true}:undefined}));
+      const words=['um','um','important'].map((text,i)=>({text,startFrame:i*15,endFrame:i*15+12,sourceStartFrame:i*15,sourceResourceId:'test-video',speakerId:'a',utteranceId:'u',filler:i===0?{removable:true}:undefined}));
       let output=words.map(w=>({...w})),removed=0;const graphics=[];
       const meta=async()=>({fps:30,durationSeconds:1.8,frameSize:{width:1920,height:1080}});
       const draft={meta,words:async()=>output,insertResource:async()=>{},setSettings:async()=>{},setFrameSize:async()=>{},
