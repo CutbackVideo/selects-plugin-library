@@ -2,8 +2,8 @@
 // tagline appear at textIn; the title decodes in left to right (the next position flips through pseudo-random glyphs,
 // then locks) and always ends with a readable hold before the cut (avTiming). Placed `within` clip 1's range, which
 // starts at timeline frame 0, so the frame here is the timeline frame.
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AbsoluteFill, continueRender, delayRender, useCurrentFrame, useVideoConfig } from "remotion";
+import React, { useMemo } from "react";
+import { AbsoluteFill, continueRender, delayRender, cancelRender, useCurrentFrame, useVideoConfig } from "remotion";
 
 // av-decode:start
 // Pure layout and decode state, shared with the panel preview (which evaluates this block as plain JS).
@@ -393,6 +393,76 @@ function avScrimAt(scrim, x, y) {
 
 const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 
+// render-fonts:start
+// Render-document font readiness, independent of panel/file/media job lifetimes.
+// React and the render gate are supplied by the standalone program's host.
+function useRenderFonts(React, options){
+ const {fonts=[],wideText='',wideFont='',label='graphic fonts',delayRender,continueRender,cancelRender,timeoutMs=20000}=options??{};
+ if(!Array.isArray(fonts)||typeof wideText!=='string'||typeof wideFont!=='string'||typeof label!=='string'||
+  !Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||[delayRender,continueRender,cancelRender].some(fn=>typeof fn!=='function'))throw Error('The graphic font preparation request is invalid.');
+ const faces=fonts.map(face=>{
+  if(!face||typeof face.family!=='string'||!face.family||typeof face.b64!=='string'||!face.b64||!['string','number'].includes(typeof face.weight)||face.style!==undefined&&typeof face.style!=='string')throw Error('The graphic font source is invalid.');
+  return {family:face.family,weight:face.weight,style:face.style||'normal',b64:face.b64};
+ });
+ const key=JSON.stringify([faces,wideText,wideText?wideFont:'']);
+ const needed=faces.length>0||!!wideText;
+ const fontSet=typeof document!=='undefined'?document.fonts:null;
+ const request=React.useMemo(()=>Object({key}),[key,fontSet,label,timeoutMs,delayRender,continueRender,cancelRender]);
+ const [result,setResult]=React.useState(null),owner=React.useRef(null);
+ // Allocate only after commit. StrictMode/discarded renders must not leak gates.
+ React.useLayoutEffect(()=>{
+  if(!needed)return;
+  const scope=Object({live:true,settled:false,released:false,handle:null,timer:null,release:null});
+  owner.current=scope;
+  const issue=(message,cause)=>Object.assign(Error(message),cause?{cause}:{});
+  const cancel=error=>{try{cancelRender(error);}catch{/* Remotion records cancellation before throwing. */}};
+  const fail=error=>{
+   if(!scope.live||scope.settled)return;
+   scope.settled=true;clearTimeout(scope.timer);
+   cancel(error);setResult({request,error});
+  };
+  scope.release=()=>{
+   if(scope.released||scope.handle===null)return;
+   scope.released=true;
+   try{continueRender(scope.handle);}catch(cause){const error=issue('The graphic font render gate could not be released.',cause);cancel(error);if(scope.live)setResult({request,error});}
+  };
+  try{
+   const handle=delayRender(label);
+   if(typeof handle!=='number'||!Number.isFinite(handle))throw issue('The graphic font render gate is unavailable.');
+   scope.handle=handle;
+   const load=fontSet?.load;
+   if(typeof load!=='function')throw issue('This renderer cannot confirm graphic font readiness.');
+   const expires=performance.now()+timeoutMs,expired=()=>issue('The graphic fonts took too long to prepare.');
+   scope.timer=setTimeout(()=>fail(expired()),timeoutMs);
+   const specs=faces.map(face=>[face.style+' '+face.weight+' 100px "'+face.family+'"']);
+   if(wideText)specs.push([wideFont,wideText]);
+   // Attach rejection handlers before invoking a host API that can throw.
+   const loads=specs.map(args=>Promise.resolve().then(()=>{
+    if(!scope.live||scope.settled)return;
+    return load.apply(fontSet,args);
+   }));
+   Promise.all(loads).then(results=>{
+    if(!scope.live||scope.settled)return;
+    if(performance.now()>=expires){fail(expired());return;}
+    if(results.some(value=>!Array.isArray(value)))throw issue('The graphic font readiness result is invalid.');
+    scope.settled=true;clearTimeout(scope.timer);setResult({request,error:null});
+   }).catch(cause=>fail(issue('The graphic fonts could not be prepared.',cause)));
+  }catch(error){fail(error);}
+  return ()=>{
+   scope.live=false;clearTimeout(scope.timer);scope.release();
+   if(owner.current===scope)owner.current=null;
+  };
+ },[request]);
+ const current=result?.request===request?result:null,ready=!needed||!!current&&!current.error;
+ // Release after the ready layout/measurement has committed, never on load ack.
+ React.useLayoutEffect(()=>{
+  if(ready)owner.current?.release();
+ },[ready,request]);
+ if(current?.error)throw current.error;
+ return ready;
+}
+// render-fonts:end
+
 export default function ArchiveDecodeTitle({ data: raw }: { data: any }) {
   const data = (raw || {}) as any;
   const frame = useCurrentFrame();
@@ -404,26 +474,10 @@ export default function ArchiveDecodeTitle({ data: raw }: { data: any }) {
   // Wide (Hangul) text is measured on a canvas once the fonts are loaded, so the render waits for that too.
   const fields = avTitleFields(data);
   const wideText = AV_WIDE_RE.test(fields.kicker + fields.title + fields.tagline) ? fields.kicker + fields.title + fields.tagline : "";
-  const [ready, setReady] = useState(fonts.length === 0 && !wideText);
-  const [handle] = useState(() => ((fonts.length || wideText) && typeof document !== "undefined" && document.fonts ? delayRender("archive vlog title fonts") : null));
-  const released = useRef(false);
-  const release = () => {
-    if (handle != null && !released.current) { released.current = true; continueRender(handle); }
-  };
-  useEffect(() => {
-    if (ready) return;
-    let live = true;
-    const done = () => { if (live) setReady(true); };
-    if (typeof document === "undefined" || !document.fonts) { done(); return; }
-    const loads = fonts.map((f) => document.fonts.load(`${f.style || "normal"} ${f.weight} 100px "${f.family}"`).catch(() => null));
-    // The Korean system face the wide glyphs fall back to (Apple SD Gothic Neo / Malgun Gothic).
-    if (wideText) loads.push(document.fonts.load(`700 100px ${avFontStack(((AV_TITLE_FACES as any)[data.font] || AV_TITLE_FACES.anton).family)}`, wideText).catch(() => null));
-    Promise.all(loads).finally(done);
-    return () => { live = false; };
-  }, [ready]);
-  useEffect(() => { if (ready) release(); }, [ready, handle]);
-  // Never leave the render blocked if the graphic unmounts before the fonts settle.
-  useEffect(() => release, []);
+  const ready = useRenderFonts(React, { fonts, wideText,
+    wideFont: `700 100px ${avFontStack(((AV_TITLE_FACES as any)[data.font] || AV_TITLE_FACES.anton).family)}`, label: "archive vlog title fonts",
+    delayRender, continueRender, cancelRender,
+  });
 
   // Measured wide-glyph metrics (koInk / koAdvances) once the fonts are in; null for Latin-only text.
   const ko: any = useMemo(() => (ready ? avKoMeasure(data) : null), [ready, raw]);
@@ -444,7 +498,7 @@ export default function ArchiveDecodeTitle({ data: raw }: { data: any }) {
   return (
     <AbsoluteFill>
       {fontFaces ? <style>{fontFaces}</style> : null}
-      {scrim && scrim.opacity > 0 ? (
+      {ready && scrim && scrim.opacity > 0 ? (
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true" style={{ position: "absolute", left: 0, top: 0 }}>
           <defs>
             <radialGradient id={scrimId} cx="0.5" cy="0.5" r="0.5">
@@ -454,7 +508,7 @@ export default function ArchiveDecodeTitle({ data: raw }: { data: any }) {
           <ellipse cx={scrim.cx} cy={scrim.cy} rx={scrim.rx} ry={scrim.ry} fill={`url(#${scrimId})`} opacity={scrim.opacity} />
         </svg>
       ) : null}
-      {state.textOpacity > 0 ? (
+      {ready && state.textOpacity > 0 ? (
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ position: "absolute", left: 0, top: 0, overflow: "visible", filter: shadow > 0 ? `drop-shadow(0 ${drop}px ${blur}px rgba(0,0,0,${shadow}))` : undefined }}>
           {line(layout.kicker)}
           {state.glyphs.map((g: any, i: number) => (

@@ -153,12 +153,12 @@
         "identity": "Field key/font role are local design identities; canvas pixels, percent size60..160 and x/y20..80 percent are explicit, not 0..1 input fractions.",
         "dependencies": "AV_TITLE/av-decode, deterministic hash, Intl.Segmenter (code-point fallback), canvas/system wide glyphs, Anton/Oswald/Inter metrics.",
         "effects": "DOM/canvas/font rendering only; durable source/parameter reconciliation belongs to existing program/workflow owners.",
-        "lifetime": "Per frame/render; Remotion delayRender/continueRender once on initial font preparation and unmount.",
-        "cleanup": "Release owned render gate once; late state is ignored after unmount. Font promise is not cancelled; readiness on changed Adjust data remains open.",
-        "outcomes": "Missing metrics/fonts can use fallback; malformed provided metrics and never-settling font promise require reproduction.",
+        "lifetime": "Per frame/design calculation; request-aware font preparation and render-gate lifetime are delegated to render-font-readiness.",
+        "cleanup": "The common renderer owner retires its own timer/gate; this feature keeps no file/process/workflow ownership.",
+        "outcomes": "Shipped normal presets remain pixel-identical. Missing metric fallback is unchanged; malformed supplied metrics remain a separate unadmitted-input investigation.",
         "retry": "Render can repeat; uncertain saved effects cannot be replayed based on label.",
         "distribution": "assets/decode-title.tsx, verbatim pure av-decode panel copy, preview helpers and preset data.",
-        "validation": "Existing title/font/source parity tests; changed-font Adjust, invalid metrics, multiple instances, CJK/emoji and actual export are open."
+        "validation": "Normal pure design/source tests plus actual current preview/export renderer comparisons and same-Player Latin/Hangul changes. Invalid supplied metrics, multi-instance SVG IDs, full app playback/encoded export and Windows remain open."
       },
       "evidence": [
         "plugins/archive-vlog/tests/title.test.cjs",
@@ -695,11 +695,11 @@
       "contract": {
         "identity": "One rendered clip occurrence; clip-local frame/fps differs from source seconds and Draft timeline frames.",
         "effects": "React/Remotion rendering only; no SDK, file, Project or process mutation.",
-        "lifetime": "Initial font preparation owns delayRender and one continueRender; unmount releases it and prevents late state.",
-        "cleanup": "No font-promise cancellation; owned render gate releases once. Same-instance Adjust font changes remain unverified.",
-        "outcomes": "Missing metrics uses generic fallback; invalid supplied metrics and font failure readiness need reproduction.",
+        "lifetime": "Per frame/design calculation; request-aware font preparation and render-gate lifetime are delegated to render-font-readiness.",
+        "cleanup": "The common renderer owner retires its own timer/gate; this feature keeps no file/process/workflow ownership.",
+        "outcomes": "Shipped normal presets remain pixel-identical. Missing metric fallback is unchanged; malformed supplied metrics remain a separate unadmitted-input investigation.",
         "retry": "Repeat frame rendering freely; uncertain persistence is never replayed by this policy.",
-        "validation": "Existing effects/look/motion/title tests are inherited evidence. Actual changed-parameter rendering, playback/export and supported-platform quality remain open.",
+        "validation": "Normal pure design/source tests plus actual current preview/export renderer comparisons and same-Player Latin/Hangul changes. Invalid supplied metrics, multi-instance SVG IDs, full app playback/encoded export and Windows remain open.",
         "input": "prefix/name: each24 display-width units (wide code point2), uppercased; size60..200%, x/y10..90%, shadow0..1, font metrics/base64.",
         "output": "Static text width/cap-height layout; empty full text renders nothing.",
         "dependencies": "Oswald Bold, React/Remotion, canvas/system wide glyphs and document.fonts.",
@@ -838,12 +838,38 @@
         "docs/template-repair/archive-preview-lifetime.md"
       ],
       "implementation": "implemented-extension"
+    },
+    {
+      "id": "render-font-readiness",
+      "decision": "extract",
+      "owner": "render-fonts",
+      "implementation": "implemented",
+      "reason": "Render-document font preparation and committed Remotion readiness have a different owner/lifetime from panel file/media/worker or durable saved-run execution. Eight standalone programs share this responsibility; only the two reviewed Archive renderers adopt it here.",
+      "contract": {
+        "input": "React hooks; stable host delayRender/continueRender/cancelRender functions; CSS-declared font descriptors family/style/weight/base64; optional wide text/font shorthand; a finite 20-second default deadline. Caller owns CSS declarations and layout.",
+        "output": "Current-request readiness only after the browser font promises succeed; failure cancels the Remotion document and throws through its graphic error boundary.",
+        "identity": "One committed request object for source/text/font-set/host configuration. A->B->A creates a fresh third request; input bytes are readiness-key material, not cryptographic attestation of CSS family bytes.",
+        "dependencies": "React commit/layout effects; browser FontFaceSet.load; monotonic performance clock; current Remotion delay/continue/cancel functions. No app IPC or SDK API.",
+        "effects": "Font loads and React state; one owned render gate; native preview/export wait for all authored graphic handles under their existing frame ticket.",
+        "lifetime": "Allocate only in committed layout effect. Independent timeout and monotonic success check. Publish matching result, commit measured SVG, then release. Discarded renders allocate no handle; StrictMode cleanup retires only its own request.",
+        "cleanup": "Retire timer and owned gate once. Observe every promise rejection, ignore late success/failure, never delete document-wide fonts or other handles. Browser font fetches themselves are not abortable through this API.",
+        "outcomes": "Success, rejected/malformed/unavailable font readiness, elapsed deadline, superseded/unmounted request and gate cleanup failure are separate from a valid ready graphic. System-font requests may resolve with no downloadable CSS faces.",
+        "retry": "Supersession prepares a new request. A cancelled native document remains failed; the existing upper preview/export lifetime must dispose it and create a fresh document. Do not clear Remotion global cancellation to fake recovery.",
+        "distribution": "shared/render-fonts.js is canonical; sync_panel_modules injects the reviewed standalone TSX assets declared in plugin.json. Other six candidate programs retain existing behavior.",
+        "validation": "28 actual Archive component/owner fixtures, 16 module-delivery checks; original-source RED and current GREEN. Companion native owner has 22 checks. Actual current Electron/Player/preloads: 26 cases, including real delayed same-origin WOFF2 response, failure/deadline/fresh document recovery, same-Player Latin/Hangul return and 12 original/current pixel-equal design comparisons. This is not full app or encoded-video export acceptance."
+      },
+      "evidence": [
+        "shared/render-fonts.js",
+        "tests/archive_render_fonts.test.mjs",
+        "tests/panel_modules.test.mjs",
+        "docs/template-repair/archive-render-fonts.md"
+      ]
     }
   ],
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "08b475f69c69c55a653ea197c78ef1ac5cf956338e19f438c6e2ce954f31b3cd",
+      "sha256": "3f59a7c1d8710144533fce25f55fe0e3f83d39e6351dca5f51a193fbc875f7d7",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
@@ -1162,14 +1188,19 @@
     },
     {
       "path": "plugins/archive-vlog/assets/archived-credit.tsx",
-      "sha256": "d32c1e78905ab337b57d0afb5c83cb9f7c4a28ea766e6a63d3ddcd9cde3dda0d",
+      "sha256": "48a996a25315d29c3c3949df0c3f08a3d19225caa077199ffdbb523fc4ae1580",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 156,
+          "endLine": 209,
           "feature": "credit-policy"
+        },
+        {
+          "startLine": 109,
+          "endLine": 177,
+          "feature": "render-font-readiness"
         }
       ]
     },
@@ -1478,14 +1509,19 @@
     },
     {
       "path": "plugins/archive-vlog/assets/decode-title.tsx",
-      "sha256": "ef11fab0c5c85965b113e13f325ee53e311e07ac5620967aa33cbd2f79b9a42d",
+      "sha256": "2a46f3668d979648d14f3468dc29e7ab8ee089ed9b81a13750b0ff5a1320008c",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 470,
+          "endLine": 523,
           "feature": "title-policy"
+        },
+        {
+          "startLine": 396,
+          "endLine": 464,
+          "feature": "render-font-readiness"
         }
       ]
     },
@@ -1852,6 +1888,32 @@
           "feature": "test-harness"
         }
       ]
+    },
+    {
+      "path": "shared/render-fonts.js",
+      "sha256": "99bb3d5520a6bf6a141d57aa03605b15187d572cb2e13484d50ec40bc1c16be4",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 67,
+          "feature": "render-font-readiness"
+        }
+      ]
+    },
+    {
+      "path": "tests/archive_render_fonts.test.mjs",
+      "sha256": "2ba72bc6a3caf992a2fa0324f00c6910ad5a9b5c735380c46eb1f414ddc15070",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 114,
+          "feature": "render-font-readiness"
+        }
+      ]
     }
   ],
   "assets": [
@@ -1983,7 +2045,7 @@
     },
     {
       "path": "plugins/archive-vlog/plugin.json",
-      "sha256": "1338e9605e767ec3fdaa40133add712b27e804a0c39261a99bd5efcc5b6f6f78",
+      "sha256": "21028176acdd74af240d12aef1f709e95f2a4f2fd24a31ba139ad9bd99c3da6d",
       "hashMode": "bytes",
       "feature": "copy-and-package",
       "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
@@ -2162,24 +2224,16 @@
       "id": "font-adjust-readiness-and-metrics",
       "status": "needs-reproduction",
       "feature": "title-policy",
-      "title": "Adjust font changes and malformed supplied metrics have not been admitted at the render boundary.",
+      "title": "Malformed supplied metrics remain separate from the repaired font readiness lifetime.",
       "sources": [
         {
           "file": "plugins/archive-vlog/assets/decode-title.tsx",
           "line": 158
-        },
-        {
-          "file": "plugins/archive-vlog/assets/decode-title.tsx",
-          "line": 407
-        },
-        {
-          "file": "plugins/archive-vlog/assets/archived-credit.tsx",
-          "line": 118
         }
       ],
       "repairOwner": "archive-vlog",
-      "mechanism": "Initial font readiness effect depends on ready, not changed font/text parameters; present-but-invalid metrics bypass absent-metrics fallback.",
-      "acceptance": "Actual same-instance Adjust/font failure/invalid metrics must settle owned render gate once and preserve reliable layout; compare title graphemes with credit width policy.",
+      "mechanism": "Present-but-invalid metrics can bypass absent-metrics fallback. Normal Adjust does not edit metrics; occurrence within supported persisted input is still unproven.",
+      "acceptance": "First establish a supported input path for malformed metrics; then preserve declared fallback/design policy and avoid invalid SVG geometry.",
       "evidence": [
         "plugins/archive-vlog/assets/decode-title.tsx",
         "plugins/archive-vlog/assets/decode-title.tsx",
@@ -2254,6 +2308,36 @@
         "plugins/archive-vlog/panel.tsx",
         "plugins/archive-vlog/INSTALL.md"
       ]
+    },
+    {
+      "id": "render-font-request-lifetime",
+      "status": "fixed-source",
+      "feature": "render-font-readiness",
+      "title": "Changed glyphs, stale request return and font failures now settle the owned render lifetime.",
+      "sources": [
+        {
+          "file": "shared/render-fonts.js",
+          "line": 14
+        },
+        {
+          "file": "plugins/archive-vlog/assets/decode-title.tsx",
+          "line": 403
+        },
+        {
+          "file": "plugins/archive-vlog/assets/archived-credit.tsx",
+          "line": 114
+        }
+      ],
+      "repairOwner": "render-fonts",
+      "mechanism": "Initial-only font readiness skipped changed glyphs; key-only results could accept retired A on A->B->A; synchronous host throws could leave earlier rejection unobserved; overdue success could outrun its timer. Native hosts ignored authored handles/cancellation.",
+      "acceptance": "Current committed request only; bounded success/error/cleanup; pending native graphic cannot be captured as ready; cancelled document cannot silently succeed; fresh document recovers without changing normal designs.",
+      "evidence": [
+        "tests/archive_render_fonts.test.mjs",
+        "tests/panel_modules.test.mjs",
+        "docs/template-repair/archive-render-fonts.md"
+      ],
+      "resolution": "One canonical render-fonts owner in both standalone Archive programs; matching result identity and commit-time release; observed async failure and monotonic deadline. Existing native frame paths use the companion bounded Remotion readiness owner.",
+      "validationLimits": "Actual standalone Electron renderer/Player/preload cases and source fixtures; not installed full app, composed video/audio playback, encoded video export, Windows, malformed metrics or all-template acceptance."
     }
   ]
 }

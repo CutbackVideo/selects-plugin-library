@@ -1906,7 +1906,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.22";
+const PLUGIN_VERSION = "0.1.0-alpha.23";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.

@@ -116,6 +116,14 @@
         "plugins/selfie-aesthetic/beat-detect.cjs",
         "plugins/city-weekend-vlog/beat-detect.cjs"
       ]
+    },
+    {
+      "id": "render-fonts",
+      "source": "shared/render-fonts.js",
+      "targets": [
+        "plugins/archive-vlog/assets/decode-title.tsx",
+        "plugins/archive-vlog/assets/archived-credit.tsx"
+      ]
     }
   ]
 }
