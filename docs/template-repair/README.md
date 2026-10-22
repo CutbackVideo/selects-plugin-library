@@ -36,7 +36,8 @@ current source inventory, initial decisions, all-template ledger and full gate.
   Dispatch/start/error, cancellation, deadline and cleanup failures use the same
   resource lifetime; the actual caller's liveness is carried through. Original
   PCM and beat policy remain intact. Twenty-seven focused cases and eight actual
-  Chromium scenarios confirm cleanup and unchanged detector output. See
+  Chromium scenarios confirm cleanup and unchanged detector output, repeated in
+  the actual client sandbox document policy. See
   [analysis-worker.md](analysis-worker.md). The partial registry now has six
   features / twelve consumers. Full ownership and template acceptance stay 0/28.
 

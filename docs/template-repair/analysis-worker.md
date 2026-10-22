@@ -68,9 +68,15 @@ JSON exactly; byte hashes confirm unchanged caller PCM. Timeout, cancellation an
 actual-adapter owner replacement also settle and clean every observed resource.
 No Project API operation occurs in these scenarios.
 
-These observations establish real browser Worker behavior and algorithm parity.
-They do not establish installed-panel CSP/capability behavior, complete template
-UI/build/save, full-video/audio playback, export, Windows or source-content
+The same eight scenarios also pass in a separate opaque-origin iframe generated
+by the actual client `createPanelSandboxSrcDoc`, with its unchanged CSP and
+`allow-scripts` sandbox. That checks Worker/Blob execution under the client's
+actual sandbox document policy; it does not install a panel or exercise the full
+PanelHost compiler, SDK relay or template UI.
+
+These observations establish real browser Worker behavior, sandbox-policy
+execution and algorithm parity. They do not establish installed-panel/UI/build/
+save behavior, full-video/audio playback, export, Windows or source-content
 identity. The remaining owners (including file/scoring/language/paged inventory,
 script transport and save/recovery) still need complete classification and their
 own execution evidence before either template is accepted.
