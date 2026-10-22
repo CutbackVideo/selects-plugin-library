@@ -87,16 +87,16 @@ unmigrated copies to equal the deliberately migrated Archive implementation.
   around a held native encode reply: Stop aborts its signal, retains the active
   output until settlement and then removes it. No Project/Draft mutations occur.
 
-Private reproducible artifacts:
-`/Users/mano/Documents/clip-highlights-analysis/repro-20261022/mini-media-scope/`.
+Reproducible SDK scripts, hashed source snapshots and command logs are retained
+in the private checkpoint receipt; personal filesystem paths are not published.
 The SDK probe uses the public `media.job(id).status()` service for the canonical
 client's status bridge. It is not installed-panel UI evidence. Controlled fault
 cases deliberately retain their unconfirmed workspace files for inspection.
 
-## 짧은 값 추적
+## Short value trace
 
-실제 SDK 검사에서 사용한 **0.1초 WAV, 초당 샘플 22,050개, 최대 1초**를 따라갑니다.
-설치된 템플릿의 전체 영상 제작·재생·내보내기는 이 추적에 포함되지 않습니다.
+Follow the actual SDK fixture: a **0.1-second WAV at 22,050 Hz, with a one-second
+maximum**. This trace excludes installed-template creation, playback and export.
 
 `shared/bundled-assets.js:269-273`:
 
@@ -108,9 +108,9 @@ async function decodeAssetPcm(client,options){
  if(!Number.isSafeInteger(maxBytes)||maxBytes<4||maxBytes>32*1024*1024)throw bundledAssetIssue('INPUT','The requested audio sample budget is invalid.');
 ```
 
-272줄: 소리 값 하나는 4바이트이므로 읽기 전에 한도를 **88,200바이트**로 정합니다.
-실제 변환 결과는 **8,820바이트**입니다. 공통 처리에서 작업 종료와 임시 파일 정리를
-확인한 뒤, 아래 코드를 거칩니다.
+Line 272: each sample takes four bytes, so the pre-read budget is **88,200 bytes**.
+The actual converted file contains **8,820 bytes**. After the shared owner confirms
+process settlement and temporary-file cleanup, the bytes enter the following code.
 
 `shared/bundled-assets.js:277-279`:
 
@@ -120,9 +120,10 @@ async function decodeAssetPcm(client,options){
  for(let i=0;i<samples.length;i++){samples[i]=view.getFloat32(i*4,true);if(!Number.isFinite(samples[i]))throw bundledAssetIssue('PCM','The decoded audio contains an invalid sample.');}
 ```
 
-277줄: 남는 조각을 버리고 넘어가면 손상된 데이터를 정상으로 오인하므로 거부합니다.
-278~279줄: 8,820바이트를 **정상적인 소리 값 2,205개**로 읽습니다. 입력 파일과 결과
-샘플은 남고, 이번 분석에만 사용한 임시 파일은 삭제됩니다.
+Line 277: reject trailing fragments rather than silently treating damaged data as
+valid samples. Lines 278-279 turn 8,820 bytes into **2,205 finite audio samples**.
+The original source and independent returned samples survive; the temporary
+analysis file is removed.
 
 ## Remaining gates
 
