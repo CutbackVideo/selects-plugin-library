@@ -100,7 +100,8 @@
         "bundled-assets"
       ],
       "targets": [
-        "plugins/mini-vlog/panel.tsx"
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/archive-vlog/panel.tsx"
       ]
     },
     {

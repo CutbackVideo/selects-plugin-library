@@ -56,11 +56,14 @@ export async function archiveMusicFixture(t,{entry='template',own=false,silent=f
   runEpochRef:{current:0},setStep:noop,setProgress:noop,progressRef:{current:null},sdk,busyRef,assets:{scripts:scriptsByName,presets,tsx:{title:'TITLE',credit:'CREDIT',letterbox:'BOX',look:'LOOK',fade:'FADE',motion:'MOTION'}},inventory,roots:{plugin,data:f.data},chosen:presets.presets[0],seed:1,blockReason:null,anotherBlock:null,projectId:'p',projectRef:{current:'p'},mountedRef:{current:true},inventorySnapshotRef:{current:{projectId:'p',inventory}},invLoadingRef:{current:null},
   preset:'preset',titleFields:{},creditUsed:false,prefixText:'',nameText:'',clipSound:'ambient',look:true,strength:.5,usePhotos:false,only:null,onlyPhotos:null,musicKind:silent?'none':own?'own':'cue',ownMusic:own?{path:file}:null,ownGrid:own?{sourceObservation:{path:file,size:bytes.length,sha256:digest(bytes)}}:null,cueId:cue.id,cue,musicStart:0,pace:'cinematic',length:'standard',fit:{requested:2},L:'en',tempo:72,grid:{bpm:72,accepted:true,usableEnd:cue.duration},snapCuts:{},assemblyPendingRef:{current:{}},setAssemblyDiscovery:noop,fontB64:async()=>'',
   candidates:{key:'p|null',failed:[],local:[],list:[]},
+  // Scene/local evaluation is a separate explicit boundary in this music fixture.
+  findCandidates:async()=>({list:[],failed:[]}),scoreLocal:async()=>[],
   // Durable save recovery has separate integration cases; this fixture tests only
   // music admission up to dispatch, never a real save or recovery.
   setBusy:noop,setStatus:noop,setResult:noop,stopPreview:noop,advance:noop,stopAt:error=>()=>{errors.push(error);return error.message;},STALE:stopped,
  };
  globals.setStatus=value=>{if(value?.tone==='error')value.say('en');};
+ globals.setCandidates=value=>{globals.candidates=value;};
  // Discovery/authoring is an explicit no-save boundary here. Real durable
  // storage and saved-state readback run in Archive workflow fixtures.
  globals.openTemplateAssemblyContinuations=async()=>({read:async(runId=null)=>{const p=globals.assemblyPendingRef.current.p;return p&&(runId===null||p.scope.runId===runId)?p:null;},

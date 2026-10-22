@@ -1916,7 +1916,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.19";
+const PLUGIN_VERSION = "0.1.0-alpha.20";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -3556,9 +3556,12 @@ function avBeatWorkerSource(beatDetectText) {
 //       black, fade or flash frames, or a scene cut inside, are left out while any other window fits; blur, dark and
 //       bright windows rank lower. score is 0-1 (comparable across clips and roles).
 //   qsCandidates(scores, role, durationNeeded, max) -> planner candidates [{ t, score, motion }] (t = window centre).
-// Cache: one JSON per clip in <dataDir>/quick-score/, keyed by the resource id, the file's modification time and
-// QS_VERSION, so a rebuild does not decode the same clip twice.
-var QS_VERSION = 2;
+// Persistent reuse belongs to the shared source-bound evaluator below. Old mtime-only
+// cache files are not reused or deleted.
+// clip-analysis:start
+// Source-bound local clip evaluation. File snapshots, cache publication,
+// media jobs and transient cleanup belong to bundled-assets. No Project is edited.
+var QS_VERSION = 3;
 // One decode pass at the settings Selfie Aesthetic Edit measured (sae-host saeMotionArgs: fps 8, gray rawvideo,
 // 0.25-0.65 s for 120 s of source) gives every per-frame figure below.
 var QS_FPS = 8;
@@ -3573,36 +3576,6 @@ var QS_BUDGET_MS = 30000;
 // Frame thresholds (luma 0-1).
 var QS_BLACK = 0.07, QS_DARK = 0.16, QS_CLIP_LO = 16 / 255, QS_CLIP_HI = 240 / 255, QS_BRIGHT_SHARE = 0.45;
 var QS_FLASH_JUMP = 0.25, QS_CUT_DIFF = 0.12, QS_CUT_RATIO = 4;
-
-function qsTag(x) { return Object.prototype.toString.call(x); }
-function qsBytes(v) {
-  if (qsTag(v) === "[object ArrayBuffer]") return new Uint8Array(v);
-  if (v && typeof v.byteLength === "number" && v.buffer && qsTag(v.buffer) === "[object ArrayBuffer]") return new Uint8Array(v.buffer, v.byteOffset || 0, v.byteLength);
-  if (v && typeof v === "object" && typeof v.length === "number") return Uint8Array.from(v);
-  return null;
-}
-// The host's services for this module: runFFmpeg(args, signal), readBytes(path), remove(path), join(...parts),
-// mkdir(dir), mtimeMs(path), readText(path), writeText(path, text). Members the host lacks are null.
-function qsHostIO() {
-  var rt = hostSdk?.media, fs = hostSdk?.files;
-  var fn = function (o, m) { return !!o && typeof o[m] === "function"; };
-  return {
-    runFFmpeg: fn(rt, "runFFmpeg") ? function (args, signal) { return rt.runFFmpeg(args, true, signal); } : null,
-    readBytes: fn(fs, "readFile") ? async function (p) { return qsBytes(await fs.readFile(p)); } : null,
-    remove: fs ? async function (p) {
-      var tries = ["removeFile"];
-      for (var i = 0; i < tries.length; i++) {
-        if (!fn(fs, tries[i])) continue;
-        try { await (tries[i] === "removeFile" ? fs.removeFile({ filePath: p }) : fs[tries[i]](p)); return; } catch (e) { /* the next one */ }
-      }
-    } : null,
-    join: fn(fs, "join") ? function () { return String(fs.join.apply(fs, arguments)); } : null,
-    mkdir: fn(fs, "mkdir") ? async function (d) { (await fs.mkdir(d, { recursive: true })); } : null,
-    mtimeMs: fn(fs, "stat") ? async function (p) { var s = (await fs.stat(p)); return s && Number(s.mtimeMs || (s.mtime && +new Date(s.mtime)) || 0); } : null,
-    readText: fn(fs, "readFile") ? async function (p) { var v = await fs.readFile(p, "utf8"); return typeof v === "string" ? v : new TextDecoder().decode(qsBytes(v)); } : null,
-    writeText: fn(fs, "writeFile") ? async function (p, t) { await fs.writeFile(p, t); } : null,
-  };
-}
 
 // Pure: per-frame statistics of QS_W x QS_H grey frames packed in `bytes`.
 function qsFrameStats(bytes, w, h) {
@@ -3696,86 +3669,71 @@ function qsFallback(resource, ms, windows) {
 }
 function qsAbortError() { var e = new Error("cancelled"); e.name = "AbortError"; return e; }
 
-async function quickScore(resource, opts) {
-  opts = opts || {};
-  var t0 = Date.now(), io = opts.io || qsHostIO(), signal = opts.signal, fps = opts.fps || QS_FPS;
-  var dur = Number(resource.durationSeconds) || 0;
-  var deadline = t0 + (opts.budgetMs == null ? QS_BUDGET_MS : opts.budgetMs);
-  if (signal && signal.aborted) throw qsAbortError();
-  var dataDir = opts.dataDir || null;
-  if (!(dur > 0) || !resource.path || !io.runFFmpeg || !io.readBytes || !io.join || !dataDir) return qsFallback(resource, Date.now() - t0, opts.windows);
-  // The decoded span: the given windows, else QS_HEAD .. QS_HEAD + QS_SPAN.
-  var ws = opts.windows && opts.windows.length ? opts.windows : null;
-  var a = ws ? Math.max(0, Math.min.apply(null, ws.map(function (x) { return x.start; }))) : Math.min(QS_HEAD, Math.max(0, dur - QS_BIN));
-  var b = ws ? Math.min(dur, Math.max.apply(null, ws.map(function (x) { return x.end; }))) : Math.min(dur, a + QS_SPAN);
-  var dir = io.join(dataDir, "quick-score");
-  var safe = String(resource.rid).replace(/[^A-Za-z0-9_-]/g, "_");
-  var mtime = 0;
-  try { mtime = io.mtimeMs ? Math.round((await io.mtimeMs(resource.path)) || 0) : 0; } catch (e) { mtime = 0; }
-  // mtime is 0 when the host lacks FileSystem.stat, so the duration also keys the cache (a file replaced at the same
-  // path with different media is not served stale scores; Mini Vlog review).
-  var durKey = Number(resource.durationSeconds || 0).toFixed(3);
-  var key = [QS_VERSION, fps, QS_W, QS_H, mtime, durKey, a.toFixed(3), b.toFixed(3)].join("-");
-  var cacheFile = io.join(dir, safe + ".json");
-  if (io.readText && !ws) {
-    try {
-      var c = JSON.parse(await io.readText(cacheFile));
-      if (c && c.key === key && c.result) return Object.assign({}, c.result, { cached: true, ms: Date.now() - t0 });
-    } catch (e) { /* no cache yet */ }
-  }
-  if (Date.now() > deadline) return qsFallback(resource, Date.now() - t0, opts.windows);
-  try { if (io.mkdir) await io.mkdir(dir); } catch (e) { /* the decode below reports it */ }
-  var tmp = io.join(dir, safe + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6) + ".gray");
-  var controller = typeof AbortController === "undefined" ? null : new AbortController();
-  var relay = function () { if (controller) controller.abort(); };
-  var timer = controller ? setTimeout(relay, Math.max(1000, deadline - Date.now())) : null;
-  if (signal) signal.addEventListener("abort", relay);
-  var producerFailure = null;
-  try {
-    await io.runFFmpeg(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", a.toFixed(3), "-t", (b - a).toFixed(3), "-i", resource.path,
-      "-an", "-vf", "fps=" + fps + ",scale=" + QS_W + ":" + QS_H + ",setsar=1,format=gray", "-f", "rawvideo", tmp], controller ? controller.signal : undefined);
-    var bytes = await io.readBytes(tmp);
-    if (!bytes || bytes.length < QS_W * QS_H) throw new Error("no frames");
-    var stats = qsFrameStats(bytes, QS_W, QS_H);
-    var cuts = qsSceneCuts(stats, fps, a);
-    var windows = qsWindowScores(stats, fps, a, ws || qsBins(dur, a, b - a), cuts);
-    var result = { rid: resource.rid, windows: windows, sceneCuts: cuts, ms: Date.now() - t0, fallback: false, cached: false, duration: dur };
-    if (io.writeText && !ws) { try { await io.writeText(cacheFile, JSON.stringify({ key: key, result: result })); } catch (e) { /* no cache, no harm */ } }
-    return result;
-  } catch (e) {
-    producerFailure = e;
-    if (e && e.terminal) throw e;
-    if (signal && signal.aborted) throw qsAbortError();
-    return qsFallback(resource, Date.now() - t0, opts.windows);
-  } finally {
-    if (timer) clearTimeout(timer);
-    if (signal) signal.removeEventListener("abort", relay);
-    if (io.remove && !(producerFailure && producerFailure.preserveTemporaryFiles)) { try { await io.remove(tmp); } catch (e) { /* left behind */ } }
-  }
-}
 
-async function quickScoreAll(resources, opts) {
-  opts = opts || {};
-  var results = new Map(), total = resources.length, done = 0, next = 0;
-  var conc = Math.max(1, Math.min(opts.concurrency || 3, total || 1));
-  var t0 = Date.now(), budget = opts.budgetMs == null ? QS_BUDGET_MS : opts.budgetMs;
-  async function worker() {
-    while (next < total) {
-      var r = resources[next++];
-      if (opts.signal && opts.signal.aborted) throw qsAbortError();
-      var left = budget - (Date.now() - t0);
-      var res = left > 0 ? await quickScore(r, Object.assign({}, opts, { budgetMs: left, onProgress: null })) : qsFallback(r, 0, null);
-      results.set(r.rid, res);
-      done++;
-      if (opts.onProgress) { try { opts.onProgress({ done: done, total: total, rid: r.rid }); } catch (e) { /* the UI only */ } }
-    }
-  }
-  var workers = [];
-  for (var i = 0; i < conc; i++) workers.push(worker());
-  var outcomes = await Promise.allSettled(workers);
-  var failure = outcomes.find(function (outcome) { return outcome.status === "rejected"; });
-  if (failure) throw failure.reason;
-  return results;
+function clipAnalysisIssue(code,message,cause){return Object.assign(Error(message),{code:'CLIP_ANALYSIS_'+code,publicMessage:message,...cause?{cause}:{}});}
+function clipAnalysisResource(resource){
+ if(!resource||typeof resource.rid!=='string'||!resource.rid||resource.rid.length>1024||typeof resource.path!=='string'||!resource.path||resource.path.length>8192||resource.path.includes('\0')||!Number.isFinite(resource.durationSeconds)||resource.durationSeconds<=0)throw clipAnalysisIssue('INPUT','The local video analysis input is invalid.');
+ return {rid:resource.rid,path:resource.path,durationSeconds:resource.durationSeconds};
+}
+function clipAnalysisScope(opts){
+ if(!opts||typeof opts!=='object'||Array.isArray(opts)||typeof opts.dataDir!=='string'||!opts.dataDir||opts.dataDir.length>8192||opts.dataDir.includes('\0')||opts.onProgress!==undefined&&typeof opts.onProgress!=='function'||opts.isCurrent!==undefined&&typeof opts.isCurrent!=='function'||opts.budgetMs!==undefined&&(!Number.isFinite(opts.budgetMs)||opts.budgetMs<0||opts.budgetMs>300000)||opts.deadline!==undefined&&!Number.isFinite(opts.deadline))throw clipAnalysisIssue('INPUT','The local video analysis scope is invalid.');
+ const signal=opts.signal,isCurrent=opts.isCurrent||(()=>true);
+ if(signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw clipAnalysisIssue('INPUT','The local video analysis cancellation signal is invalid.');
+ return ()=>{if(signal?.aborted||!isCurrent())throw clipAnalysisIssue('STOPPED','Local video analysis ended before completion.');};
+}
+async function quickScore(resource,opts={}){
+ const current=clipAnalysisScope(opts),input=clipAnalysisResource(resource);opts={...opts};current();
+ const client=opts.client??(typeof hostSdk!=='undefined'?hostSdk:null),files=client?.files,media=client?.media,t0=Date.now(),fps=opts.fps??QS_FPS,dur=input.durationSeconds;
+ if(!Number.isSafeInteger(fps)||fps<1||fps>60||typeof opts.dataDir!=='string'||!opts.dataDir||typeof files?.fingerprint!=='function')throw clipAnalysisIssue('UNSUPPORTED','Update Selects to verify original video contents before local analysis.');
+ if(opts.windows!=null&&!Array.isArray(opts.windows))throw clipAnalysisIssue('INPUT','The local video analysis windows are invalid.');
+ const ws=opts.windows==null?null:opts.windows.map(w=>({start:w?.start,end:w?.end}));
+ if(ws&&(!Array.isArray(opts.windows)||!ws.length||ws.length>256||ws.some(w=>!Number.isFinite(w.start)||!Number.isFinite(w.end)||w.start<0||w.end<=w.start||w.end>dur)))throw clipAnalysisIssue('INPUT','The local video analysis windows are invalid.');
+ const a=ws?Math.min(...ws.map(w=>w.start)):Math.min(QS_HEAD,Math.max(0,dur-QS_BIN)),b=ws?Math.max(...ws.map(w=>w.end)):Math.min(dur,a+QS_SPAN);
+ if(b-a>QS_SPAN)throw clipAnalysisIssue('INPUT','The local video analysis span exceeds its limit.');
+ const windows=ws||qsBins(dur,a,b-a),deadline=Math.min(t0+(opts.budgetMs??QS_BUDGET_MS),opts.deadline??Infinity);
+ const hashFile=async path=>{current();const row=await files.fingerprint(path);current();if(!row||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))throw clipAnalysisIssue('SOURCE','The original video content could not be confirmed.');return row.sha256;};
+ const source=await readAssetFileIdentity(files,input.path,hashFile,current);current();
+ const observation={path:input.path,size:source.bytes,sha256:source.sha256};
+ const fallback=()=>({...qsFallback(input,Date.now()-t0,windows),sourceObservation:observation});
+ if(typeof media?.runFFmpeg!=='function'||Date.now()>=deadline)return fallback();
+ const policy=[QS_VERSION,fps,QS_W,QS_H,QS_HEAD,QS_BIN,QS_SPAN,QS_BLACK,QS_DARK,QS_CLIP_LO,QS_CLIP_HI,QS_BRIGHT_SHARE,QS_FLASH_JUMP,QS_CUT_DIFF,QS_CUT_RATIO];
+ const bytes=new TextEncoder().encode(JSON.stringify([input,source,policy,windows])),digest=await crypto.subtle.digest('SHA-256',bytes);current();
+ const key=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join(''),directory=files.join(opts.dataDir,'quick-score-v3');
+ const valid=result=>{
+  if(!result||result.rid!==input.rid||result.duration!==dur||result.fallback!==false||result.cached!==false||!Number.isFinite(result.ms)||result.ms<0||!Array.isArray(result.windows)||result.windows.length!==windows.length||!Array.isArray(result.sceneCuts)||result.sceneCuts.length>Math.ceil((b-a)*fps)||result.sceneCuts.some(t=>!Number.isFinite(t)||t<a||t>b))return false;
+  return result.windows.every((w,i)=>w&&w.start===windows[i].start&&w.end===windows[i].end&&['motion','sharp','luma','clipped'].every(k=>Number.isFinite(w[k])&&w[k]>=0&&w[k]<=1)&&w.flags&&Object.keys(w.flags).length===7&&['black','fade','flash','blur','dark','bright','cut'].every(k=>typeof w.flags[k]==='boolean')&&(w.empty===undefined||w.empty===true));
+ };
+ const read=async path=>{const bytes=await readBundledAssetBytes(files,path,262144,current);current();const result=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));if(!valid(result))throw clipAnalysisIssue('CACHE','The local analysis result does not match its original input and policy.');return result;};
+ let result;
+ try{
+  const prepared=await prepareDerivedAsset(files,{directory,key,sourcePath:input.path,source,extension:'json',cleanupRequired:true,signal:opts.signal,isCurrent:()=>{current();return true;},hashFile,
+   produce:async(snapshot,target)=>{
+    const maximum=(Math.ceil((b-a)*fps)+2)*QS_W*QS_H;
+    const frames=await readTransientAsset(client,{directory,extension:'gray',maxBytes:maximum,deadline,timeoutMs:Math.max(1,deadline-Date.now()),signal:opts.signal,isCurrent:()=>{current();return true;},
+     produce:async({path,current:live})=>{live();await runAssetMediaTool(media,'runFFmpeg',['-hide_banner','-loglevel','error','-nostdin','-y','-ss',a.toFixed(3),'-t',(b-a).toFixed(3),'-i',snapshot,'-an','-vf','fps='+fps+',scale='+QS_W+':'+QS_H+',setsar=1,format=gray','-f','rawvideo',path],{signal:opts.signal,isCurrent:()=>{current();return true;},deadline,timeoutMs:Math.max(1,deadline-Date.now())});}});
+    current();if(frames.length<QS_W*QS_H||frames.length%(QS_W*QS_H))throw bundledAssetIssue('MEDIA','A complete video preview could not be decoded.');
+    const stats=qsFrameStats(frames,QS_W,QS_H),cuts=qsSceneCuts(stats,fps,a),score={rid:input.rid,windows:qsWindowScores(stats,fps,a,windows,cuts),sceneCuts:cuts,ms:0,fallback:false,cached:false,duration:dur};
+    if(!valid(score))throw clipAnalysisIssue('RESULT','The decoded analysis result is invalid.');current();await files.writeFile(target,JSON.stringify(score));current();
+   },verify:read});
+  current();result={...await read(prepared.path),cached:prepared.reused,ms:Date.now()-t0,sourceObservation:observation};
+ }catch(error){
+  current();
+  if(error?.terminal||!['BUNDLED_ASSET_MEDIA','BUNDLED_ASSET_PREPARE'].includes(error?.code))throw error;
+  const after=await readAssetFileIdentity(files,input.path,hashFile,current);if(after.sha256!==source.sha256||after.bytes!==source.bytes)throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed during local analysis. Reload the Project inputs.');
+  return fallback();
+ }
+ current();return result;
+}
+async function quickScoreAll(resources,opts={}){
+ const current=clipAnalysisScope(opts);opts={...opts};current();
+ if(!Array.isArray(resources)||resources.length>256||new Set(resources.map(r=>r?.rid)).size!==resources.length)throw clipAnalysisIssue('INPUT','The local analysis selection is invalid.');
+ if(opts.concurrency!==undefined&&(!Number.isSafeInteger(opts.concurrency)||opts.concurrency<1||opts.concurrency>3))throw clipAnalysisIssue('INPUT','The local analysis concurrency is invalid.');
+ const inputs=resources.map(clipAnalysisResource),results=new Map(),total=inputs.length,deadline=Math.min(Date.now()+(opts.budgetMs??QS_BUDGET_MS),opts.deadline??Infinity),controller=new AbortController();
+ const onAbort=()=>controller.abort();opts.signal?.addEventListener('abort',onAbort,{once:true});
+ let next=0,done=0,failure;
+ const worker=async()=>{try{while(next<total){current();const input=inputs[next++],score=await quickScore(input,{...opts,signal:controller.signal,deadline,budgetMs:Math.max(0,deadline-Date.now())});current();results.set(input.rid,score);done++;try{opts.onProgress?.({done,total,rid:input.rid});}catch{}current();}}catch(error){failure??=error;controller.abort();}};
+ try{await Promise.all(Array.from({length:Math.min(3,Math.max(1,opts.concurrency??3),total||1)},worker));if(failure)throw failure;current();return results;}
+ finally{opts.signal?.removeEventListener('abort',onAbort);}
 }
 
 // Pure: windows of `durationNeeded` seconds for `role`, best first (see the API above).
@@ -3831,6 +3789,43 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
     out.push({ t: Math.round(c * 1000) / 1000, score: picks[i].score, motion: picks[i].motion });
   }
   return out;
+}
+
+function clipAnalysisSources(results,expected=null){
+ if(!Array.isArray(results)||results.length>256)throw clipAnalysisIssue('RESULT','The local analysis source observations are incomplete.');
+ if(expected!==null&&(!Array.isArray(expected)||expected.some(row=>!row||typeof row.path!=='string'||!row.path||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))||new Set(expected.map(row=>row.path)).size!==expected.length))throw clipAnalysisIssue('INPUT','The expected local analysis sources are invalid.');
+ const originals=expected===null?null:new Map(expected.map(row=>[row.path,row]));
+ const seen=new Map();
+ for(const result of results){
+  const row=result?.scores?.sourceObservation;
+  if(!row||typeof row.path!=='string'||!row.path||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))throw clipAnalysisIssue('RESULT','The local analysis source observation could not be confirmed.');
+  if(originals){const before=originals.get(row.path);if(!before||before.size!==row.size||before.sha256!==row.sha256)throw clipAnalysisIssue('SOURCE_CHANGED','The analysis result belongs to different original video contents.');}
+  const before=seen.get(row.path);if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed between analysis observations.');
+  seen.set(row.path,{path:row.path,size:row.size,sha256:row.sha256});
+ }
+ return [...seen.values()];
+}
+// clip-analysis:end
+
+// Archive keeps its aggregate time budget and UI progress; the shared evaluator
+// owns source snapshots, score validation, persistent reuse and settled cleanup.
+async function analyseArchiveClips(sdk, resources, dataDir, options = {}) {
+ if(!options||typeof options!=='object'||Array.isArray(options))throw clipAnalysisIssue('INPUT','The Archive analysis scope is invalid.');
+ const scope={budgetMs:AV_LOCAL_BUDGET_MS,concurrency:AV_LOCAL_CONCURRENCY,...options,dataDir,client:panelLocalClient(sdk)};
+ const current=clipAnalysisScope(scope);current();
+ if(!Array.isArray(resources)||new Set(resources.map(row=>row?.rid)).size!==resources.length)throw clipAnalysisIssue('INPUT','The Archive analysis selection is invalid.');
+ const inputs=resources.map(row=>clipAnalysisResource({rid:row?.rid,path:row?.path,durationSeconds:row?.duration}));
+ clipAnalysisSources([],scope.expectedSources??null);
+ const expected=scope.expectedSources==null?null:scope.expectedSources.map(row=>({path:row.path,size:row.size,sha256:row.sha256}));
+ const deadline=Math.min(Date.now()+scope.budgetMs,scope.deadline??Infinity),out=[];
+ for(let offset=0;offset<inputs.length;offset+=256){
+  current();
+  const batch=inputs.slice(offset,offset+256),scores=await quickScoreAll(batch,{...scope,deadline,budgetMs:Math.max(0,deadline-Date.now()),onProgress:p=>scope.onProgress?.(offset+p.done)});current();
+  const ordered=batch.map(row=>scores.get(row.rid));
+  clipAnalysisSources(ordered.map(scores=>({scores})),expected);
+  out.push(...ordered);
+ }
+ current();return out;
 }
 // quick-score:end
 // bundled-assets:start
@@ -6002,17 +5997,16 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
 
   // The quick local check of the videos Selects has not analysed (quick-score block): the host's ffmpeg decodes a small
   // grey preview of each and scores its windows, AV_LOCAL_CONCURRENCY at a time within AV_LOCAL_BUDGET_MS, cached in the
-  // data folder per clip and file time. Without ffmpeg or a data folder (an older Selects) every clip gets evenly spaced
-  // windows from 0.5 s on, and the build still runs. A newer build, a Project switch or closing the panel cancels it.
-  async function scoreLocal(res: any[], onDone: (done: number) => void) {
+  // data folder by complete original contents and scoring policy. Ordinary decoder unavailability gives evenly spaced
+  // windows; unconfirmed source contents, cancellation and cleanup uncertainty stop the build.
+  async function scoreLocal(res: any[], onDone: (done: number) => void, check: () => void = () => { if (!mountedRef.current || projectRef.current !== projectId) throw STALE; }, controller?: AbortController, expectedSources: any[] | null = null) {
     if (!res.length) return [];
     localAbortRef.current?.abort();
-    const ac = new AbortController();
+    const ac = controller || new AbortController();
     localAbortRef.current = ac;
     try {
-      const scores = await quickScoreAll(res.map((r: any) => ({ rid: r.rid, path: r.path, durationSeconds: r.duration })),
-        { dataDir: roots?.data || null, concurrency: AV_LOCAL_CONCURRENCY, budgetMs: AV_LOCAL_BUDGET_MS, signal: ac.signal, onProgress: (p: any) => onDone(p.done) });
-      return res.map((r: any) => scores.get(r.rid)).filter(Boolean);
+      return await analyseArchiveClips(sdk, res, roots?.data || null,
+        { signal: ac.signal, isCurrent: () => { check(); return true; }, expectedSources, onProgress: onDone });
     } finally { if (localAbortRef.current === ac) localAbortRef.current = null; }
   }
 
@@ -6079,13 +6073,16 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       const rids: string[] = chosenRes.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);
       const localRes: any[] = chosenRes.filter((r: any) => r.analysed === false);
       const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
-      const cached = candidates && candidates.key === key ? candidates : null;
+      const sceneResources = chosenRes.filter((r: any) => r.analysed !== false);
+      const scenePaths = new Set(sceneResources.map((r: any) => r.path));
+      const sceneInputs = { resources: sceneResources.map((r: any) => ({ rid: r.rid, path: r.path, duration: r.duration })), sources: observedSources.filter(row => scenePaths.has(row.path)) };
+      const cached = candidates && candidates.key === key && JSON.stringify(candidates.sceneInputs) === JSON.stringify(sceneInputs) ? candidates : null;
       let found = cached;
-      if (!cached || cached.failed.length) {
-        // Search everything the first time; afterwards retry only the clips whose search failed. The local check runs
-        // once per selection (its results never fail: a clip it cannot decode gets evenly spaced windows).
+      if (!cached || cached.failed.length || localRes.length) {
+        // Retry only failed scene requests while their original inputs still match.
+        // Local scores are confirmed on every Build through the source-bound disk cache.
         const todo: string[] = cached ? cached.failed : rids;
-        const toScore = cached ? [] : localRes;
+        const toScore = localRes;
         // Progress counts what each part counts: analysed videos searched, unanalysed videos checked.
         const counts = { searched: 0, scored: 0 };
         const tick = () => {
@@ -6094,16 +6091,22 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
             toScore.length ? t(l, "localChecked", { done: scored, count: toScore.length }) : ""].filter(Boolean).join(" · "));
         };
         tick();
-        const [fresh, local] = await Promise.all([
-          findCandidates(todo, pid, check, (n) => { counts.searched = n; tick(); }),
-          scoreLocal(toScore, (n) => { counts.scored = n; tick(); }),
-        ]).catch((e) => { localAbortRef.current?.abort(); throw e; });
+        const controller = new AbortController();
+        const current = () => { check(); if (controller.signal.aborted) throw STALE; };
+        const jobs = [
+          findCandidates(todo, pid, current, (n) => { counts.searched = n; tick(); }),
+          scoreLocal(toScore, (n) => { counts.scored = n; tick(); }, current, controller, analysisSources),
+        ];
+        let fresh: any, local: any;
+        try { [fresh, local] = await Promise.all(jobs); current(); }
+        catch (error) { controller.abort(); await Promise.allSettled(jobs); throw error; }
         check();
         const retried = new Set(todo);
-        found = { key, failed: fresh.failed, local: cached ? cached.local : local,
+        found = { key, sceneInputs, failed: fresh.failed, local,
           list: [...(cached ? cached.list.filter((c: any) => !retried.has(c.rid)) : []), ...fresh.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 }))] };
         setCandidates(found);
       }
+      await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
       advance("shots", 1);
       // Photos join as candidates without a search; with Use photos off there are none.
       const photoCands = photoCandsOf(inventory, onlyPhotos, usePhotos);

@@ -1,6 +1,6 @@
 # Mini source-to-feature decision map
 
-The current map follows Mini alpha.30 over feature-review base `a07a1ace`.
+The current map follows Mini alpha.31 over feature-review base `a07a1ace`.
 The original review was created over `2e730ab8`; source locations and full content
 hashes are refreshed for the current implementation rather than retained as stale
 evidence. `ownership/mini-vlog.json` is the canonical source/decision record and
@@ -8,9 +8,9 @@ evidence. `ownership/mini-vlog.json` is the canonical source/decision record and
 
 ## Coverage and limits
 
-The current index captures 51 files, including all 30 shipped executable/test files,
-21 declared assets/data records, 27 feature decisions, 2,839 callable units
-(1,834 anonymous callbacks), 2,206 top-level statements and four embedded programs.
+The current index captures 53 files, including all 30 shipped executable/test files,
+21 declared assets/data records, 27 feature decisions, 2,901 callable units
+(1,875 anonymous callbacks), 2,239 top-level statements and four embedded programs.
 It also captures the new regression sources, canonical build-time audio engine,
 and the canonical asset owner/selected-Audio regression shared with Archive.
 The asset owner also now supplies source-bound Audio beat-analysis snapshots,
@@ -23,6 +23,8 @@ source and the two shared SDK/save fixtures used to check this boundary.
 The canonical input source and its handed-selection/kind regression are captured too.
 Archive opts into kind observation and keeps its two-video policy; Mini retains its
 legacy alias-only result and does not add a Resource read.
+The shared video evaluator and its expected-source admission regression are now
+captured as canonical source and validation, with unchanged Mini defaults.
 Source hashes explicitly normalize checkout line endings; binary identities stay exact.
 
 The checker reports `coverageComplete:true`, `semanticReviewComplete:false` and
@@ -33,7 +35,7 @@ source nor fixed fixture status promotes a whole template to accepted.
 
 ## Feature decisions
 
-Twelve rows keep Mini policy/data specific, six reuse existing owners, seven extend
+Twelve rows keep Mini policy/data specific, five reuse existing owners, eight extend
 existing owners and two remain planned text extraction (runtime plus checker share
 one prospective owner). The audio engine has now moved from planned extraction to
 implemented reuse: four standalone consumers share one canonical CJS source.
@@ -57,7 +59,7 @@ registry and are still counted explicitly; the registry is not the final module 
 | asset-owner | extend | bundled-assets | implemented-extension |
 | source-input | extend | native-image-input | implemented-extension |
 | catalog-read | reuse | media-inventory | existing |
-| local-video-analysis | reuse | clip-analysis | existing |
+| local-video-analysis | extend | clip-analysis | implemented-extension |
 | scene-observation | extend | media-inventory | planned |
 | script-dispatch | extend | local-client | planned |
 | authoring-owner | extend | native-image-authoring | implemented-extension |

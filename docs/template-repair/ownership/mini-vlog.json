@@ -407,9 +407,9 @@
     },
     {
       "id": "local-video-analysis",
-      "decision": "reuse",
+      "decision": "extend",
       "owner": "clip-analysis",
-      "reason": "Per-video measurement, source-bound cache and windows already have a separate common owner; Mini owns how those scores select shots.",
+      "reason": "The existing source-bound evaluator now also admits results against optional caller snapshots for Archive. Mini retains its existing input, scoring, cache, fallback and lifetime behavior.",
       "contract": {
         "input": "Video rid/path/duration seconds, captured client/data root, sample/byte/time budgets and current caller.",
         "output": "Source-bound gray-frame statistics, cuts/windows, cache/fallback flags and content observations.",
@@ -421,14 +421,15 @@
         "outcomes": "Known decode fallback differs from source uncertainty, stop, timeout and cleanup failure.",
         "retry": "Only confirmed cache entries reuse; no unobserved original or replay of uncertain producer.",
         "distribution": "shared/clip-analysis.js and generated Mini block; checkLocalClips only coordinates UI progress.",
-        "validation": "Real FFmpeg source-replacement/cache tests and actual native SDK cases; other legacy scorers and overall semantic quality remain open."
+        "validation": "Real FFmpeg source-replacement/cache tests and actual native SDK cases; other legacy scorers and overall semantic quality remain open. Optional expected-source admission is checked without changing existing default return values."
       },
       "evidence": [
         "shared/clip-analysis.js",
         "tests/clip_analysis.test.mjs",
-        "tests/mini_analysis_inputs.test.mjs"
+        "tests/mini_analysis_inputs.test.mjs",
+        "tests/clip_analysis_sources.test.mjs"
       ],
-      "implementation": "existing"
+      "implementation": "implemented-extension"
     },
     {
       "id": "scene-observation",
@@ -724,7 +725,7 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "3fb19ce694921442281f6ce1b1d99089982e2205c9bf9f7a3ed8bb56c13a0427",
+      "sha256": "bd89f7a89ac112d537aa3f096b379282f89a62807daa0212102ad19d1b2d8798",
       "role": "runtime",
       "ranges": [
         {
@@ -769,202 +770,202 @@
         },
         {
           "startLine": 2847,
-          "endLine": 3093,
+          "endLine": 3096,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 3094,
-          "endLine": 3490,
+          "startLine": 3097,
+          "endLine": 3493,
           "feature": "title-policy"
         },
         {
-          "startLine": 3491,
-          "endLine": 3584,
+          "startLine": 3494,
+          "endLine": 3587,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3585,
-          "endLine": 3598,
+          "startLine": 3588,
+          "endLine": 3601,
           "feature": "audio-beat-engine"
         },
         {
-          "startLine": 3599,
-          "endLine": 3613,
+          "startLine": 3602,
+          "endLine": 3616,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3614,
-          "endLine": 3621,
+          "startLine": 3617,
+          "endLine": 3624,
           "feature": "music-policy"
         },
         {
-          "startLine": 3622,
-          "endLine": 3688,
+          "startLine": 3625,
+          "endLine": 3691,
           "feature": "worker-owner"
         },
         {
-          "startLine": 3689,
-          "endLine": 3711,
+          "startLine": 3692,
+          "endLine": 3714,
           "feature": "music-policy"
         },
         {
-          "startLine": 3712,
-          "endLine": 3724,
+          "startLine": 3715,
+          "endLine": 3727,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 3725,
-          "endLine": 3787,
+          "startLine": 3728,
+          "endLine": 3790,
           "feature": "panel-ui"
         },
         {
-          "startLine": 3788,
-          "endLine": 3801,
+          "startLine": 3791,
+          "endLine": 3804,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3802,
-          "endLine": 3951,
+          "startLine": 3805,
+          "endLine": 3954,
           "feature": "panel-ui"
         },
         {
-          "startLine": 3952,
-          "endLine": 3960,
+          "startLine": 3955,
+          "endLine": 3963,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 3961,
-          "endLine": 4405,
+          "startLine": 3964,
+          "endLine": 4408,
           "feature": "asset-owner"
         },
         {
-          "startLine": 4406,
-          "endLine": 4989,
+          "startLine": 4409,
+          "endLine": 4992,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 4990,
-          "endLine": 5009,
+          "startLine": 4993,
+          "endLine": 5012,
           "feature": "music-policy"
         },
         {
-          "startLine": 5033,
-          "endLine": 5039,
+          "startLine": 5036,
+          "endLine": 5042,
           "feature": "panel-ui"
         },
         {
-          "startLine": 5040,
-          "endLine": 5050,
+          "startLine": 5043,
+          "endLine": 5053,
           "feature": "music-policy"
         },
         {
-          "startLine": 5051,
-          "endLine": 5068,
+          "startLine": 5054,
+          "endLine": 5071,
           "feature": "source-input"
         },
         {
-          "startLine": 5069,
-          "endLine": 5094,
+          "startLine": 5072,
+          "endLine": 5097,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5095,
-          "endLine": 5163,
+          "startLine": 5098,
+          "endLine": 5166,
           "feature": "program-policy"
         },
         {
-          "startLine": 5164,
-          "endLine": 6228,
+          "startLine": 5167,
+          "endLine": 6231,
           "feature": "panel-ui"
         },
         {
-          "startLine": 6229,
-          "endLine": 6278,
+          "startLine": 6232,
+          "endLine": 6281,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 6279,
-          "endLine": 6528,
+          "startLine": 6282,
+          "endLine": 6531,
           "feature": "source-input"
         },
         {
-          "startLine": 6529,
-          "endLine": 6547,
+          "startLine": 6532,
+          "endLine": 6550,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6548,
-          "endLine": 6714,
+          "startLine": 6551,
+          "endLine": 6717,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6715,
-          "endLine": 6757,
+          "startLine": 6718,
+          "endLine": 6760,
           "feature": "panel-ui"
         },
         {
-          "startLine": 6758,
-          "endLine": 6873,
+          "startLine": 6761,
+          "endLine": 6876,
           "feature": "catalog-read"
         },
         {
-          "startLine": 6874,
-          "endLine": 7273,
+          "startLine": 6877,
+          "endLine": 7276,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7274,
-          "endLine": 7320,
+          "startLine": 7277,
+          "endLine": 7323,
           "feature": "app-guard"
         },
         {
-          "startLine": 7320,
-          "endLine": 7320,
+          "startLine": 7323,
+          "endLine": 7323,
           "feature": "panel-ui"
         },
         {
-          "startLine": 5239,
-          "endLine": 5262,
+          "startLine": 5242,
+          "endLine": 5265,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5263,
-          "endLine": 5270,
+          "startLine": 5266,
+          "endLine": 5273,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5308,
-          "endLine": 5344,
+          "startLine": 5311,
+          "endLine": 5347,
           "feature": "catalog-read"
         },
         {
-          "startLine": 5534,
-          "endLine": 5628,
+          "startLine": 5537,
+          "endLine": 5631,
           "feature": "music-policy"
         },
         {
-          "startLine": 5631,
-          "endLine": 5649,
+          "startLine": 5634,
+          "endLine": 5652,
           "feature": "scene-observation"
         },
         {
-          "startLine": 5655,
-          "endLine": 5687,
+          "startLine": 5658,
+          "endLine": 5690,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 5690,
-          "endLine": 5916,
+          "startLine": 5693,
+          "endLine": 5919,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5953,
-          "endLine": 5957,
+          "startLine": 5956,
+          "endLine": 5960,
           "feature": "montage-policy"
         },
         {
-          "startLine": 5012,
-          "endLine": 5032,
+          "startLine": 5015,
+          "endLine": 5035,
           "feature": "music-policy"
         }
       ],
@@ -1629,6 +1630,32 @@
           "feature": "source-input"
         }
       ]
+    },
+    {
+      "path": "tests/clip_analysis_sources.test.mjs",
+      "role": "validation",
+      "hashMode": "lf-text",
+      "sha256": "81e6c5664be381916671673d4822748398ab5f5e1a923a1b3dc48dc001b79a17",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 9,
+          "feature": "local-video-analysis"
+        }
+      ]
+    },
+    {
+      "path": "shared/clip-analysis.js",
+      "role": "build-source",
+      "hashMode": "lf-text",
+      "sha256": "572d132c96ca7aa303e21f30ef924a95f5d66ca8561d8a0c8bbb191d7311522c",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 247,
+          "feature": "local-video-analysis"
+        }
+      ]
     }
   ],
   "assets": [
@@ -1774,7 +1801,7 @@
     },
     {
       "path": "plugins/mini-vlog/plugin.json",
-      "sha256": "49aaa09c674bc5de2e27c4869205e4f1406d22bcdfd6a11b42c7bc39f6c2e9d9",
+      "sha256": "cb3c669ce0306733587e6853567547253ffd46b1add51abee6176a9f625954bf",
       "feature": "copy-and-package",
       "reason": "Declared package inputs/compatibility/options and release metadata.",
       "hashMode": "lf-text"

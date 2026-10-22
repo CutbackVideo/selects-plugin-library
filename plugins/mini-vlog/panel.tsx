@@ -1859,7 +1859,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.30";
+const PLUGIN_VERSION = "0.1.0-alpha.31";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -3078,12 +3078,15 @@ function qsCandidates(scores, role, durationNeeded, max, apart) {
   return out;
 }
 
-function clipAnalysisSources(results){
+function clipAnalysisSources(results,expected=null){
  if(!Array.isArray(results)||results.length>256)throw clipAnalysisIssue('RESULT','The local analysis source observations are incomplete.');
+ if(expected!==null&&(!Array.isArray(expected)||expected.some(row=>!row||typeof row.path!=='string'||!row.path||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))||new Set(expected.map(row=>row.path)).size!==expected.length))throw clipAnalysisIssue('INPUT','The expected local analysis sources are invalid.');
+ const originals=expected===null?null:new Map(expected.map(row=>[row.path,row]));
  const seen=new Map();
  for(const result of results){
   const row=result?.scores?.sourceObservation;
   if(!row||typeof row.path!=='string'||!row.path||!Number.isSafeInteger(row.size)||row.size<1||typeof row.sha256!=='string'||!/^[a-f0-9]{64}$/.test(row.sha256))throw clipAnalysisIssue('RESULT','The local analysis source observation could not be confirmed.');
+  if(originals){const before=originals.get(row.path);if(!before||before.size!==row.size||before.sha256!==row.sha256)throw clipAnalysisIssue('SOURCE_CHANGED','The analysis result belongs to different original video contents.');}
   const before=seen.get(row.path);if(before&&(before.size!==row.size||before.sha256!==row.sha256))throw clipAnalysisIssue('SOURCE_CHANGED','The original video changed between analysis observations.');
   seen.set(row.path,{path:row.path,size:row.size,sha256:row.sha256});
  }

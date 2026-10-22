@@ -549,12 +549,12 @@ for (const k of ['localNote', 'localChecked', 'stillAdding']) for (const l of Ob
 // cancellable, progress per part), and both join the planner through avShotCandidates (one score scale).
 for (const s of ['const rids: string[] = chosenRes.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);',
   'const localRes: any[] = chosenRes.filter((r: any) => r.analysed === false);',
-  '{ dataDir: roots?.data || null, concurrency: AV_LOCAL_CONCURRENCY, budgetMs: AV_LOCAL_BUDGET_MS, signal: ac.signal, onProgress: (p: any) => onDone(p.done) }',
   'toScore.length ? t(l, "localChecked", { done: scored, count: toScore.length }) : ""', 'todo.length ? t(l, "videosChecked", { done: searched, count: todo.length }) : ""',
-  'found = { key, failed: fresh.failed, local: cached ? cached.local : local,', 'const shots = avShotCandidates(found.list, found.local, { bpm: tempo, pace, durations: dur });',
+  'const shots = avShotCandidates(found.list, found.local, { bpm: tempo, pace, durations: dur });',
   'const scored = avShotCandidates(searched ? searched.list : [], searched ? searched.local : null, { bpm: tempo, pace, durations: dur });',
-  'alive = false; stopPreview(); localAbortRef.current?.abort();', ']).catch((e) => { localAbortRef.current?.abort(); throw e; });']) assert.ok(ui.includes(s), s);
-assert.equal((ui.match(/localAbortRef\.current\?\.abort\(\)/g) || []).length, 3, 'a new check, a Project switch / unmount, and a failed search cancel the local check');
+  'alive = false; stopPreview(); localAbortRef.current?.abort();']) assert.ok(ui.includes(s), s);
+// Cache invalidation, aggregate budgets and sibling settlement are verified through
+// actual Build/common-owner behavior in tests/archive_video_analysis.test.mjs.
 // Length: "N of M shots fit" from the planner, durations from avVideoSeconds.
 for (const s of ['const requested = avMontageShots(length, pace);', 'avFitShots({ requested, pace, bpm: tm.tempo, sectionStart: timed ? grid.firstBeat : 0, usableEnd: grid.usableEnd })',
   'const seconds = (n: number) => avVideoSeconds({ bpm: tm.tempo, pace, montageShots: n });', 't(L, "fitPartial", { length: lengthName, fitted, count: fit.top, seconds: tenths(videoSeconds) })',

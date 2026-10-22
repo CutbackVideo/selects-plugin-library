@@ -52,6 +52,11 @@ before inventory/scene analysis or music import. Repeated entries of one Resourc
 do not count as different clips. An existing unresolved saved run is confirmed
 using its original inputs before a new selection is considered.
 
+In the panel, replacing a selected video refreshes its local shot analysis even
+when its path, file size and modification time stay the same. A missing or changed
+original stops the build. An ordinary decoder failure keeps the existing fallback
+windows; an unconfirmed media job stops and preserves its workspace for inspection.
+
 ## Default path
 
 1. Open a Project with city or travel clips (and photos, if you like) and open
