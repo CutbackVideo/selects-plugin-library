@@ -613,7 +613,7 @@ assert.ok(ui.includes('if (timer) clearTimeout(timer);'), 'the timer stops with 
   assert.equal((tpl.match(/run\("Add title and look"/g) || []).length, 1, 'one decorate call site');
   assert.equal((tpl.match(/await finish\(\)/g) || []).length, 2, 'one retry, as the inherited template run');
   assert.ok(!/templateIssue\("/.test(ui), 'no English template messages');
-  for (const k of ['tpl.noFootage', 'tpl.noMusic', 'tpl.noStyles', 'tpl.notFound', 'tpl.notAnalysed', 'tpl.noTitle', 'tpl.finishFailed']) assert.ok(tpl.includes('t(bl, "' + k + '"'), k);
+  for (const k of ['tpl.noFootage', 'tpl.noMusic', 'tpl.noStyles', 'stepFailed', 'tpl.notAnalysed', 'tpl.noTitle', 'tpl.finishFailed']) assert.ok(tpl.includes('t(bl, "' + k + '"'), k);
   assert.ok(tpl.includes('unanalysed ? t(bl, "tpl.notAnalysed", { count: unanalysed }) : ""].filter(Boolean).join(t(bl, "gap"))'));
   const run = ui.slice(ui.indexOf('function TemplateRun('));
   for (const k of ['tpl.stoppedAt', 'tpl.stopped', 'tpl.done', 'tpl.stepDetail']) assert.ok(run.includes('"' + k + '"'), k);
@@ -723,7 +723,9 @@ Promise.all([hostTests, templateTest]).then(() => console.log('panel ok'), e => 
 // insertResource with "Resource analyzed sequence not found"), and the "not found" message carries it.
 {
   const src = panel.slice(panel.indexOf('const TEMPLATE_ALIAS_JS = `') + 'const TEMPLATE_ALIAS_JS = `'.length);
-  const script = src.slice(0, src.indexOf('`;')).replace('__CONFIG__', JSON.stringify({ projectId: 'p', files: [{ rid: 'r1', kind: 'video' }, { rid: 'r2', kind: 'video' }] }));
+  const shared = fs.readFileSync(path.resolve(root, '../../shared/native-image-input.mjs'), 'utf8').replace(/^export /gm, '');
+  const declaration = 'const TEMPLATE_ALIAS_JS = `' + src.slice(0, src.indexOf('`;')) + '`;';
+  const script = new Function(shared + '\n' + declaration + '\nreturn TEMPLATE_ALIAS_JS;')().replace('__CONFIG__', JSON.stringify({ projectId: 'p', files: [{ rid: 'r1', kind: 'video' }, { rid: 'r2', kind: 'video' }] }));
   const draft = { clips: async () => [], insertResource: async ({ resourceId }) => { throw new Error('Resource analyzed sequence not found: seq-' + resourceId); }, meta: async () => ({}) };
   const selects = { project: () => ({ createDraft: async () => draft }) };
   const run = new Function('selects', 'return (async () => {' + script + '})();');

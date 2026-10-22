@@ -34,6 +34,18 @@ an unrelated workflow. A passing unit suite alone is not completion.
   See [gallery-index-observation.md](gallery-index-observation.md). The pool and
   28-template completion gates remain unchanged.
 
+- Mini Vlog 0.1.0-alpha.12 / Archive Vlog 0.1.0-alpha.7 share observed source
+  resolution in the existing input feature: five features / twelve consumers.
+  Errors retain phase/reason; lost completed insertion replies are observed;
+  unconfirmed source steps are not replayed. Original Image size comes from
+  native source facts, repairing a 96x160-photo/1920x1080-canvas mix-up. Forty
+  focus checks, 71 vlog checks and 966 related consumer checks pass (overlap).
+  Seven actual SDK cases use persistent UUIDs and preserve both saved Drafts'
+  complete Driver JSON. See [template-source-resolution.md](template-source-resolution.md).
+  Original C-09 runtime cause/availability, full template/platform/AV and other
+  gates remain open. A missing bounded-read test adapter is corrected on parent
+  branches after its exact CI failure is reproduced; no product guard is relaxed.
+
 - Mini Vlog 0.1.0-alpha.11 fixes wrong-cue reuse by filename/approximate length
   and confirms its one music import through an independent Project read. It
   reuses the existing asset reader, generated into the installed operation:
@@ -149,7 +161,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | Template | Current evidence | Remaining |
 | --- | --- | --- |
 | `ali-abdaal-style` | Source audit only | Full contract and runtime completion gates above |
-| `archive-vlog` | Source audit only | Full contract and runtime completion gates above |
+| `archive-vlog` | Shared source identity/input observations and native Image facts; source/caller RED/GREEN and actual SDK UUID/alias/photo checks | Original C-09 environment/availability, lifecycle/partial saves and full contract/runtime completion gates above |
 | `camera-shutter-dump` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
 | `chris-williamson-style` | Source audit only | Full contract and runtime completion gates above |
 | `cinema-vlog-studio` | Source audit only | Full contract and runtime completion gates above |
@@ -161,7 +173,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `four-photo-stop-motion` | Shared bundled Audio/input/bootstrap + single complete commit + durable run recovery and saved-state receipts; client #7828 prerequisite | Full contract and runtime completion gates above |
 | `gongju-gallery` | Duration regression + draft #258; CI pass | Full contract and runtime completion gates above |
 | `jude-kinetic-style` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
-| `mini-vlog` | Shared exact-path Audio reader / generated operation, one observed import; source RED/GREEN and actual SDK wrong-cue/reuse/lost-reply cases | Owned cue bytes/X12, alias errors/C-09, lifetime/recovery/partial saves and full contract/runtime completion gates above |
+| `mini-vlog` | Shared exact-path Audio / observed import; shared source identity/native photo facts; source/caller RED/GREEN and actual SDK Audio/UUID/lost-reply cases | Owned cue bytes/X12, original C-09 runtime/availability, lifetime/recovery/partial saves and full contract/runtime completion gates above |
 | `no14-still-video` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
 | `photo-gallery-no2` | Shared input/run/assets, source-content guards, real SDK/browser rendering; dev-app SQLite/playback/native and codec evidence; shared late-cancellation, lost-reply reservation and bounded asset-read RED/GREEN | Complete image/AV quality, crash/unknown-operation recovery, cleanup failures/GC, installed app, Windows, Inspector, reference/changed-input quality and full contract gates above |
 | `place-count` | Canonical authoring check + draft #260; automated regressions pass | Full contract and runtime completion gates above |
