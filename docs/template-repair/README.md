@@ -32,6 +32,16 @@ current source inventory, initial decisions, all-template ledger and full gate.
 
 ## Current checkpoint
 
+- Mini alpha.14 / Archive alpha.8 capture the originating async client for audio
+  decoding and reuse the existing asset owner for bounded temporary media,
+  cancellation and observed cleanup. Mini's actual preview Stop now aborts its
+  producer. Gallery 0.3.23 reuses the extracted reservation mechanism with its
+  persistent-cache contracts preserved. See [mini-media-scope.md](mini-media-scope.md)
+  for RED/GREEN, 26 focused cases, existing-consumer and nine actual SDK scenarios.
+  The five-entry registry remains partial; complete feature ownership and template
+  acceptance remain 0/28. Archive's whole-file fallback and remaining ownership
+  gates are explicit, not implied complete by this extension.
+
 - Mini Vlog 0.1.0-alpha.13 prepares verified, content-addressed bundled music
   outside the plugin installation in both entry points. It reuses the existing
   asset feature; own music/silence retain their contracts, and earlier cue bytes
@@ -183,7 +193,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | Template | Current evidence | Remaining |
 | --- | --- | --- |
 | `ali-abdaal-style` | Source audit only | Full contract and runtime completion gates above |
-| `archive-vlog` | Shared source identity/input observations and native Image facts; source/caller RED/GREEN and actual SDK UUID/alias/photo checks | Original C-09 environment/availability, lifecycle/partial saves and full contract/runtime completion gates above |
+| `archive-vlog` | Shared source identity/native Image facts; canonical async adapter and invocation-owned PCM; caller RED/GREEN and actual SDK UUID/alias/photo/audio checks | Whole-file preview/WebAudio fallback budget and source attestation; original C-09 environment/availability, lifecycle/partial saves and full contract/runtime gates |
 | `camera-shutter-dump` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
 | `chris-williamson-style` | Source audit only | Full contract and runtime completion gates above |
 | `cinema-vlog-studio` | Source audit only | Full contract and runtime completion gates above |
@@ -195,7 +205,7 @@ reproduction, code/tests, save readback, full playback/export and platform evide
 | `four-photo-stop-motion` | Shared bundled Audio/input/bootstrap + single complete commit + durable run recovery and saved-state receipts; client #7828 prerequisite | Full contract and runtime completion gates above |
 | `gongju-gallery` | Duration regression + draft #258; CI pass | Full contract and runtime completion gates above |
 | `jude-kinetic-style` | Shared AI bounded observation + adapter/generated-copy regressions | Full contract and runtime completion gates above |
-| `mini-vlog` | Shared verified content-owned cue bytes in both entries; exact-path own Audio / observed import; shared source identity/native photo facts; caller RED/GREEN and actual SDK music/UUID/lost-reply cases | Existing installation-linked Draft recovery and full X12 acceptance; original C-09 runtime/availability, lifetime/recovery/partial saves and full contract/runtime completion gates above |
+| `mini-vlog` | Shared verified cue bytes in both entries; exact-path own Audio / observed import; source identity/native photo facts; canonical async adapter, invocation-owned PCM and actual preview Stop; caller RED/GREEN and actual SDK cases | Existing installation-linked Draft recovery and full X12 acceptance; remaining source attestation, worker/other feature ownership, original C-09 runtime/availability and full lifetime/recovery/save/runtime gates |
 | `no14-still-video` | Original-file preflight + single complete Draft commit + durable app-run recovery; full contract still open | Full contract and runtime completion gates above |
 | `photo-gallery-no2` | Shared input/run/assets, source-content guards, real SDK/browser rendering; dev-app SQLite/playback/native and codec evidence; shared late-cancellation, lost-reply reservation and bounded asset-read RED/GREEN | Complete image/AV quality, crash/unknown-operation recovery, cleanup failures/GC, installed app, Windows, Inspector, reference/changed-input quality and full contract gates above |
 | `place-count` | Canonical authoring check + draft #260; automated regressions pass | Full contract and runtime completion gates above |

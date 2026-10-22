@@ -1,6 +1,16 @@
 # Validation and limits
 
-## Current repair checkpoint: 0.3.22
+## Current repair checkpoint: 0.3.23
+
+The existing derived-file owner reuses an extracted reservation mechanism while
+Mini/Archive extend the same asset feature for temporary audio. Gallery's content
+hashes, cache/index publication, liveness checks and best-effort cleanup policy
+remain unchanged; persistent-cache cleanup failure/GC acceptance stays open.
+Stage ownership, derived lifetime and existing shared-consumer regressions cover
+the extraction. See `docs/template-repair/mini-media-scope.md` for the boundary
+and separate Mini/Archive SDK evidence. No new Gallery playback/export claim.
+
+## Previous repair checkpoint: 0.3.22
 
 The existing shared derived-file owner now distinguishes a concurrently replaced
 complete cache index from a cache miss. It reobserves only changed index reads,

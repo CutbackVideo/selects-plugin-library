@@ -20,11 +20,11 @@ export function hostBlock(source) {
   return source.slice(s, e + END.length);
 }
 
-// Archive Vlog's block, which every copy must match byte for byte.
-export const REFERENCE_BLOCK = hostBlock(panelSource('archive-vlog'));
+// Unmigrated copies retain this baseline; Mini/Archive use the asset owner.
+export const REFERENCE_BLOCK = hostBlock(panelSource('city-weekend-vlog'));
 
 // Shell syntax that cmd.exe does not run. The copied host block is left out
-// (it is checked against Archive Vlog's byte for byte instead).
+// (it is checked against the legacy baseline byte for byte instead).
 export const POSIX = [
   /\bprintf\b/, /\$HOME\b/, /\$\{?SELECTS_USER/, /\bcommand -v\b/, /\bmkdir -p\b/, /\brm -f\b/,
   /(?<![.\w])base64 /, /\bexport PATH\b/, /\bshasum\b/, /\bcat "/, /\bpwd -P\b/, /\bmv -f\b/, /\|\s*grep\b/,

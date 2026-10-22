@@ -63,8 +63,8 @@ for (const f of walk(root).filter(f => /\.(tsx|js|cjs|json|md|sh)$/.test(f))) as
     assert.ok(!(bad === "base64 " ? /(?<![\w.])base64\s/.test(runtime) : runtime.includes(bad)), 'POSIX shell in the runtime: ' + bad);
   assert.ok(!/["'`]\s*node\s/.test(runtime.replace(/\/\/.*$/gm, '')), 'no node subprocess');
   const host = code.slice(code.indexOf('// av-host:start'), code.indexOf('// av-host:end'));
-  const av = fs.readFileSync(path.join(root, '..', 'archive-vlog', 'panel.tsx'), 'utf8');
-  assert.equal(host, av.slice(av.indexOf('// av-host:start'), av.indexOf('// av-host:end')), 'av-host is Archive Vlog\'s block, unchanged');
+  const av = fs.readFileSync(path.join(root, '..', 'fast-switching-stopmotion', 'panel.tsx'), 'utf8');
+  assert.equal(host, av.slice(av.indexOf('// av-host:start'), av.indexOf('// av-host:end')), 'legacy av-host matches the unmigrated Fast Switching copy');
   for (const phrase of ['hostRoots(sdk, PLUGIN_ID, "planner.js")', 'hostReadText(hostJoin(root, ...rel.split("/")))', 'hostJoin(roots.plugin, "assets", "cues", cue.file)',
     'decodeOwnMusic(file.path, roots.data, abort.signal)', 'analyseBeat(assets.beatWorker, samples, abort.signal)', 'beatWorker: cwvBeatWorkerSource(beatDetect)', 'hostProbeSeconds(file.path)',
     'const bytes = await hostReadBytes(file);', 'audio.currentTime = from;', 'duration: bundled ? bundled.duration : null']) assert.ok(code.includes(phrase), phrase);

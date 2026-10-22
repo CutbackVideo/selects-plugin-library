@@ -1,3 +1,4 @@
+# Unmigrated av-host copies retain the City Weekend baseline; Mini/Archive now use bundled-assets.
 """Beat Cutout Gallery shares its local RVM path, worker and FFmpeg across platforms."""
 import json
 from pathlib import Path
@@ -19,7 +20,7 @@ class CutoutBeatGalleryWindowsTest(unittest.TestCase):
         cls.text=(PLUGIN/'panel.tsx').read_text();cls.portable=MAC_ONLY.sub('',cls.text)
         cls.manifest=json.loads((PLUGIN/'plugin.json').read_text())
     def test_shared_host_adapter_is_unchanged(self):
-        reference=(ROOT/'plugins/archive-vlog/panel.tsx').read_text()
+        reference=(ROOT/'plugins/city-weekend-vlog/panel.tsx').read_text()
         self.assertEqual(HOST_BLOCK.search(self.text).group(0),HOST_BLOCK.search(reference).group(0))
     def test_general_path_has_no_python_swift_or_paid_cloud(self):
         for token in ['swiftc','foreground-mask','mg.submit(','selects.generation.','runShell(','python3']:

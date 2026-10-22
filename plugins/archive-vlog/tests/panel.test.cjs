@@ -384,12 +384,13 @@ function hostBox({ platform, files = new Set(), shell = null, ffmpeg = null, noJ
     readFile: readFile || (async p => { throw Error('no file ' + p); }),
     removeFile: async ({ filePath }) => calls.removed.push(filePath),
   };
-  const Runtime = { getPlatform: () => platform, ...(ffmpeg ? { runFFmpeg: async (argv, quiet, signal) => { calls.ffmpeg.push(argv); return ffmpeg(argv); } } : {}) };
-  const ctx = { window: { parent: { get __DI__() { throw Error('Unexpected DI access'); } } }, navigator: { platform: '', userAgent: '' }, TextDecoder, Uint8Array, ArrayBuffer, Float32Array,
+  const mediaFiles = require(path.join(root, '../../tests/async_media_files.cjs')).asyncMediaFiles(FileSystem);
+  const Runtime = { getPlatform: () => platform, ...(ffmpeg ? { runFFmpeg: async (argv, quiet, signal) => { calls.ffmpeg.push(argv); const result = await ffmpeg(argv); if (readFile) mediaFiles.publish(argv.at(-1), await readFile(argv.at(-1))); return result; } } : {}) };
+  const ctx = { crypto: require('node:crypto').webcrypto, TextEncoder, window: { parent: { get __DI__() { throw Error('Unexpected DI access'); } } }, navigator: { platform: '', userAgent: '' }, TextDecoder, Uint8Array, ArrayBuffer, Float32Array,
     setTimeout, clearTimeout, AbortController, Date, Math, String, Error, parseFloat };
-  ctx.sdk = { files: FileSystem, media: Runtime, environment: { platform } };
+  ctx.sdk = { files: mediaFiles.files, media: Runtime, environment: { platform } };
   vm.createContext(ctx);
-  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + hostBlock + '\nhostUseSdk(sdk);this.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostNeed, hostApi, hostIsWindows };', ctx);
+  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + block(panel, 'bundled-assets') + '\n' + hostBlock + '\nhostUseSdk(sdk);this.H = { hostRoots, hostJoin, hostReadBytes, hostReadText, hostDecodePcm, hostNeed, hostApi, hostIsWindows };', ctx);
   const sdk = { ...ctx.sdk, runShell: async (o) => { calls.shell.push(o.command); return shell ? shell(o.command) : { stdout: '' }; } };
   return { H: ctx.H, calls, sdk };
 }
@@ -441,8 +442,9 @@ const hostTests = (async () => {
     assert.deepEqual(Array.from(out), Array.from(samples));
     const argv = j(calls.ffmpeg[0]);
     assert.deepEqual(argv.slice(0, 8), ['-nostdin', '-v', 'error', '-y', '-t', '240', '-i', 'C:\\Users\\me\\Music\\my song.mp3']);
-    assert.deepEqual(argv.slice(8, 14), ['-ac', '1', '-ar', '22050', '-f', 'f32le']);
-    assert.ok(/^C:\\data\\pcm-[\w-]+\.f32$/.test(wrote), 'temp file in the data folder, ASCII name: ' + wrote);
+    assert.deepEqual(argv.slice(8, 15), ['-vn', '-ac', '1', '-ar', '22050', '-f', 'f32le']);
+    assert.equal(path.win32.dirname(wrote), 'C:\\data');
+    assert.match(path.win32.basename(wrote), /^\.media-[a-f0-9-]{36}\.f32$/i, 'ASCII owned output name');
     assert.deepEqual(calls.removed, [wrote], 'the temp file is removed');
   }
   // Cleanup uses the public async removeFile method and tolerates failure.
@@ -574,11 +576,11 @@ for (const s of ['const bytes = await readBytes(file);', 'URL.createObjectURL(ne
   'const file = musicKind === "own" ? ownMusic!.path : pjoin(roots.plugin, "assets", "cues", cue.file);']) assert.ok(ui.includes(s), s);
 // Own music: decoded by the host's ffmpeg (WebAudio without it), analysed in a worker only, cancellable, stale results
 // dropped; any failure falls back to fixed timing.
-for (const s of ['samples = await decodeOwnMusic(file.path, roots.data, abort.signal);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal);',
-  'hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal)', 'ctx.decodeAudioData(bytes.slice().buffer)', 'worker = new Worker(url);', 'try { worker?.terminate(); } catch',
+for (const s of ['samples = await decodeOwnMusic(file.path, roots.data, abort.signal, client);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal);',
+  'hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal, 120000, client)', 'ctx.decodeAudioData(bytes.slice().buffer)', 'worker = new Worker(url);', 'try { worker?.terminate(); } catch',
   'const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;', 'setOwnGrid({ accepted: false, grid: "none", failed: true, durationSeconds: duration, peaks: [] });',
   'if (v !== "own") { cancelOwnMusic(); setOwnMusic(null); setOwnGrid(null); }', 'if (cancelOwnMusic() && mountedRef.current) { setOwnMusic(null); setOwnGrid(null); }',
-  'worker-src * data: blob:', 'const v = await hostProbeSeconds(file.path);', 't(L, "ownMusicHint", { count: OWN_MAX_SECONDS / 60 })']) assert.ok(ui.includes(s), s);
+  'worker-src * data: blob:', 'const v = await hostProbeSeconds(file.path, client, abort.signal);', 't(L, "ownMusicHint", { count: OWN_MAX_SECONDS / 60 })']) assert.ok(ui.includes(s), s);
 assert.ok(/const OWN_RATE = 22050;/.test(panel) && /const OWN_MAX_SECONDS = 240;/.test(panel));
 assert.ok(!/analyze\(samples, OWN_RATE/.test(ui), 'never analysed on the panel thread');
 // The music cue is imported from the install folder by a joined path.

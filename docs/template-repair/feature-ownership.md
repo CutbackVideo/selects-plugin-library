@@ -72,8 +72,18 @@ those inventory behaviors, not semantic completeness of this table.
 | --- | --- | --- | --- |
 | Mini original Resource ID/alias and native Image facts | Reuse `native-image-input` | Resolve the selected original input and report structured observations; montage/planning policy remains with Mini | Source/caller RED/GREEN and actual SDK cases in `template-source-resolution.md`; full template acceptance open |
 | Mini bundled cue preservation | Reuse `bundled-assets` | Pin cue bytes/hash, publish owned data and independently confirm Audio; Mini supplies cue policy and the planned required interval | Both caller paths, 31 boundary tests and eight initial actual SDK cases in `mini-owned-cues.md`; existing installation-linked Draft recovery open |
-| Mini local files/media transport | Reuse `shared/local-client.ts` | Canonical async file/media primitives already exist; an older embedded copy is not a reason to create a competing file module | Convergence remains pending. Exact embedded-client actual SDK reuse has additional evidence; broader dependency/migration review still required |
+| Mini and Archive local files/media transport and bootstrap | Reuse `shared/local-client.ts` unchanged | Canonical async file/media primitives and scoped connection lifetime already exist; no competing file module or public SDK change | Both generated adapters migrated and checked; wrapper/transport regressions and exact embedded-client actual SDK cases in `mini-media-scope.md`. Remaining legacy file/scoring callers still need their own ownership review |
+| Mini and Archive temporary PCM / Mini preview staging | Extend `bundled-assets` | Reuse exclusive reservation, bounded byte reader and media process scope; own one captured client, declared read budget, cancellation/deadline and cleanup outcome | 26 focused TDD cases, existing-consumer checks and nine actual SDK scenarios in `mini-media-scope.md`. Temporary source-content attestation and crash recovery remain open |
+| Mini preview encoding and Archive playback/fallback policy | Keep template-specific policy | Mini encodes a bounded MP3 section; Archive seeks/fades a whole-track Blob and supports ordinary decode failure through WebAudio. Sharing the owner does not require silently changing those user contracts | Mini's actual Stop aborts the common producer. Archive preserves healthy fallback but stops on terminal ownership errors. Whole-file budget and fallback/source analysis remain open |
 | Mini template policy data | Keep template-specific data | Track choices, title presets, default length/pace and styling express this template's promised output; the same data schema need not imply identical values | Preserve policy while reviewing mechanisms separately; this decision does not classify every planner, UI or typography function |
+
+These new feature records extend the initial decisions; they still do not cover
+every function, callback or script in Mini/Archive. The baseline counts below
+remain tied to their inherited snapshot. Archive now also declares bundled-assets;
+regenerate the structural inventory to inspect current source locations/counts.
+Whole-template ownership reviews remain 0/28. PR #309's final CI run
+`39704738763` completed successfully; that validates the inventory checks, not
+semantic completeness of this ledger.
 
 The remaining candidate responsibilities include file/media preparation, paged
 inventory/read budgets, local clip scoring, language mechanics, beat-worker

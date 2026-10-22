@@ -650,7 +650,45 @@ async function prepareDerivedAsset(files,options){
  if(typeof owner!=='string'||!/^[0-9a-f-]{36}$/i.test(owner))throw bundledAssetIssue('UNSUPPORTED','The media preparation owner could not be created.');
  current();await files.mkdir(directory,{recursive:true});current();
  const snapshot=files.join(directory,'.source-'+owner),temporary=files.join(directory,'.output-'+owner+'.'+extension+'.tmp');
- const owned=new Set(),tokens=new Set();let result;
+ let result;const reservations=reserveAssetFiles(files,current,owner);
+
+ try{
+  // Reserve each private path exclusively before copying/encoding over it.
+  await reservations.reserve(snapshot,'source');await reservations.reserve(temporary,'output');
+  await files.copyFile(sourcePath,snapshot);current();
+  if(!same(await readAssetFileIdentity(files,snapshot,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed while its working copy was prepared. Start a new run.');
+  await produce(snapshot,temporary);current();await freshSource();
+  await verify(temporary);current();const output=await readAssetFileIdentity(files,temporary,hashFile,current);
+  current();await files.mkdir(objectDirectory,{recursive:true});current();
+  const path=files.join(objectDirectory,output.sha256+'.'+extension);
+  let have=false;
+  try{have=same(await readAssetFileIdentity(files,path,hashFile,current),output);}catch{current();}
+  if(!have){
+   // A lost rename reply is observed, never retried or implemented as delete+move.
+   try{current();await files.rename(temporary,path);}catch{}
+   current();let confirmed=false;
+   try{confirmed=same(await readAssetFileIdentity(files,path,hashFile,current),output);}catch(error){current();if(error?.terminal||error?.code==='host-missing')throw error;}
+   if(!confirmed)throw bundledAssetIssue('PUBLISH','The prepared media publication could not be confirmed. Inspect the cache before starting again.');
+  }
+  await freshSource();current();await files.mkdir(indexDirectory,{recursive:true});current();
+  const text=JSON.stringify({version:1,key,source,output});
+  try{await files.writeFile(indexPath,text);}catch{/* Observe an acknowledged or concurrent complete index below. */}
+  current();const confirmed=await cached();
+  if(!confirmed)throw bundledAssetIssue('PUBLISH','The prepared media index could not be confirmed. Inspect the cache before starting again.');
+  result={...confirmed,reused:false};
+ }catch(error){
+  if(error?.terminal||error?.code==='host-missing'||typeof error?.publicMessage==='string'||/^BUNDLED_ASSET_/.test(error?.code??''))throw error;
+  throw bundledAssetIssue('DERIVED','Prepared media could not be completed. Check the source, available storage and media tools.',error);
+ }finally{
+  // Only this invocation's reserved staging paths are disposable. Published
+  // objects/indexes may already be referenced by a different run or old Draft.
+  await reservations.cleanup();
+ }
+ // Cleanup is asynchronous too: a detached owner must not receive a late success.
+ current();return result;
+}
+function reserveAssetFiles(files,current,owner){
+ const owned=new Set(),tokens=new Set();
  const reservationUnknown=cause=>Object.assign(bundledAssetIssue('RESERVATION_UNKNOWN','The media file reservation could not be confirmed. Inspect the preparation workspace before starting again.',cause),{terminal:true});
  // Ownership observations are bounded and can run after cancellation so only
  // positively identified reservations enter cleanup. A filename alone is not proof.
@@ -679,40 +717,19 @@ async function prepareDerivedAsset(files,options){
   if(cleared!=='')throw reservationUnknown(clearFailure);
   owned.add(path);current();
  };
- try{
-  // Reserve each private path exclusively before copying/encoding over it.
-  await reserve(snapshot,'source');await reserve(temporary,'output');
-  await files.copyFile(sourcePath,snapshot);current();
-  if(!same(await readAssetFileIdentity(files,snapshot,hashFile,current),source))throw bundledAssetIssue('CHANGED','The source media changed while its working copy was prepared. Start a new run.');
-  await produce(snapshot,temporary);current();await freshSource();
-  await verify(temporary);current();const output=await readAssetFileIdentity(files,temporary,hashFile,current);
-  current();await files.mkdir(objectDirectory,{recursive:true});current();
-  const path=files.join(objectDirectory,output.sha256+'.'+extension);
-  let have=false;
-  try{have=same(await readAssetFileIdentity(files,path,hashFile,current),output);}catch{current();}
-  if(!have){
-   // A lost rename reply is observed, never retried or implemented as delete+move.
-   try{current();await files.rename(temporary,path);}catch{}
-   current();let confirmed=false;
-   try{confirmed=same(await readAssetFileIdentity(files,path,hashFile,current),output);}catch(error){current();if(error?.terminal||error?.code==='host-missing')throw error;}
-   if(!confirmed)throw bundledAssetIssue('PUBLISH','The prepared media publication could not be confirmed. Inspect the cache before starting again.');
+ return {reserve,cleanup:async({observeFailure=false}={})=>{
+  const failures=[];
+  for(const path of owned){
+   try{await files.removeFile({filePath:path});}
+   catch(cause){
+    // A lost deletion reply is observed once, never replayed. Existing derived
+    // callers retain best-effort cleanup; transient readers require a verdict.
+    if(observeFailure){try{if(await files.stat(path)===null)continue;}catch{}}
+    failures.push({path,cause});
+   }
   }
-  await freshSource();current();await files.mkdir(indexDirectory,{recursive:true});current();
-  const text=JSON.stringify({version:1,key,source,output});
-  try{await files.writeFile(indexPath,text);}catch{/* Observe an acknowledged or concurrent complete index below. */}
-  current();const confirmed=await cached();
-  if(!confirmed)throw bundledAssetIssue('PUBLISH','The prepared media index could not be confirmed. Inspect the cache before starting again.');
-  result={...confirmed,reused:false};
- }catch(error){
-  if(error?.terminal||error?.code==='host-missing'||typeof error?.publicMessage==='string'||/^BUNDLED_ASSET_/.test(error?.code??''))throw error;
-  throw bundledAssetIssue('DERIVED','Prepared media could not be completed. Check the source, available storage and media tools.',error);
- }finally{
-  // Only this invocation's reserved staging paths are disposable. Published
-  // objects/indexes may already be referenced by a different run or old Draft.
-  for(const path of owned)await files.removeFile({filePath:path}).catch(()=>{});
- }
- // Cleanup is asynchronous too: a detached owner must not receive a late success.
- current();return result;
+  return failures;
+ }};
 }
 async function runAssetMediaTool(media,kind,args,options={}){
  if(!options||typeof options!=='object'||Array.isArray(options))throw bundledAssetIssue('INPUT','The media process options are invalid.');

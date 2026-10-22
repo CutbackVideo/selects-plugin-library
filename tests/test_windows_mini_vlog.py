@@ -35,7 +35,7 @@ AV_BEAT = re.compile(r"// av-beat-worker:start\n.*?// av-beat-worker:end", re.S)
 # panel sends to run_script, so it counts as shell syntax next to a command name (SHELL_CHAIN).
 SHELL_IN_STRINGS = ["2>/dev/null", ">/dev/null", "command -v", "mkdir -p", "rm -f", "printf", "$HOME", "/tmp",
                     "export PATH", "base64 ", "$SELECTS_USER", "/opt/homebrew", "/usr/local/bin", "sh '", 'sh "', "; exit"]
-SHELL_CHAIN = re.compile(r"\b(ffmpeg|ffprobe|node|rm|mkdir|base64|printf|echo|cat|cp|mv|sh|curl|cd|test)\b[^\n]*?(&&|\|\|)"
+SHELL_CHAIN = re.compile(r"(?<![.\w])(ffmpeg|ffprobe|node|rm|mkdir|base64|printf|echo|cat|cp|mv|sh|curl|cd|test)\b[^\n]*?(&&|\|\|)"
                          r"|(&&|\|\||;\s)\s*(ffmpeg|ffprobe|node|rm|mkdir|base64|printf|echo|cat|cp|mv|sh|curl|cd|exit)\b")
 # Anywhere in the runtime code (comments aside).
 FORBIDDEN_CODE = ["runShell", "child_process", "spawn(", "execFile", "require(\"node:", "require('node:", "TOOL_PATH", "runtime.sh"]
@@ -145,6 +145,8 @@ class MiniVlogWindowsTest(unittest.TestCase):
         code, strings = tokens("const a = /[\"']/; // can't\nconst cmd = `ffmpeg -i ${x} && rm -f out`;\n")
         self.assertTrue(any(SHELL_CHAIN.search(s) for s in strings))
         self.assertFalse(SHELL_CHAIN.search("if (a && b.ok) return null;"))
+        self.assertFalse(SHELL_CHAIN.search("if(typeof result.base64!==\'string\'||!result.ok)throw Error();"))
+        self.assertTrue(SHELL_CHAIN.search("base64 file || exit 1"))
         self.assertTrue(any(SHELL_CHAIN.search(s) for s in tokens('cmd = "ffmpeg -y -i " + sq(f) + " && " + "rm -f x";')[1] + ['ffmpeg -i a && rm -f b']))
         self.assertNotIn("can't", code)
 
@@ -152,11 +154,13 @@ class MiniVlogWindowsTest(unittest.TestCase):
         src = self.source
         self.assertIn("const { plugin, data } = await mvFolders(sdk);", src)
         self.assertIn('await hostRoots(sdk, PLUGIN_ID, "planner.js")', src)
-        self.assertIn("hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal)", src)
+        self.assertIn("hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal, 120000, client)", src)
         self.assertIn("new Worker(url)", src)
-        self.assertIn('hostNeed("Runtime", "runFFmpeg")', src)
-        self.assertIn("hostProbeSeconds(file.path)", src)
-        self.assertIn("hostRemove(out)", src)
+        self.assertIn('typeof client.media.runFFmpeg !== "function"', src)
+        self.assertIn("hostProbeSeconds(file.path, client, abort.signal)", src)
+        self.assertIn("readTransientAsset(client, {", src)
+        self.assertIn("previewAbortRef.current?.abort()", src)
+        self.assertIn("decodeAssetPcm(client, {", src)
         self.assertNotIn('" + "/"', tokens(src)[0])
 
     def test_ensure_audio_uses_shared_normalised_path_reader(self):

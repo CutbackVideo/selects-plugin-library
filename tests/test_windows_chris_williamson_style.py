@@ -1,3 +1,4 @@
+# Unmigrated av-host copies retain the City Weekend baseline; Mini/Archive now use bundled-assets.
 """Windows safety of chris-williamson-style (static checks).
 
 The panel is generated from src/ by build.py. On Windows `sdk.runShell` is cmd.exe, so the runtime text (panel.tsx and
@@ -98,8 +99,8 @@ class ChrisWilliamsonWindowsTest(unittest.TestCase):
     def test_collection_header(self):
         self.assertIn('// @collection visual-highlights', self.panel.split('\n')[:24])
 
-    def test_av_host_block_matches_archive_vlog(self):
-        reference = av_block((ROOT / 'plugins' / 'archive-vlog' / 'panel.tsx').read_text(encoding='utf-8'))
+    def test_av_host_block_matches_legacy_reference(self):
+        reference = av_block((ROOT / 'plugins' / 'city-weekend-vlog' / 'panel.tsx').read_text(encoding='utf-8'))
         self.assertIsNotNone(reference)
         self.assertEqual(av_block(self.panel), reference)
 

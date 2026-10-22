@@ -10,7 +10,7 @@ const inputSupportSource = requireSourceFileSupport.toString()+'\n'+observeSourc
 const authoringSource = readFileSync(new URL('../../shared/native-image-authoring.js', import.meta.url), 'utf8');
 const runSource = readFileSync(new URL('../../shared/template-run.js', import.meta.url), 'utf8');
 const assetSource = readFileSync(new URL('../../shared/bundled-assets.js', import.meta.url), 'utf8');
-const assetNames = ['bundledAssetIssue','readBundledAssetBytes','readBundledAssetResource','prepareBundledAsset','readAssetFileIdentity','prepareDerivedAsset','runAssetMediaTool'];
+const assetNames = ['bundledAssetIssue','readBundledAssetBytes','readBundledAssetResource','prepareBundledAsset','readAssetFileIdentity','prepareDerivedAsset','reserveAssetFiles','runAssetMediaTool'];
 const assetFunctions = await import('data:text/javascript;base64,' + Buffer.from(assetSource + '\nexport {' + assetNames.join(',') + '};').toString('base64'));
 const panelAssetSource = assetNames.map(name => assetFunctions[name].toString()).join('\n');
 const assetResourceSource = assetFunctions.readBundledAssetResource.toString();

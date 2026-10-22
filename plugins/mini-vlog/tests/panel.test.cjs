@@ -508,9 +508,9 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
   // Own music: host ffmpeg -> f32le 22.05 kHz, first 240 s, in the data folder; the kit detector in a blob worker with
   // a 60 s timeout; cancel = abort + terminate + request id; any failure -> fixed timing with the probed length.
   for (const s of ['const OWN_MAX_SECONDS = 240;', 'const OWN_RATE = 22050;', 'const BEAT_TIMEOUT_MS = 60000;', 'read("beat-detect.cjs")]);', 'beatWorker: avBeatWorkerSource(beatDetect)',
-    'samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal);',
+    'samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal, 120000, client);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal);',
     'const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;', 'cancelOwnMusic(); };', 'if (v !== "own") { cancelOwnMusic();',
-    'const v = await hostProbeSeconds(file.path); if (v) duration = Math.min(v, OWN_MAX_SECONDS);', 'worker = new Worker(url);', 'worker?.terminate()'])
+    'const v = await hostProbeSeconds(file.path, client, abort.signal); if (v) duration = Math.min(v, OWN_MAX_SECONDS);', 'worker = new Worker(url);', 'worker?.terminate()'])
     assert.ok(panel.includes(s), s);
   // Only the current own-music job clears busy and the step (a cancelled one must not end a build started since).
   {
@@ -519,10 +519,10 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
     assert.ok(/if \(ownJobRef\.current\.id === id\) \{\s*ownJobRef\.current\.abort = null;\s*busyRef\.current = false; if \(mountedRef\.current\) \{ setBusy\(false\); setStep\(""\); \}\s*\}/.test(tail), 'own-music finally guarded by the job id');
     assert.equal((tail.match(/busyRef\.current = false/g) || []).length, 1, 'no unguarded busy reset');
   }
-  // Preview: the host's ffmpeg with an argv array into the data folder, read back as bytes, removed with FileSystem.
-  for (const s of ['const rt = hostNeed("Runtime", "runFFmpeg");', '"-t", dur.toFixed(2), "-i", file,', 'bytes = await hostReadBytes(out);', '} finally { void hostRemove(out); }',
-    'hostJoin(roots.data, "preview-" + token + "-" + Date.now() + ".mp3")', 'const file = ownMusic ? ownMusic.path : hostJoin(roots.plugin, "assets", "cues", cue.file);',
-    'musicKind === "cue" ? hostJoin(roots.plugin, "assets", "cues", cue.file) : null']) assert.ok(panel.includes(s), s);
+  // Preview recipe remains template-owned; output scope/cancellation belongs
+  // to the shared owner, exercised by mini_media_scope.test.mjs.
+  for (const text of ['readTransientAsset(client, {', '"-t", dur.toFixed(2), "-i", file,', 'signal: abort.signal, isCurrent: live',
+    'previewAbortRef.current?.abort();', 'client.files.join(roots.plugin, "assets", "cues", cue.file)']) assert.ok(panel.includes(text), text);
   says('newerSelects', 'needs a newer version of Selects');
 
   // Cross-realm bytes (windows.md): the host's readFile result comes from window.parent, another JS realm, where
@@ -537,14 +537,16 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
       readFile: async (p) => { const v = files[p]; if (v == null) throw new Error('missing ' + p); return v; }, removeFile: async ({ filePath }) => { delete files[filePath]; },
     },
     Runtime: {
-      runFFmpeg: async (args) => { const out = args[args.length - 1]; files[out] = foreign('new Float32Array([0.25, -0.5, 1]).buffer'); return { stdout: '' }; },
+      runFFmpeg: async (args) => { const out = args[args.length - 1]; files[out] = foreign('new Float32Array([0.25, -0.5, 1]).buffer'); mediaFiles.publish(out, files[out]); return { stdout: '' }; },
       runFFprobe: async () => ({ stdout: '12.5\n' }),
     },
   };
-  const box = { window: { parent: { get __DI__() { throw Error('Unexpected DI access'); } } }, navigator: { platform: 'MacIntel', userAgent: '' }, TextDecoder, AbortController, setTimeout, clearTimeout, Date, Math, Uint8Array, Float32Array, Object, String, Error, Promise };
+  const mediaFiles = require(path.join(root, '../../tests/async_media_files.cjs')).asyncMediaFiles(di.FileSystem);
+  di.FileSystem = mediaFiles.files;
+  const box = { crypto: crypto.webcrypto, TextEncoder, window: { parent: { get __DI__() { throw Error('Unexpected DI access'); } } }, navigator: { platform: 'MacIntel', userAgent: '' }, TextDecoder, AbortController, setTimeout, clearTimeout, Date, Math, Uint8Array, Float32Array, Object, String, Error, Promise };
   vm.createContext(box);
   box.sdk = { files: di.FileSystem, media: di.Runtime, environment: { platform: 'darwin' } };
-  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + avHost + '\nhostUseSdk(sdk);globalThis.H = { hostReadBytes, hostReadText, hostDecodePcm, hostProbeSeconds, hostRoots, hostJoin };', box);
+  vm.runInContext('function panelLocalClient(sdk){return sdk;}\n' + blockOf('bundled-assets') + '\n' + avHost + '\nhostUseSdk(sdk);globalThis.H = { hostReadBytes, hostReadText, hostDecodePcm, hostProbeSeconds, hostRoots, hostJoin };', box);
   const H = box.H;
   (async () => {
     files['/a.bin'] = foreign('new Uint8Array([1, 2, 3, 4]).buffer');
