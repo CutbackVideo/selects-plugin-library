@@ -9,8 +9,8 @@ const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS
 const panel=fs.readFileSync(process.env.MINI_MUSIC_PANEL||new URL('../plugins/mini-vlog/panel.tsx',import.meta.url),'utf8');
 const plain=esbuild.transformSync(panel,{loader:'tsx',format:'esm',target:'es2022',jsx:'preserve'}).code;
 const nested=plain.replace(/^  /gm,'');
-const names=['readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','templateStateJSON','presetFonts','snapshotMiniFinishAssets','prepareMiniDecoration','miniWorkflowResult','miniAssemblyRecoveryOptions','mvWithLocal','MV_LOCAL_CONCURRENCY','MV_LOCAL_BUDGET_MS','runMiniVlogTemplate'];
-const source=names.filter(name=>!['templateStateJSON','snapshotMiniFinishAssets','prepareMiniDecoration','miniWorkflowResult','miniAssemblyRecoveryOptions'].includes(name)||plain.includes('function '+name+'(')).map(name=>topLevel(plain,name)).join('\n')+'\n'+topLevel(nested,'inventoryCurrent')+'\n'+topLevel(nested,'runLive')+'\n'+topLevel(nested,'endRun')+'\n'+topLevel(nested,'run')+'\n'+topLevel(nested,'finishAssembly')+'\n'+topLevel(nested,'decorate')+'\n'+topLevel(nested,'finishTitle')+'\n'+topLevel(nested,'build');
+const names=['readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','templateStateJSON','presetFonts','snapshotMiniFinishAssets','prepareMiniDecoration','miniWorkflowResult','miniAssemblyRecoveryOptions','confirmMiniSourceBindings','mvWithLocal','MV_LOCAL_CONCURRENCY','MV_LOCAL_BUDGET_MS','runMiniVlogTemplate'];
+const source=names.filter(name=>!['templateStateJSON','snapshotMiniFinishAssets','prepareMiniDecoration','miniWorkflowResult','miniAssemblyRecoveryOptions','confirmMiniSourceBindings'].includes(name)||plain.includes('function '+name+'(')).map(name=>topLevel(plain,name)).join('\n')+'\n'+topLevel(nested,'inventoryCurrent')+'\n'+topLevel(nested,'runLive')+'\n'+topLevel(nested,'endRun')+'\n'+topLevel(nested,'run')+'\n'+topLevel(nested,'finishAssembly')+'\n'+topLevel(nested,'decorate')+'\n'+topLevel(nested,'finishTitle')+'\n'+topLevel(nested,'build');
 const feature=panel.includes('// bundled-assets:start')?panel.slice(panel.indexOf('// bundled-assets:start'),panel.indexOf('// bundled-assets:end')):'';
 const analysisFeature=panel.includes('// clip-analysis:start')?panel.slice(panel.indexOf('// clip-analysis:start'),panel.indexOf('// clip-analysis:end')):'';
 const inputFeature=panel.slice(panel.indexOf('// native-image-input:start'),panel.indexOf('// native-image-input:end')).replace(/^export /gm,'');
@@ -18,13 +18,16 @@ const adapter=plain.includes('function prepareMiniCue(')?topLevel(plain,'prepare
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
 const boundary=Object.assign(Error('Assembly intentionally outside this music-boundary fixture'),{boundary:true,outcome:'notSaved'});
 export async function miniMusicFixture(t,{entry='template',own=false,silent=false}={}){
- const f=await holdFixture(t),plugin=path.join(f.root,'installed','mini-vlog'),file=path.join(plugin,'assets','cues','cue.mp3');fs.mkdirSync(path.dirname(file),{recursive:true});
+ const f=await holdFixture(t);
+ // This fixture supplies the existing native content observation contract.
+ f.files.fingerprint=async p=>fs.existsSync(p)?{size:fs.statSync(p).size,sha256:digest(fs.readFileSync(p))}:null;
+ const plugin=path.join(f.root,'installed','mini-vlog'),file=path.join(plugin,'assets','cues','cue.mp3');fs.mkdirSync(path.dirname(file),{recursive:true});
  const bytes=Buffer.from('selected cue bytes'),cue={id:'cue',file:'cue.mp3',bytes:bytes.length,sha256:digest(bytes),duration:60,bpm:110};fs.writeFileSync(file,bytes);
  const resources=[],nodes=[],imports=[],scripts=[],saved=[],errors=[],hooks=f.hooks;let live=true;
- const project={resources:async()=>resources,sourceFiles:async()=>({fileTree:nodes}),importFiles:async({paths})=>{
+ const project={resources:async()=>resources,sourceFiles:async()=>({fileTree:[...inventory.resources.filter(r=>r.path).map(r=>({type:'video',resourceId:r.rid,path:r.path})),...nodes]}),importFiles:async({paths})=>{
   imports.push(...paths);const resourceId='music-'+imports.length;resources.push({resourceId,type:'Audio',durationSeconds:hooks.duration??60});nodes.push({resourceId,type:'audio',path:paths[0]});if(hooks.imported)await hooks.imported(paths[0]);if(hooks.lost)throw Error('completed import reply lost');return {addedResourceIds:[resourceId]};
  }};
- const inventory={resources:[{rid:'r0',duration:20,analysed:true},{rid:'r1',duration:20,analysed:true}],photos:[],skipped:{}};
+ const inventory={resources:[{rid:'r0',path:f.source,duration:20,analysed:true},{rid:'r1',path:f.other,duration:20,analysed:true}],photos:[],skipped:{}};
  const scriptsByName={inventoryJs:'return __CONFIG__;',searchJs:'return __CONFIG__;',ensureJs:fs.readFileSync(new URL('../plugins/mini-vlog/scripts/ensure-audio.js',import.meta.url),'utf8'),assembleJs:'return __CONFIG__;',decorateJs:'// @template-decoration 1\nreturn __CONFIG__;'};
  const presets={metrics:{},presets:[{id:'preset',label:'Preset',fields:[],colors:{primary:'#fff',secondary:'#000'}}]},manifest={cues:[cue]},plan={ok:true,picks:[{rid:'r0'},{rid:'r1'}],shots:2,schedule:{cuts:[0,1,2]}};
  const selects={project:()=>project,files:f.files};
@@ -68,7 +71,9 @@ export async function miniMusicFixture(t,{entry='template',own=false,silent=fals
   mvSearchQueries:()=>[],mvMotionBonus:value=>value,photoCandsOf:()=>[],mvPlanBuild:()=>plan,stamp:()=> 'fixture',
   runEpochRef:{current:0},setStep:noop,setProgress:noop,progressRef:{current:null},sdk,context:{projectId:'p'},busyRef,assets:{scripts:scriptsByName,presets,titleTsx:'title',softTsx:'soft',motionTsx:'motion',punchTsx:'punch'},inventory,roots:{plugin,data:f.data},chosen:presets.presets[0],seed:1,blockReason:null,anotherBlock:null,projectId:'p',projectRef:{current:'p'},mountedRef:{current:true},inventorySnapshotRef:{current:{projectId:'p',inventory}},invLoadingRef:{current:null},
   preset:'preset',titleFields:{},musicKind:silent?'none':own?'own':'cue',ownMusic:own?{path:file}:null,cueId:'cue',cue,musicStart:0,pace:'quick',length:'standard',requested:2,fitted:2,planShort:()=>false,assemblyPendingRef:{current:{}},clipSound:'ambient',soft:true,beatPunch:true,hook:false,gridded:true,grid:{bpm:110,accepted:true},usePhotos:true,only:null,onlyPhotos:null,snapCuts:{},
-  candidates:{key:'p|null|motion',failed:[],scene:[],list:[],local:{results:[],unavailable:false}},
+  // Scene search is outside this fixture; its caller has separate regressions.
+  findCandidates:async()=>({list:[],failed:[]}),checkLocalClips:async()=>({results:[],unavailable:false}),
+  candidates:{key:'p|null|motion',failed:[],scene:[],sceneSources:inventory.resources.map(r=>({path:r.path,size:fs.statSync(r.path).size,sha256:digest(fs.readFileSync(r.path))})),list:[],local:{results:[],unavailable:false}},
   setBusy:noop,setStatus:value=>{if(value?.tone==='error')errors.push(value.say('en'));},setResult:noop,stopPreview:noop,advance:noop,stopAt:error=>()=>{errors.push(error);return error.message;},endRun:()=>{busyRef.current=false;},CANCELLED:Symbol('cancelled'),STALE:stopped,
  };
  const box=vm.createContext(globals);vm.runInContext(inputFeature+'\n'+feature+'\n'+analysisFeature+'\n'+adapter+'\n'+source+'\nthis.api={runMiniVlogTemplate,build,finishTitle,decorate,prepareMiniDecoration:typeof prepareMiniDecoration==="function"?prepareMiniDecoration:undefined,snapshotMiniFinishAssets:typeof snapshotMiniFinishAssets==="function"?snapshotMiniFinishAssets:undefined};',box);

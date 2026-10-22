@@ -1,7 +1,8 @@
 const cfg = __CONFIG__;
 validateMiniAssemblyConfig(cfg);
-const analysisSources=Object(cfg).analysisSources;
+const analysisSources=Object(cfg).analysisSources,sourceBindings=Object(cfg).sourceBindings;
 const confirmAnalysisSources=async()=>{
+ if(sourceBindings!==undefined)await confirmProjectSourcePaths(selects,cfg.projectId,sourceBindings);
  if(analysisSources!==undefined)await observeSourceFiles(selects.files,Array.isArray(analysisSources)?analysisSources.map(row=>row?.path):null,analysisSources);
 };
 await confirmAnalysisSources();

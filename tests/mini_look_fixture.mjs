@@ -22,7 +22,7 @@ export async function lookPhaseFixture(t){
    commitAll:async reason=>{assert.equal(committed,false);committed=true;commits++;saved.set(id,clone(state));await hooks.commit?.(id,reason);return {createdDraftId:id};}};
  }
  const sdk={call:async()=>({owner:{projectId:'p',libraryId:hooks.library??'library'}}),runScript:async input=>{
-  requests.push(input);hooks.currentInput=input.summary;const selects={files:f.files,project:()=>({meta:async()=>({draftIds:[...saved.keys()]}),createDraft:async({name})=>handle(name==='Mini source timing check'?'probe-'+ ++probeSerial:'d'+ ++serial,{name,clips:[]})}),draft:id=>{assert.ok(saved.has(id));return handle(id,clone(saved.get(id)));}};
+  requests.push(input);hooks.currentInput=input.summary;const selects={files:f.files,project:()=>({sourceFiles:async()=>hooks.sourceFiles?hooks.sourceFiles():({fileTree:[{type:"video",resourceId:"r0",path:f.source}]}),meta:async()=>({draftIds:[...saved.keys()]}),createDraft:async({name})=>handle(name==='Mini source timing check'?'probe-'+ ++probeSerial:'d'+ ++serial,{name,clips:[]})}),draft:id=>{assert.ok(saved.has(id));return handle(id,clone(saved.get(id)));}};
   const work=(async()=>{try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.reply?.(input,result);return {result};}catch(error){return {isError:true,output:error.message};}})();
   if(hooks.lostEarly&&input.summary==='Decorate template with owned receipt'){pending.push(work);return {isError:true,output:'channel lost while Main is running'};}return work;
  }};

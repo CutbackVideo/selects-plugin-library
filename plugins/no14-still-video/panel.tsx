@@ -404,6 +404,40 @@ export async function observeSourceFiles(files,paths,expected=null) {
  return observed;
 }
 
+// Bind a physical path to the exact current Project Resource, independently of
+// content hashing. A retained old file is not evidence of a current media link.
+export async function confirmProjectSourcePaths(selects,projectId,bindings) {
+ const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code:'source-path-'+code,publicMessage:message,cause});
+ const valid=value=>typeof value==='string'&&value.length>0&&value.length<=8192&&!value.includes('\0');
+ if(!valid(projectId)||!Array.isArray(bindings)||bindings.length>16384||bindings.some(row=>!row||!valid(row.resourceId)||!valid(row.path))||new Set(bindings.map(row=>row.resourceId)).size!==bindings.length)throw issue('input','The selected source bindings are invalid.');
+ const expected=bindings.map(row=>({resourceId:row.resourceId,path:row.path}));
+ if(!expected.length)return {verified:true};
+ const wanted=new Set(expected.map(row=>row.resourceId)),found=new Map(),deadline=Date.now()+25000;let nodes=0;
+ const check=()=>{if(Date.now()>=deadline)throw issue('unknown','The current Project source paths could not be confirmed in time.');};
+ const visit=(rows,depth=0)=>{
+  check();if(!Array.isArray(rows)||depth>24)throw issue('unknown','The Project source tree is incomplete or unsupported.');
+  for(const row of rows){
+   if(++nodes>16384||!row||typeof row!=='object')throw issue('unknown','The Project source tree exceeds its observation budget or is incomplete.');
+   if(row.type==='dir')visit(row.children,depth+1);
+   else if(wanted.has(row.resourceId)){
+    if(found.has(row.resourceId)||!valid(row.path))throw issue('changed','A selected source path is missing or ambiguous in the Project.');
+    found.set(row.resourceId,row.path);
+   }
+  }
+ };
+ try{
+  const project=selects.project(projectId),overview=await project.sourceFiles();check();
+  if(!overview||typeof overview!=='object')throw issue('unknown','The current Project source tree could not be confirmed.');
+  if('fileTree' in overview)visit(overview.fileTree);
+  else{
+   if(!Array.isArray(overview.folders)||overview.folders.length>512||overview.folders.some(row=>!row||!valid(row.name))||new Set(overview.folders.map(row=>row.name)).size!==overview.folders.length)throw issue('unknown','The Project source folder list is incomplete or unsupported.');
+   for(const folder of overview.folders){check();const detail=await project.sourceFiles({folder:folder.name});check();if(!detail||typeof detail!=='object'||!('fileTree' in detail))throw issue('unknown','A Project source folder did not return its complete file tree.');visit(detail.fileTree);}
+  }
+ }catch(cause){if(cause?.code?.startsWith('source-path-'))throw cause;throw issue('unknown','The current Project source paths could not be read.',cause);}
+ for(const row of expected)if(found.get(row.resourceId)!==row.path)throw issue('changed','A selected original has moved or changed its Project source link. Reload the Project inputs before trying again.');
+ check();return {verified:true};
+}
+
 // Persistent handed IDs -> SDK aliases, observed only on private unsaved Drafts.
 // Placement failures are not evidence that a source file is absent.
 export async function resolveTemplateMedia(selects,projectId,files,scratchName='Template source check',options={}) {

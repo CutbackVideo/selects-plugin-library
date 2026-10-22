@@ -1859,7 +1859,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.26";
+const PLUGIN_VERSION = "0.1.0-alpha.27";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -4906,15 +4906,34 @@ function cueGrid(cue: any) {
     referenceTail: ref ? cue.referenceTail || 0 : 0 };
 }
 
+// Verify Project links through the same canonical input owner used by assembly.
+// Snapshot and batch the read request; no Project edits or alternate file owner.
+async function confirmMiniSourceBindings(sdk: any, pid: string, bindings: any[], check: () => void) {
+  const snapshot = JSON.parse(templateStateJSON(bindings)), deadline = Date.now() + 90000;
+  if (!Array.isArray(snapshot) || snapshot.length > 16384) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The selected source bindings are invalid.");
+  for (let offset = 0; offset < snapshot.length;) {
+    check(); let batch: any[] = [];
+    while (offset < snapshot.length && batch.length < 64) {
+      const next = [...batch, snapshot[offset]];
+      if (new TextEncoder().encode(JSON.stringify(next)).length > 32768) { if (!batch.length) throw templateRunIssue("TEMPLATE_RUN_INVALID", "A selected source binding exceeds the read request budget."); break; }
+      batch = next; offset++;
+    }
+    const source = "return (" + confirmProjectSourcePaths.toString() + ")(selects," + JSON.stringify(pid) + "," + JSON.stringify(batch) + ");";
+    const result = await runTemplateStep(sdk, "Verify original video paths", source, false, { wanted: () => { check(); return true; }, deadline });
+    check(); if (result?.verified !== true) throw templateRunIssue("TEMPLATE_RUN_PENDING", "The original Project source paths could not be confirmed. Check the same run again.");
+  }
+}
+
 // Template policy stays here; the common run owner stores and verifies its exact recipe.
 // Old frozen operations keep their exact request digest. Never substitute new
 // authoring code under that identity; only confirm an existing result or retire
 // a definitely unstarted operation through the durable owner.
 function miniAssemblyRecoveryOptions(sdk: any, pending: any, check: () => void) {
   const legacy = !pending?.source?.startsWith("// @template-assembly 1\n// @template-assembly-intent 1\n");
-  if (!legacy && !pending?.config?.analysisSources?.length) return {};
+  if (!legacy && !pending?.config?.analysisSources?.length && pending?.config?.sourceBindings === undefined) return {};
   return { retireUnstarted: legacy, verifyAssembly: async (value: any, assembly: any, look: any) => {
     check();
+    if (value.config.sourceBindings !== undefined) await confirmMiniSourceBindings(sdk, value.config.projectId, value.config.sourceBindings, check);
     const sources = value.config.analysisSources;
     if (sources !== undefined) { await observeSourceFiles(panelLocalClient(sdk).files, Array.isArray(sources) ? sources.map(row => row.path) : null, sources); check(); }
     if (!legacy) return;
@@ -5593,11 +5612,19 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       // The scene search is cached per Project, clip selection and query set (the motion query runs only with Beat punch).
       const key = pid + "|" + JSON.stringify(only) + (frozen.punch ? "|motion" : "");
       const chosenVideos: any[] = inventory.resources.filter((r: any) => !only || only.includes(r.rid));
+      // Server analysis status is not evidence that its physical original is
+      // still present. Capture every selected video before search or cache use.
+      const analysisClient = panelLocalClient(sdk);
+      const sourceBindings = chosenVideos.map((r: any) => ({ resourceId: r.rid, path: r.path }));
+      await confirmMiniSourceBindings(sdk, pid, sourceBindings, check);
+      const analysisSources = await observeSourceFiles(analysisClient.files, chosenVideos.map((r: any) => r.path)); check();
       // Analysed clips get the scene search; clips without analysis the quick local check (build without analysis).
       const rids: string[] = chosenVideos.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);
       const localClips: any[] = chosenVideos.filter((r: any) => r.analysed === false);
       const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
-      const cached = candidates && candidates.key === key ? candidates : null;
+      const scenePaths = new Set(chosenVideos.filter((r: any) => r.analysed !== false).map((r: any) => r.path));
+      const sceneSources = analysisSources.filter(row => scenePaths.has(row.path));
+      const cached = candidates && candidates.key === key && JSON.stringify(candidates.sceneSources) === JSON.stringify(sceneSources) ? candidates : null;
       // A build from photos alone has no videos to check; the step says so instead of a bare 0%.
       const shotsDetail: Say | undefined = chosenVideos.length ? undefined : (l) => t(l, "photosOnly");
       if (shotsDetail) advance("shots", 0, shotsDetail);
@@ -5643,9 +5670,10 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         // `list` is what the planner gets: the scene hits unchanged plus the local candidates on their scale (mvWithLocal).
         const results = checked.results;
         const local = { results, unavailable: checked.unavailable };
-        found = { key, failed: fresh.failed, scene, local, list: mvWithLocal(scene, local.results, frozen.punch) };
+        found = { key, failed: fresh.failed, scene, sceneSources, local, list: mvWithLocal(scene, local.results, frozen.punch) };
         setCandidates(found);
       }
+      await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
       advance("shots", 1, shotsDetail);
       // Photos join as candidates without a search; with Use photos off there are none (the planner would otherwise
       // retry with photos first).
@@ -5672,11 +5700,10 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       // Verified native Image facts override display/cache dimensions. The same
       // frozen facts survive into Finish title and look, even after a refresh.
       const crops = { ...Object.fromEntries(inventory.resources.map((r: any) => [r.rid, { width: r.width, height: r.height }])), ...photoSizes };
-      const analysisSources = clipAnalysisSources(found.local?.results || []);
-      await observeSourceFiles(panelLocalClient(sdk).files, analysisSources.map(row => row.path), analysisSources); check();
+      await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
       const pending = { scope: { pluginId: PLUGIN_ID, projectId: pid, runId: crypto.randomUUID() },
         config: { projectId: pid, draftName: frozen.draftName, picks: plan.picks, boundaries, crops,
-          music: music ? { resourceId: music.resourceId, sectionStart: frozen.sectionStart ?? 0, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound: frozen.clipSound, ambientDb: AMBIENT_DB, ...(analysisSources.length ? { analysisSources } : {}) },
+          music: music ? { resourceId: music.resourceId, sectionStart: frozen.sectionStart ?? 0, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound: frozen.clipSound, ambientDb: AMBIENT_DB, ...(analysisSources.length ? { analysisSources, sourceBindings } : {}) },
         source: assets.scripts.assembleJs, finishAssets, frozen, photoSizes, plan, fitted, shortened: planShort(plan), unchecked: found.failed.length, quickUnavailable: !!found.local?.unavailable };
       attempt = pending; assemblyPendingRef.current[pid] = pending;
       await finishAssembly(pending, check, continuations);
@@ -6244,6 +6271,40 @@ export async function observeSourceFiles(files,paths,expected=null) {
  return observed;
 }
 
+// Bind a physical path to the exact current Project Resource, independently of
+// content hashing. A retained old file is not evidence of a current media link.
+export async function confirmProjectSourcePaths(selects,projectId,bindings) {
+ const issue=(code,message,cause=null)=>Object.assign(new Error(message),{code:'source-path-'+code,publicMessage:message,cause});
+ const valid=value=>typeof value==='string'&&value.length>0&&value.length<=8192&&!value.includes('\0');
+ if(!valid(projectId)||!Array.isArray(bindings)||bindings.length>16384||bindings.some(row=>!row||!valid(row.resourceId)||!valid(row.path))||new Set(bindings.map(row=>row.resourceId)).size!==bindings.length)throw issue('input','The selected source bindings are invalid.');
+ const expected=bindings.map(row=>({resourceId:row.resourceId,path:row.path}));
+ if(!expected.length)return {verified:true};
+ const wanted=new Set(expected.map(row=>row.resourceId)),found=new Map(),deadline=Date.now()+25000;let nodes=0;
+ const check=()=>{if(Date.now()>=deadline)throw issue('unknown','The current Project source paths could not be confirmed in time.');};
+ const visit=(rows,depth=0)=>{
+  check();if(!Array.isArray(rows)||depth>24)throw issue('unknown','The Project source tree is incomplete or unsupported.');
+  for(const row of rows){
+   if(++nodes>16384||!row||typeof row!=='object')throw issue('unknown','The Project source tree exceeds its observation budget or is incomplete.');
+   if(row.type==='dir')visit(row.children,depth+1);
+   else if(wanted.has(row.resourceId)){
+    if(found.has(row.resourceId)||!valid(row.path))throw issue('changed','A selected source path is missing or ambiguous in the Project.');
+    found.set(row.resourceId,row.path);
+   }
+  }
+ };
+ try{
+  const project=selects.project(projectId),overview=await project.sourceFiles();check();
+  if(!overview||typeof overview!=='object')throw issue('unknown','The current Project source tree could not be confirmed.');
+  if('fileTree' in overview)visit(overview.fileTree);
+  else{
+   if(!Array.isArray(overview.folders)||overview.folders.length>512||overview.folders.some(row=>!row||!valid(row.name))||new Set(overview.folders.map(row=>row.name)).size!==overview.folders.length)throw issue('unknown','The Project source folder list is incomplete or unsupported.');
+   for(const folder of overview.folders){check();const detail=await project.sourceFiles({folder:folder.name});check();if(!detail||typeof detail!=='object'||!('fileTree' in detail))throw issue('unknown','A Project source folder did not return its complete file tree.');visit(detail.fileTree);}
+  }
+ }catch(cause){if(cause?.code?.startsWith('source-path-'))throw cause;throw issue('unknown','The current Project source paths could not be read.',cause);}
+ for(const row of expected)if(found.get(row.resourceId)!==row.path)throw issue('changed','A selected original has moved or changed its Project source link. Reload the Project inputs before trying again.');
+ check();return {verified:true};
+}
+
 // Persistent handed IDs -> SDK aliases, observed only on private unsaved Drafts.
 // Placement failures are not evidence that a source file is absent.
 export async function resolveTemplateMedia(selects,projectId,files,scratchName='Template source check',options={}) {
@@ -6434,6 +6495,9 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   };
   const controller = new AbortController(),analysisClient = panelLocalClient(sdk);
   const current = () => { check(); if (controller.signal.aborted) throw templateIssue(t(bl, "stepFailed")); return true; };
+  const sourceBindings = inventory.resources.map((r: any) => ({ resourceId: r.rid, path: r.path }));
+  await confirmMiniSourceBindings(sdk, pid, sourceBindings, check);
+  const analysisSources = await observeSourceFiles(analysisClient.files, inventory.resources.map((r: any) => r.path)); current();
   const sceneRun = (async () => {
     let value = await search(rids); current();
     if (value.failed.length) {
@@ -6449,6 +6513,7 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
   let found: any,scored: Map<string, any>;
   try { [found,scored] = await Promise.all([sceneRun, localRun]); current(); }
   catch (error) { controller.abort(); await Promise.allSettled([sceneRun, localRun]); check(); throw error; }
+  await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); current();
   const localResults = localClips.map((r: any) => ({ rid: r.rid, duration: r.duration, scores: scored.get(r.rid) }));
   if (found.failed.length) console.info("[mini-vlog] template run: scene search failed for", found.failed.join(", "));
   const candidates = mvWithLocal(found.list.map((c: any) => ({ ...c, sourceDuration: dur[c.rid] || 0 })), localResults, punch);
@@ -6473,11 +6538,10 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
     .map((r: any) => [r.rid, { width: r.width, height: r.height }]));
   const draftName = "Mini Vlog " + chosen.label + " " + stamp(new Date());
   const clipSound = "ambient";
-  const analysisSources = clipAnalysisSources(localResults);
   await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
   const pending = { scope: { pluginId: PLUGIN_ID, projectId: pid, runId: assemblyRunId, libraryId: context?.template?.libraryId },
     config: { projectId: pid, draftName, picks: plan.picks, boundaries: plan.schedule.cuts, crops,
-      music: music ? { resourceId: music.resourceId, sectionStart: musicStart, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound, ambientDb: AMBIENT_DB, ...(analysisSources.length ? { analysisSources } : {}) },
+      music: music ? { resourceId: music.resourceId, sectionStart: musicStart, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound, ambientDb: AMBIENT_DB, ...(analysisSources.length ? { analysisSources, sourceBindings } : {}) },
     source: assembleJs, finishAssets, frozen, photoSizes: sizes, plan, fitted, shortened: false, unchecked: found.failed.length, quickUnavailable: !!localClips.length && typeof analysisClient.media?.runFFmpeg !== "function" };
   const completed = await continuations.workflow(pending, (value: any, a: any) => prepareMiniDecoration(value, a, check), () => {}, miniAssemblyRecoveryOptions(sdk, pending, check));
   check();

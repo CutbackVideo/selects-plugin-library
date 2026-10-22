@@ -1,5 +1,14 @@
 # Sequential template repair: active
 
+## Mini all-video original admission checkpoint
+
+Mini alpha.27 confirms every selected video’s current Project path and complete
+original contents around search/cache use, assembly and saved-look recovery.
+The existing input owner is extended; no new module is introduced. Server index
+provenance remains unconfirmed. See [mini-video-source-admission.md](mini-video-source-admission.md).
+Registry: eight features / twelve partial consumers; full ownership and acceptance
+remain 0/28. Chan remains excluded.
+
 ## Native media lifetime checkpoint
 
 The existing private client observes same-job native exit before cleanup and sends

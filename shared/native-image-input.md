@@ -136,3 +136,22 @@ all three SDK-safe functions; its generator serializes their declarations.
 its final read, or changes across distinct observations without an observable
 content difference, are not excluded. Unknown observations must not authorize
 creation. Post-save failure cannot undo a saved Draft and must retain its ID.
+
+
+## Current Project source-path binding
+
+`confirmProjectSourcePaths(selects, projectId, bindings)` extends this existing
+input owner with exact Resource ID/path admission. It snapshots the selected
+pairs before awaiting, reads full or folder-summary source trees, and returns
+`{verified:true}` only when each selected Resource has one exact current path.
+Duplicate/missing/relinked IDs or paths reject with `source-path-changed`; invalid
+requests use `source-path-input`; transport, incomplete trees and exceeded read
+budgets use `source-path-unknown`. Empty selection performs no Project read.
+The helper bounds 16,384 selected bindings/tree nodes, 24 directory levels, 512
+summary folders and a 25-second observation deadline. A caller still owns its
+outer request deadline/liveness and SDK payload budget. It does not hash files,
+prove server-index provenance, mutate a Project or lock it; pair it with existing
+`observeSourceFiles` for physical content checks. Mini uses both at its source,
+assembly and durable recovery boundaries; other consumers receive the additive
+helper without adopting Mini policy. See
+[mini-video-source-admission.md](../docs/template-repair/mini-video-source-admission.md).

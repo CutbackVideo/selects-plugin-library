@@ -25,7 +25,7 @@ jobs:
           printf 'MV_TSC=node "%s/shortform-test/node_modules/typescript/bin/tsc"\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'AV_TSC=node "%s/shortform-test/node_modules/typescript/bin/tsc"\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Test original Image input preflight and module consumers
-        run: SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/native_image_preflight.test.mjs tests/panel_modules.test.mjs tests/native_image_sdk_migration.test.mjs
+        run: SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/native_image_preflight.test.mjs tests/source_file_bindings.test.mjs tests/panel_modules.test.mjs tests/native_image_sdk_migration.test.mjs
       - run: python3 tools/sync_app_update_guards.py --check
       - run: python3 -m unittest discover -s tests
       - name: Test Shortform Clips and template packs
@@ -116,7 +116,7 @@ jobs:
         run: node plugins/vlog-opening/tests/reference.test.cjs
       - name: Test Mini Vlog
         run: |
-          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/template_source_resolution.test.mjs tests/mini_owned_cues.test.mjs tests/mini_media_scope.test.mjs tests/mini_native_facts.test.mjs tests/analysis_worker.test.mjs tests/media_inventory_observation.test.mjs tests/media_inventory_consumer.test.mjs tests/selected_inventory_scope.test.mjs tests/mini_assembly_receipts.test.mjs tests/mini_execution_ownership.test.mjs tests/mini_pending_discovery.test.mjs tests/mini_program_intent.test.mjs tests/mini_look_phase.test.mjs tests/mini_assembly_intent.test.mjs tests/mini_assembly_verification.test.mjs tests/mini_frozen_recovery.test.mjs tests/mini_analysis_inputs.test.mjs tests/clip_analysis.test.mjs tests/analysis_asset_lifetime.test.mjs
+          SBS_PANEL_TEST_MODULES="$RUNNER_TEMP/shortform-test/node_modules" SELECTS_ESBUILD="$RUNNER_TEMP/shortform-test/node_modules/esbuild" SELECTS_TSC="$RUNNER_TEMP/shortform-test/node_modules/typescript/bin/tsc" node --test tests/template_source_resolution.test.mjs tests/mini_owned_cues.test.mjs tests/mini_media_scope.test.mjs tests/mini_native_facts.test.mjs tests/analysis_worker.test.mjs tests/media_inventory_observation.test.mjs tests/media_inventory_consumer.test.mjs tests/selected_inventory_scope.test.mjs tests/mini_assembly_receipts.test.mjs tests/mini_execution_ownership.test.mjs tests/mini_pending_discovery.test.mjs tests/mini_program_intent.test.mjs tests/mini_look_phase.test.mjs tests/mini_assembly_intent.test.mjs tests/mini_assembly_verification.test.mjs tests/mini_frozen_recovery.test.mjs tests/mini_analysis_inputs.test.mjs tests/mini_video_sources.test.mjs tests/clip_analysis.test.mjs tests/analysis_asset_lifetime.test.mjs
           node plugins/mini-vlog/operation-builder.mjs --check
           node --test tests/mini_audio_identity.test.mjs
           node plugins/mini-vlog/tests/allocate.test.cjs
