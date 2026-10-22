@@ -3832,16 +3832,17 @@ function salvageSourceComposition(plan:any,sources:any[],duration:number,layout:
     const reason=reasons.get(key);
     if(!reason)continue;
     for(const i of indices) {
-      const s=plan.shots[i],camera=[...(Array.isArray(s.panels)?s.panels:[]),...(Array.isArray(s.people)?s.people:[])].map((p:any)=>p?.camera).find((c:any)=>cameras.includes(c))??cameras[0];
-      shots[i]=existingFramingShot(s.startFrame,s.endFrame,typeof s.compositionId==='string'&&s.compositionId.trim()?s.compositionId:`existing-${i}`,camera);
+      const s=plan.shots[i];
+      shots[i]=existingFramingShot(s.startFrame,s.endFrame,typeof s.compositionId==='string'&&s.compositionId.trim()?s.compositionId:`existing-${i}`);
       preserved.push({startFrame:s.startFrame,endFrame:s.endFrame,compositionId:shots[i].compositionId,reason});
     }
   }
   return {plan:{...plan,shots},preserved:preserved.sort((a,b)=>a.startFrame-b.startFrame)};
 }
 // A shot that keeps the Draft's current framing; editable later like any shot.
-function existingFramingShot(startFrame:number,endFrame:number,compositionId:string,resourceId:string) {
-  return {startFrame,endFrame,compositionId,layout:'preserve',panels:[],resourceId,style:'preserve',autoFrame:false,subjects:[],subjectGroups:[],regions:[]};
+// It names no source: it may span several source clips and is never applied.
+function existingFramingShot(startFrame:number,endFrame:number,compositionId:string) {
+  return {startFrame,endFrame,compositionId,layout:'preserve',panels:[],resourceId:null,style:'preserve',autoFrame:false,subjects:[],subjectGroups:[],regions:[]};
 }
 
 function cameraCompositionAdapter(plan:any,observations:any[],layout:any) {
@@ -3908,10 +3909,10 @@ function compileSourceCropPlan(shots:any[], sources:any[], duration:number, layo
   return shots.map((shot:any)=>{
     if(!Number.isInteger(shot.startFrame)||shot.startFrame!==end||!Number.isInteger(shot.endFrame)||shot.endFrame<=end||shot.endFrame>duration) throw new Error('Shots must cover the Draft exactly, without gaps or overlaps');
     end=shot.endFrame;
+    if(shot.style==='preserve')return {...shot,regions:[],windowH,panels:[]};
     const source=sources.find((s:any)=>s.resourceId===shot.resourceId);
     const W=source?.meta?.frameSize?.width,H=source?.meta?.frameSize?.height;
     if(![W,H].every(Number.isFinite)||!(W>0&&H>0)) throw new Error('Unknown source or source dimensions');
-    if(shot.style==='preserve')return {...shot,regions:[],sourceW:W,sourceH:H,windowH,panels:[]};
     if(!['speaker','two-shot','wide','insert','detail',...SPLIT_LAYOUTS].includes(shot.style)) throw new Error('Unknown shot style');
     if(shot.style==='wide'&&(layout.widePolicy||'never')==='never') throw new Error('Template forbids wide shots');
     assertCompositionLayout(shot.style,layout);
@@ -4006,7 +4007,7 @@ if ((await d.meta()).durationFrames!==${duration}) throw new Error("Draft durati
 // Validate source ownership before any edit.
 for (const c of await d.clips({trackScope:"main"})) {
  if (!c.resourceId) continue;
- for (const s of plan.filter(s=>s.startFrame<c.endFrame && s.endFrame>c.startFrame))
+ for (const s of plan.filter(s=>s.style!=="preserve" && s.startFrame<c.endFrame && s.endFrame>c.startFrame))
   if (s.resourceId!==c.resourceId) throw new Error("Shot source does not match its clip");
 }
 for (const s of plan.slice(1)) {
@@ -4754,12 +4755,16 @@ async function runAgentReframing({sdk,guard,projectId,draftId,layout,note,measur
     const reason=String(error?.message||error),duration=before.meta.durationFrames;
     await unchanged();
     note({plan:'agent-reframe-preserved',draftId,reason});
-    const shot=existingFramingShot(0,duration,'existing-framing',before.sources[0]?.resourceId);
+    // Locked shots are already on the Draft; keep them so regeneration still protects them.
+    const kept=[existingFramingShot(0,duration,'existing-framing')];
+    const appliedShots=mergeLockedSourceShots(kept,previousEdit?.appliedShots||[]);
+    const retained=retainLockedSourceContext(previousEdit,faceCatalog,{version:1,draftId,status:'planned',shots:kept});
+    const ranges=appliedShots.filter((s:any)=>s.style==='preserve').map((s:any)=>({startFrame:s.startFrame,endFrame:s.endFrame,compositionId:s.compositionId,reason}));
     let mediaKey:any;
     if(!measureFaces)try{mediaKey=framingMediaKey(await guard(sdk.call("getDraftMediaSnapshot",projectId,draftId)));}catch(e:any){if(e instanceof RunCancelled)throw e;}
-    return {version:1,draftId,status:'complete',summary:'Existing framing kept: '+reason,shots:[shot],limitations:[reason],
-      editContext:{kind:'source',plan:{version:1,draftId,status:'planned',shots:[shot]},catalog:faceCatalog,mediaKey,sources:before.sources,segments:before.segments||before.words,duration,fps:before.meta.fps,layout,appliedShots:[shot],words:normalizeReframeWords(before.words)},
-      appliedShots:[shot],qualityStatus:'limited',preservedAll:true,preservedRanges:[{startFrame:0,endFrame:duration,compositionId:shot.compositionId,reason}],geometryAdjustments:[],
+    return {version:1,draftId,status:'complete',summary:'Existing framing kept: '+reason,shots:retained.plan.shots,limitations:[reason],
+      editContext:{kind:'source',plan:retained.plan,catalog:retained.catalog,mediaKey,sources:before.sources,segments:before.segments||before.words,duration,fps:before.meta.fps,layout,appliedShots,words:normalizeReframeWords(before.words)},
+      appliedShots,qualityStatus:'limited',preservedAll:ranges.length===appliedShots.length,preservedRanges:ranges,geometryAdjustments:[],
       verification:{kind:'geometry-and-timing',status:'not-run',reason},visualReview:{status:'not-run',reason:'No framing was applied.'}};
   };
   let plan:any,resolved:any,preserved:any[]=[];
