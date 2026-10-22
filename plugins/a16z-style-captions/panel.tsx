@@ -925,6 +925,9 @@ async function hostFF(tool, args, timeoutMs = 12e4) {
     if (timer) clearTimeout(timer);
   }
 }
+function isTerminalMediaFailure(error) {
+  return error?.preserveTemporaryFiles === true || error?.terminal === true && typeof error.code === "string" && error.code.startsWith("LOCAL_MEDIA_");
+}
 function lastJsonObject(text) {
   const s = String(text || "");
   const end = s.lastIndexOf("}");
@@ -1422,14 +1425,15 @@ async function trackFaces(sdk, projectId, dir, jobs, progress = () => {
 }) {
   const out = {};
   if (!jobs.length) return out;
-  await fs().mkdir(dir, { recursive: true });
-  const journal = fs().join(dir, "shared-ai-jobs.json");
+  const files = fs();
+  await files.mkdir(dir, { recursive: true });
+  const journal = files.join(dir, "shared-ai-jobs.json");
   const client = (0, import_ai_job_client.createSharedAiJobClient)({
     projectId,
     scope: "a16z-faces:" + dir,
     runScript: (body, summary, effect) => script(sdk, summary, body, effect),
-    load: async () => await fs().exists(journal) ? JSON.parse(String(await fs().readFile(journal, "utf8"))) : null,
-    save: async (value) => fs().writeFile(journal, JSON.stringify(value))
+    load: async () => await files.exists(journal) ? JSON.parse(String(await files.readFile(journal, "utf8"))) : null,
+    save: async (value) => files.writeFile(journal, JSON.stringify(value))
   });
   for (const job of jobs) {
     if (!(job.fps > 0 && job.width > 0 && job.height > 0) || !Number.isFinite(job.start) || !(job.end > job.start)) throw new Error("Invalid source frame clock.");
@@ -1458,16 +1462,25 @@ return {total:d.samples.length,samples:d.samples.slice(${offset},${offset + 10})
       (0, import_face_request_windows.appendFaceSamples)(samples, incoming, window2.acceptFromSeconds);
     }
     const scale = Math.min(1, 640 / Math.max(job.width, job.height)), width = Math.max(1, Math.round(job.width * scale)), height = Math.max(1, Math.round(job.height * scale));
-    const bytes = width * height * 3, step = Math.max(1, Math.round(job.fps / 6)), rgb = fs().join(dir, "shot-" + job.id + ".rgb");
-    let cuts;
+    const bytes = width * height * 3, step = Math.max(1, Math.round(job.fps / 6)), rgb = files.join(dir, "shot-" + crypto.randomUUID() + ".rgb");
+    let cuts, producerFailure = null;
+    try {
+      await files.writeFile(rgb, new Uint8Array(), { flag: "wx" });
+    } catch (cause) {
+      throw Object.assign(new Error("The camera workspace reservation could not be confirmed."), { code: "LOCAL_MEDIA_WORKSPACE_UNKNOWN", terminal: true, preserveTemporaryFiles: true, retainedTemporaryFiles: [rgb], cause });
+    }
     try {
       const decoded = await hostFF("runFFmpeg", cameraSampleArgs(job, rgb, width, height, step), 3e5);
-      const stat = await fs().stat(rgb);
+      const stat = await files.stat(rgb);
       if (!stat || stat.size < bytes || stat.size % bytes) throw new Error("Camera sample decoding was incomplete.");
       const count = Math.floor(stat.size / bytes), times = cameraSampleTimes(decoded.stderr, count, job.start, job.end);
-      cuts = await histogramCuts({ read: (i) => fs().readRange(rgb, i * bytes, bytes), count, times });
+      cuts = await histogramCuts({ read: (i) => files.readRange(rgb, i * bytes, bytes), count, times });
+    } catch (error) {
+      producerFailure = error;
+      if (error?.preserveTemporaryFiles) throw Object.assign(new Error(error.publicMessage || "The camera media job exit could not be confirmed."), { code: error.code, terminal: true, preserveTemporaryFiles: true, retainedTemporaryFiles: [rgb], jobId: error.jobId, cause: error });
+      throw error;
     } finally {
-      await fs().rm(rgb, { force: true });
+      if (!producerFailure?.preserveTemporaryFiles) await files.rm(rgb, { force: true });
     }
     out[job.id] = speakerShots(samples, cuts, job.start, job.end, job.width, job.height);
   }
@@ -1881,7 +1894,8 @@ async function loudness(sdk, path, from, dur) {
     const r = await hostFF("runFFmpeg", ["-hide_banner", "-nostats", ...win, "-i", path, "-vn", "-af", "loudnorm=print_format=json", "-f", "null", "-"], 18e4);
     const i = Number((/"input_i"\s*:\s*"(-?[\d.]+)"/.exec(r.stderr + r.stdout) || [])[1]);
     return Number.isFinite(i) && i > -70 ? i : null;
-  } catch {
+  } catch (error) {
+    if (isTerminalMediaFailure(error)) throw error;
     return null;
   }
 }
@@ -3625,7 +3639,10 @@ function hash2(s) {
   return h;
 }
 async function probeDuration(sdk, path) {
-  const out = await hostFF("runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], 3e4).then((r) => r.stdout).catch(() => "");
+  const out = await hostFF("runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], 3e4).then((r) => r.stdout).catch((error) => {
+    if (isTerminalMediaFailure(error)) throw error;
+    return "";
+  });
   return Number(String(out).trim()) || 0;
 }
 
@@ -3732,11 +3749,20 @@ async function fetchInserts(sdk, runs, dir, onTick, cache = {}) {
   if (!todo.length) return { shots: out.sort((a, b) => a.a - b.a), notes };
   const cut = async (cand, s) => {
     onTick("Cutting footage " + (out.length + 1));
-    const clip = await cutCandidate(sdk, cand, fs().join(dir, "stock"), s.b - s.a + 0.4).catch(() => null);
+    const clip = await cutCandidate(sdk, cand, fs().join(dir, "stock"), s.b - s.a + 0.4).catch((error) => {
+      if (isTerminalMediaFailure(error)) throw error;
+      return null;
+    });
     if (!clip) return null;
-    const whole = await frameLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null);
+    const whole = await frameLuma(sdk, clip.path, (s.b - s.a) / 2).catch((error) => {
+      if (isTerminalMediaFailure(error)) throw error;
+      return null;
+    });
     if (whole != null && whole < 28) return null;
-    return { clip, luma: await captionLuma(sdk, clip.path, (s.b - s.a) / 2).catch(() => null) };
+    return { clip, luma: await captionLuma(sdk, clip.path, (s.b - s.a) / 2).catch((error) => {
+      if (isTerminalMediaFailure(error)) throw error;
+      return null;
+    }) };
   };
   for (let r = 0; r < todo.length; r += 1) {
     const run2 = todo[r];
@@ -3835,12 +3861,16 @@ async function makeShort(sdk, ctx, opts, onStep) {
       onStep("faces", "done", n + " shot" + (n === 1 ? "" : "s") + " with a face");
       return faces2;
     } catch (e) {
+      if (isTerminalMediaFailure(e)) throw e;
       notes.push("Speaker framing was skipped (" + String(e?.message || e).slice(0, 160) + "), so shots are centred.");
       onStep("faces", "fail", "centred");
       return {};
     }
   })();
-  const [semantic, faces] = await Promise.all([think, facesJob]);
+  const observed = await Promise.allSettled([think, facesJob]);
+  if (observed[0].status === "rejected") throw observed[0].reason;
+  if (observed[1].status === "rejected") throw observed[1].reason;
+  const semantic = observed[0].value, faces = observed[1].value;
   onStep("cut", "run", "Tightening pauses\u2026");
   const cut = planPauses(src.words, fps, src.endFrame, semantic?.tags || {});
   const layout = layoutRanges(cut.ranges, src.clips, fps);
@@ -3925,6 +3955,10 @@ async function build(sdk, job, onStep) {
       const cover = insertTimes.reduce((n, x) => n + x.b - x.a, 0) / prep.duration;
       onStep("broll", got.shots.length ? "done" : "skip", placed.length + " shots, " + Math.round(cover * 100) + "% of the Short");
     } catch (e) {
+      if (isTerminalMediaFailure(e)) {
+        await Promise.allSettled([musicJob]);
+        throw e;
+      }
       notes.push("B-roll: " + String(e?.message || e).slice(0, 200));
       onStep("broll", "fail", String(e?.message || e).slice(0, 80));
     }
@@ -3972,6 +4006,10 @@ async function build(sdk, job, onStep) {
       onStep("music", "done", "bed " + (musicLufs != null && job.voiceLufs != null ? "9 dB under the voice" : "added"));
     }
   } catch (e) {
+    if (isTerminalMediaFailure(e)) {
+      await Promise.allSettled([musicJob]);
+      throw e;
+    }
     notes.push("Levels: " + String(e?.message || e).slice(0, 160));
   }
   await saveJob(job);

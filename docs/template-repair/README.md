@@ -5,7 +5,7 @@
 The existing private client observes same-job native exit before cleanup and sends
 one cancel request. Unknown starts/exits stop publication and preserve owned
 workspace; late identities never authorize a restart or success. Existing asset
-owners and Archive's active legacy adapter carry that distinction. See
+owners, Archive's active legacy adapter and A16z's existing RGB/optional-stage boundaries carry that distinction. See
 [local-media-lifetime.md](local-media-lifetime.md). The registry remains partial:
 eight features / twelve consumers; full ownership and acceptance stay 0/28.
 

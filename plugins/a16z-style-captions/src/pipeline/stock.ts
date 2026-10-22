@@ -1,7 +1,7 @@
 // Stock B-roll through the app's StockMediaSearch service: Cutback's server searches Pexels and Pixabay
 // with its own keys, so nothing is asked of the user. Searches return candidates with a preview image;
 // the chosen candidate's needed seconds are cut straight from the provider's URL.
-import { getSdk, fs, hostFF, type Sdk } from "./host";
+import { isTerminalMediaFailure, getSdk, fs, hostFF, type Sdk } from "./host";
 
 export type StockClip = { path: string; width: number; height: number; credit: string; url: string; service: string; id: string; dur?: number };
 
@@ -142,6 +142,6 @@ export function hash(s: string) {
 
 // Duration (s) of a cut clip, for cached clips that predate the duration field.
 export async function probeDuration(sdk: Sdk, path: string): Promise<number> {
-  const out = await hostFF("runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], 30000).then((r) => r.stdout).catch(() => "");
+  const out = await hostFF("runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path], 30000).then((r) => r.stdout).catch((error) => { if (isTerminalMediaFailure(error)) throw error; return ""; });
   return Number(String(out).trim()) || 0;
 }

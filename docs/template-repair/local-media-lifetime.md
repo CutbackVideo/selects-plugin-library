@@ -125,3 +125,40 @@ owned runtime had exited.
 Both owned Electron sessions were stopped: 14 processes each, no owned ports/apps
 or helper registrations remain. The four nested helper registrations per session
 were explicitly removed. Profiles, Projects, source media and evidence are retained.
+
+## A16z live caller compatibility
+
+Reading the actual compiled-client consumer exposed additional lifetime violations:
+its camera RGB decoder removed output even after unconfirmed native exit and reused
+`shot-<source id>.rgb`; optional framing, stock and loudness catches then hid terminal
+native failures. Parent counterexamples reproduce these paths.
+
+The existing A16z adapter now captures its file client, exclusively reserves a fresh
+UUID-named RGB output before starting the producer, and retains only that invocation's
+path when reservation or producer exit is unknown. Frozen provider errors are wrapped,
+not mutated. Known decoder failure cleans its own new output and preserves prior
+outputs. Lost reservation acknowledgement is neither retried nor deleted. Terminal
+native errors propagate through stock, loudness, framing and build coordination;
+parallel semantic/music work is observed before rejection. Ordinary optional decode
+and AI policy stays distinct. Both source and generated 0.20.8 panel are updated in
+the same #332 feature; no new module or public SDK is introduced.
+
+A16z's original 25 cases plus ten new actual-source boundary cases pass (35 distinct
+cases: the 34-case suite, then the ten-case affected file after adding the reservation
+case). New cases include sibling draining, stopping before cut/finalization, unique
+RGB retention, known failure cleanup and lost reservation. The existing eleven
+native SDK scenarios validate the shared client/asset and Archive boundaries; they
+do not establish a fresh A16z native producer or whole installed-app flow.
+
+A16z's RGB reader is still a legacy range-based adapter. Full adoption should extend
+the existing asset owner for streaming rather than apply its bounded whole-output
+reader to a potentially large RGB file. That migration, persisted unknown-workspace
+reconciliation and full template acceptance remain open.
+
+The macOS storage screen was checked again after the user's screenshot: one Electron
+row remains, pointing at the active original checkout's development dependency. This
+feature's alias has zero processes, copied apps, registered app/helper paths or listening
+ports. Other live tasks, the shared distribution cache and development dependencies
+are preserved. The launcher unregisters only its top-level bundle; the task's verified
+shutdown additionally unregisters its absent nested helper paths. General launcher
+hardening is a separate queued development-tool issue, not claimed implemented here.

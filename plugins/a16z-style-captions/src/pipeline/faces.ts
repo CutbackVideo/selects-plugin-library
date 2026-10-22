@@ -11,12 +11,13 @@ export type FaceJob = { id: string; path: string; resourceId: string; start: num
 export async function trackFaces(sdk: Sdk, projectId: string, dir: string, jobs: FaceJob[], progress: (s: string) => void = () => {}): Promise<Record<string, SourceFaces>> {
   const out: Record<string, SourceFaces> = {};
   if (!jobs.length) return out;
-  await fs().mkdir(dir, { recursive: true });
-  const journal = fs().join(dir, "shared-ai-jobs.json");
+  const files = fs();
+  await files.mkdir(dir, { recursive: true });
+  const journal = files.join(dir, "shared-ai-jobs.json");
   const client = createSharedAiJobClient({ projectId, scope: "a16z-faces:" + dir,
     runScript: (body: string, summary: string, effect: boolean) => script(sdk, summary, body, effect),
-    load: async () => await fs().exists(journal) ? JSON.parse(String(await fs().readFile(journal, "utf8"))) : null,
-    save: async (value: unknown) => fs().writeFile(journal, JSON.stringify(value)),
+    load: async () => await files.exists(journal) ? JSON.parse(String(await files.readFile(journal, "utf8"))) : null,
+    save: async (value: unknown) => files.writeFile(journal, JSON.stringify(value)),
   });
   for (const job of jobs) {
     if (!(job.fps > 0 && job.width > 0 && job.height > 0) || !Number.isFinite(job.start) || !(job.end > job.start)) throw new Error("Invalid source frame clock.");
@@ -39,15 +40,23 @@ return {total:d.samples.length,samples:d.samples.slice(${offset},${offset + 10})
       appendFaceSamples(samples, incoming, window.acceptFromSeconds);
     }
     const scale = Math.min(1, 640 / Math.max(job.width, job.height)), width = Math.max(1, Math.round(job.width * scale)), height = Math.max(1, Math.round(job.height * scale));
-    const bytes = width * height * 3, step = Math.max(1, Math.round(job.fps / 6)), rgb = fs().join(dir, "shot-" + job.id + ".rgb");
-    let cuts: number[];
+    const bytes = width * height * 3, step = Math.max(1, Math.round(job.fps / 6)), rgb = files.join(dir, "shot-" + crypto.randomUUID() + ".rgb");
+    let cuts: number[], producerFailure: any = null;
+    // An acknowledged exclusive reservation belongs only to this invocation.
+    // A lost reservation reply authorizes neither retry nor deletion.
+    try { await files.writeFile(rgb, new Uint8Array(), { flag: "wx" }); }
+    catch (cause) { throw Object.assign(new Error("The camera workspace reservation could not be confirmed."), { code: "LOCAL_MEDIA_WORKSPACE_UNKNOWN", terminal: true, preserveTemporaryFiles: true, retainedTemporaryFiles: [rgb], cause }); }
     try {
       const decoded = await hostFF("runFFmpeg", cameraSampleArgs(job, rgb, width, height, step), 300000);
-      const stat = await fs().stat(rgb);
+      const stat = await files.stat(rgb);
       if (!stat || stat.size < bytes || stat.size % bytes) throw new Error("Camera sample decoding was incomplete.");
       const count = Math.floor(stat.size / bytes), times = cameraSampleTimes(decoded.stderr, count, job.start, job.end);
-      cuts = await histogramCuts({ read: (i) => fs().readRange(rgb, i * bytes, bytes), count, times });
-    } finally { await fs().rm(rgb, { force: true }); }
+      cuts = await histogramCuts({ read: (i) => files.readRange(rgb, i * bytes, bytes), count, times });
+    } catch (error) {
+      producerFailure = error;
+      if (error?.preserveTemporaryFiles) throw Object.assign(new Error(error.publicMessage || "The camera media job exit could not be confirmed."), { code: error.code, terminal: true, preserveTemporaryFiles: true, retainedTemporaryFiles: [rgb], jobId: error.jobId, cause: error });
+      throw error;
+    } finally { if (!producerFailure?.preserveTemporaryFiles) await files.rm(rgb, { force: true }); }
     out[job.id] = speakerShots(samples, cuts, job.start, job.end, job.width, job.height);
   }
   return out;
