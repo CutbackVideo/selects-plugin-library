@@ -607,6 +607,7 @@ function editableCaption(S: any) {
 // result, a shell command (16 KB) and a shell's output (48 KB). A file is written beside its destination
 // and renamed into place, so a save that fails halfway leaves the earlier file as it was.
 const SDK_PIECE = 48 * 1024; // selects.files.readRange and writeChunk: 49,152 bytes at most
+const SDK_WRITE_PIECES = 3; // Three base64 pieces keep one save script under the 256 KiB script cap.
 const SHELL_READ_PIECE = 32768; // 43,692 base64 characters, under the 48 KB output cap
 const SHELL_WRITE_PIECE = 9000; // 12,000 base64 characters, under the 16 KB command cap
 const SHELL_COMMAND_ROOM = 12000; // paths listed in one shell command
@@ -704,17 +705,21 @@ async function sdkFiles(sdk: any): Promise<any> {
       try {
         let at = 0;
         do {
-          const part = bytes.subarray(at, at + SDK_PIECE);
-          const last = at + part.length >= bytes.length;
+          const first = at, parts: { at: number; base64: string; length: number }[] = [];
+          do {
+            const part = bytes.subarray(at, at + SDK_PIECE);
+            parts.push({ at, base64: toBase64(part), length: part.length });
+            at += part.length;
+          } while (at < bytes.length && parts.length < SDK_WRITE_PIECES);
+          const last = at >= bytes.length, want = at - first;
           const wrote = await run(
-            (at === 0 ? `await selects.files.mkdir(${J(folderOf(path))}, { recursive: true }); ` : "") +
-              `const w = await selects.files.writeChunk({ path: ${J(tmp)}, offset: ${at}, base64: ${J(toBase64(part))} }); ` +
-              (last ? `if (w.bytesWritten === ${part.length}) await selects.files.rename(${J(tmp)}, ${J(path)}); ` : "") +
-              `return w.bytesWritten;`,
+            (first === 0 ? `await selects.files.mkdir(${J(folderOf(path))}, { recursive: true }); ` : "") +
+              `let wrote = 0; for (const p of ${J(parts)}) { const w = await selects.files.writeChunk({ path: ${J(tmp)}, offset: p.at, base64: p.base64 }); if (w.bytesWritten !== p.length) return -1; wrote += w.bytesWritten; } ` +
+              (last ? `await selects.files.rename(${J(tmp)}, ${J(path)}); ` : "") +
+              `return wrote;`,
             true
           );
-          if (wrote !== part.length) throw new Error("Could not save " + path);
-          at += part.length;
+          if (wrote !== want) throw new Error("Could not save " + path);
         } while (at < bytes.length);
       } catch (e) {
         await run(`const p = ${J(tmp)}; const s = await selects.files.stat(p); if (s && !s.isDirectory) await selects.files.remove(p, { recursive: true, force: true });`, true).catch(() => {});
@@ -2088,6 +2093,21 @@ function createWorkQueue() {
   };
 }
 const visualWork = createWorkQueue();
+const PROGRESS_SAVE_MS = 5000;
+// A burst of progress saves becomes one save per window.
+function throttledSave(save: () => Promise<void>, ms: number, onError: (e: any) => void) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return {
+    soon() {
+      if (timer) return;
+      timer = setTimeout(() => { timer = null; save().catch(onError); }, ms);
+    },
+    cancel() {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    },
+  };
+}
 function createReframeWork(check: () => void = () => {}) {
   const faces = createWorkQueue();
   const cache = new Map<string,Promise<any>>();
@@ -4542,65 +4562,138 @@ function sourceAppearanceChange(a:ArrayLike<number>,b:ArrayLike<number>) {
 
 // Survey the whole selected source, not just face-bearing instants. Pixel changes
 // are candidates for the agent to interpret; motion and flashes can also trigger.
+// Each capture costs a host script round trip, so raw source batches are twice
+// the size of sequence-frame batches. A batch spans at most RAW_BATCH_SPAN_SECONDS
+// of source, because one decoder reads everything from its first frame to its last.
+const RAW_FRAME_BATCH=24,SEQUENCE_FRAME_BATCH=12,RAW_BATCH_SPAN_SECONDS=12;
+function surveyBatches(frames:number[],size:number,span:number) {
+  const out:number[][]=[];
+  for(const f of frames){const last=out[out.length-1];if(last&&last.length<size&&f-last[0]<=span)last.push(f);else out.push([f]);}
+  return out;
+}
 function rawSourceFrameArgs(source:any,frames:number[],output:string) {
-  if(!source.path||!Number.isFinite(source.meta?.fps)||source.meta.fps<=0||!frames.length||frames.length>12||frames.some(f=>!Number.isInteger(f)||f<0))throw Error('Invalid source frame request');
+  if(!source.path||!Number.isFinite(source.meta?.fps)||source.meta.fps<=0||!frames.length||frames.length>RAW_FRAME_BATCH||frames.some(f=>!Number.isInteger(f)||f<0))throw Error('Invalid source frame request');
   const width=640,height=Math.max(2,Math.round(width*source.meta.frameSize.height/source.meta.frameSize.width/2)*2);
   // Seek once and decode the batch sequentially. A separate input per frame
   // repeatedly decodes the same GOP, especially during exact-cut refinement.
   // Trim each branch by frame index and reset timestamps before stacking;
   // this preserves request order (including duplicates) at fractional FPS.
   const first=Math.min(...frames);
-  const args=['-v','error','-y','-threads','1','-ss',(first/source.meta.fps).toFixed(9),'-i',source.path];
+  const args=['-v','error','-y','-threads','2','-ss',(first/source.meta.fps).toFixed(9),'-i',source.path];
   const filters=[frames.length===1?'[0:v:0]null[s0]':`[0:v:0]split=${frames.length}`+frames.map((_,i)=>`[s${i}]`).join('')];
   filters.push(...frames.map((f,i)=>`[s${i}]trim=start_frame=${f-first}:end_frame=${f-first+1},setpts=PTS-STARTPTS,scale=${width}:${height},setsar=1[v${i}]`));
   filters.push(frames.length===1?'[v0]null[out]':frames.map((_,i)=>`[v${i}]`).join('')+`hstack=inputs=${frames.length}:shortest=1[out]`);
   args.push('-filter_complex_threads','1','-filter_complex',filters.join(';'),'-map','[out]','-frames:v','1','-q:v','3',output);
   return {args,width,height};
 }
-async function captureRawSourceFrames({sdk,guard,store,source,frames}:any) {
+// What this panel session learned about the host: whether job status can be read
+// without a script, and whether a capture can be drawn straight from its local URL.
+const surveyHosts=new WeakMap<object,{statusCall:boolean;localImages:boolean}>();
+function surveyHost(sdk:any){let h=surveyHosts.get(sdk);if(!h)surveyHosts.set(sdk,h={statusCall:true,localImages:true});return h;}
+const surveyDirs=new WeakMap<object,Map<string,Promise<void>>>();
+function ensureSurveyDir(store:any,dir:string){
+  let dirs=surveyDirs.get(store);if(!dirs)surveyDirs.set(store,dirs=new Map());
+  let ready=dirs.get(dir);
+  if(!ready){const made=Promise.resolve(store.ensure(dir));ready=made;dirs.set(dir,made);made.catch(()=>{if(dirs!.get(dir)===made)dirs!.delete(dir);});}
+  return ready;
+}
+// One script per batch: start FFmpeg and get the output's local URL together. The
+// output stays on disk until the survey ends (`outputs`), so a failed local draw
+// can still read its bytes.
+async function captureRawSourceFrames({sdk,guard,store,source,frames,outputs}:any) {
+  const J=JSON.stringify,host=surveyHost(sdk);
   const read=async(script:string,allowCommit=false)=>{const r=await sdk.runScript({script,summary:'Capture original source frames',allowCommit});if(r.isError)throw Error(r.output||'Source frame capture failed');return r.result;};
   const dir=store.join(store.root,'frames'),output=store.join(dir,`survey-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`);
   const {args,width,height}=rawSourceFrameArgs(source,frames,output);
-  const state=async(id:string)=>String((await read(`return await selects.media.job(${JSON.stringify(id)}).status();`)).state);
-  try {
-    await guard(store.ensure(dir));
-    await runFrameJob({start:async()=>(await read(`return await selects.media.startFFmpeg({args:${JSON.stringify(args)}});`,true)).jobId,
-      state:id=>guard(state(id)),settled:state,cancel:async id=>{await read(`await selects.media.job(${JSON.stringify(id)}).cancel();`,true);},
-      wait:ms=>guard(sleep(ms)),idle:sleep,now:()=>Date.now(),limitMs:60000,stopped:()=>false,stopError:()=>new RunCancelled()});
-    const bytes=await guard(store.fs.readFile(output));
-    return {data:toBase64(bytes),frames:frames.map((frameNumber:number,i:number)=>({frameNumber,hasSourceImage:true,x:i*width,y:0,width,height}))};
-  } finally {await read(`await selects.files.remove(${JSON.stringify(output)},{force:true});`,true).catch(()=>{});}
+  const state=async(id:string)=>{
+    if(host.statusCall){try{return String((await sdk.call('getLocalMediaJobStatus',id,{cursor:0})).state);}catch(e){host.statusCall=false;}}
+    return String((await read(`return await selects.media.job(${J(id)}).status();`)).state);
+  };
+  await guard(ensureSurveyDir(store,dir));
+  outputs.push(output);
+  let url:string|null=null;
+  await runFrameJob({start:async()=>{
+      const started=await read(host.localImages?`const job = await selects.media.startFFmpeg({args:${J(args)}}); return { jobId: job.jobId, url: await selects.files.localUrl(${J(output)}) };`:`return await selects.media.startFFmpeg({args:${J(args)}});`,true);
+      url=typeof started?.url==='string'?started.url:null;return started.jobId;},
+    state:id=>guard(state(id)),settled:state,cancel:async id=>{await read(`await selects.media.job(${J(id)}).cancel();`,true);},
+    wait:ms=>guard(sleep(ms)),idle:sleep,now:()=>Date.now(),limitMs:60000,pollMs:150,stopped:()=>false,stopError:()=>new RunCancelled()});
+  return {url,output,frames:frames.map((frameNumber:number,i:number)=>({frameNumber,hasSourceImage:true,x:i*width,y:0,width,height}))};
+}
+// Captures are removed together when the survey ends. Earlier versions of this panel
+// left every capture behind, so captures older than a day go in the same script.
+async function removeSurveyCaptures(sdk:any,paths:string[]) {
+  if(!paths.length)return;
+  const J=JSON.stringify,dir=folderOf(paths[0]),sep=paths[0].charAt(dir.length);
+  await sdk.runScript({allowCommit:true,summary:'Remove original source frame captures',script:
+    `const paths: string[] = ${J(paths)}; const dir = ${J(dir)}; const d = await selects.files.stat(dir); `+
+    `if (d && d.isDirectory) for (const name of await selects.files.readdir(dir)) { if (!/^survey-.*\\.jpg$/.test(String(name))) continue; const p = dir + ${J(sep)} + String(name); const s = await selects.files.stat(p); if (s && !s.isDirectory && s.mtimeMs < Date.now() - 86400000 && !paths.includes(p)) paths.push(p); } `+
+    `for (const p of paths) { try { const s = await selects.files.stat(p); if (s && !s.isDirectory) await selects.files.remove(p, { recursive: true, force: true }); } catch (e) {} }`,
+  }).catch(()=>{});
+}
+async function loadSurveyImage(src:string,crossOrigin:boolean) {
+  const image=new Image();if(crossOrigin)image.crossOrigin='anonymous';image.src=src;await image.decode();return image;
 }
 
-async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note,store}:any) {
+async function prepareSourceSurvey(input:any) {
+  const {projectId,before,catalog,note}=input;
+  // A retried clip asks for the same survey; its frames and pages do not change.
+  const key=keyHash(JSON.stringify({projectId,sources:before.sources.map((s:any)=>[s.resourceId,s.path??null,s.meta?.fps,s.meta?.frameSize]),
+    segments:(before.segments||before.words).map((w:any)=>[w.sourceResourceId,w.startFrame,w.endFrame,w.sourceStartFrame,w.sourceEndFrame]),
+    speakers:(before.words||[]).map((w:any)=>[w.speakerId,w.sourceResourceId,w.startFrame,w.endFrame]),catalog:catalog.map((f:any)=>[f.id,f.resourceId,f.sourceFrame])}));
+  const known=surveyMemo.get(key);
+  if(known){
+    const r=await known;
+    note({plan:'source-evidence',samples:r.samples,boundaries:r.boundaries,imageCount:r.images.length,timing:{cached:true}});
+    return {...r,images:r.images.slice()};
+  }
+  const pending=surveySourceFrames(input);
+  surveyMemo.set(key,pending);
+  while(surveyMemo.size>8)surveyMemo.delete(surveyMemo.keys().next().value!);
+  pending.catch(()=>{if(surveyMemo.get(key)===pending)surveyMemo.delete(key);});
+  return pending;
+}
+const surveyMemo=new Map<string,Promise<any>>();
+
+async function surveySourceFrames({sdk,guard,projectId,before,catalog,note,store}:any) {
   const started=performance.now(),metrics={batches:0,frames:0,captureMs:0};
-  const images:any[]=[],samples:any[]=[],boundaries:any[]=[];
+  const images:any[]=[],samples:any[]=[],boundaries:any[]=[],outputs:string[]=[];
+  const host=surveyHost(sdk);
+  try {
   for(const source of before.sources) {
     const words=(before.segments||before.words).filter((w:any)=>w.sourceResourceId===source.resourceId&&Number.isFinite(w.sourceStartFrame));
     const ranges=cameraFaceRanges(words.map((w:any)=>[w.sourceStartFrame/source.meta.fps,w.sourceEndFrame/source.meta.fps]));
     const core=source.path?null:await guard(sdk.call('getResourceAnalyzedSequence',projectId,source.resourceId));
     if(!source.path&&(core?.owner?.projectId!==projectId||!core.analyzedSequenceJson?.id))throw Error('Source survey ownership mismatch');
     const cache=new Map<number,any>();
+    const tiles=(image:any,c:any,wanted:number[])=>wanted.map(f=>{const tile=c.frames?.find((t:any)=>t.frameNumber===f);if(!tile?.hasSourceImage)throw Error('Missing source survey image');const cv=document.createElement('canvas');cv.width=640;cv.height=Math.round(640*source.meta.frameSize.height/source.meta.frameSize.width);const g=cv.getContext('2d')!;g.drawImage(image,tile.x,tile.y,tile.width,tile.height,0,0,cv.width,cv.height);const probe=document.createElement('canvas');probe.width=32;probe.height=18;const pg=probe.getContext('2d')!;pg.drawImage(cv,0,0,32,18);return [f,{cv,pixels:pg.getImageData(0,0,32,18).data}] as [number,any];});
     const capture=async(frames:number[])=>{
-      const missing=[...new Set(frames)].filter(f=>!cache.has(f));
-      for(let i=0;i<missing.length;i+=12){note({plan:'stage',stage:'evidence'});const wanted=missing.slice(i,i+12),captureStarted=performance.now();
-        const c=await guard(visualWork(()=>source.path?captureRawSourceFrames({sdk,guard,store,source,frames:wanted}):sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:core.analyzedSequenceJson.id,sequenceJson:core.analyzedSequenceJson,coordinate:'base',frames:wanted.map(frameNumber=>({frameNumber,view:'timeline_composite'})),includeOverlays:false})));
+      const missing=[...new Set(frames)].filter(f=>!cache.has(f)).sort((a,b)=>a-b);
+      const batches=source.path?surveyBatches(missing,RAW_FRAME_BATCH,Math.round(source.meta.fps*RAW_BATCH_SPAN_SECONDS)):surveyBatches(missing,SEQUENCE_FRAME_BATCH,Infinity);
+      for(const wanted of batches){note({plan:'stage',stage:'evidence'});const captureStarted=performance.now();
+        const c=await guard(visualWork(()=>source.path?captureRawSourceFrames({sdk,guard,store,source,frames:wanted,outputs}):sdk.call('captureVisualFrames',{owner:core.owner,sequenceId:core.analyzedSequenceJson.id,sequenceJson:core.analyzedSequenceJson,coordinate:'base',frames:wanted.map(frameNumber=>({frameNumber,view:'timeline_composite'})),includeOverlays:false})));
         metrics.batches++;metrics.frames+=wanted.length;metrics.captureMs+=performance.now()-captureStarted;
-        const image=new Image();image.src='data:image/jpeg;base64,'+c.data;await image.decode();
-        for(const f of wanted){const tile=c.frames?.find((t:any)=>t.frameNumber===f);if(!tile?.hasSourceImage)throw Error('Missing source survey image');const cv=document.createElement('canvas');cv.width=640;cv.height=Math.round(640*source.meta.frameSize.height/source.meta.frameSize.width);const g=cv.getContext('2d')!;g.drawImage(image,tile.x,tile.y,tile.width,tile.height,0,0,cv.width,cv.height);const probe=document.createElement('canvas');probe.width=32;probe.height=18;const pg=probe.getContext('2d')!;pg.drawImage(cv,0,0,32,18);cache.set(f,{cv,pixels:pg.getImageData(0,0,32,18).data});}
+        let entries:[number,any][]|null=null;
+        if(c.url&&host.localImages){
+          try{entries=tiles(await loadSurveyImage(c.url,true),c,wanted);}
+          catch(e:any){host.localImages=false;console.info('[shortform:source-survey]',{localImages:'unavailable',error:String(e?.message||e)});}
+        }
+        if(!entries)entries=tiles(await loadSurveyImage('data:image/jpeg;base64,'+(c.data??toBase64(await guard(store.fs.readFile(c.output)))),false),c,wanted);
+        for(const [f,value] of entries)cache.set(f,value);
       }
     };
-    const selected=new Set<number>();
-    for(const [a,b] of ranges){const start=Math.round(a*source.meta.fps),end=Math.ceil(b*source.meta.fps)-1,step=Math.max(1,Math.round(source.meta.fps*.5)),coarse:number[]=[];for(let f=start;f<=end;f+=step)coarse.push(f);coarse.push(end);await capture(coarse);selected.add(start);selected.add(end);
-      for(let i=1;i<coarse.length;i++)if(sourceAppearanceChange(cache.get(coarse[i-1]).pixels,cache.get(coarse[i]).pixels)){
-        const frames=Array.from({length:coarse[i]-coarse[i-1]+1},(_,j)=>coarse[i-1]+j);await capture(frames);
-        for(let j=1;j<frames.length;j++)if(sourceAppearanceChange(cache.get(frames[j-1]).pixels,cache.get(frames[j]).pixels)){boundaries.push({resourceId:source.resourceId,lastOldSourceFrame:frames[j-1],firstNewSourceFrame:frames[j],kind:'appearance-change-candidate'});selected.add(frames[j-1]);selected.add(frames[j]);}
-      }
-    }
+    // Frames chosen regardless of what the pixels show are taken with the coarse pass.
+    const selected=new Set<number>(),spans:{coarse:number[]}[]=[],chosen:number[]=[];
+    for(const f of catalog.filter((f:any)=>f.resourceId===source.resourceId))chosen.push(f.sourceFrame);
+    for(const t of reframingPlanningFacts(before,[]).turns.filter((t:any)=>before.sources[t.source]?.resourceId===source.resourceId)){const w=words.find((w:any)=>w.startFrame<=t.startFrame&&w.endFrame>t.startFrame);if(w)chosen.push(Math.round(w.sourceStartFrame));}
+    for(const [a,b] of ranges){const start=Math.round(a*source.meta.fps),end=Math.ceil(b*source.meta.fps)-1,step=Math.max(1,Math.round(source.meta.fps*.5)),coarse:number[]=[];for(let f=start;f<=end;f+=step)coarse.push(f);coarse.push(end);spans.push({coarse});selected.add(start);selected.add(end);}
+    await capture([...spans.flatMap(s=>s.coarse),...chosen]);
+    // Every changed coarse interval is refined frame by frame, all in one capture.
+    const changed=spans.flatMap(({coarse})=>coarse.slice(1).flatMap((f,i)=>sourceAppearanceChange(cache.get(coarse[i]).pixels,cache.get(f).pixels)?[Array.from({length:f-coarse[i]+1},(_,j)=>coarse[i]+j)]:[]));
+    await capture(changed.flat());
+    for(const frames of changed)for(let j=1;j<frames.length;j++)if(sourceAppearanceChange(cache.get(frames[j-1]).pixels,cache.get(frames[j]).pixels)){boundaries.push({resourceId:source.resourceId,lastOldSourceFrame:frames[j-1],firstNewSourceFrame:frames[j],kind:'appearance-change-candidate'});selected.add(frames[j-1]);selected.add(frames[j]);}
     // Every local face track receives an actual raw reference image. This lets
     // the agent connect identities across windows instead of trusting track IDs.
-    for(const f of catalog.filter((f:any)=>f.resourceId===source.resourceId))selected.add(f.sourceFrame);
-    for(const t of reframingPlanningFacts(before,[]).turns.filter((t:any)=>before.sources[t.source]?.resourceId===source.resourceId)){const w=words.find((w:any)=>w.startFrame<=t.startFrame&&w.endFrame>t.startFrame);if(w)selected.add(Math.round(w.sourceStartFrame));}
+    for(const f of chosen)selected.add(f);
     const frames=[...selected].sort((a,b)=>a-b);await capture(frames);
     for(let i=0;i<frames.length;i+=6){const page=frames.slice(i,i+6),cv=document.createElement('canvas');cv.width=1280;const h=cache.get(page[0]).cv.height+40;cv.height=h*Math.ceil(page.length/2);const g=cv.getContext('2d')!;g.fillStyle='#15191f';g.fillRect(0,0,cv.width,cv.height);
       page.forEach((f,j)=>{const x=j%2*640,y=Math.floor(j/2)*h;g.drawImage(cache.get(f).cv,x,y+40);g.fillStyle='white';g.font='16px sans-serif';const ids=catalog.filter((c:any)=>c.resourceId===source.resourceId&&c.sourceFrame===f).map((c:any)=>c.id);g.fillText(`source frame ${f} · ${ids.join(', ')||'context'}`,x+8,y+26);});
@@ -4608,7 +4701,8 @@ async function prepareSourceSurvey({sdk,guard,projectId,before,catalog,note,stor
     }
     samples.push({resourceId:source.resourceId,sourceFrames:frames});
   }
-  const timing={...metrics,captureMs:Math.round(metrics.captureMs),elapsedMs:Math.round(performance.now()-started)};
+  } finally {await removeSurveyCaptures(sdk,outputs);}
+  const timing={...metrics,captureMs:Math.round(metrics.captureMs),elapsedMs:Math.round(performance.now()-started),localImages:host.localImages,statusCall:host.statusCall};
   console.info('[shortform:source-survey]',timing);
   note({plan:'source-evidence',samples,boundaries,imageCount:images.length,timing});return {images,samples,boundaries};
 }
@@ -5801,7 +5895,7 @@ async function settleFaceJob(io: { submit(): Promise<any>; status(cancel: boolea
 // started it (up to ten minutes), so whenever this ends without success (too slow, a status check failing, the
 // user cancelling, even before the start was answered) the job is cancelled and its end awaited before the error
 // goes on. io.start and io.cancel/io.settled must not be raced with the user's cancel; io.wait is.
-async function runFrameJob(io: { start(): Promise<string>; state(id: string): Promise<string>; settled(id: string): Promise<string>; cancel(id: string): Promise<void>; wait(ms: number): Promise<void>; idle(ms: number): Promise<void>; now(): number; limitMs: number; stopped(): boolean; stopError(): any }): Promise<void> {
+async function runFrameJob(io: { start(): Promise<string>; state(id: string): Promise<string>; settled(id: string): Promise<string>; cancel(id: string): Promise<void>; wait(ms: number): Promise<void>; idle(ms: number): Promise<void>; now(): number; limitMs: number; pollMs?: number; stopped(): boolean; stopError(): any }): Promise<void> {
   const id = await io.start();
   const t0 = io.now();
   let state = "running";
@@ -5812,7 +5906,7 @@ async function runFrameJob(io: { start(): Promise<string>; state(id: string): Pr
       state = await io.state(id);
       if (state !== "running") break;
       if (io.now() - t0 > io.limitMs) throw Object.assign(new Error("Taking frames took too long."), { code: "TIMEOUT" });
-      await io.wait(250);
+      await io.wait(io.pollMs ?? 250);
     }
   } catch (e: any) {
     failure = e;
@@ -10713,25 +10807,43 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     let job: any = resume ?? { id: crypto.randomUUID().replace(/-/g, ''), usageTracking: true, sharedUsageCalls: [], projectId, created: new Date().toISOString(), mode, url: url.trim(), pick, program, countMode, count, note, fixedLayout, subjectInstructions };
     setRunInfo(job);
     let revealedResults = false;
-    // Snapshot at enqueue time and serialize disk writes across concurrent clips.
-    let saveQueue: Promise<void> = Promise.resolve();
-    const persist = (patch: any) => {
+    // Snapshot at enqueue time and serialize disk writes across concurrent clips. Every save is the whole job,
+    // so saves made while one is writing share a single queued write that carries the newest snapshot.
+    let saveQueue: { snapshot: any; done: Promise<void>; resolve: () => void; reject: (e: any) => void } | null = null;
+    let saving = false;
+    const writeSnapshot = async (snapshot: any) => {
+      await saveJob(snapshot);
+      if (resultProject.current===snapshot.projectId && snapshot.built?.some((d: any)=>d?.draftId || d?.error)) {
+        setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==snapshot.id),snapshot],snapshot.projectId));
+        if (!revealedResults && snapshot.built.some((d: any)=>d?.draftId)) {
+          revealedResults = true;
+          setResultSelection(snapshot.id);
+          setTab("results");
+        }
+      }
+    };
+    const drainSaves = () => {
+      const queued = saveQueue;
+      saveQueue = null;
+      if (!queued) { saving = false; return; }
+      writeSnapshot(queued.snapshot).then(queued.resolve, queued.reject).finally(drainSaves);
+    };
+    const persist = (patch: any): Promise<void> => {
       job = { ...job, ...patch, updated: new Date().toISOString() };
       const snapshot = clone(job);
       setRunInfo(snapshot);
-      const write = saveQueue.then(async () => {
-        await saveJob(snapshot);
-        if (resultProject.current===snapshot.projectId && snapshot.built?.some((d: any)=>d?.draftId || d?.error)) {
-          setResultJobs(rows=>savedDraftResults([...rows.filter(j=>j.id!==snapshot.id),snapshot],snapshot.projectId));
-          if (!revealedResults && snapshot.built.some((d: any)=>d?.draftId)) {
-            revealedResults = true;
-            setResultSelection(snapshot.id);
-            setTab("results");
-          }
-        }
-      });
-      saveQueue = write.catch(() => {});
-      return write;
+      if (!saving) {
+        saving = true;
+        return writeSnapshot(snapshot).finally(drainSaves);
+      }
+      if (saveQueue) {
+        saveQueue.snapshot = snapshot;
+        return saveQueue.done;
+      }
+      let resolve: () => void = () => {}, reject: (e: any) => void = () => {};
+      const done = new Promise<void>((y, n) => { resolve = y; reject = n; });
+      saveQueue = { snapshot, done, resolve, reject };
+      return done;
     };
     // Wall-clock stage marks so slow runs can be diagnosed from the saved job alone.
     const mark = (stage: string, extra: any = {}) => persist({stageLog:[...(job.stageLog || []), {stage, at:new Date().toISOString(), ...extra}].slice(-200)});
@@ -10980,6 +11092,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         }
         await mark("built", {clip: i, ms: Date.now() - buildStarted});
       }
+      // Stage changes show at once; on disk they are kept at most once per window.
+      const progressSaves = throttledSave(() => persist({built:made,choice:pickd,resultWarning}), PROGRESS_SAVE_MS, e=>{progressSaveError=e;});
       // Every clip has its own Draft and agent session. Do not cap concurrency.
       const outcomes = await Promise.allSettled(pending.map(async (i) => {
         if (made[i].reframeState === "pending") {
@@ -11001,7 +11115,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
               made[i] = {...made[i], reframeUsageCalls:calls};
             }
             pickd.reframeLog = [...(pickd.reframeLog || []), { at: new Date().toISOString(), ...entry, clip: i }].slice(-300);
-            if (entry.plan === 'stage') void persist({built:made,choice:pickd,resultWarning}).catch(e=>{progressSaveError=e;});
+            if (entry.plan === 'stage') progressSaves.soon();
           };
           try {
             const report=await runTemplateReframing(made[i].draftId,job,tpl,note,work,made[i].reframeReport?.editContext);
@@ -11019,6 +11133,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           await persist({built:made,resultWarning});
         }
       }));
+      progressSaves.cancel();
       const rejected = outcomes.find((outcome) => outcome.status === "rejected");
       if (rejected?.status === "rejected") throw rejected.reason;
       if (progressSaveError) throw progressSaveError;
