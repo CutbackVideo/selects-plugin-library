@@ -347,6 +347,7 @@ type Strings = {
   chosen: (mode: string, art: string, layout: string) => string;
   shortformOpts: Record<string, string>;
   inside: string; insideNames: Record<string, string>; insideCount: (n: number) => string;
+  preview: string; noPreview: string; loadingPreview: string; openDraft: string; finished: string;
   advanced: string; showLogo: string; changed: (n: number) => string; autoWord: string; kfWord: string; jobFixed: string;
   unresolved: (names: string) => string; keepWaiting: string; resubmit: string; styleChanged: string;
 };
@@ -391,6 +392,7 @@ const STRINGS: Record<string, Strings> = {
     layoutNames: { strip: "16:9 strip card", fullbleed: "Full-frame 9:16", shortform: "Shortform (black bars)" },
     shortformOpts: { top: "Top bar height", bottom: "Bottom bar height", offset: "Video vertical offset", titleSize: "Title size (0 = automatic)" },
     chosen: (m, a, l) => `Explanation: ${m} \u00b7 Art: ${a} \u00b7 Layout: ${l}`,
+    preview: "Draft preview", noPreview: "No preview yet; open the Draft to see it.", loadingPreview: "Loading the preview…", openDraft: "Open the Draft", finished: "Made with this app",
     advanced: "Advanced settings", showLogo: "Show the logo", changed: (n) => `${n} changed`, jobFixed: "These are the settings saved with this job.",
     autoWord: "Automatic", kfWord: "Keyframes",
     inside: "Inside-the-body shots", insideNames: { auto: "When they help", on: "Use them", off: "None" },
@@ -450,6 +452,8 @@ const STRINGS: Record<string, Strings> = {
     layoutNames: { strip: "16:9 \ub760 \uce74\ub4dc", fullbleed: "\uc804\uccb4 \ud654\uba74 9:16", shortform: "\uc219\ud3fc(\uac80\uc740 \ub760)" },
     shortformOpts: { top: "\uc704 \ub760 \ub192\uc774", bottom: "\uc544\ub798 \ub760 \ub192\uc774", offset: "\uc601\uc0c1 \uc138\ub85c \uc704\uce58", titleSize: "\uc81c\ubaa9 \ud06c\uae30(0 = \uc790\ub3d9)" },
     chosen: (m, a, l) => `\uc124\uba85: ${m} \u00b7 \ud654\ud48d: ${a} \u00b7 \ud654\uba74: ${l}`,
+    preview: "\ub4dc\ub798\ud504\ud2b8 \ubbf8\ub9ac\ubcf4\uae30", noPreview: "\ubbf8\ub9ac\ubcf4\uae30\uac00 \uc544\uc9c1 \uc5c6\uc2b5\ub2c8\ub2e4. \ub4dc\ub798\ud504\ud2b8\ub97c \uc5f4\uc5b4 \ubcf4\uc138\uc694.",
+    loadingPreview: "\ubbf8\ub9ac\ubcf4\uae30\ub97c \ubd88\ub7ec\uc624\ub294 \uc911…", openDraft: "\ub4dc\ub798\ud504\ud2b8 \uc5f4\uae30", finished: "\uc774 \uc571\uc73c\ub85c \ub9cc\ub4e0 \uc601\uc0c1",
     advanced: "\uace0\uae09 \uc124\uc815", showLogo: "\ub85c\uace0 \ud45c\uc2dc", changed: (n) => `${n}\uac1c \ubcc0\uacbd\ub428`, jobFixed: "\uc774 \uc791\uc5c5\uc5d0 \uc800\uc7a5\ub41c \uc124\uc815\uc785\ub2c8\ub2e4.",
     autoWord: "\uc790\ub3d9", kfWord: "\ud0a4\ud504\ub808\uc784",
     inside: "\ubab8\uc18d \uc7a5\uba74", insideNames: { auto: "\ud544\uc694\ud560 \ub54c", on: "\uc0ac\uc6a9", off: "\uc0ac\uc6a9 \uc548 \ud568" },
@@ -2244,6 +2248,18 @@ export function medAdvancedChanges(values, template, preset) {
   return changed;
 }
 
+// ---- Draft preview and opening (the calls Shortform Clips uses) ----
+// The preview frame: about two seconds in (inside the first scene), never past the last frame.
+export function medPreviewFrame(snapshot) {
+  const snap = asObj(snapshot);
+  const ends = (Array.isArray(snap.clips) ? snap.clips : []).filter((c) => c.trackKind === "main").map((c) => c.endFrame).filter(Number.isFinite);
+  const end = ends.length ? Math.max(...ends) : 0;
+  if (!(snap.fps > 0) || end <= 0) return null;
+  return Math.min(Math.round(snap.fps * 2), Math.max(0, Math.ceil(end) - 1));
+}
+// run_script source that brings a persisted Draft to the front of the editor (selects.editor.openDraft; read-only).
+export function medOpenDraftScript(draftId) { return `return await selects.editor.openDraft(${JSON.stringify(String(draftId))});`; }
+
 // ---- Draft step: import the media, then wait until Selects can place it ----
 export function medBaseName(path) { return String(path).split(/[\\/]/).pop(); }
 export function medImportScript(projectId, files) {
@@ -2539,6 +2555,27 @@ function mergeGen(a: any, b: any): any {
 const idOf = (gen: string) => gen.split(":").slice(1).join("");
 const medVideoLabel = (video: string, quality: string, S: any) => `${medVideoModel(video).label} ${quality === "pro" ? S.qualityPro : S.qualityStd}`;
 
+// A finished job's Draft: its preview frame and a button that opens it in the editor.
+function DraftCard({ ui, S, dir, draftId, load, open }: any) {
+  const [img, setImg] = React.useState<string>("");
+  const [tried, setTried] = React.useState(false);
+  React.useEffect(() => {
+    let live = true;
+    setImg(""); setTried(false);
+    if (dir && draftId) load(dir, draftId).then((v: string | null) => { if (live) { setImg(v || ""); setTried(true); } }).catch(() => { if (live) setTried(true); });
+    return () => { live = false; };
+  }, [dir, draftId]);
+  return (
+    <ui.Stack gap={4}>
+      {img ? <img src={img} alt={S.preview} style={{ width: "100%", maxWidth: 260, alignSelf: "center", borderRadius: 8, display: "block" }} />
+        : <small style={{ opacity: 0.7 }}>{tried ? S.noPreview : S.loadingPreview}</small>}
+      <ui.Actions>
+        <ui.Button variant="primary" onClick={() => open(draftId)}>{S.openDraft}</ui.Button>
+      </ui.Actions>
+    </ui.Stack>
+  );
+}
+
 function Panel({ sdk, context, ui }: any) {
   hostUseSdk(sdk);
   const uiLang = String(context?.language || "en").split("-")[0];
@@ -2599,6 +2636,7 @@ function Panel({ sdk, context, ui }: any) {
   const [jobSettings, setJobSettings] = React.useState<any>(null); // the started job's saved settings
   const [result, setResult] = React.useState<any>(null);
   const [jobs, setJobs] = React.useState<any[]>([]);
+  const [doneJobs, setDoneJobs] = React.useState<any[]>([]); // finished jobs with a Draft
   const [storageReady, setStorageReady] = React.useState(false);
   const [t0, setT0] = React.useState(0);
   const [, tick] = React.useState(0);
@@ -2800,15 +2838,18 @@ function Panel({ sdk, context, ui }: any) {
     if (!projectId || !fs) return;
     try {
       const root = hostJoin(fs.homedir(), ".selects", "plugin-data", APP_ID, "jobs");
-      if (!(await fs.exists(root))) return setJobs([]);
-      const list: any[] = [];
+      if (!(await fs.exists(root))) { setDoneJobs([]); return setJobs([]); }
+      const list: any[] = [], done: any[] = [];
       for (const n of (await fs.readdir(root))) {
         const j = await readJson(hostJoin(root, n, "job.json"));
         const pj = (await readJson(hostJoin(root, n, "panel.json"))) || {};
         if (j && j.projectId === projectId && pj.started && !pj.done && !pj.dismissed)
           list.push({ id: j.id, dir: hostJoin(root, n), title: pj.title || j.input?.topic || j.input?.url || j.id, updated: j.updated || "" });
+        else if (j && j.projectId === projectId && pj.done && pj.draftId && !pj.dismissed)
+          done.push({ id: j.id, dir: hostJoin(root, n), draftId: pj.draftId, title: pj.title || j.input?.topic || j.input?.url || j.id, updated: j.updated || "" });
       }
       setJobs(list.sort((a, b) => String(b.updated).localeCompare(String(a.updated))).slice(0, 5));
+      setDoneJobs(done.sort((a, b) => String(b.updated).localeCompare(String(a.updated))).slice(0, 3));
     } catch (e) {}
   }, [projectId, fs]);
   React.useEffect(() => {
@@ -2832,6 +2873,35 @@ function Panel({ sdk, context, ui }: any) {
       return text && text.includes("<svg") ? "data:image/svg+xml;base64," + bytesToB64(enc(text)) : null;
     } catch (e) {
       return null;
+    }
+  }
+  // A Draft's preview frame (sdk.call getDraftMediaSnapshot + getDraftCore + captureVisualFrames, as Shortform Clips
+  // does), cached as preview.jpg in the job folder; null when it cannot be captured.
+  async function draftPreview(dir: string, draftId: string): Promise<string | null> {
+    const cached = hostJoin(dir, "work", "preview.jpg");
+    try {
+      if (fs && (await fs.exists(cached))) return "data:image/jpeg;base64," + (await readB64(cached));
+      if (!projectId) return null;
+      const snapshot: any = await sdk.call("getDraftMediaSnapshot", projectId, draftId);
+      const frameNumber = medPreviewFrame(snapshot);
+      if (frameNumber === null) return null;
+      const core: any = await sdk.call("getDraftCore", draftId);
+      if (!core?.owner || core.owner.projectId !== projectId) return null;
+      const image: any = await sdk.call("captureVisualFrames", { owner: core.owner, sequenceId: draftId, sequenceJson: core.sequenceJson, generatorJsons: core.generatorJsons,
+        coordinate: "resolved", frames: [{ frameNumber, view: "timeline_composite" }], includeOverlays: true });
+      if (image?.mimeType !== "image/jpeg" || typeof image.data !== "string" || !image.data || image.data.length > 4000000) return null;
+      try { await writeBytes(cached, Uint8Array.from(atob(image.data), (c) => c.charCodeAt(0))); } catch (e) { /* the preview still shows */ }
+      return "data:image/jpeg;base64," + image.data;
+    } catch (e) {
+      return null;
+    }
+  }
+  async function openDraft(draftId: string) {
+    try {
+      const r: any = await sdk.runScript({ summary: "Open the draft", script: medOpenDraftScript(draftId) });
+      if (r?.isError) throw new Error(String(r.output || "open failed"));
+    } catch (e: any) {
+      setError(String(e?.message || e));
     }
   }
   function choosePreset(id: string) {
@@ -3146,7 +3216,7 @@ function Panel({ sdk, context, ui }: any) {
         pj = await savePanel(dir, { draftId: b.result.draftId, seconds: b.result.seconds, done: true });
       }
       await saveRecovery({ jobId: j0.id, dir, phase: "done", done: true });
-      setResult({ seconds: pj.seconds, fallback: pj.fallback || [], dissolves: pj.dissolves || [], mismatches: pj.mismatches || [],
+      setResult({ draftId: pj.draftId, dir, seconds: pj.seconds, fallback: pj.fallback || [], dissolves: pj.dissolves || [], mismatches: pj.mismatches || [],
         ignored: Object.entries(st.gen).filter(([, v]: any) => v && v.ignored && !v.path).map(([k]) => k),
         kfModel: medKfModel(set.kfModel).label, video: medVideoLabel(set.video, set.quality, S), policyScenes: pj.policyScenes || [], policyStill: pj.policyStill || [], policyTransitions: pj.policyTransitions || [],
         verifySkipped: !!pj.verifySkipped, noMusic: !!pj.noMusic, dropped: sel.dropped || [] });
@@ -3349,6 +3419,7 @@ function Panel({ sdk, context, ui }: any) {
         <ui.Section title={S.done}>
           {result.seconds ? <ui.Message tone="success">{Math.round(result.seconds * 10) / 10}s</ui.Message> : null}
           <ui.Message tone="error">{S.review}</ui.Message>
+          {result.draftId && <DraftCard ui={ui} S={S} dir={result.dir} draftId={result.draftId} load={draftPreview} open={openDraft} />}
           <small>{S.openHint}</small>
           <small>{result.verifySkipped ? S.verifySkipped : result.mismatches.length ? `${S.mismatches}: ${result.mismatches.join(" / ")}` : S.verifyOk}</small>
           {result.fallback.length > 0 && <small>{S.fallbackClips}: {result.fallback.join(", ")}</small>}
@@ -3384,6 +3455,17 @@ function Panel({ sdk, context, ui }: any) {
               </ui.Button>
             </ui.Actions>
           )}
+        </ui.Section>
+      )}
+
+      {doneJobs.length > 0 && !busy && !result && (
+        <ui.Section title={S.finished}>
+          {doneJobs.map((j) => (
+            <ui.Stack key={j.id} gap={4}>
+              <small>{j.title}</small>
+              <DraftCard ui={ui} S={S} dir={j.dir} draftId={j.draftId} load={draftPreview} open={openDraft} />
+            </ui.Stack>
+          ))}
         </ui.Section>
       )}
 

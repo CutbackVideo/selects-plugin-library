@@ -1577,3 +1577,45 @@ test('ffmpeg: a shortform card is 1080x1920 with the offset picture', {skip: !ff
   assert.ok(px[0] < 20 && px[1] < 20 && px[2] < 20, 'the gap below the moved picture is black');
   fs.rmSync(dir, {recursive: true, force: true});
 });
+
+// ---- Draft preview and opening ----
+test('the preview frame is about two seconds in; the open script calls selects.editor.openDraft', async () => {
+  assert.equal(op.medPreviewFrame({fps: 24, clips: [{trackKind: 'main', endFrame: 1200}, {trackKind: 'video', endFrame: 9999}]}), 48);
+  assert.equal(op.medPreviewFrame({fps: 24, clips: [{trackKind: 'main', endFrame: 30}]}), 29);
+  assert.equal(op.medPreviewFrame({fps: 24, clips: []}), null);
+  assert.equal(op.medPreviewFrame(null), null);
+  const calls = [];
+  const out = await new Function('selects', `return (async () => {${op.medOpenDraftScript('d-1')}})();`)({editor: {openDraft: async (id) => { calls.push(id); return {requested: true, sequenceId: id}; }}});
+  assert.deepEqual(out, {requested: true, sequenceId: 'd-1'});
+  assert.deepEqual(calls, ['d-1']);
+});
+
+test('the panel captures the preview with the Shortform Clips calls, caches it, and opens the Draft without a commit', async () => {
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
+  const a = panel.indexOf('  async function draftPreview('), b = panel.indexOf('  function choosePreset(');
+  const src = panel.slice(a, b).replace(/: Promise<string \| null>/g, '').replace(/\((\w+): string(?:, (\w+): string)?\)/g, (m, x, y) => `(${x}${y ? ', ' + y : ''})`)
+    .replace(/: any/g, '').replace(/catch \(e\)/g, 'catch (e)');
+  const files = new Map();
+  const sdkCalls = [], scripts = [];
+  const sdk = {
+    call: async (name, ...args) => { sdkCalls.push(name);
+      if (name === 'getDraftMediaSnapshot') return {fps: 24, clips: [{trackKind: 'main', endFrame: 1000}]};
+      if (name === 'getDraftCore') return {owner: {projectId: 'p1'}, sequenceJson: {}, generatorJsons: []};
+      if (name === 'captureVisualFrames') { assert.equal(args[0].frames[0].frameNumber, 48); assert.equal(args[0].includeOverlays, true); return {mimeType: 'image/jpeg', data: btoa('jpegbytes')}; }
+    },
+    runScript: async (r) => { scripts.push(r); return {isError: false, result: {requested: true}}; },
+  };
+  const env = {sdk, projectId: 'p1', fs: {exists: async (p) => files.has(p)}, hostJoin: (...p) => p.join('/'),
+    readB64: async (p) => btoa(files.get(p)), writeBytes: async (p, bytes) => { files.set(p, new TextDecoder().decode(bytes)); }, setError: (e) => { throw new Error(e); }, medPreviewFrame: op.medPreviewFrame, medOpenDraftScript: op.medOpenDraftScript};
+  const fns = new Function(...Object.keys(env), src + '\nreturn {draftPreview, openDraft};')(...Object.values(env));
+  assert.equal(await fns.draftPreview('/job', 'd-1'), 'data:image/jpeg;base64,' + btoa('jpegbytes'));
+  assert.deepEqual(sdkCalls, ['getDraftMediaSnapshot', 'getDraftCore', 'captureVisualFrames']);
+  assert.ok(files.has('/job/work/preview.jpg'), 'cached in the job folder');
+  assert.equal(await fns.draftPreview('/job', 'd-1'), 'data:image/jpeg;base64,' + btoa('jpegbytes'));
+  assert.equal(sdkCalls.length, 3, 'the second time comes from the cache');
+  await fns.openDraft('d-1');
+  assert.equal(scripts[0].script, op.medOpenDraftScript('d-1'));
+  assert.ok(!scripts[0].allowCommit, 'opening changes nothing');
+  assert.match(panel, /\{result\.draftId && <DraftCard /);
+  assert.match(panel, /doneJobs\.map\(\(j\) => \(/);
+});

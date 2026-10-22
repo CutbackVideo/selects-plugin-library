@@ -39,7 +39,8 @@ Medical facts stay general and well established, but every video still needs a m
 4. Press **Make keyframes**. Two candidate keyframes are drawn per scene and the AI picks one; change any pick, then
    press **Use these and make the video**. (Turn off the review switches to run straight through.)
 5. The scene clips, transitions, labels and a scene check are made, and the video appears as an editable Draft in the
-   Project. Every title, label, caption and pointer is its own graphic clip with editable text, colours and font.
+   Project. The panel shows a preview frame of the Draft and an **Open the Draft** button; finished videos stay listed
+   with their preview. Every title, label, caption and pointer is its own graphic clip with editable text, colours and font.
 6. Export it with **Handoff → Export**.
 
 ## What it generates
