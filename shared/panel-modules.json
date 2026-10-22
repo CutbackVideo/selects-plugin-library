@@ -124,6 +124,15 @@
         "plugins/archive-vlog/assets/decode-title.tsx",
         "plugins/archive-vlog/assets/archived-credit.tsx"
       ]
+    },
+    {
+      "id": "render-color-filter",
+      "source": "shared/render-color-filter.js",
+      "targets": [
+        "plugins/archive-vlog/assets/cinematic-look.tsx",
+        "plugins/mini-vlog/assets/soft-look.tsx",
+        "plugins/the-end-credits/assets/cinematic-look.tsx"
+      ]
     }
   ]
 }

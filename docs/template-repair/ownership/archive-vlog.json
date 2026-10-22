@@ -576,7 +576,7 @@
         "dependencies": "Existing input/catalog/assets/analysis/durable owners; Archive two-video and hidden-run defaults. Standalone locally scores unanalysed videos; hidden search supplies evenly spaced candidates for usable unanalysed input, without running local frame scoring.",
         "effects": "Coordinates reads, analysis, import and save through declared owners; user navigation only follows confirmed result.",
         "lifetime": "Recovery is admitted before new selections; one run epoch/single-flight. Parallel scene/local jobs settle/cancel before error returns.",
-        "cleanup": "Stop only this run’s preview/workers/files; retain saved/unknown runs for exact recovery.",
+        "cleanup": "Stop only this run\u2019s preview/workers/files; retain saved/unknown runs for exact recovery.",
         "outcomes": "Success, shortened/partial search, known failure and unknown save/cleanup have different continuation rules.",
         "retry": "Build another is a new explicit run/seed; same-run recovery never creates a second assembly.",
         "distribution": "build/buildAnother/finishTitle/decorate, runArchiveVlogTemplate, archiveRecoveryOptions/archiveWorkflowResult.",
@@ -720,13 +720,13 @@
       "contract": {
         "identity": "One rendered clip occurrence; clip-local frame/fps differs from source seconds and Draft timeline frames.",
         "effects": "React/Remotion rendering only; no SDK, file, Project or process mutation.",
-        "lifetime": "One frame/render; no allocated Worker, native job or staging.",
+        "lifetime": "One frame/render; no allocated Worker, native job or staging. Source lifetime and RGB coverage are delegated to render-color-surface.",
         "cleanup": "React owns DOM removal; no original/installed file deletion.",
         "outcomes": "Current numeric defaults/clamps are policy, not evidence all malformed inputs are admitted safely.",
         "retry": "Repeat frame rendering freely; uncertain persistence is never replayed by this policy.",
-        "validation": "Existing effects/look/motion/title tests are inherited evidence. Actual changed-parameter rendering, playback/export and supported-platform quality remain open.",
+        "validation": "Existing effects/look/motion/title tests are inherited evidence. Actual changed-parameter rendering, playback/export and supported-platform quality remain open. Shared surface: source toggle, alpha and opaque-color behavior verified separately; full-template acceptance remains open.",
         "input": "strength0..1 (default.3), warmth0..2(default1); sRGB channel0..1.",
-        "output": "SVG/CSS 33-point tone/filter chain; strength0 returns Source directly.",
+        "output": "Template-specific SVG hue masks and 33-point tone graph; strength 0 disables the filter while the shared surface retains the source tree.",
         "dependencies": "Local hue masks/tone tables and React/Remotion.",
         "distribution": "plugins/archive-vlog/assets/cinematic-look.tsx"
       },
@@ -864,12 +864,38 @@
         "tests/panel_modules.test.mjs",
         "docs/template-repair/archive-render-fonts.md"
       ]
+    },
+    {
+      "id": "render-color-surface",
+      "decision": "reuse",
+      "owner": "render-color-filter",
+      "implementation": "implemented",
+      "reason": "Archive, Mini and THE END repeat stable source/coverage responsibilities with different color designs. Font/file/worker/saved-run owners have different lifetimes; reuse the dedicated synchronous RGB surface.",
+      "contract": {
+        "input": "React hooks, AbsoluteFill, stable Source/children, template id prefix, enabled flag and a synchronous SVG callback from colorInput to colorOutput. Caller owns numeric defaults and RGB design.",
+        "output": "A stable source tree; optional sRGB pointwise RGB grade with original coverage.",
+        "identity": "One stable per-mounted-instance document filter identity, independent of settings or independently compiled program copies. React useId, with crypto.getRandomValues per-mount fallback for older React callers.",
+        "dependencies": "React createElement and Remotion AbsoluteFill; browser Filter Effects color-matrix, transfer and compositing semantics. No SDK/IPC. React useId/useMemo and browser crypto.getRandomValues on the older-React fallback.",
+        "effects": "DOM and SVG rendering only, no files, network, timers or global mutable state.",
+        "lifetime": "The source stays in the same inner container across enabled/disabled edits; the color graph can change synchronously.",
+        "cleanup": "React removes the source once when the real owner unmounts/replaces it. No media, installed assets or foreign runtime cleanup.",
+        "outcomes": "Every source alpha is retained and the RGB grade is independent of translucency. Color-only contract excludes grain/leak/blur/intentional coverage-changing overlays.",
+        "retry": "Render changes are repeatable. Deliberate Source replacement still retires the previous component; persistence remains under the existing authoring/run owner.",
+        "distribution": "Canonical shared/render-color-filter.js is generated into explicitly shipped Archive, Mini and THE END TSX assets via panel-modules.json.",
+        "validation": "34 actual component/SVG checks: lifetime, distinct/stable ids with/without useId, frozen original Chromium opaque baseline, 256 alphas and eight colors. Final real Electron evidence is in docs/template-repair/render-color-filter.md. Whole-template acceptance remains open."
+      },
+      "evidence": [
+        "shared/render-color-filter.js",
+        "tests/render_color_filter.test.mjs",
+        "docs/template-repair/render-color-filter.md",
+        "tests/color_filter_opaque.json"
+      ]
     }
   ],
   "files": [
     {
       "path": "plugins/archive-vlog/panel.tsx",
-      "sha256": "3f59a7c1d8710144533fce25f55fe0e3f83d39e6351dca5f51a193fbc875f7d7",
+      "sha256": "55185f468188a454d36e2f80166ad9a0713a84fe3c6032b18e0c705d95268e3e",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
@@ -1540,7 +1566,7 @@
     },
     {
       "path": "plugins/archive-vlog/tests/look.test.cjs",
-      "sha256": "b09f99cb8ed51e94a3f8a4f5768d8259c75d6519da6f505a67c499887bd76b80",
+      "sha256": "53a8b2675d5fc4231e038047e84c915b31bc1d4b9c1122aa7ca2f9ee784dd910",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
@@ -1553,14 +1579,19 @@
     },
     {
       "path": "plugins/archive-vlog/assets/cinematic-look.tsx",
-      "sha256": "2d9b8802d87912f5e7fb56f803fa1dbd9370d5c57552fe329fb98c056ac25397",
+      "sha256": "2f61f28abc23d99c413dab4a95d0ff1428ffba6de78e77b68be1e671e26f3a1f",
       "hashMode": "lf-text",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 222,
+          "endLine": 243,
           "feature": "look-policy"
+        },
+        {
+          "startLine": 23,
+          "endLine": 50,
+          "feature": "render-color-surface"
         }
       ]
     },
@@ -1914,6 +1945,32 @@
           "feature": "render-font-readiness"
         }
       ]
+    },
+    {
+      "path": "shared/render-color-filter.js",
+      "sha256": "4e664c9e3196af6b5dee0ae4ac47965242bdcfaa11401921de600fd6e2afd902",
+      "hashMode": "lf-text",
+      "role": "runtime",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 27,
+          "feature": "render-color-surface"
+        }
+      ]
+    },
+    {
+      "path": "tests/render_color_filter.test.mjs",
+      "sha256": "93f31c6b52cec436aab1ca66859a84394f0a0e27b945bc2e0de526bc32620bf2",
+      "hashMode": "lf-text",
+      "role": "validation",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 110,
+          "feature": "render-color-surface"
+        }
+      ]
     }
   ],
   "assets": [
@@ -2045,7 +2102,7 @@
     },
     {
       "path": "plugins/archive-vlog/plugin.json",
-      "sha256": "21028176acdd74af240d12aef1f709e95f2a4f2fd24a31ba139ad9bd99c3da6d",
+      "sha256": "83baf4db0efb354425021c4eab1fb246e70cc25d0923bfe650d882c9d06fe00b",
       "hashMode": "bytes",
       "feature": "copy-and-package",
       "reason": "Exact declared package contract/style/licensed data; per-run verification/frozen snapshots belong to asset and workflow owners."
@@ -2338,6 +2395,32 @@
       ],
       "resolution": "One canonical render-fonts owner in both standalone Archive programs; matching result identity and commit-time release; observed async failure and monotonic deadline. Existing native frame paths use the companion bounded Remotion readiness owner.",
       "validationLimits": "Actual standalone Electron renderer/Player/preload cases and source fixtures; not installed full app, composed video/audio playback, encoded video export, Windows, malformed metrics or all-template acceptance."
+    },
+    {
+      "id": "color-filter-coverage-and-source",
+      "status": "fixed-source",
+      "feature": "render-color-surface",
+      "title": "Color grades preserve original alpha and source lifetime across strength zero.",
+      "sources": [
+        {
+          "file": "shared/render-color-filter.js",
+          "line": 3
+        },
+        {
+          "file": "plugins/archive-vlog/assets/cinematic-look.tsx",
+          "line": 1
+        }
+      ],
+      "repairOwner": "render-color-filter",
+      "mechanism": "Arithmetic additions multiplied premultiplied alpha/RGB; the zero-strength branch moved Source to a different React tree position.",
+      "acceptance": "All source coverage retained, independent RGB grade, normal opaque samples unchanged, zero toggles retain the original and real owner unmount/replacement cleans once.",
+      "evidence": [
+        "tests/render_color_filter.test.mjs",
+        "docs/template-repair/render-color-filter.md"
+      ],
+      "remaining": "Installed full-app, saved Draft, whole-video/audio playback, encoded export and Windows acceptance remain open.",
+      "resolution": "The common useColorFilter keeps fixed source slots, opaque RGB input, final original-alpha coverage, and unique stable per-mount identities. The three template designs retain their original math.",
+      "validationLimits": "Unit/standard-model and isolated Chromium evidence only; installed app, whole-video/audio playback, encoded export, Windows and overall template acceptance remain open."
     }
   ]
 }
