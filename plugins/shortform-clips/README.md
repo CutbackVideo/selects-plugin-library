@@ -119,6 +119,28 @@ The development evaluation harness is not shipped or run as another AI stage.
    Later clips appear as they are saved; subsequent updates do not override your
    tab or history selection. Export through **Handoff > Export**.
 
+### Review before framing
+
+**Include framing** in Make clips is on by default. Turning it off skips framing
+and its speaker and face analysis, so clips are ready sooner. Each clip then shows
+its whole source frame centred in the template's video window, over a blurred,
+enlarged copy of the same frame. Cards show **Wide · not framed yet**. The setting
+is saved with the run; landscape and scene templates ignore it.
+
+In **My clips**, tick the clips to keep and choose **Frame selected clips**. Only
+those clips run speaker/face analysis and framing, which replaces their wide shot
+in place and refreshes their previews. Other clips stay wide. **Reframe all clips**
+frames every clip of the run. A failed framing keeps its retry as framing.
+A clip is saved as waiting for its wide shot until the wide shot is placed, so an
+interrupted or failed placement resumes or retries just the wide shot, without
+analysis. Resuming a run always starts from its saved record.
+
+**Delete selected** asks for confirmation, removes the clips from My clips and
+moves their Drafts to the project folder **Deleted shorts** (named in the
+panel's language); delete
+them there. The panel SDK has no Draft deletion. The run keeps each deleted clip
+at its index, so resuming or reframing never rebuilds or refiles it.
+
 The Project picker includes videos, synced timelines, and Drafts, including inputs
 shorter than two minutes. Refresh the list after creating a timeline. Synced inputs
 use their merged transcript; Draft inputs use their playback transcript, excluding

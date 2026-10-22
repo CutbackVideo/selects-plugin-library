@@ -5,7 +5,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild');
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8'),mod={exports:{}};
- new Function('require','module','exports',esbuild.transformSync(src+'\nexport {SCRIPT_APPLY_REFRAME,createReframeWork,templateBuildScript,captionLineMax,throttledSave,PROGRESS_SAVE_MS};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ new Function('require','module','exports',esbuild.transformSync(src+'\nexport {SCRIPT_APPLY_REFRAME,createReframeWork,templateBuildScript,captionLineMax,throttledSave,PROGRESS_SAVE_MS,wideShotScript,STACKED_REFRAME_EFFECT,savedDraftResults};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
  const P={projectId:'p',draftId:'d',resourceId:'v',resourceName:'Video',sourceKind:'video',transform:{scale:2,posX:0,posY:0},frame:{windowTop:450,windowBottom:1300},reframe:[{start:0,end:10,cx:450,w:800},{start:10,end:30,cx:1400,w:800}]};
  async function run({fail=false,owned=true}={}){
   let committed=0,transforms=[],splits=[];
@@ -34,7 +34,7 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   const body=esbuild.transformSync(loop,{loader:'ts'}).code;
   let job={built:[]},builds=0,applies=0,thumbnails=0,fail=true;const events=[];
   const pickd={clips:[{name:'One',segments:[[1,5]]}]};
-  const env={templateBuildScript:mod.exports.templateBuildScript,captionLineMax:mod.exports.captionLineMax,findRunDraftScript:()=>"LOOKUP",withoutRunSuffix:(name)=>name,ensureRunFolder:async()=>"run-folder",moveRunDrafts:async()=>{},forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
+  const env={templateBuildScript:mod.exports.templateBuildScript,captionLineMax:mod.exports.captionLineMax,wideShotScript:mod.exports.wideShotScript,findRunDraftScript:()=>"LOOKUP",withoutRunSuffix:(name)=>name,ensureRunFolder:async()=>"run-folder",moveRunDrafts:async()=>{},forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
    throttledSave:mod.exports.throttledSave,PROGRESS_SAVE_MS:mod.exports.PROGRESS_SAVE_MS,
    STACKED_REFRAME_EFFECT:'effect',projectId:'p',S:{building:()=>'',reframing:'framing'},lang:'en',transform:{scale:1},buildLogo:'',SCRIPT_APPLY_REFRAME:'APPLY const P: any = __P__;',
    RADIO_SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_LIMIT:1e7,RunCancelled:class extends Error{},
@@ -93,6 +93,39 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   assert.equal(waiting.size,5);
   for(const waiter of waiting.values())waiter.reject(new env.RunCancelled());
   await assert.rejects(cancelled,env.RunCancelled);
+  // Framing off: every clip becomes a wide shot without any framing or analysis call.
+  const framed=[],wide=[];let made=0;
+  env.runTemplateReframing=async id=>{framed.push(id);return {status:'complete'};};
+  env.script=async(code,label)=>{if(code.startsWith('BUILD'))return {draftId:'w'+(made++),seconds:4};if(label==='Place the full source as a wide shot'){wide.push(code);return {clips:1};}return null;};
+  job={built:[],skipFraming:true};pickd.clips=[{name:'A',segments:[[1,5]]},{name:'B',segments:[[1,5]]}];
+  await attempt();
+  assert.deepEqual(framed,[]);assert.equal(wide.length,2);
+  assert.match(wide[0],/selects\.draft\("w0"\)/);assert.match(wide[0],/backdrop:"blur"/);
+  assert.deepEqual(job.built.map(d=>[d.reframeState,d.wide,d.progressStage]),[['skipped',true,'done'],['skipped',true,'done']]);
+  assert.equal(job.done,true);
+  // A resumed run neither rebuilds nor re-applies finished wide shots.
+  await attempt();assert.equal(made,2);assert.equal(wide.length,2);
+  // Framing the selected clips later replaces only their wide shots.
+  env.onlyDraftId=['w1'];env.forceReframe=true;
+  await attempt();
+  assert.deepEqual(framed,['w1']);assert.equal(wide.length,2);
+  assert.deepEqual(job.built.map(d=>[d.reframeState,d.wide]),[['skipped',true],['done',false]]);
+  // A failed framing retry stays a framing retry rather than turning back into a wide shot.
+  env.onlyDraftId=['w0'];env.runTemplateReframing=async()=>{throw Error('agent failed');};
+  await attempt();assert.equal(job.built[0].reframeState,'failed');
+  env.forceReframe=false;env.runTemplateReframing=async id=>{framed.push(id);return {status:'complete'};};
+  await attempt();
+  assert.deepEqual(framed,['w1','w0']);assert.equal(wide.length,2);assert.equal(job.built[0].reframeState,'done');
+  env.onlyDraftId=undefined;
+  // Deleted clips keep their index: resuming neither rebuilds nor re-files them, and the run still completes.
+  const moves=[];env.moveRunDrafts=async(p,f,ids)=>{moves.push(ids);};
+  job={...job,done:false,built:job.built.map((d,i)=>i===0?{...d,deleted:true}:{...d,reframeState:'pending'})};
+  await attempt();
+  assert.equal(made,2);assert.deepEqual(moves[0],[null,'w1']);assert.deepEqual(framed,['w1','w0','w1']);
+  assert.equal(job.built[0].deleted,true);assert.equal(job.done,true);
+  const listed=mod.exports.savedDraftResults([{...job,projectId:'p'}],'p');
+  assert.equal(listed.length,1);
+  assert.equal(mod.exports.savedDraftResults([{...job,projectId:'p',built:job.built.map(d=>({...d,deleted:true}))}],'p').length,0);
 
  });
  await t.test('generation saves the Draft before reframing and captures thumbnails afterwards',()=>{
