@@ -6309,7 +6309,7 @@ function TemplateCaptionsSection({ ui, S, lang, draft, profile, previewOverlay }
             <ui.Segmented
               label={lang==='ko'?'\uae00\uc790 \ud06c\uae30':'Text size'}
               value={C.fontSizing === "fixed" ? "fixed" : "auto"}
-              onChange={(v: string) => set("captions.fontSizing", v)}
+              onChange={(v: string) => set("captions.fontSizing", v === "fixed" ? "fixed" : undefined)}
               options={[
                 { value: "auto", label: lang==='ko'?'\uc790\ub3d9 \ub9de\ucda4':'Fit to width' },
                 { value: "fixed", label: lang==='ko'?'\uace0\uc815':'Fixed' },
