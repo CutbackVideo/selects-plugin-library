@@ -22,8 +22,9 @@ bundled-asset fixture loader and the duration fixture loader.
 
 Original PR bodies, discussions, branches and validation records are retained;
 closed descriptions link to the consolidated PR. Separate consolidation workspaces
-preserve the original dirty checkout and the in-progress font/readiness work.
-That unfinished work is not included in these review heads.
+preserve the original dirty checkout and keep existing work in its owned checkout.
+The subsequent validated Archive font/readiness packet joins these same two PRs;
+see archive-render-fonts.md for its source, runtime evidence and remaining gates.
 
 Continue subsequent connected fixes in these two PRs. Explain their review order
 inside each description instead of opening more stacked PRs for every small fix.
