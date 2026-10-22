@@ -21,6 +21,9 @@ function fixture(plugin){
   locateRoots:async()=>({plugin:'/installed'}),uiLang:()=> 'en',t:(_lang,key)=>key,uiError:say=>Error(say('en')),avPreset:()=>presets.presets[0],
   loadAssets:async()=>({manifest,presets,scripts:{inventoryJs:script}}),readText:async(_root,rel)=>rel==='scripts/inventory.js'?script:JSON.stringify(rel.includes('presets')?presets:manifest),
   nativeImageRun:async()=>({resolved:selected.map((row,i)=>({rid:row.resourceId,alias:hooks.aliases?.[i]??'r'+i,size:null})),failed:[]}),
+  // Stop after the actual complete/reobserved inventory. Archive now verifies
+  // original files before planning; that later boundary has separate tests.
+  confirmArchiveSourceBindings:()=>{throw boundary;},
   validateTemplateMediaResult:value=>value,cueGrid:()=>{throw boundary;}});
  vm.runInContext(['fill','runTemplateStep','templateFootage','templateIssue','readInventoryPages',name].map(n=>topLevel(plain,n)).join('\n')+'\nthis.run='+name+';',box);
  const run=()=>box.run(sdk,{projectId:'p',template:{runId:'fixture-run',inputs:{footage:selected}}},()=>{if(!live)throw Error('Run detached');},()=>{});

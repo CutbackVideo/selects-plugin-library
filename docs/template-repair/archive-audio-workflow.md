@@ -196,3 +196,25 @@ Replacement profile data is retained. Finish CI and submit one cohesive PR. Inst
 export remain separate acceptance gates. Whole semantic ownership/acceptance stays
 0/28, and Chan remains excluded. The separate one-video/input support, preview
 budgets, fonts/graphemes and effect-coordinate queue is unchanged.
+
+## Supplemental verification: native music and legacy test callers
+
+The actual SDK proof also published the pinned cue outside the installation,
+imported it once, saved its selected normal-speed source window and one-second
+frame-quantized fade, and saved both original clips at -18 dB. Confirming the same
+run repeated neither import nor assembly/Finish dispatch. The preceding owned
+Draft still passed its complete saved-state checks. Before launch the retained
+profile's data was backed up; the launcher preserves both data and existing
+LocalStorage. Owned runtime cleanup deferred while Spotlight held a cache file,
+then removed only the task's binary/cache/registrations after the handles closed.
+
+A broader check found eight stale test-adapter failures on the unmodified PR
+head: six native-photo tests still used an earlier Mini/Archive call shape, and
+two inventory tests crossed their intended planning boundary into new source
+admission. These are validation-adapter failures, not eight product defects.
+The photo tests now use actual Archive Build/preparation and the current SDK
+assembly fixture; their native dimension, no-save-on-missing-source and frozen
+photo-fact assertions remain. The inventory tests stop after the same complete,
+reobserved catalog, with original-source verification covered separately.
+Forty native-fact/recovery cases and 25 selected-scope cases pass; the other 202
+cross-caller cases also passed. No production source changed in this supplement.

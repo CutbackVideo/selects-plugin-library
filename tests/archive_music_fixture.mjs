@@ -9,7 +9,7 @@ const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS
 const panel=fs.readFileSync(new URL('../plugins/archive-vlog/panel.tsx',import.meta.url),'utf8');
 const plain=esbuild.transformSync(panel,{loader:'tsx',format:'esm',target:'es2022',jsx:'preserve'}).code;
 const nested=plain.replace(/^  /gm,'');
-const names=['templateStateJSON','templateRunIssue','avLookStrength','readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','avAssembleConfig','fontFiles','snapshotArchiveFinishAssets','prepareArchiveDecoration','archiveRecoveryOptions','confirmArchiveSourceBindings','archiveWorkflowResult','runArchiveVlogTemplate'];
+const names=['templateStateJSON','templateRunIssue','avLookStrength','readInventoryPages','isInventorySnapshotCurrent','selectedPhotoRidsOf','fill','runTemplateStep','nativeImageRun','templateFootage','templateIssue','validateTemplateMediaResult','avSizesOf','avAssembleConfig','fontFiles','snapshotArchiveFinishAssets','prepareArchiveDecoration','archiveRecoveryOptions','confirmArchiveSourceBindings','archiveWorkflowResult','runArchiveVlogTemplate'];
 const source=names.map(name=>topLevel(plain,name)).join('\n')+'\n'+['inventoryCurrent','runLive','endRun','run','openAssemblyContinuations','finishAssembly','decorate','finishTitle','build'].map(name=>topLevel(nested,name)).join('\n');
 const block=name=>panel.slice(panel.indexOf('// '+name+':start'),panel.indexOf('// '+name+':end')).replace(/^export /gm,'');
 const adapter=plain.includes('function prepareArchiveCue(')?topLevel(plain,'prepareArchiveCue'):'';
