@@ -8877,7 +8877,7 @@ function sceneBrandScript(projectId:string,draftId:string,clip:any,tpl:any,S:any
   const definition=RADIO_SCRIPT_BUILD.split('\n').find(line=>line.startsWith('const FRAME_TSX:'))!;
   const frame=radioFrameParams(tpl,clip.headline1,clip.headline2);
   const P={projectId,draftId,name:clip.name,frame,editableFrame:radioEditableFrame(S)};
-  return `${definition}\n${SCRIPT_DESIGN_ELEMENTS}
+  return `const LANDSCAPE_GRAPHIC_TSX=${JSON.stringify(LANDSCAPE_GRAPHIC_TSX)};\n${definition}\n${SCRIPT_DESIGN_ELEMENTS}
 const P:any=${JSON.stringify(P)};const p=selects.project(P.projectId);if(!(await p.meta()).draftIds.includes(P.draftId))throw Error('Scene Draft is outside this project');const d=selects.draft(P.draftId),m=await d.meta();if(m.name!==P.name)throw Error('Scene Draft name changed');
 await addTemplateDesignElements(d,P,m.durationFrames,['logo','headline1','headline2','topLabel','footer']);await d.commitAll('Apply fixed template branding');return {durationFrames:m.durationFrames};`;
 }
