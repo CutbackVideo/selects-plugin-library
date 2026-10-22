@@ -46,6 +46,7 @@ for (const c of m.cues) {
   assert.equal(c.label, e.label);
   assert.equal(c.group, 'reference', c.id + ' group');
   const buf = fs.readFileSync(path.join(dir, c.file));
+  assert.equal(c.bytes, buf.length, c.id + ' pinned bytes');
   assert.equal(crypto.createHash('sha256').update(buf).digest('hex'), c.sha256, c.id + ' hash');
   assert.ok(buf.length < 6 * 1024 * 1024, c.id + ' size');
   assert.ok(Math.abs(c.bpm - e.bpm) < 0.3, c.id + ' bpm ' + c.bpm);

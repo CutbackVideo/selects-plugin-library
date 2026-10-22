@@ -211,7 +211,7 @@ const buildCue = (c, input) => {
   console.log(c.id, 'groove by bar', intro.groove.slice(0, 12).join(' '), '| rms', intro.rms.slice(0, 12).join(' '));
   console.log(c.id, 'groove arrives at bar', intro.arrival, '(' + round3(firstBeat + intro.arrival * 240 / bpm) + ' s); introStart bar', intro.bar, '=', intro.introStart, 's; intro->body lift', intro.introLiftLu, 'LU');
   return withHook({
-    id: c.id, label: c.label, group: c.group, file, duration: whole.durationSeconds,
+    id: c.id, label: c.label, group: c.group, file, bytes: fs.statSync(dst).size, duration: whole.durationSeconds,
     bpm, firstBeat, barPhaseBeats: k, usableEnd, ...(c.measureSeconds ? { gridSeconds: c.measureSeconds } : {}), introStart: intro.introStart, introLiftLu: intro.introLiftLu,
     lufs: loud.after.lufs, truePeak: loud.after.tp, lra: loud.after.lra, sha256: crypto.createHash('sha256').update(fs.readFileSync(dst)).digest('hex'),
     downbeatConfidence: downbeatRatio >= DOWNBEAT_HIGH ? 'high' : 'low', downbeatRatio,

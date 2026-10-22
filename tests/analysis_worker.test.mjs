@@ -100,6 +100,7 @@ function callerFixture(plugin,terminal){
   busyRef:{current:false},roots:{data:'/scratch'},assets:{beatWorker:'source'},sdk:{},panelLocalClient:sdk=>sdk,
   cancelOwnMusic:()=>{},stopPreview:()=>{},ownJobRef:{current:{id:1,abort:null}},projectRef:{current:'p'},mountedRef:{current:true},
   prepareMiniOwnMusic:async()=>{if(terminal)throw failure;return {accepted:false,grid:'none',failed:true,durationSeconds:1,peaks:[]};},
+  prepareArchiveOwnMusic:async()=>{if(terminal)throw failure;return {accepted:false,grid:'none',failed:true,durationSeconds:1,peaks:[]};},
   hostDecodePcm:async()=>new Float32Array(22050),decodeOwnMusic:async()=>new Float32Array(22050),analyseBeat:async()=>{throw failure;},
   hostProbeSeconds:async()=>{state.probes++;return 1;},setOwnMusic:value=>state.music=value,setOwnGrid:value=>state.grid=value,setStatus:value=>state.status=value,
   setBusy:()=>{},setStep:()=>{},setListening:()=>{},sayError:()=>failure.message,errorSay:()=>()=>failure.message,t:(_lang,key)=>key});

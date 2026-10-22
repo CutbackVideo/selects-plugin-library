@@ -999,6 +999,58 @@ async function prepareDerivedAsset(files,options){
  current();return result;
 }
 
+// A derived beat grid is reusable only for these exact source bytes, algorithm
+// and sampling policy. File publication/cleanup remains in prepareDerivedAsset;
+// decoding and Worker execution are supplied by the existing runtime owners.
+function validateAudioBeatGrid(value,maxSeconds){
+ const number=(v,max=Number.MAX_VALUE)=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=max;
+ const vector=(v,max)=>Array.isArray(v)&&v.length<=max&&v.every(x=>number(x));
+ if(!value||typeof value!=='object'||!number(value.durationSeconds,maxSeconds)||value.durationSeconds<=0||!number(value.bpm,600)||value.bpm<=0||
+  !number(value.firstBeat,value.durationSeconds)||!number(value.lastOnsetSeconds,value.durationSeconds+.1)||!number(value.hitRate,1)||
+  !(value.residualMedianMs===null||number(value.residualMedianMs))||!(value.sixteenthRatio===null||number(value.sixteenthRatio))||
+  !['accepted','approximate','none'].includes(value.grid)||value.accepted!==(value.grid==='accepted')||
+  !vector(value.peaks,400)||!vector(value.beatEnergy,2400)||!Array.isArray(value.onsets)||value.onsets.length>40000||
+  value.onsets.some(row=>!Array.isArray(row)||row.length!==3||!number(row[0],value.durationSeconds+.1)||!['l','m','h'].includes(row[1])||!number(row[2]))||
+  !['l','m','h'].every(key=>number(value.onsetThresholds?.[key])))throw bundledAssetIssue('ANALYSIS_RESULT','The music analysis result could not be confirmed. Select the music again.');
+ return Object.fromEntries(['durationSeconds','bpm','firstBeat','lastOnsetSeconds','hitRate','residualMedianMs','sixteenthRatio','grid','accepted','peaks','beatEnergy','onsets','onsetThresholds'].map(key=>[key,value[key]]));
+}
+async function prepareAudioBeatAnalysis(client,options){
+ const {path,directory,worker,rate,maxSeconds,namespace,signal,isCurrent=()=>true,hashFile,decode,analyze,probe}=options??{};
+ if(typeof path!=='string'||!path||typeof directory!=='string'||!directory||typeof worker!=='string'||!worker||
+  new TextEncoder().encode(worker).length>1024*1024||typeof namespace!=='string'||!namespace||
+  !Number.isSafeInteger(rate)||rate<1||rate>192000||!Number.isFinite(maxSeconds)||maxSeconds<=0||maxSeconds>240||
+  [isCurrent,hashFile,decode,analyze,probe].some(fn=>typeof fn!=='function')||!signal||typeof signal.aborted!=='boolean')throw bundledAssetIssue('INPUT','The music analysis inputs are incomplete.');
+ const deadline=Date.now()+240000,files=client?.files;
+ const current=()=>{if(signal.aborted||!isCurrent())throw bundledAssetIssue('STOPPED','Music analysis ended before completion.');if(Date.now()>=deadline)throw bundledAssetIssue('TIMEOUT','Music analysis timed out. Select the music again.');};
+ const hash=async file=>{current();const digest=await hashFile(file);current();return digest;};
+ current();const source=await readAssetFileIdentity(files,path,hash,current);
+ const keyBytes=new TextEncoder().encode(JSON.stringify([namespace,source,worker,rate,maxSeconds]));
+ const key=[...new Uint8Array(await crypto.subtle.digest('SHA-256',keyBytes))].map(v=>v.toString(16).padStart(2,'0')).join('');current();
+ let grid,fallback,fallbackFailure;
+ const verify=async file=>{const bytes=await readBundledAssetBytes(files,file,4*1024*1024,current);grid=validateAudioBeatGrid(JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)),maxSeconds);current();};
+ try{
+  await prepareDerivedAsset(files,{directory:files.join(directory,'own-music'),key,sourcePath:path,source,extension:'json',cleanupRequired:true,signal,isCurrent:()=>{current();return true;},hashFile:hash,verify,
+   produce:async(snapshot,target)=>{
+    let samples=null;
+    try{
+     samples=await decode(snapshot,current);current();
+     grid=validateAudioBeatGrid(await analyze(worker,samples,current),maxSeconds);current();
+     if(Math.abs(grid.durationSeconds-samples.length/rate)>.001)throw bundledAssetIssue('ANALYSIS_RESULT','The music analysis duration does not match its samples.');
+    }catch(error){
+     current();if(error?.terminal||error?.preserveTemporaryFiles||error?.code==='host-missing')throw error;
+     const duration=samples?.length?samples.length/rate:await probe(snapshot);current();
+     if(!Number.isFinite(duration)||duration<=0)throw error;
+     fallback={accepted:false,grid:'none',failed:true,durationSeconds:Math.min(duration,maxSeconds),peaks:[]};
+     fallbackFailure=bundledAssetIssue('ANALYSIS_FALLBACK','Music analysis is unavailable; use fixed timing.',error);throw fallbackFailure;
+    }
+    current();await files.writeFile(target,JSON.stringify(grid));current();
+   }});
+ }catch(error){current();if(error!==fallbackFailure)throw error;grid=fallback;}
+ const after=await readAssetFileIdentity(files,path,hash,current);current();
+ if(after.bytes!==source.bytes||after.sha256!==source.sha256)throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');
+ return {...grid,sourceObservation:{path,size:source.bytes,sha256:source.sha256}};
+}
+
 // An ephemeral output belongs to one invocation and one captured file/media
 // client. Producer policy stays with the caller; the owner never publishes a
 // cache or imports a Project Resource. Cleanup waits for producer settlement.

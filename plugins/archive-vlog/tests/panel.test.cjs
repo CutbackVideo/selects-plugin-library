@@ -577,19 +577,21 @@ for (const s of ['const bytes = await readBytes(file);', 'URL.createObjectURL(ne
   'audio.volume = Math.max(0, Math.min(1, (end - at) / PREVIEW_FADE));', 'if (at >= end) { stopPreview(); return; }', 'URL.revokeObjectURL(previewUrlRef.current)',
   'const file = musicKind === "own" ? ownMusic!.path : pjoin(roots.plugin, "assets", "cues", cue.file);']) assert.ok(ui.includes(s), s);
 // Own music: decoded by the host's ffmpeg (WebAudio without it), analysed in a worker only, cancellable, stale results
-// dropped; any failure falls back to fixed timing.
-for (const s of ['samples = await decodeOwnMusic(file.path, roots.data, abort.signal, client);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal, BEAT_TIMEOUT_MS, live);',
+// dropped. The shared content-bound analysis owner admits ordinary fallback;
+// actual caller failures/changed sources are covered by archive_own_music_analysis.
+for (const s of ['const g = await prepareArchiveOwnMusic(client, file.path, roots.data, assets.beatWorker, abort.signal, live);',
   'hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal, 120000, client)', 'ctx.decodeAudioData(bytes.slice().buffer)', 'runPanelWorker(source, { samples, rate: OWN_RATE }, { signal, timeoutMs, isCurrent })',
-  'const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;', 'setOwnGrid({ accepted: false, grid: "none", failed: true, durationSeconds: duration, peaks: [] });',
+  'const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;', 'setOwnGrid(g);',
   'if (v !== "own") { cancelOwnMusic(); setOwnMusic(null); setOwnGrid(null); }', 'if (cancelOwnMusic() && mountedRef.current) { setOwnMusic(null); setOwnGrid(null); }',
-  'worker-src * data: blob:', 'const v = await hostProbeSeconds(file.path, client, abort.signal);', 't(L, "ownMusicHint", { count: OWN_MAX_SECONDS / 60 })']) assert.ok(ui.includes(s), s);
+  'worker-src * data: blob:', 'probe: (snapshot: string) => hostProbeSeconds(snapshot, client, signal)', 't(L, "ownMusicHint", { count: OWN_MAX_SECONDS / 60 })']) assert.ok(ui.includes(s), s);
 assert.ok(/const OWN_RATE = 22050;/.test(panel) && /const OWN_MAX_SECONDS = 240;/.test(panel));
 assert.ok(!/analyze\(samples, OWN_RATE/.test(ui), 'never analysed on the panel thread');
-// The music cue is imported from the install folder by a joined path.
+// Both entries prepare the frozen cue generation through the existing asset
+// owner. The actual caller/bytes/import boundaries run in archive_owned_cues.
 assert.ok(ui.includes('musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? pjoin(roots.plugin, "assets", "cues", cue.file) : null'));
-assert.ok(ui.includes('fill(assets.scripts.ensureJs, { projectId: pid, path: pjoin(roots.plugin, "assets", "cues", cue.file),\n    duration: typeof cue.duration === "number" ? cue.duration : null })'), 'template run cue path and length');
-assert.ok(ui.includes('fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath, duration: frozen.musicDuration })'), 'Build passes the cue length');
-assert.ok(ui.includes('musicDuration: musicKind === "cue" && typeof cue?.duration === "number" ? cue.duration : null,'));
+assert.ok(ui.includes('prepareArchiveCue(sdk, pid, roots.plugin, cue, musicStart + plan.schedule.cuts.at(-1), check)'), 'template verifies cue contents and required section');
+assert.ok(ui.includes('prepareArchiveCue(sdk, pid, roots.plugin, frozen.musicCue, minimumSeconds, check)'), 'Build uses its frozen cue generation');
+assert.ok(ui.includes('musicCue: musicKind === "cue" ? JSON.parse(JSON.stringify(cue)) : null,'));
 // Advanced: Clip sound, the Cinematic look (strength follows the preset until moved), photos, Choose clips (thin stable
 // scrollbar for Windows).
 for (const s of ['label={t(L, "clipSound")}', 'label={t(L, "cinematicLook")}', '<ui.Slider label={t(L, "param.look")} value={strength} min={0} max={1} step={0.05}',

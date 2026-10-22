@@ -2960,12 +2960,12 @@ function avVisibleFraction(size) {
   return Math.round(Math.min(1, (size.width / size.height) / (AV_W / AV_H)) * 1e4) / 1e4;
 }
 // assemble.js cfg. o: { projectId, draftName, plan, inventory (resources and photos with their sizes), music
-// ({ resourceId } from ensure-audio.js, or null), sectionStart, clipSound }.
+// ({ resourceId } from the verified cue or own-track operation, or null), sectionStart, clipSound }.
 function avAssembleConfig(o) {
   const crops = avSizesOf(o.inventory);
   return { projectId: o.projectId, draftName: o.draftName, picks: o.plan.picks, boundaries: o.plan.schedule.cuts, crops, clipSound: o.clipSound,
     ambientDb: AMBIENT_DB, music: o.music ? { resourceId: o.music.resourceId, sectionStart: o.sectionStart == null ? 0 : o.sectionStart } : null,
-    musicFadeOut: MUSIC_FADE_OUT };
+    musicFadeOut: MUSIC_FADE_OUT, ...(o.analysisSources?.length ? { analysisSources: o.analysisSources, sourceBindings: o.sourceBindings } : {}) };
 }
 // decorate.js cfg. o: { sequenceId, videoEnd, fps (assemble's), plan, presets (presets.json), tsx: { title, credit,
 // letterbox, look, fade, motion }, fonts: { file: WOFF2 data }, sizes: { rid: { width, height } }, openingSize (the opening
@@ -4152,6 +4152,58 @@ async function prepareDerivedAsset(files,options){
  current();return result;
 }
 
+// A derived beat grid is reusable only for these exact source bytes, algorithm
+// and sampling policy. File publication/cleanup remains in prepareDerivedAsset;
+// decoding and Worker execution are supplied by the existing runtime owners.
+function validateAudioBeatGrid(value,maxSeconds){
+ const number=(v,max=Number.MAX_VALUE)=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=max;
+ const vector=(v,max)=>Array.isArray(v)&&v.length<=max&&v.every(x=>number(x));
+ if(!value||typeof value!=='object'||!number(value.durationSeconds,maxSeconds)||value.durationSeconds<=0||!number(value.bpm,600)||value.bpm<=0||
+  !number(value.firstBeat,value.durationSeconds)||!number(value.lastOnsetSeconds,value.durationSeconds+.1)||!number(value.hitRate,1)||
+  !(value.residualMedianMs===null||number(value.residualMedianMs))||!(value.sixteenthRatio===null||number(value.sixteenthRatio))||
+  !['accepted','approximate','none'].includes(value.grid)||value.accepted!==(value.grid==='accepted')||
+  !vector(value.peaks,400)||!vector(value.beatEnergy,2400)||!Array.isArray(value.onsets)||value.onsets.length>40000||
+  value.onsets.some(row=>!Array.isArray(row)||row.length!==3||!number(row[0],value.durationSeconds+.1)||!['l','m','h'].includes(row[1])||!number(row[2]))||
+  !['l','m','h'].every(key=>number(value.onsetThresholds?.[key])))throw bundledAssetIssue('ANALYSIS_RESULT','The music analysis result could not be confirmed. Select the music again.');
+ return Object.fromEntries(['durationSeconds','bpm','firstBeat','lastOnsetSeconds','hitRate','residualMedianMs','sixteenthRatio','grid','accepted','peaks','beatEnergy','onsets','onsetThresholds'].map(key=>[key,value[key]]));
+}
+async function prepareAudioBeatAnalysis(client,options){
+ const {path,directory,worker,rate,maxSeconds,namespace,signal,isCurrent=()=>true,hashFile,decode,analyze,probe}=options??{};
+ if(typeof path!=='string'||!path||typeof directory!=='string'||!directory||typeof worker!=='string'||!worker||
+  new TextEncoder().encode(worker).length>1024*1024||typeof namespace!=='string'||!namespace||
+  !Number.isSafeInteger(rate)||rate<1||rate>192000||!Number.isFinite(maxSeconds)||maxSeconds<=0||maxSeconds>240||
+  [isCurrent,hashFile,decode,analyze,probe].some(fn=>typeof fn!=='function')||!signal||typeof signal.aborted!=='boolean')throw bundledAssetIssue('INPUT','The music analysis inputs are incomplete.');
+ const deadline=Date.now()+240000,files=client?.files;
+ const current=()=>{if(signal.aborted||!isCurrent())throw bundledAssetIssue('STOPPED','Music analysis ended before completion.');if(Date.now()>=deadline)throw bundledAssetIssue('TIMEOUT','Music analysis timed out. Select the music again.');};
+ const hash=async file=>{current();const digest=await hashFile(file);current();return digest;};
+ current();const source=await readAssetFileIdentity(files,path,hash,current);
+ const keyBytes=new TextEncoder().encode(JSON.stringify([namespace,source,worker,rate,maxSeconds]));
+ const key=[...new Uint8Array(await crypto.subtle.digest('SHA-256',keyBytes))].map(v=>v.toString(16).padStart(2,'0')).join('');current();
+ let grid,fallback,fallbackFailure;
+ const verify=async file=>{const bytes=await readBundledAssetBytes(files,file,4*1024*1024,current);grid=validateAudioBeatGrid(JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)),maxSeconds);current();};
+ try{
+  await prepareDerivedAsset(files,{directory:files.join(directory,'own-music'),key,sourcePath:path,source,extension:'json',cleanupRequired:true,signal,isCurrent:()=>{current();return true;},hashFile:hash,verify,
+   produce:async(snapshot,target)=>{
+    let samples=null;
+    try{
+     samples=await decode(snapshot,current);current();
+     grid=validateAudioBeatGrid(await analyze(worker,samples,current),maxSeconds);current();
+     if(Math.abs(grid.durationSeconds-samples.length/rate)>.001)throw bundledAssetIssue('ANALYSIS_RESULT','The music analysis duration does not match its samples.');
+    }catch(error){
+     current();if(error?.terminal||error?.preserveTemporaryFiles||error?.code==='host-missing')throw error;
+     const duration=samples?.length?samples.length/rate:await probe(snapshot);current();
+     if(!Number.isFinite(duration)||duration<=0)throw error;
+     fallback={accepted:false,grid:'none',failed:true,durationSeconds:Math.min(duration,maxSeconds),peaks:[]};
+     fallbackFailure=bundledAssetIssue('ANALYSIS_FALLBACK','Music analysis is unavailable; use fixed timing.',error);throw fallbackFailure;
+    }
+    current();await files.writeFile(target,JSON.stringify(grid));current();
+   }});
+ }catch(error){current();if(error!==fallbackFailure)throw error;grid=fallback;}
+ const after=await readAssetFileIdentity(files,path,hash,current);current();
+ if(after.bytes!==source.bytes||after.sha256!==source.sha256)throw bundledAssetIssue('CHANGED','The source media changed during preparation. Start a new run.');
+ return {...grid,sourceObservation:{path,size:source.bytes,sha256:source.sha256}};
+}
+
 // An ephemeral output belongs to one invocation and one captured file/media
 // client. Producer policy stays with the caller; the owner never publishes a
 // cache or imports a Project Resource. Cleanup waits for producer settlement.
@@ -4317,7 +4369,7 @@ async function hostProbeSeconds(path, client = hostSdk, signal) {
     const r = await runAssetMediaTool(rt, "runFFprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path], { signal, timeoutMs: 30000 });
     const v = Number(String(r?.stdout || "").trim());
     return Number.isFinite(v) && v > 0 ? v : null;
-  } catch { return null; }
+  } catch (error) { if (error?.terminal || error?.preserveTemporaryFiles) throw error; return null; }
 }
 // av-host:end
 
@@ -4335,7 +4387,7 @@ async function decodeOwnMusic(path: string, dataDir: string | null, signal: Abor
   let first: any = null;
   try { const s = await hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal, 120000, client); if (s) return s; } catch (e) { first = e; }
   if (signal.aborted) throw new Error("cancelled");
-  if (first?.terminal) throw first;
+  if (first?.terminal || first?.preserveTemporaryFiles) throw first;
   try {
     const Ctx: any = (window as any).OfflineAudioContext || (window as any).webkitOfflineAudioContext;
     if (!Ctx) throw new Error("this panel cannot decode audio");
@@ -4353,6 +4405,14 @@ async function decodeOwnMusic(path: string, dataDir: string | null, signal: Abor
     if (!out.length) throw new Error("no audio");
     return out;
   } catch (e) { throw signal.aborted ? new Error("cancelled") : first || e; }
+}
+async function prepareArchiveOwnMusic(client: any, path: string, data: string, worker: string, signal: AbortSignal, isCurrent: () => boolean) {
+  return prepareAudioBeatAnalysis(client, { path, directory: data, worker, rate: OWN_RATE, maxSeconds: OWN_MAX_SECONDS, namespace: "archive-own-music-v1", signal, isCurrent,
+    hashFile: async (file: string) => (await observeSourceFiles(client.files, [file]))[0].sha256,
+    decode: (snapshot: string) => decodeOwnMusic(snapshot, data, signal, client),
+    analyze: (source: string, samples: Float32Array, current: () => void) => analyseBeat(source, samples, signal, BEAT_TIMEOUT_MS, () => { current(); return true; }),
+    probe: (snapshot: string) => hostProbeSeconds(snapshot, client, signal),
+  });
 }
 // beat-detect's analysis of the samples in a Web Worker (avBeatWorkerSource), never on the panel's thread: the panel
 // CSP allows blob: workers (cutback-client panelSandbox.ts: worker-src * data: blob:). A host that refuses the worker
@@ -4436,6 +4496,7 @@ async function analyseBeat(source: string, samples: Float32Array, signal: AbortS
     if (timedOut) err.code = "beat-timeout";
     err.cause = cause;
     if (cause?.terminal) err.terminal = true;
+    if (cause?.preserveTemporaryFiles) err.preserveTemporaryFiles = true;
     throw err;
   }
   if (reply?.error) throw new Error(String(reply.error));
@@ -4445,6 +4506,23 @@ async function analyseBeat(source: string, samples: Float32Array, signal: AbortS
 function audioType(path: string) {
   const ext = (String(path).split(/[\\/]/).pop() || "").split(".").pop()!.toLowerCase();
   return ({ mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", flac: "audio/flac", ogg: "audio/ogg", opus: "audio/ogg" } as any)[ext] || "";
+}
+
+// Archive owns cue selection/timing; the existing asset owner verifies, keeps
+// and imports the selected manifest generation independently of installation.
+async function prepareArchiveCue(sdk: any, projectId: string, plugin: string, cue: any, minimumSeconds: number, check: () => void) {
+  check();
+  if (!cue || typeof cue.file !== "string" || !/^[a-z0-9][a-z0-9-]*\.mp3$/.test(cue.file) ||
+      !Number.isSafeInteger(cue.bytes) || cue.bytes < 1 || cue.bytes > 32 * 1024 * 1024 ||
+      typeof cue.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(cue.sha256) || !Number.isFinite(cue.duration) || cue.duration <= 0)
+    throw bundledAssetIssue("INPUT", "The bundled music manifest is invalid. Check the installed template files.");
+  const client = panelLocalClient(sdk);
+  try {
+    return await prepareBundledAsset(sdk, client.files, { projectId, pluginId: PLUGIN_ID,
+      sourcePath: client.files.join(plugin, "assets", "cues", cue.file), type: "Audio", extension: "mp3", label: "music",
+      expectedBytes: cue.bytes, expectedSha256: cue.sha256, minimumSeconds, platform: client.environment.platform, normalizeUnicode: true,
+      isCurrent: () => { try { check(); return true; } catch { return false; } } });
+  } catch (error) { check(); throw error; }
 }
 
 // ---- Panel helpers ---------------------------------------------------------------------------------------------
@@ -5197,33 +5275,18 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;
     stopPreview();
     setOwnMusic(file); setOwnGrid(null); setListening(true); setStatus(null);
-    let samples: Float32Array | null = null;
     try {
-      samples = await decodeOwnMusic(file.path, roots.data, abort.signal, client);
+      const g = await prepareArchiveOwnMusic(client, file.path, roots.data, assets.beatWorker, abort.signal, live);
       if (!live()) return;
-      const g = await analyseBeat(assets.beatWorker, samples, abort.signal, BEAT_TIMEOUT_MS, live);
-      if (!live()) return;
-      if (!g || typeof g !== "object") throw uiError((l) => t(l, "beatFailed"));
       setOwnGrid(g);
+      setStatus(g.failed ? { tone: "info", say: (l: Lang) => t(l, "musicApprox", { detail: t(l, "beatFailed") }) } : null);
     } catch (e: any) {
       if (!live()) return;
-      // Unconfirmed cleanup cannot leave this track available for another build.
-      if (e?.terminal) {
-        setOwnMusic(null); setOwnGrid(null);
-        setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "musicUnreadable", { detail })) });
-        return;
-      }
-      // Any failure falls back to fixed timing (no grid); the track's real length still bounds the section.
-      let duration: number | null = samples && samples.length ? Math.round((samples.length / OWN_RATE) * 1000) / 1000 : null;
-      if (!duration) { const v = await hostProbeSeconds(file.path, client, abort.signal); if (v) duration = Math.min(v, OWN_MAX_SECONDS); }
-      if (!live()) return;
-      setOwnGrid({ accepted: false, grid: "none", failed: true, durationSeconds: duration, peaks: [] });
-      setStatus(duration
-        ? { tone: "info", say: errorSay(e, (l, detail) => t(l, "musicApprox", { detail })) }
-        : { tone: "error", say: errorSay(e, (l, detail) => t(l, "musicUnreadable", { detail })) });
+      // Only the shared owner may admit a known-duration fallback. Uncertain
+      // originals or native exits leave no track available for Build.
+      setOwnMusic(null); setOwnGrid(null);
+      setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "musicUnreadable", { detail })) });
     } finally {
-      // The decoded samples (up to about 21 MB) are dropped with this call.
-      samples = null;
       if (ownJobRef.current.id === id) { ownJobRef.current.abort = null; if (mountedRef.current) setListening(false); }
     }
   }
@@ -5350,8 +5413,9 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       pid, seed: nextSeed, preset, fields: { kicker: titleFields.kicker || "", title: titleFields.title || "", tagline: titleFields.tagline || "" },
       credit: { on: creditUsed, prefix: prefixText.trim(), name: nameText.trim() }, clipSound, look: { on: look, strength }, usePhotos, only, onlyPhotos,
       music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? pjoin(roots.plugin, "assets", "cues", cue.file) : null,
-      // A bundled cue's length (manifest): ensure-audio.js takes a same-named Project file for the cue only at this length.
-      musicDuration: musicKind === "cue" && typeof cue?.duration === "number" ? cue.duration : null,
+      musicObservation: musicKind === "own" && ownGrid?.sourceObservation ? { ...ownGrid.sourceObservation } : null,
+      // Keep the exact cue generation that supplied this build's timing grid.
+      musicCue: musicKind === "cue" ? JSON.parse(JSON.stringify(cue)) : null,
       sectionStart: musicStart, pace, length, requested: fit.requested,
       labels: adjustLabelsFor(L), motionOptions: motionOptionsFor(L),
       draftName: draftNameOf(titleFields.title, chosen.label, new Date()),
@@ -5361,6 +5425,12 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     setBusy(true); setStatus(null); setResult(null);
     advance("shots", 0);
     try {
+      const analysisClient = panelLocalClient(sdk), analysisSources: any[] = [], sourceBindings: any[] = [];
+      if (frozen.music === "own") {
+        if (frozen.musicObservation?.path !== frozen.musicPath) throw bundledAssetIssue("SOURCE", "Select the music again to confirm its analyzed contents.");
+        await observeSourceFiles(analysisClient.files, [frozen.musicPath], [frozen.musicObservation]); check();
+        analysisSources.push(frozen.musicObservation);
+      }
       const selectedPhotos = selectedPhotoRidsOf(inventory, onlyPhotos, usePhotos)
         .map((rid) => ({ resourceId: rid, name: (inventory.photos || []).find((photo: any) => photo.rid === rid)?.name || rid }));
       const verified = selectedPhotos.length ? await prepareNativeImagesById(sdk, pid, selectedPhotos, { isCurrent: () => runLive(pid, epoch) }) : { sources: [] };
@@ -5416,15 +5486,25 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
           failed ? t(l, "retryUnchecked", { count: failed }) : ""].filter(Boolean).join(t(l, "gap")));
       }
       advance("music", 0);
+      await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
+      const minimumSeconds = (frozen.sectionStart ?? 0) + plan.schedule.cuts.at(-1);
       const music = frozen.musicPath == null ? null
-        : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath, duration: frozen.musicDuration }), true);
+        : frozen.musicCue ? await prepareArchiveCue(sdk, pid, roots.plugin, frozen.musicCue, minimumSeconds, check)
+        : await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: frozen.musicPath, minimumSeconds, withPath: true }), true);
       check();
+      if (music) {
+        const expected = frozen.musicObservation ?? { size: frozen.musicCue.bytes, sha256: frozen.musicCue.sha256 };
+        const [observed] = await observeSourceFiles(analysisClient.files, [music.path], [{ ...expected, path: music.path }]); check();
+        if (!analysisSources.some(row => row.path === observed.path)) analysisSources.push(observed);
+        sourceBindings.push({ resourceId: music.resourceId, path: music.path });
+      }
       advance("music", 1);
       advance("draft", 0);
+      await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
       let a: any = null, lost: any = null;
       try {
         a = await run("Assemble Archive Vlog", fill(assets.scripts.assembleJs, avAssembleConfig({ projectId: pid, draftName: frozen.draftName, plan, inventory: verifiedInventory,
-          music, sectionStart: frozen.sectionStart, clipSound: frozen.clipSound })), true);
+          music, sectionStart: frozen.sectionStart, clipSound: frozen.clipSound, analysisSources, sourceBindings })), true);
       } catch (e) { lost = e; }
       check();
       if (!a || !a.sequenceId) {
@@ -6276,16 +6356,19 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
 
   // Commit 1: the music, then the clips on a new Draft.
   say("music");
-  const music = await run("Add music to the project", fill(assets.scripts.ensureJs, { projectId: pid, path: pjoin(roots.plugin, "assets", "cues", cue.file),
-    duration: typeof cue.duration === "number" ? cue.duration : null }), true);
+  const music = await prepareArchiveCue(sdk, pid, roots.plugin, cue, musicStart + plan.schedule.cuts.at(-1), check);
   check();
+  const analysisClient = panelLocalClient(sdk);
+  const analysisSources = await observeSourceFiles(analysisClient.files, [music.path], [{ path: music.path, size: cue.bytes, sha256: cue.sha256 }]); check();
+  const sourceBindings = [{ resourceId: music.resourceId, path: music.path }];
   say("draft");
   const fields: Record<string, string> = {};
   for (const fl of chosen.fields) fields[fl.key] = fieldClip(String(fl.initial ?? ""), fl.max);
   const draftName = draftNameOf(fields.title, chosen.label, new Date());
   const clipSound = DEFAULT_CLIP_SOUND;
   // Never resent: the reply may be lost after the Draft was saved.
-  const a = await run("Assemble the Archive Vlog", fill(assets.scripts.assembleJs, avAssembleConfig({ projectId: pid, draftName, plan, inventory, music, sectionStart: musicStart, clipSound })), true);
+  await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
+  const a = await run("Assemble the Archive Vlog", fill(assets.scripts.assembleJs, avAssembleConfig({ projectId: pid, draftName, plan, inventory, music, sectionStart: musicStart, clipSound, analysisSources, sourceBindings })), true);
   check();
   if (!a.sequenceId || !(a.totalFrames > 0)) throw templateIssue(t(bl, "tpl.noTitle", { name: draftName }));
 

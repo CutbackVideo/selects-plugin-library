@@ -12,7 +12,7 @@ const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS
 const panel=fs.readFileSync(new URL('../plugins/mini-vlog/panel.tsx',import.meta.url),'utf8'),plain=esbuild.transformSync(panel,{loader:'tsx',format:'esm',jsx:'preserve'}).code;
 const input=panel.slice(panel.indexOf('// native-image-input:start'),panel.indexOf('// native-image-input:end')).replace(/^export /gm,'');
 const assets=panel.slice(panel.indexOf('// bundled-assets:start'),panel.indexOf('// bundled-assets:end'));
-const helpers=['hostProbeSeconds','validateMiniOwnGrid','prepareMiniOwnMusic'].map(name=>topLevel(plain,name)).join('\n');
+const helpers=['hostProbeSeconds','prepareMiniOwnMusic'].map(name=>topLevel(plain,name)).join('\n');
 const music=clickAudio(120),replacement=clickAudio(100);
 async function fixture(t){
  const f=await holdFixture(t),file=path.join(f.root,"own 'quote' $() \uc74c\uc545.wav"),hooks={},abort=new AbortController();let live=true,runs=0;

@@ -9,10 +9,13 @@ evidence. `ownership/mini-vlog.json` is the canonical source/decision record and
 ## Coverage and limits
 
 The current index captures 44 files, including all 30 shipped executable/test files,
-21 declared assets/data records, 27 feature decisions, 2,390 callable units
-(1,528 anonymous callbacks), 2,128 top-level statements and four embedded programs.
+21 declared assets/data records, 27 feature decisions, 2,413 callable units
+(1,543 anonymous callbacks), 2,131 top-level statements and four embedded programs.
 It also captures the new regression sources, canonical build-time audio engine,
 and the canonical asset owner/selected-Audio regression shared with Archive.
+The asset owner also now supplies source-bound Audio beat-analysis snapshots,
+validated JSON cache/result admission and known-duration fallback; Mini retains
+its sampling/decoder/Worker adapter and existing cache namespace.
 Source hashes explicitly normalize checkout line endings; binary identities stay exact.
 
 The checker reports `coverageComplete:true`, `semanticReviewComplete:false` and

@@ -49,12 +49,51 @@ the Worker owner and the durable run owner retain their responsibilities.
 The original Mini PR CI succeeded for `68ac2b1`. This unpushed Archive feature has
 not completed final whole checks or native runtime verification.
 
+## Implemented next: pinned cues and source-bound own-track analysis
+
+Both Archive entry paths now use the existing asset publisher for bundled cues.
+The five manifest rows pin actual packaged byte counts as well as their existing
+SHA-256 values; the cue builder emits both. Earlier Drafts retain their owned
+content path when the installation changes or disappears. The timing/grid and
+Archive editing policies are unchanged.
+
+Mini's source-bound analysis/cache procedure now lives in `bundled-assets` as
+`prepareAudioBeatAnalysis`. It delegates reservations/publication/cleanup to
+`prepareDerivedAsset`, receives existing decode/Worker/probe adapters, validates
+the beat result and independently returns the original content observation.
+Mini retains its previous cache namespace and sampling policy. Archive retains
+its WebAudio fallback after ordinary native decode failure. Neither terminal nor
+preserve-workspace uncertainty may become ordinary fixed timing; transient
+fallback is not cached. The partial registry still has nine entries.
+
+Archive Build verifies the analyzed own-track contents before planning, before
+import and before assembly dispatch. Both entries carry verified music content
+and the observed Project Audio/path into the assembly config. **This handoff is
+not yet a saved-state or precommit verification**: those connections remain in
+the same durable-workflow packet below.
+
+TDD evidence at this checkpoint:
+
+- Bundled-cue callers: four baseline controls passed and 26 assertions failed;
+  the repaired suite has 31 passing cases including actual SDK script typings.
+- Actual own-analysis caller: two controls passed and nine failed; all eleven
+  now pass with actual WAV/PCM/beat-engine data. Worker execution itself is a
+  controlled boundary with its existing owner tests.
+- Music content/Audio handoff: one control passed and nine failed; all ten pass.
+- Before connecting Archive, the extracted owner passed 28 existing Mini cases
+  and a 140-case asset/Gallery slice. Worker/ownership/module checks pass 56
+  cases. Mini/Archive panel checks, cue metadata and public-source checks pass.
+  These are scoped slices, not a distinct total or native acceptance claim.
+
+No new Electron, real Project save, playback/export, push or PR was performed.
+Mini's original clean worktree/PR and the original app modifications are retained.
+
 ## Remaining in this same feature packet
 
-1. Prepare bundled cues as pinned owned copies in both entry paths; bind imported
-   Audio to those bytes. Bind own-track analysis/cache to a verified snapshot.
-2. Carry original music observations and Resource/path bindings into assembly,
-   precommit and saved-look continuation.
+1. Connect the carried music observations and Resource/path bindings to actual
+   assembly, precommit and saved-look continuation; confirm saved Audio intent.
+2. Preserve selected original Video/Image facts and native clock/placement at
+   the actual authoring boundary while retaining Archive's allocation policies.
 3. Replace name-based Draft adoption and unconfirmed Finish resubmission with the
    existing durable assembly/look owner, exact frozen requests and independent
    saved-state/intent checks. Preserve Archive's editing/style policy.
