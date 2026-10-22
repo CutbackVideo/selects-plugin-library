@@ -184,7 +184,7 @@ class MedicalExplainerTest(unittest.TestCase):
         m = self.manifest
         self.assertEqual(m['id'], 'medical-explainer')
         self.assertEqual(m['status'], 'experimental')
-        self.assertEqual(sorted(m['files']), ['INSTALL.md', 'README.md', 'panel.tsx'])
+        self.assertEqual(sorted(m['files']), ['INSTALL.md', 'README.md', 'assets/chosun-ilbo-logo.svg', 'panel.tsx'])
         self.assertNotIn('preview', m)
         self.assertNotIn('minSelectsVersion', m)
         self.assertEqual(sorted(m['localized']), LANGS)

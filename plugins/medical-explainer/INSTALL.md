@@ -1,7 +1,8 @@
 # Install
 
-The Plugin Library places `panel.tsx` at `SELECTS_USER_PANELS_ROOT/medical-explainer/panel.tsx`. Nothing else is
-downloaded or installed: the engine runs inside the panel. Working files are written beneath
+The Plugin Library places `panel.tsx` at `SELECTS_USER_PANELS_ROOT/medical-explainer/panel.tsx` and the Chosun Ilbo
+logo used by the Chosun preset at `SELECTS_USER_SKILLS_ROOT/medical-explainer/assets/chosun-ilbo-logo.svg`. Nothing else
+is downloaded or installed: the engine runs inside the panel. Working files are written beneath
 `.selects/plugin-data/medical-explainer` in your home folder.
 
 ## Requirements

@@ -55,20 +55,25 @@ const TPL: Record<string, string> = {
   ].join("\n"),
   wordmark: [
     "import React from 'react';",
-    "import { useVideoConfig } from 'remotion';",
+    "import { Img, useVideoConfig } from 'remotion';",
     "",
     "const FALLBACK = " + FALLBACK_SERIF + ";",
     "",
-    "// Brand wordmark at the bottom of the card (template text, never hard-coded).",
+    "// Brand wordmark at the bottom of the card (template text or the preset's logo, never hard-coded).",
     "export default function Wordmark({ data }) {",
     "  const { width } = useVideoConfig();",
     "  const k = width / 1080;",
     ...TPL_FONT,
     "  const size = Number(data?.fontSize ?? 46);",
     "  const center = Number(data?.centerY ?? 1760);",
+    "  const logo = typeof data?.logo === 'string' ? data.logo : '';",
+    "  const color = String(data?.color ?? '#FFFFFF');",
+    "  // With a logo: the logo image (white, soft shadow) and a small text after it; without: the text wordmark.",
     "  return (",
-    "    <div style={{ position: 'absolute', left: 0, right: 0, top: (center - 60) * k, height: 120 * k, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>",
-    "      <div style={{ fontFamily, fontWeight: 700, fontSize: size * k, color: String(data?.color ?? '#FFFFFF'), letterSpacing: (1 * k) + 'px', opacity: 0.94, whiteSpace: 'nowrap' }}>{String(data?.text ?? '')}</div>",
+    "    <div style={{ position: 'absolute', left: 0, right: 0, top: (center - 60) * k, height: 120 * k, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18 * k, pointerEvents: 'none' }}>",
+    "      {logo ? <Img src={logo} style={{ height: Number(data?.logoHeight ?? 60) * k, width: 'auto', filter: 'drop-shadow(0 ' + (3 * k) + 'px ' + (8 * k) + 'px rgba(0,0,0,0.45))' }} /> : null}",
+    "      {logo && data?.logoText ? <div style={{ fontFamily, fontWeight: 700, fontSize: Number(data?.logoTextSize ?? 38) * k, color, opacity: 0.94, whiteSpace: 'nowrap', textShadow: '0 ' + (2 * k) + 'px ' + (6 * k) + 'px rgba(0,0,0,0.4)' }}>{'\\u00b7 ' + String(data.logoText)}</div> : null}",
+    "      {!logo ? <div style={{ fontFamily, fontWeight: 700, fontSize: size * k, color, letterSpacing: (1 * k) + 'px', opacity: 0.94, whiteSpace: 'nowrap' }}>{String(data?.text ?? '')}</div> : null}",
     "    </div>",
     "  );",
     "}",
@@ -321,7 +326,7 @@ type Strings = {
   mode: string; art: string; layout: string; autoMode: string; autoStyle: string; modeNames: Record<string, string>; artNames: Record<string, string>; layoutNames: Record<string, string>;
   chosen: (mode: string, art: string, layout: string) => string;
   inside: string; insideNames: Record<string, string>; insideCount: (n: number) => string;
-  advanced: string; changed: (n: number) => string; defaultsLine: (kf: string, voice: string) => string; jobFixed: string;
+  advanced: string; showLogo: string; changed: (n: number) => string; defaultsLine: (kf: string, voice: string) => string; jobFixed: string;
   unresolved: (names: string) => string; keepWaiting: string; resubmit: string; styleChanged: string;
 };
 
@@ -361,7 +366,7 @@ const STRINGS: Record<string, Strings> = {
     artNames: { medical: "3D medical CG", everyday: "Photoreal everyday", character: "Stylized 3D character", infographic: "Clean infographic" },
     layoutNames: { strip: "16:9 strip card", fullbleed: "Full-frame 9:16" },
     chosen: (m, a, l) => `Explanation: ${m} \u00b7 Art: ${a} \u00b7 Layout: ${l}`,
-    advanced: "Advanced settings", changed: (n) => `${n} changed`, jobFixed: "These are the settings saved with this job.",
+    advanced: "Advanced settings", showLogo: "Show the logo", changed: (n) => `${n} changed`, jobFixed: "These are the settings saved with this job.",
     defaultsLine: (k, v) => `Automatic: explanation, art style and layout \u00b7 Keyframes ${k} \u00b7 Voice ${v}`,
     inside: "Inside-the-body shots", insideNames: { auto: "When they help", on: "Use them", off: "None" },
     insideCount: (n) => `${n} inside-the-body scene${n === 1 ? "" : "s"} (3D medical CG)`,
@@ -416,7 +421,7 @@ const STRINGS: Record<string, Strings> = {
     artNames: { medical: "3D \uc758\ud559 CG", everyday: "\uc77c\uc0c1 \uc2e4\uc0ac", character: "3D \uce90\ub9ad\ud130", infographic: "\uc778\ud3ec\uadf8\ub798\ud53d" },
     layoutNames: { strip: "16:9 \ub760 \uce74\ub4dc", fullbleed: "\uc804\uccb4 \ud654\uba74 9:16" },
     chosen: (m, a, l) => `\uc124\uba85: ${m} \u00b7 \ud654\ud48d: ${a} \u00b7 \ud654\uba74: ${l}`,
-    advanced: "\uace0\uae09 \uc124\uc815", changed: (n) => `${n}\uac1c \ubcc0\uacbd\ub428`, jobFixed: "\uc774 \uc791\uc5c5\uc5d0 \uc800\uc7a5\ub41c \uc124\uc815\uc785\ub2c8\ub2e4.",
+    advanced: "\uace0\uae09 \uc124\uc815", showLogo: "\ub85c\uace0 \ud45c\uc2dc", changed: (n) => `${n}\uac1c \ubcc0\uacbd\ub428`, jobFixed: "\uc774 \uc791\uc5c5\uc5d0 \uc800\uc7a5\ub41c \uc124\uc815\uc785\ub2c8\ub2e4.",
     defaultsLine: (k, v) => `\uc790\ub3d9: \uc124\uba85 \ubc29\uc2dd\u00b7\ud654\ud48d\u00b7\ud654\uba74 \u00b7 \ud0a4\ud504\ub808\uc784 ${k} \u00b7 \ubaa9\uc18c\ub9ac ${v}`,
     inside: "\ubab8\uc18d \uc7a5\uba74", insideNames: { auto: "\ud544\uc694\ud560 \ub54c", on: "\uc0ac\uc6a9", off: "\uc0ac\uc6a9 \uc548 \ud568" },
     insideCount: (n) => `\ubab8\uc18d \uc7a5\uba74 ${n}\uac1c(3D \uc758\ud559 CG)`,
@@ -572,8 +577,11 @@ export const MED_DEFAULT_BG = "#1f1f22";
 export const MED_TITLE_COLORS = ["#FFE14D", "#9BE15D"];
 // Brand presets are template data: the wordmark is editable, and the Chosun Ilbo Health preset is one selectable value.
 export const MED_PRESETS = {
-  generic: { wordmark: "Health Explainer", color1: "#FFE14D", color2: "#9BE15D", bg: "#1f1f22" },
-  chosun: { wordmark: "\uc870\uc120\uc77c\ubcf4 \u00b7 \uac74\uac15", color1: "#FFE14D", color2: "#9BE15D", bg: "#1f1f22" },
+  generic: { wordmark: "Health Explainer", color1: "#FFE14D", color2: "#9BE15D", bg: "#1f1f22", logo: false },
+  // The Chosun preset shows the Chosun Ilbo logo (assets/chosun-ilbo-logo.svg, installed with the plugin) and a small
+  // "\uac74\uac15" after it; without the logo file, or with the logo turned off, the text wordmark.
+  chosun: { wordmark: "\uc870\uc120\uc77c\ubcf4 \u00b7 \uac74\uac15", color1: "#FFE14D", color2: "#9BE15D", bg: "#1f1f22", logo: true,
+    logoFile: "assets/chosun-ilbo-logo.svg", logoText: "\uac74\uac15" },
 };
 // Model ids are model_v1_ + base64url(endpoint). Video is Kling v3 Standard (720p) only; there is no Pro/1080p default.
 export const MED_MODEL = {
@@ -2082,10 +2090,19 @@ export function medScriptPrompt(art, f, mode = "auto", inside = "auto") {
 export const MED_ADV_DEFAULTS = { lang: "auto", kfModel: MED_KF_DEFAULT, mode: "auto", art: "auto", inside: "auto", layout: "auto",
   voice: MED_VOICES[0].id, music: false, gateScript: true, gateKf: true };
 export const MED_ADV_STORAGE_KEY = "ui:advancedOpen";
+// The wordmark overlay's data: the preset's logo (a data URL the panel read from the plugin folder) with its small
+// text when the template shows the logo and the file was found; the text wordmark otherwise (no error).
+export function medWordmarkOverlay(template, logoDataUrl) {
+  const t = asObj(template);
+  const text = strip(t.wordmark || "");
+  if (t.logo && typeof logoDataUrl === "string" && logoDataUrl.startsWith("data:image/")) return { text, logo: logoDataUrl, logoText: strip(t.logoText || "") };
+  return { text, logo: "", logoText: "" };
+}
 export function medAdvancedChanges(values, template, preset) {
   const v = asObj(values), t = asObj(template), p = MED_PRESETS[preset] || MED_PRESETS.generic;
   const changed = Object.keys(MED_ADV_DEFAULTS).filter((k) => k in v && v[k] !== MED_ADV_DEFAULTS[k]);
   for (const k of ["wordmark", "color1", "color2", "bg"]) if (k in t && String(t[k]).toLowerCase() !== String(p[k]).toLowerCase()) changed.push(k);
+  if (p.logoFile && "logo" in t && !!t.logo !== !!p.logo) changed.push("logo");
   return changed;
 }
 
@@ -2236,6 +2253,8 @@ const EDIT_TITLE = [
   { key: "fontFamily", label: "Font", type: "text", defaultValue: "" },
 ];
 const EDIT_WORDMARK = [
+  { key: "logoText", label: "Text after the logo", type: "text", defaultValue: "" },
+  { key: "logoHeight", label: "Logo height", type: "number", defaultValue: 60, min: 20, max: 160, step: 1 },
   { key: "text", label: "Wordmark", type: "text", defaultValue: "" },
   { key: "color", label: "Color", type: "color", defaultValue: "#FFFFFF" },
   { key: "fontSize", label: "Size", type: "number", defaultValue: 46, min: 20, max: 100, step: 1 },
@@ -2342,8 +2361,9 @@ const G: any = ${JSON.stringify(sel.geo || {})};
 const at = (k: string, f: string, d: number) => (G[k] && typeof G[k][f] === "number" ? G[k][f] : d);
 await g("Title", ${JSON.stringify(TPL.title)}, { line1: t.line1, line2: t.line2, color1: t.color1, color2: t.color2, fontSize: t.size, fontFamily: "",
   top: at("title", "top", 180), height: at("title", "height", 240), band: !!(G.title && G.title.band), bandColor: "#000000A6" }, ${JSON.stringify(EDIT_TITLE)}, 0, total / fps);
-const wm = ${JSON.stringify(sel.wordmark)};
-if (wm) await g("Wordmark", ${JSON.stringify(TPL.wordmark)}, { text: wm, color: "#FFFFFF", fontSize: 46, fontFamily: "", centerY: at("wordmark", "centerY", 1760) }, ${JSON.stringify(EDIT_WORDMARK)}, 0, total / fps);
+const wm = ${JSON.stringify(sel.wordmarkOverlay || { text: sel.wordmark, logo: "", logoText: "" })};
+if (wm.text || wm.logo) await g("Wordmark", ${JSON.stringify(TPL.wordmark)}, { text: wm.text, logo: wm.logo, logoText: wm.logoText, logoHeight: 60, logoTextSize: 38,
+  color: "#FFFFFF", fontSize: 46, fontFamily: "", centerY: at("wordmark", "centerY", 1760) }, ${JSON.stringify(EDIT_WORDMARK)}, 0, total / fps);
 for (const l of ${JSON.stringify(sel.labels)}) await g("Scene label " + l.scene, ${JSON.stringify(TPL.label)}, { text: l.text, color: "#FFE14D", fontSize: 38, fontFamily: "", top: at("label", "top", 1290) }, ${JSON.stringify(EDIT_LABEL)}, l.start, l.end);
 for (const s of ${JSON.stringify(sel.splits)}) await g("Split labels " + s.scene, ${JSON.stringify(TPL.split)}, { left: s.left, right: s.right, fontSize: 36, fontFamily: "", top: at("split", "top", 1200) }, ${JSON.stringify(EDIT_SPLIT)}, s.start, s.end);
 for (const s of ${JSON.stringify(sel.insets)}) await g("Insets " + s.scene, ${JSON.stringify(TPL.insets)}, { image1: s.items[0]?.image || "", label1: s.items[0]?.label || "", image2: s.items[1]?.image || "", label2: s.items[1]?.label || "", ringColor: "#E53935", fontFamily: "", top: at("insets", "top", 680) }, ${JSON.stringify(EDIT_INSETS)}, s.start, s.end);
@@ -2653,6 +2673,19 @@ function Panel({ sdk, context, ui }: any) {
     await writeJson(hostJoin(dir, "panel.json"), next);
     return next;
   }
+  // A logo SVG installed with the plugin ($SELECTS_USER_SKILLS_ROOT/medical-explainer/...), as a data URL; null when
+  // it is missing or unreadable.
+  async function loadLogo(rel: string): Promise<string | null> {
+    try {
+      if (!fs || !rel || !/^assets\/[a-z0-9-]+\.svg$/.test(rel)) return null;
+      const file = hostJoin(fs.homedir(), ".selects", "skills", APP_ID, ...rel.split("/"));
+      if (!(await fs.exists(file))) return null;
+      const text = await readText(file);
+      return text && text.includes("<svg") ? "data:image/svg+xml;base64," + bytesToB64(enc(text)) : null;
+    } catch (e) {
+      return null;
+    }
+  }
   function choosePreset(id: string) {
     setPreset(id);
     setTpl({ ...(MED_PRESETS as any)[id] });
@@ -2923,6 +2956,9 @@ function Panel({ sdk, context, ui }: any) {
       const musicFailed = await musicDone;
       if (musicFailed.length) pj = await savePanel(dir, { noMusic: true });
       const sel = await run("assembly", dir, [], "Plan the Draft");
+      // The preset's logo from the installed plugin folder; a missing file means the text wordmark, never an error.
+      const tplNow = { ...MED_PRESETS.generic, ...(jd.settings?.template || {}) };
+      sel.wordmarkOverlay = medWordmarkOverlay(tplNow, tplNow.logo ? await loadLogo(tplNow.logoFile || (MED_PRESETS as any).chosun.logoFile) : null);
       if (!pj.verified) {
         let mismatches: string[] = [], verifySkipped = false;
         try {
@@ -3045,6 +3081,7 @@ function Panel({ sdk, context, ui }: any) {
             <ui.Toggle label={S.gateScript} value={gateScript} onChange={setGateScript} disabled={!!busy} />
             <ui.Toggle label={S.gateKf} value={gateKf} onChange={setGateKf} disabled={!!busy} />
             <ui.TextField label={S.wordmark} value={tpl.wordmark} onChange={field("wordmark")} disabled={!!busy} />
+            {(MED_PRESETS as any)[preset]?.logoFile && <ui.Toggle label={S.showLogo} value={!!tpl.logo} onChange={(v: boolean) => setTpl((cur: any) => ({ ...cur, logo: v }))} disabled={!!busy} />}
             <ui.ColorField label={S.color1} value={tpl.color1} onChange={field("color1")} disabled={!!busy} />
             <ui.ColorField label={S.color2} value={tpl.color2} onChange={field("color2")} disabled={!!busy} />
             <ui.ColorField label={S.bg} value={tpl.bg} onChange={field("bg")} disabled={!!busy} />

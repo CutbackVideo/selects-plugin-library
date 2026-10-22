@@ -53,3 +53,11 @@ Medical facts stay general and well established, but every video still needs a m
   sentences. A generated transition that melts or jumps becomes a 0.5-second dissolve.
 - A sentence too long for one video clip (more than 14.5 seconds on screen) stops the run after narration, before any
   keyframe or clip is made; split or shorten it in the script list and try again.
+
+## Brand assets
+
+`assets/chosun-ilbo-logo.svg` is the Chosun Ilbo text logo, from Wikimedia Commons
+([File:Chosun IIbo Logo.svg](https://commons.wikimedia.org/wiki/File:Chosun_IIbo_Logo.svg)): public domain as a text
+logo, and a trademark of Chosun Media Group (author: Chosun Media Group). Its fill is white here. It is installed with
+the plugin beneath `SELECTS_USER_SKILLS_ROOT/medical-explainer/assets/` and used only by the Chosun Ilbo Health preset,
+where **Advanced settings → Show the logo** turns it off; the other preset shows its text wordmark.

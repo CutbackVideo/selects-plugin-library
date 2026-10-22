@@ -10,7 +10,8 @@
   "files": [
     "README.md",
     "INSTALL.md",
-    "panel.tsx"
+    "panel.tsx",
+    "assets/chosun-ilbo-logo.svg"
   ],
   "compatibility": {
     "platforms": [

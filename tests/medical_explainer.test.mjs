@@ -1348,3 +1348,43 @@ test('advanced settings open state is read from and written to plugin storage', 
   render().toggle();
   assert.deepEqual(writes.at(-1), ['ui:advancedOpen', '1']);
 });
+
+// ---- the Chosun Ilbo logo in the Chosun preset ----
+test('Chosun preset: the wordmark overlay carries the logo and a small text; missing file or logo off: the text wordmark', () => {
+  const chosun = {...op.MED_PRESETS.chosun};
+  assert.equal(chosun.logo, true);
+  assert.equal(chosun.logoFile, 'assets/chosun-ilbo-logo.svg');
+  assert.equal(chosun.logoText, '\uac74\uac15');
+  assert.equal(op.MED_PRESETS.generic.logo, false);
+  const url = 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=';
+  assert.deepEqual(op.medWordmarkOverlay(chosun, url), {text: '\uc870\uc120\uc77c\ubcf4 · \uac74\uac15', logo: url, logoText: '\uac74\uac15'});
+  assert.deepEqual(op.medWordmarkOverlay(chosun, null), {text: '\uc870\uc120\uc77c\ubcf4 · \uac74\uac15', logo: '', logoText: ''}, 'missing file: text, no error');
+  assert.deepEqual(op.medWordmarkOverlay({...chosun, logo: false}, url).logo, '', 'logo turned off');
+  assert.deepEqual(op.medWordmarkOverlay(op.MED_PRESETS.generic, url), {text: 'Health Explainer', logo: '', logoText: ''});
+  // "Show the logo" counts as a change only against the preset's default.
+  assert.deepEqual(op.medAdvancedChanges({...op.MED_ADV_DEFAULTS}, chosun, 'chosun'), []);
+  assert.deepEqual(op.medAdvancedChanges({...op.MED_ADV_DEFAULTS}, {...chosun, logo: false}, 'chosun'), ['logo']);
+  assert.deepEqual(op.medAdvancedChanges({...op.MED_ADV_DEFAULTS}, op.MED_PRESETS.generic, 'generic'), []);
+});
+
+test('the logo asset ships with the plugin, is white SVG with its provenance, and the panel reads it from the plugin folder', () => {
+  const root = path.resolve(import.meta.dirname, '../plugins/medical-explainer');
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf8'));
+  assert.ok(manifest.files.includes('assets/chosun-ilbo-logo.svg'));
+  const svg = fs.readFileSync(path.join(root, 'assets/chosun-ilbo-logo.svg'), 'utf8');
+  assert.match(svg, /<svg[\s>]/);
+  assert.match(svg, /fill="#ffffff"/);
+  assert.doesNotMatch(svg, /fill="#000000"|sodipodi|inkscape/);
+  assert.match(svg, /Wikimedia Commons[^]*public domain[^]*trademark of Chosun Media Group/);
+  assert.match(fs.readFileSync(path.join(root, 'README.md'), 'utf8'), /Wikimedia Commons[^]*public domain[^]*trademark of Chosun Media Group[^]*only by the Chosun Ilbo Health preset/);
+  const panel = fs.readFileSync(path.join(root, 'panel.tsx'), 'utf8');
+  assert.match(panel, /hostJoin\(fs\.homedir\(\), "\.selects", "skills", APP_ID, \.\.\.rel\.split\("\/"\)\)/);
+  assert.match(panel, /sel\.wordmarkOverlay = medWordmarkOverlay\(tplNow, tplNow\.logo \? await loadLogo\(/);
+  assert.match(panel, /<ui\.Toggle label=\{S\.showLogo\}/);
+  // The overlay draws the logo with a soft shadow at about 60 px.
+  assert.match(panel, /logoHeight: 60, logoTextSize: 38/);
+  assert.match(panel, /drop-shadow\(0 /);
+  const r = spawnSync('python3', ['tools/plugin_files.py', 'check', 'medical-explainer'], {cwd: path.resolve(import.meta.dirname, '..'), encoding: 'utf8'});
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout)[0].files, 5);
+});
