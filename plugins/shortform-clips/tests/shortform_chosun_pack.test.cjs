@@ -22,7 +22,7 @@ test('Chosun migration preserves requested designs with explicit Premiere correc
 
 test('Heukbaek defaults enable automatic grouping without forcing splits on single shots',()=>{
  const t=require('../template-packs/chosun-ilbo/templates/heukbaek.json');
- assert.equal(t.version,4);
+ assert.equal(t.version,5);
  assert.equal(t.layout.reframe,true);
  assert.equal(t.layout.reframePreset,'custom');
  assert.equal(t.layout.reframeFocus,'speaker');

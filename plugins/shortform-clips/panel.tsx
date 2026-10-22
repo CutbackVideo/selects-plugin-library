@@ -2884,7 +2884,7 @@ const RADIO_STRINGS: any = {
     editingLayout: (layout: string) => `Editing ${layout} layout`,
     reframing: "Composing clips…",
     reframeSkipped: "Some clips use the full picture because speaker framing was unavailable.",
-    closeUp: "Close-up on the talker (face widths across)",
+    closeUp: "Single-person close-up (larger = wider framing)",
     faceY: "Face height of the talker (% down the window)",
     headlineCenter: "Headline",
     logoCenter: "Logo",
@@ -3095,7 +3095,7 @@ const RADIO_STRINGS: any = {
     editingLayout: (layout: string) => `${layout} \ub808\uc774\uc544\uc6c3 \ud3b8\uc9d1 \uc911`,
     reframing: "\uc1fc\uce20\ubcc4 \ud654\uba74 \uad6c\uc131 \uc9c4\ud589 \uc911…",
     reframeSkipped: "\uc77c\ubd80 \ud074\ub9bd\uc740 \ud654\uc790 \uad6c\ub3c4\ub97c \uc7a1\uc744 \uc218 \uc5c6\uc5b4 \uc804\uccb4 \ud654\uba74\uc73c\ub85c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.",
-    closeUp: "\ud654\uc790 \ud074\ub85c\uc988\uc5c5 (\ud654\uba74 \ud3ed = \uc5bc\uad74 \ud3ed\uc758 \uba87 \ubc30)",
+    closeUp: "\ub2e8\ub3c5\uc0f7 \ud074\ub85c\uc988\uc5c5 (\uac12\uc774 \ud074\uc218\ub85d \ub113\uac8c)",
     faceY: "\ud654\uc790 \uc5bc\uad74 \ub192\uc774 (\ucc3d \uc704\uc5d0\uc11c\ubd80\ud130 %)",
     headlineCenter: "\ud5e4\ub4dc\ub77c\uc778",
     logoCenter: "\ub85c\uace0",
@@ -4044,7 +4044,10 @@ function editorialPersonRegions(shots:any[],catalog:any[],sources:any[],layout:a
         if(f.resourceId!==first.resourceId||ids.has(f.id)||!group.some(s=>f.draftFrame>=s.startFrame&&f.draftFrame<s.endFrame))continue;
         const q=f.box;if(q.xmax<head.xmin)safeLeft=Math.max(safeLeft,(q.xmax+head.xmin)/2);else if(q.xmin>head.xmax)safeRight=Math.min(safeRight,(q.xmin+head.xmax)/2);
       }
-      const options={W,H,left:safeLeft,right:safeRight,top,bottom,aspect,boxes:[head],preferredWidth:Math.max(fw*(split?3.6:2.2),(head.ymax-head.ymin+fh*.35)*aspect,first.style==='two-shot'?head.xmax-head.xmin+fw*.8:0),faceY:.4,reservedAreas:layout.reservedAreas,destination};
+      // Close-up is a single-person preference. Group layouts retain their
+      // own shoulder/group fitting and shared magnification policy.
+      const singleCloseUp=Number.isFinite(layout.closeUp)&&layout.closeUp>=2&&layout.closeUp<=12?layout.closeUp:2.2;
+      const options={W,H,left:safeLeft,right:safeRight,top,bottom,aspect,boxes:[head],preferredWidth:Math.max(fw*(split?3.6:first.style==='speaker'?singleCloseUp:2.2),(head.ymax-head.ymin+fh*.35)*aspect,first.style==='two-shot'?head.xmax-head.xmin+fw*.8:0),faceY:.4,reservedAreas:layout.reservedAreas,destination};
       let crop:any;
       try {crop=fitPortraitCrop(options);} catch(error:any) {
         if(!/cannot fit/.test(String(error?.message)))throw error;
@@ -6156,7 +6159,7 @@ function TemplateFramingSection({ ui, S, lang, draft, profile }: any) {
         {profile.reframe && edit.layout.reframe && <>
           <ui.Segmented label={lang==='ko'?'\ub9ac\ud504\ub808\uc774\ubc0d \uc2a4\ud0c0\uc77c':'Reframing style'} value={edit.layout.reframePreset||'conversation'} onChange={(v:string)=>set('layout',reframingPreset(edit.layout,v))} options={[
             {value:'speaker',label:lang==='ko'?'\ud654\uc790 \uc9d1\uc911':'Speaker focus'}, {value:'conversation',label:lang==='ko'?'\ub300\ud654\uc640 \ubc18\uc751':'Conversation'}, {value:'context',label:lang==='ko'?'\ud604\uc7a5\uac10':'Context'}, {value:'custom',label:lang==='ko'?'\uc9c1\uc811 \uc124\uc815':'Custom'}]} disabled={saving}/>
-        {profile.reframe && edit.layout.reframe ? num("layout.closeUp", S.closeUp, 2, 12, "×", 4.5) : null}
+        {profile.reframe && edit.layout.reframe ? num("layout.closeUp", S.closeUp, 2, 12, "×", 2.2) : null}
         {profile.reframe && edit.layout.reframe ? num("layout.faceY", S.faceY, 25, 65, "%", 40) : null}
           {[
             ['reframeFocus','\ud654\uba74\uc5d0 \ub2f4\uc744 \ub300\uc0c1','Show',[['speaker','\ub9d0\ud558\ub294 \uc0ac\ub78c \uc704\uc8fc','Speaker'],['reactions','\ub4e3\ub294 \uc0ac\ub78c\uc758 \ubc18\uc751\ub3c4','Reactions'],['context','\ub300\ud654 \uc804\uccb4','Context']],'reactions'],
