@@ -2149,16 +2149,18 @@ async function captureOrReadThumbnail(store: any, sdk: any, projectId: string, j
   if (path) await store.fs.writeFile(path,fromBase64(data.split(",")[1]));
   return {data,thumbnailPath:path ? relative : null};
 }
-function DraftThumbnail({sdk,store,jobId,projectId,draftId,R}: any) {
+function DraftThumbnail({sdk,store,jobId,projectId,draftId,R,hold}: any) {
   const [data,setData]=React.useState("");
   React.useEffect(()=>{
     let live=true;setData("");
-    if (sdk && projectId && jobId && draftId) loadDraftThumbnail(store,sdk,projectId,jobId,draftId).then(image=>{if(live)setData(image?.data||"");}).catch(()=>{});
+    // While the run still owes this clip a fresh preview, a card-side capture would
+    // jump the visual queue (or show a stale image after reframing).
+    if (!hold && sdk && projectId && jobId && draftId) loadDraftThumbnail(store,sdk,projectId,jobId,draftId).then(image=>{if(live)setData(image?.data||"");}).catch(()=>{});
     return ()=>{live=false;};
-  },[sdk,store,jobId,projectId,draftId]);
+  },[sdk,store,jobId,projectId,draftId,hold]);
   const url=useBlobUrl(data);
   return <div className="clip-result-thumbnail" aria-label={R.thumbnail}>
-    {url ? <img src={url} alt="" style={{width:"100%",height:"100%",objectFit:"contain",display:"block"}}/> : <small>{R.noThumbnail}</small>}
+    {url ? <img src={url} alt="" style={{width:"100%",height:"100%",objectFit:"contain",display:"block"}}/> : <small>{hold ? R.thumbnailPending : R.noThumbnail}</small>}
   </div>;
 }
 function ScoreTooltip({assessment,R}: any) {
@@ -2192,8 +2194,8 @@ Object.assign(RESULT_STRINGS.en, {reframeTokens:"Reframing tokens",jobTokens:"To
 
 Object.assign(RESULT_STRINGS.ko,{stages:{"speakers-wait":"\ubc1c\ud654 \uc778\ubb3c \ubd84\uc11d \ub300\uae30",speakers:"\uc74c\uc131·\uc785 \uc6c0\uc9c1\uc784 \ubd84\uc11d \uc911","faces-wait":"\uc5bc\uad74 \ubd84\uc11d \ub300\uae30",faces:"\uc5bc\uad74 \ubd84\uc11d \uc911","evidence-wait":"\ud654\uba74 \uc790\ub8cc \uc900\ube44 \ub300\uae30",evidence:"\ud654\uba74 \uc790\ub8cc \uc900\ube44 \uc911",ai:"AI \ud654\uba74 \uad6c\uc131 \ud310\ub2e8 \uc911",agent:"AI \uc6d0\ubcf8 \ubd84\uc11d·\ud654\uba74 \uad6c\uc131 \uc911","apply-wait":"\ud3b8\uc9d1 \uc801\uc6a9 \ub300\uae30",apply:"\ud3b8\uc9d1 \uc801\uc6a9 \uc911","verify-wait":"\uacb0\uacfc \uac80\uc99d \ub300\uae30",verify:"\uacb0\uacfc \uac80\uc99d \uc911",thumbnail:"\uc378\ub124\uc77c \uc0dd\uc131 \uc911",done:"\uc644\ub8cc",failed:"\uc2e4\ud328",pending:"\uc900\ube44 \uc911"}});
 Object.assign(RESULT_STRINGS.en,{stages:{"speakers-wait":"Waiting for speaker analysis",speakers:"Analyzing audio and mouth motion","faces-wait":"Waiting for face analysis",faces:"Analyzing faces","evidence-wait":"Waiting for evidence",evidence:"Preparing evidence",ai:"AI composition planning",agent:"AI source analysis and composition","apply-wait":"Waiting to apply edits",apply:"Applying edits","verify-wait":"Waiting for verification",verify:"Verifying output",thumbnail:"Creating thumbnail",done:"Complete",failed:"Failed",pending:"Preparing"}});
-Object.assign(RESULT_STRINGS.ko,{preparingClip:"\ud654\uba74 \uad6c\uc131 \uc911",previewPending:"\uc644\ub8cc \ud6c4 \uc5f4 \uc218 \uc788\uc5b4\uc694",retryClip:"\uc774 \ud074\ub9bd \uc7ac\uc2dc\ub3c4",failureDetails:"\uc624\ub958 \uc0c1\uc138",failedAt:(stage:string)=>`${stage} \ub2e8\uacc4\uc5d0\uc11c \uc2e4\ud328`});
-Object.assign(RESULT_STRINGS.en,{preparingClip:"Composing",previewPending:"Available when complete",retryClip:"Retry this clip",failureDetails:"Error details",failedAt:(stage:string)=>`Failed at: ${stage}`});
+Object.assign(RESULT_STRINGS.ko,{preparingClip:"\ud654\uba74 \uad6c\uc131 \uc911",thumbnailPending:"\ubbf8\ub9ac\ubcf4\uae30 \uc900\ube44 \uc911",previewPending:"\uc644\ub8cc \ud6c4 \uc5f4 \uc218 \uc788\uc5b4\uc694",retryClip:"\uc774 \ud074\ub9bd \uc7ac\uc2dc\ub3c4",failureDetails:"\uc624\ub958 \uc0c1\uc138",failedAt:(stage:string)=>`${stage} \ub2e8\uacc4\uc5d0\uc11c \uc2e4\ud328`});
+Object.assign(RESULT_STRINGS.en,{preparingClip:"Composing",thumbnailPending:"Preparing preview",previewPending:"Available when complete",retryClip:"Retry this clip",failureDetails:"Error details",failedAt:(stage:string)=>`Failed at: ${stage}`});
 function clipReady(d:any) {
   return !!d.draftId && !d.error && d.reframeState !== "pending" && d.reframeState !== "failed" && (!d.progressStage || d.progressStage === "done");
 }
@@ -2290,7 +2292,7 @@ function DraftResultCard({ draft: d, current, opening, onOpen, ui, S, R, sdk, st
       disabled={!ready || current || !!opening} onClick={()=>{if(clipReady(d))onOpen(d.draftId);}}
       style={{display:"block",position:"relative",width:"fit-content",height:"auto",maxHeight:"none",minWidth:0,minHeight:0,padding:0,border:0,borderRadius:6,background:"none",lineHeight:1,overflow:"hidden",opacity:1,
         cursor:current || opening ? "default" : "pointer",boxShadow:current ? "0 0 0 2px var(--panel-fg)" : "none"}}>
-      <DraftThumbnail key={d.thumbnailCapturedAt||d.draftId} sdk={sdk} store={store} jobId={jobId} projectId={projectId} draftId={d.draftId} R={R}/>
+      <DraftThumbnail key={d.thumbnailCapturedAt||d.draftId} sdk={sdk} store={store} jobId={jobId} projectId={projectId} draftId={d.draftId} R={R} hold={busy && !!d.previewPending}/>
       {current ? <span style={{position:"absolute",bottom:5,left:4,right:4,padding:"4px 2px",borderRadius:3,background:"#000b",color:"#fff",fontSize:10,lineHeight:1.2}}>{R.viewing}</span>
         : <span className="clip-thumbnail-open" aria-hidden="true">{opening === d.draftId ? R.opening : <>{S.open} <span>↗</span></>}</span>}
     </button> : <div className="clip-result-thumbnail" aria-label={R.previewPending}><small>{d.error ? R.stages.failed : R.preparingClip}<br/>{R.previewPending}</small></div>}
@@ -10517,6 +10519,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       saveQueue = write.catch(() => {});
       return write;
     };
+    // Wall-clock stage marks so slow runs can be diagnosed from the saved job alone.
+    const mark = (stage: string, extra: any = {}) => persist({stageLog:[...(job.stageLog || []), {stage, at:new Date().toISOString(), ...extra}].slice(-200)});
     const askShared = (stage: string) => async (request: any) => {
       const calls = [...(job.sharedUsageCalls || []), {stage,usage:null}];
       const index = calls.length - 1;
@@ -10540,7 +10544,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         setInfo({key:direct.id,why:S.whyManual});
         await runLayerScenes(job,persist,selected);return;
       }
-      await persist({});
+      await mark(resume ? "resume" : "start");
       setJobs((js) => js.filter((j) => j.id !== job.id));
       setStep(0);
       if (!job.resourceId && !job.sourceDraftId) {
@@ -10554,13 +10558,16 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
             sourceDraftId: input.sourceDraftId, resourceName: input.name, title: input.name });
         }
       }
+      await mark("source-ready");
       setStep(1);
       setStatus("");
       // Recheck on resume: a saved readiness flag is not evidence the source still exists.
       if (!job.sourceKind || job.sourceKind === "video") await ensureTranscriptReady(job.resourceId, job.resourceName || "");
+      await mark("source-analyzed");
       const { lines, duration } = await readTranscript(job.resourceId, job.resourceName || "", job.sourceKind, job.sourceDraftId);
       if (!lines.length) throw new Error(S.emptyTranscript);
       await persist({ transcriptReady: true });
+      await mark("transcript-ready", {lines: lines.length, duration});
       setStep(2);
       setStatus(S.identifying);
       if (!job.key) {
@@ -10573,6 +10580,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         }
         if (!key) throw new Error(S.unsupported);
         await persist({ key, why });
+        await mark("identified", {key});
       }
       const baseTemplate = list.find((t: any) => t.id === job.key);
       const tpl=baseTemplate?{...baseTemplate,layout:{...baseTemplate.layout,fixedLayout:job.fixedLayout||"auto",subjectInstructions:job.subjectInstructions||""}}:null;
@@ -10611,6 +10619,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         for(let i=0;i<study.clips.length;i++) {
           if(made[i]?.draftId)continue;
           const clip=study.clips[i],workDirectory=`${env.homedir}/.selects/plugin-data/shortform-clips/scene-runs/${job.id}/${i}`;
+          const buildStarted=Date.now();
           setStep(4);setStatus(S.building(i+1,study.clips.length));setSub(i/study.clips.length);
           const input={projectId,draftName:clip.name,workDirectory,episode:study.episode,sourceReview:study.sourceReview,assetReview:study.assetReview,clip,brief:job.note||'',componentStyles:tpl.editorial.components||{},instructions:tpl.editorial.instructions,headlineGuide:tpl.prompt.headline,headlineDefaults:tpl.headline,brand:{logo:tpl.logo,captions:tpl.captions},visualGuide:vision.visualGuide};
           const result=await buildSceneDraft(input,
@@ -10623,12 +10632,13 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           const actual=await script(`const p=selects.project(${JSON.stringify(projectId)}),id=${JSON.stringify(result.draftId)},owned=(await p.meta()).draftIds.includes(id);if(!owned)return {owned};const d=selects.draft(id),graphics=[];for(const g of await d.motionGraphics()){const program=await d.motionGraphicProgram(g.clip);graphics.push({name:g.name,startFrame:g.clip.startFrame,endFrame:g.clip.endFrame,text:program?.parameters?.text,bottom:program?.parameters?.bottom,top:program?.parameters?.top,height:program?.parameters?.height,mode:program?.parameters?.mode});}return {owned,meta:await d.meta(),visualLayers:(await d.clips({trackScope:'all'})).filter(c=>c.trackKind==='video').length,graphics};`,'Verify saved scenes and caption timing');
           made[i]={...clip,...validateSceneDraft(result,actual,clip,clip.name,{captions:tpl.captions.on}),workDirectory};
           setDrafts(made.filter(Boolean));await persist({built:made});
+          await mark("built",{clip:i,ms:Date.now()-buildStarted});
           try {
             const thumbnail=await guard(loadDraftThumbnail(store,sdk,projectId,job.id,made[i].draftId));
             if(thumbnail?.thumbnailPath){made[i]={...made[i],thumbnailPath:thumbnail.thumbnailPath,thumbnailCapturedAt:new Date().toISOString()};await persist({built:made});}
           } catch(e) {if(e instanceof RunCancelled)throw e;}
         }
-        await persist({done:true});setStatus(S.done(made.length));setStep(5);loadResources();return;
+        await mark("done");await persist({done:true});setStatus(S.done(made.length));setStep(5);loadResources();return;
       }
       setStep(3);
       setStatus(S.choosing);
@@ -10645,6 +10655,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           name: `${nameOf(tpl, lang)} ${i + 1} · ${String(c.headline1).replace(/["“”]/g, "").slice(0, 28)} · ${job.id}`,
         }));
         await persist({ choice: pickd });
+        await mark("chosen", {clips: pickd.clips.length});
       }
       const pickd = job.choice;
       if (tpl.editorial && !pickd.editorialPlanned) {
@@ -10661,6 +10672,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         }
         pickd.editorialPlanned=true;
         await persist({choice:pickd});
+        await mark("editorial-planned");
       }
       setInfo({ key: job.key, why: job.why, recommended: pickd.recommendedCount, countReason: pickd.countReason });
       setStep(4);
@@ -10683,6 +10695,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
         // an explicit pending state so interruption resumes the same output.
         if (made[i]?.draftId && made[i].reframeState !== "pending" && made[i].reframeState !== "failed") continue;
         const needsReframe = !tpl.landscape && !!tpl.layout.reframe;
+        const buildStarted = Date.now();
         setStatus(S.building(i + 1, pickd.clips.length));
         setSub(i / pickd.clips.length);
         const name = c.name || `${nameOf(tpl, lang)} ${i + 1} · ${String(c.headline1).replace(/["“”]/g, "").slice(0, 28)} · ${job.id}`;
@@ -10749,11 +10762,12 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           await persist({built: made});
           pending.push(i);
         }
+        await mark("built", {clip: i, ms: Date.now() - buildStarted});
       }
       // Every clip has its own Draft and agent session. Do not cap concurrency.
       const outcomes = await Promise.allSettled(pending.map(async (i) => {
         if (made[i].reframeState === "pending") {
-
+          const reframeStarted = Date.now();
           setStatus(S.reframing);
           const note = (entry: any) => {
             if(entry.plan==='template-ai-context'||entry.plan==='template-ai-attempt') {
@@ -10775,23 +10789,16 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
           };
           try {
             const report=await runTemplateReframing(made[i].draftId,job,tpl,note,work,made[i].reframeReport?.editContext);
-            made[i] = {...made[i],reframeReport:report,reframeState:"done",progressStage:"thumbnail",progressAt:Date.now(),error:undefined};
+            made[i] = {...made[i],reframeReport:report,reframeState:"done",progressStage:"done",progressAt:Date.now(),error:undefined,previewPending:true};
           } catch (e: any) {
             if (e instanceof RunCancelled) throw e;
             made[i] = {...made[i], reframeState:"failed", failedStage:made[i].progressStage, progressStage:"failed",progressAt:Date.now(), error:String(e?.message || e).slice(0,300)};
           }
           setDrafts(made.filter(Boolean));
           await persist({built:made, choice:pickd, resultWarning});
-        }
-        if (made[i]?.draftId && made[i].reframeState !== "failed") {
-          try {
-            const image = await guard(loadDraftThumbnail(store,sdk,projectId,job.id,made[i].draftId,true));
-            if (image?.thumbnailPath) {
-              made[i] = {...made[i],thumbnailPath:image.thumbnailPath,thumbnailCapturedAt:new Date().toISOString()};
-              await persist({built:made,resultWarning});
-            }
-          } catch (e) { if (e instanceof RunCancelled) throw e; /* A preview failure leaves the editable clip intact. */ }
-          made[i] = {...made[i],progressStage:"done",progressAt:Date.now()};
+          await mark("reframed", {clip: i, ms: Date.now() - reframeStarted, ok: made[i].reframeState === "done"});
+        } else if (made[i]?.draftId && made[i].reframeState !== "failed" && made[i].progressStage !== "done") {
+          made[i] = {...made[i],progressStage:"done",progressAt:Date.now(),previewPending:true};
           setDrafts(made.filter(Boolean));
           await persist({built:made,resultWarning});
         }
@@ -10799,6 +10806,23 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       const rejected = outcomes.find((outcome) => outcome.status === "rejected");
       if (rejected?.status === "rejected") throw rejected.reason;
       if (progressSaveError) throw progressSaveError;
+      await mark("reframing-done");
+      // Previews run after every clip is editable: they share the serialized visual
+      // queue with framing surveys, so capturing them earlier delays other clips.
+      for (let i = 0; i < made.length; i++) {
+        if (!made[i]?.draftId || !made[i].previewPending) continue;
+        if (made[i].reframeState !== "failed") {
+          try {
+            const image = await guard(loadDraftThumbnail(store,sdk,projectId,job.id,made[i].draftId,true));
+            if (image?.thumbnailPath) made[i] = {...made[i],thumbnailPath:image.thumbnailPath,thumbnailCapturedAt:new Date().toISOString()};
+          } catch (e) { if (e instanceof RunCancelled) throw e; /* A preview failure leaves the editable clip intact. */ }
+        }
+        made[i] = {...made[i],previewPending:false};
+        setDrafts(made.filter(Boolean));
+        await persist({built:made,resultWarning});
+      }
+      await mark("thumbnails-done");
+      await mark("done");
 
       const allBuilt = made.length === pickd.clips.length && made.every((m) => m && m.draftId && m.reframeState !== "failed" && m.reframeState !== "pending");
       await persist({ done: allBuilt });
@@ -10807,6 +10831,8 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       setStep(5);
       loadResources();
     } catch (e: any) {
+      // A failed save must not hide the run error the user needs to see.
+      await mark(e instanceof RunCancelled ? "cancelled" : "failed", e instanceof RunCancelled ? {} : {error:String(e?.message || e).slice(0,300)}).catch(() => {});
       if (e instanceof RunCancelled) {
         setError("");
         setStatus(S.cancelled);

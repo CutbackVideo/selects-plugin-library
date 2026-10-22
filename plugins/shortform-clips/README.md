@@ -206,10 +206,11 @@ info icon beside AI score for its reason. These are content recommendations, not
 predictions or finished-video quality scores. Older or malformed assessments show
 **Unrated** and sort after scored clips, without re-running AI. Thumbnails capture
 one composited Draft frame at one second (or the last frame for shorter clips),
-including its template and captions. New clips save this JPEG after framing;
-reframing again refreshes the saved JPEG. Cards show their own stage and elapsed
-time at the bottom and cannot open until composition and thumbnail processing
-finish. Failed clips expose details and individual retry. The overall progress
+including its template and captions. New clips save this JPEG after every clip
+in the run has finished framing, so preview capture never waits ahead of another
+clip's framing work in the visual queue; reframing again refreshes the saved JPEG.
+Cards show their own stage and elapsed time at the bottom and can open as soon as
+their composition finishes, before the preview is saved. Failed clips expose details and individual retry. The overall progress
 shows only the batch count. Older results capture the current Draft on their first visit. Subsequent edits
 or opening a Draft do not refresh the saved image. Capture does not change the
 open Draft. A failed preview leaves the editable clip and its history intact.
@@ -370,6 +371,14 @@ path; tools invoked inside an autonomous single-camera agent are owned by the
 agent runtime, not by this scheduler. Each clip records its actual phase and
 phase-start time. Queued run work checks its original cancellation token before
 starting, even after another run begins.
+
+Each job also records `stageLog`: wall-clock marks for start or resume, source
+ready (imported), source analyzed (transcript job finished), transcript read,
+template identified, clip selection, each Draft build and each clip's framing
+(with elapsed milliseconds), framing done, thumbnails done, and done, failed or
+cancelled. Scene-built templates mark each Draft build and done. Framing-internal
+stages (speaker, face, evidence, AI, apply, verify) stay in `choice.reframeLog`.
+Use them together to see which stage made a slow run slow.
 
 Fixed composition follows playback continuity, not uninterrupted source time.
 For adjacent output placements of the same subjects, camera, source, layout and
