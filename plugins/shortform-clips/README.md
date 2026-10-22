@@ -428,7 +428,7 @@ Templates without `music` generate exactly as before.
   `musicWarning`).
 - Limits: installing a pack does not bring the file. The path must exist on each
   computer, and the pack must not ship licensed audio. Scene templates
-  (`editorial`) do not add music.
+  (`editorial`) are not included: adding music there has not been checked yet.
 
 ## Generated thumbnails
 
