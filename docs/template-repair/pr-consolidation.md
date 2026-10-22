@@ -1,4 +1,37 @@
-# Consolidated template repair review layout
+# Template repair: one PR per repository
+
+The review surface is now two Draft PRs. This packages existing repairs; it does
+not mark the 28-template investigation complete or change its acceptance gates.
+Chan's apps and other sessions' PRs remain outside this work.
+
+| Retained PR | Scope | Replaced in this consolidation |
+| --- | --- | --- |
+| [selects-plugin-library #346](https://github.com/CutbackVideo/selects-plugin-library/pull/346) | Gongju/Recap duration, Place Count authoring, photo-template/Gallery/Mini/Archive repairs and their shared owners | #258, #260, #283, #303, #335 |
+| [cutback-client #7876](https://github.com/CutbackVideo/cutback-client/pull/7876) | Read-only Clip source windows, script deadlines, fresh Project/source observations and native render geometry | #7828 |
+
+Plugin #346 targets `main`; app #7876 targets `develop`. These are separate
+repositories and require two PRs. App support must ship before dependent template
+features can be accepted in an installed app. Neither PR is merged or deployed.
+
+The Photo -> Gallery -> Mini -> Archive commits already form one history.
+Gongju/Recap, Place Count and the independent app source-window branch are joined
+with merge commits. All eight previous heads remain ancestors of their respective
+retained heads. There is no rebase, force push, commit removal or branch deletion.
+The only overlapping code resolution is the Windows test host: keep both the
+bundled-asset fixture loader and the duration fixture loader.
+
+Original PR bodies, discussions, branches and validation records are retained;
+closed descriptions link to the consolidated PR. Separate consolidation workspaces
+preserve the original dirty checkout and the in-progress font/readiness work.
+That unfinished work is not included in these review heads.
+
+Continue subsequent connected fixes in these two PRs. Explain their review order
+inside each description instead of opening more stacked PRs for every small fix.
+The historical 60 -> 8 packaging below is superseded by this 8 -> 2 consolidation.
+
+---
+
+# Historical first consolidation
 
 The user's request to reduce similar PRs changes review packaging, not repair
 acceptance. Existing commits, remote branches, worktrees, test evidence and closed
