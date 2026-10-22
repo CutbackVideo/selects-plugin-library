@@ -126,3 +126,21 @@ delete reply and reports a terminal failure if a private reservation remains; it
 never deletes published objects or returns a fallback over unconfirmed cleanup.
 See [clip-analysis.md](clip-analysis.md) for bounded I/O, exact original identities,
 policy ownership and decoder-versus-filesystem deadline boundaries.
+
+## Unconfirmed native producer lifetime
+
+`preserveTemporaryFiles:true` from the existing private media client means the
+native producer's start/exit cannot be confirmed. `runAssetMediaTool` preserves
+this condition across cancellation/deadline classification. Transient and derived
+owners retain their own exclusive reservations, propagate the known job ID and
+private retained-path diagnostics through immutable error wrappers, and never
+publish or return a success. A nested decoder keeps both its gray output and its
+parent's private source/output. It does not delete objects/indexes or unrelated
+files. Known settled producers retain existing cleanup policy, including default
+Gallery best effort and opt-in analysis confirmation.
+
+The private path list is diagnostic, not a general delete capability. The proof
+harness can remove its own disposable fixtures only after independent same-job
+terminal reads; the plugin does not infer safe deletion from age, a missing reply,
+an abort acknowledgement or an unknown/expired job. Automatic persisted-workspace
+reconciliation and whole installed-plugin acceptance are still separate work.

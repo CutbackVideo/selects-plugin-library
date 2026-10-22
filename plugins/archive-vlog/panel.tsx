@@ -1936,7 +1936,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "archive-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.14";
+const PLUGIN_VERSION = "0.1.0-alpha.15";
 // The credit name's limit (fieldLen units, Hangul counts 2).
 const CREDIT_NAME_MAX = 24;
 // Music without onsets (No music, or a track that could not be analysed): the cuts stay on the grid.
@@ -3560,7 +3560,8 @@ function avBeatWorkerSource(beatDetectText) {
 //       (0-1), sharp = mean absolute Laplacian (0-1), luma = mean luma (0-1), clipped = share of pixels near black or
 //       white. When ffmpeg is missing or fails (or the budget runs out) it never throws for that: it returns evenly
 //       spaced, unflagged windows from QS_HEAD on with `fallback: true`, so a build still goes ahead. It throws only
-//       when `signal` aborts.
+//       when `signal` aborts or the native owner reports terminal execution uncertainty.
+//       Unknown producer exits retain their temporary output instead of racing cleanup.
 //   quickScoreAll(resources, { concurrency, budgetMs, signal, onProgress, ... }) -> Map rid -> result. Bounded
 //       concurrency; onProgress({ done, total, rid }) after each clip; the budget is shared (clips not started in time get
 //       the fallback).
@@ -3744,6 +3745,7 @@ async function quickScore(resource, opts) {
   var relay = function () { if (controller) controller.abort(); };
   var timer = controller ? setTimeout(relay, Math.max(1000, deadline - Date.now())) : null;
   if (signal) signal.addEventListener("abort", relay);
+  var producerFailure = null;
   try {
     await io.runFFmpeg(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", a.toFixed(3), "-t", (b - a).toFixed(3), "-i", resource.path,
       "-an", "-vf", "fps=" + fps + ",scale=" + QS_W + ":" + QS_H + ",setsar=1,format=gray", "-f", "rawvideo", tmp], controller ? controller.signal : undefined);
@@ -3756,12 +3758,14 @@ async function quickScore(resource, opts) {
     if (io.writeText && !ws) { try { await io.writeText(cacheFile, JSON.stringify({ key: key, result: result })); } catch (e) { /* no cache, no harm */ } }
     return result;
   } catch (e) {
+    producerFailure = e;
+    if (e && e.terminal) throw e;
     if (signal && signal.aborted) throw qsAbortError();
     return qsFallback(resource, Date.now() - t0, opts.windows);
   } finally {
     if (timer) clearTimeout(timer);
     if (signal) signal.removeEventListener("abort", relay);
-    if (io.remove) { try { await io.remove(tmp); } catch (e) { /* left behind */ } }
+    if (io.remove && !(producerFailure && producerFailure.preserveTemporaryFiles)) { try { await io.remove(tmp); } catch (e) { /* left behind */ } }
   }
 }
 
@@ -3783,7 +3787,9 @@ async function quickScoreAll(resources, opts) {
   }
   var workers = [];
   for (var i = 0; i < conc; i++) workers.push(worker());
-  await Promise.all(workers);
+  var outcomes = await Promise.allSettled(workers);
+  var failure = outcomes.find(function (outcome) { return outcome.status === "rejected"; });
+  if (failure) throw failure.reason;
   return results;
 }
 
@@ -3981,7 +3987,7 @@ function reserveAssetFiles(files,current,owner){
   if(cleared!=='')throw reservationUnknown(clearFailure);
   owned.add(path);current();
  };
- return {reserve,cleanup:async({observeFailure=false}={})=>{
+ return {reserve,paths:()=>[...owned],cleanup:async({observeFailure=false}={})=>{
   const failures=[];
   for(const path of owned){
    try{await files.removeFile({filePath:path});}
@@ -3994,6 +4000,18 @@ function reserveAssetFiles(files,current,owner){
   }
   return failures;
  }};
+}
+
+// A host job with an unknown exit may still read/write these reservations. Keep
+// them for inspection; neither an abort acknowledgement nor a cleanup attempt
+// proves that the producer has settled. Preserve diagnostics without mutating
+// the thrown object supplied by a different owner.
+function retainUnconfirmedAssetFiles(error,reservations){
+ return Object.assign(bundledAssetIssue('WORKSPACE_UNKNOWN','The media job exit could not be confirmed. Its temporary workspace is retained for inspection.',error),{
+  terminal:true,preserveTemporaryFiles:true,
+  ...(typeof (error?.unconfirmedJobId??error?.jobId)==='string'?{unconfirmedJobId:error.unconfirmedJobId??error.jobId}:{}),
+  retainedTemporaryFiles:[...new Set([...(Array.isArray(error?.retainedTemporaryFiles)?error.retainedTemporaryFiles:[]),...reservations.paths()])]
+ });
 }
 
 async function prepareDerivedAsset(files,options){
@@ -4071,6 +4089,7 @@ async function prepareDerivedAsset(files,options){
  }finally{
   // Only this invocation's reserved staging paths are disposable. Published
   // objects/indexes may already be referenced by a different run or old Draft.
+  if(preparationFailure?.preserveTemporaryFiles)throw retainUnconfirmedAssetFiles(preparationFailure,reservations);
   const cleanupFailures=await reservations.cleanup({observeFailure:cleanupRequired});
   if(cleanupRequired&&cleanupFailures.length)throw Object.assign(bundledAssetIssue('CLEANUP','Analysis workspace cleanup could not be confirmed. Inspect the preparation workspace before starting again.',preparationFailure),{terminal:true,cleanupFailures});
  }
@@ -4097,13 +4116,16 @@ async function readTransientAsset(client,options){
   await produce({path,files,media,current,deadline});current();
   bytes=await readBundledAssetBytes(files,path,maxBytes,current);current();
  }catch(error){
-  failure=/^BUNDLED_ASSET_/.test(error?.code??'')?error:bundledAssetIssue('PREPARE','Media could not be prepared. Check the source file and media tools.',error);
- }finally{cleanupFailures=await reservations.cleanup({observeFailure:true});}
+  failure=error?.terminal||/^BUNDLED_ASSET_/.test(error?.code??'')?error:bundledAssetIssue('PREPARE','Media could not be prepared. Check the source file and media tools.',error);
+ }finally{
+  if(failure?.preserveTemporaryFiles){failure=retainUnconfirmedAssetFiles(failure,reservations);cleanupFailures=[];}
+  else cleanupFailures=await reservations.cleanup({observeFailure:true});
+ }
  if(failure){
   if(cleanupFailures.length){
    // Keep the primary failure/cause, but do not allow a decoder fallback to
    // conceal an unconfirmed workspace cleanup. Copy, never mutate thrown data.
-   failure=Object.assign(bundledAssetIssue(failure.code.slice('BUNDLED_ASSET_'.length),failure.publicMessage??failure.message,failure.cause),{terminal:true,cleanupFailures});
+   failure=Object.assign(bundledAssetIssue(/^BUNDLED_ASSET_/.test(failure.code??'')?failure.code.slice('BUNDLED_ASSET_'.length):'PREPARE',failure.publicMessage??failure.message,/^BUNDLED_ASSET_/.test(failure.code??'')?failure.cause:failure),{terminal:true,cleanupFailures});
   }
   throw failure;
  }
@@ -4153,6 +4175,7 @@ async function runAssetMediaTool(media,kind,args,options={}){
   if(stopped||timedOut||controller.signal.aborted)throw Error('The media process ended after its scope.');
   return result;
  }catch(cause){
+  if(cause?.preserveTemporaryFiles)throw retainUnconfirmedAssetFiles(cause,{paths:()=>[]});
   if(!live())stop();
   if(Date.now()>=expiresAt){timedOut=true;controller.abort();}
   if(stopped)throw Object.assign(bundledAssetIssue('STOPPED','The template run ended before media preparation completed.',cause),{terminal:true});
@@ -6583,43 +6606,105 @@ async function createPanelLocalClient(sdk: any) {
     pathToLocalURL: (path: string) => run("files.localUrl", [path]),
     localURLToPath: (url: string) => run("files.pathFromLocalUrl", [url]),
   };
-  const activeJobs = new Set<string>();
+  const activeJobs = new Map<string, () => Promise<void>>();
   let disposed = false;
+  const SETTLEMENT_MS = 5000, OUTPUT_BYTES = 4 * 1024 * 1024;
+  const mediaIssue = (code: string, message: string, cause?: unknown, uncertain = false) =>
+    Object.assign(new Error(message), { code: "LOCAL_MEDIA_" + code, publicMessage: message, terminal: true, cause,
+      ...(uncertain ? { preserveTemporaryFiles: true } : {}) });
   const cancel = async (jobId: string) => {
     const response = await sdk.runScript({ summary: "Cancel local media processing", allowCommit: true, script: "await selects.media.job(" + JSON.stringify(jobId) + ").cancel();" });
     if (response.isError) throw new Error(response.output || "Media cancellation failed.");
   };
+  const observeMedia = (read: () => Promise<any>, deadline: number): Promise<any> => new Promise((resolve, reject) => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) { reject(mediaIssue("STATUS", "The media job response could not be confirmed.")); return; }
+    const timer = setTimeout(() => reject(mediaIssue("STATUS", "The media job response could not be confirmed.")), remaining);
+    Promise.resolve().then(read).then(
+      value => { clearTimeout(timer); resolve(value); },
+      cause => { clearTimeout(timer); reject(mediaIssue("STATUS", "The media job response could not be confirmed.", cause)); });
+  });
+  const validJob = (value: any) => typeof value?.jobId === "string" && !!value.jobId && value.jobId.length <= 1024;
   const process = async (executable: "FFmpeg" | "FFprobe", args: string[], _withoutLog?: boolean, signal?: AbortSignal, onStdout?: (text: string) => void, onStderr?: (text: string) => void) => {
+    if (!Array.isArray(args) || args.some(arg => typeof arg !== "string" || arg.includes("\0")) ||
+      signal && (typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function") ||
+      onStdout !== undefined && typeof onStdout !== "function" || onStderr !== undefined && typeof onStderr !== "function")
+      throw mediaIssue("INPUT", "The local media arguments or subscriptions are invalid.");
     if (disposed || signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const started = await run("media.start" + executable, [{ args }], true);
-    if (!started?.jobId) throw new Error("The media process did not return a job id.");
+    const startSource = "return await selects.media.start" + executable + "(" + JSON.stringify({ args }) + ");";
+    if (new TextEncoder().encode(startSource).byteLength > SCRIPT_BYTES) throw mediaIssue("INPUT", "The local media request exceeds its script byte budget.");
+    let started: any;
+    const starting = runSource(startSource, true);
+    try { started = await observeMedia(() => starting, Date.now() + SETTLEMENT_MS); }
+    catch (cause) {
+      // A late start identity can only stop that original job. Never start again
+      // or authorize cleanup from this background cancellation acknowledgement.
+      void starting.then(value => validJob(value) ? cancel(value.jobId) : undefined, () => {}).catch(() => {});
+      throw mediaIssue("START_UNKNOWN", "The media job start could not be confirmed. Its temporary workspace is retained for inspection.", cause, true);
+    }
+    if (!validJob(started))
+      throw mediaIssue("START_UNKNOWN", "The media job identity could not be confirmed. Its temporary workspace is retained for inspection.", undefined, true);
     const jobId = started.jobId;
-    activeJobs.add(jobId);
-    let cancellation: Promise<void> | null = null;
-    const abort = () => { cancellation ??= cancel(jobId); void cancellation.catch(() => {}); };
+    let cancellation: Promise<void> | null = null, cancellationDeadline: number | null = null, settled = false;
+    const requestCancel = () => {
+      if (!cancellation) {
+        cancellationDeadline = Date.now() + SETTLEMENT_MS;
+        cancellation = cancel(jobId);
+        void cancellation.catch(() => {});
+      }
+      return cancellation;
+    };
+    const abort = () => { void requestCancel(); };
+    activeJobs.set(jobId, requestCancel);
     signal?.addEventListener("abort", abort, { once: true });
     if (disposed || signal?.aborted) abort();
-    let cursor = 0, stdout = "", stderr = "";
+    let cursor = 0, outputBytes = 0, stdout = "", stderr = "";
+    const knownState = (status: any) => ["running", "succeeded", "failed", "cancelled"].includes(status?.state);
+    // Read-only observations may time out; a late reply cannot authorize cleanup.
+    const statusAt = (deadline: number) => observeMedia(() => sdk.call("getLocalMediaJobStatus", jobId, { cursor }), deadline);
+    const settleAfterFailure = async (cause: unknown) => {
+      requestCancel();
+      const deadline = cancellationDeadline!;
+      while (Date.now() < deadline) {
+        try {
+          const status = await statusAt(deadline);
+          if (knownState(status) && status.state !== "running") { settled = true; return; }
+        } catch { /* Only independent status reads may recover an unknown reply. */ }
+        if (Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, Math.min(50, deadline - Date.now())));
+      }
+      throw Object.assign(mediaIssue("SETTLEMENT_UNKNOWN", "The media job exit could not be confirmed. Its temporary workspace is retained for inspection.", cause, true), { jobId });
+    };
     try {
       while (true) {
-        if (cancellation) await cancellation;
-        const status = await sdk.call("getLocalMediaJobStatus", jobId, { cursor });
-        if (!status || !Array.isArray(status.events)) throw new Error("Media status is unavailable.");
-        if (status.truncated) throw new Error("Media output was truncated; no incomplete result was accepted.");
+        if (cancellationDeadline !== null && Date.now() >= cancellationDeadline)
+          throw mediaIssue("STATUS", "The cancelled media job status could not be confirmed.");
+        const status = await statusAt(cancellationDeadline ?? Date.now() + SETTLEMENT_MS);
+        if (!knownState(status)) throw mediaIssue("STATUS", "The media job returned an unknown status.");
+        settled = status.state !== "running";
+        if (!Array.isArray(status.events) || status.events.length > 8 || typeof status.truncated !== "boolean" || !Number.isSafeInteger(status.nextCursor) || status.nextCursor < cursor)
+          throw mediaIssue("STATUS", "The media job returned an incomplete status.");
+        if (status.truncated) throw mediaIssue("OUTPUT", "Media output was truncated; no incomplete result was accepted.");
+        let position = cursor;
         for (const event of status.events) {
+          if (!event || !["stdout", "stderr"].includes(event.stream) || typeof event.text !== "string" || event.text.length > 4096 || !Number.isSafeInteger(event.cursor) || event.cursor !== position + 1 || event.cursor > status.nextCursor)
+            throw mediaIssue("OUTPUT", "The media job returned incomplete output.");
+          outputBytes += new TextEncoder().encode(event.text).byteLength;
+          if (outputBytes > OUTPUT_BYTES) throw mediaIssue("OUTPUT_LIMIT", "The media output exceeds its 4 MiB byte budget.");
+          position = event.cursor;
           if (event.stream === "stdout") { stdout += event.text; onStdout?.(event.text); }
           else { stderr += event.text; onStderr?.(event.text); }
         }
+        if (position !== status.nextCursor) throw mediaIssue("OUTPUT", "The media job returned an incomplete output cursor.");
         cursor = status.nextCursor;
-        if (status.state !== "running" && status.events.length === 0) {
-          if (status.state === "cancelled" || signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        if (settled && status.events.length === 0) {
+          if (status.state === "cancelled" || signal?.aborted || disposed) throw new DOMException("Aborted", "AbortError");
           if (status.state === "failed") throw new Error(status.error || stderr || "Media processing failed.");
           return { stdout, stderr };
         }
-        if (status.state === "running") await new Promise((resolve) => setTimeout(resolve, 150));
+        if (!settled) await new Promise(resolve => setTimeout(resolve, 150));
       }
     } catch (error) {
-      await cancel(jobId).catch(() => {});
+      if (!settled) await settleAfterFailure(error);
       throw error;
     } finally {
       signal?.removeEventListener("abort", abort);
@@ -6638,7 +6723,7 @@ async function createPanelLocalClient(sdk: any) {
       pickDirectoryPath: () => run("editor.pickDirectory", []),
       pickSavePath: (defaultPath: string) => run("editor.pickSavePath", [{ defaultPath }]),
     },
-    dispose() { disposed = true; for (const jobId of activeJobs) void cancel(jobId).catch(() => {}); },
+    dispose() { disposed = true; for (const requestCancel of activeJobs.values()) void requestCancel().catch(() => {}); },
   };
 }
 

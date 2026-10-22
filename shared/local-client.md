@@ -64,3 +64,41 @@ response `{size,sha256}` or `null`. File contents stream in the native host rath
 than through browser read chunks. Analysis callers validate the returned identity
 and do not interpret thrown/incomplete replies as absence. No new public SDK or
 Electron capability is introduced; released-version compatibility remains unverified.
+
+## Native media process ownership
+
+Media argv, optional signal/callback subscriptions and the exact serialized script
+budget are validated before start. Inputs become a fixed SDK request; no shell is
+introduced. The existing job API is composed directly, with no new host SDK or
+Electron capability. Ordinary known decoder failures retain their failure contract.
+
+A process is complete only after a recognized terminal state from that same job.
+Unknown states, missing/gapped cursors, truncated pages, oversized event text and
+output over 4 MiB of cumulative UTF-8 chunks cannot report successful output.
+Native pages contain at most eight events of 4096 UTF-16 code units each. Final
+output drains to its empty page before success. The limit covers stdout plus
+stderr; callbacks do not bypass it.
+
+Start and individual status observations are bounded at five seconds. Expiry is
+an unknown result, not evidence that work did not start or has exited. A start is
+never replayed. If its original identity arrives after expiry, the late observer
+may cancel that original job once; it cannot turn the caller into success or
+authorize temporary cleanup. A permanently lost start identity cannot be found
+by this interface and needs inspection of the original host/session.
+
+Each known job owns at most one cancel request, reused across signal, disposal,
+status-read failure and error cleanup. Native cancel acknowledges an abort
+request; it does not wait for process exit. The client continues independent
+read-only observations of the same job. Lost cancellation responses do not cause
+another cancel. Failure recovery has a five-second settlement observation budget.
+A still-unknown exit returns terminal `LOCAL_MEDIA_SETTLEMENT_UNKNOWN`, retaining
+the known job ID in private diagnostics and `preserveTemporaryFiles:true`.
+
+The existing asset owner preserves exclusively reserved source/output files for
+unknown starts/exits. It does not publish a derived result or convert uncertainty
+into an ordinary decoder fallback. Known settled failures and normal cancellation
+retain ordinary owned cleanup. No automatic deletion of an uncertain workspace
+on remount/age is added: a filename or elapsed observation budget is not proof of
+native exit or later file ownership. See
+[the checkpoint](../docs/template-repair/local-media-lifetime.md) for actual SDK
+fault/recovery evidence and remaining installed-app acceptance boundaries.

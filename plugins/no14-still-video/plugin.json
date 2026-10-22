@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "no14-still-video",
-  "version": "0.5.22",
+  "version": "0.5.23",
   "name": "Four Photo Reveal",
   "summary": "Build an editable four-photo reveal with original Images, independent framing, decoration, and a bundled song cut to its beat.",
   "status": "experimental",

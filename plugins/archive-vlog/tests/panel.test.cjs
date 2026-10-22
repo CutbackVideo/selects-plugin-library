@@ -133,8 +133,10 @@ for (const p of presets.presets) assert.equal(en['preset.' + p.id], p.label, 'pr
 assert.ok(ui.includes('{tOr(L, "preset." + p.id, p.label)}') && ui.includes('i18n-used: preset.*'), 'preset labels by id');
 // A quoted UI name inside a sentence equals that control's label.
 assert.ok(en.finishFailed.includes(en.finishTitle), 'quoted UI names');
-// No literal English UI text in JSX.
-assert.ok(!/>[ \t]*[A-Z][a-z]+(?: [a-z]+)*[.…]?[ \t]*</.test(ui), 'no literal English text between JSX tags');
+// No literal English UI text in JSX. Shared transport function types (=> Promise<T>)
+// are not JSX and have their own bootstrap/local-client checks.
+const templateUi = ui.replace(block(panel, "local-sdk"), "");
+assert.ok(!/>[ \t]*[A-Z][a-z]+(?: [a-z]+)*[.…]?[ \t]*</.test(templateUi), 'no literal English text between JSX tags');
 assert.ok(!/(?:label|title|aria-label|busyLabel)="[A-Z]/.test(ui), 'no literal English UI props');
 assert.ok(ui.includes('<div style={{ wordBreak: L === "ko" ? "keep-all" : undefined }}>'), 'keep-all for Korean only');
 assert.ok(ui.includes('const L = uiLang(context);'), 'the language is read on every render');

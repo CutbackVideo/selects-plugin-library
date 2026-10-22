@@ -136,7 +136,7 @@ function reserveAssetFiles(files,current,owner){
   if(cleared!=='')throw reservationUnknown(clearFailure);
   owned.add(path);current();
  };
- return {reserve,cleanup:async({observeFailure=false}={})=>{
+ return {reserve,paths:()=>[...owned],cleanup:async({observeFailure=false}={})=>{
   const failures=[];
   for(const path of owned){
    try{await files.removeFile({filePath:path});}
@@ -149,6 +149,18 @@ function reserveAssetFiles(files,current,owner){
   }
   return failures;
  }};
+}
+
+// A host job with an unknown exit may still read/write these reservations. Keep
+// them for inspection; neither an abort acknowledgement nor a cleanup attempt
+// proves that the producer has settled. Preserve diagnostics without mutating
+// the thrown object supplied by a different owner.
+function retainUnconfirmedAssetFiles(error,reservations){
+ return Object.assign(bundledAssetIssue('WORKSPACE_UNKNOWN','The media job exit could not be confirmed. Its temporary workspace is retained for inspection.',error),{
+  terminal:true,preserveTemporaryFiles:true,
+  ...(typeof (error?.unconfirmedJobId??error?.jobId)==='string'?{unconfirmedJobId:error.unconfirmedJobId??error.jobId}:{}),
+  retainedTemporaryFiles:[...new Set([...(Array.isArray(error?.retainedTemporaryFiles)?error.retainedTemporaryFiles:[]),...reservations.paths()])]
+ });
 }
 
 async function prepareDerivedAsset(files,options){
@@ -226,6 +238,7 @@ async function prepareDerivedAsset(files,options){
  }finally{
   // Only this invocation's reserved staging paths are disposable. Published
   // objects/indexes may already be referenced by a different run or old Draft.
+  if(preparationFailure?.preserveTemporaryFiles)throw retainUnconfirmedAssetFiles(preparationFailure,reservations);
   const cleanupFailures=await reservations.cleanup({observeFailure:cleanupRequired});
   if(cleanupRequired&&cleanupFailures.length)throw Object.assign(bundledAssetIssue('CLEANUP','Analysis workspace cleanup could not be confirmed. Inspect the preparation workspace before starting again.',preparationFailure),{terminal:true,cleanupFailures});
  }
@@ -252,13 +265,16 @@ async function readTransientAsset(client,options){
   await produce({path,files,media,current,deadline});current();
   bytes=await readBundledAssetBytes(files,path,maxBytes,current);current();
  }catch(error){
-  failure=/^BUNDLED_ASSET_/.test(error?.code??'')?error:bundledAssetIssue('PREPARE','Media could not be prepared. Check the source file and media tools.',error);
- }finally{cleanupFailures=await reservations.cleanup({observeFailure:true});}
+  failure=error?.terminal||/^BUNDLED_ASSET_/.test(error?.code??'')?error:bundledAssetIssue('PREPARE','Media could not be prepared. Check the source file and media tools.',error);
+ }finally{
+  if(failure?.preserveTemporaryFiles){failure=retainUnconfirmedAssetFiles(failure,reservations);cleanupFailures=[];}
+  else cleanupFailures=await reservations.cleanup({observeFailure:true});
+ }
  if(failure){
   if(cleanupFailures.length){
    // Keep the primary failure/cause, but do not allow a decoder fallback to
    // conceal an unconfirmed workspace cleanup. Copy, never mutate thrown data.
-   failure=Object.assign(bundledAssetIssue(failure.code.slice('BUNDLED_ASSET_'.length),failure.publicMessage??failure.message,failure.cause),{terminal:true,cleanupFailures});
+   failure=Object.assign(bundledAssetIssue(/^BUNDLED_ASSET_/.test(failure.code??'')?failure.code.slice('BUNDLED_ASSET_'.length):'PREPARE',failure.publicMessage??failure.message,/^BUNDLED_ASSET_/.test(failure.code??'')?failure.cause:failure),{terminal:true,cleanupFailures});
   }
   throw failure;
  }
@@ -308,6 +324,7 @@ async function runAssetMediaTool(media,kind,args,options={}){
   if(stopped||timedOut||controller.signal.aborted)throw Error('The media process ended after its scope.');
   return result;
  }catch(cause){
+  if(cause?.preserveTemporaryFiles)throw retainUnconfirmedAssetFiles(cause,{paths:()=>[]});
   if(!live())stop();
   if(Date.now()>=expiresAt){timedOut=true;controller.abort();}
   if(stopped)throw Object.assign(bundledAssetIssue('STOPPED','The template run ended before media preparation completed.',cause),{terminal:true});

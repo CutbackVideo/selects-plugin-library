@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "a16z-style-captions",
-  "version": "0.20.7",
+  "version": "0.20.8",
   "requiresPlugins": [
     "selects-ai-runtime"
   ],
