@@ -127,3 +127,22 @@ Gallery commits its complete normal creation once. Its explicit legacy repair
 operations are still staged and are not the app-run route. The normal launcher
 requires client #7847's deadline fact before preparation; sound readback also
 needs #7828. See `docs/template-repair/gallery-atomic.md` for evidence/limits.
+
+## Reconcile caller-owned title/effect programs
+
+`imageProgramsFeature(selects).reconcile(draft, intent, beforeApply = null)`
+extends the existing SDK-safe program feature. Existing `inspect`, `preset`,
+`confirm` and `verify` callers retain their API. Intent declares managed graphic/
+effect names, graphic source/values/controls/intervals and ordered per-clip effect
+programs. Names locate candidates; exact program semantics confirm them. Missing
+programs can be appended only after an existing valid managed prefix. Unrelated
+effects remain in place. Duplicate/conflicting/disabled programs fail before any
+mutation. Intent is cloned JSON, bounded to 8 MiB, 256 graphic/visual targets and
+32 managed names/effects per target; nonfinite/unsupported values reject.
+
+All candidates are checked before the optional caller callback. Authoring uses
+fresh opaque SDK targets after each edit, and rereads every intended program
+before returning. Return graphic added/kept counts and per-name effect counts;
+the caller still owns its sole final commit and save recovery. This is not proof
+of run ownership or post-save persistence. Mini's generated decoration operation
+is its first consumer; see [the checkpoint](../docs/template-repair/mini-program-intent.md).

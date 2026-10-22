@@ -1,5 +1,15 @@
 # Sequential template repair: active
 
+## Mini title/effect intent checkpoint
+
+Mini alpha.21 reuses the existing program feature to verify exact title/effect
+contents, controls, intervals and order before reuse, then rereads writes before
+commit. Selected-entry decoration no longer retries an unknown save. Twenty-two
+focused / 913 related cases, all sixteen existing Mini scripts and actual SDK
+control/healthy/minified-repeat checks pass. See
+[mini-program-intent.md](mini-program-intent.md). Durable look-phase ownership,
+standalone Finish recovery and whole-template acceptance remain open.
+
 ## Mini remount discovery checkpoint
 
 Mini alpha.20 discovers the original uncertain assembly across renderer/Electron

@@ -22,7 +22,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
       if (photos.includes(resourceId) && sourceRange.endSeconds > 5 + 1e-9) throw Error('invalid_source_range');
       if (sourceRange.startSeconds < 0 || (durations[resourceId] != null && sourceRange.endSeconds > Math.floor(durations[resourceId] * fps) / fps + 1e-9)) throw Error('invalid_source_range');
       const len = Math.round(sourceRange.endSeconds * fps) - Math.round(sourceRange.startSeconds * fps); clips.push({ clipId: clips.length + 1, resourceId, trackKind: 'main', startFrame: frame, endFrame: frame + len, audioSourceIndexes: null }); frame += len; log.push(['insert', resourceId, sourceRange]); },
-    clips: async ({ trackScope } = {}) => clips.filter(c => trackScope !== 'main' || c.trackKind === 'main').map(c => ({ ...c })),
+    clips: async ({ trackScope } = {}) => clips.filter(c => trackScope !== 'main' || c.trackKind === 'main').map(c => ({ ...c, trackId: c.trackId || c.trackKind })),
     clipTransform: async () => ({ scale: { x: 1, y: 1 }, position: { x: 0, y: 0 } }),
     setClipTransform: async (o) => log.push(['transform', o.clip.clipId, o.scale]),
     rangeAtFrames: async (a, b) => ({ a, b }),
@@ -41,10 +41,12 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
       if (o.volumeDb != null) { const c = clips.find(x => x.clipId === o.clip.clipId); c.volumeDb = o.volumeDb; log.push(['volume', o.clip.clipId, o.volumeDb]); }
       if (o.fadeOutSeconds != null || o.fadeInSeconds != null) log.push(['fade', o.clip.clipId, o.fadeInSeconds, o.fadeOutSeconds]);
     },
-    addMotionGraphic: async (o) => { graphics.push({ name: o.label, clip: {} }); log.push(['title', o.within, o.label]); },
-    addVideoEffect: async (o) => { (effects[o.clip.clipId] = effects[o.clip.clipId] || []).push({ name: o.label, effectName: o.label }); log.push(['look', o.clip.clipId, o.parameters.strength, o.label, o.editableParameters]); },
+    addMotionGraphic: async (o) => { graphics.push({ name: o.label, clip: { clipId:100+graphics.length,trackId:'video',trackKind:'video',startFrame:o.within.a,endFrame:o.within.b }, program:{tsxCode:o.tsxCode,parameters:o.parameters,editableParameters:o.editableParameters} }); log.push(['title', o.within, o.label]); },
+    addVideoEffect: async (o) => { (effects[o.clip.clipId] = effects[o.clip.clipId] || []).push({ name: o.label, effectName: o.label, enabled:true,program:{tsxCode:o.tsxCode,parameters:o.parameters,editableParameters:o.editableParameters} }); log.push(['look', o.clip.clipId, o.parameters.strength, o.label, o.editableParameters]); },
     motionGraphics: async () => graphics.map(g => ({ ...g })),
-    videoEffects: async (clip) => (effects[clip.clipId] || []).map(e => ({ ...e })),
+    motionGraphicProgram: async clip => graphics.find(g=>g.clip.clipId===clip.clipId)?.program || null,
+    videoEffects: async (clip) => (effects[clip.clipId] || []).map((e,index) => ({ ...e,clipId:clip.clipId,trackId:clip.trackId,effectIndex:index })),
+    videoEffectProgram: async effect => effects[effect.clipId]?.[effect.effectIndex]?.program || null,
     commitAll: async (reason) => {
       if (committed) throw Error('Cannot commitAll draft: it was already committed in this run_script call.');
       committed = true; log.push(['commit', reason]); return { createdDraftId: 'seq-new' };
@@ -129,7 +131,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   // A mute failure fails the step (the panel reports it and offers the retry) and commits nothing.
   const bad = mockDraft(30); bad.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null });
   bad.d.setAudioTracks = async () => { throw Error('nope'); };
-  await assert.rejects(load('decorate.js', { sequenceId: 's', mute: true, videoEnd: 10, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null })({ draft: () => bad.d }), /mute the clips' own sound: nope/);
+  await assert.rejects(load('decorate.js', { sequenceId: 's', mute: true, videoEnd: 10, title: { tsx: 'x', parameters: {}, editableParameters: [] }, soft: null })({ draft: () => bad.d }), e=>e.code==='IMAGE_PROGRAM_INVALID'&&/mute the clips' own sound: nope/.test(e.cause?.message));
   assert.equal(bad.log.filter(x => x[0] === 'commit' || x[0] === 'title').length, 0);
   // The title needs the video's end frame: a missing or non-positive videoEnd fails before anything is touched.
   for (const videoEnd of [undefined, 0, -5, 'x']) {
@@ -150,7 +152,7 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
   // the mute again, it changes nothing (opCount 0), and nothing is committed ("Nothing to stage" otherwise).
   const mr = mockDraft(30, { silent: ['s0'] });
   mr.clips.push({ clipId: 1, resourceId: 's0', trackKind: 'main', startFrame: 0, endFrame: 30, audioSourceIndexes: null }, { clipId: 2, resourceId: 'r0', trackKind: 'main', startFrame: 30, endFrame: 60, audioSourceIndexes: [] });
-  mr.graphics.push({ name: 'Mini vlog title', clip: {} });
+  mr.graphics.push({ name: 'Mini vlog title', clip: {clipId:100,trackId:'video',trackKind:'video',startFrame:0,endFrame:cfgS.videoEnd}, program:{tsxCode:cfgS.title.tsx,parameters:cfgS.title.parameters,editableParameters:cfgS.title.editableParameters} });
   mr.d.commitAll = async () => { throw Error('Nothing to stage'); };
   const dret = await load('decorate.js', cfgS)({ draft: () => mr.d });
   assert.deepEqual(dret, { title: true, titleAdded: false, effects: 0, effectsKept: 0, muted: false, muteKept: true, committed: false, alreadyDone: true });
@@ -183,7 +185,8 @@ function mockDraft(fps, { unsaved = false, adopt = { width: 1920, height: 1080 }
 
   // A partial earlier attempt: the title exists, one clip already has the Soft look.
   const m4 = mockDraft(30); m4.clips.push({ clipId: 1, resourceId: 'r0', trackKind: 'main', startFrame: 0, endFrame: 30 }, { clipId: 2, resourceId: 'r1', trackKind: 'main', startFrame: 30, endFrame: 60 });
-  m4.graphics.push({ name: 'Mini vlog title', clip: {} }); m4.effects[1] = [{ name: 'Soft look', effectName: 'Soft look' }];
+  m4.graphics.push({ name: 'Mini vlog title', clip: {clipId:100,trackId:'video',trackKind:'video',startFrame:0,endFrame:cfgD.videoEnd}, program:{tsxCode:cfgD.title.tsx,parameters:cfgD.title.parameters,editableParameters:cfgD.title.editableParameters} });
+  m4.effects[1] = [{ name: 'Soft look', effectName: 'Soft look',enabled:true,program:{tsxCode:cfgD.soft.tsx,parameters:{strength:cfgD.soft.strength},editableParameters:[{key:'strength',label:'Softness',type:'number',defaultValue:cfgD.soft.strength,min:0,max:1,step:.05}]} }];
   const part = await load('decorate.js', cfgD)({ draft: () => m4.d });
   assert.deepEqual(part, { title: true, titleAdded: false, effects: 1, effectsKept: 1, muted: false, muteKept: false, committed: true, alreadyDone: false });
   assert.deepEqual(m4.log.filter(x => x[0] === 'look').map(x => x[1]), [2]);

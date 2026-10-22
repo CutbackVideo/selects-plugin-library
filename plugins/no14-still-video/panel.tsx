@@ -558,6 +558,75 @@ function imageProgramsFeature(selects,config=null,format=null){
  };
  const normalized=program=>({tsxCode:program.tsxCode,editableParameters:program.editableParameters,parameters:{...Object.fromEntries(program.editableParameters.map(d=>[d.key,d.defaultValue])),...program.parameters}});
  const matches=(actual,wanted)=>actual&&actual.tsxCode===wanted.tsxCode&&same(actual.editableParameters,wanted.editableParameters)&&same(actual.parameters,wanted.parameters);
+ // Reconcile a caller-owned program intent on Main or overlay visuals. Names
+ // only locate candidates; code, values, controls, intervals and order prove a
+ // match. Preflight the whole intent before the caller's optional mutation.
+ const reconcile=guarded(async(draft,input,beforeApply=null)=>{
+  if(!['clips','motionGraphics','motionGraphicProgram','videoEffects','videoEffectProgram','addMotionGraphic','addVideoEffect','rangeAtFrames'].every(key=>typeof draft[key]==='function'))throw issue('Update Selects to verify authored programs.');
+  const text=JSON.stringify(input,(_key,value)=>{if(typeof value==='number'&&!Number.isFinite(value)||['function','bigint','symbol'].includes(typeof value))throw issue('Program intent contains an unsupported value.');return value;});
+  if(!text||text.length>8*1024*1024)throw issue('Program intent exceeds its input limit.');
+  const intent=JSON.parse(text),names=value=>Array.isArray(value)&&value.length<=32&&new Set(value).size===value.length&&value.every(name=>typeof name==='string'&&name.length>0&&name.length<=256);
+  if(!intent||!names(intent.graphicNames)||!names(intent.effectNames)||!Array.isArray(intent.graphics)||intent.graphics.length>256||!Array.isArray(intent.clips)||intent.clips.length>256||new Set(intent.graphics.map(g=>g.name)).size!==intent.graphics.length||new Set(intent.clips.map(c=>c.clipId)).size!==intent.clips.length||beforeApply!==null&&typeof beforeApply!=='function')throw issue('Program intent is incomplete.');
+  const prepare=program=>{
+   if(!program||typeof program.tsxCode!=='string'||!program.tsxCode||!program.parameters||typeof program.parameters!=='object'||Array.isArray(program.parameters)||!Array.isArray(program.editableParameters)||program.editableParameters.length>256||new Set(program.editableParameters.map(d=>d?.key)).size!==program.editableParameters.length)throw issue('Program source or controls are incomplete.');
+   return normalized(program);
+  };
+  const graphicPlans=intent.graphics.map(g=>{
+   if(!g||!intent.graphicNames.includes(g.name)||!Number.isSafeInteger(g.startFrame)||g.startFrame<0||!Number.isSafeInteger(g.endFrame)||g.endFrame<=g.startFrame)throw issue('Graphic intent has an invalid interval.');
+   return {...g,program:prepare(g)};
+  });
+  const clipPlans=intent.clips.map(c=>{
+   if(!c||!Number.isSafeInteger(c.clipId)||c.clipId<0||typeof c.trackId!=='string'||!c.trackId||!Array.isArray(c.effects)||c.effects.length>32||new Set(c.effects.map(e=>e.name)).size!==c.effects.length)throw issue('Effect intent has an invalid target.');
+   return {...c,effects:c.effects.map(e=>{if(!e||!intent.effectNames.includes(e.name))throw issue('Effect intent has an invalid name.');return {name:e.name,program:prepare(e)};})};
+  });
+  const rowFor=async wanted=>{
+   const rows=await draft.clips({trackScope:'all'}),row=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);
+   if(!row||!['main','video'].includes(row.trackKind)||!row.resourceId)throw issue('Effect intent target could not be confirmed.');return row;
+  };
+  const graphicPresent=async wanted=>{
+   const candidates=(await draft.motionGraphics()).filter(g=>g.name===wanted.name);
+   if(candidates.length>1)throw issue('Graphic intent matches several placements.');
+   if(!candidates.length)return false;
+   const clip=candidates[0].clip;
+   if(clip.trackKind!=='video'||clip.startFrame!==wanted.startFrame||clip.endFrame!==wanted.endFrame||!matches(await draft.motionGraphicProgram(clip),wanted.program))throw issue('Graphic program, controls or interval differ from the intended result.');
+   return true;
+  };
+  const effectState=async(wanted,complete)=>{
+   const all=await draft.videoEffects(await rowFor(wanted));
+   if(!Array.isArray(all)||all.some((e,index)=>e.effectIndex!==index||e.clipId!==wanted.clipId||e.trackId!==wanted.trackId))throw issue('Effect stack target could not be confirmed.');
+   const managed=all.filter(e=>intent.effectNames.includes(e.name));
+   if(managed.length>wanted.effects.length||complete&&managed.length!==wanted.effects.length)throw issue('Effect intent count could not be confirmed.');
+   for(const [index,e] of managed.entries()){
+    const expected=wanted.effects[index];
+    if(e.name!==expected.name||e.enabled!==true||!matches(await draft.videoEffectProgram(e),expected.program))throw issue('Effect program, controls or prefix order differ from the intended result.');
+   }
+   return {count:managed.length,stack:all.map(e=>({name:e.name,effectName:e.effectName,enabled:e.enabled}))};
+  };
+  for(const g of graphicPlans)g.kept=await graphicPresent(g);
+  for(const c of clipPlans)c.before=await effectState(c,false);
+  // Muting and other caller policy run only after every existing program was
+  // checked. All targets below are reread after that edit and each addition.
+  if(beforeApply)await beforeApply();
+  let graphicsAdded=0,graphicsKept=0;
+  const effects=Object.fromEntries(intent.effectNames.map(name=>[name,{added:0,kept:0}]));
+  for(const g of graphicPlans){
+   if(g.kept){graphicsKept++;continue;}
+   await draft.addMotionGraphic({within:await draft.rangeAtFrames(g.startFrame,g.endFrame),label:g.name,tsxCode:g.program.tsxCode,parameters:g.program.parameters,editableParameters:g.program.editableParameters});graphicsAdded++;
+  }
+  for(const c of clipPlans){
+   for(const [index,e] of c.effects.entries()){
+    if(index<c.before.count){effects[e.name].kept++;continue;}
+    await draft.addVideoEffect({clip:await rowFor(c),label:e.name,tsxCode:e.program.tsxCode,parameters:e.program.parameters,editableParameters:e.program.editableParameters});effects[e.name].added++;
+   }
+  }
+  // Writer acknowledgements are not evidence that a program was applied.
+  for(const g of graphicPlans)if(!await graphicPresent(g))throw issue('The intended graphic was not applied.');
+  for(const c of clipPlans){
+   const after=await effectState(c,true);
+   if(!same(after.stack.slice(0,c.before.stack.length),c.before.stack))throw issue('An existing effect stack changed while applying programs.');
+  }
+  return {graphicsAdded,graphicsKept,effects};
+ });
  const inspect=async(draft,expected)=>{
   if(!('videoEffects' in draft)||!('videoEffectProgram' in draft)||!('motionGraphicProgram' in draft))throw issue('Update Selects to verify Image programs.');
   const rows=(await draft.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
@@ -609,7 +678,7 @@ function imageProgramsFeature(selects,config=null,format=null){
   try{format(config.runReceipt?{...JSON.parse(config.runReceipt.expectedText),status:'saved',result}:result);}catch(cause){throw Object.assign(issue('The Image program receipt exceeds its limit or could not be prepared.'),{cause});}
  };
  const verify=(draft,receipt)=>inspect(draft,receipt.clips.map(c=>{const expand=p=>({tsxCode:receipt.sources[p.source],parameters:p.parameters,editableParameters:p.editableParameters});return {...c,effects:c.effects.map(e=>({name:e.name,...expand(e)})),graphic:c.graphic?expand(c.graphic):null};}));
- return {inspect:guarded(inspect),preset:guarded(preset),confirm,verify:guarded(verify)};
+ return {inspect:guarded(inspect),preset:guarded(preset),confirm,verify:guarded(verify),reconcile};
 }
 async function authorAtomicImageDraft(selects,config,finish,placeImages,sourceFacts,inspectGraphics,inspectTransforms,inspectAudio,programFeature,format){
  let stage='read';

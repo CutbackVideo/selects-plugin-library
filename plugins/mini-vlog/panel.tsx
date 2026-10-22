@@ -157,6 +157,7 @@ const STRINGS = {
     previewFailed: "Could not play a preview: {detail}.",
     noAudio: "no audio came back",
     finishFailed: "The Draft was created, but its title, look and clip sound are not applied yet: {detail}. Press Finish title and look to try again.",
+    finishUnconfirmed: "The Draft exists, but its title and look could not be confirmed. Inspect the Draft before starting another run.",
     openFailed: "The Draft is ready, but it could not be opened: {detail}. Use the link below or open it from the Drafts list.",
     draftCreated: "Draft created. Select the title to edit its words, colors, size or position, a clip to adjust its crop, softness, motion or sound level, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
     draftCreatedAdding: "Draft created; adding title and look…",
@@ -334,6 +335,7 @@ const STRINGS = {
     previewFailed: "Die Vorschau konnte nicht abgespielt werden: {detail}.",
     noAudio: "es kam kein Audio zurück",
     finishFailed: "Der Draft wurde erstellt, aber Titel, Look und Clip-Ton sind noch nicht angewendet: {detail}. Klicke auf „Titel und Look fertigstellen“, um es erneut zu versuchen.",
+    finishUnconfirmed: "Der Draft ist vorhanden, aber Titel und Look konnten nicht bestätigt werden. Prüfe den Draft, bevor du einen weiteren Durchlauf startest.",
     openFailed: "Der Draft ist fertig, konnte aber nicht geöffnet werden: {detail}. Nutze den Link unten oder öffne ihn in der Draft-Liste.",
     draftCreated: "Draft erstellt. Wähle den Titel, um Wörter, Farben, Größe oder Position zu bearbeiten, einen Clip, um Zuschnitt, Weichheit, Bewegung oder Lautstärke anzupassen, und die Musik, um ihre Lautstärke zu ändern. Ein neuer Build erstellt einen neuen Draft und übernimmt keine Änderungen aus dem Inspektor.",
     draftCreatedAdding: "Draft erstellt; Titel und Look werden hinzugefügt …",
@@ -511,6 +513,7 @@ const STRINGS = {
     previewFailed: "No se pudo reproducir la vista previa: {detail}.",
     noAudio: "no se recibió audio",
     finishFailed: "El Draft se creó, pero aún no se aplicaron el título, el look ni el sonido de los clips: {detail}. Pulsa «Terminar título y look» para intentarlo de nuevo.",
+    finishUnconfirmed: "El Draft existe, pero no se pudieron confirmar el título y el look. Revisa el Draft antes de iniciar otra ejecución.",
     openFailed: "El Draft está listo, pero no se pudo abrir: {detail}. Usa el enlace de abajo o ábrelo desde la lista de Drafts.",
     draftCreated: "Draft creado. Selecciona el título para editar sus palabras, colores, tamaño o posición; un clip para ajustar su encuadre, suavidad, movimiento o volumen; y la música para cambiar su volumen. Volver a crear genera un nuevo Draft y no conserva los cambios del Inspector.",
     draftCreatedAdding: "Draft creado; añadiendo título y look…",
@@ -688,6 +691,7 @@ const STRINGS = {
     previewFailed: "Impossible de lire l'aperçu : {detail}.",
     noAudio: "aucun son n'a été renvoyé",
     finishFailed: "Le Draft a été créé, mais le titre, le look et le son des clips ne sont pas encore appliqués : {detail}. Appuyez sur « Terminer le titre et le look » pour réessayer.",
+    finishUnconfirmed: "Le Draft existe, mais le titre et le look n’ont pas pu être confirmés. Vérifiez le Draft avant de lancer une autre exécution.",
     openFailed: "Le Draft est prêt, mais n'a pas pu être ouvert : {detail}. Utilisez le lien ci-dessous ou ouvrez-le depuis la liste des Drafts.",
     draftCreated: "Draft créé. Sélectionnez le titre pour modifier ses mots, ses couleurs, sa taille ou sa position, un clip pour ajuster son cadrage, sa douceur, son mouvement ou son volume, et la musique pour changer son volume. Recréer génère un nouveau Draft et ne conserve pas les modifications de l'Inspecteur.",
     draftCreatedAdding: "Draft créé ; ajout du titre et du look…",
@@ -865,6 +869,7 @@ const STRINGS = {
     previewFailed: "Impossibile riprodurre l'anteprima: {detail}.",
     noAudio: "non è stato restituito alcun audio",
     finishFailed: "Il Draft è stato creato, ma titolo, look e audio delle clip non sono ancora applicati: {detail}. Premi «Completa titolo e look» per riprovare.",
+    finishUnconfirmed: "Il Draft esiste, ma titolo e look non sono stati confermati. Controlla il Draft prima di avviare una nuova esecuzione.",
     openFailed: "Il Draft è pronto, ma non è stato possibile aprirlo: {detail}. Usa il link qui sotto o aprilo dall'elenco dei Draft.",
     draftCreated: "Draft creato. Seleziona il titolo per modificarne parole, colori, dimensione o posizione, una clip per regolarne inquadratura, morbidezza, movimento o volume, e la musica per cambiarne il volume. Ricreare genera un nuovo Draft e non mantiene le modifiche dell'Inspector.",
     draftCreatedAdding: "Draft creato; aggiunta di titolo e look…",
@@ -1042,6 +1047,7 @@ const STRINGS = {
     previewFailed: "プレビューを再生できませんでした: {detail}。",
     noAudio: "音声が返されませんでした",
     finishFailed: "Draft は作成されましたが、タイトル・ルック・クリップの音はまだ適用されていません: {detail}。「タイトルとルックを仕上げる」を押して再試行してください。",
+    finishUnconfirmed: "Draft は存在しますが、タイトルとルックを確認できませんでした。次の実行を始める前に Draft を確認してください。",
     openFailed: "Draft の準備はできましたが、開けませんでした: {detail}。下のリンクを使うか、Draft 一覧から開いてください。",
     draftCreated: "Draft を作成しました。タイトルを選ぶと文字・色・サイズ・位置を、クリップを選ぶと切り抜き・ソフトさ・モーション・音量を、音楽を選ぶと音量を変更できます。作り直すと新しい Draft が作成され、インスペクタでの編集は引き継がれません。",
     draftCreatedAdding: "Draft を作成しました。タイトルとルックを追加中…",
@@ -1219,6 +1225,7 @@ const STRINGS = {
     previewFailed: "\ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}.",
     noAudio: "\uc624\ub514\uc624\uac00 \ub3cc\uc544\uc624\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
     finishFailed: "Draft\ub294 \ub9cc\ub4e4\uc5c8\uc9c0\ub9cc \ud0c0\uc774\ud2c0, \uc0c9\uac10, \ud074\ub9bd \uc18c\ub9ac\uac00 \uc544\uc9c1 \uc801\uc6a9\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4: {detail}. ‘\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac’\ub97c \ub20c\ub7ec \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
+    finishUnconfirmed: "Draft\ub294 \uc788\uc9c0\ub9cc \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc758 \uc800\uc7a5 \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc0c8 \uc791\uc5c5\uc744 \uc2dc\uc791\ud558\uae30 \uc804\uc5d0 Draft\ub97c \ud655\uc778\ud558\uc138\uc694.",
     openFailed: "Draft\ub294 \uc900\ube44\ub418\uc5c8\uc9c0\ub9cc \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \uc544\ub798 \ub9c1\ud06c\ub97c \uc4f0\uac70\ub098 Draft \ubaa9\ub85d\uc5d0\uc11c \uc5ec\uc138\uc694.",
     draftCreated: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uc744 \uc120\ud0dd\ud558\uba74 \uae00\uc790, \uc0c9, \ud06c\uae30, \uc704\uce58\ub97c, \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uba74 \ud06c\ub86d, \ubd80\ub4dc\ub7ec\uc6c0, \ubaa8\uc158, \uc18c\ub9ac \ud06c\uae30\ub97c, \uc74c\uc545\uc744 \uc120\ud0dd\ud558\uba74 \ubcfc\ub968\uc744 \ubc14\uafc0 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc0c8 Draft\uac00 \uc0dd\uae30\uace0 \uc778\uc2a4\ud399\ud130\uc5d0\uc11c \ud55c \ud3b8\uc9d1\uc740 \uc720\uc9c0\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
     draftCreatedAdding: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\ub294 \uc911…",
@@ -1396,6 +1403,7 @@ const STRINGS = {
     previewFailed: "Não foi possível reproduzir a prévia: {detail}.",
     noAudio: "nenhum áudio foi retornado",
     finishFailed: "O Draft foi criado, mas o título, o look e o som dos clipes ainda não foram aplicados: {detail}. Pressione “Concluir título e look” para tentar de novo.",
+    finishUnconfirmed: "O Draft existe, mas não foi possível confirmar o título e o look. Confira o Draft antes de iniciar outra execução.",
     openFailed: "O Draft está pronto, mas não pôde ser aberto: {detail}. Use o link abaixo ou abra-o pela lista de Drafts.",
     draftCreated: "Draft criado. Selecione o título para editar as palavras, as cores, o tamanho ou a posição; um clipe para ajustar o enquadramento, a suavidade, o movimento ou o volume; e a música para mudar o volume. Criar de novo gera um novo Draft e não mantém as edições do Inspetor.",
     draftCreatedAdding: "Draft criado; adicionando título e look…",
@@ -1573,6 +1581,7 @@ const STRINGS = {
     previewFailed: "Önizleme oynatılamadı: {detail}.",
     noAudio: "ses geri gelmedi",
     finishFailed: "Draft oluşturuldu ama başlık, görünüm ve klip sesi henüz uygulanmadı: {detail}. Yeniden denemek için “Başlığı ve görünümü tamamla”ya basın.",
+    finishUnconfirmed: "Draft mevcut ancak başlık ve görünüm doğrulanamadı. Yeni bir çalıştırma başlatmadan önce Draft’ı inceleyin.",
     openFailed: "Draft hazır ama açılamadı: {detail}. Aşağıdaki bağlantıyı kullanın veya Draft listesinden açın.",
     draftCreated: "Draft oluşturuldu. Kelimelerini, renklerini, boyutunu veya konumunu düzenlemek için başlığı; kırpmasını, yumuşaklığını, hareketini veya ses düzeyini ayarlamak için bir klibi; ses seviyesini değiştirmek için müziği seçin. Yeniden oluşturmak yeni bir Draft oluşturur ve Denetçi düzenlemelerini korumaz.",
     draftCreatedAdding: "Draft oluşturuldu; başlık ve görünüm ekleniyor…",
@@ -1750,6 +1759,7 @@ const STRINGS = {
     previewFailed: "无法播放试听：{detail}。",
     noAudio: "没有返回音频",
     finishFailed: "Draft 已创建，但标题、色调和片段原声尚未应用：{detail}。点击“完成标题和色调”重试。",
+    finishUnconfirmed: "Draft 已存在，但无法确认标题和色调的保存结果。开始新的运行前，请检查 Draft。",
     openFailed: "Draft 已就绪，但无法打开：{detail}。请使用下方链接，或从 Draft 列表中打开。",
     draftCreated: "Draft 已创建。选中标题可编辑文字、颜色、大小或位置；选中片段可调整裁切、柔和度、运动或音量；选中音乐可调整其音量。重新生成会创建新的 Draft，不会保留在检查器中的编辑。",
     draftCreatedAdding: "Draft 已创建；正在添加标题和色调…",
@@ -1849,7 +1859,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.20";
+const PLUGIN_VERSION = "0.1.0-alpha.21";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -5443,7 +5453,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   }
 
   // Commit 2 (mute the clips' own sound when Clip sound is Off, the title lockup, Soft look and photo motion), then
-  // open the Draft. decorate.js skips what an earlier attempt already added, so a retry is safe.
+  // open the Draft. Existing programs must match the exact intended contents before reuse.
   async function decorate(res: any, check: () => void) {
     advance("look", 0);
     const f = res.frozen;
@@ -6258,16 +6268,12 @@ async function runMiniVlogTemplate(sdk: any, context: any, check: () => void, sa
     punchFrames: mvPunchFrames({ bpm, fps: a.fps, sectionStart: musicStart, videoEnd: a.totalFrames }), picks: plan.picks } : null;
   const finish = () => run("Add title and look", fill(decorateJs, { sequenceId: a.sequenceId, mute: false, videoEnd: a.totalFrames, title: { tsx: titleTsx, parameters, editableParameters },
     soft: { tsx: softTsx, strength: SOFT_STRENGTH }, photos: photoRids, motion: { tsx: motionTsx, strength: MOTION_STRENGTH, options: motionOptions, byRid }, photoEffects: true, punch: punchCfg, labels }), true);
-  // decorate.js skips what an earlier attempt added, so a failed attempt is tried once more.
-  try {
-    await finish();
-  } catch (e) {
-    console.warn("[mini-vlog] Add title and look failed, trying again:", errorText(e));
+  // A failed reply does not prove that the first commit stopped. Preserve its
+  // Draft identity and cause; phase-receipt recovery must precede another save.
+  try { await finish(); }
+  catch (cause) {
     check();
-    try { await finish(); } catch (e2) {
-      console.warn("[mini-vlog] Add title and look failed again:", errorText(e2));
-      throw templateIssue("The Draft was made, but its title and look could not be added; try again.");
-    }
+    throw Object.assign(templateIssue(t(bl, "finishUnconfirmed")), { code: "TEMPLATE_DECORATION_PENDING", draftId: a.sequenceId, cause });
   }
   check();
   // Nobody sees this frame, so the Draft is not opened: the app takes the person to it.
