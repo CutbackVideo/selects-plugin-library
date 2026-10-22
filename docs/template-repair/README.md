@@ -32,6 +32,14 @@ current source inventory, initial decisions, all-template ledger and full gate.
 
 ## Current checkpoint
 
+- Mini alpha.16 / Archive alpha.10 share one browser analysis-Worker owner.
+  Dispatch/start/error, cancellation, deadline and cleanup failures use the same
+  resource lifetime; the actual caller's liveness is carried through. Original
+  PCM and beat policy remain intact. Twenty-seven focused cases and eight actual
+  Chromium scenarios confirm cleanup and unchanged detector output. See
+  [analysis-worker.md](analysis-worker.md). The partial registry now has six
+  features / twelve consumers. Full ownership and template acceptance stay 0/28.
+
 - Mini alpha.15 / Archive alpha.9 verify standalone original Image identities,
   dimensions and availability through the existing input feature before music.
   Unknown size no longer becomes a scratch Draft canvas, and Finish consumes the

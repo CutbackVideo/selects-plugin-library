@@ -576,8 +576,8 @@ for (const s of ['const bytes = await readBytes(file);', 'URL.createObjectURL(ne
   'const file = musicKind === "own" ? ownMusic!.path : pjoin(roots.plugin, "assets", "cues", cue.file);']) assert.ok(ui.includes(s), s);
 // Own music: decoded by the host's ffmpeg (WebAudio without it), analysed in a worker only, cancellable, stale results
 // dropped; any failure falls back to fixed timing.
-for (const s of ['samples = await decodeOwnMusic(file.path, roots.data, abort.signal, client);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal);',
-  'hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal, 120000, client)', 'ctx.decodeAudioData(bytes.slice().buffer)', 'worker = new Worker(url);', 'try { worker?.terminate(); } catch',
+for (const s of ['samples = await decodeOwnMusic(file.path, roots.data, abort.signal, client);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal, BEAT_TIMEOUT_MS, live);',
+  'hostDecodePcm(path, dataDir, OWN_RATE, OWN_MAX_SECONDS, signal, 120000, client)', 'ctx.decodeAudioData(bytes.slice().buffer)', 'runPanelWorker(source, { samples, rate: OWN_RATE }, { signal, timeoutMs, isCurrent })',
   'const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;', 'setOwnGrid({ accepted: false, grid: "none", failed: true, durationSeconds: duration, peaks: [] });',
   'if (v !== "own") { cancelOwnMusic(); setOwnMusic(null); setOwnGrid(null); }', 'if (cancelOwnMusic() && mountedRef.current) { setOwnMusic(null); setOwnGrid(null); }',
   'worker-src * data: blob:', 'const v = await hostProbeSeconds(file.path, client, abort.signal);', 't(L, "ownMusicHint", { count: OWN_MAX_SECONDS / 60 })']) assert.ok(ui.includes(s), s);
@@ -600,7 +600,8 @@ assert.ok(ui.includes('const fitLine = !assets || (musicKind === "own" && (!ownM
 // cancel signal (a cancelled analysis never reports another file's error).
 assert.ok(ui.includes('const BEAT_TIMEOUT_MS = 60000;') && ui.includes('timeoutMs: number = BEAT_TIMEOUT_MS'));
 assert.ok(ui.includes('err.code = "beat-timeout"') && ui.includes('if (e?.code === "beat-timeout") return t(lang, "beatTimeout");'));
-assert.ok(ui.includes('if (timer) clearTimeout(timer);'), 'the timer stops with the worker');
+// Resource cleanup, dispatch failure and deadlines are exercised through the
+// real shared owner in tests/analysis_worker.test.mjs.
 {
   const dec = ui.slice(ui.indexOf('async function decodeOwnMusic('), ui.indexOf('function analyseBeat('));
   assert.equal((dec.match(/if \(signal\.aborted\) throw new Error\("cancelled"\);/g) || []).length, 3, 'after ffmpeg, the file read and the decode');

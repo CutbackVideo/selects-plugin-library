@@ -76,6 +76,7 @@ those inventory behaviors, not semantic completeness of this table.
 | Mini and Archive local files/media transport and bootstrap | Reuse `shared/local-client.ts` unchanged | Canonical async file/media primitives and scoped connection lifetime already exist; no competing file module or public SDK change | Both generated adapters migrated and checked; wrapper/transport regressions and exact embedded-client actual SDK cases in `mini-media-scope.md`. Remaining legacy file/scoring callers still need their own ownership review |
 | Mini and Archive temporary PCM / Mini preview staging | Extend `bundled-assets` | Reuse exclusive reservation, bounded byte reader and media process scope; own one captured client, declared read budget, cancellation/deadline and cleanup outcome | 26 focused TDD cases, existing-consumer checks and nine actual SDK scenarios in `mini-media-scope.md`. Temporary source-content attestation and crash recovery remain open |
 | Mini preview encoding and Archive playback/fallback policy | Keep template-specific policy | Mini encodes a bounded MP3 section; Archive seeks/fades a whole-track Blob and supports ordinary decode failure through WebAudio. Sharing the owner does not require silently changing those user contracts | Mini's actual Stop aborts the common producer. Archive preserves healthy fallback but stops on terminal ownership errors. Whole-file budget and fallback/source analysis remain open |
+| Mini and Archive browser beat analysis execution | Extract `analysis-worker`; keep rate, algorithm and protocol with callers | No existing owner handles browser Workers/Blob URLs/event/timer subscriptions. One transient scope owns dispatch through observed cleanup, bounded by signal, actual caller liveness and one deadline; no Project or media mutation | 27 actual-adapter cases and eight real Chromium scenarios in `analysis-worker.md`, including parent leaks and exact unchanged-detector/PCM parity. Four other beat adapters and installed-panel/full-template execution remain pending |
 | Mini template policy data | Keep template-specific data | Track choices, title presets, default length/pace and styling express this template's promised output; the same data schema need not imply identical values | Preserve policy while reviewing mechanisms separately; this decision does not classify every planner, UI or typography function |
 
 These new feature records extend the initial decisions; they still do not cover
@@ -87,8 +88,8 @@ Whole-template ownership reviews remain 0/28. PR #309's final CI run
 semantic completeness of this ledger.
 
 The remaining candidate responsibilities include file/media preparation, paged
-inventory/read budgets, local clip scoring, language mechanics, beat-worker
-lifetime, script input transport, source identity, transcription, face analysis,
+inventory/read budgets, local clip scoring, language mechanics, remaining beat-worker
+consumers, script input transport, source identity, transcription, face analysis,
 framing, cut allocation and save/recovery. These must be compared against existing
 features before choosing expansion or extraction. Different-shaped implementations
 of the same responsibility also require review; token matching cannot find all.

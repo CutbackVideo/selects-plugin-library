@@ -1859,7 +1859,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.15";
+const PLUGIN_VERSION = "0.1.0-alpha.16";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -3669,33 +3669,89 @@ const OWN_RATE = 22050;
 // beat-detect's analysis of the samples in a Web Worker (avBeatWorkerSource), never on the panel's thread: the panel
 // CSP allows blob: workers. A host that refuses the worker rejects the analysis, and the panel falls back to fixed
 // timing. `signal` aborts it (worker.terminate()); so does `timeoutMs` (BEAT_TIMEOUT_MS): a worker that never answers
-// rejects with code "beat-timeout" (fixed timing then). Archive Vlog's analyseBeat, unchanged.
+// rejects with code "beat-timeout" (fixed timing then). Worker lifetime is shared; this adapter retains the beat protocol and sample rate.
 const BEAT_TIMEOUT_MS = 60000;
-function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = BEAT_TIMEOUT_MS): Promise<any> {
-  return new Promise((resolve, reject) => {
-    let worker: Worker | null = null, url: string | null = null, done = false;
-    let timer: any = null;
-    const finish = (fn: () => void) => {
-      if (done) return;
-      done = true;
-      if (timer) clearTimeout(timer);
-      try { worker?.terminate(); } catch { /* gone */ }
-      if (url) { try { URL.revokeObjectURL(url); } catch { /* gone */ } }
-      signal?.removeEventListener("abort", onAbort);
-      fn();
-    };
-    const onAbort = () => finish(() => reject(new Error("cancelled")));
-    if (signal?.aborted) { reject(new Error("cancelled")); return; }
-    signal?.addEventListener("abort", onAbort);
-    try {
-      url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
-      worker = new Worker(url);
-    } catch (e: any) { finish(() => reject(new Error("the beat detector could not start: " + String(e?.message || e)))); return; }
-    worker.onmessage = (e: MessageEvent) => finish(() => (e.data && e.data.error ? reject(new Error(e.data.error)) : resolve(e.data && e.data.ok)));
-    worker.onerror = (e: any) => { try { e?.preventDefault?.(); } catch { /* nothing */ } finish(() => reject(new Error("the beat detector stopped: " + String(e?.message || "worker error")))); };
-    timer = setTimeout(() => finish(() => { const err: any = new Error("the beat detection took too long"); err.code = "beat-timeout"; reject(err); }), timeoutMs);
-    worker.postMessage({ samples, rate: OWN_RATE });
-  });
+// analysis-worker:start
+// One browser Worker invocation. Algorithm, payload units and result protocol
+// belong to the caller; no Project, media process or persistent file is touched.
+function panelWorkerIssue(code,message,cause=undefined){
+ return Object.assign(Error(message),{code:'PANEL_WORKER_'+code,publicMessage:message,...cause?{cause}:{}});
+}
+async function runPanelWorker(source,payload,options={}){
+ if(!options||typeof options!=='object'||Array.isArray(options))throw panelWorkerIssue('INPUT','The analysis worker scope is invalid.');
+ const {signal,isCurrent=()=>true,timeoutMs=60000}=options;
+ if(typeof source!=='string'||!source||new TextEncoder().encode(source).length>1024*1024||typeof isCurrent!=='function'||!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>2147483647||signal&&(typeof signal.aborted!=='boolean'||typeof signal.addEventListener!=='function'||typeof signal.removeEventListener!=='function'))throw panelWorkerIssue('INPUT','The analysis worker request is invalid.');
+ const live=()=>{try{return !signal?.aborted&&isCurrent();}catch{return false;}};
+ const stopped=cause=>panelWorkerIssue('STOPPED','Background analysis ended before completion.',cause);
+ const timeout=cause=>panelWorkerIssue('TIMEOUT','Background analysis timed out.',cause);
+ const deadline=Date.now()+timeoutMs;
+ if(!live())throw stopped();
+ if(typeof Worker!=='function'||typeof Blob!=='function'||typeof globalThis.URL?.createObjectURL!=='function'||typeof globalThis.URL?.revokeObjectURL!=='function')throw panelWorkerIssue('UNSUPPORTED','This environment cannot run background analysis.');
+ return new Promise((resolve,reject)=>{
+  let worker,url,timer,watch,done=false,phase='START';
+  const finish=(value,failure)=>{
+   if(done)return;done=true;
+   const cleanupFailures=[],attempt=action=>{try{action();}catch(error){cleanupFailures.push(error);}};
+   if(timer!==undefined)attempt(()=>clearTimeout(timer));
+   if(watch!==undefined)attempt(()=>clearTimeout(watch));
+   attempt(()=>signal?.removeEventListener('abort',onAbort));
+   if(worker){
+    attempt(()=>{worker.onmessage=null;worker.onerror=null;worker.onmessageerror=null;});
+    attempt(()=>worker.terminate());
+   }
+   if(url!==undefined)attempt(()=>URL.revokeObjectURL(url));
+   // Cleanup can itself detach the owner or cross the deadline. Never hand a
+   // late result back merely because its message arrived before cleanup began.
+   if(!live())failure=stopped(failure);
+   else if(Date.now()>=deadline)failure=timeout(failure);
+   if(cleanupFailures.length){
+    failure=Object.assign(panelWorkerIssue(failure?.code?.replace(/^PANEL_WORKER_/,'')??'CLEANUP',failure?.publicMessage??'Analysis worker cleanup could not be confirmed.',failure??cleanupFailures[0]),{terminal:true,cleanupFailures});
+   }
+   if(failure)reject(failure);else resolve(value);
+  };
+  const onAbort=()=>finish(undefined,stopped());
+  const current=()=>{
+   if(done)return false;
+   if(!live()){finish(undefined,stopped());return false;}
+   if(Date.now()>=deadline){finish(undefined,timeout());return false;}
+   return true;
+  };
+  const observe=()=>{if(current())watch=setTimeout(observe,50);};
+  try{
+   url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));
+   if(!current())return;
+   worker=new Worker(url);
+   worker.onmessage=event=>finish(event.data);
+   worker.onerror=event=>{try{event?.preventDefault?.();}catch{}finish(undefined,panelWorkerIssue('ERROR','Background analysis could not be completed.',event));};
+   worker.onmessageerror=event=>finish(undefined,panelWorkerIssue('MESSAGE','The background analysis response could not be read.',event));
+   // Subscribe after construction: cancellation inside a constructor must not
+   // finish before the newly created Worker reference becomes owned.
+   signal?.addEventListener('abort',onAbort,{once:true});
+   if(!current())return;
+   timer=setTimeout(()=>finish(undefined,timeout()),Math.max(0,deadline-Date.now()));
+   watch=setTimeout(observe,50);
+   phase='DISPATCH';
+   // Preserve caller data. Beat fallback still needs the original PCM duration;
+   // transferring its buffer here would silently detach those samples.
+   worker.postMessage(payload);
+  }catch(cause){finish(undefined,panelWorkerIssue(phase,phase==='START'?'The analysis worker could not start.':'The analysis worker request could not be sent.',cause));}
+ });
+}
+// analysis-worker:end
+async function analyseBeat(source: string, samples: Float32Array, signal: AbortSignal | null, timeoutMs: number = BEAT_TIMEOUT_MS, isCurrent: () => boolean = () => true): Promise<any> {
+  let reply: any;
+  try { reply = await runPanelWorker(source, { samples, rate: OWN_RATE }, { signal, timeoutMs, isCurrent }); }
+  catch (cause: any) {
+    const timedOut = cause?.code === "PANEL_WORKER_TIMEOUT", stopped = cause?.code === "PANEL_WORKER_STOPPED";
+    const starting = cause?.code === "PANEL_WORKER_START" || cause?.code === "PANEL_WORKER_UNSUPPORTED";
+    const err: any = new Error(timedOut ? "the beat detection took too long" : stopped ? "cancelled" : starting ? "the beat detector could not start" : "the beat detector stopped");
+    if (timedOut) err.code = "beat-timeout";
+    err.cause = cause;
+    if (cause?.terminal) err.terminal = true;
+    throw err;
+  }
+  if (reply?.error) throw new Error(String(reply.error));
+  return reply?.ok;
 }
 // Whether this host can run your own music's beat detection and the section preview: the host's ffmpeg, file reads
 // and blob Web Workers (own music only).
@@ -4681,7 +4737,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal, 120000, client);
       if (!samples) throw hostError("host-missing", "this Selects build cannot decode audio", "Runtime.runFFmpeg");
       if (!live()) return;
-      const g = await analyseBeat(assets.beatWorker, samples, abort.signal);
+      const g = await analyseBeat(assets.beatWorker, samples, abort.signal, BEAT_TIMEOUT_MS, live);
       if (!live()) return;
       if (!g || typeof g !== "object") throw uiError((l) => t(l, "beatFailed"));
       setOwnGrid(g);
@@ -4689,6 +4745,12 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
       setStatus(null);
     } catch (e: any) {
       if (!live()) return;
+      // Unconfirmed cleanup cannot leave this track available for another build.
+      if (e?.terminal) {
+        setOwnMusic(null); setOwnGrid(null);
+        setStatus({ tone: "error", say: (l: Lang) => t(l, "musicUnreadable", { detail: sayError(l, e) }) });
+        return;
+      }
       // Without a grid the cuts use fixed timing, but the track's real length still bounds the section.
       let duration: number | null = samples && samples.length ? Math.round((samples.length / OWN_RATE) * 1000) / 1000 : null;
       if (!duration) { const v = await hostProbeSeconds(file.path, client, abort.signal); if (v) duration = Math.min(v, OWN_MAX_SECONDS); }

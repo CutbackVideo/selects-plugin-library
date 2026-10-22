@@ -508,9 +508,9 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
   // Own music: host ffmpeg -> f32le 22.05 kHz, first 240 s, in the data folder; the kit detector in a blob worker with
   // a 60 s timeout; cancel = abort + terminate + request id; any failure -> fixed timing with the probed length.
   for (const s of ['const OWN_MAX_SECONDS = 240;', 'const OWN_RATE = 22050;', 'const BEAT_TIMEOUT_MS = 60000;', 'read("beat-detect.cjs")]);', 'beatWorker: avBeatWorkerSource(beatDetect)',
-    'samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal, 120000, client);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal);',
+    'samples = await hostDecodePcm(file.path, roots.data, OWN_RATE, OWN_MAX_SECONDS, abort.signal, 120000, client);', 'const g = await analyseBeat(assets.beatWorker, samples, abort.signal, BEAT_TIMEOUT_MS, live);',
     'const live = () => mountedRef.current && ownJobRef.current.id === id && projectRef.current === pid;', 'cancelOwnMusic(); };', 'if (v !== "own") { cancelOwnMusic();',
-    'const v = await hostProbeSeconds(file.path, client, abort.signal); if (v) duration = Math.min(v, OWN_MAX_SECONDS);', 'worker = new Worker(url);', 'worker?.terminate()'])
+    'const v = await hostProbeSeconds(file.path, client, abort.signal); if (v) duration = Math.min(v, OWN_MAX_SECONDS);', 'runPanelWorker(source, { samples, rate: OWN_RATE }, { signal, timeoutMs, isCurrent })'])
     assert.ok(panel.includes(s), s);
   // Only the current own-music job clears busy and the step (a cancelled one must not end a build started since).
   {

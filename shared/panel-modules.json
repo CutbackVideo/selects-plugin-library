@@ -69,6 +69,14 @@
       "buildTimeTargets": [
         "plugins/photo-gallery-no2/build-panel.mjs"
       ]
+    },
+    {
+      "id": "analysis-worker",
+      "source": "shared/analysis-worker.js",
+      "targets": [
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/archive-vlog/panel.tsx"
+      ]
     }
   ]
 }
