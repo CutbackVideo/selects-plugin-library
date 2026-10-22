@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import test from 'node:test';
+import {fingerprintTemplateFile} from '../shared/file-observation.js';
 function fixture(run){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'local-client-sync-'));
  try{
@@ -45,4 +46,21 @@ test('scoped sync accepts Windows line endings without copying module imports',(
  assert.equal(call('--only=no14-still-video').status,0);
  const result=fs.readFileSync(file('no14-still-video'),'utf8');assert.match(result,/return 19/);assert.doesNotMatch(result,/\bimport\s/);assert.match(result,/async function fingerprintTemplateFile/);assert.match(result,/Copyright \(c\) 2022 Paul Miller/);
  assert.equal(call('--only=no14-still-video','--check').status,0);
+}));
+test('a separately registered observation block is preserved and not duplicated inside local-sdk',()=>fixture(({file,call})=>{
+ const target=file('no14-still-video'),block='// file-observation:start\n'+fingerprintTemplateFile.toString()+'\n// file-observation:end\n';
+ fs.writeFileSync(target,block+fs.readFileSync(target,'utf8'));
+ assert.equal(call('--only=no14-still-video').status,0);
+ const result=fs.readFileSync(target,'utf8');assert(result.startsWith(block));assert.equal([...result.matchAll(/async function fingerprintTemplateFile\(/g)].length,1);
+ const local=result.split('// local-sdk:start\n')[1].split('// local-sdk:end')[0];assert.doesNotMatch(local,/async function fingerprintTemplateFile\(/);assert.doesNotMatch(local,/\bimport\s/);
+ assert.equal(call('--only=no14-still-video','--check').status,0);
+}));
+test('malformed observation markers reject before any selected client is overwritten',()=>fixture(({file,call})=>{
+ const target=file('camera-shutter-dump'),other=file('no14-still-video'),before=fs.readFileSync(other,'utf8');
+ fs.writeFileSync(target,'// file-observation:start\n'+fs.readFileSync(target,'utf8'));
+ assert.notEqual(call('--only=no14-still-video,camera-shutter-dump').status,0);assert.equal(fs.readFileSync(other,'utf8'),before);
+}));
+test('an observation owner inside the replacement region is rejected rather than silently erased',()=>fixture(({file,call})=>{
+ const target=file('no14-still-video');const before=fs.readFileSync(target,'utf8').replace('// local-sdk:start\n','// local-sdk:start\n// file-observation:start\n'+fingerprintTemplateFile.toString()+'\n// file-observation:end\n');fs.writeFileSync(target,before);
+ assert.notEqual(call('--only=no14-still-video').status,0);assert.equal(fs.readFileSync(target,'utf8'),before);
 }));
