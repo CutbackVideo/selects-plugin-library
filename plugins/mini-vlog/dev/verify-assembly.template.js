@@ -20,7 +20,7 @@ if(input.legacyPunch!=null&&(!Array.isArray(input.legacyPunch)||input.legacyPunc
 for(let i=0;i<main.length;i++){
  const row=main[i],pick=cfg.picks[i],intent=miniAssemblyShot(cfg,i,fps,timing.get(pick.rid));
  if(row.resourceId!==pick.rid||row.startFrame!==intent.startFrame||row.endFrame!==intent.endFrame)refuse('The saved assembly cut differs from the original plan.');
- const source=await d.clipSourceWindow(row),speed=row.playbackSpeed;
+ const source=templateObservedSource(input.__sources,row),speed=row.playbackSpeed;
  if(!source||!speed||speed.numerator!==speed.denominator||!timeSame(source.startSeconds,intent.sourceStart)||!timeSame(source.endSeconds,intent.sourceStart+intent.frames/fps))refuse('The saved assembly source window differs from the original plan.');
  const size=cfg.crops?.[pick.rid],scale=size?.width>0&&size?.height>0?Math.max(1920/size.width,1080/size.height)/Math.min(1920/size.width,1080/size.height):1,transform=await d.clipTransform(row);
  if(!near(transform.scale.x,scale)||!near(transform.scale.y,scale)||!near(transform.position.x,0)||!near(transform.position.y,0)||transform.positionKeys.length||transform.scaleKeys.length)refuse('The saved assembly crop differs from the original plan.');
@@ -37,7 +37,7 @@ const audio=rows.filter(row=>row.trackKind==='audio');
 if(cfg.music){
  if(audio.length!==1)refuse('The saved assembly music count differs from the original plan.');
  const row=audio[0],start=Math.round(cfg.music.sectionStart*fps)/fps;
- await inspectImageAudio(d,[{clipId:row.clipId,trackId:row.trackId,trackKind:'audio',resourceId:cfg.music.resourceId,startFrame:0,endFrame:durationFrames,audioSourceIndexes:null,settings:{volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:Math.min(durationFrames,Math.round(.12*fps))/fps},source:{startSeconds:start,endSeconds:start+durationFrames/fps,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true}}],p,true);
+ await inspectImageAudio(d,[{clipId:row.clipId,trackId:row.trackId,trackKind:'audio',resourceId:cfg.music.resourceId,startFrame:0,endFrame:durationFrames,audioSourceIndexes:null,settings:{volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:Math.min(durationFrames,Math.round(.12*fps))/fps},source:{startSeconds:start,endSeconds:start+durationFrames/fps,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true}}],p,true,input.__sources,templateObservedSource);
 }else if(audio.length)refuse('The saved assembly has unexpected music.');
 return {verified:true,draftId:input.draftId,mainEnd:endFrame,fps,durationFrames};
 }catch(error){return {verified:false,status:['MINI_PLAN_MISMATCH','IMAGE_AUDIO_MISMATCH'].includes(error?.code)?'mismatch':'unavailable',detail:String(error?.message||'The saved assembly could not be read.').slice(0,300)};}

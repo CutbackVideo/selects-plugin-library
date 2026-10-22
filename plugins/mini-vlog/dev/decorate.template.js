@@ -29,8 +29,7 @@ if (cfg.punch) {
     if (!pick || pick.rid !== clip.resourceId) { punchSkipped++;continue; }
     if (pick.kind === 'photo' || photoIds.has(clip.resourceId)) continue;
     const want=clip.endFrame-clip.startFrame;
-    if(typeof d.clipSourceWindow!=='function')throw Error('Update Selects to read the placed source window before applying Beat punch.');
-    const source=await d.clipSourceWindow(clip);
+    const source=templateObservedSource(cfg.__sources,clip);
     if(!source||!Number.isFinite(source.startSeconds)||source.startSeconds<0)throw Error('The placed source window is unavailable for Beat punch.');
     const sourceStartFrame=Math.round(source.startSeconds*fps);
     const punches=frames.map(f=>f-clip.startFrame).filter(t=>t>-.5*beat&&t<want);

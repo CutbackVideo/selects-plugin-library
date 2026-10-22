@@ -1,9 +1,10 @@
+import {vlogOperation} from './sdk_free_helpers.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 import {assemblyIntentFixture} from './mini_assembly_intent_fixture.mjs';
 import {checkScriptTypes} from './run_script_types.mjs';
-const source=fs.readFileSync(new URL('../plugins/archive-vlog/scripts/assemble.js',import.meta.url),'utf8');
+const source=vlogOperation('archive-vlog','assemble');
 export const fixture=options=>{const f=assemblyIntentFixture({scriptSource:source,probeName:'Archive source timing check',...options});f.cfg.musicFadeOut=1;return f;};
 for(const kinds of [['chapter','subchapter'],['other']])test('Archive assembly: native '+kinds.join('/')+' rows '+(kinds[0]==='other'?'cannot enter the saved assembly':'are preserved without counting as media'),async()=>{
  const f=fixture(),create=f.project.createDraft;
@@ -23,7 +24,7 @@ for(const rate of [24000/1001,25,30000/1001,60])test('Archive assembly: native s
  const a=await f.run(),rows=f.drafts.at(-1).rows();assert.equal(a.totalFrames,Math.round(2.17*rate));assert.equal(rows[0].endFrame,Math.round(1.03*rate));assert.equal(rows[1].startFrame,rows[0].endFrame);assert.equal(rows[1].endFrame,a.totalFrames);
  assert.equal(rows[1]._source.startSeconds,Math.round(3.23*25)/25);assert.ok(Math.abs(rows[1]._source.endSeconds-rows[1]._source.startSeconds-(rows[1].endFrame-rows[1].startFrame)/rate)<1e-10);assert.equal(f.calls.commits,1);
 });
-for(const fault of ['ignored insert','duplicate insert','wrong source','wrong interval','wrong source window','changed earlier','ignored crop','canvas','ignored trim'])test('Archive assembly: '+fault+' cannot be committed as the requested plan',async()=>{
+for(const fault of ['ignored insert','duplicate insert','wrong source','wrong interval','changed earlier','ignored crop','canvas','ignored trim'])test('Archive assembly: '+fault+' cannot be committed as the requested plan',async()=>{
  const f=fixture({fault,rate:24000/1001,sourceRates:{photo:30,video:25}});await assert.rejects(f.run());assert.equal(f.calls.commits,0);
 });
 for(const fault of ['wrong music','ignored fade'])test('Archive assembly: '+fault+' cannot silently pass Audio admission',async()=>{

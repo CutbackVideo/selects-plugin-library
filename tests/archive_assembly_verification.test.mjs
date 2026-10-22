@@ -1,10 +1,11 @@
+import {vlogOperation,savedSourceObservation} from './sdk_free_helpers.mjs';
 import assert from 'node:assert/strict';import test from 'node:test';import fs from 'node:fs';import vm from 'node:vm';
 import {assemblyIntentFixture} from './mini_assembly_intent_fixture.mjs';
-const assemble=fs.readFileSync(new URL('../plugins/archive-vlog/scripts/assemble.js',import.meta.url),'utf8');
+const assemble=vlogOperation('archive-vlog','assemble');
 const fixture=options=>assemblyIntentFixture({scriptSource:assemble,probeName:'Archive source timing check',...options});import {checkScriptTypes} from './run_script_types.mjs';
-const source=fs.readFileSync(new URL('../plugins/archive-vlog/scripts/verify-assembly.js',import.meta.url),'utf8');
+const source=vlogOperation('archive-vlog','verify-assembly');
 const clone=v=>JSON.parse(JSON.stringify(v));
-async function saved(options={}){const f=fixture(options),result=await f.run(),target=f.drafts.at(-1);f.project.meta=async()=>({draftIds:[result.sequenceId]});return {...f,target,result,verify:(extra={})=>vm.runInNewContext('(async()=>{'+source.replace('__CONFIG__',()=>JSON.stringify({config:f.cfg,draftId:result.sequenceId,...extra}))+'})()',{selects:{project:()=>f.project,draft:id=>{assert.equal(id,result.sequenceId);return target.d;}}})};}
+async function saved(options={}){const f=fixture(options),result=await f.run(),target=f.drafts.at(-1);f.project.meta=async()=>({draftIds:[result.sequenceId]});delete target.d.clipSourceWindow;return {...f,target,result,verify:(extra={})=>vm.runInNewContext('(async()=>{'+source.replace('__CONFIG__',()=>JSON.stringify({config:f.cfg,draftId:result.sequenceId,__sources:savedSourceObservation(target.rows()),...extra}))+'})()',{selects:{project:()=>f.project,draft:id=>{assert.equal(id,result.sequenceId);return target.d;}}})};}
 for(const rate of [24000/1001,25,30,60])test('read-only Archive plan: native clocks and photo crop confirm at '+rate,async()=>{
  const f=await saved({rate,sourceRates:{photo:30,video:25}}),before=JSON.stringify(f.target.rows()),count=f.calls.commits,r=await f.verify();assert.equal(r.verified,true);assert.equal(f.calls.commits,count);assert.equal(JSON.stringify(f.target.rows()),before);
 });
@@ -15,7 +16,7 @@ for(const change of ['cut','source','window','speed','crop','overlay','music'])t
 });
 test('read-only Archive plan: music source clock and fades match the explicit normal-speed plan',async()=>{
  const f=fixture({rate:24000/1001});f.cfg.musicFadeOut=1;f.cfg.music={resourceId:'music',sectionStart:2.345,};const r=await f.run(),target=f.drafts.at(-1);f.project.meta=async()=>({draftIds:[r.sequenceId]});
- const run=()=>vm.runInNewContext('(async()=>{'+source.replace('__CONFIG__',()=>JSON.stringify({config:f.cfg,draftId:r.sequenceId,}))+'})()',{selects:{project:()=>f.project,draft:()=>target.d}});
+ const run=()=>vm.runInNewContext('(async()=>{'+source.replace('__CONFIG__',()=>JSON.stringify({config:f.cfg,draftId:r.sequenceId,__sources:savedSourceObservation(target.rows())}))+'})()',{selects:{project:()=>f.project,draft:()=>target.d}});
  assert.equal((await run()).verified,true);target.rows().find(r=>r.trackKind==='audio')._audio.fadeOutSeconds=0;assert.equal((await run()).status,'mismatch');assert.equal(f.calls.commits,1);
 });
 test('read-only Archive plan: generated request matches the current SDK declarations',()=>{const f=fixture();checkScriptTypes([{name:'Archive read-only plan admission',script:source.replace('__CONFIG__',()=> 'JSON.parse('+JSON.stringify(JSON.stringify({config:f.cfg,draftId:'owned'}))+')')}]);});
@@ -24,4 +25,9 @@ test('read-only Archive plan: unreadable native timing is unavailable and remain
 });
 test('read-only Archive plan: a target read exception is unavailable rather than a declared mismatch',async()=>{
  const f=await saved(),original=f.target.d.clipTransform;f.target.d.clipTransform=async()=>{throw Error('temporary target metadata failure');};assert.equal((await f.verify()).status,'unavailable');f.target.d.clipTransform=original;assert.equal((await f.verify()).verified,true);assert.equal(f.calls.commits,1);
+});
+
+test('read-only Archive plan: a hidden first-save source fault stays pending until actual saved verification rejects it',async()=>{
+ const f=await saved({fault:'wrong source window'});assert.equal(f.calls.commits,1);
+ const result=await f.verify();assert.equal(result.verified,false);assert.equal(result.status,'mismatch');assert.equal(f.calls.commits,1);
 });

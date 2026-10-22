@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';import test from 'node:test';
 import {lookPhaseFixture as fixture} from './mini_look_fixture.mjs';
+import {vlogOperation} from './sdk_free_helpers.mjs';
 const clone=v=>JSON.parse(JSON.stringify(v));
 test('Mini workflow: losing the look reply recovers one exact saved Draft with no second decoration',async t=>{
  const f=await fixture(t);f.hooks.reply=input=>{if(input.summary==='Decorate template with owned receipt')throw Error('lost reply after save');};const result=await (await f.open()).workflow(f.root,f.prepare);
@@ -45,7 +46,7 @@ test('Mini standalone: a known pre-save failure retains its original run for Fin
 test('Mini workflow: real shipped title/fonts fit transport and snapshots, with SDK-checked generated requests',async t=>{
  const f=await fixture(t),ui=await miniMusicFixture(t),base=new URL('../plugins/mini-vlog/',import.meta.url),presets=JSON.parse(fs.readFileSync(new URL('assets/fonts/presets.json',base),'utf8'));
  const read=rel=>fs.readFileSync(new URL(rel,base),'utf8');
- const assets={presets,scripts:{decorateJs:read('scripts/decorate.js')},titleTsx:read('assets/title-lockup.tsx'),softTsx:read('assets/soft-look.tsx'),motionTsx:read('assets/photo-motion.tsx'),punchTsx:read('assets/beat-punch.tsx')};
+ const assets={presets,scripts:{decorateJs:vlogOperation('mini-vlog','decorate')},titleTsx:read('assets/title-lockup.tsx'),softTsx:read('assets/soft-look.tsx'),motionTsx:read('assets/photo-motion.tsx'),punchTsx:read('assets/beat-punch.tsx')};
  const frozen={pid:'p',seed:7,preset:'mini-vlog',fields:{big:'SATURDAY',small:'weekend'},music:'none',sectionStart:0,pace:'quick',length:'standard',clipSound:'off',punch:false,soft:true,bpm:null};
  const finishAssets=await ui.box.api.snapshotMiniFinishAssets(assets,frozen,'ko',file=>read('assets/fonts/'+file),()=>{});
  const root={...f.root,finishAssets,frozen,photoSizes:{}};let recipe;

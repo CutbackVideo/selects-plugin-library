@@ -1,6 +1,7 @@
+import {sdkFreeHelpersSource,vlogOperation} from './sdk_free_helpers.mjs';
 import assert from 'node:assert/strict';import fs from 'node:fs';import fsp from 'node:fs/promises';import vm from 'node:vm';import {webcrypto,createHash} from 'node:crypto';
 import {holdFixture} from './gallery_hold_fixture.mjs';
-const source=fs.readFileSync(new URL('../shared/template-run.js',import.meta.url),'utf8'),assemble=fs.readFileSync(new URL('../plugins/mini-vlog/scripts/assemble.js',import.meta.url),'utf8'),decorate=fs.readFileSync(new URL('../plugins/mini-vlog/scripts/decorate.js',import.meta.url),'utf8');
+const source=sdkFreeHelpersSource()+'\n'+fs.readFileSync(new URL('../shared/template-run.js',import.meta.url),'utf8'),assemble=vlogOperation('mini-vlog','assemble'),decorate=vlogOperation('mini-vlog','decorate');
 const clone=v=>JSON.parse(JSON.stringify(v));
 export async function lookPhaseFixture(t,{pluginId='mini-vlog',assemblySource=assemble,decorationSource=decorate,probeName='Mini source timing check'}={}){
  const f=await holdFixture(t),hooks=f.hooks,saved=new Map(),requests=[],pending=[];let serial=0,commits=0,epoch=0,probeSerial=0;
@@ -22,7 +23,12 @@ export async function lookPhaseFixture(t,{pluginId='mini-vlog',assemblySource=as
    setAudioTracks:async()=>{for(const r of rows().filter(r=>r.trackKind==='main'))r.audioSourceIndexes=[];epoch++;return {opCount:1};},
    commitAll:async reason=>{assert.equal(committed,false);committed=true;commits++;saved.set(id,clone(state));await hooks.commit?.(id,reason);return {createdDraftId:id};}};
  }
- const sdk={call:async()=>({owner:{projectId:'p',libraryId:hooks.library??'library'}}),runScript:async input=>{
+ const sdk={call:async(method,_projectId,draftId)=>{
+  if(method==='getProjectDraftScaffold')return {owner:{projectId:'p',libraryId:hooks.library??'library'}};
+  const id=method==='getDraftCore'?_projectId:draftId,state=saved.get(id);assert.ok(state,'saved read cannot see a working copy');
+  if(method==='getDraftCore')return {owner:{projectId:'p',libraryId:hooks.library??'library'},sequenceJson:{id,frameRate:30,...clone(state)}};
+  assert.equal(method,'getDraftMediaSnapshot');return {revision:JSON.stringify(state),fps:30,durationFrames:Math.max(...state.clips.map(r=>r.endFrame)),clips:state.clips.filter(r=>r.resourceId).map(r=>({clipId:r.clipId,trackId:r.trackId,trackKind:r.trackKind,resourceId:r.resourceId,startFrame:r.startFrame,endFrame:r.endFrame,sourceStartSeconds:r._source?.startSeconds??0,sourceEndSeconds:r._source?.endSeconds??(r.endFrame-r.startFrame)/30,playbackSpeed:r.playbackSpeed?r.playbackSpeed.numerator/r.playbackSpeed.denominator:1}))};
+ },runScript:async input=>{
   requests.push(input);hooks.currentInput=input.summary;const selects={files:f.files,editor:{linkToDraftFrame:async()=>({deepLinkUrl:'selects://fixture'}),openDraft:async()=>{}},project:()=>({importFiles:async input=>{if(!hooks.importFiles)throw Error('Unexpected import in save fixture');return hooks.importFiles(input);},resources:async()=>hooks.resources??[],resource:rid=>({rid}),sourceFiles:async()=>hooks.sourceFiles?hooks.sourceFiles():({fileTree:[{type:"video",resourceId:"r0",path:f.source}]}),meta:async()=>({draftIds:[...saved.keys()]}),createDraft:async({name})=>handle(name===probeName?'probe-'+ ++probeSerial:'d'+ ++serial,{name,clips:[]})}),draft:id=>{assert.ok(saved.has(id));return handle(id,clone(saved.get(id)));}};
   const work=(async()=>{try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.reply?.(input,result);return {result};}catch(error){return {isError:true,output:error.message};}})();
   if(hooks.lostEarly&&input.summary==='Decorate template with owned receipt'||hooks.lostAssembly&&input.summary==='Assemble template with owned receipt'){pending.push(work);return {isError:true,output:'channel lost while Main is running'};}return work;

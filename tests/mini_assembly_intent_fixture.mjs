@@ -1,6 +1,7 @@
+import {vlogOperation} from './sdk_free_helpers.mjs';
 import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';
 import {checkScriptTypes} from './run_script_types.mjs';
-export const script=fs.readFileSync(process.env.MINI_ASSEMBLY_INTENT_SCRIPT||new URL('../plugins/mini-vlog/scripts/assemble.js',import.meta.url),'utf8'),clone=v=>JSON.parse(JSON.stringify(v));
+export const script=(process.env.MINI_ASSEMBLY_INTENT_SCRIPT?fs.readFileSync(process.env.MINI_ASSEMBLY_INTENT_SCRIPT,'utf8'):vlogOperation('mini-vlog','assemble')),clone=v=>JSON.parse(JSON.stringify(v));
 export function assemblyIntentFixture({rate=30,adopt=null,reverse=false,fault=null,sourceRates={},scriptSource=script,probeName='Mini source timing check'}={}){
  sourceRates={music:120,...sourceRates};
  const files={};

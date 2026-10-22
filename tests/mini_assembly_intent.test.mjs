@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';import test from 'node:test';import {checkScriptTypes} from './run_script_types.mjs';import {assemblyIntentFixture as fixture,script} from './mini_assembly_intent_fixture.mjs';
-for(const fault of ['ignored insert','wrong source','wrong interval','wrong source window','duplicate insert','changed earlier','ignored crop','canvas'])test('Mini assembly intent: '+fault+' cannot be committed as the plan',async()=>{
+for(const fault of ['ignored insert','wrong source','wrong interval','duplicate insert','changed earlier','ignored crop','canvas'])test('Mini assembly intent: '+fault+' cannot be committed as the plan',async()=>{
  const f=fixture({fault});await assert.rejects(f.run(),/placement|interval|source|transform|canvas|plan|frame/i);assert.equal(f.calls.commits,0);
 });
 for(const invalid of ['missing cut','nonfinite cut','reversed cut','empty picks','invalid photo size','negative music start'])test('Mini assembly intent: '+invalid+' is rejected before creating a working Draft',async()=>{

@@ -30,8 +30,9 @@ function templateStateJSON(value,limit=8388608){
  if(text.length>limit)throw Error('Template state exceeds its input limit.');return text;
 }
 // SDK-safe state of every exposed timeline row. Read-only targets never cross
-// edits or script calls; source windows, programs and sound come from SDK reads.
-async function readTemplateSavedState(draft){
+// edits or script calls. Working copies have no source-window read capability:
+// null is explicitly pending, never a source window inferred from the recipe.
+async function readTemplateSavedState(draft,sources=null,observeSource=null){
  const meta=await draft.meta(),graphics=await draft.motionGraphics(),rows=await draft.clips({trackScope:'all'});
  if(!Number.isFinite(meta.fps)||meta.fps<=0||!Number.isSafeInteger(meta.durationFrames)||meta.durationFrames<1||!Number.isSafeInteger(meta.frameSize?.width)||meta.frameSize.width<1||!Number.isSafeInteger(meta.frameSize?.height)||meta.frameSize.height<1||!Array.isArray(rows)||rows.length>1024||new Set(rows.map(r=>r.clipId)).size!==rows.length||!Array.isArray(graphics))throw Error('The Draft state is incomplete.');
  const clips=[];
@@ -41,28 +42,28 @@ async function readTemplateSavedState(draft){
   const effects=[];
   if(visual)for(const effect of await draft.videoEffects(row))effects.push({effectIndex:effect.effectIndex,name:effect.name,effectName:effect.effectName,enabled:effect.enabled,program:await draft.videoEffectProgram(effect)});
   clips.push({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId??null,startFrame:row.startFrame,endFrame:row.endFrame,videoIndex:row.videoIndex??null,audioSourceIndexes:row.audioSourceIndexes??null,color:row.color??null,playbackSpeed:row.playbackSpeed??null,preserveAudioPitch:row.preserveAudioPitch??null,text:row.text??null,
-   source:media?await draft.clipSourceWindow(row):null,audio:media?await draft.clipAudio(row):null,transform:visual?await draft.clipTransform(row):null,effects,graphic:graphic?{name:graphic.name,program:await draft.motionGraphicProgram(row)}:null});
+   source:media&&sources!==null?observeSource(sources,row):null,audio:media?await draft.clipAudio(row):null,transform:visual?await draft.clipTransform(row):null,effects,graphic:graphic?{name:graphic.name,program:await draft.motionGraphicProgram(row)}:null});
  }
  clips.sort((a,b)=>a.clipId-b.clipId);
- return {fps:meta.fps,durationFrames:meta.durationFrames,frameSize:{width:meta.frameSize.width,height:meta.frameSize.height},clips};
+ return {fps:meta.fps,durationFrames:meta.durationFrames,frameSize:{width:meta.frameSize.width,height:meta.frameSize.height},clips,...sources===null?{sourcesPending:true}:{}};
 }
 // SDK-safe immutable snapshot publication and comparison. Compare actual bytes
-// in bounded chunks as well as their native fingerprint; no SDK encoding global
+// in bounded chunks as well as their fresh fingerprint; no SDK encoding global
 // or handwritten hash implementation is required.
-async function templateStateFile(selects,path,text,encode,expected=null){
+async function templateStateFile(selects,path,text,encode,expected=null,fingerprint=null){
  const files=selects.files;
- if(!files||!['fingerprint','readRange','writeChunk'].every(key=>typeof files[key]==='function')||typeof text!=='string'||!text.length||text.length>8388608)throw Error('Update Selects to confirm template state files.');
+ if(!files||!['readRange','writeChunk'].every(key=>typeof files[key]==='function')||typeof fingerprint!=='function'||typeof text!=='string'||!text.length||text.length>8388608)throw Error('Update Selects to confirm template state files.');
  if(!expected){
   for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.writeChunk({path,offset,base64:encode(chunk),...offset===0?{mode:'exclusive'}:{}});if(reply?.bytesWritten!==chunk.length)throw Error('Template state file write was incomplete.');}
-  const fingerprint=await files.fingerprint(path);
-  if(!fingerprint||fingerprint.size!==text.length||typeof fingerprint.sha256!=='string'||!/^[a-f0-9]{64}$/.test(fingerprint.sha256))throw Error('Template state file could not be fingerprinted.');
-  expected={path,...fingerprint};
+  const observed=await fingerprint(files,path);
+  if(!observed||observed.size!==text.length||typeof observed.sha256!=='string'||!/^[a-f0-9]{64}$/.test(observed.sha256))throw Error('Template state file could not be fingerprinted.');
+  expected={path,...observed};
  }
  if(expected.path!==path||expected.size!==text.length)throw Error('The saved template state has changed.');
- const before=await files.fingerprint(path);
+ const before=await fingerprint(files,path);
  if(!before||before.size!==expected.size||before.sha256!==expected.sha256)throw Error('The template state file has changed.');
  for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.readRange({path,offset,length:chunk.length});if(reply?.bytesRead!==chunk.length||reply.base64!==encode(chunk))throw Error('The saved Draft differs from its owned state.');}
- const after=await files.fingerprint(path);if(!after||after.size!==expected.size||after.sha256!==expected.sha256)throw Error('The template state file changed while reading.');
+ const after=await fingerprint(files,path);if(!after||after.size!==expected.size||after.sha256!==expected.sha256)throw Error('The template state file changed while reading.');
  return expected;
 }
 function validateTemplateRun(row,scope,digest,recordPath=null) {
@@ -77,6 +78,23 @@ function validateTemplateRun(row,scope,digest,recordPath=null) {
    r.clips.some(c=>!c||!Number.isSafeInteger(c.clipId)||typeof c.trackId!=='string'||!c.trackId||typeof c.resourceId!=='string'||!c.resourceId||!Number.isSafeInteger(c.startFrame)||!Number.isSafeInteger(c.endFrame)||c.startFrame<0||c.endFrame<=c.startFrame||c.endFrame>r.durationFrames))throw invalid();
   if(new Set(r.clips.map(c=>c.clipId)).size!==r.clips.length)throw invalid();
   if(r.stateFile!==undefined){const file=r.stateFile;if(!file||Object.keys(file).length!==3||typeof file.path!=='string'||!recordPath||file.path!==recordPath+'.state-'+row.owner+'.json'||typeof file.sha256!=='string'||!/^[a-f0-9]{64}$/.test(file.sha256)||!Number.isSafeInteger(file.size)||file.size<1||file.size>8388608)throw invalid();}
+  if(r.sourceGuard!==undefined){
+   const g=r.sourceGuard;if(!g||typeof g!=='object'||Array.isArray(g))throw invalid();
+   if(g.version===1){
+    if(g.owner!==row.owner||!recordPath||g.path!==recordPath+'.sources-'+row.owner+'.json'||!Array.isArray(g.intent)||!g.intent.length||g.intent.length>1000)throw invalid();
+   }else{
+    // Gallery guards source metadata/files; Vlog's versioned guard binds saved
+    // clip windows to a separately retained planner intent. Keep both contracts.
+    const text=(value,max)=>typeof value==='string'&&value.length>0&&value.length<=max&&!value.includes('\0');
+    const identity=item=>item&&text(item.resourceId,1024)&&text(item.path,4096);
+    if(scope.pluginId!=='photo-gallery-no2'||Object.keys(g).length!==4||!Array.isArray(g.media)||!g.media.length||g.media.length>21||!Array.isArray(g.files)||!g.files.length||g.files.length>22||!text(g.signature,32768))throw invalid();
+    for(const item of g.media)if(!identity(item)||!['image','video'].includes(item.kind)||!Number.isSafeInteger(item.width)||item.width<1||!Number.isSafeInteger(item.height)||item.height<1||item.kind==='video'&&(!Number.isFinite(item.durationSeconds)||item.durationSeconds<=0)||['focusX','focusY'].some(key=>item[key]!==undefined&&(!Number.isFinite(item[key])||item[key]<0||item[key]>1)))throw invalid();
+    if(g.music!==null&&(!identity(g.music)||!Number.isFinite(g.music.durationSeconds)||g.music.durationSeconds<=0||g.music.startFrame!==undefined&&(!Number.isSafeInteger(g.music.startFrame)||g.music.startFrame<0)))throw invalid();
+    if(new Set(g.files.map(file=>file?.path)).size!==g.files.length||g.files.some(file=>!file||Object.keys(file).length!==3||!text(file.path,4096)||!Number.isSafeInteger(file.size)||file.size<1||typeof file.sha256!=='string'||!/^[a-f0-9]{64}$/.test(file.sha256))||[...g.media,...g.music?[g.music]:[]].some(item=>!g.files.some(file=>file.path===item.path)))throw invalid();
+    const signature=JSON.stringify({media:g.media.map(item=>[item.resourceId,item.path,item.kind,item.width,item.height,item.kind==='video'?item.durationSeconds:null]),music:g.music?[g.music.resourceId,g.music.path,g.music.durationSeconds]:null});
+    if(signature!==g.signature)throw invalid();
+   }
+  }
   if(r.graphics!==undefined){
    if(!Array.isArray(r.graphics)||r.graphics.length>256||r.graphics.some(g=>!g||!Number.isSafeInteger(g.clipId)||g.clipId<0||typeof g.trackId!=='string'||!g.trackId||!Number.isSafeInteger(g.startFrame)||!Number.isSafeInteger(g.endFrame)||g.startFrame<0||g.endFrame<=g.startFrame||g.endFrame>r.durationFrames||!g.parameters||typeof g.parameters!=='object'||Array.isArray(g.parameters)||'tsxCode' in g))throw invalid();
    if(new Set(r.graphics.map(g=>g.clipId)).size!==r.graphics.length||r.graphics.some(g=>r.clips.some(c=>c.clipId===g.clipId)))throw invalid();
@@ -133,7 +151,7 @@ async function writeTemplateRunResult(selects,claim,result,json,encode) {
   let saved;
   if(status==='saved'){
    if(!('fps' in result)||!('durationFrames' in result)||!('frameSize' in result)||!('clips' in result)||typeof result.draftId!=='string'||!result.draftId)throw Error('Saved run receipt is incomplete');
-   saved={draftId:result.draftId,fps:result.fps,durationFrames:result.durationFrames,frameSize:result.frameSize,clips:result.clips,...'graphics' in result?{graphics:result.graphics}:{},...'transforms' in result?{transforms:result.transforms}:{},...'audio' in result?{audio:result.audio}:{},...'programs' in result?{programs:result.programs}:{},...'stateFile' in result?{stateFile:result.stateFile}:{}};
+   saved={draftId:result.draftId,fps:result.fps,durationFrames:result.durationFrames,frameSize:result.frameSize,clips:result.clips,...'graphics' in result?{graphics:result.graphics}:{},...'transforms' in result?{transforms:result.transforms}:{},...'audio' in result?{audio:result.audio}:{},...'programs' in result?{programs:result.programs}:{},...'stateFile' in result?{stateFile:result.stateFile}:{},...'sourceGuard' in result?{sourceGuard:result.sourceGuard}:{}};
   }
   const savedDraftId=status==='outcomeUnknown'?result.draftId:null;
   if(savedDraftId!=null&&(typeof savedDraftId!=='string'||!savedDraftId||savedDraftId.length>1024||savedDraftId.includes('\0')))throw Error('Invalid saved Draft identity');
@@ -245,25 +263,89 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
 // SDK-safe projection for an assembly receipt. Main media identity and frame
 // intervals, routing, source windows, transforms and Main audio are confirmed
 // here; this is not title/effect or other-track semantic approval.
-async function readTemplateAssemblyState(draft){
+async function readTemplateAssemblyState(draft,sources=null,observeSource=null){
  const meta=await draft.meta(),rows=await draft.clips({trackScope:'main'});
  if(!Number.isFinite(meta.fps)||meta.fps<=0||!Number.isSafeInteger(meta.frameSize?.width)||meta.frameSize.width<1||!Number.isSafeInteger(meta.frameSize?.height)||meta.frameSize.height<1||!Array.isArray(rows))throw Error('The assembled Draft metadata is incomplete.');
  const clips=[];
  for(const row of rows.filter(row=>row.resourceId!=null))clips.push({clipId:row.clipId,trackId:row.trackId,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,
   videoIndex:row.videoIndex??null,audioSourceIndexes:row.audioSourceIndexes??null,playbackSpeed:row.playbackSpeed??null,preserveAudioPitch:row.preserveAudioPitch??null,
-  source:await draft.clipSourceWindow(row),transform:await draft.clipTransform(row),audio:await draft.clipAudio(row)});
+  source:sources!==null?observeSource(sources,row):null,transform:await draft.clipTransform(row),audio:await draft.clipAudio(row)});
  clips.sort((a,b)=>a.clipId-b.clipId);
  if(!clips.length||clips.length>256||new Set(clips.map(c=>c.clipId)).size!==clips.length||clips.some(c=>!Number.isSafeInteger(c.clipId)||c.clipId<0||typeof c.trackId!=='string'||!c.trackId||typeof c.resourceId!=='string'||!c.resourceId||!Number.isSafeInteger(c.startFrame)||!Number.isSafeInteger(c.endFrame)||c.startFrame<0||c.endFrame<=c.startFrame))throw Error('The assembled Draft clips could not be confirmed.');
- const state={fps:meta.fps,durationFrames:Math.max(...clips.map(c=>c.endFrame)),frameSize:{width:meta.frameSize.width,height:meta.frameSize.height},clips};
+ const state={fps:meta.fps,durationFrames:Math.max(...clips.map(c=>c.endFrame)),frameSize:{width:meta.frameSize.width,height:meta.frameSize.height},clips,...sources===null?{sourcesPending:true}:{}};
  JSON.stringify(state,(_key,value)=>{if(typeof value==='number'&&!Number.isFinite(value)||['bigint','function','symbol'].includes(typeof value))throw Error('The assembly returned an invalid nonfinite or unsupported value.');return value;});
  return state;
 }
 
-async function readTemplateAssemblyFacts(selects,projectId,draftId,readState){
+async function readTemplateAssemblyFacts(selects,projectId,draftId,readState,sources=null,observeSource=null){
  if(typeof draftId!=='string'||!draftId)throw Error('The assembly returned no Draft identity.');
  const ids=(await selects.project(projectId).meta()).draftIds;
  if(!Array.isArray(ids)||!ids.includes(draftId))throw Error('The assembled Draft is not in its Project.');
- return {draftId,...await readState(selects.draft(draftId))};
+ return {draftId,...await readState(selects.draft(draftId),sources,observeSource)};
+}
+
+// The pending working snapshot stays immutable. Its source fields cannot be
+// treated as observations; the new, owner-bound guard records actual saved
+// sources only after they match the planner's separately named intent.
+function templatePendingSourceState(state){
+ return {...state,clips:state.clips.map(row=>({...row,source:null})),sourcesPending:true};
+}
+function templateSourceIntentState(intent,sources,observeSource){
+ if(!Array.isArray(intent)||!intent.length||intent.length>1000||!Array.isArray(sources?.clips)||sources.clips.length!==intent.length||typeof observeSource!=='function')throw Error('The planned source guard is incomplete.');
+ const ids=new Set(),clips=[];
+ const same=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=8*Number.EPSILON*Math.max(1,Math.abs(a),Math.abs(b));
+ for(const row of intent){
+  const key=JSON.stringify([row?.trackId,row?.clipId]),want=row?.source;
+  if(ids.has(key)||!Number.isSafeInteger(row?.clipId)||row.clipId<0||typeof row.trackId!=='string'||!row.trackId||!['main','video','audio'].includes(row.trackKind)||typeof row.resourceId!=='string'||!row.resourceId||!Number.isSafeInteger(row.startFrame)||!Number.isSafeInteger(row.endFrame)||row.startFrame<0||row.endFrame<=row.startFrame||want?.clipId!==row.clipId||!Number.isFinite(want.startSeconds)||want.startSeconds<0||!Number.isFinite(want.endSeconds)||want.endSeconds<=want.startSeconds)throw Error('The planned source intent is invalid.');
+  ids.add(key);
+  const actual=observeSource(sources,row),observed=sources.clips.find(c=>c.clipId===row.clipId&&c.trackId===row.trackId);
+  if(!same(actual.startSeconds,want.startSeconds)||!same(actual.endSeconds,want.endSeconds)||observed.playbackSpeed!==1)throw Error('The saved source differs from the original planned source window.');
+  clips.push({...row,source:actual,playbackSpeed:observed.playbackSpeed});
+ }
+ return clips;
+}
+// SDK-safe exclusive publication/readback. Existence alone proves nothing;
+// every caller compares all canonical bytes with a fresh file observation.
+async function templateSourceGuardFile(selects,guard,clips,stateFile,stateJSON,encode,fingerprint){
+ if(guard?.version!==1||typeof guard.owner!=='string'||typeof guard.path!=='string')throw Error('The source guard owner is invalid.');
+ const text=stateJSON({version:1,owner:guard.owner,clips});
+ if(!await selects.files.exists(guard.path)){
+  try{return await stateFile(selects,guard.path,text,encode,null,fingerprint);}
+  catch(error){if(!await selects.files.exists(guard.path))throw error;}
+ }
+ const observed=await fingerprint(selects.files,guard.path);
+ if(!observed)throw Error('The source guard file could not be observed.');
+ return stateFile(selects,guard.path,text,encode,{path:guard.path,...observed},fingerprint);
+}
+// Only a known historical read-only verifier receives this local adapter. It
+// shadows one saved target's missing source reader from an independent saved
+// observation; the SDK and private unsaved timing probes remain unchanged.
+function templateLegacySavedDraft(selects,draftId,sources,observeSource){
+ const reads=new Set(['meta','clips','motionGraphics','motionGraphicProgram','videoEffects','videoEffectProgram','clipTransform','clipAudio']);
+ return new Proxy(selects,{get(target,key){
+  if(key==='draft')return id=>{
+   const draft=target.draft(id);if(id!==draftId)return draft;
+   return new Proxy(draft,{has(handle,method){return method==='clipSourceWindow'||Reflect.has(handle,method);},get(handle,method){
+    if(method==='clipSourceWindow')return async row=>observeSource(sources,row);
+    if(!reads.has(method))throw Error('Historical source verification is read-only.');
+    const value=Reflect.get(handle,method,handle);return typeof value==='function'?value.bind(handle):value;
+   }});
+  };
+  const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;
+ }});
+}
+function templateObservationScript(source=null,sources=null,draftId=null){
+ const helpers=`const templateObservedSource=${templateObservedSource.toString()};const fingerprintTemplateFile=${fingerprintTemplateFile.toString()};`;
+ if(source===null&&sources===null&&draftId===null)return helpers;
+ if(typeof source!=='string'||!source||!Array.isArray(sources?.clips)||typeof sources.revision!=='string'||!sources.revision||typeof draftId!=='string'||!draftId)throw Error('Historical verification requires an independently observed saved target.');
+ return `${helpers}return await(async(selects)=>{${source}\n})((${templateLegacySavedDraft.toString()})(selects,${JSON.stringify(draftId)},${templateStateJSON(sources)},templateObservedSource));`;
+}
+async function templateStableSavedRead(sdk,projectId,draftId,libraryId,check,read){
+ check();const before=await readTemplateDraftSources(sdk,projectId,draftId,libraryId);check();
+ const result=await read(before);check();
+ const after=await readTemplateDraftSources(sdk,projectId,draftId,libraryId);check();
+ if(before.revision!==after.revision)throw templateRunIssue('TEMPLATE_RUN_INVALID','The saved Draft changed during source verification. Inspect it before retrying.');
+ return result;
 }
 
 // Extend the existing durable run owner for templates whose assembly script
@@ -285,32 +367,40 @@ async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent,o
  scope={pluginId:scope.pluginId,libraryId:target.owner.libraryId,projectId:scope.projectId,runId:scope.runId};
  const query=async script=>{check();const reply=await sdk.runScript({summary:'Confirm owned assembly Draft',allowCommit:false,script});check();if(reply.isError||!reply.result)fail('TEMPLATE_RUN_INVALID','The owned Draft could not be read back. Inspect it before starting another run.');return reply.result;};
  const verify=async receipt=>{
-  if(options.receiptOnly)return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,stateFile:receipt.stateFile??null,assemblyConfirmed:false};
+  if(options.receiptOnly)return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,stateFile:receipt.stateFile??null,sourceGuard:receipt.sourceGuard??null,assemblyConfirmed:false};
   check();const target=await sdk.call('getProjectDraftScaffold',scope.projectId);check();
   if(target?.owner?.projectId!==scope.projectId||target.owner.libraryId!==scope.libraryId)fail('TEMPLATE_RUN_TARGET','The assembly belongs to a different Project or library.');
-  const observed=await query(`return await (${readTemplateAssemblyFacts.toString()})(selects,${JSON.stringify(scope.projectId)},${JSON.stringify(receipt.draftId)},${readTemplateAssemblyState.toString()});`);
-  const expected={draftId:receipt.draftId,fps:receipt.fps,durationFrames:receipt.durationFrames,frameSize:receipt.frameSize,clips:receipt.clips};
-  if(templateRunJSON(observed)!==templateRunJSON(expected))fail('TEMPLATE_RUN_INVALID','The saved Draft has changed since its assembly receipt. Inspect it before starting another run.');
-  if(options.captureState&&!receipt.stateFile)fail('TEMPLATE_RUN_INVALID','This assembly has no complete state receipt. Inspect it before finishing.');
-  if(receipt.stateFile)await query(`await (${templateStateFile.toString()})(selects,${JSON.stringify(receipt.stateFile.path)},(${templateStateJSON.toString()})(await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(receipt.draftId)}))),${templateRunBase64.toString()},${JSON.stringify(receipt.stateFile)});return {verified:true};`);
-  return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,notes:[],assemblyConfirmed:true,...receipt.stateFile?{stateFile:receipt.stateFile}:{}};
+  return templateStableSavedRead(sdk,scope.projectId,receipt.draftId,scope.libraryId,check,async sources=>{
+   const observed=await query(`${templateObservationScript()}return await (${readTemplateAssemblyFacts.toString()})(selects,${JSON.stringify(scope.projectId)},${JSON.stringify(receipt.draftId)},${readTemplateAssemblyState.toString()},${templateStateJSON(sources)},templateObservedSource);`);
+   const expected={draftId:receipt.draftId,fps:receipt.fps,durationFrames:receipt.durationFrames,frameSize:receipt.frameSize,clips:receipt.clips,...receipt.sourceGuard?{sourcesPending:true}:{}};
+   let sourceClips;
+   if(receipt.sourceGuard){try{sourceClips=templateSourceIntentState(receipt.sourceGuard.intent,sources,templateObservedSource);}catch(cause){throw Object.assign(templateRunIssue('TEMPLATE_RUN_INVALID','The saved assembly source differs from its original plan.'),{cause});}}
+   if(templateRunJSON(receipt.sourceGuard?templatePendingSourceState(observed):observed)!==templateRunJSON(expected))fail('TEMPLATE_RUN_INVALID','The saved Draft has changed since its assembly receipt. Inspect it before starting another run.');
+   if(options.captureState&&!receipt.stateFile)fail('TEMPLATE_RUN_INVALID','This assembly has no complete state receipt. Inspect it before finishing.');
+   if(receipt.stateFile)await query(`${templateObservationScript()}const actual=await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(receipt.draftId)}),${templateStateJSON(sources)},templateObservedSource);await (${templateStateFile.toString()})(selects,${JSON.stringify(receipt.stateFile.path)},(${templateStateJSON.toString()})(${receipt.sourceGuard?`(${templatePendingSourceState.toString()})(actual)`:'actual'}),${templateRunBase64.toString()},${JSON.stringify(receipt.stateFile)},fingerprintTemplateFile);return {verified:true};`);
+   if(receipt.sourceGuard)await query(`${templateObservationScript()}await (${templateSourceGuardFile.toString()})(selects,${templateStateJSON(receipt.sourceGuard)},${templateStateJSON(sourceClips)},${templateStateFile.toString()},${templateStateJSON.toString()},${templateRunBase64.toString()},fingerprintTemplateFile);return {verified:true};`);
+   return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,notes:[],assemblyConfirmed:true,...receipt.stateFile?{stateFile:receipt.stateFile}:{},...receipt.sourceGuard?{sourceGuard:receipt.sourceGuard}:{}};
+  });
  };
  return executeTemplateRun(sdk,files,scope,request,isCurrent,async(claim,onDispatch)=>{
-  const capability=await sdk.runScript({summary:'Check assembly recovery support',allowCommit:false,script:`const p=selects.project(${JSON.stringify(scope.projectId)});const ids=(await p.meta()).draftIds;const d=ids?.length?selects.draft(ids[0]):await p.createDraft({name:'Template recovery support check'});return {supported:typeof d.clipSourceWindow==='function'&&typeof d.clipTransform==='function'&&typeof d.clipAudio==='function'};`});
+  const capability=await sdk.runScript({summary:'Check assembly recovery support',allowCommit:false,script:`const p=selects.project(${JSON.stringify(scope.projectId)});const ids=(await p.meta()).draftIds;const d=ids?.length?selects.draft(ids[0]):await p.createDraft({name:'Template recovery support check'});return {supported:typeof d.clipTransform==='function'&&typeof d.clipAudio==='function'};`});
   check();if(capability.isError||capability.result?.supported!==true)fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to confirm saved assembly state before retrying.');
   const body=source.replace('__CONFIG__',()=>`Object.assign(JSON.parse(${JSON.stringify(templateRunJSON(frozen,requestLimit))}),{__beforeCommit:__templateBeforeCommit})`);
-  const script=`return await(async(assemble,readFacts,readState,publish,json,encode,readFull,stateJSON,stateFile)=>{
-   let result,preparedState,preparedFull,snapshot,maySave=false;
+  const script=`return await(async(assemble,readFacts,readState,publish,json,encode,readFull,stateJSON,stateFile,fingerprint)=>{
+   let result,preparedState,preparedFull,snapshot,sourceGuard,maySave=false;
    try{
-    result=await assemble(async draft=>{
+    result=await assemble(async(draft,sourceIntent)=>{
      if(maySave)throw Error('The assembly pre-save hook ran more than once.');
      preparedState=await readState(draft);
-     json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:'x'.repeat(1024),...preparedState}});
+     if(!Array.isArray(sourceIntent)||!sourceIntent.length||sourceIntent.length>1000)throw Error('The assembly did not retain its planned source intent.');
+     const owner=JSON.parse(${templateRunJSON(claim)}.expectedText).owner;
+     sourceGuard={version:1,owner,path:${JSON.stringify(claim.path)}+'.sources-'+owner+'.json',intent:JSON.parse(json(sourceIntent))};
+     json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:'x'.repeat(1024),...preparedState,sourceGuard}});
      if(${options.captureState===true}){
       preparedFull=stateJSON(await readFull(draft));
       const path=${JSON.stringify(claim.path)}+'.state-'+JSON.parse(${templateRunJSON(claim)}.expectedText).owner+'.json';
-      json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:'x'.repeat(1024),...preparedState,stateFile:{path,size:preparedFull.length,sha256:'x'.repeat(64)}}});
-      snapshot=await stateFile(selects,path,preparedFull,encode);
+      json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:'x'.repeat(1024),...preparedState,sourceGuard,stateFile:{path,size:preparedFull.length,sha256:'x'.repeat(64)}}});
+      snapshot=await stateFile(selects,path,preparedFull,encode,null,fingerprint);
      }
      maySave=true;
     });
@@ -319,16 +409,16 @@ async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent,o
     const {draftId,...savedState}=facts;
     if(json(savedState)!==json(preparedState))throw Error('The saved Draft disagrees with its prepared state.');
     if(facts.fps!==result.fps||facts.durationFrames!==result.totalFrames)throw Error('The assembly result disagrees with its saved Draft.');
-    if(snapshot)await stateFile(selects,snapshot.path,stateJSON(await readFull(selects.draft(facts.draftId))),encode,snapshot);
-    const receipt=await publish(selects,${templateRunJSON(claim)},{status:'saved',...facts,...snapshot?{stateFile:snapshot}:{}},json,encode);
+    if(snapshot)await stateFile(selects,snapshot.path,stateJSON(await readFull(selects.draft(facts.draftId))),encode,snapshot,fingerprint);
+    const receipt=await publish(selects,${templateRunJSON(claim)},{status:'saved',...facts,sourceGuard,...snapshot?{stateFile:snapshot}:{}},json,encode);
     if(receipt.runReceiptSaved!==true)throw Error('The assembly receipt could not be confirmed.');
-    return {assembly:result,facts:{...facts,...snapshot?{stateFile:snapshot}:{}}};
+    return {assembly:result,facts:{...facts,sourceGuard,...snapshot?{stateFile:snapshot}:{}}};
    }catch(error){
     if(typeof result?.sequenceId==='string'&&result.sequenceId)await publish(selects,${templateRunJSON(claim)},{status:'outcomeUnknown',draftId:result.sequenceId},json,encode);
     else if(!maySave)await publish(selects,${templateRunJSON(claim)},{status:'notSaved'},json,encode);
     throw error;
    }
-  })(async(__templateBeforeCommit)=>{${body}},${readTemplateAssemblyFacts.toString()},${readTemplateAssemblyState.toString()},${writeTemplateRunResult.toString()},${templateRunJSON.toString()},${templateRunBase64.toString()},${readTemplateSavedState.toString()},${templateStateJSON.toString()},${templateStateFile.toString()});`;
+  })(async(__templateBeforeCommit)=>{${body}},${readTemplateAssemblyFacts.toString()},${readTemplateAssemblyState.toString()},${writeTemplateRunResult.toString()},${templateRunJSON.toString()},${templateRunBase64.toString()},${readTemplateSavedState.toString()},${templateStateJSON.toString()},${templateStateFile.toString()},${fingerprintTemplateFile.toString()});`;
   if(new TextEncoder().encode(script).length>256*1024)fail('TEMPLATE_RUN_INVALID','The assembly request exceeds the SDK transport limit.');
   await onDispatch();const reply=await sdk.runScript({summary:'Assemble template with owned receipt',allowCommit:true,script});
   if(reply.isError||!reply.result?.facts||!reply.result?.assembly)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The assembly response could not be confirmed. Inspect the Project before starting another run.'),{cause:Error(String(reply.output||'The SDK returned no complete assembly result.'))});
@@ -356,37 +446,53 @@ async function executeTemplateDecoration(sdk,files,pending,config,source,isCurre
  const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),n=>n.toString(16).padStart(2,'0')).join('');
  const rootScope={pluginId:pending.scope.pluginId,libraryId:target.owner.libraryId,projectId:pending.scope.projectId,runId:pending.scope.runId};
  const scope={...rootScope,runId:'look-'+await digest(templateRunJSON(rootScope))},request={phase:'decoration',draftId:base.sequenceId,recipeDigest:await digest(recipe),assemblyState:base.stateFile};
+ const query=async(script,summary)=>{check();const reply=await sdk.runScript({summary,allowCommit:false,script});check();if(reply.isError||reply.result?.verified!==true)fail('TEMPLATE_RUN_INVALID','The saved title/look state has changed or could not be read. Inspect the Draft before another run.');return reply.result;};
  const verify=async receipt=>{
   check();if(receipt.draftId!==frozen.sequenceId||!receipt.stateFile)fail('TEMPLATE_RUN_INVALID','The title/look receipt could not be verified.');
-  const script=`const p=selects.project(${JSON.stringify(scope.projectId)});if(!(await p.meta()).draftIds.includes(${JSON.stringify(receipt.draftId)}))throw Error('The title/look Draft is not in its Project.');await (${templateStateFile.toString()})(selects,${JSON.stringify(receipt.stateFile.path)},(${templateStateJSON.toString()})(await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(receipt.draftId)}))),${templateRunBase64.toString()},${JSON.stringify(receipt.stateFile)});return {verified:true};`;
-  const reply=await sdk.runScript({summary:'Confirm owned title and look',allowCommit:false,script});check();
-  if(reply.isError||reply.result?.verified!==true)fail('TEMPLATE_RUN_INVALID','The saved title/look state has changed or could not be read. Inspect the Draft before another run.');
-  return {sequenceId:receipt.draftId,fps:base.fps,totalFrames:base.totalFrames,decorationConfirmed:true};
+  return templateStableSavedRead(sdk,scope.projectId,receipt.draftId,scope.libraryId,check,async sources=>{
+   let sourceClips;
+   if(receipt.sourceGuard){try{sourceClips=templateSourceIntentState(receipt.sourceGuard.intent,sources,templateObservedSource);}catch(cause){throw Object.assign(templateRunIssue('TEMPLATE_RUN_INVALID','The saved title/look source differs from the original assembly.'),{cause});}}
+   await query(`${templateObservationScript()}const p=selects.project(${JSON.stringify(scope.projectId)});if(!(await p.meta()).draftIds.includes(${JSON.stringify(receipt.draftId)}))throw Error('The title/look Draft is not in its Project.');const actual=await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(receipt.draftId)}),${templateStateJSON(sources)},templateObservedSource);await (${templateStateFile.toString()})(selects,${JSON.stringify(receipt.stateFile.path)},(${templateStateJSON.toString()})(${receipt.sourceGuard?`(${templatePendingSourceState.toString()})(actual)`:'actual'}),${templateRunBase64.toString()},${JSON.stringify(receipt.stateFile)},fingerprintTemplateFile);return {verified:true};`,'Confirm owned title and look');
+   if(receipt.sourceGuard)await query(`${templateObservationScript()}await (${templateSourceGuardFile.toString()})(selects,${templateStateJSON(receipt.sourceGuard)},${templateStateJSON(sourceClips)},${templateStateFile.toString()},${templateStateJSON.toString()},${templateRunBase64.toString()},fingerprintTemplateFile);return {verified:true};`,'Confirm owned title/look sources');
+   return {sequenceId:receipt.draftId,fps:base.fps,totalFrames:base.totalFrames,decorationConfirmed:true};
+  });
  };
  const work=executeTemplateRun(sdk,files,scope,request,isCurrent,async(claim,onDispatch)=>{
-  const body=source.replace('__CONFIG__',()=>`Object.assign(JSON.parse(${JSON.stringify(templateStateJSON(frozen,262144))}),{__beforeCommit:__templateBeforeCommit})`);
-  const script=`return await(async(decorate,readFull,stateJSON,stateFile,publish,json,encode)=>{
-   let prepared,snapshot,maySave=false,preparedOnce=false;
+  // Bind the saved base before opening its working copy. This observation is
+  // not used as an observation of the later unsaved decoration.
+  let sources;try{sources=await templateStableSavedRead(sdk,scope.projectId,base.sequenceId,scope.libraryId,check,async sources=>{
+   if(base.sourceGuard)templateSourceIntentState(base.sourceGuard.intent,sources,templateObservedSource);
+   await query(`${templateObservationScript()}const actual=await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(base.sequenceId)}),${templateStateJSON(sources)},templateObservedSource);await (${templateStateFile.toString()})(selects,${JSON.stringify(base.stateFile.path)},(${templateStateJSON.toString()})(${base.sourceGuard?`(${templatePendingSourceState.toString()})(actual)`:'actual'}),${templateRunBase64.toString()},${JSON.stringify(base.stateFile)},fingerprintTemplateFile);return {verified:true};`,'Confirm original assembly before title and look');
+   return sources;
+  });}catch(cause){
+   if(cause?.code==='TEMPLATE_RUN_DETACHED')throw cause;
+   throw Object.assign(templateRunIssue('TEMPLATE_RUN_NOT_SAVED','The original assembly changed or could not be read before title and look.'),{cause});
+  }
+  const phaseIntent=base.sourceGuard?.intent??sources.clips.map(row=>({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,source:row.source}));
+  const body=source.replace('__CONFIG__',()=>`Object.assign(JSON.parse(${JSON.stringify(templateStateJSON(frozen,262144))}),{__sources:${templateStateJSON(sources)},__beforeCommit:__templateBeforeCommit})`);
+  const script=`${templateObservationScript()}return await(async(decorate,readFull,stateJSON,stateFile,publish,json,encode,fingerprint)=>{
+   let prepared,snapshot,sourceGuard,maySave=false,preparedOnce=false;
    try{
     const original=selects.draft(${JSON.stringify(frozen.sequenceId)});
     if(!(await selects.project(${JSON.stringify(scope.projectId)}).meta()).draftIds.includes(${JSON.stringify(frozen.sequenceId)}))throw Error('The title/look target is not in its Project.');
-    await stateFile(selects,${JSON.stringify(base.stateFile.path)},stateJSON(await readFull(original)),encode,${JSON.stringify(base.stateFile)});
+    await stateFile(selects,${JSON.stringify(base.stateFile.path)},stateJSON(${base.sourceGuard?'await readFull(original)':`await readFull(original,${templateStateJSON(sources)},templateObservedSource)`}),encode,${JSON.stringify(base.stateFile)},fingerprint);
     const result=await decorate(async(draft,committing)=>{
      if(preparedOnce)throw Error('The title/look pre-save hook ran more than once.');preparedOnce=true;
      prepared=await readFull(draft);const text=stateJSON(prepared),path=${JSON.stringify(claim.path)}+'.state-'+JSON.parse(${templateRunJSON(claim)}.expectedText).owner+'.json';
-     snapshot=await stateFile(selects,path,text,encode);
+     snapshot=await stateFile(selects,path,text,encode,null,fingerprint);
+     const owner=JSON.parse(${templateRunJSON(claim)}.expectedText).owner;sourceGuard={version:1,owner,path:${JSON.stringify(claim.path)}+'.sources-'+owner+'.json',intent:${templateStateJSON(phaseIntent)}};
      const clips=prepared.clips.filter(c=>c.trackKind==='main'&&c.resourceId).map(({clipId,trackId,resourceId,startFrame,endFrame})=>({clipId,trackId,resourceId,startFrame,endFrame}));
-     json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:${JSON.stringify(frozen.sequenceId)},fps:prepared.fps,durationFrames:prepared.durationFrames,frameSize:prepared.frameSize,clips,stateFile:snapshot}});
+     json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:${JSON.stringify(frozen.sequenceId)},fps:prepared.fps,durationFrames:prepared.durationFrames,frameSize:prepared.frameSize,clips,stateFile:snapshot,sourceGuard}});
      maySave=committing===true;
     });
     if(!preparedOnce)throw Error('The title/look operation skipped its pre-save hook.');
     const observed=await readFull(selects.draft(${JSON.stringify(frozen.sequenceId)}));
-    await stateFile(selects,snapshot.path,stateJSON(observed),encode,snapshot);
+    await stateFile(selects,snapshot.path,stateJSON(observed),encode,snapshot,fingerprint);
     const clips=observed.clips.filter(c=>c.trackKind==='main'&&c.resourceId).map(({clipId,trackId,resourceId,startFrame,endFrame})=>({clipId,trackId,resourceId,startFrame,endFrame}));
-    const facts={draftId:${JSON.stringify(frozen.sequenceId)},fps:observed.fps,durationFrames:observed.durationFrames,frameSize:observed.frameSize,clips,stateFile:snapshot};
+    const facts={draftId:${JSON.stringify(frozen.sequenceId)},fps:observed.fps,durationFrames:observed.durationFrames,frameSize:observed.frameSize,clips,stateFile:snapshot,sourceGuard};
     const receipt=await publish(selects,${templateRunJSON(claim)},{status:'saved',...facts},json,encode);if(!receipt.runReceiptSaved)throw Error('The title/look receipt could not be confirmed.');return {facts,result};
    }catch(error){await publish(selects,${templateRunJSON(claim)},{status:maySave?'outcomeUnknown':'notSaved',...maySave?{draftId:${JSON.stringify(frozen.sequenceId)}}:{}},json,encode);throw error;}
-  })(async(__templateBeforeCommit)=>{${body}},${readTemplateSavedState.toString()},${templateStateJSON.toString()},${templateStateFile.toString()},${writeTemplateRunResult.toString()},${templateRunJSON.toString()},${templateRunBase64.toString()});`;
+  })(async(__templateBeforeCommit)=>{${body}},${readTemplateSavedState.toString()},${templateStateJSON.toString()},${templateStateFile.toString()},${writeTemplateRunResult.toString()},${templateRunJSON.toString()},${templateRunBase64.toString()},${fingerprintTemplateFile.toString()});`;
   if(new TextEncoder().encode(script).length>262144)fail('TEMPLATE_RUN_INVALID','The title/look request exceeds the SDK transport limit.');
   await onDispatch();const reply=await sdk.runScript({summary:'Decorate template with owned receipt',allowCommit:true,script});
   if(reply.isError||!reply.result?.facts)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The title/look save is awaiting confirmation. Check the same run again.'),{draftId:frozen.sequenceId,cause:Error(String(reply.output||'No complete title/look result.'))});

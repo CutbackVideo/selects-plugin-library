@@ -61,3 +61,15 @@ for(const savedDraftId of ['',4,'x'.repeat(1025)])test('unknown-run saved identi
  const api=sourceAPI(),row={version:1,scope,requestDigest:'digest',owner:randomUUID(),status:'outcomeUnknown',savedDraftId};
  assert.throws(()=>api.validateTemplateRun(row,scope,'digest'),/verified/i);
 });
+
+test('Gallery source guard survives its durable receipt and validates metadata/file evidence independently of Vlog guards',async()=>{
+ const api=sourceAPI(),galleryScope={...scope,pluginId:'photo-gallery-no2'},media=Array.from({length:21},()=>({resourceId:'photo',path:'/photo.png',kind:'image',width:100,height:200,focusX:.5,focusY:.5}));
+ const guard={media,music:null,files:[{path:'/photo.png',size:12,sha256:'a'.repeat(64)}],signature:JSON.stringify({media:media.map(item=>[item.resourceId,item.path,item.kind,item.width,item.height,null]),music:null})};
+ const row={version:1,scope:galleryScope,requestDigest:'digest',owner:randomUUID(),status:'claimed'},claim={path:'/run',expectedText:api.templateRunJSON(row)};let written;
+ const selects={files:{compareAndReplace:async input=>{written=JSON.parse(Buffer.from(input.base64,'base64'));return {replaced:true};}}};
+ assert.equal((await api.writeTemplateRunResult(selects,claim,{...saved,sourceGuard:guard},api.templateRunJSON,api.templateRunBase64)).runReceiptSaved,true);
+ assert.deepEqual(JSON.parse(JSON.stringify(api.validateTemplateRun(written,galleryScope,'digest').result.sourceGuard)),guard);
+ for(const change of [g=>g.files[0].sha256='bad',g=>g.media[0].width=NaN,g=>g.media.push(g.media[0]),g=>g.signature+='x',g=>g.music={resourceId:'music',path:'/music.wav',durationSeconds:1},g=>g.files[0].size=-1]){
+  const bad=JSON.parse(JSON.stringify(written));change(bad.result.sourceGuard);assert.throws(()=>api.validateTemplateRun(bad,galleryScope,'digest'),/verified/);
+ }
+});

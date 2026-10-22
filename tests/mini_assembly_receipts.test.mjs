@@ -13,25 +13,32 @@ test('Mini Build: a lost assembly reply cannot adopt a same-name unrelated Draft
 });
 
 import fs from 'node:fs';
+import {sdkFreeHelpersSource,vlogOperation} from './sdk_free_helpers.mjs';
 import vm from 'node:vm';
 import path from 'node:path';
 import {webcrypto} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {holdFixture} from './gallery_hold_fixture.mjs';
-const runSource=fs.readFileSync(new URL('../shared/template-run.js',import.meta.url),'utf8');
-const assembly=fs.readFileSync(new URL('../plugins/mini-vlog/scripts/assemble.js',import.meta.url),'utf8');
+const runSource=sdkFreeHelpersSource()+'\n'+fs.readFileSync(new URL('../shared/template-run.js',import.meta.url),'utf8');
+const assembly=vlogOperation('mini-vlog','assemble');
 async function receiptFixture(t,{minify=false}={}){
  const f=await holdFixture(t),hooks={},requests=[],saved=new Map(),pending=[];let created=0,commits=0,probeSerial=0;
  const unrelated={id:'unrelated',name:'Same name',fps:30,frameSize:{width:1920,height:1080},clips:[{clipId:0,trackId:'main',resourceId:'foreign',startFrame:0,endFrame:30}]};saved.set(unrelated.id,unrelated);
  const project={meta:async()=>({draftIds:[...saved.keys()]}),createDraft:async({name})=>{
   const data={id:name==='Mini source timing check'?'probe-'+ ++probeSerial:'owned-'+(++created),name,fps:30,durationFrames:0,frameSize:{width:1920,height:1080},clips:[]};
   return {...reader(data),meta:async()=>data,setFrameSize:async size=>{data.frameSize=size;},clips:async()=>data.clips,
-   insertResource:async({resourceId,sourceRange})=>{const startFrame=data.clips.at(-1)?.endFrame??0;data.clips.push({clipId:data.clips.length,trackId:'main',trackKind:'main',resourceId,sourceStartSeconds:sourceRange.startSeconds,startFrame,endFrame:startFrame+Math.round((sourceRange.endSeconds-sourceRange.startSeconds)*data.fps)});data.durationFrames=data.clips.at(-1).endFrame;},
+   insertResource:async({resourceId,sourceRange})=>{const startFrame=data.clips.at(-1)?.endFrame??0;data.clips.push({clipId:data.clips.length,trackId:'main',trackKind:'main',resourceId,sourceStartSeconds:sourceRange.startSeconds,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true,startFrame,endFrame:startFrame+Math.round((sourceRange.endSeconds-sourceRange.startSeconds)*data.fps)});data.durationFrames=data.clips.at(-1).endFrame;},
    setClipTransform:async({clip,scale})=>{data.clips.find(c=>c.clipId===clip.clipId).scale=scale.x;},setClipAudio:async()=>{},commitAll:async()=>{commits++;saved.set(data.id,data);await hooks.commit?.(data);return {createdDraftId:data.id};}};
  }};
- const reader=row=>({meta:async()=>row,clips:async()=>row.clips,clipSourceWindow:async clip=>({startSeconds:clip.sourceStartSeconds??0,endSeconds:(clip.sourceStartSeconds??0)+(clip.endFrame-clip.startFrame)/30,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true}),clipTransform:async clip=>hooks.transform?hooks.transform():({enabled:true,scale:{x:clip.scale??1,y:clip.scale??1},position:{x:0,y:0},anchor:{x:0,y:0},rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[]}),clipAudio:async()=>({volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:0})});
+ const reader=row=>({meta:async()=>row,clips:async()=>row.clips,clipTransform:async clip=>hooks.transform?hooks.transform():({enabled:true,scale:{x:clip.scale??1,y:clip.scale??1},position:{x:0,y:0},anchor:{x:0,y:0},rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[]}),clipAudio:async()=>({volumeDb:0,volumeKeys:[],fadeInSeconds:0,fadeOutSeconds:0})});
  const selects={files:f.files,project:id=>{assert.equal(id,'p');return project;},draft:id=>{const row=saved.get(id);assert.ok(row);return reader(row);}};
- const sdk={call:async(method,id)=>{assert.equal(method,'getProjectDraftScaffold');assert.equal(id,'p');return {owner:{projectId:'p',libraryId:hooks.library??'library'}};},runScript:async input=>{
+ const sdk={call:async(method,id,draftId)=>{
+  const owner={projectId:'p',libraryId:hooks.library??'library'};
+  if(method==='getProjectDraftScaffold'){assert.equal(id,'p');return {owner};}
+  const key=method==='getDraftCore'?id:draftId,row=saved.get(key);assert.ok(row,'only saved fixture state is observable');
+  if(method==='getDraftCore')return {owner,sequenceJson:{...row,frameRate:30}};
+  assert.equal(method,'getDraftMediaSnapshot');return {revision:JSON.stringify(row),fps:30,durationFrames:row.durationFrames,clips:row.clips.map(clip=>({clipId:clip.clipId,trackId:clip.trackId,trackKind:clip.trackKind,resourceId:clip.resourceId,startFrame:clip.startFrame,endFrame:clip.endFrame,sourceStartSeconds:clip.sourceStartSeconds??0,sourceEndSeconds:(clip.sourceStartSeconds??0)+(clip.endFrame-clip.startFrame)/30,playbackSpeed:1}))};
+ },runScript:async input=>{
   requests.push(input);
   const work=(async()=>{try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.reply?.(input,result);return {result};}catch(e){return {isError:true,output:e.message};}})();
   if(input.allowCommit&&hooks.lostEarly){pending.push(work);return {isError:true,output:'response channel disconnected'};}return work;

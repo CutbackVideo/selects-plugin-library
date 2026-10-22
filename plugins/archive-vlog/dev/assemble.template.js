@@ -21,10 +21,11 @@ let fresh=null;const edited=()=>{fresh=null;};
 const all=async()=>fresh||(fresh=await d.clips({trackScope:'all'})),meta=()=>d.meta();
 const media=async()=> (await all()).filter(row=>['main','video','audio'].includes(row.trackKind));
 const find=async binding=>{const rows=await all(),row=rows.find(c=>c.clipId===binding.clipId&&c.trackId===binding.trackId);if(!row||row.resourceId!==binding.resourceId||row.startFrame!==binding.startFrame||row.endFrame!==binding.endFrame)throw Error('The planned placement changed.');return row;};
-const timeSame=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=8*Number.EPSILON*Math.max(1,Math.abs(a),Math.abs(b));
-const sourceMatches=async(binding,startSeconds)=>{
- const row=await find(binding),source=await d.clipSourceWindow(row),speed=row.playbackSpeed;
- if(speed&&(speed.numerator!==speed.denominator)||!source||!timeSame(source.startSeconds,startSeconds)||!timeSame(source.endSeconds,startSeconds+(row.endFrame-row.startFrame)/fps))throw Error('The planned source window changed during placement.');
+// The SDK can confirm placement and speed before save, but exposes no
+// working-copy source window. Its planned window is retained only as intent.
+const placementMatches=async binding=>{
+ const row=await find(binding),speed=row.playbackSpeed;
+ if(speed&&(speed.numerator!==speed.denominator))throw Error('The planned playback speed changed during placement.');
 };
 const offset=f=>archiveAssemblyOffset(cfg,f);
 const lay=async(rate,final)=>{
@@ -39,13 +40,13 @@ const lay=async(rate,final)=>{
   const insertedFrames=intent.insertedFrames;
   if(!Number.isSafeInteger(insertedFrames)||insertedFrames<want)throw Error('The native source interval cannot cover the plan.');
   const added=bindMediaPlacement(before,await media(),{resourceId:pick.rid,trackKind:'main',startFrame:endFrame,endFrame:endFrame+insertedFrames});
-  await sourceMatches(added,intent.sourceStart);
+  await placementMatches(added);
   if(insertedFrames>want){
    if(typeof d.trimBoundary!=='function')throw Error('Update Selects to trim a native interval to the planned cut.');
    await d.trimBoundary({frame:added.endFrame,side:'before',byFrames:want-insertedFrames});edited();
   }
   const placed=bindMediaPlacement(before,await media(),{resourceId:pick.rid,trackKind:'main',startFrame:endFrame,endFrame:targetEnd});
-  await sourceMatches(placed,intent.sourceStart);bindings.push({clipId:placed.clipId,trackId:placed.trackId,resourceId:placed.resourceId,startFrame:placed.startFrame,endFrame:placed.endFrame,sourceStart:intent.sourceStart});endFrame=targetEnd;
+  await placementMatches(placed);bindings.push({clipId:placed.clipId,trackId:placed.trackId,resourceId:placed.resourceId,startFrame:placed.startFrame,endFrame:placed.endFrame,sourceStart:intent.sourceStart});endFrame=targetEnd;
  }
  return null;
 };
@@ -68,7 +69,7 @@ if(cfg.clipSound==='ambient'){
  }
  if(failed)notes.push('the sound of '+failed+(failed===1?' clip':' clips')+' could not be lowered under the music');
 }
-let durationFrames=endFrame;
+let durationFrames=endFrame;const audioSourceIntents=[];
 if(cfg.music){
  const before=await media();
  await d.overlayResource({resource:p.resource(cfg.music.resourceId),over:await d.rangeAtFrames(0,durationFrames),sourceStartSeconds:cfg.music.sectionStart,playbackSpeed:{numerator:1,denominator:1}});edited();
@@ -77,7 +78,8 @@ if(cfg.music){
  const audio=[{clipId:added.clipId,trackId:added.trackId,trackKind:'audio',resourceId:cfg.music.resourceId,startFrame:0,endFrame:durationFrames,audioSourceIndexes:null,settings:{volumeDb:prior.volumeDb,volumeKeys:prior.volumeKeys,fadeInSeconds:0,fadeOutSeconds:Math.min(durationFrames,Math.round((cfg.musicFadeOut??1)*fps))/fps},source:{startSeconds:sourceStart,endSeconds:sourceStart+durationFrames/fps,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true}}];
  const current=(await all()).find(row=>row.clipId===added.clipId&&row.trackId===added.trackId);
  await d.setClipAudio({clip:current,fadeInSeconds:0,fadeOutSeconds:audio[0].settings.fadeOutSeconds});edited();
- await inspectImageAudio(d,audio,p,true);
+ await inspectImageAudio(d,audio,p,true,null);
+ audioSourceIntents.push({...added,source:{clipId:added.clipId,startSeconds:sourceStart,endSeconds:sourceStart+durationFrames/fps}});
 }
 // Bind the final working state to intent again, after every styling/sound edit.
 // Native insertion also carries chapter/subchapter metadata. Preserve it;
@@ -85,9 +87,12 @@ if(cfg.music){
 const finalRows=await all();if(finalRows.filter(row=>!['chapter','subchapter'].includes(row.trackKind)).length!==bindings.length+(cfg.music?1:0))throw Error('The assembly contains unexpected rows.');
 const main=finalRows.filter(row=>row.trackKind==='main'&&row.resourceId!=null),finalMeta=await meta();
 if(main.length!==bindings.length||finalMeta.fps!==fps||finalMeta.durationFrames!==durationFrames||finalMeta.frameSize.width!==W||finalMeta.frameSize.height!==H)throw Error('The final assembly frame grid or placement differs from the plan.');
-for(const binding of bindings)await sourceMatches(binding,binding.sourceStart);
+for(const binding of bindings)await placementMatches(binding);
 await inspectImageTransforms(d,transforms,true);
 await confirmAnalysisSources();
-const beforeCommit=Object(cfg).__beforeCommit;if(typeof beforeCommit==='function')await beforeCommit(d);
+const sourceIntents=[];
+for(const binding of bindings){const row=await find(binding);sourceIntents.push({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,source:{clipId:row.clipId,startSeconds:binding.sourceStart,endSeconds:binding.sourceStart+(row.endFrame-row.startFrame)/fps}});}
+for(const intent of audioSourceIntents)sourceIntents.push({clipId:intent.clipId,trackId:intent.trackId,trackKind:intent.trackKind,resourceId:intent.resourceId,startFrame:intent.startFrame,endFrame:intent.endFrame,source:intent.source});
+const beforeCommit=Object(cfg).__beforeCommit;if(typeof beforeCommit==='function')await beforeCommit(d,sourceIntents);
 const commit=await d.commitAll('Archive Vlog: assemble');
 return {sequenceId:commit.createdDraftId,fps,totalFrames:endFrame,placed:bindings.length,ambientClips,notes};
