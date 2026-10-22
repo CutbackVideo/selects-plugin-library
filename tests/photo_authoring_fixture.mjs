@@ -1,14 +1,19 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {webcrypto} from 'node:crypto';
+import {webcrypto,createHash} from 'node:crypto';
 import {loadPanelFunctions} from './windows_host.mjs';
 import {loadPanelOperation} from './panel_operation.mjs';
 // Independent client preset metadata: pin real controls and source size instead
 // of modelling only an empty Inspector. This is test data, never panel code.
 const presetSnapshot=JSON.parse(fs.readFileSync(new URL('./fixtures/photo-program-presets.json',import.meta.url),'utf8'));
+export function canonicalPhotoPanel(source){
+ const authoring=fs.readFileSync(new URL('../shared/native-image-authoring.js',import.meta.url),'utf8');
+ const observation=fs.readFileSync(process.env.PHOTO_OBSERVATION_SOURCE||new URL('../shared/draft-observation.js',import.meta.url),'utf8');
+ return source.replace(/\/\/ native-image-authoring:start\n[\s\S]*?\/\/ native-image-authoring:end/,'// native-image-authoring:start\n'+authoring+'// native-image-authoring:end')+'\n'+observation;
+}
 
-export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceiptOnly=false,commitReplyLost=false,projectTitle='Fixture Project',graphicsReadSupported=true,transformReadSupported=true,audioReadSupported=true,sourceReadSupported=true,programReadSupported=true}={}){
+export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceiptOnly=false,commitReplyLost=false,projectTitle='Fixture Project',graphicsReadSupported=true,transformReadSupported=true,audioReadSupported=true,sourceReadSupported=true,programReadSupported=true,canonicalAuthoring=process.env.PHOTO_CANONICAL_AUTHORING==='1'}={}){
  const count=id==='polaroid-photo-dump'?17:id==='camera-shutter-dump'?12:4,photos=Array.from({length:count},(_,i)=>({resourceId:'r'+i,name:'Photo '+i,path:'/photos/'+i+'.png'}));
  const resources=[...photos.map(p=>({...p,type:'Image'})),...Array.from({length:6},(_,i)=>({resourceId:'a'+i,name:'Sound '+i,type:'Audio',durationSeconds:10}))];
  const nodes=resources.map(r=>({...r,type:r.type.toLowerCase(),path:r.path||'/audio/'+r.name+'.wav',frameSize:{width:640,height:960},durationSeconds:10}));
@@ -42,10 +47,27 @@ export function fixture(id,{failEffect=false,tamperSaved=false,fps=30,newReceipt
  const hostFiles=new Map([['/user/.selects/skills/'+id+'/assets/music.mp3',Buffer.from('fixture music')]]);
  const sdk={environment:{platform:'darwin'},files:{join:(...parts)=>parts.join('/'),homedir:()=>'/user',exists:async path=>hostFiles.has(path),mkdir:async()=>{},stat:async path=>hostFiles.has(path)?{size:hostFiles.get(path).length,isDirectory:false}:null,readFile:async(path,encoding)=>{if(!hostFiles.has(path))throw Error('ENOENT');return encoding==='utf8'?hostFiles.get(path).toString():new Uint8Array(hostFiles.get(path));},writeFile:async(path,bytes)=>{hostFiles.set(path,Buffer.from(bytes));}},runScript:async input=>{calls.push(input);try{const result=await vm.runInNewContext('(async()=>{'+input.script+'})()',{selects});await hooks.afterScript?.(input);return {result};}catch(error){return {isError:true,output:error.message};}}};
  sdk.files.readRange=async(path,offset,length)=>{if(!hostFiles.has(path))throw Error('ENOENT');return new Uint8Array(hostFiles.get(path).subarray(offset,offset+length));};
- const source=fs.readFileSync(id==='polaroid-photo-dump'&&process.env.PHOTO_AUTHORING_PANEL||new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
+ sdk.call=async(method,...args)=>{
+  await hooks.beforeBridge?.(method,...args);
+  if(method==='getProjectDraftScaffold')return {owner:{libraryId:'library',projectId:args[0]}};
+  if(method==='getDraftCore'){
+   const draftId=args[0],state=saved.get(draftId);assert.ok(state,'Only persisted Drafts can be inspected by the bridge.');
+   return {owner:{projectId:'p',libraryId:'library'},sequenceJson:{schema:'Cutback.Timeline.1',id:draftId,libraryId:'library',frameRate:state.fps,...structuredClone(state)},isEditedDraft:true};
+  }
+  if(method==='getDraftMediaSnapshot'){
+   const [projectId,draftId]=args;assert.equal(projectId,'p');const state=saved.get(draftId);assert.ok(state,'Only persisted Drafts can be inspected by the bridge.');
+   const result={revision:createHash('sha256').update(JSON.stringify(state)).digest('hex'),fps:state.fps,durationFrames:state.durationFrames,order:{},clips:state.clips.filter(row=>row.resourceId).map(row=>({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,sourceStartSeconds:row._source?.startSeconds,sourceEndSeconds:row._source?.endSeconds,playbackSpeed:row.playbackSpeed.numerator/row.playbackSpeed.denominator,media:{id:row.resourceId,type:resources.find(r=>r.resourceId===row.resourceId)?.type}}))};
+   await hooks.afterSourceSnapshot?.(result);return structuredClone(result);
+  }
+  throw Error('Unexpected SDK call '+method);
+ };
+ let source=fs.readFileSync(id==='polaroid-photo-dump'&&process.env.PHOTO_AUTHORING_PANEL||new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
+ if(canonicalAuthoring){
+  source=canonicalPhotoPanel(source);
+ }
  const common=['nativeImageSources','nativeImageRun','prepareNativeImages','nativeImagePlacement','placeNativeImages','readMediaPages'];
  const extra=id==='no14-still-video'?['INVENTORY','DECORATION_CODE','readProjectFps','createNo14Draft']:id==='four-photo-stop-motion'?['INVENTORY','EFFECT_CODE','OUTRO_CODE','inventory','ensureMusic','templateIssue','createPhotoDraft']:id==='polaroid-photo-dump'?['INVENTORY','PHOTO_EFFECT','FRAME_EFFECT','CAPTION_CODE','inventory','isPolaroidAssetPath','templateIssue','createPhotoDraft',...source.includes('function normalizeFinishForPlan(')?['normalizeFinishForPlan']:[]]:['INVENTORY','EFFECT_CODE','BURST_CODE','TEXT_CODE','samePath','inventory','createPhotoDraft'];
- const future=['bindMediaPlacement','placeWorkingCopyImages','authorAtomicImageDraft','buildAtomicImageDraftScript','verifyAtomicImageDraft','readImageDraftFps','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature','templateRunJSON','prepareBundledAudio','readBundledAudioResource'];
+ const future=['bindMediaPlacement','placeWorkingCopyImages','authorAtomicImageDraft','buildAtomicImageDraftScript','verifyAtomicImageDraft','readImageDraftFps','inspectImageGraphics','inspectImageTransforms','inspectImageAudio','imageProgramsFeature','templateRunJSON','prepareBundledAudio','readBundledAudioResource','readTemplateDraftSources','templateObservedSource'];
  const api=loadPanelFunctions(source,[...common,...extra,...future.filter(name=>source.includes('function '+name+'('))],{
   ...loadPanelOperation(id),crypto:webcrypto,SLOTS:count,DEFAULT_MUSIC:'off',ensureSounds:async()=>{imports++;return Object.fromEntries(Array.from({length:6},(_,i)=>['shutter.'+(i+1),'a'+i]));},
   // Asset preparation has separate compiled byte/import tests. This fixture

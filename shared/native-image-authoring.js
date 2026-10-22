@@ -79,13 +79,12 @@ async function inspectImageTransforms(draft,expected,includeMain=false){
  }
  return receipts;
 }
-async function inspectImageAudio(draft,expected,project,overlayOnly=false){
+async function inspectImageAudio(draft,expected,project,overlayOnly=false,observedSources=null,readSource=null){
  const mismatch=message=>Object.assign(Error(message),{code:'IMAGE_AUDIO_MISMATCH'});
  const rows=(await draft.clips({trackScope:'all'})).filter(row=>row.trackKind==='audio'||!overlayOnly&&row.trackKind==='main'&&row.resourceId);
  if(!Array.isArray(expected)||rows.length!==expected.length||new Set(expected.map(row=>row.clipId)).size!==expected.length)throw mismatch('Audio clip count could not be confirmed.');
  if(!expected.length)return [];
  if(!('clipAudio' in draft))throw Error('Update Selects to verify Audio settings.');
- if(!('clipSourceWindow' in draft)||typeof draft.clipSourceWindow!=='function')throw Error('Update Selects to verify Audio source timing.');
  const types=new Map((await project.resources()).map(row=>[row.resourceId,row.type])),receipts=[];
  const same=(a,b)=>{
   if(typeof a==='number'||typeof b==='number')return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=1e-8*Math.max(1,Math.abs(b));
@@ -100,11 +99,19 @@ async function inspectImageAudio(draft,expected,project,overlayOnly=false){
   if(!actual||actual.clipId!==row.clipId||!Object.entries(settings).every(([key,value])=>same(actual[key],value)))throw mismatch('Audio volume or fades could not be confirmed.');
   if(!wanted.source||!Number.isFinite(wanted.source.startSeconds)||wanted.source.startSeconds<0||!Number.isFinite(wanted.source.endSeconds)||wanted.source.endSeconds<=wanted.source.startSeconds)throw Error('Audio source evidence is unavailable.');
   const source={startSeconds:wanted.source.startSeconds,endSeconds:wanted.source.endSeconds,playbackSpeed:{numerator:1,denominator:1},preserveAudioPitch:true,...wanted.source};
+  if(!Number.isSafeInteger(source.playbackSpeed?.numerator)||source.playbackSpeed.numerator<1||!Number.isSafeInteger(source.playbackSpeed?.denominator)||source.playbackSpeed.denominator<1||typeof source.preserveAudioPitch!=='boolean')throw Error('Audio source evidence is invalid.');
+  if(row.playbackSpeed?.numerator!==source.playbackSpeed.numerator||row.playbackSpeed?.denominator!==source.playbackSpeed.denominator||row.preserveAudioPitch!==source.preserveAudioPitch)throw mismatch('Audio playback policy could not be confirmed.');
   // Time uses floating-point arithmetic noise only, not the relative tolerance
   // used for level/fades. A small changed source instant must remain detectable.
   const timeSame=(a,b)=>Number.isFinite(a)&&Math.abs(a-b)<=8*Number.EPSILON*Math.max(1,Math.abs(a),Math.abs(b));
-  let observed;try{observed=await draft.clipSourceWindow(row);}catch(cause){throw Object.assign(Error('Audio source timing could not be confirmed.'),{cause});}
-  if(!observed||observed.clipId!==row.clipId||!timeSame(observed.startSeconds,source.startSeconds)||!timeSame(observed.endSeconds,source.endSeconds)||row.playbackSpeed?.numerator!==source.playbackSpeed.numerator||row.playbackSpeed?.denominator!==source.playbackSpeed.denominator||row.preserveAudioPitch!==source.preserveAudioPitch)throw mismatch('Audio source timing or playback policy could not be confirmed.');
+  // An unsaved working copy has no persisted source read. Keep the requested
+  // interval as intent; only saved verification supplies independently read
+  // sources. Never infer the source offset from timeline placement.
+  if(observedSources!==null){
+   if(typeof readSource!=='function')throw Error('Audio source observation is unavailable.');
+   let observed;try{observed=readSource(observedSources,row);}catch(cause){throw Object.assign(Error('Audio source timing could not be confirmed.'),{cause});}
+   if(!observed||observed.clipId!==row.clipId||!timeSame(observed.startSeconds,source.startSeconds)||!timeSame(observed.endSeconds,source.endSeconds))throw mismatch('Audio source timing could not be confirmed.');
+  }
   receipts.push({clipId:wanted.clipId,trackId:wanted.trackId,trackKind:wanted.trackKind,resourceId:wanted.resourceId,startFrame:wanted.startFrame,endFrame:wanted.endFrame,audioSourceIndexes:wanted.audioSourceIndexes,settings,source});
  }
  return receipts;
@@ -276,8 +283,15 @@ async function verifyAtomicImageDraft(sdk,projectId,result){
  if(!Array.isArray(audio))throw unverified('Saved Audio receipts are unavailable.');
  if(audio.some(row=>!row?.source))throw unverified('Saved Audio source evidence is unavailable.');
  if(!programs)throw unverified('Saved program receipts are unavailable.');
- let response;try{response=await sdk.runScript({summary:'Verify complete saved Image Draft',allowCommit:false,script:`const expected=${JSON.stringify(expected)};const project=selects.project(${JSON.stringify(projectId)});if(!(await project.meta()).draftIds.includes(expected.draftId))throw Error('Saved Draft is not in this Project');const draft=selects.draft(expected.draftId),meta=await draft.meta(),rows=await draft.clips({trackScope:'all'});if(meta.fps!==expected.fps||meta.durationFrames!==expected.durationFrames||meta.frameSize.width!==expected.frameSize.width||meta.frameSize.height!==expected.frameSize.height)throw Error('Saved Draft frame grid could not be confirmed');if(rows.filter(row=>row.trackKind==='video'&&row.resourceId).length!==expected.clips.length)throw Error('Saved Image count could not be confirmed');for(const wanted of expected.clips){const actual=rows.find(row=>row.clipId===wanted.clipId&&row.trackId===wanted.trackId);if(!actual||actual.resourceId!==wanted.resourceId||actual.startFrame!==wanted.startFrame||actual.endFrame!==wanted.endFrame)throw Error('Saved Image placement could not be confirmed');}await (${inspectImageGraphics.toString()})(draft,expected.graphics);await (${inspectImageTransforms.toString()})(draft,expected.transforms);await (${inspectImageAudio.toString()})(draft,expected.audio,project);await (${imageProgramsFeature.toString()})(selects).verify(draft,expected.programs);return {verified:true};`});}catch(cause){throw unverified(cause);}
- if(response?.isError||response?.result?.verified!==true)throw unverified(response?.output);
+ let response;try{
+  const sources=audio.length?await readTemplateDraftSources(sdk,projectId,draftId):null;
+  response=await sdk.runScript({summary:'Verify complete saved Image Draft',allowCommit:false,script:`const readSource=${sources?templateObservedSource.toString():'null'};const expected=${JSON.stringify(expected)};const project=selects.project(${JSON.stringify(projectId)});if(!(await project.meta()).draftIds.includes(expected.draftId))throw Error('Saved Draft is not in this Project');const draft=selects.draft(expected.draftId),meta=await draft.meta(),rows=await draft.clips({trackScope:'all'});if(meta.fps!==expected.fps||meta.durationFrames!==expected.durationFrames||meta.frameSize.width!==expected.frameSize.width||meta.frameSize.height!==expected.frameSize.height)throw Error('Saved Draft frame grid could not be confirmed');if(rows.filter(row=>row.trackKind==='video'&&row.resourceId).length!==expected.clips.length)throw Error('Saved Image count could not be confirmed');for(const wanted of expected.clips){const actual=rows.find(row=>row.clipId===wanted.clipId&&row.trackId===wanted.trackId);if(!actual||actual.resourceId!==wanted.resourceId||actual.startFrame!==wanted.startFrame||actual.endFrame!==wanted.endFrame)throw Error('Saved Image placement could not be confirmed');}await (${inspectImageGraphics.toString()})(draft,expected.graphics);await (${inspectImageTransforms.toString()})(draft,expected.transforms);await (${inspectImageAudio.toString()})(draft,expected.audio,project,false,${JSON.stringify(sources)},readSource);await (${imageProgramsFeature.toString()})(selects).verify(draft,expected.programs);return {verified:true};`});
+  if(response?.isError||response?.result?.verified!==true)throw Error('The saved Draft inspection did not complete.');
+  if(sources){
+   const after=await readTemplateDraftSources(sdk,projectId,draftId,sources.owner?.libraryId??null);
+   if(JSON.stringify(after)!==JSON.stringify(sources))throw Error('The saved Draft changed during source verification.');
+  }
+ }catch(cause){throw unverified(cause);}
  return result;
 }
 async function readImageDraftFps(sdk,projectId,draftId=null){

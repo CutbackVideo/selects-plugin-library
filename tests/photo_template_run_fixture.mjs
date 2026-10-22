@@ -2,12 +2,13 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {createRequire} from 'node:module';
 import {webcrypto} from 'node:crypto';
-import {fixture} from './photo_authoring_fixture.mjs';
+import {fixture,canonicalPhotoPanel} from './photo_authoring_fixture.mjs';
 import {galleryFixture} from './gallery_authoring_fixture.mjs';
 const require=createRequire(import.meta.url);
 const esbuild=require(process.env.SELECTS_ESBUILD||(process.env.SBS_PANEL_TEST_MODULES?process.env.SBS_PANEL_TEST_MODULES+'/esbuild':'esbuild'));
 const compiled=new Map();
 export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}){
+ options.canonicalAuthoring??=process.env.PHOTO_CANONICAL_AUTHORING==='1';
  const f=id==='photo-gallery-no2'?galleryFixture({fps:60,...options}):fixture(id,options),files=new Map(),finishes=[],hooks={},requests=[];
  const watchers=new Set(),notify=()=>{for(const watcher of watchers)watcher();};
  const plugin='/user/.selects/skills/'+id,data='/user/.selects/plugin-data/'+id;
@@ -36,7 +37,8 @@ export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}
   writeFile:async(p,text,opts)=>{await hooks.beforeWrite?.(p);if(opts?.flag==='wx'&&files.has(p))throw Error('EEXIST');files.set(p,Buffer.from(text));await hooks.afterWrite?.(p);},
   compareAndReplace:async(p,expected,next)=>{const actual=files.has(p)?files.get(p).toString('utf8'):null;if(actual!==expected)return false;files.set(p,Buffer.from(next));notify();return true;},
  }};
- f.sdk.call=async(method,pid)=>{if(method==='getProjectDraftScaffold')return {owner:{libraryId:'library',projectId:pid}};if(method==='listProjectResources')return f.resources;throw Error('Unexpected SDK call '+method);};
+ const readBridge=f.sdk.call;
+ f.sdk.call=async(method,...args)=>{if(method==='listProjectResources')return f.resources;return readBridge(method,...args);};
  f.sdk.finishTemplate=result=>{finishes.push(result);notify();};
  f.selects.files.writeChunk=async input=>{if(input.mode==='exclusive'&&files.has(input.path))throw Error('EEXIST');const bytes=Buffer.from(input.base64,'base64');files.set(input.path,bytes);return {bytesWritten:bytes.length};};
  f.selects.files.compareAndReplace=async input=>{
@@ -47,9 +49,10 @@ export function templateFixture(id,{minify=false,cryptoFault=null,...options}={}
  let effects,cleanups,cells,cursor;
  const React={useState:value=>{cursor++;return [value,()=>{}];},useRef:value=>{const index=cursor++;return cells[index]??(cells[index]={current:value});},useEffect:fn=>effects.push(fn)};
  const name=id==='photo-gallery-no2'?'GalleryTemplateRun':id==='no14-still-video'?'No14TemplateRun':'PhotoTemplateRun';
- const key=id+':'+minify;
+ const key=id+':'+minify+':'+!!options.canonicalAuthoring;
  if(!compiled.has(key)){
-  const source=fs.readFileSync(id==='photo-gallery-no2'&&process.env.GALLERY_TEMPLATE_PANEL||id==='polaroid-photo-dump'&&process.env.PHOTO_TEMPLATE_PANEL||new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
+  let source=fs.readFileSync(id==='photo-gallery-no2'&&process.env.GALLERY_TEMPLATE_PANEL||id==='polaroid-photo-dump'&&process.env.PHOTO_TEMPLATE_PANEL||new URL('../plugins/'+id+'/panel.tsx',import.meta.url),'utf8');
+  if(options.canonicalAuthoring&&id!=='photo-gallery-no2')source=canonicalPhotoPanel(source);
   // Only expose private entry points; the app-update guard has separate tests.
   const extra=`\nexport function __mount(props){useAppUpdateGuard=()=>{};${id==='photo-gallery-no2'?'hostUseSdk(props.sdk);':''}return ${name}(props);}export function __bind(sdk,local){panelLocalClients.set(sdk,local);}`;
   compiled.set(key,esbuild.transformSync(source+extra,{loader:'tsx',format:'cjs',target:'es2022',jsx:'automatic',minify}).code);
