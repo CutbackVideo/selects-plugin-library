@@ -157,8 +157,8 @@ test('templates use independent settings without renderer families',{skip:!modul
     const expected=structuredClone(design);
     // These presets intentionally opt into speaker-focused framing after migration.
     if(pack==='hankook-ilbo'&&['issue-broadcast','knowledge-exchange'].includes(design.id)){
-     expected.version+=2;
-     Object.assign(expected.layout,{reframe:true,reframePreset:'speaker',reframeFocus:'speaker',splitPolicy:'never',widePolicy:'never',reframePacing:'balanced',cropMotion:'fixed',cameraMode:'auto',closeUp:4.5,faceY:40});
+     expected.version+=3;
+     Object.assign(expected.layout,{reframe:true,reframePreset:'speaker',reframeFocus:'speaker',splitPolicy:'never',widePolicy:'never',reframePacing:'balanced',cropMotion:'fixed',cameraMode:'auto',closeUp:design.id==='issue-broadcast'?2.7:6.2,faceY:40});
     }
     assert.deepEqual(current,expected,key+': preserve the design and apply explicit framing preferences');
     assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);

@@ -1,6 +1,6 @@
 {
   "id": "panilgi",
-  "version": 3,
+  "version": 4,
   "names": {
     "ko": "\ud310\uc77d\uae30",
     "en": "Court Ruling Reader"
@@ -33,7 +33,8 @@
     "widePolicy": "never",
     "reframePacing": "balanced",
     "cropMotion": "fixed",
-    "cameraMode": "auto"
+    "cameraMode": "auto",
+    "closeUp": 3.35
   },
   "background": {
     "mode": "image",

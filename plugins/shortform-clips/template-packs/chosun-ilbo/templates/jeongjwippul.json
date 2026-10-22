@@ -1,6 +1,6 @@
 {
   "id": "jeongjwippul",
-  "version": 4,
+  "version": 5,
   "names": {
     "ko": "\uc815\uc950\ubfd4",
     "en": "Jeongjwippul"
@@ -27,7 +27,8 @@
     "widePolicy": "never",
     "reframePacing": "balanced",
     "cropMotion": "fixed",
-    "cameraMode": "auto"
+    "cameraMode": "auto",
+    "closeUp": 2.2
   },
   "background": {
     "mode": "color",

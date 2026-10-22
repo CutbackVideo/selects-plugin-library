@@ -8,9 +8,9 @@ test('editorial choices drive shared person geometry',{skip:!modules},async t=>{
  const L={windowTop:570,windowBottom:1178,widePolicy:'never',splitPolicy:'selective'},target=id=>({subjectId:id,refs:[id]});
  const plan=(style='speaker')=>({version:1,status:'planned',shots:[{startFrame:0,endFrame:90,compositionId:'fixed',layout:style,panels:style==='stacked'?['A','B'].map(id=>({camera:'0',targets:[target(id)]})):[{camera:'0',targets:style==='two-shot'?['A','B'].map(target):[target('A')]}]}]});
  const run=(p,layout=L,catalog=faces)=>{const a=f.sourceCompositionAdapter(p,[source],90,layout,catalog),r=f.resolveSourceComposition(a.shots,catalog,[source],90,layout);assert.deepEqual(r.limitations,[]);return f.checkSourceCompositionGeometry(f.compileSourceCropPlan(r.shots,[source],90,layout),layout);};
- await t.test('legacy zoom numbers do not influence agent-selected people geometry',()=>{
+ await t.test('agent zoom overrides remain ignored; template zoom controls single-person geometry',()=>{
   const expected=run(plan())[0].panels;
-  for(const closeUp of [2,4.5,12]){const p=plan();p.shots[0].panels[0].closeUp=closeUp;assert.deepEqual(run(p,{...L,closeUp,faceY:65})[0].panels,expected);}
+  for(const closeUp of [2,4.5,12]){const p=plan();p.shots[0].panels[0].closeUp=closeUp;assert.deepEqual(run(p,{...L,faceY:65})[0].panels,expected);}
  });
  await t.test('speaker excludes the distant neighbour while retaining measured head',()=>{
   const p=run(plan())[0].panels[0];assert.ok(p.cx+p.w/2<faces[1].box.xmin);assert.ok(p.cx-p.w/2<faces[0].box.xmin);
