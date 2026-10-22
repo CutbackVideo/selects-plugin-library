@@ -449,7 +449,7 @@ const STRINGS: Record<string, Strings> = {
     mode: "\uc124\uba85 \ubc29\uc2dd", art: "\ud654\ud48d", layout: "\ud654\uba74 \uad6c\uc131", autoMode: "\ub300\ubcf8\uc774 \uace0\ub984", autoStyle: "\uc124\uba85 \ubc29\uc2dd\uc5d0 \ub9de\ucda4",
     modeNames: { zoom: "\uc90c(\uc804\uccb4\uc5d0\uc11c \uc138\ubd80\ub85c)", myth: "\uc624\ud574\uc640 \uc0ac\uc2e4", timeline: "\uc2dc\uac04 \uc21c\uc11c", list: "\ub2e8\uacc4\u00b7\ubaa9\ub85d" },
     artNames: { medical: "3D \uc758\ud559 CG", everyday: "\uc77c\uc0c1 \uc2e4\uc0ac", character: "3D \uce90\ub9ad\ud130", infographic: "\uc778\ud3ec\uadf8\ub798\ud53d" },
-    layoutNames: { strip: "16:9 \ub760 \uce74\ub4dc", fullbleed: "\uc804\uccb4 \ud654\uba74 9:16", shortform: "\uc219\ud3fc(\uac80\uc740 \ub760)" },
+    layoutNames: { strip: "16:9 \ub760 \uce74\ub4dc", fullbleed: "\uc804\uccb4 \ud654\uba74 9:16", shortform: "\uc20f\ud3fc(\uac80\uc740 \ub760)" },
     shortformOpts: { top: "\uc704 \ub760 \ub192\uc774", bottom: "\uc544\ub798 \ub760 \ub192\uc774", offset: "\uc601\uc0c1 \uc138\ub85c \uc704\uce58", titleSize: "\uc81c\ubaa9 \ud06c\uae30(0 = \uc790\ub3d9)" },
     chosen: (m, a, l) => `\uc124\uba85: ${m} \u00b7 \ud654\ud48d: ${a} \u00b7 \ud654\uba74: ${l}`,
     preview: "\ub4dc\ub798\ud504\ud2b8 \ubbf8\ub9ac\ubcf4\uae30", noPreview: "\ubbf8\ub9ac\ubcf4\uae30\uac00 \uc544\uc9c1 \uc5c6\uc2b5\ub2c8\ub2e4. \ub4dc\ub798\ud504\ud2b8\ub97c \uc5f4\uc5b4 \ubcf4\uc138\uc694.",
