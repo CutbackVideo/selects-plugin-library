@@ -4,7 +4,11 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('agent composition plans deliver the clip when one composition is unusable',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild'),m={exports:{}};
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
- new Function('require','module','exports',esbuild.transformSync(src+'\nexport {runAgentReframing,sourceCompositionAdapter,sourceCompositionPrompt,salvageSourceComposition,resolveSourceComposition,sourceCropApplyScript};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
+ new Function('require','module','exports',esbuild.transformSync(src+'\nexport {runAgentReframing,sourceCompositionAdapter,sourceCompositionPrompt,salvageSourceComposition,resolveSourceComposition,sourceCropApplyScript,DraftResultCard,STRINGS,RESULT_STRINGS};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
+ const renderCard=report=>dep('react-dom/server').renderToStaticMarkup(dep('react').createElement(m.exports.DraftResultCard,{
+  draft:{draftId:'d',headline1:'Test',seconds:3,reframeState:'done',reframeReport:report},
+  current:false,opening:null,onOpen:()=>{},ui:{},S:m.exports.STRINGS.ko,R:m.exports.RESULT_STRINGS.ko,sdk:{},store:{},busy:false,
+ }));
  const baseline={meta:{durationFrames:90,fps:30,frameSize:{width:1080,height:1920}},words:[{text:'Hello',startFrame:0,endFrame:30,wordId:'w1',sourceResourceId:'r',sourceStartFrame:100,sourceEndFrame:130}],sources:[{resourceId:'r',meta:{frameSize:{width:1920,height:1080}}}]};
  const faces=[
   {id:'F1',resourceId:'r',draftFrame:20,draftStartFrame:0,draftEndFrame:90,box:{xmin:300,xmax:420,ymin:250,ymax:400}},
@@ -36,6 +40,8 @@ test('agent composition plans deliver the clip when one composition is unusable'
   assert.equal(report.status,'complete');
   assert.equal(r.state().applies,1);
   assert.equal(report.qualityStatus,'limited');
+  assert.equal(report.preservedAll,false);
+  assert.match(renderCard(report),/일부 구도 유지/);
   assert.deepEqual(report.appliedShots.map(s=>[s.startFrame,s.endFrame,s.style]),[[0,45,'speaker'],[45,90,'preserve']]);
   const preserved=report.preservedRanges.find(p=>p.startFrame===45&&p.endFrame===90);
   assert.ok(preserved,'the unusable composition is reported as a preserved range');
@@ -44,11 +50,16 @@ test('agent composition plans deliver the clip when one composition is unusable'
  });
 
  await t.test('a plan whose every composition is unusable still delivers the clip with existing framing',async()=>{
-  const r=await run(plan([{...missingRefs,startFrame:0}]));
+  const r=await run(plan([{...missingRefs,startFrame:0,endFrame:45,compositionId:'bad-1'},{...missingRefs,compositionId:'bad-2'}]));
   const report=await r.execute();
   assert.equal(report.status,'complete');
   assert.equal(report.qualityStatus,'limited');
-  assert.deepEqual(report.appliedShots.map(s=>s.style),['preserve']);
+  assert.deepEqual(report.appliedShots.map(s=>s.style),['preserve','preserve']);
+  assert.equal(report.preservedAll,true);
+  const card=renderCard(report);
+  assert.match(card,/기본 구도 유지/);
+  assert.doesNotMatch(card,/일부 구도 유지/);
+  assert.doesNotMatch(card, /disabled=""/);
  });
 
  await t.test('one observed face assigned to two people preserves both compositions involved',async()=>{
@@ -73,6 +84,8 @@ test('agent composition plans deliver the clip when one composition is unusable'
   const r=await run(plan([speaker(0,45,'left-solo','left','F1'),speaker(45,90,'right-solo','right','F2')]));
   const report=await r.execute();
   assert.equal(report.qualityStatus,'complete');
+  assert.equal(report.preservedAll,false);
+  assert.doesNotMatch(renderCard(report),/기본 구도 유지|일부 구도 유지/);
   assert.deepEqual(report.appliedShots.map(s=>s.style),['speaker','speaker']);
   assert.ok(!r.state().notes.some(n=>n.plan==='composition-preserved'));
  });
