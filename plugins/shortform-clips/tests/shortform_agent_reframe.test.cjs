@@ -4,7 +4,17 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('autonomous reframing contract',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild'),m={exports:{}};
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
- new Function('require','module','exports',esbuild.transformSync(src+'\nexport {runAgentReframing,parseAgentReframeReport,normalizeReframeWords,validateSpeakerEvidence};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
+ new Function('require','module','exports',esbuild.transformSync(src+'\nexport {FRAMING_WORDS_SCRIPT,runAgentReframing,parseAgentReframeReport,normalizeReframeWords,validateSpeakerEvidence};',{loader:'tsx',format:'cjs'}).code)(dep,m,m.exports);
+ await t.test('long framing reads omit editing spans while retaining timing and speaker facts',async()=>{
+  const word={text:'이유식',startFrame:0,endFrame:30,wordId:'w1',speakerId:1,speakerName:'Speaker',sourceResourceId:'source',sourceStartFrame:100,sourceEndFrame:130};
+  const words=Array.from({length:400},(_,i)=>({...word,wordId:'w'+i,span:{owner:'x'.repeat(2000)},within:{owner:'y'.repeat(2000)}}));
+  const execute=new Function('d','return (async()=>'+m.exports.FRAMING_WORDS_SCRIPT+')()');
+  const compact=await execute({words:async()=>words});
+  assert.deepEqual(compact,words.map(({span,within,...facts})=>facts));
+  assert.ok(Buffer.byteLength(JSON.stringify({words}))>262144);
+  assert.ok(Buffer.byteLength(JSON.stringify({words:compact},null,2))<262144);
+  assert.ok(!src.includes('words:await d.words()'),'baseline and verification reads must both omit Span objects');
+ });
  const baseline={meta:{durationFrames:90,fps:30,frameSize:{width:1080,height:1920}},words:[{text:'Hello',startFrame:0,endFrame:30,wordId:'w1',sourceResourceId:'r',sourceStartFrame:100,sourceEndFrame:130}],sources:[{resourceId:'r',meta:{frameSize:{width:1920,height:1080}}}]};
  const shot={startFrame:0,endFrame:90,resourceId:'r',style:'speaker',compositionId:'person',subjects:[{faceId:'F1'}]};
  const valid={version:1,draftId:'d',status:'planned',shots:[{startFrame:0,endFrame:90,compositionId:'person',layout:'speaker',panels:[{camera:'r',targets:[{subjectId:'person',refs:['F1']}]}]}],speakerEvidence:[{startFrame:0,endFrame:90,resourceId:'r',sourceFrames:[0,8,16],subject:'right person',basis:'mouth-motion',evidence:'sustained articulation'}]};

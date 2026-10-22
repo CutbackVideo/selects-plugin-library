@@ -3708,6 +3708,10 @@ function retainLockedCameraContext(previous:any,observations:any[],plan:any) {
   }
   return {observations:merged,plan:{...plan,shots:mergeLockedSourceShots(plan.shots,old)}};
 }
+// WordRow carries editing Span objects; baseline reads only need scalar facts.
+// Returning spans for a long clip can exceed run_script's result limit, leaving
+// sdk.runScript.result undefined even though the read itself succeeded.
+const FRAMING_WORDS_SCRIPT = `(await d.words()).map(({text,startFrame,endFrame,wordId,speakerId,speakerName,sourceResourceId,sourceStartFrame,sourceEndFrame})=>({text,startFrame,endFrame,wordId,speakerId,speakerName,sourceResourceId,sourceStartFrame,sourceEndFrame}))`;
 function framingWordsKey(words:any[]) {
   return JSON.stringify(normalizeReframeWords(words.map(({text,startFrame,endFrame,wordId,sourceResourceId,sourceStartFrame,sourceEndFrame}:any)=>({text,startFrame,endFrame,wordId,sourceResourceId,sourceStartFrame,sourceEndFrame}))));
 }
@@ -9762,7 +9766,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
 
   async function runTemplateReframing(draftId:string,job:any,tpl:any,note:(e:any)=>void,work:ReturnType<typeof createReframeWork>,previousEdit?:any) {
     const id=JSON.stringify(draftId);
-    const before=await script(`const d=selects.draft(${id}); return {meta:await d.meta(),words:await d.words()};`,"Read framing baseline");
+    const before=await script(`const d=selects.draft(${id}); return {meta:await d.meta(),words:${FRAMING_WORDS_SCRIPT}};`,"Read framing baseline");
     if(previousEdit?.plan?.shots?.some((s:any)=>s.locked)){
       if(previousEdit.duration!==before.meta.durationFrames||previousEdit.fps!==before.meta.fps||previousEdit.words&&framingWordsKey(previousEdit.words)!==framingWordsKey(before.words))throw Error('Locked shots no longer match the Draft. Unlock or restore the original timing first.');
       if(previousEdit.mediaKey&&previousEdit.mediaKey!==framingMediaKey(await guard(sdk.call('getDraftMediaSnapshot',projectId,draftId))))throw Error('Locked shots no longer match the source footage.');
@@ -9785,7 +9789,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       return script(SCRIPT_APPLY_REFRAME.replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';'),'Apply template camera plan',true);
     }));
     note({plan:'stage',stage:'verify'});
-    const after=await script(`const d=selects.draft(${id}); return {meta:await d.meta(),words:await d.words()};`,"Verify framing timing");
+    const after=await script(`const d=selects.draft(${id}); return {meta:await d.meta(),words:${FRAMING_WORDS_SCRIPT}};`,"Verify framing timing");
     const speech=(ws:any[])=>normalizeReframeWords(ws.map(w=>({text:w.text,startFrame:w.startFrame,endFrame:w.endFrame,wordId:w.wordId,sourceResourceId:w.sourceResourceId,sourceStartFrame:w.sourceStartFrame,sourceEndFrame:w.sourceEndFrame})));
     if(before.meta.durationFrames!==after.meta.durationFrames||JSON.stringify(speech(before.words))!==JSON.stringify(speech(after.words))) throw new Error('Framing changed speech or timing; inspect the saved Draft.');
     const frames=cameraReviewFrames(camera.cameraPanels,after.meta.durationFrames);
@@ -10449,7 +10453,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
     const context=draft.framingEditPending||draft.reframeReport?.editContext;
     if(!context||job.projectId!==projectId)throw Error('Framing context is unavailable');
     overlayLock.current=true;setBusy(true);
-    const read=`const p=selects.project(${JSON.stringify(projectId)});if(!(await p.meta()).draftIds.includes(${JSON.stringify(draft.draftId)}))throw Error('Draft ownership changed');const d=selects.draft(${JSON.stringify(draft.draftId)});return {meta:await d.meta(),words:await d.words()};`;
+    const read=`const p=selects.project(${JSON.stringify(projectId)});if(!(await p.meta()).draftIds.includes(${JSON.stringify(draft.draftId)}))throw Error('Draft ownership changed');const d=selects.draft(${JSON.stringify(draft.draftId)});return {meta:await d.meta(),words:${FRAMING_WORDS_SCRIPT}};`;
     try {
       const before=await script(read,'Check framing edit target');
       if(before.meta.durationFrames!==context.duration||before.meta.fps!==context.fps)throw Error('Draft timing changed. Reframe before editing this shot.');
