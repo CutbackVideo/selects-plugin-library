@@ -240,6 +240,13 @@ const STRINGS: any = {
     editing: "Editing",
     removeFillers: "Remove filler words",
     removeSilences: "Tighten pauses",
+    music: "Background music",
+    musicPath: "Music file path",
+    musicHint: "Absolute path (or starting with ~/) of one audio file on this computer. It is added under the dialogue of every clip and repeated or trimmed to fit. Leave empty for no music.",
+    musicMissing: (path: string) => `Background music file not found: ${path}. The clips were made without music.`,
+    musicImportFailed: (path: string) => `The background music could not be imported: ${path}. The clips were made without music.`,
+    musicTooShort: (path: string) => `The background music is shorter than 2 seconds: ${path}. The clips were made without music.`,
+    musicFailed: (n: number, why: string) => `Background music was not added to clip ${n}: ${why}`,
     prompt: "Passage selection",
     promptHint: "Instructions to the AI, in the language of the video. The answer format and timing rules are fixed by the app.",
     role: "Role",
@@ -438,6 +445,13 @@ const STRINGS: any = {
     editing: "\ud3b8\uc9d1",
     removeFillers: "\uad70\ub354\ub354\uae30 \ub9d0 \ube7c\uae30",
     removeSilences: "\ub9d0 \uc0ac\uc774 \uacf5\ubc31 \uc904\uc774\uae30",
+    music: "\ubc30\uacbd\uc74c\uc545",
+    musicPath: "\uc74c\uc6d0 \ud30c\uc77c \uacbd\ub85c",
+    musicHint: "\uc774 \ucef4\ud4e8\ud130\uc5d0 \uc788\ub294 \uc624\ub514\uc624 \ud30c\uc77c 1\uac1c\uc758 \uc808\ub300 \uacbd\ub85c(\ub610\ub294 ~/\ub85c \uc2dc\uc791)\ub97c \uc801\uc73c\uc138\uc694. \ubaa8\ub4e0 \ud074\ub9bd\uc758 \ub300\uc0ac \uc544\ub798\uc5d0 \uae54\ub9ac\uace0, \uae38\uc774\uc5d0 \ub9de\uac8c \uc790\ub974\uac70\ub098 \ubc18\ubcf5\ud569\ub2c8\ub2e4. \ube44\uc6cc \ub450\uba74 \uc74c\uc545\uc744 \ub123\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
+    musicMissing: (path: string) => `\ubc30\uacbd\uc74c\uc545 \ud30c\uc77c\uc744 \ucc3e\uc9c0 \ubabb\ud568: ${path}. \uc74c\uc545 \uc5c6\uc774 \ud074\ub9bd\uc744 \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.`,
+    musicImportFailed: (path: string) => `\ubc30\uacbd\uc74c\uc545\uc744 \uac00\uc838\uc624\uc9c0 \ubabb\ud568: ${path}. \uc74c\uc545 \uc5c6\uc774 \ud074\ub9bd\uc744 \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.`,
+    musicTooShort: (path: string) => `\ubc30\uacbd\uc74c\uc545\uc774 2\ucd08\ubcf4\ub2e4 \uc9e7\uc74c: ${path}. \uc74c\uc545 \uc5c6\uc774 \ud074\ub9bd\uc744 \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.`,
+    musicFailed: (n: number, why: string) => `\ud074\ub9bd ${n}\uc5d0 \ubc30\uacbd\uc74c\uc545\uc744 \ub123\uc9c0 \ubabb\ud568: ${why}`,
     prompt: "\uad6c\uac04 \uc120\ud0dd",
     promptHint: "AI\uc5d0\uac8c \uc8fc\ub294 \uc9c0\uc2dc\ubb38\uc785\ub2c8\ub2e4. \uc601\uc0c1\uacfc \uac19\uc740 \uc5b8\uc5b4\ub85c \uc501\ub2c8\ub2e4. \ub2f5\ubcc0 \ud615\uc2dd\uacfc \uc2dc\uac04 \ub9de\ucda4 \uaddc\uce59\uc740 \uc571\uc774 \uc815\ud569\ub2c8\ub2e4.",
     role: "\uc5ed\ud560",
@@ -1080,6 +1094,7 @@ function validateTemplate(t: any, runtime = false) {
   safeJson(t);
   normalizeTemplateSettings(t);
   validateCoverSettings(t?.thumbnail);
+  validateMusicSettings(t?.music);
   if(t.landscape!==undefined){
     const l=t.landscape;
     packAssert(plainObject(l)&&l.version===1,'Unsupported landscape layout.');
@@ -1400,7 +1415,7 @@ function independentTemplateDesigns(value: any) {
   return [template];
 }
 const TEMPLATE_SHARE_MAX_BYTES = 256 * 1024 * 1024;
-const TEMPLATE_SHARE_FIELDS = ["schemaVersion","version","platformLayouts","names","name","detect","layout","background","border","headline","logo","captions","editing","prompt","variants","labels","thumbnail","editorial","landscape"];
+const TEMPLATE_SHARE_FIELDS = ["schemaVersion","version","platformLayouts","names","name","detect","layout","background","border","headline","logo","captions","editing","prompt","variants","labels","thumbnail","music","editorial","landscape"];
 function portableTemplate(value: any) {
   safeJson(value);
   value = normalizeTemplateSettings(clone(value));
@@ -2485,6 +2500,66 @@ async function templateBuildScript(build:string,params:any,store:any,path:string
   await store.fs.writeFile(path,enc(ascii));
   const loader=`const P: any = await (async()=>{const path=${JSON.stringify(path)},size=${ascii.length},parts=[];const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';for(let offset=0;offset<size;offset+=49152){const row=await selects.files.readRange({path,offset,length:Math.min(49152,size-offset)});const s=row.base64;let text='',bits=0,value=0;for(const c of s){if(c==='=')break;const n=alphabet.indexOf(c);if(n<0)throw Error('Invalid settings file encoding');value=(value<<6)|n;bits+=6;if(bits>=8){bits-=8;text+=String.fromCharCode((value>>>bits)&255);}}parts.push(text);}const text=parts.join('');if(text.length!==size)throw Error('Incomplete template settings file');return JSON.parse(text);})();`;
   return build.replace('const P: any = __P__;',loader);
+}
+
+// ---- Template background music ----
+// Volume of the music bed under dialogue. Same value as MUSIC.levelDb in plugins/jude-kinetic-style.
+const MUSIC_LEVEL_DB = -5;
+const MUSIC_FADE_OUT_SECONDS = 2;
+const MUSIC_MIN_TRACK_SECONDS = 2;
+function musicPath(template: any): string {
+  const path = template?.music?.path;
+  return typeof path === "string" ? path.trim() : "";
+}
+function validateMusicSettings(m: any) {
+  if (m === undefined) return;
+  packAssert(plainObject(m), "Invalid music settings.");
+  packAssert(typeof m.path === "string" && m.path.length <= 1024 && !/[\u0000-\u001f]/.test(m.path), "Invalid music path.");
+}
+// Finds the music file in the project by path, importing it only when absent, so one run (and any resume or retry) shares one resource.
+function musicImportScript(projectId: string, path: string) {
+  return `const p=selects.project(${JSON.stringify(projectId)}),env=await selects.files.environment();
+let want=${JSON.stringify(path)};
+if(want==='~'||want.startsWith('~/')||want.startsWith('~\\\\'))want=env.homedir+want.slice(1);
+if(!await selects.files.exists(want))return {status:'missing',path:want};
+const norm=(s:any)=>{const v=String(s||'').normalize('NFC').replace(/\\\\/g,'/');return env.platform==='win32'?v.toLowerCase():v;},key=norm(want);
+let found:any=null;
+const walk=(rows:any[])=>{for(const n of rows||[]){if(n.type==='dir')walk(n.children);else if(!found&&norm(n.path)===key)found=n;}};
+const tree:any=await p.sourceFiles();
+if(tree.fileTree)walk(tree.fileTree);else for(const f of tree.folders||[]){const page:any=await p.sourceFiles({folder:String(f.name)});walk(page.fileTree);}
+let id=found?found.resourceId:null;
+if(!id){const r=await p.importFiles({paths:[want]});id=r.addedResourceIds?.[0]||null;}
+if(!id)return {status:'failed',path:want};
+const row=(await p.resources()).find((x:any)=>x.resourceId===id),seconds=Number(row?.durationSeconds);
+if(!(seconds>0))return {status:'failed',path:want};
+return {status:'ready',resourceId:id,durationSeconds:seconds,path:want};`;
+}
+// Lays the music from 0 to the end of the main timeline, repeating a short file. A Draft that already holds exactly that layout is left alone.
+// previousResourceIds are music resources an earlier run placed in this Draft (for example before the path changed); their clips are replaced too.
+function musicPlaceScript(projectId: string, draftId: string, resourceId: string, trackSeconds: number, previousResourceIds: string[] = []) {
+  return `const p=selects.project(${JSON.stringify(projectId)}),rid=${JSON.stringify(resourceId)},stale=new Set(${JSON.stringify(previousResourceIds)}.filter((x:any)=>x&&x!==rid));
+if(!(await p.meta()).draftIds.includes(${JSON.stringify(draftId)}))throw Error('Draft project mismatch');
+const d=selects.draft(${JSON.stringify(draftId)}),fps=(await d.meta()).fps;
+let clips=await d.clips({trackScope:'all'});
+const end=clips.filter((c:any)=>c.trackKind==='main').reduce((a:number,c:any)=>Math.max(a,c.endFrame),0);
+if(end<=0)return {segments:0,placed:false};
+const trackFrames=Math.floor(${trackSeconds}*fps),segs:number[][]=[];
+if(trackFrames<=0)throw Error('The music file has no usable length.');
+for(let s=0;s<end;s+=trackFrames)segs.push([s,Math.min(end,s+trackFrames)]);
+const old=clips.filter((c:any)=>c.trackKind==='audio'&&c.resourceId===rid),prior=clips.filter((c:any)=>c.trackKind==='audio'&&stale.has(c.resourceId));
+if(!prior.length&&old.length===segs.length&&segs.every(([s,e]:number[])=>old.some((c:any)=>c.startFrame===s&&c.endFrame===e)))return {segments:segs.length,placed:false};
+if(old.length||prior.length)await d.removeClips([...old,...prior]);
+for(let i=0;i<segs.length;i++){
+ const [s,e]=segs[i],before=new Set((await d.clips({trackScope:'all'})).map((c:any)=>c.clipId));
+ await d.overlayResource({resource:p.resource(rid),over:await d.rangeAtFrames(s,e),sourceStartSeconds:0});
+ const fresh=(await d.clips({trackScope:'all'})).filter((c:any)=>!before.has(c.clipId));
+ const video=fresh.filter((c:any)=>c.trackKind==='video');if(video.length)await d.removeClips(video);
+ let audio=fresh.find((c:any)=>c.trackKind==='audio');if(!audio)throw Error('The music clip was not placed.');
+ if(audio.startFrame!==s){await d.moveOverlayClip({clip:audio,startFrame:s});audio=(await d.clips({trackScope:'all'})).find((c:any)=>c.clipId===audio.clipId);}
+ await d.setClipAudio({clip:audio,volumeDb:${MUSIC_LEVEL_DB},fadeInSeconds:0,fadeOutSeconds:i===segs.length-1?Math.min(${MUSIC_FADE_OUT_SECONDS},(e-s)/fps/2):0});
+}
+await d.commitAll('Shortform clip: background music');
+return {segments:segs.length,placed:true};`;
 }
 
 // Disposable display copies never replace the original stored in template settings.
@@ -6189,7 +6264,11 @@ function updateTemplateField(template: any, path: string, value: any) {
 function cleanTemplate(t: any) {
   const { builtIn, modified, packId, packVersion, ...rest } = normalizeTemplateSettings(clone(t));
   const tidy = (a: any) => (Array.isArray(a) ? a.map((x) => String(x).trim()).filter(Boolean) : []);
-  return { ...rest, detect: { ...rest.detect, keywords: tidy(rest.detect?.keywords), exclude: tidy(rest.detect?.exclude) } };
+  const cleaned = { ...rest, detect: { ...rest.detect, keywords: tidy(rest.detect?.keywords), exclude: tidy(rest.detect?.exclude) } };
+  // An emptied music path means no music; do not keep a stub section.
+  if (cleaned.music && !musicPath(cleaned)) delete cleaned.music;
+  else if (cleaned.music) cleaned.music = { path: musicPath(cleaned) };
+  return cleaned;
 }
 
 function useTemplateDraft({ S, lang, templates, store, onChanged, onSavingChange, state }: any, profile: TemplateEditorProfile) {
@@ -6317,7 +6396,7 @@ function templateFields({ ui, edit, set, saving }: any) {
     return <ui.NumberField label={label} value={Number.isFinite(Number(v)) && v !== null && v !== "" ? Number(v) : dflt ?? min} min={min} max={max} step={1} unit={unit} onChange={(x: number) => set(path, Math.max(min, Math.min(max, Math.round(x))))} disabled={saving} />;
   };
   const text = (path: string, label: string, multiline = true) => {
-    const v = path.split(".").reduce((o: any, k) => o[k], edit);
+    const v = path.split(".").reduce((o: any, k) => o?.[k], edit);
     return <ui.TextField label={label} value={String(v ?? "")} onChange={(x: string) => set(path, x)} multiline={multiline} disabled={saving} />;
   };
   const list = (path: string, label: string) => {
@@ -6637,6 +6716,10 @@ function TemplateAISection({ ui, S, lang, draft }: any) {
       {!sceneTemplate(edit) && <ui.Section title={S.editing}>
         <ui.Toggle label={S.removeFillers} value={!!edit.editing.removeFillers} onChange={(v: boolean) => set("editing.removeFillers", v)} disabled={saving} />
         <ui.Toggle label={S.removeSilences} value={!!edit.editing.removeSilences} onChange={(v: boolean) => set("editing.removeSilences", v)} disabled={saving} />
+      </ui.Section>}
+      {!sceneTemplate(edit) && <ui.Section title={S.music}>
+        {text("music.path", S.musicPath, false)}
+        <small style={{color:"var(--panel-muted-fg)"}}>{S.musicHint}</small>
       </ui.Section>}
       <ui.Section title={S.detection}>
         {list("detect.keywords", S.keywords)}
@@ -9767,7 +9850,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
       if (!job) return;
       setDrafts(job.built.filter((d: any)=>d && !d.deleted));
       setInfo({ key: job.key, why: job.why, recommended: job.choice?.recommendedCount, countReason: job.choice?.countReason });
-      setWarn(job.resultWarning || "");
+      setWarn([job.resultWarning, job.musicWarning].filter(Boolean).join(" "));
       setStep(5);
     }).catch(() => {if(live && resultsRevision.current===revision)setError(R.historyError);}).finally(()=>{if(live)setHistoryLoading(false);});
     return () => { live = false; };
@@ -11238,6 +11321,33 @@ return hit?{folderId:hit.folderId}:await p.createFolder({name:${JSON.stringify(n
       if (rejected?.status === "rejected") throw rejected.reason;
       if (progressSaveError) throw progressSaveError;
       await mark("reframing-done");
+      // Music goes in after framing so a re-run (resume, retry, redo framing) converges on one music layout per Draft.
+      const musicFile = musicPath(tpl);
+      if (musicFile) {
+        const problems: string[] = [];
+        let music: any = null;
+        for (let i = 0; i < made.length; i++) {
+          // onlyDraftId may list several selected clips; deleted clips keep their index but get no music.
+          if (!made[i]?.draftId || made[i].deleted || made[i].reframeState === "failed" || (onlyDraftId && ![onlyDraftId].flat().includes(made[i].draftId))) continue;
+          try {
+            music = music || await script(musicImportScript(projectId, musicFile), "Find the background music", true);
+            if (music.status === "missing") { problems.push(S.musicMissing(music.path)); break; }
+            if (music.status !== "ready") { problems.push(S.musicImportFailed(music.path)); break; }
+            if (music.durationSeconds < MUSIC_MIN_TRACK_SECONDS) { problems.push(S.musicTooShort(music.path)); break; }
+            await script(musicPlaceScript(projectId, made[i].draftId, music.resourceId, music.durationSeconds, made[i].musicResourceId ? [made[i].musicResourceId] : []), "Place the background music", true);
+            // Remember which resource this Draft holds so a later run with another path removes it.
+            made[i] = { ...made[i], musicResourceId: music.resourceId };
+            await persist({ built: made });
+          } catch (e: any) {
+            if (e instanceof RunCancelled) throw e;
+            problems.push(S.musicFailed(i + 1, String(e?.message || e).slice(0, 160)));
+          }
+        }
+        const musicWarning = problems.join(" ");
+        setWarn([resultWarning, musicWarning].filter(Boolean).join(" "));
+        await persist({ built: made, musicWarning });
+        await mark("music", { ok: !problems.length });
+      }
       // Previews run after every clip is editable: they share the serialized visual
       // queue with framing surveys, so capturing them earlier delays other clips.
       for (let i = 0; i < made.length; i++) {

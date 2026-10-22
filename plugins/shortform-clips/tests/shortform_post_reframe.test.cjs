@@ -5,7 +5,7 @@ const modules=process.env.SBS_PANEL_TEST_MODULES;
 test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
  const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild');
  const src=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8'),mod={exports:{}};
- new Function('require','module','exports',esbuild.transformSync(src+'\nexport {SCRIPT_APPLY_REFRAME,createReframeWork,templateBuildScript,captionLineMax,throttledSave,PROGRESS_SAVE_MS,wideShotScript,STACKED_REFRAME_EFFECT,savedDraftResults};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
+ new Function('require','module','exports',esbuild.transformSync(src+'\nexport {SCRIPT_APPLY_REFRAME,createReframeWork,templateBuildScript,captionLineMax,throttledSave,PROGRESS_SAVE_MS,wideShotScript,STACKED_REFRAME_EFFECT,savedDraftResults,musicPath,musicImportScript,musicPlaceScript,MUSIC_MIN_TRACK_SECONDS};',{loader:'tsx',format:'cjs'}).code)(dep,mod,mod.exports);
  const P={projectId:'p',draftId:'d',resourceId:'v',resourceName:'Video',sourceKind:'video',transform:{scale:2,posX:0,posY:0},frame:{windowTop:450,windowBottom:1300},reframe:[{start:0,end:10,cx:450,w:800},{start:10,end:30,cx:1400,w:800}]};
  async function run({fail=false,owned=true}={}){
   let committed=0,transforms=[],splits=[];
@@ -34,9 +34,8 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   const body=esbuild.transformSync(loop,{loader:'ts'}).code;
   let job={built:[]},builds=0,applies=0,thumbnails=0,fail=true;const events=[];
   const pickd={clips:[{name:'One',segments:[[1,5]]}]};
-  const env={templateBuildScript:mod.exports.templateBuildScript,captionLineMax:mod.exports.captionLineMax,wideShotScript:mod.exports.wideShotScript,findRunDraftScript:()=>"LOOKUP",withoutRunSuffix:(name)=>name,ensureRunFolder:async()=>"run-folder",moveRunDrafts:async()=>{},forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
-   throttledSave:mod.exports.throttledSave,PROGRESS_SAVE_MS:mod.exports.PROGRESS_SAVE_MS,
-   STACKED_REFRAME_EFFECT:'effect',projectId:'p',S:{building:()=>'',reframing:'framing'},lang:'en',transform:{scale:1},buildLogo:'',SCRIPT_APPLY_REFRAME:'APPLY const P: any = __P__;',
+  const env={templateBuildScript:mod.exports.templateBuildScript,captionLineMax:mod.exports.captionLineMax,wideShotScript:mod.exports.wideShotScript,throttledSave:mod.exports.throttledSave,PROGRESS_SAVE_MS:mod.exports.PROGRESS_SAVE_MS,musicPath:mod.exports.musicPath,musicImportScript:mod.exports.musicImportScript,musicPlaceScript:mod.exports.musicPlaceScript,MUSIC_MIN_TRACK_SECONDS:mod.exports.MUSIC_MIN_TRACK_SECONDS,findRunDraftScript:()=>"LOOKUP",withoutRunSuffix:(name)=>name,ensureRunFolder:async()=>"run-folder",moveRunDrafts:async()=>{},forceReframe:false,onlyDraftId:undefined,token:{cancelled:false},createReframeWork:mod.exports.createReframeWork,pickd,tpl:{renderer:'series',layout:{reframe:true},logo:{image:''},captions:{on:false},editing:{}},
+   STACKED_REFRAME_EFFECT:'effect',projectId:'p',S:{building:()=>'',reframing:'framing',musicMissing:p=>'missing '+p,musicImportFailed:p=>'import failed '+p,musicTooShort:p=>'short '+p,musicFailed:(n,why)=>'clip '+n+': '+why},lang:'en',transform:{scale:1},buildLogo:'',SCRIPT_APPLY_REFRAME:'APPLY const P: any = __P__;',
    RADIO_SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_BUILD:'BUILD const P: any = __P__;',SCRIPT_LIMIT:1e7,RunCancelled:class extends Error{},
    setStatus:()=>{},setSub:()=>{},setDrafts:()=>{},setWarn:()=>{},nameOf:()=>'',radioFrameParams:()=>({}),
    splitDate:()=>({}),withEpisodeDate:()=>({}),radioEditableFrame:()=>[],editableCaption:()=>[],
@@ -127,6 +126,58 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   assert.equal(listed.length,1);
   assert.equal(mod.exports.savedDraftResults([{...job,projectId:'p',built:job.built.map(d=>({...d,deleted:true}))}],'p').length,0);
 
+  // Background music: one import per run, one placement per finished Draft, none for templates without a path.
+  const done=n=>({built:Array.from({length:n},(_,i)=>({draftId:'m'+i,reframeState:'done',progressStage:'done'}))});
+  pickd.clips=[{name:'A',segments:[[1,5]]},{name:'B',segments:[[1,5]]}];env.onlyDraftId=undefined;
+  const musicCalls=[],warnings=[];let musicReply={status:'ready',resourceId:'r',durationSeconds:12,path:'/x/bed.mp3'},placeFails=0;
+  env.setWarn=w=>warnings.push(w);
+  env.script=async code=>{
+   if(code.includes('importFiles')){musicCalls.push('import');return musicReply;}
+   if(code.includes('overlayResource')){musicCalls.push('place');if(placeFails&&placeFails--)throw Error('no room');return {segments:1,placed:true};}
+   return null;
+  };
+  job=done(2);env.tpl.music=undefined;await attempt();
+  assert.deepEqual(musicCalls,[],'no path, no music work');assert.equal(job.musicWarning,undefined);
+  job=done(2);env.tpl.music={path:'/x/bed.mp3'};await attempt();
+  assert.deepEqual(musicCalls,['import','place','place'],'one import shared by both clips');assert.equal(job.musicWarning,'');
+  musicCalls.length=0;job=done(2);await attempt();
+  assert.deepEqual(musicCalls,['import','place','place'],'a rerun imports through the same lookup and re-checks each Draft');
+  musicCalls.length=0;musicReply={status:'missing',path:'/x/bed.mp3'};job=done(2);await attempt();
+  assert.deepEqual(musicCalls,['import'],'a missing file stops the music work');assert.equal(job.musicWarning,'missing /x/bed.mp3');
+  assert.equal(job.built.length,2);assert.ok(job.built.every(d=>d.draftId&&!d.error),'clips are still created');
+  assert.equal(warnings.at(-1),'missing /x/bed.mp3','the warning is shown');
+  musicCalls.length=0;musicReply={status:'ready',resourceId:'r',durationSeconds:12,path:'/x/bed.mp3'};placeFails=1;job=done(2);await attempt();
+  assert.deepEqual(musicCalls,['import','place','place']);assert.equal(job.musicWarning,'clip 1: no room','a failed placement is reported for that clip only');
+  env.runTemplateReframing=async id=>{if(id==='m0')throw Error('agent failed');return {status:'complete'};};
+  musicCalls.length=0;job={built:[{draftId:'m0',reframeState:'failed'},{draftId:'m1',reframeState:'done',progressStage:'done'}]};await attempt();
+  assert.deepEqual(musicCalls,['import','place'],'failed clips get no music');
+  // Each Draft records its music resource, and a rerun after the path changed asks the place script to remove the old one.
+  const placeCodes=[];const placeScript=env.script;env.script=async code=>{if(code.includes('overlayResource'))placeCodes.push(code);return placeScript(code);};
+  musicCalls.length=0;musicReply={status:'ready',resourceId:'r',durationSeconds:12,path:'/x/bed.mp3'};job=done(2);await attempt();
+  assert.deepEqual(job.built.map(d=>d.musicResourceId),['r','r'],'the placed resource is saved per Draft');
+  assert.ok(placeCodes.every(c=>c.includes('stale=new Set([].filter')),'a first placement has nothing to remove');
+  placeCodes.length=0;env.tpl.music={path:'/x/other.mp3'};musicReply={status:'ready',resourceId:'r2',durationSeconds:12,path:'/x/other.mp3'};await attempt();
+  assert.equal(placeCodes.length,2);assert.ok(placeCodes.every(c=>c.includes('stale=new Set(["r"].filter')),'the old resource is passed for removal');
+  assert.deepEqual(job.built.map(d=>d.musicResourceId),['r2','r2']);
+  placeFails=1;env.tpl.music={path:'/x/third.mp3'};musicReply={status:'ready',resourceId:'r3',durationSeconds:12,path:'/x/third.mp3'};await attempt();
+  assert.deepEqual(job.built.map(d=>d.musicResourceId),['r2','r3'],'a failed placement keeps the old record so the next run still removes it');
+  env.script=placeScript;env.tpl.music={path:'/x/bed.mp3'};
+  musicCalls.length=0;musicReply={status:'ready',resourceId:'r',durationSeconds:1,path:'/x/bed.mp3'};job=done(2);await attempt();
+  assert.deepEqual(musicCalls,['import']);assert.equal(job.musicWarning,'short /x/bed.mp3');
+  // Framing several selected clips passes a list of Drafts; those Drafts, and only live ones, get their music checked.
+  env.runTemplateReframing=async()=>({status:'complete'});
+  const placedIn=[];env.script=async code=>{if(code.includes('overlayResource'))placedIn.push(code.match(/selects\.draft\("([^"]+)"\)/)[1]);return placeScript(code);};
+  musicReply={status:'ready',resourceId:'r',durationSeconds:12,path:'/x/bed.mp3'};
+  pickd.clips=[{name:'A',segments:[[1,5]]},{name:'B',segments:[[1,5]]},{name:'C',segments:[[1,5]]}];
+  job=done(3);env.onlyDraftId=['m0','m2'];await attempt();
+  assert.deepEqual(placedIn,['m0','m2'],'a list of selected clips gets music');
+  placedIn.length=0;job=done(3);env.onlyDraftId='m1';await attempt();
+  assert.deepEqual(placedIn,['m1'],'a single retried clip still gets music');
+  placedIn.length=0;job=done(3);job.built[1].deleted=true;env.onlyDraftId=undefined;await attempt();
+  assert.deepEqual(placedIn,['m0','m2'],'deleted clips get no music');
+  placedIn.length=0;job=done(3);job.built[0].deleted=true;env.onlyDraftId=['m0','m1'];await attempt();
+  assert.deepEqual(placedIn,['m1'],'a deleted clip stays without music even when listed');
+  env.script=placeScript;env.onlyDraftId=undefined;pickd.clips=[{name:'A',segments:[[1,5]]},{name:'B',segments:[[1,5]]}];
  });
  await t.test('generation saves the Draft before reframing and captures thumbnails afterwards',()=>{
   const build=src.indexOf('made[i] = { ...c, name, draftId: r?.draftId');
