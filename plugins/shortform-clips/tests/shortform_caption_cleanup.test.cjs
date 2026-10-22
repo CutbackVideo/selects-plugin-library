@@ -50,6 +50,14 @@ test('existing LLM caption omissions preserve source words and timing',{skip:!mo
    assert.equal(makeCues(cleaned,30,30,1000,[]).map(c=>c[2]).join(' '),'um very very important');
   }
  });
+ await t.test('a one-word line whose window rounds to zero length can still lose its filler',()=>{
+  // Real transcript: "[319.5-319.5] \uc74c." between two sentences.
+  const words=tuplesFor({before:['\uadf8\uac70\ub97c','\uba39\uc5c8\uc5b4\uc694.','\uc74c.','\uc774\uc0c1\ud558\uc8e0.']});
+  const lines=[{startSeconds:10,endSeconds:12,from:0,to:2},{startSeconds:12.5,endSeconds:12.5,from:2,to:3},{startSeconds:13,endSeconds:14,from:3,to:4}];
+  const zero={startSeconds:12.5,endSeconds:12.5,text:'\uc74c.',reason:'filler',occurrence:0};
+  assert.deepEqual(cleanSpeechWords(words,30,[zero],lines).map(w=>w[0]),['\uadf8\uac70\ub97c','\uba39\uc5c8\uc5b4\uc694.','\uc774\uc0c1\ud558\uc8e0.']);
+  assert.deepEqual(cleanSpeechWords(words,30,[{...zero,endSeconds:12.4}],lines),words,'a reversed window is still rejected');
+ });
  await t.test('negation, numeric facts, units and conditional clauses survive even unsafe model candidates',()=>{
   for(const text of ['not','never','5mg','120','mg','\uc548','\uc544\ub2c8\uc694.','\uc5c6\uc2b5\ub2c8\ub2e4.','\uc54a\uc2b5\ub2c8\ub2e4.']){
    const words=tuplesFor({before:[text,'important.']});assert.deepEqual(cleanSpeechWords(words,30,[omission(words,0)]),words);
