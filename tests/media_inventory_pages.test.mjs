@@ -54,7 +54,8 @@ test('a failed page or changing inventory never returns a partial list',async()=
 });
 for(const id of inventories)test(`${id}: paged inventory equals the original, including synced exclusions and counters`,async()=>{
  const {readInventoryPages}=loadPanelFunctions(panelSource(id),['readInventoryPages']);
- assert.equal(topLevel(panelSource(id),'readInventoryPages').trim(),topLevel(panelSource(inventories[0]),'readInventoryPages').trim());
+ const reference=['mini-vlog','archive-vlog'].includes(id)?'mini-vlog':'city-weekend-vlog';
+ assert.equal(topLevel(panelSource(id),'readInventoryPages').trim(),topLevel(panelSource(reference),'readInventoryPages').trim());
  const f=fixture(),script=fs.readFileSync(new URL(`../plugins/${id}/scripts/inventory.js`,import.meta.url),'utf8');
  const cfg={projectId:'p',only:null,known:{},measureMs:0,probeMs:0};
  const expected=await f.run(fill(script,cfg));

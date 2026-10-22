@@ -77,6 +77,14 @@
         "plugins/mini-vlog/panel.tsx",
         "plugins/archive-vlog/panel.tsx"
       ]
+    },
+    {
+      "id": "media-inventory",
+      "source": "shared/media-inventory.js",
+      "targets": [
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/archive-vlog/panel.tsx"
+      ]
     }
   ]
 }

@@ -32,6 +32,14 @@ current source inventory, initial decisions, all-template ledger and full gate.
 
 ## Current checkpoint
 
+- Mini alpha.17 / Archive alpha.11 share bounded Project-catalog observations.
+  Same-count reorder, prior-page metadata changes and ended owners cannot return
+  a partial/mixed success. The actual runner carries remaining deadlines and
+  owned retry waits; committing calls retain their independent request shape.
+  Forty-five focused / 230 related checks and ten actual SDK scenarios pass. See
+  [media-inventory.md](media-inventory.md). The registry is partial: seven entries /
+  twelve consumers; complete feature ownership and template acceptance stay 0/28.
+
 - Mini alpha.16 / Archive alpha.10 share one browser analysis-Worker owner.
   Dispatch/start/error, cancellation, deadline and cleanup failures use the same
   resource lifetime; the actual caller's liveness is carried through. Original

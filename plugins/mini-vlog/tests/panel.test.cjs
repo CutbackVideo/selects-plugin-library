@@ -389,14 +389,16 @@ assert.ok(ui.includes('!allowCommit && /No valid session ID/'), 'only non-commit
 assert.ok(panel.includes('const READ_TIMEOUT_SECONDS = 90;') && panel.includes('const BUSY_BACKOFF_MS = [5000, 15000];'), 'busy constants');
 assert.ok(/const isBusyError = \(text: string\) => \/deadline\|did not finish\|hostWaitMs\|before the script started\/i\.test/.test(panel), 'busy detection');
 const runBody = ui.slice(ui.indexOf('const run = async ('), ui.indexOf('const fontB64 ='));
-assert.ok(runBody.includes('allowCommit ? { summary, script: scriptAt(0), allowCommit } : { summary, script: scriptAt(attempt), allowCommit, timeoutSeconds: READ_TIMEOUT_SECONDS }'), 'longer deadline for reads only');
+// The actual runner's read cap, remaining deadline, committing isolation and backoff
+// are executed in tests/media_inventory_observation.test.mjs.
+assert.ok(runBody.includes('allowCommit ? { summary, script: scriptAt(0), allowCommit } :'), 'separate committing request shape');
 assert.ok(runBody.includes('!allowCommit && isBusyError(') && runBody.includes('attempt < BUSY_BACKOFF_MS.length') && runBody.includes('opts.wanted && !opts.wanted()'), 'reads retry with backoff while wanted');
-assert.ok(runBody.includes('await new Promise((d) => setTimeout(d, BUSY_BACKOFF_MS[attempt - 1]))'), 'sequential backoff, no parallel retries');
+assert.ok(runBody.includes('await pause(BUSY_BACKOFF_MS[attempt - 1])'), 'sequential owner-scoped backoff');
 assert.ok(runBody.includes('throw new BusyError('), 'a final busy failure is a BusyError');
 says('busy', "Selects is busy and didn't answer in time. Wait a moment and press Refresh. If it keeps happening, restart Selects.");
 assert.ok(ui.includes('this.say = (l) => t(l, "busy");'), 'BusyError says it in the UI language');
 // Inventory under load: the photo-size budget is small, and a retry skips measuring (assemble measures unsized photos).
-assert.ok(panel.includes('measureMs: attempt ? 0 : measureMs') && ui.includes('measureMs: INVENTORY_MEASURE_MS') && panel.includes('const INVENTORY_MEASURE_MS = 4000;'), 'inventory measures less under load');
+assert.ok(panel.includes('measureMs:attempt?0:budget.measureMs') && ui.includes('measureMs: INVENTORY_MEASURE_MS') && panel.includes('const INVENTORY_MEASURE_MS = 4000;'), 'inventory measures less under load');
 assert.ok(ui.includes('setInvError(e instanceof BusyError ? { busy: true, say: e.say } : { say: (l: Lang) => sayError(l, e) })'), 'busy inventory error message');
 assert.ok(ui.includes('fill, live)'), 'inventory retries stop for a stale Project');
 // A Project still loading after an app restart: the first inventory read that fails (not busy) is tried once more

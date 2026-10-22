@@ -1,7 +1,7 @@
 # Feature ownership: mandatory, incomplete
 
 Repairing every template includes classifying every feature of all 28 audited
-Clip Highlights templates. The current five-entry panel-module registry is a
+Clip Highlights templates. The current panel-module registry is a
 partial distribution registry, not a finished account of every reusable feature.
 Chan's apps and template packs remain excluded.
 
@@ -77,6 +77,7 @@ those inventory behaviors, not semantic completeness of this table.
 | Mini and Archive temporary PCM / Mini preview staging | Extend `bundled-assets` | Reuse exclusive reservation, bounded byte reader and media process scope; own one captured client, declared read budget, cancellation/deadline and cleanup outcome | 26 focused TDD cases, existing-consumer checks and nine actual SDK scenarios in `mini-media-scope.md`. Temporary source-content attestation and crash recovery remain open |
 | Mini preview encoding and Archive playback/fallback policy | Keep template-specific policy | Mini encodes a bounded MP3 section; Archive seeks/fades a whole-track Blob and supports ordinary decode failure through WebAudio. Sharing the owner does not require silently changing those user contracts | Mini's actual Stop aborts the common producer. Archive preserves healthy fallback but stops on terminal ownership errors. Whole-file budget and fallback/source analysis remain open |
 | Mini and Archive browser beat analysis execution | Extract `analysis-worker`; keep rate, algorithm and protocol with callers | No existing owner handles browser Workers/Blob URLs/event/timer subscriptions. One transient scope owns dispatch through observed cleanup, bounded by signal, actual caller liveness and one deadline; no Project or media mutation | 27 actual-adapter cases and eight real Chromium scenarios in `analysis-worker.md`, including parent leaks, exact unchanged-detector/PCM parity and execution under the actual client sandbox document policy. Four other beat adapters and installed-panel/full-template execution remain pending |
+| Mini and Archive paged Project inventory | Extract `media-inventory`; retain existing actual script runner and localized errors | One read-only catalog observation owns projected page validation, exact value reobservation, aggregation, byte/row budgets, deadline/current owner and retry waits. Selected-original native facts, files/media jobs, Worker execution and persistence keep their existing owners | Initial 15/17 RED; first Mini repair then shared Archive migration; 45 focused / 230 related cases and ten actual SDK scenarios in `media-inventory.md`. Other five custom inventories, generic result pagers, hidden selected-file queries and whole-template acceptance remain open |
 | Mini template policy data | Keep template-specific data | Track choices, title presets, default length/pace and styling express this template's promised output; the same data schema need not imply identical values | Preserve policy while reviewing mechanisms separately; this decision does not classify every planner, UI or typography function |
 
 These new feature records extend the initial decisions; they still do not cover
