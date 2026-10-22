@@ -44,7 +44,8 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
    runTemplateReframing:async()=>{applies++;events.push(['apply']);if(fail)throw Error('agent failed');return {status:'complete'};},
    prepareCameraFraming:async()=>({cameraShots:[],cameraPanels:[]}),
    reframeClips:async clips=>{clips[0].reframe=[{start:0,end:9,cx:500,w:1000}];},
-   guard:p=>p,loadDraftThumbnail:async()=>{thumbnails++;return {thumbnailPath:'thumb.jpg'};},store:{},sdk:{}};
+   guard:p=>p,loadDraftThumbnail:async()=>{thumbnails++;events.push(['thumbnail',job.built.map(d=>d?.progressStage)]);return {thumbnailPath:'thumb.jpg'};},store:{},sdk:{},
+   mark:async stage=>{events.push(['mark',stage]);}};
   async function attempt(){const keys=Object.keys(env);return new Function(...keys,'job','return (async()=>{let resultWarning="";'+body+';return made;})();')(...Object.values(env),job);}
   await attempt();assert.equal(builds,1);assert.equal(job.built[0].draftId,'d');assert.equal(job.built[0].reframeState,'failed');assert.equal(job.done,false);assert.equal(thumbnails,0);
   assert.ok(events.findIndex(x=>x[0]==='save'&&x[1]==='pending')<events.findIndex(x=>x[0]==='apply'));
@@ -71,6 +72,11 @@ test('post-build reframing preserves editable drafts',{skip:!modules},async t=>{
   }
   await parallel;
   assert.deepEqual(job.built.map(d=>d.reframeState),['done','done','failed','done','done']);
+  // Previews wait until every clip is editable, so they never delay another clip's framing.
+  const shots=events.slice(events.findLastIndex(x=>x[0]==='mark'&&x[1]==='reframing-done')).filter(x=>x[0]==='thumbnail');
+  assert.equal(shots.length,4);
+  for(const [,stages] of shots)assert.deepEqual(stages,['done','done','failed','done','done']);
+  assert.ok(job.built.every(d=>!d.previewPending));
   assert.deepEqual(job.built.map(d=>d.reframeUsageCalls[0].input_tokens),[100,101,102,103,104]);
   assert.equal(job.done,false);
   // Retrying one card must leave other failed cards untouched.
