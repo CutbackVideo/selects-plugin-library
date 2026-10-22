@@ -17,7 +17,7 @@
       "macOS",
       "Windows x64"
     ],
-    "selects": "Requires the panel confirm dialog and own window (sdk.confirm, sdk.openInWindow), project.createDraftFromResources/deleteDraft, editor.openApp and the Main/Insert rule read (sdk.jwonder.preparation.v1)."
+    "selects": "Requires the panel confirm dialog and own window (sdk.confirm, sdk.openInWindow), project.createDraftFromResources/deleteDraft, media.probe and editor.openApp."
   },
   "localized": {
     "ko": {

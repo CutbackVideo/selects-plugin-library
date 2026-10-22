@@ -114,7 +114,9 @@ function builtTimelines(P, shoot) {
     return m ? [{ resourceId: id, sequenceId: t.sequenceId, name: t.name, kind: m[1] === "Main" ? "main" : "insert", at: Number(m[2] || 1) }] : [];
   }));
   const number = Math.max(0, ...found.map((t) => t.at));
-  return { number, pair: found.filter((t) => t.at === number) };
+  const latest = { main: null, insert: null };
+  for (const t of found) if (latest[t.kind] == null || t.at >= latest[t.kind].at) latest[t.kind] = t;
+  return { number, pair: found.filter((t) => t.at === number), latest };
 }
 // Clips in capture-clock order: by the first clock every clip has, then by name.
 function orderClips(ids, P) {
@@ -238,6 +240,224 @@ const dir = await after.ensure(syncedRoot, SHOOT);
 await p.moveToFolder({ targetFolderId: dir.folderId, resourceIds: made.map((t) => t.resourceId) });
 return { main: [...classOf.values()].filter((c) => c === "main").length, insert: inserts.length, timelines: made.length, sequenceIds: made.map((t) => t.sequenceId), replacedSequenceIds };
 `;
+const CLASSIFY = `
+// Step 3's review: the shoot's camera videos the rule cannot settle, each
+// with its class in the latest built timelines, else the rule's; and the
+// classes the rule settled (a photo, a silent video, a proxy, a recording,
+// a video whose talk a recorder caught).
+//
+// The rule, reading no folder names:
+// 1. A still image, no audio track, or an action-cam .lrv proxy: Insert
+// 2. 600 s or longer: Main
+// 3. Shorter than 20 s: Insert
+// 4. 300 s or longer: Main if anyone speaks at all, else Insert
+// 5. Otherwise Main if speech reaches 60 s, or if speech reaches 5 s and at
+//    least 40% of a Korean transcript also occurs on the shoot's recorders
+// A camera video with an audio track whose words a recorder also holds
+// (the transcript matcher's score reaches 90) is Main; the rest the
+// reviewer confirms.
+const SHORT_SECONDS = 20, MAIN_SECONDS = 600, LONG_SECONDS = 300, LONG_SPEECH_SECONDS = 1, SPEECH_SECONDS = 60, MATCHED_SPEECH_SECONDS = 5, MIN_GRAMS = 100, RECORDER_MATCH = 0.4;
+const RECORDER_TEXT_MAIN_SCORE = 90, RECORDER_TEXT_MIN_WORDS = RECORDER_TEXT_MAIN_SCORE - 30;
+// Hangul only, spaces and punctuation dropped.
+function koreanGrams(text, n = 4) {
+  const s = (text.match(/[\\uac00-\\ud7a3]/g) || []).join("");
+  const grams = new Set();
+  for (let i = 0; i + n <= s.length; i++) grams.add(s.slice(i, i + n));
+  return grams;
+}
+function recorderMatch(grams, recorder) {
+  if (grams.size === 0) return 0;
+  let hit = 0;
+  for (const g of grams) if (recorder.has(g)) hit++;
+  return hit / grams.size;
+}
+function classifyClip(f, recorder) {
+  if (f.isImage || !f.hasAudio || f.isProxy) return "insert";
+  if (f.durationSeconds >= MAIN_SECONDS) return "main";
+  if (f.durationSeconds < SHORT_SECONDS) return "insert";
+  if (f.durationSeconds >= LONG_SECONDS) return f.speechSeconds >= LONG_SPEECH_SECONDS ? "main" : "insert";
+  if (f.speechSeconds >= SPEECH_SECONDS) return "main";
+  return f.grams.size >= MIN_GRAMS && f.speechSeconds >= MATCHED_SPEECH_SECONDS && recorderMatch(f.grams, recorder) >= RECORDER_MATCH ? "main" : "insert";
+}
+// Transcript words in source seconds, normalized as group sync reads them.
+function transcriptWords(utterances) {
+  return utterances.flatMap((u) => u.words || []).map((w) => ({ start: w.start, end: w.end, text: String(w.word || "").normalize("NFKC").toLowerCase().replace(/[^\\p{L}\\p{N}]/gu, "") })).sort((a, b) => a.start - b.start);
+}
+// Transcript evidence that two clips overlap in time. Words are matched by
+// whole word and by six-character windows across word boundaries; each
+// candidate pair votes for a time shift, and a shift is accepted only when
+// enough distinct, monotonically ordered words agree on it.
+const kMinWords = 4, kMaxPostings = 32, kMaxVotes = 250000, kMaxWords = 250000, kMaxTextBytes = 4096, kBin = 0.5, kResidual = 0.25, kMinSpan = 3, kFeature = 6, kGapSeconds = 3, kPeaks = 12;
+// UTF-8 length without TextEncoder, which the sandbox lacks.
+const utf8Length = (text) => { let n = 0; for (const c of String(text)) { const cp = c.codePointAt(0) || 0; n += cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4; } return n; };
+function median(values) {
+  const x = [...values].sort((p, q) => p - q);
+  const n = x.length;
+  return n % 2 ? x[(n - 1) / 2] : (x[n / 2 - 1] + x[n / 2]) / 2;
+}
+function indexTranscript(words) {
+  if (words.length > kMaxWords) throw new Error("Invalid transcript words");
+  const result = { words: [], postings: new Map() };
+  for (const w of words) {
+    const last = result.words[result.words.length - 1];
+    if (!Number.isFinite(w.start) || !Number.isFinite(w.end) || w.start < 0 || w.end < w.start || (last !== undefined && w.start < last.start)) throw new Error("Invalid transcript timing");
+    // A recognizer loop can emit one huge word; it carries no alignment evidence.
+    if (w.text !== "" && utf8Length(w.text) <= kMaxTextBytes) result.words.push(w);
+  }
+  const post = (key, index) => {
+    const list = result.postings.get(key);
+    if (!list) result.postings.set(key, [index]);
+    else if (list[list.length - 1] !== index) list.push(index);
+  };
+  let chars = [];
+  const flush = () => {
+    for (let i = 0; i + kFeature <= chars.length; i++) {
+      let key = "";
+      for (let j = 0; j < kFeature; j++) key += chars[i + j].char;
+      post(key, chars[i].word);
+    }
+    chars = [];
+  };
+  result.words.forEach((word, i) => {
+    if (i > 0 && word.start - result.words[i - 1].end > kGapSeconds) flush();
+    const letters = Array.from(word.text);
+    if (letters.length >= 3) post("word:" + word.text, i);
+    for (const char of letters) chars.push({ char, word: i });
+  });
+  flush();
+  return result;
+}
+function refinePeak(votes, a) {
+  const sorted = [...votes].sort((x, y) => x.a - y.a || x.b - y.b);
+  const chain = [];
+  for (const v of sorted) {
+    const last = chain[chain.length - 1];
+    if (last && (v.a <= last.a || v.b <= last.b)) continue;
+    chain.push(v);
+  }
+  const peak = { votes: chain, shift: 0, spread: 0, span: 0 };
+  if (!chain.length) return peak;
+  const offsets = chain.map((v) => v.delta);
+  peak.shift = median(offsets);
+  const residuals = offsets.map((d) => Math.abs(d - peak.shift)).sort((p, q) => p - q);
+  peak.spread = residuals[Math.floor(((residuals.length - 1) * 9) / 10)];
+  peak.span = a.words[chain[chain.length - 1].a].start - a.words[chain[0].a].start;
+  return peak;
+}
+function rejectedMatch(reason, partial = {}) {
+  return { accepted: false, shift: 0, confidence: 0, spread: 0, span: 0, support: 0, runnerSupport: 0, ...partial, reason };
+}
+function matchTranscripts(a, b) {
+  const seen = new Set();
+  const bins = new Map();
+  for (const key of [...a.postings.keys()].sort()) {
+    const left = a.postings.get(key);
+    const right = b.postings.get(key);
+    if (!right || left.length > kMaxPostings || right.length > kMaxPostings) continue;
+    for (const i of left) for (const j of right) {
+      const delta = a.words[i].start - b.words[j].start;
+      const pair = i + ":" + j;
+      if (seen.has(pair)) continue;
+      seen.add(pair);
+      if (seen.size > kMaxVotes) return rejectedMatch("comparison-budget");
+      const bin = Math.floor(delta / kBin);
+      const votes = bins.get(bin);
+      if (votes) votes.push({ a: i, b: j, delta });
+      else bins.set(bin, [{ a: i, b: j, delta }]);
+    }
+  }
+  const ranked = [...bins.entries()].map(([id, votes]) => ({ id, count: votes.length + ((bins.get(id + 1) || []).length) })).sort((x, y) => y.count - x.count || y.id - x.id);
+  const peaks = [];
+  for (const { id } of ranked.slice(0, kPeaks)) {
+    const votes = [...bins.get(id), ...(bins.get(id + 1) || [])];
+    const peak = refinePeak(votes, a);
+    if (peak.votes.length >= kMinWords && peak.span >= kMinSpan) peaks.push(peak);
+  }
+  peaks.sort((x, y) => y.votes.length - x.votes.length || x.spread - y.spread);
+  if (!peaks.length) return rejectedMatch("insufficient-text");
+  const best = peaks[0];
+  const partial = { shift: best.shift, support: best.votes.length, spread: best.spread, span: best.span, runnerSupport: 0 };
+  for (const pk of peaks) if (Math.abs(pk.shift - best.shift) > 1) partial.runnerSupport = Math.max(partial.runnerSupport, pk.votes.length);
+  if (partial.runnerSupport * 1.5 >= partial.support) return rejectedMatch("ambiguous", partial);
+  const distinct = new Set(best.votes.map((v) => a.words[v.a].text));
+  if (distinct.size < 3) return rejectedMatch("repetitive-text", partial);
+  if (best.spread > kResidual) return rejectedMatch("timing-inconsistent", partial);
+  // Check separated parts, so a long recording's timing disagreement is not hidden by a median.
+  const origin = a.words[best.votes[0].a].start;
+  for (let part = 0; part < 3; part++) {
+    const shifts = best.votes.filter((v) => Math.min(2, Math.trunc(((a.words[v.a].start - origin) / best.span) * 3)) === part).map((v) => v.delta);
+    if (shifts.length >= 2 && Math.abs(median(shifts) - best.shift) > kResidual) return rejectedMatch("segment-disagreement", partial);
+  }
+  // Text confidence is its own support score, not an audio confidence value.
+  return { accepted: true, ...partial, confidence: 30 + Math.min(60, partial.support), reason: "matched" };
+}
+function textIndex(words) { try { return indexTranscript(words); } catch { return null; } }
+function matchesRecorderText(words, recorders) {
+  if (words.filter((w) => w.text).length < RECORDER_TEXT_MIN_WORDS) return false;
+  const clip = textIndex(words);
+  return clip != null && recorders.some((recorder) => { const m = matchTranscripts(clip, recorder); return m.accepted && m.confidence >= RECORDER_TEXT_MAIN_SCORE; });
+}
+
+const P = await readProject();
+const cameras = sourcesOf(P, P.T.child(P.T.root(CAMERA), SHOOT));
+const recorders = sourcesOf(P, P.T.child(P.T.root(AUDIO), SHOOT));
+if (cameras.length === 0) throw new Error("No camera media in " + CAMERA + "/" + SHOOT);
+const cameraIds = cameras.flatMap((s) => s.resourceIds);
+const recorderIds = recorders.flatMap((s) => s.resourceIds);
+// Each file's path, from the camera folder's own listing (the whole tree is a summary past 200 files).
+const paths = new Map();
+const files = await p.sourceFiles({ folder: CAMERA });
+const walk = (nodes) => { for (const n of nodes || []) { if (n.type === "dir") walk(n.children); else if (n.path) paths.set(n.resourceId, n.path); } };
+walk("fileTree" in files ? files.fileTree : []);
+// The class each file has in the shoot's latest Main and Insert timelines.
+const previous = new Map();
+const built = builtTimelines(P, SHOOT);
+for (const kind of ["main", "insert"]) {
+  const latest = built.latest[kind];
+  if (!latest) continue;
+  for (const c of (await p.syncedTimeline(latest.sequenceId).layout()).placements) if (c.resourceId) previous.set(c.resourceId, kind);
+}
+// Whether a video carries an audio track: probed from the files themselves.
+const hasAudio = new Map();
+const videoPaths = cameraIds.filter((id) => P.resourceById.get(id) && P.resourceById.get(id).type === "Video" && paths.has(id)).map((id) => paths.get(id));
+if (videoPaths.length) { const probed = await selects.media.probe({ filePaths: videoPaths }); for (const f of probed.files || []) hasAudio.set(f.path, f.hasAudioStream); }
+// Recordings on the camera side stay Main; photos and the rule's other settled cases are fixed below.
+const classes = new Map();
+const pending = [];
+for (const id of cameraIds) { const r = P.resourceById.get(id); if (r && r.type === "Audio") classes.set(id, "main"); else pending.push(id); }
+const transcription = await p.transcription();
+const utterancesOf = new Map();
+for (const u of transcription.utterances) { if (!u.resourceId) continue; if (!utterancesOf.has(u.resourceId)) utterancesOf.set(u.resourceId, []); utterancesOf.get(u.resourceId).push(u); }
+const recorderGrams = koreanGrams(recorderIds.flatMap((id) => (utterancesOf.get(id) || []).map((u) => u.transcript || "")).join(" "));
+const recorderTexts = recorderIds.flatMap((id) => { const ix = textIndex(transcriptWords(utterancesOf.get(id) || [])); return ix ? [ix] : []; });
+const classifiable = new Set();
+for (const id of pending) {
+  const r = P.resourceById.get(id);
+  const utterances = utterancesOf.get(id) || [];
+  const spoken = utterances.filter((u) => (u.transcript || "").trim());
+  const path = paths.get(id) || "";
+  const f = {
+    isImage: r.type === "Image",
+    hasAudio: r.type === "Image" ? false : (hasAudio.has(path) ? hasAudio.get(path) : true),
+    isProxy: /\\.lrv$/i.test(r.name || ""),
+    durationSeconds: r.durationSeconds || 0,
+    speechSeconds: spoken.reduce((t, u) => t + Math.max(0, u.end - u.start), 0),
+    grams: koreanGrams(spoken.map((u) => u.transcript).join(" ")),
+  };
+  classes.set(id, classifyClip(f, recorderGrams));
+  // A silent video cannot be synced by sound, so it is always Insert.
+  if (r.type !== "Video" || !f.hasAudio) continue;
+  // A clip whose talk a recorder caught is Main; a proxy stays to check.
+  if (!f.isProxy && matchesRecorderText(transcriptWords(utterances), recorderTexts)) classes.set(id, "main");
+  else classifiable.add(id);
+}
+const clips = cameras.flatMap((source) => orderClips(source.resourceIds.filter((id) => classifiable.has(id)), P).map((resourceId) => {
+  const r = P.resourceById.get(resourceId);
+  return { resourceId, name: r.name, source: source.name, path: paths.get(resourceId) || "", durationSeconds: r.durationSeconds || 0, suggested: previous.get(resourceId) || classes.get(resourceId), suggestedBy: previous.has(resourceId) ? "timeline" : "rule" };
+}));
+const fixed = [...classes].filter(([id]) => !classifiable.has(id)).map(([resourceId, kind]) => ({ resourceId, kind }));
+return { clips, fixed };
+`;
 const MAKE_DRAFT = `// Step 6: a draft holding one synced timeline from Synced Timelines/<shoot>,
 // named like it, in the folder of the step that makes it: 03. main/<shoot>
 // for Main and 04. insert/<shoot> for Insert. A draft there with the
@@ -298,7 +518,7 @@ function Classifier({t, shoot, inWindow, script, confirm, onBuild, onClose, buil
   const current = clips[index];
   useEffect(() => {
     let live = true;
-    script(`return await p.jwonder.shootReview({shoot:${JSON.stringify(shoot)}});`).then(review => {
+    script(`const SHOOT = ${JSON.stringify(shoot)};\n${CLASSIFY}`, false, 120).then(review => {
       if (!live) return;
       setClasses(new Map(review.clips.map(clip => [clip.resourceId, clip.suggested])));
       setLoaded({review});
