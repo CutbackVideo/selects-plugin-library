@@ -144,6 +144,24 @@ test('existing LLM caption omissions preserve source words and timing',{skip:!mo
   const words=tuplesFor({before:['\uadf8\ub7ec\ub2c8\uae4c','\uc911\uc694\ud569\ub2c8\ub2e4.']});
   assert.deepEqual(cleanSpeechWords(words,30,[omission(words,0)]),words);
  });
+ await t.test('unmarked prefixes and repeated numbers are kept; only exact repeats or marked stutters go',()=>{
+  const keep=(before,index,occurrence=0)=>{
+   const words=tuplesFor({before});
+   for(const reason of ['filler','stutter','accidental-repeat'])assert.deepEqual(cleanSpeechWords(words,30,[omission(words,index,reason,occurrence)]),words,before.join(' ')+' '+reason);
+  };
+  keep(['\ud558\ub8e8','\uc138','\uc138\ud2b8','\uc6b4\ub3d9\ud558\uc138\uc694.'],1);
+  keep(['\uc774\uac74','\uc548','\uc548\uc804\ud574\uc694.'],1);
+  keep(['Take','5','50mg','tablets.'],1);
+  keep(['5','5\uac1c'],0);
+  keep(['5','5','\uac1c'],0);
+  keep(['\uc548','\uc548\uc804\ud574\uc694.'],0);
+  const second=tuplesFor({before:['\uc548','\uc548','\ub3fc\uc694.']});
+  assert.deepEqual(cleanSpeechWords(second,30,[omission(second,0,'accidental-repeat',0)]).map(w=>w[0]),['\uc548','\ub3fc\uc694.']);
+  const marked=tuplesFor({before:['\uadf8~','\uadf8\ub7ec\ub2c8\uae4c','\uc57d\uc740']});
+  assert.deepEqual(cleanSpeechWords(marked,30,[omission(marked,0,'stutter')]).map(w=>w[0]),['\uadf8\ub7ec\ub2c8\uae4c','\uc57d\uc740']);
+  const dash=tuplesFor({before:['\uadf8\u2013','\uadf8\ub7ec\ub2c8\uae4c','\uc57d\uc740']});
+  assert.deepEqual(cleanSpeechWords(dash,30,[omission(dash,0,'stutter')]).map(w=>w[0]),['\uadf8\ub7ec\ub2c8\uae4c','\uc57d\uc740']);
+ });
  await t.test('stutter fragments and adjacent repeats are omitted by position',()=>{
   const repeated=tuplesFor({before:['\uadf8','\uadf8','\uc57d\uc740','\uba39\uc73c\uba74','\uc548','\ub3fc\uc694.']});
   assert.deepEqual(cleanSpeechWords(repeated,30,[omission(repeated,0,'accidental-repeat',0)]).map(w=>w[0]),['\uadf8','\uc57d\uc740','\uba39\uc73c\uba74','\uc548','\ub3fc\uc694.']);
