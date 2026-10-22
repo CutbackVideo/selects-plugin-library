@@ -1,5 +1,6 @@
 // Installed operations use the canonical asset owner without repository imports.
 import {readFileSync,writeFileSync} from 'node:fs';
+import {Script} from 'node:vm';
 const source=readFileSync(new URL('../../shared/bundled-assets.js',import.meta.url),'utf8');
 const names=['bundledAssetIssue','readBundledAssetResource','ensureProjectAudio'];
 const functions=await import('data:text/javascript;base64,'+Buffer.from(source+'\nexport {'+names.join(',')+'};').toString('base64'));
@@ -8,3 +9,51 @@ const target=new URL('./scripts/ensure-audio.js',import.meta.url);
 if(process.argv.includes('--check')){
  if(readFileSync(target,'utf8')!==generated){console.error('Out-of-date Archive Vlog Audio operation');process.exitCode=1;}
 }else writeFileSync(target,generated);
+
+// Original clocks, occurrence binding, transforms and Audio inspection retain
+// the same common owners as Mini; Archive retains cut offset/fade policy.
+const authoringSource=readFileSync(new URL('../../shared/native-image-authoring.js',import.meta.url),'utf8');
+const authoring=await import('data:text/javascript;base64,'+Buffer.from(authoringSource+'\nexport {nativeMediaWindow,bindMediaPlacement,inspectImageTransforms,inspectImageAudio,imageProgramsFeature};').toString('base64'));
+const input=await import(new URL('../../shared/native-image-input.mjs',import.meta.url));
+const policy=readFileSync(new URL('./dev/assembly-policy.js',import.meta.url),'utf8');
+const assemblyTemplate=readFileSync(new URL('./dev/assemble.template.js',import.meta.url),'utf8');
+const assembly='// @template-assembly 1\n// @template-assembly-intent 1\n// Generated from canonical input/placement checks and the Archive assembly policy.\n'+[input.nativeImageSources,input.nativeImageSourcesById,input.resolveTemplateMedia,input.requireSourceFileSupport,input.observeSourceFiles,input.confirmProjectSourcePaths,authoring.nativeMediaWindow,authoring.bindMediaPlacement,authoring.inspectImageTransforms,authoring.inspectImageAudio].map(fn=>fn.toString()).join('\n')+'\n'+policy+'\n'+assemblyTemplate;
+const assemblyTarget=new URL('./scripts/assemble.js',import.meta.url);
+if(process.argv.includes('--check')){
+ if(readFileSync(assemblyTarget,'utf8')!==assembly){console.error('Out-of-date Archive Vlog assembly operation');process.exitCode=1;}
+}else writeFileSync(assemblyTarget,assembly);
+
+const decorateTemplate=readFileSync(new URL('./dev/decorate.template.js',import.meta.url),'utf8');
+const decoration='// @template-decoration 1\n// @template-decoration-intent 1\n// Generated from the existing program owner and Archive decoration policy.\n'+authoring.imageProgramsFeature.toString()+'\n'+decorateTemplate;
+const decorateTarget=new URL('./scripts/decorate.js',import.meta.url);
+if(process.argv.includes('--check')){
+ if(readFileSync(decorateTarget,'utf8')!==decoration){console.error('Out-of-date Archive Vlog decoration operation');process.exitCode=1;}
+}else writeFileSync(decorateTarget,decoration);
+
+// Freeze only the original pure decoration builder and its declared helpers.
+// The resulting SDK read is stored with a run; reload never substitutes a new
+// preset/layout implementation while finishing that run's saved assembly.
+const panel=readFileSync(new URL('./panel.tsx',import.meta.url),'utf8');
+const section=name=>{const a=panel.indexOf('// '+name+':start'),b=panel.indexOf('// '+name+':end');if(a<0||b<a)throw Error('Missing pure Archive section: '+name);return panel.slice(a,b);};
+const pure=readFileSync(new URL('./planner.js',import.meta.url),'utf8')+'\n'+section('av-hook')+'\n'+section('av-build');
+const declarations=[...pure.matchAll(/^(?:function|const) ([A-Za-z_$][\w$]*)\b/gm)].map(match=>{
+ for(let end=pure.indexOf('\n',match.index);end>=0;end=pure.indexOf('\n',end+1)){
+  if(pure[end+1]!==undefined&&/\s/.test(pure[end+1]))continue;
+  const code=pure.slice(match.index,end);try{new Script(code);return {name:match[1],code};}catch{}
+ }
+ throw Error('Incomplete pure Archive declaration: '+match[1]);
+});
+const selected=new Set(['avDecorateConfig']);
+for(let changed=true;changed;){changed=false;for(const row of declarations.filter(row=>selected.has(row.name)))for(const candidate of declarations){if(!selected.has(candidate.name)&&new RegExp('\\b'+candidate.name+'\\b').test(row.code)){selected.add(candidate.name);changed=true;}}}
+const prepare='// @template-decoration-config 1\n// Generated from the original pure Archive decoration policy.\n'+declarations.filter(row=>selected.has(row.name)).map(row=>row.code).join('\n')+'\nconst input=__CONFIG__;\nreturn avDecorateConfig(input);\n';
+const prepareTarget=new URL('./scripts/prepare-decoration.js',import.meta.url);
+if(process.argv.includes('--check')){
+ if(readFileSync(prepareTarget,'utf8')!==prepare){console.error('Out-of-date Archive Vlog decoration config operation');process.exitCode=1;}
+}else writeFileSync(prepareTarget,prepare);
+
+const verifyTemplate=readFileSync(new URL('./dev/verify-assembly.template.js',import.meta.url),'utf8');
+const verification='// @template-assembly-verification 1\n'+[input.nativeImageSources,input.nativeImageSourcesById,input.resolveTemplateMedia,authoring.nativeMediaWindow,authoring.inspectImageAudio].map(fn=>fn.toString()).join('\n')+'\n'+policy+'\n'+verifyTemplate;
+const verifyTarget=new URL('./scripts/verify-assembly.js',import.meta.url);
+if(process.argv.includes('--check')){
+ if(readFileSync(verifyTarget,'utf8')!==verification){console.error('Out-of-date Archive Vlog assembly verification');process.exitCode=1;}
+}else writeFileSync(verifyTarget,verification);

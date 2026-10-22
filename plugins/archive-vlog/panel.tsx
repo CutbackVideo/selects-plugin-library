@@ -143,8 +143,6 @@ const STRINGS = {
     beatTimeout: "beat detection took too long",
     previewFailed: "Could not play a preview: {detail}.",
     noAudio: "no audio came back",
-    draftNoId: "The Draft \"{name}\" may have been saved, but Selects did not report its id. Open it from the Drafts list, or build again.",
-    draftEmpty: "The Draft \"{name}\" has no clips. Build again.",
     finishFailed: "The Draft was created, but its title, look and clip sound are not applied yet: {detail}. Press Finish title and look to try again.",
     openFailed: "The Draft is ready, but it could not be opened: {detail}. Use the link below or open it from the Drafts list.",
     draftCreated: "Draft created. Select the title or the credit to edit their words, colours, size or decode speed, a clip to adjust its crop, look or motion, and the music to change its volume. Rebuilding creates a new Draft and does not keep Inspector edits.",
@@ -158,6 +156,8 @@ const STRINGS = {
     unchecked: { one: "Could not check {count} video; it was skipped. Build again to retry it.", other: "Could not check {count} videos; they were skipped. Build again to retry them." },
     createsDraft: "Creates a new 16:9 Draft",
     finishTitle: "Finish title and look",
+    finishUnconfirmed: "The Draft exists, but its title and look could not be confirmed. Inspect the Draft before starting another run.",
+    confirmDraft: "Check saved Draft",
     anotherVersion: "Try other shots",
     build: "Build",
     building: "Building",
@@ -197,8 +197,6 @@ const STRINGS = {
     "tpl.notFoundDetail": "Selects said: {detail}",
     "tpl.notLocal": "These clips' original files aren't on this computer. Import them here or download the originals, then try again.",
     "tpl.notAnalysed": { one: "{count} video is still being added to the Project, so it could not be used.", other: "{count} videos are still being added to the Project, so they could not be used." },
-    "tpl.noTitle": "The Draft \"{name}\" may have been saved without its title. Open it from the Drafts list, or try again.",
-    "tpl.finishFailed": "The Draft was made, but its title and look could not be added. Try again.",
     "tpl.stoppedAt": "Archive Vlog stopped at this step: {step}. Try again.",
     "tpl.stopped": "Archive Vlog stopped before the Draft was ready. Try again.",
   },
@@ -328,8 +326,6 @@ const STRINGS = {
     beatTimeout: "Beat-Erkennung hat zu lange gedauert",
     previewFailed: "Die Vorschau konnte nicht abgespielt werden: {detail}.",
     noAudio: "es kam kein Audio zurück",
-    draftNoId: "Der Draft „{name}“ wurde möglicherweise gespeichert, aber Selects hat seine ID nicht gemeldet. Öffne ihn aus der Draft-Liste oder erstelle ihn erneut.",
-    draftEmpty: "Der Draft „{name}“ enthält keine Clips. Erstelle ihn erneut.",
     finishFailed: "Der Draft wurde erstellt, aber Titel, Look und Clip-Ton sind noch nicht angewendet: {detail}. Klicke auf „Titel und Look fertigstellen“, um es erneut zu versuchen.",
     openFailed: "Der Draft ist fertig, konnte aber nicht geöffnet werden: {detail}. Nutze den Link unten oder öffne ihn in der Draft-Liste.",
     draftCreated: "Draft erstellt. Wähle den Titel oder den Credit, um Wörter, Farben, Größe oder Entschlüsselungstempo zu bearbeiten, einen Clip, um Zuschnitt, Look oder Bewegung anzupassen, und die Musik, um ihre Lautstärke zu ändern. Ein neuer Build erstellt einen neuen Draft und übernimmt keine Änderungen aus dem Inspektor.",
@@ -343,6 +339,8 @@ const STRINGS = {
     unchecked: { one: "{count} Video konnte nicht geprüft werden und wurde übersprungen. Erstelle erneut, um es nochmals zu versuchen.", other: "{count} Videos konnten nicht geprüft werden und wurden übersprungen. Erstelle erneut, um sie nochmals zu versuchen." },
     createsDraft: "Erstellt einen neuen 16:9-Draft",
     finishTitle: "Titel und Look fertigstellen",
+    finishUnconfirmed: "Der Draft ist vorhanden, aber Titel und Look konnten nicht bestätigt werden. Prüfe den Draft, bevor du einen weiteren Durchlauf startest.",
+    confirmDraft: "Gespeicherten Entwurf prüfen",
     anotherVersion: "Andere Aufnahmen probieren",
     build: "Erstellen",
     building: "Wird erstellt",
@@ -382,8 +380,6 @@ const STRINGS = {
     "tpl.notFoundDetail": "Selects meldet: {detail}",
     "tpl.notLocal": "Die Originaldateien dieser Clips sind nicht auf diesem Computer. Importiere sie hier oder lade die Originale herunter und versuche es dann noch einmal.",
     "tpl.notAnalysed": { one: "{count} Video wird noch zum Projekt hinzugefügt und konnte daher nicht verwendet werden.", other: "{count} Videos werden noch zum Projekt hinzugefügt und konnten daher nicht verwendet werden." },
-    "tpl.noTitle": "Der Draft „{name}“ wurde möglicherweise ohne Titel gespeichert. Öffne ihn aus der Draft-Liste oder versuche es erneut.",
-    "tpl.finishFailed": "Der Draft wurde erstellt, aber Titel und Look konnten nicht hinzugefügt werden. Versuche es erneut.",
     "tpl.stoppedAt": "Archive Vlog wurde bei diesem Schritt abgebrochen: {step}. Versuche es erneut.",
     "tpl.stopped": "Archive Vlog wurde abgebrochen, bevor der Draft fertig war. Versuche es erneut.",
   },
@@ -513,8 +509,6 @@ const STRINGS = {
     beatTimeout: "la detección del ritmo tardó demasiado",
     previewFailed: "No se pudo reproducir la vista previa: {detail}.",
     noAudio: "no se recibió audio",
-    draftNoId: "Es posible que el Draft «{name}» se haya guardado, pero Selects no informó de su ID. Ábrelo desde la lista de Drafts o vuelve a crearlo.",
-    draftEmpty: "El Draft «{name}» no tiene clips. Vuelve a crearlo.",
     finishFailed: "El Draft se creó, pero aún no se aplicaron el título, el look ni el sonido de los clips: {detail}. Pulsa «Terminar título y look» para intentarlo de nuevo.",
     openFailed: "El Draft está listo, pero no se pudo abrir: {detail}. Usa el enlace de abajo o ábrelo desde la lista de Drafts.",
     draftCreated: "Draft creado. Selecciona el título o el crédito para editar sus palabras, colores, tamaño o velocidad de descifrado; un clip para ajustar su encuadre, look o movimiento; y la música para cambiar su volumen. Volver a crear genera un nuevo Draft y no conserva los cambios del Inspector.",
@@ -528,6 +522,8 @@ const STRINGS = {
     unchecked: { one: "No se pudo comprobar {count} vídeo; se omitió. Vuelve a crear para reintentarlo.", many: "No se pudieron comprobar {count} de vídeos; se omitieron. Vuelve a crear para reintentarlos.", other: "No se pudieron comprobar {count} vídeos; se omitieron. Vuelve a crear para reintentarlos." },
     createsDraft: "Crea un nuevo Draft 16:9",
     finishTitle: "Terminar título y look",
+    finishUnconfirmed: "El Draft existe, pero no se pudieron confirmar el título y el look. Revisa el Draft antes de iniciar otra ejecución.",
+    confirmDraft: "Comprobar borrador guardado",
     anotherVersion: "Probar otros planos",
     build: "Crear",
     building: "Creando",
@@ -567,8 +563,6 @@ const STRINGS = {
     "tpl.notFoundDetail": "Selects indica: {detail}",
     "tpl.notLocal": "Los archivos originales de estos clips no están en este ordenador. Impórtalos aquí o descarga los originales e inténtalo de nuevo.",
     "tpl.notAnalysed": { one: "{count} vídeo aún se está añadiendo al proyecto, así que no se pudo usar.", many: "{count} de vídeos aún se están añadiendo al proyecto, así que no se pudieron usar.", other: "{count} vídeos aún se están añadiendo al proyecto, así que no se pudieron usar." },
-    "tpl.noTitle": "Es posible que el Draft «{name}» se haya guardado sin su título. Ábrelo desde la lista de Drafts o vuelve a intentarlo.",
-    "tpl.finishFailed": "El Draft se creó, pero no se pudieron añadir el título y el look. Vuelve a intentarlo.",
     "tpl.stoppedAt": "Archive Vlog se detuvo en este paso: {step}. Vuelve a intentarlo.",
     "tpl.stopped": "Archive Vlog se detuvo antes de que el Draft estuviera listo. Vuelve a intentarlo.",
   },
@@ -698,8 +692,6 @@ const STRINGS = {
     beatTimeout: "la détection du rythme a pris trop de temps",
     previewFailed: "Impossible de lire l'aperçu : {detail}.",
     noAudio: "aucun son n'a été renvoyé",
-    draftNoId: "Le Draft « {name} » a peut-être été enregistré, mais Selects n'a pas indiqué son identifiant. Ouvrez-le depuis la liste des Drafts ou relancez la création.",
-    draftEmpty: "Le Draft « {name} » ne contient aucun clip. Relancez la création.",
     finishFailed: "Le Draft a été créé, mais le titre, le look et le son des clips ne sont pas encore appliqués : {detail}. Appuyez sur « Terminer le titre et le look » pour réessayer.",
     openFailed: "Le Draft est prêt, mais n'a pas pu être ouvert : {detail}. Utilisez le lien ci-dessous ou ouvrez-le depuis la liste des Drafts.",
     draftCreated: "Draft créé. Sélectionnez le titre ou le crédit pour modifier leurs mots, leurs couleurs, leur taille ou leur vitesse de déchiffrage, un clip pour ajuster son cadrage, son look ou son mouvement, et la musique pour changer son volume. Recréer génère un nouveau Draft et ne conserve pas les modifications de l'Inspecteur.",
@@ -713,6 +705,8 @@ const STRINGS = {
     unchecked: { one: "{count} vidéo n'a pas pu être vérifiée et a été ignorée. Relancez la création pour réessayer.", many: "{count} de vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer.", other: "{count} vidéos n'ont pas pu être vérifiées et ont été ignorées. Relancez la création pour réessayer." },
     createsDraft: "Crée un nouveau Draft 16:9",
     finishTitle: "Terminer le titre et le look",
+    finishUnconfirmed: "Le Draft existe, mais le titre et le look n’ont pas pu être confirmés. Vérifiez le Draft avant de lancer une autre exécution.",
+    confirmDraft: "Vérifier le montage enregistré",
     anotherVersion: "Essayer d'autres plans",
     build: "Créer",
     building: "Création",
@@ -752,8 +746,6 @@ const STRINGS = {
     "tpl.notFoundDetail": "Selects indique : {detail}",
     "tpl.notLocal": "Les fichiers originaux de ces clips ne sont pas sur cet ordinateur. Importez-les ici ou téléchargez les originaux, puis réessayez.",
     "tpl.notAnalysed": { one: "{count} vidéo est encore en cours d'ajout au projet et n'a donc pas pu être utilisée.", many: "{count} de vidéos sont encore en cours d'ajout au projet et n'ont donc pas pu être utilisées.", other: "{count} vidéos sont encore en cours d'ajout au projet et n'ont donc pas pu être utilisées." },
-    "tpl.noTitle": "Le Draft « {name} » a peut-être été enregistré sans son titre. Ouvrez-le depuis la liste des Drafts ou réessayez.",
-    "tpl.finishFailed": "Le Draft a été créé, mais le titre et le look n'ont pas pu être ajoutés. Réessayez.",
     "tpl.stoppedAt": "Archive Vlog s'est arrêté à cette étape : {step}. Réessayez.",
     "tpl.stopped": "Archive Vlog s'est arrêté avant que le Draft soit prêt. Réessayez.",
   },
@@ -883,8 +875,6 @@ const STRINGS = {
     beatTimeout: "il rilevamento del ritmo ha richiesto troppo tempo",
     previewFailed: "Impossibile riprodurre l'anteprima: {detail}.",
     noAudio: "non è stato restituito alcun audio",
-    draftNoId: "Il Draft «{name}» potrebbe essere stato salvato, ma Selects non ne ha comunicato l'ID. Aprilo dall'elenco dei Draft o crealo di nuovo.",
-    draftEmpty: "Il Draft «{name}» non contiene clip. Crealo di nuovo.",
     finishFailed: "Il Draft è stato creato, ma titolo, look e audio delle clip non sono ancora applicati: {detail}. Premi «Completa titolo e look» per riprovare.",
     openFailed: "Il Draft è pronto, ma non è stato possibile aprirlo: {detail}. Usa il link qui sotto o aprilo dall'elenco dei Draft.",
     draftCreated: "Draft creato. Seleziona il titolo o il credito per modificarne parole, colori, dimensione o velocità di decifrazione, una clip per regolarne inquadratura, look o movimento, e la musica per cambiarne il volume. Ricreare genera un nuovo Draft e non mantiene le modifiche dell'Inspector.",
@@ -898,6 +888,8 @@ const STRINGS = {
     unchecked: { one: "Non è stato possibile controllare {count} video, che è stato saltato. Crea di nuovo per riprovare.", many: "Non è stato possibile controllare {count} di video, che sono stati saltati. Crea di nuovo per riprovare.", other: "Non è stato possibile controllare {count} video, che sono stati saltati. Crea di nuovo per riprovare." },
     createsDraft: "Crea un nuovo Draft 16:9",
     finishTitle: "Completa titolo e look",
+    finishUnconfirmed: "Il Draft esiste, ma titolo e look non sono stati confermati. Controlla il Draft prima di avviare una nuova esecuzione.",
+    confirmDraft: "Verifica bozza salvata",
     anotherVersion: "Prova altre inquadrature",
     build: "Crea",
     building: "Creazione",
@@ -937,8 +929,6 @@ const STRINGS = {
     "tpl.notFoundDetail": "Selects segnala: {detail}",
     "tpl.notLocal": "I file originali di queste clip non sono su questo computer. Importale qui o scarica gli originali, poi riprova.",
     "tpl.notAnalysed": { one: "{count} video è ancora in fase di aggiunta al progetto, quindi non è stato possibile usarlo.", many: "{count} di video sono ancora in fase di aggiunta al progetto, quindi non è stato possibile usarli.", other: "{count} video sono ancora in fase di aggiunta al progetto, quindi non è stato possibile usarli." },
-    "tpl.noTitle": "Il Draft «{name}» potrebbe essere stato salvato senza titolo. Aprilo dall'elenco dei Draft o riprova.",
-    "tpl.finishFailed": "Il Draft è stato creato, ma non è stato possibile aggiungere titolo e look. Riprova.",
     "tpl.stoppedAt": "Archive Vlog si è fermato a questo passaggio: {step}. Riprova.",
     "tpl.stopped": "Archive Vlog si è fermato prima che il Draft fosse pronto. Riprova.",
   },
@@ -1068,8 +1058,6 @@ const STRINGS = {
     beatTimeout: "ビートの検出に時間がかかりすぎました",
     previewFailed: "プレビューを再生できませんでした: {detail}。",
     noAudio: "音声が返されませんでした",
-    draftNoId: "Draft「{name}」は保存された可能性がありますが、Selects から ID が返されませんでした。Draft の一覧から開くか、もう一度作成してください。",
-    draftEmpty: "Draft「{name}」にクリップがありません。もう一度作成してください。",
     finishFailed: "Draft は作成されましたが、タイトル・ルック・クリップの音はまだ適用されていません: {detail}。「タイトルとルックを仕上げる」を押して再試行してください。",
     openFailed: "Draft の準備はできましたが、開けませんでした: {detail}。下のリンクを使うか、Draft 一覧から開いてください。",
     draftCreated: "Draft を作成しました。タイトルやクレジットを選ぶと文字・色・サイズ・デコード速度を、クリップを選ぶと切り抜き・ルック・モーションを、音楽を選ぶと音量を変更できます。作り直すと新しい Draft が作成され、インスペクタでの編集は引き継がれません。",
@@ -1083,6 +1071,8 @@ const STRINGS = {
     unchecked: { other: "{count} 本の動画を確認できなかったため、スキップしました。もう一度作成すると再試行します。" },
     createsDraft: "16:9 の新しい Draft を作成します",
     finishTitle: "タイトルとルックを仕上げる",
+    finishUnconfirmed: "Draft は存在しますが、タイトルとルックを確認できませんでした。次の実行を始める前に Draft を確認してください。",
+    confirmDraft: "保存したドラフトを確認",
     anotherVersion: "別のショットで作成",
     build: "作成",
     building: "作成中",
@@ -1122,8 +1112,6 @@ const STRINGS = {
     "tpl.notFoundDetail": "Selects からの理由: {detail}",
     "tpl.notLocal": "これらのクリップの元ファイルはこのコンピュータにありません。ここで読み込むか元ファイルをダウンロードしてから、もう一度お試しください。",
     "tpl.notAnalysed": { other: "{count} 本の動画はまだプロジェクトに追加中のため、使用できませんでした。" },
-    "tpl.noTitle": "Draft「{name}」はタイトルなしで保存された可能性があります。Draft の一覧から開くか、もう一度お試しください。",
-    "tpl.finishFailed": "Draft は作成されましたが、タイトルとルックを追加できませんでした。もう一度お試しください。",
     "tpl.stoppedAt": "Archive Vlog は次のステップで停止しました: {step}。もう一度お試しください。",
     "tpl.stopped": "Draft の準備ができる前に Archive Vlog が停止しました。もう一度お試しください。",
   },
@@ -1253,8 +1241,6 @@ const STRINGS = {
     beatTimeout: "\ube44\ud2b8 \uac10\uc9c0\uc5d0 \uc2dc\uac04\uc774 \ub108\ubb34 \uc624\ub798 \uac78\ub838\uc2b5\ub2c8\ub2e4",
     previewFailed: "\ubbf8\ub9ac\ub4e3\uae30\ub97c \uc7ac\uc0dd\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}.",
     noAudio: "\uc624\ub514\uc624\uac00 \ub3cc\uc544\uc624\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
-    draftNoId: "Draft ‘{name}’\uc774(\uac00) \uc800\uc7a5\ub418\uc5c8\uc744 \uc218 \uc788\uc9c0\ub9cc Selects\uac00 ID\ub97c \uc54c\ub824 \uc8fc\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4. Draft \ubaa9\ub85d\uc5d0\uc11c \uc5f4\uac70\ub098 \ub2e4\uc2dc \ub9cc\ub4dc\uc138\uc694.",
-    draftEmpty: "Draft ‘{name}’\uc5d0 \ud074\ub9bd\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4dc\uc138\uc694.",
     finishFailed: "Draft\ub294 \ub9cc\ub4e4\uc5c8\uc9c0\ub9cc \ud0c0\uc774\ud2c0, \uc0c9\uac10, \ud074\ub9bd \uc18c\ub9ac\uac00 \uc544\uc9c1 \uc801\uc6a9\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4: {detail}. ‘\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac’\ub97c \ub20c\ub7ec \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     openFailed: "Draft\ub294 \uc900\ube44\ub418\uc5c8\uc9c0\ub9cc \uc5f4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4: {detail}. \uc544\ub798 \ub9c1\ud06c\ub97c \uc4f0\uac70\ub098 Draft \ubaa9\ub85d\uc5d0\uc11c \uc5ec\uc138\uc694.",
     draftCreated: "Draft\ub97c \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4. \ud0c0\uc774\ud2c0\uc774\ub098 \ud06c\ub808\ub527\uc744 \uc120\ud0dd\ud558\uba74 \uae00\uc790, \uc0c9, \ud06c\uae30, \ub514\ucf54\ub529 \uc18d\ub3c4\ub97c, \ud074\ub9bd\uc744 \uc120\ud0dd\ud558\uba74 \ud06c\ub86d, \uc0c9\uac10, \ubaa8\uc158\uc744, \uc74c\uc545\uc744 \uc120\ud0dd\ud558\uba74 \ubcfc\ub968\uc744 \ubc14\uafc0 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc0c8 Draft\uac00 \uc0dd\uae30\uace0 \uc778\uc2a4\ud399\ud130\uc5d0\uc11c \ud55c \ud3b8\uc9d1\uc740 \uc720\uc9c0\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.",
@@ -1268,6 +1254,8 @@ const STRINGS = {
     unchecked: { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud574 \uac74\ub108\ub6f0\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ub9cc\ub4e4\uba74 \uc7ac\uc2dc\ub3c4\ud569\ub2c8\ub2e4." },
     createsDraft: "\uc0c8 16:9 Draft\ub97c \ub9cc\ub4ed\ub2c8\ub2e4",
     finishTitle: "\ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10 \ub9c8\ubb34\ub9ac",
+    finishUnconfirmed: "Draft\ub294 \uc788\uc9c0\ub9cc \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc758 \uc800\uc7a5 \uacb0\uacfc\ub97c \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc0c8 \uc791\uc5c5\uc744 \uc2dc\uc791\ud558\uae30 \uc804\uc5d0 Draft\ub97c \ud655\uc778\ud558\uc138\uc694.",
+    confirmDraft: "\uc800\uc7a5\ub41c Draft \ud655\uc778",
     anotherVersion: "\ub2e4\ub978 \uc0f7\uc73c\ub85c \ub9cc\ub4e4\uae30",
     build: "\ub9cc\ub4e4\uae30",
     building: "\ub9cc\ub4dc\ub294 \uc911",
@@ -1307,8 +1295,6 @@ const STRINGS = {
     "tpl.notFoundDetail": "Selects \uba54\uc2dc\uc9c0: {detail}",
     "tpl.notLocal": "\uc774 \ud074\ub9bd\ub4e4\uc758 \uc6d0\ubcf8 \ud30c\uc77c\uc774 \uc774 \ucef4\ud4e8\ud130\uc5d0 \uc5c6\uc2b5\ub2c8\ub2e4. \uc5ec\uae30\uc11c \uac00\uc838\uc624\uac70\ub098 \uc6d0\ubcf8\uc744 \ub0b4\ub824\ubc1b\uc740 \ub4a4 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.notAnalysed": { other: "\ub3d9\uc601\uc0c1 {count}\uac1c\uac00 \uc544\uc9c1 \ud504\ub85c\uc81d\ud2b8\uc5d0 \ucd94\uac00\ub418\ub294 \uc911\uc774\ub77c \uc0ac\uc6a9\ud560 \uc218 \uc5c6\uc5c8\uc2b5\ub2c8\ub2e4." },
-    "tpl.noTitle": "Draft ‘{name}’\uc774(\uac00) \ud0c0\uc774\ud2c0 \uc5c6\uc774 \uc800\uc7a5\ub418\uc5c8\uc744 \uc218 \uc788\uc2b5\ub2c8\ub2e4. Draft \ubaa9\ub85d\uc5d0\uc11c \uc5f4\uac70\ub098 \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
-    "tpl.finishFailed": "Draft\ub294 \ub9cc\ub4e4\uc5b4\uc84c\uc9c0\ub9cc \ud0c0\uc774\ud2c0\uacfc \uc0c9\uac10\uc744 \ucd94\uac00\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.stoppedAt": "Archive Vlog\uac00 \uc774 \ub2e8\uacc4\uc5d0\uc11c \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4: {step}. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
     "tpl.stopped": "Draft\uac00 \uc900\ube44\ub418\uae30 \uc804\uc5d0 Archive Vlog\uac00 \uc911\ub2e8\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud558\uc138\uc694.",
   },
@@ -1438,8 +1424,6 @@ const STRINGS = {
     beatTimeout: "a detecção da batida demorou demais",
     previewFailed: "Não foi possível reproduzir a prévia: {detail}.",
     noAudio: "nenhum áudio foi retornado",
-    draftNoId: "O Draft “{name}” pode ter sido salvo, mas o Selects não informou o ID dele. Abra-o na lista de Drafts ou crie de novo.",
-    draftEmpty: "O Draft “{name}” não tem clipes. Crie de novo.",
     finishFailed: "O Draft foi criado, mas o título, o look e o som dos clipes ainda não foram aplicados: {detail}. Pressione “Concluir título e look” para tentar de novo.",
     openFailed: "O Draft está pronto, mas não pôde ser aberto: {detail}. Use o link abaixo ou abra-o pela lista de Drafts.",
     draftCreated: "Draft criado. Selecione o título ou o crédito para editar as palavras, as cores, o tamanho ou a velocidade de decifração; um clipe para ajustar o enquadramento, o look ou o movimento; e a música para mudar o volume. Criar de novo gera um novo Draft e não mantém as edições do Inspetor.",
@@ -1453,6 +1437,8 @@ const STRINGS = {
     unchecked: { one: "Não foi possível verificar {count} vídeo; ele foi ignorado. Crie de novo para tentar outra vez.", many: "Não foi possível verificar {count} de vídeos; eles foram ignorados. Crie de novo para tentar outra vez.", other: "Não foi possível verificar {count} vídeos; eles foram ignorados. Crie de novo para tentar outra vez." },
     createsDraft: "Cria um novo Draft 16:9",
     finishTitle: "Concluir título e look",
+    finishUnconfirmed: "O Draft existe, mas não foi possível confirmar o título e o look. Confira o Draft antes de iniciar outra execução.",
+    confirmDraft: "Verificar rascunho salvo",
     anotherVersion: "Testar outros planos",
     build: "Criar",
     building: "Criando",
@@ -1492,8 +1478,6 @@ const STRINGS = {
     "tpl.notFoundDetail": "O Selects informou: {detail}",
     "tpl.notLocal": "Os arquivos originais destes clipes não estão neste computador. Importe-os aqui ou baixe os originais e tente de novo.",
     "tpl.notAnalysed": { one: "{count} vídeo ainda está sendo adicionado ao projeto, então não pôde ser usado.", many: "{count} de vídeos ainda estão sendo adicionados ao projeto, então não puderam ser usados.", other: "{count} vídeos ainda estão sendo adicionados ao projeto, então não puderam ser usados." },
-    "tpl.noTitle": "O Draft “{name}” pode ter sido salvo sem o título. Abra-o na lista de Drafts ou tente de novo.",
-    "tpl.finishFailed": "O Draft foi criado, mas não foi possível adicionar o título e o look. Tente de novo.",
     "tpl.stoppedAt": "O Archive Vlog parou nesta etapa: {step}. Tente de novo.",
     "tpl.stopped": "O Archive Vlog parou antes de o Draft ficar pronto. Tente de novo.",
   },
@@ -1623,8 +1607,6 @@ const STRINGS = {
     beatTimeout: "ritim algılama çok uzun sürdü",
     previewFailed: "Önizleme oynatılamadı: {detail}.",
     noAudio: "ses geri gelmedi",
-    draftNoId: "“{name}” Draft'ı kaydedilmiş olabilir ama Selects kimliğini bildirmedi. Draft listesinden açın veya yeniden oluşturun.",
-    draftEmpty: "“{name}” Draft'ında hiç klip yok. Yeniden oluşturun.",
     finishFailed: "Draft oluşturuldu ama başlık, görünüm ve klip sesi henüz uygulanmadı: {detail}. Yeniden denemek için “Başlığı ve görünümü tamamla”ya basın.",
     openFailed: "Draft hazır ama açılamadı: {detail}. Aşağıdaki bağlantıyı kullanın veya Draft listesinden açın.",
     draftCreated: "Draft oluşturuldu. Kelimelerini, renklerini, boyutunu veya çözülme hızını düzenlemek için başlığı ya da jeneriği; kırpmasını, görünümünü veya hareketini ayarlamak için bir klibi; ses seviyesini değiştirmek için müziği seçin. Yeniden oluşturmak yeni bir Draft oluşturur ve Denetçi düzenlemelerini korumaz.",
@@ -1638,6 +1620,8 @@ const STRINGS = {
     unchecked: { one: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun.", other: "{count} video kontrol edilemedi ve atlandı. Yeniden denemek için tekrar oluşturun." },
     createsDraft: "Yeni bir 16:9 Draft oluşturur",
     finishTitle: "Başlığı ve görünümü tamamla",
+    finishUnconfirmed: "Draft mevcut ancak başlık ve görünüm doğrulanamadı. Yeni bir çalıştırma başlatmadan önce Draft’ı inceleyin.",
+    confirmDraft: "Kaydedilen taslağı kontrol et",
     anotherVersion: "Başka çekimler dene",
     build: "Oluştur",
     building: "Oluşturuluyor",
@@ -1677,8 +1661,6 @@ const STRINGS = {
     "tpl.notFoundDetail": "Selects şunu bildirdi: {detail}",
     "tpl.notLocal": "Bu kliplerin orijinal dosyaları bu bilgisayarda değil. Onları buraya aktarın veya orijinalleri indirin, sonra tekrar deneyin.",
     "tpl.notAnalysed": { one: "{count} video hâlâ projeye ekleniyor, bu yüzden kullanılamadı.", other: "{count} video hâlâ projeye ekleniyor, bu yüzden kullanılamadı." },
-    "tpl.noTitle": "“{name}” Draft'ı başlığı olmadan kaydedilmiş olabilir. Draft listesinden açın veya yeniden deneyin.",
-    "tpl.finishFailed": "Draft oluşturuldu ancak başlık ve görünüm eklenemedi. Yeniden deneyin.",
     "tpl.stoppedAt": "Archive Vlog şu adımda durdu: {step}. Yeniden deneyin.",
     "tpl.stopped": "Archive Vlog, Draft hazır olmadan durdu. Yeniden deneyin.",
   },
@@ -1808,8 +1790,6 @@ const STRINGS = {
     beatTimeout: "节拍识别耗时过长",
     previewFailed: "无法播放试听：{detail}。",
     noAudio: "没有返回音频",
-    draftNoId: "Draft“{name}”可能已保存，但 Selects 没有返回它的 ID。请从 Draft 列表中打开，或重新生成。",
-    draftEmpty: "Draft“{name}”中没有片段。请重新生成。",
     finishFailed: "Draft 已创建，但标题、色调和片段原声尚未应用：{detail}。点击“完成标题和色调”重试。",
     openFailed: "Draft 已就绪，但无法打开：{detail}。请使用下方链接，或从 Draft 列表中打开。",
     draftCreated: "Draft 已创建。选中标题或署名可编辑文字、颜色、大小或解码速度；选中片段可调整裁切、色调或运动；选中音乐可调整其音量。重新生成会创建新的 Draft，不会保留在检查器中的编辑。",
@@ -1823,6 +1803,8 @@ const STRINGS = {
     unchecked: { other: "有 {count} 个视频无法检查，已跳过。重新生成即可重试。" },
     createsDraft: "创建一个新的 16:9 Draft",
     finishTitle: "完成标题和色调",
+    finishUnconfirmed: "Draft 已存在，但无法确认标题和色调的保存结果。开始新的运行前，请检查 Draft。",
+    confirmDraft: "检查已保存的草稿",
     anotherVersion: "换一组镜头",
     build: "生成",
     building: "正在生成",
@@ -1862,8 +1844,6 @@ const STRINGS = {
     "tpl.notFoundDetail": "Selects 提示：{detail}",
     "tpl.notLocal": "这些片段的原始文件不在这台电脑上。请在这里导入，或下载原始文件，然后再试一次。",
     "tpl.notAnalysed": { other: "有 {count} 个视频仍在添加到项目中，因此无法使用。" },
-    "tpl.noTitle": "Draft“{name}”可能已在没有标题的情况下保存。请从 Draft 列表中打开，或重试。",
-    "tpl.finishFailed": "Draft 已创建，但无法添加标题和色调。请重试。",
     "tpl.stoppedAt": "Archive Vlog 在此步骤停止：{step}。请重试。",
     "tpl.stopped": "Archive Vlog 在 Draft 准备好之前停止了。请重试。",
   },
@@ -1961,7 +1941,6 @@ const INCOMPLETE_POLL_MAX = 6;
 // to the panel still re-read.
 const WAITING_POLL_MAX = 30;
 // A lost assemble reply is recovered by reading at most this many of the Project's most recent Drafts.
-const DRAFT_LOOKUP_MAX = 50;
 // Your own music: at most this much of the track is analysed (and used), mono at this rate (beat-detect's rate, and
 // the CLI's ffmpeg command), which keeps the worker near 150 MB and a few seconds.
 const OWN_MAX_SECONDS = 240;
@@ -4508,6 +4487,591 @@ function audioType(path: string) {
   return ({ mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", flac: "audio/flac", ogg: "audio/ogg", opus: "audio/ogg" } as any)[ext] || "";
 }
 
+// template-run:start
+// Durable ownership of one app-supplied template run. Original source is embedded
+// into its declared consumers; no cross-plugin runtime import is required.
+function templateRunJSON(value,limit=49152) {
+ // Request data may opt in to a larger budget. Receipt envelopes and their
+ // exclusive/CAS writes retain the original 48 KiB default and exact bytes.
+ if(!Number.isSafeInteger(limit)||limit<49152||limit>131072)throw Error('Invalid template request limit.');
+ const text=JSON.stringify(value).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));
+ if(text.length>limit)throw Error('The template run receipt exceeds the local file limit.');
+ return text;
+}
+// SDK scripts have no browser/Node encoding globals. The JSON above is ASCII.
+function templateRunBase64(text) {
+ const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';let out='';
+ for(let i=0;i<text.length;i+=3){
+  const a=text.charCodeAt(i),b=text.charCodeAt(i+1),c=text.charCodeAt(i+2);
+  out+=alphabet[a>>2]+alphabet[((a&3)<<4)|(Number.isNaN(b)?0:b>>4)]+(Number.isNaN(b)?'=':alphabet[((b&15)<<2)|(Number.isNaN(c)?0:c>>6)])+(Number.isNaN(c)?'=':alphabet[c&63]);
+ }
+ return out;
+}
+function templateRunIssue(code,message) {
+ return Object.assign(Error(message),{code,publicMessage:message});
+}
+// A canonical, bounded JSON value for snapshots/recipes. Unlike the small run
+// envelope, state can include fonts/programs; it is stored in chunked files.
+function templateStateJSON(value,limit=8388608){
+ const text=JSON.stringify(value,(_key,item)=>{
+  if(typeof item==='number'&&!Number.isFinite(item)||['function','symbol','bigint'].includes(typeof item))throw Error('Template state contains an unsupported value.');
+  return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item;
+ }).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));
+ if(text.length>limit)throw Error('Template state exceeds its input limit.');return text;
+}
+// SDK-safe state of every exposed timeline row. Read-only targets never cross
+// edits or script calls; source windows, programs and sound come from SDK reads.
+async function readTemplateSavedState(draft){
+ const meta=await draft.meta(),graphics=await draft.motionGraphics(),rows=await draft.clips({trackScope:'all'});
+ if(!Number.isFinite(meta.fps)||meta.fps<=0||!Number.isSafeInteger(meta.durationFrames)||meta.durationFrames<1||!Number.isSafeInteger(meta.frameSize?.width)||meta.frameSize.width<1||!Number.isSafeInteger(meta.frameSize?.height)||meta.frameSize.height<1||!Array.isArray(rows)||rows.length>1024||new Set(rows.map(r=>r.clipId)).size!==rows.length||!Array.isArray(graphics))throw Error('The Draft state is incomplete.');
+ const clips=[];
+ for(const row of rows){
+  if(!Number.isSafeInteger(row.clipId)||typeof row.trackId!=='string'||!row.trackId||!Number.isSafeInteger(row.startFrame)||row.startFrame<0||!Number.isSafeInteger(row.endFrame)||row.endFrame<=row.startFrame)throw Error('The Draft row is incomplete.');
+  const graphic=graphics.find(g=>g.clip.clipId===row.clipId&&g.clip.trackId===row.trackId),media=row.resourceId!=null&&['main','video','audio'].includes(row.trackKind),visual=['main','video'].includes(row.trackKind)&&(media||!!graphic);
+  const effects=[];
+  if(visual)for(const effect of await draft.videoEffects(row))effects.push({effectIndex:effect.effectIndex,name:effect.name,effectName:effect.effectName,enabled:effect.enabled,program:await draft.videoEffectProgram(effect)});
+  clips.push({clipId:row.clipId,trackId:row.trackId,trackKind:row.trackKind,resourceId:row.resourceId??null,startFrame:row.startFrame,endFrame:row.endFrame,videoIndex:row.videoIndex??null,audioSourceIndexes:row.audioSourceIndexes??null,color:row.color??null,playbackSpeed:row.playbackSpeed??null,preserveAudioPitch:row.preserveAudioPitch??null,text:row.text??null,
+   source:media?await draft.clipSourceWindow(row):null,audio:media?await draft.clipAudio(row):null,transform:visual?await draft.clipTransform(row):null,effects,graphic:graphic?{name:graphic.name,program:await draft.motionGraphicProgram(row)}:null});
+ }
+ clips.sort((a,b)=>a.clipId-b.clipId);
+ return {fps:meta.fps,durationFrames:meta.durationFrames,frameSize:{width:meta.frameSize.width,height:meta.frameSize.height},clips};
+}
+// SDK-safe immutable snapshot publication and comparison. Compare actual bytes
+// in bounded chunks as well as their native fingerprint; no SDK encoding global
+// or handwritten hash implementation is required.
+async function templateStateFile(selects,path,text,encode,expected=null){
+ const files=selects.files;
+ if(!files||!['fingerprint','readRange','writeChunk'].every(key=>typeof files[key]==='function')||typeof text!=='string'||!text.length||text.length>8388608)throw Error('Update Selects to confirm template state files.');
+ if(!expected){
+  for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.writeChunk({path,offset,base64:encode(chunk),...offset===0?{mode:'exclusive'}:{}});if(reply?.bytesWritten!==chunk.length)throw Error('Template state file write was incomplete.');}
+  const fingerprint=await files.fingerprint(path);
+  if(!fingerprint||fingerprint.size!==text.length||typeof fingerprint.sha256!=='string'||!/^[a-f0-9]{64}$/.test(fingerprint.sha256))throw Error('Template state file could not be fingerprinted.');
+  expected={path,...fingerprint};
+ }
+ if(expected.path!==path||expected.size!==text.length)throw Error('The saved template state has changed.');
+ const before=await files.fingerprint(path);
+ if(!before||before.size!==expected.size||before.sha256!==expected.sha256)throw Error('The template state file has changed.');
+ for(let offset=0;offset<text.length;offset+=49152){const chunk=text.slice(offset,offset+49152),reply=await files.readRange({path,offset,length:chunk.length});if(reply?.bytesRead!==chunk.length||reply.base64!==encode(chunk))throw Error('The saved Draft differs from its owned state.');}
+ const after=await files.fingerprint(path);if(!after||after.size!==expected.size||after.sha256!==expected.sha256)throw Error('The template state file changed while reading.');
+ return expected;
+}
+function validateTemplateRun(row,scope,digest,recordPath=null) {
+ const invalid=()=>templateRunIssue('TEMPLATE_RUN_INVALID','The saved run record could not be verified. Inspect the Project before starting a new run.');
+ if(!row||row.version!==1||!row.scope||Object.keys(row.scope).length!==4||Object.keys(scope).some(key=>row.scope[key]!==scope[key])||row.requestDigest!==digest||
+  typeof row.owner!=='string'||!/^[\da-f-]{36}$/i.test(row.owner)||!['claimed','saved','notSaved','outcomeUnknown','retired'].includes(row.status))throw invalid();
+ if(row.savedDraftId!==undefined&&(row.status!=='outcomeUnknown'||typeof row.savedDraftId!=='string'||!row.savedDraftId||row.savedDraftId.length>1024||row.savedDraftId.includes('\0')))throw invalid();
+ if(row.status==='saved'){
+  const r=row.result;
+  if(!r||typeof r.draftId!=='string'||!r.draftId||!Number.isFinite(r.fps)||r.fps<=0||!Number.isSafeInteger(r.durationFrames)||r.durationFrames<1||
+   !Number.isSafeInteger(r.frameSize?.width)||r.frameSize.width<1||!Number.isSafeInteger(r.frameSize?.height)||r.frameSize.height<1||!Array.isArray(r.clips)||!r.clips.length||r.clips.length>256||
+   r.clips.some(c=>!c||!Number.isSafeInteger(c.clipId)||typeof c.trackId!=='string'||!c.trackId||typeof c.resourceId!=='string'||!c.resourceId||!Number.isSafeInteger(c.startFrame)||!Number.isSafeInteger(c.endFrame)||c.startFrame<0||c.endFrame<=c.startFrame||c.endFrame>r.durationFrames))throw invalid();
+  if(new Set(r.clips.map(c=>c.clipId)).size!==r.clips.length)throw invalid();
+  if(r.stateFile!==undefined){const file=r.stateFile;if(!file||Object.keys(file).length!==3||typeof file.path!=='string'||!recordPath||file.path!==recordPath+'.state-'+row.owner+'.json'||typeof file.sha256!=='string'||!/^[a-f0-9]{64}$/.test(file.sha256)||!Number.isSafeInteger(file.size)||file.size<1||file.size>8388608)throw invalid();}
+  if(r.graphics!==undefined){
+   if(!Array.isArray(r.graphics)||r.graphics.length>256||r.graphics.some(g=>!g||!Number.isSafeInteger(g.clipId)||g.clipId<0||typeof g.trackId!=='string'||!g.trackId||!Number.isSafeInteger(g.startFrame)||!Number.isSafeInteger(g.endFrame)||g.startFrame<0||g.endFrame<=g.startFrame||g.endFrame>r.durationFrames||!g.parameters||typeof g.parameters!=='object'||Array.isArray(g.parameters)||'tsxCode' in g))throw invalid();
+   if(new Set(r.graphics.map(g=>g.clipId)).size!==r.graphics.length||r.graphics.some(g=>r.clips.some(c=>c.clipId===g.clipId)))throw invalid();
+  }
+  if(r.transforms!==undefined){
+   const visual=[...r.clips,...(r.graphics??[])],point=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.y);
+   if(!Array.isArray(r.transforms)||r.transforms.length!==visual.length||new Set(r.transforms.map(t=>t?.clipId)).size!==r.transforms.length)throw invalid();
+   for(const row of r.transforms){
+    const t=row?.transform;
+    if(!row||!visual.some(c=>c.clipId===row.clipId&&c.trackId===row.trackId)||Object.keys(row).length!==3||!t||Object.keys(t).length!==10||typeof t.enabled!=='boolean'||typeof t.flipHorizontal!=='boolean'||typeof t.flipVertical!=='boolean'||!point(t.position)||!point(t.scale)||t.scale.x<=0||t.scale.y<=0||!point(t.anchor)||!Number.isFinite(t.rotation))throw invalid();
+    for(const key of ['positionKeys','scaleKeys','rotationKeys'])if(!Array.isArray(t[key])||t[key].length>256||t[key].some(k=>!k||!Number.isFinite(k.atSeconds)||k.atSeconds<0||(key==='positionKeys'?!point(k):!Number.isFinite(k[key==='scaleKeys'?'scale':'rotation']))))throw invalid();
+   }
+  }
+  if(r.audio!==undefined){
+   if(!Array.isArray(r.audio)||r.audio.length>256||new Set(r.audio.map(a=>a?.clipId)).size!==r.audio.length)throw invalid();
+   const db=value=>Number.isFinite(value)&&value>=-60&&value<=12,visual=[...r.clips,...(r.graphics??[])];
+   for(const a of r.audio){
+    const s=a?.settings;
+    if(!a||Object.keys(a).length!==(a.source===undefined?8:9)||!Number.isSafeInteger(a.clipId)||a.clipId<0||typeof a.trackId!=='string'||!a.trackId||!['main','audio'].includes(a.trackKind)||typeof a.resourceId!=='string'||!a.resourceId||!Number.isSafeInteger(a.startFrame)||!Number.isSafeInteger(a.endFrame)||a.startFrame<0||a.endFrame<=a.startFrame||a.endFrame>r.durationFrames||visual.some(c=>c.clipId===a.clipId)||!s||Object.keys(s).length!==4)throw invalid();
+    if(a.source!==undefined){
+     const t=a.source,rate=t?.playbackSpeed;
+     if(!t||Object.keys(t).length!==4||!Number.isFinite(t.startSeconds)||t.startSeconds<0||!Number.isFinite(t.endSeconds)||t.endSeconds<=t.startSeconds||!rate||Object.keys(rate).length!==2||!Number.isSafeInteger(rate.numerator)||rate.numerator<1||!Number.isSafeInteger(rate.denominator)||rate.denominator<1||rate.numerator/rate.denominator<.01||rate.numerator/rate.denominator>100||typeof t.preserveAudioPitch!=='boolean')throw invalid();
+    }
+    if(a.audioSourceIndexes!==null&&(!Array.isArray(a.audioSourceIndexes)||a.audioSourceIndexes.length>256||new Set(a.audioSourceIndexes).size!==a.audioSourceIndexes.length||a.audioSourceIndexes.some(i=>!Number.isSafeInteger(i)||i<0)))throw invalid();
+    const duration=(a.endFrame-a.startFrame)/r.fps;
+    if(!Array.isArray(s.volumeKeys)||s.volumeKeys.length>256||(s.volumeKeys.length?s.volumeDb!==null:!db(s.volumeDb))||s.volumeKeys.some(k=>!k||!Number.isFinite(k.atSeconds)||k.atSeconds<0||k.atSeconds>duration||!db(k.volumeDb))||!Number.isFinite(s.fadeInSeconds)||s.fadeInSeconds<0||s.fadeInSeconds>duration||!Number.isFinite(s.fadeOutSeconds)||s.fadeOutSeconds<0||s.fadeOutSeconds>duration)throw invalid();
+   }
+  }
+  if(r.programs!==undefined){
+   const p=r.programs,visual=[...r.clips,...(r.graphics??[])],used=new Set();
+   if(!p||Object.keys(p).length!==2||!Array.isArray(p.sources)||p.sources.length>256||p.sources.some(s=>typeof s!=='string'||!s||s.length>49152)||new Set(p.sources).size!==p.sources.length||!Array.isArray(p.clips)||p.clips.length!==visual.length||new Set(p.clips.map(c=>c?.clipId)).size!==p.clips.length)throw invalid();
+   const entry=(e,effect)=>{
+    if(!e||Object.keys(e).length!==(effect?4:3)||!Number.isSafeInteger(e.source)||e.source<0||e.source>=p.sources.length||!e.parameters||typeof e.parameters!=='object'||Array.isArray(e.parameters)||!Array.isArray(e.editableParameters)||e.editableParameters.length>256||effect&&(typeof e.name!=='string'||!e.name))throw invalid();
+    if(new Set(e.editableParameters.map(d=>d?.key)).size!==e.editableParameters.length||e.editableParameters.some(d=>!d||typeof d.key!=='string'||!d.key||typeof d.label!=='string'||!['text','number','color','boolean','select'].includes(d.type)||!Object.prototype.hasOwnProperty.call(e.parameters,d.key)))throw invalid();
+    used.add(e.source);
+   };
+   for(const c of p.clips){
+    if(!c||Object.keys(c).length!==4||!visual.some(v=>v.clipId===c.clipId&&v.trackId===c.trackId)||!Array.isArray(c.effects)||c.effects.length>64)throw invalid();
+    c.effects.forEach(e=>entry(e,true));
+    const graphic=(r.graphics??[]).some(g=>g.clipId===c.clipId);
+    if(graphic)entry(c.graphic,false);else if(c.graphic!==null)throw invalid();
+   }
+   if(used.size!==p.sources.length)throw invalid();
+  }
+ }
+ return row;
+}
+// Called inside the SAME Main SDK invocation after authoring, before the reply.
+// Only the exclusive claim's owner can publish this receipt; no save is retried.
+async function writeTemplateRunResult(selects,claim,result,json,encode) {
+ try{
+  const row=JSON.parse(claim.expectedText),status=result.status;
+  if(row.status!=='claimed'||!['saved','notSaved','outcomeUnknown'].includes(status))throw Error('Invalid run receipt state');
+  let saved;
+  if(status==='saved'){
+   if(!('fps' in result)||!('durationFrames' in result)||!('frameSize' in result)||!('clips' in result)||typeof result.draftId!=='string'||!result.draftId)throw Error('Saved run receipt is incomplete');
+   saved={draftId:result.draftId,fps:result.fps,durationFrames:result.durationFrames,frameSize:result.frameSize,clips:result.clips,...'graphics' in result?{graphics:result.graphics}:{},...'transforms' in result?{transforms:result.transforms}:{},...'audio' in result?{audio:result.audio}:{},...'programs' in result?{programs:result.programs}:{},...'stateFile' in result?{stateFile:result.stateFile}:{}};
+  }
+  const savedDraftId=status==='outcomeUnknown'?result.draftId:null;
+  if(savedDraftId!=null&&(typeof savedDraftId!=='string'||!savedDraftId||savedDraftId.length>1024||savedDraftId.includes('\0')))throw Error('Invalid saved Draft identity');
+  const next=json({...row,status,...saved?{result:saved}:{},...savedDraftId?{savedDraftId}:{}});
+  const reply=await selects.files.compareAndReplace({path:claim.path,expectedBase64:encode(claim.expectedText),base64:encode(next)});
+  return {...result,runReceiptSaved:reply?.replaced===true};
+ }catch{return {...result,runReceiptSaved:false};}
+}
+async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,verify,options={}) {
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};
+ check();
+ if(!options||['existingOnly','retryNotSaved','retireUnstarted'].some(key=>options[key]!==undefined&&typeof options[key]!=='boolean')||options.existingOnly&&(options.retryNotSaved||options.retireUnstarted)||options.retryNotSaved&&options.retireUnstarted)fail('TEMPLATE_RUN_INVALID','Invalid run recovery options.');
+ if(!scope||!['pluginId','libraryId','projectId','runId'].every(key=>typeof scope[key]==='string'&&scope[key].length>0&&scope[key].length<=1024)||!/^[a-z0-9-]+$/.test(scope.pluginId))fail('TEMPLATE_RUN_INVALID','The template run target is incomplete. Start again from the Project.');
+ scope={pluginId:scope.pluginId,libraryId:scope.libraryId,projectId:scope.projectId,runId:scope.runId};
+ const targetCheck=async()=>{
+  const target=await sdk.call('getProjectDraftScaffold',scope.projectId);
+  if(target?.owner?.libraryId!==scope.libraryId||target.owner.projectId!==scope.projectId)fail('TEMPLATE_RUN_TARGET','The template run belongs to a different Project or library. Start again from the intended Project.');
+  check();
+ };
+ await targetCheck();
+ if(!files||!['join','homedir','exists','stat','readRange','writeFile','compareAndReplace','mkdir'].every(key=>typeof files[key]==='function'))fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ if(typeof globalThis.crypto?.subtle?.digest!=='function'||typeof globalThis.TextEncoder!=='function'||typeof globalThis.TextDecoder!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ const digest=async(value,limit=49152)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(templateRunJSON(value,limit)))),n=>n.toString(16).padStart(2,'0')).join('');
+ const key=await digest(scope),requestDigest=await digest(request,options.requestLimit??49152);
+ const directory=files.join(files.homedir(),'.selects','plugin-data',scope.pluginId,'template-runs'),path=files.join(directory,key+'.json');
+ let lastReadText=null;
+ const read=async()=>{
+  if(!await files.exists(path))return null;
+  let row;
+  try{
+   for(let attempt=0;attempt<3;attempt++){
+   const stat=await files.stat(path);if(stat?.isDirectory===false&&stat.size===0)continue;
+   if(!stat||stat.isDirectory!==false||!Number.isSafeInteger(stat.size)||stat.size<1||stat.size>49152)throw Error('Invalid record size');
+   const bytes=await files.readRange(path,0,stat.size),after=await files.stat(path);
+   if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]')throw Error('Invalid run record bytes');
+   // A legitimate Main-side receipt may replace the claim between these reads.
+   // Retry bounded observations; never parse a mixture or retry authoring.
+   if(!after||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))continue;
+   if(bytes.byteLength!==stat.size)throw Error('Invalid run record bytes');
+   lastReadText=new TextDecoder().decode(bytes);row=JSON.parse(lastReadText);break;
+   }
+   if(row===undefined)fail('TEMPLATE_RUN_PENDING','The run record is changing. Check its saved result again.');
+  }catch(error){if(error?.code==='TEMPLATE_RUN_PENDING')throw error;fail('TEMPLATE_RUN_INVALID','The saved run record could not be read. Inspect the Project before starting a new run.');}
+  return validateTemplateRun(row,scope,requestDigest,path);
+ };
+ const recover=async row=>{
+  if(row.status==='saved'){await targetCheck();return verify({...row.result,status:'saved',projectId:scope.projectId});}
+  if(row.status==='retired')throw Object.assign(templateRunIssue('TEMPLATE_RUN_RETIRED','This old operation was retired before saving. Start a new template run with the updated version.'),{outcome:'notSaved'});
+  if(row.status==='notSaved')fail('TEMPLATE_RUN_NOT_SAVED','This run stopped before saving a Draft. Start a new run to retry.');
+  if(row.status==='outcomeUnknown'&&row.savedDraftId)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The saved Draft '+row.savedDraftId+' could not be confirmed. Inspect it before starting another run.'),{draftId:row.savedDraftId});
+  fail('TEMPLATE_RUN_PENDING','This run may still be saving or awaiting confirmation. Inspect the Project before starting another run.');
+ };
+ const existing=await read(),retryText=lastReadText;
+ if(existing&&!((options.retryNotSaved||options.retireUnstarted)&&existing.status==='notSaved'))return recover(existing);
+ if(options.existingOnly)fail('TEMPLATE_RUN_MISSING','The owned assembly record is missing. Inspect the Project before starting another run.');
+ if(typeof globalThis.crypto?.randomUUID!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ const capability=await sdk.runScript({summary:'Check durable template run support',allowCommit:false,script:"return {supported:'files' in selects&&typeof selects.files?.compareAndReplace==='function'&&typeof selects.files?.writeChunk==='function'};"});
+ if(capability.isError||capability.result?.supported!==true)fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ await files.mkdir(directory,{recursive:true});check();
+ const owner=crypto.randomUUID(),expectedText=templateRunJSON({version:1,scope,requestDigest,owner,status:'claimed'}),claim={path,expectedText};
+ // Exclusive creation is a filesystem operation, including across app windows.
+ // compareAndReplace alone serializes only one renderer bridge's own writes.
+ if(existing){
+  // Only a positive no-save is eligible. The exclusive generation lock covers
+  // other renderer bridges too; a CAS alone does not provide that guarantee.
+  const lock=path+'.retry-'+existing.owner;
+  try{await files.writeFile(lock,owner,{flag:'wx'});}catch(cause){
+   const stat=await files.stat(lock),bytes=stat?.size===owner.length?await files.readRange(lock,0,stat.size):null;
+   if(!bytes||new TextDecoder().decode(bytes)!==owner)fail('TEMPLATE_RUN_PENDING','A retry of this known no-save run is awaiting confirmation.');
+  }
+  try{
+   const replaced=await files.compareAndReplace(path,retryText,expectedText);
+   if(!replaced){const row=await read();if(row?.owner!==owner)return recover(row);}
+  }catch(cause){const row=await read();if(row?.owner!==owner)throw cause;}
+ }else try{await files.writeFile(path,expectedText,{flag:'wx'});}catch(cause){
+  const row=await read();
+  if(!row)fail('TEMPLATE_RUN_STORAGE','The run could not be recorded. Nothing was dispatched. Check local file access and start a new run.');
+  if(row.owner!==owner)return recover(row);
+  // A lost claim ACK is safe to recover here: authoring has not been dispatched.
+ }
+ if(options.retireUnstarted){
+  // An exclusive claim excludes older windows too. A distinct terminal state
+  // cannot be mistaken for their retryable pre-save failure.
+  const retired=templateRunJSON({...JSON.parse(expectedText),status:'retired'});
+  try{await files.compareAndReplace(path,expectedText,retired);}catch{}
+  const row=await read();if(row?.status==='retired')return recover(row);
+  fail('TEMPLATE_RUN_PENDING','Retirement of this old operation could not be confirmed. Check the same run again.');
+ }
+ let dispatched=false;
+ try{
+  check();
+  return await perform(claim,async()=>{await targetCheck();dispatched=true;});
+ }catch(cause){
+  if(!dispatched){
+   // No authoring was dispatched. Never overwrite a later Main-side receipt.
+   await files.compareAndReplace(path,expectedText,templateRunJSON({...JSON.parse(expectedText),status:'notSaved'})).catch(()=>{});
+   if(cause&&typeof cause==='object')Object.assign(cause,{outcome:'notSaved'});
+  }else{
+   // Main may finish after the transport failed. Keep its expected claim intact
+   // so the late receipt can land. A positively saved receipt permits readback.
+   const row=await read();if(row?.status==='saved')return recover(row);
+   if(row?.status==='notSaved')throw Object.assign(templateRunIssue('TEMPLATE_RUN_NOT_SAVED','This run stopped before saving a Draft. Start a new run to retry.'),{cause});
+  }
+  throw cause;
+ }
+}
+
+// SDK-safe projection for an assembly receipt. Main media identity and frame
+// intervals, routing, source windows, transforms and Main audio are confirmed
+// here; this is not title/effect or other-track semantic approval.
+async function readTemplateAssemblyState(draft){
+ const meta=await draft.meta(),rows=await draft.clips({trackScope:'main'});
+ if(!Number.isFinite(meta.fps)||meta.fps<=0||!Number.isSafeInteger(meta.frameSize?.width)||meta.frameSize.width<1||!Number.isSafeInteger(meta.frameSize?.height)||meta.frameSize.height<1||!Array.isArray(rows))throw Error('The assembled Draft metadata is incomplete.');
+ const clips=[];
+ for(const row of rows.filter(row=>row.resourceId!=null))clips.push({clipId:row.clipId,trackId:row.trackId,resourceId:row.resourceId,startFrame:row.startFrame,endFrame:row.endFrame,
+  videoIndex:row.videoIndex??null,audioSourceIndexes:row.audioSourceIndexes??null,playbackSpeed:row.playbackSpeed??null,preserveAudioPitch:row.preserveAudioPitch??null,
+  source:await draft.clipSourceWindow(row),transform:await draft.clipTransform(row),audio:await draft.clipAudio(row)});
+ clips.sort((a,b)=>a.clipId-b.clipId);
+ if(!clips.length||clips.length>256||new Set(clips.map(c=>c.clipId)).size!==clips.length||clips.some(c=>!Number.isSafeInteger(c.clipId)||c.clipId<0||typeof c.trackId!=='string'||!c.trackId||typeof c.resourceId!=='string'||!c.resourceId||!Number.isSafeInteger(c.startFrame)||!Number.isSafeInteger(c.endFrame)||c.startFrame<0||c.endFrame<=c.startFrame))throw Error('The assembled Draft clips could not be confirmed.');
+ const state={fps:meta.fps,durationFrames:Math.max(...clips.map(c=>c.endFrame)),frameSize:{width:meta.frameSize.width,height:meta.frameSize.height},clips};
+ JSON.stringify(state,(_key,value)=>{if(typeof value==='number'&&!Number.isFinite(value)||['bigint','function','symbol'].includes(typeof value))throw Error('The assembly returned an invalid nonfinite or unsupported value.');return value;});
+ return state;
+}
+
+async function readTemplateAssemblyFacts(selects,projectId,draftId,readState){
+ if(typeof draftId!=='string'||!draftId)throw Error('The assembly returned no Draft identity.');
+ const ids=(await selects.project(projectId).meta()).draftIds;
+ if(!Array.isArray(ids)||!ids.includes(draftId))throw Error('The assembled Draft is not in its Project.');
+ return {draftId,...await readState(selects.draft(draftId))};
+}
+
+// Extend the existing durable run owner for templates whose assembly script
+// commits before a separate title/look step. A name never proves ownership.
+async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent,options={}){
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ if(typeof isCurrent!=='function'||!scope||typeof scope.projectId!=='string'||!scope.projectId||typeof scope.runId!=='string'||!scope.runId||!config||config.projectId!==scope.projectId||typeof source!=='string'||source.split('__CONFIG__').length!==2||!source.startsWith('// @template-assembly 1\n'))fail('TEMPLATE_RUN_INVALID','The assembly request is incomplete.');
+ if(typeof globalThis.TextEncoder!=='function'||typeof sdk?.call!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
+ if(new TextEncoder().encode(source).length>131072)fail('TEMPLATE_RUN_INVALID','The assembly script exceeds its input limit.');
+ scope={pluginId:scope.pluginId,projectId:scope.projectId,runId:scope.runId,libraryId:scope.libraryId};
+ const requestLimit=options.requestLimit??49152;
+ const frozen=JSON.parse(templateRunJSON(config,requestLimit));
+ // A display label can be regenerated on remount; it is never run identity.
+ const {draftName:displayName,...contentConfig}=frozen;
+ const request={config:contentConfig,source};templateRunJSON(request,requestLimit);
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};check();
+ const target=await sdk.call('getProjectDraftScaffold',scope.projectId);check();
+ if(target?.owner?.projectId!==scope.projectId||typeof target.owner.libraryId!=='string'||!target.owner.libraryId||scope.libraryId!=null&&scope.libraryId!==target.owner.libraryId)fail('TEMPLATE_RUN_TARGET','The assembly belongs to a different Project or library.');
+ scope={pluginId:scope.pluginId,libraryId:target.owner.libraryId,projectId:scope.projectId,runId:scope.runId};
+ const query=async script=>{check();const reply=await sdk.runScript({summary:'Confirm owned assembly Draft',allowCommit:false,script});check();if(reply.isError||!reply.result)fail('TEMPLATE_RUN_INVALID','The owned Draft could not be read back. Inspect it before starting another run.');return reply.result;};
+ const verify=async receipt=>{
+  if(options.receiptOnly)return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,stateFile:receipt.stateFile??null,assemblyConfirmed:false};
+  check();const target=await sdk.call('getProjectDraftScaffold',scope.projectId);check();
+  if(target?.owner?.projectId!==scope.projectId||target.owner.libraryId!==scope.libraryId)fail('TEMPLATE_RUN_TARGET','The assembly belongs to a different Project or library.');
+  const observed=await query(`return await (${readTemplateAssemblyFacts.toString()})(selects,${JSON.stringify(scope.projectId)},${JSON.stringify(receipt.draftId)},${readTemplateAssemblyState.toString()});`);
+  const expected={draftId:receipt.draftId,fps:receipt.fps,durationFrames:receipt.durationFrames,frameSize:receipt.frameSize,clips:receipt.clips};
+  if(templateRunJSON(observed)!==templateRunJSON(expected))fail('TEMPLATE_RUN_INVALID','The saved Draft has changed since its assembly receipt. Inspect it before starting another run.');
+  if(options.captureState&&!receipt.stateFile)fail('TEMPLATE_RUN_INVALID','This assembly has no complete state receipt. Inspect it before finishing.');
+  if(receipt.stateFile)await query(`await (${templateStateFile.toString()})(selects,${JSON.stringify(receipt.stateFile.path)},(${templateStateJSON.toString()})(await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(receipt.draftId)}))),${templateRunBase64.toString()},${JSON.stringify(receipt.stateFile)});return {verified:true};`);
+  return {sequenceId:receipt.draftId,fps:receipt.fps,totalFrames:receipt.durationFrames,notes:[],assemblyConfirmed:true,...receipt.stateFile?{stateFile:receipt.stateFile}:{}};
+ };
+ return executeTemplateRun(sdk,files,scope,request,isCurrent,async(claim,onDispatch)=>{
+  const capability=await sdk.runScript({summary:'Check assembly recovery support',allowCommit:false,script:`const p=selects.project(${JSON.stringify(scope.projectId)});const ids=(await p.meta()).draftIds;const d=ids?.length?selects.draft(ids[0]):await p.createDraft({name:'Template recovery support check'});return {supported:typeof d.clipSourceWindow==='function'&&typeof d.clipTransform==='function'&&typeof d.clipAudio==='function'};`});
+  check();if(capability.isError||capability.result?.supported!==true)fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to confirm saved assembly state before retrying.');
+  const body=source.replace('__CONFIG__',()=>`Object.assign(JSON.parse(${JSON.stringify(templateRunJSON(frozen,requestLimit))}),{__beforeCommit:__templateBeforeCommit})`);
+  const script=`return await(async(assemble,readFacts,readState,publish,json,encode,readFull,stateJSON,stateFile)=>{
+   let result,preparedState,preparedFull,snapshot,maySave=false;
+   try{
+    result=await assemble(async draft=>{
+     if(maySave)throw Error('The assembly pre-save hook ran more than once.');
+     preparedState=await readState(draft);
+     json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:'x'.repeat(1024),...preparedState}});
+     if(${options.captureState===true}){
+      preparedFull=stateJSON(await readFull(draft));
+      const path=${JSON.stringify(claim.path)}+'.state-'+JSON.parse(${templateRunJSON(claim)}.expectedText).owner+'.json';
+      json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:'x'.repeat(1024),...preparedState,stateFile:{path,size:preparedFull.length,sha256:'x'.repeat(64)}}});
+      snapshot=await stateFile(selects,path,preparedFull,encode);
+     }
+     maySave=true;
+    });
+    if(!maySave)throw Error('The assembly skipped its pre-save confirmation.');
+    const facts=await readFacts(selects,${JSON.stringify(scope.projectId)},result?.sequenceId,readState);
+    const {draftId,...savedState}=facts;
+    if(json(savedState)!==json(preparedState))throw Error('The saved Draft disagrees with its prepared state.');
+    if(facts.fps!==result.fps||facts.durationFrames!==result.totalFrames)throw Error('The assembly result disagrees with its saved Draft.');
+    if(snapshot)await stateFile(selects,snapshot.path,stateJSON(await readFull(selects.draft(facts.draftId))),encode,snapshot);
+    const receipt=await publish(selects,${templateRunJSON(claim)},{status:'saved',...facts,...snapshot?{stateFile:snapshot}:{}},json,encode);
+    if(receipt.runReceiptSaved!==true)throw Error('The assembly receipt could not be confirmed.');
+    return {assembly:result,facts:{...facts,...snapshot?{stateFile:snapshot}:{}}};
+   }catch(error){
+    if(typeof result?.sequenceId==='string'&&result.sequenceId)await publish(selects,${templateRunJSON(claim)},{status:'outcomeUnknown',draftId:result.sequenceId},json,encode);
+    else if(!maySave)await publish(selects,${templateRunJSON(claim)},{status:'notSaved'},json,encode);
+    throw error;
+   }
+  })(async(__templateBeforeCommit)=>{${body}},${readTemplateAssemblyFacts.toString()},${readTemplateAssemblyState.toString()},${writeTemplateRunResult.toString()},${templateRunJSON.toString()},${templateRunBase64.toString()},${readTemplateSavedState.toString()},${templateStateJSON.toString()},${templateStateFile.toString()});`;
+  if(new TextEncoder().encode(script).length>256*1024)fail('TEMPLATE_RUN_INVALID','The assembly request exceeds the SDK transport limit.');
+  await onDispatch();const reply=await sdk.runScript({summary:'Assemble template with owned receipt',allowCommit:true,script});
+  if(reply.isError||!reply.result?.facts||!reply.result?.assembly)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The assembly response could not be confirmed. Inspect the Project before starting another run.'),{cause:Error(String(reply.output||'The SDK returned no complete assembly result.'))});
+  const confirmed=await verify(reply.result.facts);
+  return {...reply.result.assembly,...confirmed,notes:reply.result.assembly.notes??[]};
+ },verify,{existingOnly:options.receiptOnly===true,retireUnstarted:options.retireUnstarted===true,requestLimit});
+}
+
+// The base assembly record proves which Draft belongs to this workflow. A phase
+// receipt supersedes its earlier state for recovery; unknown outcomes never save
+// again. Only positively recorded pre-save failures permit a new phase attempt.
+async function executeTemplateDecoration(sdk,files,pending,config,source,isCurrent,options={}){
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};check();
+ if(!pending?.scope||!config||config.projectId!==pending.scope.projectId||typeof config.sequenceId!=='string'||!config.sequenceId||typeof source!=='string'||!source.startsWith('// @template-decoration 1\n')||source.split('__CONFIG__').length!==2)fail('TEMPLATE_RUN_INVALID','The title/look request is incomplete.');
+ const stateLimit=options.stateLimit??262144;
+ if(!Number.isSafeInteger(stateLimit)||stateLimit<262144||stateLimit>524288)fail('TEMPLATE_RUN_INVALID','Invalid continuation state limit.');
+ templateStateJSON(pending,stateLimit);
+ pending=JSON.parse(JSON.stringify(pending));
+ const frozen=JSON.parse(templateStateJSON(config,262144)),recipe=templateStateJSON({config:frozen,source},262144);
+ const base=await executeTemplateAssembly(sdk,files,pending.scope,pending.config,pending.source,isCurrent,{receiptOnly:true,requestLimit:options.requestLimit});check();
+ if(base.sequenceId!==frozen.sequenceId||!base.stateFile)fail('TEMPLATE_RUN_INVALID','The title/look target has no complete owned assembly receipt.');
+ const target=await sdk.call('getProjectDraftScaffold',pending.scope.projectId);check();
+ if(target?.owner?.projectId!==pending.scope.projectId||typeof target.owner.libraryId!=='string')fail('TEMPLATE_RUN_TARGET','The title/look target belongs to a different Project.');
+ const digest=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),n=>n.toString(16).padStart(2,'0')).join('');
+ const rootScope={pluginId:pending.scope.pluginId,libraryId:target.owner.libraryId,projectId:pending.scope.projectId,runId:pending.scope.runId};
+ const scope={...rootScope,runId:'look-'+await digest(templateRunJSON(rootScope))},request={phase:'decoration',draftId:base.sequenceId,recipeDigest:await digest(recipe),assemblyState:base.stateFile};
+ const verify=async receipt=>{
+  check();if(receipt.draftId!==frozen.sequenceId||!receipt.stateFile)fail('TEMPLATE_RUN_INVALID','The title/look receipt could not be verified.');
+  const script=`const p=selects.project(${JSON.stringify(scope.projectId)});if(!(await p.meta()).draftIds.includes(${JSON.stringify(receipt.draftId)}))throw Error('The title/look Draft is not in its Project.');await (${templateStateFile.toString()})(selects,${JSON.stringify(receipt.stateFile.path)},(${templateStateJSON.toString()})(await (${readTemplateSavedState.toString()})(selects.draft(${JSON.stringify(receipt.draftId)}))),${templateRunBase64.toString()},${JSON.stringify(receipt.stateFile)});return {verified:true};`;
+  const reply=await sdk.runScript({summary:'Confirm owned title and look',allowCommit:false,script});check();
+  if(reply.isError||reply.result?.verified!==true)fail('TEMPLATE_RUN_INVALID','The saved title/look state has changed or could not be read. Inspect the Draft before another run.');
+  return {sequenceId:receipt.draftId,fps:base.fps,totalFrames:base.totalFrames,decorationConfirmed:true};
+ };
+ const work=executeTemplateRun(sdk,files,scope,request,isCurrent,async(claim,onDispatch)=>{
+  const body=source.replace('__CONFIG__',()=>`Object.assign(JSON.parse(${JSON.stringify(templateStateJSON(frozen,262144))}),{__beforeCommit:__templateBeforeCommit})`);
+  const script=`return await(async(decorate,readFull,stateJSON,stateFile,publish,json,encode)=>{
+   let prepared,snapshot,maySave=false,preparedOnce=false;
+   try{
+    const original=selects.draft(${JSON.stringify(frozen.sequenceId)});
+    if(!(await selects.project(${JSON.stringify(scope.projectId)}).meta()).draftIds.includes(${JSON.stringify(frozen.sequenceId)}))throw Error('The title/look target is not in its Project.');
+    await stateFile(selects,${JSON.stringify(base.stateFile.path)},stateJSON(await readFull(original)),encode,${JSON.stringify(base.stateFile)});
+    const result=await decorate(async(draft,committing)=>{
+     if(preparedOnce)throw Error('The title/look pre-save hook ran more than once.');preparedOnce=true;
+     prepared=await readFull(draft);const text=stateJSON(prepared),path=${JSON.stringify(claim.path)}+'.state-'+JSON.parse(${templateRunJSON(claim)}.expectedText).owner+'.json';
+     snapshot=await stateFile(selects,path,text,encode);
+     const clips=prepared.clips.filter(c=>c.trackKind==='main'&&c.resourceId).map(({clipId,trackId,resourceId,startFrame,endFrame})=>({clipId,trackId,resourceId,startFrame,endFrame}));
+     json({...JSON.parse(${templateRunJSON(claim)}.expectedText),status:'saved',result:{draftId:${JSON.stringify(frozen.sequenceId)},fps:prepared.fps,durationFrames:prepared.durationFrames,frameSize:prepared.frameSize,clips,stateFile:snapshot}});
+     maySave=committing===true;
+    });
+    if(!preparedOnce)throw Error('The title/look operation skipped its pre-save hook.');
+    const observed=await readFull(selects.draft(${JSON.stringify(frozen.sequenceId)}));
+    await stateFile(selects,snapshot.path,stateJSON(observed),encode,snapshot);
+    const clips=observed.clips.filter(c=>c.trackKind==='main'&&c.resourceId).map(({clipId,trackId,resourceId,startFrame,endFrame})=>({clipId,trackId,resourceId,startFrame,endFrame}));
+    const facts={draftId:${JSON.stringify(frozen.sequenceId)},fps:observed.fps,durationFrames:observed.durationFrames,frameSize:observed.frameSize,clips,stateFile:snapshot};
+    const receipt=await publish(selects,${templateRunJSON(claim)},{status:'saved',...facts},json,encode);if(!receipt.runReceiptSaved)throw Error('The title/look receipt could not be confirmed.');return {facts,result};
+   }catch(error){await publish(selects,${templateRunJSON(claim)},{status:maySave?'outcomeUnknown':'notSaved',...maySave?{draftId:${JSON.stringify(frozen.sequenceId)}}:{}},json,encode);throw error;}
+  })(async(__templateBeforeCommit)=>{${body}},${readTemplateSavedState.toString()},${templateStateJSON.toString()},${templateStateFile.toString()},${writeTemplateRunResult.toString()},${templateRunJSON.toString()},${templateRunBase64.toString()});`;
+  if(new TextEncoder().encode(script).length>262144)fail('TEMPLATE_RUN_INVALID','The title/look request exceeds the SDK transport limit.');
+  await onDispatch();const reply=await sdk.runScript({summary:'Decorate template with owned receipt',allowCommit:true,script});
+  if(reply.isError||!reply.result?.facts)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The title/look save is awaiting confirmation. Check the same run again.'),{draftId:frozen.sequenceId,cause:Error(String(reply.output||'No complete title/look result.'))});
+  return verify(reply.result.facts);
+ },verify,options.retireUnstarted?{retireUnstarted:true}:{retryNotSaved:true});
+ return work.catch(cause=>{
+  check();
+  const known=cause?.outcome==='notSaved'||cause?.code==='TEMPLATE_RUN_NOT_SAVED';
+  const message=cause?.code==='TEMPLATE_RUN_RETIRED'?cause.publicMessage:known?'The title/look attempt stopped before saving. Retry its original inputs.':cause?.publicMessage||'The title/look save is awaiting confirmation. Check the same run again.';
+  throw Object.assign(templateRunIssue(cause?.code||'TEMPLATE_RUN_PENDING',message),{phase:'decoration',draftId:base.sequenceId,cause,...known?{outcome:'notSaved'}:{}});
+ });
+}
+
+// Discover an uncertain standalone assembly after its renderer realm is gone.
+// Payloads are published before their small exclusive manifest. Completed run
+// tombstones prevent an old callback from republishing the same run identity.
+async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ const requestLimit=target?.requestLimit??49152,stateLimit=target?.stateLimit??262144;
+ templateRunJSON(null,requestLimit);
+ if(!Number.isSafeInteger(stateLimit)||stateLimit<262144||stateLimit>524288)fail('TEMPLATE_RUN_INVALID','Invalid continuation state limit.');
+ const invalid=()=>fail('TEMPLATE_RUN_INVALID','The pending assembly record could not be verified. Inspect the Project before starting another run.');
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};
+ check();
+ if(!target||typeof target.pluginId!=='string'||!/^[a-z0-9-]+$/.test(target.pluginId)||typeof target.projectId!=='string'||!target.projectId||target.projectId.length>1024)invalid();
+ target={pluginId:target.pluginId,projectId:target.projectId,libraryId:target.libraryId};
+ if(!files||!['join','homedir','exists','stat','readRange','writeFile','mkdir','readdir','rm'].every(key=>typeof files[key]==='function')||typeof sdk?.call!=='function'||typeof globalThis.crypto?.subtle?.digest!=='function'||typeof globalThis.TextEncoder!=='function'||typeof globalThis.TextDecoder!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to find pending template runs safely.');
+ const owner=await sdk.call('getProjectDraftScaffold',target.projectId);check();
+ if(owner?.owner?.projectId!==target.projectId||typeof owner.owner.libraryId!=='string'||!owner.owner.libraryId||target.libraryId!=null&&target.libraryId!==owner.owner.libraryId)fail('TEMPLATE_RUN_TARGET','The pending assembly belongs to a different Project or library.');
+ target={pluginId:target.pluginId,projectId:target.projectId,libraryId:owner.owner.libraryId};
+ const current=async()=>{check();const row=await sdk.call('getProjectDraftScaffold',target.projectId);check();if(row?.owner?.projectId!==target.projectId||row.owner.libraryId!==target.libraryId)fail('TEMPLATE_RUN_TARGET','The pending assembly belongs to a different Project or library.');};
+ const json=value=>{
+  let text;
+  try{text=JSON.stringify(value,(_key,item)=>{if(typeof item==='number'&&!Number.isFinite(item)||['bigint','function','symbol'].includes(typeof item))throw Error('Unsupported value');return item;}).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));}catch{invalid();}
+  if(text.length>stateLimit)fail('TEMPLATE_RUN_INVALID','The pending assembly exceeds its continuation input limit.');
+  return text;
+ };
+ const hash=async text=>{const result=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),n=>n.toString(16).padStart(2,'0')).join('');check();return result;};
+ const directory=files.join(files.homedir(),'.selects','plugin-data',target.pluginId,'template-runs','assembly-pending',await hash(json(target)));
+ const completed=files.join(directory,'acknowledged');
+ const readText=async(path,limit)=>{
+  for(let attempt=0;attempt<3;attempt++){
+  check();const before=await files.stat(path);check();if(!before)return null;
+  if(before.isDirectory===false&&before.size===0)continue;
+  if(before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<1||before.size>limit)invalid();
+  const bytes=await files.readRange(path,0,before.size);check();const after=await files.stat(path);check();
+  if(!after)return null;
+  if(['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))continue;
+  if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]'||bytes.byteLength!==before.size)invalid();
+  return new TextDecoder().decode(bytes);
+  }
+  fail('TEMPLATE_RUN_PENDING','The pending assembly record is changing. Check it again.');
+ };
+ const parse=text=>{try{return JSON.parse(text);}catch{invalid();}};
+ const manifest=async row=>{
+  if(!row||Object.keys(row).length!==3||row.version!==1||typeof row.digest!=='string'||!/^[a-f0-9]{64}$/.test(row.digest)||!row.scope||Object.keys(row.scope).length!==4||Object.keys(target).some(key=>row.scope[key]!==target[key])||typeof row.scope.runId!=='string'||!row.scope.runId||row.scope.runId.length>1024)invalid();
+  return await hash(json(row.scope));
+ };
+ const done=async(row,key)=>{
+  const text=await readText(files.join(completed,key+'.json'),49152);if(text===null)return false;
+  const end=parse(text);if(!end||!['saved','notSaved'].includes(end.status)||json(end.record)!==json(row))invalid();return true;
+ };
+ const validate=(value,row,kind='assembly')=>{
+  if(!value||json(value.scope)!==json(row.scope)||value.config?.projectId!==target.projectId||typeof value.source!=='string'||!value.source.startsWith(kind==='look'?'// @template-decoration 1\n':'// @template-assembly 1\n')||value.source.split('__CONFIG__').length!==2)invalid();
+  // Match the existing assembly adapter's request budget before any new save.
+  if(kind==='look'){
+   if(typeof value.config.sequenceId!=='string'||value.assembly?.sequenceId!==value.config.sequenceId)invalid();
+   templateStateJSON({config:value.config,source:value.source},262144);
+  }else{const {draftName,...content}=value.config;templateRunJSON({config:content,source:value.source},requestLimit);}
+  return value;
+ };
+ const load=async(row,key,kind='assembly')=>{
+  if(await manifest(row)!==key)invalid();
+  const name=key+(kind==='look'?'.look':'')+'-'+row.digest+'.data';
+  const text=await readText(files.join(directory,name),stateLimit)??await readText(files.join(completed,name),stateLimit);
+  if(text===null)invalid();if(await hash(text)!==row.digest)invalid();
+  return validate(parse(text),row,kind);
+ };
+ const recordOf=async(pending,kind='assembly')=>{
+  if(!pending?.scope||Object.keys(target).some(key=>key==='libraryId'?pending.scope[key]!=null&&pending.scope[key]!==target[key]:pending.scope[key]!==target[key]))invalid();
+  const scope={...target,runId:pending.scope.runId},text=json({...pending,scope}),row={version:1,scope,digest:await hash(text)},key=await manifest(row);
+  return {row,key,text,value:validate(parse(text),row,kind)};
+ };
+ const store=async(pending,kind='assembly',allowCompleted=false)=>{
+  pending=JSON.parse(json(pending));
+  await current();const item=await recordOf(pending,kind),{row,key,text}=item,name=key+(kind==='look'?'.look':'');
+  if(kind==='assembly'&&await done(row,key)){
+   if(allowCompleted)return load(row,key);
+   fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');
+  }
+  await files.mkdir(directory,{recursive:true});check();
+  const file=files.join(directory,name+'.json'),expected=templateRunJSON(row),prior=await readText(file,49152);
+  if(prior!==null&&prior!==expected)invalid();
+  const dataPath=files.join(directory,name+'-'+row.digest+'.data');
+  if(await files.exists(dataPath)){if(await readText(dataPath,stateLimit)!==text)invalid();}
+  else{check();await files.writeFile(dataPath,text);check();}
+  try{check();await files.writeFile(file,expected,{flag:'wx'});}catch(error){
+   const actual=await readText(file,49152);if(actual===null)throw error;if(actual!==expected)invalid();
+  }
+  check();if(kind==='assembly'&&await done(row,key)){
+   if(allowCompleted)return load(row,key);
+   fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');
+  }
+  try{return await load(row,key,kind);}catch(error){if(kind==='assembly'&&await done(row,key))fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');throw error;}
+ };
+ const read=async(runId=null,includeCompleted=false)=>{
+  if(runId!==null){
+   await current();if(typeof runId!=='string'||!runId||runId.length>1024)invalid();
+   const key=await hash(json({...target,runId})),text=await readText(files.join(directory,key+'.json'),49152);
+   let row=text===null?null:parse(text);
+   if(!row&&includeCompleted){const end=await readText(files.join(completed,key+'.json'),49152);if(end!==null){const value=parse(end);if(!['saved','notSaved'].includes(value?.status))invalid();row=value.record;}}
+   if(!row)return null;if(await manifest(row)!==key)invalid();
+   if(!includeCompleted&&await done(row,key))return null;
+   return load(row,key);
+  }
+  await current();if(!await files.exists(directory)){check();return null;}
+  const names=await files.readdir(directory);check();
+  if(!Array.isArray(names)||names.length>4096||names.some(name=>typeof name!=='string'||name.includes('/')||name.includes('\\')))invalid();
+  const entries=names.filter(name=>/^[a-f0-9]{64}\.json$/.test(name));
+  if(entries.length>64)fail('TEMPLATE_RUN_PENDING','Too many pending assemblies need inspection before another run.');
+  const found=[];
+  for(const name of entries.sort()){
+   const text=await readText(files.join(directory,name),49152);if(text===null)continue;
+   const row=parse(text),key=await manifest(row);if(name!==key+'.json')invalid();
+   if(!await done(row,key)){
+    try{found.push(await load(row,key));}catch(error){if(!await done(row,key))throw error;}
+   }
+  }
+  if(found.length>1)fail('TEMPLATE_RUN_AMBIGUOUS','Several unfinished assemblies belong to this Project. Inspect their run records before starting another run.');
+  return found[0]??null;
+ };
+ const lookFor=async pending=>{
+  const {row:root,key}=await recordOf(pending);
+  const text=await readText(files.join(directory,key+'.look.json'),49152)??await readText(files.join(completed,key+'.look.json'),49152);
+  if(text===null)return null;const row=parse(text);if(await manifest(row)!==key||json(row.scope)!==json(root.scope))invalid();return load(row,key,'look');
+ };
+ const acknowledge=async(pending,status,retain=false)=>{
+  await current();const {row,key,text:rootText}=await recordOf(pending);
+  await files.mkdir(completed,{recursive:true});check();
+  let look=null,lookRow=null;
+  if(retain){
+   await files.writeFile(files.join(completed,key+'-'+row.digest+'.data'),rootText);check();
+   look=await lookFor(pending);
+   if(look){lookRow=await recordOf(look,'look');await files.writeFile(files.join(completed,key+'.look-'+lookRow.row.digest+'.data'),lookRow.text);check();await files.writeFile(files.join(completed,key+'.look.json'),templateRunJSON(lookRow.row));check();}
+  }
+  const path=files.join(completed,key+'.json'),text=templateRunJSON({record:row,status});
+  try{await files.writeFile(path,text,{flag:'wx'});}catch(error){if(await readText(path,49152)!==text)throw error;}
+  check();
+  // Only this immutable run's files are removed. Its tombstone is retained.
+  await files.rm(files.join(directory,key+'.json'),{force:true}).catch(()=>{});check();
+  await files.rm(files.join(directory,key+'-'+row.digest+'.data'),{force:true}).catch(()=>{});check();
+  if(lookRow){await files.rm(files.join(directory,key+'.look.json'),{force:true}).catch(()=>{});check();await files.rm(files.join(directory,key+'.look-'+lookRow.row.digest+'.data'),{force:true}).catch(()=>{});check();}
+ };
+ const resumeAssembly=async pending=>{
+  const value=await store(pending);
+  let result;
+  try{result=await executeTemplateAssembly(sdk,files,value.scope,value.config,value.source,()=>{check();return true;},{requestLimit});}
+  catch(error){if(error?.outcome==='notSaved'||error?.code==='TEMPLATE_RUN_NOT_SAVED')await acknowledge(value,'notSaved');throw error;}
+  check();if(result?.assemblyConfirmed!==true)invalid();
+  await acknowledge(value,'saved');return result;
+ };
+ const workflow=async(pending,prepareLook,onAssembly=()=>{},options={})=>{
+  if(!options||typeof options!=='object'||options.retireUnstarted!==undefined&&typeof options.retireUnstarted!=='boolean'||options.verifyAssembly!==undefined&&typeof options.verifyAssembly!=='function')invalid();
+  options={retireUnstarted:options.retireUnstarted===true,verifyAssembly:options.verifyAssembly};
+ const value=await store(pending,'assembly',true);let look=await lookFor(value);
+  if(!look){
+   let assembly;
+   try{assembly=await executeTemplateAssembly(sdk,files,value.scope,value.config,value.source,()=>{check();return true;},{captureState:true,retireUnstarted:options.retireUnstarted===true,requestLimit});}
+   catch(error){if(error?.outcome==='notSaved'||error?.code==='TEMPLATE_RUN_NOT_SAVED')await acknowledge(value,'notSaved',true);throw error;}
+   check();let prepared;
+   try{prepared=await prepareLook(JSON.parse(json(value)),{...assembly});check();}catch(cause){check();throw Object.assign(templateRunIssue('TEMPLATE_LOOK_PREPARATION','The original title/look inputs could not be prepared. Check this run again.'),{phase:'decoration',draftId:assembly.sequenceId,cause});}
+   look=await store({...prepared,scope:value.scope,assembly},'look');
+  }
+  await onAssembly(JSON.parse(json(value)),{...look.assembly});check();
+  if(options.verifyAssembly){
+   try{await options.verifyAssembly(JSON.parse(json(value)),{...look.assembly},JSON.parse(json(look)));check();}
+   catch(cause){
+    check();
+    if(options.retireUnstarted&&cause?.code==='TEMPLATE_ASSEMBLY_MISMATCH'){
+     // Revoke an unstarted/retryable old look as well. A claimed/unknown or
+     // already-saved phase cannot be relabeled as a no-save.
+     try{await executeTemplateDecoration(sdk,files,value,look.config,look.source,()=>{check();return true;},{retireUnstarted:true,requestLimit,stateLimit});}
+     catch(error){throw Object.assign(error,{cause});}
+    }
+    throw cause;
+   }
+  }
+  const result=await executeTemplateDecoration(sdk,files,value,look.config,look.source,()=>{check();return true;},{requestLimit,stateLimit});check();
+  await acknowledge(value,'saved',true);
+  return {...look.assembly,...result};
+ };
+ return {read,store:pending=>store(pending),run:resumeAssembly,workflow};
+}
+// template-run:end
+
 // Archive owns cue selection/timing; the existing asset owner verifies, keeps
 // and imports the selected manifest generation independently of installation.
 async function prepareArchiveCue(sdk: any, projectId: string, plugin: string, cue: any, minimumSeconds: number, check: () => void) {
@@ -4525,6 +5089,66 @@ async function prepareArchiveCue(sdk: any, projectId: string, plugin: string, cu
   } catch (error) { check(); throw error; }
 }
 
+async function snapshotArchiveFinishAssets(assets: any, language: Lang, readFont: (file: string) => Promise<string>, check: () => void) {
+  const scripts = assets?.scripts;
+  const validScript = (value: unknown, marker: string) => typeof value === "string" && value.startsWith(marker) && value.split("__CONFIG__").length === 2 && new TextEncoder().encode(value).length <= 131072;
+  if (!assets?.presets || !assets.tsx || ["title", "credit", "letterbox", "look", "fade", "motion"].some(key => typeof assets.tsx[key] !== "string" || !assets.tsx[key].trim()) ||
+      !validScript(scripts?.assembleJs, "// @template-assembly 1\n") || !validScript(scripts?.decorateJs, "// @template-decoration 1\n") ||
+      !validScript(scripts?.prepareJs, "// @template-decoration-config 1\n") || !validScript(scripts?.verifyAssemblyJs, "// @template-assembly-verification 1\n")) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The original Archive title/look inputs are incomplete. Reinstall the template.");
+  const fonts = Object.fromEntries(await Promise.all(fontFiles(assets.presets).map(async file => {
+    const value = (await readFont(file)).replace(/\s+/g, ""); check();
+    if (!value || value.length % 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw templateRunIssue("TEMPLATE_RUN_INVALID", "An Archive title font is incomplete.");
+    return [file, value];
+  })));
+  check();
+  return JSON.parse(templateStateJSON({ presets: assets.presets, tsx: assets.tsx, scripts: { decorateJs: scripts.decorateJs, prepareJs: scripts.prepareJs }, fonts, language, version: PLUGIN_VERSION }, 262144));
+}
+async function prepareArchiveDecoration(sdk: any, pending: any, assembly: any, check: () => void) {
+  const assets = pending.finishAssets, f = pending.frozen;
+  if (!assets?.scripts?.prepareJs?.startsWith("// @template-decoration-config 1\n")) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The original Archive decoration builder is missing.");
+  const input = { sequenceId: assembly.sequenceId, videoEnd: assembly.totalFrames, fps: assembly.fps, plan: pending.plan, presets: assets.presets, tsx: assets.tsx, fonts: assets.fonts,
+    sizes: pending.photoSizes, openingSize: pending.openingSize || null, frozen: f,
+    provenance: { plugin: PLUGIN_ID, version: assets.version, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart,
+      pace: f.pace, length: f.length, seed: f.seed, clipSound: f.clipSound, look: f.look.on, credit: f.credit.on } };
+  const config = await runTemplateStep(sdk, "Prepare original Archive title and look", fill(assets.scripts.prepareJs, input), false, { wanted: () => { check(); return true; }, deadline: Date.now() + 90000 });
+  check();
+  if (config?.sequenceId !== assembly.sequenceId || config.videoEnd !== assembly.totalFrames) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The original Archive decoration target could not be confirmed.");
+  return { source: assets.scripts.decorateJs, config: { ...config, projectId: f.pid } };
+}
+async function confirmArchiveSourceBindings(sdk: any, pid: string, bindings: any[], check: () => void) {
+  const rows = JSON.parse(templateStateJSON(bindings)), deadline = Date.now() + 90000;
+  if (!Array.isArray(rows) || rows.length > 16384) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The original Project bindings are invalid.");
+  for (let offset = 0; offset < rows.length;) {
+    check(); let batch: any[] = [];
+    while (offset < rows.length && batch.length < 64) {
+      const next = [...batch, rows[offset]];
+      if (new TextEncoder().encode(JSON.stringify(next)).length > 32768) { if (!batch.length) throw templateRunIssue("TEMPLATE_RUN_INVALID", "An original binding exceeds the read budget."); break; }
+      batch = next; offset++;
+    }
+    const source = "return (" + confirmProjectSourcePaths.toString() + ")(selects," + JSON.stringify(pid) + "," + JSON.stringify(batch) + ");";
+    const result = await runTemplateStep(sdk, "Verify original Archive source paths", source, false, { wanted: () => { check(); return true; }, deadline }); check();
+    if (result?.verified !== true) throw templateRunIssue("TEMPLATE_RUN_PENDING", "The original Project paths could not be confirmed. Check this run again.");
+  }
+}
+function archiveRecoveryOptions(sdk: any, pending: any, check: () => void) {
+  return { verifyAssembly: async (value: any, assembly: any) => {
+    const config = value.config; check();
+    if (config.sourceBindings !== undefined) await confirmArchiveSourceBindings(sdk, config.projectId, config.sourceBindings, check);
+    if (config.analysisSources !== undefined) { await observeSourceFiles(panelLocalClient(sdk).files, Array.isArray(config.analysisSources) ? config.analysisSources.map(row => row.path) : null, config.analysisSources); check(); }
+    const source = value.verifyAssemblySource;
+    if (!source?.startsWith("// @template-assembly-verification 1\n") || source.split("__CONFIG__").length !== 2) throw templateRunIssue("TEMPLATE_RUN_INVALID", "The original Archive assembly verifier is missing.");
+    const result = await runTemplateStep(sdk, "Verify original Archive assembly plan", fill(source, { config, draftId: assembly.sequenceId }), false, { wanted: () => { check(); return true; }, deadline: Date.now() + 90000 }); check();
+    if (result?.verified === false && result.status === "mismatch") throw templateRunIssue("TEMPLATE_ASSEMBLY_MISMATCH", "The saved Archive assembly differs from its original plan. Inspect that Draft before another run.");
+    if (result?.verified !== true || result.draftId !== assembly.sequenceId || result.mainEnd !== assembly.totalFrames || result.fps !== assembly.fps) throw templateRunIssue("TEMPLATE_RUN_PENDING", "The original Archive assembly could not be confirmed. Check this run again.");
+  } };
+}
+function archiveWorkflowResult(pending: any, assembly: any, decorated = false) {
+  const { frozen, photoSizes, plan, openingSize, unchecked } = pending;
+  const shortened = plan.shots < plan.musicShots ? { shots: plan.shots, of: plan.musicShots, seconds: assembly.totalFrames / assembly.fps } : null;
+  return { sequenceId: assembly.sequenceId, videoEnd: assembly.totalFrames, fps: assembly.fps, decorated, frozen, photoSizes, plan, openingSize, unchecked,
+    notes: assembly.notes || [], link: null, shortened, recovered: false, pending, lookOutcome: decorated ? "saved" : "unknown" };
+}
+
 // ---- Panel helpers ---------------------------------------------------------------------------------------------
 // The config goes in as JSON.parse of a string so its type is `any`: an inlined literal widens `type` to string
 // (rejected by EditableParameterDefinition[]) and narrows a null option to `never` inside its `if`.
@@ -4540,12 +5164,12 @@ class BusyError extends Error {
 // Everything a build reads from the install folder, once.
 async function loadAssets(plugin: string) {
   const read = (...rel: string[]) => readText(plugin, ...rel);
-  const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, title, credit, letterbox, look, fade, motion, beatDetect] = await Promise.all([
+  const [manifest, presets, inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, prepareJs, verifyAssemblyJs, title, credit, letterbox, look, fade, motion, beatDetect] = await Promise.all([
     read("assets", "cues", "manifest.json"), read("assets", "fonts", "presets.json"), read("scripts", "inventory.js"), read("scripts", "search.js"),
-    read("scripts", "ensure-audio.js"), read("scripts", "assemble.js"), read("scripts", "decorate.js"), read("assets", "decode-title.tsx"),
+    read("scripts", "ensure-audio.js"), read("scripts", "assemble.js"), read("scripts", "decorate.js"), read("scripts", "prepare-decoration.js"), read("scripts", "verify-assembly.js"), read("assets", "decode-title.tsx"),
     read("assets", "archived-credit.tsx"), read("assets", "letterbox-reveal.tsx"), read("assets", "cinematic-look.tsx"), read("assets", "fade-out.tsx"),
     read("assets", "photo-motion.tsx"), read("beat-detect.cjs")]);
-  return { manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs },
+  return { manifest: JSON.parse(manifest), presets: JSON.parse(presets), scripts: { inventoryJs, searchJs, ensureJs, assembleJs, decorateJs, prepareJs, verifyAssemblyJs },
     tsx: { title, credit, letterbox, look, fade, motion }, beatWorker: avBeatWorkerSource(beatDetect) };
 }
 // Every font file the presets use (four small files).
@@ -4902,6 +5526,8 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   const advance = (id: string, fraction: number, detail?: Say) => { const p = { ...avProgress(id, fraction), detail }; progressRef.current = p; setProgress(p); };
   const [status, setStatus] = React.useState<{ tone: string; say: Say } | null>(null);
   const [result, setResult] = React.useState<any>(null);
+  const assemblyPendingRef = React.useRef<Record<string, any>>({});
+  const [assemblyDiscovery, setAssemblyDiscovery] = React.useState("loading");
   // The title preview's replay: the frame shown while the decode replays, null for the finished lockup.
   const [replayFrame, setReplayFrame] = React.useState<number | null>(null);
   const replayRef = React.useRef(0);
@@ -5032,6 +5658,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
 
   // Mount and Project switch: reset per-Project state, resolve folders, read bundled assets, inventory the Project.
   React.useEffect(() => {
+    setAssemblyDiscovery("loading");
     // Drop everything tied to the previous Project so a build never mixes Projects.
     setCandidates(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
     setOnly(null); setOnlyPhotos(null);
@@ -5046,6 +5673,10 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
         const found = await locateRoots(sdk);
         if (!alive) return;
         setRoots(found);
+        const pending = await (await openAssemblyContinuations(projectId, () => { if (!alive) throw STALE; })).read();
+        if (!alive) return;
+        if (pending) assemblyPendingRef.current[projectId] = pending; else delete assemblyPendingRef.current[projectId];
+        setAssemblyDiscovery("ready");
         const loaded = await loadAssets(found.plugin);
         if (!alive) return;
         setAssets(loaded);
@@ -5057,7 +5688,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
           if (alive && projectRef.current === projectId) { setInvError(null); await loadInventory(projectId, () => alive); }
         }
       } catch (e: any) {
-        if (alive) setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "startFailed", { detail })) });
+        if (alive) { setAssemblyDiscovery("failed"); setStatus({ tone: "error", say: errorSay(e, (l, detail) => t(l, "startFailed", { detail })) }); }
       } finally { if (alive) setStep(""); }
     })();
     // Project switch or unmount stops a preview, including one still being prepared, and an own-music analysis (its
@@ -5379,52 +6010,44 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     } finally { if (localAbortRef.current === ac) localAbortRef.current = null; }
   }
 
-  // Looks for the Draft a lost assemble reply may have saved, by its frozen name. Read-only: nothing is committed.
-  // Uncommitted Drafts are never saved, so a Draft with this name holds a finished assembly. Only the
-  // DRAFT_LOOKUP_MAX most recent Drafts are read, newest first, stopping at the first match, so a Project with many
-  // Drafts stays inside the 30 s deadline. This assumes draftIds lists Drafts in creation order (newest last; DraftMeta
-  // has no creation time to sort by). If that ever fails the lookup finds nothing and the original error shows: the
-  // build is never duplicated.
-  async function findDraftByName(pid: string, name: string) {
-    const r = await run("Look for the new Draft", "const p = selects.project(" + JSON.stringify(pid) + ");\n"
-      + "const name = " + JSON.stringify(name) + ";\n"
-      + "const ids = ((await p.meta()).draftIds || []).slice(-" + DRAFT_LOOKUP_MAX + ").reverse();\n"
-      + "for (const id of ids) {\n"
-      + "  const d = selects.draft(id);\n"
-      + "  const m = await d.meta();\n"
-      + "  if (m.name !== name) continue;\n"
-      + "  const end = (await d.clips({ trackScope: 'main' })).reduce((a, c) => Math.max(a, c.endFrame), 0);\n"
-      + "  return { sequenceId: id, fps: m.fps, totalFrames: end };\n"
-      + "}\n"
-      + "return { sequenceId: null };", false, { wanted: () => projectRef.current === pid });
-    return r && r.sequenceId ? r : null;
+  async function openAssemblyContinuations(pid: string, check: () => void) {
+    return openTemplateAssemblyContinuations(sdk, panelLocalClient(sdk).files, { pluginId: PLUGIN_ID, projectId: pid, requestLimit: 131072, stateLimit: 524288 }, () => { check(); return true; });
+  }
+  async function finishAssembly(pending: any, check: () => void, continuations: any) {
+    await decorate({ pending }, check, continuations);
   }
 
   async function build(nextSeed: number) {
-    if (busyRef.current || !inventoryCurrent() || !assets || !inventory || inventory.incomplete || !roots || !chosen) return;
-    // The gate for the seed this build uses (Build: seed; Try other shots: seed + 1).
-    const gate = nextSeed === seed ? blockReason : anotherBlock;
-    if (gate) { setStatus({ tone: "error", say: gate }); return; }
+    if (busyRef.current || !projectId) return;
     const pid = projectId, epoch = ++runEpochRef.current;
     const check = () => { if (!runLive(pid, epoch)) throw STALE; };
-    // Every input as it is at Build. The build and a later "Finish title and look" read only this; the Inspector labels
-    // are written in the UI language of this moment and do not follow a later switch.
-    const frozen = Object.freeze({
-      pid, seed: nextSeed, preset, fields: { kicker: titleFields.kicker || "", title: titleFields.title || "", tagline: titleFields.tagline || "" },
-      credit: { on: creditUsed, prefix: prefixText.trim(), name: nameText.trim() }, clipSound, look: { on: look, strength }, usePhotos, only, onlyPhotos,
-      music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? pjoin(roots.plugin, "assets", "cues", cue.file) : null,
-      musicObservation: musicKind === "own" && ownGrid?.sourceObservation ? { ...ownGrid.sourceObservation } : null,
-      // Keep the exact cue generation that supplied this build's timing grid.
-      musicCue: musicKind === "cue" ? JSON.parse(JSON.stringify(cue)) : null,
-      sectionStart: musicStart, pace, length, requested: fit.requested,
-      labels: adjustLabelsFor(L), motionOptions: motionOptionsFor(L),
-      draftName: draftNameOf(titleFields.title, chosen.label, new Date()),
-    });
-    busyRef.current = true;
-    stopPreview();
-    setBusy(true); setStatus(null); setResult(null);
-    advance("shots", 0);
+    busyRef.current = true; stopPreview(); setBusy(true); setStatus(null);
+    let attempt: any = null;
     try {
+      const continuations = await openAssemblyContinuations(pid, check);
+      const previous = await continuations.read(); check(); setAssemblyDiscovery("ready");
+      if (previous) {
+        attempt = previous; assemblyPendingRef.current[pid] = previous;
+        advance("draft", 0); await finishAssembly(previous, check, continuations); return;
+      }
+      delete assemblyPendingRef.current[pid];
+      if (!inventoryCurrent() || !assets || !inventory || inventory.incomplete || !roots || !chosen) return;
+      const gate = nextSeed === seed ? blockReason : anotherBlock;
+      if (gate) { setStatus({ tone: "error", say: gate }); return; }
+      const frozen = Object.freeze({
+        pid, seed: nextSeed, preset, fields: { kicker: titleFields.kicker || "", title: titleFields.title || "", tagline: titleFields.tagline || "" },
+        credit: { on: creditUsed, prefix: prefixText.trim(), name: nameText.trim() }, clipSound, look: { on: look, strength }, usePhotos, only, onlyPhotos,
+        music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? pjoin(roots.plugin, "assets", "cues", cue.file) : null,
+        musicObservation: musicKind === "own" && ownGrid?.sourceObservation ? { ...ownGrid.sourceObservation } : null,
+        // Keep the exact cue generation that supplied this build's timing grid.
+        musicCue: musicKind === "cue" ? JSON.parse(JSON.stringify(cue)) : null,
+        sectionStart: musicStart, pace, length, requested: fit.requested,
+        labels: adjustLabelsFor(L), motionOptions: motionOptionsFor(L),
+        draftName: draftNameOf(titleFields.title, chosen.label, new Date()),
+      });
+      setResult(null);
+      const finishAssets = await snapshotArchiveFinishAssets(assets, L, file => fontB64(roots.plugin, file), check); check();
+      advance("shots", 0);
       const analysisClient = panelLocalClient(sdk), analysisSources: any[] = [], sourceBindings: any[] = [];
       if (frozen.music === "own") {
         if (frozen.musicObservation?.path !== frozen.musicPath) throw bundledAssetIssue("SOURCE", "Select the music again to confirm its analyzed contents.");
@@ -5441,6 +6064,12 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       // quick local check of the others (`local`, their quickScore results), run side by side.
       const key = pid + "|" + JSON.stringify(only);
       const chosenRes: any[] = inventory.resources.filter((r: any) => !only || only.includes(r.rid));
+      const selectedBindings = chosenRes.map(row => ({ resourceId: row.rid, path: row.path })).concat(verified.sources.map((row: any) => ({ resourceId: row.resourceId, path: row.path })));
+      await confirmArchiveSourceBindings(sdk, pid, selectedBindings, check);
+      const observedSources = await observeSourceFiles(analysisClient.files, selectedBindings.map(row => row.path)); check();
+      for (const row of observedSources) if (!analysisSources.some(before => before.path === row.path)) analysisSources.push(row);
+      sourceBindings.push(...selectedBindings);
+
       const rids: string[] = chosenRes.filter((r: any) => r.analysed !== false).map((r: any) => r.rid);
       const localRes: any[] = chosenRes.filter((r: any) => r.analysed === false);
       const dur: Record<string, number> = Object.fromEntries(inventory.resources.map((r: any) => [r.rid, r.duration]));
@@ -5501,38 +6130,21 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       advance("music", 1);
       advance("draft", 0);
       await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
-      let a: any = null, lost: any = null;
-      try {
-        a = await run("Assemble Archive Vlog", fill(assets.scripts.assembleJs, avAssembleConfig({ projectId: pid, draftName: frozen.draftName, plan, inventory: verifiedInventory,
-          music, sectionStart: frozen.sectionStart, clipSound: frozen.clipSound, analysisSources, sourceBindings })), true);
-      } catch (e) { lost = e; }
-      check();
-      if (!a || !a.sequenceId) {
-        // Never resend the commit: the reply may have been lost after the Draft was saved. Look for it by its name.
-        let saved: any = null;
-        try { saved = await findDraftByName(pid, frozen.draftName); } catch { saved = null; }
-        check();
-        if (!saved) throw lost || uiError((l) => t(l, "draftNoId", { name: frozen.draftName }));
-        a = { ...saved, notes: a?.notes || [], recovered: true };
-      }
-      if (!(a.totalFrames > 0)) throw uiError((l) => t(l, "draftEmpty", { name: frozen.draftName }));
-      // The planner drops montage shots when the footage cannot fill all the music fits (plan.musicShots); tell the user
-      // the real length at the Draft fps.
-      const shortened = plan.shots < plan.musicShots ? { shots: plan.shots, of: plan.musicShots, seconds: a.totalFrames / a.fps } : null;
-      advance("draft", 1);
-      // The opening's frame size, as it was at Build (a later "Finish title and look" may meet another inventory).
-      const res = { sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, decorated: false, frozen, photoSizes, plan, notes: a.notes || [], link: null, shortened,
-        unchecked: found.failed.length, openingSize: sizes[plan.picks[0]?.rid] || null, recovered: !!a.recovered };
-      setResult(res);
-      await decorate(res, check);
+      const pending = JSON.parse(templateStateJSON({ scope: { pluginId: PLUGIN_ID, projectId: pid, runId: crypto.randomUUID() },
+        config: avAssembleConfig({ projectId: pid, draftName: frozen.draftName, plan, inventory: verifiedInventory, music, sectionStart: frozen.sectionStart, clipSound: frozen.clipSound, analysisSources, sourceBindings }),
+        source: assets.scripts.assembleJs, verifyAssemblySource: assets.scripts.verifyAssemblyJs, finishAssets, frozen, photoSizes, plan, unchecked: found.failed.length,
+        openingSize: sizes[plan.picks[0]?.rid] || null }, 524288));
+      attempt = pending; assemblyPendingRef.current[pid] = pending;
+      await finishAssembly(pending, check, continuations);
     } catch (e: any) {
+      if (attempt && e?.phase !== "decoration" && (e?.outcome === "notSaved" || e?.code === "TEMPLATE_RUN_NOT_SAVED") && assemblyPendingRef.current[pid]?.scope.runId === attempt.scope.runId) delete assemblyPendingRef.current[pid];
       if (e !== STALE && runLive(pid, epoch)) setStatus({ tone: "error", say: stopAt(e) });
     } finally { endRun(pid, epoch); }
   }
 
   // Another version delegates result ownership to Build after selecting a new seed.
   function buildAnother() {
-    if (busyRef.current || !inventoryCurrent()) return;
+    if (busyRef.current || !inventoryCurrent() || assemblyPendingRef.current[projectId]) return;
     // Build clears the previous result only after all admission checks pass.
     const s = seed + 1;
     setSeed(s);
@@ -5540,7 +6152,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   }
 
   async function finishTitle() {
-    if (busyRef.current || !result || !assets || !roots) return;
+    if (busyRef.current || !result?.pending) return;
     const pid = projectId;
     if (result.frozen.pid !== pid) return;
     const epoch = ++runEpochRef.current;
@@ -5551,27 +6163,26 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
     finally { endRun(pid, epoch); }
   }
 
-  // Commit 2 (mute when Clip sound is Off, the decode title, the credit, the letterbox reveal, photo and shot motion,
-  // the fade out and the Cinematic look), then open the Draft. decorate.js skips what an earlier attempt already
-  // added, so a retry is safe.
-  async function decorate(res: any, check: () => void) {
-    advance("look", 0);
-    const f = res.frozen;
+  // The original assembly and Finish recipe remain one owned workflow.
+  // A repeated click confirms saved state before authoring another phase.
+  async function decorate(res: any, check: () => void, continuations: any = null) {
+    const pending = res.pending;
+    if (!pending) throw uiError(l => t(l, "finishUnconfirmed"));
+    const log = continuations || await openAssemblyContinuations(pending.scope.projectId, check);
+    const observed = (value: any, assembly: any) => { check(); setResult(archiveWorkflowResult(value, assembly)); advance("draft", 1); advance("look", 0); };
+    let completed: any;
     try {
-      const fonts = await allFonts(roots!.plugin, assets.presets);
-      check();
-      const cfg = avDecorateConfig({ sequenceId: res.sequenceId, videoEnd: res.videoEnd, fps: res.fps, plan: res.plan, presets: assets.presets, tsx: assets.tsx, fonts,
-        sizes: res.photoSizes, openingSize: res.openingSize || null, frozen: f,
-        provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: f.preset, cue: f.music === "cue" ? f.cueId : f.music, sectionStart: f.sectionStart,
-          pace: f.pace, length: f.length, seed: f.seed, clipSound: f.clipSound, look: f.look.on, credit: f.credit.on } });
-      await run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);
-      check();
+      completed = await log.workflow(pending, async (value: any, assembly: any) => {
+        observed(value, assembly); return prepareArchiveDecoration(sdk, value, assembly, check);
+      }, observed, archiveRecoveryOptions(sdk, pending, check)); check();
     } catch (e: any) {
-      if (e === STALE) throw e;
-      throw uiError((l) => t(l, "finishFailed", { detail: sayError(l, e) }));
+      check(); if (e?.phase !== "decoration") throw e;
+      const known = e?.outcome === "notSaved" || e?.code === "TEMPLATE_RUN_NOT_SAVED";
+      setResult((current: any) => current?.pending?.scope.runId === pending.scope.runId ? { ...current, lookOutcome: known ? "notSaved" : "unknown" } : current);
+      throw Object.assign(uiError(l => known ? t(l, "finishFailed", { detail: sayError(l, e) }) : t(l, "finishUnconfirmed")), { code: e.code, phase: "decoration", draftId: e.draftId, cause: e });
     }
-    // The title is saved from here on, so a failed open must not offer the retry.
-    setResult((r: any) => ({ ...r, decorated: true }));
+    res = archiveWorkflowResult(pending, completed, true); setResult(res); advance("look", 1);
+    if (assemblyPendingRef.current[pending.scope.projectId]?.scope.runId === pending.scope.runId) delete assemblyPendingRef.current[pending.scope.projectId];
     advance("open", 0);
     try {
       const openScript = "const id = " + JSON.stringify(res.sequenceId) + ";\n"
@@ -5649,9 +6260,10 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
   const blockFor = (plan: any): Say | null => baseBlock || (plan && !plan.ok && !plan.retryable ? (l) => failText(l, plan.reason, plan) : null);
   const blockReason = blockFor(readyPlan);
   const anotherBlock = blockFor(readyPlans.another);
-  const ready = inventoryCurrent() && !!assets && !!roots;
-  const canBuild = ready && !blockReason;
-  const canBuildAnother = ready && !anotherBlock;
+  const ready = assemblyDiscovery === "ready" && inventoryCurrent() && !!assets && !!roots;
+  const pendingAssembly = projectId ? assemblyPendingRef.current[projectId] : null;
+  const canBuild = assemblyDiscovery === "failed" || (assemblyDiscovery === "ready" && !!pendingAssembly) || (ready && !blockReason);
+  const canBuildAnother = !pendingAssembly && ready && !anotherBlock;
 
   const facts = avFootageFacts(inventory, selectedRids);
   const clipCount = [
@@ -5916,7 +6528,7 @@ function ArchiveVlogPanel({ sdk, context, ui }: any) {
       <ui.Actions>
         {result && !result.decorated ? <ui.Button onClick={finishTitle} disabled={busy}>{t(L, "finishTitle")}</ui.Button> : null}
         {result ? <ui.Button onClick={buildAnother} disabled={busy || !canBuildAnother}>{t(L, "anotherVersion")}</ui.Button> : null}
-        <ui.Button variant="primary" busy={busy} busyLabel={stepText || t(L, "building")} onClick={() => build(seed)} disabled={busy || !canBuild}>{t(L, "build")}</ui.Button>
+        <ui.Button variant="primary" busy={busy} busyLabel={stepText || t(L, "building")} onClick={() => build(seed)} disabled={busy || !canBuild}>{pendingAssembly || assemblyDiscovery === "failed" ? t(L, "confirmDraft") : t(L, "build")}</ui.Button>
       </ui.Actions>
     </ui.Stack>
     </div>
@@ -6241,6 +6853,14 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
   const bl = uiLang(context);
   const pid: string | null = context?.projectId ?? null;
   if (!pid) throw templateIssue(t(bl, "openProject"));
+  const runId = context?.template?.runId;
+  if (typeof runId !== "string" || !runId) throw templateIssue(t(bl, "stepFailed"));
+  const continuations = await openTemplateAssemblyContinuations(sdk, panelLocalClient(sdk).files, { pluginId: PLUGIN_ID, projectId: pid, requestLimit: 131072, stateLimit: 524288 }, () => { check(); return true; });
+  const previous = await continuations.read(runId, true); check();
+  if (previous) {
+    const completed = await continuations.workflow(previous, (value: any, assembly: any) => prepareArchiveDecoration(sdk, value, assembly, check), () => { check(); }, archiveRecoveryOptions(sdk, previous, check));
+    check(); return { sequenceId: completed.sequenceId };
+  }
   const files = templateFootage(context);
   if (!files.length) throw templateIssue(t(bl, "tpl.noFootage"));
   const run = (summary: string, script: string, allowCommit = false) => runTemplateStep(sdk, summary, script, allowCommit);
@@ -6313,6 +6933,12 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
   const sizes: Record<string, { width: number; height: number }> = { ...known };
   for (const ph of inventory.photos) if (ph.width > 0 && ph.height > 0) sizes[ph.rid] = { width: ph.width, height: ph.height };
   const unanalysed = inventory.skipped?.unanalysed || 0;
+  const analysisClient = panelLocalClient(sdk);
+  const sourceBindings = inventory.resources.concat(inventory.photos).map((row: any) => ({ resourceId: row.rid, path: row.path }));
+  await confirmArchiveSourceBindings(sdk, pid, sourceBindings, check);
+  const analysisSources = await observeSourceFiles(analysisClient.files, sourceBindings.map(row => row.path)); check();
+  const finishAssets = await snapshotArchiveFinishAssets(assets, bl, file => readText(roots.plugin, "assets", "fonts", file), check); check();
+
 
   // Music, length and pace as the panel works them out for a bundled track at its defaults (Cinematic pace, the
   // cue's soft-intro section).
@@ -6354,50 +6980,25 @@ async function runArchiveVlogTemplate(sdk: any, context: any, check: () => void,
     throw templateIssue([failText(bl, plan.reason, plan), unanalysed ? t(bl, "tpl.notAnalysed", { count: unanalysed }) : ""].filter(Boolean).join(t(bl, "gap")));
   }
 
-  // Commit 1: the music, then the clips on a new Draft.
   say("music");
-  const music = await prepareArchiveCue(sdk, pid, roots.plugin, cue, musicStart + plan.schedule.cuts.at(-1), check);
-  check();
-  const analysisClient = panelLocalClient(sdk);
-  const analysisSources = await observeSourceFiles(analysisClient.files, [music.path], [{ path: music.path, size: cue.bytes, sha256: cue.sha256 }]); check();
-  const sourceBindings = [{ resourceId: music.resourceId, path: music.path }];
+  await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
+  const music = await prepareArchiveCue(sdk, pid, roots.plugin, cue, musicStart + plan.schedule.cuts.at(-1), check); check();
+  const [musicSource] = await observeSourceFiles(analysisClient.files, [music.path], [{ path: music.path, size: cue.bytes, sha256: cue.sha256 }]); check();
+  if (!analysisSources.some(row => row.path === musicSource.path)) analysisSources.push(musicSource);
+  sourceBindings.push({ resourceId: music.resourceId, path: music.path });
   say("draft");
   const fields: Record<string, string> = {};
   for (const fl of chosen.fields) fields[fl.key] = fieldClip(String(fl.initial ?? ""), fl.max);
   const draftName = draftNameOf(fields.title, chosen.label, new Date());
   const clipSound = DEFAULT_CLIP_SOUND;
-  // Never resent: the reply may be lost after the Draft was saved.
+  const frozen = { pid, seed: TEMPLATE_SEED, preset: chosen.id, fields, credit: { on: false, name: "" }, clipSound, music: "cue", cueId: cue.id,
+    look: { on: true, strength: avLookStrength(chosen) }, sectionStart: musicStart, pace, length, labels: adjustLabelsFor(bl), motionOptions: motionOptionsFor(bl) };
+  const pending = JSON.parse(templateStateJSON({ scope: { pluginId: PLUGIN_ID, projectId: pid, runId },
+    config: avAssembleConfig({ projectId: pid, draftName, plan, inventory, music, sectionStart: musicStart, clipSound, analysisSources, sourceBindings }),
+    source: assets.scripts.assembleJs, verifyAssemblySource: assets.scripts.verifyAssemblyJs, finishAssets, frozen, photoSizes: sizes, openingSize: frames[plan.picks[0]?.rid] || null, plan, unchecked: found.failed.length }, 524288));
   await observeSourceFiles(analysisClient.files, analysisSources.map(row => row.path), analysisSources); check();
-  const a = await run("Assemble the Archive Vlog", fill(assets.scripts.assembleJs, avAssembleConfig({ projectId: pid, draftName, plan, inventory, music, sectionStart: musicStart, clipSound, analysisSources, sourceBindings })), true);
-  check();
-  if (!a.sequenceId || !(a.totalFrames > 0)) throw templateIssue(t(bl, "tpl.noTitle", { name: draftName }));
-
-  // Commit 2: the title, credit, letterbox reveal, motion, fade and look, as the panel's Finish step adds them.
-  say("look");
-  const fonts = Object.fromEntries(await Promise.all(fontFiles(assets.presets).map(async (f) => [f, (await readText(roots.plugin, "assets", "fonts", f)).replace(/\s+/g, "")])));
-  check();
-  // No credit: nobody can type a name in a template run, and the preset's sample name ("YOURNAME") is never published.
-  const frozen = { seed: TEMPLATE_SEED, preset: chosen.id, fields, credit: { on: false, name: "" }, clipSound,
-    look: { on: true, strength: avLookStrength(chosen) }, sectionStart: musicStart, labels: adjustLabelsFor(bl), motionOptions: motionOptionsFor(bl) };
-  const cfg = avDecorateConfig({ sequenceId: a.sequenceId, videoEnd: a.totalFrames, fps: a.fps, plan, presets: assets.presets, tsx: assets.tsx, fonts, sizes,
-    openingSize: frames[plan.picks[0]?.rid] || null, frozen,
-    provenance: { plugin: PLUGIN_ID, version: PLUGIN_VERSION, preset: chosen.id, cue: cue.id, sectionStart: musicStart, pace, length, seed: TEMPLATE_SEED, clipSound,
-      look: true, credit: false } });
-  const finish = () => run("Add title and look", fill(assets.scripts.decorateJs, cfg), true);
-  // decorate.js skips what an earlier attempt added, so a failed attempt is tried once more.
-  try {
-    await finish();
-  } catch (e) {
-    console.warn("[archive-vlog] Add title and look failed, trying again:", errorText(e));
-    check();
-    try { await finish(); } catch (e2) {
-      console.warn("[archive-vlog] Add title and look failed again:", errorText(e2));
-      throw templateIssue(t(bl, "tpl.finishFailed"));
-    }
-  }
-  check();
-  // Nobody sees this frame, so the Draft is not opened: the app takes the person to it.
-  return { sequenceId: a.sequenceId };
+  const completed = await continuations.workflow(pending, (value: any, assembly: any) => { say("look"); return prepareArchiveDecoration(sdk, value, assembly, check); }, () => { check(); }, archiveRecoveryOptions(sdk, pending, check));
+  check(); return { sequenceId: completed.sequenceId };
 }
 
 // What the app mounts out of sight for a template run: one status line. It starts once per runId and ends the run

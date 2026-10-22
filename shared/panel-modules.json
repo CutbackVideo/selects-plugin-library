@@ -22,7 +22,8 @@
       "source": "shared/native-image-input.mjs",
       "buildTimeTargets": [
         "plugins/photo-gallery-no2/build-panel.mjs",
-        "plugins/mini-vlog/operation-builder.mjs"
+        "plugins/mini-vlog/operation-builder.mjs",
+        "plugins/archive-vlog/operation-builder.mjs"
       ],
       "targets": [
         "plugins/no14-still-video/panel.tsx",
@@ -57,7 +58,8 @@
       ],
       "buildTimeTargets": [
         "plugins/photo-gallery-no2/build-panel.mjs",
-        "plugins/mini-vlog/operation-builder.mjs"
+        "plugins/mini-vlog/operation-builder.mjs",
+        "plugins/archive-vlog/operation-builder.mjs"
       ]
     },
     {
@@ -68,7 +70,8 @@
         "plugins/camera-shutter-dump/panel.tsx",
         "plugins/four-photo-stop-motion/panel.tsx",
         "plugins/polaroid-photo-dump/panel.tsx",
-        "plugins/mini-vlog/panel.tsx"
+        "plugins/mini-vlog/panel.tsx",
+        "plugins/archive-vlog/panel.tsx"
       ],
       "buildTimeTargets": [
         "plugins/photo-gallery-no2/build-panel.mjs"

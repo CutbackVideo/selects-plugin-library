@@ -8,14 +8,18 @@ evidence. `ownership/mini-vlog.json` is the canonical source/decision record and
 
 ## Coverage and limits
 
-The current index captures 44 files, including all 30 shipped executable/test files,
-21 declared assets/data records, 27 feature decisions, 2,413 callable units
-(1,543 anonymous callbacks), 2,131 top-level statements and four embedded programs.
+The current index captures 49 files, including all 30 shipped executable/test files,
+21 declared assets/data records, 27 feature decisions, 2,723 callable units
+(1,749 anonymous callbacks), 2,179 top-level statements and four embedded programs.
 It also captures the new regression sources, canonical build-time audio engine,
 and the canonical asset owner/selected-Audio regression shared with Archive.
 The asset owner also now supplies source-bound Audio beat-analysis snapshots,
 validated JSON cache/result admission and known-duration fallback; Mini retains
 its sampling/decoder/Worker adapter and existing cache namespace.
+The native source-frame cover now belongs to the existing authoring owner; Mini
+and Archive retain their destination cut/music-offset policy and reuse that
+cover/explicit-surplus contract. The index also captures the canonical authoring
+source and the two shared SDK/save fixtures used to check this boundary.
 Source hashes explicitly normalize checkout line endings; binary identities stay exact.
 
 The checker reports `coverageComplete:true`, `semanticReviewComplete:false` and
@@ -26,7 +30,7 @@ source nor fixed fixture status promotes a whole template to accepted.
 
 ## Feature decisions
 
-Twelve rows keep Mini policy/data specific, nine reuse existing owners, four extend
+Twelve rows keep Mini policy/data specific, seven reuse existing owners, six extend
 existing owners and two remain planned text extraction (runtime plus checker share
 one prospective owner). The audio engine has now moved from planned extraction to
 implemented reuse: four standalone consumers share one canonical CJS source.
@@ -53,8 +57,8 @@ registry and are still counted explicitly; the registry is not the final module 
 | local-video-analysis | reuse | clip-analysis | existing |
 | scene-observation | extend | media-inventory | planned |
 | script-dispatch | extend | local-client | planned |
-| authoring-owner | reuse | native-image-authoring | existing |
-| workflow-owner | reuse | template-run | existing |
+| authoring-owner | extend | native-image-authoring | implemented-extension |
+| workflow-owner | extend | template-run | implemented-extension |
 | assembly-policy | keep-template-specific | mini-vlog | specific |
 | program-policy | keep-template-specific | mini-vlog | specific |
 | workflow-policy | keep-template-specific | mini-vlog | specific |

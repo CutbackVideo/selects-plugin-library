@@ -167,8 +167,8 @@ class MiniVlogWindowsTest(unittest.TestCase):
     def test_ensure_audio_uses_shared_normalised_path_reader(self):
         src = read(os.path.join(PLUGIN, "scripts", "ensure-audio.js"))
         self.assertIn(".normalize('NFC')", src)
-        self.assertIn("readBundledAssetResource(selects, cfg.projectId, cfg.path", src)
-        self.assertIn("win ? 'win32' : 'darwin', true", src)
+        self.assertIn("return await ensureProjectAudio(selects, __CONFIG__)", src)
+        self.assertRegex(src, r"readBundledAssetResource\(selects,\s*cfg\.projectId,\s*path,\s*win\s*\?\s*'win32'\s*:\s*'darwin',\s*true,\s*true\)")
         self.assertIn("toLowerCase()", src)
         self.assertNotIn("DURATION_TOLERANCE", src)
 

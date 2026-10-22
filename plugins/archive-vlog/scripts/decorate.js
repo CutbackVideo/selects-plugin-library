@@ -1,133 +1,183 @@
-const cfg = __CONFIG__;
-if (!(cfg.videoEnd > 0)) throw Error('decorate: cfg.videoEnd missing');
-const d = selects.draft(cfg.sequenceId);
-// Graphic and effect names: a retry and the readback recognise what is already there by them, so they stay English.
-const TITLE_LABEL = 'Archive title', CREDIT_LABEL = 'Archived credit', LETTERBOX_LABEL = 'Letterbox reveal', LOOK_LABEL = 'Cinematic look';
-const FADE_LABEL = 'Fade out', MOTION_LABEL = 'Photo motion', SHOT_MOTION_LABEL = 'Shot motion';
-const OUR_EFFECTS = [LETTERBOX_LABEL, LOOK_LABEL, FADE_LABEL, MOTION_LABEL, SHOT_MOTION_LABEL];
-// Inspector (Adjust) labels in the panel's UI language at Build (cfg.adjustLabels), English without them. The title and
-// credit Adjust items come ready-made from the panel (cfg.title / cfg.credit editableParameters).
-const LABELS = { motion: 'Motion', motionStrength: 'Motion strength', reveal: 'Reveal', letterbox: 'Letterbox reveal', look: 'Look strength',
-  warmth: 'Warmth', fade: 'Fade out', ...(cfg.adjustLabels || {}) };
-const num = (v, fallback) => (typeof v === 'number' && isFinite(v) ? v : fallback);
-// Photo resource ids in this Draft. Photos have no sound, so their audio routing stays null after muting.
-const photoIds = new Set(cfg.photos || []);
-// Effects on photo clips (every kind: motion, letterbox, fade, look) only when cfg.photoEffects is exactly true. Export
-// renders them; Draft.captureFrames cannot render a frame with an effect on an image clip, so never preview such frames.
-const photoEffects = cfg.photoEffects === true;
-// The Main clips in timeline order: clip 0 is the opening shot, clip 1 the credit shot, the last one the final shot.
-const mainClips = async () => (await d.clips({ trackScope: 'main' })).filter(c => c.resourceId !== null).sort((a, b) => a.startFrame - b.startFrame);
-// Every clip by id, read once and again only after an edit (any edit makes earlier rows stale): one read per pass
-// and per edit instead of one per lookup, which a long Draft could not afford inside run_script's deadline.
-let current = null;
-const allClips = async () => current || (current = await d.clips({ trackScope: 'all' }));
-const clipById = async id => (await allClips()).find(c => c.clipId === id);
-const edited = () => { current = null; };
-// Idempotent: a retry after a half-finished or unreported earlier run adds only what is still missing (by name).
-// Mute first: setAudioTracks reads the saved Draft's audio inventory, which a Draft created in the same call lacks.
-let muted = false, muteKept = false;
-if (cfg.mute) {
-  const main = await mainClips();
-  const videos = main.filter(c => !photoIds.has(c.resourceId));
-  if (videos.every(c => Array.isArray(c.audioSourceIndexes) && c.audioSourceIndexes.length === 0)) muteKept = true;
-  else {
-    const end = main.reduce((a, c) => Math.max(a, c.endFrame), 0);
-    // Clips whose source has no audio stream keep null routing after muting, so the check above cannot see a finished
-    // mute on them. The EditDiff decides: opCount 0 means already muted or nothing to mute (an all-silent Draft).
-    let diff;
-    try { diff = await d.setAudioTracks({ target: await d.rangeAtFrames(0, end), audioSourceIndexes: [] }); }
-    catch (e) { throw Error('Could not mute the clips\' own sound: ' + (e && e.message || e)); }
-    if (diff && diff.opCount === 0) muteKept = true; else muted = true;
+// @template-decoration 1
+// @template-decoration-intent 1
+// Generated from the existing program owner and Archive decoration policy.
+function imageProgramsFeature(selects,config=null,format=null){
+ const issue=message=>Object.assign(Error(message),{code:'IMAGE_PROGRAM_INVALID',publicMessage:message});
+ const guarded=fn=>async(...args)=>{try{return await fn(...args);}catch(cause){if(cause?.code==='IMAGE_PROGRAM_INVALID')throw cause;throw Object.assign(issue('Image program state could not be confirmed.'),{cause});}};
+ const same=(a,b)=>{
+  if(a===b)return true;
+  if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  const keys=Object.keys(b);return Object.keys(a).length===keys.length&&keys.every(key=>Object.prototype.hasOwnProperty.call(a,key)&&same(a[key],b[key]));
+ };
+ const normalized=program=>({tsxCode:program.tsxCode,editableParameters:program.editableParameters,parameters:{...Object.fromEntries(program.editableParameters.map(d=>[d.key,d.defaultValue])),...program.parameters}});
+ const matches=(actual,wanted)=>actual&&actual.tsxCode===wanted.tsxCode&&same(actual.editableParameters,wanted.editableParameters)&&same(actual.parameters,wanted.parameters);
+ // Reconcile a caller-owned program intent on Main or overlay visuals. Names
+ // only locate candidates; code, values, controls, intervals and order prove a
+ // match. Preflight the whole intent before the caller's optional mutation.
+ const reconcile=guarded(async(draft,input,beforeApply=null)=>{
+  if(!['clips','motionGraphics','motionGraphicProgram','videoEffects','videoEffectProgram','addMotionGraphic','addVideoEffect','rangeAtFrames'].every(key=>typeof draft[key]==='function'))throw issue('Update Selects to verify authored programs.');
+  const text=JSON.stringify(input,(_key,value)=>{if(typeof value==='number'&&!Number.isFinite(value)||['function','bigint','symbol'].includes(typeof value))throw issue('Program intent contains an unsupported value.');return value;});
+  if(!text||text.length>8*1024*1024)throw issue('Program intent exceeds its input limit.');
+  const intent=JSON.parse(text),names=value=>Array.isArray(value)&&value.length<=32&&new Set(value).size===value.length&&value.every(name=>typeof name==='string'&&name.length>0&&name.length<=256);
+  if(!intent||!names(intent.graphicNames)||!names(intent.effectNames)||!Array.isArray(intent.graphics)||intent.graphics.length>256||!Array.isArray(intent.clips)||intent.clips.length>256||new Set(intent.graphics.map(g=>g.name)).size!==intent.graphics.length||new Set(intent.clips.map(c=>c.clipId)).size!==intent.clips.length||beforeApply!==null&&typeof beforeApply!=='function')throw issue('Program intent is incomplete.');
+  const prepare=program=>{
+   if(!program||typeof program.tsxCode!=='string'||!program.tsxCode||!program.parameters||typeof program.parameters!=='object'||Array.isArray(program.parameters)||!Array.isArray(program.editableParameters)||program.editableParameters.length>256||new Set(program.editableParameters.map(d=>d?.key)).size!==program.editableParameters.length)throw issue('Program source or controls are incomplete.');
+   return normalized(program);
+  };
+  const graphicPlans=intent.graphics.map(g=>{
+   if(!g||!intent.graphicNames.includes(g.name)||!Number.isSafeInteger(g.startFrame)||g.startFrame<0||!Number.isSafeInteger(g.endFrame)||g.endFrame<=g.startFrame)throw issue('Graphic intent has an invalid interval.');
+   return {...g,program:prepare(g)};
+  });
+  const clipPlans=intent.clips.map(c=>{
+   if(!c||!Number.isSafeInteger(c.clipId)||c.clipId<0||typeof c.trackId!=='string'||!c.trackId||!Array.isArray(c.effects)||c.effects.length>32||new Set(c.effects.map(e=>e.name)).size!==c.effects.length)throw issue('Effect intent has an invalid target.');
+   return {...c,effects:c.effects.map(e=>{if(!e||!intent.effectNames.includes(e.name))throw issue('Effect intent has an invalid name.');return {name:e.name,program:prepare(e)};})};
+  });
+  const rowFor=async wanted=>{
+   const rows=await draft.clips({trackScope:'all'}),row=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);
+   if(!row||!['main','video'].includes(row.trackKind)||!row.resourceId)throw issue('Effect intent target could not be confirmed.');return row;
+  };
+  const graphicPresent=async wanted=>{
+   const candidates=(await draft.motionGraphics()).filter(g=>g.name===wanted.name);
+   if(candidates.length>1)throw issue('Graphic intent matches several placements.');
+   if(!candidates.length)return false;
+   const clip=candidates[0].clip;
+   if(clip.trackKind!=='video'||clip.startFrame!==wanted.startFrame||clip.endFrame!==wanted.endFrame||!matches(await draft.motionGraphicProgram(clip),wanted.program))throw issue('Graphic program, controls or interval differ from the intended result.');
+   return true;
+  };
+  const effectState=async(wanted,complete)=>{
+   const all=await draft.videoEffects(await rowFor(wanted));
+   if(!Array.isArray(all)||all.some((e,index)=>e.effectIndex!==index||e.clipId!==wanted.clipId||e.trackId!==wanted.trackId))throw issue('Effect stack target could not be confirmed.');
+   const managed=all.filter(e=>intent.effectNames.includes(e.name));
+   if(managed.length>wanted.effects.length||complete&&managed.length!==wanted.effects.length)throw issue('Effect intent count could not be confirmed.');
+   for(const [index,e] of managed.entries()){
+    const expected=wanted.effects[index];
+    if(e.name!==expected.name||e.enabled!==true||!matches(await draft.videoEffectProgram(e),expected.program))throw issue('Effect program, controls or prefix order differ from the intended result.');
+   }
+   return {count:managed.length,stack:all.map(e=>({name:e.name,effectName:e.effectName,enabled:e.enabled}))};
+  };
+  for(const g of graphicPlans)g.kept=await graphicPresent(g);
+  for(const c of clipPlans)c.before=await effectState(c,false);
+  // Muting and other caller policy run only after every existing program was
+  // checked. All targets below are reread after that edit and each addition.
+  if(beforeApply)await beforeApply();
+  let graphicsAdded=0,graphicsKept=0;
+  const effects=Object.fromEntries(intent.effectNames.map(name=>[name,{added:0,kept:0}]));
+  for(const g of graphicPlans){
+   if(g.kept){graphicsKept++;continue;}
+   await draft.addMotionGraphic({within:await draft.rangeAtFrames(g.startFrame,g.endFrame),label:g.name,tsxCode:g.program.tsxCode,parameters:g.program.parameters,editableParameters:g.program.editableParameters});graphicsAdded++;
   }
-}
-const rows = await mainClips();
-if (!rows.length) throw Error('decorate: the Draft has no clips');
-const fps = (await d.meta()).fps;
-const graphics = (await d.motionGraphics()).map(g => g.name);
-// Title lockup within the opening shot's range (clip 0, from frame 0); its timing (parameters.timing) comes from the
-// panel (planner avOpeningTiming of the opening's length). The credit sits within the credit shot (clip 1).
-let titleAdded = false, creditAdded = false;
-if (cfg.title && !graphics.includes(TITLE_LABEL)) {
-  await d.addMotionGraphic({ within: await d.rangeAtFrames(rows[0].startFrame, rows[0].endFrame), label: TITLE_LABEL, tsxCode: cfg.title.tsx, parameters: cfg.title.parameters, editableParameters: cfg.title.editableParameters });
-  titleAdded = true; edited();
-}
-if (cfg.credit && rows.length > 1 && !graphics.includes(CREDIT_LABEL)) {
-  await d.addMotionGraphic({ within: await d.rangeAtFrames(rows[1].startFrame, rows[1].endFrame), label: CREDIT_LABEL, tsxCode: cfg.credit.tsx, parameters: cfg.credit.parameters, editableParameters: cfg.credit.editableParameters });
-  creditAdded = true; edited();
-}
-// Effects, one pass per clip in this order (each call appends to the clip's stack): Photo motion (photos) or Shot motion
-// (video clips but the opening, which has the reveal) -> Letterbox reveal (clip 0) / Fade out (the last clip; a one-clip
-// Draft gets both, reveal first) -> Cinematic look last, so the grade wraps the move and the black.
-let letterbox = 0, fades = 0, effects = 0, effectsKept = 0, motions = 0, videoMotions = 0, photoEffectsSkipped = 0;
-const motion = cfg.motion || null, video = motion && motion.video ? motion.video : null;
-const motionEditable = (value, strength) => [
-  { key: 'motion', label: LABELS.motion, type: 'select', defaultValue: value, options: motion.options },
-  { key: 'strength', label: LABELS.motionStrength, type: 'number', defaultValue: strength, min: 0, max: 2, step: 0.1 }];
-const addEffect = async (id, have, label, tsxCode, parameters, editableParameters) => {
-  if (have.includes(label)) { effectsKept++; return false; }
-  const clip = await clipById(id);
-  if (!clip) return false;
-  await d.addVideoEffect({ clip, label, tsxCode, parameters, editableParameters });
-  edited();
-  return true;
-};
-const lookOn = async (id, have) => {
-  if (!cfg.look) return;
-  const strength = num(cfg.look.strength, 0.3), warmth = num(cfg.look.warmth, 1);
-  if (await addEffect(id, have, LOOK_LABEL, cfg.look.tsx, { strength, warmth }, [
-    { key: 'strength', label: LABELS.look, type: 'number', defaultValue: strength, min: 0, max: 1, step: 0.05 },
-    { key: 'warmth', label: LABELS.warmth, type: 'number', defaultValue: warmth, min: 0, max: 2, step: 0.1 }])) effects++;
-};
-for (let i = 0; i < rows.length; i++) {
-  const row = rows[i], id = row.clipId, photo = photoIds.has(row.resourceId);
-  if (photo && !photoEffects) { photoEffectsSkipped++; continue; }
-  // The rows above predate this run's edits: the clip's current row (read again after an edit) for its effects.
-  const now = await clipById(id);
-  if (!now) continue;
-  const have = (await d.videoEffects(now)).flatMap(e => [e.name, e.effectName]).filter(n => OUR_EFFECTS.includes(n));
-  const holdSeconds = Math.round((row.endFrame - row.startFrame) / fps * 1000) / 1000;
-  const m = photo ? (motion && motion.byRid && motion.byRid[row.resourceId]) : (i > 0 && video && video.byIndex ? video.byIndex[String(i)] : null);
-  if (m && photo) {
-    if (await addEffect(id, have, MOTION_LABEL, motion.tsx,
-      { motion: m.motion, strength: motion.strength, direction: m.direction, axis: m.axis, cover: m.cover || 1, holdSeconds },
-      motionEditable(m.motion, motion.strength))) motions++;
-  } else if (m) {
-    const strength = num(video.strength, 0.5);
-    if (await addEffect(id, have, SHOT_MOTION_LABEL, motion.tsx,
-      { motion: m.motion, strength, direction: m.direction, axis: m.axis, cover: 1, holdSeconds },
-      motionEditable(m.motion, strength))) videoMotions++;
+  for(const c of clipPlans){
+   for(const [index,e] of c.effects.entries()){
+    if(index<c.before.count){effects[e.name].kept++;continue;}
+    await draft.addVideoEffect({clip:await rowFor(c),label:e.name,tsxCode:e.program.tsxCode,parameters:e.program.parameters,editableParameters:e.program.editableParameters});effects[e.name].added++;
+   }
   }
-  if (i === 0 && cfg.letterbox) {
-    const lp = cfg.letterbox.parameters || {};
-    const revealSeconds = num(lp.revealSeconds, num(lp.revealEnd, 2.35) - num(lp.revealStart, 0.22));
-    if (await addEffect(id, have, LETTERBOX_LABEL, cfg.letterbox.tsx, { ...lp, revealSeconds, enabled: lp.enabled !== false }, [
-      { key: 'revealSeconds', label: LABELS.reveal, type: 'number', defaultValue: Math.round(revealSeconds * 100) / 100, min: 0, max: 5, step: 0.05 },
-      { key: 'enabled', label: LABELS.letterbox, type: 'boolean', defaultValue: lp.enabled !== false }])) letterbox++;
+  // Writer acknowledgements are not evidence that a program was applied.
+  for(const g of graphicPlans)if(!await graphicPresent(g))throw issue('The intended graphic was not applied.');
+  for(const c of clipPlans){
+   const after=await effectState(c,true);
+   if(!same(after.stack.slice(0,c.before.stack.length),c.before.stack))throw issue('An existing effect stack changed while applying programs.');
   }
-  if (i === rows.length - 1 && cfg.fade) {
-    // The effect counts the clip's own frames: its last frame is fully black.
-    const fadeSeconds = num(cfg.fade.fadeSeconds, 1);
-    if (await addEffect(id, have, FADE_LABEL, cfg.fade.tsx, { durationFrames: row.endFrame - row.startFrame, fadeSeconds }, [
-      { key: 'fadeSeconds', label: LABELS.fade, type: 'number', defaultValue: fadeSeconds, min: 0, max: 3, step: 0.1 }])) fades++;
+  return {graphicsAdded,graphicsKept,effects};
+ });
+ const inspect=async(draft,expected)=>{
+  if(!('videoEffects' in draft)||!('videoEffectProgram' in draft)||!('motionGraphicProgram' in draft))throw issue('Update Selects to verify Image programs.');
+  const rows=(await draft.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
+  if(!Array.isArray(expected)||expected.length!==rows.length||new Set(expected.map(c=>c.clipId)).size!==expected.length)throw issue('Visual program count could not be confirmed.');
+  const sources=[],clips=[];
+  const pack=program=>{const p=normalized(program);let source=sources.indexOf(p.tsxCode);if(source<0){source=sources.length;sources.push(p.tsxCode);}return {source,parameters:p.parameters,editableParameters:p.editableParameters};};
+  for(const wanted of expected){
+   const clip=rows.find(c=>c.clipId===wanted.clipId&&c.trackId===wanted.trackId);if(!clip)throw issue('Visual program target could not be confirmed.');
+   const effects=await draft.videoEffects(clip);
+   if(!Array.isArray(effects)||effects.length!==wanted.effects.length)throw issue('Effect stack could not be confirmed.');
+   const checked=[];
+   for(const [index,entry] of wanted.effects.entries()){
+    const actual=effects[index],program=normalized(entry);
+    if(actual.effectIndex!==index||actual.name!==entry.name||actual.enabled!==true||!matches(await draft.videoEffectProgram(actual),program))throw issue('Effect program, order or controls could not be confirmed.');
+    checked.push({name:entry.name,...pack(program)});
+   }
+   const graphic=await draft.motionGraphicProgram(clip);
+   if(wanted.graphic?!matches(graphic,normalized(wanted.graphic)):graphic!==null)throw issue('Graphic program or controls could not be confirmed.');
+   clips.push({clipId:clip.clipId,trackId:clip.trackId,effects:checked,graphic:wanted.graphic?pack(wanted.graphic):null});
   }
-  await lookOn(id, have);
+  return {sources,clips};
+ };
+ const presets=new Map();
+ const preset=async id=>{
+  if(!config)throw issue('Effect preset preparation requires an authoring target.');
+  if(presets.has(id))return presets.get(id);
+  const definition=await selects.effectPresets.get(id);
+  if(definition?.id!==id||definition.kind!=='effect'||typeof definition.label!=='string'||!Array.isArray(definition.editableParameters)||!definition.parameters)throw issue('Effect preset definition could not be confirmed.');
+  // The public preset definition omits effect TSX. Resolve a canonical program
+  // in an isolated unsaved reference, never by adopting the target's output.
+  const project=selects.project(config.projectId),probe=await project.createDraft({name:'Image preset reference'});
+  await probe.insertGap({seconds:config.plan.durationFrames/config.plan.fps});await probe.setFrameSize(config.plan.canvas);
+  await probe.overlayResource({resource:project.resource(config.sources[0].resourceId),over:await probe.rangeAtFrames(0,config.plan.durationFrames)});
+  if(!('videoEffects' in probe)||!('videoEffectProgram' in probe))throw issue('Update Selects to verify effect presets.');
+  let clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');if(clips.length!==1)throw issue('Effect preset reference could not be confirmed.');
+  const applied=await probe.applyEffectPreset({clip:clips[0],presetId:id,parameters:definition.parameters});
+  if(applied?.presetId!==id)throw issue('Effect preset identity could not be confirmed.');
+  clips=(await probe.clips({trackScope:'all'})).filter(c=>c.trackKind==='video');
+  const effects=await probe.videoEffects(clips[0]);if(effects.length!==1||effects[0].enabled!==true||effects[0].name!==definition.label)throw issue('Effect preset reference stack could not be confirmed.');
+  const program=await probe.videoEffectProgram(effects[0]),expected=normalized({tsxCode:program?.tsxCode,parameters:definition.parameters,editableParameters:definition.editableParameters});
+  if(typeof program?.tsxCode!=='string'||!program.tsxCode||!matches(program,expected))throw issue('Effect preset reference program could not be confirmed.');
+  const value={name:definition.label,...expected};presets.set(id,value);return value;
+ };
+ const confirm=details=>{
+  if(!config||!format)throw issue('Program receipt confirmation requires an authoring target.');
+  const result={draftId:config.partialDraftId||'x'.repeat(120),fps:config.plan.fps,durationFrames:config.plan.durationFrames,frameSize:config.plan.canvas,clips:config.clips,...details};
+  // Reserve more than a UUID for the post-commit identity. Check the actual
+  // journal envelope and ASCII encoding before the only persistence boundary.
+  try{format(config.runReceipt?{...JSON.parse(config.runReceipt.expectedText),status:'saved',result}:result);}catch(cause){throw Object.assign(issue('The Image program receipt exceeds its limit or could not be prepared.'),{cause});}
+ };
+ const verify=(draft,receipt)=>inspect(draft,receipt.clips.map(c=>{const expand=p=>({tsxCode:receipt.sources[p.source],parameters:p.parameters,editableParameters:p.editableParameters});return {...c,effects:c.effects.map(e=>({name:e.name,...expand(e)})),graphic:c.graphic?expand(c.graphic):null};}));
+ return {inspect:guarded(inspect),preset:guarded(preset),confirm,verify:guarded(verify),reconcile};
 }
-// Cinematic look also on clips placed on other video tracks (none in a fresh Build; a user's B-roll on a retry). The
-// Main clips had their pass above, so they are left out here even if the host lists them as video rows.
-if (cfg.look) {
-  const mainIds = new Set(rows.map(r => r.clipId));
-  const others = (await allClips()).filter(c => c.trackKind === 'video' && c.resourceId !== null && !mainIds.has(c.clipId)).map(c => c.clipId);
-  for (const id of others) {
-    const c = await clipById(id);
-    if (!c) continue;
-    if (photoIds.has(c.resourceId) && !photoEffects) { photoEffectsSkipped++; continue; }
-    await lookOn(id, (await d.videoEffects(c)).flatMap(e => [e.name, e.effectName]));
-  }
+const cfg=__CONFIG__;
+if(!(cfg.videoEnd>0))throw Error('decorate: cfg.videoEnd missing');
+const d=selects.draft(cfg.sequenceId),programs=imageProgramsFeature(selects);
+const TITLE_LABEL='Archive title',CREDIT_LABEL='Archived credit',LETTERBOX_LABEL='Letterbox reveal',LOOK_LABEL='Cinematic look',FADE_LABEL='Fade out',MOTION_LABEL='Photo motion',SHOT_MOTION_LABEL='Shot motion';
+const OUR_EFFECTS=[LETTERBOX_LABEL,LOOK_LABEL,FADE_LABEL,MOTION_LABEL,SHOT_MOTION_LABEL];
+const LABELS={motion:'Motion',motionStrength:'Motion strength',reveal:'Reveal',letterbox:'Letterbox reveal',look:'Look strength',warmth:'Warmth',fade:'Fade out',...(cfg.adjustLabels||{})};
+const num=(v,fallback)=>typeof v==='number'&&Number.isFinite(v)?v:fallback;
+const photoIds=new Set(cfg.photos||[]),photoEffects=cfg.photoEffects===true;
+const all=await d.clips({trackScope:'all'}),fps=(await d.meta()).fps;
+if(!Number.isFinite(fps)||fps<=0)throw Error('decorate: the Draft frame grid is unavailable');
+const main=(await d.clips({trackScope:'main'})).filter(c=>c.resourceId!==null).sort((a,b)=>a.startFrame-b.startFrame),mainIds=new Set(main.map(c=>c.clipId));
+const visual=[...main,...all.filter(c=>c.trackKind==='video'&&c.resourceId!==null&&!mainIds.has(c.clipId))];
+if(!main.length)throw Error('decorate: the Draft has no clips');
+const graphics=[];
+if(cfg.title)graphics.push({name:TITLE_LABEL,startFrame:main[0].startFrame,endFrame:main[0].endFrame,tsxCode:cfg.title.tsx,parameters:cfg.title.parameters,editableParameters:cfg.title.editableParameters});
+if(cfg.credit&&main.length>1)graphics.push({name:CREDIT_LABEL,startFrame:main[1].startFrame,endFrame:main[1].endFrame,tsxCode:cfg.credit.tsx,parameters:cfg.credit.parameters,editableParameters:cfg.credit.editableParameters});
+const intents=visual.map(c=>({clipId:c.clipId,trackId:c.trackId,effects:[]})),planOf=c=>intents.find(p=>p.clipId===c.clipId&&p.trackId===c.trackId);
+const motion=cfg.motion||null,video=motion?.video||null;
+const motionEditable=(value,strength)=>[{key:'motion',label:LABELS.motion,type:'select',defaultValue:value,options:motion.options},{key:'strength',label:LABELS.motionStrength,type:'number',defaultValue:strength,min:0,max:2,step:.1}];
+let photoEffectsSkipped=0;
+const lookOn=c=>{if(cfg.look){const strength=num(cfg.look.strength,.3),warmth=num(cfg.look.warmth,1);planOf(c).effects.push({name:LOOK_LABEL,tsxCode:cfg.look.tsx,parameters:{strength,warmth},editableParameters:[{key:'strength',label:LABELS.look,type:'number',defaultValue:strength,min:0,max:1,step:.05},{key:'warmth',label:LABELS.warmth,type:'number',defaultValue:warmth,min:0,max:2,step:.1}]});}};
+for(let i=0;i<main.length;i++){
+ const c=main[i],photo=photoIds.has(c.resourceId);
+ if(photo&&!photoEffects){photoEffectsSkipped++;continue;}
+ const holdSeconds=Math.round((c.endFrame-c.startFrame)/fps*1000)/1000;
+ const m=photo?motion?.byRid?.[c.resourceId]:i>0?video?.byIndex?.[String(i)]:null;
+ if(m){const strength=photo?motion.strength:num(video.strength,.5);planOf(c).effects.push({name:photo?MOTION_LABEL:SHOT_MOTION_LABEL,tsxCode:motion.tsx,parameters:{motion:m.motion,strength,direction:m.direction,axis:m.axis,cover:photo?m.cover||1:1,holdSeconds},editableParameters:motionEditable(m.motion,strength)});}
+ if(i===0&&cfg.letterbox){const p=cfg.letterbox.parameters||{},revealSeconds=num(p.revealSeconds,num(p.revealEnd,2.35)-num(p.revealStart,.22));planOf(c).effects.push({name:LETTERBOX_LABEL,tsxCode:cfg.letterbox.tsx,parameters:{...p,revealSeconds,enabled:p.enabled!==false},editableParameters:[{key:'revealSeconds',label:LABELS.reveal,type:'number',defaultValue:Math.round(revealSeconds*100)/100,min:0,max:5,step:.05},{key:'enabled',label:LABELS.letterbox,type:'boolean',defaultValue:p.enabled!==false}]});}
+ if(i===main.length-1&&cfg.fade){const fadeSeconds=num(cfg.fade.fadeSeconds,1);planOf(c).effects.push({name:FADE_LABEL,tsxCode:cfg.fade.tsx,parameters:{durationFrames:c.endFrame-c.startFrame,fadeSeconds},editableParameters:[{key:'fadeSeconds',label:LABELS.fade,type:'number',defaultValue:fadeSeconds,min:0,max:3,step:.1}]});}
+ lookOn(c);
 }
-// Commit only when this run added or changed something: commitAll rejects an empty change ("Nothing to stage"), which a
-// retry after a landed but unreported commit would otherwise hit. Nothing to do is success (alreadyDone).
-// effects counts the Cinematic looks added; effectsKept every effect of ours (any name above) already there.
-const committed = muted || titleAdded || creditAdded || letterbox + fades + effects + motions + videoMotions > 0;
-if (committed) await d.commitAll('Archive Vlog: title and look');
-// Built in one literal (run_script type-checks the script, so no properties are added after the fact).
-return { titleAdded, creditAdded, letterbox, fades, effects, effectsKept, motions, videoMotions, muted, muteKept, committed, alreadyDone: !committed, photoEffectsSkipped };
+if(cfg.look)for(const c of visual.filter(c=>!mainIds.has(c.clipId))){if(photoIds.has(c.resourceId)&&!photoEffects){photoEffectsSkipped++;continue;}lookOn(c);}
+const beforeNames=new Set((await d.motionGraphics()).map(g=>g.name));
+let muted=false,muteKept=false;
+const applied=await programs.reconcile(d,{graphicNames:[TITLE_LABEL,CREDIT_LABEL],effectNames:OUR_EFFECTS,graphics,clips:intents},async()=>{
+ if(!cfg.mute)return;
+ const rows=(await d.clips({trackScope:'main'})).filter(c=>c.resourceId!==null),videos=rows.filter(c=>!photoIds.has(c.resourceId));
+ if(videos.every(c=>Array.isArray(c.audioSourceIndexes)&&!c.audioSourceIndexes.length)){muteKept=true;return;}
+ const end=rows.reduce((a,c)=>Math.max(a,c.endFrame),0);let diff;
+ try{diff=await d.setAudioTracks({target:await d.rangeAtFrames(0,end),audioSourceIndexes:[]});}catch(e){throw Error('Could not mute the clips\' own sound: '+(e?.message||e));}
+ if(diff?.opCount===0)muteKept=true;else muted=true;
+});
+const added=name=>applied.effects[name].added;
+const effects=added(LOOK_LABEL),letterbox=added(LETTERBOX_LABEL),fades=added(FADE_LABEL),motions=added(MOTION_LABEL),videoMotions=added(SHOT_MOTION_LABEL),effectsKept=OUR_EFFECTS.reduce((n,name)=>n+applied.effects[name].kept,0);
+const titleAdded=!!cfg.title&&!beforeNames.has(TITLE_LABEL),creditAdded=!!cfg.credit&&main.length>1&&!beforeNames.has(CREDIT_LABEL),committed=muted||applied.graphicsAdded>0||effects+letterbox+fades+motions+videoMotions>0;
+if(typeof cfg.__beforeCommit==='function')await cfg.__beforeCommit(d,committed);
+if(committed)await d.commitAll('Archive Vlog: title and look');
+return {titleAdded,creditAdded,letterbox,fades,effects,effectsKept,motions,videoMotions,muted,muteKept,committed,alreadyDone:!committed,photoEffectsSkipped};

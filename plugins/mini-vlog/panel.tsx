@@ -4406,9 +4406,12 @@ async function runAssetMediaTool(media,kind,args,options={}){
 // template-run:start
 // Durable ownership of one app-supplied template run. Original source is embedded
 // into its declared consumers; no cross-plugin runtime import is required.
-function templateRunJSON(value) {
+function templateRunJSON(value,limit=49152) {
+ // Request data may opt in to a larger budget. Receipt envelopes and their
+ // exclusive/CAS writes retain the original 48 KiB default and exact bytes.
+ if(!Number.isSafeInteger(limit)||limit<49152||limit>131072)throw Error('Invalid template request limit.');
  const text=JSON.stringify(value).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));
- if(text.length>49152)throw Error('The template run receipt exceeds the local file limit.');
+ if(text.length>limit)throw Error('The template run receipt exceeds the local file limit.');
  return text;
 }
 // SDK scripts have no browser/Node encoding globals. The JSON above is ASCII.
@@ -4560,8 +4563,8 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
  await targetCheck();
  if(!files||!['join','homedir','exists','stat','readRange','writeFile','compareAndReplace','mkdir'].every(key=>typeof files[key]==='function'))fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
  if(typeof globalThis.crypto?.subtle?.digest!=='function'||typeof globalThis.TextEncoder!=='function'||typeof globalThis.TextDecoder!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
- const digest=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(templateRunJSON(value)))),n=>n.toString(16).padStart(2,'0')).join('');
- const key=await digest(scope),requestDigest=await digest(request);
+ const digest=async(value,limit=49152)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(templateRunJSON(value,limit)))),n=>n.toString(16).padStart(2,'0')).join('');
+ const key=await digest(scope),requestDigest=await digest(request,options.requestLimit??49152);
  const directory=files.join(files.homedir(),'.selects','plugin-data',scope.pluginId,'template-runs'),path=files.join(directory,key+'.json');
  let lastReadText=null;
  const read=async()=>{
@@ -4677,10 +4680,11 @@ async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent,o
  if(typeof globalThis.TextEncoder!=='function'||typeof sdk?.call!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to save and recover template runs safely.');
  if(new TextEncoder().encode(source).length>131072)fail('TEMPLATE_RUN_INVALID','The assembly script exceeds its input limit.');
  scope={pluginId:scope.pluginId,projectId:scope.projectId,runId:scope.runId,libraryId:scope.libraryId};
- const frozen=JSON.parse(templateRunJSON(config));
+ const requestLimit=options.requestLimit??49152;
+ const frozen=JSON.parse(templateRunJSON(config,requestLimit));
  // A display label can be regenerated on remount; it is never run identity.
  const {draftName:displayName,...contentConfig}=frozen;
- const request={config:contentConfig,source};templateRunJSON(request);
+ const request={config:contentConfig,source};templateRunJSON(request,requestLimit);
  const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};check();
  const target=await sdk.call('getProjectDraftScaffold',scope.projectId);check();
  if(target?.owner?.projectId!==scope.projectId||typeof target.owner.libraryId!=='string'||!target.owner.libraryId||scope.libraryId!=null&&scope.libraryId!==target.owner.libraryId)fail('TEMPLATE_RUN_TARGET','The assembly belongs to a different Project or library.');
@@ -4700,7 +4704,7 @@ async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent,o
  return executeTemplateRun(sdk,files,scope,request,isCurrent,async(claim,onDispatch)=>{
   const capability=await sdk.runScript({summary:'Check assembly recovery support',allowCommit:false,script:`const p=selects.project(${JSON.stringify(scope.projectId)});const ids=(await p.meta()).draftIds;const d=ids?.length?selects.draft(ids[0]):await p.createDraft({name:'Template recovery support check'});return {supported:typeof d.clipSourceWindow==='function'&&typeof d.clipTransform==='function'&&typeof d.clipAudio==='function'};`});
   check();if(capability.isError||capability.result?.supported!==true)fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to confirm saved assembly state before retrying.');
-  const body=source.replace('__CONFIG__',()=>`Object.assign(JSON.parse(${JSON.stringify(templateRunJSON(frozen))}),{__beforeCommit:__templateBeforeCommit})`);
+  const body=source.replace('__CONFIG__',()=>`Object.assign(JSON.parse(${JSON.stringify(templateRunJSON(frozen,requestLimit))}),{__beforeCommit:__templateBeforeCommit})`);
   const script=`return await(async(assemble,readFacts,readState,publish,json,encode,readFull,stateJSON,stateFile)=>{
    let result,preparedState,preparedFull,snapshot,maySave=false;
    try{
@@ -4736,7 +4740,7 @@ async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent,o
   if(reply.isError||!reply.result?.facts||!reply.result?.assembly)throw Object.assign(templateRunIssue('TEMPLATE_RUN_PENDING','The assembly response could not be confirmed. Inspect the Project before starting another run.'),{cause:Error(String(reply.output||'The SDK returned no complete assembly result.'))});
   const confirmed=await verify(reply.result.facts);
   return {...reply.result.assembly,...confirmed,notes:reply.result.assembly.notes??[]};
- },verify,{existingOnly:options.receiptOnly===true,retireUnstarted:options.retireUnstarted===true});
+ },verify,{existingOnly:options.receiptOnly===true,retireUnstarted:options.retireUnstarted===true,requestLimit});
 }
 
 // The base assembly record proves which Draft belongs to this workflow. A phase
@@ -4746,10 +4750,12 @@ async function executeTemplateDecoration(sdk,files,pending,config,source,isCurre
  const fail=(code,message)=>{throw templateRunIssue(code,message);};
  const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};check();
  if(!pending?.scope||!config||config.projectId!==pending.scope.projectId||typeof config.sequenceId!=='string'||!config.sequenceId||typeof source!=='string'||!source.startsWith('// @template-decoration 1\n')||source.split('__CONFIG__').length!==2)fail('TEMPLATE_RUN_INVALID','The title/look request is incomplete.');
- templateStateJSON(pending,262144);
+ const stateLimit=options.stateLimit??262144;
+ if(!Number.isSafeInteger(stateLimit)||stateLimit<262144||stateLimit>524288)fail('TEMPLATE_RUN_INVALID','Invalid continuation state limit.');
+ templateStateJSON(pending,stateLimit);
  pending=JSON.parse(JSON.stringify(pending));
  const frozen=JSON.parse(templateStateJSON(config,262144)),recipe=templateStateJSON({config:frozen,source},262144);
- const base=await executeTemplateAssembly(sdk,files,pending.scope,pending.config,pending.source,isCurrent,{receiptOnly:true});check();
+ const base=await executeTemplateAssembly(sdk,files,pending.scope,pending.config,pending.source,isCurrent,{receiptOnly:true,requestLimit:options.requestLimit});check();
  if(base.sequenceId!==frozen.sequenceId||!base.stateFile)fail('TEMPLATE_RUN_INVALID','The title/look target has no complete owned assembly receipt.');
  const target=await sdk.call('getProjectDraftScaffold',pending.scope.projectId);check();
  if(target?.owner?.projectId!==pending.scope.projectId||typeof target.owner.libraryId!=='string')fail('TEMPLATE_RUN_TARGET','The title/look target belongs to a different Project.');
@@ -4805,6 +4811,9 @@ async function executeTemplateDecoration(sdk,files,pending,config,source,isCurre
 // tombstones prevent an old callback from republishing the same run identity.
 async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
  const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ const requestLimit=target?.requestLimit??49152,stateLimit=target?.stateLimit??262144;
+ templateRunJSON(null,requestLimit);
+ if(!Number.isSafeInteger(stateLimit)||stateLimit<262144||stateLimit>524288)fail('TEMPLATE_RUN_INVALID','Invalid continuation state limit.');
  const invalid=()=>fail('TEMPLATE_RUN_INVALID','The pending assembly record could not be verified. Inspect the Project before starting another run.');
  const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};
  check();
@@ -4818,7 +4827,7 @@ async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
  const json=value=>{
   let text;
   try{text=JSON.stringify(value,(_key,item)=>{if(typeof item==='number'&&!Number.isFinite(item)||['bigint','function','symbol'].includes(typeof item))throw Error('Unsupported value');return item;}).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));}catch{invalid();}
-  if(text.length>262144)fail('TEMPLATE_RUN_INVALID','The pending assembly exceeds its 256 KiB input limit.');
+  if(text.length>stateLimit)fail('TEMPLATE_RUN_INVALID','The pending assembly exceeds its continuation input limit.');
   return text;
  };
  const hash=async text=>{const result=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),n=>n.toString(16).padStart(2,'0')).join('');check();return result;};
@@ -4852,13 +4861,13 @@ async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
   if(kind==='look'){
    if(typeof value.config.sequenceId!=='string'||value.assembly?.sequenceId!==value.config.sequenceId)invalid();
    templateStateJSON({config:value.config,source:value.source},262144);
-  }else{const {draftName,...content}=value.config;templateRunJSON({config:content,source:value.source});}
+  }else{const {draftName,...content}=value.config;templateRunJSON({config:content,source:value.source},requestLimit);}
   return value;
  };
  const load=async(row,key,kind='assembly')=>{
   if(await manifest(row)!==key)invalid();
   const name=key+(kind==='look'?'.look':'')+'-'+row.digest+'.data';
-  const text=await readText(files.join(directory,name),262144)??await readText(files.join(completed,name),262144);
+  const text=await readText(files.join(directory,name),stateLimit)??await readText(files.join(completed,name),stateLimit);
   if(text===null)invalid();if(await hash(text)!==row.digest)invalid();
   return validate(parse(text),row,kind);
  };
@@ -4878,7 +4887,7 @@ async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
   const file=files.join(directory,name+'.json'),expected=templateRunJSON(row),prior=await readText(file,49152);
   if(prior!==null&&prior!==expected)invalid();
   const dataPath=files.join(directory,name+'-'+row.digest+'.data');
-  if(await files.exists(dataPath)){if(await readText(dataPath,262144)!==text)invalid();}
+  if(await files.exists(dataPath)){if(await readText(dataPath,stateLimit)!==text)invalid();}
   else{check();await files.writeFile(dataPath,text);check();}
   try{check();await files.writeFile(file,expected,{flag:'wx'});}catch(error){
    const actual=await readText(file,49152);if(actual===null)throw error;if(actual!==expected)invalid();
@@ -4940,7 +4949,7 @@ async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
  const resumeAssembly=async pending=>{
   const value=await store(pending);
   let result;
-  try{result=await executeTemplateAssembly(sdk,files,value.scope,value.config,value.source,()=>{check();return true;});}
+  try{result=await executeTemplateAssembly(sdk,files,value.scope,value.config,value.source,()=>{check();return true;},{requestLimit});}
   catch(error){if(error?.outcome==='notSaved'||error?.code==='TEMPLATE_RUN_NOT_SAVED')await acknowledge(value,'notSaved');throw error;}
   check();if(result?.assemblyConfirmed!==true)invalid();
   await acknowledge(value,'saved');return result;
@@ -4951,7 +4960,7 @@ async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
  const value=await store(pending,'assembly',true);let look=await lookFor(value);
   if(!look){
    let assembly;
-   try{assembly=await executeTemplateAssembly(sdk,files,value.scope,value.config,value.source,()=>{check();return true;},{captureState:true,retireUnstarted:options.retireUnstarted===true});}
+   try{assembly=await executeTemplateAssembly(sdk,files,value.scope,value.config,value.source,()=>{check();return true;},{captureState:true,retireUnstarted:options.retireUnstarted===true,requestLimit});}
    catch(error){if(error?.outcome==='notSaved'||error?.code==='TEMPLATE_RUN_NOT_SAVED')await acknowledge(value,'notSaved',true);throw error;}
    check();let prepared;
    try{prepared=await prepareLook(JSON.parse(json(value)),{...assembly});check();}catch(cause){check();throw Object.assign(templateRunIssue('TEMPLATE_LOOK_PREPARATION','The original title/look inputs could not be prepared. Check this run again.'),{phase:'decoration',draftId:assembly.sequenceId,cause});}
@@ -4965,13 +4974,13 @@ async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
     if(options.retireUnstarted&&cause?.code==='TEMPLATE_ASSEMBLY_MISMATCH'){
      // Revoke an unstarted/retryable old look as well. A claimed/unknown or
      // already-saved phase cannot be relabeled as a no-save.
-     try{await executeTemplateDecoration(sdk,files,value,look.config,look.source,()=>{check();return true;},{retireUnstarted:true});}
+     try{await executeTemplateDecoration(sdk,files,value,look.config,look.source,()=>{check();return true;},{retireUnstarted:true,requestLimit,stateLimit});}
      catch(error){throw Object.assign(error,{cause});}
     }
     throw cause;
    }
   }
-  const result=await executeTemplateDecoration(sdk,files,value,look.config,look.source,()=>{check();return true;});check();
+  const result=await executeTemplateDecoration(sdk,files,value,look.config,look.source,()=>{check();return true;},{requestLimit,stateLimit});check();
   await acknowledge(value,'saved',true);
   return {...look.assembly,...result};
  };

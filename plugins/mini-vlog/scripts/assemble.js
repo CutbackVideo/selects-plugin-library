@@ -149,6 +149,15 @@ async function confirmProjectSourcePaths(selects,projectId,bindings) {
  for(const row of expected)if(found.get(row.resourceId)!==row.path)throw issue('changed','A selected original has moved or changed its Project source link. Reload the Project inputs before trying again.');
  check();return {verified:true};
 }
+function nativeMediaWindow({startFrame,endFrame,draftFps,sourceFps,sourceStartSeconds=0,sourceDurationSeconds=null,still=false}) {
+ const frames=endFrame-startFrame;
+ if(!Number.isFinite(draftFps)||draftFps<=0||!Number.isFinite(sourceFps)||sourceFps<=0||!Number.isSafeInteger(startFrame)||startFrame<0||!Number.isSafeInteger(endFrame)||!Number.isSafeInteger(frames)||frames<1||!Number.isFinite(sourceStartSeconds)||sourceStartSeconds<0||typeof still!=='boolean'||sourceDurationSeconds!==null&&(!Number.isFinite(sourceDurationSeconds)||sourceDurationSeconds<=0))throw Error('The media plan has no valid whole-frame interval.');
+ const count=Math.max(1,Math.ceil(frames/draftFps*sourceFps-1e-8)),cap=sourceDurationSeconds!==null?Math.floor(sourceDurationSeconds*sourceFps+1e-6)-count:Infinity;
+ if(!Number.isSafeInteger(count)||count<1||cap!==Infinity&&(!Number.isSafeInteger(cap)||cap<0))throw Error('The planned source cannot cover its playback interval.');
+ const start=still?0:Math.max(0,Math.min(Math.round(sourceStartSeconds*sourceFps),cap));
+ if(!Number.isSafeInteger(start)||start<0||!Number.isSafeInteger(start+count))throw Error('The planned source interval cannot be represented.');
+ return {startFrame,endFrame,frames,sourceStart:start/sourceFps,sourceEnd:(start+count)/sourceFps,insertedFrames:Math.round(count/sourceFps*draftFps)};
+}
 function bindMediaPlacement(before,rows,wanted) {
  const fail=()=>{throw Error('The media placement differs from its requested interval or source.');};
  const valid=list=>Array.isArray(list)&&list.length<=1024&&list.every(row=>row&&Number.isSafeInteger(row.clipId)&&row.clipId>=0&&typeof row.trackId==='string'&&row.trackId)&&new Set(list.map(row=>row.clipId)).size===list.length;
@@ -235,11 +244,7 @@ function miniAssemblyOffset(cfg,fps){return cfg.music&&!cfg.music.referenceCuts?
 function miniAssemblyShot(cfg,index,fps,sourceFps){
  const pick=cfg.picks[index],startFrame=index?Math.round((cfg.boundaries[index]+miniAssemblyOffset(cfg,fps))*fps):0,endFrame=Math.round((cfg.boundaries[index+1]+miniAssemblyOffset(cfg,fps))*fps),frames=endFrame-startFrame;
  if(!Number.isFinite(fps)||fps<=0||!Number.isFinite(sourceFps)||sourceFps<=0||!Number.isSafeInteger(startFrame)||!Number.isSafeInteger(endFrame)||!Number.isSafeInteger(frames)||frames<1)throw Error('The assembly plan has no positive whole-frame interval.');
- const count=Math.max(1,Math.ceil(frames/fps*sourceFps-1e-8)),cap=pick.sourceDuration>0?Math.floor(pick.sourceDuration*sourceFps+1e-6)-count:Infinity;
- if(!Number.isSafeInteger(count)||count<1||cap!==Infinity&&(!Number.isSafeInteger(cap)||cap<0))throw Error('The planned source cannot cover its playback interval.');
- const start=pick.kind==='photo'?0:Math.max(0,Math.min(Math.round(pick.startSeconds*sourceFps),cap));
- if(!Number.isSafeInteger(start)||start<0||!Number.isSafeInteger(start+count))throw Error('The planned source interval cannot be represented.');
- return {startFrame,endFrame,frames,sourceStart:start/sourceFps,sourceEnd:(start+count)/sourceFps,insertedFrames:Math.round(count/sourceFps*fps)};
+ return nativeMediaWindow({startFrame,endFrame,draftFps:fps,sourceFps,sourceStartSeconds:pick.kind==='photo'?0:pick.startSeconds,sourceDurationSeconds:pick.sourceDuration??null,still:pick.kind==='photo'});
 }
 async function miniAssemblyTiming(selects,cfg,resolveMedia){
 const seenSources=new Set(),unique=[],timing=new Map();

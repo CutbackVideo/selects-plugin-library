@@ -481,12 +481,12 @@
     },
     {
       "id": "authoring-owner",
-      "decision": "reuse",
+      "decision": "extend",
       "owner": "native-image-authoring",
-      "reason": "Occurrence binding, native transforms/Audio reads and actual program normalization/serialization are shared authoring mechanics, already extracted.",
+      "reason": "Occurrence binding, native transforms/Audio reads and actual program normalization/serialization are shared authoring mechanics, already extracted. The source-native frame-cover calculation now has this same owner and is reused by Mini and Archive without moving their cut/music-offset policies.",
       "contract": {
-        "input": "Native Draft handles, intended placement/programs, frozen source clocks/dimensions and saved-state evidence.",
-        "output": "Verified occurrences/transforms/Audio/program content and safe serialized programs.",
+        "input": "Native Draft handles, intended placement/programs, frozen source clocks/dimensions and saved-state evidence. Native windows take explicit source/Draft fps, a chosen whole-frame destination interval, requested source start, optional duration and still-image policy.",
+        "output": "Verified occurrences/transforms/Audio/program content and safe serialized programs. A source-native cover plus its measured Draft-frame surplus; callers must verify insertion and trim only that declared surplus.",
         "identity": "Opaque clip occurrence/track ids and source/draft timebases; labels alone are not content identity.",
         "dependencies": "Current SDK Draft primitives and canonical program normalization/representability rules.",
         "effects": "Private working Draft edits and independent saved readback as requested by durable owner.",
@@ -500,17 +500,19 @@
       "evidence": [
         "shared/native-image-authoring.js",
         "tests/mini_assembly_intent.test.mjs",
-        "tests/mini_program_intent.test.mjs"
+        "tests/mini_program_intent.test.mjs",
+        "tests/archive_assembly_intent.test.mjs",
+        "tests/archive_assembly_verification.test.mjs"
       ],
-      "implementation": "existing"
+      "implementation": "implemented-extension"
     },
     {
       "id": "workflow-owner",
-      "decision": "reuse",
+      "decision": "extend",
       "owner": "template-run",
-      "reason": "Exclusive run/phase claims, immutable requests, receipts, saved-state readback and continuations already belong to one durable owner.",
+      "reason": "Existing durable ownership is retained. Optional bounded request/continuation budgets separate large captured inputs from unchanged 48 KiB receipt envelopes and unchanged SDK transport limits.",
       "contract": {
-        "input": "Plugin/project/run scope, frozen config/source/digest, captured files and liveness plus perform/verify callbacks.",
+        "input": "Plugin/project/run scope, frozen config/source/digest, captured files and liveness plus perform/verify callbacks. Optional requestLimit up to 128 KiB and continuation stateLimit up to 512 KiB; existing defaults and digest bytes preserved.",
         "output": "Confirmed assembly/decorated result or durable pending/notSaved/mismatch/retired state.",
         "identity": "Exact runId/request digest/owner token and saved sequence id; no guessed name lookup.",
         "dependencies": "SDK file CAS/readback, native-image-authoring facts and template admission callbacks.",
@@ -525,9 +527,10 @@
       "evidence": [
         "shared/template-run.js",
         "tests/mini_assembly_receipts.test.mjs",
-        "tests/mini_frozen_recovery.test.mjs"
+        "tests/mini_frozen_recovery.test.mjs",
+        "tests/template_run_budget.test.mjs"
       ],
-      "implementation": "existing"
+      "implementation": "implemented-extension"
     },
     {
       "id": "assembly-policy",
@@ -592,7 +595,7 @@
         "dependencies": "Input/catalog/analysis/asset/authoring/durable owners plus Mini montage and style policies.",
         "effects": "Coordinates reads, analysis, import and save through declared owners; user navigation only follows confirmed result.",
         "lifetime": "Reject stale generations; cancel parallel producer work and await settlement before releasing busy state.",
-        "cleanup": "Stop only this run’s preview/workers/files; retain saved/unknown runs for exact recovery.",
+        "cleanup": "Stop only this run\u2019s preview/workers/files; retain saved/unknown runs for exact recovery.",
         "outcomes": "Success, shortened/partial search, known failure and unknown save/cleanup have different continuation rules.",
         "retry": "Build another is a new explicit run/seed; same-run recovery never creates a second assembly.",
         "distribution": "Build/BuildAnother/Finish handlers and runMiniVlogTemplate; root callbacks remain template-specific composition.",
@@ -720,7 +723,7 @@
     },
     {
       "path": "plugins/mini-vlog/panel.tsx",
-      "sha256": "cdd5270996d10badd776818ee8c2b52d2946b633882230b16227acfc891a59d0",
+      "sha256": "56f376cc562e80f8608b68491dd81a1f56223b929ac213a4fc54690bdd657e84",
       "role": "runtime",
       "ranges": [
         {
@@ -835,132 +838,132 @@
         },
         {
           "startLine": 4406,
-          "endLine": 4980,
+          "endLine": 4989,
           "feature": "workflow-owner"
         },
         {
-          "startLine": 4981,
-          "endLine": 5000,
+          "startLine": 4990,
+          "endLine": 5009,
           "feature": "music-policy"
         },
         {
-          "startLine": 5024,
-          "endLine": 5030,
+          "startLine": 5033,
+          "endLine": 5039,
           "feature": "panel-ui"
         },
         {
-          "startLine": 5031,
-          "endLine": 5041,
+          "startLine": 5040,
+          "endLine": 5050,
           "feature": "music-policy"
         },
         {
-          "startLine": 5042,
-          "endLine": 5059,
+          "startLine": 5051,
+          "endLine": 5068,
           "feature": "source-input"
         },
         {
-          "startLine": 5060,
-          "endLine": 5085,
+          "startLine": 5069,
+          "endLine": 5094,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5086,
-          "endLine": 5154,
+          "startLine": 5095,
+          "endLine": 5163,
           "feature": "program-policy"
         },
         {
-          "startLine": 5155,
-          "endLine": 6219,
+          "startLine": 5164,
+          "endLine": 6228,
           "feature": "panel-ui"
         },
         {
-          "startLine": 6220,
-          "endLine": 6269,
+          "startLine": 6229,
+          "endLine": 6278,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 6270,
-          "endLine": 6492,
+          "startLine": 6279,
+          "endLine": 6501,
           "feature": "source-input"
         },
         {
-          "startLine": 6493,
-          "endLine": 6511,
+          "startLine": 6502,
+          "endLine": 6520,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6512,
-          "endLine": 6678,
+          "startLine": 6521,
+          "endLine": 6687,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 6679,
-          "endLine": 6721,
+          "startLine": 6688,
+          "endLine": 6730,
           "feature": "panel-ui"
         },
         {
-          "startLine": 6722,
-          "endLine": 6837,
+          "startLine": 6731,
+          "endLine": 6846,
           "feature": "catalog-read"
         },
         {
-          "startLine": 6838,
-          "endLine": 7237,
+          "startLine": 6847,
+          "endLine": 7246,
           "feature": "local-sdk"
         },
         {
-          "startLine": 7238,
-          "endLine": 7284,
+          "startLine": 7247,
+          "endLine": 7293,
           "feature": "app-guard"
         },
         {
-          "startLine": 7285,
-          "endLine": 7285,
+          "startLine": 7293,
+          "endLine": 7293,
           "feature": "panel-ui"
         },
         {
-          "startLine": 5230,
-          "endLine": 5253,
+          "startLine": 5239,
+          "endLine": 5262,
           "feature": "script-dispatch"
         },
         {
-          "startLine": 5254,
-          "endLine": 5261,
+          "startLine": 5263,
+          "endLine": 5270,
           "feature": "host-bootstrap"
         },
         {
-          "startLine": 5299,
-          "endLine": 5335,
+          "startLine": 5308,
+          "endLine": 5344,
           "feature": "catalog-read"
         },
         {
-          "startLine": 5525,
-          "endLine": 5619,
+          "startLine": 5534,
+          "endLine": 5628,
           "feature": "music-policy"
         },
         {
-          "startLine": 5622,
-          "endLine": 5640,
+          "startLine": 5631,
+          "endLine": 5649,
           "feature": "scene-observation"
         },
         {
-          "startLine": 5646,
-          "endLine": 5678,
+          "startLine": 5655,
+          "endLine": 5687,
           "feature": "local-video-analysis"
         },
         {
-          "startLine": 5681,
-          "endLine": 5907,
+          "startLine": 5690,
+          "endLine": 5916,
           "feature": "workflow-policy"
         },
         {
-          "startLine": 5944,
-          "endLine": 5948,
+          "startLine": 5953,
+          "endLine": 5957,
           "feature": "montage-policy"
         },
         {
-          "startLine": 5003,
-          "endLine": 5023,
+          "startLine": 5012,
+          "endLine": 5032,
           "feature": "music-policy"
         }
       ],
@@ -1046,7 +1049,7 @@
     },
     {
       "path": "plugins/mini-vlog/scripts/assemble.js",
-      "sha256": "e926dc11d92f1d65cfab89ac3d9d00346e64742d37e7e444a9f5dc6cd3b3654d",
+      "sha256": "a1def1c052a04eea5c4b95fb8eed88afb2923316f90bd1a847adf4099638d947",
       "role": "runtime",
       "ranges": [
         {
@@ -1056,12 +1059,12 @@
         },
         {
           "startLine": 152,
-          "endLine": 215,
+          "endLine": 224,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 216,
-          "endLine": 346,
+          "startLine": 225,
+          "endLine": 351,
           "feature": "assembly-policy"
         }
       ],
@@ -1069,7 +1072,7 @@
     },
     {
       "path": "plugins/mini-vlog/scripts/verify-assembly.js",
-      "sha256": "5bd8e8fb73c12e96ee98a2e9bd89c875c123847da77b60abc9beb29a4c7d64c4",
+      "sha256": "573e3918f680308cae7de7b705dc0717e4450ff9963b38e345287b1c5b0439c3",
       "role": "runtime",
       "ranges": [
         {
@@ -1079,12 +1082,12 @@
         },
         {
           "startLine": 92,
-          "endLine": 121,
+          "endLine": 130,
           "feature": "authoring-owner"
         },
         {
-          "startLine": 122,
-          "endLine": 205,
+          "startLine": 131,
+          "endLine": 210,
           "feature": "assembly-policy"
         }
       ],
@@ -1357,7 +1360,7 @@
     },
     {
       "path": "plugins/mini-vlog/operation-builder.mjs",
-      "sha256": "2369a45a9f4aba0939e96c3767f04119fb7fe24addda6765a2db2bd21187f2db",
+      "sha256": "ae4758986d12731ca78198b864655460be88dd116d014e799e1ae16f309de6ae",
       "role": "build-source",
       "ranges": [
         {
@@ -1370,12 +1373,12 @@
     },
     {
       "path": "plugins/mini-vlog/dev/assembly-policy.js",
-      "sha256": "6e4a81fbbda26482966b600a79b8b8a009eadb2461d4b48c0a7e7ad4e0bf4160",
+      "sha256": "e51a68a960c802806c33b50c80892277fc5893ff1c3ddb9b32a3eb30b4d8b464",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 39,
+          "endLine": 35,
           "feature": "assembly-policy"
         }
       ],
@@ -1534,6 +1537,69 @@
           "startLine": 1,
           "endLine": 30,
           "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "shared/native-image-authoring.js",
+      "role": "build-source",
+      "sha256": "2ede41ddfd8899d1105d1208f0af009d9b9e6bb06d1e905baece7e11a55a1416",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 288,
+          "feature": "authoring-owner"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_assembly_intent_fixture.mjs",
+      "role": "validation",
+      "sha256": "184ecb48a63d7eb0bc7f7a074a5ec96868332251c9d9607c3feca21f5b1bfba0",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 37,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "tests/mini_look_fixture.mjs",
+      "role": "validation",
+      "sha256": "55f75c8f4ed0a18929d6c17e157916fb6d367a8334eec34a4ac70afe0ff8d0d5",
+      "hashMode": "lf-text",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 36,
+          "feature": "test-harness"
+        }
+      ]
+    },
+    {
+      "path": "shared/template-run.js",
+      "role": "build-source",
+      "sha256": "9e5501dc8176635521678543849602da11c2f85cdf17466134f20dd0c8e59343",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 583,
+          "feature": "workflow-owner"
+        }
+      ]
+    },
+    {
+      "path": "tests/template_run_budget.test.mjs",
+      "role": "validation",
+      "sha256": "b995c600748ccd524435ac99c466a396502cf634cdc786de169453e62e6b7928",
+      "ranges": [
+        {
+          "startLine": 1,
+          "endLine": 30,
+          "feature": "workflow-owner"
         }
       ]
     }

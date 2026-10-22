@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';
 import {checkScriptTypes} from './run_script_types.mjs';
 export const script=fs.readFileSync(process.env.MINI_ASSEMBLY_INTENT_SCRIPT||new URL('../plugins/mini-vlog/scripts/assemble.js',import.meta.url),'utf8'),clone=v=>JSON.parse(JSON.stringify(v));
-export function assemblyIntentFixture({rate=30,adopt=null,reverse=false,fault=null,sourceRates={}}={}){
+export function assemblyIntentFixture({rate=30,adopt=null,reverse=false,fault=null,sourceRates={},scriptSource=script,probeName='Mini source timing check'}={}){
  sourceRates={music:120,...sourceRates};
  const files={};
  const calls={creates:0,inserts:0,commits:0,transforms:0,audio:0,trims:0},drafts=[];let epoch=0;
  const cfg={projectId:'p',draftName:'Intent fixture',picks:[{rid:'photo',kind:'photo',startSeconds:0},{rid:'video',kind:'video',startSeconds:3.21,sourceDuration:20}],boundaries:[0,1.03,2.17],crops:{photo:{width:96,height:160},video:{width:1920,height:1080}},music:null,clipSound:'full',ambientDb:-18};
  const fresh=r=>({...clone(r),_epoch:epoch}),valid=r=>assert.equal(r._epoch,epoch,'stale target'),transform=()=>({enabled:true,position:{x:0,y:0},scale:{x:1,y:1},anchor:{x:0,y:0},rotation:0,flipHorizontal:false,flipVertical:false,positionKeys:[],scaleKeys:[],rotationKeys:[]});
  const p={resources:async()=>[{resourceId:'music',type:'Audio'},{resourceId:'photo',type:'Image'},{resourceId:'video',type:'Video'}],resource:rid=>({rid}),createDraft:async({name})=>{
-  const probe=name==='Mini source timing check';calls.creates++;let fps=rate,size=fault==='canvas'?{width:960,height:540}:{width:1920,height:1080},clips=[],serial=0;
+  const probe=name===probeName;calls.creates++;let fps=rate,size=fault==='canvas'?{width:960,height:540}:{width:1920,height:1080},clips=[],serial=0;
   const d={meta:async()=>({fps,durationFrames:clips.reduce((a,r)=>Math.max(a,r.endFrame),0),frameSize:clone(size)}),setFrameSize:async value=>{if(fault!=='canvas')size=clone(value);epoch++;},
    clips:async({trackScope}={})=>{const rows=clips.filter(r=>trackScope!=='main'||r.trackKind==='main').map(fresh);return reverse?rows.reverse():rows;},
    insertResource:async({resourceId,sourceRange})=>{
@@ -32,5 +32,5 @@ export function assemblyIntentFixture({rate=30,adopt=null,reverse=false,fault=nu
    commitAll:async()=>{calls.commits++;return {createdDraftId:'d'+calls.creates};},
   };drafts.push({d,probe,rows:()=>clips});return d;
  }};
- return {cfg,calls,drafts,project:p,files,run:()=>vm.runInNewContext('(async()=>{'+script+'})()',{selects:{project:()=>p,files},__CONFIG__:cfg})};
+ return {cfg,calls,drafts,project:p,files,run:()=>vm.runInNewContext('(async()=>{'+scriptSource+'})()',{selects:{project:()=>p,files},__CONFIG__:cfg})};
 }

@@ -37,6 +37,8 @@
     "assets/cinematic-look.tsx",
     "assets/fade-out.tsx",
     "scripts/assemble.js",
+    "scripts/prepare-decoration.js",
+    "scripts/verify-assembly.js",
     "scripts/decorate.js",
     "scripts/ensure-audio.js",
     "scripts/inventory.js",

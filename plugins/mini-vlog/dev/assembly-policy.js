@@ -20,11 +20,7 @@ function miniAssemblyOffset(cfg,fps){return cfg.music&&!cfg.music.referenceCuts?
 function miniAssemblyShot(cfg,index,fps,sourceFps){
  const pick=cfg.picks[index],startFrame=index?Math.round((cfg.boundaries[index]+miniAssemblyOffset(cfg,fps))*fps):0,endFrame=Math.round((cfg.boundaries[index+1]+miniAssemblyOffset(cfg,fps))*fps),frames=endFrame-startFrame;
  if(!Number.isFinite(fps)||fps<=0||!Number.isFinite(sourceFps)||sourceFps<=0||!Number.isSafeInteger(startFrame)||!Number.isSafeInteger(endFrame)||!Number.isSafeInteger(frames)||frames<1)throw Error('The assembly plan has no positive whole-frame interval.');
- const count=Math.max(1,Math.ceil(frames/fps*sourceFps-1e-8)),cap=pick.sourceDuration>0?Math.floor(pick.sourceDuration*sourceFps+1e-6)-count:Infinity;
- if(!Number.isSafeInteger(count)||count<1||cap!==Infinity&&(!Number.isSafeInteger(cap)||cap<0))throw Error('The planned source cannot cover its playback interval.');
- const start=pick.kind==='photo'?0:Math.max(0,Math.min(Math.round(pick.startSeconds*sourceFps),cap));
- if(!Number.isSafeInteger(start)||start<0||!Number.isSafeInteger(start+count))throw Error('The planned source interval cannot be represented.');
- return {startFrame,endFrame,frames,sourceStart:start/sourceFps,sourceEnd:(start+count)/sourceFps,insertedFrames:Math.round(count/sourceFps*fps)};
+ return nativeMediaWindow({startFrame,endFrame,draftFps:fps,sourceFps,sourceStartSeconds:pick.kind==='photo'?0:pick.startSeconds,sourceDurationSeconds:pick.sourceDuration??null,still:pick.kind==='photo'});
 }
 async function miniAssemblyTiming(selects,cfg,resolveMedia){
 const seenSources=new Set(),unique=[],timing=new Map();

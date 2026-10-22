@@ -136,7 +136,7 @@ assert.ok(en.finishFailed.includes(en.finishTitle), 'quoted UI names');
 // No literal English UI text in JSX. Shared transport function types (=> Promise<T>)
 // are not JSX and have their own bootstrap/local-client checks.
 const templateUi = ui.replace(block(panel, "local-sdk"), "");
-assert.ok(!/>[ \t]*[A-Z][a-z]+(?: [a-z]+)*[.…]?[ \t]*</.test(templateUi), 'no literal English text between JSX tags');
+assert.ok(!/<[A-Za-z][\w.]*\b[^>]*>[ \t]*[A-Z][a-z]+(?: [a-z]+)*[.…]?[ \t]*<\//.test(templateUi), 'no literal English text between JSX tags');
 assert.ok(!/(?:label|title|aria-label|busyLabel)="[A-Z]/.test(ui), 'no literal English UI props');
 assert.ok(ui.includes('<div style={{ wordBreak: L === "ko" ? "keep-all" : undefined }}>'), 'keep-all for Korean only');
 assert.ok(ui.includes('const L = uiLang(context);'), 'the language is read on every render');
@@ -176,7 +176,7 @@ assert.deepEqual(Object.keys(K.AV_ADJUST_LABELS), ['motion', 'motionStrength', '
 for (const [k, v] of Object.entries(K.AV_ADJUST_LABELS)) assert.equal(en['param.' + k], v, 'STRINGS.en param.' + k + ' = the English label');
 // decorate.js's own English defaults are the same words.
 {
-  const m = /const LABELS = \{([^}]+)\.\.\./.exec(read('scripts/decorate.js'));
+  const m = /const LABELS\s*=\s*\{([^}]+)\.\.\./.exec(read('scripts/decorate.js'));
   assert.ok(m, 'decorate.js LABELS');
   const defaults = (0, eval)('({' + m[1] + '})');
   for (const [k, v] of Object.entries(defaults)) assert.equal(K.AV_ADJUST_LABELS[k], v, 'decorate.js label ' + k);
@@ -349,12 +349,12 @@ for (const [seed, pace, music, preset, creditOn, lookOn, clipSound] of [[1, 'cin
   assert.equal(P.avVisibleFraction(undefined), 1); assert.equal(P.avVisibleFraction({ width: 0, height: 5 }), 1);
   // Every plan call passes the sizes (the landscape opening), and the Build freezes the opening's size for Finish.
   assert.equal((ui.match(/avPlanBuild\(\{[^;]*?sizes/g) || []).length, 3, 'avPlanBuild gets sizes at every call');
-  assert.ok(ui.includes('openingSize: sizes[plan.picks[0]?.rid] || null') && ui.includes('openingSize: res.openingSize || null'));
+  assert.ok(ui.includes('openingSize: sizes[plan.picks[0]?.rid] || null') && ui.includes('openingSize: pending.openingSize || null'));
 }
 // The panel and its template run use the builders (one config path for both).
 assert.equal((ui.match(/avAssembleConfig\(\{/g) || []).length, 2, 'assemble config: the panel and the template run');
-assert.equal((ui.match(/avDecorateConfig\(\{/g) || []).length, 2, 'decorate config: the panel and the template run');
-assert.ok(ui.includes('fill(assets.scripts.decorateJs, cfg)') && ui.includes('fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4, analysedOnly: true })'));
+assert.equal((ui.match(/prepareArchiveDecoration\(sdk, value, assembly, check\)/g) || []).length, 3, 'one frozen decoration builder for the standalone and both selected-entry recovery paths');
+assert.ok(ui.includes('fill(assets.scripts.prepareJs, input)') && ui.includes('fill(assets.scripts.searchJs, { projectId: pid, rids: rids.slice(i, i + SEARCH_BATCH), queries: AV_QUERIES, pageSize: 4, analysedOnly: true })'));
 
 // ---- Host I/O: no POSIX shell, guarded host services --------------------------------------------------------------
 // Runtime code never uses POSIX shell syntax, a data folder under the shell's HOME, Homebrew / nvm paths or a node
@@ -616,11 +616,11 @@ assert.ok(ui.includes('err.code = "beat-timeout"') && ui.includes('if (e?.code =
 // language (plural objects joined with `gap`).
 {
   const tpl = ui.slice(ui.indexOf('async function runArchiveVlogTemplate('), ui.indexOf('// What the app mounts out of sight for a template run'));
-  assert.ok(tpl.includes('credit: { on: false, name: "" }') && tpl.includes('look: true, credit: false } });'), 'template credit off');
-  assert.equal((tpl.match(/run\("Add title and look"/g) || []).length, 1, 'one decorate call site');
-  assert.equal((tpl.match(/await finish\(\)/g) || []).length, 2, 'one retry, as the inherited template run');
+  assert.ok(tpl.includes('credit: { on: false, name: "" }'), 'template credit off');
+  assert.equal((tpl.match(/continuations\.workflow\(/g) || []).length, 2, 'same workflow for recovered and fresh runs');
+  assert.equal((tpl.match(/await finish\(\)/g) || []).length, 0, 'no unconfirmed Finish replay');
   assert.ok(!/templateIssue\("/.test(ui), 'no English template messages');
-  for (const k of ['tpl.noFootage', 'tpl.noMusic', 'tpl.noStyles', 'stepFailed', 'tpl.notAnalysed', 'tpl.noTitle', 'tpl.finishFailed']) assert.ok(tpl.includes('t(bl, "' + k + '"'), k);
+  for (const k of ['tpl.noFootage', 'tpl.noMusic', 'tpl.noStyles', 'stepFailed', 'tpl.notAnalysed']) assert.ok(tpl.includes('t(bl, "' + k + '"'), k);
   assert.ok(tpl.includes('unanalysed ? t(bl, "tpl.notAnalysed", { count: unanalysed }) : ""].filter(Boolean).join(t(bl, "gap"))'));
   const run = ui.slice(ui.indexOf('function TemplateRun('));
   for (const k of ['tpl.stoppedAt', 'tpl.stopped', 'tpl.done', 'tpl.stepDetail']) assert.ok(run.includes('"' + k + '"'), k);
@@ -628,7 +628,7 @@ assert.ok(ui.includes('err.code = "beat-timeout"') && ui.includes('if (e?.code =
   for (const l of Object.keys(strings)) assert.ok(typeof strings[l]['tpl.notAnalysed'] === 'object', l + ' plural');
 }
 // A Draft found by its name after a lost reply: a STRINGS note, not English text in the script notes.
-assert.ok(ui.includes('a = { ...saved, notes: a?.notes || [], recovered: true };') && ui.includes('{result?.recovered ? <ui.Message tone="muted">{t(L, "draftRecovered")}</ui.Message> : null}'));
+assert.ok(!ui.includes('findDraftByName'), 'display names never authorize saved Draft adoption');
 assert.ok(!ui.includes('the Draft was found after its reply was lost'));
 // Preset names and the Pace option Cinematic stay English in every language; Kicker and Tagline are position labels.
 for (const [l, table] of Object.entries(strings)) {
@@ -651,9 +651,9 @@ assert.deepEqual([K.AV_ADJUST_LABELS.kicker, K.AV_ADJUST_LABELS.tagline], ['Top 
   assert.ok(effect.includes('runEpochRef.current++;'), 'a Project switch supersedes the running build');
   assert.equal((ui.match(/e !== STALE && runLive\(pid, epoch\)\) setStatus/g) || []).length, 2);
 }
-for (const s of ['const check = () => { if (!runLive(pid, epoch)) throw STALE; };', 'a = await run("Assemble Archive Vlog",', 'await run("Add title and look",',
+for (const s of ['const check = () => { if (!runLive(pid, epoch)) throw STALE; };', 'await finishAssembly(pending, check, continuations);', 'completed = await log.workflow(pending,',
   'async function finishTitle() {', 'try { await decorate(result, check); }', 'const s = seed + 1;', 'const gate = nextSeed === seed ? blockReason : anotherBlock;',
-  'saved = await findDraftByName(pid, frozen.draftName);', 'draftName: draftNameOf(titleFields.title, chosen.label, new Date()),']) assert.ok(ui.includes(s), s);
+  'const previous = await continuations.read();', 'draftName: draftNameOf(titleFields.title, chosen.label, new Date()),']) assert.ok(ui.includes(s), s);
 assert.equal((ui.match(/avPlanBuild\(\{/g) || []).length, 3, 'the build plan, the readiness plan and the template run');
 assert.ok(ui.includes('const snapCuts = { onsets: grid.onsets, onsetThresholds: grid.onsetThresholds, lowConfidence: !gridded };'));
 assert.ok(!/startAnalysis|analyzeResources/.test(ui), 'the panel does not start analysis');
