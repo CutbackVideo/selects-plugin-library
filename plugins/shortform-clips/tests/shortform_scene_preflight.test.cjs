@@ -80,4 +80,39 @@ test('scene preflight source transcript compatibility', { skip: !modulesRoot && 
     assert.match(result.sources[0].analysisReadError, /source read unavailable/);
     assert(result.warnings.some(row => row.resourceId === 'original' && /source read unavailable/.test(row.reason)));
   });
+
+  await t.test('whole-project input spans folders, freezes membership and excludes generated sources', async () => {
+    const originals=[
+      {resourceId:'a',name:'A.mov',path:'/shoot/A.mov',type:'Video'},
+      {resourceId:'b',name:'B.mov',path:'/other/B.mov',type:'Video'},
+      {resourceId:'photo',name:'photo.png',path:'/photos/photo.png',type:'Image'},
+      {resourceId:'sound',name:'sound.wav',path:'/audio/sound.wav',type:'Audio'},
+      {resourceId:'render',name:'video.mp4',path:'/scene-runs/job/0/video.mp4',type:'Video'},
+      {resourceId:'matte',name:'matte.mov',path:'/derived/matte.mov',type:'Video'}
+    ];
+    const evidencePath='/scene-runs/job/0/build-evidence.json';
+    const evidence=Buffer.from(JSON.stringify({projectId:'project',importedAssetLineage:[{path:'/derived/matte.mov'}]}));
+    const sdk={project:()=>({resources:async()=>originals,sourceFiles:async()=>({fileTree:originals})}),files:{
+      readdir:async p=>p==='/scene-runs'?['job']:p==='/scene-runs/job'?['0']:[],
+      exists:async p=>p===evidencePath||originals.some(r=>r.path===p),
+      stat:async p=>({isDirectory:['/scene-runs/job','/scene-runs/job/0'].includes(p),size:p===evidencePath?evidence.length:100,mtimeMs:1}),
+      readRange:async({offset,length})=>({base64:evidence.subarray(offset,offset+length).toString('base64'),bytesRead:Math.min(length,evidence.length-offset)})
+    }};
+    const execute=async extra=>{
+      const code=loaded.exports.scenePreflightScript({projectId:'project',sourceName:'',sceneRunsDirectory:'/scene-runs',wholeProject:true,...extra});
+      return new Function('selects',esbuild.transformSync('return (async()=>{'+code+'})();',{loader:'ts'}).code)(sdk);
+    };
+    const initial=await execute();
+    assert.deepEqual(initial.sourceResourceIds,['a','b','photo','sound']);
+    assert.equal(initial.anchor,null);assert.equal(initial.originalDirectory,null);
+    assert.deepEqual((await execute({wholeProject:false,sourceName:'A.mov'})).sourceResourceIds,['a']);
+    originals.push({resourceId:'later',name:'later.png',path:'/photos/later.png',type:'Image'});
+    assert.deepEqual((await execute({sourceResourceIds:initial.sourceResourceIds})).sourceResourceIds,initial.sourceResourceIds);
+    originals.splice(originals.findIndex(r=>r.resourceId==='b'),1);
+    await assert.rejects(execute({sourceResourceIds:initial.sourceResourceIds}),/saved project source is missing/);
+    originals.push({resourceId:'duplicate',name:'A.mov',path:'/second/A.mov',type:'Video'});
+    await assert.rejects(execute(),/duplicate filenames/);
+    originals.length=0;
+    await assert.rejects(execute(),/no original source files/);
+  });
 });

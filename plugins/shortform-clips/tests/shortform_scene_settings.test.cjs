@@ -32,7 +32,8 @@ test('scene template AI settings edit the instructions generation consumes',{ski
    const field=view.fields.find(row=>row.label===label);assert.ok(field,key);assert.equal(field.value,edit.prompt[key]);
    field.onChange('Updated '+key);assert.deepEqual(view.changes.at(-1),['prompt.'+key,'Updated '+key]);
   }
-  assert.equal(view.fields.length,11);
+  assert.equal(view.fields.length,12);
+  const music=view.fields.find(row=>row.label===S.musicPath);assert.ok(music,'music path');assert.equal(music.value,'');music.onChange('/x/bed.mp3');assert.deepEqual(view.changes.at(-1),['music.path','/x/bed.mp3']);
   assert.deepEqual(view.toggles.map(field=>field.label),[S.removeFillers,S.removeSilences]);
   view.toggles[0].onChange(true);assert.deepEqual(view.changes.at(-1),['editing.removeFillers',true]);
   view.toggles[1].onChange(true);assert.deepEqual(view.changes.at(-1),['editing.removeSilences',true]);

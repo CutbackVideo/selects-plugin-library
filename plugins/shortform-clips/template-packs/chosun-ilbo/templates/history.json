@@ -1,6 +1,6 @@
 {
   "id": "history",
-  "version": 1,
+  "version": 2,
   "names": {
     "ko": "\uc5ed\uc0ac\uc804\uc7c1",
     "en": "History War"
@@ -21,14 +21,21 @@
     "offsetX": 0,
     "headlineCenter": 378,
     "logoCenter": 1358,
-    "reframe": false
+    "reframe": true,
+    "reframePreset": "speaker",
+    "reframeFocus": "speaker",
+    "splitPolicy": "never",
+    "widePolicy": "never",
+    "reframePacing": "balanced",
+    "cropMotion": "fixed",
+    "cameraMode": "auto"
   },
   "background": {
     "mode": "image",
     "style": "radial-gradient(ellipse at 50% 45%,#F1F0EC 0%,#DCDBD6 55%,#B5B4AE 100%)",
     "color": "#F1F0EC",
     "image": "assets/history-background.webp",
-    "imageName": "TikTok @_chosunilbo_",
+    "imageName": "history-background.webp",
     "dim": 0
   },
   "border": {
@@ -63,7 +70,7 @@
   "logo": {
     "mode": "image",
     "image": "assets/history-logo.webp",
-    "imageName": "TikTok @_chosunilbo_",
+    "imageName": "history-logo.webp",
     "width": 952
   },
   "captions": {

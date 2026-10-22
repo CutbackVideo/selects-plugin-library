@@ -198,6 +198,13 @@ and can be exported as JSON without reinstalling them.
 GitHub packs continue to use `pack.json`, template JSON files, and separate image
 assets. GitHub links and folder-based pack installation are unchanged.
 
+## Optional background music
+
+A template may add `"music": {"path": "<absolute path or ~/...>"}`. The app adds
+that file under every generated clip (see [Background music](../README.md#background-music)).
+Only the path is stored: audio files are not part of a pack, so the file has to exist
+at that path on each computer. Apps without this field ignore it.
+
 ## Settings-based generation
 
 New templates do not need a `renderer` field. All templates use the same Draft
@@ -225,9 +232,19 @@ Independent settings include:
   records these values to preserve title size without a named renderer preset.
 - `background.canvasAligned`: align gradient coordinates to the full canvas
   instead of restarting them inside each background band.
-- `captions.cleanSpeechText`: text-only caption omissions; never trims audio.
+- `captions.cleanSpeechText`: LLM-selected text-only filler, stutter and accidental
+  repetition omissions; defaults to true when absent and respects explicit false.
+  One validated original word occurrence is hidden per omission. Invalid/ambiguous
+  candidates are ignored; an empty list keeps all words. Never trims audio/video.
+  The existing `editing.removeFillers` setting independently controls video edits.
 - `captions.highlight`, `highlightColor`, `left`, `width`: emphasis and placement
   supported together, regardless of template origin.
+- `captions.fontSizing`: `"fixed"` (default when omitted) keeps `fontSize` for
+  every caption and lowers characters per line to what fits the width at that
+  size, measured with the caption font, so long speech becomes more captions.
+  Only a single word wider than the caption still shrinks. `"auto"` keeps
+  `lineMax` and shrinks a caption whose longest line is wider than the caption
+  area. Portrait templates only.
 - `labels.top` / `labels.footer`: optional text; default disabled. Each has its
   own position, typography and on/off setting.
 - `layout.reframe` and the existing framing preferences: AI framing can be

@@ -6,7 +6,9 @@ test('scene visual evidence',{skip:!modulesRoot&&'Set SBS_PANEL_TEST_MODULES'},a
  const dep=createRequire(path.resolve(modulesRoot,'../package.json')),esbuild=dep('esbuild'),source=fs.readFileSync(path.join(__dirname,'../panel.tsx'),'utf8');
  const start=source.indexOf('function sceneRuntimeScript('),end=source.indexOf('export interface ScenePreflightOptions {',start),base=source.slice(source.indexOf('function toBase64('),source.indexOf('function fromBase64('));
  const helper=base+source.slice(source.indexOf('async function pooled('),source.indexOf('const folderOf ='))+source.slice(start,end);
- const module={exports:{}};new Function('module','exports',esbuild.transformSync(helper+'\nexport {sceneEvidenceSheets,sceneEvidenceArgs,prepareSceneEvidence};',{loader:'ts',format:'cjs'}).code)(module,module.exports);const api=module.exports;
+ const document={createElement:()=>{let bytes;return {getContext:()=>({drawImage:bitmap=>{bytes=bitmap.bytes;},fillRect(){},fillText(){},measureText:text=>({width:text.length*8})}),toBlob:callback=>callback(new Blob([bytes]))};}};
+ const createImageBitmap=async blob=>({bytes:new Uint8Array(await blob.arrayBuffer()),close(){}});
+ const module={exports:{}};new Function('module','exports','document','createImageBitmap',esbuild.transformSync(helper+'\nexport {sceneEvidenceSheets,sceneEvidenceArgs,labelSceneEvidence,prepareSceneEvidence};',{loader:'ts',format:'cjs'}).code)(module,module.exports,document,createImageBitmap);const api=module.exports;
  const run=async(body,sdk)=>{const code=esbuild.transformSync('async function run(selects){'+body+'}',{loader:'ts',target:'es2022'}).code;return new Function(code+';return run;')()(sdk);};
  const actor=(name='actor.mov')=>({resourceId:name,name,path:'/'+name,type:'Video',hasTranscription:true,durationSeconds:100,fps:30,sourceWords:Array.from({length:20},(_,i)=>[i*4,i*4+2,'speech',1,'utterance-'+i,false])});
  await t.test('panel helpers typecheck with ES2022 and browser globals',()=>{
@@ -43,7 +45,7 @@ test('scene visual evidence',{skip:!modulesRoot&&'Set SBS_PANEL_TEST_MODULES'},a
    assert.match(source,/prepareSceneEvidence\(preflight,directory,[\s\S]*?\},job\.sceneStudy\?job\.sceneVisualEvidence:undefined\)/);
  });
  await t.test('changed original identity, clock, dimensions, stats or artifact bytes causes a fresh sheet',async()=>{
-   for(const change of ['resource','path','clock','dimensions','stat','corrupt','same-length-bytes','missing-hash','wrong-job','new-plan']){
+   for(const change of ['resource','path','clock','dimensions','stat','corrupt','same-length-bytes','missing-hash','unlabeled','wrong-job','new-plan']){
     const f=memoryIO();f.p.preparedMedia=[];const first=await api.prepareSceneEvidence(f.p,'/work',f.io);
     if(change==='resource')f.p.sources[1].resourceId='other';
     if(change==='path'){f.files.set('/other.png',f.files.get('/image.png'));f.p.sources[1].path='/other.png';}
@@ -54,6 +56,7 @@ test('scene visual evidence',{skip:!modulesRoot&&'Set SBS_PANEL_TEST_MODULES'},a
     if(change==='corrupt')f.files.set(sheet.path,Buffer.from('broken image'));
     if(change==='same-length-bytes')f.files.get(sheet.path)[3]=1;
     if(change==='missing-hash')delete sheet.sha256;
+    if(change==='unlabeled')delete sheet.labelVersion;
     const before=f.submitted.length;
     await api.prepareSceneEvidence(f.p,change==='wrong-job'?'/other-work':'/work',f.io,change==='new-plan'?undefined:first.visualEvidence);
     assert.equal(f.submitted.length-before,['wrong-job','new-plan'].includes(change)?2:1,change);
@@ -62,7 +65,7 @@ test('scene visual evidence',{skip:!modulesRoot&&'Set SBS_PANEL_TEST_MODULES'},a
  await t.test('a different valid JPEG of the same dimensions is not a cache hit',async()=>{
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'scene-cache-jpeg-'));try{
    const bytes=[];for(const color of ['red','blue']){const file=path.join(dir,color+'.jpg');cp.execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c='+color+':s=1280x240','-frames:v','1','-threads','1',file]);bytes.push(fs.readFileSync(file));}
-   const f=memoryIO();f.p.preparedMedia=[];let replacement=0;const read=f.io.readFile;f.io.readFile=async p=>p.endsWith('/original-images.jpg')?new Uint8Array(bytes[replacement]):read(p);
+   const f=memoryIO();f.p.preparedMedia=[];let replacement=0;const read=f.io.readFile;f.io.readFile=async p=>/\/original-images(?:-raw)?\.jpg$/.test(p)?new Uint8Array(bytes[replacement]):read(p);
    const first=await api.prepareSceneEvidence(f.p,'/work',f.io);replacement=1;const before=f.submitted.length;const result=await api.prepareSceneEvidence(f.p,'/work',f.io,first.visualEvidence);
    assert.equal(f.submitted.length-before,1);assert.equal(result.visualEvidence.sheets.find(s=>s.name==='original-images').reusedFrom,undefined);
   }finally{fs.rmSync(dir,{recursive:true,force:true});}

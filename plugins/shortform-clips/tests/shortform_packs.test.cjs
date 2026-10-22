@@ -29,6 +29,21 @@ test('legacy pack reader and source installation compatibility', {skip:!modulesR
       assert.equal(pack.manifest.id,entry.name);assert.ok(pack.templates.length>0);
     }
   });
+  await t.test('scene component styles round-trip and cannot replace content or timing',async()=>{
+    const pack=await api.readTemplatePack(fileService,path.join(__dirname,'../template-packs/hankook-ilbo/pack.json'));
+    const template=pack.templates.find(t=>t.id.endsWith('huick-alpha'));
+    assert.ok(template);
+    const styles=template.editorial.components;
+    assert.deepEqual(Object.keys(styles.text).sort(),['lime-tag','plain-white']);
+    const clean=api.cleanTemplate(template);
+    assert.deepEqual(clean.editorial.components,styles);
+    for(const [kind,key,value] of [['article','body','Injected'],['article','fontSize',0],['text','startFrame',10],['text','style','question'],['text','backgroundPadding',-1]]){
+      const changed=structuredClone(template);
+      const target=kind==='text'?changed.editorial.components.text['plain-white']:changed.editorial.components.article;
+      target[key]=value;
+      assert.throws(()=>api.validateTemplate(changed,true),/Invalid component/);
+    }
+  });
   await t.test('picker appends an action without selecting it as a template',()=>{
     let picked=null,opened=0,options;
     const view=api.TemplatePicker({ui:{Select:()=>null},label:'Template',value:'existing',

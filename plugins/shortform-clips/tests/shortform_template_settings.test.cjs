@@ -72,11 +72,13 @@ test('templates use independent settings without renderer families',{skip:!modul
  }
  await t.test('caption fitting uses the same safe width when omitted or explicitly supplied',()=>{
   for(const mode of ['bar','box']){
-   const params={mode,fontSize:75,text:'\ub3d9\uc77c\ud55c \uc790\ub9c9\uc73c\ub85c \ud06c\uae30\uc640 \ud3f0\ud2b8\ub97c \ube44\uad50\ud569\ub2c8\ub2e4'};
+   const params={mode,fontSize:75,fontSizing:'auto',text:'\ub3d9\uc77c\ud55c \uc790\ub9c9\uc73c\ub85c \ud06c\uae30\uc640 \ud3f0\ud2b8\ub97c \ube44\uad50\ud569\ub2c8\ub2e4'};
    const implicit=renderGraphic('CAPTION_TSX',params);
    const explicit=renderGraphic('CAPTION_TSX',{...params,width:1000});
    assert.equal(implicit,explicit);
    assert.ok(Number(implicit.match(/font-size:([\d.]+)px/)[1])<75);
+   // Fixed sizing is the default: captions are split to fit beforehand, so the same text keeps its size.
+   assert.ok(renderGraphic('CAPTION_TSX',{...params,fontSizing:undefined}).includes('font-size:75px'));
    assert.ok(implicit.includes('overflow-wrap:anywhere'));
    assert.ok(renderGraphic('CAPTION_TSX',{...params,text:'\uc9e7\uc740 \uc790\ub9c9'}).includes('font-size:75px'));
    const emphasized=renderGraphic('CAPTION_TSX',{...params,text:'*\ub3d9\uc77c\ud55c \uc790\ub9c9\uc73c\ub85c \ud06c\uae30\uc640 \ud3f0\ud2b8\ub97c \ube44\uad50\ud569\ub2c8\ub2e4*'});
@@ -93,6 +95,17 @@ test('templates use independent settings without renderer families',{skip:!modul
    assert.ok(!renderGraphic('FRAME_TSX',{...params,headlineItalic:false}).includes('skewX'));
   }
  });
+ await t.test('original background bands and logo canvas offsets survive validation and rendering',()=>{
+  const raw=JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/chosun-ilbo/templates/heukbaek.json')));
+  const tpl=api.validateTemplate(raw),frame=api.radioFrameParams(tpl,'A','B');
+  assert.deepEqual(frame.backgroundImagePlacement,raw.background.imagePlacement);
+  assert.ok(Math.abs(frame.logoOffsetX-10)<.001);
+  const html=renderGraphic('FRAME_TSX',{...frame,backgroundImage:'test.jpg',logoImage:'test.png'});
+  assert.match(html,/background-size:2304px 1296px/);assert.match(html,/background-size:1920px 1080px/);
+  assert.match(html,/background-repeat:no-repeat/);
+  for(const patch of [{top:{x:0,y:0,width:0,height:10},bottom:raw.background.imagePlacement.bottom},{top:{x:Infinity,y:0,width:10,height:10},bottom:raw.background.imagePlacement.bottom}])assert.throws(()=>api.validateTemplate({...raw,background:{...raw.background,imagePlacement:patch}}),/placement|finite/);
+  assert.throws(()=>api.validateTemplate({...raw,logo:{...raw.logo,offsetX:Infinity}}),/offset|finite/);
+ });
  await t.test('Premiere typography survives template normalization and export rendering',()=>{
   const expected=require('./fixtures/chosun-premiere-corrections.json').overrides;
   for(const [id,correction] of Object.entries(expected)){
@@ -105,6 +118,17 @@ test('templates use independent settings without renderer families',{skip:!modul
    assert.ok(html.includes(correction.headline.font),id+': selected face reaches export');
    assert.ok(html.includes('font-size:'+template.headline.size1+'px'),id+': no size lost');
    assert.ok(html.includes('font-weight:400'),id+': no synthetic bold');
+   if(id==='heukbaek'){
+    assert.equal(frame.headlineColor1,'#FFFFFF');
+    assert.equal(frame.headlineColor2,'#FF29B8');
+    assert.match(html,/color:#FF29B8/i);
+    assert.equal(frame.headlineStrokeOn,false);
+    assert.equal(frame.headlineShadow,'none');
+    assert.equal(frame.headlineIdeographFont,'ChosunBg');
+    const mixed=renderGraphic('FRAME_TSX',{...frame,headline1:'與 \ud55c\uad6d\uc5b4',headline2:'\uc9c8\ubb38?'});
+    assert.match(mixed,/ChosunBg/);
+    assert.match(mixed,/>與<\/span>/);
+   }
    if(id==='history'||id==='villain'){
     assert.equal(frame.headlineStrokeOn,false);
     assert.ok(html.includes('gap:14px'));
@@ -118,6 +142,19 @@ test('templates use independent settings without renderer families',{skip:!modul
     assert.ok(renderGraphic('CAPTION_TSX',{...params,text:'Caption'}).includes(correction.captions.font));
    }
   }
+ });
+ await t.test('Panilgi preserves independent tracking and paragraph geometry',()=>{
+  const t=require('../template-packs/chosun-ilbo/templates/panilgi.json');
+  const params=api.radioFrameParams(t,'First','Second');
+  assert.equal(params.headlineLetterSpacing1,0);
+  assert.equal(params.headlineLetterSpacing2,-12*67.30612182617188*1.12/1000);
+  const html=renderGraphic('FRAME_TSX',params);
+  assert.match(html,/letter-spacing:0/);
+  assert.ok(html.includes('letter-spacing:'+params.headlineLetterSpacing2+'px'));
+  assert.equal(params.headlineColor1,'#FFE400');assert.equal(params.headlineShadow,'none');
+  assert.equal(t.captions.boxPerLine,false);assert.equal(t.captions.boxBounds,'ink');
+  assert.equal(t.captions.baselineBottom,(.65000003576278687*1920+576-960)+.26510417461395264*1920);
+  for(const field of ['letterSpacing1','letterSpacing2']) assert.throws(()=>api.validateTemplate({...t,headline:{...t.headline,[field]:NaN}}),/finite/);
  });
  await t.test('all shipped presets retain only the original TikTok design and identity',()=>{
   const root=path.join(__dirname,'../template-packs');
@@ -133,14 +170,17 @@ test('templates use independent settings without renderer families',{skip:!modul
     const file=design.id+'.json';expectedFiles.push(pack+'/'+file);
     const current=JSON.parse(fs.readFileSync(path.join(root,pack,'templates',file),'utf8'));
     const expected=structuredClone(design);
-    // These presets intentionally opt into conversation framing after migration.
+    // These presets intentionally opt into speaker-focused framing after migration.
     if(pack==='hankook-ilbo'&&['issue-broadcast','knowledge-exchange'].includes(design.id)){
-     expected.version+=1;
-     Object.assign(expected.layout,{reframe:true,reframePreset:'conversation',reframeFocus:'reactions',splitPolicy:'never',widePolicy:'never',reframePacing:'balanced',cropMotion:'fixed',cameraMode:'auto',closeUp:4.5,faceY:40});
+     expected.version+=3;
+     Object.assign(expected.layout,{reframe:true,reframePreset:'speaker',reframeFocus:'speaker',splitPolicy:'never',widePolicy:'never',reframePacing:'balanced',cropMotion:'fixed',cameraMode:'auto',closeUp:design.id==='issue-broadcast'?2.7:6.2,faceY:40});
     }
+    // Existing explicit opt-outs survive; missing values now default on at runtime.
+    expected.captions.cleanSpeechText=current.captions.cleanSpeechText ?? true;
+    if(current.captions.cleanSpeechText===undefined)delete expected.captions.cleanSpeechText;
     assert.deepEqual(current,expected,key+': preserve the design and apply explicit framing preferences');
     assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
-    assert.deepEqual(api.validateTemplate(structuredClone(current)),current,key+': no migration needed');
+    assert.deepEqual(api.validateTemplate(structuredClone(current)),{...current,captions:{...current.captions,cleanSpeechText:current.captions.cleanSpeechText??true}},key+': no migration needed');
     const platform='tiktok';
     if(platform==='tiktok'){assert.equal(file,key.split('/')[1]);assert.deepEqual(current.names,legacy.names);assert.equal(current.id,legacy.id);}
     const a=api.forPlatform(before,platform),b=current;
@@ -163,10 +203,12 @@ test('templates use independent settings without renderer families',{skip:!modul
    expectedFiles.push('chosun-ilbo/'+id+'.json');
    const current=JSON.parse(fs.readFileSync(path.join(root,'chosun-ilbo','templates',id+'.json'),'utf8'));
    assert.equal(current.variants,undefined);assert.equal(current.platformLayouts,undefined);
-   assert.deepEqual(api.validateTemplate(structuredClone(current)),current,id+': no migration needed');
+   assert.deepEqual(api.validateTemplate(structuredClone(current)),{...current,captions:{...current.captions,cleanSpeechText:current.captions.cleanSpeechText??true}},id+': no migration needed');
   }
   // Scene templates are new designs, not migrations of the legacy presets.
-  expectedFiles.push('hankook-ilbo/huick-alpha.json');
+  expectedFiles.push('hankook-ilbo/huick-alpha.json','chosun-ilbo/parenting.json','chosun-ilbo/jeongjwippul.json','chosun-ilbo/politics-landscape.json');
+  const parenting=JSON.parse(fs.readFileSync(path.join(root,'chosun-ilbo','templates','parenting.json'),'utf8'));
+  assert.deepEqual(api.validateTemplate(structuredClone(parenting)),{...parenting,captions:{...parenting.captions,cleanSpeechText:parenting.captions.cleanSpeechText??true}},'Parenting: source values survive validation');
   const scene=JSON.parse(fs.readFileSync(path.join(root,'hankook-ilbo','templates','huick-alpha.json'),'utf8'));
   assert.equal(scene.id,'huick-alpha');assert.equal(scene.editorial.mode,'scenes');
   assert.equal(scene.variants,undefined);assert.equal(scene.platformLayouts,undefined);
@@ -203,6 +245,18 @@ test('templates use independent settings without renderer families',{skip:!modul
   markup=renderGraphic('CAPTION_TSX',{...p,text:'Caption'});assert.ok(markup.includes('left:0'));assert.ok(markup.includes('width:840px'));
  });
 
+ await t.test('ink captions measure the requested size instead of applying an estimated pre-shrink',()=>{
+  const literal=api.SCRIPT_BUILD.match(/const CAPTION_TSX: string = (".*");/);const graphic={exports:{}};
+  new Function('require','module','exports',esbuild.transformSync(JSON.parse(literal[1]),{loader:'tsx',format:'cjs'}).code)(dep,graphic,graphic.exports);
+  const template=JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/chosun-ilbo/templates/health.json')));
+  const params=api.radioCaptionParams(api.validateTemplate(template));
+  assert.equal(params.boxBounds,'ink');
+  for(const fontSize of [60,88]){
+   const element=graphic.exports.default({data:{...params,fontSize,text:'\ub3c5\uac10 \ubc31\uc2e0\uc744 \ub9de\uc544\ub3c4 \ub3c5\uac10\uc5d0 \uac78\ub9b4 \uc218 \uc788\uc9c0\ub9cc\n\uac78\ub9b4 \ud655\ub960\uacfc \ud569\ubcd1\uc99d·\uc785\uc6d0 \uc704\ud5d8\uc744 \ub0ae\ucdb0\uc918\uc694'}});
+   assert.equal(element.props.size,fontSize,'measure the chosen font size before fitting actual overflow');
+   assert.equal(element.props.width,1000);
+  }
+ });
  await t.test('health template preserves customer faces and separate caption boxes in export',()=>{
   const health=api.validateTemplate(JSON.parse(fs.readFileSync(path.join(__dirname,'../template-packs/chosun-ilbo/templates/health.json'),'utf8')));
   assert.equal(health.headline.font,'SDGyeokdongG206Hv');

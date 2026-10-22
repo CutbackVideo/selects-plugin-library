@@ -15,6 +15,23 @@ test('shortform timeline inputs', {skip: !modulesRoot && 'Set SBS_PANEL_TEST_MOD
   const api = mod.exports;
   const run = (code, selects) => new Function('selects',esbuild.transformSync('return (async()=>{'+code+'})();',{loader:'ts'}).code)(selects);
   const body = (code, P) => code.replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
+  await t.test('whole-project choice removes the single-source picker without changing existing inputs',()=>{
+    const React=dep('react'),render=dep('react-dom/server').renderToStaticMarkup;
+    const form=source.slice(source.indexOf('  const form = (',source.indexOf('function ShortformClipsPanel(')),source.indexOf('\n  const elapsed =',source.indexOf('  const form = (')));
+    const code=esbuild.transformSync(`function view(mode){
+      const S=new Proxy({},{get:(_,key)=>String(key)}),lang='en',templatesLoading=false,resourcesLoading=false;
+      const templates=[],programOptions=[],videoOptions=[],countOptions=[],SELECTABLE_SPLIT_LAYOUTS=[];
+      const COMPOSITION_LABELS={en:{}},url='',pick=null,program='auto',countMode='auto',count=1,fixedLayout='auto',framing=true,subjectInstructions='',note='',sourceAction=null;
+      const setMode=()=>{},setUrl=()=>{},setPick=()=>{},setProgram=()=>{},setCountMode=()=>{},setCount=()=>{},setFixedLayout=()=>{},setFraming=()=>{},setSubjectInstructions=()=>{},setNote=()=>{};
+      ${form}
+      return form;
+    }`,{loader:'tsx',format:'cjs'}).code;
+    const ui={Stack:({children})=>React.createElement('div',null,children),Segmented:({options})=>React.createElement('div',null,options.map(o=>React.createElement('span',{key:o.value},o.value))),Select:({label})=>React.createElement('div',null,label),TextField:({placeholder})=>React.createElement('div',null,placeholder),Message:({children})=>React.createElement('p',null,children),Toggle:({label})=>React.createElement('div',null,label)};
+    const view=new Function('React','ui',code+';return view;')(React,ui);
+    const all=render(view('project-all')),single=render(view('project')),youtube=render(view('youtube'));
+    assert.match(all,/project-all/);assert.match(all,/wholeProjectHint/);assert.doesNotMatch(all,/>pick</);assert.doesNotMatch(all,/urlPh/);
+    assert.match(single,/>pick</);assert.match(youtube,/urlPh/);
+  });
   await t.test('SDK batches legal chunks without losing binary bytes or hiding truncation',async()=>{
     let calls=0;const lengths=[];
     const bytes=Uint8Array.from({length:200000},(_,i)=>i%256);

@@ -1,6 +1,6 @@
 {
   "id": "money",
-  "version": 1,
+  "version": 2,
   "names": {
     "ko": "\uba38\ub2c8\uc6cc\uce58",
     "en": "Money Watch"
@@ -22,14 +22,21 @@
     "offsetX": 0,
     "headlineCenter": 392,
     "logoCenter": 1316,
-    "reframe": false
+    "reframe": true,
+    "reframePreset": "speaker",
+    "reframeFocus": "speaker",
+    "splitPolicy": "never",
+    "widePolicy": "never",
+    "reframePacing": "balanced",
+    "cropMotion": "fixed",
+    "cameraMode": "auto"
   },
   "background": {
     "mode": "image",
     "style": "radial-gradient(ellipse at 50% 40%,#2A2A2A 0%,#171717 60%,#0D0D0D 100%)",
     "color": "#2A2A2A",
     "image": "assets/money-background.webp",
-    "imageName": "TikTok @_chosunilbo_",
+    "imageName": "money-background.webp",
     "dim": 0
   },
   "border": {
@@ -64,7 +71,7 @@
   "logo": {
     "mode": "image",
     "image": "assets/money-logo.webp",
-    "imageName": "TikTok @_chosunilbo_",
+    "imageName": "money-logo.webp",
     "width": 696
   },
   "captions": {

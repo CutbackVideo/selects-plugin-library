@@ -119,6 +119,31 @@ test('SBS Radio template generation', { skip: !modulesRoot && 'Set SBS_PANEL_TES
       if(id==='money-lab')assert.ok(graphics.some(g=>g.parameters.text?.includes('*market*')));
     });
   }
+  await t.test('caption cleanup selects original occurrences and never removes video by itself',async()=>{
+    for(const mode of ['clean','disabled','invalid','after-video-edit']){
+      const P=api.buildParams(template('news-direct'),clip,title);
+      P.cleanSpeechText=mode!=='disabled';P.removeFillers=mode==='after-video-edit';P.removeSilences=false;
+      P.captionOmissions=[{startSeconds:0,endSeconds:1.4,text:'um',occurrence:1,reason:'filler'}];
+      if(mode==='invalid')P.captionOmissions[0].occurrence=999;
+      const words=['um','um','important'].map((text,i)=>({text,startFrame:i*15,endFrame:i*15+12,sourceStartFrame:i*15,sourceResourceId:'test-video',speakerId:'a',utteranceId:'u',filler:i===0?{removable:true}:undefined}));
+      let output=words.map(w=>({...w})),removed=0;const graphics=[];
+      const meta=async()=>({fps:30,durationSeconds:1.8,frameSize:{width:1920,height:1080}});
+      const draft={meta,words:async()=>output,insertResource:async()=>{},setSettings:async()=>{},setFrameSize:async()=>{},
+        remove:async()=>{removed++;output=output.slice(1).map(w=>({...w,startFrame:w.startFrame-15,endFrame:w.endFrame-15}));},
+        clips:async()=>[{resourceId:'test-video',trackKind:'main',startFrame:0,endFrame:54}],setClipTransform:async()=>{},
+        rangeAtFrames:async(a,b)=>({a,b}),addMotionGraphic:async g=>graphics.push(g),commitAll:async()=>({createdDraftId:'cleanup-'+mode})};
+      const selects={project:()=>({resources:async()=>[{resourceId:'test-video'}],resource:()=>({meta,words:async()=>words}),createDraft:async()=>draft})};
+      const code=api.SCRIPT_BUILD.replace('const P: any = __P__;','const P: any = '+JSON.stringify(P)+';');
+      const wrapped=esbuild.transformSync('async function build(selects){'+code+'}\nreturn build;',{loader:'ts'}).code;
+      await new Function(wrapped)()(selects);
+      const captions=graphics.filter(g=>g.label.startsWith('Caption '));
+      const text=captions.map(g=>g.parameters.text).join(' ').replace(/\*/g,'').replace(/\s+/g,' ').trim();
+      assert.equal(text,mode==='clean'?'um important':mode==='after-video-edit'?'important':'um um important');
+      assert.equal(removed,mode==='after-video-edit'?1:0);
+      assert.deepEqual(words.map(w=>w.sourceStartFrame),[0,15,30]);
+      assert.ok(captions.every(g=>g.within.b>g.within.a));
+    }
+  });
   await t.test('all four templates build before visual analysis completes',async()=>{
     for(const id of api.BUILTIN_TEMPLATES.map(t=>t.id)) {
       const tpl=structuredClone(template(id));
