@@ -1,6 +1,6 @@
 {
   "id": "panilgi",
-  "version": 2,
+  "version": 3,
   "names": {
     "ko": "\ud310\uc77d\uae30",
     "en": "Court Ruling Reader"
@@ -26,7 +26,14 @@
     "offsetX": 0,
     "headlineCenter": 301.24685766601556,
     "logoCenter": 1688,
-    "reframe": false
+    "reframe": true,
+    "reframePreset": "speaker",
+    "reframeFocus": "speaker",
+    "splitPolicy": "never",
+    "widePolicy": "never",
+    "reframePacing": "balanced",
+    "cropMotion": "fixed",
+    "cameraMode": "auto"
   },
   "background": {
     "mode": "image",

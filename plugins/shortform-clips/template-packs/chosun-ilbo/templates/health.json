@@ -1,6 +1,6 @@
 {
   "id": "health",
-  "version": 2,
+  "version": 3,
   "names": {
     "ko": "\uc774\ub7ec\uba74 \ub0ab\ub294\ub2e4",
     "en": "This Makes You Better"
@@ -21,7 +21,14 @@
     "offsetX": 0,
     "headlineCenter": 243.44930374145514,
     "logoCenter": 1660,
-    "reframe": false
+    "reframe": true,
+    "reframePreset": "speaker",
+    "reframeFocus": "speaker",
+    "splitPolicy": "never",
+    "widePolicy": "never",
+    "reframePacing": "balanced",
+    "cropMotion": "fixed",
+    "cameraMode": "auto"
   },
   "background": {
     "mode": "image",

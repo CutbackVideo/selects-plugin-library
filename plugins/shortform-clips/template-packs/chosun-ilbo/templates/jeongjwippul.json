@@ -1,6 +1,6 @@
 {
   "id": "jeongjwippul",
-  "version": 3,
+  "version": 4,
   "names": {
     "ko": "\uc815\uc950\ubfd4",
     "en": "Jeongjwippul"
@@ -20,7 +20,14 @@
     "offsetX": 0,
     "headlineCenter": 391.4747406005859,
     "logoCenter": 1379.000015258789,
-    "reframe": false
+    "reframe": true,
+    "reframePreset": "speaker",
+    "reframeFocus": "speaker",
+    "splitPolicy": "never",
+    "widePolicy": "never",
+    "reframePacing": "balanced",
+    "cropMotion": "fixed",
+    "cameraMode": "auto"
   },
   "background": {
     "mode": "color",

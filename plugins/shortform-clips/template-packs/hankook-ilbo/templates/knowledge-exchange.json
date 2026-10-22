@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "knowledge-exchange",
-  "version": 4,
+  "version": 5,
   "names": {
     "ko": "\uc9c0\uc2dd\ud658\uc804\uc18c",
     "en": "Knowledge Exchange"
@@ -15,8 +15,8 @@
     "headlineCenter": 400,
     "logoCenter": 1504,
     "reframe": true,
-    "reframePreset": "conversation",
-    "reframeFocus": "reactions",
+    "reframePreset": "speaker",
+    "reframeFocus": "speaker",
     "splitPolicy": "never",
     "widePolicy": "never",
     "reframePacing": "balanced",
