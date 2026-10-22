@@ -1849,7 +1849,7 @@ function fieldClip(text: string, max: number) {
 }
 
 const PLUGIN_ID = "mini-vlog";
-const PLUGIN_VERSION = "0.1.0-alpha.19";
+const PLUGIN_VERSION = "0.1.0-alpha.20";
 // The Draft's canvas. assemble.js sets the same size; the preview and the photo cover scale use it.
 const MV_W = 1920, MV_H = 1080;
 // One scene-search query per shot role (planner MV_ROLES). With Beat punch on, the search also runs the motion query
@@ -1921,7 +1921,6 @@ const INCOMPLETE_POLL_MAX = 6;
 // stops until Refresh or a changed inventory (coming back to the panel still reads it once).
 const WAIT_POLL_MAX = 30;
 // Their messages are STRINGS `sizesLoading` (next to Build) and `invPartial` (the readiness line).
-// A lost assemble reply is recovered by reading at most this many of the Project's most recent Drafts.
 
 // mv-planner:start
 // Mini Vlog planner. A plain script: panel.tsx embeds it verbatim and the tests load it in node:vm.
@@ -4437,11 +4436,19 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
   if(!await files.exists(path))return null;
   let row;
   try{
-   const stat=await files.stat(path);if(!stat||stat.isDirectory!==false||!Number.isSafeInteger(stat.size)||stat.size<1||stat.size>49152)throw Error('Invalid record size');
+   for(let attempt=0;attempt<3;attempt++){
+   const stat=await files.stat(path);if(stat?.isDirectory===false&&stat.size===0)continue;
+   if(!stat||stat.isDirectory!==false||!Number.isSafeInteger(stat.size)||stat.size<1||stat.size>49152)throw Error('Invalid record size');
    const bytes=await files.readRange(path,0,stat.size),after=await files.stat(path);
-   if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]'||bytes.byteLength!==stat.size||!after||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))throw Error('Run record changed while reading');
-   row=JSON.parse(new TextDecoder().decode(bytes));
-  }catch{fail('TEMPLATE_RUN_INVALID','The saved run record could not be read. Inspect the Project before starting a new run.');}
+   if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]')throw Error('Invalid run record bytes');
+   // A legitimate Main-side receipt may replace the claim between these reads.
+   // Retry bounded observations; never parse a mixture or retry authoring.
+   if(!after||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))continue;
+   if(bytes.byteLength!==stat.size)throw Error('Invalid run record bytes');
+   row=JSON.parse(new TextDecoder().decode(bytes));break;
+   }
+   if(row===undefined)fail('TEMPLATE_RUN_PENDING','The run record is changing. Check its saved result again.');
+  }catch(error){if(error?.code==='TEMPLATE_RUN_PENDING')throw error;fail('TEMPLATE_RUN_INVALID','The saved run record could not be read. Inspect the Project before starting a new run.');}
   return validateTemplateRun(row,scope,requestDigest);
  };
  const recover=async row=>{
@@ -4566,6 +4573,121 @@ async function executeTemplateAssembly(sdk,files,scope,config,source,isCurrent){
   return {...reply.result.assembly,...confirmed,notes:reply.result.assembly.notes??[]};
  },verify);
 }
+
+// Discover an uncertain standalone assembly after its renderer realm is gone.
+// Payloads are published before their small exclusive manifest. Completed run
+// tombstones prevent an old callback from republishing the same run identity.
+async function openTemplateAssemblyContinuations(sdk,files,target,isCurrent){
+ const fail=(code,message)=>{throw templateRunIssue(code,message);};
+ const invalid=()=>fail('TEMPLATE_RUN_INVALID','The pending assembly record could not be verified. Inspect the Project before starting another run.');
+ const check=()=>{if(!isCurrent())fail('TEMPLATE_RUN_DETACHED','The template run ended.');};
+ check();
+ if(!target||typeof target.pluginId!=='string'||!/^[a-z0-9-]+$/.test(target.pluginId)||typeof target.projectId!=='string'||!target.projectId||target.projectId.length>1024)invalid();
+ target={pluginId:target.pluginId,projectId:target.projectId,libraryId:target.libraryId};
+ if(!files||!['join','homedir','exists','stat','readRange','writeFile','mkdir','readdir','rm'].every(key=>typeof files[key]==='function')||typeof sdk?.call!=='function'||typeof globalThis.crypto?.subtle?.digest!=='function'||typeof globalThis.TextEncoder!=='function'||typeof globalThis.TextDecoder!=='function')fail('TEMPLATE_RUN_UNSUPPORTED','Update Selects to find pending template runs safely.');
+ const owner=await sdk.call('getProjectDraftScaffold',target.projectId);check();
+ if(owner?.owner?.projectId!==target.projectId||typeof owner.owner.libraryId!=='string'||!owner.owner.libraryId||target.libraryId!=null&&target.libraryId!==owner.owner.libraryId)fail('TEMPLATE_RUN_TARGET','The pending assembly belongs to a different Project or library.');
+ target={pluginId:target.pluginId,projectId:target.projectId,libraryId:owner.owner.libraryId};
+ const current=async()=>{check();const row=await sdk.call('getProjectDraftScaffold',target.projectId);check();if(row?.owner?.projectId!==target.projectId||row.owner.libraryId!==target.libraryId)fail('TEMPLATE_RUN_TARGET','The pending assembly belongs to a different Project or library.');};
+ const json=value=>{
+  let text;
+  try{text=JSON.stringify(value,(_key,item)=>{if(typeof item==='number'&&!Number.isFinite(item)||['bigint','function','symbol'].includes(typeof item))throw Error('Unsupported value');return item;}).replace(/[\u007f-\uffff]/g,char=>'\\u'+char.charCodeAt(0).toString(16).padStart(4,'0'));}catch{invalid();}
+  if(text.length>262144)fail('TEMPLATE_RUN_INVALID','The pending assembly exceeds its 256 KiB input limit.');
+  return text;
+ };
+ const hash=async text=>{const result=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),n=>n.toString(16).padStart(2,'0')).join('');check();return result;};
+ const directory=files.join(files.homedir(),'.selects','plugin-data',target.pluginId,'template-runs','assembly-pending',await hash(json(target)));
+ const completed=files.join(directory,'acknowledged');
+ const readText=async(path,limit)=>{
+  for(let attempt=0;attempt<3;attempt++){
+  check();const before=await files.stat(path);check();if(!before)return null;
+  if(before.isDirectory===false&&before.size===0)continue;
+  if(before.isDirectory!==false||!Number.isSafeInteger(before.size)||before.size<1||before.size>limit)invalid();
+  const bytes=await files.readRange(path,0,before.size);check();const after=await files.stat(path);check();
+  if(!after)return null;
+  if(['size','mtimeMs','ino'].some(key=>before[key]!==after[key]))continue;
+  if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]'||bytes.byteLength!==before.size)invalid();
+  return new TextDecoder().decode(bytes);
+  }
+  fail('TEMPLATE_RUN_PENDING','The pending assembly record is changing. Check it again.');
+ };
+ const parse=text=>{try{return JSON.parse(text);}catch{invalid();}};
+ const manifest=async row=>{
+  if(!row||Object.keys(row).length!==3||row.version!==1||typeof row.digest!=='string'||!/^[a-f0-9]{64}$/.test(row.digest)||!row.scope||Object.keys(row.scope).length!==4||Object.keys(target).some(key=>row.scope[key]!==target[key])||typeof row.scope.runId!=='string'||!row.scope.runId||row.scope.runId.length>1024)invalid();
+  return await hash(json(row.scope));
+ };
+ const done=async(row,key)=>{
+  const text=await readText(files.join(completed,key+'.json'),49152);if(text===null)return false;
+  const end=parse(text);if(!end||!['saved','notSaved'].includes(end.status)||json(end.record)!==json(row))invalid();return true;
+ };
+ const validate=(value,row)=>{
+  if(!value||json(value.scope)!==json(row.scope)||value.config?.projectId!==target.projectId||typeof value.source!=='string'||!value.source.startsWith('// @template-assembly 1\n')||value.source.split('__CONFIG__').length!==2)invalid();
+  // Match the existing assembly adapter's request budget before any new save.
+  const {draftName,...content}=value.config;templateRunJSON({config:content,source:value.source});
+  return value;
+ };
+ const load=async(row,key)=>{
+  if(await manifest(row)!==key)invalid();
+  const text=await readText(files.join(directory,key+'-'+row.digest+'.data'),262144);
+  if(text===null)invalid();if(await hash(text)!==row.digest)invalid();
+  return validate(parse(text),row);
+ };
+ const recordOf=async pending=>{
+  if(!pending?.scope||Object.keys(target).some(key=>key==='libraryId'?pending.scope[key]!=null&&pending.scope[key]!==target[key]:pending.scope[key]!==target[key]))invalid();
+  const scope={...target,runId:pending.scope.runId},text=json({...pending,scope}),row={version:1,scope,digest:await hash(text)},key=await manifest(row);
+  return {row,key,text,value:validate(parse(text),row)};
+ };
+ const store=async pending=>{
+  await current();const item=await recordOf(pending),{row,key,text}=item;
+  if(await done(row,key))fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');
+  await files.mkdir(directory,{recursive:true});check();
+  const dataPath=files.join(directory,key+'-'+row.digest+'.data');
+  if(await files.exists(dataPath)){if(await readText(dataPath,262144)!==text)invalid();}
+  else{check();await files.writeFile(dataPath,text);check();}
+  const file=files.join(directory,key+'.json'),expected=templateRunJSON(row);
+  try{check();await files.writeFile(file,expected,{flag:'wx'});}catch(error){
+   const actual=await readText(file,49152);if(actual===null)throw error;if(actual!==expected)invalid();
+  }
+  check();if(await done(row,key))fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');
+  try{return await load(row,key);}catch(error){if(await done(row,key))fail('TEMPLATE_RUN_COMPLETED','This assembly was already confirmed. Start a new run for another Draft.');throw error;}
+ };
+ const read=async()=>{
+  await current();if(!await files.exists(directory)){check();return null;}
+  const names=await files.readdir(directory);check();
+  if(!Array.isArray(names)||names.length>4096||names.some(name=>typeof name!=='string'||name.includes('/')||name.includes('\\')))invalid();
+  const entries=names.filter(name=>/^[a-f0-9]{64}\.json$/.test(name));
+  if(entries.length>64)fail('TEMPLATE_RUN_PENDING','Too many pending assemblies need inspection before another run.');
+  const found=[];
+  for(const name of entries.sort()){
+   const text=await readText(files.join(directory,name),49152);if(text===null)continue;
+   const row=parse(text),key=await manifest(row);if(name!==key+'.json')invalid();
+   if(!await done(row,key)){
+    try{found.push(await load(row,key));}catch(error){if(!await done(row,key))throw error;}
+   }
+  }
+  if(found.length>1)fail('TEMPLATE_RUN_AMBIGUOUS','Several unfinished assemblies belong to this Project. Inspect their run records before starting another run.');
+  return found[0]??null;
+ };
+ const acknowledge=async(pending,status)=>{
+  await current();const {row,key}=await recordOf(pending);
+  await files.mkdir(completed,{recursive:true});check();
+  const path=files.join(completed,key+'.json'),text=templateRunJSON({record:row,status});
+  try{await files.writeFile(path,text,{flag:'wx'});}catch(error){if(await readText(path,49152)!==text)throw error;}
+  check();
+  // Only this immutable run's files are removed. Its tombstone is retained.
+  await files.rm(files.join(directory,key+'.json'),{force:true}).catch(()=>{});check();
+  await files.rm(files.join(directory,key+'-'+row.digest+'.data'),{force:true}).catch(()=>{});check();
+ };
+ const resumeAssembly=async pending=>{
+  const value=await store(pending);
+  let result;
+  try{result=await executeTemplateAssembly(sdk,files,value.scope,value.config,value.source,()=>{check();return true;});}
+  catch(error){if(error?.outcome==='notSaved'||error?.code==='TEMPLATE_RUN_NOT_SAVED')await acknowledge(value,'notSaved');throw error;}
+  check();if(result?.assemblyConfirmed!==true)invalid();
+  await acknowledge(value,'saved');return result;
+ };
+ return {read,store,run:resumeAssembly};
+}
 // template-run:end
 
 // Keep the cue bytes that were planned independently of installation updates.
@@ -4649,8 +4771,9 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   const busyRef = React.useRef(false);
   const runEpochRef = React.useRef(0);
   const runLive = (pid: string, epoch: number) => mountedRef.current && projectRef.current === pid && runEpochRef.current === epoch;
-  // Keep an uncertain assembly and its frozen inputs across Project switches in this panel realm.
+  // A display cache only: durable continuation discovery is authoritative on every Build.
   const assemblyPendingRef = React.useRef<Record<string, any>>({});
+  const [assemblyDiscovery, setAssemblyDiscovery] = React.useState("loading");
   // The one-call spinner's text: "checkingClips", "listening" (STRINGS keys) or "".
   const [step, setStep] = React.useState("");
   // The quick local check of clips without analysis is running: the Build button's slot shows Cancel, which aborts it.
@@ -4792,6 +4915,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   React.useEffect(() => {
     // Drop everything tied to the previous Project so a build never mixes Projects.
     runEpochRef.current++; setChecking(false);
+    setAssemblyDiscovery("loading");
     setCandidates(null); setResult(null); setStatus(null); setInventory(null); setInvError(null); setInvLoading(false);
     setOnly(null); setOnlyPhotos(null);
     inventorySnapshotRef.current = null;
@@ -4804,6 +4928,11 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
         const { plugin, data } = await locateRoots(sdk);
         if (!alive) return;
         setRoots({ plugin, data });
+        const pending = await (await openAssemblyContinuations(projectId, () => { if (!alive) throw STALE; })).read();
+        if (!alive) return;
+        if (pending) assemblyPendingRef.current[projectId] = pending;
+        else delete assemblyPendingRef.current[projectId];
+        setAssemblyDiscovery("ready");
         // The host's ffmpeg (and a blob Web Worker for own music) is only needed for previews and own music; bundled
         // cues work without them. No shell: the host's services are checked directly (mvMusicTools).
         setTools(mvMusicTools());
@@ -4823,6 +4952,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
           if (alive && projectRef.current === projectId) { setInvError(null); await loadInventory(projectId, () => alive); }
         }
       } catch (e: any) {
+        if (alive) setAssemblyDiscovery("failed");
         if (alive) setStatus({ tone: "error", say: (l: Lang) => t(l, "startFailed", { detail: sayError(l, e) }) });
       } finally { if (alive) setStep(""); }
     })();
@@ -5142,8 +5272,11 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
   }
 
   // A confirmed owned receipt is required before title/look can modify a saved Draft.
-  async function finishAssembly(pending: any, check: () => void) {
-    const a = await executeTemplateAssembly(sdk, panelLocalClient(sdk).files, pending.scope, pending.config, pending.source, () => { check(); return true; });
+  async function openAssemblyContinuations(pid: string, check: () => void) {
+    return openTemplateAssemblyContinuations(sdk, panelLocalClient(sdk).files, { pluginId: PLUGIN_ID, projectId: pid }, () => { check(); return true; });
+  }
+  async function finishAssembly(pending: any, check: () => void, continuations: any) {
+    const a = await continuations.run(pending);
     check();
     if (assemblyPendingRef.current[pending.scope.projectId] === pending) delete assemblyPendingRef.current[pending.scope.projectId];
     const { frozen, photoSizes, plan, fitted, unchecked, quickUnavailable } = pending;
@@ -5156,39 +5289,36 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
 
   async function build(nextSeed: number) {
     if (busyRef.current || !projectId) return;
-    const previous = assemblyPendingRef.current[projectId];
-    if (previous) {
-      const pid = projectId, epoch = ++runEpochRef.current;
-      const check = () => { if (!runLive(pid, epoch)) throw STALE; };
-      busyRef.current = true; stopPreview(); setBusy(true); setStatus(null); advance("draft", 0);
-      try { await finishAssembly(previous, check); }
-      catch (e: any) {
-        if (e?.outcome === "notSaved" || e?.code === "TEMPLATE_RUN_NOT_SAVED") delete assemblyPendingRef.current[pid];
-        if (e !== STALE && runLive(pid, epoch)) setStatus({ tone: "error", say: stopAt(e) });
-      } finally { endRun(pid, epoch); }
-      return;
-    }
-    if (!inventoryCurrent() || !assets || !inventory || inventory.incomplete || !roots || !chosen) return;
-    // The gate for the seed this build uses (Build: seed; Try other shots: seed + 1).
-    const gate = nextSeed === seed ? blockReason : anotherBlock;
-    if (gate) { setStatus({ tone: "error", say: gate }); return; }
     const pid = projectId, epoch = ++runEpochRef.current;
     const check = () => { if (!runLive(pid, epoch)) throw STALE; };
-    // Every input as it is at Build. The build and a later "Finish title and look" read only this.
-    const frozen = Object.freeze({
-      pid, seed: nextSeed, preset, presetLabel: chosen.label, fields: { ...titleFields },
-      music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? hostJoin(roots.plugin, "assets", "cues", cue.file) : null,
-      musicCue: musicKind === "cue" ? { file: cue.file, bytes: cue.bytes, sha256: cue.sha256, duration: cue.duration } : null,
-      sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,
-      draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),
-      // Keep the cue's duration as build metadata; Audio identity uses its exact Project path.
-      musicDuration: musicKind === "cue" && typeof cue?.duration === "number" ? cue.duration : null,
-    });
-    busyRef.current = true;
-    stopPreview();
-    setBusy(true); setStatus(null); setResult(null);
-    advance("shots", 0);
+    busyRef.current = true; stopPreview(); setBusy(true); setStatus(null);
     try {
+      const continuations = await openAssemblyContinuations(pid, check);
+      const previous = await continuations.read();
+      check();
+      if (previous) {
+        assemblyPendingRef.current[pid] = previous;
+        advance("draft", 0);
+        await finishAssembly(previous, check, continuations);
+        return;
+      }
+      delete assemblyPendingRef.current[pid];
+      if (!inventoryCurrent() || !assets || !inventory || inventory.incomplete || !roots || !chosen) return;
+      // The gate for the seed this build uses (Build: seed; Try other shots: seed + 1).
+      const gate = nextSeed === seed ? blockReason : anotherBlock;
+      if (gate) { setStatus({ tone: "error", say: gate }); return; }
+      // Every input as it is at Build. The build and a later "Finish title and look" read only this.
+      const frozen = Object.freeze({
+        pid, seed: nextSeed, preset, presetLabel: chosen.label, fields: { ...titleFields },
+        music: musicKind, cueId, musicPath: musicKind === "own" ? ownMusic!.path : musicKind === "cue" ? hostJoin(roots.plugin, "assets", "cues", cue.file) : null,
+        musicCue: musicKind === "cue" ? { file: cue.file, bytes: cue.bytes, sha256: cue.sha256, duration: cue.duration } : null,
+        sectionStart: musicStart, pace, length, requested, clipSound, soft, punch: beatPunch, hook: hook && musicKind === "cue", bpm: gridded ? grid.bpm : null, usePhotos, only, onlyPhotos,
+        draftName: "Mini Vlog " + chosen.label + " " + stamp(new Date()),
+        // Keep the cue's duration as build metadata; Audio identity uses its exact Project path.
+        musicDuration: musicKind === "cue" && typeof cue?.duration === "number" ? cue.duration : null,
+      });
+      setResult(null);
+      advance("shots", 0);
       const selectedPhotos = selectedPhotoRidsOf(inventory, onlyPhotos, usePhotos)
         .map((rid) => ({ resourceId: rid, name: (inventory.photos || []).find((photo: any) => photo.rid === rid)?.name || rid }));
       const verified = selectedPhotos.length ? await prepareNativeImagesById(sdk, pid, selectedPhotos, { isCurrent: () => runLive(pid, epoch) }) : { sources: [] };
@@ -5283,7 +5413,7 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
           music: music ? { resourceId: music.resourceId, sectionStart: frozen.sectionStart ?? 0, tailSeconds: plan.referenceCuts ? grid.referenceTail : 0, referenceCuts: !!plan.referenceCuts } : null, clipSound: frozen.clipSound, ambientDb: AMBIENT_DB },
         source: assets.scripts.assembleJs, frozen, photoSizes, plan, fitted, unchecked: found.failed.length, quickUnavailable: !!found.local?.unavailable };
       assemblyPendingRef.current[pid] = pending;
-      await finishAssembly(pending, check);
+      await finishAssembly(pending, check, continuations);
     } catch (e: any) {
       if (e?.outcome === "notSaved" || e?.code === "TEMPLATE_RUN_NOT_SAVED") delete assemblyPendingRef.current[pid];
       if (e === CANCELLED && runLive(pid, epoch)) setStatus({ tone: "muted", say: (l: Lang) => t(l, "cancelled") });
@@ -5444,9 +5574,9 @@ function MiniVlogPanel({ sdk, context, ui }: any) {
     ? (l) => (MV_FAIL[plan.reason] ? t(l, "fail." + plan.reason) : t(l, "noPlan")) : null);
   const blockReason = blockFor(readyPlan);
   const anotherBlock = blockFor(readyPlans.another);
-  const ready = inventoryCurrent() && !!assets && !!roots;
+  const ready = assemblyDiscovery === "ready" && inventoryCurrent() && !!assets && !!roots;
   const pendingAssembly = projectId ? assemblyPendingRef.current[projectId] : null;
-  const canBuild = !!pendingAssembly || (ready && !blockReason);
+  const canBuild = (assemblyDiscovery === "ready" && !!pendingAssembly && !!assets && !!roots) || (ready && !blockReason);
   const canBuildAnother = !pendingAssembly && ready && !anotherBlock;
 
   // Clips that cannot be used yet, as a sentence for the lines that have nothing else to say.

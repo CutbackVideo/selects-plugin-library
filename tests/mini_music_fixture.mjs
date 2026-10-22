@@ -50,6 +50,10 @@ export async function miniMusicFixture(t,{entry='template',own=false,silent=fals
    const reply=await sdk.runScript({summary:'Assemble Mini Vlog',allowCommit:true,script:source.replace('__CONFIG__',()=>JSON.stringify(config))});
    if(reply.isError)throw Error(reply.output);return reply.result;
   },
+  // Discovery is an explicit boundary in music/native tests; its real file
+  // protocol and the actual Build remount path have dedicated counterexamples.
+  openAssemblyContinuations:async(_pid,check)=>({read:async()=>globals.assemblyPendingRef.current.p??null,
+   run:pending=>globals.executeTemplateAssembly(sdk,f.local.files,pending.scope,pending.config,pending.source,()=>{check();return true;})}),
   panelLocalClient:value=>value,PLUGIN_ID:'mini-vlog',DEFAULT_CUE:'cue',PREFERRED_CUE:'cue',DEFAULT_PRESET:'preset',DEFAULT_LENGTH:'standard',DEFAULT_PACE:'quick',DEFAULT_PUNCH:true,DEFAULT_HOOK:false,
   TEMPLATE_ALIAS_BATCH:6,TEMPLATE_ALIAS_JS:'return __CONFIG__;',EMPTY_READ:/never/,TEMPLATE_SEED:1,INVENTORY_MEASURE_MS:1,SEARCH_BATCH:6,MV_QUERIES:[],MV_LENGTHS:{standard:2},MV_FAIL:{},AMBIENT_DB:-18,
   hostJoin:path.join,uiLang:()=> 'en',t:(_lang,key)=>key,uiError:say=>Error(say('en')),locateRoots:async()=>({plugin,data:f.data}),

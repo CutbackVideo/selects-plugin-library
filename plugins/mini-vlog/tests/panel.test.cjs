@@ -371,8 +371,8 @@ for (const body of [build, decorate]) {
     assert.ok(/check\(\)|findCandidates\(|finishAssembly\(|throw e|\/\/ no project write/.test(next), 'project check after: ' + l.trim());
   });
 }
-assert.equal((ui.match(/await executeTemplateAssembly\(/g) || []).length, 2, 'panel and selected-file entry each delegate assembly to the shared owner');
-assert.ok(build.includes('assemblyPendingRef.current[pid] = pending;') && build.includes('finishAssembly(pending, check)'), 'assembly dispatch belongs to its retained execution receipt');
+assert.ok(ui.includes('const a = await continuations.run(pending);') && ui.includes('const a = await executeTemplateAssembly(sdk, panelLocalClient(sdk).files,'), 'standalone discovery and the selected-file entry both delegate to the shared owner');
+assert.ok(build.includes('assemblyPendingRef.current[pid] = pending;') && build.includes('finishAssembly(pending, check, continuations)'), 'assembly dispatch belongs to its durable execution continuation');
 assert.ok(!ui.includes('findDraftByName'), 'Draft names never prove assembly ownership');
 // The readiness gate uses the seed each button builds with: Build = seed, Try other shots = seed + 1.
 assert.ok(ui.includes('planAt(seed)') && ui.includes('planAt(seed + 1)'), 'gates for both seeds');
@@ -419,7 +419,7 @@ assert.ok(/needsPoll = !!inventory && \(\(!!inventory\.incomplete && !incomplete
 // next to Build (blockReason), and build() refuses it; a later complete read clears the block.
 says('sizesLoading', 'Clip sizes are still loading\u2026');
 assert.ok(/const baseBlock: Say \| null = !inventory \|\| !assets \? null\s*: inventory\.incomplete \? \(l\) => t\(l, "sizesLoading"\)\s*:/.test(ui), 'incomplete blocks both buttons first');
-assert.ok(ui.includes('const canBuild = !!pendingAssembly || (ready && !blockReason);') && ui.includes('const canBuildAnother = !pendingAssembly && ready && !anotherBlock;') && ui.includes('{blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}'), 'the block disables Build / another version and shows the hint');
+assert.ok(ui.includes('const canBuild = (assemblyDiscovery === "ready" && !!pendingAssembly && !!assets && !!roots) || (ready && !blockReason);') && ui.includes('const canBuildAnother = !pendingAssembly && ready && !anotherBlock;') && ui.includes('{blockReason && !busy ? <ui.Message tone="muted">{blockReason(L)}</ui.Message> : null}'), 'the block disables Build / another version and shows the hint');
 assert.ok(build.includes('!inventory || inventory.incomplete ||'), 'build() refuses an incomplete inventory');
 // Incomplete polling is capped: INCOMPLETE_POLL_MAX (6) consecutive incomplete reads stop it with a Refresh hint;
 // a complete read, a Project switch or Refresh restart the count.

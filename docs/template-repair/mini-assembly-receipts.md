@@ -76,8 +76,8 @@ media, Drafts, journals and evidence.
 
 ## Still required
 
-Standalone realm-remount discovery of pending attempts needs a durable active-run
-index; the current in-memory attempt survives Project switches in one realm.
+The original alpha.19 checkpoint lacked standalone realm-remount discovery.
+Alpha.20 adds it through the same run owner; see `mini-pending-discovery.md`.
 Title/look and Finish need their own phase ownership/readback and partial-failure
 review. A hidden remount whose newly computed assembly content differs is rejected
 rather than silently adopting a different plan. Original-file content guarantees,

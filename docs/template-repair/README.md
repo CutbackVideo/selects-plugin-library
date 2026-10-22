@@ -1,5 +1,15 @@
 # Sequential template repair: active
 
+## Mini remount discovery checkpoint
+
+Mini alpha.20 discovers the original uncertain assembly across renderer/Electron
+restart through the existing run feature. The same frozen request reaches the
+owned saved Draft without another assembly dispatch. Changing receipt reads are
+observed again with a three-attempt bound. Forty-three focused / 520 related tests
+and actual SDK restart readback cover this slice. See
+[mini-pending-discovery.md](mini-pending-discovery.md). Title/Finish phase recovery,
+full Mini acceptance and all-template ownership remain open.
+
 ## Mini owned assembly checkpoint
 
 Mini alpha.19 replaces name-based save recovery with the existing durable run

@@ -17,7 +17,7 @@ function consumer(plugin){
  const {plain,nested}=sources[plugin],old={resources:[{rid:'r0',name:'Video',kind:'video',duration:20,width:1920,height:1080,path:'/video.mp4',analysed:true,status:'ready'}],photos:[{rid:'ph0',name:'Photo',kind:'photo',width:96,height:160}],skipped:{unanalysed:0,notAnalysed:0},incomplete:false};
  const state={inventory:old,candidates:{cached:true},error:null,loading:false},hooks={};let box;
  const g={projectId:'p',projectRef:{current:'p'},mountedRef:{current:true},inventorySnapshotRef:{current:{projectId:'p',inventory:old}},invLoadingRef:{current:null},busyRef:{current:false},inventoryJsRef:{current:'query'},invSigRef:{current:null},photoSizesRef:{current:{ph0:{width:96,height:160}}},
-  inventory:old,assets:{},roots:{},INVENTORY_MEASURE_MS:4000,INCOMPLETE_POLL_MAX:3,WAIT_POLL_MAX:3,WAITING_POLL_MAX:3,incompleteReadsRef:{current:0},waitReadsRef:{current:0},waitingReadsRef:{current:0},
+  inventory:old,assemblyDiscovery:'ready',assets:{},roots:{},INVENTORY_MEASURE_MS:4000,INCOMPLETE_POLL_MAX:3,WAIT_POLL_MAX:3,WAITING_POLL_MAX:3,incompleteReadsRef:{current:0},waitReadsRef:{current:0},waitingReadsRef:{current:0},
   readInventoryPages:async()=>{if(hooks.read)return hooks.read();return structuredClone(hooks.next??old);},run:()=>{},fill:()=>{},BusyError:class extends Error{},sayError:(_lang,error)=>error.message,
   setInvLoading:value=>{state.loading=value;box.invLoading=value;},setInventory:value=>{state.inventory=value;box.inventory=value;},setInvError:value=>{state.error=value;box.invError=value;},setCandidates:value=>state.candidates=value,
   setIncompleteStalled:()=>{},setWaitStalled:()=>{},setWaitingStalled:()=>{},mvFootageCounts:()=>({unusable:0}),console:{warn:()=>{}}};
@@ -70,4 +70,7 @@ for(const plugin of ['mini-vlog','archive-vlog'])test(plugin+': another version 
  const f=await builder(t,plugin),writes=[];Object.assign(f.box,{chosen:null,setResult:value=>writes.push(value),setSeed:()=>{}});
  vm.runInContext(topLevel(sources[plugin].nested,'buildAnother')+'\nthis.another=buildAnother;',f.box);f.box.another();
  assert.equal(writes.length,0);assert.equal(f.imports.length,0);
+});
+for(const state of ['loading','failed'])test('Mini remount: '+state+' continuation discovery blocks new Build despite confirmed inventory',()=>{
+ const f=consumer('mini-vlog');f.box.assemblyDiscovery=state;assert.equal(f.box.ready(),false);
 });

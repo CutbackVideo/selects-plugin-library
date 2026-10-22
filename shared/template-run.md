@@ -185,3 +185,25 @@ approval of other tracks, original-file content, title/effect completion, playba
 or export. Existing image authoring consumers retain their API and generated
 source; see `docs/template-repair/mini-assembly-receipts.md` for caller and SDK
 evidence and remaining phase/discovery work.
+
+## Standalone assembly continuation discovery
+
+`openTemplateAssemblyContinuations(sdk, files, target, isCurrent)` extends this
+same feature for callers that otherwise lose their assembly request on realm
+remount. `target` binds plugin/Project and optionally the expected library;
+scaffold ownership supplies the actual library. `read()` returns the single
+verified pending payload or null. Multiple unresolved attempts are an explicit
+ambiguity. `store(pending)` freezes its scope/config/source and JSON caller data
+before dispatch. `run(pending)` uses the existing assembly owner and acknowledges
+only a positive assembly confirmation or proven no-save; unknown saves remain
+indexed. A completion tombstone prevents an old callback from republishing that
+run. Pending payloads are bounded at 256 KiB and published atomically before the
+48 KiB exclusive manifest; existing local file methods supply chunking. Discovery
+is bounded to 4096 directory entries and 64 manifests. All identity/path names
+are hashes; no name/time inference or automatic timeout expiry is used.
+
+The original run reader now repeats a changing stat/read/stat observation at
+most three times. Continued replacement remains pending, never an authoring
+retry. Stable malformed records still fail. Existing Image callers keep their
+public API. See [the discovery checkpoint](../docs/template-repair/mini-pending-discovery.md) for TDD, consumer, actual restart
+readback evidence and the explicit title/Finish phase boundary.

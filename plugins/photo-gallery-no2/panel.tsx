@@ -474,11 +474,19 @@ async function executeTemplateRun(sdk,files,scope,request,isCurrent,perform,veri
   if(!await files.exists(path))return null;
   let row;
   try{
-   const stat=await files.stat(path);if(!stat||stat.isDirectory!==false||!Number.isSafeInteger(stat.size)||stat.size<1||stat.size>49152)throw Error('Invalid record size');
+   for(let attempt=0;attempt<3;attempt++){
+   const stat=await files.stat(path);if(stat?.isDirectory===false&&stat.size===0)continue;
+   if(!stat||stat.isDirectory!==false||!Number.isSafeInteger(stat.size)||stat.size<1||stat.size>49152)throw Error('Invalid record size');
    const bytes=await files.readRange(path,0,stat.size),after=await files.stat(path);
-   if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]'||bytes.byteLength!==stat.size||!after||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))throw Error('Run record changed while reading');
-   row=JSON.parse(new TextDecoder().decode(bytes));
-  }catch{fail('TEMPLATE_RUN_INVALID','The saved run record could not be read. Inspect the Project before starting a new run.');}
+   if(Object.prototype.toString.call(bytes)!=='[object Uint8Array]')throw Error('Invalid run record bytes');
+   // A legitimate Main-side receipt may replace the claim between these reads.
+   // Retry bounded observations; never parse a mixture or retry authoring.
+   if(!after||['size','mtimeMs','ino'].some(key=>stat[key]!==after[key]))continue;
+   if(bytes.byteLength!==stat.size)throw Error('Invalid run record bytes');
+   row=JSON.parse(new TextDecoder().decode(bytes));break;
+   }
+   if(row===undefined)fail('TEMPLATE_RUN_PENDING','The run record is changing. Check its saved result again.');
+  }catch(error){if(error?.code==='TEMPLATE_RUN_PENDING')throw error;fail('TEMPLATE_RUN_INVALID','The saved run record could not be read. Inspect the Project before starting a new run.');}
   return validateTemplateRun(row,scope,requestDigest);
  };
  const recover=async row=>{

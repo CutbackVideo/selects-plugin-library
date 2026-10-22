@@ -39,11 +39,11 @@ async function receiptFixture(t,{minify=false}={}){
  const box=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array});
  if(minify){
   const require=createRequire(import.meta.url),esbuild=require(process.env.SELECTS_ESBUILD||process.env.SBS_PANEL_TEST_MODULES+'/esbuild'),module={exports:{}};
-  Object.assign(box,{module,exports:module.exports});vm.runInContext(esbuild.transformSync(runSource+'\nexport {executeTemplateAssembly};',{loader:'js',format:'cjs',minify:true}).code,box);box.execute=module.exports.executeTemplateAssembly;
+  Object.assign(box,{module,exports:module.exports});vm.runInContext(esbuild.transformSync(runSource+'\nexport {executeTemplateAssembly,openTemplateAssemblyContinuations};',{loader:'js',format:'cjs',minify:true}).code,box);box.execute=module.exports.executeTemplateAssembly;box.openTemplateAssemblyContinuations=module.exports.openTemplateAssemblyContinuations;
  }else vm.runInContext(runSource+'\nthis.execute=executeTemplateAssembly;',box);
  const scope={pluginId:'mini-vlog',projectId:'p',runId:'run-1'},config={projectId:'p',draftName:'Same name',picks:[{rid:'r0',startSeconds:0,sourceDuration:20},{rid:'r1',startSeconds:0,sourceDuration:20}],boundaries:[0,1,2],crops:{},music:null,clipSound:'full'};
  const run=()=>box.execute(sdk,f.local.files,scope,config,assembly,()=>true);
- return {...f,box,hooks,requests,saved,scope,config,run,unrelated,pending,commits:()=>commits};
+ return {...f,fileHooks:f.hooks,sdk,box,hooks,requests,saved,scope,config,run,unrelated,pending,commits:()=>commits};
 }
 test('Mini assembly receipt: healthy save and retry use one exact owned Draft',async t=>{
  const f=await receiptFixture(t),a=await f.run(),b=await f.run();assert.equal(a.sequenceId,'owned-1');assert.equal(b.sequenceId,a.sequenceId);assert.equal(f.commits(),1);assert.equal(a.totalFrames,60);assert.equal(b.assemblyConfirmed,true);
@@ -105,4 +105,42 @@ test('Mini assembly receipt: minified distribution preserves serialized SDK depe
 });
 test('Mini assembly receipt: a nonfinite SDK observation cannot become a null-valued saved fact',async t=>{
  const f=await receiptFixture(t);f.hooks.transform=()=>({enabled:true,scale:{x:NaN,y:1}});await assert.rejects(f.run(),e=>e.code==='TEMPLATE_RUN_NOT_SAVED');assert.equal(f.commits(),0);
+});
+
+test('Mini continuation: a remounted realm confirms a late real assembly without a second commit',async t=>{
+ const f=await receiptFixture(t);f.files.readdir=async p=>fs.readdirSync(p);
+ const open=async()=>{const box=vm.createContext({crypto:webcrypto,TextEncoder,TextDecoder,Uint8Array});vm.runInContext(runSource,box);return box.openTemplateAssemblyContinuations(f.sdk,f.local.files,{pluginId:'mini-vlog',projectId:'p'},()=>true);};
+ const original={scope:f.scope,config:f.config,source:assembly,frozen:{pid:'p',seed:7},plan:{picks:f.config.picks}};
+ let release;const held=new Promise(resolve=>release=resolve);f.hooks.commit=()=>held;f.hooks.lostEarly=true;
+ await assert.rejects((await open()).run(original),e=>e.code==='TEMPLATE_RUN_PENDING');assert.equal(f.commits(),1);
+ release();await Promise.all(f.pending);f.hooks.lostEarly=false;
+ const remounted=await open(),pending=await remounted.read();assert.equal(pending.frozen.seed,7);
+ const result=await remounted.run(pending);assert.equal(result.sequenceId,'owned-1');assert.equal(f.commits(),1);assert.equal(await (await open()).read(),null);
+});
+
+test('Mini continuation: concurrent remounted callers share the existing exclusive assembly claim',async t=>{
+ const f=await receiptFixture(t);f.files.readdir=async p=>fs.readdirSync(p);
+ const log=await f.box.openTemplateAssemblyContinuations(f.sdk,f.local.files,{pluginId:'mini-vlog',projectId:'p'},()=>true),pending={scope:f.scope,config:f.config,source:assembly,frozen:{seed:7}};
+ const results=await Promise.allSettled([log.run(pending),log.run(pending)]);
+ assert.equal(f.commits(),1);assert.ok(results.some(r=>r.status==='fulfilled'));assert.ok(results.every(r=>r.status==='fulfilled'||['TEMPLATE_RUN_PENDING','TEMPLATE_RUN_COMPLETED'].includes(r.reason.code)),JSON.stringify(results.map(r=>r.reason&&{code:r.reason.code,message:r.reason.message,stack:r.reason.stack})));
+});
+
+test('Mini run record: legitimate atomic replacement during read is observed again without authoring',async t=>{
+ const f=await receiptFixture(t);await f.run();let replaced=false;
+ f.fileHooks.beforeRead=(file)=>{if(!replaced&&file.endsWith('.json')&&file.includes('template-runs')){replaced=true;const old=fs.readFileSync(file,'utf8');fs.writeFileSync(file+'.next',old+'\n');fs.renameSync(file+'.next',file);}};
+ assert.equal((await f.run()).sequenceId,'owned-1');assert.equal(replaced,true);assert.equal(f.commits(),1);
+});
+test('Mini run record: sustained replacement is a bounded pending observation rather than corruption or replay',async t=>{
+ const f=await receiptFixture(t);await f.run();let reads=0;
+ f.fileHooks.beforeRead=(file)=>{if(file.endsWith('.json')&&file.includes('template-runs')){reads++;fs.writeFileSync(file+'.next',fs.readFileSync(file,'utf8')+'\n');fs.renameSync(file+'.next',file);}};
+ await assert.rejects(f.run(),e=>e.code==='TEMPLATE_RUN_PENDING');assert.equal(reads,3);assert.equal(f.commits(),1);
+});
+test('Mini continuation: minified distribution keeps discovery and real serialized save dependencies',async t=>{
+ const f=await receiptFixture(t,{minify:true});f.files.readdir=async p=>fs.readdirSync(p);
+ const log=await f.box.openTemplateAssemblyContinuations(f.sdk,f.local.files,{pluginId:'mini-vlog',projectId:'p'},()=>true),pending={scope:f.scope,config:f.config,source:assembly,frozen:{seed:7}};
+ await log.store(pending);const resumed=await log.read();assert.equal(resumed.frozen.seed,7);assert.equal((await log.run(resumed)).sequenceId,'owned-1');assert.equal(f.commits(),1);assert.equal(await log.read(),null);
+});
+test('Mini run record: stable JSON null is invalid rather than an indefinitely changing record',async t=>{
+ const f=await receiptFixture(t);await f.run();const directory=path.join(f.root,'.selects/plugin-data/mini-vlog/template-runs'),name=fs.readdirSync(directory).find(name=>name.endsWith('.json'));fs.writeFileSync(path.join(directory,name),'null');
+ await assert.rejects(f.run(),e=>e.code==='TEMPLATE_RUN_INVALID');assert.equal(f.commits(),1);
 });
