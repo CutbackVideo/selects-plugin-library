@@ -1169,3 +1169,78 @@ test('the keyframe stage proceeds with the delivered candidate (scene 6 uses B)'
   assert.equal(h.log.submits.filter((g) => g === 'kf:2:A').length, 1);
   fs.rmSync(dir, {recursive: true, force: true});
 });
+
+// ---- inside-the-body shots mixed into myth / timeline / list ----
+const INSIDE_PLAN = (look, extra = {}) => ({mode: 'myth', title_lines: ['A', 'B'], scenes: look.map((l, i) => ({narration: `Sentence ${i + 1}.`, subject: `s${i + 1}`, motion: 'm',
+  camera: 'push_in', transitionOut: 'cut', label: 'L', look: l, ...(i === 1 ? {verdict: 'X', mythIndex: 1, reasonCard: 'r'} : {}), ...extra}))});
+
+test('inside-the-body shots: the prompt mentions them only when auto or on (may / should), never in zoom or when off', () => {
+  for (const mode of ['myth', 'timeline', 'list', 'auto']) {
+    assert.match(op.medScriptPrompt(ART, F, mode, 'auto'), /\[Inside-the-body shots\][^]*may use 2-4 consecutive inside-the-body scenes/);
+    assert.match(op.medScriptPrompt(ART, F, mode, 'on'), /should use 2-4 consecutive inside-the-body scenes/);
+    const off = op.medScriptPrompt(ART, F, mode, 'off');
+    assert.doesNotMatch(off, /inside-the-body|"look"|look:/i, mode);
+    assert.doesNotMatch(op.medScriptPrompt(ART, F, mode, 'on'), ANATOMY);
+  }
+  assert.doesNotMatch(op.medScriptPrompt(ART, F, 'zoom', 'on'), /Inside-the-body shots/);
+});
+
+test('look: scene by default, inside when the script says so, zoom all inside, off none; push in and pull out at look boundaries', () => {
+  const looks = ['scene', 'scene', 'inside', 'inside', 'inside', 'scene', 'bogus'];
+  const {plan} = op.medNormalizePlan(INSIDE_PLAN(looks), 'en', 'T');
+  assert.deepEqual(plan.scenes.map((s) => s.look), ['scene', 'scene', 'inside', 'inside', 'inside', 'scene', 'scene']);
+  assert.deepEqual(plan.scenes.map((s) => s.transitionOut), ['cut', 'push', 'push', 'push', 'pull', 'cut', null], 'enter and go deeper: push; leave: pull; else the plan');
+  assert.deepEqual(op.medNormalizePlan(INSIDE_PLAN(looks), 'en', 'T', 'auto', 'off').plan.scenes.map((s) => s.look), Array(7).fill('scene'));
+  assert.deepEqual(op.medNormalizePlan(INSIDE_PLAN(looks), 'en', 'T', 'auto', 'off').plan.scenes.slice(0, -1).map((s) => s.transitionOut), Array(6).fill('cut'));
+  assert.ok(op.medNormalizePlan(INSIDE_PLAN(looks), 'en', 'T', 'zoom').plan.scenes.every((s) => s.look === 'inside'));
+  // The usage line counts the generated transition clips: three pushes and one pull, two takes each.
+  const counts = op.medGenerationCounts(plan, false);
+  assert.equal(counts.transitions, 4 * 2, 'two takes per generated boundary');
+  const tl = op.medTimeline(plan.scenes.map(() => 4), plan.scenes.slice(0, -1).map((s) => s.transitionOut));
+  assert.deepEqual(tl.boundaries.map((b) => b.generated), [false, true, true, true, true, false]);
+  for (const s of tl.scenes) { const w = op.medSceneWindows(s, 0).label; const b = tl.boundaries[s.n - 1]; if (w && b) assert.ok(w.end < b.start + 1e-9); }
+  const panel = fs.readFileSync(path.resolve(import.meta.dirname, '../plugins/medical-explainer/panel.tsx'), 'utf8');
+  assert.match(panel, /S\.estimate\(check\.counts\.images, check\.counts\.clips, check\.counts\.clipSeconds, check\.counts\.transitions/);
+});
+
+test('keyframes: per-scene style suffix by look, and two reference families (scene 1 for scenes, the first inside scene for inside)', async () => {
+  const {dir} = makeJob({kfModel: 'nano-banana-2.1', layout: 'fullbleed'});
+  const {plan} = op.medNormalizePlan(INSIDE_PLAN(['scene', 'scene', 'inside', 'inside', 'scene']), 'ko', 'T');
+  fs.writeFileSync(path.join(dir, 'plan.json'), JSON.stringify(plan));
+  const gen = JSON.parse(fs.readFileSync(path.join(dir, 'gen.json'), 'utf8'));
+  for (const n of [1, 2, 3, 4, 5]) for (const c of 'AB') { const f = path.join(dir, `kf_${n}${c}.png`); fs.writeFileSync(f, ''); gen[`kf:${n}:${c}`] = {path: f}; }
+  fs.writeFileSync(path.join(dir, 'gen.json'), JSON.stringify(gen));
+  assert.deepEqual(op.medFamilyFirsts(plan), [1, 3]);
+  // Before the inside family's first pick exists, its later scenes cannot be asked for.
+  fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'B'}}));
+  assert.deepEqual(await op.medEngine('requests', dir, ['keyframes', '4'], stubIO(dir)), {ok: false, error: 'scene 3 keyframe not chosen'});
+  fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'B', 3: 'A'}}));
+  const reqs = (await op.medEngine('requests', dir, ['keyframes'], stubIO(dir))).requests;
+  const by = Object.fromEntries(reqs.filter((r) => r.gen.endsWith(':A')).map((r) => [r.gen.split(':')[1], r]));
+  const medical = op.medStyleSuffix('medical', 'fullbleed'), everyday = op.medStyleSuffix('everyday', 'fullbleed');
+  assert.ok(by[1].input.prompt.endsWith(everyday + '.') && !by[1].input.image_urls, 'scene 1: text, everyday');
+  assert.ok(by[3].input.prompt.endsWith(medical + '.') && !by[3].input.image_urls, 'first inside scene: text, 3D medical CG');
+  assert.ok(by[4].input.prompt.endsWith(medical + '.'));
+  assert.match(by[4].uploads.ref, /kf_3A\.png$/, 'inside scenes follow the first inside scene');
+  assert.match(by[4].key, /-r3A$/);
+  assert.ok(by[2].input.prompt.endsWith(everyday + '.') && by[5].input.prompt.endsWith(everyday + '.'));
+  assert.match(by[2].uploads.ref, /kf_1B\.png$/);
+  assert.match(by[5].uploads.ref, /kf_1B\.png$/);
+  assert.match(by[5].key, /-rB$/, 'the scene family keeps its earlier key form');
+  for (const r of reqs) { assert.equal(r.input.aspect_ratio, '9:16'); assert.match(r.key, op.MED_KEY_PATTERN); }
+  // Clips and transitions into the inside family use the 3D medical CG medium.
+  const io = stubIO(dir, {duration: async (p) => NARR[Number(/narr_(\d)_/.exec(p)[1]) - 1] || 4});
+  const narr = JSON.parse(fs.readFileSync(path.join(dir, 'gen.json'), 'utf8'));
+  narr['narr:5'] = {path: path.join(dir, 'mxT_narr_5_1.mp3')}; fs.writeFileSync(narr['narr:5'].path, '');
+  fs.writeFileSync(path.join(dir, 'gen.json'), JSON.stringify(narr));
+  await op.medEngine('timeline', dir, [], io);
+  fs.writeFileSync(path.join(dir, 'picks.json'), JSON.stringify({kf: {1: 'B', 2: 'A', 3: 'A', 4: 'A', 5: 'A'}, clip: {}}));
+  const clips = (await op.medEngine('requests', dir, ['clips'], io)).requests.filter((r) => r.gen.endsWith(':A'));
+  assert.deepEqual(clips.map((r) => r.input.prompt.startsWith(op.MED_ARTS.medical.motion)), [false, false, true, true, false]);
+  for (const n of [1, 2, 3, 4, 5]) { fs.writeFileSync(path.join(dir, 'work', `out_${n}.png`), ''); fs.writeFileSync(path.join(dir, 'work', `in_${n}.png`), ''); }
+  const tr = (await op.medEngine('requests', dir, ['transitions'], io)).requests.filter((r) => r.gen.endsWith(':A'));
+  assert.deepEqual(tr.map((r) => r.gen), ['tr:2:A', 'tr:3:A', 'tr:4:A'], 'enter, deeper and leave are generated; the cut is not');
+  assert.ok(tr.every((r) => r.input.prompt.startsWith(op.MED_ARTS.medical.motion)));
+  assert.match(tr[2].input.prompt, /pull-back/);
+  fs.rmSync(dir, {recursive: true, force: true});
+});

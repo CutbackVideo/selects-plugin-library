@@ -10,6 +10,10 @@ the topic, and the pictures and screen follow it:
 - **Timeline** — a day or a sequence of steps with time chips, on a full 9:16 frame.
 - **Steps or list** — the conclusion first, then numbered step cards, on a full 9:16 frame.
 
+In the myth, timeline and steps modes the script can add a short inside-the-body dive (2-4 scenes in 3D medical CG,
+entered with a push and left with a pull) for the explanation; the "Inside-the-body shots" setting turns this on,
+leaves it to the script (default) or turns it off. Inside scenes have their own style reference.
+
 The explanation mode, the art style (3D medical CG, photoreal everyday, stylized 3D character, clean infographic) and
 the layout can also be chosen in the settings. Every title, label, caption and card is its own editable graphic clip.
 

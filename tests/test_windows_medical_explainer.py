@@ -122,7 +122,8 @@ class MedicalExplainerTest(unittest.TestCase):
 
     def test_mode_art_and_layout_are_settings(self):
         for needle in ['<ui.Select label={S.mode} value={modeSet}', '<ui.Select label={S.art} value={artSet}', '<ui.Select label={S.layout} value={layoutSet}',
-                       'mode: modeSet, art: artSet, layout: layoutSet', 'await ask(medScriptPrompt(art, f, modeSet))']:
+                       'mode: modeSet, art: artSet, layout: layoutSet, inside: insideSet', 'await ask(medScriptPrompt(art, f, modeSet, insideSet))',
+                       '<ui.Select label={S.inside} value={insideSet}']:
             self.assertIn(needle, self.panel)
         self.assertNotIn('MED_STYLE', self.panel)
         self.assertNotIn('gentle blood flow', self.panel)
@@ -138,7 +139,7 @@ class MedicalExplainerTest(unittest.TestCase):
         self.assertIn('{noHost && <ui.Message>{S.noHost}</ui.Message>}', self.panel)
         langs = re.findall(r'^  (\w\w): \{$', self.panel, flags=re.M)
         self.assertEqual(sorted(langs), ['en', 'ko'])
-        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged', 'kfModel', 'fluxNote', 'policyScenes', 'policyTransitions', 'editHint', 'policyTitle', 'policyUseStill', 'policyRegenFailed', 'policyStill', 'autoMode', 'autoStyle']:
+        for key in ['noHost', 'noGeneration', 'noStorage', 'review', 'keepWaiting', 'resubmit', 'styleChanged', 'kfModel', 'fluxNote', 'policyScenes', 'policyTransitions', 'editHint', 'policyTitle', 'policyUseStill', 'policyRegenFailed', 'policyStill', 'autoMode', 'autoStyle', 'inside']:
             self.assertEqual(len(re.findall(r'\b%s: "' % key, self.panel)), len(langs), key)
 
     def test_korean_fallback_fonts_in_every_overlay(self):

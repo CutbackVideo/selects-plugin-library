@@ -320,6 +320,7 @@ type Strings = {
   tooLong: (list: string) => string; editHint: string; sentence: (n: number) => string;
   mode: string; art: string; layout: string; autoMode: string; autoStyle: string; modeNames: Record<string, string>; artNames: Record<string, string>; layoutNames: Record<string, string>;
   chosen: (mode: string, art: string, layout: string) => string;
+  inside: string; insideNames: Record<string, string>; insideCount: (n: number) => string;
   unresolved: (names: string) => string; keepWaiting: string; resubmit: string; styleChanged: string;
 };
 
@@ -359,6 +360,8 @@ const STRINGS: Record<string, Strings> = {
     artNames: { medical: "3D medical CG", everyday: "Photoreal everyday", character: "Stylized 3D character", infographic: "Clean infographic" },
     layoutNames: { strip: "16:9 strip card", fullbleed: "Full-frame 9:16" },
     chosen: (m, a, l) => `Explanation: ${m} \u00b7 Art: ${a} \u00b7 Layout: ${l}`,
+    inside: "Inside-the-body shots", insideNames: { auto: "When they help", on: "Use them", off: "None" },
+    insideCount: (n) => `${n} inside-the-body scene${n === 1 ? "" : "s"} (3D medical CG)`,
     editHint: "Edit a sentence to split or shorten it. Only edited sentences are narrated again.", sentence: (n) => `Sentence ${n}`,
     kfModel: "Keyframe model", fluxNote: "FLUX 3 has no edit model: scenes 2 onward are drawn from text with the style description only, without scene 1 as a reference.",
     kfModelUsed: (l) => `Keyframes: ${l}`, policyScenes: "Keyframe regenerated after a video model policy refusal",
@@ -410,6 +413,8 @@ const STRINGS: Record<string, Strings> = {
     artNames: { medical: "3D \uc758\ud559 CG", everyday: "\uc77c\uc0c1 \uc2e4\uc0ac", character: "3D \uce90\ub9ad\ud130", infographic: "\uc778\ud3ec\uadf8\ub798\ud53d" },
     layoutNames: { strip: "16:9 \ub760 \uce74\ub4dc", fullbleed: "\uc804\uccb4 \ud654\uba74 9:16" },
     chosen: (m, a, l) => `\uc124\uba85: ${m} \u00b7 \ud654\ud48d: ${a} \u00b7 \ud654\uba74: ${l}`,
+    inside: "\ubab8\uc18d \uc7a5\uba74", insideNames: { auto: "\ud544\uc694\ud560 \ub54c", on: "\uc0ac\uc6a9", off: "\uc0ac\uc6a9 \uc548 \ud568" },
+    insideCount: (n) => `\ubab8\uc18d \uc7a5\uba74 ${n}\uac1c(3D \uc758\ud559 CG)`,
     editHint: "\ubb38\uc7a5\uc744 \uace0\uccd0 \ub098\ub204\uac70\ub098 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uace0\uce5c \ubb38\uc7a5\ub9cc \ub2e4\uc2dc \ub179\uc74c\ud569\ub2c8\ub2e4.", sentence: (n) => `\ubb38\uc7a5 ${n}`,
     kfModel: "\ud0a4\ud504\ub808\uc784 \ubaa8\ub378", fluxNote: "FLUX 3\uc5d0\ub294 \ud3b8\uc9d1 \ubaa8\ub378\uc774 \uc5c6\uc5b4 \uc7a5\uba74 2\ubd80\ud130\ub294 \uc7a5\uba74 1\uc744 \ucc38\uace0\ud558\uc9c0 \uc54a\uace0 \uc2a4\ud0c0\uc77c \uc124\uba85\ub9cc\uc73c\ub85c \uadf8\ub9bd\ub2c8\ub2e4.",
     kfModelUsed: (l) => `\ud0a4\ud504\ub808\uc784: ${l}`, policyScenes: "\uc601\uc0c1 \ubaa8\ub378 \uc815\ucc45 \uac70\ubd80 \ud6c4 \ud0a4\ud504\ub808\uc784\uc744 \ub2e4\uc2dc \ub9cc\ub4e0 \uc7a5\uba74",
@@ -623,6 +628,17 @@ export function medStyleFor(settings, plan) {
   const layout = MED_LAYOUTS[st.layout] ? st.layout : MED_MODES[mode].layout;
   return { mode, art, layout, geo: MED_LAYOUTS[layout], suffix: medStyleSuffix(art, layout) };
 }
+// Per scene: an inside-the-body scene uses the 3D medical CG preset, any other scene the job's art preset.
+export const medSceneArt = (style, scene) => (asObj(scene).look === "inside" ? "medical" : style.art);
+export const medSceneSuffix = (style, scene) => medStyleSuffix(medSceneArt(style, scene), style.layout);
+// Two style families, each with its own reference: a scene's family is its `look`; its first scene is drawn from text
+// and later scenes of the family are edits with that first scene's chosen keyframe as the reference.
+export function medFamilyFirst(plan, scene) {
+  const look = asObj(scene).look === "inside" ? "inside" : "scene";
+  const first = plan.scenes.find((x) => (x.look === "inside" ? "inside" : "scene") === look);
+  return first ? first.n : scene.n;
+}
+export const medFamilyFirsts = (plan) => [...new Set(plan.scenes.map((s) => medFamilyFirst(plan, s)))];
 export const MED_KF_SIZE = { width: 2560, height: 1440 }; // Seedream 5 Pro's own 16:9 size in the Selects image tool
 export const MED_KF_SIZE_PORTRAIT = { width: 1440, height: 2560 }; // and its 9:16 size
 // Keyframe image models. Scene 1 is drawn from text (`t2i`); scenes 2-N are edits with scene 1's chosen keyframe as
@@ -1006,7 +1022,10 @@ function normCamera(v) {
 // dissolve, push, pull). Mode overlay fields are kept for their mode only: myth `mythIndex` 1-3, `verdict` O/X and a
 // one-line `reasonCard`; timeline `timeChip`; list `stepNumber` and `stepCard`. At most one split scene (left must be
 // an earlier scene) and one inset scene (exactly two insets, from other scenes); texts are shortened to fit.
-export function medNormalizePlan(raw, lang, fallbackTitle, modeSetting = "auto") {
+// `look`: "scene" (the job's art preset) or "inside" (3D medical CG inside the body). Zoom is all inside; the
+// "Inside-the-body shots" setting "off" keeps every scene a scene. A boundary into or between inside scenes is a push
+// and one out of them a pull (generated camera moves, as in zoom); other boundaries follow the mode.
+export function medNormalizePlan(raw, lang, fallbackTitle, modeSetting = "auto", insideSetting = "auto") {
   const L = MED_LANG[lang] || MED_LANG.en;
   const warnings = [], errors = [];
   raw = asObj(raw);
@@ -1023,7 +1042,8 @@ export function medNormalizePlan(raw, lang, fallbackTitle, modeSetting = "auto")
     const pointers = (Array.isArray(s.pointers) ? s.pointers : []).map((p) => slice(strip(typeof p === "string" ? p : asObj(p).label || ""), 0, L.label)).filter(Boolean).slice(0, 2);
     const subject = slice(visual, 0, 900);
     const sc = { n: scenes.length + 1, narration, subject, visual: subject, motion: slice(strip(s.motion || ""), 0, 300), camera: normCamera(s.camera),
-      scale: normScale(s.scale), transitionOut: strip(s.transitionOut || s.transition || "").toLowerCase(), label, pointers, split: null, insets: null, _split: s.split, _insets: s.insets };
+      scale: normScale(s.scale), transitionOut: strip(s.transitionOut || s.transition || "").toLowerCase(),
+      look: mode === "zoom" ? "inside" : insideSetting !== "off" && strip(s.look || "").toLowerCase() === "inside" ? "inside" : "scene", label, pointers, split: null, insets: null, _split: s.split, _insets: s.insets };
     if (mode === "myth") {
       const verdict = VERDICT[strip(String(s.verdict ?? "")).toLowerCase()] || null;
       if (verdict) Object.assign(sc, { verdict, mythIndex: parseInt(s.mythIndex, 10) || 0, reasonCard: slice(strip(s.reasonCard || ""), 0, L.cap + 4) });
@@ -1058,7 +1078,12 @@ export function medNormalizePlan(raw, lang, fallbackTitle, modeSetting = "auto")
     delete s._split;
     delete s._insets;
   }
-  scenes.forEach((s, i) => { s.transitionOut = i + 1 < scenes.length ? normTransition(s.transitionOut, mode, s.scale, scenes[i + 1].scale) : null; });
+  scenes.forEach((s, i) => {
+    const next = scenes[i + 1];
+    if (!next) { s.transitionOut = null; return; }
+    s.transitionOut = mode !== "zoom" && next.look === "inside" ? "push" : mode !== "zoom" && s.look === "inside" ? "pull"
+      : normTransition(s.transitionOut, mode, s.scale, next.scale);
+  });
   if (mode === "myth") {
     // At most three myths, numbered in order.
     let k = 0;
@@ -1229,7 +1254,7 @@ async function cmdValidate(io, job) {
   const raw = await io.readJson(job.p("plan.json"), null);
   const art = (await io.readJson(job.p("article.json"), {})) || {};
   const lang = job.data.lang || "ko";
-  const { plan, warnings, errors } = medNormalizePlan(raw, lang, art.title, settingsOf(job).mode);
+  const { plan, warnings, errors } = medNormalizePlan(raw, lang, art.title, settingsOf(job).mode, settingsOf(job).inside);
   await io.writeJson(job.p("plan.json"), plan);
   job.data.stage = errors.length ? "plan_error" : "planned";
   await job.save();
@@ -1321,17 +1346,19 @@ async function cmdRequests(io, job, kind, only, attempt) {
         const id = `${s.n}${c}`;
         if (only && !only.has(id) && !only.has(String(s.n))) continue;
         const gen = `kf:${s.n}:${c}`;
-        const styled = s.n > 1 && !!model.edit;
-        const input = model.input(medKeyframePrompt(s, styled, style.suffix), style.geo.aspect);
+        const first = medFamilyFirst(plan, s);
+        const styled = s.n > first && !!model.edit;
+        const input = model.input(medKeyframePrompt(s, styled, medSceneSuffix(style, s)), style.geo.aspect);
         // The model's short tag (never its id, which may hold "."), so the key stays within the host's pattern.
         const key = regen || modelId !== MED_KF_DEFAULT ? `-m${model.tag}` : "";
         const make = (mid, inp, uploads, extra) => ({ ...spec(gen, "image", "t2i", inp, uploads, "keyframes", key + extra), modelId: mid });
         if (!styled) { reqs.push(make(model.t2i, input, null, "")); continue; }
-        const ref = picks.kf["1"];
-        const refPath = ref ? await job.file(`kf:1:${ref}`) : null;
-        if (!refPath) throw medFail("scene 1 keyframe not chosen");
+        const ref = picks.kf[String(first)];
+        const refPath = ref ? await job.file(`kf:${first}:${ref}`) : null;
+        if (!refPath) throw medFail(`scene ${first} keyframe not chosen`);
         input.image_urls = ["selects-input:ref"];
-        reqs.push(make(model.edit, input, { ref: refPath }, `-r${ref}`));
+        // Scene 1's family keeps its earlier key form; the other family names its reference scene.
+        reqs.push(make(model.edit, input, { ref: refPath }, first === 1 ? `-r${ref}` : `-r${first}${ref}`));
       }
     }
   } else if (kind === "clips") {
@@ -1344,7 +1371,7 @@ async function cmdRequests(io, job, kind, only, attempt) {
       for (let t = 0; t < MED_TAKES; t++) {
         const id = `${s.n}${letter(t)}`;
         if (only && !only.has(id) && !only.has(String(s.n))) continue;
-        reqs.push(spec(`clip:${s.n}:${letter(t)}`, "video", "i2v", { prompt: medMotionPrompt(s, style.art), negative_prompt: NEGATIVE, start_image_url: "selects-input:start",
+        reqs.push(spec(`clip:${s.n}:${letter(t)}`, "video", "i2v", { prompt: medMotionPrompt(s, medSceneArt(style, s)), negative_prompt: NEGATIVE, start_image_url: "selects-input:start",
           duration: String(tl.scenes[s.n - 1].clipSeconds), generate_audio: false }, { start: kf }, "clips", `-k${pick}`));
       }
     }
@@ -1361,7 +1388,7 @@ async function cmdRequests(io, job, kind, only, attempt) {
       for (let t = 0; t < MED_TAKES; t++) {
         const id = `${s.n}${letter(t)}`;
         if (only && !only.has(id) && !only.has(String(s.n))) continue;
-        reqs.push(spec(`tr:${s.n}:${letter(t)}`, "video", "i2v", { prompt: medTransitionPrompt(s, next, style.art), negative_prompt: NEGATIVE,
+        reqs.push(spec(`tr:${s.n}:${letter(t)}`, "video", "i2v", { prompt: medTransitionPrompt(s, next, s.look === "inside" || next.look === "inside" ? "medical" : style.art), negative_prompt: NEGATIVE,
           start_image_url: "selects-input:start", end_image_url: "selects-input:end", duration: String(MED_TIMING.transitionSeconds), generate_audio: false },
           { start, end }, "transitions", pair));
       }
@@ -1985,7 +2012,12 @@ export const MED_MODE_PROMPTS = {
   list: "list: the conclusion first; then numbered steps or a comparison; then why it matters; then a short checklist. " +
     "Fields for each numbered scene: stepNumber (1, 2, ...), stepCard (the step in at most {card} characters). Prefer cut between scenes.",
 };
-export function medScriptPrompt(art, f, mode = "auto") {
+// Inside-the-body shots for the myth, timeline and list modes: "auto" lets the script use them, "on" asks for them,
+// "off" leaves them out (and the prompt does not mention them).
+export const MED_INSIDE_PROMPT = {
+  auto: "may", on: "should",
+};
+export function medScriptPrompt(art, f, mode = "auto", inside = "auto") {
   const b = f.budget;
   const card = String((MED_LANG[f.lang] || MED_LANG.en).cap);
   const modes = (MED_MODES[mode] ? [mode] : Object.keys(MED_MODES)).map((m) => "- " + MED_MODE_PROMPTS[m].replace(/\{card\}/g, card)).join("\n");
@@ -1999,6 +2031,8 @@ export function medScriptPrompt(art, f, mode = "auto") {
     `[Length]\n- ${b.sentences} sentences, about 45-55 seconds read aloud in all (about ${b.count} ${b.unit} of narration). Each sentence is one scene of about 4-6 seconds. Sentence 1 is a hook.`,
     "[Accuracy]\n- Only general, well-established health facts that agree with the source. No dosages, no individual treatment advice, no claims beyond the source. review_note: one line naming what a medical reviewer should check.",
     MED_MODES[mode] ? `[Explanation mode]\n${modes}` : `[Explanation mode]\nChoose the mode that explains this topic best and set "mode" to its name:\n${modes}`,
+    ...(mode !== "zoom" && MED_INSIDE_PROMPT[inside] ? [`[Inside-the-body shots]\n- In the myth, timeline and list modes the script ${MED_INSIDE_PROMPT[inside]} use 2-4 consecutive inside-the-body scenes for the reason or explanation beats: a short dive that enters from the person or the body part, goes down to the smallest relevant level, then returns to the everyday scene. ` +
+      'Mark those scenes "look": "inside" (3D medical CG inside the body); every other scene is "look": "scene". In the zoom mode every scene is inside.'] : []),
     "[Every scene]\n- subject: in English, what the picture shows: people, objects, places, symbols or a cut-away view, whatever explains the sentence best. No text, logos or real people's faces in the picture.\n" +
       "- motion: in English, one short phrase for the movement inside the shot.\n- camera: one of push_in, lateral, pull_back.\n" +
       "- transitionOut: how this scene hands over to the next: cut, flash, dissolve, push or pull (push and pull are a continuous camera move into or out of the next picture: use them only when the two pictures connect in space).\n" +
@@ -2311,6 +2345,7 @@ function Panel({ sdk, context, ui }: any) {
   const [modeSet, setModeSet] = React.useState<string>("auto");
   const [artSet, setArtSet] = React.useState<string>("auto");
   const [layoutSet, setLayoutSet] = React.useState<string>("auto");
+  const [insideSet, setInsideSet] = React.useState<string>("auto"); // inside-the-body shots: auto | on | off
   const [preset, setPreset] = React.useState<string>("generic");
   const [tpl, setTpl] = React.useState<any>({ ...MED_PRESETS.generic });
   const [music, setMusic] = React.useState(false);
@@ -2561,7 +2596,7 @@ function Panel({ sdk, context, ui }: any) {
     setPreset(id);
     setTpl({ ...(MED_PRESETS as any)[id] });
   }
-  const settingsNow = () => ({ lang, voice, music, kfModel, mode: modeSet, art: artSet, layout: layoutSet, template: { ...tpl }, gates: { script: gateScript, keyframes: gateKf } });
+  const settingsNow = () => ({ lang, voice, music, kfModel, mode: modeSet, art: artSet, layout: layoutSet, inside: insideSet, template: { ...tpl }, gates: { script: gateScript, keyframes: gateKf } });
 
   // ---- 1. Script ----
   async function makePlan() {
@@ -2596,7 +2631,7 @@ function Panel({ sdk, context, ui }: any) {
       const f = await run("fetch", dir, [], "Read the source");
       const art = await readJson(hostJoin(dir, "article.json"));
       setStatus(`${S.makePlan} · ${f.title || ""}`);
-      let parsed: any = await ask(medScriptPrompt(art, f, modeSet));
+      let parsed: any = await ask(medScriptPrompt(art, f, modeSet, insideSet));
       await writeJson(hostJoin(dir, "plan.json"), parsed);
       let v = await run("validate", dir, [], "Check the script");
       if (!v.ok) {
@@ -2740,9 +2775,14 @@ function Panel({ sdk, context, ui }: any) {
 
       if (!pj.kfDone) {
         setStep(1);
-        if ((await generateKind(st, sc, dir, "keyframes", ["1"], S.steps[1])).length >= MED_KF_CANDIDATES) throw new Error(`${S.steps[1]}: scene 1`);
-        if (!(await readPicks(dir)).kf["1"]) await aiPick(dir, "keyframes", ["1"], describe);
-        await generateKind(st, sc, dir, "keyframes", sceneIds.slice(1), S.steps[1]);
+        // The first scene of each style family (everyday scenes, inside-the-body scenes) first: its pick is the style
+        // reference of the family's later scenes.
+        const firsts = medFamilyFirsts(p).map(String);
+        const firstFailed = await generateKind(st, sc, dir, "keyframes", firsts, S.steps[1]);
+        for (const n of firsts) if (firstFailed.filter((f: any) => f.gen.split(":")[1] === n).length >= MED_KF_CANDIDATES) throw new Error(`${S.steps[1]}: scene ${n}`);
+        const firstPicks = await readPicks(dir);
+        await aiPick(dir, "keyframes", firsts.filter((n: string) => !firstPicks.kf[n]), describe);
+        await generateKind(st, sc, dir, "keyframes", sceneIds.filter((n: string) => !firsts.includes(n)), S.steps[1]);
         const picks = await readPicks(dir);
         const missing = sceneIds.filter((n: string) => !Array.from(MED_LETTERS.slice(0, MED_KF_CANDIDATES)).some((c) => st.gen[`kf:${n}:${c}`]?.path));
         if (missing.length) throw new Error(`${S.steps[1]}: ${missing.join(", ")}`);
@@ -2913,6 +2953,8 @@ function Panel({ sdk, context, ui }: any) {
           options={[{ value: "auto", label: S.autoMode }, ...Object.keys(MED_MODES).map((k) => ({ value: k, label: S.modeNames[k] }))]} />
         <ui.Select label={S.art} value={artSet} onChange={setArtSet} disabled={!!busy}
           options={[{ value: "auto", label: S.autoStyle }, ...Object.keys(MED_ARTS).map((k) => ({ value: k, label: S.artNames[k] }))]} />
+        <ui.Select label={S.inside} value={insideSet} onChange={setInsideSet} disabled={!!busy}
+          options={["auto", "on", "off"].map((k) => ({ value: k, label: S.insideNames[k] }))} />
         <ui.Select label={S.layout} value={layoutSet} onChange={setLayoutSet} disabled={!!busy}
           options={[{ value: "auto", label: S.autoStyle }, ...Object.keys(MED_LAYOUTS).map((k) => ({ value: k, label: S.layoutNames[k] }))]} />
         <ui.Select label={S.voice} value={voice} onChange={setVoice} options={MED_VOICES.map((v) => ({ value: v.id, label: v.label }))} disabled={!!busy} />
@@ -2938,7 +2980,7 @@ function Panel({ sdk, context, ui }: any) {
         <ui.Section title={S.planTitle}>
           <ui.Message tone="error">{S.review}{plan.reviewNote ? " " + plan.reviewNote : ""}</ui.Message>
           {check && <p>{S.summary(check.seconds, check.scenes, languageName(plan.lang, uiLang))}</p>}
-          {(() => { const st = medStyleFor(jobSettings || { art: artSet, layout: layoutSet }, plan); return <ui.Message tone="muted">{S.chosen(S.modeNames[st.mode], S.artNames[st.art], S.layoutNames[st.layout])}</ui.Message>; })()}
+          {(() => { const st = medStyleFor(jobSettings || { art: artSet, layout: layoutSet }, plan); return <ui.Message tone="muted">{S.chosen(S.modeNames[st.mode], S.artNames[st.art], S.layoutNames[st.layout])}{st.mode !== "zoom" ? " \u00b7 " + S.insideCount(plan.scenes.filter((x: any) => x.look === "inside").length) : ""}</ui.Message>; })()}
           <ui.TextField label={S.title1} value={titleLines.line1} onChange={(v: string) => setTitleLines((t) => ({ ...t, line1: v }))} disabled={!!busy} />
           <ui.TextField label={S.title2} value={titleLines.line2} onChange={(v: string) => setTitleLines((t) => ({ ...t, line2: v }))} disabled={!!busy} />
           <div style={{ overflowX: "auto" }}>
