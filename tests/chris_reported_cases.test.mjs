@@ -98,3 +98,37 @@ test('multiple saved contact sheets and an optional reference are identified by 
   assert.match(prompt,withReference?/Only the separately named "Original reference:/ : /No original reference image is supplied/);
  }
 });
+
+const captionSource=read('captions.tsx');
+const outlineBegin=captionSource.indexOf('export function phraseOutline('),outlineEnd=captionSource.indexOf('// One independently editable',outlineBegin);
+const {phraseOutline}=vm.runInNewContext(stripTypeScriptTypes(captionSource.slice(outlineBegin,outlineEnd).replace('export ',''))+';({phraseOutline})');
+test('small phrases get an opposite-color edge without changing their fill, font, size, or timing',()=>{
+ const light=plain(phraseOutline('#ffffff',53)),dark=plain(phraseOutline('#111111',53));
+ assert.ok(Math.abs(parseFloat(light.WebkitTextStroke)-1.855)<1e-9);
+ assert.ok(light.WebkitTextStroke.endsWith('px #111111'));
+ assert.ok(dark.WebkitTextStroke.endsWith('px #ffffff'));
+ assert.equal(light.paintOrder,'stroke fill');
+ assert.deepEqual(Object.keys(light),['WebkitTextStroke','paintOrder']);
+ assert.equal(phraseOutline('#ffffff',10).WebkitTextStroke,'0.75px #111111');
+});
+test('keyword rendering bypasses the phrase edge and retains the existing reveal implementation',()=>{
+ assert.ok(captionSource.includes('data.keyword ? {} : phraseOutline('));
+ assert.ok(captionSource.includes('const opacity = data.keyword ? 1 : age < 0 ? 0 :'));
+ assert.ok(captionSource.includes('const size = Number(data.fontSize || 53) * scale;'));
+});
+
+const noticeStart=panel.indexOf('const RESULT_NOTICE_UI:'),noticeEnd=panel.indexOf('async function templatePaths(',noticeStart);
+const {notifyTemplateIssues,templateIssueNotice}=vm.runInNewContext(stripTypeScriptTypes(panel.slice(noticeStart,noticeEnd).replaceAll('export ',''))+';({notifyTemplateIssues,templateIssueNotice})',{hostJoin:(...parts)=>parts.join('/')});
+test('only actual saved-run warnings open a localized host notice; dismissal preserves the result and cannot retry generation',async()=>{
+ const calls=[],report={draftId:'saved',warnings:['Final B-roll crop rejected: first frame is black.']};
+ const result=await notifyTemplateIssues({confirm:async request=>{calls.push(plain(request));return false;}},{language:'ko'},report);
+ assert.equal(result.shown,true);assert.equal(result.acknowledged,false);assert.equal(report.draftId,'saved');assert.equal(calls.length,1);
+ assert.match(calls[0].title,/저장된 결과/);assert.match(calls[0].message,/검은 시작/);
+ assert.equal((await notifyTemplateIssues({confirm:async()=>{throw Error('Should not run');}},{},{warnings:[]})).shown,false);
+ assert.equal((await notifyTemplateIssues({}, {},report)).shown,false);
+});
+
+test('the host-limited notice contains complete next steps and the full report path within 500 characters',()=>{
+ const r={jobDir:'/Users/mano/Documents/clip-highlights-analysis/repro-20261023/round3/caption/outputs/chris-williamson-style/runs/9b1c5341-mvklz701',warnings:['Final B-roll crop rejected: The first sampled crop is completely black. '+ 'Detailed original finding. '.repeat(20),"The phrase cannot be read because contrast is low.",'The speaker leans out of frame.']};
+ for(const language of ['en','ko']){const notice=templateIssueNotice(r,language);assert.ok(notice.message.length<500);assert.ok(notice.message.endsWith(r.jobDir+'/report.json'));assert.equal(notice.warningCount,3);assert.ok(!notice.message.includes('Detailed original finding'));}assert.equal(r.warnings.length,3);
+});

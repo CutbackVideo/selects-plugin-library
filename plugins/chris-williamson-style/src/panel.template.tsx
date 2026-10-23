@@ -791,6 +791,33 @@ function templateSpeaker(template: any): any {
   return all.find((input) => (input?.kind === "timeline" && input.sequenceId) || (input?.kind === "video" && input.resourceId)) || null;
 }
 
+const RESULT_NOTICE_UI:Record<string,{title:string;message:string;done:string;close:string}>= {
+ en:{title:'Saved draft needs review',message:'The draft was saved. Review these issues before using the result:',done:'Done',close:'Close'},
+ ko:{title:'저장된 결과를 확인해주세요',message:'타임라인이 저장되었습니다. 결과를 사용하기 전에 다음 문제를 확인해주세요:',done:'확인',close:'닫기'},
+};
+export function templateIssueNotice(result:any,language:string){
+ const ko=language==='ko',warnings=(Array.isArray(result?.warnings)?result.warnings:[]).filter((text:any)=>typeof text==='string'&&text.trim()&&!/measured approximation.*exact reference font is unconfirmed/i.test(text));
+ const lines:string[]=[];
+ if(warnings.some((w:string)=>/B-roll crop rejected.*black/i.test(w)))lines.push(ko?'• B-roll의 검은 시작 부분을 잘라낸 뒤 확인해주세요.':'• B-roll: trim the black lead-in, then review it.');
+ else if(warnings.some((w:string)=>/B-roll.*(?:rejected|failed)/i.test(w)))lines.push(ko?'• B-roll 검토에 실패했습니다. 해당 영상을 확인해주세요.':'• B-roll review failed. Inspect the affected clip.');
+ if(warnings.some((w:string)=>/contrast|can't be read|hard to read|glyphs disappear|inverted fill|marginal/i.test(w)))lines.push(ko?'• 자막과 배경의 대비를 확인해주세요.':'• Captions: review text contrast against the footage.');
+ if(warnings.some((w:string)=>/speaker.*out of frame|framing|weak frame/i.test(w)))lines.push(ko?'• 화자가 화면 밖으로 벗어나는 구간을 확인해주세요.':'• Framing: review the speaker leaving the picture.');
+ if(!lines.length)lines.push(ko?'• 실행 중 보고된 문제를 전체 보고서에서 확인해주세요.':'• Review the reported execution issues in the full report.');
+ const path=typeof result?.jobDir==='string'?hostJoin(result.jobDir,'report.json'):null;
+ const location=path&&path.length<=300?path:(ko?'템플릿 데이터 폴더의 report.json':'report.json in the template data folder');
+ const message=(ko?'타임라인이 저장되었습니다. 확인이 필요한 항목: ':'Draft saved. Issues requiring review: ')+warnings.length+'\n'+lines.join('\n')+'\n'+(ko?'전체 보고서: ':'Full report: ')+location;
+ return {message,warningCount:warnings.length};
+}
+export async function notifyTemplateIssues(sdk:any,context:any,result:any){
+ const warnings=(Array.isArray(result?.warnings)?result.warnings:[]).filter((text:any)=>typeof text==='string'&&text.trim()&&!/measured approximation.*exact reference font is unconfirmed/i.test(text));
+ if(!warnings.length)return {shown:false,warningCount:0};
+ if(typeof sdk.confirm!=='function')return {shown:false,warningCount:warnings.length,reason:'Host warning dialog is unavailable.'};
+ const language=String(context?.language||'en').toLowerCase().split('-')[0],ui=RESULT_NOTICE_UI[language]||RESULT_NOTICE_UI.en;
+ const notice=templateIssueNotice(result,language);
+ const acknowledged=await sdk.confirm({title:ui.title,message:notice.message,confirmLabel:ui.done,cancelLabel:ui.close});
+ return {shown:true,warningCount:warnings.length,displayedWarnings:Math.min(8,warnings.length),acknowledged:acknowledged===true};
+}
+
 async function templatePaths(sdk: any) {
   hostUseSdk(sdk);
   return await resolvePaths(sdk);
@@ -836,6 +863,10 @@ function TemplateRun({ sdk, context }: any) {
         const draftId = speaker.kind === "video" ? await templateDraftFromVideo(env, projectId, speaker) : String(speaker.sequenceId);
         if (superseded()) return;
         const result = await runPipeline(env, projectId, draftId, { copy: false, music: true, musicDb: MUSIC.levelDb, scope: "all" });
+        // Only real completed-run warnings open the host dialog. Dismissal never
+        // discards the saved Draft or starts a second generation/search.
+        try{result.notification=await notifyTemplateIssues(sdk,context,result);await env.writeText(hostJoin(result.jobDir,'report.json'),JSON.stringify(result));}
+        catch(error:any){console.warn('Saved Chris draft notification could not be confirmed:',error?.message||error);}
         finish({ sequenceId: result.draftId });
       } catch (e: any) {
         finish({ error: String(e?.message || e || "").slice(0, 300) || TEMPLATE_FAILED });

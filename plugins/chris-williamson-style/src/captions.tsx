@@ -1,5 +1,13 @@
 import React from "react";
 import {AbsoluteFill, useCurrentFrame, useVideoConfig} from "remotion";
+// A narrow opposite-color edge protects small phrases against local highlights
+// and textured footage that an average background measurement cannot describe.
+export function phraseOutline(color: string, size: number) {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color);
+  const rgb = hex ? [0, 2, 4].map(i => parseInt(hex[1].slice(i, i + 2), 16)) : [255, 255, 255];
+  const light = rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722 > 128;
+  return {WebkitTextStroke: Math.max(.75, size * .035) + "px " + (light ? "#111111" : "#ffffff"), paintOrder: "stroke fill"};
+}
 // One independently editable phrase/keyword. All timestamps are seconds in this generator.
 export default function Caption({data = {}}: {data?: Record<string, any>}) {
   const frame = useCurrentFrame();
@@ -15,7 +23,7 @@ export default function Caption({data = {}}: {data?: Record<string, any>}) {
   const size = Number(data.fontSize || 53) * scale;
   return <AbsoluteFill style={{pointerEvents: "none"}}>
     {data.fontCss && <style>{String(data.fontCss)}</style>}
-    <div style={{position: "absolute", left: "3%", width: "94%", top: Number(data.captionY ?? 50) + "%", transform: "translateY(-50%)", textAlign: "center", fontFamily: '"' + family + '", "Helvetica Neue", "Segoe UI", Arial, sans-serif', fontWeight: Number(data.fontWeight || 800), color: String(data.color || "#ffffff"), fontSize: size, letterSpacing: Number(data.trackingEm ?? -0.03) + "em", lineHeight: 1.1, whiteSpace: data.keyword ? "nowrap" : "pre-wrap", overflowWrap: data.keyword ? "normal" : "anywhere"}}>
+    <div style={{...(data.keyword ? {} : phraseOutline(String(data.color || "#ffffff"), size)), position: "absolute", left: "3%", width: "94%", top: Number(data.captionY ?? 50) + "%", transform: "translateY(-50%)", textAlign: "center", fontFamily: '"' + family + '", "Helvetica Neue", "Segoe UI", Arial, sans-serif', fontWeight: Number(data.fontWeight || 800), color: String(data.color || "#ffffff"), fontSize: size, letterSpacing: Number(data.trackingEm ?? -0.03) + "em", lineHeight: 1.1, whiteSpace: data.keyword ? "nowrap" : "pre-wrap", overflowWrap: data.keyword ? "normal" : "anywhere"}}>
       {words.map((word, i) => {
         const at = matching ? starts[i] : start + (words.length < 2 ? 0 : span * i / (words.length - 1));
         const age = frame / fps - at;
