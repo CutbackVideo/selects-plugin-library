@@ -7,7 +7,14 @@ import type { SceneClip } from "./assemble.ts";
 import { TEMPLATES } from "../templates/generated.ts";
 
 export type Sentence = { id: string; text: string };
-export type PhotoAsset = { ref: string; dataUrl: string; credit: string };
+export type PhotoAsset = { ref: string; dataUrl: string; credit: string; graphic?: boolean };
+
+// Charts and infographics (caption "graphic=" credit, or taller than the 1080x920 window) are shown whole
+// ("contain") so axes and titles are not cropped; photos fill the window ("cover").
+export function isGraphic(caption: string, w: number, h: number): boolean {
+  if (/\uADF8\uB798\uD53D\s*=|graphic\s*=|infographic/i.test(caption)) return true;
+  return w > 0 && h > 0 && w / h < 1080 / 920 * 0.85;
+}
 
 const MAX_SCENE_SEC = 10;
 
@@ -49,6 +56,7 @@ export function sceneClips(plan: PlanScene[], sentences: Sentence[], times: Span
       if (sc.type === "quote_card") params.headshot = asset.dataUrl;
       else params.image = asset.dataUrl;
       if (sc.type === "news_photo" && asset.credit && !params.credit) params.credit = asset.credit;
+      if (sc.type === "news_photo" && asset.graphic && params.fit === undefined) params.fit = "contain";
     }
     const type = sc.type === "news_photo" && !asset ? "text_card" : sc.type;
     if (type === "text_card" && !params.text) params.text = captionChunks(sentences[first[k]].text, 12).slice(0, 2).join("\n");
