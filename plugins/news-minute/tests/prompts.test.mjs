@@ -143,12 +143,36 @@ test('an asset used in a third scene only produces a warning', () => {
   assert.ok(P.plannerPrompt({headline: {line1: 'a', line2: 'b'}, sentences: sents, assets}).includes('at most 2 times'));
 });
 
-test('number_callout accepts a single value without from', () => {
+test('a single value goes to highlight_card; number_callout needs from and to again', () => {
   const sents = [{id: 's1', text: '3,592 done.', startSec: 0, endSec: 6}];
-  const mk = (params) => ({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type: 'number_callout', params, hideCaption: true, disclaimer: false}]});
-  assert.equal(P.validatePlan(mk({label: 'cash', to: '3,592', unit: 'x'}), sents, []).ok, true);
-  assert.equal(P.validatePlan(mk({label: 'cash', from: null, to: 3592}), sents, []).ok, true);
-  assert.ok(!P.validatePlan(mk({label: 'cash', from: 'many', to: 3592}), sents, []).ok);
-  assert.ok(!P.validatePlan(mk({label: 'cash'}), sents, []).ok);
-  assert.equal(P.demoteNumberlessCallouts(mk({label: 'cash', to: 3592}), sents).demoted, 0);
+  const mk = (type, params) => ({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type, params, hideCaption: type === 'number_callout', disclaimer: false}]});
+  assert.equal(P.validatePlan(mk('highlight_card', {title: 'cash', value: '3,592', unit: 'x'}), sents, []).ok, true);
+  assert.ok(!P.validatePlan(mk('highlight_card', {title: 'cash', value: 'many'}), sents, []).ok);
+  assert.ok(!P.validatePlan(mk('highlight_card', {title: 'cash', value: 9999}), sents, []).ok);
+  assert.ok(!P.validatePlan(mk('number_callout', {title: 't', label: 'cash', to: 3592}), sents, []).ok);
+});
+
+test('heritage scene types validate and allow one hero only', () => {
+  const sents = [{id: 's1', text: '46 of 105, 43.8 percent.', startSec: 0, endSec: 6}];
+  const mk = (type, params) => ({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type, params, hideCaption: false, disclaimer: false}]});
+  const donut = (tones) => mk('donut_ratio', {title: 'old', slices: [{label: 'a', value: 46, tone: tones[0]}, {label: 'b', value: 105, tone: tones[1]}]});
+  assert.equal(P.validatePlan(donut(['accent', 'grey']), sents, []).ok, true);
+  assert.ok(P.validatePlan(donut(['accent', 'accent']), sents, []).errors.some((e) => e.includes('exactly one slice')));
+  assert.equal(P.validatePlan(mk('verdict_card', {title: 'target', cards: [{text: 'a [b]', tone: 'accent'}, {text: 'c', tone: 'contrast'}]}), sents, []).ok, true);
+  assert.ok(!P.validatePlan(mk('verdict_card', {title: 'target', cards: [{text: 'a', tone: 'red'}]}), sents, []).ok);
+  assert.equal(P.validatePlan(mk('flow_cause_effect', {title: 't', cause: {word: 'a'}, effect: {word: 'b'}}), sents, []).ok, true);
+  assert.ok(!P.validatePlan(mk('flow_cause_effect', {title: 't', cause: {word: 'a'}}), sents, []).ok);
+  const two = P.validatePlan(mk('text_card', {text: '[a] and {b c}'}), sents, []);
+  assert.ok(two.errors.some((e) => e.includes('only one hero emphasis')));
+  assert.equal(P.validatePlan(mk('text_card', {text: '{b c} only'}), sents, []).ok, true);
+  const long = P.validatePlan(mk('text_card', {text: 't', title: 'x'.repeat(P.TITLE_MAX_CHARS + 1)}), sents, []);
+  assert.ok(long.warnings.some((w) => w.includes('title')));
+  const bars = mk('bar_compare_h', {title: 't', source: 's', unit: 'u', bars: [{label: 'a', value: 46, tone: 'accent'}, {label: 'b', value: 105, tone: 'accent'}]});
+  assert.ok(P.validatePlan(bars, sents, []).errors.some((e) => e.includes('only one bar')));
+});
+
+test('planner prompt lists the heritage types and the no-calculation rule', () => {
+  const t = P.plannerPrompt({headline: {line1: 'a', line2: 'b'}, sentences: [{id: 's1', text: 'x', startSec: 0, endSec: 3}], assets: []});
+  for (const type of ['highlight_card', 'donut_ratio', 'verdict_card', 'flow_cause_effect']) assert.ok(t.includes(type));
+  assert.ok(t.includes('calculated') && t.includes('order the narration says'));
 });
