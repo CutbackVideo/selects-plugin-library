@@ -133,7 +133,7 @@ test("scene scripts stay under the run_script size cap", async () => {
 
 test("charts and tall images are shown whole", async () => {
   const { isGraphic } = await import("../src/pipeline/plan.ts");
-  assert.ok(isGraphic("/그래픽=조선디자인랩", 1200, 900));
+  assert.ok(isGraphic("/\uadf8\ub798\ud53d=\uc870\uc120\ub514\uc790\uc778\ub7a9", 1200, 900));
   assert.ok(isGraphic("", 480, 628));
   assert.ok(!isGraphic("photo /Yonhap", 1200, 800));
   assert.ok(!isGraphic("", 0, 0));
