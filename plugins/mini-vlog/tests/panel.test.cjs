@@ -476,7 +476,8 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
 
 // Windows (kit windows.md): no shell at all. The host's services come through Archive Vlog's av-host block and the
 // own-music worker source through its av-beat-worker block, both pasted verbatim and checked against recorded hashes
-// (never against the sibling plugin, which may change on its own). The kit's beat-detect.cjs ships unmodified.
+// (never against the sibling plugin, which may change on its own). The detector includes the reviewed Node CLI
+// dependency closure; numerical/browser/CLI behavior is checked separately in tests/audio_beat_engine.test.mjs.
 {
   const crypto = require('node:crypto'), vm = require('node:vm');
   const sha = (x) => crypto.createHash('sha256').update(x).digest('hex');
@@ -491,7 +492,7 @@ for (const hook of ['addEventListener("visibilitychange"', 'React.useMemo(', 'co
   assert.equal(beforeProbe(avHost), beforeProbe(blockOf('av-host', fs.readFileSync(path.join(root, '../archive-vlog/panel.tsx'), 'utf8'))), 'bootstrap and PCM adapters retain the Archive contract');
   assert.equal(sha(avBeat), 'f7a61170ef90203b7194ed28552a24f933a8262fcc5cd289b60aabecdb5818b4', 'av-beat-worker block equals Archive Vlog\'s (origin/main 5623860)');
   const detector = fs.readFileSync(path.join(root, 'beat-detect.cjs'), 'utf8');
-  assert.equal(sha(detector.slice(detector.indexOf('\n') + 1)), '562d8530164e418dd7fb2f4dcbd2c5a8961000b93740a12a2dfd21780fb2ad9c', 'beat-detect.cjs is the kit copy (selects-app-kit 7457347 tools/audio/beat-detect.cjs)');
+  assert.equal(sha(detector.slice(detector.indexOf('\n') + 1)), 'b13d28679657589d1e256eaa4d1c1c8fbc74ea0b0f840ea3c35a27c4aa3f07f0', 'beat-detect.cjs retains the reviewed canonical body with explicit Node CLI process dependency');
   // No shell, no node, no POSIX syntax anywhere in the runtime (comments aside).
   const code = (x) => x.replace(/^\s*\/\/.*$/gm, '');
   assert.equal((panel.match(/runShell\(/g) || []).length, 0, 'no runShell in the panel');
