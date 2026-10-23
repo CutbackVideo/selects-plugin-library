@@ -31,6 +31,9 @@ test('runs reviewed before framing recover from interruptions',{skip:!modules&&'
  }
  const panelFunction=(name,next)=>{const a=src.indexOf('  async function '+name+'('),b=src.indexOf('\n  async function '+next+'(',a);return esbuild.transformSync(src.slice(a,b),{loader:'ts'}).code;};
 
+ await t.test('Make clips starts with framing off',()=>{
+  assert.match(src,/const \[framing,setFraming\]=React\.useState\(false\);/);
+ });
  await t.test('a run interrupted between saving a Draft and placing its wide shot resumes the wide shot only',async()=>{
   const h=harness({id:'j',projectId:'p',built:[],skipFraming:true});
   h.interruptAfterBuild();await assert.rejects(h.run(),h.env.RunCancelled);

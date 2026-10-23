@@ -9688,7 +9688,7 @@ function ShortformClipsPanel({ sdk, context, ui, files }: any) {
   const [count, setCount] = React.useState<number>(4);
   const [note, setNote] = React.useState<string>("");
   const [fixedLayout,setFixedLayout]=React.useState("auto");
-  const [framing,setFraming]=React.useState(true);
+  const [framing,setFraming]=React.useState(false);
   const [subjectInstructions,setSubjectInstructions]=React.useState("");
   const [busy, setBusy] = React.useState<boolean>(false);
   const [step, setStep] = React.useState<number>(-1);
