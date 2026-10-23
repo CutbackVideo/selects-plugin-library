@@ -93,9 +93,9 @@ export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> 
         { label: "Whole image", value: "contain" },
       ],
     },
-    { key: "zoom", label: "Zoom", type: "number", defaultValue: 0.09, min: 0, max: 0.3, step: 0.01 },
-    { key: "background", label: "Background (whole image)", type: "color", defaultValue: "#2B3D34" },
+    { key: "zoom", label: "Zoom", type: "number", defaultValue: 0.06, min: 0, max: 0.3, step: 0.01 },
     { key: "credit", label: "Credit", type: "text", defaultValue: "" },
+    PAPER,
   ],
   text_card: [
     FONT,
@@ -117,12 +117,13 @@ export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> 
   ],
   number_callout: [
     FONT,
+    TITLE,
+    SUBTITLE,
     { key: "label", label: "Label", type: "text", defaultValue: "" },
     { key: "unit", label: "Unit", type: "text", defaultValue: "" },
-    { key: "dim", label: "Photo dim", type: "number", defaultValue: 0.45, min: 0, max: 0.9, step: 0.05 },
-    { key: "background", label: "Background (no photo)", type: "color", defaultValue: "#2B3D34" },
+    SOURCE,
     { key: "revealSec", label: "New value delay (s)", type: "number", defaultValue: 0.75, min: 0, max: 5, step: 0.05 },
-    { key: "boxColor", label: "Box", type: "color", defaultValue: "#FFD700" },
+    PAPER,
   ],
   bar_compare_h: [FONT, TITLE, SOURCE, { key: "unit", label: "Unit", type: "text", defaultValue: "" }, ACCENT],
   line_trend_callout: [
