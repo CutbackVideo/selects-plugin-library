@@ -8,6 +8,13 @@ export function phraseOutline(color: string, size: number) {
   const light = rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722 > 128;
   return {WebkitTextStroke: Math.max(.75, size * .035) + "px " + (light ? "#111111" : "#ffffff"), paintOrder: "stroke fill"};
 }
+// Dim the entering word's fill without dimming its protective outline as well.
+export function phraseRevealStyle(color: string, opacity: number) {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color);
+  if (!hex || opacity === 0 || opacity === 1) return {opacity};
+  const rgb = [0, 2, 4].map(i => parseInt(hex[1].slice(i, i + 2), 16));
+  return {opacity: 1, WebkitTextFillColor: `rgba(${rgb.join(", ")}, ${opacity})`};
+}
 // One independently editable phrase/keyword. All timestamps are seconds in this generator.
 export default function Caption({data = {}}: {data?: Record<string, any>}) {
   const frame = useCurrentFrame();
@@ -28,7 +35,7 @@ export default function Caption({data = {}}: {data?: Record<string, any>}) {
         const at = matching ? starts[i] : start + (words.length < 2 ? 0 : span * i / (words.length - 1));
         const age = frame / fps - at;
         const opacity = data.keyword ? 1 : age < 0 ? 0 : age < Number(data.dimSeconds ?? 0.1) ? Number(data.dimOpacity ?? 0.55) : 1;
-        return <span key={i} style={{opacity}}>{word}{i + 1 < words.length ? " " : ""}</span>;
+        return <span key={i} style={data.keyword ? {opacity} : phraseRevealStyle(String(data.color || "#ffffff"), opacity)}>{word}{i + 1 < words.length ? " " : ""}</span>;
       })}
     </div>
   </AbsoluteFill>;

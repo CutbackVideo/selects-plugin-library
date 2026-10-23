@@ -101,7 +101,7 @@ test('multiple saved contact sheets and an optional reference are identified by 
 
 const captionSource=read('captions.tsx');
 const outlineBegin=captionSource.indexOf('export function phraseOutline('),outlineEnd=captionSource.indexOf('// One independently editable',outlineBegin);
-const {phraseOutline}=vm.runInNewContext(stripTypeScriptTypes(captionSource.slice(outlineBegin,outlineEnd).replace('export ',''))+';({phraseOutline})');
+const {phraseOutline,phraseRevealStyle}=vm.runInNewContext(stripTypeScriptTypes(captionSource.slice(outlineBegin,outlineEnd).replaceAll('export ',''))+';({phraseOutline,phraseRevealStyle})');
 test('small phrases get an opposite-color edge without changing their fill, font, size, or timing',()=>{
  const light=plain(phraseOutline('#ffffff',53)),dark=plain(phraseOutline('#111111',53));
  assert.ok(Math.abs(parseFloat(light.WebkitTextStroke)-1.855)<1e-9);
@@ -115,6 +115,15 @@ test('keyword rendering bypasses the phrase edge and retains the existing reveal
  assert.ok(captionSource.includes('data.keyword ? {} : phraseOutline('));
  assert.ok(captionSource.includes('const opacity = data.keyword ? 1 : age < 0 ? 0 :'));
  assert.ok(captionSource.includes('const size = Number(data.fontSize || 53) * scale;'));
+  assert.ok(captionSource.includes('data.keyword ? {opacity} : phraseRevealStyle('));
+});
+test('entering ordinary words keep an opaque edge while retaining their dim fill and hidden future words',()=>{
+  assert.deepEqual(plain(phraseRevealStyle('#ffffff',.55)),{opacity:1,WebkitTextFillColor:'rgba(255, 255, 255, 0.55)'});
+  assert.deepEqual(plain(phraseRevealStyle('#111111',.55)),{opacity:1,WebkitTextFillColor:'rgba(17, 17, 17, 0.55)'});
+  assert.deepEqual(plain(phraseRevealStyle('#ffffff',0)),{opacity:0});
+  assert.deepEqual(plain(phraseRevealStyle('#ffffff',1)),{opacity:1});
+  // Preserve the prior appearance of custom CSS colors that are not a six-digit hex.
+  assert.deepEqual(plain(phraseRevealStyle('rebeccapurple',.55)),{opacity:.55});
 });
 
 const noticeStart=panel.indexOf('const RESULT_NOTICE_UI:'),noticeEnd=panel.indexOf('async function templatePaths(',noticeStart);
