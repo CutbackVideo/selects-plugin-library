@@ -2,7 +2,7 @@
 //   1. createDraft, 29.97 fps 1080x1920, the brand plate on Main (a Draft needs video on Main to export),
 //      the narration over it, the frame graphic; commit.
 //   2. scene graphics, a few per call (photos travel as data URLs, so batches keep each script small); commit.
-//   3. headline, captions, disclaimers; commit.
+//   3. headline, captions, disclaimers in batches; commit each.
 // Graphics added later draw on top, so the calls follow the stacking order frame -> scenes -> headline ->
 // captions -> disclaimers.
 
@@ -23,6 +23,8 @@ export type AssemblyInput = {
   preset: Preset;
   scenes: SceneClip[];
   captions: TextClip[];
+  // Adds per-graphic parameters such as the embedded font (fontFamily, fontCss, fontLoads).
+  decorate?: (params: Record<string, unknown>) => Record<string, unknown>;
 };
 
 const J = (v: unknown) => JSON.stringify(v);
@@ -55,7 +57,8 @@ export function baseDraftScript(x: AssemblyInput): ScriptCall {
   if (x.plateSeconds < x.narrationSeconds) throw new Error("background plate shorter than the narration");
   const frame = tpl("frame");
   const end = Math.min(x.plateSeconds, x.narrationSeconds + 0.5);
-  const frameParams = { background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, fontFamily: "" };
+  const deco = x.decorate ?? ((p: Record<string, unknown>) => p);
+  const frameParams = deco({ background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, fontFamily: "" });
   return {
     summary: "Build the news short Draft",
     allowCommit: true,
@@ -103,21 +106,35 @@ return { added: ${batch.length} };`,
   return calls;
 }
 
-export function overlayTextScript(draftId: string, x: Pick<AssemblyInput, "headline" | "preset" | "scenes" | "captions">): ScriptCall {
-  const head = tpl("headline"), cap = tpl("caption"), dis = tpl("disclaimer");
-  const caps = x.captions.map((c) => ({ text: c.text, a: c.startSec, b: c.endSec }));
-  const disc = x.scenes.filter((s) => s.disclaimer).map((s) => ({ a: s.startSec, b: s.endSec }));
-  return {
-    summary: "Add headline and captions",
-    allowCommit: true,
-    script: `const d = selects.draft(${J(draftId)});
+// Headline, captions and disclaimers on top of the scenes, in size-bounded batches (each caption may carry its
+// own embedded font subset, so one call for all of them would pass the script limit).
+export function overlayTextScripts(draftId: string, x: Pick<AssemblyInput, "headline" | "preset" | "scenes" | "captions" | "decorate">): ScriptCall[] {
+  const deco = x.decorate ?? ((p: Record<string, unknown>) => p);
+  const items: Array<{ type: string; label: string; params: Record<string, unknown>; a: number; b: number }> = [];
+  items.push({ type: "headline", label: tpl("headline").label, params: deco({ line1: x.headline.line1, line2: x.headline.line2, accent: x.headline.accent || "", fontFamily: "" }), a: 0, b: 1e9 });
+  x.captions.forEach((c, i) => items.push({ type: "caption", label: tpl("caption").label + " " + String(i + 1).padStart(2, "0"), params: deco({ text: c.text, fontFamily: "" }), a: c.startSec, b: c.endSec }));
+  for (const s of x.scenes.filter((s) => s.disclaimer)) items.push({ type: "disclaimer", label: tpl("disclaimer").label, params: deco({ text: x.preset.disclaimer, fontFamily: "" }), a: s.startSec, b: s.endSec });
+  const batches: typeof items[] = [];
+  let cur: typeof items = [], size = 0;
+  for (const it of items) {
+    const n = J(it.params).length + 300;
+    if (cur.length && size + n > SCENE_BATCH_BYTES) { batches.push(cur); cur = []; size = 0; }
+    cur.push(it);
+    size += n;
+  }
+  if (cur.length) batches.push(cur);
+  return batches.map((batch, i) => {
+    const types = [...new Set(batch.map((s) => s.type))];
+    const codes = Object.fromEntries(types.map((t) => [t, { tsx: tpl(t).tsxCode, edit: tpl(t).editableParameters, ti: tpl(t).timeIndependent }]));
+    return {
+      summary: `Add headline and captions (${i + 1}/${batches.length})`,
+      allowCommit: true,
+      script: `const d = selects.draft(${J(draftId)});
 ${PRELUDE}
-await mg(${J(head.label)}, ${J(head.tsxCode)}, ${J({ line1: x.headline.line1, line2: x.headline.line2, accent: x.headline.accent || "", fontFamily: "" })}, ${J(head.editableParameters)}, true, 0, total / fps);
-const capCode = ${J(cap.tsxCode)}, capEdit = ${J(cap.editableParameters)};
-let i = 0;
-for (const c of ${J(caps)}) { i += 1; await mg(${J(cap.label)} + " " + String(i).padStart(2, "0"), capCode, { text: c.text, fontFamily: "" }, capEdit, true, c.a, c.b); }
-for (const s of ${J(disc)}) await mg(${J(dis.label)}, ${J(dis.tsxCode)}, { text: ${J(x.preset.disclaimer)}, fontFamily: "" }, ${J(dis.editableParameters)}, true, s.a, s.b);
+const T: any = ${J(codes)};
+for (const s of ${J(batch)} as any[]) await mg(s.label, T[s.type].tsx, s.params, T[s.type].edit, T[s.type].ti, s.a, Math.min(s.b, total / fps));
 await d.commitAll("News short: headline and captions");
-return { captions: i };`,
-  };
+return { added: ${batch.length} };`,
+    };
+  });
 }

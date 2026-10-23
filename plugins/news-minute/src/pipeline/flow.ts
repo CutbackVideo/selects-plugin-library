@@ -12,9 +12,10 @@ import {
 import { captionTimes, joinScript, sentenceTimes, type AlignChar } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
 import { fallbackPlan, hiddenCaptionSentences, sceneClips, type PhotoAsset } from "./plan.ts";
-import { baseDraftScript, overlayTextScript, sceneScripts } from "./assemble.ts";
+import { baseDraftScript, overlayTextScripts, sceneScripts } from "./assemble.ts";
+import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 
-export type Env = { platform: string; sep: string; dir: string; tmp: string; projectId: string | null };
+export type Env = { platform: string; sep: string; dir: string; tmp: string; skills: string; projectId: string | null };
 export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean; edited?: boolean };
 export type Script = { headline: { line1: string; line2: string; accent?: string }; sentences: Line[] };
 export type Session = {
@@ -160,6 +161,16 @@ export async function pollNarration(sdk: PanelSdk, rec: TtsRecord): Promise<TtsR
 }
 export { ttsNext };
 
+// --- embedded font (Pretendard as "NM Sans", subset per graphic) ---
+let fontLoad: Promise<EmbeddedFont> | null = null;
+async function embeddedFont(sdk: PanelSdk, env: Env): Promise<EmbeddedFont> {
+  if (!fontLoad) {
+    const read = async (rel: string) => new TextDecoder().decode(await readFileBytes(sdk, [env.skills, ...rel.split("/")].join(env.sep), 12 * 1024 * 1024));
+    fontLoad = loadEmbeddedFont(read).catch((e) => { fontLoad = null; throw e; });
+  }
+  return fontLoad;
+}
+
 // --- Draft ---
 async function prepPhotos(sdk: PanelSdk, env: Env, article: Article, log: Log): Promise<PhotoAsset[]> {
   if (!article.photos.length) return [];
@@ -224,13 +235,49 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   const usedFallback = !plan;
   if (!plan) { rec.notes.push("plan: fallback"); log("planFallback"); plan = fallbackPlan(sentences, times, photos.map((p) => p.ref)); }
 
-  const scenes = sceneClips(plan, sentences, times, total, photos);
+  // The embedded face is best effort: without it the templates use the installed fonts.
+  let decorate: ((p: Record<string, unknown>) => Record<string, unknown>) | undefined;
+  let shared: ((texts: string[]) => (p: Record<string, unknown>) => Record<string, unknown>) | undefined;
+  try {
+    log("fonts");
+    const font = await embeddedFont(sdk, env);
+    const missing = new Set<string>();
+    let bytes = 0, count = 0;
+    decorate = (p) => {
+      const f = sceneFont(font, sceneText(p));
+      for (const c of f.missing) missing.add(c);
+      bytes += f.subsetBytes; count++;
+      return { ...p, fontFamily: f.fontFamily, fontCss: f.fontCss, fontLoads: f.fontLoads };
+    };
+    // Frame, headline, captions and disclaimers share one subset of all their text.
+    shared = (texts) => {
+      const f = sceneFont(font, texts.join(""));
+      for (const c of f.missing) missing.add(c);
+      bytes += f.subsetBytes; count++;
+      const add = { fontFamily: f.fontFamily, fontCss: f.fontCss, fontLoads: f.fontLoads };
+      return (p) => ({ ...p, ...add });
+    };
+    rec.notes.push("font: embedded");
+    const report = () => rec.notes.push(`font subsets: ${count} graphics, ${Math.round(bytes / 1024)} KB` + (missing.size ? ", no glyph for " + [...missing].join("") : ""));
+    (rec as any).fontReport = report;
+  } catch (e: any) {
+    rec.notes.push("font: not embedded (" + String(e?.message || e) + ")");
+    log("fontFallback");
+  }
+
+  const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => {
+    if (!decorate) return sc;
+    try { return { ...sc, params: decorate(sc.params) }; } catch (e: any) { rec.notes.push("font: subset failed for " + sc.label); return sc; }
+  });
   const hidden = hiddenCaptionSentences(plan, sentences);
   const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
 
   const plateId = await plate(sdk, env, projectId, plateLen, preset.background, log);
   log("assembling");
-  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, headline: script.headline, preset, scenes, captions };
+  const overlayText = [preset.logoMain, preset.logoAccent, preset.tagline, preset.disclaimer, script.headline.line1, script.headline.line2, script.headline.accent ?? "", ...captions.map((c) => c.text)];
+  let overlayDecorate: ((p: Record<string, unknown>) => Record<string, unknown>) | undefined;
+  try { overlayDecorate = shared?.(overlayText); } catch (e: any) { rec.notes.push("font: overlay subset failed (" + String(e?.message || e) + ")"); }
+  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, headline: script.headline, preset, scenes, captions, decorate: overlayDecorate };
   const baseCall = baseDraftScript(x);
   rec.notes.push("script bytes: base " + scriptBytes(baseCall));
   const base = await run<{ draftId: string | null }>(sdk, baseCall);
@@ -243,10 +290,14 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
     try { await run(sdk, calls[i]); }
     catch (e: any) { throw new Error(`stopped at scene batch ${i + 1} of ${calls.length} (Draft ${base.draftId} kept): ${String(e?.message || e)}`); }
   }
-  const textCall = overlayTextScript(base.draftId, x);
-  rec.notes.push("script bytes: headline+captions " + scriptBytes(textCall));
-  try { await run(sdk, textCall); }
-  catch (e: any) { throw new Error(`stopped at headline and captions (Draft ${base.draftId} kept): ${String(e?.message || e)}`); }
+  const textCalls = overlayTextScripts(base.draftId, x);
+  rec.notes.push("script bytes: headline+captions " + textCalls.map(scriptBytes).join(", "));
+  for (let i = 0; i < textCalls.length; i++) {
+    try { await run(sdk, textCalls[i]); }
+    catch (e: any) { throw new Error(`stopped at headline and captions batch ${i + 1} of ${textCalls.length} (Draft ${base.draftId} kept): ${String(e?.message || e)}`); }
+  }
+  (rec as any).fontReport?.();
+  delete (rec as any).fontReport;
   rec.notes.push("draft: " + base.draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
   return { draftId: base.draftId, timing: source, fallbackPlan: usedFallback };
 }

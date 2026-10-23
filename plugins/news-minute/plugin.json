@@ -10,7 +10,13 @@
   "files": [
     "README.md",
     "INSTALL.md",
-    "panel.tsx"
+    "panel.tsx",
+    "fonts/PretendardVariable.ttf.gz.b64",
+    "fonts/harfbuzz-subset.wasm.gz.b64",
+    "fonts/OFL-pretendard.txt",
+    "fonts/LICENSE-harfbuzzjs.txt",
+    "fonts/COPYING-harfbuzz.txt",
+    "THIRD_PARTY.md"
   ],
   "compatibility": {
     "platforms": [
