@@ -73,7 +73,45 @@ var MESSAGES = {
   aiRetry: ["The AI turn timed out; trying again\u2026", "AI \uC751\uB2F5 \uC2DC\uAC04\uC774 \uCD08\uACFC\uB3FC \uB2E4\uC2DC \uC2DC\uB3C4 \uC911\uC774\uC5D0\uC694\u2026"],
   assemblingStep: ["Adding scenes ({n}/{of})\u2026", "\uC7A5\uBA74\uC744 \uB123\uACE0 \uC788\uC5B4\uC694({n}/{of})\u2026"],
   fonts: ["Preparing the font\u2026", "\uAE00\uAF34\uC744 \uC900\uBE44\uD558\uACE0 \uC788\uC5B4\uC694\u2026"],
-  fontFallback: ["The embedded font could not be loaded; the installed fonts are used.", "\uB0B4\uC7A5 \uAE00\uAF34\uC744 \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD574 \uC124\uCE58\uB41C \uAE00\uAF34\uB85C \uB9CC\uB4E4\uC5B4\uC694."]
+  fontFallback: ["The embedded font could not be loaded; the installed fonts are used.", "\uB0B4\uC7A5 \uAE00\uAF34\uC744 \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD574 \uC124\uCE58\uB41C \uAE00\uAF34\uB85C \uB9CC\uB4E4\uC5B4\uC694."],
+  makePlan: ["Plan the scenes", "\uD654\uBA74 \uAD6C\uC131 \uB9CC\uB4E4\uAE30"],
+  planReview: ["Review the scene plan", "\uD654\uBA74 \uAD6C\uC131 \uAC80\uD1A0"],
+  planReviewHint: ["One row per scene. Change a scene's type, photo or text here, or describe what to change below and rebuild. Nothing is added to the Project until you build the video.", "\uD55C \uC904\uC774 \uC7A5\uBA74 \uD558\uB098\uC608\uC694. \uC7A5\uBA74\uC758 \uC885\uB958\xB7\uC0AC\uC9C4\xB7\uBB38\uAD6C\uB97C \uC5EC\uAE30\uC11C \uBC14\uAFB8\uAC70\uB098, \uC544\uB798\uC5D0 \uBC14\uAFC0 \uC810\uC744 \uC801\uACE0 \uB2E4\uC2DC \uB9CC\uB4E4 \uC218 \uC788\uC5B4\uC694. \uC601\uC0C1 \uB9CC\uB4E4\uAE30\uB97C \uB204\uB974\uAE30 \uC804\uC5D0\uB294 \uD504\uB85C\uC81D\uD2B8\uC5D0 \uC544\uBB34\uAC83\uB3C4 \uCD94\uAC00\uB418\uC9C0 \uC54A\uC544\uC694."],
+  planFallbackNote: ["This is the simple fallback plan (photos and text cards): the AI plan did not pass its check.", "AI \uACC4\uD68D\uC774 \uAC80\uC0AC\uB97C \uD1B5\uACFC\uD558\uC9C0 \uBABB\uD574 \uB2E8\uC21C \uB300\uCCB4 \uD50C\uB79C(\uC0AC\uC9C4\xB7\uAE00\uC790 \uCE74\uB4DC)\uC744 \uBCF4\uC5EC \uC8FC\uACE0 \uC788\uC5B4\uC694."],
+  sceneType: ["Type", "\uC885\uB958"],
+  scenePhoto: ["Photo", "\uC0AC\uC9C4"],
+  noPhoto: ["None", "\uC5C6\uC74C"],
+  changedMark: ["Changed", "\uBC14\uB01C"],
+  editedMark: ["Edited by you", "\uC9C1\uC811 \uACE0\uCE68"],
+  assetShows: ["Shows: {summary}", "\uB0B4\uC6A9: {summary}"],
+  field_text: ["Text", "\uBB38\uAD6C"],
+  field_sub: ["Small line", "\uC791\uC740 \uC904"],
+  field_label: ["Label", "\uD56D\uBAA9"],
+  field_from: ["From", "\uC774\uC804 \uAC12"],
+  field_to: ["To", "\uC774\uD6C4 \uAC12"],
+  field_unit: ["Unit", "\uB2E8\uC704"],
+  field_name: ["Name", "\uC774\uB984"],
+  field_title: ["Title", "\uC81C\uBAA9"],
+  field_lines: ["Quote (one line each)", "\uC778\uC6A9 \uBB38\uAD6C(\uD55C \uC904\uC529)"],
+  sceneParams: ["All values (JSON)", "\uC804\uCCB4 \uAC12(JSON)"],
+  badJson: ["Not valid JSON: {error}", "JSON \uD615\uC2DD\uC774 \uC544\uB2C8\uC5D0\uC694: {error}"],
+  feedback: ["Feedback on the plan", "\uC804\uCCB4 \uC758\uACAC"],
+  feedbackHint: ["For example: use the cash chart on the last two sentences", "\uC608: \uB9C8\uC9C0\uB9C9 \uB450 \uBB38\uC7A5\uC5D0\uB294 \uD604\uAE08 \uBCF4\uC720\uC561 \uADF8\uB798\uD504\uB97C \uC368 \uC8FC\uC138\uC694"],
+  revise: ["Rebuild with feedback", "\uC758\uACAC \uBC18\uC601\uD574 \uB2E4\uC2DC \uB9CC\uB4E4\uAE30"],
+  revising: ["Rebuilding the plan with your feedback\u2026", "\uC758\uACAC\uC744 \uBC18\uC601\uD574 \uB2E4\uC2DC \uB9CC\uB4E4\uACE0 \uC788\uC5B4\uC694\u2026"],
+  revised: ["Rebuilt: {n} of {of} scenes changed.", "\uB2E4\uC2DC \uB9CC\uB4E4\uC5C8\uC5B4\uC694. \uC7A5\uBA74 {of}\uAC1C \uC911 {n}\uAC1C\uAC00 \uBC14\uB00C\uC5C8\uC5B4\uC694."],
+  reviseKept: ["The rebuilt plan did not pass its check, so the previous plan is kept.", "\uB2E4\uC2DC \uB9CC\uB4E0 \uACC4\uD68D\uC774 \uAC80\uC0AC\uB97C \uD1B5\uACFC\uD558\uC9C0 \uBABB\uD574 \uC774\uC804 \uACC4\uD68D\uC744 \uADF8\uB300\uB85C \uB450\uC5C8\uC5B4\uC694."],
+  rounds: ["Rebuilt {n} time(s)", "\uB2E4\uC2DC \uB9CC\uB4E4\uAE30 {n}\uD68C"],
+  buildFromPlan: ["Build the video as planned", "\uC774\uB300\uB85C \uC601\uC0C1 \uB9CC\uB4E4\uAE30"],
+  planBlocked: ["Fix these first: {errors}", "\uBA3C\uC800 \uACE0\uCCD0\uC57C \uD574\uC694: {errors}"],
+  planAnyway: ["The check still reports these problems. Build anyway?", "\uAC80\uC0AC\uC5D0\uC11C \uC544\uB798 \uBB38\uC81C\uAC00 \uB0A8\uC544 \uC788\uC5B4\uC694. \uADF8\uB798\uB3C4 \uB9CC\uB4E4\uAE4C\uC694?"],
+  type_news_photo: ["Photo", "\uC0AC\uC9C4"],
+  type_text_card: ["Text card", "\uAE00\uC790 \uCE74\uB4DC"],
+  type_number_callout: ["Number callout", "\uC22B\uC790 \uAC15\uC870"],
+  type_bar_compare_h: ["Bar comparison", "\uB9C9\uB300 \uBE44\uAD50"],
+  type_line_trend_callout: ["Trend chart", "\uCD94\uC774 \uADF8\uB798\uD504"],
+  type_stat_cards: ["Stat cards", "\uC218\uCE58 \uCE74\uB4DC"],
+  type_quote_card: ["Quote", "\uC778\uC6A9"]
 };
 function t(lang, key, vars = {}) {
   const pair = MESSAGES[key];
@@ -1641,6 +1679,29 @@ function hiddenCaptionSentences(plan, sentences) {
   }
   return out;
 }
+function stableJson(v) {
+  if (Array.isArray(v)) return "[" + v.map(stableJson).join(",") + "]";
+  if (v && typeof v === "object") return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + stableJson(v[k])).join(",") + "}";
+  return JSON.stringify(v ?? null);
+}
+var sceneKey = (sc) => (sc.sentenceIds || []).join(",");
+var sceneLook = (sc) => stableJson({ type: sc.type, params: sc.params ?? {}, assetRef: sc.assetRef ?? null, hideCaption: !!sc.hideCaption });
+function changedScenes(previous, next) {
+  const before = new Map(previous.map((sc) => [sceneKey(sc), sceneLook(sc)]));
+  const out = [];
+  next.forEach((sc, i) => {
+    if (before.get(sceneKey(sc)) !== sceneLook(sc)) out.push(i);
+  });
+  return out;
+}
+function retypeScene(sc, type, firstSentence, photoRefs) {
+  const keepsAsset = type === "news_photo" || type === "number_callout" || type === "quote_card";
+  const assetRef = keepsAsset ? sc.assetRef ?? (type === "news_photo" ? photoRefs[0] : void 0) : void 0;
+  const params = type === "text_card" ? { text: captionChunks(firstSentence, 12).slice(0, 2).join("\n") } : type === "number_callout" ? { label: "", from: "", to: "", unit: "" } : type === "news_photo" ? {} : { ...sc.params ?? {} };
+  const out = { sentenceIds: sc.sentenceIds, type, params, hideCaption: type === "number_callout", disclaimer: false };
+  if (assetRef) out.assetRef = assetRef;
+  return out;
+}
 
 // src/pipeline/assemble.ts
 var J2 = (v) => JSON.stringify(v);
@@ -2245,8 +2306,12 @@ async function embeddedFont(sdk, env) {
   }
   return fontLoad;
 }
+var photoCache = /* @__PURE__ */ new Map();
+var photoKey = (article) => article.url + "|" + article.photos.map((p) => p.url).join("|");
 async function prepPhotos(sdk, env, article, log) {
   if (!article.photos.length) return [];
+  const cached = photoCache.get(photoKey(article));
+  if (cached) return cached;
   log("photos");
   const out = [];
   for (const p of article.photos.slice(0, 6)) {
@@ -2270,6 +2335,7 @@ async function prepPhotos(sdk, env, article, log) {
       });
     }
   }
+  photoCache.set(photoKey(article), out);
   return out;
 }
 function plannerImages(photos) {
@@ -2293,58 +2359,111 @@ async function plate(sdk, env, projectId, seconds, color, log) {
   if (!r.ids?.length) throw new Error("background was not added to the Project");
   return r.ids[0];
 }
-async function buildDraft(sdk, env, s, preset, narration, log, rec) {
-  const script = s.script, article = s.article, projectId = s.projectId;
-  const total = narration.durationSeconds;
-  if (!(total > 0)) throw new Error("narration length unknown");
-  const plateLen = plateSeconds(total);
-  if (plateLen > PLATE_MAX_SECONDS) throw new Error("narration longer than " + PLATE_MAX_SECONDS + " s");
-  log("timing");
-  const chars = await run(sdk, alignmentScript(projectId, narration.resourceId));
-  const texts = script.sentences.map((x2) => x2.text);
-  const { times, source } = sentenceTimes(texts, chars, total);
-  rec.notes.push("timing: " + source + (chars ? ", " + chars.length + " aligned characters" : ", no alignment"));
-  if (source === "ratio") log("timingRatio");
-  const photos = await prepPhotos(sdk, env, article, log);
-  const sentences = script.sentences.map((x2, i) => ({ id: x2.id, text: x2.text, startSec: Number(times[i].startSec.toFixed(2)), endSec: Number(times[i].endSec.toFixed(2)) }));
-  const assets = article.photos.filter((p) => photos.some((q) => q.ref === p.ref)).map((p) => ({ ref: p.ref, kind: "photo", caption: p.caption, credit: p.credit, context: p.context, w: p.w, h: p.h }));
+var checkPlan = (plan) => validatePlan({ assetSummaries: plan.assetSummaries, scenes: plan.scenes }, plan.sentences, plan.assets);
+var BLOCKING_PLAN_ERROR = /unknown sentence id|cover every sentence|sentenceIds is required|must be an object|type must be one of|reply must be/;
+function recordPlan(rec, plan, images) {
+  const placed = placements(plan.scenes);
+  rec.plan = {
+    images: { count: images.length, chars: images.reduce((n, im) => n + im.dataUrl.length, 0), refs: images.map((im) => im.name ?? "") },
+    assetSummaries: Object.fromEntries(plan.assetSummaries.map((a) => [a.ref, a.summary])),
+    placements: placed,
+    unused: plan.assets.map((a) => a.ref).filter((r) => !placed[r]),
+    fallback: plan.fallback,
+    rounds: plan.rounds,
+    edited: plan.edited.length
+  };
+}
+async function askPlan(sdk, base, script, preset, photos, log, rec, revision) {
   const images = plannerImages(photos);
   const imageChars = images.reduce((n, im) => n + im.dataUrl.length, 0);
   rec.notes.push("plan images: " + images.length + " of " + photos.length + " (" + images.map((im) => im.name).join(", ") + "), " + Math.round(imageChars / 1024) + " KB base64");
   log("planning");
-  let plan = null;
+  let scenes = null;
   let summaries = [];
   try {
-    const check = (j) => validatePlan(j, sentences, assets);
-    const r = await askValid(sdk, "plan", plannerPrompt({ headline: script.headline, sentences, assets, language: preset.scriptLanguage }), check, log, rec, 1, images);
-    const settled = settlePlan(r.json, r.errors, sentences, check);
-    plan = settled.scenes;
-    if (plan && Array.isArray(r.json?.assetSummaries)) summaries = r.json.assetSummaries.map((a) => ({ ref: String(a?.ref ?? ""), summary: String(a?.summary ?? "") }));
+    const check = (j) => validatePlan(j, base.sentences, base.assets);
+    const prompt = plannerPrompt({ headline: script.headline, sentences: base.sentences, assets: base.assets, language: preset.scriptLanguage, feedback: revision?.feedback, previous: revision?.previous });
+    const r = await askValid(sdk, revision ? "plan revision" : "plan", prompt, check, log, rec, 1, images);
+    const settled = settlePlan(r.json, r.errors, base.sentences, check);
+    scenes = settled.scenes;
+    if (scenes && Array.isArray(r.json?.assetSummaries)) summaries = r.json.assetSummaries.map((a) => ({ ref: String(a?.ref ?? ""), summary: String(a?.summary ?? "") }));
     if (settled.demoted) {
       rec.notes.push("plan: " + settled.demoted + " number callout(s) without a number shown as text cards");
       log("planDemoted", { n: settled.demoted });
     }
-    if (plan && settled.longScenes.length) rec.notes.push("plan: accepted with long scenes (" + settled.longScenes.join("; ") + ")");
-    if (!plan && r.json) rec.notes.push("plan: rejected (" + settled.errors.slice(0, 5).join("; ") + ")");
-  } catch {
-    plan = null;
+    if (scenes && settled.longScenes.length) rec.notes.push("plan: accepted with long scenes (" + settled.longScenes.join("; ") + ")");
+    if (!scenes && r.json) rec.notes.push("plan: rejected (" + settled.errors.slice(0, 5).join("; ") + ")");
+  } catch (e) {
+    scenes = null;
+    rec.notes.push("plan: failed (" + String(e?.message || e) + ")");
   }
-  const usedFallback = !plan;
-  if (!plan) {
+  return { scenes, summaries, images };
+}
+async function planScenes(sdk, env, s, preset, narration, log, rec, thumb) {
+  const script = s.script, article = s.article, projectId = s.projectId;
+  const total = narration.durationSeconds;
+  if (!(total > 0)) throw new Error("narration length unknown");
+  if (plateSeconds(total) > PLATE_MAX_SECONDS) throw new Error("narration longer than " + PLATE_MAX_SECONDS + " s");
+  log("timing");
+  const chars = await run(sdk, alignmentScript(projectId, narration.resourceId));
+  const texts = script.sentences.map((x) => x.text);
+  const { times, source } = sentenceTimes(texts, chars, total);
+  rec.notes.push("timing: " + source + (chars ? ", " + chars.length + " aligned characters" : ", no alignment"));
+  if (source === "ratio") log("timingRatio");
+  const photos = await prepPhotos(sdk, env, article, log);
+  const sentences = script.sentences.map((x, i) => ({ id: x.id, text: x.text, startSec: Number(times[i].startSec.toFixed(2)), endSec: Number(times[i].endSec.toFixed(2)) }));
+  const assets = article.photos.filter((p) => photos.some((q) => q.ref === p.ref)).map((p) => ({ ref: p.ref, kind: "photo", caption: p.caption, credit: p.credit, context: p.context, w: p.w, h: p.h }));
+  const thumbs = {};
+  if (thumb) for (const p of photos) {
+    try {
+      thumbs[p.ref] = await thumb(p.dataUrl);
+    } catch {
+    }
+  }
+  const base = { narrationId: narration.resourceId, durationSeconds: total, sentences, times, timing: source, chars, assets, thumbs };
+  const r = await askPlan(sdk, base, script, preset, photos, log, rec);
+  let plan;
+  if (r.scenes) plan = { ...base, assetSummaries: r.summaries, scenes: r.scenes, fallback: false, rounds: [], changed: [], edited: [] };
+  else {
     rec.notes.push("plan: fallback");
     log("planFallback");
     const fb = fallbackPlan(sentences, times, assets);
-    plan = fb.scenes;
-    summaries = fb.assetSummaries;
+    plan = { ...base, assetSummaries: fb.assetSummaries, scenes: fb.scenes, fallback: true, rounds: [], changed: [], edited: [] };
   }
-  const placed = placements(plan);
-  rec.plan = {
-    images: { count: images.length, chars: imageChars, refs: images.map((im) => im.name ?? "") },
-    assetSummaries: Object.fromEntries(summaries.map((a) => [a.ref, a.summary])),
-    placements: placed,
-    unused: assets.map((a) => a.ref).filter((r) => !placed[r]),
-    fallback: usedFallback
-  };
+  recordPlan(rec, plan, r.images);
+  return plan;
+}
+async function revisePlan(sdk, env, s, preset, feedback, log, rec) {
+  const cur = s.plan;
+  const photos = await prepPhotos(sdk, env, s.article, log);
+  const t0 = Date.now();
+  const r = await askPlan(sdk, cur, s.script, preset, photos, log, rec, { feedback, previous: { assetSummaries: cur.assetSummaries, scenes: cur.scenes } });
+  const ms = Date.now() - t0;
+  const round = cur.rounds.length + 1;
+  if (!r.scenes) {
+    const rounds2 = [...cur.rounds, { round, feedback, changed: 0, scenes: cur.scenes.length, ms, fallback: true, at: (/* @__PURE__ */ new Date()).toISOString() }];
+    const plan2 = { ...cur, rounds: rounds2, changed: [] };
+    recordPlan(rec, plan2, r.images);
+    return { plan: plan2, kept: true };
+  }
+  const changed = changedScenes(cur.scenes, r.scenes);
+  const rounds = [...cur.rounds, { round, feedback, changed: changed.length, scenes: r.scenes.length, ms, fallback: false, at: (/* @__PURE__ */ new Date()).toISOString() }];
+  rec.notes.push(`plan revision ${round}: ${changed.length} of ${r.scenes.length} scenes changed`);
+  const summaries = r.summaries.length ? r.summaries : cur.assetSummaries;
+  const plan = { ...cur, assetSummaries: summaries, scenes: r.scenes, fallback: false, rounds, changed, edited: [] };
+  recordPlan(rec, plan, r.images);
+  return { plan, kept: false };
+}
+async function assemble(sdk, env, s, preset, log, rec) {
+  const script = s.script, article = s.article, projectId = s.projectId, sp = s.plan;
+  const total = sp.durationSeconds, times = sp.times, chars = sp.chars, sentences = sp.sentences;
+  const texts = sentences.map((x2) => x2.text);
+  const plateLen = plateSeconds(total);
+  const photos = await prepPhotos(sdk, env, article, log);
+  const missing = sp.scenes.filter((sc) => sc.assetRef && !photos.some((p) => p.ref === sc.assetRef)).length;
+  if (missing) rec.notes.push("photos: " + missing + " scene(s) lost their photo when it was prepared again");
+  recordPlan(rec, sp, []);
+  const plan = sp.scenes;
   const fontStats = { count: 0, bytes: 0, missing: /* @__PURE__ */ new Set(), failed: 0 };
   let font = null;
   try {
@@ -2374,7 +2493,7 @@ async function buildDraft(sdk, env, s, preset, narration, log, rec) {
   const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
   const plateId = await plate(sdk, env, projectId, plateLen, preset.background, log);
   log("assembling");
-  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, headline: script.headline, preset, scenes, captions, decorate };
+  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, headline: script.headline, preset, scenes, captions, decorate };
   let draftId = null;
   try {
     const baseCall = baseDraftScript(x);
@@ -2399,7 +2518,7 @@ async function buildDraft(sdk, env, s, preset, narration, log, rec) {
     rec.notes.push(`font subsets: ${fontStats.count} graphics, ${Math.round(fontStats.bytes / 1024)} KB` + (fontStats.failed ? `, ${fontStats.failed} failed` : "") + (fontStats.missing.size ? ", no glyph for " + [...fontStats.missing].join("") : ""));
   }
   rec.notes.push("draft: " + draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
-  return { draftId, timing: source, fallbackPlan: usedFallback };
+  return { draftId, timing: sp.timing, fallbackPlan: sp.fallback };
 }
 
 // src/Panel.tsx
@@ -2408,6 +2527,33 @@ var box = { border: "1px solid var(--panel-border, #3334)", borderRadius: 8, pad
 var muted = { color: "var(--panel-muted-fg, #888)", fontSize: 12 };
 var input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" };
 var MAX_CHARS = TARGET_CHARS.max;
+var warn = { color: "#d9822b", fontSize: 12 };
+function thumbOf(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => {
+      const w = 160, h = Math.max(1, Math.round(im.height * w / Math.max(1, im.width)));
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const g = c.getContext("2d");
+      if (!g) return reject(new Error("no canvas"));
+      g.drawImage(im, 0, 0, w, h);
+      resolve(c.toDataURL("image/jpeg", 0.7));
+    };
+    im.onerror = () => reject(new Error("thumbnail"));
+    im.src = dataUrl;
+  });
+}
+var SCENE_FIELDS = {
+  text_card: ["text", "sub"],
+  number_callout: ["label", "from", "to", "unit"],
+  quote_card: ["name", "lines"],
+  bar_compare_h: ["title"],
+  line_trend_callout: ["title"],
+  stat_cards: ["title"],
+  news_photo: []
+};
 function NewsMinutePanel({ sdk, context }) {
   const lang = context?.language;
   const T = (k, v) => t(lang, k, v);
@@ -2420,6 +2566,8 @@ function NewsMinutePanel({ sdk, context }) {
   const [text, setText] = useState("");
   const [tts, setTts] = useState(null);
   const [voices, setVoices] = useState([]);
+  const [feedback, setFeedback] = useState("");
+  const [jsonErr, setJsonErr] = useState({});
   const env = useRef(null);
   useAppUpdateGuard(sdk, context?.language, () => busy);
   const log = (k, v) => {
@@ -2527,13 +2675,57 @@ function NewsMinutePanel({ sdk, context }) {
     const rec = await startNarration(sdk, s.projectId, s.script, s.voiceId, preset.ttsLanguage);
     setTts(rec);
   });
-  const build = () => guard(async () => {
+  const makePlan = () => guard(async () => {
     const next2 = ttsNext(tts, s.approved);
     if (next2.kind !== "ready") return;
     const rec = newRunRecord(preset.id, s.article?.url ?? "");
+    let plan2;
+    try {
+      plan2 = await planScenes(sdk, env.current, s, preset, next2, log, rec, thumbOf);
+    } catch (e) {
+      rec.notes.push("error: " + String(e?.message || e));
+      throw e;
+    } finally {
+      await finish(rec);
+    }
+    await update({ ...s, plan: plan2, draftId: null });
+    setFeedback("");
+    setJsonErr({});
+    if (plan2.timing === "ratio") setError(T("timingRatio"));
+  });
+  const revise = () => guard(async () => {
+    const note = feedback.trim();
+    if (!note || !s.plan) return;
+    log("revising");
+    const rec = newRunRecord(preset.id, s.article?.url ?? "");
     let r;
     try {
-      r = await buildDraft(sdk, env.current, s, preset, next2, log, rec);
+      r = await revisePlan(sdk, env.current, s, preset, note, log, rec);
+    } catch (e) {
+      rec.notes.push("error: " + String(e?.message || e));
+      throw e;
+    } finally {
+      await finish(rec);
+    }
+    await update({ ...s, plan: r.plan });
+    setJsonErr({});
+    if (r.kept) setError(T("reviseKept"));
+    else {
+      setFeedback("");
+      log("revised", { n: r.plan.changed.length, of: r.plan.scenes.length });
+    }
+  });
+  const build = () => guard(async () => {
+    const plan2 = s.plan;
+    if (!plan2) return;
+    const v = checkPlan(plan2);
+    const blocking = v.errors.filter((e) => BLOCKING_PLAN_ERROR.test(e));
+    if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).join("; ") }));
+    if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).join("\n"))) return;
+    const rec = newRunRecord(preset.id, s.article?.url ?? "");
+    let r;
+    try {
+      r = await assemble(sdk, env.current, s, preset, log, rec);
     } catch (e) {
       rec.notes.push("error: " + String(e?.message || e));
       throw e;
@@ -2543,9 +2735,14 @@ function NewsMinutePanel({ sdk, context }) {
     await update({ ...s, draftId: r.draftId });
     await run(sdk, openDraftScript(r.draftId)).catch(() => {
     });
-    if (r.timing === "ratio") setError(T("timingRatio"));
-    else if (r.fallbackPlan) setError(T("planFallback"));
   });
+  const setScene = (i, sc2) => {
+    const plan2 = s.plan;
+    if (!plan2) return;
+    const scenes = plan2.scenes.map((x, k) => k === i ? sc2 : x);
+    const edited = plan2.edited.includes(i) ? plan2.edited : [...plan2.edited, i];
+    update({ ...s, plan: { ...plan2, scenes, edited }, draftId: null });
+  };
   const reset = () => guard(async () => {
     await update({ ...emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId });
     setUrl("");
@@ -2558,6 +2755,118 @@ function NewsMinutePanel({ sdk, context }) {
   const next = approved ? ttsNext(tts, s.approved) : null;
   const quote = creditQuote(chars);
   const liveErrors = sc && s.article && touched ? checkEdited(sc, s.article).errors : s.scriptErrors;
+  const plan = approved && next?.kind === "ready" && s.plan && s.plan.narrationId === next.resourceId ? s.plan : null;
+  const renderPlan = (plan2) => {
+    const v = checkPlan(plan2);
+    const rowErrors = /* @__PURE__ */ new Map(), rowWarnings = /* @__PURE__ */ new Map();
+    const general = [];
+    const sort = (list, into, rest) => {
+      for (const e of list) {
+        const m = /^scene (\d+): (.*)$/.exec(e);
+        if (m) into.set(Number(m[1]) - 1, [...into.get(Number(m[1]) - 1) ?? [], m[2]]);
+        else if (rest) rest.push(e);
+      }
+    };
+    sort(v.errors, rowErrors, general);
+    sort(v.warnings, rowWarnings, null);
+    const byId = new Map(plan2.sentences.map((x) => [x.id, x]));
+    const summary = new Map(plan2.assetSummaries.map((a) => [a.ref, a.summary]));
+    const photoRefs = plan2.assets.map((a) => a.ref);
+    const lastRound = plan2.rounds[plan2.rounds.length - 1];
+    return /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", flexDirection: "column", gap: 10 }, children: [
+      /* @__PURE__ */ jsx("strong", { children: T("planReview") }),
+      /* @__PURE__ */ jsx("span", { style: muted, children: T("planReviewHint") }),
+      plan2.fallback ? /* @__PURE__ */ jsx("span", { style: warn, children: T("planFallbackNote") }) : null,
+      lastRound ? /* @__PURE__ */ jsxs("span", { style: muted, children: [
+        T("rounds", { n: plan2.rounds.length }),
+        lastRound.fallback ? "" : " \xB7 " + T("revised", { n: lastRound.changed, of: lastRound.scenes })
+      ] }) : null,
+      general.length ? /* @__PURE__ */ jsx("div", { style: warn, children: general.map((x, i) => /* @__PURE__ */ jsx("div", { children: "\u2022 " + x }, i)) }) : null,
+      plan2.scenes.map((scene, i) => {
+        const ss = scene.sentenceIds.map((id) => byId.get(id)).filter(Boolean);
+        const start = ss.length ? Math.min(...ss.map((x) => x.startSec)) : 0, end = ss.length ? Math.max(...ss.map((x) => x.endSec)) : 0;
+        const changed = plan2.changed.includes(i), edited = plan2.edited.includes(i);
+        const setParam = (k, val) => setScene(i, { ...scene, params: { ...scene.params ?? {}, [k]: val } });
+        const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
+        return /* @__PURE__ */ jsxs("div", { style: { borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 4, background: changed ? "rgba(74,144,217,0.08)" : void 0 }, children: [
+          /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }, children: [
+            /* @__PURE__ */ jsx("strong", { children: String(i + 1).padStart(2, "0") }),
+            /* @__PURE__ */ jsx("span", { style: muted, children: start.toFixed(1) + "\u2013" + end.toFixed(1) + "s" }),
+            changed ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#4a90d9", fontWeight: 600 }, children: T("changedMark") }) : null,
+            edited ? /* @__PURE__ */ jsx("span", { style: { ...muted, color: "#d9822b" }, children: T("editedMark") }) : null
+          ] }),
+          /* @__PURE__ */ jsx("span", { style: { ...muted, color: "inherit" }, children: ss.map((x) => x.text).join(" ") }),
+          /* @__PURE__ */ jsxs("label", { style: muted, children: [
+            T("sceneType"),
+            " ",
+            /* @__PURE__ */ jsx("select", { value: scene.type, disabled: busy, onChange: (e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs)), children: SCENE_TYPES.map((t2) => /* @__PURE__ */ jsx("option", { value: t2, children: T("type_" + t2) }, t2)) })
+          ] }),
+          canPhoto ? /* @__PURE__ */ jsxs("label", { style: muted, children: [
+            T("scenePhoto"),
+            " ",
+            /* @__PURE__ */ jsxs("select", { value: scene.assetRef ?? "", disabled: busy, onChange: (e) => {
+              const { assetRef: _x, ...rest } = scene;
+              setScene(i, e.target.value ? { ...rest, assetRef: e.target.value } : rest);
+            }, children: [
+              /* @__PURE__ */ jsx("option", { value: "", children: T("noPhoto") }),
+              photoRefs.map((r) => /* @__PURE__ */ jsx("option", { value: r, children: r }, r))
+            ] })
+          ] }) : null,
+          scene.assetRef ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 6, alignItems: "flex-start" }, children: [
+            plan2.thumbs[scene.assetRef] ? /* @__PURE__ */ jsx("img", { src: plan2.thumbs[scene.assetRef], style: { width: 72, borderRadius: 4, flex: "none" } }) : null,
+            /* @__PURE__ */ jsx("span", { style: muted, children: T("assetShows", { summary: summary.get(scene.assetRef) ?? "" }) })
+          ] }) : null,
+          (SCENE_FIELDS[scene.type] ?? []).map((k) => {
+            const raw = scene.params?.[k];
+            if (k === "lines") return /* @__PURE__ */ jsxs("label", { style: muted, children: [
+              T("field_lines"),
+              /* @__PURE__ */ jsx("textarea", { style: input, rows: 3, value: Array.isArray(raw) ? raw.join("\n") : "", disabled: busy, onChange: (e) => setParam("lines", e.target.value.split("\n")) })
+            ] }, k);
+            return /* @__PURE__ */ jsxs("label", { style: muted, children: [
+              T("field_" + k),
+              k === "text" ? /* @__PURE__ */ jsx("textarea", { style: input, rows: 2, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) }) : /* @__PURE__ */ jsx("input", { style: input, value: raw == null ? "" : String(raw), disabled: busy, onChange: (e) => setParam(k, e.target.value) })
+            ] }, k);
+          }),
+          /* @__PURE__ */ jsxs("details", { children: [
+            /* @__PURE__ */ jsx("summary", { style: muted, children: T("sceneParams") }),
+            /* @__PURE__ */ jsx(
+              "textarea",
+              {
+                style: { ...input, fontFamily: "monospace", fontSize: 11 },
+                rows: 6,
+                disabled: busy,
+                defaultValue: JSON.stringify(scene.params ?? {}, null, 1),
+                onBlur: (e) => {
+                  try {
+                    const p = JSON.parse(e.target.value);
+                    setJsonErr((m) => {
+                      const n = { ...m };
+                      delete n[i];
+                      return n;
+                    });
+                    if (JSON.stringify(p) !== JSON.stringify(scene.params ?? {})) setScene(i, { ...scene, params: p });
+                  } catch (err) {
+                    setJsonErr((m) => ({ ...m, [i]: T("badJson", { error: String(err?.message || err) }) }));
+                  }
+                }
+              },
+              JSON.stringify(scene.params ?? {})
+            ),
+            jsonErr[i] ? /* @__PURE__ */ jsx("span", { style: warn, children: jsonErr[i] }) : null
+          ] }),
+          (rowErrors.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: warn, children: "\u2022 " + x }, "e" + k)),
+          (rowWarnings.get(i) ?? []).map((x, k) => /* @__PURE__ */ jsx("span", { style: muted, children: "\u2022 " + x }, "w" + k))
+        ] }, i + ":" + scene.sentenceIds.join(","));
+      }),
+      /* @__PURE__ */ jsxs("label", { children: [
+        T("feedback"),
+        /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 60 }, placeholder: T("feedbackHint"), value: feedback, disabled: busy, onChange: (e) => setFeedback(e.target.value) })
+      ] }),
+      /* @__PURE__ */ jsx("span", { style: muted, children: T("buildCredits") }),
+      /* @__PURE__ */ jsx("button", { disabled: busy || !feedback.trim(), onClick: revise, children: T("revise") }),
+      /* @__PURE__ */ jsx("button", { disabled: busy, onClick: build, children: T("buildFromPlan") })
+    ] });
+  };
   return /* @__PURE__ */ jsxs("div", { style: { padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }, children: [
     /* @__PURE__ */ jsx("strong", { children: T("title") }),
     /* @__PURE__ */ jsxs("label", { children: [
@@ -2626,10 +2935,13 @@ function NewsMinutePanel({ sdk, context }) {
         /* @__PURE__ */ jsx("button", { disabled: busy, onClick: narrate, children: T("retry") })
       ] }) : /* @__PURE__ */ jsxs(Fragment, { children: [
         /* @__PURE__ */ jsx("span", { children: "\u2713 " + T("narrated", { sec: next.durationSeconds.toFixed(1) }) }),
-        /* @__PURE__ */ jsx("span", { style: muted, children: T("buildCredits") }),
-        /* @__PURE__ */ jsx("button", { disabled: busy, onClick: build, children: T("build") })
+        plan ? null : /* @__PURE__ */ jsxs(Fragment, { children: [
+          /* @__PURE__ */ jsx("span", { style: muted, children: T("buildCredits") }),
+          /* @__PURE__ */ jsx("button", { disabled: busy, onClick: makePlan, children: T("makePlan") })
+        ] })
       ] })
     ] }) : null,
+    plan ? renderPlan(plan) : null,
     s.draftId ? /* @__PURE__ */ jsxs("div", { style: { ...box, display: "flex", gap: 8, alignItems: "center" }, children: [
       /* @__PURE__ */ jsx("span", { children: T("done") }),
       /* @__PURE__ */ jsx("button", { disabled: busy, onClick: () => run(sdk, openDraftScript(s.draftId)).catch(() => {
