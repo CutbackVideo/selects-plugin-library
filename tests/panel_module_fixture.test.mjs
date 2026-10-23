@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import test from 'node:test';
-import {loadPanelModule} from './panel_module_fixture.mjs';
+import {loadPanelModule,disposePanelModule,panelModuleTimerState} from './panel_module_fixture.mjs';
 import {topLevel} from './windows_host.mjs';
 
 test('new transitive helpers load without adding their names to the fixture', () => {
@@ -81,4 +81,99 @@ test('a host-boundary override preserves exported function hoisting and async re
   const result = later(4);
   assert.equal(typeof result.then, 'function');
   assert.equal(await result, 5);
+});
+
+test('whole modules have real browser timeout and interval globals without caller patches', async () => {
+  const api = loadPanelModule(`
+    const events: string[]=[];
+    function start(done) {
+      const interval=setInterval((value)=>{ events.push(value); clearTimeout(interval); },1,'interval');
+      const timeout=setTimeout((value)=>{ events.push(value); done(); },5,'timeout');
+      return [interval,timeout];
+    }
+    function inspect(){return events;}
+  `,{names:['start','inspect']});
+  try {
+    let ids;
+    await new Promise(resolve => {ids=api.start(resolve);});
+    assert.ok(ids.every(Number.isInteger)); assert.notEqual(ids[0],ids[1]);
+    assert.deepEqual([...api.inspect()],['interval','timeout']);
+    assert.deepEqual(panelModuleTimerState(api),{disposed:false,timeouts:0,intervals:0});
+  } finally { disposePanelModule(api); }
+});
+
+function controlledTimers() {
+  let next=0; const queued=new Map(), cleared=[];
+  return {queued,cleared,backends:{
+    setTimeout(fn){const id=++next;queued.set(id,()=>{queued.delete(id);fn();});return id;},
+    setInterval(fn){const id=++next;queued.set(id,fn);return id;},
+    clearTimeout(id){cleared.push(['timeout',id]);queued.delete(id);},
+    clearInterval(id){cleared.push(['interval',id]);queued.delete(id);},
+  }};
+}
+
+test('browser timer families share numeric IDs and clearing while retaining fake scheduler ownership', () => {
+  const clock=controlledTimers();
+  const api=loadPanelModule(`
+    let calls=0;
+    function start(){return [setTimeout(()=>calls++,10),setInterval(()=>calls++,20)];}
+    function stop(ids){clearInterval(ids[0]);clearTimeout(ids[1]);}
+    function inspect(){return calls;}
+  `,{names:['start','stop','inspect'],globals:clock.backends});
+  const ids=api.start(),late=[...clock.queued.values()];
+  assert.deepEqual([...ids],[1,2]);
+  api.stop(ids); for(const callback of late)callback();
+  assert.equal(api.inspect(),0);
+  assert.deepEqual(clock.cleared,[['timeout',1],['interval',2]]);
+  disposePanelModule(api);
+});
+
+test('realm disposal clears only its own timers and suppresses already queued late callbacks', () => {
+  const clock=controlledTimers(),source=`
+    let calls=0;
+    function start(){setTimeout(()=>calls++,10);setInterval(()=>calls++,10);}
+    function inspect(){return calls;}
+  `;
+  const a=loadPanelModule(source,{names:['start','inspect'],globals:clock.backends});
+  const b=loadPanelModule(source,{names:['start','inspect'],globals:clock.backends});
+  a.start();const late=[...clock.queued.values()];b.start();
+  disposePanelModule(a);disposePanelModule(a);
+  for(const callback of late)callback();
+  assert.equal(a.inspect(),0);assert.equal(clock.queued.size,2);
+  for(const callback of [...clock.queued.values()])callback();
+  assert.equal(b.inspect(),2);
+  assert.deepEqual(panelModuleTimerState(a),{disposed:true,timeouts:0,intervals:0});
+  assert.throws(()=>a.start(),/realm is disposed/);
+  disposePanelModule(b);assert.equal(clock.queued.size,0);
+});
+
+test('active timer callbacks retain VM global receiver, arguments, and real failures', () => {
+  const clock=controlledTimers(),failure=Error('actual callback failure');
+  const api=loadPanelModule(`
+    let received;
+    function start(){setInterval(function(a,b){received=[this===globalThis,a,b];throw failure;},1,'a',2);}
+    function inspect(){return received;}
+  `,{names:['start','inspect'],globals:{...clock.backends,failure}});
+  try {
+    api.start();assert.throws(()=>[...clock.queued.values()][0](),error=>error===failure);
+    assert.deepEqual([...api.inspect()],[true,'a',2]);
+  } finally {disposePanelModule(api);}
+});
+
+test('a whole-module initialization failure disposes its already scheduled timers', () => {
+  const clock=controlledTimers();
+  assert.throws(()=>loadPanelModule(`setInterval(()=>{},100);setTimeout(()=>{},100);throw Error('init failed');function run(){}`,
+    {names:['run'],globals:clock.backends}),/init failed/);
+  assert.equal(clock.queued.size,0);
+  assert.deepEqual(clock.cleared,[['interval',1],['timeout',2]]);
+});
+
+test('mutation: an absent or broken scheduler still fails instead of becoming a silent noop', () => {
+  // Deliberately mutate the boundary, not the product: the complete module must
+  // expose missing browser capabilities and scheduler failures to its caller.
+  assert.throws(()=>loadPanelModule('setInterval(()=>{},10);function run(){}',
+    {names:['run'],globals:{setInterval:undefined}}),/not a function/);
+  const clock=controlledTimers(),failure=Error('scheduler failed');
+  assert.throws(()=>loadPanelModule('setInterval(()=>{},10);function run(){}',
+    {names:['run'],globals:{...clock.backends,setInterval:()=>{throw failure;}}}),error=>error===failure);
 });

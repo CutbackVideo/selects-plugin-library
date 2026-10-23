@@ -4,6 +4,11 @@ import vm from 'node:vm';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {webcrypto} from 'node:crypto';
+import {createPanelBrowserTimers} from './panel_browser_realm.mjs';
+
+const browserRealms = new WeakMap();
+export function disposePanelModule(bindings) { browserRealms.get(bindings)?.dispose(); }
+export function panelModuleTimerState(bindings) { return browserRealms.get(bindings)?.state(); }
 
 const require = createRequire(import.meta.url);
 let compiler;
@@ -63,9 +68,13 @@ export function loadPanelModule(source, {names, overrides = {}, React = {}, modu
   const errors = (compiled.diagnostics || []).filter(d => d.category === ts.DiagnosticCategory.Error);
   if (errors.length) throw Error(errors.map(d => ts.flattenDiagnosticMessageText(d.messageText, '\n')).join('\n'));
   const module = {exports: {}};
+  // Explicit fake schedulers use the same ownership/cleanup contract as real ones.
+  const timerBackends = Object.fromEntries(['setTimeout','clearTimeout','setInterval','clearInterval']
+    .filter(name => Object.hasOwn(globals, name)).map(name => [name, globals[name]]));
+  const timers = createPanelBrowserTimers(timerBackends);
   const context = vm.createContext({
     console, crypto: webcrypto, TextEncoder, TextDecoder, Uint8Array, AbortController, DOMException,
-    atob, btoa, performance, setTimeout, clearTimeout, ...globals,
+    atob, btoa, performance, ...globals, ...timers.globals,
     module, exports: module.exports, __panelOverrides: overrides,
     require: id => {
       if (id === 'react') return {__esModule: true, default: React, ...React};
@@ -73,6 +82,10 @@ export function loadPanelModule(source, {names, overrides = {}, React = {}, modu
       throw Error('Panel fixture has no module boundary for: ' + id);
     },
   });
-  vm.runInContext(compiled.outputText + '\nthis.__panelBindings={' + names.join(',') + '};', context, {filename, timeout: 5000});
-  return context.__panelBindings;
+  timers.bindGlobal(vm.runInContext('globalThis', context));
+  try {
+    vm.runInContext(compiled.outputText + '\nthis.__panelBindings={' + names.join(',') + '};', context, {filename, timeout: 5000});
+    browserRealms.set(context.__panelBindings, timers);
+    return context.__panelBindings;
+  } catch (error) { timers.dispose(); throw error; }
 }

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
 import {createRequire,stripTypeScriptTypes} from 'node:module';
-import {loadPanelModule} from './panel_module_fixture.mjs';
+import {loadPanelModule,disposePanelModule,panelModuleTimerState} from './panel_module_fixture.mjs';
 
 const panel = fs.readFileSync(new URL('../plugins/chris-williamson-style/src/panel.template.tsx', import.meta.url), 'utf8');
 const pipeline = fs.readFileSync(new URL('../plugins/chris-williamson-style/src/pipeline.ts', import.meta.url), 'utf8');
@@ -23,7 +23,17 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', {url:'http://
 Object.assign(globalThis, {window:dom.window, document:dom.window.document, HTMLElement:dom.window.HTMLElement, MutationObserver:dom.window.MutationObserver});
 Object.defineProperty(globalThis, 'navigator', {value:dom.window.navigator, configurable:true});
 const {render,cleanup,act,fireEvent} = require('@testing-library/react');
-test.afterEach(cleanup);
+const mountedRealms = new Set();
+const loadUiPanel = (...args) => { const bindings=loadPanelModule(...args); mountedRealms.add(bindings); return bindings; };
+test.afterEach(() => {
+  try {
+    cleanup();
+    for (const bindings of mountedRealms) assert.equal(panelModuleTimerState(bindings).intervals,0,
+      "React unmount must cancel the actual production progress interval");
+  }
+  finally { for (const bindings of mountedRealms) disposePanelModule(bindings); mountedRealms.clear(); }
+});
+test.after(() => { disposePanelModule(functions); dom.window.close(); });
 const tick = async action => act(async () => { await action?.(); await new Promise(resolve => setImmediate(resolve)); });
 const h = React.createElement;
 const ui = {
@@ -161,7 +171,7 @@ test('a pending face journal resumes before look commits; only a user click perm
 function templateHarness() {
   const runs=[],finished=[];
   const paths={data:'/data',plugin:'/plugin',ffmpeg:'ffmpeg'};
-  const {Panel,panelLocalClients}=loadPanelModule(production,{
+  const {Panel,panelLocalClients}=loadUiPanel(production,{
     names:['Panel','panelLocalClients'],React,
     overrides:{resolvePaths:async()=>paths,runPipeline:async(env)=>{
       const gate=deferred();runs.push({env,...gate});return gate.promise;
@@ -189,7 +199,7 @@ test('template effect cleanup/setup before async preparation does not strand a S
 function styleHarness({deferCancel=false,transcriptRead,source=production} = {}) {
   const cancelCalls=[],editorCalls=[],runs=[];let finishCancel,activeEnv;
   const paths={data:'/data',plugin:'/plugin',ffmpeg:'ffmpeg'};
-  const {Panel,panelLocalClients}=loadPanelModule(source,{
+  const {Panel,panelLocalClients}=loadUiPanel(source,{
     names:['Panel','panelLocalClients'],React,
     overrides:{resolvePaths:async()=>paths,
       runPipeline:async(env,pid,sid,options)=>{
