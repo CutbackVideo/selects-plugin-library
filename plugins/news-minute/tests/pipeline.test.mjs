@@ -138,3 +138,35 @@ test("charts and tall images are shown whole", async () => {
   assert.ok(!isGraphic("photo /Yonhap", 1200, 800));
   assert.ok(!isGraphic("", 0, 0));
 });
+
+test("settlePlan keeps a plan only a little over each scene type's limit", async () => {
+  const { settlePlan, PLAN_LENGTH_GRACE_SEC } = await import("../src/pipeline/plan.ts");
+  const { SCENE_MAX_SEC } = await import("../src/prompts/validate.ts");
+  const sents = [{ id: "s1", text: "a", startSec: 0, endSec: 13 }];
+  const plan = (type) => ({ scenes: [{ sentenceIds: ["s1"], type, params: {}, hideCaption: false, disclaimer: false }] });
+  const err = (sec) => ["scene 1: lasts " + sec.toFixed(1) + " s; split it"];
+  const ok = { errors: [] };
+  // data scene: 13.9 s is within 12 + 2; text card: the same length is past 10.5 + 2
+  assert.equal(SCENE_MAX_SEC.data + PLAN_LENGTH_GRACE_SEC, 14);
+  assert.ok(settlePlan(plan("line_trend_callout"), err(13.9), sents, () => ok).scenes);
+  assert.equal(settlePlan(plan("text_card"), err(13.9), sents, () => ok).scenes, null);
+  assert.ok(settlePlan(plan("text_card"), err(12.4), sents, () => ok).scenes);
+  // any other error still falls back
+  assert.equal(settlePlan(plan("line_trend_callout"), [...err(12.5), "scene 1: points need values"], sents, () => ok).scenes, null);
+  assert.equal(settlePlan(null, ["bad json"], sents, () => ok).scenes, null);
+});
+
+test("settlePlan turns number callouts without a number into text cards and checks again", async () => {
+  const { settlePlan } = await import("../src/pipeline/plan.ts");
+  const sents = [{ id: "s1", text: "\uac70\ub798\ub7c9\uc774 \ub450 \ubc30 \uac00\uae4c\uc774 \ub298\uc5c8\ub2e4", startSec: 0, endSec: 4 }];
+  const json = { scenes: [{ sentenceIds: ["s1"], type: "number_callout", params: { from: "6.0%", to: "\ub450 \ubc30 \uac00\uae4c\uc6b4", label: "\uac70\ub798\ub7c9" }, hideCaption: true, disclaimer: false, assetRef: "p1" }] };
+  let checked = null;
+  const r = settlePlan(json, ["scene 1: number_callout to must contain a number"], sents, (j) => { checked = j; return { errors: [] }; });
+  assert.equal(r.demoted, 1);
+  assert.equal(checked.scenes[0].type, "text_card");
+  assert.equal(r.scenes[0].type, "text_card");
+  assert.equal(r.scenes[0].hideCaption, false);
+  assert.equal(r.scenes[0].assetRef, undefined);
+  // still failing after demotion -> fall back
+  assert.equal(settlePlan(json, ["x"], sents, () => ({ errors: ["scene 1: text required"] })).scenes, null);
+});

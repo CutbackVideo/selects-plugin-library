@@ -11,7 +11,7 @@ import {
 } from "./scripts.ts";
 import { captionTimes, joinScript, sentenceTimes, type AlignChar } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
-import { fallbackPlan, hiddenCaptionSentences, isGraphic, sceneClips, type PhotoAsset } from "./plan.ts";
+import { fallbackPlan, hiddenCaptionSentences, isGraphic, sceneClips, settlePlan, type PhotoAsset } from "./plan.ts";
 import { baseDraftScript, overlayTextScripts, sceneScripts } from "./assemble.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 
@@ -229,11 +229,13 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   log("planning");
   let plan: PlanScene[] | null = null;
   try {
-    const r = await askValid<any>(sdk, "plan", P.plannerPrompt({ headline: script.headline, sentences, assets, language: preset.scriptLanguage }), (j) => P.validatePlan(j, sentences, assets), log, rec, 1);
-    // A scene a little over the 10 s guide is still a usable plan; anything else falls back.
-    const onlyLength = r.errors.length > 0 && r.errors.every((e) => /lasts [\d.]+ s/.test(e) && Number(/lasts ([\d.]+) s/.exec(e)![1]) <= 14);
-    if (r.json && (!r.errors.length || onlyLength)) plan = r.json.scenes;
-    if (onlyLength) rec.notes.push("plan: accepted with long scenes (" + r.errors.join("; ") + ")");
+    const check = (j: any) => P.validatePlan(j, sentences, assets);
+    const r = await askValid<any>(sdk, "plan", P.plannerPrompt({ headline: script.headline, sentences, assets, language: preset.scriptLanguage }), check, log, rec, 1);
+    const settled = settlePlan(r.json, r.errors, sentences, check);
+    plan = settled.scenes;
+    if (settled.demoted) { rec.notes.push("plan: " + settled.demoted + " number callout(s) without a number shown as text cards"); log("planDemoted", { n: settled.demoted }); }
+    if (plan && settled.longScenes.length) rec.notes.push("plan: accepted with long scenes (" + settled.longScenes.join("; ") + ")");
+    if (!plan && r.json) rec.notes.push("plan: rejected (" + settled.errors.slice(0, 5).join("; ") + ")");
   } catch { plan = null; }
   const usedFallback = !plan;
   if (!plan) { rec.notes.push("plan: fallback"); log("planFallback"); plan = fallbackPlan(sentences, times, photos.map((p) => p.ref)); }
