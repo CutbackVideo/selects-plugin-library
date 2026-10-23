@@ -95,6 +95,7 @@ var MESSAGES = {
   editScene: ["Edit", "\uACE0\uCE58\uAE30"],
   closeScene: ["Close", "\uB2EB\uAE30"],
   videoFromPreview: ["The preview Draft is now the video.", "\uBBF8\uB9AC\uBCF4\uAE30 Draft\uB97C \uADF8\uB300\uB85C \uC601\uC0C1\uC73C\uB85C \uC37C\uC5B4\uC694."],
+  previewNotOpened: ["The preview Draft did not open in the viewer.", "\uBBF8\uB9AC\uBCF4\uAE30 Draft\uAC00 \uBDF0\uC5B4\uC5D0 \uC5F4\uB9AC\uC9C0 \uC54A\uC558\uC5B4\uC694."],
   seekUnconfirmed: ["The viewer did not move to scene {n}.", "\uBDF0\uC5B4\uAC00 {n}\uBC88 \uC7A5\uBA74\uC73C\uB85C \uC62E\uACA8\uC9C0\uC9C0 \uC54A\uC558\uC5B4\uC694."],
   planFallbackNote: ["This is the simple fallback plan (photos and text cards): the AI plan did not pass its check.", "AI \uACC4\uD68D\uC774 \uAC80\uC0AC\uB97C \uD1B5\uACFC\uD558\uC9C0 \uBABB\uD574 \uB2E8\uC21C \uB300\uCCB4 \uD50C\uB79C(\uC0AC\uC9C4\xB7\uAE00\uC790 \uCE74\uB4DC)\uC744 \uBCF4\uC5EC \uC8FC\uACE0 \uC788\uC5B4\uC694."],
   sceneType: ["Type", "\uC885\uB958"],
@@ -517,14 +518,6 @@ var openDraftScript = (draftId) => ({
   summary: "Open the Draft",
   script: `return await selects.editor.openDraft(${J(draftId)});`
 });
-var renameDraftScript = (draftId, name) => ({
-  summary: "Rename the Draft",
-  allowCommit: true,
-  script: `const d = selects.draft(${J(draftId)});
-await d.setName(${J(name)});
-await d.commitAll("News short: name");
-return true;`
-});
 
 // src/pipeline/host.ts
 var ASK_MAX_IMAGES = 4;
@@ -626,6 +619,114 @@ async function readFileBase64(sdk, path, maxBytes) {
   let s = "";
   for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode(...bytes.subarray(i, i + 32768));
   return btoa(s);
+}
+
+// src/pipeline/preview.ts
+var J2 = (v) => JSON.stringify(v);
+var FPS = 3e4 / 1001;
+function sceneFrames(frames, scene) {
+  if (!Number.isSafeInteger(frames) || frames < 1 || !Number.isFinite(scene.startSec) || !Number.isFinite(scene.endSec)) throw new Error("invalid preview scene frames");
+  const start = Math.max(0, Math.min(frames - 1, Math.round(scene.startSec * FPS)));
+  const end = Math.min(frames, Math.round(scene.endSec * FPS));
+  if (end <= start) throw new Error("preview scene range is empty");
+  return { start, end, still: Math.max(start, Math.min(end - 1, end - Math.round(0.5 * FPS))) };
+}
+function ownership(x) {
+  if (!x.projectId?.trim() || !x.draftId?.trim()) throw new Error("preview Project and Draft are required");
+  return `const state = await selects.editor.state();
+if (state?.projectId !== ${J2(x.projectId)} || !Array.isArray(state.draftIds) || !state.draftIds.includes(${J2(x.draftId)})) throw new Error("preview Draft does not belong to the open Project");`;
+}
+function matches(state, x, frame) {
+  return state?.projectId === x.projectId && state.onScreenTab?.kind === "draft" && state.onScreenTab.sequenceId === x.draftId && Array.isArray(state.draftIds) && state.draftIds.includes(x.draftId) && (frame === void 0 || state.playhead?.sequenceId === x.draftId && state.playhead.resolvedFrame === frame);
+}
+async function confirm(sdk, x, frame) {
+  for (let i = 0; i < 5; i++) {
+    const state = await run(sdk, { summary: "Confirm the preview position", script: "return await selects.editor.state();" });
+    if (matches(state, x, frame)) return true;
+    if (state?.projectId !== x.projectId || !state.draftIds?.includes(x.draftId)) return false;
+    if (i < 4) await sleep(100);
+  }
+  return false;
+}
+async function openPreview(sdk, x) {
+  await run(sdk, { summary: "Open the preview Draft", script: `${ownership(x)}
+return await selects.editor.openDraft(${J2(x.draftId)});` });
+  return confirm(sdk, x);
+}
+async function seekScene(sdk, x) {
+  const frame = sceneFrames(x.frames, x.scene).start;
+  await run(sdk, { summary: "Go to the preview scene", script: `${ownership(x)}
+return await selects.editor.seekDraftFrame(${J2({ projectId: x.projectId, draftSequenceId: x.draftId, resolvedFrame: frame })});` });
+  return { confirmed: await confirm(sdk, x, frame), frame };
+}
+async function renameDraft(sdk, x) {
+  if (!x.name?.trim()) throw new Error("preview Draft name is empty");
+  await run(sdk, { summary: "Approve the preview Draft", allowCommit: true, script: `${ownership(x)}
+const d = selects.draft(${J2(x.draftId)});
+await d.setName(${J2(x.name)});
+await d.commitAll("News short: approve preview");
+return true;` });
+}
+var caches = /* @__PURE__ */ new WeakMap();
+var CACHE_LIMIT = 24;
+var serial = 0;
+function clearPreviewCache(sdk) {
+  const c = caches.get(sdk);
+  if (c) {
+    c.generation++;
+    c.results.clear();
+    c.pending.clear();
+  }
+}
+function cacheFor(sdk) {
+  let c = caches.get(sdk);
+  if (!c) {
+    c = { results: /* @__PURE__ */ new Map(), pending: /* @__PURE__ */ new Map(), tail: Promise.resolve(), generation: 0 };
+    caches.set(sdk, c);
+  }
+  return c;
+}
+async function sceneStill(sdk, env, x) {
+  const frame = sceneFrames(x.frames, x.scene).still;
+  if (!x.key || !env.tmp || !["/", "\\"].includes(env.sep)) throw new Error("preview cache key and temporary folder are required");
+  const guard = ownership(x);
+  const c = cacheFor(sdk);
+  const key = J2([x.projectId, x.draftId, x.frames, x.scene, x.key]);
+  const existing = c.results.get(key);
+  if (existing) return { ...existing, cached: true };
+  const pending = c.pending.get(key);
+  if (pending) return { ...await pending, cached: true };
+  const generation = c.generation;
+  const task = c.tail.then(async () => {
+    if (generation !== c.generation) throw new Error("preview render was invalidated");
+    const path = env.tmp.replace(/[\\/]+$/, "") + env.sep + "news-minute-preview-" + Date.now() + "-" + ++serial + "-" + Math.random().toString(36).slice(2) + ".png";
+    const t0 = Date.now();
+    let bytes;
+    try {
+      const output = await run(sdk, { summary: "Render the complete preview scene", allowCommit: true, script: `${guard}
+return await selects.export.still(${J2({ projectId: x.projectId, draftSequenceId: x.draftId, resolvedFrame: frame, outPath: path })});` });
+      bytes = await readFileBytes(sdk, path);
+      if (!Number.isSafeInteger(output?.byteSize) || output.byteSize < 8 || bytes.length !== output.byteSize || ![137, 80, 78, 71, 13, 10, 26, 10].every((n, i) => bytes[i] === n)) throw new Error("preview PNG is missing or truncated");
+    } finally {
+      await run(sdk, removeScript(path)).catch(() => {
+      });
+    }
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 32768) binary += String.fromCharCode(...bytes.subarray(i, i + 32768));
+    const result2 = { dataUrl: "data:image/png;base64," + btoa(binary), ms: Date.now() - t0, cached: false };
+    if (generation !== c.generation) throw new Error("preview render was invalidated");
+    c.results.set(key, result2);
+    if (c.results.size > CACHE_LIMIT) c.results.delete(c.results.keys().next().value);
+    return result2;
+  });
+  c.pending.set(key, task);
+  c.tail = task.catch(() => {
+  });
+  try {
+    return await task;
+  } finally {
+    if (c.pending.get(key) === task) c.pending.delete(key);
+  }
 }
 
 // src/pipeline/tts.ts
@@ -5294,7 +5395,7 @@ function retypeScene(sc, type, firstSentence, photoRefs) {
 }
 
 // src/pipeline/assemble.ts
-var J2 = (v) => JSON.stringify(v);
+var J3 = (v) => JSON.stringify(v);
 var SCENE_BATCH_BYTES = 18e4;
 function tpl(type) {
   const t2 = TEMPLATES[type];
@@ -5319,10 +5420,10 @@ function narrationAndFrame(x) {
   const L = x.preset.layout;
   const frameParams = deco({ background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, windowTop: L.windowTop, windowBottom: L.frameWindowBottom, fontFamily: "" });
   return `${PRELUDE}
-const narr = await win(0, ${J2(x.narrationSeconds)});
+const narr = await win(0, ${J3(x.narrationSeconds)});
 if (!narr) throw new Error("narration range is empty");
-await d.overlayResource({ resource: p.resource(${J2(x.narrationId)}), over: narr });
-${x.bandsId ? "" : `await mg(${J2(frame.label)}, ${J2(frame.tsxCode)}, ${J2(frameParams)}, ${J2(frame.editableParameters)}, true, 0, total / fps);`}`;
+await d.overlayResource({ resource: p.resource(${J3(x.narrationId)}), over: narr });
+${x.bandsId ? "" : `await mg(${J3(frame.label)}, ${J3(frame.tsxCode)}, ${J3(frameParams)}, ${J3(frame.editableParameters)}, true, 0, total / fps);`}`;
 }
 function baseDraftScript(x) {
   if (!(x.narrationSeconds > 0)) throw new Error("narration length unknown");
@@ -5331,10 +5432,10 @@ function baseDraftScript(x) {
   return {
     summary: "Build the news short Draft",
     allowCommit: true,
-    script: `const p = selects.project(${J2(x.projectId)});
-const d = await p.createDraft({ name: ${J2(x.draftName)} });
+    script: `const p = selects.project(${J3(x.projectId)});
+const d = await p.createDraft({ name: ${J3(x.draftName)} });
 await d.setSettings({ frameRate: "30000/1001", frameSize: { width: 1080, height: 1920 } });
-await d.insertResource({ resourceId: ${J2(x.plateId)}, sourceRange: { startSeconds: 0, endSeconds: ${J2(end)} } });
+await d.insertResource({ resourceId: ${J3(x.plateId)}, sourceRange: { startSeconds: 0, endSeconds: ${J3(end)} } });
 ${narrationAndFrame(x)}
 const out: any = await d.commitAll("News short: frame and narration");
 return { draftId: out.createdDraftId ?? null, frames: total };`
@@ -5345,16 +5446,16 @@ function refillDraftScript(draftId, frames, x) {
   return {
     summary: "Refill the preview Draft",
     allowCommit: true,
-    script: `const p = selects.project(${J2(x.projectId)});
-const d = selects.draft(${J2(draftId)});
+    script: `const p = selects.project(${J3(x.projectId)});
+const d = selects.draft(${J3(draftId)});
 try { await d.meta(); } catch (e) { return { refilled: false, reason: "missing: " + String((e as any)?.message || e).slice(0, 200), frames: 0 }; }
 const before = await d.clips({ trackScope: "all" });
 const mainEnd = before.filter((c: any) => c.trackKind === "main").reduce((a: number, c: any) => Math.max(a, c.endFrame), 0);
-if (mainEnd !== ${J2(frames)}) return { refilled: false, reason: "main is " + mainEnd + " frames, expected " + ${J2(frames)}, frames: mainEnd };
+if (mainEnd !== ${J3(frames)}) return { refilled: false, reason: "main is " + mainEnd + " frames, expected " + ${J3(frames)}, frames: mainEnd };
 const extra = before.filter((c: any) => c.trackKind === "video" || c.trackKind === "audio");
 if (extra.length) await d.removeClips(extra);
 await d.removeEmptyTracks();
-await d.setName(${J2(x.draftName)});
+await d.setName(${J3(x.draftName)});
 ${narrationAndFrame(x)}
 await d.commitAll("News short: preview refilled");
 return { refilled: true, reason: "", frames: total, removed: extra.length };`
@@ -5373,7 +5474,7 @@ function sceneScripts(draftId, scenes) {
   const batches = [];
   let cur = [], size = 0;
   for (const s of scenes) {
-    const n = J2(s.params).length + tpl(s.type).tsxCode.length;
+    const n = J3(s.params).length + tpl(s.type).tsxCode.length;
     if (cur.length && size + n > SCENE_BATCH_BYTES) {
       batches.push(cur);
       cur = [];
@@ -5390,10 +5491,10 @@ function sceneScripts(draftId, scenes) {
     return {
       summary: `Add scene graphics (${i + 1}/${batches.length})`,
       allowCommit: true,
-      script: `const d = selects.draft(${J2(draftId)});
+      script: `const d = selects.draft(${J3(draftId)});
 ${PRELUDE}
-const T: any = ${J2(codes)};
-for (const s of ${J2(rows)} as any[]) await mg(s.label, T[s.type].tsx, s.params, T[s.type].edit, T[s.type].ti, s.a, s.b);
+const T: any = ${J3(codes)};
+for (const s of ${J3(rows)} as any[]) await mg(s.label, T[s.type].tsx, s.params, T[s.type].edit, T[s.type].ti, s.a, s.b);
 await d.commitAll("News short: scenes");
 return { added: ${batch.length} };`
     };
@@ -5405,11 +5506,11 @@ function bandsScript(draftId, projectId, bandsId) {
   return {
     summary: "Add the top and bottom bands",
     allowCommit: true,
-    script: `const d = selects.draft(${J2(draftId)});
+    script: `const d = selects.draft(${J3(draftId)});
 ${PRELUDE}
 const all = await win(0, total / fps);
 if (!all) throw new Error("the Draft is empty");
-await d.overlayResource({ resource: selects.project(${J2(projectId)}).resource(${J2(bandsId)}), over: all });
+await d.overlayResource({ resource: selects.project(${J3(projectId)}).resource(${J3(bandsId)}), over: all });
 await d.commitAll("News short: bands");
 return { added: 1 };`
   };
@@ -5426,7 +5527,7 @@ function overlayTextScripts(draftId, x) {
   const batches = [];
   let cur = [], size = 0;
   for (const it of items) {
-    const n = J2(it.params).length + 300;
+    const n = J3(it.params).length + 300;
     if (cur.length && size + n > SCENE_BATCH_BYTES) {
       batches.push(cur);
       cur = [];
@@ -5442,10 +5543,10 @@ function overlayTextScripts(draftId, x) {
     return {
       summary: `Add headline and captions (${i + 1}/${batches.length})`,
       allowCommit: true,
-      script: `const d = selects.draft(${J2(draftId)});
+      script: `const d = selects.draft(${J3(draftId)});
 ${PRELUDE}
-const T: any = ${J2(codes)};
-for (const s of ${J2(batch)} as any[]) await mg(s.label, T[s.type].tsx, s.params, T[s.type].edit, T[s.type].ti, s.a, Math.min(s.b, total / fps));
+const T: any = ${J3(codes)};
+for (const s of ${J3(batch)} as any[]) await mg(s.label, T[s.type].tsx, s.params, T[s.type].edit, T[s.type].ti, s.a, Math.min(s.b, total / fps));
 await d.commitAll("News short: headline and captions");
 return { added: ${batch.length} };`
     };
@@ -6172,6 +6273,21 @@ function draftQueue() {
     return p;
   };
 }
+var stillBuild = (p) => p.draftId + ":" + p.planRev + ":" + p.at + "#";
+var stillKey = (p, scene) => stillBuild(p) + scene;
+function previewViewer(sdk, env, queue, current) {
+  return {
+    open: (projectId, draftId) => queue(() => openPreview(sdk, { projectId, draftId })),
+    rename: (projectId, draftId, name) => queue(() => renameDraft(sdk, { projectId, draftId, name })),
+    seek: (p, scene) => queue(() => seekScene(sdk, { projectId: p.projectId, draftId: p.draftId, frames: p.frames, scene: p.scenes[scene] })),
+    still: (p, scene) => queue(async () => {
+      const cur = current(), e = env();
+      if (!cur || cur.draftId !== p.draftId || cur.at !== p.at) throw new Error("the preview Draft changed");
+      if (!e) throw new Error("no environment");
+      return sceneStill(sdk, { tmp: e.tmp, sep: e.sep }, { projectId: p.projectId, draftId: p.draftId, frames: p.frames, scene: p.scenes[scene], key: stillKey(p, scene) });
+    })
+  };
+}
 async function assemble(sdk, env, s, preset, log, rec, target) {
   const script = s.script, article = s.article, projectId = s.projectId, sp = s.plan;
   const total = sp.durationSeconds, times = sp.times, chars = sp.chars, sentences = sp.sentences;
@@ -6239,6 +6355,7 @@ async function assemble(sdk, env, s, preset, log, rec, target) {
   const record = () => ({ draftId, projectId, presetId: preset.id, narrationId: sp.narrationId, plateSeconds: plateLen, plateId, plateImage: bg.image, bandsId: bandsId ?? null, frames, scenes: placed });
   try {
     if (reuse) {
+      clearPreviewCache(sdk);
       const call = refillDraftScript(reuse.draftId, reuse.frames, x);
       rec.notes.push("script bytes: refill " + scriptBytes(call));
       const r = await run(sdk, call);
@@ -6303,11 +6420,11 @@ var field = { ...muted, display: "flex", flexDirection: "column", gap: 2 };
 var thumbBox = { width: 54, height: 96, flex: "none", borderRadius: 4, overflow: "hidden", position: "relative", background: "var(--panel-border, #3334)", display: "flex", alignItems: "center", justifyContent: "center" };
 var thumbTag = { position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 9, lineHeight: "13px", textAlign: "center", color: "#fff", background: "rgba(0,0,0,0.6)" };
 var oneLine = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-function thumbOf(dataUrl) {
+function thumbOf(dataUrl, w = 160) {
   return new Promise((resolve, reject) => {
     const im = new Image();
     im.onload = () => {
-      const w = 160, h = Math.max(1, Math.round(im.height * w / Math.max(1, im.width)));
+      const h = Math.max(1, Math.round(im.height * w / Math.max(1, im.width)));
       const c = document.createElement("canvas");
       c.width = w;
       c.height = h;
@@ -6354,13 +6471,11 @@ function NewsMinutePanel({ sdk, context }) {
   const latest = useRef(null);
   latest.current = s;
   const onDraft = useRef(draftQueue()).current;
-  const renameNow = (_p, d, name) => run(sdk, renameDraftScript(d, name));
-  const viewer = {
-    open: (p, d) => onDraft(() => run(sdk, openDraftScript(d))),
-    rename: (p, d, name) => onDraft(() => renameNow(p, d, name)),
-    seek: null,
-    still: null
-  };
+  const renameNow = (projectId, draftId, name) => renameDraft(sdk, { projectId, draftId, name });
+  const viewer = previewViewer(sdk, () => env.current, onDraft, () => latest.current?.preview);
+  const openNow = (projectId, draftId) => viewer.open(projectId, draftId).then((ok) => {
+    if (!ok) log("previewNotOpened");
+  }, () => log("previewNotOpened"));
   useAppUpdateGuard(sdk, context?.language, () => busy);
   const log = (k, v) => {
     const m = T(k, v);
@@ -6433,23 +6548,25 @@ function NewsMinutePanel({ sdk, context }) {
   const pv = s?.preview ?? null;
   const rendering = useRef(false);
   useEffect(() => {
-    if (!viewer.still || !pv || !pv.planRev || busy || rendering.current) return;
+    if (!pv || !pv.planRev || busy || rendering.current) return;
     const order = pv.scenes.map((_, i2) => i2);
     if (picked !== null && picked < order.length) order.unshift(...order.splice(picked, 1));
-    const i = order.find((k) => !stills[pv.draftId + ":" + k + ":" + pv.planRev]);
+    const i = order.find((k) => !stills[stillKey(pv, k)]);
     if (i === void 0) return;
-    const key = pv.draftId + ":" + i + ":" + pv.planRev;
+    const key = stillKey(pv, i), build2 = stillBuild(pv);
+    const mine = (m) => Object.fromEntries(Object.entries(m).filter(([k]) => k.startsWith(build2)));
     rendering.current = true;
-    setStills((m) => ({ ...m, [key]: { state: "rendering" } }));
-    viewer.still(pv, i, key).then((r) => {
+    setStills((m) => ({ ...mine(m), [key]: { state: "rendering" } }));
+    viewer.still(pv, i).then(async (r) => {
+      const small = await thumbOf(r.dataUrl, 216).catch(() => r.dataUrl);
       rendering.current = false;
-      setStills((m) => ({ ...m, [key]: { state: "ready", dataUrl: r.dataUrl } }));
+      setStills((m) => key in m ? { ...m, [key]: { state: "ready", dataUrl: small } } : { ...m });
       if (!r.cached) log("stillTime", { n: i + 1, sec: (r.ms / 1e3).toFixed(1) });
     }).catch(() => {
       rendering.current = false;
-      setStills((m) => ({ ...m, [key]: { state: "failed" } }));
+      setStills((m) => key in m ? { ...m, [key]: { state: "failed" } } : { ...m });
     });
-  }, [pv?.draftId, pv?.planRev, picked, busy, stills]);
+  }, [pv?.draftId, pv?.at, pv?.planRev, picked, busy, stills]);
   const stale = !!(pv && s?.plan && pv.planRev !== previewRev(s));
   useEffect(() => {
     if (!stale || busy) return;
@@ -6535,8 +6652,7 @@ function NewsMinutePanel({ sdk, context }) {
     try {
       const r = await onDraft(() => buildPreview(sdk, env.current, sess, preset, T("previewPrefix"), log, rec));
       await update({ ...sess, preview: r.preview });
-      await viewer.open(sess.projectId, r.preview.draftId).catch(() => {
-      });
+      await openNow(sess.projectId, r.preview.draftId);
       log("previewReady");
     } catch (e) {
       rec.notes.push("error: " + String(e?.message || e));
@@ -6630,7 +6746,7 @@ function NewsMinutePanel({ sdk, context }) {
   const pick = (i) => {
     setPicked(i);
     const p = latest.current?.preview;
-    if (!p || !viewer.seek || i >= p.scenes.length) return;
+    if (!p || !p.planRev || i >= p.scenes.length) return;
     viewer.seek(p, i).then((r) => {
       if (!r.confirmed) log("seekUnconfirmed", { n: i + 1 });
     }).catch(() => log("seekUnconfirmed", { n: i + 1 }));
@@ -6680,8 +6796,7 @@ function NewsMinutePanel({ sdk, context }) {
       pv ? /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }, children: [
         /* @__PURE__ */ jsx("span", { style: stale ? warn : muted, children: T(!pv.planRev ? "previewPartial" : stale ? "previewStale" : "previewReady") }),
         stale ? /* @__PURE__ */ jsx("button", { disabled: busy, onClick: refreshPreview, children: T("previewRebuild") }) : null,
-        /* @__PURE__ */ jsx("button", { disabled: busy, onClick: () => viewer.open(s.projectId, pv.draftId).catch(() => {
-        }), children: T("openPreview") })
+        /* @__PURE__ */ jsx("button", { disabled: busy, onClick: () => openNow(s.projectId, pv.draftId), children: T("openPreview") })
       ] }) : /* @__PURE__ */ jsx("button", { disabled: busy, onClick: refreshPreview, children: T("previewBuild") }),
       plan2.scenes.map((scene, i) => {
         const ss = scene.sentenceIds.map((id) => byId.get(id)).filter(Boolean);
@@ -6689,12 +6804,11 @@ function NewsMinutePanel({ sdk, context }) {
         const changed = plan2.changed.includes(i), edited = plan2.edited.includes(i);
         const setParam = (k, val) => setScene(i, { ...scene, params: { ...scene.params ?? {}, [k]: val } });
         const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
-        const key = pv ? pv.draftId + ":" + i + ":" + pv.planRev : "";
-        const still = pv && pv.planRev && i < pv.scenes.length ? stills[key] : void 0;
+        const still = pv && pv.planRev && i < pv.scenes.length ? stills[stillKey(pv, i)] : void 0;
         const photo = scene.assetRef ? plan2.thumbs[scene.assetRef] : void 0;
         const open = openRow === i;
         return /* @__PURE__ */ jsxs("div", { style: { borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, background: changed ? "rgba(74,144,217,0.08)" : picked === i ? "rgba(127,127,127,0.10)" : void 0 }, children: [
-          /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center", cursor: viewer.seek && pv ? "pointer" : void 0 }, onClick: () => pick(i), children: [
+          /* @__PURE__ */ jsxs("div", { style: { display: "flex", gap: 8, alignItems: "center", cursor: pv?.planRev && i < pv.scenes.length ? "pointer" : void 0 }, onClick: () => pick(i), children: [
             /* @__PURE__ */ jsx("strong", { style: { flex: "none" }, children: String(i + 1).padStart(2, "0") }),
             /* @__PURE__ */ jsxs("div", { style: thumbBox, children: [
               still?.state === "ready" ? /* @__PURE__ */ jsx("img", { src: still.dataUrl, style: { width: "100%", height: "100%", objectFit: "cover" } }) : photo ? /* @__PURE__ */ jsx("img", { src: photo, style: { width: "100%", height: "100%", objectFit: "cover", opacity: still?.state === "rendering" ? 0.4 : 1 } }) : /* @__PURE__ */ jsx("span", { style: { ...muted, fontSize: 10, textAlign: "center", padding: 2 }, children: T("type_" + scene.type) }),

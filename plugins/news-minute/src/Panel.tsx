@@ -6,7 +6,8 @@ import { PRESETS } from "./preset.ts";
 import { articleFromText } from "./pipeline/article.ts";
 import type { PanelSdk } from "./pipeline/host.ts";
 import { load, save, sleep, run } from "./pipeline/host.ts";
-import { voicesScript, openDraftScript, renameDraftScript } from "./pipeline/scripts.ts";
+import { voicesScript, openDraftScript } from "./pipeline/scripts.ts";
+import { renameDraft } from "./pipeline/preview.ts";
 import { creditQuote, type TtsRecord } from "./pipeline/tts.ts";
 import * as F from "./pipeline/flow.ts";
 import { SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
@@ -27,22 +28,14 @@ const thumbBox = { width: 54, height: 96, flex: "none", borderRadius: 4, overflo
 const thumbTag = { position: "absolute", left: 0, right: 0, bottom: 0, fontSize: 9, lineHeight: "13px", textAlign: "center", color: "#fff", background: "rgba(0,0,0,0.6)" } as const;
 const oneLine = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
 
-// The viewer and thumbnail calls for the preview Draft. seek and still stay null until the preview helpers
-// (src/pipeline/preview.ts) are wired in: rows then show the article photo and do not move the viewer.
-type Viewer = {
-  open: (projectId: string, draftId: string) => Promise<unknown>;
-  rename: (projectId: string, draftId: string, name: string) => Promise<unknown>;
-  seek: null | ((p: F.PreviewDraft, scene: number) => Promise<{ confirmed: boolean }>);
-  still: null | ((p: F.PreviewDraft, scene: number, key: string) => Promise<{ dataUrl: string; ms: number; cached: boolean }>);
-};
 type Still = { state: "rendering" | "ready" | "failed"; dataUrl?: string };
 
-// A small JPEG of an article photo for the plan review rows (kept in the session, so it stays small).
-function thumbOf(dataUrl: string): Promise<string> {
+// A small JPEG of an article photo or a rendered scene for the plan review rows (kept small in memory).
+function thumbOf(dataUrl: string, w = 160): Promise<string> {
   return new Promise((resolve, reject) => {
     const im = new Image();
     im.onload = () => {
-      const w = 160, h = Math.max(1, Math.round((im.height * w) / Math.max(1, im.width)));
+      const h = Math.max(1, Math.round((im.height * w) / Math.max(1, im.width)));
       const c = document.createElement("canvas");
       c.width = w; c.height = h;
       const g = c.getContext("2d");
@@ -92,13 +85,9 @@ function NewsMinutePanel({ sdk, context }: Props) {
   latest.current = s;
   // Every call on the preview Draft goes through one queue, so a rename never overlaps a refill.
   const onDraft = useRef(F.draftQueue()).current;
-  const renameNow = (_p: string, d: string, name: string) => run(sdk, renameDraftScript(d, name));
-  const viewer: Viewer = {
-    open: (p, d) => onDraft(() => run(sdk, openDraftScript(d))),
-    rename: (p, d, name) => onDraft(() => renameNow(p, d, name)),
-    seek: null,
-    still: null,
-  };
+  const renameNow = (projectId: string, draftId: string, name: string) => renameDraft(sdk, { projectId, draftId, name });
+  const viewer = F.previewViewer(sdk, () => env.current, onDraft, () => latest.current?.preview);
+  const openNow = (projectId: string, draftId: string) => viewer.open(projectId, draftId).then((ok) => { if (!ok) log("previewNotOpened"); }, () => log("previewNotOpened"));
   useAppUpdateGuard(sdk, context?.language, () => busy);
 
   const log: F.Log = (k, v) => { const m = T(k, v); setStatus(m); setLines((l) => [...l.slice(-40), new Date().toLocaleTimeString() + "  " + m]); };
@@ -144,21 +133,29 @@ function NewsMinutePanel({ sdk, context }: Props) {
   }, [tts?.workflowId, tts?.state]);
 
   // Finished-frame thumbnails of the preview Draft, one at a time, the picked scene first; kept for the open panel.
+  // Only the current build's thumbnails are kept; a result for an older build is dropped (the copy still re-runs
+  // this effect, so the next thumbnail starts).
   const pv = s?.preview ?? null;
   const rendering = useRef(false);
   useEffect(() => {
-    if (!viewer.still || !pv || !pv.planRev || busy || rendering.current) return;
+    if (!pv || !pv.planRev || busy || rendering.current) return;
     const order = pv.scenes.map((_, i) => i);
     if (picked !== null && picked < order.length) order.unshift(...order.splice(picked, 1));
-    const i = order.find((k) => !stills[pv.draftId + ":" + k + ":" + pv.planRev]);
+    const i = order.find((k) => !stills[F.stillKey(pv, k)]);
     if (i === undefined) return;
-    const key = pv.draftId + ":" + i + ":" + pv.planRev;
+    const key = F.stillKey(pv, i), build = F.stillBuild(pv);
+    const mine = (m: Record<string, Still>) => Object.fromEntries(Object.entries(m).filter(([k]) => k.startsWith(build)));
     rendering.current = true;
-    setStills((m) => ({ ...m, [key]: { state: "rendering" } }));
-    viewer.still(pv, i, key)
-      .then((r) => { rendering.current = false; setStills((m) => ({ ...m, [key]: { state: "ready", dataUrl: r.dataUrl } })); if (!r.cached) log("stillTime", { n: i + 1, sec: (r.ms / 1000).toFixed(1) }); })
-      .catch(() => { rendering.current = false; setStills((m) => ({ ...m, [key]: { state: "failed" } })); });
-  }, [pv?.draftId, pv?.planRev, picked, busy, stills]);
+    setStills((m) => ({ ...mine(m), [key]: { state: "rendering" } }));
+    viewer.still(pv, i)
+      .then(async (r) => {
+        const small = await thumbOf(r.dataUrl, 216).catch(() => r.dataUrl);
+        rendering.current = false;
+        setStills((m) => (key in m ? { ...m, [key]: { state: "ready", dataUrl: small } } : { ...m }));
+        if (!r.cached) log("stillTime", { n: i + 1, sec: (r.ms / 1000).toFixed(1) });
+      })
+      .catch(() => { rendering.current = false; setStills((m) => (key in m ? { ...m, [key]: { state: "failed" } } : { ...m })); });
+  }, [pv?.draftId, pv?.at, pv?.planRev, picked, busy, stills]);
 
   // Once the plan moves past the preview, the Draft's name says so in the editor too (once per change).
   const stale = !!(pv && s?.plan && pv.planRev !== F.previewRev(s));
@@ -237,7 +234,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
     try {
       const r = await onDraft(() => F.buildPreview(sdk, env.current!, sess, preset, T("previewPrefix"), log, rec));
       await update({ ...sess, preview: r.preview });
-      await viewer.open(sess.projectId!, r.preview.draftId).catch(() => {});
+      await openNow(sess.projectId!, r.preview.draftId);
       log("previewReady");
     } catch (e: any) {
       rec.notes.push("error: " + String(e?.message || e));
@@ -317,7 +314,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const pick = (i: number) => {
     setPicked(i);
     const p = latest.current?.preview;
-    if (!p || !viewer.seek || i >= p.scenes.length) return;
+    if (!p || !p.planRev || i >= p.scenes.length) return;
     viewer.seek(p, i).then((r) => { if (!r.confirmed) log("seekUnconfirmed", { n: i + 1 }); }).catch(() => log("seekUnconfirmed", { n: i + 1 }));
   };
 
@@ -365,7 +362,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <span style={stale ? warn : muted}>{T(!pv.planRev ? "previewPartial" : stale ? "previewStale" : "previewReady")}</span>
             {stale ? <button disabled={busy} onClick={refreshPreview}>{T("previewRebuild")}</button> : null}
-            <button disabled={busy} onClick={() => viewer.open(s.projectId!, pv.draftId).catch(() => {})}>{T("openPreview")}</button>
+            <button disabled={busy} onClick={() => openNow(s.projectId!, pv.draftId)}>{T("openPreview")}</button>
           </div>
         ) : <button disabled={busy} onClick={refreshPreview}>{T("previewBuild")}</button>}
         {plan.scenes.map((scene, i) => {
@@ -374,13 +371,12 @@ function NewsMinutePanel({ sdk, context }: Props) {
           const changed = plan.changed.includes(i), edited = plan.edited.includes(i);
           const setParam = (k: string, val: unknown) => setScene(i, { ...scene, params: { ...(scene.params ?? {}), [k]: val } });
           const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
-          const key = pv ? pv.draftId + ":" + i + ":" + pv.planRev : "";
-          const still = pv && pv.planRev && i < pv.scenes.length ? stills[key] : undefined;
+          const still = pv && pv.planRev && i < pv.scenes.length ? stills[F.stillKey(pv, i)] : undefined;
           const photo = scene.assetRef ? plan.thumbs[scene.assetRef] : undefined;
           const open = openRow === i;
           return (
             <div key={i + ":" + scene.sentenceIds.join(",")} style={{ borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, background: changed ? "rgba(74,144,217,0.08)" : picked === i ? "rgba(127,127,127,0.10)" : undefined }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", cursor: viewer.seek && pv ? "pointer" : undefined }} onClick={() => pick(i)}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", cursor: pv?.planRev && i < pv.scenes.length ? "pointer" : undefined }} onClick={() => pick(i)}>
                 <strong style={{ flex: "none" }}>{String(i + 1).padStart(2, "0")}</strong>
                 <div style={thumbBox}>
                   {still?.state === "ready" ? <img src={still.dataUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
