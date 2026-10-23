@@ -874,10 +874,16 @@ function hostFiles(b: any) {
     for (let at = 0; at < size; at += b.readPiece) offsets.push(at);
     return joinBytes(await pooled(offsets, b.width, (at) => b.readRange(path, at, Math.min(b.readPiece, size - at))));
   };
-  const readFile = async (path: string): Promise<Uint8Array> => {
+  const readOptionalFile = async (path: string): Promise<Uint8Array | null> => {
     const s = (await b.stat([path]))[0];
-    if (!s || s.dir) throw new Error("No such file: " + path);
+    if (!s) return null;
+    if (s.dir) throw new Error("No such file: " + path);
     return sized(path, s.size);
+  };
+  const readFile = async (path: string): Promise<Uint8Array> => {
+    const bytes = await readOptionalFile(path);
+    if (bytes === null) throw new Error("No such file: " + path);
+    return bytes;
   };
   // Files read as a folder with `keep` stay in memory while the panel is open and are read again only when
   // their size or date changes, because every read is many calls.
@@ -898,6 +904,7 @@ function hostFiles(b: any) {
       return s && !s.dir ? s.size : 0;
     },
     readFile,
+    readOptionalFile,
     // Every file in a folder whose name matches, and that changed after `since` when given. Small files
     // share a call and the pieces of large ones are fetched side by side; a file that cannot be read is
     // left out.
@@ -1746,22 +1753,30 @@ function makeTemplateRepository(storage:any) {
     const data=await dehydrate(clean),id=await templateDigest(data);
     pendingSnapshots.set(id,{id,data});return id;
   }
-  async function hydrate(value:any,assets:Map<string,any>):Promise<any>{
+  async function hydrate(value:any,assets:Map<string,Promise<string>>):Promise<any>{
     if(plainObject(value)&&Object.keys(value).length===1&&value.templateAsset){
       packAssert(/^[a-f0-9]{64}$/.test(value.templateAsset),'Invalid template asset reference.');
-      let asset=assets.get(value.templateAsset);if(!asset){asset=await readRecord('template-assets',value.templateAsset);if(asset)assets.set(value.templateAsset,asset);}
-      packAssert(asset&&await templateDigest(asset.data)===value.templateAsset,'Missing or damaged template image.');return asset.data;
+      const id=value.templateAsset;
+      let pending=assets.get(id);
+      if(!pending){
+        // Cache the in-flight read AND integrity check so concurrent snapshots share both.
+        pending=(async()=>{
+          const asset=pendingAssets.get(id)||await readRecord('template-assets',id);
+          packAssert(asset&&await templateDigest(asset.data)===id,'Missing or damaged template image.');
+          return asset.data;
+        })();
+        assets.set(id,pending);
+      }
+      return await pending;
     }
     if(Array.isArray(value))return Promise.all(value.map(v=>hydrate(v,assets)));
     if(plainObject(value)){const out:any={};for(const [k,v] of Object.entries(value))out[k]=await hydrate(v,assets);return out;}
     return value;
   }
-  async function getSnapshot(id:string){
+  async function getSnapshot(id:string,assets=new Map<string,Promise<string>>()){
     packAssert(/^[a-f0-9]{64}$/.test(id),'Invalid template snapshot reference.');
     const row=pendingSnapshots.get(id)||await readRecord('template-snapshots',id);
     packAssert(row&&await templateDigest(row.data)===id,'Missing or damaged template settings.');
-    const assets=new Map<string,any>();
-    for(const [k,v] of pendingAssets)assets.set(k,v);
     return validateTemplate(await hydrate(row.data,assets),true);
   }
   async function state(){
@@ -1799,10 +1814,13 @@ function makeTemplateRepository(storage:any) {
     return index;
   }
   const remember=(record:any)=>({...record,history:[...(record.history||[]),{baseline:record.baseline,working:record.working,source:record.source,at:new Date().toISOString()}]});
-  async function view(record:any){return {...await getSnapshot(record.working),id:record.id,builtIn:record.source?.kind==='pack',modified:record.working!==record.baseline,packId:record.source?.packId,packVersion:record.source?.packVersion,historyCount:record.history?.length||0};}
+  async function view(record:any,assets:Map<string,Promise<string>>){return {...await getSnapshot(record.working,assets),id:record.id,builtIn:record.source?.kind==='pack',modified:record.working!==record.baseline,packId:record.source?.packId,packVersion:record.source?.packVersion,historyCount:record.history?.length||0};}
   const api:any={
     fs:storage.fs,
-    async load(){try{const index=await state();return {templates:await Promise.all(index.records.filter((r:any)=>!r.removed).map(view)),packs:index.packs.map((m:any)=>({...m,installSource:m.installSource||legacyInstallSource(index,m.id)})),errors:[]};}catch(e:any){return {templates:[],packs:[],errors:[e.message]};}},
+    async load(){try{const index=await state();
+      // One cache per load: reopening/reloading still observes edits and damaged files.
+      const assets=new Map<string,Promise<string>>();
+      return {templates:await Promise.all(index.records.filter((r:any)=>!r.removed).map((r:any)=>view(r,assets))),packs:index.packs.map((m:any)=>({...m,installSource:m.installSource||legacyInstallSource(index,m.id)})),errors:[]};}catch(e:any){return {templates:[],packs:[],errors:[e.message]};}},
     put(kind:string,id:string,value:any){return serial(async()=>{
       packAssert(kind==='templates','Invalid template collection.');validateTemplate(cleanTemplate(value),true);
       const index=await mutableState(),hash=await snapshot(value),at=index.records.findIndex((r:any)=>r.id===id);
@@ -1909,6 +1927,10 @@ function makeStore(files: any) {
       exists: (p: string): Promise<boolean> => files.exists(p).catch(() => false),
       async get(kind:string,id:string){
         const path=files.join(dir(kind),id+".json");
+        if(files.readOptionalFile){
+          const bytes=await files.readOptionalFile(path);
+          return bytes?.length?JSON.parse(dec(bytes)):null;
+        }
         return await files.exists(path)?JSON.parse(dec(await files.readFile(path))):null;
       },
       async list(kind: string, since = 0) {
