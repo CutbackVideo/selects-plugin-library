@@ -58,6 +58,8 @@ export const MESSAGES: Record<string, [string, string]> = {
   editedCheck: ["Edited: check against the article", "\uc218\uc815\ub428: \uc6d0\ubb38 \ud655\uc778 \ud544\uc694"],
   aiRetry: ["The AI turn timed out; trying again\u2026", "AI \uc751\ub2f5 \uc2dc\uac04\uc774 \ucd08\uacfc\ub3fc \ub2e4\uc2dc \uc2dc\ub3c4 \uc911\uc774\uc5d0\uc694\u2026"],
   assemblingStep: ["Adding scenes ({n}/{of})\u2026", "\uc7a5\uba74\uc744 \ub123\uace0 \uc788\uc5b4\uc694({n}/{of})\u2026"],
+  fonts: ["Preparing the font\u2026", "\uae00\uaf34\uc744 \uc900\ube44\ud558\uace0 \uc788\uc5b4\uc694\u2026"],
+  fontFallback: ["The embedded font could not be loaded; the installed fonts are used.", "\ub0b4\uc7a5 \uae00\uaf34\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud574 \uc124\uce58\ub41c \uae00\uaf34\ub85c \ub9cc\ub4e4\uc5b4\uc694."],
 };
 
 export function t(lang: string | undefined, key: string, vars: Record<string, string | number> = {}): string {

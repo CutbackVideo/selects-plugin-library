@@ -65,7 +65,9 @@ var MESSAGES = {
   approveAnyway: ["The check still reports these problems. Approve anyway?", "\uAC80\uC0AC\uC5D0\uC11C \uC544\uB798 \uBB38\uC81C\uAC00 \uB0A8\uC544 \uC788\uC5B4\uC694. \uADF8\uB798\uB3C4 \uC2B9\uC778\uD560\uAE4C\uC694?"],
   editedCheck: ["Edited: check against the article", "\uC218\uC815\uB428: \uC6D0\uBB38 \uD655\uC778 \uD544\uC694"],
   aiRetry: ["The AI turn timed out; trying again\u2026", "AI \uC751\uB2F5 \uC2DC\uAC04\uC774 \uCD08\uACFC\uB3FC \uB2E4\uC2DC \uC2DC\uB3C4 \uC911\uC774\uC5D0\uC694\u2026"],
-  assemblingStep: ["Adding scenes ({n}/{of})\u2026", "\uC7A5\uBA74\uC744 \uB123\uACE0 \uC788\uC5B4\uC694({n}/{of})\u2026"]
+  assemblingStep: ["Adding scenes ({n}/{of})\u2026", "\uC7A5\uBA74\uC744 \uB123\uACE0 \uC788\uC5B4\uC694({n}/{of})\u2026"],
+  fonts: ["Preparing the font\u2026", "\uAE00\uAF34\uC744 \uC900\uBE44\uD558\uACE0 \uC788\uC5B4\uC694\u2026"],
+  fontFallback: ["The embedded font could not be loaded; the installed fonts are used.", "\uB0B4\uC7A5 \uAE00\uAF34\uC744 \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD574 \uC124\uCE58\uB41C \uAE00\uAF34\uB85C \uB9CC\uB4E4\uC5B4\uC694."]
 };
 function t(lang, key, vars = {}) {
   const pair = MESSAGES[key];
@@ -246,7 +248,8 @@ await selects.files.mkdir(dir, { recursive: true });
 let projectId: string | null = null;
 try { const s = await selects.editor.state(); projectId = s && s.projectId ? s.projectId : null; } catch (e) { projectId = null; }
 const tmp = env.tempDirectory;
-return { platform: env.platform, sep, dir, tmp, projectId };`
+const skills = [env.homedir, ".selects", "skills", "news-minute"].join(sep);
+return { platform: env.platform, sep, dir, tmp, skills, projectId };`
 });
 var createProjectScript = () => ({
   summary: "Create a Project for the news short",
@@ -902,8 +905,8 @@ function validatePlan(json, sentences, assets) {
       maxSceneSec = Math.max(maxSceneSec, dur);
       if (dur > 10.5) errors.push(`${where}: lasts ${dur.toFixed(1)} s; split it so no scene runs past 10 s`);
     }
-    const sceneText = sceneSentences.map((s) => s.text).join(" ");
-    const sceneNums = /* @__PURE__ */ new Set([...numberTokens(sceneText), ...rawNumberTokens(sceneText)]);
+    const sceneText2 = sceneSentences.map((s) => s.text).join(" ");
+    const sceneNums = /* @__PURE__ */ new Set([...numberTokens(sceneText2), ...rawNumberTokens(sceneText2)]);
     checkParams(sc.type, sc.params ?? {}, sceneNums, where, errors);
     if (typeof sc.hideCaption !== "boolean") errors.push(`${where}: hideCaption must be true or false`);
     else if (sc.hideCaption && sc.type !== "number_callout") errors.push(`${where}: hideCaption is only allowed on number_callout`);
@@ -1535,7 +1538,8 @@ function baseDraftScript(x) {
   if (x.plateSeconds < x.narrationSeconds) throw new Error("background plate shorter than the narration");
   const frame = tpl("frame");
   const end = Math.min(x.plateSeconds, x.narrationSeconds + 0.5);
-  const frameParams = { background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, fontFamily: "" };
+  const deco = x.decorate ?? ((p) => p);
+  const frameParams = deco({ background: x.preset.background, accentColor: x.preset.accentColor, logoMain: x.preset.logoMain, logoAccent: x.preset.logoAccent, tagline: x.preset.tagline, fontFamily: "" });
   return {
     summary: "Build the news short Draft",
     allowCommit: true,
@@ -1584,22 +1588,392 @@ return { added: ${batch.length} };`
   for (const c of calls) if (new TextEncoder().encode(c.script).length > 24e4) throw new Error("a scene is too large for one script (photo too big)");
   return calls;
 }
-function overlayTextScript(draftId, x) {
-  const head = tpl("headline"), cap = tpl("caption"), dis = tpl("disclaimer");
-  const caps = x.captions.map((c) => ({ text: c.text, a: c.startSec, b: c.endSec }));
-  const disc = x.scenes.filter((s) => s.disclaimer).map((s) => ({ a: s.startSec, b: s.endSec }));
-  return {
-    summary: "Add headline and captions",
-    allowCommit: true,
-    script: `const d = selects.draft(${J2(draftId)});
+function overlayTextScripts(draftId, x) {
+  const deco = x.decorate ?? ((p) => p);
+  const items = [];
+  items.push({ type: "headline", label: tpl("headline").label, params: deco({ line1: x.headline.line1, line2: x.headline.line2, accent: x.headline.accent || "", fontFamily: "" }), a: 0, b: 1e9 });
+  x.captions.forEach((c, i) => items.push({ type: "caption", label: tpl("caption").label + " " + String(i + 1).padStart(2, "0"), params: deco({ text: c.text, fontFamily: "" }), a: c.startSec, b: c.endSec }));
+  for (const s of x.scenes.filter((s2) => s2.disclaimer)) items.push({ type: "disclaimer", label: tpl("disclaimer").label, params: deco({ text: x.preset.disclaimer, fontFamily: "" }), a: s.startSec, b: s.endSec });
+  const batches = [];
+  let cur = [], size = 0;
+  for (const it of items) {
+    const n = J2(it.params).length + 300;
+    if (cur.length && size + n > SCENE_BATCH_BYTES) {
+      batches.push(cur);
+      cur = [];
+      size = 0;
+    }
+    cur.push(it);
+    size += n;
+  }
+  if (cur.length) batches.push(cur);
+  return batches.map((batch, i) => {
+    const types = [...new Set(batch.map((s) => s.type))];
+    const codes = Object.fromEntries(types.map((t2) => [t2, { tsx: tpl(t2).tsxCode, edit: tpl(t2).editableParameters, ti: tpl(t2).timeIndependent }]));
+    return {
+      summary: `Add headline and captions (${i + 1}/${batches.length})`,
+      allowCommit: true,
+      script: `const d = selects.draft(${J2(draftId)});
 ${PRELUDE}
-await mg(${J2(head.label)}, ${J2(head.tsxCode)}, ${J2({ line1: x.headline.line1, line2: x.headline.line2, accent: x.headline.accent || "", fontFamily: "" })}, ${J2(head.editableParameters)}, true, 0, total / fps);
-const capCode = ${J2(cap.tsxCode)}, capEdit = ${J2(cap.editableParameters)};
-let i = 0;
-for (const c of ${J2(caps)}) { i += 1; await mg(${J2(cap.label)} + " " + String(i).padStart(2, "0"), capCode, { text: c.text, fontFamily: "" }, capEdit, true, c.a, c.b); }
-for (const s of ${J2(disc)}) await mg(${J2(dis.label)}, ${J2(dis.tsxCode)}, { text: ${J2(x.preset.disclaimer)}, fontFamily: "" }, ${J2(dis.editableParameters)}, true, s.a, s.b);
+const T: any = ${J2(codes)};
+for (const s of ${J2(batch)} as any[]) await mg(s.label, T[s.type].tsx, s.params, T[s.type].edit, T[s.type].ti, s.a, Math.min(s.b, total / fps));
 await d.commitAll("News short: headline and captions");
-return { captions: i };`
+return { added: ${batch.length} };`
+    };
+  });
+}
+
+// src/fonts/sfnt.ts
+var view = (b) => new DataView(b.buffer, b.byteOffset, b.byteLength);
+var tagAt = (b, o) => String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3]);
+function fontKind(bytes) {
+  if (bytes.length < 4) return "unknown";
+  const t2 = tagAt(bytes, 0);
+  if (t2 === "wOF2") return "woff2";
+  if (t2 === "wOFF") return "woff";
+  if (t2 === "OTTO") return "opentype";
+  if (t2 === "ttcf") return "collection";
+  if (t2 === "true" || bytes[0] === 0 && bytes[1] === 1 && bytes[2] === 0 && bytes[3] === 0) return "truetype";
+  return "unknown";
+}
+function sfntTables(bytes) {
+  const kind = fontKind(bytes);
+  if (kind !== "truetype" && kind !== "opentype") throw new Error("Not an sfnt font (" + kind + ").");
+  const dv = view(bytes);
+  const n = dv.getUint16(4);
+  const out = {};
+  for (let i = 0; i < n; i += 1) {
+    const o = 12 + i * 16;
+    out[tagAt(bytes, o)] = { checksum: dv.getUint32(o + 4), offset: dv.getUint32(o + 8), length: dv.getUint32(o + 12) };
+  }
+  return out;
+}
+function sfntAxes(bytes) {
+  const t2 = sfntTables(bytes).fvar;
+  if (!t2) return { axes: [], instances: 0 };
+  const dv = view(bytes);
+  const base = t2.offset;
+  const axesOff = dv.getUint16(base + 4), count = dv.getUint16(base + 8), size = dv.getUint16(base + 10), instances = dv.getUint16(base + 12);
+  const axes = [];
+  for (let i = 0; i < count; i += 1) {
+    const o = base + axesOff + i * size;
+    const fx = (k) => dv.getInt32(o + k) / 65536;
+    axes.push({ tag: tagAt(bytes, o), min: fx(4), def: fx(8), max: fx(12) });
+  }
+  return { axes, instances };
+}
+function cmapCodepoints(bytes) {
+  const t2 = sfntTables(bytes).cmap;
+  if (!t2) return [];
+  const dv = view(bytes);
+  const base = t2.offset;
+  const n = dv.getUint16(base + 2);
+  let best = null;
+  for (let i = 0; i < n; i += 1) {
+    const o2 = base + 4 + i * 8;
+    const pid = dv.getUint16(o2), eid = dv.getUint16(o2 + 2), off = base + dv.getUint32(o2 + 4);
+    const format = dv.getUint16(off);
+    const unicode = pid === 0 || pid === 3 && (eid === 1 || eid === 10);
+    if (!unicode || format !== 4 && format !== 12) continue;
+    const rank = format === 12 ? 2 : 1;
+    if (!best || rank > best.rank) best = { offset: off, format, rank };
+  }
+  if (!best) return [];
+  const out = /* @__PURE__ */ new Set();
+  const o = best.offset;
+  if (best.format === 12) {
+    const groups = dv.getUint32(o + 12);
+    for (let g = 0; g < groups; g += 1) {
+      const p = o + 16 + g * 12;
+      const start = dv.getUint32(p), end = dv.getUint32(p + 4), gid = dv.getUint32(p + 8);
+      for (let c = start; c <= end; c += 1) if (gid + (c - start) !== 0) out.add(c);
+    }
+  } else {
+    const segX2 = dv.getUint16(o + 6);
+    const ends = o + 14, starts = ends + segX2 + 2, deltas = starts + segX2, ranges = deltas + segX2;
+    for (let s = 0; s < segX2 / 2; s += 1) {
+      const end = dv.getUint16(ends + 2 * s), start = dv.getUint16(starts + 2 * s), delta = dv.getInt16(deltas + 2 * s), rangeAt = ranges + 2 * s, range = dv.getUint16(rangeAt);
+      for (let c = start; c <= end && c !== 65535; c += 1) {
+        let gid;
+        if (range === 0) gid = c + delta & 65535;
+        else {
+          const g = dv.getUint16(rangeAt + range + 2 * (c - start));
+          gid = g === 0 ? 0 : g + delta & 65535;
+        }
+        if (gid !== 0) out.add(c);
+      }
+    }
+  }
+  return [...out].sort((a, b) => a - b);
+}
+function codepointsOf(text) {
+  return [...new Set(Array.from(text, (ch) => ch.codePointAt(0)))].sort((a, b) => a - b);
+}
+function tableChecksum(b) {
+  const dv = view(b);
+  let s = 0;
+  const whole = b.length & ~3;
+  for (let k = 0; k < whole; k += 4) s = s + dv.getUint32(k) >>> 0;
+  if (b.length & 3) {
+    let last = 0;
+    for (let k = whole; k < b.length; k += 1) last |= b[k] << 24 - 8 * (k - whole);
+    s = s + (last >>> 0) >>> 0;
+  }
+  return s;
+}
+function buildSfnt(flavor, tables) {
+  const tags = [...tables.keys()].sort();
+  const n = tags.length;
+  let pow = 1, log = 0;
+  while (pow * 2 <= n) {
+    pow *= 2;
+    log += 1;
+  }
+  const headerLen = 12 + n * 16;
+  const pad4 = (x) => x + 3 & ~3;
+  const total = headerLen + tags.reduce((s, t2) => s + pad4(tables.get(t2).length), 0);
+  const out = new Uint8Array(total);
+  const dv = view(out);
+  dv.setUint32(0, flavor);
+  dv.setUint16(4, n);
+  dv.setUint16(6, pow * 16);
+  dv.setUint16(8, log);
+  dv.setUint16(10, n * 16 - pow * 16);
+  let at = headerLen, headAt = -1;
+  tags.forEach((tag2, i) => {
+    const data = tables.get(tag2);
+    if (tag2 === "head") {
+      if (data.length < 12) throw new Error("head table too short");
+      data.set([0, 0, 0, 0], 8);
+      headAt = at;
+    }
+    const o = 12 + i * 16;
+    for (let k = 0; k < 4; k += 1) out[o + k] = tag2.charCodeAt(k);
+    dv.setUint32(o + 4, tableChecksum(data));
+    dv.setUint32(o + 8, at);
+    dv.setUint32(o + 12, data.length);
+    out.set(data, at);
+    at += pad4(data.length);
+  });
+  if (headAt >= 0) dv.setUint32(headAt + 8, 2981146554 - tableChecksum(out) >>> 0);
+  return out;
+}
+
+// src/fonts/hbSubset.ts
+var SCENE_SUBSET_OPTIONS = Object.freeze({
+  keepAllFeatures: false,
+  extraFeatures: ["lnum"],
+  nameIds: [0, 1, 2, 3, 4, 5, 6, 13, 14]
+});
+var SETS = { UNICODE: 1, NAME_ID: 4, NAME_LANG_ID: 5, LAYOUT_FEATURE_TAG: 6 };
+var FLAGS = { NO_HINTING: 1, RETAIN_GIDS: 2 };
+var tag = (s) => (s.charCodeAt(0) << 24 | s.charCodeAt(1) << 16 | s.charCodeAt(2) << 8 | s.charCodeAt(3)) >>> 0;
+var REQUIRED = [
+  "memory",
+  "malloc",
+  "free",
+  "hb_blob_create",
+  "hb_face_create",
+  "hb_subset_input_create_or_fail",
+  "hb_subset_input_set",
+  "hb_subset_or_fail",
+  "hb_face_reference_blob"
+];
+async function createSubsetter(wasm) {
+  const instance = wasm instanceof WebAssembly.Module ? await WebAssembly.instantiate(wasm, {}) : (await WebAssembly.instantiate(wasm.slice(), {})).instance;
+  const x = instance.exports;
+  const missing = REQUIRED.filter((k) => !(k in x));
+  if (missing.length) throw new Error("This is not harfbuzz-subset.wasm (missing " + missing.join(", ") + ").");
+  if (typeof x._initialize === "function") x._initialize();
+  const heap = () => new Uint8Array(x.memory.buffer);
+  function subset(fontBytes, codepoints, opts = SCENE_SUBSET_OPTIONS) {
+    const kind = fontKind(fontBytes);
+    if (kind !== "truetype" && kind !== "opentype") {
+      throw new Error("The subsetter reads TrueType/OpenType fonts only; this font is " + kind + ".");
+    }
+    const fontPtr = x.malloc(fontBytes.length);
+    if (!fontPtr) throw new Error("The subsetter ran out of memory.");
+    heap().set(fontBytes, fontPtr);
+    const blob = x.hb_blob_create(fontPtr, fontBytes.length, 2, 0, 0);
+    const face = x.hb_face_create(blob, 0);
+    x.hb_blob_destroy(blob);
+    const input2 = x.hb_subset_input_create_or_fail();
+    if (!input2) {
+      x.hb_face_destroy(face);
+      x.free(fontPtr);
+      throw new Error("hb_subset_input_create_or_fail failed");
+    }
+    try {
+      const uni = x.hb_subset_input_unicode_set(input2);
+      for (const cp of codepoints) x.hb_set_add(uni, cp);
+      const feats = x.hb_subset_input_set(input2, SETS.LAYOUT_FEATURE_TAG);
+      if (opts.keepAllFeatures) {
+        x.hb_set_clear(feats);
+        x.hb_set_invert(feats);
+      } else {
+        for (const f of opts.extraFeatures ?? ["lnum"]) x.hb_set_add(feats, tag(f));
+      }
+      const names = x.hb_subset_input_set(input2, SETS.NAME_ID);
+      x.hb_set_clear(names);
+      if (opts.nameIds === "all") {
+        x.hb_set_invert(names);
+        const langs = x.hb_subset_input_set(input2, SETS.NAME_LANG_ID);
+        x.hb_set_clear(langs);
+        x.hb_set_invert(langs);
+      } else {
+        for (const id of opts.nameIds ?? [0, 1, 2, 3, 4, 5, 6, 13, 14]) x.hb_set_add(names, id);
+      }
+      let flags = 0;
+      if (opts.noHinting) flags |= FLAGS.NO_HINTING;
+      if (opts.retainGids) flags |= FLAGS.RETAIN_GIDS;
+      x.hb_subset_input_set_flags(input2, flags);
+      for (const [t2, v] of Object.entries(opts.pin ?? {})) {
+        if (!x.hb_subset_input_pin_axis_location(input2, face, tag(t2), v)) throw new Error("Cannot pin axis " + t2 + ".");
+      }
+      const out = x.hb_subset_or_fail(face, input2);
+      if (!out) throw new Error("HarfBuzz could not subset this font.");
+      const outBlob = x.hb_face_reference_blob(out);
+      const ptr = x.hb_blob_get_data(outBlob, 0);
+      const len2 = x.hb_blob_get_length(outBlob);
+      const bytes = heap().slice(ptr, ptr + len2);
+      x.hb_blob_destroy(outBlob);
+      x.hb_face_destroy(out);
+      if (!len2) throw new Error("HarfBuzz returned an empty subset.");
+      return bytes;
+    } finally {
+      x.hb_subset_input_destroy(input2);
+      x.hb_face_destroy(face);
+      x.free(fontPtr);
+    }
+  }
+  return { subset, memoryBytes: () => x.memory.buffer.byteLength };
+}
+
+// src/fonts/renameFamily.ts
+var RESERVED_FONT_NAMES = Object.freeze({ "Playfair Display": "EO Serif" });
+function renamePairs(from, to) {
+  const pairs = [[from, to]];
+  const a = from.replace(/\s+/g, ""), b = to.replace(/\s+/g, "");
+  if (a !== from) pairs.push([a, b]);
+  return pairs;
+}
+function renameFamily(bytes, pairs) {
+  const dirs = sfntTables(bytes);
+  const name = dirs.name;
+  if (!name) throw new Error("The font has no name table.");
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const nb = name.offset;
+  if (dv.getUint16(nb) !== 0) throw new Error("Name table format " + dv.getUint16(nb) + " is not supported.");
+  const count = dv.getUint16(nb + 2), strOff = dv.getUint16(nb + 4);
+  const recs = [];
+  let changed = 0;
+  for (let i = 0; i < count; i += 1) {
+    const o = nb + 6 + i * 12;
+    const r = { pid: dv.getUint16(o), eid: dv.getUint16(o + 2), lid: dv.getUint16(o + 4), nid: dv.getUint16(o + 6) };
+    const len2 = dv.getUint16(o + 8), off = dv.getUint16(o + 10);
+    let raw = bytes.slice(nb + strOff + off, nb + strOff + off + len2);
+    const utf16 = r.pid === 0 || r.pid === 3;
+    if (r.nid !== 0 && r.nid !== 13 && r.nid !== 14 && (utf16 || r.pid === 1)) {
+      let text = "";
+      if (utf16) for (let k = 0; k + 1 < raw.length; k += 2) text += String.fromCharCode(raw[k] << 8 | raw[k + 1]);
+      else text = String.fromCharCode(...raw);
+      let next = text;
+      for (const [from, to] of pairs) next = next.split(from).join(to);
+      if (next !== text) {
+        changed += 1;
+        if (utf16) {
+          raw = new Uint8Array(next.length * 2);
+          for (let k = 0; k < next.length; k += 1) {
+            raw[2 * k] = next.charCodeAt(k) >> 8;
+            raw[2 * k + 1] = next.charCodeAt(k) & 255;
+          }
+        } else raw = Uint8Array.from(next, (c) => c.charCodeAt(0) & 255);
+      }
+    }
+    recs.push({ ...r, raw });
+  }
+  const strings = recs.reduce((n, r) => n + r.raw.length, 0);
+  const table = new Uint8Array(6 + recs.length * 12 + strings);
+  const nv = new DataView(table.buffer);
+  nv.setUint16(0, 0);
+  nv.setUint16(2, recs.length);
+  nv.setUint16(4, 6 + recs.length * 12);
+  let so = 0;
+  recs.forEach((r, i) => {
+    const o = 6 + i * 12;
+    nv.setUint16(o, r.pid);
+    nv.setUint16(o + 2, r.eid);
+    nv.setUint16(o + 4, r.lid);
+    nv.setUint16(o + 6, r.nid);
+    nv.setUint16(o + 8, r.raw.length);
+    nv.setUint16(o + 10, so);
+    table.set(r.raw, 6 + recs.length * 12 + so);
+    so += r.raw.length;
+  });
+  const tables = /* @__PURE__ */ new Map();
+  for (const [t2, loc] of Object.entries(dirs)) tables.set(t2, t2 === "name" ? table : bytes.slice(loc.offset, loc.offset + loc.length));
+  return { bytes: buildSfnt(dv.getUint32(0), tables), changedRecords: changed };
+}
+
+// src/fonts/sceneFont.ts
+var SOURCE_FAMILY = "Pretendard Variable";
+var EMBED_FAMILY = "NM Sans";
+var FONT_FILE = Object.freeze({ path: "fonts/PretendardVariable.ttf.gz.b64", bytes: 6739336, sha256: "3090ccde0442bb347aa7685d9ba8b17436a60682df6e8f92a9a670de14056e22" });
+var SUBSETTER_FILE = Object.freeze({ path: "fonts/harfbuzz-subset.wasm.gz.b64", bytes: 651027, sha256: "5fc12cf6a843a703cbab360169c681704416f330d3979e7e5a3f4b050efbb720" });
+var WEIGHTS = [300, 500, 600, 700, 800, 900];
+var NUMBER_CHARS = "0123456789,.%+-~ ";
+async function sha256Hex(bytes) {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+function fromBase64(text) {
+  const bin = atob(text.replace(/\s+/g, ""));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function toBase64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode(...bytes.subarray(i, i + 32768));
+  return btoa(s);
+}
+async function unpackFile(text, expected) {
+  const stream = new Blob([fromBase64(text)]).stream().pipeThrough(new DecompressionStream("gzip"));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  if (bytes.length !== expected.bytes || await sha256Hex(bytes) !== expected.sha256) {
+    throw new Error(expected.path + " does not match the packaged file; reinstall the app.");
+  }
+  return bytes;
+}
+async function loadEmbeddedFont(read) {
+  const [source, wasm] = await Promise.all([unpackFile(await read(FONT_FILE.path), FONT_FILE), unpackFile(await read(SUBSETTER_FILE.path), SUBSETTER_FILE)]);
+  return { source, available: new Set(cmapCodepoints(source)), subsetter: await createSubsetter(wasm) };
+}
+function sceneText(parameters) {
+  const out = [];
+  const walk = (v) => {
+    if (typeof v === "string") {
+      if (!v.startsWith("data:")) out.push(v);
+    } else if (typeof v === "number") out.push(String(v));
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+  };
+  walk(parameters);
+  return out.join("") + NUMBER_CHARS;
+}
+function sceneFont(font, text) {
+  const cps = codepointsOf(text).filter((c) => c >= 32);
+  let bytes = font.subsetter.subset(font.source, cps, SCENE_SUBSET_OPTIONS);
+  bytes = renameFamily(bytes, renamePairs(SOURCE_FAMILY, EMBED_FAMILY)).bytes;
+  if (!sfntAxes(bytes).axes.some((a) => a.tag === "wght")) throw new Error("The font subset lost its weight axis.");
+  const src = "data:font/ttf;base64," + toBase64(bytes);
+  return {
+    fontFamily: EMBED_FAMILY,
+    fontCss: "@font-face{font-family:" + JSON.stringify(EMBED_FAMILY) + ";src:url(" + src + ') format("truetype");font-weight:100 900;font-style:normal;font-display:block;}',
+    fontLoads: WEIGHTS.map((w) => w + " 64px " + JSON.stringify(EMBED_FAMILY)),
+    subsetBytes: bytes.length,
+    // Characters the face has no glyph for; they fall back to a system font per glyph.
+    missing: String.fromCodePoint(...cps.filter((c) => !font.available.has(c)))
   };
 }
 
@@ -1731,6 +2105,17 @@ async function pollNarration(sdk, rec) {
   if (next.state !== rec.state || next.resourceId !== rec.resourceId) await save(sdk, ttsKey(rec.projectId), next);
   return next;
 }
+var fontLoad = null;
+async function embeddedFont(sdk, env) {
+  if (!fontLoad) {
+    const read = async (rel) => new TextDecoder().decode(await readFileBytes(sdk, [env.skills, ...rel.split("/")].join(env.sep), 12 * 1024 * 1024));
+    fontLoad = loadEmbeddedFont(read).catch((e) => {
+      fontLoad = null;
+      throw e;
+    });
+  }
+  return fontLoad;
+}
 async function prepPhotos(sdk, env, article, log) {
   if (!article.photos.length) return [];
   log("photos");
@@ -1796,12 +2181,56 @@ async function buildDraft(sdk, env, s, preset, narration, log, rec) {
     log("planFallback");
     plan = fallbackPlan(sentences, times, photos.map((p) => p.ref));
   }
-  const scenes = sceneClips(plan, sentences, times, total, photos);
+  let decorate;
+  let shared;
+  try {
+    log("fonts");
+    const font = await embeddedFont(sdk, env);
+    const missing = /* @__PURE__ */ new Set();
+    let bytes = 0, count = 0;
+    decorate = (p) => {
+      const f = sceneFont(font, sceneText(p));
+      for (const c of f.missing) missing.add(c);
+      bytes += f.subsetBytes;
+      count++;
+      return { ...p, fontFamily: f.fontFamily, fontCss: f.fontCss, fontLoads: f.fontLoads };
+    };
+    shared = (texts2) => {
+      const f = sceneFont(font, texts2.join(""));
+      for (const c of f.missing) missing.add(c);
+      bytes += f.subsetBytes;
+      count++;
+      const add = { fontFamily: f.fontFamily, fontCss: f.fontCss, fontLoads: f.fontLoads };
+      return (p) => ({ ...p, ...add });
+    };
+    rec.notes.push("font: embedded");
+    const report = () => rec.notes.push(`font subsets: ${count} graphics, ${Math.round(bytes / 1024)} KB` + (missing.size ? ", no glyph for " + [...missing].join("") : ""));
+    rec.fontReport = report;
+  } catch (e) {
+    rec.notes.push("font: not embedded (" + String(e?.message || e) + ")");
+    log("fontFallback");
+  }
+  const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => {
+    if (!decorate) return sc;
+    try {
+      return { ...sc, params: decorate(sc.params) };
+    } catch (e) {
+      rec.notes.push("font: subset failed for " + sc.label);
+      return sc;
+    }
+  });
   const hidden = hiddenCaptionSentences(plan, sentences);
   const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
   const plateId = await plate(sdk, env, projectId, plateLen, preset.background, log);
   log("assembling");
-  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, headline: script.headline, preset, scenes, captions };
+  const overlayText = [preset.logoMain, preset.logoAccent, preset.tagline, preset.disclaimer, script.headline.line1, script.headline.line2, script.headline.accent ?? "", ...captions.map((c) => c.text)];
+  let overlayDecorate;
+  try {
+    overlayDecorate = shared?.(overlayText);
+  } catch (e) {
+    rec.notes.push("font: overlay subset failed (" + String(e?.message || e) + ")");
+  }
+  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, headline: script.headline, preset, scenes, captions, decorate: overlayDecorate };
   const baseCall = baseDraftScript(x);
   rec.notes.push("script bytes: base " + scriptBytes(baseCall));
   const base = await run(sdk, baseCall);
@@ -1816,13 +2245,17 @@ async function buildDraft(sdk, env, s, preset, narration, log, rec) {
       throw new Error(`stopped at scene batch ${i + 1} of ${calls.length} (Draft ${base.draftId} kept): ${String(e?.message || e)}`);
     }
   }
-  const textCall = overlayTextScript(base.draftId, x);
-  rec.notes.push("script bytes: headline+captions " + scriptBytes(textCall));
-  try {
-    await run(sdk, textCall);
-  } catch (e) {
-    throw new Error(`stopped at headline and captions (Draft ${base.draftId} kept): ${String(e?.message || e)}`);
+  const textCalls = overlayTextScripts(base.draftId, x);
+  rec.notes.push("script bytes: headline+captions " + textCalls.map(scriptBytes).join(", "));
+  for (let i = 0; i < textCalls.length; i++) {
+    try {
+      await run(sdk, textCalls[i]);
+    } catch (e) {
+      throw new Error(`stopped at headline and captions batch ${i + 1} of ${textCalls.length} (Draft ${base.draftId} kept): ${String(e?.message || e)}`);
+    }
   }
+  rec.fontReport?.();
+  delete rec.fontReport;
   rec.notes.push("draft: " + base.draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
   return { draftId: base.draftId, timing: source, fallbackPlan: usedFallback };
 }

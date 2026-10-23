@@ -18,7 +18,8 @@ await selects.files.mkdir(dir, { recursive: true });
 let projectId: string | null = null;
 try { const s = await selects.editor.state(); projectId = s && s.projectId ? s.projectId : null; } catch (e) { projectId = null; }
 const tmp = env.tempDirectory;
-return { platform: env.platform, sep, dir, tmp, projectId };`,
+const skills = [env.homedir, ".selects", "skills", "news-minute"].join(sep);
+return { platform: env.platform, sep, dir, tmp, skills, projectId };`,
 });
 
 export const createProjectScript = (): ScriptCall => ({
