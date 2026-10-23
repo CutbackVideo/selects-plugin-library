@@ -1,5 +1,5 @@
 // @name Shortform Clips
-// @name:ko \uc20f\ud3fc \ud074\ub9bd
+// @name:ko 숏폼 클립
 // @icon scissors
 // @speaker-profiling off
 // Turns a long YouTube episode (a link or a video already in the project) into editable vertical Drafts in
