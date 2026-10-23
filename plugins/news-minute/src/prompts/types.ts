@@ -1,0 +1,44 @@
+export type Article = { title: string; source: string; date: string; body: string };
+
+export type Validation = {
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+  stats: Record<string, number | string>;
+};
+
+export type ScriptSentence = { text: string; sourceQuote: string };
+export type ScriptJson = { headline: { line1: string; line2: string }; sentences: ScriptSentence[] };
+
+export type IdSentence = { id: string; text: string };
+export type FidelityIssue = { kind: "meaning" | "number" | "unsupported" | "ai_tone" | "register"; note: string };
+export type FidelitySentence = {
+  id: string;
+  text: string;
+  sourceQuote: string;
+  issues: FidelityIssue[];
+  rewritten: boolean;
+};
+export type FidelityJson = {
+  headline: { line1: string; line2: string; issues: FidelityIssue[] };
+  sentences: FidelitySentence[];
+};
+
+export type PlanAsset = {
+  ref: string;
+  kind: "photo" | "illustration";
+  caption?: string;
+  credit?: string;
+  w?: number;
+  h?: number;
+};
+export type TimedSentence = { id: string; text: string; startSec: number; endSec: number };
+export type PlanScene = {
+  sentenceIds: string[];
+  type: string;
+  params: Record<string, any>;
+  hideCaption: boolean;
+  disclaimer: boolean;
+  assetRef?: string;
+};
+export type PlanJson = { scenes: PlanScene[] };
