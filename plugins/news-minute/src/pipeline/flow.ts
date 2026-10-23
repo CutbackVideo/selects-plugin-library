@@ -152,8 +152,7 @@ export async function pollNarration(sdk: PanelSdk, rec: TtsRecord): Promise<TtsR
     await run(sdk, resumeImportScript(rec.workflowId));
     return rec;
   }
-  // Prefer the persistent Resource UUID over the session-short id.
-  const result = r.result ? { resourceId: r.status?.resourceId || r.result.resourceId, durationSeconds: r.result.durationSeconds } : null;
+  const result = r.result ? { resourceId: r.result.resourceId, durationSeconds: r.result.durationSeconds } : null;
   const next = applyStatus(rec, r.status, result);
   if (next.state !== rec.state || next.resourceId !== rec.resourceId) await save(sdk, ttsKey(rec.projectId), next);
   return next;

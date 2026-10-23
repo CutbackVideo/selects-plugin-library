@@ -9,13 +9,14 @@ import { load, save, sleep, run } from "./pipeline/host.ts";
 import { voicesScript, openDraftScript } from "./pipeline/scripts.ts";
 import { creditQuote, type TtsRecord } from "./pipeline/tts.ts";
 import * as F from "./pipeline/flow.ts";
+import { TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
 
 type Props = { sdk: PanelSdk; context?: { projectId?: string | null; language?: string } };
 
 const box = { border: "1px solid var(--panel-border, #3334)", borderRadius: 8, padding: 10 } as const;
 const muted = { color: "var(--panel-muted-fg, #888)", fontSize: 12 } as const;
 const input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" } as const;
-const MAX_CHARS = 390;
+const MAX_CHARS = TARGET_CHARS.max;
 
 function NewsMinutePanel({ sdk, context }: Props) {
   const lang = context?.language;
@@ -168,7 +169,7 @@ function NewsMinutePanel({ sdk, context }: Props) {
               {x.issues.length ? <span style={{ ...muted, color: "#d9822b" }}>{T("issues")}: {x.issues.map((v) => v.kind + (v.note ? " \u2013 " + v.note : "")).join("; ")}</span> : null}
             </div>
           ))}
-          <span style={muted}>{T("length", { chars, sec: Math.round(chars / 6.5) })}</span>
+          <span style={muted}>{T("length", { chars, sec: Math.round(chars / TTS_CHARS_PER_SEC) })}</span>
           {chars > MAX_CHARS ? <span style={{ color: "#d9822b", fontSize: 12 }}>{T("tooLong", { max: MAX_CHARS })}</span> : null}
           {approved ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
