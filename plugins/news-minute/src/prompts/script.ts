@@ -35,6 +35,9 @@ export const LENGTH_RULES = `LENGTH RULES (hard limits, text-to-speech runs at a
 - Total narration, all sentences joined by single spaces: aim for ${TARGET_CHARS.goal[0]}-${TARGET_CHARS.goal[1]} characters. Never go above ${TARGET_CHARS.goal[1]}; ${TARGET_CHARS.max} is the failure line and anything over it is rejected. Count the characters of every sentence (spaces and punctuation included) and add them up before you reply; if the sum is above ${TARGET_CHARS.goal[1]}, cut the least important fact and count again. Length matters more than covering every detail.
 - Headline: line1 and line2 each at most 24 characters. line1 states the topic, line2 states the key number or turn. They are display text, not sentences.`;
 
+// Appended to every prompt: the app agent context can make replies chatty.
+export const JSON_ONLY = "Output exactly one JSON object and nothing else: no explanation, no lead-in sentence, no markdown, no code fence, no text after the closing brace.";
+
 export function scriptPrompt(article: Article, opts: { language?: string } = {}): string {
   const language = opts.language ?? "Korean";
   return [
@@ -49,7 +52,7 @@ export function scriptPrompt(article: Article, opts: { language?: string } = {})
     "SOURCE MAPPING",
     "For every sentence, copy into sourceQuote one passage from the article body that supports it. It must be an exact, contiguous substring of the body (same characters, same spacing, no ellipsis, no edits). If a sentence draws on several passages, quote the main one.",
     "",
-    "OUTPUT: reply with one JSON object only, no prose, no code fence.",
+    `OUTPUT: ${JSON_ONLY}`,
     '{"headline":{"line1":"","line2":""},"sentences":[{"text":"","sourceQuote":""}]}',
   ].join("\n");
 }
