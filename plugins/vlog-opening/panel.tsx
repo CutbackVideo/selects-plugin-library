@@ -1570,8 +1570,8 @@ if (STYLE === "motion") {
       paper: "#fbf8ee", check: PALETTE.accent, laptop: "#cfcfd1",
     },
     editableParameters: [
-      { key: "holdFrames", label: "Zoom starts (frame)", type: "number", defaultValue: holdF, min: 0, max: 400, step: 1 },
-      { key: "beatFrames", label: "Frames per zoom step", type: "number", defaultValue: stepF, min: 2, max: 60, step: 1 },
+      { key: "holdFrames", label: "Zoom starts (frame)", type: "number", defaultValue: holdF, min: 0, max: Math.max(400, holdF), step: 1 },
+      { key: "beatFrames", label: "Frames per zoom step", type: "number", defaultValue: stepF, min: Math.min(2, stepF), max: Math.max(60, stepF), step: 1 },
       { key: "paper", label: "Paper", type: "color", defaultValue: "#fbf8ee" },
       { key: "check", label: "Tablecloth", type: "color", defaultValue: PALETTE.accent },
       { key: "laptop", label: "Laptop", type: "color", defaultValue: "#cfcfd1" },
