@@ -3,12 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
-import {loadPanelFunctions, panelSource} from './windows_host.mjs';
+import {dailyModule} from './daily_font_fixture.mjs';
 const modules=process.env.SBS_PANEL_TEST_MODULES;
 if(!modules)throw Error('Set SBS_PANEL_TEST_MODULES to esbuild dependencies.');
 const dep=createRequire(path.resolve(modules,'../package.json')),esbuild=dep('esbuild');
-const source=process.env.DAILY_VLOG_PANEL?fs.readFileSync(process.env.DAILY_VLOG_PANEL,'utf8'):panelSource('daily-vlog-8');
-const current=loadPanelFunctions(source,['OPENING','MIDDLE','ENDING']);
+const current=dailyModule(['OPENING','MIDDLE','ENDING']);
 const baseline=JSON.parse(fs.readFileSync(new URL('./fixtures/daily-vlog-8/reference-title-programs.json',import.meta.url),'utf8')).programs;
 const interpolate=(x,at,values,options={})=>{let i=at.findIndex((v,j)=>j&&x<=v);if(i<0)i=at.length-1;if(x<at[0]&&options.extrapolateLeft==='clamp')return values[0];if(x>at.at(-1)&&options.extrapolateRight==='clamp')return values.at(-1);return values[i-1]+(values[i]-values[i-1])*(x-at[i-1])/(at[i]-at[i-1]);};
 function render(program,frame,size,data){
@@ -16,8 +15,10 @@ function render(program,frame,size,data){
  const React={createElement:(type,props,...children)=>({type,props:props||{},children})};
  const remotion={AbsoluteFill:'AbsoluteFill',useCurrentFrame:()=>frame,useVideoConfig:()=>({...size,fps:30,durationInFrames:150}),interpolate};
  new Function('require','module','exports',code)(name=>name==='react'?React:name==='remotion'?remotion:(()=>{throw Error(name)})(),module,module.exports);
- return module.exports.default({data});
+ return removeInactiveFontStyle(module.exports.default({data}));
 }
+// Inert false children are not rendered by React; the optional style owns no geometry.
+function removeInactiveFontStyle(node){if(Array.isArray(node))return node.filter(x=>x!==false&&x!=null).map(removeInactiveFontStyle);if(node&&typeof node==='object')return{...node,children:node.children?removeInactiveFontStyle(node.children):node.children};return node;}
 function styles(tree,out=[]){if(!tree)return out;if(Array.isArray(tree)){tree.forEach(x=>styles(x,out));return out;}if(typeof tree==='object'){if(tree.props?.style)out.push(tree.props.style);tree.children?.forEach(x=>styles(x,out));}return out;}
 const DATA={OPENING:{text:'DAILY VLOG',fontFamily:'Chelsea Market Pro',fontSize:255,color:'#FEDC5E'},MIDDLE:{text:'JUST EVERYDAY MOMENTS',fontFamily:'Courier New',fontSize:73,color:'#fff'},ENDING:{text:'THANKS FOR WATCHING',fontFamily:'Courier New',fontSize:60,color:'#fff',letterSpacing:1.2}};
 for(const name of Object.keys(DATA))test(name+': all1920×1080 styles/text stay exactly unchanged across animation',()=>{for(const frame of [0,2,9,15,30,43,59,100,149])assert.deepEqual(render(current[name],frame,{width:1920,height:1080},DATA[name]),render(baseline[name],frame,{width:1920,height:1080},DATA[name]));});
