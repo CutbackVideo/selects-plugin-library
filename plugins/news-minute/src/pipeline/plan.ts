@@ -125,3 +125,36 @@ export function hiddenCaptionSentences(plan: PlanScene[], sentences: Sentence[])
 }
 
 export const sceneTooLong = (w: Span) => w.endSec - w.startSec > MAX_SCENE_SEC + 0.5;
+
+// JSON with object keys sorted, so the same params in a different key order compare equal.
+export function stableJson(v: unknown): string {
+  if (Array.isArray(v)) return "[" + v.map(stableJson).join(",") + "]";
+  if (v && typeof v === "object") return "{" + Object.keys(v as object).sort().map((k) => JSON.stringify(k) + ":" + stableJson((v as any)[k])).join(",") + "}";
+  return JSON.stringify(v ?? null);
+}
+
+const sceneKey = (sc: PlanScene) => (sc.sentenceIds || []).join(",");
+const sceneLook = (sc: PlanScene) => stableJson({ type: sc.type, params: sc.params ?? {}, assetRef: sc.assetRef ?? null, hideCaption: !!sc.hideCaption });
+
+// Indexes of scenes in next that differ from previous: no scene over the same sentences before, or a different
+// type, params, assetRef or hideCaption.
+export function changedScenes(previous: PlanScene[], next: PlanScene[]): number[] {
+  const before = new Map(previous.map((sc) => [sceneKey(sc), sceneLook(sc)]));
+  const out: number[] = [];
+  next.forEach((sc, i) => { if (before.get(sceneKey(sc)) !== sceneLook(sc)) out.push(i); });
+  return out;
+}
+
+// A user-chosen scene type starts from params that fit it; text a viewer reads comes from the first sentence.
+export function retypeScene(sc: PlanScene, type: string, firstSentence: string, photoRefs: string[]): PlanScene {
+  const keepsAsset = type === "news_photo" || type === "number_callout" || type === "quote_card";
+  const assetRef = keepsAsset ? sc.assetRef ?? (type === "news_photo" ? photoRefs[0] : undefined) : undefined;
+  const params: Record<string, any> =
+    type === "text_card" ? { text: captionChunks(firstSentence, 12).slice(0, 2).join("\n") }
+    : type === "number_callout" ? { label: "", from: "", to: "", unit: "" }
+    : type === "news_photo" ? {}
+    : { ...(sc.params ?? {}) };
+  const out: PlanScene = { sentenceIds: sc.sentenceIds, type, params, hideCaption: type === "number_callout", disclaimer: false };
+  if (assetRef) out.assetRef = assetRef;
+  return out;
+}

@@ -1,7 +1,7 @@
 // The run, step by step: article -> script (+ fidelity pass) -> [human review] -> narration -> Draft.
 
 import * as P from "../prompts/index.ts";
-import type { Article as PromptArticle, PlanScene } from "../prompts/types.ts";
+import type { Article as PromptArticle, PlanAsset, PlanScene, TimedSentence } from "../prompts/types.ts";
 import { DEFAULT_VOICE, type Preset } from "../preset.ts";
 import { decodeHtml, extractArticle, type Article } from "./article.ts";
 import { ask, ASK_MAX_IMAGE_CHARS, ASK_MAX_IMAGES, ASK_MAX_TOTAL_CHARS, ffmpeg, type AskImage, load, readFileBase64, readFileBytes, run, save, scriptBytes, writeText, type PanelSdk } from "./host.ts";
@@ -9,9 +9,9 @@ import {
   alignmentScript, createProjectScript, downloadScript, envScript, existsScript, generateScript, importScript,
   narrationStatusScript, photoArgs, PHOTO_MAX_B64, plateArgs, plateSeconds, PLATE_MAX_SECONDS, removeScript, resumeImportScript,
 } from "./scripts.ts";
-import { captionTimes, joinScript, sentenceTimes, type AlignChar } from "./timing.ts";
+import { captionTimes, joinScript, sentenceTimes, type AlignChar, type Span } from "./timing.ts";
 import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRecord } from "./tts.ts";
-import { fallbackPlan, hiddenCaptionSentences, isGraphic, placements, sceneClips, settlePlan, type PhotoAsset } from "./plan.ts";
+import { changedScenes, fallbackPlan, hiddenCaptionSentences, isGraphic, placements, sceneClips, settlePlan, type AssetSummary, type PhotoAsset } from "./plan.ts";
 import { baseDraftScript, overlayTextScripts, sceneScripts } from "./assemble.ts";
 import { loadEmbeddedFont, sceneFont, sceneText, type EmbeddedFont } from "../fonts/sceneFont.ts";
 
@@ -27,6 +27,28 @@ export type Session = {
   approved: string | null; // ttsRevision of the approved script, or null
   projectId: string | null;
   draftId: string | null;
+  // The scene plan the user reviews after the narration and before the Draft is built.
+  plan?: ScenePlan | null;
+};
+
+// One "rebuild with feedback" round: what the user asked and how many scenes came back different.
+export type PlanRound = { round: number; feedback: string; changed: number; scenes: number; ms: number; fallback: boolean; at: string };
+export type ScenePlan = {
+  narrationId: string;
+  durationSeconds: number;
+  sentences: TimedSentence[];
+  times: Span[];
+  timing: string;
+  chars: AlignChar[] | null;
+  assets: PlanAsset[];
+  thumbs: Record<string, string>;
+  assetSummaries: AssetSummary[];
+  scenes: PlanScene[];
+  fallback: boolean;
+  rounds: PlanRound[];
+  // Scene indexes that differ from the plan before the last rebuild, and scenes the user changed by hand.
+  changed: number[];
+  edited: number[];
 };
 // One session per open Project (the panel follows the Project it is opened in).
 export const sessionKey = (projectId: string | null) => "session:" + (projectId ?? "none");
@@ -55,7 +77,7 @@ export async function fetchArticle(sdk: PanelSdk, env: Env, url: string): Promis
 // Per-step diagnostics for the run record: time, AI turns, JSON parse failures, repairs, remaining errors.
 export type StepStat = { step: string; ms: number; turns: number; parseFailures: number; repairs: number; errors: string[]; at: string };
 // plan: what the planner saw and where each asset went (asset summaries, scenes per asset, images sent).
-export type PlanRecord = { images: { count: number; chars: number; refs: string[] }; assetSummaries: Record<string, string>; placements: Record<string, number[]>; unused: string[]; fallback: boolean };
+export type PlanRecord = { images: { count: number; chars: number; refs: string[] }; assetSummaries: Record<string, string>; placements: Record<string, number[]>; unused: string[]; fallback: boolean; rounds: PlanRound[]; edited: number };
 export type RunRecord = { startedAt: string; preset: string; url: string; steps: StepStat[]; notes: string[]; plan?: PlanRecord };
 export const newRunRecord = (preset: string, url: string): RunRecord => ({ startedAt: new Date().toISOString(), preset, url, steps: [], notes: [] });
 
@@ -174,9 +196,16 @@ async function embeddedFont(sdk: PanelSdk, env: Env): Promise<EmbeddedFont> {
   return fontLoad;
 }
 
-// --- Draft ---
+// --- scene plan and Draft ---
+// Prepared photos stay in memory for the open panel (storage is too small for them); a reopened panel
+// prepares them again when the Draft is built.
+const photoCache = new Map<string, PhotoAsset[]>();
+const photoKey = (article: Article) => article.url + "|" + article.photos.map((p) => p.url).join("|");
+
 async function prepPhotos(sdk: PanelSdk, env: Env, article: Article, log: Log): Promise<PhotoAsset[]> {
   if (!article.photos.length) return [];
+  const cached = photoCache.get(photoKey(article));
+  if (cached) return cached;
   log("photos");
   const out: PhotoAsset[] = [];
   for (const p of article.photos.slice(0, 6)) {
@@ -198,6 +227,7 @@ async function prepPhotos(sdk: PanelSdk, env: Env, article: Article, log: Log): 
       await run(sdk, removeScript(jpg)).catch(() => {});
     }
   }
+  photoCache.set(photoKey(article), out);
   return out;
 }
 
@@ -226,12 +256,54 @@ async function plate(sdk: PanelSdk, env: Env, projectId: string, seconds: number
   return r.ids[0];
 }
 
-export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Preset, narration: { resourceId: string; durationSeconds: number }, log: Log, rec: RunRecord): Promise<{ draftId: string; timing: string; fallbackPlan: boolean }> {
+// The validator over a plan the user may have edited (also used to show errors on each row).
+export const checkPlan = (plan: Pick<ScenePlan, "assetSummaries" | "scenes" | "sentences" | "assets">) =>
+  P.validatePlan({ assetSummaries: plan.assetSummaries, scenes: plan.scenes }, plan.sentences, plan.assets);
+
+// Errors the Draft cannot be built with (scene order and sentence coverage); other errors only warn.
+export const BLOCKING_PLAN_ERROR = /unknown sentence id|cover every sentence|sentenceIds is required|must be an object|type must be one of|reply must be/;
+
+function recordPlan(rec: RunRecord, plan: ScenePlan, images: AskImage[]) {
+  const placed = placements(plan.scenes);
+  rec.plan = {
+    images: { count: images.length, chars: images.reduce((n, im) => n + im.dataUrl.length, 0), refs: images.map((im) => im.name ?? "") },
+    assetSummaries: Object.fromEntries(plan.assetSummaries.map((a) => [a.ref, a.summary])),
+    placements: placed,
+    unused: plan.assets.map((a) => a.ref).filter((r) => !placed[r]),
+    fallback: plan.fallback,
+    rounds: plan.rounds,
+    edited: plan.edited.length,
+  };
+}
+
+// One planner turn (with the images); a plan that still fails after one repair falls back.
+async function askPlan(sdk: PanelSdk, base: Omit<ScenePlan, "assetSummaries" | "scenes" | "fallback" | "rounds" | "changed" | "edited">, script: Script, preset: Preset, photos: PhotoAsset[], log: Log, rec: RunRecord, revision?: { feedback: string; previous: { assetSummaries: AssetSummary[]; scenes: PlanScene[] } }) {
+  const images = plannerImages(photos);
+  const imageChars = images.reduce((n, im) => n + im.dataUrl.length, 0);
+  rec.notes.push("plan images: " + images.length + " of " + photos.length + " (" + images.map((im) => im.name).join(", ") + "), " + Math.round(imageChars / 1024) + " KB base64");
+  log("planning");
+  let scenes: PlanScene[] | null = null;
+  let summaries: AssetSummary[] = [];
+  try {
+    const check = (j: any) => P.validatePlan(j, base.sentences, base.assets);
+    const prompt = P.plannerPrompt({ headline: script.headline, sentences: base.sentences, assets: base.assets, language: preset.scriptLanguage, feedback: revision?.feedback, previous: revision?.previous });
+    const r = await askValid<any>(sdk, revision ? "plan revision" : "plan", prompt, check, log, rec, 1, images);
+    const settled = settlePlan(r.json, r.errors, base.sentences, check);
+    scenes = settled.scenes;
+    if (scenes && Array.isArray(r.json?.assetSummaries)) summaries = r.json.assetSummaries.map((a: any) => ({ ref: String(a?.ref ?? ""), summary: String(a?.summary ?? "") }));
+    if (settled.demoted) { rec.notes.push("plan: " + settled.demoted + " number callout(s) without a number shown as text cards"); log("planDemoted", { n: settled.demoted }); }
+    if (scenes && settled.longScenes.length) rec.notes.push("plan: accepted with long scenes (" + settled.longScenes.join("; ") + ")");
+    if (!scenes && r.json) rec.notes.push("plan: rejected (" + settled.errors.slice(0, 5).join("; ") + ")");
+  } catch (e: any) { scenes = null; rec.notes.push("plan: failed (" + String(e?.message || e) + ")"); }
+  return { scenes, summaries, images };
+}
+
+// Timing, photos and the first scene plan. Nothing is added to the Project.
+export async function planScenes(sdk: PanelSdk, env: Env, s: Session, preset: Preset, narration: { resourceId: string; durationSeconds: number }, log: Log, rec: RunRecord, thumb?: (dataUrl: string) => Promise<string>): Promise<ScenePlan> {
   const script = s.script!, article = s.article!, projectId = s.projectId!;
   const total = narration.durationSeconds;
   if (!(total > 0)) throw new Error("narration length unknown");
-  const plateLen = plateSeconds(total);
-  if (plateLen > PLATE_MAX_SECONDS) throw new Error("narration longer than " + PLATE_MAX_SECONDS + " s");
+  if (plateSeconds(total) > PLATE_MAX_SECONDS) throw new Error("narration longer than " + PLATE_MAX_SECONDS + " s");
 
   log("timing");
   const chars = await run<AlignChar[] | null>(sdk, alignmentScript(projectId, narration.resourceId));
@@ -242,41 +314,59 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
 
   const photos = await prepPhotos(sdk, env, article, log);
   const sentences = script.sentences.map((x, i) => ({ id: x.id, text: x.text, startSec: Number(times[i].startSec.toFixed(2)), endSec: Number(times[i].endSec.toFixed(2)) }));
-  const assets = article.photos.filter((p) => photos.some((q) => q.ref === p.ref)).map((p) => ({ ref: p.ref, kind: "photo" as const, caption: p.caption, credit: p.credit, context: p.context, w: p.w, h: p.h }));
-  const images = plannerImages(photos);
-  const imageChars = images.reduce((n, im) => n + im.dataUrl.length, 0);
-  rec.notes.push("plan images: " + images.length + " of " + photos.length + " (" + images.map((im) => im.name).join(", ") + "), " + Math.round(imageChars / 1024) + " KB base64");
+  const assets: PlanAsset[] = article.photos.filter((p) => photos.some((q) => q.ref === p.ref)).map((p) => ({ ref: p.ref, kind: "photo" as const, caption: p.caption, credit: p.credit, context: p.context, w: p.w, h: p.h }));
+  const thumbs: Record<string, string> = {};
+  if (thumb) for (const p of photos) { try { thumbs[p.ref] = await thumb(p.dataUrl); } catch { /* no thumbnail */ } }
+  const base = { narrationId: narration.resourceId, durationSeconds: total, sentences, times, timing: source, chars, assets, thumbs };
 
-  log("planning");
-  let plan: PlanScene[] | null = null;
-  let summaries: Array<{ ref: string; summary: string }> = [];
-  try {
-    const check = (j: any) => P.validatePlan(j, sentences, assets);
-    const r = await askValid<any>(sdk, "plan", P.plannerPrompt({ headline: script.headline, sentences, assets, language: preset.scriptLanguage }), check, log, rec, 1, images);
-    const settled = settlePlan(r.json, r.errors, sentences, check);
-    plan = settled.scenes;
-    if (plan && Array.isArray(r.json?.assetSummaries)) summaries = r.json.assetSummaries.map((a: any) => ({ ref: String(a?.ref ?? ""), summary: String(a?.summary ?? "") }));
-    if (settled.demoted) { rec.notes.push("plan: " + settled.demoted + " number callout(s) without a number shown as text cards"); log("planDemoted", { n: settled.demoted }); }
-    if (plan && settled.longScenes.length) rec.notes.push("plan: accepted with long scenes (" + settled.longScenes.join("; ") + ")");
-    if (!plan && r.json) rec.notes.push("plan: rejected (" + settled.errors.slice(0, 5).join("; ") + ")");
-  } catch { plan = null; }
-  const usedFallback = !plan;
-  if (!plan) {
+  const r = await askPlan(sdk, base, script, preset, photos, log, rec);
+  let plan: ScenePlan;
+  if (r.scenes) plan = { ...base, assetSummaries: r.summaries, scenes: r.scenes, fallback: false, rounds: [], changed: [], edited: [] };
+  else {
     rec.notes.push("plan: fallback");
     log("planFallback");
     const fb = fallbackPlan(sentences, times, assets);
-    plan = fb.scenes;
-    summaries = fb.assetSummaries;
+    plan = { ...base, assetSummaries: fb.assetSummaries, scenes: fb.scenes, fallback: true, rounds: [], changed: [], edited: [] };
   }
-  const placed = placements(plan);
-  rec.plan = {
-    images: { count: images.length, chars: imageChars, refs: images.map((im) => im.name ?? "") },
-    assetSummaries: Object.fromEntries(summaries.map((a) => [a.ref, a.summary])),
-    placements: placed,
-    unused: assets.map((a) => a.ref).filter((r) => !placed[r]),
-    fallback: usedFallback,
-  };
+  recordPlan(rec, plan, r.images);
+  return plan;
+}
 
+// Rebuild the plan from the user's feedback. previous is the plan as the user sees it (their edits included);
+// a revision that fails its check keeps that plan.
+export async function revisePlan(sdk: PanelSdk, env: Env, s: Session, preset: Preset, feedback: string, log: Log, rec: RunRecord): Promise<{ plan: ScenePlan; kept: boolean }> {
+  const cur = s.plan!;
+  const photos = await prepPhotos(sdk, env, s.article!, log);
+  const t0 = Date.now();
+  const r = await askPlan(sdk, cur, s.script!, preset, photos, log, rec, { feedback, previous: { assetSummaries: cur.assetSummaries, scenes: cur.scenes } });
+  const ms = Date.now() - t0;
+  const round = cur.rounds.length + 1;
+  if (!r.scenes) {
+    const rounds = [...cur.rounds, { round, feedback, changed: 0, scenes: cur.scenes.length, ms, fallback: true, at: new Date().toISOString() }];
+    const plan = { ...cur, rounds, changed: [] };
+    recordPlan(rec, plan, r.images);
+    return { plan, kept: true };
+  }
+  const changed = changedScenes(cur.scenes, r.scenes);
+  const rounds = [...cur.rounds, { round, feedback, changed: changed.length, scenes: r.scenes.length, ms, fallback: false, at: new Date().toISOString() }];
+  rec.notes.push(`plan revision ${round}: ${changed.length} of ${r.scenes.length} scenes changed`);
+  const summaries = r.summaries.length ? r.summaries : cur.assetSummaries;
+  const plan: ScenePlan = { ...cur, assetSummaries: summaries, scenes: r.scenes, fallback: false, rounds, changed, edited: [] };
+  recordPlan(rec, plan, r.images);
+  return { plan, kept: false };
+}
+
+// Builds the Draft from the reviewed plan.
+export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Preset, log: Log, rec: RunRecord): Promise<{ draftId: string; timing: string; fallbackPlan: boolean }> {
+  const script = s.script!, article = s.article!, projectId = s.projectId!, sp = s.plan!;
+  const total = sp.durationSeconds, times = sp.times, chars = sp.chars, sentences = sp.sentences;
+  const texts = sentences.map((x) => x.text);
+  const plateLen = plateSeconds(total);
+  const photos = await prepPhotos(sdk, env, article, log);
+  const missing = sp.scenes.filter((sc) => sc.assetRef && !photos.some((p) => p.ref === sc.assetRef)).length;
+  if (missing) rec.notes.push("photos: " + missing + " scene(s) lost their photo when it was prepared again");
+  recordPlan(rec, sp, []);
+  const plan = sp.scenes;
   // The embedded face is best effort: without it the templates use the installed fonts. Each graphic gets its
   // own subset: graphics keep separate parameters, so a shared subset would be copied into every caption
   // (measured on one article: 2.1 MB in 14 scripts shared vs 660 KB in 4 scripts per graphic).
@@ -313,7 +403,7 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
 
   const plateId = await plate(sdk, env, projectId, plateLen, preset.background, log);
   log("assembling");
-  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, headline: script.headline, preset, scenes, captions, decorate };
+  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, headline: script.headline, preset, scenes, captions, decorate };
   let draftId: string | null = null;
   try {
     const baseCall = baseDraftScript(x);
@@ -336,5 +426,5 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
     rec.notes.push(`font subsets: ${fontStats.count} graphics, ${Math.round(fontStats.bytes / 1024)} KB` + (fontStats.failed ? `, ${fontStats.failed} failed` : "") + (fontStats.missing.size ? ", no glyph for " + [...fontStats.missing].join("") : ""));
   }
   rec.notes.push("draft: " + draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
-  return { draftId: draftId!, timing: source, fallbackPlan: usedFallback };
+  return { draftId: draftId!, timing: sp.timing, fallbackPlan: sp.fallback };
 }

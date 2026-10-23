@@ -9,7 +9,9 @@ import { load, save, sleep, run } from "./pipeline/host.ts";
 import { voicesScript, openDraftScript } from "./pipeline/scripts.ts";
 import { creditQuote, type TtsRecord } from "./pipeline/tts.ts";
 import * as F from "./pipeline/flow.ts";
-import { TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
+import { SCENE_TYPES, TARGET_CHARS, TTS_CHARS_PER_SEC } from "./prompts/index.ts";
+import type { PlanScene } from "./prompts/types.ts";
+import { retypeScene } from "./pipeline/plan.ts";
 
 type Props = { sdk: PanelSdk; context?: { projectId?: string | null; language?: string } };
 
@@ -17,6 +19,36 @@ const box = { border: "1px solid var(--panel-border, #3334)", borderRadius: 8, p
 const muted = { color: "var(--panel-muted-fg, #888)", fontSize: 12 } as const;
 const input = { width: "100%", boxSizing: "border-box", padding: 6, font: "inherit" } as const;
 const MAX_CHARS = TARGET_CHARS.max;
+const warn = { color: "#d9822b", fontSize: 12 } as const;
+
+// A small JPEG of an article photo for the plan review rows (kept in the session, so it stays small).
+function thumbOf(dataUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => {
+      const w = 160, h = Math.max(1, Math.round((im.height * w) / Math.max(1, im.width)));
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const g = c.getContext("2d");
+      if (!g) return reject(new Error("no canvas"));
+      g.drawImage(im, 0, 0, w, h);
+      resolve(c.toDataURL("image/jpeg", 0.7));
+    };
+    im.onerror = () => reject(new Error("thumbnail"));
+    im.src = dataUrl;
+  });
+}
+
+// Fields a reviewer edits directly for each scene type; everything else stays in the JSON editor.
+const SCENE_FIELDS: Record<string, string[]> = {
+  text_card: ["text", "sub"],
+  number_callout: ["label", "from", "to", "unit"],
+  quote_card: ["name", "lines"],
+  bar_compare_h: ["title"],
+  line_trend_callout: ["title"],
+  stat_cards: ["title"],
+  news_photo: [],
+};
 
 function NewsMinutePanel({ sdk, context }: Props) {
   const lang = context?.language;
@@ -30,6 +62,8 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const [text, setText] = useState("");
   const [tts, setTts] = useState<TtsRecord | null>(null);
   const [voices, setVoices] = useState<Array<{ voiceId: string; name: string }>>([]);
+  const [feedback, setFeedback] = useState("");
+  const [jsonErr, setJsonErr] = useState<Record<number, string>>({});
   const env = useRef<F.Env | null>(null);
   useAppUpdateGuard(sdk, context?.language, () => busy);
 
@@ -112,19 +146,58 @@ function NewsMinutePanel({ sdk, context }: Props) {
     setTts(rec);
   });
 
-  const build = () => guard(async () => {
+  const makePlan = () => guard(async () => {
     const next = F.ttsNext(tts, s.approved!);
     if (next.kind !== "ready") return;
     const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
+    let plan;
+    try { plan = await F.planScenes(sdk, env.current!, s, preset, next, log, rec, thumbOf); }
+    catch (e: any) { rec.notes.push("error: " + String(e?.message || e)); throw e; }
+    finally { await finish(rec); }
+    await update({ ...s, plan, draftId: null });
+    setFeedback(""); setJsonErr({});
+    if (plan.timing === "ratio") setError(T("timingRatio"));
+  });
+
+  const revise = () => guard(async () => {
+    const note = feedback.trim();
+    if (!note || !s.plan) return;
+    log("revising");
+    const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
     let r;
-    try { r = await F.buildDraft(sdk, env.current!, s, preset, next, log, rec); }
+    try { r = await F.revisePlan(sdk, env.current!, s, preset, note, log, rec); }
+    catch (e: any) { rec.notes.push("error: " + String(e?.message || e)); throw e; }
+    finally { await finish(rec); }
+    await update({ ...s, plan: r.plan });
+    setJsonErr({});
+    if (r.kept) setError(T("reviseKept"));
+    else { setFeedback(""); log("revised", { n: r.plan.changed.length, of: r.plan.scenes.length }); }
+  });
+
+  const build = () => guard(async () => {
+    const plan = s.plan;
+    if (!plan) return;
+    const v = F.checkPlan(plan);
+    const blocking = v.errors.filter((e) => F.BLOCKING_PLAN_ERROR.test(e));
+    if (blocking.length) throw new Error(T("planBlocked", { errors: blocking.slice(0, 3).join("; ") }));
+    if (v.errors.length && !window.confirm(T("planAnyway") + "\n\n" + v.errors.slice(0, 8).join("\n"))) return;
+    const rec = F.newRunRecord(preset.id, s.article?.url ?? "");
+    let r;
+    try { r = await F.assemble(sdk, env.current!, s, preset, log, rec); }
     catch (e: any) { rec.notes.push("error: " + String(e?.message || e)); throw e; }
     finally { await finish(rec); }
     await update({ ...s, draftId: r.draftId });
     await run(sdk, openDraftScript(r.draftId)).catch(() => {});
-    if (r.timing === "ratio") setError(T("timingRatio"));
-    else if (r.fallbackPlan) setError(T("planFallback"));
   });
+
+  // A scene the reviewer changed by hand; it is marked and goes to the planner as part of the previous plan.
+  const setScene = (i: number, sc: PlanScene) => {
+    const plan = s.plan;
+    if (!plan) return;
+    const scenes = plan.scenes.map((x, k) => (k === i ? sc : x));
+    const edited = plan.edited.includes(i) ? plan.edited : [...plan.edited, i];
+    update({ ...s, plan: { ...plan, scenes, edited }, draftId: null });
+  };
 
   const reset = () => guard(async () => { await update({ ...F.emptySession(s.presetId), voiceId: s.voiceId, projectId: s.projectId }); setUrl(""); setText(""); });
 
@@ -135,6 +208,104 @@ function NewsMinutePanel({ sdk, context }: Props) {
   const next = approved ? F.ttsNext(tts, s.approved!) : null;
   const quote = creditQuote(chars);
   const liveErrors = sc && s.article && touched ? F.checkEdited(sc, s.article).errors : s.scriptErrors;
+  const plan = approved && next?.kind === "ready" && s.plan && s.plan.narrationId === next.resourceId ? s.plan : null;
+
+  const renderPlan = (plan: F.ScenePlan) => {
+    const v = F.checkPlan(plan);
+    const rowErrors = new Map<number, string[]>(), rowWarnings = new Map<number, string[]>();
+    const general: string[] = [];
+    const sort = (list: string[], into: Map<number, string[]>, rest: string[] | null) => {
+      for (const e of list) {
+        const m = /^scene (\d+): (.*)$/.exec(e);
+        if (m) into.set(Number(m[1]) - 1, [...(into.get(Number(m[1]) - 1) ?? []), m[2]]);
+        else if (rest) rest.push(e);
+      }
+    };
+    sort(v.errors, rowErrors, general);
+    sort(v.warnings, rowWarnings, null);
+    const byId = new Map(plan.sentences.map((x) => [x.id, x]));
+    const summary = new Map(plan.assetSummaries.map((a) => [a.ref, a.summary]));
+    const photoRefs = plan.assets.map((a) => a.ref);
+    const lastRound = plan.rounds[plan.rounds.length - 1];
+    return (
+      <div style={{ ...box, display: "flex", flexDirection: "column", gap: 10 }}>
+        <strong>{T("planReview")}</strong>
+        <span style={muted}>{T("planReviewHint")}</span>
+        {plan.fallback ? <span style={warn}>{T("planFallbackNote")}</span> : null}
+        {lastRound ? <span style={muted}>{T("rounds", { n: plan.rounds.length })}{lastRound.fallback ? "" : " \u00b7 " + T("revised", { n: lastRound.changed, of: lastRound.scenes })}</span> : null}
+        {general.length ? <div style={warn}>{general.map((x, i) => <div key={i}>{"\u2022 " + x}</div>)}</div> : null}
+        {plan.scenes.map((scene, i) => {
+          const ss = scene.sentenceIds.map((id) => byId.get(id)).filter(Boolean) as F.ScenePlan["sentences"];
+          const start = ss.length ? Math.min(...ss.map((x) => x.startSec)) : 0, end = ss.length ? Math.max(...ss.map((x) => x.endSec)) : 0;
+          const changed = plan.changed.includes(i), edited = plan.edited.includes(i);
+          const setParam = (k: string, val: unknown) => setScene(i, { ...scene, params: { ...(scene.params ?? {}), [k]: val } });
+          const canPhoto = scene.type === "news_photo" || scene.type === "number_callout" || scene.type === "quote_card";
+          return (
+            <div key={i + ":" + scene.sentenceIds.join(",")} style={{ borderTop: "1px solid var(--panel-border, #3334)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 4, background: changed ? "rgba(74,144,217,0.08)" : undefined }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                <strong>{String(i + 1).padStart(2, "0")}</strong>
+                <span style={muted}>{start.toFixed(1) + "\u2013" + end.toFixed(1) + "s"}</span>
+                {changed ? <span style={{ ...muted, color: "#4a90d9", fontWeight: 600 }}>{T("changedMark")}</span> : null}
+                {edited ? <span style={{ ...muted, color: "#d9822b" }}>{T("editedMark")}</span> : null}
+              </div>
+              <span style={{ ...muted, color: "inherit" }}>{ss.map((x) => x.text).join(" ")}</span>
+              <label style={muted}>{T("sceneType")}{" "}
+                <select value={scene.type} disabled={busy} onChange={(e) => setScene(i, retypeScene(scene, e.target.value, ss[0]?.text ?? "", photoRefs))}>
+                  {SCENE_TYPES.map((t2) => <option key={t2} value={t2}>{T("type_" + t2)}</option>)}
+                </select>
+              </label>
+              {canPhoto ? (
+                <label style={muted}>{T("scenePhoto")}{" "}
+                  <select value={scene.assetRef ?? ""} disabled={busy} onChange={(e) => { const { assetRef: _x, ...rest } = scene; setScene(i, e.target.value ? { ...rest, assetRef: e.target.value } : rest); }}>
+                    <option value="">{T("noPhoto")}</option>
+                    {photoRefs.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </label>
+              ) : null}
+              {scene.assetRef ? (
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                  {plan.thumbs[scene.assetRef] ? <img src={plan.thumbs[scene.assetRef]} style={{ width: 72, borderRadius: 4, flex: "none" }} /> : null}
+                  <span style={muted}>{T("assetShows", { summary: summary.get(scene.assetRef) ?? "" })}</span>
+                </div>
+              ) : null}
+              {(SCENE_FIELDS[scene.type] ?? []).map((k) => {
+                const raw = scene.params?.[k];
+                if (k === "lines") return (
+                  <label key={k} style={muted}>{T("field_lines")}
+                    <textarea style={input} rows={3} value={Array.isArray(raw) ? raw.join("\n") : ""} disabled={busy} onChange={(e) => setParam("lines", e.target.value.split("\n"))} />
+                  </label>
+                );
+                return (
+                  <label key={k} style={muted}>{T("field_" + k)}
+                    {k === "text"
+                      ? <textarea style={input} rows={2} value={raw == null ? "" : String(raw)} disabled={busy} onChange={(e) => setParam(k, e.target.value)} />
+                      : <input style={input} value={raw == null ? "" : String(raw)} disabled={busy} onChange={(e) => setParam(k, e.target.value)} />}
+                  </label>
+                );
+              })}
+              <details>
+                <summary style={muted}>{T("sceneParams")}</summary>
+                <textarea style={{ ...input, fontFamily: "monospace", fontSize: 11 }} rows={6} disabled={busy} defaultValue={JSON.stringify(scene.params ?? {}, null, 1)} key={JSON.stringify(scene.params ?? {})}
+                  onBlur={(e) => {
+                    try { const p = JSON.parse(e.target.value); setJsonErr((m) => { const n = { ...m }; delete n[i]; return n; }); if (JSON.stringify(p) !== JSON.stringify(scene.params ?? {})) setScene(i, { ...scene, params: p }); }
+                    catch (err: any) { setJsonErr((m) => ({ ...m, [i]: T("badJson", { error: String(err?.message || err) }) })); }
+                  }} />
+                {jsonErr[i] ? <span style={warn}>{jsonErr[i]}</span> : null}
+              </details>
+              {(rowErrors.get(i) ?? []).map((x, k) => <span key={"e" + k} style={warn}>{"\u2022 " + x}</span>)}
+              {(rowWarnings.get(i) ?? []).map((x, k) => <span key={"w" + k} style={muted}>{"\u2022 " + x}</span>)}
+            </div>
+          );
+        })}
+        <label>{T("feedback")}
+          <textarea style={{ ...input, minHeight: 60 }} placeholder={T("feedbackHint")} value={feedback} disabled={busy} onChange={(e) => setFeedback(e.target.value)} />
+        </label>
+        <span style={muted}>{T("buildCredits")}</span>
+        <button disabled={busy || !feedback.trim()} onClick={revise}>{T("revise")}</button>
+        <button disabled={busy} onClick={build}>{T("buildFromPlan")}</button>
+      </div>
+    );
+  };
 
   return (
     <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }}>
@@ -210,12 +381,16 @@ function NewsMinutePanel({ sdk, context }: Props) {
           ) : (
             <>
               <span>{"\u2713 " + T("narrated", { sec: next.durationSeconds.toFixed(1) })}</span>
-              <span style={muted}>{T("buildCredits")}</span>
-              <button disabled={busy} onClick={build}>{T("build")}</button>
+              {plan ? null : <>
+                <span style={muted}>{T("buildCredits")}</span>
+                <button disabled={busy} onClick={makePlan}>{T("makePlan")}</button>
+              </>}
             </>
           )}
         </div>
       ) : null}
+
+      {plan ? renderPlan(plan) : null}
 
       {s.draftId ? (
         <div style={{ ...box, display: "flex", gap: 8, alignItems: "center" }}>

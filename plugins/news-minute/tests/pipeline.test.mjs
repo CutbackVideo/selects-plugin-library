@@ -222,3 +222,37 @@ test("planner images: at most four, graphics first, named by ref", async () => {
   const out = plannerImages([ph("photo-1", false), ph("photo-2", true), ph("photo-3", false), ph("photo-4", true), ph("photo-5", false), ph("photo-6", true)]);
   assert.deepEqual(out.map((im) => im.name), ["photo-2", "photo-4", "photo-6", "photo-1"]);
 });
+
+test("changedScenes marks scenes whose type, params, photo or caption flag differ", async () => {
+  const { changedScenes } = await import("../src/pipeline/plan.ts");
+  const sc = (ids, type, params, extra = {}) => ({ sentenceIds: ids, type, params, hideCaption: false, disclaimer: false, ...extra });
+  const prev = [sc(["s1"], "news_photo", {}, { assetRef: "photo-1" }), sc(["s2", "s3"], "text_card", { text: "a", sub: "b" }), sc(["s4"], "text_card", { text: "c" })];
+  // same params in another key order are unchanged; a new photo, a new type and regrouped sentences are changed
+  const next = [sc(["s1"], "news_photo", {}, { assetRef: "photo-2" }), sc(["s2", "s3"], "text_card", { sub: "b", text: "a" }), sc(["s4"], "number_callout", { from: "1", to: "2" }, { hideCaption: true })];
+  assert.deepEqual(changedScenes(prev, next), [0, 2]);
+  assert.deepEqual(changedScenes(prev, [sc(["s1", "s2"], "news_photo", {}, { assetRef: "photo-1" }), prev[2]]), [0]);
+  assert.deepEqual(changedScenes(prev, prev), []);
+});
+
+test("retypeScene gives the new type params it can show", async () => {
+  const { retypeScene } = await import("../src/pipeline/plan.ts");
+  const photo = { sentenceIds: ["s1"], type: "news_photo", params: { focus: "top" }, hideCaption: false, disclaimer: false, assetRef: "photo-1" };
+  const card = retypeScene(photo, "text_card", "Cash rose to a record high this quarter", ["photo-1"]);
+  assert.equal(card.assetRef, undefined);
+  assert.ok(card.params.text.length > 0);
+  const num = retypeScene(photo, "number_callout", "x", ["photo-1"]);
+  assert.equal(num.hideCaption, true);
+  assert.equal(num.assetRef, "photo-1");
+  assert.equal(retypeScene(card, "news_photo", "x", ["photo-3"]).assetRef, "photo-3");
+});
+
+test("only order and coverage errors block building the Draft", async () => {
+  const { BLOCKING_PLAN_ERROR, checkPlan } = await import("../src/pipeline/flow.ts");
+  const sentences = [{ id: "s1", text: "a", startSec: 0, endSec: 3 }, { id: "s2", text: "b", startSec: 3, endSec: 6 }];
+  const base = { sentences, assets: [], assetSummaries: [] };
+  const missing = checkPlan({ ...base, scenes: [{ sentenceIds: ["s1"], type: "text_card", params: { text: "a" }, hideCaption: false, disclaimer: false }] });
+  assert.ok(missing.errors.some((e) => BLOCKING_PLAN_ERROR.test(e)));
+  const numbers = checkPlan({ ...base, scenes: [{ sentenceIds: ["s1", "s2"], type: "number_callout", params: { label: "x", from: "1", to: "9" }, hideCaption: true, disclaimer: false }] });
+  assert.ok(numbers.errors.length > 0);
+  assert.ok(!numbers.errors.some((e) => BLOCKING_PLAN_ERROR.test(e)));
+});
