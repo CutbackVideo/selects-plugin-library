@@ -3004,7 +3004,7 @@ async function plate(sdk, env, projectId, seconds, preset, log, rec) {
   if (!st.exists || st.size < 1e3) await ffmpeg(sdk, "Make the background", image ? imagePlateArgs(seconds, image, path) : plateArgs(seconds, preset.background, path));
   const r = await run(sdk, importScript(projectId, [path]));
   if (!r.ids?.length) throw new Error("background was not added to the Project");
-  return r.ids[0];
+  return { id: r.ids[0], image: !!image };
 }
 async function bands(sdk, env, projectId, preset, rec) {
   const image = await layoutImage(sdk, env, preset.layout.bandsImage);
@@ -3143,11 +3143,12 @@ async function assemble(sdk, env, s, preset, log, rec) {
       return { ...p, fontFamily: "NM Sans" };
     }
   };
-  const win = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight };
-  const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
   const hidden = hiddenCaptionSentences(plan, sentences);
   const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
-  const plateId = await plate(sdk, env, projectId, plateLen, preset, log, rec);
+  const bg = await plate(sdk, env, projectId, plateLen, preset, log, rec);
+  const plateId = bg.id;
+  const win = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight, ...bg.image ? { background: "transparent" } : {} };
+  const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
   const bandsId = await bands(sdk, env, projectId, preset, rec);
   log("assembling");
   const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: sp.narrationId, narrationSeconds: total, bandsId, headline: script.headline, preset, scenes, captions, decorate };
