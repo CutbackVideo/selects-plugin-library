@@ -65,6 +65,7 @@ export async function ffmpeg(sdk: PanelSdk, summary: string, args: string[]): Pr
 }
 
 const CHUNK = 49152;
+const READ_PER_CALL = 3;
 // Write text to a file in chunks (replaces the file).
 export async function writeText(sdk: PanelSdk, path: string, text: string): Promise<void> {
   const bytes = new TextEncoder().encode(text);
@@ -84,15 +85,17 @@ function b64ToBytes(b64: string): Uint8Array {
   return out;
 }
 
-// Whole file as bytes (bounded), read 16 chunks per call.
+// Whole file as bytes (bounded). A panel run_script result is capped at 256 KB, so 3 chunks (about 196 KB of
+// base64) per call.
 export async function readFileBytes(sdk: PanelSdk, path: string, maxBytes = 8 * 1024 * 1024): Promise<Uint8Array> {
   const parts: Uint8Array[] = [];
   let offset = 0, total = 0;
   for (;;) {
-    const r = await run<{ chunks: string[]; offset: number }>(sdk, readChunksScript(path, offset, 16));
+    const r = await run<{ chunks: string[]; offset: number }>(sdk, readChunksScript(path, offset, READ_PER_CALL));
+    if (!r || !Array.isArray(r.chunks)) throw new Error("reading " + path + " returned no data");
     for (const c of r.chunks) { const b = b64ToBytes(c); parts.push(b); total += b.length; }
     if (total > maxBytes) throw new Error("file too large: " + path);
-    if (r.offset === offset || r.chunks.length < 16) break;
+    if (r.offset === offset || r.chunks.length < READ_PER_CALL) break;
     offset = r.offset;
   }
   const out = new Uint8Array(total);
