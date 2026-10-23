@@ -12,7 +12,13 @@ export type PanelSdk = {
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// The host rejects run_script sources over 262,144 bytes; refuse well before that with a clear message.
+export const SCRIPT_GUARD_BYTES = 240_000;
+export const scriptBytes = (call: ScriptCall) => new TextEncoder().encode(call.script).length;
+
 export async function run<T = any>(sdk: PanelSdk, call: ScriptCall): Promise<T> {
+  const bytes = scriptBytes(call);
+  if (bytes > SCRIPT_GUARD_BYTES) throw new Error(`"${call.summary}" is ${bytes} bytes, over the ${SCRIPT_GUARD_BYTES}-byte script limit`);
   const r = await sdk.runScript({ summary: call.summary, script: call.script, allowCommit: !!call.allowCommit });
   if (r.isError) throw new Error(String(r.output || "script failed"));
   return r.result as T;

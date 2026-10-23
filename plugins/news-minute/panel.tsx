@@ -64,7 +64,8 @@ var MESSAGES = {
   record: ["Run record: {path}", "\uC2E4\uD589 \uAE30\uB85D: {path}"],
   approveAnyway: ["The check still reports these problems. Approve anyway?", "\uAC80\uC0AC\uC5D0\uC11C \uC544\uB798 \uBB38\uC81C\uAC00 \uB0A8\uC544 \uC788\uC5B4\uC694. \uADF8\uB798\uB3C4 \uC2B9\uC778\uD560\uAE4C\uC694?"],
   editedCheck: ["Edited: check against the article", "\uC218\uC815\uB428: \uC6D0\uBB38 \uD655\uC778 \uD544\uC694"],
-  aiRetry: ["The AI turn timed out; trying again\u2026", "AI \uC751\uB2F5 \uC2DC\uAC04\uC774 \uCD08\uACFC\uB3FC \uB2E4\uC2DC \uC2DC\uB3C4 \uC911\uC774\uC5D0\uC694\u2026"]
+  aiRetry: ["The AI turn timed out; trying again\u2026", "AI \uC751\uB2F5 \uC2DC\uAC04\uC774 \uCD08\uACFC\uB3FC \uB2E4\uC2DC \uC2DC\uB3C4 \uC911\uC774\uC5D0\uC694\u2026"],
+  assemblingStep: ["Adding scenes ({n}/{of})\u2026", "\uC7A5\uBA74\uC744 \uB123\uACE0 \uC788\uC5B4\uC694({n}/{of})\u2026"]
 };
 function t(lang, key, vars = {}) {
   const pair = MESSAGES[key];
@@ -372,7 +373,11 @@ var openDraftScript = (draftId) => ({
 
 // src/pipeline/host.ts
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+var SCRIPT_GUARD_BYTES = 24e4;
+var scriptBytes = (call) => new TextEncoder().encode(call.script).length;
 async function run(sdk, call) {
+  const bytes = scriptBytes(call);
+  if (bytes > SCRIPT_GUARD_BYTES) throw new Error(`"${call.summary}" is ${bytes} bytes, over the ${SCRIPT_GUARD_BYTES}-byte script limit`);
   const r = await sdk.runScript({ summary: call.summary, script: call.script, allowCommit: !!call.allowCommit });
   if (r.isError) throw new Error(String(r.output || "script failed"));
   return r.result;
@@ -1775,8 +1780,7 @@ function hiddenCaptionSentences(plan, sentences) {
 
 // src/pipeline/assemble.ts
 var J2 = (v) => JSON.stringify(v);
-var SCRIPT_MAX_BYTES = 262144;
-var SCENE_BATCH_BYTES = 2e5;
+var SCENE_BATCH_BYTES = 18e4;
 function tpl(type) {
   const t2 = TEMPLATES[type];
   if (!t2) throw new Error("unknown template " + type);
@@ -1845,7 +1849,7 @@ await d.commitAll("News short: scenes");
 return { added: ${batch.length} };`
     };
   });
-  for (const c of calls) if (new TextEncoder().encode(c.script).length > SCRIPT_MAX_BYTES) throw new Error("a scene is too large for one script (photo too big)");
+  for (const c of calls) if (new TextEncoder().encode(c.script).length > 24e4) throw new Error("a scene is too large for one script (photo too big)");
   return calls;
 }
 function overlayTextScript(draftId, x) {
@@ -2066,10 +2070,27 @@ async function buildDraft(sdk, env, s, preset, narration, log, rec) {
   const plateId = await plate(sdk, env, projectId, plateLen, preset.background, log);
   log("assembling");
   const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, headline: script.headline, preset, scenes, captions };
-  const base = await run(sdk, baseDraftScript(x));
+  const baseCall = baseDraftScript(x);
+  rec.notes.push("script bytes: base " + scriptBytes(baseCall));
+  const base = await run(sdk, baseCall);
   if (!base.draftId) throw new Error("the Draft was not created");
-  for (const call of sceneScripts(base.draftId, scenes)) await run(sdk, call);
-  await run(sdk, overlayTextScript(base.draftId, x));
+  const calls = sceneScripts(base.draftId, scenes);
+  rec.notes.push("script bytes: scenes " + calls.map(scriptBytes).join(", "));
+  for (let i = 0; i < calls.length; i++) {
+    log("assemblingStep", { n: i + 1, of: calls.length });
+    try {
+      await run(sdk, calls[i]);
+    } catch (e) {
+      throw new Error(`stopped at scene batch ${i + 1} of ${calls.length} (Draft ${base.draftId} kept): ${String(e?.message || e)}`);
+    }
+  }
+  const textCall = overlayTextScript(base.draftId, x);
+  rec.notes.push("script bytes: headline+captions " + scriptBytes(textCall));
+  try {
+    await run(sdk, textCall);
+  } catch (e) {
+    throw new Error(`stopped at headline and captions (Draft ${base.draftId} kept): ${String(e?.message || e)}`);
+  }
   rec.notes.push("draft: " + base.draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
   return { draftId: base.draftId, timing: source, fallbackPlan: usedFallback };
 }

@@ -4,7 +4,7 @@ import * as P from "../prompts/index.ts";
 import type { Article as PromptArticle, PlanScene } from "../prompts/types.ts";
 import { DEFAULT_VOICE, type Preset } from "../preset.ts";
 import { decodeHtml, extractArticle, type Article } from "./article.ts";
-import { ask, ffmpeg, load, readFileBase64, readFileBytes, run, save, writeText, type PanelSdk } from "./host.ts";
+import { ask, ffmpeg, load, readFileBase64, readFileBytes, run, save, scriptBytes, writeText, type PanelSdk } from "./host.ts";
 import {
   alignmentScript, createProjectScript, downloadScript, envScript, existsScript, generateScript, importScript,
   narrationStatusScript, photoArgs, PHOTO_MAX_B64, plateArgs, plateSeconds, PLATE_MAX_SECONDS, removeScript, resumeImportScript,
@@ -231,10 +231,22 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   const plateId = await plate(sdk, env, projectId, plateLen, preset.background, log);
   log("assembling");
   const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, headline: script.headline, preset, scenes, captions };
-  const base = await run<{ draftId: string | null }>(sdk, baseDraftScript(x));
+  const baseCall = baseDraftScript(x);
+  rec.notes.push("script bytes: base " + scriptBytes(baseCall));
+  const base = await run<{ draftId: string | null }>(sdk, baseCall);
   if (!base.draftId) throw new Error("the Draft was not created");
-  for (const call of sceneScripts(base.draftId, scenes)) await run(sdk, call);
-  await run(sdk, overlayTextScript(base.draftId, x));
+  // Stacking follows call order: scenes above the frame, then headline and captions above the scenes.
+  const calls = sceneScripts(base.draftId, scenes);
+  rec.notes.push("script bytes: scenes " + calls.map(scriptBytes).join(", "));
+  for (let i = 0; i < calls.length; i++) {
+    log("assemblingStep", { n: i + 1, of: calls.length });
+    try { await run(sdk, calls[i]); }
+    catch (e: any) { throw new Error(`stopped at scene batch ${i + 1} of ${calls.length} (Draft ${base.draftId} kept): ${String(e?.message || e)}`); }
+  }
+  const textCall = overlayTextScript(base.draftId, x);
+  rec.notes.push("script bytes: headline+captions " + scriptBytes(textCall));
+  try { await run(sdk, textCall); }
+  catch (e: any) { throw new Error(`stopped at headline and captions (Draft ${base.draftId} kept): ${String(e?.message || e)}`); }
   rec.notes.push("draft: " + base.draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
   return { draftId: base.draftId, timing: source, fallbackPlan: usedFallback };
 }
