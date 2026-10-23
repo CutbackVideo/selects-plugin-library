@@ -23,9 +23,30 @@ export const normalizeWs = (s: string) =>
 
 export const eojeolCount = (s: string) => normalizeWs(s).split(" ").filter(Boolean).length;
 
-export function numberTokens(s: string): string[] {
+// Raw digit runs, commas removed ("164\uB9CC1000" gives "164" and "1000").
+export function rawNumberTokens(s: string): string[] {
   const out = String(s ?? "").match(/\d[\d,]*(?:\.\d+)?/g) ?? [];
   return out.map((t) => t.replace(/,/g, ""));
+}
+
+const UNIT_VALUE: Record<string, number> = { "\uCC9C": 1e3, "\uB9CC": 1e4, "\uC5B5": 1e8, "\uC870": 1e12 };
+const NUM = "\\d[\\d,]*(?:\\.\\d+)?";
+const UNIT = "[\uCC9C\uB9CC\uC5B5\uC870]";
+// A spoken amount: segments like "20\uB9CC1000" or "1\uC870 2000\uC5B5"; a space joins segments only after a unit.
+const AMOUNT_RE = new RegExp(`${NUM}(?:${UNIT}(?:\\s?${NUM}(?:${UNIT})?)*)?`, "g");
+
+// Numeric values with comma and unit differences removed, so "201,000" and "20\uB9CC1000" compare equal.
+export function numberTokens(s: string): string[] {
+  const out: string[] = [];
+  for (const m of String(s ?? "").match(AMOUNT_RE) ?? []) {
+    let total = 0;
+    for (const seg of m.matchAll(new RegExp(`(${NUM})(${UNIT})?`, "g"))) {
+      const n = parseFloat(seg[1].replace(/,/g, ""));
+      total += n * (seg[2] ? UNIT_VALUE[seg[2]] : 1);
+    }
+    out.push(String(Math.round(total * 1e6) / 1e6));
+  }
+  return out;
 }
 
 export function estimateSeconds(sentences: string[]): number {

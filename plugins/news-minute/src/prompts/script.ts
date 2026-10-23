@@ -32,7 +32,7 @@ export const STYLE_RULES = (language: string) => `STYLE RULES for the narration 
 
 export const LENGTH_RULES = `LENGTH RULES (hard limits, text-to-speech runs at about ${TTS_CHARS_PER_SEC} characters per second including spaces)
 - ${SENTENCE_COUNT.min} to ${SENTENCE_COUNT.max} sentences.
-- Total narration, all sentences joined by single spaces: ${TARGET_CHARS.goal[0]}-${TARGET_CHARS.goal[1]} characters (never more than ${TARGET_CHARS.max}). Length matters more than covering every detail: drop the least important facts first.
+- Total narration, all sentences joined by single spaces: aim for ${TARGET_CHARS.goal[0]}-${TARGET_CHARS.goal[1]} characters. Never go above ${TARGET_CHARS.goal[1]}; ${TARGET_CHARS.max} is the failure line and anything over it is rejected. Count the characters of every sentence (spaces and punctuation included) and add them up before you reply; if the sum is above ${TARGET_CHARS.goal[1]}, cut the least important fact and count again. Length matters more than covering every detail.
 - Headline: line1 and line2 each at most 24 characters. line1 states the topic, line2 states the key number or turn. They are display text, not sentences.`;
 
 export function scriptPrompt(article: Article, opts: { language?: string } = {}): string {
