@@ -246,6 +246,9 @@ export function plannerImages(photos: PhotoAsset[]): AskImage[] {
   return out;
 }
 
+// Scene window fill over a background image: the heritage templates leave a zero-alpha colour clear.
+export const CLEAR_PAPER = "#F6F1E400";
+
 // A layout image in <plug-in data>/assets, or null when the preset names none or the file is not there.
 async function layoutImage(sdk: PanelSdk, env: Env, name: string | undefined): Promise<string | null> {
   if (!name) return null;
@@ -426,7 +429,8 @@ export async function assemble(sdk: PanelSdk, env: Env, s: Session, preset: Pres
   const bg = await plate(sdk, env, projectId, plateLen, preset, log, rec);
   const plateId = bg.id;
   // Scenes draw in the layout's window; over a background image they leave their own fill off so it shows.
-  const win: Record<string, unknown> = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight, ...(bg.image ? { background: "transparent" } : {}) };
+  // "transparent" fails the colour control's check (addMotionGraphic rejects it); a zero-alpha hex passes.
+  const win: Record<string, unknown> = { windowTop: preset.layout.windowTop, windowHeight: preset.layout.windowHeight, ...(bg.image ? { background: CLEAR_PAPER } : {}) };
   const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate({ ...win, ...sc.params }) }));
   const bandsId = await bands(sdk, env, projectId, preset, rec);
   log("assembling");
