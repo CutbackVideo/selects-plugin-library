@@ -658,7 +658,7 @@ function StylePanel({ sdk, context, ui }: any) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [result, setResult] = useState<{ id: string } | null>(null);
+  const [result, setResult] = useState<{ id: string; warnings: string[] } | null>(null);
   const [pending, setPending] = useState(false);
   const [faceActive, setFaceActive] = useState(false);
   const [canceling, setCanceling] = useState(false);
@@ -731,7 +731,7 @@ function StylePanel({ sdk, context, ui }: any) {
       const current = () => mounted.current && !controller.signal.aborted && observer.current===controller;
       const env = panelEnv(sdk, paths, (m) => { if (current()) setStatus(m); },controller.signal,(active,journal)=>{if(current()){faceJournal.current=journal;setFaceActive(active);}});
       const report = await runPipeline(env, projectId, from, { copy: false, retryFaceFailures:true, music: true, musicDb: MUSIC.levelDb, scope: "all" });
-      if (mounted.current && !controller.signal.aborted) { setPending(false); setResult({ id: report.draftId }); setStatus("Your Chris Williamson Style draft is ready."); }
+      if (mounted.current && !controller.signal.aborted) { setPending(false); setResult({ id: report.draftId, warnings: Array.isArray(report.warnings) ? report.warnings.filter((text:any)=>typeof text==='string'&&text.trim()) : [] }); setStatus("Your Chris Williamson Style draft is ready."); }
       if (!controller.signal.aborted && (!onScreen.current || onScreen.current === from)) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Chris Williamson Style draft" });
     } catch (e: any) {
       if (mounted.current && observer.current===controller && e?.code!=='CW_FACE_DETACHED') { setPending(true); setError(e?.code==='CW_FACE_CANCELED'?S[2]:String(e?.message || e)); setStatus(""); }
@@ -773,6 +773,7 @@ function StylePanel({ sdk, context, ui }: any) {
     {faceActive && <ui.Button variant="secondary" busy={canceling} busyLabel={S[3]} disabled={canceling} onClick={()=>void cancelFaces()}>{S[1]}</ui.Button>}
     {status && <ui.Message>{status}</ui.Message>}
     {error && <ui.Message tone="error">{error}</ui.Message>}
+    {result?.warnings?.map((warning,index)=><ui.Message key={index} tone="warning">{warning}</ui.Message>)}
     {result && <ui.Button variant="secondary" disabled={busy} onClick={() => void sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(result.id) + ");", summary: "Open the Chris Williamson Style draft" })}>Open result</ui.Button>}
   </ui.Stack></ui.Section>;
 }

@@ -623,6 +623,16 @@ async function chooseAssets(env: Env, jobDir: string, mediaFolder: string, reel:
   return rows;
 }
 
+export function verificationFrames(cues:any[],pulses:any[],total:number,limit=64) {
+  const wanted=[cues.find(c=>c.kind==='phrase')?.start,cues.find(c=>c.kind==='keyword')?.start,
+    ...cues.map(c=>Number.isFinite(c.start)&&Number.isFinite(c.end)&&c.end>c.start?Math.min(total,c.end)-1:null),
+    ...pulses.flatMap(p=>[p.start,p.end])];
+  const all=Array.from(new Set(wanted.filter(f=>Number.isSafeInteger(f)&&f>=0&&f<total))).sort((a,b)=>a-b) as number[];
+  if(!all.length)all.push(0);
+  const frames=all.length<=limit?all:Array.from({length:limit},(_,i)=>all[Math.round(i*(all.length-1)/(limit-1))]);
+  return {frames,complete:all.length<=limit,requested:all.length};
+}
+
 export async function verifyDraft(env: Env, projectId: string, draftId: string, manifest: any) {
   env.status("Checking the saved Draft and rendered frames…");
   const saved = await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});return {meta:await d.meta(),clips:await d.clips({trackScope:'all'}),graphics:await d.motionGraphics()};`, "Read back the saved style");
@@ -631,17 +641,20 @@ export async function verifyDraft(env: Env, projectId: string, draftId: string, 
   // Deleted items from completed runs are deliberate edits; unresolved pending items are failures.
   if(Object.values(manifest.items || {}).some((i:any)=>i.status==='pending'))throw new Error("An edit is pending; resume this Draft before verification.");
   const cues=manifest.cues||[];
-  const pulse=(manifest.pulses||[])[0];
   const total=saved.meta.durationFrames;
-  const points=Array.from(new Set([cues.find((c:any)=>c.kind==='phrase')?.start,cues.find((c:any)=>c.kind==='keyword')?.start,pulse?.start,pulse?.end].filter((f:any)=>Number.isFinite(f)&&f>=0&&f<total))) as number[];
-  if(!points.length)points.push(0);
+  const sampled=verificationFrames(cues,manifest.pulses||[],total),points=sampled.frames;
   env.status("Rendering representative saved frames…");
-  const capture=await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const c=await d.captureFrames({frames:${JSON.stringify(points)}});return {frames:c.frames,width:c.width,height:c.height};`,"Render representative saved frames");
-  if(capture.frames.some((f:any)=>!f.hasSourceImage))throw new Error("One or more verification frames could not be rendered.");
+  // Small contact sheets keep late captions readable rather than shrinking the
+  // entire short into the first phrase/keyword's two sample frames.
+  const batches:number[][]=[];for(let i=0;i<points.length;i+=8)batches.push(points.slice(i,i+8));
+  for(const frames of batches) {
+    const capture=await env.runScript(`const d=selects.draft(${JSON.stringify(draftId)});const c=await d.captureFrames({frames:${JSON.stringify(frames)}});return {frames:c.frames,width:c.width,height:c.height};`,"Render representative saved frames");
+    if(!Array.isArray(capture.frames)||capture.frames.length!==frames.length||capture.frames.some((f:any)=>!f.hasSourceImage))throw new Error("One or more verification frames could not be rendered.");
+  }
   let visual:any={status:"unverified",reason:"Visual review was not available"};
   if(env.capture) {
     try {
-      const images=await env.capture(draftId,points);
+      const images=[];for(const frames of batches)images.push(...(await env.capture(draftId,frames)).map((image:any)=>({...image,name:"Saved Draft frames "+frames.join(", ")})));
       // The reference frame is a local calibration file; the public package does not ship it.
       let withReference=false;
       try{images.push({dataUrl:await env.imageData!(hostJoin(env.pluginDir,"evidence","reference-frame.jpg")),name:"Original reference: target small-caption scale and fixed phrase layout"});withReference=true;}catch{}
@@ -649,9 +662,10 @@ export async function verifyDraft(env: Env, projectId: string, draftId: string, 
       visual=parseJsonLoose(await env.askAI(`Only inspect the supplied images. Do not use tools, read files, edit anything, or ask follow-up questions. Inspect the saved Chris Williamson short. First image is a contact sheet of saved frames ${JSON.stringify(points)}${withReference?"; second image is the original reference for style calibration":""}. Expected: full phrase BOX centred at 50% height, with small text about 53/1920 frame height (the editor set it 20% larger than the reference's 44) and keywords 150/1920. Reveal is word by word with future words invisible but occupying layout space, so the visible first word is intentionally left of centre. A new word is gray for 0.1 seconds. Do not demand every partially revealed word be individually centred, or demand larger text than the reference. Report actual clipping, unreadable glyphs, wrong B-roll subject, missing expected captions or broken layer order. Full-screen inversion flashes are not expected. Inverted color confined to keyword letters is intentional. Return JSON {"ok":boolean,"issues":[string]}. Do not claim export or Inspector testing from these pictures.`,120000,images));
       visual.status=visual.ok===true?"passed":"failed";
       visual.issues=reviewIssues(visual,"Visual review did not pass");
+      if(visual.status==='passed'&&!sampled.complete)visual={status:'unverified',reason:`Only ${points.length} of ${sampled.requested} caption verification frames were reviewed.`};
     } catch(e:any) {visual={status:"unverified",reason:String(e.message).slice(0,200)};}
   }
-  return {structure:"passed",render:"passed",visual,frames:points,deletedByUser:missing.length,export:"not_checked",inspector:"not_checked"};
+  return {structure:"passed",render:"passed",visual,frames:points,sampling:sampled,deletedByUser:missing.length,export:"not_checked",inspector:"not_checked"};
 }
 
 // Shared inference only. The pipeline keeps its three-point median and style-specific framing.
@@ -960,14 +974,38 @@ async function readState(env:Env,id:string) {
 // Mean luma (0-255) and saturation of the caption band of a cutaway over the keyword's own seconds, read with
 // ffmpeg's signalstats, so the letter fill can be chosen from the picture instead of guessed. The values are printed
 // to ffmpeg's log (no file paths inside the filter graph).
-async function measureBand(env:Env,jobDir:string,path:string,seconds:number,tag:string):Promise<{y:number;sat:number}|null> {
+async function measureBand(env:Env,jobDir:string,path:string,seconds:number,tag:string,startSeconds?:number):Promise<{y:number;sat:number}|null> {
   const vf="crop=iw*0.76:ih*0.135:iw*0.12:ih*0.4325,signalstats,metadata=print:key=lavfi.signalstats.YAVG,metadata=print:key=lavfi.signalstats.SATAVG";
   try {
-    const log=(await ffmpegRun(["-nostdin","-v","info","-y","-t",Math.max(0.2,seconds).toFixed(2),"-i",path,"-vf",vf,"-f","null","-"])).stderr;
+    if(!Number.isFinite(seconds)||seconds<=0||startSeconds!==undefined&&(!Number.isFinite(startSeconds)||startSeconds<0))return null;
+    // Phrase observations stay on this cutaway's local clock and cannot spill
+    // beyond a short phrase. Existing keyword observations retain their minimum.
+    const seek=startSeconds===undefined?[]:["-ss",startSeconds.toFixed(6)];
+    const duration=startSeconds===undefined?Math.max(0.2,seconds):seconds;
+    const log=(await ffmpegRun(["-nostdin","-v","info","-y",...seek,"-t",duration.toFixed(6),"-i",path,"-vf",vf,"-f","null","-"])).stderr;
     const mean=(key:string)=>{const v=[...log.matchAll(new RegExp("lavfi\\.signalstats\\."+key+"=([0-9.]+)","g"))].map(m=>Number(m[1]));return v.length?v.reduce((a,b)=>a+b,0)/v.length:NaN;};
     const y=mean("YAVG"),sat=mean("SATAVG");
     return Number.isFinite(y)&&Number.isFinite(sat)?{y:Math.round(y),sat:Math.round(sat)}:null;
   } catch { return null; }
+}
+// Reuse the measured band only when a verified cutaway covers the whole phrase.
+// The asset starts at b.start, not at the phrase's Draft position.
+export function phraseBackdrop(cue:Cue,brolls:Broll[],assets:any[],fps:number) {
+  if(cue.kind!=='phrase'||!Number.isFinite(fps)||fps<=0||!(cue.end>cue.start))return null;
+  const overlaps=brolls.filter(b=>b.start<cue.end&&b.end>cue.start&&assets.some(a=>a.keyStart===b.key.start));
+  if(overlaps.length!==1)return null;
+  const b=overlaps[0],asset=assets.find(a=>a.keyStart===b.key.start);
+  if(b.start>cue.start||b.end<cue.end||typeof asset?.path!=='string')return null;
+  return {path:asset.path,startSeconds:(cue.start-b.start)/fps,seconds:(cue.end-cue.start)/fps};
+}
+export function phraseColor(band:{y:number;sat:number}|null) {
+  if(!band||!Number.isFinite(band.y)||band.y<0||band.y>255)return null;
+  // signalstats returns limited-range Y. Pick the better of the existing white
+  // and a dark fill; typography, reveal, position and inverted keywords stay put.
+  const gray=Math.max(0,Math.min(1,(band.y-16)/219));
+  const linear=(v:number)=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;
+  const luminance=linear(gray),dark=linear(17/255);
+  return (luminance+0.05)/(dark+0.05)>1.05/(luminance+0.05)?'#111111':'#ffffff';
 }
 async function inventory(env:Env,id:string) {
   return await env.runScript(`const d=selects.draft(${JSON.stringify(id)});const clips=await d.clips({trackScope:'all'});const graphics=await d.motionGraphics();const effects=[];for(const c of clips)if(c.resourceId&&(c.trackKind==='main'||c.trackKind==='video'))for(const e of await d.videoEffects(c))effects.push({clipId:c.clipId,name:e.name});return {clips,graphics,effects};`,"Inspect existing edits");
@@ -1226,7 +1264,18 @@ const resource=idByPath[__pk(${JSON.stringify(asset.path)})];if(!resource)throw 
 await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.stringify(BROLL_TSX)},parameters:${JSON.stringify({keywordOnly:true,text:cue.text,keyStart:0,keyEnd:cue.end-cue.start,clipFrames:(reel.brolls.find(b=>b.start===cue.start)?.end||cue.end)-cue.start,zoom:asset.kind==='video'?0:0.12,zoomIn:true,originX:50,originY:50,warmth:0.8,fontCss,fontFamily:'Chris Reference Inter',fontWeight:'800',fontSize:sizeOf(cue),captionY:50,fillBlur:10,...fill,...(state.keywordCarry?.[cue.id]||{})})},editableParameters:${JSON.stringify(FOOTAGE_KEYWORD_PARAMS)}});await d.commitAll('Chris Williamson Style: editable footage keyword');return {clipId:c.clipId};`, 'Add editable footage keyword',true);
       state.items[cue.id]={category:'captions',status:'applied',clipId:made.clipId,label,resourceKeyword:true,band,fill};await save();return;
     }
-    await putGraphic(cue.id,'captions',cue.start,cue.end,cueLabel(cue.id,cue.text),CAPTIONS_TSX,{cueId:cue.id,text:cue.text,keyword:cue.kind==='keyword',wordStartsSeconds:cue.wordStartsSeconds,revealStartSeconds:cue.wordStartsSeconds[0]||0,revealSpanSeconds:(cue.wordStartsSeconds.at(-1)||0)-(cue.wordStartsSeconds[0]||0),fontCss,fontFamily:'Chris Reference Inter',fontWeight:'800',fontSize:cue.kind==='keyword'?sizeOf(cue):STYLE.captions.phrase,captionY:STYLE.captions.line,trackingEm:-0.03,color:'#ffffff',dimSeconds:0.1,dimOpacity:0.55},CAPTION_V2_PARAMS);
+    if(state.items[cue.id]&&state.items[cue.id].status!=='pending')return;
+    let color='#ffffff';
+    const backdrop=phraseBackdrop(cue,reel.brolls,assets,fps);
+    if(backdrop) {
+      const band=await measureBand(env,jobDir,backdrop.path,backdrop.seconds,cue.id,backdrop.startSeconds);
+      const measured=phraseColor(band);
+      if(measured)color=measured;
+      else report.warnings.push(`Caption contrast could not be measured for “${cue.text}”; review this phrase in the saved Draft.`);
+    } else if(cue.kind==='phrase'&&reel.brolls.some(b=>b.start<cue.end&&b.end>cue.start&&assets.some(a=>a.keyStart===b.key.start))) {
+      report.warnings.push(`Caption “${cue.text}” crosses picture changes; review its contrast in the saved Draft.`);
+    }
+    await putGraphic(cue.id,'captions',cue.start,cue.end,cueLabel(cue.id,cue.text),CAPTIONS_TSX,{cueId:cue.id,text:cue.text,keyword:cue.kind==='keyword',wordStartsSeconds:cue.wordStartsSeconds,revealStartSeconds:cue.wordStartsSeconds[0]||0,revealSpanSeconds:(cue.wordStartsSeconds.at(-1)||0)-(cue.wordStartsSeconds[0]||0),fontCss,fontFamily:'Chris Reference Inter',fontWeight:'800',fontSize:cue.kind==='keyword'?sizeOf(cue):STYLE.captions.phrase,captionY:STYLE.captions.line,trackingEm:-0.03,color,dimSeconds:0.1,dimOpacity:0.55},CAPTION_V2_PARAMS);
   
   };
   for(const cue of cues)await placeCue(cue);
@@ -1826,7 +1875,7 @@ function StylePanel({ sdk, context, ui }: any) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [result, setResult] = useState<{ id: string } | null>(null);
+  const [result, setResult] = useState<{ id: string; warnings: string[] } | null>(null);
   const [pending, setPending] = useState(false);
   const [faceActive, setFaceActive] = useState(false);
   const [canceling, setCanceling] = useState(false);
@@ -1899,7 +1948,7 @@ function StylePanel({ sdk, context, ui }: any) {
       const current = () => mounted.current && !controller.signal.aborted && observer.current===controller;
       const env = panelEnv(sdk, paths, (m) => { if (current()) setStatus(m); },controller.signal,(active,journal)=>{if(current()){faceJournal.current=journal;setFaceActive(active);}});
       const report = await runPipeline(env, projectId, from, { copy: false, retryFaceFailures:true, music: true, musicDb: MUSIC.levelDb, scope: "all" });
-      if (mounted.current && !controller.signal.aborted) { setPending(false); setResult({ id: report.draftId }); setStatus("Your Chris Williamson Style draft is ready."); }
+      if (mounted.current && !controller.signal.aborted) { setPending(false); setResult({ id: report.draftId, warnings: Array.isArray(report.warnings) ? report.warnings.filter((text:any)=>typeof text==='string'&&text.trim()) : [] }); setStatus("Your Chris Williamson Style draft is ready."); }
       if (!controller.signal.aborted && (!onScreen.current || onScreen.current === from)) await sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(report.draftId) + ");", summary: "Open the Chris Williamson Style draft" });
     } catch (e: any) {
       if (mounted.current && observer.current===controller && e?.code!=='CW_FACE_DETACHED') { setPending(true); setError(e?.code==='CW_FACE_CANCELED'?S[2]:String(e?.message || e)); setStatus(""); }
@@ -1941,6 +1990,7 @@ function StylePanel({ sdk, context, ui }: any) {
     {faceActive && <ui.Button variant="secondary" busy={canceling} busyLabel={S[3]} disabled={canceling} onClick={()=>void cancelFaces()}>{S[1]}</ui.Button>}
     {status && <ui.Message>{status}</ui.Message>}
     {error && <ui.Message tone="error">{error}</ui.Message>}
+    {result?.warnings?.map((warning,index)=><ui.Message key={index} tone="warning">{warning}</ui.Message>)}
     {result && <ui.Button variant="secondary" disabled={busy} onClick={() => void sdk.runScript({ script: "return await selects.editor.openDraft(" + JSON.stringify(result.id) + ");", summary: "Open the Chris Williamson Style draft" })}>Open result</ui.Button>}
   </ui.Stack></ui.Section>;
 }

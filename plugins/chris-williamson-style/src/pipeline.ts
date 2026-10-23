@@ -28,14 +28,38 @@ async function readState(env:Env,id:string) {
 // Mean luma (0-255) and saturation of the caption band of a cutaway over the keyword's own seconds, read with
 // ffmpeg's signalstats, so the letter fill can be chosen from the picture instead of guessed. The values are printed
 // to ffmpeg's log (no file paths inside the filter graph).
-async function measureBand(env:Env,jobDir:string,path:string,seconds:number,tag:string):Promise<{y:number;sat:number}|null> {
+async function measureBand(env:Env,jobDir:string,path:string,seconds:number,tag:string,startSeconds?:number):Promise<{y:number;sat:number}|null> {
   const vf="crop=iw*0.76:ih*0.135:iw*0.12:ih*0.4325,signalstats,metadata=print:key=lavfi.signalstats.YAVG,metadata=print:key=lavfi.signalstats.SATAVG";
   try {
-    const log=(await ffmpegRun(["-nostdin","-v","info","-y","-t",Math.max(0.2,seconds).toFixed(2),"-i",path,"-vf",vf,"-f","null","-"])).stderr;
+    if(!Number.isFinite(seconds)||seconds<=0||startSeconds!==undefined&&(!Number.isFinite(startSeconds)||startSeconds<0))return null;
+    // Phrase observations stay on this cutaway's local clock and cannot spill
+    // beyond a short phrase. Existing keyword observations retain their minimum.
+    const seek=startSeconds===undefined?[]:["-ss",startSeconds.toFixed(6)];
+    const duration=startSeconds===undefined?Math.max(0.2,seconds):seconds;
+    const log=(await ffmpegRun(["-nostdin","-v","info","-y",...seek,"-t",duration.toFixed(6),"-i",path,"-vf",vf,"-f","null","-"])).stderr;
     const mean=(key:string)=>{const v=[...log.matchAll(new RegExp("lavfi\\.signalstats\\."+key+"=([0-9.]+)","g"))].map(m=>Number(m[1]));return v.length?v.reduce((a,b)=>a+b,0)/v.length:NaN;};
     const y=mean("YAVG"),sat=mean("SATAVG");
     return Number.isFinite(y)&&Number.isFinite(sat)?{y:Math.round(y),sat:Math.round(sat)}:null;
   } catch { return null; }
+}
+// Reuse the measured band only when a verified cutaway covers the whole phrase.
+// The asset starts at b.start, not at the phrase's Draft position.
+export function phraseBackdrop(cue:Cue,brolls:Broll[],assets:any[],fps:number) {
+  if(cue.kind!=='phrase'||!Number.isFinite(fps)||fps<=0||!(cue.end>cue.start))return null;
+  const overlaps=brolls.filter(b=>b.start<cue.end&&b.end>cue.start&&assets.some(a=>a.keyStart===b.key.start));
+  if(overlaps.length!==1)return null;
+  const b=overlaps[0],asset=assets.find(a=>a.keyStart===b.key.start);
+  if(b.start>cue.start||b.end<cue.end||typeof asset?.path!=='string')return null;
+  return {path:asset.path,startSeconds:(cue.start-b.start)/fps,seconds:(cue.end-cue.start)/fps};
+}
+export function phraseColor(band:{y:number;sat:number}|null) {
+  if(!band||!Number.isFinite(band.y)||band.y<0||band.y>255)return null;
+  // signalstats returns limited-range Y. Pick the better of the existing white
+  // and a dark fill; typography, reveal, position and inverted keywords stay put.
+  const gray=Math.max(0,Math.min(1,(band.y-16)/219));
+  const linear=(v:number)=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;
+  const luminance=linear(gray),dark=linear(17/255);
+  return (luminance+0.05)/(dark+0.05)>1.05/(luminance+0.05)?'#111111':'#ffffff';
 }
 async function inventory(env:Env,id:string) {
   return await env.runScript(`const d=selects.draft(${JSON.stringify(id)});const clips=await d.clips({trackScope:'all'});const graphics=await d.motionGraphics();const effects=[];for(const c of clips)if(c.resourceId&&(c.trackKind==='main'||c.trackKind==='video'))for(const e of await d.videoEffects(c))effects.push({clipId:c.clipId,name:e.name});return {clips,graphics,effects};`,"Inspect existing edits");
@@ -294,7 +318,18 @@ const resource=idByPath[__pk(${JSON.stringify(asset.path)})];if(!resource)throw 
 await d.addVideoEffect({clip:c,label:${JSON.stringify(label)},tsxCode:${JSON.stringify(BROLL_TSX)},parameters:${JSON.stringify({keywordOnly:true,text:cue.text,keyStart:0,keyEnd:cue.end-cue.start,clipFrames:(reel.brolls.find(b=>b.start===cue.start)?.end||cue.end)-cue.start,zoom:asset.kind==='video'?0:0.12,zoomIn:true,originX:50,originY:50,warmth:0.8,fontCss,fontFamily:'Chris Reference Inter',fontWeight:'800',fontSize:sizeOf(cue),captionY:50,fillBlur:10,...fill,...(state.keywordCarry?.[cue.id]||{})})},editableParameters:${JSON.stringify(FOOTAGE_KEYWORD_PARAMS)}});await d.commitAll('Chris Williamson Style: editable footage keyword');return {clipId:c.clipId};`, 'Add editable footage keyword',true);
       state.items[cue.id]={category:'captions',status:'applied',clipId:made.clipId,label,resourceKeyword:true,band,fill};await save();return;
     }
-    await putGraphic(cue.id,'captions',cue.start,cue.end,cueLabel(cue.id,cue.text),CAPTIONS_TSX,{cueId:cue.id,text:cue.text,keyword:cue.kind==='keyword',wordStartsSeconds:cue.wordStartsSeconds,revealStartSeconds:cue.wordStartsSeconds[0]||0,revealSpanSeconds:(cue.wordStartsSeconds.at(-1)||0)-(cue.wordStartsSeconds[0]||0),fontCss,fontFamily:'Chris Reference Inter',fontWeight:'800',fontSize:cue.kind==='keyword'?sizeOf(cue):STYLE.captions.phrase,captionY:STYLE.captions.line,trackingEm:-0.03,color:'#ffffff',dimSeconds:0.1,dimOpacity:0.55},CAPTION_V2_PARAMS);
+    if(state.items[cue.id]&&state.items[cue.id].status!=='pending')return;
+    let color='#ffffff';
+    const backdrop=phraseBackdrop(cue,reel.brolls,assets,fps);
+    if(backdrop) {
+      const band=await measureBand(env,jobDir,backdrop.path,backdrop.seconds,cue.id,backdrop.startSeconds);
+      const measured=phraseColor(band);
+      if(measured)color=measured;
+      else report.warnings.push(`Caption contrast could not be measured for “${cue.text}”; review this phrase in the saved Draft.`);
+    } else if(cue.kind==='phrase'&&reel.brolls.some(b=>b.start<cue.end&&b.end>cue.start&&assets.some(a=>a.keyStart===b.key.start))) {
+      report.warnings.push(`Caption “${cue.text}” crosses picture changes; review its contrast in the saved Draft.`);
+    }
+    await putGraphic(cue.id,'captions',cue.start,cue.end,cueLabel(cue.id,cue.text),CAPTIONS_TSX,{cueId:cue.id,text:cue.text,keyword:cue.kind==='keyword',wordStartsSeconds:cue.wordStartsSeconds,revealStartSeconds:cue.wordStartsSeconds[0]||0,revealSpanSeconds:(cue.wordStartsSeconds.at(-1)||0)-(cue.wordStartsSeconds[0]||0),fontCss,fontFamily:'Chris Reference Inter',fontWeight:'800',fontSize:cue.kind==='keyword'?sizeOf(cue):STYLE.captions.phrase,captionY:STYLE.captions.line,trackingEm:-0.03,color,dimSeconds:0.1,dimOpacity:0.55},CAPTION_V2_PARAMS);
   
   };
   for(const cue of cues)await placeCue(cue);
