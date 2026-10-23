@@ -159,6 +159,8 @@ export const SCENE_TYPES = [
 
 const TONES = new Set(["grey", "accent"]);
 const FOCUS = new Set(["center", "top", "bottom", "left", "right"]);
+// number_callout.from is optional: a single value only counts up to `to`.
+const hasFrom = (p: any) => p?.from !== undefined && p.from !== null && p.from !== "";
 const isStr = (x: any) => typeof x === "string" && x.trim().length > 0;
 const isNum = (x: any) => typeof x === "number" && Number.isFinite(x);
 const isNumOrStr = (x: any) => isNum(x) || isStr(x);
@@ -189,9 +191,10 @@ function checkParams(type: string, p: any, sceneNums: Set<string>, where: string
       break;
     case "number_callout":
       need(isStr(p.label), "label is required");
-      need(isNumOrStr(p.from) && isNumOrStr(p.to), "from and to are required (number or text copied from the article)");
-      need(/\d/.test(String(p.from)) && /\d/.test(String(p.to)), "from and to must each contain a digit; use another scene type when the article gives only a phrase such as \"nearly double\"");
-      traceNumbers(p.from, sceneNums, `${where}.from`, errors);
+      need(isNumOrStr(p.to), "to is required (number or text copied from the article)");
+      need(!hasFrom(p) || isNumOrStr(p.from), "from must be a number or text copied from the article, or omitted for a single value");
+      need(/\d/.test(String(p.to)) && (!hasFrom(p) || /\d/.test(String(p.from))), "from and to must each contain a digit; use another scene type when the article gives only a phrase such as \"nearly double\"");
+      if (hasFrom(p)) traceNumbers(p.from, sceneNums, `${where}.from`, errors);
       traceNumbers(p.to, sceneNums, `${where}.to`, errors);
       break;
     case "bar_compare_h":
@@ -245,7 +248,7 @@ export function demoteNumberlessCallouts(json: any, sentences: TimedSentence[]):
   let demoted = 0;
   const scenes = json.scenes.map((sc: any) => {
     const p = sc?.params;
-    if (!isObj(sc) || sc.type !== "number_callout" || (/\d/.test(String(p?.from)) && /\d/.test(String(p?.to)))) return sc;
+    if (!isObj(sc) || sc.type !== "number_callout" || (/\d/.test(String(p?.to)) && (!hasFrom(p) || /\d/.test(String(p?.from))))) return sc;
     demoted++;
     const first = byId.get(sc.sentenceIds?.[0])?.text ?? "";
     const text = isStr(p?.label) && p.label.trim() ? p.label.trim() : first.slice(0, 20);

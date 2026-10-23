@@ -126,6 +126,7 @@ test('plannerPrompt adds a revision block only when feedback and previous plan a
   const prev = {assetSummaries: [], scenes: [{sentenceIds: ['s1'], type: 'text_card'}]};
   const text = P.plannerPrompt({...base, feedback: 'make scene 1 a photo', previous: prev});
   assert.ok(text.includes('REVISION') && text.includes('make scene 1 a photo') && text.includes('"type":"text_card"'));
+  assert.ok(text.includes('Never move an asset'));
   assert.ok(text.indexOf('REVISION') < text.indexOf('RULES'));
 });
 
@@ -140,4 +141,14 @@ test('an asset used in a third scene only produces a warning', () => {
   const two = P.validatePlan({...plan, scenes: plan.scenes.slice(0, 2)}, sents.slice(0, 2), assets);
   assert.ok(!two.warnings.some((w) => w.includes('is used in')));
   assert.ok(P.plannerPrompt({headline: {line1: 'a', line2: 'b'}, sentences: sents, assets}).includes('at most 2 times'));
+});
+
+test('number_callout accepts a single value without from', () => {
+  const sents = [{id: 's1', text: '3,592 done.', startSec: 0, endSec: 6}];
+  const mk = (params) => ({assetSummaries: [], scenes: [{sentenceIds: ['s1'], type: 'number_callout', params, hideCaption: true, disclaimer: false}]});
+  assert.equal(P.validatePlan(mk({label: 'cash', to: '3,592', unit: 'x'}), sents, []).ok, true);
+  assert.equal(P.validatePlan(mk({label: 'cash', from: null, to: 3592}), sents, []).ok, true);
+  assert.ok(!P.validatePlan(mk({label: 'cash', from: 'many', to: 3592}), sents, []).ok);
+  assert.ok(!P.validatePlan(mk({label: 'cash'}), sents, []).ok);
+  assert.equal(P.demoteNumberlessCallouts(mk({label: 'cash', to: 3592}), sents).demoted, 0);
 });
