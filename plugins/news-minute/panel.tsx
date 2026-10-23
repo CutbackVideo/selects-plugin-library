@@ -2181,83 +2181,60 @@ async function buildDraft(sdk, env, s, preset, narration, log, rec) {
     log("planFallback");
     plan = fallbackPlan(sentences, times, photos.map((p) => p.ref));
   }
-  let decorate;
-  let shared;
+  const fontStats = { count: 0, bytes: 0, missing: /* @__PURE__ */ new Set(), failed: 0 };
+  let font = null;
   try {
     log("fonts");
-    const font = await embeddedFont(sdk, env);
-    const missing = /* @__PURE__ */ new Set();
-    let bytes = 0, count = 0;
-    decorate = (p) => {
-      const f = sceneFont(font, sceneText(p));
-      for (const c of f.missing) missing.add(c);
-      bytes += f.subsetBytes;
-      count++;
-      return { ...p, fontFamily: f.fontFamily, fontCss: f.fontCss, fontLoads: f.fontLoads };
-    };
-    shared = (texts2) => {
-      const f = sceneFont(font, texts2.join(""));
-      for (const c of f.missing) missing.add(c);
-      bytes += f.subsetBytes;
-      count++;
-      const add = { fontFamily: f.fontFamily, fontCss: f.fontCss, fontLoads: f.fontLoads };
-      return (p) => ({ ...p, ...add });
-    };
+    font = await embeddedFont(sdk, env);
     rec.notes.push("font: embedded");
-    const report = () => rec.notes.push(`font subsets: ${count} graphics, ${Math.round(bytes / 1024)} KB` + (missing.size ? ", no glyph for " + [...missing].join("") : ""));
-    rec.fontReport = report;
   } catch (e) {
     rec.notes.push("font: not embedded (" + String(e?.message || e) + ")");
     log("fontFallback");
   }
-  const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => {
-    if (!decorate) return sc;
+  const decorate = (p) => {
+    if (!font) return { ...p, fontFamily: "NM Sans" };
     try {
-      return { ...sc, params: decorate(sc.params) };
-    } catch (e) {
-      rec.notes.push("font: subset failed for " + sc.label);
-      return sc;
+      const f = sceneFont(font, sceneText(p));
+      for (const c of f.missing) fontStats.missing.add(c);
+      fontStats.bytes += f.subsetBytes;
+      fontStats.count++;
+      return { ...p, fontFamily: f.fontFamily, fontCss: f.fontCss, fontLoads: f.fontLoads };
+    } catch {
+      fontStats.failed++;
+      return { ...p, fontFamily: "NM Sans" };
     }
-  });
+  };
+  const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate(sc.params) }));
   const hidden = hiddenCaptionSentences(plan, sentences);
   const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
   const plateId = await plate(sdk, env, projectId, plateLen, preset.background, log);
   log("assembling");
-  const overlayText = [preset.logoMain, preset.logoAccent, preset.tagline, preset.disclaimer, script.headline.line1, script.headline.line2, script.headline.accent ?? "", ...captions.map((c) => c.text)];
-  let overlayDecorate;
+  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, headline: script.headline, preset, scenes, captions, decorate };
+  let draftId = null;
   try {
-    overlayDecorate = shared?.(overlayText);
-  } catch (e) {
-    rec.notes.push("font: overlay subset failed (" + String(e?.message || e) + ")");
-  }
-  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, headline: script.headline, preset, scenes, captions, decorate: overlayDecorate };
-  const baseCall = baseDraftScript(x);
-  rec.notes.push("script bytes: base " + scriptBytes(baseCall));
-  const base = await run(sdk, baseCall);
-  if (!base.draftId) throw new Error("the Draft was not created");
-  const calls = sceneScripts(base.draftId, scenes);
-  rec.notes.push("script bytes: scenes " + calls.map(scriptBytes).join(", "));
-  for (let i = 0; i < calls.length; i++) {
-    log("assemblingStep", { n: i + 1, of: calls.length });
-    try {
-      await run(sdk, calls[i]);
-    } catch (e) {
-      throw new Error(`stopped at scene batch ${i + 1} of ${calls.length} (Draft ${base.draftId} kept): ${String(e?.message || e)}`);
+    const baseCall = baseDraftScript(x);
+    rec.notes.push("script bytes: base " + scriptBytes(baseCall));
+    const base = await run(sdk, baseCall);
+    if (!base.draftId) throw new Error("the Draft was not created");
+    draftId = base.draftId;
+    const calls = [
+      ...sceneScripts(draftId, scenes).map((c) => ({ c, what: "scene" })),
+      ...overlayTextScripts(draftId, x).map((c) => ({ c, what: "headline and captions" }))
+    ];
+    rec.notes.push("script bytes: " + calls.map((k) => k.what.split(" ")[0] + " " + Math.round(scriptBytes(k.c) / 1024) + " KB").join(", "));
+    for (let i = 0; i < calls.length; i++) {
+      log("assemblingStep", { n: i + 1, of: calls.length });
+      try {
+        await run(sdk, calls[i].c);
+      } catch (e) {
+        throw new Error(`stopped at step ${i + 1} of ${calls.length} (${calls[i].what}; Draft ${draftId} kept): ${String(e?.message || e)}`);
+      }
     }
+  } finally {
+    rec.notes.push(`font subsets: ${fontStats.count} graphics, ${Math.round(fontStats.bytes / 1024)} KB` + (fontStats.failed ? `, ${fontStats.failed} failed` : "") + (fontStats.missing.size ? ", no glyph for " + [...fontStats.missing].join("") : ""));
   }
-  const textCalls = overlayTextScripts(base.draftId, x);
-  rec.notes.push("script bytes: headline+captions " + textCalls.map(scriptBytes).join(", "));
-  for (let i = 0; i < textCalls.length; i++) {
-    try {
-      await run(sdk, textCalls[i]);
-    } catch (e) {
-      throw new Error(`stopped at headline and captions batch ${i + 1} of ${textCalls.length} (Draft ${base.draftId} kept): ${String(e?.message || e)}`);
-    }
-  }
-  rec.fontReport?.();
-  delete rec.fontReport;
-  rec.notes.push("draft: " + base.draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
-  return { draftId: base.draftId, timing: source, fallbackPlan: usedFallback };
+  rec.notes.push("draft: " + draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
+  return { draftId, timing: source, fallbackPlan: usedFallback };
 }
 
 // src/Panel.tsx

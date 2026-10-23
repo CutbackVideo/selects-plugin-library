@@ -235,69 +235,63 @@ export async function buildDraft(sdk: PanelSdk, env: Env, s: Session, preset: Pr
   const usedFallback = !plan;
   if (!plan) { rec.notes.push("plan: fallback"); log("planFallback"); plan = fallbackPlan(sentences, times, photos.map((p) => p.ref)); }
 
-  // The embedded face is best effort: without it the templates use the installed fonts.
-  let decorate: ((p: Record<string, unknown>) => Record<string, unknown>) | undefined;
-  let shared: ((texts: string[]) => (p: Record<string, unknown>) => Record<string, unknown>) | undefined;
+  // The embedded face is best effort: without it the templates use the installed fonts. Each graphic gets its
+  // own subset: graphics keep separate parameters, so a shared subset would be copied into every caption
+  // (measured on one article: 2.1 MB in 14 scripts shared vs 660 KB in 4 scripts per graphic).
+  const fontStats = { count: 0, bytes: 0, missing: new Set<string>(), failed: 0 };
+  let font: EmbeddedFont | null = null;
   try {
     log("fonts");
-    const font = await embeddedFont(sdk, env);
-    const missing = new Set<string>();
-    let bytes = 0, count = 0;
-    decorate = (p) => {
-      const f = sceneFont(font, sceneText(p));
-      for (const c of f.missing) missing.add(c);
-      bytes += f.subsetBytes; count++;
-      return { ...p, fontFamily: f.fontFamily, fontCss: f.fontCss, fontLoads: f.fontLoads };
-    };
-    // Frame, headline, captions and disclaimers share one subset of all their text.
-    shared = (texts) => {
-      const f = sceneFont(font, texts.join(""));
-      for (const c of f.missing) missing.add(c);
-      bytes += f.subsetBytes; count++;
-      const add = { fontFamily: f.fontFamily, fontCss: f.fontCss, fontLoads: f.fontLoads };
-      return (p) => ({ ...p, ...add });
-    };
+    font = await embeddedFont(sdk, env);
     rec.notes.push("font: embedded");
-    const report = () => rec.notes.push(`font subsets: ${count} graphics, ${Math.round(bytes / 1024)} KB` + (missing.size ? ", no glyph for " + [...missing].join("") : ""));
-    (rec as any).fontReport = report;
   } catch (e: any) {
     rec.notes.push("font: not embedded (" + String(e?.message || e) + ")");
     log("fontFallback");
   }
+  // "NM Sans" without the embedded face still selects the templates' installed-font fallback; an empty
+  // fontFamily would be filled by the host with the user's last font pick.
+  const decorate = (p: Record<string, unknown>): Record<string, unknown> => {
+    if (!font) return { ...p, fontFamily: "NM Sans" };
+    try {
+      const f = sceneFont(font, sceneText(p));
+      for (const c of f.missing) fontStats.missing.add(c);
+      fontStats.bytes += f.subsetBytes;
+      fontStats.count++;
+      return { ...p, fontFamily: f.fontFamily, fontCss: f.fontCss, fontLoads: f.fontLoads };
+    } catch {
+      fontStats.failed++;
+      return { ...p, fontFamily: "NM Sans" };
+    }
+  };
 
-  const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => {
-    if (!decorate) return sc;
-    try { return { ...sc, params: decorate(sc.params) }; } catch (e: any) { rec.notes.push("font: subset failed for " + sc.label); return sc; }
-  });
+  const scenes = sceneClips(plan, sentences, times, total, photos).map((sc) => ({ ...sc, params: decorate(sc.params) }));
   const hidden = hiddenCaptionSentences(plan, sentences);
   const captions = captionTimes(texts, times, chars).filter((c) => !hidden.has(c.sentence));
 
   const plateId = await plate(sdk, env, projectId, plateLen, preset.background, log);
   log("assembling");
-  const overlayText = [preset.logoMain, preset.logoAccent, preset.tagline, preset.disclaimer, script.headline.line1, script.headline.line2, script.headline.accent ?? "", ...captions.map((c) => c.text)];
-  let overlayDecorate: ((p: Record<string, unknown>) => Record<string, unknown>) | undefined;
-  try { overlayDecorate = shared?.(overlayText); } catch (e: any) { rec.notes.push("font: overlay subset failed (" + String(e?.message || e) + ")"); }
-  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, headline: script.headline, preset, scenes, captions, decorate: overlayDecorate };
-  const baseCall = baseDraftScript(x);
-  rec.notes.push("script bytes: base " + scriptBytes(baseCall));
-  const base = await run<{ draftId: string | null }>(sdk, baseCall);
-  if (!base.draftId) throw new Error("the Draft was not created");
-  // Stacking follows call order: scenes above the frame, then headline and captions above the scenes.
-  const calls = sceneScripts(base.draftId, scenes);
-  rec.notes.push("script bytes: scenes " + calls.map(scriptBytes).join(", "));
-  for (let i = 0; i < calls.length; i++) {
-    log("assemblingStep", { n: i + 1, of: calls.length });
-    try { await run(sdk, calls[i]); }
-    catch (e: any) { throw new Error(`stopped at scene batch ${i + 1} of ${calls.length} (Draft ${base.draftId} kept): ${String(e?.message || e)}`); }
+  const x = { projectId, draftName: script.headline.line1 || article.title || "News short", plateId, plateSeconds: plateLen, narrationId: narration.resourceId, narrationSeconds: total, headline: script.headline, preset, scenes, captions, decorate };
+  let draftId: string | null = null;
+  try {
+    const baseCall = baseDraftScript(x);
+    rec.notes.push("script bytes: base " + scriptBytes(baseCall));
+    const base = await run<{ draftId: string | null }>(sdk, baseCall);
+    if (!base.draftId) throw new Error("the Draft was not created");
+    draftId = base.draftId;
+    // Stacking follows call order: scenes above the frame, then headline and captions above the scenes.
+    const calls = [
+      ...sceneScripts(draftId, scenes).map((c) => ({ c, what: "scene" })),
+      ...overlayTextScripts(draftId, x).map((c) => ({ c, what: "headline and captions" })),
+    ];
+    rec.notes.push("script bytes: " + calls.map((k) => k.what.split(" ")[0] + " " + Math.round(scriptBytes(k.c) / 1024) + " KB").join(", "));
+    for (let i = 0; i < calls.length; i++) {
+      log("assemblingStep", { n: i + 1, of: calls.length });
+      try { await run(sdk, calls[i].c); }
+      catch (e: any) { throw new Error(`stopped at step ${i + 1} of ${calls.length} (${calls[i].what}; Draft ${draftId} kept): ${String(e?.message || e)}`); }
+    }
+  } finally {
+    rec.notes.push(`font subsets: ${fontStats.count} graphics, ${Math.round(fontStats.bytes / 1024)} KB` + (fontStats.failed ? `, ${fontStats.failed} failed` : "") + (fontStats.missing.size ? ", no glyph for " + [...fontStats.missing].join("") : ""));
   }
-  const textCalls = overlayTextScripts(base.draftId, x);
-  rec.notes.push("script bytes: headline+captions " + textCalls.map(scriptBytes).join(", "));
-  for (let i = 0; i < textCalls.length; i++) {
-    try { await run(sdk, textCalls[i]); }
-    catch (e: any) { throw new Error(`stopped at headline and captions batch ${i + 1} of ${textCalls.length} (Draft ${base.draftId} kept): ${String(e?.message || e)}`); }
-  }
-  (rec as any).fontReport?.();
-  delete (rec as any).fontReport;
-  rec.notes.push("draft: " + base.draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
-  return { draftId: base.draftId, timing: source, fallbackPlan: usedFallback };
+  rec.notes.push("draft: " + draftId + ", " + scenes.length + " scenes, " + captions.length + " captions, " + photos.length + " photos");
+  return { draftId: draftId!, timing: source, fallbackPlan: usedFallback };
 }
