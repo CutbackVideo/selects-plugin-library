@@ -22,12 +22,16 @@ export type TemplateType =
   | "bar_compare_h"
   | "line_trend_callout"
   | "stat_cards"
-  | "quote_card";
+  | "quote_card"
+  | "highlight_card";
 
 const FONT: EditableParameterDefinition = { key: "fontFamily", label: "Font", type: "text", defaultValue: "" };
 const ACCENT: EditableParameterDefinition = { key: "accentColor", label: "Accent", type: "color", defaultValue: "#E8502F" };
 const TITLE: EditableParameterDefinition = { key: "title", label: "Title", type: "text", defaultValue: "" };
 const SOURCE: EditableParameterDefinition = { key: "source", label: "Source", type: "text", defaultValue: "" };
+const SUBTITLE: EditableParameterDefinition = { key: "subtitle", label: "Subtitle", type: "text", defaultValue: "" };
+// Heritage scenes paint ivory paper; "transparent" leaves the window clear for a damask plate below.
+const PAPER: EditableParameterDefinition = { key: "background", label: "Paper", type: "color", defaultValue: "#F6F1E4" };
 
 export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> = {
   frame: [
@@ -95,10 +99,21 @@ export const PARAM_SCHEMAS: Record<TemplateType, EditableParameterDefinition[]> 
   ],
   text_card: [
     FONT,
-    { key: "text", label: "Text", type: "text", defaultValue: "" },
+    TITLE,
+    { key: "text", label: "Text ([word] crimson, {phrase} highlighter)", type: "text", defaultValue: "" },
     { key: "sub", label: "Sub line", type: "text", defaultValue: "" },
-    { key: "source", label: "Source", type: "text", defaultValue: "" },
-    { key: "fontSize", label: "Size", type: "number", defaultValue: 84, min: 40, max: 120, step: 1 },
+    SOURCE,
+    { key: "fontSize", label: "Size", type: "number", defaultValue: 72, min: 40, max: 120, step: 1 },
+    PAPER,
+  ],
+  highlight_card: [
+    FONT,
+    TITLE,
+    SUBTITLE,
+    { key: "value", label: "Value", type: "text", defaultValue: "" },
+    { key: "unit", label: "Unit", type: "text", defaultValue: "" },
+    SOURCE,
+    PAPER,
   ],
   number_callout: [
     FONT,
@@ -147,6 +162,7 @@ export const TIME_INDEPENDENT: Record<TemplateType, boolean> = {
   line_trend_callout: false,
   stat_cards: false,
   quote_card: false,
+  highlight_card: false,
 };
 
 // Clip labels shown in the timeline.
@@ -162,4 +178,5 @@ export const LABELS: Record<TemplateType, string> = {
   line_trend_callout: "Trend line",
   stat_cards: "Stat cards",
   quote_card: "Quote",
+  highlight_card: "Highlight card",
 };

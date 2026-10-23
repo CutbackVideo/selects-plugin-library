@@ -1,53 +1,36 @@
 import React from 'react';
-import { interpolate, Easing, useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
+import { useCurrentFrame, useVideoConfig, delayRender, continueRender, cancelRender } from 'remotion';
 
-const FALLBACK = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif";
+// @heritage
 
-// Hold rendering until the face the panel embedded in `fontCss` has loaded, so no frame is drawn
-// in a fallback font. Without `fontCss` the graphic uses the installed fonts in FALLBACK.
-function useEmbeddedFont(data) {
-  const css = typeof data?.fontCss === 'string' ? data.fontCss : '';
-  const [hold] = React.useState(() => (css ? delayRender('News minute font') : null));
-  React.useEffect(() => {
-    if (hold === null) return;
-    const loads = Array.isArray(data?.fontLoads) ? data.fontLoads : [];
-    Promise.all(loads.map((f) => document.fonts.load(String(f)))).then(() => document.fonts.ready).then(() => continueRender(hold)).catch(cancelRender);
-  }, [hold]);
-  return css ? <style>{css}</style> : null;
-}
-
-// Fallback scene when no photo or number fits: the sentence's key phrase on a white media window
-// (the data-card look), with a yellow highlighter sweeping under it and an optional grey sub line.
-// Use '\n' in `text` for a manual line break.
+// Fallback scene when no photo or number fits: the key sentence (72/800 ink, '\n' for a line break)
+// centred on the paper, one line after another. [word] turns crimson, {phrase} gets the ochre brush
+// once its line has settled. Optional scene `title` (+ double gold rule) top-left, `sub` as a smaller
+// grey line under the sentence, `source` bottom-right.
 export default function TextCard({ data }) {
-  const fontFace = useEmbeddedFont(data);
-  const frame = useCurrentFrame();
-  const { width, fps } = useVideoConfig();
-  const k = width / 1080;
-  const family = typeof data?.fontFamily === 'string' ? data.fontFamily.trim() : '';
-  const fontFamily = family === '' ? FALLBACK : '"' + family + '", ' + FALLBACK;
-  const top = Number(data?.windowTop ?? 480);
-  const height = Number(data?.windowHeight ?? 920);
-  const text = String(data?.text ?? '');
+  const s = useScene(data);
+  const k = s.k;
+  const title = String(data?.title ?? '');
   const sub = String(data?.sub ?? '');
-  const source = String(data?.source ?? '');
-  const longest = Math.max(1, ...text.split('\n').map((l) => l.length));
-  const size = Math.min(Number(data?.fontSize ?? 84), 900 / Math.max(6, Math.min(longest, 12)));
-  const ease = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic) };
-  const rise = interpolate(frame, [0, Math.round(fps * 0.25)], [0, 1], ease);
-  const sweep = interpolate(frame, [Math.round(fps * 0.3), Math.round(fps * 0.9)], [0, 100], ease);
-  const subIn = interpolate(frame, [Math.round(fps * 0.5), Math.round(fps * 0.75)], [0, 1], ease);
-  const mark = String(data?.highlightColor ?? 'rgba(255,215,0,0.8)');
+  const lines = String(data?.text ?? '').split('\n').filter((l) => l.trim() !== '');
+  // One size for every line: the longest decides, between 56 and the requested size.
+  const want = Number(data?.fontSize ?? 72);
+  const size = Math.max(Math.min(want, 56), Math.min(want, ...lines.map((l) => (X1 - X0) / Math.max(0.01, ems(plainText(l))))));
+  const lh = size * 1.32;
+  const top = title ? 150 : 0;
+  const block = lines.length * lh + (sub ? 36 + 44 : 0);
+  const y0 = top + (794 - top - block) / 2;
+  const at = (i) => (title ? 0.5 : 0.1) + 0.35 * i;
   return (
-    <div style={{ position: 'absolute', left: 0, top: top * k, width: 1080 * k, height: height * k, background: String(data?.background ?? '#FDFDFD'), pointerEvents: 'none' }}>
-      {fontFace}
-      <div style={{ position: 'absolute', left: 80 * k, right: 80 * k, top: 0, bottom: 120 * k, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-        <div style={{ fontFamily, fontWeight: 900, fontSize: size * k, lineHeight: 1.3, letterSpacing: -2 * k, color: String(data?.textColor ?? '#222222'), whiteSpace: 'pre-line', opacity: rise, transform: 'translateY(' + (1 - rise) * 24 * k + 'px)' }}>
-          <span style={{ backgroundImage: 'linear-gradient(transparent 60%, ' + mark + ' 60%, ' + mark + ' 92%, transparent 92%)', backgroundRepeat: 'no-repeat', backgroundSize: sweep + '% 100%', boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone', padding: '0 ' + 6 * k + 'px' }}>{text}</span>
-        </div>
-        {sub ? <div style={{ fontFamily, fontWeight: 500, fontSize: 40 * k, lineHeight: 1.35, color: '#6B6B6B', marginTop: 36 * k, opacity: subIn, whiteSpace: 'pre-line' }}>{sub}</div> : null}
-      </div>
-      {source ? <div style={{ position: 'absolute', right: 65 * k, top: 760 * k, fontFamily, fontWeight: 500, fontSize: 26 * k, color: '#8A8A8A' }}>{source}</div> : null}
-    </div>
+    <Win s={s} data={data}>
+      <Header s={s} title={title} subtitle="" />
+      {lines.map((l, i) => <Say key={i} s={s} text={l} x={540} y={y0 + lh * (i + 0.5)} t0={at(i)} size={size} anchor="c" />)}
+      {sub ? (
+        <Rise s={s} t0={at(lines.length)} dy={10} x={540} y={y0 + lines.length * lh + 36 + 22}>
+          <div style={{ fontSize: 36 * k, fontWeight: 600, color: C.gray }}>{sub}</div>
+        </Rise>
+      ) : null}
+      <Source s={s} text={String(data?.source ?? '')} />
+    </Win>
   );
 }
