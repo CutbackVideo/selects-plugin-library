@@ -2098,6 +2098,8 @@ function GalleryPanel({ sdk, context, ui }) {
   const [unknown, setUnknown] = React.useState(false);
   const [status, setStatus] = React.useState(null);
   const [savedTarget, setSavedTarget] = React.useState(null);
+  const [resourceRevision, setResourceRevision] = React.useState(0);
+  const resourceScope = React.useRef(null), inventoryState = React.useRef(null);
   const running = React.useRef(false);
   const alive = React.useRef(true);
   const musicScope = React.useRef(null);
@@ -2123,6 +2125,7 @@ function GalleryPanel({ sdk, context, ui }) {
   const missingMotion = assigned === 21 ? [...REFERENCE_VIDEO_SLOTS].filter(number =>
     inventory.media.find(item => item.resourceId === slots[number - 1].resourceId)?.kind !== 'video') : [];
   const sameContext = (projectId, sequenceId) => alive.current && current.current.projectId === projectId && current.current.sequenceId === sequenceId;
+  inventoryState.current = { inventory, slots, musicChoice, key, ready };
 
   React.useEffect(() => {
     // The host opens this new Draft during Create. Retain its frozen inputs
@@ -2136,23 +2139,76 @@ function GalleryPanel({ sdk, context, ui }) {
     setEstimated(null); setUnknown(false); setSavedTarget(null); setStatus(null);
   }, [context.projectId, context.sequenceId]);
 
+  React.useEffect(() => {
+    const scope = { projectId: context.projectId, pending: false, active: false, closed: false, revision: 0 };
+    resourceScope.current = scope;
+    const unsubscribe = scope.projectId && typeof sdk.on === 'function' ? sdk.on('resourcesChanged', event => {
+      if (event?.projectId !== scope.projectId || scope.closed || !(event.added?.length || event.removed?.length)) return;
+      scope.pending = true; scope.revision++; setResourceRevision(value => value + 1);
+    }) : null;
+    return () => { scope.closed = true; unsubscribe?.(); if (resourceScope.current === scope) resourceScope.current = null; };
+  }, [sdk, context.projectId]);
+
+  React.useEffect(() => {
+    const scope = resourceScope.current;
+    // Imports made by an in-progress Create must not change its frozen inputs
+    // or its save verification. Coalesce them until that operation settles.
+    if (!scope || scope.closed || !scope.pending || scope.active || running.current || busy || !ready) return;
+    scope.pending = false; scope.active = true;
+    const projectId = context.projectId, sequenceId = context.sequenceId, requestedKey = key, revision = scope.revision;
+    const live = () => !scope.closed && resourceScope.current === scope && sameContext(projectId, sequenceId);
+    (async () => {
+      try {
+        const next = await readInventory(projectId, () => live() && scope.revision === revision && !running.current);
+        if (!live()) return;
+        if (scope.revision !== revision || running.current || inventoryState.current.key !== requestedKey) { scope.pending = true; return; }
+        const before = inventoryState.current;
+        const sameSource = (old, fresh) => old && fresh && old.path === fresh.path && old.kind === fresh.kind;
+        const changed = before.slots.some(slot => slot.resourceId && !sameSource(before.inventory.media.find(row => row.resourceId === slot.resourceId), next.media.find(row => row.resourceId === slot.resourceId)));
+        const selectedAudio = !['bundled', 'none'].includes(before.musicChoice);
+        const oldAudio = before.inventory.audio.find(row => row.resourceId === before.musicChoice), newAudio = next.audio.find(row => row.resourceId === before.musicChoice);
+        if (changed || selectedAudio && (!oldAudio || !newAudio || oldAudio.path !== newAudio.path)) {
+          // Preserve the choice for inspection; never retarget a tile or drop
+          // its selected music silently when aliases or membership changed.
+          setLoadedKey(''); setStatus({ tone: 'error', text: t.changed }); return;
+        }
+        setInventory(next);
+      } catch (error) {
+        if (live() && !running.current) setStatus({ tone: 'error', text: t.failed + ' ' + String(error?.message || error) });
+      } finally {
+        scope.active = false;
+        if (!scope.closed && resourceScope.current === scope && scope.pending) setResourceRevision(value => value + 1);
+      }
+    })();
+  }, [sdk, resourceRevision, busy, ready, key]);
+
   function updateSlot(patch) {
     setSlots(previous => previous.map((item, i) => i === slotIndex ? { ...item, ...patch } : item));
+  }
+
+  function deferActiveRefresh() {
+    const scope = resourceScope.current;
+    if (scope?.active) { scope.pending = true; scope.revision++; }
+  }
+
+  async function readInventory(projectId, isCurrent = () => true) {
+    const input = { operation: 'inspect', projectId };
+    const response = await readMediaPages(sdk, { script: buildScript(input), summary: 'Inspect Photo Gallery project', allowCommit: false });
+    if (!isCurrent()) return null;
+    if (response.isError || response.result?.status !== 'inspected' || !Array.isArray(response.result.media) || !Array.isArray(response.result.audio)) throw new Error(response.result?.message || response.output || t.failed);
+    const native = await galleryNativeResources(sdk, projectId, response.result.media);
+    return { ...response.result, media: native.selected.map(({ nativeResource, ...item }) => item) };
   }
 
   async function load() {
     if (running.current || !context.projectId) return;
     const projectId = context.projectId, sequenceId = context.sequenceId, requestedKey = key;
+    deferActiveRefresh();
     running.current = true; setBusy(true); setStatus(null);
     try {
-      const input = { operation: 'inspect', projectId };
-      const response = await readMediaPages(sdk, { script: buildScript(input), summary: 'Inspect Photo Gallery project', allowCommit: false });
-      if (response.isError || response.result?.status !== 'inspected' || !Array.isArray(response.result.media) || !Array.isArray(response.result.audio)) {
-        throw new Error(response.result?.message || response.output || t.failed);
-      }
-      const native = await galleryNativeResources(sdk, projectId, response.result.media);
+      const next = await readInventory(projectId);
       if (!sameContext(projectId, sequenceId) || requestedKey !== key) { setStatus({ tone: 'error', text: t.changed }); return; }
-      setInventory({ ...response.result, media: native.selected.map(({ nativeResource, ...item }) => item) }); setLoadedKey(requestedKey);
+      setInventory(next); setLoadedKey(requestedKey);
       setSlots(emptySlots()); setName('Photo Grid Reveal'); setDurationFrames(853);
       setMusicChoice('bundled'); setManualEnabled(true); setManualBpm(113); setEstimated(null);
       setStatus(null);
@@ -2189,6 +2245,7 @@ function GalleryPanel({ sdk, context, ui }) {
 
   async function estimateOnClick() {
     if (running.current || !selectedMusic) return;
+    deferActiveRefresh();
     running.current = true; setBusy(true); setStatus(null);
     let scope;
     try { scope=beginMusicScope();const {bpm} = await estimateMusic(selectedMusic,scope);if(scope.isCurrent())setStatus({ tone: 'success', text: t.estimated + ': ' + bpm }); }
@@ -2222,6 +2279,7 @@ function GalleryPanel({ sdk, context, ui }) {
       if (!input.name || input.media.some(item => !item.resourceId)) throw new Error(t.missing);
       if (input.media.some(item => !Number.isSafeInteger(item.width) || !Number.isSafeInteger(item.height))) throw new Error('A selected tile has no verified dimensions');
     } catch (error) { setStatus({ tone: 'error', text: String(error?.message || error) }); return; }
+    deferActiveRefresh();
     running.current = true; setBusy(true); setStatus(null);
     let dispatched = false;
     const isCurrent = () => sameContext(projectId, sequenceId) && requestedKey === key;

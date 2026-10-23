@@ -17,7 +17,7 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http:
 Object.assign(globalThis, { window: dom.window, document: dom.window.document,
   HTMLElement: dom.window.HTMLElement, MutationObserver: dom.window.MutationObserver });
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.window.navigator });
-const { render, fireEvent, waitFor, cleanup } = appRequire('@testing-library/react');
+const { render, fireEvent, waitFor, cleanup, act } = appRequire('@testing-library/react');
 test.afterEach(() => cleanup());
 
 const template = fs.readFileSync(process.env.GALLERY_PANEL_TEMPLATE || path.join(import.meta.dirname, 'panel.template.tsx'), 'utf8');
@@ -69,6 +69,7 @@ const photos = Array.from({ length: 21 }, (_, i) => ({ resourceId: `r${i}`, name
   kind: 'image', width: 1000, height: 1000, path: `/fixture/photo-${i + 1}.jpg` }));
 function harness(media = photos, options = {}) {
   const calls = [], nativeCalls = [];
+  const resourceListeners = new Set();
   let savedSourceGuard;
   globalThis.__native = {
     fps:async()=>options.fps??60,
@@ -134,6 +135,7 @@ function harness(media = photos, options = {}) {
       } },
   };
   const sdk = {
+    on(name, listener) { assert.equal(name,'resourcesChanged');resourceListeners.add(listener);return()=>resourceListeners.delete(listener); },
     maxScriptTimeoutSeconds:options.maxScriptTimeoutSeconds??120,
     ...asyncSdk(dom.window.__DI__),
     runShell: async request => {
@@ -149,11 +151,13 @@ function harness(media = photos, options = {}) {
       const paged = request.script.startsWith('const value=await(async()=>{');
       const input = JSON.parse(paged ? request.script.slice('const value=await(async()=>{'.length, request.script.indexOf('\n})();const array')) : request.script);
       calls.push({ input, allowCommit: request.allowCommit, timeoutSeconds: request.timeoutSeconds });
+      const inventorySnapshot=input.operation==='inspect'?{media:structuredClone(media),audio:structuredClone(options.audio??[])}:null;
+      await options.beforeOperation?.(input);
       if (input.operation === options.failOperation) return { isError: true, output: options.failOutput };
       if (options.coldBudget && ((input.operation === 'placeVideosExisting' && input.slotKeys?.length !== 1) ||
           (input.operation === 'styleExisting' && !(input.slotKeys?.length <= 3)))) return { isError: true, output: 'Script deadline of 30s exceeded' };
       if (input.operation === 'inspect') {
-        const value = { status: 'inspected', projectId: 'project-1', media, audio: options.audio ?? [] };
+        const value = { status: 'inspected', projectId: 'project-1', ...inventorySnapshot };
         return { result: paged ? { array: false, page: value, total: Math.max(media.length, value.audio.length) } : value };
       }
       if (input.operation === 'verifyInputs') return options.inputFailure ? { result: { status: 'notSaved', message: 'The original photo file is missing: Tile 1', code: 'image-source-missing' } } : { result: { status: 'inputsReady', media: input.media, music: input.music } };
@@ -174,7 +178,7 @@ function harness(media = photos, options = {}) {
   };
   const view = render(React.createElement(Panel, { sdk,
     context: { projectId: 'project-1', sequenceId: null, language: 'en' }, ui: kit() }));
-  return { view, calls, nativeCalls, sdk, changeAudio:(file,bytes)=>disk.set(file,bytes), changeSequence: sequenceId => view.rerender(React.createElement(Panel, { sdk,
+  return { view, calls, nativeCalls, sdk, resourceListeners,emitResources:(event={})=>act(()=>{for(const listener of resourceListeners)listener({projectId:'project-1',added:['new-native-id'],removed:[],...event});}),changeProject: projectId=>view.rerender(React.createElement(Panel,{sdk,context:{projectId,sequenceId:null,language:'en'},ui:kit()})),changeAudio:(file,bytes)=>disk.set(file,bytes), changeSequence: sequenceId => view.rerender(React.createElement(Panel, { sdk,
     context: { projectId: 'project-1', sequenceId, language: 'en' }, ui: kit() })) };
 }
 async function assignAndCreate(view) {
@@ -356,6 +360,119 @@ test('opening the newly created Draft preserves panel inputs and its saved targe
   await waitFor(() => assert.match(h.view.container.textContent, /Saved and read back all 21 tiles/));
   assert.equal(h.view.getByLabelText('Photo or video').value, 'r0');
   assert.ok(h.view.getByRole('button', { name: 'Open saved Draft' }));
+});
+
+const addedPhoto=()=>({resourceId:'added-photo',name:'Added photo',kind:'image',width:640,height:960,path:'/fixture/added-photo.jpg'});
+const inspectCalls=h=>h.calls.filter(call=>call.input.operation==='inspect').length;
+async function loadAndAssign(h){
+ fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));
+ fireEvent.click(await waitFor(()=>h.view.getByRole('button',{name:'Assign all 21 in listed order'})));
+}
+
+test('resource additions refresh choices without resetting the selected tiles or settings',{timeout:3000},async()=>{
+ const media=[...photos],h=harness(media,{audio:[{resourceId:'custom',name:'Custom',path:'/custom.mp3',durationFrames:900}]});await loadAndAssign(h);
+ fireEvent.change(h.view.getByLabelText('Music'),{target:{value:'custom'}});
+ fireEvent.change(h.view.getByLabelText('BPM'),{target:{value:'137'}});
+ fireEvent.change(h.view.getByLabelText('Video length'),{target:{value:'8.5'}});
+ fireEvent.change(h.view.getByLabelText('Draft name'),{target:{value:'Keep this edit'}});
+ fireEvent.change(h.view.getByLabelText('Horizontal focus'),{target:{value:'0.25'}});
+ media.push(addedPhoto());h.emitResources();
+ await waitFor(()=>assert.ok(h.view.queryByRole('option',{name:'Added photo · image'})));
+ assert.equal(h.view.getByLabelText('Photo or video').value,'r0');assert.equal(h.view.getByLabelText('Horizontal focus').value,'0.25');
+ assert.equal(h.view.getByLabelText('Music').value,'custom');assert.equal(h.view.getByLabelText('BPM').value,'137');
+ assert.equal(h.view.getByLabelText('Video length').value,'8.5');assert.equal(h.view.getByLabelText('Draft name').value,'Keep this edit');
+ fireEvent.change(h.view.getByLabelText('Photo or video'),{target:{value:'added-photo'}});assert.equal(h.view.getByLabelText('Photo or video').value,'added-photo');
+ assert.equal(h.calls.some(call=>call.allowCommit),false);
+});
+
+test('resource events are project scoped and subscriptions end with the panel',{timeout:3000},async()=>{
+ const h=harness([...photos]);await loadAndAssign(h);assert.equal(h.resourceListeners.size,1);
+ const before=inspectCalls(h);h.emitResources({projectId:'other'});h.emitResources({added:[],removed:[]});
+ await new Promise(resolve=>setTimeout(resolve,30));assert.equal(inspectCalls(h),before);
+ h.view.unmount();assert.equal(h.resourceListeners.size,0);h.emitResources();assert.equal(inspectCalls(h),before);
+});
+
+test('resource changes during creation wait for verification and preserve its saved target',{timeout:3000},async()=>{
+ let enter,release;const entered=new Promise(resolve=>{enter=resolve;}),gate=new Promise(resolve=>{release=resolve;}),media=[...photos];
+ const h=harness(media,{beforeOperation:async input=>{if(input.operation==='create'){enter();await gate;}}});
+ await assignAndCreate(h.view);await entered;const before=inspectCalls(h);media.push(addedPhoto());
+ h.emitResources();h.emitResources();h.emitResources();await new Promise(resolve=>setTimeout(resolve,20));
+ assert.equal(inspectCalls(h),before);assert.equal(h.view.getByLabelText('Photo or video').disabled,true);
+ release();await waitFor(()=>assert.ok(h.view.queryByRole('option',{name:'Added photo · image'})));
+ assert.equal(inspectCalls(h),before+1);assert.match(h.view.container.textContent,/Saved and read back all 21 tiles/);
+ assert.ok(h.view.getByRole('button',{name:'Open saved Draft'}));assert.equal(h.calls.filter(call=>call.input.operation==='create').length,1);
+ assert.equal(h.calls.find(call=>call.input.operation==='create').input.media.length,21);
+});
+
+test('a resource refresh that finishes after project navigation cannot repopulate the old panel',{timeout:3000},async()=>{
+ let enter,release;const entered=new Promise(resolve=>{enter=resolve;}),gate=new Promise(resolve=>{release=resolve;}),media=[...photos];let inspections=0;
+ const h=harness(media,{beforeOperation:async input=>{if(input.operation==='inspect'&&++inspections===2){enter();await gate;}}});await loadAndAssign(h);
+ media.push(addedPhoto());h.emitResources();await entered;h.changeProject('project-2');release();
+ await new Promise(resolve=>setTimeout(resolve,30));assert.equal(h.view.queryByLabelText('Photo or video'),null);
+ assert.equal(h.calls.some(call=>call.allowCommit),false);
+});
+
+test('resource refresh failures retain settings and do not retry without a new event',{timeout:3000},async()=>{
+ const media=[...photos],options={},h=harness(media,options);await loadAndAssign(h);
+ fireEvent.change(h.view.getByLabelText('Draft name'),{target:{value:'Keep after failure'}});
+ options.failOperation='inspect';options.failOutput='Controlled inventory read failed';const before=inspectCalls(h);
+ media.push(addedPhoto());h.emitResources();await waitFor(()=>assert.equal(inspectCalls(h),before+1));
+ await new Promise(resolve=>setTimeout(resolve,30));assert.equal(inspectCalls(h),before+1);assert.equal(h.view.getByLabelText('Photo or video').value,'r0');assert.equal(h.view.getByLabelText('Draft name').value,'Keep after failure');
+ options.failOperation=null;h.emitResources();await waitFor(()=>assert.ok(h.view.queryByRole('option',{name:'Added photo · image'})));
+});
+
+test('a resource ID rebound to another path cannot silently replace a selected photo',{timeout:3000},async()=>{
+ const media=[...photos],h=harness(media);await assignAndCreate(h.view);
+ await waitFor(()=>assert.ok(h.view.queryByRole('button',{name:'Open saved Draft'})));
+ media[0]={...media[0],path:'/fixture/different-original.jpg'};media.push(addedPhoto());h.emitResources();
+ await waitFor(()=>assert.equal(!!h.view.queryByRole('button',{name:'Create Draft'}),false));
+ assert.ok(h.view.getByRole('button',{name:'Open saved Draft'}));assert.equal(h.calls.filter(call=>call.input.operation==='create').length,1);
+});
+
+test('manual Load supersedes a pending automatic refresh without publishing its older response',{timeout:3000},async()=>{
+ let enterOld,releaseOld,enterLatest,releaseLatest;const oldEntered=new Promise(r=>{enterOld=r;}),oldGate=new Promise(r=>{releaseOld=r;}),latestEntered=new Promise(r=>{enterLatest=r;}),latestGate=new Promise(r=>{releaseLatest=r;});let reads=0;
+ const media=[...photos],h=harness(media,{beforeOperation:async input=>{if(input.operation==='inspect'){reads++;if(reads===2){enterOld();await oldGate;}if(reads===4){enterLatest();await latestGate;}}}});await loadAndAssign(h);
+ media.push(addedPhoto());h.emitResources();await oldEntered;
+ const newest={...addedPhoto(),resourceId:'newest',name:'Newest photo',path:'/fixture/newest.jpg'};media.push(newest);
+ fireEvent.click(h.view.getByRole('button',{name:'Load project media'}));await waitFor(()=>assert.ok(h.view.queryByRole('option',{name:'Newest photo · image'})));
+ releaseOld();await latestEntered;assert.ok(h.view.queryByRole('option',{name:'Newest photo · image'}));releaseLatest();
+ await waitFor(()=>assert.equal(inspectCalls(h),4));assert.equal(h.view.getByLabelText('Photo or video').value,'');
+ assert.equal(h.calls.some(call=>call.allowCommit),false);
+});
+
+test('Create freezes the chosen tiles while an older inventory response settles',{timeout:3000},async()=>{
+ let enterRead,releaseRead,enterCreate,releaseCreate;const readEntered=new Promise(r=>{enterRead=r;}),readGate=new Promise(r=>{releaseRead=r;}),createEntered=new Promise(r=>{enterCreate=r;}),createGate=new Promise(r=>{releaseCreate=r;});let reads=0;
+ const media=[...photos],h=harness(media,{beforeOperation:async input=>{if(input.operation==='inspect'&&++reads===2){enterRead();await readGate;}if(input.operation==='create'){enterCreate();await createGate;}}});await loadAndAssign(h);
+ fireEvent.change(h.view.getByLabelText('Music'),{target:{value:'none'}});media.push(addedPhoto());h.emitResources();await readEntered;
+ fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));await createEntered;releaseRead();await new Promise(r=>setTimeout(r,20));
+ assert.equal(!!h.view.queryByRole('option',{name:'Added photo · image'}),false);assert.equal(h.view.getByLabelText('Photo or video').value,'r0');
+ releaseCreate();await waitFor(()=>assert.ok(h.view.queryByRole('option',{name:'Added photo · image'})));
+ assert.equal(inspectCalls(h),3);assert.ok(h.view.getByRole('button',{name:'Open saved Draft'}));assert.equal(h.calls.find(call=>call.input.operation==='create').input.media.length,21);
+});
+
+for(const action of ['unmount','sequence change'])test('a pending inventory response is discarded after '+action,{timeout:3000},async()=>{
+ let enter,release;const entered=new Promise(r=>{enter=r;}),gate=new Promise(r=>{release=r;});let reads=0;
+ const media=[...photos],h=harness(media,{beforeOperation:async input=>{if(input.operation==='inspect'&&++reads===2){enter();await gate;}}});await loadAndAssign(h);
+ const before=h.nativeCalls.length;media.push(addedPhoto());h.emitResources();await entered;
+ if(action==='unmount')h.view.unmount();else h.changeSequence('different-draft');release();await new Promise(r=>setTimeout(r,30));
+ assert.equal(h.nativeCalls.length,before,'no native mapping query after the stale inspect response');
+ if(action==='unmount')assert.equal(h.resourceListeners.size,0);else assert.equal(!!h.view.queryByLabelText('Photo or video'),false);
+ assert.equal(h.calls.some(call=>call.allowCommit),false);
+});
+
+test('removing a selected source invalidates Create while retaining the saved Draft link',{timeout:3000},async()=>{
+ const media=[...photos],h=harness(media);await assignAndCreate(h.view);await waitFor(()=>assert.ok(h.view.queryByRole('button',{name:'Open saved Draft'})));
+ media.splice(0,1);h.emitResources({added:[],removed:['native-r0']});
+ await waitFor(()=>assert.equal(!!h.view.queryByRole('button',{name:'Create Draft'}),false));assert.ok(h.view.getByRole('button',{name:'Open saved Draft'}));
+ assert.equal(h.calls.filter(call=>call.input.operation==='create').length,1);
+});
+
+test('adding a photo after an uncertain save preserves the duplicate-save lock and prior saved target',{timeout:3000},async()=>{
+ const media=[...photos],options={},h=harness(media,options);await assignAndCreate(h.view);await waitFor(()=>assert.match(h.view.container.textContent,/Saved and read back all 21 tiles/));
+ options.placeError='Controlled uncertain second save';fireEvent.click(h.view.getByRole('button',{name:'Create Draft'}));await waitFor(()=>assert.match(h.view.container.textContent,/Save outcome is unknown/));
+ media.push(addedPhoto());h.emitResources();await waitFor(()=>assert.ok(h.view.queryByRole('option',{name:'Added photo · image'})));
+ assert.equal(h.view.getByRole('button',{name:'Create Draft'}).disabled,true);assert.ok(h.view.getByRole('button',{name:'Open saved Draft'}));
+ assert.match(h.view.container.textContent,/Save outcome is unknown/);assert.equal(h.calls.filter(call=>call.input.operation==='create').length,2);
 });
 
 test('one Create action uses bundled B2 by default with reference timing and credit', async () => {
