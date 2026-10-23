@@ -253,7 +253,7 @@
         "input": "Mono Float32 samples, sample rate in Hz and engine policy constants. The development CLI accepts a raw float32 PCM path, sample rate and optional JSON output path.",
         "output": "BPM, accepted/approximate/none grid, firstBeat/duration seconds, beat energy, peaks and band onset data.",
         "identity": "Sample clock is file-relative, not Draft frames or a Resource id; file provenance must be supplied by the caller/asset owner.",
-        "dependencies": "FFT/onset/confidence/consistency thresholds; caller OWN_RATE 22050 Hz, own-music maximum 240 seconds and worker protocol.",
+        "dependencies": "FFT/onset/confidence/consistency thresholds; caller OWN_RATE 22050 Hz, own-music maximum 240 seconds and worker protocol. CLI-only process is explicitly required from node:process; browser guards stay inactive. Numerical parity, CLI stdout/file/error behavior and zero browser Node IO are regression-tested.",
         "effects": "analyze is numerical work. The require.main CLI reads raw float32 PCM, emits JSON, and can write the explicitly supplied output path. The browser worker supplies inert require so that CLI branch cannot run.",
         "lifetime": "One worker request; time/cancel/resources belong to analysis-worker, not the engine.",
         "cleanup": "No original source deletion. CLI output follows its explicit development command; PCM/native staging in the panel belongs to bundled-assets.",
@@ -815,12 +815,12 @@
   "files": [
     {
       "path": "plugins/mini-vlog/beat-detect.cjs",
-      "sha256": "0ae347181e05700cd48ab541039e1e7d0c3cf41f16a21fe6de48dc3298fbfa12",
+      "sha256": "8b1a651b2084d6acd05f7c457d6d381022e7d1954f15a0b629cc18a84b66e94e",
       "role": "runtime",
       "ranges": [
         {
           "startLine": 2,
-          "endLine": 446,
+          "endLine": 447,
           "feature": "audio-beat-engine"
         }
       ],
@@ -1556,13 +1556,13 @@
     },
     {
       "path": "shared/audio-beat-analysis.cjs",
-      "sha256": "0ae347181e05700cd48ab541039e1e7d0c3cf41f16a21fe6de48dc3298fbfa12",
+      "sha256": "8b1a651b2084d6acd05f7c457d6d381022e7d1954f15a0b629cc18a84b66e94e",
       "hashMode": "lf-text",
       "role": "build-source",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 446,
+          "endLine": 447,
           "feature": "audio-beat-engine"
         }
       ]
@@ -1608,13 +1608,13 @@
     },
     {
       "path": "tests/audio_beat_engine.test.mjs",
-      "sha256": "01fe92ec8cfdeb2326e96f58ff15fdf07df46c1ba6d1d3df884346b25870ca50",
+      "sha256": "edb17220cd2e0e04f3ecc9a7deaccdaeb3b37d123dfeeb7e9cbcdefd164a534a",
       "hashMode": "lf-text",
       "role": "validation",
       "ranges": [
         {
           "startLine": 1,
-          "endLine": 24,
+          "endLine": 32,
           "feature": "test-harness"
         }
       ]

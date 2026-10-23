@@ -61,3 +61,20 @@ before this repair and no undefined names afterward; no SDK/UI call is made by
 that static check. Logs: `C-08-asset-closure-red.log`,
 `C-08-asset-closure-package.log`, and `C-08-actual-panel-check.json` in the same
 local evidence directory.
+
+## Actual PanelHost event delivery
+
+A uniquely named, task-owned local panel used the repaired production generated
+body with display-name comments only. No existing installed package was changed.
+Through the official Clip highlights UI, the real PanelHost loaded project media
+and selected photo-1.png. An existing SDK import added one owned PNG while that
+panel remained open: its options automatically changed from eight to nine and
+the new PNG could be selected, without an injected event or another Load click.
+The prior source choice, music-off, BPM 147, title and duration remained intact.
+AX readbacks and a screenshot are retained in C-08-actual-panel-result.json and
+its referenced files. A full new 21-tile save was not part of this UI check.
+
+An earlier diagnostic used an unsupported synchronous IPC name and hung only the
+owned test renderer. That harness mistake is preserved separately; the owned
+session was stopped, its bundle remnants cleaned, and the saved data reopened
+before the successful UI run. No application source repair is inferred.
