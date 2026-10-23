@@ -14,7 +14,7 @@ import { applyStatus, canResumeImport, ttsKey, ttsNext, ttsRevision, type TtsRec
 import { fallbackPlan, hiddenCaptionSentences, sceneClips, type PhotoAsset } from "./plan.ts";
 import { baseDraftScript, overlayTextScript, sceneScripts } from "./assemble.ts";
 
-export type Env = { platform: string; sep: string; dir: string; projectId: string | null };
+export type Env = { platform: string; sep: string; dir: string; tmp: string; projectId: string | null };
 export type Line = { id: string; text: string; sourceQuote: string; issues: Array<{ kind: string; note: string }>; rewritten: boolean; edited?: boolean };
 export type Script = { headline: { line1: string; line2: string; accent?: string }; sentences: Line[] };
 export type Session = {
@@ -33,12 +33,14 @@ export const emptySession = (presetId = "chosun"): Session => ({ presetId, voice
 export type Log = (key: string, vars?: Record<string, string | number>) => void;
 
 const join = (env: Env, ...parts: string[]) => [env.dir, ...parts].join(env.sep);
+// Downloads and intermediate files go to the system temp folder (the host only removes files there).
+const tmpPath = (env: Env, name: string) => [env.tmp.replace(/[\\/]+$/, ""), "news-minute-" + name].join(env.sep);
 const promptArticle = (a: Article): PromptArticle => ({ title: a.title, source: a.source, date: a.date, body: a.body });
 
 export const getEnv = (sdk: PanelSdk) => run<Env>(sdk, envScript());
 
 export async function fetchArticle(sdk: PanelSdk, env: Env, url: string): Promise<Article> {
-  const path = join(env, "page-" + Date.now() + ".html");
+  const path = tmpPath(env, "page-" + Date.now() + ".html");
   await run(sdk, downloadScript(url, path));
   try {
     const bytes = await readFileBytes(sdk, path);
@@ -165,7 +167,7 @@ async function prepPhotos(sdk: PanelSdk, env: Env, article: Article, log: Log): 
   const out: PhotoAsset[] = [];
   for (const p of article.photos.slice(0, 6)) {
     const stamp = Date.now();
-    const src = join(env, `photo-${stamp}-${p.ref}.img`), jpg = join(env, `photo-${stamp}-${p.ref}.jpg`);
+    const src = tmpPath(env, `photo-${stamp}-${p.ref}.img`), jpg = tmpPath(env, `photo-${stamp}-${p.ref}.jpg`);
     try {
       await run(sdk, downloadScript(p.url, src));
       await ffmpeg(sdk, "Prepare an article photo", photoArgs(src, jpg));

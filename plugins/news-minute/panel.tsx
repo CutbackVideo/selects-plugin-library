@@ -242,9 +242,10 @@ var envScript = () => ({
 const sep = /^win/i.test(env.platform) ? "\\\\" : "/";
 const dir = [env.homedir, ".selects", "plugin-data", "news-minute"].join(sep);
 await selects.files.mkdir(dir, { recursive: true });
-let projectId = null;
+let projectId: string | null = null;
 try { const s = await selects.editor.state(); projectId = s && s.projectId ? s.projectId : null; } catch (e) { projectId = null; }
-return { platform: env.platform, sep, dir, projectId };`
+const tmp = env.tempDirectory;
+return { platform: env.platform, sep, dir, tmp, projectId };`
 });
 var createProjectScript = () => ({
   summary: "Create a Project for the news short",
@@ -260,7 +261,7 @@ return { size: st ? st.size : 0 };`
 });
 var readChunksScript = (path, offset, count) => ({
   summary: "Read a downloaded file",
-  script: `const out = [];
+  script: `const out: string[] = [];
 let offset = ${J(offset)};
 for (let i = 0; i < ${J(count)}; i++) {
   const r = await selects.files.readRange({ path: ${J(path)}, offset, length: ${READ_CHUNK} });
@@ -289,7 +290,7 @@ var ffmpegScript = (summary, args) => ({
 var mediaJobScript = (jobId, cursor) => ({
   summary: "Check a media job",
   script: `const s = await selects.media.job(${J(jobId)}).status({ cursor: ${J(cursor)} });
-return { state: s.state, events: (s.events || []).map((e) => ({ cursor: e.cursor, text: String(e.text || "").slice(-400) })), truncated: !!s.truncated };`
+return { state: s.state, events: (s.events || []).map((e: any) => ({ cursor: e.cursor, text: String(e.text || "").slice(-400) })), truncated: !!s.truncated };`
 });
 var existsScript = (path) => ({
   summary: "Check a file",
@@ -342,7 +343,7 @@ var narrationStatusScript = (workflowId) => ({
   script: `const j = selects.narration.job(${J(workflowId)});
 const s = await j.status();
 const r = await j.result();
-return { status: { status: s.status, step: s.step, lastErrorMessage: s.lastErrorMessage, importErrorCode: s.importErrorCode || null, resourceId: s.resourceId || null }, result: r };`
+return { status: { status: s.status, step: s.step, lastErrorMessage: s.lastErrorMessage, importErrorCode: s.importErrorCode || null, resourceId: (s as any).resourceId || null }, result: r };`
 });
 var resumeImportScript = (workflowId) => ({
   summary: "Finish importing the narration",
@@ -352,8 +353,8 @@ var resumeImportScript = (workflowId) => ({
 var alignmentScript = (projectId, resourceId) => ({
   summary: "Read the narration timing",
   script: `const h = selects.project(${J(projectId)}).resource(${J(resourceId)});
-const chars = [];
-let cursor;
+const chars: any[] = [];
+let cursor: string | undefined;
 for (let i = 0; i < 100; i++) {
   const a = await h.speechAlignment({ cursor, limit: 1000 });
   if (!a) return null;
@@ -1865,10 +1866,11 @@ return { captions: i };`
 var SESSION_KEY = "session";
 var emptySession = (presetId = "chosun") => ({ presetId, voiceId: DEFAULT_VOICE, article: null, script: null, scriptErrors: [], approved: null, projectId: null, draftId: null });
 var join = (env, ...parts) => [env.dir, ...parts].join(env.sep);
+var tmpPath = (env, name) => [env.tmp.replace(/[\\/]+$/, ""), "news-minute-" + name].join(env.sep);
 var promptArticle = (a) => ({ title: a.title, source: a.source, date: a.date, body: a.body });
 var getEnv = (sdk) => run(sdk, envScript());
 async function fetchArticle(sdk, env, url) {
-  const path = join(env, "page-" + Date.now() + ".html");
+  const path = tmpPath(env, "page-" + Date.now() + ".html");
   await run(sdk, downloadScript(url, path));
   try {
     const bytes = await readFileBytes(sdk, path);
@@ -1994,7 +1996,7 @@ async function prepPhotos(sdk, env, article, log) {
   const out = [];
   for (const p of article.photos.slice(0, 6)) {
     const stamp = Date.now();
-    const src = join(env, `photo-${stamp}-${p.ref}.img`), jpg = join(env, `photo-${stamp}-${p.ref}.jpg`);
+    const src = tmpPath(env, `photo-${stamp}-${p.ref}.img`), jpg = tmpPath(env, `photo-${stamp}-${p.ref}.jpg`);
     try {
       await run(sdk, downloadScript(p.url, src));
       await ffmpeg(sdk, "Prepare an article photo", photoArgs(src, jpg));
@@ -2127,16 +2129,21 @@ function NewsMinutePanel({ sdk, context }) {
     if (!tts || tts.state !== "submitted") return;
     let stop = false;
     (async () => {
-      let rec = tts;
+      let rec = tts, fails = 0;
       while (!stop && rec.state === "submitted") {
         await sleep(3e3);
         if (stop) return;
         try {
           rec = await pollNarration(sdk, rec);
-        } catch {
+          fails = 0;
+        } catch (e) {
+          if (++fails >= 3) setError(T("error", { error: String(e?.message || e) }));
           continue;
         }
-        if (!stop) setTts(rec);
+        if (!stop) {
+          setError("");
+          setTts(rec);
+        }
       }
     })();
     return () => {
@@ -2241,7 +2248,7 @@ function NewsMinutePanel({ sdk, context }) {
         /* @__PURE__ */ jsx("input", { style: input, value: sc.headline.accent ?? "", disabled: busy || approved, onChange: (e) => setHead("accent", e.target.value) })
       ] }),
       sc.sentences.map((x, i) => /* @__PURE__ */ jsxs("div", { style: { display: "flex", flexDirection: "column", gap: 2 }, children: [
-        /* @__PURE__ */ jsx("textarea", { style: { ...input, minHeight: 44 }, value: x.text, disabled: busy || approved, onChange: (e) => setLine(i, e.target.value) }),
+        /* @__PURE__ */ jsx("textarea", { style: input, rows: Math.max(2, Math.ceil([...x.text].length / 11)), value: x.text, disabled: busy || approved, onChange: (e) => setLine(i, e.target.value) }),
         /* @__PURE__ */ jsxs("span", { style: muted, children: [
           T("source"),
           ": ",
